@@ -63,11 +63,11 @@ public sealed partial class SqliteWorkspaceStore
             using var existing = ChatCommand(connection, transaction, "SELECT 1 FROM generation_task WHERE conversation_id=$id AND kind='Title' LIMIT 1", ("$id", conversationId));
             if (existing.ExecuteScalar() is not null) return null;
             var messages = ReadMessages(connection, transaction, conversationId);
-            var firstUser = messages.FirstOrDefault(message => message.Role == MessageRole.User);
-            if (firstUser is null) return null;
-            var answer = messages.LastOrDefault(message => message.ReplyToUserId == firstUser.Id);
-            if (answer?.Status != GenerationStatus.Completed) return null;
-            ChatMessage[] input = [firstUser, answer];
+            var answer = LatestInput(messages).FirstOrDefault(message =>
+                message.Role == MessageRole.Assistant && message.Status == GenerationStatus.Completed);
+            if (answer is null) return null;
+            var user = messages.Single(message => message.Id == answer.ReplyToUserId && message.Role == MessageRole.User);
+            ChatMessage[] input = [user, answer];
             var task = NewGeneration(conversationId, GenerationKind.Title, null, configuration, input, conversation.TitleRevision);
             InsertGeneration(connection, transaction, task);
             return new(task, input);

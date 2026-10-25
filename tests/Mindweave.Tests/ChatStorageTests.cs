@@ -180,6 +180,52 @@ public sealed class ChatStorageTests
         Assert.False(await chat.CompleteTitleAsync(title.Task.Id, "迟到标题"));
     }
 
+    [Theory]
+    [InlineData(GenerationStatus.Failed)]
+    [InlineData(GenerationStatus.Stopped)]
+    [InlineData(GenerationStatus.Interrupted)]
+    public async Task Auto_title_uses_first_successful_effective_pair_after_unsuccessful_first_turn(GenerationStatus unsuccessful)
+    {
+        using var dir = new TestDirectory();
+        await using var store = await SqliteWorkspaceStore.OpenAsync(AppPaths.ForTrack("codex-steady", dir.Path));
+        var chat = Chat(store);
+        var conversation = await ConversationAsync(store);
+        var first = await chat.AcceptReplyAsync(conversation.Id, "未成功的问题", Config());
+        await chat.WriteGenerationAsync(first.Task.Id, 1, "不完整的回答", unsuccessful);
+        Assert.Null(await chat.AcceptTitleAsync(conversation.Id, Config()));
+        var second = await chat.AcceptReplyAsync(conversation.Id, "首次成功的问题", Config());
+        await chat.WriteGenerationAsync(second.Task.Id, 1, "首次成功的回答", GenerationStatus.Completed);
+        var later = await chat.AcceptReplyAsync(conversation.Id, "后续问题", Config());
+        await chat.WriteGenerationAsync(later.Task.Id, 1, "后续成功回答", GenerationStatus.Completed);
+
+        var title = Assert.IsType<GenerationWork>(await chat.AcceptTitleAsync(conversation.Id, Config()));
+        Assert.Equal(new[] { "首次成功的问题", "首次成功的回答" }, title.InputMessages.Select(message => message.Body));
+        Assert.Equal(new[] { second.Task.InputMessageIds.Last(), second.Task.AnswerMessageId!.Value }, title.Task.InputMessageIds);
+        Assert.Null(await chat.AcceptTitleAsync(conversation.Id, Config()));
+        Assert.True(await chat.CompleteTitleAsync(title.Task.Id, "首次成功生成的标题"));
+        Assert.Equal("首次成功生成的标题", (await chat.LoadConversationAsync(conversation.Id))!.Title);
+    }
+
+    [Fact]
+    public async Task Auto_title_skips_completed_attempt_when_latest_attempt_for_that_user_is_unsuccessful()
+    {
+        using var dir = new TestDirectory();
+        await using var store = await SqliteWorkspaceStore.OpenAsync(AppPaths.ForTrack("codex-steady", dir.Path));
+        var chat = Chat(store);
+        var conversation = await ConversationAsync(store);
+        var first = await chat.AcceptReplyAsync(conversation.Id, "旧成功的问题", Config());
+        await chat.WriteGenerationAsync(first.Task.Id, 1, "已被替代的成功回答", GenerationStatus.Completed);
+        var retry = await chat.AcceptReplyAsync(conversation.Id, null, Config());
+        await chat.WriteGenerationAsync(retry.Task.Id, 1, "最新失败尝试", GenerationStatus.Failed);
+        Assert.Null(await chat.AcceptTitleAsync(conversation.Id, Config()));
+        var second = await chat.AcceptReplyAsync(conversation.Id, "有效成功的问题", Config());
+        await chat.WriteGenerationAsync(second.Task.Id, 1, "有效成功的回答", GenerationStatus.Completed);
+
+        var title = Assert.IsType<GenerationWork>(await chat.AcceptTitleAsync(conversation.Id, Config()));
+        Assert.Equal(new[] { "有效成功的问题", "有效成功的回答" }, title.InputMessages.Select(message => message.Body));
+        Assert.DoesNotContain(first.Task.AnswerMessageId!.Value, title.Task.InputMessageIds);
+    }
+
     [Fact]
     public async Task Automatic_title_success_applies_once_and_does_not_persist_partial_title()
     {
