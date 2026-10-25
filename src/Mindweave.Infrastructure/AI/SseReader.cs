@@ -1,5 +1,6 @@
 using System.Runtime.CompilerServices;
 using System.Text;
+using Mindweave.Application.Chat;
 
 namespace Mindweave.Infrastructure.AI;
 
@@ -16,6 +17,7 @@ internal static class SseReader
         var line = new StringBuilder();
         var data = new StringBuilder();
         var afterCarriageReturn = false;
+        var firstCharacter = true;
         while (true)
         {
             var count = await reader.ReadAsync(buffer, cancellationToken);
@@ -23,6 +25,11 @@ internal static class SseReader
             for (var i = 0; i < count; i++)
             {
                 var character = buffer[i];
+                if (firstCharacter)
+                {
+                    firstCharacter = false;
+                    if (character == '\uFEFF') continue;
+                }
                 if (character == '\n' && afterCarriageReturn) { afterCarriageReturn = false; continue; }
                 afterCarriageReturn = character == '\r';
                 if (character is '\r' or '\n')

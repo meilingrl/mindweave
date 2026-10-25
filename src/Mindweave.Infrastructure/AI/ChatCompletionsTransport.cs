@@ -7,11 +7,6 @@ using Mindweave.Core.Chat;
 
 namespace Mindweave.Infrastructure.AI;
 
-public sealed class ChatTransportException(string errorCode) : Exception($"聊天服务请求未完成（{errorCode}）。")
-{
-    public string ErrorCode { get; } = errorCode;
-}
-
 public sealed class ChatCompletionsTransport : IChatTransport
 {
     private readonly HttpClient _client;

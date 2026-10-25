@@ -44,6 +44,33 @@ public sealed class ChatTransportTests
     }
 
     [Fact]
+    public async Task LeadingUtf8BomPreservesFirstAndLaterContentAcrossOneByteChunks()
+    {
+        var first = "\uFEFFdata: {\"choices\":[{\"delta\":{\"content\":\"前缀\uFEFF\"},\"finish_reason\":null}]}\r\n\r\n";
+        var handler = new Handler(_ => Task.FromResult(Response(first + Success)));
+        var events = await Collect(new(new HttpClient(handler)), Config());
+        Assert.Equal("前缀\uFEFF你好", string.Concat(events.Select(x => x.Text)));
+        Assert.Contains(events, x => x.FinishReason == "stop");
+        Assert.Equal(1, handler.Calls);
+        Assert.True(handler.LastStream!.Disposed);
+    }
+
+    [Fact]
+    public async Task InvalidUtf8AfterBomStillFailsThroughApplicationErrorContract()
+    {
+        var invalid = Encoding.UTF8.GetBytes("\uFEFFdata: ").Concat(new byte[] { 0xFF }).ToArray();
+        var handler = new Handler(_ => Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK)
+        {
+            Content = new TrackingContent(new ByteStream(invalid))
+        }));
+        var exception = await Assert.ThrowsAsync<Mindweave.Application.Chat.ChatTransportException>(() => Collect(new(new HttpClient(handler)), Config()));
+        Assert.Equal("TransportError", exception.ErrorCode);
+        Assert.Null(exception.InnerException);
+        Assert.True(handler.LastStream!.Disposed);
+        Assert.Equal(1, handler.Calls);
+    }
+
+    [Fact]
     public async Task AcceptsMultilineSseAndEofAfterExplicitStop()
     {
         var handler = new Handler(_ => Task.FromResult(Response("data: {\"choices\":\r\ndata: [{\"delta\":{\"content\":\"ok\"},\"finish_reason\":\"stop\"}]}\r\n\r\n")));
