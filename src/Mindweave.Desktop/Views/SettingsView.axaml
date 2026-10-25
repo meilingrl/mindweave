@@ -1,0 +1,24 @@
+<UserControl xmlns="https://github.com/avaloniaui" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+ xmlns:vm="using:Mindweave.Desktop.ViewModels" x:Class="Mindweave.Desktop.Views.SettingsView" x:DataType="vm:SettingsViewModel">
+ <ScrollViewer VerticalScrollBarVisibility="Auto">
+  <StackPanel MaxWidth="560" Margin="32,24" Spacing="12">
+   <TextBlock Text="连接你的 AI 服务" FontSize="28" FontWeight="SemiBold" />
+   <TextBlock Text="发送时，会话上下文将传至你填写的服务。首条成功回答后会自动请求标题，可能产生额外费用。保存与页面切换不会自动测试连接。" TextWrapping="Wrap" Foreground="#747B6E" />
+   <TextBlock Text="连接名称" /><TextBox IsReadOnly="{Binding IsBusy}" Text="{Binding ConnectionName, Mode=TwoWay}" />
+   <TextBlock Text="Base URL（HTTPS；本机测试可用 HTTP）" /><TextBox IsReadOnly="{Binding IsBusy}" Text="{Binding BaseUrl, Mode=TwoWay}" AutomationProperties.Name="服务地址" />
+   <TextBlock Text="密钥（留空保留已保存版本）" /><TextBox x:Name="SecretInput" IsReadOnly="{Binding IsBusy}" Text="{Binding Secret, Mode=TwoWay}" PasswordChar="●" AutomationProperties.Name="服务密钥" />
+   <TextBlock Text="模型 ID（可直接手填）" /><TextBox IsReadOnly="{Binding IsBusy}" Text="{Binding ModelId, Mode=TwoWay}" AutomationProperties.Name="模型 ID" />
+   <Button Content="显式读取模型目录" Command="{Binding DiscoverCommand}" IsEnabled="{Binding CanDiscover}" />
+   <ComboBox ItemsSource="{Binding Models}" SelectedItem="{Binding ModelId, Mode=TwoWay}" PlaceholderText="发现结果（可选）" HorizontalAlignment="Stretch" />
+   <TextBlock Text="输出 token 参数" /><ComboBox ItemsSource="{Binding TokenParameters}" SelectedItem="{Binding TokenLimitParameter, Mode=TwoWay}" HorizontalAlignment="Stretch" />
+   <Grid ColumnDefinitions="*,*">
+    <StackPanel Spacing="8" Margin="0,0,10,0"><TextBlock Text="上下文预算估计" /><NumericUpDown Value="{Binding ContextTokenBudget, Mode=TwoWay}" Minimum="256" Maximum="2147483647" FormatString="0" /></StackPanel>
+    <StackPanel Grid.Column="1" Spacing="8"><TextBlock Text="最大输出 token" /><NumericUpDown Value="{Binding MaxOutputTokens, Mode=TwoWay}" Minimum="1" Maximum="2147483647" FormatString="0" /></StackPanel>
+   </Grid>
+   <TextBlock Text="预算是你的容量估计。S1 超出保守估算时会拒绝发送并保留输入。" TextWrapping="Wrap" Foreground="#747B6E" FontSize="12" />
+   <TextBlock Text="{Binding ErrorMessage}" TextWrapping="Wrap" Foreground="#9A4122" /><TextBlock Text="{Binding StatusMessage}" TextWrapping="Wrap" Foreground="#59644D" />
+   <Button Classes="primary" Content="保存配置" Command="{Binding SaveCommand}" IsEnabled="{Binding CanSave}" />
+   <TextBlock Text="连接测试：保存后在探索区新建测试会话，明确点击发送。密钥由系统凭据服务保管，不随聊天内容传回。" TextWrapping="Wrap" FontSize="12" Foreground="#747B6E" />
+  </StackPanel>
+ </ScrollViewer>
+</UserControl>

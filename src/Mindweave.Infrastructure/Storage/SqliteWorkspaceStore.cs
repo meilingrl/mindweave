@@ -110,9 +110,13 @@ public sealed partial class SqliteWorkspaceStore : IWorkspaceStore, IChatStore, 
     public Task<WorkspaceSelection?> LoadSelectionAsync() => ReadAsync(connection =>
     {
         using var command = connection.CreateCommand();
-        command.CommandText = "SELECT workspace_id,area FROM app_selection WHERE singleton=1";
+        var hasDetails = Convert.ToInt32(Scalar(connection, "PRAGMA user_version"), CultureInfo.InvariantCulture) >= 3;
+        command.CommandText = hasDetails ? "SELECT workspace_id,area,kind,target_id FROM app_selection WHERE singleton=1" : "SELECT workspace_id,area FROM app_selection WHERE singleton=1";
         using var reader = command.ExecuteReader();
-        return reader.Read() ? new WorkspaceSelection(Guid.Parse(reader.GetString(0)), Enum.Parse<MainArea>(reader.GetString(1))) : null;
+        if (!reader.Read()) return null;
+        return new WorkspaceSelection(Guid.Parse(reader.GetString(0)), Enum.Parse<MainArea>(reader.GetString(1)),
+            hasDetails ? Enum.Parse<ContentKind>(reader.GetString(2)) : ContentKind.Overview,
+            hasDetails && !reader.IsDBNull(3) ? Guid.Parse(reader.GetString(3)) : null);
     });
 
     public Task SaveSelectionAsync(WorkspaceSelection selection) => WriteAsync((connection, transaction) =>
@@ -126,7 +130,25 @@ public sealed partial class SqliteWorkspaceStore : IWorkspaceStore, IChatStore, 
     {
         using var command = connection.CreateCommand();
         command.Transaction = transaction;
-        command.CommandText = "INSERT INTO app_selection VALUES(1,$workspace,$area) ON CONFLICT(singleton) DO UPDATE SET workspace_id=$workspace,area=$area";
+        var hasDetails = Convert.ToInt32(Scalar(connection, "PRAGMA user_version", transaction), CultureInfo.InvariantCulture) >= 3;
+        if (!Enum.IsDefined(selection.Kind) || (selection.Kind == ContentKind.Overview && selection.TargetId is not null) ||
+            (selection.Kind != ContentKind.Overview && (selection.Kind != ContentKind.Conversation || selection.Area != MainArea.Explore || selection.TargetId is null)))
+            throw new ArgumentException("导航详情无效。", nameof(selection));
+        if (selection.TargetId is { } target)
+        {
+            using var validate = connection.CreateCommand(); validate.Transaction = transaction;
+            validate.CommandText = "SELECT count(*) FROM conversation WHERE id=$id AND workspace_id=$workspace";
+            validate.Parameters.AddWithValue("$id", target.ToString("D")); validate.Parameters.AddWithValue("$workspace", selection.WorkspaceId.ToString("D"));
+            if (!hasDetails || !Equals(validate.ExecuteScalar(), 1L)) throw new ArgumentException("会话不属于当前工作区。", nameof(selection));
+        }
+        command.CommandText = hasDetails
+            ? "INSERT INTO app_selection(singleton,workspace_id,area,kind,target_id) VALUES(1,$workspace,$area,$kind,$target) ON CONFLICT(singleton) DO UPDATE SET workspace_id=$workspace,area=$area,kind=$kind,target_id=$target"
+            : "INSERT INTO app_selection(singleton,workspace_id,area) VALUES(1,$workspace,$area) ON CONFLICT(singleton) DO UPDATE SET workspace_id=$workspace,area=$area";
+        if (hasDetails)
+        {
+            command.Parameters.AddWithValue("$kind", selection.Kind.ToString());
+            command.Parameters.AddWithValue("$target", (object?)selection.TargetId?.ToString("D") ?? DBNull.Value);
+        }
         command.Parameters.AddWithValue("$workspace", selection.WorkspaceId.ToString("D"));
         command.Parameters.AddWithValue("$area", selection.Area.ToString());
         command.ExecuteNonQuery();

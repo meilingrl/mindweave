@@ -45,8 +45,8 @@ public sealed class NavigationTests
         main.NewWorkspaceName = "主题 A";
         await main.CreateWorkspaceAsync();
         var a = main.CurrentWorkspace!.Id;
-        // IDs here exercise navigation state only; actual conversation/summary lookup arrives in S1/S4.
-        var conversation = Guid.NewGuid();
+        // S1 requires a real same-workspace conversation. Summary remains an explicit future placeholder.
+        var conversation = (await store.CreateConversationAsync(a)).Id;
         var summary = Guid.NewGuid();
         await main.NavigateAsync(new(MainArea.Explore, ContentKind.Conversation, conversation));
         await main.NavigateAsync(new(MainArea.Network));
@@ -88,6 +88,7 @@ public sealed class NavigationTests
         Assert.Same(current, main.CurrentWorkspace);
         Assert.Single(main.Workspaces);
         await main.NavigateAsync(new(MainArea.Network));
-        Assert.Equal(MainArea.Explore, main.CurrentArea);
+        // Saving selection failure does not prevent reading another area in S1.
+        Assert.Equal(MainArea.Network, main.CurrentArea);
     }
 }

@@ -92,5 +92,18 @@ public static class DatabaseSchema
             singleton INTEGER PRIMARY KEY CHECK(singleton=1),
             configuration_json TEXT NOT NULL CHECK(json_valid(configuration_json))
         );
+        """), new(3, """
+        ALTER TABLE app_selection ADD COLUMN kind TEXT NOT NULL DEFAULT 'Overview' CHECK(kind IN ('Overview','Conversation'));
+        ALTER TABLE app_selection ADD COLUMN target_id TEXT REFERENCES conversation(id);
+        CREATE TRIGGER selection_detail_insert BEFORE INSERT ON app_selection
+        WHEN (NEW.kind='Overview' AND NEW.target_id IS NOT NULL) OR
+             (NEW.kind='Conversation' AND (NEW.area!='Explore' OR NEW.target_id IS NULL OR NOT EXISTS(
+                SELECT 1 FROM conversation WHERE id=NEW.target_id AND workspace_id=NEW.workspace_id)))
+        BEGIN SELECT RAISE(ABORT,'Invalid selection detail'); END;
+        CREATE TRIGGER selection_detail_update BEFORE UPDATE ON app_selection
+        WHEN (NEW.kind='Overview' AND NEW.target_id IS NOT NULL) OR
+             (NEW.kind='Conversation' AND (NEW.area!='Explore' OR NEW.target_id IS NULL OR NOT EXISTS(
+                SELECT 1 FROM conversation WHERE id=NEW.target_id AND workspace_id=NEW.workspace_id)))
+        BEGIN SELECT RAISE(ABORT,'Invalid selection detail'); END;
         """)]);
 }

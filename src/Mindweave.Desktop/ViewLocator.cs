@@ -10,6 +10,8 @@ public sealed class ViewLocator : IDataTemplate
     public Control? Build(object? data) => data switch
     {
         MainViewModel => new MainView(),
+        ChatViewModel => new ChatView(),
+        SettingsViewModel => new SettingsView(),
         ContentViewModel => new ContentView(),
         StartupViewModel => new StartupView(),
         null => null,

@@ -1,0 +1,337 @@
+using Avalonia.Controls;
+using Avalonia.Headless.XUnit;
+using Avalonia.Threading;
+using Avalonia.VisualTree;
+using Microsoft.Data.Sqlite;
+using Mindweave.Application.Chat;
+using Mindweave.Application.Navigation;
+using Mindweave.Application.Storage;
+using Mindweave.Core.Chat;
+using Mindweave.Desktop;
+using Mindweave.Desktop.Services;
+using Mindweave.Desktop.ViewModels;
+using Mindweave.Desktop.Views;
+using Mindweave.Infrastructure.Runtime;
+using Mindweave.Infrastructure.Storage;
+using Xunit;
+using F = Mindweave.Tests.GenerationCoordinatorTests.Fixture;
+
+namespace Mindweave.Tests;
+
+public sealed class ChatDesktopTests
+{
+    [Fact]
+    public async Task V2_migration_backs_up_and_restores_valid_conversation_identity()
+    {
+        using var dir = new TestDirectory();
+        var paths = AppPaths.ForTrack("codex-steady", dir.Path);
+        Guid workspace, conversation;
+        await using (var old = await SqliteWorkspaceStore.OpenAsync(paths, DatabaseSchema.Migrations.Take(2).ToArray()))
+        {
+            workspace = (await old.CreateAsync("upgrade")).Id;
+            conversation = (await old.CreateConversationAsync(workspace)).Id;
+        }
+        await using var store = await SqliteWorkspaceStore.OpenAsync(paths);
+        using var inspect = new SqliteConnection($"Data Source={paths.DatabasePath};Pooling=False");
+        inspect.Open();
+        using var command = inspect.CreateCommand(); command.CommandText = "PRAGMA user_version";
+        Assert.Equal(3L, command.ExecuteScalar());
+        var backupPath = Assert.Single(Directory.GetFiles(paths.BackupDirectory, "*.db"));
+        using (var backup = new SqliteConnection($"Data Source={backupPath};Mode=ReadOnly;Pooling=False"))
+        {
+            backup.Open(); using var version = backup.CreateCommand(); version.CommandText = "PRAGMA user_version";
+            Assert.Equal(2L, version.ExecuteScalar());
+        }
+        await store.SaveSelectionAsync(new(workspace, MainArea.Explore, ContentKind.Conversation, conversation));
+        Assert.Equal(conversation, (await store.LoadSelectionAsync())!.TargetId);
+        var other = await store.CreateAsync("other");
+        await Assert.ThrowsAsync<ArgumentException>(() => store.SaveSelectionAsync(new(other.Id, MainArea.Explore, ContentKind.Conversation, conversation)));
+    }
+
+    [AvaloniaFact]
+    public async Task Bound_chat_sends_streams_stops_and_switches_to_latest_memory()
+    {
+        await using var f = await F.OpenAsync();
+        var main = CompositionRoot.CreateMain(f.Store, f.Coordinator, new(f.Chat, f.Vault, f.Transport));
+        await main.InitializeAsync();
+        main.NewWorkspaceName = "desktop"; await main.CreateWorkspaceAsync();
+        var mainView = Assert.IsType<MainView>(new ViewLocator().Build(main)); mainView.DataContext = main;
+        var window = new Window { Content = mainView, Width = 1100, Height = 760 }; window.Show();
+        await ((CommunityToolkit.Mvvm.Input.IAsyncRelayCommand)mainView.FindControl<Button>("NewConversationButton")!.Command!).ExecuteAsync(null);
+        Dispatcher.UIThread.RunJobs();
+        var first = Assert.IsType<ChatViewModel>(main.ActiveContent);
+        var firstId = first.ConversationId;
+        var view = Assert.Single(window.GetVisualDescendants().OfType<ChatView>());
+        try
+        {
+            view.FindControl<TextBox>("ChatInput")!.Text = "question"; Dispatcher.UIThread.RunJobs();
+            await ((CommunityToolkit.Mvvm.Input.IAsyncRelayCommand)view.FindControl<Button>("SendButton")!.Command!).ExecuteAsync(null);
+            var call = await f.Transport.NextAsync();
+            Assert.Equal("", first.InputText);
+            Assert.Equal("", (await f.Chat.LoadDraftAsync(firstId)).Text);
+            await main.NewConversationCommand.ExecuteAsync(null);
+            var second = Assert.IsType<ChatViewModel>(main.ActiveContent);
+            second.InputText = "draft in second";
+            call.Emit("latest in memory");
+            await f.WaitAsync(() => f.Coordinator.Snapshots.Any(s => s.Body == "latest in memory"));
+            await main.NavigateAsync(new(MainArea.Explore, ContentKind.Conversation, firstId));
+            var restored = Assert.IsType<ChatViewModel>(main.ActiveContent);
+            Assert.Equal("latest in memory", restored.Messages.Last().Body);
+            Assert.Equal("draft in second", (await f.Chat.LoadDraftAsync(second.ConversationId)).Text);
+            await restored.StopCommand.ExecuteAsync(null);
+            Assert.Equal(GenerationStatus.Stopped, restored.Messages.Last().Status);
+            Assert.True(restored.Messages.Last().IsIncomplete);
+            Assert.True(call.Cancellation.IsCancellationRequested);
+            restored.InputText = "newer draft"; await restored.FlushDraftAsync();
+            Assert.Equal("newer draft", (await f.Chat.LoadDraftAsync(firstId)).Text);
+        }
+        finally { window.Close(); main.DetachObservers(); }
+    }
+
+    [AvaloniaFact]
+    public async Task Reopen_recovers_interruption_draft_and_valid_selection_without_network()
+    {
+        using var dir = new TestDirectory(); var paths = AppPaths.ForTrack("codex-steady", dir.Path);
+        Guid conversation;
+        await using (var store = await SqliteWorkspaceStore.OpenAsync(paths))
+        {
+            var workspace = await store.CreateAsync("restart");
+            conversation = (await store.CreateConversationAsync(workspace.Id)).Id;
+            var config = new AiConfiguration(Guid.NewGuid(), Guid.NewGuid(), "fixture", "http://127.0.0.1:12345/v1", "v1", "fixture", 32768, 2048);
+            var work = await store.AcceptReplyAsync(conversation, "q", config);
+            await store.WriteGenerationAsync(work.Task.Id, 1, "checkpoint", GenerationStatus.Running);
+            await store.SaveDraftAsync(conversation, "pending input", 4);
+            await store.SaveSelectionAsync(new(workspace.Id, MainArea.Explore, ContentKind.Conversation, conversation));
+        }
+        var transport = new GenerationCoordinatorTests.ControlledTransport(); var vault = new GenerationCoordinatorTests.MemoryVault();
+        var root = new RootViewModel(async () => await SqliteWorkspaceStore.OpenAsync(paths), new DesktopActions(paths.DataDirectory, () => { }), paths.DataDirectory,
+            store => new DesktopChatSession((IChatStore)store, transport, vault));
+        await root.InitializeAsync();
+        var main = Assert.IsType<MainViewModel>(root.Content); var chat = Assert.IsType<ChatViewModel>(main.ActiveContent);
+        Assert.Equal(conversation, chat.ConversationId); Assert.Equal("pending input", chat.InputText);
+        Assert.Equal("checkpoint", chat.Messages.Last().Body); Assert.Equal(GenerationStatus.Interrupted, chat.Messages.Last().Status);
+        Assert.Equal(0, transport.StartCount); await root.CloseAsync(); Assert.True(root.IsClosed);
+    }
+
+    [AvaloniaFact]
+    public async Task Settings_failure_retains_masked_input_and_discovery_is_explicit()
+    {
+        await using var f = await F.OpenAsync();
+        var settings = new SettingsViewModel(f.Chat, new(f.Chat, f.Vault, f.Transport), () => false);
+        await settings.InitializeAsync(); settings.Secret = "synthetic-new-secret"; settings.ModelId = "hand-entered";
+        var view = Assert.IsType<SettingsView>(new ViewLocator().Build(settings)); view.DataContext = settings;
+        Assert.Equal('●', view.FindControl<TextBox>("SecretInput")!.PasswordChar);
+        f.Sql("CREATE TRIGGER fail_settings BEFORE UPDATE ON active_ai_configuration BEGIN SELECT RAISE(ABORT,'fixture'); END");
+        await settings.SaveCommand.ExecuteAsync(null);
+        Assert.NotNull(settings.ErrorMessage); Assert.Equal("synthetic-new-secret", settings.Secret); Assert.Equal("hand-entered", settings.ModelId);
+        Assert.Equal(0, f.Transport.StartCount); Assert.Null(f.Transport.DiscoverySecret);
+        f.Sql("DROP TRIGGER fail_settings"); await settings.SaveCommand.ExecuteAsync(null);
+        Assert.Null(settings.ErrorMessage); Assert.Equal("", settings.Secret); Assert.Equal("hand-entered", (await f.Chat.LoadActiveConfigurationAsync())!.ModelId);
+    }
+
+    [AvaloniaFact]
+    public async Task Close_confirmation_precedes_mutation_and_failed_close_keeps_readable_body()
+    {
+        await using var f = await F.OpenAsync();
+        var root = new RootViewModel(() => Task.FromResult<IWorkspaceStore>(f.Store), new DesktopActions(f.Paths.DataDirectory, () => { }), f.Paths.DataDirectory,
+            store => new DesktopChatSession((IChatStore)store, f.Transport, f.Vault));
+        await root.InitializeAsync(); var main = Assert.IsType<MainViewModel>(root.Content);
+        main.NewWorkspaceName = "close"; await main.CreateWorkspaceAsync(); await main.NewConversationCommand.ExecuteAsync(null);
+        var chat = Assert.IsType<ChatViewModel>(main.ActiveContent); chat.InputText = "q"; await chat.SendCommand.ExecuteAsync(null);
+        var call = await f.Transport.NextAsync(); call.Emit("copyable latest");
+        await WaitUiAsync(() => chat.Messages.LastOrDefault()?.Body == "copyable latest");
+        await root.CloseAsync(); Assert.True(root.IsCloseConfirmationVisible); Assert.False(call.Cancellation.IsCancellationRequested);
+        root.CancelCloseCommand.Execute(null); Assert.False(root.IsCloseConfirmationVisible); Assert.False(call.Cancellation.IsCancellationRequested);
+        f.Sql("CREATE TRIGGER fail_exit BEFORE UPDATE ON generation_task BEGIN SELECT RAISE(ABORT,'fixture'); END");
+        await root.ConfirmCloseCommand.ExecuteAsync(null);
+        Assert.False(root.IsClosed); Assert.NotNull(root.CloseError); Assert.Same(main, root.Content);
+        Assert.Equal("copyable latest", chat.Messages.Last().Body); Assert.True(call.Cancellation.IsCancellationRequested);
+        root.ReturnToWorkbenchCommand.Execute(null); Assert.False(main.IsClosing); Assert.True(main.HasPersistenceFailure);
+        await main.NewConversationCommand.ExecuteAsync(null); Assert.Same(chat, main.ActiveContent);
+        f.Sql("DROP TRIGGER fail_exit"); await root.RetrySaveCommand.ExecuteAsync(null); Assert.False(main.HasPersistenceFailure);
+        await root.CloseAsync(); Assert.True(root.IsClosed);
+    }
+
+    [AvaloniaFact]
+    public async Task Confirmed_close_stops_work_even_when_draft_flush_fails_and_retry_close_saves_input()
+    {
+        await using var f = await F.OpenAsync();
+        var root = new RootViewModel(() => Task.FromResult<IWorkspaceStore>(f.Store), new DesktopActions(f.Paths.DataDirectory, () => { }), f.Paths.DataDirectory,
+            store => new DesktopChatSession((IChatStore)store, f.Transport, f.Vault));
+        await root.InitializeAsync(); var main = Assert.IsType<MainViewModel>(root.Content);
+        main.NewWorkspaceName = "draft close"; await main.CreateWorkspaceAsync(); await main.NewConversationCommand.ExecuteAsync(null);
+        var chat = Assert.IsType<ChatViewModel>(main.ActiveContent); chat.InputText = "q"; await chat.SendCommand.ExecuteAsync(null);
+        var call = await f.Transport.NextAsync(); chat.InputText = "unsaved next question";
+        f.Sql("CREATE TRIGGER fail_draft BEFORE UPDATE ON conversation_draft BEGIN SELECT RAISE(ABORT,'fixture'); END");
+        await root.CloseAsync(); await root.ConfirmCloseCommand.ExecuteAsync(null);
+        Assert.True(call.Cancellation.IsCancellationRequested);
+        Assert.False(root.IsClosed); Assert.Equal("unsaved next question", chat.InputText); Assert.NotNull(root.CloseError);
+        Assert.True(main.HasPersistenceFailure);
+        f.Sql("DROP TRIGGER fail_draft"); await root.RetrySaveCommand.ExecuteAsync(null);
+        Assert.NotNull(root.CloseError); // Keep retry-exit and return actions visible after a repaired save.
+        await root.RetryCloseCommand.ExecuteAsync(null);
+        Assert.True(root.IsClosed);
+        await using var reopened = await SqliteWorkspaceStore.OpenAsync(f.Paths);
+        Assert.Equal("unsaved next question", (await reopened.LoadDraftAsync(chat.ConversationId)).Text);
+        Assert.Equal(GenerationStatus.Stopped, (await reopened.ReadMessagesAsync(chat.ConversationId)).Last().Status);
+    }
+
+    [AvaloniaFact]
+    public async Task Retry_renders_both_attempts_and_rejected_input_survives_navigation_and_restart()
+    {
+        await using var f = await F.OpenAsync();
+        var main = CompositionRoot.CreateMain(f.Store, f.Coordinator, new(f.Chat, f.Vault, f.Transport));
+        await main.InitializeAsync(); main.NewWorkspaceName = "retry"; await main.CreateWorkspaceAsync(); await main.NewConversationCommand.ExecuteAsync(null);
+        var chat = Assert.IsType<ChatViewModel>(main.ActiveContent); var id = chat.ConversationId;
+        chat.InputText = "q"; await chat.SendCommand.ExecuteAsync(null); var first = await f.Transport.NextAsync(); first.Emit("first partial");
+        await WaitUiAsync(() => chat.Messages.LastOrDefault()?.Body == "first partial");
+        await chat.StopCommand.ExecuteAsync(null); await chat.RetryCommand.ExecuteAsync(null); var retry = await f.Transport.NextAsync(); retry.Emit("retry partial");
+        await WaitUiAsync(() => chat.Messages.LastOrDefault()?.Body == "retry partial"); await chat.StopCommand.ExecuteAsync(null);
+        Assert.Equal(3, chat.Messages.Count); Assert.Equal("first partial", chat.Messages[1].Body); Assert.Equal("retry partial", chat.Messages[2].Body);
+        chat.InputText = new string('x', 33000); await chat.SendCommand.ExecuteAsync(null);
+        Assert.NotNull(chat.ErrorMessage); Assert.Equal(33000, chat.InputText.Length); Assert.Equal(3, (await f.Chat.ReadMessagesAsync(id)).Count);
+        await main.NavigateAsync(new(MainArea.Settings)); await main.NavigateAsync(new(MainArea.Explore));
+        var restored = Assert.IsType<ChatViewModel>(main.ActiveContent); Assert.Equal(id, restored.ConversationId); Assert.Equal(33000, restored.InputText.Length);
+        Assert.Equal(id, (await f.Store.LoadSelectionAsync())!.TargetId);
+        await main.PrepareCloseAsync(); main.DetachObservers();
+    }
+
+    [AvaloniaFact]
+    public async Task Failed_generation_save_blocks_mutations_but_allows_reading_other_conversations()
+    {
+        await using var f = await F.OpenAsync();
+        var main = CompositionRoot.CreateMain(f.Store, f.Coordinator, new(f.Chat, f.Vault, f.Transport));
+        await main.InitializeAsync(); main.NewWorkspaceName = "reading"; await main.CreateWorkspaceAsync();
+        await main.NewConversationCommand.ExecuteAsync(null); var firstId = Assert.IsType<ChatViewModel>(main.ActiveContent).ConversationId;
+        await main.NewConversationCommand.ExecuteAsync(null); var chat = Assert.IsType<ChatViewModel>(main.ActiveContent);
+        chat.InputText = "q"; await chat.SendCommand.ExecuteAsync(null); var call = await f.Transport.NextAsync(); call.Emit("keep visible");
+        await WaitUiAsync(() => chat.Messages.LastOrDefault()?.Body == "keep visible");
+        f.Sql("CREATE TRIGGER fail_checkpoint BEFORE UPDATE ON generation_task BEGIN SELECT RAISE(ABORT,'fixture'); END");
+        await chat.StopCommand.ExecuteAsync(null); Assert.True(main.HasPersistenceFailure);
+        await main.NewConversationCommand.ExecuteAsync(null); Assert.Same(chat, main.ActiveContent);
+        await main.NavigateAsync(new(MainArea.Explore, ContentKind.Conversation, firstId));
+        Assert.Equal(firstId, Assert.IsType<ChatViewModel>(main.ActiveContent).ConversationId);
+        await main.NavigateAsync(new(MainArea.Explore, ContentKind.Conversation, chat.ConversationId));
+        var restored = Assert.IsType<ChatViewModel>(main.ActiveContent); Assert.Equal("keep visible", restored.Messages.Last().Body);
+        Assert.False(restored.CanSend);
+        var view = Assert.IsType<ChatView>(new ViewLocator().Build(restored)); view.DataContext = restored;
+        var window = new Window { Content = view }; window.Show();
+        Assert.True(view.IsEnabled); window.Close();
+        f.Sql("DROP TRIGGER fail_checkpoint"); await main.RetryPersistenceAsync(); Assert.True(restored.CanSend);
+        main.DetachObservers();
+    }
+
+    [AvaloniaFact]
+    public async Task Draft_and_selection_failure_still_allows_reading_and_retry_saves_all_memory_drafts()
+    {
+        await using var f = await F.OpenAsync();
+        var main = CompositionRoot.CreateMain(f.Store, f.Coordinator, new(f.Chat, f.Vault, f.Transport));
+        await main.InitializeAsync(); main.NewWorkspaceName = "draft navigation"; await main.CreateWorkspaceAsync();
+        await main.NewConversationCommand.ExecuteAsync(null); var first = Assert.IsType<ChatViewModel>(main.ActiveContent);
+        await main.NewConversationCommand.ExecuteAsync(null); var second = Assert.IsType<ChatViewModel>(main.ActiveContent);
+        second.InputText = "keep despite unavailable storage";
+        f.Sql("CREATE TRIGGER fail_draft BEFORE INSERT ON conversation_draft BEGIN SELECT RAISE(ABORT,'fixture'); END");
+        f.Sql("CREATE TRIGGER fail_selection BEFORE UPDATE ON app_selection BEGIN SELECT RAISE(ABORT,'fixture'); END");
+        await main.NavigateAsync(new(MainArea.Explore, ContentKind.Conversation, first.ConversationId));
+        Assert.Equal(first.ConversationId, Assert.IsType<ChatViewModel>(main.ActiveContent).ConversationId);
+        await main.NavigateAsync(new(MainArea.Explore, ContentKind.Conversation, second.ConversationId));
+        var restored = Assert.IsType<ChatViewModel>(main.ActiveContent);
+        Assert.Equal("keep despite unavailable storage", restored.InputText); Assert.True(main.HasPersistenceFailure);
+        await main.NavigateAsync(new(MainArea.Explore, ContentKind.Conversation, first.ConversationId));
+        f.Sql("DROP TRIGGER fail_draft"); f.Sql("DROP TRIGGER fail_selection"); await main.RetryPersistenceAsync();
+        Assert.False(main.HasPersistenceFailure);
+        Assert.Equal("keep despite unavailable storage", (await f.Chat.LoadDraftAsync(second.ConversationId)).Text);
+        Assert.Equal(first.ConversationId, (await f.Store.LoadSelectionAsync())!.TargetId);
+        main.DetachObservers();
+    }
+
+    [AvaloniaFact]
+    public async Task Mounted_settings_keeps_manual_model_and_failed_discovery_allows_save()
+    {
+        await using var f = await F.OpenAsync();
+        var transport = new FailedDiscoveryTransport();
+        var settings = new SettingsViewModel(f.Chat, new(f.Chat, f.Vault, transport), () => false);
+        await settings.InitializeAsync(); settings.ModelId = "manual-model";
+        var view = Assert.IsType<SettingsView>(new ViewLocator().Build(settings)); view.DataContext = settings;
+        var window = new Window { Content = view, Width = 1100, Height = 760 }; window.Show(); Dispatcher.UIThread.RunJobs();
+        try
+        {
+            Assert.Equal("manual-model", settings.ModelId);
+            await settings.DiscoverCommand.ExecuteAsync(null); Assert.NotNull(settings.ErrorMessage); Assert.Equal("manual-model", settings.ModelId);
+            await settings.SaveCommand.ExecuteAsync(null); Assert.Null(settings.ErrorMessage);
+            Assert.Equal("manual-model", (await f.Chat.LoadActiveConfigurationAsync())!.ModelId);
+        }
+        finally { window.Close(); }
+    }
+    [AvaloniaFact]
+    public async Task Close_waits_for_inflight_configuration_save_before_disposing_store()
+    {
+        using var dir = new TestDirectory(); var paths = AppPaths.ForTrack("codex-steady", dir.Path);
+        var store = await SqliteWorkspaceStore.OpenAsync(paths); await store.CreateAsync("saving settings");
+        var vault = new BlockingVault(); var transport = new FailedDiscoveryTransport();
+        var root = new RootViewModel(() => Task.FromResult<IWorkspaceStore>(store), new DesktopActions(paths.DataDirectory, () => { }), paths.DataDirectory,
+            chat => new DesktopChatSession((IChatStore)chat, transport, vault));
+        await root.InitializeAsync(); var main = Assert.IsType<MainViewModel>(root.Content);
+        await main.NavigateAsync(new(MainArea.Settings)); var settings = Assert.IsType<SettingsViewModel>(main.ActiveContent);
+        settings.Secret = "synthetic"; var saving = settings.SaveCommand.ExecuteAsync(null); await vault.Entered.Task;
+        var closing = root.CloseAsync(); await Task.Yield();
+        var closedBeforeSave = root.IsClosed;
+        vault.Release.TrySetResult(); await saving; await closing;
+        Assert.False(closedBeforeSave); Assert.Null(settings.ErrorMessage); Assert.True(root.IsClosed);
+        await using var reopened = await SqliteWorkspaceStore.OpenAsync(paths); Assert.NotNull(await reopened.LoadActiveConfigurationAsync());
+    }
+    [AvaloniaFact]
+    public async Task Automatic_title_updates_list_and_header_without_overwriting_manual_edit()
+    {
+        await using var f = await F.OpenAsync();
+        var main = CompositionRoot.CreateMain(f.Store, f.Coordinator, new(f.Chat, f.Vault, f.Transport));
+        await main.InitializeAsync(); main.NewWorkspaceName = "titles"; await main.CreateWorkspaceAsync(); await main.NewConversationCommand.ExecuteAsync(null);
+        var chat = Assert.IsType<ChatViewModel>(main.ActiveContent); chat.InputText = "q"; await chat.SendCommand.ExecuteAsync(null);
+        var reply = await f.Transport.NextAsync(); reply.Emit("answer", "stop"); reply.Finish();
+        var title = await f.Transport.NextAsync(); title.Emit("automatic title", "stop"); title.Finish();
+        await WaitUiAsync(() => main.Conversations.Single().Title == "automatic title");
+        Assert.Equal("automatic title", chat.TitleText);
+        chat.TitleText = "manual title";
+        await f.Coordinator.RetryPersistenceAsync(); Dispatcher.UIThread.RunJobs();
+        Assert.Equal("manual title", chat.TitleText); await chat.RenameCommand.ExecuteAsync(null);
+        Assert.Equal("manual title", (await f.Chat.LoadConversationAsync(chat.ConversationId))!.Title);
+        main.DetachObservers();
+    }
+
+    private sealed class BlockingVault : ICredentialVault
+    {
+        public TaskCompletionSource Entered { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        public TaskCompletionSource Release { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        public async Task<string> WriteNewAsync(string secret) { Entered.TrySetResult(); await Release.Task; return "v1"; }
+        public Task<string> ReadAsync(string reference) => Task.FromResult("synthetic");
+        public Task DeleteAsync(string reference) => Task.CompletedTask;
+    }
+
+    private sealed class FailedDiscoveryTransport : IChatTransport
+    {
+        public IAsyncEnumerable<ChatStreamEvent> StreamAsync(ChatRequest request, string secret, CancellationToken cancellationToken) => throw new InvalidOperationException("Unexpected generation");
+        public Task<IReadOnlyList<string>> ListModelsAsync(AiConfiguration configuration, string secret, CancellationToken cancellationToken) => throw new ChatTransportException("DiscoveryFailed");
+    }
+
+    [AvaloniaFact]
+    public async Task Startup_refuses_cross_workspace_restoration_even_if_selection_was_tampered()
+    {
+        await using var f = await F.OpenAsync();
+        var first = await f.Store.CreateAsync("first"); var foreign = await f.Store.CreateAsync("second");
+        var conversation = await f.Chat.CreateConversationAsync(foreign.Id);
+        await f.Store.SaveSelectionAsync(new(first.Id, MainArea.Explore));
+        // Test-owned corruption bypasses only the selection validation trigger; IDs remain real.
+        f.Sql("DROP TRIGGER selection_detail_update");
+        f.Sql($"UPDATE app_selection SET kind='Conversation',target_id='{conversation.Id:D}'");
+        var main = CompositionRoot.CreateMain(f.Store, f.Coordinator, new(f.Chat, f.Vault, f.Transport));
+        await main.InitializeAsync(); Assert.Null(main.ErrorMessage); Assert.Equal(first.Id, main.CurrentWorkspace!.Id);
+        Assert.Equal(ContentKind.Overview, main.ActiveContent!.Request.Kind); Assert.Null(main.ActiveContent.Request.TargetId);
+        main.DetachObservers();
+    }
+
+    private static async Task WaitUiAsync(Func<bool> condition)
+    {
+        using var deadline = new CancellationTokenSource(TimeSpan.FromSeconds(10));
+        while (!condition()) { Dispatcher.UIThread.RunJobs(); await Task.Delay(10, deadline.Token); }
+    }
+}

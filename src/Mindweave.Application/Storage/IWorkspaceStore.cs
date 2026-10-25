@@ -3,7 +3,7 @@ using Mindweave.Core.Workspaces;
 
 namespace Mindweave.Application.Storage;
 
-public sealed record WorkspaceSelection(Guid WorkspaceId, MainArea Area);
+public sealed record WorkspaceSelection(Guid WorkspaceId, MainArea Area, ContentKind Kind = ContentKind.Overview, Guid? TargetId = null);
 
 public interface IWorkspaceStore : IAsyncDisposable
 {

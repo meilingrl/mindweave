@@ -25,7 +25,7 @@
           </ItemsControl>
         </ScrollViewer>
         <StackPanel Grid.Row="4" Spacing="10" Margin="0,12,0,0">
-          <StackPanel Spacing="8" IsEnabled="{Binding IsInteractionEnabled}">
+          <StackPanel Spacing="8" IsEnabled="{Binding CanMutate}">
             <TextBox x:Name="WorkspaceNameInput" Text="{Binding NewWorkspaceName, Mode=TwoWay}" Watermark="新主题名称" MaxLength="160" AutomationProperties.Name="新主题名称" />
             <Button x:Name="CreateWorkspaceButton" Classes="primary" Content="＋ 新建主题" HorizontalAlignment="Stretch" HorizontalContentAlignment="Center" Command="{Binding CreateWorkspaceCommand}" AutomationProperties.Name="新建主题工作区" />
           </StackPanel>
@@ -43,13 +43,26 @@
       <Border Grid.Row="1" IsVisible="{Binding HasError}" Background="#FFF0E5" Padding="20,12" Margin="24,16,24,0" CornerRadius="8">
         <TextBlock Text="{Binding ErrorMessage}" Foreground="#9A4122" TextWrapping="Wrap" />
       </Border>
-      <Grid Grid.Row="2">
-        <StackPanel IsVisible="{Binding NeedsWorkspace}" MaxWidth="480" Margin="36" VerticalAlignment="Center" Spacing="18">
+      <Grid Grid.Row="2" RowDefinitions="Auto,*">
+        <Border IsVisible="{Binding HasPersistenceFailure}" Background="#FFF0E5" Padding="12" Margin="16,8">
+          <StackPanel Orientation="Horizontal" Spacing="10"><TextBlock Text="保存失败，新操作已暂停；现有文字可复制。" VerticalAlignment="Center" /><Button Content="重试保存" Command="{Binding RetrySaveCommand}" /></StackPanel>
+        </Border>
+        <StackPanel Grid.Row="1" IsVisible="{Binding NeedsWorkspace}" MaxWidth="480" Margin="36" VerticalAlignment="Center" Spacing="18">
           <TextBlock Text="一个问题，&#10;可以通向很多地方。" FontSize="34" LineHeight="46" FontWeight="SemiBold" />
           <TextBlock Text="为你想了解的事创建一个主题。之后的对话、旁支和总结，都会在这里留下线索。" FontSize="15" LineHeight="25" Foreground="#747B6E" TextWrapping="Wrap" />
           <TextBlock Text="在左下角输入主题名称，开始你的探索。" FontSize="13" Foreground="#777D6F" Margin="0,16,0,0" />
         </StackPanel>
-        <ContentControl Content="{Binding ActiveContent}" IsVisible="{Binding HasWorkspace}" />
+        <Grid Grid.Row="1" ColumnDefinitions="Auto,*" IsVisible="{Binding HasWorkspace}">
+          <Border IsVisible="{Binding ShowConversations}" Width="190" Background="#F5F6F0" Padding="12">
+            <DockPanel>
+              <Button x:Name="NewConversationButton" DockPanel.Dock="Top" Content="＋ 新建会话" Command="{Binding NewConversationCommand}" IsEnabled="{Binding CanMutate}" HorizontalAlignment="Stretch" Margin="0,0,0,12" />
+              <ScrollViewer VerticalScrollBarVisibility="Auto"><ItemsControl ItemsSource="{Binding Conversations}"><ItemsControl.ItemTemplate>
+                <DataTemplate x:DataType="vm:ConversationItemViewModel"><Button Classes="nav" Content="{Binding DisplayTitle}" HorizontalAlignment="Stretch" Margin="0,2" Command="{Binding $parent[UserControl].((vm:MainViewModel)DataContext).OpenConversationCommand}" CommandParameter="{Binding}" /></DataTemplate>
+              </ItemsControl.ItemTemplate></ItemsControl></ScrollViewer>
+            </DockPanel>
+          </Border>
+          <ContentControl Grid.Column="1" Content="{Binding ActiveContent}" />
+        </Grid>
       </Grid>
     </Grid>
   </Grid>

@@ -2,7 +2,7 @@
 
 面向个人日常好奇与非专业专题学习的 AI 对话探索工具。
 
-本工作目录为 **Codex 稳健轨**，已按确认的需求 v0.11 开始正式开发。当前实现范围、验证与下一步见 [TRACK.md](TRACK.md)，S0 的数据关系和推进记录见[实施计划](docs/implementation/s0-foundation.md)。共同需求与架构仍以 `main` 为准；它们记录共享设计，不代表各轨道的实时实现状态。
+本工作目录为 **Codex 稳健轨**，已按确认的需求 v0.11 开始正式开发。当前实现范围、验证与下一步见 [TRACK.md](TRACK.md)，S1 的实现验证见[聊天验证记录](docs/implementation/s1-verification.md)，S0 的数据关系见[基础实施记录](docs/implementation/s0-foundation.md)。共同需求与架构仍以 `main` 为准；它们记录共享设计，不代表各轨道的实时实现状态。
 
 **仓库与分支：** [GitHub 私有仓库](https://github.com/meilingrl/mindweave)。`main` 是共享基线；`track/codex-steady`（稳健轨，课程提交版本）与 `track/claude-auto`（激进轨）从 `baseline-v0.11` 起分别开发，各自在 `../mindweave.worktrees/` 下有工作目录。分支约定见 [AGENTS.md](AGENTS.md)，各轨道状态见该分支的 `TRACK.md`。
 
@@ -33,9 +33,13 @@ dotnet test Mindweave.slnx -c Release
 
 默认数据位于系统本地应用数据目录的 `Mindweave/codex-steady/` 下。需要独立测试数据时，运行 `dotnet run --project src/Mindweave.Desktop -- --data-root /absolute/test/root`，程序会继续在该根目录下创建 `codex-steady/` 子目录。同一数据目录重复启动会唤回原窗口。
 
-macOS 可执行 `sh scripts/build-macos-dev-app.sh`，生成 `artifacts/macos/Mindweave Codex.app`，双击即可体验。这个开发启动器依赖本机已安装的 .NET，并固定使用 `artifacts/s0-native/` 测试数据；它不是独立发行包。当前可操作主题工作区；聊天、分支、总结与服务配置按后续阶段接入。
+macOS 可执行 `sh scripts/build-macos-dev-app.sh "$PWD/artifacts/s1-native"`，生成 `artifacts/macos/Mindweave Codex.app`，双击即可体验。请先正常退出已运行的旧启动器，再重建。这个开发启动器依赖本机已安装的 .NET，参数指定专用测试数据根目录；不传参数时沿用 `artifacts/s0-native/`，它不是独立发行包。
 
-构建输出、开发启动器和专用测试数据均在忽略目录中；源码与资源在四个 `src/Mindweave.*` 工程，测试单独放在 `tests/Mindweave.Tests`。具体检查和平台限制见 [S0 验证记录](docs/implementation/s0-verification.md)。
+当前桌面代码提供主题、会话、流式发送／停止、末尾重试、草稿和最近会话恢复。先在设置填写兼容 Chat Completions 的服务、密钥、模型与预算，再新建会话明确点击发送。DeepSeek 地址与 `deepseek-flash` 只是可编辑的初始建议，保存不会自动发现模型或测试生成；模型目录须显式读取。密钥保存在本轨道的系统凭据命名空间，已有会话无密钥也可阅读。自动标题会单独发送请求并可能计费。分支、正式 Markdown、总结与网络仍在后续阶段。
+
+本地协议走查可使用[测试专用 SSE 夹具](tests/fixtures/chat_sse_fixture.py)，启动、合成配置和验收边界见 [S1 验证记录](docs/implementation/s1-verification.md)。夹具不是真实模型，产品没有模拟回答回退。
+
+构建输出、开发启动器和专用测试数据均在忽略目录中；源码与资源在四个 `src/Mindweave.*` 工程，测试单独放在 `tests/Mindweave.Tests`。当前检查与平台限制见 [S1 验证记录](docs/implementation/s1-verification.md)，S0 的历史原生检查见 [S0 记录](docs/implementation/s0-verification.md)。
 
 ## 验证资产
 

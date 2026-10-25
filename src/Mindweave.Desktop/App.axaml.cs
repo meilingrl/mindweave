@@ -19,7 +19,8 @@ public partial class App : Avalonia.Application
         {
             MainWindow window = null!;
             var actions = new DesktopActions(Program.Paths.DataDirectory, () => window.Close());
-            var root = new RootViewModel(async () => await SqliteWorkspaceStore.OpenAsync(Program.Paths), actions, Program.Paths.DataDirectory);
+            var root = new RootViewModel(async () => await SqliteWorkspaceStore.OpenAsync(Program.Paths), actions, Program.Paths.DataDirectory,
+                store => DesktopChatSession.Create((Mindweave.Application.Chat.IChatStore)store, Program.Paths.CredentialNamespace));
             window = new MainWindow { DataContext = root };
             desktop.MainWindow = window;
             var activation = new CancellationTokenSource();
