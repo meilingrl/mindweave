@@ -34,7 +34,7 @@ public sealed partial class SqliteWorkspaceStore
                 messages.Add(user);
             }
             // Each user contributes only its newest attempt. Retrying excludes the attempt being replaced.
-            var input = LatestInput(messages).Where(message => message.Role == MessageRole.User || message.ReplyToUserId != user.Id).ToArray();
+            var input = ChatHistory.LatestInput(messages).Where(message => message.Role == MessageRole.User || message.ReplyToUserId != user.Id).ToArray();
             var answer = new ChatMessage(Guid.NewGuid(), conversationId, checked(++sequence), MessageRole.Assistant, "", GenerationStatus.Queued, 0, user.Id, supersedes);
             InsertMessage(connection, transaction, answer);
             var task = NewGeneration(conversationId, GenerationKind.Reply, answer.Id, configuration, input, null);
@@ -63,7 +63,7 @@ public sealed partial class SqliteWorkspaceStore
             using var existing = ChatCommand(connection, transaction, "SELECT 1 FROM generation_task WHERE conversation_id=$id AND kind='Title' LIMIT 1", ("$id", conversationId));
             if (existing.ExecuteScalar() is not null) return null;
             var messages = ReadMessages(connection, transaction, conversationId);
-            var answer = LatestInput(messages).FirstOrDefault(message =>
+            var answer = ChatHistory.LatestInput(messages).FirstOrDefault(message =>
                 message.Role == MessageRole.Assistant && message.Status == GenerationStatus.Completed);
             if (answer is null) return null;
             var user = messages.Single(message => message.Id == answer.ReplyToUserId && message.Role == MessageRole.User);
@@ -138,16 +138,6 @@ public sealed partial class SqliteWorkspaceStore
         }
         return true;
     });
-
-    private static IEnumerable<ChatMessage> LatestInput(IReadOnlyList<ChatMessage> messages)
-    {
-        foreach (var user in messages.Where(message => message.Role == MessageRole.User))
-        {
-            yield return user;
-            var answer = messages.LastOrDefault(message => message.ReplyToUserId == user.Id);
-            if (answer is not null) yield return answer;
-        }
-    }
 
     private static bool IsActive(GenerationStatus status) => status is GenerationStatus.Queued or GenerationStatus.Running;
 

@@ -1,4 +1,6 @@
 using System.Diagnostics;
+using System.Threading.Channels;
+using Mindweave.Application.Chat;
 using Mindweave.Infrastructure.Runtime;
 using Mindweave.Infrastructure.Storage;
 using Microsoft.Data.Sqlite;
@@ -11,6 +13,28 @@ public static class ProcessProbe
     {
         if (args.Length != 2) return 20;
         var paths = AppPaths.ForTrack("codex-steady", args[1]);
+        if (args[0] == "generation-checkpoint")
+        {
+            await using var store = await SqliteWorkspaceStore.OpenAsync(paths);
+            var conversation = await store.CreateConversationAsync((await store.CreateAsync("crash probe")).Id);
+            await store.SaveConfigurationAsync(new(Guid.NewGuid(), Guid.NewGuid(), "probe", "https://example.invalid/v1", "v1", "model-a", 32768, 2048));
+            var transport = new GenerationCoordinatorTests.ControlledTransport();
+            await using var coordinator = new GenerationCoordinator(store, transport, new GenerationCoordinatorTests.MemoryVault());
+            await coordinator.InitializeAsync();
+            var changed = Channel.CreateUnbounded<bool>();
+            coordinator.Changed += () => changed.Writer.TryWrite(true);
+            var id = await coordinator.SendAsync(conversation.Id, "probe question");
+            var call = await transport.NextAsync();
+            call.Emit("saved checkpoint");
+            using var deadline = new CancellationTokenSource(TimeSpan.FromSeconds(15));
+            while ((await store.ReadMessagesAsync(conversation.Id)).Last().Body != "saved checkpoint")
+                await changed.Reader.ReadAsync(deadline.Token);
+            Console.WriteLine($"CHECKPOINT:{conversation.Id}:{id}");
+            await Console.Out.FlushAsync();
+            // Parent kills this process with the transport still open; no orderly Dispose/flush runs.
+            await new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously).Task;
+            return 25;
+        }
         if (args[0] == "migration")
         {
             // Use rollback journaling to observe the real migration transaction before killing it.
