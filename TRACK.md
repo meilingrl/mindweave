@@ -42,7 +42,11 @@ MINDWEAVE_DATA_DIR=/tmp/mw-try dotnet run --project src/Mindweave.Desktop
 | 已提交写入在强制终止后保留 | 子进程杀死后重开 | 通过 |
 | 依赖方向（Core／Application 不引用 UI、SQLite） | 程序集引用检查 + Desktop 源码只在组装处引用 Infrastructure | 通过 |
 
-**未验证**：Windows 11 实机（窗口激活、命名管道、文件锁行为只靠 CI 的 Windows 运行器）；macOS 上第二次启动时窗口是否真的被带到前台（进程层面已确认，视觉上未看）；界面观感（只看过无界面渲染截图，未请你确认）；退出流程中“进行中任务／未保存布局”提示要到 S1／S5 才有内容可测。课程计数口径（MW-10）未核对。
+**用户试用（2026-10-26，macOS）**：重复启动不产生第二个实例、自动回到前台；界面“很粗糙但可用”——按路线先不做视觉打磨，记为后续待办。
+
+**Windows 11 实机（2026-10-26，ROG Zephyrus G16，经 Tailscale SSH）**：全部 49 项测试通过；已发布自包含 `E:\mindweave-claude-auto\app\Mindweave.exe` 供手动试用。
+
+**未验证**：Windows 上的手动交互（窗口激活、中文输入）——需要你在该机器上打开上面的 exe；退出流程中“进行中任务／未保存布局”提示要到 S1／S5 才有内容可测。课程计数口径（MW-10）未核对。
 
 ## 接续点
 
@@ -54,7 +58,9 @@ MINDWEAVE_DATA_DIR=/tmp/mw-try dotnet run --project src/Mindweave.Desktop
 | 事项 | 原因 | 阻塞什么 | 在此之前我做什么 |
 | --- | --- | --- | --- |
 | 真实 API 配置 | 2026-10-25 约定：我写配置脚本（`scripts/` 下），你填入服务地址、模型与密钥（存系统凭据服务，按轨道命名空间），之后长期复用；需要验证多家时我提前列出 | S1 真实服务场景 | 先用模拟流完成 S1 其余部分 |
-| Windows 11 SSH 接入 | 2026-10-25 约定：我经 SSH 登录 Windows 配置环境，之后你使用。需要你提供主机名／用户名并配置**密钥登录**（我不输入密码） | Windows 实机验证（S2、S6） | macOS 与 CI 上能做的全部先做 |
+| （可选）Windows 上的 Scoop git 损坏 | `E:\Scoop\shims\git.exe` 无法启动 `git.exe`；不影响本轨道（我用快照同步，不需要 git），未擅自修复 | 无 | — |
+
+Windows 实机：`scripts/windows.sh test|publish|sync|exec`（主机 `win-home`，Tailscale，密钥登录；目录 `E:\mindweave-claude-auto`，与稳健轨隔离）。
 
 已授权（2026-10-25）：推送 `origin/track/claude-auto`；CI 可用（仓库私有时只跑 Linux＋Windows，必要时你可改为公开仓库以免费使用分钟数）。
 
@@ -71,4 +77,6 @@ MINDWEAVE_DATA_DIR=/tmp/mw-try dotnet run --project src/Mindweave.Desktop
 - **2026-10-25 · Avalonia 编译绑定可以绑定到方法组而不报错。** `IsVisible="{Binding GoBackCommand.CanExecute}"` 能编译，但绑定的是方法而非布尔值，按钮永远可见；只有真实控件测试能发现。处理：暴露布尔属性 `CanGoBack`。
 - **2026-10-25 · Windows 首次 CI 暴露 macOS 掩盖的句柄泄漏。** 打开非数据库文件时 `Open()` 成功、第一条 PRAGMA 才失败，连接未释放；macOS 不强制文件锁所以测试通过，Windows 上文件一直被占用。处理：打开与配置失败时立即释放，测试加“之后能移走文件”断言。教训：涉及文件句柄的测试必须在 Windows 上跑。
 - **2026-10-25 · Windows 上进程被杀后文件锁不会立即可用。** 进程已报告退出，`FileShare.None` 的锁仍短暂占用。处理：第二个实例在“已有实例无响应”时再尝试占用一次（崩溃后马上重开的真实场景）；测试改为限时重试。
+- **2026-10-26 · 两台机器 SDK 特性带不同**（macOS 10.0.402，Windows 10.0.103），原 `global.json` 固定 10.0.402 + `latestPatch` 会让 Windows 无法构建。处理：改为 10.0.100 + `latestFeature`（锁定 .NET 10 主版本，不锁特性带）；CI 用最新 10.0.x。
+- **2026-10-26 · 从 macOS 打包源码给 Windows 时，`tar` 会夹带 `._*` AppleDouble 文件**，被 MSBuild 当作 `.cs` 编译而报“二进制文件”。处理：`COPYFILE_DISABLE=1` 与 `--no-mac-metadata`。
 - **2026-10-25 · 迁移整体单事务时，`foreign_keys` 必须在事务外关闭、提交后再开。** SQLite 在事务内忽略对 `foreign_keys` 的修改；按官方流程在事务内用 `PRAGMA foreign_key_check` 兜底，违例回滚（已有测试）。
