@@ -168,12 +168,16 @@ public sealed partial class MainViewModel : ViewModelBase
     {
         try
         {
-            await FlushAllDraftsAsync();
-            if (pendingSelection is not null) { await store.SaveSelectionAsync(pendingSelection); pendingSelection = null; }
-            if (coordinator is not null) await coordinator.RetryPersistenceAsync();
+            async Task RepairLocalAsync()
+            {
+                await FlushAllDraftsAsync();
+                if (pendingSelection is not null) { await store.SaveSelectionAsync(pendingSelection); pendingSelection = null; }
+            }
+            if (coordinator is not null) await coordinator.RetryPersistenceAsync(RepairLocalAsync);
+            else await RepairLocalAsync();
             localPersistenceFailure = false; ErrorMessage = null;
         }
-        catch { localPersistenceFailure = true; ErrorMessage = "保存仍未完成，内容保留在窗口中。"; throw; }
+        catch { MarkPersistenceFailure(); ErrorMessage = "保存仍未完成，内容保留在窗口中。"; throw; }
         finally { NotifyAvailability(); }
     }
     private async Task RunAsync(Func<Task> action)
@@ -263,7 +267,7 @@ public sealed partial class MainViewModel : ViewModelBase
         _ = RefreshTitlesSafelyAsync();
     });
     private async Task RefreshTitlesSafelyAsync() { try { await RefreshConversationsAsync(); } catch { /* Reading old content remains possible. */ } }
-    private void MarkPersistenceFailure() { localPersistenceFailure = true; NotifyAvailability(); }
+    private void MarkPersistenceFailure() { localPersistenceFailure = true; coordinator?.ReportPersistenceFailure(); NotifyAvailability(); }
     private void NotifyAvailability()
     {
         OnPropertyChanged(nameof(HasPersistenceFailure)); OnPropertyChanged(nameof(CanMutate)); OnPropertyChanged(nameof(IsClosing)); OnPropertyChanged(nameof(IsInteractionEnabled));

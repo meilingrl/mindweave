@@ -12,11 +12,14 @@ public sealed partial class GenerationCoordinator : IAsyncDisposable
     private readonly object sync = new();
     private readonly SemaphoreSlim acceptance = new(1, 1);
     private readonly SemaphoreSlim persistence = new(1, 1);
+    private readonly SemaphoreSlim repairs = new(1, 1);
     private readonly List<Job> jobs = [];
     private readonly HashSet<Guid> pendingTitles = [];
     private readonly CancellationTokenSource lifetime = new();
     private Task? checkpoints;
-    private bool initialized, accepting, persistenceFailure, disposed;
+    private bool initialized, accepting, persistenceFailure, externalPersistenceFailure, disposed;
+    // Read only while holding sync. External failures pause new work, not healthy checkpoints.
+    private bool PersistencePaused => persistenceFailure || externalPersistenceFailure;
     private int slots;
 
     public GenerationCoordinator(IChatStore store, IChatTransport transport, ICredentialVault vault)
@@ -28,7 +31,7 @@ public sealed partial class GenerationCoordinator : IAsyncDisposable
     public bool HasActiveWork
     { get { lock (sync) return slots > 0 || jobs.Any(job => Active(job.Status)); } }
     public bool HasPersistenceFailure
-    { get { lock (sync) return persistenceFailure; } }
+    { get { lock (sync) return PersistencePaused; } }
 
     public async Task InitializeAsync()
     {
@@ -95,9 +98,17 @@ public sealed partial class GenerationCoordinator : IAsyncDisposable
             if (userText is not null) requestInput.Add(new("user", userText));
             if (!ChatRequestBudget.Fits(configuration, requestInput))
                 throw new InvalidOperationException("输入超出配置的上下文预算，请缩短输入或调整预算。");
-            lock (sync) RequireAccepting();
             GenerationWork work;
-            try { work = await store.AcceptReplyAsync(conversationId, userText, configuration).ConfigureAwait(false); }
+            try
+            {
+                Task<GenerationWork> accepted;
+                lock (sync)
+                {
+                    RequireAccepting();
+                    accepted = store.AcceptReplyAsync(conversationId, userText, configuration);
+                }
+                work = await accepted.ConfigureAwait(false);
+            }
             catch (Exception error) when (error is not (ArgumentException or InvalidOperationException))
             { MarkPersistenceFailure(); throw; }
             lock (sync) jobs.Add(new(work));
@@ -121,11 +132,53 @@ public sealed partial class GenerationCoordinator : IAsyncDisposable
         Dispatch();
     }
 
-    public async Task RetryPersistenceAsync()
+    /// <summary>Report a core save failure discovered outside the coordinator. Running streams
+    /// keep their memory/checkpoints; acceptance, queued dispatch and new titles pause.</summary>
+    public void ReportPersistenceFailure()
     {
-        await FlushAsync(throwOnFailure: true, explicitRetry: true).ConfigureAwait(false);
-        await AcceptTitlesAsync().ConfigureAwait(false);
-        Dispatch();
+        bool changed;
+        lock (sync)
+        {
+            if (disposed || externalPersistenceFailure) return;
+            changed = !persistenceFailure;
+            externalPersistenceFailure = true;
+        }
+        // Repeated reports are idempotent and cannot create a Changed/refresh/report loop.
+        if (changed) Notify();
+    }
+
+    public Task RetryPersistenceAsync() => RetryPersistenceCoreAsync(null);
+
+    /// <summary>Repair all external core state while the gate remains closed, then flush
+    /// coordinator state and release the gate. A failed repair leaves the pause intact.</summary>
+    public Task RetryPersistenceAsync(Func<Task> repairExternalPersistence)
+    {
+        ArgumentNullException.ThrowIfNull(repairExternalPersistence);
+        return RetryPersistenceCoreAsync(repairExternalPersistence);
+    }
+
+    private async Task RetryPersistenceCoreAsync(Func<Task>? repairExternalPersistence)
+    {
+        // The supplied repair may project caller-owned UI state. Preserve its caller
+        // context across contention; only coordinator-only awaits below leave it.
+        await repairs.WaitAsync();
+        try
+        {
+            lock (sync)
+                if (externalPersistenceFailure && repairExternalPersistence is null)
+                    throw new InvalidOperationException("工作台仍有未保存内容，请从工作台重试保存。");
+            if (repairExternalPersistence is not null)
+            {
+                try { await repairExternalPersistence().ConfigureAwait(false); }
+                catch { ReportPersistenceFailure(); throw; }
+            }
+            await FlushAsync(throwOnFailure: true, explicitRetry: true).ConfigureAwait(false);
+            lock (sync) externalPersistenceFailure = false;
+            Notify();
+            await AcceptTitlesAsync().ConfigureAwait(false);
+            Dispatch();
+        }
+        finally { repairs.Release(); }
     }
 
     public async Task ShutdownAsync()
@@ -180,7 +233,7 @@ public sealed partial class GenerationCoordinator : IAsyncDisposable
     {
         ObjectDisposedException.ThrowIf(disposed, this);
         if (!initialized || !accepting) throw new InvalidOperationException("当前不能接受新请求。");
-        if (persistenceFailure) throw new InvalidOperationException("保存失败，请先重试保存。");
+        if (PersistencePaused) throw new InvalidOperationException("保存失败，请先重试保存。");
     }
     private static bool Active(GenerationStatus status) => status is GenerationStatus.Queued or GenerationStatus.Running;
     private static GenerationSnapshot Snapshot(Job job) => new(job.Work.Task.Id, job.Work.Task.ConversationId,

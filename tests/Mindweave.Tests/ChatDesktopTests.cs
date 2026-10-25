@@ -370,13 +370,14 @@ public sealed class ChatDesktopTests
         var chat = Assert.IsType<ChatViewModel>(main.ActiveContent); var id = chat.ConversationId;
         chat.InputText = "already accepted question";
         delayed.FailNextMessages = !failDraftRead; delayed.FailNextDraftRead = failDraftRead;
-        await chat.SendCommand.ExecuteAsync(null); await f.Transport.NextAsync();
+        await chat.SendCommand.ExecuteAsync(null);
         Assert.Equal(2, (await f.Chat.ReadMessagesAsync(id)).Count);
         var tombstone = await f.Chat.LoadDraftAsync(id); Assert.Equal("", tombstone.Text);
         Assert.Equal("", chat.InputText); Assert.Contains("已发送", chat.ErrorMessage);
         Assert.True(main.HasPersistenceFailure); Assert.False(chat.CanSend);
         await main.RetryPersistenceAsync();
         Assert.False(main.HasPersistenceFailure); Assert.Null(chat.ErrorMessage); Assert.Equal(2, chat.Messages.Count);
+        await f.Transport.NextAsync(); // External pause may have won before initial dispatch.
         Assert.Equal(tombstone.Revision, chat.CurrentDraft.Revision);
         chat.InputText = "exactly one later edit";
         await main.NavigateAsync(new(MainArea.Settings)); await main.NavigateAsync(new(MainArea.Explore));
@@ -392,11 +393,129 @@ public sealed class ChatDesktopTests
         Assert.Single(await reopened.ReadMessagesAsync(id), m => m.Role == MessageRole.User && m.Body == "already accepted question");
     }
 
+    [AvaloniaFact]
+    public async Task Delayed_rename_preserves_new_edit_through_refresh_and_explicit_second_save()
+    {
+        await using var f = await F.OpenAsync(); var delayed = new ControlledChatStore(f.Store);
+        var main = CompositionRoot.CreateMain(delayed, f.Coordinator, new(delayed, f.Vault, f.Transport));
+        await main.InitializeAsync(); main.NewWorkspaceName = "rename baseline"; await main.CreateWorkspaceAsync(); await main.NewConversationCommand.ExecuteAsync(null);
+        var chat = Assert.IsType<ChatViewModel>(main.ActiveContent);
+        chat.TitleText = "submitted A"; delayed.DelayNextRename = true;
+        var saving = chat.RenameCommand.ExecuteAsync(null); await delayed.RenameEntered.Task.WaitAsync(TimeSpan.FromSeconds(10));
+        chat.TitleText = "newer B"; delayed.RenameRelease.TrySetResult(); await saving;
+        Assert.Equal("submitted A", (await f.Chat.LoadConversationAsync(chat.ConversationId))!.Title);
+        await f.Coordinator.RetryPersistenceAsync();
+        await WaitUiAsync(() => main.Conversations.Single().Title == "submitted A");
+        Assert.Equal("newer B", chat.TitleText);
+        await chat.RenameCommand.ExecuteAsync(null);
+        Assert.Equal("newer B", (await f.Chat.LoadConversationAsync(chat.ConversationId))!.Title);
+        main.DetachObservers();
+    }
+
+    [AvaloniaTheory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task Draft_failure_pauses_global_queue_and_titles_until_all_local_state_is_repaired(bool exitAndReturn)
+    {
+        await using var f = await F.OpenAsync();
+        var main = CompositionRoot.CreateMain(f.Store, f.Coordinator, new(f.Chat, f.Vault, f.Transport));
+        await main.InitializeAsync(); main.NewWorkspaceName = "global draft pause"; await main.CreateWorkspaceAsync();
+        await main.NewConversationCommand.ExecuteAsync(null); var a = Assert.IsType<ChatViewModel>(main.ActiveContent);
+        a.InputText = "question A"; await a.SendCommand.ExecuteAsync(null); var callA = await f.Transport.NextAsync();
+        await main.NewConversationCommand.ExecuteAsync(null); var b = Assert.IsType<ChatViewModel>(main.ActiveContent);
+        b.InputText = "question B"; await b.SendCommand.ExecuteAsync(null); var callB = await f.Transport.NextAsync();
+        await main.NewConversationCommand.ExecuteAsync(null); var c = Assert.IsType<ChatViewModel>(main.ActiveContent);
+        c.InputText = "question C"; await c.SendCommand.ExecuteAsync(null);
+        await main.NavigateAsync(new(MainArea.Explore, ContentKind.Conversation, a.ConversationId));
+        a = Assert.IsType<ChatViewModel>(main.ActiveContent); a.InputText = "unsaved next draft";
+        f.Sql($"CREATE TRIGGER fail_only_draft BEFORE UPDATE ON conversation_draft WHEN NEW.conversation_id='{a.ConversationId:D}' BEGIN SELECT RAISE(ABORT,'fixture'); END");
+        await main.NavigateAsync(new(MainArea.Settings));
+        Assert.True(main.HasPersistenceFailure); Assert.True(f.Coordinator.HasPersistenceFailure);
+        var redundantUiNotifications = 0;
+        void ObserveReport() { if (Dispatcher.UIThread.CheckAccess()) redundantUiNotifications++; }
+        f.Coordinator.Changed += ObserveReport;
+        f.Coordinator.ReportPersistenceFailure(); f.Coordinator.ReportPersistenceFailure();
+        f.Coordinator.Changed -= ObserveReport;
+        Assert.Equal(0, redundantUiNotifications);
+        Assert.False(callA.Cancellation.IsCancellationRequested); Assert.False(callB.Cancellation.IsCancellationRequested);
+        if (exitAndReturn)
+        {
+            await f.Coordinator.ShutdownAsync(); main.ReturnToWorkbench();
+            Assert.True(f.Coordinator.HasPersistenceFailure);
+            Assert.All(f.Coordinator.Snapshots, snapshot => Assert.Equal(GenerationStatus.Stopped, snapshot.Status));
+        }
+        else
+        {
+            var answerA = f.Coordinator.Snapshots.Single(snapshot => snapshot.ConversationId == a.ConversationId && snapshot.Kind == GenerationKind.Reply).TaskId;
+            callA.Emit("answer A", "stop"); callA.Finish();
+            await f.WaitAsync(() => f.Snapshot(answerA).Status == GenerationStatus.Completed && !f.Snapshot(answerA).HasUnsavedChanges);
+            Assert.Equal("answer A", (await f.Chat.ReadMessagesAsync(a.ConversationId)).Last().Body);
+            Assert.False(callB.Cancellation.IsCancellationRequested);
+        }
+        Assert.Equal(2, f.Transport.StartCount);
+        Assert.DoesNotContain(f.Coordinator.Snapshots, snapshot => snapshot.Kind == GenerationKind.Title);
+        Assert.Equal(exitAndReturn ? GenerationStatus.Stopped : GenerationStatus.Queued,
+            f.Coordinator.Snapshots.Single(snapshot => snapshot.ConversationId == c.ConversationId).Status);
+        await Assert.ThrowsAsync<InvalidOperationException>(() => f.Coordinator.SendAsync(a.ConversationId, "must not accept"));
+        await Assert.ThrowsAnyAsync<Exception>(() => main.RetryPersistenceAsync());
+        Assert.True(f.Coordinator.HasPersistenceFailure); Assert.Equal(2, f.Transport.StartCount);
+        f.Sql("DROP TRIGGER fail_only_draft");
+        // Removing the fault or logical Return must never release an external persistence pause.
+        main.ReturnToWorkbench();
+        await Assert.ThrowsAsync<InvalidOperationException>(() => f.Coordinator.RetryPersistenceAsync());
+        Assert.Equal(2, f.Transport.StartCount); Assert.True(f.Coordinator.HasPersistenceFailure);
+        await main.RetryPersistenceAsync();
+        Assert.False(main.HasPersistenceFailure); Assert.False(f.Coordinator.HasPersistenceFailure);
+        Assert.Equal("unsaved next draft", (await f.Chat.LoadDraftAsync(a.ConversationId)).Text);
+        if (exitAndReturn)
+        {
+            Assert.Equal(2, f.Transport.StartCount);
+            Assert.All(f.Coordinator.Snapshots, snapshot => Assert.Equal(GenerationStatus.Stopped, snapshot.Status));
+        }
+        else
+        {
+            var callC = await f.Transport.NextAsync();
+            Assert.Equal("question C", callC.Request.Messages.Last().Content); Assert.Equal(3, f.Transport.StartCount);
+            Assert.Single(f.Coordinator.Snapshots, snapshot => snapshot.Kind == GenerationKind.Title && snapshot.Status == GenerationStatus.Queued);
+            callB.Emit("answer B", "stop"); callB.Finish();
+            var titleA = await f.Transport.NextAsync();
+            Assert.Equal("system", titleA.Request.Messages[0].Role);
+            Assert.Contains(titleA.Request.Messages, message => message.Content == "answer A");
+            Assert.Equal(4, f.Transport.StartCount);
+        }
+        main.DetachObservers();
+    }
+
+    [AvaloniaFact]
+    public async Task Contended_external_repair_keeps_accepted_message_projection_on_ui_context()
+    {
+        await using var f = await F.OpenAsync(); var controlled = new ControlledChatStore(f.Store);
+        var main = CompositionRoot.CreateMain(controlled, f.Coordinator, new(controlled, f.Vault, f.Transport));
+        await main.InitializeAsync(); main.NewWorkspaceName = "repair affinity"; await main.CreateWorkspaceAsync(); await main.NewConversationCommand.ExecuteAsync(null);
+        var chat = Assert.IsType<ChatViewModel>(main.ActiveContent); chat.InputText = "accepted question"; controlled.FailNextMessages = true;
+        await chat.SendCommand.ExecuteAsync(null);
+        var entered = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var release = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        // Hold the real repair gate so Main must await it before reloading its accepted state.
+        var firstRepair = f.Coordinator.RetryPersistenceAsync(async () => { entered.TrySetResult(); await release.Task; });
+        await entered.Task;
+        var projectedOffUi = false;
+        chat.Messages.CollectionChanged += (_, _) => projectedOffUi |= !Dispatcher.UIThread.CheckAccess();
+        var mainRepair = main.RetryPersistenceAsync(); release.TrySetResult();
+        await Task.WhenAll(firstRepair, mainRepair);
+        Assert.False(projectedOffUi); Assert.Equal(2, chat.Messages.Count);
+        Assert.Null(chat.ErrorMessage); Assert.False(main.HasPersistenceFailure);
+        main.DetachObservers();
+    }
+
     // Only fault/delay the Desktop boundary. Every read/write otherwise delegates to real SQLite;
     // coordinator uses that same underlying SQLite store with its real acceptance transaction.
     private sealed class ControlledChatStore(SqliteWorkspaceStore inner) : IWorkspaceStore, IChatStore
     {
         public bool DelayNextDraft { get; set; }
+        public bool DelayNextRename { get; set; }
+        public TaskCompletionSource RenameEntered { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        public TaskCompletionSource RenameRelease { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
         public bool FailNextMessages { get; set; }
         public bool FailNextDraftRead { get; set; }
         public TaskCompletionSource DraftEntered { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
@@ -409,7 +528,11 @@ public sealed class ChatDesktopTests
         public Task<IReadOnlyList<Conversation>> ListConversationsAsync(Guid id) => inner.ListConversationsAsync(id);
         public Task<Conversation> CreateConversationAsync(Guid id) => inner.CreateConversationAsync(id);
         public Task<Conversation?> LoadConversationAsync(Guid id) => inner.LoadConversationAsync(id);
-        public Task RenameConversationAsync(Guid id, string title) => inner.RenameConversationAsync(id, title);
+        public async Task RenameConversationAsync(Guid id, string title)
+        {
+            if (DelayNextRename) { DelayNextRename = false; RenameEntered.TrySetResult(); await RenameRelease.Task; }
+            await inner.RenameConversationAsync(id, title);
+        }
         public Task<IReadOnlyList<ChatMessage>> ReadMessagesAsync(Guid id)
         {
             if (FailNextMessages) { FailNextMessages = false; throw new IOException("test-only postaccept read failure"); }

@@ -40,7 +40,8 @@ public sealed partial class ChatViewModel : ContentViewModel
         RenameCommand = new AsyncRelayCommand(async () =>
         {
             if (blocked()) return;
-            try { await store.RenameConversationAsync(ConversationId, TitleText); storedTitle = TitleText; ErrorMessage = null; }
+            var submittedTitle = TitleText;
+            try { await store.RenameConversationAsync(ConversationId, submittedTitle); storedTitle = submittedTitle; ErrorMessage = null; }
             catch (ArgumentException error) { ErrorMessage = error.Message; }
             catch { ErrorMessage = "标题保存失败，输入已保留。"; persistenceFailed(); }
         });

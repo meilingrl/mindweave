@@ -10,7 +10,7 @@ public sealed partial class GenerationCoordinator
     {
         lock (sync)
         {
-            if (!initialized || !accepting || persistenceFailure || disposed) return;
+            if (!initialized || !accepting || PersistencePaused || disposed) return;
             while (slots < 2)
             {
                 var job = jobs.Where(j => Active(j.Status) && !j.HasSlot && !j.StreamEnded)
@@ -31,11 +31,11 @@ public sealed partial class GenerationCoordinator
         try
         {
             await FlushAsync(throwOnFailure: false).ConfigureAwait(false);
-            lock (sync) if (persistenceFailure || !Active(job.Status)) return;
+            lock (sync) if (PersistencePaused || !Active(job.Status)) return;
             string secret;
             try { secret = await vault.ReadAsync(job.Work.Task.Configuration.CredentialReference).ConfigureAwait(false); }
             catch { Fail(job, "CredentialUnavailable"); return; }
-            lock (sync) if (persistenceFailure || !Active(job.Status)) return;
+            lock (sync) if (PersistencePaused || !Active(job.Status)) return;
             var input = ChatRequestBudget.Inputs(job.Work.InputMessages).ToList();
             if (job.Work.Task.Kind == GenerationKind.Title) input.Insert(0, new("system", TitleInstruction));
             var request = new ChatRequest(job.Work.Task.Configuration, input.ToArray());
@@ -106,7 +106,7 @@ public sealed partial class GenerationCoordinator
                 Guid candidate;
                 lock (sync)
                 {
-                    if (!accepting || persistenceFailure || pendingTitles.Count == 0) return;
+                    if (!accepting || PersistencePaused || pendingTitles.Count == 0) return;
                     candidate = pendingTitles.First();
                 }
                 try
@@ -128,7 +128,15 @@ public sealed partial class GenerationCoordinator
                         var user = messages.Single(m => m.Id == answer.ReplyToUserId);
                         ChatInput[] input = [new("system", TitleInstruction), new("user", user.Body), new("assistant", answer.Body)];
                         if (ChatRequestBudget.Fits(configuration, input))
-                            work = await store.AcceptTitleAsync(candidate, configuration).ConfigureAwait(false);
+                        {
+                            Task<GenerationWork?> accepted;
+                            lock (sync)
+                            {
+                                if (!accepting || PersistencePaused) return;
+                                accepted = store.AcceptTitleAsync(candidate, configuration);
+                            }
+                            work = await accepted.ConfigureAwait(false);
+                        }
                     }
                     lock (sync)
                     {
