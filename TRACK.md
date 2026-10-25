@@ -9,13 +9,14 @@
 
 ## 当前状态
 
-- 阶段：S1 会话与聊天实施中（2026-10-26 用户要求继续推进）。[S1 计划](docs/implementation/s1-chat-plan.md)；S0 已完成本地实现和 macOS 验证，见[数据关系](docs/implementation/s0-foundation.md)、[验证记录](docs/implementation/s0-verification.md)。
+- 阶段：S1 本地实现、自动化验证和代码审查完成；最终包原生复查及真实服务验收待用户协助（2026-10-26）。[S1 计划](docs/implementation/s1-chat-plan.md)；S0 历史见[数据关系](docs/implementation/s0-foundation.md)、[验证记录](docs/implementation/s0-verification.md)。本轨道目录为 `/Users/meilingluo/Developer/Projects/mindweave.worktrees/codex-steady`。
 - 可用代码：四工程原生桌面、主题工作区与会话创建／切换／重开、可选复制的正文、流式发送／停止／末尾重试、手动与自动标题、草稿和有效会话详情恢复、系统凭据配置、显式模型发现，以及确认后停止／保存／排空的退出流程。Main 仍持有唯一活动 ContentStack；Core／Application 无 UI 依赖。
-- 当前本地验证：完整 Release **122 通过、2 显式跳过、0 失败**，构建零警告／零错误；新增 13 项真实 SQLite／Headless 桌面回归，测试专用 loopback SSE 夹具另有 2 项进程协议自测。范围与命令见 [S1 验证记录](docs/implementation/s1-verification.md)。S0 曾完成的 macOS 操作保留在原 [S0 记录](docs/implementation/s0-verification.md)。
-- 审查／下一步：S1 存储、协议／凭据、应用协调器已完成各自独立审查；Task 4 桌面代码已本地验证，待控制器独立审查及 macOS 新窗口走查，不以 Headless 代替原生验收。用户选择 DeepSeek 官方／`deepseek-flash` 为后续真实验收对象，尚无用户密钥与付费调用范围授权，当前未外呼。自动标题实际 128 token 上限兼容性仍需供应商验收。
+- 当前本地验证：控制器在最终代码 `78f3fc1` 上重跑完整 Release：**129 通过、2 显式跳过、0 失败**，构建零警告／零错误；20 项真实 SQLite／Headless 桌面用例，loopback 夹具另有 **4 项**进程协议自测。范围与命令见 [S1 验证记录](docs/implementation/s1-verification.md)。
+- 原生证据：`fba2ef6` 实际完成正常流／重试／自动与手动标题、慢流切换／停止、取消退出、草稿与工作区切换、正常关闭；强制结束后恢复 1321 字检查点，正文哈希不变、标为中断且不重发。最终包已从 `78f3fc1` 重建，但复查时 Mac 锁定，等待用户手动解锁；不能将旧版原生结果冒充最终包复查。
+- 审查／下一步：四项任务已分别审查；[全量审查与限定复审](docs/reviews/codex-s1-20261026.md)确认两项 P2 已修复、无剩余 Critical／Important，保留一个极端修订号 P3。先在解锁后完成最终包针对性复查，再由用户在本地设置页录入 DeepSeek 官方／`deepseek-flash` 密钥并确认具体调用上限。尚无真实密钥或付费调用授权，未进行真实供应商 API 调用；自动标题 128 token 上限兼容性仍待真实验收。
 - 凭据／平台：macOS 钥匙串随机合成值写／读／删已由前任务另行实际通过，未读取既有凭据；当前完整测试中的两个平台／显式 opt-in 用例仍跳过。Windows 11 原生与完整课程验收未执行。
 - 隔离：程序固定为 `codex-steady`；默认／指定根目录下的数据子目录、锁与 IPC 身份已隔离并有测试。凭据实现按命名空间和随机版本引用访问，不能读取其他命名空间。
-- 本轮临时资产：`artifacts/s0-native/` 的专用测试数据与 `artifacts/macos/Mindweave Codex.app` 开发启动器仍用于体验，保留使用中；不包含用户正式数据、不进入 Git。`tests/fixtures/chat_sse_fixture.py` 保留使用中，供后续原生协议验证，启动命令见 S1 验证记录；新 `artifacts/s1-native/` 仅为控制器后续专用测试数据的建议位置，Task 4 未重建或操作现有原生包。构建 `bin/obj` 与 xUnit 临时库可再生成。本轮没有借用激进轨代码，没有修改共享需求／架构。
+- 本轮临时资产：`artifacts/s0-native/` 保留原 S0 测试数据，本轮不再写入；`artifacts/s1-native/` 和 `artifacts/macos/Mindweave Codex.app` 继续用于最终包／服务验收。loopback 服务已停止，夹具脚本保留使用中，命令见验证记录；合成测试密钥无访问权限，测试资产不含用户正式数据、不进入 Git。`.superpowers/sdd/s1-chat-plan/` 为本计划的临时报告与恢复进度，因待用户解锁／服务验收继续保留使用中，不应重新派发已完成任务。构建 `bin/obj` 与临时库可再生成。本轮没有借用激进轨代码，没有修改共享需求／架构。
 
 - 2026-10-25：已同步 `main` 的文档归置与路线说明；正式代码、测试和脚本后续按需进入 `src/`、`tests/`、`scripts/`。
 

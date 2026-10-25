@@ -95,11 +95,11 @@ public interface IChatTransport {
 
 **Interfaces:** 产出上节全部 Core／Application 契约与 `IChatStore` 实现；`SqliteWorkspaceStore` 同时实现 `IWorkspaceStore`、`IChatStore`。`DatabaseSchema.Migrations` 为只读迁移清单，v2 增加 S1 表，不动已提交 v1 SQL。新建工作区行为保持兼容。
 
-- [ ] 先写测试：临时库接受请求后消息／任务／配置／输入身份可重开；同会话活动任务拒绝；终态后新旧修订均不可改写；取消后末尾重试另存，旧尝试保留且后续输入只含最新尝试。例：`Assert.False(await store.WriteGenerationAsync(id, 99, "late", GenerationStatus.Running));`。
-- [ ] 测试启动恢复将排队／运行标 Interrupted 保留正文、不发送；手动标题竞争拒绝自动覆盖；草稿防修订回退；配置密钥引用冻结；v1 升级前备份且内容完整。先运行 `dotnet test Mindweave.slnx --filter FullyQualifiedName~ChatStorageTests` 确认预期失败，再实现。
-- [ ] 实现事务与复合外键／事务内归属检查：来源角色、回复同会话、唯一顺序、同会话活动回答唯一、重试限最后回答、配置预算验证。错误不携带原文、密钥或服务响应。
-- [ ] 默认会话“新会话”；创建时无自动网络调用。标题记录手改标记和修订，自动标题结果应用同事务检查基线；活动任务与终态更新同事务。草稿由明确修订号更新，接受新消息时清除已提交输入对应的旧草稿，不误删后续草稿。
-- [ ] 运行完整 Release 测试，提交本任务；报告 RED／GREEN 命令、关键输出、文件和接口差异。
+- [x] 先写测试：临时库接受请求后消息／任务／配置／输入身份可重开；同会话活动任务拒绝；终态后新旧修订均不可改写；取消后末尾重试另存，旧尝试保留且后续输入只含最新尝试。例：`Assert.False(await store.WriteGenerationAsync(id, 99, "late", GenerationStatus.Running));`。
+- [x] 测试启动恢复将排队／运行标 Interrupted 保留正文、不发送；手动标题竞争拒绝自动覆盖；草稿防修订回退；配置密钥引用冻结；v1 升级前备份且内容完整。先运行 `dotnet test Mindweave.slnx --filter FullyQualifiedName~ChatStorageTests` 确认预期失败，再实现。
+- [x] 实现事务与复合外键／事务内归属检查：来源角色、回复同会话、唯一顺序、同会话活动回答唯一、重试限最后回答、配置预算验证。错误不携带原文、密钥或服务响应。
+- [x] 默认会话“新会话”；创建时无自动网络调用。标题记录手改标记和修订，自动标题结果应用同事务检查基线；活动任务与终态更新同事务。草稿由明确修订号更新，接受新消息时清除已提交输入对应的旧草稿，不误删后续草稿。
+- [x] 运行完整 Release 测试，提交本任务；报告 RED／GREEN 命令、关键输出、文件和接口差异。
 
 ## Task 2: Chat Completions 与系统凭据
 
@@ -107,12 +107,12 @@ public interface IChatTransport {
 
 **Interfaces:** 消费 Task 1 的 `IChatTransport`／`ICredentialVault`；产出 `ChatCompletionsTransport(HttpClient)`、`SystemCredentialVault(string credentialNamespace)`；默认生产 HttpClient handler 必须拒绝重定向，通过工厂 `CreateHttpClient()` 提供。`AiConfiguration` 验证可新增 Core 纯函数并测试，但通知控制器。
 
-- [ ] 先写真实解析／HttpMessageHandler 边界测试：UTF-8 分块、多行 SSE、CRLF、注释、空 choices／usage、content delta、finish_reason stop／length、`[DONE]`、无终态 EOF、无正文、服务错误、取消、超时；断言发出准确 URL、Bearer、消息和 token 参数，未发额外请求。先观察失败。
-- [ ] 实现 POST `{BaseUrl}/chat/completions`、GET `{BaseUrl}/models`，只 `delta.content` 作为正文，不把 reasoning／工具调用当回答；SSE 有界解析，不打印原始 JSON／错误体；未知结束、过滤、长度截断明确失败并保留已收文本。成功必须有有效正文及明确 stop 结束，单纯 EOF 不能成功。不自动重试。适配器保留 finish reason 与实际模型事件，不暴露供应商类型。
-- [ ] 端点只允许合法 HTTPS，回环地址可 HTTP。默认不重定向；即使注入测试 handler 也拒绝 3xx 响应。请求超时以每次调用的 linked CancellationTokenSource 覆盖流读取，不只 headers；不要把调用者取消误报服务失败。响应 dispose 结束客户端连接；不声称服务端停止计费。
-- [ ] 系统凭据实现 macOS Security.framework 原生 API、Windows CredWrite／Read／Delete；不通过带密钥参数的子进程、不写文件。版本引用包含应用命名空间与随机 ID，不能读取任意其他条目；错误仅状态码与安全说明。未知平台明确不支持且旧聊天仍能读取。
-- [ ] 凭据测试默认仅验证引用范围／空密钥拒绝与不支持平台；可另提供显式环境开关的系统 roundtrip，用随机合成秘密和专属测试 namespace，清理自己创建的条目。不读取现有用户凭据，不使用真实密钥；原生系统调用结果与非原生测试分别报告。
-- [ ] 根据 [DeepSeek 官方 Chat Completions](https://api-docs.deepseek.com/api/create-chat-completion/) 与 [OpenAI Chat reference](https://developers.openai.com/api/reference/resources/chat/subresources/completions)核对兼容字段。运行聚焦测试和完整 Release 测试，提交并报告。
+- [x] 先写真实解析／HttpMessageHandler 边界测试：UTF-8 分块、多行 SSE、CRLF、注释、空 choices／usage、content delta、finish_reason stop／length、`[DONE]`、无终态 EOF、无正文、服务错误、取消、超时；断言发出准确 URL、Bearer、消息和 token 参数，未发额外请求。先观察失败。
+- [x] 实现 POST `{BaseUrl}/chat/completions`、GET `{BaseUrl}/models`，只 `delta.content` 作为正文，不把 reasoning／工具调用当回答；SSE 有界解析，不打印原始 JSON／错误体；未知结束、过滤、长度截断明确失败并保留已收文本。成功必须有有效正文及明确 stop 结束，单纯 EOF 不能成功。不自动重试。适配器保留 finish reason 与实际模型事件，不暴露供应商类型。
+- [x] 端点只允许合法 HTTPS，回环地址可 HTTP。默认不重定向；即使注入测试 handler 也拒绝 3xx 响应。请求超时以每次调用的 linked CancellationTokenSource 覆盖流读取，不只 headers；不要把调用者取消误报服务失败。响应 dispose 结束客户端连接；不声称服务端停止计费。
+- [x] 系统凭据实现 macOS Security.framework 原生 API、Windows CredWrite／Read／Delete；不通过带密钥参数的子进程、不写文件。版本引用包含应用命名空间与随机 ID，不能读取任意其他条目；错误仅状态码与安全说明。未知平台明确不支持且旧聊天仍能读取。
+- [x] 凭据测试默认仅验证引用范围／空密钥拒绝与不支持平台；可另提供显式环境开关的系统 roundtrip，用随机合成秘密和专属测试 namespace，清理自己创建的条目。不读取现有用户凭据，不使用真实密钥；原生系统调用结果与非原生测试分别报告。
+- [x] 根据 [DeepSeek 官方 Chat Completions](https://api-docs.deepseek.com/api/create-chat-completion/) 与 [OpenAI Chat reference](https://developers.openai.com/api/reference/resources/chat/subresources/completions/methods/create)核对兼容字段。运行聚焦测试和完整 Release 测试，提交并报告。
 
 ## Task 3: 应用级生成协调器
 
@@ -145,13 +145,13 @@ public sealed class ChatConfigurationService {
 }
 ```
 
-- [ ] 用真实 SQLite＋受控流式 transport 测试：第三请求排队、运行最多2、同会话重复发送拒绝、排队取消、运行停止保留部分正文、迟到 delta 不改变终态、切换页面不影响协调器。先 RED 再实现，不用固定 sleep 推测顺序，使用 TCS／通道控制。
-- [ ] 接受前读活动配置，估算超预算则拒绝并不清空输入；读取冻结凭据版本，不换新 key。提交工作后调度器按 Reply 优先于 Title；不持有槽等待自己的前置请求。本轮无压缩子任务。
-- [ ] 流正文在协调器内存，UI 不等待磁盘检查点；写入约每250ms或明显内容增长，终态立即写。每个任务修订单调；停止先封闭该流接受入口再取消，不等不合作 transport 继续修改；取消／超时／EOF 有明确不同结果，消息与任务同事务终态保存。
-- [ ] 注入存储保存失败后保留最新正文与状态、设置全局暂停，阻止新请求；显式重试落盘后恢复。退出保存失败可重试，不得吞错后关闭或释放实例。启动只恢复记录为中断，不调 transport；子进程模拟流检查点后 kill→重开验证。
-- [ ] 完成首条回答后接受自动标题，走同一全局2槽且优先级低于回答；标题短输出、绑定配置与输入，手动改名期间迟到结果不覆盖。错误不会破坏正文，不保存部分标题。
-- [ ] 配置服务保存新密钥版本与 DB 引用，失败清理新建的无引用版本；保留旧版本，避免排队快照失效。未保存 secret 只留当前设置 VM 内存，不能写普通配置／日志。显式模型发现与生成测试保持分离。
-- [ ] 运行聚焦和完整 Release 测试，提交，记录实际时间／大小常数、TDD 与故障证据。
+- [x] 用真实 SQLite＋受控流式 transport 测试：第三请求排队、运行最多2、同会话重复发送拒绝、排队取消、运行停止保留部分正文、迟到 delta 不改变终态、切换页面不影响协调器。先 RED 再实现，不用固定 sleep 推测顺序，使用 TCS／通道控制。
+- [x] 接受前读活动配置，估算超预算则拒绝并不清空输入；读取冻结凭据版本，不换新 key。提交工作后调度器按 Reply 优先于 Title；不持有槽等待自己的前置请求。本轮无压缩子任务。
+- [x] 流正文在协调器内存，UI 不等待磁盘检查点；写入约每250ms或明显内容增长，终态立即写。每个任务修订单调；停止先封闭该流接受入口再取消，不等不合作 transport 继续修改；取消／超时／EOF 有明确不同结果，消息与任务同事务终态保存。
+- [x] 注入存储保存失败后保留最新正文与状态、设置全局暂停，阻止新请求；显式重试落盘后恢复。退出保存失败可重试，不得吞错后关闭或释放实例。启动只恢复记录为中断，不调 transport；子进程模拟流检查点后 kill→重开验证。
+- [x] 完成首条回答后接受自动标题，走同一全局2槽且优先级低于回答；标题短输出、绑定配置与输入，手动改名期间迟到结果不覆盖。错误不会破坏正文，不保存部分标题。
+- [x] 配置服务保存新密钥版本与 DB 引用，失败清理新建的无引用版本；保留旧版本，避免排队快照失效。未保存 secret 只留当前设置 VM 内存，不能写普通配置／日志。显式模型发现与生成测试保持分离。
+- [x] 运行聚焦和完整 Release 测试，提交，记录实际时间／大小常数、TDD 与故障证据。
 
 ## Task 4: 桌面聊天、配置与退出交互
 
@@ -159,14 +159,17 @@ public sealed class ChatConfigurationService {
 
 **Interfaces:** 消费 Task1–3；旧 `CompositionRoot.CreateMain(IWorkspaceStore)` 和 Root 测试构造入口可保留兼容重载，生产只组装一个 store、一个 coordinator、一个 vault、一个 transport。Main 的唯一活动 ContentStack 继续成立，不能在 ChatViewModel／服务私建业务后退栈。
 
-- [ ] 先写 Headless 测试：真实工作区新建会话、输入发送、可观察流、停止；切换两会话后回到最新内存正文；重开读取中断／终态、草稿和最后有效会话；设置保存失败保留输入。既有 S0 导航测试中模拟 ID 的用例按新实体有效性更新，不削弱真实导航断言。
-- [ ] 会话列表按工作区展示、当前项可辨认，提供新建会话、标题手改；正文显示所有重试尝试与不完整标记，发送／停止／末尾重试可访问，输入失败保留。文字可选择复制；不提供尚未实现的选区分支按钮。
-- [ ] 使用统一 NavigationRequest 传会话 ID；普通菜单切换保存当前草稿再切换，防抖草稿修订防回退；最近内容恢复必须确认 ID 属于当前工作区。app_selection 扩展详情身份字段属于本任务迁移 v3，需正常迁移备份与验证，不改 v1/v2。
-- [ ] 设置界面提供名称、Base URL、遮蔽密钥、模型 ID、模型发现、保存、两种 token 参数和上下文／输出预算；说明发送内容到所填服务、自动标题与可能费用；无密钥时可阅读旧会话。模型发现失败仍可手填。真实连接测试可以通过新建测试会话显式发送完成，不新增隐蔽生成请求。
-- [ ] 正在生成时退出显示可取消确认，取消不停止任何任务；确认后暂停接收、取消队列／运行、刷新保存、排空再关库／释放实例。保存失败保持当前阅读内容并提供重试保存、重试退出和返回工作台；不自动复活已停止任务。设置密钥不经聊天回传。
+- [x] 先写 Headless 测试：真实工作区新建会话、输入发送、可观察流、停止；切换两会话后回到最新内存正文；重开读取中断／终态、草稿和最后有效会话；设置保存失败保留输入。既有 S0 导航测试中模拟 ID 的用例按新实体有效性更新，不削弱真实导航断言。
+- [x] 会话列表按工作区展示、当前项可辨认，提供新建会话、标题手改；正文显示所有重试尝试与不完整标记，发送／停止／末尾重试可访问，输入失败保留。文字可选择复制；不提供尚未实现的选区分支按钮。
+- [x] 使用统一 NavigationRequest 传会话 ID；普通菜单切换保存当前草稿再切换，防抖草稿修订防回退；最近内容恢复必须确认 ID 属于当前工作区。app_selection 扩展详情身份字段属于本任务迁移 v3，需正常迁移备份与验证，不改 v1/v2。
+- [x] 设置界面提供名称、Base URL、遮蔽密钥、模型 ID、模型发现、保存、两种 token 参数和上下文／输出预算；说明发送内容到所填服务、自动标题与可能费用；无密钥时可阅读旧会话。模型发现失败仍可手填。真实连接测试可以通过新建测试会话显式发送完成，不新增隐蔽生成请求。
+- [x] 正在生成时退出显示可取消确认，取消不停止任何任务；确认后暂停接收、取消队列／运行、刷新保存、排空再关库／释放实例。保存失败保持当前阅读内容并提供重试保存、重试退出和返回工作台；不自动复活已停止任务。设置密钥不经聊天回传。
 - [ ] macOS 用专用测试库和本地 loopback SSE fixture 验证真实窗口发送、停止、切换、重开；夹具是明确的协议测试服务，不能冒充真实模型。系统合成凭据 roundtrip 若弹 OS 许可则请用户处理。等待真实服务配置／少量调用授权时继续不依赖它的测试与修复。
-- [ ] 完整 Release 构建／测试、独立全量审查与必要修复；更新 TRACK 区分本地协议验证、原生凭据验证、真实供应商与 Windows 实机。保留可体验窗口和本地提交，不推送。
+- [x] 完整 Release 构建／测试、独立全量审查与必要修复；更新 TRACK 区分本地协议验证、原生凭据验证、真实供应商与 Windows 实机。提供可体验启动器和本地提交，不推送。
+
 
 ## 自审与边界
 
 本计划按已确认 S1 推进，未新增产品取舍。重试、队列、标题、退出和配置冻结都沿现行行为；只在对应任务固定当前必要字段。S2 的富文本选区与来源、S3 自动压缩、S4 总结和后续网络不计为本轮完成。真实服务仍需用户在本地填凭据及授权调用额度，不能挪用原型或其他软件凭据。
+
+执行状态（2026-10-26）：最终代码 `78f3fc1` 构建、129 项测试及独立复核通过；早期版本原生流程已实测。最终包针对性复查被 Mac 锁屏阻断，待用户解锁；DeepSeek 真实验收待用户本地密钥与具体调用授权。详见 [S1 验证记录](s1-verification.md) 与 [TRACK](../../TRACK.md)。
