@@ -1,7 +1,12 @@
 using Microsoft.Data.Sqlite;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging.Abstractions;
+using Mindweave.Application.Ai;
+using Mindweave.Application.Conversations;
+using Mindweave.Application.Credentials;
+using Mindweave.Application.Models;
 using Mindweave.Core.Workspaces;
+using Mindweave.Testing;
 using Mindweave.Desktop.Navigation;
 using Mindweave.Desktop.Services;
 using Mindweave.Desktop.ViewModels;
@@ -19,10 +24,24 @@ public sealed class DesktopHarness : IAsyncDisposable
     private DesktopHarness(string directory, Action<IServiceCollection>? overrides, bool ownsDirectory)
     {
         Paths = new AppPaths("test", directory);
-        _overrides = overrides;
+        _overrides = services =>
+        {
+            // No network and no real keychain in UI tests; fast checkpoints.
+            services.AddSingleton<IChatClient>(Client);
+            services.AddSingleton<ICredentialStore>(Credentials);
+            services.AddSingleton(new GenerationOptions { CheckpointInterval = TimeSpan.FromMilliseconds(50) });
+            overrides?.Invoke(services);
+        };
         _ownsDirectory = ownsDirectory;
-        Services = CompositionRoot.Build(Paths, Shell, NullLoggerProvider.Instance, overrides);
+        Services = CompositionRoot.Build(Paths, Shell, NullLoggerProvider.Instance, _overrides);
     }
+
+    public FakeChatClient Client { get; } = new();
+
+    public MemoryCredentialStore Credentials { get; } = new();
+
+    public async Task ConfigureModelAsync() =>
+        await Services.GetRequiredService<ModelSettingsService>().SaveAsync(new ModelSettingsInput("fake", "https://fake.example/v1", "fake-model", "sk-test"), CancellationToken.None);
 
     public AppPaths Paths { get; }
 
@@ -56,6 +75,7 @@ public sealed class DesktopHarness : IAsyncDisposable
     public async Task RestartAsync()
     {
         await Workbench.LastLocationSave;
+        await Services.GetRequiredService<GenerationCoordinator>().ShutdownAsync();
         await Services.GetRequiredService<SqliteDatabase>().CloseAsync();
         await Services.DisposeAsync();
         Services = CompositionRoot.Build(Paths, Shell, NullLoggerProvider.Instance, _overrides);
@@ -64,6 +84,7 @@ public sealed class DesktopHarness : IAsyncDisposable
 
     public async ValueTask DisposeAsync()
     {
+        await Services.GetRequiredService<GenerationCoordinator>().ShutdownAsync();
         await Services.GetRequiredService<SqliteDatabase>().CloseAsync();
         await Services.DisposeAsync();
         SqliteConnection.ClearAllPools();

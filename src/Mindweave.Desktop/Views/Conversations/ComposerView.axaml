@@ -1,0 +1,23 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:Mindweave.Desktop.ViewModels.Conversations"
+             xmlns:d="using:Mindweave.Desktop"
+             x:Class="Mindweave.Desktop.Views.Conversations.ComposerView"
+             x:DataType="vm:Composer">
+  <StackPanel Spacing="6">
+    <DockPanel IsVisible="{Binding Notice, Converter={x:Static ObjectConverters.IsNotNull}}">
+      <Button DockPanel.Dock="Right" Name="OpenSettingsFromNotice" Content="{x:Static d:UiText.OpenSettingsLink}"
+              IsVisible="{Binding ShowSettingsLink}" Classes="link" Tag="settings" />
+      <TextBlock Name="Notice" Classes="error" Text="{Binding Notice}" TextWrapping="Wrap" VerticalAlignment="Center" />
+    </DockPanel>
+    <Border BorderBrush="{StaticResource DividerBrush}" BorderThickness="1" CornerRadius="10" Padding="8">
+      <DockPanel>
+        <Button Name="SendButton" DockPanel.Dock="Right" VerticalAlignment="Bottom" Content="{x:Static d:UiText.Send}"
+                Command="{Binding SendCommand}" Margin="8,0,0,0" />
+        <TextBox Name="Input" Text="{Binding Text}" AcceptsReturn="True" TextWrapping="Wrap" MaxHeight="220" MinHeight="40"
+                 BorderThickness="0" Background="Transparent" PlaceholderText="{x:Static d:UiText.AskPlaceholder}"
+                 AutomationProperties.Name="提问" />
+      </DockPanel>
+    </Border>
+  </StackPanel>
+</UserControl>

@@ -11,5 +11,6 @@
   <ItemGroup>
     <ProjectReference Include="..\..\src\Mindweave.Infrastructure\Mindweave.Infrastructure.csproj" />
     <ProjectReference Include="..\Mindweave.TestHost\Mindweave.TestHost.csproj" />
+    <ProjectReference Include="..\Mindweave.Testing\Mindweave.Testing.csproj" />
   </ItemGroup>
 </Project>

@@ -1,5 +1,8 @@
 using System.Globalization;
+using Mindweave.Application.Conversations;
+using Mindweave.Application.Models;
 using Mindweave.Application.Startup;
+using Mindweave.Core.Conversations;
 using Mindweave.Core.Workspaces;
 
 namespace Mindweave.Desktop;
@@ -38,6 +41,95 @@ public static class UiText
     public const string RestoreThis = "恢复此备份…";
     public const string ConfirmRestore = "确认恢复";
     public const string AvailableBackups = "可用的备份";
+    public const string NewConversation = "新会话";
+    public const string ConversationMissing = "会话不存在";
+    public const string AskPlaceholder = "提问…（Enter 发送，Shift+Enter 换行）";
+    public const string Send = "发送";
+    public const string Stop = "停止";
+    public const string Regenerate = "重新生成";
+    public const string Rename = "改名";
+    public const string Save = "保存";
+    public const string OpenSettingsLink = "前往设置";
+    public const string EarlierAttempt = "较早的尝试";
+    public const string RetryAttempt = "重新回答";
+    public const string MarkerGenerating = "正在生成";
+    public const string MarkerNeedsAttention = "回答未完成，可重试";
+    public const string ModelSection = "模型连接";
+    public const string ConnectionNameLabel = "名称（可选）";
+    public const string BaseUrlLabel = "服务地址";
+    public const string BaseUrlHint = "OpenAI 兼容 Chat Completions 地址，通常以 /v1 结尾，例如 https://api.deepseek.com";
+    public const string ApiKeyLabel = "API 密钥";
+    public const string ModelLabel = "模型";
+    public const string FetchModels = "获取模型列表";
+    public const string TestConnection = "测试连接";
+    public const string TestCostHint = "测试会发出一次很短的真实请求，可能产生少量费用。获取模型列表不生成内容。";
+    public const string PrivacyHint = "提问及会话内容会发送到上面配置的服务。密钥保存在系统钥匙串／凭据管理器中，不写入数据文件。";
+    public const string KeySavedHint = "已保存密钥。留空表示继续使用；填写则替换。";
+    public const string KeyMissingHint = "尚未保存密钥。";
+    public const string SettingsSaved = "已保存。新的提问将使用此配置；正在进行的回答不受影响。";
+    public const string NoModelsFound = "服务没有返回模型，可以直接手动填写模型名称。";
+    public const string TestSucceeded = "连接正常。";
+    public const string ExitTitle = "仍有回答在生成";
+    public const string ExitConfirm = "停止并退出";
+    public const string ExitCancel = "继续生成";
+
+    public static string ModelsFound(int count) => string.Format(CultureInfo.CurrentCulture, "找到 {0} 个模型。", count);
+
+    public static string ExitWithRunningAnswers(int count) => string.Format(
+        CultureInfo.CurrentCulture,
+        "有 {0} 个回答尚未完成。退出会停止它们，已收到的内容会保存并标记为“已停止”；排队中的会被取消。下次启动不会自动重发。",
+        count);
+
+    public static string ErrorKind(GenerationErrorKind kind) => kind switch
+    {
+        GenerationErrorKind.Unauthorized => "密钥无效或无权访问",
+        GenerationErrorKind.QuotaOrRateLimited => "额度不足或请求过于频繁",
+        GenerationErrorKind.ContextTooLong => "内容超出模型上下文长度",
+        GenerationErrorKind.ServerError => "服务端出错",
+        GenerationErrorKind.Network => "网络连接失败",
+        GenerationErrorKind.Timeout => "等待超时",
+        GenerationErrorKind.InvalidResponse => "服务返回了无法识别的内容",
+        GenerationErrorKind.CredentialUnavailable => "系统凭据服务不可用（可能已锁定），请解锁后重试",
+        GenerationErrorKind.NotConfigured => "尚未配置模型或密钥",
+        GenerationErrorKind.StorageUnavailable => "无法保存到本地数据",
+        _ => "未知错误",
+    };
+
+    public static string? AnswerState(MessageState state, GenerationErrorKind? error) => state switch
+    {
+        MessageState.Pending => "等待中…",
+        MessageState.Streaming => null,
+        MessageState.Stopped => "已停止",
+        MessageState.Failed => "失败：" + (error is { } e ? ErrorKind(e) : "未知错误"),
+        MessageState.Interrupted => "已中断（上次退出时未完成，未自动重发）",
+        MessageState.Cancelled => "已取消",
+        _ => null,
+    };
+
+    public static string SendRejected(SendRejection rejection) => rejection switch
+    {
+        SendRejection.EmptyQuestion => "请输入问题。",
+        SendRejection.QuestionTooLong => "问题过长。",
+        SendRejection.NotConfigured => "还没有配置模型连接。",
+        SendRejection.AnswerInProgress => "当前回答尚未结束，请等待或先停止。",
+        SendRejection.StorageUnavailable => "本地数据暂时无法保存，已暂停新的提问；已有内容仍可阅读和复制。",
+        SendRejection.NotRetryable => "只能重试会话中最后一条回答。",
+        _ => "无法发送。",
+    };
+
+    public static string TestFailed(GenerationErrorKind? kind, string? detail) =>
+        $"连接失败：{(kind is { } k ? ErrorKind(k) : "未知错误")}{(string.IsNullOrWhiteSpace(detail) ? string.Empty : $"（{detail}）")}";
+
+    public static string SettingsProblem(ModelSettingsProblem problem) => problem switch
+    {
+        ModelSettingsProblem.InvalidUrl => "服务地址无效，需要以 https:// 开头的完整地址。",
+        ModelSettingsProblem.InsecureUrl => "只允许 https 地址（本机地址除外），以免密钥以明文传输。",
+        ModelSettingsProblem.MissingModel => "请填写模型名称。",
+        ModelSettingsProblem.MissingKey => "请填写 API 密钥。",
+        _ => "设置无效。",
+    };
+
+    public static string CredentialUnavailable(string detail) => $"系统凭据服务不可用，请解锁后重试（{detail}）。密钥不会改为明文保存。";
 
     public static string WorkspaceNameError(WorkspaceNameError error) => error switch
     {

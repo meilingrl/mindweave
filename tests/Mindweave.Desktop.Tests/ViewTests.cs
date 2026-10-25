@@ -15,8 +15,14 @@ public class ViewTests
     [Fact]
     public void Every_view_model_shown_through_a_content_host_has_a_registered_view()
     {
-        // RootViewModel is the window's DataContext and WorkspaceNameForm is rendered inline by its owners.
-        var inline = new[] { typeof(RootViewModel), typeof(WorkspaceNameForm) };
+        // Window DataContext, overlays and parts rendered inline by their owners' own templates.
+        var inline = new[]
+        {
+            typeof(RootViewModel), typeof(WorkspaceNameForm), typeof(ExitPromptViewModel),
+            typeof(ViewModels.Conversations.Composer), typeof(ViewModels.Conversations.MessageItemViewModel),
+            typeof(ViewModels.Conversations.ConversationItemViewModel), typeof(ViewModels.Conversations.ConversationListViewModel),
+            typeof(ViewModels.Pages.ModelSettingsViewModel),
+        };
         var hosted = typeof(ViewModelBase).Assembly.GetTypes()
             .Where(t => t is { IsAbstract: false, IsClass: true } && typeof(ViewModelBase).IsAssignableFrom(t))
             .Except(inline);
@@ -85,7 +91,7 @@ public class ViewTests
         window.GetVisualDescendants().OfType<T>().Single(c => c.Name == name);
 
     /// <summary>Writes a rendered frame when MINDWEAVE_SCREENSHOT_DIR is set, for visual review.</summary>
-    private static void Capture(Window window, string name)
+    internal static void Capture(Window window, string name)
     {
         var target = Environment.GetEnvironmentVariable("MINDWEAVE_SCREENSHOT_DIR");
         if (string.IsNullOrEmpty(target))

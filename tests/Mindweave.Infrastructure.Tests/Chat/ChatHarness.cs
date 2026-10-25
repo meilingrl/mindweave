@@ -1,5 +1,7 @@
+using Mindweave.Testing;
 using Microsoft.Extensions.Logging.Abstractions;
 using Mindweave.Application;
+using Mindweave.Application.Ai;
 using Mindweave.Application.Conversations;
 using Mindweave.Application.Models;
 using Mindweave.Application.Storage;
@@ -15,8 +17,9 @@ internal sealed class ChatHarness : IAsyncDisposable
     private readonly TempDataDirectory _dir;
     private readonly bool _ownsDirectory;
 
-    private ChatHarness(TempDataDirectory dir, bool ownsDirectory, Func<IConversationStore, IConversationStore>? wrapStore)
+    private ChatHarness(TempDataDirectory dir, bool ownsDirectory, Func<IConversationStore, IConversationStore>? wrapStore, IChatClient? client)
     {
+        ActiveClient = client ?? Client;
         _dir = dir;
         _ownsDirectory = ownsDirectory;
         Database = dir.Database();
@@ -25,12 +28,12 @@ internal sealed class ChatHarness : IAsyncDisposable
         var storeOverride = wrapStore?.Invoke(Store);
         Generation = new GenerationCoordinator(
             storeOverride ?? Store,
-            Client,
+            ActiveClient,
             Credentials,
             new SystemClock(),
             new GenerationOptions { CheckpointInterval = TimeSpan.FromMilliseconds(50), SaveRetryInterval = TimeSpan.FromMilliseconds(50) },
             NullLogger<GenerationCoordinator>.Instance);
-        Models = new ModelSettingsService(Settings, Store, Credentials, Client, new SystemClock(), NullLogger<ModelSettingsService>.Instance);
+        Models = new ModelSettingsService(Settings, Store, Credentials, ActiveClient, new SystemClock(), NullLogger<ModelSettingsService>.Instance);
         Conversations = new ConversationService(storeOverride ?? Store, Generation, Models, new SystemClock(), NullLogger<ConversationService>.Instance);
     }
 
@@ -43,6 +46,9 @@ internal sealed class ChatHarness : IAsyncDisposable
     public MemoryCredentialStore Credentials { get; } = new();
 
     public FakeChatClient Client { get; } = new();
+
+    /// <summary>The client the coordinator uses: the fake unless a real one was supplied.</summary>
+    public IChatClient ActiveClient { get; }
 
     public GenerationCoordinator Generation { get; }
 
@@ -57,17 +63,19 @@ internal sealed class ChatHarness : IAsyncDisposable
     public static async Task<ChatHarness> StartAsync(
         bool configure = true,
         TempDataDirectory? directory = null,
-        Func<IConversationStore, IConversationStore>? wrapStore = null)
+        Func<IConversationStore, IConversationStore>? wrapStore = null,
+        IChatClient? client = null,
+        ModelSettingsInput? model = null)
     {
         var dir = directory ?? new TempDataDirectory();
-        var harness = new ChatHarness(dir, directory is null, wrapStore);
+        var harness = new ChatHarness(dir, directory is null, wrapStore, client);
         Assert.True((await harness.Database.OpenAsync(CancellationToken.None)).IsReady);
         var workspace = new Workspace(WorkspaceId.New(), WorkspaceName.FromStored("测试"), DateTimeOffset.UtcNow);
         await new SqliteWorkspaceStore(harness.Database).AddAsync(workspace, CancellationToken.None);
         harness.Workspace = workspace.Id;
         if (configure)
         {
-            await harness.Models.SaveAsync(new ModelSettingsInput("fake", "https://fake.example/v1", "fake-model", "sk-test"), CancellationToken.None);
+            await harness.Models.SaveAsync(model ?? new ModelSettingsInput("fake", "https://fake.example/v1", "fake-model", "sk-test"), CancellationToken.None);
         }
 
         return harness;

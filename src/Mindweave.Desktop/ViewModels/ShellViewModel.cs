@@ -11,11 +11,13 @@ namespace Mindweave.Desktop.ViewModels;
 public sealed partial class ShellViewModel : ViewModelBase
 {
     private readonly WorkspaceService _workspaces;
+    private PageViewModel? _observedPage;
 
-    public ShellViewModel(Workbench workbench, WorkspaceService workspaces)
+    public ShellViewModel(Workbench workbench, WorkspaceService workspaces, Conversations.ConversationListViewModel conversations)
     {
         ArgumentNullException.ThrowIfNull(workbench);
         Workbench = workbench;
+        Conversations = conversations;
         _workspaces = workspaces;
         NewWorkspace = new WorkspaceNameForm(CreateWorkspaceAsync);
         Workbench.PropertyChanged += OnWorkbenchChanged;
@@ -24,6 +26,8 @@ public sealed partial class ShellViewModel : ViewModelBase
     public Workbench Workbench { get; }
 
     public WorkspaceNameForm NewWorkspace { get; }
+
+    public Conversations.ConversationListViewModel Conversations { get; }
 
     public PageViewModel? CurrentPage => Workbench.CurrentPage;
 
@@ -69,11 +73,40 @@ public sealed partial class ShellViewModel : ViewModelBase
         IsCreatingWorkspace = false;
     }
 
+    /// <summary>Page titles can change after the page is shown (loaded, auto-titled, renamed).</summary>
+    private void ObservePage(PageViewModel? page)
+    {
+        if (ReferenceEquals(page, _observedPage))
+        {
+            return;
+        }
+
+        if (_observedPage is not null)
+        {
+            _observedPage.PropertyChanged -= OnPageChanged;
+        }
+
+        _observedPage = page;
+        if (page is not null)
+        {
+            page.PropertyChanged += OnPageChanged;
+        }
+    }
+
+    private void OnPageChanged(object? sender, PropertyChangedEventArgs e)
+    {
+        if (e.PropertyName == nameof(PageViewModel.Title))
+        {
+            OnPropertyChanged(nameof(Title));
+        }
+    }
+
     private void OnWorkbenchChanged(object? sender, PropertyChangedEventArgs e)
     {
         switch (e.PropertyName)
         {
             case nameof(Workbench.CurrentPage):
+                ObservePage(Workbench.CurrentPage);
                 OnPropertyChanged(nameof(CurrentPage));
                 OnPropertyChanged(nameof(Title));
                 break;

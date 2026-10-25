@@ -1,0 +1,55 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:Mindweave.Desktop.ViewModels.Conversations"
+             xmlns:v="using:Mindweave.Desktop.Views.Conversations"
+             xmlns:d="using:Mindweave.Desktop"
+             x:Class="Mindweave.Desktop.Views.Conversations.ConversationView"
+             x:DataType="vm:ConversationViewModel">
+  <DockPanel>
+    <DockPanel DockPanel.Dock="Top" Margin="0,0,0,8">
+      <StackPanel Orientation="Horizontal" Spacing="6" IsVisible="{Binding IsRenaming}">
+        <TextBox Name="RenameBox" Text="{Binding RenameText}" Width="320" />
+        <Button Content="{x:Static d:UiText.Save}" Command="{Binding CommitRenameCommand}" IsDefault="True" />
+        <Button Content="{x:Static d:UiText.Cancel}" Command="{Binding CancelRenameCommand}" />
+      </StackPanel>
+      <Button Name="RenameButton" Classes="link" Content="{x:Static d:UiText.Rename}" Command="{Binding BeginRenameCommand}"
+              IsVisible="{Binding !IsRenaming}" HorizontalAlignment="Left" />
+    </DockPanel>
+
+    <StackPanel DockPanel.Dock="Bottom" Spacing="6" Margin="0,8,0,0" IsVisible="{Binding !IsMissing}">
+      <Button Name="StopButton" Content="{x:Static d:UiText.Stop}" Command="{Binding StopCommand}"
+              IsVisible="{Binding RunningAnswer, Converter={x:Static ObjectConverters.IsNotNull}}" HorizontalAlignment="Center" />
+      <v:ComposerView Name="ComposerHost" DataContext="{Binding Composer}" />
+    </StackPanel>
+
+    <ScrollViewer Name="Scroller" HorizontalScrollBarVisibility="Disabled">
+      <ItemsControl Name="MessageList" ItemsSource="{Binding Messages}" Margin="0,0,12,0">
+        <ItemsControl.ItemTemplate>
+          <DataTemplate x:DataType="vm:MessageItemViewModel">
+            <StackPanel Margin="0,8" Spacing="4">
+              <!-- Question: right-aligned bubble. -->
+              <Border IsVisible="{Binding IsUser}" HorizontalAlignment="Right" MaxWidth="560"
+                      Background="{StaticResource SidebarBackground}" CornerRadius="12" Padding="12,8">
+                <SelectableTextBlock Text="{Binding Body}" TextWrapping="Wrap" />
+              </Border>
+              <!-- Answer: plain text on the page; Markdown rendering arrives in S2. -->
+              <StackPanel IsVisible="{Binding IsAnswer}" Spacing="4" Opacity="{Binding IsSuperseded, Converter={x:Static d:Converters.SupersededOpacity}}">
+                <TextBlock Classes="muted" FontSize="12" Text="{x:Static d:UiText.EarlierAttempt}" IsVisible="{Binding IsSuperseded}" />
+                <SelectableTextBlock Text="{Binding Body}" TextWrapping="Wrap" IsVisible="{Binding HasBody}" LineHeight="22" />
+                <ProgressBar IsIndeterminate="True" Width="80" HorizontalAlignment="Left" IsVisible="{Binding IsInProgress}" />
+                <DockPanel>
+                  <Button DockPanel.Dock="Right" Classes="link" Content="{Binding RetryLabel}" IsVisible="{Binding CanRetry}"
+                          Command="{Binding $parent[ItemsControl].((vm:ConversationViewModel)DataContext).RetryCommand}" CommandParameter="{Binding}" />
+                  <TextBlock FontSize="12" Text="{Binding StateLabel}" TextWrapping="Wrap" VerticalAlignment="Center"
+                             Classes.error="{Binding IsProblem}" Classes.muted="{Binding !IsProblem}"
+                             IsVisible="{Binding StateLabel, Converter={x:Static ObjectConverters.IsNotNull}}"
+                             ToolTip.Tip="{Binding ErrorDetail}" />
+                </DockPanel>
+              </StackPanel>
+            </StackPanel>
+          </DataTemplate>
+        </ItemsControl.ItemTemplate>
+      </ItemsControl>
+    </ScrollViewer>
+  </DockPanel>
+</UserControl>

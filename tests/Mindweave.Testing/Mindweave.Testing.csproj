@@ -1,0 +1,6 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!-- Test doubles shared by the test projects (fake AI service, in-memory credentials). Never shipped. -->
+  <ItemGroup>
+    <ProjectReference Include="..\..\src\Mindweave.Application\Mindweave.Application.csproj" />
+  </ItemGroup>
+</Project>

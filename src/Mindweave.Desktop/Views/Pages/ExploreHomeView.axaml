@@ -4,5 +4,8 @@
              xmlns:d="using:Mindweave.Desktop"
              x:Class="Mindweave.Desktop.Views.Pages.ExploreHomeView"
              x:DataType="vm:ExploreHomeViewModel">
-  <TextBlock Classes="muted" Text="{x:Static d:UiText.ExploreEmpty}" />
+  <StackPanel Spacing="12" HorizontalAlignment="Left">
+    <TextBlock Classes="muted" Text="从一个问题开始，或在左侧打开已有会话。" />
+    <Button Name="StartConversation" Content="＋ 新会话" Command="{Binding NewConversationCommand}" />
+  </StackPanel>
 </UserControl>

@@ -1,7 +1,7 @@
 using System.Collections.Concurrent;
 using Mindweave.Application.Credentials;
 
-namespace Mindweave.Infrastructure.Tests.Chat;
+namespace Mindweave.Testing;
 
 public sealed class MemoryCredentialStore : ICredentialStore
 {

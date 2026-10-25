@@ -3,7 +3,7 @@ using System.Runtime.CompilerServices;
 using Mindweave.Application.Ai;
 using Mindweave.Core.Conversations;
 
-namespace Mindweave.Infrastructure.Tests.Chat;
+namespace Mindweave.Testing;
 
 /// <summary>
 /// Scriptable AI service. By default answers "答：{question}" and titles with <see cref="DefaultTitle"/>.

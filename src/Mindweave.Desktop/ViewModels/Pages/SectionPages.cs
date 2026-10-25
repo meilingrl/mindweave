@@ -8,12 +8,15 @@ using Mindweave.Desktop.Services;
 
 namespace Mindweave.Desktop.ViewModels.Pages;
 
-/// <summary>Workspace entry page. Conversations arrive in S1; for now it states that the workspace is empty.</summary>
-public sealed class ExploreHomeViewModel(Workspace workspace) : PageViewModel(ExploreHomeRoute.Instance)
+/// <summary>Workspace entry page: start a conversation or pick one from the sidebar.</summary>
+public sealed partial class ExploreHomeViewModel(Workspace workspace, IContentNavigator content) : PageViewModel(ExploreHomeRoute.Instance)
 {
     public Workspace Workspace { get; } = workspace;
 
     public override string Title => Workspace.Name.Value;
+
+    [RelayCommand]
+    private void NewConversation() => content.Push(NewConversationRoute.Instance);
 }
 
 /// <summary>Summary network; populated from summaries in S5.</summary>
@@ -24,9 +27,11 @@ public sealed class NetworkHomeViewModel(Workspace workspace) : PageViewModel(Ne
     public override string Title => UiText.NetworkTitle;
 }
 
-public sealed partial class SettingsHomeViewModel(AppEnvironment environment, IContentNavigator content) : PageViewModel(SettingsHomeRoute.Instance)
+public sealed partial class SettingsHomeViewModel(AppEnvironment environment, ModelSettingsViewModel model, IContentNavigator content) : PageViewModel(SettingsHomeRoute.Instance)
 {
     public AppEnvironment Environment { get; } = environment;
+
+    public ModelSettingsViewModel Model { get; } = model;
 
     public override string Title => UiText.SettingsTitle;
 

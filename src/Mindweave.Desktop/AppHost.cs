@@ -14,6 +14,9 @@ internal sealed class AppHost(SingleInstance instance, ServiceProvider services)
     /// <summary>Drains pending writes and closes the database before the lock is released.</summary>
     public async ValueTask DisposeAsync()
     {
+        // Stop generation first (idempotent if the exit prompt already did), so terminal states are written
+        // before the database closes.
+        await Services.GetRequiredService<Mindweave.Application.Conversations.GenerationCoordinator>().ShutdownAsync().ConfigureAwait(false);
         await Services.GetRequiredService<SqliteDatabase>().CloseAsync().ConfigureAwait(false);
         await Services.DisposeAsync().ConfigureAwait(false);
         await Instance.DisposeAsync().ConfigureAwait(false);

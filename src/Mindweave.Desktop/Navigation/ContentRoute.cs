@@ -15,6 +15,29 @@ public abstract record ContentRoute
     };
 }
 
+/// <summary>A route that can be restored after restart as the last valid page.</summary>
+public interface IRestorableRoute
+{
+    string Key { get; }
+}
+
+public sealed record ConversationRoute(Mindweave.Core.Conversations.ConversationId Id) : ContentRoute, IRestorableRoute
+{
+    private const string Prefix = "conversation:";
+
+    public string Key => Prefix + Id;
+
+    public static ConversationRoute? FromKey(string? key) =>
+        key is not null && key.StartsWith(Prefix, StringComparison.Ordinal) && Guid.TryParseExact(key[Prefix.Length..], "D", out var id)
+            ? new ConversationRoute(new Mindweave.Core.Conversations.ConversationId(id))
+            : null;
+}
+
+public sealed record NewConversationRoute : ContentRoute
+{
+    public static NewConversationRoute Instance { get; } = new();
+}
+
 public sealed record ExploreHomeRoute : ContentRoute
 {
     public static ExploreHomeRoute Instance { get; } = new();

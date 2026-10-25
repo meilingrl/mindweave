@@ -5,5 +5,5 @@ namespace Mindweave.Desktop.Navigation;
 
 public interface IPageFactory
 {
-    PageViewModel Create(ContentRoute route, Workspace workspace, IContentNavigator content);
+    PageViewModel Create(ContentRoute route, Workspace workspace, IWorkbenchNavigator navigator);
 }

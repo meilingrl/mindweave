@@ -9,6 +9,10 @@ public static class ConversationRules
     public const int FallbackTitleLength = 30;
     public const int MaxTitleLength = 60;
 
+    private static readonly string[] TitlePrefixes = ["标题：", "标题:", "Title:", "Title："];
+    private static readonly char[] TitleWrappers = ['"', '\'', '“', '”', '‘', '’', '「', '」', '『', '』', '《', '》', '*', '#', '`'];
+    private static readonly char[] TitleTrailing = ['。', '.', '！', '!', '？', '?', '：', ':', '；', ';', '，', ','];
+
     /// <summary>
     /// Messages sent as history: every user question, followed by the latest attempt at answering it,
     /// if that attempt is usable. Superseded attempts stay readable but are never sent.
@@ -69,11 +73,23 @@ public static class ConversationRules
     {
         ArgumentNullException.ThrowIfNull(raw);
         var line = raw.Split('\n', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries).FirstOrDefault() ?? string.Empty;
-        line = line.Trim().Trim('"', '\'', '“', '”', '「', '」', '《', '》', '*', '#', ' ').TrimEnd('。', '.', '！', '!', '？', '?', '：', ':');
-        if (line.StartsWith("标题", StringComparison.Ordinal))
+        foreach (var prefix in TitlePrefixes)
         {
-            line = line.TrimStart('标', '题', '：', ':', ' ');
+            if (line.StartsWith(prefix, StringComparison.OrdinalIgnoreCase))
+            {
+                line = line[prefix.Length..];
+                break;
+            }
         }
+
+        // Quotes, Markdown emphasis and trailing punctuation can nest in any order ("“标题”。"): strip until stable.
+        string previous;
+        do
+        {
+            previous = line;
+            line = line.Trim().Trim(TitleWrappers).TrimEnd(TitleTrailing);
+        }
+        while (line != previous);
 
         line = Shorten(line, MaxTitleLength);
         return line.Length == 0 ? null : line;

@@ -1,11 +1,27 @@
 <Window xmlns="https://github.com/avaloniaui"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:vm="using:Mindweave.Desktop.ViewModels"
+        xmlns:d="using:Mindweave.Desktop"
         x:Class="Mindweave.Desktop.Views.MainWindow"
         x:DataType="vm:RootViewModel"
         Title="Mindweave"
         Width="1100" Height="720" MinWidth="720" MinHeight="480"
         WindowStartupLocation="CenterScreen"
         Background="White">
-  <ContentControl Content="{Binding Current}" />
+  <Panel>
+    <ContentControl Content="{Binding Current}" />
+    <!-- Exit confirmation overlays whatever page is shown; nothing irreversible happens before "stop and quit". -->
+    <Border IsVisible="{Binding ExitPrompt.IsOpen}" Background="#66000000">
+      <Border Background="White" CornerRadius="10" Padding="24" MaxWidth="440" HorizontalAlignment="Center" VerticalAlignment="Center">
+        <StackPanel Spacing="14">
+          <TextBlock Classes="h1" FontSize="18" Text="{x:Static d:UiText.ExitTitle}" />
+          <TextBlock TextWrapping="Wrap" Text="{Binding ExitPrompt.Message}" />
+          <StackPanel Orientation="Horizontal" Spacing="8" HorizontalAlignment="Right">
+            <Button Name="ExitCancel" Content="{x:Static d:UiText.ExitCancel}" Command="{Binding ExitPrompt.CancelCommand}" IsDefault="True" />
+            <Button Name="ExitConfirm" Content="{x:Static d:UiText.ExitConfirm}" Command="{Binding ExitPrompt.ConfirmCommand}" />
+          </StackPanel>
+        </StackPanel>
+      </Border>
+    </Border>
+  </Panel>
 </Window>

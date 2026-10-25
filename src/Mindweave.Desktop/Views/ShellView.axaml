@@ -3,6 +3,7 @@
              xmlns:vm="using:Mindweave.Desktop.ViewModels"
              xmlns:nav="using:Mindweave.Desktop.Navigation"
              xmlns:ws="using:Mindweave.Core.Workspaces"
+             xmlns:cv="using:Mindweave.Desktop.ViewModels.Conversations"
              xmlns:d="using:Mindweave.Desktop"
              x:Class="Mindweave.Desktop.Views.ShellView"
              x:DataType="vm:ShellViewModel">
@@ -29,6 +30,7 @@
             <Button Name="CreateWorkspaceButton" Content="{x:Static d:UiText.Create}" Command="{Binding NewWorkspace.SubmitCommand}" HorizontalAlignment="Right" />
           </StackPanel>
           <Separator Margin="0,6" />
+          <Button Name="NewConversationButton" Classes="nav" Content="＋ 新会话" Command="{Binding Conversations.NewCommand}" />
           <Button Name="NavExplore" Classes="nav" Classes.selected="{Binding IsExplore}" Content="{x:Static d:UiText.SectionExplore}"
                   Command="{Binding ShowSectionCommand}" CommandParameter="{x:Static nav:MainSection.Explore}" />
           <Button Name="NavNetwork" Classes="nav" Classes.selected="{Binding IsNetwork}" Content="{x:Static d:UiText.SectionNetwork}"
@@ -36,6 +38,22 @@
         </StackPanel>
         <Button Name="NavSettings" DockPanel.Dock="Bottom" Classes="nav" Classes.selected="{Binding IsSettings}" Content="{x:Static d:UiText.SectionSettings}"
                 Command="{Binding ShowSectionCommand}" CommandParameter="{x:Static nav:MainSection.Settings}" VerticalAlignment="Bottom" />
+        <ScrollViewer Margin="0,8" HorizontalScrollBarVisibility="Disabled">
+          <ItemsControl Name="ConversationList" ItemsSource="{Binding Conversations.Items}">
+            <ItemsControl.ItemTemplate>
+              <DataTemplate x:DataType="cv:ConversationItemViewModel">
+                <Button Classes="nav" Classes.selected="{Binding IsSelected}"
+                        Command="{Binding $parent[ItemsControl].((vm:ShellViewModel)DataContext).Conversations.OpenCommand}" CommandParameter="{Binding}">
+                  <DockPanel>
+                    <TextBlock DockPanel.Dock="Right" Text="{Binding Marker}" IsVisible="{Binding HasMarker}" Margin="6,0,0,0"
+                               Classes="muted" ToolTip.Tip="{Binding MarkerHint}" AutomationProperties.Name="{Binding MarkerHint}" />
+                    <TextBlock Text="{Binding Title}" TextTrimming="CharacterEllipsis" />
+                  </DockPanel>
+                </Button>
+              </DataTemplate>
+            </ItemsControl.ItemTemplate>
+          </ItemsControl>
+        </ScrollViewer>
       </DockPanel>
     </Border>
 

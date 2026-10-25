@@ -12,7 +12,7 @@ namespace Mindweave.Desktop.Navigation;
 /// per visited workspace, and the active content stack. Implements the menu and content navigators so
 /// view models navigate through contracts rather than touching each other.
 /// </summary>
-public sealed class Workbench : ObservableObject, IMenuNavigator, IContentNavigator
+public sealed class Workbench : ObservableObject, IWorkbenchNavigator
 {
     private readonly Dictionary<WorkspaceId, WorkspaceRuntime> _runtimes = [];
     private readonly IPageFactory _pages;
@@ -54,7 +54,13 @@ public sealed class Workbench : ObservableObject, IMenuNavigator, IContentNaviga
         }
 
         var target = last is not null && workspaces.Any(w => w.Id == last.WorkspaceId) ? last.WorkspaceId : workspaces[0].Id;
-        Activate(target, last?.WorkspaceId == target ? MainSectionKeys.FromKey(last.SectionKey) : null);
+        var restoring = last?.WorkspaceId == target;
+        Activate(target, restoring ? MainSectionKeys.FromKey(last!.SectionKey) : null);
+        if (restoring && ConversationRoute.FromKey(last!.ContentKey) is { } page)
+        {
+            // Last valid page only; the back history before it is intentionally not restored.
+            Navigate(new NavigationRequest(MainSection.Explore, page));
+        }
     }
 
     public void AddWorkspace(Workspace workspace)
@@ -93,6 +99,22 @@ public sealed class Workbench : ObservableObject, IMenuNavigator, IContentNaviga
     {
         ArgumentNullException.ThrowIfNull(route);
         PushCore(RequireActive(), route);
+        Changed();
+    }
+
+    public void Replace(ContentRoute route)
+    {
+        ArgumentNullException.ThrowIfNull(route);
+        var runtime = RequireActive();
+        var stack = runtime.StackOf(runtime.Section);
+        if (stack.Count > 1)
+        {
+            var leaving = stack[^1];
+            stack.RemoveAt(stack.Count - 1);
+            (leaving as IDisposable)?.Dispose();
+        }
+
+        PushCore(runtime, route);
         Changed();
     }
 
@@ -149,7 +171,17 @@ public sealed class Workbench : ObservableObject, IMenuNavigator, IContentNaviga
         }
 
         stack.Add(_pages.Create(route, runtime.Workspace, this));
+        if (stack.Count > MaxHistory)
+        {
+            // Keep the section home; drop the oldest detail page.
+            var dropped = stack[1];
+            stack.RemoveAt(1);
+            (dropped as IDisposable)?.Dispose();
+        }
     }
+
+    /// <summary>Back history per section is bounded so a long session does not keep every visited page alive.</summary>
+    internal const int MaxHistory = 50;
 
     private WorkspaceRuntime RequireActive() =>
         _active ?? throw new InvalidOperationException("No workspace is active.");
@@ -161,9 +193,8 @@ public sealed class Workbench : ObservableObject, IMenuNavigator, IContentNaviga
         OnPropertyChanged(nameof(CanGoBack));
         if (_active is { } runtime)
         {
-            // Only the section is restorable in S0; content pages gain stable keys with conversations (S1).
             LastLocationSave = _workspaces.RememberLocationAsync(
-                new PageLocation(runtime.Workspace.Id, runtime.Section.ToKey(), ContentKey: null),
+                new PageLocation(runtime.Workspace.Id, runtime.Section.ToKey(), (runtime.Top?.Route as IRestorableRoute)?.Key),
                 CancellationToken.None);
         }
     }

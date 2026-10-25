@@ -11,5 +11,6 @@
     <Project Path="tests/Mindweave.Desktop.Tests/Mindweave.Desktop.Tests.csproj" />
     <Project Path="tests/Mindweave.Infrastructure.Tests/Mindweave.Infrastructure.Tests.csproj" />
     <Project Path="tests/Mindweave.TestHost/Mindweave.TestHost.csproj" />
+    <Project Path="tests/Mindweave.Testing/Mindweave.Testing.csproj" />
   </Folder>
 </Solution>

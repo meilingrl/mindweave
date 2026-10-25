@@ -28,6 +28,8 @@ public sealed partial class App : Avalonia.Application
         {
             var window = new MainWindow { DataContext = _host.Services.GetRequiredService<RootViewModel>() };
             desktop.MainWindow = window;
+            var root = _host.Services.GetRequiredService<RootViewModel>();
+            desktop.ShutdownRequested += (_, e) => e.Cancel |= root.ExitPrompt.ShouldHoldClose();
             desktop.Exit += (_, _) => _host.DisposeAsync().AsTask().GetAwaiter().GetResult();
             _host.Instance.StartListening(() => Dispatcher.UIThread.Post(window.BringToFront));
             Dispatcher.UIThread.Post(async () => await _host.Services.GetRequiredService<AppStartup>().RunAsync());

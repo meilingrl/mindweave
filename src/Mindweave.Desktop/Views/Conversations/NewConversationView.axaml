@@ -1,0 +1,10 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:Mindweave.Desktop.ViewModels.Conversations"
+             xmlns:v="using:Mindweave.Desktop.Views.Conversations"
+             x:Class="Mindweave.Desktop.Views.Conversations.NewConversationView"
+             x:DataType="vm:NewConversationViewModel">
+  <Grid RowDefinitions="*,Auto,2*">
+    <v:ComposerView Grid.Row="1" Name="ComposerHost" DataContext="{Binding Composer}" MaxWidth="720" />
+  </Grid>
+</UserControl>

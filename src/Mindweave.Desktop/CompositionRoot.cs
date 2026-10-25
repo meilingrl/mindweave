@@ -1,12 +1,16 @@
 using System.Reflection;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Logging;
 using Mindweave.Application;
+using Mindweave.Application.Conversations;
+using Mindweave.Application.Models;
 using Mindweave.Application.Startup;
 using Mindweave.Application.Workspaces;
 using Mindweave.Desktop.Navigation;
 using Mindweave.Desktop.Services;
 using Mindweave.Desktop.ViewModels;
+using Mindweave.Desktop.ViewModels.Conversations;
 using Mindweave.Infrastructure;
 using Mindweave.Infrastructure.Hosting;
 using Mindweave.Infrastructure.Logging;
@@ -40,12 +44,19 @@ public static class CompositionRoot
 
         services.AddSingleton<StartupCoordinator>();
         services.AddSingleton<WorkspaceService>();
+        services.TryAddSingleton(new GenerationOptions());
+        services.AddSingleton<GenerationCoordinator>();
+        services.AddSingleton<ModelSettingsService>();
+        services.AddSingleton<ConversationService>();
+        services.TryAddSingleton<IUiDispatcher, AvaloniaUiDispatcher>();
 
         services.AddSingleton(shell ?? new SystemShell());
         services.AddSingleton<IPageFactory, PageFactory>();
         services.AddSingleton<Workbench>();
         services.AddSingleton<IMenuNavigator>(sp => sp.GetRequiredService<Workbench>());
         services.AddSingleton<IContentNavigator>(sp => sp.GetRequiredService<Workbench>());
+        services.AddSingleton<ExitPromptViewModel>();
+        services.AddSingleton<ConversationListViewModel>();
         services.AddSingleton<RootViewModel>();
         services.AddSingleton<IRootNavigator>(sp => sp.GetRequiredService<RootViewModel>());
         services.AddSingleton<ShellViewModel>();

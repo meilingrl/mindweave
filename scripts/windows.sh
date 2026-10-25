@@ -25,7 +25,9 @@ remote() {
 sync() {
   # Sources are replaced wholesale so deleted files do not linger; build output lives outside the snapshot.
   remote "if (Test-Path '$SRC') { Remove-Item -Recurse -Force '$SRC' }; New-Item -ItemType Directory -Force '$SRC' | Out-Null"
+  # Working tree as it is now: tracked files that still exist plus untracked, non-ignored ones.
   (cd "$ROOT" && git ls-files -z --cached --others --exclude-standard -- . ':!prototypes' ':!docs/reviews' \
+    | perl -0ne 'chomp; print "$_\0" if -e $_' \
     | COPYFILE_DISABLE=1 xargs -0 tar --no-xattrs --no-mac-metadata -cf -) \
     | ssh -o BatchMode=yes "$HOST" "tar -xf - -C $SRC"
   echo "synced $(cd "$ROOT" && git rev-parse --short HEAD)$(cd "$ROOT" && git diff --quiet HEAD || echo '+dirty') to $HOST:$SRC"

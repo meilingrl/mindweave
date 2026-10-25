@@ -1,8 +1,10 @@
 using Avalonia.Controls;
 using Avalonia.Controls.Templates;
 using Mindweave.Desktop.ViewModels;
+using Mindweave.Desktop.ViewModels.Conversations;
 using Mindweave.Desktop.ViewModels.Pages;
 using Mindweave.Desktop.Views;
+using Mindweave.Desktop.Views.Conversations;
 using Mindweave.Desktop.Views.Pages;
 
 namespace Mindweave.Desktop;
@@ -23,6 +25,8 @@ public sealed class ViewLocator : IDataTemplate
         [typeof(NetworkHomeViewModel)] = () => new NetworkHomeView(),
         [typeof(SettingsHomeViewModel)] = () => new SettingsHomeView(),
         [typeof(StorageDetailsViewModel)] = () => new StorageDetailsView(),
+        [typeof(ConversationViewModel)] = () => new ConversationView(),
+        [typeof(NewConversationViewModel)] = () => new NewConversationView(),
     };
 
     public static IReadOnlyCollection<Type> RegisteredViewModels => Registry.Keys;
