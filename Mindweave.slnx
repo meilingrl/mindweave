@@ -1,0 +1,15 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/Mindweave.Application/Mindweave.Application.csproj" />
+    <Project Path="src/Mindweave.Core/Mindweave.Core.csproj" />
+    <Project Path="src/Mindweave.Desktop/Mindweave.Desktop.csproj" />
+    <Project Path="src/Mindweave.Infrastructure/Mindweave.Infrastructure.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/Mindweave.Architecture.Tests/Mindweave.Architecture.Tests.csproj" />
+    <Project Path="tests/Mindweave.Core.Tests/Mindweave.Core.Tests.csproj" />
+    <Project Path="tests/Mindweave.Desktop.Tests/Mindweave.Desktop.Tests.csproj" />
+    <Project Path="tests/Mindweave.Infrastructure.Tests/Mindweave.Infrastructure.Tests.csproj" />
+    <Project Path="tests/Mindweave.TestHost/Mindweave.TestHost.csproj" />
+  </Folder>
+</Solution>

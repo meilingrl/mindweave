@@ -1,0 +1,23 @@
+# 决策记录
+
+交接 §4 授权实现者自行决定、需保持可调的选择。每条写明选择、理由与何时重新考虑。
+
+## D-001 运行时与依赖版本（2026-10-25）
+
+.NET 10（LTS）、Avalonia 12.1.4、LiveMarkdown.Avalonia 2.5.1（S2 引入）、CommunityToolkit.Mvvm 8.4.2、Microsoft.Extensions.DependencyInjection／Logging 10.0.13、Microsoft.Data.Sqlite 10.0.13、xunit.v3 3.2.2 + Avalonia.Headless.XUnit 12.1.4。LiveMarkdown 2.5.1 要求 Avalonia 12，小样已在该组合上验证；测试组合与小样相同。全部版本集中在 `Directory.Packages.props`。
+
+## D-002 主键与时间（2026-10-25）
+
+UUIDv7 文本主键，UTC Unix 毫秒时间。见[数据关系梳理](data-model.md)。
+
+## D-003 同步级别（2026-10-25）
+
+WAL + `synchronous=FULL`。NORMAL 在进程崩溃时同样不丢已提交事务，只在断电时可能丢最后几笔；本应用写入稀疏，FULL 的代价可以忽略，换取“保存成功即落盘”的简单承诺。若 S1 检查点频率导致可感知卡顿再评估。
+
+## D-004 迁移整体单事务（2026-10-25）
+
+所有待执行迁移在一个事务中提交，避免停在中间版本；代价是迁移步骤只能使用可在事务内执行的语句（架构 §12.2 已如此限定）。
+
+## D-005 迁移备份保留 5 份（2026-10-25）
+
+只针对迁移前备份；日常备份不在首版范围。

@@ -1,0 +1,15 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:Mindweave.Desktop.ViewModels"
+             xmlns:d="using:Mindweave.Desktop"
+             x:Class="Mindweave.Desktop.Views.OnboardingView"
+             x:DataType="vm:OnboardingViewModel">
+  <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center" Width="420" Spacing="14">
+    <TextBlock Classes="h1" Text="{x:Static d:UiText.OnboardingHeading}" />
+    <TextBlock Classes="muted" TextWrapping="Wrap" Text="{x:Static d:UiText.OnboardingBody}" />
+    <TextBox Name="NameBox" Text="{Binding Form.Name}" PlaceholderText="{x:Static d:UiText.WorkspaceNameWatermark}"
+             AutomationProperties.Name="工作区名称" />
+    <TextBlock Classes="error" Text="{Binding Form.Error}" IsVisible="{Binding Form.Error, Converter={x:Static ObjectConverters.IsNotNull}}" TextWrapping="Wrap" />
+    <Button Name="CreateButton" Content="{x:Static d:UiText.Create}" Command="{Binding Form.SubmitCommand}" IsDefault="True" HorizontalAlignment="Right" />
+  </StackPanel>
+</UserControl>

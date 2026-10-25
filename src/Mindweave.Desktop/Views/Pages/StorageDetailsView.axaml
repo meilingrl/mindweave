@@ -1,0 +1,28 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:Mindweave.Desktop.ViewModels.Pages"
+             xmlns:startup="using:Mindweave.Application.Startup"
+             xmlns:d="using:Mindweave.Desktop"
+             x:Class="Mindweave.Desktop.Views.Pages.StorageDetailsView"
+             x:DataType="vm:StorageDetailsViewModel">
+  <StackPanel Spacing="12" HorizontalAlignment="Left">
+    <Grid ColumnDefinitions="Auto,*" RowDefinitions="Auto,Auto,Auto" ColumnSpacing="16" RowSpacing="6">
+      <TextBlock Classes="muted" Text="{x:Static d:UiText.DataDirectoryLabel}" />
+      <SelectableTextBlock Grid.Column="1" Text="{Binding Environment.DataDirectory}" TextWrapping="Wrap" />
+      <TextBlock Grid.Row="1" Classes="muted" Text="{x:Static d:UiText.DatabaseLabel}" />
+      <SelectableTextBlock Grid.Row="1" Grid.Column="1" Text="{Binding Environment.DatabasePath}" TextWrapping="Wrap" />
+      <TextBlock Grid.Row="2" Classes="muted" Text="{x:Static d:UiText.SchemaVersionLabel}" />
+      <TextBlock Grid.Row="2" Grid.Column="1" Text="{Binding Environment.SchemaVersion}" />
+    </Grid>
+    <Button Content="{x:Static d:UiText.OpenDataFolder}" Command="{Binding OpenDataFolderCommand}" />
+    <TextBlock FontWeight="SemiBold" Text="{x:Static d:UiText.BackupsLabel}" Margin="0,8,0,0" />
+    <TextBlock Classes="muted" Text="{x:Static d:UiText.NoBackups}" IsVisible="{Binding !HasBackups}" />
+    <ItemsControl ItemsSource="{Binding Backups}">
+      <ItemsControl.ItemTemplate>
+        <DataTemplate x:DataType="startup:BackupInfo">
+          <TextBlock Text="{Binding Converter={x:Static d:Converters.BackupLabel}}" />
+        </DataTemplate>
+      </ItemsControl.ItemTemplate>
+    </ItemsControl>
+  </StackPanel>
+</UserControl>

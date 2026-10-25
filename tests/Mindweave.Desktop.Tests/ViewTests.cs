@@ -1,0 +1,99 @@
+using Avalonia.Controls;
+using Avalonia.Headless;
+using Avalonia.Headless.XUnit;
+using Avalonia.Input;
+using Avalonia.VisualTree;
+using Mindweave.Desktop.Navigation;
+using Mindweave.Desktop.ViewModels;
+using Mindweave.Desktop.Views;
+using Mindweave.Desktop.Views.Pages;
+
+namespace Mindweave.Desktop.Tests;
+
+public class ViewTests
+{
+    [Fact]
+    public void Every_view_model_shown_through_a_content_host_has_a_registered_view()
+    {
+        // RootViewModel is the window's DataContext and WorkspaceNameForm is rendered inline by its owners.
+        var inline = new[] { typeof(RootViewModel), typeof(WorkspaceNameForm) };
+        var hosted = typeof(ViewModelBase).Assembly.GetTypes()
+            .Where(t => t is { IsAbstract: false, IsClass: true } && typeof(ViewModelBase).IsAssignableFrom(t))
+            .Except(inline);
+
+        Assert.Empty(hosted.Except(ViewLocator.RegisteredViewModels));
+    }
+
+    [AvaloniaFact]
+    public async Task Onboarding_works_through_the_real_controls()
+    {
+        await using var app = DesktopHarness.Create();
+        var window = new MainWindow { DataContext = app.Root };
+        window.Show();
+        await app.StartAsync();
+        window.UpdateLayout();
+
+        var name = Find<TextBox>(window, "NameBox");
+        name.Focus();
+        window.KeyTextInput("火车历史");
+        window.KeyPress(Key.Enter, RawInputModifiers.None, PhysicalKey.Enter, null);
+        await app.Workbench.LastLocationSave;
+        window.UpdateLayout();
+
+        Assert.IsType<ShellView>(window.GetVisualDescendants().OfType<ShellView>().Single());
+        Assert.IsType<ExploreHomeView>(Find<ContentControl>(window, "PageHost").GetVisualDescendants().OfType<ExploreHomeView>().Single());
+        Capture(window, "01-explore-home");
+        window.Close();
+    }
+
+    [AvaloniaFact]
+    public async Task Menu_and_content_navigation_through_the_real_controls()
+    {
+        await using var app = DesktopHarness.Create();
+        var window = new MainWindow { DataContext = app.Root };
+        window.Show();
+        await app.StartWithWorkspaceAsync("火车历史");
+        window.UpdateLayout();
+
+        Click(window, "NavSettings");
+        Click(window, "StorageDetailsButton");
+        Assert.Single(window.GetVisualDescendants().OfType<StorageDetailsView>());
+        Assert.True(Find<Button>(window, "BackButton").IsVisible);
+        Capture(window, "02-storage-details");
+
+        Click(window, "BackButton");
+        Assert.Single(window.GetVisualDescendants().OfType<SettingsHomeView>());
+        Assert.False(Find<Button>(window, "BackButton").IsVisible);
+
+        Click(window, "NavNetwork");
+        Assert.Single(window.GetVisualDescendants().OfType<NetworkHomeView>());
+        Assert.Equal(MainSection.Network, app.Workbench.CurrentSection);
+        window.Close();
+    }
+
+    private static void Click(Window window, string name)
+    {
+        var button = Find<Button>(window, name);
+        Assert.True(button.IsEffectivelyEnabled, $"{name} is disabled");
+        button.Command!.Execute(button.CommandParameter);
+        window.UpdateLayout();
+    }
+
+    private static T Find<T>(Window window, string name)
+        where T : Control =>
+        window.GetVisualDescendants().OfType<T>().Single(c => c.Name == name);
+
+    /// <summary>Writes a rendered frame when MINDWEAVE_SCREENSHOT_DIR is set, for visual review.</summary>
+    private static void Capture(Window window, string name)
+    {
+        var target = Environment.GetEnvironmentVariable("MINDWEAVE_SCREENSHOT_DIR");
+        if (string.IsNullOrEmpty(target))
+        {
+            return;
+        }
+
+        Directory.CreateDirectory(target);
+        using var frame = window.CaptureRenderedFrame();
+        frame?.Save(Path.Combine(target, name + ".png"), new Avalonia.Media.Imaging.PngBitmapEncoderOptions());
+    }
+}

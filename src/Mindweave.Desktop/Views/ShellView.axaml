@@ -1,0 +1,51 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:Mindweave.Desktop.ViewModels"
+             xmlns:nav="using:Mindweave.Desktop.Navigation"
+             xmlns:ws="using:Mindweave.Core.Workspaces"
+             xmlns:d="using:Mindweave.Desktop"
+             x:Class="Mindweave.Desktop.Views.ShellView"
+             x:DataType="vm:ShellViewModel">
+  <Grid ColumnDefinitions="240,*">
+    <Border Background="{StaticResource SidebarBackground}" BorderBrush="{StaticResource DividerBrush}" BorderThickness="0,0,1,0">
+      <DockPanel Margin="10,14">
+        <StackPanel DockPanel.Dock="Top" Spacing="6">
+          <DockPanel>
+            <Button Name="ToggleNewWorkspace" DockPanel.Dock="Right" Content="+" Command="{Binding ToggleCreateWorkspaceCommand}"
+                    ToolTip.Tip="{x:Static d:UiText.NewWorkspace}" AutomationProperties.Name="{x:Static d:UiText.NewWorkspace}" Margin="6,0,0,0" />
+            <ComboBox Name="WorkspacePicker" HorizontalAlignment="Stretch" ItemsSource="{Binding Workbench.Workspaces}"
+                      SelectedItem="{Binding SelectedWorkspace}" AutomationProperties.Name="工作区">
+              <ComboBox.ItemTemplate>
+                <DataTemplate x:DataType="ws:Workspace">
+                  <TextBlock Text="{Binding Name.Value}" TextTrimming="CharacterEllipsis" />
+                </DataTemplate>
+              </ComboBox.ItemTemplate>
+            </ComboBox>
+          </DockPanel>
+          <StackPanel IsVisible="{Binding IsCreatingWorkspace}" Spacing="6">
+            <TextBox Name="NewWorkspaceName" Text="{Binding NewWorkspace.Name}" PlaceholderText="{x:Static d:UiText.WorkspaceNameWatermark}" />
+            <TextBlock Classes="error" Text="{Binding NewWorkspace.Error}" TextWrapping="Wrap"
+                       IsVisible="{Binding NewWorkspace.Error, Converter={x:Static ObjectConverters.IsNotNull}}" />
+            <Button Name="CreateWorkspaceButton" Content="{x:Static d:UiText.Create}" Command="{Binding NewWorkspace.SubmitCommand}" HorizontalAlignment="Right" />
+          </StackPanel>
+          <Separator Margin="0,6" />
+          <Button Name="NavExplore" Classes="nav" Classes.selected="{Binding IsExplore}" Content="{x:Static d:UiText.SectionExplore}"
+                  Command="{Binding ShowSectionCommand}" CommandParameter="{x:Static nav:MainSection.Explore}" />
+          <Button Name="NavNetwork" Classes="nav" Classes.selected="{Binding IsNetwork}" Content="{x:Static d:UiText.SectionNetwork}"
+                  Command="{Binding ShowSectionCommand}" CommandParameter="{x:Static nav:MainSection.Network}" />
+        </StackPanel>
+        <Button Name="NavSettings" DockPanel.Dock="Bottom" Classes="nav" Classes.selected="{Binding IsSettings}" Content="{x:Static d:UiText.SectionSettings}"
+                Command="{Binding ShowSectionCommand}" CommandParameter="{x:Static nav:MainSection.Settings}" VerticalAlignment="Bottom" />
+      </DockPanel>
+    </Border>
+
+    <DockPanel Grid.Column="1">
+      <DockPanel DockPanel.Dock="Top" Margin="24,16,24,8">
+        <Button Name="BackButton" Content="←" Command="{Binding GoBackCommand}" IsVisible="{Binding CanGoBack}"
+                ToolTip.Tip="{x:Static d:UiText.Back}" AutomationProperties.Name="{x:Static d:UiText.Back}" Margin="0,0,10,0" />
+        <TextBlock Classes="h1" Text="{Binding Title}" VerticalAlignment="Center" TextTrimming="CharacterEllipsis" />
+      </DockPanel>
+      <ContentControl Name="PageHost" Content="{Binding CurrentPage}" Margin="24,8,24,24" />
+    </DockPanel>
+  </Grid>
+</UserControl>

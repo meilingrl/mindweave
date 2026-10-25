@@ -1,0 +1,11 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:vm="using:Mindweave.Desktop.ViewModels"
+        x:Class="Mindweave.Desktop.Views.MainWindow"
+        x:DataType="vm:RootViewModel"
+        Title="Mindweave"
+        Width="1100" Height="720" MinWidth="720" MinHeight="480"
+        WindowStartupLocation="CenterScreen"
+        Background="White">
+  <ContentControl Content="{Binding Current}" />
+</Window>

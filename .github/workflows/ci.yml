@@ -1,0 +1,40 @@
+name: ci
+
+on:
+  push:
+    branches: [track/claude-auto]
+  pull_request:
+    branches: [track/claude-auto]
+  workflow_dispatch:
+    inputs:
+      macos:
+        description: Also run on macOS (billed at 10x on private repositories)
+        type: boolean
+        default: false
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: ${{ fromJSON(inputs.macos && '["ubuntu-latest","windows-latest","macos-latest"]' || '["ubuntu-latest","windows-latest"]') }}
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 20
+    env:
+      DOTNET_NOLOGO: true
+      DOTNET_CLI_TELEMETRY_OPTOUT: true
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          global-json-file: global.json
+      - name: Restore
+        run: dotnet restore Mindweave.slnx
+      - name: Build (warnings are errors)
+        run: dotnet build Mindweave.slnx --no-restore -c Release
+      - name: Test
+        run: dotnet test Mindweave.slnx --no-build -c Release

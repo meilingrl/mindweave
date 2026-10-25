@@ -1,0 +1,16 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:Mindweave.Desktop.ViewModels.Pages"
+             xmlns:d="using:Mindweave.Desktop"
+             x:Class="Mindweave.Desktop.Views.Pages.SettingsHomeView"
+             x:DataType="vm:SettingsHomeViewModel">
+  <StackPanel Spacing="10" HorizontalAlignment="Left">
+    <Grid ColumnDefinitions="Auto,*" RowDefinitions="Auto,Auto" ColumnSpacing="16" RowSpacing="6">
+      <TextBlock Classes="muted" Text="{x:Static d:UiText.AppVersionLabel}" />
+      <TextBlock Grid.Column="1" Text="{Binding Environment.Version}" />
+      <TextBlock Grid.Row="1" Classes="muted" Text="{x:Static d:UiText.ChannelLabel}" />
+      <TextBlock Grid.Row="1" Grid.Column="1" Text="{Binding Environment.Channel}" />
+    </Grid>
+    <Button Name="StorageDetailsButton" Content="{x:Static d:UiText.StorageDetailsLink}" Command="{Binding ShowStorageDetailsCommand}" />
+  </StackPanel>
+</UserControl>

@@ -1,0 +1,459 @@
+using System.Globalization;
+using System.Text.RegularExpressions;
+using Microsoft.Data.Sqlite;
+using Microsoft.Extensions.Logging;
+using Mindweave.Application.Startup;
+using Mindweave.Infrastructure.Hosting;
+using Mindweave.Infrastructure.Sqlite.Migrations;
+
+namespace Mindweave.Infrastructure.Sqlite;
+
+/// <summary>
+/// Owns the database file: classifies it on open, backs up and migrates when needed, restores a backup on
+/// explicit request, and afterwards exposes one serialized writer plus short-lived read-only connections.
+/// Must only be used while the single-instance lock for the same data directory is held.
+/// </summary>
+public sealed partial class SqliteDatabase : IDatabaseLifecycle, IAsyncDisposable
+{
+    public const int MigrationBackupsKept = 5;
+
+    private static readonly Regex BackupName = BackupNameRegex();
+
+    private readonly AppPaths _paths;
+    private readonly MigrationCatalog _catalog;
+    private readonly TimeProvider _time;
+    private readonly ILogger<SqliteDatabase> _logger;
+    private readonly SemaphoreSlim _lifecycleGate = new(1, 1);
+    private SqliteWriteQueue? _writer;
+    private int _disposed;
+
+    public SqliteDatabase(AppPaths paths, MigrationCatalog catalog, TimeProvider time, ILogger<SqliteDatabase> logger)
+    {
+        _paths = paths;
+        _catalog = catalog;
+        _time = time;
+        _logger = logger;
+    }
+
+    public bool IsOpen => Volatile.Read(ref _writer) is not null;
+
+    public async Task<DatabaseOpenResult> OpenAsync(CancellationToken cancellationToken)
+    {
+        await _lifecycleGate.WaitAsync(cancellationToken).ConfigureAwait(false);
+        try
+        {
+            await CloseCoreAsync().ConfigureAwait(false);
+            return await Task.Run(OpenCore, cancellationToken).ConfigureAwait(false);
+        }
+        finally
+        {
+            _lifecycleGate.Release();
+        }
+    }
+
+    public async Task<DatabaseOpenResult> RestoreAsync(BackupInfo backup, CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(backup);
+        await _lifecycleGate.WaitAsync(cancellationToken).ConfigureAwait(false);
+        try
+        {
+            await CloseCoreAsync().ConfigureAwait(false);
+            try
+            {
+                await Task.Run(() => ReplaceWithBackup(backup), cancellationToken).ConfigureAwait(false);
+            }
+            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+            {
+                LogRestoreFailed(_logger, ex, backup.Path);
+                return Result(DatabaseOpenStatus.IoError, null, detail: $"Restore failed: {ex.Message}");
+            }
+
+            return await Task.Run(OpenCore, cancellationToken).ConfigureAwait(false);
+        }
+        finally
+        {
+            _lifecycleGate.Release();
+        }
+    }
+
+    public IReadOnlyList<BackupInfo> ListBackups()
+    {
+        if (!Directory.Exists(_paths.BackupDirectory))
+        {
+            return [];
+        }
+
+        var backups = new List<BackupInfo>();
+        foreach (var file in Directory.EnumerateFiles(_paths.BackupDirectory, "mindweave-v*.db"))
+        {
+            var match = BackupName.Match(Path.GetFileName(file));
+            if (!match.Success)
+            {
+                continue;
+            }
+
+            var version = int.Parse(match.Groups["version"].Value, CultureInfo.InvariantCulture);
+            var created = DateTimeOffset.ParseExact(match.Groups["time"].Value, "yyyyMMdd'T'HHmmssfff'Z'", CultureInfo.InvariantCulture, DateTimeStyles.AssumeUniversal);
+            backups.Add(new BackupInfo(file, version, created, new FileInfo(file).Length));
+        }
+
+        return backups.OrderByDescending(b => b.CreatedAt).ToArray();
+    }
+
+    /// <summary>Runs <paramref name="work"/> in its own transaction on the single writer.</summary>
+    public Task<T> WriteAsync<T>(Func<SqliteConnection, SqliteTransaction, T> work, CancellationToken cancellationToken)
+    {
+        var writer = Volatile.Read(ref _writer) ?? throw new InvalidOperationException("The database is not open.");
+        return writer.EnqueueAsync(work, cancellationToken);
+    }
+
+    /// <summary>Runs <paramref name="work"/> on a fresh read-only connection; it never waits for the writer.</summary>
+    public Task<T> ReadAsync<T>(Func<SqliteConnection, T> work, CancellationToken cancellationToken)
+    {
+        if (!IsOpen)
+        {
+            throw new InvalidOperationException("The database is not open.");
+        }
+
+        return Task.Run(
+            () =>
+            {
+                using var connection = SqliteConnections.OpenReadOnly(_paths.DatabasePath);
+                return work(connection);
+            },
+            cancellationToken);
+    }
+
+    /// <summary>Drains queued writes and closes the writer. Safe to call more than once, also after disposal.</summary>
+    public async Task CloseAsync()
+    {
+        if (Volatile.Read(ref _disposed) != 0)
+        {
+            return;
+        }
+
+        await _lifecycleGate.WaitAsync().ConfigureAwait(false);
+        try
+        {
+            await CloseCoreAsync().ConfigureAwait(false);
+        }
+        finally
+        {
+            _lifecycleGate.Release();
+        }
+    }
+
+    /// <summary>
+    /// Idempotent: the container disposes this instance once per service type it is registered under.
+    /// </summary>
+    public async ValueTask DisposeAsync()
+    {
+        await CloseAsync().ConfigureAwait(false);
+        if (Interlocked.Exchange(ref _disposed, 1) == 0)
+        {
+            _lifecycleGate.Dispose();
+        }
+    }
+
+    private async Task CloseCoreAsync()
+    {
+        var writer = Interlocked.Exchange(ref _writer, null);
+        if (writer is not null)
+        {
+            await writer.DisposeAsync().ConfigureAwait(false);
+        }
+    }
+
+    private DatabaseOpenResult OpenCore()
+    {
+        try
+        {
+            Directory.CreateDirectory(_paths.DataDirectory);
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            return Result(DatabaseOpenStatus.IoError, null, detail: ex.Message);
+        }
+
+        if (!File.Exists(_paths.DatabasePath))
+        {
+            return CreateNew();
+        }
+
+        SqliteConnection? connection = null;
+        try
+        {
+            connection = SqliteConnections.OpenReadWrite(_paths.DatabasePath);
+            var outcome = OpenExisting(connection);
+            if (outcome.IsReady)
+            {
+                _writer = new SqliteWriteQueue(connection);
+                connection = null;
+            }
+
+            return outcome;
+        }
+        catch (SqliteException ex)
+        {
+            LogUnreadable(_logger, ex, _paths.DatabasePath);
+            return Result(DatabaseOpenStatus.Unreadable, null, detail: ex.Message);
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            return Result(DatabaseOpenStatus.IoError, null, detail: ex.Message);
+        }
+        finally
+        {
+            connection?.Dispose();
+        }
+    }
+
+    private DatabaseOpenResult OpenExisting(SqliteConnection connection)
+    {
+        var applicationId = SqliteConnections.Scalar<int>(connection, "PRAGMA application_id;");
+        var version = SqliteConnections.Scalar<int>(connection, "PRAGMA user_version;");
+
+        if (applicationId != SqliteConnections.ApplicationId)
+        {
+            var objects = SqliteConnections.Scalar<long>(connection, "SELECT count(*) FROM sqlite_schema;");
+            if (applicationId != 0 || version != 0 || objects != 0)
+            {
+                return Result(DatabaseOpenStatus.ForeignDatabase, version, detail: $"application_id {applicationId}");
+            }
+
+            // A zero-length or schema-less file holds nothing to lose; initialize it in place.
+            InitializeEmpty(connection);
+            return Result(DatabaseOpenStatus.Ready, 0);
+        }
+
+        if (SqliteConnections.QuickCheck(connection) is { } problem)
+        {
+            return Result(DatabaseOpenStatus.Unreadable, version, detail: problem);
+        }
+
+        if (version > _catalog.LatestVersion)
+        {
+            return Result(DatabaseOpenStatus.TooNew, version);
+        }
+
+        if (version == _catalog.LatestVersion)
+        {
+            return Result(DatabaseOpenStatus.Ready, version);
+        }
+
+        string backupPath;
+        try
+        {
+            backupPath = CreateVerifiedBackup(connection, version);
+        }
+#pragma warning disable CA1031 // Any backup failure means: do not migrate, report, keep the original.
+        catch (Exception ex)
+#pragma warning restore CA1031
+        {
+            LogBackupFailed(_logger, ex, version);
+            return Result(DatabaseOpenStatus.BackupFailed, version, detail: ex.Message);
+        }
+
+        try
+        {
+            Migrate(connection, version);
+        }
+#pragma warning disable CA1031 // The migration was rolled back; the failure is reported, never swallowed silently.
+        catch (Exception ex)
+#pragma warning restore CA1031
+        {
+            LogMigrationFailed(_logger, ex, version, _catalog.LatestVersion);
+            return Result(DatabaseOpenStatus.MigrationFailed, version, backupPath, ex.Message);
+        }
+
+        LogMigrated(_logger, version, _catalog.LatestVersion, backupPath);
+        PruneBackups();
+        return Result(DatabaseOpenStatus.Ready, version, backupPath);
+    }
+
+    private DatabaseOpenResult CreateNew()
+    {
+        // Build under a temporary name and rename, so a crash never leaves a half-initialized database
+        // under the real name.
+        var temp = _paths.DatabasePath + ".creating";
+        DeleteDatabaseFiles(temp);
+        try
+        {
+            using (var connection = SqliteConnections.OpenReadWrite(temp, create: true))
+            {
+                InitializeEmpty(connection);
+            }
+
+            File.Move(temp, _paths.DatabasePath);
+            _writer = new SqliteWriteQueue(SqliteConnections.OpenReadWrite(_paths.DatabasePath));
+            LogCreated(_logger, _paths.DatabasePath, _catalog.LatestVersion);
+            return Result(DatabaseOpenStatus.Ready, null);
+        }
+        catch (Exception ex) when (ex is SqliteException or IOException or UnauthorizedAccessException)
+        {
+            DeleteDatabaseFiles(temp);
+            return Result(DatabaseOpenStatus.IoError, null, detail: ex.Message);
+        }
+    }
+
+    private void InitializeEmpty(SqliteConnection connection)
+    {
+        SqliteConnections.Scalar<string>(connection, "PRAGMA journal_mode = WAL;");
+        SqliteConnections.Execute(connection, $"PRAGMA application_id = {SqliteConnections.ApplicationId};");
+        Migrate(connection, 0);
+    }
+
+    /// <summary>
+    /// Applies every pending migration in one transaction, following SQLite's documented procedure for
+    /// schema changes: foreign keys off outside the transaction, <c>foreign_key_check</c> before commit.
+    /// </summary>
+    private void Migrate(SqliteConnection connection, int fromVersion)
+    {
+        SqliteConnections.Execute(connection, "PRAGMA foreign_keys = OFF;");
+        try
+        {
+            using var transaction = connection.BeginTransaction();
+            foreach (var migration in _catalog.Migrations.Where(m => m.Version > fromVersion))
+            {
+                migration.Apply(connection, transaction);
+            }
+
+            if (SqliteConnections.ForeignKeyViolation(connection, transaction) is { } violation)
+            {
+                throw new InvalidOperationException($"Migration left a dangling reference: {violation}.");
+            }
+
+            SqliteConnections.Execute(connection, $"PRAGMA user_version = {_catalog.LatestVersion};", transaction);
+            transaction.Commit();
+        }
+        finally
+        {
+            SqliteConnections.Execute(connection, "PRAGMA foreign_keys = ON;");
+        }
+    }
+
+    private string CreateVerifiedBackup(SqliteConnection connection, int version)
+    {
+        Directory.CreateDirectory(_paths.BackupDirectory);
+        var stamp = _time.GetUtcNow().UtcDateTime.ToString("yyyyMMdd'T'HHmmssfff'Z'", CultureInfo.InvariantCulture);
+        var final = Path.Combine(_paths.BackupDirectory, $"mindweave-v{version}-{stamp}.db");
+        if (File.Exists(final))
+        {
+            throw new IOException($"Backup target already exists: {final}");
+        }
+
+        var partial = final + ".partial";
+        DeleteDatabaseFiles(partial);
+        try
+        {
+            // VACUUM INTO writes a transactionally consistent copy, including content still in the WAL.
+            using (var command = connection.CreateCommand())
+            {
+                command.CommandText = "VACUUM INTO $path;";
+                command.Parameters.AddWithValue("$path", partial);
+                command.ExecuteNonQuery();
+            }
+
+            using (var copy = SqliteConnections.OpenReadWrite(partial))
+            {
+                if (SqliteConnections.QuickCheck(copy) is { } problem)
+                {
+                    throw new InvalidOperationException($"Backup failed its integrity check: {problem}");
+                }
+
+                if (SqliteConnections.Scalar<int>(copy, "PRAGMA user_version;") != version
+                    || SqliteConnections.Scalar<int>(copy, "PRAGMA application_id;") != SqliteConnections.ApplicationId)
+                {
+                    throw new InvalidOperationException("Backup header does not match the source database.");
+                }
+            }
+
+            File.Move(partial, final);
+            return final;
+        }
+        catch
+        {
+            DeleteDatabaseFiles(partial);
+            throw;
+        }
+    }
+
+    private void PruneBackups()
+    {
+        try
+        {
+            foreach (var old in ListBackups().Skip(MigrationBackupsKept))
+            {
+                File.Delete(old.Path);
+            }
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            LogPruneFailed(_logger, ex);
+        }
+    }
+
+    private void ReplaceWithBackup(BackupInfo backup)
+    {
+        if (!File.Exists(backup.Path))
+        {
+            throw new FileNotFoundException("Backup file not found.", backup.Path);
+        }
+
+        var stamp = _time.GetUtcNow().UtcDateTime.ToString("yyyyMMdd'T'HHmmssfff'Z'", CultureInfo.InvariantCulture);
+        var incoming = _paths.DatabasePath + ".restoring";
+        DeleteDatabaseFiles(incoming);
+        File.Copy(backup.Path, incoming);
+
+        // Keep the current database (and any WAL) under a "replaced" name; nothing is deleted.
+        foreach (var suffix in new[] { string.Empty, "-wal", "-shm" })
+        {
+            var current = _paths.DatabasePath + suffix;
+            if (File.Exists(current))
+            {
+                File.Move(current, $"{_paths.DatabasePath}.replaced-{stamp}{suffix}");
+            }
+        }
+
+        File.Move(incoming, _paths.DatabasePath);
+        LogRestored(_logger, backup.Path);
+    }
+
+    private static void DeleteDatabaseFiles(string path)
+    {
+        foreach (var suffix in new[] { string.Empty, "-wal", "-shm", "-journal" })
+        {
+            File.Delete(path + suffix);
+        }
+    }
+
+    private DatabaseOpenResult Result(DatabaseOpenStatus status, int? foundVersion, string? backupPath = null, string? detail = null) =>
+        new(status, _paths.DataDirectory, _paths.DatabasePath, foundVersion, _catalog.LatestVersion, backupPath, detail);
+
+    [GeneratedRegex(@"^mindweave-v(?<version>\d+)-(?<time>\d{8}T\d{9}Z)\.db$", RegexOptions.CultureInvariant)]
+    private static partial Regex BackupNameRegex();
+
+    [LoggerMessage(Level = LogLevel.Information, Message = "Created database {Path} at schema {Version}")]
+    private static partial void LogCreated(ILogger logger, string path, int version);
+
+    [LoggerMessage(Level = LogLevel.Information, Message = "Migrated schema {From} -> {To}; backup {BackupPath}")]
+    private static partial void LogMigrated(ILogger logger, int from, int to, string backupPath);
+
+    [LoggerMessage(Level = LogLevel.Error, Message = "Database {Path} could not be read")]
+    private static partial void LogUnreadable(ILogger logger, Exception exception, string path);
+
+    [LoggerMessage(Level = LogLevel.Error, Message = "Pre-migration backup of schema {Version} failed; not migrating")]
+    private static partial void LogBackupFailed(ILogger logger, Exception exception, int version);
+
+    [LoggerMessage(Level = LogLevel.Error, Message = "Migration {From} -> {To} failed and was rolled back")]
+    private static partial void LogMigrationFailed(ILogger logger, Exception exception, int from, int to);
+
+    [LoggerMessage(Level = LogLevel.Warning, Message = "Old migration backups could not be pruned")]
+    private static partial void LogPruneFailed(ILogger logger, Exception exception);
+
+    [LoggerMessage(Level = LogLevel.Warning, Message = "Restored database from {BackupPath}")]
+    private static partial void LogRestored(ILogger logger, string backupPath);
+
+    [LoggerMessage(Level = LogLevel.Error, Message = "Restore from {BackupPath} failed")]
+    private static partial void LogRestoreFailed(ILogger logger, Exception exception, string backupPath);
+}
