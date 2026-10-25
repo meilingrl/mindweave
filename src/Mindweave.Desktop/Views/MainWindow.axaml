@@ -1,0 +1,8 @@
+<Window xmlns="https://github.com/avaloniaui" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:vm="using:Mindweave.Desktop.ViewModels" x:Class="Mindweave.Desktop.Views.MainWindow" x:DataType="vm:RootViewModel"
+        Title="Mindweave · Codex" Width="1120" Height="760" MinWidth="880" MinHeight="600" Background="#FAFAF7">
+  <Grid RowDefinitions="*,Auto">
+    <ContentControl Content="{Binding Content}" />
+    <TextBlock Grid.Row="1" Text="{Binding CloseError}" TextWrapping="Wrap" Foreground="#9A4122" Margin="16,4" />
+  </Grid>
+</Window>

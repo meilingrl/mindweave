@@ -1,0 +1,11 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/Mindweave.Application/Mindweave.Application.csproj" />
+    <Project Path="src/Mindweave.Core/Mindweave.Core.csproj" />
+    <Project Path="src/Mindweave.Desktop/Mindweave.Desktop.csproj" />
+    <Project Path="src/Mindweave.Infrastructure/Mindweave.Infrastructure.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/Mindweave.Tests/Mindweave.Tests.csproj" />
+  </Folder>
+</Solution>

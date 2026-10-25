@@ -1,0 +1,11 @@
+<UserControl xmlns="https://github.com/avaloniaui" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:Mindweave.Desktop.ViewModels" x:Class="Mindweave.Desktop.Views.ContentView" x:DataType="vm:ContentViewModel">
+  <StackPanel MaxWidth="490" Margin="44" VerticalAlignment="Center" Spacing="18">
+    <TextBlock Text="{Binding Eyebrow}" FontSize="11" LetterSpacing="3" Foreground="#87917C" />
+    <TextBlock Text="{Binding Title}" FontSize="32" FontWeight="SemiBold" />
+    <TextBlock Text="{Binding Description}" FontSize="15" LineHeight="26" Foreground="#747B6E" TextWrapping="Wrap" />
+    <Border BorderBrush="#DADFD1" BorderThickness="1" CornerRadius="10" Padding="16" Margin="0,18,0,0">
+      <TextBlock Text="{Binding Availability}" Foreground="#6B765E" FontSize="12" TextWrapping="Wrap" />
+    </Border>
+  </StackPanel>
+</UserControl>

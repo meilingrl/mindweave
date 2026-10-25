@@ -1,0 +1,21 @@
+<UserControl xmlns="https://github.com/avaloniaui" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:Mindweave.Desktop.ViewModels" x:Class="Mindweave.Desktop.Views.StartupView" x:DataType="vm:StartupViewModel">
+  <Grid Background="#FAFAF7">
+    <StackPanel MaxWidth="590" Margin="36" VerticalAlignment="Center" Spacing="18">
+      <TextBlock Text="mindweave" FontSize="30" FontWeight="SemiBold" />
+      <TextBlock Text="正在准备你的工作区…" FontSize="17" IsVisible="{Binding IsBusy}" />
+      <ProgressBar IsIndeterminate="True" IsVisible="{Binding IsBusy}" />
+      <StackPanel IsVisible="{Binding HasError}" Spacing="16">
+        <TextBlock Text="暂时无法打开本地数据" FontSize="22" FontWeight="Medium" />
+        <TextBlock Text="数据仍保留在原位置。你可以查看错误后重试，或打开数据位置进行检查。" TextWrapping="Wrap" LineHeight="24" />
+        <TextBlock Text="{Binding ErrorMessage}" TextWrapping="Wrap" Foreground="#9A4122" />
+        <TextBlock Text="{Binding DataDirectory}" TextWrapping="Wrap" FontSize="12" Foreground="#747B6E" />
+        <StackPanel Orientation="Horizontal" Spacing="10" IsEnabled="{Binding !IsBusy}">
+          <Button Content="重试" Classes="primary" Command="{Binding RetryCommand}" AutomationProperties.Name="重试打开本地数据" />
+          <Button Content="打开数据位置" Command="{Binding OpenDataDirectoryCommand}" />
+          <Button Content="退出" Command="{Binding ExitCommand}" />
+        </StackPanel>
+      </StackPanel>
+    </StackPanel>
+  </Grid>
+</UserControl>

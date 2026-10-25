@@ -1,0 +1,56 @@
+<UserControl xmlns="https://github.com/avaloniaui" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:Mindweave.Desktop.ViewModels" xmlns:core="using:Mindweave.Core.Workspaces"
+             x:Class="Mindweave.Desktop.Views.MainView" x:DataType="vm:MainViewModel">
+  <Grid ColumnDefinitions="264,*" Background="#FAFAF7">
+    <Border Background="#F0F1EA" BorderBrush="#E0E2D9" BorderThickness="0,0,1,0" Padding="20,28,20,20">
+      <Grid RowDefinitions="Auto,Auto,Auto,*,Auto">
+        <StackPanel Spacing="5" Margin="4,0,0,26">
+          <TextBlock Text="mindweave" FontSize="25" FontWeight="SemiBold" LetterSpacing="-0.6" />
+          <TextBlock Text="循着好奇，找得回去" FontSize="12" Foreground="#777D6F" />
+        </StackPanel>
+        <StackPanel Grid.Row="1" Spacing="6" IsEnabled="{Binding IsInteractionEnabled}">
+          <Button Classes="nav" Content="探索" Command="{Binding ExploreCommand}" IsEnabled="{Binding HasWorkspace}" AutomationProperties.Name="探索主区" />
+          <Button x:Name="NetworkButton" Classes="nav" Content="总结网络" Command="{Binding NetworkCommand}" IsEnabled="{Binding HasWorkspace}" AutomationProperties.Name="总结网络主区" />
+        </StackPanel>
+        <TextBlock Grid.Row="2" Text="主题工作区" Foreground="#858B7D" FontSize="11" Margin="12,32,0,10" />
+        <ScrollViewer Grid.Row="3" VerticalScrollBarVisibility="Auto">
+          <ItemsControl ItemsSource="{Binding Workspaces}" IsEnabled="{Binding IsInteractionEnabled}">
+            <ItemsControl.ItemTemplate>
+              <DataTemplate x:DataType="core:Workspace">
+                <Button Classes="nav" HorizontalAlignment="Stretch" Margin="0,2" Command="{Binding $parent[UserControl].((vm:MainViewModel)DataContext).SwitchWorkspaceCommand}" CommandParameter="{Binding}">
+                  <TextBlock Text="{Binding Name}" TextTrimming="CharacterEllipsis" MaxWidth="180" />
+                </Button>
+              </DataTemplate>
+            </ItemsControl.ItemTemplate>
+          </ItemsControl>
+        </ScrollViewer>
+        <StackPanel Grid.Row="4" Spacing="10" Margin="0,12,0,0">
+          <StackPanel Spacing="8" IsEnabled="{Binding IsInteractionEnabled}">
+            <TextBox x:Name="WorkspaceNameInput" Text="{Binding NewWorkspaceName, Mode=TwoWay}" Watermark="新主题名称" MaxLength="160" AutomationProperties.Name="新主题名称" />
+            <Button x:Name="CreateWorkspaceButton" Classes="primary" Content="＋ 新建主题" HorizontalAlignment="Stretch" HorizontalContentAlignment="Center" Command="{Binding CreateWorkspaceCommand}" AutomationProperties.Name="新建主题工作区" />
+          </StackPanel>
+          <Button Classes="nav" Content="设置" Command="{Binding SettingsCommand}" IsEnabled="{Binding HasWorkspace}" AutomationProperties.Name="设置主区" />
+        </StackPanel>
+      </Grid>
+    </Border>
+    <Grid Grid.Column="1" RowDefinitions="Auto,Auto,*">
+      <Border Padding="30,20" BorderBrush="#EBECE5" BorderThickness="0,0,0,1">
+        <Grid ColumnDefinitions="*,Auto">
+          <TextBlock Text="{Binding WorkspaceHeading}" FontSize="14" FontWeight="Medium" VerticalAlignment="Center" TextTrimming="CharacterEllipsis" />
+          <Button Grid.Column="1" Content="返回" Command="{Binding BackCommand}" IsVisible="{Binding CanGoBack}" AutomationProperties.Name="按访问历史后退" />
+        </Grid>
+      </Border>
+      <Border Grid.Row="1" IsVisible="{Binding HasError}" Background="#FFF0E5" Padding="20,12" Margin="24,16,24,0" CornerRadius="8">
+        <TextBlock Text="{Binding ErrorMessage}" Foreground="#9A4122" TextWrapping="Wrap" />
+      </Border>
+      <Grid Grid.Row="2">
+        <StackPanel IsVisible="{Binding NeedsWorkspace}" MaxWidth="480" Margin="36" VerticalAlignment="Center" Spacing="18">
+          <TextBlock Text="一个问题，&#10;可以通向很多地方。" FontSize="34" LineHeight="46" FontWeight="SemiBold" />
+          <TextBlock Text="为你想了解的事创建一个主题。之后的对话、旁支和总结，都会在这里留下线索。" FontSize="15" LineHeight="25" Foreground="#747B6E" TextWrapping="Wrap" />
+          <TextBlock Text="在左下角输入主题名称，开始你的探索。" FontSize="13" Foreground="#777D6F" Margin="0,16,0,0" />
+        </StackPanel>
+        <ContentControl Content="{Binding ActiveContent}" IsVisible="{Binding HasWorkspace}" />
+      </Grid>
+    </Grid>
+  </Grid>
+</UserControl>
