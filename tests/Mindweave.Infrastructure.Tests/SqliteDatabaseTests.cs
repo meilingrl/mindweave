@@ -169,6 +169,9 @@ public sealed class SqliteDatabaseTests : IDisposable
 
         Assert.Equal(DatabaseOpenStatus.Unreadable, result.Status);
         Assert.Equal(garbage, await File.ReadAllBytesAsync(_dir.Paths.DatabasePath, Ct));
+
+        // No handle may be left open: on Windows a leaked connection would block moving the file away.
+        File.Move(_dir.Paths.DatabasePath, _dir.Paths.DatabasePath + ".moved");
     }
 
     [Fact]

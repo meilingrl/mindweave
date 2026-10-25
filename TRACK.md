@@ -19,7 +19,7 @@ Claude 自主开发，目的是比稳健轨更早走到关键阶段，提前暴�
 ## 当前状态
 
 - 阶段：**S0 骨架与存储 · 完成**（2026-10-25）；下一阶段 S1 真实聊天。
-- 测试：49 项全部通过（macOS，本机连续 3 次）；CI（Linux＋Windows）随首次推送运行，结果见 GitHub Actions。
+- 测试：49 项全部通过（macOS 本机）；CI 见 GitHub Actions（首次运行 Windows 失败，暴露 2 个缺陷，已修复，见“发现”）。
 
 ### S0 阶段报告
 
@@ -69,4 +69,6 @@ MINDWEAVE_DATA_DIR=/tmp/mw-try dotnet run --project src/Mindweave.Desktop
 - **2026-10-25 · .NET 的 `Guid.CreateVersion7()` 在同一毫秒内不单调。** 同一毫秒创建的两个工作区按 ID 排序时顺序随机，导致重启后列表顺序偶发颠倒（测试间歇失败暴露）。依据：.NET 实现只保证毫秒级时间前缀，其余为随机位。处理：列表按 `created_at, rowid` 排序；不要把 UUIDv7 当作同毫秒内的插入顺序。
 - **2026-10-25 · 同一对象以两个服务类型注册时，DI 容器会对它调用两次 `DisposeAsync`。** `SqliteDatabase` 同时注册为自身与 `IDatabaseLifecycle`，第二次释放访问已释放的信号量而抛异常。处理：释放与关闭做成幂等，并加了测试。
 - **2026-10-25 · Avalonia 编译绑定可以绑定到方法组而不报错。** `IsVisible="{Binding GoBackCommand.CanExecute}"` 能编译，但绑定的是方法而非布尔值，按钮永远可见；只有真实控件测试能发现。处理：暴露布尔属性 `CanGoBack`。
+- **2026-10-25 · Windows 首次 CI 暴露 macOS 掩盖的句柄泄漏。** 打开非数据库文件时 `Open()` 成功、第一条 PRAGMA 才失败，连接未释放；macOS 不强制文件锁所以测试通过，Windows 上文件一直被占用。处理：打开与配置失败时立即释放，测试加“之后能移走文件”断言。教训：涉及文件句柄的测试必须在 Windows 上跑。
+- **2026-10-25 · Windows 上进程被杀后文件锁不会立即可用。** 进程已报告退出，`FileShare.None` 的锁仍短暂占用。处理：第二个实例在“已有实例无响应”时再尝试占用一次（崩溃后马上重开的真实场景）；测试改为限时重试。
 - **2026-10-25 · 迁移整体单事务时，`foreign_keys` 必须在事务外关闭、提交后再开。** SQLite 在事务内忽略对 `foreign_keys` 的修改；按官方流程在事务内用 `PRAGMA foreign_key_check` 兜底，违例回滚（已有测试）。

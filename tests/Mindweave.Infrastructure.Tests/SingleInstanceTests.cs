@@ -10,6 +10,25 @@ public sealed class SingleInstanceTests : IDisposable
 
     public void Dispose() => _dir.Dispose();
 
+    private async Task<SingleInstance?> AcquireWithinAsync(TimeSpan timeout)
+    {
+        var deadline = DateTime.UtcNow + timeout;
+        while (true)
+        {
+            if (SingleInstance.TryAcquire(_dir.Paths) is { } acquired)
+            {
+                return acquired;
+            }
+
+            if (DateTime.UtcNow > deadline)
+            {
+                return null;
+            }
+
+            await Task.Delay(50, Ct);
+        }
+    }
+
     [Fact]
     public async Task Only_one_holder_per_data_directory_and_release_frees_it()
     {
@@ -70,7 +89,8 @@ public sealed class SingleInstanceTests : IDisposable
 
         await child.KillAsync();
 
-        await using var mine = SingleInstance.TryAcquire(_dir.Paths);
+        // Windows releases a dead process's handles shortly after it is reported exited.
+        await using var mine = await AcquireWithinAsync(TimeSpan.FromSeconds(5));
         Assert.NotNull(mine);
     }
 }

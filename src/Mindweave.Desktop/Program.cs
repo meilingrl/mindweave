@@ -22,8 +22,13 @@ internal static class Program
                 return 0;
             }
 
-            Console.Error.WriteLine($"Mindweave is already running for {paths.DataDirectory} but did not respond. Close it and try again.");
-            return 2;
+            // The holder may have just died (e.g. a crash): Windows releases its lock a moment after exit.
+            instance = SingleInstance.TryAcquire(paths);
+            if (instance is null)
+            {
+                Console.Error.WriteLine($"Mindweave is already running for {paths.DataDirectory} but did not respond. Close it and try again.");
+                return 2;
+            }
         }
 
         var services = CompositionRoot.Build(paths);

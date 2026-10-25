@@ -37,6 +37,7 @@ public class ViewTests
         name.Focus();
         window.KeyTextInput("火车历史");
         window.KeyPress(Key.Enter, RawInputModifiers.None, PhysicalKey.Enter, null);
+        await UiWait.UntilAsync(() => app.Root.Current is ShellViewModel);
         await app.Workbench.LastLocationSave;
         window.UpdateLayout();
 

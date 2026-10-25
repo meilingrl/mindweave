@@ -18,9 +18,7 @@ internal static class SqliteConnections
             ForeignKeys = true,
             DefaultTimeout = 5,
         }.ToString());
-        connection.Open();
-        Execute(connection, "PRAGMA synchronous = FULL; PRAGMA busy_timeout = 5000;");
-        return connection;
+        return Prepare(connection, "PRAGMA synchronous = FULL; PRAGMA busy_timeout = 5000;");
     }
 
     public static SqliteConnection OpenReadOnly(string path)
@@ -32,9 +30,26 @@ internal static class SqliteConnections
             Pooling = false,
             DefaultTimeout = 5,
         }.ToString());
-        connection.Open();
-        Execute(connection, "PRAGMA busy_timeout = 5000;");
-        return connection;
+        return Prepare(connection, "PRAGMA busy_timeout = 5000;");
+    }
+
+    /// <summary>
+    /// Opens and configures, disposing on failure. A non-database file fails at the first statement, not at
+    /// Open(); without this the handle would leak and keep the file locked on Windows.
+    /// </summary>
+    private static SqliteConnection Prepare(SqliteConnection connection, string pragmas)
+    {
+        try
+        {
+            connection.Open();
+            Execute(connection, pragmas);
+            return connection;
+        }
+        catch
+        {
+            connection.Dispose();
+            throw;
+        }
     }
 
     public static void Execute(SqliteConnection connection, string sql, SqliteTransaction? transaction = null)
