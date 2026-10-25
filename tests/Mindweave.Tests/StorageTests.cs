@@ -141,7 +141,7 @@ public sealed class StorageTests
 
     private static async Task SeedLegacyAsync(AppPaths paths)
     {
-        await using var store = await SqliteWorkspaceStore.OpenAsync(paths);
+        await using var store = await SqliteWorkspaceStore.OpenAsync(paths, [DatabaseSchema.Migrations[0]]);
         await store.CreateAsync("保留原文");
     }
 

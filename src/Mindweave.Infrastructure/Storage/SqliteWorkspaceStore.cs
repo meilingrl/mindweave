@@ -1,4 +1,5 @@
 using Mindweave.Application.Storage;
+using Mindweave.Application.Chat;
 using Mindweave.Application.Navigation;
 using Mindweave.Core.Workspaces;
 using Mindweave.Infrastructure.Runtime;
@@ -8,21 +9,8 @@ using System.Globalization;
 
 namespace Mindweave.Infrastructure.Storage;
 
-public sealed class SqliteWorkspaceStore : IWorkspaceStore, IAsyncDisposable
+public sealed partial class SqliteWorkspaceStore : IWorkspaceStore, IChatStore, IAsyncDisposable
 {
-    private static readonly SchemaMigration[] Migrations = [new(1, """
-        CREATE TABLE workspace (
-            id TEXT PRIMARY KEY NOT NULL,
-            name TEXT NOT NULL CHECK(length(trim(name)) BETWEEN 1 AND 160),
-            created_at TEXT NOT NULL
-        );
-        CREATE TABLE app_selection (
-            singleton INTEGER PRIMARY KEY CHECK(singleton=1),
-            workspace_id TEXT NOT NULL REFERENCES workspace(id) ON DELETE CASCADE,
-            area TEXT NOT NULL CHECK(area IN ('Explore','Network','Settings'))
-        );
-        """)];
-
     private readonly SqliteConnection writer;
     private readonly string readConnectionString;
     private readonly Channel<Action<SqliteConnection>> writes = Channel.CreateUnbounded<Action<SqliteConnection>>(
@@ -42,7 +30,7 @@ public sealed class SqliteWorkspaceStore : IWorkspaceStore, IAsyncDisposable
 
     public static Task<SqliteWorkspaceStore> OpenAsync(AppPaths paths, IReadOnlyList<SchemaMigration>? migrations = null)
     {
-        var steps = (migrations ?? Migrations).ToArray();
+        var steps = (migrations ?? DatabaseSchema.Migrations).ToArray();
         if (steps.Length == 0 || steps.Where((step, index) => step.Version != index + 1).Any())
             throw new ArgumentException("Migrations must be sequential, starting at version 1.", nameof(migrations));
         // Microsoft.Data.Sqlite's async calls execute synchronously. Keep all database IO off the UI thread.
