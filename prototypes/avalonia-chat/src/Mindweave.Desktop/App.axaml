@@ -1,0 +1,20 @@
+<Application xmlns="https://github.com/avaloniaui" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml" x:Class="Mindweave.Desktop.App" Name="Mindweave" RequestedThemeVariant="Light">
+  <Application.Styles>
+    <FluentTheme />
+    <Style Selector="Window"><Setter Property="FontFamily" Value="Inter, PingFang SC, Microsoft YaHei, sans-serif"/><Setter Property="FontSize" Value="14"/><Setter Property="Foreground" Value="#292A28"/></Style>
+    <Style Selector="Button"><Setter Property="Cursor" Value="Hand"/><Setter Property="FontWeight" Value="Normal"/></Style>
+    <Style Selector="Button.quiet"><Setter Property="Background" Value="Transparent"/><Setter Property="BorderThickness" Value="0"/><Setter Property="CornerRadius" Value="8"/><Setter Property="Padding" Value="9,7"/></Style>
+    <Style Selector="Button.quiet:pointerover /template/ ContentPresenter"><Setter Property="Background" Value="#E9E9E6"/></Style>
+    <Style Selector="Button.quiet:pressed /template/ ContentPresenter"><Setter Property="Background" Value="#DDDDDA"/></Style>
+    <Style Selector="Button.session"><Setter Property="HorizontalAlignment" Value="Stretch"/><Setter Property="HorizontalContentAlignment" Value="Stretch"/><Setter Property="Background" Value="Transparent"/><Setter Property="BorderThickness" Value="0"/><Setter Property="CornerRadius" Value="8"/><Setter Property="Padding" Value="11,10"/><Setter Property="MinHeight" Value="40"/><Setter Property="FontSize" Value="13"/></Style>
+    <Style Selector="Button.session:pointerover /template/ ContentPresenter"><Setter Property="Background" Value="#E9E9E6"/></Style>
+    <Style Selector="Button.session.active"><Setter Property="Background" Value="#E4E4DF"/></Style>
+    <Style Selector="Button.session.active:pointerover /template/ ContentPresenter"><Setter Property="Background" Value="#E0E0DB"/></Style>
+    <Style Selector="Button.branch"><Setter Property="Background" Value="#F1F2EE"/><Setter Property="BorderThickness" Value="0"/><Setter Property="CornerRadius" Value="7"/><Setter Property="Padding" Value="9,5"/><Setter Property="FontSize" Value="12"/><Setter Property="Foreground" Value="#62665C"/></Style>
+    <Style Selector="Button.branch:pointerover /template/ ContentPresenter"><Setter Property="Background" Value="#E6E9E0"/></Style>
+    <Style Selector="TextBox.composer"><Setter Property="Background" Value="Transparent"/><Setter Property="BorderThickness" Value="0"/><Setter Property="Padding" Value="0"/><Setter Property="FontSize" Value="15"/><Setter Property="MinHeight" Value="29"/><Setter Property="MaxHeight" Value="150"/><Setter Property="TextWrapping" Value="Wrap"/><Setter Property="AcceptsReturn" Value="True"/><Setter Property="CaretBrush" Value="#252622"/></Style>
+    <Style Selector="TextBox.composer:focus /template/ Border#PART_BorderElement"><Setter Property="BorderThickness" Value="0"/><Setter Property="Background" Value="Transparent"/></Style>
+    <Style Selector="TextBox.composer:pointerover /template/ Border#PART_BorderElement"><Setter Property="Background" Value="Transparent"/></Style>
+    <Style Selector="ScrollBar"><Setter Property="Opacity" Value="0.6"/></Style>
+  </Application.Styles>
+</Application>

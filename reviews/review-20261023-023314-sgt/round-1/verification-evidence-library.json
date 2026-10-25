@@ -1,0 +1,71 @@
+{
+  "method": "Independent read-only HTTPS fetch of official immutable raw source and official NuGet fixed 2.5.1 package; package read in memory; no downloaded files outside authorized report directory and no code execution.",
+  "package_url": "https://api.nuget.org/v3-flatcontainer/livemarkdown.avalonia/2.5.1/livemarkdown.avalonia.2.5.1.nupkg",
+  "package_sha256": "f2c08deeadfed4dd926e5b4570e05b3322d0e65aaf98964baffd49128b5ec147",
+  "version": "2.5.1",
+  "repository_commit": "fbb6bc1d52980d725d3bedff4f72b762ebd1149b",
+  "nuspec": "<?xml version=\"1.0\" encoding=\"utf-8\"?>\r\n<package xmlns=\"http://schemas.microsoft.com/packaging/2013/05/nuspec.xsd\">\r\n  <metadata>\r\n    <id>LiveMarkdown.Avalonia</id>\r\n    <version>2.5.1</version>\r\n    <title>LiveMarkdown.Avalonia</title>\r\n    <authors>DearVa</authors>\r\n    <license type=\"expression\">Apache-2.0</license>\r\n    <licenseUrl>https://licenses.nuget.org/Apache-2.0</licenseUrl>\r\n    <icon>icon.png</icon>\r\n    <readme>README.md</readme>\r\n    <projectUrl>https://github.com/DearVa/LiveMarkdown.Avalonia</projectUrl>\r\n    <description>LiveMarkdown.Avalonia is a High-performance Markdown viewer for Avalonia applications.\r\n      It supports real-time rendering of Markdown content, so it's ideal for applications that require dynamic text updating, especially when streaming LLM outputs.</description>\r\n    <copyright>Copyright 2025-2026 DearVa</copyright>\r\n    <tags>markdown avalonia llm html latex math mermaid svg skia</tags>\r\n    <repository type=\"git\" url=\"https://github.com/DearVa/LiveMarkdown.Avalonia\" commit=\"fbb6bc1d52980d725d3bedff4f72b762ebd1149b\" />\r\n    <dependencies>\r\n      <group targetFramework=\"net10.0\">\r\n        <dependency id=\"Avalonia\" version=\"12.0.0\" exclude=\"Build,Analyzers\" />\r\n        <dependency id=\"Markdig\" version=\"1.1.2\" exclude=\"Build,Analyzers\" />\r\n        <dependency id=\"TextMateSharp\" version=\"2.0.0\" exclude=\"Build,Analyzers\" />\r\n        <dependency id=\"TextMateSharp.Grammars\" version=\"2.0.0\" exclude=\"Build,Analyzers\" />\r\n      </group>\r\n      <group targetFramework=\"net8.0\">\r\n        <dependency id=\"Avalonia\" version=\"12.0.0\" exclude=\"Build,Analyzers\" />\r\n        <dependency id=\"Markdig\" version=\"1.1.2\" exclude=\"Build,Analyzers\" />\r\n        <dependency id=\"TextMateSharp\" version=\"2.0.0\" exclude=\"Build,Analyzers\" />\r\n        <dependency id=\"TextMateSharp.Grammars\" version=\"2.0.0\" exclude=\"Build,Analyzers\" />\r\n      </group>\r\n    </dependencies>\r\n  </metadata>\r\n</package>",
+  "sources": {
+    "README.md": {
+      "url": "https://raw.githubusercontent.com/DearVa/LiveMarkdown.Avalonia/fbb6bc1d52980d725d3bedff4f72b762ebd1149b/README.md",
+      "sha256": "2ee7253daa6d18c74613e7f7bc9b88d4e7f267f3db7e5737377155a2c34ce608"
+    },
+    "src/LiveMarkdown.Avalonia/Utilities/MarkdownUpdateProducer.cs": {
+      "url": "https://raw.githubusercontent.com/DearVa/LiveMarkdown.Avalonia/fbb6bc1d52980d725d3bedff4f72b762ebd1149b/src/LiveMarkdown.Avalonia/Utilities/MarkdownUpdateProducer.cs",
+      "sha256": "a068c6e5ac9e7ee53b293de6ce1b19ec76e3cdca397e331fba971b07dbebdc1d"
+    },
+    "src/LiveMarkdown.Avalonia/Controls/MarkdownTextBlock.cs": {
+      "url": "https://raw.githubusercontent.com/DearVa/LiveMarkdown.Avalonia/fbb6bc1d52980d725d3bedff4f72b762ebd1149b/src/LiveMarkdown.Avalonia/Controls/MarkdownTextBlock.cs",
+      "sha256": "75cca74a13005c53665c4536e950b777e95e36dc0f6415ed8f8e221a7f13ec74"
+    }
+  },
+  "source_facts": [
+    {
+      "source": "README.md",
+      "lines": "47-49",
+      "fact": "Documented streaming mutations Append/Clear only; not a general Markdown editor."
+    },
+    {
+      "source": "README.md",
+      "lines": "155-157",
+      "fact": "ObservableStringBuilder is not thread-safe and must be updated on Avalonia UI thread."
+    },
+    {
+      "source": "README.md",
+      "lines": "303-320",
+      "fact": "SourceSpan is a source range within a version, not edit-stable identity. LayoutText uses block-local UTF-16 coordinates; embedded controls occupy U+FFFC with child text blocks having their own coordinates."
+    },
+    {
+      "source": "README.md",
+      "lines": "333-347",
+      "fact": "LaTeX rendering requires the separate Math package and node registration."
+    },
+    {
+      "source": "src/LiveMarkdown.Avalonia/Controls/MarkdownTextBlock.cs",
+      "lines": "115-117,164-181",
+      "fact": "Public SourceSpan and distinction between logical ActualText and block LayoutText."
+    },
+    {
+      "source": "src/LiveMarkdown.Avalonia/Utilities/MarkdownUpdateProducer.cs",
+      "lines": "128-138,163-192,225-238,260-273",
+      "fact": "Uses a full captured snapshot for background Markdig Parse; incremental document update publication is separate; producer activates with observers, UI-thread access required."
+    }
+  ],
+  "avalonia": {
+    "version": "12.1.4",
+    "url": "https://www.nuget.org/packages/Avalonia.Desktop/12.1.4",
+    "fact": "Official NuGet page verifies version exists and package targets net8.0/net10.0 with Avalonia and platform packages >=12.1.4. Package compatibility is not platform interaction acceptance."
+  },
+  "local_project_evidence": {
+    "path": "prototypes/livemarkdown-chat/src/LiveMarkdownSpike/LiveMarkdownSpike.csproj",
+    "lines": "2-7",
+    "fact": "net10.0, Avalonia.Desktop/Themes/Fonts 12.1.4, LiveMarkdown 2.5.1"
+  },
+  "not_verified": [
+    "No prototype launch/build/test.",
+    "No Windows execution.",
+    "No full Markdown selection coverage.",
+    "No current benchmark.",
+    "No formal-product implementation."
+  ]
+}

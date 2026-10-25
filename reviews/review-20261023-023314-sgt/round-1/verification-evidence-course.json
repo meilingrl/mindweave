@@ -1,0 +1,90 @@
+{
+  "source_path": "/Users/meilingluo/School/Courses/2026-Fall/全栈开发技术/Worklog/docs/期末项目与报告要求.docx",
+  "sha256": "0682dae8d95f77aab6627b82f9258219d437fe1a934b05932577f3d7da06c094",
+  "method": "Read-only OOXML word/document.xml direct body paragraph extraction, P is 1-based w:body/w:p order; no rendering, application launch, build, or tests.",
+  "rules_read": [
+    "/Users/meilingluo/AGENTS.md"
+  ],
+  "ancestor_rules_checked_absent": [
+    "/Users/meilingluo/Developer/AGENTS.md",
+    "/Users/meilingluo/Developer/Projects/AGENTS.md",
+    "/Users/meilingluo/Developer/Projects/mindweave/AGENTS.md",
+    "/Users/meilingluo/School/AGENTS.md",
+    "/Users/meilingluo/School/Courses/AGENTS.md",
+    "/Users/meilingluo/School/Courses/2026-Fall/AGENTS.md",
+    "/Users/meilingluo/School/Courses/2026-Fall/全栈开发技术/AGENTS.md",
+    "/Users/meilingluo/School/Courses/2026-Fall/全栈开发技术/Worklog/AGENTS.md",
+    "/Users/meilingluo/School/Courses/2026-Fall/全栈开发技术/Worklog/docs/AGENTS.md",
+    "/Users/meilingluo/School/Courses/2026-Fall/全栈开发技术/course/AGENTS.md",
+    "/Users/meilingluo/School/Courses/2026-Fall/全栈开发技术/course/daily-poetry-a/AGENTS.md"
+  ],
+  "paragraphs": {
+    "5": "功能有实际意义，逻辑需要自洽，不得出现类似“本地通讯录支持用户注册登录”这类逻辑不自洽的功能设计。",
+    "6": "页面数量不应少于 DailyPoetryA 的页面数量，接口和类的数量不应少于 DailyPoetryA 接口和类的 70%。",
+    "7": "项目代码以压缩包提交。压缩包中不应包括任何编译结果，只包括项目源码和资源文件。压缩包不超过 10MB。",
+    "9": "本章节以 DailyPoetryA 为例，说明期末项目必须满足的技术和架构要求。注意期末项目只需要反映对应的思想，但无需采用一模一样的技术。",
+    "11": "DailyPoetryA.Library/ 内严格按职责划分三层：Models/ 以纯数据载体为主（Poetry 是 [SQLite.Table(\"works\")] 标注的 POCO），ViewModels/ 承载交互逻辑，Views/ 仅承载 XAML 与极薄 code-behind。",
+    "12": "统一导航参数注入入口（思想层）(不要求一模一样的实现,但是要有类似机制和设计)",
+    "13": "Library/ViewModels/ViewModelBase.cs 定义 virtual void SetParameter(object parameter)，被 DetailViewModel / QueryViewModel / ResultViewModel / TodayDetailViewModel 四个 ViewModel 按需 override。导航服务切换前调用该方法传入参数，ViewModel 不必感知导航来源。设计意图是把\"谁传给我\"和\"我要做什么\"在编译期解耦：导航层不依赖具体 ViewModel 类型，ViewModel 不依赖导航栈结构，新增页面只需覆写一个虚方法即可接入。",
+    "14": "IService 接口抽象与面向接口设计（接口层）",
+    "15": "业务侧以 IXxx 接口定义：IPoetryStorage / IFavoriteStorage / IPreferenceStorage / ITodayImageService / ITodayImageStorage / ITodayPoetryService / IAlertService，加上三套导航接口（IRootNavigationService / IMenuNavigationService / IContentNavigationService），共 7 服务 + 3 导航。映射关系通过 DailyPoetryA/ServiceLocator.cs 构造函数中的 Microsoft.Extensions.DependencyInjection.ServiceCollection 完成。ViewModel 通过构造函数注入（见 TodayViewModel 等）拿到接口引用，避免硬依赖实现类型，便于单元测试替换为 Mock，也便于替换底层（如把 Bing 接口换成 Unsplash）。",
+    "16": "自实现的轻量 ServiceLocator（接口层）(不要求一模一样的实现,但是要有类似机制和设计)",
+    "17": "项目在 DailyPoetryA/ServiceLocator.cs 中以 ServiceCollection 通过 IoC 容器集中组装。",
+    "18": "全依赖注入化?",
+    "19": "三层服务化的导航架构（服务化层）(要求复刻)",
+    "20": "导航按 IService 拆为三层：IRootNavigationService（启动切换 Window）、IMenuNavigationService（侧边菜单切换主区）、IContentNavigationService（详情等内容页推入栈）。每个接口配 XxxNavigationConstant 常量类（RootNavigationConstant / MenuNavigationConstant / ContentNavigationConstant）统一目标字符串，避免散落的魔法字符串。返回栈由 MainViewModel.ContentStack / PushContent / GoBack 管理——栈结构封在 ViewModel 内而非接口中，体现\"接口定义能力、ViewModel 维护状态\"的边界划分：NavigationConstant 字符串常量归接口，栈操作归主 VM，职责清晰分离。",
+    "21": "ViewLocator（机制层）",
+    "22": "ViewLocator 以一种优雅的机制实现了 View 的自动渲染。该机制未必能够迁移到其他平台下，但每一种平台都存在类似的优雅极致。",
+    "23": "IO 副作用 Service 化与异步协作（机制层）(IO副作用产生的延迟应当用异步解决)",
+    "24": "文件 IO、网络 IO、UI 反馈全部封装为可注入 Service，把\"取数据 / 持久化 / 通知用户\"从 ViewModel 中剥离。同时使用异步操作避免 UI 卡死。",
+    "25": "Library/UI 双工程目录即抽象说明书（工程层）(单向依赖)",
+    "26": "DailyPoetryA.Library/（业务核心：Models / Services / ViewModels）与 UI 壳（Views / NavigationConstant / AlertService / ServiceLocator）项目结构本身就是抽象分层。准确地说，Library 内的 IXxx 接口、ViewModelBase.SetParameter、各 Service 的方法签名与 Model 字段含义具备跨 UI 框架复用的潜质。、",
+    "29": "期末报告需满足如下要求：",
+    "30": "使用如下模板编写期末报告。",
+    "31": "必须以 PDF 格式提交报告。",
+    "34": "全栈开发技术期末项目报告",
+    "35": "0项目背景与意义",
+    "36": "需求分析",
+    "37": "1.1 功能需求",
+    "38": "1.2 非功能需求",
+    "39": "系统设计",
+    "40": "2.1 架构设计",
+    "41": "2.2 功能模块设计",
+    "42": "2.3 数据/数据库设计",
+    "43": "2.4 接口与类设计",
+    "44": "2.5 技术选型说明",
+    "45": "系统实现",
+    "46": "3.1 关键模块的核心实现",
+    "47": "3.2 核心功能与UI截图",
+    "48": "3.3 难点和解决方案",
+    "49": "系统测试",
+    "50": "4.1 测试环境",
+    "51": "4.2 测试用例",
+    "52": "4.3 测试截图",
+    "53": "总结与展望"
+  },
+  "interpretation": {
+    "explicit": [
+      "P6 pages >= DailyPoetryA and interface/class count >=70%, wording leaves counting convention unspecified.",
+      "P7 source/resources archive <=10MB, no build output.",
+      "P19-P20 explicitly require replication of three service navigation layers; named constants, MainViewModel-owned stack are stated.",
+      "P31 report PDF; P34-P53 report template."
+    ],
+    "reviewer_judgment": [
+      "Four projects can preserve one-way core/UI separation; ViewModels being in Desktop does not itself prove a violation under P9.",
+      "State ownership and observable three-layer routing should be written as behavior contracts; no forced implementation cloning."
+    ],
+    "not_established": [
+      "Teacher-approved DailyPoetryA baseline revision and count convention.",
+      "Whether class and interface 70% is combined or separate; whether shell/design/test classes count.",
+      "Whether Root startup state transition within one window satisfies P20 window-switch language; must demonstrate equivalent lifecycle or ask teacher."
+    ]
+  },
+  "candidate_reference_directory": "/Users/meilingluo/School/Courses/2026-Fall/全栈开发技术/course/daily-poetry-a",
+  "candidate_reference_note": "Directory exists and Views, service interfaces, MainViewModel and navigation implementation inspected read-only. It has not been adopted as the teacher-approved numerical baseline. No course pass inferred.",
+  "reference_source_lines": {
+    "DailyPoetryA.Library/ViewModels/MainViewModel.cs": "54-65 PushContent and menu reset; 87-99 ContentStack and GoBack",
+    "DailyPoetryA.Library/Services/IContentNavigationService.cs": "3-12 service method and target constant class",
+    "DailyPoetryA/Services/ContentNavigationService.cs": "8-23 parameter injection and calling MainViewModel.PushContent"
+  }
+}

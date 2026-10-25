@@ -1,0 +1,42 @@
+<Window xmlns="https://github.com/avaloniaui" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml" x:Class="Mindweave.Desktop.MainWindow"
+        Title="Mindweave" Width="1240" Height="850" MinWidth="1000" MinHeight="660" Background="#FAFAF8"
+        ExtendClientAreaToDecorationsHint="True" ExtendClientAreaChromeHints="PreferSystemChrome" ExtendClientAreaTitleBarHeightHint="38" WindowStartupLocation="CenterScreen">
+  <Grid ColumnDefinitions="244,*" x:Name="ShellGrid">
+    <Border Grid.Column="0" x:Name="SidebarContainer" Background="#F1F1EE" BorderBrush="#E8E8E3" BorderThickness="0,0,1,0">
+      <Grid RowDefinitions="Auto,Auto,Auto,*,Auto" Margin="12,54,12,14">
+        <Grid ColumnDefinitions="*,Auto" Margin="9,0,4,20">
+          <StackPanel Orientation="Horizontal" Spacing="9" VerticalAlignment="Center">
+            <Border Width="25" Height="25" CornerRadius="8" Background="#2E332B"><TextBlock Text="m" FontFamily="Georgia" FontStyle="Italic" FontWeight="Bold" Foreground="#F5F6F0" FontSize="23" HorizontalAlignment="Center" VerticalAlignment="Center" Margin="0,-3,0,0"/></Border>
+            <TextBlock Text="Mindweave" FontWeight="SemiBold" FontSize="16" VerticalAlignment="Center"/>
+          </StackPanel>
+          <Button x:Name="SidebarToggle" Grid.Column="1" Classes="quiet" Padding="5" ToolTip.Tip="收起侧栏"/>
+        </Grid>
+        <Button x:Name="NewChatButton" Grid.Row="1" Classes="quiet" HorizontalContentAlignment="Left" Margin="0,0,0,22"/>
+        <Grid Grid.Row="2" ColumnDefinitions="*,Auto" Margin="11,0,8,9"><TextBlock Text="探索" FontSize="11" Foreground="#8B8C85" LetterSpacing="1"/><TextBlock Grid.Column="1" Text="今天" Foreground="#A0A198" FontSize="11"/></Grid>
+        <ScrollViewer Grid.Row="3" HorizontalScrollBarVisibility="Disabled"><StackPanel x:Name="SessionList" Spacing="3"/></ScrollViewer>
+        <Border Grid.Row="4" BorderBrush="#E1E2DA" BorderThickness="0,1,0,0" Padding="8,15,2,0">
+          <Grid ColumnDefinitions="Auto,*,Auto"><Border Width="29" Height="29" CornerRadius="15" Background="#E3E4DD"><TextBlock Text="M" FontSize="12" FontWeight="Medium" Foreground="#74786B" VerticalAlignment="Center" HorizontalAlignment="Center"/></Border><StackPanel Grid.Column="1" Margin="9,0,0,0" VerticalAlignment="Center"><TextBlock Text="我的工作区" FontSize="12"/><TextBlock Text="本地交互原型" FontSize="10" Foreground="#94968D" Margin="0,2,0,0"/></StackPanel><Button x:Name="AboutButton" Grid.Column="2" Classes="quiet" Padding="6" ToolTip.Tip="原型说明"/></Grid>
+        </Border>
+      </Grid>
+    </Border>
+    <Grid Grid.Column="1" RowDefinitions="65,*,Auto,Auto" x:Name="MainPane">
+      <Grid Grid.Row="0" ColumnDefinitions="*,Auto" Margin="32,22,27,0">
+        <StackPanel Orientation="Horizontal" Spacing="10" VerticalAlignment="Center"><Button x:Name="SidebarReopen" Classes="quiet" IsVisible="False" Padding="5"/><TextBlock Text="日常好奇" Foreground="#8B8E83" FontSize="12" VerticalAlignment="Center"/><TextBlock Text="/" Foreground="#C4C6BC" FontSize="12" VerticalAlignment="Center"/><TextBlock x:Name="HeaderTitle" FontWeight="Medium" FontSize="13" VerticalAlignment="Center" TextTrimming="CharacterEllipsis" MaxWidth="400"/></StackPanel>
+        <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="7" VerticalAlignment="Center"><Button x:Name="BackToSourceButton" Classes="quiet" IsVisible="False" FontSize="12" Foreground="#68725D"/><Button x:Name="MoreButton" Classes="quiet" Padding="7" ToolTip.Tip="阅读帮助"/></StackPanel>
+      </Grid>
+      <ScrollViewer Grid.Row="1" x:Name="ChatScroll" HorizontalScrollBarVisibility="Disabled" VerticalScrollBarVisibility="Auto" HorizontalContentAlignment="Stretch">
+        <StackPanel x:Name="MessagesPanel" MaxWidth="736" HorizontalAlignment="Stretch" Margin="44,26,44,34"/>
+      </ScrollViewer>
+      <StackPanel Grid.Row="2" Margin="44,8,44,0" MaxWidth="756" HorizontalAlignment="Stretch">
+        <Border x:Name="ComposerSource" IsVisible="False" Background="#F0F1EC" CornerRadius="11,11,0,0" Padding="14,9" Margin="10,0,10,-2"><StackPanel Orientation="Horizontal" Spacing="7"><TextBlock Text="↳" Foreground="#777E6B"/><TextBlock x:Name="ComposerSourceText" Foreground="#72796A" FontSize="12" TextTrimming="CharacterEllipsis" MaxWidth="580"/></StackPanel></Border>
+        <Border Background="#FFFFFF" BorderBrush="#DDDFD6" BorderThickness="1" CornerRadius="19" Padding="18,16,12,11" BoxShadow="0 3 12 0 #09000000">
+          <Grid RowDefinitions="Auto,Auto">
+            <TextBox x:Name="Composer" Classes="composer" Watermark="继续你的好奇心…"/>
+            <Grid Grid.Row="1" ColumnDefinitions="Auto,*,Auto" Margin="0,13,0,0"><Button x:Name="ComposerHint" Classes="quiet" Padding="0,3" FontSize="11" Foreground="#858B7C"/><TextBlock Grid.Column="1" x:Name="ComposerShortcut" Text="Enter 发送 · Shift Enter 换行" Foreground="#B0B3A8" FontSize="10" HorizontalAlignment="Right" VerticalAlignment="Center" Margin="0,0,14,0"/><Button x:Name="SendButton" Grid.Column="2" Width="31" Height="31" Padding="7" CornerRadius="16" Background="#33392E" Foreground="#FFFFFF" ToolTip.Tip="发送示例消息"/></Grid>
+          </Grid>
+        </Border>
+      </StackPanel>
+      <TextBlock Grid.Row="3" x:Name="FooterStatus" Text="交互原型 · 固定示例内容，无真实 AI 服务" HorizontalAlignment="Center" FontSize="10" Foreground="#A7AB9E" Margin="0,11,0,13"/>
+    </Grid>
+  </Grid>
+</Window>

@@ -1,0 +1,33 @@
+<?xml version="1.0" encoding="utf-8"?>
+<package xmlns="http://schemas.microsoft.com/packaging/2013/05/nuspec.xsd">
+  <metadata>
+    <id>LiveMarkdown.Avalonia</id>
+    <version>2.5.1</version>
+    <title>LiveMarkdown.Avalonia</title>
+    <authors>DearVa</authors>
+    <license type="expression">Apache-2.0</license>
+    <licenseUrl>https://licenses.nuget.org/Apache-2.0</licenseUrl>
+    <icon>icon.png</icon>
+    <readme>README.md</readme>
+    <projectUrl>https://github.com/DearVa/LiveMarkdown.Avalonia</projectUrl>
+    <description>LiveMarkdown.Avalonia is a High-performance Markdown viewer for Avalonia applications.
+      It supports real-time rendering of Markdown content, so it's ideal for applications that require dynamic text updating, especially when streaming LLM outputs.</description>
+    <copyright>Copyright 2025-2026 DearVa</copyright>
+    <tags>markdown avalonia llm html latex math mermaid svg skia</tags>
+    <repository type="git" url="https://github.com/DearVa/LiveMarkdown.Avalonia" commit="fbb6bc1d52980d725d3bedff4f72b762ebd1149b" />
+    <dependencies>
+      <group targetFramework="net10.0">
+        <dependency id="Avalonia" version="12.0.0" exclude="Build,Analyzers" />
+        <dependency id="Markdig" version="1.1.2" exclude="Build,Analyzers" />
+        <dependency id="TextMateSharp" version="2.0.0" exclude="Build,Analyzers" />
+        <dependency id="TextMateSharp.Grammars" version="2.0.0" exclude="Build,Analyzers" />
+      </group>
+      <group targetFramework="net8.0">
+        <dependency id="Avalonia" version="12.0.0" exclude="Build,Analyzers" />
+        <dependency id="Markdig" version="1.1.2" exclude="Build,Analyzers" />
+        <dependency id="TextMateSharp" version="2.0.0" exclude="Build,Analyzers" />
+        <dependency id="TextMateSharp.Grammars" version="2.0.0" exclude="Build,Analyzers" />
+      </group>
+    </dependencies>
+  </metadata>
+</package>

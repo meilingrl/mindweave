@@ -1,0 +1,53 @@
+{
+  "started_utc": "2026-10-23T08:18:09.907572+00:00",
+  "endpoint": "https://api.pinaic.com/v1/responses",
+  "model": "gpt-6.1-sol",
+  "probe_sha256": "46f0e0033c808951de86d297614140bfed700575bbaca13217ba1abaf2bc6b31",
+  "results": [
+    {
+      "case": "invalid_key",
+      "status": "pass",
+      "http_status": 401,
+      "elapsed_seconds": 1.28
+    },
+    {
+      "case": "ordinary",
+      "status": "pass",
+      "http_status": 200,
+      "response_status": "completed",
+      "text_chars": 7,
+      "elapsed_seconds": 4.35
+    },
+    {
+      "case": "stream",
+      "status": "pass",
+      "http_status": 200,
+      "content_type_sse": true,
+      "delta_events": 76,
+      "text_chars": 91,
+      "terminal_event": "response.completed",
+      "event_types": [
+        "response.completed",
+        "response.created",
+        "response.in_progress",
+        "response.output_text.delta"
+      ],
+      "elapsed_seconds": 8.24
+    },
+    {
+      "case": "client_stop",
+      "status": "client_closed_after_text",
+      "http_status": 200,
+      "content_type_sse": true,
+      "delta_events": 1,
+      "text_chars": 1,
+      "terminal_event": null,
+      "event_types": [
+        "response.created",
+        "response.in_progress",
+        "response.output_text.delta"
+      ],
+      "elapsed_seconds": 3.1
+    }
+  ]
+}

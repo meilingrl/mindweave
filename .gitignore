@@ -1,0 +1,14 @@
+# Build output and regenerable artifacts (see each prototype README)
+bin/
+obj/
+artifacts/
+__pycache__/
+*.pyc
+.DS_Store
+
+# Local secrets and IDE state
+.env
+.env.*
+*.user
+.vs/
+.idea/

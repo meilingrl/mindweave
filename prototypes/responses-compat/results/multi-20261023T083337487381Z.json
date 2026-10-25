@@ -1,0 +1,143 @@
+{
+  "started_utc": "2026-10-23T08:33:37.486920+00:00",
+  "base_urls": {
+    "gpt": "https://api.pinaic.com/v1",
+    "claude": "https://api.pinaic.com/v1",
+    "deepseek": "https://api.deepseek.com"
+  },
+  "script_hashes": {
+    "multi_probe.py": "f492a4df5752145bef212b7d7d9a2a06d9460b5d2144468c7109f9ac0f4273cc",
+    "probe.py": "46f0e0033c808951de86d297614140bfed700575bbaca13217ba1abaf2bc6b31"
+  },
+  "discovery": {
+    "gpt": {
+      "model_ids": [
+        "codex-auto-review",
+        "gpt-5.6",
+        "gpt-5.6-luna",
+        "gpt-5.6-sol",
+        "gpt-5.6-terra",
+        "gpt-6",
+        "gpt-6-astra",
+        "gpt-6-luna",
+        "gpt-6-sol",
+        "gpt-6.1-sol",
+        "gpt-image-1",
+        "gpt-image-1.5",
+        "gpt-image-1k-th",
+        "gpt-image-2",
+        "gpt-image-2-exact",
+        "gpt-image-2.5",
+        "gpt-image-2.5-flare",
+        "gpt-image-2.5-sunburst"
+      ],
+      "selected": "gpt-6.1-sol"
+    },
+    "claude": {
+      "model_ids": [
+        "claude-fable-5",
+        "claude-fable-5-1",
+        "claude-haiku-4-5-20251001",
+        "claude-haiku-5-5",
+        "claude-opus-4-5-20251101",
+        "claude-opus-4-6",
+        "claude-opus-4-7",
+        "claude-opus-4-8",
+        "claude-opus-5",
+        "claude-opus-5-5",
+        "claude-sonnet-4-5-20250929",
+        "claude-sonnet-4-6",
+        "claude-sonnet-5",
+        "claude-sonnet-5-5"
+      ],
+      "selected": "claude-sonnet-4-6"
+    },
+    "deepseek": {
+      "model_ids": [
+        "deepseek-flash",
+        "deepseek-v4-pro"
+      ],
+      "selected": "deepseek-flash"
+    }
+  },
+  "results": [
+    {
+      "base_url": "https://api.pinaic.com/v1",
+      "model": "gpt-6.1-sol",
+      "protocol": "chat",
+      "stream": false,
+      "http_status": 200,
+      "status": "pass",
+      "text_chars": 35,
+      "delta_events": 0,
+      "finish_reason": "stop",
+      "terminal_seen": true,
+      "elapsed_seconds": 5.23,
+      "family": "gpt"
+    },
+    {
+      "base_url": "https://api.pinaic.com/v1",
+      "model": "gpt-6.1-sol",
+      "protocol": "chat",
+      "stream": true,
+      "http_status": 200,
+      "status": "pass",
+      "text_chars": 35,
+      "delta_events": 30,
+      "finish_reason": "stop",
+      "terminal_seen": true,
+      "content_type_sse": true,
+      "elapsed_seconds": 4.57,
+      "family": "gpt"
+    },
+    {
+      "base_url": "https://api.pinaic.com/v1",
+      "model": "claude-sonnet-4-6",
+      "protocol": "messages",
+      "stream": false,
+      "status": "http_error",
+      "http_status": 502,
+      "elapsed_seconds": 3.31,
+      "family": "claude"
+    },
+    {
+      "base_url": "https://api.pinaic.com/v1",
+      "model": "claude-sonnet-4-6",
+      "protocol": "chat",
+      "stream": false,
+      "status": "http_error",
+      "http_status": 403,
+      "elapsed_seconds": 2.94,
+      "family": "claude"
+    },
+    {
+      "base_url": "https://api.deepseek.com",
+      "model": "deepseek-flash",
+      "protocol": "chat",
+      "stream": false,
+      "http_status": 200,
+      "status": "pass",
+      "text_chars": 36,
+      "delta_events": 0,
+      "finish_reason": "stop",
+      "terminal_seen": true,
+      "elapsed_seconds": 2.09,
+      "family": "deepseek"
+    },
+    {
+      "base_url": "https://api.deepseek.com",
+      "model": "deepseek-flash",
+      "protocol": "chat",
+      "stream": true,
+      "http_status": 200,
+      "status": "pass",
+      "text_chars": 38,
+      "delta_events": 23,
+      "finish_reason": "stop",
+      "terminal_seen": true,
+      "content_type_sse": true,
+      "elapsed_seconds": 2.5,
+      "family": "deepseek"
+    }
+  ]
+}
