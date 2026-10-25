@@ -71,7 +71,7 @@ public sealed partial class MainViewModel : ViewModelBase
     public IAsyncRelayCommand NewConversationCommand { get; }
     public IAsyncRelayCommand<ConversationItemViewModel> OpenConversationCommand { get; }
     public IAsyncRelayCommand RetrySaveCommand { get; }
-    partial void OnIsBusyChanged(bool value) { OnPropertyChanged(nameof(IsInteractionEnabled)); OnPropertyChanged(nameof(CanMutate)); }
+    partial void OnIsBusyChanged(bool value) => NotifyAvailability();
     partial void OnErrorMessageChanged(string? value) => OnPropertyChanged(nameof(HasError));
     partial void OnCurrentWorkspaceChanged(Workspace? value)
     { OnPropertyChanged(nameof(HasWorkspace)); OnPropertyChanged(nameof(NeedsWorkspace)); OnPropertyChanged(nameof(WorkspaceHeading)); OnPropertyChanged(nameof(ShowConversations)); }
@@ -189,6 +189,7 @@ public sealed partial class MainViewModel : ViewModelBase
     {
         if (ActiveContent is not null) await ActiveContent.WaitForPendingOperationsAsync();
         if (ActiveContent is not ChatViewModel page) return;
+        await page.SynchronizeAcceptedAsync();
         await page.FlushDraftAsync(); unsavedDrafts.Remove(page.ConversationId);
     }
     private async Task FlushForNavigationAsync()
@@ -230,7 +231,7 @@ public sealed partial class MainViewModel : ViewModelBase
         ContentViewModel page;
         if (coordinator is not null && chatStore is not null && request.Kind == ContentKind.Conversation)
         {
-            var chat = new ChatViewModel(request.TargetId!.Value, chatStore, coordinator, () => HasPersistenceFailure || closing, MarkPersistenceFailure);
+            var chat = new ChatViewModel(request.TargetId!.Value, chatStore, coordinator, () => HasPersistenceFailure || closing || IsBusy, MarkPersistenceFailure);
             await chat.InitializeAsync(); if (unsavedDrafts.TryGetValue(chat.ConversationId, out var draft)) chat.RestoreDraft(draft); page = chat;
         }
         else if (request.Area == MainArea.Settings && chatStore is not null && configuration is not null)

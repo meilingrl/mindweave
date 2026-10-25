@@ -15,7 +15,7 @@ public class ContentViewModel : ViewModelBase
     };
     public string Availability => Request.Area switch
     {
-        MainArea.Explore => "请先在设置中保存兼容的 AI 服务配置。旧会话无需密钥即可阅读。",
+        MainArea.Explore => "新建会话即可开始。发送需已保存 AI 服务配置；旧会话无需密钥即可阅读。",
         MainArea.Network => "总结与网络将在后续阶段开放",
         _ => "连接配置将在聊天阶段开放 · 目前不会发起 AI 请求"
     };

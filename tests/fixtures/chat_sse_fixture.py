@@ -13,6 +13,8 @@ import time
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
 SYNTHETIC_KEY = "mindweave-loopback-only"
+MAX_BODY_BYTES = 1_000_000
+MAX_FRAMING_BYTES = 65_536
 
 
 class FixtureHandler(BaseHTTPRequestHandler):
@@ -42,6 +44,48 @@ class FixtureHandler(BaseHTTPRequestHandler):
         self.json_response(200, {"object": "list", "data": [
             {"id": "fixture-normal", "object": "model"}, {"id": "fixture-slow", "object": "model"}]})
 
+    def read_body(self):
+        # JsonContent may stream HTTP/1.1 without Content-Length. Bound both the
+        # decoded JSON and framing/trailers, and reject ambiguous framing.
+        self.connection.settimeout(5)
+        encoding = self.headers.get("Transfer-Encoding", "").lower().strip()
+        if not encoding:
+            size = int(self.headers.get("Content-Length", "0"))
+            if not 0 < size <= MAX_BODY_BYTES:
+                raise ValueError()
+            body = self.rfile.read(size)
+            if len(body) != size:
+                raise ValueError()
+            return body
+        if encoding != "chunked" or self.headers.get("Content-Length") is not None:
+            raise ValueError()
+        body = bytearray()
+        framing = 0
+        while True:
+            line = self.rfile.readline(4097)
+            framing += len(line)
+            if len(line) > 4096 or not line.endswith(b"\r\n") or framing > MAX_FRAMING_BYTES:
+                raise ValueError()
+            token = line[:-2].split(b";", 1)[0]
+            if not token or any(c not in b"0123456789abcdefABCDEF" for c in token):
+                raise ValueError()
+            size = int(token, 16)
+            if size == 0:
+                while True:
+                    trailer = self.rfile.readline(4097)
+                    framing += len(trailer)
+                    if len(trailer) > 4096 or not trailer.endswith(b"\r\n") or framing > MAX_FRAMING_BYTES:
+                        raise ValueError()
+                    if trailer == b"\r\n":
+                        return bytes(body)
+            if size > MAX_BODY_BYTES - len(body):
+                raise ValueError()
+            chunk = self.rfile.read(size)
+            if len(chunk) != size or self.rfile.read(2) != b"\r\n":
+                raise ValueError()
+            body.extend(chunk)
+            framing += 2
+
     def do_POST(self):
         if not self.authorized():
             return
@@ -49,16 +93,13 @@ class FixtureHandler(BaseHTTPRequestHandler):
             self.json_response(404, {"error": "unknown fixture endpoint"})
             return
         try:
-            size = int(self.headers.get("Content-Length", "0"))
-            if not 0 < size <= 1_000_000:
-                raise ValueError()
-            request = json.loads(self.rfile.read(size))
+            request = json.loads(self.read_body())
             model = request.get("model")
             if model not in ("fixture-normal", "fixture-slow") or request.get("stream") is not True:
                 raise ValueError()
             messages = request["messages"]
             title = any(m.get("role") == "system" and "conversation title" in m.get("content", "") for m in messages)
-        except (ValueError, KeyError, TypeError):
+        except (ValueError, KeyError, TypeError, OSError):
             self.json_response(400, {"error": {"code": "invalid_fixture_request"}})
             return
         self.send_response(200)

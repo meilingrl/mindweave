@@ -8,7 +8,7 @@
    <TextBlock Text="Base URL（HTTPS；本机测试可用 HTTP）" /><TextBox IsReadOnly="{Binding IsBusy}" Text="{Binding BaseUrl, Mode=TwoWay}" AutomationProperties.Name="服务地址" />
    <TextBlock Text="密钥（留空保留已保存版本）" /><TextBox x:Name="SecretInput" IsReadOnly="{Binding IsBusy}" Text="{Binding Secret, Mode=TwoWay}" PasswordChar="●" AutomationProperties.Name="服务密钥" />
    <TextBlock Text="模型 ID（可直接手填）" /><TextBox IsReadOnly="{Binding IsBusy}" Text="{Binding ModelId, Mode=TwoWay}" AutomationProperties.Name="模型 ID" />
-   <Button Content="显式读取模型目录" Command="{Binding DiscoverCommand}" IsEnabled="{Binding CanDiscover}" />
+   <Button Content="获取模型列表" Command="{Binding DiscoverCommand}" IsEnabled="{Binding CanDiscover}" />
    <ComboBox ItemsSource="{Binding Models}" SelectedItem="{Binding ModelId, Mode=TwoWay}" PlaceholderText="发现结果（可选）" HorizontalAlignment="Stretch" />
    <TextBlock Text="输出 token 参数" /><ComboBox ItemsSource="{Binding TokenParameters}" SelectedItem="{Binding TokenLimitParameter, Mode=TwoWay}" HorizontalAlignment="Stretch" />
    <Grid ColumnDefinitions="*,*">

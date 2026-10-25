@@ -7,6 +7,7 @@ using Mindweave.Application.Chat;
 using Mindweave.Application.Navigation;
 using Mindweave.Application.Storage;
 using Mindweave.Core.Chat;
+using Mindweave.Core.Workspaces;
 using Mindweave.Desktop;
 using Mindweave.Desktop.Services;
 using Mindweave.Desktop.ViewModels;
@@ -327,6 +328,112 @@ public sealed class ChatDesktopTests
         await main.InitializeAsync(); Assert.Null(main.ErrorMessage); Assert.Equal(first.Id, main.CurrentWorkspace!.Id);
         Assert.Equal(ContentKind.Overview, main.ActiveContent!.Request.Kind); Assert.Null(main.ActiveContent.Request.TargetId);
         main.DetachObservers();
+    }
+
+    [AvaloniaFact]
+    public async Task Navigation_waiting_for_draft_write_preserves_last_edit_and_freezes_binding()
+    {
+        await using var f = await F.OpenAsync(); var delayed = new ControlledChatStore(f.Store);
+        var main = CompositionRoot.CreateMain(delayed, f.Coordinator, new(delayed, f.Vault, f.Transport));
+        await main.InitializeAsync(); main.NewWorkspaceName = "delayed draft"; await main.CreateWorkspaceAsync(); await main.NewConversationCommand.ExecuteAsync(null);
+        var chat = Assert.IsType<ChatViewModel>(main.ActiveContent); var id = chat.ConversationId;
+        var view = Assert.IsType<ChatView>(new ViewLocator().Build(chat)); view.DataContext = chat;
+        var window = new Window { Content = view }; window.Show();
+        try
+        {
+            chat.InputText = "first edit"; delayed.DelayNextDraft = true;
+            var navigating = main.NavigateAsync(new(MainArea.Settings)); await delayed.DraftEntered.Task.WaitAsync(TimeSpan.FromSeconds(10));
+            Dispatcher.UIThread.RunJobs(); var inputWasFrozen = view.FindControl<TextBox>("ChatInput")!.IsReadOnly;
+            // Also defend an input notification already queued when navigation began.
+            chat.InputText = "last edit while first write awaited";
+            delayed.DraftRelease.TrySetResult(); await navigating;
+            Assert.True(inputWasFrozen);
+            await main.NavigateAsync(new(MainArea.Explore));
+            Assert.Equal("last edit while first write awaited", Assert.IsType<ChatViewModel>(main.ActiveContent).InputText);
+            Assert.Equal("last edit while first write awaited", (await f.Chat.LoadDraftAsync(id)).Text);
+            await main.PrepareCloseAsync(); await main.SaveDraftForCloseAsync(); main.DetachObservers();
+            await f.Coordinator.DisposeAsync(); await f.Store.DisposeAsync();
+            await using var reopened = await SqliteWorkspaceStore.OpenAsync(f.Paths);
+            Assert.Equal("last edit while first write awaited", (await reopened.LoadDraftAsync(id)).Text);
+        }
+        finally { delayed.DraftRelease.TrySetResult(); main.DetachObservers(); window.Close(); }
+    }
+
+    [AvaloniaTheory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task Accepted_send_read_failure_repairs_tombstone_before_one_new_edit(bool failDraftRead)
+    {
+        await using var f = await F.OpenAsync(); var delayed = new ControlledChatStore(f.Store);
+        var main = CompositionRoot.CreateMain(delayed, f.Coordinator, new(delayed, f.Vault, f.Transport));
+        await main.InitializeAsync(); main.NewWorkspaceName = "accepted read"; await main.CreateWorkspaceAsync(); await main.NewConversationCommand.ExecuteAsync(null);
+        var chat = Assert.IsType<ChatViewModel>(main.ActiveContent); var id = chat.ConversationId;
+        chat.InputText = "already accepted question";
+        delayed.FailNextMessages = !failDraftRead; delayed.FailNextDraftRead = failDraftRead;
+        await chat.SendCommand.ExecuteAsync(null); await f.Transport.NextAsync();
+        Assert.Equal(2, (await f.Chat.ReadMessagesAsync(id)).Count);
+        var tombstone = await f.Chat.LoadDraftAsync(id); Assert.Equal("", tombstone.Text);
+        Assert.Equal("", chat.InputText); Assert.Contains("已发送", chat.ErrorMessage);
+        Assert.True(main.HasPersistenceFailure); Assert.False(chat.CanSend);
+        await main.RetryPersistenceAsync();
+        Assert.False(main.HasPersistenceFailure); Assert.Null(chat.ErrorMessage); Assert.Equal(2, chat.Messages.Count);
+        Assert.Equal(tombstone.Revision, chat.CurrentDraft.Revision);
+        chat.InputText = "exactly one later edit";
+        await main.NavigateAsync(new(MainArea.Settings)); await main.NavigateAsync(new(MainArea.Explore));
+        var restored = Assert.IsType<ChatViewModel>(main.ActiveContent);
+        Assert.Equal("exactly one later edit", restored.InputText);
+        Assert.Equal("exactly one later edit", (await f.Chat.LoadDraftAsync(id)).Text);
+        Assert.True((await f.Chat.LoadDraftAsync(id)).Revision > tombstone.Revision);
+        Assert.Equal(1, f.Transport.StartCount); Assert.Equal(2, (await f.Chat.ReadMessagesAsync(id)).Count);
+        await main.PrepareCloseAsync(); await main.SaveDraftForCloseAsync(); main.DetachObservers();
+        await f.Coordinator.DisposeAsync(); await f.Store.DisposeAsync();
+        await using var reopened = await SqliteWorkspaceStore.OpenAsync(f.Paths);
+        Assert.Equal("exactly one later edit", (await reopened.LoadDraftAsync(id)).Text);
+        Assert.Single(await reopened.ReadMessagesAsync(id), m => m.Role == MessageRole.User && m.Body == "already accepted question");
+    }
+
+    // Only fault/delay the Desktop boundary. Every read/write otherwise delegates to real SQLite;
+    // coordinator uses that same underlying SQLite store with its real acceptance transaction.
+    private sealed class ControlledChatStore(SqliteWorkspaceStore inner) : IWorkspaceStore, IChatStore
+    {
+        public bool DelayNextDraft { get; set; }
+        public bool FailNextMessages { get; set; }
+        public bool FailNextDraftRead { get; set; }
+        public TaskCompletionSource DraftEntered { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        public TaskCompletionSource DraftRelease { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        public Task<IReadOnlyList<Workspace>> ListAsync() => inner.ListAsync();
+        public Task<Workspace> CreateAsync(string name) => inner.CreateAsync(name);
+        public Task<WorkspaceSelection?> LoadSelectionAsync() => inner.LoadSelectionAsync();
+        public Task SaveSelectionAsync(WorkspaceSelection selection) => inner.SaveSelectionAsync(selection);
+        public ValueTask DisposeAsync() => inner.DisposeAsync();
+        public Task<IReadOnlyList<Conversation>> ListConversationsAsync(Guid id) => inner.ListConversationsAsync(id);
+        public Task<Conversation> CreateConversationAsync(Guid id) => inner.CreateConversationAsync(id);
+        public Task<Conversation?> LoadConversationAsync(Guid id) => inner.LoadConversationAsync(id);
+        public Task RenameConversationAsync(Guid id, string title) => inner.RenameConversationAsync(id, title);
+        public Task<IReadOnlyList<ChatMessage>> ReadMessagesAsync(Guid id)
+        {
+            if (FailNextMessages) { FailNextMessages = false; throw new IOException("test-only postaccept read failure"); }
+            return inner.ReadMessagesAsync(id);
+        }
+        public Task<AiConfiguration?> LoadActiveConfigurationAsync() => inner.LoadActiveConfigurationAsync();
+        public Task SaveConfigurationAsync(AiConfiguration configuration) => inner.SaveConfigurationAsync(configuration);
+        public Task<GenerationWork> AcceptReplyAsync(Guid id, string? text, AiConfiguration configuration) => inner.AcceptReplyAsync(id, text, configuration);
+        public Task<GenerationWork?> AcceptTitleAsync(Guid id, AiConfiguration configuration) => inner.AcceptTitleAsync(id, configuration);
+        public Task<bool> WriteGenerationAsync(Guid id, long revision, string body, GenerationStatus status, string? errorCode = null, string? actualModelId = null) => inner.WriteGenerationAsync(id, revision, body, status, errorCode, actualModelId);
+        public Task<bool> CompleteTitleAsync(Guid id, string title) => inner.CompleteTitleAsync(id, title);
+        public Task<GenerationRecord?> LoadGenerationAsync(Guid id) => inner.LoadGenerationAsync(id);
+        public Task<IReadOnlyList<GenerationRecord>> ListActiveGenerationsAsync() => inner.ListActiveGenerationsAsync();
+        public Task RecoverInterruptedAsync() => inner.RecoverInterruptedAsync();
+        public Task<ConversationDraft> LoadDraftAsync(Guid id)
+        {
+            if (FailNextDraftRead) { FailNextDraftRead = false; throw new IOException("test-only postaccept draft read failure"); }
+            return inner.LoadDraftAsync(id);
+        }
+        public async Task SaveDraftAsync(Guid id, string text, long revision)
+        {
+            if (DelayNextDraft) { DelayNextDraft = false; DraftEntered.TrySetResult(); await DraftRelease.Task; }
+            await inner.SaveDraftAsync(id, text, revision);
+        }
     }
 
     private static async Task WaitUiAsync(Func<bool> condition)

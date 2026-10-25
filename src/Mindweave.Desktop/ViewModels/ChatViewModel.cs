@@ -15,7 +15,7 @@ public sealed partial class ChatViewModel : ContentViewModel
     private CancellationTokenSource? debounce;
     private long draftRevision;
     private long savedRevision;
-    private bool loading;
+    private bool loading, needsAcceptedReload;
     private string storedTitle = "";
     public Guid ConversationId { get; }
     public ObservableCollection<MessageViewModel> Messages { get; } = [];
@@ -75,9 +75,13 @@ public sealed partial class ChatViewModel : ContentViewModel
         await drafts.WaitAsync();
         try
         {
-            var revision = draftRevision; var text = InputText;
-            if (revision <= savedRevision) return;
-            await store.SaveDraftAsync(ConversationId, text, revision); savedRevision = revision;
+            // An input notification already queued before navigation froze the control can
+            // arrive while the first SQLite write awaits. Drain through the latest revision.
+            while (draftRevision > savedRevision)
+            {
+                var revision = draftRevision; var text = InputText;
+                await store.SaveDraftAsync(ConversationId, text, revision); savedRevision = revision;
+            }
         }
         finally { drafts.Release(); }
     }
@@ -85,17 +89,42 @@ public sealed partial class ChatViewModel : ContentViewModel
     {
         if (!CanSend || (!retry && string.IsNullOrWhiteSpace(InputText))) return;
         IsAccepting = true; ErrorMessage = null;
+        var accepted = false;
         try
         {
             await FlushDraftAsync();
             if (retry) await coordinator.RetryAsync(ConversationId); else await coordinator.SendAsync(ConversationId, InputText);
-            foreach (var message in await store.ReadMessagesAsync(ConversationId))
-                if (!Messages.Any(m => m.Id == message.Id)) Messages.Add(new(message));
-            await ReloadDraftAsync(); Project();
+            accepted = needsAcceptedReload = true;
+            if (!retry)
+            {
+                // Acceptance is already durable and may have dispatched a request. Do not
+                // leave submitted text looking unsent if the following display reads fail.
+                loading = true; try { InputText = ""; } finally { loading = false; }
+            }
+            await SynchronizeAcceptedAsync();
         }
-        catch (Exception error) when (error is ArgumentException or InvalidOperationException) { ErrorMessage = error.Message; }
-        catch { ErrorMessage = "发送前保存失败，输入已保留；请重试保存后再发送。"; persistenceFailed(); }
+        catch (Exception error) when (!accepted && (error is ArgumentException or InvalidOperationException)) { ErrorMessage = error.Message; }
+        catch
+        {
+            ErrorMessage = accepted ? "消息已发送，显示更新失败；请重试保存以重新加载，请勿重复发送。"
+                : "发送前保存失败，输入已保留；请重试保存后再发送。";
+            persistenceFailed();
+        }
         finally { IsAccepting = false; Project(); }
+    }
+    public async Task SynchronizeAcceptedAsync()
+    {
+        if (!needsAcceptedReload) return;
+        // Read both before committing the projection. A second read failure must leave the
+        // accepted/reload-needed state intact and must not release the persistence pause.
+        var messages = await store.ReadMessagesAsync(ConversationId);
+        var draft = await store.LoadDraftAsync(ConversationId);
+        foreach (var message in messages)
+            if (!Messages.Any(m => m.Id == message.Id)) Messages.Add(new(message));
+        loading = true;
+        try { InputText = draft.Text; draftRevision = savedRevision = draft.Revision; }
+        finally { loading = false; }
+        needsAcceptedReload = false; ErrorMessage = null; Project();
     }
     public void RefreshTitle(string title)
     {
