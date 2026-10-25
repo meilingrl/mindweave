@@ -2,9 +2,9 @@
 
 **更新日期：** 2026-10-25  
 **状态：** 已确认方案的主题化整理；已采纳 2026-10-24 独立审查 R4 及用户答复。尚未启动正式开发，不是实施计划。  
-**产品依据：** [产品需求与首版范围](initial-requirements.md)
+**产品依据：** [产品需求与首版范围](requirements.md)
 
-本文件回答“如何实现”；产品行为与范围以需求文档为准，验证结果只支持其实际覆盖的场景。历史比较与旧停止点见[设计沿革](design-history.md)，原始复审材料保持冻结。发现不一致时核对后续明确决定，不以历史稿覆盖现行结论。
+本文件回答“如何实现”；产品行为与范围以需求文档为准，验证结果只支持其实际覆盖的场景。历史比较与旧停止点见[设计沿革](history/design-history.md)，原始复审材料保持冻结。发现不一致时核对后续明确决定，不以历史稿覆盖现行结论。
 
 阅读顺序：架构边界与工程 → 导航与数据 → Markdown／AI → 总结与整理 → 网络 → 保存恢复 → 验证和实施待办。
 
@@ -37,7 +37,7 @@ Desktop 启动入口组装基础设施，ViewModel 通过用例与服务接口�
 
 ### 2.1 课程要求
 
-课程原件：[期末项目与报告要求](../../../School/Courses/2026-Fall/全栈开发技术/Worklog/docs/期末项目与报告要求.docx)。老师口头提出“不要做 Web”，需同时考虑，不能仅凭书面材料允许不同技术就判定 Web 路线合规。
+课程原件：[期末项目与报告要求](../../../../School/Courses/2026-Fall/全栈开发技术/Worklog/docs/期末项目与报告要求.docx)。老师口头提出“不要做 Web”，需同时考虑，不能仅凭书面材料允许不同技术就判定 Web 路线合规。
 
 | 要求 | 本项目应体现的职责 |
 | --- | --- |
@@ -173,7 +173,7 @@ ViewModel位于Desktop；课程导航映射见“工作区、界面与导航”�
 
 采用 LiveMarkdown.Avalonia 渲染 Markdown，自有适配层负责选区捕获、来源验证、高亮与定位。业务数据不绑定控件实例，来源不确定时明确失败，不靠搜索相同文字猜位置。
 
-验证证据见“验证状态与资产入口”及[组件小样](prototypes/livemarkdown-chat/README.md)，原型依赖不自动锁定正式依赖。
+验证证据见“验证状态与资产入口”及[组件小样](../prototypes/livemarkdown-chat/README.md)，原型依赖不自动锁定正式依赖。
 
 当前验证的富文本锚点是“源文区块范围＋块内显示位置＋引用与完整性校验”，不是通用 Markdown 精确原文字符映射。只有源块与显示文字完全相同才能记录精确原文偏移。正文前缀和所选块未变时允许追加；追加导致旧块格式变化时拒绝恢复。
 
@@ -229,7 +229,7 @@ ViewModel位于Desktop；课程导航映射见“工作区、界面与导航”�
 
 ### 7.1 首版协议确认与实测依据 · 2026-10-23
 
-用户已确认首版保持 **Chat Completions**。Pinaic / gpt-6.1-sol 与 DeepSeek 官方 / deepseek-flash 的普通及 HTTP SSE 短文本请求均通过，模型列表发现成功。服务连接分别使用各自地址与密钥；模型品牌不等于协议，不能混用凭据。详见[兼容验证记录](prototypes/responses-compat/README.md)。
+用户已确认首版保持 **Chat Completions**。Pinaic / gpt-6.1-sol 与 DeepSeek 官方 / deepseek-flash 的普通及 HTTP SSE 短文本请求均通过，模型列表发现成功。服务连接分别使用各自地址与密钥；模型品牌不等于协议，不能混用凭据。详见[兼容验证记录](../prototypes/responses-compat/README.md)。
 
 Claude 两种协议尝试分别返回 502／403；用户说明上游账号额度耗尽，记为受阻、兼容性未定，流式未执行。报告不含错误正文，不独立证明额度原因，不据此判定不兼容。Pinaic Responses 先前有限验证仍有效，作为后续协议扩展依据，不将 Responses、Messages 或 WebSocket 纳入首版必做。
 
@@ -435,12 +435,12 @@ Infrastructure 执行打开、备份、迁移及恢复；Application 协调启�
 
 | 资产 | 已有证据 | 不覆盖的内容 |
 | --- | --- | --- |
-| [聊天原型](prototypes/avalonia-chat/README.md) | 用户确认视觉、选区分支与返回；模拟流式、窄窗、进程重启；当轮Release 31/31 | 正式数据模型、真实AI、全部Markdown、Windows和产品价值 |
-| [LiveMarkdown小样](prototypes/livemarkdown-chat/README.md) | macOS跨格式跨段选择、校验拒绝错误来源、追加／重排／重启；当轮Debug/Release 8/8 | 通用精确原文映射、复杂结构、Windows和长文性能 |
-| [API探针](prototypes/responses-compat/README.md) | Pinaic GPT与DeepSeek官方Chat Completions普通／SSE短样本；另有Responses样本 | 正式C#集成、长文多轮、压缩、服务端取消计费；Claude受阻（用户报告上游额度耗尽），兼容性未定 |
-| [网络样例](prototypes/network-layout/README.md) | 用户确认布局浏览、拖动牵引、可调强度、悬停吸引；构建与数值边界检查 | 混合节点控件正式实现、持久化、大规模性能、Windows及延迟回顾价值 |
+| [聊天原型](../prototypes/avalonia-chat/README.md) | 用户确认视觉、选区分支与返回；模拟流式、窄窗、进程重启；当轮Release 31/31 | 正式数据模型、真实AI、全部Markdown、Windows和产品价值 |
+| [LiveMarkdown小样](../prototypes/livemarkdown-chat/README.md) | macOS跨格式跨段选择、校验拒绝错误来源、追加／重排／重启；当轮Debug/Release 8/8 | 通用精确原文映射、复杂结构、Windows和长文性能 |
+| [API探针](../prototypes/responses-compat/README.md) | Pinaic GPT与DeepSeek官方Chat Completions普通／SSE短样本；另有Responses样本 | 正式C#集成、长文多轮、压缩、服务端取消计费；Claude受阻（用户报告上游额度耗尽），兼容性未定 |
+| [网络样例](../prototypes/network-layout/README.md) | 用户确认布局浏览、拖动牵引、可调强度、悬停吸引；构建与数值边界检查 | 混合节点控件正式实现、持久化、大规模性能、Windows及延迟回顾价值 |
 
-网络样例本轮验证已结束，保留参考，不继续扩展。各资产的确切版本、报告与限制以其README为准。更早的路线比较、阶段停止点和D1–D8来源见[设计沿革](design-history.md)及[复审后决定](reviews/review-20261023-023314-sgt/discussion-decisions.md)。
+网络样例本轮验证已结束，保留参考，不继续扩展。各资产的确切版本、报告与限制以其README为准。更早的路线比较、阶段停止点和D1–D8来源见[设计沿革](history/design-history.md)及[复审后决定](reviews/review-20261023-023314-sgt/discussion-decisions.md)。
 
 后续验收分开处理：课程结构与交付口径、真实技术集成、目标平台、故障恢复、用户延迟回顾价值。某一类通过不能代替其他类别。
 

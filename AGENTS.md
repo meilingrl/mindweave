@@ -12,14 +12,18 @@
 
 标签 `baseline-v0.11` 标出两条轨道共同的起点（需求 v0.11，已采纳详细设计就绪审查 R4）。
 
-开始工作前先运行 `git branch --show-current` 确认所在分支，再读该分支根目录的 `TRACK.md`。
+开始工作前先运行 `git branch --show-current` 确认所在分支，开发分支再读根目录的 `TRACK.md`；`main` 的路线入口见 [开发路线](docs/development-routes.md)。
 
 ## 合并方向
 
 - 只能 `main` → 轨道分支。需求或架构的更正先提交到 `main`，各轨道按需合并。
 - 轨道之间不合并，轨道也不合并回 `main`。
-- 需要参考另一条轨道时，只读，例如 `git show track/claude-auto:TRACK.md`，并且只在用户要求时这样做。借用另一条轨道的代码须经用户决定。
+- 需要参考另一条轨道时，只读，例如 `git show track/claude-auto:TRACK.md`，可按相关任务需要查看发现、证据或代码并独立验证；只读检查不等于借用代码。借用另一条轨道的代码须经用户决定。
 
 ## 改动需求或架构
 
-两条轨道都以 `main` 上的 `initial-requirements.md` 和 `architecture-discussion.md` 为准。开发中发现文档有错或缺失时，记入本轨道的 `TRACK.md`，由用户决定是否更正 `main`；不要只在轨道分支上悄悄改这两份文档。
+两条轨道都以 `main` 上的 `docs/requirements.md` 和 `docs/architecture.md` 为准。开发中发现文档有错或缺失时，记入本轨道的 `TRACK.md`，由用户决定是否更正 `main`；不要只在轨道分支上悄悄改这两份文档。
+
+## 文件归属
+
+现行设计与路线在 `docs/`，历史在 `docs/history/`，审查批次在 `docs/reviews/`，独立原型在 `prototypes/`。正式代码、测试与脚本在开发分支按需放入 `src/`、`tests/`、`scripts/`，不预建空目录。各轨道以 `TRACK.md` 记录状态、下一步和重要发现。运行数据、单实例标识与凭据命名空间按轨道隔离，实施前不得声称已完成隔离。
