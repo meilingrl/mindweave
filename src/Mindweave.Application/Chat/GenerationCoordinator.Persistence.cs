@@ -85,7 +85,7 @@ public sealed partial class GenerationCoordinator
                         if (titleResult is not null)
                         { job.Status = titleResult.Status; job.Error = titleResult.ErrorCode; job.Revision = titleResult.Revision; }
                         if (snapshot.Kind == GenerationKind.Reply && snapshot.Status == GenerationStatus.Completed && accepting)
-                            pendingTitles.TryAdd(snapshot.ConversationId, job.Work.Task.Configuration);
+                            pendingTitles.Add(snapshot.ConversationId);
                     }
                 }
             }

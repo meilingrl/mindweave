@@ -13,7 +13,7 @@ public sealed partial class GenerationCoordinator : IAsyncDisposable
     private readonly SemaphoreSlim acceptance = new(1, 1);
     private readonly SemaphoreSlim persistence = new(1, 1);
     private readonly List<Job> jobs = [];
-    private readonly Dictionary<Guid, AiConfiguration> pendingTitles = [];
+    private readonly HashSet<Guid> pendingTitles = [];
     private readonly CancellationTokenSource lifetime = new();
     private Task? checkpoints;
     private bool initialized, accepting, persistenceFailure, disposed;

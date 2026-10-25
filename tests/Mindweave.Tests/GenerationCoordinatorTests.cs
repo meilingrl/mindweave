@@ -199,6 +199,49 @@ public sealed class GenerationCoordinatorTests
     }
 
     [Theory]
+    [InlineData(32768)]
+    [InlineData(700)]
+    public async Task New_title_binds_current_configuration_and_budget_then_keeps_queued_snapshot(int replyBudget)
+    {
+        await using var f = await Fixture.OpenAsync();
+        var configurationA = f.Configuration with { ContextTokenBudget = replyBudget, MaxOutputTokens = 128 };
+        await f.Chat.SaveConfigurationAsync(configurationA);
+        var a = await f.ConversationAsync(); var b = await f.ConversationAsync(); var c = await f.ConversationAsync();
+        var replyId = await f.Coordinator.SendAsync(a.Id, "q");
+        var first = await f.Transport.NextAsync();
+        await f.Coordinator.SendAsync(b.Id, "blocker");
+        var second = await f.Transport.NextAsync();
+        await f.Coordinator.SendAsync(c.Id, "queued reply");
+        var configurationB = new AiConfiguration(Guid.NewGuid(), Guid.NewGuid(), "B", "https://b.example.invalid/v1",
+            "v2", "model-b", 4096, 512, "max_completion_tokens");
+        await f.Chat.SaveConfigurationAsync(configurationB);
+        Assert.Equal(configurationA, first.Request.Configuration);
+        Assert.Equal("old-secret", first.Secret);
+        var answer = new string('x', 300);
+        first.Emit(answer, "stop"); first.Finish();
+        var third = await f.Transport.NextAsync();
+        Assert.Equal("queued reply", third.Request.Messages.Last().Content);
+        Assert.Equal(configurationA, third.Request.Configuration);
+        await f.WaitAsync(() => f.Coordinator.Snapshots.Any(s => s.Kind == GenerationKind.Title));
+        var title = f.Coordinator.Snapshots.Single(s => s.Kind == GenerationKind.Title);
+        Assert.Equal(GenerationStatus.Queued, title.Status);
+        var expectedTitleConfiguration = configurationB with { MaxOutputTokens = 128 };
+        Assert.Equal(expectedTitleConfiguration, (await f.Chat.LoadGenerationAsync(title.TaskId))!.Configuration);
+        // At budget 700 the reply's A configuration can accept q, but cannot fit this title's
+        // 300-byte answer plus instruction/overhead. B's budget must govern title acceptance.
+        Assert.Equal(configurationA, (await f.Chat.LoadGenerationAsync(replyId))!.Configuration);
+        lock (f.Vault.Secrets) f.Vault.Secrets["v3"] = "third-secret";
+        var configurationC = configurationB with { CredentialReference = "v3", ModelId = "model-c", ContextTokenBudget = 8192 };
+        await f.Chat.SaveConfigurationAsync(configurationC);
+        second.Fail("Timeout");
+        var dispatchedTitle = await f.Transport.NextAsync();
+        Assert.Equal(expectedTitleConfiguration, dispatchedTitle.Request.Configuration);
+        Assert.Equal("new-secret", dispatchedTitle.Secret);
+        Assert.Equal(answer, dispatchedTitle.Request.Messages.Last().Content);
+        Assert.Equal(expectedTitleConfiguration, (await f.Chat.LoadGenerationAsync(title.TaskId))!.Configuration);
+    }
+
+    [Theory]
     [InlineData("timeout", "Timeout")]
     [InlineData("eof", "IncompleteResponse")]
     [InlineData("length", "OutputTruncated")]

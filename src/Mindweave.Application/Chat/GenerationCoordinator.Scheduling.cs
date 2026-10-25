@@ -103,7 +103,7 @@ public sealed partial class GenerationCoordinator
         {
             while (true)
             {
-                KeyValuePair<Guid, AiConfiguration> candidate;
+                Guid candidate;
                 lock (sync)
                 {
                     if (!accepting || persistenceFailure || pendingTitles.Count == 0) return;
@@ -111,8 +111,16 @@ public sealed partial class GenerationCoordinator
                 }
                 try
                 {
-                    var configuration = candidate.Value with { MaxOutputTokens = Math.Min(128, candidate.Value.MaxOutputTokens) };
-                    var messages = await store.ReadMessagesAsync(candidate.Key).ConfigureAwait(false);
+                    // This title is a new task: current settings govern its acceptance/budget.
+                    // Only already accepted work keeps an older immutable configuration snapshot.
+                    var active = await store.LoadActiveConfigurationAsync().ConfigureAwait(false);
+                    if (active is null)
+                    {
+                        lock (sync) pendingTitles.Remove(candidate);
+                        continue;
+                    }
+                    var configuration = active with { MaxOutputTokens = Math.Min(128, active.MaxOutputTokens) };
+                    var messages = await store.ReadMessagesAsync(candidate).ConfigureAwait(false);
                     var answer = ChatHistory.LatestInput(messages).FirstOrDefault(m => m.Role == MessageRole.Assistant && m.Status == GenerationStatus.Completed);
                     GenerationWork? work = null;
                     if (answer is not null)
@@ -120,11 +128,11 @@ public sealed partial class GenerationCoordinator
                         var user = messages.Single(m => m.Id == answer.ReplyToUserId);
                         ChatInput[] input = [new("system", TitleInstruction), new("user", user.Body), new("assistant", answer.Body)];
                         if (ChatRequestBudget.Fits(configuration, input))
-                            work = await store.AcceptTitleAsync(candidate.Key, configuration).ConfigureAwait(false);
+                            work = await store.AcceptTitleAsync(candidate, configuration).ConfigureAwait(false);
                     }
                     lock (sync)
                     {
-                        pendingTitles.Remove(candidate.Key);
+                        pendingTitles.Remove(candidate);
                         if (work is not null) jobs.Add(new(work));
                     }
                 }
