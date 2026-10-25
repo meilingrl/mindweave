@@ -1,4 +1,8 @@
 <Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <!-- Source-generated P/Invoke for Keychain and Windows Credential Manager. -->
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+  </PropertyGroup>
   <ItemGroup>
     <ProjectReference Include="..\Mindweave.Application\Mindweave.Application.csproj" />
   </ItemGroup>
@@ -9,5 +13,6 @@
   </ItemGroup>
   <ItemGroup>
     <InternalsVisibleTo Include="Mindweave.Infrastructure.Tests" />
+    <InternalsVisibleTo Include="Mindweave.TestHost" />
   </ItemGroup>
 </Project>

@@ -18,7 +18,7 @@ Claude 自主开发，目的是比稳健轨更早走到关键阶段，提前暴�
 
 ## 当前状态
 
-- 阶段：**S0 骨架与存储 · 完成**（2026-10-25）；下一阶段 S1 真实聊天。
+- 阶段：**S1 真实聊天 · 进行中**（S0 已完成，2026-10-25）。S1 后端（数据、生成协调、协议适配、凭据）已完成并有测试；界面进行中。
 - 测试：49 项全部通过——macOS 本机、CI Linux 与 Windows 均为绿（首次 CI 的 Windows 运行暴露 2 个缺陷，已修复，见“发现”）。
 
 ### S0 阶段报告
@@ -50,14 +50,15 @@ MINDWEAVE_DATA_DIR=/tmp/mw-try dotnet run --project src/Mindweave.Desktop
 
 ## 接续点
 
-- 下一步：S1 真实聊天 —— 会话与消息表（迁移 v2）、生成任务状态机、写入队列检查点合并、Chat Completions 流式适配器（先用模拟服务）、凭据服务（macOS Keychain／Windows 凭据管理器，按轨道命名空间）、自动标题、真实 API 配置脚本。
-- 第一条命令：`dotnet test Mindweave.slnx`（应全绿），然后读 [docs/design/](docs/design/) 与架构 §6、§7。
+- 正在做：S1 界面 —— 侧栏会话列表、会话页（消息、发送／停止、重试／重新生成、改名）、设置页模型连接（地址、密钥、获取模型、测试连接）、退出时“进行中任务”提示；然后 `scripts/real-api.sh`。
+- 已完成的 S1 部分见 [docs/design/s1-chat.md](docs/design/s1-chat.md)；第一条命令：`dotnet test Mindweave.slnx`。
 
 ## 需要你
 
 | 事项 | 原因 | 阻塞什么 | 在此之前我做什么 |
 | --- | --- | --- | --- |
 | 真实 API 配置 | 2026-10-25 约定：我写配置脚本（`scripts/` 下），你填入服务地址、模型与密钥（存系统凭据服务，按轨道命名空间），之后长期复用；需要验证多家时我提前列出 | S1 真实服务场景 | 先用模拟流完成 S1 其余部分 |
+| Windows 凭据管理器实机确认（约 1 分钟） | SSH 密钥登录的会话没有凭据存储（Win32 错误 1312），自动化无法验证；需要在笔记本桌面上的 PowerShell 里运行：`cd E:\mindweave-claude-auto\src-snapshot; $env:MINDWEAVE_CREDENTIAL_TESTS='1'; dotnet test tests\Mindweave.Infrastructure.Tests -c Release --filter FullyQualifiedName~PlatformCredentialStoreTests`（或之后在应用设置里保存一次密钥） | 仅 Windows 密钥保存的实机证据 | macOS 钥匙串已实测通过 |
 | （可选）Windows 上的 Scoop git 损坏 | `E:\Scoop\shims\git.exe` 无法启动 `git.exe`；不影响本轨道（我用快照同步，不需要 git），未擅自修复 | 无 | — |
 
 Windows 实机：`scripts/windows.sh test|publish|sync|exec`（主机 `win-home`，Tailscale，密钥登录；目录 `E:\mindweave-claude-auto`，与稳健轨隔离）。
@@ -77,6 +78,8 @@ Windows 实机：`scripts/windows.sh test|publish|sync|exec`（主机 `win-home`
 - **2026-10-25 · Avalonia 编译绑定可以绑定到方法组而不报错。** `IsVisible="{Binding GoBackCommand.CanExecute}"` 能编译，但绑定的是方法而非布尔值，按钮永远可见；只有真实控件测试能发现。处理：暴露布尔属性 `CanGoBack`。
 - **2026-10-25 · Windows 首次 CI 暴露 macOS 掩盖的句柄泄漏。** 打开非数据库文件时 `Open()` 成功、第一条 PRAGMA 才失败，连接未释放；macOS 不强制文件锁所以测试通过，Windows 上文件一直被占用。处理：打开与配置失败时立即释放，测试加“之后能移走文件”断言。教训：涉及文件句柄的测试必须在 Windows 上跑。
 - **2026-10-25 · Windows 上进程被杀后文件锁不会立即可用。** 进程已报告退出，`FileShare.None` 的锁仍短暂占用。处理：第二个实例在“已有实例无响应”时再尝试占用一次（崩溃后马上重开的真实场景）；测试改为限时重试。
+- **2026-10-26 · 经 SSH 密钥登录的 Windows 会话无法使用凭据管理器**（`CredWrite/CredRead` 返回 1312 `ERROR_NO_SUCH_LOGON_SESSION`）：没有密码登录就没有可用的凭据保护密钥。产品按设计报“凭据服务不可用”而不降级明文；但自动化测试无法在 SSH 下验证 Windows 凭据，只能在桌面会话中运行。
+- **2026-10-26 · 回答“已终态”与“生成槽释放”之间有短暂窗口。** 终态先写库，槽稍后释放；此时立即重试会被误判为“回答进行中”（测试 1/5 偶发暴露）。处理：判断是否进行中改看实时回答状态而非槽占用；25 次连续运行无失败。
 - **2026-10-26 · 两台机器 SDK 特性带不同**（macOS 10.0.402，Windows 10.0.103），原 `global.json` 固定 10.0.402 + `latestPatch` 会让 Windows 无法构建。处理：改为 10.0.100 + `latestFeature`（锁定 .NET 10 主版本，不锁特性带）；CI 用最新 10.0.x。
 - **2026-10-26 · 从 macOS 打包源码给 Windows 时，`tar` 会夹带 `._*` AppleDouble 文件**，被 MSBuild 当作 `.cs` 编译而报“二进制文件”。处理：`COPYFILE_DISABLE=1` 与 `--no-mac-metadata`。
 - **2026-10-25 · 迁移整体单事务时，`foreign_keys` 必须在事务外关闭、提交后再开。** SQLite 在事务内忽略对 `foreign_keys` 的修改；按官方流程在事务内用 `PRAGMA foreign_key_check` 兜底，违例回滚（已有测试）。

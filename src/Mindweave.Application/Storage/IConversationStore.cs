@@ -1,0 +1,113 @@
+using Mindweave.Core.Conversations;
+using Mindweave.Core.Models;
+using Mindweave.Core.Workspaces;
+
+namespace Mindweave.Application.Storage;
+
+public enum GenerationTaskKind
+{
+    Answer,
+    Title,
+}
+
+public enum GenerationTaskState
+{
+    Queued,
+    Running,
+    Completed,
+    Stopped,
+    Failed,
+    Interrupted,
+    Cancelled,
+}
+
+/// <summary>A generation task as accepted: frozen model snapshot and the message IDs it was given.</summary>
+public sealed record GenerationTaskRecord(
+    GenerationTaskId Id,
+    GenerationTaskKind Kind,
+    ConversationId ConversationId,
+    MessageId? TargetMessageId,
+    ModelSnapshot Model,
+    IReadOnlyList<MessageId> InputMessageIds,
+    DateTimeOffset CreatedAt);
+
+/// <summary>Sidebar row: the conversation plus what is needed to label it without loading all messages.</summary>
+public sealed record ConversationSummary(Conversation Conversation, string? FirstQuestion, MessageState? LastAnswerState);
+
+public sealed record RecoveryReport(int InterruptedAnswers, int InterruptedTasks);
+
+/// <summary>
+/// Conversation persistence. Every method is one transaction; methods returning bool report whether a
+/// guarded update applied (false means the row was already in a later state, which callers must respect).
+/// </summary>
+public interface IConversationStore
+{
+    Task<IReadOnlyList<ConversationSummary>> ListAsync(WorkspaceId workspace, CancellationToken cancellationToken);
+
+    Task<Conversation?> GetAsync(ConversationId id, CancellationToken cancellationToken);
+
+    Task<IReadOnlyList<Message>> GetMessagesAsync(ConversationId id, CancellationToken cancellationToken);
+
+    /// <summary>Creates the conversation, the question, the pending answer and its task together.</summary>
+    Task CreateAsync(Conversation conversation, Message question, Message answer, GenerationTaskRecord task, CancellationToken cancellationToken);
+
+    /// <summary>
+    /// Appends question + pending answer + task. Sequence numbers are assigned inside the transaction.
+    /// Throws <see cref="AnswerInProgressException"/> if the conversation still has an unfinished answer.
+    /// </summary>
+    Task<(Message Question, Message Answer)> AppendQuestionAsync(Message question, Message answer, GenerationTaskRecord task, CancellationToken cancellationToken);
+
+    /// <summary>Adds a new attempt superseding the last answer; refuses unless that answer is last and finished.</summary>
+    Task<Message> AddRetryAsync(Message answer, GenerationTaskRecord task, CancellationToken cancellationToken);
+
+    Task AddTaskAsync(GenerationTaskRecord task, CancellationToken cancellationToken);
+
+    /// <summary>Queued → running; for answers also pending → streaming. False if it was cancelled meanwhile.</summary>
+    Task<bool> MarkRunningAsync(GenerationTaskId task, MessageId? answer, DateTimeOffset at, CancellationToken cancellationToken);
+
+    /// <summary>Writes a partial body only if still streaming and newer than what is stored.</summary>
+    Task<bool> CheckpointAsync(MessageId answer, string body, long revision, CancellationToken cancellationToken);
+
+    /// <summary>Writes the terminal answer and task state together, only if the answer is not yet terminal.</summary>
+    Task<bool> FinishAnswerAsync(
+        GenerationTaskId task,
+        MessageId answer,
+        string body,
+        long revision,
+        MessageState state,
+        GenerationErrorKind? errorKind,
+        string? errorDetail,
+        DateTimeOffset at,
+        CancellationToken cancellationToken);
+
+    Task FinishTaskAsync(GenerationTaskId task, GenerationTaskState state, GenerationErrorKind? errorKind, string? errorDetail, DateTimeOffset at, CancellationToken cancellationToken);
+
+    /// <summary>Sets an automatic title unless the user has named the conversation. Returns whether it applied.</summary>
+    Task<bool> SetAutoTitleAsync(ConversationId id, string title, DateTimeOffset at, CancellationToken cancellationToken);
+
+    Task SetManualTitleAsync(ConversationId id, string title, DateTimeOffset at, CancellationToken cancellationToken);
+
+    /// <summary>Startup: everything not finished by the previous process becomes interrupted. Never re-sends.</summary>
+    Task<RecoveryReport> RecoverUnfinishedAsync(DateTimeOffset at, CancellationToken cancellationToken);
+
+    /// <summary>Credential references still needed by unfinished tasks (cleanup must keep them).</summary>
+    Task<IReadOnlySet<string>> CredentialRefsInUseAsync(CancellationToken cancellationToken);
+}
+
+public sealed class AnswerInProgressException : Exception
+{
+    public AnswerInProgressException()
+        : base("The conversation already has an unfinished answer.")
+    {
+    }
+
+    public AnswerInProgressException(string message)
+        : base(message)
+    {
+    }
+
+    public AnswerInProgressException(string message, Exception innerException)
+        : base(message, innerException)
+    {
+    }
+}

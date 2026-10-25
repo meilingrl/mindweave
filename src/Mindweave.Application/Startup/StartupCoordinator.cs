@@ -25,6 +25,8 @@ public abstract record StartupOutcome
 public sealed partial class StartupCoordinator(
     IDatabaseLifecycle database,
     IWorkspaceStore workspaces,
+    IConversationStore conversations,
+    IClock clock,
     ILocationStore locations,
     ILogger<StartupCoordinator> logger)
 {
@@ -48,6 +50,14 @@ public sealed partial class StartupCoordinator(
         {
             LogNotReady(logger, result.Status, result.DatabasePath, result.ErrorDetail);
             return new StartupOutcome.NeedsRecovery(result, database.ListBackups());
+        }
+
+        // Before anything can start new AI work: whatever the previous process left unfinished is
+        // interrupted, never resumed or re-sent.
+        var recovered = await conversations.RecoverUnfinishedAsync(clock.UtcNow, cancellationToken).ConfigureAwait(false);
+        if (recovered.InterruptedAnswers + recovered.InterruptedTasks > 0)
+        {
+            LogRecovered(logger, recovered.InterruptedAnswers, recovered.InterruptedTasks);
         }
 
         var all = await workspaces.ListAsync(cancellationToken).ConfigureAwait(false);
@@ -76,6 +86,9 @@ public sealed partial class StartupCoordinator(
 
         return new StartupOutcome.ReadyToWork(all, last);
     }
+
+    [LoggerMessage(Level = LogLevel.Warning, Message = "Marked {Answers} unfinished answers and {Tasks} tasks from the previous run as interrupted")]
+    private static partial void LogRecovered(ILogger logger, int answers, int tasks);
 
     [LoggerMessage(Level = LogLevel.Warning, Message = "Database not ready: {Status} at {Path}. {Detail}")]
     private static partial void LogNotReady(ILogger logger, DatabaseOpenStatus status, string path, string? detail);

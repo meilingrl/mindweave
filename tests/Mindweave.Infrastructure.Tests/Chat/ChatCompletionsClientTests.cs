@@ -1,0 +1,192 @@
+using System.Net;
+using System.Text;
+using System.Text.Json.Nodes;
+using Mindweave.Application.Ai;
+using Mindweave.Core.Conversations;
+using Mindweave.Core.Models;
+using Mindweave.Infrastructure.Ai;
+
+namespace Mindweave.Infrastructure.Tests.Chat;
+
+public class ChatCompletionsClientTests
+{
+    private static readonly ModelSnapshot Model = new("cfg", "https://api.example.com/v1/", ChatProtocol.ChatCompletions, "m1", "ref", 32);
+
+    private static CancellationToken Ct => TestContext.Current.CancellationToken;
+
+    [Fact]
+    public async Task Streams_deltas_handles_multiline_events_crlf_comments_and_done()
+    {
+        var sse = ": keep-alive\r\n\r\n"
+            + "data: {\"choices\":[{\"delta\":{\"role\":\"assistant\"}}]}\r\n\r\n"
+            + "data: {\"choices\":[{\"delta\":{\"content\":\"蒸汽\"}}]}\n\n"
+            + "data: {\"choices\":\ndata: [{\"delta\":{\"content\":\"机\"},\"finish_reason\":\"stop\"}]}\n\n"
+            + "data: [DONE]\n\n";
+        var handler = new StubHandler(_ => Sse(sse));
+
+        var events = await Collect(new ChatCompletionsClient(new HttpClient(handler), new ChatClientOptions()));
+
+        Assert.Equal(["蒸汽", "机"], events.OfType<ChatStreamEvent.TextDelta>().Select(e => e.Text));
+        Assert.Equal(new ChatStreamEvent.Completed(false), Assert.Single(events.OfType<ChatStreamEvent.Completed>()));
+        var request = handler.Requests.Single();
+        Assert.Equal("https://api.example.com/v1/chat/completions", request.Uri);
+        Assert.Equal("Bearer sk-x", request.Authorization);
+        var body = JsonNode.Parse(request.Body)!;
+        Assert.True(body["stream"]!.GetValue<bool>());
+        Assert.Equal(32, body["max_tokens"]!.GetValue<int>());
+        Assert.Equal("user", body["messages"]![0]!["role"]!.GetValue<string>());
+    }
+
+    [Fact]
+    public async Task Done_without_finish_reason_still_completes_and_length_marks_truncation()
+    {
+        var plain = await Collect(Client(_ => Sse("data: {\"choices\":[{\"delta\":{\"content\":\"a\"}}]}\n\ndata: [DONE]\n\n")));
+        var cut = await Collect(Client(_ => Sse("data: {\"choices\":[{\"delta\":{\"content\":\"a\"},\"finish_reason\":\"length\"}]}\n\n")));
+
+        Assert.Equal(new ChatStreamEvent.Completed(false), plain[^1]);
+        Assert.Equal(new ChatStreamEvent.Completed(true), cut[^1]);
+    }
+
+    [Fact]
+    public async Task A_stream_that_ends_without_finishing_yields_no_completion()
+    {
+        var events = await Collect(Client(_ => Sse("data: {\"choices\":[{\"delta\":{\"content\":\"半\"}}]}\n\n")));
+
+        Assert.DoesNotContain(events, e => e is ChatStreamEvent.Completed);
+    }
+
+    [Theory]
+    [InlineData(HttpStatusCode.Unauthorized, "{\"error\":{\"message\":\"bad key\"}}", GenerationErrorKind.Unauthorized)]
+    [InlineData(HttpStatusCode.TooManyRequests, "{\"error\":{\"message\":\"slow down\"}}", GenerationErrorKind.QuotaOrRateLimited)]
+    [InlineData(HttpStatusCode.PaymentRequired, "insufficient balance", GenerationErrorKind.QuotaOrRateLimited)]
+    [InlineData(HttpStatusCode.BadRequest, "{\"error\":{\"message\":\"This model's maximum context length is 8192 tokens\"}}", GenerationErrorKind.ContextTooLong)]
+    [InlineData(HttpStatusCode.NotFound, "model not found", GenerationErrorKind.InvalidResponse)]
+    [InlineData(HttpStatusCode.BadGateway, "<html>bad gateway</html>", GenerationErrorKind.ServerError)]
+    [InlineData(HttpStatusCode.Found, "", GenerationErrorKind.InvalidResponse)]
+    public async Task Http_errors_are_classified(HttpStatusCode status, string body, GenerationErrorKind kind)
+    {
+        var error = await Assert.ThrowsAsync<ChatClientException>(() => Collect(Client(_ => new HttpResponseMessage(status) { Content = new StringContent(body) })));
+
+        Assert.Equal(kind, error.Kind);
+        Assert.StartsWith($"HTTP {(int)status}", error.Message, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task An_error_event_inside_the_stream_fails_the_answer()
+    {
+        var error = await Assert.ThrowsAsync<ChatClientException>(() => Collect(Client(_ => Sse("data: {\"error\":{\"message\":\"upstream overloaded\"}}\n\n"))));
+
+        Assert.Equal(GenerationErrorKind.ServerError, error.Kind);
+        Assert.Contains("overloaded", error.Message, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task A_stalled_stream_times_out_but_user_cancellation_is_a_cancellation()
+    {
+        var options = new ChatClientOptions { IdleTimeout = TimeSpan.FromMilliseconds(200) };
+        var stalled = new ChatCompletionsClient(new HttpClient(new StubHandler(_ => Stalled())), options);
+        var timeout = await Assert.ThrowsAsync<ChatClientException>(() => Collect(stalled));
+        Assert.Equal(GenerationErrorKind.Timeout, timeout.Kind);
+
+        using var cts = new CancellationTokenSource(TimeSpan.FromMilliseconds(100));
+        var patient = new ChatCompletionsClient(new HttpClient(new StubHandler(_ => Stalled())), new ChatClientOptions());
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => CollectUntil(patient, cts.Token));
+    }
+
+    [Fact]
+    public async Task Network_failures_are_classified()
+    {
+        var error = await Assert.ThrowsAsync<ChatClientException>(() => Collect(Client(_ => throw new HttpRequestException("connection refused"))));
+
+        Assert.Equal(GenerationErrorKind.Network, error.Kind);
+    }
+
+    [Fact]
+    public async Task Lists_model_ids_sorted_and_deduplicated()
+    {
+        var client = Client(_ => new HttpResponseMessage(HttpStatusCode.OK)
+        {
+            Content = new StringContent("{\"data\":[{\"id\":\"b\"},{\"id\":\"A\"},{\"id\":\"b\"},{\"object\":\"x\"}]}", Encoding.UTF8, "application/json"),
+        });
+
+        Assert.Equal(["A", "b"], await client.ListModelsAsync("https://api.example.com/v1", "k", Ct));
+    }
+
+    [Fact]
+    public void The_production_handler_does_not_follow_redirects()
+    {
+        using var handler = (SocketsHttpHandler)ChatCompletionsClient.CreateHandler();
+
+        Assert.False(handler.AllowAutoRedirect);
+    }
+
+    private static ChatCompletionsClient Client(Func<HttpRequestMessage, HttpResponseMessage> respond) =>
+        new(new HttpClient(new StubHandler(respond)), new ChatClientOptions());
+
+    private static Task<List<ChatStreamEvent>> Collect(ChatCompletionsClient client) => CollectUntil(client, Ct);
+
+    private static async Task<List<ChatStreamEvent>> CollectUntil(ChatCompletionsClient client, CancellationToken cancellationToken)
+    {
+        var list = new List<ChatStreamEvent>();
+        var request = new ChatRequest(Model, [new ChatTurn(ChatRole.User, "hi")]);
+        await foreach (var e in client.StreamAsync(request, "sk-x", cancellationToken))
+        {
+            list.Add(e);
+        }
+
+        return list;
+    }
+
+    private static HttpResponseMessage Sse(string text) =>
+        new(HttpStatusCode.OK) { Content = new StringContent(text, Encoding.UTF8, "text/event-stream") };
+
+    private static HttpResponseMessage Stalled() =>
+        new(HttpStatusCode.OK) { Content = new StreamContent(new NeverEndingStream()) };
+
+    private sealed class StubHandler(Func<HttpRequestMessage, HttpResponseMessage> respond) : HttpMessageHandler
+    {
+        public List<(string Uri, string? Authorization, string Body)> Requests { get; } = [];
+
+        protected override async Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
+        {
+            var body = request.Content is null ? string.Empty : await request.Content.ReadAsStringAsync(cancellationToken);
+            Requests.Add((request.RequestUri!.ToString(), request.Headers.Authorization?.ToString(), body));
+            return respond(request);
+        }
+    }
+
+    /// <summary>A response body that never produces data, like a stalled server.</summary>
+    private sealed class NeverEndingStream : Stream
+    {
+        public override bool CanRead => true;
+
+        public override bool CanSeek => false;
+
+        public override bool CanWrite => false;
+
+        public override long Length => throw new NotSupportedException();
+
+        public override long Position { get => throw new NotSupportedException(); set => throw new NotSupportedException(); }
+
+        public override async ValueTask<int> ReadAsync(Memory<byte> buffer, CancellationToken cancellationToken = default)
+        {
+            await Task.Delay(Timeout.Infinite, cancellationToken);
+            return 0;
+        }
+
+        public override Task<int> ReadAsync(byte[] buffer, int offset, int count, CancellationToken cancellationToken) =>
+            ReadAsync(buffer.AsMemory(offset, count), cancellationToken).AsTask();
+
+        public override int Read(byte[] buffer, int offset, int count) => throw new NotSupportedException();
+
+        public override void Flush()
+        {
+        }
+
+        public override long Seek(long offset, SeekOrigin origin) => throw new NotSupportedException();
+
+        public override void SetLength(long value) => throw new NotSupportedException();
+
+        public override void Write(byte[] buffer, int offset, int count) => throw new NotSupportedException();
+    }
+}

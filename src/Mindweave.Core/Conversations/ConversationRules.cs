@@ -1,0 +1,108 @@
+using System.Globalization;
+using System.Text;
+
+namespace Mindweave.Core.Conversations;
+
+/// <summary>Pure rules over a conversation's ordered messages.</summary>
+public static class ConversationRules
+{
+    public const int FallbackTitleLength = 30;
+    public const int MaxTitleLength = 60;
+
+    /// <summary>
+    /// Messages sent as history: every user question, followed by the latest attempt at answering it,
+    /// if that attempt is usable. Superseded attempts stay readable but are never sent.
+    /// </summary>
+    public static IReadOnlyList<Message> SelectContext(IReadOnlyList<Message> ordered)
+    {
+        ArgumentNullException.ThrowIfNull(ordered);
+        var result = new List<Message>(ordered.Count);
+        Message? latestAnswer = null;
+        foreach (var message in ordered)
+        {
+            if (message.Role == MessageRole.User)
+            {
+                Flush();
+                result.Add(message);
+            }
+            else
+            {
+                latestAnswer = message;
+            }
+        }
+
+        Flush();
+        return result;
+
+        void Flush()
+        {
+            if (latestAnswer is { CountsAsContext: true })
+            {
+                result.Add(latestAnswer);
+            }
+
+            latestAnswer = null;
+        }
+    }
+
+    /// <summary>The newest answer, which is the only one that may be retried or regenerated (U4).</summary>
+    public static Message? LastAnswer(IReadOnlyList<Message> ordered)
+    {
+        ArgumentNullException.ThrowIfNull(ordered);
+        return ordered.Count > 0 && ordered[^1].Role == MessageRole.Assistant ? ordered[^1] : null;
+    }
+
+    public static bool CanRetry(IReadOnlyList<Message> ordered, MessageId answer) =>
+        LastAnswer(ordered) is { IsFinished: true } last && last.Id == answer;
+
+    public static bool HasUnfinishedAnswer(IReadOnlyList<Message> ordered)
+    {
+        ArgumentNullException.ThrowIfNull(ordered);
+        return ordered.Any(m => m.Role == MessageRole.Assistant && !m.IsFinished);
+    }
+
+    /// <summary>Shown until an automatic or manual title exists; never stored.</summary>
+    public static string FallbackTitle(string firstQuestion) => Shorten(firstQuestion, FallbackTitleLength);
+
+    /// <summary>Cleans a generated title: one line, no wrapping quotes or trailing punctuation, bounded length.</summary>
+    public static string? CleanGeneratedTitle(string raw)
+    {
+        ArgumentNullException.ThrowIfNull(raw);
+        var line = raw.Split('\n', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries).FirstOrDefault() ?? string.Empty;
+        line = line.Trim().Trim('"', '\'', '“', '”', '「', '」', '《', '》', '*', '#', ' ').TrimEnd('。', '.', '！', '!', '？', '?', '：', ':');
+        if (line.StartsWith("标题", StringComparison.Ordinal))
+        {
+            line = line.TrimStart('标', '题', '：', ':', ' ');
+        }
+
+        line = Shorten(line, MaxTitleLength);
+        return line.Length == 0 ? null : line;
+    }
+
+    public static string Shorten(string text, int maxTextElements)
+    {
+        ArgumentNullException.ThrowIfNull(text);
+        var collapsed = new StringBuilder(text.Length);
+        var space = false;
+        foreach (var ch in text.Trim())
+        {
+            if (char.IsWhiteSpace(ch))
+            {
+                space = true;
+                continue;
+            }
+
+            if (space && collapsed.Length > 0)
+            {
+                collapsed.Append(' ');
+            }
+
+            space = false;
+            collapsed.Append(ch);
+        }
+
+        var value = collapsed.ToString();
+        var info = new StringInfo(value);
+        return info.LengthInTextElements <= maxTextElements ? value : info.SubstringByTextElements(0, maxTextElements) + "…";
+    }
+}

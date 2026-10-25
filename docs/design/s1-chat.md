@@ -1,0 +1,77 @@
+# S1 真实聊天
+
+验收依据（交接 §5）：真实服务长回答；杀进程重启标为中断不重发；凭据锁定时可阅读。另覆盖需求 §11 可靠性补充场景中的“生成中退出”“重启时未结束回答”“停止后重试”“重新生成最后一条回答”“凭据不可用”。
+
+不在 S1：选区分支与草稿（S2）、上下文预算与压缩（S3，S1 发送整段会话历史）、Markdown 渲染（S2 引入 LiveMarkdown，S1 先按纯文本显示原文）。
+
+## 数据（迁移 v2）
+
+| 表 | 要点 |
+| --- | --- |
+| `conversation` | 工作区外键（RESTRICT）、`title`、`title_source`（`none`／`auto`／`manual`）、创建与更新时间 |
+| `message` | `(conversation_id, seq)` 唯一；`role`（user／assistant）；`body` 为 Markdown 原文；`state`；`revision` 单调递增；`supersedes_message_id` 指向被取代的上一尝试；错误种类与说明 |
+| `service_connection` | 名称、地址、协议（首版仅 `chat_completions`）、`credential_ref` |
+| `model_config` | 所属连接、模型标识、可选上下文与输出上限 |
+| `generation_task` | 种类（answer／title）、目标会话与消息、状态、**冻结的配置快照**（模型配置 ID、模型、地址、协议、凭据引用）、输入清单（消息 ID 列表）、错误、时间 |
+
+活动模型配置记在 `app_state`。密钥不入库。
+
+## 状态机
+
+用户消息写入即为 `complete`，不可编辑。回答消息：
+
+```
+pending ──开始──▶ streaming ──▶ complete
+   │                 ├──用户停止／退出──▶ stopped（保留已收到正文）
+   │                 ├──服务／网络错误──▶ failed（保留已收到正文）
+   │                 └──进程终止后重启──▶ interrupted（保留最后检查点）
+   ├──排队中取消──▶ cancelled（空）
+   └──进程终止后重启──▶ interrupted（空）
+```
+
+- 终态正文固定。终态写入只在当前状态为 `pending`／`streaming` 时生效（条件更新），迟到的分块或检查点不能复活或覆盖终态。
+- 检查点写入带 `revision`，`WHERE revision < 新值 AND state = 'streaming'`，旧检查点不能回退新内容。
+- 启动时在进入工作台前把所有 `pending`／`streaming` 回答标为 `interrupted`、未结束任务标为 `interrupted`；不自动重发。
+
+## 发送、重试、重新生成
+
+- **发送**：一个事务写入用户消息、`pending` 回答与生成任务（含配置快照与输入清单），然后入队。同一会话已有未结束回答时拒绝发送。
+- **重试／重新生成**（U1、U4）：只针对会话最后一条回答；新建回答消息并记录 `supersedes_message_id`，旧尝试保留可读。
+- **上下文（S1）**：按顺序取用户消息；每个提问只取最新一次尝试的回答，且只取 `complete`／`stopped` 的非空正文。预算与压缩在 S3。
+
+## 调度
+
+- 全局两个执行槽；两级优先级：用户提问 > 后台（自动标题，S4 起总结与命名）。同级先进先出。
+- 每个会话最多一个回答任务；标题任务不占用回答名额。
+- 停止：排队中 → `cancelled`；运行中 → 取消请求，以 `stopped` 落盘已收到正文。
+- 退出：封闭入口、排队任务取消、运行任务停止并落盘、等待写入队列清空（架构 §12.3 第 3–4 步）。
+- 核心保存失败：协调器进入“保存受阻”，新的 AI 请求被拒并说明原因，内存中的回答保留可读；下一次成功写入后解除。
+
+## 正文的三种节奏
+
+- **网络**：按服务端分块到达。
+- **界面**：ViewModel 订阅协调器的实时回答，最多每 50 ms 刷新一次。
+- **磁盘**：每个运行中回答一个检查点循环，上一次写入完成后才写下一次，最短间隔 1 秒，只写最新快照——旧快照天然被合并。
+
+## 协议适配（Chat Completions）
+
+- `POST {地址}/chat/completions`，`stream: true`，Bearer 认证；不跟随重定向（避免把密钥带到别的主机）；使用系统代理设置。
+- 解析 SSE：`data:` 行、多行事件、CRLF、`[DONE]`；`choices[0].delta.content` 为正文增量；有 `finish_reason` 即完成。`reasoning_content` 等推理字段首版忽略。
+- 首字超时 90 秒、分块间空闲超时 120 秒（推理模型可能长时间停顿）；无总时长上限，用户可随时停止。
+- 错误分类：未授权、额度／限流、上下文过长、服务端错误、网络、超时、响应格式异常、凭据不可用。HTTP 错误正文只截取前 500 字作为说明。
+- 模型发现：`GET {地址}/models`，失败时保留手填。
+
+## 凭据
+
+- `ICredentialStore`（Application 契约）：读、写、删；不可用时抛 `CredentialUnavailableException`，不降级明文。
+- macOS：Security.framework 的 `SecItem*`（通用密码，服务名 `Mindweave.<channel>`）。Windows：`CredWrite/CredRead/CredDelete`（目标名 `Mindweave.<channel>/<引用>`）。Linux 暂不支持，明确报不可用。
+- 更新密钥写入新引用（`<连接 ID>/<版本>`）再切换连接；旧引用在没有未结束任务使用后清理（MW-C15）。
+- 读取已有会话完全不依赖凭据服务。
+
+## 自动标题
+
+首个回答完成后排一个后台标题任务（首问＋回答前 2000 字）。写入前在事务内检查 `title_source <> 'manual'`，手动改名永不被覆盖。标题生成前，列表显示首问前若干字（不写库）。失败不重试，保留现状。
+
+## 真实服务测试
+
+`scripts/real-api.sh configure` 由你在终端输入地址、模型与密钥（密钥由 macOS `security` 自己的隐藏提示读取，存入登录钥匙串的开发专用项）；`scripts/real-api.sh test` 只在该进程环境中把密钥交给标记为 `RealApi` 的测试。普通测试与 CI 不调用真实服务。

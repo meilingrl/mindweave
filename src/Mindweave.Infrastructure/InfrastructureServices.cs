@@ -3,6 +3,10 @@ using Microsoft.Extensions.DependencyInjection.Extensions;
 using Mindweave.Application;
 using Mindweave.Application.Startup;
 using Mindweave.Application.Storage;
+using Mindweave.Application.Ai;
+using Mindweave.Application.Credentials;
+using Mindweave.Infrastructure.Ai;
+using Mindweave.Infrastructure.Credentials;
 using Mindweave.Infrastructure.Hosting;
 using Mindweave.Infrastructure.Sqlite;
 using Mindweave.Infrastructure.Sqlite.Migrations;
@@ -21,6 +25,13 @@ public static class InfrastructureServices
         services.AddSingleton<IDatabaseLifecycle>(sp => sp.GetRequiredService<SqliteDatabase>());
         services.AddSingleton<IWorkspaceStore, SqliteWorkspaceStore>();
         services.AddSingleton<ILocationStore, SqliteLocationStore>();
+        services.AddSingleton<IConversationStore, SqliteConversationStore>();
+        services.AddSingleton<IModelSettingsStore, SqliteModelSettingsStore>();
+        services.TryAddSingleton(_ => CredentialStores.ForPlatform(paths.Channel));
+        services.TryAddSingleton(new ChatClientOptions());
+        services.TryAddSingleton<IChatClient>(sp => new ChatCompletionsClient(
+            new HttpClient(ChatCompletionsClient.CreateHandler()) { Timeout = Timeout.InfiniteTimeSpan },
+            sp.GetRequiredService<ChatClientOptions>()));
         return services;
     }
 }
