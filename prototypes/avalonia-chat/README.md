@@ -121,6 +121,6 @@ dotnet run --project tools/Mindweave.RestartProbe -- read "$PWD/artifacts/probe-
 | `scripts/package-macos.sh` | 本机自包含应用包生成 |
 | `artifacts/` | 可重新生成的本机发布产物；使用中，不作为唯一源码或永久交付记录；只列入口，不展开 |
 
-产品背景见[初始需求](../../initial-requirements.md)与[架构讨论](../../architecture-discussion.md)。本目录的实现不修改其历史状态记录。
+产品背景见[初始需求](../../docs/requirements.md)与[架构讨论](../../docs/architecture.md)。本目录的实现不修改其历史状态记录。
 
 API 依据：[Avalonia SelectableTextBlock](https://docs.avaloniaui.net/controls/data-display/text-display/selectabletextblock)、[Avalonia 11.3.21](https://www.nuget.org/packages/Avalonia/11.3.21)。
