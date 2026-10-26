@@ -44,13 +44,25 @@ public sealed partial class GenerationCoordinator
             }
             // Capture each dirty revision, then save outside the memory lock. Chunks can continue to arrive.
             Job[] dirty;
-            lock (sync) dirty = jobs.Where(job => job.Dirty).ToArray();
+            lock (sync) dirty = jobs.Where(job => job.Dirty || job.CompressionDirty || job.UnresolvedChunkKey is not null).ToArray();
             foreach (var job in dirty)
             {
                 GenerationSnapshot snapshot;
                 string? model;
                 string title;
-                lock (sync) { snapshot = Snapshot(job); model = job.ActualModel; title = job.Body.ToString(); }
+                // Stop may change the child while an older running checkpoint is in flight.
+                // Capture the parent only when that exact memory state has no unsaved child.
+                while (true)
+                {
+                    await FlushCompressionAsync(job).ConfigureAwait(false);
+                    lock (sync)
+                    {
+                        if (job.CompressionDirty) continue;
+                        snapshot = Snapshot(job); model = job.ActualModel; title = job.Body.ToString();
+                        break;
+                    }
+                }
+                lock (sync) if (!job.Dirty) continue;
                 GenerationRecord? titleResult = null;
                 if (snapshot.Kind == GenerationKind.Title && snapshot.Status == GenerationStatus.Completed)
                 {

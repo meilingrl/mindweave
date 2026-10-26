@@ -497,24 +497,25 @@ public sealed class GenerationCoordinatorTests
         private readonly TestDirectory directory;
         public AppPaths Paths { get; }
         public SqliteWorkspaceStore Store { get; }
-        public IChatStore Chat => Store;
+        public IChatStore Chat { get; }
         public ControlledTransport Transport { get; }
         public MemoryVault Vault { get; } = new();
         public GenerationCoordinator Coordinator { get; }
         public AiConfiguration Configuration { get; } = new(Guid.NewGuid(), Guid.NewGuid(), "test", "https://example.invalid/v1", "v1", "model-a", 32768, 2048);
-        private Fixture(TestDirectory directory, AppPaths paths, SqliteWorkspaceStore store, bool ignoreCancellation)
+        private Fixture(TestDirectory directory, AppPaths paths, SqliteWorkspaceStore store, bool ignoreCancellation, Func<SqliteWorkspaceStore, IChatStore>? wrapStore)
         {
             this.directory = directory;
             Paths = paths;
             Store = store;
+            Chat = wrapStore?.Invoke(store) ?? store;
             Transport = new(ignoreCancellation);
             Coordinator = new(Chat, Transport, Vault);
         }
-        public static async Task<Fixture> OpenAsync(bool ignoreCancellation = false)
+        public static async Task<Fixture> OpenAsync(bool ignoreCancellation = false, Func<SqliteWorkspaceStore, IChatStore>? wrapStore = null)
         {
             var dir = new TestDirectory();
             var paths = AppPaths.ForTrack("codex-steady", dir.Path);
-            var f = new Fixture(dir, paths, await SqliteWorkspaceStore.OpenAsync(paths), ignoreCancellation);
+            var f = new Fixture(dir, paths, await SqliteWorkspaceStore.OpenAsync(paths), ignoreCancellation, wrapStore);
             await f.Chat.SaveConfigurationAsync(f.Configuration);
             await f.Coordinator.InitializeAsync();
             return f;
@@ -575,12 +576,12 @@ public sealed class GenerationCoordinatorTests
             {
                 await foreach (var item in call.Events.Reader.ReadAllAsync(ignoreCancellation ? default : cancellationToken)) yield return item;
             }
-            finally { lock (all) active--; call.Disposed.TrySetResult(); }
+            finally { call.DisposeEntered.TrySetResult(); if (call.DisposeRelease is { } release) await release.Task; lock (all) active--; call.Disposed.TrySetResult(); }
         }
         public Task<Call> NextAsync() => calls.Reader.ReadAsync().AsTask().WaitAsync(TimeSpan.FromSeconds(10));
         public Task<IReadOnlyList<string>> ListModelsAsync(AiConfiguration configuration, string secret, CancellationToken cancellationToken)
         { DiscoverySecret = secret; return Task.FromResult<IReadOnlyList<string>>(["model-a"]); }
-        public void Close() { lock (all) foreach (var call in all) call.Finish(); }
+        public void Close() { lock (all) foreach (var call in all) { call.DisposeRelease?.TrySetResult(); call.Finish(); } }
     }
 
     internal sealed class Call(ChatRequest request, string secret, CancellationToken cancellation)
@@ -589,6 +590,8 @@ public sealed class GenerationCoordinatorTests
         public string Secret { get; } = secret;
         public CancellationToken Cancellation { get; } = cancellation;
         public Channel<ChatStreamEvent> Events { get; } = Channel.CreateUnbounded<ChatStreamEvent>();
+        public TaskCompletionSource? DisposeRelease { get; set; }
+        public TaskCompletionSource DisposeEntered { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
         public TaskCompletionSource Disposed { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
         public void Emit(string text, string? finish = null) => Events.Writer.TryWrite(new(text, finish));
         public void Finish() => Events.Writer.TryComplete();

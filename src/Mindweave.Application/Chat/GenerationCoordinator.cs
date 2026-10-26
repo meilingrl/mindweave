@@ -14,6 +14,7 @@ public sealed partial class GenerationCoordinator : IAsyncDisposable
     private readonly SemaphoreSlim persistence = new(1, 1);
     private readonly SemaphoreSlim repairs = new(1, 1);
     private readonly List<Job> jobs = [];
+    private readonly List<Task> executions = [];
     private readonly HashSet<Guid> pendingTitles = [];
     private readonly CancellationTokenSource lifetime = new();
     private Task? checkpoints;
@@ -53,8 +54,17 @@ public sealed partial class GenerationCoordinator : IAsyncDisposable
                     .Concat(messages).ToDictionary(message => message.Id);
                 var input = recovered.InputMessageIds.Select(id => byId.TryGetValue(id, out var message)
                     ? message : throw new InvalidDataException("生成输入不属于本会话或冻结祖先。")).ToArray();
-                var work = new GenerationWork(recovered, input, recovered.Kind == GenerationKind.Reply ? context.SourceQuote : null);
+                var plan = recovered.Kind == GenerationKind.Reply ? await store.LoadContextPlanAsync(old.Id).ConfigureAwait(false) : null;
+                var work = new GenerationWork(recovered, input, recovered.Kind == GenerationKind.Reply ? context.SourceQuote : null, plan);
                 var job = new Job(work) { Status = recovered.Status, Error = recovered.ErrorCode };
+                if (plan is not null)
+                {
+                    foreach (var part in plan.Parts.OfType<SummaryContextPart>())
+                        if (await store.LoadCompletedSummaryAsync(old.Id, part.Chunk.CacheKey).ConfigureAwait(false) is not null)
+                            job.CompletedChunks++;
+                    if (await store.LoadPreparedReplyRequestAsync(old.Id).ConfigureAwait(false) is not null)
+                        job.Phase = GenerationPhase.Reply;
+                }
                 job.Body.Append(messages.FirstOrDefault(m => m.Id == recovered.AnswerMessageId)?.Body ?? "");
                 restored.Add(job);
             }
@@ -94,10 +104,11 @@ public sealed partial class GenerationCoordinator : IAsyncDisposable
             var configuration = await store.LoadActiveConfigurationAsync().ConfigureAwait(false)
                 ?? throw new InvalidOperationException("请先保存 AI 配置。");
             var context = ChatRequestBudget.PrepareReplyContext(await store.ReadContextAsync(conversationId).ConfigureAwait(false), conversationId, userText is null);
-            var requestInput = ChatRequestBudget.Inputs(context.Messages, context.SourceQuote).ToList();
-            if (userText is not null) requestInput.Add(new("user", userText));
-            if (!ChatRequestBudget.Fits(configuration, requestInput))
-                throw new InvalidOperationException("输入超出配置的上下文预算，请缩短输入或调整预算。");
+            var originals = context.Messages.ToList();
+            if (userText is not null)
+                originals.Add(new(Guid.NewGuid(), conversationId, originals.Count == 0 ? 1 : checked(originals.Max(m => m.Sequence) + 1),
+                    MessageRole.User, userText, GenerationStatus.Completed, 0, null, null));
+            _ = ReplyContextPlanner.Plan(conversationId, new(originals, context.SourceQuote, context.DirectSourceMessageId), configuration);
             GenerationWork work;
             try
             {
@@ -197,7 +208,7 @@ public sealed partial class GenerationCoordinator : IAsyncDisposable
                 pendingTitles.Clear();
                 stopped = jobs.Where(j => Active(j.Status)).ToArray();
                 foreach (var job in stopped) Terminate(job, GenerationStatus.Stopped, "stopped");
-                executions = jobs.Where(j => j.Execution is not null).Select(j => j.Execution!).ToArray();
+                executions = this.executions.ToArray();
             }
             foreach (var job in stopped) job.Cancellation.Cancel();
             Notify();
@@ -241,9 +252,18 @@ public sealed partial class GenerationCoordinator : IAsyncDisposable
     private static bool Active(GenerationStatus status) => status is GenerationStatus.Queued or GenerationStatus.Running;
     private static GenerationSnapshot Snapshot(Job job) => new(job.Work.Task.Id, job.Work.Task.ConversationId,
         job.Work.Task.AnswerMessageId, job.Work.Task.Kind, job.Status,
-        job.Work.Task.Kind == GenerationKind.Title ? "" : job.Body.ToString(), job.Revision, job.Error, job.Dirty);
+        job.Work.Task.Kind == GenerationKind.Title ? "" : job.Body.ToString(), job.Revision, job.Error,
+        job.Dirty || job.CompressionDirty || job.UnresolvedChunkKey is not null, job.Phase, job.CompletedChunks, job.TotalChunks);
     private static void Terminate(Job job, GenerationStatus status, string? error)
-    { job.Status = status; job.Error = error; job.Revision = checked(job.Revision + 1); job.Dirty = true; }
+    {
+        if (job.Attempt is { } attempt && Active(attempt.Status))
+        {
+            job.Attempt = attempt with { Status = status == GenerationStatus.Completed ? GenerationStatus.Failed : status,
+                Revision = checked(attempt.Revision + 1), ErrorCode = error };
+            job.CompressionDirty = true;
+        }
+        job.Status = status; job.Error = error; job.Revision = checked(job.Revision + 1); job.Dirty = true;
+    }
     private void MarkPersistenceFailure() { lock (sync) persistenceFailure = true; Notify(); }
     private void Notify()
     {
@@ -260,8 +280,15 @@ public sealed partial class GenerationCoordinator : IAsyncDisposable
         public GenerationStatus Status = work.Task.Status;
         public long Revision = work.Task.Revision;
         public string? Error = work.Task.ErrorCode, ActualModel = work.Task.ActualModelId;
-        public bool Dirty, HasSlot, StreamEnded;
+        public bool Dirty, HasSlot, StreamEnded, Busy;
         public int PersistedLength;
-        public Task? Execution;
+        public ChatRequest? Request;
+        public ContextCompressionAttempt? Attempt;
+        public bool CompressionDirty;
+        public string? UnresolvedChunkKey;
+        public GenerationPhase Phase = work.ContextPlan?.Parts.OfType<SummaryContextPart>().Any() == true
+            ? GenerationPhase.Compressing : GenerationPhase.Reply;
+        public int CompletedChunks;
+        public int TotalChunks = work.ContextPlan?.Parts.OfType<SummaryContextPart>().Count() ?? 0;
     }
 }

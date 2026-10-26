@@ -514,9 +514,26 @@ public sealed class ChatDesktopTests
     {
         public Task<ReplyContextPlan?> LoadContextPlanAsync(Guid id) => inner.LoadContextPlanAsync(id);
         public Task<CompletedContextSummary?> LoadCompletedSummaryAsync(Guid id, string key) => inner.LoadCompletedSummaryAsync(id, key);
-        public Task<ContextCompressionAttempt> StartCompressionAsync(Guid id, string key) => inner.StartCompressionAsync(id, key);
+        public bool LoseCompressionStartReturn { get; set; }
+        public bool LoseCompressionWriteReturn { get; set; }
+        public Func<GenerationStatus, Task>? BeforeCompressionWrite { get; set; }
+        public Func<Guid, string, Task>? BeforeCompressionStart { get; set; }
+        public async Task<ContextCompressionAttempt> StartCompressionAsync(Guid id, string key)
+        {
+            if (BeforeCompressionStart is { } before) await before(id, key);
+            var attempt = await inner.StartCompressionAsync(id, key);
+            if (LoseCompressionStartReturn) { LoseCompressionStartReturn = false; throw new IOException("lost compression start return"); }
+            return attempt;
+        }
         public Task<ContextCompressionAttempt?> LoadCompressionAttemptAsync(Guid id) => inner.LoadCompressionAttemptAsync(id);
-        public Task<bool> WriteCompressionAsync(Guid taskId, Guid id, long revision, string payload, GenerationStatus status, string? finishReason = null, string? errorCode = null, string? actualModelId = null) => inner.WriteCompressionAsync(taskId, id, revision, payload, status, finishReason, errorCode, actualModelId);
+        public Task<ContextCompressionAttempt?> LoadCompressionAttemptForReplyAsync(Guid id, string key) => inner.LoadCompressionAttemptForReplyAsync(id, key);
+        public async Task<bool> WriteCompressionAsync(Guid taskId, Guid id, long revision, string payload, GenerationStatus status, string? finishReason = null, string? errorCode = null, string? actualModelId = null)
+        {
+            if (BeforeCompressionWrite is { } before) await before(status);
+            var saved = await inner.WriteCompressionAsync(taskId, id, revision, payload, status, finishReason, errorCode, actualModelId);
+            if (status == GenerationStatus.Completed && LoseCompressionWriteReturn) { LoseCompressionWriteReturn = false; throw new IOException("lost compression commit return"); }
+            return saved;
+        }
         public Task<PreparedReplyRequest> PrepareReplyRequestAsync(Guid id) => inner.PrepareReplyRequestAsync(id);
         public Task<PreparedReplyRequest?> LoadPreparedReplyRequestAsync(Guid id) => inner.LoadPreparedReplyRequestAsync(id);
         public bool LoseBranchReturn { get; set; }

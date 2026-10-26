@@ -11,17 +11,26 @@ public sealed partial class GenerationCoordinator
         lock (sync)
         {
             if (!initialized || !accepting || PersistencePaused || disposed) return;
+            // Preparation and durable writes do not reserve physical network capacity.
+            foreach (var pending in jobs.Where(j => Active(j.Status) && !j.Busy && !j.StreamEnded && j.Request is null).ToArray())
+            {
+                pending.Busy = true;
+                TrackExecution(() => PreparePhaseAsync(pending));
+            }
             while (slots < 2)
             {
-                var job = jobs.Where(j => Active(j.Status) && !j.HasSlot && !j.StreamEnded)
+                var job = jobs.Where(j => Active(j.Status) && !j.Busy && !j.StreamEnded && j.Request is not null)
                     .OrderBy(j => j.Work.Task.Kind == GenerationKind.Reply ? 0 : 1).FirstOrDefault();
                 if (job is null) break;
+                // A title must not overtake a user's reply that is still preparing its next phase.
+                if (job.Work.Task.Kind == GenerationKind.Title && jobs.Any(j => j.Work.Task.Kind == GenerationKind.Reply &&
+                    Active(j.Status) && !j.HasSlot)) break;
                 slots++;
-                job.HasSlot = true;
+                job.HasSlot = job.Busy = true;
                 job.Status = GenerationStatus.Running;
                 job.Revision = checked(job.Revision + 1);
                 job.Dirty = true;
-                job.Execution = Task.Run(() => ExecuteAsync(job));
+                TrackExecution(() => ExecuteAsync(job));
             }
         }
     }
@@ -36,9 +45,12 @@ public sealed partial class GenerationCoordinator
             try { secret = await vault.ReadAsync(job.Work.Task.Configuration.CredentialReference).ConfigureAwait(false); }
             catch { Fail(job, "CredentialUnavailable"); return; }
             lock (sync) if (PersistencePaused || !Active(job.Status)) return;
-            var input = ChatRequestBudget.Inputs(job.Work.InputMessages, job.Work.SourceQuote).ToList();
-            if (job.Work.Task.Kind == GenerationKind.Title) input.Insert(0, new("system", TitleInstruction));
-            var request = new ChatRequest(job.Work.Task.Configuration, input.ToArray());
+            var request = job.Request!;
+            if (job.Phase == GenerationPhase.Compressing)
+            {
+                await ExecuteCompressionAsync(job, request, secret).ConfigureAwait(false);
+                return;
+            }
             string? finish = null;
             // The slot remains held through enumeration and DisposeAsync, including cancellation-ignoring adapters.
             await foreach (var item in transport.StreamAsync(request, secret, job.Cancellation.Token).ConfigureAwait(false))
@@ -81,15 +93,29 @@ public sealed partial class GenerationCoordinator
                 // A pre-dispatch save failure leaves this job resumable, with no physical request ever started.
                 if (!Active(job.Status)) job.StreamEnded = true;
                 job.HasSlot = false;
+                job.Request = null;
                 slots--;
             }
             Notify();
             // Physical network slot is now free. Reply dispatch can proceed before low-priority title acceptance.
             Dispatch();
-            await FlushAsync(throwOnFailure: false).ConfigureAwait(false);
-            await AcceptTitlesAsync().ConfigureAwait(false);
-            Dispatch(); Notify();
+            try
+            {
+                await FlushAsync(throwOnFailure: false).ConfigureAwait(false);
+                await AcceptTitlesAsync().ConfigureAwait(false);
+            }
+            finally
+            {
+                lock (sync) job.Busy = false;
+                Dispatch(); Notify();
+            }
         }
+    }
+
+    private void TrackExecution(Func<Task> action)
+    {
+        executions.RemoveAll(task => task.IsCompleted);
+        executions.Add(Task.Run(action));
     }
 
     private void Fail(Job job, string error)

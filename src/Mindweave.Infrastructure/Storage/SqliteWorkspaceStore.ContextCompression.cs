@@ -68,6 +68,21 @@ public sealed partial class SqliteWorkspaceStore
         return ReadCompressionAttempt(connection, transaction, attemptId);
     });
 
+    public Task<ContextCompressionAttempt?> LoadCompressionAttemptForReplyAsync(Guid replyTaskId, string cacheKey) => ReadAsync(connection =>
+    {
+        using var transaction = connection.BeginTransaction(deferred: true);
+        var material = ReadContextMaterial(connection, transaction, replyTaskId);
+        var chunk = RequireChunk(material, cacheKey);
+        using var find = ChatCommand(connection, transaction,
+            "SELECT a.id FROM context_compression_dependency d JOIN context_compression_attempt a ON a.id=d.attempt_id WHERE d.task_id=$task AND d.cache_key=$key ORDER BY a.rowid DESC LIMIT 1",
+            ("$task", replyTaskId), ("$key", cacheKey));
+        if (find.ExecuteScalar() is not string id) return null;
+        var attempt = ReadCompressionAttempt(connection, transaction, Guid.Parse(id))!;
+        if (attempt.Configuration != material.Task.Configuration || JsonSerializer.Serialize(attempt.Chunk) != JsonSerializer.Serialize(chunk))
+            throw new InvalidOperationException("压缩尝试与请求依赖不符。");
+        return attempt;
+    });
+
     public Task<bool> WriteCompressionAsync(Guid replyTaskId, Guid attemptId, long revision, string payload, GenerationStatus status,
         string? finishReason = null, string? errorCode = null, string? actualModelId = null)
     {
