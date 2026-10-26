@@ -47,7 +47,7 @@ public sealed class ContextPlannerTests
         for (var i = 1; i < slices.Length; i++) Assert.Equal(slices[i - 1].Start + slices[i - 1].Length, slices[i].Start);
         foreach (var chunk in chunks)
         {
-            var request = ReplyContextPlanner.CreateSummaryRequest(Target, chunk, messages, Config);
+            var request = ReplyContextPlanner.CreateSummaryRequest(chunk.SourceConversationId, chunk, messages, Config);
             Assert.True(ChatRequestBudget.Fits(request.Configuration, request.Messages));
             Assert.Equal(1024, request.Configuration.MaxOutputTokens);
             Assert.DoesNotContain("partial answer", string.Join("\n", request.Messages.Select(m => m.Content)));
@@ -86,14 +86,14 @@ public sealed class ContextPlannerTests
         Assert.All(bodySlices, slice => Assert.False(slice.Start > 0 && char.IsLowSurrogate(messages[1].Body[slice.Start])));
         foreach (var part in plan.Parts.OfType<SummaryContextPart>())
         {
-            var request = ReplyContextPlanner.CreateSummaryRequest(Target, part.Chunk, messages, Config with { ContextTokenBudget = 3500, MaxOutputTokens = 128 });
+            var request = ReplyContextPlanner.CreateSummaryRequest(part.Chunk.SourceConversationId, part.Chunk, messages, Config with { ContextTokenBudget = 3500, MaxOutputTokens = 128 });
             Assert.Equal(128, request.Configuration.MaxOutputTokens);
             Assert.True(ChatRequestBudget.Fits(request.Configuration, request.Messages));
         }
     }
 
     [Fact]
-    public void Cached_full_prefix_survives_append_but_material_configuration_target_and_order_changes_invalidate()
+    public void Cached_full_prefix_survives_append_but_material_configuration_source_and_order_changes_invalidate()
     {
         var messages = History();
         var context = new ChatContext(messages, null, messages[2].Id);
@@ -107,15 +107,17 @@ public sealed class ContextPlannerTests
         Assert.NotEqual(first.CacheKey, ReplyContextPlanner.Plan(Target, context with { Messages = changed }, Config).Parts.OfType<SummaryContextPart>().First().Chunk.CacheKey);
         changed[0] = messages[0] with { Body = "z" + messages[0].Body[1..] };
         Assert.NotEqual(first.CacheKey, ReplyContextPlanner.Plan(Target, context with { Messages = changed }, Config).Parts.OfType<SummaryContextPart>().First().Chunk.CacheKey);
+        changed[0] = messages[0] with { ConversationId = Guid.NewGuid() };
+        Assert.NotEqual(first.CacheKey, ReplyContextPlanner.Plan(Target, context with { Messages = changed }, Config).Parts.OfType<SummaryContextPart>().First().Chunk.CacheKey);
         AiConfiguration[] configs = [Config with { ConnectionId = Guid.NewGuid() }, Config with { ModelConfigId = Guid.NewGuid() },
             Config with { Name = "renamed" }, Config with { BaseUrl = "https://other.invalid" }, Config with { CredentialReference = "other" },
             Config with { ModelId = "other" }, Config with { ContextTokenBudget = 6100 }, Config with { MaxOutputTokens = 1000 }, Config with { TokenLimitParameter = "max_completion_tokens" }];
         Assert.All(configs, config => Assert.NotEqual(first.CacheKey, ReplyContextPlanner.Plan(Target, context, config).Parts.OfType<SummaryContextPart>().First().Chunk.CacheKey));
         Assert.Throws<InvalidOperationException>(() => ReplyContextPlanner.CreateSummaryRequest(Guid.NewGuid(), first, messages, Config));
-        Assert.Throws<InvalidOperationException>(() => ReplyContextPlanner.CreateSummaryRequest(Target, first, changed, Config));
+        Assert.Throws<InvalidOperationException>(() => ReplyContextPlanner.CreateSummaryRequest(first.SourceConversationId, first, changed, Config));
         var summaries = plan.Parts.OfType<SummaryContextPart>().ToDictionary(p => p.Chunk.CacheKey, _ => new ContextSummaryContent("background", "", "", "", ""));
         Assert.Throws<InvalidOperationException>(() => ReplyContextPlanner.ComposeInputs(plan with { EstimatorProfile = "future" }, messages, summaries, Config));
-        Assert.Throws<InvalidOperationException>(() => ReplyContextPlanner.ComposeInputs(plan with { FormatVersion = 2 }, messages, summaries, Config));
+        Assert.Throws<InvalidOperationException>(() => ReplyContextPlanner.ComposeInputs(plan with { FormatVersion = 3 }, messages, summaries, Config));
         Assert.Throws<InvalidOperationException>(() => ReplyContextPlanner.ComposeInputs(plan with { Parts = plan.Parts.Reverse().ToArray() }, messages, summaries, Config));
         Assert.Throws<InvalidOperationException>(() => ReplyContextPlanner.ComposeInputs(plan with { Parts = plan.Parts.Skip(1).ToArray() }, messages, summaries, Config));
     }
@@ -154,7 +156,7 @@ public sealed class ContextPlannerTests
         var plan = ReplyContextPlanner.Plan(Target, new(messages, null), Config);
         Assert.Equal(messages.TakeLast(3).Select(m => m.Id), plan.Parts.OfType<VerbatimContextPart>().Select(p => p.MessageId));
         var chunk = plan.Parts.OfType<SummaryContextPart>().Single(p => p.Chunk.Slices.Any(s => s.MessageId == oldAnswer.Id)).Chunk;
-        var request = ReplyContextPlanner.CreateSummaryRequest(Target, chunk, messages, Config);
+        var request = ReplyContextPlanner.CreateSummaryRequest(chunk.SourceConversationId, chunk, messages, Config);
         Assert.Contains("\"Status\":\"" + status + "\"", request.Messages[1].Content);
     }
 
@@ -164,9 +166,9 @@ public sealed class ContextPlannerTests
         var messages = new[] { User(string.Concat(Enumerable.Repeat("😀", 2000)), Ancestor), User("now") };
         var plan = ReplyContextPlanner.Plan(Target, new(messages, null), Config);
         var chunk = plan.Parts.OfType<SummaryContextPart>().First().Chunk;
-        Assert.Throws<InvalidOperationException>(() => ReplyContextPlanner.CreateSummaryRequest(Target,
+        Assert.Throws<InvalidOperationException>(() => ReplyContextPlanner.CreateSummaryRequest(chunk.SourceConversationId,
             chunk with { Slices = [chunk.Slices[0] with { Start = 1 }] }, messages, Config));
-        Assert.Throws<InvalidOperationException>(() => ReplyContextPlanner.CreateSummaryRequest(Target,
+        Assert.Throws<InvalidOperationException>(() => ReplyContextPlanner.CreateSummaryRequest(chunk.SourceConversationId,
             chunk with { Slices = [chunk.Slices[0] with { Length = chunk.Slices[0].Length - 2 }] }, messages, Config));
     }
 
@@ -211,5 +213,34 @@ public sealed class ContextPlannerTests
         var summaries = plan.Parts.OfType<SummaryContextPart>().ToDictionary(p => p.Chunk.CacheKey, _ => summary with { Background = new string('x', 6500) });
         Assert.Throws<InvalidOperationException>(() => ReplyContextPlanner.ComposeInputs(plan, messages, summaries, Config));
         Assert.Throws<InvalidOperationException>(() => ReplyContextPlanner.ComposeInputs(plan, messages, new Dictionary<string, ContextSummaryContent>(), Config));
+    }
+
+    [Fact]
+    public void Shared_source_chunk_identity_does_not_depend_on_requesting_sibling()
+    {
+        var source = User(new string('a', 6500), Ancestor);
+        var sibling = Guid.NewGuid();
+        var left = new[] { source, User("left-private", Target) };
+        var right = new[] { source, User("right-private", sibling) };
+        var b = ReplyContextPlanner.Plan(Target, new(left, null), Config);
+        var d = ReplyContextPlanner.Plan(sibling, new(right, null), Config);
+        Assert.Equal(b.Parts.OfType<SummaryContextPart>().Select(p => p.Chunk.CacheKey), d.Parts.OfType<SummaryContextPart>().Select(p => p.Chunk.CacheKey));
+        var request = ReplyContextPlanner.CreateSummaryRequest(Ancestor, b.Parts.OfType<SummaryContextPart>().First().Chunk, left, Config);
+        Assert.DoesNotContain("left-private", request.Messages[1].Content);
+        Assert.DoesNotContain("right-private", request.Messages[1].Content);
+    }
+    [Fact]
+    public void Multi_ancestor_chunks_never_cross_source_owners_and_cover_every_original_slice()
+    {
+        var middle = Guid.NewGuid();
+        var messages = new[] { User(new string('a', 3200), Ancestor), User(new string('b', 3200), middle), User("current") };
+        var plan = ReplyContextPlanner.Plan(Target, new(messages, null), Config);
+        foreach (var chunk in plan.Parts.OfType<SummaryContextPart>().Select(p => p.Chunk))
+            Assert.Single(chunk.Slices.Select(s => messages.Single(m => m.Id == s.MessageId).ConversationId).Distinct());
+        foreach (var message in messages.Take(2))
+        {
+            var slices = plan.Parts.OfType<SummaryContextPart>().SelectMany(p => p.Chunk.Slices).Where(s => s.MessageId == message.Id);
+            Assert.Equal(message.Body, string.Concat(slices.Select(s => message.Body.Substring(s.Start, s.Length))));
+        }
     }
 }

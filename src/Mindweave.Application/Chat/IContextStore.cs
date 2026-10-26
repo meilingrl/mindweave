@@ -11,7 +11,7 @@ public interface IContextStore
     Task<CompletedContextSummary?> LoadCompletedSummaryAsync(Guid replyTaskId, string cacheKey);
     Task<ContextCompressionAttempt> StartCompressionAsync(Guid replyTaskId, string cacheKey);
     Task<ContextCompressionAttempt?> LoadCompressionAttemptAsync(Guid attemptId);
-    Task<bool> WriteCompressionAsync(Guid attemptId, long revision, string payload, GenerationStatus status,
+    Task<bool> WriteCompressionAsync(Guid replyTaskId, Guid attemptId, long revision, string payload, GenerationStatus status,
         string? finishReason = null, string? errorCode = null, string? actualModelId = null);
     Task<PreparedReplyRequest> PrepareReplyRequestAsync(Guid replyTaskId);
     Task<PreparedReplyRequest?> LoadPreparedReplyRequestAsync(Guid replyTaskId);

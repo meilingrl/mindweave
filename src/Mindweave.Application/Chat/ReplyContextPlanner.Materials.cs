@@ -9,11 +9,11 @@ public static partial class ReplyContextPlanner
 {
     private static string Hash(string body) => Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(body)));
 
-    private static string CacheKey(Guid targetConversationId, IReadOnlyList<ContextSourceSlice> slices,
+    private static string CacheKey(Guid sourceConversationId, IReadOnlyList<ContextSourceSlice> slices,
         IReadOnlyDictionary<Guid, ChatMessage> originals, AiConfiguration configuration) => Hash(JsonSerializer.Serialize(new
         {
             FormatVersion, PromptVersion = ContextSummaryProtocol.PromptVersion, ChatRequestBudget.EstimatorProfile,
-            TargetConversationId = targetConversationId, Configuration = configuration,
+            SourceConversationId = sourceConversationId, Configuration = configuration,
             Slices = slices.Select(s => new { Slice = s, originals[s.MessageId].ConversationId, originals[s.MessageId].Role,
                 originals[s.MessageId].Status, originals[s.MessageId].ReplyToUserId, originals[s.MessageId].SupersedesMessageId })
         }));
@@ -32,7 +32,7 @@ public static partial class ReplyContextPlanner
                 }) }))
             });
 
-    private static ContextChunk[] SplitMessages(Guid targetConversationId, IReadOnlyList<ChatMessage> messages, AiConfiguration configuration)
+    private static ContextChunk[] SplitMessages(IReadOnlyList<ChatMessage> messages, AiConfiguration configuration)
     {
         var byId = messages.ToDictionary(m => m.Id);
         var result = new List<ContextChunk>();
@@ -41,7 +41,7 @@ public static partial class ReplyContextPlanner
         {
             if (pending.Count == 0) return;
             var slices = Array.AsReadOnly(pending.ToArray());
-            result.Add(new(CacheKey(targetConversationId, slices, byId, configuration), slices, Math.Min(1024, configuration.MaxOutputTokens)));
+            result.Add(new(messages[0].ConversationId, CacheKey(messages[0].ConversationId, slices, byId, configuration), slices, Math.Min(1024, configuration.MaxOutputTokens)));
             pending.Clear();
         }
         foreach (var message in messages)
@@ -133,7 +133,7 @@ public static partial class ReplyContextPlanner
         if (chunk.Slices.Count == 0) throw new InvalidOperationException("压缩片段不能为空。");
         foreach (var slice in chunk.Slices)
         {
-            if (!originals.TryGetValue(slice.MessageId, out var original) || original.Revision != slice.Revision ||
+            if (!originals.TryGetValue(slice.MessageId, out var original) || original.ConversationId != chunk.SourceConversationId || original.Revision != slice.Revision ||
                 Hash(original.Body) != slice.BodyHash || slice.Start < 0 || slice.Length < 0 ||
                 (long)slice.Start + slice.Length > original.Body.Length ||
                 (slice.Start > 0 && slice.Start < original.Body.Length && char.IsLowSurrogate(original.Body[slice.Start])) ||
@@ -179,7 +179,7 @@ public static partial class ReplyContextPlanner
             {
                 ValidateChunk(summary.Chunk, byId);
                 if (originals.Count == 0 || summary.Chunk.MaxOutputTokens != Math.Min(1024, configuration.MaxOutputTokens) ||
-                    summary.Chunk.CacheKey != CacheKey(originals[^1].ConversationId, summary.Chunk.Slices, byId, configuration))
+                    summary.Chunk.CacheKey != CacheKey(summary.Chunk.SourceConversationId, summary.Chunk.Slices, byId, configuration))
                     throw new InvalidOperationException("上下文摘要的配置或缓存身份已失效。");
                 foreach (var slice in summary.Chunk.Slices)
                 {

@@ -5,7 +5,7 @@ namespace Mindweave.Application.Chat;
 /// <summary>Pure planning over already frozen, retry-filtered original messages. Never discovers history.</summary>
 public static partial class ReplyContextPlanner
 {
-    public const int FormatVersion = 1;
+    public const int FormatVersion = 2;
 
     public static ReplyContextPlan Plan(Guid targetConversationId, ChatContext context, AiConfiguration configuration)
     {
@@ -50,13 +50,17 @@ public static partial class ReplyContextPlanner
             void Flush()
             {
                 if (run.Count == 0) return;
-                parts.AddRange(SplitMessages(targetConversationId, run, configuration).Select(c => new SummaryContextPart(c)));
+                parts.AddRange(SplitMessages(run, configuration).Select(c => new SummaryContextPart(c)));
                 run.Clear();
             }
             foreach (var message in messages)
             {
                 if (keep.Contains(message.Id)) { Flush(); parts.Add(new VerbatimContextPart(message.Id)); }
-                else run.Add(message);
+                else
+                {
+                    if (run.Count > 0 && run[0].ConversationId != message.ConversationId) Flush();
+                    run.Add(message);
+                }
             }
             Flush();
             return parts.ToArray();
@@ -80,15 +84,15 @@ public static partial class ReplyContextPlanner
         return MakePlan(selected);
     }
 
-    public static ChatRequest CreateSummaryRequest(Guid targetConversationId, ContextChunk chunk,
+    public static ChatRequest CreateSummaryRequest(Guid sourceConversationId, ContextChunk chunk,
         IReadOnlyList<ChatMessage> originals, AiConfiguration configuration)
     {
         ValidateConfiguration(configuration);
         ValidateOriginals(originals);
         var byId = originals.ToDictionary(m => m.Id);
         ValidateChunk(chunk, byId);
-        if (chunk.MaxOutputTokens != Math.Min(1024, configuration.MaxOutputTokens) ||
-            chunk.CacheKey != CacheKey(targetConversationId, chunk.Slices, byId, configuration))
+        if (chunk.SourceConversationId != sourceConversationId || chunk.MaxOutputTokens != Math.Min(1024, configuration.MaxOutputTokens) ||
+            chunk.CacheKey != CacheKey(sourceConversationId, chunk.Slices, byId, configuration))
             throw new InvalidOperationException("压缩片段与原消息或生成配置不匹配。");
         var request = BuildSummaryRequest(chunk.Slices, byId, configuration);
         if (!ChatRequestBudget.Fits(request.Configuration, request.Messages))

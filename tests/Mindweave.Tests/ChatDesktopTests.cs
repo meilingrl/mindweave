@@ -516,7 +516,7 @@ public sealed class ChatDesktopTests
         public Task<CompletedContextSummary?> LoadCompletedSummaryAsync(Guid id, string key) => inner.LoadCompletedSummaryAsync(id, key);
         public Task<ContextCompressionAttempt> StartCompressionAsync(Guid id, string key) => inner.StartCompressionAsync(id, key);
         public Task<ContextCompressionAttempt?> LoadCompressionAttemptAsync(Guid id) => inner.LoadCompressionAttemptAsync(id);
-        public Task<bool> WriteCompressionAsync(Guid id, long revision, string payload, GenerationStatus status, string? finishReason = null, string? errorCode = null, string? actualModelId = null) => inner.WriteCompressionAsync(id, revision, payload, status, finishReason, errorCode, actualModelId);
+        public Task<bool> WriteCompressionAsync(Guid taskId, Guid id, long revision, string payload, GenerationStatus status, string? finishReason = null, string? errorCode = null, string? actualModelId = null) => inner.WriteCompressionAsync(taskId, id, revision, payload, status, finishReason, errorCode, actualModelId);
         public Task<PreparedReplyRequest> PrepareReplyRequestAsync(Guid id) => inner.PrepareReplyRequestAsync(id);
         public Task<PreparedReplyRequest?> LoadPreparedReplyRequestAsync(Guid id) => inner.LoadPreparedReplyRequestAsync(id);
         public bool LoseBranchReturn { get; set; }

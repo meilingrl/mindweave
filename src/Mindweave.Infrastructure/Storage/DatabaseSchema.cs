@@ -161,7 +161,7 @@ public static class DatabaseSchema
         );
         """), new(5, """
         CREATE TABLE reply_context_plan (
-            task_id TEXT PRIMARY KEY NOT NULL REFERENCES generation_task(id),
+            task_id TEXT PRIMARY KEY NOT NULL REFERENCES generation_task(id) ON DELETE CASCADE,
             plan_json TEXT NOT NULL CHECK(json_valid(plan_json))
         );
         CREATE TRIGGER context_plan_reply BEFORE INSERT ON reply_context_plan
@@ -170,7 +170,7 @@ public static class DatabaseSchema
         CREATE TRIGGER context_plan_immutable BEFORE UPDATE ON reply_context_plan
         BEGIN SELECT RAISE(ABORT,'Context plan is immutable'); END;
         CREATE TABLE context_plan_chunk (
-            task_id TEXT NOT NULL REFERENCES reply_context_plan(task_id),
+            task_id TEXT NOT NULL REFERENCES reply_context_plan(task_id) ON DELETE CASCADE,
             cache_key TEXT NOT NULL,
             chunk_json TEXT NOT NULL CHECK(json_valid(chunk_json)),
             PRIMARY KEY(task_id,cache_key)
@@ -179,8 +179,10 @@ public static class DatabaseSchema
         BEGIN SELECT RAISE(ABORT,'Context chunk is immutable'); END;
         CREATE TABLE context_compression_attempt (
             id TEXT PRIMARY KEY NOT NULL,
-            task_id TEXT NOT NULL,
+            source_conversation_id TEXT NOT NULL REFERENCES conversation(id) ON DELETE CASCADE,
             cache_key TEXT NOT NULL,
+            configuration_json TEXT NOT NULL CHECK(json_valid(configuration_json)),
+            chunk_json TEXT NOT NULL CHECK(json_valid(chunk_json)),
             status TEXT NOT NULL CHECK(status IN ('Queued','Running','Completed','Stopped','Failed','Interrupted')),
             revision INTEGER NOT NULL CHECK(revision>=0),
             payload TEXT NOT NULL,
@@ -189,25 +191,62 @@ public static class DatabaseSchema
             actual_model_id TEXT,
             created_at TEXT NOT NULL,
             updated_at TEXT NOT NULL,
-            FOREIGN KEY(task_id,cache_key) REFERENCES context_plan_chunk(task_id,cache_key),
-            UNIQUE(id,cache_key)
+            UNIQUE(id,cache_key,source_conversation_id),
+            UNIQUE(id,source_conversation_id)
         );
-        CREATE TRIGGER compression_active_parent BEFORE INSERT ON context_compression_attempt
-        WHEN NOT EXISTS(SELECT 1 FROM generation_task WHERE id=NEW.task_id AND kind='Reply' AND status IN ('Queued','Running'))
-        BEGIN SELECT RAISE(ABORT,'Compression requires active reply'); END;
+        CREATE TABLE context_compression_source (
+            attempt_id TEXT NOT NULL,
+            source_conversation_id TEXT NOT NULL,
+            slice_order INTEGER NOT NULL CHECK(slice_order>=0),
+            message_id TEXT NOT NULL,
+            revision INTEGER NOT NULL CHECK(revision>=0),
+            body_hash TEXT NOT NULL,
+            start INTEGER NOT NULL CHECK(start>=0),
+            length INTEGER NOT NULL CHECK(length>=0),
+            PRIMARY KEY(attempt_id,slice_order),
+            FOREIGN KEY(attempt_id,source_conversation_id) REFERENCES context_compression_attempt(id,source_conversation_id) ON DELETE CASCADE,
+            FOREIGN KEY(message_id,source_conversation_id) REFERENCES chat_message(id,conversation_id)
+        );
+        CREATE TRIGGER compression_source_immutable BEFORE UPDATE ON context_compression_source
+        BEGIN SELECT RAISE(ABORT,'Compression sources are immutable'); END;
+        CREATE TABLE context_compression_dependency (
+            task_id TEXT NOT NULL,
+            cache_key TEXT NOT NULL,
+            attempt_id TEXT NOT NULL UNIQUE REFERENCES context_compression_attempt(id),
+            PRIMARY KEY(task_id,cache_key,attempt_id),
+            FOREIGN KEY(task_id,cache_key) REFERENCES context_plan_chunk(task_id,cache_key) ON DELETE CASCADE
+        );
+        CREATE TRIGGER compression_dependency_valid BEFORE INSERT ON context_compression_dependency
+        WHEN NOT EXISTS(SELECT 1 FROM generation_task g
+            JOIN context_plan_chunk c ON c.task_id=g.id AND c.cache_key=NEW.cache_key
+            JOIN context_compression_attempt a ON a.id=NEW.attempt_id AND a.cache_key=NEW.cache_key
+            WHERE g.id=NEW.task_id AND g.kind='Reply' AND g.status IN ('Queued','Running')
+                AND a.configuration_json=g.configuration_json AND a.chunk_json=c.chunk_json
+                AND (a.source_conversation_id=g.conversation_id OR EXISTS(SELECT 1 FROM frozen_context_range r
+                    WHERE r.child_conversation_id=g.conversation_id AND r.ancestor_conversation_id=a.source_conversation_id))
+                AND NOT EXISTS(SELECT 1 FROM context_compression_source s WHERE s.attempt_id=a.id
+                    AND s.message_id NOT IN (SELECT value FROM json_each(g.input_ids_json))))
+            OR EXISTS(SELECT 1 FROM context_compression_dependency d JOIN context_compression_attempt a ON a.id=d.attempt_id
+                WHERE d.task_id=NEW.task_id AND d.cache_key=NEW.cache_key AND a.status IN ('Queued','Running'))
+        BEGIN SELECT RAISE(ABORT,'Compression requires an authorized active requester'); END;
+        CREATE TRIGGER compression_dependency_immutable BEFORE UPDATE ON context_compression_dependency
+        BEGIN SELECT RAISE(ABORT,'Compression dependency is immutable'); END;
+        CREATE TRIGGER compression_dependency_active_delete BEFORE DELETE ON context_compression_dependency
+        WHEN EXISTS(SELECT 1 FROM context_compression_attempt WHERE id=OLD.attempt_id AND status IN ('Queued','Running'))
+        BEGIN SELECT RAISE(ABORT,'Active compression dependency cannot be deleted'); END;
         CREATE TRIGGER compression_revision BEFORE UPDATE ON context_compression_attempt
         WHEN NEW.revision<=OLD.revision OR (OLD.status='Running' AND NEW.status='Queued')
-            OR (NEW.status!='Interrupted' AND NOT EXISTS(SELECT 1 FROM generation_task WHERE id=NEW.task_id AND status IN ('Queued','Running')))
-        BEGIN SELECT RAISE(ABORT,'Compression revision or parent invalid'); END;
-        CREATE UNIQUE INDEX one_active_compression ON context_compression_attempt(task_id,cache_key) WHERE status IN ('Queued','Running');
-        CREATE TRIGGER compression_identity_immutable BEFORE UPDATE OF id,task_id,cache_key,created_at ON context_compression_attempt
+            OR (NEW.status!='Interrupted' AND NOT EXISTS(SELECT 1 FROM context_compression_dependency d
+                JOIN generation_task g ON g.id=d.task_id WHERE d.attempt_id=NEW.id AND g.status IN ('Queued','Running')))
+        BEGIN SELECT RAISE(ABORT,'Compression revision or requester invalid'); END;
+        CREATE TRIGGER compression_identity_immutable BEFORE UPDATE OF id,source_conversation_id,cache_key,configuration_json,chunk_json,created_at ON context_compression_attempt
         BEGIN SELECT RAISE(ABORT,'Compression identity is immutable'); END;
         CREATE TRIGGER terminal_compression_immutable BEFORE UPDATE ON context_compression_attempt WHEN OLD.status NOT IN ('Queued','Running')
         BEGIN SELECT RAISE(ABORT,'Terminal compression is immutable'); END;
         CREATE TABLE context_summary_cache (
             id TEXT PRIMARY KEY NOT NULL,
             cache_key TEXT NOT NULL UNIQUE,
-            conversation_id TEXT NOT NULL REFERENCES conversation(id),
+            source_conversation_id TEXT NOT NULL REFERENCES conversation(id) ON DELETE CASCADE,
             attempt_id TEXT NOT NULL UNIQUE,
             configuration_json TEXT NOT NULL CHECK(json_valid(configuration_json)),
             chunk_json TEXT NOT NULL CHECK(json_valid(chunk_json)),
@@ -215,27 +254,25 @@ public static class DatabaseSchema
             payload_hash TEXT NOT NULL,
             actual_model_id TEXT,
             completed_at TEXT NOT NULL,
-            FOREIGN KEY(attempt_id,cache_key) REFERENCES context_compression_attempt(id,cache_key)
+            FOREIGN KEY(attempt_id,cache_key,source_conversation_id) REFERENCES context_compression_attempt(id,cache_key,source_conversation_id)
         );
         CREATE TRIGGER cache_completed_provenance BEFORE INSERT ON context_summary_cache
         WHEN NOT EXISTS(SELECT 1 FROM context_compression_attempt a
-            JOIN generation_task g ON g.id=a.task_id
-            JOIN context_plan_chunk c ON c.task_id=a.task_id AND c.cache_key=a.cache_key
             WHERE a.id=NEW.attempt_id AND a.cache_key=NEW.cache_key AND a.status='Completed' AND a.finish_reason='stop'
                 AND a.payload=NEW.payload AND a.actual_model_id IS NEW.actual_model_id AND a.updated_at=NEW.completed_at
-                AND g.conversation_id=NEW.conversation_id AND g.configuration_json=NEW.configuration_json AND c.chunk_json=NEW.chunk_json)
-        BEGIN SELECT RAISE(ABORT,'Cache requires matching completed attempt'); END;
+                AND a.source_conversation_id=NEW.source_conversation_id AND a.configuration_json=NEW.configuration_json AND a.chunk_json=NEW.chunk_json)
+        BEGIN SELECT RAISE(ABORT,'Cache requires matching completed source attempt'); END;
         CREATE TRIGGER context_cache_immutable BEFORE UPDATE ON context_summary_cache
         BEGIN SELECT RAISE(ABORT,'Completed cache is immutable'); END;
         CREATE TABLE prepared_reply_request (
-            task_id TEXT PRIMARY KEY NOT NULL REFERENCES reply_context_plan(task_id),
+            task_id TEXT PRIMARY KEY NOT NULL REFERENCES reply_context_plan(task_id) ON DELETE CASCADE,
             format_version INTEGER NOT NULL CHECK(format_version=1),
             configuration_json TEXT NOT NULL CHECK(json_valid(configuration_json)),
             messages_json TEXT NOT NULL CHECK(json_valid(messages_json)),
             prepared_at TEXT NOT NULL
         );
         CREATE TABLE prepared_context_use (
-            task_id TEXT NOT NULL REFERENCES prepared_reply_request(task_id),
+            task_id TEXT NOT NULL REFERENCES prepared_reply_request(task_id) ON DELETE CASCADE,
             input_index INTEGER NOT NULL CHECK(input_index>=0),
             kind TEXT NOT NULL CHECK(kind IN ('Verbatim','Summary','SourceQuote')),
             message_id TEXT REFERENCES chat_message(id),
