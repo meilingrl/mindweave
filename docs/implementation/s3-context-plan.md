@@ -4,7 +4,7 @@
 
 **Goal:** 长历史超出配置预算时，保留关键原文和近期完整问答，用可追溯、可复用的结构化摘要替换较早材料；失败保留问题，不静默截断、不改变分支身份。
 
-**Architecture:** Application 的纯规划器决定实际材料与分段；Infrastructure 在 v5 新表保存不可变计划、压缩尝试、完成摘要和最终请求使用清单；摘要及产生它的生成记录归属被覆盖的源会话，子请求仅保存对祖先资源的使用依赖。既有回答任务分为压缩前置阶段与回答阶段，每个真实请求结束并释放槽后才推进，等待依赖时不占网络槽。Desktop 只投影状态与轻量提示。
+**Architecture:** Application 的纯规划器决定实际材料与分段；Infrastructure 在 v5 新表保存不可变计划、压缩尝试、完成摘要和最终请求引用清单／规范 hash；摘要及产生它的生成记录归属被覆盖的源会话，子请求仅保存对祖先资源的使用依赖。既有回答任务分为压缩前置阶段与回答阶段，每个真实请求结束并释放槽后才推进，等待依赖时不占网络槽。Desktop 只投影状态与轻量提示。
 
 **Tech Stack:** 沿用 .NET 10、Avalonia 12.1.4、LiveMarkdown 2.5.1、xUnit v3 3.2.2 与 Microsoft.Data.Sqlite；不新增 tokenizer／供应商 SDK、WebView 或新协议。
 
@@ -29,7 +29,7 @@
 - 全局最多两个物理 AI 请求，槽保留到实际枚举及 DisposeAsync 结束；用户回答及其必要压缩优先于标题。等待保存或依赖时不能占槽等待自身子任务；停止、关闭、保存失败、迟到分块与重启不重发的语义保持 S1。
 - 压缩用当前回答接受时冻结的同一服务／模型／凭据，输出上限 `min(1024, configuration.MaxOutputTokens)`；每个真实请求的输入＋输出预留均先过同一估算。完整最终请求再次校验后才外呼。
 - 压缩摘要只有完整 `finish_reason=stop`、非空、协议有效且持久保存成功后才可使用；部分或失败输出不进有效缓存，不出现在用户回答正文。配置说明须告知额外调用、等待和费用。
-- v1–v4 迁移 SQL 不改写；只追加 v5 新表，不重建旧 generation_task。回答／标题种类不变，压缩尝试独立记录并关联回答任务；最终请求保存实际原文／摘要使用清单，不能只保存概念上的全部原消息 ID 来冒充实际输入。
+- v1–v4 迁移 SQL 不改写；只追加 v5 新表，不重建旧 generation_task。回答／标题种类不变，压缩尝试独立记录并关联回答任务；最终请求保存实际原文／摘要使用清单和版本化规范 hash，重建后精确校验而不逐次复制历史全文；不能只保存概念上的全部原消息 ID 来冒充实际输入。
 - 本计划不新增真实付费调用。S1 额度已用 7/8 生成、1/1 查询；工人不访问真实钥匙串、S1/S2 原生库、外部服务或另一轨道。自动化只临时数据库／受控 transport／loopback；后续原生用独立 `artifacts/s3-native`。
 - S4 知识总结、候选／已读版本、网络节点、删除归档与导出不实现。上下文摘要不成为知识总结或网络节点；Windows／真实长会话质量与本地工程验证分开。
 
@@ -85,16 +85,16 @@ Task 3 只在既有 GenerationCoordinator 增加阶段状态（可拆 Context pa
 
 **Interfaces:** 消费 Task1纯规划／协议和Task2真实存储 API。接受预检与事务重检一致；原文 Fits 保持原来的 Reply 路径。压缩前置阶段的物理请求结束释放槽，完成摘要保存成功后再准备下一阶段／最终 Reply；没有占槽父任务等待子任务。
 
-- [ ] 受控真实通道＋SQLite RED：两个会话均需压缩时可推进、不死锁；第三个普通用户回答等待物理槽，必要压缩／用户回答优先于标题。包括适配器忽略取消／延迟 Dispose 时严格两个真实请求上限。
-- [ ] 每次接受冻结配置和原始输入；缓存命中不外呼，不命中只发原消息片段，所有片段完成并保存后使用存储返回的已记录实际 request；不从内存临时重新拼出另一份外呼材料。
-- [ ] 压缩 token 不追加到 AI 回答；阶段进度只在 snapshot 的专门字段。空白／无 stop／无效 JSON／失败／结果不够短时父任务明确失败，保留问题和原文；没有部分摘要回退或静默去掉来源。
-- [ ] 停止与退出同时终止父任务和相关活动尝试，迟到分块／完成回调不进入缓存或派发回答。页面切换不停止；重开所有未完任务 Interrupted、不自动重发，完成缓存仍可供显式 Retry 复用。
-- [ ] 保存失败注入分别覆盖压缩尝试开始、完整摘要提交、最终材料保存和父终态保存；全局 gate 暂停新接收／派发。内存保留未保存结果，显式修复按依赖顺序落盘成功后才继续，不通过 FlushPending 绕过外部 gate。
-- [ ] 保留 S1 自动标题资格与128 token上限、S2分支原子性／读取身份／阅读保存语义；补必要回归而不跳过旧探针。聚焦+完整 Release+构建一次，自审提交并报告精确阶段投影和故障结果，禁止另派代理。
+- [x] 受控真实通道＋SQLite RED：两个会话均需压缩时可推进、不死锁；第三个普通用户回答等待物理槽，必要压缩／用户回答优先于标题。包括适配器忽略取消／延迟 Dispose 时严格两个真实请求上限。
+- [x] 每次接受冻结配置和原始输入；缓存命中不外呼，不命中只发原消息片段，所有片段完成并保存后使用存储返回的已记录实际 request；不从内存临时重新拼出另一份外呼材料。
+- [x] 压缩 token 不追加到 AI 回答；阶段进度只在 snapshot 的专门字段。空白／无 stop／无效 JSON／失败／结果不够短时父任务明确失败，保留问题和原文；没有部分摘要回退或静默去掉来源。
+- [x] 停止与退出同时终止父任务和相关活动尝试，迟到分块／完成回调不进入缓存或派发回答。页面切换不停止；重开所有未完任务 Interrupted、不自动重发，完成缓存仍可供显式 Retry 复用。
+- [x] 保存失败注入分别覆盖压缩尝试开始、完整摘要提交、最终材料保存和父终态保存；全局 gate 暂停新接收／派发。内存保留未保存结果，显式修复按依赖顺序落盘成功后才继续，不通过 FlushPending 绕过外部 gate。
+- [x] 保留 S1 自动标题资格与128 token上限、S2分支原子性／读取身份／阅读保存语义；补必要回归而不跳过旧探针。聚焦+完整 Release+构建一次，自审提交并报告精确阶段投影和故障结果，禁止另派代理。
 
 ## Task 4: 桌面提示、本地质量样例与阶段验证
 
-**Files:** Desktop/ViewModels/ChatViewModel.cs、MessageViewModel.cs 或 focused context projection、Views/ChatView.axaml／SettingsView.axaml；fixtures/chat_sse_fixture.py 及自测；tests/Mindweave.Tests/ContextDesktopTests.cs；README／TRACK／s3-verification由控制器最终维护。不更改共享需求／架构。
+**Files:** Desktop/ViewModels/ChatViewModel.cs、MessageViewModel.cs 或 focused context projection、Views/ChatView.axaml／SettingsView.axaml；为历史标记按需新增 IContextStore／ContextRequests 的有界只读使用元数据查询和测试代理转发；fixtures/chat_sse_fixture.py 及自测；tests/Mindweave.Tests/ContextDesktopTests.cs；README／TRACK／s3-verification由控制器最终维护。不更改共享需求／架构。
 
 **Interfaces:** 消费Task3阶段snapshot与持久实际材料；维持Main唯一ContentStack，不在View中发生成／压缩请求。夹具只增加明确本地模式，不能作为生产假响应。
 
