@@ -36,7 +36,7 @@ public sealed class ChatDesktopTests
         using var inspect = new SqliteConnection($"Data Source={paths.DatabasePath};Pooling=False");
         inspect.Open();
         using var command = inspect.CreateCommand(); command.CommandText = "PRAGMA user_version";
-        Assert.Equal(3L, command.ExecuteScalar());
+        Assert.Equal(4L, command.ExecuteScalar());
         var backupPath = Assert.Single(Directory.GetFiles(paths.BackupDirectory, "*.db"));
         using (var backup = new SqliteConnection($"Data Source={backupPath};Mode=ReadOnly;Pooling=False"))
         {
@@ -533,6 +533,7 @@ public sealed class ChatDesktopTests
             if (DelayNextRename) { DelayNextRename = false; RenameEntered.TrySetResult(); await RenameRelease.Task; }
             await inner.RenameConversationAsync(id, title);
         }
+        public Task<ChatContext> ReadContextAsync(Guid id) => inner.ReadContextAsync(id);
         public Task<IReadOnlyList<ChatMessage>> ReadMessagesAsync(Guid id)
         {
             if (FailNextMessages) { FailNextMessages = false; throw new IOException("test-only postaccept read failure"); }

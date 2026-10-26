@@ -105,5 +105,59 @@ public static class DatabaseSchema
              (NEW.kind='Conversation' AND (NEW.area!='Explore' OR NEW.target_id IS NULL OR NOT EXISTS(
                 SELECT 1 FROM conversation WHERE id=NEW.target_id AND workspace_id=NEW.workspace_id)))
         BEGIN SELECT RAISE(ABORT,'Invalid selection detail'); END;
+        """), new(4, """
+        CREATE TABLE branch_source (
+            child_conversation_id TEXT PRIMARY KEY NOT NULL REFERENCES conversation(id) ON DELETE CASCADE,
+            operation_id TEXT NOT NULL UNIQUE,
+            parent_conversation_id TEXT NOT NULL REFERENCES conversation(id),
+            message_id TEXT NOT NULL,
+            message_revision INTEGER NOT NULL CHECK(message_revision>=0),
+            source_body_hash TEXT NOT NULL CHECK(length(source_body_hash)=64),
+            quote TEXT NOT NULL CHECK(length(trim(quote))>0),
+            anchor_version INTEGER NOT NULL CHECK(anchor_version=1),
+            renderer_profile TEXT NOT NULL,
+            anchor_payload TEXT NOT NULL CHECK(json_valid(anchor_payload) AND json_type(anchor_payload)='object'),
+            FOREIGN KEY(message_id,parent_conversation_id) REFERENCES chat_message(id,conversation_id),
+            CHECK(child_conversation_id!=parent_conversation_id)
+        );
+        CREATE INDEX branch_parent ON branch_source(parent_conversation_id,message_id);
+        CREATE TRIGGER branch_source_immutable BEFORE UPDATE ON branch_source
+        BEGIN SELECT RAISE(ABORT,'Branch source is immutable'); END;
+        CREATE TABLE frozen_context_range (
+            child_conversation_id TEXT NOT NULL REFERENCES branch_source(child_conversation_id) ON DELETE CASCADE,
+            range_order INTEGER NOT NULL CHECK(range_order>=0),
+            ancestor_conversation_id TEXT NOT NULL REFERENCES conversation(id),
+            PRIMARY KEY(child_conversation_id,range_order),
+            UNIQUE(child_conversation_id,ancestor_conversation_id),
+            UNIQUE(child_conversation_id,range_order,ancestor_conversation_id)
+        );
+        CREATE TABLE frozen_context_message (
+            child_conversation_id TEXT NOT NULL,
+            range_order INTEGER NOT NULL,
+            ancestor_conversation_id TEXT NOT NULL,
+            message_order INTEGER NOT NULL CHECK(message_order>=0),
+            message_id TEXT NOT NULL,
+            PRIMARY KEY(child_conversation_id,range_order,message_order),
+            UNIQUE(child_conversation_id,message_id),
+            FOREIGN KEY(child_conversation_id,range_order,ancestor_conversation_id)
+                REFERENCES frozen_context_range(child_conversation_id,range_order,ancestor_conversation_id) ON DELETE CASCADE,
+            FOREIGN KEY(message_id,ancestor_conversation_id) REFERENCES chat_message(id,conversation_id)
+        );
+        CREATE TRIGGER frozen_range_immutable BEFORE UPDATE ON frozen_context_range
+        BEGIN SELECT RAISE(ABORT,'Frozen range is immutable'); END;
+        CREATE TRIGGER frozen_message_immutable BEFORE UPDATE ON frozen_context_message
+        BEGIN SELECT RAISE(ABORT,'Frozen message is immutable'); END;
+        CREATE TABLE conversation_read_state (
+            conversation_id TEXT PRIMARY KEY NOT NULL REFERENCES conversation(id) ON DELETE CASCADE,
+            message_id TEXT,
+            source_start INTEGER,
+            offset_within_block REAL,
+            format_version INTEGER,
+            renderer_profile TEXT,
+            revision INTEGER NOT NULL CHECK(revision>0),
+            FOREIGN KEY(message_id,conversation_id) REFERENCES chat_message(id,conversation_id),
+            CHECK((message_id IS NULL AND source_start IS NULL AND offset_within_block IS NULL AND format_version IS NULL AND renderer_profile IS NULL)
+                OR (message_id IS NOT NULL AND source_start>=0 AND offset_within_block>=0 AND format_version=1 AND renderer_profile IS NOT NULL))
+        );
         """)]);
 }

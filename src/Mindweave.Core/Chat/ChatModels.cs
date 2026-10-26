@@ -11,5 +11,5 @@ public sealed record AiConfiguration(Guid ConnectionId, Guid ModelConfigId, stri
 public sealed record GenerationRecord(Guid Id, Guid ConversationId, GenerationKind Kind, Guid? AnswerMessageId,
     GenerationStatus Status, long Revision, AiConfiguration Configuration, IReadOnlyList<Guid> InputMessageIds,
     long? ExpectedTitleRevision, string? ErrorCode, string? ActualModelId);
-public sealed record GenerationWork(GenerationRecord Task, IReadOnlyList<ChatMessage> InputMessages);
+public sealed record GenerationWork(GenerationRecord Task, IReadOnlyList<ChatMessage> InputMessages, string? SourceQuote = null);
 public sealed record ConversationDraft(string Text, long Revision);

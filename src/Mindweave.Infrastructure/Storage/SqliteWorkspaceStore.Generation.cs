@@ -1,4 +1,5 @@
 using System.Text.Json;
+using Mindweave.Application.Chat;
 using Microsoft.Data.Sqlite;
 using Mindweave.Core.Chat;
 
@@ -16,6 +17,8 @@ public sealed partial class SqliteWorkspaceStore
             RequireConversation(connection, transaction, conversationId);
             var messages = ReadMessages(connection, transaction, conversationId);
             if (messages.Any(message => IsActive(message.Status))) throw new InvalidOperationException("此会话已有未结束回答。");
+            var context = ChatRequestBudget.PrepareReplyContext(ReadContext(connection, transaction, conversationId), conversationId, userText is null);
+            var input = context.Messages.ToList();
             var sequence = messages.Count == 0 ? 0 : messages[^1].Sequence;
             ChatMessage user;
             Guid? supersedes = null;
@@ -31,10 +34,11 @@ public sealed partial class SqliteWorkspaceStore
             {
                 user = new(Guid.NewGuid(), conversationId, checked(++sequence), MessageRole.User, userText, GenerationStatus.Completed, 0, null, null);
                 InsertMessage(connection, transaction, user);
-                messages.Add(user);
+                input.Add(user);
             }
-            // Each user contributes only its newest attempt. Retrying excludes the attempt being replaced.
-            var input = ChatHistory.LatestInput(messages).Where(message => message.Role == MessageRole.User || message.ReplyToUserId != user.Id).ToArray();
+            // Recheck the actual immutable input within the acceptance transaction, before clearing the draft.
+            if (!ChatRequestBudget.Fits(configuration, ChatRequestBudget.Inputs(input, context.SourceQuote)))
+                throw new InvalidOperationException("输入超出配置的上下文预算，请缩短输入或调整预算。");
             var answer = new ChatMessage(Guid.NewGuid(), conversationId, checked(++sequence), MessageRole.Assistant, "", GenerationStatus.Queued, 0, user.Id, supersedes);
             InsertMessage(connection, transaction, answer);
             var task = NewGeneration(conversationId, GenerationKind.Reply, answer.Id, configuration, input, null);
@@ -49,7 +53,7 @@ public sealed partial class SqliteWorkspaceStore
                     """, ("$id", conversationId), ("$text", userText));
                 clear.ExecuteNonQuery();
             }
-            return new GenerationWork(task, input);
+            return new GenerationWork(task, input.ToArray(), context.SourceQuote);
         });
     }
 

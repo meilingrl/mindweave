@@ -46,7 +46,14 @@ public sealed partial class GenerationCoordinator : IAsyncDisposable
             {
                 var recovered = (await store.LoadGenerationAsync(old.Id).ConfigureAwait(false))!;
                 var messages = await store.ReadMessagesAsync(old.ConversationId).ConfigureAwait(false);
-                var work = new GenerationWork(recovered, messages.Where(m => recovered.InputMessageIds.Contains(m.Id)).ToArray());
+                var context = await store.ReadContextAsync(old.ConversationId).ConfigureAwait(false);
+                // Previously accepted title/reply manifests can still name an older own attempt.
+                // Ancestors are admitted only through this conversation's frozen context.
+                var byId = context.Messages.Where(message => message.ConversationId != old.ConversationId)
+                    .Concat(messages).ToDictionary(message => message.Id);
+                var input = recovered.InputMessageIds.Select(id => byId.TryGetValue(id, out var message)
+                    ? message : throw new InvalidDataException("生成输入不属于本会话或冻结祖先。")).ToArray();
+                var work = new GenerationWork(recovered, input, recovered.Kind == GenerationKind.Reply ? context.SourceQuote : null);
                 var job = new Job(work) { Status = recovered.Status, Error = recovered.ErrorCode };
                 job.Body.Append(messages.FirstOrDefault(m => m.Id == recovered.AnswerMessageId)?.Body ?? "");
                 restored.Add(job);
@@ -86,15 +93,8 @@ public sealed partial class GenerationCoordinator : IAsyncDisposable
             await FlushAsync(throwOnFailure: true).ConfigureAwait(false);
             var configuration = await store.LoadActiveConfigurationAsync().ConfigureAwait(false)
                 ?? throw new InvalidOperationException("请先保存 AI 配置。");
-            var messages = await store.ReadMessagesAsync(conversationId).ConfigureAwait(false);
-            var input = ChatHistory.LatestInput(messages).ToList();
-            if (userText is null)
-            {
-                if (messages.Count == 0 || messages[^1].Role != MessageRole.Assistant)
-                    throw new InvalidOperationException("只能重试会话最后一条回答。");
-                input.RemoveAll(m => m.Role == MessageRole.Assistant && m.ReplyToUserId == messages[^1].ReplyToUserId);
-            }
-            var requestInput = ChatRequestBudget.Inputs(input).ToList();
+            var context = ChatRequestBudget.PrepareReplyContext(await store.ReadContextAsync(conversationId).ConfigureAwait(false), conversationId, userText is null);
+            var requestInput = ChatRequestBudget.Inputs(context.Messages, context.SourceQuote).ToList();
             if (userText is not null) requestInput.Add(new("user", userText));
             if (!ChatRequestBudget.Fits(configuration, requestInput))
                 throw new InvalidOperationException("输入超出配置的上下文预算，请缩短输入或调整预算。");

@@ -9,6 +9,7 @@ public interface IChatStore
     Task<Conversation?> LoadConversationAsync(Guid conversationId);
     Task RenameConversationAsync(Guid conversationId, string title);
     Task<IReadOnlyList<ChatMessage>> ReadMessagesAsync(Guid conversationId);
+    Task<ChatContext> ReadContextAsync(Guid conversationId);
     Task<AiConfiguration?> LoadActiveConfigurationAsync();
     Task SaveConfigurationAsync(AiConfiguration configuration);
     Task<GenerationWork> AcceptReplyAsync(Guid conversationId, string? userText, AiConfiguration configuration);

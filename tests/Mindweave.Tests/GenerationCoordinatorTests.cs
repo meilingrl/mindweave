@@ -433,6 +433,65 @@ public sealed class GenerationCoordinatorTests
         Assert.Equal("good answer", (await f.Chat.ReadMessagesAsync(conversation.Id)).Last().Body);
     }
 
+    [Fact]
+    public async Task Branch_request_preserves_frozen_attempt_and_labels_quote_without_allowing_ancestor_only_retry()
+    {
+        await using var f = await Fixture.OpenAsync();
+        var parent = await f.ConversationAsync();
+        var old = await BranchStorageTests.Answer(f.Store, parent.Id, "ancestor question", "old answer");
+        var child = await f.Store.CreateBranchAsync(parent.Id, BranchStorageTests.Selection(old), Guid.NewGuid());
+        await BranchStorageTests.Answer(f.Store, parent.Id, null, "replacement answer");
+        await Assert.ThrowsAsync<InvalidOperationException>(() => f.Coordinator.RetryAsync(child.Id));
+        var id = await f.Coordinator.SendAsync(child.Id, "child question");
+        var call = await f.Transport.NextAsync();
+        var quote = Assert.Single(call.Request.Messages, message => message.Role == "system");
+        Assert.Contains("old answer", quote.Content);
+        Assert.Equal(new[] { "ancestor question", "old answer", "child question" }, call.Request.Messages.Where(message => message.Role != "system").Select(message => message.Content));
+        Assert.Contains(old.Id, (await f.Chat.LoadGenerationAsync(id))!.InputMessageIds);
+        await f.Coordinator.StopAsync(child.Id);
+    }
+
+    [Fact]
+    public async Task Branch_budget_preflight_includes_quote_and_preserves_draft_without_dispatch()
+    {
+        await using var f = await Fixture.OpenAsync();
+        var parent = await f.ConversationAsync();
+        var source = await BranchStorageTests.Answer(f.Store, parent.Id, "q", new string('x', 300));
+        var child = await f.Store.CreateBranchAsync(parent.Id, BranchStorageTests.Selection(source), Guid.NewGuid());
+        await f.Chat.SaveConfigurationAsync(f.Configuration with { ContextTokenBudget = 1000, MaxOutputTokens = 128 });
+        await f.Chat.SaveDraftAsync(child.Id, "preserved", 1);
+        await Assert.ThrowsAsync<InvalidOperationException>(() => f.Coordinator.SendAsync(child.Id, "preserved"));
+        Assert.Equal(0, f.Transport.StartCount);
+        Assert.Empty(await f.Chat.ReadMessagesAsync(child.Id));
+        Assert.Equal(new("preserved", 1), await f.Chat.LoadDraftAsync(child.Id));
+        Assert.False(f.Coordinator.HasPersistenceFailure);
+    }
+
+    [Fact]
+    public async Task Recovery_keeps_original_title_input_when_own_retry_replaces_that_answer()
+    {
+        using var directory = new TestDirectory();
+        var paths = AppPaths.ForTrack("codex-steady", directory.Path);
+        Guid titleId;
+        await using (var store = await SqliteWorkspaceStore.OpenAsync(paths))
+        {
+            var parent = await store.CreateConversationAsync((await store.CreateAsync("test")).Id);
+            var ancestor = await BranchStorageTests.Answer(store, parent.Id, "ancestor q", "ancestor a");
+            var child = await store.CreateBranchAsync(parent.Id, BranchStorageTests.Selection(ancestor), Guid.NewGuid());
+            await BranchStorageTests.Answer(store, child.Id, "own q", "own old answer");
+            titleId = (await store.AcceptTitleAsync(child.Id, BranchStorageTests.Config()))!.Task.Id;
+            await BranchStorageTests.Answer(store, child.Id, null, "own replacement");
+            await store.AcceptReplyAsync(child.Id, "queued before exit", BranchStorageTests.Config());
+        }
+        await using var reopened = await SqliteWorkspaceStore.OpenAsync(paths);
+        var transport = new ControlledTransport();
+        await using var coordinator = new GenerationCoordinator(reopened, transport, new MemoryVault());
+        await coordinator.InitializeAsync();
+        Assert.Equal(2, coordinator.Snapshots.Count);
+        Assert.Contains(coordinator.Snapshots, snapshot => snapshot.TaskId == titleId && snapshot.Status == GenerationStatus.Interrupted);
+        Assert.Equal(0, transport.StartCount);
+    }
+
     internal sealed class Fixture : IAsyncDisposable
     {
         private readonly TestDirectory directory;

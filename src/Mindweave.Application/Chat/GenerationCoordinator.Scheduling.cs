@@ -36,7 +36,7 @@ public sealed partial class GenerationCoordinator
             try { secret = await vault.ReadAsync(job.Work.Task.Configuration.CredentialReference).ConfigureAwait(false); }
             catch { Fail(job, "CredentialUnavailable"); return; }
             lock (sync) if (PersistencePaused || !Active(job.Status)) return;
-            var input = ChatRequestBudget.Inputs(job.Work.InputMessages).ToList();
+            var input = ChatRequestBudget.Inputs(job.Work.InputMessages, job.Work.SourceQuote).ToList();
             if (job.Work.Task.Kind == GenerationKind.Title) input.Insert(0, new("system", TitleInstruction));
             var request = new ChatRequest(job.Work.Task.Configuration, input.ToArray());
             string? finish = null;
