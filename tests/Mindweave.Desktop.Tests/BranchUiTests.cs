@@ -68,8 +68,7 @@ public class BranchUiTests
         app.Client.Reply("斯蒂芬森是英国工程师。\n\n他的**火箭号**赢得了雨山试验。");
         child.Composer.Text = "他是谁？";
         await child.Composer.SendCommand.ExecuteAsync(null);
-        await UiWait.UntilAsync(() => child.Messages.Count == 2 && child.Messages[1].State == MessageState.Complete);
-        await CurrentView(window).Restored;
+        await UiWait.UntilAsync(() => child.Messages.Count == 2 && child.Messages[1].CanBranch);
         var grandchild = await BranchAsync(app, window, child, "雨山试验");
         Assert.Equal([root.Title, child.Title], grandchild.Lineage.Select(l => l.Title));
 
@@ -103,7 +102,8 @@ public class BranchUiTests
         app.Client.Reply(LongAnswer.Replace("火车", "铁路", StringComparison.Ordinal));
         child.Composer.Text = "讲讲铁路";
         await child.Composer.SendCommand.ExecuteAsync(null);
-        await UiWait.UntilAsync(() => child.Messages.Count == 2 && child.Messages[1].State == MessageState.Complete);
+        await UiWait.UntilAsync(() => child.Messages.Count == 2 && child.Messages[1].CanBranch && TryAnswer(window) is { IsLayoutCurrent: true });
+        window.UpdateLayout();
 
         // Read the child somewhere in the middle, then leave through the sidebar (ordinary switch).
         var childOffset = await ScrollToAsync(window, 0.4);
@@ -254,6 +254,10 @@ public class BranchUiTests
     private static async Task<ConversationViewModel> BranchAsync(DesktopHarness app, Window window, ConversationViewModel parent, string quote)
     {
         await CurrentView(window).Restored;
+
+        // A finished answer is swapped from its live view to the stored text; wait until that view is laid out.
+        await UiWait.UntilAsync(() => TryAnswer(window) is { IsLayoutCurrent: true, DataContext: MessageItemViewModel { CanBranch: true } });
+        window.UpdateLayout();
         var answer = Answer(window);
         Select(window, answer, quote);
         var button = Find<Button>(answer, "BranchButton");
@@ -327,8 +331,10 @@ public class BranchUiTests
     private static ConversationView CurrentView(Window window) => window.GetVisualDescendants().OfType<ConversationView>().Single();
 
     /// <summary>The page's last answer view (the message template also hosts a hidden one for each question).</summary>
-    private static AnswerView Answer(Window window) =>
-        CurrentView(window).GetVisualDescendants().OfType<AnswerView>().Last(a => a.DataContext is MessageItemViewModel { IsAnswer: true });
+    private static AnswerView Answer(Window window) => TryAnswer(window) ?? throw new InvalidOperationException("No answer is shown.");
+
+    private static AnswerView? TryAnswer(Window window) =>
+        CurrentView(window).GetVisualDescendants().OfType<AnswerView>().LastOrDefault(a => a.DataContext is MessageItemViewModel { IsAnswer: true });
 
     private static ScrollViewer Scroller(Window window) => Find<ScrollViewer>(CurrentView(window), "Scroller");
 

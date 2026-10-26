@@ -4,7 +4,7 @@
 
 | 接缝 | 状态 | 落点 |
 | --- | --- | --- |
-| E1 视图槽位化导航状态 | 未开始，随 S2 迁移 v4 落地 | 见文末“交给 S2” |
+| E1 视图槽位化导航状态 | **已落地**（S2，迁移 v4） | Desktop `ViewerSlot`、`PageContext`、`NavigationRequest.Slot`；表 `reading_position`、`draft` 以槽位键为主键之一；见 [S2 设计](s2-branching.md#e1-视图槽位) |
 | E2 分块消息内容 | **已落地**（迁移 v3） | Core `ContentBlock`；表 `message_block` |
 | E3 请求追踪与源头脱敏 | **已落地**（迁移 v3） | Application `Diagnostics/`；表 `ai_request`；客户端与文件日志脱敏 |
 | E4 模型能力描述 | **已落地**（迁移 v3） | Core `ModelCapabilities`；`model_config` 与 `generation_task` 的 `capabilities` 列 |

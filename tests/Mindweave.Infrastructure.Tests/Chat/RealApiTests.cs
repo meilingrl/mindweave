@@ -7,7 +7,7 @@ namespace Mindweave.Infrastructure.Tests.Chat;
 /// <summary>
 /// Handoff S1 acceptance against a real service: long streamed answer, stop mid-stream, multi-turn context,
 /// automatic title. Opt-in through scripts/real-api.sh, which supplies the key via the environment only.
-/// A full run makes about six short requests.
+/// A full run makes about ten short requests.
 /// </summary>
 [Trait("Category", "RealApi")]
 public class RealApiTests
@@ -59,6 +59,27 @@ public class RealApiTests
 
         Assert.Equal(MessageState.Complete, answer.State);
         Assert.Contains("47", answer.Text, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task A_branch_question_is_answered_about_the_quoted_passage()
+    {
+        await using var h = await StartAsync();
+
+        var root = await h.Conversations.StartAsync(h.Workspace, "请原样回答这一句话，不要加别的内容：甲方案的代号是蓝鲸。乙方案的代号是赤狐。", Ct);
+        var source = await h.WaitForAnswerAsync(root.Answer!.Value, timeoutMs: 120_000);
+        Assert.Contains("赤狐", source.Text, StringComparison.Ordinal);
+        var quote = source.Text[source.Text.IndexOf("乙方案", StringComparison.Ordinal)..].Trim();
+        var branch = await h.Conversations.CreateBranchAsync(root.Conversation, BranchFlowTests.Selection(source, quote), Ct);
+        Assert.True(branch.Accepted);
+
+        var asked = await h.Conversations.AskAsync(branch.Child, "这段内容里提到的代号是什么？只回答代号。", Ct);
+        var answer = await h.WaitForAnswerAsync(asked.Answer!.Value, timeoutMs: 120_000);
+
+        Assert.Equal(MessageState.Complete, answer.State);
+        Assert.Contains("赤狐", answer.Text, StringComparison.Ordinal);
+        Assert.DoesNotContain("蓝鲸", answer.Text, StringComparison.Ordinal);
+        TestContext.Current.SendDiagnosticMessage($"quote: {quote}; branch answer: {answer.Text}");
     }
 
     [Fact]
