@@ -117,6 +117,9 @@ public sealed partial class GenerationCoordinator : IAsyncDisposable
         finally { acceptance.Release(); Dispatch(); Notify(); }
     }
 
+    /// <summary>Checkpoint pending snapshots without changing acceptance or external repair gates.</summary>
+    public Task FlushPendingAsync() => FlushAsync(throwOnFailure: true);
+
     public async Task StopAsync(Guid conversationId)
     {
         Job[] stopped;

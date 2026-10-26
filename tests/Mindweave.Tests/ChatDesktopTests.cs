@@ -510,8 +510,25 @@ public sealed class ChatDesktopTests
 
     // Only fault/delay the Desktop boundary. Every read/write otherwise delegates to real SQLite;
     // coordinator uses that same underlying SQLite store with its real acceptance transaction.
-    private sealed class ControlledChatStore(SqliteWorkspaceStore inner) : IWorkspaceStore, IChatStore
+    internal sealed class ControlledChatStore(SqliteWorkspaceStore inner) : IWorkspaceStore, IChatStore, Mindweave.Application.Branches.IBranchStore
     {
+        public bool LoseBranchReturn { get; set; }
+        public bool FailNextReadState { get; set; }
+        public async Task<Conversation> CreateBranchAsync(Guid parent, Mindweave.Core.Branches.SourceSelection selection, Guid operation, Mindweave.Core.Branches.ConversationReadState? state = null)
+        {
+            var child = await inner.CreateBranchAsync(parent, selection, operation, state);
+            if (LoseBranchReturn) { LoseBranchReturn = false; throw new IOException("test-only committed branch return lost"); }
+            return child;
+        }
+        public Task<Mindweave.Core.Branches.BranchSource?> LoadBranchSourceAsync(Guid id) => inner.LoadBranchSourceAsync(id);
+        public Task<IReadOnlyList<Mindweave.Core.Branches.BranchSource>> ListChildBranchesAsync(Guid id) => inner.ListChildBranchesAsync(id);
+        public Task<IReadOnlyList<Mindweave.Core.Branches.FrozenContextRange>> ReadFrozenContextRangesAsync(Guid id) => inner.ReadFrozenContextRangesAsync(id);
+        public Task<Mindweave.Core.Branches.ConversationReadState?> LoadReadStateAsync(Guid id)
+        {
+            if (FailNextReadState) { FailNextReadState = false; throw new IOException("test-only branch navigation read failure"); }
+            return inner.LoadReadStateAsync(id);
+        }
+        public Task SaveReadStateAsync(Mindweave.Core.Branches.ConversationReadState state) => inner.SaveReadStateAsync(state);
         public bool DelayNextDraft { get; set; }
         public bool DelayNextRename { get; set; }
         public TaskCompletionSource RenameEntered { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);

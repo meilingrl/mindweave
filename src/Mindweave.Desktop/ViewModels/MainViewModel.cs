@@ -111,23 +111,41 @@ public sealed partial class MainViewModel : ViewModelBase
         if (CurrentWorkspace is null) return;
         await FlushForNavigationAsync(); await OpenRequestAsync(request);
     });
-    private async Task OpenRequestAsync(NavigationRequest request)
+    private async Task OpenRequestAsync(NavigationRequest request, bool strictSave = false)
     {
         Validate(request);
+        if (request.Source is { } reveal)
+        {
+            var relation = BranchStore is null ? null : await BranchStore.LoadBranchSourceAsync(reveal.ChildConversationId);
+            if (request.Intent != NavigationIntent.ReturnToSource || relation is null || relation.ParentConversationId != request.TargetId ||
+                reveal.ParentConversationId != relation.ParentConversationId || reveal.Selection.MessageId != relation.MessageId ||
+                reveal.Selection.Quote != relation.Quote || reveal.Selection.Anchor != relation.Anchor)
+                throw new ArgumentException("来源导航与已保存的分支关系不一致。");
+        }
+        else if (request.Intent == NavigationIntent.ReturnToSource && coordinator is not null)
+            throw new ArgumentException("来源导航缺少已保存的来源身份。");
         if (request.Kind == ContentKind.Conversation && chatStore is not null &&
             (await chatStore.LoadConversationAsync(request.TargetId!.Value))?.WorkspaceId != CurrentWorkspace!.Id)
             throw new ArgumentException("会话不属于当前工作区。");
         var effective = request;
         if (request.Kind == ContentKind.Overview && CurrentArea != request.Area &&
             sessions[CurrentWorkspace!.Id].InactiveHistories.TryGetValue(request.Area, out var history)) effective = history[^1];
-        await SaveSelectionAsync(CurrentWorkspace!.Id, effective);
+        await SaveSelectionAsync(CurrentWorkspace!.Id, effective, strictSave);
         if (CurrentArea != request.Area) { Detach(); await ActivateAsync(request.Area); }
         if (request.Kind != ContentKind.Overview) await AddDetailAsync(request);
         NotifyContent();
     }
     private async Task AddDetailAsync(NavigationRequest request)
     {
-        if (ActiveContent?.Request is { } previous && previous.Kind == request.Kind && previous.TargetId == request.TargetId) ActiveContent.SetParameter(request);
+        if (ActiveContent?.Request is { } previous && previous.Kind == request.Kind && previous.TargetId == request.TargetId)
+        {
+            ActiveContent.SetParameter(HistoryRequest(request));
+            if (ActiveContent is ChatViewModel same)
+            {
+                if (request.Source is { } source) same.RequestSourceReveal(source);
+                else same.ConsumeSourceReveal();
+            }
+        }
         else { DeactivatePage(); ContentStack.Add(await CreateContentAsync(request)); }
         NotifyContent();
     }
@@ -143,14 +161,14 @@ public sealed partial class MainViewModel : ViewModelBase
         }
         NotifyContent();
     });
-    private async Task SaveSelectionAsync(Guid workspaceId, NavigationRequest request)
+    private async Task SaveSelectionAsync(Guid workspaceId, NavigationRequest request, bool strict = false)
     {
         var selection = new WorkspaceSelection(workspaceId, request.Area,
             request.Kind == ContentKind.Conversation ? request.Kind : ContentKind.Overview,
             request.Kind == ContentKind.Conversation ? request.TargetId : null);
         try { await store.SaveSelectionAsync(selection); pendingSelection = null; }
         catch (Exception error) when (error is not ArgumentException)
-        { pendingSelection = selection; MarkPersistenceFailure(); ErrorMessage = "阅读位置尚未保存；可继续阅读，请重试保存。"; }
+        { pendingSelection = selection; MarkPersistenceFailure(); ErrorMessage = "阅读位置尚未保存；可继续阅读，请重试保存。"; if (strict) throw; }
     }
     public async Task PrepareCloseAsync()
     {
@@ -166,11 +184,13 @@ public sealed partial class MainViewModel : ViewModelBase
     public void ReturnToWorkbench() { closing = false; coordinator?.ResumeAccepting(); NotifyAvailability(); }
     public async Task RetryPersistenceAsync()
     {
+        await changes.WaitAsync(); IsBusy = true;
         try
         {
             async Task RepairLocalAsync()
             {
                 await FlushAllDraftsAsync();
+                await CompletePendingBranchAsync();
                 if (pendingSelection is not null) { await store.SaveSelectionAsync(pendingSelection); pendingSelection = null; }
             }
             if (coordinator is not null) await coordinator.RetryPersistenceAsync(RepairLocalAsync);
@@ -178,7 +198,7 @@ public sealed partial class MainViewModel : ViewModelBase
             localPersistenceFailure = false; ErrorMessage = null;
         }
         catch { MarkPersistenceFailure(); ErrorMessage = "保存仍未完成，内容保留在窗口中。"; throw; }
-        finally { NotifyAvailability(); }
+        finally { IsBusy = false; NotifyAvailability(); changes.Release(); }
     }
     private async Task RunAsync(Func<Task> action)
     {
@@ -192,9 +212,11 @@ public sealed partial class MainViewModel : ViewModelBase
     private async Task FlushCurrentAsync()
     {
         if (ActiveContent is not null) await ActiveContent.WaitForPendingOperationsAsync();
-        if (ActiveContent is not ChatViewModel page) return;
+        if (ActiveContent is not ChatViewModel page) { await FlushReadsAsync(); return; }
+        page.CaptureReadingNow();
         await page.SynchronizeAcceptedAsync();
         await page.FlushDraftAsync(); unsavedDrafts.Remove(page.ConversationId);
+        await FlushReadsAsync();
     }
     private async Task FlushForNavigationAsync()
     {
@@ -217,7 +239,7 @@ public sealed partial class MainViewModel : ViewModelBase
     private void DeactivatePage() { if (ActiveContent is ChatViewModel page) page.Detach(); }
     private void Detach()
     {
-        if (CurrentWorkspace is not null) sessions[CurrentWorkspace.Id].InactiveHistories[CurrentArea] = ContentStack.Select(page => page.Request).ToArray();
+        if (CurrentWorkspace is not null) sessions[CurrentWorkspace.Id].InactiveHistories[CurrentArea] = ContentStack.Select(page => HistoryRequest(page.Request)).ToArray();
         DeactivatePage(); ContentStack.Clear();
     }
     private async Task ActivateAsync(MainArea area)
@@ -236,7 +258,13 @@ public sealed partial class MainViewModel : ViewModelBase
         if (coordinator is not null && chatStore is not null && request.Kind == ContentKind.Conversation)
         {
             var chat = new ChatViewModel(request.TargetId!.Value, chatStore, coordinator, () => HasPersistenceFailure || closing || IsBusy, MarkPersistenceFailure);
-            await chat.InitializeAsync(); if (unsavedDrafts.TryGetValue(chat.ConversationId, out var draft)) chat.RestoreDraft(draft); page = chat;
+            if (BranchStore is { } branches)
+                chat.ConfigureBranches(branches, () => !detached && ActiveContent == chat, () => IsInteractionEnabled, CreateBranchAsync, ReturnToSourceAsync,
+                    id => NavigateAsync(new(MainArea.Explore, ContentKind.Conversation, id)), ReadingChanged);
+            await chat.InitializeAsync();
+            await chat.InitializeBranchesAsync(unsavedReads.GetValueOrDefault(chat.ConversationId));
+            if (request.Source is { } source) chat.RequestSourceReveal(source);
+            if (unsavedDrafts.TryGetValue(chat.ConversationId, out var draft)) chat.RestoreDraft(draft); page = chat;
         }
         else if (request.Area == MainArea.Settings && chatStore is not null && configuration is not null)
         {
@@ -244,12 +272,15 @@ public sealed partial class MainViewModel : ViewModelBase
             await settings.InitializeAsync(); page = settings;
         }
         else page = new();
-        page.SetParameter(request); return page;
+        page.SetParameter(HistoryRequest(request)); return page;
     }
     private async Task RefreshConversationsAsync()
     {
         if (chatStore is null || CurrentWorkspace is null) return;
         var workspace = CurrentWorkspace.Id; var items = await chatStore.ListConversationsAsync(workspace);
+        if (BranchStore is { } branchStore)
+            foreach (var item in items)
+                if (!branchParents.ContainsKey(item.Id)) branchParents[item.Id] = (await branchStore.LoadBranchSourceAsync(item.Id))?.ParentConversationId;
         if (CurrentWorkspace?.Id != workspace || detached) return;
         foreach (var conversation in items)
         {
@@ -258,6 +289,27 @@ public sealed partial class MainViewModel : ViewModelBase
             if (ActiveContent is ChatViewModel active && active.ConversationId == conversation.Id) active.RefreshTitle(conversation.Title);
         }
         foreach (var item in Conversations.Where(i => !items.Any(c => c.Id == i.Id)).ToArray()) Conversations.Remove(item);
+        if (BranchStore is not null)
+        {
+            var ordered = new List<ConversationItemViewModel>();
+            void Add(Guid? parent, int depth)
+            {
+                foreach (var item in items.Where(c => branchParents.GetValueOrDefault(c.Id) == parent))
+                {
+                    var model = Conversations.Single(c => c.Id == item.Id); model.Depth = depth; ordered.Add(model);
+                    if (depth < items.Count) Add(item.Id, depth + 1);
+                }
+            }
+            Add(null, 0);
+            for (var i = 0; i < ordered.Count; i++) { var from = Conversations.IndexOf(ordered[i]); if (from != i) Conversations.Move(from, i); }
+        }
+        if (ActiveContent is ChatViewModel current)
+        {
+            var path = new List<string>(); var cursor = (Guid?)current.ConversationId; var seen = new HashSet<Guid>();
+            while (cursor is { } id && seen.Add(id) && items.FirstOrDefault(c => c.Id == id) is { } conversation)
+            { path.Add(conversation.Title); cursor = branchParents.GetValueOrDefault(id); }
+            path.Reverse(); current.RefreshBranchPath(path);
+        }
         NotifyContent();
     }
     private void CoordinatorChanged() => Dispatcher.UIThread.Post(() =>
@@ -273,7 +325,7 @@ public sealed partial class MainViewModel : ViewModelBase
         OnPropertyChanged(nameof(HasPersistenceFailure)); OnPropertyChanged(nameof(CanMutate)); OnPropertyChanged(nameof(IsClosing)); OnPropertyChanged(nameof(IsInteractionEnabled));
         (ActiveContent as ChatViewModel)?.Project(); (ActiveContent as SettingsViewModel)?.RefreshAvailability();
     }
-    public void DetachObservers() { detached = true; DeactivatePage(); if (coordinator is not null) coordinator.Changed -= CoordinatorChanged; }
+    public void DetachObservers() { readDebounce?.Cancel(); detached = true; DeactivatePage(); if (coordinator is not null) coordinator.Changed -= CoordinatorChanged; }
     private static void Validate(NavigationRequest request)
     {
         if (!Enum.IsDefined(request.Area) || !Enum.IsDefined(request.Kind) || !Enum.IsDefined(request.Intent) ||

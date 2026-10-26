@@ -4,7 +4,7 @@
 python3 tests/fixtures/chat_sse_fixture.py --port 18081
 Base URL: http://127.0.0.1:18081/v1
 Synthetic key: mindweave-loopback-only
-Models: fixture-normal, fixture-slow. Titles always return a fixed test title.
+Models: fixture-normal, fixture-slow, fixture-markdown. Titles always return a fixed test title.
 Stop with Ctrl+C after native validation. Does not store bodies, keys or chat data.
 """
 import argparse
@@ -42,7 +42,7 @@ class FixtureHandler(BaseHTTPRequestHandler):
             self.json_response(404, {"error": "unknown fixture endpoint"})
             return
         self.json_response(200, {"object": "list", "data": [
-            {"id": "fixture-normal", "object": "model"}, {"id": "fixture-slow", "object": "model"}]})
+            {"id": "fixture-normal", "object": "model"}, {"id": "fixture-slow", "object": "model"}, {"id": "fixture-markdown", "object": "model"}]})
 
     def read_body(self):
         # JsonContent may stream HTTP/1.1 without Content-Length. Bound both the
@@ -95,7 +95,7 @@ class FixtureHandler(BaseHTTPRequestHandler):
         try:
             request = json.loads(self.read_body())
             model = request.get("model")
-            if model not in ("fixture-normal", "fixture-slow") or request.get("stream") is not True:
+            if model not in ("fixture-normal", "fixture-slow", "fixture-markdown") or request.get("stream") is not True:
                 raise ValueError()
             messages = request["messages"]
             title = any(m.get("role") == "system" and "conversation title" in m.get("content", "") for m in messages)
@@ -108,7 +108,13 @@ class FixtureHandler(BaseHTTPRequestHandler):
         self.end_headers()
         chunks = ["本地协议测试标题"] if title else (["【本地协议夹具，并非真实模型】\n", "正常流式正文。", "可选择、复制；所有内容仅为测试。"] if model == "fixture-normal" else
             ["【本地慢流夹具，并非真实模型】\n"] + [f"测试片段 {i}。" for i in range(1, self.server.slow_chunks + 1)])
-        delay = 0.03 if title or model == "fixture-normal" else self.server.slow_delay
+        if model == "fixture-markdown" and not title:
+            chunks = ["【合成 Markdown 夹具，并非真实模型】\n\n",
+                      "第一段 重复词 **粗体** [链接](https://example.invalid) `代码`。\n\n",
+                      "第二段 重复词。这是另一个相同词的来源位置。\n\n"] + [
+                f"第 {i} 个测试段落：只供本地滚动、选区、分支与返回验收。阅读位置应保持在正在看的段落。\n\n"
+                for i in range(1, 31)]
+        delay = 0.03 if title or model in ("fixture-normal", "fixture-markdown") else self.server.slow_delay
         print("fixture request: " + ("title" if title else model), flush=True)
         try:
             for text in chunks:

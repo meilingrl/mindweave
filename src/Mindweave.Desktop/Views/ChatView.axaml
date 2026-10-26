@@ -1,11 +1,16 @@
 <UserControl xmlns="https://github.com/avaloniaui" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
  xmlns:markdown="using:Mindweave.Desktop.Markdown" xmlns:vm="using:Mindweave.Desktop.ViewModels" x:Class="Mindweave.Desktop.Views.ChatView" x:DataType="vm:ChatViewModel">
  <Grid RowDefinitions="Auto,*,Auto" Margin="24,18">
-  <Grid ColumnDefinitions="*,Auto" Margin="0,0,0,12">
+  <StackPanel Spacing="8" Margin="0,0,0,12">
+   <TextBlock Text="{Binding BranchPath}" TextWrapping="Wrap" FontSize="12" Foreground="#59644D" />
+   <Button Content="返回来源" Command="{Binding ReturnToSourceCommand}" IsVisible="{Binding HasSource}" IsEnabled="{Binding CanNavigate}" AutomationProperties.Name="按分支关系返回来源" />
+   <TextBlock Text="{Binding SavedSourceQuote}" IsVisible="{Binding HasSource}" TextWrapping="Wrap" MaxHeight="72" Foreground="#747B6E" />
+   <Grid ColumnDefinitions="*,Auto">
    <TextBox Text="{Binding TitleText, Mode=TwoWay}" PlaceholderText="会话标题" MaxLength="160" IsEnabled="{Binding CanEdit}" AutomationProperties.Name="会话标题" />
    <Button Grid.Column="1" Content="保存标题" Command="{Binding RenameCommand}" IsEnabled="{Binding CanEdit}" Margin="8,0,0,0" />
-  </Grid>
-  <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto">
+   </Grid>
+  </StackPanel>
+  <ScrollViewer x:Name="MessagesScroll" Grid.Row="1" VerticalScrollBarVisibility="Auto">
    <ItemsControl ItemsSource="{Binding Messages}">
     <ItemsControl.ItemTemplate>
      <DataTemplate x:DataType="vm:MessageViewModel">
@@ -13,6 +18,14 @@
        <StackPanel Spacing="9">
         <TextBlock Text="{Binding RoleLabel}" FontWeight="SemiBold" Foreground="#59644D" />
         <markdown:MarkdownMessageView Body="{Binding Body}" MessageId="{Binding Id}" Revision="{Binding Revision}" FontSize="15" />
+        <Button Content="创建分支会话" Click="CreateBranchClicked" IsVisible="{Binding CanCreateBranch}" IsEnabled="{Binding $parent[UserControl].((vm:ChatViewModel)DataContext).CanBranch}" AutomationProperties.Name="从所选文字创建分支会话" />
+        <ItemsControl ItemsSource="{Binding Branches}">
+         <ItemsControl.ItemTemplate><DataTemplate x:DataType="vm:BranchBookmark">
+          <Button HorizontalAlignment="Stretch" IsEnabled="{Binding $parent[UserControl].((vm:ChatViewModel)DataContext).CanNavigate}" Command="{Binding $parent[UserControl].((vm:ChatViewModel)DataContext).OpenBranchCommand}" CommandParameter="{Binding}">
+           <StackPanel><TextBlock Text="{Binding Title}" /><TextBlock Text="{Binding Quote}" TextWrapping="Wrap" MaxHeight="48" FontSize="11" /></StackPanel>
+          </Button>
+         </DataTemplate></ItemsControl.ItemTemplate>
+        </ItemsControl>
         <TextBlock Text="{Binding StatusLabel}" TextWrapping="Wrap" FontSize="11" Foreground="#858B7D" />
        </StackPanel>
       </Border>

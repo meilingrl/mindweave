@@ -325,6 +325,19 @@ public sealed class MarkdownSelectionTests
         return (window, scroll, first, lower);
     }
 
+    [AvaloniaFact]
+    public void Capture_rejects_oversized_encoded_Chinese_quote_without_laying_out_giant_text()
+    {
+        // Capture needs source spans and display text, not glyph layout. Keep the real
+        // renderer detached and unmeasured so this bound test never lays out 180k glyphs.
+        var body = new string('中', 180_000);
+        var renderer = new MarkdownRenderer { DocumentUpdate = new MarkdownDocumentUpdate.Full(Markdig.Markdown.Parse(body, MarkdownUpdateProducer.DefaultPipeline)) };
+        var block = Assert.Single(MarkdownSelectionAdapter.Blocks(renderer));
+        block.SelectionStart = 0; block.SelectionEnd = body.Length;
+        var error = Assert.Throws<InvalidDataException>(() => MarkdownSelectionAdapter.Capture(MessageId, 1, body, renderer));
+        Assert.Contains("过大", error.Message); Assert.Equal(body.Length, block.SelectionEnd);
+    }
+
     private static SourceSelection Mutate(SourceSelection selection, Action<JsonNode> mutate)
     {
         var node = JsonNode.Parse(selection.Anchor.Payload)!; mutate(node);

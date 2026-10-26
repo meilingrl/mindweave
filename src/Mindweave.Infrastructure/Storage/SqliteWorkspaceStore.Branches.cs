@@ -12,7 +12,6 @@ namespace Mindweave.Infrastructure.Storage;
 public sealed partial class SqliteWorkspaceStore : IBranchStore
 {
     private const string SupportedRendererProfile = "livemarkdown/2.5.1;mindweave/1";
-    private const int MaximumAnchorBytes = 1_048_576;
 
     public Task<Conversation> CreateBranchAsync(Guid parentConversationId, SourceSelection selection, Guid operationId, ConversationReadState? parentReadState = null)
     {
@@ -144,7 +143,7 @@ public sealed partial class SqliteWorkspaceStore : IBranchStore
             selection.SourceBodyHash.Any(character => !char.IsAsciiDigit(character) && character is not (>= 'A' and <= 'F')) ||
             string.IsNullOrWhiteSpace(selection.Quote) || selection.Anchor is null || selection.Anchor.FormatVersion != 1 ||
             selection.Anchor.RendererProfile != SupportedRendererProfile || string.IsNullOrWhiteSpace(selection.Anchor.Payload) ||
-            Encoding.UTF8.GetByteCount(selection.Anchor.Payload) > MaximumAnchorBytes)
+            Encoding.UTF8.GetByteCount(selection.Anchor.Payload) > SourceAnchorProtocol.MaximumPayloadBytes)
             throw new ArgumentException("来源选区信封无效。", nameof(selection));
         try
         {

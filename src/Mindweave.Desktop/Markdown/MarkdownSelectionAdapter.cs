@@ -21,7 +21,6 @@ public static class MarkdownSelectionAdapter
     public const string RendererProfile = "livemarkdown/2.5.1;mindweave/1";
     public const int FormatVersion = 1;
     private const string Highlight = "saved-source";
-    private const int MaxPayloadLength = 4 * 1024 * 1024;
     private const int MaxFragments = 4096;
     private static readonly JsonSerializerOptions JsonOptions = new() { UnmappedMemberHandling = JsonUnmappedMemberHandling.Disallow, MaxDepth = 16, RespectRequiredConstructorParameters = true };
     private sealed record Envelope(int SourceLength, string SourceHash, IReadOnlyList<Segment> Segments);
@@ -51,7 +50,7 @@ public static class MarkdownSelectionAdapter
         if (segments.Count > MaxFragments) throw new InvalidDataException("来源选区过大。");
         ValidateSupported(markdown, segments);
         var payload = JsonSerializer.Serialize(new Envelope(markdown.Length, Hash(markdown), segments), JsonOptions);
-        if (payload.Length > MaxPayloadLength) throw new InvalidDataException("来源选区过大。");
+        if (Encoding.UTF8.GetByteCount(payload) > SourceAnchorProtocol.MaximumPayloadBytes) throw new InvalidDataException("来源选区过大。");
         var selection = new SourceSelection(messageId, revision, Hash(markdown), Quote(segments), new(FormatVersion, RendererProfile, payload));
         // Run the same complete validation on capture, including block order and contiguous selection.
         Resolve(selection, markdown, renderer);
@@ -78,7 +77,7 @@ public static class MarkdownSelectionAdapter
     {
         if (selection is null || selection.MessageId == Guid.Empty || selection.MessageRevision < 0 || selection.Anchor is not { } anchor ||
             anchor.FormatVersion != FormatVersion || anchor.RendererProfile != RendererProfile ||
-            string.IsNullOrEmpty(anchor.Payload) || anchor.Payload.Length > MaxPayloadLength)
+            string.IsNullOrEmpty(anchor.Payload) || Encoding.UTF8.GetByteCount(anchor.Payload) > SourceAnchorProtocol.MaximumPayloadBytes)
             throw new InvalidDataException("来源格式或渲染配置不匹配。");
         Envelope envelope;
         try

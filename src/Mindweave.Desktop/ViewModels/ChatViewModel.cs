@@ -136,9 +136,9 @@ public sealed partial class ChatViewModel : ContentViewModel
     {
         foreach (var snapshot in coordinator.Snapshots.Where(s => s.ConversationId == ConversationId && s.AnswerMessageId is not null))
             Messages.FirstOrDefault(m => m.Id == snapshot.AnswerMessageId)?.Project(snapshot);
-        OnPropertyChanged(nameof(HasActiveReply)); OnPropertyChanged(nameof(CanSend)); OnPropertyChanged(nameof(CanRetry)); OnPropertyChanged(nameof(CanEdit));
+        OnPropertyChanged(nameof(HasActiveReply)); OnPropertyChanged(nameof(CanSend)); OnPropertyChanged(nameof(CanRetry)); OnPropertyChanged(nameof(CanEdit)); OnPropertyChanged(nameof(CanBranch)); OnPropertyChanged(nameof(CanNavigate));
     }
-    partial void OnIsAcceptingChanged(bool value) { OnPropertyChanged(nameof(CanEdit)); OnPropertyChanged(nameof(CanSend)); }
+    partial void OnIsAcceptingChanged(bool value) { OnPropertyChanged(nameof(CanEdit)); OnPropertyChanged(nameof(CanSend)); OnPropertyChanged(nameof(CanBranch)); OnPropertyChanged(nameof(CanNavigate)); }
     public ConversationDraft CurrentDraft => new(InputText, draftRevision);
     public void RestoreDraft(ConversationDraft draft)
     {

@@ -32,7 +32,7 @@ class FixtureTests(unittest.TestCase):
 
     def test_discovery_is_authenticated_and_synthetic_only(self):
         with self.request("/models") as response:
-            self.assertEqual(["fixture-normal", "fixture-slow"], [m["id"] for m in json.load(response)["data"]])
+            self.assertEqual(["fixture-normal", "fixture-slow", "fixture-markdown"], [m["id"] for m in json.load(response)["data"]])
         with self.assertRaises(urllib.error.HTTPError) as error:
             self.request("/models", key="invalid")
         self.assertEqual(401, error.exception.code)
@@ -60,6 +60,20 @@ class FixtureTests(unittest.TestCase):
             self.assertIn(expected, text)
             self.assertIn('"finish_reason": "stop"', text)
             self.assertTrue(text.endswith("data: [DONE]\n\n"))
+
+    def test_markdown_fixture_has_explicit_label_formats_duplicates_and_scroll_extent(self):
+        with self.request("/chat/completions", {"model": "fixture-markdown", "stream": True,
+                "messages": [{"role": "user", "content": "synthetic"}]}, chunked=True) as response:
+            raw = response.read().decode()
+        events = [json.loads(line[6:]) for line in raw.splitlines() if line.startswith("data: {")]
+        body = "".join(event["choices"][0]["delta"].get("content", "") for event in events)
+        self.assertIn("合成 Markdown 夹具，并非真实模型", body)
+        self.assertIn("**粗体**", body)
+        self.assertIn("[链接](https://example.invalid)", body)
+        self.assertIn("`代码`", body)
+        self.assertGreaterEqual(body.count("重复词"), 2)
+        self.assertGreaterEqual(body.count("\n\n"), 20)
+        self.assertTrue(raw.endswith("data: [DONE]\n\n"))
 
     def test_oversized_chunk_is_rejected_before_payload_read(self):
         address = urllib.parse.urlparse(self.endpoint)

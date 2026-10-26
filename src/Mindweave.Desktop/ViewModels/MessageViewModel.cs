@@ -5,6 +5,7 @@ namespace Mindweave.Desktop.ViewModels;
 
 public sealed partial class MessageViewModel(ChatMessage message) : ViewModelBase
 {
+    public System.Collections.ObjectModel.ObservableCollection<BranchBookmark> Branches { get; } = [];
     public MessageRole Role => message.Role;
     [ObservableProperty] private long revision = message.Revision;
     [ObservableProperty] private bool hasUnsavedChanges;
