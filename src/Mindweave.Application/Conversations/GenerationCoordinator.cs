@@ -4,6 +4,7 @@ using Mindweave.Application.Ai;
 using Mindweave.Application.Credentials;
 using Mindweave.Application.Diagnostics;
 using Mindweave.Application.Storage;
+using Mindweave.Core.Context;
 using Mindweave.Core.Conversations;
 
 namespace Mindweave.Application.Conversations;
@@ -29,7 +30,11 @@ public enum GenerationPriority
 /// <summary>Work accepted for generation; the request (model snapshot and turns) is already frozen.</summary>
 public abstract record GenerationWork(GenerationTaskRecord Task, ChatRequest Request, GenerationPriority Priority);
 
-public sealed record AnswerWork(GenerationTaskRecord Task, ChatRequest Request, LiveAnswer Live)
+/// <param name="Plan">
+/// When the plan summarizes older context, the summaries are produced in this task's slot before the answer
+/// request, and <paramref name="Request"/>'s turns are replaced by the prepared ones.
+/// </param>
+public sealed record AnswerWork(GenerationTaskRecord Task, ChatRequest Request, LiveAnswer Live, ContextPlan? Plan = null, ContextBudget? Budget = null)
     : GenerationWork(Task, Request, GenerationPriority.User);
 
 public sealed record TitleWork(GenerationTaskRecord Task, ChatRequest Request)
@@ -52,6 +57,7 @@ public sealed partial class GenerationCoordinator : IAsyncDisposable
     private readonly IClock _clock;
     private readonly GenerationOptions _options;
     private readonly ILogger<GenerationCoordinator> _logger;
+    private readonly ContextCompressor? _compressor;
 
     private readonly Lock _gate = new();
     private readonly LinkedList<GenerationWork> _userQueue = new();
@@ -71,7 +77,8 @@ public sealed partial class GenerationCoordinator : IAsyncDisposable
         IAiRequestStore requests,
         IClock clock,
         GenerationOptions options,
-        ILogger<GenerationCoordinator> logger)
+        ILogger<GenerationCoordinator> logger,
+        ContextCompressor? compressor = null)
     {
         _store = store;
         _client = client;
@@ -80,6 +87,7 @@ public sealed partial class GenerationCoordinator : IAsyncDisposable
         _clock = clock;
         _options = options;
         _logger = logger;
+        _compressor = compressor;
     }
 
     /// <summary>Any queue, task or storage-health change. Raised on worker threads.</summary>
@@ -343,6 +351,29 @@ public sealed partial class GenerationCoordinator : IAsyncDisposable
             return;
         }
 
+        var request = work.Request;
+        if (work.Plan is { IsCompressed: true } plan)
+        {
+            // Summaries are a prerequisite run in this slot, so the answer never waits for a slot of its own making.
+            try
+            {
+                var compressor = _compressor ?? throw new ContextCompressionException("No context compressor is configured.");
+                var prepared = await compressor.PrepareAsync(task, plan, work.Budget ?? ContextBudget.For(task.Model), key.Secret!, RecordAsync, stop).ConfigureAwait(false);
+                request = request with { Turns = prepared.Turns };
+                await compressor.RecordTaskInputAsync(task.Id, prepared.SummaryIds).ConfigureAwait(false);
+            }
+            catch (OperationCanceledException) when (stop.IsCancellationRequested)
+            {
+                await FinishAnswerAsync(work, MessageState.Stopped, null, null).ConfigureAwait(false);
+                return;
+            }
+            catch (ContextCompressionException ex)
+            {
+                await FinishAnswerAsync(work, MessageState.Failed, GenerationErrorKind.CompressionFailed, ex.Message).ConfigureAwait(false);
+                return;
+            }
+        }
+
         using var checkpointStop = new CancellationTokenSource();
         var checkpoints = CheckpointLoopAsync(live, checkpointStop.Token);
 
@@ -353,7 +384,7 @@ public sealed partial class GenerationCoordinator : IAsyncDisposable
         try
         {
             var completed = false;
-            await foreach (var item in _client.StreamAsync(work.Request, key.Secret!, stop).ConfigureAwait(false))
+            await foreach (var item in _client.StreamAsync(request, key.Secret!, stop).ConfigureAwait(false))
             {
                 trace.Observe(item);
                 switch (item)

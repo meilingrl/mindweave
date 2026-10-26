@@ -80,6 +80,10 @@ public sealed partial class MessageItemViewModel : ViewModelBase, IDisposable
     /// <summary>Bound to the coordinator's live answer rather than to stored text.</summary>
     internal bool IsLive => _live is not null;
 
+    /// <summary>The request for this answer sent older context as a summary; the original messages are untouched.</summary>
+    [ObservableProperty]
+    public partial bool WasCompressed { get; set; }
+
     /// <summary>Branches made from this answer, oldest first.</summary>
     public ObservableCollection<BranchEntry> Branches { get; } = [];
 

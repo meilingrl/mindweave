@@ -46,6 +46,7 @@ public static class CompositionRoot
         services.AddSingleton<StartupCoordinator>();
         services.AddSingleton<WorkspaceService>();
         services.TryAddSingleton(new GenerationOptions());
+        services.AddSingleton<ContextCompressor>();
         services.AddSingleton<GenerationCoordinator>();
         services.AddSingleton<ModelSettingsService>();
         services.AddSingleton<ConversationService>();

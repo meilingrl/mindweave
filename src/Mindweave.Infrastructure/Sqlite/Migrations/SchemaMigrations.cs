@@ -220,5 +220,30 @@ internal static class SchemaMigrations
                 PRIMARY KEY (conversation_id, slot_key)
             ) STRICT, WITHOUT ROWID;
             """),
+
+        Migration.Sql(5, "context summaries, task summary inputs, reported token usage", """
+            -- Background notes standing in for older context (architecture §6.2). Owned by the conversation whose
+            -- messages they cover (MW-C02), so siblings share them; reused only on an exact key match.
+            CREATE TABLE context_summary (
+                id              TEXT    NOT NULL PRIMARY KEY,
+                conversation_id TEXT    NOT NULL REFERENCES conversation (id) ON DELETE CASCADE,
+                from_seq        INTEGER NOT NULL CHECK (from_seq >= 0),
+                to_seq          INTEGER NOT NULL,
+                input_hash      TEXT    NOT NULL,
+                prompt_version  INTEGER NOT NULL,
+                model           TEXT    NOT NULL,
+                text            TEXT    NOT NULL CHECK (length(text) > 0),
+                created_at      INTEGER NOT NULL,
+                UNIQUE (conversation_id, from_seq, to_seq, input_hash, prompt_version),
+                CHECK (to_seq >= from_seq)
+            ) STRICT;
+
+            -- What a task actually sent besides raw messages (MW-C16).
+            ALTER TABLE generation_task ADD COLUMN input_summary_ids TEXT NOT NULL DEFAULT '[]';
+
+            -- Token counts as reported by the service, when it reports them; checks the local estimate.
+            ALTER TABLE ai_request ADD COLUMN prompt_tokens INTEGER;
+            ALTER TABLE ai_request ADD COLUMN completion_tokens INTEGER;
+            """),
     ];
 }

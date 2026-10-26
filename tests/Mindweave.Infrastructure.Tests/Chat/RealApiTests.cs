@@ -1,4 +1,6 @@
 using Mindweave.Application.Models;
+using Mindweave.Application.Ai;
+using Mindweave.Core.Context;
 using Mindweave.Core.Conversations;
 using Mindweave.Infrastructure.Ai;
 
@@ -7,7 +9,7 @@ namespace Mindweave.Infrastructure.Tests.Chat;
 /// <summary>
 /// Handoff S1 acceptance against a real service: long streamed answer, stop mid-stream, multi-turn context,
 /// automatic title. Opt-in through scripts/real-api.sh, which supplies the key via the environment only.
-/// A full run makes about ten short requests.
+/// A full run makes about 25 short requests.
 /// </summary>
 [Trait("Category", "RealApi")]
 public class RealApiTests
@@ -95,12 +97,109 @@ public class RealApiTests
         Assert.NotEmpty(models);
     }
 
-    private static async Task<ChatHarness> StartAsync()
+    [Fact]
+    public async Task A_compressed_long_conversation_keeps_corrections_and_references()
+    {
+        // A small declared capacity (budget 7,500 − 4,096 − 1,000 = 2,404) forces compression after a few turns.
+        var recorder = new RecordingClient();
+        await using var h = await StartAsync(contextWindow: 7_500, recorder);
+        var (conversation, _) = await AskAsync(h, null, "我在研究早期蒸汽机车。请记住：之后我说“那台车”，都指斯蒂芬森父子造的“火箭号”。只回答“好的”。");
+        await AskAsync(h, conversation, "我研究的年份是 1825 年的斯托克顿—达灵顿铁路。只回答“好的”。");
+        await AskAsync(h, conversation, "我刚才说错了，我研究的不是 1825 年，而是 1829 年的雨山试验。只回答“已更正”。");
+        foreach (var topic in new[] { "英国早期铁路的轨距之争", "蒸汽机车锅炉的改进", "早期铁路对煤炭运输的影响", "铁路时刻表与标准时间的出现", "早期铁路的信号系统", "铁路对城市发展的影响" })
+        {
+            await AskAsync(h, conversation, $"请用大约 400 字介绍{topic}。");
+        }
+
+        var (_, final) = await AskAsync(h, conversation, "那台车是谁造的？我研究的是哪一年的什么试验？请用一句话回答。");
+
+        Assert.Contains(final.Id, await h.Summaries.CompressedAnswersAsync(conversation, Ct));
+        Assert.Contains("斯蒂芬森", final.Text, StringComparison.Ordinal);
+        Assert.Contains("1829", final.Text, StringComparison.Ordinal);
+        Assert.Contains("雨山", final.Text, StringComparison.Ordinal);
+        var summaries = await h.Summaries.ListAsync([conversation], Ct);
+        TestContext.Current.SendDiagnosticMessage($"final: {final.Text}");
+        foreach (var summary in summaries)
+        {
+            TestContext.Current.SendDiagnosticMessage($"summary {summary.Key.FromSeq}-{summary.Key.ToSeq}: {summary.Text}");
+        }
+
+        // The estimate must not undercount what the service bills as prompt tokens.
+        var traces = await h.Database.ReadAsync(
+            c =>
+            {
+                // Titles run in parallel; answers and their summaries in one conversation run strictly one after another.
+                using var command = Sqlite.SqliteCommands.Command(c, null, """
+                    SELECT r.prompt_tokens FROM ai_request r JOIN generation_task t ON t.id = r.task_id
+                    WHERE t.kind = 'answer' ORDER BY r.started_at, r.rowid;
+                    """);
+                using var reader = command.ExecuteReader();
+                var list = new List<int?>();
+                while (reader.Read())
+                {
+                    list.Add(reader.IsDBNull(0) ? null : reader.GetInt32(0));
+                }
+
+                return list;
+            },
+            Ct);
+        var sent = recorder.Requests.Where(r => !(r.Turns[0] is { Role: ChatRole.System } first && first.Content.Contains("标题", StringComparison.Ordinal))).ToList();
+        Assert.Equal(sent.Count, traces.Count);
+        var pairs = sent.Zip(traces).Where(p => p.Second is not null).ToList();
+        Assert.NotEmpty(pairs);
+        var compared = pairs.Select(p => (Estimate: TokenEstimator.PerRequest + p.First.Turns.Sum(t => TokenEstimator.Message(t.Content)), Reported: p.Second!.Value)).ToList();
+        foreach (var (estimate, reported) in compared)
+        {
+            TestContext.Current.SendDiagnosticMessage($"estimate {estimate} / reported {reported}");
+        }
+
+        var table = string.Join("; ", compared.Select(c => $"{c.Estimate}/{c.Reported}"));
+        Assert.True(compared.All(c => c.Estimate >= c.Reported), $"Estimate below reported prompt tokens (estimate/reported): {table}");
+    }
+
+    private static async Task<(ConversationId Conversation, Message Answer)> AskAsync(ChatHarness h, ConversationId? conversation, string question)
+    {
+        var sent = conversation is { } id
+            ? await h.Conversations.AskAsync(id, question, Ct)
+            : await h.Conversations.StartAsync(h.Workspace, question, Ct);
+        Assert.True(sent.Accepted, sent.Rejection?.ToString());
+        var answer = await h.WaitForAnswerAsync(sent.Answer!.Value, timeoutMs: 180_000);
+        Assert.True(answer.State == MessageState.Complete, $"{answer.State}: {answer.ErrorKind} {answer.ErrorDetail}");
+        return (sent.Conversation, answer);
+    }
+
+    private static async Task<ChatHarness> StartAsync(int? contextWindow = null, RecordingClient? recorder = null)
     {
         Assert.SkipWhen(Key is null || Url is null || Model is null, "Run through scripts/real-api.sh test.");
         var http = new HttpClient(ChatCompletionsClient.CreateHandler()) { Timeout = Timeout.InfiniteTimeSpan };
-        return await ChatHarness.StartAsync(
-            client: new ChatCompletionsClient(http, new ChatClientOptions()),
-            model: new ModelSettingsInput("real", Url!, Model!, Key!));
+        IChatClient client = new ChatCompletionsClient(http, new ChatClientOptions());
+        if (recorder is not null)
+        {
+            recorder.Inner = client;
+            client = recorder;
+        }
+
+        return await ChatHarness.StartAsync(client: client, model: new ModelSettingsInput("real", Url!, Model!, Key!, contextWindow));
+    }
+
+    /// <summary>Passes requests through and keeps them in order, to compare the estimate with reported usage.</summary>
+    private sealed class RecordingClient : IChatClient
+    {
+        public IChatClient Inner { get; set; } = null!;
+
+        public List<ChatRequest> Requests { get; } = [];
+
+        public IAsyncEnumerable<ChatStreamEvent> StreamAsync(ChatRequest request, string apiKey, CancellationToken cancellationToken)
+        {
+            lock (Requests)
+            {
+                Requests.Add(request);
+            }
+
+            return Inner.StreamAsync(request, apiKey, cancellationToken);
+        }
+
+        public Task<IReadOnlyList<string>> ListModelsAsync(string baseUrl, string apiKey, CancellationToken cancellationToken) =>
+            Inner.ListModelsAsync(baseUrl, apiKey, cancellationToken);
     }
 }

@@ -41,6 +41,22 @@ public class ChatCompletionsClientTests
     }
 
     [Fact]
+    public async Task Reported_usage_is_passed_on_and_never_requested()
+    {
+        var sse = "data: {\"choices\":[{\"delta\":{\"content\":\"a\"},\"finish_reason\":\"stop\"}]}\n\n"
+            + "data: {\"choices\":[],\"usage\":{\"prompt_tokens\":120,\"completion_tokens\":7,\"total_tokens\":127}}\n\n"
+            + "data: [DONE]\n\n";
+        var handler = new StubHandler(_ => Sse(sse));
+
+        var events = await Collect(new ChatCompletionsClient(new HttpClient(handler), new ChatClientOptions()));
+
+        Assert.Equal(new ChatStreamEvent.Usage(120, 7), Assert.Single(events.OfType<ChatStreamEvent.Usage>()));
+        Assert.Null(JsonNode.Parse(handler.Requests.Single().Body)!["stream_options"]);
+        var plain = await Collect(Client(_ => Sse("data: {\"choices\":[{\"delta\":{\"content\":\"a\"},\"finish_reason\":\"stop\"}]}\n\n")));
+        Assert.Empty(plain.OfType<ChatStreamEvent.Usage>());
+    }
+
+    [Fact]
     public async Task Done_without_finish_reason_still_completes_and_length_marks_truncation()
     {
         var plain = await Collect(Client(_ => Sse("data: {\"choices\":[{\"delta\":{\"content\":\"a\"}}]}\n\ndata: [DONE]\n\n")));

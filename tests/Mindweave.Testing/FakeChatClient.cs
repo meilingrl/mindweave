@@ -18,7 +18,22 @@ public sealed class FakeChatClient : IChatClient
 
     public ConcurrentQueue<ChatRequest> Requests { get; } = new();
 
-    public int StartedAnswers => Requests.Count(r => r.Turns[0].Role != ChatRole.System);
+    public int StartedAnswers => Requests.Count(IsAnswer);
+
+    /// <summary>Fails the next summary requests with this kind, as a failing service would.</summary>
+    public GenerationErrorKind? FailSummaries { get; set; }
+
+    /// <summary>Summary requests wait for this before answering, when set.</summary>
+    public TaskCompletionSource? SummaryGate { get; set; }
+
+    public static bool IsTitle(ChatRequest request) => request.Turns[0] is { Role: ChatRole.System } first && first.Content.Contains("标题", StringComparison.Ordinal);
+
+    public static bool IsSummary(ChatRequest request) => request.Turns[0] is { Role: ChatRole.System } first && first.Content.Contains("背景摘要", StringComparison.Ordinal);
+
+    public static bool IsAnswer(ChatRequest request) => !IsTitle(request) && !IsSummary(request);
+
+    /// <summary>The summary the fake writes for a request: derived from its input, so tests can see what was covered.</summary>
+    public static string SummaryOf(ChatRequest request) => "摘要：" + request.Turns[^1].Content.Length + " 字";
 
     public HeldReply Hold(params string[] before)
     {
@@ -44,7 +59,24 @@ public sealed class FakeChatClient : IChatClient
     {
         Requests.Enqueue(request);
         await Task.Yield();
-        if (request.Turns[0].Role == ChatRole.System)
+        if (IsSummary(request))
+        {
+            if (SummaryGate is { } summaryGate)
+            {
+                await summaryGate.Task.WaitAsync(cancellationToken);
+            }
+
+            if (FailSummaries is { } failure)
+            {
+                throw new ChatClientException(failure, "simulated summary failure");
+            }
+
+            yield return new ChatStreamEvent.TextDelta(SummaryOf(request));
+            yield return new ChatStreamEvent.Completed(false);
+            yield break;
+        }
+
+        if (IsTitle(request))
         {
             if (_titleGate is { } gate)
             {

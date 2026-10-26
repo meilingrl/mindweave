@@ -95,6 +95,11 @@ public sealed class ChatCompletionsClient(HttpClient http, ChatClientOptions opt
                 completed = true;
                 yield return new ChatStreamEvent.Completed(Truncated: reason == "length");
             }
+
+            if (chunk.Usage is { } usage)
+            {
+                yield return usage;
+            }
         }
     }
 
@@ -219,7 +224,7 @@ public sealed class ChatCompletionsClient(HttpClient http, ChatClientOptions opt
         }
     }
 
-    private static (string? Text, string? FinishReason) Parse(string data)
+    private static (string? Text, string? FinishReason, ChatStreamEvent.Usage? Usage) Parse(string data)
     {
         JsonNode? node;
         try
@@ -239,7 +244,14 @@ public sealed class ChatCompletionsClient(HttpClient http, ChatClientOptions opt
         var choice = node?["choices"]?.AsArray().FirstOrDefault();
         var text = choice?["delta"]?["content"] is JsonValue content && content.TryGetValue<string>(out var s) ? s : null;
         var finish = choice?["finish_reason"] is JsonValue reason && reason.TryGetValue<string>(out var r) ? r : null;
-        return (text, finish);
+
+        // Services that report usage put it on the last chunk (or a final chunk without choices); it is never requested.
+        ChatStreamEvent.Usage? usage = node?["usage"] is JsonObject counts
+            ? new ChatStreamEvent.Usage(Count(counts["prompt_tokens"]), Count(counts["completion_tokens"]))
+            : null;
+        return (text, finish, usage);
+
+        static int? Count(JsonNode? value) => value is JsonValue number && number.TryGetValue<int>(out var n) && n >= 0 ? n : null;
     }
 
     private static async Task ThrowIfFailedAsync(HttpResponseMessage response, CancellationToken cancellationToken)

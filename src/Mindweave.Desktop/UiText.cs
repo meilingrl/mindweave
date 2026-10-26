@@ -64,6 +64,10 @@ public static class UiText
     public const string BaseUrlLabel = "服务地址";
     public const string BaseUrlHint = "OpenAI 兼容 Chat Completions 地址，通常以 /v1 结尾，例如 https://api.deepseek.com";
     public const string ApiKeyLabel = "API 密钥";
+    public const string ContextWindowLabel = "上下文容量";
+    public const string ContextWindowPlaceholder = "留空按 32000 计";
+    public const string ContextWindowHint = "模型一次能读入的 token 数，例如 DeepSeek 为 128000。对话超出时，较早的内容会先压缩成摘要再发送：这会多发几次请求、多等一会儿，也会产生相应费用；原始记录始终完整保留在本地。";
+    public const string ContextCompressedNote = "较早的对话已压缩为摘要发送，原记录完整保留";
     public const string ModelLabel = "模型";
     public const string FetchModels = "获取模型列表";
     public const string TestConnection = "测试连接";
@@ -125,6 +129,7 @@ public static class UiText
         GenerationErrorKind.CredentialUnavailable => "系统凭据服务不可用（可能已锁定），请解锁后重试",
         GenerationErrorKind.NotConfigured => "尚未配置模型或密钥",
         GenerationErrorKind.StorageUnavailable => "无法保存到本地数据",
+        GenerationErrorKind.CompressionFailed => "压缩较早的对话失败，提问已保留",
         _ => "未知错误",
     };
 
@@ -147,6 +152,8 @@ public static class UiText
         SendRejection.AnswerInProgress => "当前回答尚未结束，请等待或先停止。",
         SendRejection.StorageUnavailable => "本地数据暂时无法保存，已暂停新的提问；已有内容仍可阅读和复制。",
         SendRejection.NotRetryable => "只能重试会话中最后一条回答。",
+        SendRejection.QuestionTooLargeForModel => "问题连同必需的来源内容已超出模型的上下文容量。请缩短问题或缩小分支选区，或在设置中换用容量更大的模型并填写上下文容量。",
+        SendRejection.HistoryTooLongForModel => "这段对话即使压缩较早内容也放不进模型的上下文容量。可以从需要的回答处创建分支继续，或在设置中换用容量更大的模型。",
         _ => "无法发送。",
     };
 
@@ -159,6 +166,7 @@ public static class UiText
         ModelSettingsProblem.InsecureUrl => "只允许 https 地址（本机地址除外），以免密钥以明文传输。",
         ModelSettingsProblem.MissingModel => "请填写模型名称。",
         ModelSettingsProblem.MissingKey => "请填写 API 密钥。",
+        ModelSettingsProblem.InvalidContextWindow => $"上下文容量应在 {ModelSettingsInput.MinContextWindow:N0} 到 {ModelSettingsInput.MaxContextWindow:N0} token 之间，不清楚可留空。",
         _ => "设置无效。",
     };
 

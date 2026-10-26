@@ -33,6 +33,9 @@ public enum GenerationErrorKind
     CredentialUnavailable,
     NotConfigured,
     StorageUnavailable,
+
+    /// <summary>Older context had to be summarized to fit and summarizing failed; the question is kept for retry.</summary>
+    CompressionFailed,
 }
 
 public sealed record Message(

@@ -275,6 +275,7 @@ public sealed partial class ConversationViewModel : PageViewModel, IDisposable
             }
 
             item.IsSuperseded = superseded.Contains(message.Id);
+            item.WasCompressed = content.CompressedAnswers?.Contains(message.Id) == true;
             item.CanRetry = last?.Id == message.Id && message.IsFinished;
             var entries = branches.Where(b => b.SourceMessage == message.Id).Select(b => new BranchEntry(b.Child, b.Quote)).ToList();
             if (!entries.SequenceEqual(item.Branches))

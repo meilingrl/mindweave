@@ -104,6 +104,7 @@ internal static class SqlNames
         GenerationErrorKind.CredentialUnavailable => "credential_unavailable",
         GenerationErrorKind.NotConfigured => "not_configured",
         GenerationErrorKind.StorageUnavailable => "storage_unavailable",
+        GenerationErrorKind.CompressionFailed => "compression_failed",
         _ => throw new ArgumentOutOfRangeException(nameof(kind)),
     };
 
@@ -119,6 +120,7 @@ internal static class SqlNames
         "credential_unavailable" => GenerationErrorKind.CredentialUnavailable,
         "not_configured" => GenerationErrorKind.NotConfigured,
         "storage_unavailable" => GenerationErrorKind.StorageUnavailable,
+        "compression_failed" => GenerationErrorKind.CompressionFailed,
         _ => GenerationErrorKind.InvalidResponse,
     };
 

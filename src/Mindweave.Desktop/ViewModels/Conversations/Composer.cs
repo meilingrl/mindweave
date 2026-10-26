@@ -26,7 +26,8 @@ public sealed partial class Composer : ViewModelBase
 
     public string? Notice => Rejection is { } r ? UiText.SendRejected(r) : null;
 
-    public bool ShowSettingsLink => Rejection == SendRejection.NotConfigured;
+    /// <summary>Refusals the reader can fix in settings: no model yet, or a model whose context is too small.</summary>
+    public bool ShowSettingsLink => Rejection is SendRejection.NotConfigured or SendRejection.QuestionTooLargeForModel or SendRejection.HistoryTooLongForModel;
 
     [RelayCommand(CanExecute = nameof(CanSend))]
     private async Task SendAsync()

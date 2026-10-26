@@ -28,6 +28,9 @@ public abstract record ChatStreamEvent
 
     /// <summary>The provider declared the answer finished. <paramref name="Truncated"/> when it stopped at the length limit.</summary>
     public sealed record Completed(bool Truncated) : ChatStreamEvent;
+
+    /// <summary>Token counts the service reported, if it did (usually with the last chunk). Diagnostic only.</summary>
+    public sealed record Usage(int? PromptTokens, int? CompletionTokens) : ChatStreamEvent;
 }
 
 public sealed class ChatClientException : Exception

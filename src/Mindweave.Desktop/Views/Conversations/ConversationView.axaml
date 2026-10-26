@@ -71,6 +71,7 @@
                 <TextBlock Classes="muted" FontSize="12" Text="{x:Static d:UiText.EarlierAttempt}" IsVisible="{Binding IsSuperseded}" />
                 <v:AnswerView IsVisible="{Binding IsAnswer}" />
                 <ProgressBar IsIndeterminate="True" Width="80" HorizontalAlignment="Left" IsVisible="{Binding IsInProgress}" />
+                <TextBlock Classes="muted" FontSize="12" Text="{x:Static d:UiText.ContextCompressedNote}" IsVisible="{Binding WasCompressed}" />
                 <DockPanel>
                   <Button DockPanel.Dock="Right" Classes="link" Content="{Binding RetryLabel}" IsVisible="{Binding CanRetry}"
                           Command="{Binding $parent[ItemsControl].((vm:ConversationViewModel)DataContext).RetryCommand}" CommandParameter="{Binding}" />

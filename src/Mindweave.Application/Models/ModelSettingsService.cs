@@ -12,9 +12,15 @@ public enum ModelSettingsProblem
     InsecureUrl,
     MissingModel,
     MissingKey,
+    InvalidContextWindow,
 }
 
-public sealed record ModelSettingsInput(string Name, string BaseUrl, string Model, string? NewApiKey);
+/// <param name="ContextWindowTokens">The model's context capacity as the user declared it; null when unknown (a default applies).</param>
+public sealed record ModelSettingsInput(string Name, string BaseUrl, string Model, string? NewApiKey, int? ContextWindowTokens = null)
+{
+    public const int MinContextWindow = 2_000;
+    public const int MaxContextWindow = 10_000_000;
+}
 
 public sealed class ModelSettingsException(ModelSettingsProblem problem) : Exception(problem.ToString())
 {
@@ -59,6 +65,11 @@ public sealed partial class ModelSettingsService(
             throw new ModelSettingsException(ModelSettingsProblem.MissingModel);
         }
 
+        if (input.ContextWindowTokens is < ModelSettingsInput.MinContextWindow or > ModelSettingsInput.MaxContextWindow)
+        {
+            throw new ModelSettingsException(ModelSettingsProblem.InvalidContextWindow);
+        }
+
         var existing = await store.GetActiveAsync(cancellationToken).ConfigureAwait(false);
         var connectionId = existing?.ConnectionId ?? Guid.CreateVersion7().ToString("D");
         var credentialRef = existing?.CredentialRef;
@@ -92,8 +103,10 @@ public sealed partial class ModelSettingsService(
                     existing?.ModelConfigId ?? Guid.CreateVersion7().ToString("D"),
                     model,
                     existing?.MaxOutputTokens,
-                    // Declared capabilities belong to a model; a different model starts from the protocol defaults.
-                    existing is not null && existing.Model == model ? existing.Capabilities : ModelCapabilities.DefaultsFor(ChatProtocol.ChatCompletions)),
+                    // Declared capabilities belong to a model; a different model starts from the protocol defaults. The
+                    // context capacity is what the form says now.
+                    (existing is not null && existing.Model == model ? existing.Capabilities : ModelCapabilities.DefaultsFor(ChatProtocol.ChatCompletions))
+                        with { ContextWindowTokens = input.ContextWindowTokens }),
                 clock.UtcNow,
                 cancellationToken)
             .ConfigureAwait(false);

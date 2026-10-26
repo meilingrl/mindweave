@@ -11,8 +11,10 @@ internal sealed class SqliteAiRequestStore(SqliteDatabase database) : IAiRequest
         return database.WriteAsync(
             (connection, transaction) => connection.Execute(transaction, """
                 INSERT INTO ai_request (id, task_id, started_at, finished_at, response_ms, first_text_ms, outcome,
-                                        http_status, provider_request_id, error_kind, error_detail, output_chars)
-                VALUES ($id, $task, $started, $finished, $response, $first, $outcome, $status, $provider, $kind, $detail, $chars);
+                                        http_status, provider_request_id, error_kind, error_detail, output_chars,
+                                        prompt_tokens, completion_tokens)
+                VALUES ($id, $task, $started, $finished, $response, $first, $outcome, $status, $provider, $kind, $detail, $chars,
+                        $prompt, $completion);
                 """,
                 ("$id", record.Id.ToString("D")),
                 ("$task", record.TaskId.ToString()),
@@ -25,7 +27,9 @@ internal sealed class SqliteAiRequestStore(SqliteDatabase database) : IAiRequest
                 ("$provider", record.ProviderRequestId),
                 ("$kind", record.ErrorKind is { } k ? SqlNames.Of(k) : null),
                 ("$detail", record.ErrorDetail is { Length: > 1000 } d ? d[..1000] : record.ErrorDetail),
-                ("$chars", record.OutputCharacters)),
+                ("$chars", record.OutputCharacters),
+                ("$prompt", record.PromptTokens),
+                ("$completion", record.CompletionTokens)),
             cancellationToken);
     }
 
@@ -35,7 +39,7 @@ internal sealed class SqliteAiRequestStore(SqliteDatabase database) : IAiRequest
             {
                 using var command = connection.Command(null, """
                     SELECT id, task_id, started_at, finished_at, response_ms, first_text_ms, outcome,
-                           http_status, provider_request_id, error_kind, error_detail, output_chars
+                           http_status, provider_request_id, error_kind, error_detail, output_chars, prompt_tokens, completion_tokens
                     FROM ai_request WHERE task_id = $task ORDER BY started_at, rowid;
                     """, ("$task", task.ToString()));
                 using var reader = command.ExecuteReader();
@@ -55,7 +59,9 @@ internal sealed class SqliteAiRequestStore(SqliteDatabase database) : IAiRequest
                         reader.NullableString(8),
                         kind is null ? null : SqlNames.ParseErrorKind(kind),
                         reader.NullableString(10),
-                        reader.GetInt32(11)));
+                        reader.GetInt32(11),
+                        reader.NullableInt64(12) is { } prompt ? (int)prompt : null,
+                        reader.NullableInt64(13) is { } completion ? (int)completion : null));
                 }
 
                 return list;

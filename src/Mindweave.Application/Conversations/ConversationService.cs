@@ -4,6 +4,7 @@ using Mindweave.Application.Ai;
 using Mindweave.Application.Models;
 using Mindweave.Application.Storage;
 using Mindweave.Core.Branches;
+using Mindweave.Core.Context;
 using Mindweave.Core.Conversations;
 using Mindweave.Core.Models;
 using Mindweave.Core.Workspaces;
@@ -18,6 +19,12 @@ public enum SendRejection
     AnswerInProgress,
     StorageUnavailable,
     NotRetryable,
+
+    /// <summary>The question with its required source alone exceeds the model's context budget.</summary>
+    QuestionTooLargeForModel,
+
+    /// <summary>Even with older context summarized, the conversation does not fit the model's context budget.</summary>
+    HistoryTooLongForModel,
 }
 
 public sealed record SendOutcome(SendRejection? Rejection, ConversationId Conversation, MessageId? Answer)
@@ -27,7 +34,8 @@ public sealed record SendOutcome(SendRejection? Rejection, ConversationId Conver
     internal static SendOutcome Reject(SendRejection rejection, ConversationId conversation = default) => new(rejection, conversation, null);
 }
 
-public sealed record ConversationContent(Conversation Conversation, IReadOnlyList<Message> Messages);
+/// <param name="CompressedAnswers">Answers whose request sent older context as a summary (shown with a light note).</param>
+public sealed record ConversationContent(Conversation Conversation, IReadOnlyList<Message> Messages, IReadOnlySet<MessageId>? CompressedAnswers = null);
 
 public sealed record BranchOutcome(BranchRejection? Rejection, ConversationId Child)
 {
@@ -54,6 +62,7 @@ public sealed partial class ConversationService
 
     private readonly IConversationStore _store;
     private readonly IBranchStore _branches;
+    private readonly IContextSummaryStore? _summaries;
     private readonly GenerationCoordinator _generation;
     private readonly ModelSettingsService _models;
     private readonly IClock _clock;
@@ -66,10 +75,12 @@ public sealed partial class ConversationService
         GenerationCoordinator generation,
         ModelSettingsService models,
         IClock clock,
-        ILogger<ConversationService> logger)
+        ILogger<ConversationService> logger,
+        IContextSummaryStore? summaries = null)
     {
         _store = store;
         _branches = branches;
+        _summaries = summaries;
         _generation = generation;
         _models = models;
         _clock = clock;
@@ -93,7 +104,8 @@ public sealed partial class ConversationService
         }
 
         var messages = await _store.GetMessagesAsync(id, cancellationToken).ConfigureAwait(false);
-        return new ConversationContent(conversation, messages);
+        var compressed = _summaries is null ? null : await _summaries.CompressedAnswersAsync(id, cancellationToken).ConfigureAwait(false);
+        return new ConversationContent(conversation, messages, compressed);
     }
 
     public LiveAnswer? Observe(MessageId answer) => _generation.Observe(answer);
@@ -112,10 +124,15 @@ public sealed partial class ConversationService
         var conversation = new Conversation(id, workspace, null, TitleSource.None, now, now);
         var user = NewMessage(id, 0, MessageRole.User, question.Trim(), MessageState.Complete, null, now);
         var answer = NewMessage(id, 1, MessageRole.Assistant, string.Empty, MessageState.Pending, null, now);
-        var task = NewTask(GenerationTaskKind.Answer, id, answer.Id, model, [user.Id], now);
+        var planned = await PlanAsync(id, [user], model, cancellationToken).ConfigureAwait(false);
+        if (planned.Plan is not { } plan)
+        {
+            return SendOutcome.Reject(Rejection(planned.Rejection!.Value), id);
+        }
 
+        var task = NewTask(GenerationTaskKind.Answer, id, answer.Id, model, [user.Id], now);
         await _store.CreateAsync(conversation, user, answer, task, cancellationToken).ConfigureAwait(false);
-        Enqueue(task, model, [new ContextItem(user, user.Text)], answer);
+        Enqueue(task, model, plan, answer);
         ConversationChanged?.Invoke(this, id);
         return new SendOutcome(null, id, answer.Id);
     }
@@ -137,8 +154,13 @@ public sealed partial class ConversationService
         var now = _clock.UtcNow;
         var user = NewMessage(id, 0, MessageRole.User, question.Trim(), MessageState.Complete, null, now);
         var answer = NewMessage(id, 0, MessageRole.Assistant, string.Empty, MessageState.Pending, null, now);
-        var context = await AssembleAsync(id, [.. history, user], cancellationToken).ConfigureAwait(false);
-        var task = NewTask(GenerationTaskKind.Answer, id, answer.Id, model, [.. context.Select(c => c.Message.Id)], now);
+        var planned = await PlanAsync(id, [.. history, user], model, cancellationToken).ConfigureAwait(false);
+        if (planned.Plan is not { } plan)
+        {
+            return SendOutcome.Reject(Rejection(planned.Rejection!.Value), id);
+        }
+
+        var task = NewTask(GenerationTaskKind.Answer, id, answer.Id, model, [.. plan.RawItems.Select(c => c.Message.Id)], now);
 
         Message storedAnswer;
         try
@@ -150,7 +172,7 @@ public sealed partial class ConversationService
             return SendOutcome.Reject(SendRejection.AnswerInProgress, id);
         }
 
-        Enqueue(task, model, context, storedAnswer);
+        Enqueue(task, model, plan, storedAnswer);
         ConversationChanged?.Invoke(this, id);
         return new SendOutcome(null, id, storedAnswer.Id);
     }
@@ -171,11 +193,16 @@ public sealed partial class ConversationService
 
         // The answer is regenerated for the last question, from the history before that question.
         var question = history.Last(m => m.Role == MessageRole.User);
-        var context = await AssembleAsync(id, [.. history.Where(m => m.Seq <= question.Seq)], cancellationToken).ConfigureAwait(false);
         var model = (await _models.GetActiveSnapshotAsync(cancellationToken).ConfigureAwait(false))!;
+        var planned = await PlanAsync(id, [.. history.Where(m => m.Seq <= question.Seq)], model, cancellationToken).ConfigureAwait(false);
+        if (planned.Plan is not { } plan)
+        {
+            return SendOutcome.Reject(Rejection(planned.Rejection!.Value), id);
+        }
+
         var now = _clock.UtcNow;
         var answer = NewMessage(id, 0, MessageRole.Assistant, string.Empty, MessageState.Pending, answerToReplace, now);
-        var task = NewTask(GenerationTaskKind.Answer, id, answer.Id, model, [.. context.Select(c => c.Message.Id)], now);
+        var task = NewTask(GenerationTaskKind.Answer, id, answer.Id, model, [.. plan.RawItems.Select(c => c.Message.Id)], now);
 
         Message stored;
         try
@@ -187,7 +214,7 @@ public sealed partial class ConversationService
             return SendOutcome.Reject(SendRejection.NotRetryable, id);
         }
 
-        Enqueue(task, model, context, stored);
+        Enqueue(task, model, plan, stored);
         ConversationChanged?.Invoke(this, id);
         return new SendOutcome(null, id, stored.Id);
     }
@@ -279,18 +306,32 @@ public sealed partial class ConversationService
         return _generation.HasUnfinishedAnswer(id) ? SendOutcome.Reject(SendRejection.AnswerInProgress, id) : null;
     }
 
-    /// <summary>What is sent for <paramref name="own"/>: the frozen ancestor chain, then the conversation itself.</summary>
-    private async Task<IReadOnlyList<ContextItem>> AssembleAsync(ConversationId id, IReadOnlyList<Message> own, CancellationToken cancellationToken)
+    /// <summary>
+    /// What is sent for <paramref name="own"/>: the frozen ancestor chain, then the conversation itself, fitted to
+    /// the model's budget (S3). Stored summaries count with their real size; missing ones are written later, in the
+    /// answer task's own slot.
+    /// </summary>
+    private async Task<PlanOutcome> PlanAsync(ConversationId id, IReadOnlyList<Message> own, ModelSnapshot model, CancellationToken cancellationToken)
     {
         var ancestors = await _branches.GetAncestorContextAsync(id, cancellationToken).ConfigureAwait(false);
         var source = ancestors.Count == 0 ? null : await _branches.GetSourceAsync(id, cancellationToken).ConfigureAwait(false);
-        return BranchContext.Assemble(ancestors, new ContextSegment(id, source?.Quote, own));
+        var stored = _summaries is null
+            ? []
+            : await _summaries.ListAsync([.. ancestors.Select(a => a.Conversation), id], cancellationToken).ConfigureAwait(false);
+        var known = stored.ToDictionary(s => s.Key, s => ContextPlanner.SummaryTokens(s.Key, s.Text));
+        return ContextPlanner.Plan(ancestors, new ContextSegment(id, source?.Quote, own), ContextBudget.For(model).Available, key => known.TryGetValue(key, out var tokens) ? tokens : null);
     }
 
-    private void Enqueue(GenerationTaskRecord task, ModelSnapshot model, IReadOnlyList<ContextItem> input, Message answer)
+    private static SendRejection Rejection(ContextRejection rejection) => rejection switch
     {
-        var turns = input.Select(c => new ChatTurn(c.Message.Role == MessageRole.User ? ChatRole.User : ChatRole.Assistant, c.Text)).ToArray();
-        _generation.Enqueue(new AnswerWork(task, new ChatRequest(model, turns), new LiveAnswer(answer.Id, answer.ConversationId)));
+        ContextRejection.QuestionTooLarge => SendRejection.QuestionTooLargeForModel,
+        _ => SendRejection.HistoryTooLongForModel,
+    };
+
+    private void Enqueue(GenerationTaskRecord task, ModelSnapshot model, ContextPlan plan, Message answer)
+    {
+        var request = new ChatRequest(model, ContextCompressor.Unsummarized(plan).Turns);
+        _generation.Enqueue(new AnswerWork(task, request, new LiveAnswer(answer.Id, answer.ConversationId), plan, ContextBudget.For(model)));
     }
 
     private async void OnAnswerFinished(object? sender, AnswerOutcome e)

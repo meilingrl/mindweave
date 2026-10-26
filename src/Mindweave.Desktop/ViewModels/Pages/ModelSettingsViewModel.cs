@@ -36,6 +36,10 @@ public sealed partial class ModelSettingsViewModel : ViewModelBase
     [ObservableProperty]
     public partial string Model { get; set; } = string.Empty;
 
+    /// <summary>Declared context capacity in tokens; empty means unknown and the default applies.</summary>
+    [ObservableProperty]
+    public partial string ContextWindow { get; set; } = string.Empty;
+
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(KeyHint))]
     public partial bool HasSavedKey { get; private set; }
@@ -57,7 +61,7 @@ public sealed partial class ModelSettingsViewModel : ViewModelBase
     [RelayCommand(CanExecute = nameof(IsIdle))]
     private Task SaveAsync() => RunAsync(async () =>
     {
-        await _settings.SaveAsync(new ModelSettingsInput(Name, BaseUrl, Model, ApiKey), CancellationToken.None);
+        await _settings.SaveAsync(new ModelSettingsInput(Name, BaseUrl, Model, ApiKey, ParseContextWindow(ContextWindow)), CancellationToken.None);
         ApiKey = string.Empty;
         await LoadAsync();
         Report(UiText.SettingsSaved, isError: false);
@@ -96,7 +100,21 @@ public sealed partial class ModelSettingsViewModel : ViewModelBase
         Name = saved.ConnectionName;
         BaseUrl = saved.BaseUrl;
         Model = saved.Model;
+        ContextWindow = saved.Capabilities.ContextWindowTokens?.ToString(System.Globalization.CultureInfo.InvariantCulture) ?? string.Empty;
         HasSavedKey = true;
+    }
+
+    private static int? ParseContextWindow(string text)
+    {
+        var digits = text.Replace(",", string.Empty, StringComparison.Ordinal).Replace("_", string.Empty, StringComparison.Ordinal).Trim();
+        if (digits.Length == 0)
+        {
+            return null;
+        }
+
+        return int.TryParse(digits, System.Globalization.NumberStyles.None, System.Globalization.CultureInfo.InvariantCulture, out var tokens)
+            ? tokens
+            : throw new ModelSettingsException(ModelSettingsProblem.InvalidContextWindow);
     }
 
     private async Task RunAsync(Func<Task> action)

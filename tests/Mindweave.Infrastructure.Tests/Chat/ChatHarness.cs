@@ -29,6 +29,7 @@ internal sealed class ChatHarness : IAsyncDisposable
         Requests = new SqliteAiRequestStore(Database);
         Branches = new SqliteBranchStore(Database);
         ReadingStore = new SqliteReadingStateStore(Database);
+        Summaries = new SqliteContextSummaryStore(Database);
         var storeOverride = wrapStore?.Invoke(Store);
         Generation = new GenerationCoordinator(
             storeOverride ?? Store,
@@ -37,9 +38,10 @@ internal sealed class ChatHarness : IAsyncDisposable
             Requests,
             new SystemClock(),
             new GenerationOptions { CheckpointInterval = TimeSpan.FromMilliseconds(50), SaveRetryInterval = TimeSpan.FromMilliseconds(50) },
-            NullLogger<GenerationCoordinator>.Instance);
+            NullLogger<GenerationCoordinator>.Instance,
+            new ContextCompressor(Summaries, ActiveClient, new SystemClock(), NullLogger<ContextCompressor>.Instance));
         Models = new ModelSettingsService(Settings, Store, Credentials, ActiveClient, new SystemClock(), NullLogger<ModelSettingsService>.Instance);
-        Conversations = new ConversationService(storeOverride ?? Store, Branches, Generation, Models, new SystemClock(), NullLogger<ConversationService>.Instance);
+        Conversations = new ConversationService(storeOverride ?? Store, Branches, Generation, Models, new SystemClock(), NullLogger<ConversationService>.Instance, Summaries);
         Reading = new ReadingStateService(ReadingStore, new SystemClock(), NullLogger<ReadingStateService>.Instance, TimeSpan.FromMilliseconds(20));
     }
 
@@ -54,6 +56,8 @@ internal sealed class ChatHarness : IAsyncDisposable
     public SqliteBranchStore Branches { get; }
 
     public SqliteReadingStateStore ReadingStore { get; }
+
+    public SqliteContextSummaryStore Summaries { get; }
 
     public ReadingStateService Reading { get; }
 

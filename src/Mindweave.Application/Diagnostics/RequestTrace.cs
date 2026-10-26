@@ -13,6 +13,8 @@ internal sealed class RequestTrace(GenerationTaskId task, IClock clock)
     private string? _providerRequestId;
     private bool _truncated;
     private int _characters;
+    private int? _promptTokens;
+    private int? _completionTokens;
 
     public void Observe(ChatStreamEvent item)
     {
@@ -29,6 +31,10 @@ internal sealed class RequestTrace(GenerationTaskId task, IClock clock)
                 break;
             case ChatStreamEvent.Completed completed:
                 _truncated = completed.Truncated;
+                break;
+            case ChatStreamEvent.Usage usage:
+                _promptTokens = usage.PromptTokens ?? _promptTokens;
+                _completionTokens = usage.CompletionTokens ?? _completionTokens;
                 break;
         }
     }
@@ -51,5 +57,7 @@ internal sealed class RequestTrace(GenerationTaskId task, IClock clock)
             _providerRequestId,
             error,
             detail is null ? null : Redaction.Scrub(detail),
-            _characters);
+            _characters,
+            _promptTokens,
+            _completionTokens);
 }

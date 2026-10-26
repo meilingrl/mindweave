@@ -8,7 +8,7 @@
   <StackPanel Spacing="10" HorizontalAlignment="Left" MaxWidth="640">
     <TextBlock FontWeight="SemiBold" FontSize="16" Text="{x:Static d:UiText.ModelSection}" />
     <TextBlock Classes="muted" TextWrapping="Wrap" Text="{x:Static d:UiText.PrivacyHint}" />
-    <Grid ColumnDefinitions="Auto,*" RowDefinitions="Auto,Auto,Auto,Auto,Auto" ColumnSpacing="12" RowSpacing="8" DataContext="{Binding Model}">
+    <Grid ColumnDefinitions="Auto,*" RowDefinitions="Auto,Auto,Auto,Auto,Auto,Auto" ColumnSpacing="12" RowSpacing="8" DataContext="{Binding Model}">
       <TextBlock VerticalAlignment="Center" Text="{x:Static d:UiText.ConnectionNameLabel}" />
       <TextBox Grid.Column="1" Name="ConnectionName" Text="{Binding Name}" />
       <TextBlock Grid.Row="1" VerticalAlignment="Center" Text="{x:Static d:UiText.BaseUrlLabel}" />
@@ -26,7 +26,12 @@
         <Button DockPanel.Dock="Right" Content="{x:Static d:UiText.FetchModels}" Command="{Binding DiscoverCommand}" Margin="8,0,0,0" />
         <AutoCompleteBox Name="ModelBox" Text="{Binding Model}" ItemsSource="{Binding AvailableModels}" FilterMode="ContainsOrdinal" MinimumPrefixLength="0" />
       </DockPanel>
-      <StackPanel Grid.Row="4" Grid.Column="1" Spacing="6">
+      <TextBlock Grid.Row="4" VerticalAlignment="Top" Margin="0,6,0,0" Text="{x:Static d:UiText.ContextWindowLabel}" />
+      <StackPanel Grid.Row="4" Grid.Column="1" Spacing="2">
+        <TextBox Name="ContextWindow" Text="{Binding ContextWindow}" PlaceholderText="{x:Static d:UiText.ContextWindowPlaceholder}" Width="200" HorizontalAlignment="Left" />
+        <TextBlock Classes="muted" FontSize="12" TextWrapping="Wrap" Text="{x:Static d:UiText.ContextWindowHint}" />
+      </StackPanel>
+      <StackPanel Grid.Row="5" Grid.Column="1" Spacing="6">
         <StackPanel Orientation="Horizontal" Spacing="8">
           <Button Name="SaveModel" Content="{x:Static d:UiText.Save}" Command="{Binding SaveCommand}" />
           <Button Name="TestModel" Content="{x:Static d:UiText.TestConnection}" Command="{Binding TestCommand}" />

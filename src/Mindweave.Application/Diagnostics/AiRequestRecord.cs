@@ -27,7 +27,9 @@ public sealed record AiRequestRecord(
     string? ProviderRequestId,
     GenerationErrorKind? ErrorKind,
     string? ErrorDetail,
-    int OutputCharacters);
+    int OutputCharacters,
+    int? PromptTokens = null,
+    int? CompletionTokens = null);
 
 /// <summary>Diagnostic persistence. Best effort: a failed write is logged and never blocks generation.</summary>
 public interface IAiRequestStore

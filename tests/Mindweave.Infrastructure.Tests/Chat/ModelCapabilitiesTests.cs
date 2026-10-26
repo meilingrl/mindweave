@@ -18,9 +18,13 @@ public class ModelCapabilitiesTests
         Assert.Equal(ModelCapabilities.DefaultsFor(ChatProtocol.ChatCompletions), settings.Capabilities);
 
         await h.Settings.SaveActiveAsync(settings with { Capabilities = Declared }, DateTimeOffset.UtcNow, Ct);
-        await h.Models.SaveAsync(new ModelSettingsInput("fake", "https://fake.example/v1", settings.Model, null), Ct);
 
+        // The settings form shows and saves the context capacity; every other declared capability is kept.
+        await h.Models.SaveAsync(new ModelSettingsInput("fake", "https://fake.example/v1", settings.Model, null, Declared.ContextWindowTokens), Ct);
         Assert.Equal(Declared, (await h.Settings.GetActiveAsync(Ct))!.Capabilities);
+
+        await h.Models.SaveAsync(new ModelSettingsInput("fake", "https://fake.example/v1", settings.Model, null), Ct);
+        Assert.Equal(Declared with { ContextWindowTokens = null }, (await h.Settings.GetActiveAsync(Ct))!.Capabilities);
     }
 
     [Fact]
