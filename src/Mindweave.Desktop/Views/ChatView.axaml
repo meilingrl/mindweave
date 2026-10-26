@@ -21,7 +21,8 @@
         <Button Content="创建分支会话" Click="CreateBranchClicked" IsVisible="{Binding CanCreateBranch}" IsEnabled="{Binding $parent[UserControl].((vm:ChatViewModel)DataContext).CanBranch}" AutomationProperties.Name="从所选文字创建分支会话" />
         <ItemsControl ItemsSource="{Binding Branches}">
          <ItemsControl.ItemTemplate><DataTemplate x:DataType="vm:BranchBookmark">
-          <Button HorizontalAlignment="Stretch" IsEnabled="{Binding $parent[UserControl].((vm:ChatViewModel)DataContext).CanNavigate}" Command="{Binding $parent[UserControl].((vm:ChatViewModel)DataContext).OpenBranchCommand}" CommandParameter="{Binding}">
+          <Button HorizontalAlignment="Stretch" IsEnabled="{Binding $parent[UserControl].((vm:ChatViewModel)DataContext).CanNavigate}" Command="{Binding $parent[UserControl].((vm:ChatViewModel)DataContext).OpenBranchCommand}" CommandParameter="{Binding}"
+                  AutomationProperties.Name="{Binding Title, StringFormat='打开分支会话：{0}'}" AutomationProperties.HelpText="{Binding Quote}">
            <StackPanel><TextBlock Text="{Binding Title}" /><TextBlock Text="{Binding Quote}" TextWrapping="Wrap" MaxHeight="48" FontSize="11" /></StackPanel>
           </Button>
          </DataTemplate></ItemsControl.ItemTemplate>
