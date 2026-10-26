@@ -27,7 +27,8 @@
           </Button>
          </DataTemplate></ItemsControl.ItemTemplate>
         </ItemsControl>
-        <TextBlock Text="{Binding StatusLabel}" TextWrapping="Wrap" FontSize="11" Foreground="#858B7D" />
+        <TextBlock x:Name="ContextNotice" Text="{Binding ContextNotice}" IsVisible="{Binding HasContextNotice}" TextWrapping="Wrap" FontSize="12" Foreground="#59644D" AutomationProperties.Name="{Binding ContextNotice}" />
+        <TextBlock AutomationProperties.Name="{Binding StatusLabel}" Text="{Binding StatusLabel}" TextWrapping="Wrap" FontSize="11" Foreground="#858B7D" />
        </StackPanel>
       </Border>
      </DataTemplate>

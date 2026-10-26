@@ -4,17 +4,55 @@
 python3 tests/fixtures/chat_sse_fixture.py --port 18081
 Base URL: http://127.0.0.1:18081/v1
 Synthetic key: mindweave-loopback-only
-Models: fixture-normal, fixture-slow, fixture-markdown. Titles always return a fixed test title.
+Models include fixture-context / fixture-context-invalid / fixture-context-fail.
+Context modes only echo explicit MW markers from supplied source; no semantic understanding.
+Titles always return a fixed test title.
 Stop with Ctrl+C after native validation. Does not store bodies, keys or chat data.
 """
 import argparse
 import json
+import re
 import time
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
 SYNTHETIC_KEY = "mindweave-loopback-only"
 MAX_BODY_BYTES = 1_000_000
 MAX_FRAMING_BYTES = 65_536
+
+MODELS = ("fixture-normal", "fixture-slow", "fixture-markdown", "fixture-context", "fixture-context-invalid", "fixture-context-fail")
+MARKERS = re.compile(r"\[MW_(SOURCE|REQUIREMENT|CORRECTION|QUESTION|REFERENCE):([^\]\r\n]{1,120})\]")
+FIELDS = {"SOURCE": "Background", "REQUIREMENT": "Requirements", "CORRECTION": "Corrections", "QUESTION": "OpenQuestions", "REFERENCE": "References"}
+
+
+def context_chunks(model, messages):
+    summary = any(m["role"] == "system" and m["content"].startswith("Summarize the supplied original conversation slices") for m in messages)
+    if summary:
+        envelope = json.loads(messages[-1]["content"])
+        # Inspect Body only: metadata and instructions cannot invent source evidence.
+        bodies = [s["Body"] for s in envelope["OriginalSlices"]]
+        if not bodies or any(not isinstance(body, str) for body in bodies):
+            raise ValueError()
+        if model == "fixture-context-invalid":
+            return ['{"Background":"SYNTHETIC invalid summary"}'], False
+        if model == "fixture-context-fail":
+            return ['{"Background":"SYNTHETIC interrupted'], True
+        content = {field: "" for field in FIELDS.values()}
+        content["Background"] = "SYNTHETIC protocol echo; no semantic understanding."
+        for body in bodies:
+            for marker in MARKERS.finditer(body):
+                field = FIELDS[marker[1]]
+                if marker[0] not in content[field]:
+                    content[field] = (content[field] + " " + marker[0]).strip()
+        return [json.dumps(content, ensure_ascii=False)], False
+    # Exclude current question: requests for expected markers are not preserved context.
+    material = "\n".join(m["content"] for m in messages[:-1])
+    found = {}
+    for marker in MARKERS.finditer(material):
+        found.setdefault(marker[1].lower(), []).append(marker[2])
+    names = ("source", "correction", "question", "reference")
+    present = " ".join(name + "=" + ",".join(dict.fromkeys(found[name])) for name in names if name in found)
+    missing = ",".join(name for name in names if name not in found) or "none"
+    return ["SYNTHETIC protocol inspection; no semantic understanding.\n", "PRESENT " + (present or "none") + "\nMISSING " + missing], False
 
 
 class FixtureHandler(BaseHTTPRequestHandler):
@@ -42,7 +80,7 @@ class FixtureHandler(BaseHTTPRequestHandler):
             self.json_response(404, {"error": "unknown fixture endpoint"})
             return
         self.json_response(200, {"object": "list", "data": [
-            {"id": "fixture-normal", "object": "model"}, {"id": "fixture-slow", "object": "model"}, {"id": "fixture-markdown", "object": "model"}]})
+            {"id": model, "object": "model"} for model in MODELS]})
 
     def read_body(self):
         # JsonContent may stream HTTP/1.1 without Content-Length. Bound both the
@@ -95,9 +133,13 @@ class FixtureHandler(BaseHTTPRequestHandler):
         try:
             request = json.loads(self.read_body())
             model = request.get("model")
-            if model not in ("fixture-normal", "fixture-slow", "fixture-markdown") or request.get("stream") is not True:
+            if model not in MODELS or request.get("stream") is not True:
                 raise ValueError()
             messages = request["messages"]
+            if not isinstance(messages, list) or not messages or any(not isinstance(m, dict) or m.get("role") not in ("system", "user", "assistant") or not isinstance(m.get("content"), str) for m in messages):
+                raise ValueError()
+            early_failure = False
+            context = context_chunks(model, messages) if model.startswith("fixture-context") else None
             title = any(m.get("role") == "system" and "conversation title" in m.get("content", "") for m in messages)
         except (ValueError, KeyError, TypeError, OSError):
             self.json_response(400, {"error": {"code": "invalid_fixture_request"}})
@@ -114,12 +156,17 @@ class FixtureHandler(BaseHTTPRequestHandler):
                       "第二段 重复词。这是另一个相同词的来源位置。\n\n"] + [
                 f"第 {i} 个测试段落：只供本地滚动、选区、分支与返回验收。阅读位置应保持在正在看的段落。\n\n"
                 for i in range(1, 31)]
-        delay = 0.03 if title or model in ("fixture-normal", "fixture-markdown") else self.server.slow_delay
+        if context is not None and not title:
+            chunks, early_failure = context
+        delay = 0.03 if title or model in ("fixture-normal", "fixture-markdown") or model.startswith("fixture-context") else self.server.slow_delay
         print("fixture request: " + ("title" if title else model), flush=True)
         try:
             for text in chunks:
                 self.event({"model": model, "choices": [{"delta": {"content": text}, "finish_reason": None}]})
                 time.sleep(delay)
+            if early_failure:
+                self.close_connection = True
+                return
             self.event({"model": model, "choices": [{"delta": {}, "finish_reason": "stop"}]})
             self.wfile.write(b"data: [DONE]\n\n")
             self.wfile.flush()

@@ -47,6 +47,40 @@ public sealed partial class SqliteWorkspaceStore
         return ReadPreparedReplyRequest(connection, transaction, replyTaskId);
     });
 
+    public Task<IReadOnlyList<ContextUsageMetadata>> LoadContextUsageAsync(Guid conversationId, IReadOnlyList<Guid> answerMessageIds)
+    {
+        ArgumentNullException.ThrowIfNull(answerMessageIds);
+        if (answerMessageIds.Count > 256) throw new ArgumentException("每批最多查询 256 条回答。", nameof(answerMessageIds));
+        var ids = answerMessageIds.Distinct().ToArray();
+        if (ids.Length == 0) return Task.FromResult<IReadOnlyList<ContextUsageMetadata>>([]);
+        return ReadAsync<IReadOnlyList<ContextUsageMetadata>>(connection =>
+        {
+            var parameters = ids.Select((id, i) => ("$m" + i, (object?)id)).Prepend(("$conversation", (object?)conversationId)).ToArray();
+            using var command = ChatCommand(connection, null, $"""
+                SELECT g.answer_message_id, g.error_code,
+                  (SELECT count(*) FROM context_plan_chunk WHERE task_id=g.id),
+                  p.format_version,
+                  (SELECT count(*) FROM prepared_context_use WHERE task_id=g.id AND kind='Summary'),
+                  (SELECT count(*) FROM prepared_context_use u JOIN context_summary_cache c ON c.id=u.summary_id
+                    WHERE u.task_id=g.id AND u.kind='Summary' AND u.message_id IS NULL),
+                  (SELECT count(*) FROM prepared_context_use WHERE task_id=g.id),
+                  (SELECT coalesce(max(input_index)+1,0) FROM prepared_context_use WHERE task_id=g.id)
+                FROM generation_task g LEFT JOIN prepared_reply_request p ON p.task_id=g.id
+                WHERE g.conversation_id=$conversation AND g.kind='Reply' AND g.answer_message_id IN ({string.Join(",", ids.Select((_, i) => "$m" + i))})
+                """, parameters);
+            using var reader = command.ExecuteReader(); var result = new List<ContextUsageMetadata>();
+            while (reader.Read())
+            {
+                var planned = reader.GetInt32(2); var summary = reader.GetInt32(4);
+                if ((!reader.IsDBNull(3) && (reader.GetInt32(3) != PreparedRequestFormatVersion || summary != planned || reader.GetInt32(6) != reader.GetInt32(7))) ||
+                    summary != reader.GetInt32(5) || (reader.IsDBNull(3) && summary != 0))
+                    throw new InvalidOperationException("上下文使用元数据不完整。");
+                result.Add(new(Guid.Parse(reader.GetString(0)), summary, planned, reader.IsDBNull(1) ? null : reader.GetString(1)));
+            }
+            return result.AsReadOnly();
+        });
+    }
+
     private static PreparedReplyRequest ComposePreparedReply(SqliteConnection c, SqliteTransaction t, ContextMaterial material, DateTimeOffset time)
     {
         var summaries = new Dictionary<string, ContextSummaryContent>(); var uses = new List<PreparedContextUse>();

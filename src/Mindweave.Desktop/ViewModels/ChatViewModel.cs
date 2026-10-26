@@ -51,6 +51,7 @@ public sealed partial class ChatViewModel : ContentViewModel
         var conversation = await store.LoadConversationAsync(ConversationId) ?? throw new ArgumentException("会话不存在。");
         TitleText = storedTitle = conversation.Title;
         foreach (var message in await store.ReadMessagesAsync(ConversationId)) Messages.Add(new(message));
+        await LoadContextUsageAsync();
         await ReloadDraftAsync(); Project();
     }
     private async Task ReloadDraftAsync()
@@ -125,7 +126,20 @@ public sealed partial class ChatViewModel : ContentViewModel
         loading = true;
         try { InputText = draft.Text; draftRevision = savedRevision = draft.Revision; }
         finally { loading = false; }
+        await LoadContextUsageAsync();
         needsAcceptedReload = false; ErrorMessage = null; Project();
+    }
+    private async Task LoadContextUsageAsync()
+    {
+        foreach (var batch in Messages.Where(m => m.Role == MessageRole.Assistant).Chunk(256))
+        {
+            try
+            {
+                var usage = await store.LoadContextUsageAsync(ConversationId, batch.Select(m => m.Id).ToArray());
+                foreach (var message in batch) message.ProjectContextUsage(usage.FirstOrDefault(u => u.AnswerMessageId == message.Id));
+            }
+            catch { foreach (var message in batch) message.ProjectContextUsage(null, unavailable: true); }
+        }
     }
     public void RefreshTitle(string title)
     {
@@ -134,7 +148,7 @@ public sealed partial class ChatViewModel : ContentViewModel
     }
     public void Project()
     {
-        foreach (var snapshot in coordinator.Snapshots.Where(s => s.ConversationId == ConversationId && s.AnswerMessageId is not null))
+        foreach (var snapshot in coordinator.Snapshots.Where(s => s.ConversationId == ConversationId && s.Kind == GenerationKind.Reply && s.AnswerMessageId is not null))
             Messages.FirstOrDefault(m => m.Id == snapshot.AnswerMessageId)?.Project(snapshot);
         OnPropertyChanged(nameof(HasActiveReply)); OnPropertyChanged(nameof(CanSend)); OnPropertyChanged(nameof(CanRetry)); OnPropertyChanged(nameof(CanEdit)); OnPropertyChanged(nameof(CanBranch)); OnPropertyChanged(nameof(CanNavigate));
     }

@@ -512,6 +512,12 @@ public sealed class ChatDesktopTests
     // coordinator uses that same underlying SQLite store with its real acceptance transaction.
     internal sealed class ControlledChatStore(SqliteWorkspaceStore inner) : IWorkspaceStore, IChatStore, Mindweave.Application.Branches.IBranchStore
     {
+        public bool FailContextUsage { get; set; }
+        public Task<IReadOnlyList<ContextUsageMetadata>> LoadContextUsageAsync(Guid conversationId, IReadOnlyList<Guid> ids)
+        {
+            if (FailContextUsage) throw new IOException("test-only optional metadata unavailable");
+            return inner.LoadContextUsageAsync(conversationId, ids);
+        }
         public Task<ReplyContextPlan?> LoadContextPlanAsync(Guid id) => inner.LoadContextPlanAsync(id);
         public Task<CompletedContextSummary?> LoadCompletedSummaryAsync(Guid id, string key) => inner.LoadCompletedSummaryAsync(id, key);
         public bool LoseCompressionStartReturn { get; set; }
