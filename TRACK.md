@@ -33,13 +33,26 @@ Claude 自主开发，目的是比稳健轨更早走到关键阶段，提前暴�
 
 | 事项 | 原因 | 阻塞什么 | 在此之前我做什么 |
 | --- | --- | --- | --- |
-| **真实 API 配置（约 1 分钟）** | 脚本已就绪：在 Mac 终端运行 `scripts/real-api.sh configure`，按提示填地址、模型，密钥由系统钥匙串自己的隐藏提示输入。之后我用 `scripts/real-api.sh test` 复用；需要验证多家服务时用 `configure <名字>` 各存一份 | S1 第一条验收（真实长回答） | 已继续 S2 |
+| **真实 API 配置：未完成（2026-10-26）** | 终端里的 `scripts/real-api.sh configure` 停在 `Model ID:` 提示，钥匙串中还没有密钥。请在该终端继续输入模型 ID，再在钥匙串提示处粘贴密钥。之后我用 `scripts/real-api.sh test` 复用；需要验证多家服务时用 `configure <名字>` 各存一份 | S1 第一条验收（真实长回答） | 已继续 S2 |
 | Windows 凭据管理器实机确认（约 1 分钟） | SSH 密钥登录的会话没有凭据存储（Win32 错误 1312），自动化无法验证；需要在笔记本桌面上的 PowerShell 里运行：`cd E:\mindweave-claude-auto\src-snapshot; $env:MINDWEAVE_CREDENTIAL_TESTS='1'; dotnet test tests\Mindweave.Infrastructure.Tests -c Release --filter FullyQualifiedName~PlatformCredentialStoreTests`（或之后在应用设置里保存一次密钥） | 仅 Windows 密钥保存的实机证据 | macOS 钥匙串已实测通过 |
 | （可选）Windows 上的 Scoop git 损坏 | `E:\Scoop\shims\git.exe` 无法启动 `git.exe`；不影响本轨道（我用快照同步，不需要 git），未擅自修复 | 无 | — |
 
 Windows 实机：`scripts/windows.sh test|publish|sync|exec`（主机 `win-home`，Tailscale，密钥登录；目录 `E:\mindweave-claude-auto`，与稳健轨隔离）。
 
 已授权（2026-10-25）：推送 `origin/track/claude-auto`；CI 可用（仓库私有时只跑 Linux＋Windows，必要时你可改为公开仓库以免费使用分钟数）。
+
+## 演进接缝 E1–E6（2026-10-26 用户决定本轨道采纳为实验）
+
+依据 `main` 的 [演进方向与工程指引](docs/evolution.md)：S2 起引入前置接缝，不实现 D1–D6 功能本身；每个接缝记录实际成本与发现。
+
+| 接缝 | 计划落点 | 状态 |
+| --- | --- | --- |
+| E1 视图槽位化导航状态 | S2：阅读位置、草稿、返回来源、内容栈归属视图槽位；首版一个槽位 | 计划中 |
+| E2 分块消息内容 | S2 迁移 v3：消息正文改为有序内容块（首版只有文本块）；锚点为“块 ＋ 块内位置” | 计划中 |
+| E3 请求追踪与源头脱敏 | S2：每次请求记录 ID、快照、时序、协议状态、脱敏错误摘要；密钥与用户内容用类型区分，日志拒绝原样输出 | 计划中 |
+| E4 模型能力描述 | S2：模型配置声明能力，功能按能力判断 | 计划中 |
+| E5 版本化交换格式 | S6 导出时落地；S2 起不让任何外部格式依赖表结构 | 计划中 |
+| E6 性能基线与架构测试 | S2 起：大规模测试数据生成器与基准；脱敏规则加入架构测试 | 计划中 |
 
 ## 待决定
 
