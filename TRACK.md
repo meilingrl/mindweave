@@ -33,7 +33,7 @@ Claude 自主开发，目的是比稳健轨更早走到关键阶段，提前暴�
 
 | 事项 | 原因 | 阻塞什么 | 在此之前我做什么 |
 | --- | --- | --- | --- |
-| 亲手试用 S2：选句建分支、追问、返回来源、再次进入、退出重开（Mac 用阶段报告里的命令；Windows 打开 `E:\mindweave-claude-auto\app\Mindweave.exe`） | 拖选手感、提示是否看得懂、界面是否顺手只有你能判断；自动化测试只证明行为正确 | 不阻塞；结果决定 S3 之后是否先做一轮界面打磨 | 继续 S3 |
+| 亲手试用 S2：选句建分支、追问、返回来源、再次进入、退出重开（Mac 用阶段报告里的命令；Windows 先关掉正在运行的旧版 Mindweave（10-26 起一直开着，占用了 `app` 目录），再打开 `E:\mindweave-claude-auto\app-s2\Mindweave.exe`） | 拖选手感、提示是否看得懂、界面是否顺手只有你能判断；自动化测试只证明行为正确 | 不阻塞；结果决定 S3 之后是否先做一轮界面打磨 | 继续 S3 |
 
 Windows 实机：`scripts/windows.sh test|publish|sync|exec`（主机 `win-home`，经本机用户态 Tailscale 实例 A 的 SOCKS `127.0.0.1:7898`，密钥登录，连接失败自动重试；目录 `E:\mindweave-claude-auto`，与稳健轨隔离）。2026-10-26 已修复笔记本上 Scoop 的 git（`current` 目录联接失效，`scoop reset git` 重建，现为 2.54.0）。
 
