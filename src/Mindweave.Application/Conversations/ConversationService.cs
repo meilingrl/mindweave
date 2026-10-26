@@ -66,6 +66,7 @@ public sealed partial class ConversationService
         _clock = clock;
         _logger = logger;
         _generation.AnswerFinished += OnAnswerFinished;
+        _generation.TitleSaved += (_, id) => ConversationChanged?.Invoke(this, id);
     }
 
     /// <summary>A conversation's stored content or title changed. Raised on worker threads.</summary>

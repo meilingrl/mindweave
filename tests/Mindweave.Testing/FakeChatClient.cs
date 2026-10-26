@@ -14,6 +14,7 @@ public sealed class FakeChatClient : IChatClient
     public const string DefaultTitle = "火车历史";
 
     private readonly ConcurrentQueue<Script> _scripts = new();
+    private volatile TaskCompletionSource? _titleGate;
 
     public ConcurrentQueue<ChatRequest> Requests { get; } = new();
 
@@ -31,12 +32,25 @@ public sealed class FakeChatClient : IChatClient
 
     public void Reply(params string[] chunks) => _scripts.Enqueue(new Script(null, chunks));
 
+    /// <summary>Title requests wait until the returned source is completed, as with a slow service.</summary>
+    public TaskCompletionSource HoldTitles()
+    {
+        var gate = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        _titleGate = gate;
+        return gate;
+    }
+
     public async IAsyncEnumerable<ChatStreamEvent> StreamAsync(ChatRequest request, string apiKey, [EnumeratorCancellation] CancellationToken cancellationToken)
     {
         Requests.Enqueue(request);
         await Task.Yield();
         if (request.Turns[0].Role == ChatRole.System)
         {
+            if (_titleGate is { } gate)
+            {
+                await gate.Task.WaitAsync(cancellationToken);
+            }
+
             yield return new ChatStreamEvent.TextDelta($"“{DefaultTitle}”");
             yield return new ChatStreamEvent.Completed(false);
             yield break;

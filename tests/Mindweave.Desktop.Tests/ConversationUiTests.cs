@@ -3,6 +3,7 @@ using Avalonia.Headless;
 using Avalonia.Headless.XUnit;
 using Avalonia.Input;
 using Avalonia.VisualTree;
+using Mindweave.Application.Ai;
 using Mindweave.Application.Conversations;
 using Mindweave.Core.Conversations;
 using Mindweave.Desktop.Navigation;
@@ -41,6 +42,24 @@ public class ConversationUiTests
         Assert.True(app.Workbench.CanGoBack);
         await UiWait.UntilAsync(() => app.ShellPage.Conversations.Items.Count == 1 && app.ShellPage.Conversations.Items[0].Title == FakeChatClient.DefaultTitle);
         Assert.True(app.ShellPage.Conversations.Items[0].IsSelected);
+        await UiWait.UntilAsync(() => page.Title == FakeChatClient.DefaultTitle);
+        Assert.Equal(FakeChatClient.DefaultTitle, app.ShellPage.Title);
+    }
+
+    [AvaloniaFact]
+    public async Task A_title_that_arrives_after_the_answer_reaches_the_open_page()
+    {
+        await using var app = DesktopHarness.Create();
+        await app.StartWithWorkspaceAsync("火车");
+        await app.ConfigureModelAsync();
+        var titles = app.Client.HoldTitles();
+
+        var page = await OpenConversationAsync(app, "蒸汽机是谁发明的？", null);
+        await UiWait.UntilAsync(() => page.Messages[1].State == MessageState.Complete);
+        await UiWait.UntilAsync(() => app.Client.Requests.Any(r => r.Turns[0].Role == ChatRole.System));
+        Assert.NotEqual(FakeChatClient.DefaultTitle, page.Title);
+
+        titles.SetResult();
         await UiWait.UntilAsync(() => page.Title == FakeChatClient.DefaultTitle);
         Assert.Equal(FakeChatClient.DefaultTitle, app.ShellPage.Title);
     }

@@ -88,6 +88,9 @@ public sealed partial class GenerationCoordinator : IAsyncDisposable
     /// <summary>An answer reached a terminal state (after its terminal write was attempted).</summary>
     public event EventHandler<AnswerOutcome>? AnswerFinished;
 
+    /// <summary>An automatic title was stored for this conversation.</summary>
+    public event EventHandler<ConversationId>? TitleSaved;
+
     /// <summary>True while a core write has failed and not yet succeeded on retry; new requests must be refused.</summary>
     public bool IsStorageBlocked => Volatile.Read(ref _storageBlocked) != 0;
 
@@ -476,7 +479,10 @@ public sealed partial class GenerationCoordinator : IAsyncDisposable
             var title = completed ? ConversationRules.CleanGeneratedTitle(text.ToString()) : null;
             if (title is not null)
             {
-                await SaveAsync(() => _store.SetAutoTitleAsync(task.ConversationId, title, _clock.UtcNow, CancellationToken.None)).ConfigureAwait(false);
+                if (await SaveAsync(() => _store.SetAutoTitleAsync(task.ConversationId, title, _clock.UtcNow, CancellationToken.None)).ConfigureAwait(false) == SaveResult.Applied)
+                {
+                    TitleSaved?.Invoke(this, task.ConversationId);
+                }
             }
 
             await SaveAsync(() => FinishTask(task.Id, title is null ? GenerationTaskState.Failed : GenerationTaskState.Completed, title is null ? GenerationErrorKind.InvalidResponse : null, null))
