@@ -21,7 +21,12 @@ public interface IRestorableRoute
     string Key { get; }
 }
 
-public sealed record ConversationRoute(Mindweave.Core.Conversations.ConversationId Id) : ContentRoute, IRestorableRoute
+/// <summary>
+/// A conversation page. <paramref name="SourceOf"/> asks the page to locate and highlight the passage that branch
+/// was created from (return to source); without it the page restores its own reading position.
+/// </summary>
+public sealed record ConversationRoute(Mindweave.Core.Conversations.ConversationId Id, Mindweave.Core.Conversations.ConversationId? SourceOf = null)
+    : ContentRoute, IRestorableRoute
 {
     private const string Prefix = "conversation:";
 

@@ -42,7 +42,7 @@
           <ItemsControl Name="ConversationList" ItemsSource="{Binding Conversations.Items}">
             <ItemsControl.ItemTemplate>
               <DataTemplate x:DataType="cv:ConversationItemViewModel">
-                <Button Classes="nav" Classes.selected="{Binding IsSelected}"
+                <Button Classes="nav" Classes.selected="{Binding IsSelected}" Margin="{Binding Indent}"
                         Command="{Binding $parent[ItemsControl].((vm:ShellViewModel)DataContext).Conversations.OpenCommand}" CommandParameter="{Binding}">
                   <DockPanel>
                     <TextBlock DockPanel.Dock="Right" Text="{Binding Marker}" IsVisible="{Binding HasMarker}" Margin="6,0,0,0"

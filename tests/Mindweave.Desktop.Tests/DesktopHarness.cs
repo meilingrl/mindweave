@@ -5,6 +5,7 @@ using Mindweave.Application.Ai;
 using Mindweave.Application.Conversations;
 using Mindweave.Application.Credentials;
 using Mindweave.Application.Models;
+using Mindweave.Application.Reading;
 using Mindweave.Core.Workspaces;
 using Mindweave.Testing;
 using Mindweave.Desktop.Navigation;
@@ -76,6 +77,7 @@ public sealed class DesktopHarness : IAsyncDisposable
     {
         await Workbench.LastLocationSave;
         await Services.GetRequiredService<GenerationCoordinator>().ShutdownAsync();
+        await Services.GetRequiredService<ReadingStateService>().FlushAsync();
         await Services.GetRequiredService<SqliteDatabase>().CloseAsync();
         await Services.DisposeAsync();
         Services = CompositionRoot.Build(Paths, Shell, NullLoggerProvider.Instance, _overrides);
@@ -85,6 +87,7 @@ public sealed class DesktopHarness : IAsyncDisposable
     public async ValueTask DisposeAsync()
     {
         await Services.GetRequiredService<GenerationCoordinator>().ShutdownAsync();
+        await Services.GetRequiredService<ReadingStateService>().FlushAsync();
         await Services.GetRequiredService<SqliteDatabase>().CloseAsync();
         await Services.DisposeAsync();
         SqliteConnection.ClearAllPools();

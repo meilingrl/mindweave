@@ -2,6 +2,7 @@ using System.Globalization;
 using Mindweave.Application.Conversations;
 using Mindweave.Application.Models;
 using Mindweave.Application.Startup;
+using Mindweave.Core.Branches;
 using Mindweave.Core.Conversations;
 using Mindweave.Core.Workspaces;
 
@@ -54,6 +55,10 @@ public static class UiText
     public const string RetryAttempt = "重新回答";
     public const string MarkerGenerating = "正在生成";
     public const string MarkerNeedsAttention = "回答未完成，可重试";
+    public const string CreateBranch = "就选中的文字创建分支";
+    public const string ReturnToSource = "返回来源";
+    public const string BranchFrom = "来自";
+    public const string BranchesHeading = "从这里分出的探索";
     public const string ModelSection = "模型连接";
     public const string ConnectionNameLabel = "名称（可选）";
     public const string BaseUrlLabel = "服务地址";
@@ -72,6 +77,34 @@ public static class UiText
     public const string ExitTitle = "仍有回答在生成";
     public const string ExitConfirm = "停止并退出";
     public const string ExitCancel = "继续生成";
+
+    /// <summary>
+    /// The name shown for a conversation: its title, else (for a branch) the quoted passage it explores, else its
+    /// first question. Sidebar, page header and ancestor path all use this, so a conversation is named the same everywhere.
+    /// </summary>
+    public static string ConversationTitle(Conversation conversation, string? firstQuestion, string? quote)
+    {
+        ArgumentNullException.ThrowIfNull(conversation);
+        return conversation.Title
+            ?? (quote is not null ? Quoted(quote) : null)
+            ?? (firstQuestion is not null ? ConversationRules.FallbackTitle(firstQuestion) : NewConversation);
+    }
+
+    public static string Quoted(string quote) => "「" + ConversationRules.Shorten(quote, ConversationRules.FallbackTitleLength) + "」";
+
+    public static string SourceNotLocated(string quote) => $"无法精确定位原句（回答的排版或内容与创建分支时不同），已回到来源回答。原句：{Quoted(quote)}";
+
+    public static string BranchRejected(BranchRejection rejection) => rejection switch
+    {
+        BranchRejection.AnswerNotFinished => "回答完成或停止后才能从中创建分支。",
+        BranchRejection.EmptyAnswer or BranchRejection.NotAnAnswer => "只能从有内容的 AI 回答中创建分支。",
+        BranchRejection.EmptyQuote => "请先选中回答中的文字。",
+        BranchRejection.QuoteTooLong => $"选中的文字太长（最多 {BranchRules.MaxQuoteLength} 字），请缩小范围。",
+        BranchRejection.AnchorTooLarge => "选区跨越的内容太多，请缩小范围。",
+        BranchRejection.StorageUnavailable => "数据暂时无法保存，分支没有创建。",
+        BranchRejection.SourceNotFound => "来源回答已不存在。",
+        _ => "无法创建分支。",
+    };
 
     public static string ModelsFound(int count) => string.Format(CultureInfo.CurrentCulture, "找到 {0} 个模型。", count);
 

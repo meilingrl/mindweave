@@ -8,14 +8,29 @@
     <local:ViewLocator />
   </Application.DataTemplates>
   <Application.Resources>
+    <ResourceDictionary>
+      <ResourceDictionary.MergedDictionaries>
+        <ResourceInclude Source="avares://LiveMarkdown.Avalonia/Defaults.axaml" />
+      </ResourceDictionary.MergedDictionaries>
     <SolidColorBrush x:Key="SidebarBackground">#F5F5F4</SolidColorBrush>
     <SolidColorBrush x:Key="DividerBrush">#E7E5E4</SolidColorBrush>
     <SolidColorBrush x:Key="MutedText">#78716C</SolidColorBrush>
     <SolidColorBrush x:Key="ErrorText">#B91C1C</SolidColorBrush>
     <SolidColorBrush x:Key="SelectedRow">#E7E5E4</SolidColorBrush>
+    <SolidColorBrush x:Key="SourceHighlight">#FDE68A</SolidColorBrush>
+    <SolidColorBrush x:Key="QuoteBar">#D6D3D1</SolidColorBrush>
+    </ResourceDictionary>
   </Application.Resources>
   <Application.Styles>
     <FluentTheme />
+    <StyleInclude Source="avares://LiveMarkdown.Avalonia/Styles.axaml" />
+    <!-- Answer typography: LiveMarkdown's defaults are tuned for dark surfaces. -->
+    <Style Selector="Border.QuoteBlock">
+      <Setter Property="Background" Value="{StaticResource SidebarBackground}" />
+    </Style>
+    <Style Selector="StackPanel.MarkdownDocument">
+      <Setter Property="Spacing" Value="8" />
+    </Style>
     <Style Selector="TextBlock.h1">
       <Setter Property="FontSize" Value="22" />
       <Setter Property="FontWeight" Value="SemiBold" />

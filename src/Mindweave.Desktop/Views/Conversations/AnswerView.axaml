@@ -1,0 +1,25 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:Mindweave.Desktop.ViewModels.Conversations"
+             xmlns:v="using:Mindweave.Desktop.Views.Conversations"
+             xmlns:d="using:Mindweave.Desktop"
+             x:Class="Mindweave.Desktop.Views.Conversations.AnswerView"
+             x:DataType="vm:MessageItemViewModel">
+  <StackPanel Spacing="4">
+    <!-- The Markdown renderer is created in code: it is fed either a full parse (finished) or a live builder (streaming). -->
+    <ContentControl Name="BodyHost" />
+    <Button Name="BranchButton" Classes="link" Content="{x:Static d:UiText.CreateBranch}" IsVisible="False" HorizontalAlignment="Left" />
+    <StackPanel Spacing="2" IsVisible="{Binding Branches.Count, Converter={x:Static d:Converters.IsPositive}}">
+      <TextBlock Classes="muted" FontSize="12" Text="{x:Static d:UiText.BranchesHeading}" />
+      <ItemsControl Name="BranchEntries" ItemsSource="{Binding Branches}">
+        <ItemsControl.ItemTemplate>
+          <DataTemplate x:DataType="vm:BranchEntry">
+            <Button Classes="link" Content="{Binding Label}" HorizontalAlignment="Left"
+                    Command="{Binding $parent[v:ConversationView].((vm:ConversationViewModel)DataContext).OpenConversationCommand}"
+                    CommandParameter="{Binding Child}" />
+          </DataTemplate>
+        </ItemsControl.ItemTemplate>
+      </ItemsControl>
+    </StackPanel>
+  </StackPanel>
+</UserControl>

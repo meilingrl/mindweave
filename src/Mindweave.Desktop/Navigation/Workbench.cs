@@ -2,6 +2,7 @@ using System.Collections.ObjectModel;
 using CommunityToolkit.Mvvm.ComponentModel;
 using Mindweave.Application.Storage;
 using Mindweave.Application.Workspaces;
+using Mindweave.Core.Reading;
 using Mindweave.Core.Workspaces;
 using Mindweave.Desktop.ViewModels;
 
@@ -9,7 +10,7 @@ namespace Mindweave.Desktop.Navigation;
 
 /// <summary>
 /// Owner of all workbench runtime navigation state: the workspace list, one <see cref="WorkspaceRuntime"/>
-/// per visited workspace, and the active content stack. Implements the menu and content navigators so
+/// per visited workspace with its viewer slots, and the active slot's content stacks. Implements the menu and content navigators so
 /// view models navigate through contracts rather than touching each other.
 /// </summary>
 public sealed class Workbench : ObservableObject, IWorkbenchNavigator
@@ -29,11 +30,16 @@ public sealed class Workbench : ObservableObject, IWorkbenchNavigator
 
     public Workspace? CurrentWorkspace => _active?.Workspace;
 
-    public MainSection CurrentSection => _active?.Section ?? MainSection.Explore;
+    /// <summary>The slot pages are shown in. The first version only ever has the primary slot.</summary>
+    public ViewerSlotKey CurrentSlot { get; } = ViewerSlotKey.Primary;
 
-    public PageViewModel? CurrentPage => _active?.Top;
+    public MainSection CurrentSection => ActiveSlot?.Section ?? MainSection.Explore;
 
-    public bool CanGoBack => _active is { CurrentStack.Count: > 1 };
+    public PageViewModel? CurrentPage => ActiveSlot?.Top;
+
+    public bool CanGoBack => ActiveSlot is { CurrentStack.Count: > 1 };
+
+    private ViewerSlot? ActiveSlot => _active?.Slot(CurrentSlot);
 
     /// <summary>The most recent last-page write; tests await it, the UI never does.</summary>
     internal Task LastLocationSave { get; private set; } = Task.CompletedTask;
@@ -81,15 +87,19 @@ public sealed class Workbench : ObservableObject, IWorkbenchNavigator
         Activate(id, section: null);
     }
 
+    /// <summary>
+    /// Opens a section and optionally content in it. <see cref="NavigationIntent.ReturnToSource"/> always opens a
+    /// new page — it follows the branch relation, not the back history — so back returns to the branch.
+    /// </summary>
     public void Navigate(NavigationRequest request)
     {
         ArgumentNullException.ThrowIfNull(request);
-        var runtime = RequireActive();
-        runtime.Section = request.Section;
-        EnsureHome(runtime);
+        var (runtime, slot) = RequireActive(request.Slot);
+        slot.Section = request.Section;
+        EnsureHome(runtime, slot);
         if (request.Content is not null)
         {
-            PushCore(runtime, request.Content);
+            PushCore(runtime, slot, request.Content);
         }
 
         Changed();
@@ -98,15 +108,16 @@ public sealed class Workbench : ObservableObject, IWorkbenchNavigator
     public void Push(ContentRoute route)
     {
         ArgumentNullException.ThrowIfNull(route);
-        PushCore(RequireActive(), route);
+        var (runtime, slot) = RequireActive(null);
+        PushCore(runtime, slot, route);
         Changed();
     }
 
     public void Replace(ContentRoute route)
     {
         ArgumentNullException.ThrowIfNull(route);
-        var runtime = RequireActive();
-        var stack = runtime.StackOf(runtime.Section);
+        var (runtime, slot) = RequireActive(null);
+        var stack = slot.StackOf(slot.Section);
         if (stack.Count > 1)
         {
             var leaving = stack[^1];
@@ -114,14 +125,15 @@ public sealed class Workbench : ObservableObject, IWorkbenchNavigator
             (leaving as IDisposable)?.Dispose();
         }
 
-        PushCore(runtime, route);
+        PushCore(runtime, slot, route);
         Changed();
     }
 
     /// <summary>Back within the current section's history. The section home is never popped.</summary>
     public void GoBack()
     {
-        var stack = RequireActive().StackOf(RequireActive().Section);
+        var (_, slot) = RequireActive(null);
+        var stack = slot.StackOf(slot.Section);
         if (stack.Count <= 1)
         {
             return;
@@ -142,35 +154,36 @@ public sealed class Workbench : ObservableObject, IWorkbenchNavigator
             _runtimes[id] = runtime;
         }
 
+        var slot = runtime.Slot(CurrentSlot);
         if (section is { } explicitSection)
         {
-            runtime.Section = explicitSection;
+            slot.Section = explicitSection;
         }
 
         _active = runtime;
-        EnsureHome(runtime);
+        EnsureHome(runtime, slot);
         OnPropertyChanged(nameof(CurrentWorkspace));
         Changed();
     }
 
-    private void EnsureHome(WorkspaceRuntime runtime)
+    private void EnsureHome(WorkspaceRuntime runtime, ViewerSlot slot)
     {
-        var stack = runtime.StackOf(runtime.Section);
+        var stack = slot.StackOf(slot.Section);
         if (stack.Count == 0)
         {
-            stack.Add(_pages.Create(ContentRoute.HomeOf(runtime.Section), runtime.Workspace, this));
+            stack.Add(_pages.Create(ContentRoute.HomeOf(slot.Section), new PageContext(runtime.Workspace, slot.Key, this)));
         }
     }
 
-    private void PushCore(WorkspaceRuntime runtime, ContentRoute route)
+    private void PushCore(WorkspaceRuntime runtime, ViewerSlot slot, ContentRoute route)
     {
-        var stack = runtime.StackOf(runtime.Section);
+        var stack = slot.StackOf(slot.Section);
         if (stack.Count > 0 && stack[^1].Route == route)
         {
             return;
         }
 
-        stack.Add(_pages.Create(route, runtime.Workspace, this));
+        stack.Add(_pages.Create(route, new PageContext(runtime.Workspace, slot.Key, this)));
         if (stack.Count > MaxHistory)
         {
             // Keep the section home; drop the oldest detail page.
@@ -183,18 +196,21 @@ public sealed class Workbench : ObservableObject, IWorkbenchNavigator
     /// <summary>Back history per section is bounded so a long session does not keep every visited page alive.</summary>
     internal const int MaxHistory = 50;
 
-    private WorkspaceRuntime RequireActive() =>
-        _active ?? throw new InvalidOperationException("No workspace is active.");
+    private (WorkspaceRuntime Runtime, ViewerSlot Slot) RequireActive(ViewerSlotKey? slot)
+    {
+        var runtime = _active ?? throw new InvalidOperationException("No workspace is active.");
+        return (runtime, runtime.Slot(slot ?? CurrentSlot));
+    }
 
     private void Changed()
     {
         OnPropertyChanged(nameof(CurrentSection));
         OnPropertyChanged(nameof(CurrentPage));
         OnPropertyChanged(nameof(CanGoBack));
-        if (_active is { } runtime)
+        if (_active is { } runtime && ActiveSlot is { } slot)
         {
             LastLocationSave = _workspaces.RememberLocationAsync(
-                new PageLocation(runtime.Workspace.Id, runtime.Section.ToKey(), (runtime.Top?.Route as IRestorableRoute)?.Key),
+                new PageLocation(runtime.Workspace.Id, slot.Section.ToKey(), (slot.Top?.Route as IRestorableRoute)?.Key),
                 CancellationToken.None);
         }
     }

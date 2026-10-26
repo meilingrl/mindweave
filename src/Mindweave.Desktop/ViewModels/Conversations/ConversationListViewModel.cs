@@ -30,9 +30,23 @@ public sealed partial class ConversationItemViewModel(ConversationId id) : ViewM
 
     [ObservableProperty]
     public partial bool IsSelected { get; set; }
+
+    /// <summary>Branch level: 0 for a root conversation. Shown as indentation, not as a separate tree control.</summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(Indent))]
+    public partial int Depth { get; set; }
+
+    public Avalonia.Thickness Indent => new(Math.Min(Depth, MaxIndentedDepth) * 14, 0, 0, 0);
+
+    /// <summary>Deeper levels share the last indentation so long chains stay readable in a narrow sidebar.</summary>
+    internal const int MaxIndentedDepth = 6;
 }
 
-/// <summary>The active workspace's conversations, newest first, kept in sync with storage and generation.</summary>
+/// <summary>
+/// The active workspace's conversations as a branch tree: root conversations newest activity first (activity
+/// anywhere in their tree counts), each branch under its parent in creation order. Kept in sync with storage and
+/// generation.
+/// </summary>
 public sealed partial class ConversationListViewModel : ViewModelBase
 {
     private readonly ConversationService _conversations;
@@ -93,11 +107,13 @@ public sealed partial class ConversationListViewModel : ViewModelBase
         }
 
         // Update in place so selection and scroll position in the list are not disturbed.
+        var tree = AsTree(summaries);
         var existing = Items.ToDictionary(i => i.Id);
-        var ordered = summaries.Select(s => existing.GetValueOrDefault(s.Conversation.Id) ?? new ConversationItemViewModel(s.Conversation.Id)).ToList();
-        for (var i = 0; i < summaries.Count; i++)
+        var ordered = tree.Select(t => existing.GetValueOrDefault(t.Summary.Conversation.Id) ?? new ConversationItemViewModel(t.Summary.Conversation.Id)).ToList();
+        for (var i = 0; i < tree.Count; i++)
         {
-            Apply(ordered[i], summaries[i]);
+            Apply(ordered[i], tree[i].Summary);
+            ordered[i].Depth = tree[i].Depth;
         }
 
         for (var i = 0; i < ordered.Count; i++)
@@ -127,14 +143,59 @@ public sealed partial class ConversationListViewModel : ViewModelBase
 
     private void Apply(ConversationItemViewModel item, ConversationSummary summary)
     {
-        item.Title = summary.Conversation.Title
-            ?? (summary.FirstQuestion is { } q ? ConversationRules.FallbackTitle(q) : UiText.NewConversation);
+        item.Title = UiText.ConversationTitle(summary.Conversation, summary.FirstQuestion, summary.Quote);
         var running = _generation.HasUnfinishedAnswer(summary.Conversation.Id);
         (item.Marker, item.MarkerHint) = running
             ? ("●", UiText.MarkerGenerating)
             : summary.LastAnswerState is MessageState.Failed or MessageState.Interrupted
                 ? ("!", UiText.MarkerNeedsAttention)
                 : (null, null);
+    }
+
+    /// <summary>Depth-first order of the branch tree; a branch whose parent is missing is shown as a root.</summary>
+    internal static List<(ConversationSummary Summary, int Depth)> AsTree(IReadOnlyList<ConversationSummary> summaries)
+    {
+        var known = summaries.Select(s => s.Conversation.Id).ToHashSet();
+        var children = summaries.Where(s => s.Parent is { } p && known.Contains(p))
+            .GroupBy(s => s.Parent!.Value)
+            .ToDictionary(g => g.Key, g => g.OrderBy(s => s.Conversation.CreatedAt).ToList());
+        var latest = new Dictionary<ConversationId, DateTimeOffset>();
+        var roots = summaries.Where(s => s.Parent is not { } p || !known.Contains(p))
+            .Select((s, index) => (Summary: s, Index: index, Latest: Latest(s)))
+            .OrderByDescending(r => r.Latest).ThenBy(r => r.Index)
+            .Select(r => r.Summary);
+        var result = new List<(ConversationSummary, int)>(summaries.Count);
+        foreach (var root in roots)
+        {
+            Visit(root, 0);
+        }
+
+        return result;
+
+        DateTimeOffset Latest(ConversationSummary summary)
+        {
+            if (!latest.TryGetValue(summary.Conversation.Id, out var value))
+            {
+                value = summary.Conversation.UpdatedAt;
+                foreach (var child in children.GetValueOrDefault(summary.Conversation.Id) ?? [])
+                {
+                    value = value > Latest(child) ? value : Latest(child);
+                }
+
+                latest[summary.Conversation.Id] = value;
+            }
+
+            return value;
+        }
+
+        void Visit(ConversationSummary summary, int depth)
+        {
+            result.Add((summary, depth));
+            foreach (var child in children.GetValueOrDefault(summary.Conversation.Id) ?? [])
+            {
+                Visit(child, depth + 1);
+            }
+        }
     }
 
     private void UpdateSelection()
