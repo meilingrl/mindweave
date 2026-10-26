@@ -59,20 +59,21 @@ IChatStore 增加 `Task<ChatContext> ReadContextAsync(Guid conversationId)`，�
 
 **Interfaces:** 产出 Shared Contracts 中 IBranchStore、ReadContextAsync 和 GenerationWork.SourceQuote，SqliteWorkspaceStore 实现。Task3 必须可读父来源、按来源消息分组的子分支及阅读状态。
 
-- [ ] 真实临时 SQLite RED：原子分支与中断／失败回滚、相同操作ID幂等、跨工作区／用户消息／活动回答／修订或正文hash不符拒绝；空quote／未知anchor版本／无效信封拒绝，旧已保存尝试可引用。
-- [ ] v4 表保存 branch source（child唯一、operation ID唯一、parent／message复合归属、anchor版本与profile）、有序冻结范围身份和独立会话阅读状态；事务检查父会话与消息角色／终态／hash／revision。应用检查不能假称普通FK保证全部祖先关系。
-- [ ] 创建时继承父已冻结祖先范围，再加入父截至来源回答的有效消息身份（每个提问当时最新尝试，且选中旧回答按该截止点保留）；展开后只读不可随父后续改变。不复制整段祖先正文。
-- [ ] A→B→C 真库验证：A/B 后续提问、回答重试、兄弟根都不进入 C。输入清单可跨会话但只允许冻结祖先，消息顺序为祖先→自身；自会话最新尝试语义保持S1。SourceQuote 进入请求和保守预算，超限接受前拒绝，输入与草稿不丢失。
-- [ ] ReadContextAsync 与 AcceptReplyAsync 使用同一组装规则，避免重复 LatestInput 抹掉冻结旧尝试；接受事务重新验证实际输入身份，终态／快照保持S1；自动标题使用自身已成功问答，不能把祖先成功误当当前会话已回答。
-- [ ] 阅读状态保存验证消息归属、版本／profile／有限offset／正修订号；旧修订不覆盖；分支事务可同时保存父位置。v3升级先备份，真实分支与阅读重开，原迁移未改写。
-- [ ] 聚焦与完整 Release 测试，自审提交并报告；不访问原生测试库或用户凭据。S1-F3 极端long.MaxValue已记录未修复，避免无关修复扩大本任务。
+- [x] 真实临时 SQLite RED：原子分支与中断／失败回滚、相同操作ID幂等、跨工作区／用户消息／活动回答／修订或正文hash不符拒绝；空quote／未知anchor版本／无效信封拒绝，旧已保存尝试可引用。
+- [x] v4 表保存 branch source（child唯一、operation ID唯一、parent／message复合归属、anchor版本与profile）、有序冻结范围身份和独立会话阅读状态；事务检查父会话与消息角色／终态／hash／revision。应用检查不能假称普通FK保证全部祖先关系。
+- [x] 创建时继承父已冻结祖先范围，再加入父截至来源回答的有效消息身份（每个提问当时最新尝试，且选中旧回答按该截止点保留）；展开后只读不可随父后续改变。不复制整段祖先正文。
+- [x] A→B→C 真库验证：A/B 后续提问、回答重试、兄弟根都不进入 C。输入清单可跨会话但只允许冻结祖先，消息顺序为祖先→自身；自会话最新尝试语义保持S1。SourceQuote 进入请求和保守预算，超限接受前拒绝，输入与草稿不丢失。
+- [x] ReadContextAsync 与 AcceptReplyAsync 使用同一组装规则，避免重复 LatestInput 抹掉冻结旧尝试；接受事务重新验证实际输入身份，终态／快照保持S1；自动标题使用自身已成功问答，不能把祖先成功误当当前会话已回答。
+- [x] 阅读状态保存验证消息归属、版本／profile／有限offset／正修订号；旧修订不覆盖；分支事务可同时保存父位置。v3升级先备份，真实分支与阅读重开，原迁移未改写。
+- [x] 聚焦与完整 Release 测试，自审提交并报告；不访问原生测试库或用户凭据。S1-F3 极端long.MaxValue已记录未修复，避免无关修复扩大本任务。
 
 ## Task 3: 分支、返回与阅读的桌面闭环
 
-**Files:** MainViewModel 的分支／导航／阅读责任可拆partial；ChatViewModel、MessageViewModel、ConversationItemViewModel、ChatView／MarkdownMessageView、MainView、导航请求模型、CompositionRoot；新增 BranchDesktopTests.cs；fixtures 的明确 fixture-markdown 模式及协议自测；README、TRACK 和 s2-verification.md 由控制器最后汇总。不改共享需求／架构。
+**Files:** 源锚点共享边界常量及适配／存储的边界一致性小修（Core SourceSelection、MarkdownSelectionAdapter、SqliteWorkspaceStore.Branches 与对应测试）；MainViewModel 的分支／导航／阅读责任可拆partial；ChatViewModel、MessageViewModel、ConversationItemViewModel、ChatView／MarkdownMessageView、MainView、导航请求模型、CompositionRoot；新增 BranchDesktopTests.cs；fixtures 的明确 fixture-markdown 模式及协议自测；README、TRACK 和 s2-verification.md 由控制器最后汇总。不改共享需求／架构。
 
 **Interfaces:** 消费前两任务真实 API；Main 是业务导航唯一协调点。来源导航请求需稳定 child／parent／message身份及 SourceSelection，普通历史保存快照；不得由 View 内部私建业务栈。ChatView 的控件事件只负责捕获布局、投递选择和恢复阅读，不持有数据库／服务配置。
 
+- [ ] 统一来源 payload 为 1 MiB UTF-8 共享上限，Capture／Restore／Store 一致拒绝超限而不截断；真实有效中文引文的 JSON 可通过空白填充测试恰好边界与超一字节，不构造巨大布局。
 - [ ] Headless真SQLite＋受控transport RED覆盖：选区创建B，再B→C；双击命令不重复分支；未保存或活动回答拒绝；故障暂停全局接收；分支成功后草稿保存／导航失败不再建第二分支。
 - [ ] 原生拖选后提供“创建分支会话”入口；冻结捕获身份再提交，提交期防重入。显示当前路径与“返回来源”；父回答下列来源书签可再次进入已有子会话，侧栏按真实层级显示，不虚构总结节点。
 - [ ] 返回来源按关系打开父并高亮定位；精确锚点校验失败仍定位来源消息、展示保存引用及明确降级提示。再次进入子分支和普通切换恢复目标自身最新阅读位置，不能用来源替代。
