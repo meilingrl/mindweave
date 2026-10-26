@@ -5,14 +5,20 @@ namespace Mindweave.Application.Chat;
 
 public static class ChatRequestBudget
 {
-    // Deliberately conservative estimate: one token per UTF-8 byte, 32 per message,
-    // 256 fixed safety tokens, and the complete requested output reserve. No implicit truncation.
-    public static bool Fits(AiConfiguration configuration, IEnumerable<ChatInput> messages)
+    public const string EstimatorProfile = "utf8-bytes-v1";
+
+    // Conservative fallback, not a provider tokenizer: complete UTF-8 content plus
+    // per-message overhead, fixed safety margin and the complete output reserve.
+    public static long Estimate(AiConfiguration configuration, IEnumerable<ChatInput> messages)
     {
         long estimate = 256L + configuration.MaxOutputTokens;
-        foreach (var message in messages) estimate += 32L + Encoding.UTF8.GetByteCount(message.Content);
-        return estimate <= configuration.ContextTokenBudget;
+        foreach (var message in messages) estimate = checked(estimate + 32L + Encoding.UTF8.GetByteCount(message.Content));
+        return estimate;
     }
+
+    public static bool Fits(AiConfiguration configuration, IEnumerable<ChatInput> messages) =>
+        configuration.ContextTokenBudget > 0 && configuration.MaxOutputTokens > 0 &&
+        Estimate(configuration, messages) <= configuration.ContextTokenBudget;
 
     /// <summary>The context already contains exact frozen identities and effective own history.</summary>
     public static ChatContext PrepareReplyContext(ChatContext context, Guid conversationId, bool retry)
