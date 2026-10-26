@@ -7,20 +7,34 @@ namespace Mindweave.Application.Chat;
 
 public static partial class ReplyContextPlanner
 {
+    private static void ValidateFormatVersion(int formatVersion)
+    {
+        if (formatVersion is not (LegacyFormatVersion or FormatVersion))
+            throw new InvalidOperationException("上下文计划格式版本不受支持。");
+    }
+
+    private static int SummaryOutputTokens(AiConfiguration configuration, int formatVersion) =>
+        Math.Min(formatVersion == LegacyFormatVersion ? 1024 : 4096, configuration.MaxOutputTokens);
+
+    private static bool MatchesChunk(ContextChunk chunk, IReadOnlyDictionary<Guid, ChatMessage> originals,
+        AiConfiguration configuration, int formatVersion) =>
+        chunk.MaxOutputTokens == SummaryOutputTokens(configuration, formatVersion) &&
+        chunk.CacheKey == CacheKey(chunk.SourceConversationId, chunk.Slices, originals, configuration, formatVersion);
+
     private static string Hash(string body) => Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(body)));
 
     private static string CacheKey(Guid sourceConversationId, IReadOnlyList<ContextSourceSlice> slices,
-        IReadOnlyDictionary<Guid, ChatMessage> originals, AiConfiguration configuration) => Hash(JsonSerializer.Serialize(new
+        IReadOnlyDictionary<Guid, ChatMessage> originals, AiConfiguration configuration, int formatVersion) => Hash(JsonSerializer.Serialize(new
         {
-            FormatVersion, PromptVersion = ContextSummaryProtocol.PromptVersion, ChatRequestBudget.EstimatorProfile,
+            FormatVersion = formatVersion, PromptVersion = ContextSummaryProtocol.PromptVersion, ChatRequestBudget.EstimatorProfile,
             SourceConversationId = sourceConversationId, Configuration = configuration,
             Slices = slices.Select(s => new { Slice = s, originals[s.MessageId].ConversationId, originals[s.MessageId].Role,
                 originals[s.MessageId].Status, originals[s.MessageId].ReplyToUserId, originals[s.MessageId].SupersedesMessageId })
         }));
 
     private static ChatRequest BuildSummaryRequest(IReadOnlyList<ContextSourceSlice> slices,
-        IReadOnlyDictionary<Guid, ChatMessage> originals, AiConfiguration configuration) => new(
-            configuration with { MaxOutputTokens = Math.Min(1024, configuration.MaxOutputTokens) },
+        IReadOnlyDictionary<Guid, ChatMessage> originals, AiConfiguration configuration, int formatVersion) => new(
+            configuration with { MaxOutputTokens = SummaryOutputTokens(configuration, formatVersion) },
             new ChatInput[]
             {
                 new("system", ContextSummaryProtocol.Instruction),
@@ -32,7 +46,7 @@ public static partial class ReplyContextPlanner
                 }) }))
             });
 
-    private static ContextChunk[] SplitMessages(IReadOnlyList<ChatMessage> messages, AiConfiguration configuration)
+    private static ContextChunk[] SplitMessages(IReadOnlyList<ChatMessage> messages, AiConfiguration configuration, int formatVersion)
     {
         var byId = messages.ToDictionary(m => m.Id);
         var result = new List<ContextChunk>();
@@ -41,7 +55,7 @@ public static partial class ReplyContextPlanner
         {
             if (pending.Count == 0) return;
             var slices = Array.AsReadOnly(pending.ToArray());
-            result.Add(new(messages[0].ConversationId, CacheKey(messages[0].ConversationId, slices, byId, configuration), slices, Math.Min(1024, configuration.MaxOutputTokens)));
+            result.Add(new(messages[0].ConversationId, CacheKey(messages[0].ConversationId, slices, byId, configuration, formatVersion), slices, SummaryOutputTokens(configuration, formatVersion)));
             pending.Clear();
         }
         foreach (var message in messages)
@@ -53,7 +67,7 @@ public static partial class ReplyContextPlanner
                 ContextSourceSlice Slice(int length) => new(message.Id, message.Revision, hash, start, length);
                 bool Fits(int length)
                 {
-                    var request = BuildSummaryRequest(pending.Append(Slice(length)).ToArray(), byId, configuration);
+                    var request = BuildSummaryRequest(pending.Append(Slice(length)).ToArray(), byId, configuration, formatVersion);
                     return ChatRequestBudget.Fits(request.Configuration, request.Messages);
                 }
                 // Search scalar boundaries so no UTF-16 surrogate pair is split.
@@ -144,7 +158,8 @@ public static partial class ReplyContextPlanner
 
     private static void ValidatePlan(ReplyContextPlan plan, IReadOnlyList<ChatMessage> originals, AiConfiguration configuration)
     {
-        if (plan.FormatVersion != FormatVersion || plan.EstimatorProfile != ChatRequestBudget.EstimatorProfile ||
+        ValidateFormatVersion(plan.FormatVersion);
+        if (plan.EstimatorProfile != ChatRequestBudget.EstimatorProfile ||
             !plan.OriginalMessageIds.SequenceEqual(originals.Select(m => m.Id)))
             throw new InvalidOperationException("上下文计划版本或原消息顺序已失效。");
         var byId = originals.ToDictionary(m => m.Id);
@@ -178,8 +193,7 @@ public static partial class ReplyContextPlanner
             else if (part is SummaryContextPart summary)
             {
                 ValidateChunk(summary.Chunk, byId);
-                if (originals.Count == 0 || summary.Chunk.MaxOutputTokens != Math.Min(1024, configuration.MaxOutputTokens) ||
-                    summary.Chunk.CacheKey != CacheKey(summary.Chunk.SourceConversationId, summary.Chunk.Slices, byId, configuration))
+                if (!MatchesChunk(summary.Chunk, byId, configuration, plan.FormatVersion))
                     throw new InvalidOperationException("上下文摘要的配置或缓存身份已失效。");
                 foreach (var slice in summary.Chunk.Slices)
                 {

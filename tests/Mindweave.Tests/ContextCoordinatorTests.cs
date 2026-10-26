@@ -316,7 +316,7 @@ public sealed class ContextCoordinatorTests
     }
 
     [Fact]
-    public async Task All_phases_keep_accepted_configuration_and_only_summary_has_1024_output_cap()
+    public async Task All_phases_keep_accepted_configuration_and_summary_reserves_configured_output()
     {
         await using var f = await Fixture.OpenAsync(); var c = await LongConversation(f);
         var accepted = f.Configuration with { ContextTokenBudget = 7000 };
@@ -327,7 +327,7 @@ public sealed class ContextCoordinatorTests
         var call = first;
         while (IsSummary(call))
         {
-            Assert.Equal(accepted with { MaxOutputTokens = 1024 }, call.Request.Configuration);
+            Assert.Equal(accepted with { MaxOutputTokens = 2048 }, call.Request.Configuration);
             Assert.Equal("old-secret", call.Secret); Assert.True(ChatRequestBudget.Fits(call.Request.Configuration, call.Request.Messages));
             Complete(call, Summary); call = await f.Transport.NextAsync();
         }

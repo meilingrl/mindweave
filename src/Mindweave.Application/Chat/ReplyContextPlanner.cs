@@ -5,10 +5,16 @@ namespace Mindweave.Application.Chat;
 /// <summary>Pure planning over already frozen, retry-filtered original messages. Never discovers history.</summary>
 public static partial class ReplyContextPlanner
 {
-    public const int FormatVersion = 2;
+    public const int FormatVersion = 3;
+    private const int LegacyFormatVersion = 2;
 
-    public static ReplyContextPlan Plan(Guid targetConversationId, ChatContext context, AiConfiguration configuration)
+    public static ReplyContextPlan Plan(Guid targetConversationId, ChatContext context, AiConfiguration configuration) =>
+        Rebuild(FormatVersion, targetConversationId, context, configuration);
+
+    /// <summary>Reconstruct persisted plans using their original algorithm. New acceptance always uses Plan.</summary>
+    public static ReplyContextPlan Rebuild(int formatVersion, Guid targetConversationId, ChatContext context, AiConfiguration configuration)
     {
+        ValidateFormatVersion(formatVersion);
         ValidateConfiguration(configuration);
         var messages = context.Messages.ToArray();
         ValidateOriginals(messages);
@@ -32,7 +38,7 @@ public static partial class ReplyContextPlanner
             keep.Add(exchanges[0].User!.Id);
             keep.Add(exchanges[0].Answer.Id);
         }
-        ReplyContextPlan MakePlan(IEnumerable<ContextPart> parts) => new(FormatVersion, ChatRequestBudget.EstimatorProfile,
+        ReplyContextPlan MakePlan(IEnumerable<ContextPart> parts) => new(formatVersion, ChatRequestBudget.EstimatorProfile,
             Array.AsReadOnly(messages.Select(m => m.Id).ToArray()), Array.AsReadOnly(parts.ToArray()), context.DirectSourceMessageId, context.SourceQuote);
         if (ChatRequestBudget.Fits(configuration, ChatRequestBudget.Inputs(messages, context.SourceQuote)))
             return MakePlan(messages.Select(m => new VerbatimContextPart(m.Id)));
@@ -50,7 +56,7 @@ public static partial class ReplyContextPlanner
             void Flush()
             {
                 if (run.Count == 0) return;
-                parts.AddRange(SplitMessages(run, configuration).Select(c => new SummaryContextPart(c)));
+                parts.AddRange(SplitMessages(run, configuration, formatVersion).Select(c => new SummaryContextPart(c)));
                 run.Clear();
             }
             foreach (var message in messages)
@@ -91,10 +97,13 @@ public static partial class ReplyContextPlanner
         ValidateOriginals(originals);
         var byId = originals.ToDictionary(m => m.Id);
         ValidateChunk(chunk, byId);
-        if (chunk.SourceConversationId != sourceConversationId || chunk.MaxOutputTokens != Math.Min(1024, configuration.MaxOutputTokens) ||
-            chunk.CacheKey != CacheKey(sourceConversationId, chunk.Slices, byId, configuration))
+        // Source-owned attempts outlive their requesting plan. Authenticate the version
+        // against both the original key and cap without changing ContextChunk's JSON shape.
+        var formatVersion = MatchesChunk(chunk, byId, configuration, FormatVersion) ? FormatVersion :
+            MatchesChunk(chunk, byId, configuration, LegacyFormatVersion) ? LegacyFormatVersion : 0;
+        if (chunk.SourceConversationId != sourceConversationId || formatVersion == 0)
             throw new InvalidOperationException("压缩片段与原消息或生成配置不匹配。");
-        var request = BuildSummaryRequest(chunk.Slices, byId, configuration);
+        var request = BuildSummaryRequest(chunk.Slices, byId, configuration, formatVersion);
         if (!ChatRequestBudget.Fits(request.Configuration, request.Messages))
             throw new InvalidOperationException("压缩请求超过上下文预算。");
         return request;

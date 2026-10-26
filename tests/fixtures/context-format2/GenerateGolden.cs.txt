@@ -1,0 +1,54 @@
+using System.Security.Cryptography;
+using System.Text.Json;
+using Mindweave.Application.Chat;
+using Mindweave.Core.Chat;
+using Mindweave.Infrastructure.Runtime;
+using Mindweave.Infrastructure.Storage;
+using Xunit;
+namespace Mindweave.Tests;
+public sealed class GenerateFormat2Golden
+{
+    [Fact]
+    public async Task Generate()
+    {
+        Assert.Equal(2, ReplyContextPlanner.FormatVersion);
+        var destination = Environment.GetEnvironmentVariable("MINDWEAVE_GOLDEN_DESTINATION")!;
+        using var dir = new TestDirectory(); var paths = AppPaths.ForTrack("codex-steady", dir.Path);
+        object manifest;
+        await using (var store = await SqliteWorkspaceStore.OpenAsync(paths))
+        {
+            var root = await store.CreateConversationAsync((await store.CreateAsync("synthetic format2 golden")).Id);
+            for (var i = 0; i < 5; i++) await BranchStorageTests.Answer(store, root.Id, "synthetic question " + i, new string((char)('a' + i), 1500));
+            var source = (await store.ReadMessagesAsync(root.Id))[^1];
+            var selection = BranchStorageTests.Selection(source) with { Quote = "e" };
+            var producer = await store.CreateBranchAsync(root.Id, selection, Guid.NewGuid());
+            var sibling = await store.CreateBranchAsync(root.Id, selection, Guid.NewGuid());
+            var config = BranchStorageTests.Config(10000) with { MaxOutputTokens = 4096 };
+            var left = await store.AcceptReplyAsync(producer.Id, "producer synthetic current", config);
+            var right = await store.AcceptReplyAsync(sibling.Id, "sibling synthetic current", config);
+            var chunks = left.ContextPlan!.Parts.OfType<SummaryContextPart>().Select(p => p.Chunk).ToArray();
+            Assert.NotEmpty(chunks); Assert.All(chunks, chunk => Assert.Equal(1024, chunk.MaxOutputTokens));
+            var summaries = new List<CompletedContextSummary>();
+            var requests = new List<ChatRequest>();
+            foreach (var chunk in chunks)
+            {
+                requests.Add(ReplyContextPlanner.CreateSummaryRequest(root.Id, chunk, left.InputMessages, config));
+                var attempt = await store.StartCompressionAsync(left.Task.Id, chunk.CacheKey);
+                await store.WriteCompressionAsync(left.Task.Id, attempt.Id, 1,
+                    "{\"Background\":\"synthetic old facts\",\"Requirements\":\"\",\"Corrections\":\"\",\"OpenQuestions\":\"\",\"References\":\"\"}", GenerationStatus.Completed, "stop", actualModelId: "synthetic-model");
+                summaries.Add((await store.LoadCompletedSummaryAsync(right.Task.Id, chunk.CacheKey))!);
+            }
+            var prepared = await store.PrepareReplyRequestAsync(right.Task.Id);
+            await store.PrepareReplyRequestAsync(left.Task.Id);
+            await store.WriteGenerationAsync(left.Task.Id, 1, "synthetic producer answer", GenerationStatus.Completed);
+            await store.WriteGenerationAsync(right.Task.Id, 1, "synthetic sibling answer", GenerationStatus.Completed);
+            manifest = new { Baseline = "de5aa4c4f40c0696e034e2a14fb226437c9214c5", RootId = root.Id, ProducerId = producer.Id,
+                SiblingId = sibling.Id, ProducerTaskId = left.Task.Id, TaskId = right.Task.Id, Configuration = config,
+                Originals = right.InputMessages, Chunks = chunks, Summaries = summaries, SummaryRequests = requests, Prepared = prepared,
+                PreparedHash = ContextStorageTests.Sql(paths, "SELECT request_hash FROM prepared_reply_request WHERE task_id=$id", ("$id", right.Task.Id)) };
+        }
+        Directory.CreateDirectory(destination);
+        File.Copy(paths.DatabasePath, Path.Combine(destination, "format2.db"));
+        File.WriteAllText(Path.Combine(destination, "manifest.json"), JsonSerializer.Serialize(manifest, new JsonSerializerOptions { WriteIndented = true }));
+    }
+}

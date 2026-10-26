@@ -117,7 +117,7 @@ public sealed class ContextPlannerTests
         Assert.Throws<InvalidOperationException>(() => ReplyContextPlanner.CreateSummaryRequest(first.SourceConversationId, first, changed, Config));
         var summaries = plan.Parts.OfType<SummaryContextPart>().ToDictionary(p => p.Chunk.CacheKey, _ => new ContextSummaryContent("background", "", "", "", ""));
         Assert.Throws<InvalidOperationException>(() => ReplyContextPlanner.ComposeInputs(plan with { EstimatorProfile = "future" }, messages, summaries, Config));
-        Assert.Throws<InvalidOperationException>(() => ReplyContextPlanner.ComposeInputs(plan with { FormatVersion = 3 }, messages, summaries, Config));
+        Assert.Throws<InvalidOperationException>(() => ReplyContextPlanner.ComposeInputs(plan with { FormatVersion = 99 }, messages, summaries, Config));
         Assert.Throws<InvalidOperationException>(() => ReplyContextPlanner.ComposeInputs(plan with { Parts = plan.Parts.Reverse().ToArray() }, messages, summaries, Config));
         Assert.Throws<InvalidOperationException>(() => ReplyContextPlanner.ComposeInputs(plan with { Parts = plan.Parts.Skip(1).ToArray() }, messages, summaries, Config));
     }

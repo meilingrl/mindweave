@@ -55,10 +55,13 @@ public sealed partial class SqliteWorkspaceStore
             throw new InvalidOperationException("已接受的原消息身份或来源范围失效。");
         var originals = task.InputMessageIds.Select(id => byId[id]).ToArray();
         var source = ReadBranchSource(connection, transaction, task.ConversationId);
-        var expected = ReplyContextPlanner.Plan(task.ConversationId, new(originals, source?.Quote, source?.MessageId), task.Configuration);
         using var read = ChatCommand(connection, transaction, "SELECT plan_json FROM reply_context_plan WHERE task_id=$id", ("$id", taskId));
-        // Compare the entire explicit format with authoritative reconstruction. This also rejects altered source/current-question protection.
-        if (read.ExecuteScalar() is not string stored || stored != PlanJson(expected))
+        if (read.ExecuteScalar() is not string stored) throw new InvalidOperationException("上下文计划缺失。");
+        // The stored version selects only a known reconstruction algorithm, never trusted
+        // materials. Exact comparison still authenticates every original, chunk and boundary.
+        var expected = ReplyContextPlanner.Rebuild(ReadPlanFormatVersion(stored), task.ConversationId,
+            new(originals, source?.Quote, source?.MessageId), task.Configuration);
+        if (stored != PlanJson(expected))
             throw new InvalidOperationException("上下文计划已损坏或与接受身份不符。");
         using var chunks = ChatCommand(connection, transaction, "SELECT cache_key,chunk_json FROM context_plan_chunk WHERE task_id=$id", ("$id", taskId));
         using var reader = chunks.ExecuteReader();
@@ -68,5 +71,18 @@ public sealed partial class SqliteWorkspaceStore
                 throw new InvalidOperationException("计划片段已损坏。");
         if (expectedChunks.Count != 0) throw new InvalidOperationException("计划片段缺失。");
         return new(task, originals, expected);
+    }
+
+    private static int ReadPlanFormatVersion(string stored)
+    {
+        try
+        {
+            using var document = JsonDocument.Parse(stored);
+            if (document.RootElement.ValueKind == JsonValueKind.Object &&
+                document.RootElement.TryGetProperty("FormatVersion", out var version) &&
+                version.ValueKind == JsonValueKind.Number && version.TryGetInt32(out var value)) return value;
+        }
+        catch (JsonException exception) { throw new InvalidOperationException("上下文计划 JSON 无效。", exception); }
+        throw new InvalidOperationException("上下文计划缺少有效格式版本。");
     }
 }
