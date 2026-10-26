@@ -18,8 +18,8 @@ Claude 自主开发，目的是比稳健轨更早走到关键阶段，提前暴�
 
 ## 当前状态
 
-- 阶段：**S1 真实聊天 · 实现完成，待真实服务确认**（2026-10-26）。S0 已完成。
-- 测试：135 项通过（另 6 项需显式开启：真实服务、系统凭据、完整规模性能基准）——macOS 本机连续 5 次；Windows 实机尚未跑本次改动；CI 见 GitHub Actions。
+- 阶段：**S1 真实聊天 · 完成**（2026-10-26，含真实服务 4/4 与 Windows 凭据实机确认）；S0 已完成。下一阶段 S2（连同 E1）。
+- 测试：TESTCOUNT
 - 演进接缝 E2、E3、E4、E6 已落地为**迁移 v3**（2026-10-27），E5 只有规格；E1 随 S2 落地。详见 [演进接缝](docs/design/evolution-seams.md)。
 
 阶段报告见 [docs/design/stage-reports.md](docs/design/stage-reports.md)。
@@ -27,21 +27,20 @@ Claude 自主开发，目的是比稳健轨更早走到关键阶段，提前暴�
 ## 接续点
 
 - 下一步：S2 分支与返回，**由 S2 会话负责，连同 E1** —— 引入 LiveMarkdown 渲染与来源适配层（选区锚点按“块序号＋块内偏移”）、**迁移 v4**（分支来源、祖先冻结范围、阅读位置、草稿；v3 已被演进接缝占用）、创建分支事务、返回来源与普通切换、阅读位置与草稿按视图槽位保存。先读架构 §3.3、§5、`prototypes/livemarkdown-chat` 与 [演进接缝 · 交给 S2](docs/design/evolution-seams.md#交给-s2e1-与迁移-v4)。
-- S1 收尾在分支 `s1-wrapup`（S2 会话的独立工作树），合入方式由该会话处理。
-- S1 收尾项（不阻塞 S2）：拿到你的真实服务配置后跑 `scripts/real-api.sh test`，把结果写进阶段报告。
 - 第一条命令：`dotnet test Mindweave.slnx`。
 
 ## 需要你
 
 | 事项 | 原因 | 阻塞什么 | 在此之前我做什么 |
 | --- | --- | --- | --- |
-| **真实 API 配置：未完成（2026-10-26）** | 终端里的 `scripts/real-api.sh configure` 停在 `Model ID:` 提示，钥匙串中还没有密钥。请在该终端继续输入模型 ID，再在钥匙串提示处粘贴密钥。之后我用 `scripts/real-api.sh test` 复用；需要验证多家服务时用 `configure <名字>` 各存一份 | S1 第一条验收（真实长回答） | 已继续 S2 |
-| Windows 凭据管理器实机确认（约 1 分钟） | SSH 密钥登录的会话没有凭据存储（Win32 错误 1312），自动化无法验证；需要在笔记本桌面上的 PowerShell 里运行：`cd E:\mindweave-claude-auto\src-snapshot; $env:MINDWEAVE_CREDENTIAL_TESTS='1'; dotnet test tests\Mindweave.Infrastructure.Tests -c Release --filter FullyQualifiedName~PlatformCredentialStoreTests`（或之后在应用设置里保存一次密钥） | 仅 Windows 密钥保存的实机证据 | macOS 钥匙串已实测通过 |
-| （可选）Windows 上的 Scoop git 损坏 | `E:\Scoop\shims\git.exe` 无法启动 `git.exe`；不影响本轨道（我用快照同步，不需要 git），未擅自修复 | 无 | — |
 
-Windows 实机：`scripts/windows.sh test|publish|sync|exec`（主机 `win-home`，Tailscale，密钥登录；目录 `E:\mindweave-claude-auto`，与稳健轨隔离）。
+Windows 实机：`scripts/windows.sh test|publish|sync|exec`（主机 `win-home`，经本机用户态 Tailscale 实例 A 的 SOCKS `127.0.0.1:7898`，密钥登录，连接失败自动重试；目录 `E:\mindweave-claude-auto`，与稳健轨隔离）。2026-10-26 已修复笔记本上 Scoop 的 git（`current` 目录联接失效，`scoop reset git` 重建，现为 2.54.0）。
 
 已授权（2026-10-25）：推送 `origin/track/claude-auto`；CI 可用（仓库私有时只跑 Linux＋Windows，必要时你可改为公开仓库以免费使用分钟数）。
+
+## 协作
+
+多个会话并行的规则见 [AGENTS.md](AGENTS.md)“多个 Agent 并行”（2026-10-27 起）。本轨道的运行时资源：从任务工作树运行应用时设 `MINDWEAVE_DATA_DIR` 为该工作树自己的目录；Windows 实机用 `MINDWEAVE_WIN_DIR` 指向各自的目录，或排队使用默认目录。
 
 ## 演进接缝 E1–E6（2026-10-26 用户决定本轨道采纳为实验）
 
@@ -69,6 +68,9 @@ Windows 实机：`scripts/windows.sh test|publish|sync|exec`（主机 `win-home`
 - **2026-10-25 · Avalonia 编译绑定可以绑定到方法组而不报错。** `IsVisible="{Binding GoBackCommand.CanExecute}"` 能编译，但绑定的是方法而非布尔值，按钮永远可见；只有真实控件测试能发现。处理：暴露布尔属性 `CanGoBack`。
 - **2026-10-25 · Windows 首次 CI 暴露 macOS 掩盖的句柄泄漏。** 打开非数据库文件时 `Open()` 成功、第一条 PRAGMA 才失败，连接未释放；macOS 不强制文件锁所以测试通过，Windows 上文件一直被占用。处理：打开与配置失败时立即释放，测试加“之后能移走文件”断言。教训：涉及文件句柄的测试必须在 Windows 上跑。
 - **2026-10-25 · Windows 上进程被杀后文件锁不会立即可用。** 进程已报告退出，`FileShare.None` 的锁仍短暂占用。处理：第二个实例在“已有实例无响应”时再尝试占用一次（崩溃后马上重开的真实场景）；测试改为限时重试。
+- **2026-10-26 · 本机的 tailnet 只能经用户态 Tailscale 实例 A 的 SOCKS 访问。** 旧的 `tailscale status` 显示“已登出”并不代表网络故障，不能据此判断；可达性用 A 的控制套接字查询。中继链路偶尔拒绝新连接（约三分之一），脚本只对 SSH 连接级失败（退出码 255）重试。网络排查先读本机网络说明，不改代理／TUN／出口。
+- **2026-10-26 · 推理模型会把输出上限用在推理上。** `deepseek-flash` 的标题请求设 `max_tokens=64` 时，推理内容 112 字、正文 0 字、`finish_reason=length`，标题生成失败；上限 1024 时正文为“蒸汽机车的发明”。依据：直接探测流式响应的 `reasoning_content` 与 `content`。处理：标题上限改为 1024（标题本身仍截断到 60 字）。S3 设计上下文预算与输出上限时必须按能力（E4）区分推理模型。
+- **2026-10-26 · 同一工作目录不能有两个会话同时写代码。** 两个会话几乎同时开始实现同一批接缝，出现覆盖（一个文件被重写、一个类型重复定义）。处理：停止、互相通报改动清单、撤销重叠；之后一个工作目录只允许一个写代码的会话，另一会话需要时用独立 worktree 或临时检出。
 - **2026-10-26 · 经 SSH 密钥登录的 Windows 会话无法使用凭据管理器**（`CredWrite/CredRead` 返回 1312 `ERROR_NO_SUCH_LOGON_SESSION`）：没有密码登录就没有可用的凭据保护密钥。产品按设计报“凭据服务不可用”而不降级明文；但自动化测试无法在 SSH 下验证 Windows 凭据，只能在桌面会话中运行。
 - **2026-10-26 · 回答“已终态”与“生成槽释放”之间有短暂窗口。** 终态先写库，槽稍后释放；此时立即重试会被误判为“回答进行中”（测试 1/5 偶发暴露）。处理：判断是否进行中改看实时回答状态而非槽占用；25 次连续运行无失败。
 - **2026-10-26 · 两台机器 SDK 特性带不同**（macOS 10.0.402，Windows 10.0.103），原 `global.json` 固定 10.0.402 + `latestPatch` 会让 Windows 无法构建。处理：改为 10.0.100 + `latestFeature`（锁定 .NET 10 主版本，不锁特性带）；CI 用最新 10.0.x。

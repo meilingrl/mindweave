@@ -38,6 +38,13 @@ public sealed partial class ConversationService
     public const int MaxQuestionLength = 100_000;
     private const int TitleAnswerExcerpt = 2000;
 
+    /// <summary>
+    /// Output cap for a title request. Reasoning models count hidden reasoning against it: with 64 tokens,
+    /// deepseek-flash spent the whole budget reasoning and returned no title (finish_reason "length").
+    /// The title itself is still cut to <see cref="ConversationRules.MaxTitleLength"/>.
+    /// </summary>
+    private const int TitleOutputTokens = 1024;
+
     private readonly IConversationStore _store;
     private readonly GenerationCoordinator _generation;
     private readonly ModelSettingsService _models;
@@ -266,7 +273,7 @@ public sealed partial class ConversationService
         var now = _clock.UtcNow;
         var task = NewTask(GenerationTaskKind.Title, e.ConversationId, null, model, [question.Id, e.MessageId], now);
         await _store.AddTaskAsync(task, CancellationToken.None).ConfigureAwait(false);
-        _generation.Enqueue(new TitleWork(task, new ChatRequest(model with { MaxOutputTokens = 64 },
+        _generation.Enqueue(new TitleWork(task, new ChatRequest(model with { MaxOutputTokens = TitleOutputTokens },
         [
             new ChatTurn(ChatRole.System, "为下面的对话起一个简短标题，概括提问的主题。只输出标题本身，不加引号、序号或句末标点；不超过 20 个字；使用提问所用的语言。"),
             new ChatTurn(ChatRole.User, $"提问：{question.Text}\n\n回答开头：{excerpt}"),
