@@ -33,7 +33,7 @@ dotnet test Mindweave.slnx -c Release
 
 默认数据位于系统本地应用数据目录的 `Mindweave/codex-steady/` 下。需要独立测试数据时，运行 `dotnet run --project src/Mindweave.Desktop -- --data-root /absolute/test/root`，程序会继续在该根目录下创建 `codex-steady/` 子目录。同一数据目录重复启动会唤回原窗口。
 
-macOS 可执行 `sh scripts/build-macos-dev-app.sh "$PWD/artifacts/s2-native"`，生成 `artifacts/macos/Mindweave Codex.app`，双击即可体验。请先正常退出已运行的旧启动器，再重建。这个开发启动器依赖本机已安装的 .NET，参数指定专用测试数据根目录；不传参数时沿用 `artifacts/s0-native/`，它不是独立发行包。
+macOS 可执行 `sh scripts/build-macos-dev-app.sh "$PWD/artifacts/s2-native"`，生成 `artifacts/macos/Mindweave Codex.app`，双击即可体验。请先正常退出该应用，再重建；脚本检测到它仍在运行时会拒绝替换。脚本按本机架构从全新目录发布，准备完成后才替换应用，并将原包保留为 `artifacts/macos-previous/` 下带时间戳的 `.reference` 目录。这个开发启动器依赖本机已安装的 .NET，参数指定专用测试数据根目录；不传参数时沿用 `artifacts/s0-native/`，它不是独立发行包。
 
 当前桌面代码提供主题、会话、原生 Markdown 正文、流式发送／停止、末尾重试、草稿和最近会话恢复。先在设置填写兼容 Chat Completions 的服务、密钥、模型与预算，再新建会话明确点击发送。DeepSeek 地址与 `deepseek-flash` 只是可编辑的初始建议，保存不会自动发现模型或测试生成；模型目录须显式读取。密钥保存在本轨道的系统凭据命名空间，已有会话无密钥也可阅读。自动标题会单独发送请求并可能计费。正式桌面与 Headless 固定 Avalonia 12.1.4，Markdown 使用 LiveMarkdown.Avalonia 2.5.1，测试使用 xUnit v3 3.2.2；图片以不加载资源的提示文字显示，链接不自动打开。已接通选区分支、来源返回和独立阅读位置；总结、网络与自动压缩在后续阶段。当前自动化、完整独立审查与 macOS 本地合成核心走查通过；Windows 实机、真实模型多层背景质量及完整课程验收仍待执行。
 
