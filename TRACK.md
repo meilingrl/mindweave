@@ -9,15 +9,13 @@
 
 ## 当前状态
 
-- 阶段：S2 本地实现、完整独立审查与 macOS 本地合成服务核心走查已完成（2026-10-26）；Windows 11 和真实模型背景理解仍待验收。已细化 [S3 上下文预算／压缩计划](docs/implementation/s3-context-plan.md)，按四项任务实施：纯规划 `c776da7` 已独立审查 Approved，源会话归属／兄弟复用修复 `e0db9be` 已限定复审 Approved，完整回归 248 通过／2 原有跳过，Task 3 `532c097` 两槽前置阶段及 `9644ac7` 引用清单／hash 存储均独立审查 Approved，完整回归 278 通过／2 原有跳过，Task4 `3452065` 桌面及合成夹具也已独立审查 Approved，完整 286 通过／2 原有跳过、夹具 8 通过，进入 S3 整阶段审查与原生走查；[S3 验证](docs/implementation/s3-verification.md)记录分层边界，不等待暂不可用的 Windows 设备。[S2 计划](docs/implementation/s2-branch-plan.md)；[S2 验证](docs/implementation/s2-verification.md)；[S2 审查](docs/reviews/codex-s2-20261026.md)。本轨道目录 `/Users/meilingluo/Developer/Projects/mindweave.worktrees/codex-steady`。
-- 可用代码：最终产品 `492b80e`。延续 S1 聊天，新增正式 Markdown、已保存终态选区分支、祖先身份冻结、来源书签／路径／侧栏层级、返回来源、普通切换和阅读／草稿恢复、保存失败防重及修复。Main 保持唯一活动 ContentStack，Core／Application 无 UI／SQLite 依赖；总结、网络与自动压缩尚未实现。
-- 当前验证：控制器在最终 `492b80e` 上完整 Release **198 通过、2 原有显式跳过、0 失败**；macOS 包构建 **0 警告、0 错误**；夹具实现的 5 项自测通过。三项任务和整体 S2 差异均独立审查 Approved，元数据限定复审 Approved，无开放 Critical／Important。视口跳动与 payload 边界问题已修复；O(M×B) 视口重复扫描、既有极端修订号问题保留 P3。
-- macOS 原生：用户完成真实鼠标 A→B→C，控制器核对两层关系／冻结身份、正确重复词来源、祖先重试后旧来源、普通切换／书签、草稿／阅读关闭重开；最窄逻辑宽 880 下高亮与上方阅读在下方流式追加中保持。最终原生 DB 为 2 分支／7 Completed 本地任务／0 活动任务。损坏来源原生注入、分支事务中途杀进程与定量长历史性能未执行。
-- 真实服务：S1 最终 `78f3fc1` 已做针对性原生复查及 DeepSeek 官方／`deepseek-flash` 有界验收，见 [S1 验证](docs/implementation/s1-verification.md)。已用 **7/8 次生成、1/1 次目录查询**；剩余一次生成未使用，S2 无新增真实调用。S2 夹具验证协议与存储身份，不证明真实模型理解背景。
-- Windows：最终代码自包含 win-x64 测试包位于 `artifacts/windows-s2/Mindweave-Codex-S2-win-x64-492b80e.zip`，含运行时、独立数据入口、夹具及操作清单；逐文件 hash／ZIP CRC 已核对，不含 DB／真实凭据。用户暂时无 Windows 11，尚未实机执行。跨构建不代表 Windows 或课程验收。
-- 下一步：细化并实现 S3 的关键原文＋近期问答＋较早历史结构化摘要、复用失效与失败提示，保持冻结祖先边界和两个真实请求槽；先本地合成验证，再单列真实长会话质量验收。无需对既有设计重复产品审批，新增付费调用和确需用户取舍时再提出。
-- 凭据／隔离：程序固定 `codex-steady`；数据、锁和 IPC 有隔离测试，凭据按命名空间及随机版本引用访问。macOS 合成钥匙串 roundtrip 已实际通过，默认完整测试两个平台／opt-in 用例仍跳过。S1 真实密钥由用户本地录入，未读取其他软件凭据；S2 独立 `artifacts/s2-native` 使用公开合成 key。
-- 临时资产：`artifacts/s0-native` 不再写；`artifacts/s1-native` 保留作 S1 对照。S1 旧包归档 `artifacts/macos-s1/Mindweave-Codex-S1.zip` 及原字节 `.reference` 目录，原 S2 包另存 `artifacts/macos-s2/Mindweave-Codex-S2-492b80e.zip`；当前 `artifacts/macos/Mindweave Codex.app` 是 `0d938cf` 脚本生成的独立启动 smoke 包（逻辑功能仍为 S2），宿主 RID 发布并已实际启动／运行保护检查。S2 测试应用及 loopback 服务已正常关闭。`.superpowers/sdd/s2-branch-plan` 与 S1 证据保留使用中，不重派已完成任务。测试资产与构建输出不进 Git，真实密钥仅在系统凭据服务；本轮未借用另一轨道代码，未更改共享需求／架构，未推送。
+- 阶段：S3 本地代码、全部任务及整阶段独立审查已完成，macOS 合成核心走查已执行；错误摘要／必要原文拒绝的原生余项因锁屏待续，Windows及真实摘要质量仍未验收（2026-10-26）。[S3计划](docs/implementation/s3-context-plan.md)；[S3验证](docs/implementation/s3-verification.md)；[整阶段审查](docs/reviews/codex-s3-20261026.md)。目录 `/Users/meilingluo/Developer/Projects/mindweave.worktrees/codex-steady`。
+- 最终代码：产品／夹具 `3452065`，构建头 `ad2dd16`（只追加文档）。新增保守预算、关键原文与近期问答保护、源会话结构摘要／兄弟复用、引用＋hash实际请求清单、两槽内分阶段压缩、停止／保存修复／重开不重发、进度及历史提示。S3-ARCH-1原计划归属错误已按共享架构修复复审，不改main。S4知识总结／网络／删除归档尚未实现。
+- 验证：控制器最终 Release **286通过、2原有显式跳过、0失败**；solution与macOS publish零警告／错误；Python夹具8通过。四任务、源归属修复、打包、引用清单调整及整阶段审查均Approved，无开放Critical／Important／新Minor。继承TDD最初RED未留证据，后续真实缺陷红绿已记录；保留S2视口重复扫描及S1人工极端修订号P3，定量长历史性能未验证。
+- macOS S3：专用新schema5库，合成7000预算／128输出。实际观察压缩0/1、停止1/2后问题保留、重试续用及下一草稿、再次重试同缓存ID且无新压缩、关闭重开历史notice／草稿／对应阅读消息恢复且不重发。8父任务（6完成Reply／1停止Reply／1标题）、5源尝试、4缓存、0活动，FK检查空。阅读恢复非逐像素一致。非法摘要与超限拒绝仍只自动化覆盖，待解锁补原生；S2人工A→B→C和窄窗另见[S2记录](docs/implementation/s2-verification.md)。
+- 平台与资产：最终macOS包及原字节ZIP在 `artifacts/macos/`、`artifacts/macos-s3/`；S3自包含Windows测试ZIP在 `artifacts/windows-s3/`，逐文件hash／CRC通过，含独立数据入口与合成问题，不含DB／真实凭据。用户暂时没有Windows11，未实机。S1/S2数据、ZIP和`.reference`均保留；临时证据及SDD目录仍使用中，不删除，不重派已完成任务。
+- 真实服务：S1 DeepSeek官方／deepseek-flash原授权已用 **7/8生成、1/1目录查询**，剩余1次未用；S2/S3未增加真实调用。真实密钥仍仅本地凭据服务，未用于自动化。用户决定本轮不增加思考模式选项，沿用服务默认。真实长上下文质量须有界授权后另验。
+- 下一步：用户解锁后完成两项原生余项并正常关闭，准备真实质量测试材料与付费次数上限再请授权。当前测试应用闲置保留打开，合成服务已停止，续测时重启。S4尚未开始；完整课程／发行验收未执行。共享需求／架构与main无差异，本轮未借用另一轨道代码，未推送或合并。
 
 - 2026-10-25：已同步 `main` 的文档归置与路线说明；正式代码、测试和脚本后续按需进入 `src/`、`tests/`、`scripts/`。
 
