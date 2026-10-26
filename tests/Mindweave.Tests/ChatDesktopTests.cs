@@ -36,7 +36,7 @@ public sealed class ChatDesktopTests
         using var inspect = new SqliteConnection($"Data Source={paths.DatabasePath};Pooling=False");
         inspect.Open();
         using var command = inspect.CreateCommand(); command.CommandText = "PRAGMA user_version";
-        Assert.Equal(4L, command.ExecuteScalar());
+        Assert.Equal(5L, command.ExecuteScalar());
         var backupPath = Assert.Single(Directory.GetFiles(paths.BackupDirectory, "*.db"));
         using (var backup = new SqliteConnection($"Data Source={backupPath};Mode=ReadOnly;Pooling=False"))
         {
@@ -512,6 +512,13 @@ public sealed class ChatDesktopTests
     // coordinator uses that same underlying SQLite store with its real acceptance transaction.
     internal sealed class ControlledChatStore(SqliteWorkspaceStore inner) : IWorkspaceStore, IChatStore, Mindweave.Application.Branches.IBranchStore
     {
+        public Task<ReplyContextPlan?> LoadContextPlanAsync(Guid id) => inner.LoadContextPlanAsync(id);
+        public Task<CompletedContextSummary?> LoadCompletedSummaryAsync(Guid id, string key) => inner.LoadCompletedSummaryAsync(id, key);
+        public Task<ContextCompressionAttempt> StartCompressionAsync(Guid id, string key) => inner.StartCompressionAsync(id, key);
+        public Task<ContextCompressionAttempt?> LoadCompressionAttemptAsync(Guid id) => inner.LoadCompressionAttemptAsync(id);
+        public Task<bool> WriteCompressionAsync(Guid id, long revision, string payload, GenerationStatus status, string? finishReason = null, string? errorCode = null, string? actualModelId = null) => inner.WriteCompressionAsync(id, revision, payload, status, finishReason, errorCode, actualModelId);
+        public Task<PreparedReplyRequest> PrepareReplyRequestAsync(Guid id) => inner.PrepareReplyRequestAsync(id);
+        public Task<PreparedReplyRequest?> LoadPreparedReplyRequestAsync(Guid id) => inner.LoadPreparedReplyRequestAsync(id);
         public bool LoseBranchReturn { get; set; }
         public bool FailNextReadState { get; set; }
         public async Task<Conversation> CreateBranchAsync(Guid parent, Mindweave.Core.Branches.SourceSelection selection, Guid operation, Mindweave.Core.Branches.ConversationReadState? state = null)

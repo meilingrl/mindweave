@@ -159,5 +159,95 @@ public static class DatabaseSchema
             CHECK((message_id IS NULL AND source_start IS NULL AND offset_within_block IS NULL AND format_version IS NULL AND renderer_profile IS NULL)
                 OR (message_id IS NOT NULL AND source_start>=0 AND offset_within_block>=0 AND format_version=1 AND renderer_profile IS NOT NULL))
         );
+        """), new(5, """
+        CREATE TABLE reply_context_plan (
+            task_id TEXT PRIMARY KEY NOT NULL REFERENCES generation_task(id),
+            plan_json TEXT NOT NULL CHECK(json_valid(plan_json))
+        );
+        CREATE TRIGGER context_plan_reply BEFORE INSERT ON reply_context_plan
+        WHEN NOT EXISTS(SELECT 1 FROM generation_task WHERE id=NEW.task_id AND kind='Reply' AND status IN ('Queued','Running'))
+        BEGIN SELECT RAISE(ABORT,'Context requires active reply'); END;
+        CREATE TRIGGER context_plan_immutable BEFORE UPDATE ON reply_context_plan
+        BEGIN SELECT RAISE(ABORT,'Context plan is immutable'); END;
+        CREATE TABLE context_plan_chunk (
+            task_id TEXT NOT NULL REFERENCES reply_context_plan(task_id),
+            cache_key TEXT NOT NULL,
+            chunk_json TEXT NOT NULL CHECK(json_valid(chunk_json)),
+            PRIMARY KEY(task_id,cache_key)
+        );
+        CREATE TRIGGER context_chunk_immutable BEFORE UPDATE ON context_plan_chunk
+        BEGIN SELECT RAISE(ABORT,'Context chunk is immutable'); END;
+        CREATE TABLE context_compression_attempt (
+            id TEXT PRIMARY KEY NOT NULL,
+            task_id TEXT NOT NULL,
+            cache_key TEXT NOT NULL,
+            status TEXT NOT NULL CHECK(status IN ('Queued','Running','Completed','Stopped','Failed','Interrupted')),
+            revision INTEGER NOT NULL CHECK(revision>=0),
+            payload TEXT NOT NULL,
+            finish_reason TEXT,
+            error_code TEXT,
+            actual_model_id TEXT,
+            created_at TEXT NOT NULL,
+            updated_at TEXT NOT NULL,
+            FOREIGN KEY(task_id,cache_key) REFERENCES context_plan_chunk(task_id,cache_key),
+            UNIQUE(id,cache_key)
+        );
+        CREATE TRIGGER compression_active_parent BEFORE INSERT ON context_compression_attempt
+        WHEN NOT EXISTS(SELECT 1 FROM generation_task WHERE id=NEW.task_id AND kind='Reply' AND status IN ('Queued','Running'))
+        BEGIN SELECT RAISE(ABORT,'Compression requires active reply'); END;
+        CREATE TRIGGER compression_revision BEFORE UPDATE ON context_compression_attempt
+        WHEN NEW.revision<=OLD.revision OR (OLD.status='Running' AND NEW.status='Queued')
+            OR (NEW.status!='Interrupted' AND NOT EXISTS(SELECT 1 FROM generation_task WHERE id=NEW.task_id AND status IN ('Queued','Running')))
+        BEGIN SELECT RAISE(ABORT,'Compression revision or parent invalid'); END;
+        CREATE UNIQUE INDEX one_active_compression ON context_compression_attempt(task_id,cache_key) WHERE status IN ('Queued','Running');
+        CREATE TRIGGER compression_identity_immutable BEFORE UPDATE OF id,task_id,cache_key,created_at ON context_compression_attempt
+        BEGIN SELECT RAISE(ABORT,'Compression identity is immutable'); END;
+        CREATE TRIGGER terminal_compression_immutable BEFORE UPDATE ON context_compression_attempt WHEN OLD.status NOT IN ('Queued','Running')
+        BEGIN SELECT RAISE(ABORT,'Terminal compression is immutable'); END;
+        CREATE TABLE context_summary_cache (
+            id TEXT PRIMARY KEY NOT NULL,
+            cache_key TEXT NOT NULL UNIQUE,
+            conversation_id TEXT NOT NULL REFERENCES conversation(id),
+            attempt_id TEXT NOT NULL UNIQUE,
+            configuration_json TEXT NOT NULL CHECK(json_valid(configuration_json)),
+            chunk_json TEXT NOT NULL CHECK(json_valid(chunk_json)),
+            payload TEXT NOT NULL,
+            payload_hash TEXT NOT NULL,
+            actual_model_id TEXT,
+            completed_at TEXT NOT NULL,
+            FOREIGN KEY(attempt_id,cache_key) REFERENCES context_compression_attempt(id,cache_key)
+        );
+        CREATE TRIGGER cache_completed_provenance BEFORE INSERT ON context_summary_cache
+        WHEN NOT EXISTS(SELECT 1 FROM context_compression_attempt a
+            JOIN generation_task g ON g.id=a.task_id
+            JOIN context_plan_chunk c ON c.task_id=a.task_id AND c.cache_key=a.cache_key
+            WHERE a.id=NEW.attempt_id AND a.cache_key=NEW.cache_key AND a.status='Completed' AND a.finish_reason='stop'
+                AND a.payload=NEW.payload AND a.actual_model_id IS NEW.actual_model_id AND a.updated_at=NEW.completed_at
+                AND g.conversation_id=NEW.conversation_id AND g.configuration_json=NEW.configuration_json AND c.chunk_json=NEW.chunk_json)
+        BEGIN SELECT RAISE(ABORT,'Cache requires matching completed attempt'); END;
+        CREATE TRIGGER context_cache_immutable BEFORE UPDATE ON context_summary_cache
+        BEGIN SELECT RAISE(ABORT,'Completed cache is immutable'); END;
+        CREATE TABLE prepared_reply_request (
+            task_id TEXT PRIMARY KEY NOT NULL REFERENCES reply_context_plan(task_id),
+            format_version INTEGER NOT NULL CHECK(format_version=1),
+            configuration_json TEXT NOT NULL CHECK(json_valid(configuration_json)),
+            messages_json TEXT NOT NULL CHECK(json_valid(messages_json)),
+            prepared_at TEXT NOT NULL
+        );
+        CREATE TABLE prepared_context_use (
+            task_id TEXT NOT NULL REFERENCES prepared_reply_request(task_id),
+            input_index INTEGER NOT NULL CHECK(input_index>=0),
+            kind TEXT NOT NULL CHECK(kind IN ('Verbatim','Summary','SourceQuote')),
+            message_id TEXT REFERENCES chat_message(id),
+            summary_id TEXT REFERENCES context_summary_cache(id),
+            PRIMARY KEY(task_id,input_index),
+            CHECK((kind='Verbatim' AND message_id IS NOT NULL AND summary_id IS NULL)
+                OR (kind='Summary' AND message_id IS NULL AND summary_id IS NOT NULL)
+                OR (kind='SourceQuote' AND message_id IS NOT NULL AND summary_id IS NULL))
+        );
+        CREATE TRIGGER prepared_request_immutable BEFORE UPDATE ON prepared_reply_request
+        BEGIN SELECT RAISE(ABORT,'Prepared request is immutable'); END;
+        CREATE TRIGGER prepared_use_immutable BEFORE UPDATE ON prepared_context_use
+        BEGIN SELECT RAISE(ABORT,'Prepared material is immutable'); END;
         """)]);
 }

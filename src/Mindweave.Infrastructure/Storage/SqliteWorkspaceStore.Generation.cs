@@ -37,12 +37,12 @@ public sealed partial class SqliteWorkspaceStore
                 input.Add(user);
             }
             // Recheck the actual immutable input within the acceptance transaction, before clearing the draft.
-            if (!ChatRequestBudget.Fits(configuration, ChatRequestBudget.Inputs(input, context.SourceQuote)))
-                throw new InvalidOperationException("输入超出配置的上下文预算，请缩短输入或调整预算。");
+            var plan = ReplyContextPlanner.Plan(conversationId, new(input.ToArray(), context.SourceQuote, context.DirectSourceMessageId), configuration);
             var answer = new ChatMessage(Guid.NewGuid(), conversationId, checked(++sequence), MessageRole.Assistant, "", GenerationStatus.Queued, 0, user.Id, supersedes);
             InsertMessage(connection, transaction, answer);
             var task = NewGeneration(conversationId, GenerationKind.Reply, answer.Id, configuration, input, null);
             InsertGeneration(connection, transaction, task);
+            InsertContextPlan(connection, transaction, task.Id, plan);
             if (userText is not null)
             {
                 // Keep the clear as a revision tombstone: a delayed save must not resurrect submitted input.
@@ -53,7 +53,7 @@ public sealed partial class SqliteWorkspaceStore
                     """, ("$id", conversationId), ("$text", userText));
                 clear.ExecuteNonQuery();
             }
-            return new GenerationWork(task, input.ToArray(), context.SourceQuote);
+            return new GenerationWork(task, input.ToArray(), context.SourceQuote, plan);
         });
     }
 
@@ -128,6 +128,11 @@ public sealed partial class SqliteWorkspaceStore
 
     public Task RecoverInterruptedAsync() => WriteAsync((connection, transaction) =>
     {
+        using (var interrupt = ChatCommand(connection, transaction, """
+            UPDATE context_compression_attempt SET status='Interrupted',revision=revision+1,error_code='interrupted',updated_at=$now
+            WHERE status IN ('Queued','Running')
+            """, ("$now", DateTimeOffset.UtcNow.ToString("O", System.Globalization.CultureInfo.InvariantCulture))))
+            interrupt.ExecuteNonQuery();
         foreach (var task in ReadActiveGenerations(connection, transaction))
         {
             var revision = checked(task.Revision + 1);

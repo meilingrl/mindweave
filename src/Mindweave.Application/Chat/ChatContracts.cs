@@ -2,7 +2,7 @@ using Mindweave.Core.Chat;
 
 namespace Mindweave.Application.Chat;
 
-public interface IChatStore
+public interface IChatStore : IContextStore
 {
     Task<IReadOnlyList<Conversation>> ListConversationsAsync(Guid workspaceId);
     Task<Conversation> CreateConversationAsync(Guid workspaceId);

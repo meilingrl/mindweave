@@ -25,6 +25,7 @@ public sealed partial class SqliteWorkspaceStore
             }
         }
         input.AddRange(ChatHistory.LatestInput(ReadMessages(connection, transaction, conversationId)));
-        return new(input.ToArray(), ReadBranchSource(connection, transaction, conversationId)?.Quote);
+        var source = ReadBranchSource(connection, transaction, conversationId);
+        return new(input.ToArray(), source?.Quote, source?.MessageId);
     }
 }
