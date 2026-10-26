@@ -35,7 +35,7 @@ dotnet test Mindweave.slnx -c Release
 
 macOS 可执行 `sh scripts/build-macos-dev-app.sh "$PWD/artifacts/s1-native"`，生成 `artifacts/macos/Mindweave Codex.app`，双击即可体验。请先正常退出已运行的旧启动器，再重建。这个开发启动器依赖本机已安装的 .NET，参数指定专用测试数据根目录；不传参数时沿用 `artifacts/s0-native/`，它不是独立发行包。
 
-当前桌面代码提供主题、会话、流式发送／停止、末尾重试、草稿和最近会话恢复。先在设置填写兼容 Chat Completions 的服务、密钥、模型与预算，再新建会话明确点击发送。DeepSeek 地址与 `deepseek-flash` 只是可编辑的初始建议，保存不会自动发现模型或测试生成；模型目录须显式读取。密钥保存在本轨道的系统凭据命名空间，已有会话无密钥也可阅读。自动标题会单独发送请求并可能计费。分支、正式 Markdown、总结与网络仍在后续阶段。
+当前桌面代码提供主题、会话、原生 Markdown 正文、流式发送／停止、末尾重试、草稿和最近会话恢复。先在设置填写兼容 Chat Completions 的服务、密钥、模型与预算，再新建会话明确点击发送。DeepSeek 地址与 `deepseek-flash` 只是可编辑的初始建议，保存不会自动发现模型或测试生成；模型目录须显式读取。密钥保存在本轨道的系统凭据命名空间，已有会话无密钥也可阅读。自动标题会单独发送请求并可能计费。正式桌面与 Headless 固定 Avalonia 12.1.4，Markdown 使用 LiveMarkdown.Avalonia 2.5.1，测试使用 xUnit v3 3.2.2；图片以不加载资源的提示文字显示，链接不自动打开。分支、总结与网络仍在后续阶段，Markdown 的自动化通过不等于 S2 原生验收。
 
 本地协议走查可使用[测试专用 SSE 夹具](tests/fixtures/chat_sse_fixture.py)，启动、合成配置和验收边界见 [S1 验证记录](docs/implementation/s1-verification.md)。夹具不是真实模型，产品没有模拟回答回退。
 

@@ -1,13 +1,15 @@
 <Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
+    <!-- Existing probes own their timeout/cancellation lifecycle; retain S1 semantics during xUnit v3 migration. -->
+    <NoWarn>$(NoWarn);xUnit1051</NoWarn>
     <IsTestProject>true</IsTestProject><IsPackable>false</IsPackable>
     <OutputType>Exe</OutputType><StartupObject>Mindweave.Tests.ProcessProbe</StartupObject>
   </PropertyGroup>
   <ItemGroup>
     <PackageReference Include="Microsoft.NET.Test.Sdk" Version="18.11.0" />
-    <PackageReference Include="xunit" Version="2.9.3" />
+    <PackageReference Include="xunit.v3" Version="3.2.2" />
     <PackageReference Include="xunit.runner.visualstudio" Version="4.0.1"><PrivateAssets>all</PrivateAssets></PackageReference>
-    <PackageReference Include="Avalonia.Headless.XUnit" Version="11.3.21" />
+    <PackageReference Include="Avalonia.Headless.XUnit" Version="12.1.4" />
     <ProjectReference Include="../../src/Mindweave.Desktop/Mindweave.Desktop.csproj" />
   </ItemGroup>
 </Project>

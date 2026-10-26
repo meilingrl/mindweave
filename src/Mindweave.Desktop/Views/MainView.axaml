@@ -26,7 +26,7 @@
         </ScrollViewer>
         <StackPanel Grid.Row="4" Spacing="10" Margin="0,12,0,0">
           <StackPanel Spacing="8" IsEnabled="{Binding CanMutate}">
-            <TextBox x:Name="WorkspaceNameInput" Text="{Binding NewWorkspaceName, Mode=TwoWay}" Watermark="新主题名称" MaxLength="160" AutomationProperties.Name="新主题名称" />
+            <TextBox x:Name="WorkspaceNameInput" Text="{Binding NewWorkspaceName, Mode=TwoWay}" PlaceholderText="新主题名称" MaxLength="160" AutomationProperties.Name="新主题名称" />
             <Button x:Name="CreateWorkspaceButton" Classes="primary" Content="＋ 新建主题" HorizontalAlignment="Stretch" HorizontalContentAlignment="Center" Command="{Binding CreateWorkspaceCommand}" AutomationProperties.Name="新建主题工作区" />
           </StackPanel>
           <Button Classes="nav" Content="设置" Command="{Binding SettingsCommand}" IsEnabled="{Binding HasWorkspace}" AutomationProperties.Name="设置主区" />

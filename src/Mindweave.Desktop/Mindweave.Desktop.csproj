@@ -7,9 +7,10 @@
   <ItemGroup>
     <ProjectReference Include="../Mindweave.Application/Mindweave.Application.csproj" />
     <ProjectReference Include="../Mindweave.Infrastructure/Mindweave.Infrastructure.csproj" />
-    <PackageReference Include="Avalonia.Desktop" Version="11.3.21" />
-    <PackageReference Include="Avalonia.Themes.Fluent" Version="11.3.21" />
-    <PackageReference Include="Avalonia.Fonts.Inter" Version="11.3.21" />
+    <PackageReference Include="Avalonia.Desktop" Version="12.1.4" />
+    <PackageReference Include="Avalonia.Themes.Fluent" Version="12.1.4" />
+    <PackageReference Include="Avalonia.Fonts.Inter" Version="12.1.4" />
+    <PackageReference Include="LiveMarkdown.Avalonia" Version="2.5.1" />
     <PackageReference Include="CommunityToolkit.Mvvm" Version="8.4.2" />
   </ItemGroup>
 </Project>

@@ -11,7 +11,8 @@ public static class ProcessProbe
 {
     public static async Task<int> Main(string[] args)
     {
-        if (args.Length != 2) return 20;
+        if (args.Length != 2 || args[0] is not ("generation-checkpoint" or "migration" or "instance"))
+            return await Xunit.Runner.InProc.SystemConsole.ConsoleRunner.Run(args);
         var paths = AppPaths.ForTrack("codex-steady", args[1]);
         if (args[0] == "generation-checkpoint")
         {

@@ -5,6 +5,10 @@ namespace Mindweave.Desktop.ViewModels;
 
 public sealed partial class MessageViewModel(ChatMessage message) : ViewModelBase
 {
+    public MessageRole Role => message.Role;
+    [ObservableProperty] private long revision = message.Revision;
+    [ObservableProperty] private bool hasUnsavedChanges;
+    public bool CanCreateBranch => Role == MessageRole.Assistant && Status is (GenerationStatus.Completed or GenerationStatus.Stopped or GenerationStatus.Failed or GenerationStatus.Interrupted) && !HasUnsavedChanges && !string.IsNullOrWhiteSpace(Body);
     public Guid Id { get; } = message.Id;
     public string RoleLabel => message.Role == MessageRole.User ? "你" : message.SupersedesMessageId is null ? "AI" : "AI · 新尝试（旧尝试保留）";
     [ObservableProperty] private string body = message.Body;
@@ -17,7 +21,9 @@ public sealed partial class MessageViewModel(ChatMessage message) : ViewModelBas
         GenerationStatus.Completed => "已完成", GenerationStatus.Stopped => "已停止 · 内容不完整",
         GenerationStatus.Interrupted => "已中断 · 内容不完整", _ => "失败 · 内容不完整"
     } + (ErrorCode is null ? "" : $" · {ErrorCode}");
-    partial void OnStatusChanged(GenerationStatus value) { OnPropertyChanged(nameof(IsIncomplete)); OnPropertyChanged(nameof(StatusLabel)); }
+    partial void OnStatusChanged(GenerationStatus value) { OnPropertyChanged(nameof(IsIncomplete)); OnPropertyChanged(nameof(StatusLabel)); OnPropertyChanged(nameof(CanCreateBranch)); }
     partial void OnErrorCodeChanged(string? value) => OnPropertyChanged(nameof(StatusLabel));
-    public void Project(GenerationSnapshot snapshot) { Body = snapshot.Body; Status = snapshot.Status; ErrorCode = snapshot.Error; }
+    partial void OnBodyChanged(string value) => OnPropertyChanged(nameof(CanCreateBranch));
+    partial void OnHasUnsavedChangesChanged(bool value) => OnPropertyChanged(nameof(CanCreateBranch));
+    public void Project(GenerationSnapshot snapshot) { Revision = snapshot.Revision; HasUnsavedChanges = snapshot.HasUnsavedChanges; Body = snapshot.Body; Status = snapshot.Status; ErrorCode = snapshot.Error; }
 }

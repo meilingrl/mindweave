@@ -15,13 +15,15 @@ namespace Mindweave.Tests;
 
 public static class TestAppBuilder
 {
-    public static AppBuilder BuildAvaloniaApp() => AppBuilder.Configure<TestApplication>().UseHeadless(new());
+    public static AppBuilder BuildAvaloniaApp() => AppBuilder.Configure<TestApplication>().UseSkia().WithInterFont().UseHeadless(new() { UseHeadlessDrawing = false });
 }
 public sealed class TestApplication : Avalonia.Application
 {
     public override void Initialize()
     {
         Styles.Add(new Avalonia.Themes.Fluent.FluentTheme());
+        Styles.Add(new Avalonia.Markup.Xaml.Styling.StyleInclude((Uri?)null) { Source = new Uri("avares://LiveMarkdown.Avalonia/Styles.axaml") });
+        Resources.MergedDictionaries.Add(new Avalonia.Markup.Xaml.Styling.ResourceInclude((Uri?)null) { Source = new Uri("avares://LiveMarkdown.Avalonia/Defaults.axaml") });
         DataTemplates.Add(new ViewLocator());
     }
 }

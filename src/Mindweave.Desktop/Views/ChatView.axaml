@@ -1,8 +1,8 @@
 <UserControl xmlns="https://github.com/avaloniaui" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
- xmlns:vm="using:Mindweave.Desktop.ViewModels" x:Class="Mindweave.Desktop.Views.ChatView" x:DataType="vm:ChatViewModel">
+ xmlns:markdown="using:Mindweave.Desktop.Markdown" xmlns:vm="using:Mindweave.Desktop.ViewModels" x:Class="Mindweave.Desktop.Views.ChatView" x:DataType="vm:ChatViewModel">
  <Grid RowDefinitions="Auto,*,Auto" Margin="24,18">
   <Grid ColumnDefinitions="*,Auto" Margin="0,0,0,12">
-   <TextBox Text="{Binding TitleText, Mode=TwoWay}" Watermark="会话标题" MaxLength="160" IsEnabled="{Binding CanEdit}" AutomationProperties.Name="会话标题" />
+   <TextBox Text="{Binding TitleText, Mode=TwoWay}" PlaceholderText="会话标题" MaxLength="160" IsEnabled="{Binding CanEdit}" AutomationProperties.Name="会话标题" />
    <Button Grid.Column="1" Content="保存标题" Command="{Binding RenameCommand}" IsEnabled="{Binding CanEdit}" Margin="8,0,0,0" />
   </Grid>
   <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto">
@@ -12,7 +12,7 @@
       <Border Background="White" BorderBrush="#E3E6DC" BorderThickness="1" CornerRadius="10" Padding="18" Margin="0,0,0,14">
        <StackPanel Spacing="9">
         <TextBlock Text="{Binding RoleLabel}" FontWeight="SemiBold" Foreground="#59644D" />
-        <SelectableTextBlock Text="{Binding Body}" TextWrapping="Wrap" FontSize="15" LineHeight="25" />
+        <markdown:MarkdownMessageView Body="{Binding Body}" MessageId="{Binding Id}" Revision="{Binding Revision}" FontSize="15" />
         <TextBlock Text="{Binding StatusLabel}" TextWrapping="Wrap" FontSize="11" Foreground="#858B7D" />
        </StackPanel>
       </Border>
@@ -22,7 +22,7 @@
   </ScrollViewer>
   <StackPanel Grid.Row="2" Spacing="8" Margin="0,12,0,0">
    <TextBlock Text="{Binding ErrorMessage}" TextWrapping="Wrap" Foreground="#9A4122" />
-   <TextBox x:Name="ChatInput" Text="{Binding InputText, Mode=TwoWay}" AcceptsReturn="True" TextWrapping="Wrap" MinHeight="84" MaxHeight="170" Watermark="输入问题…" IsReadOnly="{Binding !CanEdit}" AutomationProperties.Name="聊天输入" />
+   <TextBox x:Name="ChatInput" Text="{Binding InputText, Mode=TwoWay}" AcceptsReturn="True" TextWrapping="Wrap" MinHeight="84" MaxHeight="170" PlaceholderText="输入问题…" IsReadOnly="{Binding !CanEdit}" AutomationProperties.Name="聊天输入" />
    <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Spacing="8">
     <Button Content="重试末尾回答" Command="{Binding RetryCommand}" IsEnabled="{Binding CanRetry}" />
     <Button x:Name="StopButton" Content="停止" Command="{Binding StopCommand}" IsEnabled="{Binding HasActiveReply}" />

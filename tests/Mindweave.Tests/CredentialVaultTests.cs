@@ -64,7 +64,7 @@ public sealed class CredentialVaultTests
 
 public sealed class NativeCredentialFactAttribute : FactAttribute
 {
-    public NativeCredentialFactAttribute()
+    public NativeCredentialFactAttribute([System.Runtime.CompilerServices.CallerFilePath] string? sourceFilePath = null, [System.Runtime.CompilerServices.CallerLineNumber] int sourceLineNumber = 0) : base(sourceFilePath, sourceLineNumber)
     {
         if (Environment.GetEnvironmentVariable("MINDWEAVE_TEST_NATIVE_CREDENTIALS") != "1")
             Skip = "Native credential API not invoked; explicit synthetic-only opt-in required.";
@@ -74,7 +74,7 @@ public sealed class NativeCredentialFactAttribute : FactAttribute
 
 public sealed class UnsupportedCredentialFactAttribute : FactAttribute
 {
-    public UnsupportedCredentialFactAttribute()
+    public UnsupportedCredentialFactAttribute([System.Runtime.CompilerServices.CallerFilePath] string? sourceFilePath = null, [System.Runtime.CompilerServices.CallerLineNumber] int sourceLineNumber = 0) : base(sourceFilePath, sourceLineNumber)
     {
         if (OperatingSystem.IsMacOS() || OperatingSystem.IsWindows()) Skip = "Unknown-platform behavior can only execute on unsupported platform.";
     }
