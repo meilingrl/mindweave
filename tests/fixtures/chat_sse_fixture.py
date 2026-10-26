@@ -6,11 +6,13 @@ Base URL: http://127.0.0.1:18081/v1
 Synthetic key: mindweave-loopback-only
 Models include fixture-context / fixture-context-invalid / fixture-context-fail.
 Context modes only echo explicit MW markers from supplied source; no semantic understanding.
+Use --context-delay 3 to observe/stop summary preparation; normal answers keep their timing.
 Titles always return a fixed test title.
 Stop with Ctrl+C after native validation. Does not store bodies, keys or chat data.
 """
 import argparse
 import json
+import math
 import re
 import time
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
@@ -24,9 +26,12 @@ MARKERS = re.compile(r"\[MW_(SOURCE|REQUIREMENT|CORRECTION|QUESTION|REFERENCE):(
 FIELDS = {"SOURCE": "Background", "REQUIREMENT": "Requirements", "CORRECTION": "Corrections", "QUESTION": "OpenQuestions", "REFERENCE": "References"}
 
 
+def is_context_summary(messages):
+    return any(m["role"] == "system" and m["content"].startswith("Summarize the supplied original conversation slices") for m in messages)
+
+
 def context_chunks(model, messages):
-    summary = any(m["role"] == "system" and m["content"].startswith("Summarize the supplied original conversation slices") for m in messages)
-    if summary:
+    if is_context_summary(messages):
         envelope = json.loads(messages[-1]["content"])
         # Inspect Body only: metadata and instructions cannot invent source evidence.
         bodies = [s["Body"] for s in envelope["OriginalSlices"]]
@@ -159,6 +164,8 @@ class FixtureHandler(BaseHTTPRequestHandler):
         if context is not None and not title:
             chunks, early_failure = context
         delay = 0.03 if title or model in ("fixture-normal", "fixture-markdown") or model.startswith("fixture-context") else self.server.slow_delay
+        if context is not None and not title and is_context_summary(messages):
+            delay = self.server.context_delay
         print("fixture request: " + ("title" if title else model), flush=True)
         try:
             for text in chunks:
@@ -182,13 +189,18 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--port", type=int, default=18081)
     parser.add_argument("--slow-delay", type=float, default=0.6)
+    parser.add_argument("--context-delay", type=float, default=0.03,
+        help="seconds after each synthetic summary chunk; use 3 for native Stop observation (default: 0.03)")
     parser.add_argument("--slow-chunks", type=int, default=40)
     args = parser.parse_args()
     if args.slow_delay < 0 or not 1 <= args.slow_chunks <= 1000:
         parser.error("invalid slow stream controls")
+    if not math.isfinite(args.context_delay) or args.context_delay < 0:
+        parser.error("context delay must be a finite nonnegative number")
     server = ThreadingHTTPServer(("127.0.0.1", args.port), FixtureHandler)
     server.daemon_threads = True
     server.slow_delay, server.slow_chunks = args.slow_delay, args.slow_chunks
+    server.context_delay = args.context_delay
     print(f"TEST_ONLY_ENDPOINT=http://127.0.0.1:{server.server_port}/v1", flush=True)
     try:
         server.serve_forever()
