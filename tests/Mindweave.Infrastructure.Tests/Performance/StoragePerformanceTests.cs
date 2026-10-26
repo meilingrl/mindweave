@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using Mindweave.Core.Branches;
 using Mindweave.Infrastructure.Tests.Chat;
 
 namespace Mindweave.Infrastructure.Tests.Performance;
@@ -15,6 +16,9 @@ public class StoragePerformanceTests
 
     /// <summary>Opening the long conversation: every message and block.</summary>
     private static readonly TimeSpan LoadBudget = TimeSpan.FromMilliseconds(300);
+
+    /// <summary>Assembling what the deepest branch sends: every ancestor cut to its frozen range.</summary>
+    private static readonly TimeSpan ContextBudget = TimeSpan.FromMilliseconds(300);
 
     private static CancellationToken Ct => TestContext.Current.CancellationToken;
 
@@ -34,17 +38,27 @@ public class StoragePerformanceTests
         await using var h = await ChatHarness.StartAsync(configure: false);
         var seeding = Stopwatch.StartNew();
         var longConversation = await PerfSeed.FillAsync(h.Store, h.Workspace, shape, Ct);
+        var deepest = await PerfSeed.FillBranchChainAsync(h.Store, h.Branches, longConversation, shape, Ct);
         seeding.Stop();
 
-        var list = await MedianAsync(async () => Assert.Equal(shape.Conversations, (await h.Store.ListAsync(h.Workspace, Ct)).Count));
+        var list = await MedianAsync(async () => Assert.Equal(shape.Conversations + shape.BranchDepth, (await h.Store.ListAsync(h.Workspace, Ct)).Count));
         var load = await MedianAsync(async () => Assert.Equal(shape.TurnsInLongConversation * 2, (await h.Store.GetMessagesAsync(longConversation, Ct)).Count));
 
+        var expectedContext = (shape.TurnsInLongConversation * 2) + ((shape.BranchDepth - 1) * shape.TurnsPerBranch * 2);
+        var context = await MedianAsync(async () =>
+        {
+            var ancestors = await h.Branches.GetAncestorContextAsync(deepest, Ct);
+            var own = await h.Store.GetMessagesAsync(deepest, Ct);
+            Assert.Equal(expectedContext + own.Count, BranchContext.Assemble(ancestors, new ContextSegment(deepest, "蒸汽机", own)).Count);
+        });
+
         TestContext.Current.TestOutputHelper?.WriteLine(
-            $"{shape}: seed {seeding.ElapsedMilliseconds} ms, list {list.TotalMilliseconds:F1} ms, load {load.TotalMilliseconds:F1} ms");
+            $"{shape}: seed {seeding.ElapsedMilliseconds} ms, list {list.TotalMilliseconds:F1} ms, load {load.TotalMilliseconds:F1} ms, deepest branch context {context.TotalMilliseconds:F1} ms");
         if (enforceBudgets)
         {
             Assert.True(list <= ListBudget, $"Listing took {list.TotalMilliseconds:F1} ms (budget {ListBudget.TotalMilliseconds} ms).");
             Assert.True(load <= LoadBudget, $"Loading took {load.TotalMilliseconds:F1} ms (budget {LoadBudget.TotalMilliseconds} ms).");
+            Assert.True(context <= ContextBudget, $"Assembling the deepest branch took {context.TotalMilliseconds:F1} ms (budget {ContextBudget.TotalMilliseconds} ms).");
         }
     }
 

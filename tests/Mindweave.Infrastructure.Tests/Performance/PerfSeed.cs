@@ -1,5 +1,6 @@
 using System.Text;
 using Mindweave.Application.Storage;
+using Mindweave.Core.Branches;
 using Mindweave.Core.Conversations;
 using Mindweave.Core.Models;
 using Mindweave.Core.Workspaces;
@@ -7,19 +8,19 @@ using Mindweave.Core.Workspaces;
 namespace Mindweave.Infrastructure.Tests.Performance;
 
 /// <summary>Shape of a generated workspace. Same shape, same data: content is derived from indexes only.</summary>
-internal sealed record PerfShape(int Conversations, int TurnsInLongConversation, int AnswerCharacters)
+internal sealed record PerfShape(int Conversations, int TurnsInLongConversation, int AnswerCharacters, int BranchDepth, int TurnsPerBranch)
 {
     /// <summary>Small enough to run on every test pass, so the generator never rots.</summary>
-    public static PerfShape Smoke { get; } = new(20, 10, 2_000);
+    public static PerfShape Smoke { get; } = new(20, 10, 2_000, 3, 2);
 
-    /// <summary>The budgeted size (docs/evolution.md E6): a heavy year of use.</summary>
-    public static PerfShape Full { get; } = new(1_000, 200, 20_000);
+    /// <summary>The budgeted size (docs/evolution.md E6): a heavy year of use, with a ten-level branch chain.</summary>
+    public static PerfShape Full { get; } = new(1_000, 200, 20_000, 10, 20);
 }
 
 /// <summary>
 /// Fills a workspace through the real store, so the data passes the same guards and schema as production
-/// writes: many one-turn conversations plus one long conversation with long Markdown answers. Branch trees
-/// join the shape when branches exist (S2).
+/// writes: many one-turn conversations, one long conversation with long Markdown answers, and a chain of
+/// branches, each created from the last answer of the previous level.
 /// </summary>
 internal static class PerfSeed
 {
@@ -39,14 +40,43 @@ internal static class PerfSeed
         for (var turn = 1; turn < shape.TurnsInLongConversation; turn++)
         {
             at = at.AddSeconds(1);
-            var question = NewMessage(conversation, MessageRole.User, $"追问 {turn}", MessageState.Complete, at);
-            var pending = NewMessage(conversation, MessageRole.Assistant, string.Empty, MessageState.Pending, at);
-            var task = NewTask(conversation, pending.Id, at);
-            await store.AppendQuestionAsync(question, pending, task, cancellationToken).ConfigureAwait(false);
-            await CompleteAsync(store, task, pending.Id, answer, at, cancellationToken);
+            await AppendTurnAsync(store, conversation, $"追问 {turn}", answer, at, cancellationToken);
         }
 
         return conversation;
+    }
+
+    /// <summary>A chain of <see cref="PerfShape.BranchDepth"/> branches below <paramref name="root"/>; returns the deepest.</summary>
+    public static async Task<ConversationId> FillBranchChainAsync(IConversationStore store, IBranchStore branches, ConversationId root, PerfShape shape, CancellationToken cancellationToken)
+    {
+        var answer = Answer(shape.AnswerCharacters);
+        var at = new DateTimeOffset(2026, 6, 1, 0, 0, 0, TimeSpan.Zero);
+        var parent = root;
+        for (var level = 0; level < shape.BranchDepth; level++)
+        {
+            var source = (await store.GetMessagesAsync(parent, cancellationToken).ConfigureAwait(false))[^1];
+            var child = ConversationId.New();
+            var selection = new BranchSelection(source.Id, 0, "蒸汽机", "{}", 1, "perf");
+            await branches.CreateAsync(parent, child, selection, at, cancellationToken).ConfigureAwait(false);
+            for (var turn = 0; turn < shape.TurnsPerBranch; turn++)
+            {
+                at = at.AddSeconds(1);
+                await AppendTurnAsync(store, child, $"第 {level} 层追问 {turn}", answer, at, cancellationToken);
+            }
+
+            parent = child;
+        }
+
+        return parent;
+    }
+
+    private static async Task AppendTurnAsync(IConversationStore store, ConversationId conversation, string question, string answer, DateTimeOffset at, CancellationToken cancellationToken)
+    {
+        var q = NewMessage(conversation, MessageRole.User, question, MessageState.Complete, at);
+        var pending = NewMessage(conversation, MessageRole.Assistant, string.Empty, MessageState.Pending, at);
+        var task = NewTask(conversation, pending.Id, at);
+        await store.AppendQuestionAsync(q, pending, task, cancellationToken).ConfigureAwait(false);
+        await CompleteAsync(store, task, pending.Id, answer, at, cancellationToken);
     }
 
     private static async Task<ConversationId> StartAsync(IConversationStore store, WorkspaceId workspace, DateTimeOffset at, string question, string answer, CancellationToken cancellationToken)
