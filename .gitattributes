@@ -1,0 +1,3 @@
+# Check out text files with LF everywhere. Raw string literals in tests and SQL migrations embed line
+# breaks verbatim, so a CRLF checkout on Windows changes what the code means, not just how it looks.
+* text=auto eol=lf
