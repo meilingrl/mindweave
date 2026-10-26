@@ -1,6 +1,6 @@
 # S3 上下文预算与压缩 · 验证记录
 
-开始日期：2026-10-26，轨道 `track/codex-steady`。代码、自动化及整阶段独立代码门禁已完成；macOS 核心协议、错误摘要和必要原文拒绝检查已执行，真实模型质量与 Windows 尚未验收。计划见 [S3 实施计划](s3-context-plan.md)，实时状态见 [TRACK](../../TRACK.md)。
+开始日期：2026-10-26，轨道 `track/codex-steady`。初版及两次后验修复的软件门禁完成；初版macOS核心／失败／拒绝路径和Task5旧数据恢复已执行，当前 `2595b98` 候选包的原生／真实复测因再次锁屏待续。完整真实压缩闭环与Windows尚未验收。计划见 [S3 实施计划](s3-context-plan.md)，实时状态见 [TRACK](../../TRACK.md)。
 
 ## 基线与隔离
 
@@ -19,8 +19,9 @@
 | 两槽压缩前置阶段／取消／恢复 | `532c097`，25 新用例；完整 273 通过／2 原有跳过、构建零警告错误、夹具 5 通过；独立审查 Approved |
 | Desktop 状态与本地协议样例 | `203eef0`＋夹具延时 `3452065`；桌面 8 通过、完整 286 通过／2 原有跳过、Python 8 通过，独立审查 Approved |
 | 完整 S3 独立审查 | `1d1a239..ad2dd16` Approved，0 Critical／Important／新 Minor |
-| macOS S3 原生 | `3452065` 从 `ad2dd16` 构建；准备／停止／重试／缓存复用／重开／非法摘要失败／超预算拒绝均已执行，应用正常关闭 |
-| 真实长会话语义质量 | flash两轮短确认完成；首次摘要截断，Task5后摘要完整但过长、最终预算拒绝，仍未发最终回答；提示修订Task6进行中 |
+| 后验预算／提示兼容 | Task5 `bc4a46c`、Task6 `2595b98` 均限定审查Approved；最终328通过／2原有跳过，build零警告错误、Python8；实际旧格式2／3副本13计划／9prepared与缓存身份保持 |
+| macOS S3 原生 | 初版准备／停止／重试／缓存／重开／非法摘要／超限拒绝及Task5旧数据重开已执行；当前2595候选包已构建，原生复测待解锁 |
+| 真实长会话语义质量 | flash两轮短确认完成；首次摘要截断，Task5后摘要完整但过长、最终预算拒绝，仍未发最终回答；Task6已过审，待解锁复测 |
 | Windows 11 | 尚未执行；用户当前暂时没有设备 |
 
 上下文摘要只改变发送材料，原始消息和来源不变，不成为 S4 知识总结或网络节点。保守估算可能提前触发压缩／拒绝；结构与身份测试不证明模型摘要无信息损失。
@@ -124,11 +125,19 @@ Task5产品 `bc4a46c` 已独立审查Approved，0 Critical／Important／Minor�
 
 Task6仅修订提示：明确真正压缩、篇幅目标和去重，新格式4／prompt-v2；旧格式2／3的v1提示与身份保持精确可读。当前停止外呼，须回归、独立审查和旧数据后验再决定是否对原U3再试；不改变测试材料、4k输出、thinking或协议。如果此次提示修订后的真实闭环仍失败，不继续盲目更改其他变量。
 
+### Task6软件门禁、候选包与锁屏边界
+
+产品 `2595b98` 已完成97聚焦、完整Release **328通过／2原有跳过／0失败**（共330），build零警告错误、Python8通过；[独立审查](../reviews/codex-s3-prompt-20261027.md)Approved，0 Critical／Important／Minor。格式3合成golden的基线生成原始日志、生成前源码证据及hash已保留；评审还在内存中反向还原基线源码并核对hash。既有6000预算／90对问答用例保留格式3，新格式4在6500下验证仍需压缩、多消息打包、完整覆盖和实际Fits，不改生产算法凑过。
+
+控制器用格式4代码读取旧数据副本：13份格式2／3计划、8源尝试、9 prepared及12次缓存使用均通过，含真实服务产生的3330字符格式3缓存；ID／hash不变、全部副本逻辑行不变、原始文件SHA不变、FK空，没有凭据或transport。对准确旧U3做新格式4离线预检：10769估计／1份4096摘要／总接受记录保守上界10≤12，新key与旧格式3分离；不重发前两轮，不丢旧缓存。
+
+macOS与Windows候选包均从 `2595b98` 构建，四macOS DLL与RID输出匹配，逐文件字节／manifest hash及ZIP CRC通过。真实专用新入口为 `artifacts/macos-s3-quality-prompt/Mindweave Codex.app`，仅Launch数据路径不同，继续使用原 `s3-supplier-native` 数据；此前两个quality包和数据保留。尝试用原生工具打开此入口时Mac再次锁屏，工具拒绝操作，已向用户请求解锁，未绕过。当前本轮所有测试应用均未运行，真实库仍5父任务／2源尝试／2prepared／0活动，没有新增外呼；实际调用仍5／12、0目录。候选原生／真实门禁尚未完成，不能把代码审查和打包提升为真实质量通过。
+
 ## 最终开发测试资产
 
-- macOS：初版S3包原字节保存在 `artifacts/macos-s3/Mindweave-Codex-S3-3452065.zip`（15,607,010字节，55文件／41,948,483字节），逐项字节与CRC已核对；SHA-256 `94154f2a0a31d172b27f29216f3252d699c724ddbbe59c6a233dad30bc82585d`。当前 `artifacts/macos/Mindweave Codex.app` 为Task5 `bc4a46c` 候选包，依赖本机.NET；旧包保留在macos-previous（含`Mindweave Codex-20261027T020949789591-83908.reference`）。独立真实测试入口另在macos-s3-quality及macos-s3-quality-budget，旧副本均保留，Task6未重建。
-- Windows：从同一源码 `ad2dd16` 交叉 publish 自包含 win-x64 包，`artifacts/windows-s3/Mindweave-Codex-S3-win-x64-3452065.zip`，77,137,816字节、248条目；manifest逐文件hash及ZIP CRC通过。SHA-256 `3589ebe53850cabc1e0a9a71793d3fd409368beb647775eb42b7d8c8f0a807f7`。含运行时、合成服务、启动脚本和三段合成问题，无DB／真实凭据／用户会话。用户暂时没有Windows11，尚未实机或转移。
+- macOS当前：`artifacts/macos/Mindweave Codex.app` 为 `2595b98` 候选包，55文件／41,953,455字节，依赖本机.NET。原字节ZIP `artifacts/macos-s3/Mindweave-Codex-S3-2595b98.zip`，15,586,982字节，文件字节及CRC通过；SHA-256 `1b912262612f41fd6eb326178d335cfa9b8a8c1c14c66e5c47aa6c5cf66a4c50`。初版345ZIP与两次打包保留的reference（含`20261027T020949789591-83908`和`20261027T023124686987-13002`）不删；macos-s3-quality、quality-budget、quality-prompt三个入口按对应历史版本保留。
+- Windows当前：`artifacts/windows-s3-2595b98/Mindweave-Codex-S3-win-x64-2595b98.zip`，自包含win-x64／.NET10，77,129,600字节／248条目；源码与构建头2595，manifest逐文件hash及CRC通过，CMD为真实CRLF。SHA-256 `7f1ddb6fef5e8085e49f4708aa2bcb25bf3365527709dd0a3a83a8fa54f71fd1`。含运行时、合成服务、独立test-data启动入口与清单，不含DB／真实凭据／用户会话；旧 `artifacts/windows-s3/` 包原字节保留。用户暂无Windows11，仍未实机或转移，交叉构建不证明原生通过。
 
 ## 当前未完成事项
 
-Task5已审查并完成旧数据及真实后验，现为Task6压缩提示修订。独立审查及旧格式2／3复查后，才在本轮剩余7次内重新离线规划并决定是否显式重试原U3，不重复前两轮，不查询目录。S1仍只用7/8生成和1/1查询，剩余一次未使用；S3已实际5次／本轮12上限，继续默认思考。Windows、完整真实压缩闭环、取消计费、定量长历史性能、完整课程／发行验收均未通过本记录代替。S4尚未开始。
+Task6软件门禁和旧格式2／3副本核验已完成，当前等待用户解锁。之后先重开原真实库核对未自动重发，再在剩余7次内重新确认离线预检并显式重试原U3；不重复前两轮、不查询目录。如本次仍失败则先审视策略，不盲改其他变量。S1仍7/8生成和1/1查询，剩余一次未用；S3实际5／12，思考默认。Windows、完整真实压缩闭环、取消计费、定量长历史性能、完整课程／发行验收仍独立。S4尚未开始。
