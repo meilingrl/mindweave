@@ -8,6 +8,8 @@
   <ItemGroup>
     <None Include="../fixtures/context-format2/format2.db" Link="Fixtures/context-format2/format2.db" CopyToOutputDirectory="PreserveNewest" />
     <None Include="../fixtures/context-format2/manifest.json" Link="Fixtures/context-format2/manifest.json" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="../fixtures/context-format3/format3.db" Link="Fixtures/context-format3/format3.db" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="../fixtures/context-format3/manifest.json" Link="Fixtures/context-format3/manifest.json" CopyToOutputDirectory="PreserveNewest" />
     <PackageReference Include="Microsoft.NET.Test.Sdk" Version="18.11.0" />
     <PackageReference Include="xunit.v3" Version="3.2.2" />
     <PackageReference Include="xunit.runner.visualstudio" Version="4.0.1"><PrivateAssets>all</PrivateAssets></PackageReference>

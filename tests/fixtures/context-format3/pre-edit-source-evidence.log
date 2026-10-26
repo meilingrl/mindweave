@@ -1,0 +1,6 @@
+9c09b2fc9a4846a8035db4993601a889160f1e07
+?? tests/Mindweave.Tests/GenerateFormat3Golden.cs
+?? tests/fixtures/context-format3/
+c6d2eb56f81f879ecfbfd1a9e4360626e9645af895dea794a81ddfb1eccf0d40  src/Mindweave.Application/Chat/ContextSummaryProtocol.cs
+3c501cf9b970acb46f5ec79700e4bbd879bdca3979ddef97e5108fb9a4a35e69  src/Mindweave.Application/Chat/ReplyContextPlanner.cs
+521415ef7bc154092d156f53dbbb4d8e442ac0e284826d3adfd7b501bfe76416  src/Mindweave.Application/Chat/ReplyContextPlanner.Materials.cs

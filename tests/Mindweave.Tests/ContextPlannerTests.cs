@@ -59,18 +59,31 @@ public sealed class ContextPlannerTests
         Assert.True(ChatRequestBudget.Fits(Config, inputs));
     }
 
-    [Fact]
-    public void Many_small_turns_pack_contiguous_older_messages_instead_of_rejecting_wrapper_overhead()
+    [Theory]
+    [InlineData(3, 6000)] [InlineData(4, 6500)]
+    public void Many_small_turns_pack_contiguous_older_messages_instead_of_rejecting_wrapper_overhead(int version, int budget)
     {
         var messages = Enumerable.Range(0, 90).SelectMany(_ =>
         {
             var user = User("old question");
             return new[] { user, Answer(user, "old answer") };
         }).Append(User("now")).ToArray();
-        var plan = ReplyContextPlanner.Plan(Target, new(messages, null), Config);
+        var config = Config with { ContextTokenBudget = budget };
+        Assert.False(ChatRequestBudget.Fits(config, ChatRequestBudget.Inputs(messages)));
+        var plan = ReplyContextPlanner.Rebuild(version, Target, new(messages, null), config);
         Assert.Contains(plan.Parts.OfType<SummaryContextPart>(), p => p.Chunk.Slices.Count > 1);
         var summaries = plan.Parts.OfType<SummaryContextPart>().ToDictionary(p => p.Chunk.CacheKey, _ => new ContextSummaryContent("background", "", "", "", ""));
-        Assert.True(ChatRequestBudget.Fits(Config, ReplyContextPlanner.ComposeInputs(plan, messages, summaries, Config)));
+        Assert.True(ChatRequestBudget.Fits(config, ReplyContextPlanner.ComposeInputs(plan, messages, summaries, config)));
+        var byId = messages.ToDictionary(m => m.Id);
+        var coverage = plan.Parts.SelectMany(part => part switch
+        {
+            VerbatimContextPart v => new[] { (Id: v.MessageId, Body: byId[v.MessageId].Body) },
+            SummaryContextPart c => c.Chunk.Slices.Select(slice => (Id: slice.MessageId, Body: byId[slice.MessageId].Body.Substring(slice.Start, slice.Length))),
+            _ => throw new InvalidOperationException()
+        }).ToArray();
+        Assert.Equal(messages.Select(m => m.Id), coverage.Select(c => c.Id).Distinct());
+        foreach (var message in messages)
+            Assert.Equal(message.Body, string.Concat(coverage.Where(c => c.Id == message.Id).Select(c => c.Body)));
         Assert.Equal(messages.TakeLast(3).Select(m => m.Id), plan.Parts.OfType<VerbatimContextPart>().TakeLast(3).Select(p => p.MessageId));
     }
 

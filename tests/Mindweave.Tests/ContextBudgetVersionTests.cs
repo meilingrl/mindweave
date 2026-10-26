@@ -39,7 +39,7 @@ public sealed class ContextBudgetVersionTests
         var inputs = ReplyContextPlanner.ComposeInputs(plan, originals, Summaries(plan), config);
         Assert.True(ChatRequestBudget.Fits(config, inputs));
         Assert.Equal("current", inputs[^1].Content);
-        Assert.Equal(3, plan.FormatVersion);
+        Assert.Equal(4, plan.FormatVersion);
     }
 
     [Fact]
@@ -60,7 +60,7 @@ public sealed class ContextBudgetVersionTests
         var chunk = Chunks(plan)[0];
         foreach (var forged in new[] { chunk with { MaxOutputTokens = 1024 }, chunk with { MaxOutputTokens = 4097 }, chunk with { CacheKey = new string('0', 64) } })
             Assert.Throws<InvalidOperationException>(() => ReplyContextPlanner.CreateSummaryRequest(Owner, forged, originals, config));
-        foreach (var version in new[] { 2, 0, 4, 99 })
+        foreach (var version in new[] { 2, 3, 0, 5, 99 })
             Assert.Throws<InvalidOperationException>(() => ReplyContextPlanner.ComposeInputs(plan with { FormatVersion = version }, originals, Summaries(plan), config));
     }
 
@@ -70,7 +70,7 @@ public sealed class ContextBudgetVersionTests
     {
         var originals = Originals(); var config = Config(output); var context = new ChatContext(originals, null);
         var legacy = ReplyContextPlanner.Rebuild(2, Target, context, config);
-        var current = ReplyContextPlanner.Plan(Target, context, config);
+        var current = ReplyContextPlanner.Rebuild(3, Target, context, config);
         var oldChunks = Chunks(legacy); var newChunks = Chunks(current);
         Assert.Equal(oldChunks.Length, newChunks.Length);
         for (var i = 0; i < oldChunks.Length; i++)
@@ -83,30 +83,31 @@ public sealed class ContextBudgetVersionTests
         }
         Assert.Throws<InvalidOperationException>(() => ReplyContextPlanner.ComposeInputs(legacy with { FormatVersion = 3 }, originals, Summaries(legacy), config));
         Assert.Throws<InvalidOperationException>(() => ReplyContextPlanner.ComposeInputs(current with { FormatVersion = 2 }, originals, Summaries(current), config));
-        foreach (var version in new[] { 0, 1, 4, 99 })
+        foreach (var version in new[] { 0, 1, 5, 99 })
             Assert.Throws<InvalidOperationException>(() => ReplyContextPlanner.Rebuild(version, Target, context, config));
     }
 
-    private static string Fixture(string name) => Path.Combine(AppContext.BaseDirectory, "Fixtures", "context-format2", name);
-    private static JsonElement Golden => JsonDocument.Parse(File.ReadAllText(Fixture("manifest.json"))).RootElement.Clone();
+    private static string Fixture(int version, string name) => Path.Combine(AppContext.BaseDirectory, "Fixtures", $"context-format{version}", name);
+    private static JsonElement Golden(int version) => JsonDocument.Parse(File.ReadAllText(Fixture(version, "manifest.json"))).RootElement.Clone();
     private static T Read<T>(JsonElement golden, string property) => golden.GetProperty(property).Deserialize<T>()!;
-    private static AppPaths CopyGolden(TestDirectory dir)
+    private static AppPaths CopyGolden(TestDirectory dir, int version)
     {
         var paths = AppPaths.ForTrack("codex-steady", dir.Path);
         Directory.CreateDirectory(paths.DataDirectory);
-        File.Copy(Fixture("format2.db"), paths.DatabasePath);
+        File.Copy(Fixture(version, $"format{version}.db"), paths.DatabasePath);
         return paths;
     }
 
-    [Fact]
-    public async Task Baseline_format2_plan_source_cache_and_prepared_reopen_without_changing_any_database_byte()
+    [Theory]
+    [InlineData(2)] [InlineData(3)]
+    public async Task Baseline_plan_source_cache_and_prepared_reopen_without_changing_any_database_byte(int version)
     {
-        using var dir = new TestDirectory(); var paths = CopyGolden(dir); var golden = Golden;
+        using var dir = new TestDirectory(); var paths = CopyGolden(dir, version); var golden = Golden(version);
         var before = File.ReadAllBytes(paths.DatabasePath);
         var id = Read<Guid>(golden, "TaskId");
         await using (var store = await SqliteWorkspaceStore.OpenAsync(paths))
         {
-            var plan = (await store.LoadContextPlanAsync(id))!; Assert.Equal(2, plan.FormatVersion);
+            var plan = (await store.LoadContextPlanAsync(id))!; Assert.Equal(version, plan.FormatVersion);
             var config = Read<AiConfiguration>(golden, "Configuration"); Assert.Equal(4096, config.MaxOutputTokens);
             var originals = Read<ChatMessage[]>(golden, "Originals");
             var expectedChunks = Read<ContextChunk[]>(golden, "Chunks");
@@ -118,7 +119,8 @@ public sealed class ContextBudgetVersionTests
                 var cached = (await store.LoadCompletedSummaryAsync(id, expectedChunks[i].CacheKey))!;
                 Assert.Equal(JsonSerializer.Serialize(summaries[i]), JsonSerializer.Serialize(cached));
                 var attempt = (await store.LoadCompressionAttemptAsync(cached.AttemptId))!;
-                Assert.Equal(1024, attempt.Chunk.MaxOutputTokens);
+                Assert.Equal(version == 2 ? 1024 : 4096, attempt.Chunk.MaxOutputTokens);
+                if (version == 3) Assert.Equal(JsonSerializer.Serialize(Read<ContextCompressionAttempt[]>(golden, "Attempts")[i]), JsonSerializer.Serialize(attempt));
                 var request = ReplyContextPlanner.CreateSummaryRequest(attempt.SourceConversationId, attempt.Chunk, originals, config);
                 Assert.Equal(JsonSerializer.Serialize(requests[i]), JsonSerializer.Serialize(request));
             }
@@ -129,15 +131,16 @@ public sealed class ContextBudgetVersionTests
         Assert.Equal(before, File.ReadAllBytes(paths.DatabasePath));
     }
 
-    [Fact]
-    public async Task Reopened_old_database_accepts_format3_without_reusing_old_cache_or_rewriting_old_plan()
+    [Theory]
+    [InlineData(2)] [InlineData(3)]
+    public async Task Reopened_old_database_accepts_format4_without_reusing_old_cache_or_rewriting_old_plan(int version)
     {
-        using var dir = new TestDirectory(); var paths = CopyGolden(dir); var golden = Golden;
+        using var dir = new TestDirectory(); var paths = CopyGolden(dir, version); var golden = Golden(version);
         var id = Read<Guid>(golden, "TaskId");
         var oldPlan = ContextStorageTests.Sql(paths, "SELECT plan_json FROM reply_context_plan WHERE task_id=$id", ("$id", id));
         await using var store = await SqliteWorkspaceStore.OpenAsync(paths);
         var work = await store.AcceptReplyAsync(Read<Guid>(golden, "SiblingId"), null, Read<AiConfiguration>(golden, "Configuration"));
-        Assert.Equal(3, work.ContextPlan!.FormatVersion);
+        Assert.Equal(4, work.ContextPlan!.FormatVersion);
         var oldKeys = Read<ContextChunk[]>(golden, "Chunks").Select(c => c.CacheKey).ToHashSet();
         foreach (var chunk in Chunks(work.ContextPlan))
         {
@@ -153,10 +156,11 @@ public sealed class ContextBudgetVersionTests
         Assert.NotNull(await store.LoadPreparedReplyRequestAsync(id));
     }
 
-    [Fact]
-    public async Task Legacy_source_cache_remains_independently_readable_after_original_requester_deletion()
+    [Theory]
+    [InlineData(2)] [InlineData(3)]
+    public async Task Legacy_source_cache_remains_independently_readable_after_original_requester_deletion(int version)
     {
-        using var dir = new TestDirectory(); var paths = CopyGolden(dir); var golden = Golden;
+        using var dir = new TestDirectory(); var paths = CopyGolden(dir, version); var golden = Golden(version);
         ContextStorageTests.Sql(paths, "BEGIN; PRAGMA defer_foreign_keys=ON; UPDATE app_selection SET kind='Overview',target_id=NULL; DELETE FROM generation_task WHERE conversation_id=$id; DELETE FROM conversation WHERE id=$id; COMMIT;", ("$id", Read<Guid>(golden, "ProducerId")));
         await using var store = await SqliteWorkspaceStore.OpenAsync(paths);
         foreach (var cached in Read<CompletedContextSummary[]>(golden, "Summaries"))
@@ -170,19 +174,21 @@ public sealed class ContextBudgetVersionTests
     }
 
     [Theory]
-    [InlineData("unknown-version")] [InlineData("cross-version")] [InlineData("missing-version")]
-    [InlineData("invalid-json")] [InlineData("invalid-version-type")] [InlineData("plan-cap")] [InlineData("plan-key")]
-    public async Task Legacy_plan_tampering_is_rejected_without_rewriting_evidence(string change)
+    [InlineData(2, "unknown-version")] [InlineData(2, "cross-version")] [InlineData(2, "missing-version")]
+    [InlineData(2, "invalid-json")] [InlineData(2, "invalid-version-type")] [InlineData(2, "plan-cap")] [InlineData(2, "plan-key")]
+    [InlineData(3, "unknown-version")] [InlineData(3, "cross-version")] [InlineData(3, "missing-version")]
+    [InlineData(3, "invalid-json")] [InlineData(3, "invalid-version-type")] [InlineData(3, "plan-cap")] [InlineData(3, "plan-key")]
+    public async Task Legacy_plan_tampering_is_rejected_without_rewriting_evidence(int version, string change)
     {
-        using var dir = new TestDirectory(); var paths = CopyGolden(dir); var id = Read<Guid>(Golden, "TaskId");
+        using var dir = new TestDirectory(); var paths = CopyGolden(dir, version); var id = Read<Guid>(Golden(version), "TaskId");
         var node = System.Text.Json.Nodes.JsonNode.Parse((string)ContextStorageTests.Sql(paths, "SELECT plan_json FROM reply_context_plan WHERE task_id=$id", ("$id", id))!)!;
         switch (change)
         {
             case "unknown-version": node["FormatVersion"] = 99; break;
-            case "cross-version": node["FormatVersion"] = 3; break;
+            case "cross-version": node["FormatVersion"] = 4; break;
             case "missing-version": node.AsObject().Remove("FormatVersion"); break;
             case "invalid-version-type": node["FormatVersion"] = "2"; break;
-            case "plan-cap": node["Parts"]![0]!["Chunk"]!["MaxOutputTokens"] = 4096; break;
+            case "plan-cap": node["Parts"]![0]!["Chunk"]!["MaxOutputTokens"] = version == 2 ? 4096 : 1024; break;
             case "plan-key": node["Parts"]![0]!["Chunk"]!["CacheKey"] = new string('0', 64); break;
         }
         var forged = change == "invalid-json" ? "{" : node.ToJsonString();
@@ -203,16 +209,16 @@ public sealed class ContextBudgetVersionTests
     }
 
     [Theory]
-    [InlineData("cap")] [InlineData("key")]
-    public async Task Legacy_source_attempt_rejects_forged_version_identity_without_requester_plan(string change)
+    [InlineData(2, "cap")] [InlineData(2, "key")] [InlineData(3, "cap")] [InlineData(3, "key")]
+    public async Task Legacy_source_attempt_rejects_forged_version_identity_without_requester_plan(int version, string change)
     {
-        using var dir = new TestDirectory(); var paths = CopyGolden(dir); var golden = Golden;
+        using var dir = new TestDirectory(); var paths = CopyGolden(dir, version); var golden = Golden(version);
         var attemptId = Read<CompletedContextSummary[]>(golden, "Summaries")[0].AttemptId;
         // Inject corruption after opening so this exercises source validation, not the startup FK gate.
         await using var store = await SqliteWorkspaceStore.OpenAsync(paths);
         ContextStorageTests.Sql(paths, "DROP TRIGGER compression_identity_immutable; DROP TRIGGER terminal_compression_immutable; DROP TRIGGER compression_revision;");
         if (change == "cap")
-            ContextStorageTests.Sql(paths, "UPDATE context_compression_attempt SET chunk_json=json_set(chunk_json,'$.MaxOutputTokens',4096) WHERE id=$id", ("$id", attemptId));
+            ContextStorageTests.Sql(paths, "UPDATE context_compression_attempt SET chunk_json=json_set(chunk_json,'$.MaxOutputTokens',$cap) WHERE id=$id", ("$id", attemptId), ("$cap", version == 2 ? 4096 : 1024));
         else
             ContextStorageTests.Sql(paths, "PRAGMA foreign_keys=OFF; UPDATE context_compression_attempt SET cache_key=$key,chunk_json=json_set(chunk_json,'$.CacheKey',$key) WHERE id=$id", ("$id", attemptId), ("$key", new string('0', 64)));
         await Assert.ThrowsAsync<InvalidOperationException>(() => store.LoadCompressionAttemptAsync(attemptId));

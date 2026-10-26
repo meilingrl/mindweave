@@ -9,9 +9,16 @@ public static partial class ReplyContextPlanner
 {
     private static void ValidateFormatVersion(int formatVersion)
     {
-        if (formatVersion is not (LegacyFormatVersion or FormatVersion))
+        if (formatVersion is not (LegacyFormatVersion or ExpandedBudgetFormatVersion or FormatVersion))
             throw new InvalidOperationException("上下文计划格式版本不受支持。");
     }
+
+    private static (string Version, string Instruction) SummaryPrompt(int formatVersion) => formatVersion switch
+    {
+        LegacyFormatVersion or ExpandedBudgetFormatVersion => (ContextSummaryProtocol.PromptVersion, ContextSummaryProtocol.Instruction),
+        FormatVersion => (ContextSummaryProtocol.CompactPromptVersion, ContextSummaryProtocol.CompactInstruction),
+        _ => throw new InvalidOperationException("上下文计划格式版本不受支持。")
+    };
 
     private static int SummaryOutputTokens(AiConfiguration configuration, int formatVersion) =>
         Math.Min(formatVersion == LegacyFormatVersion ? 1024 : 4096, configuration.MaxOutputTokens);
@@ -26,7 +33,7 @@ public static partial class ReplyContextPlanner
     private static string CacheKey(Guid sourceConversationId, IReadOnlyList<ContextSourceSlice> slices,
         IReadOnlyDictionary<Guid, ChatMessage> originals, AiConfiguration configuration, int formatVersion) => Hash(JsonSerializer.Serialize(new
         {
-            FormatVersion = formatVersion, PromptVersion = ContextSummaryProtocol.PromptVersion, ChatRequestBudget.EstimatorProfile,
+            FormatVersion = formatVersion, PromptVersion = SummaryPrompt(formatVersion).Version, ChatRequestBudget.EstimatorProfile,
             SourceConversationId = sourceConversationId, Configuration = configuration,
             Slices = slices.Select(s => new { Slice = s, originals[s.MessageId].ConversationId, originals[s.MessageId].Role,
                 originals[s.MessageId].Status, originals[s.MessageId].ReplyToUserId, originals[s.MessageId].SupersedesMessageId })
@@ -37,7 +44,7 @@ public static partial class ReplyContextPlanner
             configuration with { MaxOutputTokens = SummaryOutputTokens(configuration, formatVersion) },
             new ChatInput[]
             {
-                new("system", ContextSummaryProtocol.Instruction),
+                new("system", SummaryPrompt(formatVersion).Instruction),
                 new("user", JsonSerializer.Serialize(new { OriginalSlices = slices.Select(s => new
                 {
                     Source = s, originals[s.MessageId].ConversationId, Role = originals[s.MessageId].Role.ToString(),
