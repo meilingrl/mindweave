@@ -19,8 +19,9 @@ internal sealed class SqliteConversationStore(SqliteDatabase database) : IConver
                     SELECT c.id, c.workspace_id, c.title, c.title_source, c.created_at, c.updated_at,
                            (SELECT b.text FROM message m JOIN message_block b ON b.message_id = m.id AND b.ordinal = 0
                             WHERE m.conversation_id = c.id AND m.role = 'user' ORDER BY m.seq LIMIT 1),
-                           (SELECT state FROM message WHERE conversation_id = c.id AND role = 'assistant' ORDER BY seq DESC LIMIT 1)
-                    FROM conversation c
+                           (SELECT state FROM message WHERE conversation_id = c.id AND role = 'assistant' ORDER BY seq DESC LIMIT 1),
+                           s.parent_id, s.quote
+                    FROM conversation c LEFT JOIN branch_source s ON s.child_id = c.id
                     WHERE c.workspace_id = $ws
                     ORDER BY c.updated_at DESC, c.rowid DESC;
                     """, ("$ws", workspace.ToString()));
@@ -29,7 +30,13 @@ internal sealed class SqliteConversationStore(SqliteDatabase database) : IConver
                 while (reader.Read())
                 {
                     var last = reader.NullableString(7);
-                    list.Add(new ConversationSummary(ReadConversation(reader), reader.NullableString(6), last is null ? null : SqlNames.ParseMessageState(last)));
+                    var parent = reader.NullableString(8);
+                    list.Add(new ConversationSummary(
+                        ReadConversation(reader),
+                        reader.NullableString(6),
+                        last is null ? null : SqlNames.ParseMessageState(last),
+                        parent is null ? null : ConversationId.Parse(parent),
+                        reader.NullableString(9)));
                 }
 
                 return list;
@@ -320,7 +327,7 @@ internal sealed class SqliteConversationStore(SqliteDatabase database) : IConver
             ("$input", JsonSerializer.Serialize(t.InputMessageIds.Select(i => i.ToString()))),
             ("$created", t.CreatedAt.Ms()));
 
-    private static Conversation? GetConversation(SqliteConnection connection, SqliteTransaction? transaction, ConversationId id)
+    internal static Conversation? GetConversation(SqliteConnection connection, SqliteTransaction? transaction, ConversationId id)
     {
         using var command = connection.Command(transaction,
             "SELECT id, workspace_id, title, title_source, created_at, updated_at FROM conversation WHERE id = $id;",
@@ -329,15 +336,16 @@ internal sealed class SqliteConversationStore(SqliteDatabase database) : IConver
         return reader.Read() ? ReadConversation(reader) : null;
     }
 
-    private static List<Message> GetMessages(SqliteConnection connection, SqliteTransaction? transaction, ConversationId id)
+    /// <summary>The conversation's messages in order, up to and including <paramref name="maxSeq"/>.</summary>
+    internal static List<Message> GetMessages(SqliteConnection connection, SqliteTransaction? transaction, ConversationId id, int maxSeq = int.MaxValue)
     {
         var blocks = new Dictionary<string, List<ContentBlock>>(StringComparer.Ordinal);
         using (var command = connection.Command(transaction, """
             SELECT b.message_id, b.kind, b.text
             FROM message_block b JOIN message m ON m.id = b.message_id
-            WHERE m.conversation_id = $id
+            WHERE m.conversation_id = $id AND m.seq <= $max
             ORDER BY b.message_id, b.ordinal;
-            """, ("$id", id.ToString())))
+            """, ("$id", id.ToString()), ("$max", maxSeq)))
         using (var reader = command.ExecuteReader())
         {
             while (reader.Read())
@@ -352,7 +360,7 @@ internal sealed class SqliteConversationStore(SqliteDatabase database) : IConver
             }
         }
 
-        using var messages = connection.Command(transaction, $"SELECT {MessageColumns} FROM message WHERE conversation_id = $id ORDER BY seq;", ("$id", id.ToString()));
+        using var messages = connection.Command(transaction, $"SELECT {MessageColumns} FROM message WHERE conversation_id = $id AND seq <= $max ORDER BY seq;", ("$id", id.ToString()), ("$max", maxSeq));
         using var row = messages.ExecuteReader();
         var result = new List<Message>();
         while (row.Read())

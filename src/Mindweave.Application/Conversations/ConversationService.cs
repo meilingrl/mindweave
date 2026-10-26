@@ -3,6 +3,7 @@ using Microsoft.Extensions.Logging;
 using Mindweave.Application.Ai;
 using Mindweave.Application.Models;
 using Mindweave.Application.Storage;
+using Mindweave.Core.Branches;
 using Mindweave.Core.Conversations;
 using Mindweave.Core.Models;
 using Mindweave.Core.Workspaces;
@@ -28,6 +29,11 @@ public sealed record SendOutcome(SendRejection? Rejection, ConversationId Conver
 
 public sealed record ConversationContent(Conversation Conversation, IReadOnlyList<Message> Messages);
 
+public sealed record BranchOutcome(BranchRejection? Rejection, ConversationId Child)
+{
+    public bool Accepted => Rejection is null;
+}
+
 /// <summary>
 /// Conversation use cases. Every accepted request is durable (question, pending answer and task in one
 /// transaction) before it reaches the generation queue, so a crash after "send" never loses the question
@@ -47,6 +53,7 @@ public sealed partial class ConversationService
     private const int TitleOutputTokens = 1024;
 
     private readonly IConversationStore _store;
+    private readonly IBranchStore _branches;
     private readonly GenerationCoordinator _generation;
     private readonly ModelSettingsService _models;
     private readonly IClock _clock;
@@ -55,12 +62,14 @@ public sealed partial class ConversationService
 
     public ConversationService(
         IConversationStore store,
+        IBranchStore branches,
         GenerationCoordinator generation,
         ModelSettingsService models,
         IClock clock,
         ILogger<ConversationService> logger)
     {
         _store = store;
+        _branches = branches;
         _generation = generation;
         _models = models;
         _clock = clock;
@@ -106,7 +115,7 @@ public sealed partial class ConversationService
         var task = NewTask(GenerationTaskKind.Answer, id, answer.Id, model, [user.Id], now);
 
         await _store.CreateAsync(conversation, user, answer, task, cancellationToken).ConfigureAwait(false);
-        Enqueue(task, model, [user], answer);
+        Enqueue(task, model, [new ContextItem(user, user.Text)], answer);
         ConversationChanged?.Invoke(this, id);
         return new SendOutcome(null, id, answer.Id);
     }
@@ -126,10 +135,10 @@ public sealed partial class ConversationService
 
         var model = (await _models.GetActiveSnapshotAsync(cancellationToken).ConfigureAwait(false))!;
         var now = _clock.UtcNow;
-        var context = ConversationRules.SelectContext(history);
         var user = NewMessage(id, 0, MessageRole.User, question.Trim(), MessageState.Complete, null, now);
         var answer = NewMessage(id, 0, MessageRole.Assistant, string.Empty, MessageState.Pending, null, now);
-        var task = NewTask(GenerationTaskKind.Answer, id, answer.Id, model, [.. context.Select(m => m.Id), user.Id], now);
+        var context = await AssembleAsync(id, [.. history, user], cancellationToken).ConfigureAwait(false);
+        var task = NewTask(GenerationTaskKind.Answer, id, answer.Id, model, [.. context.Select(c => c.Message.Id)], now);
 
         Message storedAnswer;
         try
@@ -141,7 +150,7 @@ public sealed partial class ConversationService
             return SendOutcome.Reject(SendRejection.AnswerInProgress, id);
         }
 
-        Enqueue(task, model, [.. context, user], storedAnswer);
+        Enqueue(task, model, context, storedAnswer);
         ConversationChanged?.Invoke(this, id);
         return new SendOutcome(null, id, storedAnswer.Id);
     }
@@ -162,11 +171,11 @@ public sealed partial class ConversationService
 
         // The answer is regenerated for the last question, from the history before that question.
         var question = history.Last(m => m.Role == MessageRole.User);
-        var context = ConversationRules.SelectContext([.. history.Where(m => m.Seq < question.Seq)]);
+        var context = await AssembleAsync(id, [.. history.Where(m => m.Seq <= question.Seq)], cancellationToken).ConfigureAwait(false);
         var model = (await _models.GetActiveSnapshotAsync(cancellationToken).ConfigureAwait(false))!;
         var now = _clock.UtcNow;
         var answer = NewMessage(id, 0, MessageRole.Assistant, string.Empty, MessageState.Pending, answerToReplace, now);
-        var task = NewTask(GenerationTaskKind.Answer, id, answer.Id, model, [.. context.Select(m => m.Id), question.Id], now);
+        var task = NewTask(GenerationTaskKind.Answer, id, answer.Id, model, [.. context.Select(c => c.Message.Id)], now);
 
         Message stored;
         try
@@ -178,10 +187,51 @@ public sealed partial class ConversationService
             return SendOutcome.Reject(SendRejection.NotRetryable, id);
         }
 
-        Enqueue(task, model, [.. context, question], stored);
+        Enqueue(task, model, context, stored);
         ConversationChanged?.Invoke(this, id);
         return new SendOutcome(null, id, stored.Id);
     }
+
+    /// <summary>
+    /// Creates a branch conversation from a passage of a finished answer (§6.2). The child, its source and its
+    /// frozen ancestor ranges are stored together; nothing is asked yet.
+    /// </summary>
+    public async Task<BranchOutcome> CreateBranchAsync(ConversationId parent, BranchSelection selection, CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(selection);
+        var child = ConversationId.New();
+        if (BranchRules.CheckSelection(selection) is { } invalid)
+        {
+            return new BranchOutcome(invalid, child);
+        }
+
+        if (_generation.IsStorageBlocked)
+        {
+            return new BranchOutcome(BranchRejection.StorageUnavailable, child);
+        }
+
+        try
+        {
+            await _branches.CreateAsync(parent, child, selection, _clock.UtcNow, cancellationToken).ConfigureAwait(false);
+        }
+        catch (BranchRejectedException ex)
+        {
+            return new BranchOutcome(ex.Reason, child);
+        }
+
+        ConversationChanged?.Invoke(this, parent);
+        ConversationChanged?.Invoke(this, child);
+        return new BranchOutcome(null, child);
+    }
+
+    public Task<BranchSource?> GetSourceAsync(ConversationId child, CancellationToken cancellationToken) =>
+        _branches.GetSourceAsync(child, cancellationToken);
+
+    public Task<IReadOnlyList<BranchSource>> ListBranchesAsync(ConversationId parent, CancellationToken cancellationToken) =>
+        _branches.ListChildrenAsync(parent, cancellationToken);
+
+    public Task<IReadOnlyList<LineageEntry>> GetLineageAsync(ConversationId conversation, CancellationToken cancellationToken) =>
+        _branches.GetLineageAsync(conversation, cancellationToken);
 
     public Task StopAsync(MessageId answer) => _generation.StopAsync(answer);
 
@@ -229,9 +279,17 @@ public sealed partial class ConversationService
         return _generation.HasUnfinishedAnswer(id) ? SendOutcome.Reject(SendRejection.AnswerInProgress, id) : null;
     }
 
-    private void Enqueue(GenerationTaskRecord task, ModelSnapshot model, IReadOnlyList<Message> input, Message answer)
+    /// <summary>What is sent for <paramref name="own"/>: the frozen ancestor chain, then the conversation itself.</summary>
+    private async Task<IReadOnlyList<ContextItem>> AssembleAsync(ConversationId id, IReadOnlyList<Message> own, CancellationToken cancellationToken)
     {
-        var turns = input.Select(m => new ChatTurn(m.Role == MessageRole.User ? ChatRole.User : ChatRole.Assistant, m.Text)).ToArray();
+        var ancestors = await _branches.GetAncestorContextAsync(id, cancellationToken).ConfigureAwait(false);
+        var source = ancestors.Count == 0 ? null : await _branches.GetSourceAsync(id, cancellationToken).ConfigureAwait(false);
+        return BranchContext.Assemble(ancestors, new ContextSegment(id, source?.Quote, own));
+    }
+
+    private void Enqueue(GenerationTaskRecord task, ModelSnapshot model, IReadOnlyList<ContextItem> input, Message answer)
+    {
+        var turns = input.Select(c => new ChatTurn(c.Message.Role == MessageRole.User ? ChatRole.User : ChatRole.Assistant, c.Text)).ToArray();
         _generation.Enqueue(new AnswerWork(task, new ChatRequest(model, turns), new LiveAnswer(answer.Id, answer.ConversationId)));
     }
 
@@ -271,6 +329,8 @@ public sealed partial class ConversationService
 
         var messages = await _store.GetMessagesAsync(e.ConversationId, CancellationToken.None).ConfigureAwait(false);
         var question = messages.First(m => m.Role == MessageRole.User);
+        var source = await _branches.GetSourceAsync(e.ConversationId, CancellationToken.None).ConfigureAwait(false);
+        var asked = source is null ? question.Text : BranchContext.QuotedQuestion(source.Quote, question.Text);
         var excerpt = e.Text.Length > TitleAnswerExcerpt ? e.Text[..TitleAnswerExcerpt] : e.Text;
         var now = _clock.UtcNow;
         var task = NewTask(GenerationTaskKind.Title, e.ConversationId, null, model, [question.Id, e.MessageId], now);
@@ -278,7 +338,7 @@ public sealed partial class ConversationService
         _generation.Enqueue(new TitleWork(task, new ChatRequest(model with { MaxOutputTokens = TitleOutputTokens },
         [
             new ChatTurn(ChatRole.System, "为下面的对话起一个简短标题，概括提问的主题。只输出标题本身，不加引号、序号或句末标点；不超过 20 个字；使用提问所用的语言。"),
-            new ChatTurn(ChatRole.User, $"提问：{question.Text}\n\n回答开头：{excerpt}"),
+            new ChatTurn(ChatRole.User, $"提问：{asked}\n\n回答开头：{excerpt}"),
         ])));
     }
 

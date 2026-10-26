@@ -169,5 +169,56 @@ internal static class SchemaMigrations
                 }
             }
         }),
+
+        Migration.Sql(4, "branches, ancestor ranges, reading positions, drafts", """
+            -- Where a branch came from. The child's parent lives only here (no parent column on conversation).
+            -- The anchor is opaque to storage: versioned and tied to the render profile that produced it.
+            CREATE TABLE branch_source (
+                child_id          TEXT    NOT NULL PRIMARY KEY REFERENCES conversation (id) ON DELETE RESTRICT,
+                parent_id         TEXT    NOT NULL REFERENCES conversation (id) ON DELETE RESTRICT,
+                source_message_id TEXT    NOT NULL REFERENCES message (id) ON DELETE RESTRICT,
+                source_block      INTEGER NOT NULL CHECK (source_block >= 0),
+                quote             TEXT    NOT NULL CHECK (length(quote) > 0),
+                anchor            TEXT    NOT NULL,
+                anchor_version    INTEGER NOT NULL,
+                render_profile    TEXT    NOT NULL,
+                created_at        INTEGER NOT NULL,
+                CHECK (child_id <> parent_id)
+            ) STRICT;
+            CREATE INDEX branch_source_by_parent ON branch_source (parent_id, created_at);
+            CREATE INDEX branch_source_by_message ON branch_source (source_message_id);
+
+            -- The ancestor messages a branch may use, frozen at creation: one row per ancestor, copied from the
+            -- parent plus the parent itself, so reading the chain needs no recursion.
+            CREATE TABLE branch_context_range (
+                child_id    TEXT    NOT NULL REFERENCES conversation (id) ON DELETE CASCADE,
+                ancestor_id TEXT    NOT NULL REFERENCES conversation (id) ON DELETE RESTRICT,
+                depth       INTEGER NOT NULL CHECK (depth >= 0),
+                max_seq     INTEGER NOT NULL CHECK (max_seq >= 0),
+                PRIMARY KEY (child_id, ancestor_id),
+                UNIQUE (child_id, depth),
+                CHECK (child_id <> ancestor_id)
+            ) STRICT, WITHOUT ROWID;
+
+            -- Page state per conversation and viewer slot (evolution seam E1); pure dependent rows.
+            CREATE TABLE reading_position (
+                conversation_id TEXT    NOT NULL REFERENCES conversation (id) ON DELETE CASCADE,
+                slot_key        TEXT    NOT NULL CHECK (length(slot_key) > 0),
+                message_id      TEXT    NOT NULL REFERENCES message (id) ON DELETE CASCADE,
+                block_ordinal   INTEGER NOT NULL CHECK (block_ordinal >= 0),
+                locator         TEXT,
+                locator_version INTEGER NOT NULL,
+                updated_at      INTEGER NOT NULL,
+                PRIMARY KEY (conversation_id, slot_key)
+            ) STRICT, WITHOUT ROWID;
+
+            CREATE TABLE draft (
+                conversation_id TEXT    NOT NULL REFERENCES conversation (id) ON DELETE CASCADE,
+                slot_key        TEXT    NOT NULL CHECK (length(slot_key) > 0),
+                text            TEXT    NOT NULL CHECK (length(text) > 0),
+                updated_at      INTEGER NOT NULL,
+                PRIMARY KEY (conversation_id, slot_key)
+            ) STRICT, WITHOUT ROWID;
+            """),
     ];
 }

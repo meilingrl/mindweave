@@ -4,6 +4,7 @@ using Mindweave.Application;
 using Mindweave.Application.Ai;
 using Mindweave.Application.Conversations;
 using Mindweave.Application.Models;
+using Mindweave.Application.Reading;
 using Mindweave.Application.Storage;
 using Mindweave.Core.Conversations;
 using Mindweave.Core.Workspaces;
@@ -26,6 +27,8 @@ internal sealed class ChatHarness : IAsyncDisposable
         Store = new SqliteConversationStore(Database);
         Settings = new SqliteModelSettingsStore(Database);
         Requests = new SqliteAiRequestStore(Database);
+        Branches = new SqliteBranchStore(Database);
+        ReadingStore = new SqliteReadingStateStore(Database);
         var storeOverride = wrapStore?.Invoke(Store);
         Generation = new GenerationCoordinator(
             storeOverride ?? Store,
@@ -36,7 +39,8 @@ internal sealed class ChatHarness : IAsyncDisposable
             new GenerationOptions { CheckpointInterval = TimeSpan.FromMilliseconds(50), SaveRetryInterval = TimeSpan.FromMilliseconds(50) },
             NullLogger<GenerationCoordinator>.Instance);
         Models = new ModelSettingsService(Settings, Store, Credentials, ActiveClient, new SystemClock(), NullLogger<ModelSettingsService>.Instance);
-        Conversations = new ConversationService(storeOverride ?? Store, Generation, Models, new SystemClock(), NullLogger<ConversationService>.Instance);
+        Conversations = new ConversationService(storeOverride ?? Store, Branches, Generation, Models, new SystemClock(), NullLogger<ConversationService>.Instance);
+        Reading = new ReadingStateService(ReadingStore, new SystemClock(), NullLogger<ReadingStateService>.Instance, TimeSpan.FromMilliseconds(20));
     }
 
     public SqliteDatabase Database { get; }
@@ -46,6 +50,12 @@ internal sealed class ChatHarness : IAsyncDisposable
     public SqliteModelSettingsStore Settings { get; }
 
     public SqliteAiRequestStore Requests { get; }
+
+    public SqliteBranchStore Branches { get; }
+
+    public SqliteReadingStateStore ReadingStore { get; }
+
+    public ReadingStateService Reading { get; }
 
     public MemoryCredentialStore Credentials { get; } = new();
 
@@ -144,6 +154,8 @@ internal sealed class ChatHarness : IAsyncDisposable
     public async ValueTask DisposeAsync()
     {
         await Generation.DisposeAsync();
+        await Reading.FlushAsync();
+        Reading.Dispose();
         await Database.DisposeAsync();
         if (_ownsDirectory)
         {

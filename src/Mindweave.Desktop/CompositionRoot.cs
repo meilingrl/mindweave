@@ -5,6 +5,7 @@ using Microsoft.Extensions.Logging;
 using Mindweave.Application;
 using Mindweave.Application.Conversations;
 using Mindweave.Application.Models;
+using Mindweave.Application.Reading;
 using Mindweave.Application.Startup;
 using Mindweave.Application.Workspaces;
 using Mindweave.Desktop.Navigation;
@@ -48,6 +49,7 @@ public static class CompositionRoot
         services.AddSingleton<GenerationCoordinator>();
         services.AddSingleton<ModelSettingsService>();
         services.AddSingleton<ConversationService>();
+        services.AddSingleton<ReadingStateService>();
         services.TryAddSingleton<IUiDispatcher, AvaloniaUiDispatcher>();
 
         services.AddSingleton(shell ?? new SystemShell());

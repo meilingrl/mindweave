@@ -95,7 +95,7 @@ switch (args[0])
         await models.SaveAsync(new ModelSettingsInput("fake", "https://fake.example/v1", "m", "sk"), CancellationToken.None);
         var workspace = new Workspace(WorkspaceId.New(), WorkspaceName.FromStored("w"), DateTimeOffset.UtcNow);
         await new SqliteWorkspaceStore(database).AddAsync(workspace, CancellationToken.None);
-        var conversations = new ConversationService(store, generation, models, clock, NullLogger<ConversationService>.Instance);
+        var conversations = new ConversationService(store, new SqliteBranchStore(database), generation, models, clock, NullLogger<ConversationService>.Instance);
         var sent = await conversations.StartAsync(workspace.Id, "问", CancellationToken.None);
         while ((await store.GetMessagesAsync(sent.Conversation, CancellationToken.None))[1].Text.Length == 0)
         {

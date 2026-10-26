@@ -31,8 +31,11 @@ public sealed record GenerationTaskRecord(
     IReadOnlyList<MessageId> InputMessageIds,
     DateTimeOffset CreatedAt);
 
-/// <summary>Sidebar row: the conversation plus what is needed to label it without loading all messages.</summary>
-public sealed record ConversationSummary(Conversation Conversation, string? FirstQuestion, MessageState? LastAnswerState);
+/// <summary>
+/// Sidebar row: the conversation plus what is needed to label and place it without loading all messages.
+/// A branch carries its parent and the quote it was created from.
+/// </summary>
+public sealed record ConversationSummary(Conversation Conversation, string? FirstQuestion, MessageState? LastAnswerState, ConversationId? Parent = null, string? Quote = null);
 
 public sealed record RecoveryReport(int InterruptedAnswers, int InterruptedTasks);
 
