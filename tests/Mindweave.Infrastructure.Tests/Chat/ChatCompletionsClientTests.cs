@@ -10,7 +10,10 @@ namespace Mindweave.Infrastructure.Tests.Chat;
 
 public class ChatCompletionsClientTests
 {
-    private static readonly ModelSnapshot Model = new("cfg", "https://api.example.com/v1/", ChatProtocol.ChatCompletions, "m1", "ref", 32);
+    private static readonly ModelSnapshot Model = new("cfg", "https://api.example.com/v1/", ChatProtocol.ChatCompletions, "m1", "ref", 32, ModelCapabilities.DefaultsFor(ChatProtocol.ChatCompletions));
+
+    /// <summary>Not credential-shaped, so only masking of the known key can hide it.</summary>
+    private const string Key = "gw-key-0123456789";
 
     private static CancellationToken Ct => TestContext.Current.CancellationToken;
 
@@ -30,7 +33,7 @@ public class ChatCompletionsClientTests
         Assert.Equal(new ChatStreamEvent.Completed(false), Assert.Single(events.OfType<ChatStreamEvent.Completed>()));
         var request = handler.Requests.Single();
         Assert.Equal("https://api.example.com/v1/chat/completions", request.Uri);
-        Assert.Equal("Bearer sk-x", request.Authorization);
+        Assert.Equal($"Bearer {Key}", request.Authorization);
         var body = JsonNode.Parse(request.Body)!;
         Assert.True(body["stream"]!.GetValue<bool>());
         Assert.Equal(32, body["max_tokens"]!.GetValue<int>());
@@ -69,6 +72,31 @@ public class ChatCompletionsClientTests
 
         Assert.Equal(kind, error.Kind);
         Assert.StartsWith($"HTTP {(int)status}", error.Message, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task The_response_status_and_provider_request_id_come_first()
+    {
+        var events = await Collect(Client(_ =>
+        {
+            var response = Sse("data: {\"choices\":[{\"delta\":{\"content\":\"a\"},\"finish_reason\":\"stop\"}]}\n\n");
+            response.Headers.Add("x-request-id", "req_123");
+            return response;
+        }));
+
+        Assert.Equal(new ChatStreamEvent.ResponseStarted(200, "req_123"), events[0]);
+    }
+
+    [Fact]
+    public async Task Errors_carry_the_status_and_never_echo_the_key()
+    {
+        var error = await Assert.ThrowsAsync<ChatClientException>(() => Collect(Client(_ => new HttpResponseMessage(HttpStatusCode.Unauthorized)
+        {
+            Content = new StringContent("{\"error\":{\"message\":\"Incorrect API key provided: gw-key-0123456789\"}}"),
+        })));
+
+        Assert.Equal(401, error.HttpStatus);
+        Assert.DoesNotContain(Key, error.Message, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -129,7 +157,7 @@ public class ChatCompletionsClientTests
     {
         var list = new List<ChatStreamEvent>();
         var request = new ChatRequest(Model, [new ChatTurn(ChatRole.User, "hi")]);
-        await foreach (var e in client.StreamAsync(request, "sk-x", cancellationToken))
+        await foreach (var e in client.StreamAsync(request, Key, cancellationToken))
         {
             list.Add(e);
         }

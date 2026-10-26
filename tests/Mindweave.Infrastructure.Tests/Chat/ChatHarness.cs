@@ -25,11 +25,13 @@ internal sealed class ChatHarness : IAsyncDisposable
         Database = dir.Database();
         Store = new SqliteConversationStore(Database);
         Settings = new SqliteModelSettingsStore(Database);
+        Requests = new SqliteAiRequestStore(Database);
         var storeOverride = wrapStore?.Invoke(Store);
         Generation = new GenerationCoordinator(
             storeOverride ?? Store,
             ActiveClient,
             Credentials,
+            Requests,
             new SystemClock(),
             new GenerationOptions { CheckpointInterval = TimeSpan.FromMilliseconds(50), SaveRetryInterval = TimeSpan.FromMilliseconds(50) },
             NullLogger<GenerationCoordinator>.Instance);
@@ -42,6 +44,8 @@ internal sealed class ChatHarness : IAsyncDisposable
     public SqliteConversationStore Store { get; }
 
     public SqliteModelSettingsStore Settings { get; }
+
+    public SqliteAiRequestStore Requests { get; }
 
     public MemoryCredentialStore Credentials { get; } = new();
 
@@ -95,7 +99,7 @@ internal sealed class ChatHarness : IAsyncDisposable
 
             if (DateTime.UtcNow > deadline)
             {
-                throw new TimeoutException($"Answer {answer} is {message?.State}: '{message?.Body}'");
+                throw new TimeoutException($"Answer {answer} is {message?.State}: '{message?.Text}'");
             }
 
             await Task.Delay(20);

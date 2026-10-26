@@ -11,7 +11,8 @@ public sealed record ModelSettings(
     string CredentialRef,
     string ModelConfigId,
     string Model,
-    int? MaxOutputTokens);
+    int? MaxOutputTokens,
+    ModelCapabilities Capabilities);
 
 public interface IModelSettingsStore
 {

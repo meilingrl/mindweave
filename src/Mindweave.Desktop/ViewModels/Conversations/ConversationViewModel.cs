@@ -124,7 +124,7 @@ public sealed partial class ConversationViewModel : PageViewModel, IDisposable
         }
 
         DisplayTitle = content.Conversation.Title
-            ?? (content.Messages.FirstOrDefault(m => m.Role == MessageRole.User) is { } first ? ConversationRules.FallbackTitle(first.Body) : UiText.NewConversation);
+            ?? (content.Messages.FirstOrDefault(m => m.Role == MessageRole.User) is { } first ? ConversationRules.FallbackTitle(first.Text) : UiText.NewConversation);
 
         // Rebuild from storage; unfinished answers re-bind to their live state. Items are cheap and the
         // rebuild only happens on discrete events (send, finish, rename), never per streamed chunk.

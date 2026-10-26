@@ -21,7 +21,7 @@ public class ConversationRulesTests
 
         var context = ConversationRules.SelectContext([q1, a1, q2, a2Failed, a2Retry, q3, a3Stopped, q4, a4Empty]);
 
-        Assert.Equal(["q1", "a1", "q2", "a2", "q3", "partial", "q4"], context.Select(m => m.Body));
+        Assert.Equal(["q1", "a1", "q2", "a2", "q3", "partial", "q4"], context.Select(m => m.Text));
     }
 
     [Fact]
@@ -31,7 +31,7 @@ public class ConversationRulesTests
         var ok = Answer(1, "old", MessageState.Complete);
         var failed = Answer(2, "bad", MessageState.Failed, supersedes: ok.Id);
 
-        Assert.Equal(["q"], ConversationRules.SelectContext([q, ok, failed]).Select(m => m.Body));
+        Assert.Equal(["q"], ConversationRules.SelectContext([q, ok, failed]).Select(m => m.Text));
     }
 
     [Fact]
@@ -69,8 +69,8 @@ public class ConversationRulesTests
     }
 
     private static Message User(int seq, string body) =>
-        new(MessageId.New(), Conversation, seq, MessageRole.User, body, MessageState.Complete, 0, null, null, null, DateTimeOffset.UnixEpoch, DateTimeOffset.UnixEpoch);
+        new(MessageId.New(), Conversation, seq, MessageRole.User, ContentBlocks.FromText(body), MessageState.Complete, 0, null, null, null, DateTimeOffset.UnixEpoch, DateTimeOffset.UnixEpoch);
 
     private static Message Answer(int seq, string body, MessageState state, MessageId? supersedes = null) =>
-        new(MessageId.New(), Conversation, seq, MessageRole.Assistant, body, state, 0, supersedes, null, null, DateTimeOffset.UnixEpoch, null);
+        new(MessageId.New(), Conversation, seq, MessageRole.Assistant, ContentBlocks.FromText(body), state, 0, supersedes, null, null, DateTimeOffset.UnixEpoch, null);
 }

@@ -40,7 +40,7 @@ public sealed record Message(
     ConversationId ConversationId,
     int Seq,
     MessageRole Role,
-    string Body,
+    IReadOnlyList<ContentBlock> Blocks,
     MessageState State,
     long Revision,
     MessageId? Supersedes,
@@ -49,10 +49,13 @@ public sealed record Message(
     DateTimeOffset CreatedAt,
     DateTimeOffset? CompletedAt)
 {
+    /// <summary>The text blocks as one Markdown string (see <see cref="ContentBlocks.TextOf"/>).</summary>
+    public string Text => ContentBlocks.TextOf(Blocks);
+
     public bool IsFinished => State is not (MessageState.Pending or MessageState.Streaming);
 
     /// <summary>Usable as conversation context: a finished answer with text, or any user message.</summary>
     public bool CountsAsContext =>
         Role == MessageRole.User
-        || (State is MessageState.Complete or MessageState.Stopped && !string.IsNullOrWhiteSpace(Body));
+        || (State is MessageState.Complete or MessageState.Stopped && !string.IsNullOrWhiteSpace(Text));
 }

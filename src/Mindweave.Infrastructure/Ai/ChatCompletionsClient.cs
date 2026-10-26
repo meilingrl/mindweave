@@ -5,6 +5,7 @@ using System.Runtime.CompilerServices;
 using System.Text.Json;
 using System.Text.Json.Nodes;
 using Mindweave.Application.Ai;
+using Mindweave.Application.Diagnostics;
 using Mindweave.Core.Conversations;
 
 namespace Mindweave.Infrastructure.Ai;
@@ -39,7 +40,32 @@ public sealed class ChatCompletionsClient(HttpClient http, ChatClientOptions opt
     public async IAsyncEnumerable<ChatStreamEvent> StreamAsync(ChatRequest request, string apiKey, [EnumeratorCancellation] CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(request);
+        await using var events = StreamCoreAsync(request, apiKey, cancellationToken).GetAsyncEnumerator(cancellationToken);
+        while (true)
+        {
+            ChatStreamEvent item;
+            try
+            {
+                if (!await events.MoveNextAsync().ConfigureAwait(false))
+                {
+                    yield break;
+                }
+
+                item = events.Current;
+            }
+            catch (ChatClientException ex)
+            {
+                throw Redacted(ex, apiKey);
+            }
+
+            yield return item;
+        }
+    }
+
+    private async IAsyncEnumerable<ChatStreamEvent> StreamCoreAsync(ChatRequest request, string apiKey, [EnumeratorCancellation] CancellationToken cancellationToken)
+    {
         using var response = await SendAsync(request, apiKey, cancellationToken).ConfigureAwait(false);
+        yield return new ChatStreamEvent.ResponseStarted((int)response.StatusCode, ProviderRequestId(response));
         using var reader = new SseReader(await response.Content.ReadAsStreamAsync(cancellationToken).ConfigureAwait(false));
         using var idle = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
         var completed = false;
@@ -73,6 +99,18 @@ public sealed class ChatCompletionsClient(HttpClient http, ChatClientOptions opt
     }
 
     public async Task<IReadOnlyList<string>> ListModelsAsync(string baseUrl, string apiKey, CancellationToken cancellationToken)
+    {
+        try
+        {
+            return await ListModelsCoreAsync(baseUrl, apiKey, cancellationToken).ConfigureAwait(false);
+        }
+        catch (ChatClientException ex)
+        {
+            throw Redacted(ex, apiKey);
+        }
+    }
+
+    private async Task<IReadOnlyList<string>> ListModelsCoreAsync(string baseUrl, string apiKey, CancellationToken cancellationToken)
     {
         using var timeout = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
         timeout.CancelAfter(options.ModelListTimeout);
@@ -214,7 +252,7 @@ public sealed class ChatCompletionsClient(HttpClient http, ChatClientOptions opt
 
         if (status is >= 300 and < 400)
         {
-            throw new ChatClientException(GenerationErrorKind.InvalidResponse, $"HTTP {status}: redirects are not followed; check the service address.");
+            throw new ChatClientException(GenerationErrorKind.InvalidResponse, $"HTTP {status}: redirects are not followed; check the service address.", httpStatus: status);
         }
 
         var text = await response.Content.ReadAsStringAsync(cancellationToken).ConfigureAwait(false);
@@ -237,8 +275,17 @@ public sealed class ChatCompletionsClient(HttpClient http, ChatClientOptions opt
             >= 500 => GenerationErrorKind.ServerError,
             _ => GenerationErrorKind.InvalidResponse,
         };
-        throw new ChatClientException(kind, detail);
+        throw new ChatClientException(kind, detail, httpStatus: status);
     }
+
+    /// <summary>Every failure leaving this client is scrubbed of the key it was called with (services echo keys).</summary>
+    private static ChatClientException Redacted(ChatClientException ex, string apiKey) =>
+        new(ex.Kind, Redaction.Scrub(ex.Message, apiKey), ex.InnerException, ex.HttpStatus);
+
+    private static string? ProviderRequestId(HttpResponseMessage response) =>
+        response.Headers.TryGetValues("x-request-id", out var values) || response.Headers.TryGetValues("request-id", out values)
+            ? values.FirstOrDefault()
+            : null;
 
     private static bool LooksLikeContextLimit(string detail) =>
         detail.Contains("context", StringComparison.OrdinalIgnoreCase)

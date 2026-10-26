@@ -30,7 +30,7 @@ public sealed class KillDuringStreamTests : IDisposable
         var answer = await database.ReadAsync(
             c =>
             {
-                using var cmd = c.Command(null, "SELECT state, body FROM message WHERE id = $id;", ("$id", answerId.ToString()));
+                using var cmd = c.Command(null, "SELECT m.state, b.text FROM message m JOIN message_block b ON b.message_id = m.id AND b.ordinal = 0 WHERE m.id = $id;", ("$id", answerId.ToString()));
                 using var r = cmd.ExecuteReader();
                 r.Read();
                 return (State: r.GetString(0), Body: r.GetString(1));

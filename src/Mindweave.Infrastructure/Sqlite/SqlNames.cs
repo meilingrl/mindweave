@@ -1,3 +1,5 @@
+using System.Text.Json;
+using Mindweave.Application.Diagnostics;
 using Mindweave.Application.Storage;
 using Mindweave.Core.Conversations;
 using Mindweave.Core.Models;
@@ -131,4 +133,34 @@ internal static class SqlNames
         "chat_completions" => ChatProtocol.ChatCompletions,
         _ => throw new InvalidDataException($"Unknown protocol '{value}'."),
     };
+
+    public const string TextBlockKind = "text";
+
+    public static string Of(AiRequestOutcome outcome) => outcome switch
+    {
+        AiRequestOutcome.Completed => "completed",
+        AiRequestOutcome.Truncated => "truncated",
+        AiRequestOutcome.Stopped => "stopped",
+        AiRequestOutcome.Failed => "failed",
+        _ => throw new ArgumentOutOfRangeException(nameof(outcome)),
+    };
+
+    public static AiRequestOutcome ParseOutcome(string value) => value switch
+    {
+        "completed" => AiRequestOutcome.Completed,
+        "truncated" => AiRequestOutcome.Truncated,
+        "stopped" => AiRequestOutcome.Stopped,
+        "failed" => AiRequestOutcome.Failed,
+        _ => throw new InvalidDataException($"Unknown request outcome '{value}'."),
+    };
+
+    private static readonly JsonSerializerOptions CapabilityJson = new() { PropertyNamingPolicy = JsonNamingPolicy.SnakeCaseLower };
+
+    public static string Of(ModelCapabilities capabilities) => JsonSerializer.Serialize(capabilities, CapabilityJson);
+
+    /// <summary>NULL (rows from before capabilities existed) reads as the protocol defaults.</summary>
+    public static ModelCapabilities ParseCapabilities(string? json, ChatProtocol protocol) =>
+        json is null
+            ? ModelCapabilities.DefaultsFor(protocol)
+            : JsonSerializer.Deserialize<ModelCapabilities>(json, CapabilityJson) ?? throw new InvalidDataException("Empty capabilities.");
 }

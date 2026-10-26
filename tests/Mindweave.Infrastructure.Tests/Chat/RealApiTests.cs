@@ -27,10 +27,10 @@ public class RealApiTests
         var answer = await h.WaitForAnswerAsync(sent.Answer!.Value, timeoutMs: 180_000);
 
         Assert.True(answer.State == MessageState.Complete, $"{answer.State}: {answer.ErrorKind} {answer.ErrorDetail}");
-        Assert.True(answer.Body.Length > 200, $"Only {answer.Body.Length} characters.");
+        Assert.True(answer.Text.Length > 200, $"Only {answer.Text.Length} characters.");
         await ChatHarness.UntilAsync(() => h.Conversations.LoadAsync(sent.Conversation, Ct).Result!.Conversation.TitleSource == TitleSource.Auto, 60_000);
         var title = (await h.Conversations.LoadAsync(sent.Conversation, Ct))!.Conversation.Title;
-        TestContext.Current.SendDiagnosticMessage($"{answer.Body.Length} chars; title: {title}");
+        TestContext.Current.SendDiagnosticMessage($"{answer.Text.Length} chars; title: {title}");
     }
 
     [Fact]
@@ -39,12 +39,12 @@ public class RealApiTests
         await using var h = await StartAsync();
 
         var sent = await h.Conversations.StartAsync(h.Workspace, "请详细讲述铁路发展史，至少 1500 字。", Ct);
-        await h.WaitForAnswerAsync(sent.Answer!.Value, m => m.Body.Length > 20, timeoutMs: 120_000);
+        await h.WaitForAnswerAsync(sent.Answer!.Value, m => m.Text.Length > 20, timeoutMs: 120_000);
         await h.Conversations.StopAsync(sent.Answer!.Value);
         var answer = await h.WaitForAnswerAsync(sent.Answer!.Value);
 
         Assert.Equal(MessageState.Stopped, answer.State);
-        Assert.NotEmpty(answer.Body);
+        Assert.NotEmpty(answer.Text);
     }
 
     [Fact]
@@ -58,7 +58,7 @@ public class RealApiTests
         var answer = await h.WaitForAnswerAsync(second.Answer!.Value, timeoutMs: 120_000);
 
         Assert.Equal(MessageState.Complete, answer.State);
-        Assert.Contains("47", answer.Body, StringComparison.Ordinal);
+        Assert.Contains("47", answer.Text, StringComparison.Ordinal);
     }
 
     [Fact]

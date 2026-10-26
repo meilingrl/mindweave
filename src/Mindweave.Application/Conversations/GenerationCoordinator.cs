@@ -2,6 +2,7 @@ using System.Collections.Concurrent;
 using Microsoft.Extensions.Logging;
 using Mindweave.Application.Ai;
 using Mindweave.Application.Credentials;
+using Mindweave.Application.Diagnostics;
 using Mindweave.Application.Storage;
 using Mindweave.Core.Conversations;
 
@@ -34,7 +35,7 @@ public sealed record AnswerWork(GenerationTaskRecord Task, ChatRequest Request, 
 public sealed record TitleWork(GenerationTaskRecord Task, ChatRequest Request)
     : GenerationWork(Task, Request, GenerationPriority.Background);
 
-public sealed record AnswerOutcome(ConversationId ConversationId, MessageId MessageId, MessageState State, string Body);
+public sealed record AnswerOutcome(ConversationId ConversationId, MessageId MessageId, MessageState State, string Text);
 
 /// <summary>
 /// Owns every AI request for the lifetime of the application, independent of any view: a two-slot
@@ -47,6 +48,7 @@ public sealed partial class GenerationCoordinator : IAsyncDisposable
     private readonly IConversationStore _store;
     private readonly IChatClient _client;
     private readonly ICredentialStore _credentials;
+    private readonly IAiRequestStore _requests;
     private readonly IClock _clock;
     private readonly GenerationOptions _options;
     private readonly ILogger<GenerationCoordinator> _logger;
@@ -66,6 +68,7 @@ public sealed partial class GenerationCoordinator : IAsyncDisposable
         IConversationStore store,
         IChatClient client,
         ICredentialStore credentials,
+        IAiRequestStore requests,
         IClock clock,
         GenerationOptions options,
         ILogger<GenerationCoordinator> logger)
@@ -73,6 +76,7 @@ public sealed partial class GenerationCoordinator : IAsyncDisposable
         _store = store;
         _client = client;
         _credentials = credentials;
+        _requests = requests;
         _clock = clock;
         _options = options;
         _logger = logger;
@@ -342,11 +346,13 @@ public sealed partial class GenerationCoordinator : IAsyncDisposable
         MessageState final;
         GenerationErrorKind? error = null;
         string? detail = null;
+        var trace = new RequestTrace(task.Id, _clock);
         try
         {
             var completed = false;
             await foreach (var item in _client.StreamAsync(work.Request, key.Secret!, stop).ConfigureAwait(false))
             {
+                trace.Observe(item);
                 switch (item)
                 {
                     case ChatStreamEvent.TextDelta delta:
@@ -378,29 +384,31 @@ public sealed partial class GenerationCoordinator : IAsyncDisposable
             final = MessageState.Failed;
             error = ex.Kind;
             detail = ex.Message;
+            trace.Fail(ex);
         }
 
         await checkpointStop.CancelAsync().ConfigureAwait(false);
         await checkpoints.ConfigureAwait(false);
         await FinishAnswerAsync(work, final, error, detail).ConfigureAwait(false);
+        await RecordAsync(trace.Finish(final == MessageState.Stopped, error, detail)).ConfigureAwait(false);
     }
 
     private async Task FinishAnswerAsync(AnswerWork work, MessageState state, GenerationErrorKind? error, string? detail)
     {
         var live = work.Live;
         var revision = live.Finish(state, error, detail);
-        var body = live.Snapshot().Text;
-        await SaveAsync(() => _store.FinishAnswerAsync(work.Task.Id, live.MessageId, body, revision, state, error, detail, _clock.UtcNow, CancellationToken.None), retryOnFailure: true)
+        var snapshot = live.Snapshot();
+        await SaveAsync(() => _store.FinishAnswerAsync(work.Task.Id, live.MessageId, snapshot.Blocks, revision, state, error, detail, _clock.UtcNow, CancellationToken.None), retryOnFailure: true)
             .ConfigureAwait(false);
         LogAnswerFinished(_logger, work.Task.Id, state, error);
-        AnswerFinished?.Invoke(this, new AnswerOutcome(live.ConversationId, live.MessageId, state, body));
+        AnswerFinished?.Invoke(this, new AnswerOutcome(live.ConversationId, live.MessageId, state, snapshot.Text));
     }
 
     private async Task CancelQueuedAsync(AnswerWork work)
     {
         var revision = work.Live.Finish(MessageState.Cancelled, null, null);
         await SaveAsync(
-                () => _store.FinishAnswerAsync(work.Task.Id, work.Live.MessageId, string.Empty, revision, MessageState.Cancelled, null, null, _clock.UtcNow, CancellationToken.None),
+                () => _store.FinishAnswerAsync(work.Task.Id, work.Live.MessageId, ContentBlocks.FromText(string.Empty), revision, MessageState.Cancelled, null, null, _clock.UtcNow, CancellationToken.None),
                 retryOnFailure: true)
             .ConfigureAwait(false);
         AnswerFinished?.Invoke(this, new AnswerOutcome(work.Live.ConversationId, work.Live.MessageId, MessageState.Cancelled, string.Empty));
@@ -421,7 +429,7 @@ public sealed partial class GenerationCoordinator : IAsyncDisposable
                 }
 
                 // One write at a time per answer: a slow disk coalesces checkpoints instead of queuing them.
-                if (await SaveAsync(() => _store.CheckpointAsync(live.MessageId, snapshot.Text, snapshot.Revision, CancellationToken.None)).ConfigureAwait(false) != SaveResult.Failed)
+                if (await SaveAsync(() => _store.CheckpointAsync(live.MessageId, snapshot.Blocks, snapshot.Revision, CancellationToken.None)).ConfigureAwait(false) != SaveResult.Failed)
                 {
                     written = snapshot.Revision;
                 }
@@ -448,11 +456,13 @@ public sealed partial class GenerationCoordinator : IAsyncDisposable
         }
 
         var text = new System.Text.StringBuilder();
+        var trace = new RequestTrace(task.Id, _clock);
         try
         {
             var completed = false;
             await foreach (var item in _client.StreamAsync(work.Request, key.Secret!, stop).ConfigureAwait(false))
             {
+                trace.Observe(item);
                 if (item is ChatStreamEvent.TextDelta delta)
                 {
                     text.Append(delta.Text);
@@ -471,15 +481,34 @@ public sealed partial class GenerationCoordinator : IAsyncDisposable
 
             await SaveAsync(() => FinishTask(task.Id, title is null ? GenerationTaskState.Failed : GenerationTaskState.Completed, title is null ? GenerationErrorKind.InvalidResponse : null, null))
                 .ConfigureAwait(false);
+            await RecordAsync(trace.Finish(stopped: false, completed ? null : GenerationErrorKind.InvalidResponse, null)).ConfigureAwait(false);
         }
         catch (OperationCanceledException) when (stop.IsCancellationRequested)
         {
             await SaveAsync(() => FinishTask(task.Id, GenerationTaskState.Stopped, null, null)).ConfigureAwait(false);
+            await RecordAsync(trace.Finish(stopped: true, null, null)).ConfigureAwait(false);
         }
         catch (ChatClientException ex)
         {
             // Titles are best effort: keep the current name, never retry automatically.
             await SaveAsync(() => FinishTask(task.Id, GenerationTaskState.Failed, ex.Kind, ex.Message)).ConfigureAwait(false);
+            trace.Fail(ex);
+            await RecordAsync(trace.Finish(stopped: false, ex.Kind, ex.Message)).ConfigureAwait(false);
+        }
+    }
+
+    /// <summary>Diagnostics only: a failed trace write is logged and does not count as a storage failure.</summary>
+    private async Task RecordAsync(AiRequestRecord record)
+    {
+        try
+        {
+            await _requests.AddAsync(record, CancellationToken.None).ConfigureAwait(false);
+        }
+#pragma warning disable CA1031 // A lost trace must not affect the answer or the storage-health state.
+        catch (Exception ex)
+#pragma warning restore CA1031
+        {
+            LogTraceFailed(_logger, ex, record.TaskId);
         }
     }
 
@@ -602,6 +631,9 @@ public sealed partial class GenerationCoordinator : IAsyncDisposable
 
     [LoggerMessage(Level = LogLevel.Error, Message = "Core write failed; new AI requests are paused until storage recovers")]
     private static partial void LogSaveFailed(ILogger logger, Exception exception);
+
+    [LoggerMessage(Level = LogLevel.Warning, Message = "Request trace for task {TaskId} was not saved")]
+    private static partial void LogTraceFailed(ILogger logger, Exception exception, GenerationTaskId taskId);
 
     [LoggerMessage(Level = LogLevel.Error, Message = "Generation task {TaskId} crashed")]
     private static partial void LogRunCrashed(ILogger logger, Exception exception, GenerationTaskId taskId);

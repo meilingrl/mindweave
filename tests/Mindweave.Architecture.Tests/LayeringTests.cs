@@ -50,7 +50,7 @@ public class LayeringTests
     private static bool IsRuntime(string name) =>
         name is "System.Runtime" or "netstandard" or "mscorlib" || name.StartsWith("System.", StringComparison.Ordinal);
 
-    private static string RepositoryRoot()
+    internal static string RepositoryRoot()
     {
         var dir = new DirectoryInfo(AppContext.BaseDirectory);
         while (dir is not null && !File.Exists(Path.Combine(dir.FullName, "Mindweave.slnx")))

@@ -20,12 +20,12 @@ public class ConversationFlowTests
         Assert.True(sent.Accepted);
         var answer = await h.WaitForAnswerAsync(sent.Answer!.Value);
         Assert.Equal(MessageState.Complete, answer.State);
-        Assert.Equal("答：火车是怎么发明的？", answer.Body);
+        Assert.Equal("答：火车是怎么发明的？", answer.Text);
         Assert.Equal("completed", await h.TaskStateAsync(answer.Id));
         await ChatHarness.UntilAsync(() => h.Conversations.LoadAsync(sent.Conversation, Ct).Result!.Conversation.TitleSource == TitleSource.Auto);
         var content = await h.Conversations.LoadAsync(sent.Conversation, Ct);
         Assert.Equal(FakeChatClient.DefaultTitle, content!.Conversation.Title);
-        Assert.Equal(["火车是怎么发明的？", "答：火车是怎么发明的？"], content.Messages.Select(m => m.Body));
+        Assert.Equal(["火车是怎么发明的？", "答：火车是怎么发明的？"], content.Messages.Select(m => m.Text));
     }
 
     [Fact]
@@ -69,7 +69,7 @@ public class ConversationFlowTests
 
         var answer = await h.WaitForAnswerAsync(sent.Answer!.Value);
         Assert.Equal(MessageState.Stopped, answer.State);
-        Assert.Equal("蒸汽机最早", answer.Body);
+        Assert.Equal("蒸汽机最早", answer.Text);
         Assert.Equal("stopped", await h.TaskStateAsync(answer.Id));
         Assert.Equal(MessageState.Stopped, h.Conversations.Observe(answer.Id)!.Snapshot().State);
     }
@@ -134,19 +134,19 @@ public class ConversationFlowTests
         var second = await h.Conversations.AskAsync(first.Conversation, "二", Ct);
         var failed = await h.WaitForAnswerAsync(second.Answer!.Value);
         Assert.Equal(MessageState.Failed, failed.State);
-        Assert.Equal("半截", failed.Body);
+        Assert.Equal("半截", failed.Text);
         Assert.Equal(GenerationErrorKind.ServerError, failed.ErrorKind);
 
         var retry = await h.Conversations.RetryAsync(first.Conversation, failed.Id, Ct);
         var redone = await h.WaitForAnswerAsync(retry.Answer!.Value);
 
         Assert.Equal(failed.Id, redone.Supersedes);
-        Assert.Equal("答：二", redone.Body);
+        Assert.Equal("答：二", redone.Text);
         var request = h.Client.Requests.Last(r => r.Turns[0].Role != ChatRole.System);
         Assert.Equal(["一", "答：一", "二"], request.Turns.Select(t => t.Content));
         var messages = (await h.Conversations.LoadAsync(first.Conversation, Ct))!.Messages;
         Assert.Equal(5, messages.Count);
-        Assert.Contains(messages, m => m.Id == failed.Id && m.Body == "半截");
+        Assert.Contains(messages, m => m.Id == failed.Id && m.Text == "半截");
     }
 
     [Fact]
@@ -213,7 +213,7 @@ public class ConversationFlowTests
         Assert.Equal(GenerationErrorKind.CredentialUnavailable, answer.ErrorKind);
         Assert.Equal(1, h.Client.StartedAnswers);
         var content = await h.Conversations.LoadAsync(first.Conversation, Ct);
-        Assert.Equal("答：一", content!.Messages[1].Body);
+        Assert.Equal("答：一", content!.Messages[1].Text);
     }
 
     [Fact]
@@ -224,12 +224,12 @@ public class ConversationFlowTests
         var sent = await h.Conversations.StartAsync(h.Workspace, "问", Ct);
         await held.Started.Task.WaitAsync(TimeSpan.FromSeconds(5), Ct);
 
-        var streaming = await h.WaitForAnswerAsync(sent.Answer!.Value, m => m.Body == "第一段第二段");
+        var streaming = await h.WaitForAnswerAsync(sent.Answer!.Value, m => m.Text == "第一段第二段");
 
         Assert.Equal(MessageState.Streaming, streaming.State);
         held.Finish("。");
         var done = await h.WaitForAnswerAsync(sent.Answer!.Value);
-        Assert.Equal("第一段第二段。", done.Body);
+        Assert.Equal("第一段第二段。", done.Text);
         Assert.True(done.Revision > streaming.Revision);
     }
 
@@ -246,7 +246,7 @@ public class ConversationFlowTests
         await h.Generation.ShutdownAsync();
 
         Assert.Equal(MessageState.Stopped, (await h.GetMessageAsync(a.Answer!.Value))!.State);
-        Assert.Equal("已收到", (await h.GetMessageAsync(b.Answer!.Value))!.Body);
+        Assert.Equal("已收到", (await h.GetMessageAsync(b.Answer!.Value))!.Text);
         Assert.Equal(MessageState.Cancelled, (await h.GetMessageAsync(c.Answer!.Value))!.State);
         Assert.Equal(0, h.Generation.UnfinishedCount);
         await Assert.ThrowsAsync<InvalidOperationException>(() => h.Conversations.StartAsync(h.Workspace, "d", Ct));
@@ -281,7 +281,7 @@ public class ConversationFlowTests
             var held = before.Client.Hold("说到一半");
             var sent = await before.Conversations.StartAsync(before.Workspace, "问", Ct);
             answer = sent.Answer!.Value;
-            await before.WaitForAnswerAsync(answer, m => m.Body == "说到一半");
+            await before.WaitForAnswerAsync(answer, m => m.Text == "说到一半");
 
             // Simulate the process dying: no shutdown, just drop the database connection.
             await before.Database.CloseAsync();
@@ -294,7 +294,7 @@ public class ConversationFlowTests
         Assert.Equal(1, report.InterruptedAnswers);
         var recovered = await after.GetMessageAsync(answer);
         Assert.Equal(MessageState.Interrupted, recovered!.State);
-        Assert.Equal("说到一半", recovered.Body);
+        Assert.Equal("说到一半", recovered.Text);
         Assert.Equal("interrupted", await after.TaskStateAsync(answer));
         Assert.Empty(after.Client.Requests);
     }
@@ -310,10 +310,10 @@ public class ConversationFlowTests
             set => Volatile.Write(ref _failFinishes, value);
         }
 
-        public Task<bool> FinishAnswerAsync(GenerationTaskId task, MessageId answer, string body, long revision, MessageState state, GenerationErrorKind? errorKind, string? errorDetail, DateTimeOffset at, CancellationToken cancellationToken) =>
+        public Task<bool> FinishAnswerAsync(GenerationTaskId task, MessageId answer, IReadOnlyList<ContentBlock> blocks, long revision, MessageState state, GenerationErrorKind? errorKind, string? errorDetail, DateTimeOffset at, CancellationToken cancellationToken) =>
             Interlocked.Decrement(ref _failFinishes) >= 0
                 ? throw new IOException("simulated disk full")
-                : inner.FinishAnswerAsync(task, answer, body, revision, state, errorKind, errorDetail, at, cancellationToken);
+                : inner.FinishAnswerAsync(task, answer, blocks, revision, state, errorKind, errorDetail, at, cancellationToken);
 
         public Task<IReadOnlyList<ConversationSummary>> ListAsync(Core.Workspaces.WorkspaceId workspace, CancellationToken cancellationToken) => inner.ListAsync(workspace, cancellationToken);
 
@@ -331,7 +331,7 @@ public class ConversationFlowTests
 
         public Task<bool> MarkRunningAsync(GenerationTaskId task, MessageId? answer, DateTimeOffset at, CancellationToken cancellationToken) => inner.MarkRunningAsync(task, answer, at, cancellationToken);
 
-        public Task<bool> CheckpointAsync(MessageId answer, string body, long revision, CancellationToken cancellationToken) => inner.CheckpointAsync(answer, body, revision, cancellationToken);
+        public Task<bool> CheckpointAsync(MessageId answer, IReadOnlyList<ContentBlock> blocks, long revision, CancellationToken cancellationToken) => inner.CheckpointAsync(answer, blocks, revision, cancellationToken);
 
         public Task FinishTaskAsync(GenerationTaskId task, GenerationTaskState state, GenerationErrorKind? errorKind, string? errorDetail, DateTimeOffset at, CancellationToken cancellationToken) => inner.FinishTaskAsync(task, state, errorKind, errorDetail, at, cancellationToken);
 

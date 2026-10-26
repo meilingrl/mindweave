@@ -15,4 +15,5 @@ public sealed record ModelSnapshot(
     ChatProtocol Protocol,
     string Model,
     string CredentialRef,
-    int? MaxOutputTokens);
+    int? MaxOutputTokens,
+    ModelCapabilities Capabilities);

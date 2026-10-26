@@ -46,7 +46,7 @@ public sealed partial class ModelSettingsService(
         var settings = await store.GetActiveAsync(cancellationToken).ConfigureAwait(false);
         return settings is null
             ? null
-            : new ModelSnapshot(settings.ModelConfigId, settings.BaseUrl, settings.Protocol, settings.Model, settings.CredentialRef, settings.MaxOutputTokens);
+            : new ModelSnapshot(settings.ModelConfigId, settings.BaseUrl, settings.Protocol, settings.Model, settings.CredentialRef, settings.MaxOutputTokens, settings.Capabilities);
     }
 
     public async Task SaveAsync(ModelSettingsInput input, CancellationToken cancellationToken)
@@ -91,7 +91,9 @@ public sealed partial class ModelSettingsService(
                     credentialRef,
                     existing?.ModelConfigId ?? Guid.CreateVersion7().ToString("D"),
                     model,
-                    existing?.MaxOutputTokens),
+                    existing?.MaxOutputTokens,
+                    // Declared capabilities belong to a model; a different model starts from the protocol defaults.
+                    existing is not null && existing.Model == model ? existing.Capabilities : ModelCapabilities.DefaultsFor(ChatProtocol.ChatCompletions)),
                 clock.UtcNow,
                 cancellationToken)
             .ConfigureAwait(false);
@@ -147,7 +149,7 @@ public sealed partial class ModelSettingsService(
         try
         {
             var key = await KeyForAsync(typedKey, cancellationToken).ConfigureAwait(false);
-            var snapshot = new ModelSnapshot("connection-test", NormalizeBaseUrl(baseUrl), ChatProtocol.ChatCompletions, model.Trim(), "connection-test", MaxOutputTokens: 16);
+            var snapshot = new ModelSnapshot("connection-test", NormalizeBaseUrl(baseUrl), ChatProtocol.ChatCompletions, model.Trim(), "connection-test", MaxOutputTokens: 16, ModelCapabilities.DefaultsFor(ChatProtocol.ChatCompletions));
             var request = new ChatRequest(snapshot, [new ChatTurn(ChatRole.User, "Reply with the single word OK.")]);
             await foreach (var item in client.StreamAsync(request, key, cancellationToken).ConfigureAwait(false))
             {

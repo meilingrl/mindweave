@@ -84,4 +84,8 @@ public sealed class LiveAnswer
     }
 }
 
-public sealed record LiveAnswerSnapshot(string Text, long Revision, MessageState State, GenerationErrorKind? ErrorKind, string? ErrorDetail);
+public sealed record LiveAnswerSnapshot(string Text, long Revision, MessageState State, GenerationErrorKind? ErrorKind, string? ErrorDetail)
+{
+    /// <summary>The content as stored. A streamed answer is one text block until generation produces other kinds.</summary>
+    public IReadOnlyList<ContentBlock> Blocks => ContentBlocks.FromText(Text);
+}

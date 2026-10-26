@@ -20,7 +20,7 @@ public sealed partial class MessageItemViewModel : ViewModelBase, IDisposable
         Id = message.Id;
         Role = message.Role;
         IsRetryAttempt = message.Supersedes is not null;
-        Body = message.Body;
+        Body = message.Text;
         State = message.State;
         ErrorKind = message.ErrorKind;
         ErrorDetail = message.ErrorDetail;

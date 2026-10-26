@@ -21,6 +21,9 @@ public abstract record ChatStreamEvent
     {
     }
 
+    /// <summary>The service accepted the request; first event of every stream. Diagnostic only.</summary>
+    public sealed record ResponseStarted(int HttpStatus, string? ProviderRequestId) : ChatStreamEvent;
+
     public sealed record TextDelta(string Text) : ChatStreamEvent;
 
     /// <summary>The provider declared the answer finished. <paramref name="Truncated"/> when it stopped at the length limit.</summary>
@@ -29,8 +32,12 @@ public abstract record ChatStreamEvent
 
 public sealed class ChatClientException : Exception
 {
-    public ChatClientException(GenerationErrorKind kind, string detail, Exception? inner = null)
-        : base(detail, inner) => Kind = kind;
+    public ChatClientException(GenerationErrorKind kind, string detail, Exception? inner = null, int? httpStatus = null)
+        : base(detail, inner)
+    {
+        Kind = kind;
+        HttpStatus = httpStatus;
+    }
 
     public ChatClientException()
     {
@@ -47,9 +54,15 @@ public sealed class ChatClientException : Exception
     }
 
     public GenerationErrorKind Kind { get; } = GenerationErrorKind.InvalidResponse;
+
+    /// <summary>The service's HTTP status when it answered with an error; null for transport failures.</summary>
+    public int? HttpStatus { get; }
 }
 
-/// <summary>Streams one completion. Throws <see cref="ChatClientException"/> for provider and transport failures.</summary>
+/// <summary>
+/// Streams one completion. Throws <see cref="ChatClientException"/> for provider and transport failures; its
+/// message is already redacted and safe to store or show.
+/// </summary>
 public interface IChatClient
 {
     IAsyncEnumerable<ChatStreamEvent> StreamAsync(ChatRequest request, string apiKey, CancellationToken cancellationToken);

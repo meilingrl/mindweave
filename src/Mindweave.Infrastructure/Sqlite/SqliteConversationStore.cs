@@ -9,7 +9,7 @@ namespace Mindweave.Infrastructure.Sqlite;
 internal sealed class SqliteConversationStore(SqliteDatabase database) : IConversationStore
 {
     private const string MessageColumns =
-        "id, conversation_id, seq, role, body, state, revision, supersedes_id, error_kind, error_detail, created_at, completed_at";
+        "id, conversation_id, seq, role, state, revision, supersedes_id, error_kind, error_detail, created_at, completed_at";
 
     public Task<IReadOnlyList<ConversationSummary>> ListAsync(WorkspaceId workspace, CancellationToken cancellationToken) =>
         database.ReadAsync<IReadOnlyList<ConversationSummary>>(
@@ -17,7 +17,8 @@ internal sealed class SqliteConversationStore(SqliteDatabase database) : IConver
             {
                 using var command = connection.Command(null, """
                     SELECT c.id, c.workspace_id, c.title, c.title_source, c.created_at, c.updated_at,
-                           (SELECT body FROM message WHERE conversation_id = c.id AND role = 'user' ORDER BY seq LIMIT 1),
+                           (SELECT b.text FROM message m JOIN message_block b ON b.message_id = m.id AND b.ordinal = 0
+                            WHERE m.conversation_id = c.id AND m.role = 'user' ORDER BY m.seq LIMIT 1),
                            (SELECT state FROM message WHERE conversation_id = c.id AND role = 'assistant' ORDER BY seq DESC LIMIT 1)
                     FROM conversation c
                     WHERE c.workspace_id = $ws
@@ -128,18 +129,27 @@ internal sealed class SqliteConversationStore(SqliteDatabase database) : IConver
             },
             cancellationToken);
 
-    public Task<bool> CheckpointAsync(MessageId answer, string body, long revision, CancellationToken cancellationToken) =>
+    public Task<bool> CheckpointAsync(MessageId answer, IReadOnlyList<ContentBlock> blocks, long revision, CancellationToken cancellationToken) =>
         database.WriteAsync(
-            (connection, transaction) => connection.Execute(transaction, """
-                UPDATE message SET body = $body, revision = $rev
-                WHERE id = $id AND state = 'streaming' AND revision < $rev;
-                """, ("$id", answer.ToString()), ("$body", body), ("$rev", revision)) == 1,
+            (connection, transaction) =>
+            {
+                var applied = connection.Execute(transaction, """
+                    UPDATE message SET revision = $rev
+                    WHERE id = $id AND state = 'streaming' AND revision < $rev;
+                    """, ("$id", answer.ToString()), ("$rev", revision)) == 1;
+                if (applied)
+                {
+                    ReplaceBlocks(connection, transaction, answer, blocks);
+                }
+
+                return applied;
+            },
             cancellationToken);
 
     public Task<bool> FinishAnswerAsync(
         GenerationTaskId task,
         MessageId answer,
-        string body,
+        IReadOnlyList<ContentBlock> blocks,
         long revision,
         MessageState state,
         GenerationErrorKind? errorKind,
@@ -151,17 +161,21 @@ internal sealed class SqliteConversationStore(SqliteDatabase database) : IConver
             {
                 var applied = connection.Execute(transaction, """
                     UPDATE message
-                    SET body = $body, state = $state, revision = max(revision + 1, $rev),
+                    SET state = $state, revision = max(revision + 1, $rev),
                         error_kind = $kind, error_detail = $detail, completed_at = $at
                     WHERE id = $id AND state IN ('pending', 'streaming');
                     """,
                     ("$id", answer.ToString()),
-                    ("$body", body),
                     ("$state", SqlNames.Of(state)),
                     ("$rev", revision),
                     ("$kind", errorKind is { } k ? SqlNames.Of(k) : null),
                     ("$detail", Truncate(errorDetail)),
                     ("$at", at.Ms())) == 1;
+                if (applied)
+                {
+                    ReplaceBlocks(connection, transaction, answer, blocks);
+                }
+
                 FinishTask(connection, transaction, task, SqlNames.TaskStateFor(state), errorKind, errorDetail, at);
                 return applied;
             },
@@ -242,16 +256,16 @@ internal sealed class SqliteConversationStore(SqliteDatabase database) : IConver
     private static void Touch(SqliteConnection connection, SqliteTransaction transaction, ConversationId id, DateTimeOffset at) =>
         connection.Execute(transaction, "UPDATE conversation SET updated_at = max(updated_at, $at) WHERE id = $id;", ("$id", id.ToString()), ("$at", at.Ms()));
 
-    private static void InsertMessage(SqliteConnection connection, SqliteTransaction transaction, Message m) =>
+    private static void InsertMessage(SqliteConnection connection, SqliteTransaction transaction, Message m)
+    {
         connection.Execute(transaction, $"""
             INSERT INTO message ({MessageColumns})
-            VALUES ($id, $conv, $seq, $role, $body, $state, $rev, $sup, $kind, $detail, $created, $completed);
+            VALUES ($id, $conv, $seq, $role, $state, $rev, $sup, $kind, $detail, $created, $completed);
             """,
             ("$id", m.Id.ToString()),
             ("$conv", m.ConversationId.ToString()),
             ("$seq", m.Seq),
             ("$role", SqlNames.Of(m.Role)),
-            ("$body", m.Body),
             ("$state", SqlNames.Of(m.State)),
             ("$rev", m.Revision),
             ("$sup", m.Supersedes?.ToString()),
@@ -259,12 +273,38 @@ internal sealed class SqliteConversationStore(SqliteDatabase database) : IConver
             ("$detail", m.ErrorDetail),
             ("$created", m.CreatedAt.Ms()),
             ("$completed", m.CompletedAt?.Ms()));
+        ReplaceBlocks(connection, transaction, m.Id, m.Blocks);
+    }
+
+    private static void ReplaceBlocks(SqliteConnection connection, SqliteTransaction transaction, MessageId message, IReadOnlyList<ContentBlock> blocks)
+    {
+        connection.Execute(transaction, "DELETE FROM message_block WHERE message_id = $id;", ("$id", message.ToString()));
+        for (var i = 0; i < blocks.Count; i++)
+        {
+            var text = blocks[i] switch
+            {
+                TextBlock t => t.Markdown,
+                var other => throw new NotSupportedException($"No storage mapping for {other.GetType().Name}."),
+            };
+            connection.Execute(transaction,
+                "INSERT INTO message_block (message_id, ordinal, kind, text) VALUES ($id, $ord, $kind, $text);",
+                ("$id", message.ToString()), ("$ord", i), ("$kind", SqlNames.TextBlockKind), ("$text", text));
+        }
+    }
+
+#pragma warning disable CA1859 // The mapping grows with each block kind; only text exists today.
+    private static ContentBlock ReadBlock(string kind, string text) => kind switch
+    {
+        SqlNames.TextBlockKind => new TextBlock(text),
+        _ => throw new InvalidDataException($"Unknown message block kind '{kind}'."),
+    };
+#pragma warning restore CA1859
 
     private static int InsertTask(SqliteConnection connection, SqliteTransaction transaction, GenerationTaskRecord t) =>
         connection.Execute(transaction, """
             INSERT INTO generation_task (id, kind, conversation_id, target_message_id, state, model_config_id, base_url, protocol,
-                                         model, credential_ref, max_output_tokens, input_message_ids, created_at)
-            VALUES ($id, $kind, $conv, $target, 'queued', $config, $url, $protocol, $model, $cred, $max, $input, $created);
+                                         model, credential_ref, max_output_tokens, capabilities, input_message_ids, created_at)
+            VALUES ($id, $kind, $conv, $target, 'queued', $config, $url, $protocol, $model, $cred, $max, $caps, $input, $created);
             """,
             ("$id", t.Id.ToString()),
             ("$kind", SqlNames.Of(t.Kind)),
@@ -276,6 +316,7 @@ internal sealed class SqliteConversationStore(SqliteDatabase database) : IConver
             ("$model", t.Model.Model),
             ("$cred", t.Model.CredentialRef),
             ("$max", t.Model.MaxOutputTokens),
+            ("$caps", SqlNames.Of(t.Model.Capabilities)),
             ("$input", JsonSerializer.Serialize(t.InputMessageIds.Select(i => i.ToString()))),
             ("$created", t.CreatedAt.Ms()));
 
@@ -290,30 +331,52 @@ internal sealed class SqliteConversationStore(SqliteDatabase database) : IConver
 
     private static List<Message> GetMessages(SqliteConnection connection, SqliteTransaction? transaction, ConversationId id)
     {
-        using var command = connection.Command(transaction, $"SELECT {MessageColumns} FROM message WHERE conversation_id = $id ORDER BY seq;", ("$id", id.ToString()));
-        using var reader = command.ExecuteReader();
-        var list = new List<Message>();
-        while (reader.Read())
+        var blocks = new Dictionary<string, List<ContentBlock>>(StringComparer.Ordinal);
+        using (var command = connection.Command(transaction, """
+            SELECT b.message_id, b.kind, b.text
+            FROM message_block b JOIN message m ON m.id = b.message_id
+            WHERE m.conversation_id = $id
+            ORDER BY b.message_id, b.ordinal;
+            """, ("$id", id.ToString())))
+        using (var reader = command.ExecuteReader())
         {
-            var kind = reader.NullableString(8);
-            var supersedes = reader.NullableString(7);
-            var completed = reader.NullableInt64(11);
-            list.Add(new Message(
-                MessageId.Parse(reader.GetString(0)),
-                ConversationId.Parse(reader.GetString(1)),
-                reader.GetInt32(2),
-                SqlNames.ParseRole(reader.GetString(3)),
-                reader.GetString(4),
-                SqlNames.ParseMessageState(reader.GetString(5)),
-                reader.GetInt64(6),
+            while (reader.Read())
+            {
+                var messageId = reader.GetString(0);
+                if (!blocks.TryGetValue(messageId, out var list))
+                {
+                    blocks[messageId] = list = [];
+                }
+
+                list.Add(ReadBlock(reader.GetString(1), reader.GetString(2)));
+            }
+        }
+
+        using var messages = connection.Command(transaction, $"SELECT {MessageColumns} FROM message WHERE conversation_id = $id ORDER BY seq;", ("$id", id.ToString()));
+        using var row = messages.ExecuteReader();
+        var result = new List<Message>();
+        while (row.Read())
+        {
+            var messageId = row.GetString(0);
+            var kind = row.NullableString(7);
+            var supersedes = row.NullableString(6);
+            var completed = row.NullableInt64(10);
+            result.Add(new Message(
+                MessageId.Parse(messageId),
+                ConversationId.Parse(row.GetString(1)),
+                row.GetInt32(2),
+                SqlNames.ParseRole(row.GetString(3)),
+                blocks.TryGetValue(messageId, out var content) ? content : throw new InvalidDataException($"Message {messageId} has no content blocks."),
+                SqlNames.ParseMessageState(row.GetString(4)),
+                row.GetInt64(5),
                 supersedes is null ? null : MessageId.Parse(supersedes),
                 kind is null ? null : SqlNames.ParseErrorKind(kind),
-                reader.NullableString(9),
-                reader.Time(10),
+                row.NullableString(8),
+                row.Time(9),
                 completed is { } ms ? DateTimeOffset.FromUnixTimeMilliseconds(ms) : null));
         }
 
-        return list;
+        return result;
     }
 
     private static Conversation ReadConversation(SqliteDataReader reader) =>

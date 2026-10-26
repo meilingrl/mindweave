@@ -2,12 +2,14 @@ using System.Collections.Concurrent;
 using System.Globalization;
 using System.Text;
 using Microsoft.Extensions.Logging;
+using Mindweave.Application.Diagnostics;
 
 namespace Mindweave.Infrastructure.Logging;
 
 /// <summary>
 /// Minimal daily-rolling file logger. Writes are serialized and flushed per entry so the log survives a
-/// forced kill. Logs contain identifiers and errors, never message bodies or credentials.
+/// forced kill. Logs contain identifiers and errors, never message bodies or credentials; as a last line of
+/// defence, every entry (exception text included) is scrubbed of credential-shaped tokens before it is written.
 /// </summary>
 public sealed class FileLoggerProvider : ILoggerProvider
 {
@@ -56,7 +58,7 @@ public sealed class FileLoggerProvider : ILoggerProvider
         {
             try
             {
-                WriterFor(DateOnly.FromDateTime(now.UtcDateTime)).WriteLine(line.ToString());
+                WriterFor(DateOnly.FromDateTime(now.UtcDateTime)).WriteLine(Redaction.Scrub(line.ToString()));
             }
             catch (IOException)
             {

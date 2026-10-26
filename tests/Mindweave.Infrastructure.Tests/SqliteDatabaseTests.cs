@@ -33,6 +33,25 @@ public sealed class SqliteDatabaseTests : IDisposable
     }
 
     [Fact]
+    public async Task A_read_sees_one_snapshot_even_when_a_write_commits_part_way()
+    {
+        await SeedCurrentAsync("before");
+        await using var database = _dir.Database();
+        Assert.True((await database.OpenAsync(Ct)).IsReady);
+
+        var (first, second) = await database.ReadAsync(
+            c =>
+            {
+                var first = Scalar<string>(c, "SELECT name FROM workspace;");
+                database.WriteAsync((w, t) => Exec(w, t, "UPDATE workspace SET name = 'after';"), Ct).GetAwaiter().GetResult();
+                return (first, Scalar<string>(c, "SELECT name FROM workspace;"));
+            },
+            Ct);
+
+        Assert.Equal(("before", "before"), (first, second));
+    }
+
+    [Fact]
     public async Task Reopening_a_current_database_makes_no_backup()
     {
         await SeedCurrentAsync("kept");

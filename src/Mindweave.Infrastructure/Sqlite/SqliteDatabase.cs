@@ -107,7 +107,7 @@ public sealed partial class SqliteDatabase : IDatabaseLifecycle, IAsyncDisposabl
         return writer.EnqueueAsync(work, cancellationToken);
     }
 
-    /// <summary>Runs <paramref name="work"/> on a fresh read-only connection; it never waits for the writer.</summary>
+    /// <summary>Runs <paramref name="work"/> on a fresh read-only connection in one snapshot; it never waits for the writer.</summary>
     public Task<T> ReadAsync<T>(Func<SqliteConnection, T> work, CancellationToken cancellationToken)
     {
         if (!IsOpen)
@@ -119,7 +119,19 @@ public sealed partial class SqliteDatabase : IDatabaseLifecycle, IAsyncDisposabl
             () =>
             {
                 using var connection = SqliteConnections.OpenReadOnly(_paths.DatabasePath);
-                return work(connection);
+
+                // One snapshot for the whole read: a message row and its blocks are read by separate statements,
+                // and a commit between them would otherwise pair a finished row with its earlier content. A raw
+                // BEGIN keeps commands usable without a transaction object.
+                SqliteConnections.Execute(connection, "BEGIN;");
+                try
+                {
+                    return work(connection);
+                }
+                finally
+                {
+                    SqliteConnections.Execute(connection, "COMMIT;");
+                }
             },
             cancellationToken);
     }

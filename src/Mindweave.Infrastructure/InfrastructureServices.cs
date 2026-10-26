@@ -5,6 +5,7 @@ using Mindweave.Application.Startup;
 using Mindweave.Application.Storage;
 using Mindweave.Application.Ai;
 using Mindweave.Application.Credentials;
+using Mindweave.Application.Diagnostics;
 using Mindweave.Infrastructure.Ai;
 using Mindweave.Infrastructure.Credentials;
 using Mindweave.Infrastructure.Hosting;
@@ -27,6 +28,7 @@ public static class InfrastructureServices
         services.AddSingleton<ILocationStore, SqliteLocationStore>();
         services.AddSingleton<IConversationStore, SqliteConversationStore>();
         services.AddSingleton<IModelSettingsStore, SqliteModelSettingsStore>();
+        services.AddSingleton<IAiRequestStore, SqliteAiRequestStore>();
         services.TryAddSingleton(_ => CredentialStores.ForPlatform(paths.Channel));
         services.TryAddSingleton(new ChatClientOptions());
         services.TryAddSingleton<IChatClient>(sp => new ChatCompletionsClient(

@@ -16,16 +16,16 @@ public class StoreGuardTests
         await using var h = await ChatHarness.StartAsync();
         var (task, answer) = await SeedStreamingAsync(h);
 
-        Assert.True(await h.Store.CheckpointAsync(answer, "abc", 3, Ct));
-        Assert.False(await h.Store.CheckpointAsync(answer, "a", 2, Ct));
-        Assert.Equal("abc", (await h.GetMessageAsync(answer))!.Body);
+        Assert.True(await h.Store.CheckpointAsync(answer, ContentBlocks.FromText("abc"), 3, Ct));
+        Assert.False(await h.Store.CheckpointAsync(answer, ContentBlocks.FromText("a"), 2, Ct));
+        Assert.Equal("abc", (await h.GetMessageAsync(answer))!.Text);
 
-        Assert.True(await h.Store.FinishAnswerAsync(task, answer, "abcd", 4, MessageState.Complete, null, null, DateTimeOffset.UtcNow, Ct));
-        Assert.False(await h.Store.CheckpointAsync(answer, "abcde-late", 99, Ct));
-        Assert.False(await h.Store.FinishAnswerAsync(task, answer, "other", 100, MessageState.Failed, GenerationErrorKind.Network, null, DateTimeOffset.UtcNow, Ct));
+        Assert.True(await h.Store.FinishAnswerAsync(task, answer, ContentBlocks.FromText("abcd"), 4, MessageState.Complete, null, null, DateTimeOffset.UtcNow, Ct));
+        Assert.False(await h.Store.CheckpointAsync(answer, ContentBlocks.FromText("abcde-late"), 99, Ct));
+        Assert.False(await h.Store.FinishAnswerAsync(task, answer, ContentBlocks.FromText("other"), 100, MessageState.Failed, GenerationErrorKind.Network, null, DateTimeOffset.UtcNow, Ct));
 
         var stored = await h.GetMessageAsync(answer);
-        Assert.Equal("abcd", stored!.Body);
+        Assert.Equal("abcd", stored!.Text);
         Assert.Equal(MessageState.Complete, stored.State);
     }
 
@@ -36,8 +36,8 @@ public class StoreGuardTests
         var (_, answer) = await SeedStreamingAsync(h);
         var conversation = (await h.GetMessageAsync(answer))!.ConversationId;
         var now = DateTimeOffset.UtcNow;
-        var question = new Message(MessageId.New(), conversation, 0, MessageRole.User, "q", MessageState.Complete, 0, null, null, null, now, now);
-        var pending = new Message(MessageId.New(), conversation, 0, MessageRole.Assistant, string.Empty, MessageState.Pending, 0, null, null, null, now, null);
+        var question = new Message(MessageId.New(), conversation, 0, MessageRole.User, ContentBlocks.FromText("q"), MessageState.Complete, 0, null, null, null, now, now);
+        var pending = new Message(MessageId.New(), conversation, 0, MessageRole.Assistant, ContentBlocks.FromText(string.Empty), MessageState.Pending, 0, null, null, null, now, null);
 
         await Assert.ThrowsAsync<AnswerInProgressException>(() => h.Store.AppendQuestionAsync(question, pending, Task(conversation, pending.Id), Ct));
     }
@@ -73,8 +73,8 @@ public class StoreGuardTests
         // Re-create a streaming row directly so the guards can be exercised without the coordinator.
         var conversation = sent.Conversation;
         var now = DateTimeOffset.UtcNow;
-        var answer = new Message(MessageId.New(), conversation, 0, MessageRole.Assistant, string.Empty, MessageState.Pending, 0, null, null, null, now, null);
-        var question = new Message(MessageId.New(), conversation, 0, MessageRole.User, "q2", MessageState.Complete, 0, null, null, null, now, now);
+        var answer = new Message(MessageId.New(), conversation, 0, MessageRole.Assistant, ContentBlocks.FromText(string.Empty), MessageState.Pending, 0, null, null, null, now, null);
+        var question = new Message(MessageId.New(), conversation, 0, MessageRole.User, ContentBlocks.FromText("q2"), MessageState.Complete, 0, null, null, null, now, now);
         var task = Task(conversation, answer.Id);
         await h.Store.AppendQuestionAsync(question, answer, task, Ct);
         Assert.True(await h.Store.MarkRunningAsync(task.Id, answer.Id, now, Ct));
@@ -83,6 +83,6 @@ public class StoreGuardTests
 
     private static GenerationTaskRecord Task(ConversationId conversation, MessageId answer) =>
         new(GenerationTaskId.New(), GenerationTaskKind.Answer, conversation, answer,
-            new ModelSnapshot("m", "https://fake.example/v1", ChatProtocol.ChatCompletions, "fake-model", "ref", null),
+            new ModelSnapshot("m", "https://fake.example/v1", ChatProtocol.ChatCompletions, "fake-model", "ref", null, ModelCapabilities.DefaultsFor(ChatProtocol.ChatCompletions)),
             [], DateTimeOffset.UtcNow);
 }

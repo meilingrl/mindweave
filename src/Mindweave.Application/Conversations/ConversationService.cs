@@ -222,7 +222,7 @@ public sealed partial class ConversationService
 
     private void Enqueue(GenerationTaskRecord task, ModelSnapshot model, IReadOnlyList<Message> input, Message answer)
     {
-        var turns = input.Select(m => new ChatTurn(m.Role == MessageRole.User ? ChatRole.User : ChatRole.Assistant, m.Body)).ToArray();
+        var turns = input.Select(m => new ChatTurn(m.Role == MessageRole.User ? ChatRole.User : ChatRole.Assistant, m.Text)).ToArray();
         _generation.Enqueue(new AnswerWork(task, new ChatRequest(model, turns), new LiveAnswer(answer.Id, answer.ConversationId)));
     }
 
@@ -262,19 +262,19 @@ public sealed partial class ConversationService
 
         var messages = await _store.GetMessagesAsync(e.ConversationId, CancellationToken.None).ConfigureAwait(false);
         var question = messages.First(m => m.Role == MessageRole.User);
-        var excerpt = e.Body.Length > TitleAnswerExcerpt ? e.Body[..TitleAnswerExcerpt] : e.Body;
+        var excerpt = e.Text.Length > TitleAnswerExcerpt ? e.Text[..TitleAnswerExcerpt] : e.Text;
         var now = _clock.UtcNow;
         var task = NewTask(GenerationTaskKind.Title, e.ConversationId, null, model, [question.Id, e.MessageId], now);
         await _store.AddTaskAsync(task, CancellationToken.None).ConfigureAwait(false);
         _generation.Enqueue(new TitleWork(task, new ChatRequest(model with { MaxOutputTokens = 64 },
         [
             new ChatTurn(ChatRole.System, "为下面的对话起一个简短标题，概括提问的主题。只输出标题本身，不加引号、序号或句末标点；不超过 20 个字；使用提问所用的语言。"),
-            new ChatTurn(ChatRole.User, $"提问：{question.Body}\n\n回答开头：{excerpt}"),
+            new ChatTurn(ChatRole.User, $"提问：{question.Text}\n\n回答开头：{excerpt}"),
         ])));
     }
 
     private static Message NewMessage(ConversationId conversation, int seq, MessageRole role, string body, MessageState state, MessageId? supersedes, DateTimeOffset at) =>
-        new(MessageId.New(), conversation, seq, role, body, state, 0, supersedes, null, null, at, state == MessageState.Complete ? at : null);
+        new(MessageId.New(), conversation, seq, role, ContentBlocks.FromText(body), state, 0, supersedes, null, null, at, state == MessageState.Complete ? at : null);
 
     private static GenerationTaskRecord NewTask(GenerationTaskKind kind, ConversationId conversation, MessageId? target, ModelSnapshot model, IReadOnlyList<MessageId> input, DateTimeOffset at) =>
         new(GenerationTaskId.New(), kind, conversation, target, model, input, at);

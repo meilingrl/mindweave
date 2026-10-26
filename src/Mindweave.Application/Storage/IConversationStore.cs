@@ -65,14 +65,14 @@ public interface IConversationStore
     /// <summary>Queued → running; for answers also pending → streaming. False if it was cancelled meanwhile.</summary>
     Task<bool> MarkRunningAsync(GenerationTaskId task, MessageId? answer, DateTimeOffset at, CancellationToken cancellationToken);
 
-    /// <summary>Writes a partial body only if still streaming and newer than what is stored.</summary>
-    Task<bool> CheckpointAsync(MessageId answer, string body, long revision, CancellationToken cancellationToken);
+    /// <summary>Writes partial content only if still streaming and newer than what is stored.</summary>
+    Task<bool> CheckpointAsync(MessageId answer, IReadOnlyList<ContentBlock> blocks, long revision, CancellationToken cancellationToken);
 
     /// <summary>Writes the terminal answer and task state together, only if the answer is not yet terminal.</summary>
     Task<bool> FinishAnswerAsync(
         GenerationTaskId task,
         MessageId answer,
-        string body,
+        IReadOnlyList<ContentBlock> blocks,
         long revision,
         MessageState state,
         GenerationErrorKind? errorKind,

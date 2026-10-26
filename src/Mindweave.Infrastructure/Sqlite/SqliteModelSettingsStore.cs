@@ -13,24 +13,29 @@ internal sealed class SqliteModelSettingsStore(SqliteDatabase database) : IModel
             connection =>
             {
                 using var command = connection.Command(null, """
-                    SELECT c.id, c.name, c.base_url, c.protocol, c.credential_ref, m.id, m.model, m.max_output_tokens
+                    SELECT c.id, c.name, c.base_url, c.protocol, c.credential_ref, m.id, m.model, m.max_output_tokens, m.capabilities
                     FROM app_state s
                     JOIN model_config m ON m.id = s.value
                     JOIN service_connection c ON c.id = m.connection_id
                     WHERE s.key = $key;
                     """, ("$key", ActiveKey));
                 using var reader = command.ExecuteReader();
-                return reader.Read()
-                    ? new ModelSettings(
-                        reader.GetString(0),
-                        reader.GetString(1),
-                        reader.GetString(2),
-                        SqlNames.ParseProtocol(reader.GetString(3)),
-                        reader.GetString(4),
-                        reader.GetString(5),
-                        reader.GetString(6),
-                        reader.NullableInt64(7) is { } max ? (int)max : null)
-                    : null;
+                if (!reader.Read())
+                {
+                    return null;
+                }
+
+                var protocol = SqlNames.ParseProtocol(reader.GetString(3));
+                return new ModelSettings(
+                    reader.GetString(0),
+                    reader.GetString(1),
+                    reader.GetString(2),
+                    protocol,
+                    reader.GetString(4),
+                    reader.GetString(5),
+                    reader.GetString(6),
+                    reader.NullableInt64(7) is { } max ? (int)max : null,
+                    SqlNames.ParseCapabilities(reader.NullableString(8), protocol));
             },
             cancellationToken);
 
@@ -49,13 +54,13 @@ internal sealed class SqliteModelSettingsStore(SqliteDatabase database) : IModel
                     ("$id", settings.ConnectionId), ("$name", settings.ConnectionName), ("$url", settings.BaseUrl),
                     ("$protocol", SqlNames.Of(settings.Protocol)), ("$cred", settings.CredentialRef), ("$at", at.Ms()));
                 connection.Execute(transaction, """
-                    INSERT INTO model_config (id, connection_id, model, max_output_tokens, created_at, updated_at)
-                    VALUES ($id, $conn, $model, $max, $at, $at)
+                    INSERT INTO model_config (id, connection_id, model, max_output_tokens, capabilities, created_at, updated_at)
+                    VALUES ($id, $conn, $model, $max, $caps, $at, $at)
                     ON CONFLICT (id) DO UPDATE SET connection_id = excluded.connection_id, model = excluded.model,
-                        max_output_tokens = excluded.max_output_tokens, updated_at = excluded.updated_at;
+                        max_output_tokens = excluded.max_output_tokens, capabilities = excluded.capabilities, updated_at = excluded.updated_at;
                     """,
                     ("$id", settings.ModelConfigId), ("$conn", settings.ConnectionId), ("$model", settings.Model),
-                    ("$max", settings.MaxOutputTokens), ("$at", at.Ms()));
+                    ("$max", settings.MaxOutputTokens), ("$caps", SqlNames.Of(settings.Capabilities)), ("$at", at.Ms()));
                 return connection.Execute(transaction,
                     "INSERT INTO app_state (key, value) VALUES ($key, $value) ON CONFLICT (key) DO UPDATE SET value = excluded.value;",
                     ("$key", ActiveKey), ("$value", settings.ModelConfigId));
