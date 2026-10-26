@@ -266,9 +266,9 @@ public static class DatabaseSchema
         BEGIN SELECT RAISE(ABORT,'Completed cache is immutable'); END;
         CREATE TABLE prepared_reply_request (
             task_id TEXT PRIMARY KEY NOT NULL REFERENCES reply_context_plan(task_id) ON DELETE CASCADE,
-            format_version INTEGER NOT NULL CHECK(format_version=1),
+            format_version INTEGER NOT NULL CHECK(format_version=2),
             configuration_json TEXT NOT NULL CHECK(json_valid(configuration_json)),
-            messages_json TEXT NOT NULL CHECK(json_valid(messages_json)),
+            request_hash TEXT NOT NULL CHECK(length(request_hash)=64 AND request_hash NOT GLOB '*[^0-9A-F]*'),
             prepared_at TEXT NOT NULL
         );
         CREATE TABLE prepared_context_use (

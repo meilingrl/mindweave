@@ -283,16 +283,40 @@ public sealed class ContextStorageTests
         await Assert.ThrowsAsync<InvalidOperationException>(() => store.PrepareReplyRequestAsync(work.Task.Id));
     }
     [Theory]
-    [InlineData("messages")][InlineData("uses")]
-    public async Task Reopened_prepared_material_is_verified_against_real_sources(string corrupt)
+    [InlineData("hash")][InlineData("uses")][InlineData("source")][InlineData("configuration")][InlineData("format")]
+    public async Task Prepared_material_rejects_tampered_hash_refs_source_config_and_format_without_rewriting(string corrupt)
     {
         using var dir = new TestDirectory(); var paths = AppPaths.ForTrack("codex-steady", dir.Path);
         await using var store = await SqliteWorkspaceStore.OpenAsync(paths); var conversation = await Conversation(store);
+        await BranchStorageTests.Answer(store, conversation.Id, "original question", "original answer");
         var work = await store.AcceptReplyAsync(conversation.Id, "current", Config()); await store.PrepareReplyRequestAsync(work.Task.Id);
-        if (corrupt == "messages") Sql(paths, "DROP TRIGGER prepared_request_immutable; UPDATE prepared_reply_request SET messages_json='[]'");
-        else Sql(paths, "DELETE FROM prepared_context_use");
+        switch (corrupt)
+        {
+            case "hash":
+                Sql(paths, "DROP TRIGGER prepared_request_immutable; UPDATE prepared_reply_request SET request_hash=(CASE substr(request_hash,1,1) WHEN 'A' THEN 'B' ELSE 'A' END) || substr(request_hash,2)");
+                break;
+            case "uses":
+                // Still a valid FK and kind, but the first material is no longer the accepted first original.
+                Sql(paths, "DROP TRIGGER prepared_use_immutable; UPDATE prepared_context_use SET message_id=$id WHERE input_index=0", ("$id", work.InputMessages[^1].Id));
+                break;
+            case "source":
+                Sql(paths, "DROP TRIGGER terminal_message_immutable; UPDATE chat_message SET body='tampered question' WHERE id=$id", ("$id", work.InputMessages[0].Id));
+                break;
+            case "configuration":
+                Sql(paths, "DROP TRIGGER prepared_request_immutable; UPDATE prepared_reply_request SET configuration_json=json_set(configuration_json,'$.ModelId','other-model')");
+                break;
+            case "format":
+                Sql(paths, "DROP TRIGGER prepared_request_immutable; PRAGMA ignore_check_constraints=ON; UPDATE prepared_reply_request SET format_version=99");
+                break;
+        }
+        var storedHash = Sql(paths, "SELECT request_hash FROM prepared_reply_request");
+        var storedConfig = Sql(paths, "SELECT configuration_json FROM prepared_reply_request");
         await Assert.ThrowsAsync<InvalidOperationException>(() => store.LoadPreparedReplyRequestAsync(work.Task.Id));
         await Assert.ThrowsAsync<InvalidOperationException>(() => store.PrepareReplyRequestAsync(work.Task.Id));
+        Assert.Equal(storedHash, Sql(paths, "SELECT request_hash FROM prepared_reply_request"));
+        Assert.Equal(storedConfig, Sql(paths, "SELECT configuration_json FROM prepared_reply_request"));
+        Assert.Equal(1L, Sql(paths, "SELECT count(*) FROM prepared_reply_request"));
+        Assert.Equal(3L, Sql(paths, "SELECT count(*) FROM prepared_context_use"));
     }
     [Fact]
     public async Task Recovery_late_parent_failure_rolls_back_interruption_of_compression()
@@ -429,5 +453,43 @@ public sealed class ContextStorageTests
         Sql(paths, "DELETE FROM context_compression_source WHERE attempt_id=$attempt AND slice_order=0", ("$attempt", attempt.Id));
         await Assert.ThrowsAsync<InvalidOperationException>(() => store.LoadCompressionAttemptAsync(attempt.Id));
         await Assert.ThrowsAsync<InvalidOperationException>(() => store.LoadCompletedSummaryAsync(work.Task.Id, chunk.CacheKey));
+    }
+
+    [Fact]
+    public async Task Prepared_metadata_does_not_copy_historical_body_but_request_reconstructs_exact_text()
+    {
+        using var dir = new TestDirectory(); var paths = AppPaths.ForTrack("codex-steady", dir.Path);
+        await using var store = await SqliteWorkspaceStore.OpenAsync(paths); var conversation = await Conversation(store);
+        const string marker = "unique-original-history-marker";
+        await BranchStorageTests.Answer(store, conversation.Id, marker, "historical-answer");
+        var work = await store.AcceptReplyAsync(conversation.Id, "current", Config());
+        var prepared = await store.PrepareReplyRequestAsync(work.Task.Id);
+        Assert.Contains(prepared.Request.Messages, m => m.Content == marker);
+        Assert.Equal(1L, Sql(paths, "SELECT count(*) FROM chat_message WHERE body=$marker", ("$marker", marker)));
+        using var c = new SqliteConnection($"Data Source={paths.DatabasePath};Mode=ReadOnly;Pooling=False"); c.Open();
+        using var cmd = c.CreateCommand(); cmd.CommandText = "SELECT * FROM prepared_reply_request";
+        using var reader = cmd.ExecuteReader(); Assert.True(reader.Read());
+        var metadata = string.Join("|", Enumerable.Range(0, reader.FieldCount).Select(index => reader.GetValue(index).ToString()));
+        Assert.DoesNotContain(marker, metadata);
+        Assert.DoesNotContain("historical-answer", metadata);
+        Assert.Equal(prepared.Request.Messages, (await store.LoadPreparedReplyRequestAsync(work.Task.Id))!.Request.Messages);
+    }
+
+    [Fact]
+    public async Task Prepared_hash_distinguishes_frozen_configuration_with_identical_physical_messages()
+    {
+        using var dir = new TestDirectory(); var paths = AppPaths.ForTrack("codex-steady", dir.Path);
+        await using var store = await SqliteWorkspaceStore.OpenAsync(paths); var conversation = await Conversation(store);
+        var config = Config();
+        var first = await store.AcceptReplyAsync(conversation.Id, "same question", config);
+        var firstPrepared = await store.PrepareReplyRequestAsync(first.Task.Id);
+        var firstHash = Sql(paths, "SELECT request_hash FROM prepared_reply_request WHERE task_id=$id", ("$id", first.Task.Id));
+        await store.WriteGenerationAsync(first.Task.Id, 1, "", GenerationStatus.Stopped);
+        var second = await store.AcceptReplyAsync(conversation.Id, null, config with { ModelId = "changed-model" });
+        var secondPrepared = await store.PrepareReplyRequestAsync(second.Task.Id);
+        Assert.Equal(firstPrepared.Request.Messages, secondPrepared.Request.Messages);
+        Assert.NotEqual(firstPrepared.Request.Configuration, secondPrepared.Request.Configuration);
+        Assert.NotEqual(firstHash, Sql(paths, "SELECT request_hash FROM prepared_reply_request WHERE task_id=$id", ("$id", second.Task.Id)));
+        Assert.Equal(firstPrepared.Request.Configuration, (await store.LoadPreparedReplyRequestAsync(first.Task.Id))!.Request.Configuration);
     }
 }

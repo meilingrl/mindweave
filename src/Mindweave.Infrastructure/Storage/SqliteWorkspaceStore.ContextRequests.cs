@@ -1,4 +1,5 @@
 using System.Globalization;
+using System.Security.Cryptography;
 using System.Text.Json;
 using Microsoft.Data.Sqlite;
 using Mindweave.Application.Chat;
@@ -8,6 +9,18 @@ namespace Mindweave.Infrastructure.Storage;
 
 public sealed partial class SqliteWorkspaceStore
 {
+    private const int PreparedRequestFormatVersion = 2;
+
+    // Versioned compact JSON with fixed envelope/property order and ordered Role/Content entries.
+    // Hash the complete frozen configuration and physical material without retaining another body copy.
+    private static string PreparedRequestHash(ChatRequest request) => Convert.ToHexString(SHA256.HashData(
+        JsonSerializer.SerializeToUtf8Bytes(new
+        {
+            FormatVersion = PreparedRequestFormatVersion,
+            Configuration = request.Configuration,
+            Messages = request.Messages
+        })));
+
     public Task<PreparedReplyRequest> PrepareReplyRequestAsync(Guid replyTaskId) => WriteAsync((connection, transaction) =>
     {
         var material = ReadContextMaterial(connection, transaction, replyTaskId, requireActive: true);
@@ -15,9 +28,9 @@ public sealed partial class SqliteWorkspaceStore
         if (existing is not null) return existing;
         var prepared = ComposePreparedReply(connection, transaction, material, DateTimeOffset.UtcNow);
         using var insert = ChatCommand(connection, transaction, """
-            INSERT INTO prepared_reply_request VALUES($id,1,$config,$messages,$now)
-            """, ("$id", replyTaskId), ("$config", JsonSerializer.Serialize(prepared.Request.Configuration)),
-            ("$messages", JsonSerializer.Serialize(prepared.Request.Messages)), ("$now", prepared.PreparedAt.ToString("O", CultureInfo.InvariantCulture)));
+            INSERT INTO prepared_reply_request VALUES($id,$version,$config,$hash,$now)
+            """, ("$id", replyTaskId), ("$version", PreparedRequestFormatVersion), ("$config", JsonSerializer.Serialize(prepared.Request.Configuration)),
+            ("$hash", PreparedRequestHash(prepared.Request)), ("$now", prepared.PreparedAt.ToString("O", CultureInfo.InvariantCulture)));
         insert.ExecuteNonQuery();
         foreach (var use in prepared.Uses)
         {
@@ -55,12 +68,13 @@ public sealed partial class SqliteWorkspaceStore
 
     private static PreparedReplyRequest? ReadPreparedReplyRequest(SqliteConnection c, SqliteTransaction t, Guid id)
     {
-        using var read = ChatCommand(c, t, "SELECT format_version,configuration_json,messages_json,prepared_at FROM prepared_reply_request WHERE task_id=$id", ("$id", id));
+        using var read = ChatCommand(c, t, "SELECT format_version,configuration_json,request_hash,prepared_at FROM prepared_reply_request WHERE task_id=$id", ("$id", id));
         using var reader = read.ExecuteReader();
         if (!reader.Read()) return null;
-        var version = reader.GetInt32(0); var config = reader.GetString(1); var messages = reader.GetString(2); var time = ContextTime(reader.GetString(3)); reader.Close();
+        var version = reader.GetInt32(0); var config = reader.GetString(1); var hash = reader.GetString(2); var time = ContextTime(reader.GetString(3)); reader.Close();
+        if (version != PreparedRequestFormatVersion) throw new InvalidOperationException("准备的请求格式版本不受支持。");
         var expected = ComposePreparedReply(c, t, ReadContextMaterial(c, t, id), time);
-        if (version != 1 || config != JsonSerializer.Serialize(expected.Request.Configuration) || messages != JsonSerializer.Serialize(expected.Request.Messages))
+        if (config != JsonSerializer.Serialize(expected.Request.Configuration) || hash != PreparedRequestHash(expected.Request))
             throw new InvalidOperationException("准备的实际请求内容已损坏。");
         using var readUses = ChatCommand(c, t, "SELECT input_index,kind,message_id,summary_id FROM prepared_context_use WHERE task_id=$id ORDER BY input_index", ("$id", id));
         using var usesReader = readUses.ExecuteReader(); var uses = new List<PreparedContextUse>();
