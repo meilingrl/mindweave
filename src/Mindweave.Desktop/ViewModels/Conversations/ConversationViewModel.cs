@@ -14,6 +14,7 @@ public sealed partial class ConversationViewModel : PageViewModel, IDisposable
     private readonly ConversationService _conversations;
     private readonly IMenuNavigator _menu;
     private readonly IUiDispatcher _dispatcher;
+    private readonly SerialRefresh _load;
     private readonly UiThrottle _reload;
     private bool _disposed;
 
@@ -24,10 +25,11 @@ public sealed partial class ConversationViewModel : PageViewModel, IDisposable
         _conversations = conversations;
         _menu = menu;
         _dispatcher = dispatcher;
-        _reload = new UiThrottle(dispatcher, TimeSpan.FromMilliseconds(30), () => _ = LoadAsync());
+        _load = new SerialRefresh(LoadAsync);
+        _reload = new UiThrottle(dispatcher, TimeSpan.FromMilliseconds(30), () => _ = _load.Request());
         Composer = new Composer(text => _conversations.AskAsync(Id, text, CancellationToken.None));
         _conversations.ConversationChanged += OnConversationChanged;
-        Loaded = LoadAsync();
+        Loaded = _load.Request();
     }
 
     public ConversationId Id { get; }

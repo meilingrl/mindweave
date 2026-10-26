@@ -38,6 +38,7 @@ public sealed partial class ConversationListViewModel : ViewModelBase
     private readonly ConversationService _conversations;
     private readonly GenerationCoordinator _generation;
     private readonly Workbench _workbench;
+    private readonly SerialRefresh _load;
     private readonly UiThrottle _reload;
     private WorkspaceId? _shown;
 
@@ -46,7 +47,8 @@ public sealed partial class ConversationListViewModel : ViewModelBase
         _conversations = conversations;
         _generation = generation;
         _workbench = workbench;
-        _reload = new UiThrottle(dispatcher, TimeSpan.FromMilliseconds(100), () => Loaded = ReloadAsync());
+        _load = new SerialRefresh(ReloadAsync);
+        _reload = new UiThrottle(dispatcher, TimeSpan.FromMilliseconds(100), () => Loaded = _load.Request());
         _conversations.ConversationChanged += (_, _) => _reload.Request();
         _generation.Changed += (_, _) => _reload.Request();
         _workbench.PropertyChanged += OnWorkbenchChanged;
@@ -68,7 +70,7 @@ public sealed partial class ConversationListViewModel : ViewModelBase
     {
         if (e.PropertyName == nameof(Workbench.CurrentWorkspace) && _workbench.CurrentWorkspace?.Id != _shown)
         {
-            Loaded = ReloadAsync();
+            Loaded = _load.Request();
         }
         else if (e.PropertyName == nameof(Workbench.CurrentPage))
         {

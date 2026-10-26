@@ -37,3 +37,47 @@ public sealed class UiThrottle(IUiDispatcher dispatcher, TimeSpan interval, Acti
             TaskScheduler.Default);
     }
 }
+
+/// <summary>
+/// Runs an asynchronous refresh at most once at a time. A request that arrives while a refresh is running
+/// schedules exactly one more run after it, so the last run to finish always started after the last request.
+/// Without this, an older load that finishes late overwrites a newer one and nothing corrects it.
+/// Call on the UI thread only.
+/// </summary>
+public sealed class SerialRefresh(Func<Task> refresh)
+{
+    private Task _running = Task.CompletedTask;
+    private bool _busy;
+    private bool _again;
+
+    /// <summary>Starts a refresh, or queues one after the running one. Completes when no request is left.</summary>
+    public Task Request()
+    {
+        if (_busy)
+        {
+            _again = true;
+            return _running;
+        }
+
+        _running = RunAsync();
+        return _running;
+    }
+
+    private async Task RunAsync()
+    {
+        _busy = true;
+        try
+        {
+            do
+            {
+                _again = false;
+                await refresh();
+            }
+            while (_again);
+        }
+        finally
+        {
+            _busy = false;
+        }
+    }
+}

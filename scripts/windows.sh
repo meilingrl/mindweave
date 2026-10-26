@@ -16,13 +16,13 @@ DIR="${MINDWEAVE_WIN_DIR:-E:/mindweave-claude-auto}"
 SRC="$DIR/src-snapshot"
 ROOT="$(git -C "$(dirname "$0")" rev-parse --show-toplevel)"
 SOCKS="${MINDWEAVE_WIN_SOCKS-127.0.0.1:7898}"
-SSH_OPTS=(-o BatchMode=yes -o ConnectTimeout=20)
+SSH_OPTS=(-o BatchMode=yes -o ConnectTimeout=20 -o ServerAliveInterval=15 -o ServerAliveCountMax=4)
 if [[ -n "$SOCKS" ]]; then
   SSH_OPTS+=(-o "ProxyCommand=nc -X 5 -x $SOCKS %h %p")
 fi
 
 # The tailnet path is relayed and occasionally drops new connections; retry only connection-level
-# failures (ssh exit 255), never a command that ran and failed.
+# failures (ssh exit 255; keep-alives turn a stalled link into one), never a command that ran and failed.
 retry_ssh() {
   local attempt status
   for attempt in 1 2 3 4 5 6; do
@@ -49,12 +49,22 @@ sync() {
 
 sync_once() {
   # Sources are replaced wholesale so deleted files do not linger; build output lives outside the snapshot.
-  remote "if (Test-Path '$SRC') { Remove-Item -Recurse -Force '$SRC' }; New-Item -ItemType Directory -Force '$SRC' | Out-Null"
+  # A transfer cut off mid-stream can leave its tar running and holding files; stop only those for this folder.
+  remote "Get-CimInstance Win32_Process -Filter \"Name='tar.exe'\" | Where-Object { \$_.CommandLine -like '*$SRC*' } | ForEach-Object { Stop-Process -Id \$_.ProcessId -Force }; if (Test-Path '$SRC') { Remove-Item -Recurse -Force '$SRC' }; New-Item -ItemType Directory -Force '$SRC' | Out-Null"
   # Working tree as it is now: tracked files that still exist plus untracked, non-ignored ones.
-  (cd "$ROOT" && git ls-files -z --cached --others --exclude-standard -- . ':!prototypes' ':!docs/reviews' \
-    | perl -0ne 'chomp; print "$_\0" if -e $_' \
+  local files expected actual
+  files="$(cd "$ROOT" && git ls-files -z --cached --others --exclude-standard -- . ':!prototypes' ':!docs/reviews' \
+    | perl -0ne 'chomp; print "$_\n" if -e $_')"
+  expected="$(printf '%s\n' "$files" | wc -l | tr -d ' ')"
+  (cd "$ROOT" && printf '%s\n' "$files" | tr '\n' '\0' \
     | COPYFILE_DISABLE=1 xargs -0 tar --no-xattrs --no-mac-metadata -cf -) \
-    | ssh "${SSH_OPTS[@]}" "$HOST" "tar -xf - -C $SRC"
+    | ssh "${SSH_OPTS[@]}" "$HOST" "tar -xf - -C $SRC" || return 255
+  # A relay drop can end the stream early while the remote tar still exits 0 with a partial tree.
+  actual="$(remote "(Get-ChildItem -Recurse -File -Force '$SRC' | Measure-Object).Count" | tr -d '\r')"
+  if [[ "$actual" != "$expected" ]]; then
+    echo "sync incomplete: $actual of $expected files arrived" >&2
+    return 255
+  fi
   echo "synced $(cd "$ROOT" && git rev-parse --short HEAD)$(cd "$ROOT" && git diff --quiet HEAD || echo '+dirty') to $HOST:$SRC"
 }
 
