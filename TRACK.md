@@ -18,7 +18,7 @@ Claude 自主开发，目的是比稳健轨更早走到关键阶段，提前暴�
 
 ## 当前状态
 
-- 阶段：**S1 真实聊天 · 实现完成，待真实服务确认**（2026-10-26）。S0 已完成。
+- 阶段：**S1 真实聊天 · 完成**（2026-10-26，含真实服务 4/4 与 Windows 凭据实机确认）。下一阶段 S2，见“协作”一节。
 - 测试：111 项通过（另 5 项为需显式开启的真实服务／系统凭据测试）——macOS 本机与 Windows 11 实机；CI 见 GitHub Actions。
 
 阶段报告见 [docs/design/stage-reports.md](docs/design/stage-reports.md)。
@@ -33,13 +33,16 @@ Claude 自主开发，目的是比稳健轨更早走到关键阶段，提前暴�
 
 | 事项 | 原因 | 阻塞什么 | 在此之前我做什么 |
 | --- | --- | --- | --- |
-| **真实 API 配置：未完成（2026-10-26）** | 终端里的 `scripts/real-api.sh configure` 停在 `Model ID:` 提示，钥匙串中还没有密钥。请在该终端继续输入模型 ID，再在钥匙串提示处粘贴密钥。之后我用 `scripts/real-api.sh test` 复用；需要验证多家服务时用 `configure <名字>` 各存一份 | S1 第一条验收（真实长回答） | 已继续 S2 |
-| Windows 凭据管理器实机确认（约 1 分钟） | SSH 密钥登录的会话没有凭据存储（Win32 错误 1312），自动化无法验证；需要在笔记本桌面上的 PowerShell 里运行：`cd E:\mindweave-claude-auto\src-snapshot; $env:MINDWEAVE_CREDENTIAL_TESTS='1'; dotnet test tests\Mindweave.Infrastructure.Tests -c Release --filter FullyQualifiedName~PlatformCredentialStoreTests`（或之后在应用设置里保存一次密钥） | 仅 Windows 密钥保存的实机证据 | macOS 钥匙串已实测通过 |
-| （可选）Windows 上的 Scoop git 损坏 | `E:\Scoop\shims\git.exe` 无法启动 `git.exe`；不影响本轨道（我用快照同步，不需要 git），未擅自修复 | 无 | — |
+| **本机 Tailscale 已登出** | 2026-10-26：`tailscale status` 显示 “You are logged out”（解析 `controlplane.tailscale.com` 失败），看不到 Windows 笔记本。请在 Mac 的 Tailscale 里重新登录 | Windows 上的测试与 Scoop git 修复 | 其余工作照常 |
+| Scoop git 修复（已授权，2026-10-26） | 待本机 Tailscale 恢复后经 SSH 修复 | 无 | — |
 
 Windows 实机：`scripts/windows.sh test|publish|sync|exec`（主机 `win-home`，Tailscale，密钥登录；目录 `E:\mindweave-claude-auto`，与稳健轨隔离）。
 
 已授权（2026-10-25）：推送 `origin/track/claude-auto`；CI 可用（仓库私有时只跑 Linux＋Windows，必要时你可改为公开仓库以免费使用分钟数）。
+
+## 协作（2026-10-26）
+
+本工作目录曾有两个会话同时改代码（本会话与“Software expansion strategy”），已停止并撤销重叠部分；你澄清只回到冲突发生点、不放弃 S2 工作。拟定分工（待你在另一会话确认）：对方完成 E2／E3／E4／E6（迁移 v3）并提交；之后本会话负责 E1 与 S2 其余部分（迁移 v4）。S1 收尾修复在分支 `s1-wrapup`，待对方提交后并入。
 
 ## 演进接缝 E1–E6（2026-10-26 用户决定本轨道采纳为实验）
 
@@ -67,6 +70,8 @@ Windows 实机：`scripts/windows.sh test|publish|sync|exec`（主机 `win-home`
 - **2026-10-25 · Avalonia 编译绑定可以绑定到方法组而不报错。** `IsVisible="{Binding GoBackCommand.CanExecute}"` 能编译，但绑定的是方法而非布尔值，按钮永远可见；只有真实控件测试能发现。处理：暴露布尔属性 `CanGoBack`。
 - **2026-10-25 · Windows 首次 CI 暴露 macOS 掩盖的句柄泄漏。** 打开非数据库文件时 `Open()` 成功、第一条 PRAGMA 才失败，连接未释放；macOS 不强制文件锁所以测试通过，Windows 上文件一直被占用。处理：打开与配置失败时立即释放，测试加“之后能移走文件”断言。教训：涉及文件句柄的测试必须在 Windows 上跑。
 - **2026-10-25 · Windows 上进程被杀后文件锁不会立即可用。** 进程已报告退出，`FileShare.None` 的锁仍短暂占用。处理：第二个实例在“已有实例无响应”时再尝试占用一次（崩溃后马上重开的真实场景）；测试改为限时重试。
+- **2026-10-26 · 推理模型会把输出上限用在推理上。** `deepseek-flash` 的标题请求设 `max_tokens=64` 时，推理内容 112 字、正文 0 字、`finish_reason=length`，标题生成失败；上限 1024 时正文为“蒸汽机车的发明”。依据：直接探测流式响应的 `reasoning_content` 与 `content`。处理：标题上限改为 1024（标题本身仍截断到 60 字）。S3 设计上下文预算与输出上限时必须按能力（E4）区分推理模型。
+- **2026-10-26 · 同一工作目录不能有两个会话同时写代码。** 两个会话几乎同时开始实现同一批接缝，出现覆盖（一个文件被重写、一个类型重复定义）。处理：停止、互相通报改动清单、撤销重叠；之后一个工作目录只允许一个写代码的会话，另一会话需要时用独立 worktree 或临时检出。
 - **2026-10-26 · 经 SSH 密钥登录的 Windows 会话无法使用凭据管理器**（`CredWrite/CredRead` 返回 1312 `ERROR_NO_SUCH_LOGON_SESSION`）：没有密码登录就没有可用的凭据保护密钥。产品按设计报“凭据服务不可用”而不降级明文；但自动化测试无法在 SSH 下验证 Windows 凭据，只能在桌面会话中运行。
 - **2026-10-26 · 回答“已终态”与“生成槽释放”之间有短暂窗口。** 终态先写库，槽稍后释放；此时立即重试会被误判为“回答进行中”（测试 1/5 偶发暴露）。处理：判断是否进行中改看实时回答状态而非槽占用；25 次连续运行无失败。
 - **2026-10-26 · 两台机器 SDK 特性带不同**（macOS 10.0.402，Windows 10.0.103），原 `global.json` 固定 10.0.402 + `latestPatch` 会让 Windows 无法构建。处理：改为 10.0.100 + `latestFeature`（锁定 .NET 10 主版本，不锁特性带）；CI 用最新 10.0.x。
