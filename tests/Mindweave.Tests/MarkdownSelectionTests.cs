@@ -255,6 +255,76 @@ public sealed class MarkdownSelectionTests
         finally { window.Close(); }
     }
 
+
+    [AvaloniaFact]
+    public void Shared_viewport_append_to_lower_visible_message_keeps_the_current_top_and_offset()
+    {
+        var (window, scroll, first, lower) = SharedViewport();
+        try
+        {
+            var top = Blocks(first.Renderer)[0];
+            Assert.True(Blocks(lower.Renderer)[0].TranslatePoint(default, scroll)!.Value.Y > 50);
+            var offset = scroll.Offset.Y; var y = top.TranslatePoint(default, scroll)!.Value.Y;
+            lower.Body += "\n\nfirst streamed paragraph.";
+            lower.Body += "\n\nsecond snapshot before layout.";
+            Layout();
+            Assert.InRange(Math.Abs(scroll.Offset.Y - offset), 0, .1);
+            Assert.InRange(Math.Abs(top.TranslatePoint(default, scroll)!.Value.Y - y), 0, .1);
+        }
+        finally { window.Close(); }
+    }
+
+    [AvaloniaFact]
+    public void Shared_viewport_narrowing_has_one_consistent_top_anchor_across_visible_messages()
+    {
+        var (window, scroll, first, lower) = SharedViewport();
+        try
+        {
+            var top = Blocks(first.Renderer)[0]; var y = top.TranslatePoint(default, scroll)!.Value.Y;
+            var height = top.Bounds.Height;
+            Assert.True(Blocks(lower.Renderer)[0].TranslatePoint(default, scroll)!.Value.Y > 50);
+            window.Width = 500; Layout();
+            Assert.True(top.Bounds.Height > height);
+            Assert.InRange(Math.Abs(top.TranslatePoint(default, scroll)!.Value.Y - y), 0, .1);
+            var offset = scroll.Offset.Y; Layout();
+            Assert.InRange(Math.Abs(scroll.Offset.Y - offset), 0, .1);
+        }
+        finally { window.Close(); }
+    }
+
+    [AvaloniaFact]
+    public void Shared_viewport_user_scroll_supersedes_queued_message_preservation()
+    {
+        var (window, scroll, first, lower) = SharedViewport();
+        try
+        {
+            first.Body += "\n\nqueued snapshot one.";
+            first.Body += "\n\nqueued snapshot two.";
+            scroll.Offset = new Vector(0, 160);
+            Layout();
+            Assert.InRange(Math.Abs(scroll.Offset.Y - 160), 0, .1);
+            lower.Body += "\n\nanother snapshot.";
+            scroll.Offset = new Vector(0, 220); Layout();
+            Assert.InRange(Math.Abs(scroll.Offset.Y - 220), 0, .1);
+            scroll.Offset = new Vector(0, 120);
+            first.Body += "\n\nscroll immediately before snapshot."; Layout();
+            Assert.InRange(Math.Abs(scroll.Offset.Y - 120), 0, .1);
+        }
+        finally { window.Close(); }
+    }
+
+    private static (Window Window, ScrollViewer Scroll, MarkdownMessageView First, MarkdownMessageView Lower) SharedViewport()
+    {
+        var first = new MarkdownMessageView { MessageId = MessageId, Revision = 1, Body = string.Concat(Enumerable.Repeat("shared viewport readable text. ", 16)) };
+        var lower = new MarkdownMessageView { MessageId = Guid.Parse("30000000-0000-0000-0000-000000000002"), Revision = 1, Body = "lower visible message." };
+        var content = new StackPanel { Children = { new Border { Height = 80 }, first, new Border { Height = 60 }, lower, new Border { Height = 2000 } } };
+        var scroll = new ScrollViewer { Content = content, HorizontalScrollBarVisibility = Avalonia.Controls.Primitives.ScrollBarVisibility.Disabled };
+        var window = new Window { Content = scroll, Width = 800, Height = 600 }; window.Show(); Layout();
+        var firstY = Blocks(first.Renderer)[0].TranslatePoint(default, scroll)!.Value.Y;
+        scroll.Offset = new Vector(0, firstY + 20); Layout();
+        return (window, scroll, first, lower);
+    }
+
     private static SourceSelection Mutate(SourceSelection selection, Action<JsonNode> mutate)
     {
         var node = JsonNode.Parse(selection.Anchor.Payload)!; mutate(node);
