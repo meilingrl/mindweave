@@ -9,7 +9,7 @@
 
 ## 当前状态
 
-- 阶段：S2 本地实现、完整独立审查与 macOS 本地合成服务核心走查已完成（2026-10-26）；Windows 11 和真实模型背景理解仍待验收。进入 S3 上下文预算／压缩设计，不等待暂不可用的 Windows 设备。[S2 计划](docs/implementation/s2-branch-plan.md)；[S2 验证](docs/implementation/s2-verification.md)；[S2 审查](docs/reviews/codex-s2-20261026.md)。本轨道目录 `/Users/meilingluo/Developer/Projects/mindweave.worktrees/codex-steady`。
+- 阶段：S2 本地实现、完整独立审查与 macOS 本地合成服务核心走查已完成（2026-10-26）；Windows 11 和真实模型背景理解仍待验收。已细化 [S3 上下文预算／压缩计划](docs/implementation/s3-context-plan.md)，开始按四项任务实施，不等待暂不可用的 Windows 设备。[S2 计划](docs/implementation/s2-branch-plan.md)；[S2 验证](docs/implementation/s2-verification.md)；[S2 审查](docs/reviews/codex-s2-20261026.md)。本轨道目录 `/Users/meilingluo/Developer/Projects/mindweave.worktrees/codex-steady`。
 - 可用代码：最终产品 `492b80e`。延续 S1 聊天，新增正式 Markdown、已保存终态选区分支、祖先身份冻结、来源书签／路径／侧栏层级、返回来源、普通切换和阅读／草稿恢复、保存失败防重及修复。Main 保持唯一活动 ContentStack，Core／Application 无 UI／SQLite 依赖；总结、网络与自动压缩尚未实现。
 - 当前验证：控制器在最终 `492b80e` 上完整 Release **198 通过、2 原有显式跳过、0 失败**；macOS 包构建 **0 警告、0 错误**；夹具实现的 5 项自测通过。三项任务和整体 S2 差异均独立审查 Approved，元数据限定复审 Approved，无开放 Critical／Important。视口跳动与 payload 边界问题已修复；O(M×B) 视口重复扫描、既有极端修订号问题保留 P3。
 - macOS 原生：用户完成真实鼠标 A→B→C，控制器核对两层关系／冻结身份、正确重复词来源、祖先重试后旧来源、普通切换／书签、草稿／阅读关闭重开；最窄逻辑宽 880 下高亮与上方阅读在下方流式追加中保持。最终原生 DB 为 2 分支／7 Completed 本地任务／0 活动任务。损坏来源原生注入、分支事务中途杀进程与定量长历史性能未执行。
