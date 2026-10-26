@@ -4,11 +4,11 @@
 
 **Goal:** 长历史超出配置预算时，保留关键原文和近期完整问答，用可追溯、可复用的结构化摘要替换较早材料；失败保留问题，不静默截断、不改变分支身份。
 
-**Architecture:** Application 的纯规划器决定实际材料与分段；Infrastructure 在 v5 新表保存不可变计划、压缩尝试、完成摘要和最终请求使用清单。既有回答任务分为压缩前置阶段与回答阶段，每个真实请求结束并释放槽后才推进，等待依赖时不占网络槽。Desktop 只投影状态与轻量提示。
+**Architecture:** Application 的纯规划器决定实际材料与分段；Infrastructure 在 v5 新表保存不可变计划、压缩尝试、完成摘要和最终请求使用清单；摘要及产生它的生成记录归属被覆盖的源会话，子请求仅保存对祖先资源的使用依赖。既有回答任务分为压缩前置阶段与回答阶段，每个真实请求结束并释放槽后才推进，等待依赖时不占网络槽。Desktop 只投影状态与轻量提示。
 
 **Tech Stack:** 沿用 .NET 10、Avalonia 12.1.4、LiveMarkdown 2.5.1、xUnit v3 3.2.2 与 Microsoft.Data.Sqlite；不新增 tokenizer／供应商 SDK、WebView 或新协议。
 
-**Spec:** [需求](../requirements.md) §6.2–6.3、§9、§11；[架构](../architecture.md) §6、§7、§12；[详细交接](../reviews/claude-design-readiness-20261024-172436/detailed-design-handoff.md) S3。现行架构已决定“关键原文＋近期完整问答＋较早历史结构化摘要”，本计划只细化工程，不重新审批产品。
+**Spec:** [需求](../requirements.md) §6.2–6.3、§9、§11；[架构](../architecture.md) §4、§6、§7、§12；[详细交接](../reviews/claude-design-readiness-20261024-172436/detailed-design-handoff.md) S3。现行架构已决定“关键原文＋近期完整问答＋较早历史结构化摘要”，本计划只细化工程，不重新审批产品。
 
 ## 设计与取舍
 
@@ -25,7 +25,7 @@
 - 保留全部原消息、S2 直接来源／冻结祖先身份与阅读位置。只读冻结祖先＋自身有效历史，不引入兄弟、其他根会话或父会话后续消息；重试排除规则只作用于当前自身回答。
 - 当前问题、分支选文、直接来源回答及其提问、最近一组完整自身问答原样保留；较早材料全部由有序原文切片覆盖，不能静默丢弃。必要原文超限时接受前拒绝并保留草稿。
 - 原文在预算内直接发送。压缩只在原文超限且可规划时触发；压缩失败／结构无效／结束不完整／结果仍超预算，保留原消息与问题，明确允许重试，不派发超预算回答。
-- 压缩只基于原消息，不对摘要再摘要。缓存按目标会话、原消息顺序／ID／修订／正文 hash／切片、提示版本、估算 profile、完整生成配置身份确定，范围或身份变化不可错用；未变完成分段可复用。
+- 压缩只基于原消息，不对摘要再摘要。缓存按被覆盖消息的源会话、原消息顺序／ID／修订／正文 hash／切片、提示版本、估算 profile、完整生成配置身份确定，不将请求子会话身份加入 key。分段不能跨源会话边界；范围或身份变化不可错用，兄弟请求可复用同一祖先的未变完成分段，但不能混入兄弟原文。摘要及其完成生成身份必须随源会话保存；删除发起请求的叶子兄弟不能删除、破坏或阻止另一兄弟使用祖先摘要。
 - 全局最多两个物理 AI 请求，槽保留到实际枚举及 DisposeAsync 结束；用户回答及其必要压缩优先于标题。等待保存或依赖时不能占槽等待自身子任务；停止、关闭、保存失败、迟到分块与重启不重发的语义保持 S1。
 - 压缩用当前回答接受时冻结的同一服务／模型／凭据，输出上限 `min(1024, configuration.MaxOutputTokens)`；每个真实请求的输入＋输出预留均先过同一估算。完整最终请求再次校验后才外呼。
 - 压缩摘要只有完整 `finish_reason=stop`、非空、协议有效且持久保存成功后才可使用；部分或失败输出不进有效缓存，不出现在用户回答正文。配置说明须告知额外调用、等待和费用。
@@ -39,14 +39,16 @@ Task 1 在 Core/Chat 增加不可变记录；名称可作一次有记录的工�
 
 - `ChatContext` 增加可选 `Guid? DirectSourceMessageId = null`，旧调用兼容。它是直接来源消息身份，不能从 quote 搜索猜测。
 - `ContextSourceSlice(Guid MessageId, long Revision, string BodyHash, int Start, int Length)`：UTF-16 范围，禁止拆开 surrogate pair；hash 覆盖完整原消息。每份摘要覆盖有序原文切片，原文可重建。
-- `ContextChunk(string CacheKey, IReadOnlyList<ContextSourceSlice> Slices, int MaxOutputTokens)`。
+- `ContextChunk(Guid SourceConversationId, string CacheKey, IReadOnlyList<ContextSourceSlice> Slices, int MaxOutputTokens)`：一块只覆盖此源会话。
 - `ContextPart` 的两种形式：`VerbatimContextPart(Guid MessageId)` 和 `SummaryContextPart(ContextChunk Chunk)`。
 - `ReplyContextPlan(int FormatVersion, string EstimatorProfile, IReadOnlyList<Guid> OriginalMessageIds, IReadOnlyList<ContextPart> Parts, Guid? DirectSourceMessageId, string? SourceQuote)`；Parts 保持原文顺序，原消息要么整条原样，要么按无重叠连续切片完全覆盖。
 - `ContextSummaryContent(string Background, string Requirements, string Corrections, string OpenQuestions, string References)`：五字段齐备的 JSON 对象，仅接受字符串，禁止未知／重复字段；可空字段表达无此项，但整体不能空白。UTF-8 payload 上限 65536 字节。该结构是校验与提示契约，不是模型忠实度证明。
 
 Task 1 在 Application/Chat 新建纯 `ReplyContextPlanner`、`ContextSummaryProtocol`（可分 focused 文件）。公共能力包括：从已按 S2 重试规则准备、且末尾包含当前提问的 ChatContext 生成计划；依原消息创建压缩 ChatRequest；校验／序列化结构摘要；按计划与完成摘要组合实际 ChatInput；版本化预算估算与准确 Fits 判断。保留 ChatRequestBudget 已有调用，避免复制一份估算逻辑。计划与 request 的具体方法签名由 Task 1 报告锁定。
 
-Task 2 给 `GenerationWork` 增加可选计划，不改变旧字段含义：InputMessages／GenerationRecord.InputMessageIds 仍是逻辑原消息清单；最终物理请求使用另外的不可变清单。新增 `IContextStore` 并让 IChatStore 继承，存储实现及测试代理转发。公开能力须覆盖：按回答任务读计划；读完成缓存；幂等开始指定计划片段的压缩尝试；单调修订写尝试／完成摘要；读尝试；组成并事务记录最终物理请求。具体签名由 Task 2 报告作为 Task 3 交接。缓存保存生成配置、实际模型／尝试身份与时间，只有成功完成摘要可命中。
+Task 2 给 `GenerationWork` 增加可选计划，不改变旧字段含义：InputMessages／GenerationRecord.InputMessageIds 仍是逻辑原消息清单；最终物理请求使用另外的不可变清单。新增 `IContextStore` 并让 IChatStore 继承，存储实现及测试代理转发。公开能力须覆盖：按回答任务读计划；读完成缓存；幂等开始指定计划片段的压缩尝试；单调修订写尝试／完成摘要；读尝试；组成并事务记录最终物理请求。具体签名由 Task 2 报告作为 Task 3 交接。缓存保存生成配置、实际模型／尝试身份与时间，只有成功完成摘要可命中。产生缓存的生成记录归属源会话，不能依赖请求子会话存活；子任务的使用／停止关系独立保存，所有跨会话业务引用仍只指向祖先。S3-ARCH-1 修复后的精确 API 以复审通过报告为准，旧目标会话 key 合同已被本条替代。
+
+修复后 `ReplyContextPlanner.FormatVersion=2`；`CreateSummaryRequest(Guid sourceConversationId, ContextChunk chunk, IReadOnlyList<ChatMessage> originals, AiConfiguration configuration)` 的首参数是来源 owner，调用 `attempt.SourceConversationId`。`IContextStore.WriteCompressionAsync` 首两参数为 `replyTaskId, attemptId`，以独立子依赖验证当前请求者。完整精确 API 以复审通过的 Task2 修复报告交接。
 
 Task 3 只在既有 GenerationCoordinator 增加阶段状态（可拆 Context partial）。待压缩的父 Reply 保持排队／运行业务状态，运行阶段先进行必要压缩，再回答；每个阶段的物理请求释放槽后重新调度。GenerationSnapshot 可用兼容默认字段增加阶段、轻量压缩状态／完成提示，禁止把摘要 token 投影到正文。
 
@@ -56,12 +58,12 @@ Task 3 只在既有 GenerationCoordinator 增加阶段状态（可拆 Context pa
 
 **Interfaces:** 产出 Shared Contracts 的纯类型与规划／请求组合 API，旧 ChatContext／ChatRequestBudget 使用兼容。此时不接通生产自动压缩。
 
-- [ ] RED：构造 A→B→C 的具体终态消息与旧尝试身份，验证原文 Fits 时完全原样、不造摘要；over-budget 时必要原文完整，较早材料按顺序全覆盖；选中旧祖先保留；当前问题或必要来源自身超限明确拒绝。
-- [ ] RED：多字节中文、emoji、极长旧单条消息分段、空文本、预算整数边界；每个压缩请求含提示／源身份包装后都 Fits；不能拆坏 UTF-16／重复覆盖或漏片段。只读既有固定原消息，不从动态祖先重组。
+- [x] RED：构造 A→B→C 的具体终态消息与旧尝试身份，验证原文 Fits 时完全原样、不造摘要；over-budget 时必要原文完整，较早材料按顺序全覆盖；选中旧祖先保留；当前问题或必要来源自身超限明确拒绝。
+- [x] RED：多字节中文、emoji、极长旧单条消息分段、空文本、预算整数边界；每个压缩请求含提示／源身份包装后都 Fits；不能拆坏 UTF-16／重复覆盖或漏片段。只读既有固定原消息，不从动态祖先重组。
 - [ ] 实现纯规划：先保护必要材料，再按实际剩余预算保留更多近期完整问答；较早材料按预算分段，单条过长可切片；全部分段预检不可行则拒绝，不能先做部分付费调用后才发现规划本身无解。
-- [ ] RED→GREEN：缓存 key 对相同材料稳定，顺序／正文 hash／修订／切片／目标会话／配置／prompt或estimator版本变化失效；只追加后续消息时不使未变旧分段无故失效。摘要请求只包含原片段，没有已有摘要输入。
-- [ ] 实现五字段结构协议与严格大小／JSON 校验；组合时摘要明确标识为引用背景，来源选文仍保留独立原文提示；最终 Fits 不通过明确失败，不截摘要或来源来凑数。结构无效、空白、截断、太长摘要的聚焦测试先 RED 再 GREEN。
-- [ ] 聚焦 ContextPlannerTests、完整 Release 测试与构建一次，自审并提交；报告所有精确 API、算法边界、RED／GREEN 命令输出及尚未接通部分。不得执行供应商／原生操作或另派代理。
+- [ ] RED→GREEN：缓存 key 对相同材料稳定，顺序／正文 hash／修订／切片／源会话／配置／prompt或estimator版本变化失效；目标子会话变化不使共同祖先分段失效，分段不跨源会话；只追加后续消息时不使未变旧分段无故失效。摘要请求只包含原片段，没有已有摘要输入。
+- [x] 实现五字段结构协议与严格大小／JSON 校验；组合时摘要明确标识为引用背景，来源选文仍保留独立原文提示；最终 Fits 不通过明确失败，不截摘要或来源来凑数。结构无效、空白、截断、太长摘要的聚焦测试先 RED 再 GREEN。
+- [x] 聚焦 ContextPlannerTests、完整 Release 测试与构建一次，自审并提交；报告所有精确 API、算法边界、RED／GREEN 命令输出及尚未接通部分。不得执行供应商／原生操作或另派代理。
 
 ## Task 2: v5 压缩计划、尝试与实际使用清单持久化
 
@@ -72,7 +74,7 @@ Task 3 只在既有 GenerationCoordinator 增加阶段状态（可拆 Context pa
 - [ ] 真实 SQLite RED：v4 升级与备份仍含 v4 无新表；旧迁移字节未变；接受回答时原问题、回答占位、逻辑输入和计划同事务，规划／写入故障全部回滚，草稿不被清空。
 - [ ] v5 新表持久完整版本化计划、压缩尝试及完成缓存、最终请求材料和原文／摘要使用 ID；新表 FK／唯一键和事务重验覆盖实际归属、活动父任务、精确计划片段和单调修订。无须改 generation_task 的旧 kind CHECK。
 - [ ] 相同回答＋片段幂等开始只回同一活动尝试；完成缓存可复用，失败／Stopped／Interrupted／部分结果不能命中；完成写入必须 `stop` 路径传入的有效协议，缓存与尝试完成同事务。终态后迟到结果不能复活或替换缓存。
-- [ ] 真实库验证 A→B→C、祖先重试、兄弟／他工作区／配置变更／缓存损坏拒绝；缓存范围 hash 与实际消息重验，不能将任意 key 或伪造外部摘要塞进实际请求。只从已接受固定 ID 重建原文，不重跑 LatestInput 抹去旧尝试。
+- [ ] 真实库验证 A→B→C、祖先重试、兄弟／他工作区／配置变更／缓存损坏拒绝；缓存范围 hash 与实际消息重验，不能将任意 key 或伪造外部摘要塞进实际请求。兄弟可复用相同已冻结祖先范围的摘要，复用不引用生成请求的兄弟原文或依赖其存活；删除该请求叶子后，另一兄弟的已准备材料与源摘要仍可重验。只从已接受固定 ID 重建原文，不重跑 LatestInput 抹去旧尝试。
 - [ ] 最终物理请求在事务内重验必要原文、完成摘要和最终预算，幂等保存完整实际材料及使用清单；不完整或超限拒绝。重开可核对确切原文和摘要身份，原消息／来源／阅读记录字节与关系不被压缩改写。
 - [ ] RecoverInterrupted 同时处理未结束压缩尝试与父 Reply，不重发；保留完成缓存。SQL ABORT／ROLLBACK 覆盖摘要完成与实际材料迟失败，不能只测调用计数。
 - [ ] 聚焦真实存储、完整 Release 测试／构建一次，自审提交，报告精确接口给 Task3；不调用真实凭据／供应商／原生库，不另派代理。

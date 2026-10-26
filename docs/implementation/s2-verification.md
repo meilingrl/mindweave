@@ -82,4 +82,4 @@ dotnet publish src/Mindweave.Desktop/Mindweave.Desktop.csproj -c Release -r win-
 
 ## 资产位置后续澄清
 
-前文记录的 S1 对照 `.app` 是准备时的位置。发现重复 BundleID 后，本轮新建的 S1 对照副本已归档为 `artifacts/macos-s1/Mindweave-Codex-S1.zip`，原字节目录保留为 `Mindweave-Codex-S1.reference`；ZIP 的 92 个普通文件已逐项校验，CRC 正常，SHA-256 为 `bdf45387098b37bf8595dcc0a5adade7caf78d671ce79ecb40901bfe4e0d7a8a`。未改变系统应用注册／安全设置，S1 数据和真实凭据仍原位保留。当前 `artifacts/macos/Mindweave Codex.app` 是最终 S2 包。
+前文记录的 S1 对照 `.app` 是准备时的位置。发现重复 BundleID 后，本轮新建的 S1 对照副本已归档为 `artifacts/macos-s1/Mindweave-Codex-S1.zip`，原字节目录保留为 `Mindweave-Codex-S1.reference`；ZIP 的 92 个普通文件已逐项校验，CRC 正常，SHA-256 为 `bdf45387098b37bf8595dcc0a5adade7caf78d671ce79ecb40901bfe4e0d7a8a`。未改变系统应用注册／安全设置，S1 数据和真实凭据仍原位保留。S2 验收当时 `artifacts/macos/Mindweave Codex.app` 为最终 S2 包。后续 S3 打包修复已将其保留为 `artifacts/macos-s2/Mindweave-Codex-S2-492b80e.zip`，当前启动器及原字节对照位置见 [S3 打包后验](s3-verification.md)。
