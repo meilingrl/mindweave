@@ -1,6 +1,6 @@
 # S2 分支与返回 · 验证记录
 
-日期：2026-10-26，轨道 `track/codex-steady`。本阶段实现中；计划见 [S2 计划](s2-branch-plan.md)，当前状态见 [TRACK](../../TRACK.md)。不能把本记录的验证安排视为完成证据。
+日期：2026-10-26，轨道 `track/codex-steady`。本地代码与分任务审查已完成，整体审查／原生验收进行中；计划见 [S2 计划](s2-branch-plan.md)，当前状态见 [TRACK](../../TRACK.md)。不能把本记录的验证安排视为完成证据。
 
 ## 基线与隔离
 
@@ -21,7 +21,7 @@ LiveMarkdown 2.5.1 的实际 NuGet manifest 声明 Avalonia >=12.0.0，因此正
 | --- | --- |
 | Markdown／选区适配、依赖升级 | Task 1 最终 `ea247a9`，14 项来源／视口测试通过，完整 Release 143 通过／2 原有跳过；独立复审 Approved |
 | 分支事务／祖先上下文／阅读存储 | Task 2 `d03c147` 已实现，完整 Release 181 通过／2 原有跳过；独立审查 Approved |
-| 桌面分支／返回／阅读闭环 | Task 3 尚未开始 |
+| 桌面分支／返回／阅读闭环 | Task 3 `a6b77ad` 已实现，完整 Release 198 通过／2 原有跳过、夹具 5 通过；独立审查 Approved |
 | S2 macOS 原生 | 尚未执行；需最终包与独立 loopback 数据 |
 | S2 真实供应商 | 尚未执行；没有本阶段追加付费调用授权 |
 | Windows 11 原生 | 尚未执行 |
@@ -37,3 +37,11 @@ S1 已用 7/8 次授权生成、1/1 次模型查询。本阶段实施不增加�
 Task 1 独立审查发现一项 Important：下方可见消息更新时可能被移到视口顶部，多个消息的重排恢复会竞争。修复 `ea247a9` 经 3 项真实多消息 Headless 红绿回归，原问题已由限定复审关闭；完整测试 143 通过、2 原有跳过，构建零警告／零错误。保留一项 Minor：滚动时各消息重复全局区块扫描，交最终审查结合长文规模判断。
 
 Task 2 `d03c147` 独立审查 Approved，无 Critical／Important。保留一项渲染／存储 payload 上限不一致的 Minor，将在 Task 3 接口集成时统一为既有存储的 1 MiB UTF-8 并补多字节边界测试；不是额外付费行为。原子性以真实 SQL ABORT／ROLLBACK 结果为证，不冒充分支途中杀进程实测。
+
+原生准备：S1 原生进程 36752 已经正常关闭并确认退出；旧应用包另存 `artifacts/macos-s1/Mindweave Codex.app` 作为使用中的对照，DLL 哈希仍与 S1 验收记录一致。S1 数据与真实凭据未用于 S2 实施。S2 应用包将在审查后从最终代码重建，不能用旧包或 Headless 结果替代。
+
+## 控制器最终本地复查（代码 a6b77ad）
+
+重新执行 `dotnet test Mindweave.slnx -c Release --no-restore --nologo`：**198 通过、2 原有显式跳过、0 失败，共 200**。`dotnet build Mindweave.slnx -c Release --no-restore --nologo`：**0 警告、0 错误**。`python3 tests/fixtures/test_chat_sse_fixture.py`：**5 通过**。共享 requirements.md／architecture.md 与 main 的 diff 为空。三项任务独立审查均 Approved；整体 S2 审查与原生结果还需下述后续补充，不能据此宣称全部 S2、Windows 或课程验收完成。
+
+原生协议走查使用 `python3 tests/fixtures/chat_sse_fixture.py --port 18081`，配置 Base URL `http://127.0.0.1:18081/v1`、公开非访问凭据 `mindweave-loopback-only`、模型 `fixture-markdown`。用 `sh scripts/build-macos-dev-app.sh "$PWD/artifacts/s2-native"` 构建专用启动器；30 段合成正文用于选区和滚动，不能冒充真实模型接续背景能力。
