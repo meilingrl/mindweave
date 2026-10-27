@@ -319,7 +319,7 @@ public sealed partial class MainViewModel : ViewModelBase
             if (BranchStore is { } branches)
                 chat.ConfigureBranches(branches, () => !detached && ActiveContent == chat, () => IsInteractionEnabled, CreateBranchAsync, ReturnToSourceAsync,
                     id => NavigateAsync(new(MainArea.Explore, ContentKind.Conversation, id)), ReadingChanged);
-            if (summaries is not null) chat.ConfigureSummaries(summaries, summaryStore!);
+            if (summaries is not null) chat.ConfigureSummaries(summaries, summaryStore!, () => !detached && IsInteractionEnabled && ActiveContent == chat);
             await chat.InitializeAsync(); await chat.RefreshSummaryAsync();
             await chat.InitializeBranchesAsync(unsavedReads.GetValueOrDefault(chat.ConversationId));
             if (request.Source is { } source) chat.RequestSourceReveal(source);
@@ -410,6 +410,7 @@ public sealed partial class MainViewModel : ViewModelBase
     private void MarkPersistenceFailure() { localPersistenceFailure = true; coordinator?.ReportPersistenceFailure(); NotifyAvailability(); }
     private void NotifyAvailability()
     {
+        RefreshRetainedSummaries();
         OnPropertyChanged(nameof(HasPersistenceFailure)); OnPropertyChanged(nameof(CanMutate)); OnPropertyChanged(nameof(IsClosing)); OnPropertyChanged(nameof(IsInteractionEnabled));
         (ActiveContent as ChatViewModel)?.Project(); (ActiveContent as SettingsViewModel)?.RefreshAvailability(); (ActiveContent as SummaryViewModel)?.RefreshAvailability();
     }

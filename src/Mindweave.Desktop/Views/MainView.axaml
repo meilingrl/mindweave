@@ -43,16 +43,32 @@
       <Border Grid.Row="1" IsVisible="{Binding HasError}" Background="#FFF0E5" Padding="20,12" Margin="24,16,24,0" CornerRadius="8">
         <TextBlock Text="{Binding ErrorMessage}" Foreground="#9A4122" TextWrapping="Wrap" />
       </Border>
-      <Grid Grid.Row="2" RowDefinitions="Auto,*">
+      <Grid Grid.Row="2" RowDefinitions="Auto,Auto,*">
         <Border IsVisible="{Binding HasPersistenceFailure}" Background="#FFF0E5" Padding="12" Margin="16,8">
           <StackPanel Orientation="Horizontal" Spacing="10"><TextBlock Text="保存失败，新操作已暂停；现有文字可复制。" VerticalAlignment="Center" /><Button Content="重试保存" Command="{Binding RetrySaveCommand}" /></StackPanel>
         </Border>
-        <StackPanel Grid.Row="1" IsVisible="{Binding NeedsWorkspace}" MaxWidth="480" Margin="36" VerticalAlignment="Center" Spacing="18">
+        <ScrollViewer Grid.Row="1" IsVisible="{Binding HasRetainedSummaries}" MaxHeight="300" Margin="16,8" HorizontalScrollBarVisibility="Disabled">
+          <ItemsControl ItemsSource="{Binding RetainedSummaries}">
+            <ItemsControl.ItemTemplate>
+              <DataTemplate x:DataType="vm:RetainedSummaryResult">
+                <Border Background="#FFF5E9" BorderBrush="#D7B98B" BorderThickness="1" Padding="14" Margin="0,0,0,8" CornerRadius="8">
+                  <StackPanel Spacing="8">
+                    <TextBlock Text="{Binding Owner}" TextWrapping="Wrap" FontSize="12" />
+                    <TextBlock Text="{Binding Notice}" TextWrapping="Wrap" />
+                    <TextBox x:Name="RetainedSummaryTitle" Text="{Binding Title, Mode=OneWay}" IsReadOnly="True" TextWrapping="Wrap" AutomationProperties.Name="尚未确认保存的完整总结标题，可复制" />
+                    <TextBox x:Name="RetainedSummaryBody" Text="{Binding Markdown, Mode=OneWay}" IsReadOnly="True" TextWrapping="Wrap" AcceptsReturn="True" MinHeight="80" MaxHeight="180" AutomationProperties.Name="尚未确认保存的完整总结正文，可复制" />
+                  </StackPanel>
+                </Border>
+              </DataTemplate>
+            </ItemsControl.ItemTemplate>
+          </ItemsControl>
+        </ScrollViewer>
+        <StackPanel Grid.Row="2" IsVisible="{Binding NeedsWorkspace}" MaxWidth="480" Margin="36" VerticalAlignment="Center" Spacing="18">
           <TextBlock Text="一个问题，&#10;可以通向很多地方。" FontSize="34" LineHeight="46" FontWeight="SemiBold" />
           <TextBlock Text="为你想了解的事创建一个主题。之后的对话、旁支和总结，都会在这里留下线索。" FontSize="15" LineHeight="25" Foreground="#747B6E" TextWrapping="Wrap" />
           <TextBlock Text="在左下角输入主题名称，开始你的探索。" FontSize="13" Foreground="#777D6F" Margin="0,16,0,0" />
         </StackPanel>
-        <Grid Grid.Row="1" ColumnDefinitions="Auto,*" IsVisible="{Binding HasWorkspace}">
+        <Grid Grid.Row="2" ColumnDefinitions="Auto,*" IsVisible="{Binding HasWorkspace}">
           <Border IsVisible="{Binding ShowConversations}" Width="190" Background="#F5F6F0" Padding="12">
             <DockPanel>
               <Button x:Name="NewConversationButton" DockPanel.Dock="Top" Content="＋ 新建会话" Command="{Binding NewConversationCommand}" IsEnabled="{Binding CanMutate}" HorizontalAlignment="Stretch" Margin="0,0,0,12" />

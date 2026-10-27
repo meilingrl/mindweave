@@ -12,7 +12,7 @@ public sealed partial class SummaryViewModel : ContentViewModel
     private readonly Func<bool> blocked;
     private readonly Action failed;
     private long loadStamp;
-    private bool detached, hasLaterContent, quiescing;
+    private bool detached, quiescing;
     private readonly HashSet<Task> versionLoads = [];
     public Guid WorkspaceId { get; }
     public Guid NodeId { get; }
@@ -90,15 +90,13 @@ public sealed partial class SummaryViewModel : ContentViewModel
             var version = await store.LoadSummaryVersionAsync(id);
             if (version?.Header.Identity.NodeId != NodeId) throw new ArgumentException("该版本已删除。");
             var reading = await store.LoadSummaryReadingAsync(id);
-            var later = store is Mindweave.Application.Chat.IChatStore chat &&
-                (await chat.ReadMessagesAsync(node.State.Node.ConversationId)).Any(m => m.Sequence > version.Coverage.OwnHighWaterSequence &&
-                    m.Status is not (Mindweave.Core.Chat.GenerationStatus.Queued or Mindweave.Core.Chat.GenerationStatus.Running));
+            var later = await HasLaterContentAsync(node, version);
             if (stamp != loadStamp || detached) return;
             Snapshot = node; Version = version; Reading = reading;
             Versions.Clear(); foreach (var header in node.State.Versions.OrderByDescending(v => v.Identity.Ordinal)) Versions.Add(header);
             SelectedVersion = version.Header; SavedBody = version.Markdown; Heading = version.Header.Title;
             SourceQuote = version.Coverage.DirectQuote?.Source.Quote ?? "";
-            hasLaterContent = later; Metadata = DescribeVersion(version, later);
+            Metadata = DescribeVersion(version, later);
             ErrorMessage = Draft.Error; VersionSelected?.Invoke(id);
         }
         catch (ArgumentException error) { if (stamp == loadStamp) ErrorMessage = error.Message; }
@@ -117,13 +115,19 @@ public sealed partial class SummaryViewModel : ContentViewModel
             Version = null; SavedBody = ""; Heading = ""; Metadata = ""; SourceQuote = ""; Reading = null;
             ErrorMessage = "该总结版本已删除，请返回列表。"; RefreshAvailability(); return;
         }
-        Snapshot = node; hasLaterContent |= node.HasLaterContent; Metadata = DescribeVersion(version, hasLaterContent);
+        var later = await HasLaterContentAsync(node, version);
+        if (stamp != metadataStamp || bodyStamp != loadStamp || detached || Version != version) return;
+        Snapshot = node; Metadata = DescribeVersion(version, later);
         // Preserve selected item/control identity so a new candidate does not navigate or discard an editor.
         foreach (var removed in Versions.Where(h => !node.State.Versions.Any(v => v.Identity.Id == h.Identity.Id)).ToArray()) Versions.Remove(removed);
         foreach (var header in node.State.Versions.OrderByDescending(v => v.Identity.Ordinal))
             if (!Versions.Any(h => h.Identity.Id == header.Identity.Id)) Versions.Insert(0, header);
         RefreshAvailability();
     }
+    private async Task<bool> HasLaterContentAsync(SummaryNodeSnapshot node, SummaryVersion version) =>
+        store is Mindweave.Application.Chat.IChatStore chat &&
+        (await chat.ReadMessagesAsync(node.State.Node.ConversationId)).Any(m => m.Sequence > version.Coverage.OwnHighWaterSequence &&
+            m.Status is not (Mindweave.Core.Chat.GenerationStatus.Queued or Mindweave.Core.Chat.GenerationStatus.Running));
     private static string DescribeVersion(SummaryVersion version, bool later) =>
         $"版本保存于 {version.Header.Identity.CreatedAt.ToLocalTime():yyyy-MM-dd HH:mm} · 范围在发起时固定，包含 {version.Coverage.OwnMessages.Length} 条本会话消息、{version.Coverage.FrozenAncestors.Length} 条来源消息。" +
         (later ? " 此后有新内容，未纳入本次总结。" : " 当前没有后续内容标记。") +

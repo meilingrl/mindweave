@@ -36,9 +36,14 @@ public sealed partial class MainViewModel
         summaryStore = store as ISummaryVersionStore ?? throw new ArgumentException("总结存储不可用。");
         summaries.Changed += SummaryChanged; naming.Changed += SummaryChanged;
     }
-    private void SummaryChanged() => Dispatcher.UIThread.Post(() => TrackBackgroundRefresh(RefreshSummaryDisplayAsync));
+    private void SummaryChanged() => Dispatcher.UIThread.Post(() =>
+    {
+        // Closing blocks new store reads, but complete memory results must still be reachable after a failed close.
+        RefreshRetainedSummaries(); TrackBackgroundRefresh(RefreshSummaryDisplayAsync);
+    });
     private async Task RefreshSummaryDisplayAsync()
     {
+        RefreshRetainedSummaries();
         if (detached || closing) return;
         try
         {

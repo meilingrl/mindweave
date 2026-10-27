@@ -4,6 +4,9 @@
   <StackPanel Spacing="8" Margin="0,0,0,12">
    <TextBlock x:Name="SummaryScopeNotice" Text="{Binding SummaryScopeNotice}" IsVisible="{Binding HasSummaryService}" TextWrapping="Wrap" FontSize="12" />
    <Button x:Name="GenerateSummaryButton" Content="总结当前会话" Command="{Binding GenerateSummaryCommand}" IsVisible="{Binding HasSummaryService}" IsEnabled="{Binding CanGenerateSummary}" AutomationProperties.Name="总结当前会话，可能产生额外费用" />
+   <Button x:Name="StopSummaryButton" Content="停止此总结" Command="{Binding StopSummaryCommand}" IsVisible="{Binding HasSummaryService}" IsEnabled="{Binding CanStopSummary}" AutomationProperties.Name="停止当前会话的知识总结，不停止回答" />
+   <TextBlock x:Name="SummaryAcceptanceNotice" Text="{Binding SummaryAcceptanceNotice}" IsVisible="{Binding HasSummaryService}" TextWrapping="Wrap" FontSize="12" />
+   <TextBlock x:Name="SummaryStatusNotice" Text="{Binding SummaryStatusNotice}" IsVisible="{Binding HasSummaryService}" TextWrapping="Wrap" FontSize="12" />
    <TextBlock Text="{Binding SummaryAvailabilityNotice}" IsVisible="{Binding HasSummaryService}" TextWrapping="Wrap" FontSize="12" />
    <TextBlock Text="{Binding BranchPath}" TextWrapping="Wrap" FontSize="12" Foreground="#59644D" />
    <Button Content="返回来源" Command="{Binding ReturnToSourceCommand}" IsVisible="{Binding HasSource}" IsEnabled="{Binding CanNavigate}" AutomationProperties.Name="按分支关系返回来源" />

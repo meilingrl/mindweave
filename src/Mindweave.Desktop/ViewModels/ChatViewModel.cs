@@ -160,6 +160,6 @@ public sealed partial class ChatViewModel : ContentViewModel
         loading = true; try { InputText = draft.Text; draftRevision = draft.Revision; } finally { loading = false; }
     }
     public override Task WaitForPendingOperationsAsync() => Task.WhenAll(new[]
-        { SendCommand.ExecutionTask, StopCommand.ExecutionTask, RetryCommand.ExecutionTask, RenameCommand.ExecutionTask, GenerateSummaryCommand.ExecutionTask }.OfType<Task>());
+        { SendCommand.ExecutionTask, StopCommand.ExecutionTask, RetryCommand.ExecutionTask, RenameCommand.ExecutionTask, GenerateSummaryCommand.ExecutionTask, StopSummaryCommand.ExecutionTask }.OfType<Task>());
     public void Detach() { debounce?.Cancel(); debounce?.Dispose(); debounce = null; }
 }
