@@ -195,6 +195,7 @@ public sealed partial class MainViewModel : ViewModelBase
         foreach (var page in summaryPages) page.QuiesceForClose();
         if (ActiveContent is not null) await ActiveContent.WaitForPendingOperationsAsync();
         await Task.WhenAll(summaryPages.Select(page => page.WaitForPendingOperationsAsync()));
+        if (summaryPages.Any(page => page.HasRemovedNodeInput)) throw new SummaryInputResolutionRequiredException();
         await DrainBackgroundRefreshesAsync();
     }
     public async Task SaveDraftForCloseAsync()
@@ -219,6 +220,8 @@ public sealed partial class MainViewModel : ViewModelBase
         await changes.WaitAsync(); IsBusy = true;
         try
         {
+            // Do not send an expected user-resolution state into the runtime's IO repair source.
+            if (summaryPages.Any(page => page.HasRemovedNodeInput)) throw new SummaryInputResolutionRequiredException();
             async Task RepairLocalAsync()
             {
                 await FlushAllDraftsAsync();
@@ -230,6 +233,7 @@ public sealed partial class MainViewModel : ViewModelBase
             else await RepairLocalAsync();
             localPersistenceFailure = false; ErrorMessage = null;
         }
+        catch (SummaryInputResolutionRequiredException error) { ErrorMessage = error.Message; throw; }
         catch { MarkPersistenceFailure(); ErrorMessage = "保存仍未完成，内容保留在窗口中。"; throw; }
         finally { IsBusy = false; NotifyAvailability(); changes.Release(); }
     }
@@ -242,10 +246,10 @@ public sealed partial class MainViewModel : ViewModelBase
         finally { IsBusy = false; changes.Release(); }
     }
     private void RequireMutation() { if (HasPersistenceFailure) throw new InvalidOperationException("保存失败，请先重试保存。"); }
-    private async Task FlushCurrentAsync()
+    private async Task FlushCurrentAsync(bool repairSummaryOperations = false)
     {
         if (ActiveContent is not null) await ActiveContent.WaitForPendingOperationsAsync();
-        if (ActiveContent is SummaryViewModel summary) await summary.FlushAsync();
+        if (ActiveContent is SummaryViewModel summary) await summary.FlushAsync(repairSummaryOperations);
         if (ActiveContent is not ChatViewModel page) { await FlushReadsAsync(); return; }
         page.CaptureReadingNow();
         await page.SynchronizeAcceptedAsync();
@@ -255,6 +259,7 @@ public sealed partial class MainViewModel : ViewModelBase
     private async Task FlushForNavigationAsync()
     {
         try { await FlushCurrentAsync(); }
+        catch (SummaryInputResolutionRequiredException) { throw; }
         catch
         {
             if (ActiveContent is ChatViewModel page) unsavedDrafts[page.ConversationId] = page.CurrentDraft;
@@ -263,7 +268,7 @@ public sealed partial class MainViewModel : ViewModelBase
     }
     private async Task FlushAllDraftsAsync()
     {
-        await FlushCurrentAsync();
+        await FlushCurrentAsync(repairSummaryOperations: true);
         await FlushSummariesAsync();
         if (chatStore is null) return;
         foreach (var (id, draft) in unsavedDrafts.ToArray())

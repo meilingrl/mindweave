@@ -84,6 +84,14 @@ public sealed partial class MainViewModel
             () => HasPersistenceFailure || closing || IsBusy, MarkPersistenceFailure,
             conversation => NavigateAsync(new(MainArea.Explore, ContentKind.Conversation, conversation)),
             version => naming!.NotifyCurrentChangedAsync(id, version));
+        page.ConfigureSummaryStop(summaries!.StopAsync);
+        page.NodeDeleted += () => Dispatcher.UIThread.Post(() => TrackBackgroundRefresh(() => RunAsync(async () =>
+        {
+            if (ActiveContent != page) return;
+            DeactivatePage(); ContentStack.Clear();
+            ContentStack.Add(await CreateContentAsync(new(MainArea.Network)));
+            await SaveSelectionAsync(page.WorkspaceId, new(MainArea.Network)); NotifyContent();
+        })));
         await page.LoadAsync(request.SummaryVersionId); summaryPages.Add(page);
         page.VersionSelected += version =>
         {
@@ -99,6 +107,7 @@ public sealed partial class MainViewModel
     });
     private async Task FlushSummariesAsync()
     {
+        foreach (var page in summaryPages) await page.RepairVersionOperationAsync();
         foreach (var draft in summaryDrafts.Values) await draft.FlushAsync();
         foreach (var page in summaryPages) await page.FlushReadingAsync();
     }

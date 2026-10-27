@@ -29,12 +29,12 @@ public sealed partial class SummaryViewModel : ContentViewModel
     [ObservableProperty] private bool isEditing;
     [ObservableProperty] private bool isLoading;
     [ObservableProperty] private bool isSaving;
-    public bool CanEditCurrent => !quiescing && !IsSaving && !IsLoading && Version is not null && Version.Header.Identity.Id == Snapshot?.State.Node.CurrentVersionId && !blocked();
-    public bool CanRead => !quiescing && !detached && !IsLoading && !IsEditing && Version is not null;
+    public bool CanEditCurrent => !quiescing && !IsConfirmationOpen && !IsVersionOperationBusy && !IsSaving && !IsLoading && Version is not null && Version.Header.Identity.Id == Snapshot?.State.Node.CurrentVersionId && !blocked();
+    public bool CanRead => !quiescing && !detached && !IsLoading && !IsEditing && !IsConfirmationOpen && !IsVersionOperationBusy && Version is not null;
     public string VersionIdentity => Version is null ? "" : Version.Header.Identity.Id == Snapshot?.State.Node.CandidateVersionId ? "候选版本 · 只读" : Version.Header.Identity.Id == Snapshot?.State.Node.CurrentVersionId ? "当前版本" : "历史版本 · 只读";
     public bool IsRead => Reading?.State.IsRead == true;
     public bool HasSourceQuote => !string.IsNullOrEmpty(SourceQuote);
-    public bool CanSetRead => Version is not null && !blocked();
+    public bool CanSetRead => Version is not null && !quiescing && !IsConfirmationOpen && !IsVersionOperationBusy && !blocked();
     public string ReadStatus => IsRead ? "已读" : "未读";
     public IAsyncRelayCommand EditCommand { get; }
     public IRelayCommand ReadCommand { get; }
@@ -48,7 +48,7 @@ public sealed partial class SummaryViewModel : ContentViewModel
     public SummaryViewModel(Guid workspaceId, Guid nodeId, ISummaryVersionStore store, SummaryDraftSession draft,
         Func<bool> blocked, Action failed, Func<Guid, Task> source, Func<Guid, Task>? currentChanged = null)
     {
-        WorkspaceId = workspaceId; NodeId = nodeId; this.store = store; Draft = draft; this.blocked = blocked; this.failed = failed; Draft.ConfigureCurrentChanged(currentChanged);
+        WorkspaceId = workspaceId; NodeId = nodeId; this.store = store; Draft = draft; this.blocked = blocked; this.failed = failed; Draft.ConfigureCurrentChanged(currentChanged); InitializeVersionOperations(currentChanged);
         EditCommand = new AsyncRelayCommand(async () =>
         {
             if (!CanEditCurrent) return;
@@ -147,16 +147,30 @@ public sealed partial class SummaryViewModel : ContentViewModel
     partial void OnSourceQuoteChanged(string value) => OnPropertyChanged(nameof(HasSourceQuote));
     partial void OnIsEditingChanged(bool value) => RefreshAvailability();
     public void RefreshAvailability()
-    { OnPropertyChanged(nameof(CanEditCurrent)); OnPropertyChanged(nameof(CanRead)); OnPropertyChanged(nameof(VersionIdentity)); OnPropertyChanged(nameof(IsRead)); OnPropertyChanged(nameof(ReadStatus)); OnPropertyChanged(nameof(CanSetRead)); }
+    { RefreshVersionAvailability(); OnPropertyChanged(nameof(CanEditCurrent)); OnPropertyChanged(nameof(CanRead)); OnPropertyChanged(nameof(VersionIdentity)); OnPropertyChanged(nameof(IsRead)); OnPropertyChanged(nameof(ReadStatus)); OnPropertyChanged(nameof(CanSetRead)); }
     private async Task CaptureReadingAsync()
     {
         if (CaptureReadingRequested is { } handlers)
             foreach (Func<Task> capture in handlers.GetInvocationList()) await capture();
     }
-    public async Task FlushAsync() { await CaptureReadingAsync(); await Draft.FlushAsync(); await FlushReadingAsync(); }
+    public async Task FlushAsync(bool repairVersionOperation = false)
+    {
+        if (HasRemovedNodeInput) throw new SummaryInputResolutionRequiredException();
+        if (repairVersionOperation) await RepairVersionOperationAsync();
+        await CaptureReadingAsync();
+        // Navigation remains readable while paused; only explicit repair/close can
+        // reconcile a mutation whose acknowledgement was lost.
+        if (!HasPendingVersionOperation) await Draft.FlushAsync();
+        await FlushReadingAsync();
+    }
     public override async Task WaitForPendingOperationsAsync()
     {
         await Task.WhenAll(new[] { EditCommand.ExecutionTask, SaveCommand.ExecutionTask, MarkReadCommand.ExecutionTask, MarkUnreadCommand.ExecutionTask, ViewVersionCommand.ExecutionTask }.OfType<Task>());
+        while (versionOperations.Count > 0)
+        {
+            await Task.WhenAll(versionOperations.ToArray());
+            versionOperations.RemoveWhere(task => task.IsCompleted);
+        }
         while (versionLoads.Count > 0)
         {
             await Task.WhenAll(versionLoads.ToArray());
@@ -164,7 +178,7 @@ public sealed partial class SummaryViewModel : ContentViewModel
         }
     }
     public void QuiesceForClose() { quiescing = true; InterruptReading(); Draft.StopDebounce(); RefreshAvailability(); }
-    public void ResumeAfterClose() { quiescing = false; RefreshAvailability(); }
+    public void ResumeAfterClose() { quiescing = false; ResumeVersionProjection(); RefreshAvailability(); }
     public void Detach()
     {
         detached = true; loadStamp++; Draft.StopDebounce();

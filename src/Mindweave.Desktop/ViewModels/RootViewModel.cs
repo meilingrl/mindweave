@@ -47,6 +47,7 @@ public sealed partial class RootViewModel : ViewModelBase
         RetrySaveCommand = new AsyncRelayCommand(async () =>
         {
             try { if (main is not null) await main.RetryPersistenceAsync(); CloseError = closing ? "保存已完成。可重试退出，或返回工作台。" : null; }
+            catch (SummaryInputResolutionRequiredException error) { CloseError = error.Message; }
             catch { CloseError = "保存仍未完成。可重试保存、重试退出，或返回工作台阅读和复制内容。"; }
         });
     }
@@ -90,6 +91,7 @@ public sealed partial class RootViewModel : ViewModelBase
             if (store is not null) { await store.DisposeAsync(); store = null; }
             main?.DetachObservers(); IsClosed = true;
         }
+        catch (SummaryInputResolutionRequiredException error) { CloseError = error.Message; }
         catch { CloseError = "退出时保存失败。当前内容仍可阅读和复制。可重试保存、重试退出，或返回工作台。"; }
         finally { IsClosing = false; lifecycle.Release(); }
         if (IsClosed) CloseCompleted?.Invoke();

@@ -20,7 +20,7 @@ public sealed partial class SummaryDraftSession(ISummaryVersionStore store, Guid
     [ObservableProperty] private string title = "";
     [ObservableProperty] private string markdown = "";
     public bool HasMemoryChanges => revision != persisted;
-    public bool HasPendingCommit => pendingCommit is not null;
+    public bool HasPendingCommit => pendingCommit is not null || pendingDiscard is not null;
     public bool IsDirty => HasMemoryChanges || saved?.IsDirty == true;
     public SummaryDraftToken? Token => saved?.Token;
     public string? Error { get; private set; }
@@ -30,6 +30,7 @@ public sealed partial class SummaryDraftSession(ISummaryVersionStore store, Guid
     {
         if (projecting) return;
         revision++; OnPropertyChanged(nameof(IsDirty));
+        if (operationPaused || HasRemovedNodeInput) return;
         debounce?.Cancel(); debounce?.Dispose(); debounce = new(); _ = SaveDelayedAsync(debounce.Token);
     }
     private async Task SaveDelayedAsync(CancellationToken cancellation)
@@ -55,9 +56,11 @@ public sealed partial class SummaryDraftSession(ISummaryVersionStore store, Guid
     }
     public async Task FlushAsync()
     {
+        if (HasRemovedNodeInput) throw new SummaryInputResolutionRequiredException();
         debounce?.Cancel(); await writes.WaitAsync();
         try
         {
+            if (pendingDiscard is not null) await RepairDiscardCoreAsync();
             if (pendingCommit is not null) await RepairCommitCoreAsync();
             while (pendingSave is not null || (HasMemoryChanges && saved is not null))
             {
@@ -81,11 +84,13 @@ public sealed partial class SummaryDraftSession(ISummaryVersionStore store, Guid
         catch { Error = "草稿保存失败，原输入仍保留在窗口中。"; failed(); throw; }
         finally { writes.Release(); }
     }
-    public async Task<SummaryOutcome<SummaryVersion>> CommitAsync()
+    public async Task<SummaryOutcome<SummaryVersion>> CommitAsync(SummaryDraftResolution? expected = null)
     {
         await FlushAsync(); await writes.WaitAsync();
         try
         {
+            if (expected is not null && (expected.LocalRevision != revision || expected.Title != Title || expected.Markdown != Markdown))
+                return new(SummaryOutcomeKind.Conflict, Code: "DraftChangedSinceConfirmation");
             // Freeze the payload and local revision belonging to the durable token before
             // the node read yields. Live editor properties can change during that await.
             var submitted = saved; var submittedRevision = persisted;
@@ -143,7 +148,7 @@ public sealed partial class SummaryDraftSession(ISummaryVersionStore store, Guid
     public void StopDebounce() { debounce?.Cancel(); }
     public void ReleaseCleanMemory()
     {
-        if (IsDirty || pendingCommit is not null || pendingSave is not null) return;
+        if (IsDirty || HasRemovedNodeInput || pendingCommit is not null || pendingSave is not null || pendingDiscard is not null) return;
         saved = null; projecting = true; try { Title = Markdown = ""; } finally { projecting = false; }
     }
 }
