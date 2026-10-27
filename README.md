@@ -2,7 +2,7 @@
 
 面向个人日常好奇与非专业专题学习的 AI 对话探索工具。
 
-本工作目录为 **Codex 稳健轨**，已按确认的需求 v0.11 开始正式开发。当前实现范围、验证与下一步见 [TRACK.md](TRACK.md)，S3 的实现验证见[上下文验证记录](docs/implementation/s3-verification.md)，S2 的分支验证见[分支验证记录](docs/implementation/s2-verification.md)，S1 的真实服务记录见[聊天验证记录](docs/implementation/s1-verification.md)，S0 的数据关系见[基础实施记录](docs/implementation/s0-foundation.md)。共同需求与架构仍以 `main` 为准；它们记录共享设计，不代表各轨道的实时实现状态。
+本工作目录为 **Codex 稳健轨**，已按确认的需求 v0.11 开始正式开发。当前实现范围、验证与下一步见 [TRACK.md](TRACK.md)，S4计划与分层验证见[总结验证记录](docs/implementation/s4-verification.md)，S3 的实现验证见[上下文验证记录](docs/implementation/s3-verification.md)，S2 的分支验证见[分支验证记录](docs/implementation/s2-verification.md)，S1 的真实服务记录见[聊天验证记录](docs/implementation/s1-verification.md)，S0 的数据关系见[基础实施记录](docs/implementation/s0-foundation.md)。共同需求与架构仍以 `main` 为准；它们记录共享设计，不代表各轨道的实时实现状态。
 
 **仓库与分支：** [GitHub 私有仓库](https://github.com/meilingrl/mindweave)。`main` 是共享基线；`track/codex-steady`（稳健轨，课程提交版本）与 `track/claude-auto`（激进轨）从 `baseline-v0.11` 起分别开发，各自在 `../mindweave.worktrees/` 下有工作目录。分支约定见 [AGENTS.md](AGENTS.md)，各轨道状态见该分支的 `TRACK.md`。
 
