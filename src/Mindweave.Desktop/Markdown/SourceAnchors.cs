@@ -53,15 +53,17 @@ public static class SourceAnchors
     public const int LocatorVersion = 1;
 
     /// <summary>Identity of the rendering setup anchors are valid for; a different profile may lay text out differently.</summary>
-    public const string RenderProfile = "livemarkdown-2.5.1/math-1";
+    public const string RenderProfile = "livemarkdown-2.5.1/math-2";
 
     /// <summary>
-    /// Profiles whose anchors are still worth trying. Before LaTeX rendering, formulas were shown as source text;
-    /// answers without formulas lay out the same, and those with formulas fail the layout check and fall back.
+    /// Profiles whose anchors are still worth trying. Before LaTeX rendering (and, in math-1, for backslash
+    /// delimiters), formulas were shown as source text; answers without them lay out the same, and those with them
+    /// fail the layout check and fall back.
     /// </summary>
     public static readonly IReadOnlySet<string> CompatibleProfiles = new HashSet<string>(StringComparer.Ordinal)
     {
         RenderProfile,
+        "livemarkdown-2.5.1/math-1",
         "livemarkdown-2.5.1/default-pipeline",
     };
 
@@ -69,7 +71,7 @@ public static class SourceAnchors
     private const char FormulaPlaceholder = '\uFFFC';
 
     private static readonly System.Text.RegularExpressions.Regex Formula =
-        new(@"\$\$(?<tex>.+?)\$\$|\$(?<tex>[^$\n]+?)\$", System.Text.RegularExpressions.RegexOptions.Singleline | System.Text.RegularExpressions.RegexOptions.CultureInvariant);
+        new(@"\$\$(?<tex>.+?)\$\$|\$(?<tex>[^$\n]+?)\$|\\\[(?<tex>.+?)\\\]|\\\((?<tex>.+?)\\\)", System.Text.RegularExpressions.RegexOptions.Singleline | System.Text.RegularExpressions.RegexOptions.CultureInvariant);
 
     private const string HighlightKey = "branch-source";
 

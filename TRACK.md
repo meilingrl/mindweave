@@ -33,7 +33,7 @@ Claude 自主开发，目的是比稳健轨更早走到关键阶段，提前暴�
 
 | 事项 | 原因 | 阻塞什么 | 在此之前我做什么 |
 | --- | --- | --- | --- |
-| 复试 S3：上下文用量一行、生成时的等待提示、公式渲染、压缩（容量临时填小如 7500）（Mac 用阶段报告命令；Windows 先关掉一直开着的旧版，再打开 `E:\mindweave-claude-auto\app-s3\Mindweave.exe`） | 你试用后提出的四个问题已修复，需要你确认 | S4 | 等你的反馈 |
+| 复试 S3：上下文用量一行、生成时的等待提示、公式渲染、压缩（容量临时填小如 7500）（Mac 用阶段报告命令；Windows 先关掉一直开着的旧版，再打开 `E:\mindweave-claude-auto\app-s3\Mindweave.exe`） | 你试用后提出的四个问题已修复；复试发现 `\[…\]` 公式不渲染，也已修复（D-016），需要你确认 | S4 | 等你的反馈 |
 
 Windows 实机：`scripts/windows.sh test|publish|sync|exec`（主机 `win-home`，经本机用户态 Tailscale 实例 A 的 SOCKS `127.0.0.1:7898`，密钥登录，连接失败自动重试；目录 `E:\mindweave-claude-auto`，与稳健轨隔离）。2026-10-26 已修复笔记本上 Scoop 的 git（`current` 目录联接失效，`scoop reset git` 重建，现为 2.54.0）。
 

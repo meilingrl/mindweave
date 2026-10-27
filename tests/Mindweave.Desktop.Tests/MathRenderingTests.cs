@@ -32,6 +32,33 @@ public class MathRenderingTests
         window.Close();
     }
 
+    /// <summary>
+    /// Models often write LaTeX with backslash delimiters (seen in the S3 trial); plain Markdown would read <c>\[</c>
+    /// as an escaped bracket and show the source.
+    /// </summary>
+    [AvaloniaFact]
+    public async Task Backslash_delimited_formulas_render_as_math()
+    {
+        const string backslash = "OTDR 计算距离：\n\n\\[\n距离 = \\frac{光速 \\times 时间}{2 \\times 折射率}\n\\]\n\n其中 \\(n \\approx 1.47\\) 是折射率。";
+        await using var app = DesktopHarness.Create();
+        var (window, page) = await OpenAnswerAsync(app, backslash);
+        var answer = AnswerOf(window);
+
+        var text = string.Concat(SourceAnchors.Blocks(answer.Renderer).Select(b => b.LayoutText));
+        Assert.DoesNotContain("\\frac", text, StringComparison.Ordinal);
+        Assert.DoesNotContain("\\approx", text, StringComparison.Ordinal);
+        Assert.Equal(2, answer.Renderer.GetVisualDescendants().Count(v => v.GetType().Name == "FormulaControl"));
+
+        var block = SourceAnchors.Blocks(answer.Renderer).First(b => b.LayoutText.StartsWith("其中", StringComparison.Ordinal));
+        block.SelectionStart = 0;
+        block.SelectionEnd = block.LayoutText.Length;
+        var selection = Assert.IsType<Mindweave.Core.Branches.BranchSelection>(answer.CaptureSelection());
+        Assert.Equal("其中 \\(n \\approx 1.47\\) 是折射率。", selection.Quote);
+        ViewTests.Capture(window, "05-math-backslash");
+        _ = page;
+        window.Close();
+    }
+
     [AvaloniaFact]
     public async Task A_passage_with_a_formula_is_quoted_with_its_latex_and_its_source_is_found_again()
     {
@@ -63,13 +90,13 @@ public class MathRenderingTests
         window.Close();
     }
 
-    private static async Task<(MainWindow Window, ConversationViewModel Page)> OpenAnswerAsync(DesktopHarness app)
+    private static async Task<(MainWindow Window, ConversationViewModel Page)> OpenAnswerAsync(DesktopHarness app, string answer = Answer)
     {
         var window = new MainWindow { DataContext = app.Root, Width = 1000, Height = 700 };
         window.Show();
         await app.StartWithWorkspaceAsync("物理");
         await app.ConfigureModelAsync();
-        app.Client.Reply(Answer);
+        app.Client.Reply(answer);
         app.ShellPage.Conversations.NewCommand.Execute(null);
         var draft = Assert.IsType<NewConversationViewModel>(app.Workbench.CurrentPage);
         draft.Composer.Text = "质能方程是什么？";
