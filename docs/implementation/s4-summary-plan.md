@@ -115,15 +115,15 @@ Task1定义Core/Summaries不可变节点／版本／覆盖／任务／草稿／�
 
 **Interfaces:** 消费1–5；实现`INodeNamingStore`，监听已提交current变更，后台低优先级工作不阻止总结阅读。
 
-- [ ] RED覆盖规范化同名整组、首次基础名、采用／恢复／手改名、保留仍有效区分词、无法区分允许同名、迟到结果／删除／组成员／当前版本／手改标志变化、低优先级／合并去重。
-- [ ] 同工作区基础标题组生成有依据的“话题－区分词”，手动显示名保护；版本原始标题／正文／阅读／位置不变。current变动保留已有自动区分名待重新检查，仅原基础显示随新标题更新；手改不动，删除同名伙伴不强制缩名。无语义同义词归并／跨主题。
-- [ ] 精确冻结成员／版本／nameRevision／manual／组epoch，输出仅允许成员集合的有界名字；结果全组CAS，不部分更新、不upsert复活。任务不留总结正文输出副本；实际读取材料与hash可核对，来源已失效则过期拒绝。
-- [ ] 每组一个active＋最多一个最新待处理意图；失败不自动重试，变更连发最多一次有界跟进，rename-only不再触发自身。重启不自动外呼；所有请求进入共享两槽及gate，命名使用Standard／服务默认。
-- [ ] 聚焦GREEN筛选`FullyQualifiedName~SummaryNamingStorageTests|FullyQualifiedName~GroupNamingCoordinatorTests`，完整Release／build、自审提交和独立审查。
+- [x] RED覆盖规范化同名整组、首次基础名、采用／恢复／手改名、保留仍有效区分词、无法区分允许同名、迟到结果／删除／组成员／当前版本／手改标志变化、低优先级／合并去重。
+- [x] 同工作区基础标题组生成有依据的“话题－区分词”，手动显示名保护；版本原始标题／正文／阅读／位置不变。current变动保留已有自动区分名待重新检查，仅原基础显示随新标题更新；手改不动，删除同名伙伴不强制缩名。无语义同义词归并／跨主题。
+- [x] 精确冻结成员／版本／nameRevision／manual／组epoch，输出仅允许成员集合的有界名字；结果全组CAS，不部分更新、不upsert复活。任务不留总结正文输出副本；实际读取材料与hash可核对，来源已失效则过期拒绝。
+- [x] 每组一个active＋最多一个最新待处理意图；失败不自动重试，变更连发最多一次有界跟进，rename-only不再触发自身。重启不自动外呼；所有请求进入共享两槽及gate，命名使用Standard／服务默认。
+- [x] 聚焦GREEN筛选`FullyQualifiedName~SummaryNamingStorageTests|FullyQualifiedName~GroupNamingCoordinatorTests`，完整Release／build、自审提交和独立审查。
 
 ## Task 7: 总结列表／详情、阅读与编辑导航
 
-**Files:** 新建Desktop `SummaryListViewModel`／`SummaryViewModel`聚焦partial、对应Views与正文阅读适配器；修改ChatViewModel／View总结入口、MainViewModel导航／selection／draft、ViewLocator；`tests/Mindweave.Tests/SummaryDesktopTests.cs`。
+**Files:** 新建Desktop `SummaryListViewModel`／`SummaryViewModel`聚焦partial、对应Views与正文阅读适配器；修改ChatViewModel／View总结入口、MainViewModel导航／selection／draft、CompositionRoot／Root会话注入、必要NavigationRequest参数及ViewLocator；`tests/Mindweave.Tests/SummaryDesktopTests.cs`。
 
 **Interfaces:** 消费前述过审API，沿用Root／Menu／Content。Network目前是列表／详情，图形关系／布局留S5；知识总结不提供选文分支。
 
