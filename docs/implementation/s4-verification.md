@@ -1,6 +1,6 @@
 # S4 知识总结与版本管理 · 验证记录
 
-开始日期2026-10-27，`track/codex-steady`，工作目录`/Users/meilingluo/Developer/Projects/mindweave.worktrees/codex-steady`。Task1纯合同／协议／规则已完成，Task2数据库阶段实施中，**S4尚未整体实现或验收**；[实施计划](s4-summary-plan.md)，实时状态见[TRACK](../../TRACK.md)。
+开始日期2026-10-27，`track/codex-steady`，工作目录`/Users/meilingluo/Developer/Projects/mindweave.worktrees/codex-steady`。Task1纯合同／协议／规则已完成，Task2生成存储与迁移已过审，Task3编辑／版本事务准备中，**S4尚未整体实现或验收**；[实施计划](s4-summary-plan.md)，实时状态见[TRACK](../../TRACK.md)。
 
 ## 已核实基线
 
@@ -14,7 +14,7 @@
 | 层 | 当前状态 |
 | --- | --- |
 | 领域／输入协议／阅读版本规则 | Task1初版10505e6、修复a436efe；最终445通过／2原有跳过，build零警告错误；[独立审查及I1限定复审](../reviews/codex-s4-domain-20261027.md)全部关闭，纯合同已批准 |
-| schema6与生成／版本事务 | Task2实施中，已生成schema5／输入格式6的纯合成对照并完成初始行为RED；未获存储审查批准，Task3未开始 |
+| schema6与生成／版本事务 | Task2 `58c4cb9`，43聚焦／488完整通过、2原有跳过、build零警告错误；[独立审查](../reviews/codex-s4-storage-20261027.md)Approved 0C／0I／0M；仅生成存储，Task3编辑／阅读／版本操作尚未开始 |
 | 共享AI调度与生命周期 | Task4未开始；需保留S1／S3语义 |
 | 知识总结及二次命名 | Task5／6未开始 |
 | 桌面列表／详情／版本操作 | Task7／8未开始 |
@@ -26,3 +26,5 @@
 后续自动化仅合成临时库与受控transport；旧真实数据迁移只读源副本验证，原文件SHA保持。原生不可恢复删除的具体确认框就绪后请求当次确认；真实服务先备好虚构材料／模型／费用上限，密钥仅本机。
 
 S4真实资料已备有[未授权草案](s4-supplier-acceptance.md)，仅供后续门禁完成时审阅；当前S4实际外呼0，不读取或挪用既有密钥／调用额度。
+
+Task2 schema6已冻结（SQL SHA256 `ECA38643CEE6137AF4E6B01BCE2BF52C2B5024BE823167FBC5E37DC909D1B0F9`），后续缺失DDL只能追加7+。15表／4索引／22触发器，旧1–5 SQL和24份旧fixture资产完全不变；迁移副本比较所有旧逻辑行与备份，随后只读重建与hash保持。仅纯合成数据，未升级真实库。

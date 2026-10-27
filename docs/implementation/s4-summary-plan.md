@@ -66,11 +66,11 @@ Task1定义Core/Summaries不可变节点／版本／覆盖／任务／草稿／�
 
 **Interfaces:** 消费Task1；实现`IKnowledgeSummaryStore`；schema6包含3／6所需节点、身份／完整内容、source、read、draft、summary job、naming job/member、summary selection字段，DDL实施前核对这些任务与过审API。
 
-- [ ] RED覆盖schema5→6全旧行不变／一致备份，v6晚期DDL失败与子进程中断回滚；SQL1–5字节相同，S3各种格式身份只读可重建。只用合成fixture或控制器副本。
-- [ ] 用既有单writer事务实现新专用表，保留generation_task旧CHECK／triggers／S3外键图。版本小身份与完整正文分离，当前／候选只能指同节点完整内容，首次节点与版本同事务。完整版本不可UPDATE；读／覆盖随正文删除，基线身份不会级联删别版。
-- [ ] 接受事务独立拒绝active Reply／active Summary／未处理候选，冻结有效输入和所有自身行高水位，按完整request Fits再接受；幂等操作ID／精确元数据，0隐藏副本。准备先持久实际引用＋hash，读回精确重建，篡改只读拒绝。
-- [ ] 原子Complete只接受完整有效结果和仍活动任务；首次current未读、后续唯一candidate未读，current手写变化仍留候选原基线；任务metadata／版本指针全一起提交。失败／取消／中断0产物，LostCommit按ID核对，迟到不复活旧节点。
-- [ ] 聚焦GREEN筛选`FullyQualifiedName~SummaryMigrationTests|FullyQualifiedName~SummaryGenerationStorageTests`，完整Release／build、自审提交及schema/API交接，独立审查。schema6一经产生保留数据即冻结，后续缺字段追加迁移，不暗改旧SQL。
+- [x] RED覆盖schema5→6全旧行不变／一致备份，v6晚期DDL失败与子进程中断回滚；SQL1–5字节相同，S3各种格式身份只读可重建。只用合成fixture或控制器副本。
+- [x] 用既有单writer事务实现新专用表，保留generation_task旧CHECK／triggers／S3外键图。版本小身份与完整正文分离，当前／候选只能指同节点完整内容，首次节点与版本同事务。完整版本不可UPDATE；读／覆盖随正文删除，基线身份不会级联删别版。
+- [x] 接受事务独立拒绝active Reply／active Summary／未处理候选，冻结有效输入和所有自身行高水位，按完整request Fits再接受；幂等操作ID／精确元数据，0隐藏副本。准备先持久实际引用＋hash，读回精确重建，篡改只读拒绝。
+- [x] 原子Complete只接受完整有效结果和仍活动任务；首次current未读、后续唯一candidate未读，current手写变化仍留候选原基线；任务metadata／版本指针全一起提交。失败／取消／中断0产物，LostCommit按ID核对，迟到不复活旧节点。
+- [x] 聚焦GREEN筛选`FullyQualifiedName~SummaryMigrationTests|FullyQualifiedName~SummaryGenerationStorageTests`，完整Release／build、自审提交及schema/API交接，独立审查。schema6一经产生保留数据即冻结，后续缺字段追加迁移，不暗改旧SQL。
 
 ## Task 3: 编辑、阅读、采用与历史事务
 
