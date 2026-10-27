@@ -5,7 +5,8 @@ namespace Mindweave.Application.Chat;
 /// <summary>Pure planning over already frozen, retry-filtered original messages. Never discovers history.</summary>
 public static partial class ReplyContextPlanner
 {
-    public const int FormatVersion = 4;
+    public const int FormatVersion = 5;
+    private const int CompactPromptFormatVersion = 4;
     private const int ExpandedBudgetFormatVersion = 3;
     private const int LegacyFormatVersion = 2;
 
@@ -16,6 +17,7 @@ public static partial class ReplyContextPlanner
     public static ReplyContextPlan Rebuild(int formatVersion, Guid targetConversationId, ChatContext context, AiConfiguration configuration)
     {
         ValidateFormatVersion(formatVersion);
+        ValidateFormatConfiguration(formatVersion, configuration);
         ValidateConfiguration(configuration);
         var messages = context.Messages.ToArray();
         ValidateOriginals(messages);
@@ -101,6 +103,7 @@ public static partial class ReplyContextPlanner
         // Source-owned attempts outlive their requesting plan. Authenticate the version
         // against both the original key and cap without changing ContextChunk's JSON shape.
         var formatVersion = MatchesChunk(chunk, byId, configuration, FormatVersion) ? FormatVersion :
+            MatchesChunk(chunk, byId, configuration, CompactPromptFormatVersion) ? CompactPromptFormatVersion :
             MatchesChunk(chunk, byId, configuration, ExpandedBudgetFormatVersion) ? ExpandedBudgetFormatVersion :
             MatchesChunk(chunk, byId, configuration, LegacyFormatVersion) ? LegacyFormatVersion : 0;
         if (chunk.SourceConversationId != sourceConversationId || formatVersion == 0)
@@ -126,6 +129,7 @@ public static partial class ReplyContextPlanner
     private static bool IsTerminal(GenerationStatus status) => status is GenerationStatus.Completed or GenerationStatus.Stopped or GenerationStatus.Failed or GenerationStatus.Interrupted;
     private static void ValidateConfiguration(AiConfiguration configuration)
     {
+        SummaryThinkingPolicy.ValidateConfiguration(configuration);
         if (configuration.MaxOutputTokens <= 0 || configuration.ContextTokenBudget <= 0)
             throw new InvalidOperationException("上下文与输出预算必须为正整数。");
     }

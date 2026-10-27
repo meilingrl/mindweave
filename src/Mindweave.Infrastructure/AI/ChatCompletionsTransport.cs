@@ -25,6 +25,7 @@ public sealed class ChatCompletionsTransport : IChatTransport
     public async IAsyncEnumerable<ChatStreamEvent> StreamAsync(ChatRequest request, string secret,
         [EnumeratorCancellation] CancellationToken cancellationToken)
     {
+        if (!Enum.IsDefined(request.Purpose)) throw new ArgumentException("未知聊天请求用途。", nameof(request));
         var endpoint = Endpoint(request.Configuration, "chat/completions");
         ValidateSecret(secret);
         if (request.Messages.Count == 0 || request.Messages.Any(x => x.Role is not ("user" or "assistant" or "system") || x.Content is null))
@@ -32,13 +33,16 @@ public sealed class ChatCompletionsTransport : IChatTransport
         using var timeout = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
         timeout.CancelAfter(_requestTimeout);
         using var message = Authorized(HttpMethod.Post, endpoint, secret);
-        message.Content = JsonContent.Create(new Dictionary<string, object>
+        var body = new Dictionary<string, object>
         {
             ["model"] = request.Configuration.ModelId,
             ["stream"] = true,
             ["messages"] = request.Messages.Select(x => new { role = x.Role, content = x.Content }).ToArray(),
             [request.Configuration.TokenLimitParameter] = request.Configuration.MaxOutputTokens
-        });
+        };
+        if (request.Purpose == ChatRequestPurpose.ContextSummary && request.Configuration.SummaryThinking == SummaryThinkingMode.Disabled)
+            body["thinking"] = new { type = "disabled" };
+        message.Content = JsonContent.Create(body);
         using var response = await Guard(() => _client.SendAsync(message, HttpCompletionOption.ResponseHeadersRead, timeout.Token), cancellationToken);
         CheckStatus(response);
         using var stream = await Guard(() => response.Content.ReadAsStreamAsync(timeout.Token), cancellationToken);
@@ -126,7 +130,7 @@ public sealed class ChatCompletionsTransport : IChatTransport
 
     private static Uri Endpoint(AiConfiguration config, string path)
     {
-        ArgumentNullException.ThrowIfNull(config);
+        SummaryThinkingPolicy.ValidateConfiguration(config);
         if (string.IsNullOrWhiteSpace(config.ModelId) || config.MaxOutputTokens < 1 || config.ContextTokenBudget <= config.MaxOutputTokens ||
             config.TokenLimitParameter is not ("max_tokens" or "max_completion_tokens") ||
             !Uri.TryCreate(config.BaseUrl, UriKind.Absolute, out var uri) ||

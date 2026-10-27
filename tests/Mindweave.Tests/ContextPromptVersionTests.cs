@@ -47,13 +47,13 @@ public sealed class ContextPromptVersionTests
     {
         var originals = Originals(); var config = Config(output);
         var plan = ReplyContextPlanner.Plan(Target, new(originals, null), config);
-        Assert.Equal(4, plan.FormatVersion);
+        Assert.Equal(5, plan.FormatVersion);
         Assert.NotEmpty(Chunks(plan));
         foreach (var chunk in Chunks(plan))
         {
             var request = ReplyContextPlanner.CreateSummaryRequest(Owner, chunk, originals, config);
             Assert.Equal(CompactInstruction, request.Messages[0].Content);
-            Assert.Equal(Key(chunk, originals, config, 4, "context-summary-v2"), chunk.CacheKey);
+            Assert.Equal(Key(chunk, originals, config, 5, "context-summary-v2"), chunk.CacheKey);
             Assert.Equal(Math.Min(4096, output), chunk.MaxOutputTokens);
             Assert.Equal(config with { MaxOutputTokens = Math.Min(4096, output) }, request.Configuration);
             Assert.True(ChatRequestBudget.Fits(request.Configuration, request.Messages));
@@ -77,7 +77,7 @@ public sealed class ContextPromptVersionTests
             ReplyContextPlanner.CreateSummaryRequest(Owner, newChunks[0], originals, config).Messages[0].Content);
         foreach (var (plan, otherVersion) in new[] { (oldPlan, 4), (newPlan, 3) })
             Assert.Throws<InvalidOperationException>(() => ReplyContextPlanner.ComposeInputs(plan with { FormatVersion = otherVersion }, originals, Summaries(plan, 8), config));
-        foreach (var (version, prompt) in new[] { (3, "context-summary-v2"), (4, "context-summary-v1"), (5, "context-summary-v2") })
+        foreach (var (version, prompt) in new[] { (3, "context-summary-v2"), (4, "context-summary-v1"), (6, "context-summary-v2") })
         {
             var forged = newChunks[0] with { CacheKey = Key(newChunks[0], originals, config, version, prompt) };
             Assert.Throws<InvalidOperationException>(() => ReplyContextPlanner.CreateSummaryRequest(Owner, forged, originals, config));

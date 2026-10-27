@@ -39,7 +39,7 @@ public sealed class ContextBudgetVersionTests
         var inputs = ReplyContextPlanner.ComposeInputs(plan, originals, Summaries(plan), config);
         Assert.True(ChatRequestBudget.Fits(config, inputs));
         Assert.Equal("current", inputs[^1].Content);
-        Assert.Equal(4, plan.FormatVersion);
+        Assert.Equal(5, plan.FormatVersion);
     }
 
     [Fact]
@@ -60,7 +60,7 @@ public sealed class ContextBudgetVersionTests
         var chunk = Chunks(plan)[0];
         foreach (var forged in new[] { chunk with { MaxOutputTokens = 1024 }, chunk with { MaxOutputTokens = 4097 }, chunk with { CacheKey = new string('0', 64) } })
             Assert.Throws<InvalidOperationException>(() => ReplyContextPlanner.CreateSummaryRequest(Owner, forged, originals, config));
-        foreach (var version in new[] { 2, 3, 0, 5, 99 })
+        foreach (var version in new[] { 2, 3, 4, 0, 6, 99 })
             Assert.Throws<InvalidOperationException>(() => ReplyContextPlanner.ComposeInputs(plan with { FormatVersion = version }, originals, Summaries(plan), config));
     }
 
@@ -83,7 +83,7 @@ public sealed class ContextBudgetVersionTests
         }
         Assert.Throws<InvalidOperationException>(() => ReplyContextPlanner.ComposeInputs(legacy with { FormatVersion = 3 }, originals, Summaries(legacy), config));
         Assert.Throws<InvalidOperationException>(() => ReplyContextPlanner.ComposeInputs(current with { FormatVersion = 2 }, originals, Summaries(current), config));
-        foreach (var version in new[] { 0, 1, 5, 99 })
+        foreach (var version in new[] { 0, 1, 6, 99 })
             Assert.Throws<InvalidOperationException>(() => ReplyContextPlanner.Rebuild(version, Target, context, config));
     }
 
@@ -99,7 +99,7 @@ public sealed class ContextBudgetVersionTests
     }
 
     [Theory]
-    [InlineData(2)] [InlineData(3)]
+    [InlineData(2)] [InlineData(3)] [InlineData(4)]
     public async Task Baseline_plan_source_cache_and_prepared_reopen_without_changing_any_database_byte(int version)
     {
         using var dir = new TestDirectory(); var paths = CopyGolden(dir, version); var golden = Golden(version);
@@ -120,7 +120,7 @@ public sealed class ContextBudgetVersionTests
                 Assert.Equal(JsonSerializer.Serialize(summaries[i]), JsonSerializer.Serialize(cached));
                 var attempt = (await store.LoadCompressionAttemptAsync(cached.AttemptId))!;
                 Assert.Equal(version == 2 ? 1024 : 4096, attempt.Chunk.MaxOutputTokens);
-                if (version == 3) Assert.Equal(JsonSerializer.Serialize(Read<ContextCompressionAttempt[]>(golden, "Attempts")[i]), JsonSerializer.Serialize(attempt));
+                if (version >= 3) Assert.Equal(JsonSerializer.Serialize(Read<ContextCompressionAttempt[]>(golden, "Attempts")[i]), JsonSerializer.Serialize(attempt));
                 var request = ReplyContextPlanner.CreateSummaryRequest(attempt.SourceConversationId, attempt.Chunk, originals, config);
                 Assert.Equal(JsonSerializer.Serialize(requests[i]), JsonSerializer.Serialize(request));
             }
@@ -132,15 +132,15 @@ public sealed class ContextBudgetVersionTests
     }
 
     [Theory]
-    [InlineData(2)] [InlineData(3)]
-    public async Task Reopened_old_database_accepts_format4_without_reusing_old_cache_or_rewriting_old_plan(int version)
+    [InlineData(2)] [InlineData(3)] [InlineData(4)]
+    public async Task Reopened_old_database_accepts_format5_without_reusing_old_cache_or_rewriting_old_plan(int version)
     {
         using var dir = new TestDirectory(); var paths = CopyGolden(dir, version); var golden = Golden(version);
         var id = Read<Guid>(golden, "TaskId");
         var oldPlan = ContextStorageTests.Sql(paths, "SELECT plan_json FROM reply_context_plan WHERE task_id=$id", ("$id", id));
         await using var store = await SqliteWorkspaceStore.OpenAsync(paths);
         var work = await store.AcceptReplyAsync(Read<Guid>(golden, "SiblingId"), null, Read<AiConfiguration>(golden, "Configuration"));
-        Assert.Equal(4, work.ContextPlan!.FormatVersion);
+        Assert.Equal(5, work.ContextPlan!.FormatVersion);
         var oldKeys = Read<ContextChunk[]>(golden, "Chunks").Select(c => c.CacheKey).ToHashSet();
         foreach (var chunk in Chunks(work.ContextPlan))
         {
@@ -157,7 +157,7 @@ public sealed class ContextBudgetVersionTests
     }
 
     [Theory]
-    [InlineData(2)] [InlineData(3)]
+    [InlineData(2)] [InlineData(3)] [InlineData(4)]
     public async Task Legacy_source_cache_remains_independently_readable_after_original_requester_deletion(int version)
     {
         using var dir = new TestDirectory(); var paths = CopyGolden(dir, version); var golden = Golden(version);

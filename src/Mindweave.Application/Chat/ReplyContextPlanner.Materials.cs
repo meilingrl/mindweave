@@ -9,14 +9,20 @@ public static partial class ReplyContextPlanner
 {
     private static void ValidateFormatVersion(int formatVersion)
     {
-        if (formatVersion is not (LegacyFormatVersion or ExpandedBudgetFormatVersion or FormatVersion))
+        if (formatVersion is not (LegacyFormatVersion or ExpandedBudgetFormatVersion or CompactPromptFormatVersion or FormatVersion))
             throw new InvalidOperationException("上下文计划格式版本不受支持。");
+    }
+
+    private static void ValidateFormatConfiguration(int formatVersion, AiConfiguration configuration)
+    {
+        if (formatVersion != FormatVersion && configuration.SummaryThinking != SummaryThinkingMode.ServiceDefault)
+            throw new InvalidOperationException("旧版上下文计划不支持仅摘要思考策略。");
     }
 
     private static (string Version, string Instruction) SummaryPrompt(int formatVersion) => formatVersion switch
     {
         LegacyFormatVersion or ExpandedBudgetFormatVersion => (ContextSummaryProtocol.PromptVersion, ContextSummaryProtocol.Instruction),
-        FormatVersion => (ContextSummaryProtocol.CompactPromptVersion, ContextSummaryProtocol.CompactInstruction),
+        CompactPromptFormatVersion or FormatVersion => (ContextSummaryProtocol.CompactPromptVersion, ContextSummaryProtocol.CompactInstruction),
         _ => throw new InvalidOperationException("上下文计划格式版本不受支持。")
     };
 
@@ -25,6 +31,7 @@ public static partial class ReplyContextPlanner
 
     private static bool MatchesChunk(ContextChunk chunk, IReadOnlyDictionary<Guid, ChatMessage> originals,
         AiConfiguration configuration, int formatVersion) =>
+        (formatVersion == FormatVersion || configuration.SummaryThinking == SummaryThinkingMode.ServiceDefault) &&
         chunk.MaxOutputTokens == SummaryOutputTokens(configuration, formatVersion) &&
         chunk.CacheKey == CacheKey(chunk.SourceConversationId, chunk.Slices, originals, configuration, formatVersion);
 
@@ -51,7 +58,7 @@ public static partial class ReplyContextPlanner
                     Status = originals[s.MessageId].Status.ToString(), originals[s.MessageId].ReplyToUserId,
                     Body = originals[s.MessageId].Body.Substring(s.Start, s.Length)
                 }) }))
-            });
+            }, formatVersion == FormatVersion ? ChatRequestPurpose.ContextSummary : ChatRequestPurpose.Standard);
 
     private static ContextChunk[] SplitMessages(IReadOnlyList<ChatMessage> messages, AiConfiguration configuration, int formatVersion)
     {
@@ -166,6 +173,7 @@ public static partial class ReplyContextPlanner
     private static void ValidatePlan(ReplyContextPlan plan, IReadOnlyList<ChatMessage> originals, AiConfiguration configuration)
     {
         ValidateFormatVersion(plan.FormatVersion);
+        ValidateFormatConfiguration(plan.FormatVersion, configuration);
         if (plan.EstimatorProfile != ChatRequestBudget.EstimatorProfile ||
             !plan.OriginalMessageIds.SequenceEqual(originals.Select(m => m.Id)))
             throw new InvalidOperationException("上下文计划版本或原消息顺序已失效。");

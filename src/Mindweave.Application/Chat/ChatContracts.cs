@@ -1,3 +1,4 @@
+using System.Text.Json.Serialization;
 using Mindweave.Core.Chat;
 
 namespace Mindweave.Application.Chat;
@@ -29,7 +30,9 @@ public interface ICredentialVault
     Task DeleteAsync(string reference);
 }
 public sealed record ChatInput(string Role, string Content);
-public sealed record ChatRequest(AiConfiguration Configuration, IReadOnlyList<ChatInput> Messages);
+public enum ChatRequestPurpose { Standard = 0, ContextSummary = 1 }
+public sealed record ChatRequest(AiConfiguration Configuration, IReadOnlyList<ChatInput> Messages,
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)] ChatRequestPurpose Purpose = ChatRequestPurpose.Standard);
 public sealed record ChatStreamEvent(string? Text = null, string? FinishReason = null, string? ActualModelId = null);
 public interface IChatTransport
 {

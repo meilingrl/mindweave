@@ -1,5 +1,6 @@
 using System.Text.Json;
 using Mindweave.Core.Chat;
+using Mindweave.Application.Chat;
 
 namespace Mindweave.Infrastructure.Storage;
 
@@ -8,7 +9,9 @@ public sealed partial class SqliteWorkspaceStore
     public Task<AiConfiguration?> LoadActiveConfigurationAsync() => ReadAsync(connection =>
     {
         using var command = ChatCommand(connection, null, "SELECT configuration_json FROM active_ai_configuration WHERE singleton=1");
-        return command.ExecuteScalar() is string json ? JsonSerializer.Deserialize<AiConfiguration>(json) : null;
+        var configuration = command.ExecuteScalar() is string json ? JsonSerializer.Deserialize<AiConfiguration>(json) : null;
+        if (configuration is not null) SummaryThinkingPolicy.ValidateConfiguration(configuration);
+        return configuration;
     });
 
     public Task SaveConfigurationAsync(AiConfiguration configuration)
@@ -27,7 +30,7 @@ public sealed partial class SqliteWorkspaceStore
 
     private static void ValidateConfiguration(AiConfiguration configuration)
     {
-        ArgumentNullException.ThrowIfNull(configuration);
+        SummaryThinkingPolicy.ValidateConfiguration(configuration);
         if (configuration.ConnectionId == Guid.Empty || configuration.ModelConfigId == Guid.Empty ||
             string.IsNullOrWhiteSpace(configuration.Name) || string.IsNullOrWhiteSpace(configuration.CredentialReference) ||
             string.IsNullOrWhiteSpace(configuration.ModelId) || configuration.ContextTokenBudget < 1 ||

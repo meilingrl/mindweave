@@ -339,6 +339,52 @@ public sealed class ContextCoordinatorTests
         Assert.Equal(GenerationPhase.Reply, f.Snapshot(id).Phase);
     }
 
+    [Theory]
+    [InlineData(0, 1)] [InlineData(1, 0)]
+    public async Task Summary_policy_is_frozen_for_all_accepted_phases_and_only_next_task_changes(int initial, int next)
+    {
+        await using var f = await Fixture.OpenAsync(); var c = await LongConversation(f);
+        var accepted = ContextThinkingTests.Property(f.Configuration with { BaseUrl = "https://api.deepseek.com/v1", ContextTokenBudget = 7000 }, "SummaryThinking", initial);
+        await f.Chat.SaveConfigurationAsync(accepted);
+        var id = await f.Coordinator.SendAsync(c.Id, "current");
+        var call = await f.Transport.NextAsync(); Assert.True(IsSummary(call));
+        var changed = ContextThinkingTests.Property(accepted with { ModelId = "new-model", CredentialReference = "v2" }, "SummaryThinking", next);
+        await f.Chat.SaveConfigurationAsync(changed);
+        while (IsSummary(call))
+        {
+            Assert.Equal(1, ContextThinkingTests.Number(call.Request, "Purpose"));
+            Assert.Equal(initial, ContextThinkingTests.Number(call.Request.Configuration, "SummaryThinking"));
+            Assert.Equal(accepted, call.Request.Configuration); Assert.Equal("old-secret", call.Secret);
+            Complete(call, Summary); call = await f.Transport.NextAsync();
+        }
+        Assert.Equal(0, ContextThinkingTests.Number(call.Request, "Purpose")); Assert.Equal(accepted, call.Request.Configuration);
+        Complete(call, "answer");
+        await f.WaitAsync(() => f.Snapshot(id).Status == GenerationStatus.Completed && !f.Snapshot(id).HasUnsavedChanges);
+        var nextId = await f.Coordinator.SendAsync(c.Id, "next");
+        call = await f.Transport.NextAsync();
+        Assert.Equal(next, ContextThinkingTests.Number(call.Request.Configuration, "SummaryThinking"));
+        Assert.Equal("new-model", call.Request.Configuration.ModelId); Assert.Equal("new-secret", call.Secret);
+        await f.Coordinator.StopAsync(c.Id);
+        Assert.Equal(GenerationStatus.Stopped, f.Snapshot(nextId).Status);
+    }
+
+    [Fact]
+    public async Task Disabled_policy_keeps_actual_reply_and_auto_title_standard()
+    {
+        await using var f = await Fixture.OpenAsync(); var c = await f.ConversationAsync();
+        var config = ContextThinkingTests.Property(f.Configuration with { BaseUrl = "https://api.deepseek.com" }, "SummaryThinking", 1);
+        await f.Chat.SaveConfigurationAsync(config);
+        var id = await f.Coordinator.SendAsync(c.Id, "short"); var reply = await f.Transport.NextAsync();
+        Assert.Equal(0, ContextThinkingTests.Number(reply.Request, "Purpose"));
+        Assert.Equal(1, ContextThinkingTests.Number(reply.Request.Configuration, "SummaryThinking"));
+        Complete(reply, "answer"); var title = await f.Transport.NextAsync();
+        Assert.Contains("Generate a concise conversation title", title.Request.Messages[0].Content);
+        Assert.Equal(0, ContextThinkingTests.Number(title.Request, "Purpose"));
+        Assert.Equal(1, ContextThinkingTests.Number(title.Request.Configuration, "SummaryThinking"));
+        Complete(title, "a title");
+        await f.WaitAsync(() => f.Snapshot(id).Status == GenerationStatus.Completed && !f.Snapshot(id).HasUnsavedChanges);
+    }
+
     [Fact]
     public async Task Shutdown_waits_for_old_phase_tail_after_its_slot_is_released()
     {

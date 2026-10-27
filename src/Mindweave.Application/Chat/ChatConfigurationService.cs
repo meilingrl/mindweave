@@ -6,6 +6,7 @@ public sealed class ChatConfigurationService(IChatStore store, ICredentialVault 
 {
     public async Task SaveAsync(AiConfiguration configuration, string? replacementSecret)
     {
+        SummaryThinkingPolicy.ValidateConfiguration(configuration);
         string? created = null;
         if (replacementSecret is not null)
         {
@@ -29,6 +30,7 @@ public sealed class ChatConfigurationService(IChatStore store, ICredentialVault 
 
     public async Task<IReadOnlyList<string>> DiscoverModelsAsync(AiConfiguration configuration, string? unsavedSecret, CancellationToken cancellationToken)
     {
+        SummaryThinkingPolicy.ValidateConfiguration(configuration);
         var secret = unsavedSecret ?? await vault.ReadAsync(configuration.CredentialReference).ConfigureAwait(false);
         return await transport.ListModelsAsync(configuration, secret, cancellationToken).ConfigureAwait(false);
     }
