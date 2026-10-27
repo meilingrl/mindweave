@@ -49,3 +49,32 @@ None.
 **Task quality: Approved, with 1 nonblocking Minor.**
 
 The shared scheduler preserves physical occupancy through live enumeration/disposal while keeping logical priority across preparation and persistence gaps. Existing Chat/desktop integration maintains retained-tail shutdown, source-owned failure repair and dependency lifetime; the sole finding is a racy counter in one new test, independently covered by the stronger atomic-counter test.
+
+
+## 后续并发测试修正 · 1a7b5bc
+
+原初审M1保留以上历史。Task5修复后完整回归另暴露同一测试把两槽并发回调执行顺序当作派发顺序的问题；仅改测试，两个问题均已关闭。最终源1a7b5bc完整560通过／2原有跳过、build零警告错误。限定复审原文：
+
+# Task 4 supplemental fixture review
+
+## Scope and verdict
+
+**Approved for this test-only supplement. Addressed: 2; open: 0; new: 0 (0 Critical / 0 Important / 0 Minor).**
+
+Fixed range: `622de681bdfae5a27f6d1116b364d1c02c5c1918..1a7b5bcdff21736199523dca7723219d8ce50524`. Read the complete immutable `review-622de68..1a7b5bc.diff` once (5,858 bytes): one file, `tests/Mindweave.Tests/AiRequestSchedulerTests.cs`, 43 insertions / 11 deletions. Also read the final supplemental section of `task-4-report.md`, original `task-4-review.md` M1, and the relevant failure excerpt in `task-5-fix1-release.log`. No unchanged scheduler source was needed.
+
+## Finding disposition
+
+1. **Original Task 4 M1 — ADDRESSED.** Every physical callback now increments the shared count through `Interlocked.Increment` and updates the peak through a `Volatile.Read` / `Interlocked.CompareExchange` maximum. A delayed lower value cannot overwrite a higher peak. The final assertion still requires exactly two, now read through `Volatile.Read`; both Summary blockers, Reply and both Titles use this same instrumentation. The callback decrement is protected by `finally`.
+
+2. **Observed callback-order fixture failure — ADDRESSED.** The retained RED log reports 559 passed / 1 failed / 2 skipped and the old first-label assertion expected `reply` but observed `title1`. Releasing both Summary callbacks allowed two independent grants, so callback execution order was not a reliable witness for grant priority. The new fixture releases only A and keeps B physically occupied. Reply remains held until its start is observed, the order contains only `reply`, both Titles are unfinished, B is unfinished, and `ActivePhaseCount` is exactly two. Thus only one free slot participates in the ordering observation. After Reply completes and its logical demand is disposed, Title1 and Title2 use that same sole free slot sequentially; the exact asserted sequence `reply`, `title1`, `title2` checks both Reply overtaking the earlier queued background work and FIFO within the background class. This removes the invalid observation without serializing production callbacks or adding timing delays.
+
+## Assertion strength and cleanup
+
+The original Reply-first and peak-two assertions are retained and strengthened by exact full-order, blocked-Title, retained-B and active-phase assertions. Measuring all five callbacks also extends the peak check beyond the original pair of blockers. The guarded body releases/drains all created tasks in `finally`: it disposes A/B/Reply demand, opens every latch with `TrySetResult`, waits for both blockers, Reply and both Titles, and tolerates cancellation caused by cleanup of queued demand. Title handles remain covered by their existing `using` lifetime. No new sleeps, stress loops, API, product implementation, scheduler behavior, or weakened assertions are present in the package.
+
+## Evidence boundary
+
+No tests or build were rerun by this reviewer. The controller has fully read the exact final-source raw logs: `task-4-supplemental-fixture-focused.log` — **38 passed / 0 failed**; `task-4-supplemental-fixture-release.log` — **560 passed / 2 original explicit platform/native-vault skips / 0 failed**; `task-4-supplemental-fixture-build.log` — **0 warnings / 0 errors**. These are controller-verified results, not reviewer-executed validation; skipped vault cases are not passes.
+
+This report is the sole requested write. Existing controller edits to `TRACK.md` and `docs/implementation/s4-verification.md` were preserved. No source, Git/index, native app, real database, credential vault, network/supplier operation or subagent was used. Approval is limited to the two fixture corrections and does not establish S4, native, provider, Windows, course or release acceptance. The original Task 4 review history remains unchanged.

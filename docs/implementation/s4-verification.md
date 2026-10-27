@@ -1,6 +1,6 @@
 # S4 知识总结与版本管理 · 验证记录
 
-开始日期2026-10-27，`track/codex-steady`，工作目录`/Users/meilingluo/Developer/Projects/mindweave.worktrees/codex-steady`。Task1纯合同／协议／规则已完成，Task2生成存储与迁移已过审，Task3编辑／阅读／版本事务已过审，Task4共享调度已过审，Task5知识总结协调器准备中，**S4尚未整体实现或验收**；[实施计划](s4-summary-plan.md)，实时状态见[TRACK](../../TRACK.md)。
+开始日期2026-10-27，`track/codex-steady`，工作目录`/Users/meilingluo/Developer/Projects/mindweave.worktrees/codex-steady`。Task1纯合同／协议／规则已完成，Task2生成存储与迁移已过审，Task3编辑／阅读／版本事务已过审，Task4共享调度已过审，Task5知识总结协调器及退出修复已过审，准备Task6同名组命名，**S4尚未整体实现或验收**；[实施计划](s4-summary-plan.md)，实时状态见[TRACK](../../TRACK.md)。
 
 ## 已核实基线
 
@@ -16,13 +16,14 @@
 | 领域／输入协议／阅读版本规则 | Task1初版10505e6、修复a436efe；最终445通过／2原有跳过，build零警告错误；[独立审查及I1限定复审](../reviews/codex-s4-domain-20261027.md)全部关闭，纯合同已批准 |
 | schema6与生成事务 | Task2 `58c4cb9`，43聚焦／488完整通过、2原有跳过、build零警告错误；[独立审查](../reviews/codex-s4-storage-20261027.md)Approved 0C／0I／0M |
 | 编辑／阅读／版本事务 | Task3 `bd037ec`，34聚焦／522完整通过、2原有跳过、build零警告错误；[独立审查](../reviews/codex-s4-versions-20261027.md)Approved 0C／0I／0M；仅存储边界 |
-| 共享AI调度与生命周期 | Task4 `c5c3692`，68聚焦／538完整通过、2原有跳过、build零警告错误；[独立审查](../reviews/codex-s4-runtime-20261027.md)Approved 0C／0I／1M；测试峰值计数竞争留整阶段处理 |
-| 知识总结及二次命名 | Task5准备中，Task6未开始 |
+| 共享AI调度与生命周期 | Task4 `c5c3692`及测试修正`1a7b5bc`；[独立审查及限定复审](../reviews/codex-s4-runtime-20261027.md)已关闭原M1与后续回调观察竞争 |
+| 知识总结生成 | Task5初版 `b530d22`、退出修复`622de68`；22聚焦通过，[初审与I1限定复审](../reviews/codex-s4-summary-20261027.md)全部关闭；包含测试修正的最终源`1a7b5bc`完整560通过／2原有跳过、build零警告错误 |
+| 同名组二次命名 | Task6准备中 |
 | 桌面列表／详情／版本操作 | Task7／8未开始 |
 | macOS原生／真实服务 | 尚未开始，S4费用尚未授权 |
 | Windows11／课程／价值验证 | 尚未验收；当前暂无Windows设备 |
 
-知识总结v1按完整冻结来源发送并接受前校验完整预算，超限明确拒绝；上下文自动压缩仍只用于续聊。首次成功未读保存，更新为候选，阅读、采用、编辑、命名各自独立。新表追加schema6，旧1–5 SQL、S3输入格式2–6与旧hash保持；领域与存储约束已有自动化／审查证据，总结／命名生产参与者与桌面行为仍待验证。
+知识总结v1按完整冻结来源发送并接受前校验完整预算，超限明确拒绝；上下文自动压缩仍只用于续聊。首次成功未读保存，更新为候选，阅读、采用、编辑、命名各自独立。新表追加schema6，旧1–5 SQL、S3输入格式2–6与旧hash保持；领域与存储约束已有自动化／审查证据，命名生产参与者与桌面行为仍待验证。
 
 后续自动化仅合成临时库与受控transport；旧真实数据迁移只读源副本验证，原文件SHA保持。原生不可恢复删除的具体确认框就绪后请求当次确认；真实服务先备好虚构材料／模型／费用上限，密钥仅本机。
 

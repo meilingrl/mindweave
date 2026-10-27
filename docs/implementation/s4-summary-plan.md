@@ -103,20 +103,20 @@ Task1定义Core/Summaries不可变节点／版本／覆盖／任务／草稿／�
 
 **Interfaces:** 消费1／2／3／4；应用持有独立总结参与者，暴露接受／停止／snapshot／Changed及失败修复，节点完成后发已提交事件给6／7。
 
-- [ ] RED用受控transport与真实store覆盖首次／候选、排队时改活配置、后续聊天不扩范围、跨页不中断、同会话互斥、响应完整但提交失败／丢失响应、冻结范围恢复、取消和退出。
-- [ ] 知识结果只在内存累积，完整stop＋正常枚举／Dispose＋严格解析后一次原子Complete。截断、空、非法、stop后throw／Dispose失败、取消／中断均0新版本； metadata检查点不含部分标题正文。
-- [ ] 接受与Reply共享门禁并flush终态后读；store再次检查。后续Reply优先且不影响本任务输入；凭据、地址、参数来自冻结配置，KnowledgeSummary保持Standard／服务默认思考。
-- [ ] 完成保存失败保留完整内存与提交身份、全局暂停，显式修复只重试落盘／读回，无AI重发；恢复仅Interrupted。snapshot／HasActive包含未结束尾；Root成功退出才释放store，错误可返回阅读／复制。
-- [ ] 聚焦GREEN筛选`FullyQualifiedName~KnowledgeSummaryCoordinatorTests`，完整Release／build、自审提交、独立审查。不得原生／真实外呼。
+- [x] RED用受控transport与真实store覆盖首次／候选、排队时改活配置、后续聊天不扩范围、跨页不中断、同会话互斥、响应完整但提交失败／丢失响应、冻结范围恢复、取消和退出。
+- [x] 知识结果只在内存累积，完整stop＋正常枚举／Dispose＋严格解析后一次原子Complete。截断、空、非法、stop后throw／Dispose失败、取消／中断均0新版本； metadata检查点不含部分标题正文。
+- [x] 接受与Reply共享门禁并flush终态后读；store再次检查。后续Reply优先且不影响本任务输入；凭据、地址、参数来自冻结配置，KnowledgeSummary保持Standard／服务默认思考。
+- [x] 完成保存失败保留完整内存与提交身份、全局暂停，显式修复只重试落盘／读回，无AI重发；恢复仅Interrupted。snapshot／HasActive包含未结束尾；Root成功退出才释放store，错误可返回阅读／复制。
+- [x] 聚焦GREEN筛选`FullyQualifiedName~KnowledgeSummaryCoordinatorTests`，完整Release／build、自审提交、独立审查。不得原生／真实外呼。
 
 ## Task 6: 两层节点命名与过期结果保护
 
-**Files:** `Application/Summaries/{NodeNamingProtocol,GroupNamingCoordinator}.cs`、`SqliteWorkspaceStore.SummaryNaming*.cs`；必要装配；`tests/Mindweave.Tests/{SummaryNamingStorageTests,GroupNamingCoordinatorTests}.cs`。
+**Files:** `Application/Summaries/{NodeNamingProtocol,GroupNamingCoordinator}.cs`、`SqliteWorkspaceStore.SummaryNaming*.cs`；必要装配及`SummaryVersions`当前切换的自动区分名保留；`tests/Mindweave.Tests/{SummaryNamingStorageTests,GroupNamingCoordinatorTests}.cs`。
 
 **Interfaces:** 消费1–5；实现`INodeNamingStore`，监听已提交current变更，后台低优先级工作不阻止总结阅读。
 
 - [ ] RED覆盖规范化同名整组、首次基础名、采用／恢复／手改名、保留仍有效区分词、无法区分允许同名、迟到结果／删除／组成员／当前版本／手改标志变化、低优先级／合并去重。
-- [ ] 同工作区基础标题组生成有依据的“话题－区分词”，手动显示名保护；版本原始标题／正文／阅读／位置不变。已有自动区分词在current变更后需要检查，删除同名伙伴不强制缩名。无语义同义词归并／跨主题。
+- [ ] 同工作区基础标题组生成有依据的“话题－区分词”，手动显示名保护；版本原始标题／正文／阅读／位置不变。current变动保留已有自动区分名待重新检查，仅原基础显示随新标题更新；手改不动，删除同名伙伴不强制缩名。无语义同义词归并／跨主题。
 - [ ] 精确冻结成员／版本／nameRevision／manual／组epoch，输出仅允许成员集合的有界名字；结果全组CAS，不部分更新、不upsert复活。任务不留总结正文输出副本；实际读取材料与hash可核对，来源已失效则过期拒绝。
 - [ ] 每组一个active＋最多一个最新待处理意图；失败不自动重试，变更连发最多一次有界跟进，rename-only不再触发自身。重启不自动外呼；所有请求进入共享两槽及gate，命名使用Standard／服务默认。
 - [ ] 聚焦GREEN筛选`FullyQualifiedName~SummaryNamingStorageTests|FullyQualifiedName~GroupNamingCoordinatorTests`，完整Release／build、自审提交和独立审查。
