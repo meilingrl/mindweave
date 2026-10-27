@@ -178,10 +178,20 @@ public sealed partial class MainViewModel : ViewModelBase
     }
     public async Task SaveDraftForCloseAsync()
     {
-        try { await FlushAllDraftsAsync(); if (pendingSelection is not null) { await store.SaveSelectionAsync(pendingSelection); pendingSelection = null; } }
+        async Task SaveAsync()
+        {
+            await FlushAllDraftsAsync();
+            if (pendingSelection is not null) { await store.SaveSelectionAsync(pendingSelection); pendingSelection = null; }
+        }
+        try
+        {
+            if (coordinator is not null) await coordinator.RepairExternalPersistenceAsync(SaveAsync);
+            else await SaveAsync();
+            localPersistenceFailure = false;
+        }
         catch { MarkPersistenceFailure(); throw; }
     }
-    public void ReturnToWorkbench() { closing = false; coordinator?.ResumeAccepting(); NotifyAvailability(); }
+    public void ReturnToWorkbench() { closing = false; coordinator?.Runtime.ResumeAccepting(); NotifyAvailability(); }
     public async Task RetryPersistenceAsync()
     {
         await changes.WaitAsync(); IsBusy = true;

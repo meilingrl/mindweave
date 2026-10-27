@@ -4,6 +4,7 @@ namespace Mindweave.Application.Chat;
 
 public sealed partial class GenerationCoordinator
 {
+    private bool acceptingTitles;
     private const string TitleInstruction = "Generate a concise conversation title, at most 40 characters. Return only the title, without quotes or commentary.";
 
     private void Dispatch()
@@ -11,25 +12,24 @@ public sealed partial class GenerationCoordinator
         lock (sync)
         {
             if (!initialized || !accepting || PersistencePaused || disposed) return;
+            if (pendingTitles.Count > 0 && !acceptingTitles)
+            {
+                acceptingTitles = true;
+                TrackExecution(async () =>
+                {
+                    try { await AcceptTitlesAsync().ConfigureAwait(false); }
+                    finally { lock (sync) acceptingTitles = false; Notify(); }
+                });
+            }
             // Preparation and durable writes do not reserve physical network capacity.
             foreach (var pending in jobs.Where(j => Active(j.Status) && !j.Busy && !j.StreamEnded && j.Request is null).ToArray())
             {
                 pending.Busy = true;
                 TrackExecution(() => PreparePhaseAsync(pending));
             }
-            while (slots < 2)
+            foreach (var job in jobs.Where(j => Active(j.Status) && !j.Busy && !j.StreamEnded && j.Request is not null).ToArray())
             {
-                var job = jobs.Where(j => Active(j.Status) && !j.Busy && !j.StreamEnded && j.Request is not null)
-                    .OrderBy(j => j.Work.Task.Kind == GenerationKind.Reply ? 0 : 1).FirstOrDefault();
-                if (job is null) break;
-                // A title must not overtake a user's reply that is still preparing its next phase.
-                if (job.Work.Task.Kind == GenerationKind.Title && jobs.Any(j => j.Work.Task.Kind == GenerationKind.Reply &&
-                    Active(j.Status) && !j.HasSlot)) break;
-                slots++;
-                job.HasSlot = job.Busy = true;
-                job.Status = GenerationStatus.Running;
-                job.Revision = checked(job.Revision + 1);
-                job.Dirty = true;
+                job.Busy = true;
                 TrackExecution(() => ExecuteAsync(job));
             }
         }
@@ -39,49 +39,31 @@ public sealed partial class GenerationCoordinator
     {
         try
         {
+            lock (sync)
+            {
+                if (PersistencePaused || !Active(job.Status)) return;
+                // Durable readiness is recorded without claiming physical capacity or changing the queued UI state.
+                job.Revision = checked(job.Revision + 1); job.Dirty = true;
+            }
             await FlushAsync(throwOnFailure: false).ConfigureAwait(false);
             lock (sync) if (PersistencePaused || !Active(job.Status)) return;
             string secret;
             try { secret = await vault.ReadAsync(job.Work.Task.Configuration.CredentialReference).ConfigureAwait(false); }
             catch { Fail(job, "CredentialUnavailable"); return; }
             lock (sync) if (PersistencePaused || !Active(job.Status)) return;
-            var request = job.Request!;
-            if (job.Phase == GenerationPhase.Compressing)
+            await job.Demand!.RunPhaseAsync(async () =>
             {
-                await ExecuteCompressionAsync(job, request, secret).ConfigureAwait(false);
-                return;
-            }
-            string? finish = null;
-            // The slot remains held through enumeration and DisposeAsync, including cancellation-ignoring adapters.
-            await foreach (var item in transport.StreamAsync(request, secret, job.Cancellation.Token).ConfigureAwait(false))
-            {
-                bool checkpoint;
                 lock (sync)
                 {
-                    if (!Active(job.Status)) continue;
-                    if (item.Text is not null) job.Body.Append(item.Text);
-                    if (item.FinishReason is not null) finish = item.FinishReason;
-                    if (item.ActualModelId is { } model && !string.IsNullOrWhiteSpace(model) && model.Length <= 256 && !model.Any(char.IsControl))
-                        job.ActualModel = model;
-                    job.Revision = checked(job.Revision + 1);
-                    job.Dirty = true;
-                    checkpoint = job.Body.Length - job.PersistedLength >= 4096;
+                    if (PersistencePaused || !Active(job.Status)) return;
+                    job.HasSlot = true;
+                    job.Status = GenerationStatus.Running;
+                    job.Revision = checked(job.Revision + 1); job.Dirty = true;
                 }
                 Notify();
-                // A growth checkpoint is scheduled independently; stream consumption never waits for disk.
-                if (checkpoint) RequestCheckpoint();
-            }
-            lock (sync)
-            {
-                if (Active(job.Status))
-                {
-                    if (finish != "stop") Terminate(job, GenerationStatus.Failed, finish is null ? "IncompleteResponse" : "UnsupportedFinish");
-                    else if (string.IsNullOrWhiteSpace(job.Body.ToString())) Terminate(job, GenerationStatus.Failed, "EmptyResponse");
-                    else if (job.Work.Task.Kind == GenerationKind.Title && job.Body.ToString().Trim().Length > 160)
-                        Terminate(job, GenerationStatus.Failed, "InvalidTitle");
-                    else Terminate(job, GenerationStatus.Completed, null);
-                }
-            }
+                lock (sync) if (PersistencePaused || !Active(job.Status)) return;
+                await ExecutePhysicalAsync(job, job.Request!, secret).ConfigureAwait(false);
+            }, job.Cancellation.Token).ConfigureAwait(false);
         }
         catch (ChatTransportException error) { Fail(job, SafeCode(error.ErrorCode)); }
         catch (OperationCanceledException) { Fail(job, "Cancelled"); }
@@ -90,15 +72,10 @@ public sealed partial class GenerationCoordinator
         {
             lock (sync)
             {
-                // A pre-dispatch save failure leaves this job resumable, with no physical request ever started.
-                if (!Active(job.Status)) job.StreamEnded = true;
-                job.HasSlot = false;
-                job.Request = null;
-                slots--;
+                if (!Active(job.Status)) { job.StreamEnded = true; job.Demand?.Dispose(); }
+                job.HasSlot = false; job.Request = null;
             }
-            Notify();
-            // Physical network slot is now free. Reply dispatch can proceed before low-priority title acceptance.
-            Dispatch();
+            Notify(); Dispatch();
             try
             {
                 await FlushAsync(throwOnFailure: false).ConfigureAwait(false);
@@ -108,6 +85,46 @@ public sealed partial class GenerationCoordinator
             {
                 lock (sync) job.Busy = false;
                 Dispatch(); Notify();
+            }
+        }
+    }
+
+    private async Task ExecutePhysicalAsync(Job job, ChatRequest request, string secret)
+    {
+        if (job.Phase == GenerationPhase.Compressing)
+        {
+            await ExecuteCompressionAsync(job, request, secret).ConfigureAwait(false);
+            return;
+        }
+        string? finish = null;
+        // The slot remains held through enumeration and DisposeAsync, including cancellation-ignoring adapters.
+        await foreach (var item in transport.StreamAsync(request, secret, job.Cancellation.Token).ConfigureAwait(false))
+        {
+            bool checkpoint;
+            lock (sync)
+            {
+                if (!Active(job.Status)) continue;
+                if (item.Text is not null) job.Body.Append(item.Text);
+                if (item.FinishReason is not null) finish = item.FinishReason;
+                if (item.ActualModelId is { } model && !string.IsNullOrWhiteSpace(model) && model.Length <= 256 && !model.Any(char.IsControl))
+                    job.ActualModel = model;
+                job.Revision = checked(job.Revision + 1);
+                job.Dirty = true;
+                checkpoint = job.Body.Length - job.PersistedLength >= 4096;
+            }
+            Notify();
+            // A growth checkpoint is scheduled independently; stream consumption never waits for disk.
+            if (checkpoint) RequestCheckpoint();
+        }
+        lock (sync)
+        {
+            if (Active(job.Status))
+            {
+                if (finish != "stop") Terminate(job, GenerationStatus.Failed, finish is null ? "IncompleteResponse" : "UnsupportedFinish");
+                else if (string.IsNullOrWhiteSpace(job.Body.ToString())) Terminate(job, GenerationStatus.Failed, "EmptyResponse");
+                else if (job.Work.Task.Kind == GenerationKind.Title && job.Body.ToString().Trim().Length > 160)
+                    Terminate(job, GenerationStatus.Failed, "InvalidTitle");
+                else Terminate(job, GenerationStatus.Completed, null);
             }
         }
     }
@@ -167,7 +184,7 @@ public sealed partial class GenerationCoordinator
                     lock (sync)
                     {
                         pendingTitles.Remove(candidate);
-                        if (work is not null) jobs.Add(new(work));
+                        if (work is not null) jobs.Add(CreateJob(work));
                     }
                 }
                 catch { MarkPersistenceFailure(); return; }

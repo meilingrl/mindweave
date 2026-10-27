@@ -91,7 +91,7 @@ public sealed partial class GenerationCoordinator
         finally
         {
             await FlushAsync(throwOnFailure: false).ConfigureAwait(false);
-            lock (sync) job.Busy = false;
+            lock (sync) { job.Busy = false; if (!Active(job.Status)) job.Demand?.Dispose(); }
             Dispatch(); Notify();
         }
     }

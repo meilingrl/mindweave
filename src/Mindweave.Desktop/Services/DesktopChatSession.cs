@@ -1,3 +1,4 @@
+using Mindweave.Application.Generation;
 using Mindweave.Application.Chat;
 using Mindweave.Infrastructure.AI;
 using Mindweave.Infrastructure.Credentials;
@@ -7,11 +8,12 @@ namespace Mindweave.Desktop.Services;
 public sealed class DesktopChatSession : IAsyncDisposable
 {
     private readonly IDisposable? ownedTransport;
+    public AppGenerationRuntime Runtime { get; } = new();
     public GenerationCoordinator Coordinator { get; }
     public ChatConfigurationService Configuration { get; }
     public DesktopChatSession(IChatStore store, IChatTransport transport, ICredentialVault vault, IDisposable? ownedTransport = null)
     {
-        Coordinator = new(store, transport, vault);
+        Coordinator = new(store, transport, vault, Runtime);
         Configuration = new(store, vault, transport);
         this.ownedTransport = ownedTransport;
     }
@@ -20,5 +22,11 @@ public sealed class DesktopChatSession : IAsyncDisposable
         var client = ChatCompletionsTransport.CreateHttpClient();
         return new(store, new ChatCompletionsTransport(client), new SystemCredentialVault(credentialNamespace), client);
     }
-    public async ValueTask DisposeAsync() { await Coordinator.DisposeAsync(); ownedTransport?.Dispose(); }
+    public async ValueTask DisposeAsync()
+    {
+        await Runtime.ShutdownAsync();
+        await Coordinator.DisposeAsync();
+        await Runtime.DisposeAsync();
+        ownedTransport?.Dispose();
+    }
 }

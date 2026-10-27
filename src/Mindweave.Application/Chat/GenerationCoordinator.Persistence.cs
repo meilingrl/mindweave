@@ -32,6 +32,7 @@ public sealed partial class GenerationCoordinator
     private async Task FlushAsync(bool throwOnFailure, bool explicitRetry = false)
     {
         await persistence.WaitAsync().ConfigureAwait(false);
+        var repairEpoch = localFailure.Epoch;
         try
         {
             lock (sync)
@@ -101,7 +102,11 @@ public sealed partial class GenerationCoordinator
                     }
                 }
             }
-            if (explicitRetry) lock (sync) persistenceFailure = false;
+            if (explicitRetry)
+            {
+                localFailure.TryClear(repairEpoch);
+                lock (sync) persistenceFailure = localFailure.HasFailure;
+            }
         }
         catch
         {

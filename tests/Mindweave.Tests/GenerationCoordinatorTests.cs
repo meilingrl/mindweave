@@ -502,20 +502,20 @@ public sealed class GenerationCoordinatorTests
         public MemoryVault Vault { get; } = new();
         public GenerationCoordinator Coordinator { get; }
         public AiConfiguration Configuration { get; } = new(Guid.NewGuid(), Guid.NewGuid(), "test", "https://example.invalid/v1", "v1", "model-a", 32768, 2048);
-        private Fixture(TestDirectory directory, AppPaths paths, SqliteWorkspaceStore store, bool ignoreCancellation, Func<SqliteWorkspaceStore, IChatStore>? wrapStore)
+        private Fixture(TestDirectory directory, AppPaths paths, SqliteWorkspaceStore store, bool ignoreCancellation, Func<SqliteWorkspaceStore, IChatStore>? wrapStore, Mindweave.Application.Generation.AppGenerationRuntime? runtime)
         {
             this.directory = directory;
             Paths = paths;
             Store = store;
             Chat = wrapStore?.Invoke(store) ?? store;
             Transport = new(ignoreCancellation);
-            Coordinator = new(Chat, Transport, Vault);
+            Coordinator = new(Chat, Transport, Vault, runtime);
         }
-        public static async Task<Fixture> OpenAsync(bool ignoreCancellation = false, Func<SqliteWorkspaceStore, IChatStore>? wrapStore = null)
+        public static async Task<Fixture> OpenAsync(bool ignoreCancellation = false, Func<SqliteWorkspaceStore, IChatStore>? wrapStore = null, Mindweave.Application.Generation.AppGenerationRuntime? runtime = null)
         {
             var dir = new TestDirectory();
             var paths = AppPaths.ForTrack("codex-steady", dir.Path);
-            var f = new Fixture(dir, paths, await SqliteWorkspaceStore.OpenAsync(paths), ignoreCancellation, wrapStore);
+            var f = new Fixture(dir, paths, await SqliteWorkspaceStore.OpenAsync(paths), ignoreCancellation, wrapStore, runtime);
             await f.Chat.SaveConfigurationAsync(f.Configuration);
             await f.Coordinator.InitializeAsync();
             return f;

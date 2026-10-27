@@ -1,11 +1,15 @@
+using Mindweave.Application.Generation;
 using System.Text;
 using Mindweave.Core.Chat;
 
 namespace Mindweave.Application.Chat;
 
 /// <summary>One application lifetime; page navigation only changes who observes snapshots.</summary>
-public sealed partial class GenerationCoordinator : IAsyncDisposable
+public sealed partial class GenerationCoordinator : IAsyncDisposable, IGenerationRuntimeParticipant
 {
+    public AppGenerationRuntime Runtime { get; }
+    private readonly IDisposable runtimeRegistration;
+    private readonly AppGenerationRuntime.FailureSource localFailure, externalFailure;
     private readonly IChatStore store;
     private readonly IChatTransport transport;
     private readonly ICredentialVault vault;
@@ -18,21 +22,30 @@ public sealed partial class GenerationCoordinator : IAsyncDisposable
     private readonly HashSet<Guid> pendingTitles = [];
     private readonly CancellationTokenSource lifetime = new();
     private Task? checkpoints;
-    private bool initialized, accepting, persistenceFailure, externalPersistenceFailure, disposed;
+    private bool initialized, accepting, persistenceFailure, disposed;
     // Read only while holding sync. External failures pause new work, not healthy checkpoints.
-    private bool PersistencePaused => persistenceFailure || externalPersistenceFailure;
-    private int slots;
+    private bool PersistencePaused => Runtime.IsAdmissionPaused;
 
     public GenerationCoordinator(IChatStore store, IChatTransport transport, ICredentialVault vault)
-    { this.store = store; this.transport = transport; this.vault = vault; }
+        : this(store, transport, vault, null) { }
+    public GenerationCoordinator(IChatStore store, IChatTransport transport, ICredentialVault vault, AppGenerationRuntime? runtime)
+    {
+        this.store = store; this.transport = transport; this.vault = vault;
+        Runtime = runtime ?? new();
+        localFailure = Runtime.CreateFailureSource(); externalFailure = Runtime.CreateFailureSource();
+        runtimeRegistration = Runtime.RegisterParticipant(this);
+        Runtime.Changed += RuntimeChanged;
+    }
+    private void RuntimeChanged() { Dispatch(); Notify(); }
+    public bool HasActiveOrPendingWork { get { lock (sync) return jobs.Any(j => Active(j.Status)) || executions.Any(t => !t.IsCompleted); } }
 
     public event Action? Changed;
     public IReadOnlyList<GenerationSnapshot> Snapshots
     { get { lock (sync) return jobs.Select(Snapshot).ToArray(); } }
     public bool HasActiveWork
-    { get { lock (sync) return slots > 0 || jobs.Any(job => Active(job.Status)); } }
+    { get { lock (sync) return jobs.Any(job => job.HasSlot || Active(job.Status)); } }
     public bool HasPersistenceFailure
-    { get { lock (sync) return PersistencePaused; } }
+    { get { lock (sync) return Runtime.HasPersistenceFailure; } }
 
     public async Task InitializeAsync()
     {
@@ -76,7 +89,7 @@ public sealed partial class GenerationCoordinator : IAsyncDisposable
                 checkpoints = Task.Run(CheckpointLoopAsync);
             }
         }
-        catch { lock (sync) persistenceFailure = true; throw; }
+        catch { MarkPersistenceFailure(); throw; }
         finally { acceptance.Release(); Notify(); }
     }
 
@@ -89,6 +102,8 @@ public sealed partial class GenerationCoordinator : IAsyncDisposable
 
     private async Task<Guid> AcceptAsync(Guid conversationId, string? userText)
     {
+        using var admission = await Runtime.EnterAcceptanceAsync().ConfigureAwait(false);
+        using var demand = Runtime.Scheduler.RegisterLogicalWork(GenerationPriority.Reply);
         await acceptance.WaitAsync().ConfigureAwait(false);
         try
         {
@@ -122,7 +137,7 @@ public sealed partial class GenerationCoordinator : IAsyncDisposable
             }
             catch (Exception error) when (error is not (ArgumentException or InvalidOperationException))
             { MarkPersistenceFailure(); throw; }
-            lock (sync) jobs.Add(new(work));
+            lock (sync) jobs.Add(CreateJob(work));
             return work.Task.Id;
         }
         finally { acceptance.Release(); Dispatch(); Notify(); }
@@ -140,7 +155,7 @@ public sealed partial class GenerationCoordinator : IAsyncDisposable
             foreach (var job in stopped) Terminate(job, GenerationStatus.Stopped, "stopped");
         }
         // Delta gates are already closed before invoking cancellation callbacks or waiting for storage.
-        foreach (var job in stopped) job.Cancellation.Cancel();
+        foreach (var job in stopped) { job.Demand?.Dispose(); job.Cancellation.Cancel(); }
         Notify();
         await FlushAsync(throwOnFailure: true).ConfigureAwait(false);
         Dispatch();
@@ -150,47 +165,36 @@ public sealed partial class GenerationCoordinator : IAsyncDisposable
     /// keep their memory/checkpoints; acceptance, queued dispatch and new titles pause.</summary>
     public void ReportPersistenceFailure()
     {
-        bool changed;
-        lock (sync)
-        {
-            if (disposed || externalPersistenceFailure) return;
-            changed = !persistenceFailure;
-            externalPersistenceFailure = true;
-        }
-        // Repeated reports are idempotent and cannot create a Changed/refresh/report loop.
-        if (changed) Notify();
+        lock (sync) { if (disposed) return; }
+        externalFailure.Report();
     }
 
-    public Task RetryPersistenceAsync() => RetryPersistenceCoreAsync(null);
-
-    /// <summary>Repair all external core state while the gate remains closed, then flush
-    /// coordinator state and release the gate. A failed repair leaves the pause intact.</summary>
-    public Task RetryPersistenceAsync(Func<Task> repairExternalPersistence)
+    public async Task RetryPersistenceAsync()
+    {
+        await Runtime.RetryPersistenceAsync();
+        await AcceptTitlesAsync().ConfigureAwait(false); Dispatch();
+    }
+    public async Task RetryPersistenceAsync(Func<Task> repairExternalPersistence)
     {
         ArgumentNullException.ThrowIfNull(repairExternalPersistence);
-        return RetryPersistenceCoreAsync(repairExternalPersistence);
+        await Runtime.RetryPersistenceAsync(() => RepairExternalPersistenceAsync(repairExternalPersistence));
+        await AcceptTitlesAsync().ConfigureAwait(false); Dispatch();
     }
-
-    private async Task RetryPersistenceCoreAsync(Func<Task>? repairExternalPersistence)
+    public async Task RepairExternalPersistenceAsync(Func<Task> repairExternalPersistence)
     {
-        // The supplied repair may project caller-owned UI state. Preserve its caller
-        // context across contention; only coordinator-only awaits below leave it.
-        await repairs.WaitAsync();
+        ArgumentNullException.ThrowIfNull(repairExternalPersistence);
+            var epoch = externalFailure.Epoch;
+            try { await repairExternalPersistence(); }
+            catch { ReportPersistenceFailure(); throw; }
+            externalFailure.TryClear(epoch);
+    }
+    async Task IGenerationRuntimeParticipant.RepairPersistenceAsync()
+    {
+        await repairs.WaitAsync().ConfigureAwait(false);
         try
         {
-            lock (sync)
-                if (externalPersistenceFailure && repairExternalPersistence is null)
-                    throw new InvalidOperationException("工作台仍有未保存内容，请从工作台重试保存。");
-            if (repairExternalPersistence is not null)
-            {
-                try { await repairExternalPersistence().ConfigureAwait(false); }
-                catch { ReportPersistenceFailure(); throw; }
-            }
             await FlushAsync(throwOnFailure: true, explicitRetry: true).ConfigureAwait(false);
-            lock (sync) externalPersistenceFailure = false;
-            Notify();
-            await AcceptTitlesAsync().ConfigureAwait(false);
-            Dispatch();
+            if (externalFailure.HasFailure) throw new InvalidOperationException("工作台仍有未保存内容，请从工作台重试保存。");
         }
         finally { repairs.Release(); }
     }
@@ -210,7 +214,7 @@ public sealed partial class GenerationCoordinator : IAsyncDisposable
                 foreach (var job in stopped) Terminate(job, GenerationStatus.Stopped, "stopped");
                 executions = this.executions.ToArray();
             }
-            foreach (var job in stopped) job.Cancellation.Cancel();
+            foreach (var job in stopped) { job.Demand?.Dispose(); job.Cancellation.Cancel(); }
             Notify();
         }
         finally { acceptance.Release(); }
@@ -239,7 +243,9 @@ public sealed partial class GenerationCoordinator : IAsyncDisposable
         lifetime.Cancel();
         if (checkpoints is not null) await checkpoints.ConfigureAwait(false);
         if (growthCheckpoint is not null) await growthCheckpoint.ConfigureAwait(false);
-        foreach (var job in jobs) job.Cancellation.Dispose();
+        foreach (var job in jobs) { job.Demand?.Dispose(); job.Cancellation.Dispose(); }
+        Runtime.Changed -= RuntimeChanged;
+        runtimeRegistration.Dispose();
         lifetime.Dispose();
     }
 
@@ -264,7 +270,9 @@ public sealed partial class GenerationCoordinator : IAsyncDisposable
         }
         job.Status = status; job.Error = error; job.Revision = checked(job.Revision + 1); job.Dirty = true;
     }
-    private void MarkPersistenceFailure() { lock (sync) persistenceFailure = true; Notify(); }
+    private void MarkPersistenceFailure() { lock (sync) persistenceFailure = true; localFailure.Report(); }
+    private Job CreateJob(GenerationWork work) => new(work)
+    { Demand = Runtime.Scheduler.RegisterLogicalWork(work.Task.Kind == GenerationKind.Reply ? GenerationPriority.Reply : GenerationPriority.Background) };
     private void Notify()
     {
         // Observers cannot break scheduling/persistence; Desktop marshals this notification onto its dispatcher.
@@ -281,6 +289,7 @@ public sealed partial class GenerationCoordinator : IAsyncDisposable
         public long Revision = work.Task.Revision;
         public string? Error = work.Task.ErrorCode, ActualModel = work.Task.ActualModelId;
         public bool Dirty, HasSlot, StreamEnded, Busy;
+        public AiRequestScheduler.LogicalWork? Demand;
         public int PersistedLength;
         public ChatRequest? Request;
         public ContextCompressionAttempt? Attempt;

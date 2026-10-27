@@ -81,11 +81,11 @@ public sealed partial class RootViewModel : ViewModelBase
         {
             if (IsClosed) return;
             // The prompt occurs before any freeze, draft flush, cancellation or queue mutation.
-            if (!confirmed && (chat?.Coordinator.HasActiveWork == true || main?.HasPendingChatAcceptance == true)) { IsCloseConfirmationVisible = true; return; }
+            if (!confirmed && (chat?.Runtime.HasActiveOrPendingWork == true || main?.HasPendingChatAcceptance == true)) { IsCloseConfirmationVisible = true; return; }
             IsClosing = closing = true; CloseError = null;
             if (main is not null) await main.PrepareCloseAsync();
-            if (chat is not null) await chat.Coordinator.ShutdownAsync();
-            if (main is not null) await main.SaveDraftForCloseAsync();
+            if (chat is not null) await chat.Runtime.ShutdownAsync(main is null ? null : main.SaveDraftForCloseAsync);
+            else if (main is not null) await main.SaveDraftForCloseAsync();
             if (chat is not null) { await chat.DisposeAsync(); chat = null; }
             if (store is not null) { await store.DisposeAsync(); store = null; }
             main?.DetachObservers(); IsClosed = true;
