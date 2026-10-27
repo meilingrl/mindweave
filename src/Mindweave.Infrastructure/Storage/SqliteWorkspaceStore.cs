@@ -126,7 +126,7 @@ public sealed partial class SqliteWorkspaceStore : IWorkspaceStore, IChatStore, 
         return true;
     });
 
-    private static void SaveSelection(SqliteConnection connection, SqliteTransaction transaction, WorkspaceSelection selection)
+    private static void SaveSelection(SqliteConnection connection, SqliteTransaction transaction, WorkspaceSelection selection, bool invalidateSummarySelection = true)
     {
         using var command = connection.CreateCommand();
         command.Transaction = transaction;
@@ -152,6 +152,7 @@ public sealed partial class SqliteWorkspaceStore : IWorkspaceStore, IChatStore, 
         command.Parameters.AddWithValue("$workspace", selection.WorkspaceId.ToString("D"));
         command.Parameters.AddWithValue("$area", selection.Area.ToString());
         command.ExecuteNonQuery();
+        if (invalidateSummarySelection) InvalidateSummarySelection(connection, transaction);
     }
 
     private Task<T> ReadAsync<T>(Func<SqliteConnection, T> read)
