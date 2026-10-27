@@ -43,6 +43,9 @@ internal sealed class ChatHarness : IAsyncDisposable
         Models = new ModelSettingsService(Settings, Store, Credentials, ActiveClient, new SystemClock(), NullLogger<ModelSettingsService>.Instance);
         Conversations = new ConversationService(storeOverride ?? Store, Branches, Generation, Models, new SystemClock(), NullLogger<ConversationService>.Instance, Summaries);
         Reading = new ReadingStateService(ReadingStore, new SystemClock(), NullLogger<ReadingStateService>.Instance, TimeSpan.FromMilliseconds(20));
+        SummaryNodes = new SqliteSummaryStore(Database);
+        SummaryService = new Application.Summaries.SummaryService(
+            SummaryNodes, storeOverride ?? Store, Branches, Generation, Models, new SystemClock(), NullLogger<Application.Summaries.SummaryService>.Instance, Summaries);
     }
 
     public SqliteDatabase Database { get; }
@@ -73,6 +76,10 @@ internal sealed class ChatHarness : IAsyncDisposable
     public ModelSettingsService Models { get; }
 
     public ConversationService Conversations { get; }
+
+    public SqliteSummaryStore SummaryNodes { get; }
+
+    public Application.Summaries.SummaryService SummaryService { get; }
 
     public WorkspaceId Workspace { get; private set; }
 

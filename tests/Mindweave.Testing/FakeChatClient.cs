@@ -34,11 +34,41 @@ public sealed class FakeChatClient : IChatClient
     /// <summary>Summary requests wait for this before answering, when set.</summary>
     public TaskCompletionSource? SummaryGate { get; set; }
 
-    public static bool IsTitle(ChatRequest request) => request.Turns[0] is { Role: ChatRole.System } first && first.Content.Contains("标题", StringComparison.Ordinal);
+    public static bool IsTitle(ChatRequest request) => SystemSays(request, "起一个简短标题");
 
-    public static bool IsSummary(ChatRequest request) => request.Turns[0] is { Role: ChatRole.System } first && first.Content.Contains("背景摘要", StringComparison.Ordinal);
+    /// <summary>A context summary (S3): background standing in for older turns.</summary>
+    public static bool IsSummary(ChatRequest request) => SystemSays(request, "背景摘要");
 
-    public static bool IsAnswer(ChatRequest request) => !IsTitle(request) && !IsSummary(request);
+    /// <summary>A knowledge summary of a conversation (S4).</summary>
+    public static bool IsKnowledgeSummary(ChatRequest request) => SystemSays(request, "知识总结") && !IsNaming(request);
+
+    public static bool IsNaming(ChatRequest request) => SystemSays(request, "区分词");
+
+    public static bool IsAnswer(ChatRequest request) => !IsTitle(request) && !IsSummary(request) && !IsKnowledgeSummary(request) && !IsNaming(request);
+
+    public const string DefaultSummaryTitle = "蒸汽机车";
+
+    /// <summary>Scripted knowledge-summary outputs, used in order; when empty, a default from the input.</summary>
+    public ConcurrentQueue<string> SummaryReplies { get; } = new();
+
+    /// <summary>Knowledge-summary requests wait for this before answering, when set.</summary>
+    public TaskCompletionSource? KnowledgeGate { get; set; }
+
+    /// <summary>How many of the next knowledge-summary requests stop at the output limit.</summary>
+    public int TruncateKnowledge { get; set; }
+
+    /// <summary>Scripted naming outputs, used in order; when empty, "n：区分n" for every node.</summary>
+    public ConcurrentQueue<string> NamingReplies { get; } = new();
+
+    /// <summary>Naming requests wait for this before answering, when set.</summary>
+    public TaskCompletionSource? NamingGate { get; set; }
+
+    /// <summary>The default knowledge summary: titled <see cref="DefaultSummaryTitle"/>, saying how many turns it saw.</summary>
+    public static string KnowledgeOf(ChatRequest request) =>
+        $"标题：{DefaultSummaryTitle}\n\n总结了 {request.Turns.Count(t => t.Role != ChatRole.System) - 1} 条消息。";
+
+    private static bool SystemSays(ChatRequest request, string phrase) =>
+        request.Turns[0] is { Role: ChatRole.System } first && first.Content.Contains(phrase, StringComparison.Ordinal);
 
     /// <summary>The summary the fake writes for a request: derived from its input, so tests can see what was covered.</summary>
     public static string SummaryOf(ChatRequest request) => "摘要：" + request.Turns[^1].Content.Length + " 字";
@@ -88,6 +118,39 @@ public sealed class FakeChatClient : IChatClient
             }
 
             yield return new ChatStreamEvent.TextDelta(SummaryOf(request));
+            yield return new ChatStreamEvent.Completed(false);
+            yield break;
+        }
+
+        if (IsKnowledgeSummary(request))
+        {
+            if (KnowledgeGate is { } knowledgeGate)
+            {
+                await knowledgeGate.Task.WaitAsync(cancellationToken);
+            }
+
+            var truncated = TruncateKnowledge > 0;
+            if (truncated)
+            {
+                TruncateKnowledge--;
+            }
+
+            yield return new ChatStreamEvent.TextDelta(SummaryReplies.TryDequeue(out var scripted) ? scripted : KnowledgeOf(request));
+            yield return new ChatStreamEvent.Completed(truncated);
+            yield break;
+        }
+
+        if (IsNaming(request))
+        {
+            if (NamingGate is { } namingGate)
+            {
+                await namingGate.Task.WaitAsync(cancellationToken);
+            }
+
+            var count = request.Turns[^1].Content.Split('\n').Count(l => l.StartsWith('['));
+            yield return new ChatStreamEvent.TextDelta(NamingReplies.TryDequeue(out var names)
+                ? names
+                : string.Join('\n', Enumerable.Range(1, count).Select(i => $"{i}：区分{i}")));
             yield return new ChatStreamEvent.Completed(false);
             yield break;
         }
