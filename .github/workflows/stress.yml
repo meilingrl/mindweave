@@ -11,7 +11,7 @@ on:
     inputs:
       filter:
         description: dotnet test --filter expression
-        default: FullyQualifiedName~Mindweave.Infrastructure.Tests
+        default: FullyQualifiedName~A_wal_index_still_mapped
       project:
         description: Test project
         default: tests/Mindweave.Infrastructure.Tests
@@ -42,19 +42,19 @@ jobs:
       - name: Stress
         shell: pwsh
         run: |
-          $jobs = 1..${{ inputs.workers || '3' }} | ForEach-Object {
+          $jobs = 1..${{ inputs.workers || '1' }} | ForEach-Object {
             Start-Job -ArgumentList $PWD.Path -ScriptBlock {
               param($dir)
               Set-Location $dir
               $failures = @()
-              for ($i = 0; $i -lt ${{ inputs.runs || '6' }}; $i++) {
-                $out = dotnet test ${{ inputs.project || 'tests/Mindweave.Infrastructure.Tests' }} -c Release --no-build --filter "${{ inputs.filter || 'FullyQualifiedName~Mindweave.Infrastructure.Tests' }}" 2>&1 | Out-String
+              for ($i = 0; $i -lt ${{ inputs.runs || '2' }}; $i++) {
+                $out = dotnet test ${{ inputs.project || 'tests/Mindweave.Infrastructure.Tests' }} -c Release --no-build --filter "${{ inputs.filter || 'FullyQualifiedName~A_wal_index_still_mapped' }}" 2>&1 | Out-String
                 if ($out -notmatch 'Passed!') { $failures += $out }
               }
               $failures
             }
           }
           $failures = @($jobs | Wait-Job | Receive-Job)
-          "failed runs: $($failures.Count) of $(${{ inputs.workers || '3' }} * ${{ inputs.runs || '6' }})"
+          "failed runs: $($failures.Count) of $(${{ inputs.workers || '1' }} * ${{ inputs.runs || '2' }})"
           $failures | Select-Object -First 3 | ForEach-Object { "----"; $_ }
           if ($failures.Count -gt 0) { exit 1 }

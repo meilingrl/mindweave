@@ -299,21 +299,17 @@ public sealed class SqliteDatabaseTests : IDisposable
     }
 
     /// <summary>
-    /// Windows byte-range locks are mandatory and a killed process's locks outlive it briefly (longer under load), so
-    /// reading the file right after a crash fails with an I/O error rather than "busy". That must not be reported as
-    /// an unreadable database (which offers restoring a backup). Elsewhere locks are advisory and nothing is blocked.
+    /// On Windows a killed process's memory mapping of the WAL index (<c>-shm</c>) can outlive it briefly (longer under
+    /// load). Opening alone, SQLite resets that file to zero length, which Windows refuses while it is mapped
+    /// (<c>SQLITE_IOERR_TRUNCATE</c>, not retried by SQLite). Seen on Windows CI after killing a child process; it
+    /// must be waited out, not reported as an unreadable database (which offers restoring a backup).
     /// </summary>
     [Fact]
-    public async Task A_lock_left_briefly_by_a_dead_process_is_waited_for_not_reported_as_unreadable()
+    public async Task A_wal_index_still_mapped_by_a_dead_process_is_waited_for_not_reported_as_unreadable()
     {
-        Assert.SkipUnless(OperatingSystem.IsWindows(), "Mandatory byte-range locks exist only on Windows.");
-        if (!OperatingSystem.IsWindows())
-        {
-            return;
-        }
-
+        Assert.SkipUnless(OperatingSystem.IsWindows(), "Only Windows refuses to resize a mapped file.");
         await SeedCurrentAsync("kept");
-        var release = HoldFirstPageAsync(_dir.Paths.DatabasePath, TimeSpan.FromMilliseconds(700));
+        var release = HoldWalIndexMappedAsync(_dir.Paths.DatabasePath + "-shm", TimeSpan.FromMilliseconds(700));
 
         await using var database = _dir.Database();
         var result = await database.OpenAsync(Ct);
@@ -322,19 +318,25 @@ public sealed class SqliteDatabaseTests : IDisposable
         Assert.True(result.IsReady, $"{result.Status}: {result.ErrorDetail}");
     }
 
-    /// <summary>Locks the database's first page, as a crashed writer's lingering lock would, and releases it later.</summary>
-    [System.Runtime.Versioning.SupportedOSPlatform("windows")]
-    private static Task HoldFirstPageAsync(string path, TimeSpan duration)
+    /// <summary>Maps the WAL index as a crashed writer's lingering mapping would, and unmaps it later.</summary>
+    private static Task HoldWalIndexMappedAsync(string path, TimeSpan duration)
     {
-        var file = new FileStream(path, FileMode.Open, FileAccess.ReadWrite, FileShare.ReadWrite);
-        file.Lock(0, 4096);
+        using (var file = new FileStream(path, FileMode.OpenOrCreate, FileAccess.ReadWrite, FileShare.ReadWrite | FileShare.Delete))
+        {
+            file.SetLength(32 * 1024);
+        }
+
+        var mapping = System.IO.MemoryMappedFiles.MemoryMappedFile.CreateFromFile(
+            new FileStream(path, FileMode.Open, FileAccess.ReadWrite, FileShare.ReadWrite | FileShare.Delete), null, 0,
+            System.IO.MemoryMappedFiles.MemoryMappedFileAccess.ReadWrite, HandleInheritability.None, leaveOpen: false);
+        var view = mapping.CreateViewAccessor();
         return ReleaseAsync();
 
         async Task ReleaseAsync()
         {
             await Task.Delay(duration, Ct);
-            file.Unlock(0, 4096);
-            await file.DisposeAsync();
+            view.Dispose();
+            mapping.Dispose();
         }
     }
 
