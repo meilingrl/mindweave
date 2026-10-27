@@ -32,27 +32,34 @@ public partial class SummaryView : UserControl
         DataContextChanged += (_, _) => Attach();
     }
     protected override void OnAttachedToVisualTree(VisualTreeAttachmentEventArgs e)
-    { base.OnAttachedToVisualTree(e); window = TopLevel.GetTopLevel(this) as Window; if (window is not null) { window.Activated += Tick; window.Deactivated += Tick; } Attach(); timer.Start(); }
+    { base.OnAttachedToVisualTree(e); window = TopLevel.GetTopLevel(this) as Window; if (window is not null) { window.Activated += Tick; window.Deactivated += WindowDeactivated; } Attach(); timer.Start(); }
     protected override void OnDetachedFromVisualTree(VisualTreeAttachmentEventArgs e)
     {
-        timer.Stop(); lifecycle++;
-        if (window is not null) { window.Activated -= Tick; window.Deactivated -= Tick; } window = null;
+        timer.Stop(); RecordInterruption();
+        if (window is not null) { window.Activated -= Tick; window.Deactivated -= WindowDeactivated; } window = null;
         if (page is not null) { page.PropertyChanged -= PageChanged; page.CaptureReadingRequested -= CaptureForNavigationAsync; _ = InterruptAsync(page, readingVersion, epoch); }
         page = null; readingVersion = null; base.OnDetachedFromVisualTree(e);
     }
     protected override void OnPropertyChanged(AvaloniaPropertyChangedEventArgs change)
-    { base.OnPropertyChanged(change); if (change.Property == IsVisibleProperty && page is not null) Tick(this, EventArgs.Empty); }
+    {
+        base.OnPropertyChanged(change);
+        if (change.Property != IsVisibleProperty || page is null) return;
+        if (!IsVisible) RecordInterruption();
+        Tick(this, EventArgs.Empty);
+    }
+    private void RecordInterruption() { lifecycle++; page?.InterruptReading(); }
+    private void WindowDeactivated(object? sender, EventArgs args) { RecordInterruption(); Tick(sender, args); }
     private void Attach()
     {
         if (page == DataContext) return;
-        lifecycle++; if (page is not null) { page.PropertyChanged -= PageChanged; page.CaptureReadingRequested -= CaptureForNavigationAsync; _ = InterruptAsync(page, readingVersion, epoch); }
+        RecordInterruption(); if (page is not null) { page.PropertyChanged -= PageChanged; page.CaptureReadingRequested -= CaptureForNavigationAsync; _ = InterruptAsync(page, readingVersion, epoch); }
         page = DataContext as SummaryViewModel; readingVersion = null;
         if (page is not null) { page.PropertyChanged += PageChanged; page.CaptureReadingRequested += CaptureForNavigationAsync; }
     }
     private void PageChanged(object? sender, PropertyChangedEventArgs e)
     {
         if (e.PropertyName == nameof(SummaryViewModel.SavedBody)) { readingVersion = null; lifecycle++; }
-        if (e.PropertyName == nameof(SummaryViewModel.IsEditing) && page is { IsEditing: true }) _ = InterruptAsync(page, readingVersion, epoch);
+        if (e.PropertyName == nameof(SummaryViewModel.IsEditing) && page is { IsEditing: true }) { RecordInterruption(); _ = InterruptAsync(page, readingVersion, epoch); }
     }
     private async Task InterruptAsync(SummaryViewModel target, Guid? id, long observedEpoch)
     { if (id is { } version) await target.ObserveReadingAsync(version, observedEpoch, Clock(), false, false, false, [], null); }
@@ -68,19 +75,27 @@ public partial class SummaryView : UserControl
     { if (AutomaticObservation) await ObserveNowAsync(); }
     public async Task ObserveNowAsync(bool? activeOverride = null)
     {
-        if (observing || page is null || TopLevel.GetTopLevel(this) is null) return;
+        if (page is null || TopLevel.GetTopLevel(this) is null) return;
+        var target = page;
+        var active = (activeOverride ?? window?.IsActive == true) && IsVisible && this.GetVisualAncestors().All(a => a.IsVisible) && target.CanRead;
+        // Coalesce active samples, never visibility/activation edges. An edge also
+        // invalidates geometry sampled before a pending Begin/store operation.
+        if (!active) RecordInterruption();
+        if (observing) return;
         observing = true;
         try
         {
-            var target = page; var stamp = lifecycle; var id = target.Version?.Header.Identity.Id;
-            var active = (activeOverride ?? window?.IsActive == true) && IsVisible && this.GetVisualAncestors().All(a => a.IsVisible) && target.CanRead;
+            var stamp = lifecycle; var id = target.Version?.Header.Identity.Id;
             if (!active) { await InterruptAsync(target, readingVersion, epoch); return; }
             if (id is null || markdown.Body != target.SavedBody) return;
             scroll.UpdateLayout(); var measured = SummaryReadingAdapter.Measure(markdown.Renderer, scroll); if (measured is null) return;
             if (readingVersion != id)
             {
-                if (!await target.BeginReadingAsync(id.Value, measured.ReadableText) || stamp != lifecycle || page != target) return;
+                if (!await target.BeginReadingAsync(id.Value, measured.ReadableText) || page != target || target.Version?.Header.Identity.Id != id) return;
+                // Retain the successful session identity even when a visibility edge
+                // invalidated its sampled geometry. Reopening would erase manual-unread suppression.
                 readingVersion = id; epoch = target.Reading!.State.Epoch;
+                if (stamp != lifecycle) return;
                 if (target.Reading.Location is { } location) { SummaryReadingAdapter.Restore(location, markdown.Renderer, scroll); measured = SummaryReadingAdapter.Measure(markdown.Renderer, scroll)!; }
             }
             if (stamp != lifecycle || measured is null) return;

@@ -86,10 +86,15 @@ public sealed partial class SummaryDraftSession(ISummaryVersionStore store, Guid
         await FlushAsync(); await writes.WaitAsync();
         try
         {
+            // Freeze the payload and local revision belonging to the durable token before
+            // the node read yields. Live editor properties can change during that await.
+            var submitted = saved; var submittedRevision = persisted;
+            if (submitted?.Title is null || submitted.Markdown is null) return new(SummaryOutcomeKind.NotFound);
+            var content = new SummaryContent(submitted.Title, submitted.Markdown);
             var node = await store.LoadSummaryNodeAsync(nodeId);
-            if (node is null || saved is null) return new(SummaryOutcomeKind.NotFound);
-            pendingCommit = new(node.State.Token, saved.Token, new(Title, Markdown), revision);
-            var result = await store.CommitSummaryDraftAsync(node.State.Token, saved.Token);
+            if (node is null) return new(SummaryOutcomeKind.NotFound);
+            pendingCommit = new(node.State.Token, submitted.Token, content, submittedRevision);
+            var result = await store.CommitSummaryDraftAsync(node.State.Token, submitted.Token);
             if (result.Kind is SummaryOutcomeKind.Applied or SummaryOutcomeKind.NoChange)
                 await FinishCommitAsync(result);
             else pendingCommit = null;
@@ -121,6 +126,8 @@ public sealed partial class SummaryDraftSession(ISummaryVersionStore store, Guid
     private async Task FinishCommitAsync(SummaryOutcome<SummaryVersion> result)
     {
         var pending = pendingCommit!;
+        // Naming can yield too; decide whether newer input needs a lease only after it returns.
+        if (result.Kind == SummaryOutcomeKind.Applied && currentChanged is not null) await currentChanged(result.Value!.Header.Identity.Id);
         if (revision != pending.LocalRevision)
         {
             // A queued input event can arrive after the Save button disabled its editor.
@@ -131,7 +138,6 @@ public sealed partial class SummaryDraftSession(ISummaryVersionStore store, Guid
             saved = begun.Value; persisted = pending.LocalRevision;
         }
         else { saved = null; revision = persisted = 0; }
-        if (result.Kind == SummaryOutcomeKind.Applied && currentChanged is not null) await currentChanged(result.Value!.Header.Identity.Id);
         pendingCommit = null; Error = null; OnPropertyChanged(nameof(IsDirty));
     }
     public void StopDebounce() { debounce?.Cancel(); }

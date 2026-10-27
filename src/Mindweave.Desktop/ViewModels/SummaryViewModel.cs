@@ -163,7 +163,7 @@ public sealed partial class SummaryViewModel : ContentViewModel
             versionLoads.RemoveWhere(task => task.IsCompleted);
         }
     }
-    public void QuiesceForClose() { quiescing = true; readingInterrupted = true; Draft.StopDebounce(); RefreshAvailability(); }
+    public void QuiesceForClose() { quiescing = true; InterruptReading(); Draft.StopDebounce(); RefreshAvailability(); }
     public void ResumeAfterClose() { quiescing = false; RefreshAvailability(); }
     public void Detach()
     {

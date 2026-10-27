@@ -9,9 +9,13 @@ public sealed partial class SummaryViewModel
     private (Guid Id, SummaryReadObservation Observation, SummaryReadLocation? Location)? pendingRead;
     private (Guid Id, long Epoch, long Revision, bool Value)? pendingManual;
     private bool readingInterrupted;
+    private long readingInterruptionRevision;
+    // Lifecycle edges must survive an outstanding store await; no I/O or observation lock here.
+    public void InterruptReading() { readingInterruptionRevision++; readingInterrupted = true; }
     public SummaryReadingSnapshot? Reading { get; private set; }
     public async Task<bool> BeginReadingAsync(Guid id, string text)
     {
+        var interruptionAtStart = readingInterruptionRevision;
         await readWrites.WaitAsync();
         try
         {
@@ -21,7 +25,7 @@ public sealed partial class SummaryViewModel
             var result = await store.BeginSummaryReadingAsync(id, stored?.State.Revision ?? 0, text);
             if (Version?.Header.Identity.Id != id || !CanRead) return false;
             if (result.Kind is not (SummaryOutcomeKind.Applied or SummaryOutcomeKind.NoChange)) return false;
-            Reading = result.Value; readingInterrupted = false; RefreshAvailability(); return true;
+            Reading = result.Value; readingInterrupted = readingInterruptionRevision != interruptionAtStart; RefreshAvailability(); return true;
         }
         catch { ErrorMessage = "阅读状态保存失败，请重试保存。"; failed(); return false; }
         finally { readWrites.Release(); }
@@ -29,25 +33,29 @@ public sealed partial class SummaryViewModel
     public async Task ObserveReadingAsync(Guid id, long epoch, TimeSpan time, bool active, bool visible, bool fits,
         ImmutableArray<ReadableInterval> intervals, SummaryReadLocation? location, bool captureOnly = false)
     {
+        var sampledInterruptionRevision = readingInterruptionRevision;
         await readWrites.WaitAsync();
         try
         {
             if (Version?.Header.Identity.Id != id || Reading?.State.Epoch != epoch) return;
-            if (blocked() && !captureOnly) { readingInterrupted = true; return; }
+            if (blocked() && !captureOnly) { InterruptReading(); return; }
             await FlushReadingCoreAsync();
             if (readingInterrupted)
             {
+                var resetRevision = readingInterruptionRevision;
                 var interrupted = Reading.State;
                 pendingRead = (id, new(interrupted.Epoch, interrupted.Revision, interrupted.ObservationSequence + 1, time,
                     false, false, false, interrupted.TextHash, []), null);
-                await FlushReadingCoreAsync(); readingInterrupted = false;
+                await FlushReadingCoreAsync();
+                if (resetRevision == readingInterruptionRevision) readingInterrupted = false;
             }
+            var evidenceStillCurrent = sampledInterruptionRevision == readingInterruptionRevision && !readingInterrupted;
             var state = Reading.State;
             pendingRead = (id, new(state.Epoch, state.Revision, state.ObservationSequence + 1, time,
-                active && CanRead, visible && CanRead, fits, state.TextHash, intervals), location);
+                active && CanRead && evidenceStillCurrent, visible && CanRead && evidenceStillCurrent, fits, state.TextHash, evidenceStillCurrent ? intervals : []), location);
             await FlushReadingCoreAsync();
         }
-        catch { readingInterrupted = true; ErrorMessage = "阅读位置保存失败，位置仍在内存，请重试保存。"; failed(); }
+        catch { InterruptReading(); ErrorMessage = "阅读位置保存失败，位置仍在内存，请重试保存。"; failed(); }
         finally { readWrites.Release(); }
     }
     private async Task SetReadAsync(bool value)

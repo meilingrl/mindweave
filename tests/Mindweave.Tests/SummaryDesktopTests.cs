@@ -476,6 +476,131 @@ public sealed class SummaryDesktopTests
         finally { control.Release.TrySetResult(await f.Versions.LoadSummaryVersionAsync(candidate.VersionId)); await loading; await draining; page.Detach(); }
     }
 
+    [AvaloniaTheory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task Precommit_node_read_freezes_persisted_draft_and_retains_later_input(bool loseAcknowledgement)
+    {
+        await using var f = await SummaryStorageFixture.Open();
+        var proxy = DispatchProxy.Create<ISummaryVersionStore, VersionStoreProxy>(); var control = (VersionStoreProxy)(object)proxy; control.Inner = f.Versions;
+        var notified = new List<Guid>();
+        var draft = new SummaryDraftSession(proxy, f.Node, () => { });
+        var page = new SummaryViewModel(f.Workspace, f.Node, proxy, draft, () => false, () => { }, _ => Task.CompletedTask,
+            id => { notified.Add(id); return Task.CompletedTask; });
+        await page.LoadAsync(); await page.EditCommand.ExecuteAsync(null);
+        draft.Title = "submitted title"; draft.Markdown = "submitted body";
+        control.HoldNextNodeRead = true; control.LoseCommitAck = loseAcknowledgement;
+        var saving = page.SaveCommand.ExecuteAsync(null); await control.NodeReadEntered.Task;
+        Assert.Equal("submitted body", (await f.Versions.LoadSummaryDraftAsync(f.Node))!.Markdown);
+        draft.Title = "new queued title"; draft.Markdown = "new queued body";
+        control.NodeReadRelease.TrySetResult(); await saving;
+        await draft.FlushAsync();
+        var node = await f.Snapshot(); var current = (await f.Versions.LoadSummaryVersionAsync(node.State.Node.CurrentVersionId))!;
+        Assert.Equal("submitted title", current.Header.Title); Assert.Equal("submitted body", current.Markdown);
+        Assert.True(draft.IsDirty); Assert.Equal("new queued title", draft.Title); Assert.Equal("new queued body", draft.Markdown);
+        var retained = (await f.Versions.LoadSummaryDraftAsync(f.Node))!;
+        Assert.Equal(current.Header.Identity.Id, retained.Token.BaseVersionId); Assert.Equal("new queued body", retained.Markdown);
+        Assert.Equal(2, (await f.Versions.ListSummaryVersionsAsync(f.Node)).Length); Assert.Single(notified);
+        page.Detach();
+    }
+
+    [AvaloniaFact]
+    public async Task Queued_input_during_current_change_notification_is_retained_against_committed_version()
+    {
+        await using var f = await SummaryStorageFixture.Open();
+        var entered = new TaskCompletionSource(); var release = new TaskCompletionSource();
+        var draft = new SummaryDraftSession(f.Versions, f.Node, () => { });
+        draft.ConfigureCurrentChanged(async _ => { entered.SetResult(); await release.Task; });
+        await draft.BeginAsync(); draft.Title = "submitted title";
+        var committing = draft.CommitAsync(); await entered.Task;
+        draft.Title = "queued during notification"; draft.Markdown = "retained later body";
+        release.SetResult(); var committed = await committing; await draft.FlushAsync();
+        Assert.Equal(SummaryOutcomeKind.Applied, committed.Kind); Assert.True(draft.IsDirty);
+        var retained = (await f.Versions.LoadSummaryDraftAsync(f.Node))!;
+        Assert.Equal(committed.Value!.Header.Identity.Id, retained.Token.BaseVersionId);
+        Assert.Equal("queued during notification", retained.Title); Assert.Equal("retained later body", retained.Markdown);
+        Assert.Equal(2, (await f.Versions.ListSummaryVersionsAsync(f.Node)).Length);
+    }
+
+    [AvaloniaFact]
+    public async Task Hidden_edges_during_held_read_write_reset_dwell_before_next_active_sample()
+    {
+        await using var f = await SummaryStorageFixture.Open();
+        var proxy = DispatchProxy.Create<ISummaryVersionStore, VersionStoreProxy>(); var control = (VersionStoreProxy)(object)proxy; control.Inner = f.Versions;
+        var page = new SummaryViewModel(f.Workspace, f.Node, proxy, new(proxy, f.Node, () => { }), () => false, () => { }, _ => Task.CompletedTask);
+        await page.LoadAsync(); var now = TimeSpan.Zero;
+        var view = new SummaryView { DataContext = page, AutomaticObservation = false, Clock = () => now };
+        var window = new Window { Content = view, Width = 900, Height = 800 }; window.Show(); Layout();
+        Task? observing = null;
+        try
+        {
+            await view.ObserveNowAsync(true);
+            now = TimeSpan.FromSeconds(2); control.HoldNextReadingWrite = true;
+            observing = view.ObserveNowAsync(true); await control.ReadingWriteEntered.Task;
+            view.AutomaticObservation = true;
+            view.IsVisible = false;
+            now = TimeSpan.FromSeconds(20); view.IsVisible = true;
+            view.AutomaticObservation = false;
+            control.ReadingWriteRelease.TrySetResult(); await observing;
+            await view.ObserveNowAsync(true); Assert.False(page.IsRead); Assert.Equal(TimeSpan.Zero, page.Reading!.State.VisibleDwell);
+            now = TimeSpan.FromSeconds(22); await view.ObserveNowAsync(true); Assert.False(page.IsRead);
+            now = TimeSpan.FromSeconds(23); await view.ObserveNowAsync(true); Assert.True(page.IsRead);
+        }
+        finally { control.ReadingWriteRelease.TrySetResult(); if (observing is not null) await observing; page.Detach(); window.Close(); }
+    }
+
+    [AvaloniaFact]
+    public async Task Failed_close_return_and_explicit_repair_resume_active_summary_reading_from_fresh_dwell()
+    {
+        await using var f = await SummaryStorageFixture.Open();
+        var root = new RootViewModel(() => Task.FromResult<Mindweave.Application.Storage.IWorkspaceStore>(f.Store),
+            new DesktopActions(f.Paths.DataDirectory, () => { }), f.Paths.DataDirectory,
+            store => new DesktopChatSession((Mindweave.Application.Chat.IChatStore)store,
+                new GenerationCoordinatorTests.ControlledTransport(), new GenerationCoordinatorTests.MemoryVault()));
+        await root.InitializeAsync(); var main = Assert.IsType<MainViewModel>(root.Content);
+        await main.NavigateAsync(new(MainArea.Network, ContentKind.Summary, f.Node));
+        var page = Assert.IsType<SummaryViewModel>(main.ActiveContent); var now = TimeSpan.Zero;
+        var view = new SummaryView { DataContext = page, AutomaticObservation = false, Clock = () => now };
+        var window = new Window { Content = view, Width = 900, Height = 800 }; window.Show(); Layout();
+        try
+        {
+            await view.ObserveNowAsync(true); now = TimeSpan.FromSeconds(2); await view.ObserveNowAsync(true);
+            f.Sql("CREATE TRIGGER task7_failed_close BEFORE UPDATE ON summary_read_state BEGIN SELECT RAISE(ABORT,'synthetic close read save failure'); END");
+            await root.CloseAsync(); Assert.False(root.IsClosed); Assert.NotNull(root.CloseError); Assert.False(page.CanRead);
+            now = TimeSpan.FromSeconds(20); root.ReturnToWorkbenchCommand.Execute(null);
+            Assert.Same(page, main.ActiveContent); Assert.True(page.CanRead); Assert.True(main.HasPersistenceFailure);
+            await view.ObserveNowAsync(true); Assert.False(page.IsRead);
+            f.Sql("DROP TRIGGER task7_failed_close"); await root.RetrySaveCommand.ExecuteAsync(null); Assert.False(main.HasPersistenceFailure);
+            await view.ObserveNowAsync(true); Assert.False(page.IsRead); Assert.Equal(TimeSpan.Zero, page.Reading!.State.VisibleDwell);
+            now = TimeSpan.FromSeconds(23); await view.ObserveNowAsync(true); Assert.True(page.IsRead);
+        }
+        finally { f.Sql("DROP TRIGGER IF EXISTS task7_failed_close"); window.Close(); await root.CloseAsync(); }
+        Assert.True(root.IsClosed);
+    }
+
+    [AvaloniaFact]
+    public async Task Hidden_edge_during_read_begin_invalidates_sample_without_reopening_the_same_view_epoch()
+    {
+        await using var f = await SummaryStorageFixture.Open();
+        var proxy = DispatchProxy.Create<ISummaryVersionStore, VersionStoreProxy>(); var control = (VersionStoreProxy)(object)proxy; control.Inner = f.Versions;
+        var page = new SummaryViewModel(f.Workspace, f.Node, proxy, new(proxy, f.Node, () => { }), () => false, () => { }, _ => Task.CompletedTask);
+        await page.LoadAsync(); var now = TimeSpan.Zero;
+        var view = new SummaryView { DataContext = page, AutomaticObservation = false, Clock = () => now };
+        var window = new Window { Content = view, Width = 900, Height = 800 }; window.Show(); Layout();
+        control.HoldNextReadingBegin = true; var opening = view.ObserveNowAsync(true); await control.ReadingBeginEntered.Task;
+        try
+        {
+            view.IsVisible = false; now = TimeSpan.FromSeconds(20); view.IsVisible = true;
+            control.ReadingBeginRelease.TrySetResult(); await opening;
+            Assert.Empty(page.Reading!.State.Seen); var openedEpoch = page.Reading.State.Epoch;
+            await page.MarkUnreadCommand.ExecuteAsync(null);
+            await view.ObserveNowAsync(true);
+            Assert.Equal(openedEpoch, page.Reading!.State.Epoch); Assert.True(page.Reading.State.SuppressAutomatic);
+            now = TimeSpan.FromSeconds(23); await view.ObserveNowAsync(true); Assert.False(page.IsRead);
+        }
+        finally { control.ReadingBeginRelease.TrySetResult(); await opening; page.Detach(); window.Close(); }
+    }
+
     public interface IDesktopStore : Mindweave.Application.Storage.IWorkspaceStore, Mindweave.Application.Chat.IChatStore,
         Mindweave.Application.Branches.IBranchStore, ISummaryVersionStore, IKnowledgeSummaryStore, INodeNamingStore { }
     public class DesktopStoreProxy : DispatchProxy
@@ -506,6 +631,15 @@ public sealed class SummaryDesktopTests
         public ISummaryVersionStore Inner { get; set; } = null!;
         public Guid? DelayedId { get; set; }
         public Guid? FailId { get; set; }
+        public bool HoldNextReadingBegin { get; set; }
+        public TaskCompletionSource ReadingBeginEntered { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        public TaskCompletionSource ReadingBeginRelease { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        public bool HoldNextReadingWrite { get; set; }
+        public TaskCompletionSource ReadingWriteEntered { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        public TaskCompletionSource ReadingWriteRelease { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        public bool HoldNextNodeRead { get; set; }
+        public TaskCompletionSource NodeReadEntered { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        public TaskCompletionSource NodeReadRelease { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
         public bool LoseDraftAck { get; set; }
         public bool LoseCommitAck { get; set; }
         public bool HoldCommit { get; set; }
@@ -516,7 +650,13 @@ public sealed class SummaryDesktopTests
         public TaskCompletionSource<SummaryVersion?> Release { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
         protected override object? Invoke(MethodInfo? targetMethod, object?[]? args)
         {
-            if (targetMethod!.Name == nameof(ISummaryVersionStore.LoadSummaryVersionAsync))
+            if (targetMethod!.Name == nameof(ISummaryVersionStore.BeginSummaryReadingAsync) && HoldNextReadingBegin)
+            { HoldNextReadingBegin = false; return BeginReadingHeldAsync((Guid)args![0]!, (long)args[1]!, (string)args[2]!); }
+            if (targetMethod.Name == nameof(ISummaryVersionStore.SaveSummaryReadingAsync) && HoldNextReadingWrite)
+            { HoldNextReadingWrite = false; return SaveReadingHeldAsync((Guid)args![0]!, (SummaryReadObservation)args[1]!, (SummaryReadLocation?)args[2]); }
+            if (targetMethod.Name == nameof(ISummaryVersionStore.LoadSummaryNodeAsync) && HoldNextNodeRead)
+            { HoldNextNodeRead = false; return LoadNodeHeldAsync((Guid)args![0]!); }
+            if (targetMethod.Name == nameof(ISummaryVersionStore.LoadSummaryVersionAsync))
             {
                 BodyReads++;
                 if ((Guid)args![0]! == DelayedId) { Entered.TrySetResult(); return Release.Task; }
@@ -527,6 +667,12 @@ public sealed class SummaryDesktopTests
                 return CommitAsync((SummaryNodeToken)args![0]!, (SummaryDraftToken)args[1]!);
             return targetMethod.Invoke(Inner, args);
         }
+        private async Task<SummaryOutcome<SummaryReadingSnapshot>> BeginReadingHeldAsync(Guid version, long revision, string text)
+        { ReadingBeginEntered.TrySetResult(); await ReadingBeginRelease.Task; return await Inner.BeginSummaryReadingAsync(version, revision, text); }
+        private async Task<SummaryOutcome<SummaryReadingSnapshot>> SaveReadingHeldAsync(Guid version, SummaryReadObservation observation, SummaryReadLocation? location)
+        { ReadingWriteEntered.TrySetResult(); await ReadingWriteRelease.Task; return await Inner.SaveSummaryReadingAsync(version, observation, location); }
+        private async Task<SummaryNodeSnapshot?> LoadNodeHeldAsync(Guid node)
+        { NodeReadEntered.TrySetResult(); await NodeReadRelease.Task; return await Inner.LoadSummaryNodeAsync(node); }
         private async Task<SummaryOutcome<SummaryEditDraft>> SaveDraftAsync(SummaryDraftToken token, SummaryContent content)
         {
             var result = await Inner.SaveSummaryDraftAsync(token, content); LoseDraftAck = false;
