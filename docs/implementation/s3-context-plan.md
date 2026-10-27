@@ -48,7 +48,7 @@ Task 1 在 Application/Chat 新建纯 `ReplyContextPlanner`、`ContextSummaryPro
 
 Task 2 给 `GenerationWork` 增加可选计划，不改变旧字段含义：InputMessages／GenerationRecord.InputMessageIds 仍是逻辑原消息清单；最终物理请求使用另外的不可变清单。新增 `IContextStore` 并让 IChatStore 继承，存储实现及测试代理转发。公开能力须覆盖：按回答任务读计划；读完成缓存；幂等开始指定计划片段的压缩尝试；单调修订写尝试／完成摘要；读尝试；组成并事务记录最终物理请求。具体签名由 Task 2 报告作为 Task 3 交接。缓存保存生成配置、实际模型／尝试身份与时间，只有成功完成摘要可命中。产生缓存的生成记录归属源会话，不能依赖请求子会话存活；子任务的使用／停止关系独立保存，所有跨会话业务引用仍只指向祖先。S3-ARCH-1 修复后的精确 API 以复审通过报告为准，旧目标会话 key 合同已被本条替代。
 
-S3-ARCH-1归属修复时计划格式为2；Task5升级3，Task6后新接受格式为4，`Rebuild`保留2／3／4的精确策略。`CreateSummaryRequest(Guid sourceConversationId, ContextChunk chunk, IReadOnlyList<ChatMessage> originals, AiConfiguration configuration)` 的首参数仍是来源owner，调用 `attempt.SourceConversationId`；`WriteCompressionAsync` 首两参数仍为 `replyTaskId, attemptId`，独立子依赖验证请求者。原API见Task2交接，版本化预算及提示的后验见Task5／6报告。
+S3-ARCH-1归属修复时计划格式为2；Task5升级3，Task6升级4，Task7后新接受格式为5，`Rebuild`保留2／3／4／5的精确策略。Task7新增按字段省略默认值的 `AiConfiguration.SummaryThinking` 与 `ChatRequest.Purpose`，旧配置／请求仍精确保持原JSON；只有格式5的摘要Purpose为ContextSummary。`CreateSummaryRequest(Guid sourceConversationId, ContextChunk chunk, IReadOnlyList<ChatMessage> originals, AiConfiguration configuration)` 的首参数仍是来源owner，调用 `attempt.SourceConversationId`；`WriteCompressionAsync` 首两参数仍为 `replyTaskId, attemptId`，独立子依赖验证请求者。原API见Task2交接，版本化预算及提示的后验见Task5／6报告。
 
 Task 3 只在既有 GenerationCoordinator 增加阶段状态（可拆 Context partial）。待压缩的父 Reply 保持排队／运行业务状态，运行阶段先进行必要压缩，再回答；每个阶段的物理请求释放槽后重新调度。GenerationSnapshot 可用兼容默认字段增加阶段、轻量压缩状态／完成提示，禁止把摘要 token 投影到正文。
 
@@ -144,13 +144,13 @@ Task5 `bc4a46c` 已独立审查通过，307通过／2原有跳过；控制器实
 
 **Shared interfaces for Task8:** Core新增 `SummaryThinkingMode { ServiceDefault=0, Disabled=1 }`；AiConfiguration末尾可选属性 `SummaryThinking`，默认ServiceDefault，JSON在默认值时不写入。Application新增 `ChatRequestPurpose { Standard=0, ContextSummary=1 }`，ChatRequest末尾可选 `Purpose=Standard`，JSON默认值不写入。新纯 `SummaryThinkingPolicy.IsOfficialDeepSeekEndpoint(string)` 与 `ValidateConfiguration(AiConfiguration)`：只验证新策略边界，不改变默认模式的既有一般配置规则。任何精确API微调须先报告控制器，并在交接报告锁定。
 
-- [ ] 修改生产代码前，用baseline2595对应旧代码生成独立合成格式4 golden，含默认配置、完成源缓存／源尝试与prepared。保留原始成功日志、生成前源码差异／hash。旧格式2／3 golden原字节不变；禁止接触任何用户native/supplier库、系统凭据、真实服务或另一轨道。
-- [ ] 上述Core／request新字段默认值**按字段省略**，不能全局忽略所有default造成旧slice等字段变化。既有配置／请求JSON、旧key、源缓存ID、prepared format2 hash和引用精确兼容；不改ContextChunk形状、v1–v5 SQL或prepared私有format2。旧默认缺字段反序列化为ServiceDefault／Standard且只读不改写；未知枚举值拒绝，不归一化为默认。
-- [ ] 新接受计划格式5，Rebuild允许2／3／4／5；旧2／3／4的prompt／cap／key／完整请求JSON精确保留，旧版本不接受新增Disabled策略。格式5沿用格式4的prompt-v2、min4096输出和预算算法；只有5的摘要请求Purpose=ContextSummary。key纳入确切format与完整冻结配置，使同范围Default／Disabled严格分离；混用或篡改配置、cap、key、版本拒绝，来源归属及请求者删除后的独立证明保持。
-- [ ] Disabled仅支持HTTPS、无userinfo／query／fragment、默认443端口、精确主机api.deepseek.com、路径空等价根／或/v1及其单个尾斜线；其他域名／子域伪装／HTTP／自定义端口／其他路径拒绝，Default保持既有兼容服务可用。路径不静默重写配置。SaveAsync在任何vault调用前校验新策略，保存／发现不得为非法新策略读写凭据或外呼；Store的直接保存／接受也校验，避免绕过。校验错误为可理解ArgumentException。
-- [ ] Transport只在Purpose=ContextSummary且冻结SummaryThinking=Disabled、地址通过允许边界时添加顶层 `thinking:{type:"disabled"}`；Standard的Reply／Title及模型GET始终不添加thinking或reasoning_effort，Default摘要也省略参数。不从模型名、提示文本或全局活配置推断用途，未知Purpose拒绝。所有流协议、重定向禁用、超时、错误映射、输出预算、两槽释放／保存gate不变；不自动重试。
-- [ ] 真实RED→GREEN覆盖：默认字段省略及旧golden物理请求完整JSON／cache／prepared hash只读前后字节不变；格式5接受与mode隔离、旧版本＋Disabled／未知值／错域拒绝；Mock HTTP捕获JSON证明只有显式摘要出现disabled、同一off配置的普通回答／标题不受影响；无效mode／地址在vault和handler之前拒绝；协调器接受后改活配置不影响已接受各阶段，下一任务才用新策略。真实临时SQLite验证新设置保存／重开和旧2／3／4读取、source独立生命周期，无真实凭据或网络。
-- [ ] 聚焦迭代后完整Release、solution build、Python8一次，保留原始RED与GREEN、自审提交。报告精确API／JSON／版本映射、golden生成依据、检查与限制，输出task-7-report.md及Task8最小API交接。禁止新增UI、真实调用／原生操作、push／merge或子代理；控制器独立审查通过后Task8才实施。
+- [x] 修改生产代码前，用baseline2595对应旧代码生成独立合成格式4 golden，含默认配置、完成源缓存／源尝试与prepared。保留原始成功日志、生成前源码差异／hash。旧格式2／3 golden原字节不变；禁止接触任何用户native/supplier库、系统凭据、真实服务或另一轨道。
+- [x] 上述Core／request新字段默认值**按字段省略**，不能全局忽略所有default造成旧slice等字段变化。既有配置／请求JSON、旧key、源缓存ID、prepared format2 hash和引用精确兼容；不改ContextChunk形状、v1–v5 SQL或prepared私有format2。旧默认缺字段反序列化为ServiceDefault／Standard且只读不改写；未知枚举值拒绝，不归一化为默认。
+- [x] 新接受计划格式5，Rebuild允许2／3／4／5；旧2／3／4的prompt／cap／key／完整请求JSON精确保留，旧版本不接受新增Disabled策略。格式5沿用格式4的prompt-v2、min4096输出和预算算法；只有5的摘要请求Purpose=ContextSummary。key纳入确切format与完整冻结配置，使同范围Default／Disabled严格分离；混用或篡改配置、cap、key、版本拒绝，来源归属及请求者删除后的独立证明保持。
+- [x] Disabled仅支持HTTPS、无userinfo／query／fragment、默认443端口、精确主机api.deepseek.com、路径空等价根／或/v1及其单个尾斜线；其他域名／子域伪装／HTTP／自定义端口／其他路径拒绝，Default保持既有兼容服务可用。路径不静默重写配置。SaveAsync在任何vault调用前校验新策略，保存／发现不得为非法新策略读写凭据或外呼；Store的直接保存／接受也校验，避免绕过。校验错误为可理解ArgumentException。
+- [x] Transport只在Purpose=ContextSummary且冻结SummaryThinking=Disabled、地址通过允许边界时添加顶层 `thinking:{type:"disabled"}`；Standard的Reply／Title及模型GET始终不添加thinking或reasoning_effort，Default摘要也省略参数。不从模型名、提示文本或全局活配置推断用途，未知Purpose拒绝。所有流协议、重定向禁用、超时、错误映射、输出预算、两槽释放／保存gate不变；不自动重试。
+- [x] 真实RED→GREEN覆盖：默认字段省略及旧golden物理请求完整JSON／cache／prepared hash只读前后字节不变；格式5接受与mode隔离、旧版本＋Disabled／未知值／错域拒绝；Mock HTTP捕获JSON证明只有显式摘要出现disabled、同一off配置的普通回答／标题不受影响；无效mode／地址在vault和handler之前拒绝；协调器接受后改活配置不影响已接受各阶段，下一任务才用新策略。真实临时SQLite验证新设置保存／重开和旧2／3／4读取、source独立生命周期，无真实凭据或网络。
+- [x] 聚焦迭代后完整Release、solution build、Python8一次，保留原始RED与GREEN、自审提交。报告精确API／JSON／版本映射、golden生成依据、检查与限制，输出task-7-report.md及Task8最小API交接。禁止新增UI、真实调用／原生操作、push／merge或子代理；控制器独立审查通过后Task8才实施。
 
 ## Task 8: 设置页的显式摘要思考选项
 
