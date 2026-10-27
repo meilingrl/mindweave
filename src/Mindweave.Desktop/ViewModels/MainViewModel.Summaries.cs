@@ -1,4 +1,5 @@
 using Avalonia.Threading;
+using CommunityToolkit.Mvvm.ComponentModel;
 using Mindweave.Application.Navigation;
 using Mindweave.Application.Summaries;
 using Mindweave.Core.Summaries;
@@ -6,6 +7,16 @@ using Mindweave.Core.Summaries;
 namespace Mindweave.Desktop.ViewModels;
 public sealed partial class MainViewModel
 {
+    // A specific recovery projection, never a business route to a deleted node.
+    [ObservableProperty] private SummaryViewModel? removedSummaryInput;
+    public bool HasRemovedSummaryInput => RemovedSummaryInput is not null;
+    partial void OnRemovedSummaryInputChanged(SummaryViewModel? value) => OnPropertyChanged(nameof(HasRemovedSummaryInput));
+    private void RefreshRemovedSummaryInput() => RemovedSummaryInput = summaryPages.FirstOrDefault(page => page.HasRemovedNodeInput);
+    private void RequireResolvedSummaryInput()
+    {
+        RefreshRemovedSummaryInput();
+        if (HasRemovedSummaryInput) throw new SummaryInputResolutionRequiredException();
+    }
     private KnowledgeSummaryCoordinator? summaries;
     private GroupNamingCoordinator? naming;
     private int observedTerminalCount;
@@ -85,9 +96,10 @@ public sealed partial class MainViewModel
             conversation => NavigateAsync(new(MainArea.Explore, ContentKind.Conversation, conversation)),
             version => naming!.NotifyCurrentChangedAsync(id, version));
         page.ConfigureSummaryStop(summaries!.StopAsync);
+        page.RemovedInputChanged += RefreshRemovedSummaryInput;
         page.NodeDeleted += () => Dispatcher.UIThread.Post(() => TrackBackgroundRefresh(() => RunAsync(async () =>
         {
-            if (ActiveContent != page) return;
+            if (ActiveContent != page || page.Draft.HasRemovedNodeInput) return;
             DeactivatePage(); ContentStack.Clear();
             ContentStack.Add(await CreateContentAsync(new(MainArea.Network)));
             await SaveSelectionAsync(page.WorkspaceId, new(MainArea.Network)); NotifyContent();
@@ -107,8 +119,15 @@ public sealed partial class MainViewModel
     });
     private async Task FlushSummariesAsync()
     {
-        foreach (var page in summaryPages) await page.RepairVersionOperationAsync();
-        foreach (var draft in summaryDrafts.Values) await draft.FlushAsync();
+        // Expected unresolved user input is a result of local repair, not an IO error.
+        // Finish all other actual writes before the caller reports that result outside
+        // the runtime external-failure wrapper. Real exceptions still propagate unchanged.
+        foreach (var page in summaryPages)
+            try { await page.RepairVersionOperationAsync(); } catch (SummaryInputResolutionRequiredException) { }
+        foreach (var draft in summaryDrafts.Values)
+            if (!draft.HasRemovedNodeInput)
+                try { await draft.FlushAsync(); } catch (SummaryInputResolutionRequiredException) { }
         foreach (var page in summaryPages) await page.FlushReadingAsync();
+        RefreshRemovedSummaryInput();
     }
 }

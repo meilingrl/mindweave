@@ -40,6 +40,13 @@ public sealed partial class MainViewModel : ViewModelBase
             await RefreshConversationsAsync();
         }));
         OpenConversationCommand = new AsyncRelayCommand<ConversationItemViewModel>(item => item is null ? Task.CompletedTask : NavigateAsync(new(MainArea.Explore, ContentKind.Conversation, item.Id)));
+        DiscardRecoveredSummaryInputCommand = new AsyncRelayCommand(() =>
+        {
+            // The page resolves its displayed revision synchronously. Do not enqueue this
+            // consent behind an await that could substitute another recovery or newer text.
+            if (!IsInteractionEnabled || RemovedSummaryInput is not { } page) return Task.CompletedTask;
+            return page.DiscardRemovedInputCommand.ExecuteAsync(null);
+        });
         RetrySaveCommand = new AsyncRelayCommand(async () => { try { await RetryPersistenceAsync(); } catch { /* ErrorMessage retains the failure; keep the window available. */ } });
         if (coordinator is not null) coordinator.Changed += CoordinatorChanged;
     }
@@ -72,6 +79,7 @@ public sealed partial class MainViewModel : ViewModelBase
     public IAsyncRelayCommand NewConversationCommand { get; }
     public IAsyncRelayCommand<ConversationItemViewModel> OpenConversationCommand { get; }
     public IAsyncRelayCommand RetrySaveCommand { get; }
+    public IAsyncRelayCommand DiscardRecoveredSummaryInputCommand { get; }
     partial void OnIsBusyChanged(bool value) => NotifyAvailability();
     partial void OnErrorMessageChanged(string? value) => OnPropertyChanged(nameof(HasError));
     partial void OnCurrentWorkspaceChanged(Workspace? value)
@@ -195,7 +203,7 @@ public sealed partial class MainViewModel : ViewModelBase
         foreach (var page in summaryPages) page.QuiesceForClose();
         if (ActiveContent is not null) await ActiveContent.WaitForPendingOperationsAsync();
         await Task.WhenAll(summaryPages.Select(page => page.WaitForPendingOperationsAsync()));
-        if (summaryPages.Any(page => page.HasRemovedNodeInput)) throw new SummaryInputResolutionRequiredException();
+        RequireResolvedSummaryInput();
         await DrainBackgroundRefreshesAsync();
     }
     public async Task SaveDraftForCloseAsync()
@@ -211,17 +219,23 @@ public sealed partial class MainViewModel : ViewModelBase
             if (coordinator is not null) await coordinator.RepairExternalPersistenceAsync(SaveAsync);
             else await SaveAsync();
             localPersistenceFailure = false;
+            RequireResolvedSummaryInput();
         }
+        catch (SummaryInputResolutionRequiredException) { throw; }
         catch { MarkPersistenceFailure(); throw; }
     }
-    public void ReturnToWorkbench() { closing = false; (ActiveContent as SummaryViewModel)?.ResumeAfterClose(); coordinator?.Runtime.ResumeAccepting(); NotifyAvailability(); }
+    public void ReturnToWorkbench()
+    {
+        closing = false;
+        foreach (var page in summaryPages.Where(page => page == ActiveContent || page.HasRemovedNodeInput)) page.ResumeAfterClose();
+        RefreshRemovedSummaryInput(); coordinator?.Runtime.ResumeAccepting(); NotifyAvailability();
+    }
     public async Task RetryPersistenceAsync()
     {
         await changes.WaitAsync(); IsBusy = true;
         try
         {
-            // Do not send an expected user-resolution state into the runtime's IO repair source.
-            if (summaryPages.Any(page => page.HasRemovedNodeInput)) throw new SummaryInputResolutionRequiredException();
+            // Repair real sources even while memory input awaits explicit resolution.
             async Task RepairLocalAsync()
             {
                 await FlushAllDraftsAsync();
@@ -232,6 +246,7 @@ public sealed partial class MainViewModel : ViewModelBase
             if (coordinator is not null) await coordinator.RetryPersistenceAsync(RepairLocalAsync);
             else await RepairLocalAsync();
             localPersistenceFailure = false; ErrorMessage = null;
+            RequireResolvedSummaryInput();
         }
         catch (SummaryInputResolutionRequiredException error) { ErrorMessage = error.Message; throw; }
         catch { MarkPersistenceFailure(); ErrorMessage = "保存仍未完成，内容保留在窗口中。"; throw; }
@@ -268,7 +283,8 @@ public sealed partial class MainViewModel : ViewModelBase
     }
     private async Task FlushAllDraftsAsync()
     {
-        await FlushCurrentAsync(repairSummaryOperations: true);
+        try { await FlushCurrentAsync(repairSummaryOperations: true); }
+        catch (SummaryInputResolutionRequiredException) { /* Explicit input recovery is surfaced after actual IO repair. */ }
         await FlushSummariesAsync();
         if (chatStore is null) return;
         foreach (var (id, draft) in unsavedDrafts.ToArray())

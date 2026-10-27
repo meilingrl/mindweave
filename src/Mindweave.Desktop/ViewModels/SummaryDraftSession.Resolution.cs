@@ -10,7 +10,20 @@ public sealed partial class SummaryDraftSession
 {
     private SummaryDraftResolution? pendingDiscard;
     public bool HasRemovedNodeInput { get; private set; }
-    private bool operationPaused;
+    private bool operationPaused, nodeRemoved;
+    public event Action? RemovedNodeInputChanged;
+    // Retained for this shared session's lifetime, including detached editor callbacks.
+    // Deleted storage is never reacquired as a lease for late memory-only input.
+    public void MarkNodeRemoved()
+    {
+        nodeRemoved = true; StopDebounce(); saved = null;
+        if (!HasMemoryChanges)
+        {
+            projecting = true; try { Title = Markdown = ""; } finally { projecting = false; }
+        }
+        HasRemovedNodeInput = HasMemoryChanges;
+        RemovedNodeInputChanged?.Invoke(); OnPropertyChanged(nameof(IsDirty));
+    }
     public void PauseForVersionConfirmation(bool paused)
     {
         operationPaused = paused;
@@ -26,7 +39,7 @@ public sealed partial class SummaryDraftSession
         if (!HasRemovedNodeInput || !MatchesResolution(expected)) return false;
         StopDebounce(); saved = null; pendingSave = null; HasRemovedNodeInput = false; revision = persisted = 0;
         projecting = true; try { Title = Markdown = ""; } finally { projecting = false; }
-        Error = null; OnPropertyChanged(nameof(IsDirty)); return true;
+        Error = null; OnPropertyChanged(nameof(IsDirty)); RemovedNodeInputChanged?.Invoke(); return true;
     }
     public bool MatchesResolution(SummaryDraftResolution expected) => expected.Token == saved?.Token && expected.LocalRevision == revision && expected.Title == Title && expected.Markdown == Markdown;
     public async Task<SummaryDraftResolution> CaptureResolutionAsync()
@@ -107,7 +120,7 @@ public sealed partial class SummaryDraftSession
                 if (node is null)
                 {
                     // Only later user input remains. Never keep the deleted saved-body cache.
-                    saved = null; HasRemovedNodeInput = true; StopDebounce(); return false;
+                    MarkNodeRemoved(); return false;
                 }
                 var begin = await store.BeginSummaryEditAsync(node.State.Token);
                 if (begin.Kind is not (SummaryOutcomeKind.Applied or SummaryOutcomeKind.NoChange)) throw new InvalidOperationException("新草稿无法取得编辑许可。");

@@ -43,12 +43,12 @@ public sealed partial class SummaryViewModel
     public bool HasPendingVersionOperation => pendingVersionIntent is not null;
     public bool HasUncertainVersionOperation => pendingVersionIntent is not null && !pendingDurable;
     public string NodeDisplayName => Snapshot?.State.Node.DisplayName ?? "";
-    public bool CanOperateVersions => !quiescing && !detached && !IsLoading && !IsSaving && !IsVersionOperationBusy && !blocked() && !HasPendingVersionOperation;
+    public bool CanOperateVersions => !quiescing && !detached && !IsLoading && !IsSaving && !IsVersionOperationBusy && !blocked() && !HasPendingVersionOperation && !HasRemovedNodeInput;
     public bool HasCandidate => Snapshot?.State.Node.CandidateVersionId is not null;
     public bool CanRestoreVersion => Version is not null && Version.Header.Identity.Id != Snapshot?.State.Node.CurrentVersionId && Version.Header.Identity.Id != Snapshot?.State.Node.CandidateVersionId;
     public bool CanConfirmVersionOperation => CanOperateVersions && previewAllowed && !NeedsDraftResolution && !NeedsActiveSummaryResolution && !NeedsCandidateResolution;
     public bool CanDiscardRemovedInput => HasRemovedNodeInput && !quiescing && !IsVersionOperationBusy;
-    public bool CanCancelVersionOperation => !IsVersionOperationBusy && !HasPendingVersionOperation;
+    public bool CanCancelVersionOperation => !IsVersionOperationBusy && !HasPendingVersionOperation && !HasRemovedNodeInput;
     public IAsyncRelayCommand AdoptCandidateCommand { get; private set; } = null!;
     public IAsyncRelayCommand DiscardCandidateCommand { get; private set; } = null!;
     public IAsyncRelayCommand RestoreVersionCommand { get; private set; } = null!;
@@ -62,11 +62,21 @@ public sealed partial class SummaryViewModel
     public IAsyncRelayCommand StopSummaryBeforeOperationCommand { get; private set; } = null!;
     public IAsyncRelayCommand DiscardRemovedInputCommand { get; private set; } = null!;
     public event Action? NodeDeleted;
+    public event Action? RemovedInputChanged;
     public void ConfigureSummaryStop(Func<Guid, Task> stop) => stopSummary = stop;
 
     private void InitializeVersionOperations(Func<Guid, Task>? currentChanged)
     {
         notifyCurrent = currentChanged;
+        Draft.RemovedNodeInputChanged += () =>
+        {
+            if (Draft.HasRemovedNodeInput) ShowRemovedInput(refreshConsent: !HasRemovedNodeInput);
+            else if (HasRemovedNodeInput)
+            {
+                HasRemovedNodeInput = false; removedInput = null; pendingVersionIntent = null;
+                CloseConfirmation(); RemovedInputChanged?.Invoke();
+            }
+        };
         DiscardRemovedInputCommand = new AsyncRelayCommand(DiscardRemovedInputAsync);
         AdoptCandidateCommand = new AsyncRelayCommand(() => RunVersionOperationAsync(() => PreviewAsync(VersionOperation.Adopt)));
         DiscardCandidateCommand = new AsyncRelayCommand(() => RunVersionOperationAsync(() => PreviewAsync(VersionOperation.DiscardCandidate)));
@@ -235,7 +245,8 @@ public sealed partial class SummaryViewModel
             intent.Kind == VersionOperation.DiscardCandidate && shown.Header.Identity.Id == intent.Target))) ClearRemovedBody();
         if (!pendingNotified && pendingCurrent is { } current && notifyCurrent is not null)
         { await notifyCurrent(current); pendingNotified = true; }
-        if (AffectsCurrent(intent) && !await Draft.RebaseAfterCurrentChangeAsync())
+        if (pendingNodeDeleted) Draft.MarkNodeRemoved();
+        if (Draft.HasRemovedNodeInput || (!pendingNodeDeleted && AffectsCurrent(intent) && !await Draft.RebaseAfterCurrentChangeAsync()))
         {
             ShowRemovedInput(); return;
         }
@@ -253,25 +264,29 @@ public sealed partial class SummaryViewModel
                 else await RefreshMetadataAsync();
             }
         }
+        // The final projection load yields too. Recheck before transferring ownership
+        // to navigation; MarkNodeRemoved also owns any callbacks arriving later.
+        if (Draft.HasRemovedNodeInput) { ShowRemovedInput(); return; }
         pendingVersionIntent = null; CloseConfirmation(); ErrorMessage = null;
         if (pendingNodeDeleted) NodeDeleted?.Invoke();
         RefreshAvailability();
     }
-    private void ShowRemovedInput()
+    private void ShowRemovedInput(bool refreshConsent = true)
     {
-        HasRemovedNodeInput = true; removedInput = Draft.CaptureRemovedInput(); draftResolution = removedInput;
+        HasRemovedNodeInput = true; draftResolution = Draft.CaptureRemovedInput();
+        if (refreshConsent) removedInput = draftResolution;
         NeedsDraftResolution = NeedsActiveSummaryResolution = NeedsCandidateResolution = false;
         IsSelectingDeletion = IsRenamingNode = false; previewAllowed = false;
         IsConfirmationOpen = true;
         ConfirmationMessage = "总结节点和所选版本已经删除，已保存的正文及阅读记录不可恢复。\n删除确认后又到达了以下未保存输入；这不是历史版本，不会写回或复活节点。请先复制需要的文字，再明确确认丢弃这份内存输入。取消退出可继续阅读和复制此处文字。";
-        ErrorMessage = null; RefreshAvailability();
+        ErrorMessage = null; RefreshAvailability(); RemovedInputChanged?.Invoke();
     }
     private Task DiscardRemovedInputAsync()
     {
         if (!CanDiscardRemovedInput || removedInput is null) return Task.CompletedTask;
         if (!Draft.DiscardRemovedInput(removedInput)) { ShowRemovedInput(); return Task.CompletedTask; }
         HasRemovedNodeInput = false; removedInput = null; pendingVersionIntent = null;
-        CloseConfirmation(); NodeDeleted?.Invoke(); return Task.CompletedTask;
+        CloseConfirmation(); RemovedInputChanged?.Invoke(); NodeDeleted?.Invoke(); return Task.CompletedTask;
     }
     private void ResumeVersionProjection()
     {

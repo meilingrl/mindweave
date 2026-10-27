@@ -176,6 +176,11 @@ public sealed partial class SummaryVersionDesktopTests
         public bool LoseAck { get; set; }
         public bool ThrowBefore { get; set; }
         public bool FailNodeRead { get; set; }
+        public bool FailSelection { get; set; }
+        public bool HoldPostDeleteNodeRead { get; set; }
+        private bool deletionCommitted, heldPostDeleteRead;
+        public TaskCompletionSource NodeReadEntered { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        public TaskCompletionSource ReleaseNodeRead { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
         public bool Disposed { get; private set; }
         public int Calls { get; private set; }
         public TaskCompletionSource Entered { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
@@ -183,15 +188,24 @@ public sealed partial class SummaryVersionDesktopTests
         protected override object? Invoke(MethodInfo? method, object?[]? args)
         {
             if (method!.Name == nameof(IAsyncDisposable.DisposeAsync)) Disposed = true;
+            if (method.Name == "SaveSelectionAsync" && FailSelection) return Task.FromException(new IOException("synthetic selection repair failure"));
             if (method.Name == "LoadSummaryNodeAsync" && FailNodeRead) return Task.FromException<SummaryNodeSnapshot?>(new IOException("synthetic repair read failure"));
+            if (method.Name == "LoadSummaryNodeAsync" && HoldPostDeleteNodeRead && deletionCommitted && !heldPostDeleteRead)
+            { heldPostDeleteRead = true; return HoldNodeReadAsync(method, args); }
             if (method.Name != Intercept) return method.Invoke(Inner, args);
             return typeof(OperationStoreProxy).GetMethod(nameof(InterceptAsync), BindingFlags.NonPublic | BindingFlags.Instance)!.MakeGenericMethod(method.ReturnType.GenericTypeArguments[0]).Invoke(this, [method, args]);
+        }
+        private async Task<SummaryNodeSnapshot?> HoldNodeReadAsync(MethodInfo method, object?[]? args)
+        {
+            NodeReadEntered.TrySetResult(); await ReleaseNodeRead.Task;
+            return await (Task<SummaryNodeSnapshot?>)method.Invoke(Inner, args)!;
         }
         private async Task<T> InterceptAsync<T>(MethodInfo method, object?[]? args)
         {
             Calls++; Entered.TrySetResult(); if (Hold) await Release.Task;
             if (ThrowBefore) { ThrowBefore = false; throw new IOException("synthetic failure before transaction"); }
             var result = await (Task<T>)method.Invoke(Inner, args)!;
+            if (method.Name == "DeleteSummaryVersionsAsync") deletionCommitted = true;
             if (LoseAck) { LoseAck = false; throw new IOException("synthetic lost acknowledgement after transaction"); }
             return result;
         }

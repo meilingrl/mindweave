@@ -30,6 +30,7 @@ public sealed partial class SummaryDraftSession(ISummaryVersionStore store, Guid
     {
         if (projecting) return;
         revision++; OnPropertyChanged(nameof(IsDirty));
+        if (nodeRemoved) { HasRemovedNodeInput = true; RemovedNodeInputChanged?.Invoke(); return; }
         if (operationPaused || HasRemovedNodeInput) return;
         debounce?.Cancel(); debounce?.Dispose(); debounce = new(); _ = SaveDelayedAsync(debounce.Token);
     }

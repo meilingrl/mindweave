@@ -65,5 +65,29 @@
         </Grid>
       </Grid>
     </Grid>
+    <ContentControl Grid.ColumnSpan="2" ZIndex="20" IsVisible="{Binding HasRemovedSummaryInput}" Content="{Binding RemovedSummaryInput}">
+      <ContentControl.ContentTemplate>
+        <DataTemplate x:DataType="vm:SummaryViewModel">
+          <Border Background="#F7F7F7" BorderBrush="#888888" BorderThickness="1" Padding="28" Margin="24" CornerRadius="8">
+            <ScrollViewer HorizontalScrollBarVisibility="Disabled">
+              <StackPanel Spacing="14">
+                <TextBlock Text="处理删除后到达的未保存输入" FontSize="22" TextWrapping="Wrap" />
+                <TextBlock Text="{Binding ConfirmationMessage}" TextWrapping="Wrap" />
+                <TextBox x:Name="RecoveredSummaryTitle" Text="{Binding ResolutionDraftTitle, Mode=OneWay}" IsReadOnly="True" TextWrapping="Wrap" AutomationProperties.Name="删除后保留输入的标题，可复制" />
+                <TextBox x:Name="RecoveredSummaryBody" Text="{Binding ResolutionDraftBody, Mode=OneWay}" IsReadOnly="True" TextWrapping="Wrap" AcceptsReturn="True" MaxHeight="300" AutomationProperties.Name="删除后保留的未保存正文，可复制" />
+                <StackPanel IsVisible="{Binding $parent[UserControl].((vm:MainViewModel)DataContext).HasPersistenceFailure}" Spacing="8">
+                  <TextBlock Text="另有保存尚未完成；重试保存不会丢弃这里的输入。" TextWrapping="Wrap" />
+                  <Button x:Name="RetryRecoveredSummaryPersistenceButton" Content="重试保存"
+                          Command="{Binding $parent[UserControl].((vm:MainViewModel)DataContext).RetrySaveCommand}" />
+                </StackPanel>
+                <Button x:Name="DiscardRecoveredSummaryInputButton" Content="确认丢弃上述未保存输入（不可恢复）"
+                        Command="{Binding $parent[UserControl].((vm:MainViewModel)DataContext).DiscardRecoveredSummaryInputCommand}"
+                        IsEnabled="{Binding $parent[UserControl].((vm:MainViewModel)DataContext).IsInteractionEnabled}" />
+              </StackPanel>
+            </ScrollViewer>
+          </Border>
+        </DataTemplate>
+      </ContentControl.ContentTemplate>
+    </ContentControl>
   </Grid>
 </UserControl>
