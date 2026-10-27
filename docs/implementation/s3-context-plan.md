@@ -136,8 +136,36 @@ Task5 `bc4a46c` 已独立审查通过，307通过／2原有跳过；控制器实
 - [x] RED→GREEN覆盖格式4新提示及identity、相同cap的3／4严格区分、旧格式2／3物理摘要请求完整JSON仍匹配baseline、非法/未知/混用拒绝；短有效摘要仍可Compose并Fits，过长摘要继续真实预算拒绝，不靠软目标绕过。无模型语义测试伪装，Python8项仍通过。
 - [x] 聚焦用例迭代，最终完整Release一次、build、Python夹具，自审提交；详细报告API／版本映射、golden来源原始日志、真实RED／GREEN、检查与局限。独立审查后由控制器旧数据副本／原生验证，再在原12次上限剩余7次内决定是否重试原U3；不重复前两轮、不扩大材料。若本次提示修订后的真实验收仍失败，不继续盲目改第三个变量，先审视预算／摘要策略。
 
+## Task 7: 仅摘要思考策略、请求边界与旧格式兼容
+
+用户在6/12次真实调用、三次摘要未完成闭环后，明确选择“新增仅摘要关闭选项”。该新决定覆盖此前“暂不增加，先保留默认”；默认仍服务默认，只有用户显式选择时才关闭DeepSeek官方摘要思考。普通回答和标题保持服务默认，同一服务／模型／凭据，不自动切换。依据架构§7.2模型参数边界细化，不更改main需求／架构。官方依据：https://api-docs.deepseek.com/guides/thinking_mode/ ，`thinking:{type:"disabled"}`；原始截断内部原因仍未确定。
+
+**Files:** Core/Chat/ChatModels.cs；Application/Chat/ChatContracts.cs、ChatConfigurationService.cs、ReplyContextPlanner.cs／Materials.cs、新SummaryThinkingPolicy.cs；Infrastructure/AI/ChatCompletionsTransport.cs、Storage/SqliteWorkspaceStore.Configuration.cs；测试新增ContextThinkingTests.cs／ContextThinkingTransportTests.cs／ContextThinkingStorageTests.cs，必要扩展Coordinator／Transport／旧版本测试；新合成golden在tests/fixtures/context-format4/。不改Desktop，此交付可以独立否决或批准。
+
+**Shared interfaces for Task8:** Core新增 `SummaryThinkingMode { ServiceDefault=0, Disabled=1 }`；AiConfiguration末尾可选属性 `SummaryThinking`，默认ServiceDefault，JSON在默认值时不写入。Application新增 `ChatRequestPurpose { Standard=0, ContextSummary=1 }`，ChatRequest末尾可选 `Purpose=Standard`，JSON默认值不写入。新纯 `SummaryThinkingPolicy.IsOfficialDeepSeekEndpoint(string)` 与 `ValidateConfiguration(AiConfiguration)`：只验证新策略边界，不改变默认模式的既有一般配置规则。任何精确API微调须先报告控制器，并在交接报告锁定。
+
+- [ ] 修改生产代码前，用baseline2595对应旧代码生成独立合成格式4 golden，含默认配置、完成源缓存／源尝试与prepared。保留原始成功日志、生成前源码差异／hash。旧格式2／3 golden原字节不变；禁止接触任何用户native/supplier库、系统凭据、真实服务或另一轨道。
+- [ ] 上述Core／request新字段默认值**按字段省略**，不能全局忽略所有default造成旧slice等字段变化。既有配置／请求JSON、旧key、源缓存ID、prepared format2 hash和引用精确兼容；不改ContextChunk形状、v1–v5 SQL或prepared私有format2。旧默认缺字段反序列化为ServiceDefault／Standard且只读不改写；未知枚举值拒绝，不归一化为默认。
+- [ ] 新接受计划格式5，Rebuild允许2／3／4／5；旧2／3／4的prompt／cap／key／完整请求JSON精确保留，旧版本不接受新增Disabled策略。格式5沿用格式4的prompt-v2、min4096输出和预算算法；只有5的摘要请求Purpose=ContextSummary。key纳入确切format与完整冻结配置，使同范围Default／Disabled严格分离；混用或篡改配置、cap、key、版本拒绝，来源归属及请求者删除后的独立证明保持。
+- [ ] Disabled仅支持HTTPS、无userinfo／query／fragment、默认443端口、精确主机api.deepseek.com、路径空等价根／或/v1及其单个尾斜线；其他域名／子域伪装／HTTP／自定义端口／其他路径拒绝，Default保持既有兼容服务可用。路径不静默重写配置。SaveAsync在任何vault调用前校验新策略，保存／发现不得为非法新策略读写凭据或外呼；Store的直接保存／接受也校验，避免绕过。校验错误为可理解ArgumentException。
+- [ ] Transport只在Purpose=ContextSummary且冻结SummaryThinking=Disabled、地址通过允许边界时添加顶层 `thinking:{type:"disabled"}`；Standard的Reply／Title及模型GET始终不添加thinking或reasoning_effort，Default摘要也省略参数。不从模型名、提示文本或全局活配置推断用途，未知Purpose拒绝。所有流协议、重定向禁用、超时、错误映射、输出预算、两槽释放／保存gate不变；不自动重试。
+- [ ] 真实RED→GREEN覆盖：默认字段省略及旧golden物理请求完整JSON／cache／prepared hash只读前后字节不变；格式5接受与mode隔离、旧版本＋Disabled／未知值／错域拒绝；Mock HTTP捕获JSON证明只有显式摘要出现disabled、同一off配置的普通回答／标题不受影响；无效mode／地址在vault和handler之前拒绝；协调器接受后改活配置不影响已接受各阶段，下一任务才用新策略。真实临时SQLite验证新设置保存／重开和旧2／3／4读取、source独立生命周期，无真实凭据或网络。
+- [ ] 聚焦迭代后完整Release、solution build、Python8一次，保留原始RED与GREEN、自审提交。报告精确API／JSON／版本映射、golden生成依据、检查与限制，输出task-7-report.md及Task8最小API交接。禁止新增UI、真实调用／原生操作、push／merge或子代理；控制器独立审查通过后Task8才实施。
+
+## Task 8: 设置页的显式摘要思考选项
+
+**Files:** Desktop/ViewModels/SettingsViewModel.cs、Views/SettingsView.axaml；必要的只读选项类型；tests/Mindweave.Tests/ContextDesktopTests.cs或专门SettingsThinkingTests.cs。只消费已过审Task7接口，不改其策略、序列化、transport或数据库结构。
+
+**Interfaces:** 从Task7 API交接读取AiConfiguration.SummaryThinking与SummaryThinkingMode；保存／发现仍调用既有ChatConfigurationService。旧配置初始化默认ServiceDefault，控件选项值来自该枚举或明确映射，不从显示文字猜策略。
+
+- [ ] Headless／真实临时库RED：旧配置无字段打开显示“服务默认”；保存与重开Disabled精确保留，清空密钥框且保留原CredentialReference，打开／切换／保存均不读密钥或外呼。修改模式只影响后续接受任务，历史回答及cache提示可读；Busy／保存gate沿用当前界面行为。
+- [ ] 新增标签和AutomationProperties.Name均为“摘要思考模式”的选择框，两个中文选项“服务默认”“关闭（仅DeepSeek官方摘要）”，初始默认服务默认。说明仅影响长历史摘要、普通回答和自动标题沿用服务默认，关闭仅支持DeepSeek官方；不添加普通回答思考选项、隐藏覆盖或自动测试。
+- [ ] 保存和初始化把所选模式完整往返AiConfiguration；旧字段、预算、模型、稳定连接／模型ID和凭据版本保留。无效选项或Disabled配不支持地址给明确错误，保留输入和活配置，不静默改为默认、不写／读vault、不触发全局持久故障暂停；用户可选择默认或更正地址再保存。显式模型目录按钮不因模式改变而自动触发。
+- [ ] 聚焦桌面测试检查实际XAML绑定、中文可访问性名称、设置说明、失败后输入保留、无秘密／外呼及重开往返；不只测试一个VM属性赋值。之后完整Release、build和Python8、自审提交报告及原生控件定位。独立审查后由控制器新包中仅对专用S3真实库显式选Disabled，保存时密钥留空，核对旧格式2／3／4仍可读及无自动重发。
+- [ ] 控制器后验仅在本轮余下6次／原12总上限内对既有U3显式重试；普通回答及摘要最大4096、标题128，官方flash，0模型列表查询；不重发U1／U2、不改三轮测试材料、不读取凭据值。结果按实际语义与完整闭环评判，任何未解决失败如实记录；代码／自动化与Windows／真实服务验收保持分层。
+
 ## 完成与验证边界
 
 计划分为四个可独立否决的门禁：纯规划／协议、真实存储、实际物理请求调度、桌面闭环。共享文件严格顺序修改。已有 S2-M1 视口性能与 S1-F3 极端修订号 P3 保留，不扩展本阶段为无关修复。
 
-实施前控制器自查每条架构要求均有任务：原文与祖先边界1/2；预算与覆盖1/2；摘要复用与生成身份1/2；两槽与取消恢复3；费用提示与可见失败4；真实质量与平台边界由控制器独立记录。没有新产品决策，无外部付费许可被计划自动扩大。
+初版实施前已核对：原文／祖先与预算／覆盖1/2；复用与生成身份1/2；两槽与取消恢复3；费用提示与失败4；真实质量与平台由控制器独立记录。后验Task5／6技术修复已过审；Task7／8按用户新的“仅摘要可关闭”决定执行。付费许可不由计划扩大，当前6/12已用、余6、无目录；S4仍未开始。
