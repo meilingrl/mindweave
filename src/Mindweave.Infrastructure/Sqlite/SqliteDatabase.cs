@@ -208,7 +208,7 @@ public sealed partial class SqliteDatabase : IDatabaseLifecycle, IAsyncDisposabl
         catch (SqliteException ex)
         {
             LogUnreadable(_logger, ex, _paths.DatabasePath);
-            return Result(DatabaseOpenStatus.Unreadable, null, detail: ex.Message);
+            return Result(DatabaseOpenStatus.Unreadable, null, detail: $"{ex.Message} (extended code {ex.SqliteExtendedErrorCode})");
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
         {

@@ -346,16 +346,23 @@ public sealed class SqliteDatabaseTests : IDisposable
         Assert.Equal("in-migration", await child.WaitForLineAsync(TimeSpan.FromSeconds(30)));
 
         await child.KillAsync();
-        await _dir.WaitUntilReadableAsync();
 
-        AssertUnchangedAtCurrent("original");
+        try
+        {
+            AssertUnchangedAtCurrent("original");
+        }
+        catch (SqliteException ex)
+        {
+            throw new InvalidOperationException($"Reading right after the kill: {ex.Message} (extended code {ex.SqliteExtendedErrorCode})", ex);
+        }
         using (var raw = _dir.Raw())
         {
             Assert.Equal(0, Scalar<long>(raw, "SELECT count(*) FROM app_state WHERE key = 'half-migrated';"));
         }
 
         await using var database = _dir.Database();
-        Assert.Equal(DatabaseOpenStatus.Ready, (await database.OpenAsync(Ct)).Status);
+        var result = await database.OpenAsync(Ct);
+        Assert.True(result.IsReady, $"{result.Status}: {result.ErrorDetail}");
     }
 
     [Fact]
