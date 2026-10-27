@@ -2,6 +2,9 @@
  xmlns:markdown="using:Mindweave.Desktop.Markdown" xmlns:vm="using:Mindweave.Desktop.ViewModels" x:Class="Mindweave.Desktop.Views.ChatView" x:DataType="vm:ChatViewModel">
  <Grid RowDefinitions="Auto,*,Auto" Margin="24,18">
   <StackPanel Spacing="8" Margin="0,0,0,12">
+   <TextBlock x:Name="SummaryScopeNotice" Text="{Binding SummaryScopeNotice}" IsVisible="{Binding HasSummaryService}" TextWrapping="Wrap" FontSize="12" />
+   <Button x:Name="GenerateSummaryButton" Content="总结当前会话" Command="{Binding GenerateSummaryCommand}" IsVisible="{Binding HasSummaryService}" IsEnabled="{Binding CanGenerateSummary}" AutomationProperties.Name="总结当前会话，可能产生额外费用" />
+   <TextBlock Text="{Binding SummaryAvailabilityNotice}" IsVisible="{Binding HasSummaryService}" TextWrapping="Wrap" FontSize="12" />
    <TextBlock Text="{Binding BranchPath}" TextWrapping="Wrap" FontSize="12" Foreground="#59644D" />
    <Button Content="返回来源" Command="{Binding ReturnToSourceCommand}" IsVisible="{Binding HasSource}" IsEnabled="{Binding CanNavigate}" AutomationProperties.Name="按分支关系返回来源" />
    <TextBlock Text="{Binding SavedSourceQuote}" IsVisible="{Binding HasSource}" TextWrapping="Wrap" MaxHeight="72" Foreground="#747B6E" />

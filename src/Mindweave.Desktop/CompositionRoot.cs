@@ -1,6 +1,7 @@
 using Mindweave.Application.Chat;
 using Mindweave.Application.Storage;
 using Mindweave.Desktop.Navigation;
+using Mindweave.Desktop.Services;
 using Mindweave.Desktop.ViewModels;
 namespace Mindweave.Desktop;
 
@@ -9,6 +10,11 @@ public static class CompositionRoot
     // S0 navigation-only compatibility. Production Root supplies its single application session.
     public static MainViewModel CreateMain(IWorkspaceStore store) => Create(store, null, null);
     public static MainViewModel CreateMain(IWorkspaceStore store, GenerationCoordinator coordinator, ChatConfigurationService configuration) => Create(store, coordinator, configuration);
+    public static MainViewModel CreateMain(IWorkspaceStore store, DesktopChatSession session)
+    {
+        var main = Create(store, session.Coordinator, session.Configuration);
+        main.ConfigureSummaries(session.Summaries, session.Naming); return main;
+    }
     private static MainViewModel Create(IWorkspaceStore store, GenerationCoordinator? coordinator, ChatConfigurationService? configuration)
     {
         MainViewModel main = null!;

@@ -5,7 +5,7 @@ public enum MainArea { Explore, Network, Settings }
 public enum ContentKind { Overview, Conversation, Summary }
 public enum NavigationIntent { Open, ReturnToSource, Restore }
 public sealed record NavigationRequest(MainArea Area, ContentKind Kind = ContentKind.Overview,
-    Guid? TargetId = null, NavigationIntent Intent = NavigationIntent.Open, SourceNavigation? Source = null);
+    Guid? TargetId = null, NavigationIntent Intent = NavigationIntent.Open, SourceNavigation? Source = null, Guid? SummaryVersionId = null);
 
 public enum RootDestination { StartupRecovery, Workbench }
 public interface IRootNavigationService { void Navigate(RootDestination destination); }

@@ -13,7 +13,7 @@
    <TextBlock Text="输出 token 参数" /><ComboBox ItemsSource="{Binding TokenParameters}" SelectedItem="{Binding TokenLimitParameter, Mode=TwoWay}" HorizontalAlignment="Stretch" />
    <TextBlock Text="摘要思考模式" />
    <ComboBox x:Name="SummaryThinkingSelector" ItemsSource="{Binding SummaryThinkingOptions}" SelectedItem="{Binding SelectedSummaryThinking, Mode=TwoWay}" IsEnabled="{Binding !IsBusy}" AutomationProperties.Name="摘要思考模式" HorizontalAlignment="Stretch" />
-   <TextBlock Text="仅影响长历史摘要；普通回答和自动标题沿用服务默认。关闭仅支持DeepSeek官方服务，需明确选择后保存。" TextWrapping="Wrap" Foreground="#747B6E" FontSize="12" />
+   <TextBlock Text="仅影响长历史摘要（上下文压缩）；知识总结、普通回答和自动标题沿用服务默认。关闭仅支持DeepSeek官方服务，需明确选择后保存。保存设置不会发起 AI 请求。" TextWrapping="Wrap" Foreground="#747B6E" FontSize="12" />
    <Grid ColumnDefinitions="*,*">
     <StackPanel Spacing="8" Margin="0,0,10,0"><TextBlock Text="上下文预算（保守估计）" /><NumericUpDown Value="{Binding ContextTokenBudget, Mode=TwoWay}" Minimum="256" Maximum="2147483647" FormatString="0" /></StackPanel>
     <StackPanel Grid.Column="1" Spacing="8"><TextBlock Text="最大输出 token" /><NumericUpDown Value="{Binding MaxOutputTokens, Mode=TwoWay}" Minimum="1" Maximum="2147483647" FormatString="0" /></StackPanel>

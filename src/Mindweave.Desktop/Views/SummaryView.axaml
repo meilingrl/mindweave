@@ -1,0 +1,26 @@
+<UserControl xmlns="https://github.com/avaloniaui" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml" xmlns:markdown="using:Mindweave.Desktop.Markdown"
+ xmlns:summary="using:Mindweave.Core.Summaries" xmlns:vm="using:Mindweave.Desktop.ViewModels" x:Class="Mindweave.Desktop.Views.SummaryView" x:DataType="vm:SummaryViewModel">
+ <Grid RowDefinitions="Auto,*,Auto" Margin="24,18">
+  <StackPanel Spacing="8">
+   <TextBlock Text="{Binding Heading}" FontSize="23" TextWrapping="Wrap" /><TextBlock Text="{Binding VersionIdentity}" />
+   <TextBlock Text="{Binding Metadata}" TextWrapping="Wrap" FontSize="12" /><TextBlock IsVisible="{Binding HasSourceQuote}" Text="{Binding SourceQuote, StringFormat='来源追问选文：{0}'}" TextWrapping="Wrap" MaxHeight="80" />
+   <WrapPanel><Button Content="回到来源会话" Command="{Binding ReturnToConversationCommand}" AutomationProperties.Name="回到此总结的来源会话" />
+    <TextBlock Text="{Binding ReadStatus}" Margin="8" /><Button Content="标记已读" IsEnabled="{Binding CanSetRead}" Command="{Binding MarkReadCommand}" /><Button Content="标记未读" IsEnabled="{Binding CanSetRead}" Command="{Binding MarkUnreadCommand}" />
+    <Button Content="编辑当前版本" Command="{Binding EditCommand}" IsVisible="{Binding CanEditCurrent}" AutomationProperties.Name="编辑当前总结版本" />
+    <Button Content="阅读已保存正文" Command="{Binding ReadCommand}" IsVisible="{Binding IsEditing}" />
+   </WrapPanel>
+   <ComboBox x:Name="SummaryVersionPicker" ItemsSource="{Binding Versions}" SelectedItem="{Binding SelectedVersion, Mode=OneWay}" SelectionChanged="VersionChanged" HorizontalAlignment="Stretch" AutomationProperties.Name="选择只读浏览的总结版本">
+    <ComboBox.ItemTemplate><DataTemplate x:DataType="summary:SummaryVersionHeader"><StackPanel Orientation="Horizontal" Spacing="8"><TextBlock Text="{Binding Identity.Ordinal, StringFormat='版本 {0}'}" /><TextBlock Text="{Binding Title}" TextWrapping="Wrap" /></StackPanel></DataTemplate></ComboBox.ItemTemplate>
+   </ComboBox>
+  </StackPanel>
+  <ScrollViewer Grid.Row="1" x:Name="SummaryScroll" IsVisible="{Binding !IsEditing}" HorizontalScrollBarVisibility="Disabled" Margin="0,12">
+   <markdown:MarkdownMessageView x:Name="SummaryMarkdown" Body="{Binding SavedBody}" FontSize="15" />
+  </ScrollViewer>
+  <Grid Grid.Row="1" RowDefinitions="Auto,*,Auto" IsVisible="{Binding IsEditing}" Margin="0,12">
+   <TextBox x:Name="SummaryEditTitle" IsReadOnly="{Binding !CanEditCurrent}" Text="{Binding Draft.Title, Mode=TwoWay}" AutomationProperties.Name="编辑总结标题" />
+   <TextBox Grid.Row="1" x:Name="SummaryEditBody" IsReadOnly="{Binding !CanEditCurrent}" Text="{Binding Draft.Markdown, Mode=TwoWay}" AcceptsReturn="True" TextWrapping="Wrap" AutomationProperties.Name="编辑总结正文 Markdown" />
+   <Button Grid.Row="2" Content="保存为当前版本" Command="{Binding SaveCommand}" IsEnabled="{Binding CanEditCurrent}" AutomationProperties.Name="保存总结编辑；内容无变化时不新增版本" />
+  </Grid>
+  <TextBlock Grid.Row="2" Text="{Binding ErrorMessage}" TextWrapping="Wrap" Foreground="#9A4122" />
+ </Grid>
+</UserControl>

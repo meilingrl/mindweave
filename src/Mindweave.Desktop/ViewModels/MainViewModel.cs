@@ -18,6 +18,7 @@ public sealed partial class MainViewModel : ViewModelBase
     private readonly SemaphoreSlim changes = new(1, 1);
     private readonly Dictionary<Guid, WorkspaceRuntimeState> sessions = [];
     private bool closing, localPersistenceFailure, detached;
+    private readonly HashSet<Task> backgroundRefreshes = [];
     private readonly Dictionary<Guid, ConversationDraft> unsavedDrafts = [];
     private WorkspaceSelection? pendingSelection;
     public MainViewModel(IWorkspaceStore store, IMenuNavigationService menu, IContentNavigationService content,
@@ -87,6 +88,13 @@ public sealed partial class MainViewModel : ViewModelBase
         if (saved is { Kind: ContentKind.Conversation, TargetId: { } id } && chatStore is not null && coordinator is not null &&
             (await chatStore.LoadConversationAsync(id))?.WorkspaceId == target.Id)
             await AddDetailAsync(new(MainArea.Explore, ContentKind.Conversation, id, NavigationIntent.Restore));
+        if (summaryStore is not null && area == MainArea.Network)
+        {
+            var selection = (await summaryStore.LoadSummarySelectionAsync()).Selection;
+            if (selection?.WorkspaceId == target.Id && await ValidateSummaryRequestAsync(target.Id,
+                new(MainArea.Network, ContentKind.Summary, selection.NodeId, SummaryVersionId: selection.VersionId)) is { } summaryRequest)
+                await AddDetailAsync(summaryRequest);
+        }
         await RefreshConversationsAsync();
     });
     public Task CreateWorkspaceAsync() => RunAsync(async () =>
@@ -103,6 +111,7 @@ public sealed partial class MainViewModel : ViewModelBase
         await FlushForNavigationAsync();
         var state = sessions.GetValueOrDefault(id) ?? new();
         var destination = state.InactiveHistories.GetValueOrDefault(state.ActiveArea)?.LastOrDefault() ?? new(state.ActiveArea);
+        destination = await ValidateSummaryRequestAsync(id, destination) ?? new(state.ActiveArea);
         await SaveSelectionAsync(id, destination);
         Detach(); sessions[id] = state; CurrentWorkspace = target; await ActivateAsync(state.ActiveArea); await RefreshConversationsAsync();
     });
@@ -127,9 +136,13 @@ public sealed partial class MainViewModel : ViewModelBase
         if (request.Kind == ContentKind.Conversation && chatStore is not null &&
             (await chatStore.LoadConversationAsync(request.TargetId!.Value))?.WorkspaceId != CurrentWorkspace!.Id)
             throw new ArgumentException("会话不属于当前工作区。");
+        if (request.Kind == ContentKind.Summary && summaryStore is not null)
+            request = await ValidateSummaryRequestAsync(CurrentWorkspace!.Id, request) ?? throw new ArgumentException("总结不存在或不属于当前主题。");
         var effective = request;
         if (request.Kind == ContentKind.Overview && CurrentArea != request.Area &&
             sessions[CurrentWorkspace!.Id].InactiveHistories.TryGetValue(request.Area, out var history)) effective = history[^1];
+        if (await ValidateSummaryRequestAsync(CurrentWorkspace!.Id, effective) is not { } validEffective) effective = new(request.Area);
+        else effective = validEffective;
         await SaveSelectionAsync(CurrentWorkspace!.Id, effective, strictSave);
         if (CurrentArea != request.Area) { Detach(); await ActivateAsync(request.Area); }
         if (request.Kind != ContentKind.Overview) await AddDetailAsync(request);
@@ -137,7 +150,7 @@ public sealed partial class MainViewModel : ViewModelBase
     }
     private async Task AddDetailAsync(NavigationRequest request)
     {
-        if (ActiveContent?.Request is { } previous && previous.Kind == request.Kind && previous.TargetId == request.TargetId)
+        if (ActiveContent?.Request is { } previous && previous.Kind == request.Kind && previous.TargetId == request.TargetId && previous.SummaryVersionId == request.SummaryVersionId)
         {
             ActiveContent.SetParameter(HistoryRequest(request));
             if (ActiveContent is ChatViewModel same)
@@ -154,6 +167,9 @@ public sealed partial class MainViewModel : ViewModelBase
         await FlushForNavigationAsync();
         if (ContentStack.Count > 1)
         {
+            while (ContentStack.Count > 1 && await ValidateSummaryRequestAsync(CurrentWorkspace!.Id, ContentStack[^2].Request) is null)
+                ContentStack.RemoveAt(ContentStack.Count - 2);
+            if (ContentStack.Count <= 1) { DeactivatePage(); ContentStack.Clear(); ContentStack.Add(await CreateContentAsync(new(CurrentArea))); NotifyContent(); return; }
             await SaveSelectionAsync(CurrentWorkspace!.Id, ContentStack[^2].Request);
             DeactivatePage(); ContentStack.RemoveAt(ContentStack.Count - 1);
             // Pages lower in the stack are snapshots too: reload on activation to project latest memory/draft.
@@ -163,6 +179,8 @@ public sealed partial class MainViewModel : ViewModelBase
     });
     private async Task SaveSelectionAsync(Guid workspaceId, NavigationRequest request, bool strict = false)
     {
+        if (await SaveSummarySelectionAsync(workspaceId, request, strict)) return;
+        pendingSummarySelection = null;
         var selection = new WorkspaceSelection(workspaceId, request.Area,
             request.Kind == ContentKind.Conversation ? request.Kind : ContentKind.Overview,
             request.Kind == ContentKind.Conversation ? request.TargetId : null);
@@ -174,13 +192,17 @@ public sealed partial class MainViewModel : ViewModelBase
     {
         closing = true; NotifyAvailability(); await changes.WaitAsync();
         changes.Release();
+        foreach (var page in summaryPages) page.QuiesceForClose();
         if (ActiveContent is not null) await ActiveContent.WaitForPendingOperationsAsync();
+        await Task.WhenAll(summaryPages.Select(page => page.WaitForPendingOperationsAsync()));
+        await DrainBackgroundRefreshesAsync();
     }
     public async Task SaveDraftForCloseAsync()
     {
         async Task SaveAsync()
         {
             await FlushAllDraftsAsync();
+            await RepairSummarySelectionAsync();
             if (pendingSelection is not null) { await store.SaveSelectionAsync(pendingSelection); pendingSelection = null; }
         }
         try
@@ -191,7 +213,7 @@ public sealed partial class MainViewModel : ViewModelBase
         }
         catch { MarkPersistenceFailure(); throw; }
     }
-    public void ReturnToWorkbench() { closing = false; coordinator?.Runtime.ResumeAccepting(); NotifyAvailability(); }
+    public void ReturnToWorkbench() { closing = false; (ActiveContent as SummaryViewModel)?.ResumeAfterClose(); coordinator?.Runtime.ResumeAccepting(); NotifyAvailability(); }
     public async Task RetryPersistenceAsync()
     {
         await changes.WaitAsync(); IsBusy = true;
@@ -200,6 +222,7 @@ public sealed partial class MainViewModel : ViewModelBase
             async Task RepairLocalAsync()
             {
                 await FlushAllDraftsAsync();
+                await RepairSummarySelectionAsync();
                 await CompletePendingBranchAsync();
                 if (pendingSelection is not null) { await store.SaveSelectionAsync(pendingSelection); pendingSelection = null; }
             }
@@ -222,6 +245,7 @@ public sealed partial class MainViewModel : ViewModelBase
     private async Task FlushCurrentAsync()
     {
         if (ActiveContent is not null) await ActiveContent.WaitForPendingOperationsAsync();
+        if (ActiveContent is SummaryViewModel summary) await summary.FlushAsync();
         if (ActiveContent is not ChatViewModel page) { await FlushReadsAsync(); return; }
         page.CaptureReadingNow();
         await page.SynchronizeAcceptedAsync();
@@ -240,13 +264,14 @@ public sealed partial class MainViewModel : ViewModelBase
     private async Task FlushAllDraftsAsync()
     {
         await FlushCurrentAsync();
+        await FlushSummariesAsync();
         if (chatStore is null) return;
         foreach (var (id, draft) in unsavedDrafts.ToArray())
         {
             await chatStore.SaveDraftAsync(id, draft.Text, draft.Revision); unsavedDrafts.Remove(id);
         }
     }
-    private void DeactivatePage() { if (ActiveContent is ChatViewModel page) page.Detach(); }
+    private void DeactivatePage() { if (ActiveContent is ChatViewModel page) page.Detach(); if (ActiveContent is SummaryViewModel summary) summary.Detach(); }
     private void Detach()
     {
         if (CurrentWorkspace is not null) sessions[CurrentWorkspace.Id].InactiveHistories[CurrentArea] = ContentStack.Select(page => HistoryRequest(page.Request)).ToArray();
@@ -256,7 +281,9 @@ public sealed partial class MainViewModel : ViewModelBase
     {
         var state = sessions[CurrentWorkspace!.Id]; state.ActiveArea = area; CurrentArea = area; ContentStack.Clear();
         if (state.InactiveHistories.Remove(area, out var history))
-            foreach (var request in history) ContentStack.Add(await CreateContentAsync(request));
+            foreach (var request in history)
+                if (await ValidateSummaryRequestAsync(CurrentWorkspace.Id, request) is { } valid)
+                { DeactivatePage(); ContentStack.Add(await CreateContentAsync(valid)); }
         if (ContentStack.Count == 0) ContentStack.Add(await CreateContentAsync(new(area)));
         NotifyContent();
     }
@@ -271,10 +298,21 @@ public sealed partial class MainViewModel : ViewModelBase
             if (BranchStore is { } branches)
                 chat.ConfigureBranches(branches, () => !detached && ActiveContent == chat, () => IsInteractionEnabled, CreateBranchAsync, ReturnToSourceAsync,
                     id => NavigateAsync(new(MainArea.Explore, ContentKind.Conversation, id)), ReadingChanged);
-            await chat.InitializeAsync();
+            if (summaries is not null) chat.ConfigureSummaries(summaries, summaryStore!);
+            await chat.InitializeAsync(); await chat.RefreshSummaryAsync();
             await chat.InitializeBranchesAsync(unsavedReads.GetValueOrDefault(chat.ConversationId));
             if (request.Source is { } source) chat.RequestSourceReveal(source);
             if (unsavedDrafts.TryGetValue(chat.ConversationId, out var draft)) chat.RestoreDraft(draft); page = chat;
+        }
+        else if (summaryStore is not null && request.Area == MainArea.Network)
+        {
+            if (request.Kind == ContentKind.Summary) page = await CreateSummaryAsync(request);
+            else
+            {
+                var list = new SummaryListViewModel(CurrentWorkspace!.Id, summaryStore,
+                    id => NavigateAsync(new(MainArea.Network, ContentKind.Summary, id)));
+                await list.ReloadAsync(); page = list;
+            }
         }
         else if (request.Area == MainArea.Settings && chatStore is not null && configuration is not null)
         {
@@ -282,6 +320,7 @@ public sealed partial class MainViewModel : ViewModelBase
             await settings.InitializeAsync(); page = settings;
         }
         else page = new();
+        if (page is SummaryViewModel { Version: { } version }) request = request with { SummaryVersionId = version.Header.Identity.Id };
         page.SetParameter(HistoryRequest(request)); return page;
     }
     private async Task RefreshConversationsAsync()
@@ -324,23 +363,41 @@ public sealed partial class MainViewModel : ViewModelBase
     }
     private void CoordinatorChanged() => Dispatcher.UIThread.Post(() =>
     {
-        if (detached) return;
+        if (detached || closing) return;
         (ActiveContent as ChatViewModel)?.Project(); NotifyAvailability();
-        _ = RefreshTitlesSafelyAsync();
+        TrackBackgroundRefresh(RefreshTitlesSafelyAsync); TrackBackgroundRefresh(RefreshSummaryAfterReplyAsync);
     });
     private async Task RefreshTitlesSafelyAsync() { try { await RefreshConversationsAsync(); } catch { /* Reading old content remains possible. */ } }
+    private void TrackBackgroundRefresh(Func<Task> refresh)
+    {
+        if (closing || detached) return;
+        var task = refresh(); backgroundRefreshes.Add(task); _ = ObserveBackgroundRefreshAsync(task);
+    }
+    private async Task ObserveBackgroundRefreshAsync(Task task)
+    {
+        try { await task; }
+        catch { /* Optional display refresh does not replace the shared durable-work repair gate. */ }
+        finally { backgroundRefreshes.Remove(task); }
+    }
+    public async Task DrainBackgroundRefreshesAsync()
+    {
+        // Called on the UI context after closing/detached prevents new dispatcher refreshes.
+        // The store owns neither these callers nor their chains of asynchronous reads.
+        while (backgroundRefreshes.Count > 0)
+            await Task.WhenAll(backgroundRefreshes.ToArray().Select(ObserveBackgroundRefreshAsync));
+    }
     private void MarkPersistenceFailure() { localPersistenceFailure = true; coordinator?.ReportPersistenceFailure(); NotifyAvailability(); }
     private void NotifyAvailability()
     {
         OnPropertyChanged(nameof(HasPersistenceFailure)); OnPropertyChanged(nameof(CanMutate)); OnPropertyChanged(nameof(IsClosing)); OnPropertyChanged(nameof(IsInteractionEnabled));
-        (ActiveContent as ChatViewModel)?.Project(); (ActiveContent as SettingsViewModel)?.RefreshAvailability();
+        (ActiveContent as ChatViewModel)?.Project(); (ActiveContent as SettingsViewModel)?.RefreshAvailability(); (ActiveContent as SummaryViewModel)?.RefreshAvailability();
     }
-    public void DetachObservers() { readDebounce?.Cancel(); detached = true; DeactivatePage(); if (coordinator is not null) coordinator.Changed -= CoordinatorChanged; }
+    public void DetachObservers() { readDebounce?.Cancel(); detached = true; DeactivatePage(); if (coordinator is not null) coordinator.Changed -= CoordinatorChanged; if (summaries is not null) summaries.Changed -= SummaryChanged; if (naming is not null) naming.Changed -= SummaryChanged; }
     private static void Validate(NavigationRequest request)
     {
         if (!Enum.IsDefined(request.Area) || !Enum.IsDefined(request.Kind) || !Enum.IsDefined(request.Intent) ||
             (request.Kind == ContentKind.Overview ? request.TargetId is not null : request.TargetId is null || request.TargetId == Guid.Empty) ||
-            (request.Kind == ContentKind.Conversation && request.Area != MainArea.Explore) || (request.Kind == ContentKind.Summary && request.Area != MainArea.Network))
+            (request.Kind == ContentKind.Conversation && request.Area != MainArea.Explore) || (request.Kind == ContentKind.Summary && request.Area != MainArea.Network) || (request.SummaryVersionId is not null && (request.Kind != ContentKind.Summary || request.SummaryVersionId == Guid.Empty)))
             throw new ArgumentException("导航目标或参数无效。");
     }
     private sealed class WorkspaceRuntimeState

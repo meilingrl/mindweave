@@ -150,9 +150,9 @@ public sealed partial class ChatViewModel : ContentViewModel
     {
         foreach (var snapshot in coordinator.Snapshots.Where(s => s.ConversationId == ConversationId && s.Kind == GenerationKind.Reply && s.AnswerMessageId is not null))
             Messages.FirstOrDefault(m => m.Id == snapshot.AnswerMessageId)?.Project(snapshot);
-        OnPropertyChanged(nameof(HasActiveReply)); OnPropertyChanged(nameof(CanSend)); OnPropertyChanged(nameof(CanRetry)); OnPropertyChanged(nameof(CanEdit)); OnPropertyChanged(nameof(CanBranch)); OnPropertyChanged(nameof(CanNavigate));
+        OnPropertyChanged(nameof(HasActiveReply)); OnPropertyChanged(nameof(CanSend)); OnPropertyChanged(nameof(CanRetry)); OnPropertyChanged(nameof(CanEdit)); OnPropertyChanged(nameof(CanBranch)); OnPropertyChanged(nameof(CanNavigate)); RefreshSummaryAvailability();
     }
-    partial void OnIsAcceptingChanged(bool value) { OnPropertyChanged(nameof(CanEdit)); OnPropertyChanged(nameof(CanSend)); OnPropertyChanged(nameof(CanBranch)); OnPropertyChanged(nameof(CanNavigate)); }
+    partial void OnIsAcceptingChanged(bool value) { OnPropertyChanged(nameof(CanEdit)); OnPropertyChanged(nameof(CanSend)); OnPropertyChanged(nameof(CanBranch)); OnPropertyChanged(nameof(CanNavigate)); RefreshSummaryAvailability(); }
     public ConversationDraft CurrentDraft => new(InputText, draftRevision);
     public void RestoreDraft(ConversationDraft draft)
     {
@@ -160,6 +160,6 @@ public sealed partial class ChatViewModel : ContentViewModel
         loading = true; try { InputText = draft.Text; draftRevision = draft.Revision; } finally { loading = false; }
     }
     public override Task WaitForPendingOperationsAsync() => Task.WhenAll(new[]
-        { SendCommand.ExecutionTask, StopCommand.ExecutionTask, RetryCommand.ExecutionTask, RenameCommand.ExecutionTask }.OfType<Task>());
+        { SendCommand.ExecutionTask, StopCommand.ExecutionTask, RetryCommand.ExecutionTask, RenameCommand.ExecutionTask, GenerateSummaryCommand.ExecutionTask }.OfType<Task>());
     public void Detach() { debounce?.Cancel(); debounce?.Dispose(); debounce = null; }
 }

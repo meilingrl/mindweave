@@ -1,0 +1,18 @@
+<UserControl xmlns="https://github.com/avaloniaui" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+ xmlns:vm="using:Mindweave.Desktop.ViewModels" x:Class="Mindweave.Desktop.Views.SummaryListView" x:DataType="vm:SummaryListViewModel">
+ <Grid RowDefinitions="Auto,Auto,*" Margin="24,18">
+  <StackPanel Spacing="8"><TextBlock Text="知识总结" FontSize="24" /><TextBlock Text="按显示名称或总结基础标题查找。选择条目查看元信息；点击“查看总结”阅读正文。关系图将在后续阶段提供。" TextWrapping="Wrap" /><TextBlock Text="{Binding ErrorMessage}" TextWrapping="Wrap" /></StackPanel>
+  <TextBox Grid.Row="1" x:Name="SummarySearch" Margin="0,12" Text="{Binding Search, Mode=TwoWay}" PlaceholderText="查找总结" AutomationProperties.Name="按名称或基础标题查找总结" />
+  <TextBlock Grid.Row="2" Text="暂无匹配的总结。可在探索会话中点击“总结当前会话”。" IsVisible="{Binding IsEmpty}" TextWrapping="Wrap" Margin="8" />
+  <ListBox Grid.Row="2" IsVisible="{Binding !IsEmpty}" ItemsSource="{Binding Items}" SelectedItem="{Binding SelectedItem, Mode=TwoWay}">
+   <ListBox.ItemTemplate><DataTemplate x:DataType="vm:SummaryListItem">
+    <StackPanel Spacing="6" Margin="8">
+     <TextBlock Text="{Binding DisplayName}" FontSize="18" TextWrapping="Wrap" />
+     <TextBlock Text="{Binding BaseTitle, StringFormat='基础标题：{0}'}" TextWrapping="Wrap" />
+     <WrapPanel><TextBlock Text="未读  " IsVisible="{Binding IsUnread}" /><TextBlock Text="有候选版本  " IsVisible="{Binding HasCandidate}" /><TextBlock Text="有后续内容" IsVisible="{Binding HasLaterContent}" /></WrapPanel>
+     <Button Content="查看总结" Command="{Binding $parent[UserControl].((vm:SummaryListViewModel)DataContext).ViewSummaryCommand}" CommandParameter="{Binding}" AutomationProperties.Name="{Binding DisplayName, StringFormat='查看总结：{0}'}" />
+    </StackPanel>
+   </DataTemplate></ListBox.ItemTemplate>
+  </ListBox>
+ </Grid>
+</UserControl>

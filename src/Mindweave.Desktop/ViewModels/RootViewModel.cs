@@ -61,7 +61,7 @@ public sealed partial class RootViewModel : ViewModelBase
             store = await openStore();
             chat = chatFactory?.Invoke(store);
             if (chat is not null) await chat.InitializeAsync();
-            var workbench = chat is null ? CompositionRoot.CreateMain(store) : CompositionRoot.CreateMain(store, chat.Coordinator, chat.Configuration);
+            var workbench = chat is null ? CompositionRoot.CreateMain(store) : CompositionRoot.CreateMain(store, chat);
             await workbench.InitializeAsync();
             if (workbench.ErrorMessage is not null) { workbench.DetachObservers(); throw new InvalidDataException(workbench.ErrorMessage); }
             main = workbench; navigation.Navigate(RootDestination.Workbench);
