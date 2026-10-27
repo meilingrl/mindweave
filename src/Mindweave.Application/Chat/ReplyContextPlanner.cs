@@ -5,7 +5,8 @@ namespace Mindweave.Application.Chat;
 /// <summary>Pure planning over already frozen, retry-filtered original messages. Never discovers history.</summary>
 public static partial class ReplyContextPlanner
 {
-    public const int FormatVersion = 5;
+    public const int FormatVersion = 6;
+    private const int SummaryThinkingFormatVersion = 5;
     private const int CompactPromptFormatVersion = 4;
     private const int ExpandedBudgetFormatVersion = 3;
     private const int LegacyFormatVersion = 2;
@@ -103,6 +104,7 @@ public static partial class ReplyContextPlanner
         // Source-owned attempts outlive their requesting plan. Authenticate the version
         // against both the original key and cap without changing ContextChunk's JSON shape.
         var formatVersion = MatchesChunk(chunk, byId, configuration, FormatVersion) ? FormatVersion :
+            MatchesChunk(chunk, byId, configuration, SummaryThinkingFormatVersion) ? SummaryThinkingFormatVersion :
             MatchesChunk(chunk, byId, configuration, CompactPromptFormatVersion) ? CompactPromptFormatVersion :
             MatchesChunk(chunk, byId, configuration, ExpandedBudgetFormatVersion) ? ExpandedBudgetFormatVersion :
             MatchesChunk(chunk, byId, configuration, LegacyFormatVersion) ? LegacyFormatVersion : 0;

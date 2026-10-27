@@ -77,13 +77,13 @@ public sealed class ContextThinkingTests
     }
 
     [Fact]
-    public void Format5_modes_have_disjoint_keys_and_only_new_summaries_have_explicit_purpose()
+    public void Format6_modes_have_disjoint_keys_and_only_new_summaries_have_explicit_purpose()
     {
         var owner = Guid.NewGuid(); var target = Guid.NewGuid(); var originals = Originals(owner, target);
         var config = Config(); var disabled = Property(config, "SummaryThinking", 1);
         var normal = ReplyContextPlanner.Plan(target, new(originals, null), config);
         var off = ReplyContextPlanner.Plan(target, new(originals, null), disabled);
-        Assert.Equal(5, normal.FormatVersion); Assert.Equal(5, off.FormatVersion);
+        Assert.Equal(6, normal.FormatVersion); Assert.Equal(6, off.FormatVersion);
         var normalChunks = normal.Parts.OfType<SummaryContextPart>().Select(p => p.Chunk).ToArray();
         var offChunks = off.Parts.OfType<SummaryContextPart>().Select(p => p.Chunk).ToArray();
         Assert.NotEmpty(normalChunks);

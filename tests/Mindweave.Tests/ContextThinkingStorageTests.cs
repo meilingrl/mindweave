@@ -54,7 +54,7 @@ public sealed class ContextThinkingStorageTests
     }
 
     [Fact]
-    public async Task Format5_disabled_cache_survives_requester_deletion_and_reopen_without_default_reuse()
+    public async Task Format6_disabled_cache_survives_requester_deletion_and_reopen_without_default_reuse()
     {
         using var dir = new TestDirectory(); var paths = AppPaths.ForTrack("codex-steady", dir.Path);
         var config = Config(1) with { ContextTokenBudget = 16000 };
@@ -73,7 +73,7 @@ public sealed class ContextThinkingStorageTests
             var left = await store.AcceptReplyAsync(requester, "current", config);
             var right = await store.AcceptReplyAsync(survivor, "current", config); survivorTask = right.Task.Id;
             var normal = await store.AcceptReplyAsync(other.Id, "current", config with { SummaryThinking = SummaryThinkingMode.ServiceDefault });
-            Assert.Equal(5, left.ContextPlan!.FormatVersion);
+            Assert.Equal(6, left.ContextPlan!.FormatVersion);
             foreach (var chunk in left.ContextPlan.Parts.OfType<SummaryContextPart>().Select(p => p.Chunk))
             {
                 var attempt = await store.StartCompressionAsync(left.Task.Id, chunk.CacheKey); attempts.Add(attempt.Id); keys.Add(chunk.CacheKey);

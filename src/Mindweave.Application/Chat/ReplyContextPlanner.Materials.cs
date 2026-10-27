@@ -9,20 +9,21 @@ public static partial class ReplyContextPlanner
 {
     private static void ValidateFormatVersion(int formatVersion)
     {
-        if (formatVersion is not (LegacyFormatVersion or ExpandedBudgetFormatVersion or CompactPromptFormatVersion or FormatVersion))
+        if (formatVersion is not (LegacyFormatVersion or ExpandedBudgetFormatVersion or CompactPromptFormatVersion or SummaryThinkingFormatVersion or FormatVersion))
             throw new InvalidOperationException("上下文计划格式版本不受支持。");
     }
 
     private static void ValidateFormatConfiguration(int formatVersion, AiConfiguration configuration)
     {
-        if (formatVersion != FormatVersion && configuration.SummaryThinking != SummaryThinkingMode.ServiceDefault)
+        if (formatVersion < SummaryThinkingFormatVersion && configuration.SummaryThinking != SummaryThinkingMode.ServiceDefault)
             throw new InvalidOperationException("旧版上下文计划不支持仅摘要思考策略。");
     }
 
     private static (string Version, string Instruction) SummaryPrompt(int formatVersion) => formatVersion switch
     {
         LegacyFormatVersion or ExpandedBudgetFormatVersion => (ContextSummaryProtocol.PromptVersion, ContextSummaryProtocol.Instruction),
-        CompactPromptFormatVersion or FormatVersion => (ContextSummaryProtocol.CompactPromptVersion, ContextSummaryProtocol.CompactInstruction),
+        CompactPromptFormatVersion or SummaryThinkingFormatVersion => (ContextSummaryProtocol.CompactPromptVersion, ContextSummaryProtocol.CompactInstruction),
+        FormatVersion => (ContextSummaryProtocol.ConstraintPromptVersion, ContextSummaryProtocol.ConstraintInstruction),
         _ => throw new InvalidOperationException("上下文计划格式版本不受支持。")
     };
 
@@ -31,7 +32,7 @@ public static partial class ReplyContextPlanner
 
     private static bool MatchesChunk(ContextChunk chunk, IReadOnlyDictionary<Guid, ChatMessage> originals,
         AiConfiguration configuration, int formatVersion) =>
-        (formatVersion == FormatVersion || configuration.SummaryThinking == SummaryThinkingMode.ServiceDefault) &&
+        (formatVersion >= SummaryThinkingFormatVersion || configuration.SummaryThinking == SummaryThinkingMode.ServiceDefault) &&
         chunk.MaxOutputTokens == SummaryOutputTokens(configuration, formatVersion) &&
         chunk.CacheKey == CacheKey(chunk.SourceConversationId, chunk.Slices, originals, configuration, formatVersion);
 
@@ -58,7 +59,7 @@ public static partial class ReplyContextPlanner
                     Status = originals[s.MessageId].Status.ToString(), originals[s.MessageId].ReplyToUserId,
                     Body = originals[s.MessageId].Body.Substring(s.Start, s.Length)
                 }) }))
-            }, formatVersion == FormatVersion ? ChatRequestPurpose.ContextSummary : ChatRequestPurpose.Standard);
+            }, formatVersion >= SummaryThinkingFormatVersion ? ChatRequestPurpose.ContextSummary : ChatRequestPurpose.Standard);
 
     private static ContextChunk[] SplitMessages(IReadOnlyList<ChatMessage> messages, AiConfiguration configuration, int formatVersion)
     {

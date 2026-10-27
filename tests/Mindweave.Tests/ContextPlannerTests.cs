@@ -60,7 +60,7 @@ public sealed class ContextPlannerTests
     }
 
     [Theory]
-    [InlineData(3, 6000)] [InlineData(4, 6500)]
+    [InlineData(3, 6000)] [InlineData(4, 6500)] [InlineData(5, 6500)] [InlineData(6, 7000)]
     public void Many_small_turns_pack_contiguous_older_messages_instead_of_rejecting_wrapper_overhead(int version, int budget)
     {
         var messages = Enumerable.Range(0, 90).SelectMany(_ =>

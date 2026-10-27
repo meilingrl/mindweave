@@ -43,10 +43,10 @@ public sealed class ContextPromptVersionTests
 
     [Theory]
     [InlineData(128)] [InlineData(1024)] [InlineData(2048)] [InlineData(4096)] [InlineData(6000)]
-    public void New_acceptance_uses_compact_prompt_and_exact_v2_identity_without_changing_output_budget(int output)
+    public void Persisted_format5_uses_compact_prompt_and_exact_v2_identity_without_changing_output_budget(int output)
     {
         var originals = Originals(); var config = Config(output);
-        var plan = ReplyContextPlanner.Plan(Target, new(originals, null), config);
+        var plan = ReplyContextPlanner.Rebuild(5, Target, new(originals, null), config);
         Assert.Equal(5, plan.FormatVersion);
         Assert.NotEmpty(Chunks(plan));
         foreach (var chunk in Chunks(plan))

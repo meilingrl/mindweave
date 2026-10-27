@@ -241,7 +241,7 @@ public sealed class SettingsThinkingTests
             var conversation = await store.CreateConversationAsync((await store.CreateAsync("synthetic future")).Id);
             var next = await store.AcceptReplyAsync(conversation.Id, "synthetic future question", (await store.LoadActiveConfigurationAsync())!);
             Assert.Equal(SummaryThinkingMode.Disabled, next.Task.Configuration.SummaryThinking);
-            Assert.Equal(5, next.ContextPlan!.FormatVersion);
+            Assert.Equal(6, next.ContextPlan!.FormatVersion);
             Assert.Equal(0, vault.Reads); Assert.Equal(0, vault.Writes); Assert.Equal(0, vault.Deletes);
             Assert.Equal(0, transport.StartCount); Assert.Null(transport.DiscoverySecret);
         }

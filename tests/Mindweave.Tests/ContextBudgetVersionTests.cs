@@ -39,7 +39,7 @@ public sealed class ContextBudgetVersionTests
         var inputs = ReplyContextPlanner.ComposeInputs(plan, originals, Summaries(plan), config);
         Assert.True(ChatRequestBudget.Fits(config, inputs));
         Assert.Equal("current", inputs[^1].Content);
-        Assert.Equal(5, plan.FormatVersion);
+        Assert.Equal(6, plan.FormatVersion);
     }
 
     [Fact]
@@ -60,7 +60,7 @@ public sealed class ContextBudgetVersionTests
         var chunk = Chunks(plan)[0];
         foreach (var forged in new[] { chunk with { MaxOutputTokens = 1024 }, chunk with { MaxOutputTokens = 4097 }, chunk with { CacheKey = new string('0', 64) } })
             Assert.Throws<InvalidOperationException>(() => ReplyContextPlanner.CreateSummaryRequest(Owner, forged, originals, config));
-        foreach (var version in new[] { 2, 3, 4, 0, 6, 99 })
+        foreach (var version in new[] { 2, 3, 4, 5, 0, 7, 99 })
             Assert.Throws<InvalidOperationException>(() => ReplyContextPlanner.ComposeInputs(plan with { FormatVersion = version }, originals, Summaries(plan), config));
     }
 
@@ -83,7 +83,7 @@ public sealed class ContextBudgetVersionTests
         }
         Assert.Throws<InvalidOperationException>(() => ReplyContextPlanner.ComposeInputs(legacy with { FormatVersion = 3 }, originals, Summaries(legacy), config));
         Assert.Throws<InvalidOperationException>(() => ReplyContextPlanner.ComposeInputs(current with { FormatVersion = 2 }, originals, Summaries(current), config));
-        foreach (var version in new[] { 0, 1, 6, 99 })
+        foreach (var version in new[] { 0, 1, 7, 99 })
             Assert.Throws<InvalidOperationException>(() => ReplyContextPlanner.Rebuild(version, Target, context, config));
     }
 
@@ -133,14 +133,14 @@ public sealed class ContextBudgetVersionTests
 
     [Theory]
     [InlineData(2)] [InlineData(3)] [InlineData(4)]
-    public async Task Reopened_old_database_accepts_format5_without_reusing_old_cache_or_rewriting_old_plan(int version)
+    public async Task Reopened_old_database_accepts_format6_without_reusing_old_cache_or_rewriting_old_plan(int version)
     {
         using var dir = new TestDirectory(); var paths = CopyGolden(dir, version); var golden = Golden(version);
         var id = Read<Guid>(golden, "TaskId");
         var oldPlan = ContextStorageTests.Sql(paths, "SELECT plan_json FROM reply_context_plan WHERE task_id=$id", ("$id", id));
         await using var store = await SqliteWorkspaceStore.OpenAsync(paths);
         var work = await store.AcceptReplyAsync(Read<Guid>(golden, "SiblingId"), null, Read<AiConfiguration>(golden, "Configuration"));
-        Assert.Equal(5, work.ContextPlan!.FormatVersion);
+        Assert.Equal(6, work.ContextPlan!.FormatVersion);
         var oldKeys = Read<ContextChunk[]>(golden, "Chunks").Select(c => c.CacheKey).ToHashSet();
         foreach (var chunk in Chunks(work.ContextPlan))
         {

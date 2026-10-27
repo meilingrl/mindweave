@@ -1,0 +1,74 @@
+using System.Security.Cryptography;
+using System.Text.Json;
+using Mindweave.Application.Chat;
+using Mindweave.Core.Chat;
+using Mindweave.Infrastructure.Runtime;
+using Mindweave.Infrastructure.Storage;
+using Xunit;
+namespace Mindweave.Tests;
+public sealed class GenerateFormat5Golden(ITestOutputHelper output)
+{
+    [Theory]
+    [InlineData(0)] [InlineData(1)]
+    public async Task Generate(int mode)
+    {
+        Assert.Equal(5, ReplyContextPlanner.FormatVersion);
+        var destination = Path.Combine(Environment.GetEnvironmentVariable("MINDWEAVE_GOLDEN_DESTINATION")!, mode == 0 ? "default" : "disabled");
+        using var dir = new TestDirectory(); var paths = AppPaths.ForTrack("codex-steady", dir.Path);
+        object manifest;
+        await using (var store = await SqliteWorkspaceStore.OpenAsync(paths))
+        {
+            var root = await store.CreateConversationAsync((await store.CreateAsync("synthetic format5 golden")).Id);
+            for (var i = 0; i < 5; i++) await BranchStorageTests.Answer(store, root.Id, "synthetic question " + i, new string((char)('a' + i), 2500));
+            var source = (await store.ReadMessagesAsync(root.Id))[^1];
+            var selection = BranchStorageTests.Selection(source) with { Quote = "e" };
+            var producer = await store.CreateBranchAsync(root.Id, selection, Guid.NewGuid());
+            var sibling = await store.CreateBranchAsync(root.Id, selection, Guid.NewGuid());
+            var config = BranchStorageTests.Config(16000) with { MaxOutputTokens = 4096, BaseUrl = "https://api.deepseek.com/v1", SummaryThinking = (SummaryThinkingMode)mode };
+            await store.SaveConfigurationAsync(config);
+            var left = await store.AcceptReplyAsync(producer.Id, "producer synthetic current", config);
+            var right = await store.AcceptReplyAsync(sibling.Id, "sibling synthetic current", config);
+            var chunks = left.ContextPlan!.Parts.OfType<SummaryContextPart>().Select(p => p.Chunk).ToArray();
+            Assert.NotEmpty(chunks); Assert.All(chunks, chunk => Assert.Equal(4096, chunk.MaxOutputTokens));
+            var summaries = new List<CompletedContextSummary>();
+            var requests = new List<ChatRequest>();
+            var attempts = new List<ContextCompressionAttempt>();
+            foreach (var chunk in chunks)
+            {
+                requests.Add(ReplyContextPlanner.CreateSummaryRequest(root.Id, chunk, left.InputMessages, config));
+                var attempt = await store.StartCompressionAsync(left.Task.Id, chunk.CacheKey);
+                await store.WriteCompressionAsync(left.Task.Id, attempt.Id, 1,
+                    ContextSummaryProtocol.Serialize(new ContextSummaryContent(summaries.Count == 0 ? new string('z', 3330) : "synthetic old facts", "", "", "", "")), GenerationStatus.Completed, "stop", actualModelId: "synthetic-model");
+                summaries.Add((await store.LoadCompletedSummaryAsync(right.Task.Id, chunk.CacheKey))!);
+                attempts.Add((await store.LoadCompressionAttemptAsync(attempt.Id))!);
+            }
+            var prepared = await store.PrepareReplyRequestAsync(right.Task.Id);
+            await store.PrepareReplyRequestAsync(left.Task.Id);
+            await store.WriteGenerationAsync(left.Task.Id, 1, "synthetic producer answer", GenerationStatus.Completed);
+            await store.WriteGenerationAsync(right.Task.Id, 1, "synthetic sibling answer", GenerationStatus.Completed);
+            var wireBodies = new List<string>();
+            using var client = new HttpClient(new CaptureHandler(wireBodies));
+            var transport = new Mindweave.Infrastructure.AI.ChatCompletionsTransport(client);
+            foreach (var request in requests.Append(prepared.Request))
+                await foreach (var item in transport.StreamAsync(request, "synthetic-only", CancellationToken.None)) { }
+            manifest = new { PhysicalBodies = wireBodies, Baseline = "57237c8", RootId = root.Id, ProducerId = producer.Id,
+                SiblingId = sibling.Id, ProducerTaskId = left.Task.Id, TaskId = right.Task.Id, Configuration = config,
+                Attempts = attempts, Originals = right.InputMessages, Chunks = chunks, Summaries = summaries, SummaryRequests = requests, Prepared = prepared,
+                PreparedHash = ContextStorageTests.Sql(paths, "SELECT request_hash FROM prepared_reply_request WHERE task_id=$id", ("$id", right.Task.Id)) };
+        }
+        Directory.CreateDirectory(destination);
+        File.Copy(paths.DatabasePath, Path.Combine(destination, "format5.db"), overwrite: false);
+        File.WriteAllText(Path.Combine(destination, "manifest.json"), JsonSerializer.Serialize(manifest, new JsonSerializerOptions { WriteIndented = true }));
+        foreach (var name in new[] { "format5.db", "manifest.json" })
+            output.WriteLine($"GOLDEN {name} SHA256={Convert.ToHexString(SHA256.HashData(File.ReadAllBytes(Path.Combine(destination, name))))}");
+        output.WriteLine(JsonSerializer.Serialize(manifest));
+    }
+    private sealed class CaptureHandler(List<string> bodies) : HttpMessageHandler
+    {
+        protected override async Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
+        {
+            bodies.Add(await request.Content!.ReadAsStringAsync(cancellationToken));
+            return new(System.Net.HttpStatusCode.OK) { Content = new StringContent("data: {\"choices\":[{\"delta\":{\"content\":\"ok\"},\"finish_reason\":\"stop\"}]}\n\ndata: [DONE]\n\n") };
+        }
+    }
+}
