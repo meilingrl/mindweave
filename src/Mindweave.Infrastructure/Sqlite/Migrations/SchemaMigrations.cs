@@ -245,5 +245,104 @@ internal static class SchemaMigrations
             ALTER TABLE ai_request ADD COLUMN prompt_tokens INTEGER;
             ALTER TABLE ai_request ADD COLUMN completion_tokens INTEGER;
             """),
+
+        Migration.Sql(6, "summary nodes, versions, read states, edit drafts; summary and naming tasks", """
+            -- Task kinds gain 'summary' and 'naming'; a CHECK can only change by rebuilding the table (foreign keys
+            -- are off during migrations and checked before commit). A summary task records the frozen coverage and
+            -- the version that was current when it was accepted (the adoption baseline). The baseline is only an
+            -- identity: versions may be deleted later, so it carries no foreign key.
+            CREATE TABLE generation_task_v6 (
+                id                TEXT    NOT NULL PRIMARY KEY,
+                kind              TEXT    NOT NULL CHECK (kind IN ('answer', 'title', 'summary', 'naming')),
+                conversation_id   TEXT    NOT NULL REFERENCES conversation (id) ON DELETE RESTRICT,
+                target_message_id TEXT    REFERENCES message (id) ON DELETE RESTRICT,
+                state             TEXT    NOT NULL CHECK (state IN ('queued', 'running', 'completed', 'stopped', 'failed', 'interrupted', 'cancelled')),
+                model_config_id   TEXT    NOT NULL,
+                base_url          TEXT    NOT NULL,
+                protocol          TEXT    NOT NULL,
+                model             TEXT    NOT NULL,
+                credential_ref    TEXT    NOT NULL,
+                max_output_tokens INTEGER,
+                input_message_ids TEXT    NOT NULL,
+                error_kind        TEXT,
+                error_detail      TEXT,
+                created_at        INTEGER NOT NULL,
+                started_at        INTEGER,
+                finished_at       INTEGER,
+                capabilities      TEXT,
+                input_summary_ids TEXT    NOT NULL DEFAULT '[]',
+                summary_to_seq    INTEGER,
+                summary_baseline  TEXT,
+                CHECK (kind <> 'answer' OR target_message_id IS NOT NULL),
+                CHECK (kind <> 'summary' OR summary_to_seq IS NOT NULL)
+            ) STRICT;
+            INSERT INTO generation_task_v6 (
+                id, kind, conversation_id, target_message_id, state, model_config_id, base_url, protocol, model,
+                credential_ref, max_output_tokens, input_message_ids, error_kind, error_detail, created_at, started_at,
+                finished_at, capabilities, input_summary_ids)
+            SELECT
+                id, kind, conversation_id, target_message_id, state, model_config_id, base_url, protocol, model,
+                credential_ref, max_output_tokens, input_message_ids, error_kind, error_detail, created_at, started_at,
+                finished_at, capabilities, input_summary_ids
+            FROM generation_task;
+            DROP TABLE generation_task;
+            ALTER TABLE generation_task_v6 RENAME TO generation_task;
+            CREATE INDEX generation_task_unfinished ON generation_task (state) WHERE state IN ('queued', 'running');
+            CREATE INDEX generation_task_by_conversation ON generation_task (conversation_id, kind, created_at);
+
+            -- One stable node per source conversation (architecture §8). The node and its versions reference each
+            -- other, so these keys are checked at commit; the current version is set in the transaction that
+            -- creates the node. Deleting the last saved version deletes the node; summarizing again makes a new one.
+            CREATE TABLE summary_node (
+                id                 TEXT    NOT NULL PRIMARY KEY,
+                workspace_id       TEXT    NOT NULL REFERENCES workspace (id) ON DELETE RESTRICT,
+                conversation_id    TEXT    NOT NULL UNIQUE REFERENCES conversation (id) ON DELETE RESTRICT,
+                current_version_id TEXT    NOT NULL REFERENCES summary_version (id) DEFERRABLE INITIALLY DEFERRED,
+                pending_version_id TEXT    REFERENCES summary_version (id) DEFERRABLE INITIALLY DEFERRED,
+                base_title         TEXT    NOT NULL CHECK (length(base_title) > 0),
+                display_name       TEXT    NOT NULL CHECK (length(display_name) > 0),
+                name_source        TEXT    NOT NULL CHECK (name_source IN ('base', 'auto', 'manual')),
+                created_at         INTEGER NOT NULL,
+                updated_at         INTEGER NOT NULL,
+                CHECK (pending_version_id IS NULL OR pending_version_id <> current_version_id)
+            ) STRICT;
+            CREATE INDEX summary_node_by_workspace ON summary_node (workspace_id);
+
+            -- Full text per version, never a diff. Coverage is the source conversation up to seq to_seq; an edit
+            -- keeps its baseline's coverage. The task is kept as an identity only.
+            CREATE TABLE summary_version (
+                id          TEXT    NOT NULL PRIMARY KEY,
+                node_id     TEXT    NOT NULL REFERENCES summary_node (id) ON DELETE RESTRICT DEFERRABLE INITIALLY DEFERRED,
+                seq         INTEGER NOT NULL CHECK (seq >= 1),
+                title       TEXT    NOT NULL CHECK (length(title) > 0),
+                body        TEXT    NOT NULL CHECK (length(body) > 0),
+                to_seq      INTEGER NOT NULL CHECK (to_seq >= 0),
+                origin      TEXT    NOT NULL CHECK (origin IN ('generated', 'edited')),
+                baseline_id TEXT,
+                task_id     TEXT,
+                model       TEXT,
+                created_at  INTEGER NOT NULL,
+                UNIQUE (node_id, seq)
+            ) STRICT;
+
+            -- Read state per version (U2): read by progress past the threshold, by the manual toggle, or by saving
+            -- an edit. Dependent rows, removed with their version.
+            CREATE TABLE summary_read_state (
+                version_id    TEXT    NOT NULL PRIMARY KEY REFERENCES summary_version (id) ON DELETE CASCADE,
+                read_source   TEXT    CHECK (read_source IN ('progress', 'manual', 'edit')),
+                max_progress  REAL    NOT NULL DEFAULT 0 CHECK (max_progress BETWEEN 0 AND 1),
+                locator       TEXT,
+                updated_at    INTEGER NOT NULL
+            ) STRICT, WITHOUT ROWID;
+
+            -- At most one autosaved edit per node, against the version it started from; not a version.
+            CREATE TABLE summary_edit_draft (
+                node_id     TEXT    NOT NULL PRIMARY KEY REFERENCES summary_node (id) ON DELETE CASCADE,
+                baseline_id TEXT    NOT NULL REFERENCES summary_version (id) ON DELETE RESTRICT,
+                title       TEXT    NOT NULL,
+                body        TEXT    NOT NULL,
+                updated_at  INTEGER NOT NULL
+            ) STRICT, WITHOUT ROWID;
+            """),
     ];
 }
