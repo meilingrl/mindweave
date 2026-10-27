@@ -576,7 +576,7 @@ public sealed class GenerationCoordinatorTests
             {
                 await foreach (var item in call.Events.Reader.ReadAllAsync(ignoreCancellation ? default : cancellationToken)) yield return item;
             }
-            finally { call.DisposeEntered.TrySetResult(); if (call.DisposeRelease is { } release) await release.Task; lock (all) active--; call.Disposed.TrySetResult(); }
+            finally { call.DisposeEntered.TrySetResult(); if (call.DisposeRelease is { } release) await release.Task; lock (all) active--; call.Disposed.TrySetResult(); if (call.DisposeFailure is { } failure) throw failure; }
         }
         public Task<Call> NextAsync() => calls.Reader.ReadAsync().AsTask().WaitAsync(TimeSpan.FromSeconds(10));
         public Task<IReadOnlyList<string>> ListModelsAsync(AiConfiguration configuration, string secret, CancellationToken cancellationToken)
@@ -590,6 +590,7 @@ public sealed class GenerationCoordinatorTests
         public string Secret { get; } = secret;
         public CancellationToken Cancellation { get; } = cancellation;
         public Channel<ChatStreamEvent> Events { get; } = Channel.CreateUnbounded<ChatStreamEvent>();
+        public Exception? DisposeFailure { get; set; }
         public TaskCompletionSource? DisposeRelease { get; set; }
         public TaskCompletionSource DisposeEntered { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
         public TaskCompletionSource Disposed { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
