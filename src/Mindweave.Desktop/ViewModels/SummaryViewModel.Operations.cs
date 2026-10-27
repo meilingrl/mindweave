@@ -75,6 +75,9 @@ public sealed partial class SummaryViewModel
             {
                 HasRemovedNodeInput = false; removedInput = null; pendingVersionIntent = null;
                 CloseConfirmation(); RemovedInputChanged?.Invoke();
+                // Resolution belongs to the shared draft. Every affected incarnation
+                // completes it; Main navigates only the currently active one.
+                NodeDeleted?.Invoke();
             }
         };
         DiscardRemovedInputCommand = new AsyncRelayCommand(DiscardRemovedInputAsync);
@@ -285,8 +288,8 @@ public sealed partial class SummaryViewModel
     {
         if (!CanDiscardRemovedInput || removedInput is null) return Task.CompletedTask;
         if (!Draft.DiscardRemovedInput(removedInput)) { ShowRemovedInput(); return Task.CompletedTask; }
-        HasRemovedNodeInput = false; removedInput = null; pendingVersionIntent = null;
-        CloseConfirmation(); RemovedInputChanged?.Invoke(); NodeDeleted?.Invoke(); return Task.CompletedTask;
+        // The shared clear notification synchronously completes all affected pages.
+        return Task.CompletedTask;
     }
     private void ResumeVersionProjection()
     {

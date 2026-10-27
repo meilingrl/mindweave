@@ -11,7 +11,13 @@ public sealed partial class MainViewModel
     [ObservableProperty] private SummaryViewModel? removedSummaryInput;
     public bool HasRemovedSummaryInput => RemovedSummaryInput is not null;
     partial void OnRemovedSummaryInputChanged(SummaryViewModel? value) => OnPropertyChanged(nameof(HasRemovedSummaryInput));
-    private void RefreshRemovedSummaryInput() => RemovedSummaryInput = summaryPages.FirstOrDefault(page => page.HasRemovedNodeInput);
+    private void RefreshRemovedSummaryInput()
+    {
+        RemovedSummaryInput = summaryPages.FirstOrDefault(page => page.HasRemovedNodeInput);
+        // This page now owns a workbench recovery surface, even if it was detached and
+        // quiesced by an earlier failed close before the shared input was discovered.
+        if (!closing) RemovedSummaryInput?.ResumeAfterClose();
+    }
     private void RequireResolvedSummaryInput()
     {
         RefreshRemovedSummaryInput();

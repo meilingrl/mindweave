@@ -104,6 +104,66 @@ public sealed partial class SummaryVersionDesktopTests
         finally { control.ReleaseNodeRead.TrySetResult(); await CleanupRecovery(root, page, window); }
     }
 
+    [AvaloniaTheory]
+    [InlineData(false, false)]
+    [InlineData(true, false)]
+    [InlineData(true, true)]
+    public async Task Shared_recovery_from_two_real_page_incarnations_resolves_the_active_page_and_uses_workbench_lifecycle(bool priorFailedClose, bool recoverOnChat)
+    {
+        await using var f = await SummaryStorageFixture.Open(); var proxy = Proxy(f, out var control);
+        var root = RecoveryRoot(f, proxy); await root.InitializeAsync(); var main = Assert.IsType<MainViewModel>(root.Content);
+        await main.NavigateAsync(new(MainArea.Network, ContentKind.Summary, f.Node));
+        var first = Assert.IsType<SummaryViewModel>(main.ActiveContent);
+        SummaryViewModel? second = null;
+        var window = new MainWindow { DataContext = root }; window.Show(); Layout(); DisableReading(window);
+        try
+        {
+            control.FailSelection = priorFailedClose;
+            await main.NavigateAsync(new(MainArea.Explore, ContentKind.Conversation, f.Conversation));
+            if (priorFailedClose)
+            {
+                Assert.True(main.HasPersistenceFailure);
+                await root.CloseAsync(); Assert.False(root.IsClosed); Assert.NotNull(root.CloseError);
+                root.ReturnToWorkbenchCommand.Execute(null);
+                control.FailSelection = false; await root.RetrySaveCommand.ExecuteAsync(null);
+                Assert.False(main.HasPersistenceFailure);
+            }
+            await main.NavigateAsync(new(MainArea.Network, ContentKind.Summary, f.Node));
+            second = Assert.IsType<SummaryViewModel>(main.ActiveContent);
+            Assert.NotSame(first, second); Assert.Same(first.Draft, second.Draft);
+            Layout(); DisableReading(window);
+            await second.EditCommand.ExecuteAsync(null); await PrepareLastDelete(second, f.First);
+            control.Intercept = "DeleteSummaryVersionsAsync"; control.Hold = true; control.LoseAck = recoverOnChat;
+            var deleting = second.ConfirmVersionOperationCommand.ExecuteAsync(null);
+            await control.Entered.Task.WaitAsync(TimeSpan.FromSeconds(10));
+            second.Draft.Title = "Two pages one input"; second.Draft.Markdown = "Shared recovery belongs to the workbench";
+            second.Draft.StopDebounce(); control.Release.TrySetResult(); await deleting;
+            if (recoverOnChat)
+            {
+                await main.NavigateAsync(new(MainArea.Explore, ContentKind.Conversation, f.Conversation));
+                await root.RetrySaveCommand.ExecuteAsync(null);
+                Assert.IsType<ChatViewModel>(main.ActiveContent);
+            }
+            Layout(); Assert.True(first.HasRemovedNodeInput); Assert.True(second.HasRemovedNodeInput);
+            AssertRecoveryText(window, "Two pages one input", "Shared recovery belongs to the workbench");
+            Assert.True(main.IsInteractionEnabled);
+            Assert.True(main.RemovedSummaryInput!.CanDiscardRemovedInput); // No extra Close/Return to revive an old owner.
+            await ClickRecoveryDiscard(window);
+            if (second.Draft.HasRemovedNodeInput) await ClickRecoveryDiscard(window); // Refresh an older exact consent if needed.
+            Assert.False(first.HasRemovedNodeInput); Assert.False(second.HasRemovedNodeInput);
+            Assert.False(first.HasPendingVersionOperation); Assert.False(second.HasPendingVersionOperation);
+            Assert.False(second.Draft.HasRemovedNodeInput); Assert.False(main.HasRemovedSummaryInput);
+            Layout(); await main.DrainBackgroundRefreshesAsync();
+            if (recoverOnChat) Assert.IsType<ChatViewModel>(main.ActiveContent);
+            else Assert.IsType<SummaryListViewModel>(main.ActiveContent);
+            Assert.Equal(1, control.Calls); Assert.False(main.HasPersistenceFailure);
+            Assert.Null(await f.Versions.LoadSummaryNodeAsync(f.Node)); Assert.Null(await f.Versions.LoadSummaryVersionAsync(f.First));
+            Assert.Null(await f.Versions.LoadSummaryReadingAsync(f.First)); Assert.Null((await f.Versions.LoadSummarySelectionAsync()).Selection);
+            await root.CloseAsync(); Assert.True(root.IsClosed);
+        }
+        finally { control.FailSelection = false; control.Release.TrySetResult(); await CleanupRecovery(root, second ?? first, window); }
+    }
+
     private static RootViewModel RecoveryRoot(SummaryStorageFixture f, SummaryDesktopTests.IDesktopStore store) => new(
         () => Task.FromResult<Mindweave.Application.Storage.IWorkspaceStore>(store), new DesktopActions(f.Paths.DataDirectory, () => { }), f.Paths.DataDirectory,
         actual => new DesktopChatSession((Mindweave.Application.Chat.IChatStore)actual,
