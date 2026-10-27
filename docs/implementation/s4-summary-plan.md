@@ -55,10 +55,10 @@ Task1定义Core/Summaries不可变节点／版本／覆盖／任务／草稿／�
 
 **Interfaces:** 产出Shared Contracts全部精确类型／接口与纯规则，供2／3／5／6／7消费；不接存储／协调器／UI。
 
-- [ ] 先写可运行RED，记录首次类型编译与行为RED的区别。案例命名包括`SummaryProtocol_rejects_duplicate_or_partial_fields`、`SummaryInput_preserves_frozen_scope_and_requires_complete_budget`、`Manual_unread_rejects_older_progress_epoch`、`Current_deletion_chooses_previous_else_latest_retained`；含中文／emoji／转义与边界±1。
-- [ ] 实现全部冻结来源＋必要分支背景的独立input1／protocol1，SourceQuote引用原BranchSource绑定；空自身内容拒绝，Partial/Failed/Stopped终态状态不冒充完整解释，祖先旧尝试不按当前LatestInput重选。原指令作为引用数据，协议明示不执行源消息命令。
-- [ ] 实现严格Title／Markdown解析和跨delta UTF-8有界累积，完整流结束及Dispose前不判成功；保留现有ChatRequestBudget／S3代码不动。纯版本／阅读／规范化规则覆盖上文所有状态。
-- [ ] 聚焦GREEN命令`dotnet test Mindweave.slnx -c Release --filter 'FullyQualifiedName~SummaryPolicyTests|FullyQualifiedName~SummaryInputTests'`；完整Release／build后自审提交，报告逐项测试结果、完整精确API和后续消费示例。独立审查后锁定合同。
+- [x] 先写可运行RED，记录首次类型编译与行为RED的区别。案例命名包括`SummaryProtocol_rejects_duplicate_or_partial_fields`、`SummaryInput_preserves_frozen_scope_and_requires_complete_budget`、`Manual_unread_rejects_older_progress_epoch`、`Current_deletion_chooses_previous_else_latest_retained`；含中文／emoji／转义与边界±1。
+- [x] 实现全部冻结来源＋必要分支背景的独立input1／protocol1，SourceQuote引用原BranchSource绑定；空自身内容拒绝，Partial/Failed/Stopped终态状态不冒充完整解释，祖先旧尝试不按当前LatestInput重选。原指令作为引用数据，协议明示不执行源消息命令。
+- [x] 实现严格Title／Markdown解析和跨delta UTF-8有界累积，完整流结束及Dispose前不判成功；保留现有ChatRequestBudget／S3代码不动。纯版本／阅读／规范化规则覆盖上文所有状态。
+- [x] 聚焦GREEN命令`dotnet test Mindweave.slnx -c Release --filter 'FullyQualifiedName~SummaryPolicyTests|FullyQualifiedName~SummaryInputTests'`；完整Release／build后自审提交，报告逐项测试结果、完整精确API和后续消费示例。独立审查后锁定合同。
 
 ## Task 2: schema6、冻结任务及原子首次／候选完成
 

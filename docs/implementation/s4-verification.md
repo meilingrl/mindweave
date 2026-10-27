@@ -1,6 +1,6 @@
 # S4 知识总结与版本管理 · 验证记录
 
-开始日期2026-10-27，`track/codex-steady`，工作目录`/Users/meilingluo/Developer/Projects/mindweave.worktrees/codex-steady`。当前为Task1实施中，**S4尚无通过的实现或验收结论**；[实施计划](s4-summary-plan.md)，实时状态见[TRACK](../../TRACK.md)。
+开始日期2026-10-27，`track/codex-steady`，工作目录`/Users/meilingluo/Developer/Projects/mindweave.worktrees/codex-steady`。Task1纯合同／协议／规则已完成，Task2数据库阶段准备中，**S4尚未整体实现或验收**；[实施计划](s4-summary-plan.md)，实时状态见[TRACK](../../TRACK.md)。
 
 ## 已核实基线
 
@@ -13,7 +13,7 @@
 
 | 层 | 当前状态 |
 | --- | --- |
-| 领域／输入协议／阅读版本规则 | 初版10505e6完整440通过／2原有跳过，build零警告错误；独立审查发现I1短文停留跨中断累计，修复复审中，尚未批准 |
+| 领域／输入协议／阅读版本规则 | Task1初版10505e6、修复a436efe；最终445通过／2原有跳过，build零警告错误；[独立审查及I1限定复审](../reviews/codex-s4-domain-20261027.md)全部关闭，纯合同已批准 |
 | schema6与生成／版本事务 | Task2／3未开始 |
 | 共享AI调度与生命周期 | Task4未开始；需保留S1／S3语义 |
 | 知识总结及二次命名 | Task5／6未开始 |
