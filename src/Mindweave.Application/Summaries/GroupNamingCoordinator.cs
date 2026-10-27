@@ -81,7 +81,7 @@ public sealed partial class GroupNamingCoordinator : IAsyncDisposable, IGenerati
             }
             var pending = group.Pending!;
             var saved = await store.SaveNodeNamingIntentAsync(pending.Intent).ConfigureAwait(false);
-            if (!Success(saved.Kind)) { lock (sync) group.Pending = null; return; }
+            if (!Success(saved.Kind)) { await ClearPendingAsync(group, pending).ConfigureAwait(false); return; }
             pending.Saved = true;
             await AcceptPendingAsync(group).ConfigureAwait(false);
         }
@@ -107,8 +107,7 @@ public sealed partial class GroupNamingCoordinator : IAsyncDisposable, IGenerati
         }
         else
         {
-            await store.ClearNodeNamingIntentAsync(pending.Intent.Snapshot.WorkspaceId, pending.Intent.Snapshot.GroupKey, pending.Intent.OperationId).ConfigureAwait(false);
-            lock (sync) group.Pending = null;
+            await ClearPendingAsync(group, pending).ConfigureAwait(false);
         }
     }
     private Job Adopt(Group group, NodeNamingJob record, bool stopped)

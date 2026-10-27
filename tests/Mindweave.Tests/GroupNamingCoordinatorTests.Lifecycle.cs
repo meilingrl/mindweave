@@ -70,10 +70,60 @@ public sealed partial class GroupNamingCoordinatorTests
         await f.Runtime.ShutdownAsync(); f.Runtime.ResumeAccepting(); await f.Runtime.RetryPersistenceAsync();
         Assert.Empty(await f.Data.Store.ListNodeNamingIntentsAsync()); Assert.Equal(1, f.Transport.StartCount);
     }
+    // Break caught: a normally rejected replacement loses its durable predecessor's cleanup ownership.
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task Rejected_latest_pending_keeps_predecessor_owned_until_conditional_cleanup_succeeds(bool clearFailure)
+    {
+        await using var f = await Fixture.Open();
+        await f.Naming.NotifyCurrentChangedAsync(f.Data.Node);
+        var call = await f.Transport.NextAsync(); var payload = f.Payload();
+        await f.Data.Commit("First", "durable predecessor");
+        await f.Naming.NotifyCurrentChangedAsync(f.Data.Node);
+        var predecessor = Assert.Single(await f.Data.Store.ListNodeNamingIntentsAsync());
+        await f.Data.Commit("First", "replacement snapshot about to become stale");
+        f.Wrapped.SaveEntered = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        f.Wrapped.SaveRelease = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        var replacement = f.Naming.NotifyCurrentChangedAsync(f.Data.Node);
+        try
+        {
+            await f.Wrapped.SaveEntered.Task.WaitAsync(TimeSpan.FromSeconds(10));
+            var node = (await f.Data.Snapshot()).State.Node;
+            await f.Data.Versions.RenameSummaryNodeAsync(node.Id, node.NameRevision, "Protected manual name");
+            f.Wrapped.ClearFault = clearFailure;
+        }
+        finally { f.Wrapped.SaveRelease.TrySetResult(); }
+        if (clearFailure)
+        {
+            await Assert.ThrowsAsync<IOException>(() => replacement);
+            Assert.Equal(SummaryOutcomeKind.Obsolete, f.Wrapped.LastSaveKind);
+            Assert.Equal(predecessor.OperationId, Assert.Single(await f.Data.Store.ListNodeNamingIntentsAsync()).OperationId);
+            Assert.True(f.Runtime.HasPersistenceFailure); Assert.True(f.Naming.HasActiveOrPendingWork);
+            await Assert.ThrowsAsync<IOException>(() => f.Runtime.ShutdownAsync());
+            f.Runtime.ResumeAccepting(); f.Wrapped.ClearFault = false;
+            await f.Runtime.RetryPersistenceAsync();
+        }
+        else
+        {
+            await replacement;
+            Assert.Equal(SummaryOutcomeKind.Obsolete, f.Wrapped.LastSaveKind);
+            Assert.False(f.Runtime.HasPersistenceFailure);
+            call.Emit(payload, "stop"); call.Finish();
+        }
+        await f.Wait(() => !f.Naming.HasActiveOrPendingWork);
+        Assert.Empty(await f.Data.Store.ListNodeNamingIntentsAsync());
+        await f.Runtime.ShutdownAsync();
+        Assert.Empty(await f.Data.Store.ListNodeNamingIntentsAsync());
+        Assert.Equal(1, f.Transport.StartCount);
+        Assert.Equal("Protected manual name", (await f.Data.Snapshot()).State.Node.DisplayName);
+    }
     internal sealed class FaultStore(INodeNamingStore inner) : INodeNamingStore
     {
         public string? CompletionFault, AcceptFault, SaveFault; public bool FindFault, ClearFault;
         public List<NodeNamingCompletion> Completions = [];
+        public TaskCompletionSource? SaveEntered, SaveRelease;
+        public SummaryOutcomeKind? LastSaveKind;
         public Task<NodeNamingSnapshot> ReadNodeNamingGroupAsync(Guid w, string g) => inner.ReadNodeNamingGroupAsync(w, g);
         public async Task<SummaryOutcome<NodeNamingJob>> AcceptNodeNamingAsync(Guid op, NodeNamingSnapshot s, AiConfiguration c)
         { var fault = AcceptFault; AcceptFault = null; if (fault == "before") throw new IOException("synthetic accept"); var r = await inner.AcceptNodeNamingAsync(op, s, c); if (fault == "after") throw new IOException("synthetic lost accept"); return r; }
@@ -85,7 +135,15 @@ public sealed partial class GroupNamingCoordinatorTests
         public async Task<SummaryOutcome<NodeNamingResult>> CompleteNodeNamingAsync(NodeNamingCompletion c)
         { Completions.Add(c); if (CompletionFault == "before") throw new IOException("synthetic completion"); var r = await inner.CompleteNodeNamingAsync(c); if (CompletionFault == "after") throw new IOException("synthetic lost completion"); return r; }
         public Task RecoverInterruptedNodeNamingAsync() => inner.RecoverInterruptedNodeNamingAsync();
-        public async Task<SummaryOutcome<NodeNamingIntent>> SaveNodeNamingIntentAsync(NodeNamingIntent i) { var fault = SaveFault; SaveFault = null; if (fault == "before") throw new IOException("synthetic intent"); var result = await inner.SaveNodeNamingIntentAsync(i); if (fault == "after") throw new IOException("synthetic lost intent"); return result; }
+        public async Task<SummaryOutcome<NodeNamingIntent>> SaveNodeNamingIntentAsync(NodeNamingIntent i)
+        {
+            var fault = SaveFault; SaveFault = null;
+            if (fault == "before") throw new IOException("synthetic intent");
+            if (SaveRelease is { } release) { SaveEntered!.TrySetResult(); await release.Task; }
+            var result = await inner.SaveNodeNamingIntentAsync(i); LastSaveKind = result.Kind;
+            if (fault == "after") throw new IOException("synthetic lost intent");
+            return result;
+        }
         public Task ClearNodeNamingIntentAsync(Guid w, string g, Guid op) => ClearFault ? Task.FromException(new IOException("synthetic clear")) : inner.ClearNodeNamingIntentAsync(w, g, op);
         public Task<ImmutableArray<NodeNamingIntent>> ListNodeNamingIntentsAsync() => inner.ListNodeNamingIntentsAsync();
         public Task<SummaryOutcome<PreparedNodeNamingRequest>> PrepareNodeNamingRequestAsync(Guid id, long r) => inner.PrepareNodeNamingRequestAsync(id, r);

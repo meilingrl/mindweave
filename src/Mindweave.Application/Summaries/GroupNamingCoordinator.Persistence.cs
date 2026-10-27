@@ -39,16 +39,15 @@ public sealed partial class GroupNamingCoordinator
                         var durable = (await store.ListNodeNamingIntentsAsync().ConfigureAwait(false)).SingleOrDefault(i => i.OperationId == pending.Intent.OperationId);
                         if (durable is null)
                         {
-                            if (pending.ReplacedOperation is { } replaced) await store.ClearNodeNamingIntentAsync(pending.Intent.Snapshot.WorkspaceId, pending.Intent.Snapshot.GroupKey, replaced).ConfigureAwait(false);
-                            lock (sync) group.Pending = null; continue;
+                            await ClearPendingAsync(group, pending).ConfigureAwait(false);
+                            continue;
                         }
                         if (durable.Snapshot.SnapshotHash != pending.Intent.Snapshot.SnapshotHash || durable.Configuration != pending.Intent.Configuration) throw new InvalidDataException("命名待处理身份不一致。");
                         pending.Saved = true;
                     }
                     if (pending.Cancelled || !accepting)
                     {
-                        await store.ClearNodeNamingIntentAsync(pending.Intent.Snapshot.WorkspaceId, pending.Intent.Snapshot.GroupKey, pending.Intent.OperationId).ConfigureAwait(false);
-                        lock (sync) group.Pending = null;
+                        await ClearPendingAsync(group, pending).ConfigureAwait(false);
                     }
                 }
             }
@@ -74,6 +73,16 @@ public sealed partial class GroupNamingCoordinator
         Job[] finished; lock (sync) finished = jobs.Where(j => !Active(j.Record.Status) && !j.Busy).ToArray();
         foreach (var job in finished) await FinishGroupAsync(job).ConfigureAwait(false);
         Dispatch();
+    }
+    // Caller holds control. Rejection does not prove the predecessor was replaced on disk.
+    // Keep both identities owned and canceled until every conditional clear is acknowledged.
+    private async Task ClearPendingAsync(Group group, Pending pending)
+    {
+        lock (sync) pending.Cancelled = true;
+        if (pending.ReplacedOperation is { } replaced)
+            await store.ClearNodeNamingIntentAsync(pending.Intent.Snapshot.WorkspaceId, pending.Intent.Snapshot.GroupKey, replaced).ConfigureAwait(false);
+        await store.ClearNodeNamingIntentAsync(pending.Intent.Snapshot.WorkspaceId, pending.Intent.Snapshot.GroupKey, pending.Intent.OperationId).ConfigureAwait(false);
+        lock (sync) if (ReferenceEquals(group.Pending, pending)) group.Pending = null;
     }
     private async Task PersistTerminalAsync(Job job)
     {

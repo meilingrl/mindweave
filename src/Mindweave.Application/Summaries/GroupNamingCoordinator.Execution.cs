@@ -81,9 +81,7 @@ public sealed partial class GroupNamingCoordinator
             {
                 if (group.FollowupUsed || pending.Cancelled || !accepting)
                 {
-                    pending.Cancelled = true;
-                    await store.ClearNodeNamingIntentAsync(pending.Intent.Snapshot.WorkspaceId, pending.Intent.Snapshot.GroupKey, pending.Intent.OperationId).ConfigureAwait(false);
-                    lock (sync) group.Pending = null;
+                    await ClearPendingAsync(group, pending).ConfigureAwait(false);
                 }
                 else { group.FollowupUsed = true; await AcceptPendingAsync(group).ConfigureAwait(false); }
             }
