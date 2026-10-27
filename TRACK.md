@@ -33,6 +33,7 @@ Claude 自主开发，目的是比稳健轨更早走到关键阶段，提前暴�
 
 | 事项 | 原因 | 阻塞什么 | 在此之前我做什么 |
 | --- | --- | --- | --- |
+| 亲手试用 S3：设置里的上下文容量、临时填小（如 7500）后连续长回答触发压缩、提示文字、过长提问被拒（Mac 用阶段报告命令；Windows 先关掉一直开着的旧版，再打开 `E:\mindweave-claude-auto\app-s3\Mindweave.exe`） | 你要求先试用再进入 S4 | S4 | 等你的反馈 |
 
 Windows 实机：`scripts/windows.sh test|publish|sync|exec`（主机 `win-home`，经本机用户态 Tailscale 实例 A 的 SOCKS `127.0.0.1:7898`，密钥登录，连接失败自动重试；目录 `E:\mindweave-claude-auto`，与稳健轨隔离）。2026-10-26 已修复笔记本上 Scoop 的 git（`current` 目录联接失效，`scoop reset git` 重建，现为 2.54.0）。
 
