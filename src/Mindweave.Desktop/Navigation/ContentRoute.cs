@@ -38,6 +38,19 @@ public sealed record ConversationRoute(Mindweave.Core.Conversations.Conversation
             : null;
 }
 
+/// <summary>A summary node's page; which version is shown is page state, not part of the route.</summary>
+public sealed record SummaryRoute(Mindweave.Core.Summaries.SummaryNodeId Node) : ContentRoute, IRestorableRoute
+{
+    private const string Prefix = "summary:";
+
+    public string Key => Prefix + Node;
+
+    public static SummaryRoute? FromKey(string? key) =>
+        key is not null && key.StartsWith(Prefix, StringComparison.Ordinal) && Guid.TryParseExact(key[Prefix.Length..], "D", out var id)
+            ? new SummaryRoute(new Mindweave.Core.Summaries.SummaryNodeId(id))
+            : null;
+}
+
 public sealed record NewConversationRoute : ContentRoute
 {
     public static NewConversationRoute Instance { get; } = new();

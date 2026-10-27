@@ -23,6 +23,7 @@ public sealed class ViewLocator : IDataTemplate
         [typeof(ShellViewModel)] = () => new ShellView(),
         [typeof(ExploreHomeViewModel)] = () => new ExploreHomeView(),
         [typeof(NetworkHomeViewModel)] = () => new NetworkHomeView(),
+        [typeof(SummaryViewModel)] = () => new SummaryView(),
         [typeof(SettingsHomeViewModel)] = () => new SettingsHomeView(),
         [typeof(StorageDetailsViewModel)] = () => new StorageDetailsView(),
         [typeof(ConversationViewModel)] = () => new ConversationView(),

@@ -1,0 +1,95 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:Mindweave.Desktop.ViewModels.Pages"
+             xmlns:v="using:Mindweave.Desktop.Views.Pages"
+             xmlns:d="using:Mindweave.Desktop"
+             x:Class="Mindweave.Desktop.Views.Pages.SummaryView"
+             x:DataType="vm:SummaryViewModel">
+  <DockPanel>
+    <StackPanel DockPanel.Dock="Top" Spacing="6" Margin="0,0,0,8" IsVisible="{Binding !IsMissing}">
+      <!-- Markers are words, not only colour (MW-C07). -->
+      <TextBlock Name="Markers" Classes="warning" FontSize="12" Text="{Binding MarkersText}"
+                 IsVisible="{Binding MarkersText, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
+      <TextBlock Name="ShownLabel" Classes="muted" FontSize="12" Text="{Binding ShownLabel}" TextWrapping="Wrap" />
+      <WrapPanel Orientation="Horizontal">
+        <Button Name="ReturnButton" Content="{x:Static d:UiText.ReturnToConversation}" Command="{Binding ReturnToConversationCommand}" Margin="0,0,8,4" />
+        <Button Name="ReadToggle" Command="{Binding ToggleReadCommand}" Margin="0,0,8,4"
+                Content="{Binding ShownIsRead, Converter={x:Static d:Converters.ReadToggleLabel}}" />
+        <Button Name="EditButton" Content="{x:Static d:UiText.Edit}" Command="{Binding BeginEditCommand}" Margin="0,0,8,4"
+                IsVisible="{Binding ShownIsCurrent}" IsEnabled="{Binding !IsEditing}" />
+        <Button Name="RenameButton" Classes="link" Content="{x:Static d:UiText.Rename}" Command="{Binding BeginRenameCommand}"
+                IsVisible="{Binding !IsRenaming}" Margin="0,0,8,4" />
+      </WrapPanel>
+      <StackPanel Orientation="Horizontal" Spacing="6" IsVisible="{Binding IsRenaming}">
+        <TextBox Name="RenameBox" Text="{Binding RenameText}" Width="320" />
+        <Button Content="{x:Static d:UiText.Save}" Command="{Binding CommitRenameCommand}" IsDefault="True" />
+        <Button Content="{x:Static d:UiText.Cancel}" Command="{Binding CancelRenameCommand}" />
+      </StackPanel>
+      <TextBlock Name="Notice" Classes="error" Text="{Binding Notice}" TextWrapping="Wrap"
+                 IsVisible="{Binding Notice, Converter={x:Static ObjectConverters.IsNotNull}}" />
+      <Border Name="ConfirmationPanel" BorderBrush="{StaticResource QuoteBar}" BorderThickness="3,0,0,0" Padding="10,6"
+              IsVisible="{Binding Confirmation, Converter={x:Static ObjectConverters.IsNotNull}}">
+        <StackPanel Spacing="6">
+          <TextBlock Text="{Binding Confirmation.Message, FallbackValue=''}" TextWrapping="Wrap" />
+          <StackPanel Orientation="Horizontal" Spacing="6">
+            <Button Name="ConfirmButton" Content="{x:Static d:UiText.Confirm}" Command="{Binding ConfirmCommand}" />
+            <Button Content="{x:Static d:UiText.Cancel}" Command="{Binding CancelConfirmationCommand}" />
+          </StackPanel>
+        </StackPanel>
+      </Border>
+      <TextBlock Classes="muted" FontSize="12" Text="{x:Static d:UiText.LaterContentNote}" TextWrapping="Wrap" IsVisible="{Binding HasLaterContent}" />
+      <!-- The candidate is shown beside the current version, never in its place, until it is adopted. -->
+      <Border Name="CandidatePanel" Background="{StaticResource SidebarBackground}" CornerRadius="6" Padding="10,8" IsVisible="{Binding HasCandidate}">
+        <StackPanel Spacing="6">
+          <TextBlock FontWeight="SemiBold" Text="{x:Static d:UiText.CandidateHeading}" />
+          <TextBlock Classes="muted" FontSize="12" Text="{x:Static d:UiText.CandidateNote}" TextWrapping="Wrap" />
+          <StackPanel Orientation="Horizontal" Spacing="6">
+            <Button Name="ViewCandidateButton" Content="{x:Static d:UiText.ViewCandidate}" Command="{Binding ShowCandidateCommand}" IsVisible="{Binding !ShownIsCandidate}" />
+            <Button Content="{x:Static d:UiText.ViewCurrent}" Command="{Binding ShowCurrentCommand}" IsVisible="{Binding ShownIsCandidate}" />
+            <Button Name="AdoptButton" Content="{x:Static d:UiText.Adopt}" Command="{Binding AdoptCommand}" />
+            <Button Name="DiscardButton" Content="{x:Static d:UiText.Discard}" Command="{Binding DiscardCommand}" />
+          </StackPanel>
+        </StackPanel>
+      </Border>
+    </StackPanel>
+
+    <TextBlock DockPanel.Dock="Top" Classes="muted" Text="{x:Static d:UiText.SummaryMissing}" IsVisible="{Binding IsMissing}" />
+
+    <Expander DockPanel.Dock="Bottom" Name="HistoryPanel" Header="{x:Static d:UiText.HistoryHeading}" Margin="0,8,0,0"
+              HorizontalAlignment="Stretch" IsVisible="{Binding !IsMissing}">
+      <StackPanel Spacing="4">
+        <ItemsControl Name="HistoryList" ItemsSource="{Binding History}">
+          <ItemsControl.ItemTemplate>
+            <DataTemplate x:DataType="vm:SummaryVersionItem">
+              <DockPanel Margin="0,2">
+                <CheckBox DockPanel.Dock="Left" IsChecked="{Binding IsSelected}" IsEnabled="{Binding CanSelect}" Margin="0,0,6,0" />
+                <Button DockPanel.Dock="Right" Classes="link" Content="{x:Static d:UiText.SetCurrent}" IsVisible="{Binding CanSetCurrent}"
+                        Command="{Binding $parent[v:SummaryView].((vm:SummaryViewModel)DataContext).SetCurrentCommand}" CommandParameter="{Binding Id}" />
+                <Button DockPanel.Dock="Right" Classes="link" Content="{x:Static d:UiText.View}"
+                        Command="{Binding $parent[v:SummaryView].((vm:SummaryViewModel)DataContext).ShowVersionCommand}" CommandParameter="{Binding Id}" />
+                <TextBlock Text="{Binding Label}" TextWrapping="Wrap" VerticalAlignment="Center" />
+              </DockPanel>
+            </DataTemplate>
+          </ItemsControl.ItemTemplate>
+        </ItemsControl>
+        <Button Name="DeleteSelectedButton" Content="{x:Static d:UiText.DeleteSelected}" Command="{Binding DeleteSelectedCommand}" HorizontalAlignment="Left" />
+        <TextBlock Classes="muted" FontSize="12" Text="{x:Static d:UiText.ReadIsNotMastery}" TextWrapping="Wrap" />
+      </StackPanel>
+    </Expander>
+
+    <Grid>
+      <StackPanel Name="Editor" Spacing="6" IsVisible="{Binding IsEditing}">
+        <TextBox Name="EditTitleBox" Text="{Binding EditTitle}" Watermark="{x:Static d:UiText.EditTitleWatermark}" />
+        <TextBox Name="EditBodyBox" Text="{Binding EditBody}" AcceptsReturn="True" TextWrapping="Wrap" MinHeight="240" MaxHeight="520" />
+        <TextBlock Classes="muted" FontSize="12" Text="{x:Static d:UiText.EditDraftSaved}" TextWrapping="Wrap" />
+        <StackPanel Orientation="Horizontal" Spacing="6">
+          <Button Name="SaveEditButton" Content="{x:Static d:UiText.SaveEdit}" Command="{Binding SaveEditCommand}" />
+          <Button Name="DiscardEditButton" Content="{x:Static d:UiText.DiscardEdit}" Command="{Binding DiscardEditCommand}" />
+        </StackPanel>
+      </StackPanel>
+      <ScrollViewer Name="Scroller" HorizontalScrollBarVisibility="Disabled" IsVisible="{Binding !IsEditing}">
+        <ContentControl Name="BodyHost" Margin="0,0,12,0" />
+      </ScrollViewer>
+    </Grid>
+  </DockPanel>
+</UserControl>

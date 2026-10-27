@@ -46,8 +46,27 @@
         <Button Content="{x:Static d:UiText.Save}" Command="{Binding CommitRenameCommand}" IsDefault="True" />
         <Button Content="{x:Static d:UiText.Cancel}" Command="{Binding CancelRenameCommand}" />
       </StackPanel>
-      <Button Name="RenameButton" Classes="link" Content="{x:Static d:UiText.Rename}" Command="{Binding BeginRenameCommand}"
-              IsVisible="{Binding !IsRenaming}" HorizontalAlignment="Left" />
+      <WrapPanel Orientation="Horizontal" IsVisible="{Binding !IsMissing}">
+        <Button Name="RenameButton" Classes="link" Content="{x:Static d:UiText.Rename}" Command="{Binding BeginRenameCommand}"
+                IsVisible="{Binding !IsRenaming}" Margin="0,0,12,0" VerticalAlignment="Center" />
+        <!-- Summary at any stage (§6.4): its entry and markers, generation progress, the last failure. -->
+        <Button Name="SummaryEntry" Classes="link" Content="{Binding SummaryEntryText}" Command="{Binding OpenSummaryCommand}"
+                IsVisible="{Binding HasSummary}" Margin="0,0,6,0" VerticalAlignment="Center" />
+        <TextBlock Name="SummaryMarkers" Classes="warning" FontSize="12" Text="{Binding SummaryMarkersText}" VerticalAlignment="Center" Margin="0,0,12,0"
+                   IsVisible="{Binding SummaryMarkersText, Converter={x:Static ObjectConverters.IsNotNull}}" />
+        <Button Name="SummarizeButton" Classes="link" Content="{Binding SummarizeLabel}" Command="{Binding SummarizeCommand}"
+                IsVisible="{Binding RunningSummary, Converter={x:Static ObjectConverters.IsNull}}" VerticalAlignment="Center" />
+        <StackPanel Orientation="Horizontal" Spacing="6" VerticalAlignment="Center"
+                    IsVisible="{Binding RunningSummary, Converter={x:Static ObjectConverters.IsNotNull}}">
+          <ProgressBar IsIndeterminate="True" Width="40" VerticalAlignment="Center" />
+          <TextBlock Classes="muted" FontSize="12" Text="{x:Static d:UiText.SummaryGenerating}" VerticalAlignment="Center" />
+          <Button Name="StopSummaryButton" Classes="link" Content="{x:Static d:UiText.SummaryStop}" Command="{Binding StopSummaryCommand}" />
+        </StackPanel>
+      </WrapPanel>
+      <TextBlock Name="SummaryNotice" Classes="error" FontSize="12" Text="{Binding SummaryNotice}" TextWrapping="Wrap"
+                 IsVisible="{Binding SummaryNotice, Converter={x:Static ObjectConverters.IsNotNull}}" />
+      <TextBlock Name="SummaryProblem" Classes="error" FontSize="12" Text="{Binding SummaryProblem}" TextWrapping="Wrap"
+                 IsVisible="{Binding SummaryProblem, Converter={x:Static ObjectConverters.IsNotNull}}" />
     </StackPanel>
 
     <StackPanel DockPanel.Dock="Bottom" Spacing="6" Margin="0,8,0,0" IsVisible="{Binding !IsMissing}">

@@ -4,9 +4,12 @@ using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Mindweave.Application.Conversations;
 using Mindweave.Application.Reading;
+using Mindweave.Application.Storage;
+using Mindweave.Application.Summaries;
 using Mindweave.Core.Branches;
 using Mindweave.Core.Conversations;
 using Mindweave.Core.Reading;
+using Mindweave.Core.Summaries;
 using Mindweave.Desktop.Navigation;
 using Mindweave.Desktop.Services;
 
@@ -24,6 +27,7 @@ public sealed partial class ConversationViewModel : PageViewModel, IDisposable
 {
     private readonly ConversationService _conversations;
     private readonly ReadingStateService _reading;
+    private readonly SummaryService? _summaries;
     private readonly IWorkbenchNavigator _navigator;
     private readonly IUiDispatcher _dispatcher;
     private readonly ViewerSlotKey _slot;
@@ -33,7 +37,7 @@ public sealed partial class ConversationViewModel : PageViewModel, IDisposable
     private IReadOnlySet<ConversationId> _related = new HashSet<ConversationId>();
     private bool _disposed;
 
-    public ConversationViewModel(ConversationRoute route, PageContext context, ConversationService conversations, ReadingStateService reading, IUiDispatcher dispatcher)
+    public ConversationViewModel(ConversationRoute route, PageContext context, ConversationService conversations, ReadingStateService reading, IUiDispatcher dispatcher, SummaryService? summaries = null)
         : base(route)
     {
         ArgumentNullException.ThrowIfNull(route);
@@ -49,6 +53,12 @@ public sealed partial class ConversationViewModel : PageViewModel, IDisposable
         Composer = new Composer(text => _conversations.AskAsync(Id, text, CancellationToken.None));
         _conversations.ConversationChanged += OnConversationChanged;
         _conversations.ModelChanged += OnModelChanged;
+        _summaries = summaries;
+        if (_summaries is not null)
+        {
+            _summaries.Changed += OnSummaryChanged;
+        }
+
         Loaded = LoadFirstAsync(route.SourceOf);
     }
 
@@ -102,6 +112,33 @@ public sealed partial class ConversationViewModel : PageViewModel, IDisposable
 
     /// <summary>Near the limit, compressed, or over it: shown with emphasis rather than as a quiet note.</summary>
     public bool ContextIsTight => ContextUsage is { } usage && (usage.TooLong || usage.Compressed || usage.Fraction >= 0.8);
+
+    /// <summary>This conversation's summary node, if it has one.</summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(HasSummary), nameof(SummarizeLabel))]
+    public partial SummaryNodeId? SummaryNode { get; private set; }
+
+    public bool HasSummary => SummaryNode is not null;
+
+    public string SummarizeLabel => HasSummary ? UiText.Resummarize : UiText.Summarize;
+
+    [ObservableProperty]
+    public partial string? SummaryEntryText { get; private set; }
+
+    [ObservableProperty]
+    public partial string? SummaryMarkersText { get; private set; }
+
+    [ObservableProperty]
+    [NotifyCanExecuteChangedFor(nameof(StopSummaryCommand))]
+    public partial GenerationTaskId? RunningSummary { get; private set; }
+
+    /// <summary>Why the last summary attempt left nothing (failed, stopped or interrupted), shown with a retry.</summary>
+    [ObservableProperty]
+    public partial string? SummaryProblem { get; private set; }
+
+    /// <summary>Why "summarize" was refused just now.</summary>
+    [ObservableProperty]
+    public partial string? SummaryNotice { get; private set; }
 
     [ObservableProperty]
     public partial bool IsRenaming { get; set; }
@@ -179,11 +216,44 @@ public sealed partial class ConversationViewModel : PageViewModel, IDisposable
     [RelayCommand]
     private void OpenSettings() => _navigator.Navigate(new NavigationRequest(MainSection.Settings));
 
+    /// <summary>Summarize the conversation as it is now; it can be done at any stage and chatting continues (§6.4).</summary>
+    [RelayCommand]
+    private async Task SummarizeAsync()
+    {
+        if (_summaries is null)
+        {
+            return;
+        }
+
+        var outcome = await _summaries.SummarizeAsync(Id, CancellationToken.None);
+        SummaryNotice = outcome.Rejection is { } rejection ? UiText.SummarizeRejected(rejection) : null;
+        await LoadSummaryAsync();
+    }
+
+    [RelayCommand(CanExecute = nameof(CanStopSummary))]
+    private Task StopSummaryAsync() => RunningSummary is { } task && _summaries is not null ? _summaries.StopAsync(task) : Task.CompletedTask;
+
+    private bool CanStopSummary() => RunningSummary is not null;
+
+    [RelayCommand]
+    private void OpenSummary()
+    {
+        if (SummaryNode is { } node)
+        {
+            _navigator.Navigate(new NavigationRequest(MainSection.Network, new SummaryRoute(node)));
+        }
+    }
+
     public void Dispose()
     {
         _disposed = true;
         _conversations.ConversationChanged -= OnConversationChanged;
         _conversations.ModelChanged -= OnModelChanged;
+        if (_summaries is not null)
+        {
+            _summaries.Changed -= OnSummaryChanged;
+        }
+
         Composer.PropertyChanged -= OnComposerChanged;
         foreach (var message in Messages)
         {
@@ -227,6 +297,41 @@ public sealed partial class ConversationViewModel : PageViewModel, IDisposable
         if (!_disposed && (changed == Id || Volatile.Read(ref _related).Contains(changed)))
         {
             _reload.Request();
+        }
+    }
+
+    private void OnSummaryChanged(object? sender, ConversationId changed)
+    {
+        if (!_disposed && changed == Id)
+        {
+            _reload.Request();
+        }
+    }
+
+    private async Task LoadSummaryAsync()
+    {
+        if (_summaries is null || _disposed)
+        {
+            return;
+        }
+
+        var entry = await _summaries.ForConversationAsync(Id, CancellationToken.None);
+        var task = await _summaries.LatestTaskAsync(Id, CancellationToken.None);
+        if (_disposed)
+        {
+            return;
+        }
+
+        SummaryNode = entry?.Node.Id;
+        SummaryEntryText = entry is null ? null : UiText.SummaryEntry(entry.Node.DisplayName);
+        SummaryMarkersText = entry is null ? null : UiText.Markers(entry.Markers) is { Length: > 0 } markers ? markers : null;
+        RunningSummary = task is { State: GenerationTaskState.Queued or GenerationTaskState.Running } ? task.Id : null;
+        SummaryProblem = task is { State: GenerationTaskState.Failed or GenerationTaskState.Stopped or GenerationTaskState.Interrupted or GenerationTaskState.Cancelled }
+            ? UiText.SummaryFailed(task)
+            : null;
+        if (RunningSummary is not null)
+        {
+            SummaryNotice = null;
         }
     }
 
@@ -311,6 +416,7 @@ public sealed partial class ConversationViewModel : PageViewModel, IDisposable
         Volatile.Write(ref _related, lineage.Select(l => l.Conversation.Id).Concat(branches.Select(b => b.Child)).ToHashSet());
         UpdateRunning();
         ContextUsage = await _conversations.GetContextUsageAsync(Id, CancellationToken.None);
+        await LoadSummaryAsync();
     }
 
     private MessageItemViewModel NewItem(Message message)

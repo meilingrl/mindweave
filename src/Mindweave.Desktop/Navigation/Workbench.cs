@@ -62,10 +62,15 @@ public sealed class Workbench : ObservableObject, IWorkbenchNavigator
         var target = last is not null && workspaces.Any(w => w.Id == last.WorkspaceId) ? last.WorkspaceId : workspaces[0].Id;
         var restoring = last?.WorkspaceId == target;
         Activate(target, restoring ? MainSectionKeys.FromKey(last!.SectionKey) : null);
+        // Last valid page only; the back history before it is intentionally not restored. A page whose content no
+        // longer exists says so itself and offers the way back.
         if (restoring && ConversationRoute.FromKey(last!.ContentKey) is { } page)
         {
-            // Last valid page only; the back history before it is intentionally not restored.
             Navigate(new NavigationRequest(MainSection.Explore, page));
+        }
+        else if (restoring && SummaryRoute.FromKey(last!.ContentKey) is { } summary)
+        {
+            Navigate(new NavigationRequest(MainSection.Network, summary));
         }
     }
 
