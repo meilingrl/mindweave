@@ -3,6 +3,7 @@ using Mindweave.Application.Diagnostics;
 using Mindweave.Application.Storage;
 using Mindweave.Core.Conversations;
 using Mindweave.Core.Models;
+using Mindweave.Core.Summaries;
 
 namespace Mindweave.Infrastructure.Sqlite;
 
@@ -67,6 +68,8 @@ internal static class SqlNames
     {
         GenerationTaskKind.Answer => "answer",
         GenerationTaskKind.Title => "title",
+        GenerationTaskKind.Summary => "summary",
+        GenerationTaskKind.Naming => "naming",
         _ => throw new ArgumentOutOfRangeException(nameof(kind)),
     };
 
@@ -80,6 +83,64 @@ internal static class SqlNames
         GenerationTaskState.Interrupted => "interrupted",
         GenerationTaskState.Cancelled => "cancelled",
         _ => throw new ArgumentOutOfRangeException(nameof(state)),
+    };
+
+    public static GenerationTaskState ParseTaskState(string value) => value switch
+    {
+        "queued" => GenerationTaskState.Queued,
+        "running" => GenerationTaskState.Running,
+        "completed" => GenerationTaskState.Completed,
+        "stopped" => GenerationTaskState.Stopped,
+        "failed" => GenerationTaskState.Failed,
+        "interrupted" => GenerationTaskState.Interrupted,
+        "cancelled" => GenerationTaskState.Cancelled,
+        _ => throw new InvalidDataException($"Unknown task state '{value}'."),
+    };
+
+    public static string Of(SummaryOrigin origin) => origin switch
+    {
+        SummaryOrigin.Generated => "generated",
+        SummaryOrigin.Edited => "edited",
+        _ => throw new ArgumentOutOfRangeException(nameof(origin)),
+    };
+
+    public static SummaryOrigin ParseOrigin(string value) => value switch
+    {
+        "generated" => SummaryOrigin.Generated,
+        "edited" => SummaryOrigin.Edited,
+        _ => throw new InvalidDataException($"Unknown summary origin '{value}'."),
+    };
+
+    public static string Of(NameSource source) => source switch
+    {
+        NameSource.Base => "base",
+        NameSource.Auto => "auto",
+        NameSource.Manual => "manual",
+        _ => throw new ArgumentOutOfRangeException(nameof(source)),
+    };
+
+    public static NameSource ParseNameSource(string value) => value switch
+    {
+        "base" => NameSource.Base,
+        "auto" => NameSource.Auto,
+        "manual" => NameSource.Manual,
+        _ => throw new InvalidDataException($"Unknown name source '{value}'."),
+    };
+
+    public static string Of(ReadSource source) => source switch
+    {
+        ReadSource.Progress => "progress",
+        ReadSource.Manual => "manual",
+        ReadSource.Edit => "edit",
+        _ => throw new ArgumentOutOfRangeException(nameof(source)),
+    };
+
+    public static ReadSource ParseReadSource(string value) => value switch
+    {
+        "progress" => ReadSource.Progress,
+        "manual" => ReadSource.Manual,
+        "edit" => ReadSource.Edit,
+        _ => throw new InvalidDataException($"Unknown read source '{value}'."),
     };
 
     public static GenerationTaskState TaskStateFor(MessageState answerState) => answerState switch

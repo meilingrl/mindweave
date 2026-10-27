@@ -308,11 +308,12 @@ internal static class SchemaMigrations
             ) STRICT;
             CREATE INDEX summary_node_by_workspace ON summary_node (workspace_id);
 
-            -- Full text per version, never a diff. Coverage is the source conversation up to seq to_seq; an edit
+            -- Full text per version, never a diff. The key to the node is NO ACTION, not RESTRICT: SQLite checks RESTRICT
+            -- immediately even when deferred, and deleting the last version deletes the node in the same transaction. Coverage is the source conversation up to seq to_seq; an edit
             -- keeps its baseline's coverage. The task is kept as an identity only.
             CREATE TABLE summary_version (
                 id          TEXT    NOT NULL PRIMARY KEY,
-                node_id     TEXT    NOT NULL REFERENCES summary_node (id) ON DELETE RESTRICT DEFERRABLE INITIALLY DEFERRED,
+                node_id     TEXT    NOT NULL REFERENCES summary_node (id) DEFERRABLE INITIALLY DEFERRED,
                 seq         INTEGER NOT NULL CHECK (seq >= 1),
                 title       TEXT    NOT NULL CHECK (length(title) > 0),
                 body        TEXT    NOT NULL CHECK (length(body) > 0),

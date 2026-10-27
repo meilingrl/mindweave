@@ -8,6 +8,12 @@ public enum GenerationTaskKind
 {
     Answer,
     Title,
+
+    /// <summary>Generates a summary version of a conversation (S4).</summary>
+    Summary,
+
+    /// <summary>Distinguishes summary nodes whose base titles collide (§10.1).</summary>
+    Naming,
 }
 
 public enum GenerationTaskState
@@ -22,6 +28,8 @@ public enum GenerationTaskState
 }
 
 /// <summary>A generation task as accepted: frozen model snapshot and the message IDs it was given.</summary>
+/// <param name="SummaryToSeq">For a summary task, the frozen coverage: the conversation up to this sequence number.</param>
+/// <param name="SummaryBaseline">For a summary task, the summary version that was current when it was accepted, if any.</param>
 public sealed record GenerationTaskRecord(
     GenerationTaskId Id,
     GenerationTaskKind Kind,
@@ -29,7 +37,9 @@ public sealed record GenerationTaskRecord(
     MessageId? TargetMessageId,
     ModelSnapshot Model,
     IReadOnlyList<MessageId> InputMessageIds,
-    DateTimeOffset CreatedAt);
+    DateTimeOffset CreatedAt,
+    int? SummaryToSeq = null,
+    Guid? SummaryBaseline = null);
 
 /// <summary>
 /// Sidebar row: the conversation plus what is needed to label and place it without loading all messages.

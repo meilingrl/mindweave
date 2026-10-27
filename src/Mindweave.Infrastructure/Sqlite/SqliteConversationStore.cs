@@ -310,8 +310,10 @@ internal sealed class SqliteConversationStore(SqliteDatabase database) : IConver
     private static int InsertTask(SqliteConnection connection, SqliteTransaction transaction, GenerationTaskRecord t) =>
         connection.Execute(transaction, """
             INSERT INTO generation_task (id, kind, conversation_id, target_message_id, state, model_config_id, base_url, protocol,
-                                         model, credential_ref, max_output_tokens, capabilities, input_message_ids, created_at)
-            VALUES ($id, $kind, $conv, $target, 'queued', $config, $url, $protocol, $model, $cred, $max, $caps, $input, $created);
+                                         model, credential_ref, max_output_tokens, capabilities, input_message_ids, created_at,
+                                         summary_to_seq, summary_baseline)
+            VALUES ($id, $kind, $conv, $target, 'queued', $config, $url, $protocol, $model, $cred, $max, $caps, $input, $created,
+                    $toSeq, $baseline);
             """,
             ("$id", t.Id.ToString()),
             ("$kind", SqlNames.Of(t.Kind)),
@@ -325,7 +327,9 @@ internal sealed class SqliteConversationStore(SqliteDatabase database) : IConver
             ("$max", t.Model.MaxOutputTokens),
             ("$caps", SqlNames.Of(t.Model.Capabilities)),
             ("$input", JsonSerializer.Serialize(t.InputMessageIds.Select(i => i.ToString()))),
-            ("$created", t.CreatedAt.Ms()));
+            ("$created", t.CreatedAt.Ms()),
+            ("$toSeq", t.SummaryToSeq),
+            ("$baseline", t.SummaryBaseline?.ToString("D")));
 
     internal static Conversation? GetConversation(SqliteConnection connection, SqliteTransaction? transaction, ConversationId id)
     {
