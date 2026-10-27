@@ -1,8 +1,12 @@
 using System.Collections.Immutable;
+using Mindweave.Application.Chat;
 using Mindweave.Core.Chat;
 using Mindweave.Core.Summaries;
 
 namespace Mindweave.Application.Summaries;
+
+public sealed record NodeNamingIntent(Guid OperationId, NodeNamingSnapshot Snapshot, AiConfiguration Configuration, DateTimeOffset RequestedAt);
+public sealed record PreparedNodeNamingRequest(Guid TaskId, long Revision, int FormatVersion, string RequestHash, ChatRequest Request);
 
 public interface INodeNamingStore
 {
@@ -18,4 +22,8 @@ public interface INodeNamingStore
     // All-member CAS or zero writes; protect manual names, reject deleted nodes, never upsert. Output is not a version.
     Task<SummaryOutcome<NodeNamingResult>> CompleteNodeNamingAsync(NodeNamingCompletion completion);
     Task RecoverInterruptedNodeNamingAsync();
+    Task<SummaryOutcome<NodeNamingIntent>> SaveNodeNamingIntentAsync(NodeNamingIntent intent);
+    Task ClearNodeNamingIntentAsync(Guid workspaceId, string groupKey, Guid operationId);
+    Task<ImmutableArray<NodeNamingIntent>> ListNodeNamingIntentsAsync();
+    Task<SummaryOutcome<PreparedNodeNamingRequest>> PrepareNodeNamingRequestAsync(Guid taskId, long expectedRevision);
 }

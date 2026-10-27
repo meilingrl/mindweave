@@ -78,7 +78,7 @@ public sealed partial class SqliteWorkspaceStore : ISummaryVersionStore
     private static void ChangeSummaryCurrent(SqliteConnection c, SqliteTransaction t, SummaryVersionState state, Guid current, Guid? candidate)
     {
         var title = ReadSummaryVersion(c, t, current)?.Header.Title ?? throw new InvalidDataException("Summary current body is missing.");
-        var node = state.Node; var display = node.NameIsManual ? node.DisplayName : title;
+        var node = state.Node; var display = node.NameIsManual || node.DisplayName != node.BaseTitle ? node.DisplayName : title;
         using var q = ChatCommand(c, t, """
             UPDATE summary_node SET current_version_id=$current,candidate_version_id=$candidate,revision=$revision,base_title=$title,
                 group_key=$key,display_name=$display,name_revision=$nameRevision WHERE id=$id
