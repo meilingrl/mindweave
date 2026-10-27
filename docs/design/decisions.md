@@ -53,3 +53,11 @@ LiveMarkdown 有两种输入：整段 `MarkdownDocumentUpdate.Full` 与增量 `O
 ## D-013 只解析服务主动返回的 usage，不请求（2026-10-27）
 
 Chat Completions 的 `stream_options.include_usage` 不是所有兼容服务都接受，发送未知字段可能导致整个请求被拒。只在服务主动返回 `usage` 时记录到 `ai_request`，用于核对估算与诊断。
+
+## D-014 公式用 LiveMarkdown.Avalonia.Math 2.5.1（RaTeX）（2026-10-27）
+
+S3 试用中你指出 LaTeX 不渲染。LiveMarkdown 本身没有公式支持，同一作者的配套包 `LiveMarkdown.Avalonia.Math` 用 RaTeX 渲染行内 `$…$` 与块级 `$$…$$`。RaTeX 带原生库，覆盖 macOS arm64／x64、Windows x64 与 Linux（CI）；许可为 Apache-2.0、MIT 与 KaTeX 字体的 SIL OFL。版面中公式是一个对象占位字符，来源锚点照常工作；引用文字在捕获时按顺序把占位字符还原为该块里的 LaTeX 原文，发给模型的引用不会丢失公式。渲染配置身份改为 `livemarkdown-2.5.1/math-1`，旧身份的锚点仍然尝试恢复：校验以内容与版面哈希为准，没有公式的回答版面不变，有公式的回答校验失败后按 MW-C13 降级。
+
+## D-015 摘要的输出上限与一次内部重试（2026-10-27）
+
+试用中一次压缩失败。用试用数据库里同一请求重放 8 次（`deepseek-flash`，上限 4,096）：推理用掉 718–4,096 token，2 次达到上限，其中 1 次没有正文、1 次只有 179 字的截断摘要（旧代码会把它当成功使用）。处理：上限改为 16,384（同一请求 3 次实测推理 533–2,677）；只有服务正常结束（非 `length`）且非空的摘要才使用；截断或为空时在同一回答任务内再请求一次。重试的是任务内部的前置步骤，不是重发用户的提问，与“重启后不自动重发”不冲突。
