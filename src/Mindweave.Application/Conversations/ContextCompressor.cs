@@ -38,8 +38,15 @@ public sealed class ContextCompressionException : Exception
 /// </summary>
 public sealed partial class ContextCompressor(IContextSummaryStore summaries, IChatClient client, IClock clock, ILogger<ContextCompressor> logger)
 {
-    /// <summary>Room for reasoning models, which spend part of the output limit before writing (S1 finding).</summary>
-    public const int SummaryOutputTokens = 4_096;
+    /// <summary>
+    /// Room for reasoning models, which spend part of the output limit before writing anything. With 4,096 a real
+    /// reasoning model replaying the same summary request reasoned 718–4,096 tokens: 2 of 8 runs hit the limit, one
+    /// with no text and one cut off after 179 characters (TRACK.md findings, 2026-10-27).
+    /// </summary>
+    public const int SummaryOutputTokens = 16_384;
+
+    /// <summary>A summary that comes back cut off or empty is requested again once, within the same answer task.</summary>
+    public const int SummaryAttempts = 2;
 
     private const string Instructions = """
         你在为一段较长的对话写背景摘要，供之后继续这段对话时使用。这不是给读者看的总结。
@@ -126,9 +133,32 @@ public sealed partial class ContextCompressor(IContextSummaryStore summaries, IC
             new ChatTurn(ChatRole.System, Instructions),
             new ChatTurn(ChatRole.User, transcript.ToString()),
         ]);
+
+        // A summary is used only when the service says it finished normally: a cut-off summary would silently stand in
+        // for the conversation it was meant to keep. Such a result is requested once more; this re-sends an internal
+        // step of the running task, never the user's question.
+        string? problem = null;
+        for (var attempt = 1; attempt <= SummaryAttempts; attempt++)
+        {
+            var (summary, outcome) = await RequestSummaryAsync(task, request, apiKey, record, stop).ConfigureAwait(false);
+            if (summary is not null)
+            {
+                return summary;
+            }
+
+            problem = outcome;
+        }
+
+        throw new ContextCompressionException($"压缩较早的对话时服务没有返回完整摘要（{problem}），已尝试 {SummaryAttempts} 次。");
+    }
+
+    /// <summary>One summary request; returns the summary, or null with the reason it cannot be used.</summary>
+    private async Task<(string? Summary, string Problem)> RequestSummaryAsync(
+        GenerationTaskRecord task, ChatRequest request, string apiKey, Func<AiRequestRecord, Task> record, CancellationToken stop)
+    {
         var trace = new RequestTrace(task.Id, clock);
         var text = new StringBuilder();
-        var completed = false;
+        ChatStreamEvent.Completed? completed = null;
         try
         {
             await foreach (var item in client.StreamAsync(request, apiKey, stop).ConfigureAwait(false))
@@ -138,9 +168,9 @@ public sealed partial class ContextCompressor(IContextSummaryStore summaries, IC
                 {
                     text.Append(delta.Text);
                 }
-                else if (item is ChatStreamEvent.Completed)
+                else if (item is ChatStreamEvent.Completed done)
                 {
-                    completed = true;
+                    completed = done;
                 }
             }
         }
@@ -157,8 +187,12 @@ public sealed partial class ContextCompressor(IContextSummaryStore summaries, IC
         }
 
         var summary = text.ToString().Trim();
-        var failed = !completed || summary.Length == 0;
-        await record(trace.Finish(stopped: false, failed ? GenerationErrorKind.InvalidResponse : null, failed ? "The summary was empty or unfinished." : null)).ConfigureAwait(false);
-        return failed ? throw new ContextCompressionException("压缩较早的对话时服务没有返回完整摘要。") : summary;
+        var problem = completed is null ? "回答流未正常结束"
+            : completed.Truncated ? "达到输出上限被截断"
+            : summary.Length == 0 ? "内容为空"
+            : null;
+        await record(trace.Finish(stopped: false, problem is null ? null : GenerationErrorKind.InvalidResponse, problem is null ? null : $"Summary unusable: {problem}."))
+            .ConfigureAwait(false);
+        return problem is null ? (summary, string.Empty) : (null, problem);
     }
 }

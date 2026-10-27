@@ -3,6 +3,16 @@ using Mindweave.Core.Conversations;
 
 namespace Mindweave.Application.Conversations;
 
+/// <summary>What a running answer is doing before its text arrives.</summary>
+public enum AnswerPhase
+{
+    /// <summary>Waiting for the service (queued, connecting, or a reasoning model thinking).</summary>
+    Waiting,
+
+    /// <summary>Summarizing older context so the request fits (S3).</summary>
+    Compressing,
+}
+
 /// <summary>
 /// The in-memory, always-newest view of one answer while the application owns it. View models read it
 /// instead of the database, so a page that is closed and reopened mid-stream never shows older text than
@@ -13,6 +23,7 @@ public sealed class LiveAnswer
     private readonly Lock _gate = new();
     private readonly StringBuilder _text = new();
     private MessageState _state;
+    private AnswerPhase _phase;
     private long _revision;
     private GenerationErrorKind? _errorKind;
     private string? _errorDetail;
@@ -36,11 +47,13 @@ public sealed class LiveAnswer
     {
         lock (_gate)
         {
-            return new LiveAnswerSnapshot(_text.ToString(), _revision, _state, _errorKind, _errorDetail);
+            return new LiveAnswerSnapshot(_text.ToString(), _revision, _state, _errorKind, _errorDetail, _phase);
         }
     }
 
     internal void MarkStreaming() => Update(() => _state = MessageState.Streaming);
+
+    internal void SetPhase(AnswerPhase phase) => Update(() => _phase = phase);
 
     internal void Append(string delta)
     {
@@ -84,7 +97,7 @@ public sealed class LiveAnswer
     }
 }
 
-public sealed record LiveAnswerSnapshot(string Text, long Revision, MessageState State, GenerationErrorKind? ErrorKind, string? ErrorDetail)
+public sealed record LiveAnswerSnapshot(string Text, long Revision, MessageState State, GenerationErrorKind? ErrorKind, string? ErrorDetail, AnswerPhase Phase = AnswerPhase.Waiting)
 {
     /// <summary>The content as stored. A streamed answer is one text block until generation produces other kinds.</summary>
     public IReadOnlyList<ContentBlock> Blocks => ContentBlocks.FromText(Text);

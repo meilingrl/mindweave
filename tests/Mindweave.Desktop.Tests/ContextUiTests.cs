@@ -41,6 +41,18 @@ public class ContextUiTests
         await UiWait.UntilAsync(() => page.Messages.Count == 14 && page.Messages[^1].State == MessageState.Complete && page.Messages[^1].WasCompressed);
         Assert.False(page.Messages[1].WasCompressed);
         Assert.Equal(1, app.Client.Requests.Count(FakeChatClient.IsSummary));
+
+        // The context line says the earlier part now goes as a summary, and how large it all is.
+        await UiWait.UntilAsync(() => page.ContextUsage is { Compressed: true });
+        Assert.True(page.ContextIsTight);
+        Assert.Contains("以摘要发送", page.ContextUsageText, StringComparison.Ordinal);
+
+        // A larger capacity in settings updates the open page.
+        await app.Services.GetRequiredService<ModelSettingsService>().SaveAsync(
+            new ModelSettingsInput("fake", "https://fake.example/v1", "fake-model", null, ContextWindowTokens: 128_000), CancellationToken.None);
+        await UiWait.UntilAsync(() => page.ContextUsage is { Compressed: false, Budget: > 100_000 });
+        Assert.False(page.ContextIsTight);
+        Assert.StartsWith("上下文约", page.ContextUsageText, StringComparison.Ordinal);
     }
 
     [AvaloniaFact]

@@ -65,7 +65,7 @@ public sealed partial class AnswerView : UserControl
     internal double? RevealSource(BranchSource source, Visual relativeTo)
     {
         ArgumentNullException.ThrowIfNull(source);
-        if (source.AnchorFormatVersion != SourceAnchors.FormatVersion || source.RenderProfile != SourceAnchors.RenderProfile || source.SourceBlock != 0)
+        if (source.AnchorFormatVersion != SourceAnchors.FormatVersion || !SourceAnchors.CompatibleProfiles.Contains(source.RenderProfile) || source.SourceBlock != 0)
         {
             return null;
         }

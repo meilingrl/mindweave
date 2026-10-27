@@ -23,6 +23,14 @@ public sealed class FakeChatClient : IChatClient
     /// <summary>Fails the next summary requests with this kind, as a failing service would.</summary>
     public GenerationErrorKind? FailSummaries { get; set; }
 
+    /// <summary>
+    /// How many of the next summary requests stop at the output limit, as a reasoning model does when it spends the
+    /// limit on reasoning: <see cref="TruncatedSummaryText"/> then a truncated finish.
+    /// </summary>
+    public int TruncateSummaries { get; set; }
+
+    public const string TruncatedSummaryText = "摘要：背景是";
+
     /// <summary>Summary requests wait for this before answering, when set.</summary>
     public TaskCompletionSource? SummaryGate { get; set; }
 
@@ -69,6 +77,14 @@ public sealed class FakeChatClient : IChatClient
             if (FailSummaries is { } failure)
             {
                 throw new ChatClientException(failure, "simulated summary failure");
+            }
+
+            if (TruncateSummaries > 0)
+            {
+                TruncateSummaries--;
+                yield return new ChatStreamEvent.TextDelta(TruncatedSummaryText);
+                yield return new ChatStreamEvent.Completed(Truncated: true);
+                yield break;
             }
 
             yield return new ChatStreamEvent.TextDelta(SummaryOf(request));

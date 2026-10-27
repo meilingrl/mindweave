@@ -67,6 +67,8 @@ public static class UiText
     public const string ContextWindowLabel = "上下文容量";
     public const string ContextWindowPlaceholder = "留空按 32000 计";
     public const string ContextWindowHint = "模型一次能读入的 token 数，例如 DeepSeek 为 128000。对话超出时，较早的内容会先压缩成摘要再发送：这会多发几次请求、多等一会儿，也会产生相应费用；原始记录始终完整保留在本地。";
+    public const string WaitingForAnswer = "正在等待回答…";
+    public const string CompressingContext = "正在压缩较早的对话…";
     public const string ContextCompressedNote = "较早的对话已压缩为摘要发送，原记录完整保留";
     public const string ModelLabel = "模型";
     public const string FetchModels = "获取模型列表";
@@ -92,6 +94,25 @@ public static class UiText
         return conversation.Title
             ?? (quote is not null ? Quoted(quote) : null)
             ?? (firstQuestion is not null ? ConversationRules.FallbackTitle(firstQuestion) : NewConversation);
+    }
+
+    /// <summary>The context line above the input: how much of the model's budget the conversation takes and what happens next.</summary>
+    public static string ContextUsage(ContextUsage usage)
+    {
+        ArgumentNullException.ThrowIfNull(usage);
+        var c = CultureInfo.CurrentCulture;
+        if (usage.TooLong)
+        {
+            return string.Format(c, "上下文约 {0:N0} token，超出可用的 {1:N0}：压缩较早内容后也放不下。可以从需要的回答处创建分支继续，或在设置中换用容量更大的模型。", usage.FullTokens, usage.Budget);
+        }
+
+        var line = string.Format(c, "上下文约 {0:N0} / {1:N0} token（{2:P0}）", usage.Tokens, usage.Budget, usage.Fraction);
+        if (usage.Compressed)
+        {
+            return line + string.Format(c, " · 较早的对话以摘要发送（完整约 {0:N0}）", usage.FullTokens);
+        }
+
+        return usage.Fraction >= 0.8 ? line + " · 接近上限，之后较早的对话会先压缩成摘要" : line;
     }
 
     public static string Quoted(string quote) => "「" + ConversationRules.Shorten(quote, ConversationRules.FallbackTitleLength) + "」";

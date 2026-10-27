@@ -53,6 +53,9 @@
     <StackPanel DockPanel.Dock="Bottom" Spacing="6" Margin="0,8,0,0" IsVisible="{Binding !IsMissing}">
       <Button Name="StopButton" Content="{x:Static d:UiText.Stop}" Command="{Binding StopCommand}"
               IsVisible="{Binding RunningAnswer, Converter={x:Static ObjectConverters.IsNotNull}}" HorizontalAlignment="Center" />
+      <TextBlock Name="ContextUsageLine" FontSize="12" TextWrapping="Wrap" Text="{Binding ContextUsageText}"
+                 Classes.muted="{Binding !ContextIsTight}" Classes.warning="{Binding ContextIsTight}"
+                 IsVisible="{Binding ContextUsageText, Converter={x:Static ObjectConverters.IsNotNull}}" />
       <v:ComposerView Name="ComposerHost" DataContext="{Binding Composer}" />
     </StackPanel>
 
@@ -70,7 +73,10 @@
               <StackPanel IsVisible="{Binding IsAnswer}" Spacing="4" Opacity="{Binding IsSuperseded, Converter={x:Static d:Converters.SupersededOpacity}}">
                 <TextBlock Classes="muted" FontSize="12" Text="{x:Static d:UiText.EarlierAttempt}" IsVisible="{Binding IsSuperseded}" />
                 <v:AnswerView IsVisible="{Binding IsAnswer}" />
-                <ProgressBar IsIndeterminate="True" Width="80" HorizontalAlignment="Left" IsVisible="{Binding IsInProgress}" />
+                <StackPanel Orientation="Horizontal" Spacing="8" IsVisible="{Binding IsWaiting}">
+                  <ProgressBar Name="WaitingBar" IsIndeterminate="True" Width="60" VerticalAlignment="Center" />
+                  <TextBlock Classes="muted" FontSize="12" Text="{Binding WaitingLabel}" VerticalAlignment="Center" />
+                </StackPanel>
                 <TextBlock Classes="muted" FontSize="12" Text="{x:Static d:UiText.ContextCompressedNote}" IsVisible="{Binding WasCompressed}" />
                 <DockPanel>
                   <Button DockPanel.Dock="Right" Classes="link" Content="{Binding RetryLabel}" IsVisible="{Binding CanRetry}"

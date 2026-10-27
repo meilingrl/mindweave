@@ -17,6 +17,7 @@
     <PackageReference Include="Avalonia.Fonts.Inter" />
     <PackageReference Include="CommunityToolkit.Mvvm" />
     <PackageReference Include="LiveMarkdown.Avalonia" />
+    <PackageReference Include="LiveMarkdown.Avalonia.Math" />
     <PackageReference Include="Microsoft.Extensions.DependencyInjection" />
   </ItemGroup>
   <ItemGroup>

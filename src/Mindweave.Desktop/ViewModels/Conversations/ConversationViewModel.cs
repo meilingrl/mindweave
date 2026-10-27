@@ -48,6 +48,7 @@ public sealed partial class ConversationViewModel : PageViewModel, IDisposable
         _reload = new UiThrottle(dispatcher, TimeSpan.FromMilliseconds(30), () => _ = _load.Request());
         Composer = new Composer(text => _conversations.AskAsync(Id, text, CancellationToken.None));
         _conversations.ConversationChanged += OnConversationChanged;
+        _conversations.ModelChanged += OnModelChanged;
         Loaded = LoadFirstAsync(route.SourceOf);
     }
 
@@ -91,6 +92,16 @@ public sealed partial class ConversationViewModel : PageViewModel, IDisposable
     [ObservableProperty]
     [NotifyCanExecuteChangedFor(nameof(StopCommand))]
     public partial MessageItemViewModel? RunningAnswer { get; private set; }
+
+    /// <summary>How much of the model's context this conversation takes (null when no model is configured).</summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(ContextUsageText), nameof(ContextIsTight))]
+    public partial ContextUsage? ContextUsage { get; private set; }
+
+    public string? ContextUsageText => ContextUsage is { } usage ? UiText.ContextUsage(usage) : null;
+
+    /// <summary>Near the limit, compressed, or over it: shown with emphasis rather than as a quiet note.</summary>
+    public bool ContextIsTight => ContextUsage is { } usage && (usage.TooLong || usage.Compressed || usage.Fraction >= 0.8);
 
     [ObservableProperty]
     public partial bool IsRenaming { get; set; }
@@ -172,6 +183,7 @@ public sealed partial class ConversationViewModel : PageViewModel, IDisposable
     {
         _disposed = true;
         _conversations.ConversationChanged -= OnConversationChanged;
+        _conversations.ModelChanged -= OnModelChanged;
         Composer.PropertyChanged -= OnComposerChanged;
         foreach (var message in Messages)
         {
@@ -197,6 +209,14 @@ public sealed partial class ConversationViewModel : PageViewModel, IDisposable
         if (e.PropertyName == nameof(Composer.Text))
         {
             _reading.SetDraft(Id, _slot, Composer.Text);
+        }
+    }
+
+    private void OnModelChanged(object? sender, EventArgs e)
+    {
+        if (!_disposed)
+        {
+            _reload.Request();
         }
     }
 
@@ -290,6 +310,7 @@ public sealed partial class ConversationViewModel : PageViewModel, IDisposable
 
         Volatile.Write(ref _related, lineage.Select(l => l.Conversation.Id).Concat(branches.Select(b => b.Child)).ToHashSet());
         UpdateRunning();
+        ContextUsage = await _conversations.GetContextUsageAsync(Id, CancellationToken.None);
     }
 
     private MessageItemViewModel NewItem(Message message)

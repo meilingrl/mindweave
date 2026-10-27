@@ -37,6 +37,16 @@ public sealed record SendOutcome(SendRejection? Rejection, ConversationId Conver
 /// <param name="CompressedAnswers">Answers whose request sent older context as a summary (shown with a light note).</param>
 public sealed record ConversationContent(Conversation Conversation, IReadOnlyList<Message> Messages, IReadOnlySet<MessageId>? CompressedAnswers = null);
 
+/// <summary>
+/// How much of the model's context the conversation takes now, as estimated by the planner that decides what is sent.
+/// <paramref name="Tokens"/> is what would be sent (after any summaries); <paramref name="FullTokens"/> is everything,
+/// raw. <paramref name="TooLong"/> when even summaries cannot make it fit.
+/// </summary>
+public sealed record ContextUsage(int Tokens, int FullTokens, int Budget, bool Compressed, bool TooLong)
+{
+    public double Fraction => Budget == 0 ? 1 : Math.Min(1, (double)Tokens / Budget);
+}
+
 public sealed record BranchOutcome(BranchRejection? Rejection, ConversationId Child)
 {
     public bool Accepted => Rejection is null;
@@ -87,7 +97,11 @@ public sealed partial class ConversationService
         _logger = logger;
         _generation.AnswerFinished += OnAnswerFinished;
         _generation.TitleSaved += (_, id) => ConversationChanged?.Invoke(this, id);
+        _models.Changed += (_, _) => ModelChanged?.Invoke(this, EventArgs.Empty);
     }
+
+    /// <summary>The active model or its declared context capacity changed, so context budgets differ. Any thread.</summary>
+    public event EventHandler? ModelChanged;
 
     /// <summary>A conversation's stored content or title changed. Raised on worker threads.</summary>
     public event EventHandler<ConversationId>? ConversationChanged;
@@ -109,6 +123,32 @@ public sealed partial class ConversationService
     }
 
     public LiveAnswer? Observe(MessageId answer) => _generation.Observe(answer);
+
+    /// <summary>The context the conversation would send now with the active model, or null when no model is configured.</summary>
+    public async Task<ContextUsage?> GetContextUsageAsync(ConversationId id, CancellationToken cancellationToken)
+    {
+        var model = await _models.GetActiveSnapshotAsync(cancellationToken).ConfigureAwait(false);
+        if (model is null)
+        {
+            return null;
+        }
+
+        var history = await _store.GetMessagesAsync(id, cancellationToken).ConfigureAwait(false);
+        var budget = ContextBudget.For(model).Available;
+        var ancestors = await _branches.GetAncestorContextAsync(id, cancellationToken).ConfigureAwait(false);
+        var source = ancestors.Count == 0 ? null : await _branches.GetSourceAsync(id, cancellationToken).ConfigureAwait(false);
+        var own = new ContextSegment(id, source?.Quote, [.. history.Where(m => m.IsFinished)]);
+        var full = TokenEstimator.PerRequest + BranchContext.Assemble(ancestors, own).Sum(i => TokenEstimator.Message(i.Text));
+        if (own.Messages.Count == 0 && ancestors.Count == 0)
+        {
+            return new ContextUsage(0, 0, budget, false, false);
+        }
+
+        var planned = await PlanAsync(id, own.Messages, model, cancellationToken).ConfigureAwait(false);
+        return planned.Plan is { } plan
+            ? new ContextUsage(plan.EstimatedTokens, full, budget, plan.IsCompressed, false)
+            : new ContextUsage(full, full, budget, true, true);
+    }
 
     /// <summary>Creates a conversation from its first question and starts answering it.</summary>
     public async Task<SendOutcome> StartAsync(WorkspaceId workspace, string question, CancellationToken cancellationToken)

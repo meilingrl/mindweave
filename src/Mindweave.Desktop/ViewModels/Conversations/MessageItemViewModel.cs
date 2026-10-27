@@ -52,11 +52,15 @@ public sealed partial class MessageItemViewModel : ViewModelBase, IDisposable
     public bool IsRetryAttempt { get; }
 
     [ObservableProperty]
-    [NotifyPropertyChangedFor(nameof(HasBody), nameof(CanBranch))]
+    [NotifyPropertyChangedFor(nameof(HasBody), nameof(CanBranch), nameof(IsWaiting))]
     public partial string Body { get; private set; }
 
     [ObservableProperty]
-    [NotifyPropertyChangedFor(nameof(StateLabel), nameof(IsInProgress), nameof(IsProblem), nameof(CanBranch))]
+    [NotifyPropertyChangedFor(nameof(WaitingLabel))]
+    public partial AnswerPhase Phase { get; private set; }
+
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(StateLabel), nameof(IsInProgress), nameof(IsProblem), nameof(CanBranch), nameof(IsWaiting))]
     public partial MessageState State { get; private set; }
 
     [ObservableProperty]
@@ -95,6 +99,14 @@ public sealed partial class MessageItemViewModel : ViewModelBase, IDisposable
 
     public bool IsInProgress => State is MessageState.Pending or MessageState.Streaming;
 
+    /// <summary>
+    /// Running but no text yet. Only then is a waiting indicator shown: once text streams in, the growing text is the
+    /// progress, and an indicator under every new paragraph only distracts.
+    /// </summary>
+    public bool IsWaiting => IsInProgress && !HasBody;
+
+    public string WaitingLabel => Phase == AnswerPhase.Compressing ? UiText.CompressingContext : UiText.WaitingForAnswer;
+
     public bool IsProblem => State is MessageState.Failed or MessageState.Interrupted;
 
     public string? StateLabel => IsAnswer ? UiText.AnswerState(State, ErrorKind) : null;
@@ -115,6 +127,7 @@ public sealed partial class MessageItemViewModel : ViewModelBase, IDisposable
     {
         var snapshot = _live!.Snapshot();
         Body = snapshot.Text;
+        Phase = snapshot.Phase;
         State = snapshot.State;
         ErrorKind = snapshot.ErrorKind;
         ErrorDetail = snapshot.ErrorDetail;

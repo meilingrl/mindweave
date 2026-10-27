@@ -18,7 +18,11 @@ namespace Mindweave.Desktop.Markdown;
 /// <param name="Length">Selection length in the displayed text.</param>
 /// <param name="Quote">The selected displayed text.</param>
 /// <param name="ExactRawStart">Raw Markdown offset, only when the source block and its displayed text are identical.</param>
-public sealed record AnchorSegment(int SourceStart, int SourceEnd, int Ordinal, string LayoutHash, int Start, int Length, string Quote, int? ExactRawStart = null);
+/// <param name="Readable">
+/// The quote with each formula (shown as one object character in the layout) replaced by its LaTeX source; null when
+/// the selection has no formula. <paramref name="Quote"/> stays the displayed text, which restoring checks against.
+/// </param>
+public sealed record AnchorSegment(int SourceStart, int SourceEnd, int Ordinal, string LayoutHash, int Start, int Length, string Quote, int? ExactRawStart = null, string? Readable = null);
 
 /// <summary>A selection inside one Markdown text, checked against a prefix hash of the text it was captured from.</summary>
 public sealed record SelectionAnchor(int Version, int SourceLength, string SourceHash, IReadOnlyList<AnchorSegment> Segments);
@@ -49,7 +53,23 @@ public static class SourceAnchors
     public const int LocatorVersion = 1;
 
     /// <summary>Identity of the rendering setup anchors are valid for; a different profile may lay text out differently.</summary>
-    public const string RenderProfile = "livemarkdown-2.5.1/default-pipeline";
+    public const string RenderProfile = "livemarkdown-2.5.1/math-1";
+
+    /// <summary>
+    /// Profiles whose anchors are still worth trying. Before LaTeX rendering, formulas were shown as source text;
+    /// answers without formulas lay out the same, and those with formulas fail the layout check and fall back.
+    /// </summary>
+    public static readonly IReadOnlySet<string> CompatibleProfiles = new HashSet<string>(StringComparer.Ordinal)
+    {
+        RenderProfile,
+        "livemarkdown-2.5.1/default-pipeline",
+    };
+
+    /// <summary>How a formula appears in a text block's layout text.</summary>
+    private const char FormulaPlaceholder = '\uFFFC';
+
+    private static readonly System.Text.RegularExpressions.Regex Formula =
+        new(@"\$\$(?<tex>.+?)\$\$|\$(?<tex>[^$\n]+?)\$", System.Text.RegularExpressions.RegexOptions.Singleline | System.Text.RegularExpressions.RegexOptions.CultureInvariant);
 
     private const string HighlightKey = "branch-source";
 
@@ -114,7 +134,7 @@ public static class SourceAnchors
 
             // A raw character offset is only asserted when source and displayed block are identical.
             int? exact = rawBlock == block.LayoutText ? span.Start + start : null;
-            segments.Add(new(span.Start, span.End, ordinal, Hash(block.LayoutText), start, end - start, quote, exact));
+            segments.Add(new(span.Start, span.End, ordinal, Hash(block.LayoutText), start, end - start, quote, exact, Readable(quote, block.LayoutText[..start], rawBlock)));
         }
 
         if (segments.Count == 0)
@@ -129,7 +149,29 @@ public static class SourceAnchors
     public static string QuoteOf(SelectionAnchor anchor)
     {
         ArgumentNullException.ThrowIfNull(anchor);
-        return string.Join('\n', anchor.Segments.Select(s => s.Quote)).Trim();
+        return string.Join('\n', anchor.Segments.Select(s => s.Readable ?? s.Quote)).Trim();
+    }
+
+    /// <summary>
+    /// The quote with formulas restored: the n-th placeholder in the block is the n-th formula in its source. Null when
+    /// the quote has no formula; a placeholder without a matching formula stays as it is rather than being guessed.
+    /// </summary>
+    private static string? Readable(string quote, string before, string rawBlock)
+    {
+        if (!quote.Contains(FormulaPlaceholder, StringComparison.Ordinal))
+        {
+            return null;
+        }
+
+        var formulas = Formula.Matches(rawBlock).Select(m => m.Value).ToList();
+        var index = before.Count(c => c == FormulaPlaceholder);
+        var readable = new StringBuilder(quote.Length);
+        foreach (var c in quote)
+        {
+            readable.Append(c == FormulaPlaceholder && index < formulas.Count ? formulas[index++] : c.ToString());
+        }
+
+        return readable.ToString();
     }
 
     /// <summary>

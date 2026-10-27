@@ -355,11 +355,13 @@ public sealed partial class GenerationCoordinator : IAsyncDisposable
         if (work.Plan is { IsCompressed: true } plan)
         {
             // Summaries are a prerequisite run in this slot, so the answer never waits for a slot of its own making.
+            live.SetPhase(AnswerPhase.Compressing);
             try
             {
                 var compressor = _compressor ?? throw new ContextCompressionException("No context compressor is configured.");
                 var prepared = await compressor.PrepareAsync(task, plan, work.Budget ?? ContextBudget.For(task.Model), key.Secret!, RecordAsync, stop).ConfigureAwait(false);
                 request = request with { Turns = prepared.Turns };
+                live.SetPhase(AnswerPhase.Waiting);
                 await compressor.RecordTaskInputAsync(task.Id, prepared.SummaryIds).ConfigureAwait(false);
             }
             catch (OperationCanceledException) when (stop.IsCancellationRequested)

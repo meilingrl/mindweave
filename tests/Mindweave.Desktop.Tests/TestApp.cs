@@ -4,6 +4,12 @@ using Mindweave.Desktop;
 
 [assembly: AvaloniaTestApplication(typeof(Mindweave.Desktop.Tests.TestAppBuilder))]
 
+// One application and dispatcher for the whole assembly. Recreating them per test (the default) occasionally
+// failed in Avalonia's own setup: the new compositor joined a render loop still owned by the previous test's
+// thread ("The calling thread cannot access this object", 2 of about 40 full runs). Every test builds its own
+// window and services, so nothing of ours is shared.
+[assembly: AvaloniaTestIsolation(AvaloniaTestIsolationLevel.PerAssembly)]
+
 namespace Mindweave.Desktop.Tests;
 
 public static class TestAppBuilder

@@ -97,6 +97,41 @@ public class ContextCompressionTests
     }
 
     [Fact]
+    public async Task A_summary_cut_off_at_the_output_limit_is_never_used_and_is_requested_once_more()
+    {
+        await using var h = await ChatHarness.StartAsync(model: SmallModel);
+        var conversation = await LongConversationAsync(h, turns: 6);
+        h.Client.TruncateSummaries = 1;
+
+        var answer = await AskAsync(h, conversation, "问" + Tipping);
+
+        Assert.Equal(MessageState.Complete, answer.State);
+        Assert.Equal(2, h.Client.Requests.Count(FakeChatClient.IsSummary));
+        var stored = Assert.Single(await h.Summaries.ListAsync([conversation], Ct));
+        Assert.NotEqual(FakeChatClient.TruncatedSummaryText, stored.Text);
+        var sent = h.Client.Requests.Last(FakeChatClient.IsAnswer);
+        Assert.DoesNotContain(sent.Turns, t => t.Content.EndsWith(FakeChatClient.TruncatedSummaryText, StringComparison.Ordinal));
+        var traces = await h.Requests.ForTaskAsync(await TaskOfAsync(h, answer.Id), Ct);
+        Assert.Equal(3, traces.Count);
+        Assert.Contains("截断", traces[0].ErrorDetail ?? string.Empty, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task A_summary_cut_off_twice_fails_the_answer_without_sending_it()
+    {
+        await using var h = await ChatHarness.StartAsync(model: SmallModel);
+        var conversation = await LongConversationAsync(h, turns: 6);
+        h.Client.TruncateSummaries = 2;
+
+        var answer = await AskAsync(h, conversation, "问" + Tipping);
+
+        Assert.Equal(GenerationErrorKind.CompressionFailed, answer.ErrorKind);
+        Assert.Contains("截断", answer.ErrorDetail, StringComparison.Ordinal);
+        Assert.Empty(await h.Summaries.ListAsync([conversation], Ct));
+        Assert.Equal(0, h.Client.Requests.Count(r => FakeChatClient.IsAnswer(r) && r.Turns[^1].Content.StartsWith("问补", StringComparison.Ordinal)));
+    }
+
+    [Fact]
     public async Task Stopping_while_summarizing_stops_the_answer()
     {
         await using var h = await ChatHarness.StartAsync(model: SmallModel);
@@ -105,6 +140,7 @@ public class ContextCompressionTests
 
         var sent = await h.Conversations.AskAsync(conversation, "问" + Tipping, Ct);
         await ChatHarness.UntilAsync(() => h.Client.Requests.Count(FakeChatClient.IsSummary) == 1);
+        Assert.Equal(AnswerPhase.Compressing, h.Conversations.Observe(sent.Answer!.Value)!.Snapshot().Phase);
         await h.Conversations.StopAsync(sent.Answer!.Value);
 
         var answer = await h.WaitForAnswerAsync(sent.Answer!.Value);
@@ -140,6 +176,41 @@ public class ContextCompressionTests
     }
 
     [Fact]
+    public async Task Context_usage_reports_what_would_be_sent_against_the_budget()
+    {
+        await using var h = await ChatHarness.StartAsync(model: SmallModel);
+        var conversation = await LongConversationAsync(h, turns: 3);
+
+        var small = (await h.Conversations.GetContextUsageAsync(conversation, Ct))!;
+        Assert.Equal(6_704, small.Budget);
+        Assert.False(small.Compressed);
+        Assert.Equal(small.FullTokens, small.Tokens);
+        Assert.InRange(small.Tokens, 3_000, 3_200);
+
+        await LongConversationTurnsAsync(h, conversation, 4);
+        var large = (await h.Conversations.GetContextUsageAsync(conversation, Ct))!;
+        Assert.True(large.Compressed);
+        Assert.True(large.Tokens < large.FullTokens);
+        Assert.True(large.Tokens <= large.Budget);
+
+        await h.Models.SaveAsync(SmallModel with { ContextWindowTokens = 128_000 }, Ct);
+        var roomy = (await h.Conversations.GetContextUsageAsync(conversation, Ct))!;
+        Assert.False(roomy.Compressed);
+        Assert.Equal(roomy.FullTokens, roomy.Tokens);
+    }
+
+    [Fact]
+    public async Task Context_usage_says_when_even_summaries_cannot_fit()
+    {
+        await using var h = await ChatHarness.StartAsync(model: SmallModel);
+        var conversation = await LongConversationAsync(h, turns: 6);
+
+        await h.Models.SaveAsync(SmallModel with { ContextWindowTokens = 2_000 }, Ct);
+
+        Assert.True((await h.Conversations.GetContextUsageAsync(conversation, Ct))!.TooLong);
+    }
+
+    [Fact]
     public async Task The_declared_context_capacity_is_validated_and_kept_with_the_model()
     {
         await using var h = await ChatHarness.StartAsync(configure: false);
@@ -163,6 +234,15 @@ public class ContextCompressionTests
         }
 
         return sent.Conversation;
+    }
+
+    private static async Task LongConversationTurnsAsync(ChatHarness h, ConversationId conversation, int turns)
+    {
+        for (var i = 0; i < turns; i++)
+        {
+            h.Client.Reply(LongAnswer);
+            await AskAsync(h, conversation, $"追加 {i}");
+        }
     }
 
     private static async Task<Message> AskAsync(ChatHarness h, ConversationId conversation, string question)

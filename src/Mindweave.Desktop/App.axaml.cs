@@ -20,7 +20,11 @@ public sealed partial class App : Avalonia.Application
 
     internal App(AppHost host) => _host = host;
 
-    public override void Initialize() => AvaloniaXamlLoader.Load(this);
+    public override void Initialize()
+    {
+        Markdown.MarkdownSetup.EnsureRegistered();
+        AvaloniaXamlLoader.Load(this);
+    }
 
     public override void OnFrameworkInitializationCompleted()
     {
