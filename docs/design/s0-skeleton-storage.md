@@ -46,6 +46,8 @@
 | 低于程序 | 备份 → 迁移 |
 | 相等 | 打开 |
 
+分类前，打开过程中的忙、锁定与 I/O 错误在 3 秒内重试：Windows 上刚崩溃或被结束的进程对 WAL 索引的映射会短暂残留，SQLite 截断该文件时报 `SQLITE_IOERR_TRUNCATE` 且自身不重试（2026-10-28 在 Windows CI 复现）。3 秒后仍失败才按“无法读取”处理，详情附 SQLite 扩展错误码。
+
 ### 备份与迁移
 
 - 备份：`VACUUM INTO` 写入 `backups/` 下的临时名，再以只读方式打开校验 `quick_check`、`application_id`、`user_version`，通过后改为正式名 `mindweave-v{版本}-{UTC 时间}.db`。任何一步失败即不迁移。保留最近 5 份迁移备份。
