@@ -1,19 +1,23 @@
 name: stress
 
-# Manual only: repeats a test filter in parallel to reproduce intermittent failures on a hosted runner,
-# whose speed differs from the local machines (TRACK.md findings).
+# Repeats a test filter in parallel to reproduce intermittent failures on a hosted runner, whose speed differs
+# from the local machines (TRACK.md findings). A dispatch-only workflow cannot be started from a non-default
+# branch, so it also runs when this file changes on the track branch, using the defaults below.
 on:
+  push:
+    branches: [track/claude-auto]
+    paths: [.github/workflows/stress.yml]
   workflow_dispatch:
     inputs:
       filter:
         description: dotnet test --filter expression
-        required: true
+        default: FullyQualifiedName~KillDuringStream
       project:
         description: Test project
         default: tests/Mindweave.Infrastructure.Tests
       runs:
         description: Runs per parallel worker
-        default: "10"
+        default: "12"
       workers:
         description: Parallel workers
         default: "4"
@@ -23,7 +27,7 @@ on:
 
 jobs:
   stress:
-    runs-on: ${{ inputs.os }}
+    runs-on: ${{ inputs.os || 'windows-latest' }}
     timeout-minutes: 30
     env:
       DOTNET_NOLOGO: true
@@ -34,23 +38,23 @@ jobs:
         with:
           dotnet-version: 10.0.x
       - name: Build
-        run: dotnet build ${{ inputs.project }} -c Release
+        run: dotnet build ${{ inputs.project || 'tests/Mindweave.Infrastructure.Tests' }} -c Release
       - name: Stress
         shell: pwsh
         run: |
-          $jobs = 1..${{ inputs.workers }} | ForEach-Object {
+          $jobs = 1..${{ inputs.workers || '4' }} | ForEach-Object {
             Start-Job -ArgumentList $PWD.Path -ScriptBlock {
               param($dir)
               Set-Location $dir
               $failures = @()
-              for ($i = 0; $i -lt ${{ inputs.runs }}; $i++) {
-                $out = dotnet test ${{ inputs.project }} -c Release --no-build --filter "${{ inputs.filter }}" 2>&1 | Out-String
+              for ($i = 0; $i -lt ${{ inputs.runs || '12' }}; $i++) {
+                $out = dotnet test ${{ inputs.project || 'tests/Mindweave.Infrastructure.Tests' }} -c Release --no-build --filter "${{ inputs.filter || 'FullyQualifiedName~KillDuringStream' }}" 2>&1 | Out-String
                 if ($out -notmatch 'Passed!') { $failures += $out }
               }
               $failures
             }
           }
           $failures = @($jobs | Wait-Job | Receive-Job)
-          "failed runs: $($failures.Count) of $(${{ inputs.workers }} * ${{ inputs.runs }})"
+          "failed runs: $($failures.Count) of $(${{ inputs.workers || '4' }} * ${{ inputs.runs || '12' }})"
           $failures | Select-Object -First 3 | ForEach-Object { "----"; $_ }
           if ($failures.Count -gt 0) { exit 1 }
