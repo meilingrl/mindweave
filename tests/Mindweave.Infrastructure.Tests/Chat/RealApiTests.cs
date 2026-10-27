@@ -157,6 +157,28 @@ public class RealApiTests
         Assert.True(compared.All(c => c.Estimate >= c.Reported), $"Estimate below reported prompt tokens (estimate/reported): {table}");
     }
 
+    [Fact]
+    public async Task A_summary_from_a_real_service_parses_and_keeps_the_corrected_fact()
+    {
+        await using var h = await StartAsync();
+        var (conversation, _) = await AskAsync(h, null, "我在研究早期蒸汽机车。我研究的年份是 1825 年的斯托克顿—达灵顿铁路。请用两三句话介绍它。");
+        await AskAsync(h, conversation, "我刚才说错了，我研究的不是 1825 年，而是 1829 年的雨山试验。请用两三句话介绍雨山试验。");
+
+        var outcome = await h.SummaryService.SummarizeAsync(conversation, Ct);
+        Assert.True(outcome.Accepted, outcome.Rejection?.ToString());
+        await ChatHarness.UntilAsync(
+            () => h.SummaryService.LatestTaskAsync(conversation, Ct).Result is { State: not (Application.Storage.GenerationTaskState.Queued or Application.Storage.GenerationTaskState.Running) },
+            240_000);
+        var task = (await h.SummaryService.LatestTaskAsync(conversation, Ct))!;
+        Assert.True(task.State == Application.Storage.GenerationTaskState.Completed, $"{task.State}: {task.Error} {task.Detail}");
+
+        var entry = (await h.SummaryService.ForConversationAsync(conversation, Ct))!;
+        TestContext.Current.SendDiagnosticMessage($"title: {entry.Current.Title}\n{entry.Current.Body}");
+        Assert.InRange(entry.Current.Title.Length, 1, 40);
+        Assert.Contains("1829", entry.Current.Body, StringComparison.Ordinal);
+        Assert.Contains("雨山", entry.Current.Body, StringComparison.Ordinal);
+    }
+
     private static async Task<(ConversationId Conversation, Message Answer)> AskAsync(ChatHarness h, ConversationId? conversation, string question)
     {
         var sent = conversation is { } id
