@@ -349,22 +349,14 @@ public sealed class SqliteDatabaseTests : IDisposable
 
         await child.KillAsync();
 
-        try
-        {
-            AssertUnchangedAtCurrent("original");
-        }
-        catch (SqliteException ex)
-        {
-            throw new InvalidOperationException($"Reading right after the kill: {ex.Message} (extended code {ex.SqliteExtendedErrorCode})", ex);
-        }
-        using (var raw = _dir.Raw())
-        {
-            Assert.Equal(0, Scalar<long>(raw, "SELECT count(*) FROM app_state WHERE key = 'half-migrated';"));
-        }
-
+        // Opened through the application first: right after a kill on Windows, the file can briefly refuse a fresh
+        // connection (see the mapped WAL index test), which only the application's open waits out.
         await using var database = _dir.Database();
         var result = await database.OpenAsync(Ct);
         Assert.True(result.IsReady, $"{result.Status}: {result.ErrorDetail}");
+        AssertUnchangedAtCurrent("original");
+        using var raw = _dir.Raw();
+        Assert.Equal(0, Scalar<long>(raw, "SELECT count(*) FROM app_state WHERE key = 'half-migrated';"));
     }
 
     [Fact]

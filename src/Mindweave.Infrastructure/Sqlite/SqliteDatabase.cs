@@ -192,6 +192,51 @@ public sealed partial class SqliteDatabase : IDatabaseLifecycle, IAsyncDisposabl
             return CreateNew();
         }
 
+        // Real elapsed time, not the injected clock: tests freeze that clock, and a frozen deadline would never pass.
+        var deadline = Environment.TickCount64 + (long)TransientOpenWindow.TotalMilliseconds;
+        while (true)
+        {
+            try
+            {
+                return OpenExistingFile();
+            }
+            catch (SqliteException ex) when (IsTransient(ex) && Environment.TickCount64 < deadline)
+            {
+                LogTransientOpenFailure(_logger, ex.SqliteExtendedErrorCode);
+                Thread.Sleep(TransientOpenDelay);
+            }
+            catch (SqliteException ex)
+            {
+                LogUnreadable(_logger, ex, _paths.DatabasePath);
+                return Result(DatabaseOpenStatus.Unreadable, null, detail: $"{ex.Message} (extended code {ex.SqliteExtendedErrorCode})");
+            }
+            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+            {
+                return Result(DatabaseOpenStatus.IoError, null, detail: ex.Message);
+            }
+        }
+    }
+
+    /// <summary>
+    /// Errors that a process which just ended (a crash, or being killed) can leave behind for a moment. On Windows its
+    /// memory mapping of the WAL index can outlive it, and SQLite's reset of that file then fails with
+    /// <c>SQLITE_IOERR_TRUNCATE</c>, which SQLite does not retry (seen on Windows CI). Lock conflicts that outlast the
+    /// busy timeout are included; any other I/O error is retried too, since waiting costs only a delay before the
+    /// same classification.
+    /// </summary>
+    private static bool IsTransient(SqliteException ex) => ex.SqliteErrorCode is SqliteBusy or SqliteLocked or SqliteIoError;
+
+    private const int SqliteBusy = 5;
+    private const int SqliteLocked = 6;
+    private const int SqliteIoError = 10;
+
+    /// <summary>How long opening keeps retrying transient errors before classifying the file.</summary>
+    internal static readonly TimeSpan TransientOpenWindow = TimeSpan.FromSeconds(3);
+
+    private static readonly TimeSpan TransientOpenDelay = TimeSpan.FromMilliseconds(100);
+
+    private DatabaseOpenResult OpenExistingFile()
+    {
         SqliteConnection? connection = null;
         try
         {
@@ -204,15 +249,6 @@ public sealed partial class SqliteDatabase : IDatabaseLifecycle, IAsyncDisposabl
             }
 
             return outcome;
-        }
-        catch (SqliteException ex)
-        {
-            LogUnreadable(_logger, ex, _paths.DatabasePath);
-            return Result(DatabaseOpenStatus.Unreadable, null, detail: $"{ex.Message} (extended code {ex.SqliteExtendedErrorCode})");
-        }
-        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
-        {
-            return Result(DatabaseOpenStatus.IoError, null, detail: ex.Message);
         }
         finally
         {
@@ -450,6 +486,9 @@ public sealed partial class SqliteDatabase : IDatabaseLifecycle, IAsyncDisposabl
 
     [LoggerMessage(Level = LogLevel.Information, Message = "Migrated schema {From} -> {To}; backup {BackupPath}")]
     private static partial void LogMigrated(ILogger logger, int from, int to, string backupPath);
+
+    [LoggerMessage(Level = LogLevel.Warning, Message = "Opening the database failed with SQLite extended code {Code}; retrying")]
+    private static partial void LogTransientOpenFailure(ILogger logger, int code);
 
     [LoggerMessage(Level = LogLevel.Error, Message = "Database {Path} could not be read")]
     private static partial void LogUnreadable(ILogger logger, Exception exception, string path);
