@@ -48,7 +48,7 @@ Task 1 在 Application/Chat 新建纯 `ReplyContextPlanner`、`ContextSummaryPro
 
 Task 2 给 `GenerationWork` 增加可选计划，不改变旧字段含义：InputMessages／GenerationRecord.InputMessageIds 仍是逻辑原消息清单；最终物理请求使用另外的不可变清单。新增 `IContextStore` 并让 IChatStore 继承，存储实现及测试代理转发。公开能力须覆盖：按回答任务读计划；读完成缓存；幂等开始指定计划片段的压缩尝试；单调修订写尝试／完成摘要；读尝试；组成并事务记录最终物理请求。具体签名由 Task 2 报告作为 Task 3 交接。缓存保存生成配置、实际模型／尝试身份与时间，只有成功完成摘要可命中。产生缓存的生成记录归属源会话，不能依赖请求子会话存活；子任务的使用／停止关系独立保存，所有跨会话业务引用仍只指向祖先。S3-ARCH-1 修复后的精确 API 以复审通过报告为准，旧目标会话 key 合同已被本条替代。
 
-S3-ARCH-1归属修复时计划格式为2；Task5升级3，Task6升级4，Task7后新接受格式为5，`Rebuild`保留2／3／4／5的精确策略。Task7新增按字段省略默认值的 `AiConfiguration.SummaryThinking` 与 `ChatRequest.Purpose`，旧配置／请求仍精确保持原JSON；只有格式5的摘要Purpose为ContextSummary。`CreateSummaryRequest(Guid sourceConversationId, ContextChunk chunk, IReadOnlyList<ChatMessage> originals, AiConfiguration configuration)` 的首参数仍是来源owner，调用 `attempt.SourceConversationId`；`WriteCompressionAsync` 首两参数仍为 `replyTaskId, attemptId`，独立子依赖验证请求者。原API见Task2交接，版本化预算及提示的后验见Task5／6报告。
+S3-ARCH-1归属修复时计划格式为2；Task5升级3，Task6升级4，Task7升级5，Task9后新接受格式为6，`Rebuild`保留2／3／4／5／6的精确策略。Task7新增按字段省略默认值的 `AiConfiguration.SummaryThinking` 与 `ChatRequest.Purpose`，旧配置／请求仍精确保持原JSON；格式5／6的摘要Purpose为ContextSummary。`CreateSummaryRequest(Guid sourceConversationId, ContextChunk chunk, IReadOnlyList<ChatMessage> originals, AiConfiguration configuration)` 的首参数仍是来源owner，调用 `attempt.SourceConversationId`；`WriteCompressionAsync` 首两参数仍为 `replyTaskId, attemptId`，独立子依赖验证请求者。原API见Task2交接，版本化预算及提示的后验见Task5／6报告。
 
 Task 3 只在既有 GenerationCoordinator 增加阶段状态（可拆 Context partial）。待压缩的父 Reply 保持排队／运行业务状态，运行阶段先进行必要压缩，再回答；每个阶段的物理请求释放槽后重新调度。GenerationSnapshot 可用兼容默认字段增加阶段、轻量压缩状态／完成提示，禁止把摘要 token 投影到正文。
 
@@ -171,15 +171,17 @@ Task5 `bc4a46c` 已独立审查通过，307通过／2原有跳过；控制器实
 
 **Files:** Application/Chat/ContextSummaryProtocol.cs、ReplyContextPlanner.cs／Materials.cs；版本／协议／真实存储及transport测试，必要扩展旧测试；新增tests/fixtures/context-format5/合成golden。不改Desktop、Core、Coordinator、SQL、传输策略或解析形状。
 
-- [ ] 改生产前以当前57237c8产品生成独立合成格式5 golden及原始证据；含ServiceDefault和Disabled的完整应用请求／物理POST、完成源缓存／尝试／prepared身份，凭据和handler均合成。旧2／3／4资产不动，不访问真实native／supplier／vault。记录生成时源码差异、hash、完整成功日志，先有材料再修改。
-- [ ] 新接受格式6／context-summary-v3，在原compact-v2基础上明确有效要求需保留对象、动作、否定／禁止、条件／范围；解析指代不能代替保存实际规则。篇幅有限时先删低价值背景，不牺牲有效约束；保持短语／去重／1024 UTF-8字节软目标、严格五字符串字段、65536解析上限和最终真实Fits。不能针对Lantern／具体答案写提示，也不使用待回答U3猜测摘要。
-- [ ] 精确版本矩阵：2=prompt-v1／min1024／Standard／仅Default；3=prompt-v1／min4096／Standard／仅Default；4=prompt-v2／min4096／Standard／仅Default；5=prompt-v2／min4096／ContextSummary／Default或Disabled；6=prompt-v3／min4096／ContextSummary／Default或Disabled。旧5含Disabled也必须可独立重建，不能把“非当前版本”都拒绝。key绑定确切版本／prompt／完整配置，旧2–5 JSON／cap／cache IDs／prepared hash引用只读不改写；新6不能复用漏约束的旧5缓存。
-- [ ] 真实RED→GREEN验证新6选择／key隔离、旧5两模式完整请求及source独立生命周期／prepared只读兼容，旧2–4仍通过、未知／跨模式／跨版本／伪造key拒绝、普通回答／标题策略不变。需要调整小预算历史用例时显式固定旧格式并新增等价6用例，不改预算算法。测试只证明prompt和身份契约，不能冒充模型语义忠实。
-- [ ] 聚焦后完整Release／build／Python8、自审提交；报告准确RED范围与补充测试时序，独立限定审查后控制器新包核对真实旧2–5副本、原生旧记录及保存的Disabled设置。S4不启动，不推送／合并。
-- [ ] 后验仅重试已接受的原U3，U1／U2／U3字节不变；最多新增2次实际生成（1摘要＋1回答，预留1标题但不主动触发），仍服从总12上限，4096回答／摘要、128标题、0目录。调用上界按已存在源attempt＋prepared回答＋标题记录计，所有实际回答都必须先持久prepared；无法证明边界则停止。语义缺口与传输闭环分开核对；若再次不全，停止继续调参与耗用，不冒充通过。
+- [x] 改生产前以当前57237c8产品生成独立合成格式5 golden及原始证据；含ServiceDefault和Disabled的完整应用请求／物理POST、完成源缓存／尝试／prepared身份，凭据和handler均合成。旧2／3／4资产不动，不访问真实native／supplier／vault。记录生成时源码差异、hash、完整成功日志，先有材料再修改。
+- [x] 新接受格式6／context-summary-v3，在原compact-v2基础上明确有效要求需保留对象、动作、否定／禁止、条件／范围；解析指代不能代替保存实际规则。篇幅有限时先删低价值背景，不牺牲有效约束；保持短语／去重／1024 UTF-8字节软目标、严格五字符串字段、65536解析上限和最终真实Fits。不能针对Lantern／具体答案写提示，也不使用待回答U3猜测摘要。
+- [x] 精确版本矩阵：2=prompt-v1／min1024／Standard／仅Default；3=prompt-v1／min4096／Standard／仅Default；4=prompt-v2／min4096／Standard／仅Default；5=prompt-v2／min4096／ContextSummary／Default或Disabled；6=prompt-v3／min4096／ContextSummary／Default或Disabled。旧5含Disabled也必须可独立重建，不能把“非当前版本”都拒绝。key绑定确切版本／prompt／完整配置，旧2–5 JSON／cap／cache IDs／prepared hash引用只读不改写；新6不能复用漏约束的旧5缓存。
+- [x] 真实RED→GREEN验证新6选择／key隔离、旧5两模式完整请求及source独立生命周期／prepared只读兼容，旧2–4仍通过、未知／跨模式／跨版本／伪造key拒绝、普通回答／标题策略不变。需要调整小预算历史用例时显式固定旧格式并新增等价6用例，不改预算算法。测试只证明prompt和身份契约，不能冒充模型语义忠实。
+- [x] 聚焦后完整Release／build／Python8、自审提交；报告准确RED范围与补充测试时序，独立限定审查后控制器新包核对真实旧2–5副本、原生旧记录及保存的Disabled设置。S4不启动，不推送／合并。
+- [x] 后验仅重试已接受的原U3，U1／U2／U3字节不变；最多新增2次实际生成（1摘要＋1回答，预留1标题但不主动触发），仍服从总12上限，4096回答／摘要、128标题、0目录。调用上界按已存在源attempt＋prepared回答＋标题记录计，所有实际回答都必须先持久prepared；无法证明边界则停止。语义缺口与传输闭环分开核对；若再次不全，停止继续调参与耗用，不冒充通过。
+
+控制器后验：10000预算的首次v3试验新增1摘要，完整保留规则但最终估计10405超预算，未发回答。随后仅离线核算（原文10769）并独立调整专用测试预算为10600，仍触发摘要；这次容量试验另用2次调用，新摘要1675字符／最终估计9754，五项语义及真实引用闭环通过。两次试验均不改原材料／模型／4096输出／摘要Disabled／回答标题默认；本轮累计11/12，余1，0目录。首次“最多2”有界尝试的实际消耗为1，后续配置调整及额外2次消耗分开记录，不伪称原来只用了2次。总体未超用户原12次额度。
 
 ## 完成与验证边界
 
 计划分为四个可独立否决的门禁：纯规划／协议、真实存储、实际物理请求调度、桌面闭环。共享文件严格顺序修改。已有 S2-M1 视口性能与 S1-F3 极端修订号 P3 保留，不扩展本阶段为无关修复。
 
-初版实施前已核对：原文／祖先与预算／覆盖1/2；复用与生成身份1/2；两槽与取消恢复3；费用提示与失败4；真实质量与平台由控制器独立记录。后验Task5／6技术修复已过审；Task7／8按用户新的“仅摘要可关闭”决定执行。付费许可不由计划扩大，当前8/12已用、余4、无目录；S4仍未开始。
+初版实施前已核对：原文／祖先与预算／覆盖1/2；复用与生成身份1/2；两槽与取消恢复3；费用提示与失败4；真实质量与平台由控制器独立记录。后验Task5／6技术修复已过审；Task7／8按用户新的“仅摘要可关闭”决定执行。付费许可不由计划扩大，当前11/12已用、余1、无目录；受控样本通过，Windows未实机，S4尚未开始。

@@ -37,6 +37,8 @@ macOS 可执行 `sh scripts/build-macos-dev-app.sh "$PWD/artifacts/s3-native"`�
 
 当前桌面代码提供主题、会话、原生 Markdown 正文、流式发送／停止、末尾重试、草稿和最近会话恢复。先在设置填写兼容 Chat Completions 的服务、密钥、模型与预算，再新建会话明确点击发送。DeepSeek 地址与 `deepseek-flash` 只是可编辑的初始建议，保存不会自动发现模型或测试生成；模型目录须显式读取。密钥保存在本轨道的系统凭据命名空间，已有会话无密钥也可阅读。自动标题会单独发送请求并可能计费。正式桌面与 Headless 固定 Avalonia 12.1.4，Markdown 使用 LiveMarkdown.Avalonia 2.5.1，测试使用 xUnit v3 3.2.2；图片以不加载资源的提示文字显示，链接不自动打开。已接通选区分支、来源返回和独立阅读位置；已实现超预算时的上下文压缩、源会话摘要复用、失败保留和历史提示；知识总结与网络在后续阶段。S3 自动化与整阶段独立审查通过，macOS 合成核心与失败／拒绝路径已走查，真实模型质量／Windows及完整课程验收见 [S3 验证](docs/implementation/s3-verification.md)。
 
+设置中的“摘要思考模式”默认为“服务默认”。DeepSeek官方连接可显式选择“关闭（仅DeepSeek官方摘要）”，只影响后续长历史压缩；普通回答和自动标题沿用服务默认。保存时密钥留空保留已有版本，设置变更不会自动发送请求。
+
 已保存的 AI 回答中选中文字，点击该回答的“创建分支会话”进入子会话；父回答下的书签用于再次进入已有分支。“返回来源”定位原句，普通侧栏切换和后退恢复目标会话自己的最近阅读位置。选区不能确认时明确拒绝；来源无法精确恢复时仍可查看来源消息和保存引用。
 
 本地协议走查可使用[测试专用 SSE 夹具](tests/fixtures/chat_sse_fixture.py)，S3 的启动、合成配置、测试问题和 Windows 测试包见 [上下文验证记录](docs/implementation/s3-verification.md)，S2 来源走查见 [分支验证记录](docs/implementation/s2-verification.md)，S1 历史见 [聊天验证记录](docs/implementation/s1-verification.md)。夹具不是真实模型，产品没有模拟回答回退。
