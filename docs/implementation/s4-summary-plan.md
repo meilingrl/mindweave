@@ -26,7 +26,7 @@
 
 - 产品代码只在 `track/codex-steady` 的既有worktree。共享需求／架构不在轨道悄悄修改；不借用另一轨道代码，不推送、合并或发行。
 - Core／Application不引用Avalonia／SQLite；正式原生Avalonia，保留Root／Menu／Content三层导航和参数传递。
-- 全局最多两个AI物理请求；用户提问及其必要压缩优先于总结与自动标题／命名。准备／依赖／落盘不占物理槽，槽保留至枚举器DisposeAsync真正结束。
+- 全局最多两个AI物理请求；用户提问及其必要压缩优先于总结与自动标题／命名。纯准备／依赖和请求结束后的落盘不预留物理槽；在途流检查点不释放仍活动的物理槽，槽保留至枚举器DisposeAsync真正结束。
 - 页面／会话／工作区切换不取消任务。Stop保留现有即时冻结／取消／flush语义；独立跟踪尾任务，成功Shutdown／Dispose才完整排空并释放store／transport。
 - 接受时冻结目的地、模型／凭据引用及范围；已有排队／生成回答须先结束或停止才接受总结；总结接受后会话可继续增长，范围不随之扩大。
 - 总结／命名的部分输出只在内存；失败、截断、取消、中断或完成持久化失败都不产生伪完整版本。修复已完成响应不得重发AI。
@@ -78,20 +78,20 @@ Task1定义Core/Summaries不可变节点／版本／覆盖／任务／草稿／�
 
 **Interfaces:** 消费Task1／2；实现`ISummaryVersionStore`，给Task5／7／8读取、编辑、确认令牌与失败语义。
 
-- [ ] RED覆盖真实SQLite整套编辑／采用／删除矩阵、草稿epoch与迟到write、阅读CAS、选择恢复／删除修复、并发冲突和事务故障注入。
-- [ ] 当前版本编辑草稿独立自动保存，dirty可在导航后恢复；显式保存无变化不增版、变化生成已读版本且复制原覆盖，保留候选及基线。清除草稿留epoch tombstone防复活，迟到旧autosave不覆盖新会话。
-- [ ] 阅读按版本保存；仅打开不置已读，手动未读抑制当前阅读会话自动回写，旧epoch拒绝；候选采用／历史当前切换保留自己的读状态，后续终态内容标记与高水位独立。
-- [ ] Adopt基线变化返回包含明确当前／候选的Conflict，确认绑定新修订再CAS；dirty先保存／丢弃。设历史为当前不删其他版本，受影响候选／草稿／任务先处理；单纯查看历史不切指针。
-- [ ] 先PreviewDelete给精确选集、受影响依赖、回退、永久删除文案及token；仅删除无关历史版本时保留当前草稿／候选／活动任务。再同事务重检并删正文／读／source、修指针或删最后节点。候选单独丢弃，原聊天／分支不动；旧读／草稿／命名结果不得复活。保留仅必要被引用身份，不存全文输出副本。
-- [ ] 总结选择伴随记录与旧app_selection一起保存／清除，跨工作区拒绝，删除修复最后页。聚焦GREEN筛选`FullyQualifiedName~SummaryVersionStorageTests|FullyQualifiedName~SummaryReadStorageTests`，完整Release／build、自审提交和独立审查。
+- [x] RED覆盖真实SQLite整套编辑／采用／删除矩阵、草稿epoch与迟到write、阅读CAS、选择恢复／删除修复、并发冲突和事务故障注入。
+- [x] 当前版本编辑草稿独立自动保存，dirty可在导航后恢复；显式保存无变化不增版、变化生成已读版本且复制原覆盖，保留候选及基线。清除草稿留epoch tombstone防复活，迟到旧autosave不覆盖新会话。
+- [x] 阅读按版本保存；仅打开不置已读，手动未读抑制当前阅读会话自动回写，旧epoch拒绝；候选采用／历史当前切换保留自己的读状态，后续终态内容标记与高水位独立。
+- [x] Adopt基线变化返回包含明确当前／候选的Conflict，确认绑定新修订再CAS；dirty先保存／丢弃。设历史为当前不删其他版本，受影响候选／草稿／任务先处理；单纯查看历史不切指针。
+- [x] 先PreviewDelete给精确选集、受影响依赖、回退、永久删除文案及token；仅删除无关历史版本时保留当前草稿／候选／活动任务。再同事务重检并删正文／读／source、修指针或删最后节点。候选单独丢弃，原聊天／分支不动；旧读／草稿／命名结果不得复活。保留仅必要被引用身份，不存全文输出副本。
+- [x] 总结选择伴随记录与旧app_selection一起保存／清除，跨工作区拒绝，删除修复最后页。聚焦GREEN筛选`FullyQualifiedName~SummaryVersionStorageTests|FullyQualifiedName~SummaryReadStorageTests`，完整Release／build、自审提交和独立审查。
 
 ## Task 4: 全局阶段调度与旧聊天参与者
 
-**Files:** 新建`src/Mindweave.Application/Generation/{AiRequestScheduler,AppGenerationRuntime,GenerationRuntimeContracts}.cs`聚焦边界；必要修改GenerationCoordinator各partial与`DesktopChatSession`／Root生命周期；`tests/Mindweave.Tests/{AiRequestSchedulerTests,GenerationRuntimeTests}.cs`及现有协调器回归。
+**Files:** 新建`src/Mindweave.Application/Generation/{AiRequestScheduler,AppGenerationRuntime,GenerationRuntimeContracts}.cs`聚焦边界；必要修改GenerationCoordinator各partial与`DesktopChatSession`／Root生命周期、MainViewModel／CompositionRoot全局gate与修复组合；`tests/Mindweave.Tests/{AiRequestSchedulerTests,GenerationRuntimeTests}.cs`及现有协调器回归。
 
 **Interfaces:** 消费既有chat生命周期；产出共享调度／参与者／接收与暂停修复精确API，Task5／6只消费过审报告；旧构造默认独立运行兼容测试，生产只一个app-owned实例。
 
-- [ ] 先RED证明旧本地两槽＋共享semaphore的优先级反转；控制latch覆盖全部类型聚合peak≤2、Reply准备屏障、FIFO、队列取消0外呼、依赖不持槽、无phase重叠、Dispose后才释放、释放后落盘尾仍被跟踪。
+- [ ] 先RED覆盖共享调度缺失及本地两槽等待者隐藏新Reply的对抗场景，区分前瞻性错误接法与旧应用已有行为；控制latch覆盖全部类型聚合peak≤2、Reply准备屏障、FIFO、队列取消0外呼、依赖不持槽、无phase重叠、Dispose后才释放、释放后落盘尾仍被跟踪。
 - [ ] 共享logical demand贯穿准备／持久化间隙；ready phase统一派发，去掉参与者独立物理准入上限。优先级Reply及必要压缩0、显式知识总结1、自动标题／命名2；运行请求不抢占，准备中的高优先级需求阻止低优先级越过。
 - [ ] App-owned接受／失败epoch／退出修复聚合，保留现有Stop即时语义；成功Shutdown／Dispose等待所有阶段和落盘尾后才释放依赖，失败保留实例可Retry／Return，重开不重发。健康参与者不能清除别人的故障或并发新失败；外部UI草稿故障纳入同一gate。
 - [ ] S1／S3终态、检查点、cache来源、冻结配置、显式retry、旧构造和枚举器对抗测试原语义不变。不得顺手修S1极端revision或S2视口扫描。
