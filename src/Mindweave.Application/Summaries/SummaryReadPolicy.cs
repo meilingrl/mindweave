@@ -44,10 +44,11 @@ public static class SummaryReadPolicy
         var active = observation.IsActive && observation.IsVisible && !currentVisible.IsEmpty;
         var shortBodyVisible = state.TextLength > 0 && currentVisible.Sum(i => (long)i.End - i.Start) / (double)state.TextLength >= threshold;
         var seen = active ? Union(state.Seen.Concat(observation.Intervals)) : state.Seen;
-        // Hidden/inactive observations close the segment. Never charge the unseen gap when returning.
-        var visibleDwell = state.VisibleDwell;
-        if (active && shortBodyVisible && state.WasActiveVisible && observation.FitsViewport && state.LastObservationTime is { } since)
-            visibleDwell += observation.MonotonicTime - since;
+        // Dwell belongs to one continuous qualifying segment; interruption or return starts from zero.
+        var qualifiesForDwell = active && shortBodyVisible && observation.FitsViewport;
+        var visibleDwell = TimeSpan.Zero;
+        if (qualifiesForDwell && state.WasActiveVisible && state.LastObservationTime is { } since)
+            visibleDwell = state.VisibleDwell + (observation.MonotonicTime - since);
         var fraction = state.TextLength > 0 ? seen.Sum(i => (long)i.End - i.Start) / (double)state.TextLength : 0;
         var read = state.IsRead || (!state.SuppressAutomatic && active && fraction >= threshold &&
             (!observation.FitsViewport || visibleDwell >= dwell));
@@ -55,7 +56,7 @@ public static class SummaryReadPolicy
         {
             Revision = checked(state.Revision + 1), IsRead = read, Seen = seen, VisibleDwell = visibleDwell,
             ObservationSequence = observation.Sequence, LastObservationTime = observation.MonotonicTime,
-            WasActiveVisible = active && shortBodyVisible && observation.FitsViewport
+            WasActiveVisible = qualifiesForDwell
         });
     }
 

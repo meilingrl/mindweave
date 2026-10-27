@@ -175,6 +175,52 @@ public sealed class SummaryPolicyTests
         Assert.True(state.HasDirtyDraft);
     }
 
+    [Theory]
+    [InlineData("hidden")]
+    [InlineData("inactive")]
+    [InlineData("empty")]
+    [InlineData("below-threshold")]
+    public void Short_body_dwell_restarts_after_visibility_interruption(string interruption)
+    {
+        var state = SummaryReadPolicy.Open(Guid.NewGuid(), "0123456789", null);
+        state = Observe(state, 1, 0, true, [new(0, 10)]);
+        state = Observe(state, 2, 2, true, [new(0, 10)]);
+        Assert.Equal(TimeSpan.FromSeconds(2), state.VisibleDwell);
+        Assert.False(state.IsRead);
+        var intervals = interruption switch
+        {
+            "empty" => ImmutableArray<ReadableInterval>.Empty,
+            "below-threshold" => [new ReadableInterval(0, 8)],
+            _ => [new ReadableInterval(0, 10)]
+        };
+        var interrupted = SummaryReadPolicy.Observe(state, new(state.Epoch, state.Revision, 3, TimeSpan.FromSeconds(3),
+            interruption != "inactive", interruption != "hidden", true, state.TextHash, intervals)).Value!;
+        var returned = Observe(interrupted, 4, 30, true, [new(0, 10)]);
+        var oneSecond = Observe(returned, 5, 31, true, [new(0, 10)]);
+        Assert.False(oneSecond.IsRead);
+        Assert.Equal(TimeSpan.Zero, interrupted.VisibleDwell);
+        Assert.Equal(TimeSpan.Zero, returned.VisibleDwell);
+        Assert.Equal(TimeSpan.FromSeconds(1), oneSecond.VisibleDwell);
+        Assert.Equal(state.Seen, oneSecond.Seen);
+        Assert.Equal(state.Epoch, oneSecond.Epoch);
+        Assert.True(Observe(oneSecond, 6, 33, true, [new(0, 10)]).IsRead);
+    }
+
+    [Fact]
+    public void Short_body_dwell_resets_when_layout_no_longer_fits_viewport()
+    {
+        var state = SummaryReadPolicy.Open(Guid.NewGuid(), "0123456789", null);
+        state = Observe(state, 1, 0, true, [new(0, 10)]);
+        state = Observe(state, 2, 2, true, [new(0, 10)]);
+        Assert.Equal(TimeSpan.FromSeconds(2), state.VisibleDwell);
+        var longLayout = Observe(state, 3, 3, false, [new(0, 10)]);
+        Assert.Equal(TimeSpan.Zero, longLayout.VisibleDwell);
+        Assert.True(longLayout.IsRead); // Long-body interval coverage retains its independent reading rule.
+        var returned = Observe(longLayout, 4, 30, true, [new(0, 10)]);
+        Assert.Equal(TimeSpan.Zero, returned.VisibleDwell);
+        Assert.Equal(TimeSpan.FromSeconds(1), Observe(returned, 5, 31, true, [new(0, 10)]).VisibleDwell);
+    }
+
     internal static SummaryVersionState State(Guid node, Guid[] versions, int current) => new(
         new(node, Guid.NewGuid(), Guid.NewGuid(), versions[current], null, 1, "name", "name", false, 1, DateTimeOffset.UnixEpoch),
         versions.Select((id, i) => new SummaryVersionHeader(new(id, node, i + 1, SummaryVersionOrigin.Generated, DateTimeOffset.UnixEpoch), "title", null, null, null)).ToImmutableArray(), false, 0, 0, []);
