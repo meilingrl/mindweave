@@ -99,6 +99,7 @@ public sealed class KnowledgeSummaryCoordinatorTests
         Assert.Equal(lost ? 1L : 0L, f.Sql("SELECT count(*) FROM summary_version"));
         await Assert.ThrowsAsync<InvalidOperationException>(() => f.Summary.AcceptAsync(f.Conversation));
         await Assert.ThrowsAnyAsync<Exception>(() => f.Runtime.ShutdownAsync());
+        f.Runtime.ResumeAccepting();
         f.Wrapped.CompletionFault = null; await f.Runtime.RetryPersistenceAsync();
         Assert.Equal(GenerationStatus.Completed, f.Snapshot(job.Id).Status); Assert.False(f.Runtime.HasPersistenceFailure);
         Assert.Equal(1L, f.Sql("SELECT count(*) FROM summary_version")); Assert.Equal(1, f.Transport.StartCount);
@@ -117,6 +118,61 @@ public sealed class KnowledgeSummaryCoordinatorTests
         Assert.Equal(f.Config, call.Request.Configuration); Assert.DoesNotContain("later source", JsonSerializer.Serialize(call.Request.Messages));
         Assert.Equal(1L, f.Sql("SELECT count(*) FROM knowledge_summary_job"));
         call.Emit(Payload, "stop"); call.Finish(); await f.Wait(() => f.Summary.Snapshots.Single().Status == GenerationStatus.Completed);
+    }
+
+    // Break caught: Return clearing the cancellation of a committed but unacknowledged acceptance.
+    [Fact]
+    public async Task Unknown_acceptance_keeps_shutdown_stop_after_failed_lookup_and_return_then_new_operation_runs()
+    {
+        await using var f = await Fixture.Open(); var operation = Guid.NewGuid();
+        f.Wrapped.LoseAcceptance = true;
+        await Assert.ThrowsAsync<IOException>(() => f.Summary.AcceptAsync(f.Conversation, operation));
+        var durable = (await f.Store.FindKnowledgeSummaryOperationAsync(operation))!;
+        Assert.Equal(GenerationStatus.Queued, durable.Status);
+        f.Wrapped.FindOperationFault = true;
+        try
+        {
+            await Assert.ThrowsAsync<IOException>(() => f.Runtime.ShutdownAsync());
+            Assert.Contains(operation, f.Summary.PendingAcceptanceOperations);
+            f.Runtime.ResumeAccepting();
+            f.Wrapped.FindOperationFault = false;
+            await f.Runtime.RetryPersistenceAsync();
+            Assert.Equal(GenerationStatus.Stopped, f.Snapshot(durable.Id).Status);
+            Assert.Equal(GenerationStatus.Stopped, (await f.Store.LoadKnowledgeSummaryJobAsync(durable.Id))!.Status);
+            Assert.Empty(f.Summary.PendingAcceptanceOperations);
+            Assert.Equal(0, f.Transport.StartCount); Assert.Equal(0L, f.Sql("SELECT count(*) FROM summary_version"));
+            var replay = await f.Summary.AcceptAsync(f.Conversation, operation);
+            Assert.Equal(SummaryOutcomeKind.NoChange, replay.Kind); Assert.Equal(GenerationStatus.Stopped, replay.Value!.Status);
+            Assert.Equal(0, f.Transport.StartCount);
+            var next = await f.Accept(); Assert.NotEqual(operation, next.OperationId);
+            var call = await f.Transport.NextAsync(); call.Emit(Payload, "stop"); call.Finish();
+            await f.Wait(() => f.Snapshot(next.Id).Status == GenerationStatus.Completed);
+            Assert.Equal(1, f.Transport.StartCount); Assert.Equal(1L, f.Sql("SELECT count(*) FROM summary_version"));
+        }
+        finally { f.Wrapped.FindOperationFault = false; await f.Runtime.ShutdownAsync(); }
+    }
+
+    // Break caught: an unresolved operation proved absent after shutdown being accepted anew under its old ID.
+    [Fact]
+    public async Task Uncommitted_unknown_operation_keeps_stop_tombstone_after_return_and_absent_lookup()
+    {
+        await using var f = await Fixture.Open(); var operation = Guid.NewGuid(); f.Wrapped.FailAcceptanceBeforeWrite = true;
+        await Assert.ThrowsAsync<IOException>(() => f.Summary.AcceptAsync(f.Conversation, operation));
+        Assert.Null(await f.Store.FindKnowledgeSummaryOperationAsync(operation));
+        f.Wrapped.FindOperationFault = true;
+        try
+        {
+            await Assert.ThrowsAsync<IOException>(() => f.Runtime.ShutdownAsync()); f.Runtime.ResumeAccepting();
+            f.Wrapped.FindOperationFault = false; await f.Runtime.RetryPersistenceAsync();
+            Assert.Empty(f.Summary.PendingAcceptanceOperations);
+            var replay = await f.Summary.AcceptAsync(f.Conversation, operation);
+            Assert.Equal(SummaryOutcomeKind.Obsolete, replay.Kind); Assert.Equal("SummaryOperationStopped", replay.Code);
+            Assert.Equal(0L, f.Sql("SELECT count(*) FROM knowledge_summary_job")); Assert.Equal(0, f.Transport.StartCount);
+            var next = await f.Accept(); var call = await f.Transport.NextAsync(); call.Emit(Payload, "stop"); call.Finish();
+            await f.Wait(() => f.Snapshot(next.Id).Status == GenerationStatus.Completed);
+            Assert.Equal(1, f.Transport.StartCount);
+        }
+        finally { f.Wrapped.FindOperationFault = false; await f.Runtime.ShutdownAsync(); }
     }
 
     [Fact]
@@ -317,12 +373,12 @@ public sealed class KnowledgeSummaryCoordinatorTests
     internal sealed class FaultStore(IKnowledgeSummaryStore inner) : IKnowledgeSummaryStore
     {
         public string? CompletionFault;
-        public bool LoseAcceptance, LoseMetadata, PrepareFault;
+        public bool LoseAcceptance, LoseMetadata, PrepareFault, FindOperationFault, FailAcceptanceBeforeWrite;
         public List<SummaryGenerationCompletion> Completions { get; } = [];
         public TaskCompletionSource CompleteEntered { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
         public TaskCompletionSource? CompleteRelease;
         public async Task<SummaryOutcome<KnowledgeSummaryJob>> AcceptKnowledgeSummaryAsync(Guid operationId, Guid conversationId, AiConfiguration configuration)
-        { var result = await inner.AcceptKnowledgeSummaryAsync(operationId, conversationId, configuration); if (LoseAcceptance) { LoseAcceptance = false; throw new IOException("synthetic lost acceptance"); } return result; }
+        { if (FailAcceptanceBeforeWrite) { FailAcceptanceBeforeWrite = false; throw new IOException("synthetic acceptance failure before commit"); } var result = await inner.AcceptKnowledgeSummaryAsync(operationId, conversationId, configuration); if (LoseAcceptance) { LoseAcceptance = false; throw new IOException("synthetic lost acceptance"); } return result; }
         public async Task<SummaryOutcome<SummaryGenerationResult>> CompleteKnowledgeSummaryAsync(SummaryGenerationCompletion completion)
         {
             Completions.Add(completion); if (CompletionFault == "before") throw new IOException("synthetic write failure");
@@ -330,7 +386,7 @@ public sealed class KnowledgeSummaryCoordinatorTests
             if (CompletionFault == "after") throw new IOException("synthetic lost completion"); return result;
         }
         public Task<KnowledgeSummaryJob?> LoadKnowledgeSummaryJobAsync(Guid id) => inner.LoadKnowledgeSummaryJobAsync(id);
-        public Task<KnowledgeSummaryJob?> FindKnowledgeSummaryOperationAsync(Guid id) => inner.FindKnowledgeSummaryOperationAsync(id);
+        public Task<KnowledgeSummaryJob?> FindKnowledgeSummaryOperationAsync(Guid id) => FindOperationFault ? Task.FromException<KnowledgeSummaryJob?>(new IOException("synthetic operation lookup failure")) : inner.FindKnowledgeSummaryOperationAsync(id);
         public Task<ImmutableArray<KnowledgeSummaryJob>> ListActiveKnowledgeSummaryJobsAsync() => inner.ListActiveKnowledgeSummaryJobsAsync();
         public Task<SummaryOutcome<PreparedKnowledgeSummaryRequest>> PrepareKnowledgeSummaryRequestAsync(Guid id, long revision) => PrepareFault ? Task.FromException<SummaryOutcome<PreparedKnowledgeSummaryRequest>>(new IOException("synthetic preparation read")) : inner.PrepareKnowledgeSummaryRequestAsync(id, revision);
         public Task<PreparedKnowledgeSummaryRequest?> LoadPreparedKnowledgeSummaryRequestAsync(Guid id) => inner.LoadPreparedKnowledgeSummaryRequestAsync(id);

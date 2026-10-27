@@ -25,11 +25,7 @@ public sealed partial class KnowledgeSummaryCoordinator
                     throw new InvalidDataException("总结操作身份不一致。");
                 lock (sync)
                 {
-                    if (record is not null)
-                    {
-                        var job = AddJob(record);
-                        if (!accepting) { Stop(job); Cancel(job); }
-                    }
+                    if (record is not null) AddJob(record);
                     unknownAcceptances.Remove(intent.OperationId);
                 }
             }
@@ -140,7 +136,9 @@ public sealed partial class KnowledgeSummaryCoordinator
         {
             lock (sync)
             {
-                accepting = false; snapshot = jobs.ToArray();
+                accepting = false;
+                foreach (var operation in unknownAcceptances.Keys) stoppedAcceptanceOperations.Add(operation);
+                snapshot = jobs.ToArray();
                 foreach (var job in snapshot) Stop(job);
                 tails = executions.ToArray();
             }

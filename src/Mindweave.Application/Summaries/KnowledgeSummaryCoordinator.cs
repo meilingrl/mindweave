@@ -25,6 +25,8 @@ public sealed partial class KnowledgeSummaryCoordinator : IAsyncDisposable, IGen
     private readonly List<Job> jobs = [];
     private readonly List<Task> executions = [];
     private readonly Dictionary<Guid, AcceptanceIntent> unknownAcceptances = [];
+    // Admission may reopen after a failed close. Old unresolved operations must retain their stop intent.
+    private readonly HashSet<Guid> stoppedAcceptanceOperations = [];
     private int acceptingTails;
     private bool initialized, accepting, disposed, configurationReadFailed;
     public AppGenerationRuntime Runtime { get; }
@@ -94,6 +96,8 @@ public sealed partial class KnowledgeSummaryCoordinator : IAsyncDisposable, IGen
                     var known = jobs.FirstOrDefault(j => j.Record.OperationId == op);
                     if (known is not null) return known.Record.ConversationId == conversationId
                         ? new(SummaryOutcomeKind.NoChange, known.Record) : new(SummaryOutcomeKind.Conflict, Code: "SummaryOperationReused");
+                    if (stoppedAcceptanceOperations.Contains(op))
+                        return new(SummaryOutcomeKind.Obsolete, Code: "SummaryOperationStopped");
                 }
                 await chat.FlushPendingAsync().ConfigureAwait(false);
                 if (chat.Snapshots.Any(s => s.ConversationId == conversationId && s.Kind == GenerationKind.Reply && Active(s.Status)))
@@ -148,10 +152,12 @@ public sealed partial class KnowledgeSummaryCoordinator : IAsyncDisposable, IGen
     private Job AddJob(KnowledgeSummaryJob record)
     {
         var existing = jobs.FirstOrDefault(j => j.Record.Id == record.Id);
-        if (existing is not null) return existing;
-        var job = new Job(record);
-        if (Active(record.Status)) job.Demand = Runtime.Scheduler.RegisterLogicalWork(GenerationPriority.Summary);
-        jobs.Add(job); return job;
+        var job = existing ?? new Job(record);
+        // Every adoption path honors the operation's cancellation independently of current admission.
+        if (stoppedAcceptanceOperations.Contains(record.OperationId) || !accepting) { Stop(job); Cancel(job); }
+        else if (existing is null && Active(record.Status)) job.Demand = Runtime.Scheduler.RegisterLogicalWork(GenerationPriority.Summary);
+        if (existing is null) jobs.Add(job);
+        return job;
     }
     private static bool Active(GenerationStatus status) => status is GenerationStatus.Queued or GenerationStatus.Running;
     private static bool Success(SummaryOutcomeKind kind) => kind is SummaryOutcomeKind.Applied or SummaryOutcomeKind.NoChange;
