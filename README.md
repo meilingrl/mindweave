@@ -33,17 +33,17 @@ dotnet test Mindweave.slnx -c Release
 
 默认数据位于系统本地应用数据目录的 `Mindweave/codex-steady/` 下。需要独立测试数据时，运行 `dotnet run --project src/Mindweave.Desktop -- --data-root /absolute/test/root`，程序会继续在该根目录下创建 `codex-steady/` 子目录。同一数据目录重复启动会唤回原窗口。
 
-macOS 可执行 `sh scripts/build-macos-dev-app.sh "$PWD/artifacts/s3-native"`，生成 `artifacts/macos/Mindweave Codex.app`，双击即可体验。请先正常退出该应用，再重建；脚本检测到它仍在运行时会拒绝替换。脚本按本机架构从全新目录发布，准备完成后才替换应用，并将原包保留为 `artifacts/macos-previous/` 下带时间戳的 `.reference` 目录。这个开发启动器依赖本机已安装的 .NET，参数指定专用测试数据根目录；不传参数时沿用 `artifacts/s0-native/`，它不是独立发行包。
+macOS 可执行 `sh scripts/build-macos-dev-app.sh "$PWD/artifacts/s4-native-task8"`，生成 `artifacts/macos/Mindweave Codex.app`，双击即可体验。请先正常退出该应用，再重建；脚本检测到它仍在运行时会拒绝替换。脚本按本机架构从全新目录发布，准备完成后才替换应用，并将原包保留为 `artifacts/macos-previous/` 下带时间戳的 `.reference` 目录。这个开发启动器依赖本机已安装的 .NET，参数指定专用测试数据根目录；不传参数时沿用 `artifacts/s0-native/`，它不是独立发行包。
 
-当前桌面代码提供主题、会话、原生 Markdown 正文、流式发送／停止、末尾重试、草稿和最近会话恢复。先在设置填写兼容 Chat Completions 的服务、密钥、模型与预算，再新建会话明确点击发送。DeepSeek 地址与 `deepseek-flash` 只是可编辑的初始建议，保存不会自动发现模型或测试生成；模型目录须显式读取。密钥保存在本轨道的系统凭据命名空间，已有会话无密钥也可阅读。自动标题会单独发送请求并可能计费。正式桌面与 Headless 固定 Avalonia 12.1.4，Markdown 使用 LiveMarkdown.Avalonia 2.5.1，测试使用 xUnit v3 3.2.2；图片以不加载资源的提示文字显示，链接不自动打开。已接通选区分支、来源返回和独立阅读位置；已实现超预算时的上下文压缩、源会话摘要复用、失败保留和历史提示；知识总结与网络在后续阶段。S3 自动化与整阶段独立审查通过，macOS 合成核心与失败／拒绝路径已走查，真实模型质量／Windows及完整课程验收见 [S3 验证](docs/implementation/s3-verification.md)。
+当前桌面代码提供主题、会话、原生 Markdown 正文、流式发送／停止、末尾重试、草稿和最近会话恢复。先在设置填写兼容 Chat Completions 的服务、密钥、模型与预算，再新建会话明确点击发送。DeepSeek 地址与 `deepseek-flash` 只是可编辑的初始建议，保存不会自动发现模型或测试生成；模型目录须显式读取。密钥保存在本轨道的系统凭据命名空间，已有会话无密钥也可阅读。自动标题会单独发送请求并可能计费。正式桌面与 Headless 固定 Avalonia 12.1.4，Markdown 使用 LiveMarkdown.Avalonia 2.5.1，测试使用 xUnit v3 3.2.2；图片以不加载资源的提示文字显示，链接不自动打开。已接通选区分支、来源返回和独立阅读位置；已实现超预算时的上下文压缩、源会话摘要复用、失败保留和历史提示；已接通知识总结的冻结范围生成、总结列表／详情、每版本阅读与当前编辑；已实现候选采用、历史恢复、多选删除确认与节点显示名，整阶段验收正在进行；图形网络与布局留在后续阶段。S4实现与验收边界见[总结验证记录](docs/implementation/s4-verification.md)。S3 自动化与整阶段独立审查通过，macOS 合成核心与失败／拒绝路径已走查，真实模型质量／Windows及完整课程验收见 [S3 验证](docs/implementation/s3-verification.md)。
 
 设置中的“摘要思考模式”默认为“服务默认”。DeepSeek官方连接可显式选择“关闭（仅DeepSeek官方摘要）”，只影响后续长历史压缩；普通回答和自动标题沿用服务默认。保存时密钥留空保留已有版本，设置变更不会自动发送请求。
 
 已保存的 AI 回答中选中文字，点击该回答的“创建分支会话”进入子会话；父回答下的书签用于再次进入已有分支。“返回来源”定位原句，普通侧栏切换和后退恢复目标会话自己的最近阅读位置。选区不能确认时明确拒绝；来源无法精确恢复时仍可查看来源消息和保存引用。
 
-本地协议走查可使用[测试专用 SSE 夹具](tests/fixtures/chat_sse_fixture.py)，S3 的启动、合成配置、测试问题和 Windows 测试包见 [上下文验证记录](docs/implementation/s3-verification.md)，S2 来源走查见 [分支验证记录](docs/implementation/s2-verification.md)，S1 历史见 [聊天验证记录](docs/implementation/s1-verification.md)。夹具不是真实模型，产品没有模拟回答回退。
+本地总结与版本走查见[S4独立夹具入口](tests/fixtures/summary-native.md)，聊天／上下文协议走查可使用[原有测试专用 SSE 夹具](tests/fixtures/chat_sse_fixture.py)，S3 的启动、合成配置、测试问题和 Windows 测试包见 [上下文验证记录](docs/implementation/s3-verification.md)，S2 来源走查见 [分支验证记录](docs/implementation/s2-verification.md)，S1 历史见 [聊天验证记录](docs/implementation/s1-verification.md)。夹具不是真实模型，产品没有模拟回答回退。
 
-构建输出、开发启动器和专用测试数据均在忽略目录中；源码与资源在四个 `src/Mindweave.*` 工程，测试单独放在 `tests/Mindweave.Tests`。当前检查与平台限制见 [S3 验证记录](docs/implementation/s3-verification.md)，S0 的历史原生检查见 [S0 记录](docs/implementation/s0-verification.md)。
+构建输出、开发启动器和专用测试数据均在忽略目录中；源码与资源在四个 `src/Mindweave.*` 工程，测试单独放在 `tests/Mindweave.Tests`。当前检查与平台限制见 [S4 验证记录](docs/implementation/s4-verification.md)，S3历史见[上下文验证](docs/implementation/s3-verification.md)，S0 的历史原生检查见 [S0 记录](docs/implementation/s0-verification.md)。
 
 ## 验证资产
 
