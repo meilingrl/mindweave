@@ -286,5 +286,5 @@ public static class DatabaseSchema
         BEGIN SELECT RAISE(ABORT,'Prepared request is immutable'); END;
         CREATE TRIGGER prepared_use_immutable BEFORE UPDATE ON prepared_context_use
         BEGIN SELECT RAISE(ABORT,'Prepared material is immutable'); END;
-        """)]);
+        """), new(6, SummarySchema.Sql)]);
 }

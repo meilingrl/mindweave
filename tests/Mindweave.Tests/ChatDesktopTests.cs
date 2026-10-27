@@ -36,7 +36,7 @@ public sealed class ChatDesktopTests
         using var inspect = new SqliteConnection($"Data Source={paths.DatabasePath};Pooling=False");
         inspect.Open();
         using var command = inspect.CreateCommand(); command.CommandText = "PRAGMA user_version";
-        Assert.Equal(5L, command.ExecuteScalar());
+        Assert.Equal(6L, command.ExecuteScalar());
         var backupPath = Assert.Single(Directory.GetFiles(paths.BackupDirectory, "*.db"));
         using (var backup = new SqliteConnection($"Data Source={backupPath};Mode=ReadOnly;Pooling=False"))
         {

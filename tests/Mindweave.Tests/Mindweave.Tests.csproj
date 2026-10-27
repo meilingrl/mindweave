@@ -14,6 +14,8 @@
     <None Include="../fixtures/context-format4/manifest.json" Link="Fixtures/context-format4/manifest.json" CopyToOutputDirectory="PreserveNewest" />
     <None Include="../fixtures/context-format5/**/*.db" Link="Fixtures/context-format5/%(RecursiveDir)%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" />
     <None Include="../fixtures/context-format5/**/*.json" Link="Fixtures/context-format5/%(RecursiveDir)%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="../fixtures/summary-schema5-format6/**/*.db" Link="Fixtures/summary-schema5-format6/%(RecursiveDir)%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="../fixtures/summary-schema5-format6/**/*.json" Link="Fixtures/summary-schema5-format6/%(RecursiveDir)%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" />
     <PackageReference Include="Microsoft.NET.Test.Sdk" Version="18.11.0" />
     <PackageReference Include="xunit.v3" Version="3.2.2" />
     <PackageReference Include="xunit.runner.visualstudio" Version="4.0.1"><PrivateAssets>all</PrivateAssets></PackageReference>

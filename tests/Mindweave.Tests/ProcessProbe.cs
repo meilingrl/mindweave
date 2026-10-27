@@ -11,7 +11,7 @@ public static class ProcessProbe
 {
     public static async Task<int> Main(string[] args)
     {
-        if (args.Length != 2 || args[0] is not ("generation-checkpoint" or "migration" or "instance"))
+        if (args.Length != 2 || args[0] is not ("generation-checkpoint" or "migration" or "summary-migration" or "instance"))
             return await Xunit.Runner.InProc.SystemConsole.ConsoleRunner.Run(args);
         var paths = AppPaths.ForTrack("codex-steady", args[1]);
         if (args[0] == "generation-checkpoint")
@@ -35,6 +35,25 @@ public static class ProcessProbe
             // Parent kills this process with the transport still open; no orderly Dispose/flush runs.
             await new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously).Task;
             return 25;
+        }
+        if (args[0] == "summary-migration")
+        {
+            using (var connection = new SqliteConnection($"Data Source={paths.DatabasePath};Pooling=False"))
+            {
+                connection.Open(); using var q=connection.CreateCommand();q.CommandText="PRAGMA journal_mode=DELETE";q.ExecuteNonQuery();
+            }
+            var migrations=DatabaseSchema.Migrations.Take(5).Append(new SchemaMigration(6,DatabaseSchema.Migrations[5].Sql + """
+                UPDATE workspace SET name='uncommitted summary migration';
+                WITH RECURSIVE forever(x) AS (SELECT 1 UNION ALL SELECT x+1 FROM forever WHERE x<1000000000000) SELECT sum(x) FROM forever;
+                """)).ToArray();
+            var opening=SqliteWorkspaceStore.OpenAsync(paths,migrations);
+            using var deadline=new CancellationTokenSource(TimeSpan.FromSeconds(15));
+            while(!File.Exists(paths.DatabasePath+"-journal"))
+            {
+                if(opening.IsCompleted) { await opening;return 23; }
+                await Task.Delay(10,deadline.Token);
+            }
+            Console.WriteLine("SUMMARY-MIGRATING");await Console.Out.FlushAsync();await opening;return 24;
         }
         if (args[0] == "migration")
         {

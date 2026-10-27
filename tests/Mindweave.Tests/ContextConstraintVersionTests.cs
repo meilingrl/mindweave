@@ -125,6 +125,7 @@ public sealed class ContextConstraintVersionTests
         using var dir = new TestDirectory(); var paths = CopyGolden(dir, mode); var golden = Golden(mode);
         if (deleteRequester)
             ContextStorageTests.Sql(paths, "BEGIN; PRAGMA defer_foreign_keys=ON; UPDATE app_selection SET kind='Overview',target_id=NULL; DELETE FROM generation_task WHERE conversation_id=$id; DELETE FROM conversation WHERE id=$id; COMMIT;", ("$id", Read<Guid>(golden, "ProducerId")));
+        await SummaryMigrationTests.UpgradePreservingOldRows(paths);
         var before = File.ReadAllBytes(paths.DatabasePath); var id = Read<Guid>(golden, "TaskId");
         using var handler = new ContextThinkingTransportTests.CaptureHandler(); using var client = new HttpClient(handler); var transport = new ChatCompletionsTransport(client);
         await using (var store = await SqliteWorkspaceStore.OpenAsync(paths))

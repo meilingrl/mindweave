@@ -107,7 +107,7 @@ public sealed class ContextThinkingStorageTests
             }
             Assert.Equal(expectedPrepared, JsonSerializer.Serialize(await reopened.LoadPreparedReplyRequestAsync(survivorTask)));
             Assert.Equal(0L, ContextStorageTests.Sql(paths, "SELECT count(*) FROM pragma_foreign_key_check"));
-            Assert.Equal(5L, ContextStorageTests.Sql(paths, "PRAGMA user_version"));
+            Assert.Equal(6L, ContextStorageTests.Sql(paths, "PRAGMA user_version"));
             Assert.Equal(2L, ContextStorageTests.Sql(paths, "SELECT format_version FROM prepared_reply_request WHERE task_id=$id", ("$id", survivorTask)));
         }
     }
@@ -139,6 +139,7 @@ public sealed class ContextThinkingStorageTests
         var data = golden.RootElement;
         using var dir = new TestDirectory(); var paths = AppPaths.ForTrack("codex-steady", dir.Path);
         Directory.CreateDirectory(paths.DataDirectory); File.Copy(Path.Combine(root, "format4.db"), paths.DatabasePath);
+        await SummaryMigrationTests.UpgradePreservingOldRows(paths);
         var before = File.ReadAllBytes(paths.DatabasePath);
         using var handler = new ContextThinkingTransportTests.CaptureHandler(); using var client = new HttpClient(handler); var transport = new ChatCompletionsTransport(client);
         await using (var store = await SqliteWorkspaceStore.OpenAsync(paths))

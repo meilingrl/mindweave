@@ -103,6 +103,7 @@ public sealed class ContextBudgetVersionTests
     public async Task Baseline_plan_source_cache_and_prepared_reopen_without_changing_any_database_byte(int version)
     {
         using var dir = new TestDirectory(); var paths = CopyGolden(dir, version); var golden = Golden(version);
+        await SummaryMigrationTests.UpgradePreservingOldRows(paths);
         var before = File.ReadAllBytes(paths.DatabasePath);
         var id = Read<Guid>(golden, "TaskId");
         await using (var store = await SqliteWorkspaceStore.OpenAsync(paths))
@@ -181,6 +182,7 @@ public sealed class ContextBudgetVersionTests
     public async Task Legacy_plan_tampering_is_rejected_without_rewriting_evidence(int version, string change)
     {
         using var dir = new TestDirectory(); var paths = CopyGolden(dir, version); var id = Read<Guid>(Golden(version), "TaskId");
+        await SummaryMigrationTests.UpgradePreservingOldRows(paths);
         var node = System.Text.Json.Nodes.JsonNode.Parse((string)ContextStorageTests.Sql(paths, "SELECT plan_json FROM reply_context_plan WHERE task_id=$id", ("$id", id))!)!;
         switch (change)
         {
