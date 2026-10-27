@@ -19,6 +19,7 @@ public sealed partial class SettingsViewModel : ContentViewModel
     [ObservableProperty] private string tokenLimitParameter = "max_tokens";
     [ObservableProperty] private int contextTokenBudget = 32768;
     [ObservableProperty] private int maxOutputTokens = 2048;
+    [ObservableProperty] private SummaryThinkingOption? selectedSummaryThinking;
     [ObservableProperty] private string? errorMessage;
     [ObservableProperty] private string? statusMessage;
     [ObservableProperty] private bool isBusy;
@@ -26,11 +27,15 @@ public sealed partial class SettingsViewModel : ContentViewModel
     public bool CanDiscover => !IsBusy && !blocked();
     public ObservableCollection<string> Models { get; } = [];
     public string[] TokenParameters { get; } = ["max_tokens", "max_completion_tokens"];
+    public IReadOnlyList<SummaryThinkingOption> SummaryThinkingOptions { get; } = Array.AsReadOnly<SummaryThinkingOption>([
+        new(SummaryThinkingMode.ServiceDefault, "服务默认"),
+        new(SummaryThinkingMode.Disabled, "关闭（仅DeepSeek官方摘要）")]);
     public IAsyncRelayCommand SaveCommand { get; }
     public IAsyncRelayCommand DiscoverCommand { get; }
     public SettingsViewModel(IChatStore store, ChatConfigurationService service, Func<bool> blocked, Action? persistenceFailed = null)
     {
         this.store = store; this.service = service; this.blocked = blocked; this.persistenceFailed = persistenceFailed;
+        SelectedSummaryThinking = SummaryThinkingOptions[0];
         SaveCommand = new AsyncRelayCommand(SaveAsync);
         DiscoverCommand = new AsyncRelayCommand(DiscoverAsync);
     }
@@ -40,9 +45,11 @@ public sealed partial class SettingsViewModel : ContentViewModel
         if (saved is null) return;
         ConnectionName = saved.Name; BaseUrl = saved.BaseUrl; ModelId = saved.ModelId;
         TokenLimitParameter = saved.TokenLimitParameter; ContextTokenBudget = saved.ContextTokenBudget; MaxOutputTokens = saved.MaxOutputTokens;
+        SelectedSummaryThinking = SummaryThinkingOptions.SingleOrDefault(option => option.Mode == saved.SummaryThinking);
     }
     private AiConfiguration Configuration() => new(saved?.ConnectionId ?? Guid.NewGuid(), saved?.ModelConfigId ?? Guid.NewGuid(),
-        ConnectionName, BaseUrl, saved?.CredentialReference ?? "", ModelId, ContextTokenBudget, MaxOutputTokens, TokenLimitParameter);
+        ConnectionName, BaseUrl, saved?.CredentialReference ?? "", ModelId, ContextTokenBudget, MaxOutputTokens, TokenLimitParameter,
+        SelectedSummaryThinking?.Mode ?? throw new ArgumentException("请选择摘要思考模式：服务默认或关闭（仅DeepSeek官方摘要）。"));
     private async Task SaveAsync()
     {
         if (!CanSave) return;
@@ -67,6 +74,7 @@ public sealed partial class SettingsViewModel : ContentViewModel
             Models.Clear(); foreach (var model in models) Models.Add(model);
             StatusMessage = "模型目录已读取；可手工填写模型 ID。";
         }
+        catch (ArgumentException error) { ErrorMessage = error.Message; }
         catch { ErrorMessage = "模型发现失败，可继续手工填写模型 ID。未发送生成请求。"; }
         finally { IsBusy = false; }
     }
