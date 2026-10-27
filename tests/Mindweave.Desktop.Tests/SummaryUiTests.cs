@@ -90,7 +90,9 @@ public class SummaryUiTests
         await page.SummarizeCommand.ExecuteAsync(null);
         await UiWait.UntilAsync(() => page.SummaryMarkersText?.Contains(UiText.MarkerCandidate, StringComparison.Ordinal) == true);
         summary = await OpenSummaryAsync(app, page);
-        Assert.True(summary.HasCandidate);
+
+        // The page may be the one opened before, refreshed by the change notification rather than rebuilt.
+        await UiWait.UntilAsync(() => summary.HasCandidate);
         Assert.Equal("我自己的笔记", summary.Shown!.Body);
 
         summary.ShowCandidateCommand.Execute(null);

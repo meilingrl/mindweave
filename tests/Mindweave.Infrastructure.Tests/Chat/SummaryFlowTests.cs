@@ -176,7 +176,7 @@ public class SummaryFlowTests
         var edited = await h.SummaryService.SaveEditAsync(first.Node, first.Version, "蒸汽机车", "我自己的笔记", Ct);
 
         h.Client.SummaryReplies.Enqueue("标题：蒸汽机车\n\n新生成的正文");
-        await h.SummaryService.SummarizeAsync(conversation, Ct);
+        Assert.True((await h.SummaryService.SummarizeAsync(conversation, Ct)).Accepted);
         await UntilAsync(async () => (await h.SummaryService.GetAsync(first.Node, Ct))!.Pending is not null);
 
         var detail = (await h.SummaryService.GetAsync(first.Node, Ct))!;
@@ -196,7 +196,7 @@ public class SummaryFlowTests
         var conversation = await ConversationAsync(h, "火车是怎么发明的？");
         var first = await SummarizeAsync(h, conversation);
         h.Client.KnowledgeGate = new TaskCompletionSource();
-        await h.SummaryService.SummarizeAsync(conversation, Ct);
+        Assert.True((await h.SummaryService.SummarizeAsync(conversation, Ct)).Accepted);
         await UntilTaskAsync(h, conversation, GenerationTaskState.Running);
 
         await h.SummaryService.SaveEditAsync(first.Node, first.Version, "蒸汽机车", "生成期间的手改", Ct);
@@ -279,7 +279,7 @@ public class SummaryFlowTests
         var conversation = await ConversationAsync(h, "火车是怎么发明的？");
         var first = await SummarizeAsync(h, conversation);
         h.Client.SummaryReplies.Enqueue("标题：铁路的起源\n\n正文");
-        await h.SummaryService.SummarizeAsync(conversation, Ct);
+        Assert.True((await h.SummaryService.SummarizeAsync(conversation, Ct)).Accepted);
         await UntilAsync(async () => (await h.SummaryService.GetAsync(first.Node, Ct))!.Pending is not null);
 
         var candidate = (await h.SummaryService.GetAsync(first.Node, Ct))!.Pending!.Id;

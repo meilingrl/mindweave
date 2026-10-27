@@ -245,16 +245,6 @@ public sealed partial class GenerationCoordinator : IAsyncDisposable
         }
     }
 
-    /// <summary>True while a summary task of this conversation is queued or running in this process.</summary>
-    public bool HasUnfinishedSummary(ConversationId conversation)
-    {
-        lock (_gate)
-        {
-            return _userQueue.Any(w => w is SummaryWork && w.Task.ConversationId == conversation)
-                || _running.Values.Any(r => r.Work is SummaryWork && r.Work.Task.ConversationId == conversation);
-        }
-    }
-
     /// <summary>
     /// Exit sequence steps 3–4 (architecture §12.3): close the entry, cancel queued work, stop running work
     /// keeping received text, and wait until terminal states are written (one last retry if storage failed).

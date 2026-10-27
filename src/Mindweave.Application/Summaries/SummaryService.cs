@@ -152,8 +152,9 @@ public sealed partial class SummaryService
             return Reject(SummarizeRejection.HasCandidate);
         }
 
-        if (_generation.HasUnfinishedSummary(conversation)
-            || await _summaries.LatestTaskAsync(conversation, cancellationToken).ConfigureAwait(false) is { State: GenerationTaskState.Queued or GenerationTaskState.Running })
+        // The stored task state decides: its row is written before the task is queued, and it turns terminal when the
+        // version is saved, a moment before the task's slot is released.
+        if (await _summaries.LatestTaskAsync(conversation, cancellationToken).ConfigureAwait(false) is { State: GenerationTaskState.Queued or GenerationTaskState.Running })
         {
             return Reject(SummarizeRejection.SummaryInProgress);
         }
