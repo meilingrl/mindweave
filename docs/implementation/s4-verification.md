@@ -22,7 +22,8 @@
 | 桌面列表／详情／编辑／阅读 | 初版`a56af23`、修复`504598b`；26聚焦／622完整通过、2原有跳过、build零警告错误；[初审与I1／I2限定复审](../reviews/codex-s4-desktop-20261028.md)全部关闭 |
 | 版本确认操作与S4原生夹具 | 初版`57ba68e`、fix1`a556d24`、fix2`5a9f74e`；总结界面联合58／完整654通过、2原有跳过、build零警告错误、Python15；[初审及两轮限定复审](../reviews/codex-s4-version-operations-20261028.md)全部关闭，整阶段与原生门禁待后续 |
 | 整阶段软件审查 | 固定`61dad7e`→`84615fd`，[独立审查](../reviews/codex-s4-integrated-20261028.md)初审0C／4I／0M；统一修复`6374f6c`，限定复审4项全部关闭、0新增；73聚焦／669完整通过、2原有跳过、build零警告错误、Python15 |
-| macOS原生／真实服务 | 尚未开始，S4费用尚未授权 |
+| 双平台打包 | 源`6374f6c`／构建HEAD`586074e`，osx-arm64依赖本机.NET10、win-x64自包含，发布零警告错误，逐文件hash／ZIP CRC通过 |
+| macOS原生／真实服务 | Mac锁屏，尚未启动S4原生；等待解锁，S4费用尚未授权 |
 | Windows11／课程／价值验证 | 尚未验收；当前暂无Windows设备 |
 
 知识总结v1按完整冻结来源发送并接受前校验完整预算，超限明确拒绝；上下文自动压缩仍只用于续聊。首次成功未读保存，更新为候选，阅读、采用、编辑、命名各自独立。新表追加schema6，旧1–5 SQL、S3输入格式2–6与旧hash保持；领域、存储、三个生产参与者及桌面列表／编辑／阅读已有自动化和独立审查证据；具体版本确认已有自动化及任务审查证据，整阶段软件审查已通过，原生行为与阶段验收仍待验证。
@@ -59,3 +60,19 @@ Task8软件最终`5a9f74e`：最后删除丢失确认后的跨页输入恢复、
 固定初审范围`61dad7e`→`84615fd`，4项Important在单次统一修复`6374f6c06a6497b697295138ec02e676e0f2e801`关闭：首份总结独立停止、会话所属终态与接受反馈、显示版本自身覆盖范围、未确认保存完整结果的跨页阅读／选取。新增15项行为回归，含持久化暂停仍可停止、未知接受确认只修复保存、显示版本异步切换、失败关闭返回和丢失落库确认。最终同源聚焦73／完整Release669通过、2原有凭据跳过、0失败；构建0警告错误，Python15通过。限定复审4项addressed、0open、0新增，完整报告见[整阶段审查](../reviews/codex-s4-integrated-20261028.md)。
 
 原始RED／GREEN与门禁保留在`artifacts/s4-integrated-fix/`（使用中），实现／API／限定复审报告在本计划SDD工作区（使用中，按用户保留资产要求不删除）。这是软件门禁；原生剪贴板、窗口激活、平台、模型质量与费用授权仍独立。
+
+
+## 双平台测试包（2026-10-28）
+
+打包产品／夹具源`6374f6c06a6497b697295138ec02e676e0f2e801`，构建HEAD`586074e`仅增加软件批准与资料说明；构建前确认`src/`／`tests/`／`scripts/`相对该产品源零差异。两次publish均成功、无警告错误；不重复运行未改变的同源测试。旧S3 macOS应用已由既有脚本保留到`artifacts/macos-previous/Mindweave Codex-20261028T044335592614-59096.reference`，没有删除原包或数据。
+
+| 包 | 实际结果 |
+| --- | --- |
+| macOS本机开发包 | `artifacts/macos/Mindweave Codex.app`，osx-arm64、framework-dependent，55个文件；启动器指定本机.NET路径与新`artifacts/s4-native-task8`数据根目录，尚未启动 |
+| macOS ZIP | `artifacts/macos-s4/Mindweave-Codex-S4-6374f6c-osx-arm64-local-dev.zip`，15,823,595字节，SHA256 `884c89cdb212e07be228aa410f10853ae572d25fec071f3b8fef2fa03c90bd94`；本机开发用途，启动器含本机路径，不声称便携发行 |
+| Windows测试包 | `artifacts/windows-s4-6374f6c/`，win-x64自包含.NET10，248文件；独立test-data入口、S4及其旧公共夹具依赖、中文操作说明，CMD为CRLF；无数据库／真实密钥／真实配置 |
+| Windows ZIP | `artifacts/windows-s4/Mindweave-Codex-S4-6374f6c-win-x64-dev.zip`，77,375,990字节，SHA256 `6bb698709d1416a0008d0e503176f3e283a4751daddfba9b68cf26624700c397` |
+
+两个manifest逐文件SHA与归档内相同文件字节吻合，ZIP CRC检查通过；各归档旁保留SHA256.txt。发布与打包日志为`artifacts/s4-integrated-fix/12-macos-publish.log`、`13-windows-publish.log`、`14-package-check.log`；控制器脚本保存在本计划`package_s4.py`，使用中且拒绝覆盖已有ZIP。未在Windows启动，不将交叉构建视作实机验收；用户暂无Windows设备，不重复询问。
+
+本轮原生工具两次明确报告Mac锁屏，已请求用户解锁；S4应用／夹具没有启动，新native库尚未创建，真实请求仍0。所有S1–S3原始DB及其WAL／SHM再次逐文件SHA保持。专供后续新合成库的可逆完成保存故障工具`native_db_guard.py`已备妥，仅允许`artifacts/s4-native-task8`且核对loopback合成配置；内存SQLite验证安装／触发／移除正常，尚未对任何数据目录执行故障注入。此工具不修改产品代码或schema迁移，不接触vault。
