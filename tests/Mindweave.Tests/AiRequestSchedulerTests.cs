@@ -26,23 +26,55 @@ public sealed class AiRequestSchedulerTests
         var scheduler = new AiRequestScheduler();
         using var a = scheduler.RegisterLogicalWork(GenerationPriority.Summary);
         using var b = scheduler.RegisterLogicalWork(GenerationPriority.Summary);
-        var release = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var releaseA = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var releaseB = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var releaseReply = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         var entered = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var replyStarted = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var order = new List<string>();
         int count = 0, peak = 0;
-        async Task Physical() { int n = Interlocked.Increment(ref count); peak = Math.Max(peak, n); if(n == 2) entered.TrySetResult(); await release.Task; Interlocked.Decrement(ref count); }
-        var first = a.RunPhaseAsync(Physical); var second = b.RunPhaseAsync(Physical);
+        async Task Physical(Task release, string? label = null)
+        {
+            int n = Interlocked.Increment(ref count);
+            int old;
+            do { old = Volatile.Read(ref peak); }
+            while (n > old && Interlocked.CompareExchange(ref peak, n, old) != old);
+            if (n == 2) entered.TrySetResult();
+            if (label is not null) lock (order) order.Add(label);
+            if (label == "reply") replyStarted.TrySetResult();
+            try { await release; }
+            finally { Interlocked.Decrement(ref count); }
+        }
+        var first = a.RunPhaseAsync(() => Physical(releaseA.Task));
+        var second = b.RunPhaseAsync(() => Physical(releaseB.Task));
         await entered.Task.WaitAsync(TimeSpan.FromSeconds(5));
         using var title1 = scheduler.RegisterLogicalWork(GenerationPriority.Background);
         using var title2 = scheduler.RegisterLogicalWork(GenerationPriority.Background);
-        var order = new List<string>();
-        var t1 = title1.RunPhaseAsync(() => { lock(order) order.Add("title1"); return Task.CompletedTask; });
-        var t2 = title2.RunPhaseAsync(() => { lock(order) order.Add("title2"); return Task.CompletedTask; });
+        var t1 = title1.RunPhaseAsync(() => Physical(Task.CompletedTask, "title1"));
+        var t2 = title2.RunPhaseAsync(() => Physical(Task.CompletedTask, "title2"));
         using var reply = scheduler.RegisterLogicalWork(GenerationPriority.Reply);
-        var r = reply.RunPhaseAsync(() => { lock(order) order.Add("reply"); return Task.CompletedTask; });
-        release.SetResult(); await Task.WhenAll(first, second); a.Dispose(); b.Dispose();
-        await r.WaitAsync(TimeSpan.FromSeconds(5)); reply.Dispose();
-        await Task.WhenAll(t1,t2).WaitAsync(TimeSpan.FromSeconds(5));
-        Assert.Equal("reply", order[0]); Assert.Equal(2, peak);
+        var r = reply.RunPhaseAsync(() => Physical(releaseReply.Task, "reply"));
+        try
+        {
+            // Keep B physically running: only one slot is available, so callback order
+            // now witnesses grant order instead of racing two independently granted callbacks.
+            a.Dispose(); releaseA.SetResult(); await first;
+            await replyStarted.Task.WaitAsync(TimeSpan.FromSeconds(5));
+            lock (order) Assert.Equal(new[] { "reply" }, order);
+            Assert.False(t1.IsCompleted); Assert.False(t2.IsCompleted);
+            Assert.False(second.IsCompleted); Assert.Equal(2, scheduler.ActivePhaseCount);
+            releaseReply.SetResult(); await r; reply.Dispose();
+            await Task.WhenAll(t1, t2).WaitAsync(TimeSpan.FromSeconds(5));
+            Assert.Equal(new[] { "reply", "title1", "title2" }, order);
+            Assert.Equal(2, Volatile.Read(ref peak));
+        }
+        finally
+        {
+            a.Dispose(); b.Dispose(); reply.Dispose();
+            releaseA.TrySetResult(); releaseB.TrySetResult(); releaseReply.TrySetResult();
+            try { await Task.WhenAll(first, second, r, t1, t2).WaitAsync(TimeSpan.FromSeconds(5)); }
+            catch (OperationCanceledException) { /* Cleanup may cancel a queued phase after an assertion failure. */ }
+        }
     }
 
     [Fact]
