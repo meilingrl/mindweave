@@ -1,5 +1,6 @@
 using Mindweave.Application.Ai;
 using Mindweave.Application.Conversations;
+using Mindweave.Application.Diagnostics;
 using Mindweave.Application.Models;
 using Mindweave.Core.Context;
 using Mindweave.Core.Conversations;
@@ -39,8 +40,7 @@ public class ContextCompressionTests
         // The original record is complete and the answer is marked as sent with a summary.
         Assert.Equal(14, (await h.Store.GetMessagesAsync(conversation, Ct)).Count);
         Assert.Contains(answer.Id, await h.Summaries.CompressedAnswersAsync(conversation, Ct));
-        var traces = await h.Requests.ForTaskAsync((await TaskOfAsync(h, answer.Id)), Ct);
-        Assert.Equal(2, traces.Count);
+        Assert.Equal(2, (await TracesAsync(h, answer.Id, 2)).Count);
     }
 
     [Fact]
@@ -111,7 +111,7 @@ public class ContextCompressionTests
         Assert.NotEqual(FakeChatClient.TruncatedSummaryText, stored.Text);
         var sent = h.Client.Requests.Last(FakeChatClient.IsAnswer);
         Assert.DoesNotContain(sent.Turns, t => t.Content.EndsWith(FakeChatClient.TruncatedSummaryText, StringComparison.Ordinal));
-        var traces = await h.Requests.ForTaskAsync(await TaskOfAsync(h, answer.Id), Ct);
+        var traces = await TracesAsync(h, answer.Id, 3);
         Assert.Equal(3, traces.Count);
         Assert.Contains("截断", traces[0].ErrorDetail ?? string.Empty, StringComparison.Ordinal);
     }
@@ -250,6 +250,18 @@ public class ContextCompressionTests
         var sent = await h.Conversations.AskAsync(conversation, question, Ct);
         Assert.True(sent.Accepted, sent.Rejection?.ToString());
         return await h.WaitForAnswerAsync(sent.Answer!.Value);
+    }
+
+    /// <summary>
+    /// The answer task's request traces once <paramref name="expected"/> are stored: the last one is written just
+    /// after the answer is finished (diagnostics never delay the answer), so it can lag the finished state.
+    /// </summary>
+    private static async Task<IReadOnlyList<AiRequestRecord>> TracesAsync(ChatHarness h, MessageId answer, int expected)
+    {
+        var task = await TaskOfAsync(h, answer);
+        IReadOnlyList<AiRequestRecord> traces = [];
+        await ChatHarness.UntilAsync(() => (traces = h.Requests.ForTaskAsync(task, Ct).Result).Count >= expected);
+        return traces;
     }
 
     private static Task<GenerationTaskId> TaskOfAsync(ChatHarness h, MessageId answer) =>

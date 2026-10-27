@@ -25,7 +25,8 @@ public sealed class KillDuringStreamTests : IDisposable
         await using var database = _dir.Database();
         var store = new SqliteConversationStore(database);
         var startup = new StartupCoordinator(database, new SqliteWorkspaceStore(database), store, new SystemClock(), new SqliteLocationStore(database, new SystemClock()), NullLogger<StartupCoordinator>.Instance);
-        Assert.IsType<StartupOutcome.ReadyToWork>(await startup.StartAsync(TestContext.Current.CancellationToken));
+        var outcome = await startup.StartAsync(TestContext.Current.CancellationToken);
+        Assert.True(outcome is StartupOutcome.ReadyToWork, outcome is StartupOutcome.NeedsRecovery r ? $"{r.Result.Status}: {r.Result.ErrorDetail}" : outcome.ToString());
 
         var answer = await database.ReadAsync(
             c =>
