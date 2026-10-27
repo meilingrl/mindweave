@@ -298,6 +298,46 @@ public sealed class SqliteDatabaseTests : IDisposable
         Assert.False(database.IsOpen);
     }
 
+    /// <summary>
+    /// Windows byte-range locks are mandatory and a killed process's locks outlive it briefly (longer under load), so
+    /// reading the file right after a crash fails with an I/O error rather than "busy". That must not be reported as
+    /// an unreadable database (which offers restoring a backup). Elsewhere locks are advisory and nothing is blocked.
+    /// </summary>
+    [Fact]
+    public async Task A_lock_left_briefly_by_a_dead_process_is_waited_for_not_reported_as_unreadable()
+    {
+        Assert.SkipUnless(OperatingSystem.IsWindows(), "Mandatory byte-range locks exist only on Windows.");
+        if (!OperatingSystem.IsWindows())
+        {
+            return;
+        }
+
+        await SeedCurrentAsync("kept");
+        var release = HoldFirstPageAsync(_dir.Paths.DatabasePath, TimeSpan.FromMilliseconds(700));
+
+        await using var database = _dir.Database();
+        var result = await database.OpenAsync(Ct);
+        await release;
+
+        Assert.True(result.IsReady, $"{result.Status}: {result.ErrorDetail}");
+    }
+
+    /// <summary>Locks the database's first page, as a crashed writer's lingering lock would, and releases it later.</summary>
+    [System.Runtime.Versioning.SupportedOSPlatform("windows")]
+    private static Task HoldFirstPageAsync(string path, TimeSpan duration)
+    {
+        var file = new FileStream(path, FileMode.Open, FileAccess.ReadWrite, FileShare.ReadWrite);
+        file.Lock(0, 4096);
+        return ReleaseAsync();
+
+        async Task ReleaseAsync()
+        {
+            await Task.Delay(duration, Ct);
+            file.Unlock(0, 4096);
+            await file.DisposeAsync();
+        }
+    }
+
     [Fact]
     public async Task Killing_the_process_inside_a_migration_leaves_the_previous_version()
     {
@@ -306,6 +346,7 @@ public sealed class SqliteDatabaseTests : IDisposable
         Assert.Equal("in-migration", await child.WaitForLineAsync(TimeSpan.FromSeconds(30)));
 
         await child.KillAsync();
+        await _dir.WaitUntilReadableAsync();
 
         AssertUnchangedAtCurrent("original");
         using (var raw = _dir.Raw())
