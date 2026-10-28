@@ -10,15 +10,32 @@
         Background="White">
   <Panel>
     <ContentControl Content="{Binding Current}" />
-    <!-- Exit confirmation overlays whatever page is shown; nothing irreversible happens before "stop and quit". -->
-    <Border IsVisible="{Binding ExitPrompt.IsOpen}" Background="#66000000">
+    <!-- Exit overlays whatever page is shown; nothing irreversible happens before "stop and quit". -->
+    <Border IsVisible="{Binding Exit.IsTaskPromptOpen}" Background="#66000000">
       <Border Background="White" CornerRadius="10" Padding="24" MaxWidth="440" HorizontalAlignment="Center" VerticalAlignment="Center">
         <StackPanel Spacing="14">
           <TextBlock Classes="h1" FontSize="18" Text="{x:Static d:UiText.ExitTitle}" />
-          <TextBlock TextWrapping="Wrap" Text="{Binding ExitPrompt.Message}" />
+          <TextBlock TextWrapping="Wrap" Text="{Binding Exit.TaskMessage}" />
           <StackPanel Orientation="Horizontal" Spacing="8" HorizontalAlignment="Right">
-            <Button Name="ExitCancel" Content="{x:Static d:UiText.ExitCancel}" Command="{Binding ExitPrompt.CancelCommand}" IsDefault="True" />
-            <Button Name="ExitConfirm" Content="{x:Static d:UiText.ExitConfirm}" Command="{Binding ExitPrompt.ConfirmCommand}" />
+            <Button Name="ExitCancel" Content="{x:Static d:UiText.ExitCancel}" Command="{Binding Exit.KeepRunningCommand}" IsDefault="True" />
+            <Button Name="ExitConfirm" Content="{x:Static d:UiText.ExitConfirm}" Command="{Binding Exit.StopAndExitCommand}" />
+          </StackPanel>
+        </StackPanel>
+      </Border>
+    </Border>
+    <Border IsVisible="{Binding Exit.IsBusy}" Background="#66000000">
+      <Border Background="White" CornerRadius="10" Padding="24" MaxWidth="440" HorizontalAlignment="Center" VerticalAlignment="Center">
+        <TextBlock TextWrapping="Wrap" Text="{x:Static d:UiText.ExitSaving}" />
+      </Border>
+    </Border>
+    <Border IsVisible="{Binding Exit.IsFailed}" Background="#66000000">
+      <Border Background="White" CornerRadius="10" Padding="24" MaxWidth="440" HorizontalAlignment="Center" VerticalAlignment="Center">
+        <StackPanel Spacing="14">
+          <TextBlock Classes="h1" FontSize="18" Text="{x:Static d:UiText.ExitSaveFailedTitle}" />
+          <TextBlock TextWrapping="Wrap" Text="{x:Static d:UiText.ExitSaveFailedBody}" />
+          <StackPanel Orientation="Horizontal" Spacing="8" HorizontalAlignment="Right">
+            <Button Name="ExitReturn" Content="{x:Static d:UiText.ExitReturn}" Command="{Binding Exit.ReturnCommand}" />
+            <Button Name="ExitRetry" Content="{x:Static d:UiText.ExitRetry}" Command="{Binding Exit.RetryCommand}" IsDefault="True" />
           </StackPanel>
         </StackPanel>
       </Border>

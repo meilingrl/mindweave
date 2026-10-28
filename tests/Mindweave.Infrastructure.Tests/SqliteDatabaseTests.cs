@@ -286,6 +286,53 @@ public sealed class SqliteDatabaseTests : IDisposable
     }
 
     [Fact]
+    public async Task Draining_runs_queued_writes_and_folds_the_log_into_the_database()
+    {
+        await using var database = _dir.Database();
+        Assert.True((await database.OpenAsync(Ct)).IsReady);
+        var pending = Enumerable.Range(0, 20)
+            .Select(i => database.WriteAsync((c, t) => Exec(c, t, $"INSERT INTO app_state VALUES ('k{i}', 'v');"), Ct))
+            .ToArray();
+
+        await database.DrainAsync();
+
+        Assert.All(pending, p => Assert.True(p.IsCompletedSuccessfully));
+        Assert.Equal(0, new FileInfo(_dir.Paths.DatabasePath + "-wal").Length);
+        Assert.Equal(20L, await database.ReadAsync(c => Scalar<long>(c, "SELECT count(*) FROM app_state;"), Ct));
+
+        // Still open for writing afterwards (an exit may be retried or abandoned).
+        await database.WriteAsync((c, t) => Exec(c, t, "INSERT INTO app_state VALUES ('after', 'v');"), Ct);
+    }
+
+    [Fact]
+    public async Task Draining_while_a_reader_holds_a_snapshot_completes_and_keeps_the_log()
+    {
+        await using var database = _dir.Database();
+        Assert.True((await database.OpenAsync(Ct)).IsReady);
+        await database.WriteAsync((c, t) => Exec(c, t, "INSERT INTO app_state VALUES ('k', 'v');"), Ct);
+        using var reader = SqliteConnections.OpenReadOnly(_dir.Paths.DatabasePath);
+        SqliteConnections.Execute(reader, "BEGIN;");
+        Assert.Equal(1L, Scalar<long>(reader, "SELECT count(*) FROM app_state;"));
+        await database.WriteAsync((c, t) => Exec(c, t, "INSERT INTO app_state VALUES ('k2', 'v');"), Ct);
+
+        await database.DrainAsync().WaitAsync(TimeSpan.FromSeconds(10), Ct);
+
+        SqliteConnections.Execute(reader, "COMMIT;");
+        Assert.True(new FileInfo(_dir.Paths.DatabasePath + "-wal").Length > 0);
+        Assert.Equal(2L, await database.ReadAsync(c => Scalar<long>(c, "SELECT count(*) FROM app_state;"), Ct));
+    }
+
+    [Fact]
+    public async Task Draining_a_closed_database_does_nothing()
+    {
+        await using var database = _dir.Database();
+        await database.DrainAsync();
+        Assert.True((await database.OpenAsync(Ct)).IsReady);
+        await database.CloseAsync();
+        await database.DrainAsync();
+    }
+
+    [Fact]
     public async Task Disposing_twice_and_closing_after_dispose_are_harmless()
     {
         var database = _dir.Database();

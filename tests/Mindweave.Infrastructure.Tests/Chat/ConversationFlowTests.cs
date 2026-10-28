@@ -300,7 +300,7 @@ public class ConversationFlowTests
     }
 
     /// <summary>Wraps the real store and fails the first N terminal answer writes.</summary>
-    private sealed class FlakyStore(IConversationStore inner) : IConversationStore
+    internal sealed class FlakyStore(IConversationStore inner) : IConversationStore
     {
         private int _failFinishes;
 

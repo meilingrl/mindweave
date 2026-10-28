@@ -161,21 +161,22 @@ public class ConversationUiTests
         await app.ConfigureModelAsync();
         var held = app.Client.Hold("进行中");
         var page = await OpenConversationAsync(app, "问", held);
-        var prompt = app.Root.ExitPrompt;
+        var exit = app.Root.Exit;
 
-        Assert.True(prompt.ShouldHoldClose());
-        Assert.True(prompt.IsOpen);
-        Assert.Contains("1 个回答", prompt.Message, StringComparison.Ordinal);
-        prompt.CancelCommand.Execute(null);
-        Assert.False(prompt.IsOpen);
+        Assert.True(exit.InterceptClose());
+        Assert.True(exit.IsTaskPromptOpen);
+        Assert.Contains("1 个回答", exit.TaskMessage, StringComparison.Ordinal);
+        exit.KeepRunningCommand.Execute(null);
+        Assert.Equal(ExitStage.Idle, exit.Stage);
         Assert.Equal(0, app.Shell.ExitRequests);
         Assert.NotNull(page.RunningAnswer);
 
-        Assert.True(prompt.ShouldHoldClose());
-        await prompt.ConfirmCommand.ExecuteAsync(null);
+        Assert.True(exit.InterceptClose());
+        exit.StopAndExitCommand.Execute(null);
+        await exit.Running;
 
         Assert.Equal(1, app.Shell.ExitRequests);
-        Assert.False(prompt.ShouldHoldClose());
+        Assert.False(exit.InterceptClose());
         await UiWait.UntilAsync(() => page.Messages[1].State == MessageState.Stopped);
         Assert.Equal("进行中", page.Messages[1].Body);
     }
@@ -186,8 +187,11 @@ public class ConversationUiTests
         await using var app = DesktopHarness.Create();
         await app.StartWithWorkspaceAsync("火车");
 
-        Assert.False(app.Root.ExitPrompt.ShouldHoldClose());
-        Assert.False(app.Root.ExitPrompt.IsOpen);
+        Assert.True(app.Root.Exit.InterceptClose());
+        Assert.False(app.Root.Exit.IsTaskPromptOpen);
+        await app.Root.Exit.Running;
+        Assert.Equal(1, app.Shell.ExitRequests);
+        Assert.False(app.Root.Exit.InterceptClose());
     }
 
     [AvaloniaFact]

@@ -1,6 +1,7 @@
 using Microsoft.Extensions.Logging.Abstractions;
 using Mindweave.Application;
 using Mindweave.Application.Reading;
+using Mindweave.Application.Storage;
 using Mindweave.Core.Conversations;
 using Mindweave.Core.Reading;
 
@@ -92,6 +93,63 @@ public class ReadingStateTests
         var stored = await h.ReadingStore.GetPositionAsync(conversation, Slot, Ct);
         Assert.Equal(answer, stored!.Message);
         Assert.Null(stored.Locator);
+    }
+
+    [Fact]
+    public async Task A_draft_whose_write_fails_stays_pending_and_the_next_flush_writes_it()
+    {
+        await using var h = await ChatHarness.StartAsync();
+        var (conversation, answer) = await ConversationAsync(h);
+        var failing = new FailingStore(h.ReadingStore) { Fail = true };
+        using var reading = new ReadingStateService(failing, new SystemClock(), NullLogger<ReadingStateService>.Instance, TimeSpan.FromHours(1));
+        reading.SetDraft(conversation, Slot, "还没发的问题");
+        reading.SetPosition(conversation, Slot, new ReadingPosition(answer, 0, null, 1));
+
+        Assert.False(await reading.FlushAsync());
+        Assert.Null(await h.ReadingStore.GetDraftAsync(conversation, Slot, Ct));
+        Assert.Equal("还没发的问题", await reading.GetDraftAsync(conversation, Slot, Ct));
+
+        failing.Fail = false;
+        Assert.True(await reading.FlushAsync());
+        Assert.Equal("还没发的问题", await h.ReadingStore.GetDraftAsync(conversation, Slot, Ct));
+        Assert.Equal(answer, (await h.ReadingStore.GetPositionAsync(conversation, Slot, Ct))!.Message);
+    }
+
+    [Fact]
+    public async Task A_failed_position_write_alone_does_not_fail_the_flush_but_stays_pending()
+    {
+        await using var h = await ChatHarness.StartAsync();
+        var (conversation, answer) = await ConversationAsync(h);
+        var failing = new FailingStore(h.ReadingStore) { FailPositions = true };
+        using var reading = new ReadingStateService(failing, new SystemClock(), NullLogger<ReadingStateService>.Instance, TimeSpan.FromHours(1));
+        reading.SetPosition(conversation, Slot, new ReadingPosition(answer, 0, null, 1));
+
+        Assert.True(await reading.FlushAsync());
+        Assert.Null(await h.ReadingStore.GetPositionAsync(conversation, Slot, Ct));
+
+        failing.FailPositions = false;
+        await reading.FlushAsync();
+        Assert.Equal(answer, (await h.ReadingStore.GetPositionAsync(conversation, Slot, Ct))!.Message);
+    }
+
+    /// <summary>The real store, whose writes fail on demand as a full or broken disk would.</summary>
+    private sealed class FailingStore(IReadingStateStore inner) : IReadingStateStore
+    {
+        public bool Fail { get; set; }
+
+        public bool FailPositions { get; set; }
+
+        public Task<ReadingPosition?> GetPositionAsync(ConversationId conversation, ViewerSlotKey slot, CancellationToken cancellationToken) =>
+            inner.GetPositionAsync(conversation, slot, cancellationToken);
+
+        public Task SavePositionAsync(ConversationId conversation, ViewerSlotKey slot, ReadingPosition position, DateTimeOffset at, CancellationToken cancellationToken) =>
+            Fail || FailPositions ? throw new IOException("simulated write failure") : inner.SavePositionAsync(conversation, slot, position, at, cancellationToken);
+
+        public Task<string?> GetDraftAsync(ConversationId conversation, ViewerSlotKey slot, CancellationToken cancellationToken) =>
+            inner.GetDraftAsync(conversation, slot, cancellationToken);
+
+        public Task SaveDraftAsync(ConversationId conversation, ViewerSlotKey slot, string text, DateTimeOffset at, CancellationToken cancellationToken) =>
+            Fail ? throw new IOException("simulated write failure") : inner.SaveDraftAsync(conversation, slot, text, at, cancellationToken);
     }
 
     private static async Task<(ConversationId, MessageId)> ConversationAsync(ChatHarness h)

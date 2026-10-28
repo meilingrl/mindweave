@@ -33,6 +33,18 @@ A 与 C 互不相交，各开工作树并行；B 动协调器（按会话取消�
 - 刷新在窗口关闭**之前**完成。失败显示“部分内容未能保存”，可“重试退出”或“返回”；返回后只接受新操作，已取消的任务不复活。
 - `AppHost.DisposeAsync` 保留为兜底，加 try/finally 保证释放单实例锁。
 
+## 实现记录（A 退出顺序）
+
+- `ExitCoordinator`（取代 `ExitPromptViewModel`，`RootViewModel.Exit`）实现空闲 → 布局提示 → 任务提示 → 停止 → 刷新 →（失败｜释放）。`MainWindow.OnClosing` 与 `App.OnShutdownRequested`（生命周期 `ShutdownRequested`）都只调用 `InterceptClose()` 并取消；完成后经 `ISystemShell.ExitApplication()` 程序化关闭，只有“释放”阶段两个钩子放行。测试从两个入口驱动：仅布局、仅回答、两者都有（布局在先；任务提示取消后布局仍未保存）；缺陷 1 先用旧代码复现失败。
+- 布局提示新增退出模式：`HoldExit` 的“不保存”只把待丢弃的会话交给协调器，到“停止”一步才 `DiscardChanges`；切换工作区仍立即丢弃。
+- `GenerationCoordinator`：`UnfinishedUserWork`（回答、总结分别计数，运行与排队都算）；`StopForExitAsync(等待上限)` 封闭入口、取消排队、停止运行并最多等 5 秒（`ExitOptions.StopWait`），不停重试循环；`Reopen()` 只重新开放入口；`SaveUnsavedAsync()` 报告失败终态写入是否已补存；`ShutdownAsync` 改为在其后做最终收尾（幂等）。被退出停止或取消的自动标题发 `TitleAbandoned`，会话服务据此允许下次回答完成时再排；取消排队的总结／命名补发 `SummaryTaskFinished`。
+- 刷新在窗口关闭前完成：工作台让所有打开页面与被移出栈的页面保存（`IPageFlush`，总结编辑草稿含 1 秒节流中的改动，失败保持待存；`SummaryViewModel.Dispose` 不再自行发起保存），`ReadingStateService.FlushAsync` 写失败重新标脏并返回草稿是否全部写入，补存失败的回答终态，重写最后位置，`IDatabaseLifecycle.DrainAsync` 排空写队列后尽力 `wal_checkpoint(TRUNCATE)`（忙则记录并忽略）。
+- 偏差：阅读位置与最后位置写失败**不**阻止退出（需求 §9.3“仅布局／页面状态失效时可降级”），只有消息草稿、总结编辑草稿与回答终态写失败才显示“部分内容未能保存”。阅读位置失败仍标脏留待下次。
+- 偏差：退出检查点的忙等待临时改为 200 ms（连接默认 5 s），否则一个持有快照的读者会让退出卡 5 秒；`AppHost` 兜底停止也按同一上限，免得不响应取消的请求让进程挂住。
+- 失败界面只有“重试退出／返回”（按设计）；存储长期损坏时没有“仍然退出”，只能强制结束进程（只保证已提交检查点）。是否加第三个选项待用户决定。
+- 为测试注入，`IReadingStateStore` 的注册改为 `TryAdd`。界面只做最简覆盖层（任务提示、“正在停止并保存”、失败），观感留给 S7。
+- 未验证：真实 macOS ⌘Q／程序坞退出与 Windows 关窗口（无界面测试只调用钩子方法，没有经过平台生命周期）；Windows 上退出检查点与文件锁的交互；真实 HTTP 客户端在 5 秒内确认取消的情况。
+
 ## 归档与删除
 
 - **迁移 v8**：`conversation_archive(conversation_id 主键 → conversation ON DELETE CASCADE, archived_at)`。一行＝你主动归档了这个会话；因祖先被归档而隐藏是读取时推导（`branch_context_range` 中任一祖先有行），从不写到后代。会话行不改。

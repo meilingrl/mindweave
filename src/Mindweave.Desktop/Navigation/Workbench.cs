@@ -18,6 +18,7 @@ public sealed class Workbench : ObservableObject, IWorkbenchNavigator
     private readonly Dictionary<WorkspaceId, WorkspaceRuntime> _runtimes = [];
     private readonly IPageFactory _pages;
     private readonly WorkspaceService _workspaces;
+    private readonly List<Task<bool>> _droppedFlushes = [];
     private WorkspaceRuntime? _active;
 
     public Workbench(IPageFactory pages, WorkspaceService workspaces)
@@ -127,7 +128,7 @@ public sealed class Workbench : ObservableObject, IWorkbenchNavigator
         {
             var leaving = stack[^1];
             stack.RemoveAt(stack.Count - 1);
-            (leaving as IDisposable)?.Dispose();
+            Release(leaving);
         }
 
         PushCore(runtime, slot, route);
@@ -146,8 +147,53 @@ public sealed class Workbench : ObservableObject, IWorkbenchNavigator
 
         var leaving = stack[^1];
         stack.RemoveAt(stack.Count - 1);
-        (leaving as IDisposable)?.Dispose();
+        Release(leaving);
         Changed();
+    }
+
+    /// <summary>
+    /// Exit step 4 for navigation state: every open page saves its pending input, saves started by dropped pages are
+    /// awaited, and the last location is written once more. True when all page input was saved; the last location is
+    /// a degradable preference and does not count.
+    /// </summary>
+    public async Task<bool> FlushAsync()
+    {
+        List<Task<bool>> flushes;
+        lock (_droppedFlushes)
+        {
+            flushes = [.. _droppedFlushes];
+            _droppedFlushes.Clear();
+        }
+
+        flushes.AddRange(_runtimes.Values
+            .SelectMany(r => r.AllPages())
+            .OfType<IPageFlush>()
+            .Select(p => p.FlushAsync()));
+        var results = await Task.WhenAll(flushes);
+        if (_active is { } runtime && ActiveSlot is { } slot)
+        {
+            await _workspaces.RememberLocationAsync(
+                new PageLocation(runtime.Workspace.Id, slot.Section.ToKey(), (slot.Top?.Route as IRestorableRoute)?.Key),
+                CancellationToken.None);
+        }
+
+        return results.All(saved => saved);
+    }
+
+    /// <summary>A page leaves the stacks: its pending input is saved first (tracked, so an exit waits for it), then it is disposed.</summary>
+    private void Release(PageViewModel page)
+    {
+        if (page is IPageFlush flushable)
+        {
+            var flush = flushable.FlushAsync();
+            lock (_droppedFlushes)
+            {
+                _droppedFlushes.RemoveAll(t => t.IsCompletedSuccessfully && t.Result);
+                _droppedFlushes.Add(flush);
+            }
+        }
+
+        (page as IDisposable)?.Dispose();
     }
 
     private void Activate(WorkspaceId id, MainSection? section)
@@ -194,7 +240,7 @@ public sealed class Workbench : ObservableObject, IWorkbenchNavigator
             // Keep the section home; drop the oldest detail page.
             var dropped = stack[1];
             stack.RemoveAt(1);
-            (dropped as IDisposable)?.Dispose();
+            Release(dropped);
         }
     }
 

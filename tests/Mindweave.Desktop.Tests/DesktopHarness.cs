@@ -75,6 +75,7 @@ public sealed class DesktopHarness : IAsyncDisposable
     /// <summary>Simulates quitting and launching again on the same data directory.</summary>
     public async Task RestartAsync()
     {
+        await Root.Exit.Running;
         await Workbench.LastLocationSave;
         await Services.GetRequiredService<GenerationCoordinator>().ShutdownAsync();
         await Services.GetRequiredService<ReadingStateService>().FlushAsync();
@@ -86,6 +87,8 @@ public sealed class DesktopHarness : IAsyncDisposable
 
     public async ValueTask DisposeAsync()
     {
+        // A test that closed its window started the exit sequence; let it finish before tearing down under it.
+        await Root.Exit.Running;
         await Services.GetRequiredService<GenerationCoordinator>().ShutdownAsync();
         await Services.GetRequiredService<ReadingStateService>().FlushAsync();
         await Services.GetRequiredService<SqliteDatabase>().CloseAsync();

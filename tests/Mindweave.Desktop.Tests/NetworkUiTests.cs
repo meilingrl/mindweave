@@ -164,8 +164,13 @@ public class NetworkUiTests
 
         window.Close();
         await app.Root.LayoutPrompt.SaveAndContinueCommand.ExecuteAsync(null);
-        Assert.True(closed);
+        await app.Root.Exit.Running;
+        Assert.Equal(1, app.Shell.ExitRequests);
         Assert.Equal(arranged, await Layout(app));
+
+        // The coordinator's own shutdown closes the window; that close is let through.
+        window.Close();
+        Assert.True(closed);
     }
 
     [AvaloniaFact]
@@ -223,7 +228,7 @@ public class NetworkUiTests
     }
 
     /// <summary>Root "火车" summarized; a branch without a summary; its branch summarized; a sibling summarized.</summary>
-    private static async Task SeedAsync(DesktopHarness app)
+    internal static async Task SeedAsync(DesktopHarness app)
     {
         await app.StartWithWorkspaceAsync("火车");
         await app.ConfigureModelAsync();
@@ -259,14 +264,14 @@ public class NetworkUiTests
         return await AskAsync(app, conversations, branch.Child, default, question);
     }
 
-    private static MainWindow Show(DesktopHarness app)
+    internal static MainWindow Show(DesktopHarness app)
     {
         var window = new MainWindow { DataContext = app.Root, Width = 1100, Height = 720 };
         window.Show();
         return window;
     }
 
-    private static async Task<NetworkHomeViewModel> OpenNetworkAsync(DesktopHarness app, MainWindow window)
+    internal static async Task<NetworkHomeViewModel> OpenNetworkAsync(DesktopHarness app, MainWindow window)
     {
         app.ShellPage.ShowSectionCommand.Execute(MainSection.Network);
         var network = Assert.IsType<NetworkHomeViewModel>(app.Workbench.CurrentPage);
@@ -277,7 +282,7 @@ public class NetworkUiTests
     }
 
     /// <summary>Moves a saved position away so that "arrange" visibly changes the layout.</summary>
-    private static async Task MoveSomethingAsync(DesktopHarness app, NetworkHomeViewModel network)
+    internal static async Task MoveSomethingAsync(DesktopHarness app, NetworkHomeViewModel network)
     {
         var node = network.Nodes[0];
         await app.Services.GetRequiredService<SqliteDatabase>().WriteAsync(

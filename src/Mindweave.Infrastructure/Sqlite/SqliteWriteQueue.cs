@@ -30,6 +30,21 @@ internal sealed class SqliteWriteQueue : IAsyncDisposable
         return item.Completion.Task;
     }
 
+    /// <summary>
+    /// Runs <paramref name="work"/> after everything queued before it, outside any transaction — for statements SQLite
+    /// refuses inside one, such as a checkpoint.
+    /// </summary>
+    public Task<T> EnqueueWithoutTransactionAsync<T>(Func<SqliteConnection, T> work, CancellationToken cancellationToken)
+    {
+        var item = new WorkItem<T>((c, _) => work(c), cancellationToken, transactional: false);
+        if (!_channel.Writer.TryWrite(item))
+        {
+            throw new ObjectDisposedException(nameof(SqliteWriteQueue), "The database is closing; no further writes are accepted.");
+        }
+
+        return item.Completion.Task;
+    }
+
     /// <summary>Stops accepting work, runs everything already queued, then closes the connection.</summary>
     public async ValueTask DisposeAsync()
     {
@@ -55,7 +70,7 @@ internal sealed class SqliteWriteQueue : IAsyncDisposable
         public abstract void Run(SqliteConnection connection);
     }
 
-    private sealed class WorkItem<T>(Func<SqliteConnection, SqliteTransaction, T> work, CancellationToken cancellationToken) : WorkItem
+    private sealed class WorkItem<T>(Func<SqliteConnection, SqliteTransaction, T> work, CancellationToken cancellationToken, bool transactional = true) : WorkItem
     {
         public TaskCompletionSource<T> Completion { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
 
@@ -70,6 +85,12 @@ internal sealed class SqliteWriteQueue : IAsyncDisposable
 
             try
             {
+                if (!transactional)
+                {
+                    Completion.TrySetResult(work(connection, null!));
+                    return;
+                }
+
                 using var transaction = connection.BeginTransaction();
                 var result = work(connection, transaction);
                 transaction.Commit();

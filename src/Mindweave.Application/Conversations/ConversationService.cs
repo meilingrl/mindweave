@@ -97,6 +97,8 @@ public sealed partial class ConversationService
         _logger = logger;
         _generation.AnswerFinished += OnAnswerFinished;
         _generation.TitleSaved += (_, id) => ConversationChanged?.Invoke(this, id);
+        // A title stopped by an exit is asked for again when the next answer completes (never on restart by itself).
+        _generation.TitleAbandoned += (_, id) => _titleRequested.TryRemove(id, out byte _);
         _models.Changed += (_, _) => ModelChanged?.Invoke(this, EventArgs.Empty);
     }
 

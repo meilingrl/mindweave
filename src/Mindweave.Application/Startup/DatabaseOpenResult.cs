@@ -50,4 +50,11 @@ public interface IDatabaseLifecycle
     /// then opens it exactly as on startup. Only ever called after an explicit user choice.
     /// </summary>
     Task<DatabaseOpenResult> RestoreAsync(BackupInfo backup, CancellationToken cancellationToken);
+
+    /// <summary>
+    /// Exit sequence step 4: waits until every write queued so far has run, then tries to fold the write-ahead log back
+    /// into the database file (<c>wal_checkpoint(TRUNCATE)</c>). The checkpoint is best effort: a busy reader or any
+    /// failure is logged and ignored, since committed data is safe in the log. Does nothing when no database is open.
+    /// </summary>
+    Task DrainAsync();
 }

@@ -60,7 +60,8 @@ public static class CompositionRoot
         services.AddSingleton<Workbench>();
         services.AddSingleton<IMenuNavigator>(sp => sp.GetRequiredService<Workbench>());
         services.AddSingleton<IContentNavigator>(sp => sp.GetRequiredService<Workbench>());
-        services.AddSingleton<ExitPromptViewModel>();
+        services.TryAddSingleton(new ExitOptions());
+        services.AddSingleton<ExitCoordinator>();
         services.AddSingleton<LayoutPromptViewModel>();
         services.AddSingleton<Network.NetworkSessions>();
         services.AddSingleton<ConversationListViewModel>();

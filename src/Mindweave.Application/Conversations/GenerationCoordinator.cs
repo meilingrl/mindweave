@@ -42,6 +42,12 @@ public sealed record TitleWork(GenerationTaskRecord Task, ChatRequest Request)
 
 public sealed record AnswerOutcome(ConversationId ConversationId, MessageId MessageId, MessageState State, string Text);
 
+/// <summary>User-started work that has not finished (running or queued): what the exit prompt names, by kind.</summary>
+public readonly record struct UnfinishedUserWork(int Answers, int Summaries)
+{
+    public bool Any => Answers + Summaries > 0;
+}
+
 /// <summary>What became of a usable summary output handed to <see cref="SummaryWork.Save"/>.</summary>
 public enum SummarySaveResult
 {
@@ -93,6 +99,7 @@ public sealed partial class GenerationCoordinator : IAsyncDisposable
     private readonly CancellationTokenSource _lifetime = new();
     private Task _retryLoop = Task.CompletedTask;
     private bool _closed;
+    private int _shutDown;
     private int _storageBlocked;
 
     public GenerationCoordinator(
@@ -124,6 +131,9 @@ public sealed partial class GenerationCoordinator : IAsyncDisposable
     /// <summary>An automatic title was stored for this conversation.</summary>
     public event EventHandler<ConversationId>? TitleSaved;
 
+    /// <summary>An automatic title task was stopped or cancelled before it produced a title (for example on exit).</summary>
+    public event EventHandler<ConversationId>? TitleAbandoned;
+
     /// <summary>A summary or naming task reached a terminal state (after its terminal write was attempted).</summary>
     public event EventHandler<GenerationTaskRecord>? SummaryTaskFinished;
 
@@ -150,6 +160,34 @@ public sealed partial class GenerationCoordinator : IAsyncDisposable
             lock (_gate)
             {
                 return _userQueue.Count(w => w is AnswerWork) + _running.Values.Count(r => r.Work is AnswerWork);
+            }
+        }
+    }
+
+    /// <summary>
+    /// Answers and summaries the user started, running or queued, counted separately. Titles and naming are
+    /// background work the exit prompt does not ask about; they are cancelled silently.
+    /// </summary>
+    public UnfinishedUserWork UnfinishedUserWork
+    {
+        get
+        {
+            lock (_gate)
+            {
+                var pending = _userQueue.Concat(_backgroundQueue).Concat(_running.Values.Select(r => r.Work)).ToList();
+                return new UnfinishedUserWork(pending.Count(w => w is AnswerWork), pending.Count(w => w is SummaryWork));
+            }
+        }
+    }
+
+    /// <summary>True while new work is refused: between an exit's stop step and <see cref="Reopen"/>, or after shutdown.</summary>
+    public bool IsClosed
+    {
+        get
+        {
+            lock (_gate)
+            {
+                return _closed;
             }
         }
     }
@@ -246,20 +284,19 @@ public sealed partial class GenerationCoordinator : IAsyncDisposable
     }
 
     /// <summary>
-    /// Exit sequence steps 3–4 (architecture §12.3): close the entry, cancel queued work, stop running work
-    /// keeping received text, and wait until terminal states are written (one last retry if storage failed).
+    /// Exit sequence step 3 (architecture §12.3): close the entry, cancel queued work, stop running work keeping
+    /// received text, and wait up to <paramref name="wait"/> for the stopped tasks to write their terminal states. An
+    /// answer that does not acknowledge in time keeps its last checkpoint and is marked interrupted on the next start.
+    /// Returns false when something was still running at the deadline. Unlike <see cref="ShutdownAsync"/>, failed
+    /// terminal writes stay queued for retry and the entry can be opened again with <see cref="Reopen"/>.
     /// </summary>
-    public async Task ShutdownAsync()
+    public async Task<bool> StopForExitAsync(TimeSpan wait)
     {
         List<GenerationWork> queued;
         List<Running> running;
         lock (_gate)
         {
-            if (_closed)
-            {
-                return;
-            }
-
+            // Re-entrant: a second call finds nothing queued (the entry is closed) and only waits again.
             _closed = true;
             queued = [.. _userQueue, .. _backgroundQueue];
             _userQueue.Clear();
@@ -269,13 +306,23 @@ public sealed partial class GenerationCoordinator : IAsyncDisposable
 
         foreach (var work in queued)
         {
-            if (work is AnswerWork answer)
+            switch (work)
             {
-                await CancelQueuedAsync(answer).ConfigureAwait(false);
-            }
-            else
-            {
-                await SaveAsync(() => FinishTask(work.Task.Id, GenerationTaskState.Cancelled, null, null)).ConfigureAwait(false);
+                case AnswerWork answer:
+                    await CancelQueuedAsync(answer).ConfigureAwait(false);
+                    break;
+                default:
+                    await SaveAsync(() => FinishTask(work.Task.Id, GenerationTaskState.Cancelled, null, null)).ConfigureAwait(false);
+                    if (work is TitleWork)
+                    {
+                        TitleAbandoned?.Invoke(this, work.Task.ConversationId);
+                    }
+                    else
+                    {
+                        SummaryTaskFinished?.Invoke(this, work.Task);
+                    }
+
+                    break;
             }
         }
 
@@ -284,7 +331,56 @@ public sealed partial class GenerationCoordinator : IAsyncDisposable
             await r.Cancellation.CancelAsync().ConfigureAwait(false);
         }
 
-        await Task.WhenAll(running.Select(r => r.Completion)).ConfigureAwait(false);
+        var all = Task.WhenAll(running.Select(r => r.Completion));
+        var acknowledged = await Task.WhenAny(all, Task.Delay(wait)).ConfigureAwait(false) == all;
+        if (!acknowledged)
+        {
+            LogStopTimedOut(_logger, running.Count(r => !r.Completion.IsCompleted));
+        }
+
+        RaiseChanged();
+        return acknowledged;
+    }
+
+    /// <summary>
+    /// After an exit that could not finish (a save failed and the user went back): accept new work again. What the
+    /// exit stopped or cancelled stays so; nothing is re-queued (architecture §12.3 step 5).
+    /// </summary>
+    public void Reopen()
+    {
+        lock (_gate)
+        {
+            if (Volatile.Read(ref _shutDown) != 0)
+            {
+                return;
+            }
+
+            _closed = false;
+        }
+
+        Pump();
+        RaiseChanged();
+    }
+
+    /// <summary>Tries the terminal writes that failed earlier once more, now. True when none is left unsaved.</summary>
+    public async Task<bool> SaveUnsavedAsync()
+    {
+        await FlushUnsavedAsync().ConfigureAwait(false);
+        return _unsaved.IsEmpty;
+    }
+
+    /// <summary>
+    /// Final stop when the process ends: <see cref="StopForExitAsync"/> (bounded by <paramref name="wait"/>, unbounded
+    /// when null), then stop the retry loop and try failed terminal writes one last time. Idempotent.
+    /// </summary>
+    public async Task ShutdownAsync(TimeSpan? wait = null)
+    {
+        if (Interlocked.Exchange(ref _shutDown, 1) != 0)
+        {
+            return;
+        }
+
+        await StopForExitAsync(wait ?? Timeout.InfiniteTimeSpan).ConfigureAwait(false);
         await _lifetime.CancelAsync().ConfigureAwait(false);
         try
         {
@@ -587,6 +683,7 @@ public sealed partial class GenerationCoordinator : IAsyncDisposable
         {
             await SaveAsync(() => FinishTask(task.Id, GenerationTaskState.Stopped, null, null)).ConfigureAwait(false);
             await RecordAsync(trace.Finish(stopped: true, null, null)).ConfigureAwait(false);
+            TitleAbandoned?.Invoke(this, task.ConversationId);
         }
         catch (ChatClientException ex)
         {
@@ -893,6 +990,9 @@ public sealed partial class GenerationCoordinator : IAsyncDisposable
 
     [LoggerMessage(Level = LogLevel.Warning, Message = "Request trace for task {TaskId} was not saved")]
     private static partial void LogTraceFailed(ILogger logger, Exception exception, GenerationTaskId taskId);
+
+    [LoggerMessage(Level = LogLevel.Warning, Message = "{Count} stopped tasks did not finish within the exit wait; their last checkpoints stand")]
+    private static partial void LogStopTimedOut(ILogger logger, int count);
 
     [LoggerMessage(Level = LogLevel.Error, Message = "Generation task {TaskId} crashed")]
     private static partial void LogRunCrashed(ILogger logger, Exception exception, GenerationTaskId taskId);

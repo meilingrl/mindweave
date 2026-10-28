@@ -136,6 +136,52 @@ public sealed partial class SqliteDatabase : IDatabaseLifecycle, IAsyncDisposabl
             cancellationToken);
     }
 
+    public async Task DrainAsync()
+    {
+        if (Volatile.Read(ref _writer) is not { } writer)
+        {
+            return;
+        }
+
+        try
+        {
+            // Queued after every earlier write, so its completion means they have all run.
+            var (busy, log, folded) = await writer.EnqueueWithoutTransactionAsync(
+                    c =>
+                    {
+                        // TRUNCATE waits through the busy handler for readers; at exit a short wait is enough, a
+                        // reader still holding a snapshot then just leaves the log for the next start.
+                        SqliteConnections.Execute(c, $"PRAGMA busy_timeout = {(int)CheckpointWait.TotalMilliseconds};");
+                        try
+                        {
+                            using var command = c.CreateCommand();
+                            command.CommandText = "PRAGMA wal_checkpoint(TRUNCATE);";
+                            using var reader = command.ExecuteReader();
+                            reader.Read();
+                            return (reader.GetInt32(0), reader.GetInt32(1), reader.GetInt32(2));
+                        }
+                        finally
+                        {
+                            SqliteConnections.Execute(c, $"PRAGMA busy_timeout = {SqliteConnections.BusyTimeoutMs};");
+                        }
+                    },
+                    CancellationToken.None)
+                .ConfigureAwait(false);
+            if (busy != 0)
+            {
+                LogCheckpointBusy(_logger, log, folded);
+            }
+        }
+        catch (ObjectDisposedException)
+        {
+            // Closed meanwhile: closing drains the queue itself.
+        }
+        catch (SqliteException ex)
+        {
+            LogCheckpointFailed(_logger, ex);
+        }
+    }
+
     /// <summary>Drains queued writes and closes the writer. Safe to call more than once, also after disposal.</summary>
     public async Task CloseAsync()
     {
@@ -234,6 +280,9 @@ public sealed partial class SqliteDatabase : IDatabaseLifecycle, IAsyncDisposabl
     internal static readonly TimeSpan TransientOpenWindow = TimeSpan.FromSeconds(3);
 
     private static readonly TimeSpan TransientOpenDelay = TimeSpan.FromMilliseconds(100);
+
+    /// <summary>How long the exit checkpoint waits for readers to leave the log before giving up on truncating it.</summary>
+    private static readonly TimeSpan CheckpointWait = TimeSpan.FromMilliseconds(200);
 
     private DatabaseOpenResult OpenExistingFile()
     {
@@ -501,6 +550,12 @@ public sealed partial class SqliteDatabase : IDatabaseLifecycle, IAsyncDisposabl
 
     [LoggerMessage(Level = LogLevel.Warning, Message = "Old migration backups could not be pruned")]
     private static partial void LogPruneFailed(ILogger logger, Exception exception);
+
+    [LoggerMessage(Level = LogLevel.Information, Message = "Exit checkpoint was blocked by a reader ({Folded} of {Log} log frames folded); the log stays")]
+    private static partial void LogCheckpointBusy(ILogger logger, int log, int folded);
+
+    [LoggerMessage(Level = LogLevel.Warning, Message = "Exit checkpoint failed; committed data stays in the log")]
+    private static partial void LogCheckpointFailed(ILogger logger, Exception exception);
 
     [LoggerMessage(Level = LogLevel.Warning, Message = "Restored database from {BackupPath}")]
     private static partial void LogRestored(ILogger logger, string backupPath);

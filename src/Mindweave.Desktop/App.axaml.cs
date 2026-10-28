@@ -30,15 +30,26 @@ public sealed partial class App : Avalonia.Application
     {
         if (_host is not null && ApplicationLifetime is IClassicDesktopStyleApplicationLifetime desktop)
         {
-            var window = new MainWindow { DataContext = _host.Services.GetRequiredService<RootViewModel>() };
-            desktop.MainWindow = window;
             var root = _host.Services.GetRequiredService<RootViewModel>();
-            desktop.ShutdownRequested += (_, e) => e.Cancel |= root.ExitPrompt.ShouldHoldClose();
+            var window = new MainWindow { DataContext = root };
+            desktop.MainWindow = window;
+            desktop.ShutdownRequested += (_, e) => OnShutdownRequested(root, e);
             desktop.Exit += (_, _) => _host.DisposeAsync().AsTask().GetAwaiter().GetResult();
             _host.Instance.StartListening(() => Dispatcher.UIThread.Post(window.BringToFront));
             Dispatcher.UIThread.Post(async () => await _host.Services.GetRequiredService<AppStartup>().RunAsync());
         }
 
         base.OnFrameworkInitializationCompleted();
+    }
+
+    /// <summary>
+    /// ⌘Q, the dock's "quit" and the system's shutdown request arrive here rather than at the window. They take the
+    /// same exit sequence as closing the window; only the coordinator's own final shutdown is let through.
+    /// </summary>
+    internal static void OnShutdownRequested(RootViewModel root, ShutdownRequestedEventArgs e)
+    {
+        ArgumentNullException.ThrowIfNull(root);
+        ArgumentNullException.ThrowIfNull(e);
+        e.Cancel |= root.Exit.InterceptClose();
     }
 }

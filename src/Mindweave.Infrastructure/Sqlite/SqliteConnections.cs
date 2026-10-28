@@ -8,6 +8,9 @@ internal static class SqliteConnections
     /// <summary>"MWV1": identifies a Mindweave database independently of its schema version.</summary>
     public const int ApplicationId = 0x4D575631;
 
+    /// <summary>How long a statement waits for a lock held by another connection before failing as busy.</summary>
+    public const int BusyTimeoutMs = 5000;
+
     public static SqliteConnection OpenReadWrite(string path, bool create = false)
     {
         var connection = new SqliteConnection(new SqliteConnectionStringBuilder
@@ -18,7 +21,7 @@ internal static class SqliteConnections
             ForeignKeys = true,
             DefaultTimeout = 5,
         }.ToString());
-        return Prepare(connection, "PRAGMA synchronous = FULL; PRAGMA busy_timeout = 5000;");
+        return Prepare(connection, $"PRAGMA synchronous = FULL; PRAGMA busy_timeout = {BusyTimeoutMs};");
     }
 
     public static SqliteConnection OpenReadOnly(string path)

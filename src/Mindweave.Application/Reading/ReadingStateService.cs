@@ -9,7 +9,7 @@ namespace Mindweave.Application.Reading;
 /// Owner of reading positions and unsent drafts (architecture §2.2). The newest value of each
 /// (conversation, slot) lives in memory, so a page reopened right after it was left never reads an older
 /// stored value; writes are coalesced and trail by <see cref="SaveDelay"/>, and <see cref="FlushAsync"/>
-/// writes everything before the database closes. Losing page state never blocks reading or asking.
+/// writes everything before the window closes on exit. Losing page state never blocks reading or asking.
 /// </summary>
 public sealed partial class ReadingStateService : IDisposable
 {
@@ -119,8 +119,12 @@ public sealed partial class ReadingStateService : IDisposable
         ScheduleSave();
     }
 
-    /// <summary>Writes every pending change now. Called on exit before the database closes; safe to call any time.</summary>
-    public async Task FlushAsync()
+    /// <summary>
+    /// Writes every pending change now. Called on exit before the window closes; safe to call any time. A value whose
+    /// write fails stays pending (dirty) for the next flush instead of being dropped. Returns false when a draft could
+    /// not be written: drafts are the user's input, while a reading position is page state that may degrade.
+    /// </summary>
+    public async Task<bool> FlushAsync()
     {
         await _flushing.WaitAsync().ConfigureAwait(false);
         try
@@ -139,13 +143,23 @@ public sealed partial class ReadingStateService : IDisposable
             var now = _clock.UtcNow;
             foreach (var (key, value) in positions)
             {
-                await SaveAsync(key.Conversation, () => _store.SavePositionAsync(key.Conversation, key.Slot, value, now, CancellationToken.None)).ConfigureAwait(false);
+                if (!await SaveAsync(key.Conversation, () => _store.SavePositionAsync(key.Conversation, key.Slot, value, now, CancellationToken.None)).ConfigureAwait(false))
+                {
+                    MarkDirty(_dirtyPositions, key);
+                }
             }
 
+            var draftsSaved = true;
             foreach (var (key, value) in drafts)
             {
-                await SaveAsync(key.Conversation, () => _store.SaveDraftAsync(key.Conversation, key.Slot, value, now, CancellationToken.None)).ConfigureAwait(false);
+                if (!await SaveAsync(key.Conversation, () => _store.SaveDraftAsync(key.Conversation, key.Slot, value, now, CancellationToken.None)).ConfigureAwait(false))
+                {
+                    MarkDirty(_dirtyDrafts, key);
+                    draftsSaved = false;
+                }
             }
+
+            return draftsSaved;
         }
         finally
         {
@@ -170,17 +184,32 @@ public sealed partial class ReadingStateService : IDisposable
         _ = Task.Delay(SaveDelay).ContinueWith(_ => FlushAsync(), TaskScheduler.Default).Unwrap();
     }
 
-    private async Task SaveAsync(ConversationId conversation, Func<Task> write)
+    /// <summary>
+    /// Pending again after a failed write. A newer value set meanwhile is already pending and is what the next flush
+    /// writes, since only the newest value per key is kept. No save is scheduled: a broken disk must not spin; the next
+    /// change or flush tries again.
+    /// </summary>
+    private void MarkDirty(HashSet<(ConversationId, ViewerSlotKey)> dirty, (ConversationId, ViewerSlotKey) key)
+    {
+        lock (_gate)
+        {
+            dirty.Add(key);
+        }
+    }
+
+    private async Task<bool> SaveAsync(ConversationId conversation, Func<Task> write)
     {
         try
         {
             await write().ConfigureAwait(false);
+            return true;
         }
-#pragma warning disable CA1031 // Page state is best effort: a failed write is logged and the in-memory value stays current.
+#pragma warning disable CA1031 // Page state is best effort: a failed write is logged and the in-memory value stays current and pending.
         catch (Exception ex)
 #pragma warning restore CA1031
         {
             LogSaveFailed(_logger, ex, conversation);
+            return false;
         }
     }
 

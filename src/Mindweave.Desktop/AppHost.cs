@@ -1,4 +1,5 @@
 using Microsoft.Extensions.DependencyInjection;
+using Mindweave.Desktop.ViewModels;
 using Mindweave.Infrastructure.Hosting;
 using Mindweave.Infrastructure.Sqlite;
 
@@ -11,15 +12,37 @@ internal sealed class AppHost(SingleInstance instance, ServiceProvider services)
 
     public ServiceProvider Services { get; } = services;
 
-    /// <summary>Drains pending writes and closes the database before the lock is released.</summary>
+    /// <summary>
+    /// Last resort after the exit coordinator (architecture §12.3 step 6): stops generation and flushes page state again
+    /// (both idempotent, normally nothing is left), drains pending writes and closes the database. The single-instance
+    /// lock is released whatever fails before it.
+    /// </summary>
     public async ValueTask DisposeAsync()
     {
-        // Stop generation first (idempotent if the exit prompt already did), so terminal states are written
-        // before the database closes.
-        await Services.GetRequiredService<Mindweave.Application.Conversations.GenerationCoordinator>().ShutdownAsync().ConfigureAwait(false);
-        await Services.GetRequiredService<Mindweave.Application.Reading.ReadingStateService>().FlushAsync().ConfigureAwait(false);
-        await Services.GetRequiredService<SqliteDatabase>().CloseAsync().ConfigureAwait(false);
-        await Services.DisposeAsync().ConfigureAwait(false);
-        await Instance.DisposeAsync().ConfigureAwait(false);
+        try
+        {
+            try
+            {
+                // Stop first, so terminal states are written before the database closes; bounded like the exit.
+                await Services.GetRequiredService<Mindweave.Application.Conversations.GenerationCoordinator>()
+                    .ShutdownAsync(Services.GetRequiredService<ExitOptions>().StopWait).ConfigureAwait(false);
+                await Services.GetRequiredService<Mindweave.Application.Reading.ReadingStateService>().FlushAsync().ConfigureAwait(false);
+            }
+            finally
+            {
+                try
+                {
+                    await Services.GetRequiredService<SqliteDatabase>().CloseAsync().ConfigureAwait(false);
+                }
+                finally
+                {
+                    await Services.DisposeAsync().ConfigureAwait(false);
+                }
+            }
+        }
+        finally
+        {
+            await Instance.DisposeAsync().ConfigureAwait(false);
+        }
     }
 }

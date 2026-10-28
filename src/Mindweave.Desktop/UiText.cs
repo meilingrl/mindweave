@@ -132,9 +132,14 @@ public static class UiText
     public const string SettingsSaved = "已保存。新的提问将使用此配置；正在进行的回答不受影响。";
     public const string NoModelsFound = "服务没有返回模型，可以直接手动填写模型名称。";
     public const string TestSucceeded = "连接正常。";
-    public const string ExitTitle = "仍有回答在生成";
+    public const string ExitTitle = "仍有任务在生成";
     public const string ExitConfirm = "停止并退出";
     public const string ExitCancel = "继续生成";
+    public const string ExitSaving = "正在停止任务并保存……";
+    public const string ExitSaveFailedTitle = "部分内容未能保存";
+    public const string ExitSaveFailedBody = "未发送的草稿或回答的结束状态没有写入，内容仍保留在窗口中。可以重试退出，或返回继续使用；已停止的任务不会自动恢复。";
+    public const string ExitRetry = "重试退出";
+    public const string ExitReturn = "返回";
 
     /// <summary>
     /// The name shown for a conversation: its title, else (for a branch) the quoted passage it explores, else its
@@ -185,10 +190,25 @@ public static class UiText
 
     public static string ModelsFound(int count) => string.Format(CultureInfo.CurrentCulture, "找到 {0} 个模型。", count);
 
-    public static string ExitWithRunningAnswers(int count) => string.Format(
-        CultureInfo.CurrentCulture,
-        "有 {0} 个回答尚未完成。退出会停止它们，已收到的内容会保存并标记为“已停止”；排队中的会被取消。下次启动不会自动重发。",
-        count);
+    /// <summary>The exit prompt's body, naming user answers and summaries separately ("1 个回答、1 个总结").</summary>
+    public static string ExitWithUnfinished(int answers, int summaries)
+    {
+        var parts = new List<string>(2);
+        if (answers > 0)
+        {
+            parts.Add(string.Format(CultureInfo.CurrentCulture, "{0} 个回答", answers));
+        }
+
+        if (summaries > 0)
+        {
+            parts.Add(string.Format(CultureInfo.CurrentCulture, "{0} 个总结", summaries));
+        }
+
+        return string.Format(
+            CultureInfo.CurrentCulture,
+            "有 {0}尚未完成。退出会停止它们：已收到的回答内容会保存并标记为“已停止”，总结不会留下新版本，排队中的会被取消。下次启动不会自动重发。",
+            string.Join('、', parts));
+    }
 
     public static string ErrorKind(GenerationErrorKind kind) => kind switch
     {
