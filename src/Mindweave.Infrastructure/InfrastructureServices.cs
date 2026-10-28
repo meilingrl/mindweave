@@ -6,8 +6,10 @@ using Mindweave.Application.Storage;
 using Mindweave.Application.Ai;
 using Mindweave.Application.Credentials;
 using Mindweave.Application.Diagnostics;
+using Mindweave.Application.Export;
 using Mindweave.Infrastructure.Ai;
 using Mindweave.Infrastructure.Credentials;
+using Mindweave.Infrastructure.Export;
 using Mindweave.Infrastructure.Hosting;
 using Mindweave.Infrastructure.Sqlite;
 using Mindweave.Infrastructure.Sqlite.Migrations;
@@ -34,6 +36,7 @@ public static class InfrastructureServices
         services.AddSingleton<IContextSummaryStore, SqliteContextSummaryStore>();
         services.AddSingleton<ISummaryStore, SqliteSummaryStore>();
         services.TryAddSingleton<INetworkStore, SqliteNetworkStore>();
+        services.TryAddSingleton<IExportFileWriter, AtomicFileWriter>();
         services.TryAddSingleton(_ => CredentialStores.ForPlatform(paths.Channel));
         services.TryAddSingleton(new ChatClientOptions());
         services.TryAddSingleton<IChatClient>(sp => new ChatCompletionsClient(

@@ -74,3 +74,13 @@ A 与 C 互不相交，各开工作树并行；B 动协调器（按会话取消�
 ## 不在本阶段
 
 界面打磨（S7）；E5 交换包（待你决定）；工作区级联删除（需求 §6.1.1 非目标）；回收站。
+
+## 实现记录（C 导出）
+
+- **结构**：`Application/Export` 下有独立格式化器 `SummaryMarkdown`（不序列化存储记录，E5 的约束）、文件名清理 `ExportFileName`、`SummaryExportService`（按 ID 重读，已删除报 `VersionMissing`，候选报 `IsCandidate`），以及写入接口 `IExportFileWriter`；`Infrastructure/Export/AtomicFileWriter` 实现原子写入；`ISystemShell.PickExportFileAsync` 调系统保存对话框（`SuggestedFileName`、`.md`、`ShowOverwritePrompt=true`），测试用 `RecordingShell.NextExport` 代替。
+- **格式**：`# 标题`、空行、单行引用块“来源会话：… · 覆盖到第 N 条消息 · 第 n 版（生成／手改） · 创建于 yyyy-MM-dd HH:mm · 导出自 Mindweave”、空行、正文原样；UTF-8 无 BOM、LF、末尾换行。标题与会话名中的换行改为空格（否则会跑出标题／引用块），正文只把 CRLF／CR 统一为 LF。N 沿用页面上的口径（`ToSeq + 1`），时间按本机时区。来源会话名与侧栏同一规则（标题 → 分支引用 → 首问），因 Application 不能引用 `UiText`，在导出服务里另写一份；界面测试只核对了有标题的情况（与会话页标题一致），分支引用与首问两条后备未单独测。
+- **重读两次**：打开对话框前读一次取建议文件名，对话框返回后在写入步骤里再读一次并格式化；对话框打开期间版本被删除，则提示且不建文件（流程测试与界面测试各一例）。导出不写库，阅读状态不变（有测试）。
+- **原子写入**：同目录临时文件 `.mindweave-export-{guid}.tmp`（固定短名，避免长文件名加后缀超限）、`FileShare.None`、`Flush(true)`、`File.Move(overwrite: true)`；共享冲突（32／33）与 `UnauthorizedAccess` 在 1.5 秒内每 100 ms 重试，之后分类为“正被使用”／“只读或无权限”／其他失败；任何失败（含取消）都删除临时文件。拿不到本地路径时退回 `OpenWriteAsync` 原地写并记日志（非原子）。
+- **偏差**：文件名清理还去掉了开头的点（否则在 macOS／Linux 上成为隐藏文件）；设备名处理为在主名后加 `_`（`CON` → `CON_`、`nul.txt` → `nul_.txt`）。成功提示仍用页面原有的 `Notice`，新增 `NoticeIsError` 让成功提示不显示为错误色。
+- **给 A 块的接口**：`SummaryExportService.WhenIdleAsync()`（从不抛错）与 `InProgress`。只计“重读＋写入”这一步，不计打开着的保存对话框；A 块在关闭存储前 `await` 它即可。若对话框打开时退出已完成并释放了存储，随后的导出会因存储已释放而失败——这一路径未处理，留给 A 块决定（例如退出开始后拒绝新的导出）。
+- **未验证**：Windows 上的三项（目标被独占句柄占用时重试后报“正被使用”、占用在窗口内释放后成功、只读文件报“只读”）只写了测试、标为仅限 Windows，本机跳过，需在 `scripts/windows.sh test` 中跑；`File.Move` 覆盖被占用文件时 Windows 报共享冲突还是拒绝访问未实测，两种都按重试处理。真实系统保存对话框（建议文件名、覆盖确认、扩展名补全）没有在桌面会话中手动走过；无本地路径的回退只用文件流模拟过。macOS 上覆盖只读文件会成功（改名不受目标只读属性限制），与 Windows 行为不同。

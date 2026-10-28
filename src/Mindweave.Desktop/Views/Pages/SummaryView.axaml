@@ -19,13 +19,19 @@
                 IsVisible="{Binding ShownIsCurrent}" IsEnabled="{Binding !IsEditing}" />
         <Button Name="RenameButton" Classes="link" Content="{x:Static d:UiText.Rename}" Command="{Binding BeginRenameCommand}"
                 IsVisible="{Binding !IsRenaming}" Margin="0,0,8,4" />
+        <Button Name="ExportButton" Content="{x:Static d:UiText.ExportMarkdown}" Command="{Binding ExportCommand}" Margin="0,0,8,4" />
+        <CheckBox Name="ExportOmitSource" Content="{x:Static d:UiText.ExportOmitSource}" IsChecked="{Binding ExportOmitSource}" Margin="0,0,8,4" />
       </WrapPanel>
+      <!-- Export takes the shown saved version only: never the candidate, never an unsaved edit (§8.3). -->
+      <TextBlock Name="ExportHint" Classes="muted" FontSize="12" Text="{Binding ExportHint}" TextWrapping="Wrap"
+                 IsVisible="{Binding ExportHint, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
+      <TextBlock Name="ExportDraftNote" Classes="muted" FontSize="12" Text="{x:Static d:UiText.ExportDraftNote}" TextWrapping="Wrap" />
       <StackPanel Orientation="Horizontal" Spacing="6" IsVisible="{Binding IsRenaming}">
         <TextBox Name="RenameBox" Text="{Binding RenameText}" Width="320" />
         <Button Content="{x:Static d:UiText.Save}" Command="{Binding CommitRenameCommand}" IsDefault="True" />
         <Button Content="{x:Static d:UiText.Cancel}" Command="{Binding CancelRenameCommand}" />
       </StackPanel>
-      <TextBlock Name="Notice" Classes="error" Text="{Binding Notice}" TextWrapping="Wrap"
+      <TextBlock Name="Notice" Classes.error="{Binding NoticeIsError}" Classes.muted="{Binding !NoticeIsError}" Text="{Binding Notice}" TextWrapping="Wrap"
                  IsVisible="{Binding Notice, Converter={x:Static ObjectConverters.IsNotNull}}" />
       <Border Name="ConfirmationPanel" BorderBrush="{StaticResource QuoteBar}" BorderThickness="3,0,0,0" Padding="10,6"
               IsVisible="{Binding Confirmation, Converter={x:Static ObjectConverters.IsNotNull}}">

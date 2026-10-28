@@ -1,5 +1,6 @@
 using System.Globalization;
 using Mindweave.Application.Conversations;
+using Mindweave.Application.Export;
 using Mindweave.Application.Models;
 using Mindweave.Application.Startup;
 using Mindweave.Application.Storage;
@@ -78,6 +79,13 @@ public static class UiText
     public const string SummaryMissing = "这个总结已不存在。";
     public const string LaterContentNote = "来源会话在这个版本之后还有新的内容，未纳入总结。";
     public const string ReadIsNotMastery = "已读只表示读过这个版本，不代表已经掌握。";
+
+    // Export (S6, §8.3)
+    public const string ExportMarkdown = "导出为 Markdown…";
+    public const string ExportOmitSource = "不附来源说明";
+    public const string ExportDraftNote = "导出的是页面上显示的已保存版本；未保存的编辑草稿不包含在内。";
+    public const string ExportCandidateHint = "候选版本不能导出，请先采用。";
+    public const string MarkdownFileType = "Markdown 文件";
     public const string SettingsTitle = "设置";
     public const string StorageTitle = "数据与存储";
     public const string StorageDetailsLink = "数据与存储…";
@@ -377,6 +385,22 @@ public static class UiText
     public static string DeleteVersionsConfirm(int count, SummaryVersion? nextCurrent) => nextCurrent is null
         ? string.Format(CultureInfo.CurrentCulture, "将删除全部 {0} 个版本，总结本身也会被删除；原会话和分支保留，以后可以重新总结。删除后无法恢复。", count)
         : string.Format(CultureInfo.CurrentCulture, "将删除 {0} 个版本，删除后无法恢复。当前总结将是第 {1} 版。", count, nextCurrent.Seq);
+
+    public static string Exported(string fileName) => "已导出到 " + fileName + "。";
+
+    public static string ExportRefused(ExportRefusal refusal) => refusal switch
+    {
+        ExportRefusal.VersionMissing => "这个版本已被删除，没有导出。",
+        ExportRefusal.IsCandidate => ExportCandidateHint,
+        _ => "无法导出这个版本。",
+    };
+
+    public static string ExportFailed(ExportFailure failure, string detail) => failure switch
+    {
+        ExportFailure.InUse => "文件正被其他程序使用，没有导出。请关闭占用它的程序后重试；原文件未改动。",
+        ExportFailure.NotWritable => "无法写入：文件或文件夹是只读的，或没有写入权限。原文件未改动。",
+        _ => "导出失败，原文件未改动：" + detail,
+    };
 
     public static string ViaUnsummarized(IReadOnlyList<string> titles)
     {
