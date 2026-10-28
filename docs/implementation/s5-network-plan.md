@@ -161,10 +161,10 @@ Assert.True(session.IsDirty); // older snapshot cannot clear a newer revision
 
 **Interfaces:** 消费 Task3 session/VM。Main 持有每工作区session，Network路由创建适配器、summary refresh更新活动网络；全部 workspace真实切换重进fit，正文后退保留，菜单变化不丢layout、不提示。`ConfirmLayoutLeaveAsync()` 返回 `Task<LayoutLeavePermit?>`，`TryCommitLayoutLeave(LayoutLeavePermit permit)` 返回 bool，取消撤销pending不丢布局；Main提供三项具名命令给overlay。Root调同一确认接口，所有现有生成确认／失败恢复语义保留。
 
-- [ ] Headless与真实临时 SQLite RED：打开network fit、pan/zoom/select→summary→GoBack 重建保留；菜单探索→network重进fit但dirty保存；切换工作区／新建workspace脏布局Cancel0变更、Save失败不离开、Discard不动正文；选择／搜索本身不读。
-- [ ] `dotnet test Mindweave.slnx -c Release --no-restore --filter 'FullyQualifiedName~NetworkNavigationTests|FullyQualifiedName~NetworkCloseTests'` 记录 RED。
-- [ ] Main拆网络partial，保持唯一ContentStack与原changes序列；离开确认命令不能排在持有changes的等待之后造成死锁。layout IO错误自己处理，绝不调用MarkPersistenceFailure。仅根路由有networkstore用新页，其余受控替身兼容现有fallback。Summary节点删除后回network重读、不保留不存在选择。Main关闭先封新network动作并排空已接受IO，失败返回工作台恢复允许操作。
-- [ ] Root两阶段：布局Permit→已有任务提示→最终身份/修订再校验→提交Discard→PrepareClose/Shutdown。第二提示取消必须保留dirty与任务；保存布局后取消仍保留已完成保存；提示之间发生新dirty须重新确认。不可在Prompt等待前停止AI／丢内存，不能用旧confirmed绕过新布局；重复close不重复prompt、关闭失败Return不复活旧AI。
+- [x] Headless与真实临时 SQLite RED：打开network fit、pan/zoom/select→summary→GoBack 重建保留；菜单探索→network重进fit但dirty保存；切换工作区／新建workspace脏布局Cancel0变更、Save失败不离开、Discard不动正文；选择／搜索本身不读。
+- [x] `dotnet test Mindweave.slnx -c Release --no-restore --filter 'FullyQualifiedName~NetworkNavigationTests|FullyQualifiedName~NetworkCloseTests'` 记录 RED。
+- [x] Main拆网络partial，保持唯一ContentStack与原changes序列；离开确认命令不能排在持有changes的等待之后造成死锁。layout IO错误自己处理，绝不调用MarkPersistenceFailure。仅根路由有networkstore用新页，其余受控替身兼容现有fallback。Summary节点删除后回network重读、不保留不存在选择。Main关闭先封新network动作并排空已接受IO，失败返回工作台恢复允许操作。
+- [x] Root两阶段：布局Permit→已有任务提示→最终身份/修订再校验→提交Discard→PrepareClose/Shutdown。第二提示取消必须保留dirty与任务；保存布局后取消仍保留已完成保存；提示之间发生新dirty须重新确认。不可在Prompt等待前停止AI／丢内存，不能用旧confirmed绕过新布局；重复close不重复prompt、关闭失败Return不复活旧AI。
 
 ```csharp
 var closing = root.CloseAsync();
@@ -176,7 +176,9 @@ Assert.True(session.IsDirty);
 Assert.False(transport.WasStopped);
 ```
 
-- [ ] 额外真实生命周期测试：save进行中继续交互／workspace切换permit陈旧；关闭排空直接写，store不会先dispose；layout失败不使AI gate失败；所有现有 S4读草稿、候选、删除恢复测试通过。聚焦 GREEN、一次完整 Release，自审提交 `feat: integrate network navigation and cancellable layout leave`，报告Root顺序和待Task5绑定接口，不改TRACK。
+- [x] 额外真实生命周期测试：save进行中继续交互／workspace切换permit陈旧；关闭排空直接写，store不会先dispose；layout失败不使AI gate失败；所有现有 S4读草稿、候选、删除恢复测试通过。聚焦 GREEN、一次完整 Release，自审提交 `feat: integrate network navigation and cancellable layout leave`，报告Root顺序和待Task5绑定接口，不改TRACK。
+
+**结果：** `9b03170`，聚焦111通过／完整766通过＋2原有跳过；独立任务审查Approved、C/I/M均0。布局许可为单次签发且须由Main排空屏障后消费；真实图形控件与原生验收后续。
 
 ### Task 5: 原生混合网络控件、键盘与交互验证入口
 
