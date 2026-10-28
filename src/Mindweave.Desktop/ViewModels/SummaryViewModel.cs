@@ -93,7 +93,7 @@ public sealed partial class SummaryViewModel : ContentViewModel
             var later = await HasLaterContentAsync(node, version);
             if (stamp != loadStamp || detached) return;
             Snapshot = node; Version = version; Reading = reading;
-            Versions.Clear(); foreach (var header in node.State.Versions.OrderByDescending(v => v.Identity.Ordinal)) Versions.Add(header);
+            RefreshVersionHeaders(node);
             SelectedVersion = version.Header; SavedBody = version.Markdown; Heading = version.Header.Title;
             SourceQuote = version.Coverage.DirectQuote?.Source.Quote ?? "";
             Metadata = DescribeVersion(version, later);
@@ -118,11 +118,20 @@ public sealed partial class SummaryViewModel : ContentViewModel
         var later = await HasLaterContentAsync(node, version);
         if (stamp != metadataStamp || bodyStamp != loadStamp || detached || Version != version) return;
         Snapshot = node; Metadata = DescribeVersion(version, later);
-        // Preserve selected item/control identity so a new candidate does not navigate or discard an editor.
-        foreach (var removed in Versions.Where(h => !node.State.Versions.Any(v => v.Identity.Id == h.Identity.Id)).ToArray()) Versions.Remove(removed);
-        foreach (var header in node.State.Versions.OrderByDescending(v => v.Identity.Ordinal))
-            if (!Versions.Any(h => h.Identity.Id == header.Identity.Id)) Versions.Insert(0, header);
+        RefreshVersionHeaders(node);
         RefreshAvailability();
+    }
+    private void RefreshVersionHeaders(SummaryNodeSnapshot node)
+    {
+        // Saved headers are immutable. Keep retained items so refreshing the same
+        // version cannot clear the control selection while SelectedVersion is equal.
+        foreach (var removed in Versions.Where(h => !node.State.Versions.Any(v => v.Identity.Id == h.Identity.Id)).ToArray()) Versions.Remove(removed);
+        var index = 0;
+        foreach (var header in node.State.Versions.OrderByDescending(v => v.Identity.Ordinal))
+        {
+            if (!Versions.Any(h => h.Identity.Id == header.Identity.Id)) Versions.Insert(index, header);
+            index++;
+        }
     }
     private async Task<bool> HasLaterContentAsync(SummaryNodeSnapshot node, SummaryVersion version) =>
         store is Mindweave.Application.Chat.IChatStore chat &&
