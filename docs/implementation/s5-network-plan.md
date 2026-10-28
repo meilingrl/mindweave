@@ -34,9 +34,9 @@
 4. 视口中心为世界坐标，缩放默认 1，范围 0.15–2.5，fit padding 48；指针缩放倍率每单位 1.15。普通双轴滚动／空白拖动平移，Cmd/Ctrl+滚动指针缩放，按钮在中心缩放；可勾选鼠标滚轮直接缩放。尺寸为 0 时延后 fit；窗口 resize 只换投影尺寸，不改中心和比例。
 5. `NetworkSession` 独立保存图／内存布局／已保存布局／修订号／dirty／忙状态／视口／选择，并由 Main 每工作区持有。`NetworkViewModel` 是 Content 页面适配器。异步读取、计算、保存都捕获 session 身份与版本；关闭等待所有已接受布局 IO，旧异步不能重启操作。直接写失败留待下一次真正进入重算重试，元数据刷新不能以旧存档覆盖 dirty 图。
 6. Main 的布局离开确认返回 `LayoutLeavePermit(Guid WorkspaceId,long Revision,bool Discard)`；取消返回 null。选择保存先完成显式保存，若仍有较新 dirty 则继续要求解决。Permit 只在全部可取消提示完成且身份／修订仍匹配后提交，不保存才丢内存整理；第二个提示取消只撤销 Permit。没有 dirty 也应验证任务提示期间新增 dirty 不被跳过。
+7. 保留 S4 `SummaryListViewModel/View` 作已有独立列表和测试兼容；正式 Network 路由在 store 实现 `INetworkStore` 时使用新 VM，只有不提供网络存储的 S0／受控替身走旧 fallback。生产不增加第二套路由、数据库或默认模拟。
 8. Task3为元信息展示补齐来源会话名称：`NetworkNode`追加可选`ConversationTitle`，由projector使用已经读取的conversation.Title填写，不额外读正文或改表。旧两参数调用仍可编译；正式数据使用真实名称，不把GUID当作用户可读来源。
 9. Task3将会话状态／读取放`NetworkSession.cs`、布局与视口放`NetworkSession.Layout.cs`、保存与pending排空放`NetworkSession.Persistence.cs`，避免新会话类长成一个大文件；公开接口仍由一个session承载。
-7. 保留 S4 `SummaryListViewModel/View` 作已有独立列表和测试兼容；正式 Network 路由在 store 实现 `INetworkStore` 时使用新 VM，只有不提供网络存储的 S0／受控替身走旧 fallback。生产不增加第二套路由、数据库或默认模拟。
 
 ## 接口契约（各任务使用同名类型）
 
@@ -138,7 +138,7 @@ foreach (var pair in saved) Assert.Equal(pair.Value, first[pair.Key]);
 
 **Interfaces:** 消费 Task1 `INetworkStore`、Task2 engine/math；产出接口契约的 session 和 VM。VM `(NetworkSession session, Func<Guid,Task> openSummary)`；`Session`、`Nodes`、`SelectedNode`、`Search`、`OpenSummaryCommand/ArrangeCommand/SaveLayoutCommand/ShowAllCommand/ZoomInCommand/ZoomOutCommand/FindNextCommand`，状态文字／非颜色标记。Node VM 使用 `NetworkNode.ConversationTitle` 展示实际来源名，projection以已有conversation.Title填写并保留两参数兼容；具体 Node VM 属性在报告列出供 Task5 使用。选择只读 metadata，不调用任何读标记／正文 API。
 
-- [ ] 用可控 async store／engine 写 RED：Arrange提交旧snapshot后Reload新数据，旧结果不覆盖；重入Reload顺序反转；新节点初始保存只写新节点，自动写失败无dirty／无error／不AI gate；dirty期间新增保存只参照SavedPositions；删除后内存、选择和保存不复活；ExplicitSave期间再次Arrange后旧成功仍dirty；保存失败保留内存旧库／固定提示；重复点击busy只1提交。
+- [x] 用可控 async store／engine 写 RED：Arrange提交旧snapshot后Reload新数据，旧结果不覆盖；重入Reload顺序反转；新节点初始保存只写新节点，自动写失败无dirty／无error／不AI gate；dirty期间新增保存只参照SavedPositions；删除后内存、选择和保存不复活；ExplicitSave期间再次Arrange后旧成功仍dirty；保存失败保留内存旧库／固定提示；重复点击busy只1提交。
 
 ```csharp
 var saving = session.SaveAsync();
@@ -149,9 +149,11 @@ await saving;
 Assert.True(session.IsDirty); // older snapshot cannot clear a newer revision
 ```
 
-- [ ] focused `--filter 'FullyQualifiedName~NetworkSessionTests|FullyQualifiedName~NetworkViewModelTests'` 记录 RED；实现 session async版本／pending账本，确保后台工作完成回到原同步上下文才变观察属性。Reload 同指纹元数据不重排、不丢dirty；新节点排位基于保存map，失败记录下次入口重试；显式 Save 捕获 valid全部坐标/revision，MembershipChanged 保持dirty并刷新剔除删除。Discard回旧保存map＋缺点确定性位置，不删除业务内容、不清别工作区。
-- [ ] VM 搜索同时匹配 display/base title，保留全图只突出匹配，FindNext循环定位；单击更换选择并显示完整来源／创建时间／路径元信息；Open才调用传入路由，未读与候选分别文字可辨。尺寸／fit请求属于session，resize保持state；Quiesce禁止新工作，Wait排空所有已接受IO再允许dispose；取消关闭后的resume路径需支持 Task4。
-- [ ] focused GREEN＋本任务完整 Release 一次。自审，提交 `feat: manage network layout snapshots per workspace`，报告精确 session/VM/nodes/viewport API及关闭契约；不写 Main、views、TRACK。
+- [x] focused `--filter 'FullyQualifiedName~NetworkSessionTests|FullyQualifiedName~NetworkViewModelTests'` 记录 RED；实现 session async版本／pending账本，确保后台工作完成回到原同步上下文才变观察属性。Reload 同指纹元数据不重排、不丢dirty；新节点排位基于保存map，失败记录下次入口重试；显式 Save 捕获 valid全部坐标/revision，MembershipChanged 保持dirty并刷新剔除删除。Discard回旧保存map＋缺点确定性位置，不删除业务内容、不清别工作区。
+- [x] VM 搜索同时匹配 display/base title，保留全图只突出匹配，FindNext循环定位；单击更换选择并显示完整来源／创建时间／路径元信息；Open才调用传入路由，未读与候选分别文字可辨。尺寸／fit请求属于session，resize保持state；Quiesce禁止新工作，Wait排空所有已接受IO再允许dispose；取消关闭后的resume路径需支持 Task4。
+- [x] focused GREEN＋本任务完整 Release 一次。自审，提交 `feat: manage network layout snapshots per workspace`，报告精确 session/VM/nodes/viewport API及关闭契约；不写 Main、views、TRACK。
+
+**结果：** `31a1acb`，聚焦32通过／完整748通过＋2原有跳过；独立任务审查Approved、C/I/M均0。最终Discard前需排空已接受写入并重验许可；Main／Root与真实控件后续集成。
 
 ### Task 4: Main 导航、两阶段离开与退出顺序
 
