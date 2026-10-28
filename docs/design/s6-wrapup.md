@@ -108,3 +108,39 @@ A 与 C 互不相交，各开工作树并行；B 动协调器（按会话取消�
 - **审查后修正（00ab220）**：任何异常都不再从导出按钮抛到界面线程（关闭的存储、对话框异常都转为提示）；来源会话名由界面层按侧栏同一规则传入（不在应用层复制 UiText 的规则）；文件名去掉重复的 `.md`、识别“设备名＋空格＋扩展名”、按 UTF-8 不超过 240 字节截断；“被占用”与“只读”改看只读属性区分，补“编辑器占用但允许读取”的 Windows 用例；重试成功用例改用长窗口，消除计时抖动。未修：沙盒位置（无本地路径）在导出被拒绝时不释放 `IStorageFile`（罕见，记为已知）；崩溃在临时文件与替换之间时，用户目录留下 `.mindweave-export-*.tmp`。
 - **给 A 块的接口**：`SummaryExportService.WhenIdleAsync()`（从不抛错）与 `InProgress`。只计“重读＋写入”这一步，不计打开着的保存对话框；A 块在关闭存储前 `await` 它即可。若对话框打开时退出已完成并释放了存储，随后的导出会因存储已释放而失败——这一路径未处理，留给 A 块决定（例如退出开始后拒绝新的导出）。
 - **未验证**：Windows 上的三项（目标被独占句柄占用时重试后报“正被使用”、占用在窗口内释放后成功、只读文件报“只读”）只写了测试、标为仅限 Windows，本机跳过，需在 `scripts/windows.sh test` 中跑；`File.Move` 覆盖被占用文件时 Windows 报共享冲突还是拒绝访问未实测，两种都按重试处理。真实系统保存对话框（建议文件名、覆盖确认、扩展名补全）没有在桌面会话中手动走过；无本地路径的回退只用文件流模拟过。macOS 上覆盖只读文件会成功（改名不受目标只读属性限制），与 Windows 行为不同。
+
+## 实现记录（D 故障注入）
+
+本节为 D 块第一部分（存储写失败／忙、断流、恢复失败、备份中杀进程、界面级暂停）。归档与删除相关的杀进程用例由 B 块接口稳定后再补，本次未动归档／删除代码。
+
+- **注入方式**：都是真实故障，不经包装存储。磁盘写满用应用自己的写连接上的 `PRAGMA max_page_count`（按连接生效，经 `WriteAsync` 设置；先占满空闲页使余量精确），超过即 `SQLITE_FULL`，与真盘满相同；写锁被占用由测试另开连接 `BEGIN IMMEDIATE`；断流在 HTTP 层，自定义 `HttpMessageHandler` 的响应流读到第二块后抛 `IOException`／`HttpIOException`；恢复失败在当前库已改名后让 `-shm` 的改名目标被占（Windows 上另有独占句柄两例）；备份中杀进程用子进程，经仅供测试宿主的 `BeforeBackupForTests` 在 `VACUUM INTO` 的连接上装 SQLite 进度回调，临时文件已有内容时挂住再杀。
+- **矩阵**（Faults 目录在 `tests/Mindweave.Infrastructure.Tests/Faults/`）：
+
+| 故障 | 用例 | 结果 |
+| --- | --- | --- |
+| 盘满：写队列事务 | `DiskFullTests.A_write_that_does_not_fit_is_rolled_back_whole_and_reported_as_a_full_disk` | 通过：整笔回滚，`StorageWriteException(Full)`，探测写失败；放开后探测成功且不留行 |
+| 盘满：追加提问 | `DiskFullTests.A_question_that_does_not_fit_leaves_nothing_and_pauses_requests_until_space_returns` | 修复后通过：拒绝为“存储不可用”、各表行数不变、完整性与外键检查干净；仍满时短问题也被拒；放开后自动解除，同一问题成功 |
+| 盘满：新建会话 | `DiskFullTests.A_new_conversation_that_does_not_fit_is_refused_and_leaves_no_conversation_behind` | 修复后通过：不留会话、不外呼 |
+| 盘满：总结版本保存 | `DiskFullTests.A_summary_version_that_does_not_fit_leaves_no_version_and_pauses_requests_until_space_returns` | 修复后通过：任务失败为“无法保存”、无节点无版本、进入存储暂停；放开后重新总结成功 |
+| 盘满：布局保存 | `LayoutDiskFullTests`（Desktop） | 通过：整笔回滚、`SaveFailed` 且仍待保存、内存布局不变、核心内容**不**暂停；放开后再保存写入全部 150 个节点 |
+| 写锁超过忙等待：单次写入 | `BusyWriterTests.A_write_waits_out_the_busy_timeout_then_fails_as_busy_and_succeeds_after_release` | 通过：200 ms 忙等待下约 1 秒报 `Busy`（驱动另按整秒命令超时重试），释放后写入成功 |
+| 写锁：回答终态 | `BusyWriterTests.An_answer_finishing_while_another_program_holds_the_lock_is_kept_and_saved_after_release` | 通过：完整正文留在内存可读、库里仍是检查点、新提问被拒；释放后终态补存为完成、任务完成、自动解除 |
+| 写锁：提问 | `BusyWriterTests.A_question_sent_while_the_lock_is_held_is_refused_whole_and_can_be_sent_after_release` | 修复后通过：整笔拒绝、行数不变，释放后可重发 |
+| 中途断流（已有正文） | `StreamDropTests.A_body_cut_after_some_text_keeps_the_text_fails_as_network_and_offers_retry`（`IOException`、`HttpIOException` 两例） | 通过（无缺陷）：保留“蒸汽机车最早”、失败／网络、可重试，重试另存新尝试，旧尝试可读 |
+| 500／503／504 分类 | `ChatCompletionsClientTests.Http_errors_are_classified` 新增三行 | 通过：均为服务端出错 |
+| 恢复备份中途失败 | `RestoreFailureTests.A_restore_failing_after_the_current_file_was_moved_puts_it_back_and_reports_an_io_error` | 修复后通过：报 I/O 错误，当前库原名原样（哈希不变）、无 `.restoring` 残留，重开为原内容 |
+| 恢复时库被独占（Windows） | `RestoreFailureTests.A_restore_while_another_program_holds_the_database_open_…`、`…_blocked_on_the_wal_index_…` | 仅限 Windows，本机跳过，待 `scripts/windows.sh test` 或 `stress` |
+| 写备份时杀进程 | `BackupKillTests.Killing_the_process_while_the_backup_is_written_leaves_no_listed_backup_and_the_next_start_recovers` | 修复后通过：半个备份（`*.db.partial`，有内容）不被列出、库仍是原版本与原数据；下次启动正常备份并迁移，残留被清掉 |
+| 界面级存储暂停 | `StoragePauseUiTests`（Desktop，真实窗口＋真实盘满） | 修复后通过：横幅显示原因，发送／重试／总结禁用、分支按钮可见但禁用并提示原因，已有与未存的回答可读、可选中，草稿保留；放开后自动恢复、终态已写入、可继续提问 |
+
+- **发现并修复的缺陷**（均先写出失败的测试，再改代码确认由失败变通过）：
+  1. **提问、重试、新建会话、建分支、总结任务行写失败直接抛出**，不进入存储暂停（测试中表现为 `SqliteException` 从服务抛出）；界面上这会成为发送命令的未处理异常（按命令库的默认行为推断，未单独验证界面表现）。现在写队列把 SQLite 的存储类错误（满、忙／锁、只读、I/O、损坏）转换为 Application 层的 `StorageWriteException(Kind)`，约束冲突等请求本身的错误仍原样抛出；会话与总结服务捕获它，返回“存储不可用”并调用协调器 `ReportStorageFailure`。
+  2. **存储暂停会被任意一次成功的小写入解除**：原 `SaveAsync` 成功即清除标记（还不论是否仍有未补存的终态），盘满时小更新仍可成功，导致总结版本保存失败后立刻解除；而若只把提问写失败记为暂停，没有待补存项就没有重试，暂停将永不解除。现在暂停只由后台循环解除：每个间隔先补存保留的终态，再做**探测写**（`IConversationStore.ProbeWriteAsync`：取写锁、写入约 64 KB 后回滚，不留任何内容），两者都成功且期间没有新的失败才解除；状态变化另发 `StorageStateChanged`。
+  3. **总结版本写失败不进入暂停**：失败终态（小更新）能写入，按旧逻辑反而清除了标记。现在版本写失败即标记暂停。
+  4. **恢复备份中途失败会让当前库“消失”**：当前库已改名为 `replaced-*`、随后某一步（Windows 上被仍映射 `-shm` 的进程、杀毒软件等占用）失败时，原代码直接报错返回；下次启动找不到 `mindweave.db` 就会新建空库——正是需求 §9.3 禁止的“用空库冒充”。现在任何一步失败都把已移动的文件按相反顺序移回，删除 `.restoring`，再报 I/O 错误；移回本身失败记 Critical 日志并写明位置。
+  5. **写备份时被杀留下的 `.partial` 永不清理**（时间戳不同，下次不会被覆盖）。它本来就不会被列为备份（`ListBackups` 的正则要求以 `.db` 结尾），现在每次写备份前先删除旧的 `mindweave-v*.db.partial*`。
+- **反向核对**（逐项把产品改动临时撤回，确认对应用例由通过变失败，再恢复）：写队列不再转换为 `StorageWriteException` → 盘满三例（写队列、提问、新建会话）与忙两例（单次写入、提问）失败；恢复旧的“任意成功写入即解除” → 总结版本例失败；去掉总结版本失败时的暂停标记 → 同一例失败；恢复失败时不移回 → 跨平台恢复例失败；不清理旧 `.partial` → 杀进程例失败；发送、总结、重试、分支四个入口各自不看暂停状态 → 界面例分别在对应断言处失败。断流、500／503／504 与布局盘满三项没有产品改动，直接通过。
+- **新增接口与配置**：`SqliteDatabaseOptions.BusyTimeout`（默认 5 秒，测试 200 ms）同时决定 SQLite 的 `busy_timeout` 与驱动按整秒的命令超时（Microsoft.Data.Sqlite 对忙会在 `busy_timeout` 之外再重试到命令超时，只改前者等不短）；`SqliteDatabase.ProbeWriteAsync`；`ConversationService.IsStorageBlocked`／`StorageStateChanged`；会话页 `IsStorageBlocked`／`StorageNotice`、`Composer.IsStoragePaused`、`MessageItemViewModel.IsBranchPaused`。测试宿主新增 `hang-in-backup`。
+- **压力复测标记**：新的杀进程与锁用例（`BusyWriterTests`、`BackupKillTests`、`RestoreFailureTests`）标为 `Category=FaultInjection`，`stress` 工作流的默认过滤改为它（该文件在轨道分支变更时会自动跑一次 Windows）。本机每个这类用例单独连跑 5 次全部通过，界面两例连跑 5 次通过。等待都有上限（忙等待 15 秒内解除、子进程 60 秒内到达挂起点、Windows 上被杀进程的句柄最多等 5 秒释放）。
+- **偏差与限制**：探测写要求能再写约 64 KB，剩余空间更少时即使小写入还能成功也保持暂停（盘几乎满时宁可暂停）；暂停期间最多比旧逻辑多等一个重试间隔（5 秒）才解除。新建会话页的输入框没有接入暂停状态（发送仍会被拒并显示原因）；会话改名、总结页的编辑／采纳等写失败仍未统一转为暂停（改名命令异常仍可能落到界面线程），留待后续。
+- **未做（后续）**：归档、删除会话、创建分支、采用／删除版本、保存布局等多表事务中杀进程（等 B 块接口稳定）；只读文件造成的 I/O 错误；Windows 上两项独占句柄用例与全部 `FaultInjection` 用例在 `stress`／实机上的重复运行。

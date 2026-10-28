@@ -130,7 +130,7 @@ public sealed partial class AnswerView : UserControl
         {
             Show(_item!.Body);
         }
-        else if (e.PropertyName == nameof(MessageItemViewModel.CanBranch))
+        else if (e.PropertyName is nameof(MessageItemViewModel.CanBranch) or nameof(MessageItemViewModel.IsBranchPaused))
         {
             UpdateBranchButton();
         }
@@ -164,8 +164,15 @@ public sealed partial class AnswerView : UserControl
         _shown = markdown;
     }
 
-    private void UpdateBranchButton() =>
+    private void UpdateBranchButton()
+    {
         BranchButton.IsVisible = _item is { CanBranch: true } && SourceAnchors.HasSelection(_renderer);
+
+        // While storage is paused the entry stays in sight, disabled, and says why (§9.3); the selection is kept for copying.
+        var paused = _item is { IsBranchPaused: true };
+        BranchButton.IsEnabled = !paused;
+        ToolTip.SetTip(BranchButton, paused ? UiText.StoragePausedReason : null);
+    }
 
     private async Task CreateBranchAsync()
     {

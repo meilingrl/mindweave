@@ -37,6 +37,8 @@
           </Border>
         </DockPanel>
       </StackPanel>
+      <TextBlock Name="StorageNotice" Classes="error" Text="{Binding StorageNotice}" TextWrapping="Wrap"
+                 IsVisible="{Binding IsStorageBlocked}" />
       <TextBlock Name="SourceNotice" Classes="error" Text="{Binding SourceNotice}" TextWrapping="Wrap"
                  IsVisible="{Binding SourceNotice, Converter={x:Static ObjectConverters.IsNotNull}}" />
       <TextBlock Classes="error" Text="{Binding BranchNotice}" TextWrapping="Wrap"
@@ -55,7 +57,8 @@
         <TextBlock Name="SummaryMarkers" Classes="warning" FontSize="12" Text="{Binding SummaryMarkersText}" VerticalAlignment="Center" Margin="0,0,12,0"
                    IsVisible="{Binding SummaryMarkersText, Converter={x:Static ObjectConverters.IsNotNull}}" />
         <Button Name="SummarizeButton" Classes="link" Content="{Binding SummarizeLabel}" Command="{Binding SummarizeCommand}"
-                IsVisible="{Binding RunningSummary, Converter={x:Static ObjectConverters.IsNull}}" VerticalAlignment="Center" />
+                IsVisible="{Binding RunningSummary, Converter={x:Static ObjectConverters.IsNull}}" VerticalAlignment="Center"
+                ToolTip.Tip="{Binding StorageNotice}" ToolTip.ShowOnDisabled="True" />
         <StackPanel Orientation="Horizontal" Spacing="6" VerticalAlignment="Center"
                     IsVisible="{Binding RunningSummary, Converter={x:Static ObjectConverters.IsNotNull}}">
           <ProgressBar IsIndeterminate="True" Width="40" VerticalAlignment="Center" />
@@ -98,7 +101,8 @@
                 </StackPanel>
                 <TextBlock Classes="muted" FontSize="12" Text="{x:Static d:UiText.ContextCompressedNote}" IsVisible="{Binding WasCompressed}" />
                 <DockPanel>
-                  <Button DockPanel.Dock="Right" Classes="link" Content="{Binding RetryLabel}" IsVisible="{Binding CanRetry}"
+                  <Button Name="RetryButton" DockPanel.Dock="Right" Classes="link" Content="{Binding RetryLabel}" IsVisible="{Binding CanRetry}"
+                          ToolTip.Tip="{Binding $parent[ItemsControl].((vm:ConversationViewModel)DataContext).StorageNotice}" ToolTip.ShowOnDisabled="True"
                           Command="{Binding $parent[ItemsControl].((vm:ConversationViewModel)DataContext).RetryCommand}" CommandParameter="{Binding}" />
                   <TextBlock FontSize="12" Text="{Binding StateLabel}" TextWrapping="Wrap" VerticalAlignment="Center"
                              Classes.error="{Binding IsProblem}" Classes.muted="{Binding !IsProblem}"

@@ -11,7 +11,7 @@ on:
     inputs:
       filter:
         description: dotnet test --filter expression
-        default: FullyQualifiedName~Summary
+        default: Category=FaultInjection
       project:
         description: Test project
         default: tests/Mindweave.Infrastructure.Tests
@@ -48,7 +48,7 @@ jobs:
               Set-Location $dir
               $failures = @()
               for ($i = 0; $i -lt ${{ inputs.runs || '4' }}; $i++) {
-                $out = dotnet test ${{ inputs.project || 'tests/Mindweave.Infrastructure.Tests' }} -c Release --no-build --filter "${{ inputs.filter || 'FullyQualifiedName~Summary' }}" 2>&1 | Out-String
+                $out = dotnet test ${{ inputs.project || 'tests/Mindweave.Infrastructure.Tests' }} -c Release --no-build --filter "${{ inputs.filter || 'Category=FaultInjection' }}" 2>&1 | Out-String
                 if ($out -notmatch 'Passed!') { $failures += $out }
               }
               $failures

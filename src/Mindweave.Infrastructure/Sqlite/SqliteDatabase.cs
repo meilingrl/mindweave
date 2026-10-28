@@ -8,6 +8,15 @@ using Mindweave.Infrastructure.Sqlite.Migrations;
 
 namespace Mindweave.Infrastructure.Sqlite;
 
+public sealed class SqliteDatabaseOptions
+{
+    /// <summary>
+    /// How long a write waits for a lock held by another connection (for example another program holding the file)
+    /// before it fails as busy.
+    /// </summary>
+    public TimeSpan BusyTimeout { get; init; } = TimeSpan.FromMilliseconds(SqliteConnections.BusyTimeoutMs);
+}
+
 /// <summary>
 /// Owns the database file: classifies it on open, backs up and migrates when needed, restores a backup on
 /// explicit request, and afterwards exposes one serialized writer plus short-lived read-only connections.
@@ -23,17 +32,25 @@ public sealed partial class SqliteDatabase : IDatabaseLifecycle, IAsyncDisposabl
     private readonly MigrationCatalog _catalog;
     private readonly TimeProvider _time;
     private readonly ILogger<SqliteDatabase> _logger;
+    private readonly int _busyTimeoutMs;
     private readonly SemaphoreSlim _lifecycleGate = new(1, 1);
     private SqliteWriteQueue? _writer;
     private int _disposed;
 
-    public SqliteDatabase(AppPaths paths, MigrationCatalog catalog, TimeProvider time, ILogger<SqliteDatabase> logger)
+    public SqliteDatabase(AppPaths paths, MigrationCatalog catalog, TimeProvider time, ILogger<SqliteDatabase> logger, SqliteDatabaseOptions? options = null)
     {
         _paths = paths;
         _catalog = catalog;
         _time = time;
         _logger = logger;
+        _busyTimeoutMs = (int)(options ?? new SqliteDatabaseOptions()).BusyTimeout.TotalMilliseconds;
     }
+
+    /// <summary>
+    /// Fault-injection seam for the test host only: runs on the connection right before the pre-migration backup is
+    /// written, with the temporary path it is written to, so a test can stop the process in the middle of it.
+    /// </summary>
+    internal Action<SqliteConnection, string>? BeforeBackupForTests { get; set; }
 
     public bool IsOpen => Volatile.Read(ref _writer) is not null;
 
@@ -107,6 +124,27 @@ public sealed partial class SqliteDatabase : IDatabaseLifecycle, IAsyncDisposabl
         return writer.EnqueueAsync(work, cancellationToken);
     }
 
+    /// <summary>
+    /// Takes the write lock and grows the file by about one large write, then rolls back: nothing is stored, but a full
+    /// disk, a lock held elsewhere or a read-only file fails it as <see cref="Application.Storage.StorageWriteException"/>.
+    /// </summary>
+    public Task ProbeWriteAsync(CancellationToken cancellationToken)
+    {
+        var writer = Volatile.Read(ref _writer) ?? throw new InvalidOperationException("The database is not open.");
+        return writer.EnqueueWithoutTransactionAsync(
+            connection =>
+            {
+                using var transaction = connection.BeginTransaction();
+                SqliteConnections.Execute(connection, $"INSERT OR REPLACE INTO app_state (key, value) VALUES ('storage-probe', hex(zeroblob({ProbeBytes / 2})));", transaction);
+                transaction.Rollback();
+                return 0;
+            },
+            cancellationToken);
+    }
+
+    /// <summary>How much the probe grows the file: more than a typical question or summary, so recovery is not declared early.</summary>
+    internal const int ProbeBytes = 64 * 1024;
+
     /// <summary>Runs <paramref name="work"/> on a fresh read-only connection in one snapshot; it never waits for the writer.</summary>
     public Task<T> ReadAsync<T>(Func<SqliteConnection, T> work, CancellationToken cancellationToken)
     {
@@ -162,7 +200,7 @@ public sealed partial class SqliteDatabase : IDatabaseLifecycle, IAsyncDisposabl
                         }
                         finally
                         {
-                            SqliteConnections.Execute(c, $"PRAGMA busy_timeout = {SqliteConnections.BusyTimeoutMs};");
+                            SqliteConnections.Execute(c, $"PRAGMA busy_timeout = {_busyTimeoutMs};");
                         }
                     },
                     CancellationToken.None)
@@ -176,7 +214,7 @@ public sealed partial class SqliteDatabase : IDatabaseLifecycle, IAsyncDisposabl
         {
             // Closed meanwhile: closing drains the queue itself.
         }
-        catch (SqliteException ex)
+        catch (Exception ex) when (ex is SqliteException or Application.Storage.StorageWriteException)
         {
             LogCheckpointFailed(_logger, ex);
         }
@@ -289,7 +327,7 @@ public sealed partial class SqliteDatabase : IDatabaseLifecycle, IAsyncDisposabl
         SqliteConnection? connection = null;
         try
         {
-            connection = SqliteConnections.OpenReadWrite(_paths.DatabasePath);
+            connection = SqliteConnections.OpenReadWrite(_paths.DatabasePath, busyTimeoutMs: _busyTimeoutMs);
             var outcome = OpenExisting(connection);
             if (outcome.IsReady)
             {
@@ -382,7 +420,7 @@ public sealed partial class SqliteDatabase : IDatabaseLifecycle, IAsyncDisposabl
             }
 
             File.Move(temp, _paths.DatabasePath);
-            _writer = new SqliteWriteQueue(SqliteConnections.OpenReadWrite(_paths.DatabasePath));
+            _writer = new SqliteWriteQueue(SqliteConnections.OpenReadWrite(_paths.DatabasePath, busyTimeoutMs: _busyTimeoutMs));
             LogCreated(_logger, _paths.DatabasePath, _catalog.LatestVersion);
             return Result(DatabaseOpenStatus.Ready, null);
         }
@@ -439,10 +477,19 @@ public sealed partial class SqliteDatabase : IDatabaseLifecycle, IAsyncDisposabl
             throw new IOException($"Backup target already exists: {final}");
         }
 
+        // A process killed while writing a backup leaves its temporary file under an earlier time stamp. It is never
+        // listed (the name does not end in ".db"), but it would take disk space forever.
+        foreach (var stale in Directory.EnumerateFiles(_paths.BackupDirectory, "mindweave-v*.db.partial*"))
+        {
+            TryDelete(stale);
+        }
+
         var partial = final + ".partial";
         DeleteDatabaseFiles(partial);
         try
         {
+            BeforeBackupForTests?.Invoke(connection, partial);
+
             // VACUUM INTO writes a transactionally consistent copy, including content still in the WAL.
             using (var command = connection.CreateCommand())
             {
@@ -502,18 +549,56 @@ public sealed partial class SqliteDatabase : IDatabaseLifecycle, IAsyncDisposabl
         DeleteDatabaseFiles(incoming);
         File.Copy(backup.Path, incoming);
 
-        // Keep the current database (and any WAL) under a "replaced" name; nothing is deleted.
-        foreach (var suffix in new[] { string.Empty, "-wal", "-shm" })
+        // Keep the current database (and any WAL) under a "replaced" name; nothing is deleted. Any step can fail (on
+        // Windows a file still open or mapped elsewhere cannot be renamed); then everything already moved goes back,
+        // since the next start would otherwise find no database and create an empty one in its place.
+        var moved = new List<(string From, string To)>();
+        try
         {
-            var current = _paths.DatabasePath + suffix;
-            if (File.Exists(current))
+            foreach (var suffix in new[] { string.Empty, "-wal", "-shm" })
             {
-                File.Move(current, $"{_paths.DatabasePath}.replaced-{stamp}{suffix}");
+                var current = _paths.DatabasePath + suffix;
+                if (File.Exists(current))
+                {
+                    var replaced = $"{_paths.DatabasePath}.replaced-{stamp}{suffix}";
+                    File.Move(current, replaced);
+                    moved.Add((current, replaced));
+                }
             }
+
+            File.Move(incoming, _paths.DatabasePath);
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            for (var i = moved.Count - 1; i >= 0; i--)
+            {
+                try
+                {
+                    File.Move(moved[i].To, moved[i].From);
+                }
+                catch (Exception undo) when (undo is IOException or UnauthorizedAccessException)
+                {
+                    LogRestoreUndoFailed(_logger, undo, moved[i].To, moved[i].From);
+                }
+            }
+
+            TryDelete(incoming);
+            throw;
         }
 
-        File.Move(incoming, _paths.DatabasePath);
         LogRestored(_logger, backup.Path);
+    }
+
+    private void TryDelete(string path)
+    {
+        try
+        {
+            File.Delete(path);
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            LogDeleteFailed(_logger, ex, path);
+        }
     }
 
     private static void DeleteDatabaseFiles(string path)
@@ -559,6 +644,12 @@ public sealed partial class SqliteDatabase : IDatabaseLifecycle, IAsyncDisposabl
 
     [LoggerMessage(Level = LogLevel.Warning, Message = "Restored database from {BackupPath}")]
     private static partial void LogRestored(ILogger logger, string backupPath);
+
+    [LoggerMessage(Level = LogLevel.Critical, Message = "A failed restore could not move {From} back to {To}; move it back by hand before starting again")]
+    private static partial void LogRestoreUndoFailed(ILogger logger, Exception exception, string from, string to);
+
+    [LoggerMessage(Level = LogLevel.Warning, Message = "Leftover file {Path} could not be deleted")]
+    private static partial void LogDeleteFailed(ILogger logger, Exception exception, string path);
 
     [LoggerMessage(Level = LogLevel.Error, Message = "Restore from {BackupPath} failed")]
     private static partial void LogRestoreFailed(ILogger logger, Exception exception, string backupPath);

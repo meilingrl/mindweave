@@ -75,6 +75,10 @@ public sealed partial class MessageItemViewModel : ViewModelBase, IDisposable
     [NotifyPropertyChangedFor(nameof(RetryLabel))]
     public partial bool CanRetry { get; set; }
 
+    /// <summary>Set by the page while core storage is failing: a branch cannot be created now (§9.3).</summary>
+    [ObservableProperty]
+    public partial bool IsBranchPaused { get; set; }
+
     /// <summary>An older attempt that a later retry replaced; still readable, no longer sent as context.</summary>
     [ObservableProperty]
     public partial bool IsSuperseded { get; set; }

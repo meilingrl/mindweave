@@ -19,12 +19,18 @@ public sealed partial class Composer : ViewModelBase
     [NotifyCanExecuteChangedFor(nameof(SendCommand))]
     public partial bool IsBlocked { get; set; }
 
+    /// <summary>Core storage is failing (§9.3): sending is paused and says why; the text stays editable.</summary>
+    [ObservableProperty]
+    [NotifyCanExecuteChangedFor(nameof(SendCommand))]
+    [NotifyPropertyChangedFor(nameof(Notice))]
+    public partial bool IsStoragePaused { get; set; }
+
     /// <summary>Why the last send was refused; cleared when the next one is accepted.</summary>
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(ShowSettingsLink))]
     public partial SendRejection? Rejection { get; private set; }
 
-    public string? Notice => Rejection is { } r ? UiText.SendRejected(r) : null;
+    public string? Notice => IsStoragePaused ? UiText.SendRejected(SendRejection.StorageUnavailable) : Rejection is { } r ? UiText.SendRejected(r) : null;
 
     /// <summary>Refusals the reader can fix in settings: no model yet, or a model whose context is too small.</summary>
     public bool ShowSettingsLink => Rejection is SendRejection.NotConfigured or SendRejection.QuestionTooLargeForModel or SendRejection.HistoryTooLongForModel;
@@ -49,5 +55,14 @@ public sealed partial class Composer : ViewModelBase
         OnPropertyChanged(nameof(Notice));
     }
 
-    private bool CanSend() => !IsBlocked && !string.IsNullOrWhiteSpace(Text);
+    private bool CanSend() => !IsBlocked && !IsStoragePaused && !string.IsNullOrWhiteSpace(Text);
+
+    partial void OnIsStoragePausedChanged(bool value)
+    {
+        // A refusal for the pause that just ended is stale.
+        if (!value && Rejection == SendRejection.StorageUnavailable)
+        {
+            Rejection = null;
+        }
+    }
 }

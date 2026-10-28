@@ -13,7 +13,7 @@ using Mindweave.Infrastructure.Sqlite.Migrations;
 
 if (args.Length != 2)
 {
-    Console.Error.WriteLine("usage: Mindweave.TestHost <hold-lock|hang-in-migration|commit-then-hang|stream-then-hang> <data-dir>");
+    Console.Error.WriteLine("usage: Mindweave.TestHost <hold-lock|hang-in-migration|hang-in-backup|commit-then-hang|stream-then-hang> <data-dir>");
     return 64;
 }
 
@@ -54,6 +54,36 @@ switch (args[0])
         await using var database = new SqliteDatabase(paths, catalog, TimeProvider.System, NullLogger<SqliteDatabase>.Instance);
         await database.OpenAsync(CancellationToken.None);
         return 2;
+    }
+
+    case "hang-in-backup":
+    {
+        // Opening needs a migration, so it first writes the pre-migration backup with VACUUM INTO; once part of the
+        // copy is on disk, the process blocks inside that statement so the test can kill it there.
+        var catalog = new MigrationCatalog(
+        [
+            .. MigrationCatalog.Default.Migrations,
+            Migration.Sql(MigrationCatalog.Default.LatestVersion + 1, "add note", "CREATE TABLE note (id TEXT PRIMARY KEY) STRICT;"),
+        ]);
+        await using var database = new SqliteDatabase(paths, catalog, TimeProvider.System, NullLogger<SqliteDatabase>.Instance)
+        {
+            BeforeBackupForTests = (connection, partial) => SQLitePCL.raw.sqlite3_progress_handler(
+                connection.Handle,
+                100,
+                _ =>
+                {
+                    if (File.Exists(partial) && new FileInfo(partial).Length > 0)
+                    {
+                        Console.WriteLine("in-backup");
+                        Thread.Sleep(Timeout.Infinite);
+                    }
+
+                    return 0;
+                },
+                null),
+        };
+        await database.OpenAsync(CancellationToken.None);
+        return 4;
     }
 
     case "commit-then-hang":

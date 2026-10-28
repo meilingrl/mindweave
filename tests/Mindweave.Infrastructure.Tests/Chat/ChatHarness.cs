@@ -18,12 +18,12 @@ internal sealed class ChatHarness : IAsyncDisposable
     private readonly TempDataDirectory _dir;
     private readonly bool _ownsDirectory;
 
-    private ChatHarness(TempDataDirectory dir, bool ownsDirectory, Func<IConversationStore, IConversationStore>? wrapStore, IChatClient? client)
+    private ChatHarness(TempDataDirectory dir, bool ownsDirectory, Func<IConversationStore, IConversationStore>? wrapStore, IChatClient? client, SqliteDatabaseOptions? databaseOptions)
     {
         ActiveClient = client ?? Client;
         _dir = dir;
         _ownsDirectory = ownsDirectory;
-        Database = dir.Database();
+        Database = dir.Database(options: databaseOptions);
         Store = new SqliteConversationStore(Database);
         Settings = new SqliteModelSettingsStore(Database);
         Requests = new SqliteAiRequestStore(Database);
@@ -88,15 +88,18 @@ internal sealed class ChatHarness : IAsyncDisposable
 
     public string DataDirectory => _dir.Paths.DataDirectory;
 
+    public string DatabasePath => _dir.Paths.DatabasePath;
+
     public static async Task<ChatHarness> StartAsync(
         bool configure = true,
         TempDataDirectory? directory = null,
         Func<IConversationStore, IConversationStore>? wrapStore = null,
         IChatClient? client = null,
-        ModelSettingsInput? model = null)
+        ModelSettingsInput? model = null,
+        SqliteDatabaseOptions? databaseOptions = null)
     {
         var dir = directory ?? new TempDataDirectory();
-        var harness = new ChatHarness(dir, directory is null, wrapStore, client);
+        var harness = new ChatHarness(dir, directory is null, wrapStore, client, databaseOptions);
         Assert.True((await harness.Database.OpenAsync(CancellationToken.None)).IsReady);
         var workspace = new Workspace(WorkspaceId.New(), WorkspaceName.FromStored("测试"), DateTimeOffset.UtcNow);
         await new SqliteWorkspaceStore(harness.Database).AddAsync(workspace, CancellationToken.None);
@@ -124,6 +127,33 @@ internal sealed class ChatHarness : IAsyncDisposable
             if (DateTime.UtcNow > deadline)
             {
                 throw new TimeoutException($"Answer {answer} is {message?.State}: '{message?.Text}'");
+            }
+
+            await Task.Delay(20);
+        }
+    }
+
+    /// <summary>
+    /// Waits until the conversation's automatic title is stored and every started task's request record is written
+    /// (records follow their task's finish, TRACK.md findings), so later row counts are not racing background work.
+    /// </summary>
+    public async Task SettleAsync(ConversationId conversation)
+    {
+        var deadline = DateTime.UtcNow.AddSeconds(5);
+        while (true)
+        {
+            var title = (await Store.GetAsync(conversation, CancellationToken.None))?.Title;
+            var (started, traced) = await Database.ReadAsync(
+                c => (c.Scalar<long>(null, "SELECT count(*) FROM generation_task WHERE started_at IS NOT NULL;"), c.Scalar<long>(null, "SELECT count(*) FROM ai_request;")),
+                CancellationToken.None);
+            if (title is not null && Generation.UnfinishedCount == 0 && traced >= started)
+            {
+                return;
+            }
+
+            if (DateTime.UtcNow > deadline)
+            {
+                throw new TimeoutException($"Not settled: title {title}, {Generation.UnfinishedCount} unfinished, {traced}/{started} traced.");
             }
 
             await Task.Delay(20);

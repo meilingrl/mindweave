@@ -8,7 +8,8 @@
   <StackPanel Spacing="4">
     <!-- The Markdown renderer is created in code: it is fed either a full parse (finished) or a live builder (streaming). -->
     <ContentControl Name="BodyHost" />
-    <Button Name="BranchButton" Classes="link" Content="{x:Static d:UiText.CreateBranch}" IsVisible="False" HorizontalAlignment="Left" />
+    <Button Name="BranchButton" Classes="link" Content="{x:Static d:UiText.CreateBranch}" IsVisible="False" HorizontalAlignment="Left"
+            ToolTip.ShowOnDisabled="True" />
     <StackPanel Spacing="2" IsVisible="{Binding Branches.Count, Converter={x:Static d:Converters.IsPositive}}">
       <TextBlock Classes="muted" FontSize="12" Text="{x:Static d:UiText.BranchesHeading}" />
       <ItemsControl Name="BranchEntries" ItemsSource="{Binding Branches}">

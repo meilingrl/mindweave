@@ -108,6 +108,16 @@ public sealed partial class ConversationService
     /// <summary>A conversation's stored content or title changed. Raised on worker threads.</summary>
     public event EventHandler<ConversationId>? ConversationChanged;
 
+    /// <summary><see cref="IsStorageBlocked"/> changed. Raised on worker threads.</summary>
+    public event EventHandler? StorageStateChanged
+    {
+        add => _generation.StorageStateChanged += value;
+        remove => _generation.StorageStateChanged -= value;
+    }
+
+    /// <summary>A core write failed and storage has not recovered: questions, retries and branches are refused (§9.3).</summary>
+    public bool IsStorageBlocked => _generation.IsStorageBlocked;
+
     public Task<IReadOnlyList<ConversationSummary>> ListAsync(WorkspaceId workspace, CancellationToken cancellationToken) =>
         _store.ListAsync(workspace, cancellationToken);
 
@@ -173,7 +183,15 @@ public sealed partial class ConversationService
         }
 
         var task = NewTask(GenerationTaskKind.Answer, id, answer.Id, model, [user.Id], now);
-        await _store.CreateAsync(conversation, user, answer, task, cancellationToken).ConfigureAwait(false);
+        try
+        {
+            await _store.CreateAsync(conversation, user, answer, task, cancellationToken).ConfigureAwait(false);
+        }
+        catch (StorageWriteException ex)
+        {
+            return StorageRefused(ex, id);
+        }
+
         Enqueue(task, model, plan, answer);
         ConversationChanged?.Invoke(this, id);
         return new SendOutcome(null, id, answer.Id);
@@ -212,6 +230,10 @@ public sealed partial class ConversationService
         catch (AnswerInProgressException)
         {
             return SendOutcome.Reject(SendRejection.AnswerInProgress, id);
+        }
+        catch (StorageWriteException ex)
+        {
+            return StorageRefused(ex, id);
         }
 
         Enqueue(task, model, plan, storedAnswer);
@@ -255,6 +277,10 @@ public sealed partial class ConversationService
         {
             return SendOutcome.Reject(SendRejection.NotRetryable, id);
         }
+        catch (StorageWriteException ex)
+        {
+            return StorageRefused(ex, id);
+        }
 
         Enqueue(task, model, plan, stored);
         ConversationChanged?.Invoke(this, id);
@@ -287,6 +313,11 @@ public sealed partial class ConversationService
         {
             return new BranchOutcome(ex.Reason, child);
         }
+        catch (StorageWriteException ex)
+        {
+            _generation.ReportStorageFailure(ex);
+            return new BranchOutcome(BranchRejection.StorageUnavailable, child);
+        }
 
         ConversationChanged?.Invoke(this, parent);
         ConversationChanged?.Invoke(this, child);
@@ -315,6 +346,13 @@ public sealed partial class ConversationService
 
         await _store.SetManualTitleAsync(id, clean, _clock.UtcNow, cancellationToken).ConfigureAwait(false);
         ConversationChanged?.Invoke(this, id);
+    }
+
+    /// <summary>The question was not stored (nothing of it was): it stays in the input, and storage-dependent work pauses.</summary>
+    private SendOutcome StorageRefused(StorageWriteException exception, ConversationId id)
+    {
+        _generation.ReportStorageFailure(exception);
+        return SendOutcome.Reject(SendRejection.StorageUnavailable, id);
     }
 
     private async Task<SendOutcome?> CheckAsync(string question, ConversationId id, CancellationToken cancellationToken)

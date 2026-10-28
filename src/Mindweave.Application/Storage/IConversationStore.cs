@@ -105,6 +105,12 @@ public interface IConversationStore
 
     /// <summary>Credential references still needed by unfinished tasks (cleanup must keep them).</summary>
     Task<IReadOnlySet<string>> CredentialRefsInUseAsync(CancellationToken cancellationToken);
+
+    /// <summary>
+    /// Checks that storage takes writes again after a failure: takes the write lock and grows the file by a typical
+    /// write's size, then rolls back, so nothing is stored. Throws <see cref="StorageWriteException"/> while it does not.
+    /// </summary>
+    Task ProbeWriteAsync(CancellationToken cancellationToken);
 }
 
 public sealed class AnswerInProgressException : Exception

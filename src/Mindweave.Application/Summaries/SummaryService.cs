@@ -182,7 +182,16 @@ public sealed partial class SummaryService
         var task = new GenerationTaskRecord(
             GenerationTaskId.New(), GenerationTaskKind.Summary, conversation, null, model, [.. plan.RawItems.Select(i => i.Message.Id).Where(id => id != request.Id)], now,
             toSeq, existing?.Node.Current.Value);
-        await _conversations.AddTaskAsync(task, cancellationToken).ConfigureAwait(false);
+        try
+        {
+            await _conversations.AddTaskAsync(task, cancellationToken).ConfigureAwait(false);
+        }
+        catch (StorageWriteException ex)
+        {
+            _generation.ReportStorageFailure(ex);
+            return Reject(SummarizeRejection.StorageUnavailable);
+        }
+
         var turns = new ChatRequest(model, [.. system, .. ContextCompressor.Unsummarized(plan).Turns]);
         _generation.Enqueue(new SummaryWork(task, turns, plan, budget, output => SaveAsync(task, output)));
         Changed?.Invoke(this, conversation);

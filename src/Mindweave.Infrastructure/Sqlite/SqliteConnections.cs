@@ -11,7 +11,11 @@ internal static class SqliteConnections
     /// <summary>How long a statement waits for a lock held by another connection before failing as busy.</summary>
     public const int BusyTimeoutMs = 5000;
 
-    public static SqliteConnection OpenReadWrite(string path, bool create = false)
+    /// <param name="busyTimeoutMs">
+    /// SQLite's own wait for a lock. Microsoft.Data.Sqlite retries a busy statement on top of that until the command
+    /// timeout (whole seconds), so that is derived from the same value; together they bound how long a write waits.
+    /// </param>
+    public static SqliteConnection OpenReadWrite(string path, bool create = false, int busyTimeoutMs = BusyTimeoutMs)
     {
         var connection = new SqliteConnection(new SqliteConnectionStringBuilder
         {
@@ -19,9 +23,9 @@ internal static class SqliteConnections
             Mode = create ? SqliteOpenMode.ReadWriteCreate : SqliteOpenMode.ReadWrite,
             Pooling = false,
             ForeignKeys = true,
-            DefaultTimeout = 5,
+            DefaultTimeout = Math.Max(1, (busyTimeoutMs + 999) / 1000),
         }.ToString());
-        return Prepare(connection, $"PRAGMA synchronous = FULL; PRAGMA busy_timeout = {BusyTimeoutMs};");
+        return Prepare(connection, $"PRAGMA synchronous = FULL; PRAGMA busy_timeout = {busyTimeoutMs};");
     }
 
     public static SqliteConnection OpenReadOnly(string path)

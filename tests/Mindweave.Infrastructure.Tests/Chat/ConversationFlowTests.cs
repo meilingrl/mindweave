@@ -352,5 +352,7 @@ public class ConversationFlowTests
         public Task<RecoveryReport> RecoverUnfinishedAsync(DateTimeOffset at, CancellationToken cancellationToken) => inner.RecoverUnfinishedAsync(at, cancellationToken);
 
         public Task<IReadOnlySet<string>> CredentialRefsInUseAsync(CancellationToken cancellationToken) => inner.CredentialRefsInUseAsync(cancellationToken);
+
+        public Task ProbeWriteAsync(CancellationToken cancellationToken) => inner.ProbeWriteAsync(cancellationToken);
     }
 }

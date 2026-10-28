@@ -53,6 +53,9 @@ public sealed partial class ConversationViewModel : PageViewModel, IDisposable
         Composer = new Composer(text => _conversations.AskAsync(Id, text, CancellationToken.None));
         _conversations.ConversationChanged += OnConversationChanged;
         _conversations.ModelChanged += OnModelChanged;
+        _conversations.StorageStateChanged += OnStorageStateChanged;
+        IsStorageBlocked = _conversations.IsStorageBlocked;
+        Composer.IsStoragePaused = IsStorageBlocked;
         _summaries = summaries;
         if (_summaries is not null)
         {
@@ -136,6 +139,17 @@ public sealed partial class ConversationViewModel : PageViewModel, IDisposable
     [ObservableProperty]
     public partial string? SummaryProblem { get; private set; }
 
+    /// <summary>
+    /// Core storage is failing (requirements §9.3): asking, retrying, branching and summarizing are disabled with the
+    /// reason; everything shown stays readable and selectable. Lifts by itself once storage takes writes again.
+    /// </summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(StorageNotice))]
+    [NotifyCanExecuteChangedFor(nameof(SummarizeCommand), nameof(RetryCommand))]
+    public partial bool IsStorageBlocked { get; private set; }
+
+    public string? StorageNotice => IsStorageBlocked ? UiText.StoragePaused : null;
+
     /// <summary>Why "summarize" was refused just now.</summary>
     [ObservableProperty]
     public partial string? SummaryNotice { get; private set; }
@@ -174,7 +188,43 @@ public sealed partial class ConversationViewModel : PageViewModel, IDisposable
 
     private bool CanStop() => RunningAnswer is not null;
 
-    [RelayCommand]
+    private bool CanRetryNow(MessageItemViewModel? answer) => !IsStorageBlocked;
+
+    private bool CanSummarize() => !IsStorageBlocked;
+
+    partial void OnIsStorageBlockedChanged(bool value)
+    {
+        Composer.IsStoragePaused = value;
+        foreach (var message in Messages)
+        {
+            message.IsBranchPaused = value;
+        }
+
+        if (!value)
+        {
+            // Refusals given because of the pause that just ended no longer apply.
+            if (SummaryNotice == UiText.SummarizeRejected(SummarizeRejection.StorageUnavailable))
+            {
+                SummaryNotice = null;
+            }
+
+            if (BranchNotice == UiText.BranchRejected(BranchRejection.StorageUnavailable))
+            {
+                BranchNotice = null;
+            }
+        }
+    }
+
+    private void OnStorageStateChanged(object? sender, EventArgs e) =>
+        _dispatcher.Post(() =>
+        {
+            if (!_disposed)
+            {
+                IsStorageBlocked = _conversations.IsStorageBlocked;
+            }
+        });
+
+    [RelayCommand(CanExecute = nameof(CanRetryNow))]
     private async Task RetryAsync(MessageItemViewModel answer)
     {
         var outcome = await _conversations.RetryAsync(Id, answer.Id, CancellationToken.None);
@@ -217,7 +267,7 @@ public sealed partial class ConversationViewModel : PageViewModel, IDisposable
     private void OpenSettings() => _navigator.Navigate(new NavigationRequest(MainSection.Settings));
 
     /// <summary>Summarize the conversation as it is now; it can be done at any stage and chatting continues (§6.4).</summary>
-    [RelayCommand]
+    [RelayCommand(CanExecute = nameof(CanSummarize))]
     private async Task SummarizeAsync()
     {
         if (_summaries is null)
@@ -249,6 +299,7 @@ public sealed partial class ConversationViewModel : PageViewModel, IDisposable
         _disposed = true;
         _conversations.ConversationChanged -= OnConversationChanged;
         _conversations.ModelChanged -= OnModelChanged;
+        _conversations.StorageStateChanged -= OnStorageStateChanged;
         if (_summaries is not null)
         {
             _summaries.Changed -= OnSummaryChanged;
@@ -421,7 +472,7 @@ public sealed partial class ConversationViewModel : PageViewModel, IDisposable
 
     private MessageItemViewModel NewItem(Message message)
     {
-        var item = new MessageItemViewModel(message, _conversations.Observe(message.Id), _dispatcher);
+        var item = new MessageItemViewModel(message, _conversations.Observe(message.Id), _dispatcher) { IsBranchPaused = IsStorageBlocked };
         item.PropertyChanged += (_, e) =>
         {
             if (e.PropertyName == nameof(MessageItemViewModel.State))

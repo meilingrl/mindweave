@@ -17,7 +17,7 @@ public sealed class GenerationOptions
     /// <summary>Minimum gap between partial-answer writes; only the newest text is written.</summary>
     public TimeSpan CheckpointInterval { get; init; } = TimeSpan.FromSeconds(1);
 
-    /// <summary>How often terminal writes that failed are retried while storage is unavailable.</summary>
+    /// <summary>How often terminal writes that failed are retried, and storage probed, while storage is unavailable.</summary>
     public TimeSpan SaveRetryInterval { get; init; } = TimeSpan.FromSeconds(5);
 }
 
@@ -102,9 +102,13 @@ public sealed partial class GenerationCoordinator : IAsyncDisposable
     // overlap, or the exit could see an empty queue while a dequeued write is still failing.
     private readonly SemaphoreSlim _flushGate = new(1, 1);
     private Task _retryLoop = Task.CompletedTask;
+    private bool _retryRunning;
     private bool _closed;
     private int _shutDown;
     private int _storageBlocked;
+
+    // Counts storage failures, so recovery is declared only when nothing failed after the probe that found it.
+    private long _storageFailures;
 
     public GenerationCoordinator(
         IConversationStore store,
@@ -141,8 +145,24 @@ public sealed partial class GenerationCoordinator : IAsyncDisposable
     /// <summary>A summary or naming task reached a terminal state (after its terminal write was attempted).</summary>
     public event EventHandler<GenerationTaskRecord>? SummaryTaskFinished;
 
-    /// <summary>True while a core write has failed and not yet succeeded on retry; new requests must be refused.</summary>
+    /// <summary><see cref="IsStorageBlocked"/> changed. Raised on worker threads.</summary>
+    public event EventHandler? StorageStateChanged;
+
+    /// <summary>
+    /// True from a failed core write until storage takes writes again (requirements §9.3): every write that failed and
+    /// was kept is saved, and a probe write succeeds. New AI requests and the commits that depend on storage are refused.
+    /// </summary>
     public bool IsStorageBlocked => Volatile.Read(ref _storageBlocked) != 0;
+
+    /// <summary>
+    /// A core write outside the coordinator failed for a storage reason (a question, a branch, a summary task row):
+    /// pause like for a failed terminal write and probe until storage recovers.
+    /// </summary>
+    public void ReportStorageFailure(Exception exception)
+    {
+        LogSaveFailed(_logger, exception);
+        MarkStorageBlocked();
+    }
 
     /// <summary>Queued plus running tasks of every kind — what the exit prompt counts.</summary>
     public int UnfinishedCount
@@ -742,6 +762,7 @@ public sealed partial class GenerationCoordinator : IAsyncDisposable
 #pragma warning restore CA1031
             {
                 LogSummaryNotSaved(_logger, ex, task.Id);
+                MarkStorageBlocked();
                 await SaveAsync(() => FinishTask(task.Id, GenerationTaskState.Failed, GenerationErrorKind.StorageUnavailable, ex.Message), retryOnFailure: true).ConfigureAwait(false);
                 return;
             }
@@ -899,19 +920,14 @@ public sealed partial class GenerationCoordinator : IAsyncDisposable
     }
 
     /// <summary>
-    /// Runs one core write. A failure blocks new requests until some write succeeds again; terminal writes
-    /// are kept and retried in the background so a finished answer is not lost while the app runs.
+    /// Runs one core write. A failure blocks new requests until storage recovers (see <see cref="IsStorageBlocked"/>);
+    /// terminal writes are kept and retried in the background so a finished answer is not lost while the app runs.
     /// </summary>
     private async Task<SaveResult> SaveAsync(Func<Task<bool>> write, bool retryOnFailure = false)
     {
         try
         {
             var applied = await write().ConfigureAwait(false);
-            if (Interlocked.Exchange(ref _storageBlocked, 0) != 0 && _unsaved.IsEmpty)
-            {
-                RaiseChanged();
-            }
-
             return applied ? SaveResult.Applied : SaveResult.NotApplied;
         }
 #pragma warning disable CA1031 // Storage failures are a reported, recoverable state, not a crash.
@@ -919,41 +935,103 @@ public sealed partial class GenerationCoordinator : IAsyncDisposable
 #pragma warning restore CA1031
         {
             LogSaveFailed(_logger, ex);
-            Interlocked.Exchange(ref _storageBlocked, 1);
             if (retryOnFailure)
             {
                 _unsaved.Enqueue(write);
-                EnsureRetryLoop();
             }
 
-            RaiseChanged();
+            MarkStorageBlocked();
             return SaveResult.Failed;
         }
     }
 
+    private void MarkStorageBlocked()
+    {
+        Interlocked.Increment(ref _storageFailures);
+        var changed = Interlocked.Exchange(ref _storageBlocked, 1) == 0;
+        EnsureRetryLoop();
+        if (changed)
+        {
+            StorageStateChanged?.Invoke(this, EventArgs.Empty);
+        }
+
+        RaiseChanged();
+    }
+
+    /// <summary>
+    /// While storage is blocked: every interval, retry the kept terminal writes, then probe. A success of some other,
+    /// smaller write does not count as recovery — a full disk still takes small updates.
+    /// </summary>
     private void EnsureRetryLoop()
     {
         lock (_gate)
         {
-            if (_retryLoop.IsCompleted && !_lifetime.IsCancellationRequested)
+            if (_retryRunning || _lifetime.IsCancellationRequested)
             {
-                _retryLoop = Task.Run(async () =>
+                return;
+            }
+
+            _retryRunning = true;
+            _retryLoop = Task.Run(async () =>
+            {
+                while (true)
                 {
-                    while (!_unsaved.IsEmpty)
+                    lock (_gate)
                     {
-                        await Task.Delay(_options.SaveRetryInterval, _lifetime.Token).ConfigureAwait(false);
-                        await FlushUnsavedAsync().ConfigureAwait(false);
+                        // Decided under the lock that starts loops, so a failure right after this check starts a new one.
+                        if (!IsStorageBlocked)
+                        {
+                            _retryRunning = false;
+                            return;
+                        }
                     }
-                });
+
+                    await Task.Delay(_options.SaveRetryInterval, _lifetime.Token).ConfigureAwait(false);
+                    var failures = Interlocked.Read(ref _storageFailures);
+                    if (await FlushUnsavedAsync().ConfigureAwait(false) && await ProbeAsync().ConfigureAwait(false))
+                    {
+                        ClearStorageBlocked(failures);
+                    }
+                }
+            });
+        }
+    }
+
+    private async Task<bool> ProbeAsync()
+    {
+        try
+        {
+            await _store.ProbeWriteAsync(CancellationToken.None).ConfigureAwait(false);
+            return true;
+        }
+#pragma warning disable CA1031 // Still failing: stay paused and probe again later.
+        catch (Exception ex)
+#pragma warning restore CA1031
+        {
+            LogProbeFailed(_logger, ex);
+            return false;
+        }
+    }
+
+    private void ClearStorageBlocked(long failuresBeforeProbe)
+    {
+        lock (_gate)
+        {
+            if (Interlocked.Read(ref _storageFailures) != failuresBeforeProbe || !_unsaved.IsEmpty || Interlocked.Exchange(ref _storageBlocked, 0) == 0)
+            {
+                return;
             }
         }
+
+        LogStorageRecovered(_logger);
+        StorageStateChanged?.Invoke(this, EventArgs.Empty);
+        RaiseChanged();
     }
 
     /// <summary>One pass over the failed terminal writes. True when none is left unsaved at the end of this pass.</summary>
     private async Task<bool> FlushUnsavedAsync()
     {
         await _flushGate.WaitAsync().ConfigureAwait(false);
-        bool empty;
         try
         {
             var count = _unsaved.Count;
@@ -973,19 +1051,12 @@ public sealed partial class GenerationCoordinator : IAsyncDisposable
             }
 
             // Read while no other pass can have a write out of the queue.
-            empty = _unsaved.IsEmpty;
+            return _unsaved.IsEmpty;
         }
         finally
         {
             _flushGate.Release();
         }
-
-        if (empty && Interlocked.Exchange(ref _storageBlocked, 0) != 0)
-        {
-            RaiseChanged();
-        }
-
-        return empty;
     }
 
     private void RaiseChanged() => Changed?.Invoke(this, EventArgs.Empty);
@@ -1004,6 +1075,12 @@ public sealed partial class GenerationCoordinator : IAsyncDisposable
 
     [LoggerMessage(Level = LogLevel.Error, Message = "Core write failed; new AI requests are paused until storage recovers")]
     private static partial void LogSaveFailed(ILogger logger, Exception exception);
+
+    [LoggerMessage(Level = LogLevel.Information, Message = "Storage still refuses writes; AI requests stay paused")]
+    private static partial void LogProbeFailed(ILogger logger, Exception exception);
+
+    [LoggerMessage(Level = LogLevel.Information, Message = "Storage takes writes again; AI requests resume")]
+    private static partial void LogStorageRecovered(ILogger logger);
 
     [LoggerMessage(Level = LogLevel.Error, Message = "Summary of task {TaskId} could not be stored")]
     private static partial void LogSummaryNotSaved(ILogger logger, Exception exception, GenerationTaskId taskId);

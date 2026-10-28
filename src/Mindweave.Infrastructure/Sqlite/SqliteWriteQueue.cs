@@ -100,7 +100,8 @@ internal sealed class SqliteWriteQueue : IAsyncDisposable
             catch (Exception ex)
 #pragma warning restore CA1031
             {
-                Completion.TrySetException(ex);
+                // The transaction was rolled back by disposal; a storage condition reaches the caller classified.
+                Completion.TrySetException(StorageFailures.ForCaller(ex));
             }
         }
     }

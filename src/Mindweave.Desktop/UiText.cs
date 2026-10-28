@@ -35,6 +35,12 @@ public static class UiText
     public const string LayoutSaveAndContinue = "保存并继续";
     public const string LayoutDontSave = "不保存";
     public const string LayoutSaveFailed = "布局保存失败，改动仍保留在当前窗口。";
+
+    /// <summary>Core storage failed (requirements §9.3): what is paused, what still works, and that it lifts by itself.</summary>
+    public const string StoragePaused = "本地数据暂时无法保存，已暂停提问、重试、创建分支和生成总结；已有内容仍可阅读和复制。恢复保存后会自动解除。";
+
+    /// <summary>The reason on an entry disabled while storage is paused.</summary>
+    public const string StoragePausedReason = "本地数据暂时无法保存，恢复后可用";
     public const string SaveLayout = "保存布局";
     public const string ArrangeLayout = "整理布局";
     public const string ShowAll = "显示全部";

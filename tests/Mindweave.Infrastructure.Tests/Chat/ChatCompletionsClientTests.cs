@@ -80,7 +80,10 @@ public class ChatCompletionsClientTests
     [InlineData(HttpStatusCode.PaymentRequired, "insufficient balance", GenerationErrorKind.QuotaOrRateLimited)]
     [InlineData(HttpStatusCode.BadRequest, "{\"error\":{\"message\":\"This model's maximum context length is 8192 tokens\"}}", GenerationErrorKind.ContextTooLong)]
     [InlineData(HttpStatusCode.NotFound, "model not found", GenerationErrorKind.InvalidResponse)]
+    [InlineData(HttpStatusCode.InternalServerError, "{\"error\":{\"message\":\"internal error\"}}", GenerationErrorKind.ServerError)]
     [InlineData(HttpStatusCode.BadGateway, "<html>bad gateway</html>", GenerationErrorKind.ServerError)]
+    [InlineData(HttpStatusCode.ServiceUnavailable, "{\"error\":{\"message\":\"overloaded, maximum load reached\"}}", GenerationErrorKind.ServerError)]
+    [InlineData(HttpStatusCode.GatewayTimeout, "", GenerationErrorKind.ServerError)]
     [InlineData(HttpStatusCode.Found, "", GenerationErrorKind.InvalidResponse)]
     public async Task Http_errors_are_classified(HttpStatusCode status, string body, GenerationErrorKind kind)
     {
