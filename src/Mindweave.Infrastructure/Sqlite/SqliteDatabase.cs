@@ -125,13 +125,16 @@ public sealed partial class SqliteDatabase : IDatabaseLifecycle, IAsyncDisposabl
     }
 
     /// <summary>
-    /// Takes the write lock and grows the file by about one large write, then rolls back: nothing is stored, but a full
-    /// disk, a lock held elsewhere or a read-only file fails it as <see cref="Application.Storage.StorageWriteException"/>.
+    /// Asks whether storage takes writes again, in two steps. First, on the single writer, a large write is made and
+    /// rolled back: a lock held elsewhere, a read-only or damaged file, or the database's own size limit fails it. In WAL
+    /// mode a rolled-back write never reaches the disk, though, so second, the same amount is written to a file beside
+    /// the database and flushed through to the disk, then deleted: a full disk fails that. Either failure is a
+    /// <see cref="Application.Storage.StorageWriteException"/>; nothing is stored either way.
     /// </summary>
-    public Task ProbeWriteAsync(CancellationToken cancellationToken)
+    public async Task ProbeWriteAsync(CancellationToken cancellationToken)
     {
         var writer = Volatile.Read(ref _writer) ?? throw new InvalidOperationException("The database is not open.");
-        return writer.EnqueueWithoutTransactionAsync(
+        await writer.EnqueueWithoutTransactionAsync(
             connection =>
             {
                 using var transaction = connection.BeginTransaction();
@@ -139,10 +142,49 @@ public sealed partial class SqliteDatabase : IDatabaseLifecycle, IAsyncDisposabl
                 transaction.Rollback();
                 return 0;
             },
-            cancellationToken);
+            cancellationToken).ConfigureAwait(false);
+        await Task.Run(ProbeDisk, cancellationToken).ConfigureAwait(false);
     }
 
-    /// <summary>How much the probe grows the file: more than a typical question or summary, so recovery is not declared early.</summary>
+    private void ProbeDisk()
+    {
+        var probe = Path.Combine(_paths.DataDirectory, ".storage-probe");
+        try
+        {
+            using (var stream = new FileStream(probe, FileMode.Create, FileAccess.Write, FileShare.None, 4096, FileOptions.WriteThrough))
+            {
+                stream.Write(new byte[ProbeBytes]);
+                stream.Flush(flushToDisk: true);
+            }
+        }
+        catch (UnauthorizedAccessException ex)
+        {
+            throw new Application.Storage.StorageWriteException(Application.Storage.StorageFailureKind.ReadOnly, ex.Message, ex);
+        }
+        catch (IOException ex)
+        {
+            var kind = IsDiskFull(ex) ? Application.Storage.StorageFailureKind.Full : Application.Storage.StorageFailureKind.IoError;
+            throw new Application.Storage.StorageWriteException(kind, ex.Message, ex);
+        }
+        finally
+        {
+            try
+            {
+                File.Delete(probe);
+            }
+            catch (IOException)
+            {
+            }
+            catch (UnauthorizedAccessException)
+            {
+            }
+        }
+    }
+
+    /// <summary>ERROR_DISK_FULL or ERROR_HANDLE_DISK_FULL on Windows, ENOSPC elsewhere.</summary>
+    private static bool IsDiskFull(IOException ex) => (ex.HResult & 0xFFFF) is 0x70 or 0x27 || ex.HResult == 28;
+
+    /// <summary>How much the probe writes: more than a typical question or summary, so recovery is not declared early.</summary>
     internal const int ProbeBytes = 64 * 1024;
 
     /// <summary>Runs <paramref name="work"/> on a fresh read-only connection in one snapshot; it never waits for the writer.</summary>

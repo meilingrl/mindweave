@@ -762,7 +762,14 @@ public sealed partial class GenerationCoordinator : IAsyncDisposable
 #pragma warning restore CA1031
             {
                 LogSummaryNotSaved(_logger, ex, task.Id);
-                MarkStorageBlocked();
+
+                // Only storage refusing writes pauses requests; any other error is a defect that fails this task (the
+                // version was not stored) without pausing everything else.
+                if (ex is StorageWriteException)
+                {
+                    MarkStorageBlocked();
+                }
+
                 await SaveAsync(() => FinishTask(task.Id, GenerationTaskState.Failed, GenerationErrorKind.StorageUnavailable, ex.Message), retryOnFailure: true).ConfigureAwait(false);
                 return;
             }
@@ -947,8 +954,15 @@ public sealed partial class GenerationCoordinator : IAsyncDisposable
 
     private void MarkStorageBlocked()
     {
-        Interlocked.Increment(ref _storageFailures);
-        var changed = Interlocked.Exchange(ref _storageBlocked, 1) == 0;
+        // Under the lock ClearStorageBlocked decides in, so a failure reported while recovery is being declared is
+        // either seen by that check or re-blocks right after it; it is never lost between the two.
+        bool changed;
+        lock (_gate)
+        {
+            Interlocked.Increment(ref _storageFailures);
+            changed = Interlocked.Exchange(ref _storageBlocked, 1) == 0;
+        }
+
         EnsureRetryLoop();
         if (changed)
         {

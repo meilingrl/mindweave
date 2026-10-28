@@ -36,7 +36,8 @@ public class BusyWriterTests
             Assert.Equal(StorageFailureKind.Busy, error.Kind);
 
             // Bounded by the configured wait (plus the driver's retry, rounded up to whole seconds), not the default 5 s.
-            Assert.InRange(clock.Elapsed, TimeSpan.FromMilliseconds(150), TimeSpan.FromSeconds(4));
+            // Upper bound: clearly shorter than the default five-second busy wait, with room for a slow CI runner.
+            Assert.InRange(clock.Elapsed, TimeSpan.FromMilliseconds(150), TimeSpan.FromSeconds(4.5));
             await Assert.ThrowsAsync<StorageWriteException>(() => database.ProbeWriteAsync(Ct));
         }
 

@@ -10,6 +10,7 @@ namespace Mindweave.Infrastructure.Tests.Faults;
 /// The connection drops in the middle of an answer's body, at the HTTP level, after some text arrived: through the
 /// real client, coordinator and stores, the answer keeps what arrived, fails as a network error and can be retried.
 /// </summary>
+[Trait("Category", "FaultInjection")]
 public class StreamDropTests
 {
     private static CancellationToken Ct => TestContext.Current.CancellationToken;

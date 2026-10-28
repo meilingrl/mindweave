@@ -11,6 +11,7 @@ namespace Mindweave.Infrastructure.Tests.Faults;
 /// rolled back whole, it is reported as a storage failure, core content pauses new requests until storage takes
 /// writes again, and the same work then succeeds.
 /// </summary>
+[Trait("Category", "FaultInjection")]
 public class DiskFullTests
 {
     /// <summary>70 KB: more than the probe's 64 KB, yet within the default model's context budget (Latin text is cheap in tokens).</summary>
@@ -87,6 +88,25 @@ public class DiskFullTests
         Assert.Empty(await h.Conversations.ListAsync(h.Workspace, Ct));
         Assert.Equal(0, h.Client.StartedAnswers);
         await StorageFaults.AssertIntactAsync(h.Database);
+    }
+
+    [Fact]
+    public async Task A_summary_save_failing_for_another_reason_fails_the_task_without_pausing_requests()
+    {
+        await using var h = await ChatHarness.StartAsync();
+        var sent = await h.Conversations.StartAsync(h.Workspace, "火车是怎么发明的？", Ct);
+        await h.WaitForAnswerAsync(sent.Answer!.Value);
+        await h.SettleAsync(sent.Conversation);
+
+        // A defect, not a storage condition: the insert is rejected as a constraint, which is not a storage failure.
+        await h.Database.WriteAsync((c, t) => c.Execute(t, "CREATE TRIGGER reject_versions BEFORE INSERT ON summary_version BEGIN SELECT RAISE(ABORT, 'rejected'); END;"), Ct);
+
+        var outcome = await h.SummaryService.SummarizeAsync(sent.Conversation, Ct);
+
+        Assert.True(outcome.Accepted, outcome.Rejection.ToString());
+        await ChatHarness.UntilAsync(() => h.SummaryService.LatestTaskAsync(sent.Conversation, Ct).Result is { State: GenerationTaskState.Failed });
+        Assert.False(h.Conversations.IsStorageBlocked);
+        Assert.Null(await h.SummaryService.ForConversationAsync(sent.Conversation, Ct));
     }
 
     [Fact]
