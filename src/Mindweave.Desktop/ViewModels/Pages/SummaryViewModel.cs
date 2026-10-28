@@ -339,6 +339,7 @@ public sealed partial class SummaryViewModel : PageViewModel, IPageFlush, IDispo
                 var saved = await _summaries.SaveEditAsync(Node, detail.Node.Current, EditTitle, EditBody, CancellationToken.None);
                 IsEditing = false;
                 _shownId = saved ?? detail.Node.Current;
+                DraftSettled?.Invoke(this, EventArgs.Empty);
             })
             : Task.CompletedTask;
 
@@ -348,6 +349,7 @@ public sealed partial class SummaryViewModel : PageViewModel, IPageFlush, IDispo
         {
             IsEditing = false;
             await _summaries.DiscardDraftAsync(Node, CancellationToken.None);
+            DraftSettled?.Invoke(this, EventArgs.Empty);
         });
 
     [RelayCommand]
@@ -379,6 +381,10 @@ public sealed partial class SummaryViewModel : PageViewModel, IPageFlush, IDispo
     /// </summary>
     public Task<bool> FlushAsync() =>
         IsEditing && Volatile.Read(ref _draftVersion) != Volatile.Read(ref _savedDraftVersion) ? SaveDraftAsync() : Task.FromResult(true);
+
+    public object? FlushKey => Node;
+
+    public event EventHandler? DraftSettled;
 
     /// <summary>The workbench flushes the draft before disposing (see <see cref="FlushAsync"/>).</summary>
     public void Dispose()
@@ -422,6 +428,7 @@ public sealed partial class SummaryViewModel : PageViewModel, IPageFlush, IDispo
 
         // A change made during the write stays pending.
         InterlockedMax(ref _savedDraftVersion, version);
+        DraftSettled?.Invoke(this, EventArgs.Empty);
         return true;
     }
 

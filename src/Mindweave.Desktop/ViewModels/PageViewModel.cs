@@ -18,4 +18,13 @@ public interface IPageFlush
 {
     /// <summary>Saves pending input now. False when it could not be saved; it stays pending for another try.</summary>
     Task<bool> FlushAsync();
+
+    /// <summary>What the pending input belongs to; pages saving the same draft share it (for example the summary node).</summary>
+    object? FlushKey { get; }
+
+    /// <summary>
+    /// Raised after this page wrote its draft (saved, discarded or committed it). A page opened later on the same draft
+    /// then holds the newer input, so an earlier page's unsaved leftover must not be written over it.
+    /// </summary>
+    event EventHandler? DraftSettled;
 }

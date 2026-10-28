@@ -242,6 +242,49 @@ public class ExitTests
         Assert.Equal("我自己的笔记", detail!.Draft?.Body);
     }
 
+    [AvaloniaTheory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task A_left_draft_that_failed_to_save_is_not_written_back_over_a_newer_draft_or_a_discard(bool discard)
+    {
+        var failing = new FailingSummaryDrafts();
+        await using var app = DesktopHarness.Create(s => s.AddSingleton<ISummaryStore>(sp => failing.Wrap(sp.GetRequiredService<SqliteDatabase>())));
+        var window = NetworkUiTests.Show(app);
+        var page = await ConversationAsync(app);
+        await page.SummarizeCommand.ExecuteAsync(null);
+        await UiWait.UntilAsync(() => page.HasSummary && page.RunningSummary is null);
+        page.OpenSummaryCommand.Execute(null);
+        var first = Assert.IsType<SummaryViewModel>(app.Workbench.CurrentPage);
+        await first.Loaded;
+        await first.BeginEditCommand.ExecuteAsync(null);
+        failing.Fail = true;
+        first.EditBody = "旧的草稿";
+        app.Workbench.GoBack();
+
+        // Storage works again; the same summary is opened and its draft settled anew.
+        failing.Fail = false;
+        page.OpenSummaryCommand.Execute(null);
+        var second = Assert.IsType<SummaryViewModel>(app.Workbench.CurrentPage);
+        await second.Loaded;
+        await second.BeginEditCommand.ExecuteAsync(null);
+        if (discard)
+        {
+            await second.DiscardEditCommand.ExecuteAsync(null);
+        }
+        else
+        {
+            second.EditBody = "新的草稿";
+            Assert.True(await second.FlushAsync());
+        }
+
+        window.Close();
+        await app.Root.Exit.Running;
+
+        Assert.Equal(1, app.Shell.ExitRequests);
+        var detail = await app.Services.GetRequiredService<Application.Summaries.SummaryService>().GetAsync(second.Node, CancellationToken.None);
+        Assert.Equal(discard ? null : "新的草稿", detail!.Draft?.Body);
+    }
+
     [AvaloniaFact]
     public async Task A_step_that_throws_while_stopping_shows_the_failure_instead_of_hanging()
     {

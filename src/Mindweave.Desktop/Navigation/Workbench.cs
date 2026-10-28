@@ -199,6 +199,7 @@ public sealed class Workbench : ObservableObject, IWorkbenchNavigator
     {
         if (page is IPageFlush flushable)
         {
+            flushable.DraftSettled -= OnDraftSettled;
             var dropped = new DroppedPage(flushable, flushable.FlushAsync());
             lock (_dropped)
             {
@@ -210,9 +211,38 @@ public sealed class Workbench : ObservableObject, IWorkbenchNavigator
         (page as IDisposable)?.Dispose();
     }
 
+    private PageViewModel Track(PageViewModel page)
+    {
+        if (page is IPageFlush flushable)
+        {
+            flushable.DraftSettled += OnDraftSettled;
+        }
+
+        return page;
+    }
+
+    /// <summary>
+    /// A page in the stacks wrote its draft: what an earlier, dropped page on the same draft still held is older than
+    /// that, so it is let go instead of being written back over the newer draft (or over a discard) at exit.
+    /// </summary>
+    private void OnDraftSettled(object? sender, EventArgs e)
+    {
+        if (sender is not IPageFlush settled || settled.FlushKey is not { } key)
+        {
+            return;
+        }
+
+        lock (_dropped)
+        {
+            _dropped.RemoveAll(p => p.Page != settled && key.Equals(p.Page.FlushKey));
+        }
+    }
+
     /// <summary>A page removed from the stacks whose pending input may not be saved yet.</summary>
     private sealed class DroppedPage(IPageFlush page, Task<bool> flush)
     {
+        public IPageFlush Page => page;
+
         public Task<bool> Flush { get; set; } = flush;
 
         /// <summary>Waits for the save under way, then saves whatever is still pending (nothing, when that one worked).</summary>
@@ -249,7 +279,7 @@ public sealed class Workbench : ObservableObject, IWorkbenchNavigator
         var stack = slot.StackOf(slot.Section);
         if (stack.Count == 0)
         {
-            stack.Add(_pages.Create(ContentRoute.HomeOf(slot.Section), new PageContext(runtime.Workspace, slot.Key, this)));
+            stack.Add(Track(_pages.Create(ContentRoute.HomeOf(slot.Section), new PageContext(runtime.Workspace, slot.Key, this))));
         }
     }
 
@@ -261,7 +291,7 @@ public sealed class Workbench : ObservableObject, IWorkbenchNavigator
             return;
         }
 
-        stack.Add(_pages.Create(route, new PageContext(runtime.Workspace, slot.Key, this)));
+        stack.Add(Track(_pages.Create(route, new PageContext(runtime.Workspace, slot.Key, this))));
         if (stack.Count > MaxHistory)
         {
             // Keep the section home; drop the oldest detail page.
