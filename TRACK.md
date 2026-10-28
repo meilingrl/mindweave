@@ -18,7 +18,7 @@ Claude 自主开发，目的是比稳健轨更早走到关键阶段，提前暴�
 
 ## 当前状态
 
-- 阶段：**S6 整理与收尾 · 完成**（2026-10-28），等你试用（Mac 与 Windows 验收清单）。S0–S6 已完成；之后 S7 集中界面打磨（D-020）。
+- 阶段：**S6 整理与收尾 · 完成**（2026-10-28），你已在 Mac 试用（2026-10-29）：归档、删除、导出、退出流程都没有问题；“整理布局→生成中退出→不保存→在回答提示取消”后布局仍在（S5 的顺序缺陷确认已修复）。Windows 验收清单待你在笔记本上走。S0–S6 已完成；下一阶段 S7 集中界面打磨（D-020）。
 - 测试：macOS 411 通过、16 跳过（需显式开启或仅限 Windows：真实服务、系统凭据、完整规模性能基准、Windows 专属锁与映射用例）；Windows 实机（ef5019b）416 通过、11 跳过；CI 双平台与故障注入压力运行通过；真实服务 7/7（S5 时）。迁移到 v8。
 - 演进接缝 E1–E4、E6 已落地（E2–E4、E6 为迁移 v3，E1 随 S2 迁移 v4），E5 只有规格。详见 [演进接缝](docs/design/evolution-seams.md)。
 
@@ -26,7 +26,7 @@ Claude 自主开发，目的是比稳健轨更早走到关键阶段，提前暴�
 
 ## 接续点
 
-- 下一步：等你试用 S6（阶段报告的命令；Windows 用 `app-s6` 与 [验收清单](docs/design/s6-windows-checklist.md)）。之后开始 S7 界面打磨。
+- 下一步：S7 集中界面打磨（D-020）：先出设计与每页的前后截图，你确认观感后再逐页实现。Windows 验收清单可随时走，不阻塞 S7。
 - （已完成）S6 整理与收尾：归档／恢复／无依赖删除（迁移 v8，D-021）、单版本 Markdown 导出、统一退出顺序（修复 S5 两个顺序缺陷）、真实故障注入（盘满、外部持锁、断流、恢复与备份失败、七种多表写入中途被杀）、交付检查（源码包脚本、运行说明、Windows 清单）。每块经工作流实现→对抗式审查→修复→复核；见 [s6-wrapup.md](docs/design/s6-wrapup.md) 与阶段报告。
 - 之后：S7 集中界面打磨，范围见 [D-020](docs/design/decisions.md)（网络页按 `prototypes/network-layout` 的视觉语言重做、已读／未读、分支与总结等页面），每页先给截图确认。
 - （已完成）S5 总结网络（投影、自动布局、视口、显式保存、失败处理；需求 §7.3–7.4，架构 §11，交接 §2.7）。
@@ -37,7 +37,7 @@ Claude 自主开发，目的是比稳健轨更早走到关键阶段，提前暴�
 
 | 事项 | 原因 | 阻塞什么 | 在此之前我做什么 |
 | --- | --- | --- | --- |
-| 试用 S6：Mac 用阶段报告命令；Windows 运行 `E:\mindweave-claude-auto\app-s6\Mindweave.exe`，按 [验收清单](docs/design/s6-windows-checklist.md) 30 行逐项填结果 | 系统保存对话框、凭据管理器、中文输入法、二次启动激活、真实退出路径只能在桌面会话里验证；归档／导出／退出的手感需要你判断 | S6 收口、S7 开始 | S7 界面打磨的设计（以 `prototypes/network-layout` 为参照） |
+| （Mac 已试用通过）试用 S6 的 Windows 部分：运行 `E:\mindweave-claude-auto\app-s6\Mindweave.exe`，按 [验收清单](docs/design/s6-windows-checklist.md) 30 行逐项填结果 | 系统保存对话框、凭据管理器、中文输入法、二次启动激活、真实退出路径只能在桌面会话里验证；归档／导出／退出的手感需要你判断 | S6 收口、S7 开始 | S7 界面打磨的设计（以 `prototypes/network-layout` 为参照） |
 
 Windows 实机：`scripts/windows.sh test|publish|sync|exec`（主机 `win-home`，经本机用户态 Tailscale 实例 A 的 SOCKS `127.0.0.1:7898`，密钥登录，连接失败自动重试；目录 `E:\mindweave-claude-auto`，与稳健轨隔离）。2026-10-26 已修复笔记本上 Scoop 的 git（`current` 目录联接失效，`scoop reset git` 重建，现为 2.54.0）。
 
