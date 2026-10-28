@@ -87,11 +87,11 @@ public readonly record struct NetworkViewport(double CenterX, double CenterY, do
 
 ### Task 1: 元数据关系投影与布局事务
 
-**Files:** Create `src/Mindweave.Core/Network/NodePosition.cs`, `src/Mindweave.Application/Network/NetworkContracts.cs`, `NetworkProjection.cs`, `INetworkStore.cs`, `src/Mindweave.Infrastructure/Storage/NetworkSchema.cs`, `SqliteWorkspaceStore.Network.cs`; Modify `DatabaseSchema.cs`（只追加7）; Test `tests/Mindweave.Tests/NetworkProjectionTests.cs`, `NetworkStorageTests.cs`，及确实受当前 schema 数字影响的 `StorageTests.cs`／`SummaryMigrationTests.cs`。
+**Files:** Create `src/Mindweave.Core/Network/NodePosition.cs`, `src/Mindweave.Application/Network/NetworkContracts.cs`, `NetworkProjection.cs`, `INetworkStore.cs`, `src/Mindweave.Infrastructure/Storage/NetworkSchema.cs`, `SqliteWorkspaceStore.Network.cs`; Modify `DatabaseSchema.cs`（只追加7）; Test `tests/Mindweave.Tests/NetworkProjectionTests.cs`, `NetworkStorageTests.cs`，及确实受当前 schema 数字影响的 `SummaryMigrationTests.cs`／`ContextStorageTests.cs`／`ContextThinkingStorageTests.cs`／`ChatDesktopTests.cs`（只改当前版本断言，历史检查不动）。
 
 **Interfaces:** 消费已有 conversation／branch_source／summary_node／current read metadata；产出上节全部 Core／Application 接口与 `SqliteWorkspaceStore : INetworkStore`。独立读取事务不调用逐节点 body reader；用批量 SQL 读节点显示名、基础标题、时间、current read/candidate/OwnHighWaterSequence 后续终态消息。图仅从真实 parent 关系构造，每节点向上找最近总结祖先，路径保留所有中间会话和端点，另算最终根群组。非法跨工作区／循环／缺父关系明确拒绝，不猜边。
 
-- [ ] 写关系测试：A(总结)→B(无总结)→C(总结) 只有 A→C，path 为 A/B/C；无总结根 R 下兄弟同群不加假节点；两根隔离；输入重排指纹／输出稳定；重名、已读更新不改节点身份；缺父／循环／外工作区目标拒绝。
+- [x] 写关系测试：A(总结)→B(无总结)→C(总结) 只有 A→C，path 为 A/B/C；无总结根 R 下兄弟同群不加假节点；两根隔离；输入重排指纹／输出稳定；重名、已读更新不改节点身份；缺父／循环／外工作区目标拒绝。
 
 ```csharp
 var graph = NetworkProjection.Build(workspace, conversations, metadata);
@@ -100,10 +100,12 @@ Assert.Equal(new[] { a, b, c }, edge.Path.Select(p => p.ConversationId));
 Assert.Equal(2, graph.Nodes.Length); // B never becomes a blank node
 ```
 
-- [ ] `dotnet test Mindweave.slnx -c Release --no-restore --filter 'FullyQualifiedName~NetworkProjectionTests|FullyQualifiedName~NetworkStorageTests'` 记录 RED（新 API 未实现或行为未满足）。
-- [ ] 实现纯 projection 与 schema7 `node_layout(workspace_id,summary_node_id,x,y)` composite PK/FK 到 `summary_node(id,workspace_id) ON DELETE CASCADE`；finite/bounds 双重校验。`LoadNetworkAsync` 同一只读事务查询全部 metadata、关系及坐标，无正文。`SaveLayoutAsync` writer 内核对真实节点集合、positions keys/expected 无重复且一致、逐行 upsert 一次事务；不吞 IO 错误。初始单节点写遇存在返回其旧位置，不覆盖。
-- [ ] 用真实临时 SQLite 测试：v6→7 backup／原业务行保留；新旧软件拒绝新版写；单节点初始写不动其他整理；全图第2行注入 trigger 失败回滚全图；最后版本删除同事务移除 layout；迟到初始写／旧集合保存不能复活；跨工作区节点与非法坐标拒绝；读取前后 read/body 全行不变。RED→GREEN 后运行上条 focused＋相关迁移／删除测试，最后本任务完整 Release 一次。
-- [ ] 自审仅追加 SQL，记录 schema6 hash与查询不读正文证据；只提交本任务源／测试，commit `feat: persist summary network projections and node layouts`。报告接口、测试输出和 SHA，不修改 TRACK。
+- [x] `dotnet test Mindweave.slnx -c Release --no-restore --filter 'FullyQualifiedName~NetworkProjectionTests|FullyQualifiedName~NetworkStorageTests'` 记录 RED（新 API 未实现或行为未满足）。
+- [x] 实现纯 projection 与 schema7 `node_layout(workspace_id,summary_node_id,x,y)` composite PK/FK 到 `summary_node(id,workspace_id) ON DELETE CASCADE`；finite/bounds 双重校验。`LoadNetworkAsync` 同一只读事务查询全部 metadata、关系及坐标，无正文。`SaveLayoutAsync` writer 内核对真实节点集合、positions keys/expected 无重复且一致、逐行 upsert 一次事务；不吞 IO 错误。初始单节点写遇存在返回其旧位置，不覆盖。
+- [x] 用真实临时 SQLite 测试：v6→7 backup／原业务行保留；新旧软件拒绝新版写；单节点初始写不动其他整理；全图第2行注入 trigger 失败回滚全图；最后版本删除同事务移除 layout；迟到初始写／旧集合保存不能复活；跨工作区节点与非法坐标拒绝；读取前后 read/body 全行不变。RED→GREEN 后运行上条 focused＋相关迁移／删除测试，最后本任务完整 Release 一次。
+- [x] 自审仅追加 SQL，记录 schema6 hash与查询不读正文证据；只提交本任务源／测试，commit `feat: persist summary network projections and node layouts`。报告接口、测试输出和 SHA，不修改 TRACK。
+
+**结果：** `f439f48`，聚焦106通过／完整696通过＋2原有跳过；独立任务审查Approved、C/I/M均0。原生与后续集成独立。
 
 ### Task 2: 确定性布局与视口数学
 
