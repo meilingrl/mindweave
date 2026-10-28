@@ -6,7 +6,7 @@ namespace Mindweave.Application.Network;
 public sealed record NetworkConversation(Guid Id, Guid? ParentId, string Title, DateTimeOffset CreatedAt);
 public sealed record NetworkNodeMetadata(Guid Id, Guid ConversationId, string DisplayName,
     string BaseTitle, DateTimeOffset CreatedAt, bool IsUnread, bool HasCandidate, bool HasLaterContent);
-public sealed record NetworkNode(NetworkNodeMetadata Metadata, Guid RootConversationId);
+public sealed record NetworkNode(NetworkNodeMetadata Metadata, Guid RootConversationId, string ConversationTitle = "");
 public sealed record NetworkPathItem(Guid ConversationId, string Title);
 // Endpoints are included; Path.Length - 2 is the number of unsummarized intermediate conversations.
 public sealed record NetworkEdge(Guid ParentNodeId, Guid ChildNodeId, ImmutableArray<NetworkPathItem> Path);

@@ -11,6 +11,14 @@ public sealed class NetworkProjectionTests
     private static NetworkConversation Conversation(int id, int? parent = null) => new(Id(id), parent is { } p ? Id(p) : null, $"C{id}", Time);
     private static NetworkNodeMetadata Node(int id, int conversation) => new(Id(id), Id(conversation), "same name", "base", Time, true, false, false);
 
+    [Fact]
+    public void Source_name_is_projected_from_conversation_without_breaking_two_argument_nodes()
+    {
+        var graph = NetworkProjection.Build(Id(99), [Conversation(1) with { Title = "真实来源" }], [Node(11, 1)]);
+        Assert.Equal("真实来源", graph.Nodes[0].ConversationTitle);
+        Assert.Equal("", new NetworkNode(Node(11, 1), Id(1)).ConversationTitle);
+    }
+
     // Catches flattening a hidden source path into a false direct conversation relationship.
     [Fact]
     public void Nearest_summary_ancestor_keeps_unsummarized_path_and_endpoints()

@@ -37,7 +37,7 @@ public static class NetworkProjection
                 node.DisplayName is null || node.BaseTitle is null || !summaries.TryAdd(node.ConversationId, node))
                 throw new InvalidDataException("网络总结身份重复或不属于当前工作区。");
         var orderedMetadata = nodes.OrderBy(n => n.CreatedAt).ThenBy(n => n.Id).ToImmutableArray();
-        var projected = orderedMetadata.Select(n => new NetworkNode(n, roots[n.ConversationId])).ToImmutableArray();
+        var projected = orderedMetadata.Select(n => new NetworkNode(n, roots[n.ConversationId], byConversation[n.ConversationId].Title)).ToImmutableArray();
         var edges = ImmutableArray.CreateBuilder<NetworkEdge>();
         foreach (var node in orderedMetadata)
         {
