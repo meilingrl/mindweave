@@ -482,8 +482,11 @@ public static class UiText
         return "以下会话还有回答或总结在生成或排队，完成或停止后才能归档：" + string.Join("、", busy) + "。";
     }
 
-    /// <summary>Every reason a delete was refused, together, with archiving offered instead.</summary>
-    public static string DeleteRefused(DeleteBlockers blockers)
+    /// <summary>
+    /// Every reason a delete was refused, together; archiving is suggested instead only when
+    /// <paramref name="offerArchive"/> (not for a conversation that is already archived or hidden).
+    /// </summary>
+    public static string DeleteRefused(DeleteBlockers blockers, bool offerArchive)
     {
         var reasons = new List<string>(4);
         if (blockers.HasFlag(DeleteBlockers.HasBranches))
@@ -506,7 +509,7 @@ public static class UiText
             reasons.Add("有总结正在生成或排队");
         }
 
-        return "不能删除：" + string.Join("；", reasons) + "。可以改为归档，归档可以随时恢复。";
+        return "不能删除：" + string.Join("；", reasons) + (offerArchive ? "。可以改为归档，归档可以随时恢复。" : "。");
     }
 
     public static string NodeCreated(DateTimeOffset at) => string.Format(CultureInfo.CurrentCulture, "生成于 {0:g}", at.ToLocalTime());

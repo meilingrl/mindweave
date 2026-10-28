@@ -10,9 +10,6 @@ namespace Mindweave.Infrastructure.Sqlite;
 /// </summary>
 internal sealed class SqliteArchiveStore(SqliteDatabase database) : IConversationArchiveStore
 {
-    public Task<IReadOnlyList<ConversationId>> SubtreeAsync(ConversationId conversation, CancellationToken cancellationToken) =>
-        database.ReadAsync<IReadOnlyList<ConversationId>>(connection => Subtree(connection, null, conversation), cancellationToken);
-
     public Task<ArchiveResult> ArchiveAsync(ConversationId conversation, DateTimeOffset at, CancellationToken cancellationToken) =>
         database.WriteAsync(
             (connection, transaction) =>
@@ -36,6 +33,18 @@ internal sealed class SqliteArchiveStore(SqliteDatabase database) : IConversatio
                 connection.Execute(transaction,
                     "INSERT INTO conversation_archive (conversation_id, archived_at) VALUES ($id, $at) ON CONFLICT (conversation_id) DO NOTHING;",
                     ("$id", conversation.ToString()), ("$at", at.Ms()));
+
+                // Queued titles and naming of the subtree are cancelled in the same commit (MW-C14), so one whose row was
+                // stored just before but that reaches the queue only afterwards cannot be marked running. Running ones are
+                // stopped by the caller once this has committed.
+                foreach (var id in subtree)
+                {
+                    connection.Execute(transaction, """
+                        UPDATE generation_task SET state = 'cancelled', finished_at = $at
+                        WHERE conversation_id = $id AND kind IN ('title', 'naming') AND state = 'queued';
+                        """, ("$id", id.ToString()), ("$at", at.Ms()));
+                }
+
                 return new ArchiveResult([], subtree);
             },
             cancellationToken);

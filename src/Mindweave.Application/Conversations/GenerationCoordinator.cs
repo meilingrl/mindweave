@@ -959,12 +959,6 @@ public sealed partial class GenerationCoordinator : IAsyncDisposable
 
             return applied ? SaveResult.Applied : SaveResult.NotApplied;
         }
-        catch (ConversationMissingException ex)
-        {
-            // A late write for a conversation deleted meanwhile: nothing is left to write to, and storage is fine.
-            LogConversationGone(_logger, ex);
-            return SaveResult.NotApplied;
-        }
 #pragma warning disable CA1031 // Storage failures are a reported, recoverable state, not a crash.
         catch (Exception ex)
 #pragma warning restore CA1031
@@ -1055,9 +1049,6 @@ public sealed partial class GenerationCoordinator : IAsyncDisposable
 
     [LoggerMessage(Level = LogLevel.Error, Message = "Core write failed; new AI requests are paused until storage recovers")]
     private static partial void LogSaveFailed(ILogger logger, Exception exception);
-
-    [LoggerMessage(Level = LogLevel.Information, Message = "A late write was skipped: its conversation was deleted")]
-    private static partial void LogConversationGone(ILogger logger, Exception exception);
 
     [LoggerMessage(Level = LogLevel.Error, Message = "Summary of task {TaskId} could not be stored")]
     private static partial void LogSummaryNotSaved(ILogger logger, Exception exception, GenerationTaskId taskId);

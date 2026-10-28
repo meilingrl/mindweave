@@ -120,7 +120,7 @@ public class ArchiveUiTests
         root.DeleteCommand.Execute(null);
         Assert.Equal(UiText.DeleteConfirm, root.Confirmation!.Message);
         await root.ConfirmCommand.ExecuteAsync(null);
-        Assert.Equal(UiText.DeleteRefused(DeleteBlockers.HasBranches), root.ArchiveNotice);
+        Assert.Equal(UiText.DeleteRefused(DeleteBlockers.HasBranches, offerArchive: true), root.ArchiveNotice);
         Assert.True(root.OfferArchive);
 
         child = await OpenAsync(app, child.Id);
@@ -146,6 +146,33 @@ public class ArchiveUiTests
         Assert.IsType<ExploreHomeViewModel>(app.Workbench.CurrentPage);
         Assert.False(app.Workbench.CanGoBack);
         await UiWait.UntilAsync(() => app.ShellPage.Conversations.Items.Count == 0);
+    }
+
+    [AvaloniaFact]
+    public async Task A_refused_delete_of_an_archived_conversation_does_not_suggest_archiving_it()
+    {
+        await using var app = DesktopHarness.Create();
+        var root = await ConversationAsync(app);
+        await BranchAsync(app, root, "火车");
+        root = await OpenAsync(app, root.Id);
+        await root.ArchiveCommand.ExecuteAsync(null);
+        Assert.True(root.IsArchived);
+
+        root.DeleteCommand.Execute(null);
+        await root.ConfirmCommand.ExecuteAsync(null);
+
+        Assert.Equal(UiText.DeleteRefused(DeleteBlockers.HasBranches, offerArchive: false), root.ArchiveNotice);
+        Assert.DoesNotContain("改为归档", root.ArchiveNotice, StringComparison.Ordinal);
+        Assert.False(root.OfferArchive);
+
+        app.ShellPage.Conversations.OpenArchivedCommand.Execute(null);
+        var archived = Assert.IsType<ArchivedViewModel>(app.Workbench.CurrentPage);
+        await archived.RefreshAsync();
+        archived.DeleteCommand.Execute(archived.Items.Single(i => i.Id == root.Id));
+        await archived.ConfirmCommand.ExecuteAsync(null);
+
+        Assert.Equal(UiText.DeleteRefused(DeleteBlockers.HasBranches, offerArchive: false), archived.Notice);
+        Assert.DoesNotContain("改为归档", archived.Notice, StringComparison.Ordinal);
     }
 
     [AvaloniaFact]

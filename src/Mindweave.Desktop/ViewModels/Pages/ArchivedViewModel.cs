@@ -110,7 +110,8 @@ public sealed partial class ArchivedViewModel : PageViewModel, IDisposable
             }
             else
             {
-                Notice = UiText.DeleteRefused(result.Blockers);
+                // Everything listed here is hidden already: no archiving to suggest.
+                Notice = UiText.DeleteRefused(result.Blockers, offerArchive: false);
             }
 
             await _load.Request();

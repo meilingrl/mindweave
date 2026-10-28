@@ -219,8 +219,9 @@ internal sealed class SqliteConversationStore(SqliteDatabase database) : IConver
 
     public Task<bool> SetAutoTitleAsync(ConversationId id, string title, DateTimeOffset at, CancellationToken cancellationToken) =>
         database.WriteAsync(
+            // A title still running when its conversation was archived finishes into nothing: no title while hidden.
             (connection, transaction) => connection.Execute(transaction,
-                "UPDATE conversation SET title = $title, title_source = 'auto' WHERE id = $id AND title_source <> 'manual';",
+                $"UPDATE conversation SET title = $title, title_source = 'auto' WHERE id = $id AND title_source <> 'manual' AND NOT {SqliteArchive.HiddenCondition("$id")};",
                 ("$id", id.ToString()), ("$title", title)) == 1,
             cancellationToken);
 

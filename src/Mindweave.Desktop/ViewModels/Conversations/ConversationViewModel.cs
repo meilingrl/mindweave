@@ -276,7 +276,7 @@ public sealed partial class ConversationViewModel : PageViewModel, IDisposable
                 return;
             }
 
-            ArchiveNotice = UiText.DeleteRefused(result.Blockers);
+            ArchiveNotice = UiText.DeleteRefused(result.Blockers, offerArchive: !IsArchived);
             OfferArchive = !IsArchived;
         });
     }

@@ -112,7 +112,10 @@ public interface IConversationStore
 
     Task FinishTaskAsync(GenerationTaskId task, GenerationTaskState state, GenerationErrorKind? errorKind, string? errorDetail, DateTimeOffset at, CancellationToken cancellationToken);
 
-    /// <summary>Sets an automatic title unless the user has named the conversation. Returns whether it applied.</summary>
+    /// <summary>
+    /// Sets an automatic title unless the user has named the conversation or it is hidden by an archive. Returns whether
+    /// it applied.
+    /// </summary>
     Task<bool> SetAutoTitleAsync(ConversationId id, string title, DateTimeOffset at, CancellationToken cancellationToken);
 
     Task SetManualTitleAsync(ConversationId id, string title, DateTimeOffset at, CancellationToken cancellationToken);

@@ -345,14 +345,14 @@ public sealed partial class ConversationService
     public Task StopAsync(MessageId answer) => _generation.StopAsync(answer);
 
     /// <summary>
-    /// Archives a conversation and so hides its subtree (requirements §9.5). Titles and naming in the subtree are
-    /// cancelled first (MW-C14); answers and summaries are not stopped for it: while one runs, archiving is refused.
+    /// Archives a conversation and so hides its subtree (requirements §9.5). Titles and naming in the subtree never
+    /// block it (MW-C14): the queued ones are cancelled in the archive's own commit and the running ones stopped right
+    /// after it. Answers and summaries are not stopped for it: while one runs, archiving is refused and nothing in
+    /// the background is touched.
     /// </summary>
     public async Task<ArchiveOutcome> ArchiveAsync(ConversationId id, CancellationToken cancellationToken)
     {
         var archive = RequireArchive();
-        var subtree = await archive.SubtreeAsync(id, cancellationToken).ConfigureAwait(false);
-        await _generation.CancelBackgroundAsync(subtree.ToHashSet()).ConfigureAwait(false);
         ArchiveResult result;
         try
         {
@@ -365,6 +365,15 @@ public sealed partial class ConversationService
 
         if (result.Archived)
         {
+            // A running title that finishes before it stops writes nothing to a hidden conversation (the store refuses).
+            // Its "requested" marks go too: a title cancelled by the commit never reports itself, and the next answer
+            // after a restore asks again.
+            await _generation.CancelBackgroundAsync(result.Subtree.ToHashSet()).ConfigureAwait(false);
+            foreach (var hidden in result.Subtree)
+            {
+                _titleRequested.TryRemove(hidden, out _);
+            }
+
             NotifyVisibility(result.Subtree);
         }
 
@@ -385,15 +394,15 @@ public sealed partial class ConversationService
 
     /// <summary>
     /// Deletes a conversation that nothing depends on, irreversibly, with its unsent drafts (requirements §9.5). The
-    /// check and the delete are one transaction; a refusal names every reason. Its titles are cancelled first.
+    /// check and the delete are one transaction; a refusal names every reason and leaves its titles and naming alone.
+    /// Their task rows go with the delete, and the running ones are stopped after it: their late writes find nothing.
     /// </summary>
     public async Task<DeleteResult> DeleteAsync(ConversationId id, CancellationToken cancellationToken)
     {
-        var archive = RequireArchive();
-        await _generation.CancelBackgroundAsync(new HashSet<ConversationId> { id }).ConfigureAwait(false);
-        var result = await archive.DeleteAsync(id, cancellationToken).ConfigureAwait(false);
+        var result = await RequireArchive().DeleteAsync(id, cancellationToken).ConfigureAwait(false);
         if (result.Deleted)
         {
+            await _generation.CancelBackgroundAsync(new HashSet<ConversationId> { id }).ConfigureAwait(false);
             _titleRequested.TryRemove(id, out _);
             if (result.Parent is { } parent)
             {

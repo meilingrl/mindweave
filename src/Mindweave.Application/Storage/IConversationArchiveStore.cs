@@ -62,12 +62,10 @@ public sealed record RestorePlan(ConversationId Conversation, IReadOnlyList<Conv
 /// </summary>
 public interface IConversationArchiveStore
 {
-    /// <summary>The conversation and every branch below it, at any depth.</summary>
-    Task<IReadOnlyList<ConversationId>> SubtreeAsync(ConversationId conversation, CancellationToken cancellationToken);
-
     /// <summary>
-    /// Archives the conversation unless its subtree has an answer or summary queued or running. Only its own row is
-    /// written. Throws <see cref="ConversationMissingException"/> when it no longer exists.
+    /// Archives the conversation unless its subtree has an answer or summary queued or running. Only its own archive row
+    /// is written, and the queued title and naming task rows of the subtree are cancelled in the same commit; nothing
+    /// changes when it is refused. Throws <see cref="ConversationMissingException"/> when it no longer exists.
     /// </summary>
     Task<ArchiveResult> ArchiveAsync(ConversationId conversation, DateTimeOffset at, CancellationToken cancellationToken);
 

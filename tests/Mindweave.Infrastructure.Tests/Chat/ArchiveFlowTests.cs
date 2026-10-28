@@ -1,4 +1,5 @@
 using Mindweave.Application;
+using Mindweave.Application.Ai;
 using Mindweave.Application.Conversations;
 using Mindweave.Application.Storage;
 using Mindweave.Application.Summaries;
@@ -196,6 +197,69 @@ public class ArchiveFlowTests
     }
 
     [Fact]
+    public async Task A_refused_delete_leaves_the_running_title_alone()
+    {
+        await using var h = await ChatHarness.StartAsync();
+        var gate = h.Client.HoldTitles();
+        var (root, answer) = await RootWithAnswerAsync(h, "问");
+        await ChatHarness.UntilAsync(() => h.Client.Requests.Any(FakeChatClient.IsTitle));
+        await BranchAsync(h, root, answer, "甲");
+
+        var result = await h.Conversations.DeleteAsync(root, Ct);
+
+        Assert.Equal(DeleteBlockers.HasBranches, result.Blockers);
+        Assert.Equal("running", await TitleStateAsync(h, root));
+        gate.TrySetResult();
+        await UntilAsync(async () => (await h.Store.GetAsync(root, Ct))!.TitleSource == TitleSource.Auto);
+    }
+
+    [Fact]
+    public async Task A_refused_archive_leaves_the_titles_in_the_subtree_alone()
+    {
+        await using var h = await ChatHarness.StartAsync();
+        var gate = h.Client.HoldTitles();
+        var (root, answer) = await RootWithAnswerAsync(h, "问");
+        await ChatHarness.UntilAsync(() => h.Client.Requests.Any(FakeChatClient.IsTitle));
+        var child = await BranchAsync(h, root, answer, "甲");
+        await AskAsync(h, child, "子问");
+        h.Client.KnowledgeGate = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        Assert.True((await h.SummaryService.SummarizeAsync(child, Ct)).Accepted);
+
+        var refused = await h.Conversations.ArchiveAsync(root, Ct);
+
+        Assert.Equal([child], refused.Busy);
+        Assert.Equal(0, await h.Database.ReadAsync(
+            c => c.Scalar<long>(null, "SELECT count(*) FROM generation_task WHERE kind = 'title' AND state NOT IN ('queued', 'running');"), Ct));
+        gate.TrySetResult();
+        h.Client.KnowledgeGate.TrySetResult();
+        await UntilAsync(async () => (await h.Store.GetAsync(root, Ct))!.TitleSource == TitleSource.Auto
+            && (await h.Store.GetAsync(child, Ct))!.TitleSource == TitleSource.Auto);
+    }
+
+    [Fact]
+    public async Task A_title_stored_before_the_archive_but_queued_after_it_never_runs()
+    {
+        await using var h = await ChatHarness.StartAsync();
+        var gate = h.Client.HoldTitles();
+        var (root, _) = await RootWithAnswerAsync(h, "问");
+        await ChatHarness.UntilAsync(() => h.Client.Requests.Any(FakeChatClient.IsTitle));
+
+        // The service's order, split by the archive: the row is stored while the conversation is visible, the work
+        // reaches the queue only once the archive has committed and the coordinator's own scan is over.
+        var model = (await h.Models.GetActiveSnapshotAsync(Ct))!;
+        var late = new GenerationTaskRecord(GenerationTaskId.New(), GenerationTaskKind.Title, root, null, model, [], DateTimeOffset.UtcNow);
+        await h.Store.AddTaskAsync(late, Ct);
+        Assert.True((await h.Conversations.ArchiveAsync(root, Ct)).Archived);
+        h.Generation.Enqueue(new TitleWork(late, new ChatRequest(model, [new ChatTurn(ChatRole.System, "起一个简短标题"), new ChatTurn(ChatRole.User, "问")])));
+        gate.TrySetResult();
+        await ChatHarness.UntilAsync(() => h.Generation.UnfinishedCount == 0);
+
+        Assert.Equal("cancelled", await h.Database.ReadAsync(c => c.Scalar<string>(null, "SELECT state FROM generation_task WHERE id = $id;", ("$id", late.Id.ToString())), Ct));
+        Assert.Equal(TitleSource.None, (await h.Store.GetAsync(root, Ct))!.TitleSource);
+        Assert.False(await h.Store.SetAutoTitleAsync(root, "漏进来的标题", DateTimeOffset.UtcNow, Ct));
+    }
+
+    [Fact]
     public async Task A_late_title_for_a_conversation_deleted_under_it_is_ignored_and_storage_stays_healthy()
     {
         await using var h = await ChatHarness.StartAsync();
@@ -203,7 +267,9 @@ public class ArchiveFlowTests
         var (root, _) = await RootWithAnswerAsync(h, "问");
         await ChatHarness.UntilAsync(() => h.Client.Requests.Any(FakeChatClient.IsTitle));
 
-        // Straight to the store: the title task is still running when its rows disappear.
+        // Straight to the store: the title task is still running when its rows disappear. Its late writes are updates
+        // that find no row and a request trace whose foreign key fails (recorded best effort), so no special handling
+        // is needed for storage to stay healthy.
         Assert.True((await h.Archive.DeleteAsync(root, Ct)).Deleted);
         gate.TrySetResult();
         await ChatHarness.UntilAsync(() => h.Generation.UnfinishedCount == 0);
@@ -361,6 +427,9 @@ public class ArchiveFlowTests
             await Task.Delay(10, Ct);
         }
     }
+
+    private static Task<string?> TitleStateAsync(ChatHarness h, ConversationId conversation) =>
+        h.Database.ReadAsync(c => c.Scalar<string>(null, "SELECT state FROM generation_task WHERE kind = 'title' AND conversation_id = $id;", ("$id", conversation.ToString())), CancellationToken.None);
 
     private static Task<long> CountAsync(ChatHarness h, string table) =>
         h.Database.ReadAsync(c => c.Scalar<long>(null, $"SELECT count(*) FROM {table};"), CancellationToken.None);
