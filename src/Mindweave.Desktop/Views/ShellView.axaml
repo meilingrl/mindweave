@@ -38,6 +38,9 @@
         </StackPanel>
         <Button Name="NavSettings" DockPanel.Dock="Bottom" Classes="nav" Classes.selected="{Binding IsSettings}" Content="{x:Static d:UiText.SectionSettings}"
                 Command="{Binding ShowSectionCommand}" CommandParameter="{x:Static nav:MainSection.Settings}" VerticalAlignment="Bottom" />
+        <!-- Archived conversations are out of the list above; this entry leads to them (S6). -->
+        <Button Name="ArchivedEntry" DockPanel.Dock="Bottom" Classes="nav" Content="{Binding Conversations.ArchivedLabel}"
+                Command="{Binding Conversations.OpenArchivedCommand}" IsVisible="{Binding Conversations.HasArchived}" />
         <ScrollViewer Margin="0,8" HorizontalScrollBarVisibility="Disabled">
           <ItemsControl Name="ConversationList" ItemsSource="{Binding Conversations.Items}">
             <ItemsControl.ItemTemplate>

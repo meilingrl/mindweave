@@ -18,6 +18,12 @@ internal sealed class SqliteBranchStore(SqliteDatabase database) : IBranchStore
             {
                 var parentConversation = SqliteConversationStore.GetConversation(connection, transaction, parent)
                     ?? throw new BranchRejectedException(BranchRejection.SourceNotFound);
+                if (SqliteArchive.IsHidden(connection, transaction, parent))
+                {
+                    // A branch is new work in a hidden subtree (D-021): restore first.
+                    throw new BranchRejectedException(BranchRejection.ConversationArchived);
+                }
+
                 var source = ReadSource(connection, transaction, parent, selection);
 
                 // The child is a brand-new ID and ranges are copied only from existing ancestors, so neither a

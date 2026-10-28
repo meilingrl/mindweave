@@ -28,6 +28,7 @@ public sealed class ViewLocator : IDataTemplate
         [typeof(StorageDetailsViewModel)] = () => new StorageDetailsView(),
         [typeof(ConversationViewModel)] = () => new ConversationView(),
         [typeof(NewConversationViewModel)] = () => new NewConversationView(),
+        [typeof(ArchivedViewModel)] = () => new ArchivedView(),
     };
 
     public static IReadOnlyCollection<Type> RegisteredViewModels => Registry.Keys;

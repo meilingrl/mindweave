@@ -1,0 +1,439 @@
+using Mindweave.Application;
+using Mindweave.Application.Conversations;
+using Mindweave.Application.Storage;
+using Mindweave.Application.Summaries;
+using Mindweave.Core.Branches;
+using Mindweave.Core.Conversations;
+using Mindweave.Core.Reading;
+using Mindweave.Infrastructure.Sqlite;
+using Mindweave.Testing;
+
+namespace Mindweave.Infrastructure.Tests.Chat;
+
+/// <summary>
+/// Archive, restore and delete (requirements §9.5, D-021) through the real services and SQLite: hidden is derived, never
+/// written to descendants; deep restore clears the path only; deletes check and remove in one transaction.
+/// </summary>
+public class ArchiveFlowTests
+{
+    private static CancellationToken Ct => TestContext.Current.CancellationToken;
+
+    [Fact]
+    public async Task A_separately_archived_branch_stays_archived_when_its_parent_is_archived_and_restored()
+    {
+        await using var h = await ChatHarness.StartAsync();
+        var (root, answer) = await RootWithAnswerAsync(h, "问");
+        var child = await BranchAsync(h, root, answer, "甲");
+
+        Assert.True((await h.Conversations.ArchiveAsync(child, Ct)).Archived);
+        Assert.True((await h.Conversations.ArchiveAsync(root, Ct)).Archived);
+        var listed = await h.Conversations.ListAsync(h.Workspace, Ct);
+        Assert.All(listed, c => Assert.True(c.IsHidden));
+        Assert.Equal(2, await CountAsync(h, "conversation_archive"));
+
+        var shown = await h.Conversations.RestoreAsync(root, Ct);
+
+        Assert.Equal([root], shown);
+        listed = await h.Conversations.ListAsync(h.Workspace, Ct);
+        Assert.False(listed.Single(c => c.Conversation.Id == root).IsHidden);
+        var stillArchived = listed.Single(c => c.Conversation.Id == child);
+        Assert.True(stillArchived.IsArchived && stillArchived.IsHidden);
+    }
+
+    [Fact]
+    public async Task Archiving_writes_one_row_and_hides_the_whole_subtree_by_derivation()
+    {
+        await using var h = await ChatHarness.StartAsync();
+        var (root, answer) = await RootWithAnswerAsync(h, "问");
+        var child = await BranchAsync(h, root, answer, "甲");
+        var childAnswer = await AskAsync(h, child, "子问");
+        var grandchild = await BranchAsync(h, child, childAnswer, "乙");
+        var (other, _) = await RootWithAnswerAsync(h, "别的");
+
+        var outcome = await h.Conversations.ArchiveAsync(child, Ct);
+
+        Assert.True(outcome.Archived);
+        Assert.Equal(1, await CountAsync(h, "conversation_archive"));
+        var listed = (await h.Conversations.ListAsync(h.Workspace, Ct)).ToDictionary(c => c.Conversation.Id);
+        Assert.False(listed[root].IsHidden);
+        Assert.False(listed[other].IsHidden);
+        Assert.True(listed[child].IsArchived);
+        Assert.True(listed[grandchild] is { IsHidden: true, IsArchived: false });
+        Assert.Equal([child], await h.Conversations.ArchivedAmongAsync([child, grandchild, root], Ct));
+    }
+
+    [Fact]
+    public async Task Restoring_a_deeply_hidden_branch_restores_its_path_only()
+    {
+        await using var h = await ChatHarness.StartAsync();
+        var (root, rootAnswer) = await RootWithAnswerAsync(h, "根");
+        var a = await BranchAsync(h, root, rootAnswer, "甲");
+        var aAnswer = await AskAsync(h, a, "甲问");
+        var b = await BranchAsync(h, a, aAnswer, "乙");
+        var a2 = await BranchAsync(h, a, aAnswer, "甲二");
+        var t = await BranchAsync(h, root, rootAnswer, "丙");
+        var s = await BranchAsync(h, root, rootAnswer, "丁");
+        foreach (var archived in new[] { a, s, root })
+        {
+            Assert.True((await h.Conversations.ArchiveAsync(archived, Ct)).Archived);
+        }
+
+        var plan = await h.Conversations.PlanRestoreAsync(b, Ct);
+
+        Assert.True(plan.IsHidden);
+        Assert.False(plan.IsArchived);
+        Assert.Equal([root, a], plan.ArchivedAncestors);
+        // a2 and t come back with the path; s was archived separately and stays.
+        Assert.Equal(2, plan.OthersReappearing);
+
+        var shown = await h.Conversations.RestoreAsync(b, Ct);
+        Assert.Equal(new HashSet<ConversationId> { root, a, b, a2, t }, shown.ToHashSet());
+        var listed = (await h.Conversations.ListAsync(h.Workspace, Ct)).ToDictionary(c => c.Conversation.Id);
+        Assert.All(new[] { root, a, b, a2, t }, id => Assert.False(listed[id].IsHidden));
+        Assert.True(listed[s] is { IsArchived: true, IsHidden: true });
+        Assert.Equal(1, await CountAsync(h, "conversation_archive"));
+    }
+
+    [Fact]
+    public async Task Deleting_is_refused_with_every_reason_at_once_and_changes_nothing()
+    {
+        await using var h = await ChatHarness.StartAsync();
+        var (root, answer) = await RootWithAnswerAsync(h, "问");
+        await BranchAsync(h, root, answer, "甲");
+        Assert.True((await h.SummaryService.SummarizeAsync(root, Ct)).Accepted);
+        await UntilAsync(async () => await h.SummaryService.LatestTaskAsync(root, Ct) is { State: GenerationTaskState.Completed });
+        var held = h.Client.Hold("半句");
+        var running = await h.Conversations.AskAsync(root, "再问", Ct);
+        await held.Started.Task.WaitAsync(TimeSpan.FromSeconds(5), Ct);
+
+        // A summary task row queued behind the UI's back (the service refuses one while an answer runs).
+        await h.Store.AddTaskAsync(
+            new GenerationTaskRecord(GenerationTaskId.New(), GenerationTaskKind.Summary, root, null, (await h.Models.GetActiveSnapshotAsync(Ct))!, [], DateTimeOffset.UtcNow, 1),
+            Ct);
+        var before = await TotalRowsAsync(h);
+
+        var result = await h.Conversations.DeleteAsync(root, Ct);
+
+        Assert.False(result.Deleted);
+        Assert.Equal(DeleteBlockers.HasBranches | DeleteBlockers.HasSummary | DeleteBlockers.AnswerUnfinished | DeleteBlockers.SummaryUnfinished, result.Blockers);
+        Assert.Equal(before, await TotalRowsAsync(h));
+        held.Finish();
+        await h.WaitForAnswerAsync(running.Answer!.Value);
+    }
+
+    [Fact]
+    public async Task Deleting_a_branch_with_retries_and_regenerations_leaves_no_row_behind()
+    {
+        await using var h = await ChatHarness.StartAsync();
+        var (root, rootAnswer) = await RootWithAnswerAsync(h, "根");
+        var child = await BranchAsync(h, root, rootAnswer, "甲");
+        h.Client.Fail(GenerationErrorKind.ServerError);
+        var failed = await AskAsync(h, child, "子问");
+        var retried = await RetryAsync(h, child, failed.Id);
+        var regenerated = await RetryAsync(h, child, retried.Id);
+        Assert.Equal(retried.Id, regenerated.Supersedes);
+        await ChatHarness.UntilAsync(() => h.Generation.UnfinishedCount == 0);
+        h.Reading.SetDraft(child, ViewerSlotKey.Primary, "没发出去的草稿");
+        h.Reading.SetPosition(child, ViewerSlotKey.Primary, new ReadingPosition(regenerated.Id, 0, null, 1));
+        await h.Reading.FlushAsync();
+        await new SqliteLocationStore(h.Database, new SystemClock()).SetLastAsync(new PageLocation(h.Workspace, "explore", PageLocation.ConversationKey(child)), Ct);
+        Assert.True((await h.Conversations.ArchiveAsync(child, Ct)).Archived);
+
+        var ids = await IdsOfAsync(h, child);
+        Assert.True(ids.Count > 8, "the conversation, its messages and tasks");
+        var rootMessages = (await h.Store.GetMessagesAsync(root, Ct)).Count;
+
+        var result = await h.Conversations.DeleteAsync(child, Ct);
+
+        Assert.True(result.Deleted);
+        Assert.Equal(root, result.Parent);
+        Assert.Empty(await ReferencesAsync(h, ids));
+        Assert.Null(await h.Database.ReadAsync(c => SqliteConnections.ForeignKeyViolation(c), Ct));
+        Assert.Null((await new SqliteLocationStore(h.Database, new SystemClock()).GetLastAsync(Ct))!.ContentKey);
+        Assert.Equal(rootMessages, (await h.Store.GetMessagesAsync(root, Ct)).Count);
+        Assert.Empty(await h.Conversations.ListBranchesAsync(root, Ct));
+
+        // The parent has no dependants any more and can go as well.
+        Assert.True((await h.Conversations.DeleteAsync(root, Ct)).Deleted);
+        Assert.Empty(await h.Conversations.ListAsync(h.Workspace, Ct));
+    }
+
+    [Fact]
+    public async Task Deleting_cancels_a_running_title_first()
+    {
+        await using var h = await ChatHarness.StartAsync();
+        var gate = h.Client.HoldTitles();
+        var (root, _) = await RootWithAnswerAsync(h, "问");
+        await ChatHarness.UntilAsync(() => h.Client.Requests.Any(FakeChatClient.IsTitle));
+
+        var result = await h.Conversations.DeleteAsync(root, Ct);
+
+        Assert.True(result.Deleted);
+        Assert.Equal(0, h.Generation.UnfinishedCount);
+        Assert.False(h.Generation.IsStorageBlocked);
+        Assert.Equal(0, await CountAsync(h, "generation_task"));
+        gate.TrySetResult();
+    }
+
+    [Fact]
+    public async Task Archiving_cancels_a_running_title_in_the_subtree_and_it_is_asked_for_again_after_a_restore()
+    {
+        await using var h = await ChatHarness.StartAsync();
+        var gate = h.Client.HoldTitles();
+        var (root, _) = await RootWithAnswerAsync(h, "问");
+        await ChatHarness.UntilAsync(() => h.Client.Requests.Count(FakeChatClient.IsTitle) == 1);
+
+        Assert.True((await h.Conversations.ArchiveAsync(root, Ct)).Archived);
+
+        Assert.Equal(0, h.Generation.UnfinishedCount);
+        Assert.Equal("stopped", await h.Database.ReadAsync(c => c.Scalar<string>(null, "SELECT state FROM generation_task WHERE kind = 'title';"), Ct));
+        Assert.Equal(TitleSource.None, (await h.Store.GetAsync(root, Ct))!.TitleSource);
+        gate.TrySetResult();
+
+        await h.Conversations.RestoreAsync(root, Ct);
+        await AskAsync(h, root, "再问");
+        await UntilAsync(async () => (await h.Store.GetAsync(root, Ct))!.TitleSource == TitleSource.Auto);
+    }
+
+    [Fact]
+    public async Task A_late_title_for_a_conversation_deleted_under_it_is_ignored_and_storage_stays_healthy()
+    {
+        await using var h = await ChatHarness.StartAsync();
+        var gate = h.Client.HoldTitles();
+        var (root, _) = await RootWithAnswerAsync(h, "问");
+        await ChatHarness.UntilAsync(() => h.Client.Requests.Any(FakeChatClient.IsTitle));
+
+        // Straight to the store: the title task is still running when its rows disappear.
+        Assert.True((await h.Archive.DeleteAsync(root, Ct)).Deleted);
+        gate.TrySetResult();
+        await ChatHarness.UntilAsync(() => h.Generation.UnfinishedCount == 0);
+
+        Assert.False(h.Generation.IsStorageBlocked);
+        Assert.Null(await h.Database.ReadAsync(c => SqliteConnections.ForeignKeyViolation(c), Ct));
+        Assert.Equal(0, await CountAsync(h, "conversation"));
+        Assert.Equal(SendRejection.ConversationMissing, (await h.Conversations.AskAsync(root, "还在吗", Ct)).Rejection);
+        var model = (await h.Models.GetActiveSnapshotAsync(Ct))!;
+        await Assert.ThrowsAsync<ConversationMissingException>(() => h.Store.AddTaskAsync(
+            new GenerationTaskRecord(GenerationTaskId.New(), GenerationTaskKind.Title, root, null, model, [], DateTimeOffset.UtcNow),
+            Ct));
+        Assert.True((await h.Conversations.StartAsync(h.Workspace, "新的", Ct)).Accepted);
+    }
+
+    [Fact]
+    public async Task Archiving_is_refused_while_a_summary_in_the_subtree_runs_and_names_it()
+    {
+        await using var h = await ChatHarness.StartAsync();
+        var (root, answer) = await RootWithAnswerAsync(h, "问");
+        var child = await BranchAsync(h, root, answer, "甲");
+        await AskAsync(h, child, "子问");
+        h.Client.KnowledgeGate = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        Assert.True((await h.SummaryService.SummarizeAsync(child, Ct)).Accepted);
+        await UntilAsync(async () => await h.SummaryService.LatestTaskAsync(child, Ct) is { State: GenerationTaskState.Running });
+
+        var refused = await h.Conversations.ArchiveAsync(root, Ct);
+
+        Assert.False(refused.Archived);
+        Assert.Equal([child], refused.Busy);
+        Assert.Equal(0, await CountAsync(h, "conversation_archive"));
+
+        h.Client.KnowledgeGate.TrySetResult();
+        await UntilAsync(async () => await h.SummaryService.LatestTaskAsync(child, Ct) is { State: GenerationTaskState.Completed });
+        Assert.True((await h.Conversations.ArchiveAsync(root, Ct)).Archived);
+    }
+
+    [Fact]
+    public async Task The_summary_of_an_archived_source_stays_readable_editable_and_marked()
+    {
+        await using var h = await ChatHarness.StartAsync();
+        var (root, _) = await RootWithAnswerAsync(h, "问");
+        Assert.True((await h.SummaryService.SummarizeAsync(root, Ct)).Accepted);
+        await UntilAsync(async () => await h.SummaryService.ForConversationAsync(root, Ct) is not null);
+        Assert.True((await h.Conversations.ArchiveAsync(root, Ct)).Archived);
+
+        var entry = Assert.Single(await h.SummaryService.ListAsync(h.Workspace, Ct));
+        Assert.True(entry.SourceArchived);
+        Assert.True(Assert.Single((await h.Network.ProjectAsync(h.Workspace, Ct)).Nodes).SourceArchived);
+        Assert.NotNull(await h.Conversations.LoadAsync(root, Ct));
+
+        // Existing summaries stay usable: read, edit, delete versions.
+        await h.SummaryService.SetReadAsync(entry.Node.Id, entry.Current.Id, true, Ct);
+        Assert.NotNull(await h.SummaryService.SaveEditAsync(entry.Node.Id, entry.Current.Id, "改过的标题", "改过的正文", Ct));
+        Assert.NotNull(await h.SummaryService.DeleteVersionsAsync(entry.Node.Id, new HashSet<Core.Summaries.SummaryVersionId> { entry.Current.Id }, Ct));
+
+        Assert.Equal(SummarizeRejection.ConversationArchived, (await h.SummaryService.SummarizeAsync(root, Ct)).Rejection);
+        await h.Conversations.RestoreAsync(root, Ct);
+        Assert.False(Assert.Single(await h.SummaryService.ListAsync(h.Workspace, Ct)).SourceArchived);
+    }
+
+    [Fact]
+    public async Task New_work_on_a_hidden_conversation_is_refused_inside_the_transaction()
+    {
+        await using var h = await ChatHarness.StartAsync();
+        var (root, rootAnswer) = await RootWithAnswerAsync(h, "问");
+        var child = await BranchAsync(h, root, rootAnswer, "甲");
+        var childAnswer = await AskAsync(h, child, "子问");
+        await UntilAsync(async () => (await h.Store.GetAsync(child, Ct))!.TitleSource == TitleSource.Auto);
+        await ChatHarness.UntilAsync(() => h.Generation.UnfinishedCount == 0);
+        Assert.True((await h.Conversations.ArchiveAsync(root, Ct)).Archived);
+        var tasks = await CountAsync(h, "generation_task");
+
+        Assert.Equal(SendRejection.ConversationArchived, (await h.Conversations.AskAsync(child, "再问", Ct)).Rejection);
+        Assert.Equal(SendRejection.ConversationArchived, (await h.Conversations.RetryAsync(root, rootAnswer.Id, Ct)).Rejection);
+        Assert.Equal(BranchRejection.ConversationArchived, (await h.Conversations.CreateBranchAsync(child, BranchFlowTests.Selection(childAnswer, "子"), Ct)).Rejection);
+        Assert.Equal(SummarizeRejection.ConversationArchived, (await h.SummaryService.SummarizeAsync(child, Ct)).Rejection);
+
+        // Below the services too: the stores refuse.
+        var model = (await h.Models.GetActiveSnapshotAsync(Ct))!;
+        var question = new Message(MessageId.New(), child, 0, MessageRole.User, ContentBlocks.FromText("绕过"), MessageState.Complete, 0, null, null, null, DateTimeOffset.UtcNow, DateTimeOffset.UtcNow);
+        var pending = new Message(MessageId.New(), child, 0, MessageRole.Assistant, ContentBlocks.FromText(string.Empty), MessageState.Pending, 0, null, null, null, DateTimeOffset.UtcNow, null);
+        await Assert.ThrowsAsync<ConversationArchivedException>(() => h.Store.AppendQuestionAsync(
+            question, pending, new GenerationTaskRecord(GenerationTaskId.New(), GenerationTaskKind.Answer, child, pending.Id, model, [], DateTimeOffset.UtcNow), Ct));
+        await Assert.ThrowsAsync<ConversationArchivedException>(() => h.Store.AddTaskAsync(
+            new GenerationTaskRecord(GenerationTaskId.New(), GenerationTaskKind.Summary, child, null, model, [], DateTimeOffset.UtcNow, 1), Ct));
+        await Assert.ThrowsAsync<ConversationArchivedException>(() => h.Store.AddTaskAsync(
+            new GenerationTaskRecord(GenerationTaskId.New(), GenerationTaskKind.Title, child, null, model, [], DateTimeOffset.UtcNow), Ct));
+
+        Assert.Equal(tasks, await CountAsync(h, "generation_task"));
+        Assert.Equal(0, h.Generation.UnfinishedCount);
+
+        // Restoring the hidden branch restores its archived ancestor, and work is accepted again.
+        await h.Conversations.RestoreAsync(child, Ct);
+        await AskAsync(h, child, "恢复后再问");
+    }
+
+    [Fact]
+    public async Task The_hidden_check_finds_ancestors_by_the_range_primary_key()
+    {
+        await using var h = await ChatHarness.StartAsync(configure: false);
+        var plan = await h.Database.ReadAsync(
+            c =>
+            {
+                using var command = c.Command(null, $"EXPLAIN QUERY PLAN SELECT {SqliteArchive.HiddenCondition("$id")};", ("$id", ConversationId.New().ToString()));
+                using var reader = command.ExecuteReader();
+                var lines = new List<string>();
+                while (reader.Read())
+                {
+                    lines.Add(reader.GetString(3));
+                }
+
+                return lines;
+            },
+            Ct);
+
+        Assert.Contains(plan, l => l.Contains("SEARCH hr USING PRIMARY KEY (child_id=?)", StringComparison.Ordinal));
+        Assert.DoesNotContain(plan, l => l.StartsWith("SCAN", StringComparison.Ordinal) && l != "SCAN CONSTANT ROW");
+    }
+
+    private static async Task<(ConversationId Root, Message Answer)> RootWithAnswerAsync(ChatHarness h, string question)
+    {
+        var sent = await h.Conversations.StartAsync(h.Workspace, question, Ct);
+        return (sent.Conversation, await h.WaitForAnswerAsync(sent.Answer!.Value));
+    }
+
+    private static async Task<ConversationId> BranchAsync(ChatHarness h, ConversationId parent, Message answer, string quote)
+    {
+        var branch = await h.Conversations.CreateBranchAsync(parent, BranchFlowTests.Selection(answer, quote), Ct);
+        Assert.True(branch.Accepted, branch.Rejection?.ToString());
+        return branch.Child;
+    }
+
+    private static async Task<Message> AskAsync(ChatHarness h, ConversationId conversation, string question)
+    {
+        var sent = await h.Conversations.AskAsync(conversation, question, Ct);
+        Assert.True(sent.Accepted, sent.Rejection?.ToString());
+        return await h.WaitForAnswerAsync(sent.Answer!.Value);
+    }
+
+    private static async Task<Message> RetryAsync(ChatHarness h, ConversationId conversation, MessageId answer)
+    {
+        await ChatHarness.UntilAsync(() => !h.Generation.HasUnfinishedAnswer(conversation));
+        var sent = await h.Conversations.RetryAsync(conversation, answer, Ct);
+        Assert.True(sent.Accepted, sent.Rejection?.ToString());
+        return await h.WaitForAnswerAsync(sent.Answer!.Value);
+    }
+
+    private static async Task UntilAsync(Func<Task<bool>> condition)
+    {
+        var deadline = DateTime.UtcNow.AddSeconds(5);
+        while (!await condition())
+        {
+            Assert.True(DateTime.UtcNow < deadline, "Condition not met in time.");
+            await Task.Delay(10, Ct);
+        }
+    }
+
+    private static Task<long> CountAsync(ChatHarness h, string table) =>
+        h.Database.ReadAsync(c => c.Scalar<long>(null, $"SELECT count(*) FROM {table};"), CancellationToken.None);
+
+    /// <summary>The conversation's own identities: itself, its messages and its tasks.</summary>
+    private static Task<HashSet<string>> IdsOfAsync(ChatHarness h, ConversationId conversation) =>
+        h.Database.ReadAsync(
+            c =>
+            {
+                var ids = new HashSet<string>(StringComparer.Ordinal) { conversation.ToString() };
+                foreach (var sql in new[] { "SELECT id FROM message WHERE conversation_id = $id;", "SELECT id FROM generation_task WHERE conversation_id = $id;" })
+                {
+                    using var command = c.Command(null, sql, ("$id", conversation.ToString()));
+                    using var reader = command.ExecuteReader();
+                    while (reader.Read())
+                    {
+                        ids.Add(reader.GetString(0));
+                    }
+                }
+
+                return ids;
+            },
+            CancellationToken.None);
+
+    /// <summary>Every "table.column" in the whole schema that still holds one of <paramref name="ids"/> (or the page key).</summary>
+    private static Task<List<string>> ReferencesAsync(ChatHarness h, HashSet<string> ids) =>
+        h.Database.ReadAsync(
+            c =>
+            {
+                var values = ids.Concat(ids.Select(id => "conversation:" + id)).ToList();
+                var tables = new List<string>();
+                using (var command = c.Command(null, "SELECT name FROM sqlite_schema WHERE type = 'table' AND name NOT LIKE 'sqlite_%';"))
+                using (var reader = command.ExecuteReader())
+                {
+                    while (reader.Read())
+                    {
+                        tables.Add(reader.GetString(0));
+                    }
+                }
+
+                var hits = new List<string>();
+                foreach (var table in tables)
+                {
+                    var columns = new List<string>();
+                    using (var info = c.Command(null, $"SELECT name FROM pragma_table_info('{table}') WHERE type = 'TEXT';"))
+                    using (var reader = info.ExecuteReader())
+                    {
+                        while (reader.Read())
+                        {
+                            columns.Add(reader.GetString(0));
+                        }
+                    }
+
+                    foreach (var column in columns)
+                    {
+                        var names = values.Select((_, i) => $"$v{i}").ToArray();
+                        var parameters = values.Select((v, i) => ($"$v{i}", (object?)v)).ToArray();
+                        if (c.Scalar<long>(null, $"SELECT count(*) FROM {table} WHERE {column} IN ({string.Join(", ", names)});", parameters) > 0)
+                        {
+                            hits.Add($"{table}.{column}");
+                        }
+                    }
+                }
+
+                return hits;
+            },
+            CancellationToken.None);
+
+    private static Task<long> TotalRowsAsync(ChatHarness h) =>
+        h.Database.ReadAsync(
+            c => c.Scalar<long>(null, """
+                SELECT (SELECT count(*) FROM conversation) + (SELECT count(*) FROM message) + (SELECT count(*) FROM generation_task)
+                     + (SELECT count(*) FROM branch_source) + (SELECT count(*) FROM summary_node);
+                """),
+            CancellationToken.None);
+}

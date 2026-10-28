@@ -86,6 +86,21 @@ public static class UiText
     public const string ExportDraftNote = "导出的是页面上显示的已保存版本；未保存的编辑草稿不包含在内。";
     public const string ExportCandidateHint = "候选版本不能导出，请先采用。";
     public const string MarkdownFileType = "Markdown 文件";
+
+    // Archive and delete (S6, §9.5, D-021)
+    public const string Archive = "归档";
+    public const string Delete = "删除";
+    public const string Restore = "恢复";
+    public const string RestoreAndContinue = "恢复并继续";
+    public const string RestoreAndSummarize = "恢复并总结";
+    public const string ArchivedTitle = "已归档";
+    public const string ArchivedMarker = "已归档";
+    public const string SourceArchived = "来源已归档";
+    public const string ArchivedReadOnly = "这个会话已归档，只能阅读。恢复后可以继续提问、创建分支或总结；已有总结照常可用。";
+    public const string ArchivedEmpty = "没有已归档的会话。";
+    public const string ArchivedNote = "归档的会话及其分支不在侧栏显示，总结与网络节点照常保留。恢复后回到侧栏原来的位置。";
+    public const string DeleteConfirm = "将永久删除这个会话：全部消息、生成记录和未发送的草稿都会一起删除，无法撤销。";
+    public const string ConversationDeleted = "这个会话已被删除。";
     public const string SettingsTitle = "设置";
     public const string StorageTitle = "数据与存储";
     public const string StorageDetailsLink = "数据与存储…";
@@ -193,6 +208,7 @@ public static class UiText
         BranchRejection.AnchorTooLarge => "选区跨越的内容太多，请缩小范围。",
         BranchRejection.StorageUnavailable => "数据暂时无法保存，分支没有创建。",
         BranchRejection.SourceNotFound => "来源回答已不存在。",
+        BranchRejection.ConversationArchived => "这个会话已归档，恢复后才能创建分支。",
         _ => "无法创建分支。",
     };
 
@@ -255,6 +271,8 @@ public static class UiText
         SendRejection.NotRetryable => "只能重试会话中最后一条回答。",
         SendRejection.QuestionTooLargeForModel => "问题连同必需的来源内容已超出模型的上下文容量。请缩短问题或缩小分支选区，或在设置中换用容量更大的模型并填写上下文容量。",
         SendRejection.HistoryTooLongForModel => "这段对话即使压缩较早内容也放不进模型的上下文容量。可以从需要的回答处创建分支继续，或在设置中换用容量更大的模型。",
+        SendRejection.ConversationArchived => "这个会话已归档，请先恢复。",
+        SendRejection.ConversationMissing => ConversationDeleted,
         _ => "无法发送。",
     };
 
@@ -342,6 +360,8 @@ public static class UiText
         SummarizeRejection.SummaryInProgress => "这个会话的总结正在生成。",
         SummarizeRejection.HasCandidate => "已有一个候选版本，请先在总结页采用或丢弃。",
         SummarizeRejection.TooLongForModel => "会话太长，压缩较早内容后也超出模型容量；可以在设置中换用容量更大的模型。",
+        SummarizeRejection.ConversationArchived => "这个会话已归档，请先恢复再总结。",
+        SummarizeRejection.ConversationMissing => ConversationDeleted,
         _ => "无法生成总结。",
     };
 
@@ -430,7 +450,64 @@ public static class UiText
 
     public static string ViaCount(int count) => string.Format(CultureInfo.CurrentCulture, "经 {0} 个未总结会话", count);
 
-    public static string NodeSource(string conversationTitle) => "来源会话：" + conversationTitle;
+    public static string NodeSource(string conversationTitle, bool archived = false) =>
+        "来源会话：" + conversationTitle + (archived ? "（" + SourceArchived + "）" : string.Empty);
+
+    /// <summary>The sidebar entry to the archived page, with how many conversations the user archived.</summary>
+    public static string ArchivedEntry(int count) => string.Format(CultureInfo.CurrentCulture, "已归档（{0}）", count);
+
+    /// <summary>The read-only note of a conversation hidden because conversations above it are archived.</summary>
+    public static string HiddenByAncestors(IReadOnlyList<string> ancestors)
+    {
+        ArgumentNullException.ThrowIfNull(ancestors);
+        return "所在的上级会话已归档：" + string.Join(" › ", ancestors) + "。这个会话只能阅读；恢复它会同时恢复这些上级会话。";
+    }
+
+    /// <summary>Deep restore (D-021): which archived ancestors come back with it and how many other branches reappear.</summary>
+    public static string RestoreConfirm(IReadOnlyList<string> ancestors, int othersReappearing)
+    {
+        ArgumentNullException.ThrowIfNull(ancestors);
+        var text = "恢复这个会话会同时恢复它路径上已归档的上级会话：" + string.Join(" › ", ancestors) + "。";
+        if (othersReappearing > 0)
+        {
+            text += string.Format(CultureInfo.CurrentCulture, "另有 {0} 个分支会因此重新出现在侧栏。", othersReappearing);
+        }
+
+        return text + "不在这条路径上、单独归档的会话保持归档。";
+    }
+
+    public static string ArchiveRefused(IReadOnlyList<string> busy)
+    {
+        ArgumentNullException.ThrowIfNull(busy);
+        return "以下会话还有回答或总结在生成或排队，完成或停止后才能归档：" + string.Join("、", busy) + "。";
+    }
+
+    /// <summary>Every reason a delete was refused, together, with archiving offered instead.</summary>
+    public static string DeleteRefused(DeleteBlockers blockers)
+    {
+        var reasons = new List<string>(4);
+        if (blockers.HasFlag(DeleteBlockers.HasBranches))
+        {
+            reasons.Add("已经从它创建了分支");
+        }
+
+        if (blockers.HasFlag(DeleteBlockers.HasSummary))
+        {
+            reasons.Add("它有总结（删除总结的全部版本后才能删除会话）");
+        }
+
+        if (blockers.HasFlag(DeleteBlockers.AnswerUnfinished))
+        {
+            reasons.Add("有回答正在生成或排队");
+        }
+
+        if (blockers.HasFlag(DeleteBlockers.SummaryUnfinished))
+        {
+            reasons.Add("有总结正在生成或排队");
+        }
+
+        return "不能删除：" + string.Join("；", reasons) + "。可以改为归档，归档可以随时恢复。";
+    }
 
     public static string NodeCreated(DateTimeOffset at) => string.Format(CultureInfo.CurrentCulture, "生成于 {0:g}", at.ToLocalTime());
 }

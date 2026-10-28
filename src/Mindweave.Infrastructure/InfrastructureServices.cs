@@ -32,6 +32,7 @@ public static class InfrastructureServices
         services.AddSingleton<IModelSettingsStore, SqliteModelSettingsStore>();
         services.AddSingleton<IAiRequestStore, SqliteAiRequestStore>();
         services.AddSingleton<IBranchStore, SqliteBranchStore>();
+        services.AddSingleton<IConversationArchiveStore, SqliteArchiveStore>();
         services.TryAddSingleton<IReadingStateStore, SqliteReadingStateStore>();
         services.AddSingleton<IContextSummaryStore, SqliteContextSummaryStore>();
         services.TryAddSingleton<ISummaryStore, SqliteSummaryStore>();

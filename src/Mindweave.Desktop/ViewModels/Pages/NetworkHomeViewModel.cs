@@ -51,6 +51,7 @@ public sealed partial class NetworkHomeViewModel : PageViewModel, IDisposable
         _load = new SerialRefresh(LoadAsync);
         _reload = new UiThrottle(dispatcher, TimeSpan.FromMilliseconds(30), () => _ = _load.Request());
         _summaries.Changed += OnChanged;
+        _conversations.VisibilityChanged += OnVisibilityChanged;
         Session.PropertyChanged += OnSessionChanged;
         Session.Discarded += OnDiscarded;
         Loaded = _load.Request();
@@ -181,6 +182,7 @@ public sealed partial class NetworkHomeViewModel : PageViewModel, IDisposable
     {
         _disposed = true;
         _summaries.Changed -= OnChanged;
+        _conversations.VisibilityChanged -= OnVisibilityChanged;
         Session.PropertyChanged -= OnSessionChanged;
         Session.Discarded -= OnDiscarded;
     }
@@ -194,6 +196,15 @@ public sealed partial class NetworkHomeViewModel : PageViewModel, IDisposable
     }
 
     private void OnChanged(object? sender, ConversationId e)
+    {
+        if (!_disposed)
+        {
+            _reload.Request();
+        }
+    }
+
+    /// <summary>A source was archived, restored or deleted: its node's "source archived" marker may have changed.</summary>
+    private void OnVisibilityChanged(object? sender, IReadOnlyList<ConversationId> e)
     {
         if (!_disposed)
         {
@@ -223,7 +234,7 @@ public sealed partial class NetworkHomeViewModel : PageViewModel, IDisposable
         Items.Clear();
         foreach (var node in Session.Projection.Nodes)
         {
-            var markers = UiText.Markers(node.Markers);
+            var markers = string.Join(" · ", new[] { UiText.Markers(node.Markers), node.SourceArchived ? UiText.SourceArchived : string.Empty }.Where(m => m.Length > 0));
             Items.Add(new SummaryListItem(node.Id, node.DisplayName, markers, markers.Length > 0));
         }
 
@@ -255,7 +266,7 @@ public sealed partial class NetworkHomeViewModel : PageViewModel, IDisposable
             node.DisplayName,
             node.ShortTitle,
             UiText.Markers(node.Markers),
-            UiText.NodeSource(_titles.GetValueOrDefault(node.Conversation) ?? UiText.NewConversation),
+            UiText.NodeSource(_titles.GetValueOrDefault(node.Conversation) ?? UiText.NewConversation, node.SourceArchived),
             UiText.NodeCreated(node.CreatedAt),
             edge is null ? null : UiText.ViaUnsummarized([.. edge.Via.Select(c => _titles.GetValueOrDefault(c) ?? UiText.NewConversation)]));
     }

@@ -108,3 +108,25 @@ A 与 C 互不相交，各开工作树并行；B 动协调器（按会话取消�
 - **审查后修正（00ab220）**：任何异常都不再从导出按钮抛到界面线程（关闭的存储、对话框异常都转为提示）；来源会话名由界面层按侧栏同一规则传入（不在应用层复制 UiText 的规则）；文件名去掉重复的 `.md`、识别“设备名＋空格＋扩展名”、按 UTF-8 不超过 240 字节截断；“被占用”与“只读”改看只读属性区分，补“编辑器占用但允许读取”的 Windows 用例；重试成功用例改用长窗口，消除计时抖动。未修：沙盒位置（无本地路径）在导出被拒绝时不释放 `IStorageFile`（罕见，记为已知）；崩溃在临时文件与替换之间时，用户目录留下 `.mindweave-export-*.tmp`。
 - **给 A 块的接口**：`SummaryExportService.WhenIdleAsync()`（从不抛错）与 `InProgress`。只计“重读＋写入”这一步，不计打开着的保存对话框；A 块在关闭存储前 `await` 它即可。若对话框打开时退出已完成并释放了存储，随后的导出会因存储已释放而失败——这一路径未处理，留给 A 块决定（例如退出开始后拒绝新的导出）。
 - **未验证**：Windows 上的三项（目标被独占句柄占用时重试后报“正被使用”、占用在窗口内释放后成功、只读文件报“只读”）只写了测试、标为仅限 Windows，本机跳过，需在 `scripts/windows.sh test` 中跑；`File.Move` 覆盖被占用文件时 Windows 报共享冲突还是拒绝访问未实测，两种都按重试处理。真实系统保存对话框（建议文件名、覆盖确认、扩展名补全）没有在桌面会话中手动走过；无本地路径的回退只用文件流模拟过。macOS 上覆盖只读文件会成功（改名不受目标只读属性限制），与 Windows 行为不同。
+
+## 实现记录（B 归档与删除）
+
+- **迁移 v8**：`conversation_archive(conversation_id 主键 → conversation ON DELETE CASCADE, archived_at)`，STRICT、WITHOUT ROWID；同一迁移加索引 `branch_context_range_by_ancestor`（按祖先找子树，归档检查与恢复计数用）。迁移照旧单事务、先做校验过的备份；`SchemaV8MigrationTests` 从真实 v7 数据升级（有备份、无归档行、外键检查干净；归档行随会话级联删除）。
+- **隐藏只在读取时推导**：会话自身或 `branch_context_range` 中任一祖先有归档行即隐藏（`SqliteArchive.HiddenCondition`），从不给后代写标记。侧栏列表在同一条查询里带出 `IsArchived`／`IsHidden`，祖先查找走范围表主键（`child_id` 在前）；用 `EXPLAIN QUERY PLAN` 断言为 `SEARCH … USING PRIMARY KEY (child_id=?)`、没有表扫描。没有跑完整规模基准（`scripts/perf.sh`）。
+- **存储**：新接口 `IConversationArchiveStore`（`SqliteArchiveStore`）：子树、归档、恢复计划、恢复、删除、`ArchivedAmongAsync`。每个写操作在一个写队列事务里先检查再写。
+  - 归档：子树（本会话＋所有范围包含它的子会话）里有排队或运行中的回答／总结（看任务行，回答另看未终态消息）则拒绝并列出这些会话；否则只写本会话一行。
+  - 恢复（D-021）：清除路径上（自身＋被归档的祖先）的归档行，返回因此重新可见的会话；路径外的单独归档不动。恢复计划给出被归档的祖先与“其他重新出现的分支数”（不含自身与这些祖先）。
+  - 删除：仅当无子分支、无总结节点、无未结束的回答／总结时执行，否则一次返回全部原因（`DeleteBlockers` 位标志）。删除顺序：该会话全部任务行（`ai_request` 级联）→ 本会话作为子分支的来源行 → 把消息的 `supersedes_id` 置空 → 删消息 → 把指向它的 `workspace_location.content_key` 清空 → 删会话（块、草稿、阅读位置、上下文摘要、范围、归档行级联）。用例检查重试／重新生成链删除后**整个库里每张表每个文本列**都不再出现该会话、其消息与任务的 ID（及页面键），且 `PRAGMA foreign_key_check` 干净。
+- **事务内强制**：`AppendQuestionAsync`、`AddRetryAsync`、`AddTaskAsync`、分支创建都在事务内检查“会话存在且未隐藏”，抛 `ConversationArchivedException`／`ConversationMissingException`；服务映射为 `SendRejection.ConversationArchived／ConversationMissing`、`SummarizeRejection` 同名项、`BranchRejection.ConversationArchived`。用例绕过服务直接调存储，同样被拒、不留任务行。
+- **服务**：`ConversationService.ArchiveAsync／PlanRestoreAsync／RestoreAsync／DeleteAsync／ArchivedAmongAsync`，新事件 `VisibilityChanged`，并对每个受影响会话（及删除时的父会话）发 `ConversationChanged`。归档前用 `GenerationCoordinator.CancelBackgroundAsync(会话集合)` 取消子树的标题与命名（排队的标为取消、运行的停止并等待结束；标题照旧发 `TitleAbandoned`，恢复后下一次回答完成时再排）；删除前同样取消本会话的。协调器的 `SaveAsync` 遇到 `ConversationMissingException` 只记日志、按“未生效”处理，不进入存储暂停。
+- **界面**（只求可用，观感留给 S7）：侧栏过滤隐藏会话，底部“已归档（N）”（N＝主动归档的会话数，N＞0 才显示）打开 `ArchivedRoute`（探索分区，可作为最后页面恢复）。归档页按树列出全部隐藏会话（以主动归档的会话为根，单独归档的子分支原位标“已归档”），每行可打开、恢复、删除。会话页：头部“归档”“删除”；隐藏时只读（输入框换成说明＋“恢复并继续”，“总结此会话”换成“恢复并总结”，不能重试、不能从选区分支），说明区分“已归档”与“所在的上级会话已归档：…”。深层恢复先确认（列出祖先与重新出现的分支数）。删除先确认（不可撤销、未发送草稿一并删除）；被拒时列出全部原因并提供“归档”。删除后 `Workbench.Forget(谓词, 回退页)` 从所有工作区、槽位、分区栈中移除并释放该会话的页面；正在看它则打开父会话，根会话则回到探索首页。父会话答案下指向单独归档子分支的书签保留并标“已归档”。网络节点与列表视图带 `SourceArchived`：详情的来源行加“（来源已归档）”，列表的标记加“来源已归档”；画布与布局行不变。
+- **偏差**：
+  - 归档／删除放在独立接口，没有扩充 `IConversationStore`（测试里包装该接口的假存储不必跟着改）。
+  - 消息删除用“先置空 `supersedes_id` 再删”，没有用 `ORDER BY seq DESC`：SQLite 默认编译不支持带 `ORDER BY` 的 `DELETE`。
+  - 隐藏会话不仅拒绝回答／总结任务，**也拒绝新的标题任务**（命名任务照常，因为它属于总结节点）：否则归档取消标题后、紧接着排上的标题仍会漏进来。被拒时清除“已请求标题”标记，恢复后可再排。
+  - 只有深层恢复（会清除祖先的标记）才确认；恢复自己归档的会话、以及归档本身都不确认（可逆）。
+  - 被取消的命名任务原来会让该同名组的“已排队”标记一直留着（本会话内不再命名），归档会触发这种取消，因此在命名任务结束（无论是否产出）时清除该标记。
+  - 分支的父会话已被删除时仍报“来源回答已不存在”（`SourceNotFound`），没有新加一个“会话不存在”的分支拒绝原因。
+  - 页面键格式 `conversation:{id}` 移到 `PageLocation.ConversationKey`（应用层），因为删除事务要清空指向它的最后位置；`ConversationRoute` 改为引用它。
+  - 总结页本身不显示“来源已归档”，只在网络详情与列表里标；从总结回到来源会话时会话页只读并带标记。
+- **未验证**：没有在真实窗口里手动操作（只有无界面测试与截图 `08-archived`）；Windows 未跑；完整规模性能基准未跑；归档／删除事务中杀进程的故障注入留给 D 块；确认框显示后、点确认前路径上的归档状态若被别处改变，恢复按事务内重新计算的路径执行，确认文字可能与实际清除的祖先不一致（罕见，未处理）；标题与删除的竞态只在存储层构造（删除绕过服务、标题仍在运行），没有构造“取消之后才排上的标题”这一真实时序。

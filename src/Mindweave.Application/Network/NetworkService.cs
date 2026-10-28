@@ -7,6 +7,7 @@ namespace Mindweave.Application.Network;
 
 /// <summary>A summary node as the network draws it: short label, full name for details, markers, where it came from.</summary>
 /// <param name="Root">The root conversation of its exploration; groups the network even when the root has no summary.</param>
+/// <param name="SourceArchived">The source conversation is hidden by an archive; the node and its place stay (D-021).</param>
 public sealed record NetworkNode(
     SummaryNodeId Id,
     ConversationId Conversation,
@@ -14,7 +15,8 @@ public sealed record NetworkNode(
     string ShortTitle,
     string DisplayName,
     SummaryMarkers Markers,
-    DateTimeOffset CreatedAt);
+    DateTimeOffset CreatedAt,
+    bool SourceArchived = false);
 
 /// <summary>
 /// A real exploration source between two summarized conversations (architecture §11). <paramref name="Via"/> lists
@@ -47,7 +49,8 @@ public sealed class NetworkService(ISummaryStore summaries, INetworkStore networ
                 SummaryRules.ShortTitleOf(e.Current),
                 e.Node.DisplayName,
                 e.Markers,
-                e.Node.CreatedAt))
+                e.Node.CreatedAt,
+                e.SourceArchived))
             .ToList();
 
         // Each node links to its nearest summarized ancestor; unsummarized conversations in between are kept on the

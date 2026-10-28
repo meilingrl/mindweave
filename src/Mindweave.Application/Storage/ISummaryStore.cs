@@ -4,8 +4,11 @@ using Mindweave.Core.Workspaces;
 
 namespace Mindweave.Application.Storage;
 
-/// <summary>A node with its current version and what its markers need, for lists and the conversation header.</summary>
-public sealed record SummaryEntry(SummaryNode Node, SummaryVersion Current, SummaryMarkers Markers);
+/// <summary>
+/// A node with its current version and what its markers need, for lists and the conversation header.
+/// <paramref name="SourceArchived"/>: the source conversation is hidden by an archive (the node stays, marked).
+/// </summary>
+public sealed record SummaryEntry(SummaryNode Node, SummaryVersion Current, SummaryMarkers Markers, bool SourceArchived = false);
 
 /// <summary>Everything a summary page shows for one node.</summary>
 public sealed record SummaryDetail(

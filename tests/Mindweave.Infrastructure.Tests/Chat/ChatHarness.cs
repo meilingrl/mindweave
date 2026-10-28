@@ -41,7 +41,8 @@ internal sealed class ChatHarness : IAsyncDisposable
             NullLogger<GenerationCoordinator>.Instance,
             new ContextCompressor(Summaries, ActiveClient, new SystemClock(), NullLogger<ContextCompressor>.Instance));
         Models = new ModelSettingsService(Settings, Store, Credentials, ActiveClient, new SystemClock(), NullLogger<ModelSettingsService>.Instance);
-        Conversations = new ConversationService(storeOverride ?? Store, Branches, Generation, Models, new SystemClock(), NullLogger<ConversationService>.Instance, Summaries);
+        Archive = new SqliteArchiveStore(Database);
+        Conversations = new ConversationService(storeOverride ?? Store, Branches, Generation, Models, new SystemClock(), NullLogger<ConversationService>.Instance, Summaries, Archive);
         Reading = new ReadingStateService(ReadingStore, new SystemClock(), NullLogger<ReadingStateService>.Instance, TimeSpan.FromMilliseconds(20));
         SummaryNodes = new SqliteSummaryStore(Database);
         SummaryService = new Application.Summaries.SummaryService(
@@ -58,6 +59,8 @@ internal sealed class ChatHarness : IAsyncDisposable
     public SqliteAiRequestStore Requests { get; }
 
     public SqliteBranchStore Branches { get; }
+
+    public SqliteArchiveStore Archive { get; }
 
     public SqliteReadingStateStore ReadingStore { get; }
 

@@ -73,6 +73,10 @@ public sealed class Workbench : ObservableObject, IWorkbenchNavigator
         {
             Navigate(new NavigationRequest(MainSection.Network, summary));
         }
+        else if (restoring && last!.ContentKey == ArchivedRoute.RouteKey)
+        {
+            Navigate(new NavigationRequest(MainSection.Explore, ArchivedRoute.Instance));
+        }
     }
 
     public void AddWorkspace(Workspace workspace)
@@ -132,6 +136,49 @@ public sealed class Workbench : ObservableObject, IWorkbenchNavigator
         }
 
         PushCore(runtime, slot, route);
+        Changed();
+    }
+
+    public void Forget(Func<ContentRoute, bool> match, ContentRoute? fallback = null)
+    {
+        ArgumentNullException.ThrowIfNull(match);
+        var shown = CurrentPage;
+        var shownForgotten = false;
+        foreach (var stack in _runtimes.Values.SelectMany(r => r.Slots).SelectMany(s => s.Stacks))
+        {
+            // Index 0 is the section home, which never matches content that can disappear.
+            for (var i = stack.Count - 1; i >= 1; i--)
+            {
+                if (match(stack[i].Route))
+                {
+                    var page = stack[i];
+                    shownForgotten |= ReferenceEquals(page, shown);
+                    stack.RemoveAt(i);
+                    Release(page);
+                }
+            }
+        }
+
+        if (shownForgotten && _active is { } runtime && ActiveSlot is { } slot)
+        {
+            slot.Section = MainSection.Explore;
+            EnsureHome(runtime, slot);
+            if (fallback is not null)
+            {
+                PushCore(runtime, slot, fallback);
+            }
+            else
+            {
+                var explore = slot.StackOf(MainSection.Explore);
+                while (explore.Count > 1)
+                {
+                    var leaving = explore[^1];
+                    explore.RemoveAt(explore.Count - 1);
+                    Release(leaving);
+                }
+            }
+        }
+
         Changed();
     }
 

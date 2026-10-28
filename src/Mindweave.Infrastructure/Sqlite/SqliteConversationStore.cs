@@ -15,12 +15,14 @@ internal sealed class SqliteConversationStore(SqliteDatabase database) : IConver
         database.ReadAsync<IReadOnlyList<ConversationSummary>>(
             connection =>
             {
-                using var command = connection.Command(null, """
+                using var command = connection.Command(null, $"""
                     SELECT c.id, c.workspace_id, c.title, c.title_source, c.created_at, c.updated_at,
                            (SELECT b.text FROM message m JOIN message_block b ON b.message_id = m.id AND b.ordinal = 0
                             WHERE m.conversation_id = c.id AND m.role = 'user' ORDER BY m.seq LIMIT 1),
                            (SELECT state FROM message WHERE conversation_id = c.id AND role = 'assistant' ORDER BY seq DESC LIMIT 1),
-                           s.parent_id, s.quote
+                           s.parent_id, s.quote,
+                           EXISTS (SELECT 1 FROM conversation_archive a WHERE a.conversation_id = c.id),
+                           {SqliteArchive.HiddenCondition("c.id")}
                     FROM conversation c LEFT JOIN branch_source s ON s.child_id = c.id
                     WHERE c.workspace_id = $ws
                     ORDER BY c.updated_at DESC, c.rowid DESC;
@@ -36,7 +38,9 @@ internal sealed class SqliteConversationStore(SqliteDatabase database) : IConver
                         reader.NullableString(6),
                         last is null ? null : SqlNames.ParseMessageState(last),
                         parent is null ? null : ConversationId.Parse(parent),
-                        reader.NullableString(9)));
+                        reader.NullableString(9),
+                        IsArchived: reader.GetInt64(10) != 0,
+                        IsHidden: reader.GetInt64(11) != 0));
                 }
 
                 return list;
@@ -80,6 +84,7 @@ internal sealed class SqliteConversationStore(SqliteDatabase database) : IConver
         return database.WriteAsync(
             (connection, transaction) =>
             {
+                SqliteArchive.RequireOpenForWork(connection, transaction, question.ConversationId);
                 ThrowIfUnfinished(connection, transaction, question.ConversationId);
                 var next = NextSeq(connection, transaction, question.ConversationId);
                 var storedQuestion = question with { Seq = next };
@@ -99,7 +104,8 @@ internal sealed class SqliteConversationStore(SqliteDatabase database) : IConver
         return database.WriteAsync(
             (connection, transaction) =>
             {
-                // Re-checked inside the transaction: only the last, finished answer may be superseded.
+                // Re-checked inside the transaction: only the last, finished answer of an open conversation may be superseded.
+                SqliteArchive.RequireOpenForWork(connection, transaction, answer.ConversationId);
                 var messages = GetMessages(connection, transaction, answer.ConversationId);
                 if (answer.Supersedes is not { } replaced || !ConversationRules.CanRetry(messages, replaced))
                 {
@@ -115,8 +121,28 @@ internal sealed class SqliteConversationStore(SqliteDatabase database) : IConver
             cancellationToken);
     }
 
-    public Task AddTaskAsync(GenerationTaskRecord task, CancellationToken cancellationToken) =>
-        database.WriteAsync((connection, transaction) => InsertTask(connection, transaction, task), cancellationToken);
+    public Task AddTaskAsync(GenerationTaskRecord task, CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(task);
+        return database.WriteAsync(
+            (connection, transaction) =>
+            {
+                // A hidden conversation gets no answer or summary (D-021), and no title either: archiving cancelled its
+                // titles, and one scheduled just after must not slip in. Naming concerns a summary node, which stays
+                // usable when its source is archived. A deleted conversation is reported as such, not as a failed key.
+                if (task.Kind == GenerationTaskKind.Naming)
+                {
+                    SqliteArchive.RequireConversation(connection, transaction, task.ConversationId);
+                }
+                else
+                {
+                    SqliteArchive.RequireOpenForWork(connection, transaction, task.ConversationId);
+                }
+
+                return InsertTask(connection, transaction, task);
+            },
+            cancellationToken);
+    }
 
     public Task<bool> MarkRunningAsync(GenerationTaskId task, MessageId? answer, DateTimeOffset at, CancellationToken cancellationToken) =>
         database.WriteAsync(
