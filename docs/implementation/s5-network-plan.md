@@ -38,6 +38,8 @@
 8. Task3为元信息展示补齐来源会话名称：`NetworkNode`追加可选`ConversationTitle`，由projector使用已经读取的conversation.Title填写，不额外读正文或改表。旧两参数调用仍可编译；正式数据使用真实名称，不把GUID当作用户可读来源。
 9. Task3将会话状态／读取放`NetworkSession.cs`、布局与视口放`NetworkSession.Layout.cs`、保存与pending排空放`NetworkSession.Persistence.cs`，避免新会话类长成一个大文件；公开接口仍由一个session承载。
 
+10. 控件可见圆点与世界节点中心严格一致；透明普通Button保留200×112测量／点击范围，标题与分离状态在边界内。22像素圆点、选择描边、真实来源线共享投影，不把侧方装饰圆点当语义中心。
+
 ## 接口契约（各任务使用同名类型）
 
 新目录 `Mindweave.Core/Network`、`Mindweave.Application/Network`、`Mindweave.Desktop/Network`。Core 仅 `NodePosition` 与坐标校验；关系 DTO 在 Application。
@@ -186,10 +188,12 @@ Assert.False(transport.WasStopped);
 
 **Interfaces:** 消费 Task3公开VM/node属性与Task2同一world/screen变换；注册 `NetworkViewModel => NetworkView`。Nodes普通Button/轻量Control，Tab／方向键选择、Enter显式打开；circle+短标题，选中描边、‘未读’、‘候选’分别文字/形状，来源路径元数据可选择复制。连线仅真实edge，hiddenCount>0虚线+‘经N个未总结会话’，可在选中元信息查完整path，不能只靠颜色。
 
-- [ ] Headless RED验证实际控件树：每节点普通control的AutomationName／tab可达，single只metadata（reading表全行不变），double或Open调用Summary路由；Save有软盘图标、tooltip与Name‘保存布局’，clean disabled、dirtydot、saving busy；CmdS/CtrlS仅网络动作可达时触发一次，输入正文编辑不截走保存快捷键。
-- [ ] focused `--filter FullyQualifiedName~NetworkInteractionTests` RED；实现控制树，background/edges自绘，节点与连线用同一变换；PointerCapture仅空白pan（不把节点点击变拖动），两轴wheel平移／modifier或可选directWheelzoom／buttons，放开／capturelost停止pan；resize不改camera。控件Attach/Detach订阅成对，重建不泄漏session或丢viewport，fit等到实际可用size。
-- [ ] 工具栏窄窗换行，search/FindNext、ShowAll、Arrange、zoom和比例、Save/error/retry；无节点给探索总结入口说明，不显示假节点。选择详情与路径控制宽度，标题长内容截短但完整metadata可读。所有UI文案不暴露后台revision／hash等实现细节。
-- [ ] 真控件输入测试pointer zoom保持、blank pan、modifier/no modifier、ShowAll不脏、Arrange变脏、disabledsave不触发、search显示所有节点只突出匹配、doubleopens、不读metadata、emptyresize、detach重建、500nodes树build/render报告。focused GREEN后完整 Release＋build各一次，固定最终源；提交 `feat: render accessible summary network with navigation controls`。原生Mouse／性能与Windows另行验收，测试不冒充实机。
+- [x] Headless RED验证实际控件树：每节点普通control的AutomationName／tab可达，single只metadata（reading表全行不变），double或Open调用Summary路由；Save有软盘图标、tooltip与Name‘保存布局’，clean disabled、dirtydot、saving busy；CmdS/CtrlS仅网络动作可达时触发一次，输入正文编辑不截走保存快捷键。
+- [x] focused `--filter FullyQualifiedName~NetworkInteractionTests` RED；实现控制树，background/edges自绘，节点与连线用同一变换；PointerCapture仅空白pan（不把节点点击变拖动），两轴wheel平移／modifier或可选directWheelzoom／buttons，放开／capturelost停止pan；resize不改camera。控件Attach/Detach订阅成对，重建不泄漏session或丢viewport，fit等到实际可用size。
+- [x] 工具栏窄窗换行，search/FindNext、ShowAll、Arrange、zoom和比例、Save/error/retry；无节点给探索总结入口说明，不显示假节点。选择详情与路径控制宽度，标题长内容截短但完整metadata可读。所有UI文案不暴露后台revision／hash等实现细节。
+- [x] 真控件输入测试pointer zoom保持、blank pan、modifier/no modifier、ShowAll不脏、Arrange变脏、disabledsave不触发、search显示所有节点只突出匹配、doubleopens、不读metadata、emptyresize、detach重建、500nodes树build/render报告。focused GREEN后完整 Release＋build各一次，固定最终源；提交 `feat: render accessible summary network with navigation controls`。原生Mouse／性能与Windows另行验收，测试不冒充实机。
+
+**结果：** `0482b88`，聚焦14通过／完整780通过＋2原有跳过、build零警告错误；独立任务审查Approved、C/I/M均0。Headless含真实绘制帧与可见圆点对齐，原生、Windows、高DPI及持续性能独立。
 
 ## 控制器收尾检查（任务完成后顺序执行）
 
