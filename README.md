@@ -2,7 +2,7 @@
 
 面向个人日常好奇与非专业专题学习的 AI 对话探索工具。
 
-本工作目录为 **Codex 稳健轨**，已按确认的需求 v0.11 开始正式开发。当前实现范围、验证与下一步见 [TRACK.md](TRACK.md)，网络阶段见[S5实施计划](docs/implementation/s5-network-plan.md)，S4计划与分层验证见[总结验证记录](docs/implementation/s4-verification.md)，S3 的实现验证见[上下文验证记录](docs/implementation/s3-verification.md)，S2 的分支验证见[分支验证记录](docs/implementation/s2-verification.md)，S1 的真实服务记录见[聊天验证记录](docs/implementation/s1-verification.md)，S0 的数据关系见[基础实施记录](docs/implementation/s0-foundation.md)。共同需求与架构仍以 `main` 为准；它们记录共享设计，不代表各轨道的实时实现状态。
+本工作目录为 **Codex 稳健轨**，已按确认的需求 v0.11 开始正式开发。当前实现范围、验证与下一步见 [TRACK.md](TRACK.md)，网络阶段见[S5实施计划](docs/implementation/s5-network-plan.md)与[分层验证](docs/implementation/s5-verification.md)，S4计划与分层验证见[总结验证记录](docs/implementation/s4-verification.md)，S3 的实现验证见[上下文验证记录](docs/implementation/s3-verification.md)，S2 的分支验证见[分支验证记录](docs/implementation/s2-verification.md)，S1 的真实服务记录见[聊天验证记录](docs/implementation/s1-verification.md)，S0 的数据关系见[基础实施记录](docs/implementation/s0-foundation.md)。共同需求与架构仍以 `main` 为准；它们记录共享设计，不代表各轨道的实时实现状态。
 
 **仓库与分支：** [GitHub 私有仓库](https://github.com/meilingrl/mindweave)。`main` 是共享基线；`track/codex-steady`（稳健轨，课程提交版本）与 `track/claude-auto`（激进轨）从 `baseline-v0.11` 起分别开发，各自在 `../mindweave.worktrees/` 下有工作目录。分支约定见 [AGENTS.md](AGENTS.md)，各轨道状态见该分支的 `TRACK.md`。
 
@@ -33,9 +33,9 @@ dotnet test Mindweave.slnx -c Release
 
 默认数据位于系统本地应用数据目录的 `Mindweave/codex-steady/` 下。需要独立测试数据时，运行 `dotnet run --project src/Mindweave.Desktop -- --data-root /absolute/test/root`，程序会继续在该根目录下创建 `codex-steady/` 子目录。同一数据目录重复启动会唤回原窗口。
 
-macOS 可执行 `sh scripts/build-macos-dev-app.sh "$PWD/artifacts/s4-native-task8"`，生成 `artifacts/macos/Mindweave Codex.app`，双击即可体验。请先正常退出该应用，再重建；脚本检测到它仍在运行时会拒绝替换。脚本按本机架构从全新目录发布，准备完成后才替换应用，并将原包保留为 `artifacts/macos-previous/` 下带时间戳的 `.reference` 目录。这个开发启动器依赖本机已安装的 .NET，参数指定专用测试数据根目录；不传参数时沿用 `artifacts/s0-native/`，它不是独立发行包。
+macOS 可执行 `sh scripts/build-macos-dev-app.sh "$PWD/artifacts/s5-manual"`，生成 `artifacts/macos/Mindweave Codex.app`，双击即可体验。请先正常退出该应用，再重建；脚本检测到它仍在运行时会拒绝替换。脚本按本机架构从全新目录发布，准备完成后才替换应用，并将原包保留为 `artifacts/macos-previous/` 下带时间戳的 `.reference` 目录。这个开发启动器依赖本机已安装的 .NET，参数指定专用测试数据根目录；不传参数时沿用 `artifacts/s0-native/`，它不是独立发行包。
 
-当前桌面代码提供主题、会话、原生 Markdown 正文、流式发送／停止、末尾重试、草稿和最近会话恢复。先在设置填写兼容 Chat Completions 的服务、密钥、模型与预算，再新建会话明确点击发送。DeepSeek 地址与 `deepseek-flash` 只是可编辑的初始建议，保存不会自动发现模型或测试生成；模型目录须显式读取。密钥保存在本轨道的系统凭据命名空间，已有会话无密钥也可阅读。自动标题会单独发送请求并可能计费。正式桌面与 Headless 固定 Avalonia 12.1.4，Markdown 使用 LiveMarkdown.Avalonia 2.5.1，测试使用 xUnit v3 3.2.2；图片以不加载资源的提示文字显示，链接不自动打开。已接通选区分支、来源返回和独立阅读位置；已实现超预算时的上下文压缩、源会话摘要复用、失败保留和历史提示；已接通知识总结的冻结范围生成、总结列表／详情、每版本阅读与当前编辑；已实现候选采用、历史恢复、多选删除确认与节点显示名，S4软件审查、Mac合成原生及本轮受控真实样本已完成；图形网络与布局按S5计划实施中。S4实现与验收边界见[总结验证记录](docs/implementation/s4-verification.md)。S3 自动化与整阶段独立审查通过，macOS 合成核心与失败／拒绝路径已走查，真实模型质量／Windows及完整课程验收见 [S3 验证](docs/implementation/s3-verification.md)。
+当前桌面代码提供主题、会话、原生 Markdown 正文、流式发送／停止、末尾重试、草稿和最近会话恢复。先在设置填写兼容 Chat Completions 的服务、密钥、模型与预算，再新建会话明确点击发送。DeepSeek 地址与 `deepseek-flash` 只是可编辑的初始建议，保存不会自动发现模型或测试生成；模型目录须显式读取。密钥保存在本轨道的系统凭据命名空间，已有会话无密钥也可阅读。自动标题会单独发送请求并可能计费。正式桌面与 Headless 固定 Avalonia 12.1.4，Markdown 使用 LiveMarkdown.Avalonia 2.5.1，测试使用 xUnit v3 3.2.2；图片以不加载资源的提示文字显示，链接不自动打开。已接通选区分支、来源返回和独立阅读位置；已实现超预算时的上下文压缩、源会话摘要复用、失败保留和历史提示；已接通知识总结的冻结范围生成、总结列表／详情、每版本阅读与当前编辑；已实现候选采用、历史恢复、多选删除确认与节点显示名，S4软件审查、Mac合成原生及本轮受控真实样本已完成；已接通只包含保存总结的来源网络、自动布局、搜索与平移缩放、独立布局保存；当前验收边界见[S5验证](docs/implementation/s5-verification.md)。S4实现与验收边界见[总结验证记录](docs/implementation/s4-verification.md)。S3 自动化与整阶段独立审查通过，macOS 合成核心与失败／拒绝路径已走查，真实模型质量／Windows及完整课程验收见 [S3 验证](docs/implementation/s3-verification.md)。
 
 设置中的“摘要思考模式”默认为“服务默认”。DeepSeek官方连接可显式选择“关闭（仅DeepSeek官方摘要）”，只影响后续长历史压缩；普通回答和自动标题沿用服务默认。保存时密钥留空保留已有版本，设置变更不会自动发送请求。
 
