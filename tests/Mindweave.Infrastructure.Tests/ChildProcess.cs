@@ -9,7 +9,7 @@ public sealed class ChildProcess : IDisposable
 
     private ChildProcess(Process process) => _process = process;
 
-    public static ChildProcess Start(string command, string dataDirectory)
+    public static ChildProcess Start(string command, string dataDirectory, params string[] arguments)
     {
         var host = Path.Combine(AppContext.BaseDirectory, "Mindweave.TestHost.dll");
         var info = new ProcessStartInfo("dotnet")
@@ -21,6 +21,11 @@ public sealed class ChildProcess : IDisposable
         info.ArgumentList.Add(host);
         info.ArgumentList.Add(command);
         info.ArgumentList.Add(dataDirectory);
+        foreach (var argument in arguments)
+        {
+            info.ArgumentList.Add(argument);
+        }
+
         return new ChildProcess(Process.Start(info) ?? throw new InvalidOperationException("Could not start test host."));
     }
 

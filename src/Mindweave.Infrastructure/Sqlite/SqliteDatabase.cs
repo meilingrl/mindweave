@@ -52,6 +52,12 @@ public sealed partial class SqliteDatabase : IDatabaseLifecycle, IAsyncDisposabl
     /// </summary>
     internal Action<SqliteConnection, string>? BeforeBackupForTests { get; set; }
 
+    /// <summary>
+    /// Fault-injection seam for the test host only: runs inside every later write transaction after its statements and
+    /// before COMMIT, so a test can stop the process while a multi-table write is still uncommitted.
+    /// </summary>
+    internal Action<SqliteConnection, SqliteTransaction>? BeforeCommitForTests { get; set; }
+
     public bool IsOpen => Volatile.Read(ref _writer) is not null;
 
     public async Task<DatabaseOpenResult> OpenAsync(CancellationToken cancellationToken)
@@ -121,6 +127,17 @@ public sealed partial class SqliteDatabase : IDatabaseLifecycle, IAsyncDisposabl
     public Task<T> WriteAsync<T>(Func<SqliteConnection, SqliteTransaction, T> work, CancellationToken cancellationToken)
     {
         var writer = Volatile.Read(ref _writer) ?? throw new InvalidOperationException("The database is not open.");
+        if (BeforeCommitForTests is { } beforeCommit)
+        {
+            var inner = work;
+            work = (connection, transaction) =>
+            {
+                var result = inner(connection, transaction);
+                beforeCommit(connection, transaction);
+                return result;
+            };
+        }
+
         return writer.EnqueueAsync(work, cancellationToken);
     }
 

@@ -6,14 +6,19 @@ using Mindweave.Application.Ai;
 using Mindweave.Application.Conversations;
 using Mindweave.Application.Credentials;
 using Mindweave.Application.Models;
+using Mindweave.Application.Storage;
+using Mindweave.Core.Branches;
+using Mindweave.Core.Conversations;
+using Mindweave.Core.Summaries;
 using Mindweave.Core.Workspaces;
 using Mindweave.Infrastructure.Hosting;
 using Mindweave.Infrastructure.Sqlite;
 using Mindweave.Infrastructure.Sqlite.Migrations;
 
-if (args.Length != 2)
+if (args.Length < 2 || (args.Length > 2 && args[0] != "hang-before-commit"))
 {
     Console.Error.WriteLine("usage: Mindweave.TestHost <hold-lock|hang-in-migration|hang-in-backup|commit-then-hang|stream-then-hang> <data-dir>");
+    Console.Error.WriteLine("       Mindweave.TestHost hang-before-commit <data-dir> <operation> <id>...");
     return 64;
 }
 
@@ -137,9 +142,103 @@ switch (args[0])
         return 0;
     }
 
+    case "hang-before-commit":
+    {
+        // One runtime write runs through its real store; once its statements have run, the process blocks before
+        // COMMIT so the test can kill it inside the transaction. The page cache is kept tiny so a larger write spills
+        // uncommitted pages into the WAL first, as a big transaction does once it outgrows the cache.
+        await using var database = new SqliteDatabase(paths, MigrationCatalog.Default, TimeProvider.System, NullLogger<SqliteDatabase>.Instance);
+        var opened = await database.OpenAsync(CancellationToken.None);
+        if (!opened.IsReady)
+        {
+            Console.WriteLine($"not-ready {opened.Status}");
+            return 3;
+        }
+
+        var baseline = await database.WriteAsync(
+            (connection, transaction) =>
+            {
+                connection.Execute(transaction, "PRAGMA cache_size = 1;");
+                return connection.Scalar<long>(transaction, "SELECT total_changes();");
+            },
+            CancellationToken.None);
+        var wal = paths.DatabasePath + "-wal";
+        var walBefore = File.Exists(wal) ? new FileInfo(wal).Length : 0;
+        database.BeforeCommitForTests = (connection, transaction) =>
+        {
+            var changes = connection.Scalar<long>(transaction, "SELECT total_changes();") - baseline;
+            var walNow = File.Exists(wal) ? new FileInfo(wal).Length : 0;
+            Console.WriteLine($"in-transaction {changes} {walNow - walBefore}");
+            Thread.Sleep(Timeout.Infinite);
+        };
+
+        await KillPoint.RunAsync(database, args[2], args[3..]);
+        Console.WriteLine("committed");
+        return 5;
+    }
+
     default:
         Console.Error.WriteLine($"unknown command {args[0]}");
         return 64;
+}
+
+/// <summary>The runtime writes the transaction kill tests stop inside, each through the store the application uses.</summary>
+internal static class KillPoint
+{
+    public static async Task RunAsync(SqliteDatabase database, string operation, string[] ids)
+    {
+        var at = DateTimeOffset.UtcNow;
+        var none = CancellationToken.None;
+        switch (operation)
+        {
+            case "branch":
+                // parent, source answer, new child
+                await new SqliteBranchStore(database).CreateAsync(
+                    ConversationId.Parse(ids[0]), ConversationId.Parse(ids[2]), new BranchSelection(MessageId.Parse(ids[1]), 0, "q", "{\"v\":1}", 1, "test-profile"), at, none);
+                break;
+            case "adopt":
+                await new SqliteSummaryStore(database).AdoptAsync(SummaryNodeId.Parse(ids[0]), SummaryVersionId.Parse(ids[1]), at, none);
+                break;
+            case "delete-versions":
+                await new SqliteSummaryStore(database).DeleteVersionsAsync(SummaryNodeId.Parse(ids[0]), ids[1..].Select(SummaryVersionId.Parse).ToHashSet(), at, none);
+                break;
+            case "archive":
+                await new SqliteArchiveStore(database).ArchiveAsync(ConversationId.Parse(ids[0]), at, none);
+                break;
+            case "restore":
+                await new SqliteArchiveStore(database).RestoreAsync(ConversationId.Parse(ids[0]), none);
+                break;
+            case "delete":
+                await new SqliteArchiveStore(database).DeleteAsync(ConversationId.Parse(ids[0]), none);
+                break;
+            case "layout":
+                var workspace = WorkspaceId.Parse(ids[0]);
+                await new SqliteNetworkStore(database).SaveLayoutAsync(workspace, Layout(await NodesAsync(database, workspace)), at, none);
+                break;
+            default:
+                throw new ArgumentException($"unknown operation {operation}", nameof(operation));
+        }
+    }
+
+    /// <summary>The i-th node by ID goes to (10 i, 20 i); TransactionKillTests expects exactly these.</summary>
+    private static Dictionary<SummaryNodeId, NodePosition> Layout(IReadOnlyList<SummaryNodeId> nodes) =>
+        nodes.Select((node, i) => (node, i)).ToDictionary(p => p.node, p => new NodePosition(p.i * 10, p.i * 20));
+
+    private static Task<List<SummaryNodeId>> NodesAsync(SqliteDatabase database, WorkspaceId workspace) =>
+        database.ReadAsync(
+            connection =>
+            {
+                using var command = connection.Command(null, "SELECT id FROM summary_node WHERE workspace_id = $ws ORDER BY id;", ("$ws", workspace.ToString()));
+                using var reader = command.ExecuteReader();
+                var nodes = new List<SummaryNodeId>();
+                while (reader.Read())
+                {
+                    nodes.Add(SummaryNodeId.Parse(reader.GetString(0)));
+                }
+
+                return nodes;
+            },
+            CancellationToken.None);
 }
 
 internal sealed class OneKey : ICredentialStore

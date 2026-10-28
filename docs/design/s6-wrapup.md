@@ -161,6 +161,13 @@ A 与 C 互不相交，各开工作树并行；B 动协调器（按会话取消�
 | 恢复时库被独占（Windows） | `RestoreFailureTests.A_restore_while_another_program_holds_the_database_open_…`、`…_blocked_on_the_wal_index_…` | 仅限 Windows，本机跳过，待 `scripts/windows.sh test` 或 `stress` |
 | 写备份时杀进程 | `BackupKillTests.Killing_the_process_while_the_backup_is_written_leaves_no_listed_backup_and_the_next_start_recovers` | 修复后通过：半个备份（`*.db.partial`，有内容）不被列出、库仍是原版本与原数据；下次启动正常备份并迁移，残留被清掉 |
 | 界面级存储暂停 | `StoragePauseUiTests`（Desktop，真实窗口＋真实盘满） | 修复后通过：横幅显示原因，发送／重试／总结禁用、分支按钮可见但禁用并提示原因，已有与未存的回答可读、可选中，草稿保留；放开后自动恢复、终态已写入、可继续提问 |
+| 杀进程：创建分支 | `TransactionKillTests.Killing_the_process_while_a_branch_is_created_leaves_no_part_of_it` | 通过（无缺陷）：从分支再建分支，会话、来源行与两条祖先范围已写未提交（≥4 行变更）；重开后各表逐行与之前相同，同一 ID 再建成功、两条范围齐全 |
+| 杀进程：采用候选版本 | `TransactionKillTests.Killing_the_process_while_a_candidate_is_adopted_keeps_the_old_current_version` | 通过（无缺陷）：节点仍指向原当前版本、候选仍在；重开后采用成功 |
+| 杀进程：删除版本 | `TransactionKillTests.Killing_the_process_while_versions_are_deleted_keeps_every_version_and_its_read_state` | 通过（无缺陷）：删当前版本与第一版（节点改指第二版、两版及其阅读状态级联）未提交；重开后三版与三条阅读状态都在，再删成功，当前为第二版、阅读状态剩一条 |
+| 杀进程：归档子树 | `TransactionKillTests.Killing_the_process_while_a_subtree_is_archived_leaves_it_visible_and_its_queued_titles_queued` | 通过（无缺陷）：归档行与子树内排队的标题、命名两条取消未提交；重开后无归档行、两条任务仍为排队（随后启动恢复按惯例标为中断），再归档成功 |
+| 杀进程：深层恢复 | `TransactionKillTests.Killing_the_process_while_a_deep_restore_runs_keeps_every_archive_mark` | 通过（无缺陷）：恢复孙会话要清除路径上两个归档标记，未提交；重开后两标记仍在，再恢复成功、三者可见 |
+| 杀进程：删除会话 | `TransactionKillTests.Killing_the_process_while_a_conversation_is_deleted_keeps_all_of_it` | 通过（无缺陷）：带重试链（`supersedes_id`）、任务、请求记录、草稿、阅读位置、最后位置、归档标记的分支，删除的各步（≥8 行变更）未提交；重开后逐行相同、最后位置仍指向它，再删成功且外键干净 |
+| 杀进程：保存布局 | `TransactionKillTests.Killing_the_process_while_the_layout_is_saved_keeps_the_previous_layout` | 通过（无缺陷）：40 个节点（其中 10 个已有位置，既更新又插入）；子进程页缓存设为 1，未提交的页已溢出写进 WAL（断言 WAL 变长）后被杀；重开后仍是原 10 行原位置，再保存写入全部 40 个 |
 
 - **发现并修复的缺陷**（均先写出失败的测试，再改代码确认由失败变通过）：
   1. **提问、重试、新建会话、建分支、总结任务行写失败直接抛出**，不进入存储暂停（测试中表现为 `SqliteException` 从服务抛出）；界面上这会成为发送命令的未处理异常（按命令库的默认行为推断，未单独验证界面表现）。现在写队列把 SQLite 的存储类错误（满、忙／锁、只读、I/O、损坏）转换为 Application 层的 `StorageWriteException(Kind)`，约束冲突等请求本身的错误仍原样抛出；会话与总结服务捕获它，返回“存储不可用”并调用协调器 `ReportStorageFailure`。
@@ -172,6 +179,12 @@ A 与 C 互不相交，各开工作树并行；B 动协调器（按会话取消�
 - **新增接口与配置**：`SqliteDatabaseOptions.BusyTimeout`（默认 5 秒，测试 200 ms）同时决定 SQLite 的 `busy_timeout` 与驱动按整秒的命令超时（Microsoft.Data.Sqlite 对忙会在 `busy_timeout` 之外再重试到命令超时，只改前者等不短）；`SqliteDatabase.ProbeWriteAsync`；`ConversationService.IsStorageBlocked`／`StorageStateChanged`；会话页 `IsStorageBlocked`／`StorageNotice`、`Composer.IsStoragePaused`、`MessageItemViewModel.IsBranchPaused`。测试宿主新增 `hang-in-backup`。
 - **压力复测标记**：新的杀进程与锁用例（`BusyWriterTests`、`BackupKillTests`、`RestoreFailureTests`）标为 `Category=FaultInjection`，`stress` 工作流的默认过滤改为它（该文件在轨道分支变更时会自动跑一次 Windows）。本机每个这类用例单独连跑 5 次全部通过，界面两例连跑 5 次通过。等待都有上限（忙等待 15 秒内解除、子进程 60 秒内到达挂起点、Windows 上被杀进程的句柄最多等 5 秒释放）。
 - **偏差与限制**：探测要求库与磁盘都能再写约 64 KB，剩余空间更少时即使小写入还能成功也保持暂停（盘几乎满时宁可暂停）；暂停期间最多比旧逻辑多等一个重试间隔（5 秒）才解除。新建会话页的输入框没有接入暂停状态（发送仍会被拒并显示原因）；会话改名、总结页的编辑／采纳等写失败仍未统一转为暂停（改名命令异常仍可能落到界面线程），留待后续。
-- **未做（后续）**：归档、删除会话、创建分支、采用／删除版本、保存布局等多表事务中杀进程（等 B 块接口稳定）；只读文件造成的 I/O 错误；Windows 上两项独占句柄用例与全部 `FaultInjection` 用例在 `stress`／实机上的重复运行。
+- **未做（后续）**：~~归档、删除会话、创建分支、采用／删除版本、保存布局等多表事务中杀进程（等 B 块接口稳定）~~（已由下面的第二部分补上）；只读文件造成的 I/O 错误；Windows 上两项独占句柄用例与全部 `FaultInjection` 用例在 `stress`／实机上的重复运行。
 - **审查后修正**：(1) **探测写原来摸不到磁盘**：WAL 模式下回滚的写入既不进库文件也不进日志（审查实测文件大小与修改时间都不变），所以真实磁盘满时探测总是成功，暂停约 5 秒后被误解除；只对模拟的页数上限有效。现在探测分两步：写事务内的大写入后回滚（发现锁、只读、损坏与页数上限），再在数据目录写一个同样大小的文件并刷到磁盘后删除（发现真实的磁盘满）。新用例在数据目录不可写时探测必须失败，关掉文件探测即失败。(2) 总结版本保存失败只在确属存储拒绝写入时暂停全部请求；其他错误（约束、程序缺陷）只让该任务失败，不再显示“本地数据无法保存”，用例用触发器拒绝插入。(3) 记录失败与解除暂停在同一把锁内判定，消除“正在宣布恢复时又失败”的竞态。(4) 忙等待用例上限放宽到 4.5 秒（仍明显短于默认 5 秒）；磁盘满与断流用例加入 `FaultInjection` 类别，压力工作流会重复它们。
 - **合并 B 与 D 时补上**：归档、恢复、删除的写入遇到存储拒绝（盘满、锁、只读）时原先会把异常抛到界面线程。现在两处页面（会话页、归档页）都改为提示“本地数据暂时无法保存，没有做任何改动”，事务已整体回滚。用例用拒绝写入的归档存储逐项触发五个入口，去掉处理即失败。
+- **第二部分：多表事务中杀进程**（矩阵中“杀进程：”七行，`Faults/TransactionKillTests`）。
+  - **注入方式**：测试先经真实服务在临时数据目录造好数据并关库，再起子进程（测试宿主新命令 `hang-before-commit <数据目录> <操作> <ID…>`）用应用自己的存储执行一次写入。`SqliteDatabase` 新增仅供测试宿主的 `BeforeCommitForTests`（生产为 null，不包装写入）：在每个写事务的语句执行完、COMMIT 之前调用；宿主在其中报告本事务已做的行变更数（`total_changes()` 差值）与 WAL 增长量，然后挂住，测试在 60 秒内等到这一行后杀掉进程，并断言变更数达到该操作的最少语句数，证明确实停在事务中途而非开始前。
+  - **断言**：重开走应用的打开路径（`SqliteDatabase.OpenAsync`，Windows 上被杀进程仍映射 `-shm` 时由其 3 秒重试兜住）：状态为 Ready，`integrity_check` 为 ok、`foreign_key_check` 为空，且**每张表的每一行**与杀进程前逐行相同（不只比行数）；再跑 `StartupCoordinator`（启动恢复）到 ReadyToWork，最后用同一存储重做该操作并检查其结果与完整性。
+  - **反向核对**：临时让宿主在挂住前先提交事务，七例全部在“某表变了”处失败（如布局 10 行变 40 行、归档 0 行变 1 行），恢复后全部通过。本机七例各单独连跑 5 次全部通过。
+  - **结论**：七种写入各自只用一个写事务，SQLite 的 WAL 回滚使被杀时未提交的内容（包括布局例中已溢出到 WAL 的页）在重开后完全不可见；未发现产品缺陷，产品代码只加了上述测试钩子。
+  - **未覆盖的相邻窗口**：采用候选、删除版本、保存编辑后，服务层在**另一个**事务里让基础标题跟随新的当前版本（`SummaryService.CheckNameAsync` → `UpdateBaseTitleAsync`，再排命名任务）。在两次提交之间被杀，当前版本已换而基础标题／显示名仍是旧的，之后只有下一次当前版本变化才会再检查。这不是半个事务，但是一处“跟随”可能丢失；本次未构造该时序、未改代码，留给后续判断是否并入同一事务或在启动时补查。Windows 上这七例待 `stress` 工作流重复。
