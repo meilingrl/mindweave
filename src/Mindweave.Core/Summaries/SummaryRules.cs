@@ -14,11 +14,15 @@ public static class SummaryRules
 
     private const int MaxTitleLength = 40;
 
+    /// <summary>Longest network label kept from generated output, and the cut for falling back to the title.</summary>
+    public const int MaxShortTitleLength = 8;
+
     /// <summary>
-    /// Splits generated output into title and body: the first non-empty line, with an optional "标题：" or "Title:"
-    /// prefix and Markdown heading marks removed, is the title; the rest is the body. Null when either is empty.
+    /// Splits generated output into title, optional short title and body: the first non-empty line, with an optional
+    /// "标题：" or "Title:" prefix and Markdown heading marks removed, is the title; a following "短名：" line, if any,
+    /// is the network label; the rest is the body. Null when title or body is empty.
     /// </summary>
-    public static (string Title, string Body)? ParseGenerated(string output)
+    public static GeneratedSummary? ParseGenerated(string output)
     {
         ArgumentNullException.ThrowIfNull(output);
         var lines = output.Replace("\r\n", "\n", StringComparison.Ordinal).Split('\n');
@@ -28,24 +32,54 @@ public static class SummaryRules
             return null;
         }
 
-        var title = lines[first].Trim().TrimStart('#').Trim();
-        foreach (var prefix in new[] { "标题：", "标题:", "Title:", "title:" })
+        var title = Clean(StripPrefix(lines[first].Trim().TrimStart('#').Trim(), "标题：", "标题:", "Title:", "title:"));
+        var rest = first + 1;
+        string? shortTitle = null;
+        var next = Array.FindIndex(lines, rest, l => l.Trim().Length > 0);
+        if (next >= 0 && StripPrefix(lines[next].Trim(), "短名：", "短名:", "Short:", "short:") is var candidate && candidate != lines[next].Trim())
         {
-            if (title.StartsWith(prefix, StringComparison.Ordinal))
-            {
-                title = title[prefix.Length..].Trim();
-                break;
-            }
+            shortTitle = Clean(candidate) is { Length: > 0 } s ? (s.Length > MaxShortTitleLength ? s[..MaxShortTitleLength] : s) : null;
+            rest = next + 1;
         }
 
-        title = title.Trim('*', '"', '“', '”', '《', '》').Trim();
-        var body = string.Join('\n', lines[(first + 1)..]).Trim();
+        var body = string.Join('\n', lines[rest..]).Trim();
         if (title.Length == 0 || body.Length == 0)
         {
             return null;
         }
 
-        return (title.Length > MaxTitleLength ? title[..MaxTitleLength] : title, body);
+        return new GeneratedSummary(title.Length > MaxTitleLength ? title[..MaxTitleLength] : title, shortTitle, body);
+
+        static string StripPrefix(string line, params string[] prefixes)
+        {
+            foreach (var prefix in prefixes)
+            {
+                if (line.StartsWith(prefix, StringComparison.Ordinal))
+                {
+                    return line[prefix.Length..].Trim();
+                }
+            }
+
+            return line;
+        }
+
+        static string Clean(string text) => text.Trim('*', '"', '“', '”', '《', '》').Trim();
+    }
+
+    /// <summary>
+    /// The label a network node shows (S4 trial feedback): the current version's short title, or the start of its
+    /// title when the version has none (older versions, or output without a "短名" line).
+    /// </summary>
+    public static string ShortTitleOf(SummaryVersion version)
+    {
+        ArgumentNullException.ThrowIfNull(version);
+        if (version.ShortTitle is { Length: > 0 } shortTitle)
+        {
+            return shortTitle;
+        }
+
+        var runes = version.Title.EnumerateRunes().Take(MaxShortTitleLength + 1).ToList();
+        return runes.Count > MaxShortTitleLength ? string.Concat(runes.Take(MaxShortTitleLength)) + "…" : version.Title;
     }
 
     /// <summary>

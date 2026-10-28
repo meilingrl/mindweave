@@ -51,6 +51,7 @@ public static class CompositionRoot
         services.AddSingleton<ModelSettingsService>();
         services.AddSingleton<ConversationService>();
         services.AddSingleton<Application.Summaries.SummaryService>();
+        services.AddSingleton<Application.Network.NetworkService>();
         services.AddSingleton<ReadingStateService>();
         services.TryAddSingleton<IUiDispatcher, AvaloniaUiDispatcher>();
 

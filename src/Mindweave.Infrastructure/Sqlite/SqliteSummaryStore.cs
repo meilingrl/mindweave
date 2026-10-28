@@ -13,7 +13,7 @@ namespace Mindweave.Infrastructure.Sqlite;
 internal sealed class SqliteSummaryStore(SqliteDatabase database) : ISummaryStore
 {
     private const string NodeColumns = "id, workspace_id, conversation_id, current_version_id, pending_version_id, base_title, display_name, name_source, created_at, updated_at";
-    private const string VersionColumns = "id, node_id, seq, title, body, to_seq, origin, baseline_id, task_id, model, created_at";
+    private const string VersionColumns = "id, node_id, seq, title, body, to_seq, origin, baseline_id, task_id, model, created_at, short_title";
 
     /// <summary>Message states that are final; coverage and "later content" count only these.</summary>
     private const string Finished = "state NOT IN ('pending', 'streaming')";
@@ -36,7 +36,7 @@ internal sealed class SqliteSummaryStore(SqliteDatabase database) : ISummaryStor
         database.ReadAsync(connection => Detail(connection, null, node), cancellationToken);
 
     public Task<SummarySaved?> SaveGeneratedAsync(
-        GenerationTaskId task, ConversationId conversation, string title, string body, int toSeq, SummaryVersionId? baseline, string model, DateTimeOffset at, CancellationToken cancellationToken) =>
+        GenerationTaskId task, ConversationId conversation, GeneratedSummary summary, int toSeq, SummaryVersionId? baseline, string model, DateTimeOffset at, CancellationToken cancellationToken) =>
         database.WriteAsync<SummarySaved?>(
             (connection, transaction) =>
             {
@@ -57,7 +57,7 @@ internal sealed class SqliteSummaryStore(SqliteDatabase database) : ISummaryStor
                         throw new SummaryRefusedException(SummaryRefusal.HasCandidate);
                     }
 
-                    InsertVersion(connection, transaction, new(version, node.Id, NextSeq(connection, transaction, node.Id), title, body, toSeq, SummaryOrigin.Generated, baseline, task, model, at));
+                    InsertVersion(connection, transaction, new(version, node.Id, NextSeq(connection, transaction, node.Id), summary.Title, summary.Body, toSeq, SummaryOrigin.Generated, baseline, task, model, at, summary.ShortTitle));
                     connection.Execute(transaction, "UPDATE summary_node SET pending_version_id = $v, updated_at = $at WHERE id = $id;",
                         ("$id", node.Id.ToString()), ("$v", version.ToString()), ("$at", at.Ms()));
                     return new SummarySaved(node.Id, version, IsCandidate: true);
@@ -69,8 +69,8 @@ internal sealed class SqliteSummaryStore(SqliteDatabase database) : ISummaryStor
                 connection.Execute(transaction, $"""
                     INSERT INTO summary_node ({NodeColumns})
                     VALUES ($id, $ws, $conv, $v, NULL, $title, $title, 'base', $at, $at);
-                    """, ("$id", id.ToString()), ("$ws", workspace), ("$conv", conversation.ToString()), ("$v", version.ToString()), ("$title", title), ("$at", at.Ms()));
-                InsertVersion(connection, transaction, new(version, id, 1, title, body, toSeq, SummaryOrigin.Generated, null, task, model, at));
+                    """, ("$id", id.ToString()), ("$ws", workspace), ("$conv", conversation.ToString()), ("$v", version.ToString()), ("$title", summary.Title), ("$at", at.Ms()));
+                InsertVersion(connection, transaction, new(version, id, 1, summary.Title, summary.Body, toSeq, SummaryOrigin.Generated, null, task, model, at, summary.ShortTitle));
                 return new SummarySaved(id, version, IsCandidate: false);
             },
             cancellationToken);
@@ -218,7 +218,7 @@ internal sealed class SqliteSummaryStore(SqliteDatabase database) : ISummaryStor
 
                 // An edit keeps its baseline's coverage; it never extends to later messages.
                 var version = SummaryVersionId.New();
-                InsertVersion(connection, transaction, new(version, node, NextSeq(connection, transaction, node), title, body, source.ToSeq, SummaryOrigin.Edited, baseline, null, null, at));
+                InsertVersion(connection, transaction, new(version, node, NextSeq(connection, transaction, node), title, body, source.ToSeq, SummaryOrigin.Edited, baseline, null, null, at, source.ShortTitle));
                 connection.Execute(transaction, "UPDATE summary_node SET current_version_id = $v, updated_at = $at WHERE id = $id;",
                     ("$id", node.ToString()), ("$v", version.ToString()), ("$at", at.Ms()));
                 UpsertRead(connection, transaction, version, ReadSource.Edit, null, null, at);
@@ -400,7 +400,8 @@ internal sealed class SqliteSummaryStore(SqliteDatabase database) : ISummaryStor
                 reader.NullableString(7) is { } baseline ? SummaryVersionId.Parse(baseline) : null,
                 reader.NullableString(8) is { } task ? GenerationTaskId.Parse(task) : null,
                 reader.NullableString(9),
-                reader.Time(10)));
+                reader.Time(10),
+                reader.NullableString(11)));
         }
 
         return list;
@@ -441,7 +442,7 @@ internal sealed class SqliteSummaryStore(SqliteDatabase database) : ISummaryStor
 
     private static void InsertVersion(SqliteConnection connection, SqliteTransaction transaction, SummaryVersion v) =>
         connection.Execute(transaction, $"""
-            INSERT INTO summary_version ({VersionColumns}) VALUES ($id, $node, $seq, $title, $body, $to, $origin, $baseline, $task, $model, $at);
+            INSERT INTO summary_version ({VersionColumns}) VALUES ($id, $node, $seq, $title, $body, $to, $origin, $baseline, $task, $model, $at, $short);
             """,
             ("$id", v.Id.ToString()),
             ("$node", v.Node.ToString()),
@@ -453,7 +454,8 @@ internal sealed class SqliteSummaryStore(SqliteDatabase database) : ISummaryStor
             ("$baseline", v.Baseline?.ToString()),
             ("$task", v.Task?.ToString()),
             ("$model", v.Model),
-            ("$at", v.CreatedAt.Ms()));
+            ("$at", v.CreatedAt.Ms()),
+            ("$short", v.ShortTitle));
 
     /// <summary>Removes a version's text and its read state; nothing keeps a hidden copy (§8.2).</summary>
     private static int DeleteVersion(SqliteConnection connection, SqliteTransaction transaction, SummaryVersionId version) =>

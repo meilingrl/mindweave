@@ -1,0 +1,89 @@
+using Mindweave.Application.Storage;
+using Mindweave.Core.Conversations;
+using Mindweave.Core.Summaries;
+using Mindweave.Core.Workspaces;
+
+namespace Mindweave.Application.Network;
+
+/// <summary>A summary node as the network draws it: short label, full name for details, markers, where it came from.</summary>
+/// <param name="Root">The root conversation of its exploration; groups the network even when the root has no summary.</param>
+public sealed record NetworkNode(
+    SummaryNodeId Id,
+    ConversationId Conversation,
+    ConversationId Root,
+    string ShortTitle,
+    string DisplayName,
+    SummaryMarkers Markers,
+    DateTimeOffset CreatedAt);
+
+/// <summary>
+/// A real exploration source between two summarized conversations (architecture §11). <paramref name="Via"/> lists
+/// the conversations in between that have no summary, root side first; empty for a direct parent and child.
+/// </summary>
+public sealed record NetworkEdge(SummaryNodeId From, SummaryNodeId To, IReadOnlyList<ConversationId> Via)
+{
+    public bool IsDirect => Via.Count == 0;
+}
+
+public sealed record NetworkProjection(IReadOnlyList<NetworkNode> Nodes, IReadOnlyList<NetworkEdge> Edges);
+
+/// <summary>
+/// The workspace's network, derived from summaries and branch sources on every read (no second graph store), plus
+/// the saved node positions. Never reads summary bodies.
+/// </summary>
+public sealed class NetworkService(ISummaryStore summaries, INetworkStore network, IClock clock)
+{
+    public async Task<NetworkProjection> ProjectAsync(WorkspaceId workspace, CancellationToken cancellationToken)
+    {
+        var entries = await summaries.ListAsync(workspace, cancellationToken).ConfigureAwait(false);
+        var chains = await network.AncestorChainsAsync(workspace, cancellationToken).ConfigureAwait(false);
+        var byConversation = entries.ToDictionary(e => e.Node.Conversation);
+        var nodes = entries
+            .OrderBy(e => e.Node.CreatedAt).ThenBy(e => e.Node.Id.Value)
+            .Select(e => new NetworkNode(
+                e.Node.Id,
+                e.Node.Conversation,
+                chains.TryGetValue(e.Node.Conversation, out var chain) && chain.Count > 0 ? chain[0] : e.Node.Conversation,
+                SummaryRules.ShortTitleOf(e.Current),
+                e.Node.DisplayName,
+                e.Markers,
+                e.Node.CreatedAt))
+            .ToList();
+
+        // Each node links to its nearest summarized ancestor; unsummarized conversations in between are kept on the
+        // edge, never collapsed into a pretended direct parent.
+        var edges = new List<NetworkEdge>();
+        foreach (var node in nodes)
+        {
+            if (!chains.TryGetValue(node.Conversation, out var chain))
+            {
+                continue;
+            }
+
+            var via = new List<ConversationId>();
+            for (var i = chain.Count - 1; i >= 0; i--)
+            {
+                if (byConversation.TryGetValue(chain[i], out var ancestor))
+                {
+                    via.Reverse();
+                    edges.Add(new NetworkEdge(ancestor.Node.Id, node.Id, via));
+                    break;
+                }
+
+                via.Add(chain[i]);
+            }
+        }
+
+        return new NetworkProjection(nodes, edges);
+    }
+
+    public Task<IReadOnlyDictionary<SummaryNodeId, NodePosition>> GetLayoutAsync(WorkspaceId workspace, CancellationToken cancellationToken) =>
+        network.GetLayoutAsync(workspace, cancellationToken);
+
+    /// <summary>Saves a new node's automatic position by itself (U3); false when not written (node gone or already placed).</summary>
+    public Task<bool> PlaceAsync(WorkspaceId workspace, SummaryNodeId node, NodePosition position, CancellationToken cancellationToken) =>
+        network.PlaceAsync(workspace, node, position, clock.UtcNow, cancellationToken);
+
+    public Task<int> SaveLayoutAsync(WorkspaceId workspace, IReadOnlyDictionary<SummaryNodeId, NodePosition> positions, CancellationToken cancellationToken) =>
+        network.SaveLayoutAsync(workspace, positions, clock.UtcNow, cancellationToken);
+}

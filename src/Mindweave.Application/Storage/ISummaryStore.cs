@@ -77,7 +77,7 @@ public interface ISummaryStore
     /// Saves a successful summary and completes its task together (MW-C06): the first version of a new node, or a
     /// candidate of the existing one. Null when the task is no longer running (stopped or interrupted meanwhile).
     /// </summary>
-    Task<SummarySaved?> SaveGeneratedAsync(GenerationTaskId task, ConversationId conversation, string title, string body, int toSeq, SummaryVersionId? baseline, string model, DateTimeOffset at, CancellationToken cancellationToken);
+    Task<SummarySaved?> SaveGeneratedAsync(GenerationTaskId task, ConversationId conversation, GeneratedSummary summary, int toSeq, SummaryVersionId? baseline, string model, DateTimeOffset at, CancellationToken cancellationToken);
 
     Task AdoptAsync(SummaryNodeId node, SummaryVersionId candidate, DateTimeOffset at, CancellationToken cancellationToken);
 

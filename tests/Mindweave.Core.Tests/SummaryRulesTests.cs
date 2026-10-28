@@ -15,7 +15,26 @@ public class SummaryRulesTests
     {
         var parsed = SummaryRules.ParseGenerated(output);
 
-        Assert.Equal((title, body), parsed);
+        Assert.Equal(new GeneratedSummary(title, null, body), parsed);
+    }
+
+    [Fact]
+    public void A_short_title_line_after_the_title_is_the_network_label()
+    {
+        var parsed = SummaryRules.ParseGenerated("标题：早期蒸汽机车在铁路运输中的作用与局限\n短名：蒸汽机车\n\n正文");
+
+        Assert.Equal(new GeneratedSummary("早期蒸汽机车在铁路运输中的作用与局限", "蒸汽机车", "正文"), parsed);
+    }
+
+    [Fact]
+    public void Without_a_short_title_the_label_is_the_start_of_the_title()
+    {
+        var node = SummaryNodeId.New();
+        var version = new SummaryVersion(SummaryVersionId.New(), node, 1, "早期蒸汽机车在铁路运输中的作用", "正文", 1, SummaryOrigin.Generated, null, null, null, DateTimeOffset.UnixEpoch);
+
+        Assert.Equal("早期蒸汽机车在铁…", SummaryRules.ShortTitleOf(version));
+        Assert.Equal("蒸汽机车", SummaryRules.ShortTitleOf(version with { ShortTitle = "蒸汽机车" }));
+        Assert.Equal("蒸汽机", SummaryRules.ShortTitleOf(version with { Title = "蒸汽机" }));
     }
 
     [Theory]

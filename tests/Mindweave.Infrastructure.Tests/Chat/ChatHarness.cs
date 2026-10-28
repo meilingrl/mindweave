@@ -46,6 +46,7 @@ internal sealed class ChatHarness : IAsyncDisposable
         SummaryNodes = new SqliteSummaryStore(Database);
         SummaryService = new Application.Summaries.SummaryService(
             SummaryNodes, storeOverride ?? Store, Branches, Generation, Models, new SystemClock(), NullLogger<Application.Summaries.SummaryService>.Instance, Summaries);
+        Network = new Application.Network.NetworkService(SummaryNodes, new SqliteNetworkStore(Database), new SystemClock());
     }
 
     public SqliteDatabase Database { get; }
@@ -80,6 +81,8 @@ internal sealed class ChatHarness : IAsyncDisposable
     public SqliteSummaryStore SummaryNodes { get; }
 
     public Application.Summaries.SummaryService SummaryService { get; }
+
+    public Application.Network.NetworkService Network { get; }
 
     public WorkspaceId Workspace { get; private set; }
 

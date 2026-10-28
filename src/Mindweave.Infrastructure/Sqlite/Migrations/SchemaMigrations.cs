@@ -345,5 +345,22 @@ internal static class SchemaMigrations
                 updated_at  INTEGER NOT NULL
             ) STRICT, WITHOUT ROWID;
             """),
+
+        Migration.Sql(7, "summary short titles, network node layout", """
+            -- The label a network node shows (S4 trial feedback); versions made before have none and fall back to
+            -- the start of their title.
+            ALTER TABLE summary_version ADD COLUMN short_title TEXT;
+
+            -- Saved node positions (architecture §11.2): one row per node, the centre in absolute canvas
+            -- coordinates. The viewport is never stored. Dependent rows, removed with their node.
+            CREATE TABLE node_layout (
+                node_id      TEXT    NOT NULL PRIMARY KEY REFERENCES summary_node (id) ON DELETE CASCADE,
+                workspace_id TEXT    NOT NULL REFERENCES workspace (id) ON DELETE RESTRICT,
+                x            REAL    NOT NULL,
+                y            REAL    NOT NULL,
+                updated_at   INTEGER NOT NULL
+            ) STRICT, WITHOUT ROWID;
+            CREATE INDEX node_layout_by_workspace ON node_layout (workspace_id);
+            """),
     ];
 }

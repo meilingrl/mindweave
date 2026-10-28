@@ -41,7 +41,7 @@ public sealed class SummaryStoreTests : IAsyncLifetime
     {
         var task = await RunningTaskAsync();
 
-        var saved = await _store.SaveGeneratedAsync(task, Conversation, "蒸汽机", "正文", 1, null, "m", At, Ct);
+        var saved = await _store.SaveGeneratedAsync(task, Conversation, new GeneratedSummary("蒸汽机", null, "正文"), 1, null, "m", At, Ct);
 
         Assert.False(saved!.IsCandidate);
         var detail = (await _store.GetAsync(saved.Node, Ct))!;
@@ -57,7 +57,7 @@ public sealed class SummaryStoreTests : IAsyncLifetime
         var task = await RunningTaskAsync();
         await _database.WriteAsync((c, t) => c.Execute(t, $"UPDATE generation_task SET state = 'stopped' WHERE id = '{task}';"), Ct);
 
-        Assert.Null(await _store.SaveGeneratedAsync(task, Conversation, "蒸汽机", "正文", 1, null, "m", At, Ct));
+        Assert.Null(await _store.SaveGeneratedAsync(task, Conversation, new GeneratedSummary("蒸汽机", null, "正文"), 1, null, "m", At, Ct));
         Assert.Null(await _store.ForConversationAsync(Conversation, Ct));
     }
 
@@ -68,7 +68,7 @@ public sealed class SummaryStoreTests : IAsyncLifetime
         await AddMessagesAsync(2, 3);
         Assert.True((await _store.ForConversationAsync(Conversation, Ct))!.Markers.HasLaterContent);
 
-        var second = await _store.SaveGeneratedAsync(await RunningTaskAsync(), Conversation, "蒸汽机", "新正文", 3, first.Version, "m", At, Ct);
+        var second = await _store.SaveGeneratedAsync(await RunningTaskAsync(), Conversation, new GeneratedSummary("蒸汽机", null, "新正文"), 3, first.Version, "m", At, Ct);
 
         Assert.True(second!.IsCandidate);
         var detail = (await _store.GetAsync(first.Node, Ct))!;
@@ -227,10 +227,10 @@ public sealed class SummaryStoreTests : IAsyncLifetime
     private static (string, NameSource) Name(SummaryDetail? detail) => (detail!.Node.DisplayName, detail.Node.NameSource);
 
     private async Task<SummarySaved> FirstAsync() =>
-        (await _store.SaveGeneratedAsync(await RunningTaskAsync(), Conversation, "蒸汽机", "正文", 1, null, "m", At, Ct))!;
+        (await _store.SaveGeneratedAsync(await RunningTaskAsync(), Conversation, new GeneratedSummary("蒸汽机", null, "正文"), 1, null, "m", At, Ct))!;
 
     private async Task<SummaryVersionId> CandidateAsync(SummarySaved first) =>
-        (await _store.SaveGeneratedAsync(await RunningTaskAsync(), Conversation, "蒸汽机", $"候选 {Guid.NewGuid()}", 1, first.Version, "m", At, Ct))!.Version;
+        (await _store.SaveGeneratedAsync(await RunningTaskAsync(), Conversation, new GeneratedSummary("蒸汽机", null, $"候选 {Guid.NewGuid()}"), 1, first.Version, "m", At, Ct))!.Version;
 
     private async Task<GenerationTaskId> RunningTaskAsync()
     {

@@ -42,6 +42,35 @@ public sealed class SchemaV6MigrationTests : IDisposable
     }
 
     [Fact]
+    public async System.Threading.Tasks.Task Version_6_summaries_upgrade_to_7_without_short_titles_and_with_an_empty_layout()
+    {
+        await SeedVersion5Async();
+        await using (var v6 = _dir.Database(new MigrationCatalog(MigrationCatalog.Default.Migrations.Where(m => m.Version <= 6))))
+        {
+            Assert.True((await v6.OpenAsync(Ct)).IsReady);
+        }
+
+        using (var raw = _dir.Raw())
+        using (var transaction = raw.BeginTransaction())
+        {
+            SqliteConnections.Execute(raw, NodeRow, transaction);
+            SqliteConnections.Execute(raw, $"""
+                INSERT INTO summary_version (id, node_id, seq, title, body, to_seq, origin, created_at)
+                    VALUES ('{Version}', '{Node}', 1, '早期蒸汽机车在铁路运输中的作用', '正文', 1, 'generated', 5);
+                """, transaction);
+            transaction.Commit();
+        }
+
+        await using var database = _dir.Database();
+        Assert.True((await database.OpenAsync(Ct)).IsReady);
+
+        var detail = (await new SqliteSummaryStore(database).GetAsync(Core.Summaries.SummaryNodeId.Parse(Node), Ct))!;
+        Assert.Null(detail.Current.ShortTitle);
+        Assert.Equal("早期蒸汽机车在铁…", Core.Summaries.SummaryRules.ShortTitleOf(detail.Current));
+        Assert.Empty(await new SqliteNetworkStore(database).GetLayoutAsync(Core.Workspaces.WorkspaceId.Parse(Workspace), Ct));
+    }
+
+    [Fact]
     public async System.Threading.Tasks.Task A_summary_task_needs_its_coverage()
     {
         await SeedVersion5Async();
