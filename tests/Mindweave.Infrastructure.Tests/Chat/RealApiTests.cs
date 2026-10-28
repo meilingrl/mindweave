@@ -173,8 +173,11 @@ public class RealApiTests
         Assert.True(task.State == Application.Storage.GenerationTaskState.Completed, $"{task.State}: {task.Error} {task.Detail}");
 
         var entry = (await h.SummaryService.ForConversationAsync(conversation, Ct))!;
-        TestContext.Current.SendDiagnosticMessage($"title: {entry.Current.Title}\n{entry.Current.Body}");
+        TestContext.Current.SendDiagnosticMessage($"title: {entry.Current.Title}");
         Assert.InRange(entry.Current.Title.Length, 1, 40);
+        TestContext.Current.SendDiagnosticMessage($"short title: {entry.Current.ShortTitle}");
+        Assert.NotNull(entry.Current.ShortTitle);
+        Assert.InRange(entry.Current.ShortTitle.Length, 1, Core.Summaries.SummaryRules.MaxShortTitleLength);
         Assert.Contains("1829", entry.Current.Body, StringComparison.Ordinal);
         Assert.Contains("雨山", entry.Current.Body, StringComparison.Ordinal);
     }
