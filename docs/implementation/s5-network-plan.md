@@ -201,7 +201,7 @@ Assert.False(transport.WasStopped);
 - [x] 冻结最终源码后复用最新完整Release/build结果；只有源码变化、失败或未解决疑点才重跑。Python夹具未改时不无谓重复；若新增fixture，验证其自己的用例。
 - [ ] 独立合成S5库、loopback或受控生成，包含两个根／无总结中间／中文长名／未读候选。核验原S1–S4库文件hash不变；原库不升级。保存→正常关闭重开，坐标相同／viewport fit；sourcechat保留；故障trigger仅新库，布局失败dirty+可继续AI；删除同时cascade且不复活。需要不可恢复native删除当次再取授权。
 - [ ] Mac实际新包观察选择／打开／返回／搜索／fit／整理／保存／离开三选／任务二次取消／关闭重开。自动化鼠标能力不足时先完成可用AX/键盘部分，具体无法证实点告知用户；不反复要求解锁或重复已验收事实。
-- [ ] 构建Mac／Windows专用开发候选、manifest+SHA+ZIP CRC，保留旧包与全部数据。Windows无设备保持未实机；不借另一轨道机器。新增真实付费无必要，不申请也不消费S4余量。
+- [x] 构建Mac／Windows专用开发候选、manifest+SHA+ZIP CRC，保留旧包与全部数据。Windows无设备保持未实机；不借另一轨道机器。新增真实付费无必要，不申请也不消费S4余量。
 - [ ] 更新 `TRACK.md` 当前状态／下一步与根README现行使用说明，创建 `docs/implementation/s5-verification.md`、现有 `docs/reviews/README.md` 链接最终审查；所有重要Ruling按顺序公开及判断错的代价。保留本计划私有工作区证据，不删；不推送、不合并、不发布、不声称课程完成，继续已授权S6。
 
 ## 计划自审
