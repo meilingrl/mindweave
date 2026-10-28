@@ -19,13 +19,14 @@ internal sealed class PageFactory(
     ReadingStateService reading,
     ModelSettingsService models,
     SummaryService summaries,
+    Network.NetworkSessions networks,
     TimeProvider time,
     IUiDispatcher dispatcher) : IPageFactory
 {
     public PageViewModel Create(ContentRoute route, PageContext context) => route switch
     {
         ExploreHomeRoute => new ExploreHomeViewModel(context.Workspace, context.Navigator),
-        NetworkHomeRoute => new NetworkHomeViewModel(context.Workspace, summaries, context.Navigator, dispatcher),
+        NetworkHomeRoute => new NetworkHomeViewModel(context.Workspace, networks.Get(context.Workspace.Id), summaries, conversations, context.Navigator, dispatcher),
         SummaryRoute summary => new SummaryViewModel(summary, context, summaries, dispatcher, time),
         ConversationRoute conversation => new ConversationViewModel(conversation, context, conversations, reading, dispatcher, summaries),
         NewConversationRoute => new NewConversationViewModel(context.Workspace.Id, conversations, context.Navigator, context.Navigator),

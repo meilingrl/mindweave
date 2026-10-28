@@ -9,7 +9,9 @@ public sealed partial class MainWindow : Window
     protected override void OnClosing(WindowClosingEventArgs e)
     {
         ArgumentNullException.ThrowIfNull(e);
-        if (DataContext is ViewModels.RootViewModel root && root.ExitPrompt.ShouldHoldClose())
+        // An unsaved layout is asked about first; after "save" or "don't save" closing starts again, and then
+        // running answers are asked about.
+        if (DataContext is ViewModels.RootViewModel root && (root.LayoutPrompt.HoldExit(Close) || root.ExitPrompt.ShouldHoldClose()))
         {
             e.Cancel = true;
         }

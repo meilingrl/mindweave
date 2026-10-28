@@ -29,7 +29,23 @@ public static class UiText
     public const string ExploreEmpty = "这个工作区还没有会话。";
     public const string NetworkTitle = "总结网络";
     public const string NetworkEmpty = "还没有总结。在会话页点击“总结此会话”，生成的总结会出现在这里。";
-    public const string NetworkListNote = "总结网络的图形视图在后续阶段加入；目前按生成顺序列出本工作区的总结。";
+    public const string LayoutUnsavedTitle = "布局还没有保存";
+    public const string LayoutUnsavedBody = "总结网络里整理过的布局还没有保存。不保存不会丢失任何会话或总结，下次进入时仍按上次保存的位置显示。";
+    public const string LayoutSaveAndContinue = "保存并继续";
+    public const string LayoutDontSave = "不保存";
+    public const string LayoutSaveFailed = "布局保存失败，改动仍保留在当前窗口。";
+    public const string SaveLayout = "保存布局";
+    public const string ArrangeLayout = "整理布局";
+    public const string ShowAll = "显示全部";
+    public const string ZoomIn = "放大";
+    public const string ZoomOut = "缩小";
+    public const string FindWatermark = "查找标题";
+    public const string ListView = "列表";
+    public const string GraphView = "网络图";
+    public const string WheelZooms = "鼠标滚轮直接缩放";
+    public const string OpenSummary = "打开总结";
+    public const string NetworkSelectHint = "单击节点查看简要信息，双击打开总结。";
+    public const string NetworkListNote = "按生成顺序列出本工作区的总结，可用键盘操作。";
 
     // Summaries (S4)
     public const string Summarize = "总结此会话";
@@ -361,4 +377,16 @@ public static class UiText
     public static string DeleteVersionsConfirm(int count, SummaryVersion? nextCurrent) => nextCurrent is null
         ? string.Format(CultureInfo.CurrentCulture, "将删除全部 {0} 个版本，总结本身也会被删除；原会话和分支保留，以后可以重新总结。删除后无法恢复。", count)
         : string.Format(CultureInfo.CurrentCulture, "将删除 {0} 个版本，删除后无法恢复。当前总结将是第 {1} 版。", count, nextCurrent.Seq);
+
+    public static string ViaUnsummarized(IReadOnlyList<string> titles)
+    {
+        ArgumentNullException.ThrowIfNull(titles);
+        return string.Format(CultureInfo.CurrentCulture, "经 {0} 个未总结会话：{1}", titles.Count, string.Join(" › ", titles));
+    }
+
+    public static string ViaCount(int count) => string.Format(CultureInfo.CurrentCulture, "经 {0} 个未总结会话", count);
+
+    public static string NodeSource(string conversationTitle) => "来源会话：" + conversationTitle;
+
+    public static string NodeCreated(DateTimeOffset at) => string.Format(CultureInfo.CurrentCulture, "生成于 {0:g}", at.ToLocalTime());
 }

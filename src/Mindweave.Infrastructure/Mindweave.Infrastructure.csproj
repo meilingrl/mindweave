@@ -14,5 +14,6 @@
   <ItemGroup>
     <InternalsVisibleTo Include="Mindweave.Infrastructure.Tests" />
     <InternalsVisibleTo Include="Mindweave.TestHost" />
+    <InternalsVisibleTo Include="Mindweave.Desktop.Tests" />
   </ItemGroup>
 </Project>

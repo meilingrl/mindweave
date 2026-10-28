@@ -5,19 +5,75 @@
              xmlns:d="using:Mindweave.Desktop"
              x:Class="Mindweave.Desktop.Views.Pages.NetworkHomeView"
              x:DataType="vm:NetworkHomeViewModel">
-  <StackPanel Spacing="8">
-    <TextBlock Classes="muted" TextWrapping="Wrap" Text="{x:Static d:UiText.NetworkEmpty}" IsVisible="{Binding IsEmpty}" />
-    <TextBlock Classes="muted" FontSize="12" TextWrapping="Wrap" Text="{x:Static d:UiText.NetworkListNote}" IsVisible="{Binding !IsEmpty}" />
-    <ItemsControl Name="SummaryList" ItemsSource="{Binding Items}">
-      <ItemsControl.ItemTemplate>
-        <DataTemplate x:DataType="vm:SummaryListItem">
-          <StackPanel Orientation="Horizontal" Spacing="8" Margin="0,2">
-            <Button Classes="link" Content="{Binding DisplayName}"
-                    Command="{Binding $parent[v:NetworkHomeView].((vm:NetworkHomeViewModel)DataContext).OpenCommand}" CommandParameter="{Binding Node}" />
-            <TextBlock Classes="warning" FontSize="12" Text="{Binding Markers}" VerticalAlignment="Center" IsVisible="{Binding HasMarkers}" />
-          </StackPanel>
-        </DataTemplate>
-      </ItemsControl.ItemTemplate>
-    </ItemsControl>
-  </StackPanel>
+  <UserControl.KeyBindings>
+    <KeyBinding Gesture="Ctrl+S" Command="{Binding SaveLayoutCommand}" />
+    <KeyBinding Gesture="Meta+S" Command="{Binding SaveLayoutCommand}" />
+  </UserControl.KeyBindings>
+  <DockPanel>
+    <!-- Toolbar: find, show all, zoom, arrange, save (floppy; disabled without changes, dot when unsaved). -->
+    <WrapPanel DockPanel.Dock="Top" Orientation="Horizontal" Margin="0,0,0,8" IsVisible="{Binding !IsEmpty}">
+      <TextBox Name="FindBox" Text="{Binding SearchText}" Watermark="{x:Static d:UiText.FindWatermark}" Width="180" Margin="0,0,6,4">
+        <TextBox.KeyBindings>
+          <KeyBinding Gesture="Enter" Command="{Binding FindCommand}" />
+        </TextBox.KeyBindings>
+      </TextBox>
+      <Button Name="ShowAllButton" Content="{x:Static d:UiText.ShowAll}" Command="{Binding ShowAllCommand}" Margin="0,0,6,4" />
+      <Button Content="−" Command="{Binding ZoomOutCommand}" ToolTip.Tip="{x:Static d:UiText.ZoomOut}" AutomationProperties.Name="{x:Static d:UiText.ZoomOut}" Margin="0,0,2,4" />
+      <Button Content="＋" Command="{Binding ZoomInCommand}" ToolTip.Tip="{x:Static d:UiText.ZoomIn}" AutomationProperties.Name="{x:Static d:UiText.ZoomIn}" Margin="0,0,6,4" />
+      <Button Name="ArrangeButton" Content="{x:Static d:UiText.ArrangeLayout}" Command="{Binding ArrangeCommand}" Margin="0,0,6,4" />
+      <Button Name="SaveLayoutButton" Command="{Binding SaveLayoutCommand}" Margin="0,0,6,4"
+              ToolTip.Tip="{x:Static d:UiText.SaveLayout}" AutomationProperties.Name="{x:Static d:UiText.SaveLayout}">
+        <Panel>
+          <PathIcon Width="16" Height="16" Data="M2,1 H12 L15,4 V15 H1 V1 Z M4,1 V5 H11 V1 Z M3,9 H13 V14 H3 Z" />
+          <Ellipse Width="7" Height="7" Fill="#B45309" HorizontalAlignment="Right" VerticalAlignment="Top" Margin="0,-3,-3,0" IsVisible="{Binding IsDirty}" />
+        </Panel>
+      </Button>
+      <ProgressBar IsIndeterminate="True" Width="40" VerticalAlignment="Center" IsVisible="{Binding IsSaving}" Margin="0,0,6,4" />
+      <ToggleButton Content="{x:Static d:UiText.ListView}" IsChecked="{Binding IsListView}" Margin="0,0,6,4" />
+      <CheckBox Content="{x:Static d:UiText.WheelZooms}" IsChecked="{Binding WheelZooms}" Margin="0,0,6,4" />
+    </WrapPanel>
+    <TextBlock DockPanel.Dock="Top" Name="SaveFailedNotice" Classes="error" FontSize="12" Text="{x:Static d:UiText.LayoutSaveFailed}" IsVisible="{Binding SaveFailed}" Margin="0,0,0,6" />
+    <TextBlock DockPanel.Dock="Top" Classes="muted" TextWrapping="Wrap" Text="{x:Static d:UiText.NetworkEmpty}" IsVisible="{Binding IsEmpty}" />
+
+    <!-- Details of the selected node: never the body, never counted as reading. -->
+    <Border DockPanel.Dock="Right" Width="240" Margin="8,0,0,0" Padding="12" Background="{StaticResource SidebarBackground}" CornerRadius="6"
+            IsVisible="{Binding !IsEmpty}">
+      <Panel>
+        <TextBlock Classes="muted" FontSize="12" TextWrapping="Wrap" Text="{x:Static d:UiText.NetworkSelectHint}"
+                   IsVisible="{Binding Selected, Converter={x:Static ObjectConverters.IsNull}}" />
+        <StackPanel Name="DetailPanel" Spacing="6" IsVisible="{Binding Selected, Converter={x:Static ObjectConverters.IsNotNull}}">
+          <TextBlock FontWeight="SemiBold" TextWrapping="Wrap" Text="{Binding Selected.DisplayName, FallbackValue=''}" />
+          <TextBlock Classes="warning" FontSize="12" TextWrapping="Wrap" Text="{Binding Selected.Markers, FallbackValue=''}" />
+          <TextBlock Classes="muted" FontSize="12" TextWrapping="Wrap" Text="{Binding Selected.Source, FallbackValue=''}" />
+          <TextBlock Classes="muted" FontSize="12" TextWrapping="Wrap" Text="{Binding Selected.Created, FallbackValue=''}" />
+          <TextBlock Classes="muted" FontSize="12" TextWrapping="Wrap" Text="{Binding Selected.Via, FallbackValue=''}"
+                     IsVisible="{Binding Selected.Via, Converter={x:Static ObjectConverters.IsNotNull}, FallbackValue=False}" />
+          <Button Name="OpenSelectedButton" Content="{x:Static d:UiText.OpenSummary}" Command="{Binding OpenSelectedCommand}" />
+          <Button Content="{x:Static d:UiText.ReturnToConversation}" Command="{Binding ReturnToConversationCommand}" />
+        </StackPanel>
+      </Panel>
+    </Border>
+
+    <Panel>
+      <Border BorderBrush="#E5E7EB" BorderThickness="1" CornerRadius="6" IsVisible="{Binding !IsListView}">
+        <v:NetworkCanvas Name="Canvas" />
+      </Border>
+      <ScrollViewer IsVisible="{Binding IsListView}">
+        <StackPanel Spacing="8">
+          <TextBlock Classes="muted" FontSize="12" TextWrapping="Wrap" Text="{x:Static d:UiText.NetworkListNote}" IsVisible="{Binding !IsEmpty}" />
+          <ItemsControl Name="SummaryList" ItemsSource="{Binding Items}">
+            <ItemsControl.ItemTemplate>
+              <DataTemplate x:DataType="vm:SummaryListItem">
+                <StackPanel Orientation="Horizontal" Spacing="8" Margin="0,2">
+                  <Button Classes="link" Content="{Binding DisplayName}"
+                          Command="{Binding $parent[v:NetworkHomeView].((vm:NetworkHomeViewModel)DataContext).OpenCommand}" CommandParameter="{Binding Node}" />
+                  <TextBlock Classes="warning" FontSize="12" Text="{Binding Markers}" VerticalAlignment="Center" IsVisible="{Binding HasMarkers}" />
+                </StackPanel>
+              </DataTemplate>
+            </ItemsControl.ItemTemplate>
+          </ItemsControl>
+        </StackPanel>
+      </ScrollViewer>
+    </Panel>
+  </DockPanel>
 </UserControl>

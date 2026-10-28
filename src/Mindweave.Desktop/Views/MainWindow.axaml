@@ -23,5 +23,19 @@
         </StackPanel>
       </Border>
     </Border>
+    <Border IsVisible="{Binding LayoutPrompt.IsOpen}" Background="#66000000">
+      <Border Background="White" CornerRadius="10" Padding="24" MaxWidth="440" HorizontalAlignment="Center" VerticalAlignment="Center">
+        <StackPanel Spacing="14">
+          <TextBlock Classes="h1" FontSize="18" Text="{x:Static d:UiText.LayoutUnsavedTitle}" />
+          <TextBlock TextWrapping="Wrap" Text="{x:Static d:UiText.LayoutUnsavedBody}" />
+          <TextBlock Classes="error" TextWrapping="Wrap" Text="{x:Static d:UiText.LayoutSaveFailed}" IsVisible="{Binding LayoutPrompt.SaveFailed}" />
+          <StackPanel Orientation="Horizontal" Spacing="8" HorizontalAlignment="Right">
+            <Button Name="LayoutCancel" Content="{x:Static d:UiText.Cancel}" Command="{Binding LayoutPrompt.CancelCommand}" IsDefault="True" />
+            <Button Name="LayoutDontSave" Content="{x:Static d:UiText.LayoutDontSave}" Command="{Binding LayoutPrompt.DontSaveCommand}" />
+            <Button Name="LayoutSave" Content="{x:Static d:UiText.LayoutSaveAndContinue}" Command="{Binding LayoutPrompt.SaveAndContinueCommand}" />
+          </StackPanel>
+        </StackPanel>
+      </Border>
+    </Border>
   </Panel>
 </Window>
