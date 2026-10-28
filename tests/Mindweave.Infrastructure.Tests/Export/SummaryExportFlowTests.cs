@@ -23,6 +23,8 @@ public sealed class SummaryExportFlowTests : IDisposable
 
     private string Target => Path.Combine(_dir, "总结.md");
 
+    private static string NameOf(ConversationSummary row) => row.Conversation.Title ?? "新会话";
+
     [Fact]
     public async Task The_current_version_is_exported_with_its_source_note_and_nothing_internal()
     {
@@ -32,7 +34,7 @@ public sealed class SummaryExportFlowTests : IDisposable
         var export = Service(h);
 
         Assert.Equal(FakeChatClient.DefaultSummaryTitle, await export.SuggestFileNameAsync(node, detail.Node.Current, Ct));
-        await export.ExportAsync(node, detail.Node.Current, includeSource: true, Local(Target), Ct);
+        await export.ExportAsync(node, detail.Node.Current, sourceName: NameOf, Local(Target), Ct);
 
         var text = await File.ReadAllTextAsync(Target, Ct);
         var version = detail.Current;
@@ -56,7 +58,7 @@ public sealed class SummaryExportFlowTests : IDisposable
         var before = (await h.SummaryService.GetAsync(node, Ct))!;
         await File.WriteAllTextAsync(Target, "已有的同名文件", Ct);
 
-        await Service(h).ExportAsync(node, before.Node.Current, includeSource: false, Local(Target), Ct);
+        await Service(h).ExportAsync(node, before.Node.Current, sourceName: null, Local(Target), Ct);
 
         Assert.Equal($"# {before.Current.Title}\n\n{before.Current.Body}\n", await File.ReadAllTextAsync(Target, Ct), ignoreLineEndingDifferences: false);
         var after = (await h.SummaryService.GetAsync(node, Ct))!;
@@ -74,7 +76,7 @@ public sealed class SummaryExportFlowTests : IDisposable
         var first = (await h.SummaryService.GetAsync(node, Ct))!.Current;
         await h.SummaryService.SaveEditAsync(node, first.Id, "手改的标题", "手改的正文", Ct);
 
-        await Service(h).ExportAsync(node, first.Id, includeSource: true, Local(Target), Ct);
+        await Service(h).ExportAsync(node, first.Id, sourceName: NameOf, Local(Target), Ct);
 
         var text = await File.ReadAllTextAsync(Target, Ct);
         Assert.StartsWith($"# {first.Title}\n", text, StringComparison.Ordinal);
@@ -93,7 +95,7 @@ public sealed class SummaryExportFlowTests : IDisposable
         await export.SuggestFileNameAsync(node, first.Id, Ct);
 
         await h.SummaryService.DeleteVersionsAsync(node, new HashSet<SummaryVersionId> { first.Id }, Ct);
-        var error = await Assert.ThrowsAsync<ExportRefusedException>(() => export.ExportAsync(node, first.Id, includeSource: true, Local(Target), Ct));
+        var error = await Assert.ThrowsAsync<ExportRefusedException>(() => export.ExportAsync(node, first.Id, sourceName: NameOf, Local(Target), Ct));
 
         Assert.Equal(ExportRefusal.VersionMissing, error.Reason);
         Assert.False(File.Exists(Target));
@@ -126,14 +128,14 @@ public sealed class SummaryExportFlowTests : IDisposable
         var export = Service(h);
 
         var suggest = await Assert.ThrowsAsync<ExportRefusedException>(() => export.SuggestFileNameAsync(node, candidate, Ct));
-        var write = await Assert.ThrowsAsync<ExportRefusedException>(() => export.ExportAsync(node, candidate, includeSource: true, Local(Target), Ct));
+        var write = await Assert.ThrowsAsync<ExportRefusedException>(() => export.ExportAsync(node, candidate, sourceName: NameOf, Local(Target), Ct));
 
         Assert.Equal(ExportRefusal.IsCandidate, suggest.Reason);
         Assert.Equal(ExportRefusal.IsCandidate, write.Reason);
         Assert.False(File.Exists(Target));
 
         await h.SummaryService.AdoptAsync(node, candidate, Ct);
-        await export.ExportAsync(node, candidate, includeSource: false, Local(Target), Ct);
+        await export.ExportAsync(node, candidate, sourceName: null, Local(Target), Ct);
         Assert.EndsWith("候选正文\n", await File.ReadAllTextAsync(Target, Ct), StringComparison.Ordinal);
     }
 
@@ -148,7 +150,7 @@ public sealed class SummaryExportFlowTests : IDisposable
         var export = new SummaryExportService(h.SummaryNodes, h.Store, writer, NullLogger<SummaryExportService>.Instance);
         Assert.True(export.WhenIdleAsync().IsCompleted);
 
-        var running = export.ExportAsync(node, current, includeSource: true, Local(Target), Ct);
+        var running = export.ExportAsync(node, current, sourceName: NameOf, Local(Target), Ct);
         await writer.Entered.Task;
         var idle = export.WhenIdleAsync();
 
@@ -168,7 +170,7 @@ public sealed class SummaryExportFlowTests : IDisposable
         var current = (await h.SummaryService.GetAsync(node, Ct))!.Node.Current;
         var export = Service(h);
 
-        await Assert.ThrowsAsync<ExportWriteException>(() => export.ExportAsync(node, current, includeSource: true, Local(Path.Combine(_dir, "无", "x.md")), Ct));
+        await Assert.ThrowsAsync<ExportWriteException>(() => export.ExportAsync(node, current, sourceName: NameOf, Local(Path.Combine(_dir, "无", "x.md")), Ct));
 
         Assert.Equal(0, export.InProgress);
         Assert.True(export.WhenIdleAsync().IsCompleted);

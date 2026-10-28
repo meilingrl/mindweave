@@ -125,12 +125,13 @@ public sealed partial class AtomicFileWriter(ILogger<AtomicFileWriter> logger) :
         ex is IOException && (ex.HResult & 0xFFFF) is ErrorSharingViolation or ErrorLockViolation;
 
     /// <summary>
-    /// Windows reports a target held by another program as either a sharing violation or "access denied"; the latter
-    /// is told apart from a read-only file or folder by trying to open the target the way any reader could.
+    /// Windows reports a target held by another program as either a sharing violation or "access denied". An access
+    /// denial on a target that is not marked read-only is taken as held by another program (an editor holding it
+    /// without delete sharing still lets readers in, so a read probe cannot tell).
     /// </summary>
     private static ExportWriteException Classify(Exception ex, string? target)
     {
-        if (IsSharingViolation(ex) || (ex is UnauthorizedAccessException && target is not null && IsHeldByAnother(target)))
+        if (IsSharingViolation(ex) || (ex is UnauthorizedAccessException && target is not null && File.Exists(target) && !IsReadOnly(target)))
         {
             return new ExportWriteException(ExportFailure.InUse, ex.Message, ex);
         }
@@ -140,18 +141,13 @@ public sealed partial class AtomicFileWriter(ILogger<AtomicFileWriter> logger) :
             : new ExportWriteException(ExportFailure.Failed, ex.Message, ex);
     }
 
-    private static bool IsHeldByAnother(string path)
+    private static bool IsReadOnly(string path)
     {
         try
         {
-            using var _ = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.ReadWrite | FileShare.Delete);
-            return false;
+            return File.GetAttributes(path).HasFlag(FileAttributes.ReadOnly);
         }
-        catch (IOException ex) when (IsSharingViolation(ex))
-        {
-            return true;
-        }
-        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        catch (IOException)
         {
             return false;
         }

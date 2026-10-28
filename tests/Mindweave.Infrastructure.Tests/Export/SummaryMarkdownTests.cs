@@ -50,7 +50,11 @@ public class SummaryMarkdownTests
     [InlineData("Nul.txt", "Nul_.txt")]
     [InlineData("aux.tar.gz", "aux_.tar.gz")]
     [InlineData("com1", "com1_")]
-    [InlineData("LPT9.md", "LPT9_.md")]
+    [InlineData("LPT9.md", "LPT9_")]
+    [InlineData("AUX .txt", "AUX_ .txt")]
+    [InlineData("笔记.md", "笔记")]
+    [InlineData("笔记.MD", "笔记")]
+    [InlineData(".md", "md")]
     [InlineData("COM0", "COM0")]
     [InlineData("CONSOLE", "CONSOLE")]
     [InlineData("标题.. . ", "标题")]
@@ -71,7 +75,8 @@ public class SummaryMarkdownTests
         Assert.Equal(new string('长', ExportFileName.MaxLength), ExportFileName.Suggest(new string('长', 100), 1));
         Assert.Equal(new string('a', 79), ExportFileName.Suggest(new string('a', 79) + ". b", 1));
 
+        // Four UTF-8 bytes each: the byte cap (file systems count bytes) cuts before the character cap.
         var emoji = string.Concat(Enumerable.Repeat("😀", 90));
-        Assert.Equal(string.Concat(Enumerable.Repeat("😀", ExportFileName.MaxLength)), ExportFileName.Suggest(emoji, 1));
+        Assert.Equal(string.Concat(Enumerable.Repeat("😀", ExportFileName.MaxBytes / 4)), ExportFileName.Suggest(emoji, 1));
     }
 }

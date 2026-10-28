@@ -63,13 +63,14 @@ public sealed partial class SummaryExportService
 
     /// <summary>What the file will contain, read afresh.</summary>
     /// <exception cref="ExportRefusedException">The version is gone or is the candidate.</exception>
-    public async Task<SummaryExportDocument> ReadAsync(SummaryNodeId node, SummaryVersionId version, bool includeSource, CancellationToken cancellationToken)
+    /// <param name="sourceName">Names the source conversation as the app does everywhere else; null leaves the source note out.</param>
+    public async Task<SummaryExportDocument> ReadAsync(SummaryNodeId node, SummaryVersionId version, Func<ConversationSummary, string>? sourceName, CancellationToken cancellationToken)
     {
         var (detail, saved) = await SavedVersionAsync(node, version, cancellationToken).ConfigureAwait(false);
         ExportSource? source = null;
-        if (includeSource)
+        if (sourceName is not null)
         {
-            var name = await ConversationNameAsync(detail.Node, cancellationToken).ConfigureAwait(false);
+            var name = await ConversationNameAsync(detail.Node, sourceName, cancellationToken).ConfigureAwait(false);
             source = new ExportSource(name, saved.ToSeq + 1, saved.Seq, saved.Origin, saved.CreatedAt.ToLocalTime());
         }
 
@@ -79,14 +80,14 @@ public sealed partial class SummaryExportService
     /// <summary>Re-reads the version and writes it to the picked file.</summary>
     /// <exception cref="ExportRefusedException">The version is gone or is the candidate; nothing was written.</exception>
     /// <exception cref="ExportWriteException">Writing failed; the target is as it was.</exception>
-    public async Task ExportAsync(SummaryNodeId node, SummaryVersionId version, bool includeSource, ExportDestination destination, CancellationToken cancellationToken)
+    public async Task ExportAsync(SummaryNodeId node, SummaryVersionId version, Func<ConversationSummary, string>? sourceName, ExportDestination destination, CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(destination);
         var done = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         _running.TryAdd(done.Task, 0);
         try
         {
-            var document = await ReadAsync(node, version, includeSource, cancellationToken).ConfigureAwait(false);
+            var document = await ReadAsync(node, version, sourceName, cancellationToken).ConfigureAwait(false);
             var mode = await _writer.WriteAsync(destination, SummaryMarkdown.Encode(document), cancellationToken).ConfigureAwait(false);
             LogExported(_logger, version, mode);
         }
@@ -114,16 +115,16 @@ public sealed partial class SummaryExportService
     }
 
     /// <summary>
-    /// The source conversation named as everywhere else in the app (UiText.ConversationTitle): its title, else the
-    /// quoted passage a branch explores, else its first question.
+    /// The source conversation's name, by the caller's naming rule so the file says what the sidebar says. A summary
+    /// always has its conversation (a conversation with a summary cannot be deleted), so a missing one means the
+    /// summary itself went meanwhile.
     /// </summary>
-    private async Task<string> ConversationNameAsync(SummaryNode node, CancellationToken cancellationToken)
+    private async Task<string> ConversationNameAsync(SummaryNode node, Func<ConversationSummary, string> sourceName, CancellationToken cancellationToken)
     {
         var rows = await _conversations.ListAsync(node.Workspace, cancellationToken).ConfigureAwait(false);
-        var row = rows.FirstOrDefault(r => r.Conversation.Id == node.Conversation);
-        return row?.Conversation.Title
-            ?? (row?.Quote is { } quote ? "「" + ConversationRules.Shorten(quote, ConversationRules.FallbackTitleLength) + "」" : null)
-            ?? (row?.FirstQuestion is { } question ? ConversationRules.FallbackTitle(question) : "新会话");
+        return rows.FirstOrDefault(r => r.Conversation.Id == node.Conversation) is { } row
+            ? sourceName(row)
+            : throw new ExportRefusedException(ExportRefusal.VersionMissing);
     }
 
     [LoggerMessage(Level = LogLevel.Information, Message = "Exported summary version {Version} ({Mode})")]

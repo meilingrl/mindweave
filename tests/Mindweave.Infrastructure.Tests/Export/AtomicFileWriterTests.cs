@@ -72,7 +72,7 @@ public sealed class AtomicFileWriterTests : IDisposable
             }
 
             File.Move(temp, target, overwrite: true);
-        });
+        }, windowMs: 10_000);
 
         await writer.WriteAsync(Local(Target), New, Ct);
 
@@ -167,6 +167,24 @@ public sealed class AtomicFileWriterTests : IDisposable
         Assert.Equal([Target], Directory.GetFiles(_dir));
     }
 
+    /// <summary>An editor holding the file for writing while still letting readers in, but not delete or rename.</summary>
+    [Fact]
+    public async Task A_target_held_by_an_editor_that_lets_readers_in_is_reported_as_in_use()
+    {
+        Assert.SkipUnless(OperatingSystem.IsWindows(), "Only Windows enforces file sharing modes.");
+        await File.WriteAllTextAsync(Target, "旧", Ct);
+
+        ExportWriteException error;
+        using (new FileStream(Target, FileMode.Open, FileAccess.ReadWrite, FileShare.Read))
+        {
+            error = await Assert.ThrowsAsync<ExportWriteException>(() => Writer().WriteAsync(Local(Target), New, Ct));
+        }
+
+        Assert.Equal(ExportFailure.InUse, error.Failure);
+        Assert.Equal("旧", await File.ReadAllTextAsync(Target, Ct));
+        Assert.Equal([Target], Directory.GetFiles(_dir));
+    }
+
     [Fact]
     public async Task A_target_released_within_the_retry_window_is_replaced()
     {
@@ -233,8 +251,9 @@ public sealed class AtomicFileWriterTests : IDisposable
 
     private static ExportDestination Local(string path) => new(Path.GetFileName(path), path, null);
 
-    private static AtomicFileWriter Writer(Action<string, string>? move = null) =>
+    /// <summary>A short window keeps "stays locked" tests fast; tests that expect success pass a long one so only the attempt count matters.</summary>
+    private static AtomicFileWriter Writer(Action<string, string>? move = null, double windowMs = 300) =>
         move is null
-            ? new AtomicFileWriter(NullLogger<AtomicFileWriter>.Instance) { RetryWindow = TimeSpan.FromMilliseconds(300), RetryInterval = TimeSpan.FromMilliseconds(30) }
-            : new AtomicFileWriter(NullLogger<AtomicFileWriter>.Instance) { RetryWindow = TimeSpan.FromMilliseconds(300), RetryInterval = TimeSpan.FromMilliseconds(30), Move = move };
+            ? new AtomicFileWriter(NullLogger<AtomicFileWriter>.Instance) { RetryWindow = TimeSpan.FromMilliseconds(windowMs), RetryInterval = TimeSpan.FromMilliseconds(30) }
+            : new AtomicFileWriter(NullLogger<AtomicFileWriter>.Instance) { RetryWindow = TimeSpan.FromMilliseconds(windowMs), RetryInterval = TimeSpan.FromMilliseconds(30), Move = move };
 }

@@ -69,6 +69,8 @@ public static class ExportFileName
     /// <summary>Characters (text elements) kept from the title, well inside every file system's name limit.</summary>
     public const int MaxLength = 80;
 
+    public const int MaxBytes = 240;
+
     private static readonly string[] ReservedNames =
     [
         "CON", "PRN", "AUX", "NUL",
@@ -103,8 +105,15 @@ public static class ExportFileName
             return string.Create(CultureInfo.InvariantCulture, $"summary-v{versionSeq}");
         }
 
+        // The dialog adds ".md"; a title that already ends with it would otherwise give "x.md.md".
+        if (name.EndsWith(".md", StringComparison.OrdinalIgnoreCase) && name.Length > 3)
+        {
+            name = Trim(name[..^3]);
+        }
+
+        // Windows ignores spaces before the extension, so "AUX .txt" is still the device.
         var dot = name.IndexOf('.', StringComparison.Ordinal);
-        var stem = dot < 0 ? name : name[..dot];
+        var stem = (dot < 0 ? name : name[..dot]).TrimEnd(' ');
         return ReservedNames.Contains(stem, StringComparer.OrdinalIgnoreCase) ? stem + "_" + name[stem.Length..] : name;
     }
 
@@ -112,11 +121,15 @@ public static class ExportFileName
 
     private static string Cut(string name)
     {
+        // At most MaxLength characters as the reader sees them, and at most MaxBytes in UTF-8 (file systems limit
+        // names to 255 bytes, and the temporary name and extension need room too).
         var elements = StringInfo.GetTextElementEnumerator(name);
         var count = 0;
+        var bytes = 0;
         while (elements.MoveNext())
         {
-            if (++count > MaxLength)
+            bytes += Encoding.UTF8.GetByteCount(elements.GetTextElement());
+            if (++count > MaxLength || bytes > MaxBytes)
             {
                 return name[..elements.ElementIndex];
             }

@@ -334,7 +334,7 @@ public sealed partial class SummaryViewModel : PageViewModel, IDisposable
                 return;
             }
 
-            await _exports.ExportAsync(Node, version.Id, !ExportOmitSource, destination, CancellationToken.None);
+            await _exports.ExportAsync(Node, version.Id, ExportOmitSource ? null : SourceName, destination, CancellationToken.None);
             Notice = UiText.Exported(destination.DisplayName);
             NoticeIsError = false;
         }
@@ -347,7 +347,15 @@ public sealed partial class SummaryViewModel : PageViewModel, IDisposable
         {
             Notice = UiText.ExportFailed(ex.Failure, ex.Detail);
         }
+#pragma warning disable CA1031 // Anything else (a failing save dialog, a store already closed by exit) is reported, never thrown at the UI thread.
+        catch (Exception ex) when (ex is not OperationCanceledException)
+#pragma warning restore CA1031
+        {
+            Notice = UiText.ExportFailed(ExportFailure.Failed, ex.Message);
+        }
     }
+
+    private static string SourceName(ConversationSummary row) => UiText.ConversationTitle(row.Conversation, row.FirstQuestion, row.Quote);
 
     [RelayCommand]
     private async Task ConfirmAsync()
