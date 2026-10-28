@@ -79,7 +79,7 @@
 
     <Grid>
       <StackPanel Name="Editor" Spacing="6" IsVisible="{Binding IsEditing}">
-        <TextBox Name="EditTitleBox" Text="{Binding EditTitle}" Watermark="{x:Static d:UiText.EditTitleWatermark}" />
+        <TextBox Name="EditTitleBox" Text="{Binding EditTitle}" PlaceholderText="{x:Static d:UiText.EditTitleWatermark}" />
         <TextBox Name="EditBodyBox" Text="{Binding EditBody}" AcceptsReturn="True" TextWrapping="Wrap" MinHeight="240" MaxHeight="520" />
         <TextBlock Classes="muted" FontSize="12" Text="{x:Static d:UiText.EditDraftSaved}" TextWrapping="Wrap" />
         <StackPanel Orientation="Horizontal" Spacing="6">

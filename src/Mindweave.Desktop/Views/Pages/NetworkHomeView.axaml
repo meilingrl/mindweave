@@ -12,7 +12,7 @@
   <DockPanel>
     <!-- Toolbar: find, show all, zoom, arrange, save (floppy; disabled without changes, dot when unsaved). -->
     <WrapPanel DockPanel.Dock="Top" Orientation="Horizontal" Margin="0,0,0,8" IsVisible="{Binding !IsEmpty}">
-      <TextBox Name="FindBox" Text="{Binding SearchText}" Watermark="{x:Static d:UiText.FindWatermark}" Width="180" Margin="0,0,6,4">
+      <TextBox Name="FindBox" Text="{Binding SearchText}" PlaceholderText="{x:Static d:UiText.FindWatermark}" Width="180" Margin="0,0,6,4">
         <TextBox.KeyBindings>
           <KeyBinding Gesture="Enter" Command="{Binding FindCommand}" />
         </TextBox.KeyBindings>

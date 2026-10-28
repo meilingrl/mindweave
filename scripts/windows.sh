@@ -51,14 +51,15 @@ sync_once() {
   # Sources are replaced wholesale so deleted files do not linger; build output lives outside the snapshot.
   # A transfer cut off mid-stream can leave its tar running and holding files; stop only those for this folder.
   remote "Get-CimInstance Win32_Process -Filter \"Name='tar.exe'\" | Where-Object { \$_.CommandLine -like '*$SRC*' } | ForEach-Object { Stop-Process -Id \$_.ProcessId -Force }; if (Test-Path '$SRC') { Remove-Item -Recurse -Force '$SRC' }; New-Item -ItemType Directory -Force '$SRC' | Out-Null"
-  # Working tree as it is now: tracked files that still exist plus untracked, non-ignored ones.
+  # Working tree as it is now: tracked files that still exist plus untracked, non-ignored ones. Compressed
+  # (about a quarter of the size) because the relayed tailnet link is slow and drops long transfers.
   local files expected actual
   files="$(cd "$ROOT" && git ls-files -z --cached --others --exclude-standard -- . ':!prototypes' ':!docs/reviews' \
     | perl -0ne 'chomp; print "$_\n" if -e $_')"
   expected="$(printf '%s\n' "$files" | wc -l | tr -d ' ')"
   (cd "$ROOT" && printf '%s\n' "$files" | tr '\n' '\0' \
-    | COPYFILE_DISABLE=1 xargs -0 tar --no-xattrs --no-mac-metadata -cf -) \
-    | ssh "${SSH_OPTS[@]}" "$HOST" "tar -xf - -C $SRC" || return 255
+    | COPYFILE_DISABLE=1 xargs -0 tar --no-xattrs --no-mac-metadata -czf -) \
+    | ssh "${SSH_OPTS[@]}" "$HOST" "tar -xzf - -C $SRC" || return 255
   # A relay drop can end the stream early while the remote tar still exits 0 with a partial tree.
   actual="$(remote "(Get-ChildItem -Recurse -File -Force '$SRC' | Measure-Object).Count" | tr -d '\r')"
   if [[ "$actual" != "$expected" ]]; then
