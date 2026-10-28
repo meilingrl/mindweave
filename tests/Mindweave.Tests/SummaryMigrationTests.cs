@@ -46,7 +46,7 @@ public sealed class SummaryMigrationTests
     {
         using var dir = new TestDirectory(); var p = AppPaths.ForTrack("codex-steady", dir.Path);
         await using var store = await SqliteWorkspaceStore.OpenAsync(p);
-        Assert.Equal(6L, ContextStorageTests.Sql(p, "PRAGMA user_version"));
+        Assert.Equal(7L, ContextStorageTests.Sql(p, "PRAGMA user_version"));
         foreach (var table in new[] { "summary_node", "summary_version_identity", "summary_version", "summary_version_source", "summary_version_message", "knowledge_summary_source", "summary_read_state", "summary_edit_draft", "knowledge_summary_job", "knowledge_summary_prepared", "knowledge_summary_material", "summary_selection", "node_naming_group", "node_naming_job", "node_naming_member" })
             Assert.Equal(1L, ContextStorageTests.Sql(p, "SELECT count(*) FROM sqlite_master WHERE type='table' AND name=$name", ("$name", table)));
     }
@@ -57,7 +57,7 @@ public sealed class SummaryMigrationTests
     {
         using var dir = new TestDirectory(); var p = Golden(dir, mode); var old = Snapshot(p.DatabasePath);
         await UpgradePreservingOldRows(p);
-        Assert.Equal(6L, ContextStorageTests.Sql(p, "PRAGMA user_version"));
+        Assert.Equal(7L, ContextStorageTests.Sql(p, "PRAGMA user_version"));
         Assert.Equal(old, Snapshot(Assert.Single(Directory.GetFiles(p.BackupDirectory, "*.db"))));
         var baseline = File.ReadAllBytes(p.DatabasePath);
         await using (var store = await SqliteWorkspaceStore.OpenAsync(p)) { await store.ListAsync(); }
@@ -87,7 +87,7 @@ public sealed class SummaryMigrationTests
         File.WriteAllText(p.BackupDirectory, "synthetic backup path fault");
         await Assert.ThrowsAsync<IOException>(() => SqliteWorkspaceStore.OpenAsync(p));
         Assert.Equal(before, Snapshot(p.DatabasePath)); Assert.Equal(5L, ContextStorageTests.Sql(p, "PRAGMA user_version"));
-        ContextStorageTests.Sql(p, "PRAGMA user_version=7"); var bytes = File.ReadAllBytes(p.DatabasePath);
+        ContextStorageTests.Sql(p, "PRAGMA user_version=8"); var bytes = File.ReadAllBytes(p.DatabasePath);
         await Assert.ThrowsAsync<InvalidOperationException>(() => SqliteWorkspaceStore.OpenAsync(p)); Assert.Equal(bytes, File.ReadAllBytes(p.DatabasePath));
     }
     [Fact]

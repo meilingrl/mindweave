@@ -107,7 +107,7 @@ public sealed class ContextThinkingStorageTests
             }
             Assert.Equal(expectedPrepared, JsonSerializer.Serialize(await reopened.LoadPreparedReplyRequestAsync(survivorTask)));
             Assert.Equal(0L, ContextStorageTests.Sql(paths, "SELECT count(*) FROM pragma_foreign_key_check"));
-            Assert.Equal(6L, ContextStorageTests.Sql(paths, "PRAGMA user_version"));
+            Assert.Equal(7L, ContextStorageTests.Sql(paths, "PRAGMA user_version"));
             Assert.Equal(2L, ContextStorageTests.Sql(paths, "SELECT format_version FROM prepared_reply_request WHERE task_id=$id", ("$id", survivorTask)));
         }
     }

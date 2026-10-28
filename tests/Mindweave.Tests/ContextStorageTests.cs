@@ -28,7 +28,7 @@ public sealed class ContextStorageTests
         using var dir = new TestDirectory(); var paths = AppPaths.ForTrack("codex-steady", dir.Path);
         await using (var old = await SqliteWorkspaceStore.OpenAsync(paths, DatabaseSchema.Migrations.Take(4).ToArray())) await old.CreateAsync("old");
         await using var store = await SqliteWorkspaceStore.OpenAsync(paths);
-        Assert.Equal(6L, Sql(paths, "PRAGMA user_version"));
+        Assert.Equal(7L, Sql(paths, "PRAGMA user_version"));
         Assert.Equal(1L, Sql(paths, "SELECT count(*) FROM sqlite_master WHERE name='reply_context_plan'"));
         using var c = new SqliteConnection($"Data Source={Assert.Single(Directory.GetFiles(paths.BackupDirectory, "*.db"))};Mode=ReadOnly;Pooling=False"); c.Open();
         using var cmd = c.CreateCommand(); cmd.CommandText = "PRAGMA user_version"; Assert.Equal(4L, cmd.ExecuteScalar());
