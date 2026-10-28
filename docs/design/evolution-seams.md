@@ -8,7 +8,7 @@
 | E2 分块消息内容 | **已落地**（迁移 v3） | Core `ContentBlock`；表 `message_block` |
 | E3 请求追踪与源头脱敏 | **已落地**（迁移 v3） | Application `Diagnostics/`；表 `ai_request`；客户端与文件日志脱敏 |
 | E4 模型能力描述 | **已落地**（迁移 v3） | Core `ModelCapabilities`；`model_config` 与 `generation_task` 的 `capabilities` 列 |
-| E5 版本化交换格式 | **只有规格**，S6 导出时实现 | 本文 §E5 |
+| E5 版本化交换格式 | **只有规格**，首版之后实现（D-021） | 本文 §E5 |
 | E6 性能基线与架构测试 | **已落地** | `tests/…/Performance/`、`scripts/perf.sh`、`SeamTests` |
 
 ## E2 分块消息内容
@@ -36,7 +36,7 @@
 - 保存设置时：模型不变则保留已声明能力，换模型则回到协议默认值。首版界面不暴露能力编辑。
 - 架构测试禁止 Core 与 Application 源码出现供应商或模型名，功能只能按能力判断。
 
-## E5 版本化交换格式（规格，S6 实现）
+## E5 版本化交换格式（规格，首版之后实现）
 
 导出包是一个目录（或其 zip），与 SQLite 表结构解耦：
 
