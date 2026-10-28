@@ -36,7 +36,7 @@ Claude 自主开发，目的是比稳健轨更早走到关键阶段，提前暴�
 
 | 事项 | 原因 | 阻塞什么 | 在此之前我做什么 |
 | --- | --- | --- | --- |
-| （暂无） | | | |
+| （可选）在 Windows 上试 S4／S5：`E:\mindweave-claude-auto\app-s5\Mindweave.exe`（2026-10-28 发布，d3b3f79） | 触控板／滚轮手感、Ctrl+S、中文输入法需实机判断；自动测试已在实机全部通过 | 不阻塞 S6 | S6 设计与实现 |
 
 Windows 实机：`scripts/windows.sh test|publish|sync|exec`（主机 `win-home`，经本机用户态 Tailscale 实例 A 的 SOCKS `127.0.0.1:7898`，密钥登录，连接失败自动重试；目录 `E:\mindweave-claude-auto`，与稳健轨隔离）。2026-10-26 已修复笔记本上 Scoop 的 git（`current` 目录联接失效，`scoop reset git` 重建，现为 2.54.0）。
 
