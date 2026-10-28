@@ -32,7 +32,7 @@ public static class InfrastructureServices
         services.AddSingleton<IBranchStore, SqliteBranchStore>();
         services.TryAddSingleton<IReadingStateStore, SqliteReadingStateStore>();
         services.AddSingleton<IContextSummaryStore, SqliteContextSummaryStore>();
-        services.AddSingleton<ISummaryStore, SqliteSummaryStore>();
+        services.TryAddSingleton<ISummaryStore, SqliteSummaryStore>();
         services.TryAddSingleton<INetworkStore, SqliteNetworkStore>();
         services.TryAddSingleton(_ => CredentialStores.ForPlatform(paths.Channel));
         services.TryAddSingleton(new ChatClientOptions());

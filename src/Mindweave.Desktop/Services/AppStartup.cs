@@ -15,6 +15,7 @@ public sealed class AppStartup : IRecoveryActions
     private readonly Workbench _workbench;
     private readonly ShellViewModel _shell;
     private readonly ISystemShell _system;
+    private readonly ExitCoordinator _exit;
 
     public AppStartup(
         StartupCoordinator coordinator,
@@ -22,7 +23,8 @@ public sealed class AppStartup : IRecoveryActions
         IRootNavigator root,
         Workbench workbench,
         ShellViewModel shell,
-        ISystemShell system)
+        ISystemShell system,
+        ExitCoordinator exit)
     {
         _coordinator = coordinator;
         _workspaces = workspaces;
@@ -30,6 +32,7 @@ public sealed class AppStartup : IRecoveryActions
         _workbench = workbench;
         _shell = shell;
         _system = system;
+        _exit = exit;
     }
 
     public async Task RunAsync()
@@ -39,6 +42,8 @@ public sealed class AppStartup : IRecoveryActions
     }
 
     public Task RetryAsync() => RunAsync();
+
+    public void Quit() => _exit.InterceptClose();
 
     public async Task RestoreAsync(BackupInfo backup)
     {

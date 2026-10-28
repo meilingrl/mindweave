@@ -204,6 +204,123 @@ public class ExitTests
     }
 
     [AvaloniaFact]
+    public async Task A_summary_draft_whose_page_was_left_is_kept_and_retried_until_it_is_saved()
+    {
+        var failing = new FailingSummaryDrafts();
+        await using var app = DesktopHarness.Create(s => s.AddSingleton<ISummaryStore>(sp => failing.Wrap(sp.GetRequiredService<SqliteDatabase>())));
+        var window = NetworkUiTests.Show(app);
+        var page = await ConversationAsync(app);
+        await page.SummarizeCommand.ExecuteAsync(null);
+        await UiWait.UntilAsync(() => page.HasSummary && page.RunningSummary is null);
+        page.OpenSummaryCommand.Execute(null);
+        var summary = Assert.IsType<SummaryViewModel>(app.Workbench.CurrentPage);
+        await summary.Loaded;
+        await summary.BeginEditCommand.ExecuteAsync(null);
+        failing.Fail = true;
+        summary.EditBody = "我自己的笔记";
+
+        // Leaving the page tries to save the draft (and fails); the page is disposed.
+        app.Workbench.GoBack();
+        Assert.IsNotType<SummaryViewModel>(app.Workbench.CurrentPage);
+
+        window.Close();
+        await app.Root.Exit.Running;
+        Assert.Equal(ExitStage.Failed, app.Root.Exit.Stage);
+
+        // Still failing: retrying must not quit with the draft lost.
+        app.Root.Exit.RetryCommand.Execute(null);
+        await app.Root.Exit.Running;
+        Assert.True(app.Root.Exit.IsFailed);
+        Assert.Equal(0, app.Shell.ExitRequests);
+
+        failing.Fail = false;
+        app.Root.Exit.RetryCommand.Execute(null);
+        await app.Root.Exit.Running;
+
+        Assert.Equal(1, app.Shell.ExitRequests);
+        var detail = await app.Services.GetRequiredService<Application.Summaries.SummaryService>().GetAsync(summary.Node, CancellationToken.None);
+        Assert.Equal("我自己的笔记", detail!.Draft?.Body);
+    }
+
+    [AvaloniaFact]
+    public async Task A_step_that_throws_while_stopping_shows_the_failure_instead_of_hanging()
+    {
+        await using var app = DesktopHarness.Create();
+        var window = NetworkUiTests.Show(app);
+        await app.StartWithWorkspaceAsync("火车");
+        var generation = app.Services.GetRequiredService<GenerationCoordinator>();
+        void Throwing(object? sender, EventArgs e) => throw new InvalidOperationException("simulated listener failure");
+        generation.Changed += Throwing;
+        try
+        {
+            window.Close();
+            await app.Root.Exit.Running;
+        }
+        finally
+        {
+            generation.Changed -= Throwing;
+        }
+
+        Assert.Equal(ExitStage.Failed, app.Root.Exit.Stage);
+        Assert.Equal(0, app.Shell.ExitRequests);
+
+        app.Root.Exit.RetryCommand.Execute(null);
+        await app.Root.Exit.Running;
+        Assert.Equal(1, app.Shell.ExitRequests);
+    }
+
+    [AvaloniaFact]
+    public async Task A_second_launch_during_the_final_release_does_not_touch_the_closed_window()
+    {
+        await using var app = DesktopHarness.Create();
+        var window = NetworkUiTests.Show(app);
+        await app.StartWithWorkspaceAsync("火车");
+
+        window.Close();
+        await app.Root.Exit.Running;
+        Assert.Equal(ExitStage.Releasing, app.Root.Exit.Stage);
+        window.Close();
+
+        window.BringToFront();
+        Assert.False(window.IsVisible);
+    }
+
+    [AvaloniaFact]
+    public async Task The_host_does_not_wait_again_for_a_task_the_exit_already_gave_up_on()
+    {
+        var stubborn = new StubbornClient();
+        await using var app = DesktopHarness.Create(s =>
+        {
+            s.AddSingleton<IChatClient>(stubborn);
+            s.AddSingleton(new ExitOptions { StopWait = TimeSpan.FromSeconds(2) });
+        });
+        await app.StartWithWorkspaceAsync("火车");
+        await app.ConfigureModelAsync();
+        await app.Services.GetRequiredService<ConversationService>().StartAsync(app.Workbench.CurrentWorkspace!.Id, "问", CancellationToken.None);
+        await stubborn.Started.Task.WaitAsync(TimeSpan.FromSeconds(5));
+        Assert.True(app.Root.Exit.InterceptClose());
+        app.Root.Exit.StopAndExitCommand.Execute(null);
+        await app.Root.Exit.Running.WaitAsync(TimeSpan.FromSeconds(6));
+        Assert.Equal(ExitStage.Releasing, app.Root.Exit.Stage);
+
+        var instance = SingleInstance.TryAcquire(app.Paths);
+        Assert.NotNull(instance);
+        var host = app.HandOverToHost(instance);
+        var watch = System.Diagnostics.Stopwatch.StartNew();
+        try
+        {
+            await host.DisposeAsync();
+        }
+        finally
+        {
+            watch.Stop();
+            stubborn.Release.TrySetResult();
+        }
+
+        Assert.True(watch.Elapsed < TimeSpan.FromSeconds(1), $"The host waited {watch.Elapsed}.");
+    }
+
+    [AvaloniaFact]
     public async Task Returning_after_a_failed_save_accepts_new_questions_and_does_not_revive_stopped_answers()
     {
         var failing = new FailingDrafts();
@@ -360,6 +477,41 @@ public class ExitTests
 
             public Task SaveDraftAsync(ConversationId conversation, ViewerSlotKey slot, string text, DateTimeOffset at, CancellationToken cancellationToken) =>
                 gate.Fail ? throw new IOException("simulated draft write failure") : inner.SaveDraftAsync(conversation, slot, text, at, cancellationToken);
+        }
+    }
+
+    /// <summary>The real summary store, whose edit-draft writes fail while <see cref="Fail"/> is set.</summary>
+    private sealed class FailingSummaryDrafts
+    {
+        public volatile bool Fail;
+
+        public ISummaryStore Wrap(SqliteDatabase database)
+        {
+            var proxy = System.Reflection.DispatchProxy.Create<ISummaryStore, Proxy>();
+            ((Proxy)(object)proxy).Configure(new SqliteSummaryStore(database), this);
+            return proxy;
+        }
+
+#pragma warning disable CA1852 // DispatchProxy derives a runtime type from it, so it cannot be sealed.
+        public class Proxy : System.Reflection.DispatchProxy
+#pragma warning restore CA1852
+        {
+            private ISummaryStore _inner = null!;
+            private FailingSummaryDrafts _gate = null!;
+
+            public void Configure(ISummaryStore inner, FailingSummaryDrafts gate)
+            {
+                _inner = inner;
+                _gate = gate;
+            }
+
+            protected override object? Invoke(System.Reflection.MethodInfo? targetMethod, object?[]? args)
+            {
+                ArgumentNullException.ThrowIfNull(targetMethod);
+                return targetMethod.Name == nameof(ISummaryStore.SaveDraftAsync) && _gate.Fail
+                    ? Task.FromException(new IOException("simulated summary draft write failure"))
+                    : targetMethod.Invoke(_inner, args);
+            }
         }
     }
 

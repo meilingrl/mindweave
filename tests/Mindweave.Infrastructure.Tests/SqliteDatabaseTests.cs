@@ -315,7 +315,11 @@ public sealed class SqliteDatabaseTests : IDisposable
         Assert.Equal(1L, Scalar<long>(reader, "SELECT count(*) FROM app_state;"));
         await database.WriteAsync((c, t) => Exec(c, t, "INSERT INTO app_state VALUES ('k2', 'v');"), Ct);
 
+        // The checkpoint waits for the reader only briefly (200 ms), not the connection's 5 s busy timeout.
+        var watch = System.Diagnostics.Stopwatch.StartNew();
         await database.DrainAsync().WaitAsync(TimeSpan.FromSeconds(10), Ct);
+        watch.Stop();
+        Assert.True(watch.Elapsed < TimeSpan.FromSeconds(1.5), $"Draining took {watch.Elapsed}.");
 
         SqliteConnections.Execute(reader, "COMMIT;");
         Assert.True(new FileInfo(_dir.Paths.DatabasePath + "-wal").Length > 0);

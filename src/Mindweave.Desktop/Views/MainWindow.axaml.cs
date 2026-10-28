@@ -19,9 +19,17 @@ public sealed partial class MainWindow : Window
         base.OnClosing(e);
     }
 
-    /// <summary>Called when a second launch asks this instance to come forward.</summary>
+    /// <summary>
+    /// Called when a second launch asks this instance to come forward. Ignored once the exit is releasing: the window
+    /// is closing or closed, and this instance only still holds the single-instance lock while it shuts down.
+    /// </summary>
     public void BringToFront()
     {
+        if (DataContext is ViewModels.RootViewModel { Exit.Stage: ViewModels.ExitStage.Releasing })
+        {
+            return;
+        }
+
         if (WindowState == WindowState.Minimized)
         {
             WindowState = WindowState.Normal;

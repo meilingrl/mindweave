@@ -1,5 +1,6 @@
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
+using Microsoft.Extensions.Logging;
 using Mindweave.Application.Conversations;
 using Mindweave.Application.Reading;
 using Mindweave.Application.Startup;
@@ -43,9 +44,11 @@ public sealed partial class ExitCoordinator(
     ReadingStateService reading,
     IDatabaseLifecycle database,
     ISystemShell shell,
-    ExitOptions options) : ViewModelBase
+    ExitOptions options,
+    ILogger<ExitCoordinator> logger) : ViewModelBase
 {
     private IReadOnlyList<NetworkSession> _discardOnCommit = [];
+    private bool _stopped;
 
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(IsTaskPromptOpen), nameof(IsBusy), nameof(IsFailed))]
@@ -127,8 +130,9 @@ public sealed partial class ExitCoordinator(
         Stage = ExitStage.Idle;
     }
 
+    /// <summary>Retry after a failure: the stop step again if it did not finish, then saving.</summary>
     [RelayCommand(CanExecute = nameof(IsFailed))]
-    private void Retry() => Running = SaveAndReleaseAsync();
+    private void Retry() => Running = _stopped ? SaveAndReleaseAsync() : StopAndReleaseAsync();
 
     /// <summary>Back to work after a failed save: new work is accepted, what the exit stopped stays stopped.</summary>
     [RelayCommand(CanExecute = nameof(IsFailed))]
@@ -138,18 +142,51 @@ public sealed partial class ExitCoordinator(
         Stage = ExitStage.Idle;
     }
 
+    /// <summary>
+    /// Runs unobserved (the UI never awaits it), so nothing may escape: a step that throws ends in the failure state with
+    /// retry and return, never in "stopping" with no way out.
+    /// </summary>
     private async Task CommitAsync()
     {
         Stage = ExitStage.Stopping;
-
-        // The first irreversible steps: every prompt is answered.
-        foreach (var session in _discardOnCommit)
+        _stopped = false;
+        var discard = _discardOnCommit;
+        _discardOnCommit = [];
+        try
         {
-            session.DiscardChanges();
+            // The first irreversible steps: every prompt is answered.
+            foreach (var session in discard)
+            {
+                session.DiscardChanges();
+            }
+        }
+#pragma warning disable CA1031 // A layout the user chose not to save is lost either way; carry on with the exit.
+        catch (Exception ex)
+#pragma warning restore CA1031
+        {
+            LogStepFailed(logger, ex, ExitStage.Stopping);
         }
 
-        _discardOnCommit = [];
-        await generation.StopForExitAsync(options.StopWait);
+        await StopAndReleaseAsync();
+    }
+
+    private async Task StopAndReleaseAsync()
+    {
+        Stage = ExitStage.Stopping;
+        try
+        {
+            await generation.StopForExitAsync(options.StopWait);
+            _stopped = true;
+        }
+#pragma warning disable CA1031 // Any failure while stopping means: keep the window, offer retry or return.
+        catch (Exception ex)
+#pragma warning restore CA1031
+        {
+            LogStepFailed(logger, ex, ExitStage.Stopping);
+            Stage = ExitStage.Failed;
+            return;
+        }
+
         await SaveAndReleaseAsync();
     }
 
@@ -162,9 +199,10 @@ public sealed partial class ExitCoordinator(
             saved = await SaveEverythingAsync();
         }
 #pragma warning disable CA1031 // Any failure while saving means: keep the window, offer retry or return.
-        catch (Exception)
+        catch (Exception ex)
 #pragma warning restore CA1031
         {
+            LogStepFailed(logger, ex, ExitStage.Flushing);
             saved = false;
         }
 
@@ -177,6 +215,9 @@ public sealed partial class ExitCoordinator(
         Stage = ExitStage.Releasing;
         shell.ExitApplication();
     }
+
+    [LoggerMessage(Level = LogLevel.Error, Message = "Exit step {Stage} failed; the window stays open with retry and return")]
+    private static partial void LogStepFailed(ILogger logger, Exception exception, ExitStage stage);
 
     /// <summary>
     /// Step 4: open pages' drafts (including any still inside a throttle), message drafts and reading positions, the

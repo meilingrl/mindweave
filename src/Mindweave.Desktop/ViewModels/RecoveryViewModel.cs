@@ -11,6 +11,9 @@ public interface IRecoveryActions
     Task RetryAsync();
 
     Task RestoreAsync(BackupInfo backup);
+
+    /// <summary>Quits through the one exit sequence (it has nothing to ask or save here, but owns the final shutdown).</summary>
+    void Quit();
 }
 
 /// <summary>
@@ -75,7 +78,7 @@ public sealed partial class RecoveryViewModel : ViewModelBase
     private void OpenDataFolder() => _shell.OpenFolder(DataDirectory);
 
     [RelayCommand]
-    private void Exit() => _shell.ExitApplication();
+    private void Exit() => _actions.Quit();
 
     [RelayCommand]
     private void ChooseRestore(BackupInfo backup) => PendingRestore = backup;

@@ -18,7 +18,7 @@ public sealed class Workbench : ObservableObject, IWorkbenchNavigator
     private readonly Dictionary<WorkspaceId, WorkspaceRuntime> _runtimes = [];
     private readonly IPageFactory _pages;
     private readonly WorkspaceService _workspaces;
-    private readonly List<Task<bool>> _droppedFlushes = [];
+    private readonly List<DroppedPage> _dropped = [];
     private WorkspaceRuntime? _active;
 
     public Workbench(IPageFactory pages, WorkspaceService workspaces)
@@ -158,18 +158,29 @@ public sealed class Workbench : ObservableObject, IWorkbenchNavigator
     /// </summary>
     public async Task<bool> FlushAsync()
     {
-        List<Task<bool>> flushes;
-        lock (_droppedFlushes)
+        List<DroppedPage> dropped;
+        lock (_dropped)
         {
-            flushes = [.. _droppedFlushes];
-            _droppedFlushes.Clear();
+            dropped = [.. _dropped];
         }
 
-        flushes.AddRange(_runtimes.Values
+        // Dropped pages first: a page opened again on the same draft saves after them, so its newer input wins.
+        foreach (var page in dropped)
+        {
+            page.Flush = page.RetryAsync();
+        }
+
+        var droppedResults = await Task.WhenAll(dropped.Select(p => p.Flush));
+        lock (_dropped)
+        {
+            // A page whose input is still unsaved stays held (and is tried again) until a flush succeeds.
+            _dropped.RemoveAll(p => p.Flush.IsCompletedSuccessfully && p.Flush.Result);
+        }
+
+        var results = droppedResults.Concat(await Task.WhenAll(_runtimes.Values
             .SelectMany(r => r.AllPages())
             .OfType<IPageFlush>()
-            .Select(p => p.FlushAsync()));
-        var results = await Task.WhenAll(flushes);
+            .Select(p => p.FlushAsync())));
         if (_active is { } runtime && ActiveSlot is { } slot)
         {
             await _workspaces.RememberLocationAsync(
@@ -180,20 +191,36 @@ public sealed class Workbench : ObservableObject, IWorkbenchNavigator
         return results.All(saved => saved);
     }
 
-    /// <summary>A page leaves the stacks: its pending input is saved first (tracked, so an exit waits for it), then it is disposed.</summary>
+    /// <summary>
+    /// A page leaves the stacks: its pending input is saved first, then it is disposed. The page stays held here until
+    /// a save succeeds, so an exit waits for the save and, if it failed, tries it again rather than losing the input.
+    /// </summary>
     private void Release(PageViewModel page)
     {
         if (page is IPageFlush flushable)
         {
-            var flush = flushable.FlushAsync();
-            lock (_droppedFlushes)
+            var dropped = new DroppedPage(flushable, flushable.FlushAsync());
+            lock (_dropped)
             {
-                _droppedFlushes.RemoveAll(t => t.IsCompletedSuccessfully && t.Result);
-                _droppedFlushes.Add(flush);
+                _dropped.RemoveAll(p => p.Flush.IsCompletedSuccessfully && p.Flush.Result);
+                _dropped.Add(dropped);
             }
         }
 
         (page as IDisposable)?.Dispose();
+    }
+
+    /// <summary>A page removed from the stacks whose pending input may not be saved yet.</summary>
+    private sealed class DroppedPage(IPageFlush page, Task<bool> flush)
+    {
+        public Task<bool> Flush { get; set; } = flush;
+
+        /// <summary>Waits for the save under way, then saves whatever is still pending (nothing, when that one worked).</summary>
+        public async Task<bool> RetryAsync()
+        {
+            await Flush;
+            return await page.FlushAsync();
+        }
     }
 
     private void Activate(WorkspaceId id, MainSection? section)

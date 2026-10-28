@@ -417,12 +417,28 @@ public sealed partial class ConversationService
         var excerpt = e.Text.Length > TitleAnswerExcerpt ? e.Text[..TitleAnswerExcerpt] : e.Text;
         var now = _clock.UtcNow;
         var task = NewTask(GenerationTaskKind.Title, e.ConversationId, null, model, [question.Id, e.MessageId], now);
+        if (_generation.IsClosed)
+        {
+            // An exit is under way (the answer completed while it was stopping): ask again after the next answer.
+            _titleRequested.TryRemove(e.ConversationId, out _);
+            return;
+        }
+
         await _store.AddTaskAsync(task, CancellationToken.None).ConfigureAwait(false);
-        _generation.Enqueue(new TitleWork(task, new ChatRequest(model with { MaxOutputTokens = TitleOutputTokens },
-        [
-            new ChatTurn(ChatRole.System, "为下面的对话起一个简短标题，概括提问的主题。只输出标题本身，不加引号、序号或句末标点；不超过 20 个字；使用提问所用的语言。"),
-            new ChatTurn(ChatRole.User, $"提问：{asked}\n\n回答开头：{excerpt}"),
-        ])));
+        try
+        {
+            _generation.Enqueue(new TitleWork(task, new ChatRequest(model with { MaxOutputTokens = TitleOutputTokens },
+            [
+                new ChatTurn(ChatRole.System, "为下面的对话起一个简短标题，概括提问的主题。只输出标题本身，不加引号、序号或句末标点；不超过 20 个字；使用提问所用的语言。"),
+                new ChatTurn(ChatRole.User, $"提问：{asked}\n\n回答开头：{excerpt}"),
+            ])));
+        }
+        catch (InvalidOperationException)
+        {
+            // Closed between the check and the enqueue: no queued row is left behind, and the next answer asks again.
+            _titleRequested.TryRemove(e.ConversationId, out _);
+            await _store.FinishTaskAsync(task.Id, GenerationTaskState.Cancelled, null, null, _clock.UtcNow, CancellationToken.None).ConfigureAwait(false);
+        }
     }
 
     private static Message NewMessage(ConversationId conversation, int seq, MessageRole role, string body, MessageState state, MessageId? supersedes, DateTimeOffset at) =>

@@ -21,6 +21,7 @@ public sealed class DesktopHarness : IAsyncDisposable
 {
     private readonly Action<IServiceCollection>? _overrides;
     private readonly bool _ownsDirectory;
+    private bool _handedOver;
 
     private DesktopHarness(string directory, Action<IServiceCollection>? overrides, bool ownsDirectory)
     {
@@ -85,14 +86,25 @@ public sealed class DesktopHarness : IAsyncDisposable
         await StartAsync();
     }
 
+    /// <summary>Hands the services to the real <see cref="AppHost"/>, which then tears them down instead of the harness.</summary>
+    internal AppHost HandOverToHost(SingleInstance instance)
+    {
+        _handedOver = true;
+        return new AppHost(instance, Services);
+    }
+
     public async ValueTask DisposeAsync()
     {
-        // A test that closed its window started the exit sequence; let it finish before tearing down under it.
-        await Root.Exit.Running;
-        await Services.GetRequiredService<GenerationCoordinator>().ShutdownAsync();
-        await Services.GetRequiredService<ReadingStateService>().FlushAsync();
-        await Services.GetRequiredService<SqliteDatabase>().CloseAsync();
-        await Services.DisposeAsync();
+        if (!_handedOver)
+        {
+            // A test that closed its window started the exit sequence; let it finish before tearing down under it.
+            await Root.Exit.Running;
+            await Services.GetRequiredService<GenerationCoordinator>().ShutdownAsync();
+            await Services.GetRequiredService<ReadingStateService>().FlushAsync();
+            await Services.GetRequiredService<SqliteDatabase>().CloseAsync();
+            await Services.DisposeAsync();
+        }
+
         SqliteConnection.ClearAllPools();
         if (_ownsDirectory)
         {

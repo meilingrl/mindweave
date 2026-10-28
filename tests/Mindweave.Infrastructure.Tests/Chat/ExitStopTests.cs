@@ -2,6 +2,7 @@ using System.Runtime.CompilerServices;
 using Mindweave.Application.Ai;
 using Mindweave.Application.Conversations;
 using Mindweave.Core.Conversations;
+using Mindweave.Infrastructure.Sqlite;
 using Mindweave.Testing;
 
 namespace Mindweave.Infrastructure.Tests.Chat;
@@ -86,8 +87,112 @@ public class ExitStopTests
         Assert.Equal(MessageState.Stopped, (await h.GetMessageAsync(a.Answer!.Value))!.State);
         Assert.Equal(MessageState.Stopped, (await h.GetMessageAsync(b.Answer!.Value))!.State);
         Assert.Equal(MessageState.Cancelled, (await h.GetMessageAsync(queued.Answer!.Value))!.State);
-        Assert.Equal(0, h.Generation.UnfinishedCount);
+
+        // The new answer's title follows it and its slot is released just after its terminal write: wait until settled.
+        Assert.False(h.Generation.UnfinishedUserWork.Any);
+        await ChatHarness.UntilAsync(() => h.Generation.UnfinishedCount == 0);
     }
+
+    [Fact]
+    public async Task A_finished_answer_still_holding_its_slot_is_not_counted_by_the_exit_prompt()
+    {
+        await using var h = await ChatHarness.StartAsync();
+        using var entered = new ManualResetEventSlim();
+        using var release = new ManualResetEventSlim();
+        h.Generation.AnswerFinished += (_, _) =>
+        {
+            // Runs on the answer's worker after the terminal write, before the slot is released.
+            entered.Set();
+            release.Wait(TimeSpan.FromSeconds(10));
+        };
+        var sent = await h.Conversations.StartAsync(h.Workspace, "问", Ct);
+        Assert.True(entered.Wait(TimeSpan.FromSeconds(5), Ct));
+
+        try
+        {
+            Assert.Equal(MessageState.Complete, (await h.GetMessageAsync(sent.Answer!.Value))!.State);
+            // Still in its slot (a title may already be queued behind it), yet not something the prompt should name.
+            Assert.Equal(1, h.Generation.UnfinishedAnswerCount);
+            Assert.False(h.Generation.UnfinishedUserWork.Any);
+        }
+        finally
+        {
+            release.Set();
+        }
+    }
+
+    [Fact]
+    public async Task Saving_unsaved_writes_waits_for_a_retry_already_writing_and_reports_that_it_failed()
+    {
+        ConversationFlowTests.FlakyStore? flaky = null;
+        await using var h = await ChatHarness.StartAsync(wrapStore: s => flaky = new ConversationFlowTests.FlakyStore(s));
+        var held = h.Client.Hold("已收到");
+        var sent = await h.Conversations.StartAsync(h.Workspace, "问", Ct);
+        await held.Started.Task.WaitAsync(TimeSpan.FromSeconds(5), Ct);
+        flaky!.FailFinishes = int.MaxValue;
+        await h.Generation.StopForExitAsync(TimeSpan.FromSeconds(5));
+
+        // The background retry takes the failed write out of the queue and is stuck writing it.
+        var entered = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var release = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        flaky.BeforeFinish = () =>
+        {
+            entered.TrySetResult();
+            return release.Task;
+        };
+        await entered.Task.WaitAsync(TimeSpan.FromSeconds(5), Ct);
+        flaky.BeforeFinish = null;
+
+        Task<bool> save;
+        try
+        {
+            save = h.Generation.SaveUnsavedAsync();
+            await Task.Delay(100, Ct);
+            Assert.False(save.IsCompleted);
+        }
+        finally
+        {
+            release.TrySetResult();
+        }
+
+        Assert.False(await save.WaitAsync(TimeSpan.FromSeconds(5), Ct));
+
+        flaky.FailFinishes = 0;
+        Assert.True(await h.Generation.SaveUnsavedAsync());
+        Assert.Equal(MessageState.Stopped, (await h.GetMessageAsync(sent.Answer!.Value))!.State);
+    }
+
+    [Fact]
+    public async Task An_answer_completing_while_the_exit_is_under_way_gets_its_title_after_returning()
+    {
+        var stubborn = new StubbornClient();
+        await using var h = await ChatHarness.StartAsync(client: stubborn);
+        var sent = await h.Conversations.StartAsync(h.Workspace, "火车是怎么发明的？", Ct);
+        await stubborn.Started.Task.WaitAsync(TimeSpan.FromSeconds(5), Ct);
+        Assert.False(await h.Generation.StopForExitAsync(TimeSpan.FromMilliseconds(100)));
+
+        // The answer ignores the stop and completes after the entry closed; its title cannot be queued now.
+        stubborn.Release.TrySetResult();
+        await h.WaitForAnswerAsync(sent.Answer!.Value, m => m.State == MessageState.Complete);
+        await ChatHarness.UntilAsync(() => h.Generation.UnfinishedCount == 0);
+        await Task.Delay(300, Ct);
+        Assert.Equal(0L, await QueuedTitlesAsync(h));
+
+        h.Generation.Reopen();
+        var again = await h.Conversations.AskAsync(sent.Conversation, "再问一个", Ct);
+        await h.WaitForAnswerAsync(again.Answer!.Value);
+        await ChatHarness.UntilAsync(() => h.Store.GetAsync(sent.Conversation, Ct).Result!.Title == FakeChatClient.DefaultTitle);
+        Assert.Equal(0L, await QueuedTitlesAsync(h));
+    }
+
+    private static Task<long> QueuedTitlesAsync(ChatHarness h) =>
+        h.Database.ReadAsync(
+            c =>
+            {
+                using var cmd = c.Command(null, "SELECT count(*) FROM generation_task WHERE kind = 'title' AND state = 'queued';");
+                return (long)cmd.ExecuteScalar()!;
+            },
+            CancellationToken.None);
 
     [Fact]
     public async Task A_title_stopped_by_an_exit_is_asked_for_again_when_the_next_answer_completes()

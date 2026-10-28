@@ -310,10 +310,20 @@ public class ConversationFlowTests
             set => Volatile.Write(ref _failFinishes, value);
         }
 
-        public Task<bool> FinishAnswerAsync(GenerationTaskId task, MessageId answer, IReadOnlyList<ContentBlock> blocks, long revision, MessageState state, GenerationErrorKind? errorKind, string? errorDetail, DateTimeOffset at, CancellationToken cancellationToken) =>
-            Interlocked.Decrement(ref _failFinishes) >= 0
+        /// <summary>Awaited at the start of every terminal answer write, before it fails or reaches the store.</summary>
+        public Func<Task>? BeforeFinish { get; set; }
+
+        public async Task<bool> FinishAnswerAsync(GenerationTaskId task, MessageId answer, IReadOnlyList<ContentBlock> blocks, long revision, MessageState state, GenerationErrorKind? errorKind, string? errorDetail, DateTimeOffset at, CancellationToken cancellationToken)
+        {
+            if (BeforeFinish is { } before)
+            {
+                await before();
+            }
+
+            return Interlocked.Decrement(ref _failFinishes) >= 0
                 ? throw new IOException("simulated disk full")
-                : inner.FinishAnswerAsync(task, answer, blocks, revision, state, errorKind, errorDetail, at, cancellationToken);
+                : await inner.FinishAnswerAsync(task, answer, blocks, revision, state, errorKind, errorDetail, at, cancellationToken);
+        }
 
         public Task<IReadOnlyList<ConversationSummary>> ListAsync(Core.Workspaces.WorkspaceId workspace, CancellationToken cancellationToken) => inner.ListAsync(workspace, cancellationToken);
 

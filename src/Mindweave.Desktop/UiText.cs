@@ -137,7 +137,7 @@ public static class UiText
     public const string ExitCancel = "继续生成";
     public const string ExitSaving = "正在停止任务并保存……";
     public const string ExitSaveFailedTitle = "部分内容未能保存";
-    public const string ExitSaveFailedBody = "未发送的草稿或回答的结束状态没有写入，内容仍保留在窗口中。可以重试退出，或返回继续使用；已停止的任务不会自动恢复。";
+    public const string ExitSaveFailedBody = "未发送的草稿、总结编辑草稿或回答的结束状态没有写入。程序仍保留着这些内容，写入成功之前不会退出。可以重试退出，或返回继续使用；已停止的任务不会自动恢复。";
     public const string ExitRetry = "重试退出";
     public const string ExitReturn = "返回";
 

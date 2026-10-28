@@ -97,6 +97,10 @@ public sealed partial class GenerationCoordinator : IAsyncDisposable
     private readonly ConcurrentDictionary<MessageId, LiveAnswer> _live = new();
     private readonly ConcurrentQueue<Func<Task<bool>>> _unsaved = new();
     private readonly CancellationTokenSource _lifetime = new();
+
+    // One pass over the failed terminal writes at a time: the background retry and an exit's final save must not
+    // overlap, or the exit could see an empty queue while a dequeued write is still failing.
+    private readonly SemaphoreSlim _flushGate = new(1, 1);
     private Task _retryLoop = Task.CompletedTask;
     private bool _closed;
     private int _shutDown;
@@ -174,7 +178,11 @@ public sealed partial class GenerationCoordinator : IAsyncDisposable
         {
             lock (_gate)
             {
-                var pending = _userQueue.Concat(_backgroundQueue).Concat(_running.Values.Select(r => r.Work)).ToList();
+                // Like HasUnfinishedAnswer: a running answer whose live state is already terminal is finished, even
+                // though its slot is released only after the terminal write and its listeners.
+                var pending = _userQueue.Concat(_backgroundQueue)
+                    .Concat(_running.Values.Select(r => r.Work).Where(w => w is not AnswerWork a || IsLive(a)))
+                    .ToList();
                 return new UnfinishedUserWork(pending.Count(w => w is AnswerWork), pending.Count(w => w is SummaryWork));
             }
         }
@@ -201,11 +209,11 @@ public sealed partial class GenerationCoordinator : IAsyncDisposable
             // A running answer counts until its live state is terminal — not until its slot is released,
             // which happens a moment after the terminal write a retry may already be reacting to.
             return _userQueue.Any(w => w is AnswerWork && w.Task.ConversationId == conversation)
-                || _running.Values.Any(r => r.Work is AnswerWork a
-                    && a.Task.ConversationId == conversation
-                    && a.Live.Snapshot().State is MessageState.Pending or MessageState.Streaming);
+                || _running.Values.Any(r => r.Work is AnswerWork a && a.Task.ConversationId == conversation && IsLive(a));
         }
     }
+
+    private static bool IsLive(AnswerWork answer) => answer.Live.Snapshot().State is MessageState.Pending or MessageState.Streaming;
 
     /// <summary>Queues work whose task row is already stored. Throws once shutdown has begun.</summary>
     public void Enqueue(GenerationWork work)
@@ -363,11 +371,7 @@ public sealed partial class GenerationCoordinator : IAsyncDisposable
     }
 
     /// <summary>Tries the terminal writes that failed earlier once more, now. True when none is left unsaved.</summary>
-    public async Task<bool> SaveUnsavedAsync()
-    {
-        await FlushUnsavedAsync().ConfigureAwait(false);
-        return _unsaved.IsEmpty;
-    }
+    public Task<bool> SaveUnsavedAsync() => FlushUnsavedAsync();
 
     /// <summary>
     /// Final stop when the process ends: <see cref="StopForExitAsync"/> (bounded by <paramref name="wait"/>, unbounded
@@ -398,6 +402,7 @@ public sealed partial class GenerationCoordinator : IAsyncDisposable
     {
         await ShutdownAsync().ConfigureAwait(false);
         _lifetime.Dispose();
+        _flushGate.Dispose();
     }
 
     private GenerationWork? RemoveQueued(Func<GenerationWork, bool> match)
@@ -944,28 +949,43 @@ public sealed partial class GenerationCoordinator : IAsyncDisposable
         }
     }
 
-    private async Task FlushUnsavedAsync()
+    /// <summary>One pass over the failed terminal writes. True when none is left unsaved at the end of this pass.</summary>
+    private async Task<bool> FlushUnsavedAsync()
     {
-        var count = _unsaved.Count;
-        for (var i = 0; i < count && _unsaved.TryDequeue(out var write); i++)
+        await _flushGate.WaitAsync().ConfigureAwait(false);
+        bool empty;
+        try
         {
-            try
+            var count = _unsaved.Count;
+            for (var i = 0; i < count && _unsaved.TryDequeue(out var write); i++)
             {
-                await write().ConfigureAwait(false);
-            }
+                try
+                {
+                    await write().ConfigureAwait(false);
+                }
 #pragma warning disable CA1031 // Still failing: keep it for the next attempt.
-            catch (Exception ex)
+                catch (Exception ex)
 #pragma warning restore CA1031
-            {
-                LogSaveFailed(_logger, ex);
-                _unsaved.Enqueue(write);
+                {
+                    LogSaveFailed(_logger, ex);
+                    _unsaved.Enqueue(write);
+                }
             }
+
+            // Read while no other pass can have a write out of the queue.
+            empty = _unsaved.IsEmpty;
+        }
+        finally
+        {
+            _flushGate.Release();
         }
 
-        if (_unsaved.IsEmpty && Interlocked.Exchange(ref _storageBlocked, 0) != 0)
+        if (empty && Interlocked.Exchange(ref _storageBlocked, 0) != 0)
         {
             RaiseChanged();
         }
+
+        return empty;
     }
 
     private void RaiseChanged() => Changed?.Invoke(this, EventArgs.Empty);

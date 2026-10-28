@@ -80,7 +80,10 @@ public class RecoveryTests
         await app.StartAsync();
         var recovery = Assert.IsType<RecoveryViewModel>(app.Root.Current);
         recovery.ExitCommand.Execute(null);
+        await app.Root.Exit.Running;
 
+        // Through the one exit sequence, not a forced shutdown that skips it.
+        Assert.Equal(ExitStage.Releasing, app.Root.Exit.Stage);
         Assert.Equal(1, app.Shell.ExitRequests);
     }
 }
