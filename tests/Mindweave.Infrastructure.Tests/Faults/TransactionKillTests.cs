@@ -109,7 +109,7 @@ public sealed class TransactionKillTests : IDisposable
         Assert.Equal(3, await CountAsync(_dir, "SELECT count(*) FROM summary_read_state;"));
 
         // The node moves to the second version and the first and current ones go (their read state cascades).
-        await KillInsideAsync(3, "delete-versions", node.ToString(), first.ToString(), third.ToString());
+        await KillInsideAsync(5, "delete-versions", node.ToString(), first.ToString(), third.ToString());
 
         await using var database = await ReopenAsync(before);
         var summaries = new SqliteSummaryStore(database);
@@ -217,7 +217,7 @@ public sealed class TransactionKillTests : IDisposable
         Assert.True(await CountAsync(_dir, "SELECT count(*) FROM message WHERE conversation_id = $id AND supersedes_id IS NOT NULL;", ("$id", child.ToString())) >= 2);
 
         // Task rows, the source row, the retry links, the messages, the last location and the conversation itself.
-        await KillInsideAsync(8, "delete", child.ToString());
+        await KillInsideAsync(25, "delete", child.ToString());
 
         await using var database = await ReopenAsync(before);
         Assert.Equal(PageLocation.ConversationKey(child), (await new SqliteLocationStore(database, new SystemClock()).GetLastAsync(Ct))!.ContentKey);
@@ -268,8 +268,9 @@ public sealed class TransactionKillTests : IDisposable
     }
 
     /// <summary>
-    /// Runs the operation in a child process, waits (bounded) until it has made at least <paramref name="changes"/>
-    /// row changes inside its still-open transaction, and kills it there. Returns how far the WAL grew meanwhile.
+    /// Runs the operation in a child process, waits (bounded) until it stops before COMMIT, checks it made exactly
+    /// <paramref name="changes"/> row changes in that transaction — the whole operation, so an operation split into
+    /// several transactions (whose first part would stop here with fewer) fails — and kills it there. Returns how far the WAL grew meanwhile.
     /// </summary>
     private async Task<long> KillInsideAsync(int changes, string operation, params string[] ids)
     {
@@ -278,7 +279,7 @@ public sealed class TransactionKillTests : IDisposable
         await child.KillAsync();
         var parts = line.Split(' ');
         Assert.Equal("in-transaction", parts[0]);
-        Assert.True(long.Parse(parts[1], CultureInfo.InvariantCulture) >= changes, $"{operation} made {parts[1]} changes before COMMIT, expected at least {changes}");
+        Assert.True(long.Parse(parts[1], CultureInfo.InvariantCulture) == changes, $"{operation} made {parts[1]} changes before COMMIT, expected exactly {changes} (the whole operation in one transaction)");
         return long.Parse(parts[2], CultureInfo.InvariantCulture);
     }
 

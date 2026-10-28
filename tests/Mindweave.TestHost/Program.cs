@@ -15,7 +15,7 @@ using Mindweave.Infrastructure.Hosting;
 using Mindweave.Infrastructure.Sqlite;
 using Mindweave.Infrastructure.Sqlite.Migrations;
 
-if (args.Length < 2 || (args.Length > 2 && args[0] != "hang-before-commit"))
+if (args.Length < 2 || (args[0] == "hang-before-commit" ? args.Length < 4 : args.Length > 2))
 {
     Console.Error.WriteLine("usage: Mindweave.TestHost <hold-lock|hang-in-migration|hang-in-backup|commit-then-hang|stream-then-hang> <data-dir>");
     Console.Error.WriteLine("       Mindweave.TestHost hang-before-commit <data-dir> <operation> <id>...");
