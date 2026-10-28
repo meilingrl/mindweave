@@ -12,6 +12,7 @@ public sealed class ViewLocator : IDataTemplate
         MainViewModel => new MainView(),
         ChatViewModel => new ChatView(),
         SettingsViewModel => new SettingsView(),
+        NetworkViewModel => new NetworkView(),
         SummaryListViewModel => new SummaryListView(),
         SummaryViewModel => new SummaryView(),
         ContentViewModel => new ContentView(),
