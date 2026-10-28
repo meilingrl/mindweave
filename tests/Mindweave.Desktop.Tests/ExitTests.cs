@@ -4,6 +4,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging.Abstractions;
 using Mindweave.Application.Ai;
 using Mindweave.Application.Conversations;
+using Mindweave.Application.Export;
 using Mindweave.Application.Storage;
 using Mindweave.Core.Conversations;
 using Mindweave.Core.Reading;
@@ -283,6 +284,51 @@ public class ExitTests
         Assert.Equal(1, app.Shell.ExitRequests);
         var detail = await app.Services.GetRequiredService<Application.Summaries.SummaryService>().GetAsync(second.Node, CancellationToken.None);
         Assert.Equal(discard ? null : "新的草稿", detail!.Draft?.Body);
+    }
+
+    [AvaloniaFact]
+    public async Task An_export_still_writing_its_file_is_finished_before_the_window_closes()
+    {
+        var writer = new GatedExportWriter();
+        await using var app = DesktopHarness.Create(s => s.AddSingleton<IExportFileWriter>(writer));
+        var window = NetworkUiTests.Show(app);
+        var page = await ConversationAsync(app);
+        await page.SummarizeCommand.ExecuteAsync(null);
+        await UiWait.UntilAsync(() => page.HasSummary && page.RunningSummary is null);
+        page.OpenSummaryCommand.Execute(null);
+        var summary = Assert.IsType<SummaryViewModel>(app.Workbench.CurrentPage);
+        await summary.Loaded;
+        app.Shell.NextExport = _ => new ExportDestination("导出.md", "/unused/导出.md", null);
+        var export = summary.ExportCommand.ExecuteAsync(null);
+        await writer.Started.Task;
+
+        window.Close();
+        await Task.Delay(200, TestContext.Current.CancellationToken);
+        Assert.Equal(0, app.Shell.ExitRequests);
+
+        writer.Release.SetResult();
+        await export;
+        await app.Root.Exit.Running;
+        Assert.Equal(1, writer.Writes);
+        Assert.Equal(1, app.Shell.ExitRequests);
+    }
+
+    /// <summary>An export writer that holds the write until released.</summary>
+    private sealed class GatedExportWriter : IExportFileWriter
+    {
+        public TaskCompletionSource Started { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+
+        public TaskCompletionSource Release { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+
+        public int Writes { get; private set; }
+
+        public async Task<ExportWriteMode> WriteAsync(ExportDestination destination, ReadOnlyMemory<byte> content, CancellationToken cancellationToken)
+        {
+            Started.TrySetResult();
+            await Release.Task;
+            Writes++;
+            return ExportWriteMode.Atomic;
+        }
     }
 
     [AvaloniaFact]
