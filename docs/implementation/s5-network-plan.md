@@ -34,6 +34,8 @@
 4. 视口中心为世界坐标，缩放默认 1，范围 0.15–2.5，fit padding 48；指针缩放倍率每单位 1.15。普通双轴滚动／空白拖动平移，Cmd/Ctrl+滚动指针缩放，按钮在中心缩放；可勾选鼠标滚轮直接缩放。尺寸为 0 时延后 fit；窗口 resize 只换投影尺寸，不改中心和比例。
 5. `NetworkSession` 独立保存图／内存布局／已保存布局／修订号／dirty／忙状态／视口／选择，并由 Main 每工作区持有。`NetworkViewModel` 是 Content 页面适配器。异步读取、计算、保存都捕获 session 身份与版本；关闭等待所有已接受布局 IO，旧异步不能重启操作。直接写失败留待下一次真正进入重算重试，元数据刷新不能以旧存档覆盖 dirty 图。
 6. Main 的布局离开确认返回 `LayoutLeavePermit(Guid WorkspaceId,long Revision,bool Discard)`；取消返回 null。选择保存先完成显式保存，若仍有较新 dirty 则继续要求解决。Permit 只在全部可取消提示完成且身份／修订仍匹配后提交，不保存才丢内存整理；第二个提示取消只撤销 Permit。没有 dirty 也应验证任务提示期间新增 dirty 不被跳过。
+8. Task3为元信息展示补齐来源会话名称：`NetworkNode`追加可选`ConversationTitle`，由projector使用已经读取的conversation.Title填写，不额外读正文或改表。旧两参数调用仍可编译；正式数据使用真实名称，不把GUID当作用户可读来源。
+9. Task3将会话状态／读取放`NetworkSession.cs`、布局与视口放`NetworkSession.Layout.cs`、保存与pending排空放`NetworkSession.Persistence.cs`，避免新会话类长成一个大文件；公开接口仍由一个session承载。
 7. 保留 S4 `SummaryListViewModel/View` 作已有独立列表和测试兼容；正式 Network 路由在 store 实现 `INetworkStore` 时使用新 VM，只有不提供网络存储的 S0／受控替身走旧 fallback。生产不增加第二套路由、数据库或默认模拟。
 
 ## 接口契约（各任务使用同名类型）
@@ -47,7 +49,7 @@ public readonly record struct NodePosition(double X, double Y);
 public sealed record NetworkConversation(Guid Id, Guid? ParentId, string Title, DateTimeOffset CreatedAt);
 public sealed record NetworkNodeMetadata(Guid Id, Guid ConversationId, string DisplayName,
     string BaseTitle, DateTimeOffset CreatedAt, bool IsUnread, bool HasCandidate, bool HasLaterContent);
-public sealed record NetworkNode(NetworkNodeMetadata Metadata, Guid RootConversationId);
+public sealed record NetworkNode(NetworkNodeMetadata Metadata, Guid RootConversationId, string ConversationTitle = "");
 public sealed record NetworkPathItem(Guid ConversationId, string Title);
 public sealed record NetworkEdge(Guid ParentNodeId, Guid ChildNodeId,
     ImmutableArray<NetworkPathItem> Path); // endpoints included; hidden = Path.Length - 2
@@ -113,7 +115,7 @@ Assert.Equal(2, graph.Nodes.Length); // B never becomes a blank node
 
 **Interfaces:** 消费 Task1 DTO／NodePosition，产出上节 engine/options/viewport 精确接口。`NetworkViewportMath` 签名由本任务写定并报告，后续复用同一变换。布局不依赖 Avalonia、数据库、AI；不复制原型的整控件。
 
-- [ ] 写数值行为测试：打乱节点／边／字典输入100%同坐标；多根分隔／子树大小扇区；大中文标题 extent 参与边界；PlaceMissing 每个旧坐标逐值不动、新点在已保存最近来源邻域找到无碰撞空位；同输入重复恢复同图；空图、单点、500节点深链／宽树有界、有限不丢点；错误参数／NaN拒绝。
+- [x] 写数值行为测试：打乱节点／边／字典输入100%同坐标；多根分隔／子树大小扇区；大中文标题 extent 参与边界；PlaceMissing 每个旧坐标逐值不动、新点在已保存最近来源邻域找到无碰撞空位；同输入重复恢复同图；空图、单点、500节点深链／宽树有界、有限不丢点；错误参数／NaN拒绝。
 
 ```csharp
 var engine = new NetworkLayoutEngine();
@@ -123,16 +125,18 @@ Assert.Equal(first.OrderBy(p => p.Key), second.OrderBy(p => p.Key));
 foreach (var pair in saved) Assert.Equal(pair.Value, first[pair.Key]);
 ```
 
-- [ ] 同任务focused `--filter 'FullyQualifiedName~NetworkLayoutTests|FullyQualifiedName~NetworkViewportTests'` 记录 RED。
-- [ ] Arrange：按稳定根和稳定子节点顺序组织森林，按子树数分配径向扇区（无总结根仅分组），组边界留 gap，有限碰撞修正考虑 extent；PlaceMissing 只移动缺坐标节点，来源近邻有限搜索后确定性外圈 fallback。不要每次全重排已有坐标。所有点有限且界内；规模测试报告耗时但不写依赖具体机器的脆弱毫秒断言。
-- [ ] 视口实现共享 world/screen 可逆变换、Fit 使用所有节点和标题边界、Pan 按当前缩放换算、ZoomAt 保持指针世界点不动并钳制缩放；宽高0延迟fit，resize不改state。测试点往返误差<1e-9、任意 pointer不漂移、fit边界在padding内（缩放极限允许明确超出）、ShowAll不改positions、NaN/无穷不传播。
-- [ ] focused GREEN＋任务完整 Release 一次，自审、只提交本任务源／测试 `feat: add deterministic network layout and viewport math`，报告公开签名与参数，不修改 TRACK。
+- [x] 同任务focused `--filter 'FullyQualifiedName~NetworkLayoutTests|FullyQualifiedName~NetworkViewportTests'` 记录 RED。
+- [x] Arrange：按稳定根和稳定子节点顺序组织森林，按子树数分配径向扇区（无总结根仅分组），组边界留 gap，有限碰撞修正考虑 extent；PlaceMissing 只移动缺坐标节点，来源近邻有限搜索后确定性外圈 fallback。不要每次全重排已有坐标。所有点有限且界内；规模测试报告耗时但不写依赖具体机器的脆弱毫秒断言。
+- [x] 视口实现共享 world/screen 可逆变换、Fit 使用所有节点和标题边界、Pan 按当前缩放换算、ZoomAt 保持指针世界点不动并钳制缩放；宽高0延迟fit，resize不改state。测试点往返误差<1e-9、任意 pointer不漂移、fit边界在padding内（缩放极限允许明确超出）、ShowAll不改positions、NaN/无穷不传播。
+- [x] focused GREEN＋任务完整 Release 一次，自审、只提交本任务源／测试 `feat: add deterministic network layout and viewport math`，报告公开签名与参数，不修改 TRACK。
+
+**结果：** `784138f`，聚焦29通过／完整725通过＋2原有跳过；独立任务审查Approved、C/I/M均0。500节点仅纯算法测量，原生视觉待后续。
 
 ### Task 3: 工作区网络会话、异步快照与独立保存
 
-**Files:** Create `src/Mindweave.Desktop/Network/NetworkSession.cs`（可将 pending IO 辅助放同目录专责文件）、`src/Mindweave.Desktop/ViewModels/NetworkViewModel.cs`, `NetworkNodeViewModel.cs`; Test `tests/Mindweave.Tests/NetworkSessionTests.cs`, `NetworkViewModelTests.cs`。
+**Files:** Create `src/Mindweave.Desktop/Network/NetworkSession.cs`, `NetworkSession.Layout.cs`, `NetworkSession.Persistence.cs`、`src/Mindweave.Desktop/ViewModels/NetworkViewModel.cs`, `NetworkNodeViewModel.cs`; Modify `src/Mindweave.Application/Network/NetworkContracts.cs`, `NetworkProjection.cs`（仅追加来源会话名称）; Test `tests/Mindweave.Tests/NetworkSessionTests.cs`, `NetworkViewModelTests.cs`, `NetworkProjectionTests.cs`（来源名称）。
 
-**Interfaces:** 消费 Task1 `INetworkStore`、Task2 engine/math；产出接口契约的 session 和 VM。VM `(NetworkSession session, Func<Guid,Task> openSummary)`；`Session`、`Nodes`、`SelectedNode`、`Search`、`OpenSummaryCommand/ArrangeCommand/SaveLayoutCommand/ShowAllCommand/ZoomInCommand/ZoomOutCommand/FindNextCommand`，状态文字／非颜色标记。具体 Node VM 属性在报告列出供 Task5 使用。选择只读 metadata，不调用任何读标记／正文 API。
+**Interfaces:** 消费 Task1 `INetworkStore`、Task2 engine/math；产出接口契约的 session 和 VM。VM `(NetworkSession session, Func<Guid,Task> openSummary)`；`Session`、`Nodes`、`SelectedNode`、`Search`、`OpenSummaryCommand/ArrangeCommand/SaveLayoutCommand/ShowAllCommand/ZoomInCommand/ZoomOutCommand/FindNextCommand`，状态文字／非颜色标记。Node VM 使用 `NetworkNode.ConversationTitle` 展示实际来源名，projection以已有conversation.Title填写并保留两参数兼容；具体 Node VM 属性在报告列出供 Task5 使用。选择只读 metadata，不调用任何读标记／正文 API。
 
 - [ ] 用可控 async store／engine 写 RED：Arrange提交旧snapshot后Reload新数据，旧结果不覆盖；重入Reload顺序反转；新节点初始保存只写新节点，自动写失败无dirty／无error／不AI gate；dirty期间新增保存只参照SavedPositions；删除后内存、选择和保存不复活；ExplicitSave期间再次Arrange后旧成功仍dirty；保存失败保留内存旧库／固定提示；重复点击busy只1提交。
 
