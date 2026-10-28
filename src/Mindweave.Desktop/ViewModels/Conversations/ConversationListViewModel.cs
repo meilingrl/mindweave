@@ -44,8 +44,8 @@ public sealed partial class ConversationItemViewModel(ConversationId id) : ViewM
 
 /// <summary>
 /// The active workspace's conversations as a branch tree: root conversations newest activity first (activity
-/// anywhere in their tree counts), each branch under its parent in creation order. Kept in sync with storage and
-/// generation.
+/// anywhere in their tree counts), each branch under its parent in creation order. Archived conversations and
+/// everything below them are left out; an entry at the bottom leads to them. Kept in sync with storage and generation.
 /// </summary>
 public sealed partial class ConversationListViewModel : ViewModelBase
 {
@@ -72,6 +72,18 @@ public sealed partial class ConversationListViewModel : ViewModelBase
 
     /// <summary>The most recent reload; tests await it.</summary>
     internal Task Loaded { get; private set; } = Task.CompletedTask;
+
+    /// <summary>How many conversations of the workspace the user archived (the "已归档（N）" entry).</summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(HasArchived), nameof(ArchivedLabel))]
+    public partial int ArchivedCount { get; private set; }
+
+    public bool HasArchived => ArchivedCount > 0;
+
+    public string ArchivedLabel => UiText.ArchivedEntry(ArchivedCount);
+
+    [RelayCommand]
+    private void OpenArchived() => _workbench.Navigate(new NavigationRequest(MainSection.Explore, ArchivedRoute.Instance));
 
     [RelayCommand]
     private void Open(ConversationItemViewModel item) =>
@@ -107,7 +119,8 @@ public sealed partial class ConversationListViewModel : ViewModelBase
         }
 
         // Update in place so selection and scroll position in the list are not disturbed.
-        var tree = AsTree(summaries);
+        ArchivedCount = summaries.Count(s => s.IsArchived);
+        var tree = AsTree([.. summaries.Where(s => !s.IsHidden)]);
         var existing = Items.ToDictionary(i => i.Id);
         var ordered = tree.Select(t => existing.GetValueOrDefault(t.Summary.Conversation.Id) ?? new ConversationItemViewModel(t.Summary.Conversation.Id)).ToList();
         for (var i = 0; i < tree.Count; i++)

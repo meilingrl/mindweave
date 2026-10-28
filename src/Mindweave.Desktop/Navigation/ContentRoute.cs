@@ -30,7 +30,7 @@ public sealed record ConversationRoute(Mindweave.Core.Conversations.Conversation
 {
     private const string Prefix = "conversation:";
 
-    public string Key => Prefix + Id;
+    public string Key => Mindweave.Application.Storage.PageLocation.ConversationKey(Id);
 
     public static ConversationRoute? FromKey(string? key) =>
         key is not null && key.StartsWith(Prefix, StringComparison.Ordinal) && Guid.TryParseExact(key[Prefix.Length..], "D", out var id)
@@ -64,6 +64,16 @@ public sealed record ExploreHomeRoute : ContentRoute
 public sealed record NetworkHomeRoute : ContentRoute
 {
     public static NetworkHomeRoute Instance { get; } = new();
+}
+
+/// <summary>The archived conversations of the workspace (S6), in the explore section; restored as the last page.</summary>
+public sealed record ArchivedRoute : ContentRoute, IRestorableRoute
+{
+    public const string RouteKey = "archived";
+
+    public static ArchivedRoute Instance { get; } = new();
+
+    public string Key => RouteKey;
 }
 
 public sealed record SettingsHomeRoute : ContentRoute

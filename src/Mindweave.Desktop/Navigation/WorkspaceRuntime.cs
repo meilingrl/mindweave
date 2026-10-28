@@ -17,6 +17,8 @@ internal sealed class WorkspaceRuntime(Workspace workspace)
     /// <summary>Every page alive in this workspace, across slots and sections.</summary>
     public IEnumerable<PageViewModel> AllPages() => _slots.Values.SelectMany(s => s.AllPages());
 
+    public IEnumerable<ViewerSlot> Slots => _slots.Values;
+
     public ViewerSlot Slot(ViewerSlotKey key)
     {
         if (!_slots.TryGetValue(key, out var slot))
@@ -46,6 +48,8 @@ internal sealed class ViewerSlot(ViewerSlotKey key)
     public PageViewModel? Top => CurrentStack.Count == 0 ? null : CurrentStack[^1];
 
     public IEnumerable<PageViewModel> AllPages() => _stacks.Values.SelectMany(s => s);
+
+    public IEnumerable<List<PageViewModel>> Stacks => _stacks.Values;
 
     public List<PageViewModel> StackOf(MainSection section)
     {

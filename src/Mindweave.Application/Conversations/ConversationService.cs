@@ -25,6 +25,12 @@ public enum SendRejection
 
     /// <summary>Even with older context summarized, the conversation does not fit the model's context budget.</summary>
     HistoryTooLongForModel,
+
+    /// <summary>The conversation is archived or below an archived one; it is restored first (D-021).</summary>
+    ConversationArchived,
+
+    /// <summary>The conversation was deleted meanwhile.</summary>
+    ConversationMissing,
 }
 
 public sealed record SendOutcome(SendRejection? Rejection, ConversationId Conversation, MessageId? Answer)
@@ -53,6 +59,15 @@ public sealed record BranchOutcome(BranchRejection? Rejection, ConversationId Ch
 }
 
 /// <summary>
+/// An archive request: archived, refused because a conversation of the subtree still has an answer or summary queued
+/// or running (<paramref name="Busy"/>), or <paramref name="Missing"/> when the conversation no longer exists.
+/// </summary>
+public sealed record ArchiveOutcome(IReadOnlyList<ConversationId> Busy, bool Missing = false)
+{
+    public bool Archived => !Missing && Busy.Count == 0;
+}
+
+/// <summary>
 /// Conversation use cases. Every accepted request is durable (question, pending answer and task in one
 /// transaction) before it reaches the generation queue, so a crash after "send" never loses the question
 /// and never re-sends it.
@@ -73,6 +88,7 @@ public sealed partial class ConversationService
     private readonly IConversationStore _store;
     private readonly IBranchStore _branches;
     private readonly IContextSummaryStore? _summaries;
+    private readonly IConversationArchiveStore? _archive;
     private readonly GenerationCoordinator _generation;
     private readonly ModelSettingsService _models;
     private readonly IClock _clock;
@@ -86,11 +102,13 @@ public sealed partial class ConversationService
         ModelSettingsService models,
         IClock clock,
         ILogger<ConversationService> logger,
-        IContextSummaryStore? summaries = null)
+        IContextSummaryStore? summaries = null,
+        IConversationArchiveStore? archive = null)
     {
         _store = store;
         _branches = branches;
         _summaries = summaries;
+        _archive = archive;
         _generation = generation;
         _models = models;
         _clock = clock;
@@ -117,6 +135,12 @@ public sealed partial class ConversationService
 
     /// <summary>A core write failed and storage has not recovered: questions, retries and branches are refused (§9.3).</summary>
     public bool IsStorageBlocked => _generation.IsStorageBlocked;
+
+    /// <summary>
+    /// Conversations were archived, restored or deleted: what is hidden changed for these. Each of them also gets a
+    /// <see cref="ConversationChanged"/>. Raised on worker threads.
+    /// </summary>
+    public event EventHandler<IReadOnlyList<ConversationId>>? VisibilityChanged;
 
     public Task<IReadOnlyList<ConversationSummary>> ListAsync(WorkspaceId workspace, CancellationToken cancellationToken) =>
         _store.ListAsync(workspace, cancellationToken);
@@ -235,6 +259,14 @@ public sealed partial class ConversationService
         {
             return StorageRefused(ex, id);
         }
+        catch (ConversationArchivedException)
+        {
+            return SendOutcome.Reject(SendRejection.ConversationArchived, id);
+        }
+        catch (ConversationMissingException)
+        {
+            return SendOutcome.Reject(SendRejection.ConversationMissing, id);
+        }
 
         Enqueue(task, model, plan, storedAnswer);
         ConversationChanged?.Invoke(this, id);
@@ -280,6 +312,14 @@ public sealed partial class ConversationService
         catch (StorageWriteException ex)
         {
             return StorageRefused(ex, id);
+        }
+        catch (ConversationArchivedException)
+        {
+            return SendOutcome.Reject(SendRejection.ConversationArchived, id);
+        }
+        catch (ConversationMissingException)
+        {
+            return SendOutcome.Reject(SendRejection.ConversationMissing, id);
         }
 
         Enqueue(task, model, plan, stored);
@@ -334,6 +374,102 @@ public sealed partial class ConversationService
         _branches.GetLineageAsync(conversation, cancellationToken);
 
     public Task StopAsync(MessageId answer) => _generation.StopAsync(answer);
+
+    /// <summary>
+    /// Archives a conversation and so hides its subtree (requirements §9.5). Titles and naming in the subtree never
+    /// block it (MW-C14): the queued ones are cancelled in the archive's own commit and the running ones stopped right
+    /// after it. Answers and summaries are not stopped for it: while one runs, archiving is refused and nothing in
+    /// the background is touched.
+    /// </summary>
+    public async Task<ArchiveOutcome> ArchiveAsync(ConversationId id, CancellationToken cancellationToken)
+    {
+        var archive = RequireArchive();
+        ArchiveResult result;
+        try
+        {
+            result = await archive.ArchiveAsync(id, _clock.UtcNow, cancellationToken).ConfigureAwait(false);
+        }
+        catch (ConversationMissingException)
+        {
+            return new ArchiveOutcome([], Missing: true);
+        }
+
+        if (result.Archived)
+        {
+            // A running title that finishes before it stops writes nothing to a hidden conversation (the store refuses).
+            // Its "requested" marks go too: a title cancelled by the commit never reports itself, and the next answer
+            // after a restore asks again.
+            await _generation.CancelBackgroundAsync(result.Subtree.ToHashSet()).ConfigureAwait(false);
+            foreach (var hidden in result.Subtree)
+            {
+                _titleRequested.TryRemove(hidden, out _);
+            }
+
+            NotifyVisibility(result.Subtree);
+        }
+
+        return new ArchiveOutcome(result.Busy);
+    }
+
+    /// <summary>What restoring would clear and bring back; the page asks first when archived ancestors are cleared too (D-021).</summary>
+    public Task<RestorePlan> PlanRestoreAsync(ConversationId id, CancellationToken cancellationToken) =>
+        _archive is null ? Task.FromResult(new RestorePlan(id, [], 0)) : _archive.PlanRestoreAsync(id, cancellationToken);
+
+    /// <summary>Restores the conversation and the archived ancestors on its path; archives off the path stay (D-021).</summary>
+    public async Task<IReadOnlyList<ConversationId>> RestoreAsync(ConversationId id, CancellationToken cancellationToken)
+    {
+        var shown = await RequireArchive().RestoreAsync(id, cancellationToken).ConfigureAwait(false);
+        NotifyVisibility(shown);
+        return shown;
+    }
+
+    /// <summary>
+    /// Deletes a conversation that nothing depends on, irreversibly, with its unsent drafts (requirements §9.5). The
+    /// check and the delete are one transaction; a refusal names every reason and leaves its titles and naming alone.
+    /// Their task rows go with the delete, and the running ones are stopped after it: their late writes find nothing.
+    /// </summary>
+    public async Task<DeleteResult> DeleteAsync(ConversationId id, CancellationToken cancellationToken)
+    {
+        var result = await RequireArchive().DeleteAsync(id, cancellationToken).ConfigureAwait(false);
+        if (result.Deleted)
+        {
+            await _generation.CancelBackgroundAsync(new HashSet<ConversationId> { id }).ConfigureAwait(false);
+            _titleRequested.TryRemove(id, out _);
+            if (result.Parent is { } parent)
+            {
+                ConversationChanged?.Invoke(this, parent);
+            }
+
+            NotifyVisibility([id]);
+        }
+
+        return result;
+    }
+
+    /// <summary>Those of <paramref name="conversations"/> the user archived (markers on branch entries).</summary>
+    public async Task<IReadOnlySet<ConversationId>> ArchivedAmongAsync(IReadOnlyCollection<ConversationId> conversations, CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(conversations);
+        return _archive is null || conversations.Count == 0
+            ? new HashSet<ConversationId>()
+            : await _archive.ArchivedAmongAsync(conversations, cancellationToken).ConfigureAwait(false);
+    }
+
+    private IConversationArchiveStore RequireArchive() =>
+        _archive ?? throw new InvalidOperationException("No archive store is configured.");
+
+    private void NotifyVisibility(IReadOnlyList<ConversationId> conversations)
+    {
+        foreach (var id in conversations)
+        {
+            ConversationChanged?.Invoke(this, id);
+        }
+
+        if (conversations.Count > 0)
+        {
+            VisibilityChanged?.Invoke(this, conversations);
+        }
+    }
 
     /// <summary>Manual title; protected from automatic titling from now on. Blank input is ignored.</summary>
     public async Task RenameAsync(ConversationId id, string title, CancellationToken cancellationToken)
@@ -462,7 +598,17 @@ public sealed partial class ConversationService
             return;
         }
 
-        await _store.AddTaskAsync(task, CancellationToken.None).ConfigureAwait(false);
+        try
+        {
+            await _store.AddTaskAsync(task, CancellationToken.None).ConfigureAwait(false);
+        }
+        catch (ConversationArchivedException)
+        {
+            // Archived meanwhile: no title while hidden; the next answer after a restore asks again.
+            _titleRequested.TryRemove(e.ConversationId, out _);
+            return;
+        }
+
         try
         {
             _generation.Enqueue(new TitleWork(task, new ChatRequest(model with { MaxOutputTokens = TitleOutputTokens },

@@ -56,16 +56,40 @@
                 IsVisible="{Binding HasSummary}" Margin="0,0,6,0" VerticalAlignment="Center" />
         <TextBlock Name="SummaryMarkers" Classes="warning" FontSize="12" Text="{Binding SummaryMarkersText}" VerticalAlignment="Center" Margin="0,0,12,0"
                    IsVisible="{Binding SummaryMarkersText, Converter={x:Static ObjectConverters.IsNotNull}}" />
-        <Button Name="SummarizeButton" Classes="link" Content="{Binding SummarizeLabel}" Command="{Binding SummarizeCommand}"
-                IsVisible="{Binding RunningSummary, Converter={x:Static ObjectConverters.IsNull}}" VerticalAlignment="Center"
-                ToolTip.Tip="{Binding StorageNotice}" ToolTip.ShowOnDisabled="True" />
+        <Panel IsVisible="{Binding IsOpen}" VerticalAlignment="Center">
+          <Button Name="SummarizeButton" Classes="link" Content="{Binding SummarizeLabel}" Command="{Binding SummarizeCommand}"
+                  IsVisible="{Binding RunningSummary, Converter={x:Static ObjectConverters.IsNull}}" VerticalAlignment="Center"
+                  ToolTip.Tip="{Binding StorageNotice}" ToolTip.ShowOnDisabled="True" />
+        </Panel>
+        <!-- An archived conversation is never summarized directly (D-021). -->
+        <Button Name="RestoreAndSummarizeButton" Classes="link" Content="{x:Static d:UiText.RestoreAndSummarize}" Command="{Binding RestoreAndSummarizeCommand}"
+                IsVisible="{Binding IsArchived}" VerticalAlignment="Center" />
         <StackPanel Orientation="Horizontal" Spacing="6" VerticalAlignment="Center"
                     IsVisible="{Binding RunningSummary, Converter={x:Static ObjectConverters.IsNotNull}}">
           <ProgressBar IsIndeterminate="True" Width="40" VerticalAlignment="Center" />
           <TextBlock Classes="muted" FontSize="12" Text="{x:Static d:UiText.SummaryGenerating}" VerticalAlignment="Center" />
           <Button Name="StopSummaryButton" Classes="link" Content="{x:Static d:UiText.SummaryStop}" Command="{Binding StopSummaryCommand}" />
         </StackPanel>
+        <Button Name="ArchiveButton" Classes="link" Content="{x:Static d:UiText.Archive}" Command="{Binding ArchiveCommand}"
+                IsVisible="{Binding IsOpen}" Margin="12,0,0,0" VerticalAlignment="Center" />
+        <Button Name="DeleteButton" Classes="link" Content="{x:Static d:UiText.Delete}" Command="{Binding DeleteCommand}"
+                Margin="12,0,0,0" VerticalAlignment="Center" />
       </WrapPanel>
+      <Border Name="ConfirmationPanel" BorderBrush="{StaticResource QuoteBar}" BorderThickness="3,0,0,0" Padding="10,6"
+              IsVisible="{Binding Confirmation, Converter={x:Static ObjectConverters.IsNotNull}}">
+        <StackPanel Spacing="6">
+          <TextBlock Text="{Binding Confirmation.Message, FallbackValue=''}" TextWrapping="Wrap" />
+          <StackPanel Orientation="Horizontal" Spacing="6">
+            <Button Name="ConfirmButton" Content="{x:Static d:UiText.Confirm}" Command="{Binding ConfirmCommand}" />
+            <Button Content="{x:Static d:UiText.Cancel}" Command="{Binding CancelConfirmationCommand}" />
+          </StackPanel>
+        </StackPanel>
+      </Border>
+      <StackPanel Orientation="Horizontal" Spacing="8" IsVisible="{Binding ArchiveNotice, Converter={x:Static ObjectConverters.IsNotNull}}">
+        <TextBlock Name="ArchiveNotice" Classes="error" FontSize="12" Text="{Binding ArchiveNotice}" TextWrapping="Wrap" VerticalAlignment="Center" />
+        <Button Name="OfferArchiveButton" Classes="link" Content="{x:Static d:UiText.Archive}" Command="{Binding ArchiveCommand}"
+                IsVisible="{Binding OfferArchive}" VerticalAlignment="Center" />
+      </StackPanel>
       <TextBlock Name="SummaryNotice" Classes="error" FontSize="12" Text="{Binding SummaryNotice}" TextWrapping="Wrap"
                  IsVisible="{Binding SummaryNotice, Converter={x:Static ObjectConverters.IsNotNull}}" />
       <TextBlock Name="SummaryProblem" Classes="error" FontSize="12" Text="{Binding SummaryProblem}" TextWrapping="Wrap"
@@ -78,7 +102,17 @@
       <TextBlock Name="ContextUsageLine" FontSize="12" TextWrapping="Wrap" Text="{Binding ContextUsageText}"
                  Classes.muted="{Binding !ContextIsTight}" Classes.warning="{Binding ContextIsTight}"
                  IsVisible="{Binding ContextUsageText, Converter={x:Static ObjectConverters.IsNotNull}}" />
-      <v:ComposerView Name="ComposerHost" DataContext="{Binding Composer}" />
+      <Panel IsVisible="{Binding IsOpen}">
+        <v:ComposerView Name="ComposerHost" DataContext="{Binding Composer}" />
+      </Panel>
+      <!-- Read-only while archived: the way back is a restore, never an answer in the hidden subtree (D-021). -->
+      <Border Name="ArchivedPanel" Background="{StaticResource SidebarBackground}" CornerRadius="6" Padding="10,8" IsVisible="{Binding IsArchived}">
+        <DockPanel>
+          <Button Name="RestoreAndContinueButton" DockPanel.Dock="Right" Content="{x:Static d:UiText.RestoreAndContinue}"
+                  Command="{Binding RestoreAndContinueCommand}" VerticalAlignment="Center" Margin="8,0,0,0" />
+          <TextBlock Name="ArchivedText" Text="{Binding ArchiveText}" TextWrapping="Wrap" VerticalAlignment="Center" />
+        </DockPanel>
+      </Border>
     </StackPanel>
 
     <ScrollViewer Name="Scroller" HorizontalScrollBarVisibility="Disabled">

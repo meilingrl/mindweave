@@ -362,5 +362,18 @@ internal static class SchemaMigrations
             ) STRICT, WITHOUT ROWID;
             CREATE INDEX node_layout_by_workspace ON node_layout (workspace_id);
             """),
+
+        Migration.Sql(8, "conversation archive", """
+            -- One row means the user archived this conversation (S6, D-021). A conversation hidden because an
+            -- ancestor is archived has no row of its own: that is derived on read from branch_context_range, so
+            -- marks are never written to descendants and restoring a parent leaves separately archived children be.
+            CREATE TABLE conversation_archive (
+                conversation_id TEXT    NOT NULL PRIMARY KEY REFERENCES conversation (id) ON DELETE CASCADE,
+                archived_at     INTEGER NOT NULL
+            ) STRICT, WITHOUT ROWID;
+
+            -- A conversation's subtree (archiving checks it for running work; restoring counts what reappears).
+            CREATE INDEX branch_context_range_by_ancestor ON branch_context_range (ancestor_id);
+            """),
     ];
 }

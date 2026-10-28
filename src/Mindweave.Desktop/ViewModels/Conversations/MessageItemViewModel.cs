@@ -6,10 +6,13 @@ using Mindweave.Desktop.Services;
 
 namespace Mindweave.Desktop.ViewModels.Conversations;
 
-/// <summary>An entry under an answer leading to a branch made from it; re-entering is navigation, not a new branch.</summary>
-public sealed record BranchEntry(ConversationId Child, string Quote)
+/// <summary>
+/// An entry under an answer leading to a branch made from it; re-entering is navigation, not a new branch. An archived
+/// branch keeps its entry, marked (D-021).
+/// </summary>
+public sealed record BranchEntry(ConversationId Child, string Quote, bool Archived = false)
 {
-    public string Label => UiText.Quoted(Quote);
+    public string Label => UiText.Quoted(Quote) + (Archived ? " · " + UiText.ArchivedMarker : string.Empty);
 }
 
 /// <summary>
@@ -79,6 +82,11 @@ public sealed partial class MessageItemViewModel : ViewModelBase, IDisposable
     [ObservableProperty]
     public partial bool IsBranchPaused { get; set; }
 
+    /// <summary>Set by the page: the conversation is hidden by an archive, so nothing new starts from this message.</summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(CanBranch))]
+    public partial bool IsArchived { get; set; }
+
     /// <summary>An older attempt that a later retry replaced; still readable, no longer sent as context.</summary>
     [ObservableProperty]
     public partial bool IsSuperseded { get; set; }
@@ -99,7 +107,7 @@ public sealed partial class MessageItemViewModel : ViewModelBase, IDisposable
     /// Only a finished answer whose text is saved can be branched from (§6.2). A live answer reaches a terminal
     /// state in memory slightly before storage; the page reloads from storage on finish, so this item is replaced.
     /// </summary>
-    public bool CanBranch => IsAnswer && _live is null && !IsInProgress && Body.Trim().Length > 0;
+    public bool CanBranch => IsAnswer && !IsArchived && _live is null && !IsInProgress && Body.Trim().Length > 0;
 
     public bool IsInProgress => State is MessageState.Pending or MessageState.Streaming;
 

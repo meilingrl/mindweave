@@ -31,6 +31,7 @@ internal sealed class PageFactory(
         SummaryRoute summary => new SummaryViewModel(summary, context, summaries, dispatcher, time, exports, shell),
         ConversationRoute conversation => new ConversationViewModel(conversation, context, conversations, reading, dispatcher, summaries),
         NewConversationRoute => new NewConversationViewModel(context.Workspace.Id, conversations, context.Navigator, context.Navigator),
+        ArchivedRoute => new ArchivedViewModel(context.Workspace, conversations, context.Navigator, dispatcher),
         SettingsHomeRoute => new SettingsHomeViewModel(environment, new ModelSettingsViewModel(models), context.Navigator),
         StorageDetailsRoute => new StorageDetailsViewModel(environment, database.ListBackups(), shell),
         _ => throw new ArgumentOutOfRangeException(nameof(route), route, "No page is registered for this route."),

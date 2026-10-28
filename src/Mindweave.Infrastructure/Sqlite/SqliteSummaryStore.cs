@@ -329,7 +329,7 @@ internal sealed class SqliteSummaryStore(SqliteDatabase database) : ISummaryStor
     {
         var current = Versions(connection, null, node.Id).Single(v => v.Id == node.Current);
         var read = ReadStates(connection, null, [node.Current]).GetValueOrDefault(node.Current);
-        return new(node, current, SummaryRules.Markers(node, current, read, LastFinishedSeq(connection, null, node.Conversation)));
+        return new(node, current, SummaryRules.Markers(node, current, read, LastFinishedSeq(connection, null, node.Conversation)), SqliteArchive.IsHidden(connection, null, node.Conversation));
     }
 
     private static SummaryDetail? Detail(SqliteConnection connection, SqliteTransaction? transaction, SummaryNodeId id)

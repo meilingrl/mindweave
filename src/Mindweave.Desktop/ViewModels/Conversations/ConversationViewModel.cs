@@ -12,6 +12,7 @@ using Mindweave.Core.Reading;
 using Mindweave.Core.Summaries;
 using Mindweave.Desktop.Navigation;
 using Mindweave.Desktop.Services;
+using Mindweave.Desktop.ViewModels.Pages;
 
 namespace Mindweave.Desktop.ViewModels.Conversations;
 
@@ -22,6 +23,8 @@ public sealed record LineageItem(ConversationId Id, string Title);
 /// One conversation: its messages (finished ones from storage, unfinished ones live from the coordinator), the
 /// branches made from its answers, and — for a branch — its ancestors and source. Reading position and draft are
 /// kept per viewer slot by <see cref="ReadingStateService"/>; the view converts geometry to positions and back.
+/// An archived conversation (or one below an archived ancestor) opens read-only and offers "restore and continue"
+/// (D-021); archiving and deleting start here too.
 /// </summary>
 public sealed partial class ConversationViewModel : PageViewModel, IDisposable
 {
@@ -34,6 +37,7 @@ public sealed partial class ConversationViewModel : PageViewModel, IDisposable
     private readonly SerialRefresh _load;
     private readonly UiThrottle _reload;
     private BranchSource? _source;
+    private Core.Workspaces.WorkspaceId _workspace;
     private IReadOnlySet<ConversationId> _related = new HashSet<ConversationId>();
     private bool _disposed;
 
@@ -157,6 +161,30 @@ public sealed partial class ConversationViewModel : PageViewModel, IDisposable
     [ObservableProperty]
     public partial bool IsRenaming { get; set; }
 
+    /// <summary>Hidden by an archive (its own or an ancestor's): readable only; new work waits for a restore.</summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(IsOpen))]
+    public partial bool IsArchived { get; private set; }
+
+    /// <summary>Neither missing nor archived: asking, retrying, branching and summarizing are offered.</summary>
+    public bool IsOpen => !IsArchived && !IsMissing;
+
+    /// <summary>The read-only note of an archived page: archived itself, or which ancestors hide it.</summary>
+    [ObservableProperty]
+    public partial string? ArchiveText { get; private set; }
+
+    /// <summary>Why archiving or deleting did not happen.</summary>
+    [ObservableProperty]
+    public partial string? ArchiveNotice { get; private set; }
+
+    /// <summary>A delete was refused; archiving is offered instead.</summary>
+    [ObservableProperty]
+    public partial bool OfferArchive { get; private set; }
+
+    /// <summary>A question asked before deleting, or before a restore that brings back archived ancestors.</summary>
+    [ObservableProperty]
+    public partial PendingConfirmation? Confirmation { get; private set; }
+
     [ObservableProperty]
     public partial string RenameText { get; set; } = string.Empty;
 
@@ -265,6 +293,120 @@ public sealed partial class ConversationViewModel : PageViewModel, IDisposable
 
     [RelayCommand]
     private void OpenSettings() => _navigator.Navigate(new NavigationRequest(MainSection.Settings));
+
+    /// <summary>Hides the conversation and its branches; refused (and named) while an answer or summary in them runs.</summary>
+    [RelayCommand]
+    private async Task ArchiveAsync()
+    {
+        OfferArchive = false;
+        ArchiveOutcome outcome;
+        try
+        {
+            outcome = await _conversations.ArchiveAsync(Id, CancellationToken.None);
+        }
+        catch (StorageWriteException)
+        {
+            ArchiveNotice = UiText.ArchiveStorageFailed;
+            return;
+        }
+
+        ArchiveNotice = outcome.Busy.Count > 0 ? UiText.ArchiveRefused(await TitlesAsync(outcome.Busy)) : null;
+        await _load.Request();
+    }
+
+    [RelayCommand]
+    private Task RestoreAndContinueAsync() => RestoreThenAsync(null);
+
+    /// <summary>An archived conversation is never summarized directly (D-021): restore first, then summarize.</summary>
+    [RelayCommand]
+    private Task RestoreAndSummarizeAsync() => RestoreThenAsync(SummarizeAsync);
+
+    /// <summary>Asks first: deleting is irreversible and takes unsent drafts with it.</summary>
+    [RelayCommand]
+    private void Delete()
+    {
+        ArchiveNotice = null;
+        OfferArchive = false;
+        Confirmation = new PendingConfirmation(UiText.DeleteConfirm, async () =>
+        {
+            DeleteResult result;
+            try
+            {
+                result = await _conversations.DeleteAsync(Id, CancellationToken.None);
+            }
+            catch (StorageWriteException)
+            {
+                ArchiveNotice = UiText.ArchiveStorageFailed;
+                return;
+            }
+
+            if (result.Deleted || result.Missing)
+            {
+                ConversationRemoval.Forget(_navigator, Id, result.Parent);
+                return;
+            }
+
+            ArchiveNotice = UiText.DeleteRefused(result.Blockers, offerArchive: !IsArchived);
+            OfferArchive = !IsArchived;
+        });
+    }
+
+    [RelayCommand]
+    private async Task ConfirmAsync()
+    {
+        if (Confirmation is { } pending)
+        {
+            Confirmation = null;
+            await pending.Proceed();
+        }
+    }
+
+    [RelayCommand]
+    private void CancelConfirmation() => Confirmation = null;
+
+    /// <summary>Restores this conversation's path, asking first when archived ancestors come back with it, then continues.</summary>
+    private async Task RestoreThenAsync(Func<Task>? then)
+    {
+        ArchiveNotice = null;
+        var plan = await _conversations.PlanRestoreAsync(Id, CancellationToken.None);
+        async Task Restore()
+        {
+            if (plan.IsHidden)
+            {
+                try
+                {
+                    await _conversations.RestoreAsync(Id, CancellationToken.None);
+                }
+                catch (StorageWriteException)
+                {
+                    ArchiveNotice = UiText.ArchiveStorageFailed;
+                    return;
+                }
+
+                await _load.Request();
+            }
+
+            if (then is not null)
+            {
+                await then();
+            }
+        }
+
+        if (plan.ArchivedAncestors.Count > 0)
+        {
+            Confirmation = new PendingConfirmation(UiText.RestoreConfirm(await TitlesAsync(plan.ArchivedAncestors), plan.OthersReappearing), Restore);
+        }
+        else
+        {
+            await Restore();
+        }
+    }
+
+    private async Task<IReadOnlyList<string>> TitlesAsync(IReadOnlyList<ConversationId> ids)
+    {
+        var rows = (await _conversations.ListAsync(_workspace, CancellationToken.None)).ToDictionary(r => r.Conversation.Id);
+        return [.. ids.Select(id => rows.TryGetValue(id, out var row) ? UiText.ConversationTitle(row.Conversation, row.FirstQuestion, row.Quote) : UiText.NewConversation)];
+    }
 
     /// <summary>Summarize the conversation as it is now; it can be done at any stage and chatting continues (§6.4).</summary>
     [RelayCommand(CanExecute = nameof(CanSummarize))]
@@ -397,12 +539,16 @@ public sealed partial class ConversationViewModel : PageViewModel, IDisposable
         if (content is null)
         {
             IsMissing = true;
+            OnPropertyChanged(nameof(IsOpen));
             DisplayTitle = UiText.ConversationMissing;
             return;
         }
 
+        _workspace = content.Conversation.WorkspaceId;
         var lineage = await _conversations.GetLineageAsync(Id, CancellationToken.None);
         var branches = await _conversations.ListBranchesAsync(Id, CancellationToken.None);
+        var archivedBranches = await _conversations.ArchivedAmongAsync([.. branches.Select(b => b.Child)], CancellationToken.None);
+        var archive = await _conversations.PlanRestoreAsync(Id, CancellationToken.None);
         if (_disposed)
         {
             return;
@@ -415,6 +561,15 @@ public sealed partial class ConversationViewModel : PageViewModel, IDisposable
         foreach (var ancestor in lineage.Take(Math.Max(0, lineage.Count - 1)))
         {
             Lineage.Add(new LineageItem(ancestor.Conversation.Id, UiText.ConversationTitle(ancestor.Conversation, null, ancestor.Source?.Quote)));
+        }
+
+        IsArchived = archive.IsHidden;
+        ArchiveText = !archive.IsHidden ? null
+            : archive.ArchivedAncestors.Count == 0 ? UiText.ArchivedReadOnly
+            : UiText.HiddenByAncestors([.. archive.ArchivedAncestors.Select(a => Lineage.FirstOrDefault(l => l.Id == a)?.Title ?? UiText.NewConversation)]);
+        if (IsArchived)
+        {
+            OfferArchive = false;
         }
 
         // Update in place: a message view that is still valid keeps its control, so a selection, a highlighted
@@ -452,8 +607,9 @@ public sealed partial class ConversationViewModel : PageViewModel, IDisposable
 
             item.IsSuperseded = superseded.Contains(message.Id);
             item.WasCompressed = content.CompressedAnswers?.Contains(message.Id) == true;
-            item.CanRetry = last?.Id == message.Id && message.IsFinished;
-            var entries = branches.Where(b => b.SourceMessage == message.Id).Select(b => new BranchEntry(b.Child, b.Quote)).ToList();
+            item.IsArchived = IsArchived;
+            item.CanRetry = !IsArchived && last?.Id == message.Id && message.IsFinished;
+            var entries = branches.Where(b => b.SourceMessage == message.Id).Select(b => new BranchEntry(b.Child, b.Quote, archivedBranches.Contains(b.Child))).ToList();
             if (!entries.SequenceEqual(item.Branches))
             {
                 item.Branches.Clear();
@@ -486,11 +642,11 @@ public sealed partial class ConversationViewModel : PageViewModel, IDisposable
     private void UpdateRunning()
     {
         RunningAnswer = Messages.LastOrDefault(m => m.IsAnswer && m.IsInProgress);
-        Composer.IsBlocked = RunningAnswer is not null;
+        Composer.IsBlocked = RunningAnswer is not null || IsArchived;
         var last = Messages.LastOrDefault();
         if (last is { IsAnswer: true })
         {
-            last.CanRetry = !last.IsInProgress;
+            last.CanRetry = !last.IsInProgress && !IsArchived;
         }
     }
 }

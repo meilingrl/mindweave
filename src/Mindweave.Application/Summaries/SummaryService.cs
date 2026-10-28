@@ -34,6 +34,12 @@ public enum SummarizeRejection
 
     /// <summary>Even with older context summarized, the conversation does not fit the model.</summary>
     TooLongForModel,
+
+    /// <summary>The conversation is archived or below an archived one; it is restored first (D-021).</summary>
+    ConversationArchived,
+
+    /// <summary>The conversation was deleted meanwhile.</summary>
+    ConversationMissing,
 }
 
 public sealed record SummarizeOutcome(SummarizeRejection? Rejection, GenerationTaskId? Task)
@@ -82,6 +88,7 @@ public sealed partial class SummaryService
     private readonly IClock _clock;
     private readonly ILogger<SummaryService> _logger;
     private readonly ConcurrentDictionary<(WorkspaceId, string), byte> _namingQueued = new();
+    private readonly ConcurrentDictionary<GenerationTaskId, (WorkspaceId, string)> _namingTasks = new();
 
     public SummaryService(
         ISummaryStore summaries,
@@ -101,7 +108,16 @@ public sealed partial class SummaryService
         _models = models;
         _clock = clock;
         _logger = logger;
-        _generation.SummaryTaskFinished += (_, task) => Changed?.Invoke(this, task.ConversationId);
+        _generation.SummaryTaskFinished += (_, task) =>
+        {
+            // A naming task stopped before its output arrived (an archive, an exit) never reached Apply's cleanup.
+            if (_namingTasks.TryRemove(task.Id, out var group))
+            {
+                _namingQueued.TryRemove(group, out byte _);
+            }
+
+            Changed?.Invoke(this, task.ConversationId);
+        };
     }
 
     /// <summary>A conversation's summary node, versions, names or summary task changed. Raised on worker threads.</summary>
@@ -184,7 +200,16 @@ public sealed partial class SummaryService
             toSeq, existing?.Node.Current.Value);
         try
         {
+            // Checked inside the write: a hidden conversation never gets a summary task, whatever the page showed.
             await _conversations.AddTaskAsync(task, cancellationToken).ConfigureAwait(false);
+        }
+        catch (ConversationArchivedException)
+        {
+            return Reject(SummarizeRejection.ConversationArchived);
+        }
+        catch (ConversationMissingException)
+        {
+            return Reject(SummarizeRejection.ConversationMissing);
         }
         catch (StorageWriteException ex)
         {
@@ -415,6 +440,7 @@ public sealed partial class SummaryService
         var task = new GenerationTaskRecord(
             GenerationTaskId.New(), GenerationTaskKind.Naming, detail.Node.Conversation, null, model with { MaxOutputTokens = NamingOutputTokens }, [], _clock.UtcNow);
         await _conversations.AddTaskAsync(task, CancellationToken.None).ConfigureAwait(false);
+        _namingTasks[task.Id] = (detail.Node.Workspace, key);
         _generation.Enqueue(new NamingWork(
             task,
             new ChatRequest(task.Model, [new ChatTurn(ChatRole.System, NamingInstructions), new ChatTurn(ChatRole.User, prompt.ToString())]),
@@ -432,6 +458,7 @@ public sealed partial class SummaryService
                 }
                 finally
                 {
+                    _namingTasks.TryRemove(task.Id, out _);
                     _namingQueued.TryRemove((detail.Node.Workspace, key), out _);
                 }
             }));

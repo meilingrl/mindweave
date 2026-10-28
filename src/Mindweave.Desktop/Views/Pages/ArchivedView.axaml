@@ -1,0 +1,48 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:Mindweave.Desktop.ViewModels.Pages"
+             xmlns:v="using:Mindweave.Desktop.Views.Pages"
+             xmlns:d="using:Mindweave.Desktop"
+             x:Class="Mindweave.Desktop.Views.Pages.ArchivedView"
+             x:DataType="vm:ArchivedViewModel">
+  <DockPanel>
+    <StackPanel DockPanel.Dock="Top" Spacing="8" Margin="0,0,0,8">
+      <TextBlock Classes="muted" FontSize="12" TextWrapping="Wrap" Text="{x:Static d:UiText.ArchivedNote}" />
+      <Border Name="ConfirmationPanel" BorderBrush="{StaticResource QuoteBar}" BorderThickness="3,0,0,0" Padding="10,6"
+              IsVisible="{Binding Confirmation, Converter={x:Static ObjectConverters.IsNotNull}}">
+        <StackPanel Spacing="6">
+          <TextBlock Text="{Binding Confirmation.Message, FallbackValue=''}" TextWrapping="Wrap" />
+          <StackPanel Orientation="Horizontal" Spacing="6">
+            <Button Name="ConfirmButton" Content="{x:Static d:UiText.Confirm}" Command="{Binding ConfirmCommand}" />
+            <Button Content="{x:Static d:UiText.Cancel}" Command="{Binding CancelConfirmationCommand}" />
+          </StackPanel>
+        </StackPanel>
+      </Border>
+      <TextBlock Name="Notice" Classes="error" FontSize="12" TextWrapping="Wrap" Text="{Binding Notice}"
+                 IsVisible="{Binding Notice, Converter={x:Static ObjectConverters.IsNotNull}}" />
+      <TextBlock Classes="muted" Text="{x:Static d:UiText.ArchivedEmpty}" IsVisible="{Binding IsEmpty}" />
+    </StackPanel>
+    <ScrollViewer HorizontalScrollBarVisibility="Disabled">
+      <ItemsControl Name="ArchivedList" ItemsSource="{Binding Items}">
+        <ItemsControl.ItemTemplate>
+          <DataTemplate x:DataType="vm:ArchivedItemViewModel">
+            <DockPanel Margin="{Binding Indent}">
+              <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" Spacing="8">
+                <Button Classes="link" Content="{x:Static d:UiText.Restore}"
+                        Command="{Binding $parent[v:ArchivedView].((vm:ArchivedViewModel)DataContext).RestoreCommand}" CommandParameter="{Binding}" />
+                <Button Classes="link" Content="{x:Static d:UiText.Delete}"
+                        Command="{Binding $parent[v:ArchivedView].((vm:ArchivedViewModel)DataContext).DeleteCommand}" CommandParameter="{Binding}" />
+              </StackPanel>
+              <StackPanel Orientation="Horizontal" Spacing="6">
+                <Button Classes="link" Content="{Binding Title}"
+                        Command="{Binding $parent[v:ArchivedView].((vm:ArchivedViewModel)DataContext).OpenCommand}" CommandParameter="{Binding}" />
+                <TextBlock Classes="muted" FontSize="12" Text="{Binding Marker}" VerticalAlignment="Center"
+                           IsVisible="{Binding IsArchived}" />
+              </StackPanel>
+            </DockPanel>
+          </DataTemplate>
+        </ItemsControl.ItemTemplate>
+      </ItemsControl>
+    </ScrollViewer>
+  </DockPanel>
+</UserControl>

@@ -312,6 +312,51 @@ public sealed partial class GenerationCoordinator : IAsyncDisposable
     }
 
     /// <summary>
+    /// Cancels the background work (titles and naming) of these conversations before they are archived or deleted
+    /// (MW-C14): queued tasks become cancelled, running ones are stopped, and this waits until they have ended. A title
+    /// stopped this way is asked for again after the next answer, like one stopped by an exit.
+    /// </summary>
+    public async Task CancelBackgroundAsync(IReadOnlySet<ConversationId> conversations)
+    {
+        ArgumentNullException.ThrowIfNull(conversations);
+        var queued = new List<GenerationWork>();
+        List<Running> running;
+        lock (_gate)
+        {
+            while (RemoveQueued(w => w is TitleWork or NamingWork && conversations.Contains(w.Task.ConversationId)) is { } work)
+            {
+                queued.Add(work);
+            }
+
+            running = [.. _running.Values.Where(r => r.Work is TitleWork or NamingWork && conversations.Contains(r.Work.Task.ConversationId))];
+        }
+
+        foreach (var work in queued)
+        {
+            await SaveAsync(() => FinishTask(work.Task.Id, GenerationTaskState.Cancelled, null, null)).ConfigureAwait(false);
+            if (work is TitleWork)
+            {
+                TitleAbandoned?.Invoke(this, work.Task.ConversationId);
+            }
+            else
+            {
+                SummaryTaskFinished?.Invoke(this, work.Task);
+            }
+        }
+
+        foreach (var r in running)
+        {
+            await r.Cancellation.CancelAsync().ConfigureAwait(false);
+        }
+
+        await Task.WhenAll(running.Select(r => r.Completion)).ConfigureAwait(false);
+        if (queued.Count + running.Count > 0)
+        {
+            RaiseChanged();
+        }
+    }
+
+    /// <summary>
     /// Exit sequence step 3 (architecture §12.3): close the entry, cancel queued work, stop running work keeping
     /// received text, and wait up to <paramref name="wait"/> for the stopped tasks to write their terminal states. An
     /// answer that does not acknowledge in time keeps its last checkpoint and is marked interrupted on the next start.

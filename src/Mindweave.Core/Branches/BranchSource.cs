@@ -36,6 +36,9 @@ public enum BranchRejection
     QuoteTooLong,
     AnchorTooLarge,
     StorageUnavailable,
+
+    /// <summary>The conversation is archived or below an archived one; it must be restored first (D-021).</summary>
+    ConversationArchived,
 }
 
 public static class BranchRules

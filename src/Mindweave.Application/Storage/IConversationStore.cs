@@ -43,9 +43,17 @@ public sealed record GenerationTaskRecord(
 
 /// <summary>
 /// Sidebar row: the conversation plus what is needed to label and place it without loading all messages.
-/// A branch carries its parent and the quote it was created from.
+/// A branch carries its parent and the quote it was created from. <paramref name="IsArchived"/>: the user archived it;
+/// <paramref name="IsHidden"/>: archived itself or below an archived ancestor (the sidebar leaves it out).
 /// </summary>
-public sealed record ConversationSummary(Conversation Conversation, string? FirstQuestion, MessageState? LastAnswerState, ConversationId? Parent = null, string? Quote = null);
+public sealed record ConversationSummary(
+    Conversation Conversation,
+    string? FirstQuestion,
+    MessageState? LastAnswerState,
+    ConversationId? Parent = null,
+    string? Quote = null,
+    bool IsArchived = false,
+    bool IsHidden = false);
 
 public sealed record RecoveryReport(int InterruptedAnswers, int InterruptedTasks);
 
@@ -66,13 +74,22 @@ public interface IConversationStore
 
     /// <summary>
     /// Appends question + pending answer + task. Sequence numbers are assigned inside the transaction.
-    /// Throws <see cref="AnswerInProgressException"/> if the conversation still has an unfinished answer.
+    /// Throws <see cref="AnswerInProgressException"/> if the conversation still has an unfinished answer,
+    /// <see cref="ConversationArchivedException"/> if it is hidden by an archive, <see cref="ConversationMissingException"/>
+    /// if it was deleted.
     /// </summary>
     Task<(Message Question, Message Answer)> AppendQuestionAsync(Message question, Message answer, GenerationTaskRecord task, CancellationToken cancellationToken);
 
-    /// <summary>Adds a new attempt superseding the last answer; refuses unless that answer is last and finished.</summary>
+    /// <summary>
+    /// Adds a new attempt superseding the last answer; refuses unless that answer is last and finished, and (like
+    /// <see cref="AppendQuestionAsync"/>) when the conversation is hidden by an archive or was deleted.
+    /// </summary>
     Task<Message> AddRetryAsync(Message answer, GenerationTaskRecord task, CancellationToken cancellationToken);
 
+    /// <summary>
+    /// Stores a task row. Throws <see cref="ConversationMissingException"/> if the conversation was deleted, and
+    /// <see cref="ConversationArchivedException"/> for any task but naming of a conversation hidden by an archive.
+    /// </summary>
     Task AddTaskAsync(GenerationTaskRecord task, CancellationToken cancellationToken);
 
     /// <summary>Queued → running; for answers also pending → streaming. False if it was cancelled meanwhile.</summary>
@@ -95,7 +112,10 @@ public interface IConversationStore
 
     Task FinishTaskAsync(GenerationTaskId task, GenerationTaskState state, GenerationErrorKind? errorKind, string? errorDetail, DateTimeOffset at, CancellationToken cancellationToken);
 
-    /// <summary>Sets an automatic title unless the user has named the conversation. Returns whether it applied.</summary>
+    /// <summary>
+    /// Sets an automatic title unless the user has named the conversation or it is hidden by an archive. Returns whether
+    /// it applied.
+    /// </summary>
     Task<bool> SetAutoTitleAsync(ConversationId id, string title, DateTimeOffset at, CancellationToken cancellationToken);
 
     Task SetManualTitleAsync(ConversationId id, string title, DateTimeOffset at, CancellationToken cancellationToken);
