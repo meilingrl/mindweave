@@ -1,6 +1,7 @@
 using System.Collections.ObjectModel;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
+using Mindweave.Application.Export;
 using Mindweave.Application.Storage;
 using Mindweave.Application.Summaries;
 using Mindweave.Core.Conversations;
@@ -39,12 +40,14 @@ public sealed record PendingConfirmation(string Message, Func<Task> Proceed);
 /// <summary>
 /// A summary node's page (S4): the shown version (current by default), its read state and markers, the candidate
 /// with adopt and discard, editing the current version with an autosaved draft, the history with "set current" and
-/// deletion, renaming, and the way back to the source conversation. Reading progress comes from the view; a version
+/// deletion, renaming, exporting the shown saved version as Markdown, and the way back to the source conversation. Reading progress comes from the view; a version
 /// becomes read past the threshold after enough visible time in this opening (U2, MW-C30).
 /// </summary>
 public sealed partial class SummaryViewModel : PageViewModel, IPageFlush, IDisposable
 {
     private readonly SummaryService _summaries;
+    private readonly SummaryExportService _exports;
+    private readonly ISystemShell _shell;
     private readonly IWorkbenchNavigator _navigator;
     private readonly TimeProvider _time;
     private readonly IUiDispatcher _dispatcher;
@@ -61,13 +64,15 @@ public sealed partial class SummaryViewModel : PageViewModel, IPageFlush, IDispo
     private long _draftVersion;
     private long _savedDraftVersion;
 
-    public SummaryViewModel(SummaryRoute route, PageContext context, SummaryService summaries, IUiDispatcher dispatcher, TimeProvider time)
+    public SummaryViewModel(SummaryRoute route, PageContext context, SummaryService summaries, IUiDispatcher dispatcher, TimeProvider time, SummaryExportService exports, ISystemShell shell)
         : base(route)
     {
         ArgumentNullException.ThrowIfNull(route);
         ArgumentNullException.ThrowIfNull(context);
         Node = route.Node;
         _summaries = summaries;
+        _exports = exports;
+        _shell = shell;
         _navigator = context.Navigator;
         _time = time;
         _dispatcher = dispatcher;
@@ -91,9 +96,11 @@ public sealed partial class SummaryViewModel : PageViewModel, IPageFlush, IDispo
     public override string Title => DisplayName;
 
     [ObservableProperty]
+    [NotifyCanExecuteChangedFor(nameof(ExportCommand))]
     public partial bool IsMissing { get; private set; }
 
     [ObservableProperty]
+    [NotifyCanExecuteChangedFor(nameof(ExportCommand))]
     public partial SummaryVersion? Shown { get; private set; }
 
     [ObservableProperty]
@@ -103,6 +110,8 @@ public sealed partial class SummaryViewModel : PageViewModel, IPageFlush, IDispo
     public partial bool ShownIsCurrent { get; private set; }
 
     [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(ExportHint))]
+    [NotifyCanExecuteChangedFor(nameof(ExportCommand))]
     public partial bool ShownIsCandidate { get; private set; }
 
     [ObservableProperty]
@@ -119,6 +128,17 @@ public sealed partial class SummaryViewModel : PageViewModel, IPageFlush, IDispo
 
     [ObservableProperty]
     public partial string? Notice { get; private set; }
+
+    /// <summary>Notices are problems unless they report a finished export.</summary>
+    [ObservableProperty]
+    public partial bool NoticeIsError { get; private set; } = true;
+
+    /// <summary>Export the version without the source-note quote.</summary>
+    [ObservableProperty]
+    public partial bool ExportOmitSource { get; set; }
+
+    /// <summary>Why export is unavailable for the shown version, or null.</summary>
+    public string? ExportHint => ShownIsCandidate ? UiText.ExportCandidateHint : null;
 
     [ObservableProperty]
     public partial PendingConfirmation? Confirmation { get; private set; }
@@ -293,6 +313,52 @@ public sealed partial class SummaryViewModel : PageViewModel, IPageFlush, IDispo
         }));
     }
 
+    private bool CanExport() => Shown is not null && !ShownIsCandidate && !IsMissing;
+
+    /// <summary>
+    /// Exports the shown saved version (§8.3). The save dialog's own overwrite question is the only one; the version is
+    /// read again by ID when written, so one deleted meanwhile is refused and nothing is written. Not a reading.
+    /// </summary>
+    [RelayCommand(CanExecute = nameof(CanExport))]
+    private async Task ExportAsync()
+    {
+        if (Shown is not { } version || ShownIsCandidate)
+        {
+            return;
+        }
+
+        Notice = null;
+        try
+        {
+            var name = await _exports.SuggestFileNameAsync(Node, version.Id, CancellationToken.None);
+            if (await _shell.PickExportFileAsync(name + ".md", CancellationToken.None) is not { } destination)
+            {
+                return;
+            }
+
+            await _exports.ExportAsync(Node, version.Id, ExportOmitSource ? null : SourceName, destination, CancellationToken.None);
+            Notice = UiText.Exported(destination.DisplayName);
+            NoticeIsError = false;
+        }
+        catch (ExportRefusedException ex)
+        {
+            Notice = UiText.ExportRefused(ex.Reason);
+            await _load.Request();
+        }
+        catch (ExportWriteException ex)
+        {
+            Notice = UiText.ExportFailed(ex.Failure, ex.Detail);
+        }
+#pragma warning disable CA1031 // Anything else (a failing save dialog, a store already closed by exit) is reported, never thrown at the UI thread.
+        catch (Exception ex) when (ex is not OperationCanceledException)
+#pragma warning restore CA1031
+        {
+            Notice = UiText.ExportFailed(ExportFailure.Failed, ex.Message);
+        }
+    }
+
+    private static string SourceName(ConversationSummary row) => UiText.ConversationTitle(row.Conversation, row.FirstQuestion, row.Quote);
+
     [RelayCommand]
     private async Task ConfirmAsync()
     {
@@ -370,6 +436,8 @@ public sealed partial class SummaryViewModel : PageViewModel, IPageFlush, IDispo
 
     [RelayCommand]
     private void CancelRename() => IsRenaming = false;
+
+    partial void OnNoticeChanged(string? value) => NoticeIsError = true;
 
     partial void OnEditTitleChanged(string value) => RequestDraftSave();
 

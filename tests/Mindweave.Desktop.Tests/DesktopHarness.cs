@@ -4,6 +4,7 @@ using Microsoft.Extensions.Logging.Abstractions;
 using Mindweave.Application.Ai;
 using Mindweave.Application.Conversations;
 using Mindweave.Application.Credentials;
+using Mindweave.Application.Export;
 using Mindweave.Application.Models;
 using Mindweave.Application.Reading;
 using Mindweave.Core.Workspaces;
@@ -127,5 +128,17 @@ public sealed class DesktopHarness : IAsyncDisposable
         public void OpenFolder(string path) => OpenedFolders.Add(path);
 
         public void ExitApplication() => ExitRequests++;
+
+        /// <summary>Suggested file names the save dialog was opened with.</summary>
+        public List<string> ExportRequests { get; } = [];
+
+        /// <summary>What the save dialog returns for a suggested name; null (the default) is "cancelled".</summary>
+        public Func<string, ExportDestination?> NextExport { get; set; } = _ => null;
+
+        public Task<ExportDestination?> PickExportFileAsync(string suggestedFileName, CancellationToken cancellationToken)
+        {
+            ExportRequests.Add(suggestedFileName);
+            return Task.FromResult(NextExport(suggestedFileName));
+        }
     }
 }
