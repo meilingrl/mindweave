@@ -3,6 +3,7 @@ using Mindweave.Application.Chat;
 using Mindweave.Desktop.Services;
 using Mindweave.Application.Navigation;
 using Mindweave.Desktop.Navigation;
+using Mindweave.Desktop.Network;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 namespace Mindweave.Desktop.ViewModels;
@@ -18,6 +19,8 @@ public sealed partial class RootViewModel : ViewModelBase
     private MainViewModel? main;
     private DesktopChatSession? chat;
     private bool closing, confirmed;
+    private Task? closeAttempt;
+    private LayoutLeavePermit? layoutPermit;
     [ObservableProperty] private ViewModelBase content;
     [ObservableProperty] private string? closeError;
     [ObservableProperty] private bool isCloseConfirmationVisible;
@@ -36,11 +39,11 @@ public sealed partial class RootViewModel : ViewModelBase
         startup = new(InitializeAsync, actions, dataDirectory); content = startup;
         navigation = new RootNavigationService(destination => Content = destination switch
         { RootDestination.Workbench => main ?? throw new InvalidOperationException("工作台尚未就绪。"), _ => startup });
-        CancelCloseCommand = new RelayCommand(() => { IsCloseConfirmationVisible = false; confirmed = false; });
+        CancelCloseCommand = new RelayCommand(() => { IsCloseConfirmationVisible = false; confirmed = false; layoutPermit = null; main?.CancelLayoutLeave(); });
         ReturnToWorkbenchCommand = new RelayCommand(() =>
         {
             if (IsClosing || IsClosed) return;
-            closing = confirmed = false; IsCloseConfirmationVisible = false; CloseError = null; main?.ReturnToWorkbench();
+            closing = confirmed = false; layoutPermit = null; main?.CancelLayoutLeave(); IsCloseConfirmationVisible = false; CloseError = null; main?.ReturnToWorkbench();
         });
         ConfirmCloseCommand = new AsyncRelayCommand(async () => { confirmed = true; IsCloseConfirmationVisible = false; await CloseAsync(); });
         RetryCloseCommand = new AsyncRelayCommand(async () => { confirmed = true; await CloseAsync(); });
@@ -75,14 +78,31 @@ public sealed partial class RootViewModel : ViewModelBase
         }
         finally { startup.IsBusy = false; lifecycle.Release(); }
     }
-    public async Task CloseAsync()
+    public Task CloseAsync()
+    {
+        // Repeated native close requests share an in-flight layout prompt/drain.
+        if (closeAttempt is { IsCompleted: false }) return closeAttempt;
+        return closeAttempt = CloseCoreAsync();
+    }
+    private async Task CloseCoreAsync()
     {
         await lifecycle.WaitAsync();
         try
         {
             if (IsClosed) return;
-            // The prompt occurs before any freeze, draft flush, cancellation or queue mutation.
-            if (!confirmed && (chat?.Runtime.HasActiveOrPendingWork == true || main?.HasPendingChatAcceptance == true)) { IsCloseConfirmationVisible = true; return; }
+            while (main is not null)
+            {
+                if (layoutPermit is null || !main.IsLayoutLeavePermitCurrent(layoutPermit))
+                { IsCloseConfirmationVisible = false; layoutPermit = await main.ConfirmLayoutLeaveAsync(); }
+                if (layoutPermit is null) { confirmed = false; IsCloseConfirmationVisible = false; return; }
+                // Every cancellable prompt precedes freezing, stopping work, or discarding.
+                if (!confirmed && (chat?.Runtime.HasActiveOrPendingWork == true || main.HasPendingChatAcceptance))
+                { IsCloseConfirmationVisible = true; return; }
+                IsClosing = true;
+                await main.QuiesceNetworkForCloseAsync();
+                if (main.TryCommitLayoutLeave(layoutPermit)) { layoutPermit = null; break; }
+                layoutPermit = null; main.ReturnToWorkbench(); IsClosing = false;
+            }
             IsClosing = closing = true; CloseError = null;
             if (main is not null) await main.PrepareCloseAsync();
             if (chat is not null) await chat.Runtime.ShutdownAsync(main is null ? null : main.SaveDraftForCloseAsync);

@@ -47,6 +47,7 @@ public sealed partial class MainViewModel
         if (detached || closing) return;
         try
         {
+            if (ActiveContent is NetworkViewModel network) await network.ReloadAsync();
             if (ActiveContent is SummaryListViewModel list) await list.ReloadAsync();
             if (ActiveContent is SummaryViewModel detail) await detail.RefreshMetadataAsync();
             if (ActiveContent is ChatViewModel chat) await chat.RefreshSummaryAsync();
@@ -64,6 +65,7 @@ public sealed partial class MainViewModel
         try
         {
             if (ActiveContent is SummaryViewModel detail) await detail.RefreshMetadataAsync();
+            if (ActiveContent is NetworkViewModel network) await network.ReloadAsync();
             if (ActiveContent is SummaryListViewModel list) await list.ReloadAsync();
         }
         catch { /* Optional metadata refresh must not block saved-body reading. */ }

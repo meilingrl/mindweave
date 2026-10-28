@@ -48,7 +48,7 @@ public sealed partial class SummaryVersionDesktopTests
         await ui.Click("ConfirmSummaryOperationButton");
         await main.DrainBackgroundRefreshesAsync(); Dispatcher.UIThread.RunJobs(); await main.DrainBackgroundRefreshesAsync();
         Assert.Null(await f.Versions.LoadSummaryNodeAsync(f.Node));
-        Assert.IsType<SummaryListViewModel>(main.ActiveContent);
+        Assert.IsType<NetworkViewModel>(main.ActiveContent);
         main.DetachObservers(); await main.DrainBackgroundRefreshesAsync(); transport.Close();
     }
 

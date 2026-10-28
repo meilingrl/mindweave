@@ -1,5 +1,5 @@
 <UserControl xmlns="https://github.com/avaloniaui" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-             xmlns:vm="using:Mindweave.Desktop.ViewModels" xmlns:core="using:Mindweave.Core.Workspaces"
+             xmlns:vm="using:Mindweave.Desktop.ViewModels" xmlns:core="using:Mindweave.Core.Workspaces" xmlns:converters="using:Avalonia.Data.Converters"
              x:Class="Mindweave.Desktop.Views.MainView" x:DataType="vm:MainViewModel">
   <Grid ColumnDefinitions="264,*" Background="#FAFAF7">
     <Border Background="#F0F1EA" BorderBrush="#E0E2D9" BorderThickness="0,0,1,0" Padding="20,28,20,20">
@@ -105,5 +105,21 @@
         </DataTemplate>
       </ContentControl.ContentTemplate>
     </ContentControl>
+    <Border Grid.Column="1" ZIndex="10" VerticalAlignment="Top" Margin="24,66,24,0" Padding="12" Background="#FFF0E5" IsVisible="{Binding LayoutLeaveError, Converter={x:Static converters:StringConverters.IsNotNullOrEmpty}}">
+      <TextBlock Text="{Binding LayoutLeaveError}" TextWrapping="Wrap" />
+    </Border>
+    <Border Grid.ColumnSpan="2" ZIndex="30" IsVisible="{Binding IsLayoutLeaveConfirmationVisible}" Background="#88000000">
+      <Border Background="#FAFAF7" Padding="28" CornerRadius="8" MaxWidth="480" HorizontalAlignment="Center" VerticalAlignment="Center">
+        <StackPanel Spacing="16">
+          <TextBlock Text="保存布局改动？" FontSize="22" />
+          <TextBlock Text="当前主题的整理布局尚未保存。总结正文不受影响。" TextWrapping="Wrap" />
+          <StackPanel Orientation="Horizontal" Spacing="10">
+            <Button x:Name="SaveLayoutAndContinueButton" Content="保存并继续" Command="{Binding SaveLayoutAndContinueCommand}" />
+            <Button x:Name="DiscardLayoutAndContinueButton" Content="不保存" Command="{Binding DiscardLayoutAndContinueCommand}" />
+            <Button x:Name="CancelLayoutLeaveButton" Content="取消" Command="{Binding CancelLayoutLeaveCommand}" />
+          </StackPanel>
+        </StackPanel>
+      </Border>
+    </Border>
   </Grid>
 </UserControl>

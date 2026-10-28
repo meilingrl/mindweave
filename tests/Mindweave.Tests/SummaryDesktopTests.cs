@@ -211,12 +211,12 @@ public sealed class SummaryDesktopTests
         await main.NavigateAsync(new(MainArea.Network, ContentKind.Summary, f.Node, SummaryVersionId: current.Header.Identity.Id));
         var preview = (await f.Versions.PreviewDeleteSummaryVersionsAsync(f.Node, [f.First])).Value!;
         Assert.Equal(SummaryOutcomeKind.Applied, (await f.Versions.DeleteSummaryVersionsAsync(preview)).Kind);
-        await main.GoBackAsync(); Assert.IsType<SummaryListViewModel>(main.ActiveContent);
+        await main.GoBackAsync(); Assert.IsType<NetworkViewModel>(main.ActiveContent);
         await main.NavigateAsync(new(MainArea.Network, ContentKind.Summary, f.Node));
         await main.NavigateAsync(new(MainArea.Explore));
         preview = (await f.Versions.PreviewDeleteSummaryVersionsAsync(f.Node, [current.Header.Identity.Id])).Value!;
         Assert.Equal(SummaryOutcomeKind.Applied, (await f.Versions.DeleteSummaryVersionsAsync(preview)).Kind);
-        await main.NavigateAsync(new(MainArea.Network)); Assert.IsType<SummaryListViewModel>(main.ActiveContent);
+        await main.NavigateAsync(new(MainArea.Network)); Assert.IsType<NetworkViewModel>(main.ActiveContent);
         main.DetachObservers(); await main.DrainBackgroundRefreshesAsync();
     }
 
