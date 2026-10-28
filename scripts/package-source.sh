@@ -1,0 +1,50 @@
+#!/usr/bin/env bash
+# Builds the source package for course delivery and checks it (handoff §5 S6 "交付包大小与内容核对").
+#
+#   scripts/package-source.sh [REF] [OUT]   REF defaults to HEAD, OUT to ./mindweave-source-<sha>.zip
+#
+# Uses git archive, so only committed, tracked files go in: no bin/obj, run data or local settings by construction.
+# The checks still look, so a file committed by mistake is caught. Exits non-zero when a check fails.
+set -euo pipefail
+
+ROOT="$(git -C "$(dirname "$0")" rev-parse --show-toplevel)"
+REF="${1:-HEAD}"
+SHA="$(git -C "$ROOT" rev-parse --short "$REF")"
+OUT="${2:-$PWD/mindweave-source-$SHA.zip}"
+LIMIT=$((10 * 1024 * 1024))
+
+git -C "$ROOT" archive --format=zip --prefix="mindweave/" -o "$OUT" "$REF"
+
+size="$(wc -c < "$OUT" | tr -d ' ')"
+names="$(unzip -Z1 "$OUT")"
+fail=0
+
+if (( size > LIMIT )); then
+  echo "FAIL size: $size bytes > $LIMIT" >&2
+  fail=1
+fi
+
+# Build output, run data, credentials and editor or OS litter must never be in the package.
+bad="$(printf '%s\n' "$names" | grep -E '(^|/)(bin|obj|\.vs|\.idea|artifacts|TestResults)/|\.(db|db-wal|db-shm|sqlite|user|suo|pfx|p12|key)$|(^|/)\.DS_Store$|(^|/)\._|\.env$' || true)"
+if [[ -n "$bad" ]]; then
+  echo "FAIL unwanted files:" >&2
+  printf '  %s\n' $bad >&2
+  fail=1
+fi
+
+# The things a reader needs to build and run it.
+for required in mindweave/Mindweave.slnx mindweave/global.json mindweave/src/Mindweave.Desktop/Mindweave.Desktop.csproj mindweave/docs/design/run-guide.md; do
+  if ! printf '%s\n' "$names" | grep -qx "$required"; then
+    echo "FAIL missing: $required" >&2
+    fail=1
+  fi
+done
+
+files="$(printf '%s\n' "$names" | grep -vc '/$')"
+echo "package: $OUT"
+echo "commit:  $SHA"
+printf 'size:    %s bytes (%s KB, limit 10 MB)\n' "$size" "$((size / 1024))"
+echo "files:   $files"
+echo "top-level contents (files per folder):"
+printf '%s\n' "$names" | grep -v '/$' | awk -F/ '{ print (NF > 2 ? $2 "/" : $2) }' | sort | uniq -c | sort -rn | sed 's/^/  /'
+exit "$fail"
