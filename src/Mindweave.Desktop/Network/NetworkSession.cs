@@ -51,7 +51,7 @@ public sealed partial class NetworkSession : ObservableObject
         }
     }
 
-    /// <param name="fitAll">True for a genuine workspace/network entry: fit and retry failed initial inserts.
+    /// <param name="fitAll">True for a genuine workspace/network entry: request fit on the next canvas measurement and retry failed initial inserts.
     /// Metadata refresh and return from a summary use false to retain camera and retry state.</param>
     public Task ReloadAsync(bool fitAll = false)
     {
@@ -95,7 +95,6 @@ public sealed partial class NetworkSession : ObservableObject
             attemptedInitial.RemoveWhere(id => !valid.Contains(id));
             readError = null;
             NotifyGraphState();
-            if (fitAll) ShowAll();
             // The full missing-node plan is computed before the first independent insert.
             foreach (var node in snapshot.Graph.Nodes)
             {
@@ -104,6 +103,10 @@ public sealed partial class NetworkSession : ObservableObject
                 if (SavedPositions.ContainsKey(id) || attemptedInitial.Contains(id)) continue;
                 await SaveInitialAsync(id, placed[id], stamp, epoch);
             }
+            // Entry is loaded before its new canvas is attached. Keep the fit request until
+            // that canvas supplies measured extents and size; cached dimensions belong to the
+            // previous view. Publish after all awaits so the outgoing canvas cannot consume it.
+            if (fitAll && CurrentRead(stamp, epoch)) IsFitPending = true;
         }
         catch
         {

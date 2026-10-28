@@ -52,6 +52,7 @@ public sealed class NetworkCanvas : Panel
     private void SessionChanged(object? sender, PropertyChangedEventArgs e)
     {
         if (e.PropertyName is nameof(NetworkSession.Viewport) or nameof(NetworkSession.Positions)) { InvalidateArrange(); edges?.InvalidateVisual(); }
+        if (e.PropertyName == nameof(NetworkSession.IsFitPending) && page?.Session.IsFitPending == true) InvalidateArrange();
         if (e.PropertyName == nameof(NetworkSession.IsQuiesced)) { IsEnabled = page?.Session.IsQuiesced != true; StopPan(); }
     }
     private void Rebuild()

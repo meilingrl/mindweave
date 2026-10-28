@@ -1,3 +1,11 @@
+using Avalonia;
+using Avalonia.Controls;
+using Avalonia.Threading;
+using Avalonia.VisualTree;
+using Mindweave.Core.Summaries;
+using Mindweave.Core.Network;
+using Mindweave.Desktop.Controls;
+using Mindweave.Desktop.Views;
 using Avalonia.Headless.XUnit;
 using Mindweave.Application.Chat;
 using Mindweave.Application.Navigation;
@@ -100,6 +108,7 @@ public sealed class NetworkNavigationTests
         Assert.Equal(body!.Header, retained!.Header); Assert.Equal(body.Markdown, retained.Markdown);
         await f.Main.SwitchWorkspaceAsync(f.Data.Workspace); var returned = Assert.IsType<NetworkViewModel>(f.Main.ActiveContent);
         Assert.Same(page.Session, returned.Session); Assert.False(page.Session.IsQuiesced);
+        Assert.True(page.Session.IsFitPending); page.Session.SetViewportSize(800, 600);
         Assert.Equal(0, page.Session.Viewport.CenterX); Assert.Equal(0, page.Session.Viewport.CenterY);
     }
 
@@ -154,18 +163,110 @@ public sealed class NetworkNavigationTests
         Assert.Single(f.Main.ContentStack);
     }
 
-    [AvaloniaFact]
-    public async Task Menu_reentry_fits_but_retains_layout_and_workspace_history()
+    // Fitting against a detached view's old width clips real node/title rectangles after entry.
+    [AvaloniaTheory]
+    [InlineData(false, false)]
+    [InlineData(false, true)]
+    [InlineData(true, false)]
+    public async Task Genuine_reentry_after_offscreen_resize_fits_current_canvas_without_changing_layout(bool workspace, bool dirty)
     {
-        await using var f = await NetworkNavigationFixture.Open(); var page = await f.Network();
-        page.Session.SetViewportSize(800, 600); await page.Session.ArrangeAsync();
-        page.Session.Viewport = new(900, 800, .2);
-        await f.Main.NavigateAsync(new(MainArea.Explore)); await f.Main.NavigateAsync(new(MainArea.Network));
-        var returned = Assert.IsType<NetworkViewModel>(f.Main.ActiveContent);
-        Assert.Same(page.Session, returned.Session); Assert.True(returned.Session.IsDirty);
-        Assert.Equal(0, returned.Session.Viewport.CenterX); Assert.Equal(0, returned.Session.Viewport.CenterY);
-        Assert.Single(f.Main.ContentStack);
+        await using var f = await NetworkNavigationFixture.Open();
+        await SeedWideNetwork(f);
+        var other = await f.Data.Store.CreateAsync("other");
+        await f.Main.InitializeAsync(); await f.Main.SwitchWorkspaceAsync(f.Data.Workspace);
+        var page = await f.Network(); var session = page.Session;
+        var window = new Window { Content = new MainView { DataContext = f.Main }, Width = 1500, Height = 1000 };
+        window.Show(); Layout();
+        try
+        {
+            if (dirty) { await session.ArrangeAsync(); Layout(); }
+            var positions = session.Positions; var revision = session.Revision;
+            var initialWidth = Surface(window).Bounds.Width;
+            if (workspace) await f.Main.SwitchWorkspaceAsync(other.Id);
+            else await f.Main.ExploreCommand.ExecuteAsync(null);
+            Layout(); Assert.Empty(window.GetVisualDescendants().OfType<NetworkCanvas>());
+            window.Width = 720; Layout();
+            if (workspace) await f.Main.SwitchWorkspaceAsync(f.Data.Workspace);
+            else await f.Main.NetworkCommand.ExecuteAsync(null);
+            Layout();
+            Assert.Same(session, Assert.IsType<NetworkViewModel>(f.Main.ActiveContent).Session);
+            Assert.True(Surface(window).Bounds.Width < initialWidth / 2);
+            AssertFittedRectangles(window);
+            Assert.Equal(positions, session.Positions); Assert.Equal(revision, session.Revision); Assert.Equal(dirty, session.IsDirty);
+            Assert.Single(f.Main.ContentStack);
+
+            // A second genuine entry at the same size must still fit after panning/zooming.
+            var fitted = session.Viewport; session.Viewport = new(900, 800, .2); Layout();
+            await f.Main.ExploreCommand.ExecuteAsync(null); Layout();
+            await f.Main.NetworkCommand.ExecuteAsync(null); Layout();
+            Assert.Equal(fitted, session.Viewport); AssertFittedRectangles(window);
+            session.Viewport = new(-700, 600, .3); Layout();
+            await f.Main.NetworkCommand.ExecuteAsync(null); Layout();
+            Assert.Equal(fitted, session.Viewport); AssertFittedRectangles(window);
+            Assert.Equal(positions, session.Positions); Assert.Equal(revision, session.Revision); Assert.Equal(dirty, session.IsDirty);
+        }
+        finally { window.Close(); }
     }
+
+    // A deferred entry fit must never turn a summary return or visible resize into an implicit fit.
+    [AvaloniaFact]
+    public async Task Summary_back_after_offscreen_resize_and_visible_resize_preserve_camera_selection_and_dirty_layout()
+    {
+        await using var f = await NetworkNavigationFixture.Open(); await SeedWideNetwork(f);
+        var page = await f.Network(); var session = page.Session;
+        var window = new Window { Content = new MainView { DataContext = f.Main }, Width = 1500, Height = 1000 };
+        window.Show(); Layout();
+        try
+        {
+            await session.ArrangeAsync(); Layout();
+            session.Viewport = new(321, -123, .7); session.SelectedNodeId = f.Data.Node; Layout();
+            var camera = session.Viewport; var positions = session.Positions; var revision = session.Revision;
+            await page.OpenSummaryCommand.ExecuteAsync(null); Layout();
+            Assert.IsType<SummaryViewModel>(f.Main.ActiveContent); Assert.Empty(window.GetVisualDescendants().OfType<NetworkCanvas>());
+            window.Width = 720; Layout();
+            await f.Main.GoBackAsync(); Layout();
+            Assert.Same(session, Assert.IsType<NetworkViewModel>(f.Main.ActiveContent).Session);
+            Assert.Equal(camera, session.Viewport); Assert.Equal(f.Data.Node, session.SelectedNodeId);
+            window.Width = 980; window.Height = 850; Layout();
+            Assert.Equal(camera, session.Viewport); Assert.Equal(f.Data.Node, session.SelectedNodeId);
+            Assert.Equal(positions, session.Positions); Assert.Equal(revision, session.Revision); Assert.True(session.IsDirty);
+        }
+        finally { window.Close(); }
+    }
+
+    private static async Task SeedWideNetwork(NetworkNavigationFixture f)
+    {
+        var conversation = (await f.Data.Store.CreateConversationAsync(f.Data.Workspace)).Id;
+        await BranchStorageTests.Answer(f.Data.Store, conversation, "second question", "second answer");
+        var job = (await f.Data.Store.AcceptKnowledgeSummaryAsync(Guid.NewGuid(), conversation, BranchStorageTests.Config(32768))).Value!;
+        await f.Data.Store.PrepareKnowledgeSummaryRequestAsync(job.Id, job.Revision);
+        var second = await f.Data.Store.CompleteKnowledgeSummaryAsync(new(job.Id, job.Revision, new("A second saved summary title", "body"), "synthetic"));
+        Assert.Equal(SummaryOutcomeKind.Applied, second.Kind);
+        await f.Data.Store.TrySaveInitialNodePositionAsync(f.Data.Workspace, f.Data.Node, new(-500, 0));
+        await f.Data.Store.TrySaveInitialNodePositionAsync(f.Data.Workspace, second.Value!.NodeId, new(500, 0));
+    }
+
+    private static void Layout() => Dispatcher.UIThread.RunJobs();
+    private static NetworkCanvas Surface(Window window) => Assert.Single(window.GetVisualDescendants().OfType<NetworkCanvas>());
+    private static void AssertFittedRectangles(Window window)
+    {
+        var surface = Surface(window);
+        var nodes = surface.Children.OfType<NetworkNodeControl>().ToArray(); Assert.Equal(2, nodes.Length);
+        foreach (var node in nodes)
+        {
+            // Translate actual visual corners, including RenderTransform, without calling the fit/projection implementation.
+            foreach (var visual in new Control[] { node }.Concat(node.GetVisualDescendants().OfType<TextBlock>()))
+            {
+                var topLeft = visual.TranslatePoint(new Point(0, 0), surface)!.Value;
+                var bottomRight = visual.TranslatePoint(new Point(visual.Bounds.Width, visual.Bounds.Height), surface)!.Value;
+                Assert.InRange(topLeft.X, 47.9, surface.Bounds.Width - 47.9);
+                Assert.InRange(topLeft.Y, 47.9, surface.Bounds.Height - 47.9);
+                Assert.InRange(bottomRight.X, 47.9, surface.Bounds.Width - 47.9);
+                Assert.InRange(bottomRight.Y, 47.9, surface.Bounds.Height - 47.9);
+            }
+        }
+    }
+
 }
 
 internal sealed class NetworkNavigationFixture : IAsyncDisposable

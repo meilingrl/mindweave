@@ -169,6 +169,25 @@ public sealed class NetworkSessionTests
         await session.ArrangeAsync(); Assert.Equal(0, session.Viewport.CenterX); Assert.Equal(0, session.Viewport.CenterY);
     }
 
+    // A genuine entry must not use retained measurements; even equal-size re-entry waits for fresh extents.
+    [Fact]
+    public async Task Entry_fit_waits_for_fresh_measurement_even_when_previous_size_is_nonzero_or_unchanged()
+    {
+        var session = new NetworkSession(Workspace, new ControlledStore(Snapshot(1)));
+        await session.ReloadAsync(true); session.SetViewportSize(400, 300);
+        session.Viewport = new(321, -123, .7);
+        await session.ReloadAsync(true);
+        Assert.True(session.IsFitPending); Assert.Equal(new NetworkViewport(321, -123, .7), session.Viewport);
+        session.SetViewportSize(0, 0); Assert.True(session.IsFitPending);
+        session.SetNodeExtents(ImmutableDictionary<Guid, NodeExtent>.Empty.Add(Id(11), new(400, 200)));
+        session.SetViewportSize(400, 300);
+        Assert.False(session.IsFitPending); Assert.Equal(new NetworkViewport(1000, 500, .76), session.Viewport);
+        session.Viewport = new(321, -123, .7); await session.ReloadAsync(true);
+        session.SetViewportSize(400, 300); // Equal values still represent a fresh layout measurement.
+        Assert.False(session.IsFitPending); Assert.Equal(new NetworkViewport(1000, 500, .76), session.Viewport);
+        Assert.False(session.IsDirty);
+    }
+
     // An automatic write failure must not turn ordinary metadata/new-node refresh into implicit rearrange.
     [Fact]
     public async Task Refresh_keeps_existing_fallback_position_and_camera_when_another_node_arrives()
