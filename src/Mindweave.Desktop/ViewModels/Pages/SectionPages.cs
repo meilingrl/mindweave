@@ -30,6 +30,7 @@ public sealed partial class SettingsHomeViewModel : PageViewModel
     private readonly AppearanceService _appearanceService;
     private readonly IThemeApplier _theme;
     private bool _loading;
+    private bool _chosen;
 
     public SettingsHomeViewModel(AppEnvironment environment, ModelSettingsViewModel model, IContentNavigator content, AppearanceService appearance, IThemeApplier theme)
         : base(SettingsHomeRoute.Instance)
@@ -90,6 +91,7 @@ public sealed partial class SettingsHomeViewModel : PageViewModel
             return;
         }
 
+        _chosen = true;
         _theme.Apply(value);
         Saving = SaveAsync(value);
     }
@@ -98,6 +100,7 @@ public sealed partial class SettingsHomeViewModel : PageViewModel
     {
         if (chosen)
         {
+            _chosen = true;
             Appearance = appearance;
         }
     }
@@ -129,6 +132,12 @@ public sealed partial class SettingsHomeViewModel : PageViewModel
 #pragma warning restore CA1031
         {
             stored = Appearance.FollowSystem;
+        }
+
+        // A choice the reader made while this was loading wins over the stored one it would otherwise overwrite.
+        if (_chosen)
+        {
+            return;
         }
 
         _loading = true;

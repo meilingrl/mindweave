@@ -437,6 +437,35 @@ public static class UiText
         return string.Join(" · ", parts);
     }
 
+    /// <summary>The read tag of a version other than the current one: "此版本已读" / "此版本未读".</summary>
+    public static string ThisVersionRead(bool read) => read ? "此版本已读" : "此版本未读";
+
+    /// <summary>The current version's read state in words, for screen readers: "当前版本已读" / "当前版本未读".</summary>
+    public static string CurrentVersionRead(bool read) => read ? "当前版本已读" : "当前版本未读";
+
+    /// <summary>
+    /// The summary page's tags for the version on screen. On the current version the read tag is the node's own
+    /// marker (未读 / 已读, as on the network and in the list); on any other version it says "此版本…".
+    /// </summary>
+    public static string ShownReadMarker(bool read, bool isCurrent) => isCurrent ? (read ? MarkerRead : MarkerUnread) : ThisVersionRead(read);
+
+    /// <summary>The same tags in one line for screen readers, saying which version the read state belongs to.</summary>
+    public static string ShownMarkers(bool read, bool isCurrent, bool hasCandidate, bool hasLaterContent)
+    {
+        var parts = new List<string> { isCurrent ? CurrentVersionRead(read) : ThisVersionRead(read) };
+        if (hasCandidate)
+        {
+            parts.Add(MarkerCandidate);
+        }
+
+        if (hasLaterContent)
+        {
+            parts.Add(MarkerLater);
+        }
+
+        return string.Join(" · ", parts);
+    }
+
     public static string VersionLabel(SummaryVersion version, bool isCurrent, bool isCandidate)
     {
         ArgumentNullException.ThrowIfNull(version);
@@ -486,6 +515,9 @@ public static class UiText
         ArgumentNullException.ThrowIfNull(names);
         return string.Join(" → ", names);
     }
+
+    /// <summary>An unsummarized conversation on a source path: "雨山试验（未总结）".</summary>
+    public static string Unsummarized(string title) => title + "（未总结）";
 
     public static string ViaCount(int count) => string.Format(CultureInfo.CurrentCulture, "经 {0} 个未总结会话", count);
 

@@ -95,9 +95,17 @@ public class SummaryUiTests
         await UiWait.UntilAsync(() => summary.HasCandidate);
         Assert.Equal("我自己的笔记", summary.Shown!.Body);
 
+        // The read tag follows the version on screen and says which one; on the current version it is the node's own
+        // marker, the one the network and the list show.
+        Assert.Equal(UiText.MarkerRead, summary.ShownReadMarker);
+        Assert.StartsWith(UiText.CurrentVersionRead(true), summary.ShownMarkersText, StringComparison.Ordinal);
+        Assert.Contains(UiText.MarkerCandidate, summary.ShownMarkersText, StringComparison.Ordinal);
+
         summary.ShowCandidateCommand.Execute(null);
         Assert.True(summary.ShownIsCandidate);
         Assert.Equal("新生成的正文", summary.Shown!.Body);
+        Assert.Equal(UiText.ThisVersionRead(false), summary.ShownReadMarker);
+        Assert.StartsWith(UiText.ThisVersionRead(false), summary.ShownMarkersText, StringComparison.Ordinal);
 
         await summary.AdoptCommand.ExecuteAsync(null);
         await UiWait.UntilAsync(() => !summary.HasCandidate);

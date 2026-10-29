@@ -5,6 +5,7 @@ using Avalonia.Styling;
 using Avalonia.VisualTree;
 using Microsoft.Extensions.DependencyInjection;
 using Mindweave.Application.Preferences;
+using Mindweave.Application.Storage;
 using Mindweave.Desktop.Navigation;
 using Mindweave.Desktop.Services;
 using Mindweave.Desktop.ViewModels.Pages;
@@ -58,6 +59,33 @@ public class ThemeTests
         window.Close();
     }
 
+    [AvaloniaFact]
+    public async Task A_choice_made_before_the_stored_one_has_loaded_is_kept()
+    {
+        var store = new GatedPreferences();
+        store.Values[AppearanceService.Key] = AppearanceService.Format(Appearance.Light);
+        await using var app = DesktopHarness.Create(s => s.AddSingleton<IPreferenceStore>(store));
+        var window = NetworkUiTests.Show(app);
+        await app.StartWithWorkspaceAsync("火车历史");
+
+        // The settings page opens while reading the stored choice is still slow; the reader picks dark meanwhile.
+        store.Hold = new TaskCompletionSource();
+        app.ShellPage.ShowSectionCommand.Execute(MainSection.Settings);
+        var settings = Assert.IsType<SettingsHomeViewModel>(app.Workbench.CurrentPage);
+        window.UpdateLayout();
+        var dark = window.GetVisualDescendants().OfType<RadioButton>().Single(r => r.Name == "AppearanceDark");
+        dark.IsChecked = true;
+        Assert.Equal(Appearance.Dark, app.Theme.Applied.Last());
+
+        store.Hold.SetResult();
+        await settings.Loaded;
+        await settings.Saving;
+        Assert.True(settings.IsDark);
+        Assert.Equal(Appearance.Dark, app.Theme.Applied.Last());
+        Assert.Equal("dark", store.Values[AppearanceService.Key]);
+        window.Close();
+    }
+
     [Fact]
     public void Stored_values_map_to_appearances_and_unknown_values_follow_the_system()
     {
@@ -88,6 +116,31 @@ public class ThemeTests
         window.RequestedThemeVariant = ThemeVariant.Light;
         Assert.Equal(Color.Parse("#4B6BFB"), Brush(window, "NetworkNode"));
         window.Close();
+    }
+
+    /// <summary>Preferences in memory; a read takes the value at once but answers only when <see cref="Hold"/> is released.</summary>
+    private sealed class GatedPreferences : IPreferenceStore
+    {
+        public Dictionary<string, string> Values { get; } = [];
+
+        public TaskCompletionSource? Hold { get; set; }
+
+        public async Task<string?> GetAsync(string key, CancellationToken cancellationToken)
+        {
+            var value = Values.GetValueOrDefault(key);
+            if (Hold is { } hold)
+            {
+                await hold.Task;
+            }
+
+            return value;
+        }
+
+        public Task SetAsync(string key, string value, CancellationToken cancellationToken)
+        {
+            Values[key] = value;
+            return Task.CompletedTask;
+        }
     }
 
     private static Color Brush(Window window, string key)

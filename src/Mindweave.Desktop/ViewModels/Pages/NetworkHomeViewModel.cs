@@ -2,6 +2,7 @@ using System.Collections.ObjectModel;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Mindweave.Application.Conversations;
+using Mindweave.Application.Network;
 using Mindweave.Application.Summaries;
 using Mindweave.Core.Conversations;
 using Mindweave.Core.Summaries;
@@ -27,15 +28,31 @@ public sealed record SummaryListItem(SummaryNodeId Node, string DisplayName, str
 /// </summary>
 public sealed record NodeView(SummaryNodeId Id, string ShortTitle, string DisplayName, double X, double Y, bool Unread, bool HasCandidate, double LabelWidth, SummaryNodeId? Parent = null, bool IsRoot = false);
 
-/// <summary>"探索 · root conversation" above an exploration: over its root's node, or its top-left node when the root has no summary.</summary>
-public sealed record GroupCaption(string Text, SummaryNodeId Anchor);
+/// <summary>
+/// "探索 · root conversation" for an exploration. <paramref name="Anchor"/> is its root's node, or its top-left node
+/// when the root has no summary; the canvas draws the caption above the bounding box of <paramref name="Members"/>,
+/// so no edge of the group crosses it.
+/// </summary>
+public sealed record GroupCaption(string Text, SummaryNodeId Anchor, IReadOnlyList<SummaryNodeId> Members);
 
 /// <summary>A source edge as the canvas draws it; dashed with a label when it passes unsummarized conversations.</summary>
 public sealed record EdgeView(SummaryNodeId From, SummaryNodeId To, double FromX, double FromY, double ToX, double ToY, bool IsDirect, string? Label);
 
-/// <summary>What the side panel says about the selected node; never the summary body, never marks it read.</summary>
+/// <summary>
+/// One conversation on a node's source path: a summarized one by its short name, an unsummarized one by its title,
+/// shown muted with "（未总结）" so it never passes for a summary (architecture §11).
+/// </summary>
+public sealed record PathStep(string Name, bool Summarized, bool IsFirst)
+{
+    public string Text => Summarized ? Name : UiText.Unsummarized(Name);
+}
+
+/// <summary>
+/// What the side panel says about the selected node; never the summary body, never marks it read.
+/// <paramref name="Steps"/> is the source path step by step, root first; <paramref name="Path"/> the same in one line.
+/// </summary>
 public sealed record NodeDetail(SummaryNodeId Id, ConversationId Conversation, string DisplayName, string ShortTitle, string Markers, string Source, string Created, string? Via,
-    bool Unread = false, bool HasCandidate = false, bool SourceArchived = false, string Path = "");
+    bool Unread, bool HasCandidate, bool SourceArchived, string Path, IReadOnlyList<PathStep> Steps);
 
 /// <summary>
 /// The summary network of the current workspace (requirement §7.3–7.4, architecture §11): nodes with short titles
@@ -304,7 +321,7 @@ public sealed partial class NetworkHomeViewModel : PageViewModel, IDisposable
         var positions = Session.Positions;
         var parents = Session.Projection.Edges.ToDictionary(e => e.To, e => e.From);
         Nodes = [.. Session.Projection.Nodes.Where(n => positions.ContainsKey(n.Id)).Select(n => new NodeView(
-            n.Id, n.ShortTitle, n.DisplayName, positions[n.Id].X, positions[n.Id].Y, n.Markers.Unread, n.Markers.HasCandidate, NetworkLayout.LabelWidth(n.ShortTitle),
+            n.Id, n.ShortTitle, n.DisplayName, positions[n.Id].X, positions[n.Id].Y, n.Markers.Unread, n.Markers.HasCandidate, NetworkLayout.LabelWidth(NetworkLayout.Label(n.ShortTitle, n.Markers.HasCandidate)),
             parents.TryGetValue(n.Id, out var parent) && positions.ContainsKey(parent) ? parent : null, n.Conversation == n.Root))];
         Edges = [.. Session.Projection.Edges.Where(e => positions.ContainsKey(e.From) && positions.ContainsKey(e.To)).Select(e => new EdgeView(
             e.From, e.To, positions[e.From].X, positions[e.From].Y, positions[e.To].X, positions[e.To].Y, e.IsDirect, e.IsDirect ? null : UiText.ViaCount(e.Via.Count)))];
@@ -312,7 +329,7 @@ public sealed partial class NetworkHomeViewModel : PageViewModel, IDisposable
         {
             // Over the root's own summary; when the root conversation has none, over the group's top-left node.
             var anchor = g.FirstOrDefault(n => n.Conversation == g.Key) ?? g.OrderBy(n => positions[n.Id].Y).ThenBy(n => positions[n.Id].X).First();
-            return new GroupCaption(UiText.ExplorationCaption(_titles.GetValueOrDefault(g.Key)), anchor.Id);
+            return new GroupCaption(UiText.ExplorationCaption(_titles.GetValueOrDefault(g.Key)), anchor.Id, [.. g.Select(n => n.Id)]);
         })];
         Trail = TrailOf(Session.Selected);
     }
@@ -325,6 +342,7 @@ public sealed partial class NetworkHomeViewModel : PageViewModel, IDisposable
         }
 
         var edge = Session.Projection.Edges.FirstOrDefault(e => e.To == id && !e.IsDirect);
+        var steps = PathOf(node);
         return new NodeDetail(
             node.Id,
             node.Conversation,
@@ -337,36 +355,20 @@ public sealed partial class NetworkHomeViewModel : PageViewModel, IDisposable
             node.Markers.Unread,
             node.Markers.HasCandidate,
             node.SourceArchived,
-            UiText.SourcePath(PathOf(id)));
+            UiText.SourcePath([.. steps.Select(step => step.Text)]),
+            steps);
     }
 
-    /// <summary>Names from the exploration's root to this node: summaries by short name, unsummarized sessions between them by title.</summary>
-    private List<string> PathOf(SummaryNodeId id)
+    /// <summary>
+    /// Every conversation from the exploration's root to this node, root first: summarized ones by short name, the
+    /// unsummarized ones by title and marked, also when no summarized ancestor exists at all.
+    /// </summary>
+    private List<PathStep> PathOf(NetworkNode node)
     {
-        var nodes = Session.Projection.Nodes.ToDictionary(n => n.Id);
-        var incoming = Session.Projection.Edges.ToDictionary(e => e.To);
-        var names = new List<string>();
-        var seen = new HashSet<SummaryNodeId>();
-        for (SummaryNodeId? at = id; at is { } current && nodes.ContainsKey(current) && seen.Add(current);)
-        {
-            names.Add(nodes[current].ShortTitle);
-            if (!incoming.TryGetValue(current, out var edge))
-            {
-                // The root conversation itself has no summary: name it first, so the path still starts at the root.
-                var node = nodes[current];
-                if (node.Conversation != node.Root)
-                {
-                    names.Add(_titles.GetValueOrDefault(node.Root) ?? UiText.NewConversation);
-                }
-
-                break;
-            }
-
-            names.AddRange(edge.Via.Reverse().Select(c => _titles.GetValueOrDefault(c) ?? UiText.NewConversation));
-            at = edge.From;
-        }
-
-        names.Reverse();
-        return names;
+        var summarized = Session.Projection.Nodes.ToDictionary(n => n.Conversation, n => n.ShortTitle);
+        var chain = node.Ancestors.Append(node.Conversation).ToList();
+        return [.. chain.Select((conversation, i) => summarized.TryGetValue(conversation, out var shortTitle)
+            ? new PathStep(shortTitle, true, i == 0)
+            : new PathStep(_titles.GetValueOrDefault(conversation) ?? UiText.NewConversation, false, i == 0))];
     }
 }

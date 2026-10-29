@@ -310,6 +310,10 @@ public class GalleryTests
         Assert.Contains(network.Edges, e => !e.IsDirect);
         network.Select(seed.Nodes[seed.Gauge]);
         await SettleAsync(window);
+        var canvas = window.GetVisualDescendants().OfType<NetworkCanvas>().Single();
+        Assert.True(canvas.Current.Zoom >= 0.8, $"default zoom {canvas.Current.Zoom:0.00}");
+        var gauge = canvas.PaintNodes().Single(p => p.Node.Id == seed.Nodes[seed.Gauge]);
+        Assert.All(canvas.PaintEdges(), e => Assert.False(NetworkCanvas.Crosses(e.From, e.To, gauge.LabelBounds), $"{gauge.LabelBounds} {e.From} {e.To}"));
         Capture(window, "g13-network");
         window.Close();
     }

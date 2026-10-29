@@ -14,13 +14,19 @@
     <DockPanel DockPanel.Dock="Top" Margin="0,0,0,10" IsVisible="{Binding !IsEmpty}">
       <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
         <ProgressBar IsIndeterminate="True" Width="40" VerticalAlignment="Center" IsVisible="{Binding IsSaving}" />
-        <Button Name="SaveLayoutButton" Command="{Binding SaveLayoutCommand}" Classes.primary="{Binding IsDirty}" Classes.quiet="{Binding !IsDirty}"
+        <!-- Unsaved: the accent button says so. Saved: a quiet status, not a button (nothing to press). -->
+        <Button Name="SaveLayoutButton" Classes="primary" Command="{Binding SaveLayoutCommand}" IsVisible="{Binding IsDirty}"
                 ToolTip.Tip="{x:Static d:UiText.SaveLayout}" AutomationProperties.Name="{Binding SaveLayoutLabel}">
           <StackPanel Orientation="Horizontal" Spacing="6">
             <PathIcon Width="14" Height="14" Data="M2,1 H12 L15,4 V15 H1 V1 Z M4,1 V5 H11 V1 Z M3,9 H13 V14 H3 Z" />
             <TextBlock Name="SaveLayoutText" Text="{Binding SaveLayoutLabel}" VerticalAlignment="Center" />
           </StackPanel>
         </Button>
+        <StackPanel Name="LayoutSavedStatus" Orientation="Horizontal" Spacing="5" Margin="0,0,4,0" VerticalAlignment="Center" IsVisible="{Binding !IsDirty}"
+                    AutomationProperties.Name="{Binding SaveLayoutLabel}">
+          <PathIcon Width="12" Height="12" Foreground="{DynamicResource MutedText}" Data="M1.5,8.5 L3,7 L6,10 L13,3 L14.5,4.5 L6,13 Z" />
+          <TextBlock Classes="muted" FontSize="12" Text="{Binding SaveLayoutLabel}" VerticalAlignment="Center" />
+        </StackPanel>
       </StackPanel>
       <WrapPanel Orientation="Horizontal" VerticalAlignment="Center">
         <TextBox Name="FindBox" Text="{Binding SearchText}" PlaceholderText="{x:Static d:UiText.FindWatermark}" Width="190" Margin="0,0,10,0" VerticalAlignment="Center">
@@ -34,8 +40,13 @@
             <TextBlock Text="{x:Static d:UiText.ShowAll}" VerticalAlignment="Center" />
           </StackPanel>
         </Button>
-        <Button Name="ZoomOutButton" Classes="quiet" Content="−" Command="{Binding ZoomOutCommand}" ToolTip.Tip="{x:Static d:UiText.ZoomOut}" AutomationProperties.Name="{x:Static d:UiText.ZoomOut}" MinWidth="30" />
-        <Button Name="ZoomInButton" Classes="quiet" Content="＋" Command="{Binding ZoomInCommand}" ToolTip.Tip="{x:Static d:UiText.ZoomIn}" AutomationProperties.Name="{x:Static d:UiText.ZoomIn}" MinWidth="30" />
+        <!-- The same drawn glyph for both, so − and ＋ match in weight and width on every font. -->
+        <Button Name="ZoomOutButton" Classes="quiet" Command="{Binding ZoomOutCommand}" ToolTip.Tip="{x:Static d:UiText.ZoomOut}" AutomationProperties.Name="{x:Static d:UiText.ZoomOut}" MinWidth="30">
+          <PathIcon Width="12" Height="12" Data="M1,7 H15 V9 H1 Z" />
+        </Button>
+        <Button Name="ZoomInButton" Classes="quiet" Command="{Binding ZoomInCommand}" ToolTip.Tip="{x:Static d:UiText.ZoomIn}" AutomationProperties.Name="{x:Static d:UiText.ZoomIn}" MinWidth="30">
+          <PathIcon Width="12" Height="12" Data="M7,1 H9 V7 H15 V9 H9 V15 H7 V9 H1 V7 H7 Z" />
+        </Button>
         <Button Name="ArrangeButton" Classes="quiet" Command="{Binding ArrangeCommand}">
           <StackPanel Orientation="Horizontal" Spacing="6">
             <PathIcon Width="13" Height="13" Data="M1,6 H5 V10 H1 Z M11,1 H15 V5 H11 Z M11,11 H15 V15 H11 Z M5,7.25 H10 V8.75 H5 Z M9,2.25 H11 V3.75 H9 Z M9,12.25 H11 V13.75 H9 Z M8.25,2.25 H9.75 V13.75 H8.25 Z" />
@@ -85,7 +96,24 @@
           </WrapPanel>
           <StackPanel Spacing="3">
             <TextBlock Classes="muted" FontSize="12" Text="{x:Static d:UiText.SourcePathHeading}" />
-            <TextBlock Name="SourcePath" TextWrapping="Wrap" Text="{Binding Selected.Path, FallbackValue=''}" />
+            <!-- Root first; unsummarized conversations are muted and say so, never passing for summaries (§11). -->
+            <ItemsControl Name="SourcePath" ItemsSource="{Binding Selected.Steps, FallbackValue={x:Null}}"
+                          AutomationProperties.Name="{Binding Selected.Path, FallbackValue=''}">
+              <ItemsControl.ItemsPanel>
+                <ItemsPanelTemplate>
+                  <WrapPanel Orientation="Horizontal" />
+                </ItemsPanelTemplate>
+              </ItemsControl.ItemsPanel>
+              <ItemsControl.ItemTemplate>
+                <DataTemplate x:DataType="vm:PathStep">
+                  <StackPanel Orientation="Horizontal">
+                    <TextBlock Classes="muted" Text="→" Margin="0,0,4,0" IsVisible="{Binding !IsFirst}" />
+                    <TextBlock Text="{Binding Text}" TextWrapping="Wrap" MaxWidth="220" Margin="0,0,4,2"
+                               Classes.muted="{Binding !Summarized}" />
+                  </StackPanel>
+                </DataTemplate>
+              </ItemsControl.ItemTemplate>
+            </ItemsControl>
           </StackPanel>
           <TextBlock Classes="muted" FontSize="12" TextWrapping="Wrap" Text="{Binding Selected.Via, FallbackValue=''}"
                      IsVisible="{Binding Selected.Via, Converter={x:Static ObjectConverters.IsNotNull}, FallbackValue=False}" />
@@ -128,7 +156,8 @@
     </Panel>
 
     <Panel>
-      <Border BorderBrush="{DynamicResource DividerBrush}" BorderThickness="1" CornerRadius="8" ClipToBounds="True" IsVisible="{Binding !IsListView}">
+      <!-- Frameless in dark, as in the sample; a faint edge in light, where the canvas is close to the page colour. -->
+      <Border Name="CanvasFrame" BorderBrush="{DynamicResource NetworkFrame}" BorderThickness="1" CornerRadius="8" ClipToBounds="True" IsVisible="{Binding !IsListView}">
         <v:NetworkCanvas Name="Canvas" />
       </Border>
       <ScrollViewer IsVisible="{Binding IsListView}">
@@ -138,7 +167,8 @@
             <ItemsControl.ItemTemplate>
               <DataTemplate x:DataType="vm:SummaryListItem">
                 <StackPanel Orientation="Horizontal" Spacing="6" Margin="0,2">
-                  <Button Classes="link" Content="{Binding DisplayName}" FontWeight="{Binding Unread, Converter={x:Static d:Converters.BoldWhen}}"
+                  <!-- Unread: bold, primary colour; read: regular, secondary colour (S7 已读／未读约定). -->
+                  <Button Classes="list-name" Classes.read="{Binding !Unread}" Content="{Binding DisplayName}" FontWeight="{Binding Unread, Converter={x:Static d:Converters.BoldWhen}}"
                           Command="{Binding $parent[v:NetworkHomeView].((vm:NetworkHomeViewModel)DataContext).OpenCommand}" CommandParameter="{Binding Node}" />
                   <Border Classes="badge accent" IsVisible="{Binding Unread}">
                     <TextBlock Text="{x:Static d:UiText.MarkerUnread}" />

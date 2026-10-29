@@ -20,16 +20,37 @@ public class NetworkLayoutTests
     }
 
     [Fact]
-    public void Arranged_labels_do_not_overlap_and_groups_sit_side_by_side()
+    public void Arranged_labels_do_not_overlap_and_groups_keep_apart()
     {
         var nodes = Tree(Trains, 25).Concat(Tree(Photos, 8, startOrder: 100)).ToList();
 
         var layout = NetworkLayout.Arrange(nodes);
 
         AssertNoOverlap(nodes, layout);
-        var trainsRight = nodes.Where(n => n.Group == Trains).Max(n => NetworkLayout.BoxRight(layout[n.Id].X, n.LabelWidth));
-        var photosLeft = nodes.Where(n => n.Group == Photos).Min(n => NetworkLayout.BoxLeft(layout[n.Id].X));
-        Assert.True(photosLeft > trainsRight, $"{photosLeft} <= {trainsRight}");
+        AssertGroupsApart(nodes, layout, Trains, Photos);
+    }
+
+    [Fact]
+    public void Small_groups_go_in_rows_so_the_whole_comes_close_to_the_canvas_shape()
+    {
+        // Side by side, two small groups would be about three times as wide as high; stacked they are near the square canvas.
+        var nodes = Tree(Trains, 4).Concat(Tree(Photos, 4, startOrder: 100)).ToList();
+
+        var layout = NetworkLayout.Arrange(nodes);
+
+        AssertNoOverlap(nodes, layout);
+        AssertGroupsApart(nodes, layout, Trains, Photos);
+        var trainsBottom = nodes.Where(n => n.Group == Trains).Max(n => layout[n.Id].Y);
+        var photosTop = nodes.Where(n => n.Group == Photos).Min(n => layout[n.Id].Y);
+        Assert.True(photosTop - trainsBottom >= NetworkLayout.GroupGap + NetworkLayout.CaptionHeadroom, $"{photosTop} − {trainsBottom}: the second group is not in a row below with room for its caption");
+
+        // Many groups make a grid, not one long row.
+        var many = Enumerable.Range(0, 9).SelectMany(g => Tree(new Guid(g + 10, 0, 0, new byte[8]), 3, startOrder: g * 10)).ToList();
+        var grid = NetworkLayout.Arrange(many);
+        var width = many.Max(n => NetworkLayout.BoxRight(grid[n.Id].X, n.LabelWidth)) - many.Min(n => NetworkLayout.BoxLeft(grid[n.Id].X));
+        var height = many.Max(n => grid[n.Id].Y) - many.Min(n => grid[n.Id].Y);
+        Assert.InRange(width / height, 0.6, 2.4);
+        Assert.Equal(grid, NetworkLayout.Arrange([.. many.AsEnumerable().Reverse()]));
     }
 
     [Fact]
@@ -40,7 +61,9 @@ public class NetworkLayoutTests
 
         var layout = NetworkLayout.Arrange([a, b]);
 
-        Assert.All(new[] { layout[a.Id], layout[b.Id] }, p => Assert.InRange(Math.Sqrt((p.X * p.X) + (p.Y * p.Y)), 100, 400));
+        // Opposite each other on the first ring, the empty centre between them.
+        var distance = Math.Sqrt(Math.Pow(layout[a.Id].X - layout[b.Id].X, 2) + Math.Pow(layout[a.Id].Y - layout[b.Id].Y, 2));
+        Assert.InRange(distance, 2 * NetworkLayout.LevelSpacing * 0.9, 2 * NetworkLayout.LevelSpacing * 2);
     }
 
     [Fact]
@@ -91,7 +114,7 @@ public class NetworkLayoutTests
     {
         // The label is drawn to the right of the dot (S7): origin x + r + 9, so the box is asymmetric.
         Assert.Equal(100 - NetworkLayout.NodeRadius, NetworkLayout.BoxLeft(100));
-        Assert.Equal(100 + NetworkLayout.NodeRadius + NetworkLayout.LabelGap + 56, NetworkLayout.BoxRight(100, NetworkLayout.LabelWidth("火车起源")));
+        Assert.Equal(100 + NetworkLayout.NodeRadius + NetworkLayout.LabelGap + (4 * NetworkLayout.LabelEm), NetworkLayout.BoxRight(100, NetworkLayout.LabelWidth("火车起源")));
     }
 
     /// <summary>Label boxes (dot on the left, label to its right) keep at least the padding apart on one axis.</summary>
@@ -109,6 +132,23 @@ public class NetworkLayoutTests
                 Assert.True(apartX || apartY, $"Nodes {i} and {j} overlap at {a} and {b}.");
             }
         }
+    }
+
+    /// <summary>The two groups' boxes, padding included, do not overlap: apart across or apart down.</summary>
+    private static void AssertGroupsApart(List<LayoutNode> nodes, IReadOnlyDictionary<SummaryNodeId, NodePosition> layout, Guid first, Guid second)
+    {
+        (double Left, double Right, double Top, double Bottom) Box(Guid group)
+        {
+            var members = nodes.Where(n => n.Group == group).ToList();
+            return (members.Min(n => NetworkLayout.BoxLeft(layout[n.Id].X)), members.Max(n => NetworkLayout.BoxRight(layout[n.Id].X, n.LabelWidth)),
+                members.Min(n => layout[n.Id].Y), members.Max(n => layout[n.Id].Y));
+        }
+
+        var a = Box(first);
+        var b = Box(second);
+        var apartX = b.Left - a.Right >= NetworkLayout.GroupGap || a.Left - b.Right >= NetworkLayout.GroupGap;
+        var apartY = b.Top - a.Bottom >= NetworkLayout.GroupGap || a.Top - b.Bottom >= NetworkLayout.GroupGap;
+        Assert.True(apartX || apartY, $"groups overlap: {a} and {b}");
     }
 
     /// <summary>A tree where node k's parent is node (k − 1) / 3, so three children per node.</summary>

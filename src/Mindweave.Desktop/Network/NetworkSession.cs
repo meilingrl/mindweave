@@ -11,7 +11,7 @@ public readonly record struct Viewport(double CenterX, double CenterY, double Zo
 {
     public const double MinZoom = 0.25;
     public const double MaxZoom = 2.5;
-    public const double FitMargin = 48;
+    public const double FitMargin = 32;
 
     public static double Clamp(double zoom) => Math.Clamp(zoom, MinZoom, MaxZoom);
 }
@@ -174,7 +174,7 @@ public sealed partial class NetworkSession : ObservableObject
     {
         var parents = projection.Edges.ToDictionary(e => e.To, e => e.From);
         return [.. projection.Nodes.Select((n, i) => new LayoutNode(
-            n.Id, parents.TryGetValue(n.Id, out var parent) ? parent : null, n.Root.Value, i, NetworkLayout.LabelWidth(n.ShortTitle)))];
+            n.Id, parents.TryGetValue(n.Id, out var parent) ? parent : null, n.Root.Value, i, NetworkLayout.LabelWidth(NetworkLayout.Label(n.ShortTitle, n.Markers.HasCandidate))))];
     }
 }
 

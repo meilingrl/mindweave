@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using System.Globalization;
 using Avalonia;
 using Avalonia.Controls;
@@ -44,9 +45,31 @@ internal sealed record NodePaint(
     bool LabelVisible,
     bool LabelBold,
     double LabelSize,
-    string Label);
+    string Label)
+{
+    /// <summary>The label as drawn (null when hidden), and where: to the right of the dot.</summary>
+    public FormattedText? Text { get; init; }
 
-internal sealed record EdgePaint(EdgeView Edge, Point From, Point To, EdgeState State, bool Dashed);
+    public Rect LabelBounds { get; init; }
+
+    /// <summary>The faint backdrop under the label: resting edges pass behind it, highlighted ones above it.</summary>
+    public Rect Backdrop => LabelBounds.Inflate(new Thickness(2, 0));
+}
+
+/// <summary>
+/// An edge as drawn. <paramref name="Label"/> ("经 N 个未总结会话") is shown on every edge through unsummarized
+/// conversations: quiet at rest, emphasised while the edge is highlighted (architecture §11).
+/// </summary>
+internal sealed record EdgePaint(EdgeView Edge, Point From, Point To, EdgeState State, bool Dashed, string? Label, bool LabelEmphasized)
+{
+    public bool Highlighted => State is EdgeState.Trail or EdgeState.Near;
+}
+
+/// <summary>An exploration's caption, above the bounding box of its nodes.</summary>
+internal sealed record CaptionPaint(GroupCaption Caption, FormattedText Text, Point Origin)
+{
+    public Rect Bounds => new(Origin, new Size(Text.Width, Text.Height));
+}
 
 /// <summary>
 /// Draws the network and turns pointer input into selection, opening and viewport changes (architecture §11.1). All
@@ -64,13 +87,26 @@ public sealed class NetworkCanvas : Control
     /// <summary>Labels other than the selected, hovered or matching ones are hidden at this zoom and below.</summary>
     public const double LabelHideScale = 0.45;
 
+    /// <summary>The largest label size; below it labels scale with the zoom so they stay inside their reserved box.</summary>
+    public const double LabelMaxSize = 13;
+
+    /// <summary>A selected, hovered or matching label shown below the hiding threshold is drawn at least this large.</summary>
+    public const double FocusedLabelMinSize = 10;
+
+    /// <summary>Screen px between an exploration's caption and the centre of its topmost node.</summary>
+    public const double CaptionGap = 26;
+
+    private const double CaptionSize = 11;
+    private const double EdgeLabelSize = 10;
+    private const double EdgeLabelEmphasizedSize = 11;
+
     /// <summary>Decorative pull towards the pointer: fixed at the sample's default 30% (1.5 px at most), drawing only.</summary>
     internal const double AttractionStrength = 0.3;
     private const double AttractionReach = 90;
     private const double GridSpacing = 28;
 
     private static readonly Typeface Face = new(FontFamily.Default);
-    private static readonly Cursor HandCursor = new(StandardCursorType.Hand);
+    internal static readonly Cursor HandCursor = new(StandardCursorType.Hand);
 
     private readonly Dictionary<SummaryNodeId, Vector> _offsets = [];
     private readonly DispatcherTimer _motion;
@@ -98,6 +134,9 @@ public sealed class NetworkCanvas : Control
 
     /// <summary>The node under the pointer, if any (drawn larger, with a halo and its edges brightened).</summary>
     internal SummaryNodeId? Hovered { get; private set; }
+
+    /// <summary>Where the pointer is for hover and the pull; null when it is off the canvas.</summary>
+    internal Point? Pointer => _pointer;
 
     /// <summary>The decorative pull is running (it stops by itself once every node has settled).</summary>
     internal bool IsMoving => _motion.IsEnabled;
@@ -142,12 +181,14 @@ public sealed class NetworkCanvas : Control
         return (((screen.X - (Bounds.Width / 2)) / v.Zoom) + v.CenterX, ((screen.Y - (Bounds.Height / 2)) / v.Zoom) + v.CenterY);
     }
 
-    /// <summary>Label size: 13 px from zoom 0.65 up, shrinking linearly below.</summary>
-    internal static double LabelSize(double zoom) => 13 * Math.Min(1, zoom / 0.65);
+    /// <summary>
+    /// Label size: <see cref="NetworkLayout.LabelEm"/> × zoom, at most 13 px. A label is then never wider on screen than
+    /// the box the layout reserved for it (its estimated width × zoom), so the no-overlap guarantee holds as drawn.
+    /// </summary>
+    internal static double LabelSize(double zoom) => Math.Min(LabelMaxSize, NetworkLayout.LabelEm * zoom);
 
     /// <summary>
-    /// The node under a control point: a box from just left of its dot to the end of its label, tested at both the
-    /// drawn (attracted) and the layout position, as in the sample.
+    /// The node under a control point: its hit box at its layout position. Hidden labels are not clickable.
     /// </summary>
     internal NodeView? HitTest(Point screen)
     {
@@ -156,12 +197,10 @@ public sealed class NetworkCanvas : Control
             return null;
         }
 
-        var size = LabelSize(Current.Zoom);
+        var zoom = Current.Zoom;
         foreach (var node in _page.Nodes.Reverse())
         {
-            var layout = ToScreen(node.X, node.Y);
-            var drawn = layout + _offsets.GetValueOrDefault(node.Id);
-            if (Hit(screen, layout, node, size) || Hit(screen, drawn, node, size))
+            if (HitBox(ToScreen(node.X, node.Y), node, zoom, IsLabelVisible(node, zoom)).Contains(screen))
             {
                 return node;
             }
@@ -170,12 +209,26 @@ public sealed class NetworkCanvas : Control
         return null;
     }
 
-    private static bool Hit(Point screen, Point p, NodeView node, double labelSize)
+    /// <summary>Labels show above the hiding threshold; below it only the selected, hovered and matching ones.</summary>
+    private bool IsLabelVisible(NodeView node, double zoom) =>
+        zoom > LabelHideScale || node.Id == Hovered || (_page is { } page && (node.Id == page.Session.Selected || page.Matches.Contains(node.Id)));
+
+    /// <summary>
+    /// A node's hit box around its screen centre: from just left of the dot to the end of its label (only the dot when
+    /// the label is hidden), clamped to the node's layout box widened by half the layout's spacing. Boxes of nodes the
+    /// layout keeps apart therefore never overlap, at any zoom.
+    /// </summary>
+    internal static Rect HitBox(Point center, NodeView node, double zoom, bool labelVisible)
     {
-        var dx = screen.X - p.X;
-        var dy = screen.Y - p.Y;
-        var right = RadiusOf(node) + NetworkLayout.LabelGap + (node.LabelWidth * labelSize / 13) + 12;
-        return dx >= -16 && dx <= right && dy >= -20 && dy <= 20;
+        ArgumentNullException.ThrowIfNull(node);
+        var half = Math.Min(20, NetworkLayout.NodeHeight * zoom / 2);
+        var left = Math.Min(16, (NetworkLayout.NodeRadius + (NetworkLayout.LabelPadding / 2)) * zoom);
+        var right = labelVisible
+            ? Math.Min(
+                RadiusOf(node) + NetworkLayout.LabelGap + (node.LabelWidth * LabelSize(zoom) / NetworkLayout.LabelEm) + 12,
+                (NetworkLayout.NodeRadius + NetworkLayout.LabelGap + node.LabelWidth + (NetworkLayout.LabelPadding / 2)) * zoom)
+            : Math.Min(RadiusOf(node) + 4, (NetworkLayout.NodeRadius + (NetworkLayout.LabelPadding / 2)) * zoom);
+        return new Rect(center.X - left, center.Y - half, left + right, 2 * half);
     }
 
     private static double RadiusOf(NodeView node) => node.IsRoot ? RootRadius : ChildRadius;
@@ -188,8 +241,12 @@ public sealed class NetworkCanvas : Control
             return [];
         }
 
+        var palette = _palette ??= Palette.From(this);
         var zoom = Current.Zoom;
         var size = LabelSize(zoom);
+        var drawn = _page.Nodes.ToDictionary(n => n.Id, n => ToScreen(n.X, n.Y) + _offsets.GetValueOrDefault(n.Id));
+        var incident = _page.Edges.SelectMany(e => new[] { (Node: e.From, Other: e.To), (Node: e.To, Other: e.From) })
+            .Where(x => drawn.ContainsKey(x.Other)).ToLookup(x => x.Node, x => drawn[x.Other]);
         var selected = _page.Session.Selected;
         var trail = _page.Trail;
         var matches = _page.Matches;
@@ -201,7 +258,12 @@ public sealed class NetworkCanvas : Control
             var radius = RadiusOf(node) + (hovered ? HoverGrowth : 0);
             var center = ToScreen(node.X, node.Y) + _offsets.GetValueOrDefault(node.Id);
             var ring = isSelected ? NodeRing.Selected : matched ? NodeRing.Match : NodeRing.None;
-            var label = node.HasCandidate ? node.ShortTitle + " ↻" : node.ShortTitle;
+            var label = NetworkLayout.Label(node.ShortTitle, node.HasCandidate);
+            var visible = IsLabelVisible(node, zoom);
+            var labelSize = zoom > LabelHideScale ? size : Math.Max(size, FocusedLabelMinSize);
+            var brush = hovered || isSelected ? palette.LabelActive : !node.Unread ? palette.LabelRead : palette.Label;
+            var text = visible ? Text(label, labelSize, brush, node.Unread ? FontWeight.SemiBold : FontWeight.Normal) : null;
+            var origin = text is null ? default : LabelOrigin(center, radius, new Size(text.Width, text.Height), incident[node.Id]);
             return new NodePaint(
                 node,
                 center,
@@ -212,11 +274,73 @@ public sealed class NetworkCanvas : Control
                 trail.Contains(node.Id),
                 ring,
                 Halo: hovered || isSelected,
-                LabelVisible: zoom > LabelHideScale || isSelected || matched || hovered,
+                LabelVisible: visible,
                 LabelBold: node.Unread,
-                size,
-                label);
+                labelSize,
+                label)
+            {
+                Text = text,
+                LabelBounds = text is null ? default : new Rect(origin, new Size(text.Width, text.Height)),
+            };
         })];
+    }
+
+    /// <summary>
+    /// Where a label goes: to the right of the dot, level with it; lifted above (or dropped below) the dot when one of
+    /// the node's own edges would run through it, as for a child drawn left of its source, so no edge strikes it out.
+    /// </summary>
+    internal static Point LabelOrigin(Point center, double radius, Size text, IEnumerable<Point> neighbours)
+    {
+        ArgumentNullException.ThrowIfNull(neighbours);
+        var x = center.X + radius + NetworkLayout.LabelGap;
+        var level = new Point(x, center.Y - 9);
+        var others = neighbours.ToList();
+        bool Clear(Point origin) => !others.Any(other => Crosses(center, other, new Rect(origin, text).Inflate(new Thickness(2, 0))));
+        if (Clear(level))
+        {
+            return level;
+        }
+
+        var above = new Point(x, center.Y - text.Height - 3);
+        var below = new Point(x, center.Y + 3);
+        return Clear(above) ? above : Clear(below) ? below : level;
+    }
+
+    /// <summary>Whether the segment from <paramref name="a"/> to <paramref name="b"/> passes through the rectangle (Liang–Barsky).</summary>
+    internal static bool Crosses(Point a, Point b, Rect rect)
+    {
+        var (t0, t1) = (0.0, 1.0);
+        var dx = b.X - a.X;
+        var dy = b.Y - a.Y;
+        foreach (var (p, q) in new[] { (-dx, a.X - rect.Left), (dx, rect.Right - a.X), (-dy, a.Y - rect.Top), (dy, rect.Bottom - a.Y) })
+        {
+            if (p == 0)
+            {
+                if (q < 0)
+                {
+                    return false;
+                }
+
+                continue;
+            }
+
+            var t = q / p;
+            if (p < 0)
+            {
+                t0 = Math.Max(t0, t);
+            }
+            else
+            {
+                t1 = Math.Min(t1, t);
+            }
+
+            if (t0 > t1)
+            {
+                return false;
+            }
+        }
+
+        return true;
     }
 
     /// <summary>Each edge from the parent's drawn position to the child's, with its state.</summary>
@@ -228,6 +352,7 @@ public sealed class NetworkCanvas : Control
         }
 
         var trail = _page.Trail;
+        var zoom = Current.Zoom;
         return [.. _page.Edges.Select(edge =>
         {
             var from = ToScreen(edge.FromX, edge.FromY) + _offsets.GetValueOrDefault(edge.From);
@@ -236,8 +361,40 @@ public sealed class NetworkCanvas : Control
                 : Hovered is { } h && (h == edge.To || h == edge.From) ? EdgeState.Near
                 : !edge.IsDirect ? EdgeState.Indirect
                 : EdgeState.Normal;
-            return new EdgePaint(edge, from, to, state, !edge.IsDirect);
+            var highlighted = state is EdgeState.Trail or EdgeState.Near;
+
+            // "经 N 个未总结会话" stays readable at rest (quiet), hidden with the other labels when zoomed far out.
+            var label = edge.Label is { } via && (highlighted || zoom > LabelHideScale) ? via : null;
+            return new EdgePaint(edge, from, to, state, !edge.IsDirect, label, highlighted);
         })];
+    }
+
+    /// <summary>Each exploration's caption, just above the topmost of its nodes and starting at the leftmost one.</summary>
+    internal IReadOnlyList<CaptionPaint> PaintCaptions()
+    {
+        if (_page is null)
+        {
+            return [];
+        }
+
+        var palette = _palette ??= Palette.From(this);
+        var nodes = _page.Nodes.ToDictionary(n => n.Id);
+        var result = new List<CaptionPaint>();
+        foreach (var caption in _page.Captions)
+        {
+            var members = caption.Members.Where(nodes.ContainsKey).Select(id => (Node: nodes[id], At: ToScreen(nodes[id].X, nodes[id].Y))).ToList();
+            if (members.Count == 0)
+            {
+                continue;
+            }
+
+            var text = Text(caption.Text, CaptionSize, palette.Caption);
+            var left = members.Min(m => m.At.X - RadiusOf(m.Node));
+            var top = members.Min(m => m.At.Y);
+            result.Add(new CaptionPaint(caption, text, new Point(left, top - CaptionGap - text.Height)));
+        }
+
+        return result;
     }
 
     public override void Render(DrawingContext context)
@@ -251,28 +408,70 @@ public sealed class NetworkCanvas : Control
             return;
         }
 
-        foreach (var edge in PaintEdges())
+        // Layers: resting edges, label backdrops (resting edges pass behind labels), highlighted edges (above the
+        // backdrops, so a trail is never hidden by a label), nodes, label text, captions.
+        var edges = PaintEdges();
+        var nodes = PaintNodes();
+        foreach (var edge in edges.Where(e => !e.Highlighted))
         {
-            context.DrawLine(palette.EdgePen(edge.State, edge.Dashed), edge.From, edge.To);
-            if (edge.State is EdgeState.Trail or EdgeState.Near && edge.Edge.Label is { } via)
+            DrawEdge(context, palette, edge);
+        }
+
+        using (context.PushOpacity(0.85))
+        {
+            foreach (var node in nodes.Where(n => n.Text is not null))
             {
-                // "经 1 个未总结会话" only on a highlighted edge, so the resting network stays as quiet as the sample.
-                var text = Text(via, 11, palette.Caption);
-                var origin = new Point(((edge.From.X + edge.To.X) / 2) - (text.Width / 2), ((edge.From.Y + edge.To.Y) / 2) - text.Height - 2);
-                context.DrawText(text, origin);
+                context.FillRectangle(palette.Background, node.Backdrop, 3);
             }
         }
 
-        var captions = _page.Captions.ToDictionary(c => c.Anchor, c => c.Text);
-        foreach (var node in PaintNodes())
+        foreach (var edge in edges.Where(e => e.Highlighted))
+        {
+            DrawEdge(context, palette, edge);
+        }
+
+        foreach (var node in nodes)
         {
             DrawNode(context, palette, node);
-            if (captions.TryGetValue(node.Node.Id, out var caption))
+        }
+
+        foreach (var node in nodes)
+        {
+            if (node.Text is { } text)
             {
-                // Always drawn, even when labels are hidden: it names the exploration.
-                context.DrawText(Text(caption, 11, palette.Caption), new Point(node.Center.X - 25, node.Center.Y - 42));
+                context.DrawText(text, node.LabelBounds.TopLeft);
             }
         }
+
+        foreach (var caption in PaintCaptions())
+        {
+            // Always drawn, even when labels are hidden: it names the exploration.
+            context.DrawText(caption.Text, caption.Origin);
+        }
+    }
+
+    private static void DrawEdge(DrawingContext context, Palette palette, EdgePaint edge)
+    {
+        context.DrawLine(palette.EdgePen(edge.State, edge.Dashed), edge.From, edge.To);
+        if (edge.Label is not { } via)
+        {
+            return;
+        }
+
+        var brush = !edge.LabelEmphasized ? palette.Caption : edge.State == EdgeState.Trail ? palette.EdgeTrail : palette.EdgeNear;
+        var text = Text(via, edge.LabelEmphasized ? EdgeLabelEmphasizedSize : EdgeLabelSize, brush);
+        context.DrawText(text, EdgeLabelOrigin(edge, text));
+    }
+
+    /// <summary>Beside the edge's middle: above a mostly horizontal edge, to the right of a mostly vertical one.</summary>
+    internal static Point EdgeLabelOrigin(EdgePaint edge, FormattedText text)
+    {
+        ArgumentNullException.ThrowIfNull(edge);
+        ArgumentNullException.ThrowIfNull(text);
+        var middle = new Point((edge.From.X + edge.To.X) / 2, (edge.From.Y + edge.To.Y) / 2);
+        return Math.Abs(edge.To.X - edge.From.X) >= Math.Abs(edge.To.Y - edge.From.Y)
+            ? new Point(middle.X - (text.Width / 2), middle.Y - text.Height - 2)
+            : new Point(middle.X + 6, middle.Y - (text.Height / 2));
     }
 
     private void DrawGrid(DrawingContext context, Palette palette)
@@ -320,21 +519,6 @@ public sealed class NetworkCanvas : Control
         if (node.UnreadDot)
         {
             context.DrawEllipse(palette.UnreadDot, null, new Point(p.X + r + 3, p.Y - r - 3), 2.5, 2.5);
-        }
-
-        if (node.LabelVisible)
-        {
-            var brush = node.Hovered || node.Ring == NodeRing.Selected ? palette.LabelActive : node.Hollow ? palette.LabelRead : palette.Label;
-            var text = Text(node.Label, node.LabelSize, brush, node.LabelBold ? FontWeight.SemiBold : FontWeight.Normal);
-            var origin = new Point(p.X + r + NetworkLayout.LabelGap, p.Y - 9);
-
-            // Edges pass behind labels: a label on a node left of its source would otherwise sit on that edge.
-            using (context.PushOpacity(0.85))
-            {
-                context.FillRectangle(palette.Background, new Rect(origin.X - 2, origin.Y, text.Width + 4, text.Height), 3);
-            }
-
-            context.DrawText(text, origin);
         }
     }
 
@@ -416,6 +600,9 @@ public sealed class NetworkCanvas : Control
 
         _panFrom = null;
         e.Pointer.Capture(null);
+
+        // During a pan the pointer stays put while the network moves under it: hover follows what is under it now.
+        SetPointer(e.GetPosition(this));
     }
 
     protected override void OnPointerWheelChanged(PointerWheelEventArgs e)
@@ -440,6 +627,7 @@ public sealed class NetworkCanvas : Control
             InvalidateVisual();
         }
 
+        SetPointer(e.GetPosition(this));
         e.Handled = true;
     }
 
@@ -552,19 +740,36 @@ public sealed class NetworkCanvas : Control
             return new Viewport(0, 0, 1);
         }
 
-        var minX = _page.Nodes.Min(n => NetworkLayout.BoxLeft(n.X) - 25);
-        var maxX = _page.Nodes.Max(n => NetworkLayout.BoxRight(n.X, n.LabelWidth));
-        var minY = _page.Nodes.Min(n => n.Y - 42);
-        var maxY = _page.Nodes.Max(n => n.Y + RootRadius + 12);
-        var width = Math.Max(1, maxX - minX);
-        var height = Math.Max(1, maxY - minY);
-        var zoom = Viewport.Clamp(Math.Min((Bounds.Width - (2 * Viewport.FitMargin)) / width, (Bounds.Height - (2 * Viewport.FitMargin)) / height));
-        var fitted = new Viewport((minX + maxX) / 2, (minY + maxY) / 2, Math.Min(zoom, 1.5));
+        var fitted = FitTo(_page.Nodes, Bounds.Size);
         _page.Session.Viewport = fitted;
         return fitted;
     }
 
-    private static FormattedText Text(string text, double size, IBrush brush, FontWeight weight = FontWeight.Normal) =>
+    /// <summary>
+    /// The viewport that shows every node, its label and its group's caption. Positions and label widths are canvas
+    /// units; dots, the label gap and captions are screen px, so the zoom is solved with both (§11.3: zoom clamped,
+    /// at most 1.5 when fitting).
+    /// </summary>
+    internal static Viewport FitTo(IReadOnlyList<NodeView> nodes, Size size)
+    {
+        ArgumentNullException.ThrowIfNull(nodes);
+        const double left = RootRadius + HoverGrowth;
+        const double right = RootRadius + HoverGrowth + NetworkLayout.LabelGap;
+        const double top = CaptionGap + 16;
+        const double bottom = RootRadius + HoverGrowth + 4;
+        var minX = nodes.Min(n => n.X);
+        var maxX = nodes.Max(n => n.X + n.LabelWidth);
+        var minY = nodes.Min(n => n.Y);
+        var maxY = nodes.Max(n => n.Y);
+        var width = Math.Max(1, maxX - minX);
+        var height = Math.Max(1, maxY - minY);
+        var zoom = Math.Min(1.5, Viewport.Clamp(Math.Min(
+            (size.Width - (2 * Viewport.FitMargin) - left - right) / width,
+            (size.Height - (2 * Viewport.FitMargin) - top - bottom) / height)));
+        return new Viewport(((minX + maxX) / 2) + ((right - left) / (2 * zoom)), ((minY + maxY) / 2) + ((bottom - top) / (2 * zoom)), zoom);
+    }
+
+    internal static FormattedText Text(string text, double size, IBrush brush, FontWeight weight = FontWeight.Normal) =>
         new(text, CultureInfo.CurrentUICulture, FlowDirection.LeftToRight, new Typeface(Face.FontFamily, FontStyle.Normal, weight), size, brush);
 
     /// <summary>The canvas colours of the current theme, all from the shared theme resources (D-022).</summary>
@@ -611,33 +816,57 @@ public sealed class NetworkCanvas : Control
 
         public required IBrush EdgeTrail { get; init; }
 
+        /// <summary>Every theme resource the canvas draws with; both themes must define each one as a brush.</summary>
+        public static IReadOnlyList<string> Keys { get; } =
+        [
+            "NetworkBackground", "NetworkGridDot", "NetworkNode", "NetworkNodeRead", "NetworkNodeTrail", "NetworkNodeHover",
+            "NetworkUnreadDot", "NetworkHaloSelected", "NetworkHaloHover", "NetworkRingSelected", "NetworkRingMatch",
+            "NetworkLabel", "NetworkLabelRead", "NetworkLabelActive", "NetworkCaption", "NetworkEdge", "NetworkEdgeIndirect",
+            "NetworkEdgeNear", "NetworkEdgeTrail",
+        ];
+
+        /// <summary>The brush for a key in the control's current theme; null when the theme does not define it.</summary>
+        public static IBrush? Resolve(Control control, string key)
+        {
+            ArgumentNullException.ThrowIfNull(control);
+            return control.TryFindResource(key, control.ActualThemeVariant, out var value) ? value as IBrush : null;
+        }
+
         public static Palette From(Control control)
         {
-            var theme = control.ActualThemeVariant;
-            IBrush Brush(string key) =>
-                control.TryFindResource(key, theme, out var value) && value is IBrush brush ? brush : Brushes.Gray;
+            var brushes = Keys.ToDictionary(key => key, key =>
+            {
+                if (Resolve(control, key) is { } brush)
+                {
+                    return brush;
+                }
+
+                // A missing key is a bug in App.axaml: loud while developing, a visible grey rather than a crash in use.
+                Debug.Fail($"Theme resource {key} is missing or not a brush.");
+                return Brushes.Gray;
+            });
 
             return new Palette
             {
-                Background = Brush("NetworkBackground"),
-                GridDot = Brush("NetworkGridDot"),
-                Node = Brush("NetworkNode"),
-                NodeRead = Brush("NetworkNodeRead"),
-                NodeTrail = Brush("NetworkNodeTrail"),
-                NodeHover = Brush("NetworkNodeHover"),
-                UnreadDot = Brush("NetworkUnreadDot"),
-                HaloSelected = Brush("NetworkHaloSelected"),
-                HaloHover = Brush("NetworkHaloHover"),
-                RingSelected = new Pen(Brush("NetworkRingSelected"), 2),
-                RingMatch = new Pen(Brush("NetworkRingMatch"), 2),
-                Label = Brush("NetworkLabel"),
-                LabelRead = Brush("NetworkLabelRead"),
-                LabelActive = Brush("NetworkLabelActive"),
-                Caption = Brush("NetworkCaption"),
-                Edge = Brush("NetworkEdge"),
-                EdgeIndirect = Brush("NetworkEdgeIndirect"),
-                EdgeNear = Brush("NetworkEdgeNear"),
-                EdgeTrail = Brush("NetworkEdgeTrail"),
+                Background = brushes["NetworkBackground"],
+                GridDot = brushes["NetworkGridDot"],
+                Node = brushes["NetworkNode"],
+                NodeRead = brushes["NetworkNodeRead"],
+                NodeTrail = brushes["NetworkNodeTrail"],
+                NodeHover = brushes["NetworkNodeHover"],
+                UnreadDot = brushes["NetworkUnreadDot"],
+                HaloSelected = brushes["NetworkHaloSelected"],
+                HaloHover = brushes["NetworkHaloHover"],
+                RingSelected = new Pen(brushes["NetworkRingSelected"], 2),
+                RingMatch = new Pen(brushes["NetworkRingMatch"], 2),
+                Label = brushes["NetworkLabel"],
+                LabelRead = brushes["NetworkLabelRead"],
+                LabelActive = brushes["NetworkLabelActive"],
+                Caption = brushes["NetworkCaption"],
+                Edge = brushes["NetworkEdge"],
+                EdgeIndirect = brushes["NetworkEdgeIndirect"],
+                EdgeNear = brushes["NetworkEdgeNear"],
+                EdgeTrail = brushes["NetworkEdgeTrail"],
             };
         }
 

@@ -16,8 +16,21 @@ public sealed record LayoutNode(SummaryNodeId Id, SummaryNodeId? Parent, Guid Gr
 /// </summary>
 public static class NetworkLayout
 {
-    public const double LevelSpacing = 170;
-    public const double GroupGap = 160;
+    /// <summary>Distance between tree levels. S7 round-1 fix: 170 → 100, so a typical network fits at a readable zoom.</summary>
+    public const double LevelSpacing = 100;
+
+    /// <summary>Space between exploration groups, across and between rows. S7 round-1 fix: 160 → 72.</summary>
+    public const double GroupGap = 72;
+
+    /// <summary>
+    /// Groups are placed in rows; the number per row is chosen so the whole network's width : height comes closest
+    /// to this ratio (the canvas beside the details panel in the default 1100 × 720 window is about square). S7 round-1 fix; before, all groups sat in one row.
+    /// </summary>
+    public const double TargetAspect = 1.0;
+
+    /// <summary>Room above each group for its caption ("探索 · …"), in canvas units (S7 round-1 fix).</summary>
+    public const double CaptionHeadroom = 40;
+
     public const double NodeHeight = 44;
     public const double LabelPadding = 24;
     public const int CollisionPasses = 40;
@@ -32,35 +45,94 @@ public static class NetworkLayout
     /// <summary>Right edge of a node's box: the end of the label drawn to the right of the dot.</summary>
     public static double BoxRight(double x, double labelWidth) => x + NodeRadius + LabelGap + labelWidth;
 
-    /// <summary>Estimated label width: CJK and other wide characters about one em, ASCII about half.</summary>
+    /// <summary>
+    /// Canvas units reserved per wide (CJK) character. The canvas draws labels at <c>LabelEm × zoom</c> px (at most
+    /// 13 px), so a drawn label never needs more room than its reserved box at any zoom (S7 round-1 fix: was 14,
+    /// with labels drawn wider than reserved below zoom ≈ 0.93).
+    /// </summary>
+    public const double LabelEm = 16;
+
+    /// <summary>Canvas units reserved per ASCII character: 0.625 em, a little over the average Latin glyph and digit.</summary>
+    public const double AsciiWidth = 10;
+
+    /// <summary>The label drawn beside a node: its short name, with " ↻" when a candidate update waits.</summary>
+    public static string Label(string shortTitle, bool hasCandidate) => hasCandidate ? shortTitle + " ↻" : shortTitle;
+
+    /// <summary>Estimated label width: CJK and other wide characters one em, ASCII 0.625 em.</summary>
     public static double LabelWidth(string label)
     {
         ArgumentNullException.ThrowIfNull(label);
-        return label.EnumerateRunes().Sum(r => r.IsAscii ? 8.0 : 14.0);
+        return label.EnumerateRunes().Sum(r => r.IsAscii ? AsciiWidth : LabelEm);
     }
 
-    /// <summary>Lays out every node from scratch (first layout, or an explicit "arrange").</summary>
+    /// <summary>
+    /// Lays out every node from scratch (first layout, or an explicit "arrange"): each group as a radial tree, groups
+    /// in rows (as many per row as brings the whole closest to <see cref="TargetAspect"/>), tops aligned per row.
+    /// </summary>
     public static IReadOnlyDictionary<SummaryNodeId, NodePosition> Arrange(IReadOnlyList<LayoutNode> nodes)
     {
         ArgumentNullException.ThrowIfNull(nodes);
-        var result = new Dictionary<SummaryNodeId, NodePosition>();
-        var cursor = 0.0;
-        foreach (var group in Groups(nodes))
+        var groups = Groups(nodes).Select(group =>
         {
             var local = ArrangeGroup(group);
-            var minX = group.Min(n => BoxLeft(local[n.Id].X)) - LabelPadding;
-            var maxX = group.Max(n => BoxRight(local[n.Id].X, n.LabelWidth)) + LabelPadding;
-            var shift = cursor - minX;
-            foreach (var (id, p) in local)
+            return new GroupBox(
+                local,
+                group.Min(n => BoxLeft(local[n.Id].X)) - LabelPadding,
+                group.Max(n => BoxRight(local[n.Id].X, n.LabelWidth)) + LabelPadding,
+                group.Min(n => local[n.Id].Y) - (NodeHeight / 2) - CaptionHeadroom,
+                group.Max(n => local[n.Id].Y) + (NodeHeight / 2));
+        }).ToList();
+
+        var result = new Dictionary<SummaryNodeId, NodePosition>();
+        var perRow = PerRow(groups);
+        var top = 0.0;
+        for (var start = 0; start < groups.Count; start += perRow)
+        {
+            var row = groups.Skip(start).Take(perRow).ToList();
+            var cursor = 0.0;
+            foreach (var box in row)
             {
-                result[id] = new NodePosition(p.X + shift, p.Y);
+                foreach (var (id, p) in box.Local)
+                {
+                    result[id] = new NodePosition(p.X + cursor - box.MinX, p.Y + top - box.MinY);
+                }
+
+                cursor += box.Width + GroupGap;
             }
 
-            cursor += (maxX - minX) + GroupGap;
+            top += row.Max(b => b.Height) + GroupGap;
         }
 
         Separate(nodes, result, fixedNodes: null);
         return result;
+    }
+
+    /// <summary>How many groups per row: the count whose overall width : height is closest to the target; ties take more per row.</summary>
+    private static int PerRow(List<GroupBox> groups)
+    {
+        var best = 1;
+        var bestScore = double.MaxValue;
+        for (var perRow = 1; perRow <= groups.Count; perRow++)
+        {
+            var rows = groups.Chunk(perRow).ToList();
+            var width = rows.Max(r => r.Sum(b => b.Width) + ((r.Length - 1) * GroupGap));
+            var height = rows.Sum(r => r.Max(b => b.Height)) + ((rows.Count - 1) * GroupGap);
+            var score = Math.Abs(Math.Log(width / height / TargetAspect));
+            if (score <= bestScore + 1e-9)
+            {
+                best = perRow;
+                bestScore = Math.Min(score, bestScore);
+            }
+        }
+
+        return best;
+    }
+
+    private sealed record GroupBox(Dictionary<SummaryNodeId, NodePosition> Local, double MinX, double MaxX, double MinY, double MaxY)
+    {
+        public double Width => MaxX - MinX;
+
+        public double Height => MaxY - MinY;
     }
 
     /// <summary>

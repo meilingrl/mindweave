@@ -120,6 +120,14 @@ public sealed partial class SummaryViewModel : PageViewModel, IPageFlush, IDispo
     [ObservableProperty]
     public partial string MarkersText { get; private set; } = string.Empty;
 
+    /// <summary>The read tag under the title: for the version on screen, worded so it says which version it is about.</summary>
+    [ObservableProperty]
+    public partial string ShownReadMarker { get; private set; } = string.Empty;
+
+    /// <summary>The tags under the title in one line for screen readers (version read state, candidate, later content).</summary>
+    [ObservableProperty]
+    public partial string ShownMarkersText { get; private set; } = string.Empty;
+
     [ObservableProperty]
     public partial bool HasLaterContent { get; private set; }
 
@@ -563,6 +571,14 @@ public sealed partial class SummaryViewModel : PageViewModel, IPageFlush, IDispo
         Show(_shownId is { } id && detail.Versions.Any(v => v.Id == id) ? id : detail.Node.Current);
     }
 
+    partial void OnShownIsReadChanged(bool value) => UpdateShownMarkers();
+
+    private void UpdateShownMarkers()
+    {
+        ShownReadMarker = UiText.ShownReadMarker(ShownIsRead, ShownIsCurrent);
+        ShownMarkersText = UiText.ShownMarkers(ShownIsRead, ShownIsCurrent, HasCandidate, HasLaterContent);
+    }
+
     private void Show(SummaryVersionId id)
     {
         if (_detail is not { } detail)
@@ -584,6 +600,7 @@ public sealed partial class SummaryViewModel : PageViewModel, IPageFlush, IDispo
         ShownIsCurrent = id == detail.Node.Current;
         ShownIsCandidate = id == detail.Node.Pending;
         ShownIsRead = detail.ReadState(id).IsRead;
+        UpdateShownMarkers();
         ShownLabel = UiText.VersionLabel(version, ShownIsCurrent, ShownIsCandidate);
         Shown = version;
     }

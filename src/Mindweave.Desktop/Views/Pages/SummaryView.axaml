@@ -8,12 +8,13 @@
   <DockPanel>
     <StackPanel DockPanel.Dock="Top" Spacing="6" Margin="0,0,0,8" IsVisible="{Binding !IsMissing}">
       <!-- Markers are words, not only colour (MW-C07): the same tags as the network's details and list (S7). -->
-      <WrapPanel Name="Markers" Orientation="Horizontal" AutomationProperties.Name="{Binding MarkersText}">
+      <!-- The read tag is about the version on screen and says so on any version but the current one (S7 r1 fix #8). -->
+      <WrapPanel Name="Markers" Orientation="Horizontal" AutomationProperties.Name="{Binding ShownMarkersText}">
         <Border Name="UnreadBadge" Classes="badge accent" Margin="0,0,6,0" IsVisible="{Binding !ShownIsRead}">
-          <TextBlock Text="{x:Static d:UiText.MarkerUnread}" />
+          <TextBlock Text="{Binding ShownReadMarker}" />
         </Border>
         <Border Name="ReadBadge" Classes="badge" Margin="0,0,6,0" IsVisible="{Binding ShownIsRead}">
-          <TextBlock Text="{x:Static d:UiText.MarkerRead}" />
+          <TextBlock Text="{Binding ShownReadMarker}" />
         </Border>
         <Border Classes="badge warning" Margin="0,0,6,0" IsVisible="{Binding HasCandidate}">
           <TextBlock Text="{x:Static d:UiText.MarkerCandidate}" />
