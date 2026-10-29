@@ -1,3 +1,4 @@
+using Avalonia;
 using Avalonia.Headless.XUnit;
 using Avalonia.VisualTree;
 using LiveMarkdown.Avalonia;
@@ -174,6 +175,37 @@ public class SummaryUiTests
 
         Assert.Equal(UiText.SummarizeRejected(Application.Summaries.SummarizeRejection.AnswerInProgress), page.SummaryNotice);
         held.Release.TrySetResult();
+    }
+
+    /// <summary>
+    /// A summary body goes through the same pipeline and styles as answers: bold covers exactly its words, and a
+    /// paragraph holding only a one-line <c>$$…$$</c> is a centred formula block.
+    /// </summary>
+    [AvaloniaFact]
+    public async Task A_summary_draws_bold_and_a_one_line_display_formula_like_an_answer()
+    {
+        await using var app = DesktopHarness.Create();
+        var window = new MainWindow { DataContext = app.Root, Width = 1000, Height = 700 };
+        window.Show();
+        var page = await ConversationAsync(app);
+        app.Client.SummaryReplies.Enqueue($"标题：{FakeChatClient.DefaultSummaryTitle}\n\n缆索牵引**适合陡坡**，但缆绳易磨损。\n\n$$P = F\\,v$$\n\n其中 $v$ 是缆绳速度。");
+        await page.SummarizeCommand.ExecuteAsync(null);
+        await UiWait.UntilAsync(() => page.HasSummary && page.RunningSummary is null);
+        await OpenSummaryAsync(app, page);
+        window.UpdateLayout();
+        var renderer = window.GetVisualDescendants().OfType<SummaryView>().Single().Renderer;
+
+        var formula = Assert.Single(renderer.GetVisualDescendants().OfType<RaTeX.Avalonia.FormulaControl>(), f => f.Classes.Contains("MathBlock"));
+        var centre = formula.TranslatePoint(new Point(formula.Bounds.Width / 2, 0), renderer)!.Value.X;
+        Assert.InRange(centre, (renderer.Bounds.Width / 2) - 2, (renderer.Bounds.Width / 2) + 2);
+        Assert.DoesNotContain(SourceAnchors.Blocks(renderer), b => b.LayoutText.Contains("$$", StringComparison.Ordinal));
+
+        var runs = SourceAnchors.Blocks(renderer).SelectMany(b => b.TextLayout.TextLines).SelectMany(l => l.TextRuns)
+            .OfType<Avalonia.Media.TextFormatting.ShapedTextRun>().ToList();
+        Assert.All(runs.Where(r => r.Text.Span.ToString() is "适合陡坡"), r => Assert.Equal(Avalonia.Media.FontWeight.Bold, r.Properties.Typeface.Weight));
+        Assert.Contains(runs, r => r.Text.Span.ToString() == "适合陡坡");
+        Assert.All(runs.Where(r => r.Text.Span.ToString().Contains("缆绳易磨损", StringComparison.Ordinal)), r => Assert.True(r.Properties.Typeface.Weight < Avalonia.Media.FontWeight.SemiBold));
+        window.Close();
     }
 
     private static Application.Storage.SummaryDetail Detail(DesktopHarness app, SummaryNodeId node) =>

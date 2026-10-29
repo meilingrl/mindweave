@@ -1,4 +1,5 @@
 using LiveMarkdown.Avalonia;
+using Markdig;
 
 namespace Mindweave.Desktop.Markdown;
 
@@ -12,12 +13,13 @@ public static class MarkdownSetup
     /// <c>\(…\)</c> and <c>\[…\]</c>. Models often use the backslash forms, which plain Markdown shows as source. Both
     /// settings are global in LiveMarkdown and the parser must be configured before the shared pipeline is first
     /// built, so this runs once per process, at startup, however many applications are created (tests create several).
+    /// A paragraph that holds only a one-line display formula becomes a formula block (<see cref="DisplayMathExtension"/>).
     /// </summary>
     public static void EnsureRegistered()
     {
         if (Interlocked.Exchange(ref _registered, 1) == 0)
         {
-            MarkdownUpdateProducer.ConfigurePipeline += builder => builder.UseExtendedMathematics();
+            MarkdownUpdateProducer.ConfigurePipeline += builder => builder.UseExtendedMathematics().Use<DisplayMathExtension>();
             MarkdownNode.Edit(builder => builder.Register<MathInlineNode>().Register<MathBlockNode>());
         }
     }

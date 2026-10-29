@@ -54,8 +54,6 @@ public class GalleryTests
         $$F = \frac{0.85\,p\,d^2 s}{D}$$
 
         其中 $p$ 是锅炉压力，$d$ 是汽缸直径，$s$ 是活塞行程，$D$ 是动轮直径。加大汽缸、提高压力或缩小动轮都能增加牵引力，但缩小动轮会限制速度——这正是货运机车与客运机车外形不同的原因。
-
-        到 1850 年，英国已建成约一万公里铁路，铁路随后传入欧洲大陆、北美和亚洲，彻底改变了人们对距离和时间的感受。
         """;
 
     private const string RainhillAnswer = """
@@ -158,6 +156,10 @@ public class GalleryTests
         var page = await OpenConversationAsync(scene.App, window, seed.Root);
         Assert.Equal(3, page.Messages[1].Branches.Count);
         Assert.True(page.Messages[1].CanRetry);
+
+        // The whole exchange fits: the question bubble above the long answer, the branch entries and regenerate below.
+        Scroller(window).ScrollToHome();
+        await SettleAsync(window);
         Capture(window, "g04-conversation");
         window.Close();
     }
@@ -567,7 +569,7 @@ public class GalleryTests
             var plan = new (ConversationId Conversation, string Title, string Short, string Body, bool Read)[]
             {
                 (root, "火车的发明：蒸汽动力与轨道的汇合", "火车的发明", "## 要点\n\n- 1804 年特里维西克造出第一台轨道蒸汽机车。\n- 斯蒂芬森的斯托克顿—达灵顿铁路（1825）和火箭号（1829）让铁路走向实用。\n- 关键改进：多管锅炉、鼓风管、熟铁轨道、标准轨距。\n\n起动牵引力可用 $F = \\frac{0.85\\,p\\,d^2 s}{D}$ 估算。", true),
-                (cable, "缆索牵引及其局限", "缆索牵引", "固定蒸汽机通过滚筒卷动缆绳拖动车厢，适合陡坡，但缆绳易磨损、一处故障全线停运。火箭号之后只在少数陡坡保留。", false),
+                (cable, "缆索牵引及其局限", "缆索牵引", "固定蒸汽机通过滚筒卷动缆绳拖动车厢，**适合陡坡**，但缆绳易磨损、一处故障全线停运。\n\n所需功率约为缆绳拉力与速度之积：\n\n$$P = F\\,v$$\n\n火箭号之后只在少数陡坡保留。", false),
                 (gauge, "标准轨距 1435 毫米的由来", "标准轨距", "沿用英格兰东北部煤矿马车道的轨距；斯蒂芬森的线路使它成为事实标准，1846 年《轨距法》将其定为英国客运铁路标准。", true),
                 (wheels, "动轮直径与速度、牵引力的取舍", "动轮与速度", "列车每转一圈前进 $\\pi D$。大动轮跑得快、牵引力小，用于客运；小动轮牵引力大，用于货运。", false),
                 (highSpeed, "高铁高速的四项关键技术", "高铁速度", "1. 无砟轨道\n2. 动力分散\n3. 受电弓与接触网\n4. 流线型车头\n\n高速下空气阻力约与速度平方成正比。", true),
