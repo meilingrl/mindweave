@@ -3,30 +3,165 @@
              xmlns:local="using:Mindweave.Desktop"
              x:Class="Mindweave.Desktop.App"
              Name="Mindweave"
-             RequestedThemeVariant="Light">
+             RequestedThemeVariant="Default">
   <Application.DataTemplates>
     <local:ViewLocator />
   </Application.DataTemplates>
   <Application.Resources>
+    <!--
+      Every colour is a theme resource (D-022): the light and dark dictionaries define the same keys, pages and the
+      network canvas only refer to them (DynamicResource / FindResource), so switching the theme needs no restart.
+      Light keeps the warm greys of S1–S6; dark is the network sample's palette (s7-prototype-visual-language.md).
+    -->
     <ResourceDictionary>
       <ResourceDictionary.MergedDictionaries>
         <ResourceInclude Source="avares://LiveMarkdown.Avalonia/Defaults.axaml" />
       </ResourceDictionary.MergedDictionaries>
-    <SolidColorBrush x:Key="SidebarBackground">#F5F5F4</SolidColorBrush>
-    <SolidColorBrush x:Key="DividerBrush">#E7E5E4</SolidColorBrush>
-    <SolidColorBrush x:Key="MutedText">#78716C</SolidColorBrush>
-    <SolidColorBrush x:Key="ErrorText">#B91C1C</SolidColorBrush>
-    <SolidColorBrush x:Key="SelectedRow">#E7E5E4</SolidColorBrush>
-    <SolidColorBrush x:Key="SourceHighlight">#FDE68A</SolidColorBrush>
-    <SolidColorBrush x:Key="QuoteBar">#D6D3D1</SolidColorBrush>
+      <ResourceDictionary.ThemeDictionaries>
+        <ResourceDictionary x:Key="Light">
+          <!-- Pages -->
+          <SolidColorBrush x:Key="WindowBackground">#FFFFFF</SolidColorBrush>
+          <SolidColorBrush x:Key="SidebarBackground">#F5F5F4</SolidColorBrush>
+          <SolidColorBrush x:Key="PanelBackground">#F5F5F4</SolidColorBrush>
+          <SolidColorBrush x:Key="DialogBackground">#FFFFFF</SolidColorBrush>
+          <SolidColorBrush x:Key="ScrimBrush">#66000000</SolidColorBrush>
+          <SolidColorBrush x:Key="DividerBrush">#E7E5E4</SolidColorBrush>
+          <SolidColorBrush x:Key="OutlineBrush">#D6D3D1</SolidColorBrush>
+          <SolidColorBrush x:Key="PrimaryText">#1C1917</SolidColorBrush>
+          <SolidColorBrush x:Key="MutedText">#78716C</SolidColorBrush>
+          <SolidColorBrush x:Key="ErrorText">#B91C1C</SolidColorBrush>
+          <SolidColorBrush x:Key="WarningText">#B45309</SolidColorBrush>
+          <SolidColorBrush x:Key="DangerText">#B91C1C</SolidColorBrush>
+          <SolidColorBrush x:Key="LinkText">#2563EB</SolidColorBrush>
+          <SolidColorBrush x:Key="SelectedRow">#E7E5E4</SolidColorBrush>
+          <SolidColorBrush x:Key="HoverRow">#EFEEEC</SolidColorBrush>
+          <SolidColorBrush x:Key="SourceHighlight">#FDE68A</SolidColorBrush>
+          <SolidColorBrush x:Key="QuoteBar">#D6D3D1</SolidColorBrush>
+          <!-- Shared styles -->
+          <SolidColorBrush x:Key="AccentBrush">#4B6BFB</SolidColorBrush>
+          <SolidColorBrush x:Key="AccentHoverBrush">#3756E8</SolidColorBrush>
+          <SolidColorBrush x:Key="AccentPressedBrush">#2B47CC</SolidColorBrush>
+          <SolidColorBrush x:Key="OnAccentText">#FFFFFF</SolidColorBrush>
+          <SolidColorBrush x:Key="BadgeAccentBackground">#E2E8FF</SolidColorBrush>
+          <SolidColorBrush x:Key="BadgeAccentText">#2B47CC</SolidColorBrush>
+          <SolidColorBrush x:Key="BadgeNeutralBackground">#EEEDEB</SolidColorBrush>
+          <SolidColorBrush x:Key="BadgeNeutralText">#57534E</SolidColorBrush>
+          <SolidColorBrush x:Key="BadgeWarningBackground">#FDF0D5</SolidColorBrush>
+          <SolidColorBrush x:Key="BadgeWarningText">#92400E</SolidColorBrush>
+          <SolidColorBrush x:Key="NoticeInfoBackground">#EEF2FF</SolidColorBrush>
+          <SolidColorBrush x:Key="NoticeInfoBorder">#C7D2FE</SolidColorBrush>
+          <SolidColorBrush x:Key="NoticeInfoIcon">#4B6BFB</SolidColorBrush>
+          <SolidColorBrush x:Key="NoticeWarningBackground">#FEF6E4</SolidColorBrush>
+          <SolidColorBrush x:Key="NoticeWarningBorder">#F5D9A3</SolidColorBrush>
+          <SolidColorBrush x:Key="NoticeWarningIcon">#B45309</SolidColorBrush>
+          <SolidColorBrush x:Key="NoticeErrorBackground">#FDECEC</SolidColorBrush>
+          <SolidColorBrush x:Key="NoticeErrorBorder">#F5C2C2</SolidColorBrush>
+          <SolidColorBrush x:Key="NoticeErrorIcon">#B91C1C</SolidColorBrush>
+          <!-- Network canvas: the sample's behaviour in light colours -->
+          <SolidColorBrush x:Key="NetworkBackground">#FCFCFB</SolidColorBrush>
+          <SolidColorBrush x:Key="NetworkGridDot">#E2E0DD</SolidColorBrush>
+          <SolidColorBrush x:Key="NetworkNode">#4B6BFB</SolidColorBrush>
+          <SolidColorBrush x:Key="NetworkNodeRead">#8E99B8</SolidColorBrush>
+          <SolidColorBrush x:Key="NetworkNodeTrail">#2B47CC</SolidColorBrush>
+          <SolidColorBrush x:Key="NetworkNodeHover">#6F89FF</SolidColorBrush>
+          <SolidColorBrush x:Key="NetworkUnreadDot">#2B47CC</SolidColorBrush>
+          <SolidColorBrush x:Key="NetworkHaloSelected">#DCE3FF</SolidColorBrush>
+          <SolidColorBrush x:Key="NetworkHaloHover">#E9EDFB</SolidColorBrush>
+          <SolidColorBrush x:Key="NetworkRingSelected">#2B47CC</SolidColorBrush>
+          <SolidColorBrush x:Key="NetworkRingMatch">#D97706</SolidColorBrush>
+          <SolidColorBrush x:Key="NetworkLabel">#1F2430</SolidColorBrush>
+          <SolidColorBrush x:Key="NetworkLabelRead">#6B7280</SolidColorBrush>
+          <SolidColorBrush x:Key="NetworkLabelActive">#0B1020</SolidColorBrush>
+          <SolidColorBrush x:Key="NetworkCaption">#8A8F99</SolidColorBrush>
+          <SolidColorBrush x:Key="NetworkEdge">#D3D7DE</SolidColorBrush>
+          <SolidColorBrush x:Key="NetworkEdgeIndirect">#A3A9B6</SolidColorBrush>
+          <SolidColorBrush x:Key="NetworkEdgeNear">#7E8698</SolidColorBrush>
+          <SolidColorBrush x:Key="NetworkEdgeTrail">#5B78F5</SolidColorBrush>
+          <!-- LiveMarkdown's own keys (its defaults assume a dark surface) -->
+          <Color x:Key="ForegroundColor">#1C1917</Color>
+          <Color x:Key="BorderColor">#E7E5E4</Color>
+          <Color x:Key="CardBackgroundColor">#FAFAF9</Color>
+          <Color x:Key="SecondaryCardBackgroundColor">#F3F2F0</Color>
+          <Color x:Key="CodeInlineColor">#9D174D</Color>
+          <Color x:Key="QuoteBorderColor">#D6D3D1</Color>
+        </ResourceDictionary>
+        <ResourceDictionary x:Key="Dark">
+          <SolidColorBrush x:Key="WindowBackground">#18191B</SolidColorBrush>
+          <SolidColorBrush x:Key="SidebarBackground">#1D1E22</SolidColorBrush>
+          <SolidColorBrush x:Key="PanelBackground">#1D1E22</SolidColorBrush>
+          <SolidColorBrush x:Key="DialogBackground">#222327</SolidColorBrush>
+          <SolidColorBrush x:Key="ScrimBrush">#99000000</SolidColorBrush>
+          <SolidColorBrush x:Key="DividerBrush">#2C2E33</SolidColorBrush>
+          <SolidColorBrush x:Key="OutlineBrush">#3A3D45</SolidColorBrush>
+          <SolidColorBrush x:Key="PrimaryText">#E6E8EE</SolidColorBrush>
+          <SolidColorBrush x:Key="MutedText">#9299A6</SolidColorBrush>
+          <SolidColorBrush x:Key="ErrorText">#F2A0A0</SolidColorBrush>
+          <SolidColorBrush x:Key="WarningText">#DFB87C</SolidColorBrush>
+          <SolidColorBrush x:Key="DangerText">#F2A0A0</SolidColorBrush>
+          <SolidColorBrush x:Key="LinkText">#A9B8F5</SolidColorBrush>
+          <SolidColorBrush x:Key="SelectedRow">#2A2D35</SolidColorBrush>
+          <SolidColorBrush x:Key="HoverRow">#24262C</SolidColorBrush>
+          <SolidColorBrush x:Key="SourceHighlight">#5A4A1E</SolidColorBrush>
+          <SolidColorBrush x:Key="QuoteBar">#3A3D45</SolidColorBrush>
+          <SolidColorBrush x:Key="AccentBrush">#5A72E6</SolidColorBrush>
+          <SolidColorBrush x:Key="AccentHoverBrush">#6C83F2</SolidColorBrush>
+          <SolidColorBrush x:Key="AccentPressedBrush">#4C63D2</SolidColorBrush>
+          <SolidColorBrush x:Key="OnAccentText">#FFFFFF</SolidColorBrush>
+          <SolidColorBrush x:Key="BadgeAccentBackground">#26324D</SolidColorBrush>
+          <SolidColorBrush x:Key="BadgeAccentText">#C1C6FA</SolidColorBrush>
+          <SolidColorBrush x:Key="BadgeNeutralBackground">#2A2C31</SolidColorBrush>
+          <SolidColorBrush x:Key="BadgeNeutralText">#A3A9B5</SolidColorBrush>
+          <SolidColorBrush x:Key="BadgeWarningBackground">#3A2F17</SolidColorBrush>
+          <SolidColorBrush x:Key="BadgeWarningText">#DFB87C</SolidColorBrush>
+          <SolidColorBrush x:Key="NoticeInfoBackground">#1F2638</SolidColorBrush>
+          <SolidColorBrush x:Key="NoticeInfoBorder">#2F3A57</SolidColorBrush>
+          <SolidColorBrush x:Key="NoticeInfoIcon">#A9B8F5</SolidColorBrush>
+          <SolidColorBrush x:Key="NoticeWarningBackground">#2E2717</SolidColorBrush>
+          <SolidColorBrush x:Key="NoticeWarningBorder">#4A3C1E</SolidColorBrush>
+          <SolidColorBrush x:Key="NoticeWarningIcon">#DFB87C</SolidColorBrush>
+          <SolidColorBrush x:Key="NoticeErrorBackground">#33201F</SolidColorBrush>
+          <SolidColorBrush x:Key="NoticeErrorBorder">#55302F</SolidColorBrush>
+          <SolidColorBrush x:Key="NoticeErrorIcon">#F2A0A0</SolidColorBrush>
+          <SolidColorBrush x:Key="NetworkBackground">#18191B</SolidColorBrush>
+          <SolidColorBrush x:Key="NetworkGridDot">#292B30</SolidColorBrush>
+          <SolidColorBrush x:Key="NetworkNode">#B4BACD</SolidColorBrush>
+          <SolidColorBrush x:Key="NetworkNodeRead">#747B88</SolidColorBrush>
+          <SolidColorBrush x:Key="NetworkNodeTrail">#BDC9F2</SolidColorBrush>
+          <SolidColorBrush x:Key="NetworkNodeHover">#E2E8FF</SolidColorBrush>
+          <SolidColorBrush x:Key="NetworkUnreadDot">#A3B8EE</SolidColorBrush>
+          <SolidColorBrush x:Key="NetworkHaloSelected">#26324D</SolidColorBrush>
+          <SolidColorBrush x:Key="NetworkHaloHover">#282E3C</SolidColorBrush>
+          <SolidColorBrush x:Key="NetworkRingSelected">#C1C6FA</SolidColorBrush>
+          <SolidColorBrush x:Key="NetworkRingMatch">#DFB87C</SolidColorBrush>
+          <SolidColorBrush x:Key="NetworkLabel">#CBD0DA</SolidColorBrush>
+          <SolidColorBrush x:Key="NetworkLabelRead">#8B919C</SolidColorBrush>
+          <SolidColorBrush x:Key="NetworkLabelActive">#F0F2FF</SolidColorBrush>
+          <SolidColorBrush x:Key="NetworkCaption">#858B97</SolidColorBrush>
+          <SolidColorBrush x:Key="NetworkEdge">#363A42</SolidColorBrush>
+          <SolidColorBrush x:Key="NetworkEdgeIndirect">#626577</SolidColorBrush>
+          <SolidColorBrush x:Key="NetworkEdgeNear">#7F899E</SolidColorBrush>
+          <SolidColorBrush x:Key="NetworkEdgeTrail">#AAB8F5</SolidColorBrush>
+          <Color x:Key="ForegroundColor">#E6E8EE</Color>
+          <Color x:Key="BorderColor">#2C2E33</Color>
+          <Color x:Key="CardBackgroundColor">#1D1E22</Color>
+          <Color x:Key="SecondaryCardBackgroundColor">#25272C</Color>
+          <Color x:Key="CodeInlineColor">#F0A6C8</Color>
+          <Color x:Key="QuoteBorderColor">#3A3D45</Color>
+        </ResourceDictionary>
+      </ResourceDictionary.ThemeDictionaries>
     </ResourceDictionary>
   </Application.Resources>
   <Application.Styles>
-    <FluentTheme />
+    <FluentTheme>
+      <FluentTheme.Palettes>
+        <ColorPaletteResources x:Key="Light" Accent="#4B6BFB" />
+        <ColorPaletteResources x:Key="Dark" Accent="#6C83F2" RegionColor="#18191B" />
+      </FluentTheme.Palettes>
+    </FluentTheme>
     <StyleInclude Source="avares://LiveMarkdown.Avalonia/Styles.axaml" />
-    <!-- Answer typography: LiveMarkdown's defaults are tuned for dark surfaces. -->
+    <!-- Answer typography. -->
     <Style Selector="Border.QuoteBlock">
-      <Setter Property="Background" Value="{StaticResource SidebarBackground}" />
+      <Setter Property="Background" Value="{DynamicResource SidebarBackground}" />
     </Style>
     <Style Selector="StackPanel.MarkdownDocument">
       <Setter Property="Spacing" Value="8" />
@@ -36,18 +171,18 @@
       <Setter Property="FontWeight" Value="SemiBold" />
     </Style>
     <Style Selector="TextBlock.muted">
-      <Setter Property="Foreground" Value="{StaticResource MutedText}" />
+      <Setter Property="Foreground" Value="{DynamicResource MutedText}" />
     </Style>
     <Style Selector="TextBlock.warning">
-      <Setter Property="Foreground" Value="#B45309" />
+      <Setter Property="Foreground" Value="{DynamicResource WarningText}" />
     </Style>
     <Style Selector="TextBlock.error">
-      <Setter Property="Foreground" Value="{StaticResource ErrorText}" />
+      <Setter Property="Foreground" Value="{DynamicResource ErrorText}" />
     </Style>
     <Style Selector="Button.link">
       <Setter Property="Background" Value="Transparent" />
       <Setter Property="Padding" Value="4,2" />
-      <Setter Property="Foreground" Value="#2563EB" />
+      <Setter Property="Foreground" Value="{DynamicResource LinkText}" />
     </Style>
     <Style Selector="Button.nav">
       <Setter Property="HorizontalAlignment" Value="Stretch" />
@@ -56,8 +191,131 @@
       <Setter Property="Padding" Value="10,6" />
     </Style>
     <Style Selector="Button.nav.selected">
-      <Setter Property="Background" Value="{StaticResource SelectedRow}" />
+      <Setter Property="Background" Value="{DynamicResource SelectedRow}" />
       <Setter Property="FontWeight" Value="SemiBold" />
+    </Style>
+
+    <!-- Fluent's dark expander is pure black; both themes use the panel surface instead. -->
+    <Style Selector="Expander">
+      <Setter Property="Background" Value="{DynamicResource PanelBackground}" />
+      <Setter Property="BorderBrush" Value="{DynamicResource DividerBrush}" />
+    </Style>
+    <Style Selector="Expander /template/ ToggleButton#ExpanderHeader">
+      <Setter Property="Background" Value="{DynamicResource PanelBackground}" />
+      <Setter Property="BorderBrush" Value="{DynamicResource DividerBrush}" />
+    </Style>
+
+    <!-- Buttons, three levels (S7 共用样式): primary (at most one per view), secondary (outline), quiet (toolbars). -->
+    <Style Selector="Button.primary">
+      <Setter Property="Background" Value="{DynamicResource AccentBrush}" />
+      <Setter Property="Foreground" Value="{DynamicResource OnAccentText}" />
+      <Setter Property="BorderThickness" Value="0" />
+      <Setter Property="Padding" Value="14,6" />
+      <Setter Property="FontWeight" Value="SemiBold" />
+    </Style>
+    <Style Selector="Button.primary:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+      <Setter Property="Background" Value="{DynamicResource AccentHoverBrush}" />
+      <Setter Property="Foreground" Value="{DynamicResource OnAccentText}" />
+    </Style>
+    <Style Selector="Button.primary:pressed /template/ ContentPresenter#PART_ContentPresenter">
+      <Setter Property="Background" Value="{DynamicResource AccentPressedBrush}" />
+      <Setter Property="Foreground" Value="{DynamicResource OnAccentText}" />
+    </Style>
+    <Style Selector="Button.secondary">
+      <Setter Property="Background" Value="Transparent" />
+      <Setter Property="BorderBrush" Value="{DynamicResource OutlineBrush}" />
+      <Setter Property="BorderThickness" Value="1" />
+      <Setter Property="Foreground" Value="{DynamicResource PrimaryText}" />
+      <Setter Property="Padding" Value="13,5" />
+    </Style>
+    <Style Selector="Button.secondary:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+      <Setter Property="Background" Value="{DynamicResource HoverRow}" />
+      <Setter Property="BorderBrush" Value="{DynamicResource OutlineBrush}" />
+      <Setter Property="Foreground" Value="{DynamicResource PrimaryText}" />
+    </Style>
+    <Style Selector=":is(Button).quiet">
+      <Setter Property="Background" Value="Transparent" />
+      <Setter Property="BorderThickness" Value="0" />
+      <Setter Property="Foreground" Value="{DynamicResource PrimaryText}" />
+      <Setter Property="Padding" Value="8,5" />
+      <Setter Property="VerticalAlignment" Value="Center" />
+    </Style>
+    <Style Selector=":is(Button).quiet:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+      <Setter Property="Background" Value="{DynamicResource HoverRow}" />
+      <Setter Property="Foreground" Value="{DynamicResource PrimaryText}" />
+    </Style>
+    <Style Selector="ToggleButton.quiet:checked /template/ ContentPresenter#PART_ContentPresenter">
+      <Setter Property="Background" Value="{DynamicResource SelectedRow}" />
+      <Setter Property="Foreground" Value="{DynamicResource PrimaryText}" />
+    </Style>
+    <Style Selector="Button.danger">
+      <Setter Property="Foreground" Value="{DynamicResource DangerText}" />
+    </Style>
+    <Style Selector="Button.danger:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+      <Setter Property="Foreground" Value="{DynamicResource DangerText}" />
+    </Style>
+
+    <!-- Notices: info / warning / error, icon on the left (a TextBlock.notice-icon inside). -->
+    <Style Selector="Border.notice">
+      <Setter Property="CornerRadius" Value="6" />
+      <Setter Property="BorderThickness" Value="1" />
+      <Setter Property="Padding" Value="10,7" />
+    </Style>
+    <Style Selector="Border.notice.info">
+      <Setter Property="Background" Value="{DynamicResource NoticeInfoBackground}" />
+      <Setter Property="BorderBrush" Value="{DynamicResource NoticeInfoBorder}" />
+    </Style>
+    <Style Selector="Border.notice.warning">
+      <Setter Property="Background" Value="{DynamicResource NoticeWarningBackground}" />
+      <Setter Property="BorderBrush" Value="{DynamicResource NoticeWarningBorder}" />
+    </Style>
+    <Style Selector="Border.notice.error">
+      <Setter Property="Background" Value="{DynamicResource NoticeErrorBackground}" />
+      <Setter Property="BorderBrush" Value="{DynamicResource NoticeErrorBorder}" />
+    </Style>
+    <Style Selector="Border.notice TextBlock">
+      <Setter Property="Foreground" Value="{DynamicResource PrimaryText}" />
+      <Setter Property="TextWrapping" Value="Wrap" />
+      <Setter Property="VerticalAlignment" Value="Center" />
+    </Style>
+    <Style Selector="Border.notice TextBlock.notice-icon">
+      <Setter Property="FontWeight" Value="Bold" />
+      <Setter Property="Margin" Value="0,0,8,0" />
+      <Setter Property="VerticalAlignment" Value="Top" />
+    </Style>
+    <Style Selector="Border.notice.info TextBlock.notice-icon">
+      <Setter Property="Foreground" Value="{DynamicResource NoticeInfoIcon}" />
+    </Style>
+    <Style Selector="Border.notice.warning TextBlock.notice-icon">
+      <Setter Property="Foreground" Value="{DynamicResource NoticeWarningIcon}" />
+    </Style>
+    <Style Selector="Border.notice.error TextBlock.notice-icon">
+      <Setter Property="Foreground" Value="{DynamicResource NoticeErrorIcon}" />
+    </Style>
+
+    <!-- Badges: small rounded tags (未读 accent, 已读 neutral, 候选 warning …). -->
+    <Style Selector="Border.badge">
+      <Setter Property="CornerRadius" Value="9" />
+      <Setter Property="Padding" Value="7,1,7,2" />
+      <Setter Property="VerticalAlignment" Value="Center" />
+      <Setter Property="Background" Value="{DynamicResource BadgeNeutralBackground}" />
+    </Style>
+    <Style Selector="Border.badge > TextBlock">
+      <Setter Property="FontSize" Value="11.5" />
+      <Setter Property="Foreground" Value="{DynamicResource BadgeNeutralText}" />
+    </Style>
+    <Style Selector="Border.badge.accent">
+      <Setter Property="Background" Value="{DynamicResource BadgeAccentBackground}" />
+    </Style>
+    <Style Selector="Border.badge.accent > TextBlock">
+      <Setter Property="Foreground" Value="{DynamicResource BadgeAccentText}" />
+      <Setter Property="FontWeight" Value="SemiBold" />
+    </Style>
+    <Style Selector="Border.badge.warning">
+      <Setter Property="Background" Value="{DynamicResource BadgeWarningBackground}" />
+    </Style>
+    <Style Selector="Border.badge.warning > TextBlock">
+      <Setter Property="Foreground" Value="{DynamicResource BadgeWarningText}" />
     </Style>
   </Application.Styles>
 </Application>

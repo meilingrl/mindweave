@@ -1,5 +1,6 @@
 using Avalonia.Controls;
 using Avalonia.Headless.XUnit;
+using Avalonia.Styling;
 using Avalonia.Threading;
 using Avalonia.VisualTree;
 using Microsoft.Data.Sqlite;
@@ -31,6 +32,7 @@ namespace Mindweave.Desktop.Tests;
 /// A screenshot of every page and state, for reviewing the UI before and after visual work. Runs only when
 /// MINDWEAVE_SCREENSHOT_DIR is set (run with <c>--filter Category=Gallery</c>); each scene is seeded through the real
 /// services with realistic content, a fixed clock and a fixed data directory so the frames are comparable run to run.
+/// MINDWEAVE_GALLERY_THEME=Dark renders the same scenes in the dark theme.
 /// </summary>
 [Trait("Category", "Gallery")]
 public class GalleryTests
@@ -665,7 +667,7 @@ public class GalleryTests
 
     private static MainWindow Show(DesktopHarness app)
     {
-        var window = new MainWindow { DataContext = app.Root, Width = 1100, Height = 720 };
+        var window = new MainWindow { DataContext = app.Root, Width = 1100, Height = 720, RequestedThemeVariant = Theme };
         window.Show();
         return window;
     }
@@ -689,6 +691,13 @@ public class GalleryTests
         window.UpdateLayout();
         ViewTests.Capture(window, name);
     }
+
+    /// <summary>
+    /// MINDWEAVE_GALLERY_THEME=Light|Dark (default Light) renders the same scenes in either theme (D-022). The theme is
+    /// set on each scene's window, not on the application the tests share.
+    /// </summary>
+    private static ThemeVariant Theme =>
+        string.Equals(Environment.GetEnvironmentVariable("MINDWEAVE_GALLERY_THEME"), "Dark", StringComparison.OrdinalIgnoreCase) ? ThemeVariant.Dark : ThemeVariant.Light;
 
     private static string? ScreenshotDir =>
         Environment.GetEnvironmentVariable("MINDWEAVE_SCREENSHOT_DIR") is { Length: > 0 } dir ? dir : null;

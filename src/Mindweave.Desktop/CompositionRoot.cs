@@ -54,6 +54,8 @@ public static class CompositionRoot
         services.AddSingleton<Application.Network.NetworkService>();
         services.AddSingleton<Application.Export.SummaryExportService>();
         services.AddSingleton<ReadingStateService>();
+        services.AddSingleton<Application.Preferences.AppearanceService>();
+        services.TryAddSingleton<IThemeApplier, AvaloniaThemeApplier>();
         services.TryAddSingleton<IUiDispatcher, AvaloniaUiDispatcher>();
 
         services.AddSingleton(shell ?? new SystemShell());

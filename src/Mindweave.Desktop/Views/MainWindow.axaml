@@ -7,12 +7,12 @@
         Title="Mindweave"
         Width="1100" Height="720" MinWidth="720" MinHeight="480"
         WindowStartupLocation="CenterScreen"
-        Background="White">
+        Background="{DynamicResource WindowBackground}">
   <Panel>
     <ContentControl Content="{Binding Current}" />
     <!-- Exit overlays whatever page is shown; nothing irreversible happens before "stop and quit". -->
-    <Border IsVisible="{Binding Exit.IsTaskPromptOpen}" Background="#66000000">
-      <Border Background="White" CornerRadius="10" Padding="24" MaxWidth="440" HorizontalAlignment="Center" VerticalAlignment="Center">
+    <Border IsVisible="{Binding Exit.IsTaskPromptOpen}" Background="{DynamicResource ScrimBrush}">
+      <Border Background="{DynamicResource DialogBackground}" BorderBrush="{DynamicResource DividerBrush}" BorderThickness="1" CornerRadius="10" Padding="24" MaxWidth="440" HorizontalAlignment="Center" VerticalAlignment="Center">
         <StackPanel Spacing="14">
           <TextBlock Classes="h1" FontSize="18" Text="{x:Static d:UiText.ExitTitle}" />
           <TextBlock TextWrapping="Wrap" Text="{Binding Exit.TaskMessage}" />
@@ -23,13 +23,13 @@
         </StackPanel>
       </Border>
     </Border>
-    <Border IsVisible="{Binding Exit.IsBusy}" Background="#66000000">
-      <Border Background="White" CornerRadius="10" Padding="24" MaxWidth="440" HorizontalAlignment="Center" VerticalAlignment="Center">
+    <Border IsVisible="{Binding Exit.IsBusy}" Background="{DynamicResource ScrimBrush}">
+      <Border Background="{DynamicResource DialogBackground}" BorderBrush="{DynamicResource DividerBrush}" BorderThickness="1" CornerRadius="10" Padding="24" MaxWidth="440" HorizontalAlignment="Center" VerticalAlignment="Center">
         <TextBlock TextWrapping="Wrap" Text="{x:Static d:UiText.ExitSaving}" />
       </Border>
     </Border>
-    <Border IsVisible="{Binding Exit.IsFailed}" Background="#66000000">
-      <Border Background="White" CornerRadius="10" Padding="24" MaxWidth="440" HorizontalAlignment="Center" VerticalAlignment="Center">
+    <Border IsVisible="{Binding Exit.IsFailed}" Background="{DynamicResource ScrimBrush}">
+      <Border Background="{DynamicResource DialogBackground}" BorderBrush="{DynamicResource DividerBrush}" BorderThickness="1" CornerRadius="10" Padding="24" MaxWidth="440" HorizontalAlignment="Center" VerticalAlignment="Center">
         <StackPanel Spacing="14">
           <TextBlock Classes="h1" FontSize="18" Text="{x:Static d:UiText.ExitSaveFailedTitle}" />
           <TextBlock TextWrapping="Wrap" Text="{x:Static d:UiText.ExitSaveFailedBody}" />
@@ -40,16 +40,21 @@
         </StackPanel>
       </Border>
     </Border>
-    <Border IsVisible="{Binding LayoutPrompt.IsOpen}" Background="#66000000">
-      <Border Background="White" CornerRadius="10" Padding="24" MaxWidth="440" HorizontalAlignment="Center" VerticalAlignment="Center">
+    <Border IsVisible="{Binding LayoutPrompt.IsOpen}" Background="{DynamicResource ScrimBrush}">
+      <Border Background="{DynamicResource DialogBackground}" BorderBrush="{DynamicResource DividerBrush}" BorderThickness="1" CornerRadius="10" Padding="24" MaxWidth="440" HorizontalAlignment="Center" VerticalAlignment="Center">
         <StackPanel Spacing="14">
           <TextBlock Classes="h1" FontSize="18" Text="{x:Static d:UiText.LayoutUnsavedTitle}" />
           <TextBlock TextWrapping="Wrap" Text="{x:Static d:UiText.LayoutUnsavedBody}" />
-          <TextBlock Classes="error" TextWrapping="Wrap" Text="{x:Static d:UiText.LayoutSaveFailed}" IsVisible="{Binding LayoutPrompt.SaveFailed}" />
+          <Border Classes="notice error" IsVisible="{Binding LayoutPrompt.SaveFailed}">
+            <DockPanel>
+              <TextBlock Classes="notice-icon" Text="!" />
+              <TextBlock Text="{x:Static d:UiText.LayoutSaveFailed}" />
+            </DockPanel>
+          </Border>
           <StackPanel Orientation="Horizontal" Spacing="8" HorizontalAlignment="Right">
-            <Button Name="LayoutCancel" Content="{x:Static d:UiText.Cancel}" Command="{Binding LayoutPrompt.CancelCommand}" IsDefault="True" />
-            <Button Name="LayoutDontSave" Content="{x:Static d:UiText.LayoutDontSave}" Command="{Binding LayoutPrompt.DontSaveCommand}" />
-            <Button Name="LayoutSave" Content="{x:Static d:UiText.LayoutSaveAndContinue}" Command="{Binding LayoutPrompt.SaveAndContinueCommand}" />
+            <Button Name="LayoutCancel" Classes="quiet" Content="{x:Static d:UiText.Cancel}" Command="{Binding LayoutPrompt.CancelCommand}" IsDefault="True" />
+            <Button Name="LayoutDontSave" Classes="secondary" Content="{x:Static d:UiText.LayoutDontSave}" Command="{Binding LayoutPrompt.DontSaveCommand}" />
+            <Button Name="LayoutSave" Classes="primary" Content="{x:Static d:UiText.LayoutSaveAndContinue}" Command="{Binding LayoutPrompt.SaveAndContinueCommand}" />
           </StackPanel>
         </StackPanel>
       </Border>

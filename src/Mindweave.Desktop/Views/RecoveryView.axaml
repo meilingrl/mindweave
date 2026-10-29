@@ -34,7 +34,7 @@
         </ItemsControl>
       </StackPanel>
 
-      <Border IsVisible="{Binding IsConfirmingRestore}" BorderBrush="{StaticResource DividerBrush}" BorderThickness="1" CornerRadius="6" Padding="16">
+      <Border IsVisible="{Binding IsConfirmingRestore}" BorderBrush="{DynamicResource DividerBrush}" BorderThickness="1" CornerRadius="6" Padding="16">
         <StackPanel Spacing="10">
           <TextBlock TextWrapping="Wrap" Text="{Binding RestoreConsequence}" />
           <StackPanel Orientation="Horizontal" Spacing="8">

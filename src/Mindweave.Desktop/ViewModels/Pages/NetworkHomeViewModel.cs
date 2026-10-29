@@ -12,17 +12,30 @@ using Mindweave.Desktop.Services;
 
 namespace Mindweave.Desktop.ViewModels.Pages;
 
-/// <summary>One summary in the list view: display name and markers in words.</summary>
-public sealed record SummaryListItem(SummaryNodeId Node, string DisplayName, string Markers, bool HasMarkers);
+/// <summary>
+/// One summary in the list view: display name, markers in words, and the same tags as the canvas details
+/// (未读 / 已读, 有候选更新, and <paramref name="Other"/> for the rest, such as "来源已归档").
+/// </summary>
+public sealed record SummaryListItem(SummaryNodeId Node, string DisplayName, string Markers, bool HasMarkers, bool Unread = false, bool HasCandidate = false, string Other = "")
+{
+    public bool HasOther => Other.Length > 0;
+}
 
-/// <summary>A node as the canvas draws it, in canvas coordinates.</summary>
-public sealed record NodeView(SummaryNodeId Id, string ShortTitle, string DisplayName, double X, double Y, bool Unread, bool HasCandidate, double LabelWidth);
+/// <summary>
+/// A node as the canvas draws it, in canvas coordinates. <paramref name="Parent"/> is its nearest summarized source
+/// (the edge it hangs from); <paramref name="IsRoot"/> marks the summary of an exploration's root conversation.
+/// </summary>
+public sealed record NodeView(SummaryNodeId Id, string ShortTitle, string DisplayName, double X, double Y, bool Unread, bool HasCandidate, double LabelWidth, SummaryNodeId? Parent = null, bool IsRoot = false);
+
+/// <summary>"探索 · root conversation" above an exploration: over its root's node, or its top-left node when the root has no summary.</summary>
+public sealed record GroupCaption(string Text, SummaryNodeId Anchor);
 
 /// <summary>A source edge as the canvas draws it; dashed with a label when it passes unsummarized conversations.</summary>
 public sealed record EdgeView(SummaryNodeId From, SummaryNodeId To, double FromX, double FromY, double ToX, double ToY, bool IsDirect, string? Label);
 
 /// <summary>What the side panel says about the selected node; never the summary body, never marks it read.</summary>
-public sealed record NodeDetail(SummaryNodeId Id, ConversationId Conversation, string DisplayName, string ShortTitle, string Markers, string Source, string Created, string? Via);
+public sealed record NodeDetail(SummaryNodeId Id, ConversationId Conversation, string DisplayName, string ShortTitle, string Markers, string Source, string Created, string? Via,
+    bool Unread = false, bool HasCandidate = false, bool SourceArchived = false, string Path = "");
 
 /// <summary>
 /// The summary network of the current workspace (requirement §7.3–7.4, architecture §11): nodes with short titles
@@ -73,6 +86,17 @@ public sealed partial class NetworkHomeViewModel : PageViewModel, IDisposable
 
     public IReadOnlyList<EdgeView> Edges { get; private set; } = [];
 
+    public IReadOnlyList<GroupCaption> Captions { get; private set; } = [];
+
+    /// <summary>The selected node and every summarized source up to its exploration's root; empty without a selection.</summary>
+    public IReadOnlySet<SummaryNodeId> Trail { get; private set; } = new HashSet<SummaryNodeId>();
+
+    /// <summary>Nodes whose short or full name contains the search text, updated as it is typed.</summary>
+    public IReadOnlySet<SummaryNodeId> Matches { get; private set; } = new HashSet<SummaryNodeId>();
+
+    /// <summary>The save button's text: says plainly when the arrangement is not saved.</summary>
+    public string SaveLayoutLabel => Session.IsDirty ? UiText.SaveLayoutUnsaved : UiText.LayoutSaved;
+
     [ObservableProperty]
     public partial bool IsListView { get; set; }
 
@@ -102,6 +126,7 @@ public sealed partial class NetworkHomeViewModel : PageViewModel, IDisposable
     {
         Session.Selected = node;
         Selected = node is { } id ? Detail(id) : null;
+        Trail = TrailOf(node);
         ViewChanged?.Invoke(this, false);
     }
 
@@ -137,7 +162,7 @@ public sealed partial class NetworkHomeViewModel : PageViewModel, IDisposable
             return;
         }
 
-        var match = Nodes.FirstOrDefault(n => n.ShortTitle.Contains(text, StringComparison.CurrentCultureIgnoreCase) || n.DisplayName.Contains(text, StringComparison.CurrentCultureIgnoreCase));
+        var match = Nodes.FirstOrDefault(n => IsMatch(n, text));
         if (match is null)
         {
             return;
@@ -178,6 +203,33 @@ public sealed partial class NetworkHomeViewModel : PageViewModel, IDisposable
     [RelayCommand]
     private void ToggleView() => IsListView = !IsListView;
 
+    partial void OnSearchTextChanged(string value)
+    {
+        Matches = FindMatches();
+        ViewChanged?.Invoke(this, false);
+    }
+
+    private static bool IsMatch(NodeView node, string text) =>
+        node.ShortTitle.Contains(text, StringComparison.CurrentCultureIgnoreCase) || node.DisplayName.Contains(text, StringComparison.CurrentCultureIgnoreCase);
+
+    private HashSet<SummaryNodeId> FindMatches()
+    {
+        var text = SearchText.Trim();
+        return text.Length == 0 ? [] : [.. Nodes.Where(n => IsMatch(n, text)).Select(n => n.Id)];
+    }
+
+    /// <summary>The selected node and its sources, following each node's parent edge to the top.</summary>
+    private HashSet<SummaryNodeId> TrailOf(SummaryNodeId? node)
+    {
+        var trail = new HashSet<SummaryNodeId>();
+        var parents = Nodes.ToDictionary(n => n.Id, n => n.Parent);
+        for (var at = node; at is { } id && parents.ContainsKey(id) && trail.Add(id); at = parents[id])
+        {
+        }
+
+        return trail;
+    }
+
     public void Dispose()
     {
         _disposed = true;
@@ -215,6 +267,7 @@ public sealed partial class NetworkHomeViewModel : PageViewModel, IDisposable
     private void OnSessionChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e)
     {
         OnPropertyChanged(nameof(IsDirty));
+        OnPropertyChanged(nameof(SaveLayoutLabel));
         OnPropertyChanged(nameof(IsSaving));
         OnPropertyChanged(nameof(SaveFailed));
         SaveLayoutCommand.NotifyCanExecuteChanged();
@@ -235,21 +288,33 @@ public sealed partial class NetworkHomeViewModel : PageViewModel, IDisposable
         foreach (var node in Session.Projection.Nodes)
         {
             var markers = string.Join(" · ", new[] { UiText.Markers(node.Markers), node.SourceArchived ? UiText.SourceArchived : string.Empty }.Where(m => m.Length > 0));
-            Items.Add(new SummaryListItem(node.Id, node.DisplayName, markers, markers.Length > 0));
+            var other = string.Join(" · ", new[] { node.Markers.HasLaterContent ? UiText.MarkerLater : string.Empty, node.SourceArchived ? UiText.SourceArchived : string.Empty }.Where(m => m.Length > 0));
+            Items.Add(new SummaryListItem(node.Id, node.DisplayName, markers, markers.Length > 0, node.Markers.Unread, node.Markers.HasCandidate, other));
         }
 
         OnPropertyChanged(nameof(IsEmpty));
         Selected = Session.Selected is { } selected && Session.Projection.Nodes.Any(n => n.Id == selected) ? Detail(selected) : null;
+        Trail = TrailOf(Selected?.Id);
+        Matches = FindMatches();
         ViewChanged?.Invoke(this, Session.Viewport is null);
     }
 
     private void BuildViews()
     {
         var positions = Session.Positions;
+        var parents = Session.Projection.Edges.ToDictionary(e => e.To, e => e.From);
         Nodes = [.. Session.Projection.Nodes.Where(n => positions.ContainsKey(n.Id)).Select(n => new NodeView(
-            n.Id, n.ShortTitle, n.DisplayName, positions[n.Id].X, positions[n.Id].Y, n.Markers.Unread, n.Markers.HasCandidate, NetworkLayout.LabelWidth(n.ShortTitle)))];
+            n.Id, n.ShortTitle, n.DisplayName, positions[n.Id].X, positions[n.Id].Y, n.Markers.Unread, n.Markers.HasCandidate, NetworkLayout.LabelWidth(n.ShortTitle),
+            parents.TryGetValue(n.Id, out var parent) && positions.ContainsKey(parent) ? parent : null, n.Conversation == n.Root))];
         Edges = [.. Session.Projection.Edges.Where(e => positions.ContainsKey(e.From) && positions.ContainsKey(e.To)).Select(e => new EdgeView(
             e.From, e.To, positions[e.From].X, positions[e.From].Y, positions[e.To].X, positions[e.To].Y, e.IsDirect, e.IsDirect ? null : UiText.ViaCount(e.Via.Count)))];
+        Captions = [.. Session.Projection.Nodes.Where(n => positions.ContainsKey(n.Id)).GroupBy(n => n.Root).Select(g =>
+        {
+            // Over the root's own summary; when the root conversation has none, over the group's top-left node.
+            var anchor = g.FirstOrDefault(n => n.Conversation == g.Key) ?? g.OrderBy(n => positions[n.Id].Y).ThenBy(n => positions[n.Id].X).First();
+            return new GroupCaption(UiText.ExplorationCaption(_titles.GetValueOrDefault(g.Key)), anchor.Id);
+        })];
+        Trail = TrailOf(Session.Selected);
     }
 
     private NodeDetail? Detail(SummaryNodeId id)
@@ -268,6 +333,40 @@ public sealed partial class NetworkHomeViewModel : PageViewModel, IDisposable
             UiText.Markers(node.Markers),
             UiText.NodeSource(_titles.GetValueOrDefault(node.Conversation) ?? UiText.NewConversation, node.SourceArchived),
             UiText.NodeCreated(node.CreatedAt),
-            edge is null ? null : UiText.ViaUnsummarized([.. edge.Via.Select(c => _titles.GetValueOrDefault(c) ?? UiText.NewConversation)]));
+            edge is null ? null : UiText.ViaUnsummarized([.. edge.Via.Select(c => _titles.GetValueOrDefault(c) ?? UiText.NewConversation)]),
+            node.Markers.Unread,
+            node.Markers.HasCandidate,
+            node.SourceArchived,
+            UiText.SourcePath(PathOf(id)));
+    }
+
+    /// <summary>Names from the exploration's root to this node: summaries by short name, unsummarized sessions between them by title.</summary>
+    private List<string> PathOf(SummaryNodeId id)
+    {
+        var nodes = Session.Projection.Nodes.ToDictionary(n => n.Id);
+        var incoming = Session.Projection.Edges.ToDictionary(e => e.To);
+        var names = new List<string>();
+        var seen = new HashSet<SummaryNodeId>();
+        for (SummaryNodeId? at = id; at is { } current && nodes.ContainsKey(current) && seen.Add(current);)
+        {
+            names.Add(nodes[current].ShortTitle);
+            if (!incoming.TryGetValue(current, out var edge))
+            {
+                // The root conversation itself has no summary: name it first, so the path still starts at the root.
+                var node = nodes[current];
+                if (node.Conversation != node.Root)
+                {
+                    names.Add(_titles.GetValueOrDefault(node.Root) ?? UiText.NewConversation);
+                }
+
+                break;
+            }
+
+            names.AddRange(edge.Via.Reverse().Select(c => _titles.GetValueOrDefault(c) ?? UiText.NewConversation));
+            at = edge.From;
+        }
+
+        names.Reverse();
+        return names;
     }
 }

@@ -248,7 +248,7 @@ public class NetworkUiTests
         }
     }
 
-    private static async Task<ConversationId> AskAsync(DesktopHarness app, ConversationService conversations, ConversationId? existing, WorkspaceId workspace, string question)
+    internal static async Task<ConversationId> AskAsync(DesktopHarness app, ConversationService conversations, ConversationId? existing, WorkspaceId workspace, string question)
     {
         var sent = existing is { } id ? await conversations.AskAsync(id, question, CancellationToken.None) : await conversations.StartAsync(workspace, question, CancellationToken.None);
         await UiWait.UntilAsync(() => conversations.LoadAsync(sent.Conversation, CancellationToken.None).Result!.Messages.All(m => m.IsFinished));
@@ -256,7 +256,7 @@ public class NetworkUiTests
         return sent.Conversation;
     }
 
-    private static async Task<ConversationId> BranchAsync(DesktopHarness app, ConversationService conversations, ConversationId parent, string question)
+    internal static async Task<ConversationId> BranchAsync(DesktopHarness app, ConversationService conversations, ConversationId parent, string question)
     {
         var source = (await conversations.LoadAsync(parent, CancellationToken.None))!.Messages.Last(m => m.Role == MessageRole.Assistant);
         var branch = await conversations.CreateBranchAsync(parent, new BranchSelection(source.Id, 0, source.Text[..2], "{\"v\":1}", 1, "test-profile"), CancellationToken.None);

@@ -22,6 +22,16 @@ public static class NetworkLayout
     public const double LabelPadding = 24;
     public const int CollisionPasses = 40;
 
+    /// <summary>The largest dot (an exploration's root), and the gap between a dot and its label on the right (S7).</summary>
+    public const double NodeRadius = 10;
+    public const double LabelGap = 9;
+
+    /// <summary>Left edge of a node's box: the dot.</summary>
+    public static double BoxLeft(double x) => x - NodeRadius;
+
+    /// <summary>Right edge of a node's box: the end of the label drawn to the right of the dot.</summary>
+    public static double BoxRight(double x, double labelWidth) => x + NodeRadius + LabelGap + labelWidth;
+
     /// <summary>Estimated label width: CJK and other wide characters about one em, ASCII about half.</summary>
     public static double LabelWidth(string label)
     {
@@ -38,8 +48,8 @@ public static class NetworkLayout
         foreach (var group in Groups(nodes))
         {
             var local = ArrangeGroup(group);
-            var minX = local.Values.Min(p => p.X) - (group.Max(n => n.LabelWidth) / 2) - LabelPadding;
-            var maxX = local.Values.Max(p => p.X) + (group.Max(n => n.LabelWidth) / 2) + LabelPadding;
+            var minX = group.Min(n => BoxLeft(local[n.Id].X)) - LabelPadding;
+            var maxX = group.Max(n => BoxRight(local[n.Id].X, n.LabelWidth)) + LabelPadding;
             var shift = cursor - minX;
             foreach (var (id, p) in local)
             {
@@ -187,8 +197,8 @@ public static class NetworkLayout
 
     private static NodePosition RightOfAll(LayoutNode node, Dictionary<SummaryNodeId, LayoutNode> known, Dictionary<SummaryNodeId, NodePosition> placed)
     {
-        var right = placed.Max(p => p.Value.X + (known[p.Key].LabelWidth / 2));
-        return Round(right + GroupGap + (node.LabelWidth / 2) + LabelPadding, placed.Values.Average(p => p.Y));
+        var right = placed.Max(p => BoxRight(p.Value.X, known[p.Key].LabelWidth));
+        return Round(right + GroupGap + NodeRadius + LabelPadding, placed.Values.Average(p => p.Y));
     }
 
     private static bool Collides(LayoutNode node, NodePosition at, Dictionary<SummaryNodeId, LayoutNode> known, Dictionary<SummaryNodeId, NodePosition> placed) =>
@@ -207,19 +217,20 @@ public static class NetworkLayout
                 {
                     var a = ordered[i];
                     var b = ordered[j];
-                    if (!Overlap(a.LabelWidth, positions[a.Id], b.LabelWidth, positions[b.Id], out var dx, out var dy))
+                    var pa = positions[a.Id];
+                    var pb = positions[b.Id];
+                    if (!Overlap(a.LabelWidth, pa, b.LabelWidth, pb, out var dx, out var dy))
                     {
                         continue;
                     }
 
                     // Push the later node away along the shorter overlap axis; deterministic, no randomness.
-                    var pb = positions[b.Id];
-                    var pa = positions[a.Id];
+                    // dx is already the shift that moves b clear of a (signed: right when b is right of a).
                     var target = fixedNodes?.Contains(b.Id) == true ? a.Id : b.Id;
                     var sign = target == b.Id ? 1 : -1;
                     var p = positions[target];
-                    positions[target] = dx < dy
-                        ? Round(p.X + (sign * (pb.X >= pa.X ? dx : -dx)), p.Y)
+                    positions[target] = Math.Abs(dx) < dy
+                        ? Round(p.X + (sign * dx), p.Y)
                         : Round(p.X, p.Y + (sign * (pb.Y >= pa.Y ? dy : -dy)));
                     moved = true;
                 }
@@ -232,14 +243,19 @@ public static class NetworkLayout
         }
     }
 
+    /// <summary>
+    /// Whether two boxes (dot on the left, label on its right) come closer than the padding. <paramref name="dx"/> is the
+    /// signed horizontal shift that clears b from a: rightwards when b is at or right of a, leftwards otherwise.
+    /// </summary>
     private static bool Overlap(double widthA, NodePosition a, double widthB, NodePosition b, out double dx, out double dy)
     {
-        var halfW = ((widthA + widthB) / 2) + LabelPadding;
-        dx = halfW - Math.Abs(a.X - b.X);
+        var right = BoxRight(a.X, widthA) + LabelPadding - BoxLeft(b.X);
+        var left = BoxRight(b.X, widthB) + LabelPadding - BoxLeft(a.X);
         dy = NodeHeight - Math.Abs(a.Y - b.Y);
-        if (dx > 0 && dy > 0)
+        dx = b.X >= a.X ? right : -left;
+        if (right > 0 && left > 0 && dy > 0)
         {
-            dx += 1;
+            dx += Math.Sign(dx) == 0 ? 1 : Math.Sign(dx);
             dy += 1;
             return true;
         }

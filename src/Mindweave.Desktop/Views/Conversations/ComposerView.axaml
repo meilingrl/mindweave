@@ -10,7 +10,7 @@
               IsVisible="{Binding ShowSettingsLink}" Classes="link" Tag="settings" />
       <TextBlock Name="Notice" Classes="error" Text="{Binding Notice}" TextWrapping="Wrap" VerticalAlignment="Center" />
     </DockPanel>
-    <Border BorderBrush="{StaticResource DividerBrush}" BorderThickness="1" CornerRadius="10" Padding="8">
+    <Border BorderBrush="{DynamicResource DividerBrush}" BorderThickness="1" CornerRadius="10" Padding="8">
       <DockPanel>
         <Button Name="SendButton" DockPanel.Dock="Right" VerticalAlignment="Bottom" Content="{x:Static d:UiText.Send}"
                 Command="{Binding SendCommand}" Margin="8,0,0,0" />

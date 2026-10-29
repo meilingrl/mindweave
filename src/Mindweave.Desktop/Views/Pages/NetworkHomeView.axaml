@@ -10,52 +10,125 @@
     <KeyBinding Gesture="Meta+S" Command="{Binding SaveLayoutCommand}" />
   </UserControl.KeyBindings>
   <DockPanel>
-    <!-- Toolbar: find, show all, zoom, arrange, save (floppy; disabled without changes, dot when unsaved). -->
-    <WrapPanel DockPanel.Dock="Top" Orientation="Horizontal" Margin="0,0,0,8" IsVisible="{Binding !IsEmpty}">
-      <TextBox Name="FindBox" Text="{Binding SearchText}" PlaceholderText="{x:Static d:UiText.FindWatermark}" Width="180" Margin="0,0,6,4">
-        <TextBox.KeyBindings>
-          <KeyBinding Gesture="Enter" Command="{Binding FindCommand}" />
-        </TextBox.KeyBindings>
-      </TextBox>
-      <Button Name="ShowAllButton" Content="{x:Static d:UiText.ShowAll}" Command="{Binding ShowAllCommand}" Margin="0,0,6,4" />
-      <Button Content="−" Command="{Binding ZoomOutCommand}" ToolTip.Tip="{x:Static d:UiText.ZoomOut}" AutomationProperties.Name="{x:Static d:UiText.ZoomOut}" Margin="0,0,2,4" />
-      <Button Content="＋" Command="{Binding ZoomInCommand}" ToolTip.Tip="{x:Static d:UiText.ZoomIn}" AutomationProperties.Name="{x:Static d:UiText.ZoomIn}" Margin="0,0,6,4" />
-      <Button Name="ArrangeButton" Content="{x:Static d:UiText.ArrangeLayout}" Command="{Binding ArrangeCommand}" Margin="0,0,6,4" />
-      <Button Name="SaveLayoutButton" Command="{Binding SaveLayoutCommand}" Margin="0,0,6,4"
-              ToolTip.Tip="{x:Static d:UiText.SaveLayout}" AutomationProperties.Name="{x:Static d:UiText.SaveLayout}">
-        <Panel>
-          <PathIcon Width="16" Height="16" Data="M2,1 H12 L15,4 V15 H1 V1 Z M4,1 V5 H11 V1 Z M3,9 H13 V14 H3 Z" />
-          <Ellipse Width="7" Height="7" Fill="#B45309" HorizontalAlignment="Right" VerticalAlignment="Top" Margin="0,-3,-3,0" IsVisible="{Binding IsDirty}" />
-        </Panel>
-      </Button>
-      <ProgressBar IsIndeterminate="True" Width="40" VerticalAlignment="Center" IsVisible="{Binding IsSaving}" Margin="0,0,6,4" />
-      <ToggleButton Content="{x:Static d:UiText.ListView}" IsChecked="{Binding IsListView}" Margin="0,0,6,4" />
-      <CheckBox Content="{x:Static d:UiText.WheelZooms}" IsChecked="{Binding WheelZooms}" Margin="0,0,6,4" />
-    </WrapPanel>
-    <TextBlock DockPanel.Dock="Top" Name="SaveFailedNotice" Classes="error" FontSize="12" Text="{x:Static d:UiText.LayoutSaveFailed}" IsVisible="{Binding SaveFailed}" Margin="0,0,0,6" />
+    <!-- Toolbar: one quiet style throughout (S7), find, show all, zoom, arrange; save on the right, accented while unsaved. -->
+    <DockPanel DockPanel.Dock="Top" Margin="0,0,0,10" IsVisible="{Binding !IsEmpty}">
+      <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
+        <ProgressBar IsIndeterminate="True" Width="40" VerticalAlignment="Center" IsVisible="{Binding IsSaving}" />
+        <Button Name="SaveLayoutButton" Command="{Binding SaveLayoutCommand}" Classes.primary="{Binding IsDirty}" Classes.quiet="{Binding !IsDirty}"
+                ToolTip.Tip="{x:Static d:UiText.SaveLayout}" AutomationProperties.Name="{Binding SaveLayoutLabel}">
+          <StackPanel Orientation="Horizontal" Spacing="6">
+            <PathIcon Width="14" Height="14" Data="M2,1 H12 L15,4 V15 H1 V1 Z M4,1 V5 H11 V1 Z M3,9 H13 V14 H3 Z" />
+            <TextBlock Name="SaveLayoutText" Text="{Binding SaveLayoutLabel}" VerticalAlignment="Center" />
+          </StackPanel>
+        </Button>
+      </StackPanel>
+      <WrapPanel Orientation="Horizontal" VerticalAlignment="Center">
+        <TextBox Name="FindBox" Text="{Binding SearchText}" PlaceholderText="{x:Static d:UiText.FindWatermark}" Width="190" Margin="0,0,10,0" VerticalAlignment="Center">
+          <TextBox.KeyBindings>
+            <KeyBinding Gesture="Enter" Command="{Binding FindCommand}" />
+          </TextBox.KeyBindings>
+        </TextBox>
+        <Button Name="ShowAllButton" Classes="quiet" Command="{Binding ShowAllCommand}">
+          <StackPanel Orientation="Horizontal" Spacing="6">
+            <PathIcon Width="13" Height="13" Data="M1,1 H6 V3 H3 V6 H1 Z M10,1 H15 V6 H13 V3 H10 Z M1,10 H3 V13 H6 V15 H1 Z M13,10 H15 V15 H10 V13 H13 Z" />
+            <TextBlock Text="{x:Static d:UiText.ShowAll}" VerticalAlignment="Center" />
+          </StackPanel>
+        </Button>
+        <Button Name="ZoomOutButton" Classes="quiet" Content="−" Command="{Binding ZoomOutCommand}" ToolTip.Tip="{x:Static d:UiText.ZoomOut}" AutomationProperties.Name="{x:Static d:UiText.ZoomOut}" MinWidth="30" />
+        <Button Name="ZoomInButton" Classes="quiet" Content="＋" Command="{Binding ZoomInCommand}" ToolTip.Tip="{x:Static d:UiText.ZoomIn}" AutomationProperties.Name="{x:Static d:UiText.ZoomIn}" MinWidth="30" />
+        <Button Name="ArrangeButton" Classes="quiet" Command="{Binding ArrangeCommand}">
+          <StackPanel Orientation="Horizontal" Spacing="6">
+            <PathIcon Width="13" Height="13" Data="M1,6 H5 V10 H1 Z M11,1 H15 V5 H11 Z M11,11 H15 V15 H11 Z M5,7.25 H10 V8.75 H5 Z M9,2.25 H11 V3.75 H9 Z M9,12.25 H11 V13.75 H9 Z M8.25,2.25 H9.75 V13.75 H8.25 Z" />
+            <TextBlock Text="{x:Static d:UiText.ArrangeLayout}" VerticalAlignment="Center" />
+          </StackPanel>
+        </Button>
+        <ToggleButton Name="ListViewToggle" Classes="quiet" IsChecked="{Binding IsListView}">
+          <StackPanel Orientation="Horizontal" Spacing="6">
+            <PathIcon Width="13" Height="13" Data="M1,2 H3 V4 H1 Z M5,2 H15 V4 H5 Z M1,7 H3 V9 H1 Z M5,7 H15 V9 H5 Z M1,12 H3 V14 H1 Z M5,12 H15 V14 H5 Z" />
+            <TextBlock Text="{x:Static d:UiText.ListView}" VerticalAlignment="Center" />
+          </StackPanel>
+        </ToggleButton>
+      </WrapPanel>
+    </DockPanel>
+    <Border DockPanel.Dock="Top" Name="SaveFailedNotice" Classes="notice error" IsVisible="{Binding SaveFailed}" Margin="0,0,0,8">
+      <DockPanel>
+        <TextBlock Classes="notice-icon" Text="!" />
+        <TextBlock Text="{x:Static d:UiText.LayoutSaveFailed}" />
+      </DockPanel>
+    </Border>
     <TextBlock DockPanel.Dock="Top" Classes="muted" TextWrapping="Wrap" Text="{x:Static d:UiText.NetworkEmpty}" IsVisible="{Binding IsEmpty}" />
 
     <!-- Details of the selected node: never the body, never counted as reading. -->
-    <Border DockPanel.Dock="Right" Width="240" Margin="8,0,0,0" Padding="12" Background="{StaticResource SidebarBackground}" CornerRadius="6"
+    <Border DockPanel.Dock="Right" Width="260" Margin="10,0,0,0" Padding="16" Background="{DynamicResource PanelBackground}" CornerRadius="8"
             IsVisible="{Binding !IsEmpty}">
       <Panel>
-        <TextBlock Classes="muted" FontSize="12" TextWrapping="Wrap" Text="{x:Static d:UiText.NetworkSelectHint}"
-                   IsVisible="{Binding Selected, Converter={x:Static ObjectConverters.IsNull}}" />
-        <StackPanel Name="DetailPanel" Spacing="6" IsVisible="{Binding Selected, Converter={x:Static ObjectConverters.IsNotNull}}">
-          <TextBlock FontWeight="SemiBold" TextWrapping="Wrap" Text="{Binding Selected.DisplayName, FallbackValue=''}" />
-          <TextBlock Classes="warning" FontSize="12" TextWrapping="Wrap" Text="{Binding Selected.Markers, FallbackValue=''}" />
-          <TextBlock Classes="muted" FontSize="12" TextWrapping="Wrap" Text="{Binding Selected.Source, FallbackValue=''}" />
-          <TextBlock Classes="muted" FontSize="12" TextWrapping="Wrap" Text="{Binding Selected.Created, FallbackValue=''}" />
+        <StackPanel Spacing="8" IsVisible="{Binding Selected, Converter={x:Static ObjectConverters.IsNull}}">
+          <TextBlock FontWeight="SemiBold" FontSize="18" Text="{x:Static d:UiText.NetworkTitle}" />
+          <TextBlock Classes="muted" FontSize="12" TextWrapping="Wrap" Text="{x:Static d:UiText.NetworkSelectHint}" />
+        </StackPanel>
+        <StackPanel Name="DetailPanel" Spacing="12" IsVisible="{Binding Selected, Converter={x:Static ObjectConverters.IsNotNull}}">
+          <TextBlock Name="DetailTitle" FontWeight="SemiBold" FontSize="18" TextWrapping="Wrap" Text="{Binding Selected.DisplayName, FallbackValue=''}" />
+          <!-- The same tags as the list and the summary page; words, not only colour (MW-C07). -->
+          <WrapPanel Name="DetailMarkers" Orientation="Horizontal" AutomationProperties.Name="{Binding Selected.Markers, FallbackValue=''}">
+            <Border Name="UnreadBadge" Classes="badge accent" Margin="0,0,6,4" IsVisible="{Binding Selected.Unread, FallbackValue=False}">
+              <TextBlock Text="{x:Static d:UiText.MarkerUnread}" />
+            </Border>
+            <Border Name="ReadBadge" Classes="badge" Margin="0,0,6,4" IsVisible="{Binding !Selected.Unread, FallbackValue=False}">
+              <TextBlock Text="{x:Static d:UiText.MarkerRead}" />
+            </Border>
+            <Border Classes="badge warning" Margin="0,0,6,4" IsVisible="{Binding Selected.HasCandidate, FallbackValue=False}">
+              <TextBlock Text="{x:Static d:UiText.MarkerCandidate}" />
+            </Border>
+            <Border Classes="badge" Margin="0,0,6,4" IsVisible="{Binding Selected.SourceArchived, FallbackValue=False}">
+              <TextBlock Text="{x:Static d:UiText.SourceArchived}" />
+            </Border>
+          </WrapPanel>
+          <StackPanel Spacing="3">
+            <TextBlock Classes="muted" FontSize="12" Text="{x:Static d:UiText.SourcePathHeading}" />
+            <TextBlock Name="SourcePath" TextWrapping="Wrap" Text="{Binding Selected.Path, FallbackValue=''}" />
+          </StackPanel>
           <TextBlock Classes="muted" FontSize="12" TextWrapping="Wrap" Text="{Binding Selected.Via, FallbackValue=''}"
                      IsVisible="{Binding Selected.Via, Converter={x:Static ObjectConverters.IsNotNull}, FallbackValue=False}" />
-          <Button Name="OpenSelectedButton" Content="{x:Static d:UiText.OpenSummary}" Command="{Binding OpenSelectedCommand}" />
-          <Button Content="{x:Static d:UiText.ReturnToConversation}" Command="{Binding ReturnToConversationCommand}" />
+          <StackPanel Spacing="2">
+            <TextBlock Classes="muted" FontSize="12" TextWrapping="Wrap" Text="{Binding Selected.Source, FallbackValue=''}" />
+            <TextBlock Classes="muted" FontSize="12" TextWrapping="Wrap" Text="{Binding Selected.Created, FallbackValue=''}" />
+          </StackPanel>
+          <StackPanel Spacing="8">
+            <Button Name="OpenSelectedButton" Classes="primary" HorizontalAlignment="Stretch" HorizontalContentAlignment="Center"
+                    Content="{x:Static d:UiText.OpenSummary}" Command="{Binding OpenSelectedCommand}" />
+            <Button Name="ReturnSelectedButton" Classes="secondary" HorizontalAlignment="Stretch" HorizontalContentAlignment="Center"
+                    Content="{x:Static d:UiText.ReturnToConversation}" Command="{Binding ReturnToConversationCommand}" />
+          </StackPanel>
         </StackPanel>
       </Panel>
     </Border>
 
+    <!-- One line of legend under the canvas (the same shapes as the nodes), and the wheel option beside it. -->
+    <Panel DockPanel.Dock="Bottom" IsVisible="{Binding !IsEmpty}">
+    <DockPanel Margin="2,6,0,0" IsVisible="{Binding !IsListView}">
+      <CheckBox DockPanel.Dock="Right" Content="{x:Static d:UiText.WheelZooms}" IsChecked="{Binding WheelZooms}" FontSize="12" VerticalAlignment="Center" MinHeight="0" />
+      <WrapPanel Name="Legend" Orientation="Horizontal" VerticalAlignment="Center">
+        <WrapPanel.Styles>
+          <Style Selector="TextBlock">
+            <Setter Property="FontSize" Value="12" />
+            <Setter Property="Foreground" Value="{DynamicResource MutedText}" />
+            <Setter Property="VerticalAlignment" Value="Center" />
+            <Setter Property="Margin" Value="0,0,16,0" />
+          </Style>
+        </WrapPanel.Styles>
+        <Ellipse Width="10" Height="10" Fill="{DynamicResource NetworkNode}" VerticalAlignment="Center" Margin="0,0,6,0" />
+        <TextBlock Text="{x:Static d:UiText.LegendUnread}" FontWeight="SemiBold" />
+        <Ellipse Width="10" Height="10" Stroke="{DynamicResource NetworkNodeRead}" StrokeThickness="2" VerticalAlignment="Center" Margin="0,0,6,0" />
+        <TextBlock Text="{x:Static d:UiText.LegendRead}" />
+        <TextBlock Text="{x:Static d:UiText.LegendCandidate}" />
+        <Line StartPoint="0,0" EndPoint="20,0" Stroke="{DynamicResource NetworkEdgeIndirect}" StrokeThickness="1.4" StrokeDashArray="3,2" VerticalAlignment="Center" Margin="0,0,6,0" />
+        <TextBlock Text="{x:Static d:UiText.LegendIndirect}" />
+      </WrapPanel>
+    </DockPanel>
+    </Panel>
+
     <Panel>
-      <Border BorderBrush="#E5E7EB" BorderThickness="1" CornerRadius="6" IsVisible="{Binding !IsListView}">
+      <Border BorderBrush="{DynamicResource DividerBrush}" BorderThickness="1" CornerRadius="8" ClipToBounds="True" IsVisible="{Binding !IsListView}">
         <v:NetworkCanvas Name="Canvas" />
       </Border>
       <ScrollViewer IsVisible="{Binding IsListView}">
@@ -64,10 +137,21 @@
           <ItemsControl Name="SummaryList" ItemsSource="{Binding Items}">
             <ItemsControl.ItemTemplate>
               <DataTemplate x:DataType="vm:SummaryListItem">
-                <StackPanel Orientation="Horizontal" Spacing="8" Margin="0,2">
-                  <Button Classes="link" Content="{Binding DisplayName}"
+                <StackPanel Orientation="Horizontal" Spacing="6" Margin="0,2">
+                  <Button Classes="link" Content="{Binding DisplayName}" FontWeight="{Binding Unread, Converter={x:Static d:Converters.BoldWhen}}"
                           Command="{Binding $parent[v:NetworkHomeView].((vm:NetworkHomeViewModel)DataContext).OpenCommand}" CommandParameter="{Binding Node}" />
-                  <TextBlock Classes="warning" FontSize="12" Text="{Binding Markers}" VerticalAlignment="Center" IsVisible="{Binding HasMarkers}" />
+                  <Border Classes="badge accent" IsVisible="{Binding Unread}">
+                    <TextBlock Text="{x:Static d:UiText.MarkerUnread}" />
+                  </Border>
+                  <Border Classes="badge" IsVisible="{Binding !Unread}">
+                    <TextBlock Text="{x:Static d:UiText.MarkerRead}" />
+                  </Border>
+                  <Border Classes="badge warning" IsVisible="{Binding HasCandidate}">
+                    <TextBlock Text="{x:Static d:UiText.MarkerCandidate}" />
+                  </Border>
+                  <Border Classes="badge" IsVisible="{Binding HasOther}">
+                    <TextBlock Text="{Binding Other}" />
+                  </Border>
                 </StackPanel>
               </DataTemplate>
             </ItemsControl.ItemTemplate>

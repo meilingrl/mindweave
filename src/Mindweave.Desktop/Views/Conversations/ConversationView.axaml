@@ -29,7 +29,7 @@
         <DockPanel>
           <Button Name="ReturnButton" DockPanel.Dock="Right" Content="{x:Static d:UiText.ReturnToSource}"
                   Command="{Binding ReturnToSourceCommand}" VerticalAlignment="Top" Margin="8,0,0,0" />
-          <Border BorderBrush="{StaticResource QuoteBar}" BorderThickness="3,0,0,0" Padding="10,2">
+          <Border BorderBrush="{DynamicResource QuoteBar}" BorderThickness="3,0,0,0" Padding="10,2">
             <StackPanel Spacing="2">
               <TextBlock Classes="muted" FontSize="12" Text="{x:Static d:UiText.BranchFrom}" />
               <TextBlock Name="QuoteText" Text="{Binding SourceQuote}" TextWrapping="Wrap" MaxLines="4" TextTrimming="CharacterEllipsis" />
@@ -75,7 +75,7 @@
         <Button Name="DeleteButton" Classes="link" Content="{x:Static d:UiText.Delete}" Command="{Binding DeleteCommand}"
                 Margin="12,0,0,0" VerticalAlignment="Center" />
       </WrapPanel>
-      <Border Name="ConfirmationPanel" BorderBrush="{StaticResource QuoteBar}" BorderThickness="3,0,0,0" Padding="10,6"
+      <Border Name="ConfirmationPanel" BorderBrush="{DynamicResource QuoteBar}" BorderThickness="3,0,0,0" Padding="10,6"
               IsVisible="{Binding Confirmation, Converter={x:Static ObjectConverters.IsNotNull}}">
         <StackPanel Spacing="6">
           <TextBlock Text="{Binding Confirmation.Message, FallbackValue=''}" TextWrapping="Wrap" />
@@ -106,7 +106,7 @@
         <v:ComposerView Name="ComposerHost" DataContext="{Binding Composer}" />
       </Panel>
       <!-- Read-only while archived: the way back is a restore, never an answer in the hidden subtree (D-021). -->
-      <Border Name="ArchivedPanel" Background="{StaticResource SidebarBackground}" CornerRadius="6" Padding="10,8" IsVisible="{Binding IsArchived}">
+      <Border Name="ArchivedPanel" Background="{DynamicResource SidebarBackground}" CornerRadius="6" Padding="10,8" IsVisible="{Binding IsArchived}">
         <DockPanel>
           <Button Name="RestoreAndContinueButton" DockPanel.Dock="Right" Content="{x:Static d:UiText.RestoreAndContinue}"
                   Command="{Binding RestoreAndContinueCommand}" VerticalAlignment="Center" Margin="8,0,0,0" />
@@ -122,7 +122,7 @@
             <StackPanel Margin="0,8" Spacing="4">
               <!-- Question: right-aligned bubble. -->
               <Border IsVisible="{Binding IsUser}" HorizontalAlignment="Right" MaxWidth="560"
-                      Background="{StaticResource SidebarBackground}" CornerRadius="12" Padding="12,8">
+                      Background="{DynamicResource SidebarBackground}" CornerRadius="12" Padding="12,8">
                 <SelectableTextBlock Text="{Binding Body}" TextWrapping="Wrap" />
               </Border>
               <!-- Answer: Markdown on the page; selecting text in a finished answer offers a branch. -->

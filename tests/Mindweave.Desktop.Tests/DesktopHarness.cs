@@ -33,6 +33,9 @@ public sealed class DesktopHarness : IAsyncDisposable
             services.AddSingleton<IChatClient>(Client);
             services.AddSingleton<ICredentialStore>(Credentials);
             services.AddSingleton(new GenerationOptions { CheckpointInterval = TimeSpan.FromMilliseconds(50) });
+
+            // Tests share one Avalonia application: an appearance choice is recorded, never applied to it.
+            services.AddSingleton<IThemeApplier>(Theme);
             overrides?.Invoke(services);
         };
         _ownsDirectory = ownsDirectory;
@@ -42,6 +45,8 @@ public sealed class DesktopHarness : IAsyncDisposable
     public FakeChatClient Client { get; } = new();
 
     public MemoryCredentialStore Credentials { get; } = new();
+
+    public RecordingThemeApplier Theme { get; } = new();
 
     public async Task ConfigureModelAsync() =>
         await Services.GetRequiredService<ModelSettingsService>().SaveAsync(new ModelSettingsInput("fake", "https://fake.example/v1", "fake-model", "sk-test"), CancellationToken.None);
@@ -117,6 +122,14 @@ public sealed class DesktopHarness : IAsyncDisposable
             {
             }
         }
+    }
+
+    /// <summary>The appearances the application asked for, in order.</summary>
+    public sealed class RecordingThemeApplier : IThemeApplier
+    {
+        public List<Application.Preferences.Appearance> Applied { get; } = [];
+
+        public void Apply(Application.Preferences.Appearance appearance) => Applied.Add(appearance);
     }
 
     public sealed class RecordingShell : ISystemShell

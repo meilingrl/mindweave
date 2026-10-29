@@ -8,7 +8,7 @@
   <DockPanel>
     <StackPanel DockPanel.Dock="Top" Spacing="8" Margin="0,0,0,8">
       <TextBlock Classes="muted" FontSize="12" TextWrapping="Wrap" Text="{x:Static d:UiText.ArchivedNote}" />
-      <Border Name="ConfirmationPanel" BorderBrush="{StaticResource QuoteBar}" BorderThickness="3,0,0,0" Padding="10,6"
+      <Border Name="ConfirmationPanel" BorderBrush="{DynamicResource QuoteBar}" BorderThickness="3,0,0,0" Padding="10,6"
               IsVisible="{Binding Confirmation, Converter={x:Static ObjectConverters.IsNotNull}}">
         <StackPanel Spacing="6">
           <TextBlock Text="{Binding Confirmation.Message, FallbackValue=''}" TextWrapping="Wrap" />

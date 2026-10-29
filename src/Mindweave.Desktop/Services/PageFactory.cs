@@ -22,6 +22,8 @@ internal sealed class PageFactory(
     Application.Export.SummaryExportService exports,
     Network.NetworkSessions networks,
     TimeProvider time,
+    Application.Preferences.AppearanceService appearance,
+    IThemeApplier theme,
     IUiDispatcher dispatcher) : IPageFactory
 {
     public PageViewModel Create(ContentRoute route, PageContext context) => route switch
@@ -32,7 +34,7 @@ internal sealed class PageFactory(
         ConversationRoute conversation => new ConversationViewModel(conversation, context, conversations, reading, dispatcher, summaries),
         NewConversationRoute => new NewConversationViewModel(context.Workspace.Id, conversations, context.Navigator, context.Navigator),
         ArchivedRoute => new ArchivedViewModel(context.Workspace, conversations, context.Navigator, dispatcher),
-        SettingsHomeRoute => new SettingsHomeViewModel(environment, new ModelSettingsViewModel(models), context.Navigator),
+        SettingsHomeRoute => new SettingsHomeViewModel(environment, new ModelSettingsViewModel(models), context.Navigator, appearance, theme),
         StorageDetailsRoute => new StorageDetailsViewModel(environment, database.ListBackups(), shell),
         _ => throw new ArgumentOutOfRangeException(nameof(route), route, "No page is registered for this route."),
     };

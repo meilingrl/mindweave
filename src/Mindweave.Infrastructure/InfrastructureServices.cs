@@ -28,6 +28,7 @@ public static class InfrastructureServices
         services.AddSingleton<IDatabaseLifecycle>(sp => sp.GetRequiredService<SqliteDatabase>());
         services.AddSingleton<IWorkspaceStore, SqliteWorkspaceStore>();
         services.AddSingleton<ILocationStore, SqliteLocationStore>();
+        services.TryAddSingleton<IPreferenceStore, SqlitePreferenceStore>();
         services.AddSingleton<IConversationStore, SqliteConversationStore>();
         services.AddSingleton<IModelSettingsStore, SqliteModelSettingsStore>();
         services.AddSingleton<IAiRequestStore, SqliteAiRequestStore>();

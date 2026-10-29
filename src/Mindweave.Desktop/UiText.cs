@@ -57,6 +57,25 @@ public static class UiText
     public const string NetworkSelectHint = "单击节点查看简要信息，双击打开总结。";
     public const string NetworkListNote = "按生成顺序列出本工作区的总结，可用键盘操作。";
 
+    // Network page and markers (S7)
+    public const string SaveLayoutUnsaved = "保存布局（未保存）";
+    public const string LayoutSaved = "布局已保存";
+    public const string MarkerRead = "已读";
+    public const string SourcePathHeading = "来源路径";
+    public const string Exploration = "探索";
+    public const string LegendUnread = "未读";
+    public const string LegendRead = "已读";
+    public const string LegendCandidate = "↻ 有候选更新";
+    public const string LegendIndirect = "虚线：经过未总结的会话";
+
+    // Appearance (S7, D-022)
+    public const string AppearanceSection = "外观";
+    public const string AppearanceFollowSystem = "跟随系统";
+    public const string AppearanceLight = "浅色";
+    public const string AppearanceDark = "深色";
+    public const string AppearanceHint = "立即生效。“跟随系统”随操作系统的浅色或深色设置变化。";
+    public const string AppearanceSaveFailed = "外观设置未能保存，本次运行中仍然有效。";
+
     // Summaries (S4)
     public const string Summarize = "总结此会话";
     public const string Resummarize = "重新总结";
@@ -455,6 +474,17 @@ public static class UiText
     {
         ArgumentNullException.ThrowIfNull(titles);
         return string.Format(CultureInfo.CurrentCulture, "经 {0} 个未总结会话：{1}", titles.Count, string.Join(" › ", titles));
+    }
+
+    /// <summary>The caption above an exploration on the network: "探索 · root conversation".</summary>
+    public static string ExplorationCaption(string? rootTitle) =>
+        string.IsNullOrWhiteSpace(rootTitle) ? Exploration : Exploration + " · " + rootTitle;
+
+    /// <summary>Where a summary came from, root first: "火车的发明 → 雨山试验 → 缆索牵引".</summary>
+    public static string SourcePath(IReadOnlyList<string> names)
+    {
+        ArgumentNullException.ThrowIfNull(names);
+        return string.Join(" → ", names);
     }
 
     public static string ViaCount(int count) => string.Format(CultureInfo.CurrentCulture, "经 {0} 个未总结会话", count);

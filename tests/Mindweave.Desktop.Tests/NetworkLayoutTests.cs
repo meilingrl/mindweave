@@ -27,8 +27,8 @@ public class NetworkLayoutTests
         var layout = NetworkLayout.Arrange(nodes);
 
         AssertNoOverlap(nodes, layout);
-        var trainsRight = nodes.Where(n => n.Group == Trains).Max(n => layout[n.Id].X + (n.LabelWidth / 2));
-        var photosLeft = nodes.Where(n => n.Group == Photos).Min(n => layout[n.Id].X - (n.LabelWidth / 2));
+        var trainsRight = nodes.Where(n => n.Group == Trains).Max(n => NetworkLayout.BoxRight(layout[n.Id].X, n.LabelWidth));
+        var photosLeft = nodes.Where(n => n.Group == Photos).Min(n => NetworkLayout.BoxLeft(layout[n.Id].X));
         Assert.True(photosLeft > trainsRight, $"{photosLeft} <= {trainsRight}");
     }
 
@@ -86,6 +86,15 @@ public class NetworkLayoutTests
         Assert.Equal(NetworkLayout.Arrange(nodes), NetworkLayout.PlaceNew(nodes, new Dictionary<SummaryNodeId, NodePosition>()));
     }
 
+    [Fact]
+    public void The_label_box_runs_from_the_dot_to_the_end_of_the_label_on_its_right()
+    {
+        // The label is drawn to the right of the dot (S7): origin x + r + 9, so the box is asymmetric.
+        Assert.Equal(100 - NetworkLayout.NodeRadius, NetworkLayout.BoxLeft(100));
+        Assert.Equal(100 + NetworkLayout.NodeRadius + NetworkLayout.LabelGap + 56, NetworkLayout.BoxRight(100, NetworkLayout.LabelWidth("火车起源")));
+    }
+
+    /// <summary>Label boxes (dot on the left, label to its right) keep at least the padding apart on one axis.</summary>
     private static void AssertNoOverlap(List<LayoutNode> nodes, IReadOnlyDictionary<SummaryNodeId, NodePosition> layout)
     {
         for (var i = 0; i < nodes.Count; i++)
@@ -94,7 +103,8 @@ public class NetworkLayoutTests
             {
                 var a = layout[nodes[i].Id];
                 var b = layout[nodes[j].Id];
-                var apartX = Math.Abs(a.X - b.X) >= ((nodes[i].LabelWidth + nodes[j].LabelWidth) / 2) + NetworkLayout.LabelPadding;
+                var apartX = NetworkLayout.BoxLeft(b.X) - NetworkLayout.BoxRight(a.X, nodes[i].LabelWidth) >= NetworkLayout.LabelPadding - 0.01
+                    || NetworkLayout.BoxLeft(a.X) - NetworkLayout.BoxRight(b.X, nodes[j].LabelWidth) >= NetworkLayout.LabelPadding - 0.01;
                 var apartY = Math.Abs(a.Y - b.Y) >= NetworkLayout.NodeHeight;
                 Assert.True(apartX || apartY, $"Nodes {i} and {j} overlap at {a} and {b}.");
             }

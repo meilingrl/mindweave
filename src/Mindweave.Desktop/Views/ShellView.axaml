@@ -8,7 +8,7 @@
              x:Class="Mindweave.Desktop.Views.ShellView"
              x:DataType="vm:ShellViewModel">
   <Grid ColumnDefinitions="240,*">
-    <Border Background="{StaticResource SidebarBackground}" BorderBrush="{StaticResource DividerBrush}" BorderThickness="0,0,1,0">
+    <Border Background="{DynamicResource SidebarBackground}" BorderBrush="{DynamicResource DividerBrush}" BorderThickness="0,0,1,0">
       <DockPanel Margin="10,14">
         <StackPanel DockPanel.Dock="Top" Spacing="6">
           <DockPanel>

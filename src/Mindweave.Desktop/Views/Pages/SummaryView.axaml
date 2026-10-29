@@ -7,9 +7,21 @@
              x:DataType="vm:SummaryViewModel">
   <DockPanel>
     <StackPanel DockPanel.Dock="Top" Spacing="6" Margin="0,0,0,8" IsVisible="{Binding !IsMissing}">
-      <!-- Markers are words, not only colour (MW-C07). -->
-      <TextBlock Name="Markers" Classes="warning" FontSize="12" Text="{Binding MarkersText}"
-                 IsVisible="{Binding MarkersText, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
+      <!-- Markers are words, not only colour (MW-C07): the same tags as the network's details and list (S7). -->
+      <WrapPanel Name="Markers" Orientation="Horizontal" AutomationProperties.Name="{Binding MarkersText}">
+        <Border Name="UnreadBadge" Classes="badge accent" Margin="0,0,6,0" IsVisible="{Binding !ShownIsRead}">
+          <TextBlock Text="{x:Static d:UiText.MarkerUnread}" />
+        </Border>
+        <Border Name="ReadBadge" Classes="badge" Margin="0,0,6,0" IsVisible="{Binding ShownIsRead}">
+          <TextBlock Text="{x:Static d:UiText.MarkerRead}" />
+        </Border>
+        <Border Classes="badge warning" Margin="0,0,6,0" IsVisible="{Binding HasCandidate}">
+          <TextBlock Text="{x:Static d:UiText.MarkerCandidate}" />
+        </Border>
+        <Border Classes="badge" Margin="0,0,6,0" IsVisible="{Binding HasLaterContent}">
+          <TextBlock Text="{x:Static d:UiText.MarkerLater}" />
+        </Border>
+      </WrapPanel>
       <TextBlock Name="ShownLabel" Classes="muted" FontSize="12" Text="{Binding ShownLabel}" TextWrapping="Wrap" />
       <WrapPanel Orientation="Horizontal">
         <Button Name="ReturnButton" Content="{x:Static d:UiText.ReturnToConversation}" Command="{Binding ReturnToConversationCommand}" Margin="0,0,8,4" />
@@ -33,7 +45,7 @@
       </StackPanel>
       <TextBlock Name="Notice" Classes.error="{Binding NoticeIsError}" Classes.muted="{Binding !NoticeIsError}" Text="{Binding Notice}" TextWrapping="Wrap"
                  IsVisible="{Binding Notice, Converter={x:Static ObjectConverters.IsNotNull}}" />
-      <Border Name="ConfirmationPanel" BorderBrush="{StaticResource QuoteBar}" BorderThickness="3,0,0,0" Padding="10,6"
+      <Border Name="ConfirmationPanel" BorderBrush="{DynamicResource QuoteBar}" BorderThickness="3,0,0,0" Padding="10,6"
               IsVisible="{Binding Confirmation, Converter={x:Static ObjectConverters.IsNotNull}}">
         <StackPanel Spacing="6">
           <TextBlock Text="{Binding Confirmation.Message, FallbackValue=''}" TextWrapping="Wrap" />
@@ -45,7 +57,7 @@
       </Border>
       <TextBlock Classes="muted" FontSize="12" Text="{x:Static d:UiText.LaterContentNote}" TextWrapping="Wrap" IsVisible="{Binding HasLaterContent}" />
       <!-- The candidate is shown beside the current version, never in its place, until it is adopted. -->
-      <Border Name="CandidatePanel" Background="{StaticResource SidebarBackground}" CornerRadius="6" Padding="10,8" IsVisible="{Binding HasCandidate}">
+      <Border Name="CandidatePanel" Background="{DynamicResource SidebarBackground}" CornerRadius="6" Padding="10,8" IsVisible="{Binding HasCandidate}">
         <StackPanel Spacing="6">
           <TextBlock FontWeight="SemiBold" Text="{x:Static d:UiText.CandidateHeading}" />
           <TextBlock Classes="muted" FontSize="12" Text="{x:Static d:UiText.CandidateNote}" TextWrapping="Wrap" />

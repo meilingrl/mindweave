@@ -1,3 +1,4 @@
+using Mindweave.Application.Preferences;
 using Mindweave.Application.Startup;
 using Mindweave.Application.Workspaces;
 using Mindweave.Core.Workspaces;
@@ -16,6 +17,8 @@ public sealed class AppStartup : IRecoveryActions
     private readonly ShellViewModel _shell;
     private readonly ISystemShell _system;
     private readonly ExitCoordinator _exit;
+    private readonly AppearanceService _appearance;
+    private readonly IThemeApplier _theme;
 
     public AppStartup(
         StartupCoordinator coordinator,
@@ -24,7 +27,9 @@ public sealed class AppStartup : IRecoveryActions
         Workbench workbench,
         ShellViewModel shell,
         ISystemShell system,
-        ExitCoordinator exit)
+        ExitCoordinator exit,
+        AppearanceService appearance,
+        IThemeApplier theme)
     {
         _coordinator = coordinator;
         _workspaces = workspaces;
@@ -33,12 +38,16 @@ public sealed class AppStartup : IRecoveryActions
         _shell = shell;
         _system = system;
         _exit = exit;
+        _appearance = appearance;
+        _theme = theme;
     }
 
     public async Task RunAsync()
     {
         _root.Show(new StartupViewModel());
-        Apply(await _coordinator.StartAsync(CancellationToken.None));
+        var outcome = await _coordinator.StartAsync(CancellationToken.None);
+        await ApplyAppearanceAsync(outcome);
+        Apply(outcome);
     }
 
     public Task RetryAsync() => RunAsync();
@@ -48,7 +57,32 @@ public sealed class AppStartup : IRecoveryActions
     public async Task RestoreAsync(BackupInfo backup)
     {
         _root.Show(new StartupViewModel());
-        Apply(await _coordinator.RestoreAsync(backup, CancellationToken.None));
+        var outcome = await _coordinator.RestoreAsync(backup, CancellationToken.None);
+        await ApplyAppearanceAsync(outcome);
+        Apply(outcome);
+    }
+
+    /// <summary>
+    /// The stored appearance takes effect as soon as the database is open; until then (and on the recovery page) the
+    /// application follows the system. A failed read is not an error worth a page: the system theme stays.
+    /// </summary>
+    private async Task ApplyAppearanceAsync(StartupOutcome outcome)
+    {
+        if (outcome is StartupOutcome.NeedsRecovery)
+        {
+            return;
+        }
+
+        try
+        {
+            _theme.Apply(await _appearance.GetAsync(CancellationToken.None));
+        }
+#pragma warning disable CA1031 // Appearance is cosmetic; any storage failure here is reported by the pages that need storage.
+        catch (Exception)
+#pragma warning restore CA1031
+        {
+            _theme.Apply(Appearance.FollowSystem);
+        }
     }
 
     private void Apply(StartupOutcome outcome)

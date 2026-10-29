@@ -6,6 +6,16 @@
              x:DataType="vm:SettingsHomeViewModel">
   <ScrollViewer HorizontalScrollBarVisibility="Disabled">
   <StackPanel Spacing="10" HorizontalAlignment="Left" MaxWidth="640">
+    <TextBlock FontWeight="SemiBold" FontSize="16" Text="{x:Static d:UiText.AppearanceSection}" />
+    <StackPanel Name="AppearancePicker" Orientation="Horizontal" Spacing="16">
+      <RadioButton Name="AppearanceFollowSystem" GroupName="Appearance" Content="{x:Static d:UiText.AppearanceFollowSystem}" IsChecked="{Binding IsFollowSystem}" />
+      <RadioButton Name="AppearanceLight" GroupName="Appearance" Content="{x:Static d:UiText.AppearanceLight}" IsChecked="{Binding IsLight}" />
+      <RadioButton Name="AppearanceDark" GroupName="Appearance" Content="{x:Static d:UiText.AppearanceDark}" IsChecked="{Binding IsDark}" />
+    </StackPanel>
+    <TextBlock Classes="muted" FontSize="12" TextWrapping="Wrap" Text="{x:Static d:UiText.AppearanceHint}" />
+    <TextBlock Name="AppearanceStatus" Classes="error" FontSize="12" TextWrapping="Wrap" Text="{Binding AppearanceStatus}"
+               IsVisible="{Binding AppearanceStatus, Converter={x:Static ObjectConverters.IsNotNull}}" />
+    <Separator Margin="0,8" />
     <TextBlock FontWeight="SemiBold" FontSize="16" Text="{x:Static d:UiText.ModelSection}" />
     <TextBlock Classes="muted" TextWrapping="Wrap" Text="{x:Static d:UiText.PrivacyHint}" />
     <Grid ColumnDefinitions="Auto,*" RowDefinitions="Auto,Auto,Auto,Auto,Auto,Auto" ColumnSpacing="12" RowSpacing="8" DataContext="{Binding Model}">
