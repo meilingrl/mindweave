@@ -1,6 +1,8 @@
 <Application xmlns="https://github.com/avaloniaui"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:local="using:Mindweave.Desktop"
+             xmlns:lm="using:LiveMarkdown.Avalonia"
+             xmlns:ratex="using:RaTeX.Avalonia"
              x:Class="Mindweave.Desktop.App"
              Name="Mindweave"
              RequestedThemeVariant="Light">
@@ -19,6 +21,8 @@
     <SolidColorBrush x:Key="SelectedRow">#E7E5E4</SolidColorBrush>
     <SolidColorBrush x:Key="SourceHighlight">#FDE68A</SolidColorBrush>
     <SolidColorBrush x:Key="QuoteBar">#D6D3D1</SolidColorBrush>
+    <FontFamily x:Key="AnswerFontFamily">PingFang SC, Microsoft YaHei UI, Microsoft YaHei, Noto Sans CJK SC, Noto Sans SC, Source Han Sans SC, $Default</FontFamily>
+    <x:Double x:Key="DisplayFormulaFontSize">17</x:Double>
     </ResourceDictionary>
   </Application.Resources>
   <Application.Styles>
@@ -30,6 +34,23 @@
     </Style>
     <Style Selector="StackPanel.MarkdownDocument">
       <Setter Property="Spacing" Value="8" />
+    </Style>
+    <!--
+      Answer text puts a font with CJK glyphs first. With LiveMarkdown's Latin-only default, CJK characters come from
+      a fallback font, and Avalonia 12.1.4 reuses the previous run's fallback typeface, weight included, for the next
+      run: bold spread over the rest of a list item and never started in a paragraph that began plain.
+      Code blocks bind their own monospaced family and are not affected.
+    -->
+    <Style Selector="lm|MarkdownTextBlock">
+      <Setter Property="FontFamily" Value="{StaticResource AnswerFontFamily}" />
+    </Style>
+    <!-- Display formulas ($$…$$, \[…\]) are centred blocks, a little larger than body text as in print. -->
+    <Style Selector="lm|MarkdownTextBlock.MathBlock">
+      <Setter Property="FontSize" Value="{StaticResource DisplayFormulaFontSize}" />
+    </Style>
+    <Style Selector="ratex|FormulaControl.MathBlock">
+      <Setter Property="HorizontalAlignment" Value="Center" />
+      <Setter Property="Margin" Value="0,6" />
     </Style>
     <Style Selector="TextBlock.h1">
       <Setter Property="FontSize" Value="22" />

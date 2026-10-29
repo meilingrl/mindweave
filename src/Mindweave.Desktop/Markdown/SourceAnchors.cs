@@ -53,16 +53,19 @@ public static class SourceAnchors
     public const int LocatorVersion = 1;
 
     /// <summary>Identity of the rendering setup anchors are valid for; a different profile may lay text out differently.</summary>
-    public const string RenderProfile = "livemarkdown-2.5.1/math-2";
+    public const string RenderProfile = "livemarkdown-2.5.1/math-3";
 
     /// <summary>
     /// Profiles whose anchors are still worth trying. Before LaTeX rendering (and, in math-1, for backslash
     /// delimiters), formulas were shown as source text; answers without them lay out the same, and those with them
-    /// fail the layout check and fall back.
+    /// fail the layout check and fall back. Since math-3 a paragraph holding only a one-line display formula is drawn
+    /// as a formula block, not as a text block (<see cref="DisplayMathExtension"/>); every other text block keeps its
+    /// source span, ordinal and displayed text, so math-2 anchors still restore unless they cover such a paragraph.
     /// </summary>
     public static readonly IReadOnlySet<string> CompatibleProfiles = new HashSet<string>(StringComparer.Ordinal)
     {
         RenderProfile,
+        "livemarkdown-2.5.1/math-2",
         "livemarkdown-2.5.1/math-1",
         "livemarkdown-2.5.1/default-pipeline",
     };
