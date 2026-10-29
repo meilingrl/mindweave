@@ -6,6 +6,8 @@ using Avalonia.Controls;
 using Avalonia.Media;
 using Avalonia.VisualTree;
 using LiveMarkdown.Avalonia;
+using Markdig.Extensions.Mathematics;
+using Markdig.Syntax;
 
 namespace Mindweave.Desktop.Markdown;
 
@@ -22,7 +24,12 @@ namespace Mindweave.Desktop.Markdown;
 /// The quote with each formula (shown as one object character in the layout) replaced by its LaTeX source; null when
 /// the selection has no formula. <paramref name="Quote"/> stays the displayed text, which restoring checks against.
 /// </param>
-public sealed record AnchorSegment(int SourceStart, int SourceEnd, int Ordinal, string LayoutHash, int Start, int Length, string Quote, int? ExactRawStart = null, string? Readable = null);
+/// <param name="FormulasAfter">
+/// The LaTeX source, delimiters included, of the display formula blocks between this segment and the next, one per
+/// line; null when there are none. Formula blocks are not text blocks and cannot hold a selection themselves, but a
+/// selection running across one includes it. Only quoting uses it; restoring ignores it.
+/// </param>
+public sealed record AnchorSegment(int SourceStart, int SourceEnd, int Ordinal, string LayoutHash, int Start, int Length, string Quote, int? ExactRawStart = null, string? Readable = null, string? FormulasAfter = null);
 
 /// <summary>A selection inside one Markdown text, checked against a prefix hash of the text it was captured from.</summary>
 public sealed record SelectionAnchor(int Version, int SourceLength, string SourceHash, IReadOnlyList<AnchorSegment> Segments);
@@ -147,14 +154,42 @@ public static class SourceAnchors
             throw new InvalidOperationException("Nothing is selected.");
         }
 
-        return new(FormatVersion, markdown.Length, Hash(markdown), segments);
+        return new(FormatVersion, markdown.Length, Hash(markdown), WithFormulaBlocks(markdown, segments));
     }
 
-    /// <summary>The selected text as the reader saw it, one line per text block.</summary>
+    /// <summary>The selected text as the reader saw it, one line per text block and per display formula between them.</summary>
     public static string QuoteOf(SelectionAnchor anchor)
     {
         ArgumentNullException.ThrowIfNull(anchor);
-        return string.Join('\n', anchor.Segments.Select(s => s.Readable ?? s.Quote)).Trim();
+        return string.Join('\n', anchor.Segments.Select(s => s.FormulasAfter is null ? s.Readable ?? s.Quote : $"{s.Readable ?? s.Quote}\n{s.FormulasAfter}")).Trim();
+    }
+
+    /// <summary>
+    /// Attaches each display formula block lying between the first and last selected text blocks to the segment just
+    /// before it, matched by source span in the shared pipeline's parse of the same text (the parse the renderer
+    /// shows), so the quote keeps them in reading order, as <see cref="Readable"/> does for inline formulas.
+    /// </summary>
+    private static List<AnchorSegment> WithFormulaBlocks(string markdown, List<AnchorSegment> segments)
+    {
+        var first = segments[0].SourceEnd;
+        var last = segments[^1].SourceStart;
+        if (last <= first)
+        {
+            return segments;
+        }
+
+        var formulas = Markdig.Markdown.Parse(markdown, MarkdownUpdateProducer.DefaultPipeline).Descendants<MathBlock>()
+            .Where(f => f.Span.Start > first && f.Span.End < last && f.Span.End < markdown.Length)
+            .OrderBy(f => f.Span.Start);
+        foreach (var formula in formulas)
+        {
+            var index = segments.FindLastIndex(s => s.SourceEnd < formula.Span.Start);
+            var source = markdown[formula.Span.Start..(formula.Span.End + 1)].Trim();
+            var before = segments[index];
+            segments[index] = before with { FormulasAfter = before.FormulasAfter is null ? source : $"{before.FormulasAfter}\n{source}" };
+        }
+
+        return segments;
     }
 
     /// <summary>

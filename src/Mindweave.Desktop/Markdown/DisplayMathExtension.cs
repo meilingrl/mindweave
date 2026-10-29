@@ -8,10 +8,10 @@ using Markdig.Syntax.Inlines;
 namespace Mindweave.Desktop.Markdown;
 
 /// <summary>
-/// Shows a paragraph that is nothing but one display formula — <c>$$…$$</c> or <c>\[…\]</c> on a single line — as a
-/// formula block, the way multi-line <c>$$</c> fences and <c>\[</c> blocks already are. Markdig parses the one-line
-/// forms as inline math, which LiveMarkdown draws in text style inside the line: small and left-aligned. A display
-/// delimiter inside a sentence stays inline. Runs on every parse of the shared pipeline, so finished answers,
+/// Shows a paragraph that is nothing but one display formula — <c>$$…$$</c> on a single line — as a formula block, the
+/// way multi-line <c>$$</c> fences and <c>\[…\]</c> blocks (one-line ones included) already are. Markdig parses the
+/// one-line <c>$$</c> form as inline math, which LiveMarkdown draws in text style inside the line: small and
+/// left-aligned. A display delimiter inside a sentence stays inline. Runs on every parse of the shared pipeline, so finished answers,
 /// streaming answers and summaries all get the same document; the source text and every source span are unchanged.
 /// </summary>
 public sealed class DisplayMathExtension : IMarkdownExtension
@@ -74,13 +74,8 @@ public sealed class DisplayMathExtension : IMarkdownExtension
     }
 
     /// <summary>
-    /// <c>$$</c> is display math; the backslash parser marks both <c>\(</c> and <c>\[</c> with two delimiters, so the
-    /// bracket is read from the source.
+    /// <c>$$</c> is display math. A one-line <c>\[…\]</c> never reaches here: the extended mathematics parser already
+    /// reads it as a formula block, and <c>\(…\)</c> is inline by definition.
     /// </summary>
-    private static bool IsDisplay(MathInline math) => math.DelimiterCount == 2 && math.Delimiter switch
-    {
-        '$' => true,
-        '\\' => math.Span.Start + 1 < math.Content.Text.Length && math.Content.Text[math.Span.Start + 1] == '[',
-        _ => false,
-    };
+    private static bool IsDisplay(MathInline math) => math.DelimiterCount == 2 && math.Delimiter == '$';
 }

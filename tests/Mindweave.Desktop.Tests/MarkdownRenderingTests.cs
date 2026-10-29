@@ -51,7 +51,11 @@ public class MarkdownRenderingTests
         Assert.True(IsBold(runs, "bold"));
         Assert.False(IsBold(runs, " and plain, 以及"));
         Assert.True(IsBold(runs, "中文"));
-        Assert.False(IsBold(runs, "。"));
+
+        // Bold stops right after the emphasised word at the end of the mixed paragraph (its last "。", not the first).
+        var end = runs.Text.LastIndexOf("中文。", StringComparison.Ordinal) + "中文".Length;
+        Assert.Equal("。", runs.Text.Substring(end, 1));
+        Assert.False(runs.Bold[end], "The full stop after **中文** is bold.");
         window.Close();
     }
 
@@ -95,6 +99,83 @@ public class MarkdownRenderingTests
         var formula = Assert.Single(Formulas(renderer));
         Assert.Contains("Math", formula.Classes);
         Assert.Equal("能量 \uFFFC 与质量等价。", Assert.Single(SourceAnchors.Blocks(renderer)).LayoutText);
+        window.Close();
+    }
+
+    /// <summary>
+    /// The extended mathematics parser alone already reads a one-line <c>\[…\]</c> paragraph as a formula block; only
+    /// the one-line <c>$$…$$</c> needs <see cref="DisplayMathExtension"/>.
+    /// </summary>
+    [Fact]
+    public void Only_the_one_line_double_dollar_form_needs_promoting()
+    {
+        MarkdownSetup.EnsureRegistered();
+        var extended = new MarkdownPipelineBuilder().UseExtendedMathematics().Build();
+        Assert.IsType<Markdig.Extensions.Mathematics.MathBlock>(Assert.Single(Markdig.Markdown.Parse("\\[F = \\frac{p}{D}\\]", extended)));
+        Assert.IsType<Markdig.Syntax.ParagraphBlock>(Assert.Single(Markdig.Markdown.Parse("$$F = \\frac{p}{D}$$", extended)));
+        Assert.IsType<Markdig.Extensions.Mathematics.MathBlock>(Assert.Single(Markdig.Markdown.Parse("$$F = \\frac{p}{D}$$", MarkdownUpdateProducer.DefaultPipeline)));
+    }
+
+    /// <summary>
+    /// List numbers and bullets are drawn in the same face as the answer text beside them, so digits in a marker and in
+    /// the item match. Code blocks keep their own monospaced face.
+    /// </summary>
+    [AvaloniaTheory]
+    [InlineData(Feed.Full)]
+    [InlineData(Feed.Live)]
+    public async Task List_markers_use_the_answer_font(Feed feed)
+    {
+        var (window, renderer) = await RenderAsync("1. **多管锅炉**：1804 年\n2. 鼓风管\n\n- 无序 12 项\n\n```\ncode 1\n```", feed);
+        var answerFont = Assert.IsType<FontFamily>(Avalonia.Application.Current!.FindResource("AnswerFontFamily"));
+
+        var texts = renderer.GetVisualDescendants().OfType<TextBlock>()
+            .Where(t => t.IsVisible && !t.GetVisualAncestors().OfType<CodeBlock>().Any()).ToList();
+        Assert.Contains(texts, t => t is not MarkdownTextBlock);
+        Assert.All(texts, t => Assert.Equal(answerFont, t.FontFamily));
+        window.Close();
+    }
+
+    /// <summary>
+    /// A display formula block between the first and last selected text blocks is part of what the reader selected,
+    /// so the branch quote carries its LaTeX source, delimiters included, in reading order (as inline formulas do).
+    /// </summary>
+    [AvaloniaTheory]
+    [InlineData(Feed.Full, "$$F = \\frac{p d^2 s}{D}$$")]
+    [InlineData(Feed.Live, "$$F = \\frac{p d^2 s}{D}$$")]
+    [InlineData(Feed.Full, "$$\nF = \\frac{p d^2 s}{D}\n$$")]
+    [InlineData(Feed.Full, "\\[\nF = \\frac{p d^2 s}{D}\n\\]")]
+    [InlineData(Feed.Live, "\\[F = \\frac{p d^2 s}{D}\\]")]
+    public async Task A_selection_across_a_display_formula_quotes_the_formula(Feed feed, string formula)
+    {
+        var markdown = "估算起动牵引力：\n\n" + formula + "\n\n其中 $p$ 是锅炉压力。\n\n结尾。";
+        var (window, renderer) = await RenderAsync(markdown, feed);
+        var blocks = SourceAnchors.Blocks(renderer);
+        Assert.Equal(3, blocks.Count);
+
+        // The whole text before and after the formula.
+        blocks[0].SelectionStart = 0;
+        blocks[0].SelectionEnd = blocks[0].LayoutText.Length;
+        blocks[1].SelectionStart = 0;
+        blocks[1].SelectionEnd = blocks[1].LayoutText.Length;
+        Assert.Equal("估算起动牵引力：\n" + formula + "\n其中 $p$ 是锅炉压力。", SourceAnchors.QuoteOf(SourceAnchors.Capture(markdown, renderer)));
+
+        // Only the end of the text before and the start of the text after: the formula still sits between them.
+        blocks[0].SelectionStart = 4;
+        blocks[1].SelectionEnd = 2;
+        var partial = SourceAnchors.Capture(markdown, renderer);
+        Assert.Equal("牵引力：\n" + formula + "\n其中", SourceAnchors.QuoteOf(partial));
+        Assert.Equal(2, SourceAnchors.Restore(partial, markdown, renderer, Brushes.Yellow).Count);
+
+        // A selection that does not reach past the formula does not quote it.
+        blocks[1].SelectionEnd = 0;
+        blocks[1].SelectionStart = 0;
+        Assert.Equal("牵引力：", SourceAnchors.QuoteOf(SourceAnchors.Capture(markdown, renderer)));
+        blocks[0].SelectionStart = blocks[0].SelectionEnd = 0;
+        blocks[1].SelectionStart = 0;
+        blocks[1].SelectionEnd = blocks[1].LayoutText.Length;
+        blocks[2].SelectionStart = 0;
+        blocks[2].SelectionEnd = 2;
+        Assert.Equal("其中 $p$ 是锅炉压力。\n结尾", SourceAnchors.QuoteOf(SourceAnchors.Capture(markdown, renderer)));
         window.Close();
     }
 

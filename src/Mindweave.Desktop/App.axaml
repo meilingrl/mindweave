@@ -39,9 +39,11 @@
       Answer text puts a font with CJK glyphs first. With LiveMarkdown's Latin-only default, CJK characters come from
       a fallback font, and Avalonia 12.1.4 reuses the previous run's fallback typeface, weight included, for the next
       run: bold spread over the rest of a list item and never started in a paragraph that began plain.
-      Code blocks bind their own monospaced family and are not affected.
+      List numbers and bullets use it too, so digits in a marker match those in the item (their LiveMarkdown style has
+      a class selector, so this one needs one as well to take precedence). The trade-off: Latin letters and digits in
+      answers come from the CJK face, not Inter as in the rest of the interface. Code blocks bind their own monospaced family and are not affected.
     -->
-    <Style Selector="lm|MarkdownTextBlock">
+    <Style Selector="lm|MarkdownTextBlock, TextBlock.ListBlockNumber, TextBlock.ListBlockBullet">
       <Setter Property="FontFamily" Value="{StaticResource AnswerFontFamily}" />
     </Style>
     <!-- Display formulas ($$…$$, \[…\]) are centred blocks, a little larger than body text as in print. -->
