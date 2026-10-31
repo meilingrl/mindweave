@@ -20,7 +20,7 @@ public sealed partial class ConversationItemViewModel(ConversationId id) : ViewM
 
     /// <summary>A light marker, not a permanent status label (requirements §6.1): generating, or needs attention.</summary>
     [ObservableProperty]
-    [NotifyPropertyChangedFor(nameof(HasMarker))]
+    [NotifyPropertyChangedFor(nameof(HasMarker), nameof(IsGenerating), nameof(NeedsAttention))]
     public partial string? Marker { get; set; }
 
     [ObservableProperty]
@@ -28,13 +28,26 @@ public sealed partial class ConversationItemViewModel(ConversationId id) : ViewM
 
     public bool HasMarker => Marker is not null;
 
+    /// <summary>Drawn as a small accent dot.</summary>
+    public bool IsGenerating => Marker == GeneratingMarker;
+
+    /// <summary>Drawn as a small round error badge with "!".</summary>
+    public bool NeedsAttention => Marker == AttentionMarker;
+
+    internal const string GeneratingMarker = "●";
+
+    internal const string AttentionMarker = "!";
+
     [ObservableProperty]
     public partial bool IsSelected { get; set; }
 
     /// <summary>Branch level: 0 for a root conversation. Shown as indentation, not as a separate tree control.</summary>
     [ObservableProperty]
-    [NotifyPropertyChangedFor(nameof(Indent))]
+    [NotifyPropertyChangedFor(nameof(Indent), nameof(IsBranch))]
     public partial int Depth { get; set; }
+
+    /// <summary>A branch, drawn with a small corner glyph so the tree reads as a hierarchy, not only as indentation.</summary>
+    public bool IsBranch => Depth > 0;
 
     public Avalonia.Thickness Indent => new(Math.Min(Depth, MaxIndentedDepth) * 14, 0, 0, 0);
 
@@ -159,9 +172,9 @@ public sealed partial class ConversationListViewModel : ViewModelBase
         item.Title = UiText.ConversationTitle(summary.Conversation, summary.FirstQuestion, summary.Quote);
         var running = _generation.HasUnfinishedAnswer(summary.Conversation.Id);
         (item.Marker, item.MarkerHint) = running
-            ? ("●", UiText.MarkerGenerating)
+            ? (ConversationItemViewModel.GeneratingMarker, UiText.MarkerGenerating)
             : summary.LastAnswerState is MessageState.Failed or MessageState.Interrupted
-                ? ("!", UiText.MarkerNeedsAttention)
+                ? (ConversationItemViewModel.AttentionMarker, UiText.MarkerNeedsAttention)
                 : (null, null);
     }
 

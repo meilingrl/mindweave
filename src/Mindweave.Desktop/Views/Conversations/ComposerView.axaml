@@ -4,18 +4,32 @@
              xmlns:d="using:Mindweave.Desktop"
              x:Class="Mindweave.Desktop.Views.Conversations.ComposerView"
              x:DataType="vm:Composer">
-  <StackPanel Spacing="6">
-    <DockPanel IsVisible="{Binding Notice, Converter={x:Static ObjectConverters.IsNotNull}}">
-      <Button DockPanel.Dock="Right" Name="OpenSettingsFromNotice" Content="{x:Static d:UiText.OpenSettingsLink}"
-              IsVisible="{Binding ShowSettingsLink}" Classes="link" Tag="settings" />
-      <TextBlock Name="Notice" Classes="error" Text="{Binding Notice}" TextWrapping="Wrap" VerticalAlignment="Center" />
-    </DockPanel>
-    <Border BorderBrush="{DynamicResource DividerBrush}" BorderThickness="1" CornerRadius="10" Padding="8">
+  <StackPanel Spacing="8">
+    <!-- Why the last send was refused (or why sending is paused, on a page without its own notice). -->
+    <Border Name="NoticePanel" Classes="notice warning" HorizontalAlignment="Left" IsVisible="{Binding ShowNotice}">
       <DockPanel>
-        <Button Name="SendButton" DockPanel.Dock="Right" VerticalAlignment="Bottom" Content="{x:Static d:UiText.Send}"
-                Command="{Binding SendCommand}" Margin="8,0,0,0" />
-        <TextBox Name="Input" Text="{Binding Text}" AcceptsReturn="True" TextWrapping="Wrap" MaxHeight="220" MinHeight="40"
-                 BorderThickness="0" Background="Transparent" PlaceholderText="{x:Static d:UiText.AskPlaceholder}"
+        <TextBlock Classes="notice-icon" Text="!" VerticalAlignment="Center" />
+        <Button DockPanel.Dock="Right" Name="OpenSettingsFromNotice" Classes="quiet" Content="{x:Static d:UiText.OpenSettingsLink}"
+                IsVisible="{Binding ShowSettingsLink}" Tag="settings" Margin="8,0,0,0" />
+        <TextBlock Name="Notice" Text="{Binding Notice}" />
+      </DockPanel>
+    </Border>
+    <Border Classes="composer">
+      <DockPanel>
+        <!-- Send is the page's one primary button; while an answer runs, stop takes its place. -->
+        <Panel DockPanel.Dock="Right" VerticalAlignment="Bottom" Margin="8,0,0,0">
+          <Button Name="SendButton" Classes="primary" Content="{x:Static d:UiText.Send}" Command="{Binding SendCommand}"
+                  IsVisible="{Binding !IsAnswerRunning}" MinHeight="34" />
+          <Button Name="StopButton" Classes="secondary" Command="{Binding StopCommand}" IsVisible="{Binding IsAnswerRunning}" MinHeight="34"
+                  ToolTip.Tip="{x:Static d:UiText.StopAnswerHint}" AutomationProperties.Name="{x:Static d:UiText.Stop}">
+            <StackPanel Orientation="Horizontal" Spacing="6">
+              <PathIcon Width="10" Height="10" Data="{StaticResource IconStop}" />
+              <TextBlock Text="{x:Static d:UiText.Stop}" VerticalAlignment="Center" />
+            </StackPanel>
+          </Button>
+        </Panel>
+        <TextBox Name="Input" Text="{Binding Text}" AcceptsReturn="True" TextWrapping="Wrap" MaxHeight="220" MinHeight="34"
+                 VerticalContentAlignment="Center" PlaceholderText="{x:Static d:UiText.AskPlaceholder}"
                  AutomationProperties.Name="提问" />
       </DockPanel>
     </Border>

@@ -26,6 +26,8 @@ public static class UiText
     public const string SectionExplore = "探索";
     public const string SectionNetwork = "总结网络";
     public const string SectionSettings = "设置";
+    public const string ConversationsHeading = "会话";
+    public const string ExploreHomeHint = "从一个问题开始，或在左侧打开已有会话。";
     public const string Back = "后退";
     public const string ExploreEmpty = "这个工作区还没有会话。";
     public const string NetworkTitle = "总结网络";
@@ -117,6 +119,7 @@ public static class UiText
 
     // Archive and delete (S6, §9.5, D-021)
     public const string Archive = "归档";
+    public const string ArchiveInstead = "改为归档";
     public const string Delete = "删除";
     public const string Restore = "恢复";
     public const string RestoreAndContinue = "恢复并继续";
@@ -150,6 +153,7 @@ public static class UiText
     public const string AskPlaceholder = "提问…（Enter 发送，Shift+Enter 换行）";
     public const string Send = "发送";
     public const string Stop = "停止";
+    public const string StopAnswerHint = "停止生成，保留已收到的文字";
     public const string Regenerate = "重新生成";
     public const string Rename = "改名";
     public const string Save = "保存";
@@ -160,6 +164,7 @@ public static class UiText
     public const string MarkerNeedsAttention = "回答未完成，可重试";
     public const string CreateBranch = "就选中的文字创建分支";
     public const string ReturnToSource = "返回来源";
+    public const string ReturnToSourceHint = "回到来源回答，并选中这段原文";
     public const string BranchFrom = "来自";
     public const string BranchesHeading = "从这里分出的探索";
     public const string ModelSection = "模型连接";
@@ -171,6 +176,7 @@ public static class UiText
     public const string ContextWindowPlaceholder = "留空按 32000 计";
     public const string ContextWindowHint = "模型一次能读入的 token 数，例如 DeepSeek 为 128000。对话超出时，较早的内容会先压缩成摘要再发送：这会多发几次请求、多等一会儿，也会产生相应费用；原始记录始终完整保留在本地。";
     public const string WaitingForAnswer = "正在等待回答…";
+    public const string AnswerStreaming = "正在生成…";
     public const string CompressingContext = "正在压缩较早的对话…";
     public const string ContextCompressedNote = "较早的对话已压缩为摘要发送，原记录完整保留";
     public const string ModelLabel = "模型";

@@ -1,26 +1,19 @@
 <UserControl xmlns="https://github.com/avaloniaui"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:vm="using:Mindweave.Desktop.ViewModels.Conversations"
-             xmlns:v="using:Mindweave.Desktop.Views.Conversations"
              xmlns:d="using:Mindweave.Desktop"
              x:Class="Mindweave.Desktop.Views.Conversations.AnswerView"
              x:DataType="vm:MessageItemViewModel">
-  <StackPanel Spacing="4">
+  <StackPanel Spacing="6">
     <!-- The Markdown renderer is created in code: it is fed either a full parse (finished) or a live builder (streaming). -->
     <ContentControl Name="BodyHost" />
-    <Button Name="BranchButton" Classes="link" Content="{x:Static d:UiText.CreateBranch}" IsVisible="False" HorizontalAlignment="Left"
-            ToolTip.ShowOnDisabled="True" />
-    <StackPanel Spacing="2" IsVisible="{Binding Branches.Count, Converter={x:Static d:Converters.IsPositive}}">
-      <TextBlock Classes="muted" FontSize="12" Text="{x:Static d:UiText.BranchesHeading}" />
-      <ItemsControl Name="BranchEntries" ItemsSource="{Binding Branches}">
-        <ItemsControl.ItemTemplate>
-          <DataTemplate x:DataType="vm:BranchEntry">
-            <Button Classes="link" Content="{Binding Label}" HorizontalAlignment="Left"
-                    Command="{Binding $parent[v:ConversationView].((vm:ConversationViewModel)DataContext).OpenConversationCommand}"
-                    CommandParameter="{Binding Child}" />
-          </DataTemplate>
-        </ItemsControl.ItemTemplate>
-      </ItemsControl>
-    </StackPanel>
+    <!-- Appears under the answer while text in it is selected. The branch entries are listed by the page, after the answer's actions. -->
+    <Button Name="BranchButton" Classes="secondary" IsVisible="False" HorizontalAlignment="Left" ToolTip.ShowOnDisabled="True"
+            AutomationProperties.Name="{x:Static d:UiText.CreateBranch}">
+      <StackPanel Orientation="Horizontal" Spacing="6">
+        <PathIcon Data="{StaticResource IconBranch}" />
+        <TextBlock Text="{x:Static d:UiText.CreateBranch}" VerticalAlignment="Center" />
+      </StackPanel>
+    </Button>
   </StackPanel>
 </UserControl>

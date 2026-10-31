@@ -55,7 +55,7 @@ public sealed partial class MessageItemViewModel : ViewModelBase, IDisposable
     public bool IsRetryAttempt { get; }
 
     [ObservableProperty]
-    [NotifyPropertyChangedFor(nameof(HasBody), nameof(CanBranch), nameof(IsWaiting))]
+    [NotifyPropertyChangedFor(nameof(HasBody), nameof(CanBranch), nameof(IsWaiting), nameof(IsStreaming))]
     public partial string Body { get; private set; }
 
     [ObservableProperty]
@@ -63,11 +63,12 @@ public sealed partial class MessageItemViewModel : ViewModelBase, IDisposable
     public partial AnswerPhase Phase { get; private set; }
 
     [ObservableProperty]
-    [NotifyPropertyChangedFor(nameof(StateLabel), nameof(IsInProgress), nameof(IsProblem), nameof(CanBranch), nameof(IsWaiting))]
+    [NotifyPropertyChangedFor(nameof(StateLabel), nameof(IsInProgress), nameof(IsProblem), nameof(CanBranch), nameof(IsWaiting), nameof(IsStreaming))]
+    [NotifyPropertyChangedFor(nameof(ShowsQuietState), nameof(CanRetryQuietly), nameof(CanRetryInNotice), nameof(HasActions))]
     public partial MessageState State { get; private set; }
 
     [ObservableProperty]
-    [NotifyPropertyChangedFor(nameof(StateLabel))]
+    [NotifyPropertyChangedFor(nameof(StateLabel), nameof(ShowsQuietState), nameof(HasActions))]
     public partial GenerationErrorKind? ErrorKind { get; private set; }
 
     [ObservableProperty]
@@ -75,7 +76,7 @@ public sealed partial class MessageItemViewModel : ViewModelBase, IDisposable
 
     /// <summary>Set by the page: whether this is the conversation's last answer and may be retried.</summary>
     [ObservableProperty]
-    [NotifyPropertyChangedFor(nameof(RetryLabel))]
+    [NotifyPropertyChangedFor(nameof(RetryLabel), nameof(CanRetryQuietly), nameof(CanRetryInNotice), nameof(HasActions))]
     public partial bool CanRetry { get; set; }
 
     /// <summary>Set by the page while core storage is failing: a branch cannot be created now (§9.3).</summary>
@@ -122,6 +123,21 @@ public sealed partial class MessageItemViewModel : ViewModelBase, IDisposable
     public bool IsProblem => State is MessageState.Failed or MessageState.Interrupted;
 
     public string? StateLabel => IsAnswer ? UiText.AnswerState(State, ErrorKind) : null;
+
+    /// <summary>Text is arriving: a small in-answer mark says it is still being written (not a bar under each paragraph).</summary>
+    public bool IsStreaming => IsInProgress && HasBody;
+
+    /// <summary>A plain state (stopped, cancelled) shown quietly in the row under the answer; failures get a notice.</summary>
+    public bool ShowsQuietState => StateLabel is not null && !IsProblem && !IsInProgress;
+
+    /// <summary>Retry or regenerate in the quiet row under the answer.</summary>
+    public bool CanRetryQuietly => CanRetry && !IsProblem;
+
+    /// <summary>Retry next to the error, inside the failure notice.</summary>
+    public bool CanRetryInNotice => CanRetry && IsProblem;
+
+    /// <summary>Whether the quiet action row under the answer has anything to show.</summary>
+    public bool HasActions => ShowsQuietState || CanRetryQuietly;
 
     public string RetryLabel => State == MessageState.Complete ? UiText.Regenerate : UiText.Retry;
 

@@ -6,143 +6,269 @@
              x:Class="Mindweave.Desktop.Views.Conversations.ConversationView"
              x:DataType="vm:ConversationViewModel">
   <DockPanel>
-    <StackPanel DockPanel.Dock="Top" Spacing="6" Margin="0,0,0,8">
-      <!-- Where this branch sits: its ancestors (each opens normally) and the passage it was created from. -->
-      <StackPanel Name="BranchHeader" Spacing="6" IsVisible="{Binding IsBranch}">
-        <ItemsControl Name="LineagePath" ItemsSource="{Binding Lineage}">
-          <ItemsControl.ItemsPanel>
-            <ItemsPanelTemplate>
-              <WrapPanel Orientation="Horizontal" />
-            </ItemsPanelTemplate>
-          </ItemsControl.ItemsPanel>
-          <ItemsControl.ItemTemplate>
-            <DataTemplate x:DataType="vm:LineageItem">
-              <StackPanel Orientation="Horizontal">
-                <Button Classes="link" Content="{Binding Title}"
-                        Command="{Binding $parent[v:ConversationView].((vm:ConversationViewModel)DataContext).OpenConversationCommand}"
-                        CommandParameter="{Binding Id}" />
-                <TextBlock Classes="muted" Text="›" VerticalAlignment="Center" Margin="2,0" />
-              </StackPanel>
-            </DataTemplate>
-          </ItemsControl.ItemTemplate>
-        </ItemsControl>
-        <DockPanel>
-          <Button Name="ReturnButton" DockPanel.Dock="Right" Content="{x:Static d:UiText.ReturnToSource}"
-                  Command="{Binding ReturnToSourceCommand}" VerticalAlignment="Top" Margin="8,0,0,0" />
-          <Border BorderBrush="{DynamicResource QuoteBar}" BorderThickness="3,0,0,0" Padding="10,2">
-            <StackPanel Spacing="2">
-              <TextBlock Classes="muted" FontSize="12" Text="{x:Static d:UiText.BranchFrom}" />
-              <TextBlock Name="QuoteText" Text="{Binding SourceQuote}" TextWrapping="Wrap" MaxLines="4" TextTrimming="CharacterEllipsis" />
-            </StackPanel>
-          </Border>
-        </DockPanel>
-      </StackPanel>
-      <TextBlock Name="StorageNotice" Classes="error" Text="{Binding StorageNotice}" TextWrapping="Wrap"
-                 IsVisible="{Binding IsStorageBlocked}" />
-      <TextBlock Name="SourceNotice" Classes="error" Text="{Binding SourceNotice}" TextWrapping="Wrap"
-                 IsVisible="{Binding SourceNotice, Converter={x:Static ObjectConverters.IsNotNull}}" />
-      <TextBlock Classes="error" Text="{Binding BranchNotice}" TextWrapping="Wrap"
-                 IsVisible="{Binding BranchNotice, Converter={x:Static ObjectConverters.IsNotNull}}" />
-      <StackPanel Orientation="Horizontal" Spacing="6" IsVisible="{Binding IsRenaming}">
-        <TextBox Name="RenameBox" Text="{Binding RenameText}" Width="320" />
-        <Button Content="{x:Static d:UiText.Save}" Command="{Binding CommitRenameCommand}" IsDefault="True" />
-        <Button Content="{x:Static d:UiText.Cancel}" Command="{Binding CancelRenameCommand}" />
-      </StackPanel>
-      <WrapPanel Orientation="Horizontal" IsVisible="{Binding !IsMissing}">
-        <Button Name="RenameButton" Classes="link" Content="{x:Static d:UiText.Rename}" Command="{Binding BeginRenameCommand}"
-                IsVisible="{Binding !IsRenaming}" Margin="0,0,12,0" VerticalAlignment="Center" />
+    <StackPanel DockPanel.Dock="Top" Spacing="8" Margin="0,0,0,6">
+      <!-- Page toolbar: quiet icon-and-text buttons in one row (S7); delete in the danger colour. -->
+      <WrapPanel Name="PageToolbar" Orientation="Horizontal" Margin="-8,0,0,0" IsVisible="{Binding !IsMissing}">
+        <Button Name="RenameButton" Classes="quiet" Command="{Binding BeginRenameCommand}" IsVisible="{Binding !IsRenaming}" Margin="0,0,2,0">
+          <StackPanel Orientation="Horizontal" Spacing="6">
+            <PathIcon Data="{StaticResource IconRename}" />
+            <TextBlock Text="{x:Static d:UiText.Rename}" VerticalAlignment="Center" />
+          </StackPanel>
+        </Button>
         <!-- Summary at any stage (§6.4): its entry and markers, generation progress, the last failure. -->
-        <Button Name="SummaryEntry" Classes="link" Content="{Binding SummaryEntryText}" Command="{Binding OpenSummaryCommand}"
-                IsVisible="{Binding HasSummary}" Margin="0,0,6,0" VerticalAlignment="Center" />
-        <TextBlock Name="SummaryMarkers" Classes="warning" FontSize="12" Text="{Binding SummaryMarkersText}" VerticalAlignment="Center" Margin="0,0,12,0"
-                   IsVisible="{Binding SummaryMarkersText, Converter={x:Static ObjectConverters.IsNotNull}}" />
-        <Panel IsVisible="{Binding IsOpen}" VerticalAlignment="Center">
-          <Button Name="SummarizeButton" Classes="link" Content="{Binding SummarizeLabel}" Command="{Binding SummarizeCommand}"
-                  IsVisible="{Binding RunningSummary, Converter={x:Static ObjectConverters.IsNull}}" VerticalAlignment="Center"
-                  ToolTip.Tip="{Binding StorageNotice}" ToolTip.ShowOnDisabled="True" />
+        <Button Name="SummaryEntry" Classes="quiet" Command="{Binding OpenSummaryCommand}" IsVisible="{Binding HasSummary}" Margin="0,0,2,0"
+                AutomationProperties.Name="{Binding SummaryEntryText}">
+          <StackPanel Orientation="Horizontal" Spacing="6">
+            <PathIcon Data="{StaticResource IconSummary}" />
+            <TextBlock Text="{Binding SummaryEntryText}" VerticalAlignment="Center" MaxWidth="260" TextTrimming="CharacterEllipsis" />
+          </StackPanel>
+        </Button>
+        <Border Name="SummaryMarkersBadge" Classes="badge warning" Margin="0,0,8,0"
+                IsVisible="{Binding SummaryMarkersText, Converter={x:Static ObjectConverters.IsNotNull}}">
+          <TextBlock Name="SummaryMarkers" Text="{Binding SummaryMarkersText}" />
+        </Border>
+        <Panel IsVisible="{Binding IsOpen}" VerticalAlignment="Center" Margin="0,0,2,0">
+          <Button Name="SummarizeButton" Classes="quiet" Command="{Binding SummarizeCommand}"
+                  IsVisible="{Binding RunningSummary, Converter={x:Static ObjectConverters.IsNull}}"
+                  ToolTip.Tip="{Binding StorageNotice}" ToolTip.ShowOnDisabled="True" AutomationProperties.Name="{Binding SummarizeLabel}">
+            <StackPanel Orientation="Horizontal" Spacing="6">
+              <PathIcon Data="{StaticResource IconSummarize}" />
+              <TextBlock Text="{Binding SummarizeLabel}" VerticalAlignment="Center" />
+            </StackPanel>
+          </Button>
         </Panel>
         <!-- An archived conversation is never summarized directly (D-021). -->
-        <Button Name="RestoreAndSummarizeButton" Classes="link" Content="{x:Static d:UiText.RestoreAndSummarize}" Command="{Binding RestoreAndSummarizeCommand}"
-                IsVisible="{Binding IsArchived}" VerticalAlignment="Center" />
-        <StackPanel Orientation="Horizontal" Spacing="6" VerticalAlignment="Center"
-                    IsVisible="{Binding RunningSummary, Converter={x:Static ObjectConverters.IsNotNull}}">
-          <ProgressBar IsIndeterminate="True" Width="40" VerticalAlignment="Center" />
-          <TextBlock Classes="muted" FontSize="12" Text="{x:Static d:UiText.SummaryGenerating}" VerticalAlignment="Center" />
-          <Button Name="StopSummaryButton" Classes="link" Content="{x:Static d:UiText.SummaryStop}" Command="{Binding StopSummaryCommand}" />
-        </StackPanel>
-        <Button Name="ArchiveButton" Classes="link" Content="{x:Static d:UiText.Archive}" Command="{Binding ArchiveCommand}"
-                IsVisible="{Binding IsOpen}" Margin="12,0,0,0" VerticalAlignment="Center" />
-        <Button Name="DeleteButton" Classes="link" Content="{x:Static d:UiText.Delete}" Command="{Binding DeleteCommand}"
-                Margin="12,0,0,0" VerticalAlignment="Center" />
-      </WrapPanel>
-      <Border Name="ConfirmationPanel" BorderBrush="{DynamicResource QuoteBar}" BorderThickness="3,0,0,0" Padding="10,6"
-              IsVisible="{Binding Confirmation, Converter={x:Static ObjectConverters.IsNotNull}}">
-        <StackPanel Spacing="6">
-          <TextBlock Text="{Binding Confirmation.Message, FallbackValue=''}" TextWrapping="Wrap" />
+        <Button Name="RestoreAndSummarizeButton" Classes="quiet" Command="{Binding RestoreAndSummarizeCommand}" IsVisible="{Binding IsArchived}" Margin="0,0,2,0">
           <StackPanel Orientation="Horizontal" Spacing="6">
-            <Button Name="ConfirmButton" Content="{x:Static d:UiText.Confirm}" Command="{Binding ConfirmCommand}" />
-            <Button Content="{x:Static d:UiText.Cancel}" Command="{Binding CancelConfirmationCommand}" />
+            <PathIcon Data="{StaticResource IconSummarize}" />
+            <TextBlock Text="{x:Static d:UiText.RestoreAndSummarize}" VerticalAlignment="Center" />
           </StackPanel>
+        </Button>
+        <StackPanel Orientation="Horizontal" Spacing="6" VerticalAlignment="Center" Margin="8,0,2,0"
+                    IsVisible="{Binding RunningSummary, Converter={x:Static ObjectConverters.IsNotNull}}">
+          <ProgressBar IsIndeterminate="True" Width="40" MinWidth="40" VerticalAlignment="Center" />
+          <TextBlock Classes="caption" Text="{x:Static d:UiText.SummaryGenerating}" VerticalAlignment="Center" />
+          <Button Name="StopSummaryButton" Classes="quiet" Command="{Binding StopSummaryCommand}">
+            <StackPanel Orientation="Horizontal" Spacing="6">
+              <PathIcon Width="10" Height="10" Data="{StaticResource IconStop}" />
+              <TextBlock Text="{x:Static d:UiText.SummaryStop}" VerticalAlignment="Center" />
+            </StackPanel>
+          </Button>
         </StackPanel>
-      </Border>
-      <StackPanel Orientation="Horizontal" Spacing="8" IsVisible="{Binding ArchiveNotice, Converter={x:Static ObjectConverters.IsNotNull}}">
-        <TextBlock Name="ArchiveNotice" Classes="error" FontSize="12" Text="{Binding ArchiveNotice}" TextWrapping="Wrap" VerticalAlignment="Center" />
-        <Button Name="OfferArchiveButton" Classes="link" Content="{x:Static d:UiText.Archive}" Command="{Binding ArchiveCommand}"
-                IsVisible="{Binding OfferArchive}" VerticalAlignment="Center" />
+        <Button Name="ArchiveButton" Classes="quiet" Command="{Binding ArchiveCommand}" IsVisible="{Binding ShowArchiveInToolbar}" Margin="0,0,2,0">
+          <StackPanel Orientation="Horizontal" Spacing="6">
+            <PathIcon Data="{StaticResource IconArchive}" />
+            <TextBlock Text="{x:Static d:UiText.Archive}" VerticalAlignment="Center" />
+          </StackPanel>
+        </Button>
+        <Button Name="DeleteButton" Classes="quiet danger" Command="{Binding DeleteCommand}">
+          <StackPanel Orientation="Horizontal" Spacing="6">
+            <PathIcon Data="{StaticResource IconDelete}" />
+            <TextBlock Text="{x:Static d:UiText.Delete}" VerticalAlignment="Center" />
+          </StackPanel>
+        </Button>
+      </WrapPanel>
+      <StackPanel Orientation="Horizontal" Spacing="6" IsVisible="{Binding IsRenaming}">
+        <TextBox Name="RenameBox" Text="{Binding RenameText}" Width="320" />
+        <Button Classes="primary" Content="{x:Static d:UiText.Save}" Command="{Binding CommitRenameCommand}" IsDefault="True" />
+        <Button Classes="quiet" Content="{x:Static d:UiText.Cancel}" Command="{Binding CancelRenameCommand}" />
       </StackPanel>
-      <TextBlock Name="SummaryNotice" Classes="error" FontSize="12" Text="{Binding SummaryNotice}" TextWrapping="Wrap"
-                 IsVisible="{Binding SummaryNotice, Converter={x:Static ObjectConverters.IsNotNull}}" />
-      <TextBlock Name="SummaryProblem" Classes="error" FontSize="12" Text="{Binding SummaryProblem}" TextWrapping="Wrap"
-                 IsVisible="{Binding SummaryProblem, Converter={x:Static ObjectConverters.IsNotNull}}" />
+
+      <!-- Where this branch sits: its ancestors (each opens normally) and the passage it was created from, read as a quotation. -->
+      <Border Name="BranchHeader" Classes="card" Padding="12,9,8,10" IsVisible="{Binding IsBranch}">
+        <DockPanel>
+          <Button Name="ReturnButton" DockPanel.Dock="Right" Classes="quiet" Command="{Binding ReturnToSourceCommand}" VerticalAlignment="Top"
+                  Margin="12,0,0,0" ToolTip.Tip="{x:Static d:UiText.ReturnToSourceHint}">
+            <StackPanel Orientation="Horizontal" Spacing="6">
+              <PathIcon Data="{StaticResource IconReturn}" />
+              <TextBlock Text="{x:Static d:UiText.ReturnToSource}" VerticalAlignment="Center" />
+            </StackPanel>
+          </Button>
+          <StackPanel Spacing="6">
+            <WrapPanel Orientation="Horizontal">
+              <TextBlock Classes="caption" Text="{x:Static d:UiText.BranchFrom}" VerticalAlignment="Center" Margin="0,0,3,0" />
+              <ItemsControl Name="LineagePath" ItemsSource="{Binding Lineage}" VerticalAlignment="Center">
+                <ItemsControl.ItemsPanel>
+                  <ItemsPanelTemplate>
+                    <WrapPanel Orientation="Horizontal" />
+                  </ItemsPanelTemplate>
+                </ItemsControl.ItemsPanel>
+                <ItemsControl.ItemTemplate>
+                  <DataTemplate x:DataType="vm:LineageItem">
+                    <StackPanel Orientation="Horizontal">
+                      <TextBlock Classes="caption" Text="›" VerticalAlignment="Center" Margin="2,0" IsVisible="{Binding !IsFirst}" />
+                      <Button Classes="crumb" Content="{Binding Title}"
+                              Command="{Binding $parent[v:ConversationView].((vm:ConversationViewModel)DataContext).OpenConversationCommand}"
+                              CommandParameter="{Binding Id}" />
+                    </StackPanel>
+                  </DataTemplate>
+                </ItemsControl.ItemTemplate>
+              </ItemsControl>
+            </WrapPanel>
+            <Border Classes="quote">
+              <TextBlock Name="QuoteText" Text="{Binding SourceQuote}" TextWrapping="Wrap" MaxLines="4" TextTrimming="CharacterEllipsis"
+                         Foreground="{DynamicResource PrimaryText}" />
+            </Border>
+          </StackPanel>
+        </DockPanel>
+      </Border>
+
+      <!-- Notices: one per matter, with the action next to its reason. -->
+      <Border Name="StorageNoticePanel" Classes="notice warning" IsVisible="{Binding IsStorageBlocked}">
+        <DockPanel>
+          <TextBlock Classes="notice-icon" Text="!" />
+          <TextBlock Name="StorageNotice" Text="{Binding StorageNotice}" />
+        </DockPanel>
+      </Border>
+      <Border Classes="notice warning" IsVisible="{Binding SourceNotice, Converter={x:Static ObjectConverters.IsNotNull}}">
+        <DockPanel>
+          <TextBlock Classes="notice-icon" Text="!" />
+          <TextBlock Name="SourceNotice" Text="{Binding SourceNotice}" />
+        </DockPanel>
+      </Border>
+      <Border Classes="notice error" IsVisible="{Binding BranchNotice, Converter={x:Static ObjectConverters.IsNotNull}}">
+        <DockPanel>
+          <TextBlock Classes="notice-icon" Text="!" />
+          <TextBlock Name="BranchNotice" Text="{Binding BranchNotice}" />
+        </DockPanel>
+      </Border>
+      <Border Name="ConfirmationPanel" Classes="notice warning" IsVisible="{Binding Confirmation, Converter={x:Static ObjectConverters.IsNotNull}}">
+        <DockPanel>
+          <TextBlock Classes="notice-icon" Text="?" />
+          <StackPanel Spacing="8">
+            <TextBlock Text="{Binding Confirmation.Message, FallbackValue=''}" />
+            <StackPanel Orientation="Horizontal" Spacing="6">
+              <Button Name="ConfirmButton" Classes="secondary" Content="{x:Static d:UiText.Confirm}" Command="{Binding ConfirmCommand}" />
+              <Button Classes="quiet" Content="{x:Static d:UiText.Cancel}" Command="{Binding CancelConfirmationCommand}" />
+            </StackPanel>
+          </StackPanel>
+        </DockPanel>
+      </Border>
+      <Border Name="ArchiveNoticePanel" Classes="notice warning" HorizontalAlignment="Left" IsVisible="{Binding ArchiveNotice, Converter={x:Static ObjectConverters.IsNotNull}}">
+        <DockPanel>
+          <TextBlock Classes="notice-icon" Text="!" VerticalAlignment="Center" />
+          <Button Name="OfferArchiveButton" DockPanel.Dock="Right" Classes="quiet" Command="{Binding ArchiveCommand}" IsVisible="{Binding OfferArchive}" Margin="10,0,0,0">
+            <StackPanel Orientation="Horizontal" Spacing="6">
+              <PathIcon Data="{StaticResource IconArchive}" />
+              <TextBlock Text="{x:Static d:UiText.ArchiveInstead}" VerticalAlignment="Center" />
+            </StackPanel>
+          </Button>
+          <TextBlock Name="ArchiveNotice" Text="{Binding ArchiveNotice}" />
+        </DockPanel>
+      </Border>
+      <Border Classes="notice error" IsVisible="{Binding SummaryNotice, Converter={x:Static ObjectConverters.IsNotNull}}">
+        <DockPanel>
+          <TextBlock Classes="notice-icon" Text="!" />
+          <TextBlock Name="SummaryNotice" Text="{Binding SummaryNotice}" />
+        </DockPanel>
+      </Border>
+      <Border Classes="notice error" IsVisible="{Binding SummaryProblem, Converter={x:Static ObjectConverters.IsNotNull}}">
+        <DockPanel>
+          <TextBlock Classes="notice-icon" Text="!" />
+          <TextBlock Name="SummaryProblem" Text="{Binding SummaryProblem}" />
+        </DockPanel>
+      </Border>
     </StackPanel>
 
-    <StackPanel DockPanel.Dock="Bottom" Spacing="6" Margin="0,8,0,0" IsVisible="{Binding !IsMissing}">
-      <Button Name="StopButton" Content="{x:Static d:UiText.Stop}" Command="{Binding StopCommand}"
-              IsVisible="{Binding RunningAnswer, Converter={x:Static ObjectConverters.IsNotNull}}" HorizontalAlignment="Center" />
-      <TextBlock Name="ContextUsageLine" FontSize="12" TextWrapping="Wrap" Text="{Binding ContextUsageText}"
-                 Classes.muted="{Binding !ContextIsTight}" Classes.warning="{Binding ContextIsTight}"
-                 IsVisible="{Binding ContextUsageText, Converter={x:Static ObjectConverters.IsNotNull}}" />
+    <StackPanel DockPanel.Dock="Bottom" Spacing="6" Margin="0,10,0,0" IsVisible="{Binding !IsMissing}">
       <Panel IsVisible="{Binding IsOpen}">
         <v:ComposerView Name="ComposerHost" DataContext="{Binding Composer}" />
       </Panel>
       <!-- Read-only while archived: the way back is a restore, never an answer in the hidden subtree (D-021). -->
-      <Border Name="ArchivedPanel" Background="{DynamicResource SidebarBackground}" CornerRadius="6" Padding="10,8" IsVisible="{Binding IsArchived}">
+      <Border Name="ArchivedPanel" Classes="notice info" IsVisible="{Binding IsArchived}">
         <DockPanel>
-          <Button Name="RestoreAndContinueButton" DockPanel.Dock="Right" Content="{x:Static d:UiText.RestoreAndContinue}"
-                  Command="{Binding RestoreAndContinueCommand}" VerticalAlignment="Center" Margin="8,0,0,0" />
-          <TextBlock Name="ArchivedText" Text="{Binding ArchiveText}" TextWrapping="Wrap" VerticalAlignment="Center" />
+          <TextBlock Classes="notice-icon" Text="i" VerticalAlignment="Center" />
+          <Button Name="RestoreAndContinueButton" DockPanel.Dock="Right" Classes="primary" Content="{x:Static d:UiText.RestoreAndContinue}"
+                  Command="{Binding RestoreAndContinueCommand}" Margin="12,0,0,0" />
+          <TextBlock Name="ArchivedText" Text="{Binding ArchiveText}" />
         </DockPanel>
       </Border>
+      <TextBlock Name="ContextUsageLine" FontSize="11.5" TextWrapping="Wrap" Text="{Binding ContextUsageText}" Margin="4,0,0,0"
+                 Classes.muted="{Binding !ContextIsTight}" Classes.warning="{Binding ContextIsTight}"
+                 IsVisible="{Binding ContextUsageText, Converter={x:Static ObjectConverters.IsNotNull}}" />
     </StackPanel>
 
-    <ScrollViewer Name="Scroller" HorizontalScrollBarVisibility="Disabled">
+    <ScrollViewer Name="Scroller" Classes="autohide" HorizontalScrollBarVisibility="Disabled">
       <ItemsControl Name="MessageList" ItemsSource="{Binding Messages}" Margin="0,0,12,0">
         <ItemsControl.ItemTemplate>
           <DataTemplate x:DataType="vm:MessageItemViewModel">
-            <StackPanel Margin="0,8" Spacing="4">
+            <StackPanel Margin="0,6" Spacing="6">
               <!-- Question: right-aligned bubble. -->
-              <Border IsVisible="{Binding IsUser}" HorizontalAlignment="Right" MaxWidth="560"
-                      Background="{DynamicResource SidebarBackground}" CornerRadius="12" Padding="12,8">
+              <Border Classes="question" IsVisible="{Binding IsUser}" HorizontalAlignment="Right" MaxWidth="560">
                 <SelectableTextBlock Text="{Binding Body}" TextWrapping="Wrap" />
               </Border>
               <!-- Answer: Markdown on the page; selecting text in a finished answer offers a branch. -->
-              <StackPanel IsVisible="{Binding IsAnswer}" Spacing="4" Opacity="{Binding IsSuperseded, Converter={x:Static d:Converters.SupersededOpacity}}">
-                <TextBlock Classes="muted" FontSize="12" Text="{x:Static d:UiText.EarlierAttempt}" IsVisible="{Binding IsSuperseded}" />
+              <StackPanel IsVisible="{Binding IsAnswer}" Spacing="6" Opacity="{Binding IsSuperseded, Converter={x:Static d:Converters.SupersededOpacity}}">
+                <Border Classes="badge" HorizontalAlignment="Left" IsVisible="{Binding IsSuperseded}">
+                  <TextBlock Text="{x:Static d:UiText.EarlierAttempt}" />
+                </Border>
                 <v:AnswerView IsVisible="{Binding IsAnswer}" />
                 <StackPanel Orientation="Horizontal" Spacing="8" IsVisible="{Binding IsWaiting}">
-                  <ProgressBar Name="WaitingBar" IsIndeterminate="True" Width="60" VerticalAlignment="Center" />
-                  <TextBlock Classes="muted" FontSize="12" Text="{Binding WaitingLabel}" VerticalAlignment="Center" />
+                  <ProgressBar Name="WaitingBar" IsIndeterminate="True" Width="60" MinWidth="60" VerticalAlignment="Center" />
+                  <TextBlock Classes="caption" Text="{Binding WaitingLabel}" VerticalAlignment="Center" />
                 </StackPanel>
-                <TextBlock Classes="muted" FontSize="12" Text="{x:Static d:UiText.ContextCompressedNote}" IsVisible="{Binding WasCompressed}" />
-                <DockPanel>
-                  <Button Name="RetryButton" DockPanel.Dock="Right" Classes="link" Content="{Binding RetryLabel}" IsVisible="{Binding CanRetry}"
+                <!-- Still being written: one small mark at the end of the text, not a bar under every paragraph. -->
+                <StackPanel Name="StreamingIndicator" Orientation="Horizontal" Spacing="4" IsVisible="{Binding IsStreaming}"
+                            AutomationProperties.Name="{x:Static d:UiText.AnswerStreaming}">
+                  <Ellipse Classes="typing" />
+                  <Ellipse Classes="typing" Opacity="0.6" />
+                  <Ellipse Classes="typing" Opacity="0.3" />
+                  <TextBlock Classes="caption" Text="{x:Static d:UiText.AnswerStreaming}" VerticalAlignment="Center" Margin="4,0,0,0" />
+                </StackPanel>
+                <TextBlock Classes="caption" Text="{x:Static d:UiText.ContextCompressedNote}" IsVisible="{Binding WasCompressed}" />
+                <!-- A failure: the error and its retry together, in one notice under the answer. -->
+                <Border Name="ErrorNotice" Classes="notice error" HorizontalAlignment="Left" IsVisible="{Binding IsProblem}" Margin="0,2,0,0">
+                  <DockPanel>
+                    <TextBlock Classes="notice-icon" Text="!" VerticalAlignment="Center" />
+                      <Button Name="ErrorRetryButton" DockPanel.Dock="Right" Classes="quiet" Margin="12,0,0,0" IsVisible="{Binding CanRetryInNotice}"
+                              ToolTip.Tip="{Binding $parent[ItemsControl].((vm:ConversationViewModel)DataContext).StorageNotice}" ToolTip.ShowOnDisabled="True"
+                              Command="{Binding $parent[ItemsControl].((vm:ConversationViewModel)DataContext).RetryCommand}" CommandParameter="{Binding}">
+                        <StackPanel Orientation="Horizontal" Spacing="6">
+                          <PathIcon Data="{StaticResource IconRegenerate}" />
+                          <TextBlock Text="{Binding RetryLabel}" VerticalAlignment="Center" />
+                        </StackPanel>
+                      </Button>
+                      <TextBlock Name="ErrorText" Text="{Binding StateLabel}" ToolTip.Tip="{Binding ErrorDetail}" />
+                  </DockPanel>
+                </Border>
+                <!-- The answer's own actions, quiet, in one row right under it. -->
+                <StackPanel Name="AnswerActions" Orientation="Horizontal" Spacing="4" Margin="-7,0,0,0" IsVisible="{Binding HasActions}">
+                  <Button Name="RetryButton" Classes="quiet small" IsVisible="{Binding CanRetryQuietly}"
                           ToolTip.Tip="{Binding $parent[ItemsControl].((vm:ConversationViewModel)DataContext).StorageNotice}" ToolTip.ShowOnDisabled="True"
-                          Command="{Binding $parent[ItemsControl].((vm:ConversationViewModel)DataContext).RetryCommand}" CommandParameter="{Binding}" />
-                  <TextBlock FontSize="12" Text="{Binding StateLabel}" TextWrapping="Wrap" VerticalAlignment="Center"
-                             Classes.error="{Binding IsProblem}" Classes.muted="{Binding !IsProblem}"
-                             IsVisible="{Binding StateLabel, Converter={x:Static ObjectConverters.IsNotNull}}"
-                             ToolTip.Tip="{Binding ErrorDetail}" />
-                </DockPanel>
+                          Command="{Binding $parent[ItemsControl].((vm:ConversationViewModel)DataContext).RetryCommand}" CommandParameter="{Binding}">
+                    <StackPanel Orientation="Horizontal" Spacing="5">
+                      <PathIcon Data="{StaticResource IconRegenerate}" />
+                      <TextBlock Text="{Binding RetryLabel}" VerticalAlignment="Center" />
+                    </StackPanel>
+                  </Button>
+                  <TextBlock Name="StateText" Classes="caption" Text="{Binding StateLabel}" VerticalAlignment="Center" Margin="4,0,0,0"
+                             IsVisible="{Binding ShowsQuietState}" />
+                </StackPanel>
+                <!-- Branches made from this answer: a list that belongs to it, each entry a whole tappable row. -->
+                <Border Name="BranchSection" Classes="card" HorizontalAlignment="Left" MinWidth="340" MaxWidth="640" Padding="4,5,4,3" Margin="0,2,0,0"
+                        IsVisible="{Binding Branches.Count, Converter={x:Static d:Converters.IsPositive}}">
+                  <StackPanel Spacing="1">
+                    <TextBlock Classes="caption" Text="{x:Static d:UiText.BranchesHeading}" Margin="8,0,8,3" />
+                    <ItemsControl Name="BranchEntries" ItemsSource="{Binding Branches}">
+                      <ItemsControl.ItemTemplate>
+                        <DataTemplate x:DataType="vm:BranchEntry">
+                          <Button Classes="entry" AutomationProperties.Name="{Binding Label}"
+                                  Command="{Binding $parent[v:ConversationView].((vm:ConversationViewModel)DataContext).OpenConversationCommand}"
+                                  CommandParameter="{Binding Child}">
+                            <DockPanel>
+                              <PathIcon Classes="entry-icon" Data="{StaticResource IconBranch}" />
+                              <PathIcon Classes="entry-chevron" DockPanel.Dock="Right" Data="{StaticResource IconChevron}" />
+                              <Border Classes="badge" DockPanel.Dock="Right" Margin="8,0,0,0" IsVisible="{Binding Archived}">
+                                <TextBlock Text="{x:Static d:UiText.ArchivedMarker}" />
+                              </Border>
+                              <TextBlock Text="{Binding Quote}" TextWrapping="Wrap" MaxLines="2" TextTrimming="CharacterEllipsis" />
+                            </DockPanel>
+                          </Button>
+                        </DataTemplate>
+                      </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                  </StackPanel>
+                </Border>
               </StackPanel>
             </StackPanel>
           </DataTemplate>

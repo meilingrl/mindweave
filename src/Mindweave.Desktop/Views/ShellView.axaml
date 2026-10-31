@@ -9,48 +9,90 @@
              x:DataType="vm:ShellViewModel">
   <Grid ColumnDefinitions="240,*">
     <Border Background="{DynamicResource SidebarBackground}" BorderBrush="{DynamicResource DividerBrush}" BorderThickness="0,0,1,0">
-      <DockPanel Margin="10,14">
-        <StackPanel DockPanel.Dock="Top" Spacing="6">
-          <DockPanel>
-            <Button Name="ToggleNewWorkspace" DockPanel.Dock="Right" Content="+" Command="{Binding ToggleCreateWorkspaceCommand}"
-                    ToolTip.Tip="{x:Static d:UiText.NewWorkspace}" AutomationProperties.Name="{x:Static d:UiText.NewWorkspace}" Margin="6,0,0,0" />
-            <ComboBox Name="WorkspacePicker" HorizontalAlignment="Stretch" ItemsSource="{Binding Workbench.Workspaces}"
+      <DockPanel Margin="10,14,10,12">
+        <StackPanel DockPanel.Dock="Top" Spacing="2">
+          <!-- Workspace: the selector and its + share one height and one frame style. -->
+          <DockPanel Margin="0,0,0,4">
+            <Button Name="ToggleNewWorkspace" DockPanel.Dock="Right" Classes="secondary" Command="{Binding ToggleCreateWorkspaceCommand}"
+                    Width="32" Height="32" Padding="0" Margin="6,0,0,0" HorizontalContentAlignment="Center" VerticalContentAlignment="Center"
+                    CornerRadius="{DynamicResource ControlCornerRadius}" BorderBrush="{DynamicResource TextControlBorderBrush}"
+                    ToolTip.Tip="{x:Static d:UiText.NewWorkspace}" AutomationProperties.Name="{x:Static d:UiText.NewWorkspace}">
+              <PathIcon Width="12" Height="12" Data="{StaticResource IconPlus}" />
+            </Button>
+            <ComboBox Name="WorkspacePicker" HorizontalAlignment="Stretch" Height="32" ItemsSource="{Binding Workbench.Workspaces}"
                       SelectedItem="{Binding SelectedWorkspace}" AutomationProperties.Name="工作区">
               <ComboBox.ItemTemplate>
                 <DataTemplate x:DataType="ws:Workspace">
-                  <TextBlock Text="{Binding Name.Value}" TextTrimming="CharacterEllipsis" />
+                  <TextBlock Text="{Binding Name.Value}" TextTrimming="CharacterEllipsis" FontWeight="SemiBold" />
                 </DataTemplate>
               </ComboBox.ItemTemplate>
             </ComboBox>
           </DockPanel>
-          <StackPanel IsVisible="{Binding IsCreatingWorkspace}" Spacing="6">
+          <StackPanel IsVisible="{Binding IsCreatingWorkspace}" Spacing="6" Margin="0,2,0,6">
             <TextBox Name="NewWorkspaceName" Text="{Binding NewWorkspace.Name}" PlaceholderText="{x:Static d:UiText.WorkspaceNameWatermark}" />
             <TextBlock Classes="error" Text="{Binding NewWorkspace.Error}" TextWrapping="Wrap"
                        IsVisible="{Binding NewWorkspace.Error, Converter={x:Static ObjectConverters.IsNotNull}}" />
-            <Button Name="CreateWorkspaceButton" Content="{x:Static d:UiText.Create}" Command="{Binding NewWorkspace.SubmitCommand}" HorizontalAlignment="Right" />
+            <Button Name="CreateWorkspaceButton" Classes="primary" Content="{x:Static d:UiText.Create}" Command="{Binding NewWorkspace.SubmitCommand}" HorizontalAlignment="Right" />
           </StackPanel>
-          <Separator Margin="0,6" />
-          <Button Name="NewConversationButton" Classes="nav" Content="＋ 新会话" Command="{Binding Conversations.NewCommand}" />
-          <Button Name="NavExplore" Classes="nav" Classes.selected="{Binding IsExplore}" Content="{x:Static d:UiText.SectionExplore}"
-                  Command="{Binding ShowSectionCommand}" CommandParameter="{x:Static nav:MainSection.Explore}" />
-          <Button Name="NavNetwork" Classes="nav" Classes.selected="{Binding IsNetwork}" Content="{x:Static d:UiText.SectionNetwork}"
-                  Command="{Binding ShowSectionCommand}" CommandParameter="{x:Static nav:MainSection.Network}" />
+          <Border Height="1" Background="{DynamicResource DividerBrush}" Margin="0,8,0,8" />
+          <Button Name="NewConversationButton" Classes="nav" Command="{Binding Conversations.NewCommand}" AutomationProperties.Name="{x:Static d:UiText.NewConversation}">
+            <StackPanel Orientation="Horizontal" Spacing="10">
+              <PathIcon Classes="nav-icon" Data="{StaticResource IconPlus}" />
+              <TextBlock Text="{x:Static d:UiText.NewConversation}" VerticalAlignment="Center" />
+            </StackPanel>
+          </Button>
+          <Button Name="NavExplore" Classes="nav" Classes.selected="{Binding IsExplore}" AutomationProperties.Name="{x:Static d:UiText.SectionExplore}"
+                  Command="{Binding ShowSectionCommand}" CommandParameter="{x:Static nav:MainSection.Explore}">
+            <StackPanel Orientation="Horizontal" Spacing="10">
+              <PathIcon Classes="nav-icon" Data="{StaticResource IconExplore}" />
+              <TextBlock Text="{x:Static d:UiText.SectionExplore}" VerticalAlignment="Center" />
+            </StackPanel>
+          </Button>
+          <Button Name="NavNetwork" Classes="nav" Classes.selected="{Binding IsNetwork}" AutomationProperties.Name="{x:Static d:UiText.SectionNetwork}"
+                  Command="{Binding ShowSectionCommand}" CommandParameter="{x:Static nav:MainSection.Network}">
+            <StackPanel Orientation="Horizontal" Spacing="10">
+              <PathIcon Classes="nav-icon" Data="{StaticResource IconNetwork}" />
+              <TextBlock Text="{x:Static d:UiText.SectionNetwork}" VerticalAlignment="Center" />
+            </StackPanel>
+          </Button>
+          <TextBlock Classes="caption" Text="{x:Static d:UiText.ConversationsHeading}" Margin="10,14,0,2"
+                     IsVisible="{Binding Conversations.Items.Count, Converter={x:Static d:Converters.IsPositive}}" />
         </StackPanel>
-        <Button Name="NavSettings" DockPanel.Dock="Bottom" Classes="nav" Classes.selected="{Binding IsSettings}" Content="{x:Static d:UiText.SectionSettings}"
-                Command="{Binding ShowSectionCommand}" CommandParameter="{x:Static nav:MainSection.Settings}" VerticalAlignment="Bottom" />
-        <!-- Archived conversations are out of the list above; this entry leads to them (S6). -->
-        <Button Name="ArchivedEntry" DockPanel.Dock="Bottom" Classes="nav" Content="{Binding Conversations.ArchivedLabel}"
-                Command="{Binding Conversations.OpenArchivedCommand}" IsVisible="{Binding Conversations.HasArchived}" />
-        <ScrollViewer Margin="0,8" HorizontalScrollBarVisibility="Disabled">
+        <Button Name="NavSettings" DockPanel.Dock="Bottom" Classes="nav" Classes.selected="{Binding IsSettings}" AutomationProperties.Name="{x:Static d:UiText.SectionSettings}"
+                Command="{Binding ShowSectionCommand}" CommandParameter="{x:Static nav:MainSection.Settings}" VerticalAlignment="Bottom">
+          <StackPanel Orientation="Horizontal" Spacing="10">
+            <PathIcon Classes="nav-icon" Data="{StaticResource IconSettings}" />
+            <TextBlock Text="{x:Static d:UiText.SectionSettings}" VerticalAlignment="Center" />
+          </StackPanel>
+        </Button>
+        <Border DockPanel.Dock="Bottom" Height="1" Background="{DynamicResource DividerBrush}" Margin="0,6,0,6" />
+        <!-- Archived conversations are out of the tree; this quieter entry at its bottom leads to them (S6). -->
+        <Button Name="ArchivedEntry" DockPanel.Dock="Bottom" Classes="nav subtle" Command="{Binding Conversations.OpenArchivedCommand}"
+                IsVisible="{Binding Conversations.HasArchived}" AutomationProperties.Name="{Binding Conversations.ArchivedLabel}">
+          <StackPanel Orientation="Horizontal" Spacing="9">
+            <PathIcon Width="12" Height="12" Foreground="{DynamicResource MutedText}" Data="{StaticResource IconArchive}" />
+            <TextBlock Text="{Binding Conversations.ArchivedLabel}" VerticalAlignment="Center" />
+          </StackPanel>
+        </Button>
+        <ScrollViewer Classes="autohide" Margin="0,0,0,4" HorizontalScrollBarVisibility="Disabled">
           <ItemsControl Name="ConversationList" ItemsSource="{Binding Conversations.Items}">
             <ItemsControl.ItemTemplate>
               <DataTemplate x:DataType="cv:ConversationItemViewModel">
-                <Button Classes="nav" Classes.selected="{Binding IsSelected}" Margin="{Binding Indent}"
+                <Button Classes="nav" Classes.selected="{Binding IsSelected}" Margin="{Binding Indent}" Padding="10,5"
                         Command="{Binding $parent[ItemsControl].((vm:ShellViewModel)DataContext).Conversations.OpenCommand}" CommandParameter="{Binding}">
                   <DockPanel>
-                    <TextBlock DockPanel.Dock="Right" Text="{Binding Marker}" IsVisible="{Binding HasMarker}" Margin="6,0,0,0"
-                               Classes="muted" ToolTip.Tip="{Binding MarkerHint}" AutomationProperties.Name="{Binding MarkerHint}" />
-                    <TextBlock Text="{Binding Title}" TextTrimming="CharacterEllipsis" />
+                    <!-- A branch: a small corner glyph from its parent's column, so the hierarchy reads at a glance. -->
+                    <PathIcon Width="9" Height="9" Margin="-4,0,5,3" Foreground="{DynamicResource TreeGuide}" Data="{StaticResource IconTreeBranch}"
+                              IsVisible="{Binding IsBranch}" VerticalAlignment="Center" />
+                    <!-- Light markers (§6.1): running as a small accent dot, needs attention as a small round "!". -->
+                    <Panel DockPanel.Dock="Right" Margin="6,0,0,0" IsVisible="{Binding HasMarker}" Background="Transparent"
+                           ToolTip.Tip="{Binding MarkerHint}" AutomationProperties.Name="{Binding MarkerHint}">
+                      <Ellipse Classes="running-dot" IsVisible="{Binding IsGenerating}" />
+                      <Border Classes="attention-badge" IsVisible="{Binding NeedsAttention}">
+                        <TextBlock Text="!" />
+                      </Border>
+                    </Panel>
+                    <TextBlock Text="{Binding Title}" TextTrimming="CharacterEllipsis" VerticalAlignment="Center" />
                   </DockPanel>
                 </Button>
               </DataTemplate>
@@ -61,12 +103,15 @@
     </Border>
 
     <DockPanel Grid.Column="1">
-      <DockPanel DockPanel.Dock="Top" Margin="24,16,24,8">
-        <Button Name="BackButton" Content="←" Command="{Binding GoBackCommand}" IsVisible="{Binding CanGoBack}"
-                ToolTip.Tip="{x:Static d:UiText.Back}" AutomationProperties.Name="{x:Static d:UiText.Back}" Margin="0,0,10,0" />
+      <DockPanel DockPanel.Dock="Top" Margin="24,16,24,6">
+        <Button Name="BackButton" Classes="quiet" Command="{Binding GoBackCommand}" IsVisible="{Binding CanGoBack}"
+                Width="32" Height="32" Padding="0" HorizontalContentAlignment="Center" Margin="-6,0,6,0"
+                ToolTip.Tip="{x:Static d:UiText.Back}" AutomationProperties.Name="{x:Static d:UiText.Back}">
+          <PathIcon Width="15" Height="15" Data="{StaticResource IconBack}" />
+        </Button>
         <TextBlock Classes="h1" Text="{Binding Title}" VerticalAlignment="Center" TextTrimming="CharacterEllipsis" />
       </DockPanel>
-      <ContentControl Name="PageHost" Content="{Binding CurrentPage}" Margin="24,8,24,24" />
+      <ContentControl Name="PageHost" Content="{Binding CurrentPage}" Margin="24,4,24,20" />
     </DockPanel>
   </Grid>
 </UserControl>

@@ -16,8 +16,8 @@ using Mindweave.Desktop.ViewModels.Pages;
 
 namespace Mindweave.Desktop.ViewModels.Conversations;
 
-/// <summary>An ancestor shown above a branch, so the reader always sees where they are and how they got there.</summary>
-public sealed record LineageItem(ConversationId Id, string Title);
+/// <summary>An ancestor shown above a branch, so the reader always sees where they are and how they got there; the first has no separator before it.</summary>
+public sealed record LineageItem(ConversationId Id, string Title, bool IsFirst = false);
 
 /// <summary>
 /// One conversation: its messages (finished ones from storage, unfinished ones live from the coordinator), the
@@ -54,7 +54,8 @@ public sealed partial class ConversationViewModel : PageViewModel, IDisposable
         _dispatcher = dispatcher;
         _load = new SerialRefresh(LoadAsync);
         _reload = new UiThrottle(dispatcher, TimeSpan.FromMilliseconds(30), () => _ = _load.Request());
-        Composer = new Composer(text => _conversations.AskAsync(Id, text, CancellationToken.None));
+        // Stop sits where send is while an answer runs; the page shows the storage pause once, at the top.
+        Composer = new Composer(text => _conversations.AskAsync(Id, text, CancellationToken.None)) { StopCommand = StopCommand, HostShowsStoragePause = true };
         _conversations.ConversationChanged += OnConversationChanged;
         _conversations.ModelChanged += OnModelChanged;
         _conversations.StorageStateChanged += OnStorageStateChanged;
@@ -163,7 +164,7 @@ public sealed partial class ConversationViewModel : PageViewModel, IDisposable
 
     /// <summary>Hidden by an archive (its own or an ancestor's): readable only; new work waits for a restore.</summary>
     [ObservableProperty]
-    [NotifyPropertyChangedFor(nameof(IsOpen))]
+    [NotifyPropertyChangedFor(nameof(IsOpen), nameof(ShowArchiveInToolbar))]
     public partial bool IsArchived { get; private set; }
 
     /// <summary>Neither missing nor archived: asking, retrying, branching and summarizing are offered.</summary>
@@ -179,7 +180,11 @@ public sealed partial class ConversationViewModel : PageViewModel, IDisposable
 
     /// <summary>A delete was refused; archiving is offered instead.</summary>
     [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(ShowArchiveInToolbar))]
     public partial bool OfferArchive { get; private set; }
+
+    /// <summary>The toolbar's archive entry; left out while the refusal notice offers the same action next to its reason.</summary>
+    public bool ShowArchiveInToolbar => IsOpen && !OfferArchive;
 
     /// <summary>A question asked before deleting, or before a restore that brings back archived ancestors.</summary>
     [ObservableProperty]
@@ -540,6 +545,7 @@ public sealed partial class ConversationViewModel : PageViewModel, IDisposable
         {
             IsMissing = true;
             OnPropertyChanged(nameof(IsOpen));
+            OnPropertyChanged(nameof(ShowArchiveInToolbar));
             DisplayTitle = UiText.ConversationMissing;
             return;
         }
@@ -560,7 +566,7 @@ public sealed partial class ConversationViewModel : PageViewModel, IDisposable
         Lineage.Clear();
         foreach (var ancestor in lineage.Take(Math.Max(0, lineage.Count - 1)))
         {
-            Lineage.Add(new LineageItem(ancestor.Conversation.Id, UiText.ConversationTitle(ancestor.Conversation, null, ancestor.Source?.Quote)));
+            Lineage.Add(new LineageItem(ancestor.Conversation.Id, UiText.ConversationTitle(ancestor.Conversation, null, ancestor.Source?.Quote), Lineage.Count == 0));
         }
 
         IsArchived = archive.IsHidden;
@@ -643,6 +649,7 @@ public sealed partial class ConversationViewModel : PageViewModel, IDisposable
     {
         RunningAnswer = Messages.LastOrDefault(m => m.IsAnswer && m.IsInProgress);
         Composer.IsBlocked = RunningAnswer is not null || IsArchived;
+        Composer.IsAnswerRunning = RunningAnswer is not null;
         var last = Messages.LastOrDefault();
         if (last is { IsAnswer: true })
         {

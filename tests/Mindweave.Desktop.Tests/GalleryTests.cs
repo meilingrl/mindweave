@@ -157,8 +157,8 @@ public class GalleryTests
         Assert.Equal(3, page.Messages[1].Branches.Count);
         Assert.True(page.Messages[1].CanRetry);
 
-        // The whole exchange fits: the question bubble above the long answer, the branch entries and regenerate below.
-        Scroller(window).ScrollToHome();
+        // The whole exchange fits: the question bubble above the long answer, regenerate and the branch entries below (scrolled to the end, the bubble stays in view).
+        Scroller(window).ScrollToEnd();
         await SettleAsync(window);
         Capture(window, "g04-conversation");
         window.Close();

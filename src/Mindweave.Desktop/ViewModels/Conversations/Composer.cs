@@ -1,3 +1,4 @@
+using System.Windows.Input;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Mindweave.Application.Conversations;
@@ -22,15 +23,31 @@ public sealed partial class Composer : ViewModelBase
     /// <summary>Core storage is failing (§9.3): sending is paused and says why; the text stays editable.</summary>
     [ObservableProperty]
     [NotifyCanExecuteChangedFor(nameof(SendCommand))]
-    [NotifyPropertyChangedFor(nameof(Notice))]
+    [NotifyPropertyChangedFor(nameof(Notice), nameof(ShowNotice))]
     public partial bool IsStoragePaused { get; set; }
+
+    /// <summary>An answer is being written: the composer offers stop where send is (the conversation page sets it).</summary>
+    [ObservableProperty]
+    public partial bool IsAnswerRunning { get; set; }
+
+    /// <summary>Stops the running answer; null on a page that never runs one (a new conversation).</summary>
+    public ICommand? StopCommand { get; init; }
+
+    /// <summary>
+    /// The hosting page already explains a storage pause in its own notice, so the composer does not repeat it
+    /// (S7: the same notice only once). A page without its own notice (a new conversation) leaves this false.
+    /// </summary>
+    public bool HostShowsStoragePause { get; init; }
 
     /// <summary>Why the last send was refused; cleared when the next one is accepted.</summary>
     [ObservableProperty]
-    [NotifyPropertyChangedFor(nameof(ShowSettingsLink))]
+    [NotifyPropertyChangedFor(nameof(ShowSettingsLink), nameof(ShowNotice))]
     public partial SendRejection? Rejection { get; private set; }
 
     public string? Notice => IsStoragePaused ? UiText.SendRejected(SendRejection.StorageUnavailable) : Rejection is { } r ? UiText.SendRejected(r) : null;
+
+    /// <summary>Whether the composer shows <see cref="Notice"/>: not when it only repeats the page's storage notice.</summary>
+    public bool ShowNotice => Notice is not null && !(HostShowsStoragePause && IsStoragePaused);
 
     /// <summary>Refusals the reader can fix in settings: no model yet, or a model whose context is too small.</summary>
     public bool ShowSettingsLink => Rejection is SendRejection.NotConfigured or SendRejection.QuestionTooLargeForModel or SendRejection.HistoryTooLongForModel;
@@ -41,6 +58,7 @@ public sealed partial class Composer : ViewModelBase
         var outcome = await _send(Text);
         Rejection = outcome.Rejection;
         OnPropertyChanged(nameof(Notice));
+        OnPropertyChanged(nameof(ShowNotice));
         if (outcome.Accepted)
         {
             // The question is stored; only now is the input cleared. A refused question stays editable.
@@ -53,6 +71,7 @@ public sealed partial class Composer : ViewModelBase
     {
         Rejection = rejection;
         OnPropertyChanged(nameof(Notice));
+        OnPropertyChanged(nameof(ShowNotice));
     }
 
     private bool CanSend() => !IsBlocked && !IsStoragePaused && !string.IsNullOrWhiteSpace(Text);

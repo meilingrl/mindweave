@@ -51,12 +51,16 @@ public class StoragePauseUiTests
 
         // The reason is shown; the entries that need storage are disabled.
         var notice = Find<Avalonia.Controls.TextBlock>(view, "StorageNotice");
-        Assert.True(notice.IsVisible);
+        Assert.True(notice.IsEffectivelyVisible);
         Assert.Equal(UiText.StoragePaused, notice.Text);
         page.Composer.Text = "暂停时写下的问题";
         window.UpdateLayout();
         Assert.False(Find<Button>(view, "SendButton").IsEffectivelyEnabled);
         Assert.Equal(UiText.SendRejected(SendRejection.StorageUnavailable), Find<Avalonia.Controls.TextBlock>(view, "Notice").Text);
+
+        // Said once (S7): the page's notice explains the pause; the composer does not repeat it.
+        Assert.False(Find<Avalonia.Controls.Border>(view, "NoticePanel").IsEffectivelyVisible);
+        Assert.Single(view.GetVisualDescendants().OfType<Avalonia.Controls.Border>(), b => b.Classes.Contains("notice") && b.IsEffectivelyVisible);
         Assert.False(Find<Button>(view, "SummarizeButton").IsEffectivelyEnabled);
         var retry = view.GetVisualDescendants().OfType<Button>().Single(b => b.Name == "RetryButton" && b.IsVisible);
         Assert.False(retry.IsEffectivelyEnabled);
@@ -66,6 +70,10 @@ public class StoragePauseUiTests
         Assert.Equal(MessageState.Complete, page.Messages[3].State);
 
         // Text can still be selected (to copy); the branch entry appears for it, disabled, with the reason.
+        // The unsaved answer's long text is laid out by the live renderer in the background; positions measured before
+        // that are not trustworthy (the page would follow the growing text to the end under the pointer).
+        await UiWait.UntilAsync(() => view.GetVisualDescendants().OfType<AnswerView>().All(a => a.IsLayoutCurrent), timeoutMs: 10_000);
+        window.UpdateLayout();
         Find<ScrollViewer>(view, "Scroller").Offset = default;
         window.UpdateLayout();
         var first = view.GetVisualDescendants().OfType<AnswerView>().First(a => a.DataContext is MessageItemViewModel { IsAnswer: true, CanBranch: true });
@@ -80,7 +88,7 @@ public class StoragePauseUiTests
         await FreeDiskAsync(database);
         await UiWait.UntilAsync(() => !page.IsStorageBlocked, timeoutMs: 15_000);
         window.UpdateLayout();
-        Assert.False(notice.IsVisible);
+        Assert.False(notice.IsEffectivelyVisible);
         Assert.True(Find<Button>(view, "SendButton").IsEffectivelyEnabled);
         Assert.True(Find<Button>(view, "SummarizeButton").IsEffectivelyEnabled);
         Assert.True(branch.IsEffectivelyEnabled);
