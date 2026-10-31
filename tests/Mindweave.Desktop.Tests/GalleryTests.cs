@@ -254,6 +254,13 @@ public class GalleryTests
         var summary = await OpenSummaryAsync(scene.App, window, seed.Nodes[seed.Cable]);
         Assert.False(summary.ShownIsRead);
         Capture(window, "g09-summary-unread");
+
+        // The same page with the export options open (the source-note choice sits with the export action).
+        var export = Find<Button>(window, "ExportButton");
+        export.Flyout!.ShowAt(export);
+        await SettleAsync(window);
+        Capture(window, "g09b-summary-export-options");
+        export.Flyout.Hide();
         window.Close();
     }
 
@@ -267,6 +274,11 @@ public class GalleryTests
         Assert.True(summary.HasCandidate);
         Assert.Equal(SummaryOrigin.Edited, summary.Shown!.Origin);
         Capture(window, "g10-summary-candidate");
+
+        // Viewing the candidate itself: 采用 becomes the page's one primary action.
+        summary.ShowCandidateCommand.Execute(null);
+        await SettleAsync(window);
+        Capture(window, "g10b-summary-candidate-viewed");
         window.Close();
     }
 

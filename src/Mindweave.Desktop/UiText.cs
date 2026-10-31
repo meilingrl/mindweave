@@ -107,12 +107,16 @@ public static class UiText
     public const string SummaryMissing = "这个总结已不存在。";
     public const string LaterContentNote = "来源会话在这个版本之后还有新的内容，未纳入总结。";
     public const string ReadIsNotMastery = "已读只表示读过这个版本，不代表已经掌握。";
+    public const string EditNote = "保存后成为新的当前版本，原版本保留在版本历史中。";
+    public const string RenameWatermark = "总结名称";
 
     // Export (S6, §8.3)
     public const string ExportMarkdown = "导出为 Markdown…";
     public const string ExportOmitSource = "不附来源说明";
     public const string ExportDraftNote = "导出的是页面上显示的已保存版本；未保存的编辑草稿不包含在内。";
     public const string ExportCandidateHint = "候选版本不能导出，请先采用。";
+    public const string ExportOptionsHeading = "导出为 Markdown";
+    public const string ExportRun = "选择位置并导出…";
     public const string MarkdownFileType = "Markdown 文件";
 
     // Archive and delete (S6, §9.5, D-021)
@@ -363,8 +367,8 @@ public static class UiText
         ArgumentNullException.ThrowIfNull(backup);
         return string.Format(
             CultureInfo.CurrentCulture,
-            "将用 {0:yyyy-MM-dd HH:mm} 的备份（结构版本 {1}）替换当前数据库。当前文件会改名保留在数据目录中，不会删除；备份之后的改动不在备份里。",
-            backup.CreatedAt.ToLocalTime(),
+            "将用 {0} 的备份（结构版本 {1}）替换当前数据库。当前文件会改名保留在数据目录中，不会删除；备份之后的改动不在备份里。",
+            FormatTime(backup.CreatedAt),
             backup.SchemaVersion);
     }
 
@@ -373,8 +377,8 @@ public static class UiText
         ArgumentNullException.ThrowIfNull(backup);
         return string.Format(
             CultureInfo.CurrentCulture,
-            "{0:yyyy-MM-dd HH:mm}　结构版本 {1}　{2:N0} KB",
-            backup.CreatedAt.ToLocalTime(),
+            "{0}　结构版本 {1}　{2:N0} KB",
+            FormatTime(backup.CreatedAt),
             backup.SchemaVersion,
             backup.SizeBytes / 1024);
     }
@@ -466,13 +470,37 @@ public static class UiText
         return string.Join(" · ", parts);
     }
 
+    /// <summary>
+    /// A moment as the interface shows it everywhere (S7): local time, Chinese date and a 24-hour clock without
+    /// AM/PM, for example "2026年3月14日 09:30", the same whatever the machine's regional format.
+    /// </summary>
+    public static string FormatTime(DateTimeOffset at) =>
+        at.ToLocalTime().ToString("yyyy'年'M'月'd'日' HH:mm", CultureInfo.InvariantCulture);
+
+    public static string VersionNumber(int seq) => string.Format(CultureInfo.CurrentCulture, "第 {0} 版", seq);
+
+    public static string VersionRole(bool isCurrent, bool isCandidate) => isCandidate ? "候选" : isCurrent ? "当前" : "历史";
+
+    public static string VersionOrigin(SummaryOrigin origin) => origin == SummaryOrigin.Edited ? "手改" : "生成";
+
+    /// <summary>How far a version covers its conversation and when it was made: "覆盖到第 2 条消息 · 2026年3月14日 09:30".</summary>
+    public static string VersionCoverage(SummaryVersion version)
+    {
+        ArgumentNullException.ThrowIfNull(version);
+        return string.Format(CultureInfo.CurrentCulture, "覆盖到第 {0} 条消息 · {1}", version.ToSeq + 1, FormatTime(version.CreatedAt));
+    }
+
     public static string VersionLabel(SummaryVersion version, bool isCurrent, bool isCandidate)
     {
         ArgumentNullException.ThrowIfNull(version);
-        var role = isCandidate ? "候选" : isCurrent ? "当前" : "历史";
-        var origin = version.Origin == SummaryOrigin.Edited ? "手改" : "生成";
-        return string.Format(CultureInfo.CurrentCulture, "第 {0} 版 · {1} · {2} · 覆盖到第 {3} 条消息 · {4:g}", version.Seq, role, origin, version.ToSeq + 1, version.CreatedAt.ToLocalTime());
+        return string.Join(" · ", VersionNumber(version.Seq), VersionRole(isCurrent, isCandidate), VersionOrigin(version.Origin), VersionCoverage(version));
     }
+
+    /// <summary>The heading above the editor: which version the edit starts from.</summary>
+    public static string EditingVersion(int seq) => string.Format(CultureInfo.CurrentCulture, "编辑第 {0} 版", seq);
+
+    /// <summary>The history's header with the number of versions it lists, the candidate included.</summary>
+    public static string HistoryHeadingCount(int count) => string.Format(CultureInfo.CurrentCulture, "版本历史（{0}）", count);
 
     public static string AdoptReplaces(SummaryVersion current) =>
         string.Format(CultureInfo.CurrentCulture, "候选生成之后，当前版本已变为第 {0} 版（{1}）。采用候选会替换当前版本；第 {0} 版仍保留在历史中。", current.Seq, current.Origin == SummaryOrigin.Edited ? "手改" : "生成");
@@ -583,5 +611,5 @@ public static class UiText
         return "不能删除：" + string.Join("；", reasons) + (offerArchive ? "。可以改为归档，归档可以随时恢复。" : "。");
     }
 
-    public static string NodeCreated(DateTimeOffset at) => string.Format(CultureInfo.CurrentCulture, "生成于 {0:g}", at.ToLocalTime());
+    public static string NodeCreated(DateTimeOffset at) => "生成于 " + FormatTime(at);
 }

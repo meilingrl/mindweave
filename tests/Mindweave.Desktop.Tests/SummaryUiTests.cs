@@ -208,6 +208,91 @@ public class SummaryUiTests
         window.Close();
     }
 
+    [AvaloniaFact]
+    public async Task The_page_has_one_primary_action_and_adopt_takes_it_only_while_the_candidate_is_on_screen()
+    {
+        await using var app = DesktopHarness.Create();
+        var window = new MainWindow { DataContext = app.Root, Width = 1000, Height = 700 };
+        window.Show();
+        var page = await ConversationAsync(app);
+        await page.SummarizeCommand.ExecuteAsync(null);
+        await UiWait.UntilAsync(() => page.HasSummary && page.RunningSummary is null);
+        app.Client.SummaryReplies.Enqueue($"标题：{FakeChatClient.DefaultSummaryTitle}\n\n新生成的正文");
+        await page.SummarizeCommand.ExecuteAsync(null);
+        await UiWait.UntilAsync(() => page.SummaryMarkersText?.Contains(UiText.MarkerCandidate, StringComparison.Ordinal) == true);
+        var summary = await OpenSummaryAsync(app, page);
+        await UiWait.UntilAsync(() => summary.HasCandidate);
+        window.UpdateLayout();
+        var view = window.GetVisualDescendants().OfType<SummaryView>().Single();
+        Avalonia.Controls.Button Named(string name) => view.GetVisualDescendants().OfType<Avalonia.Controls.Button>().Single(b => b.Name == name);
+        string[] Primaries() =>
+            [.. view.GetVisualDescendants().OfType<Avalonia.Controls.Button>().Where(b => b.Classes.Contains("primary") && b.IsEffectivelyVisible).Select(b => b.Name ?? string.Empty)];
+
+        Assert.Equal(["ReturnButton"], Primaries());
+        Assert.Contains("secondary", Named("AdoptButton").Classes);
+
+        summary.ShowCandidateCommand.Execute(null);
+        window.UpdateLayout();
+        Assert.Equal(["AdoptButton"], Primaries());
+        Assert.Contains("secondary", Named("ReturnButton").Classes);
+
+        // Editing hides the view's bar and the candidate; save is then the one primary.
+        summary.ShowCurrentCommand.Execute(null);
+        await summary.BeginEditCommand.ExecuteAsync(null);
+        window.UpdateLayout();
+        Assert.False(Named("ReturnButton").IsEffectivelyVisible);
+        Assert.False(view.GetVisualDescendants().OfType<Avalonia.Controls.Border>().Single(b => b.Name == "CandidatePanel").IsEffectivelyVisible);
+        Assert.Equal(["SaveEditButton"], Primaries());
+        Assert.Equal(UiText.EditingVersion(summary.Shown!.Seq), summary.EditingHeading);
+        await summary.DiscardEditCommand.ExecuteAsync(null);
+        window.Close();
+    }
+
+    [AvaloniaFact]
+    public async Task History_rows_show_their_parts_the_shown_version_and_delete_waits_for_a_tick()
+    {
+        await using var app = DesktopHarness.Create();
+        var page = await ConversationAsync(app);
+        await page.SummarizeCommand.ExecuteAsync(null);
+        await UiWait.UntilAsync(() => page.HasSummary && page.RunningSummary is null);
+        var summary = await OpenSummaryAsync(app, page);
+        await summary.BeginEditCommand.ExecuteAsync(null);
+        summary.EditBody = "第二版";
+        await summary.SaveEditCommand.ExecuteAsync(null);
+        await UiWait.UntilAsync(() => summary.History.Count == 2);
+
+        Assert.Equal(UiText.HistoryHeadingCount(2), summary.HistoryHeader);
+        var current = summary.History[0];
+        var first = summary.History[1];
+        Assert.Equal((UiText.VersionNumber(2), "当前", true), (current.Number, current.Role, current.IsEdited));
+        Assert.Equal((UiText.VersionNumber(1), "历史", false), (first.Number, first.Role, first.IsEdited));
+        Assert.Equal(UiText.VersionCoverage(first.Version), first.Coverage);
+        Assert.True(current.IsShown);
+        Assert.False(first.IsShown);
+
+        summary.ShowVersionCommand.Execute(first.Id);
+        Assert.True(first.IsShown);
+        Assert.False(current.IsShown);
+
+        Assert.False(summary.HasSelectedVersions);
+        first.IsSelected = true;
+        Assert.True(summary.HasSelectedVersions);
+        first.IsSelected = false;
+        Assert.False(summary.HasSelectedVersions);
+    }
+
+    [Fact]
+    public void Times_are_shown_as_a_chinese_date_and_a_24_hour_clock_in_local_time()
+    {
+        var local = new DateTime(2026, 3, 14, 9, 30, 0, DateTimeKind.Local);
+        var at = new DateTimeOffset(local);
+        Assert.Equal("2026年3月14日 09:30", UiText.FormatTime(at));
+        Assert.Equal("2026年3月14日 09:30", UiText.FormatTime(at.ToUniversalTime()));
+        Assert.Equal("2026年11月5日 21:05", UiText.FormatTime(new DateTimeOffset(new DateTime(2026, 11, 5, 21, 5, 0, DateTimeKind.Local))));
+        Assert.Equal("生成于 2026年3月14日 09:30", UiText.NodeCreated(at));
+        Assert.DoesNotContain("PM", UiText.FormatTime(at.AddHours(5)), StringComparison.Ordinal);
+    }
+
     private static Application.Storage.SummaryDetail Detail(DesktopHarness app, SummaryNodeId node) =>
         app.Services.GetRequiredService<Application.Summaries.SummaryService>().GetAsync(node, CancellationToken.None).Result!;
 

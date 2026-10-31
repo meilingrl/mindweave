@@ -27,6 +27,9 @@ public sealed partial class SummaryView : UserControl
         _report = new DispatcherTimer(TimeSpan.FromMilliseconds(300), DispatcherPriority.Background, (_, _) => Report());
         Scroller.ScrollChanged += (_, _) => _report.Start();
         Scroller.LayoutUpdated += (_, _) => RestoreOnce();
+
+        // The export options close when the export starts; the save dialog takes over from there.
+        ExportRunButton.Click += (_, _) => ExportButton.Flyout?.Hide();
     }
 
     internal MarkdownRenderer Renderer => _renderer;
