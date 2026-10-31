@@ -68,9 +68,10 @@
           </StackPanel>
         </Button>
       </WrapPanel>
+      <!-- Renaming: save is secondary (still the default for Enter); send stays the page's one primary button. -->
       <StackPanel Orientation="Horizontal" Spacing="6" IsVisible="{Binding IsRenaming}">
         <TextBox Name="RenameBox" Text="{Binding RenameText}" Width="320" />
-        <Button Classes="primary" Content="{x:Static d:UiText.Save}" Command="{Binding CommitRenameCommand}" IsDefault="True" />
+        <Button Name="SaveRenameButton" Classes="secondary" Content="{x:Static d:UiText.Save}" Command="{Binding CommitRenameCommand}" IsDefault="True" />
         <Button Classes="quiet" Content="{x:Static d:UiText.Cancel}" Command="{Binding CancelRenameCommand}" />
       </StackPanel>
 
@@ -138,7 +139,9 @@
           <StackPanel Spacing="8">
             <TextBlock Text="{Binding Confirmation.Message, FallbackValue=''}" />
             <StackPanel Orientation="Horizontal" Spacing="6">
-              <Button Name="ConfirmButton" Classes="secondary" Content="{x:Static d:UiText.Confirm}" Command="{Binding ConfirmCommand}" />
+              <!-- A delete confirms in the danger colour; a restore confirms as a plain secondary button. -->
+              <Button Name="ConfirmButton" Classes="secondary" Classes.danger="{Binding Confirmation.IsDestructive, FallbackValue=False}"
+                      Content="{x:Static d:UiText.Confirm}" Command="{Binding ConfirmCommand}" />
               <Button Classes="quiet" Content="{x:Static d:UiText.Cancel}" Command="{Binding CancelConfirmationCommand}" />
             </StackPanel>
           </StackPanel>

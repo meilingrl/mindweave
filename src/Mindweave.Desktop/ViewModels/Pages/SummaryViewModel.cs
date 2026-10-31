@@ -34,8 +34,11 @@ public sealed partial class SummaryVersionItem(SummaryVersion version, bool isCu
     public partial bool IsSelected { get; set; }
 }
 
-/// <summary>A question the page asks before an irreversible or replacing step; <see cref="Proceed"/> runs on "confirm".</summary>
-public sealed record PendingConfirmation(string Message, Func<Task> Proceed);
+/// <summary>
+/// A question the page asks before an irreversible or replacing step; <see cref="Proceed"/> runs on "confirm".
+/// <see cref="IsDestructive"/> marks a delete, whose confirm button is drawn in the danger colour.
+/// </summary>
+public sealed record PendingConfirmation(string Message, Func<Task> Proceed, bool IsDestructive = false);
 
 /// <summary>
 /// A summary node's page (S4): the shown version (current by default), its read state and markers, the candidate
@@ -318,7 +321,7 @@ public sealed partial class SummaryViewModel : PageViewModel, IPageFlush, IDispo
             {
                 _shownId = current;
             }
-        }));
+        }), IsDestructive: true);
     }
 
     private bool CanExport() => Shown is not null && !ShownIsCandidate && !IsMissing;

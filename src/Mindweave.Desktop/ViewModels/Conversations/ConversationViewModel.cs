@@ -353,7 +353,7 @@ public sealed partial class ConversationViewModel : PageViewModel, IDisposable
 
             ArchiveNotice = UiText.DeleteRefused(result.Blockers, offerArchive: !IsArchived);
             OfferArchive = !IsArchived;
-        });
+        }, IsDestructive: true);
     }
 
     [RelayCommand]

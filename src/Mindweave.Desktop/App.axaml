@@ -65,7 +65,9 @@
           <SolidColorBrush x:Key="CardBorder">#ECEAE8</SolidColorBrush>
           <SolidColorBrush x:Key="CardHover">#EDECEA</SolidColorBrush>
           <SolidColorBrush x:Key="NavIcon">#8A847F</SolidColorBrush>
-          <SolidColorBrush x:Key="TreeGuide">#D6D3D1</SolidColorBrush>
+          <SolidColorBrush x:Key="TreeGuide">#C4C0BC</SolidColorBrush>
+          <SolidColorBrush x:Key="QuietActionText">#57534E</SolidColorBrush>
+          <SolidColorBrush x:Key="DisabledButtonBackground">#EEEDEB</SolidColorBrush>
           <!-- Scroll bars: a faint thin thumb at rest, a little stronger when hovered (Fluent's own keys) -->
           <Color x:Key="ScrollBarPanningThumbBackgroundColor">#33000000</Color>
           <SolidColorBrush x:Key="ScrollBarPanningThumbBackground">#2E1C1917</SolidColorBrush>
@@ -160,7 +162,9 @@
           <SolidColorBrush x:Key="CardBorder">#2A2C31</SolidColorBrush>
           <SolidColorBrush x:Key="CardHover">#272A31</SolidColorBrush>
           <SolidColorBrush x:Key="NavIcon">#7E8594</SolidColorBrush>
-          <SolidColorBrush x:Key="TreeGuide">#34373E</SolidColorBrush>
+          <SolidColorBrush x:Key="TreeGuide">#4A4E57</SolidColorBrush>
+          <SolidColorBrush x:Key="QuietActionText">#B4BAC6</SolidColorBrush>
+          <SolidColorBrush x:Key="DisabledButtonBackground">#2A2C31</SolidColorBrush>
           <Color x:Key="ScrollBarPanningThumbBackgroundColor">#38FFFFFF</Color>
           <SolidColorBrush x:Key="ScrollBarPanningThumbBackground">#2EFFFFFF</SolidColorBrush>
           <Color x:Key="ScrollBarThumbBackgroundColor">#66FFFFFF</Color>
@@ -417,7 +421,8 @@
       <Setter Property="Background" Value="{DynamicResource NoticeErrorBackground}" />
       <Setter Property="BorderBrush" Value="{DynamicResource NoticeErrorBorder}" />
     </Style>
-    <Style Selector="Border.notice TextBlock">
+    <!-- Not the label inside a notice's button: it inherits the button's own foreground (link, on-accent, danger, disabled). -->
+    <Style Selector="Border.notice TextBlock:not(Button TextBlock)">
       <Setter Property="Foreground" Value="{DynamicResource PrimaryText}" />
       <Setter Property="TextWrapping" Value="Wrap" />
       <Setter Property="VerticalAlignment" Value="Center" />
@@ -474,10 +479,10 @@
       <Setter Property="BorderBrush" Value="{DynamicResource DividerBrush}" />
       <Setter Property="Foreground" Value="{DynamicResource MutedText}" />
     </Style>
+    <!-- A disabled primary is a neutral surface with muted text: a faded accent still read as enabled on dark. -->
     <Style Selector="Button.primary:disabled /template/ ContentPresenter#PART_ContentPresenter">
-      <Setter Property="Background" Value="{DynamicResource AccentBrush}" />
-      <Setter Property="Foreground" Value="{DynamicResource OnAccentText}" />
-      <Setter Property="Opacity" Value="0.4" />
+      <Setter Property="Background" Value="{DynamicResource DisabledButtonBackground}" />
+      <Setter Property="Foreground" Value="{DynamicResource MutedText}" />
     </Style>
     <Style Selector="Button.danger:disabled /template/ ContentPresenter#PART_ContentPresenter">
       <Setter Property="Foreground" Value="{DynamicResource MutedText}" />
@@ -487,11 +492,14 @@
       <Setter Property="Height" Value="13" />
       <Setter Property="VerticalAlignment" Value="Center" />
     </Style>
-    <!-- Smaller quiet buttons for the row under an answer: muted until hovered. -->
+    <!-- Smaller quiet buttons for the row under an answer: a soft text colour until hovered, clearly fainter when disabled. -->
     <Style Selector=":is(Button).quiet.small">
       <Setter Property="FontSize" Value="12.5" />
       <Setter Property="Padding" Value="7,3" />
-      <Setter Property="Foreground" Value="{DynamicResource MutedText}" />
+      <Setter Property="Foreground" Value="{DynamicResource QuietActionText}" />
+    </Style>
+    <Style Selector=":is(Button).quiet.small:disabled /template/ ContentPresenter#PART_ContentPresenter">
+      <Setter Property="Opacity" Value="0.45" />
     </Style>
     <Style Selector=":is(Button).quiet.small:pointerover /template/ ContentPresenter#PART_ContentPresenter">
       <Setter Property="Foreground" Value="{DynamicResource PrimaryText}" />

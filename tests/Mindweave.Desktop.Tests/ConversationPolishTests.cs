@@ -6,14 +6,17 @@ using Avalonia.Headless.XUnit;
 using Avalonia.Headless;
 using Avalonia.Input;
 using Avalonia.Media;
+using Avalonia.Styling;
 using Avalonia.VisualTree;
 using Mindweave.Application.Conversations;
 using Mindweave.Core.Branches;
 using Mindweave.Core.Conversations;
 using Mindweave.Desktop.Navigation;
 using Mindweave.Desktop.ViewModels.Conversations;
+using Mindweave.Desktop.ViewModels.Pages;
 using Mindweave.Desktop.Views;
 using Mindweave.Desktop.Views.Conversations;
+using Microsoft.Extensions.DependencyInjection;
 using Mindweave.Testing;
 using TextBlock = Avalonia.Controls.TextBlock;
 
@@ -242,6 +245,172 @@ public class ConversationPolishTests
         Assert.True(rows[1].GetVisualDescendants().OfType<Border>().Single(b => b.Classes.Contains("attention-badge")).IsEffectivelyVisible);
         Assert.False(rows[1].GetVisualDescendants().OfType<Ellipse>().Single(e => e.Classes.Contains("running-dot")).IsVisible);
         window.Close();
+    }
+
+    [AvaloniaFact]
+    public async Task A_notice_button_label_takes_the_button_colour_not_the_notice_text_colour()
+    {
+        await using var app = DesktopHarness.Create();
+        var window = Open(app);
+        var root = await ConversationAsync(app);
+        await root.CreateBranchAsync(new BranchSelection(root.Messages[1].Id, 0, "火车", "{\"v\":1}", 1, "test-profile"));
+        root = await OpenAsync(app, root.Id);
+        root.DeleteCommand.Execute(null);
+        await root.ConfirmCommand.ExecuteAsync(null);
+        window.UpdateLayout();
+        var view = CurrentView(window);
+
+        // A quiet action in a notice: icon and label both in the link colour, the notice's own text stays primary.
+        var offer = Find<Button>(view, "OfferArchiveButton");
+        var link = Brush(offer, "LinkText");
+        Assert.Equal(link, Colour(offer.GetVisualDescendants().OfType<TextBlock>().Single().Foreground));
+        Assert.Equal(link, Colour(offer.GetVisualDescendants().OfType<PathIcon>().Single().Foreground));
+        Assert.Equal(Brush(offer, "PrimaryText"), Colour(Find<TextBlock>(view, "ArchiveNotice").Foreground));
+
+        // A primary button in a notice: its label is the on-accent colour, not the notice's text colour.
+        await root.ArchiveCommand.ExecuteAsync(null);
+        await UiWait.UntilAsync(() => root.IsArchived);
+        window.UpdateLayout();
+        var restore = Find<Button>(view, "RestoreAndContinueButton");
+        Assert.True(restore.IsEffectivelyVisible);
+        Assert.Equal(Brush(restore, "OnAccentText"), Colour(restore.GetVisualDescendants().OfType<TextBlock>().Single().Foreground));
+        window.Close();
+    }
+
+    [AvaloniaFact]
+    public async Task Renaming_keeps_one_primary_button_on_the_page()
+    {
+        await using var app = DesktopHarness.Create();
+        var window = Open(app);
+        var page = await ConversationAsync(app);
+        page.Composer.Text = "下一个问题";
+        page.BeginRenameCommand.Execute(null);
+        window.UpdateLayout();
+        var view = CurrentView(window);
+
+        var save = Find<Button>(view, "SaveRenameButton");
+        Assert.True(save.IsEffectivelyVisible);
+        Assert.True(save.IsDefault);
+        Assert.DoesNotContain("primary", save.Classes);
+        Assert.Equal(["SendButton"], view.GetVisualDescendants().OfType<Button>().Where(b => b.IsEffectivelyVisible && b.Classes.Contains("primary")).Select(b => b.Name));
+        window.Close();
+    }
+
+    [AvaloniaFact]
+    public async Task A_disabled_send_is_a_neutral_surface_in_both_themes()
+    {
+        await using var app = DesktopHarness.Create();
+        var window = Open(app);
+        var page = await ConversationAsync(app);
+        foreach (var theme in new[] { ThemeVariant.Light, ThemeVariant.Dark })
+        {
+            window.RequestedThemeVariant = theme;
+            page.Composer.Text = string.Empty;
+            window.UpdateLayout();
+            var send = Find<Button>(CurrentView(window), "SendButton");
+            Assert.False(send.IsEffectivelyEnabled);
+            var presenter = Presenter(send);
+            Assert.Equal(Brush(send, "DisabledButtonBackground"), Colour(presenter.Background));
+            Assert.NotEqual(Brush(send, "AccentBrush"), Colour(presenter.Background));
+            Assert.Equal(Brush(send, "MutedText"), Colour(presenter.Foreground));
+
+            page.Composer.Text = "问";
+            window.UpdateLayout();
+            Assert.True(send.IsEffectivelyEnabled);
+            Assert.Equal(Brush(send, "AccentBrush"), Colour(presenter.Background));
+        }
+
+        window.Close();
+    }
+
+    [AvaloniaFact]
+    public async Task A_disabled_answer_action_is_visibly_fainter_than_an_enabled_one()
+    {
+        await using var app = DesktopHarness.Create();
+        var window = Open(app);
+        await ConversationAsync(app);
+        window.UpdateLayout();
+        var regenerate = VisibleNamed<Button>(CurrentView(window), "RetryButton");
+        Assert.True(regenerate.IsEffectivelyEnabled);
+        var presenter = Presenter(regenerate);
+        var resting = Colour(presenter.Foreground);
+        Assert.Equal(Brush(regenerate, "QuietActionText"), resting);
+        Assert.NotEqual(Brush(regenerate, "MutedText"), resting);
+        Assert.Equal(1, presenter.Opacity);
+
+        regenerate.IsEnabled = false;
+        window.UpdateLayout();
+        Assert.Equal(Brush(regenerate, "MutedText"), Colour(presenter.Foreground));
+        Assert.True(presenter.Opacity <= 0.5);
+        window.Close();
+    }
+
+    [AvaloniaFact]
+    public void The_sidebar_tree_glyph_stands_out_from_the_sidebar_in_both_themes()
+    {
+        var app = Avalonia.Application.Current!;
+        foreach (var variant in new[] { ThemeVariant.Light, ThemeVariant.Dark })
+        {
+            var guide = Assert.IsAssignableFrom<ISolidColorBrush>(app.FindResource(variant, "TreeGuide")).Color;
+            var sidebar = Assert.IsAssignableFrom<ISolidColorBrush>(app.FindResource(variant, "SidebarBackground")).Color;
+            Assert.True(Contrast(guide, sidebar) >= 1.5, $"{variant}: {guide} on {sidebar} is {Contrast(guide, sidebar):F2}:1");
+        }
+    }
+
+    [AvaloniaFact]
+    public async Task Only_a_delete_confirms_in_the_danger_colour()
+    {
+        await using var app = DesktopHarness.Create();
+        var window = Open(app);
+        var root = await ConversationAsync(app);
+        await root.CreateBranchAsync(new BranchSelection(root.Messages[1].Id, 0, "火车", "{\"v\":1}", 1, "test-profile"));
+        var child = Assert.IsType<ConversationViewModel>(app.Workbench.CurrentPage);
+        await child.Loaded;
+
+        child.DeleteCommand.Execute(null);
+        window.UpdateLayout();
+        Assert.True(child.Confirmation!.IsDestructive);
+        var confirm = Find<Button>(CurrentView(window), "ConfirmButton");
+        Assert.True(confirm.IsEffectivelyVisible);
+        Assert.Contains("danger", confirm.Classes);
+        Assert.Contains("secondary", confirm.Classes);
+        Assert.Equal(Brush(confirm, "DangerText"), Colour(confirm.GetVisualDescendants().OfType<TextBlock>().Single().Foreground));
+        child.CancelConfirmationCommand.Execute(null);
+
+        // Restoring archived ancestors asks too, but it is not destructive: a plain secondary confirm.
+        await app.Services.GetService<ConversationService>()!.ArchiveAsync(root.Id, CancellationToken.None);
+        app.ShellPage.Conversations.OpenArchivedCommand.Execute(null);
+        var archived = Assert.IsType<ArchivedViewModel>(app.Workbench.CurrentPage);
+        await archived.RefreshAsync();
+        var childId = child.Id;
+        archived.OpenCommand.Execute(archived.Items.Single(i => i.Id == childId));
+        child = Assert.IsType<ConversationViewModel>(app.Workbench.CurrentPage);
+        await child.Loaded;
+        Assert.True(child.IsArchived);
+        await child.RestoreAndContinueCommand.ExecuteAsync(null);
+        window.UpdateLayout();
+        Assert.False(child.Confirmation!.IsDestructive);
+        confirm = Find<Button>(CurrentView(window), "ConfirmButton");
+        Assert.True(confirm.IsEffectivelyVisible);
+        Assert.DoesNotContain("danger", confirm.Classes);
+        Assert.Equal(Brush(confirm, "PrimaryText"), Colour(confirm.GetVisualDescendants().OfType<TextBlock>().Single().Foreground));
+        window.Close();
+    }
+
+    private static ContentPresenter Presenter(Button button) =>
+        button.GetVisualDescendants().OfType<ContentPresenter>().First(p => p.Name == "PART_ContentPresenter");
+
+    private static Color Brush(Control control, string key) =>
+        Assert.IsAssignableFrom<ISolidColorBrush>(control.FindResource(control.ActualThemeVariant, key)).Color;
+
+    private static Color Colour(IBrush? brush) => Assert.IsAssignableFrom<ISolidColorBrush>(brush).Color;
+
+    private static double Contrast(Color a, Color b)
+    {
+        static double Channel(byte c) => c / 255.0 is var v && v <= 0.03928 ? v / 12.92 : Math.Pow((v + 0.055) / 1.055, 2.4);
+        static double Luminance(Color c) => (0.2126 * Channel(c.R)) + (0.7152 * Channel(c.G)) + (0.0722 * Channel(c.B));
+        var (high, low) = (Math.Max(Luminance(a), Luminance(b)), Math.Min(Luminance(a), Luminance(b)));
+        return (high + 0.05) / (low + 0.05);
     }
 
     /// <summary>A real pointer click at the button's centre, so the button is where the reader would click it.</summary>

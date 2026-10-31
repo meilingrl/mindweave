@@ -134,7 +134,7 @@ public sealed partial class ArchivedViewModel : PageViewModel, IDisposable
             }
 
             await _load.Request();
-        });
+        }, IsDestructive: true);
     }
 
     [RelayCommand]
