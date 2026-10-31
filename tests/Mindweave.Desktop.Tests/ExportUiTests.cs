@@ -34,7 +34,21 @@ public sealed class ExportUiTests : IDisposable
         var button = view.GetVisualDescendants().OfType<Button>().Single(b => b.Name == "ExportButton");
         Assert.Equal(UiText.ExportMarkdown, button.Content);
         Assert.True(button.IsEffectivelyEnabled);
-        Assert.Contains(view.GetVisualDescendants().OfType<TextBlock>(), t => t.Text == UiText.ExportDraftNote && t.IsEffectivelyVisible);
+
+        // The button opens the export options: the source-note choice, what is exported, and the export itself (S7).
+        button.Flyout!.ShowAt(button);
+        window.UpdateLayout();
+        var options = Assert.IsType<StackPanel>(Assert.IsType<Flyout>(button.Flyout).Content);
+        Assert.True(options.IsEffectivelyVisible);
+        Assert.Contains(options.GetVisualDescendants().OfType<TextBlock>(), t => t.Text == UiText.ExportDraftNote && t.IsEffectivelyVisible);
+        Assert.Contains(options.GetVisualDescendants().OfType<CheckBox>(), c => c.Name == "ExportOmitSource" && Equals(c.Content, UiText.ExportOmitSource));
+        var run = options.GetVisualDescendants().OfType<Button>().Single(b => b.Name == "ExportRunButton");
+        Assert.Same(summary.ExportCommand, run.Command);
+        // The page keeps one primary while the options are open: the export button in them is secondary.
+        Assert.Contains("secondary", run.Classes);
+        Assert.DoesNotContain("primary", run.Classes);
+        Assert.True(run.IsEffectivelyEnabled);
+        button.Flyout.Hide();
 
         await summary.ExportCommand.ExecuteAsync(null);
 
