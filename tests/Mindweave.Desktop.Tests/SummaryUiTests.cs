@@ -236,6 +236,35 @@ public class SummaryUiTests
         Assert.Equal(["AdoptButton"], Primaries());
         Assert.Contains("secondary", Named("ReturnButton").Classes);
 
+        // Renaming takes the bar's place and the candidate steps aside, so the name's save is the one primary.
+        Avalonia.Controls.Control Part(string name) => view.GetVisualDescendants().OfType<Avalonia.Controls.Control>().Single(c => c.Name == name);
+        summary.BeginRenameCommand.Execute(null);
+        window.UpdateLayout();
+        Assert.False(Part("ActionBar").IsEffectivelyVisible);
+        Assert.True(Part("RenameRow").IsEffectivelyVisible);
+        Assert.False(Part("CandidatePanel").IsEffectivelyVisible);
+        Assert.Equal(["CommitRenameButton"], Primaries());
+        summary.CancelRenameCommand.Execute(null);
+        window.UpdateLayout();
+        Assert.True(Part("ActionBar").IsEffectivelyVisible);
+        Assert.False(Part("RenameRow").IsEffectivelyVisible);
+        Assert.Equal(["AdoptButton"], Primaries());
+
+        // The candidate's note is muted inside the notice, not primary text.
+        var note = view.GetVisualDescendants().OfType<Avalonia.Controls.TextBlock>().Single(t => t.Name == "CandidateNote");
+        Assert.True(Avalonia.Controls.ResourceNodeExtensions.TryFindResource(view, "MutedText", view.ActualThemeVariant, out var muted));
+        Assert.Equal(((Avalonia.Media.ISolidColorBrush)muted!).Color, Assert.IsAssignableFrom<Avalonia.Media.ISolidColorBrush>(note.Foreground).Color);
+
+        // Confirming a discard is a danger step; with no question open the button is plain again.
+        summary.DiscardCommand.Execute(null);
+        window.UpdateLayout();
+        Assert.True(summary.ConfirmationIsDestructive);
+        Assert.True(Part("ConfirmationPanel").IsEffectivelyVisible);
+        Assert.Contains("danger", Named("ConfirmButton").Classes);
+        summary.CancelConfirmationCommand.Execute(null);
+        window.UpdateLayout();
+        Assert.DoesNotContain("danger", Named("ConfirmButton").Classes);
+
         // Editing hides the view's bar and the candidate; save is then the one primary.
         summary.ShowCurrentCommand.Execute(null);
         await summary.BeginEditCommand.ExecuteAsync(null);
@@ -252,14 +281,26 @@ public class SummaryUiTests
     public async Task History_rows_show_their_parts_the_shown_version_and_delete_waits_for_a_tick()
     {
         await using var app = DesktopHarness.Create();
+        var window = new MainWindow { DataContext = app.Root, Width = 1000, Height = 700 };
+        window.Show();
         var page = await ConversationAsync(app);
         await page.SummarizeCommand.ExecuteAsync(null);
         await UiWait.UntilAsync(() => page.HasSummary && page.RunningSummary is null);
         var summary = await OpenSummaryAsync(app, page);
+        window.UpdateLayout();
+        var view = window.GetVisualDescendants().OfType<SummaryView>().Single();
+        var history = view.GetVisualDescendants().OfType<Avalonia.Controls.Expander>().Single(e => e.Name == "HistoryPanel");
+        Assert.True(history.IsEffectivelyVisible);
+
+        // The history steps aside while editing: "set current", delete or view would change the version under the open edit.
         await summary.BeginEditCommand.ExecuteAsync(null);
+        window.UpdateLayout();
+        Assert.False(history.IsEffectivelyVisible);
         summary.EditBody = "第二版";
         await summary.SaveEditCommand.ExecuteAsync(null);
         await UiWait.UntilAsync(() => summary.History.Count == 2);
+        window.UpdateLayout();
+        Assert.True(history.IsEffectivelyVisible);
 
         Assert.Equal(UiText.HistoryHeadingCount(2), summary.HistoryHeader);
         var current = summary.History[0];
@@ -274,11 +315,42 @@ public class SummaryUiTests
         Assert.True(first.IsShown);
         Assert.False(current.IsShown);
 
+        // The shown row's neutral badges (已读, 手改) get the page surface and an outline against the row highlight.
+        history.IsExpanded = true;
+        summary.ShowVersionCommand.Execute(current.Id);
+        window.UpdateLayout();
+        var shownRow = view.GetVisualDescendants().OfType<Avalonia.Controls.Border>().Single(b => b.Classes.Contains("history-row") && b.Classes.Contains("shown"));
+        var neutral = shownRow.GetVisualDescendants().OfType<Avalonia.Controls.Border>()
+            .Where(b => b.Classes.Contains("badge") && !b.Classes.Contains("accent") && !b.Classes.Contains("warning") && b.IsEffectivelyVisible).ToList();
+        Assert.NotEmpty(neutral);
+        Assert.True(Avalonia.Controls.ResourceNodeExtensions.TryFindResource(view, "OutlineBrush", view.ActualThemeVariant, out var outline));
+        Assert.All(neutral, b =>
+        {
+            Assert.Equal(new Thickness(1), b.BorderThickness);
+            Assert.Equal(((Avalonia.Media.ISolidColorBrush)outline!).Color, Assert.IsAssignableFrom<Avalonia.Media.ISolidColorBrush>(b.BorderBrush).Color);
+        });
+        var otherRow = view.GetVisualDescendants().OfType<Avalonia.Controls.Border>().Single(b => b.Classes.Contains("history-row") && !b.Classes.Contains("shown"));
+        Assert.All(otherRow.GetVisualDescendants().OfType<Avalonia.Controls.Border>().Where(b => b.Classes.Contains("badge")), b => Assert.Equal(default, b.BorderThickness));
+
+        // Delete waits for a tick, in the model and on the button itself.
+        var delete = view.GetVisualDescendants().OfType<Avalonia.Controls.Button>().Single(b => b.Name == "DeleteSelectedButton");
         Assert.False(summary.HasSelectedVersions);
+        Assert.False(delete.IsEffectivelyEnabled);
         first.IsSelected = true;
         Assert.True(summary.HasSelectedVersions);
+        Assert.True(delete.IsEffectivelyEnabled);
         first.IsSelected = false;
         Assert.False(summary.HasSelectedVersions);
+        Assert.False(delete.IsEffectivelyEnabled);
+
+        // Deleting is a destructive question; its confirm button is a danger one.
+        first.IsSelected = true;
+        summary.DeleteSelectedCommand.Execute(null);
+        window.UpdateLayout();
+        Assert.True(summary.ConfirmationIsDestructive);
+        Assert.Contains("danger", view.GetVisualDescendants().OfType<Avalonia.Controls.Button>().Single(b => b.Name == "ConfirmButton").Classes);
+        summary.CancelConfirmationCommand.Execute(null);
+        window.Close();
     }
 
     [Fact]

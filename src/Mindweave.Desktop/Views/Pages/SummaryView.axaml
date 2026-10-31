@@ -27,6 +27,10 @@
     <Style Selector="Border.notice Button.danger TextBlock">
       <Setter Property="Foreground" Value="{DynamicResource DangerText}" />
     </Style>
+    <!-- A muted line in a notice stays muted (the notice's text style would otherwise make it primary text). -->
+    <Style Selector="Border.notice TextBlock.muted">
+      <Setter Property="Foreground" Value="{DynamicResource MutedText}" />
+    </Style>
     <!-- A disabled outline button stays an outline (Fluent's grey fill would read as a heavy block). -->
     <Style Selector="Button.secondary:disabled /template/ ContentPresenter#PART_ContentPresenter">
       <Setter Property="Background" Value="Transparent" />
@@ -61,6 +65,14 @@
     <Style Selector="Border.history-row Border.badge">
       <Setter Property="Margin" Value="0,0,6,0" />
       <Setter Property="HorizontalAlignment" Value="Left" />
+    </Style>
+    <!-- On the highlighted row a neutral badge's fill is close to the row's own (nearly equal in Dark): give it the page
+         surface and an outline, one pixel taken from the padding so the row keeps its height. -->
+    <Style Selector="Border.history-row.shown Border.badge:not(.accent):not(.warning)">
+      <Setter Property="Background" Value="{DynamicResource WindowBackground}" />
+      <Setter Property="BorderBrush" Value="{DynamicResource OutlineBrush}" />
+      <Setter Property="BorderThickness" Value="1" />
+      <Setter Property="Padding" Value="6,0,6,1" />
     </Style>
     <!-- The editor: a title field and a Markdown source field with room to breathe. -->
     <Style Selector="TextBox.edit-title">
@@ -166,10 +178,11 @@
                 <TextBlock FontWeight="SemiBold" Text="{x:Static d:UiText.ExportOptionsHeading}" />
                 <CheckBox Name="ExportOmitSource" Content="{x:Static d:UiText.ExportOmitSource}" IsChecked="{Binding ExportOmitSource}" />
                 <TextBlock Name="ExportDraftNote" Classes="muted" FontSize="12" Text="{x:Static d:UiText.ExportDraftNote}" TextWrapping="Wrap" />
+                <!-- Secondary: the page keeps its one primary (back to the conversation) while the options are open. -->
                 <!-- Export takes the shown saved version only: never the candidate, never an unsaved edit (§8.3). -->
                 <TextBlock Name="ExportHint" Classes="warning" FontSize="12" Text="{Binding ExportHint}" TextWrapping="Wrap"
                            IsVisible="{Binding ExportHint, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
-                <Button Name="ExportRunButton" Classes="primary" HorizontalAlignment="Right" Content="{x:Static d:UiText.ExportRun}"
+                <Button Name="ExportRunButton" Classes="secondary" HorizontalAlignment="Right" Content="{x:Static d:UiText.ExportRun}"
                         Command="{Binding ExportCommand}" />
               </StackPanel>
             </Flyout>
@@ -180,7 +193,7 @@
       <!-- Renaming takes the bar's place: a name field, save, cancel. -->
       <StackPanel Name="RenameRow" Orientation="Horizontal" Spacing="8" IsVisible="{Binding IsRenaming}">
         <TextBox Name="RenameBox" Text="{Binding RenameText}" Width="340" PlaceholderText="{x:Static d:UiText.RenameWatermark}" VerticalAlignment="Center" />
-        <Button Classes="primary" Content="{x:Static d:UiText.Save}" Command="{Binding CommitRenameCommand}" IsDefault="True" VerticalAlignment="Center" />
+        <Button Name="CommitRenameButton" Classes="primary" Content="{x:Static d:UiText.Save}" Command="{Binding CommitRenameCommand}" IsDefault="True" VerticalAlignment="Center" />
         <Button Classes="quiet" Content="{x:Static d:UiText.Cancel}" Command="{Binding CancelRenameCommand}" />
       </StackPanel>
 
@@ -206,19 +219,22 @@
           <StackPanel Spacing="8">
             <TextBlock Text="{Binding Confirmation.Message, FallbackValue=''}" />
             <StackPanel Orientation="Horizontal" Spacing="6">
-              <Button Name="ConfirmButton" Classes="secondary" Content="{x:Static d:UiText.Confirm}" Command="{Binding ConfirmCommand}" />
+              <!-- Confirming a removal (deleting versions, discarding the candidate) is a danger button. -->
+              <Button Name="ConfirmButton" Classes="secondary" Classes.danger="{Binding ConfirmationIsDestructive}" Content="{x:Static d:UiText.Confirm}" Command="{Binding ConfirmCommand}" />
               <Button Classes="quiet" Content="{x:Static d:UiText.Cancel}" Command="{Binding CancelConfirmationCommand}" />
             </StackPanel>
           </StackPanel>
         </DockPanel>
       </Border>
 
-      <!-- The candidate is shown beside the current version, never in its place, until it is adopted. -->
+      <!-- The candidate is shown beside the current version, never in its place, until it is adopted. It steps aside while
+           editing or renaming, so the open task's save stays the one primary. -->
       <Border Name="CandidatePanel" Classes="notice info">
         <Border.IsVisible>
           <MultiBinding Converter="{x:Static BoolConverters.And}">
             <Binding Path="HasCandidate" />
             <Binding Path="!IsEditing" />
+            <Binding Path="!IsRenaming" />
           </MultiBinding>
         </Border.IsVisible>
         <DockPanel>
@@ -226,7 +242,7 @@
           <StackPanel Spacing="8">
             <StackPanel Spacing="2">
               <TextBlock FontWeight="SemiBold" Text="{x:Static d:UiText.CandidateHeading}" />
-              <TextBlock Classes="muted" FontSize="12" Text="{x:Static d:UiText.CandidateNote}" />
+              <TextBlock Name="CandidateNote" Classes="muted" FontSize="12" Text="{x:Static d:UiText.CandidateNote}" />
             </StackPanel>
             <StackPanel Orientation="Horizontal" Spacing="6">
               <Button Name="ViewCandidateButton" Classes="secondary" Content="{x:Static d:UiText.ViewCandidate}" Command="{Binding ShowCandidateCommand}" IsVisible="{Binding !ShownIsCandidate}" />
@@ -245,6 +261,7 @@
     <TextBlock DockPanel.Dock="Top" Classes="muted" Text="{x:Static d:UiText.SummaryMissing}" IsVisible="{Binding IsMissing}" />
 
     <!-- ── Version history: aligned columns, tick to delete, quiet row actions ── -->
+    <!-- Hidden while editing: "set current", delete and view would change the version under the open edit. -->
     <Grid DockPanel.Dock="Bottom">
     <Grid.ColumnDefinitions>
       <ColumnDefinition Width="*" MaxWidth="720" />

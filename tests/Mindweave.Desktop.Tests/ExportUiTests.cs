@@ -44,6 +44,9 @@ public sealed class ExportUiTests : IDisposable
         Assert.Contains(options.GetVisualDescendants().OfType<CheckBox>(), c => c.Name == "ExportOmitSource" && Equals(c.Content, UiText.ExportOmitSource));
         var run = options.GetVisualDescendants().OfType<Button>().Single(b => b.Name == "ExportRunButton");
         Assert.Same(summary.ExportCommand, run.Command);
+        // The page keeps one primary while the options are open: the export button in them is secondary.
+        Assert.Contains("secondary", run.Classes);
+        Assert.DoesNotContain("primary", run.Classes);
         Assert.True(run.IsEffectivelyEnabled);
         button.Flyout.Hide();
 

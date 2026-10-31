@@ -54,8 +54,12 @@ public sealed partial class SummaryVersionItem(SummaryVersion version, bool isCu
     public partial bool IsShown { get; set; }
 }
 
-/// <summary>A question the page asks before an irreversible or replacing step; <see cref="Proceed"/> runs on "confirm".</summary>
-public sealed record PendingConfirmation(string Message, Func<Task> Proceed);
+/// <summary>
+/// A question the page asks before an irreversible or replacing step; <see cref="Proceed"/> runs on "confirm".
+/// <see cref="IsDestructive"/> marks a step that removes something (deleting versions, discarding the candidate), whose
+/// confirm button is drawn in the danger style; adopting only replaces the current version, which stays in the history.
+/// </summary>
+public sealed record PendingConfirmation(string Message, Func<Task> Proceed, bool IsDestructive = false);
 
 /// <summary>
 /// A summary node's page (S4): the shown version (current by default), its read state and markers, the candidate
@@ -181,7 +185,11 @@ public sealed partial class SummaryViewModel : PageViewModel, IPageFlush, IDispo
     public string? ExportHint => ShownIsCandidate ? UiText.ExportCandidateHint : null;
 
     [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(ConfirmationIsDestructive))]
     public partial PendingConfirmation? Confirmation { get; private set; }
+
+    /// <summary>Whether the open question confirms a step that removes something; its confirm button is then a danger one.</summary>
+    public bool ConfirmationIsDestructive => Confirmation is { IsDestructive: true };
 
     [ObservableProperty]
     public partial bool IsEditing { get; private set; }
@@ -310,7 +318,7 @@ public sealed partial class SummaryViewModel : PageViewModel, IPageFlush, IDispo
             {
                 await _summaries.DiscardAsync(Node, candidate, CancellationToken.None);
                 _shownId = null;
-            }));
+            }), IsDestructive: true);
         }
     }
 
@@ -350,7 +358,7 @@ public sealed partial class SummaryViewModel : PageViewModel, IPageFlush, IDispo
             {
                 _shownId = current;
             }
-        }));
+        }), IsDestructive: true);
     }
 
     private bool CanExport() => Shown is not null && !ShownIsCandidate && !IsMissing;
