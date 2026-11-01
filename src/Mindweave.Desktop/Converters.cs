@@ -17,4 +17,14 @@ public static class Converters
 
     public static FuncValueConverter<BackupInfo?, string> BackupLabel { get; } =
         new(backup => backup is null ? string.Empty : UiText.FormatBackup(backup));
+
+    // S7 round 3 · settings: a backup row's columns on the storage page.
+    public static FuncValueConverter<DateTimeOffset, string> Time { get; } = new(UiText.FormatTime);
+
+    public static FuncValueConverter<long, string> FileSize { get; } = new(UiText.FormatSize);
+
+    public static FuncValueConverter<int, string> SchemaVersion { get; } = new(UiText.SchemaVersionBadge);
+
+    /// <summary>The database lives in the data directory shown just above it, so its row shows the file name (full path on hover).</summary>
+    public static FuncValueConverter<string?, string> FileName { get; } = new(path => Path.GetFileName(path) ?? string.Empty);
 }

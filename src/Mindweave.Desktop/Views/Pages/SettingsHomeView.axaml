@@ -5,60 +5,145 @@
              x:Class="Mindweave.Desktop.Views.Pages.SettingsHomeView"
              x:DataType="vm:SettingsHomeViewModel">
   <ScrollViewer HorizontalScrollBarVisibility="Disabled">
-  <StackPanel Spacing="10" HorizontalAlignment="Left" MaxWidth="640">
-    <TextBlock FontWeight="SemiBold" FontSize="16" Text="{x:Static d:UiText.AppearanceSection}" />
-    <StackPanel Name="AppearancePicker" Orientation="Horizontal" Spacing="16">
-      <RadioButton Name="AppearanceFollowSystem" GroupName="Appearance" Content="{x:Static d:UiText.AppearanceFollowSystem}" IsChecked="{Binding IsFollowSystem}" />
-      <RadioButton Name="AppearanceLight" GroupName="Appearance" Content="{x:Static d:UiText.AppearanceLight}" IsChecked="{Binding IsLight}" />
-      <RadioButton Name="AppearanceDark" GroupName="Appearance" Content="{x:Static d:UiText.AppearanceDark}" IsChecked="{Binding IsDark}" />
+  <!-- One left-aligned column of at most 640 px (a star column with a maximum), as on the summary page. -->
+  <Grid Margin="0,4,16,24">
+  <Grid.ColumnDefinitions>
+    <ColumnDefinition Width="*" MaxWidth="640" />
+  </Grid.ColumnDefinitions>
+  <StackPanel>
+
+    <!-- 外观 -->
+    <TextBlock Classes="section-heading" Text="{x:Static d:UiText.AppearanceSection}" />
+    <Border Classes="card settings">
+      <Grid ColumnDefinitions="96,*" RowDefinitions="Auto,Auto">
+        <TextBlock Classes="field-label" Text="{x:Static d:UiText.ThemeLabel}" />
+        <Border Grid.Column="1" Name="AppearancePicker" Classes="segmented">
+          <StackPanel Orientation="Horizontal" Spacing="2" KeyboardNavigation.TabNavigation="Once">
+            <RadioButton Name="AppearanceLight" Classes="segment" GroupName="Appearance" IsChecked="{Binding IsLight}"
+                         AutomationProperties.Name="{x:Static d:UiText.AppearanceLight}">
+              <StackPanel Orientation="Horizontal" Spacing="6">
+                <PathIcon Data="{StaticResource IconSun}" />
+                <TextBlock Text="{x:Static d:UiText.AppearanceLight}" VerticalAlignment="Center" />
+              </StackPanel>
+            </RadioButton>
+            <RadioButton Name="AppearanceDark" Classes="segment" GroupName="Appearance" IsChecked="{Binding IsDark}"
+                         AutomationProperties.Name="{x:Static d:UiText.AppearanceDark}">
+              <StackPanel Orientation="Horizontal" Spacing="6">
+                <PathIcon Data="{StaticResource IconMoon}" />
+                <TextBlock Text="{x:Static d:UiText.AppearanceDark}" VerticalAlignment="Center" />
+              </StackPanel>
+            </RadioButton>
+            <RadioButton Name="AppearanceFollowSystem" Classes="segment" GroupName="Appearance" IsChecked="{Binding IsFollowSystem}"
+                         AutomationProperties.Name="{x:Static d:UiText.AppearanceFollowSystem}">
+              <StackPanel Orientation="Horizontal" Spacing="6">
+                <PathIcon Data="{StaticResource IconMonitor}" />
+                <TextBlock Text="{x:Static d:UiText.AppearanceFollowSystem}" VerticalAlignment="Center" />
+              </StackPanel>
+            </RadioButton>
+          </StackPanel>
+        </Border>
+        <TextBlock Grid.Row="1" Grid.Column="1" Name="AppearanceStatus" Classes="error" FontSize="12" TextWrapping="Wrap" Margin="0,8,0,0"
+                   Text="{Binding AppearanceStatus}" IsVisible="{Binding AppearanceStatus, Converter={x:Static ObjectConverters.IsNotNull}}" />
+      </Grid>
+    </Border>
+
+    <!-- 模型连接 -->
+    <TextBlock Classes="section-heading" Margin="2,28,0,2" Text="{x:Static d:UiText.ModelSection}" />
+    <TextBlock Classes="caption" Margin="2,0,0,10" TextWrapping="Wrap" Text="{x:Static d:UiText.PrivacyHint}" />
+    <StackPanel DataContext="{Binding Model}" x:DataType="vm:ModelSettingsViewModel" Spacing="12">
+      <Border Classes="card settings">
+        <Grid ColumnDefinitions="96,*" RowDefinitions="Auto,Auto,Auto,Auto,Auto,Auto" RowSpacing="12">
+          <TextBlock Classes="field-label" Text="{x:Static d:UiText.ProviderLabel}" />
+          <ComboBox Grid.Column="1" Name="ProviderPicker" Classes="settings" MinWidth="240" HorizontalAlignment="Left"
+                    ItemsSource="{Binding Providers}" SelectedItem="{Binding SelectedProvider}"
+                    PlaceholderText="{x:Static d:UiText.ProviderPlaceholder}" AutomationProperties.Name="{x:Static d:UiText.ProviderLabel}">
+            <ComboBox.ItemTemplate>
+              <DataTemplate x:DataType="vm:ProviderPreset">
+                <TextBlock Text="{Binding Name}" />
+              </DataTemplate>
+            </ComboBox.ItemTemplate>
+          </ComboBox>
+
+          <TextBlock Grid.Row="1" Classes="field-label" Text="{x:Static d:UiText.BaseUrlLabel}" />
+          <TextBox Grid.Row="1" Grid.Column="1" Name="BaseUrl" Text="{Binding BaseUrl}" PlaceholderText="{x:Static d:UiText.BaseUrlPlaceholder}"
+                   AutomationProperties.Name="{x:Static d:UiText.BaseUrlLabel}" />
+
+          <TextBlock Grid.Row="2" Classes="field-label" Text="{x:Static d:UiText.ApiKeyLabel}" />
+          <TextBox Grid.Row="2" Grid.Column="1" Name="ApiKey" Text="{Binding ApiKey}" PasswordChar="•" RevealPassword="False"
+                   PlaceholderText="{Binding KeyPlaceholder}" AutomationProperties.Name="{x:Static d:UiText.ApiKeyLabel}" />
+
+          <TextBlock Grid.Row="3" Classes="field-label" Text="{x:Static d:UiText.ModelLabel}" />
+          <Grid Grid.Row="3" Grid.Column="1" ColumnDefinitions="*,Auto" ColumnSpacing="8">
+            <TextBox Name="ModelBox" Text="{Binding Model}" PlaceholderText="{x:Static d:UiText.ModelPlaceholder}"
+                     AutomationProperties.Name="{x:Static d:UiText.ModelLabel}">
+              <TextBox.InnerRightContent>
+                <Button Name="ModelListToggle" Classes="field-toggle" Click="OnModelListToggle" Focusable="False"
+                        ToolTip.Tip="{x:Static d:UiText.ShowModels}" AutomationProperties.Name="{x:Static d:UiText.ShowModels}"
+                        IsVisible="{Binding AvailableModels.Count, Converter={x:Static d:Converters.IsPositive}}">
+                  <PathIcon Data="{StaticResource IconChevronDown}" />
+                </Button>
+              </TextBox.InnerRightContent>
+            </TextBox>
+            <Popup Name="ModelPopup" PlacementTarget="{Binding #ModelBox}" Placement="BottomEdgeAlignedLeft"
+                   IsOpen="{Binding IsModelListOpen, Mode=TwoWay}" IsLightDismissEnabled="True" OverlayDismissEventPassThrough="True"
+                   MinWidth="{Binding #ModelBox.Bounds.Width}">
+              <Border Classes="suggestions">
+                <ListBox Name="ModelList" ItemsSource="{Binding ModelSuggestions}" MaxHeight="248" SelectionMode="Single" />
+              </Border>
+            </Popup>
+            <Button Grid.Column="1" Name="FetchModels" Classes="secondary" Command="{Binding DiscoverCommand}">
+              <StackPanel Orientation="Horizontal" Spacing="6">
+                <PathIcon Data="{StaticResource IconRegenerate}" />
+                <TextBlock Text="{x:Static d:UiText.FetchModels}" />
+              </StackPanel>
+            </Button>
+          </Grid>
+
+          <TextBlock Grid.Row="4" Classes="field-label" Text="{x:Static d:UiText.ConnectionNameLabel}" />
+          <TextBox Grid.Row="4" Grid.Column="1" Name="ConnectionName" Text="{Binding Name}" PlaceholderText="{x:Static d:UiText.ConnectionNamePlaceholder}"
+                   AutomationProperties.Name="{x:Static d:UiText.ConnectionNameLabel}" />
+
+          <TextBlock Grid.Row="5" Classes="field-label" VerticalAlignment="Top" Margin="0,6,0,0" Text="{x:Static d:UiText.ContextWindowLabel}" />
+          <StackPanel Grid.Row="5" Grid.Column="1" Spacing="6">
+            <StackPanel Orientation="Horizontal" Spacing="8">
+              <TextBox Name="ContextWindow" Text="{Binding ContextWindow}" PlaceholderText="{x:Static d:UiText.ContextWindowPlaceholder}" Width="180"
+                       AutomationProperties.Name="{x:Static d:UiText.ContextWindowLabel}" />
+              <TextBlock Classes="caption" VerticalAlignment="Center" Text="{x:Static d:UiText.TokensUnit}" />
+            </StackPanel>
+            <TextBlock Classes="caption" TextWrapping="Wrap" Text="{x:Static d:UiText.ContextWindowHint}" />
+          </StackPanel>
+        </Grid>
+      </Border>
+      <StackPanel Orientation="Horizontal" Spacing="8" Margin="2,0,0,0">
+        <Button Name="SaveModel" Classes="primary" Content="{x:Static d:UiText.Save}" Command="{Binding SaveCommand}" />
+        <Button Name="TestModel" Classes="secondary" Content="{x:Static d:UiText.TestConnection}" Command="{Binding TestCommand}"
+                ToolTip.Tip="{x:Static d:UiText.TestCostTip}" />
+        <TextBlock Classes="caption" VerticalAlignment="Center" Margin="4,0,0,0" Text="{x:Static d:UiText.TestCostHint}" />
+      </StackPanel>
+      <TextBlock Name="ModelStatus" Margin="2,0,0,0" Text="{Binding Status}" TextWrapping="Wrap" FontSize="13"
+                 Classes.muted="{Binding !StatusIsError}" Classes.error="{Binding StatusIsError}"
+                 IsVisible="{Binding Status, Converter={x:Static ObjectConverters.IsNotNull}}" />
     </StackPanel>
-    <TextBlock Classes="muted" FontSize="12" TextWrapping="Wrap" Text="{x:Static d:UiText.AppearanceHint}" />
-    <TextBlock Name="AppearanceStatus" Classes="error" FontSize="12" TextWrapping="Wrap" Text="{Binding AppearanceStatus}"
-               IsVisible="{Binding AppearanceStatus, Converter={x:Static ObjectConverters.IsNotNull}}" />
-    <Separator Margin="0,8" />
-    <TextBlock FontWeight="SemiBold" FontSize="16" Text="{x:Static d:UiText.ModelSection}" />
-    <TextBlock Classes="muted" TextWrapping="Wrap" Text="{x:Static d:UiText.PrivacyHint}" />
-    <Grid ColumnDefinitions="Auto,*" RowDefinitions="Auto,Auto,Auto,Auto,Auto,Auto" ColumnSpacing="12" RowSpacing="8" DataContext="{Binding Model}">
-      <TextBlock VerticalAlignment="Center" Text="{x:Static d:UiText.ConnectionNameLabel}" />
-      <TextBox Grid.Column="1" Name="ConnectionName" Text="{Binding Name}" />
-      <TextBlock Grid.Row="1" VerticalAlignment="Center" Text="{x:Static d:UiText.BaseUrlLabel}" />
-      <StackPanel Grid.Row="1" Grid.Column="1" Spacing="2">
-        <TextBox Name="BaseUrl" Text="{Binding BaseUrl}" PlaceholderText="https://api.example.com/v1" />
-        <TextBlock Classes="muted" FontSize="12" TextWrapping="Wrap" Text="{x:Static d:UiText.BaseUrlHint}" />
-      </StackPanel>
-      <TextBlock Grid.Row="2" VerticalAlignment="Center" Text="{x:Static d:UiText.ApiKeyLabel}" />
-      <StackPanel Grid.Row="2" Grid.Column="1" Spacing="2">
-        <TextBox Name="ApiKey" Text="{Binding ApiKey}" PasswordChar="•" RevealPassword="False" />
-        <TextBlock Classes="muted" FontSize="12" Text="{Binding KeyHint}" />
-      </StackPanel>
-      <TextBlock Grid.Row="3" VerticalAlignment="Center" Text="{x:Static d:UiText.ModelLabel}" />
-      <DockPanel Grid.Row="3" Grid.Column="1">
-        <Button DockPanel.Dock="Right" Content="{x:Static d:UiText.FetchModels}" Command="{Binding DiscoverCommand}" Margin="8,0,0,0" />
-        <AutoCompleteBox Name="ModelBox" Text="{Binding Model}" ItemsSource="{Binding AvailableModels}" FilterMode="ContainsOrdinal" MinimumPrefixLength="0" />
-      </DockPanel>
-      <TextBlock Grid.Row="4" VerticalAlignment="Top" Margin="0,6,0,0" Text="{x:Static d:UiText.ContextWindowLabel}" />
-      <StackPanel Grid.Row="4" Grid.Column="1" Spacing="2">
-        <TextBox Name="ContextWindow" Text="{Binding ContextWindow}" PlaceholderText="{x:Static d:UiText.ContextWindowPlaceholder}" Width="200" HorizontalAlignment="Left" />
-        <TextBlock Classes="muted" FontSize="12" TextWrapping="Wrap" Text="{x:Static d:UiText.ContextWindowHint}" />
-      </StackPanel>
-      <StackPanel Grid.Row="5" Grid.Column="1" Spacing="6">
-        <StackPanel Orientation="Horizontal" Spacing="8">
-          <Button Name="SaveModel" Content="{x:Static d:UiText.Save}" Command="{Binding SaveCommand}" />
-          <Button Name="TestModel" Content="{x:Static d:UiText.TestConnection}" Command="{Binding TestCommand}" />
-        </StackPanel>
-        <TextBlock Classes="muted" FontSize="12" TextWrapping="Wrap" Text="{x:Static d:UiText.TestCostHint}" />
-        <TextBlock Name="ModelStatus" Text="{Binding Status}" TextWrapping="Wrap" Classes.error="{Binding StatusIsError}"
-                   IsVisible="{Binding Status, Converter={x:Static ObjectConverters.IsNotNull}}" />
-      </StackPanel>
-    </Grid>
-    <Separator Margin="0,12" />
-    <Grid ColumnDefinitions="Auto,*" RowDefinitions="Auto,Auto" ColumnSpacing="16" RowSpacing="6">
-      <TextBlock Classes="muted" Text="{x:Static d:UiText.AppVersionLabel}" />
-      <TextBlock Grid.Column="1" Text="{Binding Environment.Version}" />
-      <TextBlock Grid.Row="1" Classes="muted" Text="{x:Static d:UiText.ChannelLabel}" />
-      <TextBlock Grid.Row="1" Grid.Column="1" Text="{Binding Environment.Channel}" />
-    </Grid>
-    <Button Name="StorageDetailsButton" Content="{x:Static d:UiText.StorageDetailsLink}" Command="{Binding ShowStorageDetailsCommand}" />
+
+    <!-- 数据 -->
+    <TextBlock Classes="section-heading" Margin="2,28,0,8" Text="{x:Static d:UiText.DataSection}" />
+    <Border Classes="card" Padding="4">
+      <Button Name="StorageDetailsButton" Classes="entry" Padding="14,10" Command="{Binding ShowStorageDetailsCommand}">
+        <DockPanel>
+          <PathIcon DockPanel.Dock="Right" Classes="entry-chevron" Data="{StaticResource IconChevron}" />
+          <PathIcon Classes="entry-icon" Margin="0,0,12,0" VerticalAlignment="Center" Data="{StaticResource IconStorage}" />
+          <TextBlock VerticalAlignment="Center" Text="{x:Static d:UiText.StorageDetailsLink}" />
+        </DockPanel>
+      </Button>
+    </Border>
+    <TextBlock Name="AppVersion" Classes="caption" Margin="2,14,0,0">
+      <Run Text="{x:Static d:UiText.AppName}" />
+      <Run Text="{Binding Environment.Version}" />
+      <Run Text=" · " />
+      <Run Text="{x:Static d:UiText.ChannelLabel}" />
+      <Run Text="{Binding Environment.Channel}" />
+    </TextBlock>
   </StackPanel>
+  </Grid>
   </ScrollViewer>
 </UserControl>

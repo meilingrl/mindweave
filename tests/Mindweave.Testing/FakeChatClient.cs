@@ -208,8 +208,11 @@ public sealed class FakeChatClient : IChatClient
         yield return new ChatStreamEvent.Completed(false);
     }
 
+    /// <summary>What listing the models returns.</summary>
+    public IReadOnlyList<string> Models { get; set; } = ["fake-model"];
+
     public Task<IReadOnlyList<string>> ListModelsAsync(string baseUrl, string apiKey, CancellationToken cancellationToken) =>
-        Task.FromResult<IReadOnlyList<string>>(["fake-model"]);
+        Task.FromResult(Models);
 
     public sealed class HeldReply(string[] before)
     {

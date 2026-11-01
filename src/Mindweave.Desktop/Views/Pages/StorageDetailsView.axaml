@@ -5,24 +5,61 @@
              xmlns:d="using:Mindweave.Desktop"
              x:Class="Mindweave.Desktop.Views.Pages.StorageDetailsView"
              x:DataType="vm:StorageDetailsViewModel">
-  <StackPanel Spacing="12" HorizontalAlignment="Left">
-    <Grid ColumnDefinitions="Auto,*" RowDefinitions="Auto,Auto,Auto" ColumnSpacing="16" RowSpacing="6">
-      <TextBlock Classes="muted" Text="{x:Static d:UiText.DataDirectoryLabel}" />
-      <SelectableTextBlock Grid.Column="1" Text="{Binding Environment.DataDirectory}" TextWrapping="Wrap" />
-      <TextBlock Grid.Row="1" Classes="muted" Text="{x:Static d:UiText.DatabaseLabel}" />
-      <SelectableTextBlock Grid.Row="1" Grid.Column="1" Text="{Binding Environment.DatabasePath}" TextWrapping="Wrap" />
-      <TextBlock Grid.Row="2" Classes="muted" Text="{x:Static d:UiText.SchemaVersionLabel}" />
-      <TextBlock Grid.Row="2" Grid.Column="1" Text="{Binding Environment.SchemaVersion}" />
-    </Grid>
-    <Button Content="{x:Static d:UiText.OpenDataFolder}" Command="{Binding OpenDataFolderCommand}" />
-    <TextBlock FontWeight="SemiBold" Text="{x:Static d:UiText.BackupsLabel}" Margin="0,8,0,0" />
-    <TextBlock Classes="muted" Text="{x:Static d:UiText.NoBackups}" IsVisible="{Binding !HasBackups}" />
-    <ItemsControl ItemsSource="{Binding Backups}">
-      <ItemsControl.ItemTemplate>
-        <DataTemplate x:DataType="startup:BackupInfo">
-          <TextBlock Text="{Binding Converter={x:Static d:Converters.BackupLabel}}" />
-        </DataTemplate>
-      </ItemsControl.ItemTemplate>
-    </ItemsControl>
-  </StackPanel>
+  <ScrollViewer HorizontalScrollBarVisibility="Disabled">
+  <Grid Margin="0,4,16,24">
+    <Grid.ColumnDefinitions>
+      <ColumnDefinition Width="*" MaxWidth="640" />
+    </Grid.ColumnDefinitions>
+    <StackPanel>
+      <!-- 位置 -->
+      <TextBlock Classes="section-heading" Text="{x:Static d:UiText.LocationSection}" />
+      <Border Classes="card settings">
+        <Grid ColumnDefinitions="96,*,Auto" RowDefinitions="Auto,Auto,Auto" RowSpacing="12" ColumnSpacing="12">
+          <TextBlock Classes="field-label" Text="{x:Static d:UiText.DataDirectoryLabel}" />
+          <SelectableTextBlock Grid.Column="1" Name="DataDirectory" Classes="path" Text="{Binding Environment.DataDirectory}" />
+          <Button Grid.Column="2" Name="OpenDataFolder" Classes="quiet" Command="{Binding OpenDataFolderCommand}"
+                  ToolTip.Tip="{x:Static d:UiText.OpenDataFolder}" AutomationProperties.Name="{x:Static d:UiText.OpenDataFolder}">
+            <StackPanel Orientation="Horizontal" Spacing="6">
+              <PathIcon Data="{StaticResource IconFolder}" />
+              <TextBlock Text="{x:Static d:UiText.OpenFolder}" />
+            </StackPanel>
+          </Button>
+          <TextBlock Grid.Row="1" Classes="field-label" Text="{x:Static d:UiText.DatabaseLabel}" />
+          <SelectableTextBlock Grid.Row="1" Grid.Column="1" Grid.ColumnSpan="2" Name="DatabaseFile" Classes="path"
+                               Text="{Binding Environment.DatabasePath, Converter={x:Static d:Converters.FileName}}"
+                               ToolTip.Tip="{Binding Environment.DatabasePath}" />
+          <TextBlock Grid.Row="2" Classes="field-label" Text="{x:Static d:UiText.SchemaVersionLabel}" />
+          <TextBlock Grid.Row="2" Grid.Column="1" VerticalAlignment="Center" Text="{Binding Environment.SchemaVersion}" />
+        </Grid>
+      </Border>
+
+      <!-- 升级前备份 -->
+      <TextBlock Classes="section-heading" Margin="2,28,0,8" Text="{x:Static d:UiText.BackupsLabel}" />
+      <Border Classes="card settings">
+        <StackPanel>
+          <TextBlock Name="NoBackups" Classes="muted" Text="{x:Static d:UiText.NoBackupsShort}" IsVisible="{Binding !HasBackups}" />
+          <ItemsControl Name="BackupList" ItemsSource="{Binding Backups}" IsVisible="{Binding HasBackups}">
+            <ItemsControl.ItemsPanel>
+              <ItemsPanelTemplate>
+                <StackPanel Spacing="10" />
+              </ItemsPanelTemplate>
+            </ItemsControl.ItemsPanel>
+            <ItemsControl.ItemTemplate>
+              <DataTemplate x:DataType="startup:BackupInfo">
+                <Grid ColumnDefinitions="Auto,Auto,*" ColumnSpacing="12">
+                  <TextBlock VerticalAlignment="Center" Text="{Binding CreatedAt, Converter={x:Static d:Converters.Time}}" />
+                  <Border Grid.Column="1" Classes="badge">
+                    <TextBlock Text="{Binding SchemaVersion, Converter={x:Static d:Converters.SchemaVersion}}" />
+                  </Border>
+                  <TextBlock Grid.Column="2" Classes="caption" HorizontalAlignment="Right" VerticalAlignment="Center"
+                             Text="{Binding SizeBytes, Converter={x:Static d:Converters.FileSize}}" />
+                </Grid>
+              </DataTemplate>
+            </ItemsControl.ItemTemplate>
+          </ItemsControl>
+        </StackPanel>
+      </Border>
+    </StackPanel>
+  </Grid>
+  </ScrollViewer>
 </UserControl>
