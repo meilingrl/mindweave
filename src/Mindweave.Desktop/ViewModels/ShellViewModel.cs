@@ -10,14 +10,14 @@ namespace Mindweave.Desktop.ViewModels;
 /// <summary>The workbench: sidebar (workspaces, sections) and the content area. State lives in <see cref="Navigation.Workbench"/>.</summary>
 public sealed partial class ShellViewModel : ViewModelBase
 {
-    private readonly WorkspaceService _workspaces;
+    private readonly IWorkspaces _workspaces;
     private readonly LayoutPromptViewModel? _layoutPrompt;
     private readonly Network.NetworkSessions? _networks;
     private PageViewModel? _observedPage;
 
     public ShellViewModel(
         Workbench workbench,
-        WorkspaceService workspaces,
+        IWorkspaces workspaces,
         Conversations.ConversationListViewModel conversations,
         LayoutPromptViewModel? layoutPrompt = null,
         Network.NetworkSessions? networks = null)

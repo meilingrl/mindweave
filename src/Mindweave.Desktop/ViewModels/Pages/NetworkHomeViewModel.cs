@@ -62,15 +62,15 @@ public sealed record NodeDetail(SummaryNodeId Id, ConversationId Conversation, s
 /// </summary>
 public sealed partial class NetworkHomeViewModel : PageViewModel, IDisposable
 {
-    private readonly SummaryService _summaries;
-    private readonly ConversationService _conversations;
+    private readonly ISummaries _summaries;
+    private readonly IConversations _conversations;
     private readonly IWorkbenchNavigator _navigator;
     private readonly SerialRefresh _load;
     private readonly UiThrottle _reload;
     private Dictionary<ConversationId, string> _titles = [];
     private bool _disposed;
 
-    public NetworkHomeViewModel(Workspace workspace, NetworkSession session, SummaryService summaries, ConversationService conversations, IWorkbenchNavigator navigator, IUiDispatcher dispatcher)
+    public NetworkHomeViewModel(Workspace workspace, NetworkSession session, ISummaries summaries, IConversations conversations, IWorkbenchNavigator navigator, IUiDispatcher dispatcher)
         : base(NetworkHomeRoute.Instance)
     {
         Workspace = workspace;

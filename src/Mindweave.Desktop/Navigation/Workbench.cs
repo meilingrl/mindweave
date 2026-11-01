@@ -17,10 +17,10 @@ public sealed class Workbench : ObservableObject, IWorkbenchNavigator
 {
     private readonly Dictionary<WorkspaceId, WorkspaceRuntime> _runtimes = [];
     private readonly IPageFactory _pages;
-    private readonly WorkspaceService _workspaces;
+    private readonly IWorkspaces _workspaces;
     private WorkspaceRuntime? _active;
 
-    public Workbench(IPageFactory pages, WorkspaceService workspaces)
+    public Workbench(IPageFactory pages, IWorkspaces workspaces)
     {
         _pages = pages;
         _workspaces = workspaces;

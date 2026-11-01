@@ -27,12 +27,12 @@ public sealed partial class ExploreHomeViewModel(Workspace workspace, IContentNa
 public sealed partial class SettingsHomeViewModel : PageViewModel
 {
     private readonly IContentNavigator _content;
-    private readonly AppearanceService _appearanceService;
+    private readonly IAppearance _appearanceService;
     private readonly IThemeApplier _theme;
     private bool _loading;
     private bool _chosen;
 
-    public SettingsHomeViewModel(AppEnvironment environment, ModelSettingsViewModel model, IContentNavigator content, AppearanceService appearance, IThemeApplier theme)
+    public SettingsHomeViewModel(AppEnvironment environment, ModelSettingsViewModel model, IContentNavigator content, IAppearance appearance, IThemeApplier theme)
         : base(SettingsHomeRoute.Instance)
     {
         Environment = environment;

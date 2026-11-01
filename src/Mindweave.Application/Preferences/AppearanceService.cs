@@ -11,7 +11,7 @@ public enum Appearance
 }
 
 /// <summary>Reads and keeps the appearance choice. Unknown or missing values mean "follow the system" (the default).</summary>
-public sealed class AppearanceService(IPreferenceStore store)
+public sealed class AppearanceService(IPreferenceStore store) : IAppearance
 {
     public const string Key = "appearance";
 

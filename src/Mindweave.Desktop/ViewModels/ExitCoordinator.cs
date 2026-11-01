@@ -38,13 +38,13 @@ public enum ExitStage
 /// the coordinator asks for a programmatic shutdown, which the hooks let through.
 /// </summary>
 public sealed partial class ExitCoordinator(
-    GenerationCoordinator generation,
+    IGenerationExit generation,
     LayoutPromptViewModel layout,
     Workbench workbench,
-    ReadingStateService reading,
-    Application.Summaries.SummaryDrafts summaries,
+    IReadingState reading,
+    Application.Summaries.ISummaries summaries,
     IDatabaseLifecycle database,
-    Application.Export.SummaryExportService exports,
+    Application.Export.ISummaryExport exports,
     ISystemShell shell,
     ExitOptions options,
     ILogger<ExitCoordinator> logger) : ViewModelBase
@@ -231,7 +231,7 @@ public sealed partial class ExitCoordinator(
     {
         await exports.WhenIdleAsync();
         await workbench.FlushAsync();
-        var summaryDrafts = await summaries.FlushAsync();
+        var summaryDrafts = await summaries.FlushDraftsAsync();
         var drafts = await reading.FlushAsync();
         var answers = await generation.SaveUnsavedAsync();
         await database.DrainAsync();

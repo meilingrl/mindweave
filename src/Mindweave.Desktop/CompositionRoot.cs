@@ -59,6 +59,18 @@ public static class CompositionRoot
         services.AddSingleton<Application.Export.SummaryExportService>();
         services.AddSingleton<ReadingStateService>();
         services.AddSingleton<Application.Preferences.AppearanceService>();
+
+        // View models depend on these interfaces, not the concrete services (course requirement C3); each resolves to the
+        // one singleton above, so a page and the rest of the application share state.
+        services.AddSingleton<IConversations>(sp => sp.GetRequiredService<ConversationService>());
+        services.AddSingleton<IGenerationExit>(sp => sp.GetRequiredService<GenerationCoordinator>());
+        services.AddSingleton<Application.Summaries.ISummaries>(sp => sp.GetRequiredService<Application.Summaries.SummaryService>());
+        services.AddSingleton<IReadingState>(sp => sp.GetRequiredService<ReadingStateService>());
+        services.AddSingleton<Application.Export.ISummaryExport>(sp => sp.GetRequiredService<Application.Export.SummaryExportService>());
+        services.AddSingleton<IModelSettings>(sp => sp.GetRequiredService<ModelSettingsService>());
+        services.AddSingleton<IWorkspaces>(sp => sp.GetRequiredService<WorkspaceService>());
+        services.AddSingleton<Application.Preferences.IAppearance>(sp => sp.GetRequiredService<Application.Preferences.AppearanceService>());
+        services.AddSingleton<Application.Network.INetworkLayout>(sp => sp.GetRequiredService<Application.Network.NetworkService>());
         services.TryAddSingleton<IThemeApplier, AvaloniaThemeApplier>();
         services.TryAddSingleton<IUiDispatcher, AvaloniaUiDispatcher>();
 

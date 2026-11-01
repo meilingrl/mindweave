@@ -13,7 +13,7 @@ public sealed partial class NewConversationViewModel : PageViewModel
 {
     private readonly IMenuNavigator _menu;
 
-    public NewConversationViewModel(WorkspaceId workspace, ConversationService conversations, IContentNavigator content, IMenuNavigator menu)
+    public NewConversationViewModel(WorkspaceId workspace, IConversations conversations, IContentNavigator content, IMenuNavigator menu)
         : base(NewConversationRoute.Instance)
     {
         _menu = menu;

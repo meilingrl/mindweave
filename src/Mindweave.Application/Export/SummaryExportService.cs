@@ -27,7 +27,7 @@ public sealed class ExportRefusedException(ExportRefusal reason) : Exception(rea
 /// the save dialog was open is refused and no file is touched. Exporting writes nothing to the store: no version, no
 /// adoption, no read state.
 /// </summary>
-public sealed partial class SummaryExportService
+public sealed partial class SummaryExportService : ISummaryExport
 {
     private readonly ISummaryStore _summaries;
     private readonly IConversationStore _conversations;

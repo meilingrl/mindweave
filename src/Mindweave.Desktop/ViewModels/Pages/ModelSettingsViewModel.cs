@@ -14,9 +14,9 @@ namespace Mindweave.Desktop.ViewModels.Pages;
 /// </summary>
 public sealed partial class ModelSettingsViewModel : ViewModelBase
 {
-    private readonly ModelSettingsService _settings;
+    private readonly IModelSettings _settings;
 
-    public ModelSettingsViewModel(ModelSettingsService settings)
+    public ModelSettingsViewModel(IModelSettings settings)
     {
         _settings = settings;
         Loaded = LoadAsync();

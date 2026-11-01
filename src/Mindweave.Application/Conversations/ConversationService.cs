@@ -72,7 +72,7 @@ public sealed record ArchiveOutcome(IReadOnlyList<ConversationId> Busy, bool Mis
 /// transaction) before it reaches the generation queue, so a crash after "send" never loses the question
 /// and never re-sends it.
 /// </summary>
-public sealed partial class ConversationService
+public sealed partial class ConversationService : IConversations
 {
     public const int MaxQuestionLength = 100_000;
     private const int TitleAnswerExcerpt = 2000;
@@ -162,6 +162,16 @@ public sealed partial class ConversationService
     }
 
     public LiveAnswer? Observe(MessageId answer) => _generation.Observe(answer);
+
+    /// <summary>An answer of the conversation is queued or still being generated.</summary>
+    public bool HasUnfinishedAnswer(ConversationId conversation) => _generation.HasUnfinishedAnswer(conversation);
+
+    /// <summary>What is queued or running changed (an answer started or finished). Raised on worker threads.</summary>
+    public event EventHandler? ActivityChanged
+    {
+        add => _generation.Changed += value;
+        remove => _generation.Changed -= value;
+    }
 
     /// <summary>The context the conversation would send now with the active model, or null when no model is configured.</summary>
     public async Task<ContextUsage?> GetContextUsageAsync(ConversationId id, CancellationToken cancellationToken)

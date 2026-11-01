@@ -8,7 +8,7 @@ public sealed partial class WorkspaceService(
     IWorkspaceStore store,
     ILocationStore locations,
     IClock clock,
-    ILogger<WorkspaceService> logger)
+    ILogger<WorkspaceService> logger) : IWorkspaces
 {
     public Task<IReadOnlyList<Workspace>> ListAsync(CancellationToken cancellationToken) =>
         store.ListAsync(cancellationToken);

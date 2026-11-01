@@ -13,7 +13,7 @@ namespace Mindweave.Application.Reading;
 /// asking; a draft is the user's input, core content (architecture §12.1), so storage refusing it pauses new work like
 /// any core write until the draft is saved (architecture review R1).
 /// </summary>
-public sealed partial class ReadingStateService : IDisposable
+public sealed partial class ReadingStateService : IReadingState, IDisposable
 {
     private readonly IReadingStateStore _store;
     private readonly IClock _clock;

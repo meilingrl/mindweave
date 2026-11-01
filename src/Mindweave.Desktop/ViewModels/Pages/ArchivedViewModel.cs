@@ -33,14 +33,14 @@ public sealed class ArchivedItemViewModel(ConversationId id, string title, int d
 public sealed partial class ArchivedViewModel : PageViewModel, IDisposable
 {
     private readonly WorkspaceId _workspace;
-    private readonly ConversationService _conversations;
+    private readonly IConversations _conversations;
     private readonly IWorkbenchNavigator _navigator;
     private readonly SerialRefresh _load;
     private readonly UiThrottle _reload;
     private Dictionary<ConversationId, ConversationSummary> _rows = [];
     private bool _disposed;
 
-    public ArchivedViewModel(Workspace workspace, ConversationService conversations, IWorkbenchNavigator navigator, IUiDispatcher dispatcher)
+    public ArchivedViewModel(Workspace workspace, IConversations conversations, IWorkbenchNavigator navigator, IUiDispatcher dispatcher)
         : base(ArchivedRoute.Instance)
     {
         ArgumentNullException.ThrowIfNull(workspace);

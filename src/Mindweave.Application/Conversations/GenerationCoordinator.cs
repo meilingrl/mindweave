@@ -76,7 +76,7 @@ public sealed record NamingWork(GenerationTaskRecord Task, ChatRequest Request, 
 /// writes. A late chunk or checkpoint can never overwrite a terminal answer, and nothing is ever re-sent
 /// automatically.
 /// </summary>
-public sealed partial class GenerationCoordinator : IAsyncDisposable
+public sealed partial class GenerationCoordinator : IGenerationExit, IAsyncDisposable
 {
     private readonly IConversationStore _store;
     private readonly IChatClient _client;

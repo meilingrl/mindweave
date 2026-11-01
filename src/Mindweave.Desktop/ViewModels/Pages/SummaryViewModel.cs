@@ -69,8 +69,8 @@ public sealed record PendingConfirmation(string Message, Func<Task> Proceed, boo
 /// </summary>
 public sealed partial class SummaryViewModel : PageViewModel, IDisposable
 {
-    private readonly SummaryService _summaries;
-    private readonly SummaryExportService _exports;
+    private readonly ISummaries _summaries;
+    private readonly ISummaryExport _exports;
     private readonly ISystemShell _shell;
     private readonly IWorkbenchNavigator _navigator;
     private readonly TimeProvider _time;
@@ -91,7 +91,7 @@ public sealed partial class SummaryViewModel : PageViewModel, IDisposable
     private long _draftRevision;
     private SummaryVersionId _draftBaseline;
 
-    public SummaryViewModel(SummaryRoute route, PageContext context, SummaryService summaries, IUiDispatcher dispatcher, TimeProvider time, SummaryExportService exports, ISystemShell shell)
+    public SummaryViewModel(SummaryRoute route, PageContext context, ISummaries summaries, IUiDispatcher dispatcher, TimeProvider time, ISummaryExport exports, ISystemShell shell)
         : base(route)
     {
         ArgumentNullException.ThrowIfNull(route);

@@ -54,7 +54,7 @@ public sealed record AdoptCheck(bool BaselineChanged, SummaryVersion Current, Su
 /// Summary use cases (S4): accepting a summary (frozen coverage, one unfinished task and one candidate per
 /// conversation), saving it only on success, version operations, reading state, and two-level naming.
 /// </summary>
-public sealed partial class SummaryService
+public sealed partial class SummaryService : ISummaries
 {
     /// <summary>Output cap for a summary; reasoning models spend hidden reasoning against it (D-015).</summary>
     public const int SummaryOutputTokens = 16_384;
@@ -268,6 +268,8 @@ public sealed partial class SummaryService
 
         return result.NewCurrent;
     }
+
+    public Task<bool> FlushDraftsAsync() => _drafts.FlushAsync();
 
     /// <summary>Opens an edit of the node's current version, continuing its newest draft (memory first, then stored).</summary>
     public Task<DraftRead> OpenDraftAsync(SummaryNodeId node, SummaryVersionId current, CancellationToken cancellationToken) =>
