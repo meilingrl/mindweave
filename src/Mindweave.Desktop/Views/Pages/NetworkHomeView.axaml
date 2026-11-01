@@ -122,7 +122,8 @@
             <TextBlock Classes="muted" FontSize="12" TextWrapping="Wrap" Text="{Binding Selected.Created, FallbackValue=''}" />
           </StackPanel>
           <StackPanel Spacing="8">
-            <Button Name="OpenSelectedButton" Classes="primary" HorizontalAlignment="Stretch" HorizontalContentAlignment="Center"
+            <!-- One primary per view: while the layout is unsaved, the accent save button is it and this steps back. -->
+            <Button Name="OpenSelectedButton" Classes.primary="{Binding !IsDirty}" Classes.secondary="{Binding IsDirty}" HorizontalAlignment="Stretch" HorizontalContentAlignment="Center"
                     Content="{x:Static d:UiText.OpenSummary}" Command="{Binding OpenSelectedCommand}" />
             <Button Name="ReturnSelectedButton" Classes="secondary" HorizontalAlignment="Stretch" HorizontalContentAlignment="Center"
                     Content="{x:Static d:UiText.ReturnToConversation}" Command="{Binding ReturnToConversationCommand}" />

@@ -117,6 +117,9 @@ public sealed class NetworkCanvas : Control
     /// <summary>A press on a node becomes a drag only after the pointer moves this far (screen px); less is a click.</summary>
     internal const double DragThreshold = 4;
 
+    /// <summary>The lift shadow's layers, outermost first: how much wider than the dot, how far down, how opaque.</summary>
+    private static readonly (double Grow, double Drop, double Opacity)[] ShadowLayers = [(5, 4.5, 0.35), (3, 3.5, 0.55), (1, 2.5, 0.8)];
+
     private readonly Dictionary<SummaryNodeId, Vector> _offsets = [];
     private readonly DispatcherTimer _motion;
     private NetworkHomeViewModel? _page;
@@ -127,7 +130,7 @@ public sealed class NetworkCanvas : Control
     private Point? _pointer;
     private SummaryNodeId? _pressed;
     private Point _pressedAt;
-    private (double X, double Y) _pressedNode;
+    private Vector _grab;
     private (double X, double Y) _dragAt;
 
     public NetworkCanvas()
@@ -533,13 +536,15 @@ public sealed class NetworkCanvas : Control
 
         if (node.Lifted)
         {
-            // Lifted off the canvas: a soft shadow falling a little below the dot, wide and faint, then close and darker.
-            using (context.PushOpacity(0.45))
+            // Lifted off the canvas: a soft shadow falling a little below the dot in three translucent layers,
+            // the widest faintest, the closest darkest, so it fades out instead of ending in a hard edge.
+            foreach (var (grow, drop, opacity) in ShadowLayers)
             {
-                context.DrawEllipse(palette.DragShadow, null, p + new Vector(0, 4), r + 4, r + 3);
+                using (context.PushOpacity(opacity))
+                {
+                    context.DrawEllipse(palette.DragShadow, null, p + new Vector(0, drop), r + grow, r + grow - 1);
+                }
             }
-
-            context.DrawEllipse(palette.DragShadow, null, p + new Vector(0, 2.5), r + 1, r + 0.5);
         }
 
         if (node.Ring != NodeRing.None)
@@ -589,7 +594,8 @@ public sealed class NetworkCanvas : Control
                 // Maybe the start of a drag: it becomes one once the pointer has moved past the threshold.
                 _pressed = node.Id;
                 _pressedAt = point;
-                _pressedNode = (node.X, node.Y);
+                var (x, y) = ToCanvas(point);
+                _grab = new Vector(x - node.X, y - node.Y);
                 e.Pointer.Capture(this);
             }
 
@@ -712,8 +718,17 @@ public sealed class NetworkCanvas : Control
             Cursor = GrabCursor;
         }
 
-        var zoom = Current.Zoom;
-        _dragAt = (_pressedNode.X + (delta.X / zoom), _pressedNode.Y + (delta.Y / zoom));
+        PlaceDragged(point);
+    }
+
+    /// <summary>
+    /// The dragged node under <paramref name="point"/>, keeping the spot where it was grabbed. Worked out in canvas
+    /// coordinates from the current viewport, so a wheel pan or zoom mid-drag leaves the node under the pointer.
+    /// </summary>
+    private void PlaceDragged(Point point)
+    {
+        var (x, y) = ToCanvas(point);
+        _dragAt = (x - _grab.X, y - _grab.Y);
         _pointer = point;
         InvalidateVisual();
     }
@@ -738,6 +753,12 @@ public sealed class NetworkCanvas : Control
             var v = Current;
             _page.Session.Viewport = v with { CenterX = v.CenterX - (e.Delta.X * 40 / v.Zoom), CenterY = v.CenterY - (e.Delta.Y * 40 / v.Zoom) };
             InvalidateVisual();
+        }
+
+        if (Dragging is not null)
+        {
+            // The view moved under a held node: it stays under the pointer (it is placed in canvas coordinates).
+            PlaceDragged(e.GetPosition(this));
         }
 
         SetPointer(e.GetPosition(this));

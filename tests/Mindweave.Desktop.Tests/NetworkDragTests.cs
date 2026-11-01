@@ -44,7 +44,7 @@ public class NetworkDragTests
         Assert.Same(NetworkCanvas.GrabCursor, canvas.Cursor);
         var lifted = canvas.PaintNodes().Single(p => p.Node.Id == leaf.Id);
         Assert.True(lifted.Lifted);
-        Assert.Equal(start + new Vector(60, 40), lifted.Center);
+        AssertNear(start + new Vector(60, 40), lifted.Center);
         Assert.True(lifted.LabelBounds.X > lifted.Center.X);
         Assert.Contains(canvas.PaintEdges(), e => e.Edge.To == leaf.Id && e.To == lifted.Center);
         Assert.False(network.IsDirty);
@@ -271,6 +271,144 @@ public class NetworkDragTests
         Assert.Equal(revision, network.Session.Revision);
         Assert.False(network.IsDirty);
         window.Close();
+    }
+
+    [AvaloniaFact]
+    public async Task After_a_drag_the_save_button_is_the_one_primary_and_open_summary_steps_back()
+    {
+        await using var app = DesktopHarness.Create();
+        var window = NetworkUiTests.Show(app);
+        await NetworkUiTests.SeedAsync(app);
+        var network = await NetworkUiTests.OpenNetworkAsync(app, window);
+        var canvas = Canvas(window);
+        var node = network.Nodes.Single(n => n.ShortTitle == "铁轨");
+        string[] Primaries()
+        {
+            window.UpdateLayout();
+            return [.. window.GetVisualDescendants().OfType<Avalonia.Controls.Button>()
+                .Where(b => b.IsEffectivelyVisible && b.Classes.Contains("primary")).Select(b => b.Name ?? string.Empty)];
+        }
+
+        Drag(window, canvas, canvas.ToScreen(node.X, node.Y), new Vector(50, 30));
+        Assert.Equal(node.Id, network.Selected?.Id);
+        Assert.True(network.IsDirty);
+        Assert.Equal(["SaveLayoutButton"], Primaries());
+        var open = window.GetVisualDescendants().OfType<Avalonia.Controls.Button>().Single(b => b.Name == "OpenSelectedButton");
+        Assert.True(open.IsEffectivelyVisible && open.Classes.Contains("secondary"));
+
+        await network.SaveLayoutCommand.ExecuteAsync(null);
+        Assert.Equal(["OpenSelectedButton"], Primaries());
+        window.Close();
+    }
+
+    [AvaloniaFact]
+    public async Task Scrolling_or_zooming_mid_drag_keeps_the_node_under_the_pointer()
+    {
+        await using var app = DesktopHarness.Create();
+        var window = NetworkUiTests.Show(app);
+        await NetworkUiTests.SeedAsync(app);
+        var network = await NetworkUiTests.OpenNetworkAsync(app, window);
+        var canvas = Canvas(window);
+        var leaf = network.Nodes.Single(n => n.ShortTitle == "铁轨");
+        var start = canvas.ToScreen(leaf.X, leaf.Y);
+        var grip = start + new Vector(3, -2);
+        var held = grip + new Vector(40, 30);
+        Point InWindow(Point p) => canvas.TranslatePoint(p, window)!.Value;
+        Point Lifted() => canvas.PaintNodes().Single(p => p.Node.Id == leaf.Id).Center;
+
+        window.MouseMove(InWindow(grip));
+        window.MouseDown(InWindow(grip), MouseButton.Left);
+        window.MouseMove(InWindow(grip + new Vector(20, 15)));
+        window.MouseMove(InWindow(held));
+        Assert.Equal(leaf.Id, canvas.Dragging);
+        var viewport = canvas.Current;
+        AssertNear(held - (grip - start), Lifted());
+
+        // A two-finger scroll pans the view and a Ctrl+wheel zooms it; the held node stays where the pointer is.
+        window.MouseWheel(InWindow(held), new Vector(0, -2));
+        Assert.NotEqual(viewport, canvas.Current);
+        AssertNear(held - (grip - start), Lifted());
+        window.MouseWheel(InWindow(held), new Vector(0, 1), RawInputModifiers.Control);
+        Assert.NotEqual(viewport.Zoom, canvas.Current.Zoom);
+        var zoom = canvas.Current.Zoom;
+        Assert.Equal(leaf.Id, canvas.Dragging);
+        AssertNear(held - ((grip - start) * (zoom / viewport.Zoom)), Lifted());
+
+        window.MouseUp(InWindow(held), MouseButton.Left);
+        var moved = network.Nodes.Single(n => n.Id == leaf.Id);
+        var (heldX, heldY) = canvas.ToCanvas(held);
+        var (gripX, gripY) = (grip.X - start.X, grip.Y - start.Y);
+        Assert.Equal(heldX - (gripX / viewport.Zoom), moved.X, 6);
+        Assert.Equal(heldY - (gripY / viewport.Zoom), moved.Y, 6);
+        Assert.True(network.IsDirty);
+        window.Close();
+    }
+
+    [AvaloniaFact]
+    public async Task Losing_the_pointer_capture_mid_drag_puts_the_node_back_and_leaves_nothing_unsaved()
+    {
+        await using var app = DesktopHarness.Create();
+        var window = NetworkUiTests.Show(app);
+        await NetworkUiTests.SeedAsync(app);
+        var network = await NetworkUiTests.OpenNetworkAsync(app, window);
+        var canvas = Canvas(window);
+        var leaf = network.Nodes.Single(n => n.ShortTitle == "铁轨");
+        var start = canvas.ToScreen(leaf.X, leaf.Y);
+        IPointer? pointer = null;
+        canvas.AddHandler(InputElement.PointerMovedEvent, (_, e) => pointer = e.Pointer, handledEventsToo: true);
+        Point InWindow(Point p) => canvas.TranslatePoint(p, window)!.Value;
+
+        window.MouseMove(InWindow(start));
+        window.MouseDown(InWindow(start), MouseButton.Left);
+        window.MouseMove(InWindow(start + new Vector(30, 20)));
+        window.MouseMove(InWindow(start + new Vector(60, 40)));
+        Assert.Equal(leaf.Id, canvas.Dragging);
+
+        // A dialog or a window switch takes the capture away.
+        Assert.NotNull(pointer);
+        pointer.Capture(null);
+
+        Assert.Null(canvas.Dragging);
+        Assert.Equal(start, canvas.PaintNodes().Single(p => p.Node.Id == leaf.Id).Center);
+        window.MouseUp(InWindow(start + new Vector(60, 40)), MouseButton.Left);
+        Assert.Equal((leaf.X, leaf.Y), (network.Nodes.Single(n => n.Id == leaf.Id).X, network.Nodes.Single(n => n.Id == leaf.Id).Y));
+        Assert.False(network.IsDirty);
+        window.Close();
+    }
+
+    [AvaloniaFact]
+    public async Task Leaving_the_canvas_mid_drag_keeps_the_drag_cursor_and_the_pointer()
+    {
+        await using var app = DesktopHarness.Create();
+        var window = NetworkUiTests.Show(app);
+        await NetworkUiTests.SeedAsync(app);
+        var network = await NetworkUiTests.OpenNetworkAsync(app, window);
+        var canvas = Canvas(window);
+        var leaf = network.Nodes.Single(n => n.ShortTitle == "铁轨");
+        var start = canvas.ToScreen(leaf.X, leaf.Y);
+        Point InWindow(Point p) => canvas.TranslatePoint(p, window)!.Value;
+
+        window.MouseMove(InWindow(start));
+        window.MouseDown(InWindow(start), MouseButton.Left);
+        window.MouseMove(InWindow(start + new Vector(30, 20)));
+        Assert.Equal(leaf.Id, canvas.Dragging);
+        canvas.RaiseEvent(new PointerEventArgs(
+            InputElement.PointerExitedEvent, canvas, new Pointer(Pointer.GetNextFreeId(), PointerType.Mouse, true), window, default, 0,
+            new PointerPointProperties(RawInputModifiers.LeftMouseButton, PointerUpdateKind.Other), KeyModifiers.None));
+
+        Assert.Equal(leaf.Id, canvas.Dragging);
+        Assert.NotNull(canvas.Pointer);
+        Assert.Equal(leaf.Id, canvas.Hovered);
+        Assert.Same(NetworkCanvas.GrabCursor, canvas.Cursor);
+        window.MouseUp(InWindow(start + new Vector(30, 20)), MouseButton.Left);
+        Assert.True(network.IsDirty);
+        window.Close();
+    }
+
+    private static void AssertNear(Point expected, Point actual)
+    {
+        Assert.Equal(expected.X, actual.X, 6);
+        Assert.Equal(expected.Y, actual.Y, 6);
     }
 
     /// <summary>Presses at <paramref name="from"/>, moves there by <paramref name="by"/> in steps and releases.</summary>
