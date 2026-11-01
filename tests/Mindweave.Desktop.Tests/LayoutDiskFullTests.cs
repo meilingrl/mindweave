@@ -40,7 +40,7 @@ public class LayoutDiskFullTests
         Assert.True(session.IsDirty);
         Assert.Equal(arranged, session.Positions);
         Assert.Equal(placedBefore, await LayoutRowsAsync(database));
-        Assert.False(app.Services.GetRequiredService<GenerationCoordinator>().IsStorageBlocked);
+        Assert.False(app.Services.GetRequiredService<Application.Storage.StorageHealth>().IsBlocked);
         await AssertIntactAsync(database);
 
         await StoragePauseUiTests.FreeDiskAsync(database);

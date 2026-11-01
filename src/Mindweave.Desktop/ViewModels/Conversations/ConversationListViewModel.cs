@@ -62,22 +62,20 @@ public sealed partial class ConversationItemViewModel(ConversationId id) : ViewM
 /// </summary>
 public sealed partial class ConversationListViewModel : ViewModelBase
 {
-    private readonly ConversationService _conversations;
-    private readonly GenerationCoordinator _generation;
+    private readonly IConversations _conversations;
     private readonly Workbench _workbench;
     private readonly SerialRefresh _load;
     private readonly UiThrottle _reload;
     private WorkspaceId? _shown;
 
-    public ConversationListViewModel(ConversationService conversations, GenerationCoordinator generation, Workbench workbench, IUiDispatcher dispatcher)
+    public ConversationListViewModel(IConversations conversations, Workbench workbench, IUiDispatcher dispatcher)
     {
         _conversations = conversations;
-        _generation = generation;
         _workbench = workbench;
         _load = new SerialRefresh(ReloadAsync);
         _reload = new UiThrottle(dispatcher, TimeSpan.FromMilliseconds(100), () => Loaded = _load.Request());
         _conversations.ConversationChanged += (_, _) => _reload.Request();
-        _generation.Changed += (_, _) => _reload.Request();
+        _conversations.ActivityChanged += (_, _) => _reload.Request();
         _workbench.PropertyChanged += OnWorkbenchChanged;
     }
 
@@ -170,7 +168,7 @@ public sealed partial class ConversationListViewModel : ViewModelBase
     private void Apply(ConversationItemViewModel item, ConversationSummary summary)
     {
         item.Title = UiText.ConversationTitle(summary.Conversation, summary.FirstQuestion, summary.Quote);
-        var running = _generation.HasUnfinishedAnswer(summary.Conversation.Id);
+        var running = _conversations.HasUnfinishedAnswer(summary.Conversation.Id);
         (item.Marker, item.MarkerHint) = running
             ? (ConversationItemViewModel.GeneratingMarker, UiText.MarkerGenerating)
             : summary.LastAnswerState is MessageState.Failed or MessageState.Interrupted

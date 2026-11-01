@@ -38,7 +38,7 @@ public sealed record NetworkProjection(IReadOnlyList<NetworkNode> Nodes, IReadOn
 /// The workspace's network, derived from summaries and branch sources on every read (no second graph store), plus
 /// the saved node positions. Never reads summary bodies.
 /// </summary>
-public sealed class NetworkService(ISummaryStore summaries, INetworkStore network, IClock clock)
+public sealed class NetworkService(ISummaryStore summaries, INetworkStore network, IClock clock) : INetworkLayout
 {
     public async Task<NetworkProjection> ProjectAsync(WorkspaceId workspace, CancellationToken cancellationToken)
     {
@@ -51,7 +51,7 @@ public sealed class NetworkService(ISummaryStore summaries, INetworkStore networ
                 e.Node.Id,
                 e.Node.Conversation,
                 chains.TryGetValue(e.Node.Conversation, out var chain) && chain.Count > 0 ? chain[0] : e.Node.Conversation,
-                SummaryRules.ShortTitleOf(e.Current),
+                SummaryRules.ShortTitleOf(e.Current.Title, e.Current.ShortTitle),
                 e.Node.DisplayName,
                 e.Markers,
                 e.Node.CreatedAt,

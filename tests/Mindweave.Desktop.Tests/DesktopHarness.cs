@@ -33,6 +33,7 @@ public sealed class DesktopHarness : IAsyncDisposable
             services.AddSingleton<IChatClient>(Client);
             services.AddSingleton<ICredentialStore>(Credentials);
             services.AddSingleton(new GenerationOptions { CheckpointInterval = TimeSpan.FromMilliseconds(50) });
+            services.AddSingleton(new Application.Storage.StorageHealthOptions { RetryInterval = TimeSpan.FromMilliseconds(50) });
 
             // Tests share one Avalonia application: an appearance choice is recorded, never applied to it.
             services.AddSingleton<IThemeApplier>(Theme);

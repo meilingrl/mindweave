@@ -28,9 +28,10 @@ public sealed record LineageItem(ConversationId Id, string Title, bool IsFirst =
 /// </summary>
 public sealed partial class ConversationViewModel : PageViewModel, IDisposable
 {
-    private readonly ConversationService _conversations;
-    private readonly ReadingStateService _reading;
-    private readonly SummaryService? _summaries;
+    private readonly IConversations _conversations;
+    private readonly IReadingState _reading;
+    private readonly IStorageStatus _storage;
+    private readonly ISummaries? _summaries;
     private readonly IWorkbenchNavigator _navigator;
     private readonly IUiDispatcher _dispatcher;
     private readonly ViewerSlotKey _slot;
@@ -41,7 +42,7 @@ public sealed partial class ConversationViewModel : PageViewModel, IDisposable
     private IReadOnlySet<ConversationId> _related = new HashSet<ConversationId>();
     private bool _disposed;
 
-    public ConversationViewModel(ConversationRoute route, PageContext context, ConversationService conversations, ReadingStateService reading, IUiDispatcher dispatcher, SummaryService? summaries = null)
+    public ConversationViewModel(ConversationRoute route, PageContext context, IConversations conversations, IReadingState reading, IUiDispatcher dispatcher, IStorageStatus storage, ISummaries? summaries = null)
         : base(route)
     {
         ArgumentNullException.ThrowIfNull(route);
@@ -50,6 +51,7 @@ public sealed partial class ConversationViewModel : PageViewModel, IDisposable
         _slot = context.Slot;
         _conversations = conversations;
         _reading = reading;
+        _storage = storage;
         _navigator = context.Navigator;
         _dispatcher = dispatcher;
         _load = new SerialRefresh(LoadAsync);
@@ -58,8 +60,8 @@ public sealed partial class ConversationViewModel : PageViewModel, IDisposable
         Composer = new Composer(text => _conversations.AskAsync(Id, text, CancellationToken.None)) { StopCommand = StopCommand, HostShowsStoragePause = true };
         _conversations.ConversationChanged += OnConversationChanged;
         _conversations.ModelChanged += OnModelChanged;
-        _conversations.StorageStateChanged += OnStorageStateChanged;
-        IsStorageBlocked = _conversations.IsStorageBlocked;
+        _storage.Changed += OnStorageStateChanged;
+        IsStorageBlocked = _storage.IsBlocked;
         Composer.IsStoragePaused = IsStorageBlocked;
         _summaries = summaries;
         if (_summaries is not null)
@@ -253,7 +255,7 @@ public sealed partial class ConversationViewModel : PageViewModel, IDisposable
         {
             if (!_disposed)
             {
-                IsStorageBlocked = _conversations.IsStorageBlocked;
+                IsStorageBlocked = _storage.IsBlocked;
             }
         });
 
@@ -446,7 +448,7 @@ public sealed partial class ConversationViewModel : PageViewModel, IDisposable
         _disposed = true;
         _conversations.ConversationChanged -= OnConversationChanged;
         _conversations.ModelChanged -= OnModelChanged;
-        _conversations.StorageStateChanged -= OnStorageStateChanged;
+        _storage.Changed -= OnStorageStateChanged;
         if (_summaries is not null)
         {
             _summaries.Changed -= OnSummaryChanged;

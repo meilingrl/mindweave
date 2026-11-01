@@ -39,6 +39,10 @@ public static class UiText
     public const string LayoutSaveFailed = "布局保存失败，改动仍保留在当前窗口。";
 
     /// <summary>Core storage failed (requirements §9.3): what is paused, what still works, and that it lifts by itself.</summary>
+    public const string DraftConflict = "这份未保存的修改基于较早的版本，不能直接保存为新版本。可以先复制需要的内容，再放弃修改。";
+
+    public const string DraftStale = "这份修改已在别处保存或放弃，此处的改动不会覆盖它。可以复制需要的内容后重新打开。";
+
     public const string StoragePaused = "本地数据暂时无法保存，已暂停提问、重试、创建分支和生成总结；已有内容仍可阅读和复制。恢复保存后会自动解除。";
 
     /// <summary>Archiving, restoring or deleting could not be written; the transaction left everything as it was.</summary>

@@ -40,7 +40,7 @@ public sealed partial class ModelSettingsService(
     ICredentialStore credentials,
     IChatClient client,
     IClock clock,
-    ILogger<ModelSettingsService> logger)
+    ILogger<ModelSettingsService> logger) : IModelSettings
 {
     public event EventHandler? Changed;
 

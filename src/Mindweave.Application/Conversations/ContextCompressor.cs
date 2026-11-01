@@ -64,8 +64,9 @@ public sealed partial class ContextCompressor(IContextSummaryStore summaries, IC
         return new PreparedContext([.. plan.RawItems.Select(Turn)], []);
     }
 
+    /// <param name="admit">Asked before each summarizing request; when it refuses, nothing more is sent.</param>
     internal async Task<PreparedContext> PrepareAsync(
-        GenerationTaskRecord task, ContextPlan plan, ContextBudget budget, string apiKey, Func<AiRequestRecord, Task> record, CancellationToken stop)
+        GenerationTaskRecord task, ContextPlan plan, ContextBudget budget, string apiKey, Func<AiRequestRecord, Task> record, CancellationToken stop, Func<bool>? admit = null)
     {
         var known = (await summaries.ListAsync([.. plan.Summaries.Select(c => c.Key.Conversation)], CancellationToken.None).ConfigureAwait(false))
             .ToDictionary(s => s.Key);
@@ -74,6 +75,11 @@ public sealed partial class ContextCompressor(IContextSummaryStore summaries, IC
         {
             if (!known.TryGetValue(chunk.Key, out var summary))
             {
+                if (admit is not null && !admit())
+                {
+                    throw new StorageAdmissionRefusedException();
+                }
+
                 var text = await SummarizeAsync(task, chunk, apiKey, record, stop).ConfigureAwait(false);
                 summary = await summaries.AddAsync(new ContextSummary(Guid.CreateVersion7(), chunk.Key, task.Model.Model, text, clock.UtcNow), CancellationToken.None).ConfigureAwait(false);
             }

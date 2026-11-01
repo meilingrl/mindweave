@@ -8,6 +8,7 @@ using Mindweave.Application.Export;
 using Mindweave.Application.Storage;
 using Mindweave.Core.Conversations;
 using Mindweave.Core.Reading;
+using Mindweave.Core.Summaries;
 using Mindweave.Desktop.Navigation;
 using Mindweave.Desktop.ViewModels;
 using Mindweave.Desktop.ViewModels.Conversations;
@@ -275,7 +276,7 @@ public class ExitTests
         else
         {
             second.EditBody = "新的草稿";
-            Assert.True(await second.FlushAsync());
+            Assert.True(await app.Services.GetRequiredService<Application.Summaries.SummaryDrafts>().FlushAsync());
         }
 
         window.Close();
@@ -517,7 +518,7 @@ public class ExitTests
         return sent.Answer!.Value;
     }
 
-    private static async Task<ConversationViewModel> ConversationAsync(DesktopHarness app)
+    internal static async Task<ConversationViewModel> ConversationAsync(DesktopHarness app)
     {
         await app.StartWithWorkspaceAsync("火车");
         await app.ConfigureModelAsync();
@@ -570,9 +571,12 @@ public class ExitTests
     }
 
     /// <summary>The real summary store, whose edit-draft writes fail while <see cref="Fail"/> is set.</summary>
-    private sealed class FailingSummaryDrafts
+    internal sealed class FailingSummaryDrafts
     {
         public volatile bool Fail;
+
+        /// <summary>Saving an edit as a version fails as storage refusing the write.</summary>
+        public volatile bool FailEdits;
 
         public ISummaryStore Wrap(SqliteDatabase database)
         {
@@ -597,6 +601,11 @@ public class ExitTests
             protected override object? Invoke(System.Reflection.MethodInfo? targetMethod, object?[]? args)
             {
                 ArgumentNullException.ThrowIfNull(targetMethod);
+                if (targetMethod.Name == nameof(ISummaryStore.SaveEditAsync) && _gate.FailEdits)
+                {
+                    return Task.FromException<SummaryVersionId?>(new StorageWriteException(StorageFailureKind.Full, "simulated full disk", null));
+                }
+
                 return targetMethod.Name == nameof(ISummaryStore.SaveDraftAsync) && _gate.Fail
                     ? Task.FromException(new IOException("simulated summary draft write failure"))
                     : targetMethod.Invoke(_inner, args);

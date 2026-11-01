@@ -255,13 +255,24 @@ public class ArchiveUiTests
         Assert.Equal(UiText.ArchiveStorageFailed, root.ArchiveNotice);
         Assert.Same(root, app.Workbench.CurrentPage);
 
+        // The refusal paused storage-dependent commits (§9.3, D1): while paused, archiving is refused even though the
+        // store would take it; once storage is found writable again, it goes through.
         failing.Fail = false;
+        var health = app.Services.GetRequiredService<Application.Storage.StorageHealth>();
+        Assert.True(health.IsBlocked);
+        await root.ArchiveCommand.ExecuteAsync(null);
+        Assert.Equal(UiText.ArchiveStorageFailed, root.ArchiveNotice);
+        Assert.False(root.IsArchived);
+        await UiWait.UntilAsync(() => !health.IsBlocked);
         await root.ArchiveCommand.ExecuteAsync(null);
         Assert.True(root.IsArchived);
         failing.Fail = true;
         await root.RestoreAndContinueCommand.ExecuteAsync(null);
         Assert.Equal(UiText.ArchiveStorageFailed, root.ArchiveNotice);
         Assert.True(root.IsArchived);
+        failing.Fail = false;
+        await UiWait.UntilAsync(() => !health.IsBlocked);
+        failing.Fail = true;
 
         app.ShellPage.Conversations.OpenArchivedCommand.Execute(null);
         var archived = Assert.IsType<ArchivedViewModel>(app.Workbench.CurrentPage);

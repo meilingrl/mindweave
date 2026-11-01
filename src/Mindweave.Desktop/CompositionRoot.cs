@@ -44,17 +44,33 @@ public static class CompositionRoot
             sp.GetRequiredService<MigrationCatalog>().LatestVersion));
 
         services.AddSingleton<StartupCoordinator>();
+        services.TryAddSingleton(new Application.Storage.StorageHealthOptions());
+        services.AddSingleton<Application.Storage.StorageHealth>();
+        services.AddSingleton<Application.Storage.IStorageStatus>(sp => sp.GetRequiredService<Application.Storage.StorageHealth>());
         services.AddSingleton<WorkspaceService>();
         services.TryAddSingleton(new GenerationOptions());
         services.AddSingleton<ContextCompressor>();
         services.AddSingleton<GenerationCoordinator>();
         services.AddSingleton<ModelSettingsService>();
         services.AddSingleton<ConversationService>();
+        services.AddSingleton<Application.Summaries.SummaryDrafts>();
         services.AddSingleton<Application.Summaries.SummaryService>();
         services.AddSingleton<Application.Network.NetworkService>();
         services.AddSingleton<Application.Export.SummaryExportService>();
         services.AddSingleton<ReadingStateService>();
         services.AddSingleton<Application.Preferences.AppearanceService>();
+
+        // View models depend on these interfaces, not the concrete services (course requirement C3); each resolves to the
+        // one singleton above, so a page and the rest of the application share state.
+        services.AddSingleton<IConversations>(sp => sp.GetRequiredService<ConversationService>());
+        services.AddSingleton<IGenerationExit>(sp => sp.GetRequiredService<GenerationCoordinator>());
+        services.AddSingleton<Application.Summaries.ISummaries>(sp => sp.GetRequiredService<Application.Summaries.SummaryService>());
+        services.AddSingleton<IReadingState>(sp => sp.GetRequiredService<ReadingStateService>());
+        services.AddSingleton<Application.Export.ISummaryExport>(sp => sp.GetRequiredService<Application.Export.SummaryExportService>());
+        services.AddSingleton<IModelSettings>(sp => sp.GetRequiredService<ModelSettingsService>());
+        services.AddSingleton<IWorkspaces>(sp => sp.GetRequiredService<WorkspaceService>());
+        services.AddSingleton<Application.Preferences.IAppearance>(sp => sp.GetRequiredService<Application.Preferences.AppearanceService>());
+        services.AddSingleton<Application.Network.INetworkLayout>(sp => sp.GetRequiredService<Application.Network.NetworkService>());
         services.TryAddSingleton<IThemeApplier, AvaloniaThemeApplier>();
         services.TryAddSingleton<IUiDispatcher, AvaloniaUiDispatcher>();
 

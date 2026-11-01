@@ -4,9 +4,16 @@ namespace Mindweave.Infrastructure.Sqlite;
 
 internal static class SqliteCommands
 {
+    /// <summary>
+    /// Sees the text of every statement created here within the current async flow; for tests that check what a use case
+    /// actually reads (architecture review R5), not only the shape of what it returns.
+    /// </summary>
+    internal static readonly AsyncLocal<Action<string>?> Observer = new();
+
     /// <summary>Creates a parameterized command; null values are bound as SQL NULL.</summary>
     public static SqliteCommand Command(this SqliteConnection connection, SqliteTransaction? transaction, string sql, params (string Name, object? Value)[] parameters)
     {
+        Observer.Value?.Invoke(sql);
         var command = connection.CreateCommand();
         command.Transaction = transaction;
         command.CommandText = sql;

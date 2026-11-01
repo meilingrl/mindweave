@@ -178,8 +178,9 @@ public class RealApiTests
         TestContext.Current.SendDiagnosticMessage($"short title: {entry.Current.ShortTitle}");
         Assert.NotNull(entry.Current.ShortTitle);
         Assert.InRange(entry.Current.ShortTitle.Length, 1, Core.Summaries.SummaryRules.MaxShortTitleLength);
-        Assert.Contains("1829", entry.Current.Body, StringComparison.Ordinal);
-        Assert.Contains("雨山", entry.Current.Body, StringComparison.Ordinal);
+        var body = (await h.SummaryService.GetAsync(entry.Node.Id, TestContext.Current.CancellationToken))!.Current.Body;
+        Assert.Contains("1829", body, StringComparison.Ordinal);
+        Assert.Contains("雨山", body, StringComparison.Ordinal);
     }
 
     private static async Task<(ConversationId Conversation, Message Answer)> AskAsync(ChatHarness h, ConversationId? conversation, string question)

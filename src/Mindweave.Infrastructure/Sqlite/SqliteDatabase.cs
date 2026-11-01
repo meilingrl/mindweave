@@ -3,6 +3,7 @@ using System.Text.RegularExpressions;
 using Microsoft.Data.Sqlite;
 using Microsoft.Extensions.Logging;
 using Mindweave.Application.Startup;
+using Mindweave.Application.Storage;
 using Mindweave.Infrastructure.Hosting;
 using Mindweave.Infrastructure.Sqlite.Migrations;
 
@@ -22,7 +23,7 @@ public sealed class SqliteDatabaseOptions
 /// explicit request, and afterwards exposes one serialized writer plus short-lived read-only connections.
 /// Must only be used while the single-instance lock for the same data directory is held.
 /// </summary>
-public sealed partial class SqliteDatabase : IDatabaseLifecycle, IAsyncDisposable
+public sealed partial class SqliteDatabase : IDatabaseLifecycle, IStorageProbe, IAsyncDisposable
 {
     public const int MigrationBackupsKept = 5;
 

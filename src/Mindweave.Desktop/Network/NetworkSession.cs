@@ -25,12 +25,12 @@ public readonly record struct Viewport(double CenterX, double CenterY, double Zo
 /// </summary>
 public sealed partial class NetworkSession : ObservableObject
 {
-    private readonly NetworkService _network;
+    private readonly INetworkLayout _network;
     private Dictionary<SummaryNodeId, NodePosition> _positions = [];
     private long _revision;
     private bool _loaded;
 
-    public NetworkSession(WorkspaceId workspace, NetworkService network)
+    public NetworkSession(WorkspaceId workspace, INetworkLayout network)
     {
         Workspace = workspace;
         _network = network;
@@ -179,7 +179,7 @@ public sealed partial class NetworkSession : ObservableObject
 }
 
 /// <summary>The network sessions of all workspaces opened in this process.</summary>
-public sealed class NetworkSessions(NetworkService network)
+public sealed class NetworkSessions(INetworkLayout network)
 {
     private readonly Dictionary<WorkspaceId, NetworkSession> _sessions = [];
 

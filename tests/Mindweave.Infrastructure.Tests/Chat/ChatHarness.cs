@@ -31,26 +31,31 @@ internal sealed class ChatHarness : IAsyncDisposable
         ReadingStore = new SqliteReadingStateStore(Database);
         Summaries = new SqliteContextSummaryStore(Database);
         var storeOverride = wrapStore?.Invoke(Store);
+        Health = new StorageHealth(Database, new StorageHealthOptions { RetryInterval = TimeSpan.FromMilliseconds(50) }, NullLogger<StorageHealth>.Instance);
         Generation = new GenerationCoordinator(
             storeOverride ?? Store,
             ActiveClient,
             Credentials,
             Requests,
+            Health,
             new SystemClock(),
-            new GenerationOptions { CheckpointInterval = TimeSpan.FromMilliseconds(50), SaveRetryInterval = TimeSpan.FromMilliseconds(50) },
+            new GenerationOptions { CheckpointInterval = TimeSpan.FromMilliseconds(50) },
             NullLogger<GenerationCoordinator>.Instance,
             new ContextCompressor(Summaries, ActiveClient, new SystemClock(), NullLogger<ContextCompressor>.Instance));
         Models = new ModelSettingsService(Settings, Store, Credentials, ActiveClient, new SystemClock(), NullLogger<ModelSettingsService>.Instance);
         Archive = new SqliteArchiveStore(Database);
-        Conversations = new ConversationService(storeOverride ?? Store, Branches, Generation, Models, new SystemClock(), NullLogger<ConversationService>.Instance, Summaries, Archive);
-        Reading = new ReadingStateService(ReadingStore, new SystemClock(), NullLogger<ReadingStateService>.Instance, TimeSpan.FromMilliseconds(20));
+        Conversations = new ConversationService(storeOverride ?? Store, Branches, Generation, Health, Models, new SystemClock(), NullLogger<ConversationService>.Instance, Summaries, Archive);
+        Reading = new ReadingStateService(ReadingStore, new SystemClock(), NullLogger<ReadingStateService>.Instance, TimeSpan.FromMilliseconds(20), Health);
         SummaryNodes = new SqliteSummaryStore(Database);
+        Drafts = new Application.Summaries.SummaryDrafts(SummaryNodes, new SystemClock(), Health, NullLogger<Application.Summaries.SummaryDrafts>.Instance, TimeSpan.FromMilliseconds(20));
         SummaryService = new Application.Summaries.SummaryService(
-            SummaryNodes, storeOverride ?? Store, Branches, Generation, Models, new SystemClock(), NullLogger<Application.Summaries.SummaryService>.Instance, Summaries);
+            SummaryNodes, storeOverride ?? Store, Branches, Generation, Health, Drafts, Models, new SystemClock(), NullLogger<Application.Summaries.SummaryService>.Instance, Summaries);
         Network = new Application.Network.NetworkService(SummaryNodes, new SqliteNetworkStore(Database), new SystemClock());
     }
 
     public SqliteDatabase Database { get; }
+
+    public StorageHealth Health { get; }
 
     public SqliteConversationStore Store { get; }
 
@@ -84,6 +89,8 @@ internal sealed class ChatHarness : IAsyncDisposable
     public SqliteSummaryStore SummaryNodes { get; }
 
     public Application.Summaries.SummaryService SummaryService { get; }
+
+    public Application.Summaries.SummaryDrafts Drafts { get; }
 
     public Application.Network.NetworkService Network { get; }
 
@@ -201,9 +208,13 @@ internal sealed class ChatHarness : IAsyncDisposable
     public async ValueTask DisposeAsync()
     {
         await Generation.DisposeAsync();
+        await Health.StopAsync();
         await Reading.FlushAsync();
         Reading.Dispose();
+        await Drafts.FlushAsync();
         await Database.DisposeAsync();
+        await Health.DisposeAsync();
+        Drafts.Dispose();
         if (_ownsDirectory)
         {
             _dir.Dispose();

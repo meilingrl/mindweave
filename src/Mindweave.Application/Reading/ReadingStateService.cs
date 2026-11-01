@@ -9,9 +9,11 @@ namespace Mindweave.Application.Reading;
 /// Owner of reading positions and unsent drafts (architecture §2.2). The newest value of each
 /// (conversation, slot) lives in memory, so a page reopened right after it was left never reads an older
 /// stored value; writes are coalesced and trail by <see cref="SaveDelay"/>, and <see cref="FlushAsync"/>
-/// writes everything before the window closes on exit. Losing page state never blocks reading or asking.
+/// writes everything before the window closes on exit. Losing page state (a reading position) never blocks reading or
+/// asking; a draft is the user's input, core content (architecture §12.1), so storage refusing it pauses new work like
+/// any core write until the draft is saved (architecture review R1).
 /// </summary>
-public sealed partial class ReadingStateService : IDisposable
+public sealed partial class ReadingStateService : IReadingState, IDisposable
 {
     private readonly IReadingStateStore _store;
     private readonly IClock _clock;
@@ -22,14 +24,20 @@ public sealed partial class ReadingStateService : IDisposable
     private readonly HashSet<(ConversationId, ViewerSlotKey)> _dirtyPositions = [];
     private readonly HashSet<(ConversationId, ViewerSlotKey)> _dirtyDrafts = [];
     private readonly SemaphoreSlim _flushing = new(1, 1);
+    private readonly StorageHealth? _health;
+
+    // One open obligation per draft storage refused; resolved when that draft's newest value is saved.
+    private readonly Dictionary<(ConversationId, ViewerSlotKey), StorageObligation> _draftObligations = [];
     private bool _scheduled;
 
-    public ReadingStateService(IReadingStateStore store, IClock clock, ILogger<ReadingStateService> logger, TimeSpan? saveDelay = null)
+    public ReadingStateService(IReadingStateStore store, IClock clock, ILogger<ReadingStateService> logger, TimeSpan? saveDelay = null, StorageHealth? health = null)
     {
         _store = store;
         _clock = clock;
         _logger = logger;
+        _health = health;
         SaveDelay = saveDelay ?? TimeSpan.FromMilliseconds(500);
+        health?.RegisterRetry(_ => FlushAsync());
     }
 
     public TimeSpan SaveDelay { get; }
@@ -152,7 +160,7 @@ public sealed partial class ReadingStateService : IDisposable
             var draftsSaved = true;
             foreach (var (key, value) in drafts)
             {
-                if (!await SaveAsync(key.Conversation, () => _store.SaveDraftAsync(key.Conversation, key.Slot, value, now, CancellationToken.None)).ConfigureAwait(false))
+                if (!await SaveDraftAsync(key, () => _store.SaveDraftAsync(key.Conversation, key.Slot, value, now, CancellationToken.None)).ConfigureAwait(false))
                 {
                     MarkDirty(_dirtyDrafts, key);
                     draftsSaved = false;
@@ -195,6 +203,49 @@ public sealed partial class ReadingStateService : IDisposable
         {
             dirty.Add(key);
         }
+    }
+
+    /// <summary>
+    /// Writes one draft; flushes are serialized, so a success means the newest value then known is stored and any
+    /// obligation for the draft is resolved. Storage refusing it opens one (or reports again while one is open).
+    /// </summary>
+    private async Task<bool> SaveDraftAsync((ConversationId Conversation, ViewerSlotKey Slot) key, Func<Task> write)
+    {
+        try
+        {
+            await write().ConfigureAwait(false);
+        }
+        catch (StorageWriteException ex) when (_health is not null)
+        {
+            LogSaveFailed(_logger, ex, key.Conversation);
+            lock (_gate)
+            {
+                if (!_draftObligations.ContainsKey(key))
+                {
+                    _draftObligations[key] = _health.Retain(ex);
+                    return false;
+                }
+            }
+
+            _health.Report(ex);
+            return false;
+        }
+#pragma warning disable CA1031 // Any other failure: logged, and the in-memory value stays current and pending.
+        catch (Exception ex)
+#pragma warning restore CA1031
+        {
+            LogSaveFailed(_logger, ex, key.Conversation);
+            return false;
+        }
+
+        StorageObligation? resolved;
+        lock (_gate)
+        {
+            _draftObligations.Remove(key, out resolved);
+        }
+
+        resolved?.Resolve();
+        return true;
     }
 
     private async Task<bool> SaveAsync(ConversationId conversation, Func<Task> write)
