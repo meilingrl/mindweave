@@ -4,16 +4,24 @@
              xmlns:d="using:Mindweave.Desktop"
              x:Class="Mindweave.Desktop.Views.Conversations.AnswerView"
              x:DataType="vm:MessageItemViewModel">
-  <StackPanel Spacing="6">
+  <Panel>
     <!-- The Markdown renderer is created in code: it is fed either a full parse (finished) or a live builder (streaming). -->
     <ContentControl Name="BodyHost" />
-    <!-- Appears under the answer while text in it is selected. The branch entries are listed by the page, after the answer's actions. -->
-    <Button Name="BranchButton" Classes="secondary" IsVisible="False" HorizontalAlignment="Left" ToolTip.ShowOnDisabled="True"
-            AutomationProperties.Name="{x:Static d:UiText.CreateBranch}">
-      <StackPanel Orientation="Horizontal" Spacing="6">
-        <PathIcon Data="{StaticResource IconBranch}" />
-        <TextBlock Text="{x:Static d:UiText.CreateBranch}" VerticalAlignment="Center" />
-      </StackPanel>
-    </Button>
-  </StackPanel>
+    <!--
+      A small floating action next to the selection (S7 round 3): it appears while text in a finished answer is
+      selected, sits just above the selection (below it when that would leave the visible area) and scrolls with it.
+      The branch entries are listed by the page, after the answer's actions.
+    -->
+    <Canvas Name="SelectionLayer">
+      <Border Name="SelectionActions" Classes="selection-actions" IsVisible="False">
+        <Button Name="BranchButton" Classes="quiet" IsVisible="False" ToolTip.ShowOnDisabled="True"
+                AutomationProperties.Name="{x:Static d:UiText.CreateBranch}">
+          <StackPanel Orientation="Horizontal" Spacing="6">
+            <PathIcon Data="{StaticResource IconBranch}" />
+            <TextBlock Text="{x:Static d:UiText.CreateBranch}" VerticalAlignment="Center" />
+          </StackPanel>
+        </Button>
+      </Border>
+    </Canvas>
+  </Panel>
 </UserControl>

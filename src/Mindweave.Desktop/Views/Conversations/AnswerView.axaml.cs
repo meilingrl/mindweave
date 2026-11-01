@@ -19,6 +19,9 @@ namespace Mindweave.Desktop.Views.Conversations;
 /// </summary>
 public sealed partial class AnswerView : UserControl
 {
+    /// <summary>Space between the selection and its floating action.</summary>
+    internal const double ActionGap = 6;
+
     private readonly MarkdownRenderer _renderer = new();
     private MessageItemViewModel? _item;
     private ObservableStringBuilder? _live;
@@ -31,6 +34,9 @@ public sealed partial class AnswerView : UserControl
         _renderer.LinkClick += (_, e) => e.Handled = true;
         _renderer.AddHandler(PointerReleasedEvent, (_, _) => UpdateBranchButton(), RoutingStrategies.Bubble, handledEventsToo: true);
         _renderer.AddHandler(KeyUpEvent, (_, _) => UpdateBranchButton(), RoutingStrategies.Bubble, handledEventsToo: true);
+
+        // The action follows the selection when the answer is laid out again (a narrower window rewraps the text).
+        _renderer.SizeChanged += (_, _) => PlaceSelectionActions();
         BranchButton.Click += (_, _) => _ = CreateBranchAsync();
     }
 
@@ -166,18 +172,46 @@ public sealed partial class AnswerView : UserControl
 
     private void UpdateBranchButton()
     {
-        BranchButton.IsVisible = _item is { CanBranch: true } && SourceAnchors.HasSelection(_renderer);
+        var selected = _item is { CanBranch: true } && SourceAnchors.HasSelection(_renderer);
+        SelectionActions.IsVisible = selected;
+        BranchButton.IsVisible = selected;
 
         // While storage is paused the entry stays in sight, disabled, and says why (§9.3); the selection is kept for copying.
         var paused = _item is { IsBranchPaused: true };
         BranchButton.IsEnabled = !paused;
         ToolTip.SetTip(BranchButton, paused ? UiText.StoragePausedReason : null);
+        PlaceSelectionActions();
+    }
+
+    /// <summary>
+    /// Puts the floating action just above the selection's first line, starting at its left edge (kept inside the
+    /// answer); below the last line instead when above would be outside the visible part of the page.
+    /// </summary>
+    private void PlaceSelectionActions()
+    {
+        if (!SelectionActions.IsVisible || SourceAnchors.SelectionRects(_renderer, this) is not { Count: > 0 } lines)
+        {
+            return;
+        }
+
+        SelectionActions.Measure(Size.Infinity);
+        var size = SelectionActions.DesiredSize;
+        var x = Math.Clamp(lines[0].X, 0, Math.Max(0, Bounds.Width - size.Width));
+        var y = lines[0].Y - size.Height - ActionGap;
+        if (this.FindAncestorOfType<ScrollViewer>() is { } scroller && this.TranslatePoint(new Point(0, y), scroller) is { Y: < 0 })
+        {
+            y = lines[^1].Bottom + ActionGap;
+        }
+
+        Canvas.SetLeft(SelectionActions, x);
+        Canvas.SetTop(SelectionActions, y);
     }
 
     private async Task CreateBranchAsync()
     {
         if (CaptureSelection() is { } selection && this.FindAncestorOfType<ConversationView>()?.DataContext is ConversationViewModel page)
         {
+            SelectionActions.IsVisible = false;
             BranchButton.IsVisible = false;
             await page.CreateBranchAsync(selection);
         }

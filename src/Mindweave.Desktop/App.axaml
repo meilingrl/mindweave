@@ -68,6 +68,11 @@
           <SolidColorBrush x:Key="TreeGuide">#C4C0BC</SolidColorBrush>
           <SolidColorBrush x:Key="QuietActionText">#57534E</SolidColorBrush>
           <SolidColorBrush x:Key="DisabledButtonBackground">#EEEDEB</SolidColorBrush>
+          <!-- S7 round 3 · conversation: the selection's floating action and message timestamps -->
+          <SolidColorBrush x:Key="FloatingBackground">#FFFFFF</SolidColorBrush>
+          <SolidColorBrush x:Key="FloatingBorder">#E2DFDC</SolidColorBrush>
+          <BoxShadows x:Key="FloatingShadow">0 4 14 0 #1F000000</BoxShadows>
+          <SolidColorBrush x:Key="TimestampText">#A29C97</SolidColorBrush>
           <!-- Scroll bars: a faint thin thumb at rest, a little stronger when hovered (Fluent's own keys) -->
           <Color x:Key="ScrollBarPanningThumbBackgroundColor">#33000000</Color>
           <SolidColorBrush x:Key="ScrollBarPanningThumbBackground">#2E1C1917</SolidColorBrush>
@@ -165,6 +170,11 @@
           <SolidColorBrush x:Key="TreeGuide">#4A4E57</SolidColorBrush>
           <SolidColorBrush x:Key="QuietActionText">#B4BAC6</SolidColorBrush>
           <SolidColorBrush x:Key="DisabledButtonBackground">#2A2C31</SolidColorBrush>
+          <!-- S7 round 3 · conversation: the selection's floating action and message timestamps -->
+          <SolidColorBrush x:Key="FloatingBackground">#2A2C31</SolidColorBrush>
+          <SolidColorBrush x:Key="FloatingBorder">#3A3D45</SolidColorBrush>
+          <BoxShadows x:Key="FloatingShadow">0 6 18 0 #73000000</BoxShadows>
+          <SolidColorBrush x:Key="TimestampText">#6E7480</SolidColorBrush>
           <Color x:Key="ScrollBarPanningThumbBackgroundColor">#38FFFFFF</Color>
           <SolidColorBrush x:Key="ScrollBarPanningThumbBackground">#2EFFFFFF</SolidColorBrush>
           <Color x:Key="ScrollBarThumbBackgroundColor">#66FFFFFF</Color>
@@ -233,6 +243,9 @@
       <StreamGeometry x:Key="IconNetwork">F1 M3,7.3 L13,2.3 L13,3.7 L3,8.7 Z M3,7.3 L13,12.3 L13,13.7 L3,8.7 Z M3,5.5 A2.5,2.5 0 1 1 3,10.5 A2.5,2.5 0 1 1 3,5.5 Z M13,1 A2,2 0 1 1 13,5 A2,2 0 1 1 13,1 Z M13,11 A2,2 0 1 1 13,15 A2,2 0 1 1 13,11 Z</StreamGeometry>
       <StreamGeometry x:Key="IconSettings">F1 M1.5,3.25 H14.5 V4.75 H1.5 Z M1.5,11.25 H14.5 V12.75 H1.5 Z M5,1.75 A2.25,2.25 0 1 1 5,6.25 A2.25,2.25 0 1 1 5,1.75 Z M11,9.75 A2.25,2.25 0 1 1 11,14.25 A2.25,2.25 0 1 1 11,9.75 Z</StreamGeometry>
       <StreamGeometry x:Key="IconTreeBranch">M2,0 H3.4 V6.3 H9 V7.7 H2 Z</StreamGeometry>
+      <!-- S7 round 3 · conversation: copy (two offset sheets) and its confirmation check. -->
+      <StreamGeometry x:Key="IconCopy">F1 M5,1 H14 V11 H5 Z M6.5,2.5 V9.5 H12.5 V2.5 Z M2,5 H3.5 V13.5 H10 V15 H2 Z</StreamGeometry>
+      <StreamGeometry x:Key="IconCheck">M13.4,3.6 L14.6,4.8 L6.4,13 L1.6,8.2 L2.8,7 L6.4,10.6 Z</StreamGeometry>
     </ResourceDictionary>
   </Application.Resources>
   <Application.Styles>
@@ -650,6 +663,57 @@
     </Style>
     <Style Selector="ScrollViewer.autohide:pointerover /template/ ScrollBar#PART_VerticalScrollBar">
       <Setter Property="Opacity" Value="1" />
+    </Style>
+
+    <!-- ── S7 round 3 · conversation ─────────────────────────────────────────────────────────────────────────── -->
+    <!-- Stop while an answer runs: the familiar round button with a filled square, where send is, no label. -->
+    <Style Selector="Button.stop">
+      <Setter Property="Width" Value="34" />
+      <Setter Property="Height" Value="34" />
+      <Setter Property="Padding" Value="0" />
+      <Setter Property="CornerRadius" Value="17" />
+      <Setter Property="HorizontalContentAlignment" Value="Center" />
+      <Setter Property="VerticalContentAlignment" Value="Center" />
+    </Style>
+    <Style Selector="Button.stop PathIcon">
+      <Setter Property="Width" Value="11" />
+      <Setter Property="Height" Value="11" />
+    </Style>
+    <Style Selector="Button.stop:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+      <Setter Property="CornerRadius" Value="17" />
+    </Style>
+    <!-- Icon-only quiet buttons (copy): a square hit area around the glyph. -->
+    <Style Selector=":is(Button).quiet.icon">
+      <Setter Property="Padding" Value="6" />
+      <Setter Property="CornerRadius" Value="6" />
+    </Style>
+    <Style Selector=":is(Button).quiet.icon:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+      <Setter Property="CornerRadius" Value="6" />
+    </Style>
+    <!-- When a message was sent or answered: smaller and fainter than captions, never competing with the text. -->
+    <Style Selector="TextBlock.timestamp">
+      <Setter Property="FontSize" Value="11.5" />
+      <Setter Property="Foreground" Value="{DynamicResource TimestampText}" />
+    </Style>
+    <!-- The floating action next to a text selection: a small raised surface. -->
+    <Style Selector="Border.selection-actions">
+      <Setter Property="Background" Value="{DynamicResource FloatingBackground}" />
+      <Setter Property="BorderBrush" Value="{DynamicResource FloatingBorder}" />
+      <Setter Property="BorderThickness" Value="1" />
+      <Setter Property="CornerRadius" Value="8" />
+      <Setter Property="Padding" Value="2" />
+      <Setter Property="BoxShadow" Value="{DynamicResource FloatingShadow}" />
+    </Style>
+    <Style Selector="Border.selection-actions Button.quiet">
+      <Setter Property="Padding" Value="9,4" />
+      <Setter Property="FontSize" Value="13" />
+      <Setter Property="CornerRadius" Value="6" />
+    </Style>
+    <Style Selector="Border.selection-actions Button.quiet:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+      <Setter Property="CornerRadius" Value="6" />
+    </Style>
+    <Style Selector="Border.selection-actions Button.quiet PathIcon">
+      <Setter Property="Foreground" Value="{DynamicResource AccentBrush}" />
     </Style>
   </Application.Styles>
 </Application>

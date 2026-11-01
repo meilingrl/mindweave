@@ -158,10 +158,11 @@ public static class UiText
     public const string AvailableBackups = "可用的备份";
     public const string NewConversation = "新会话";
     public const string ConversationMissing = "会话不存在";
-    public const string AskPlaceholder = "提问…（Enter 发送，Shift+Enter 换行）";
+    public const string AskPlaceholder = "提问…";
     public const string Send = "发送";
     public const string Stop = "停止";
-    public const string StopAnswerHint = "停止生成，保留已收到的文字";
+    public const string Copy = "复制";
+    public const string Copied = "已复制";
     public const string Regenerate = "重新生成";
     public const string Rename = "改名";
     public const string Save = "保存";
@@ -170,7 +171,7 @@ public static class UiText
     public const string RetryAttempt = "重新回答";
     public const string MarkerGenerating = "正在生成";
     public const string MarkerNeedsAttention = "回答未完成，可重试";
-    public const string CreateBranch = "就选中的文字创建分支";
+    public const string CreateBranch = "创建分支";
     public const string ReturnToSource = "返回来源";
     public const string ReturnToSourceHint = "回到来源回答，并选中这段原文";
     public const string BranchFrom = "来自";
@@ -486,6 +487,15 @@ public static class UiText
     /// </summary>
     public static string FormatTime(DateTimeOffset at) =>
         at.ToLocalTime().ToString("yyyy'年'M'月'd'日' HH:mm", CultureInfo.InvariantCulture);
+
+    /// <summary>
+    /// When a message was sent or answered: only the clock ("09:30") on the day it is shown, otherwise the full
+    /// <see cref="FormatTime"/> date. Both moments are compared as local calendar days.
+    /// </summary>
+    public static string MessageTime(DateTimeOffset at, DateTimeOffset now) =>
+        at.ToLocalTime().Date == now.ToLocalTime().Date
+            ? at.ToLocalTime().ToString("HH:mm", CultureInfo.InvariantCulture)
+            : FormatTime(at);
 
     public static string VersionNumber(int seq) => string.Format(CultureInfo.CurrentCulture, "第 {0} 版", seq);
 

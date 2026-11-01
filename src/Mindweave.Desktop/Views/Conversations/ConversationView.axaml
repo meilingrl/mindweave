@@ -195,11 +195,16 @@
       <ItemsControl Name="MessageList" ItemsSource="{Binding Messages}" Margin="0,0,12,0">
         <ItemsControl.ItemTemplate>
           <DataTemplate x:DataType="vm:MessageItemViewModel">
-            <StackPanel Margin="0,6" Spacing="6">
-              <!-- Question: right-aligned bubble. -->
+            <StackPanel Classes="message" Margin="0,6" Spacing="6">
+              <!-- Question: right-aligned bubble; its time and copy sit quietly under it and come forward on hover. -->
               <Border Classes="question" IsVisible="{Binding IsUser}" HorizontalAlignment="Right" MaxWidth="560">
                 <SelectableTextBlock Text="{Binding Body}" TextWrapping="Wrap" />
               </Border>
+              <StackPanel Name="QuestionMeta" Classes="message-meta" Orientation="Horizontal" Spacing="2" HorizontalAlignment="Right" Margin="0,-3,2,0"
+                          IsVisible="{Binding IsUser}">
+                <TextBlock Name="QuestionTime" Classes="timestamp" Text="{Binding TimestampText}" VerticalAlignment="Center" Margin="0,0,4,0" />
+                <v:CopyButton Name="QuestionCopy" Classes="quiet small icon" Text="{Binding Body}" IsEnabled="{Binding CanCopy}" />
+              </StackPanel>
               <!-- Answer: Markdown on the page; selecting text in a finished answer offers a branch. -->
               <StackPanel IsVisible="{Binding IsAnswer}" Spacing="6" Opacity="{Binding IsSuperseded, Converter={x:Static d:Converters.SupersededOpacity}}">
                 <Border Classes="badge" HorizontalAlignment="Left" IsVisible="{Binding IsSuperseded}">
@@ -234,8 +239,9 @@
                       <TextBlock Name="ErrorText" Text="{Binding StateLabel}" ToolTip.Tip="{Binding ErrorDetail}" />
                   </DockPanel>
                 </Border>
-                <!-- The answer's own actions, quiet, in one row right under it. -->
-                <StackPanel Name="AnswerActions" Orientation="Horizontal" Spacing="4" Margin="-7,0,0,0" IsVisible="{Binding HasActions}">
+                <!-- The answer's own actions, quiet, in one row right under it: copy, retry or regenerate, its state, its time. -->
+                <StackPanel Name="AnswerActions" Orientation="Horizontal" Spacing="2" Margin="-7,0,0,0" IsVisible="{Binding HasActions}">
+                  <v:CopyButton Name="AnswerCopy" Classes="quiet small icon" Text="{Binding Body}" IsEnabled="{Binding CanCopy}" />
                   <Button Name="RetryButton" Classes="quiet small" IsVisible="{Binding CanRetryQuietly}"
                           ToolTip.Tip="{Binding $parent[ItemsControl].((vm:ConversationViewModel)DataContext).StorageNotice}" ToolTip.ShowOnDisabled="True"
                           Command="{Binding $parent[ItemsControl].((vm:ConversationViewModel)DataContext).RetryCommand}" CommandParameter="{Binding}">
@@ -246,6 +252,7 @@
                   </Button>
                   <TextBlock Name="StateText" Classes="caption" Text="{Binding StateLabel}" VerticalAlignment="Center" Margin="4,0,0,0"
                              IsVisible="{Binding ShowsQuietState}" />
+                  <TextBlock Name="AnswerTime" Classes="timestamp" Text="{Binding TimestampText}" VerticalAlignment="Center" Margin="6,0,0,0" />
                 </StackPanel>
                 <!-- Branches made from this answer: a list that belongs to it, each entry a whole tappable row. -->
                 <Border Name="BranchSection" Classes="card" HorizontalAlignment="Left" MinWidth="340" MaxWidth="640" Padding="4,5,4,3" Margin="0,2,0,0"

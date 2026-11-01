@@ -1,4 +1,6 @@
+using Avalonia;
 using Avalonia.Controls;
+using Avalonia.Headless;
 using Avalonia.Headless.XUnit;
 using Avalonia.Styling;
 using Avalonia.Threading;
@@ -534,6 +536,49 @@ public class GalleryTests
         await SettleAsync(window);
         Capture(window, "g24-recovery");
         SqliteConnection.ClearAllPools();
+    }
+
+    // ── S7 round 3 · conversation ────────────────────────────────────────────
+
+    [AvaloniaFact]
+    public async Task G25_selected_text_with_the_floating_branch_action()
+    {
+        await using var scene = Scene.Create("g25");
+        var window = Show(scene.App);
+        var seed = await SeedAsync(scene.App);
+        await OpenConversationAsync(scene.App, window, seed.Root);
+        var answer = Answers(window).Single();
+        var block = Mindweave.Desktop.Markdown.SourceAnchors.Blocks(answer.Renderer).First(b => b.LayoutText.Contains("斯托克顿—达灵顿铁路", StringComparison.Ordinal));
+        var start = block.LayoutText.IndexOf("斯托克顿—达灵顿铁路", StringComparison.Ordinal);
+        var end = start + "斯托克顿—达灵顿铁路".Length;
+        var from = block.GetTextRangeBoundsInControl(start, 1)[0];
+        var to = block.GetTextRangeBoundsInControl(end, 1)[0];
+        var down = block.TranslatePoint(new Avalonia.Point(from.X + 1, from.Center.Y), window)!.Value;
+        var up = block.TranslatePoint(new Avalonia.Point(to.X + 1, to.Center.Y), window)!.Value;
+        window.MouseDown(down, Avalonia.Input.MouseButton.Left);
+        window.MouseMove(up, Avalonia.Input.RawInputModifiers.LeftMouseButton);
+        window.MouseUp(up, Avalonia.Input.MouseButton.Left);
+        await SettleAsync(window);
+        Assert.True(Find<Button>(window, "BranchButton").IsEffectivelyVisible);
+        Capture(window, "g25-selection-branch-action");
+        window.Close();
+    }
+
+    [AvaloniaFact]
+    public async Task G26_answer_copied_with_message_times()
+    {
+        await using var scene = Scene.Create("g26");
+        var window = Show(scene.App);
+        var seed = await SeedAsync(scene.App);
+        await OpenConversationAsync(scene.App, window, seed.FirstRailway);
+        var copy = window.GetVisualDescendants().OfType<CopyButton>().First(b => b.Name == "AnswerCopy" && b.IsEffectivelyVisible);
+        var centre = copy.TranslatePoint(new Avalonia.Point(copy.Bounds.Width / 2, copy.Bounds.Height / 2), window)!.Value;
+        window.MouseDown(centre, Avalonia.Input.MouseButton.Left);
+        window.MouseUp(centre, Avalonia.Input.MouseButton.Left);
+        await UiWait.UntilAsync(() => copy.ShowsCopied);
+        await SettleAsync(window);
+        Capture(window, "g26-answer-copied");
+        window.Close();
     }
 
     // ── Seed ─────────────────────────────────────────────────────────────────
