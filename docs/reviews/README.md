@@ -4,6 +4,7 @@
 | --- | --- |
 | [独立设计复审](review-20261023-023314-sgt/README.md) | 五轮报告、v1–v6 冻结副本、证据与 D1–D8 决策来源；继续分层导航 |
 | [详细设计就绪审查](claude-design-readiness-20261024-172436/README.md) | v1–v4、用户答复、详细设计交接；继续分层导航 |
+| [claude-auto 架构整改与课程合规审查](claude-auto-architecture-20261101/README.md) | 激进轨（`6843143`）的 Claude／Codex 联合审查：整改提案、课程架构符合性矩阵、往复讨论；仅本轨道 |
 
 现行行为以 [需求](../requirements.md) 和 [架构](../architecture.md) 为准。
 
