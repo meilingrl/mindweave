@@ -4,7 +4,7 @@
              xmlns:v="using:Mindweave.Desktop.Views.Conversations"
              x:Class="Mindweave.Desktop.Views.Conversations.NewConversationView"
              x:DataType="vm:NewConversationViewModel">
-  <Grid RowDefinitions="*,Auto,2*">
+  <Grid RowDefinitions="2*,Auto,3*">
     <v:ComposerView Grid.Row="1" Name="ComposerHost" DataContext="{Binding Composer}" MaxWidth="720" />
   </Grid>
 </UserControl>

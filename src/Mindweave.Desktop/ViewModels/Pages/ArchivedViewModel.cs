@@ -22,7 +22,8 @@ public sealed class ArchivedItemViewModel(ConversationId id, string title, int d
 
     public string? Marker => IsArchived ? UiText.ArchivedMarker : null;
 
-    public Avalonia.Thickness Indent => new(Math.Min(depth, ConversationItemViewModel.MaxIndentedDepth) * 14, 0, 0, 0);
+    /// <summary>Level in the hidden tree: 0 for an archived conversation whose parent is visible. Shown as indentation by the view.</summary>
+    public int Depth { get; } = depth;
 }
 
 /// <summary>

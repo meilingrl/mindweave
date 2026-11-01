@@ -449,6 +449,11 @@ public class GalleryTests
         Assert.Equal(6, archived.Items.Count);
         await SettleAsync(window);
         Capture(window, "g19-archived-page");
+
+        // Deleting asks first, in the danger colour.
+        archived.DeleteCommand.Execute(archived.Items[^1]);
+        await SettleAsync(window);
+        Capture(window, "g19b-archived-delete-confirm");
         window.Close();
     }
 
@@ -533,7 +538,44 @@ public class GalleryTests
         Assert.Equal(DatabaseOpenStatus.MigrationFailed, recovery.Result.Status);
         await SettleAsync(window);
         Capture(window, "g24-recovery");
+
+        // Choosing a backup states the consequence before anything happens.
+        recovery.ChooseRestoreCommand.Execute(recovery.Backups[0]);
+        await SettleAsync(window);
+        Capture(window, "g24b-recovery-restore-confirm");
         SqliteConnection.ClearAllPools();
+    }
+
+    // ── Shell: sidebar resize and collapse (S7 round 3) ─────────────────────
+
+    [AvaloniaFact]
+    public async Task G25_shell_sidebar_collapsed_while_a_conversation_needs_attention()
+    {
+        await using var scene = Scene.Create("g25");
+        var window = Show(scene.App);
+        var seed = await SeedAsync(scene.App);
+        var conversations = scene.App.Services.GetRequiredService<ConversationService>();
+        scene.App.Client.Fail(GenerationErrorKind.Network, "connection reset", "吴淞铁路");
+        await conversations.AskAsync(seed.FirstRailway, "吴淞铁路拆下来的铁轨去了哪里？", CancellationToken.None);
+        await UiWait.UntilAsync(() => scene.App.ShellPage.Conversations.HasAttention);
+        await OpenConversationAsync(scene.App, window, seed.Gauge);
+        scene.App.ShellPage.ToggleSidebarCommand.Execute(null);
+        await SettleAsync(window);
+        Capture(window, "g25-shell-sidebar-collapsed");
+        window.Close();
+    }
+
+    [AvaloniaFact]
+    public async Task G26_shell_sidebar_widened()
+    {
+        await using var scene = Scene.Create("g26");
+        var window = Show(scene.App);
+        await SeedAsync(scene.App);
+        scene.App.ShellPage.ShowSectionCommand.Execute(MainSection.Explore);
+        scene.App.ShellPage.SidebarWidth = 340;
+        await SettleAsync(window);
+        Capture(window, "g26-shell-sidebar-widened");
+        window.Close();
     }
 
     // ── Seed ─────────────────────────────────────────────────────────────────

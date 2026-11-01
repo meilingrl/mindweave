@@ -41,18 +41,14 @@ public sealed partial class ConversationItemViewModel(ConversationId id) : ViewM
     [ObservableProperty]
     public partial bool IsSelected { get; set; }
 
-    /// <summary>Branch level: 0 for a root conversation. Shown as indentation, not as a separate tree control.</summary>
+    /// <summary>Branch level: 0 for a root conversation. The view shows it as indentation (<c>Views.TreeIndent</c>), not as a separate tree control.</summary>
     [ObservableProperty]
-    [NotifyPropertyChangedFor(nameof(Indent), nameof(IsBranch))]
+    [NotifyPropertyChangedFor(nameof(IsBranch))]
     public partial int Depth { get; set; }
 
     /// <summary>A branch, drawn with a small corner glyph so the tree reads as a hierarchy, not only as indentation.</summary>
     public bool IsBranch => Depth > 0;
 
-    public Avalonia.Thickness Indent => new(Math.Min(Depth, MaxIndentedDepth) * 14, 0, 0, 0);
-
-    /// <summary>Deeper levels share the last indentation so long chains stay readable in a narrow sidebar.</summary>
-    internal const int MaxIndentedDepth = 6;
 }
 
 /// <summary>
@@ -90,6 +86,10 @@ public sealed partial class ConversationListViewModel : ViewModelBase
     public partial int ArchivedCount { get; private set; }
 
     public bool HasArchived => ArchivedCount > 0;
+
+    /// <summary>Some listed conversation needs attention (a failed or interrupted answer); shown on the expand button while the sidebar is collapsed.</summary>
+    [ObservableProperty]
+    public partial bool HasAttention { get; private set; }
 
     public string ArchivedLabel => UiText.ArchivedEntry(ArchivedCount);
 
@@ -161,6 +161,8 @@ public sealed partial class ConversationListViewModel : ViewModelBase
         {
             Items.RemoveAt(Items.Count - 1);
         }
+
+        HasAttention = Items.Any(i => i.NeedsAttention);
 
         UpdateSelection();
     }
