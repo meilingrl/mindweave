@@ -1,5 +1,6 @@
 using Mindweave.Application.Preferences;
 using Mindweave.Application.Startup;
+using Mindweave.Application.Storage;
 using Mindweave.Application.Workspaces;
 using Mindweave.Core.Workspaces;
 using Mindweave.Desktop.Navigation;
@@ -19,6 +20,7 @@ public sealed class AppStartup : IRecoveryActions
     private readonly ExitCoordinator _exit;
     private readonly AppearanceService _appearance;
     private readonly IThemeApplier _theme;
+    private readonly StorageHealth _health;
 
     public AppStartup(
         StartupCoordinator coordinator,
@@ -29,7 +31,8 @@ public sealed class AppStartup : IRecoveryActions
         ISystemShell system,
         ExitCoordinator exit,
         AppearanceService appearance,
-        IThemeApplier theme)
+        IThemeApplier theme,
+        StorageHealth health)
     {
         _coordinator = coordinator;
         _workspaces = workspaces;
@@ -40,10 +43,14 @@ public sealed class AppStartup : IRecoveryActions
         _exit = exit;
         _appearance = appearance;
         _theme = theme;
+        _health = health;
     }
 
     public async Task RunAsync()
     {
+        // Every owner of kept writes was composed with this class (through the exit coordinator and the shell's pages),
+        // so retry registration ends here, before any work is admitted.
+        _health.Start();
         _root.Show(new StartupViewModel());
         var outcome = await _coordinator.StartAsync(CancellationToken.None);
         await ApplyAppearanceAsync(outcome);

@@ -282,7 +282,7 @@ public class ConversationFlowTests
         flaky!.FailFinishes = 2;
 
         var sent = await h.Conversations.StartAsync(h.Workspace, "问", Ct);
-        await ChatHarness.UntilAsync(() => h.Generation.IsStorageBlocked);
+        await ChatHarness.UntilAsync(() => h.Health.IsBlocked);
 
         var refused = await h.Conversations.StartAsync(h.Workspace, "再问", Ct);
         Assert.Equal(SendRejection.StorageUnavailable, refused.Rejection);
@@ -290,7 +290,7 @@ public class ConversationFlowTests
 
         var saved = await h.WaitForAnswerAsync(sent.Answer!.Value);
         Assert.Equal(MessageState.Complete, saved.State);
-        await ChatHarness.UntilAsync(() => !h.Generation.IsStorageBlocked);
+        await ChatHarness.UntilAsync(() => !h.Health.IsBlocked);
     }
 
     [Fact]
@@ -377,7 +377,5 @@ public class ConversationFlowTests
         public Task<RecoveryReport> RecoverUnfinishedAsync(DateTimeOffset at, CancellationToken cancellationToken) => inner.RecoverUnfinishedAsync(at, cancellationToken);
 
         public Task<IReadOnlySet<string>> CredentialRefsInUseAsync(CancellationToken cancellationToken) => inner.CredentialRefsInUseAsync(cancellationToken);
-
-        public Task ProbeWriteAsync(CancellationToken cancellationToken) => inner.ProbeWriteAsync(cancellationToken);
     }
 }

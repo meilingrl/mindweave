@@ -171,7 +171,7 @@ public class ArchiveFlowTests
 
         Assert.True(result.Deleted);
         Assert.Equal(0, h.Generation.UnfinishedCount);
-        Assert.False(h.Generation.IsStorageBlocked);
+        Assert.False(h.Health.IsBlocked);
         Assert.Equal(0, await CountAsync(h, "generation_task"));
         gate.TrySetResult();
     }
@@ -274,7 +274,7 @@ public class ArchiveFlowTests
         gate.TrySetResult();
         await ChatHarness.UntilAsync(() => h.Generation.UnfinishedCount == 0);
 
-        Assert.False(h.Generation.IsStorageBlocked);
+        Assert.False(h.Health.IsBlocked);
         Assert.Null(await h.Database.ReadAsync(c => SqliteConnections.ForeignKeyViolation(c), Ct));
         Assert.Equal(0, await CountAsync(h, "conversation"));
         Assert.Equal(SendRejection.ConversationMissing, (await h.Conversations.AskAsync(root, "还在吗", Ct)).Rejection);

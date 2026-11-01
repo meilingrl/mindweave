@@ -246,8 +246,6 @@ internal sealed class SqliteConversationStore(SqliteDatabase database) : IConver
             },
             cancellationToken);
 
-    public Task ProbeWriteAsync(CancellationToken cancellationToken) => database.ProbeWriteAsync(cancellationToken);
-
     public Task<IReadOnlySet<string>> CredentialRefsInUseAsync(CancellationToken cancellationToken) =>
         database.ReadAsync<IReadOnlySet<string>>(
             connection =>

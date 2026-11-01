@@ -21,7 +21,7 @@ public class StorageHealthTests
         var sent = await h.Conversations.StartAsync(h.Workspace, "问", Ct);
         await ChatHarness.UntilAsync(() => h.Conversations.Observe(sent.Answer!.Value)?.Snapshot().State == MessageState.Complete);
 
-        Assert.False(h.Generation.IsStorageBlocked);
+        Assert.False(h.Health.IsBlocked);
         Assert.Equal("答：问", h.Conversations.Observe(sent.Answer!.Value)!.Snapshot().Text);
 
         // The exit's save reports it unsaved while it keeps failing, and saves it once it works.
@@ -39,7 +39,7 @@ public class StorageHealthTests
         flaky!.FailFinishes = 1;
         flaky.FinishFailure = () => new StorageWriteException(StorageFailureKind.Full, "simulated full disk", null);
         var sent = await h.Conversations.StartAsync(h.Workspace, "问", Ct);
-        await ChatHarness.UntilAsync(() => h.Generation.IsStorageBlocked);
+        await ChatHarness.UntilAsync(() => h.Health.IsBlocked);
 
         // The exit's save takes the kept write out of the queue and holds it while the recovery loop probes.
         var inFlight = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
@@ -54,11 +54,11 @@ public class StorageHealthTests
 
         // Several retry intervals (50 ms in the harness) pass with the write still in flight.
         await Task.Delay(400, Ct);
-        Assert.True(h.Generation.IsStorageBlocked);
+        Assert.True(h.Health.IsBlocked);
 
         release.SetResult();
         Assert.True(await exitSave);
-        await ChatHarness.UntilAsync(() => !h.Generation.IsStorageBlocked);
+        await ChatHarness.UntilAsync(() => !h.Health.IsBlocked);
         Assert.Equal(MessageState.Complete, (await h.GetMessageAsync(sent.Answer!.Value))!.State);
     }
 }

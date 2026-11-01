@@ -90,6 +90,7 @@ public sealed partial class ConversationService
     private readonly IContextSummaryStore? _summaries;
     private readonly IConversationArchiveStore? _archive;
     private readonly GenerationCoordinator _generation;
+    private readonly StorageHealth _health;
     private readonly ModelSettingsService _models;
     private readonly IClock _clock;
     private readonly ILogger<ConversationService> _logger;
@@ -99,6 +100,7 @@ public sealed partial class ConversationService
         IConversationStore store,
         IBranchStore branches,
         GenerationCoordinator generation,
+        StorageHealth health,
         ModelSettingsService models,
         IClock clock,
         ILogger<ConversationService> logger,
@@ -110,6 +112,7 @@ public sealed partial class ConversationService
         _summaries = summaries;
         _archive = archive;
         _generation = generation;
+        _health = health;
         _models = models;
         _clock = clock;
         _logger = logger;
@@ -129,12 +132,12 @@ public sealed partial class ConversationService
     /// <summary><see cref="IsStorageBlocked"/> changed. Raised on worker threads.</summary>
     public event EventHandler? StorageStateChanged
     {
-        add => _generation.StorageStateChanged += value;
-        remove => _generation.StorageStateChanged -= value;
+        add => _health.Changed += value;
+        remove => _health.Changed -= value;
     }
 
-    /// <summary>A core write failed and storage has not recovered: questions, retries and branches are refused (§9.3).</summary>
-    public bool IsStorageBlocked => _generation.IsStorageBlocked;
+    /// <summary>A core write failed and storage has not recovered: questions, retries, branches and archive commits are refused (§9.3).</summary>
+    public bool IsStorageBlocked => _health.IsBlocked;
 
     /// <summary>
     /// Conversations were archived, restored or deleted: what is hidden changed for these. Each of them also gets a
@@ -340,7 +343,7 @@ public sealed partial class ConversationService
             return new BranchOutcome(invalid, child);
         }
 
-        if (_generation.IsStorageBlocked)
+        if (_health.IsBlocked)
         {
             return new BranchOutcome(BranchRejection.StorageUnavailable, child);
         }
@@ -355,7 +358,7 @@ public sealed partial class ConversationService
         }
         catch (StorageWriteException ex)
         {
-            _generation.ReportStorageFailure(ex);
+            _health.Report(ex);
             return new BranchOutcome(BranchRejection.StorageUnavailable, child);
         }
 
@@ -384,6 +387,7 @@ public sealed partial class ConversationService
     public async Task<ArchiveOutcome> ArchiveAsync(ConversationId id, CancellationToken cancellationToken)
     {
         var archive = RequireArchive();
+        _health.ThrowIfBlocked();
         ArchiveResult result;
         try
         {
@@ -392,6 +396,11 @@ public sealed partial class ConversationService
         catch (ConversationMissingException)
         {
             return new ArchiveOutcome([], Missing: true);
+        }
+        catch (StorageWriteException ex)
+        {
+            _health.Report(ex);
+            throw;
         }
 
         if (result.Archived)
@@ -418,7 +427,7 @@ public sealed partial class ConversationService
     /// <summary>Restores the conversation and the archived ancestors on its path; archives off the path stay (D-021).</summary>
     public async Task<IReadOnlyList<ConversationId>> RestoreAsync(ConversationId id, CancellationToken cancellationToken)
     {
-        var shown = await RequireArchive().RestoreAsync(id, cancellationToken).ConfigureAwait(false);
+        var shown = await CommitAsync(() => RequireArchive().RestoreAsync(id, cancellationToken)).ConfigureAwait(false);
         NotifyVisibility(shown);
         return shown;
     }
@@ -430,7 +439,7 @@ public sealed partial class ConversationService
     /// </summary>
     public async Task<DeleteResult> DeleteAsync(ConversationId id, CancellationToken cancellationToken)
     {
-        var result = await RequireArchive().DeleteAsync(id, cancellationToken).ConfigureAwait(false);
+        var result = await CommitAsync(() => RequireArchive().DeleteAsync(id, cancellationToken)).ConfigureAwait(false);
         if (result.Deleted)
         {
             await _generation.CancelBackgroundAsync(new HashSet<ConversationId> { id }).ConfigureAwait(false);
@@ -480,14 +489,36 @@ public sealed partial class ConversationService
             return;
         }
 
-        await _store.SetManualTitleAsync(id, clean, _clock.UtcNow, cancellationToken).ConfigureAwait(false);
+        await CommitAsync(async () =>
+        {
+            await _store.SetManualTitleAsync(id, clean, _clock.UtcNow, cancellationToken).ConfigureAwait(false);
+            return true;
+        }).ConfigureAwait(false);
         ConversationChanged?.Invoke(this, id);
+    }
+
+    /// <summary>
+    /// A commit that depends on storage (§9.3, D1): refused while storage is blocked, and its own storage failure blocks
+    /// it. Either way a <see cref="StorageWriteException"/> reaches the caller and nothing was stored.
+    /// </summary>
+    private async Task<T> CommitAsync<T>(Func<Task<T>> commit)
+    {
+        _health.ThrowIfBlocked();
+        try
+        {
+            return await commit().ConfigureAwait(false);
+        }
+        catch (StorageWriteException ex)
+        {
+            _health.Report(ex);
+            throw;
+        }
     }
 
     /// <summary>The question was not stored (nothing of it was): it stays in the input, and storage-dependent work pauses.</summary>
     private SendOutcome StorageRefused(StorageWriteException exception, ConversationId id)
     {
-        _generation.ReportStorageFailure(exception);
+        _health.Report(exception);
         return SendOutcome.Reject(SendRejection.StorageUnavailable, id);
     }
 
@@ -509,7 +540,7 @@ public sealed partial class ConversationService
 
     private async Task<SendOutcome?> CheckReadyAsync(ConversationId id, CancellationToken cancellationToken)
     {
-        if (_generation.IsStorageBlocked)
+        if (_health.IsBlocked)
         {
             return SendOutcome.Reject(SendRejection.StorageUnavailable, id);
         }
@@ -579,7 +610,7 @@ public sealed partial class ConversationService
         }
 
         var model = await _models.GetActiveSnapshotAsync(CancellationToken.None).ConfigureAwait(false);
-        if (model is null || _generation.IsStorageBlocked)
+        if (model is null || _health.IsBlocked)
         {
             return;
         }

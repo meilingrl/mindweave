@@ -3,6 +3,7 @@ using Mindweave.Application;
 using Mindweave.Application.Conversations;
 using Mindweave.Application.Models;
 using Mindweave.Application.Reading;
+using Mindweave.Application.Storage;
 using Mindweave.Core.Branches;
 using Mindweave.Core.Conversations;
 using Mindweave.Core.Reading;
@@ -52,9 +53,10 @@ public sealed class SchemaV4MigrationTests : IDisposable
         var branches = new SqliteBranchStore(database);
         var client = new FakeChatClient();
         var credentials = new MemoryCredentialStore();
-        await using var generation = new GenerationCoordinator(store, client, credentials, new SqliteAiRequestStore(database), new SystemClock(), new GenerationOptions(), NullLogger<GenerationCoordinator>.Instance);
+        await using var health = new StorageHealth(database, new StorageHealthOptions(), NullLogger<StorageHealth>.Instance);
+        await using var generation = new GenerationCoordinator(store, client, credentials, new SqliteAiRequestStore(database), health, new SystemClock(), new GenerationOptions(), NullLogger<GenerationCoordinator>.Instance);
         var models = new ModelSettingsService(new SqliteModelSettingsStore(database), store, credentials, client, new SystemClock(), NullLogger<ModelSettingsService>.Instance);
-        var conversations = new ConversationService(store, branches, generation, models, new SystemClock(), NullLogger<ConversationService>.Instance);
+        var conversations = new ConversationService(store, branches, generation, health, models, new SystemClock(), NullLogger<ConversationService>.Instance);
 
         var branch = await conversations.CreateBranchAsync(
             ConversationId.Parse(Conversation), new BranchSelection(MessageId.Parse(Answer), 0, "蒸汽机", "{}", 1, "p"), Ct);

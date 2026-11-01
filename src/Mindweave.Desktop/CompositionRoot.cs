@@ -44,6 +44,9 @@ public static class CompositionRoot
             sp.GetRequiredService<MigrationCatalog>().LatestVersion));
 
         services.AddSingleton<StartupCoordinator>();
+        services.TryAddSingleton(new Application.Storage.StorageHealthOptions());
+        services.AddSingleton<Application.Storage.StorageHealth>();
+        services.AddSingleton<Application.Storage.IStorageStatus>(sp => sp.GetRequiredService<Application.Storage.StorageHealth>());
         services.AddSingleton<WorkspaceService>();
         services.TryAddSingleton(new GenerationOptions());
         services.AddSingleton<ContextCompressor>();

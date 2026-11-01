@@ -84,6 +84,7 @@ public sealed partial class SummaryService
     private readonly IBranchStore _branches;
     private readonly IContextSummaryStore? _contextSummaries;
     private readonly GenerationCoordinator _generation;
+    private readonly StorageHealth _health;
     private readonly ModelSettingsService _models;
     private readonly IClock _clock;
     private readonly ILogger<SummaryService> _logger;
@@ -95,6 +96,7 @@ public sealed partial class SummaryService
         IConversationStore conversations,
         IBranchStore branches,
         GenerationCoordinator generation,
+        StorageHealth health,
         ModelSettingsService models,
         IClock clock,
         ILogger<SummaryService> logger,
@@ -105,6 +107,7 @@ public sealed partial class SummaryService
         _branches = branches;
         _contextSummaries = contextSummaries;
         _generation = generation;
+        _health = health;
         _models = models;
         _clock = clock;
         _logger = logger;
@@ -141,7 +144,7 @@ public sealed partial class SummaryService
     /// </summary>
     public async Task<SummarizeOutcome> SummarizeAsync(ConversationId conversation, CancellationToken cancellationToken)
     {
-        if (_generation.IsStorageBlocked)
+        if (_health.IsBlocked)
         {
             return Reject(SummarizeRejection.StorageUnavailable);
         }
@@ -213,7 +216,7 @@ public sealed partial class SummaryService
         }
         catch (StorageWriteException ex)
         {
-            _generation.ReportStorageFailure(ex);
+            _health.Report(ex);
             return Reject(SummarizeRejection.StorageUnavailable);
         }
 
@@ -237,19 +240,19 @@ public sealed partial class SummaryService
     }
 
     public Task AdoptAsync(SummaryNodeId node, SummaryVersionId candidate, CancellationToken cancellationToken) =>
-        AfterCurrentChangeAsync(node, () => _summaries.AdoptAsync(node, candidate, _clock.UtcNow, cancellationToken), cancellationToken);
+        CommitAsync(() => AfterCurrentChangeAsync(node, () => _summaries.AdoptAsync(node, candidate, _clock.UtcNow, cancellationToken), cancellationToken));
 
     public Task DiscardAsync(SummaryNodeId node, SummaryVersionId candidate, CancellationToken cancellationToken) =>
-        NotifyAsync(node, () => _summaries.DiscardAsync(node, candidate, _clock.UtcNow, cancellationToken), cancellationToken);
+        CommitAsync(() => NotifyAsync(node, () => _summaries.DiscardAsync(node, candidate, _clock.UtcNow, cancellationToken), cancellationToken));
 
     public Task SetCurrentAsync(SummaryNodeId node, SummaryVersionId version, CancellationToken cancellationToken) =>
-        AfterCurrentChangeAsync(node, () => _summaries.SetCurrentAsync(node, version, _clock.UtcNow, cancellationToken), cancellationToken);
+        CommitAsync(() => AfterCurrentChangeAsync(node, () => _summaries.SetCurrentAsync(node, version, _clock.UtcNow, cancellationToken), cancellationToken));
 
     /// <summary>Deletes versions; returns the new current version, or null when the node was deleted with its last version.</summary>
     public async Task<SummaryVersionId?> DeleteVersionsAsync(SummaryNodeId node, IReadOnlySet<SummaryVersionId> versions, CancellationToken cancellationToken)
     {
         var detail = await _summaries.GetAsync(node, cancellationToken).ConfigureAwait(false);
-        var result = await _summaries.DeleteVersionsAsync(node, versions, _clock.UtcNow, cancellationToken).ConfigureAwait(false);
+        var result = await CommitAsync(() => _summaries.DeleteVersionsAsync(node, versions, _clock.UtcNow, cancellationToken)).ConfigureAwait(false);
         if (detail is not null)
         {
             if (result.NewCurrent is { } current && current != detail.Node.Current)
@@ -263,8 +266,22 @@ public sealed partial class SummaryService
         return result.NewCurrent;
     }
 
-    public Task SaveDraftAsync(SummaryNodeId node, SummaryVersionId baseline, string title, string body, CancellationToken cancellationToken) =>
-        _summaries.SaveDraftAsync(new SummaryEditDraft(node, baseline, title, body, _clock.UtcNow), cancellationToken);
+    /// <summary>
+    /// Autosaves an edit draft. Allowed while storage is blocked (it persists input already given); storage refusing it
+    /// blocks new work, as drafts are core content (architecture §12.1).
+    /// </summary>
+    public async Task SaveDraftAsync(SummaryNodeId node, SummaryVersionId baseline, string title, string body, CancellationToken cancellationToken)
+    {
+        try
+        {
+            await _summaries.SaveDraftAsync(new SummaryEditDraft(node, baseline, title, body, _clock.UtcNow), cancellationToken).ConfigureAwait(false);
+        }
+        catch (StorageWriteException ex)
+        {
+            _health.Report(ex);
+            throw;
+        }
+    }
 
     public Task DiscardDraftAsync(SummaryNodeId node, CancellationToken cancellationToken) =>
         NotifyAsync(node, () => _summaries.DeleteDraftAsync(node, cancellationToken), cancellationToken);
@@ -273,10 +290,10 @@ public sealed partial class SummaryService
     public async Task<SummaryVersionId?> SaveEditAsync(SummaryNodeId node, SummaryVersionId baseline, string title, string body, CancellationToken cancellationToken)
     {
         SummaryVersionId? saved = null;
-        await AfterCurrentChangeAsync(
+        await CommitAsync(() => AfterCurrentChangeAsync(
             node,
             async () => saved = await _summaries.SaveEditAsync(node, baseline, title.Trim(), body.Trim(), _clock.UtcNow, cancellationToken).ConfigureAwait(false),
-            cancellationToken).ConfigureAwait(false);
+            cancellationToken)).ConfigureAwait(false);
         return saved;
     }
 
@@ -300,7 +317,39 @@ public sealed partial class SummaryService
     }
 
     public Task RenameAsync(SummaryNodeId node, string displayName, CancellationToken cancellationToken) =>
-        NotifyAsync(node, () => _summaries.RenameAsync(node, displayName.Trim(), _clock.UtcNow, cancellationToken), cancellationToken);
+        CommitAsync(() => NotifyAsync(node, () => _summaries.RenameAsync(node, displayName.Trim(), _clock.UtcNow, cancellationToken), cancellationToken));
+
+    /// <summary>
+    /// A summary commit (§9.3, D1): refused while storage is blocked, and its own storage failure blocks new work. Either
+    /// way a <see cref="StorageWriteException"/> reaches the caller and nothing was stored.
+    /// </summary>
+    private async Task<T> CommitAsync<T>(Func<Task<T>> commit)
+    {
+        _health.ThrowIfBlocked();
+        try
+        {
+            return await commit().ConfigureAwait(false);
+        }
+        catch (StorageWriteException ex)
+        {
+            _health.Report(ex);
+            throw;
+        }
+    }
+
+    private async Task CommitAsync(Func<Task> commit)
+    {
+        _health.ThrowIfBlocked();
+        try
+        {
+            await commit().ConfigureAwait(false);
+        }
+        catch (StorageWriteException ex)
+        {
+            _health.Report(ex);
+            throw;
+        }
+    }
 
     private async Task<SummarySaveResult> SaveAsync(GenerationTaskRecord task, string output)
     {
@@ -418,7 +467,7 @@ public sealed partial class SummaryService
         var group = (await _summaries.ListAsync(detail.Node.Workspace, CancellationToken.None).ConfigureAwait(false))
             .Where(e => SummaryRules.NormalizeName(e.Node.BaseTitle) == key)
             .ToList();
-        if (group.Count < 2 || group.All(e => e.Node.NameSource == NameSource.Manual) || _generation.IsStorageBlocked)
+        if (group.Count < 2 || group.All(e => e.Node.NameSource == NameSource.Manual) || _health.IsBlocked)
         {
             return;
         }
