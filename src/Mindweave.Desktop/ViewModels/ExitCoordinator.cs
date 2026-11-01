@@ -42,6 +42,7 @@ public sealed partial class ExitCoordinator(
     LayoutPromptViewModel layout,
     Workbench workbench,
     ReadingStateService reading,
+    Application.Summaries.SummaryDrafts summaries,
     IDatabaseLifecycle database,
     Application.Export.SummaryExportService exports,
     ISystemShell shell,
@@ -221,18 +222,19 @@ public sealed partial class ExitCoordinator(
     private static partial void LogStepFailed(ILogger logger, Exception exception, ExitStage stage);
 
     /// <summary>
-    /// Step 4: an export still writing its file (so it is not cut off and leaves no temporary file), open pages' drafts
-    /// (including any still inside a throttle), message drafts and reading positions, the stopped answers' terminal
+    /// Step 4: an export still writing its file (so it is not cut off and leaves no temporary file), summary edit drafts
+    /// (including any still inside their autosave delay), message drafts and reading positions, the stopped answers' terminal
     /// writes that failed, the last location, then the write queue and a best-effort checkpoint. True when nothing the
     /// user wrote or received is left unsaved; page state alone may degrade.
     /// </summary>
     private async Task<bool> SaveEverythingAsync()
     {
         await exports.WhenIdleAsync();
-        var pages = await workbench.FlushAsync();
+        await workbench.FlushAsync();
+        var summaryDrafts = await summaries.FlushAsync();
         var drafts = await reading.FlushAsync();
         var answers = await generation.SaveUnsavedAsync();
         await database.DrainAsync();
-        return pages && drafts && answers;
+        return summaryDrafts && drafts && answers;
     }
 }

@@ -53,6 +53,7 @@ public static class CompositionRoot
         services.AddSingleton<GenerationCoordinator>();
         services.AddSingleton<ModelSettingsService>();
         services.AddSingleton<ConversationService>();
+        services.AddSingleton<Application.Summaries.SummaryDrafts>();
         services.AddSingleton<Application.Summaries.SummaryService>();
         services.AddSingleton<Application.Network.NetworkService>();
         services.AddSingleton<Application.Export.SummaryExportService>();

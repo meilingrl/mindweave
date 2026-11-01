@@ -85,6 +85,7 @@ public sealed partial class SummaryService
     private readonly IContextSummaryStore? _contextSummaries;
     private readonly GenerationCoordinator _generation;
     private readonly StorageHealth _health;
+    private readonly SummaryDrafts _drafts;
     private readonly ModelSettingsService _models;
     private readonly IClock _clock;
     private readonly ILogger<SummaryService> _logger;
@@ -97,6 +98,7 @@ public sealed partial class SummaryService
         IBranchStore branches,
         GenerationCoordinator generation,
         StorageHealth health,
+        SummaryDrafts drafts,
         ModelSettingsService models,
         IClock clock,
         ILogger<SummaryService> logger,
@@ -108,6 +110,7 @@ public sealed partial class SummaryService
         _contextSummaries = contextSummaries;
         _generation = generation;
         _health = health;
+        _drafts = drafts;
         _models = models;
         _clock = clock;
         _logger = logger;
@@ -240,19 +243,19 @@ public sealed partial class SummaryService
     }
 
     public Task AdoptAsync(SummaryNodeId node, SummaryVersionId candidate, CancellationToken cancellationToken) =>
-        CommitAsync(() => AfterCurrentChangeAsync(node, () => _summaries.AdoptAsync(node, candidate, _clock.UtcNow, cancellationToken), cancellationToken));
+        CommitAsync(() => AfterCurrentChangeAsync(node, () => _drafts.RunVersionOperationAsync(node, () => Done(_summaries.AdoptAsync(node, candidate, _clock.UtcNow, cancellationToken))), cancellationToken));
 
     public Task DiscardAsync(SummaryNodeId node, SummaryVersionId candidate, CancellationToken cancellationToken) =>
         CommitAsync(() => NotifyAsync(node, () => _summaries.DiscardAsync(node, candidate, _clock.UtcNow, cancellationToken), cancellationToken));
 
     public Task SetCurrentAsync(SummaryNodeId node, SummaryVersionId version, CancellationToken cancellationToken) =>
-        CommitAsync(() => AfterCurrentChangeAsync(node, () => _summaries.SetCurrentAsync(node, version, _clock.UtcNow, cancellationToken), cancellationToken));
+        CommitAsync(() => AfterCurrentChangeAsync(node, () => _drafts.RunVersionOperationAsync(node, () => Done(_summaries.SetCurrentAsync(node, version, _clock.UtcNow, cancellationToken))), cancellationToken));
 
     /// <summary>Deletes versions; returns the new current version, or null when the node was deleted with its last version.</summary>
     public async Task<SummaryVersionId?> DeleteVersionsAsync(SummaryNodeId node, IReadOnlySet<SummaryVersionId> versions, CancellationToken cancellationToken)
     {
         var detail = await _summaries.GetAsync(node, cancellationToken).ConfigureAwait(false);
-        var result = await CommitAsync(() => _summaries.DeleteVersionsAsync(node, versions, _clock.UtcNow, cancellationToken)).ConfigureAwait(false);
+        var result = await CommitAsync(() => _drafts.RunVersionOperationAsync(node, () => _summaries.DeleteVersionsAsync(node, versions, _clock.UtcNow, cancellationToken))).ConfigureAwait(false);
         if (detail is not null)
         {
             if (result.NewCurrent is { } current && current != detail.Node.Current)
@@ -266,36 +269,56 @@ public sealed partial class SummaryService
         return result.NewCurrent;
     }
 
+    /// <summary>Opens an edit of the node's current version, continuing its newest draft (memory first, then stored).</summary>
+    public Task<DraftRead> OpenDraftAsync(SummaryNodeId node, SummaryVersionId current, CancellationToken cancellationToken) =>
+        _drafts.OpenAsync(node, current, cancellationToken);
+
     /// <summary>
-    /// Autosaves an edit draft. Allowed while storage is blocked (it persists input already given); storage refusing it
-    /// blocks new work, as drafts are core content (architecture §12.1).
+    /// The newest input of an edit session, autosaved shortly after. Allowed while storage is blocked: it persists input
+    /// already given. Null when the session is stale (saved or discarded elsewhere since it opened).
     /// </summary>
-    public async Task SaveDraftAsync(SummaryNodeId node, SummaryVersionId baseline, string title, string body, CancellationToken cancellationToken)
+    public long? SetDraft(SummaryNodeId node, long generation, SummaryVersionId baseline, string title, string body) =>
+        _drafts.Set(node, generation, baseline, title, body);
+
+    /// <summary>Discards the session's draft; refused (<see cref="SummaryRefusal.Changed"/>) for a stale session.</summary>
+    public async Task DiscardDraftAsync(SummaryNodeId node, long generation, long revision, CancellationToken cancellationToken)
     {
-        try
+        var before = await _summaries.GetAsync(node, cancellationToken).ConfigureAwait(false);
+        await _drafts.DiscardAsync(node, generation, revision).ConfigureAwait(false);
+        if (before is not null)
         {
-            await _summaries.SaveDraftAsync(new SummaryEditDraft(node, baseline, title, body, _clock.UtcNow), cancellationToken).ConfigureAwait(false);
-        }
-        catch (StorageWriteException ex)
-        {
-            _health.Report(ex);
-            throw;
+            Changed?.Invoke(this, before.Node.Conversation);
         }
     }
 
-    public Task DiscardDraftAsync(SummaryNodeId node, CancellationToken cancellationToken) =>
-        NotifyAsync(node, () => _summaries.DeleteDraftAsync(node, cancellationToken), cancellationToken);
-
-    /// <summary>Saves an edit of the current version as a new version; null when nothing changed (no version is added).</summary>
+    /// <summary>Saves an edit as a new current version without a page's edit session (it opens one itself).</summary>
     public async Task<SummaryVersionId?> SaveEditAsync(SummaryNodeId node, SummaryVersionId baseline, string title, string body, CancellationToken cancellationToken)
     {
-        SummaryVersionId? saved = null;
-        await CommitAsync(() => AfterCurrentChangeAsync(
-            node,
-            async () => saved = await _summaries.SaveEditAsync(node, baseline, title.Trim(), body.Trim(), _clock.UtcNow, cancellationToken).ConfigureAwait(false),
-            cancellationToken)).ConfigureAwait(false);
-        return saved;
+        var session = await _drafts.OpenAsync(node, baseline, cancellationToken).ConfigureAwait(false);
+        return await SaveEditAsync(node, baseline, title, body, session.Generation, session.Revision, cancellationToken).ConfigureAwait(false);
     }
+
+    /// <summary>
+    /// Saves the session's edit of <paramref name="baseline"/> as a new current version; null when nothing changed (no
+    /// version is added). Refused for a stale session, or when <paramref name="baseline"/> is no longer current.
+    /// </summary>
+    public Task<SummaryVersionId?> SaveEditAsync(
+        SummaryNodeId node, SummaryVersionId baseline, string title, string body, long generation, long revision, CancellationToken cancellationToken) =>
+        CommitAsync(async () =>
+        {
+            var before = await _summaries.GetAsync(node, cancellationToken).ConfigureAwait(false);
+            var saved = await _drafts.CommitAsync(
+                node, generation, revision, () => _summaries.SaveEditAsync(node, baseline, title.Trim(), body.Trim(), _clock.UtcNow, cancellationToken)).ConfigureAwait(false);
+
+            // After the draft's gate is released: naming may write and schedule work of its own.
+            await CheckNameAsync(node, cancellationToken).ConfigureAwait(false);
+            if (before is not null)
+            {
+                Changed?.Invoke(this, before.Node.Conversation);
+            }
+
+            return saved;
+        });
 
     public Task SetReadAsync(SummaryNodeId node, SummaryVersionId version, bool read, CancellationToken cancellationToken) =>
         NotifyAsync(node, () => _summaries.SetReadAsync(version, read ? ReadSource.Manual : null, _clock.UtcNow, cancellationToken), cancellationToken);
@@ -413,6 +436,10 @@ public sealed partial class SummaryService
         }
     }
 
+    /// <summary>
+    /// A change of the current version, then (outside any draft gate the operation took) the name check and
+    /// notification.
+    /// </summary>
     private Task AfterCurrentChangeAsync(SummaryNodeId node, Func<Task> operation, CancellationToken cancellationToken) =>
         NotifyAsync(
             node,
@@ -422,6 +449,12 @@ public sealed partial class SummaryService
                 await CheckNameAsync(node, cancellationToken).ConfigureAwait(false);
             },
             cancellationToken);
+
+    private static async Task<bool> Done(Task operation)
+    {
+        await operation.ConfigureAwait(false);
+        return true;
+    }
 
     /// <summary>
     /// After the current version changed (§10.2): if its title no longer matches the base title, the base title and

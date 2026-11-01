@@ -1,6 +1,7 @@
 using Avalonia.Headless.XUnit;
 using Microsoft.Extensions.DependencyInjection;
 using Mindweave.Application.Storage;
+using Mindweave.Application.Summaries;
 using Mindweave.Desktop.ViewModels.Pages;
 using Mindweave.Infrastructure.Sqlite;
 
@@ -12,7 +13,7 @@ namespace Mindweave.Desktop.Tests;
 /// </summary>
 public class DraftLossTests
 {
-    [AvaloniaFact(Skip = "Reproduces H1 (confirmed 2026-11-01); fixed by A4")]
+    [AvaloniaFact]
     public async Task A_reopened_editor_shows_and_commits_the_newest_draft_left_unsaved()
     {
         var failing = new ExitTests.FailingSummaryDrafts();
@@ -30,7 +31,7 @@ public class DraftLossTests
         app.Workbench.GoBack();
 
         // The left page's save has finished failing before storage works again.
-        Assert.False(await app.Workbench.FlushAsync());
+        Assert.False(await app.Services.GetRequiredService<SummaryDrafts>().FlushAsync());
         failing.Fail = false;
 
         page.OpenSummaryCommand.Execute(null);
@@ -67,7 +68,7 @@ public class DraftLossTests
         Assert.Equal(UiText.StoragePaused, summary.Notice);
     }
 
-    [AvaloniaFact(Skip = "Reproduces H2 (confirmed 2026-11-01); fixed by A4")]
+    [AvaloniaFact]
     public async Task A_draft_left_unsaved_keeps_versions_from_being_switched_and_survives()
     {
         var failing = new ExitTests.FailingSummaryDrafts();
@@ -90,7 +91,7 @@ public class DraftLossTests
         failing.Fail = true;
         first.EditBody = "未保存的修改";
         app.Workbench.GoBack();
-        Assert.False(await app.Workbench.FlushAsync());
+        Assert.False(await app.Services.GetRequiredService<SummaryDrafts>().FlushAsync());
         failing.Fail = false;
 
         page.OpenSummaryCommand.Execute(null);

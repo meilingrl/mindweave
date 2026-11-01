@@ -18,7 +18,6 @@ public sealed class Workbench : ObservableObject, IWorkbenchNavigator
     private readonly Dictionary<WorkspaceId, WorkspaceRuntime> _runtimes = [];
     private readonly IPageFactory _pages;
     private readonly WorkspaceService _workspaces;
-    private readonly List<DroppedPage> _dropped = [];
     private WorkspaceRuntime? _active;
 
     public Workbench(IPageFactory pages, WorkspaceService workspaces)
@@ -199,106 +198,22 @@ public sealed class Workbench : ObservableObject, IWorkbenchNavigator
     }
 
     /// <summary>
-    /// Exit step 4 for navigation state: every open page saves its pending input, saves started by dropped pages are
-    /// awaited, and the last location is written once more. True when all page input was saved; the last location is
-    /// a degradable preference and does not count.
+    /// Exit step 4 for navigation state: the last location is written once more. Page input is not held here: drafts
+    /// are owned by their application services, which the exit flushes (architecture review F2).
     /// </summary>
-    public async Task<bool> FlushAsync()
+    public async Task FlushAsync()
     {
-        List<DroppedPage> dropped;
-        lock (_dropped)
-        {
-            dropped = [.. _dropped];
-        }
-
-        // Dropped pages first: a page opened again on the same draft saves after them, so its newer input wins.
-        foreach (var page in dropped)
-        {
-            page.Flush = page.RetryAsync();
-        }
-
-        var droppedResults = await Task.WhenAll(dropped.Select(p => p.Flush));
-        lock (_dropped)
-        {
-            // A page whose input is still unsaved stays held (and is tried again) until a flush succeeds.
-            _dropped.RemoveAll(p => p.Flush.IsCompletedSuccessfully && p.Flush.Result);
-        }
-
-        var results = droppedResults.Concat(await Task.WhenAll(_runtimes.Values
-            .SelectMany(r => r.AllPages())
-            .OfType<IPageFlush>()
-            .Select(p => p.FlushAsync())));
         if (_active is { } runtime && ActiveSlot is { } slot)
         {
             await _workspaces.RememberLocationAsync(
                 new PageLocation(runtime.Workspace.Id, slot.Section.ToKey(), (slot.Top?.Route as IRestorableRoute)?.Key),
                 CancellationToken.None);
         }
-
-        return results.All(saved => saved);
     }
 
-    /// <summary>
-    /// A page leaves the stacks: its pending input is saved first, then it is disposed. The page stays held here until
-    /// a save succeeds, so an exit waits for the save and, if it failed, tries it again rather than losing the input.
-    /// </summary>
-    private void Release(PageViewModel page)
-    {
-        if (page is IPageFlush flushable)
-        {
-            flushable.DraftSettled -= OnDraftSettled;
-            var dropped = new DroppedPage(flushable, flushable.FlushAsync());
-            lock (_dropped)
-            {
-                _dropped.RemoveAll(p => p.Flush.IsCompletedSuccessfully && p.Flush.Result);
-                _dropped.Add(dropped);
-            }
-        }
+    /// <summary>A page leaves the stacks and is disposed; what the user typed is already with its owner.</summary>
+    private static void Release(PageViewModel page) => (page as IDisposable)?.Dispose();
 
-        (page as IDisposable)?.Dispose();
-    }
-
-    private PageViewModel Track(PageViewModel page)
-    {
-        if (page is IPageFlush flushable)
-        {
-            flushable.DraftSettled += OnDraftSettled;
-        }
-
-        return page;
-    }
-
-    /// <summary>
-    /// A page in the stacks wrote its draft: what an earlier, dropped page on the same draft still held is older than
-    /// that, so it is let go instead of being written back over the newer draft (or over a discard) at exit.
-    /// </summary>
-    private void OnDraftSettled(object? sender, EventArgs e)
-    {
-        if (sender is not IPageFlush settled || settled.FlushKey is not { } key)
-        {
-            return;
-        }
-
-        lock (_dropped)
-        {
-            _dropped.RemoveAll(p => p.Page != settled && key.Equals(p.Page.FlushKey));
-        }
-    }
-
-    /// <summary>A page removed from the stacks whose pending input may not be saved yet.</summary>
-    private sealed class DroppedPage(IPageFlush page, Task<bool> flush)
-    {
-        public IPageFlush Page => page;
-
-        public Task<bool> Flush { get; set; } = flush;
-
-        /// <summary>Waits for the save under way, then saves whatever is still pending (nothing, when that one worked).</summary>
-        public async Task<bool> RetryAsync()
-        {
-            await Flush;
-            return await page.FlushAsync();
-        }
-    }
 
     private void Activate(WorkspaceId id, MainSection? section)
     {
@@ -326,7 +241,7 @@ public sealed class Workbench : ObservableObject, IWorkbenchNavigator
         var stack = slot.StackOf(slot.Section);
         if (stack.Count == 0)
         {
-            stack.Add(Track(_pages.Create(ContentRoute.HomeOf(slot.Section), new PageContext(runtime.Workspace, slot.Key, this))));
+            stack.Add(_pages.Create(ContentRoute.HomeOf(slot.Section), new PageContext(runtime.Workspace, slot.Key, this)));
         }
     }
 
@@ -338,7 +253,7 @@ public sealed class Workbench : ObservableObject, IWorkbenchNavigator
             return;
         }
 
-        stack.Add(Track(_pages.Create(route, new PageContext(runtime.Workspace, slot.Key, this))));
+        stack.Add(_pages.Create(route, new PageContext(runtime.Workspace, slot.Key, this)));
         if (stack.Count > MaxHistory)
         {
             // Keep the section home; drop the oldest detail page.

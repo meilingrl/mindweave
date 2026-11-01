@@ -276,7 +276,7 @@ public class ExitTests
         else
         {
             second.EditBody = "新的草稿";
-            Assert.True(await second.FlushAsync());
+            Assert.True(await app.Services.GetRequiredService<Application.Summaries.SummaryDrafts>().FlushAsync());
         }
 
         window.Close();

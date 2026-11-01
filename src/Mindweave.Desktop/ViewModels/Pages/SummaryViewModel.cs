@@ -67,7 +67,7 @@ public sealed record PendingConfirmation(string Message, Func<Task> Proceed, boo
 /// deletion, renaming, exporting the shown saved version as Markdown, and the way back to the source conversation. Reading progress comes from the view; a version
 /// becomes read past the threshold after enough visible time in this opening (U2, MW-C30).
 /// </summary>
-public sealed partial class SummaryViewModel : PageViewModel, IPageFlush, IDisposable
+public sealed partial class SummaryViewModel : PageViewModel, IDisposable
 {
     private readonly SummaryService _summaries;
     private readonly SummaryExportService _exports;
@@ -77,7 +77,6 @@ public sealed partial class SummaryViewModel : PageViewModel, IPageFlush, IDispo
     private readonly IUiDispatcher _dispatcher;
     private readonly SerialRefresh _load;
     private readonly UiThrottle _reload;
-    private readonly UiThrottle _draftSave;
     private SummaryDetail? _detail;
     private SummaryVersionId? _shownId;
     private long _shownSince;
@@ -85,8 +84,12 @@ public sealed partial class SummaryViewModel : PageViewModel, IPageFlush, IDispo
     private bool _readCheckScheduled;
     private bool _loadingEdit;
     private bool _disposed;
-    private long _draftVersion;
-    private long _savedDraftVersion;
+
+    // The edit session (see SummaryDrafts): the draft generation it opened under, the revision it last set, and the
+    // version its text is based on. The newest text itself is owned by SummaryDrafts, not by this page.
+    private long _draftGeneration;
+    private long _draftRevision;
+    private SummaryVersionId _draftBaseline;
 
     public SummaryViewModel(SummaryRoute route, PageContext context, SummaryService summaries, IUiDispatcher dispatcher, TimeProvider time, SummaryExportService exports, ISystemShell shell)
         : base(route)
@@ -102,7 +105,6 @@ public sealed partial class SummaryViewModel : PageViewModel, IPageFlush, IDispo
         _dispatcher = dispatcher;
         _load = new SerialRefresh(LoadAsync);
         _reload = new UiThrottle(dispatcher, TimeSpan.FromMilliseconds(30), () => _ = _load.Request());
-        _draftSave = new UiThrottle(dispatcher, TimeSpan.FromSeconds(1), () => _ = SaveDraftAsync());
         _summaries.Changed += OnChanged;
         Loaded = _load.Request();
     }
@@ -435,12 +437,24 @@ public sealed partial class SummaryViewModel : PageViewModel, IPageFlush, IDispo
             return;
         }
 
-        // Only the current version is edited; an autosaved draft of it is picked up where it was left.
+        // Only the current version is edited; its newest draft (even one whose save failed on a page since left) is
+        // picked up where it was left. A draft based on an older version is shown as such, never moved onto this one.
+        var read = await _summaries.OpenDraftAsync(Node, detail.Node.Current, CancellationToken.None);
         _loadingEdit = true;
-        var draft = detail.Draft is { } d && d.Baseline == detail.Node.Current ? d : null;
-        EditTitle = draft?.Title ?? detail.Current.Title;
-        EditBody = draft?.Body ?? detail.Current.Body;
+        (_draftBaseline, EditTitle, EditBody) = read switch
+        {
+            DraftRead.Draft draft => (draft.Baseline, draft.Title, draft.Body),
+            DraftRead.Conflict conflict => (conflict.Baseline, conflict.Title, conflict.Body),
+            _ => (detail.Node.Current, detail.Current.Title, detail.Current.Body),
+        };
         _loadingEdit = false;
+        _draftGeneration = read.Generation;
+        _draftRevision = read.Revision;
+        if (read is DraftRead.Conflict)
+        {
+            Notice = UiText.DraftConflict;
+        }
+
         Show(detail.Node.Current);
         EditingHeading = UiText.EditingVersion(detail.Current.Seq);
         IsEditing = true;
@@ -451,10 +465,9 @@ public sealed partial class SummaryViewModel : PageViewModel, IPageFlush, IDispo
         _detail is { } detail
             ? RunAsync(async () =>
             {
-                var saved = await _summaries.SaveEditAsync(Node, detail.Node.Current, EditTitle, EditBody, CancellationToken.None);
+                var saved = await _summaries.SaveEditAsync(Node, _draftBaseline, EditTitle, EditBody, _draftGeneration, _draftRevision, CancellationToken.None);
                 IsEditing = false;
                 _shownId = saved ?? detail.Node.Current;
-                DraftSettled?.Invoke(this, EventArgs.Empty);
             })
             : Task.CompletedTask;
 
@@ -462,9 +475,8 @@ public sealed partial class SummaryViewModel : PageViewModel, IPageFlush, IDispo
     private Task DiscardEditAsync() =>
         RunAsync(async () =>
         {
+            await _summaries.DiscardDraftAsync(Node, _draftGeneration, _draftRevision, CancellationToken.None);
             IsEditing = false;
-            await _summaries.DiscardDraftAsync(Node, CancellationToken.None);
-            DraftSettled?.Invoke(this, EventArgs.Empty);
         });
 
     [RelayCommand]
@@ -492,68 +504,28 @@ public sealed partial class SummaryViewModel : PageViewModel, IPageFlush, IDispo
 
     partial void OnEditBodyChanged(string value) => RequestDraftSave();
 
-    /// <summary>
-    /// Saves an edit draft still waiting in the one-second throttle. The workbench calls it when the page is dropped
-    /// and on exit, before the window closes; a failed save keeps the draft pending for the next try.
-    /// </summary>
-    public Task<bool> FlushAsync() =>
-        IsEditing && Volatile.Read(ref _draftVersion) != Volatile.Read(ref _savedDraftVersion) ? SaveDraftAsync() : Task.FromResult(true);
-
-    public object? FlushKey => Node;
-
-    public event EventHandler? DraftSettled;
-
-    /// <summary>The workbench flushes the draft before disposing (see <see cref="FlushAsync"/>).</summary>
     public void Dispose()
     {
         _disposed = true;
         _summaries.Changed -= OnChanged;
     }
 
+    /// <summary>Hands every change to the draft owner, which autosaves it; the page keeps nothing of its own to save.</summary>
     private void RequestDraftSave()
     {
-        if (IsEditing && !_loadingEdit)
+        if (!IsEditing || _loadingEdit)
         {
-            Interlocked.Increment(ref _draftVersion);
-            _draftSave.Request();
-        }
-    }
-
-    private async Task<bool> SaveDraftAsync()
-    {
-        if (_detail is not { } detail || !IsEditing)
-        {
-            return true;
+            return;
         }
 
-        var version = Volatile.Read(ref _draftVersion);
-        try
+        if (_summaries.SetDraft(Node, _draftGeneration, _draftBaseline, EditTitle, EditBody) is { } revision)
         {
-            await _summaries.SaveDraftAsync(Node, detail.Node.Current, EditTitle, EditBody, CancellationToken.None);
+            _draftRevision = revision;
         }
-        catch (SummaryRefusedException ex)
+        else
         {
-            // Nothing left to save the draft against (for example the version is gone); not a storage failure.
-            Notice = UiText.SummaryRefused(ex.Reason);
-        }
-#pragma warning disable CA1031 // A storage failure keeps the draft in the page and pending; the exit reports it.
-        catch (Exception)
-#pragma warning restore CA1031
-        {
-            return false;
-        }
-
-        // A change made during the write stays pending.
-        InterlockedMax(ref _savedDraftVersion, version);
-        DraftSettled?.Invoke(this, EventArgs.Empty);
-        return true;
-    }
-
-    private static void InterlockedMax(ref long target, long value)
-    {
-        long current;
-        while ((current = Volatile.Read(ref target)) < value && Interlocked.CompareExchange(ref target, value, current) != current)
-        {
+            // Saved or discarded on another page since this one opened: this text is not written over that.
+            Notice = UiText.DraftStale;
         }
     }
 
