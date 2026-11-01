@@ -47,6 +47,9 @@ internal sealed record NodePaint(
     double LabelSize,
     string Label)
 {
+    /// <summary>Being dragged: drawn on top, a little larger, over a soft shadow.</summary>
+    public bool Lifted { get; init; }
+
     /// <summary>The label as drawn (null when hidden), and where: to the right of the dot.</summary>
     public FormattedText? Text { get; init; }
 
@@ -108,6 +111,12 @@ public sealed class NetworkCanvas : Control
     private static readonly Typeface Face = new(FontFamily.Default);
     internal static readonly Cursor HandCursor = new(StandardCursorType.Hand);
 
+    /// <summary>While a node is dragged: the platform's "move" cursor (Avalonia has no closed-hand cursor on every platform).</summary>
+    internal static readonly Cursor GrabCursor = new(StandardCursorType.SizeAll);
+
+    /// <summary>A press on a node becomes a drag only after the pointer moves this far (screen px); less is a click.</summary>
+    internal const double DragThreshold = 4;
+
     private readonly Dictionary<SummaryNodeId, Vector> _offsets = [];
     private readonly DispatcherTimer _motion;
     private NetworkHomeViewModel? _page;
@@ -116,6 +125,10 @@ public sealed class NetworkCanvas : Control
     private Viewport _panStart;
     private bool _dragged;
     private Point? _pointer;
+    private SummaryNodeId? _pressed;
+    private Point _pressedAt;
+    private (double X, double Y) _pressedNode;
+    private (double X, double Y) _dragAt;
 
     public NetworkCanvas()
     {
@@ -138,6 +151,9 @@ public sealed class NetworkCanvas : Control
     /// <summary>Where the pointer is for hover and the pull; null when it is off the canvas.</summary>
     internal Point? Pointer => _pointer;
 
+    /// <summary>The node being dragged, drawn at the pointer until released; null otherwise.</summary>
+    internal SummaryNodeId? Dragging { get; private set; }
+
     /// <summary>The decorative pull is running (it stops by itself once every node has settled).</summary>
     internal bool IsMoving => _motion.IsEnabled;
 
@@ -157,6 +173,8 @@ public sealed class NetworkCanvas : Control
         }
 
         Hovered = null;
+        _pressed = null;
+        Dragging = null;
         _offsets.Clear();
         InvalidateVisual();
         base.OnDataContextChanged(e);
@@ -181,6 +199,15 @@ public sealed class NetworkCanvas : Control
         return (((screen.X - (Bounds.Width / 2)) / v.Zoom) + v.CenterX, ((screen.Y - (Bounds.Height / 2)) / v.Zoom) + v.CenterY);
     }
 
+    /// <summary>Where a node is drawn, in canvas coordinates: at the pointer while dragged, else at its layout position.</summary>
+    private (double X, double Y) PositionOf(SummaryNodeId id, double x, double y) => id == Dragging ? _dragAt : (x, y);
+
+    private Point ScreenOf(NodeView node)
+    {
+        var (x, y) = PositionOf(node.Id, node.X, node.Y);
+        return ToScreen(x, y);
+    }
+
     /// <summary>
     /// Label size: <see cref="NetworkLayout.LabelEm"/> × zoom, at most 13 px. A label is then never wider on screen than
     /// the box the layout reserved for it (its estimated width × zoom), so the no-overlap guarantee holds as drawn.
@@ -200,7 +227,7 @@ public sealed class NetworkCanvas : Control
         var zoom = Current.Zoom;
         foreach (var node in _page.Nodes.Reverse())
         {
-            if (HitBox(ToScreen(node.X, node.Y), node, zoom, IsLabelVisible(node, zoom)).Contains(screen))
+            if (HitBox(ScreenOf(node), node, zoom, IsLabelVisible(node, zoom)).Contains(screen))
             {
                 return node;
             }
@@ -244,7 +271,7 @@ public sealed class NetworkCanvas : Control
         var palette = _palette ??= Palette.From(this);
         var zoom = Current.Zoom;
         var size = LabelSize(zoom);
-        var drawn = _page.Nodes.ToDictionary(n => n.Id, n => ToScreen(n.X, n.Y) + _offsets.GetValueOrDefault(n.Id));
+        var drawn = _page.Nodes.ToDictionary(n => n.Id, n => ScreenOf(n) + _offsets.GetValueOrDefault(n.Id));
         var incident = _page.Edges.SelectMany(e => new[] { (Node: e.From, Other: e.To), (Node: e.To, Other: e.From) })
             .Where(x => drawn.ContainsKey(x.Other)).ToLookup(x => x.Node, x => drawn[x.Other]);
         var selected = _page.Session.Selected;
@@ -253,10 +280,11 @@ public sealed class NetworkCanvas : Control
         return [.. _page.Nodes.Select(node =>
         {
             var hovered = node.Id == Hovered;
+            var lifted = node.Id == Dragging;
             var isSelected = node.Id == selected;
             var matched = matches.Contains(node.Id);
-            var radius = RadiusOf(node) + (hovered ? HoverGrowth : 0);
-            var center = ToScreen(node.X, node.Y) + _offsets.GetValueOrDefault(node.Id);
+            var radius = RadiusOf(node) + (hovered || lifted ? HoverGrowth : 0);
+            var center = drawn[node.Id];
             var ring = isSelected ? NodeRing.Selected : matched ? NodeRing.Match : NodeRing.None;
             var label = NetworkLayout.Label(node.ShortTitle, node.HasCandidate);
             var visible = IsLabelVisible(node, zoom);
@@ -281,6 +309,7 @@ public sealed class NetworkCanvas : Control
             {
                 Text = text,
                 LabelBounds = text is null ? default : new Rect(origin, new Size(text.Width, text.Height)),
+                Lifted = lifted,
             };
         })];
     }
@@ -355,8 +384,10 @@ public sealed class NetworkCanvas : Control
         var zoom = Current.Zoom;
         return [.. _page.Edges.Select(edge =>
         {
-            var from = ToScreen(edge.FromX, edge.FromY) + _offsets.GetValueOrDefault(edge.From);
-            var to = ToScreen(edge.ToX, edge.ToY) + _offsets.GetValueOrDefault(edge.To);
+            var (fromX, fromY) = PositionOf(edge.From, edge.FromX, edge.FromY);
+            var (toX, toY) = PositionOf(edge.To, edge.ToX, edge.ToY);
+            var from = ToScreen(fromX, fromY) + _offsets.GetValueOrDefault(edge.From);
+            var to = ToScreen(toX, toY) + _offsets.GetValueOrDefault(edge.To);
             var state = trail.Contains(edge.To) ? EdgeState.Trail
                 : Hovered is { } h && (h == edge.To || h == edge.From) ? EdgeState.Near
                 : !edge.IsDirect ? EdgeState.Indirect
@@ -382,7 +413,7 @@ public sealed class NetworkCanvas : Control
         var result = new List<CaptionPaint>();
         foreach (var caption in _page.Captions)
         {
-            var members = caption.Members.Where(nodes.ContainsKey).Select(id => (Node: nodes[id], At: ToScreen(nodes[id].X, nodes[id].Y))).ToList();
+            var members = caption.Members.Where(nodes.ContainsKey).Select(id => (Node: nodes[id], At: ScreenOf(nodes[id]))).ToList();
             if (members.Count == 0)
             {
                 continue;
@@ -411,7 +442,7 @@ public sealed class NetworkCanvas : Control
         // Layers: resting edges, label backdrops (resting edges pass behind labels), highlighted edges (above the
         // backdrops, so a trail is never hidden by a label), nodes, label text, captions.
         var edges = PaintEdges();
-        var nodes = PaintNodes();
+        var nodes = PaintNodes().OrderBy(n => n.Lifted).ToList();
         foreach (var edge in edges.Where(e => !e.Highlighted))
         {
             DrawEdge(context, palette, edge);
@@ -500,6 +531,17 @@ public sealed class NetworkCanvas : Control
             context.DrawEllipse(surface, null, p, r + 11, r + 11);
         }
 
+        if (node.Lifted)
+        {
+            // Lifted off the canvas: a soft shadow falling a little below the dot, wide and faint, then close and darker.
+            using (context.PushOpacity(0.45))
+            {
+                context.DrawEllipse(palette.DragShadow, null, p + new Vector(0, 4), r + 4, r + 3);
+            }
+
+            context.DrawEllipse(palette.DragShadow, null, p + new Vector(0, 2.5), r + 1, r + 0.5);
+        }
+
         if (node.Ring != NodeRing.None)
         {
             context.DrawEllipse(null, node.Ring == NodeRing.Selected ? palette.RingSelected : palette.RingMatch, p, r + 5, r + 5);
@@ -542,6 +584,14 @@ public sealed class NetworkCanvas : Control
             {
                 _page?.OpenCommand.Execute(node.Id);
             }
+            else if (e.GetCurrentPoint(this).Properties.IsLeftButtonPressed)
+            {
+                // Maybe the start of a drag: it becomes one once the pointer has moved past the threshold.
+                _pressed = node.Id;
+                _pressedAt = point;
+                _pressedNode = (node.X, node.Y);
+                e.Pointer.Capture(this);
+            }
 
             e.Handled = true;
             return;
@@ -559,6 +609,12 @@ public sealed class NetworkCanvas : Control
         ArgumentNullException.ThrowIfNull(e);
         base.OnPointerMoved(e);
         var point = e.GetPosition(this);
+        if (_pressed is { } pressed && _page is not null)
+        {
+            DragTo(pressed, point);
+            return;
+        }
+
         if (_panFrom is not { } from || _page is null)
         {
             SetPointer(point);
@@ -582,7 +638,7 @@ public sealed class NetworkCanvas : Control
     protected override void OnPointerExited(PointerEventArgs e)
     {
         base.OnPointerExited(e);
-        if (_panFrom is null)
+        if (_panFrom is null && _pressed is null)
         {
             SetPointer(null);
         }
@@ -592,6 +648,24 @@ public sealed class NetworkCanvas : Control
     {
         ArgumentNullException.ThrowIfNull(e);
         base.OnPointerReleased(e);
+        if (_pressed is not null)
+        {
+            // The end of a drag places the node (an unsaved layout); a press without a drag was only the click.
+            var dragged = Dragging;
+            var at = _dragAt;
+            _pressed = null;
+            Dragging = null;
+            e.Pointer.Capture(null);
+            if (dragged is { } id)
+            {
+                _page?.MoveNode(id, at.X, at.Y);
+            }
+
+            SetPointer(e.GetPosition(this));
+            InvalidateVisual();
+            return;
+        }
+
         if (_panFrom is not null && !_dragged)
         {
             // A click on empty canvas clears the selection.
@@ -603,6 +677,45 @@ public sealed class NetworkCanvas : Control
 
         // During a pan the pointer stays put while the network moves under it: hover follows what is under it now.
         SetPointer(e.GetPosition(this));
+    }
+
+    /// <summary>Capture taken away mid-drag (a window switch, a dialog): the node goes back, nothing becomes unsaved.</summary>
+    protected override void OnPointerCaptureLost(PointerCaptureLostEventArgs e)
+    {
+        base.OnPointerCaptureLost(e);
+        if (_pressed is not null)
+        {
+            _pressed = null;
+            Dragging = null;
+            SetPointer(_pointer);
+            InvalidateVisual();
+        }
+    }
+
+    /// <summary>
+    /// A held press on a node: below <see cref="DragThreshold"/> nothing moves (a click); past it the node follows
+    /// the pointer, keeping the spot where it was grabbed. Only drawing changes until release.
+    /// </summary>
+    private void DragTo(SummaryNodeId node, Point point)
+    {
+        var delta = point - _pressedAt;
+        if (Dragging is null)
+        {
+            if (Math.Sqrt((delta.X * delta.X) + (delta.Y * delta.Y)) < DragThreshold)
+            {
+                return;
+            }
+
+            Dragging = node;
+            Hovered = node;
+            _offsets.Remove(node);
+            Cursor = GrabCursor;
+        }
+
+        var zoom = Current.Zoom;
+        _dragAt = (_pressedNode.X + (delta.X / zoom), _pressedNode.Y + (delta.Y / zoom));
+        _pointer = point;
+        InvalidateVisual();
     }
 
     protected override void OnPointerWheelChanged(PointerWheelEventArgs e)
@@ -657,9 +770,10 @@ public sealed class NetworkCanvas : Control
         if (hovered != Hovered)
         {
             Hovered = hovered;
-            Cursor = hovered is null ? Cursor.Default : HandCursor;
             InvalidateVisual();
         }
+
+        Cursor = Dragging is not null ? GrabCursor : hovered is null ? Cursor.Default : HandCursor;
 
         if (!_motion.IsEnabled)
         {
@@ -698,7 +812,8 @@ public sealed class NetworkCanvas : Control
         var moving = false;
         foreach (var node in _page.Nodes)
         {
-            var target = Attraction(ToScreen(node.X, node.Y), _pointer);
+            // The dragged node sits exactly under the pointer; no pull on it.
+            var target = node.Id == Dragging ? default : Attraction(ScreenOf(node), _pointer);
             var now = _offsets.GetValueOrDefault(node.Id);
             var next = now + ((target - now) * 0.18);
             if (Math.Abs(next.X - target.X) + Math.Abs(next.Y - target.Y) < 0.02)
@@ -816,13 +931,15 @@ public sealed class NetworkCanvas : Control
 
         public required IBrush EdgeTrail { get; init; }
 
+        public required IBrush DragShadow { get; init; }
+
         /// <summary>Every theme resource the canvas draws with; both themes must define each one as a brush.</summary>
         public static IReadOnlyList<string> Keys { get; } =
         [
             "NetworkBackground", "NetworkGridDot", "NetworkNode", "NetworkNodeRead", "NetworkNodeTrail", "NetworkNodeHover",
             "NetworkUnreadDot", "NetworkHaloSelected", "NetworkHaloHover", "NetworkRingSelected", "NetworkRingMatch",
             "NetworkLabel", "NetworkLabelRead", "NetworkLabelActive", "NetworkCaption", "NetworkEdge", "NetworkEdgeIndirect",
-            "NetworkEdgeNear", "NetworkEdgeTrail",
+            "NetworkEdgeNear", "NetworkEdgeTrail", "NetworkDragShadow",
         ];
 
         /// <summary>The brush for a key in the control's current theme; null when the theme does not define it.</summary>
@@ -867,6 +984,7 @@ public sealed class NetworkCanvas : Control
                 EdgeIndirect = brushes["NetworkEdgeIndirect"],
                 EdgeNear = brushes["NetworkEdgeNear"],
                 EdgeTrail = brushes["NetworkEdgeTrail"],
+                DragShadow = brushes["NetworkDragShadow"],
             };
         }
 

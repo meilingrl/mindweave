@@ -98,6 +98,8 @@
           <SolidColorBrush x:Key="NetworkEdgeNear">#7E8698</SolidColorBrush>
           <SolidColorBrush x:Key="NetworkEdgeTrail">#5B78F5</SolidColorBrush>
           <SolidColorBrush x:Key="NetworkFrame">#E7E5E4</SolidColorBrush>
+          <!-- S7 round 3 · network: the soft shadow under a node while it is dragged -->
+          <SolidColorBrush x:Key="NetworkDragShadow">#551F2A44</SolidColorBrush>
           <!-- Text fields (Fluent's own keys), so inputs match the page in both themes -->
           <SolidColorBrush x:Key="TextControlBackground">#FFFFFF</SolidColorBrush>
           <SolidColorBrush x:Key="TextControlBackgroundPointerOver">#FAFAF9</SolidColorBrush>
@@ -193,6 +195,8 @@
           <SolidColorBrush x:Key="NetworkEdgeNear">#7F899E</SolidColorBrush>
           <SolidColorBrush x:Key="NetworkEdgeTrail">#AAB8F5</SolidColorBrush>
           <SolidColorBrush x:Key="NetworkFrame">Transparent</SolidColorBrush>
+          <!-- S7 round 3 · network: the soft shadow under a node while it is dragged -->
+          <SolidColorBrush x:Key="NetworkDragShadow">#FF000000</SolidColorBrush>
           <SolidColorBrush x:Key="TextControlBackground">#222327</SolidColorBrush>
           <SolidColorBrush x:Key="TextControlBackgroundPointerOver">#26282D</SolidColorBrush>
           <SolidColorBrush x:Key="TextControlBackgroundFocused">#1D1E22</SolidColorBrush>

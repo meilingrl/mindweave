@@ -212,6 +212,21 @@ public sealed partial class NetworkHomeViewModel : PageViewModel, IDisposable
         ViewChanged?.Invoke(this, true);
     }
 
+    /// <summary>
+    /// A drag ended: the node keeps its new place in memory and the layout is unsaved until saved, as after
+    /// <see cref="ArrangeCommand"/>; unlike arranging, the viewport stays where the reader put it.
+    /// </summary>
+    public void MoveNode(SummaryNodeId node, double x, double y)
+    {
+        if (!Session.Move(node, new Application.Storage.NodePosition(x, y)))
+        {
+            return;
+        }
+
+        BuildViews();
+        ViewChanged?.Invoke(this, false);
+    }
+
     [RelayCommand(CanExecute = nameof(CanSave))]
     private Task<bool> SaveLayoutAsync() => Session.SaveAsync(CancellationToken.None);
 

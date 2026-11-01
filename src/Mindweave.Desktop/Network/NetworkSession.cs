@@ -125,6 +125,26 @@ public sealed partial class NetworkSession : ObservableObject
     }
 
     /// <summary>
+    /// The end of a manual drag: one node at a new place in the same canvas coordinates, kept in memory and marked
+    /// unsaved exactly like "arrange" (requirement §7.4, architecture §11.4). The viewport is left as it is. Returns
+    /// false, changing nothing, for a node not in this network or a place it already has.
+    /// </summary>
+    public bool Move(SummaryNodeId node, NodePosition position)
+    {
+        if (!_positions.TryGetValue(node, out var current) || current == position)
+        {
+            return false;
+        }
+
+        _positions = new Dictionary<SummaryNodeId, NodePosition>(_positions) { [node] = position };
+        _revision++;
+        OnPropertyChanged(nameof(IsDirty));
+        OnPropertyChanged(nameof(Revision));
+        LayoutChanged?.Invoke(this, EventArgs.Empty);
+        return true;
+    }
+
+    /// <summary>
     /// Saves the current revision's positions in one transaction. Changes made while saving stay unsaved: success
     /// only records the revision that was captured. A failure keeps everything in memory and the unsaved mark.
     /// </summary>
