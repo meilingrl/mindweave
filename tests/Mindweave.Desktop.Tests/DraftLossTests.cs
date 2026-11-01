@@ -44,7 +44,7 @@ public class DraftLossTests
         Assert.Equal("离开前的修改", detail!.Current.Body);
     }
 
-    [AvaloniaFact(Skip = "Reproduces L1 (confirmed 2026-11-01); fixed by A2")]
+    [AvaloniaFact]
     public async Task Saving_a_version_while_storage_refuses_keeps_the_edit_and_says_why()
     {
         var failing = new ExitTests.FailingSummaryDrafts();

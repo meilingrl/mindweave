@@ -568,6 +568,11 @@ public sealed partial class SummaryViewModel : PageViewModel, IPageFlush, IDispo
         {
             Notice = UiText.SummaryRefused(ex.Reason);
         }
+        catch (StorageWriteException)
+        {
+            // Nothing was stored; what the user typed or chose stays on the page (§9.3).
+            Notice = UiText.StoragePaused;
+        }
 
         await _load.Request();
     }

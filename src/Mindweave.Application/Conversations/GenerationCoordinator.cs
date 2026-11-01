@@ -96,6 +96,10 @@ public sealed partial class GenerationCoordinator : IAsyncDisposable
     private readonly Dictionary<GenerationTaskId, Running> _running = [];
     private readonly ConcurrentDictionary<MessageId, LiveAnswer> _live = new();
     private readonly ConcurrentQueue<Func<Task<bool>>> _unsaved = new();
+
+    // Terminal writes that failed for a reason other than storage (a defect): kept so the exit reports them unsaved, but
+    // they neither pause requests nor hold up recovery, which only storage itself can bring about.
+    private readonly ConcurrentQueue<Func<Task<bool>>> _unsavedDefects = new();
     private readonly CancellationTokenSource _lifetime = new();
 
     // One pass over the failed terminal writes at a time: the background retry and an exit's final save must not
@@ -436,7 +440,7 @@ public sealed partial class GenerationCoordinator : IAsyncDisposable
     }
 
     /// <summary>Tries the terminal writes that failed earlier once more, now. True when none is left unsaved.</summary>
-    public Task<bool> SaveUnsavedAsync() => FlushUnsavedAsync();
+    public Task<bool> SaveUnsavedAsync() => FlushUnsavedAsync(includeDefects: true);
 
     /// <summary>
     /// Final stop when the process ends: <see cref="StopForExitAsync"/> (bounded by <paramref name="wait"/>, unbounded
@@ -459,7 +463,7 @@ public sealed partial class GenerationCoordinator : IAsyncDisposable
         {
         }
 
-        await FlushUnsavedAsync().ConfigureAwait(false);
+        await FlushUnsavedAsync(includeDefects: true).ConfigureAwait(false);
         RaiseChanged();
     }
 
@@ -718,25 +722,11 @@ public sealed partial class GenerationCoordinator : IAsyncDisposable
             return;
         }
 
-        var text = new System.Text.StringBuilder();
-        var trace = new RequestTrace(task.Id, _clock);
         try
         {
-            var completed = false;
-            await foreach (var item in _client.StreamAsync(work.Request, key.Secret!, stop).ConfigureAwait(false))
-            {
-                trace.Observe(item);
-                if (item is ChatStreamEvent.TextDelta delta)
-                {
-                    text.Append(delta.Text);
-                }
-                else if (item is ChatStreamEvent.Completed)
-                {
-                    completed = true;
-                }
-            }
-
-            var title = completed ? ConversationRules.CleanGeneratedTitle(text.ToString()) : null;
+            // Like summaries and naming, a title is used only from a normal, non-empty finish; a cut-off one is not.
+            var (output, problem) = await RequestCompleteTextAsync(task, work.Request, key.Secret!, stop).ConfigureAwait(false);
+            var title = output is null ? null : ConversationRules.CleanGeneratedTitle(output);
             if (title is not null)
             {
                 if (await SaveAsync(() => _store.SetAutoTitleAsync(task.ConversationId, title, _clock.UtcNow, CancellationToken.None)).ConfigureAwait(false) == SaveResult.Applied)
@@ -745,22 +735,18 @@ public sealed partial class GenerationCoordinator : IAsyncDisposable
                 }
             }
 
-            await SaveAsync(() => FinishTask(task.Id, title is null ? GenerationTaskState.Failed : GenerationTaskState.Completed, title is null ? GenerationErrorKind.InvalidResponse : null, null))
+            await SaveAsync(() => FinishTask(task.Id, title is null ? GenerationTaskState.Failed : GenerationTaskState.Completed, title is null ? GenerationErrorKind.InvalidResponse : null, title is null ? problem : null))
                 .ConfigureAwait(false);
-            await RecordAsync(trace.Finish(stopped: false, completed ? null : GenerationErrorKind.InvalidResponse, null)).ConfigureAwait(false);
         }
         catch (OperationCanceledException) when (stop.IsCancellationRequested)
         {
             await SaveAsync(() => FinishTask(task.Id, GenerationTaskState.Stopped, null, null)).ConfigureAwait(false);
-            await RecordAsync(trace.Finish(stopped: true, null, null)).ConfigureAwait(false);
             TitleAbandoned?.Invoke(this, task.ConversationId);
         }
         catch (ChatClientException ex)
         {
             // Titles are best effort: keep the current name, never retry automatically.
             await SaveAsync(() => FinishTask(task.Id, GenerationTaskState.Failed, ex.Kind, ex.Message)).ConfigureAwait(false);
-            trace.Fail(ex);
-            await RecordAsync(trace.Finish(stopped: false, ex.Kind, ex.Message)).ConfigureAwait(false);
         }
     }
 
@@ -972,8 +958,9 @@ public sealed partial class GenerationCoordinator : IAsyncDisposable
     }
 
     /// <summary>
-    /// Runs one core write. A failure blocks new requests until storage recovers (see <see cref="IsStorageBlocked"/>);
-    /// terminal writes are kept and retried in the background so a finished answer is not lost while the app runs.
+    /// Runs one core write. A storage failure blocks new requests until storage recovers (see <see cref="IsStorageBlocked"/>);
+    /// terminal writes are kept and retried in the background so a finished answer is not lost while the app runs. Any
+    /// other failure is a defect: the write is kept for the exit to report, and requests are not paused.
     /// </summary>
     private async Task<SaveResult> SaveAsync(Func<Task<bool>> write, bool retryOnFailure = false)
     {
@@ -982,9 +969,7 @@ public sealed partial class GenerationCoordinator : IAsyncDisposable
             var applied = await write().ConfigureAwait(false);
             return applied ? SaveResult.Applied : SaveResult.NotApplied;
         }
-#pragma warning disable CA1031 // Storage failures are a reported, recoverable state, not a crash.
-        catch (Exception ex)
-#pragma warning restore CA1031
+        catch (StorageWriteException ex)
         {
             LogSaveFailed(_logger, ex);
             if (retryOnFailure)
@@ -993,6 +978,18 @@ public sealed partial class GenerationCoordinator : IAsyncDisposable
             }
 
             MarkStorageBlocked();
+            return SaveResult.Failed;
+        }
+#pragma warning disable CA1031 // A defect in one write must not take down the run; the content stays in memory and is reported.
+        catch (Exception ex)
+#pragma warning restore CA1031
+        {
+            LogWriteDefect(_logger, ex);
+            if (retryOnFailure)
+            {
+                _unsavedDefects.Enqueue(write);
+            }
+
             return SaveResult.Failed;
         }
     }
@@ -1087,34 +1084,54 @@ public sealed partial class GenerationCoordinator : IAsyncDisposable
         RaiseChanged();
     }
 
-    /// <summary>One pass over the failed terminal writes. True when none is left unsaved at the end of this pass.</summary>
-    private async Task<bool> FlushUnsavedAsync()
+    /// <summary>
+    /// One pass over the failed terminal writes kept for storage. True when none is left unsaved at the end of this pass.
+    /// With <paramref name="includeDefects"/> (the exit's save) the writes that failed for other reasons are tried too
+    /// and count as unsaved; recovery leaves them alone, as storage coming back does not fix them.
+    /// </summary>
+    private async Task<bool> FlushUnsavedAsync(bool includeDefects = false)
     {
         await _flushGate.WaitAsync().ConfigureAwait(false);
         try
         {
-            var count = _unsaved.Count;
-            for (var i = 0; i < count && _unsaved.TryDequeue(out var write); i++)
+            await RetryAsync(_unsaved).ConfigureAwait(false);
+            if (includeDefects)
             {
-                try
-                {
-                    await write().ConfigureAwait(false);
-                }
-#pragma warning disable CA1031 // Still failing: keep it for the next attempt.
-                catch (Exception ex)
-#pragma warning restore CA1031
-                {
-                    LogSaveFailed(_logger, ex);
-                    _unsaved.Enqueue(write);
-                }
+                await RetryAsync(_unsavedDefects).ConfigureAwait(false);
             }
 
             // Read while no other pass can have a write out of the queue.
-            return _unsaved.IsEmpty;
+            return _unsaved.IsEmpty && (!includeDefects || _unsavedDefects.IsEmpty);
         }
         finally
         {
             _flushGate.Release();
+        }
+    }
+
+    private async Task RetryAsync(ConcurrentQueue<Func<Task<bool>>> queue)
+    {
+        var count = queue.Count;
+        for (var i = 0; i < count && queue.TryDequeue(out var write); i++)
+        {
+            try
+            {
+                await write().ConfigureAwait(false);
+            }
+            catch (StorageWriteException ex)
+            {
+                // Kept before it is counted, so a recovery check never sees it neither queued nor counted.
+                LogSaveFailed(_logger, ex);
+                _unsaved.Enqueue(write);
+                MarkStorageBlocked();
+            }
+#pragma warning disable CA1031 // Still failing: keep it for the next attempt.
+            catch (Exception ex)
+#pragma warning restore CA1031
+            {
+                LogWriteDefect(_logger, ex);
+                _unsavedDefects.Enqueue(write);
+            }
         }
     }
 
@@ -1134,6 +1151,9 @@ public sealed partial class GenerationCoordinator : IAsyncDisposable
 
     [LoggerMessage(Level = LogLevel.Error, Message = "Core write failed; new AI requests are paused until storage recovers")]
     private static partial void LogSaveFailed(ILogger logger, Exception exception);
+
+    [LoggerMessage(Level = LogLevel.Error, Message = "A core write failed for a reason other than storage; its content is kept in memory and reported at exit")]
+    private static partial void LogWriteDefect(ILogger logger, Exception exception);
 
     [LoggerMessage(Level = LogLevel.Information, Message = "Storage still refuses writes; AI requests stay paused")]
     private static partial void LogProbeFailed(ILogger logger, Exception exception);

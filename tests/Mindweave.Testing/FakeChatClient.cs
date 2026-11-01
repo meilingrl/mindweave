@@ -57,6 +57,9 @@ public sealed class FakeChatClient : IChatClient
     /// <summary>How many of the next knowledge-summary requests stop at the output limit.</summary>
     public int TruncateKnowledge { get; set; }
 
+    /// <summary>How many of the next title requests stop at the output limit (a truncated finish).</summary>
+    public int TruncateTitles { get; set; }
+
     /// <summary>Scripted naming outputs, used in order; when empty, "n：区分n" for every node.</summary>
     public ConcurrentQueue<string> NamingReplies { get; } = new();
 
@@ -162,8 +165,14 @@ public sealed class FakeChatClient : IChatClient
                 await gate.Task.WaitAsync(cancellationToken);
             }
 
+            var truncated = TruncateTitles > 0;
+            if (truncated)
+            {
+                TruncateTitles--;
+            }
+
             yield return new ChatStreamEvent.TextDelta($"“{DefaultTitle}”");
-            yield return new ChatStreamEvent.Completed(false);
+            yield return new ChatStreamEvent.Completed(truncated);
             yield break;
         }
 

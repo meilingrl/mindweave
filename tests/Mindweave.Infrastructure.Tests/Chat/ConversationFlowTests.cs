@@ -3,6 +3,7 @@ using Mindweave.Application.Ai;
 using Mindweave.Application.Conversations;
 using Mindweave.Application.Storage;
 using Mindweave.Core.Conversations;
+using Mindweave.Infrastructure.Sqlite;
 
 namespace Mindweave.Infrastructure.Tests.Chat;
 
@@ -26,6 +27,27 @@ public class ConversationFlowTests
         var content = await h.Conversations.LoadAsync(sent.Conversation, Ct);
         Assert.Equal(FakeChatClient.DefaultTitle, content!.Conversation.Title);
         Assert.Equal(["火车是怎么发明的？", "答：火车是怎么发明的？"], content.Messages.Select(m => m.Text));
+    }
+
+    [Fact]
+    public async Task A_title_cut_off_at_the_output_limit_is_not_used()
+    {
+        await using var h = await ChatHarness.StartAsync();
+        h.Client.TruncateTitles = 1;
+
+        var sent = await h.Conversations.StartAsync(h.Workspace, "火车是怎么发明的？", Ct);
+        await h.WaitForAnswerAsync(sent.Answer!.Value);
+        string? state = null;
+        await ChatHarness.UntilAsync(() =>
+        {
+            state = h.Database.ReadAsync(
+                c => c.Scalar<string?>(null, "SELECT state FROM generation_task WHERE kind = 'title' AND state NOT IN ('queued', 'running');"),
+                CancellationToken.None).Result;
+            return state is not null;
+        });
+
+        Assert.Equal("failed", state);
+        Assert.NotEqual(TitleSource.Auto, (await h.Conversations.LoadAsync(sent.Conversation, Ct))!.Conversation.TitleSource);
     }
 
     [Fact]
@@ -313,8 +335,8 @@ public class ConversationFlowTests
         /// <summary>Awaited at the start of every terminal answer write, before it fails or reaches the store.</summary>
         public Func<Task>? BeforeFinish { get; set; }
 
-        /// <summary>What a failing terminal write throws; a disk-like I/O error unless a test sets another.</summary>
-        public Func<Exception> FinishFailure { get; set; } = () => new IOException("simulated disk full");
+        /// <summary>What a failing terminal write throws; storage refusing it as a full disk unless a test sets another.</summary>
+        public Func<Exception> FinishFailure { get; set; } = () => new StorageWriteException(StorageFailureKind.Full, "simulated disk full", null);
 
         public async Task<bool> FinishAnswerAsync(GenerationTaskId task, MessageId answer, IReadOnlyList<ContentBlock> blocks, long revision, MessageState state, GenerationErrorKind? errorKind, string? errorDetail, DateTimeOffset at, CancellationToken cancellationToken)
         {

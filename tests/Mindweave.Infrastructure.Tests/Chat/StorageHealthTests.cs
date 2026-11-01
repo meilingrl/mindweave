@@ -10,12 +10,12 @@ public class StorageHealthTests
 {
     private static CancellationToken Ct => TestContext.Current.CancellationToken;
 
-    [Fact(Skip = "Reproduces L3 (confirmed 2026-11-01); fixed by A2")]
+    [Fact]
     public async Task A_terminal_write_failing_for_a_reason_other_than_storage_does_not_pause_requests_or_lose_the_answer()
     {
         ConversationFlowTests.FlakyStore? flaky = null;
         await using var h = await ChatHarness.StartAsync(wrapStore: s => flaky = new ConversationFlowTests.FlakyStore(s));
-        flaky!.FailFinishes = 1;
+        flaky!.FailFinishes = int.MaxValue;
         flaky.FinishFailure = () => new InvalidOperationException("simulated defect in the terminal write");
 
         var sent = await h.Conversations.StartAsync(h.Workspace, "问", Ct);
@@ -23,7 +23,12 @@ public class StorageHealthTests
 
         Assert.False(h.Generation.IsStorageBlocked);
         Assert.Equal("答：问", h.Conversations.Observe(sent.Answer!.Value)!.Snapshot().Text);
+
+        // The exit's save reports it unsaved while it keeps failing, and saves it once it works.
         Assert.False(await h.Generation.SaveUnsavedAsync());
+        flaky.FailFinishes = 0;
+        Assert.True(await h.Generation.SaveUnsavedAsync());
+        Assert.Equal("答：问", (await h.GetMessageAsync(sent.Answer!.Value))!.Text);
     }
 
     [Fact]
