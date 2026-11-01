@@ -497,10 +497,19 @@ public sealed partial class SummaryService
         }
 
         var key = SummaryRules.NormalizeName(detail.Node.BaseTitle);
-        var group = (await _summaries.ListAsync(detail.Node.Workspace, CancellationToken.None).ConfigureAwait(false))
+        var members = (await _summaries.ListAsync(detail.Node.Workspace, CancellationToken.None).ConfigureAwait(false))
             .Where(e => SummaryRules.NormalizeName(e.Node.BaseTitle) == key)
             .ToList();
-        if (group.Count < 2 || group.All(e => e.Node.NameSource == NameSource.Manual) || _health.IsBlocked)
+        if (members.Count < 2 || members.All(e => e.Node.NameSource == NameSource.Manual) || _health.IsBlocked)
+        {
+            return;
+        }
+
+        // Excerpts of exactly the versions the group was read with; a member whose version is gone meanwhile drops out.
+        // One whose node has moved on keeps its group-time excerpt, and the apply-time expectation discards its name.
+        var excerpts = await _summaries.ExcerptsAsync([.. members.Select(e => e.Current.Id)], NamingBodyExcerpt, CancellationToken.None).ConfigureAwait(false);
+        var group = members.Where(e => excerpts.ContainsKey(e.Current.Id)).ToList();
+        if (group.Count < 2)
         {
             return;
         }
@@ -513,8 +522,7 @@ public sealed partial class SummaryService
         var prompt = new StringBuilder().Append("基础标题：").Append(detail.Node.BaseTitle).Append("\n\n");
         for (var i = 0; i < group.Count; i++)
         {
-            var body = group[i].Current.Body;
-            prompt.Append(CultureInfo.InvariantCulture, $"[{i + 1}] 现有名称：{group[i].Node.DisplayName}\n标题：{group[i].Current.Title}\n正文开头：{(body.Length > NamingBodyExcerpt ? body[..NamingBodyExcerpt] : body)}\n\n");
+            prompt.Append(CultureInfo.InvariantCulture, $"[{i + 1}] 现有名称：{group[i].Node.DisplayName}\n标题：{group[i].Current.Title}\n正文开头：{excerpts[group[i].Current.Id]}\n\n");
         }
 
         var expectations = group.Select(e => new NamingExpectation(e.Node.Id, e.Node.Current, e.Node.DisplayName)).ToList();

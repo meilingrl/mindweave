@@ -145,7 +145,7 @@ public class DiskFullTests
         Assert.True((await h.SummaryService.SummarizeAsync(sent.Conversation, Ct)).Accepted);
         await ChatHarness.UntilAsync(() => h.SummaryService.ForConversationAsync(sent.Conversation, Ct).Result is not null);
         var saved = (await h.SummaryService.ForConversationAsync(sent.Conversation, Ct))!;
-        Assert.Equal(body, saved.Current.Body);
+        Assert.Equal(body, (await h.SummaryService.GetAsync(saved.Node.Id, Ct))!.Current.Body);
         await StorageFaults.AssertIntactAsync(h.Database);
     }
 }

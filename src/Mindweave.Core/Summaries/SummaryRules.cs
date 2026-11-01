@@ -73,13 +73,20 @@ public static class SummaryRules
     public static string ShortTitleOf(SummaryVersion version)
     {
         ArgumentNullException.ThrowIfNull(version);
-        if (version.ShortTitle is { Length: > 0 } shortTitle)
+        return ShortTitleOf(version.Title, version.ShortTitle);
+    }
+
+    /// <summary>See <see cref="ShortTitleOf(SummaryVersion)"/>; from the two fields it uses, so a body is never needed.</summary>
+    public static string ShortTitleOf(string title, string? shortTitle)
+    {
+        ArgumentNullException.ThrowIfNull(title);
+        if (shortTitle is { Length: > 0 })
         {
             return shortTitle;
         }
 
-        var runes = version.Title.EnumerateRunes().Take(MaxShortTitleLength + 1).ToList();
-        return runes.Count > MaxShortTitleLength ? string.Concat(runes.Take(MaxShortTitleLength)) + "…" : version.Title;
+        var runes = title.EnumerateRunes().Take(MaxShortTitleLength + 1).ToList();
+        return runes.Count > MaxShortTitleLength ? string.Concat(runes.Take(MaxShortTitleLength)) + "…" : title;
     }
 
     /// <summary>
@@ -152,8 +159,14 @@ public static class SummaryRules
     /// <summary>Markers for a node (MW-C07): unread by the current version's own record, candidate, later finished messages.</summary>
     public static SummaryMarkers Markers(SummaryNode node, SummaryVersion current, SummaryReadState? currentRead, int? lastFinishedSeq)
     {
-        ArgumentNullException.ThrowIfNull(node);
         ArgumentNullException.ThrowIfNull(current);
-        return new(currentRead is not { IsRead: true }, node.Pending is not null, lastFinishedSeq is { } last && last > current.ToSeq);
+        return Markers(node, current.ToSeq, currentRead, lastFinishedSeq);
+    }
+
+    /// <summary>See the overload taking the version; from the current version's coverage end alone.</summary>
+    public static SummaryMarkers Markers(SummaryNode node, int currentToSeq, SummaryReadState? currentRead, int? lastFinishedSeq)
+    {
+        ArgumentNullException.ThrowIfNull(node);
+        return new(currentRead is not { IsRead: true }, node.Pending is not null, lastFinishedSeq is { } last && last > currentToSeq);
     }
 }

@@ -5,10 +5,16 @@ using Mindweave.Core.Workspaces;
 namespace Mindweave.Application.Storage;
 
 /// <summary>
-/// A node with its current version and what its markers need, for lists and the conversation header.
+/// A version without its body: what lists, the network and the conversation header show. Bodies are not read to draw
+/// the network (architecture §11.2); the few callers that need text ask for bounded excerpts by version.
+/// </summary>
+public sealed record SummaryVersionHead(SummaryVersionId Id, int Seq, string Title, string? ShortTitle, int ToSeq, SummaryOrigin Origin, DateTimeOffset CreatedAt);
+
+/// <summary>
+/// A node with its current version's head and what its markers need, for lists and the conversation header.
 /// <paramref name="SourceArchived"/>: the source conversation is hidden by an archive (the node stays, marked).
 /// </summary>
-public sealed record SummaryEntry(SummaryNode Node, SummaryVersion Current, SummaryMarkers Markers, bool SourceArchived = false);
+public sealed record SummaryEntry(SummaryNode Node, SummaryVersionHead Current, SummaryMarkers Markers, bool SourceArchived = false);
 
 /// <summary>Everything a summary page shows for one node.</summary>
 public sealed record SummaryDetail(
@@ -75,6 +81,12 @@ public interface ISummaryStore
     Task<SummaryEntry?> ForConversationAsync(ConversationId conversation, CancellationToken cancellationToken);
 
     Task<SummaryDetail?> GetAsync(SummaryNodeId node, CancellationToken cancellationToken);
+
+    /// <summary>
+    /// The first <paramref name="maxCodePoints"/> characters (Unicode code points, so a pair is never split) of each
+    /// listed version's body that still exists. By version, not node: what was read as current earlier stays consistent.
+    /// </summary>
+    Task<IReadOnlyDictionary<SummaryVersionId, string>> ExcerptsAsync(IReadOnlyCollection<SummaryVersionId> versions, int maxCodePoints, CancellationToken cancellationToken);
 
     /// <summary>
     /// Saves a successful summary and completes its task together (MW-C06): the first version of a new node, or a

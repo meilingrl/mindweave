@@ -35,6 +35,35 @@ internal sealed class SqliteSummaryStore(SqliteDatabase database) : ISummaryStor
     public Task<SummaryDetail?> GetAsync(SummaryNodeId node, CancellationToken cancellationToken) =>
         database.ReadAsync(connection => Detail(connection, null, node), cancellationToken);
 
+    public Task<IReadOnlyDictionary<SummaryVersionId, string>> ExcerptsAsync(IReadOnlyCollection<SummaryVersionId> versions, int maxCodePoints, CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(versions);
+        ArgumentOutOfRangeException.ThrowIfNegative(maxCodePoints);
+        return database.ReadAsync<IReadOnlyDictionary<SummaryVersionId, string>>(
+            connection =>
+            {
+                var ids = versions.Distinct().ToList();
+                var excerpts = new Dictionary<SummaryVersionId, string>();
+                if (ids.Count == 0)
+                {
+                    return excerpts;
+                }
+
+                // substr counts characters (code points) on TEXT, so an excerpt never ends inside a surrogate pair.
+                var parameters = ids.Select((id, i) => ($"$v{i}", (object?)id.ToString())).Append(("$max", maxCodePoints)).ToArray();
+                var list = string.Join(", ", ids.Select((_, i) => $"$v{i}"));
+                using var command = connection.Command(null, $"SELECT id, substr(body, 1, $max) FROM summary_version WHERE id IN ({list});", parameters);
+                using var reader = command.ExecuteReader();
+                while (reader.Read())
+                {
+                    excerpts[SummaryVersionId.Parse(reader.GetString(0))] = reader.GetString(1);
+                }
+
+                return excerpts;
+            },
+            cancellationToken);
+    }
+
     public Task<SummarySaved?> SaveGeneratedAsync(
         GenerationTaskId task, ConversationId conversation, GeneratedSummary summary, int toSeq, SummaryVersionId? baseline, string model, DateTimeOffset at, CancellationToken cancellationToken) =>
         database.WriteAsync<SummarySaved?>(
@@ -325,11 +354,31 @@ internal sealed class SqliteSummaryStore(SqliteDatabase database) : ISummaryStor
             },
             cancellationToken);
 
+    /// <summary>A node with its current version's head only: no version body is read (architecture §11.2).</summary>
     private static SummaryEntry Entry(SqliteConnection connection, SummaryNode node)
     {
-        var current = Versions(connection, null, node.Id).Single(v => v.Id == node.Current);
+        var current = Head(connection, node.Current);
         var read = ReadStates(connection, null, [node.Current]).GetValueOrDefault(node.Current);
-        return new(node, current, SummaryRules.Markers(node, current, read, LastFinishedSeq(connection, null, node.Conversation)), SqliteArchive.IsHidden(connection, null, node.Conversation));
+        return new(node, current, SummaryRules.Markers(node, current.ToSeq, read, LastFinishedSeq(connection, null, node.Conversation)), SqliteArchive.IsHidden(connection, null, node.Conversation));
+    }
+
+    private static SummaryVersionHead Head(SqliteConnection connection, SummaryVersionId version)
+    {
+        using var command = connection.Command(null, "SELECT id, seq, title, short_title, to_seq, origin, created_at FROM summary_version WHERE id = $id;", ("$id", version.ToString()));
+        using var reader = command.ExecuteReader();
+        if (!reader.Read())
+        {
+            throw new InvalidOperationException($"Summary version {version} is missing.");
+        }
+
+        return new(
+            SummaryVersionId.Parse(reader.GetString(0)),
+            reader.GetInt32(1),
+            reader.GetString(2),
+            reader.NullableString(3),
+            reader.GetInt32(4),
+            SqlNames.ParseOrigin(reader.GetString(5)),
+            reader.Time(6));
     }
 
     private static SummaryDetail? Detail(SqliteConnection connection, SqliteTransaction? transaction, SummaryNodeId id)

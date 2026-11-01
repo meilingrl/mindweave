@@ -51,7 +51,7 @@ public sealed class NetworkService(ISummaryStore summaries, INetworkStore networ
                 e.Node.Id,
                 e.Node.Conversation,
                 chains.TryGetValue(e.Node.Conversation, out var chain) && chain.Count > 0 ? chain[0] : e.Node.Conversation,
-                SummaryRules.ShortTitleOf(e.Current),
+                SummaryRules.ShortTitleOf(e.Current.Title, e.Current.ShortTitle),
                 e.Node.DisplayName,
                 e.Markers,
                 e.Node.CreatedAt,
