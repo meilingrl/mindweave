@@ -313,6 +313,9 @@ public class ConversationFlowTests
         /// <summary>Awaited at the start of every terminal answer write, before it fails or reaches the store.</summary>
         public Func<Task>? BeforeFinish { get; set; }
 
+        /// <summary>What a failing terminal write throws; a disk-like I/O error unless a test sets another.</summary>
+        public Func<Exception> FinishFailure { get; set; } = () => new IOException("simulated disk full");
+
         public async Task<bool> FinishAnswerAsync(GenerationTaskId task, MessageId answer, IReadOnlyList<ContentBlock> blocks, long revision, MessageState state, GenerationErrorKind? errorKind, string? errorDetail, DateTimeOffset at, CancellationToken cancellationToken)
         {
             if (BeforeFinish is { } before)
@@ -321,7 +324,7 @@ public class ConversationFlowTests
             }
 
             return Interlocked.Decrement(ref _failFinishes) >= 0
-                ? throw new IOException("simulated disk full")
+                ? throw FinishFailure()
                 : await inner.FinishAnswerAsync(task, answer, blocks, revision, state, errorKind, errorDetail, at, cancellationToken);
         }
 
