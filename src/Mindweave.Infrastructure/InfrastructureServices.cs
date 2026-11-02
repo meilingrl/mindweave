@@ -27,6 +27,7 @@ public static class InfrastructureServices
         services.AddSingleton<SqliteDatabase>();
         services.AddSingleton<IDatabaseLifecycle>(sp => sp.GetRequiredService<SqliteDatabase>());
         services.AddSingleton<IStorageProbe>(sp => sp.GetRequiredService<SqliteDatabase>());
+        services.AddSingleton<IDatabaseBackup>(sp => sp.GetRequiredService<SqliteDatabase>());
         services.AddSingleton<IWorkspaceStore, SqliteWorkspaceStore>();
         services.AddSingleton<ILocationStore, SqliteLocationStore>();
         services.TryAddSingleton<IPreferenceStore, SqlitePreferenceStore>();

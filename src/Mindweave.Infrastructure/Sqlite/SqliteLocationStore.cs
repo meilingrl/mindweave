@@ -6,7 +6,7 @@ namespace Mindweave.Infrastructure.Sqlite;
 
 internal sealed class SqliteLocationStore(SqliteDatabase database, IClock clock) : ILocationStore
 {
-    private const string LastWorkspaceKey = "last_workspace_id";
+    private const string LastWorkspaceKey = SqliteWorkspaceStore.LastWorkspaceKey;
 
     public Task<PageLocation?> GetLastAsync(CancellationToken cancellationToken) =>
         database.ReadAsync(

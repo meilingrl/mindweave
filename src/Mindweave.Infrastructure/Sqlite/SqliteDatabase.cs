@@ -23,7 +23,7 @@ public sealed class SqliteDatabaseOptions
 /// explicit request, and afterwards exposes one serialized writer plus short-lived read-only connections.
 /// Must only be used while the single-instance lock for the same data directory is held.
 /// </summary>
-public sealed partial class SqliteDatabase : IDatabaseLifecycle, IStorageProbe, IAsyncDisposable
+public sealed partial class SqliteDatabase : IDatabaseLifecycle, IDatabaseBackup, IStorageProbe, IAsyncDisposable
 {
     public const int MigrationBackupsKept = 5;
 
@@ -118,11 +118,26 @@ public sealed partial class SqliteDatabase : IDatabaseLifecycle, IStorageProbe, 
 
             var version = int.Parse(match.Groups["version"].Value, CultureInfo.InvariantCulture);
             var created = DateTimeOffset.ParseExact(match.Groups["time"].Value, "yyyyMMdd'T'HHmmssfff'Z'", CultureInfo.InvariantCulture, DateTimeStyles.AssumeUniversal);
-            backups.Add(new BackupInfo(file, version, created, new FileInfo(file).Length));
+            var reason = match.Groups["reason"].Success ? BackupReason.BeforeWorkspaceDelete : BackupReason.Migration;
+            backups.Add(new BackupInfo(file, version, created, new FileInfo(file).Length, reason));
         }
 
         return backups.OrderByDescending(b => b.CreatedAt).ToArray();
     }
+
+    /// <summary>
+    /// A verified copy of the open database, made on the single writer between two transactions so it holds every
+    /// write committed before it and none after. Kept under the same name scheme as the migration backups, so the
+    /// storage page lists it and the recovery page can restore it.
+    /// </summary>
+    public Task<string> BackupAsync(BackupReason reason, CancellationToken cancellationToken)
+    {
+        var writer = Volatile.Read(ref _writer) ?? throw new InvalidOperationException("The database is not open.");
+        var suffix = reason == BackupReason.BeforeWorkspaceDelete ? BeforeDeleteSuffix : string.Empty;
+        return writer.EnqueueWithoutTransactionAsync(connection => CreateVerifiedBackup(connection, _catalog.LatestVersion, suffix), cancellationToken);
+    }
+
+    private const string BeforeDeleteSuffix = "-before-delete";
 
     /// <summary>Runs <paramref name="work"/> in its own transaction on the single writer.</summary>
     public Task<T> WriteAsync<T>(Func<SqliteConnection, SqliteTransaction, T> work, CancellationToken cancellationToken)
@@ -527,11 +542,11 @@ public sealed partial class SqliteDatabase : IDatabaseLifecycle, IStorageProbe, 
         }
     }
 
-    private string CreateVerifiedBackup(SqliteConnection connection, int version)
+    private string CreateVerifiedBackup(SqliteConnection connection, int version, string suffix = "")
     {
         Directory.CreateDirectory(_paths.BackupDirectory);
         var stamp = _time.GetUtcNow().UtcDateTime.ToString("yyyyMMdd'T'HHmmssfff'Z'", CultureInfo.InvariantCulture);
-        var final = Path.Combine(_paths.BackupDirectory, $"mindweave-v{version}-{stamp}.db");
+        var final = Path.Combine(_paths.BackupDirectory, $"mindweave-v{version}-{stamp}{suffix}.db");
         if (File.Exists(final))
         {
             throw new IOException($"Backup target already exists: {final}");
@@ -672,7 +687,7 @@ public sealed partial class SqliteDatabase : IDatabaseLifecycle, IStorageProbe, 
     private DatabaseOpenResult Result(DatabaseOpenStatus status, int? foundVersion, string? backupPath = null, string? detail = null) =>
         new(status, _paths.DataDirectory, _paths.DatabasePath, foundVersion, _catalog.LatestVersion, backupPath, detail);
 
-    [GeneratedRegex(@"^mindweave-v(?<version>\d+)-(?<time>\d{8}T\d{9}Z)\.db$", RegexOptions.CultureInvariant)]
+    [GeneratedRegex(@"^mindweave-v(?<version>\d+)-(?<time>\d{8}T\d{9}Z)(?<reason>-before-delete)?\.db$", RegexOptions.CultureInvariant)]
     private static partial Regex BackupNameRegex();
 
     [LoggerMessage(Level = LogLevel.Information, Message = "Created database {Path} at schema {Version}")]

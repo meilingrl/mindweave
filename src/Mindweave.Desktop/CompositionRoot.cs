@@ -48,6 +48,7 @@ public static class CompositionRoot
         services.AddSingleton<Application.Storage.StorageHealth>();
         services.AddSingleton<Application.Storage.IStorageStatus>(sp => sp.GetRequiredService<Application.Storage.StorageHealth>());
         services.AddSingleton<WorkspaceService>();
+        services.AddSingleton<WorkspaceDeletionService>();
         services.TryAddSingleton(new GenerationOptions());
         services.AddSingleton<ContextCompressor>();
         services.AddSingleton<GenerationCoordinator>();
@@ -70,6 +71,7 @@ public static class CompositionRoot
         services.AddSingleton<Application.Export.ISummaryExport>(sp => sp.GetRequiredService<Application.Export.SummaryExportService>());
         services.AddSingleton<IModelSettings>(sp => sp.GetRequiredService<ModelSettingsService>());
         services.AddSingleton<IWorkspaces>(sp => sp.GetRequiredService<WorkspaceService>());
+        services.AddSingleton<IWorkspaceDeletion>(sp => sp.GetRequiredService<WorkspaceDeletionService>());
         services.AddSingleton<Application.Preferences.IAppearance>(sp => sp.GetRequiredService<Application.Preferences.AppearanceService>());
         services.AddSingleton<Application.Preferences.ISidebarLayout>(sp => sp.GetRequiredService<Application.Preferences.SidebarLayoutService>());
         services.AddSingleton<Application.Network.INetworkLayout>(sp => sp.GetRequiredService<Application.Network.NetworkService>());
