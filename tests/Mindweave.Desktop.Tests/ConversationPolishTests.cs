@@ -234,7 +234,7 @@ public class ConversationPolishTests
         Assert.Equal([0, TreeIndent.Step], rows.Select(r => r.Margin.Left));
         Assert.False(rows[0].GetVisualDescendants().OfType<PathIcon>().Single().IsVisible);
         Assert.True(rows[1].GetVisualDescendants().OfType<PathIcon>().Single().IsEffectivelyVisible);
-        Assert.True(rows[1].GetVisualDescendants().OfType<Ellipse>().Single(e => e.Classes.Contains("running-dot")).IsEffectivelyVisible);
+        Assert.True(rows[1].GetVisualDescendants().OfType<ActivitySpinner>().Single().IsEffectivelyVisible);
         Assert.Equal(UiText.MarkerGenerating, items[1].MarkerHint);
 
         held.Finish("。");
@@ -245,7 +245,7 @@ public class ConversationPolishTests
         await UiWait.UntilAsync(() => items.Single(i => i.Id == child.Id).NeedsAttention);
         window.UpdateLayout();
         Assert.True(rows[1].GetVisualDescendants().OfType<Border>().Single(b => b.Classes.Contains("attention-badge")).IsEffectivelyVisible);
-        Assert.False(rows[1].GetVisualDescendants().OfType<Ellipse>().Single(e => e.Classes.Contains("running-dot")).IsVisible);
+        Assert.False(rows[1].GetVisualDescendants().OfType<ActivitySpinner>().Single().IsVisible);
         window.Close();
     }
 

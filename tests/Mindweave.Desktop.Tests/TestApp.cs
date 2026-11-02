@@ -15,6 +15,10 @@ namespace Mindweave.Desktop.Tests;
 public static class TestAppBuilder
 {
     // Real Skia rendering so tests can capture frames of the actual UI.
-    public static AppBuilder BuildAvaloniaApp() =>
-        AppBuilder.Configure<App>().UseSkia().WithInterFont().UseHeadless(new AvaloniaHeadlessPlatformOptions { UseHeadlessDrawing = false });
+    // Spinners draw one fixed frame, so screenshots and layout never depend on when a frame was taken.
+    public static AppBuilder BuildAvaloniaApp()
+    {
+        Views.ActivitySpinner.Animates = false;
+        return AppBuilder.Configure<App>().UseSkia().WithInterFont().UseHeadless(new AvaloniaHeadlessPlatformOptions { UseHeadlessDrawing = false });
+    }
 }

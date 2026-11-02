@@ -18,25 +18,37 @@ public sealed partial class ConversationItemViewModel(ConversationId id) : ViewM
     [ObservableProperty]
     public partial string Title { get; set; } = string.Empty;
 
-    /// <summary>A light marker, not a permanent status label (requirements §6.1): generating, or needs attention.</summary>
+    /// <summary>
+    /// The one light marker the row shows (requirements §6.1: no permanent status label), most urgent first: running,
+    /// needs attention, unread.
+    /// </summary>
     [ObservableProperty]
-    [NotifyPropertyChangedFor(nameof(HasMarker), nameof(IsGenerating), nameof(NeedsAttention))]
-    public partial string? Marker { get; set; }
+    [NotifyPropertyChangedFor(nameof(HasMarker), nameof(IsGenerating), nameof(NeedsAttention), nameof(IsUnread), nameof(MarkerHint))]
+    public partial ConversationMark Mark { get; set; }
 
-    [ObservableProperty]
-    public partial string? MarkerHint { get; set; }
+    /// <summary>Tooltip and accessible name of the marker; null without one.</summary>
+    public string? MarkerHint => Mark switch
+    {
+        ConversationMark.Answering => UiText.MarkerGenerating,
+        ConversationMark.Summarizing => UiText.MarkerSummarizing,
+        ConversationMark.NeedsAttention => UiText.MarkerNeedsAttention,
+        ConversationMark.Unread => UiText.MarkerNewAnswer,
+        _ => null,
+    };
 
-    public bool HasMarker => Marker is not null;
+    public bool HasMarker => Mark != ConversationMark.None;
 
-    /// <summary>Drawn as a small accent dot.</summary>
-    public bool IsGenerating => Marker == GeneratingMarker;
+    /// <summary>Drawn as a small accent spinner: an answer is queued or being written, or a summary is.</summary>
+    public bool IsGenerating => Mark is ConversationMark.Answering or ConversationMark.Summarizing;
 
     /// <summary>Drawn as a small round error badge with "!".</summary>
-    public bool NeedsAttention => Marker == AttentionMarker;
+    public bool NeedsAttention => Mark == ConversationMark.NeedsAttention;
 
-    internal const string GeneratingMarker = "●";
+    /// <summary>Drawn as a small accent dot: an answer finished while the conversation was not on screen.</summary>
+    public bool IsUnread => Mark == ConversationMark.Unread;
 
-    internal const string AttentionMarker = "!";
+    /// <summary>The stored state of the last answer, kept so the marker can be worked out again without a reload.</summary>
+    internal MessageState? LastAnswerState { get; set; }
 
     [ObservableProperty]
     public partial bool IsSelected { get; set; }
@@ -51,6 +63,15 @@ public sealed partial class ConversationItemViewModel(ConversationId id) : ViewM
 
 }
 
+public enum ConversationMark
+{
+    None,
+    Answering,
+    Summarizing,
+    NeedsAttention,
+    Unread,
+}
+
 /// <summary>
 /// The active workspace's conversations as a branch tree: root conversations newest activity first (activity
 /// anywhere in their tree counts), each branch under its parent in creation order. Archived conversations and
@@ -59,20 +80,28 @@ public sealed partial class ConversationItemViewModel(ConversationId id) : ViewM
 public sealed partial class ConversationListViewModel : ViewModelBase
 {
     private readonly IConversations _conversations;
+    private readonly IConversationMarks? _marks;
     private readonly Workbench _workbench;
     private readonly SerialRefresh _load;
     private readonly UiThrottle _reload;
     private WorkspaceId? _shown;
 
-    public ConversationListViewModel(IConversations conversations, Workbench workbench, IUiDispatcher dispatcher)
+    public ConversationListViewModel(IConversations conversations, Workbench workbench, IUiDispatcher dispatcher, IConversationMarks? marks = null)
     {
         _conversations = conversations;
+        _marks = marks;
         _workbench = workbench;
         _load = new SerialRefresh(ReloadAsync);
         _reload = new UiThrottle(dispatcher, TimeSpan.FromMilliseconds(100), () => Loaded = _load.Request());
         _conversations.ConversationChanged += (_, _) => _reload.Request();
         _conversations.ActivityChanged += (_, _) => _reload.Request();
+        if (_marks is not null)
+        {
+            _marks.Changed += (_, _) => _reload.Request();
+        }
+
         _workbench.PropertyChanged += OnWorkbenchChanged;
+        _marks?.SetViewing(Shown());
     }
 
     public ObservableCollection<ConversationItemViewModel> Items { get; } = [];
@@ -89,7 +118,16 @@ public sealed partial class ConversationListViewModel : ViewModelBase
 
     /// <summary>Some listed conversation needs attention (a failed or interrupted answer); shown on the expand button while the sidebar is collapsed.</summary>
     [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(ShowsUnread))]
     public partial bool HasAttention { get; private set; }
+
+    /// <summary>Some listed conversation has a new answer the user has not seen.</summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(ShowsUnread))]
+    public partial bool HasUnread { get; private set; }
+
+    /// <summary>The collapsed sidebar's expand button shows one dot: attention (error colour) wins over unread (accent).</summary>
+    public bool ShowsUnread => HasUnread && !HasAttention;
 
     public string ArchivedLabel => UiText.ArchivedEntry(ArchivedCount);
 
@@ -111,7 +149,10 @@ public sealed partial class ConversationListViewModel : ViewModelBase
         }
         else if (e.PropertyName == nameof(Workbench.CurrentPage))
         {
+            // Seen as soon as it is on screen: the row loses its dot now, not at the next reload.
+            _marks?.SetViewing(Shown());
             UpdateSelection();
+            UpdateMarks();
         }
     }
 
@@ -136,7 +177,8 @@ public sealed partial class ConversationListViewModel : ViewModelBase
         var ordered = tree.Select(t => existing.GetValueOrDefault(t.Summary.Conversation.Id) ?? new ConversationItemViewModel(t.Summary.Conversation.Id)).ToList();
         for (var i = 0; i < tree.Count; i++)
         {
-            Apply(ordered[i], tree[i].Summary);
+            ordered[i].Title = UiText.ConversationTitle(tree[i].Summary.Conversation, tree[i].Summary.FirstQuestion, tree[i].Summary.Quote);
+            ordered[i].LastAnswerState = tree[i].Summary.LastAnswerState;
             ordered[i].Depth = tree[i].Depth;
         }
 
@@ -162,21 +204,43 @@ public sealed partial class ConversationListViewModel : ViewModelBase
             Items.RemoveAt(Items.Count - 1);
         }
 
-        HasAttention = Items.Any(i => i.NeedsAttention);
-
+        UpdateMarks();
         UpdateSelection();
     }
 
-    private void Apply(ConversationItemViewModel item, ConversationSummary summary)
+    /// <summary>Every row's marker from what is running now, its last answer's stored state and the unread marks.</summary>
+    private void UpdateMarks()
     {
-        item.Title = UiText.ConversationTitle(summary.Conversation, summary.FirstQuestion, summary.Quote);
-        var running = _conversations.HasUnfinishedAnswer(summary.Conversation.Id);
-        (item.Marker, item.MarkerHint) = running
-            ? (ConversationItemViewModel.GeneratingMarker, UiText.MarkerGenerating)
-            : summary.LastAnswerState is MessageState.Failed or MessageState.Interrupted
-                ? (ConversationItemViewModel.AttentionMarker, UiText.MarkerNeedsAttention)
-                : (null, null);
+        foreach (var item in Items)
+        {
+            item.Mark = MarkOf(item);
+        }
+
+        HasAttention = Items.Any(i => i.NeedsAttention);
+        HasUnread = Items.Any(i => i.IsUnread);
     }
+
+    private ConversationMark MarkOf(ConversationItemViewModel item)
+    {
+        if (_conversations.HasUnfinishedAnswer(item.Id))
+        {
+            return ConversationMark.Answering;
+        }
+
+        if (_marks?.IsSummarizing(item.Id) == true)
+        {
+            return ConversationMark.Summarizing;
+        }
+
+        if (item.LastAnswerState is MessageState.Failed or MessageState.Interrupted)
+        {
+            return ConversationMark.NeedsAttention;
+        }
+
+        return _marks?.IsUnread(item.Id) == true ? ConversationMark.Unread : ConversationMark.None;
+    }
+
+    private ConversationId? Shown() => (_workbench.CurrentPage?.Route as ConversationRoute)?.Id;
 
     /// <summary>Depth-first order of the branch tree; a branch whose parent is missing is shown as a root.</summary>
     internal static List<(ConversationSummary Summary, int Depth)> AsTree(IReadOnlyList<ConversationSummary> summaries)
@@ -226,7 +290,7 @@ public sealed partial class ConversationListViewModel : ViewModelBase
 
     private void UpdateSelection()
     {
-        var current = (_workbench.CurrentPage?.Route as ConversationRoute)?.Id;
+        var current = Shown();
         foreach (var item in Items)
         {
             item.IsSelected = item.Id == current;

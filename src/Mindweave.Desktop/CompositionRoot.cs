@@ -53,6 +53,7 @@ public static class CompositionRoot
         services.AddSingleton<GenerationCoordinator>();
         services.AddSingleton<ModelSettingsService>();
         services.AddSingleton<ConversationService>();
+        services.AddSingleton<ConversationMarksService>();
         services.AddSingleton<Application.Summaries.SummaryDrafts>();
         services.AddSingleton<Application.Summaries.SummaryService>();
         services.AddSingleton<Application.Network.NetworkService>();
@@ -64,6 +65,7 @@ public static class CompositionRoot
         // View models depend on these interfaces, not the concrete services (course requirement C3); each resolves to the
         // one singleton above, so a page and the rest of the application share state.
         services.AddSingleton<IConversations>(sp => sp.GetRequiredService<ConversationService>());
+        services.AddSingleton<IConversationMarks>(sp => sp.GetRequiredService<ConversationMarksService>());
         services.AddSingleton<IGenerationExit>(sp => sp.GetRequiredService<GenerationCoordinator>());
         services.AddSingleton<Application.Summaries.ISummaries>(sp => sp.GetRequiredService<Application.Summaries.SummaryService>());
         services.AddSingleton<IReadingState>(sp => sp.GetRequiredService<ReadingStateService>());

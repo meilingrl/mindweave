@@ -84,8 +84,9 @@ public sealed partial class ShellViewModel : ViewModelBase
     [ObservableProperty]
     public partial bool IsSidebarCollapsed { get; private set; }
 
-    /// <summary>The expand button's tooltip also says when a conversation needs attention, since the tree is out of sight.</summary>
-    public string ExpandSidebarHint => Conversations.HasAttention ? UiText.ExpandSidebarAttention : UiText.ExpandSidebarTip;
+    /// <summary>The expand button's tooltip also says when a conversation needs attention or has a new answer, since the tree is out of sight.</summary>
+    public string ExpandSidebarHint =>
+        Conversations.HasAttention ? UiText.ExpandSidebarAttention : Conversations.ShowsUnread ? UiText.ExpandSidebarUnread : UiText.ExpandSidebarTip;
 
     /// <summary>Completes when the last layout change has been written (or failed); tests await it.</summary>
     internal Task SidebarSaving { get; private set; } = Task.CompletedTask;
@@ -235,7 +236,7 @@ public sealed partial class ShellViewModel : ViewModelBase
 
     private void OnConversationsChanged(object? sender, PropertyChangedEventArgs e)
     {
-        if (e.PropertyName == nameof(Conversations.HasAttention))
+        if (e.PropertyName is nameof(Conversations.HasAttention) or nameof(Conversations.ShowsUnread))
         {
             OnPropertyChanged(nameof(ExpandSidebarHint));
         }

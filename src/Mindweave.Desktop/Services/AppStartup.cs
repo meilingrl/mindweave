@@ -1,3 +1,4 @@
+using Mindweave.Application.Conversations;
 using Mindweave.Application.Preferences;
 using Mindweave.Application.Startup;
 using Mindweave.Application.Storage;
@@ -21,6 +22,7 @@ public sealed class AppStartup : IRecoveryActions
     private readonly AppearanceService _appearance;
     private readonly IThemeApplier _theme;
     private readonly StorageHealth _health;
+    private readonly ConversationMarksService _marks;
 
     public AppStartup(
         StartupCoordinator coordinator,
@@ -32,7 +34,8 @@ public sealed class AppStartup : IRecoveryActions
         ExitCoordinator exit,
         AppearanceService appearance,
         IThemeApplier theme,
-        StorageHealth health)
+        StorageHealth health,
+        ConversationMarksService marks)
     {
         _coordinator = coordinator;
         _workspaces = workspaces;
@@ -44,6 +47,7 @@ public sealed class AppStartup : IRecoveryActions
         _appearance = appearance;
         _theme = theme;
         _health = health;
+        _marks = marks;
     }
 
     public async Task RunAsync()
@@ -70,7 +74,7 @@ public sealed class AppStartup : IRecoveryActions
     }
 
     /// <summary>
-    /// The stored appearance and sidebar layout take effect as soon as the database is open; until then (and on the
+    /// The stored appearance, sidebar layout and unread marks take effect as soon as the database is open; until then (and on the
     /// recovery page) the application follows the system. A failed read is not an error worth a page: the defaults stay.
     /// </summary>
     private async Task ApplyPreferencesAsync(StartupOutcome outcome)
@@ -81,6 +85,7 @@ public sealed class AppStartup : IRecoveryActions
         }
 
         await _shell.RestoreSidebarAsync();
+        await _marks.LoadAsync(CancellationToken.None);
 
         try
         {

@@ -85,21 +85,23 @@
           <ItemsControl Name="ConversationList" ItemsSource="{Binding Conversations.Items}">
             <ItemsControl.ItemTemplate>
               <DataTemplate x:DataType="cv:ConversationItemViewModel">
-                <Button Classes="nav" Classes.selected="{Binding IsSelected}" Margin="{Binding Depth, Converter={x:Static v:TreeIndent.Margin}}" Padding="10,5"
+                <Button Classes="nav" Classes.selected="{Binding IsSelected}" Margin="{Binding Depth, Converter={x:Static v:TreeIndent.Margin}}" Padding="10,5" HorizontalContentAlignment="Stretch"
                         Command="{Binding $parent[ItemsControl].((vm:ShellViewModel)DataContext).Conversations.OpenCommand}" CommandParameter="{Binding}">
                   <DockPanel>
                     <!-- A branch: a small corner glyph from its parent's column, so the hierarchy reads at a glance. -->
                     <PathIcon Width="9" Height="9" Margin="-4,0,5,3" Foreground="{DynamicResource TreeGuide}" Data="{StaticResource IconTreeBranch}"
                               IsVisible="{Binding IsBranch}" VerticalAlignment="Center" />
-                    <!-- Light markers (§6.1): running as a small accent dot, needs attention as a small round "!". -->
-                    <Panel DockPanel.Dock="Right" Margin="6,0,0,0" IsVisible="{Binding HasMarker}" Background="Transparent"
+                    <!-- Light markers (§6.1), one at a time: running as a small accent spinner, needs attention as a small
+                         round "!", a new answer as an accent dot. The column keeps its width without one, so titles never shift. -->
+                    <Panel Name="RowMarker" Classes="row-marker" DockPanel.Dock="Right" Background="Transparent"
                            ToolTip.Tip="{Binding MarkerHint}" AutomationProperties.Name="{Binding MarkerHint}">
-                      <Ellipse Classes="running-dot" IsVisible="{Binding IsGenerating}" />
+                      <v:ActivitySpinner Classes="row-spinner" IsVisible="{Binding IsGenerating}" />
                       <Border Classes="attention-badge" IsVisible="{Binding NeedsAttention}">
                         <TextBlock Text="!" />
                       </Border>
+                      <Ellipse Classes="unread-dot" IsVisible="{Binding IsUnread}" />
                     </Panel>
-                    <TextBlock Text="{Binding Title}" TextTrimming="CharacterEllipsis" VerticalAlignment="Center" />
+                    <TextBlock Name="RowTitle" Text="{Binding Title}" TextTrimming="CharacterEllipsis" VerticalAlignment="Center" />
                   </DockPanel>
                 </Button>
               </DataTemplate>
@@ -117,12 +119,13 @@
 
     <DockPanel Name="ContentArea" Grid.Column="1">
       <DockPanel DockPanel.Dock="Top" Margin="24,16,24,6">
-        <!-- Only while the sidebar is collapsed; a small dot when a hidden conversation needs attention. -->
+        <!-- Only while the sidebar is collapsed; a small dot when a hidden conversation needs attention (error colour) or has a new answer (accent). -->
         <Button Name="ExpandSidebar" Classes="quiet sidebar-toggle" Command="{Binding ToggleSidebarCommand}" IsVisible="{Binding IsSidebarCollapsed}"
                 Margin="-8,0,6,0" ToolTip.Tip="{Binding ExpandSidebarHint}" AutomationProperties.Name="{x:Static d:UiText.ExpandSidebar}">
           <Panel>
             <PathIcon Data="{StaticResource IconSidebar}" />
             <Ellipse Name="ExpandSidebarAttention" Classes="sidebar-attention" IsVisible="{Binding Conversations.HasAttention}" />
+            <Ellipse Name="ExpandSidebarUnread" Classes="sidebar-attention unread" IsVisible="{Binding Conversations.ShowsUnread}" />
           </Panel>
         </Button>
         <Button Name="BackButton" Classes="quiet" Command="{Binding GoBackCommand}" IsVisible="{Binding CanGoBack}"
