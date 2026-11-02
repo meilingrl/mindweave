@@ -75,7 +75,7 @@
           <BoxShadows x:Key="FloatingShadow">0 4 14 0 #1F000000</BoxShadows>
           <SolidColorBrush x:Key="TimestampText">#857F79</SolidColorBrush>
           <!-- Round 4 · conversation: marks in the margin for answers with branches -->
-          <SolidColorBrush x:Key="BranchMark">#7C93F7</SolidColorBrush>
+          <SolidColorBrush x:Key="BranchMark">#6A83F6</SolidColorBrush>
           <SolidColorBrush x:Key="BranchMarkHover">#2B47CC</SolidColorBrush>
           <!-- Scroll bars: a faint thin thumb at rest, a little stronger when hovered (Fluent's own keys) -->
           <Color x:Key="ScrollBarPanningThumbBackgroundColor">#33000000</Color>

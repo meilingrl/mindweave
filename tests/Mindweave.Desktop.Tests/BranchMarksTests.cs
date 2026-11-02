@@ -183,6 +183,16 @@ public class BranchMarksTests
         window.Close();
     }
 
+    [AvaloniaFact]
+    public void The_marks_stand_out_from_the_page_in_both_themes()
+    {
+        foreach (var theme in new[] { ThemeVariant.Light, ThemeVariant.Dark })
+        {
+            var ratio = SourceHighlightThemeTests.Contrast(Colour("BranchMark", theme), Colour("WindowBackground", theme));
+            Assert.True(ratio >= 3, $"{theme}: mark on the page is {ratio:0.0}:1");
+        }
+    }
+
     /// <summary>Each mark sits where the scroll thumb's top would be with its answer's branch list at the top of the viewport.</summary>
     private static void AssertPlaced(Window window)
     {
