@@ -573,6 +573,24 @@ public class NetworkCanvasTests
         window.Close();
     }
 
+    [AvaloniaFact]
+    public void The_drag_shadow_is_translucent_in_both_themes()
+    {
+        // A lifted node's shadow is a soft hint, not a solid black crescent: well under half opaque in each theme.
+        var window = new Window();
+        var canvas = new NetworkCanvas();
+        window.Content = canvas;
+        window.Show();
+        foreach (var theme in new[] { ThemeVariant.Light, ThemeVariant.Dark })
+        {
+            window.RequestedThemeVariant = theme;
+            var shadow = Assert.IsAssignableFrom<ISolidColorBrush>(NetworkCanvas.Palette.Resolve(canvas, "NetworkDragShadow"));
+            Assert.InRange(shadow.Color.A, (byte)0x20, (byte)0x70);
+        }
+
+        window.Close();
+    }
+
     /// <summary>The seeded network plus a third child of the root, arranged: one child sits left of the root.</summary>
     private static async Task<NetworkHomeViewModel> SeedThreeChildrenAsync(DesktopHarness app, MainWindow window)
     {

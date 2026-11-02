@@ -46,9 +46,9 @@ public static class UiText
     public static string ExpandSidebarAttention { get; } = ExpandSidebarTip + " · 有会话需要处理";
     public const string ExploreEmpty = "这个工作区还没有会话。";
     public const string NetworkTitle = "总结网络";
-    public const string NetworkEmpty = "还没有总结。在会话页点击“总结此会话”，生成的总结会出现在这里。";
-    public const string LayoutUnsavedTitle = "保存整理过的布局？";
-    public const string LayoutUnsavedBody = "总结网络的布局有改动。不保存只会丢掉这次整理的位置，会话和总结都不受影响。";
+    public const string NetworkEmpty = "还没有总结。在会话中点“总结此会话”即可生成。";
+    public const string LayoutUnsavedTitle = "布局还没有保存";
+    public const string LayoutUnsavedBody = "不保存不会丢失会话或总结，下次按上次保存的位置显示。";
     public const string LayoutSaveAndContinue = "保存并继续";
     public const string LayoutDontSave = "不保存";
     public const string LayoutSaveFailed = "布局保存失败，改动仍保留在当前窗口。";
@@ -75,8 +75,7 @@ public static class UiText
     public const string GraphView = "网络图";
     public const string WheelZooms = "鼠标滚轮直接缩放";
     public const string OpenSummary = "打开总结";
-    public const string NetworkSelectHint = "单击节点查看简要信息，双击打开总结。";
-    public const string NetworkListNote = "按生成顺序列出本工作区的总结，可用键盘操作。";
+    public const string NetworkSelectHint = "单击查看详情，双击打开总结。";
 
     // Network page and markers (S7)
     public const string SaveLayoutUnsaved = "保存布局（未保存）";

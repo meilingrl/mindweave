@@ -14,12 +14,12 @@
     <DockPanel DockPanel.Dock="Top" Margin="0,0,0,10" IsVisible="{Binding !IsEmpty}">
       <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
         <ProgressBar IsIndeterminate="True" Width="40" VerticalAlignment="Center" IsVisible="{Binding IsSaving}" />
-        <!-- Unsaved: the accent button says so. Saved: a quiet status, not a button (nothing to press). -->
+        <!-- Unsaved: the accent button itself says so (its accessible name adds "未保存"). Saved: a quiet status, not a button. -->
         <Button Name="SaveLayoutButton" Classes="primary" Command="{Binding SaveLayoutCommand}" IsVisible="{Binding IsDirty}"
                 ToolTip.Tip="{x:Static d:UiText.SaveLayout}" AutomationProperties.Name="{Binding SaveLayoutLabel}">
           <StackPanel Orientation="Horizontal" Spacing="6">
             <PathIcon Width="14" Height="14" Data="M2,1 H12 L15,4 V15 H1 V1 Z M4,1 V5 H11 V1 Z M3,9 H13 V14 H3 Z" />
-            <TextBlock Name="SaveLayoutText" Text="{Binding SaveLayoutLabel}" VerticalAlignment="Center" />
+            <TextBlock Name="SaveLayoutText" Text="{x:Static d:UiText.SaveLayout}" VerticalAlignment="Center" />
           </StackPanel>
         </Button>
         <StackPanel Name="LayoutSavedStatus" Orientation="Horizontal" Spacing="5" Margin="0,0,4,0" VerticalAlignment="Center" IsVisible="{Binding !IsDirty}"
@@ -122,7 +122,8 @@
             <TextBlock Classes="muted" FontSize="12" TextWrapping="Wrap" Text="{Binding Selected.Created, FallbackValue=''}" />
           </StackPanel>
           <StackPanel Spacing="8">
-            <Button Name="OpenSelectedButton" Classes="primary" HorizontalAlignment="Stretch" HorizontalContentAlignment="Center"
+            <!-- One primary per view: while the layout is unsaved, the accent save button is it and this steps back. -->
+            <Button Name="OpenSelectedButton" Classes.primary="{Binding !IsDirty}" Classes.secondary="{Binding IsDirty}" HorizontalAlignment="Stretch" HorizontalContentAlignment="Center"
                     Content="{x:Static d:UiText.OpenSummary}" Command="{Binding OpenSelectedCommand}" />
             <Button Name="ReturnSelectedButton" Classes="secondary" HorizontalAlignment="Stretch" HorizontalContentAlignment="Center"
                     Content="{x:Static d:UiText.ReturnToConversation}" Command="{Binding ReturnToConversationCommand}" />
@@ -162,7 +163,6 @@
       </Border>
       <ScrollViewer IsVisible="{Binding IsListView}">
         <StackPanel Spacing="8">
-          <TextBlock Classes="muted" FontSize="12" TextWrapping="Wrap" Text="{x:Static d:UiText.NetworkListNote}" IsVisible="{Binding !IsEmpty}" />
           <ItemsControl Name="SummaryList" ItemsSource="{Binding Items}">
             <ItemsControl.ItemTemplate>
               <DataTemplate x:DataType="vm:SummaryListItem">

@@ -1,5 +1,8 @@
+using Avalonia;
 using Avalonia.Controls;
+using Avalonia.Headless;
 using Avalonia.Headless.XUnit;
+using Avalonia.Input;
 using Avalonia.Styling;
 using Avalonia.Threading;
 using Avalonia.VisualTree;
@@ -378,6 +381,37 @@ public class GalleryTests
         await SettleAsync(window);
         Capture(window, "g16-layout-leave-prompt");
         scene.App.Root.LayoutPrompt.DontSaveCommand.Execute(null);
+        window.Close();
+    }
+
+    /// <summary>Round 3: a node lifted mid-drag (g16a), then dropped, leaving the layout unsaved (g16b).</summary>
+    [AvaloniaFact]
+    public async Task G16a_network_node_drag()
+    {
+        await using var scene = Scene.Create("g16a");
+        var window = Show(scene.App);
+        var seed = await SeedAsync(scene.App, summaries: true);
+        var network = await NetworkUiTests.OpenNetworkAsync(scene.App, window);
+        await SettleAsync(window);
+        var canvas = window.GetVisualDescendants().OfType<NetworkCanvas>().Single();
+        var node = network.Nodes.Single(n => n.Id == seed.Nodes[seed.Gauge]);
+        var start = canvas.ToScreen(node.X, node.Y);
+        Point InWindow(Point p) => canvas.TranslatePoint(p, window)!.Value;
+
+        window.MouseMove(InWindow(start));
+        window.MouseDown(InWindow(start), MouseButton.Left);
+        window.MouseMove(InWindow(start + new Vector(-20, 40)));
+        window.MouseMove(InWindow(start + new Vector(-40, 85)));
+        Assert.Equal(node.Id, canvas.Dragging);
+        await SettleAsync(window);
+        Capture(window, "g16a-network-node-dragging");
+
+        window.MouseUp(InWindow(start + new Vector(-40, 85)), MouseButton.Left);
+        window.MouseMove(InWindow(start + new Vector(260, 200)));
+        Assert.True(network.IsDirty);
+        await SettleAsync(window);
+        Capture(window, "g16b-network-dragged-unsaved");
+        network.Session.DiscardChanges();
         window.Close();
     }
 
