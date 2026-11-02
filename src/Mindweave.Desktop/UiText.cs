@@ -17,9 +17,11 @@ public static class UiText
 {
     public const string AppName = "Mindweave";
     public const string StartupOpening = "正在打开数据…";
-    public const string OnboardingHeading = "新建一个主题工作区";
-    public const string OnboardingBody = "工作区按主题组织一次或一类探索中的会话与总结。之后可以随时新建或切换。";
+    public const string OnboardingHeading = "欢迎使用 Mindweave";
+    public const string OnboardingBody = "先建一个主题工作区，这个主题下的会话与总结都放在这里。";
+    public const string CreateWorkspace = "创建工作区";
     public const string WorkspaceNameWatermark = "例如：火车历史";
+    public const string WorkspaceNameLabel = "工作区名称";
     public const string Create = "创建";
     public const string Cancel = "取消";
     public const string NewWorkspace = "新建工作区";
@@ -92,7 +94,30 @@ public static class UiText
     public const string AppearanceFollowSystem = "跟随系统";
     public const string AppearanceLight = "浅色";
     public const string AppearanceDark = "深色";
-    public const string AppearanceHint = "立即生效。“跟随系统”随操作系统的浅色或深色设置变化。";
+    public const string ThemeLabel = "主题";
+
+    // Settings pages (S7 round 3): presets fill the address; hints only where the page cannot show it otherwise.
+    public const string ProviderLabel = "服务商";
+    public const string ProviderPlaceholder = "选择服务商";
+    public const string ProviderDashScope = "阿里云百炼（通义）";
+    public const string ProviderMoonshot = "Moonshot（Kimi）";
+    public const string ProviderZhipu = "智谱 GLM";
+    public const string ProviderSiliconFlow = "硅基流动";
+    public const string ProviderOllama = "Ollama（本机）";
+    public const string ProviderCustom = "自定义";
+    public const string BaseUrlPlaceholder = "https://…/v1";
+    public const string KeySavedPlaceholder = "已保存，留空则继续使用";
+    public const string KeyMissingPlaceholder = "尚未保存";
+    public const string KeyOtherServicePlaceholder = "请填写此服务的密钥";
+    public const string OllamaKeyPlaceholder = "本机服务不校验，可填任意内容";
+    public const string ConnectionNamePlaceholder = "可选";
+    public const string ModelPlaceholder = "选择或输入模型名称";
+    public const string ShowModels = "显示模型列表";
+    public const string TokensUnit = "token";
+    public const string DataSection = "数据";
+    public const string LocationSection = "位置";
+    public const string OpenFolder = "打开";
+    public const string NoBackupsShort = "暂无。数据升级前会自动备份。";
     public const string AppearanceSaveFailed = "外观设置未能保存，本次运行中仍然有效。";
 
     // Summaries (S4)
@@ -156,13 +181,11 @@ public static class UiText
     public const string ConversationDeleted = "这个会话已被删除。";
     public const string SettingsTitle = "设置";
     public const string StorageTitle = "数据与存储";
-    public const string StorageDetailsLink = "数据与存储…";
+    public const string StorageDetailsLink = "数据与存储";
     public const string DataDirectoryLabel = "数据目录";
     public const string DatabaseLabel = "数据库";
     public const string SchemaVersionLabel = "数据结构版本";
     public const string BackupsLabel = "升级前备份";
-    public const string NoBackups = "暂无备份。只有在数据需要升级时才会自动备份。";
-    public const string AppVersionLabel = "版本";
     public const string ChannelLabel = "数据通道";
     public const string OpenDataFolder = "打开数据位置";
     public const string Retry = "重试";
@@ -190,24 +213,22 @@ public static class UiText
     public const string BranchFrom = "来自";
     public const string BranchesHeading = "从这里分出的探索";
     public const string ModelSection = "模型连接";
-    public const string ConnectionNameLabel = "名称（可选）";
+    public const string ConnectionNameLabel = "名称";
     public const string BaseUrlLabel = "服务地址";
-    public const string BaseUrlHint = "OpenAI 兼容 Chat Completions 地址，通常以 /v1 结尾，例如 https://api.deepseek.com";
     public const string ApiKeyLabel = "API 密钥";
     public const string ContextWindowLabel = "上下文容量";
     public const string ContextWindowPlaceholder = "留空按 32000 计";
-    public const string ContextWindowHint = "模型一次能读入的 token 数，例如 DeepSeek 为 128000。对话超出时，较早的内容会先压缩成摘要再发送：这会多发几次请求、多等一会儿，也会产生相应费用；原始记录始终完整保留在本地。";
+    public const string ContextWindowHint = "对话超出时，较早的内容先压缩成摘要再发送，会多几次请求、多些等待与费用；原始记录完整保留。";
     public const string WaitingForAnswer = "正在等待回答…";
     public const string AnswerStreaming = "正在生成…";
     public const string CompressingContext = "正在压缩较早的对话…";
     public const string ContextCompressedNote = "较早的对话已压缩为摘要发送，原记录完整保留";
     public const string ModelLabel = "模型";
-    public const string FetchModels = "获取模型列表";
+    public const string FetchModels = "获取列表";
     public const string TestConnection = "测试连接";
-    public const string TestCostHint = "测试会发出一次很短的真实请求，可能产生少量费用。获取模型列表不生成内容。";
-    public const string PrivacyHint = "提问及会话内容会发送到上面配置的服务。密钥保存在系统钥匙串／凭据管理器中，不写入数据文件。";
-    public const string KeySavedHint = "已保存密钥。留空表示继续使用；填写则替换。";
-    public const string KeyMissingHint = "尚未保存密钥。";
+    public const string TestCostHint = "可能产生少量费用";
+    public const string TestCostTip = "发出一次很短的真实请求。获取模型列表不生成内容。";
+    public const string PrivacyHint = "提问与会话内容会发送到此服务；密钥只存于系统钥匙串／凭据管理器。";
     public const string SettingsSaved = "已保存。新的提问将使用此配置；正在进行的回答不受影响。";
     public const string NoModelsFound = "服务没有返回模型，可以直接手动填写模型名称。";
     public const string TestSucceeded = "连接正常。";
@@ -404,6 +425,12 @@ public static class UiText
     }
 
     public const string DataLocation = "数据位置";
+    /// <summary>A file size for reading: KB below one megabyte, MB with one decimal above.</summary>
+    public static string FormatSize(long bytes) => bytes < 1024 * 1024
+        ? string.Format(CultureInfo.CurrentCulture, "{0:N0} KB", Math.Max(1, (bytes + 1023) / 1024))
+        : string.Format(CultureInfo.CurrentCulture, "{0:N1} MB", bytes / (1024.0 * 1024.0));
+
+    public static string SchemaVersionBadge(int version) => string.Format(CultureInfo.CurrentCulture, "结构版本 {0}", version);
 
     public static string FormatBackup(BackupInfo backup)
     {

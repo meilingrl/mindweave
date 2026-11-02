@@ -4,12 +4,16 @@
              xmlns:d="using:Mindweave.Desktop"
              x:Class="Mindweave.Desktop.Views.OnboardingView"
              x:DataType="vm:OnboardingViewModel">
-  <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center" Width="420" Spacing="14">
-    <TextBlock Classes="h1" Text="{x:Static d:UiText.OnboardingHeading}" />
-    <TextBlock Classes="muted" TextWrapping="Wrap" Text="{x:Static d:UiText.OnboardingBody}" />
+  <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center" Width="380" Margin="0,0,0,40">
+    <Border Width="44" Height="44" CornerRadius="12" HorizontalAlignment="Left" Background="{DynamicResource BadgeAccentBackground}">
+      <PathIcon Width="20" Height="20" Data="{StaticResource IconNetwork}" Foreground="{DynamicResource AccentBrush}" />
+    </Border>
+    <TextBlock Classes="h1" Margin="0,18,0,6" Text="{x:Static d:UiText.OnboardingHeading}" />
+    <TextBlock Classes="muted" TextWrapping="Wrap" Margin="0,0,0,22" Text="{x:Static d:UiText.OnboardingBody}" />
     <TextBox Name="NameBox" Text="{Binding Form.Name}" PlaceholderText="{x:Static d:UiText.WorkspaceNameWatermark}"
-             AutomationProperties.Name="工作区名称" />
-    <TextBlock Classes="error" Text="{Binding Form.Error}" IsVisible="{Binding Form.Error, Converter={x:Static ObjectConverters.IsNotNull}}" TextWrapping="Wrap" />
-    <Button Name="CreateButton" Content="{x:Static d:UiText.Create}" Command="{Binding Form.SubmitCommand}" IsDefault="True" HorizontalAlignment="Right" />
+             AutomationProperties.Name="{x:Static d:UiText.WorkspaceNameLabel}" />
+    <TextBlock Classes="error" Margin="0,8,0,0" Text="{Binding Form.Error}" IsVisible="{Binding Form.Error, Converter={x:Static ObjectConverters.IsNotNull}}" TextWrapping="Wrap" />
+    <Button Name="CreateButton" Classes="primary" Margin="0,14,0,0" Padding="14,8" HorizontalAlignment="Stretch" HorizontalContentAlignment="Center"
+            Content="{x:Static d:UiText.CreateWorkspace}" Command="{Binding Form.SubmitCommand}" IsDefault="True" />
   </StackPanel>
 </UserControl>

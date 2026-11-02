@@ -27,6 +27,18 @@ public sealed class ModelSettingsException(ModelSettingsProblem problem) : Excep
     public ModelSettingsProblem Problem { get; } = problem;
 }
 
+/// <summary>
+/// A saved key is only ever sent to the service it was saved for. Same service means same scheme, host and port; a
+/// different path on the same host (another API version) is the same service.
+/// </summary>
+public static class ServiceAddress
+{
+    public static bool SameService(string? savedBaseUrl, string? baseUrl) =>
+        Uri.TryCreate((savedBaseUrl ?? string.Empty).Trim(), UriKind.Absolute, out var saved)
+        && Uri.TryCreate((baseUrl ?? string.Empty).Trim(), UriKind.Absolute, out var current)
+        && Uri.Compare(saved, current, UriComponents.SchemeAndServer, UriFormat.Unescaped, StringComparison.OrdinalIgnoreCase) == 0;
+}
+
 public sealed record ConnectionTestResult(bool Succeeded, Mindweave.Core.Conversations.GenerationErrorKind? Error, string? Detail);
 
 /// <summary>
@@ -72,16 +84,17 @@ public sealed partial class ModelSettingsService(
 
         var existing = await store.GetActiveAsync(cancellationToken).ConfigureAwait(false);
         var connectionId = existing?.ConnectionId ?? Guid.CreateVersion7().ToString("D");
-        var credentialRef = existing?.CredentialRef;
+        // A saved key belongs to the service it was saved for: another host needs its own key.
+        var credentialRef = existing is not null && ServiceAddress.SameService(existing.BaseUrl, baseUrl) ? existing.CredentialRef : null;
         var retired = (await store.RetiredCredentialRefsAsync(cancellationToken).ConfigureAwait(false)).ToList();
 
         if (!string.IsNullOrWhiteSpace(input.NewApiKey))
         {
             var newRef = $"{connectionId}/{Guid.CreateVersion7():D}";
             await credentials.WriteAsync(newRef, input.NewApiKey.Trim(), cancellationToken).ConfigureAwait(false);
-            if (credentialRef is not null)
+            if (existing?.CredentialRef is { } replaced)
             {
-                retired.Add(credentialRef);
+                retired.Add(replaced);
             }
 
             credentialRef = newRef;
@@ -149,11 +162,15 @@ public sealed partial class ModelSettingsService(
         await store.SetRetiredCredentialRefsAsync(keep, cancellationToken).ConfigureAwait(false);
     }
 
-    /// <summary>Lists models with the typed key, or with the saved key when none is typed. Not a generation request.</summary>
+    /// <summary>
+    /// Lists models with the typed key, or with the saved key when none is typed and the address is the saved service's.
+    /// Not a generation request.
+    /// </summary>
     public async Task<IReadOnlyList<string>> DiscoverModelsAsync(string baseUrl, string? typedKey, CancellationToken cancellationToken)
     {
-        var key = await KeyForAsync(typedKey, cancellationToken).ConfigureAwait(false);
-        return await client.ListModelsAsync(NormalizeBaseUrl(baseUrl), key, cancellationToken).ConfigureAwait(false);
+        var normalized = NormalizeBaseUrl(baseUrl);
+        var key = await KeyForAsync(normalized, typedKey, cancellationToken).ConfigureAwait(false);
+        return await client.ListModelsAsync(normalized, key, cancellationToken).ConfigureAwait(false);
     }
 
     /// <summary>Explicit connection test: one very short generation, which the provider may bill.</summary>
@@ -161,8 +178,9 @@ public sealed partial class ModelSettingsService(
     {
         try
         {
-            var key = await KeyForAsync(typedKey, cancellationToken).ConfigureAwait(false);
-            var snapshot = new ModelSnapshot("connection-test", NormalizeBaseUrl(baseUrl), ChatProtocol.ChatCompletions, model.Trim(), "connection-test", MaxOutputTokens: 16, ModelCapabilities.DefaultsFor(ChatProtocol.ChatCompletions));
+            var normalized = NormalizeBaseUrl(baseUrl);
+            var key = await KeyForAsync(normalized, typedKey, cancellationToken).ConfigureAwait(false);
+            var snapshot = new ModelSnapshot("connection-test", normalized, ChatProtocol.ChatCompletions, model.Trim(), "connection-test", MaxOutputTokens: 16, ModelCapabilities.DefaultsFor(ChatProtocol.ChatCompletions));
             var request = new ChatRequest(snapshot, [new ChatTurn(ChatRole.User, "Reply with the single word OK.")]);
             await foreach (var item in client.StreamAsync(request, key, cancellationToken).ConfigureAwait(false))
             {
@@ -200,7 +218,7 @@ public sealed partial class ModelSettingsService(
         return uri.GetLeftPart(UriPartial.Path).TrimEnd('/');
     }
 
-    private async Task<string> KeyForAsync(string? typedKey, CancellationToken cancellationToken)
+    private async Task<string> KeyForAsync(string normalizedBaseUrl, string? typedKey, CancellationToken cancellationToken)
     {
         if (!string.IsNullOrWhiteSpace(typedKey))
         {
@@ -208,6 +226,11 @@ public sealed partial class ModelSettingsService(
         }
 
         var saved = await store.GetActiveAsync(cancellationToken).ConfigureAwait(false);
+        if (saved is not null && !ServiceAddress.SameService(saved.BaseUrl, normalizedBaseUrl))
+        {
+            throw new ModelSettingsException(ModelSettingsProblem.MissingKey);
+        }
+
         var key = saved is null ? null : await credentials.ReadAsync(saved.CredentialRef, cancellationToken).ConfigureAwait(false);
         return key ?? throw new ModelSettingsException(ModelSettingsProblem.MissingKey);
     }

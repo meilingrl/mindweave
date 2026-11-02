@@ -4,17 +4,26 @@ using CommunityToolkit.Mvvm.Input;
 using Mindweave.Application.Ai;
 using Mindweave.Application.Credentials;
 using Mindweave.Application.Models;
+using Mindweave.Application.Storage;
 
 namespace Mindweave.Desktop.ViewModels.Pages;
 
 /// <summary>
 /// The single active connection and model. The key field is write-only: a saved key is never shown again,
 /// and leaving the field empty keeps it. Fetching models and the (possibly billed) test are separate,
-/// explicit actions.
+/// explicit actions. A provider preset fills the address; the fetched models are offered as suggestions under the
+/// model field, which still takes any typed name. The saved key belongs to the saved service: once the address points
+/// at another host the key field asks for that service's key (the service refuses to send the old one there too).
 /// </summary>
 public sealed partial class ModelSettingsViewModel : ViewModelBase
 {
     private readonly IModelSettings _settings;
+    private bool _applyingPreset;
+    private bool _settingModel;
+    private ModelSettings? _saved;
+
+    /// <summary>The address the fetched models came from; a different host drops them.</summary>
+    private string? _modelsFrom;
 
     public ModelSettingsViewModel(IModelSettings settings)
     {
@@ -28,7 +37,18 @@ public sealed partial class ModelSettingsViewModel : ViewModelBase
     public partial string Name { get; set; } = string.Empty;
 
     [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(KeyPlaceholder), nameof(SavedKeyApplies))]
     public partial string BaseUrl { get; set; } = string.Empty;
+
+    public IReadOnlyList<ProviderPreset> Providers { get; } = ProviderPresets.All;
+
+    /// <summary>
+    /// The preset matching the address, <see cref="ProviderPresets.Custom"/> for any other address, null while the
+    /// address is empty. Choosing a preset fills its address; editing the address re-matches it.
+    /// </summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(KeyPlaceholder))]
+    public partial ProviderPreset? SelectedProvider { get; set; }
 
     [ObservableProperty]
     public partial string ApiKey { get; set; } = string.Empty;
@@ -41,12 +61,28 @@ public sealed partial class ModelSettingsViewModel : ViewModelBase
     public partial string ContextWindow { get; set; } = string.Empty;
 
     [ObservableProperty]
-    [NotifyPropertyChangedFor(nameof(KeyHint))]
+    [NotifyPropertyChangedFor(nameof(KeyPlaceholder), nameof(SavedKeyApplies))]
     public partial bool HasSavedKey { get; private set; }
 
-    public string KeyHint => HasSavedKey ? UiText.KeySavedHint : UiText.KeyMissingHint;
+    /// <summary>A key is saved and the address is still the service it was saved for, so an empty key field keeps it.</summary>
+    public bool SavedKeyApplies => HasSavedKey && ServiceAddress.SameService(_saved?.BaseUrl, BaseUrl);
 
+    /// <summary>
+    /// Shown inside the empty key field: a saved key that still applies (leaving it empty keeps it), the key another
+    /// service needs, or what the preset needs.
+    /// </summary>
+    public string KeyPlaceholder =>
+        SavedKeyApplies ? UiText.KeySavedPlaceholder
+        : SelectedProvider?.KeyPlaceholder ?? (HasSavedKey ? UiText.KeyOtherServicePlaceholder : UiText.KeyMissingPlaceholder);
+
+    /// <summary>Every model the service listed at the last fetch.</summary>
     public ObservableCollection<string> AvailableModels { get; } = [];
+
+    /// <summary>The fetched models shown under the model field: all of them when the list opens, narrowed while typing.</summary>
+    public ObservableCollection<string> ModelSuggestions { get; } = [];
+
+    [ObservableProperty]
+    public partial bool IsModelListOpen { get; set; }
 
     [ObservableProperty]
     public partial string? Status { get; private set; }
@@ -71,6 +107,7 @@ public sealed partial class ModelSettingsViewModel : ViewModelBase
     private Task DiscoverAsync() => RunAsync(async () =>
     {
         var models = await _settings.DiscoverModelsAsync(BaseUrl, ApiKey, CancellationToken.None);
+        _modelsFrom = BaseUrl;
         AvailableModels.Clear();
         foreach (var model in models)
         {
@@ -78,7 +115,116 @@ public sealed partial class ModelSettingsViewModel : ViewModelBase
         }
 
         Report(models.Count == 0 ? UiText.NoModelsFound : UiText.ModelsFound(models.Count), isError: models.Count == 0);
+
+        // Show what was found at once, whatever is already typed; typing narrows it from here.
+        OpenModelList();
     });
+
+    /// <summary>Opens the suggestions with every fetched model (on fetch, focus, click or the field's arrow).</summary>
+    public void OpenModelList()
+    {
+        Suggest(AvailableModels);
+        IsModelListOpen = ModelSuggestions.Count > 0;
+    }
+
+    [RelayCommand]
+    private void ChooseModel(string? model)
+    {
+        if (model is null)
+        {
+            return;
+        }
+
+        _settingModel = true;
+        Model = model;
+        _settingModel = false;
+        IsModelListOpen = false;
+    }
+
+    partial void OnModelChanged(string value)
+    {
+        if (_settingModel || AvailableModels.Count == 0)
+        {
+            return;
+        }
+
+        // Typed text narrows the suggestions; a name that matches none is kept as typed and the list closes.
+        var typed = value.Trim();
+        Suggest(typed.Length == 0 ? AvailableModels : AvailableModels.Where(m => m.Contains(typed, StringComparison.OrdinalIgnoreCase)));
+        IsModelListOpen = ModelSuggestions.Count > 0 && !(ModelSuggestions.Count == 1 && ModelSuggestions[0] == typed);
+    }
+
+    partial void OnBaseUrlChanged(string value)
+    {
+        // Models fetched from another host do not belong to this one, however the address changed.
+        if (_modelsFrom is not null && !ServiceAddress.SameService(_modelsFrom, value))
+        {
+            DropModels();
+        }
+
+        if (!_applyingPreset)
+        {
+            SelectedProvider = value.Trim().Length == 0 ? null : ProviderPresets.Match(value) ?? ProviderPresets.Custom;
+        }
+    }
+
+    private void DropModels()
+    {
+        _modelsFrom = null;
+        AvailableModels.Clear();
+        ModelSuggestions.Clear();
+        IsModelListOpen = false;
+    }
+
+    partial void OnSelectedProviderChanged(ProviderPreset? value)
+    {
+        if (value?.BaseUrl is not { } url || ProviderPresets.Match(BaseUrl) == value)
+        {
+            return;
+        }
+
+        // A name that was empty, another preset's name or the old address's host (the saved default) follows the preset.
+        var trimmed = Name.Trim();
+        var followsPreset = trimmed.Length == 0 || ProviderPresets.All.Any(p => p.Name == trimmed)
+            || (Uri.TryCreate(BaseUrl.Trim(), UriKind.Absolute, out var old) && string.Equals(old.Host, trimmed, StringComparison.OrdinalIgnoreCase));
+
+        // Only a real address of another host counts; filling an empty field keeps whatever was typed beside it.
+        var otherService = Uri.TryCreate(BaseUrl.Trim(), UriKind.Absolute, out _) && !ServiceAddress.SameService(BaseUrl, url);
+        _applyingPreset = true;
+        BaseUrl = url;
+        _applyingPreset = false;
+
+        DropModels();
+        if (followsPreset)
+        {
+            Name = value.Name;
+        }
+
+        if (otherService)
+        {
+            // A typed key and a model name belong to the service they were typed for; the saved model comes back when
+            // the preset returns to the saved service.
+            ApiKey = string.Empty;
+            _settingModel = true;
+            Model = _saved is not null && ServiceAddress.SameService(_saved.BaseUrl, url) ? _saved.Model : string.Empty;
+            _settingModel = false;
+        }
+    }
+
+    private void Suggest(IEnumerable<string> models)
+    {
+        var list = models.ToList();
+        if (list.SequenceEqual(ModelSuggestions))
+        {
+            return;
+        }
+
+        ModelSuggestions.Clear();
+        foreach (var model in list)
+        {
+            ModelSuggestions.Add(model);
+        }
+    }
 
     [RelayCommand(CanExecute = nameof(IsIdle))]
     private Task TestAsync() => RunAsync(async () =>
@@ -97,11 +243,16 @@ public sealed partial class ModelSettingsViewModel : ViewModelBase
             return;
         }
 
+        _saved = saved;
         Name = saved.ConnectionName;
         BaseUrl = saved.BaseUrl;
+        _settingModel = true;
         Model = saved.Model;
+        _settingModel = false;
         ContextWindow = saved.Capabilities.ContextWindowTokens?.ToString(System.Globalization.CultureInfo.InvariantCulture) ?? string.Empty;
         HasSavedKey = true;
+        OnPropertyChanged(nameof(SavedKeyApplies));
+        OnPropertyChanged(nameof(KeyPlaceholder));
     }
 
     private static int? ParseContextWindow(string text)

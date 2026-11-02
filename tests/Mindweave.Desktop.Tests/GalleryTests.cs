@@ -516,6 +516,63 @@ public class GalleryTests
         window.Close();
     }
 
+    // S7 round 3 · settings: the provider presets, the fetched model list, the storage page with backups.
+
+    [AvaloniaFact]
+    public async Task G25_settings_model_list_after_fetching()
+    {
+        await using var scene = Scene.Create("g25");
+        var window = Show(scene.App);
+        await SeedAsync(scene.App);
+        scene.App.Client.Models = ["deepseek-chat", "deepseek-reasoner", "deepseek-flash", "deepseek-coder"];
+        await scene.App.Services.GetRequiredService<Application.Models.IModelSettings>().SaveAsync(
+            new Application.Models.ModelSettingsInput("DeepSeek", "https://api.deepseek.com", "deepseek-chat", "sk-gallery", 128_000), CancellationToken.None);
+        scene.App.ShellPage.ShowSectionCommand.Execute(MainSection.Settings);
+        var settings = Assert.IsType<SettingsHomeViewModel>(scene.App.Workbench.CurrentPage);
+        await settings.Model.Loaded;
+        await SettleAsync(window);
+        await settings.Model.DiscoverCommand.ExecuteAsync(null);
+        Assert.True(settings.Model.IsModelListOpen);
+        await SettleAsync(window);
+        Capture(window, "g25-settings-model-list");
+        window.Close();
+    }
+
+    [AvaloniaFact]
+    public async Task G26_settings_provider_presets()
+    {
+        await using var scene = Scene.Create("g26");
+        var window = Show(scene.App);
+        await SeedAsync(scene.App);
+        scene.App.ShellPage.ShowSectionCommand.Execute(MainSection.Settings);
+        await SettleAsync(window);
+        Find<ComboBox>(window, "ProviderPicker").IsDropDownOpen = true;
+        await SettleAsync(window);
+        Capture(window, "g26-settings-provider-presets");
+        window.Close();
+    }
+
+    [AvaloniaFact]
+    public async Task G27_storage_details_with_backups()
+    {
+        await using var scene = Scene.Create("g27");
+        var window = Show(scene.App);
+        await SeedAsync(scene.App);
+        var backups = Path.Combine(Scene.Directory("g27"), "backups");
+        System.IO.Directory.CreateDirectory(backups);
+        await File.WriteAllBytesAsync(Path.Combine(backups, "mindweave-v7-20260301T081500000Z.db"), new byte[412 * 1024]);
+        await File.WriteAllBytesAsync(Path.Combine(backups, "mindweave-v6-20260212T193000000Z.db"), new byte[(int)(2.4 * 1024 * 1024)]);
+        scene.App.ShellPage.ShowSectionCommand.Execute(MainSection.Settings);
+        await SettleAsync(window);
+        var details = Find<Button>(window, "StorageDetailsButton");
+        details.Command!.Execute(details.CommandParameter);
+        var page = Assert.IsType<StorageDetailsViewModel>(scene.App.Workbench.CurrentPage);
+        Assert.Equal(2, page.Backups.Count);
+        await SettleAsync(window);
+        Capture(window, "g27-storage-backups");
+        window.Close();
+    }
+
     [AvaloniaFact]
     public async Task G24_recovery_after_a_failed_upgrade()
     {

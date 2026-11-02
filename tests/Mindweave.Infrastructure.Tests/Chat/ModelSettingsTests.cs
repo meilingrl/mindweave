@@ -49,6 +49,34 @@ public class ModelSettingsTests
     }
 
     [Fact]
+    public async Task A_saved_key_is_never_sent_to_another_host_by_fetching_testing_or_saving()
+    {
+        await using var h = await ChatHarness.StartAsync(configure: false);
+        await h.Models.SaveAsync(new ModelSettingsInput("", "https://api.deepseek.com", "deepseek-chat", "sk-deepseek"), Ct);
+        var saved = (await h.Models.GetAsync(Ct))!;
+
+        // Another vendor's address with the key field left empty: refused before anything is sent.
+        var fetch = await Assert.ThrowsAsync<ModelSettingsException>(() => h.Models.DiscoverModelsAsync("https://api.openai.com/v1", null, Ct));
+        var test = await Assert.ThrowsAsync<ModelSettingsException>(() => h.Models.TestAsync("https://api.openai.com/v1", "gpt", " ", Ct));
+        var save = await Assert.ThrowsAsync<ModelSettingsException>(() => h.Models.SaveAsync(new ModelSettingsInput("OpenAI", "https://api.openai.com/v1", "gpt", null), Ct));
+        Assert.All([fetch, test, save], e => Assert.Equal(ModelSettingsProblem.MissingKey, e.Problem));
+        Assert.Empty(h.Client.KeysSent);
+        Assert.Equal(saved, await h.Models.GetAsync(Ct));
+
+        // Another port on the same machine is another service too.
+        await Assert.ThrowsAsync<ModelSettingsException>(() => h.Models.DiscoverModelsAsync("https://api.deepseek.com:8443", null, Ct));
+        Assert.Empty(h.Client.KeysSent);
+
+        // The same host (another path, other letter case) is the same service and keeps the saved key.
+        await h.Models.DiscoverModelsAsync("https://API.deepseek.com/v1", null, Ct);
+        Assert.Equal(("https://API.deepseek.com/v1".ToLowerInvariant(), "sk-deepseek"), Assert.Single(h.Client.KeysSent));
+
+        // With the new vendor's own key, saving works and the old key is retired.
+        await h.Models.SaveAsync(new ModelSettingsInput("OpenAI", "https://api.openai.com/v1", "gpt", "sk-openai"), Ct);
+        Assert.Equal("sk-openai", Assert.Single(h.Credentials.Items).Value);
+    }
+
+    [Fact]
     public async Task A_replaced_key_is_kept_while_an_unfinished_task_uses_it_then_deleted()
     {
         await using var h = await ChatHarness.StartAsync();
