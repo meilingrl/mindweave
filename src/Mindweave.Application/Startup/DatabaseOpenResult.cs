@@ -53,6 +53,12 @@ public interface IDatabaseBackup
     /// the copy could not be made or failed its check; nothing is left behind then.
     /// </summary>
     Task<string> BackupAsync(BackupReason reason, CancellationToken cancellationToken);
+
+    /// <summary>
+    /// Removes a backup made by <see cref="BackupAsync"/> that turned out not to be needed (the delete it was made for
+    /// was refused after all). Best effort: a file that cannot be removed is left and logged.
+    /// </summary>
+    void Discard(string path);
 }
 
 /// <summary>Opening, migrating and restoring the local database. Implemented by Infrastructure.</summary>

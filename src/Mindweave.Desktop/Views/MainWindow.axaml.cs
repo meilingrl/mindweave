@@ -6,7 +6,29 @@ public sealed partial class MainWindow : Window
 {
     private ViewModels.WorkspaceDeletionViewModel? _deletion;
 
-    public MainWindow() => InitializeComponent();
+    public MainWindow()
+    {
+        InitializeComponent();
+        WorkspaceDeleteName.AddHandler(KeyDownEvent, OnDeleteNameKeyDown, Avalonia.Interactivity.RoutingStrategies.Tunnel);
+    }
+
+    /// <summary>
+    /// Enter in the name box finishes the typed confirmation: it deletes once the name matches and otherwise does
+    /// nothing, so the default 取消 applies only with focus elsewhere and never throws the typed name away (round 4 review).
+    /// </summary>
+    private void OnDeleteNameKeyDown(object? sender, Avalonia.Input.KeyEventArgs e)
+    {
+        if (e.Key != Avalonia.Input.Key.Enter || e.KeyModifiers != Avalonia.Input.KeyModifiers.None)
+        {
+            return;
+        }
+
+        e.Handled = true;
+        if (_deletion?.DeleteCommand is { } delete && delete.CanExecute(null))
+        {
+            delete.Execute(null);
+        }
+    }
 
     /// <summary>The delete-a-workspace dialog puts the caret in its name box when it opens (Round 4 · topic-delete).</summary>
     protected override void OnDataContextChanged(EventArgs e)

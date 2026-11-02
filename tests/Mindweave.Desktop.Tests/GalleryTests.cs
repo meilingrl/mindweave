@@ -779,6 +779,8 @@ public class GalleryTests
         scene.App.ShellPage.DeleteWorkspaceCommand.Execute(null);
         await dialog.Loading;
         Assert.NotNull(dialog.Problem);
+        dialog.TypedName = "火车历史"; // the exact name, yet 删除 stays disabled while the notice stands
+        Assert.False(dialog.CanDelete);
         await SettleAsync(window);
         Capture(window, "g33b-delete-workspace-refused");
 

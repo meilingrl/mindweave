@@ -7,6 +7,7 @@ using Mindweave.Application.Workspaces;
 using Mindweave.Core.Workspaces;
 using Mindweave.Desktop.Navigation;
 using Mindweave.Desktop.Network;
+using Mindweave.Desktop.Services;
 
 namespace Mindweave.Desktop.ViewModels;
 
@@ -36,15 +37,31 @@ public sealed partial class WorkspaceDeletionViewModel : ViewModelBase
     private readonly IConversations _conversations;
     private readonly Workbench _workbench;
     private readonly NetworkSessions _networks;
+    private readonly UiThrottle _recheck;
+    private readonly SerialRefresh _rechecks;
+    private volatile bool _watching;
 
-    public WorkspaceDeletionViewModel(IWorkspaceDeletion deletion, IConversations conversations, Workbench workbench, NetworkSessions networks, WorkspaceDeletionRequests requests)
+    public WorkspaceDeletionViewModel(IWorkspaceDeletion deletion, IConversations conversations, Workbench workbench, NetworkSessions networks, WorkspaceDeletionRequests requests, IUiDispatcher dispatcher)
     {
         ArgumentNullException.ThrowIfNull(requests);
+        ArgumentNullException.ThrowIfNull(conversations);
         _deletion = deletion;
         _conversations = conversations;
         _workbench = workbench;
         _networks = networks;
         requests.Requested += (_, workspace) => Open(workspace);
+
+        // While the dialog is open, an answer or summary starting or finishing re-checks what runs (round 4 review):
+        // the refusal goes as soon as the work is done, and comes up when work starts with the dialog open.
+        _rechecks = new SerialRefresh(RecheckAsync);
+        _recheck = new UiThrottle(dispatcher, TimeSpan.FromMilliseconds(100), () => Loading = _rechecks.Request());
+        conversations.ActivityChanged += (_, _) =>
+        {
+            if (_watching)
+            {
+                _recheck.Request();
+            }
+        };
     }
 
     /// <summary>No workspace is left after a delete: the first-workspace flow takes over.</summary>
@@ -73,21 +90,27 @@ public sealed partial class WorkspaceDeletionViewModel : ViewModelBase
     [NotifyCanExecuteChangedFor(nameof(DeleteCommand))]
     public partial string TypedName { get; set; } = string.Empty;
 
-    /// <summary>Why nothing was (or would now be) deleted: running work, paused storage or a failed backup.</summary>
+    /// <summary>Why nothing was (or would now be) deleted: running work, paused storage, a failed backup or an unreadable count.</summary>
     [ObservableProperty]
     public partial string? Problem { get; private set; }
+
+    /// <summary>An answer or summary in the workspace is queued or running, as last checked; <see cref="Problem"/> names them.</summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(CanDelete))]
+    [NotifyCanExecuteChangedFor(nameof(DeleteCommand))]
+    public partial bool HasRunningWork { get; private set; }
 
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(CanDelete))]
     [NotifyCanExecuteChangedFor(nameof(DeleteCommand), nameof(CancelCommand))]
     public partial bool IsDeleting { get; private set; }
 
-    /// <summary>The typed name is the workspace's name exactly (as stored, normalized the same way) and nothing is in progress.</summary>
+    /// <summary>The typed name is the workspace's name exactly (as stored, normalized the same way), nothing in it runs and nothing is in progress.</summary>
     public bool CanDelete =>
-        Target is { } w && Contents is not null && !IsDeleting
+        Target is { } w && Contents is not null && !IsDeleting && !HasRunningWork
         && string.Equals(TypedName.Normalize(NormalizationForm.FormC), w.Name.Value, StringComparison.Ordinal);
 
-    /// <summary>The count and the running-work check of the last <see cref="Open"/>; tests await it.</summary>
+    /// <summary>The count and the running-work check of the last <see cref="Open"/> or re-check; tests await it.</summary>
     internal Task Loading { get; private set; } = Task.CompletedTask;
 
     /// <summary>The last delete; tests await it.</summary>
@@ -105,16 +128,24 @@ public sealed partial class WorkspaceDeletionViewModel : ViewModelBase
         TypedName = string.Empty;
         Contents = null;
         Problem = null;
+        HasRunningWork = false;
         IsOpen = true;
-        Loading = LoadAsync(workspace);
+        _watching = true;
+        Loading = LoadAsync(workspace, initial: true);
     }
 
     [RelayCommand(CanExecute = nameof(CanCancel))]
-    private void Cancel()
+    private void Cancel() => Close();
+
+    private void Close()
     {
+        _watching = false;
         IsOpen = false;
         Target = null;
     }
+
+    private Task RecheckAsync() =>
+        IsOpen && !IsDeleting && Target is { } workspace ? LoadAsync(workspace, initial: false) : Task.CompletedTask;
 
     private bool CanCancel() => !IsDeleting;
 
@@ -153,41 +184,50 @@ public sealed partial class WorkspaceDeletionViewModel : ViewModelBase
         {
             case WorkspaceDeleteStatus.Busy:
                 Problem = await BusyTextAsync(workspace, outcome.Busy);
+                HasRunningWork = true;
                 break;
             case WorkspaceDeleteStatus.BackupFailed:
                 Problem = UiText.WorkspaceDeleteBackupFailed;
                 break;
             default:
-                IsOpen = false;
-                Target = null;
+                Close();
                 Leave(workspace.Id, outcome.Next);
                 break;
         }
     }
 
-    private async Task LoadAsync(Workspace workspace)
+    /// <summary>
+    /// Counts what would go and checks what runs: on <see cref="Open"/> (<paramref name="initial"/>) and again whenever
+    /// activity changes while the dialog is open. Only the running-work notice is replaced or cleared here; a backup
+    /// or storage notice from the last press stays until the next one.
+    /// </summary>
+    private async Task LoadAsync(Workspace workspace, bool initial)
     {
         WorkspaceContents contents;
         try
         {
             contents = await _deletion.InspectAsync(workspace.Id, CancellationToken.None);
         }
-#pragma warning disable CA1031 // An unreadable count leaves the dialog open with the delete disabled; cancelling still works.
+#pragma warning disable CA1031 // An unreadable count leaves the delete disabled and says so; cancelling still works.
         catch (Exception)
 #pragma warning restore CA1031
         {
+            if (initial && Target?.Id == workspace.Id)
+            {
+                Problem = UiText.WorkspaceDeleteCountFailed;
+            }
+
             return;
         }
 
-        if (Target?.Id != workspace.Id)
+        if (Target?.Id != workspace.Id || IsDeleting)
         {
             return;
         }
 
         if (!contents.Exists)
         {
-            IsOpen = false;
-            Target = null;
+            Close();
             Leave(workspace.Id, next: null);
             return;
         }
@@ -195,7 +235,17 @@ public sealed partial class WorkspaceDeletionViewModel : ViewModelBase
         Contents = UiText.DeleteWorkspaceContents(contents.Conversations, contents.Summaries);
         if (contents.Busy.Count > 0)
         {
-            Problem = await BusyTextAsync(workspace, contents.Busy);
+            var text = await BusyTextAsync(workspace, contents.Busy);
+            if (Target?.Id == workspace.Id && !IsDeleting)
+            {
+                Problem = text;
+                HasRunningWork = true;
+            }
+        }
+        else if (HasRunningWork || Problem == UiText.WorkspaceDeleteCountFailed)
+        {
+            Problem = null;
+            HasRunningWork = false;
         }
     }
 

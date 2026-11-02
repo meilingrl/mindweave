@@ -688,12 +688,13 @@ public static class UiText
     public const string WorkspaceSection = "工作区";
     public const string WorkspaceDeleting = "正在备份并删除…";
     public const string WorkspaceDeleteBackupFailed = "删除前的备份没有成功，所以没有删除任何内容。请检查磁盘空间与权限后重试。";
+    public const string WorkspaceDeleteCountFailed = "没能读取这个工作区的内容，暂时不能删除。请关闭后重试。";
     public const string BackupBeforeDelete = "删除工作区前";
 
     public static string DeleteWorkspaceTitle(string name) => $"删除工作区“{name}”？";
 
     public static string DeleteWorkspaceContents(int conversations, int summaries) => string.Format(
-        CultureInfo.CurrentCulture, "{0} 个会话（含分支与已归档）、{1} 个总结将被永久删除，无法撤销。删除前会自动备份。", conversations, summaries);
+        CultureInfo.CurrentCulture, "{0} 个会话（含分支与已归档）、{1} 个总结将被永久删除，应用内无法撤销。删除前的备份会列在“数据与存储”中。", conversations, summaries);
 
     public static string DeleteWorkspaceTypeName(string name) => $"输入工作区名称“{name}”以确认";
 

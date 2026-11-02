@@ -102,14 +102,18 @@ public sealed partial class WorkspaceDeletionService(
             throw;
         }
 
+        // Refused inside the transaction (work started after the first look, or it went meanwhile): nothing was
+        // deleted, so the backup made for it would only be a misleading "删除工作区前" entry on the storage page.
         if (result.Missing)
         {
-            return new WorkspaceDeleteOutcome(WorkspaceDeleteStatus.Missing, [], BackupPath: path);
+            backup.Discard(path);
+            return new WorkspaceDeleteOutcome(WorkspaceDeleteStatus.Missing, []);
         }
 
         if (!result.IsDeleted)
         {
-            return new WorkspaceDeleteOutcome(WorkspaceDeleteStatus.Busy, result.Busy, BackupPath: path);
+            backup.Discard(path);
+            return new WorkspaceDeleteOutcome(WorkspaceDeleteStatus.Busy, result.Busy);
         }
 
         // Their task rows are gone with the commit; a title or naming still running is stopped and its late write finds nothing.

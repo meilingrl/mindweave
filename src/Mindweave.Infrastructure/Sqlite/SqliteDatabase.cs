@@ -139,6 +139,27 @@ public sealed partial class SqliteDatabase : IDatabaseLifecycle, IDatabaseBackup
 
     private const string BeforeDeleteSuffix = "-before-delete";
 
+    /// <inheritdoc />
+    public void Discard(string path)
+    {
+        ArgumentException.ThrowIfNullOrEmpty(path);
+        var full = Path.GetFullPath(path);
+        if (!string.Equals(Path.GetDirectoryName(full), Path.GetFullPath(_paths.BackupDirectory), StringComparison.Ordinal)
+            || !BackupNameRegex().IsMatch(Path.GetFileName(full)))
+        {
+            throw new ArgumentException("Not a backup of this data directory.", nameof(path));
+        }
+
+        try
+        {
+            File.Delete(full);
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            LogDiscardFailed(_logger, ex, full);
+        }
+    }
+
     /// <summary>Runs <paramref name="work"/> in its own transaction on the single writer.</summary>
     public Task<T> WriteAsync<T>(Func<SqliteConnection, SqliteTransaction, T> work, CancellationToken cancellationToken)
     {
@@ -601,7 +622,9 @@ public sealed partial class SqliteDatabase : IDatabaseLifecycle, IDatabaseBackup
     {
         try
         {
-            foreach (var old in ListBackups().Skip(MigrationBackupsKept))
+            // Only upgrade backups rotate. One made before a workspace was deleted is the only copy of that workspace,
+            // so it stays until the user removes it by hand, and it never pushes an upgrade backup out (round 4 review).
+            foreach (var old in ListBackups().Where(b => b.Reason == BackupReason.Migration).Skip(MigrationBackupsKept))
             {
                 File.Delete(old.Path);
             }
@@ -710,6 +733,9 @@ public sealed partial class SqliteDatabase : IDatabaseLifecycle, IDatabaseBackup
 
     [LoggerMessage(Level = LogLevel.Warning, Message = "Old migration backups could not be pruned")]
     private static partial void LogPruneFailed(ILogger logger, Exception exception);
+
+    [LoggerMessage(Level = LogLevel.Warning, Message = "Unneeded backup {Path} could not be removed")]
+    private static partial void LogDiscardFailed(ILogger logger, Exception exception, string path);
 
     [LoggerMessage(Level = LogLevel.Information, Message = "Exit checkpoint was blocked by a reader ({Folded} of {Log} log frames folded); the log stays")]
     private static partial void LogCheckpointBusy(ILogger logger, int log, int folded);

@@ -126,6 +126,35 @@ public class WorkspaceDeleteFlowTests
     }
 
     [Fact]
+    public async Task A_refusal_inside_the_transaction_leaves_no_backup_behind()
+    {
+        await using var h = await ChatHarness.StartAsync();
+        var root = await WorkspaceSeed.FillAsync(h, h.Workspace);
+        var held = h.Client.Hold("半句");
+        Application.Conversations.SendOutcome? running = null;
+
+        // The answer starts while the backup is being made: after the first look, before the transaction.
+        var backup = new HookedBackup(h.Database, async () =>
+        {
+            running = await h.Conversations.AskAsync(root, "再问一句", Ct);
+            await held.Started.Task.WaitAsync(TimeSpan.FromSeconds(5), Ct);
+        });
+        var deletion = new WorkspaceDeletionService(
+            h.Workspaces, backup, h.Health, h.Generation, Microsoft.Extensions.Logging.Abstractions.NullLogger<WorkspaceDeletionService>.Instance);
+
+        var outcome = await deletion.DeleteAsync(h.Workspace, Ct);
+
+        Assert.Equal(WorkspaceDeleteStatus.Busy, outcome.Status);
+        Assert.Equal([new BusyConversation(root, true, false)], outcome.Busy);
+        Assert.Null(outcome.BackupPath);
+        Assert.NotNull(backup.Made);
+        Assert.False(File.Exists(backup.Made));
+        Assert.Empty(h.Database.ListBackups());
+        held.Finish();
+        await h.WaitForAnswerAsync(running!.Answer!.Value);
+    }
+
+    [Fact]
     public async Task Deleting_is_refused_while_storage_is_paused()
     {
         await using var h = await ChatHarness.StartAsync();
@@ -196,6 +225,21 @@ public class WorkspaceDeleteFlowTests
         await Task.Delay(100, Ct);
         Assert.False(h.Health.IsBlocked);
         Assert.Equal(0, await h.Database.ReadAsync(c => c.Scalar<long>(null, "SELECT count(*) FROM generation_task;"), Ct));
+    }
+
+    /// <summary>The real backup, with something run after the copy is made.</summary>
+    private sealed class HookedBackup(IDatabaseBackup inner, Func<Task> after) : IDatabaseBackup
+    {
+        public string? Made { get; private set; }
+
+        public async Task<string> BackupAsync(BackupReason reason, CancellationToken cancellationToken)
+        {
+            Made = await inner.BackupAsync(reason, cancellationToken);
+            await after();
+            return Made;
+        }
+
+        public void Discard(string path) => inner.Discard(path);
     }
 
     private sealed class StepClock(DateTimeOffset start) : IClock

@@ -1,6 +1,8 @@
 using Avalonia;
 using Avalonia.Controls;
+using Avalonia.Headless;
 using Avalonia.Headless.XUnit;
+using Avalonia.Input;
 using Avalonia.VisualTree;
 using Microsoft.Extensions.DependencyInjection;
 using Mindweave.Application.Conversations;
@@ -168,15 +170,33 @@ public class WorkspaceDeleteUiTests
         window.UpdateLayout();
         Assert.True(Find<Control>(window, "WorkspaceDeleteProblem").IsEffectivelyVisible);
 
+        // The exact name does not enable 删除 while the notice says why it cannot work.
         dialog.TypedName = "火车";
-        await dialog.DeleteCommand.ExecuteAsync(null);
-        Assert.True(dialog.IsOpen);
-        Assert.Equal(expected, dialog.Problem);
+        Assert.True(dialog.HasRunningWork);
+        Assert.False(dialog.CanDelete);
+        Assert.False(dialog.DeleteCommand.CanExecute(null));
         Assert.Single(app.Workbench.Workspaces);
         Assert.Empty(app.Services.GetRequiredService<Application.Startup.IDatabaseLifecycle>().ListBackups());
 
+        // The answer finishing clears the notice and enables 删除 without another press.
         held.Finish();
+        await UiWait.UntilAsync(() => dialog.Problem is null && dialog.CanDelete);
+        Assert.False(dialog.HasRunningWork);
+        window.UpdateLayout();
+        Assert.False(Find<Control>(window, "WorkspaceDeleteProblem").IsEffectivelyVisible);
+        Assert.True(Find<Button>(window, "WorkspaceDeleteConfirm").IsEffectivelyEnabled);
+
+        // Work that starts with the dialog open brings the notice back.
+        var again = app.Client.Hold("又半句");
+        _ = await conversations.AskAsync(sent.Conversation, "再问一句", CancellationToken.None);
+        await again.Started.Task.WaitAsync(TimeSpan.FromSeconds(5));
+        await UiWait.UntilAsync(() => dialog.HasRunningWork);
+        Assert.EndsWith("（回答）。", dialog.Problem, StringComparison.Ordinal); // titled automatically by now
+        Assert.False(dialog.CanDelete);
+        again.Finish();
+        await UiWait.UntilAsync(() => dialog.CanDelete);
         await UiWait.UntilAsync(() => conversations.LoadAsync(sent.Conversation, CancellationToken.None).Result!.Messages.All(m => m.IsFinished));
+
         await dialog.DeleteCommand.ExecuteAsync(null);
         Assert.False(dialog.IsOpen);
         window.Close();
@@ -207,6 +227,67 @@ public class WorkspaceDeleteUiTests
         Assert.Single(app.Workbench.Workspaces);
         Assert.True((await app.Services.GetRequiredService<IWorkspaceDeletion>().InspectAsync(app.Workbench.CurrentWorkspace!.Id, CancellationToken.None)).Exists);
         window.Close();
+    }
+
+    [AvaloniaFact]
+    public async Task Enter_in_the_name_box_keeps_the_typed_name_and_deletes_only_once_it_matches()
+    {
+        await using var app = DesktopHarness.Create();
+        var window = NetworkUiTests.Show(app);
+        await app.StartWithWorkspaceAsync("火车");
+        app.ShellPage.DeleteWorkspaceCommand.Execute(null);
+        var dialog = app.Root.WorkspaceDeletion;
+        await dialog.Loading;
+        window.UpdateLayout();
+        Avalonia.Threading.Dispatcher.UIThread.RunJobs();
+        var box = Find<TextBox>(window, "WorkspaceDeleteName");
+        Assert.True(box.IsFocused);
+
+        box.Text = "火";
+        window.KeyPress(Key.Enter, RawInputModifiers.None, PhysicalKey.Enter, null);
+        Assert.True(dialog.IsOpen);
+        Assert.Equal("火", dialog.TypedName);
+        Assert.Single(app.Workbench.Workspaces);
+
+        box.Text = "火车";
+        window.KeyPress(Key.Enter, RawInputModifiers.None, PhysicalKey.Enter, null);
+        await dialog.Deleting;
+        Assert.False(dialog.IsOpen);
+        Assert.Empty(app.Workbench.Workspaces);
+        window.Close();
+    }
+
+    [AvaloniaFact]
+    public async Task An_unreadable_count_is_said_and_delete_stays_disabled()
+    {
+        await using var app = DesktopHarness.Create();
+        await app.StartWithWorkspaceAsync("火车");
+        var requests = new WorkspaceDeletionRequests();
+        var dialog = new WorkspaceDeletionViewModel(
+            new UnreadableDeletion(),
+            app.Services.GetRequiredService<IConversations>(),
+            app.Workbench,
+            app.Services.GetRequiredService<NetworkSessions>(),
+            requests,
+            app.Services.GetRequiredService<Services.IUiDispatcher>());
+
+        requests.Open(app.Workbench.CurrentWorkspace!);
+        await dialog.Loading;
+        dialog.TypedName = "火车";
+
+        Assert.True(dialog.IsOpen);
+        Assert.Equal(UiText.WorkspaceDeleteCountFailed, dialog.Problem);
+        Assert.False(dialog.CanDelete);
+        Assert.True(dialog.CancelCommand.CanExecute(null));
+    }
+
+    private sealed class UnreadableDeletion : IWorkspaceDeletion
+    {
+        public Task<WorkspaceContents> InspectAsync(WorkspaceId workspace, CancellationToken cancellationToken) =>
+            throw new IOException("unreadable");
+
+        public Task<WorkspaceDeleteOutcome> DeleteAsync(WorkspaceId workspace, CancellationToken cancellationToken) =>
+            throw new InvalidOperationException("not expected");
     }
 
     private static T Find<T>(Visual root, string name)
