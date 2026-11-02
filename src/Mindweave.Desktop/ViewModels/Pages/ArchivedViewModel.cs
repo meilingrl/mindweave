@@ -92,6 +92,7 @@ public sealed partial class ArchivedViewModel : PageViewModel, IDisposable
     private async Task RestoreAsync(ArchivedItemViewModel item)
     {
         Notice = null;
+        Ask(null, null);
         var plan = await _conversations.PlanRestoreAsync(item.Id, CancellationToken.None);
         async Task Restore()
         {

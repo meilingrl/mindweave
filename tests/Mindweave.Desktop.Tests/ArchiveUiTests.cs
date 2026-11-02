@@ -377,6 +377,30 @@ public class ArchiveUiTests
     }
 
     [AvaloniaFact]
+    public async Task Restoring_another_row_directly_dismisses_a_pending_confirmation()
+    {
+        await using var app = DesktopHarness.Create();
+        Open(app);
+        var root = await ConversationAsync(app);
+        var first = await BranchAsync(app, root, "火车");
+        await first.ArchiveCommand.ExecuteAsync(null);
+        root = await OpenAsync(app, root.Id);
+        var second = await BranchAsync(app, root, "火车");
+        await second.ArchiveCommand.ExecuteAsync(null);
+        app.ShellPage.Conversations.OpenArchivedCommand.Execute(null);
+        var archived = Assert.IsType<ArchivedViewModel>(app.Workbench.CurrentPage);
+        await archived.RefreshAsync();
+
+        archived.DeleteCommand.Execute(archived.Items.Single(i => i.Id == first.Id));
+        Assert.NotNull(archived.Confirmation);
+
+        // The second branch's parent is not archived, so it restores without asking; the stale question goes away.
+        await archived.RestoreCommand.ExecuteAsync(archived.Items.Single(i => i.Id == second.Id));
+        Assert.Null(archived.Confirmation);
+        Assert.DoesNotContain(archived.Items, i => i.IsConfirming);
+    }
+
+    [AvaloniaFact]
     public async Task Clicking_anywhere_in_an_archived_row_but_its_actions_opens_the_conversation()
     {
         await using var app = DesktopHarness.Create();
