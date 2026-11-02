@@ -65,7 +65,17 @@ public sealed partial class ConversationView : UserControl
     protected override void OnDataContextChanged(EventArgs e)
     {
         base.OnDataContextChanged(e);
+        if (_page is not null)
+        {
+            _page.IsShown = false;
+        }
+
         _page = DataContext as ConversationViewModel;
+        if (_page is not null)
+        {
+            _page.IsShown = this.IsAttachedToVisualTree();
+        }
+
         _restoring = true;
         if (_restored.Task.IsCompleted)
         {
@@ -78,8 +88,23 @@ public sealed partial class ConversationView : UserControl
         }
     }
 
+    protected override void OnAttachedToVisualTree(VisualTreeAttachmentEventArgs e)
+    {
+        base.OnAttachedToVisualTree(e);
+        if (_page is not null)
+        {
+            _page.IsShown = true;
+        }
+    }
+
     protected override void OnDetachedFromVisualTree(VisualTreeAttachmentEventArgs e)
     {
+        // Off screen: the running answer's live counter stops ticking until the page is shown again.
+        if (_page is not null)
+        {
+            _page.IsShown = false;
+        }
+
         _capture.Stop();
         base.OnDetachedFromVisualTree(e);
     }

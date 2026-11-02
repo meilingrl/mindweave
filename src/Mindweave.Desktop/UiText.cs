@@ -546,6 +546,18 @@ public static class UiText
             ? at.ToLocalTime().ToString("HH:mm", CultureInfo.InvariantCulture)
             : FormatTime(at);
 
+    /// <summary>How long an answer has been running: "12 秒", "1 分 05 秒", "1 小时 02 分" (whole seconds, never negative).</summary>
+    public static string Elapsed(TimeSpan span)
+    {
+        var seconds = (long)Math.Max(0, Math.Floor(span.TotalSeconds));
+        return seconds < 60 ? string.Format(CultureInfo.InvariantCulture, "{0} 秒", seconds)
+            : seconds < 3600 ? string.Format(CultureInfo.InvariantCulture, "{0} 分 {1:00} 秒", seconds / 60, seconds % 60)
+            : string.Format(CultureInfo.InvariantCulture, "{0} 小时 {1:00} 分", seconds / 3600, seconds % 3600 / 60);
+    }
+
+    /// <summary>A finished answer's total time beside its clock time: "用时 14 秒"; "用时不到 1 秒" for an instant one.</summary>
+    public static string AnswerDuration(TimeSpan span) => span < TimeSpan.FromSeconds(1) ? "用时不到 1 秒" : "用时 " + Elapsed(span);
+
     public static string VersionNumber(int seq) => string.Format(CultureInfo.CurrentCulture, "第 {0} 版", seq);
 
     public static string VersionRole(bool isCurrent, bool isCandidate) => isCandidate ? "候选" : isCurrent ? "当前" : "历史";
