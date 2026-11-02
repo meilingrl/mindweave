@@ -2,47 +2,76 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:vm="using:Mindweave.Desktop.ViewModels"
              xmlns:startup="using:Mindweave.Application.Startup"
+             xmlns:v="using:Mindweave.Desktop.Views"
              xmlns:d="using:Mindweave.Desktop"
              x:Class="Mindweave.Desktop.Views.RecoveryView"
              x:DataType="vm:RecoveryViewModel">
   <ScrollViewer>
-    <StackPanel Margin="48" MaxWidth="640" HorizontalAlignment="Left" Spacing="14">
-      <TextBlock Classes="h1" Text="{Binding Heading}" />
-      <TextBlock TextWrapping="Wrap" Text="{Binding Explanation}" />
-      <SelectableTextBlock Classes="muted" TextWrapping="Wrap" Text="{Binding Detail}"
-                           IsVisible="{Binding Detail, Converter={x:Static ObjectConverters.IsNotNull}}" />
-      <SelectableTextBlock Classes="muted" Text="{Binding DataDirectory}" />
+    <!-- One fixed reading column (at most 640 wide plus margins): opening the restore confirmation does not widen it. -->
+    <Grid>
+      <Grid.ColumnDefinitions>
+        <ColumnDefinition Width="*" MaxWidth="736" />
+      </Grid.ColumnDefinitions>
+    <StackPanel Name="RecoveryColumn" Margin="48,44" Spacing="16">
+      <!-- What happened, in one heading and one explanation; the technical detail and the data location below it. -->
+      <DockPanel>
+        <Border Classes="attention-badge" Width="26" Height="26" CornerRadius="13" Margin="0,0,12,0" VerticalAlignment="Center">
+          <TextBlock Text="!" FontSize="14" />
+        </Border>
+        <TextBlock Classes="h1" Text="{Binding Heading}" VerticalAlignment="Center" />
+      </DockPanel>
+      <TextBlock TextWrapping="Wrap" LineHeight="22" Text="{Binding Explanation}" />
+      <Border Name="DetailPanel" Classes="card" Padding="12,9" IsVisible="{Binding Detail, Converter={x:Static ObjectConverters.IsNotNull}}">
+        <SelectableTextBlock Classes="mono" Foreground="{DynamicResource MutedText}" TextWrapping="Wrap" Text="{Binding Detail}" />
+      </Border>
+      <StackPanel Spacing="3">
+        <TextBlock Classes="caption" Text="{x:Static d:UiText.DataLocation}" />
+        <SelectableTextBlock Classes="mono" TextWrapping="Wrap" Text="{Binding DataDirectory}" />
+      </StackPanel>
+      <!-- The page's one primary action is trying again. -->
       <StackPanel Orientation="Horizontal" Spacing="8">
-        <Button Name="RetryButton" Content="{x:Static d:UiText.Retry}" Command="{Binding RetryCommand}" />
-        <Button Content="{x:Static d:UiText.OpenDataFolder}" Command="{Binding OpenDataFolderCommand}" />
-        <Button Content="{x:Static d:UiText.Exit}" Command="{Binding ExitCommand}" />
+        <Button Name="RetryButton" Classes="primary" Content="{x:Static d:UiText.Retry}" Command="{Binding RetryCommand}" />
+        <Button Name="OpenDataFolderButton" Classes="secondary" Content="{x:Static d:UiText.OpenDataFolder}" Command="{Binding OpenDataFolderCommand}" />
+        <Button Name="ExitButton" Classes="quiet" Content="{x:Static d:UiText.Exit}" Command="{Binding ExitCommand}" />
       </StackPanel>
 
-      <StackPanel Spacing="8" IsVisible="{Binding HasBackups}" Margin="0,16,0,0">
+      <StackPanel Spacing="8" IsVisible="{Binding HasBackups}" Margin="0,14,0,0">
         <TextBlock FontWeight="SemiBold" Text="{x:Static d:UiText.AvailableBackups}" />
-        <ItemsControl Name="BackupList" ItemsSource="{Binding Backups}">
-          <ItemsControl.ItemTemplate>
-            <DataTemplate x:DataType="startup:BackupInfo">
-              <DockPanel Margin="0,2">
-                <Button DockPanel.Dock="Right" Content="{x:Static d:UiText.RestoreThis}"
-                        Command="{Binding $parent[ItemsControl].((vm:RecoveryViewModel)DataContext).ChooseRestoreCommand}"
-                        CommandParameter="{Binding}" />
-                <TextBlock VerticalAlignment="Center" Text="{Binding Converter={x:Static d:Converters.BackupLabel}}" />
-              </DockPanel>
-            </DataTemplate>
-          </ItemsControl.ItemTemplate>
-        </ItemsControl>
+        <Border Classes="card" ClipToBounds="True">
+          <ItemsControl Name="BackupList" ItemsSource="{Binding Backups}" Margin="0,-1,0,0">
+            <ItemsControl.ItemTemplate>
+              <DataTemplate x:DataType="startup:BackupInfo">
+                <Border Classes="backup-row">
+                  <DockPanel>
+                    <Button DockPanel.Dock="Right" Classes="secondary" Content="{x:Static d:UiText.RestoreThis}"
+                            Command="{Binding $parent[ItemsControl].((vm:RecoveryViewModel)DataContext).ChooseRestoreCommand}"
+                            CommandParameter="{Binding}" />
+                    <StackPanel Orientation="Horizontal" Spacing="12" VerticalAlignment="Center">
+                      <TextBlock Text="{Binding Converter={x:Static v:BackupFormat.Time}}" FontWeight="SemiBold" />
+                      <TextBlock Classes="muted" Text="{Binding Converter={x:Static v:BackupFormat.Details}}" />
+                    </StackPanel>
+                  </DockPanel>
+                </Border>
+              </DataTemplate>
+            </ItemsControl.ItemTemplate>
+          </ItemsControl>
+        </Border>
       </StackPanel>
 
-      <Border IsVisible="{Binding IsConfirmingRestore}" BorderBrush="{DynamicResource DividerBrush}" BorderThickness="1" CornerRadius="6" Padding="16">
-        <StackPanel Spacing="10">
-          <TextBlock TextWrapping="Wrap" Text="{Binding RestoreConsequence}" />
-          <StackPanel Orientation="Horizontal" Spacing="8">
-            <Button Name="ConfirmRestoreButton" Content="{x:Static d:UiText.ConfirmRestore}" Command="{Binding ConfirmRestoreCommand}" />
-            <Button Content="{x:Static d:UiText.Cancel}" Command="{Binding CancelRestoreCommand}" />
+      <!-- Restoring replaces the database: the consequence is stated before anything happens. -->
+      <Border Name="RestoreConfirmation" Classes="notice warning" IsVisible="{Binding IsConfirmingRestore}">
+        <DockPanel>
+          <TextBlock Classes="notice-icon" Text="?" />
+          <StackPanel Spacing="8">
+            <TextBlock TextWrapping="Wrap" Text="{Binding RestoreConsequence}" />
+            <StackPanel Orientation="Horizontal" Spacing="6">
+              <Button Name="ConfirmRestoreButton" Classes="secondary" Content="{x:Static d:UiText.ConfirmRestore}" Command="{Binding ConfirmRestoreCommand}" />
+              <Button Classes="quiet" Content="{x:Static d:UiText.Cancel}" Command="{Binding CancelRestoreCommand}" />
+            </StackPanel>
           </StackPanel>
-        </StackPanel>
+        </DockPanel>
       </Border>
     </StackPanel>
+    </Grid>
   </ScrollViewer>
 </UserControl>

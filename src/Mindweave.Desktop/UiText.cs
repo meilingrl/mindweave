@@ -27,21 +27,34 @@ public static class UiText
     public const string SectionNetwork = "总结网络";
     public const string SectionSettings = "设置";
     public const string ConversationsHeading = "会话";
-    public const string ExploreHomeHint = "从一个问题开始，或在左侧打开已有会话。";
     public const string Back = "后退";
+
+    // Sidebar collapse and resize (S7 round 3 · shell)
+    public const string CollapseSidebar = "收起侧栏";
+    public const string ExpandSidebar = "展开侧栏";
+    public const string SidebarSplitter = "侧栏宽度";
+
+    /// <summary>The toggle's shortcut as the platform writes it (⌘ on macOS).</summary>
+    public static string SidebarShortcut { get; } = OperatingSystem.IsMacOS() ? "⌘B" : "Ctrl+B";
+
+    public static string CollapseSidebarTip { get; } = CollapseSidebar + "（" + SidebarShortcut + "）";
+
+    public static string ExpandSidebarTip { get; } = ExpandSidebar + "（" + SidebarShortcut + "）";
+
+    public static string ExpandSidebarAttention { get; } = ExpandSidebarTip + " · 有会话需要处理";
     public const string ExploreEmpty = "这个工作区还没有会话。";
     public const string NetworkTitle = "总结网络";
     public const string NetworkEmpty = "还没有总结。在会话页点击“总结此会话”，生成的总结会出现在这里。";
-    public const string LayoutUnsavedTitle = "布局还没有保存";
-    public const string LayoutUnsavedBody = "总结网络里整理过的布局还没有保存。不保存不会丢失任何会话或总结，下次进入时仍按上次保存的位置显示。";
+    public const string LayoutUnsavedTitle = "保存整理过的布局？";
+    public const string LayoutUnsavedBody = "总结网络的布局有改动。不保存只会丢掉这次整理的位置，会话和总结都不受影响。";
     public const string LayoutSaveAndContinue = "保存并继续";
     public const string LayoutDontSave = "不保存";
     public const string LayoutSaveFailed = "布局保存失败，改动仍保留在当前窗口。";
 
     /// <summary>Core storage failed (requirements §9.3): what is paused, what still works, and that it lifts by itself.</summary>
-    public const string DraftConflict = "这份未保存的修改基于较早的版本，不能直接保存为新版本。可以先复制需要的内容，再放弃修改。";
+    public const string DraftConflict = "这份修改基于较早的版本，不能保存为新版本。请复制需要的内容，再放弃修改。";
 
-    public const string DraftStale = "这份修改已在别处保存或放弃，此处的改动不会覆盖它。可以复制需要的内容后重新打开。";
+    public const string DraftStale = "这份修改已在别处保存或放弃，这里的改动不会写入。请复制需要的内容后重新打开。";
 
     public const string StoragePaused = "本地数据暂时无法保存，已暂停提问、重试、创建分支和生成总结；已有内容仍可阅读和复制。恢复保存后会自动解除。";
 
@@ -137,8 +150,9 @@ public static class UiText
     public const string SourceArchived = "来源已归档";
     public const string ArchivedReadOnly = "这个会话已归档，只能阅读。恢复后可以继续提问、创建分支或总结；已有总结照常可用。";
     public const string ArchivedEmpty = "没有已归档的会话。";
-    public const string ArchivedNote = "归档的会话及其分支不在侧栏显示，总结与网络节点照常保留。恢复后回到侧栏原来的位置。";
+    public const string ArchivedNote = "归档的会话连同分支不在侧栏显示；它们的总结仍在总结网络中。";
     public const string DeleteConfirm = "将永久删除这个会话：全部消息、生成记录和未发送的草稿都会一起删除，无法撤销。";
+    public static string DeleteConfirmFor(string title) => $"永久删除“{title}”？全部消息、生成记录和未发送的草稿都会一起删除，无法撤销。";
     public const string ConversationDeleted = "这个会话已被删除。";
     public const string SettingsTitle = "设置";
     public const string StorageTitle = "数据与存储";
@@ -202,7 +216,7 @@ public static class UiText
     public const string ExitCancel = "继续生成";
     public const string ExitSaving = "正在停止任务并保存……";
     public const string ExitSaveFailedTitle = "部分内容未能保存";
-    public const string ExitSaveFailedBody = "未发送的草稿、总结编辑草稿或回答的结束状态没有写入。程序仍保留着这些内容，写入成功之前不会退出。可以重试退出，或返回继续使用；已停止的任务不会自动恢复。";
+    public const string ExitSaveFailedBody = "草稿或回答的结束状态没能写入，内容仍保留在程序里，写入成功前不会退出。已停止的任务不会自动恢复。";
     public const string ExitRetry = "重试退出";
     public const string ExitReturn = "返回";
 
@@ -272,7 +286,7 @@ public static class UiText
 
         return string.Format(
             CultureInfo.CurrentCulture,
-            "有 {0}尚未完成。退出会停止它们：已收到的回答内容会保存并标记为“已停止”，总结不会留下新版本，排队中的会被取消。下次启动不会自动重发。",
+            "{0}还没有完成。退出会停止它们：已收到的回答会保留并标为“已停止”，总结不留新版本，排队的任务会取消，下次启动也不会重发。",
             string.Join('、', parts));
     }
 
@@ -366,7 +380,7 @@ public static class UiText
                 result.FoundVersion,
                 result.SupportedVersion),
             DatabaseOpenStatus.BackupFailed => "数据需要升级，但升级前的备份没有成功，因此没有开始升级，原数据未改动。请检查磁盘空间与权限后重试。",
-            DatabaseOpenStatus.MigrationFailed => "升级过程中出错，已整体撤销，原数据保持升级前的状态。升级前备份已保存，可在下方查看。",
+            DatabaseOpenStatus.MigrationFailed => "升级过程中出错，已整体撤销，原数据保持升级前的状态，升级前的备份也已保存。",
             DatabaseOpenStatus.IoError => "无法读写数据目录。请检查磁盘空间与权限后重试。",
             _ => string.Empty,
         };
@@ -381,6 +395,15 @@ public static class UiText
             FormatTime(backup.CreatedAt),
             backup.SchemaVersion);
     }
+
+    /// <summary>A backup row's second part beside its date: "结构版本 8 · 212 KB".</summary>
+    public static string BackupDetails(BackupInfo backup)
+    {
+        ArgumentNullException.ThrowIfNull(backup);
+        return string.Format(CultureInfo.CurrentCulture, "结构版本 {0} · {1:N0} KB", backup.SchemaVersion, backup.SizeBytes / 1024);
+    }
+
+    public const string DataLocation = "数据位置";
 
     public static string FormatBackup(BackupInfo backup)
     {

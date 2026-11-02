@@ -53,7 +53,7 @@ public sealed class AppStartup : IRecoveryActions
         _health.Start();
         _root.Show(new StartupViewModel());
         var outcome = await _coordinator.StartAsync(CancellationToken.None);
-        await ApplyAppearanceAsync(outcome);
+        await ApplyPreferencesAsync(outcome);
         Apply(outcome);
     }
 
@@ -65,20 +65,22 @@ public sealed class AppStartup : IRecoveryActions
     {
         _root.Show(new StartupViewModel());
         var outcome = await _coordinator.RestoreAsync(backup, CancellationToken.None);
-        await ApplyAppearanceAsync(outcome);
+        await ApplyPreferencesAsync(outcome);
         Apply(outcome);
     }
 
     /// <summary>
-    /// The stored appearance takes effect as soon as the database is open; until then (and on the recovery page) the
-    /// application follows the system. A failed read is not an error worth a page: the system theme stays.
+    /// The stored appearance and sidebar layout take effect as soon as the database is open; until then (and on the
+    /// recovery page) the application follows the system. A failed read is not an error worth a page: the defaults stay.
     /// </summary>
-    private async Task ApplyAppearanceAsync(StartupOutcome outcome)
+    private async Task ApplyPreferencesAsync(StartupOutcome outcome)
     {
         if (outcome is StartupOutcome.NeedsRecovery)
         {
             return;
         }
+
+        await _shell.RestoreSidebarAsync();
 
         try
         {

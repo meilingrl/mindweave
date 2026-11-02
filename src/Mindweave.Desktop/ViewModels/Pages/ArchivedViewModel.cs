@@ -12,7 +12,7 @@ using Mindweave.Desktop.ViewModels.Conversations;
 namespace Mindweave.Desktop.ViewModels.Pages;
 
 /// <summary>One hidden conversation on the archived page; <see cref="IsArchived"/> when the user archived it itself.</summary>
-public sealed class ArchivedItemViewModel(ConversationId id, string title, int depth, bool isArchived)
+public sealed partial class ArchivedItemViewModel(ConversationId id, string title, int depth, bool isArchived) : ViewModelBase
 {
     public ConversationId Id { get; } = id;
 
@@ -22,7 +22,12 @@ public sealed class ArchivedItemViewModel(ConversationId id, string title, int d
 
     public string? Marker => IsArchived ? UiText.ArchivedMarker : null;
 
-    public Avalonia.Thickness Indent => new(Math.Min(depth, ConversationItemViewModel.MaxIndentedDepth) * 14, 0, 0, 0);
+    /// <summary>Level in the hidden tree: 0 for an archived conversation whose parent is visible. Shown as indentation by the view.</summary>
+    public int Depth { get; } = depth;
+
+    /// <summary>The page's pending restore or delete is about this row: the confirmation shows under it.</summary>
+    [ObservableProperty]
+    public partial bool IsConfirming { get; internal set; }
 }
 
 /// <summary>
@@ -39,6 +44,9 @@ public sealed partial class ArchivedViewModel : PageViewModel, IDisposable
     private readonly UiThrottle _reload;
     private Dictionary<ConversationId, ConversationSummary> _rows = [];
     private bool _disposed;
+
+    /// <summary>The row the pending confirmation is about; kept across reloads by its id.</summary>
+    private ConversationId? _confirming;
 
     public ArchivedViewModel(Workspace workspace, IConversations conversations, IWorkbenchNavigator navigator, IUiDispatcher dispatcher)
         : base(ArchivedRoute.Instance)
@@ -63,7 +71,11 @@ public sealed partial class ArchivedViewModel : PageViewModel, IDisposable
     internal Task Loaded { get; }
 
     [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(ConfirmLabel))]
     public partial PendingConfirmation? Confirmation { get; private set; }
+
+    /// <summary>The confirm button says what it does: 删除 for a delete, 恢复 for a restore that brings ancestors back.</summary>
+    public string ConfirmLabel => Confirmation?.IsDestructive == true ? UiText.Delete : UiText.Restore;
 
     /// <summary>Why the last restore or delete did not happen.</summary>
     [ObservableProperty]
@@ -80,6 +92,7 @@ public sealed partial class ArchivedViewModel : PageViewModel, IDisposable
     private async Task RestoreAsync(ArchivedItemViewModel item)
     {
         Notice = null;
+        Ask(null, null);
         var plan = await _conversations.PlanRestoreAsync(item.Id, CancellationToken.None);
         async Task Restore()
         {
@@ -98,7 +111,7 @@ public sealed partial class ArchivedViewModel : PageViewModel, IDisposable
 
         if (plan.ArchivedAncestors.Count > 0)
         {
-            Confirmation = new PendingConfirmation(UiText.RestoreConfirm([.. plan.ArchivedAncestors.Select(TitleOf)], plan.OthersReappearing), Restore);
+            Ask(item, new PendingConfirmation(UiText.RestoreConfirm([.. plan.ArchivedAncestors.Select(TitleOf)], plan.OthersReappearing), Restore));
         }
         else
         {
@@ -110,7 +123,7 @@ public sealed partial class ArchivedViewModel : PageViewModel, IDisposable
     private void Delete(ArchivedItemViewModel item)
     {
         Notice = null;
-        Confirmation = new PendingConfirmation(UiText.DeleteConfirm, async () =>
+        Ask(item, new PendingConfirmation(UiText.DeleteConfirmFor(item.Title), async () =>
         {
             DeleteResult result;
             try
@@ -134,7 +147,7 @@ public sealed partial class ArchivedViewModel : PageViewModel, IDisposable
             }
 
             await _load.Request();
-        }, IsDestructive: true);
+        }, IsDestructive: true));
     }
 
     [RelayCommand]
@@ -142,13 +155,25 @@ public sealed partial class ArchivedViewModel : PageViewModel, IDisposable
     {
         if (Confirmation is { } pending)
         {
-            Confirmation = null;
+            Ask(null, null);
             await pending.Proceed();
         }
     }
 
     [RelayCommand]
-    private void CancelConfirmation() => Confirmation = null;
+    private void CancelConfirmation() => Ask(null, null);
+
+    /// <summary>Shows <paramref name="pending"/> under <paramref name="item"/>'s row (or clears it), one at a time.</summary>
+    private void Ask(ArchivedItemViewModel? item, PendingConfirmation? pending)
+    {
+        _confirming = pending is null ? null : item?.Id;
+        foreach (var row in Items)
+        {
+            row.IsConfirming = row.Id == _confirming;
+        }
+
+        Confirmation = pending;
+    }
 
     public void Dispose()
     {
@@ -182,7 +207,16 @@ public sealed partial class ArchivedViewModel : PageViewModel, IDisposable
         Items.Clear();
         foreach (var (row, depth) in ConversationListViewModel.AsTree([.. all.Where(r => r.IsHidden)]))
         {
-            Items.Add(new ArchivedItemViewModel(row.Conversation.Id, TitleOf(row.Conversation.Id), depth, row.IsArchived));
+            Items.Add(new ArchivedItemViewModel(row.Conversation.Id, TitleOf(row.Conversation.Id), depth, row.IsArchived)
+            {
+                IsConfirming = row.Conversation.Id == _confirming,
+            });
+        }
+
+        // A confirmation about a row that is gone (deleted or restored elsewhere) has nothing left to confirm.
+        if (_confirming is { } id && Items.All(i => i.Id != id))
+        {
+            Ask(null, null);
         }
 
         OnPropertyChanged(nameof(IsEmpty));

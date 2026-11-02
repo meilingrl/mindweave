@@ -1,4 +1,5 @@
 using Avalonia.Headless.XUnit;
+using Avalonia.VisualTree;
 using Microsoft.Data.Sqlite;
 using Microsoft.Extensions.DependencyInjection;
 using Mindweave.Application.Startup;
@@ -66,6 +67,37 @@ public class RecoveryTests
         // but the pre-restore file was kept, not deleted.
         Assert.IsType<RecoveryViewModel>(app.Root.Current);
         Assert.NotEmpty(Directory.GetFiles(app.Paths.DataDirectory, "mindweave.db.replaced-*"));
+        SqliteConnection.ClearAllPools();
+    }
+
+    [AvaloniaFact]
+    public async Task Opening_the_restore_confirmation_keeps_the_recovery_column_width()
+    {
+        var directory = Path.Combine(Path.GetTempPath(), "mindweave-desktop-tests", Guid.NewGuid().ToString("N"));
+        await using (var before = DesktopHarness.Create(directory: directory))
+        {
+            await before.StartWithWorkspaceAsync("Kept");
+        }
+
+        var broken = new MigrationCatalog(
+        [
+            .. MigrationCatalog.Default.Migrations,
+            new Migration(MigrationCatalog.Default.LatestVersion + 1, "broken", (_, _) => throw new InvalidOperationException("boom")),
+        ]);
+        await using var app = DesktopHarness.Create(services => services.AddSingleton(broken), directory);
+        var window = new Views.MainWindow { DataContext = app.Root, Width = 1100, Height = 760 };
+        window.Show();
+        await app.StartAsync();
+        var recovery = Assert.IsType<RecoveryViewModel>(app.Root.Current);
+        window.UpdateLayout();
+        var column = window.GetVisualDescendants().OfType<Avalonia.Controls.StackPanel>().Single(p => p.Name == "RecoveryColumn");
+        var width = column.Bounds.Width;
+        Assert.InRange(width, 600, 642);
+
+        recovery.ChooseRestoreCommand.Execute(Assert.Single(recovery.Backups));
+        window.UpdateLayout();
+        Assert.Equal(width, column.Bounds.Width, 0.5);
+        window.Close();
         SqliteConnection.ClearAllPools();
     }
 

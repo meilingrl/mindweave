@@ -59,6 +59,7 @@ public static class CompositionRoot
         services.AddSingleton<Application.Export.SummaryExportService>();
         services.AddSingleton<ReadingStateService>();
         services.AddSingleton<Application.Preferences.AppearanceService>();
+        services.AddSingleton<Application.Preferences.SidebarLayoutService>();
 
         // View models depend on these interfaces, not the concrete services (course requirement C3); each resolves to the
         // one singleton above, so a page and the rest of the application share state.
@@ -70,6 +71,7 @@ public static class CompositionRoot
         services.AddSingleton<IModelSettings>(sp => sp.GetRequiredService<ModelSettingsService>());
         services.AddSingleton<IWorkspaces>(sp => sp.GetRequiredService<WorkspaceService>());
         services.AddSingleton<Application.Preferences.IAppearance>(sp => sp.GetRequiredService<Application.Preferences.AppearanceService>());
+        services.AddSingleton<Application.Preferences.ISidebarLayout>(sp => sp.GetRequiredService<Application.Preferences.SidebarLayoutService>());
         services.AddSingleton<Application.Network.INetworkLayout>(sp => sp.GetRequiredService<Application.Network.NetworkService>());
         services.TryAddSingleton<IThemeApplier, AvaloniaThemeApplier>();
         services.TryAddSingleton<IUiDispatcher, AvaloniaUiDispatcher>();

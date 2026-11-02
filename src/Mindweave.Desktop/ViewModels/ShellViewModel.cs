@@ -1,6 +1,7 @@
 using System.ComponentModel;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
+using Mindweave.Application.Preferences;
 using Mindweave.Application.Workspaces;
 using Mindweave.Core.Workspaces;
 using Mindweave.Desktop.Navigation;
@@ -13,23 +14,28 @@ public sealed partial class ShellViewModel : ViewModelBase
     private readonly IWorkspaces _workspaces;
     private readonly LayoutPromptViewModel? _layoutPrompt;
     private readonly Network.NetworkSessions? _networks;
+    private readonly ISidebarLayout? _sidebarLayout;
     private PageViewModel? _observedPage;
+    private double _sidebarWidth = SidebarLayout.DefaultWidth;
 
     public ShellViewModel(
         Workbench workbench,
         IWorkspaces workspaces,
         Conversations.ConversationListViewModel conversations,
         LayoutPromptViewModel? layoutPrompt = null,
-        Network.NetworkSessions? networks = null)
+        Network.NetworkSessions? networks = null,
+        ISidebarLayout? sidebarLayout = null)
     {
         _layoutPrompt = layoutPrompt;
         _networks = networks;
+        _sidebarLayout = sidebarLayout;
         ArgumentNullException.ThrowIfNull(workbench);
         Workbench = workbench;
         Conversations = conversations;
         _workspaces = workspaces;
         NewWorkspace = new WorkspaceNameForm(CreateWorkspaceAsync);
         Workbench.PropertyChanged += OnWorkbenchChanged;
+        Conversations.PropertyChanged += OnConversationsChanged;
     }
 
     public Workbench Workbench { get; }
@@ -66,6 +72,84 @@ public sealed partial class ShellViewModel : ViewModelBase
 
     [ObservableProperty]
     public partial bool IsCreatingWorkspace { get; set; }
+
+    /// <summary>The sidebar's width while expanded; always within <see cref="SidebarLayout"/>'s bounds.</summary>
+    public double SidebarWidth
+    {
+        get => _sidebarWidth;
+        set => SetProperty(ref _sidebarWidth, SidebarLayout.ClampWidth(value));
+    }
+
+    /// <summary>Collapsed, the content takes the whole window and an expand button sits in the page header.</summary>
+    [ObservableProperty]
+    public partial bool IsSidebarCollapsed { get; private set; }
+
+    /// <summary>The expand button's tooltip also says when a conversation needs attention, since the tree is out of sight.</summary>
+    public string ExpandSidebarHint => Conversations.HasAttention ? UiText.ExpandSidebarAttention : UiText.ExpandSidebarTip;
+
+    /// <summary>Completes when the last layout change has been written (or failed); tests await it.</summary>
+    internal Task SidebarSaving { get; private set; } = Task.CompletedTask;
+
+    [RelayCommand]
+    private void ToggleSidebar()
+    {
+        IsSidebarCollapsed = !IsSidebarCollapsed;
+        SaveSidebar();
+    }
+
+    /// <summary>Called when a resize ends (the splitter is released): the width is kept once, not at every pointer move.</summary>
+    public void CommitSidebarWidth() => SaveSidebar();
+
+    /// <summary>Applies the stored layout; called at start once the database is open, before the workbench shows.</summary>
+    public async Task RestoreSidebarAsync()
+    {
+        if (_sidebarLayout is null)
+        {
+            return;
+        }
+
+        SidebarLayout stored;
+        try
+        {
+            stored = await _sidebarLayout.GetAsync(CancellationToken.None);
+        }
+#pragma warning disable CA1031 // The layout is cosmetic: unreadable means the default, as for the appearance.
+        catch (Exception)
+#pragma warning restore CA1031
+        {
+            stored = SidebarLayout.Default;
+        }
+
+        SidebarWidth = stored.Width;
+        IsSidebarCollapsed = stored.IsCollapsed;
+    }
+
+    private void SaveSidebar()
+    {
+        if (_sidebarLayout is null)
+        {
+            return;
+        }
+
+        // One write after another, so the last change made is the one that stays.
+        var layout = new SidebarLayout(SidebarWidth, IsSidebarCollapsed);
+        var previous = SidebarSaving;
+        SidebarSaving = SaveAsync();
+
+        async Task SaveAsync()
+        {
+            await previous;
+            try
+            {
+                await _sidebarLayout.SetAsync(layout, CancellationToken.None);
+            }
+#pragma warning disable CA1031 // A lost layout is not worth an error: the sidebar stays as it is for this run.
+            catch (Exception)
+#pragma warning restore CA1031
+            {
+            }
+        }
+    }
 
     [RelayCommand]
     private void ShowSection(MainSection section)
@@ -146,6 +230,14 @@ public sealed partial class ShellViewModel : ViewModelBase
         if (e.PropertyName == nameof(PageViewModel.Title))
         {
             OnPropertyChanged(nameof(Title));
+        }
+    }
+
+    private void OnConversationsChanged(object? sender, PropertyChangedEventArgs e)
+    {
+        if (e.PropertyName == nameof(Conversations.HasAttention))
+        {
+            OnPropertyChanged(nameof(ExpandSidebarHint));
         }
     }
 

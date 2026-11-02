@@ -5,14 +5,21 @@
              xmlns:ws="using:Mindweave.Core.Workspaces"
              xmlns:cv="using:Mindweave.Desktop.ViewModels.Conversations"
              xmlns:d="using:Mindweave.Desktop"
+             xmlns:v="using:Mindweave.Desktop.Views"
              x:Class="Mindweave.Desktop.Views.ShellView"
              x:DataType="vm:ShellViewModel">
-  <Grid ColumnDefinitions="240,*">
-    <Border Background="{DynamicResource SidebarBackground}" BorderBrush="{DynamicResource DividerBrush}" BorderThickness="0,0,1,0">
+  <Grid ColumnDefinitions="Auto,*">
+    <!-- The sidebar: resizable by its right edge, collapsible from its header or with the shortcut (S7 round 3). -->
+    <Panel Name="SidebarColumn" ZIndex="1" IsVisible="{Binding !IsSidebarCollapsed}">
+    <Border Name="Sidebar" Width="{Binding SidebarWidth}" Background="{DynamicResource SidebarBackground}" BorderBrush="{DynamicResource DividerBrush}" BorderThickness="0,0,1,0">
       <DockPanel Margin="10,14,10,12">
         <StackPanel DockPanel.Dock="Top" Spacing="2">
           <!-- Workspace: the selector and its + share one height and one frame style. -->
           <DockPanel Margin="0,0,0,4">
+            <Button Name="CollapseSidebar" DockPanel.Dock="Right" Classes="quiet sidebar-toggle" Command="{Binding ToggleSidebarCommand}"
+                    Margin="4,0,-4,0" ToolTip.Tip="{x:Static d:UiText.CollapseSidebarTip}" AutomationProperties.Name="{x:Static d:UiText.CollapseSidebar}">
+              <PathIcon Data="{StaticResource IconSidebar}" />
+            </Button>
             <Button Name="ToggleNewWorkspace" DockPanel.Dock="Right" Classes="secondary" Command="{Binding ToggleCreateWorkspaceCommand}"
                     Width="32" Height="32" Padding="0" Margin="6,0,0,0" HorizontalContentAlignment="Center" VerticalContentAlignment="Center"
                     CornerRadius="{DynamicResource ControlCornerRadius}" BorderBrush="{DynamicResource TextControlBorderBrush}"
@@ -78,7 +85,7 @@
           <ItemsControl Name="ConversationList" ItemsSource="{Binding Conversations.Items}">
             <ItemsControl.ItemTemplate>
               <DataTemplate x:DataType="cv:ConversationItemViewModel">
-                <Button Classes="nav" Classes.selected="{Binding IsSelected}" Margin="{Binding Indent}" Padding="10,5"
+                <Button Classes="nav" Classes.selected="{Binding IsSelected}" Margin="{Binding Depth, Converter={x:Static v:TreeIndent.Margin}}" Padding="10,5"
                         Command="{Binding $parent[ItemsControl].((vm:ShellViewModel)DataContext).Conversations.OpenCommand}" CommandParameter="{Binding}">
                   <DockPanel>
                     <!-- A branch: a small corner glyph from its parent's column, so the hierarchy reads at a glance. -->
@@ -101,9 +108,23 @@
         </ScrollViewer>
       </DockPanel>
     </Border>
+    <!-- Straddles the divider: a wider grip than the 1 px line it shows on hover. The resize pointer says what it does. -->
+    <Border Name="SidebarSplitter" Classes="sidebar-splitter" HorizontalAlignment="Right" Width="7" Margin="0,0,-3,0"
+            AutomationProperties.Name="{x:Static d:UiText.SidebarSplitter}">
+      <Border Classes="sidebar-splitter-line" />
+    </Border>
+    </Panel>
 
-    <DockPanel Grid.Column="1">
+    <DockPanel Name="ContentArea" Grid.Column="1">
       <DockPanel DockPanel.Dock="Top" Margin="24,16,24,6">
+        <!-- Only while the sidebar is collapsed; a small dot when a hidden conversation needs attention. -->
+        <Button Name="ExpandSidebar" Classes="quiet sidebar-toggle" Command="{Binding ToggleSidebarCommand}" IsVisible="{Binding IsSidebarCollapsed}"
+                Margin="-8,0,6,0" ToolTip.Tip="{Binding ExpandSidebarHint}" AutomationProperties.Name="{x:Static d:UiText.ExpandSidebar}">
+          <Panel>
+            <PathIcon Data="{StaticResource IconSidebar}" />
+            <Ellipse Name="ExpandSidebarAttention" Classes="sidebar-attention" IsVisible="{Binding Conversations.HasAttention}" />
+          </Panel>
+        </Button>
         <Button Name="BackButton" Classes="quiet" Command="{Binding GoBackCommand}" IsVisible="{Binding CanGoBack}"
                 Width="32" Height="32" Padding="0" HorizontalContentAlignment="Center" Margin="-6,0,6,0"
                 ToolTip.Tip="{x:Static d:UiText.Back}" AutomationProperties.Name="{x:Static d:UiText.Back}">

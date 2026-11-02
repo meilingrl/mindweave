@@ -4,15 +4,19 @@
              xmlns:d="using:Mindweave.Desktop"
              x:Class="Mindweave.Desktop.Views.Pages.ExploreHomeView"
              x:DataType="vm:ExploreHomeViewModel">
-  <StackPanel Spacing="14" HorizontalAlignment="Left">
-    <TextBlock Classes="muted" Text="{x:Static d:UiText.ExploreHomeHint}" />
-    <!-- The page's one primary action. -->
-    <Button Name="StartConversation" Classes="primary" Command="{Binding NewConversationCommand}" HorizontalAlignment="Left"
-            AutomationProperties.Name="{x:Static d:UiText.NewConversation}">
-      <StackPanel Orientation="Horizontal" Spacing="7">
-        <PathIcon Width="12" Height="12" Data="{StaticResource IconPlus}" />
-        <TextBlock Text="{x:Static d:UiText.NewConversation}" VerticalAlignment="Center" />
-      </StackPanel>
-    </Button>
-  </StackPanel>
+  <!-- The workspace's starting point: a quiet mark and the page's one primary action; the button says what to do. -->
+  <Grid RowDefinitions="2*,Auto,3*">
+    <StackPanel Grid.Row="1" Spacing="18" HorizontalAlignment="Center">
+      <Border Classes="home-mark" HorizontalAlignment="Center">
+        <PathIcon Data="{StaticResource IconExplore}" />
+      </Border>
+      <Button Name="StartConversation" Classes="primary" Command="{Binding NewConversationCommand}" HorizontalAlignment="Center"
+              Padding="18,8" AutomationProperties.Name="{x:Static d:UiText.NewConversation}">
+        <StackPanel Orientation="Horizontal" Spacing="7">
+          <PathIcon Width="12" Height="12" Data="{StaticResource IconPlus}" />
+          <TextBlock Text="{x:Static d:UiText.NewConversation}" VerticalAlignment="Center" />
+        </StackPanel>
+      </Button>
+    </StackPanel>
+  </Grid>
 </UserControl>

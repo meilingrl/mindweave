@@ -230,6 +230,7 @@ public class ConversationPolishTests
         Assert.Equal([false, true], items.Select(i => i.IsBranch));
         var list = Find<ItemsControl>(window.GetVisualDescendants().OfType<ShellView>().Single(), "ConversationList");
         var rows = list.GetVisualDescendants().OfType<Button>().ToList();
+        Assert.Equal([0, TreeIndent.Step], rows.Select(r => r.Margin.Left));
         Assert.False(rows[0].GetVisualDescendants().OfType<PathIcon>().Single().IsVisible);
         Assert.True(rows[1].GetVisualDescendants().OfType<PathIcon>().Single().IsEffectivelyVisible);
         Assert.True(rows[1].GetVisualDescendants().OfType<Ellipse>().Single(e => e.Classes.Contains("running-dot")).IsEffectivelyVisible);

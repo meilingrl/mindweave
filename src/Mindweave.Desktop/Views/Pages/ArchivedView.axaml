@@ -2,47 +2,92 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:vm="using:Mindweave.Desktop.ViewModels.Pages"
              xmlns:v="using:Mindweave.Desktop.Views.Pages"
+             xmlns:views="using:Mindweave.Desktop.Views"
              xmlns:d="using:Mindweave.Desktop"
              x:Class="Mindweave.Desktop.Views.Pages.ArchivedView"
              x:DataType="vm:ArchivedViewModel">
+  <!-- A reading column at most 760 wide, left-aligned with the page title; rows fill it so actions line up. -->
+  <Grid>
+    <Grid.ColumnDefinitions>
+      <ColumnDefinition Width="*" MaxWidth="760" />
+    </Grid.ColumnDefinitions>
   <DockPanel>
-    <StackPanel DockPanel.Dock="Top" Spacing="8" Margin="0,0,0,8">
-      <TextBlock Classes="muted" FontSize="12" TextWrapping="Wrap" Text="{x:Static d:UiText.ArchivedNote}" />
-      <Border Name="ConfirmationPanel" BorderBrush="{DynamicResource QuoteBar}" BorderThickness="3,0,0,0" Padding="10,6"
-              IsVisible="{Binding Confirmation, Converter={x:Static ObjectConverters.IsNotNull}}">
-        <StackPanel Spacing="6">
-          <TextBlock Text="{Binding Confirmation.Message, FallbackValue=''}" TextWrapping="Wrap" />
-          <StackPanel Orientation="Horizontal" Spacing="6">
-            <Button Name="ConfirmButton" Content="{x:Static d:UiText.Confirm}" Command="{Binding ConfirmCommand}" />
-            <Button Content="{x:Static d:UiText.Cancel}" Command="{Binding CancelConfirmationCommand}" />
-          </StackPanel>
-        </StackPanel>
+    <StackPanel DockPanel.Dock="Top" Spacing="10" Margin="0,0,0,10">
+      <TextBlock Classes="caption" TextWrapping="Wrap" Text="{x:Static d:UiText.ArchivedNote}" IsVisible="{Binding !IsEmpty}" />
+      <Border Name="NoticePanel" Classes="notice error" IsVisible="{Binding Notice, Converter={x:Static ObjectConverters.IsNotNull}}">
+        <DockPanel>
+          <TextBlock Classes="notice-icon" Text="!" />
+          <TextBlock Name="Notice" Text="{Binding Notice}" />
+        </DockPanel>
       </Border>
-      <TextBlock Name="Notice" Classes="error" FontSize="12" TextWrapping="Wrap" Text="{Binding Notice}"
-                 IsVisible="{Binding Notice, Converter={x:Static ObjectConverters.IsNotNull}}" />
-      <TextBlock Classes="muted" Text="{x:Static d:UiText.ArchivedEmpty}" IsVisible="{Binding IsEmpty}" />
     </StackPanel>
-    <ScrollViewer HorizontalScrollBarVisibility="Disabled">
+    <!-- Empty: one quiet line with the archive glyph, nothing to explain. -->
+    <StackPanel Name="EmptyState" DockPanel.Dock="Top" Orientation="Horizontal" Spacing="8" Margin="2,4,0,0" IsVisible="{Binding IsEmpty}">
+      <PathIcon Width="13" Height="13" Foreground="{DynamicResource MutedText}" Data="{StaticResource IconArchive}" />
+      <TextBlock Classes="muted" Text="{x:Static d:UiText.ArchivedEmpty}" VerticalAlignment="Center" />
+    </StackPanel>
+    <ScrollViewer Classes="autohide" HorizontalScrollBarVisibility="Disabled">
       <ItemsControl Name="ArchivedList" ItemsSource="{Binding Items}">
         <ItemsControl.ItemTemplate>
           <DataTemplate x:DataType="vm:ArchivedItemViewModel">
-            <DockPanel Margin="{Binding Indent}">
-              <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" Spacing="8">
-                <Button Classes="link" Content="{x:Static d:UiText.Restore}"
-                        Command="{Binding $parent[v:ArchivedView].((vm:ArchivedViewModel)DataContext).RestoreCommand}" CommandParameter="{Binding}" />
-                <Button Classes="link" Content="{x:Static d:UiText.Delete}"
-                        Command="{Binding $parent[v:ArchivedView].((vm:ArchivedViewModel)DataContext).DeleteCommand}" CommandParameter="{Binding}" />
-              </StackPanel>
-              <StackPanel Orientation="Horizontal" Spacing="6">
-                <Button Classes="link" Content="{Binding Title}"
+            <!-- One row per conversation: open by its name, restore and delete as quiet actions at the right. -->
+            <StackPanel Spacing="4">
+            <Border Classes="archived-row" Margin="{Binding Depth, Converter={x:Static views:TreeIndent.Margin}}">
+              <DockPanel>
+                <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" Spacing="2" Margin="8,0,0,0">
+                  <Button Name="RestoreButton" Classes="quiet small" AutomationProperties.Name="{x:Static d:UiText.Restore}"
+                          Command="{Binding $parent[v:ArchivedView].((vm:ArchivedViewModel)DataContext).RestoreCommand}" CommandParameter="{Binding}">
+                    <StackPanel Orientation="Horizontal" Spacing="5">
+                      <PathIcon Data="{StaticResource IconReturn}" />
+                      <TextBlock Text="{x:Static d:UiText.Restore}" VerticalAlignment="Center" />
+                    </StackPanel>
+                  </Button>
+                  <Button Name="DeleteButton" Classes="quiet small danger" AutomationProperties.Name="{x:Static d:UiText.Delete}"
+                          Command="{Binding $parent[v:ArchivedView].((vm:ArchivedViewModel)DataContext).DeleteCommand}" CommandParameter="{Binding}">
+                    <StackPanel Orientation="Horizontal" Spacing="5">
+                      <PathIcon Data="{StaticResource IconDelete}" />
+                      <TextBlock Text="{x:Static d:UiText.Delete}" VerticalAlignment="Center" />
+                    </StackPanel>
+                  </Button>
+                </StackPanel>
+                <!-- Archived itself: the archive glyph; hidden only because an ancestor is archived: the tree corner. -->
+                <Panel Width="14" Margin="2,0,8,0" VerticalAlignment="Center">
+                  <PathIcon Width="12" Height="12" Foreground="{DynamicResource MutedText}" Data="{StaticResource IconArchive}"
+                            IsVisible="{Binding IsArchived}" ToolTip.Tip="{x:Static d:UiText.ArchivedMarker}" />
+                  <PathIcon Width="9" Height="9" Margin="0,0,0,3" Foreground="{DynamicResource TreeGuide}" Data="{StaticResource IconTreeBranch}"
+                            IsVisible="{Binding !IsArchived}" />
+                </Panel>
+                <!-- The name fills the row, so wherever the row lights up a click opens the conversation. -->
+                <Button Name="OpenButton" Classes="list-name archived-name" HorizontalAlignment="Stretch" HorizontalContentAlignment="Left" Content="{Binding Title}"
                         Command="{Binding $parent[v:ArchivedView].((vm:ArchivedViewModel)DataContext).OpenCommand}" CommandParameter="{Binding}" />
-                <TextBlock Classes="muted" FontSize="12" Text="{Binding Marker}" VerticalAlignment="Center"
-                           IsVisible="{Binding IsArchived}" />
-              </StackPanel>
-            </DockPanel>
+              </DockPanel>
+            </Border>
+            <!-- The confirmation opens under the row it is about: a delete names the conversation in the danger tone. -->
+            <Border Name="ConfirmationPanel" Classes="notice" IsVisible="{Binding IsConfirming}"
+                    Classes.error="{Binding $parent[v:ArchivedView].((vm:ArchivedViewModel)DataContext).Confirmation.IsDestructive, FallbackValue=False}"
+                    Classes.warning="{Binding !$parent[v:ArchivedView].((vm:ArchivedViewModel)DataContext).Confirmation.IsDestructive, FallbackValue=True}"
+                    Margin="{Binding Depth, Converter={x:Static views:TreeIndent.Margin}}">
+              <DockPanel>
+                <TextBlock Classes="notice-icon" Text="?" />
+                <StackPanel Spacing="8">
+                  <TextBlock Name="ConfirmationMessage" TextWrapping="Wrap"
+                             Text="{Binding $parent[v:ArchivedView].((vm:ArchivedViewModel)DataContext).Confirmation.Message, FallbackValue=''}" />
+                  <StackPanel Orientation="Horizontal" Spacing="6">
+                    <Button Name="ConfirmButton" Classes="secondary"
+                            Classes.danger="{Binding $parent[v:ArchivedView].((vm:ArchivedViewModel)DataContext).Confirmation.IsDestructive, FallbackValue=False}"
+                            Content="{Binding $parent[v:ArchivedView].((vm:ArchivedViewModel)DataContext).ConfirmLabel}"
+                            Command="{Binding $parent[v:ArchivedView].((vm:ArchivedViewModel)DataContext).ConfirmCommand}" />
+                    <Button Name="CancelConfirmButton" Classes="quiet" Content="{x:Static d:UiText.Cancel}"
+                            Command="{Binding $parent[v:ArchivedView].((vm:ArchivedViewModel)DataContext).CancelConfirmationCommand}" />
+                  </StackPanel>
+                </StackPanel>
+              </DockPanel>
+            </Border>
+            </StackPanel>
           </DataTemplate>
         </ItemsControl.ItemTemplate>
       </ItemsControl>
     </ScrollViewer>
   </DockPanel>
+  </Grid>
 </UserControl>
