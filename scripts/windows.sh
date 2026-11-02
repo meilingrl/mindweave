@@ -7,13 +7,15 @@
 #   scripts/windows.sh exec CMD  run a PowerShell command inside the remote checkout
 #
 # Environment: MINDWEAVE_WIN_HOST (default win-home), MINDWEAVE_WIN_DIR (default E:/mindweave-claude-auto),
-# MINDWEAVE_WIN_SOCKS (default 127.0.0.1:7898). This Mac reaches the tailnet through a userspace Tailscale
+# MINDWEAVE_WIN_SOCKS (default 127.0.0.1:7898), MINDWEAVE_WIN_APP (publish folder under that dir, default app).
+# This Mac reaches the tailnet through a userspace Tailscale
 # instance that exposes only a loopback SOCKS proxy, so SSH goes through it; set it empty to connect directly.
 set -euo pipefail
 
 HOST="${MINDWEAVE_WIN_HOST:-win-home}"
 DIR="${MINDWEAVE_WIN_DIR:-E:/mindweave-claude-auto}"
 SRC="$DIR/src-snapshot"
+APP="${MINDWEAVE_WIN_APP:-app}"
 ROOT="$(git -C "$(dirname "$0")" rev-parse --show-toplevel)"
 SOCKS="${MINDWEAVE_WIN_SOCKS-127.0.0.1:7898}"
 SSH_OPTS=(-o BatchMode=yes -o ConnectTimeout=20 -o ServerAliveInterval=15 -o ServerAliveCountMax=4)
@@ -73,12 +75,14 @@ case "${1:-}" in
   sync) sync ;;
   test)
     sync
-    remote "Set-Location '$SRC'; dotnet --version; dotnet test Mindweave.slnx -c Release 2>&1 | Select-String -Pattern 'error|warn|\[FAIL\]|Passed!|Failed!|Exception|Assert' ; exit \$LASTEXITCODE"
+    # stderr is merged inside cmd: under ErrorActionPreference=Stop, PowerShell would turn the first stderr
+    # line from dotnet into a terminating error and cut the run short. The full log stays on the machine.
+    remote "Set-Location '$SRC'; dotnet --version; cmd /c 'dotnet test Mindweave.slnx -c Release 2>&1' | Tee-Object -FilePath '$DIR/test.log' | Select-String -Pattern 'error|warn|\[FAIL\]|Passed!|Failed!|Exception|Assert'; exit \$LASTEXITCODE"
     ;;
   publish)
     sync
-    remote "Set-Location '$SRC'; dotnet publish src/Mindweave.Desktop -c Release -r win-x64 --self-contained -o '$DIR/app' 2>&1 | Select-String -Pattern 'error|warn|->'; exit \$LASTEXITCODE"
-    echo "run on Windows: $DIR/app/Mindweave.exe"
+    remote "Set-Location '$SRC'; cmd /c 'dotnet publish src/Mindweave.Desktop -c Release -r win-x64 --self-contained -o $DIR/$APP 2>&1' | Select-String -Pattern 'error|warn|->'; exit \$LASTEXITCODE"
+    echo "run on Windows: $DIR/$APP/Mindweave.exe"
     ;;
   exec) shift; remote "Set-Location '$SRC'; $*" ;;
   *) sed -n '2,10p' "$0"; exit 64 ;;
