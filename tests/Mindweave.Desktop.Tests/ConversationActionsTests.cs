@@ -9,6 +9,7 @@ using Avalonia.VisualTree;
 using Mindweave.Application.Conversations;
 using Mindweave.Core.Conversations;
 using Mindweave.Desktop.Markdown;
+using Mindweave.Desktop.Navigation;
 using Mindweave.Desktop.ViewModels.Conversations;
 using Mindweave.Desktop.Views;
 using Mindweave.Desktop.Views.Conversations;
@@ -55,28 +56,48 @@ public partial class ConversationActionsTests
         await using var app = DesktopHarness.Create();
         var window = Open(app);
         var page = await ConversationAsync(app, window);
-        var answer = AnswerOf(window);
+        await AskAgainAsync(app, window, page, Answer);
+        var answer = Answers(window)[0];
 
         Select(window, answer, "铁路随后");
-        var actions = Find<Border>(answer, "SelectionActions");
-        var branch = Find<Button>(answer, "BranchButton");
+        var actions = answer.SelectionActions;
         Assert.True(actions.IsEffectivelyVisible);
-        Assert.True(branch.IsEffectivelyVisible);
-        AssertNextToSelection(answer, actions);
+        AssertAbove(answer);
+        AssertReachable(window, answer);
 
         // Nothing is left at the bottom of the answer: the action is the only branch entry and sits inside the text.
         var answerBottom = answer.TranslatePoint(new Point(0, answer.Bounds.Height), window)!.Value.Y;
         Assert.True(actions.TranslatePoint(new Point(0, actions.Bounds.Height), window)!.Value.Y < answerBottom - 40);
 
+        // It scrolls with the selection, and leaves (without losing the selection) when the selection leaves the page.
+        var scroller = answer.FindAncestorOfType<ScrollViewer>()!;
+        var kept = scroller.Offset;
+        scroller.Offset = new Vector(0, kept.Y + 20);
+        window.UpdateLayout();
+        AssertAbove(answer);
+        var line = SourceAnchors.SelectionRects(answer.Renderer, scroller)[0];
+        scroller.Offset = new Vector(0, scroller.Offset.Y + line.Bottom + 50);
+        window.UpdateLayout();
+        Assert.True(SourceAnchors.SelectionRects(answer.Renderer, scroller)[^1].Bottom < 0);
+        Assert.False(actions.IsEffectivelyVisible);
+        Assert.True(SourceAnchors.HasSelection(answer.Renderer));
+        scroller.Offset = kept;
+        window.UpdateLayout();
+        Assert.True(actions.IsEffectivelyVisible);
+        AssertAbove(answer);
+
         // A plain click elsewhere in the text clears the selection, and the action goes with it.
         var other = SourceAnchors.Blocks(answer.Renderer).First(b => b.LayoutText.StartsWith("第1段", StringComparison.Ordinal));
+        other.BringIntoView();
+        window.UpdateLayout();
         var elsewhere = other.TranslatePoint(new Point(20, other.Bounds.Height / 2), window)!.Value;
         window.MouseDown(elsewhere, MouseButton.Left);
         window.MouseUp(elsewhere, MouseButton.Left);
         window.UpdateLayout();
         Assert.False(SourceAnchors.HasSelection(answer.Renderer));
         Assert.False(actions.IsEffectivelyVisible);
-        Assert.Equal(2, page.Messages.Count);
+        Assert.Null(actions.Parent);
+        Assert.Equal(4, page.Messages.Count);
         window.Close();
     }
 
@@ -88,23 +109,131 @@ public partial class ConversationActionsTests
         var root = await ConversationAsync(app, window);
         var answer = AnswerOf(window);
         Select(window, answer, "斯蒂芬森");
-        var expected = answer.CaptureSelection();
-        Assert.NotNull(expected);
+        await AssertClickCreatesTheSelectedBranchAsync(app, window, answer, root, "斯蒂芬森");
+        window.Close();
+    }
 
-        // A real pointer click: pressing the action moves focus out of the text, and the branch is still made from the selection.
-        Click(window, Find<Button>(answer, "BranchButton"));
+    [AvaloniaFact]
+    public async Task A_selection_on_the_answers_first_line_can_be_branched_from()
+    {
+        // Above the first line is outside the answer itself (the question is there): the action must not be cut off.
+        await using var app = DesktopHarness.Create();
+        var window = Open(app);
+        var root = await ConversationAsync(app, window);
+        var answer = AnswerOf(window);
+        Select(window, answer, "第1段");
+        Assert.True(SourceAnchors.SelectionRects(answer.Renderer, answer)[0].Y < 10);
+        AssertAbove(answer);
+        await AssertClickCreatesTheSelectedBranchAsync(app, window, answer, root, "第1段");
+        window.Close();
+    }
 
-        await UiWait.UntilAsync(() => app.Workbench.CurrentPage is ConversationViewModel page && page.Id != root.Id);
-        var child = (ConversationViewModel)app.Workbench.CurrentPage!;
-        await child.Loaded;
-        var source = await app.Services.GetRequiredService<IConversations>().GetSourceAsync(child.Id, CancellationToken.None);
-        Assert.NotNull(source);
-        Assert.Equal(expected.SourceMessage, source.SourceMessage);
-        Assert.Equal(expected.Quote, source.Quote);
-        Assert.Equal(expected.AnchorJson, source.AnchorJson);
-        Assert.Equal(expected.AnchorFormatVersion, source.AnchorFormatVersion);
-        Assert.Equal(expected.RenderProfile, source.RenderProfile);
-        Assert.Equal("斯蒂芬森", child.SourceQuote);
+    [AvaloniaFact]
+    public async Task A_selection_on_the_last_line_at_the_top_of_the_page_gets_the_action_below_it_over_the_answers_row()
+    {
+        await using var app = DesktopHarness.Create();
+        var window = Open(app, height: 480);
+        var root = await ConversationAsync(app, window);
+        await AskAgainAsync(app, window, root, Answer);
+        var answer = Answers(window)[0];
+
+        // An answer's last line sits at the very top of the visible page: no room above, so the action goes below,
+        // where the answer's own row (copy, regenerate, time) is drawn; the action is on top and takes the click.
+        Select(window, answer, "第7段", topInViewport: 2);
+        var scroller = answer.FindAncestorOfType<ScrollViewer>()!;
+        var line = SourceAnchors.SelectionRects(answer.Renderer, window).Single();
+        var actions = answer.SelectionActions;
+        var top = actions.TranslatePoint(default, window)!.Value.Y;
+        Assert.Equal(line.Bottom + AnswerView.ActionGap, top, 0.5);
+        var row = CurrentView(window).GetVisualDescendants().OfType<StackPanel>().Single(p => p.Name == "AnswerActions" && p.DataContext == answer.DataContext);
+        var rowTop = row.TranslatePoint(default, window)!.Value.Y;
+        Assert.True(rowTop < top + actions.Bounds.Height && top < rowTop + row.Bounds.Height, "The action overlaps the answer's row in this case.");
+        Assert.True(scroller.TranslatePoint(default, window)!.Value.Y + 10 > line.Top);
+        await AssertClickCreatesTheSelectedBranchAsync(app, window, answer, root, "第7段");
+        window.Close();
+    }
+
+    [AvaloniaFact]
+    public async Task A_single_line_answer_can_be_branched_from()
+    {
+        await using var app = DesktopHarness.Create();
+        var window = Open(app);
+        await app.StartWithWorkspaceAsync("火车");
+        await app.ConfigureModelAsync();
+        app.Client.Reply("蒸汽机车由斯蒂芬森改良。");
+        var root = await AskAsync(app, window, "谁改良了蒸汽机车？");
+        await UiWait.UntilAsync(() => root.Messages.Count == 2 && root.Messages[1].CanBranch);
+        await CurrentView(window).Restored;
+        await UiWait.UntilAsync(() => AnswerOf(window) is { IsLayoutCurrent: true, DataContext: MessageItemViewModel { CanBranch: true } });
+        window.UpdateLayout();
+        var answer = AnswerOf(window);
+        Assert.Single(SourceAnchors.Blocks(answer.Renderer));
+
+        Select(window, answer, "斯蒂芬森");
+        Assert.Single(SourceAnchors.SelectionRects(answer.Renderer, answer));
+        await AssertClickCreatesTheSelectedBranchAsync(app, window, answer, root, "斯蒂芬森");
+        window.Close();
+    }
+
+    [AvaloniaFact]
+    public async Task Only_one_selection_floats_an_action_and_typing_in_the_composer_ends_it()
+    {
+        await using var app = DesktopHarness.Create();
+        var window = Open(app);
+        var page = await ConversationAsync(app, window);
+        await AskAgainAsync(app, window, page, "第二个回答：铁路很快传到欧洲大陆，随后到了世界各地。");
+        var (first, second) = (Answers(window)[0], Answers(window)[1]);
+
+        Select(window, first, "铁路随后");
+        Assert.True(first.SelectionActions.IsEffectivelyVisible);
+        Select(window, second, "欧洲大陆");
+        Assert.False(SourceAnchors.HasSelection(first.Renderer));
+        Assert.False(first.SelectionActions.IsEffectivelyVisible);
+        Assert.True(second.SelectionActions.IsEffectivelyVisible);
+        Assert.Single(window.GetVisualDescendants().OfType<Border>(), b => b.Name == "SelectionActions" && b.IsEffectivelyVisible);
+
+        // A real click into the composer: the selection and its action go.
+        var input = VisibleNamed<TextBox>(CurrentView(window), "Input");
+        var centre = input.TranslatePoint(new Point(input.Bounds.Width / 2, input.Bounds.Height / 2), window)!.Value;
+        window.MouseDown(centre, MouseButton.Left);
+        window.MouseUp(centre, MouseButton.Left);
+        window.UpdateLayout();
+        Assert.True(input.IsFocused);
+        Assert.False(SourceAnchors.HasSelection(second.Renderer));
+        Assert.DoesNotContain(window.GetVisualDescendants().OfType<Border>(), b => b.Name == "SelectionActions" && b.IsEffectivelyVisible);
+        window.Close();
+    }
+
+    [AvaloniaFact]
+    public async Task Leaving_the_page_takes_the_floating_action_with_it()
+    {
+        await using var app = DesktopHarness.Create();
+        var window = Open(app);
+        await ConversationAsync(app, window);
+        var answer = AnswerOf(window);
+        Select(window, answer, "铁路随后");
+        Assert.NotNull(answer.SelectionActions.Parent);
+
+        // A page with no text box taking focus, so only leaving the page can take the action away.
+        app.Workbench.Navigate(new NavigationRequest(MainSection.Settings, StorageDetailsRoute.Instance));
+        window.UpdateLayout();
+        Assert.Null(window.FocusManager?.GetFocusedElement() as TextBox);
+        Assert.Null(answer.SelectionActions.Parent);
+        Assert.DoesNotContain(window.GetVisualDescendants().OfType<Border>(), b => b.Name == "SelectionActions");
+        window.Close();
+    }
+
+    [AvaloniaFact]
+    public async Task Message_times_use_the_apps_clock()
+    {
+        // The app's clock says it is three days later: the messages sent "now" (by the system clock) are not today.
+        await using var app = DesktopHarness.Create(s => s.AddSingleton<TimeProvider>(new LaterTime(TimeSpan.FromDays(3))));
+        var window = Open(app);
+        var page = await ConversationAsync(app, window);
+        var question = VisibleNamed<TextBlock>(CurrentView(window), "QuestionTime");
+        Assert.DoesNotMatch(Clock(), question.Text!);
+        Assert.Contains("年", question.Text, StringComparison.Ordinal);
+        Assert.Equal(UiText.MessageTime(page.Messages[0].SentAt, DateTimeOffset.UtcNow.AddDays(3)), question.Text);
         window.Close();
     }
 
@@ -232,44 +361,89 @@ public partial class ConversationActionsTests
     [GeneratedRegex(@"^\d{2}:\d{2}$")]
     private static partial Regex Clock();
 
-    /// <summary>The action sits just above the selection's first line at its left edge, or just below its last line when there is no room above.</summary>
-    private static void AssertNextToSelection(AnswerView answer, Border actions)
+    /// <summary>The action sits just above the selection's first line, at its left edge.</summary>
+    private static void AssertAbove(AnswerView answer)
     {
-        var lines = SourceAnchors.SelectionRects(answer.Renderer, answer);
-        Assert.NotEmpty(lines);
-        var first = lines[0];
-        var last = lines[^1];
+        var actions = answer.SelectionActions;
+        var first = SourceAnchors.SelectionRects(answer.Renderer, answer)[0];
         var origin = actions.TranslatePoint(default, answer)!.Value;
-        var size = actions.Bounds.Size;
-        Assert.Equal(Math.Clamp(first.X, 0, answer.Bounds.Width - size.Width), origin.X, 0.5);
-
-        var scroller = answer.FindAncestorOfType<ScrollViewer>()!;
-        var roomAbove = answer.TranslatePoint(new Point(0, first.Y - size.Height - AnswerView.ActionGap), scroller)!.Value.Y >= 0;
-        if (roomAbove)
-        {
-            Assert.Equal(first.Y - AnswerView.ActionGap, origin.Y + size.Height, 0.5);
-        }
-        else
-        {
-            Assert.Equal(last.Bottom + AnswerView.ActionGap, origin.Y, 0.5);
-        }
-
-        // On screen.
-        var top = actions.TranslatePoint(default, scroller)!.Value.Y;
-        Assert.InRange(top, 0, scroller.Viewport.Height - size.Height);
+        Assert.Equal(Math.Clamp(first.X, 0, answer.Bounds.Width - actions.Bounds.Width), origin.X, 0.5);
+        Assert.Equal(first.Y - AnswerView.ActionGap, origin.Y + actions.Bounds.Height, 0.5);
     }
+
+    /// <summary>The action is on screen and nothing covers it: the window's hit test at its centre finds 创建分支.</summary>
+    private static void AssertReachable(Window window, AnswerView answer)
+    {
+        var button = answer.BranchButton;
+        Assert.True(button.IsEffectivelyVisible);
+        var centre = button.TranslatePoint(new Point(button.Bounds.Width / 2, button.Bounds.Height / 2), window)!.Value;
+        var scroller = answer.FindAncestorOfType<ScrollViewer>()!;
+        var viewport = new Rect(scroller.TranslatePoint(default, window)!.Value, scroller.Viewport);
+        Assert.True(viewport.Contains(centre), $"The action's centre {centre} is outside the visible page {viewport}.");
+        var hit = window.InputHitTest(centre) as Visual;
+        Assert.NotNull(hit);
+        Assert.Contains(button, hit.GetSelfAndVisualAncestors());
+    }
+
+    /// <summary>A real pointer click on the action (no scrolling first) creates the branch from exactly the selection.</summary>
+    private static async Task AssertClickCreatesTheSelectedBranchAsync(DesktopHarness app, Window window, AnswerView answer, ConversationViewModel root, string quote)
+    {
+        var expected = answer.CaptureSelection();
+        Assert.NotNull(expected);
+        AssertReachable(window, answer);
+
+        // Pressing the action moves focus out of the text, and the branch is still made from the selection.
+        var button = answer.BranchButton;
+        var centre = button.TranslatePoint(new Point(button.Bounds.Width / 2, button.Bounds.Height / 2), window)!.Value;
+        window.MouseDown(centre, MouseButton.Left);
+        window.MouseUp(centre, MouseButton.Left);
+
+        await UiWait.UntilAsync(() => app.Workbench.CurrentPage is ConversationViewModel page && page.Id != root.Id);
+        var child = (ConversationViewModel)app.Workbench.CurrentPage!;
+        await child.Loaded;
+        var source = await app.Services.GetRequiredService<IConversations>().GetSourceAsync(child.Id, CancellationToken.None);
+        Assert.NotNull(source);
+        Assert.Equal(expected.SourceMessage, source.SourceMessage);
+        Assert.Equal(expected.Quote, source.Quote);
+        Assert.Equal(expected.AnchorJson, source.AnchorJson);
+        Assert.Equal(expected.AnchorFormatVersion, source.AnchorFormatVersion);
+        Assert.Equal(expected.RenderProfile, source.RenderProfile);
+        Assert.Equal(quote, child.SourceQuote);
+    }
+
+    /// <summary>Asks a second question on the page and waits until both answers are finished and laid out.</summary>
+    private static async Task AskAgainAsync(DesktopHarness app, Window window, ConversationViewModel page, string reply)
+    {
+        app.Client.Reply(reply);
+        page.Composer.Text = "后来呢？";
+        await page.Composer.SendCommand.ExecuteAsync(null);
+        await UiWait.UntilAsync(() => page.Messages.Count == 4 && page.Messages[3].CanBranch);
+        await UiWait.UntilAsync(() => Answers(window) is { Count: 2 } answers && answers.All(a => a is { IsLayoutCurrent: true, DataContext: MessageItemViewModel { CanBranch: true } }));
+        window.UpdateLayout();
+    }
+
+    private static List<AnswerView> Answers(Window window) =>
+        window.GetVisualDescendants().OfType<AnswerView>().Where(a => a.DataContext is MessageItemViewModel { IsAnswer: true }).ToList();
 
     private static AnswerView AnswerOf(Window window) =>
         window.GetVisualDescendants().OfType<AnswerView>().Last(a => a.DataContext is MessageItemViewModel { IsAnswer: true });
 
-    /// <summary>Drags across <paramref name="quote"/> with the mouse, keeping the block in the middle of the page.</summary>
-    private static void Select(Window window, AnswerView answer, string quote)
+    /// <summary>
+    /// Drags across <paramref name="quote"/> with the mouse, scrolling its block to the middle of the page, or its top to
+    /// <paramref name="topInViewport"/> pixels below the top of the visible page.
+    /// </summary>
+    private static void Select(Window window, AnswerView answer, string quote, double? topInViewport = null)
     {
         var block = SourceAnchors.Blocks(answer.Renderer).First(b => b.LayoutText.Contains(quote, StringComparison.Ordinal));
         var scroller = answer.FindAncestorOfType<ScrollViewer>()!;
         var y = block.TranslatePoint(default, scroller)!.Value.Y;
-        scroller.Offset = new Vector(0, Math.Max(0, scroller.Offset.Y + y - (scroller.Viewport.Height / 2)));
+        scroller.Offset = new Vector(0, Math.Max(0, scroller.Offset.Y + y - (topInViewport ?? (scroller.Viewport.Height / 2))));
         window.UpdateLayout();
+        if (topInViewport is { } wanted)
+        {
+            Assert.Equal(wanted, block.TranslatePoint(default, scroller)!.Value.Y, 0.5);
+        }
+
         var start = block.LayoutText.IndexOf(quote, StringComparison.Ordinal);
         var end = start + quote.Length;
         var from = block.GetTextRangeBoundsInControl(start, 1)[0];
@@ -294,9 +468,9 @@ public partial class ConversationActionsTests
         window.UpdateLayout();
     }
 
-    private static MainWindow Open(DesktopHarness app)
+    private static MainWindow Open(DesktopHarness app, double height = 700)
     {
-        var window = new MainWindow { DataContext = app.Root, Width = 1000, Height = 700 };
+        var window = new MainWindow { DataContext = app.Root, Width = 1000, Height = height };
         window.Show();
         return window;
     }
@@ -330,11 +504,13 @@ public partial class ConversationActionsTests
 
     private static ConversationView CurrentView(Window window) => window.GetVisualDescendants().OfType<ConversationView>().Single();
 
-    private static T Find<T>(Visual root, string name)
-        where T : Control =>
-        root.GetVisualDescendants().OfType<T>().First(c => c.Name == name);
-
     private static T VisibleNamed<T>(Visual root, string name)
         where T : Control =>
         root.GetVisualDescendants().OfType<T>().Single(c => c.Name == name && c.IsEffectivelyVisible);
+
+    /// <summary>A clock some time ahead of the system clock.</summary>
+    private sealed class LaterTime(TimeSpan ahead) : TimeProvider
+    {
+        public override DateTimeOffset GetUtcNow() => base.GetUtcNow() + ahead;
+    }
 }

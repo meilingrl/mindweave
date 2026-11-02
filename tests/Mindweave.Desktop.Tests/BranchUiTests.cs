@@ -207,14 +207,14 @@ public class BranchUiTests
         var growing = SourceAnchors.Blocks(Answer(window).Renderer).Single();
         growing.SelectionStart = 2;
         growing.SelectionEnd = 4;
-        Assert.False(Find<Button>(Answer(window), "BranchButton").IsVisible);
+        Assert.False(Answer(window).BranchButton.IsEffectivelyVisible);
         Assert.Null(Answer(window).CaptureSelection());
 
         held.Release.TrySetResult();
         await UiWait.UntilAsync(() => page.Messages[1].State == MessageState.Complete && page.Messages[1].CanBranch);
         window.UpdateLayout();
         Select(window, Answer(window), "增长");
-        Assert.True(Find<Button>(Answer(window), "BranchButton").IsVisible);
+        Assert.True(Answer(window).BranchButton.IsEffectivelyVisible);
         window.Close();
     }
 
@@ -260,8 +260,8 @@ public class BranchUiTests
         window.UpdateLayout();
         var answer = Answer(window);
         Select(window, answer, quote);
-        var button = Find<Button>(answer, "BranchButton");
-        Assert.True(button.IsVisible);
+        var button = answer.BranchButton;
+        Assert.True(button.IsEffectivelyVisible);
         button.RaiseEvent(new Avalonia.Interactivity.RoutedEventArgs(Button.ClickEvent));
         await UiWait.UntilAsync(() => app.Workbench.CurrentPage is ConversationViewModel page && page.Id != parent.Id);
         var child = (ConversationViewModel)app.Workbench.CurrentPage!;

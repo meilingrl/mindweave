@@ -1,27 +1,12 @@
 <UserControl xmlns="https://github.com/avaloniaui"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:vm="using:Mindweave.Desktop.ViewModels.Conversations"
-             xmlns:d="using:Mindweave.Desktop"
              x:Class="Mindweave.Desktop.Views.Conversations.AnswerView"
              x:DataType="vm:MessageItemViewModel">
-  <Panel>
-    <!-- The Markdown renderer is created in code: it is fed either a full parse (finished) or a live builder (streaming). -->
-    <ContentControl Name="BodyHost" />
-    <!--
-      A small floating action next to the selection (S7 round 3): it appears while text in a finished answer is
-      selected, sits just above the selection (below it when that would leave the visible area) and scrolls with it.
-      The branch entries are listed by the page, after the answer's actions.
-    -->
-    <Canvas Name="SelectionLayer">
-      <Border Name="SelectionActions" Classes="selection-actions" IsVisible="False">
-        <Button Name="BranchButton" Classes="quiet" IsVisible="False" ToolTip.ShowOnDisabled="True"
-                AutomationProperties.Name="{x:Static d:UiText.CreateBranch}">
-          <StackPanel Orientation="Horizontal" Spacing="6">
-            <PathIcon Data="{StaticResource IconBranch}" />
-            <TextBlock Text="{x:Static d:UiText.CreateBranch}" VerticalAlignment="Center" />
-          </StackPanel>
-        </Button>
-      </Border>
-    </Canvas>
-  </Panel>
+  <!--
+    The Markdown renderer is created in code: it is fed either a full parse (finished) or a live builder (streaming).
+    The floating 创建分支 action next to a selection is created in code too and shown in the window's overlay layer,
+    so neither this answer's bounds, the page's scroll area nor the rows under the answer can clip or cover it.
+  -->
+  <ContentControl Name="BodyHost" />
 </UserControl>

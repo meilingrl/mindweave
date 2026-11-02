@@ -72,7 +72,7 @@
           <SolidColorBrush x:Key="FloatingBackground">#FFFFFF</SolidColorBrush>
           <SolidColorBrush x:Key="FloatingBorder">#E2DFDC</SolidColorBrush>
           <BoxShadows x:Key="FloatingShadow">0 4 14 0 #1F000000</BoxShadows>
-          <SolidColorBrush x:Key="TimestampText">#A29C97</SolidColorBrush>
+          <SolidColorBrush x:Key="TimestampText">#857F79</SolidColorBrush>
           <!-- Scroll bars: a faint thin thumb at rest, a little stronger when hovered (Fluent's own keys) -->
           <Color x:Key="ScrollBarPanningThumbBackgroundColor">#33000000</Color>
           <SolidColorBrush x:Key="ScrollBarPanningThumbBackground">#2E1C1917</SolidColorBrush>
@@ -174,7 +174,7 @@
           <SolidColorBrush x:Key="FloatingBackground">#2A2C31</SolidColorBrush>
           <SolidColorBrush x:Key="FloatingBorder">#3A3D45</SolidColorBrush>
           <BoxShadows x:Key="FloatingShadow">0 6 18 0 #73000000</BoxShadows>
-          <SolidColorBrush x:Key="TimestampText">#6E7480</SolidColorBrush>
+          <SolidColorBrush x:Key="TimestampText">#7E8492</SolidColorBrush>
           <Color x:Key="ScrollBarPanningThumbBackgroundColor">#38FFFFFF</Color>
           <SolidColorBrush x:Key="ScrollBarPanningThumbBackground">#2EFFFFFF</SolidColorBrush>
           <Color x:Key="ScrollBarThumbBackgroundColor">#66FFFFFF</Color>

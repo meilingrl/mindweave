@@ -548,9 +548,37 @@ public class GalleryTests
         var seed = await SeedAsync(scene.App);
         await OpenConversationAsync(scene.App, window, seed.Root);
         var answer = Answers(window).Single();
-        var block = Mindweave.Desktop.Markdown.SourceAnchors.Blocks(answer.Renderer).First(b => b.LayoutText.Contains("斯托克顿—达灵顿铁路", StringComparison.Ordinal));
-        var start = block.LayoutText.IndexOf("斯托克顿—达灵顿铁路", StringComparison.Ordinal);
-        var end = start + "斯托克顿—达灵顿铁路".Length;
+        DragSelect(window, answer, "斯托克顿—达灵顿铁路");
+        await SettleAsync(window);
+        Assert.True(Find<Button>(window, "BranchButton").IsEffectivelyVisible);
+        Capture(window, "g25-selection-branch-action");
+        window.Close();
+    }
+
+    [AvaloniaFact]
+    public async Task G27_selection_on_the_answers_first_line_shows_the_action_over_the_question()
+    {
+        // The floating action lives in the window's overlay, so above the first line (over the question) it is not cut off.
+        await using var scene = Scene.Create("g27");
+        var window = Show(scene.App);
+        var seed = await SeedAsync(scene.App);
+        await OpenConversationAsync(scene.App, window, seed.Root);
+        var answer = Answers(window).Single();
+        var scroller = answer.FindAncestorOfType<ScrollViewer>()!;
+        scroller.Offset = new Avalonia.Vector(0, Math.Max(0, scroller.Offset.Y + answer.TranslatePoint(default, scroller)!.Value.Y - 120));
+        await SettleAsync(window);
+        DragSelect(window, answer, "蒸汽动力");
+        await SettleAsync(window);
+        Assert.True(Find<Button>(window, "BranchButton").IsEffectivelyVisible);
+        Capture(window, "g27-first-line-branch-action");
+        window.Close();
+    }
+
+    private static void DragSelect(Window window, AnswerView answer, string quote)
+    {
+        var block = Mindweave.Desktop.Markdown.SourceAnchors.Blocks(answer.Renderer).First(b => b.LayoutText.Contains(quote, StringComparison.Ordinal));
+        var start = block.LayoutText.IndexOf(quote, StringComparison.Ordinal);
+        var end = start + quote.Length;
         var from = block.GetTextRangeBoundsInControl(start, 1)[0];
         var to = block.GetTextRangeBoundsInControl(end, 1)[0];
         var down = block.TranslatePoint(new Avalonia.Point(from.X + 1, from.Center.Y), window)!.Value;
@@ -558,10 +586,6 @@ public class GalleryTests
         window.MouseDown(down, Avalonia.Input.MouseButton.Left);
         window.MouseMove(up, Avalonia.Input.RawInputModifiers.LeftMouseButton);
         window.MouseUp(up, Avalonia.Input.MouseButton.Left);
-        await SettleAsync(window);
-        Assert.True(Find<Button>(window, "BranchButton").IsEffectivelyVisible);
-        Capture(window, "g25-selection-branch-action");
-        window.Close();
     }
 
     [AvaloniaFact]
