@@ -333,6 +333,49 @@ public partial class ConversationActionsTests
     }
 
     [AvaloniaFact]
+    public async Task A_window_dialog_covers_the_branch_action_and_it_is_reachable_again_once_the_dialog_closes()
+    {
+        await using var app = DesktopHarness.Create();
+        var window = Open(app);
+        var page = await ConversationAsync(app, window);
+        var answer = AnswerOf(window);
+        Select(window, answer, "铁路随后");
+        AssertReachable(window, answer);
+        var button = answer.BranchButton;
+        var centre = button.TranslatePoint(new Point(button.Bounds.Width / 2, button.Bounds.Height / 2), window)!.Value;
+
+        // Another conversation is still answering, so closing the window asks first, over the whole page.
+        var conversations = app.Services.GetRequiredService<IConversations>();
+        var held = app.Client.Hold("进行中");
+        await conversations.StartAsync(app.Workbench.CurrentWorkspace!.Id, "问", CancellationToken.None);
+        await held.Started.Task.WaitAsync(TimeSpan.FromSeconds(5));
+        Assert.Same(page, app.Workbench.CurrentPage);
+        Assert.True(app.Root.Exit.InterceptClose());
+        Assert.True(app.Root.Exit.IsTaskPromptOpen);
+        Rendered(window);
+
+        // The card stays where it was, under the dialog's scrim like the rest of the page: a click there lands on the scrim.
+        var hit = window.InputHitTest(centre) as Visual;
+        Assert.NotNull(hit);
+        Assert.DoesNotContain(button, hit.GetSelfAndVisualAncestors());
+        Assert.DoesNotContain(hit.GetSelfAndVisualAncestors(), v => v is AnswerView);
+        window.MouseDown(centre, MouseButton.Left);
+        window.MouseUp(centre, MouseButton.Left);
+        window.UpdateLayout();
+        Assert.Same(page, app.Workbench.CurrentPage);
+        Assert.Empty(await conversations.ListBranchesAsync(page.Id, CancellationToken.None));
+        Assert.True(app.Root.Exit.IsTaskPromptOpen);
+
+        // Cancelling the prompt uncovers it, with the selection kept, and it works again.
+        app.Root.Exit.KeepRunningCommand.Execute(null);
+        Assert.False(app.Root.Exit.IsTaskPromptOpen);
+        Rendered(window);
+        await AssertClickCreatesTheSelectedBranchAsync(app, window, answer, page, "铁路随后");
+        held.Release.TrySetResult();
+        window.Close();
+    }
+
+    [AvaloniaFact]
     public async Task Stop_is_an_icon_with_its_name_and_tooltip()
     {
         await using var app = DesktopHarness.Create();
@@ -455,6 +498,13 @@ public partial class ConversationActionsTests
         window.MouseUp(up, MouseButton.Left);
         window.UpdateLayout();
         Assert.Equal(quote, block.LayoutText[Math.Min(block.SelectionStart, block.SelectionEnd)..Math.Max(block.SelectionStart, block.SelectionEnd)]);
+    }
+
+    /// <summary>Lays out and renders a frame, so the window's hit test sees what was just shown or hidden.</summary>
+    private static void Rendered(Window window)
+    {
+        window.UpdateLayout();
+        window.CaptureRenderedFrame()?.Dispose();
     }
 
     /// <summary>A real pointer click at the button's centre.</summary>

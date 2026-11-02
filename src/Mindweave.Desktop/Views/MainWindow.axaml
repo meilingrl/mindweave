@@ -9,7 +9,11 @@
         WindowStartupLocation="CenterScreen"
         Background="{DynamicResource WindowBackground}">
   <Panel>
-    <ContentControl Content="{Binding Current}" />
+    <!-- The page gets its own overlay layer (floating cards such as 创建分支 go there), so the window-level scrims
+         below draw and hit-test above them, as above the rest of the page. -->
+    <VisualLayerManager Name="PageLayers" EnableOverlayLayer="True">
+      <ContentControl Content="{Binding Current}" />
+    </VisualLayerManager>
     <!-- Exit overlays whatever page is shown; nothing irreversible happens before "stop and quit". -->
     <Border IsVisible="{Binding Exit.IsTaskPromptOpen}" Background="{DynamicResource ScrimBrush}">
       <Border Background="{DynamicResource DialogBackground}" BorderBrush="{DynamicResource DividerBrush}" BorderThickness="1" CornerRadius="10" Padding="24" MaxWidth="440" HorizontalAlignment="Center" VerticalAlignment="Center">

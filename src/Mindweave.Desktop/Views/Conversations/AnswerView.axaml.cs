@@ -40,7 +40,8 @@ public sealed partial class AnswerView : UserControl
         _renderer.AddHandler(KeyUpEvent, (_, _) => OnSelectionGestureEnded(), RoutingStrategies.Bubble, handledEventsToo: true);
 
         // The floating action (S7 round 3): a small raised card with the branch icon and 创建分支. It lives in the
-        // window's overlay layer while a selection is shown (see ShowSelectionActions), never inside the answer.
+        // nearest overlay layer while a selection is shown (see ShowSelectionActions), never inside the answer. In the
+        // main window that is the page's own layer, under the window's dialog scrims, so a dialog covers it too.
         var icon = new PathIcon();
         icon.Bind(PathIcon.DataProperty, icon.GetResourceObservable("IconBranch"));
         BranchButton = new Button
@@ -65,7 +66,7 @@ public sealed partial class AnswerView : UserControl
         _renderer.SizeChanged += (_, _) => PlaceSelectionActions();
     }
 
-    /// <summary>The floating card next to the selection; in the window's overlay layer only while it is shown.</summary>
+    /// <summary>The floating card next to the selection; in the nearest overlay layer only while it is shown.</summary>
     internal Border SelectionActions { get; }
 
     /// <summary>创建分支 on the floating card.</summary>
