@@ -56,6 +56,7 @@ public sealed partial class ConversationView : UserControl
             _capture.Stop();
             _capture.Start();
         };
+        BranchMarks.Attach(Scroller, MessageList);
         ComposerHost.SettingsRequested += (_, _) => (DataContext as ConversationViewModel)?.OpenSettingsCommand.Execute(null);
     }
 

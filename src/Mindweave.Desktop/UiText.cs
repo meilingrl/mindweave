@@ -212,6 +212,10 @@ public static class UiText
     public const string ReturnToSourceHint = "回到来源回答，并选中这段原文";
     public const string BranchFrom = "来自";
     public const string BranchesHeading = "从这里分出的探索";
+
+    /// <summary>A mark in the conversation's margin for an answer with branches: "2 个分支 · 「蒸汽机车」".</summary>
+    public static string BranchMark(int count, string firstQuote) =>
+        string.Format(CultureInfo.InvariantCulture, "{0} 个分支 · {1}", count, Quoted(firstQuote));
     public const string ModelSection = "模型连接";
     public const string ConnectionNameLabel = "名称";
     public const string BaseUrlLabel = "服务地址";

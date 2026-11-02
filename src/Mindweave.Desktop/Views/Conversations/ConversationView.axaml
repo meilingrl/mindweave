@@ -191,8 +191,11 @@
                  IsVisible="{Binding ContextUsageText, Converter={x:Static ObjectConverters.IsNotNull}}" />
     </StackPanel>
 
+    <!-- Round 4: marks in the margin for answers with branches sit in a layer over the page, left of the scroll bar. -->
+    <Panel>
     <ScrollViewer Name="Scroller" Classes="autohide" HorizontalScrollBarVisibility="Disabled">
-      <ItemsControl Name="MessageList" ItemsSource="{Binding Messages}" Margin="0,0,12,0">
+      <!-- Right margin: the scroll bar (16) plus the gutter for marks in the margin (12), so neither covers text. -->
+      <ItemsControl Name="MessageList" ItemsSource="{Binding Messages}" Margin="0,0,28,0">
         <ItemsControl.ItemTemplate>
           <DataTemplate x:DataType="vm:MessageItemViewModel">
             <StackPanel Margin="0,6" Spacing="6">
@@ -291,5 +294,7 @@
         </ItemsControl.ItemTemplate>
       </ItemsControl>
     </ScrollViewer>
+    <v:BranchMarks Name="BranchMarks" />
+    </Panel>
   </DockPanel>
 </UserControl>

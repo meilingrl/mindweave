@@ -74,6 +74,9 @@
           <SolidColorBrush x:Key="FloatingBorder">#E2DFDC</SolidColorBrush>
           <BoxShadows x:Key="FloatingShadow">0 4 14 0 #1F000000</BoxShadows>
           <SolidColorBrush x:Key="TimestampText">#857F79</SolidColorBrush>
+          <!-- Round 4 · conversation: marks in the margin for answers with branches -->
+          <SolidColorBrush x:Key="BranchMark">#7C93F7</SolidColorBrush>
+          <SolidColorBrush x:Key="BranchMarkHover">#2B47CC</SolidColorBrush>
           <!-- Scroll bars: a faint thin thumb at rest, a little stronger when hovered (Fluent's own keys) -->
           <Color x:Key="ScrollBarPanningThumbBackgroundColor">#33000000</Color>
           <SolidColorBrush x:Key="ScrollBarPanningThumbBackground">#2E1C1917</SolidColorBrush>
@@ -187,6 +190,9 @@
           <SolidColorBrush x:Key="FloatingBorder">#3A3D45</SolidColorBrush>
           <BoxShadows x:Key="FloatingShadow">0 6 18 0 #73000000</BoxShadows>
           <SolidColorBrush x:Key="TimestampText">#7E8492</SolidColorBrush>
+          <!-- Round 4 · conversation: marks in the margin for answers with branches -->
+          <SolidColorBrush x:Key="BranchMark">#7286E6</SolidColorBrush>
+          <SolidColorBrush x:Key="BranchMarkHover">#BDC9F2</SolidColorBrush>
           <Color x:Key="ScrollBarPanningThumbBackgroundColor">#38FFFFFF</Color>
           <SolidColorBrush x:Key="ScrollBarPanningThumbBackground">#2EFFFFFF</SolidColorBrush>
           <Color x:Key="ScrollBarThumbBackgroundColor">#66FFFFFF</Color>
@@ -1017,5 +1023,32 @@
     <Style Selector="Border.selection-actions Button.quiet PathIcon">
       <Setter Property="Foreground" Value="{DynamicResource AccentBrush}" />
     </Style>
+    <!-- ── Round 4 · conversation ────────────────────────────────────────────────────────────────────────────── -->
+    <!-- Marks in the margin: a 10×10 target left of the scroll bar, a short bar inside; stronger on hover. -->
+    <Style Selector="Button.branch-mark">
+      <Setter Property="Padding" Value="0" />
+      <Setter Property="MinWidth" Value="0" />
+      <Setter Property="MinHeight" Value="0" />
+      <Setter Property="BorderThickness" Value="0" />
+      <Setter Property="Background" Value="Transparent" />
+      <Setter Property="Cursor" Value="Hand" />
+      <Setter Property="HorizontalContentAlignment" Value="Center" />
+      <Setter Property="VerticalContentAlignment" Value="Center" />
+    </Style>
+    <Style Selector="Button.branch-mark:pointerover /template/ ContentPresenter#PART_ContentPresenter, Button.branch-mark:pressed /template/ ContentPresenter#PART_ContentPresenter">
+      <Setter Property="Background" Value="Transparent" />
+    </Style>
+    <Style Selector="Button.branch-mark Border.branch-mark-bar">
+      <Setter Property="Width" Value="8" />
+      <Setter Property="Height" Value="3" />
+      <Setter Property="CornerRadius" Value="1.5" />
+      <Setter Property="Background" Value="{DynamicResource BranchMark}" />
+    </Style>
+    <Style Selector="Button.branch-mark:pointerover Border.branch-mark-bar">
+      <Setter Property="Height" Value="4" />
+      <Setter Property="CornerRadius" Value="2" />
+      <Setter Property="Background" Value="{DynamicResource BranchMarkHover}" />
+    </Style>
+    <!-- ── end Round 4 · conversation ── -->
   </Application.Styles>
 </Application>

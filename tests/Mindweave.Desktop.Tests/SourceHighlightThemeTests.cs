@@ -38,6 +38,7 @@ public class SourceHighlightThemeTests
         Assert.Equal(ThemeVariant.Dark, block.ActualThemeVariant);
         Assert.Equal(Expected(ThemeVariant.Dark), HighlightColour(block));
         Assert.True(Contrast(TextColour(block), HighlightColour(block)) >= 4.5, $"Text {TextColour(block)} on {HighlightColour(block)}");
+        ViewTests.Capture(window, "r4-source-highlight-dark");
         window.Close();
     }
 
@@ -49,6 +50,7 @@ public class SourceHighlightThemeTests
         var block = Highlighted(window);
         Assert.Equal(Expected(ThemeVariant.Light), HighlightColour(block));
         Assert.True(Contrast(TextColour(block), HighlightColour(block)) >= 4.5);
+        ViewTests.Capture(window, "r4-source-highlight-light");
 
         window.RequestedThemeVariant = ThemeVariant.Dark;
         window.UpdateLayout();
