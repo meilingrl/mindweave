@@ -32,7 +32,7 @@ public static class UiText
     // Sidebar collapse and resize (S7 round 3 · shell)
     public const string CollapseSidebar = "收起侧栏";
     public const string ExpandSidebar = "展开侧栏";
-    public const string SidebarSplitter = "拖动调整侧栏宽度";
+    public const string SidebarSplitter = "侧栏宽度";
 
     /// <summary>The toggle's shortcut as the platform writes it (⌘ on macOS).</summary>
     public static string SidebarShortcut { get; } = OperatingSystem.IsMacOS() ? "⌘B" : "Ctrl+B";
@@ -152,6 +152,7 @@ public static class UiText
     public const string ArchivedEmpty = "没有已归档的会话。";
     public const string ArchivedNote = "归档的会话连同分支不在侧栏显示；它们的总结仍在总结网络中。";
     public const string DeleteConfirm = "将永久删除这个会话：全部消息、生成记录和未发送的草稿都会一起删除，无法撤销。";
+    public static string DeleteConfirmFor(string title) => $"永久删除“{title}”？全部消息、生成记录和未发送的草稿都会一起删除，无法撤销。";
     public const string ConversationDeleted = "这个会话已被删除。";
     public const string SettingsTitle = "设置";
     public const string StorageTitle = "数据与存储";

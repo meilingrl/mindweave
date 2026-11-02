@@ -108,9 +108,9 @@
         </ScrollViewer>
       </DockPanel>
     </Border>
-    <!-- Straddles the divider: a wider grip than the 1 px line it shows on hover. -->
+    <!-- Straddles the divider: a wider grip than the 1 px line it shows on hover. The resize pointer says what it does. -->
     <Border Name="SidebarSplitter" Classes="sidebar-splitter" HorizontalAlignment="Right" Width="7" Margin="0,0,-3,0"
-            ToolTip.Tip="{x:Static d:UiText.SidebarSplitter}" ToolTip.ShowDelay="900">
+            AutomationProperties.Name="{x:Static d:UiText.SidebarSplitter}">
       <Border Classes="sidebar-splitter-line" />
     </Border>
     </Panel>

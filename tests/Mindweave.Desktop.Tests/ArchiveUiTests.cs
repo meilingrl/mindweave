@@ -1,5 +1,6 @@
 using Avalonia;
 using Avalonia.Controls;
+using Avalonia.Headless;
 using Avalonia.Headless.XUnit;
 using Avalonia.VisualTree;
 using Microsoft.Extensions.DependencyInjection;
@@ -317,6 +318,86 @@ public class ArchiveUiTests
 
             private static Task<T> Refuse<T>() => Task.FromException<T>(new StorageWriteException(StorageFailureKind.Full, "disk full", null!));
         }
+    }
+
+    [AvaloniaFact]
+    public async Task The_archived_delete_confirmation_opens_under_its_row_names_it_and_deletes_in_the_danger_tone()
+    {
+        await using var app = DesktopHarness.Create();
+        var window = Open(app);
+        var root = await ConversationAsync(app);
+        var child = await BranchAsync(app, root, "火车");
+        root = await OpenAsync(app, root.Id);
+        await root.ArchiveCommand.ExecuteAsync(null);
+        app.ShellPage.Conversations.OpenArchivedCommand.Execute(null);
+        var archived = Assert.IsType<ArchivedViewModel>(app.Workbench.CurrentPage);
+        await archived.RefreshAsync();
+        var last = archived.Items.Single(i => i.Id == child.Id);
+
+        archived.DeleteCommand.Execute(last);
+
+        // A reload (any conversation change) rebuilds the rows; the confirmation stays with its row.
+        await archived.RefreshAsync();
+        last = archived.Items.Single(i => i.Id == child.Id);
+        Assert.True(last.IsConfirming);
+        Assert.Single(archived.Items, i => i.IsConfirming);
+        window.UpdateLayout();
+
+        // The message names the conversation; the confirm button says 删除, in the danger style and tone.
+        Assert.Equal(UiText.DeleteConfirmFor(last.Title), archived.Confirmation!.Message);
+        Assert.Contains(last.Title, archived.Confirmation.Message, StringComparison.Ordinal);
+        var view = window.GetVisualDescendants().OfType<ArchivedView>().Single();
+        var panels = view.GetVisualDescendants().OfType<Border>().Where(b => b.Name == "ConfirmationPanel").ToList();
+        var shown = Assert.Single(panels, p => p.IsEffectivelyVisible);
+        Assert.Contains("error", shown.Classes);
+        Assert.DoesNotContain("warning", shown.Classes);
+        Assert.Equal(archived.Confirmation.Message, Find<TextBlock>(shown, "ConfirmationMessage").Text);
+        var confirm = Find<Button>(shown, "ConfirmButton");
+        Assert.Equal(UiText.Delete, confirm.Content);
+        Assert.Contains("danger", confirm.Classes);
+
+        // It opens right under the clicked row (the last one), not at the top of the page.
+        var row = view.GetVisualDescendants().OfType<Border>().Where(b => b.Classes.Contains("archived-row")).Single(b => b.DataContext == last);
+        var rowBottom = row.TranslatePoint(new Point(0, row.Bounds.Height), view)!.Value.Y;
+        var panelTop = shown.TranslatePoint(default, view)!.Value.Y;
+        Assert.InRange(panelTop - rowBottom, 0, 12);
+        Assert.Same(last, shown.DataContext);
+
+        // Cancelling closes it; a restore that asks first says 恢复 and keeps the warning tone.
+        archived.CancelConfirmationCommand.Execute(null);
+        window.UpdateLayout();
+        Assert.All(view.GetVisualDescendants().OfType<Border>().Where(b => b.Name == "ConfirmationPanel"), p => Assert.False(p.IsEffectivelyVisible));
+        await archived.RestoreCommand.ExecuteAsync(last);
+        window.UpdateLayout();
+        shown = Assert.Single(view.GetVisualDescendants().OfType<Border>().Where(b => b.Name == "ConfirmationPanel"), p => p.IsEffectivelyVisible);
+        Assert.Same(last, shown.DataContext);
+        Assert.Contains("warning", shown.Classes);
+        Assert.Equal(UiText.Restore, Find<Button>(shown, "ConfirmButton").Content);
+        window.Close();
+    }
+
+    [AvaloniaFact]
+    public async Task Clicking_anywhere_in_an_archived_row_but_its_actions_opens_the_conversation()
+    {
+        await using var app = DesktopHarness.Create();
+        var window = Open(app);
+        var root = await ConversationAsync(app);
+        await root.ArchiveCommand.ExecuteAsync(null);
+        app.ShellPage.Conversations.OpenArchivedCommand.Execute(null);
+        var archived = Assert.IsType<ArchivedViewModel>(app.Workbench.CurrentPage);
+        await archived.RefreshAsync();
+        window.UpdateLayout();
+
+        // The row lights up across its width, so a click in its empty middle opens it too.
+        var view = window.GetVisualDescendants().OfType<ArchivedView>().Single();
+        var row = view.GetVisualDescendants().OfType<Border>().Single(b => b.Classes.Contains("archived-row"));
+        var middle = row.TranslatePoint(new Point(row.Bounds.Width * 0.6, row.Bounds.Height / 2), window)!.Value;
+        window.MouseDown(middle, Avalonia.Input.MouseButton.Left);
+        window.MouseUp(middle, Avalonia.Input.MouseButton.Left);
+
+        var opened = Assert.IsType<ConversationViewModel>(app.Workbench.CurrentPage);
+        Assert.Equal(root.Id, opened.Id);
+        window.Close();
     }
 
     private static MainWindow Open(DesktopHarness app)

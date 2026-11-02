@@ -118,6 +118,22 @@ public class ThemeTests
         window.Close();
     }
 
+    [AvaloniaFact]
+    public void The_dialog_shadow_comes_from_each_theme()
+    {
+        var dialog = new Border { Classes = { "dialog" } };
+        var window = new Window { RequestedThemeVariant = ThemeVariant.Light, Content = dialog };
+        window.Show();
+        Assert.True(window.TryFindResource("DialogShadow", ThemeVariant.Light, out var light));
+        Assert.Equal(Assert.IsType<BoxShadows>(light), dialog.BoxShadow);
+
+        window.RequestedThemeVariant = ThemeVariant.Dark;
+        Assert.True(window.TryFindResource("DialogShadow", ThemeVariant.Dark, out var dark));
+        Assert.Equal(Assert.IsType<BoxShadows>(dark), dialog.BoxShadow);
+        Assert.NotEqual(light, dark);
+        window.Close();
+    }
+
     /// <summary>Preferences in memory; a read takes the value at once but answers only when <see cref="Hold"/> is released.</summary>
     private sealed class GatedPreferences : IPreferenceStore
     {

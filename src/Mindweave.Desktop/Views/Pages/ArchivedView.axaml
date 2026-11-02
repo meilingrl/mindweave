@@ -14,20 +14,6 @@
   <DockPanel>
     <StackPanel DockPanel.Dock="Top" Spacing="10" Margin="0,0,0,10">
       <TextBlock Classes="caption" TextWrapping="Wrap" Text="{x:Static d:UiText.ArchivedNote}" IsVisible="{Binding !IsEmpty}" />
-      <Border Name="ConfirmationPanel" Classes="notice warning" IsVisible="{Binding Confirmation, Converter={x:Static ObjectConverters.IsNotNull}}">
-        <DockPanel>
-          <TextBlock Classes="notice-icon" Text="?" />
-          <StackPanel Spacing="8">
-            <TextBlock Text="{Binding Confirmation.Message, FallbackValue=''}" />
-            <StackPanel Orientation="Horizontal" Spacing="6">
-              <!-- A delete confirms in the danger colour; a restore confirms as a plain secondary button. -->
-              <Button Name="ConfirmButton" Classes="secondary" Classes.danger="{Binding Confirmation.IsDestructive, FallbackValue=False}"
-                      Content="{x:Static d:UiText.Confirm}" Command="{Binding ConfirmCommand}" />
-              <Button Name="CancelConfirmButton" Classes="quiet" Content="{x:Static d:UiText.Cancel}" Command="{Binding CancelConfirmationCommand}" />
-            </StackPanel>
-          </StackPanel>
-        </DockPanel>
-      </Border>
       <Border Name="NoticePanel" Classes="notice error" IsVisible="{Binding Notice, Converter={x:Static ObjectConverters.IsNotNull}}">
         <DockPanel>
           <TextBlock Classes="notice-icon" Text="!" />
@@ -45,6 +31,7 @@
         <ItemsControl.ItemTemplate>
           <DataTemplate x:DataType="vm:ArchivedItemViewModel">
             <!-- One row per conversation: open by its name, restore and delete as quiet actions at the right. -->
+            <StackPanel Spacing="4">
             <Border Classes="archived-row" Margin="{Binding Depth, Converter={x:Static views:TreeIndent.Margin}}">
               <DockPanel>
                 <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" Spacing="2" Margin="8,0,0,0">
@@ -70,10 +57,33 @@
                   <PathIcon Width="9" Height="9" Margin="0,0,0,3" Foreground="{DynamicResource TreeGuide}" Data="{StaticResource IconTreeBranch}"
                             IsVisible="{Binding !IsArchived}" />
                 </Panel>
-                <Button Name="OpenButton" Classes="list-name archived-name" HorizontalAlignment="Left" Content="{Binding Title}"
+                <!-- The name fills the row, so wherever the row lights up a click opens the conversation. -->
+                <Button Name="OpenButton" Classes="list-name archived-name" HorizontalAlignment="Stretch" HorizontalContentAlignment="Left" Content="{Binding Title}"
                         Command="{Binding $parent[v:ArchivedView].((vm:ArchivedViewModel)DataContext).OpenCommand}" CommandParameter="{Binding}" />
               </DockPanel>
             </Border>
+            <!-- The confirmation opens under the row it is about: a delete names the conversation in the danger tone. -->
+            <Border Name="ConfirmationPanel" Classes="notice" IsVisible="{Binding IsConfirming}"
+                    Classes.error="{Binding $parent[v:ArchivedView].((vm:ArchivedViewModel)DataContext).Confirmation.IsDestructive, FallbackValue=False}"
+                    Classes.warning="{Binding !$parent[v:ArchivedView].((vm:ArchivedViewModel)DataContext).Confirmation.IsDestructive, FallbackValue=True}"
+                    Margin="{Binding Depth, Converter={x:Static views:TreeIndent.Margin}}">
+              <DockPanel>
+                <TextBlock Classes="notice-icon" Text="?" />
+                <StackPanel Spacing="8">
+                  <TextBlock Name="ConfirmationMessage" TextWrapping="Wrap"
+                             Text="{Binding $parent[v:ArchivedView].((vm:ArchivedViewModel)DataContext).Confirmation.Message, FallbackValue=''}" />
+                  <StackPanel Orientation="Horizontal" Spacing="6">
+                    <Button Name="ConfirmButton" Classes="secondary"
+                            Classes.danger="{Binding $parent[v:ArchivedView].((vm:ArchivedViewModel)DataContext).Confirmation.IsDestructive, FallbackValue=False}"
+                            Content="{Binding $parent[v:ArchivedView].((vm:ArchivedViewModel)DataContext).ConfirmLabel}"
+                            Command="{Binding $parent[v:ArchivedView].((vm:ArchivedViewModel)DataContext).ConfirmCommand}" />
+                    <Button Name="CancelConfirmButton" Classes="quiet" Content="{x:Static d:UiText.Cancel}"
+                            Command="{Binding $parent[v:ArchivedView].((vm:ArchivedViewModel)DataContext).CancelConfirmationCommand}" />
+                  </StackPanel>
+                </StackPanel>
+              </DockPanel>
+            </Border>
+            </StackPanel>
           </DataTemplate>
         </ItemsControl.ItemTemplate>
       </ItemsControl>

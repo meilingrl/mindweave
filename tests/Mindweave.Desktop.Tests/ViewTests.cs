@@ -21,7 +21,7 @@ public class ViewTests
             typeof(RootViewModel), typeof(WorkspaceNameForm), typeof(ExitCoordinator), typeof(LayoutPromptViewModel),
             typeof(ViewModels.Conversations.Composer), typeof(ViewModels.Conversations.MessageItemViewModel),
             typeof(ViewModels.Conversations.ConversationItemViewModel), typeof(ViewModels.Conversations.ConversationListViewModel),
-            typeof(ViewModels.Pages.ModelSettingsViewModel),
+            typeof(ViewModels.Pages.ModelSettingsViewModel), typeof(ViewModels.Pages.ArchivedItemViewModel),
         };
         var hosted = typeof(ViewModelBase).Assembly.GetTypes()
             .Where(t => t is { IsAbstract: false, IsClass: true } && typeof(ViewModelBase).IsAssignableFrom(t))

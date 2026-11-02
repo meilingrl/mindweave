@@ -1,12 +1,16 @@
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Input;
+using Mindweave.Application.Preferences;
 using Mindweave.Desktop.ViewModels;
 
 namespace Mindweave.Desktop.Views;
 
 public sealed partial class ShellView : UserControl
 {
+    /// <summary>The page always keeps at least this much width: a narrow window narrows the sidebar, not the content.</summary>
+    public const double MinContentWidth = 480;
+
     private KeyBinding? _toggleSidebar;
     private double? _dragStartX;
     private double _dragStartWidth;
@@ -21,6 +25,22 @@ public sealed partial class ShellView : UserControl
     }
 
     private ShellViewModel? ViewModel => DataContext as ShellViewModel;
+
+    /// <summary>
+    /// Caps the sidebar at what the window can spare. Only the shown width is capped: the stored width stays, so the
+    /// sidebar widens again when the window does.
+    /// </summary>
+    protected override Size MeasureOverride(Size availableSize)
+    {
+        // Set before the children are measured, so a resized window lays out once with the cap in place.
+        var cap = double.IsFinite(availableSize.Width) ? Math.Max(SidebarLayout.MinWidth, availableSize.Width - MinContentWidth) : double.PositiveInfinity;
+        if (Sidebar.MaxWidth != cap)
+        {
+            Sidebar.MaxWidth = cap;
+        }
+
+        return base.MeasureOverride(availableSize);
+    }
 
     /// <summary>The collapse shortcut works wherever the focus is in the window, so it is bound on the window itself.</summary>
     protected override void OnAttachedToVisualTree(VisualTreeAttachmentEventArgs e)
@@ -56,7 +76,9 @@ public sealed partial class ShellView : UserControl
         }
 
         _dragStartX = e.GetPosition(this).X;
-        _dragStartWidth = shell.SidebarWidth;
+
+        // From the width shown, which a narrow window may cap below the stored one.
+        _dragStartWidth = Math.Min(shell.SidebarWidth, Sidebar.MaxWidth);
         e.Pointer.Capture(SidebarSplitter);
         SidebarSplitter.Classes.Set("dragging", true);
         e.Handled = true;
@@ -66,8 +88,8 @@ public sealed partial class ShellView : UserControl
     {
         if (_dragStartX is { } start && ViewModel is { } shell)
         {
-            // The view model keeps the width within its bounds.
-            shell.SidebarWidth = _dragStartWidth + (e.GetPosition(this).X - start);
+            // The view model keeps the width within its bounds; the window's cap applies as well.
+            shell.SidebarWidth = Math.Min(_dragStartWidth + (e.GetPosition(this).X - start), Sidebar.MaxWidth);
             e.Handled = true;
         }
     }

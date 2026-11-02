@@ -27,6 +27,7 @@
           <SolidColorBrush x:Key="PanelBackground">#F5F5F4</SolidColorBrush>
           <SolidColorBrush x:Key="DialogBackground">#FFFFFF</SolidColorBrush>
           <SolidColorBrush x:Key="ScrimBrush">#66000000</SolidColorBrush>
+          <BoxShadows x:Key="DialogShadow">0 12 32 0 #33000000</BoxShadows>
           <SolidColorBrush x:Key="DividerBrush">#E7E5E4</SolidColorBrush>
           <SolidColorBrush x:Key="OutlineBrush">#D6D3D1</SolidColorBrush>
           <SolidColorBrush x:Key="PrimaryText">#1C1917</SolidColorBrush>
@@ -126,6 +127,7 @@
           <SolidColorBrush x:Key="PanelBackground">#1D1E22</SolidColorBrush>
           <SolidColorBrush x:Key="DialogBackground">#222327</SolidColorBrush>
           <SolidColorBrush x:Key="ScrimBrush">#99000000</SolidColorBrush>
+          <BoxShadows x:Key="DialogShadow">0 16 40 0 #8C000000</BoxShadows>
           <SolidColorBrush x:Key="DividerBrush">#2C2E33</SolidColorBrush>
           <SolidColorBrush x:Key="OutlineBrush">#3A3D45</SolidColorBrush>
           <SolidColorBrush x:Key="PrimaryText">#E6E8EE</SolidColorBrush>
@@ -732,7 +734,7 @@
       <Setter Property="Width" Value="420" />
       <Setter Property="HorizontalAlignment" Value="Center" />
       <Setter Property="VerticalAlignment" Value="Center" />
-      <Setter Property="BoxShadow" Value="0 12 32 0 #33000000" />
+      <Setter Property="BoxShadow" Value="{DynamicResource DialogShadow}" />
     </Style>
     <Style Selector="Border.dialog TextBlock.dialog-title">
       <Setter Property="FontSize" Value="16" />

@@ -570,11 +570,18 @@ public class GalleryTests
     {
         await using var scene = Scene.Create("g26");
         var window = Show(scene.App);
-        await SeedAsync(scene.App);
+        var seed = await SeedAsync(scene.App);
         scene.App.ShellPage.ShowSectionCommand.Execute(MainSection.Explore);
         scene.App.ShellPage.SidebarWidth = 340;
         await SettleAsync(window);
         Capture(window, "g26-shell-sidebar-widened");
+
+        // The widest sidebar in the narrowest window: the sidebar gives way, the conversation keeps its minimum width.
+        await OpenConversationAsync(scene.App, window, seed.Root);
+        scene.App.ShellPage.SidebarWidth = 420;
+        window.Width = 720;
+        await SettleAsync(window);
+        Capture(window, "g26b-shell-narrow-window");
         window.Close();
     }
 

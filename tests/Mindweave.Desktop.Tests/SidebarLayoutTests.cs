@@ -162,6 +162,51 @@ public class SidebarLayoutTests
         window.Close();
     }
 
+    [AvaloniaFact]
+    public async Task A_narrow_window_narrows_the_sidebar_not_the_content_and_keeps_the_stored_width()
+    {
+        await using var app = DesktopHarness.Create();
+        var window = Open(app);
+        await app.StartWithWorkspaceAsync("火车");
+        window.UpdateLayout();
+        Drag(window, Part<Control>(window, "SidebarSplitter"), 600);
+        await app.ShellPage.SidebarSaving;
+        var sidebar = Part<Border>(window, "Sidebar");
+        var content = Part<Control>(window, "ContentArea");
+        Assert.Equal(SidebarLayout.MaxWidth, sidebar.Bounds.Width);
+
+        // At the window's minimum width the page keeps its minimum; the sidebar gives way.
+        window.Width = 720;
+        window.UpdateLayout();
+        Assert.Equal(720 - ShellView.MinContentWidth, sidebar.Bounds.Width, 0.5);
+        Assert.True(content.Bounds.Width >= ShellView.MinContentWidth - 0.5);
+        Assert.Equal(SidebarLayout.MaxWidth, app.ShellPage.SidebarWidth);
+
+        // A wider window lets the stored width show again.
+        window.Width = 1100;
+        window.UpdateLayout();
+        Assert.Equal(SidebarLayout.MaxWidth, sidebar.Bounds.Width, 0.5);
+
+        // A drag starts from the width shown and cannot push past what the window spares.
+        window.Width = 720;
+        Drag(window, Part<Control>(window, "SidebarSplitter"), -20);
+        Assert.Equal(720 - ShellView.MinContentWidth - 20, sidebar.Bounds.Width, 0.5);
+        Drag(window, Part<Control>(window, "SidebarSplitter"), 300);
+        Assert.Equal(720 - ShellView.MinContentWidth, sidebar.Bounds.Width, 0.5);
+        Assert.True(content.Bounds.Width >= ShellView.MinContentWidth - 0.5);
+        window.Close();
+    }
+
+    [AvaloniaFact]
+    public void The_splitter_is_named_for_assistive_technology_and_carries_no_instruction()
+    {
+        var view = new ShellView();
+        var splitter = view.FindControl<Border>("SidebarSplitter")!;
+        Assert.Null(ToolTip.GetTip(splitter));
+        Assert.Equal(UiText.SidebarSplitter, Avalonia.Automation.AutomationProperties.GetName(splitter));
+        Assert.DoesNotContain("拖动", UiText.SidebarSplitter, StringComparison.Ordinal);
+    }
+
     private static RawInputModifiers ShortcutModifier =>
         OperatingSystem.IsMacOS() ? RawInputModifiers.Meta : RawInputModifiers.Control;
 
