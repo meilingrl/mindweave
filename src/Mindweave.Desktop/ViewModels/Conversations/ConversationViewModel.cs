@@ -445,6 +445,9 @@ public sealed partial class ConversationViewModel : PageViewModel, IDisposable
         }
     }
 
+    /// <summary>The page left every stack; tests check pages of deleted content were released.</summary>
+    internal bool IsDisposed => _disposed;
+
     public void Dispose()
     {
         _disposed = true;

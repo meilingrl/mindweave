@@ -29,12 +29,22 @@ public sealed partial class SettingsHomeViewModel : PageViewModel
     private readonly IContentNavigator _content;
     private readonly IAppearance _appearanceService;
     private readonly IThemeApplier _theme;
+    private readonly IWorkspaceDeletionPrompt? _workspaceDeletion;
     private bool _loading;
     private bool _chosen;
 
-    public SettingsHomeViewModel(AppEnvironment environment, ModelSettingsViewModel model, IContentNavigator content, IAppearance appearance, IThemeApplier theme)
+    public SettingsHomeViewModel(
+        AppEnvironment environment,
+        ModelSettingsViewModel model,
+        IContentNavigator content,
+        IAppearance appearance,
+        IThemeApplier theme,
+        Workspace? workspace = null,
+        IWorkspaceDeletionPrompt? workspaceDeletion = null)
         : base(SettingsHomeRoute.Instance)
     {
+        Workspace = workspace;
+        _workspaceDeletion = workspaceDeletion;
         Environment = environment;
         Model = model;
         _content = content;
@@ -46,6 +56,11 @@ public sealed partial class SettingsHomeViewModel : PageViewModel
     public AppEnvironment Environment { get; }
 
     public ModelSettingsViewModel Model { get; }
+
+    /// <summary>The workspace these settings were opened in; its delete entry sits in the 工作区 section (S7 round 4).</summary>
+    public Workspace? Workspace { get; }
+
+    public bool CanDeleteWorkspace => Workspace is not null && _workspaceDeletion is not null;
 
     public override string Title => UiText.SettingsTitle;
 
@@ -83,6 +98,15 @@ public sealed partial class SettingsHomeViewModel : PageViewModel
 
     [RelayCommand]
     private void ShowStorageDetails() => _content.Push(StorageDetailsRoute.Instance);
+
+    [RelayCommand]
+    private void DeleteWorkspace()
+    {
+        if (Workspace is { } workspace)
+        {
+            _workspaceDeletion?.Open(workspace);
+        }
+    }
 
     partial void OnAppearanceChanged(Appearance value)
     {

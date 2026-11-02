@@ -33,7 +33,7 @@
         </Grid>
       </Border>
 
-      <!-- 升级前备份 -->
+      <!-- 备份: before an upgrade, or before a workspace was deleted (Round 4 · topic-delete, marked by a badge) -->
       <TextBlock Classes="section-heading" Margin="2,28,0,8" Text="{x:Static d:UiText.BackupsLabel}" />
       <Border Classes="card settings">
         <StackPanel>
@@ -46,12 +46,15 @@
             </ItemsControl.ItemsPanel>
             <ItemsControl.ItemTemplate>
               <DataTemplate x:DataType="startup:BackupInfo">
-                <Grid ColumnDefinitions="Auto,Auto,*" ColumnSpacing="12">
+                <Grid ColumnDefinitions="Auto,Auto,Auto,*" ColumnSpacing="12">
                   <TextBlock VerticalAlignment="Center" Text="{Binding CreatedAt, Converter={x:Static d:Converters.Time}}" />
                   <Border Grid.Column="1" Classes="badge">
                     <TextBlock Text="{Binding SchemaVersion, Converter={x:Static d:Converters.SchemaVersion}}" />
                   </Border>
-                  <TextBlock Grid.Column="2" Classes="caption" HorizontalAlignment="Right" VerticalAlignment="Center"
+                  <Border Grid.Column="2" Classes="badge" IsVisible="{Binding Reason, Converter={x:Static d:Converters.IsBeforeDelete}}">
+                    <TextBlock Text="{x:Static d:UiText.BackupBeforeDelete}" />
+                  </Border>
+                  <TextBlock Grid.Column="3" Classes="caption" HorizontalAlignment="Right" VerticalAlignment="Center"
                              Text="{Binding SizeBytes, Converter={x:Static d:Converters.FileSize}}" />
                 </Grid>
               </DataTemplate>

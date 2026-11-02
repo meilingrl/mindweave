@@ -86,6 +86,9 @@ public static class CompositionRoot
         services.TryAddSingleton(new ExitOptions());
         services.AddSingleton<ExitCoordinator>();
         services.AddSingleton<LayoutPromptViewModel>();
+        services.AddSingleton<WorkspaceDeletionRequests>();
+        services.AddSingleton<IWorkspaceDeletionPrompt>(sp => sp.GetRequiredService<WorkspaceDeletionRequests>());
+        services.AddSingleton<WorkspaceDeletionViewModel>();
         services.AddSingleton<Network.NetworkSessions>();
         services.AddSingleton<ConversationListViewModel>();
         services.AddSingleton<RootViewModel>();

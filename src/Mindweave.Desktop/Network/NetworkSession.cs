@@ -215,4 +215,16 @@ public sealed class NetworkSessions(INetworkLayout network)
     }
 
     public IEnumerable<NetworkSession> Dirty => _sessions.Values.Where(s => s.IsDirty);
+
+    /// <summary>
+    /// The workspace was deleted: its session goes, unsaved layout included, without asking (there is nothing left to
+    /// save it to), so neither leaving nor quitting asks about it afterwards.
+    /// </summary>
+    public void Remove(WorkspaceId workspace)
+    {
+        if (_sessions.Remove(workspace, out var session) && session.IsDirty)
+        {
+            session.DiscardChanges();
+        }
+    }
 }

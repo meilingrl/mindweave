@@ -116,7 +116,7 @@ public static class UiText
     public const string DataSection = "数据";
     public const string LocationSection = "位置";
     public const string OpenFolder = "打开";
-    public const string NoBackupsShort = "暂无。数据升级前会自动备份。";
+    public const string NoBackupsShort = "暂无。数据升级前、删除工作区前会自动备份。";
     public const string AppearanceSaveFailed = "外观设置未能保存，本次运行中仍然有效。";
 
     // Summaries (S4)
@@ -184,7 +184,7 @@ public static class UiText
     public const string DataDirectoryLabel = "数据目录";
     public const string DatabaseLabel = "数据库";
     public const string SchemaVersionLabel = "数据结构版本";
-    public const string BackupsLabel = "升级前备份";
+    public const string BackupsLabel = "备份";
     public const string ChannelLabel = "数据通道";
     public const string OpenDataFolder = "打开数据位置";
     public const string Retry = "重试";
@@ -417,11 +417,12 @@ public static class UiText
             backup.SchemaVersion);
     }
 
-    /// <summary>A backup row's second part beside its date: "结构版本 8 · 212 KB".</summary>
+    /// <summary>A backup row's second part beside its date: "结构版本 8 · 212 KB", and "· 删除工作区前" for one made before a delete.</summary>
     public static string BackupDetails(BackupInfo backup)
     {
         ArgumentNullException.ThrowIfNull(backup);
-        return string.Format(CultureInfo.CurrentCulture, "结构版本 {0} · {1:N0} KB", backup.SchemaVersion, backup.SizeBytes / 1024);
+        var details = string.Format(CultureInfo.CurrentCulture, "结构版本 {0} · {1:N0} KB", backup.SchemaVersion, backup.SizeBytes / 1024);
+        return backup.Reason == BackupReason.BeforeWorkspaceDelete ? details + " · " + BackupBeforeDelete : details;
     }
 
     public const string DataLocation = "数据位置";
@@ -435,12 +436,13 @@ public static class UiText
     public static string FormatBackup(BackupInfo backup)
     {
         ArgumentNullException.ThrowIfNull(backup);
-        return string.Format(
+        var label = string.Format(
             CultureInfo.CurrentCulture,
             "{0}　结构版本 {1}　{2:N0} KB",
             FormatTime(backup.CreatedAt),
             backup.SchemaVersion,
             backup.SizeBytes / 1024);
+        return backup.Reason == BackupReason.BeforeWorkspaceDelete ? label + "　" + BackupBeforeDelete : label;
     }
 
     public static string SummarizeRejected(SummarizeRejection rejection) => rejection switch
@@ -681,4 +683,25 @@ public static class UiText
     }
 
     public static string NodeCreated(DateTimeOffset at) => "生成于 " + FormatTime(at);
+    // Round 4 · topic-delete: deleting a whole workspace (user decision of 2026-11-02).
+    public const string DeleteWorkspace = "删除工作区…";
+    public const string WorkspaceSection = "工作区";
+    public const string WorkspaceDeleting = "正在备份并删除…";
+    public const string WorkspaceDeleteBackupFailed = "删除前的备份没有成功，所以没有删除任何内容。请检查磁盘空间与权限后重试。";
+    public const string BackupBeforeDelete = "删除工作区前";
+
+    public static string DeleteWorkspaceTitle(string name) => $"删除工作区“{name}”？";
+
+    public static string DeleteWorkspaceContents(int conversations, int summaries) => string.Format(
+        CultureInfo.CurrentCulture, "{0} 个会话（含分支与已归档）、{1} 个总结将被永久删除，无法撤销。删除前会自动备份。", conversations, summaries);
+
+    public static string DeleteWorkspaceTypeName(string name) => $"输入工作区名称“{name}”以确认";
+
+    /// <summary>Each busy conversation with what runs in it: "“甲”（回答）、“乙”（总结）".</summary>
+    public static string DeleteWorkspaceBusy(IReadOnlyList<(string Title, bool Answer, bool Summary)> busy)
+    {
+        ArgumentNullException.ThrowIfNull(busy);
+        var items = busy.Select(b => $"“{b.Title}”（{(b.Answer && b.Summary ? "回答、总结" : b.Answer ? "回答" : "总结")}）");
+        return "还有回答或总结在生成或排队，完成或停止后才能删除：" + string.Join("、", items) + "。";
+    }
 }

@@ -4,7 +4,33 @@ namespace Mindweave.Desktop.Views;
 
 public sealed partial class MainWindow : Window
 {
+    private ViewModels.WorkspaceDeletionViewModel? _deletion;
+
     public MainWindow() => InitializeComponent();
+
+    /// <summary>The delete-a-workspace dialog puts the caret in its name box when it opens (Round 4 · topic-delete).</summary>
+    protected override void OnDataContextChanged(EventArgs e)
+    {
+        base.OnDataContextChanged(e);
+        if (_deletion is not null)
+        {
+            _deletion.PropertyChanged -= OnDeletionChanged;
+        }
+
+        _deletion = (DataContext as ViewModels.RootViewModel)?.WorkspaceDeletion;
+        if (_deletion is not null)
+        {
+            _deletion.PropertyChanged += OnDeletionChanged;
+        }
+    }
+
+    private void OnDeletionChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e)
+    {
+        if (e.PropertyName == nameof(ViewModels.WorkspaceDeletionViewModel.IsOpen) && _deletion?.IsOpen == true)
+        {
+            Avalonia.Threading.Dispatcher.UIThread.Post(() => WorkspaceDeleteName.Focus());
+        }
+    }
 
     protected override void OnClosing(WindowClosingEventArgs e)
     {

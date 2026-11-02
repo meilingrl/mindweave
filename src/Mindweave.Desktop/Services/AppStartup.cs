@@ -32,7 +32,8 @@ public sealed class AppStartup : IRecoveryActions
         ExitCoordinator exit,
         AppearanceService appearance,
         IThemeApplier theme,
-        StorageHealth health)
+        StorageHealth health,
+        WorkspaceDeletionViewModel workspaceDeletion)
     {
         _coordinator = coordinator;
         _workspaces = workspaces;
@@ -44,6 +45,10 @@ public sealed class AppStartup : IRecoveryActions
         _appearance = appearance;
         _theme = theme;
         _health = health;
+
+        ArgumentNullException.ThrowIfNull(workspaceDeletion);
+        // The last workspace was deleted: back to the first-run flow, as on a fresh start.
+        workspaceDeletion.NoWorkspaceLeft += (_, _) => _root.Show(new OnboardingViewModel(CreateFirstWorkspaceAsync));
     }
 
     public async Task RunAsync()

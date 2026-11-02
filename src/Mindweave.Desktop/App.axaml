@@ -816,6 +816,15 @@
       <Setter Property="FontSize" Value="12" />
     </Style>
     <!-- ===== end Round 3 · shell ===== -->
+
+    <!-- ===== Round 4 · topic-delete: the workspace delete entry in the picker's menu ===== -->
+    <Style Selector="MenuItem.danger">
+      <Setter Property="Foreground" Value="{DynamicResource DangerText}" />
+    </Style>
+    <Style Selector="MenuItem.danger PathIcon">
+      <Setter Property="Foreground" Value="{DynamicResource DangerText}" />
+    </Style>
+    <!-- ===== end Round 4 · topic-delete ===== -->
     <!-- ▼ S7 round 3 · settings: section headings and cards, segmented control, suggestion list -->
     <!-- A settings section: a heading above a card of aligned label/field rows. -->
     <Style Selector="TextBlock.section-heading">
