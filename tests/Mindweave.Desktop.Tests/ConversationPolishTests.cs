@@ -174,7 +174,8 @@ public class ConversationPolishTests
         Assert.Contains(offer.GetVisualAncestors().OfType<Border>(), b => b.Name == "ArchiveNoticePanel");
 
         Click(window, offer);
-        await UiWait.UntilAsync(() => root.IsArchived);
+        // Wait for the whole command, not just the flag: its refresh after archiving must not outlive the database.
+        await UiWait.UntilAsync(() => root.IsArchived && !root.ArchiveCommand.IsRunning);
         window.Close();
     }
 
