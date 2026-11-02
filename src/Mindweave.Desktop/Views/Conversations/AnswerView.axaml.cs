@@ -1,6 +1,8 @@
 using System.ComponentModel;
 using Avalonia;
+using Avalonia.Automation;
 using Avalonia.Controls;
+using Avalonia.Controls.Primitives;
 using Avalonia.Input;
 using Avalonia.Interactivity;
 using Avalonia.Media;
@@ -19,20 +21,56 @@ namespace Mindweave.Desktop.Views.Conversations;
 /// </summary>
 public sealed partial class AnswerView : UserControl
 {
+    /// <summary>Space between the selection and its floating action.</summary>
+    internal const double ActionGap = 6;
+
     private readonly MarkdownRenderer _renderer = new();
     private MessageItemViewModel? _item;
     private ObservableStringBuilder? _live;
     private string _shown = string.Empty;
+    private ScrollViewer? _scroller;
+    private TopLevel? _topLevel;
 
     public AnswerView()
     {
         InitializeComponent();
         BodyHost.Content = _renderer;
         _renderer.LinkClick += (_, e) => e.Handled = true;
-        _renderer.AddHandler(PointerReleasedEvent, (_, _) => UpdateBranchButton(), RoutingStrategies.Bubble, handledEventsToo: true);
-        _renderer.AddHandler(KeyUpEvent, (_, _) => UpdateBranchButton(), RoutingStrategies.Bubble, handledEventsToo: true);
+        _renderer.AddHandler(PointerReleasedEvent, (_, _) => OnSelectionGestureEnded(), RoutingStrategies.Bubble, handledEventsToo: true);
+        _renderer.AddHandler(KeyUpEvent, (_, _) => OnSelectionGestureEnded(), RoutingStrategies.Bubble, handledEventsToo: true);
+
+        // The floating action (S7 round 3): a small raised card with the branch icon and 创建分支. It lives in the
+        // nearest overlay layer while a selection is shown (see ShowSelectionActions), never inside the answer. In the
+        // main window that is the page's own layer, under the window's dialog scrims, so a dialog covers it too.
+        var icon = new PathIcon();
+        icon.Bind(PathIcon.DataProperty, icon.GetResourceObservable("IconBranch"));
+        BranchButton = new Button
+        {
+            Name = nameof(BranchButton),
+            Classes = { "quiet" },
+            Content = new StackPanel
+            {
+                Orientation = Avalonia.Layout.Orientation.Horizontal,
+                Spacing = 6,
+                Children = { icon, new TextBlock { Text = UiText.CreateBranch, VerticalAlignment = Avalonia.Layout.VerticalAlignment.Center } },
+            },
+        };
+        ToolTip.SetShowOnDisabled(BranchButton, true);
+        AutomationProperties.SetName(BranchButton, UiText.CreateBranch);
         BranchButton.Click += (_, _) => _ = CreateBranchAsync();
+        SelectionActions = new Border { Name = nameof(SelectionActions), Classes = { "selection-actions" }, Child = BranchButton, IsVisible = false };
+
+        // The action follows the selection when the page scrolls or resizes (raised inside the layout pass, after the
+        // answer has been arranged at its new place) and when the answer is laid out again (a narrower window rewraps it).
+        EffectiveViewportChanged += (_, _) => PlaceSelectionActions();
+        _renderer.SizeChanged += (_, _) => PlaceSelectionActions();
     }
+
+    /// <summary>The floating card next to the selection; in the nearest overlay layer only while it is shown.</summary>
+    internal Border SelectionActions { get; }
+
+    /// <summary>创建分支 on the floating card.</summary>
+    internal Button BranchButton { get; }
 
     /// <summary>The Markdown the renderer shows now; anchors are relative to exactly this text.</summary>
     internal string Markdown => _shown;
@@ -110,12 +148,20 @@ public sealed partial class AnswerView : UserControl
             _item.PropertyChanged -= OnItemChanged;
         }
 
+        // Leaving the page (or the answer being removed) takes the floating card with it.
+        HideSelectionActions();
+        _scroller = null;
+        _topLevel?.RemoveHandler(GotFocusEvent, OnFocusMoved);
+        _topLevel = null;
         base.OnDetachedFromVisualTree(e);
     }
 
     protected override void OnAttachedToVisualTree(VisualTreeAttachmentEventArgs e)
     {
         base.OnAttachedToVisualTree(e);
+        _scroller = this.FindAncestorOfType<ScrollViewer>();
+        _topLevel = TopLevel.GetTopLevel(this);
+        _topLevel?.AddHandler(GotFocusEvent, OnFocusMoved, RoutingStrategies.Bubble, handledEventsToo: true);
         if (_item is not null)
         {
             _item.PropertyChanged -= OnItemChanged;
@@ -164,21 +210,121 @@ public sealed partial class AnswerView : UserControl
         _shown = markdown;
     }
 
+    /// <summary>Clears this answer's selection, and with it the floating action.</summary>
+    internal void ClearSelection()
+    {
+        foreach (var block in SourceAnchors.Blocks(_renderer))
+        {
+            block.SelectionStart = 0;
+            block.SelectionEnd = 0;
+        }
+
+        UpdateBranchButton();
+    }
+
+    /// <summary>A selection made here replaces any selection in another answer: one floating action on the page at a time.</summary>
+    private void OnSelectionGestureEnded()
+    {
+        if (SourceAnchors.HasSelection(_renderer) && this.FindAncestorOfType<ConversationView>() is { } page)
+        {
+            foreach (var other in page.GetVisualDescendants().OfType<AnswerView>().Where(a => a != this))
+            {
+                other.ClearSelection();
+            }
+        }
+
+        UpdateBranchButton();
+    }
+
+    /// <summary>Typing somewhere else (the composer, a rename box) ends the selection, so no stale action floats over earlier answers.</summary>
+    private void OnFocusMoved(object? sender, FocusChangedEventArgs e)
+    {
+        if (e.Source is TextBox && SourceAnchors.HasSelection(_renderer))
+        {
+            ClearSelection();
+        }
+    }
+
     private void UpdateBranchButton()
     {
-        BranchButton.IsVisible = _item is { CanBranch: true } && SourceAnchors.HasSelection(_renderer);
-
         // While storage is paused the entry stays in sight, disabled, and says why (§9.3); the selection is kept for copying.
         var paused = _item is { IsBranchPaused: true };
         BranchButton.IsEnabled = !paused;
         ToolTip.SetTip(BranchButton, paused ? UiText.StoragePausedReason : null);
+
+        if (_item is { CanBranch: true } && SourceAnchors.HasSelection(_renderer))
+        {
+            ShowSelectionActions();
+        }
+        else
+        {
+            HideSelectionActions();
+        }
+    }
+
+    private void ShowSelectionActions()
+    {
+        if (SelectionActions.Parent is null && OverlayLayer.GetOverlayLayer(this) is { } layer)
+        {
+            layer.Children.Add(SelectionActions);
+        }
+
+        PlaceSelectionActions();
+    }
+
+    private void HideSelectionActions()
+    {
+        SelectionActions.IsVisible = false;
+        if (SelectionActions.Parent is OverlayLayer layer)
+        {
+            layer.Children.Remove(SelectionActions);
+        }
+    }
+
+    /// <summary>
+    /// Puts the floating action just above the selection's first visible line, starting at its left edge (kept inside
+    /// the answer); below its last visible line when above would leave the page's visible area; at the top of that area
+    /// when the selection fills it. Hidden, but kept, while the selection is scrolled out of sight.
+    /// </summary>
+    private void PlaceSelectionActions()
+    {
+        if (SelectionActions.Parent is not OverlayLayer layer || this.TranslatePoint(default, layer) is not { } origin)
+        {
+            return;
+        }
+
+        var viewport = _scroller?.TranslatePoint(default, layer) is { } corner ? new Rect(corner, _scroller.Viewport) : new Rect(layer.Bounds.Size);
+        var lines = SourceAnchors.SelectionRects(_renderer, layer).Where(l => l.Bottom > viewport.Top && l.Top < viewport.Bottom).ToArray();
+        SelectionActions.IsVisible = lines.Length > 0;
+        if (lines.Length == 0)
+        {
+            return;
+        }
+
+        SelectionActions.Measure(Size.Infinity);
+        var size = SelectionActions.DesiredSize;
+        var left = Math.Max(origin.X, viewport.Left);
+        var right = Math.Min(origin.X + Bounds.Width, viewport.Right);
+        var x = Math.Clamp(lines[0].X, left, Math.Max(left, right - size.Width));
+        var y = lines[0].Y - size.Height - ActionGap;
+        if (y < viewport.Top)
+        {
+            y = lines[^1].Bottom + ActionGap;
+            if (y + size.Height > viewport.Bottom)
+            {
+                y = viewport.Top + ActionGap;
+            }
+        }
+
+        Canvas.SetLeft(SelectionActions, x);
+        Canvas.SetTop(SelectionActions, y);
     }
 
     private async Task CreateBranchAsync()
     {
         if (CaptureSelection() is { } selection && this.FindAncestorOfType<ConversationView>()?.DataContext is ConversationViewModel page)
         {
-            BranchButton.IsVisible = false;
+            HideSelectionActions();
             await page.CreateBranchAsync(selection);
         }
     }

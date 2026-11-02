@@ -117,6 +117,31 @@ public static class SourceAnchors
 
     public static bool HasSelection(Visual renderer) => Blocks(renderer).Any(b => b.SelectionStart != b.SelectionEnd);
 
+    /// <summary>
+    /// The selected text's line boxes relative to <paramref name="relativeTo"/>, in document order. Geometry only, for
+    /// placing the selection's floating action; it reads the selection and never changes what an anchor records.
+    /// </summary>
+    public static IReadOnlyList<Rect> SelectionRects(Visual renderer, Visual relativeTo)
+    {
+        var rects = new List<Rect>();
+        foreach (var block in Blocks(renderer))
+        {
+            var start = Math.Min(block.SelectionStart, block.SelectionEnd);
+            var end = Math.Max(block.SelectionStart, block.SelectionEnd);
+            if (start == end || block.TranslatePoint(default, relativeTo) is not { } origin)
+            {
+                continue;
+            }
+
+            foreach (var line in block.GetTextRangeBoundsInControl(start, end - start))
+            {
+                rects.Add(new Rect(line.X + origin.X, line.Y + origin.Y, line.Width, line.Height));
+            }
+        }
+
+        return rects;
+    }
+
     /// <summary>Captures the current selection. Throws <see cref="InvalidOperationException"/> when nothing is selected.</summary>
     public static SelectionAnchor Capture(string markdown, Visual renderer)
     {

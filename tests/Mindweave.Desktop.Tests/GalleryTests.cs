@@ -637,12 +637,79 @@ public class GalleryTests
         SqliteConnection.ClearAllPools();
     }
 
+    // ── S7 round 3 · conversation ────────────────────────────────────────────
+
+    [AvaloniaFact]
+    public async Task G30_selected_text_with_the_floating_branch_action()
+    {
+        await using var scene = Scene.Create("g30");
+        var window = Show(scene.App);
+        var seed = await SeedAsync(scene.App);
+        await OpenConversationAsync(scene.App, window, seed.Root);
+        var answer = Answers(window).Single();
+        DragSelect(window, answer, "斯托克顿—达灵顿铁路");
+        await SettleAsync(window);
+        Assert.True(Find<Button>(window, "BranchButton").IsEffectivelyVisible);
+        Capture(window, "g30-selection-branch-action");
+        window.Close();
+    }
+
+    [AvaloniaFact]
+    public async Task G32_selection_on_the_answers_first_line_shows_the_action_over_the_question()
+    {
+        // The floating action lives in the window's overlay, so above the first line (over the question) it is not cut off.
+        await using var scene = Scene.Create("g32");
+        var window = Show(scene.App);
+        var seed = await SeedAsync(scene.App);
+        await OpenConversationAsync(scene.App, window, seed.Root);
+        var answer = Answers(window).Single();
+        var scroller = answer.FindAncestorOfType<ScrollViewer>()!;
+        scroller.Offset = new Avalonia.Vector(0, Math.Max(0, scroller.Offset.Y + answer.TranslatePoint(default, scroller)!.Value.Y - 120));
+        await SettleAsync(window);
+        DragSelect(window, answer, "蒸汽动力");
+        await SettleAsync(window);
+        Assert.True(Find<Button>(window, "BranchButton").IsEffectivelyVisible);
+        Capture(window, "g32-first-line-branch-action");
+        window.Close();
+    }
+
+    private static void DragSelect(Window window, AnswerView answer, string quote)
+    {
+        var block = Mindweave.Desktop.Markdown.SourceAnchors.Blocks(answer.Renderer).First(b => b.LayoutText.Contains(quote, StringComparison.Ordinal));
+        var start = block.LayoutText.IndexOf(quote, StringComparison.Ordinal);
+        var end = start + quote.Length;
+        var from = block.GetTextRangeBoundsInControl(start, 1)[0];
+        var to = block.GetTextRangeBoundsInControl(end, 1)[0];
+        var down = block.TranslatePoint(new Avalonia.Point(from.X + 1, from.Center.Y), window)!.Value;
+        var up = block.TranslatePoint(new Avalonia.Point(to.X + 1, to.Center.Y), window)!.Value;
+        window.MouseDown(down, Avalonia.Input.MouseButton.Left);
+        window.MouseMove(up, Avalonia.Input.RawInputModifiers.LeftMouseButton);
+        window.MouseUp(up, Avalonia.Input.MouseButton.Left);
+    }
+
+    [AvaloniaFact]
+    public async Task G31_answer_copied_with_message_times()
+    {
+        await using var scene = Scene.Create("g31");
+        var window = Show(scene.App);
+        var seed = await SeedAsync(scene.App);
+        await OpenConversationAsync(scene.App, window, seed.FirstRailway);
+        var copy = window.GetVisualDescendants().OfType<CopyButton>().First(b => b.Name == "AnswerCopy" && b.IsEffectivelyVisible);
+        var centre = copy.TranslatePoint(new Avalonia.Point(copy.Bounds.Width / 2, copy.Bounds.Height / 2), window)!.Value;
+        window.MouseDown(centre, Avalonia.Input.MouseButton.Left);
+        window.MouseUp(centre, Avalonia.Input.MouseButton.Left);
+        await UiWait.UntilAsync(() => copy.ShowsCopied);
+        await SettleAsync(window);
+        Capture(window, "g31-answer-copied");
+        window.Close();
+    }
+
     // ── Shell: sidebar resize and collapse (S7 round 3) ─────────────────────
 
     [AvaloniaFact]
-    public async Task G25_shell_sidebar_collapsed_while_a_conversation_needs_attention()
+    public async Task G28_shell_sidebar_collapsed_while_a_conversation_needs_attention()
     {
-        await using var scene = Scene.Create("g25");
+        await using var scene = Scene.Create("g28");
         var window = Show(scene.App);
         var seed = await SeedAsync(scene.App);
         var conversations = scene.App.Services.GetRequiredService<ConversationService>();
@@ -652,27 +719,27 @@ public class GalleryTests
         await OpenConversationAsync(scene.App, window, seed.Gauge);
         scene.App.ShellPage.ToggleSidebarCommand.Execute(null);
         await SettleAsync(window);
-        Capture(window, "g25-shell-sidebar-collapsed");
+        Capture(window, "g28-shell-sidebar-collapsed");
         window.Close();
     }
 
     [AvaloniaFact]
-    public async Task G26_shell_sidebar_widened()
+    public async Task G29_shell_sidebar_widened()
     {
-        await using var scene = Scene.Create("g26");
+        await using var scene = Scene.Create("g29");
         var window = Show(scene.App);
         var seed = await SeedAsync(scene.App);
         scene.App.ShellPage.ShowSectionCommand.Execute(MainSection.Explore);
         scene.App.ShellPage.SidebarWidth = 340;
         await SettleAsync(window);
-        Capture(window, "g26-shell-sidebar-widened");
+        Capture(window, "g29-shell-sidebar-widened");
 
         // The widest sidebar in the narrowest window: the sidebar gives way, the conversation keeps its minimum width.
         await OpenConversationAsync(scene.App, window, seed.Root);
         scene.App.ShellPage.SidebarWidth = 420;
         window.Width = 720;
         await SettleAsync(window);
-        Capture(window, "g26b-shell-narrow-window");
+        Capture(window, "g29b-shell-narrow-window");
         window.Close();
     }
 

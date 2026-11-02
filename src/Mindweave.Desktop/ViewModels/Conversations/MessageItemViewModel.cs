@@ -23,12 +23,15 @@ public sealed partial class MessageItemViewModel : ViewModelBase, IDisposable
 {
     private readonly LiveAnswer? _live;
     private readonly UiThrottle? _throttle;
+    private readonly TimeProvider _time;
 
-    public MessageItemViewModel(Message message, LiveAnswer? live, IUiDispatcher dispatcher)
+    public MessageItemViewModel(Message message, LiveAnswer? live, IUiDispatcher dispatcher, TimeProvider? time = null)
     {
         ArgumentNullException.ThrowIfNull(message);
+        _time = time ?? TimeProvider.System;
         Id = message.Id;
         Role = message.Role;
+        SentAt = message.Role == MessageRole.Assistant ? message.CompletedAt ?? message.CreatedAt : message.CreatedAt;
         IsRetryAttempt = message.Supersedes is not null;
         Body = message.Text;
         State = message.State;
@@ -55,7 +58,7 @@ public sealed partial class MessageItemViewModel : ViewModelBase, IDisposable
     public bool IsRetryAttempt { get; }
 
     [ObservableProperty]
-    [NotifyPropertyChangedFor(nameof(HasBody), nameof(CanBranch), nameof(IsWaiting), nameof(IsStreaming))]
+    [NotifyPropertyChangedFor(nameof(HasBody), nameof(CanBranch), nameof(IsWaiting), nameof(IsStreaming), nameof(CanCopy))]
     public partial string Body { get; private set; }
 
     [ObservableProperty]
@@ -64,7 +67,7 @@ public sealed partial class MessageItemViewModel : ViewModelBase, IDisposable
 
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(StateLabel), nameof(IsInProgress), nameof(IsProblem), nameof(CanBranch), nameof(IsWaiting), nameof(IsStreaming))]
-    [NotifyPropertyChangedFor(nameof(ShowsQuietState), nameof(CanRetryQuietly), nameof(CanRetryInNotice), nameof(HasActions))]
+    [NotifyPropertyChangedFor(nameof(ShowsQuietState), nameof(CanRetryQuietly), nameof(CanRetryInNotice), nameof(HasActions), nameof(TimestampText))]
     public partial MessageState State { get; private set; }
 
     [ObservableProperty]
@@ -136,8 +139,20 @@ public sealed partial class MessageItemViewModel : ViewModelBase, IDisposable
     /// <summary>Retry next to the error, inside the failure notice.</summary>
     public bool CanRetryInNotice => CanRetry && IsProblem;
 
-    /// <summary>Whether the quiet action row under the answer has anything to show.</summary>
-    public bool HasActions => ShowsQuietState || CanRetryQuietly;
+    /// <summary>
+    /// The quiet row under a finished answer (copy, retry or regenerate, its state, its time). Hidden while it is
+    /// still being written: the text is not final yet and the composer offers stop.
+    /// </summary>
+    public bool HasActions => IsAnswer && !IsInProgress;
+
+    /// <summary>When the question was sent, or when the answer ended (its start while no end was recorded).</summary>
+    public DateTimeOffset SentAt { get; }
+
+    /// <summary>A quiet time beside the message: the clock today, the full date otherwise; none while an answer runs.</summary>
+    public string? TimestampText => IsInProgress ? null : UiText.MessageTime(SentAt, _time.GetUtcNow());
+
+    /// <summary>The message's Markdown source can be copied once there is any; a failed or stopped partial answer included.</summary>
+    public bool CanCopy => HasBody;
 
     public string RetryLabel => State == MessageState.Complete ? UiText.Regenerate : UiText.Retry;
 

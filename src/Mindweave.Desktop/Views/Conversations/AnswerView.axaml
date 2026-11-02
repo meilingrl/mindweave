@@ -1,19 +1,12 @@
 <UserControl xmlns="https://github.com/avaloniaui"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:vm="using:Mindweave.Desktop.ViewModels.Conversations"
-             xmlns:d="using:Mindweave.Desktop"
              x:Class="Mindweave.Desktop.Views.Conversations.AnswerView"
              x:DataType="vm:MessageItemViewModel">
-  <StackPanel Spacing="6">
-    <!-- The Markdown renderer is created in code: it is fed either a full parse (finished) or a live builder (streaming). -->
-    <ContentControl Name="BodyHost" />
-    <!-- Appears under the answer while text in it is selected. The branch entries are listed by the page, after the answer's actions. -->
-    <Button Name="BranchButton" Classes="secondary" IsVisible="False" HorizontalAlignment="Left" ToolTip.ShowOnDisabled="True"
-            AutomationProperties.Name="{x:Static d:UiText.CreateBranch}">
-      <StackPanel Orientation="Horizontal" Spacing="6">
-        <PathIcon Data="{StaticResource IconBranch}" />
-        <TextBlock Text="{x:Static d:UiText.CreateBranch}" VerticalAlignment="Center" />
-      </StackPanel>
-    </Button>
-  </StackPanel>
+  <!--
+    The Markdown renderer is created in code: it is fed either a full parse (finished) or a live builder (streaming).
+    The floating 创建分支 action next to a selection is created in code too and shown in the window's overlay layer,
+    so neither this answer's bounds, the page's scroll area nor the rows under the answer can clip or cover it.
+  -->
+  <ContentControl Name="BodyHost" />
 </UserControl>

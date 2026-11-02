@@ -9,7 +9,11 @@
         WindowStartupLocation="CenterScreen"
         Background="{DynamicResource WindowBackground}">
   <Panel>
-    <ContentControl Content="{Binding Current}" />
+    <!-- The page gets its own overlay layer (floating cards such as 创建分支 go there), so the window-level scrims
+         below draw and hit-test above them, as above the rest of the page. -->
+    <VisualLayerManager Name="PageLayers" EnableOverlayLayer="True">
+      <ContentControl Content="{Binding Current}" />
+    </VisualLayerManager>
     <!--
       Prompts over the window share one dialog surface (S7 round 3): title, a short message, buttons at the right with
       one primary; an action that stops or discards work is in the danger colour. Nothing irreversible happens before

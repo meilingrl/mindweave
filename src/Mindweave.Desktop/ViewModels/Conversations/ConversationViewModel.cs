@@ -34,6 +34,7 @@ public sealed partial class ConversationViewModel : PageViewModel, IDisposable
     private readonly ISummaries? _summaries;
     private readonly IWorkbenchNavigator _navigator;
     private readonly IUiDispatcher _dispatcher;
+    private readonly TimeProvider _time;
     private readonly ViewerSlotKey _slot;
     private readonly SerialRefresh _load;
     private readonly UiThrottle _reload;
@@ -42,7 +43,7 @@ public sealed partial class ConversationViewModel : PageViewModel, IDisposable
     private IReadOnlySet<ConversationId> _related = new HashSet<ConversationId>();
     private bool _disposed;
 
-    public ConversationViewModel(ConversationRoute route, PageContext context, IConversations conversations, IReadingState reading, IUiDispatcher dispatcher, IStorageStatus storage, ISummaries? summaries = null)
+    public ConversationViewModel(ConversationRoute route, PageContext context, IConversations conversations, IReadingState reading, IUiDispatcher dispatcher, IStorageStatus storage, ISummaries? summaries = null, TimeProvider? time = null)
         : base(route)
     {
         ArgumentNullException.ThrowIfNull(route);
@@ -54,6 +55,7 @@ public sealed partial class ConversationViewModel : PageViewModel, IDisposable
         _storage = storage;
         _navigator = context.Navigator;
         _dispatcher = dispatcher;
+        _time = time ?? TimeProvider.System;
         _load = new SerialRefresh(LoadAsync);
         _reload = new UiThrottle(dispatcher, TimeSpan.FromMilliseconds(30), () => _ = _load.Request());
         // Stop sits where send is while an answer runs; the page shows the storage pause once, at the top.
@@ -636,7 +638,7 @@ public sealed partial class ConversationViewModel : PageViewModel, IDisposable
 
     private MessageItemViewModel NewItem(Message message)
     {
-        var item = new MessageItemViewModel(message, _conversations.Observe(message.Id), _dispatcher) { IsBranchPaused = IsStorageBlocked };
+        var item = new MessageItemViewModel(message, _conversations.Observe(message.Id), _dispatcher, _time) { IsBranchPaused = IsStorageBlocked };
         item.PropertyChanged += (_, e) =>
         {
             if (e.PropertyName == nameof(MessageItemViewModel.State))

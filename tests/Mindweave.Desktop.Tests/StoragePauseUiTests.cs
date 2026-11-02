@@ -78,8 +78,8 @@ public class StoragePauseUiTests
         window.UpdateLayout();
         var first = view.GetVisualDescendants().OfType<AnswerView>().First(a => a.DataContext is MessageItemViewModel { IsAnswer: true, CanBranch: true });
         Select(window, first, "铁路随后");
-        var branch = Find<Button>(first, "BranchButton");
-        Assert.True(branch.IsVisible);
+        var branch = first.BranchButton;
+        Assert.True(branch.IsEffectivelyVisible);
         Assert.False(branch.IsEffectivelyEnabled);
         Assert.Equal(UiText.StoragePausedReason, ToolTip.GetTip(branch));
         Assert.Equal("暂停时写下的问题", page.Composer.Text);
