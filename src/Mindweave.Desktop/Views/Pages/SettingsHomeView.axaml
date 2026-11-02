@@ -88,7 +88,7 @@
                    IsOpen="{Binding IsModelListOpen, Mode=TwoWay}" IsLightDismissEnabled="True" OverlayDismissEventPassThrough="True"
                    MinWidth="{Binding #ModelBox.Bounds.Width}">
               <Border Classes="suggestions">
-                <ListBox Name="ModelList" ItemsSource="{Binding ModelSuggestions}" MaxHeight="248" SelectionMode="Single" />
+                <ListBox Name="ModelList" ItemsSource="{Binding ModelSuggestions}" MaxHeight="248" SelectionMode="Single" Focusable="False" />
               </Border>
             </Popup>
             <Button Grid.Column="1" Name="FetchModels" Classes="secondary" Command="{Binding DiscoverCommand}">

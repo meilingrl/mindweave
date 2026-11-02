@@ -240,6 +240,140 @@ public class SettingsPolishTests
     }
 
     [AvaloniaFact]
+    public async Task Switching_to_another_provider_never_sends_the_saved_key_to_the_new_host()
+    {
+        await using var app = DesktopHarness.Create();
+        app.Client.Models = ["deepseek-chat"];
+        await app.StartWithWorkspaceAsync("火车");
+        var service = app.Services.GetRequiredService<IModelSettings>();
+        await service.SaveAsync(new ModelSettingsInput("DeepSeek", "https://api.deepseek.com", "deepseek-chat", "sk-deepseek"), CancellationToken.None);
+        var (window, settings) = await OpenSettingsAsync(app, started: true);
+        var model = settings.Model;
+        var keyBox = Find<TextBox>(window, "ApiKey");
+        Assert.Same(ProviderPresets.DeepSeek, model.SelectedProvider);
+        Assert.Equal(UiText.KeySavedPlaceholder, keyBox.PlaceholderText);
+
+        // A key typed for DeepSeek, then the picker moves to OpenAI: the typed key, the model and the saved key stay behind.
+        model.ApiKey = "sk-typed-for-deepseek";
+        Find<ComboBox>(window, "ProviderPicker").SelectedItem = ProviderPresets.OpenAI;
+        window.UpdateLayout();
+        Assert.Equal("https://api.openai.com/v1", model.BaseUrl);
+        Assert.Equal(string.Empty, model.ApiKey);
+        Assert.Equal(string.Empty, model.Model);
+        Assert.False(model.SavedKeyApplies);
+        Assert.Equal(UiText.KeyOtherServicePlaceholder, keyBox.PlaceholderText);
+
+        // 获取列表, 测试连接 and 保存 with the key field empty: refused, and nothing is sent anywhere.
+        var missingKey = UiText.SettingsProblem(ModelSettingsProblem.MissingKey);
+        Click(window, Find<Button>(window, "FetchModels"));
+        await UiWait.UntilAsync(() => !model.IsBusy);
+        Assert.Equal(missingKey, model.Status);
+        model.Model = "gpt-4o";
+        await model.TestCommand.ExecuteAsync(null);
+        Assert.Equal(missingKey, model.Status);
+        await model.SaveCommand.ExecuteAsync(null);
+        Assert.Equal(missingKey, model.Status);
+        Assert.True(model.StatusIsError);
+        Assert.Empty(app.Client.KeysSent);
+        Assert.Equal("https://api.deepseek.com", (await service.GetAsync(CancellationToken.None))!.BaseUrl);
+
+        // An address typed by hand to another host is refused the same way.
+        model.BaseUrl = "https://evil.example/v1";
+        Assert.Equal(UiText.KeyOtherServicePlaceholder, keyBox.PlaceholderText);
+        await model.DiscoverCommand.ExecuteAsync(null);
+        Assert.Equal(missingKey, model.Status);
+        Assert.Empty(app.Client.KeysSent);
+
+        // Back on the saved service: its key and model apply again, and fetching uses them there only.
+        Find<ComboBox>(window, "ProviderPicker").SelectedItem = ProviderPresets.DeepSeek;
+        window.UpdateLayout();
+        Assert.Equal("deepseek-chat", model.Model);
+        Assert.Equal(UiText.KeySavedPlaceholder, keyBox.PlaceholderText);
+        await model.DiscoverCommand.ExecuteAsync(null);
+        Assert.False(model.StatusIsError);
+        Assert.Equal(("https://api.deepseek.com", "sk-deepseek"), Assert.Single(app.Client.KeysSent));
+
+        // Models fetched there are dropped when the address is edited to another host by hand.
+        model.IsModelListOpen = false;
+        Assert.NotEmpty(model.AvailableModels);
+        model.BaseUrl = "https://api.deepseek.com/v1";
+        Assert.NotEmpty(model.AvailableModels);
+        model.BaseUrl = "https://other.example/v1";
+        Assert.Empty(model.AvailableModels);
+        window.Close();
+    }
+
+    [AvaloniaFact]
+    public async Task The_arrow_in_the_model_field_closes_the_list_it_opened()
+    {
+        var (app, window, model, popup) = await FetchedAsync();
+        await using var _ = app;
+        var toggle = Find<Button>(window, "ModelListToggle");
+        model.IsModelListOpen = false;
+        window.UpdateLayout();
+
+        Click(window, toggle);
+        Assert.True(popup.IsOpen);
+        Click(window, toggle);
+        Assert.False(popup.IsOpen);
+        Assert.False(model.IsModelListOpen);
+        Click(window, toggle);
+        Assert.True(popup.IsOpen);
+        window.Close();
+    }
+
+    [AvaloniaFact]
+    public async Task After_fetching_Escape_closes_the_list_and_leaving_the_field_closes_it()
+    {
+        var (app, window, model, popup) = await FetchedAsync();
+        await using var _ = app;
+        var box = Find<TextBox>(window, "ModelBox");
+
+        // Straight after 获取列表 (the click put focus on that button), Escape closes the list.
+        Assert.True(popup.IsOpen);
+        Assert.True(box.IsFocused);
+        window.KeyPress(Key.Escape, RawInputModifiers.None, PhysicalKey.Escape, null);
+        Assert.False(popup.IsOpen);
+
+        // Open again, then Tab away to 名称: the list closes instead of covering it.
+        window.KeyPress(Key.Down, RawInputModifiers.None, PhysicalKey.ArrowDown, null);
+        Assert.True(popup.IsOpen);
+        window.KeyPress(Key.Tab, RawInputModifiers.None, PhysicalKey.Tab, null);
+        window.UpdateLayout();
+        Assert.False(box.IsFocused);
+        Assert.False(popup.IsOpen);
+
+        // Tabbing back into the field shows the list again.
+        window.KeyPress(Key.Tab, RawInputModifiers.Shift, PhysicalKey.Tab, null);
+        window.UpdateLayout();
+        Assert.True(box.IsFocused);
+        Assert.True(popup.IsOpen);
+
+        // A click elsewhere (another field) closes it too.
+        Click(window, Find<TextBox>(window, "ConnectionName"));
+        Assert.False(popup.IsOpen);
+        window.Close();
+    }
+
+    [AvaloniaFact]
+    public async Task The_provider_picker_is_framed_like_the_text_fields()
+    {
+        foreach (var theme in new[] { ThemeVariant.Light, ThemeVariant.Dark })
+        {
+            await using var app = DesktopHarness.Create();
+            var (window, _) = await OpenSettingsAsync(app);
+            window.RequestedThemeVariant = theme;
+            window.UpdateLayout();
+            var picker = Find<ComboBox>(window, "ProviderPicker");
+            var frame = picker.GetVisualDescendants().OfType<Border>().First(b => b.Name == "Background");
+            var field = Find<TextBox>(window, "BaseUrl").GetVisualDescendants().OfType<Border>().First(b => b.Name == "PART_BorderElement");
+            Assert.Equal(Brush(field.BorderBrush), Brush(frame.BorderBrush));
+            Assert.Equal(Colour(window, "TextControlBorderBrush"), Brush(frame.BorderBrush));
+            window.Close();
+        }
+    }
+
+    [AvaloniaFact]
     public async Task Settings_storage_and_onboarding_each_have_one_primary_action()
     {
         await using var app = DesktopHarness.Create();
@@ -274,6 +408,22 @@ public class SettingsPolishTests
     }
 
     // ── Helpers ──────────────────────────────────────────────────────────────
+
+    /// <summary>Settings open on a configured model, with three models fetched by a real click on 获取列表.</summary>
+    private static async Task<(DesktopHarness App, MainWindow Window, ModelSettingsViewModel Model, Popup Popup)> FetchedAsync()
+    {
+        var app = DesktopHarness.Create();
+        app.Client.Models = ["alpha", "beta", "gamma"];
+        await app.StartWithWorkspaceAsync("火车");
+        await app.ConfigureModelAsync();
+        var (window, settings) = await OpenSettingsAsync(app, started: true);
+        Click(window, Find<Button>(window, "FetchModels"));
+        await UiWait.UntilAsync(() => !settings.Model.IsBusy);
+        window.UpdateLayout();
+        return (app, window, settings.Model, Find<Popup>(window, "ModelPopup"));
+    }
+
+    private static Color Brush(IBrush? brush) => Assert.IsAssignableFrom<ISolidColorBrush>(brush).Color;
 
     private static async Task<(MainWindow Window, SettingsHomeViewModel Settings)> OpenSettingsAsync(DesktopHarness app, bool started = false)
     {

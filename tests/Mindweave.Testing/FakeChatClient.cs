@@ -96,8 +96,12 @@ public sealed class FakeChatClient : IChatClient
         return gate;
     }
 
+    /// <summary>Every (address, key) pair sent to the service, by listing models or generating, in order.</summary>
+    public ConcurrentQueue<(string BaseUrl, string ApiKey)> KeysSent { get; } = new();
+
     public async IAsyncEnumerable<ChatStreamEvent> StreamAsync(ChatRequest request, string apiKey, [EnumeratorCancellation] CancellationToken cancellationToken)
     {
+        KeysSent.Enqueue((request.Model.BaseUrl, apiKey));
         Requests.Enqueue(request);
         await Task.Yield();
         if (IsSummary(request))
@@ -211,8 +215,11 @@ public sealed class FakeChatClient : IChatClient
     /// <summary>What listing the models returns.</summary>
     public IReadOnlyList<string> Models { get; set; } = ["fake-model"];
 
-    public Task<IReadOnlyList<string>> ListModelsAsync(string baseUrl, string apiKey, CancellationToken cancellationToken) =>
-        Task.FromResult(Models);
+    public Task<IReadOnlyList<string>> ListModelsAsync(string baseUrl, string apiKey, CancellationToken cancellationToken)
+    {
+        KeysSent.Enqueue((baseUrl, apiKey));
+        return Task.FromResult(Models);
+    }
 
     public sealed class HeldReply(string[] before)
     {

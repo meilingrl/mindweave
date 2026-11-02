@@ -1,3 +1,4 @@
+using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Input;
 using Avalonia.Interactivity;
@@ -9,10 +10,16 @@ namespace Mindweave.Desktop.Views.Pages;
 /// <summary>
 /// Settings. Two pieces of keyboard and pointer handling live here because they are about the controls, not the
 /// settings: the arrow keys move along the appearance segments, and the model field opens, steps through and
-/// accepts the fetched suggestions (the filtering itself is the view model's).
+/// accepts the fetched suggestions (the filtering itself is the view model's). The list behaves like a drop-down:
+/// the arrow toggles it, Escape closes it, and it closes when focus leaves the field.
 /// </summary>
 public sealed partial class SettingsHomeView : UserControl
 {
+    private TopLevel? _topLevel;
+
+    /// <summary>Whether the list was open when the press on the arrow began (light dismiss closes it before the click).</summary>
+    private bool _listOpenAtTogglePress;
+
     public SettingsHomeView()
     {
         InitializeComponent();
@@ -20,9 +27,36 @@ public sealed partial class SettingsHomeView : UserControl
         ModelBox.AddHandler(KeyDownEvent, OnModelKeyDown, RoutingStrategies.Tunnel);
         ModelBox.AddHandler(PointerReleasedEvent, OnModelBoxReleased, RoutingStrategies.Bubble, handledEventsToo: true);
         ModelBox.GotFocus += OnModelBoxFocused;
+        ModelBox.LostFocus += OnModelBoxLostFocus;
         ModelList.AddHandler(PointerReleasedEvent, OnSuggestionReleased, RoutingStrategies.Bubble, handledEventsToo: true);
         ModelPopup.Opened += OnModelListOpened;
     }
+
+    protected override void OnAttachedToVisualTree(VisualTreeAttachmentEventArgs e)
+    {
+        base.OnAttachedToVisualTree(e);
+
+        // Registered before the popup's own light-dismiss handler (added each time it opens), so this sees the state first.
+        _topLevel = TopLevel.GetTopLevel(this);
+        _topLevel?.AddHandler(PointerPressedEvent, OnWindowPointerPressed, RoutingStrategies.Tunnel, handledEventsToo: true);
+    }
+
+    protected override void OnDetachedFromVisualTree(VisualTreeAttachmentEventArgs e)
+    {
+        _topLevel?.RemoveHandler(PointerPressedEvent, OnWindowPointerPressed);
+        _topLevel = null;
+        base.OnDetachedFromVisualTree(e);
+    }
+
+    private void OnWindowPointerPressed(object? sender, PointerPressedEventArgs e)
+    {
+        if (e.Source is Visual source && IsOnToggle(source))
+        {
+            _listOpenAtTogglePress = Model?.IsModelListOpen == true;
+        }
+    }
+
+    private bool IsOnToggle(Visual source) => source == ModelListToggle || ModelListToggle.IsVisualAncestorOf(source);
 
     private ModelSettingsViewModel? Model => (DataContext as SettingsHomeViewModel)?.Model;
 
@@ -59,8 +93,9 @@ public sealed partial class SettingsHomeView : UserControl
             return;
         }
 
-        if (model.IsModelListOpen)
+        if (model.IsModelListOpen || _listOpenAtTogglePress)
         {
+            _listOpenAtTogglePress = false;
             model.IsModelListOpen = false;
         }
         else
@@ -72,9 +107,22 @@ public sealed partial class SettingsHomeView : UserControl
 
     private void OnModelBoxReleased(object? sender, PointerReleasedEventArgs e)
     {
-        if (Model is { IsModelListOpen: false } model)
+        // The arrow inside the field decides for itself.
+        if (Model is { IsModelListOpen: false } model && !(e.Source is Visual source && IsOnToggle(source)))
         {
             model.OpenModelList();
+        }
+    }
+
+    private void OnModelBoxLostFocus(object? sender, RoutedEventArgs e)
+    {
+        // Tabbing or clicking elsewhere closes the list so it no longer covers the rows below; a press inside the list
+        // itself keeps it (the choice is made on release).
+        var focused = TopLevel.GetTopLevel(this)?.FocusManager?.GetFocusedElement() as Visual;
+        var insideList = focused is not null && ModelPopup.Child is { } child && (focused == child || child.IsVisualAncestorOf(focused));
+        if (!insideList && Model is { IsModelListOpen: true } model)
+        {
+            model.IsModelListOpen = false;
         }
     }
 
@@ -89,6 +137,12 @@ public sealed partial class SettingsHomeView : UserControl
 
     private void OnModelListOpened(object? sender, EventArgs e)
     {
+        // Opened by 获取列表 (focus on that button): the field takes focus, so Escape, the arrow keys and Tab act on the list.
+        if (!ModelBox.IsKeyboardFocusWithin)
+        {
+            ModelBox.Focus();
+        }
+
         // The model already in the field is highlighted, so the arrow keys continue from it.
         ModelList.SelectedItem = Model is { } model && model.ModelSuggestions.Contains(model.Model) ? model.Model : null;
         if (ModelList.SelectedIndex >= 0)

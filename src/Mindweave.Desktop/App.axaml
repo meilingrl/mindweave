@@ -795,6 +795,16 @@
       <Setter Property="Background" Value="{DynamicResource SelectedRow}" />
       <Setter Property="Foreground" Value="{DynamicResource PrimaryText}" />
     </Style>
+    <!-- The provider picker is framed like the text fields in the same card, at rest and under the pointer. -->
+    <Style Selector="ComboBox.settings">
+      <Setter Property="BorderBrush" Value="{DynamicResource TextControlBorderBrush}" />
+    </Style>
+    <Style Selector="ComboBox.settings:pointerover /template/ Border#Background">
+      <Setter Property="BorderBrush" Value="{DynamicResource TextControlBorderBrushPointerOver}" />
+    </Style>
+    <Style Selector="ComboBox.settings:focus-visible /template/ Border#Background">
+      <Setter Property="BorderBrush" Value="{DynamicResource TextControlBorderBrushFocused}" />
+    </Style>
     <!-- The provider list: the same neutral rows instead of Fluent's accent selection. -->
     <Style Selector="ComboBox.settings ComboBoxItem">
       <Setter Property="Padding" Value="11,6" />
@@ -810,9 +820,8 @@
     <Style Selector="ComboBox.settings ComboBoxItem:selected">
       <Setter Property="FontWeight" Value="SemiBold" />
     </Style>
-    <!-- A file path: selectable, slightly smaller, wraps anywhere. -->
+    <!-- A file path: selectable, wraps anywhere, the same size as the other values in its column. -->
     <Style Selector="SelectableTextBlock.path">
-      <Setter Property="FontSize" Value="12.5" />
       <Setter Property="TextWrapping" Value="Wrap" />
       <Setter Property="Foreground" Value="{DynamicResource PrimaryText}" />
       <Setter Property="VerticalAlignment" Value="Center" />

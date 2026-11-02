@@ -11,7 +11,7 @@
     <TextBlock Classes="h1" Margin="0,18,0,6" Text="{x:Static d:UiText.OnboardingHeading}" />
     <TextBlock Classes="muted" TextWrapping="Wrap" Margin="0,0,0,22" Text="{x:Static d:UiText.OnboardingBody}" />
     <TextBox Name="NameBox" Text="{Binding Form.Name}" PlaceholderText="{x:Static d:UiText.WorkspaceNameWatermark}"
-             AutomationProperties.Name="工作区名称" />
+             AutomationProperties.Name="{x:Static d:UiText.WorkspaceNameLabel}" />
     <TextBlock Classes="error" Margin="0,8,0,0" Text="{Binding Form.Error}" IsVisible="{Binding Form.Error, Converter={x:Static ObjectConverters.IsNotNull}}" TextWrapping="Wrap" />
     <Button Name="CreateButton" Classes="primary" Margin="0,14,0,0" Padding="14,8" HorizontalAlignment="Stretch" HorizontalContentAlignment="Center"
             Content="{x:Static d:UiText.CreateWorkspace}" Command="{Binding Form.SubmitCommand}" IsDefault="True" />

@@ -21,6 +21,7 @@ public static class UiText
     public const string OnboardingBody = "先建一个主题工作区，这个主题下的会话与总结都放在这里。";
     public const string CreateWorkspace = "创建工作区";
     public const string WorkspaceNameWatermark = "例如：火车历史";
+    public const string WorkspaceNameLabel = "工作区名称";
     public const string Create = "创建";
     public const string Cancel = "取消";
     public const string NewWorkspace = "新建工作区";
@@ -94,6 +95,7 @@ public static class UiText
     public const string BaseUrlPlaceholder = "https://…/v1";
     public const string KeySavedPlaceholder = "已保存，留空则继续使用";
     public const string KeyMissingPlaceholder = "尚未保存";
+    public const string KeyOtherServicePlaceholder = "请填写此服务的密钥";
     public const string OllamaKeyPlaceholder = "本机服务不校验，可填任意内容";
     public const string ConnectionNamePlaceholder = "可选";
     public const string ModelPlaceholder = "选择或输入模型名称";
@@ -170,8 +172,6 @@ public static class UiText
     public const string DatabaseLabel = "数据库";
     public const string SchemaVersionLabel = "数据结构版本";
     public const string BackupsLabel = "升级前备份";
-    public const string NoBackups = "暂无备份。只有在数据需要升级时才会自动备份。";
-    public const string AppVersionLabel = "版本";
     public const string ChannelLabel = "数据通道";
     public const string OpenDataFolder = "打开数据位置";
     public const string Retry = "重试";
@@ -204,7 +204,7 @@ public static class UiText
     public const string ApiKeyLabel = "API 密钥";
     public const string ContextWindowLabel = "上下文容量";
     public const string ContextWindowPlaceholder = "留空按 32000 计";
-    public const string ContextWindowHint = "对话超出时，较早的内容先压缩成摘要再发送，会多几次请求与费用；原始记录完整保留。";
+    public const string ContextWindowHint = "对话超出时，较早的内容先压缩成摘要再发送，会多几次请求、多些等待与费用；原始记录完整保留。";
     public const string WaitingForAnswer = "正在等待回答…";
     public const string AnswerStreaming = "正在生成…";
     public const string CompressingContext = "正在压缩较早的对话…";
