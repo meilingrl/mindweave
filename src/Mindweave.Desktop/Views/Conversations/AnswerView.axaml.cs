@@ -24,6 +24,8 @@ public sealed partial class AnswerView : UserControl
     /// <summary>Space between the selection and its floating action.</summary>
     internal const double ActionGap = 6;
 
+    private const string HighlightResource = "SourceHighlight";
+
     private readonly MarkdownRenderer _renderer = new();
     private MessageItemViewModel? _item;
     private ObservableStringBuilder? _live;
@@ -63,6 +65,7 @@ public sealed partial class AnswerView : UserControl
         // The action follows the selection when the page scrolls or resizes (raised inside the layout pass, after the
         // answer has been arranged at its new place) and when the answer is laid out again (a narrower window rewraps it).
         EffectiveViewportChanged += (_, _) => PlaceSelectionActions();
+        ActualThemeVariantChanged += OnThemeChanged;
         _renderer.SizeChanged += (_, _) => PlaceSelectionActions();
     }
 
@@ -110,8 +113,7 @@ public sealed partial class AnswerView : UserControl
 
         try
         {
-            var brush = this.FindResource("SourceHighlight") as IBrush ?? Brushes.Khaki;
-            var resolved = SourceAnchors.Restore(SourceAnchors.Deserialize(source.AnchorJson), _shown, _renderer, brush);
+            var resolved = SourceAnchors.Restore(SourceAnchors.Deserialize(source.AnchorJson), _shown, _renderer, HighlightBrush());
             return SourceAnchors.TopOf(resolved[0], relativeTo);
         }
         catch (Exception ex) when (ex is InvalidDataException or System.Text.Json.JsonException or ArgumentException)
@@ -119,6 +121,16 @@ public sealed partial class AnswerView : UserControl
             return null;
         }
     }
+
+    /// <summary>
+    /// The highlight colour of the theme this answer is shown in. A lookup without the theme finds nothing in the
+    /// theme dictionaries (the fallback used to be a bright khaki, unreadable under dark text colours, S7 round 4).
+    /// </summary>
+    private IBrush HighlightBrush() =>
+        this.TryFindResource(HighlightResource, ActualThemeVariant, out var value) && value is IBrush brush ? brush : Brushes.Transparent;
+
+    /// <summary>A theme switch while a source passage is highlighted recolours the highlight in place.</summary>
+    private void OnThemeChanged(object? sender, EventArgs e) => SourceAnchors.RecolorHighlight(_renderer, HighlightBrush());
 
     protected override void OnDataContextChanged(EventArgs e)
     {

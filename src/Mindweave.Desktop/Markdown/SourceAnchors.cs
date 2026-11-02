@@ -295,6 +295,19 @@ public static class SourceAnchors
         return resolved;
     }
 
+    /// <summary>Gives the source highlight already shown (if any) a new background, e.g. after a theme switch; ranges stay.</summary>
+    public static void RecolorHighlight(Visual renderer, IBrush highlight)
+    {
+        foreach (var block in Blocks(renderer))
+        {
+            if (block.Highlights.TryGetValue(HighlightKey, out _) && block.HighlightStyles is { } styles &&
+                styles.TryGetValue(HighlightKey, out var style) && !Equals(style!.Background, highlight))
+            {
+                styles.Set(HighlightKey, new TextHighlightStyle { Background = highlight, CornerRadius = style.CornerRadius });
+            }
+        }
+    }
+
     public static void ClearHighlight(Visual renderer)
     {
         foreach (var block in Blocks(renderer))
