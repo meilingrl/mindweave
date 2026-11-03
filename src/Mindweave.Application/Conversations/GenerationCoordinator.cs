@@ -221,6 +221,16 @@ public sealed partial class GenerationCoordinator : IGenerationExit, IAsyncDispo
         }
     }
 
+    /// <summary>A summary of the conversation is queued or being generated (naming and titles do not count).</summary>
+    public bool HasUnfinishedSummary(ConversationId conversation)
+    {
+        lock (_gate)
+        {
+            return _userQueue.Concat(_backgroundQueue).Any(w => w is SummaryWork && w.Task.ConversationId == conversation)
+                || _running.Values.Any(r => r.Work is SummaryWork && r.Work.Task.ConversationId == conversation);
+        }
+    }
+
     private static bool IsLive(AnswerWork answer) => answer.Live.Snapshot().State is MessageState.Pending or MessageState.Streaming;
 
     /// <summary>Queues work whose task row is already stored. Throws once shutdown has begun.</summary>

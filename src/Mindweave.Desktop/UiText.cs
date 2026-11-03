@@ -43,7 +43,11 @@ public static class UiText
 
     public static string ExpandSidebarTip { get; } = ExpandSidebar + "（" + SidebarShortcut + "）";
 
-    public static string ExpandSidebarAttention { get; } = ExpandSidebarTip + " · 有会话需要处理";
+    public const string SidebarNeedsAttention = "有会话需要处理";
+
+    public static string ExpandSidebarAttention { get; } = ExpandSidebarTip + " · " + SidebarNeedsAttention;
+
+    public static string ExpandSidebarUnread { get; } = ExpandSidebarTip + " · " + MarkerNewAnswer;
     public const string ExploreEmpty = "这个工作区还没有会话。";
     public const string NetworkTitle = "总结网络";
     public const string NetworkEmpty = "还没有总结。在会话中点“总结此会话”即可生成。";
@@ -205,8 +209,10 @@ public static class UiText
     public const string OpenSettingsLink = "前往设置";
     public const string EarlierAttempt = "较早的尝试";
     public const string RetryAttempt = "重新回答";
-    public const string MarkerGenerating = "正在生成";
+    public const string MarkerGenerating = "正在回答";
+    public const string MarkerSummarizing = "正在总结";
     public const string MarkerNeedsAttention = "回答未完成，可重试";
+    public const string MarkerNewAnswer = "有新回答";
     public const string CreateBranch = "创建分支";
     public const string ReturnToSource = "返回来源";
     public const string ReturnToSourceHint = "回到来源回答，并选中这段原文";

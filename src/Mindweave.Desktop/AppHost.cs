@@ -40,6 +40,7 @@ internal sealed class AppHost(SingleInstance instance, ServiceProvider services)
                 await health.StopAsync().ConfigureAwait(false);
                 await health.RetryKeptAsync().ConfigureAwait(false);
                 await Services.GetRequiredService<Mindweave.Application.Reading.ReadingStateService>().FlushAsync().ConfigureAwait(false);
+                await Services.GetRequiredService<Mindweave.Application.Conversations.ConversationMarksService>().FlushAsync().ConfigureAwait(false);
             }
             finally
             {

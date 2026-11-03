@@ -806,6 +806,48 @@ public class GalleryTests
         window.Close();
     }
 
+    // ── Sidebar status (S7 round 4) ─────────────────────────────────────────
+
+    [AvaloniaFact]
+    public async Task G34_sidebar_status_spinner_unread_and_attention()
+    {
+        await using var scene = Scene.Create("g34");
+        var window = Show(scene.App);
+        var seed = await SeedAsync(scene.App);
+        var conversations = scene.App.Services.GetRequiredService<ConversationService>();
+        var list = scene.App.ShellPage.Conversations;
+        await OpenConversationAsync(scene.App, window, seed.Root);
+
+        // New answers while the root is on screen: two branches get the unread dot.
+        foreach (var (id, question) in new[] { (seed.Gauge, "其他国家用什么轨距？"), (seed.Wheels, "动轮最大能做多大？") })
+        {
+            scene.App.Client.Reply("这是一个新的回答。");
+            await conversations.AskAsync(id, question, CancellationToken.None);
+            await UiWait.UntilAsync(() => list.Items.Single(i => i.Id == id).IsUnread);
+        }
+
+        // Collapsed with only news: the expand button's accent dot.
+        scene.App.ShellPage.ToggleSidebarCommand.Execute(null);
+        await SettleAsync(window);
+        Capture(window, "g34b-sidebar-collapsed-unread");
+        scene.App.ShellPage.ToggleSidebarCommand.Execute(null);
+
+        // One answer fails, one is still being written.
+        scene.App.Client.Fail(GenerationErrorKind.Network, "connection reset", "吴淞铁路");
+        await conversations.AskAsync(seed.FirstRailway, "吴淞铁路拆下来的铁轨去了哪里？", CancellationToken.None);
+        await UiWait.UntilAsync(() => list.Items.Single(i => i.Id == seed.FirstRailway).NeedsAttention);
+        var held = scene.App.Client.Hold("受电弓的碳滑板");
+        await conversations.AskAsync(seed.HighSpeed, "受电弓多久更换一次？", CancellationToken.None);
+        await held.Started.Task.WaitAsync(TimeSpan.FromSeconds(5));
+        await UiWait.UntilAsync(() => list.Items.Single(i => i.Id == seed.HighSpeed).IsGenerating);
+        await SettleAsync(window);
+        Capture(window, "g34-sidebar-status");
+
+        held.Finish("通常几个月。");
+        await UiWait.UntilAsync(() => !conversations.HasUnfinishedAnswer(seed.HighSpeed));
+        window.Close();
+    }
+
     // ── Seed ─────────────────────────────────────────────────────────────────
 
     /// <summary>The conversations of the seeded workspace, and the summary node of each summarized one.</summary>
@@ -843,6 +885,17 @@ public class GalleryTests
         var pantograph = await BranchAsync(conversations, highSpeed, "受电弓与接触网", "受电弓", "受电弓怎么保证高速下不断电？", PantographAnswer, app);
         var first = await StartAsync(conversations, workspace, "中国第一条铁路", FirstRailwayQuestion, FirstRailwayAnswer, app);
         await UiWait.UntilAsync(() => app.ShellPage.Conversations.Items.Count == 10);
+
+        // Seeded behind the user's back, every answer finished off screen; the scenes start with all of them seen.
+        var marks = app.Services.GetRequiredService<ConversationMarksService>();
+        ConversationId[] all = [root, rainhill, cable, gauge, wheels, highSpeed, ballastless, distributed, pantograph, first];
+        await UiWait.UntilAsync(() => all.All(marks.IsUnread));
+        foreach (var id in all)
+        {
+            marks.MarkSeen(id);
+        }
+
+        await UiWait.UntilAsync(() => app.ShellPage.Conversations.Items.All(i => !i.IsUnread));
 
         var nodes = new Dictionary<ConversationId, SummaryNodeId>();
         if (summaries)

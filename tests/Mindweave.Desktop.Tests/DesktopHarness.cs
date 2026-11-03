@@ -87,6 +87,7 @@ public sealed class DesktopHarness : IAsyncDisposable
         await Workbench.LastLocationSave;
         await Services.GetRequiredService<GenerationCoordinator>().ShutdownAsync();
         await Services.GetRequiredService<ReadingStateService>().FlushAsync();
+        await Services.GetRequiredService<ConversationMarksService>().FlushAsync();
         await Services.GetRequiredService<SqliteDatabase>().CloseAsync();
         await Services.DisposeAsync();
         Services = CompositionRoot.Build(Paths, Shell, NullLoggerProvider.Instance, _overrides);
@@ -108,6 +109,7 @@ public sealed class DesktopHarness : IAsyncDisposable
             await Root.Exit.Running;
             await Services.GetRequiredService<GenerationCoordinator>().ShutdownAsync();
             await Services.GetRequiredService<ReadingStateService>().FlushAsync();
+            await Services.GetRequiredService<ConversationMarksService>().FlushAsync();
             await Services.GetRequiredService<SqliteDatabase>().CloseAsync();
             await Services.DisposeAsync();
         }

@@ -145,6 +145,9 @@ public sealed partial class ConversationService : IConversations
     /// </summary>
     public event EventHandler<IReadOnlyList<ConversationId>>? VisibilityChanged;
 
+    /// <summary>A conversation was deleted for good (raised before its <see cref="VisibilityChanged"/>). Raised on worker threads.</summary>
+    public event EventHandler<ConversationId>? Deleted;
+
     public Task<IReadOnlyList<ConversationSummary>> ListAsync(WorkspaceId workspace, CancellationToken cancellationToken) =>
         _store.ListAsync(workspace, cancellationToken);
 
@@ -454,6 +457,7 @@ public sealed partial class ConversationService : IConversations
         {
             await _generation.CancelBackgroundAsync(new HashSet<ConversationId> { id }).ConfigureAwait(false);
             _titleRequested.TryRemove(id, out _);
+            Deleted?.Invoke(this, id);
             if (result.Parent is { } parent)
             {
                 ConversationChanged?.Invoke(this, parent);

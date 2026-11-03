@@ -1,6 +1,7 @@
 <Application xmlns="https://github.com/avaloniaui"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:local="using:Mindweave.Desktop"
+             xmlns:v="using:Mindweave.Desktop.Views"
              xmlns:lm="using:LiveMarkdown.Avalonia"
              xmlns:ratex="using:RaTeX.Avalonia"
              x:Class="Mindweave.Desktop.App"
@@ -660,13 +661,7 @@
       <Setter Property="BorderThickness" Value="0" />
     </Style>
 
-    <!-- Running and needs-attention markers in the sidebar: a small accent dot, a small round "!". -->
-    <Style Selector="Ellipse.running-dot">
-      <Setter Property="Width" Value="7" />
-      <Setter Property="Height" Value="7" />
-      <Setter Property="Fill" Value="{DynamicResource AccentBrush}" />
-      <Setter Property="VerticalAlignment" Value="Center" />
-    </Style>
+    <!-- The needs-attention marker in the sidebar: a small round "!" (running and unread: Round 4 · sidebar-status). -->
     <Style Selector="Border.attention-badge">
       <Setter Property="Width" Value="15" />
       <Setter Property="Height" Value="15" />
@@ -1026,5 +1021,28 @@
     <Style Selector="Border.selection-actions Button.quiet PathIcon">
       <Setter Property="Foreground" Value="{DynamicResource AccentBrush}" />
     </Style>
+    <!-- ===== Round 4 · sidebar-status: the row's marker column, running spinner, unread dot ===== -->
+    <!-- A fixed column at the row's right end, present with or without a marker, so a title never shifts or re-trims. -->
+    <Style Selector="Panel.row-marker">
+      <Setter Property="Width" Value="16" />
+      <Setter Property="Height" Value="16" />
+      <Setter Property="Margin" Value="6,0,0,0" />
+      <Setter Property="VerticalAlignment" Value="Center" />
+    </Style>
+    <Style Selector="v|ActivitySpinner.row-spinner">
+      <Setter Property="Width" Value="12" />
+      <Setter Property="Height" Value="12" />
+      <Setter Property="Foreground" Value="{DynamicResource AccentBrush}" />
+    </Style>
+    <Style Selector="Ellipse.unread-dot">
+      <Setter Property="Width" Value="8" />
+      <Setter Property="Height" Value="8" />
+      <Setter Property="Fill" Value="{DynamicResource AccentBrush}" />
+    </Style>
+    <!-- The collapsed sidebar's expand button: the same dot as attention, in the accent colour for a new answer. -->
+    <Style Selector="Ellipse.sidebar-attention.unread">
+      <Setter Property="Fill" Value="{DynamicResource AccentBrush}" />
+    </Style>
+    <!-- ===== end Round 4 · sidebar-status ===== -->
   </Application.Styles>
 </Application>
