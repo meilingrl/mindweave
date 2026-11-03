@@ -18,7 +18,7 @@ Claude 自主开发，目的是比稳健轨更早走到关键阶段，提前暴�
 
 ## 当前状态
 
-- 阶段：**S7 界面打磨 · 第 4 轮已合并，等你看截图确认**（2026-11-03；你 Windows 验收的 5 条意见，D-024；设计见 [s7-ui-polish.md](docs/design/s7-ui-polish.md)，D-022–D-024）。S0–S7 前三轮已完成。Windows 试用版：`E:\mindweave-claude-auto\app-s7r4\Mindweave.exe`（上一版 `app-s7` 保留）。
+- 阶段：**S7 界面打磨 · 已完成**（第 4 轮你 2026-11-04 看截图确认；2026-11-03 合并，你 Windows 验收的 5 条意见，D-024；设计见 [s7-ui-polish.md](docs/design/s7-ui-polish.md)，D-022–D-024）。S0–S7 已完成。Windows 试用版：`E:\mindweave-claude-auto\app-s7r4\Mindweave.exe`（上一版 `app-s7` 保留）。
 - 架构整改 A1–A6 已合并（2026-11-01，a8ad9b6；依据 [审查与方案](docs/reviews/claude-auto-architecture-20261101/README.md)，见下方“发现”）：存储健康独立、总结编辑草稿归应用层、列表与网络不读总结正文、页面经接口取得应用服务。未改迁移（仍为 v8）。
 - 测试：macOS 600 通过、53 跳过，0 警告（S7 第 4 轮合并后；跳过的需显式开启、仅限 Windows 或为截图库）；截图库两种主题各 37 个场景（macOS）。Windows 实机（71c543b）三次全量：一次全部通过（605 通过、48 跳过），两次各有 1 个界面测试超时，每次不是同一个，单独重跑都通过（见“发现”）。真实服务 7/7（S5 时）。迁移到 v8。
 - 演进接缝 E1–E4、E6 已落地（E2–E4、E6 为迁移 v3，E1 随 S2 迁移 v4），E5 只有规格。详见 [演进接缝](docs/design/evolution-seams.md)。
@@ -27,8 +27,8 @@ Claude 自主开发，目的是比稳健轨更早走到关键阶段，提前暴�
 
 ## 接续点
 
-- 进度：S7 第 4 轮（2026-11-03）：删除整个工作区（输入名称确认，先备份）、侧栏转圈与新回答圆点、回答计时、深色高亮修正、滚动条旁的分支标记，三块各经实现→对抗式审查→修复→复核后合并；等你看截图确认。此前：S7 完成（2026-11-02）。第 3 轮（你 2026-11-02 的 8 条验收意见 D-023 与其余页面）你已看截图确认；Windows 实机全量与截图通过，试用版 `app-s7` 已发布；阶段报告已写。
-- 下一步：你确认第 4 轮截图后，再等你决定 S7 之后的方向（课程交付材料、Windows 上试用 `app-s7`，或新的功能）。可选的小项：深色下拖动节点的阴影偏淡；退出时页面刷新与关闭数据库的竞态（见“发现”）。截图库：`MINDWEAVE_SCREENSHOT_DIR=<目录> MINDWEAVE_GALLERY_THEME=Light|Dark dotnet test tests/Mindweave.Desktop.Tests --filter Category=Gallery`（37 个场景）。
+- 进度：S7 第 4 轮（2026-11-03）：删除整个工作区（输入名称确认，先备份）、侧栏转圈与新回答圆点、回答计时、深色高亮修正、滚动条旁的分支标记，三块各经实现→对抗式审查→修复→复核后合并；你 2026-11-04 看截图确认。此前：S7 完成（2026-11-02）。第 3 轮（你 2026-11-02 的 8 条验收意见 D-023 与其余页面）你已看截图确认；Windows 实机全量与截图通过，试用版 `app-s7` 已发布；阶段报告已写。
+- 下一步：等你决定 S7 之后的方向（课程交付材料、Windows 上试用 `app-s7`，或新的功能）。可选的小项：深色下拖动节点的阴影偏淡；退出时页面刷新与关闭数据库的竞态（见“发现”）。截图库：`MINDWEAVE_SCREENSHOT_DIR=<目录> MINDWEAVE_GALLERY_THEME=Light|Dark dotnet test tests/Mindweave.Desktop.Tests --filter Category=Gallery`（37 个场景）。
 - （已完成）S6 整理与收尾：归档／恢复／无依赖删除（迁移 v8，D-021）、单版本 Markdown 导出、统一退出顺序（修复 S5 两个顺序缺陷）、真实故障注入（盘满、外部持锁、断流、恢复与备份失败、七种多表写入中途被杀）、交付检查（源码包脚本、运行说明、Windows 清单）。每块经工作流实现→对抗式审查→修复→复核；见 [s6-wrapup.md](docs/design/s6-wrapup.md) 与阶段报告。
 - 之后：S7 集中界面打磨，范围见 [D-020](docs/design/decisions.md)（网络页按 `prototypes/network-layout` 的视觉语言重做、已读／未读、分支与总结等页面），每页先给截图确认。
 - （已完成）S5 总结网络（投影、自动布局、视口、显式保存、失败处理；需求 §7.3–7.4，架构 §11，交接 §2.7）。
@@ -39,7 +39,6 @@ Claude 自主开发，目的是比稳健轨更早走到关键阶段，提前暴�
 
 | 事项 | 原因 | 阻塞什么 | 在此之前我做什么 |
 | --- | --- | --- | --- |
-| 看第 4 轮截图并确认（g33–g36 与来源高亮） | 界面改动按约定先给你看 | 第 4 轮收尾 | 无 |
 | （可选，不阻塞）在 Windows 桌面上试用 `E:\mindweave-claude-auto\app-s7r4\Mindweave.exe`；想逐项核对时用 [验收清单](docs/design/s6-windows-checklist.md) | 系统保存对话框、凭据管理器、中文输入法、二次启动激活、真实退出路径、DPI 缩放只能在桌面会话里验证；实机自动测试与截图已通过 | 不阻塞（S7 已完成） | 按你定的下一步继续 |
 
 Windows 实机：`scripts/windows.sh test|publish|sync|exec`（主机 `win-home`，经本机用户态 Tailscale 实例 A 的 SOCKS `127.0.0.1:7898`，密钥登录，连接失败自动重试；目录 `E:\mindweave-claude-auto`，与稳健轨隔离）。2026-10-26 已修复笔记本上 Scoop 的 git（`current` 目录联接失效，`scoop reset git` 重建，现为 2.54.0）。
