@@ -41,6 +41,9 @@ public sealed class Workbench : ObservableObject, IWorkbenchNavigator
 
     private ViewerSlot? ActiveSlot => _active?.Slot(CurrentSlot);
 
+    /// <summary>The workspaces that have pages alive in this process; tests check a deleted one is not among them.</summary>
+    internal IReadOnlyCollection<WorkspaceId> OpenWorkspaces => _runtimes.Keys;
+
     /// <summary>The most recent last-page write; tests await it, the UI never does.</summary>
     internal Task LastLocationSave { get; private set; } = Task.CompletedTask;
 
@@ -178,6 +181,44 @@ public sealed class Workbench : ObservableObject, IWorkbenchNavigator
             }
         }
 
+        Changed();
+    }
+
+    /// <summary>
+    /// A deleted workspace leaves the workbench (S7 round 4): it goes from the list, and every page it had, in every slot
+    /// and section, is removed and disposed, so no back history points into it. If it was the active one,
+    /// <paramref name="next"/> opens where it was left in this session (its explore home otherwise); with no
+    /// <paramref name="next"/> nothing is active any more and the caller shows the first-workspace flow.
+    /// </summary>
+    public void RemoveWorkspace(WorkspaceId removed, WorkspaceId? next)
+    {
+        if (_runtimes.Remove(removed, out var runtime))
+        {
+            foreach (var page in runtime.AllPages().ToList())
+            {
+                Release(page);
+            }
+        }
+
+        if (Workspaces.FirstOrDefault(w => w.Id == removed) is { } listed)
+        {
+            Workspaces.Remove(listed);
+        }
+
+        if (_active?.Workspace.Id != removed)
+        {
+            return;
+        }
+
+        _active = null;
+        var target = next is { } id && Workspaces.Any(w => w.Id == id) ? id : Workspaces.FirstOrDefault()?.Id;
+        if (target is { } open)
+        {
+            Activate(open, section: null);
+            return;
+        }
+
+        OnPropertyChanged(nameof(CurrentWorkspace));
         Changed();
     }
 

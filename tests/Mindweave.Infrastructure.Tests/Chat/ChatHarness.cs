@@ -51,6 +51,9 @@ internal sealed class ChatHarness : IAsyncDisposable
         SummaryService = new Application.Summaries.SummaryService(
             SummaryNodes, storeOverride ?? Store, Branches, Generation, Health, Drafts, Models, new SystemClock(), NullLogger<Application.Summaries.SummaryService>.Instance, Summaries);
         Network = new Application.Network.NetworkService(SummaryNodes, new SqliteNetworkStore(Database), new SystemClock());
+        Workspaces = new SqliteWorkspaceStore(Database);
+        WorkspaceDeletion = new Application.Workspaces.WorkspaceDeletionService(
+            Workspaces, Database, Health, Generation, NullLogger<Application.Workspaces.WorkspaceDeletionService>.Instance);
     }
 
     public SqliteDatabase Database { get; }
@@ -95,6 +98,12 @@ internal sealed class ChatHarness : IAsyncDisposable
     public Application.Network.NetworkService Network { get; }
 
     public WorkspaceId Workspace { get; private set; }
+
+    public SqliteWorkspaceStore Workspaces { get; }
+
+    public Application.Workspaces.WorkspaceDeletionService WorkspaceDeletion { get; }
+
+    public string BackupDirectory => _dir.Paths.BackupDirectory;
 
     public string DataDirectory => _dir.Paths.DataDirectory;
 

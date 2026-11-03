@@ -212,6 +212,9 @@ internal static class KillPoint
             case "delete":
                 await new SqliteArchiveStore(database).DeleteAsync(ConversationId.Parse(ids[0]), none);
                 break;
+            case "delete-workspace":
+                await new SqliteWorkspaceStore(database).DeleteAsync(WorkspaceId.Parse(ids[0]), none);
+                break;
             case "layout":
                 var workspace = WorkspaceId.Parse(ids[0]);
                 await new SqliteNetworkStore(database).SaveLayoutAsync(workspace, Layout(await NodesAsync(database, workspace)), at, none);

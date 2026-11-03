@@ -229,6 +229,35 @@ public sealed class TransactionKillTests : IDisposable
     }
 
     [Fact]
+    public async Task Killing_the_process_while_a_workspace_is_deleted_keeps_all_of_it()
+    {
+        Core.Workspaces.WorkspaceId workspace, other;
+        await using (var h = await ChatHarness.StartAsync(directory: _dir))
+        {
+            workspace = h.Workspace;
+            other = await WorkspaceSeed.AddWorkspaceAsync(h, "摄影史");
+            await WorkspaceSeed.FillAsync(h, other);
+            await WorkspaceSeed.FillAsync(h, workspace);
+        }
+
+        var before = await SnapshotAsync();
+
+        // Every row of the workspace: its summaries and layout, tasks, sources and ranges, retry links, messages,
+        // conversations, last page, last-workspace marker and the workspace itself.
+        await KillInsideAsync(58, "delete-workspace", workspace.ToString());
+
+        await using var database = await ReopenAsync(before);
+        var store = new SqliteWorkspaceStore(database);
+        var kept = await store.InspectAsync(workspace, Ct);
+        Assert.Equal((true, 3, 2), (kept.Exists, kept.Conversations, kept.Summaries));
+        var result = await store.DeleteAsync(workspace, Ct);
+        Assert.True(result.IsDeleted);
+        Assert.Equal(other, result.Next);
+        Assert.Equal([other], (await store.ListAsync(Ct)).Select(w => w.Id));
+        await StorageFaults.AssertIntactAsync(database);
+    }
+
+    [Fact]
     public async Task Killing_the_process_while_the_layout_is_saved_keeps_the_previous_layout()
     {
         const int Nodes = 40;

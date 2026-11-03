@@ -28,6 +28,16 @@
             </Button>
             <ComboBox Name="WorkspacePicker" HorizontalAlignment="Stretch" Height="32" ItemsSource="{Binding Workbench.Workspaces}"
                       SelectedItem="{Binding SelectedWorkspace}" AutomationProperties.Name="工作区">
+              <!-- Round 4 · topic-delete: the rare, destructive action is one right-click away; also in 设置 › 工作区. -->
+              <ComboBox.ContextMenu>
+                <ContextMenu>
+                  <MenuItem Name="DeleteWorkspaceMenuItem" Classes="danger" Header="{x:Static d:UiText.DeleteWorkspace}" Command="{Binding DeleteWorkspaceCommand}">
+                    <MenuItem.Icon>
+                      <PathIcon Width="13" Height="13" Data="{StaticResource IconDelete}" />
+                    </MenuItem.Icon>
+                  </MenuItem>
+                </ContextMenu>
+              </ComboBox.ContextMenu>
               <ComboBox.ItemTemplate>
                 <DataTemplate x:DataType="ws:Workspace">
                   <TextBlock Text="{Binding Name.Value}" TextTrimming="CharacterEllipsis" FontWeight="SemiBold" />

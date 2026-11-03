@@ -246,6 +246,37 @@ public sealed class SqliteDatabaseTests : IDisposable
     }
 
     [Fact]
+    public async Task Backups_made_before_a_workspace_delete_are_never_rotated_out_and_never_push_upgrade_backups_out()
+    {
+        // Older than every upgrade backup below, so a rotation over all backups would remove them first.
+        Directory.CreateDirectory(_dir.Paths.BackupDirectory);
+        string[] beforeDelete =
+        [
+            Path.Combine(_dir.Paths.BackupDirectory, $"mindweave-v{Current}-20000101T000000000Z-before-delete.db"),
+            Path.Combine(_dir.Paths.BackupDirectory, $"mindweave-v{Current}-20000102T000000000Z-before-delete.db"),
+        ];
+        foreach (var path in beforeDelete)
+        {
+            await File.WriteAllTextAsync(path, "copy", Ct);
+        }
+
+        var time = new SteppingTime();
+        for (var round = 0; round < SqliteDatabase.MigrationBackupsKept + 2; round++)
+        {
+            await SeedCurrentAsync($"round {round}");
+            await using var database = _dir.Database(WithNext(Migration.Sql(Current + 1, "add note", "CREATE TABLE note (id TEXT PRIMARY KEY) STRICT;")), time);
+            Assert.True((await database.OpenAsync(Ct)).IsReady);
+            await database.CloseAsync();
+            File.Delete(_dir.Paths.DatabasePath);
+        }
+
+        await using var probe = _dir.Database();
+        var backups = probe.ListBackups();
+        Assert.Equal(SqliteDatabase.MigrationBackupsKept, backups.Count(b => b.Reason == BackupReason.Migration));
+        Assert.Equal(beforeDelete.Reverse(), backups.Where(b => b.Reason == BackupReason.BeforeWorkspaceDelete).Select(b => b.Path));
+    }
+
+    [Fact]
     public async Task Writes_are_serialized_and_a_failed_write_rolls_back_alone()
     {
         await using var database = _dir.Database();

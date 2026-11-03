@@ -67,5 +67,29 @@
         </StackPanel>
       </Border>
     </Border>
+    <!-- Round 4 · topic-delete: the workspace's name typed exactly enables 删除; 取消 is the default and the primary. -->
+    <Border Name="WorkspaceDeleteDialog" Classes="dialog-scrim" IsVisible="{Binding WorkspaceDeletion.IsOpen}">
+      <Border Classes="dialog">
+        <StackPanel Spacing="12" DataContext="{Binding WorkspaceDeletion}" x:DataType="vm:WorkspaceDeletionViewModel">
+          <TextBlock Classes="dialog-title" Text="{Binding Title}" TextWrapping="Wrap" />
+          <TextBlock Name="WorkspaceDeleteContents" Classes="dialog-body" Text="{Binding Contents}" />
+          <StackPanel Spacing="6">
+            <TextBlock Classes="caption" Text="{Binding TypeNamePrompt}" TextWrapping="Wrap" />
+            <TextBox Name="WorkspaceDeleteName" Text="{Binding TypedName}" AutomationProperties.Name="{Binding TypeNamePrompt}" />
+          </StackPanel>
+          <Border Name="WorkspaceDeleteProblem" Classes="notice error" IsVisible="{Binding Problem, Converter={x:Static ObjectConverters.IsNotNull}}">
+            <DockPanel>
+              <TextBlock Classes="notice-icon" Text="!" />
+              <TextBlock Text="{Binding Problem}" TextWrapping="Wrap" />
+            </DockPanel>
+          </Border>
+          <TextBlock Classes="caption" Text="{x:Static d:UiText.WorkspaceDeleting}" IsVisible="{Binding IsDeleting}" />
+          <StackPanel Classes="dialog-buttons">
+            <Button Name="WorkspaceDeleteConfirm" Classes="secondary danger" Content="{x:Static d:UiText.Delete}" Command="{Binding DeleteCommand}" />
+            <Button Name="WorkspaceDeleteCancel" Classes="primary" Content="{x:Static d:UiText.Cancel}" Command="{Binding CancelCommand}" IsDefault="True" IsCancel="True" />
+          </StackPanel>
+        </StackPanel>
+      </Border>
+    </Border>
   </Panel>
 </Window>

@@ -23,7 +23,7 @@ public sealed class SqliteDatabaseOptions
 /// explicit request, and afterwards exposes one serialized writer plus short-lived read-only connections.
 /// Must only be used while the single-instance lock for the same data directory is held.
 /// </summary>
-public sealed partial class SqliteDatabase : IDatabaseLifecycle, IStorageProbe, IAsyncDisposable
+public sealed partial class SqliteDatabase : IDatabaseLifecycle, IDatabaseBackup, IStorageProbe, IAsyncDisposable
 {
     public const int MigrationBackupsKept = 5;
 
@@ -118,10 +118,46 @@ public sealed partial class SqliteDatabase : IDatabaseLifecycle, IStorageProbe, 
 
             var version = int.Parse(match.Groups["version"].Value, CultureInfo.InvariantCulture);
             var created = DateTimeOffset.ParseExact(match.Groups["time"].Value, "yyyyMMdd'T'HHmmssfff'Z'", CultureInfo.InvariantCulture, DateTimeStyles.AssumeUniversal);
-            backups.Add(new BackupInfo(file, version, created, new FileInfo(file).Length));
+            var reason = match.Groups["reason"].Success ? BackupReason.BeforeWorkspaceDelete : BackupReason.Migration;
+            backups.Add(new BackupInfo(file, version, created, new FileInfo(file).Length, reason));
         }
 
         return backups.OrderByDescending(b => b.CreatedAt).ToArray();
+    }
+
+    /// <summary>
+    /// A verified copy of the open database, made on the single writer between two transactions so it holds every
+    /// write committed before it and none after. Kept under the same name scheme as the migration backups, so the
+    /// storage page lists it and the recovery page can restore it.
+    /// </summary>
+    public Task<string> BackupAsync(BackupReason reason, CancellationToken cancellationToken)
+    {
+        var writer = Volatile.Read(ref _writer) ?? throw new InvalidOperationException("The database is not open.");
+        var suffix = reason == BackupReason.BeforeWorkspaceDelete ? BeforeDeleteSuffix : string.Empty;
+        return writer.EnqueueWithoutTransactionAsync(connection => CreateVerifiedBackup(connection, _catalog.LatestVersion, suffix), cancellationToken);
+    }
+
+    private const string BeforeDeleteSuffix = "-before-delete";
+
+    /// <inheritdoc />
+    public void Discard(string path)
+    {
+        ArgumentException.ThrowIfNullOrEmpty(path);
+        var full = Path.GetFullPath(path);
+        if (!string.Equals(Path.GetDirectoryName(full), Path.GetFullPath(_paths.BackupDirectory), StringComparison.Ordinal)
+            || !BackupNameRegex().IsMatch(Path.GetFileName(full)))
+        {
+            throw new ArgumentException("Not a backup of this data directory.", nameof(path));
+        }
+
+        try
+        {
+            File.Delete(full);
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            LogDiscardFailed(_logger, ex, full);
+        }
     }
 
     /// <summary>Runs <paramref name="work"/> in its own transaction on the single writer.</summary>
@@ -527,11 +563,11 @@ public sealed partial class SqliteDatabase : IDatabaseLifecycle, IStorageProbe, 
         }
     }
 
-    private string CreateVerifiedBackup(SqliteConnection connection, int version)
+    private string CreateVerifiedBackup(SqliteConnection connection, int version, string suffix = "")
     {
         Directory.CreateDirectory(_paths.BackupDirectory);
         var stamp = _time.GetUtcNow().UtcDateTime.ToString("yyyyMMdd'T'HHmmssfff'Z'", CultureInfo.InvariantCulture);
-        var final = Path.Combine(_paths.BackupDirectory, $"mindweave-v{version}-{stamp}.db");
+        var final = Path.Combine(_paths.BackupDirectory, $"mindweave-v{version}-{stamp}{suffix}.db");
         if (File.Exists(final))
         {
             throw new IOException($"Backup target already exists: {final}");
@@ -586,7 +622,9 @@ public sealed partial class SqliteDatabase : IDatabaseLifecycle, IStorageProbe, 
     {
         try
         {
-            foreach (var old in ListBackups().Skip(MigrationBackupsKept))
+            // Only upgrade backups rotate. One made before a workspace was deleted is the only copy of that workspace,
+            // so it stays until the user removes it by hand, and it never pushes an upgrade backup out (round 4 review).
+            foreach (var old in ListBackups().Where(b => b.Reason == BackupReason.Migration).Skip(MigrationBackupsKept))
             {
                 File.Delete(old.Path);
             }
@@ -672,7 +710,7 @@ public sealed partial class SqliteDatabase : IDatabaseLifecycle, IStorageProbe, 
     private DatabaseOpenResult Result(DatabaseOpenStatus status, int? foundVersion, string? backupPath = null, string? detail = null) =>
         new(status, _paths.DataDirectory, _paths.DatabasePath, foundVersion, _catalog.LatestVersion, backupPath, detail);
 
-    [GeneratedRegex(@"^mindweave-v(?<version>\d+)-(?<time>\d{8}T\d{9}Z)\.db$", RegexOptions.CultureInvariant)]
+    [GeneratedRegex(@"^mindweave-v(?<version>\d+)-(?<time>\d{8}T\d{9}Z)(?<reason>-before-delete)?\.db$", RegexOptions.CultureInvariant)]
     private static partial Regex BackupNameRegex();
 
     [LoggerMessage(Level = LogLevel.Information, Message = "Created database {Path} at schema {Version}")]
@@ -695,6 +733,9 @@ public sealed partial class SqliteDatabase : IDatabaseLifecycle, IStorageProbe, 
 
     [LoggerMessage(Level = LogLevel.Warning, Message = "Old migration backups could not be pruned")]
     private static partial void LogPruneFailed(ILogger logger, Exception exception);
+
+    [LoggerMessage(Level = LogLevel.Warning, Message = "Unneeded backup {Path} could not be removed")]
+    private static partial void LogDiscardFailed(ILogger logger, Exception exception, string path);
 
     [LoggerMessage(Level = LogLevel.Information, Message = "Exit checkpoint was blocked by a reader ({Folded} of {Log} log frames folded); the log stays")]
     private static partial void LogCheckpointBusy(ILogger logger, int log, int folded);

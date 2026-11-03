@@ -36,7 +36,30 @@ public sealed record DatabaseOpenResult(
     public bool IsReady => Status == DatabaseOpenStatus.Ready;
 }
 
-public sealed record BackupInfo(string Path, int SchemaVersion, DateTimeOffset CreatedAt, long SizeBytes);
+/// <summary>Why a backup was made: before a schema upgrade, or before a workspace was deleted (S7 round 4).</summary>
+public enum BackupReason
+{
+    Migration,
+    BeforeWorkspaceDelete,
+}
+
+public sealed record BackupInfo(string Path, int SchemaVersion, DateTimeOffset CreatedAt, long SizeBytes, BackupReason Reason = BackupReason.Migration);
+
+/// <summary>A verified copy of the open database, made on the single writer between transactions.</summary>
+public interface IDatabaseBackup
+{
+    /// <summary>
+    /// Writes a transactionally consistent copy into the backup directory, checks it, and returns its path. Throws when
+    /// the copy could not be made or failed its check; nothing is left behind then.
+    /// </summary>
+    Task<string> BackupAsync(BackupReason reason, CancellationToken cancellationToken);
+
+    /// <summary>
+    /// Removes a backup made by <see cref="BackupAsync"/> that turned out not to be needed (the delete it was made for
+    /// was refused after all). Best effort: a file that cannot be removed is left and logged.
+    /// </summary>
+    void Discard(string path);
+}
 
 /// <summary>Opening, migrating and restoring the local database. Implemented by Infrastructure.</summary>
 public interface IDatabaseLifecycle

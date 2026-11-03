@@ -25,6 +25,9 @@ public static class Converters
 
     public static FuncValueConverter<int, string> SchemaVersion { get; } = new(UiText.SchemaVersionBadge);
 
+    // Round 4 · topic-delete: a backup made before a workspace was deleted is marked in its row.
+    public static FuncValueConverter<BackupReason, bool> IsBeforeDelete { get; } = new(reason => reason == BackupReason.BeforeWorkspaceDelete);
+
     /// <summary>The database lives in the data directory shown just above it, so its row shows the file name (full path on hover).</summary>
     public static FuncValueConverter<string?, string> FileName { get; } = new(path => Path.GetFileName(path) ?? string.Empty);
 }

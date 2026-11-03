@@ -743,6 +743,69 @@ public class GalleryTests
         window.Close();
     }
 
+    // ── Round 4 · topic-delete ───────────────────────────────────────────────
+
+    /// <summary>
+    /// The 工作区 section of the settings (g33a), the delete-a-workspace confirmation opened from it with the name typed
+    /// (g33), the dialog refusing while an answer runs (g33b), and after the delete the storage page with its backup (g33c).
+    /// </summary>
+    [AvaloniaFact]
+    public async Task G33_delete_workspace_confirmation()
+    {
+        await using var scene = Scene.Create("g33");
+        var window = Show(scene.App);
+        var seed = await SeedAsync(scene.App, summaries: true);
+
+        // Opened from 设置 › 工作区, scrolled into view behind the dialog.
+        scene.App.ShellPage.ShowSectionCommand.Execute(MainSection.Settings);
+        var settings = Assert.IsType<SettingsHomeViewModel>(scene.App.Workbench.CurrentPage);
+        await SettleAsync(window);
+        window.GetVisualDescendants().OfType<SettingsHomeView>().Single().GetVisualDescendants().OfType<ScrollViewer>().First().ScrollToEnd();
+        await SettleAsync(window);
+        Capture(window, "g33a-settings-workspace-section");
+        settings.DeleteWorkspaceCommand.Execute(null);
+        var dialog = scene.App.Root.WorkspaceDeletion;
+        await dialog.Loading;
+        dialog.TypedName = "火车历史";
+        await SettleAsync(window);
+        Capture(window, "g33-delete-workspace-confirm");
+        dialog.CancelCommand.Execute(null);
+
+        var held = scene.App.Client.Hold("吴淞铁路的机车是英国制造的“先导号”，");
+        var page = await OpenConversationAsync(scene.App, window, seed.FirstRailway);
+        page.Composer.Text = "吴淞铁路用的是什么机车？";
+        await page.Composer.SendCommand.ExecuteAsync(null);
+        await held.Started.Task.WaitAsync(TimeSpan.FromSeconds(5));
+        scene.App.ShellPage.DeleteWorkspaceCommand.Execute(null);
+        await dialog.Loading;
+        Assert.NotNull(dialog.Problem);
+        dialog.TypedName = "火车历史"; // the exact name, yet 删除 stays disabled while the notice stands
+        Assert.False(dialog.CanDelete);
+        await SettleAsync(window);
+        Capture(window, "g33b-delete-workspace-refused");
+
+        dialog.CancelCommand.Execute(null);
+        held.Finish("重约 1.5 吨。");
+        await UiWait.UntilAsync(() => page.Messages.Count == 4 && page.Messages[3].State == MessageState.Complete);
+
+        // Deleted for real: the workbench moves to the other workspace and the storage page lists the backup made first.
+        var other = await scene.App.Services.GetRequiredService<WorkspaceService>().CreateAsync(WorkspaceName.FromStored("摄影史"), CancellationToken.None);
+        scene.App.Workbench.Workspaces.Add(other);
+        scene.App.ShellPage.DeleteWorkspaceCommand.Execute(null);
+        await dialog.Loading;
+        dialog.TypedName = "火车历史";
+        await dialog.DeleteCommand.ExecuteAsync(null);
+        Assert.Equal(other.Id, scene.App.Workbench.CurrentWorkspace!.Id);
+        scene.App.ShellPage.ShowSectionCommand.Execute(MainSection.Settings);
+        await SettleAsync(window);
+        var details = Find<Button>(window, "StorageDetailsButton");
+        details.Command!.Execute(details.CommandParameter);
+        Assert.Single(Assert.IsType<StorageDetailsViewModel>(scene.App.Workbench.CurrentPage).Backups);
+        await SettleAsync(window);
+        Capture(window, "g33c-storage-backup-before-delete");
+        window.Close();
+    }
+
     // ── Seed ─────────────────────────────────────────────────────────────────
 
     /// <summary>The conversations of the seeded workspace, and the summary node of each summarized one.</summary>

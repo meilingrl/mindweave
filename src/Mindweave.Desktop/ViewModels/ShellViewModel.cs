@@ -15,6 +15,7 @@ public sealed partial class ShellViewModel : ViewModelBase
     private readonly LayoutPromptViewModel? _layoutPrompt;
     private readonly Network.NetworkSessions? _networks;
     private readonly ISidebarLayout? _sidebarLayout;
+    private readonly IWorkspaceDeletionPrompt? _workspaceDeletion;
     private PageViewModel? _observedPage;
     private double _sidebarWidth = SidebarLayout.DefaultWidth;
 
@@ -24,8 +25,10 @@ public sealed partial class ShellViewModel : ViewModelBase
         Conversations.ConversationListViewModel conversations,
         LayoutPromptViewModel? layoutPrompt = null,
         Network.NetworkSessions? networks = null,
-        ISidebarLayout? sidebarLayout = null)
+        ISidebarLayout? sidebarLayout = null,
+        IWorkspaceDeletionPrompt? workspaceDeletion = null)
     {
+        _workspaceDeletion = workspaceDeletion;
         _layoutPrompt = layoutPrompt;
         _networks = networks;
         _sidebarLayout = sidebarLayout;
@@ -170,6 +173,16 @@ public sealed partial class ShellViewModel : ViewModelBase
 
     [RelayCommand]
     private void ToggleCreateWorkspace() => IsCreatingWorkspace = !IsCreatingWorkspace;
+
+    /// <summary>From the workspace picker's context menu: asks to delete the workspace shown (S7 round 4).</summary>
+    [RelayCommand]
+    private void DeleteWorkspace()
+    {
+        if (Workbench.CurrentWorkspace is { } workspace)
+        {
+            _workspaceDeletion?.Open(workspace);
+        }
+    }
 
     private async Task CreateWorkspaceAsync(WorkspaceName name)
     {
