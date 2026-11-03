@@ -86,6 +86,7 @@
             <ItemsControl.ItemTemplate>
               <DataTemplate x:DataType="cv:ConversationItemViewModel">
                 <Button Classes="nav" Classes.selected="{Binding IsSelected}" Margin="{Binding Depth, Converter={x:Static v:TreeIndent.Margin}}" Padding="10,5" HorizontalContentAlignment="Stretch"
+                        AutomationProperties.HelpText="{Binding MarkerHint}"
                         Command="{Binding $parent[ItemsControl].((vm:ShellViewModel)DataContext).Conversations.OpenCommand}" CommandParameter="{Binding}">
                   <DockPanel>
                     <!-- A branch: a small corner glyph from its parent's column, so the hierarchy reads at a glance. -->
@@ -121,7 +122,7 @@
       <DockPanel DockPanel.Dock="Top" Margin="24,16,24,6">
         <!-- Only while the sidebar is collapsed; a small dot when a hidden conversation needs attention (error colour) or has a new answer (accent). -->
         <Button Name="ExpandSidebar" Classes="quiet sidebar-toggle" Command="{Binding ToggleSidebarCommand}" IsVisible="{Binding IsSidebarCollapsed}"
-                Margin="-8,0,6,0" ToolTip.Tip="{Binding ExpandSidebarHint}" AutomationProperties.Name="{x:Static d:UiText.ExpandSidebar}">
+                Margin="-8,0,6,0" ToolTip.Tip="{Binding ExpandSidebarHint}" AutomationProperties.Name="{Binding ExpandSidebarName}">
           <Panel>
             <PathIcon Data="{StaticResource IconSidebar}" />
             <Ellipse Name="ExpandSidebarAttention" Classes="sidebar-attention" IsVisible="{Binding Conversations.HasAttention}" />

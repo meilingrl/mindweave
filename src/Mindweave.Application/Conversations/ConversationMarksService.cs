@@ -8,7 +8,10 @@ namespace Mindweave.Application.Conversations;
 /// Owner of the "new answer" marks. An answer that finishes complete or stopped with text while its conversation is not
 /// on screen marks the conversation; showing the conversation clears it. The set of marked conversations is page state
 /// like a reading position: kept in memory, stored under one preference key (no migration) so it survives a restart,
-/// and never worth an error. While storage is paused nothing is written; the newest set is written once it recovers.
+/// and never worth an error. While storage is paused a write is refused like any other (<see cref="StorageWriteException"/>
+/// from <see cref="StorageHealth.ThrowIfBlocked"/>) and stays pending; the newest set is written once storage recovers.
+/// The stored set is only ever replaced after it has been read, so a failed read at start cannot wipe it, and a deleted
+/// conversation leaves it.
 /// </summary>
 public sealed partial class ConversationMarksService : IConversationMarks
 {
@@ -16,24 +19,35 @@ public sealed partial class ConversationMarksService : IConversationMarks
 
     private readonly GenerationCoordinator _generation;
     private readonly IPreferenceStore _store;
-    private readonly IStorageStatus _storage;
+    private readonly StorageHealth _storage;
     private readonly ILogger<ConversationMarksService> _logger;
     private readonly Lock _gate = new();
     private readonly HashSet<ConversationId> _unread = [];
+
+    /// <summary>Seen (or deleted) before the stored set was read: the stored set must not bring these back.</summary>
+    private readonly HashSet<ConversationId> _seenBeforeLoad = [];
+    private bool _loaded;
     private ConversationId? _viewing;
     private long _version;
     private long _savedVersion;
     private Task _writes = Task.CompletedTask;
 
-    public ConversationMarksService(GenerationCoordinator generation, IPreferenceStore store, IStorageStatus storage, ILogger<ConversationMarksService> logger)
+    public ConversationMarksService(
+        GenerationCoordinator generation,
+        ConversationService conversations,
+        IPreferenceStore store,
+        StorageHealth storage,
+        ILogger<ConversationMarksService> logger)
     {
         ArgumentNullException.ThrowIfNull(generation);
+        ArgumentNullException.ThrowIfNull(conversations);
         ArgumentNullException.ThrowIfNull(storage);
         _generation = generation;
         _store = store;
         _storage = storage;
         _logger = logger;
         _generation.AnswerFinished += OnAnswerFinished;
+        conversations.Deleted += (_, id) => MarkSeen(id);
         _storage.Changed += (_, _) =>
         {
             if (!_storage.IsBlocked)
@@ -67,7 +81,7 @@ public sealed partial class ConversationMarksService : IConversationMarks
         Announce(changed);
     }
 
-    /// <summary>Clears the mark without showing the conversation (seeding screenshots, tests).</summary>
+    /// <summary>Clears the mark without showing the conversation (a deleted conversation, seeding screenshots, tests).</summary>
     public void MarkSeen(ConversationId conversation)
     {
         bool changed;
@@ -79,9 +93,41 @@ public sealed partial class ConversationMarksService : IConversationMarks
         Announce(changed);
     }
 
-    /// <summary>Reads the stored marks; called at start once the database is open. Unreadable means none.</summary>
+    /// <summary>
+    /// Reads the stored marks; called at start once the database is open. A failed read starts without them, and the
+    /// next write reads again first instead of replacing what is stored.
+    /// </summary>
     public async Task LoadAsync(CancellationToken cancellationToken)
     {
+        if (!await TryLoadAsync(cancellationToken).ConfigureAwait(false))
+        {
+            return;
+        }
+
+        bool pending;
+        lock (_gate)
+        {
+            pending = _savedVersion != _version;
+        }
+
+        if (pending)
+        {
+            // Something seen before the read is still listed in storage: written again without it now, not at exit.
+            _ = FlushAsync();
+        }
+    }
+
+    /// <summary>Merges the stored set into memory once; true when it has been read (now or before).</summary>
+    private async Task<bool> TryLoadAsync(CancellationToken cancellationToken)
+    {
+        lock (_gate)
+        {
+            if (_loaded)
+            {
+                return true;
+            }
+        }
+
         string? stored;
         try
         {
@@ -92,23 +138,38 @@ public sealed partial class ConversationMarksService : IConversationMarks
 #pragma warning restore CA1031
         {
             LogReadFailed(_logger, ex);
-            return;
+            return false;
         }
 
         var ids = Parse(stored);
         bool changed;
         lock (_gate)
         {
-            // Whatever happened since start (normally nothing) stays; the conversation on screen stays seen.
+            if (_loaded)
+            {
+                return true;
+            }
+
+            // Whatever happened since start stays: what was seen meanwhile (and the conversation on screen) stays seen.
             var before = _unread.Count;
-            _unread.UnionWith(ids.Where(id => id != _viewing));
+            _unread.UnionWith(ids.Where(id => id != _viewing && !_seenBeforeLoad.Contains(id)));
             changed = _unread.Count != before;
+            if (ids.Any(id => id == _viewing || _seenBeforeLoad.Contains(id)))
+            {
+                // The stored set still lists something seen since start: it is written again without it.
+                _version++;
+            }
+
+            _seenBeforeLoad.Clear();
+            _loaded = true;
         }
 
         if (changed)
         {
             Changed?.Invoke(this, EventArgs.Empty);
         }
+
+        return true;
     }
 
     /// <summary>
@@ -129,28 +190,38 @@ public sealed partial class ConversationMarksService : IConversationMarks
     /// <summary>Never faults, so the chain of writes never breaks.</summary>
     private async Task WriteAsync()
     {
-        string value;
-        long version;
         lock (_gate)
         {
             if (_savedVersion == _version)
             {
                 return;
             }
+        }
 
+        // The whole set replaces the stored one, so it must include what is stored: never written before a read.
+        if (!await TryLoadAsync(CancellationToken.None).ConfigureAwait(false))
+        {
+            return;
+        }
+
+        string value;
+        long version;
+        lock (_gate)
+        {
             version = _version;
             value = string.Join(' ', _unread.Select(id => id.ToString()).Order(StringComparer.Ordinal));
         }
 
-        if (_storage.IsBlocked)
-        {
-            // Storage refuses writes while paused (§9.3); the marks are written when it recovers.
-            return;
-        }
-
         try
         {
+            // Refused while storage is paused (§9.3) like every other write; pending until it recovers.
+            _storage.ThrowIfBlocked();
             await _store.SetAsync(UnreadKey, value, CancellationToken.None).ConfigureAwait(false);
+        }
+        catch (StorageWriteException ex) when (_storage.IsBlocked)
+        {
+            LogSavePaused(_logger, ex);
+            return;
         }
 #pragma warning disable CA1031 // Page state: logged, kept in memory and pending.
         catch (Exception ex)
@@ -203,6 +274,12 @@ public sealed partial class ConversationMarksService : IConversationMarks
     /// <summary>Under the lock.</summary>
     private bool Remove(ConversationId conversation)
     {
+        if (!_loaded && _seenBeforeLoad.Add(conversation))
+        {
+            // The stored set (not read yet) may list it: the first write after the read leaves it out.
+            _version++;
+        }
+
         if (!_unread.Remove(conversation))
         {
             return false;
@@ -225,6 +302,9 @@ public sealed partial class ConversationMarksService : IConversationMarks
 
     [LoggerMessage(Level = LogLevel.Warning, Message = "Unread conversation marks could not be read")]
     private static partial void LogReadFailed(ILogger logger, Exception exception);
+
+    [LoggerMessage(Level = LogLevel.Debug, Message = "Unread conversation marks wait for storage to recover")]
+    private static partial void LogSavePaused(ILogger logger, Exception exception);
 
     [LoggerMessage(Level = LogLevel.Warning, Message = "Unread conversation marks could not be saved")]
     private static partial void LogSaveFailed(ILogger logger, Exception exception);

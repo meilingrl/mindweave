@@ -1,5 +1,6 @@
 using Avalonia;
 using Avalonia.Controls;
+using Avalonia.Layout;
 using Avalonia.Media;
 using Avalonia.Threading;
 using Avalonia.VisualTree;
@@ -9,8 +10,9 @@ namespace Mindweave.Desktop.Views;
 /// <summary>
 /// A small rotating arc over a faint ring: "working on it" where a line of text would be too much (the sidebar's
 /// running marker, S7 round 4). It turns only while it is in a window and effectively visible, one rotation per
-/// <see cref="Period"/>, driven by the window's animation frames; nothing runs while it is hidden, collapsed away or
-/// detached. With <see cref="Animates"/> off (tests, screenshots) it draws one fixed frame.
+/// <see cref="Period"/>, driven by the window's animation frames; nothing runs while it is hidden, collapsed away,
+/// scrolled out of its viewport, in a minimised window or detached. With <see cref="Animates"/> off (tests, screenshots)
+/// it draws one fixed frame.
 /// </summary>
 public sealed class ActivitySpinner : Control
 {
@@ -29,6 +31,8 @@ public sealed class ActivitySpinner : Control
     private readonly RotateTransform _rotation = new();
     private readonly List<IDisposable> _visibilityWatches = [];
     private TopLevel? _topLevel;
+    private Window? _window;
+    private Rect? _viewport;
     private bool _framePending;
 
     static ActivitySpinner()
@@ -58,8 +62,18 @@ public sealed class ActivitySpinner : Control
         set => SetValue(StrokeThicknessProperty, value);
     }
 
-    /// <summary>In a window and effectively visible: the spinner turns now (when <see cref="Animates"/> is on).</summary>
-    public bool IsTurning => _topLevel is not null && IsEffectivelyVisible;
+    /// <summary>
+    /// In a window that is not minimised, effectively visible and at least partly inside the viewport its scrolling
+    /// ancestors leave it: the spinner turns now (when <see cref="Animates"/> is on).
+    /// </summary>
+    public bool IsTurning =>
+        _topLevel is not null && IsEffectivelyVisible && IsInViewport && _window?.WindowState != WindowState.Minimized;
+
+    /// <summary>Animation frames delivered to this spinner, turning or not; tests check that none arrive while it is out of sight.</summary>
+    internal int FramesReceived { get; private set; }
+
+    /// <summary>Not yet told otherwise, or some of it lies inside the effective viewport.</summary>
+    private bool IsInViewport => _viewport is not { } viewport || viewport.Intersects(new Rect(Bounds.Size));
 
     /// <summary>The current rotation in degrees.</summary>
     public double Angle => _rotation.Angle;
@@ -108,6 +122,14 @@ public sealed class ActivitySpinner : Control
             _visibilityWatches.Add(visual.GetPropertyChangedObservable(IsVisibleProperty).Subscribe(new Watch(this)));
         }
 
+        // Scrolled out of the sidebar's viewport, or the window minimised: out of sight as well.
+        EffectiveViewportChanged += OnEffectiveViewportChanged;
+        _window = _topLevel as Window;
+        if (_window is not null)
+        {
+            _visibilityWatches.Add(_window.GetPropertyChangedObservable(Window.WindowStateProperty).Subscribe(new Watch(this)));
+        }
+
         RequestFrame();
     }
 
@@ -119,8 +141,23 @@ public sealed class ActivitySpinner : Control
         }
 
         _visibilityWatches.Clear();
+        EffectiveViewportChanged -= OnEffectiveViewportChanged;
+        _viewport = null;
+        _window = null;
         _topLevel = null;
         base.OnDetachedFromVisualTree(e);
+    }
+
+    protected override void OnSizeChanged(SizeChangedEventArgs e)
+    {
+        base.OnSizeChanged(e);
+        RequestFrame();
+    }
+
+    private void OnEffectiveViewportChanged(object? sender, EffectiveViewportChangedEventArgs e)
+    {
+        _viewport = e.EffectiveViewport;
+        RequestFrame();
     }
 
     private void RequestFrame()
@@ -137,6 +174,7 @@ public sealed class ActivitySpinner : Control
     private void OnFrame(TimeSpan time)
     {
         _framePending = false;
+        FramesReceived++;
         if (!Animates || !IsTurning)
         {
             // Hidden or gone: no further frames until it is shown again.

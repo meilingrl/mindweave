@@ -43,7 +43,9 @@ public static class UiText
 
     public static string ExpandSidebarTip { get; } = ExpandSidebar + "（" + SidebarShortcut + "）";
 
-    public static string ExpandSidebarAttention { get; } = ExpandSidebarTip + " · 有会话需要处理";
+    public const string SidebarNeedsAttention = "有会话需要处理";
+
+    public static string ExpandSidebarAttention { get; } = ExpandSidebarTip + " · " + SidebarNeedsAttention;
 
     public static string ExpandSidebarUnread { get; } = ExpandSidebarTip + " · " + MarkerNewAnswer;
     public const string ExploreEmpty = "这个工作区还没有会话。";

@@ -88,6 +88,12 @@ public sealed partial class ShellViewModel : ViewModelBase
     public string ExpandSidebarHint =>
         Conversations.HasAttention ? UiText.ExpandSidebarAttention : Conversations.ShowsUnread ? UiText.ExpandSidebarUnread : UiText.ExpandSidebarTip;
 
+    /// <summary>The expand button's automation name: the same news as <see cref="ExpandSidebarHint"/>, without the shortcut.</summary>
+    public string ExpandSidebarName =>
+        Conversations.HasAttention ? UiText.ExpandSidebar + " · " + UiText.SidebarNeedsAttention
+        : Conversations.ShowsUnread ? UiText.ExpandSidebar + " · " + UiText.MarkerNewAnswer
+        : UiText.ExpandSidebar;
+
     /// <summary>Completes when the last layout change has been written (or failed); tests await it.</summary>
     internal Task SidebarSaving { get; private set; } = Task.CompletedTask;
 
@@ -239,6 +245,7 @@ public sealed partial class ShellViewModel : ViewModelBase
         if (e.PropertyName is nameof(Conversations.HasAttention) or nameof(Conversations.ShowsUnread))
         {
             OnPropertyChanged(nameof(ExpandSidebarHint));
+            OnPropertyChanged(nameof(ExpandSidebarName));
         }
     }
 

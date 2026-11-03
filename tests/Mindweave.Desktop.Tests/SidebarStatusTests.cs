@@ -3,10 +3,16 @@ using Avalonia.Controls;
 using Avalonia.Controls.Shapes;
 using Avalonia.Headless;
 using Avalonia.Headless.XUnit;
+using Avalonia.Automation;
 using Avalonia.Input;
+using Avalonia.Threading;
 using Avalonia.VisualTree;
 using Microsoft.Extensions.DependencyInjection;
 using Mindweave.Application.Conversations;
+using Mindweave.Application.Storage;
+using Mindweave.Desktop.Services;
+using Mindweave.Infrastructure.Hosting;
+using Mindweave.Infrastructure.Sqlite;
 using Mindweave.Application.Summaries;
 using Mindweave.Core.Conversations;
 using Mindweave.Desktop.Navigation;
@@ -289,6 +295,245 @@ public class SidebarStatusTests
         Assert.False(unread.IsEffectivelyVisible);
         Assert.Equal(UiText.ExpandSidebarAttention, ToolTip.GetTip(expand));
         window.Close();
+    }
+
+    [AvaloniaFact]
+    public async Task The_spinner_asks_for_no_frames_while_hidden_minimised_or_scrolled_out_of_view()
+    {
+        await using var app = DesktopHarness.Create();
+        var window = Open(app);
+        var (first, _) = await TwoConversationsAsync(app);
+        var held = app.Client.Hold("斯蒂芬森");
+        await app.Services.GetRequiredService<ConversationService>().AskAsync(first, "再讲讲斯蒂芬森。", CancellationToken.None);
+        await held.Started.Task.WaitAsync(TimeSpan.FromSeconds(5));
+        await UiWait.UntilAsync(() => Item(app, first).IsGenerating);
+        window.UpdateLayout();
+        var spinner = Row(window, first).GetVisualDescendants().OfType<ActivitySpinner>().Single();
+        ActivitySpinner.Animates = true;
+        try
+        {
+            app.ShellPage.ToggleSidebarCommand.Execute(null);
+            app.ShellPage.ToggleSidebarCommand.Execute(null);
+            window.UpdateLayout();
+            await AssertFramesAsync(spinner, arrive: true);
+
+            // The sidebar collapsed.
+            app.ShellPage.ToggleSidebarCommand.Execute(null);
+            window.UpdateLayout();
+            await AssertFramesAsync(spinner, arrive: false);
+            app.ShellPage.ToggleSidebarCommand.Execute(null);
+            window.UpdateLayout();
+            await AssertFramesAsync(spinner, arrive: true);
+
+            // The window minimised.
+            window.WindowState = WindowState.Minimized;
+            await AssertFramesAsync(spinner, arrive: false);
+            window.WindowState = WindowState.Normal;
+            await AssertFramesAsync(spinner, arrive: true);
+
+            // Scrolled out of the sidebar's viewport: the list's viewer is shrunk below the running row and scrolled past it.
+            var list = window.GetVisualDescendants().OfType<ShellView>().Single().GetVisualDescendants().OfType<ItemsControl>().Single(c => c.Name == "ConversationList");
+            var viewer = list.FindAncestorOfType<ScrollViewer>()!;
+            var row = Row(window, first);
+            viewer.MaxHeight = row.Bounds.Height;
+            window.UpdateLayout();
+            viewer.Offset = new Vector(0, viewer.Extent.Height);
+            window.UpdateLayout();
+            Assert.False(spinner.IsTurning);
+            await AssertFramesAsync(spinner, arrive: false);
+            viewer.Offset = default;
+            window.UpdateLayout();
+            Assert.True(spinner.IsTurning);
+            await AssertFramesAsync(spinner, arrive: true);
+        }
+        finally
+        {
+            ActivitySpinner.Animates = false;
+        }
+
+        held.Finish("。");
+        await UiWait.UntilAsync(() => !Item(app, first).IsGenerating);
+        window.Close();
+    }
+
+    [AvaloniaFact]
+    public async Task A_mark_set_while_storage_is_paused_is_refused_then_written_once_storage_recovers()
+    {
+        await using var app = DesktopHarness.Create();
+        Open(app);
+        var (first, _) = await TwoConversationsAsync(app);
+        var preferences = app.Services.GetRequiredService<IPreferenceStore>();
+        var health = app.Services.GetRequiredService<StorageHealth>();
+
+        // An answer is running when storage pauses (a kept write holds the pause until it is resolved).
+        var held = app.Client.Hold("斯蒂芬森");
+        await app.Services.GetRequiredService<ConversationService>().AskAsync(first, "再讲讲斯蒂芬森。", CancellationToken.None);
+        await held.Started.Task.WaitAsync(TimeSpan.FromSeconds(5));
+        var kept = health.Retain(new StorageWriteException(StorageFailureKind.Full, "simulated full disk", null));
+        Assert.True(health.IsBlocked);
+        held.Finish("是铁路之父。");
+        await UiWait.UntilAsync(() => Item(app, first).IsUnread);
+        await app.Services.GetRequiredService<ConversationMarksService>().FlushAsync();
+        Assert.DoesNotContain(first.ToString(), await preferences.GetAsync(ConversationMarksService.UnreadKey, CancellationToken.None) ?? string.Empty);
+
+        // Storage recovers: the mark is written without waiting for the next change or the exit.
+        kept.Resolve();
+        await UiWait.UntilAsync(() => !health.IsBlocked);
+        await UiWait.UntilAsync(() => preferences.GetAsync(ConversationMarksService.UnreadKey, CancellationToken.None).GetAwaiter().GetResult()?.Contains(first.ToString(), StringComparison.Ordinal) == true);
+    }
+
+    [AvaloniaFact]
+    public async Task A_mark_whose_save_failed_is_written_by_the_exit_and_comes_back()
+    {
+        var flaky = new FlakyPreferences();
+        await using var app = DesktopHarness.Create(flaky.Register);
+        Open(app);
+        var (first, second) = await TwoConversationsAsync(app);
+        flaky.FailWrites = true;
+        await AskElsewhereAsync(app, first, "再讲讲斯蒂芬森。");
+        await UiWait.UntilAsync(() => Item(app, first).IsUnread);
+        await app.Services.GetRequiredService<ConversationMarksService>().FlushAsync();
+        Assert.True(flaky.FailedWrites > 0);
+        flaky.FailWrites = false;
+
+        // Quit through the real host, which tries the pending marks once more before the database closes.
+        Assert.True(app.Root.Exit.InterceptClose());
+        await app.Root.Exit.Running;
+        var instance = SingleInstance.TryAcquire(app.Paths);
+        Assert.NotNull(instance);
+        await app.HandOverToHost(instance).DisposeAsync();
+
+        await using var again = DesktopHarness.Create(directory: app.Paths.DataDirectory);
+        await again.StartAsync();
+        await UiWait.UntilAsync(() => again.ShellPage.Conversations.Items.Count == 2);
+        await again.ShellPage.Conversations.Loaded;
+        Assert.True(again.Services.GetRequiredService<IConversationMarks>().IsUnread(first));
+        Assert.False(again.Services.GetRequiredService<IConversationMarks>().IsUnread(second));
+    }
+
+    [AvaloniaFact]
+    public async Task A_failed_read_at_start_does_not_let_the_next_mark_wipe_the_stored_ones()
+    {
+        var flaky = new FlakyPreferences();
+        await using var app = DesktopHarness.Create(flaky.Register);
+        Open(app);
+        var (first, second) = await TwoConversationsAsync(app);
+        await AskElsewhereAsync(app, first, "再讲讲斯蒂芬森。");
+        await UiWait.UntilAsync(() => Item(app, first).IsUnread);
+
+        // The stored marks cannot be read at the next start; a new answer elsewhere is marked meanwhile.
+        flaky.FailReads = true;
+        await app.RestartAsync();
+        await UiWait.UntilAsync(() => app.ShellPage.Conversations.Items.Count == 2);
+        app.ShellPage.Conversations.NewCommand.Execute(null);
+        await AskElsewhereAsync(app, second, "高铁呢？");
+        await UiWait.UntilAsync(() => Item(app, second).IsUnread);
+        await app.Services.GetRequiredService<ConversationMarksService>().FlushAsync();
+
+        // Once reads work again, both marks are stored: the earlier one was merged, not overwritten.
+        flaky.FailReads = false;
+        await app.Services.GetRequiredService<ConversationMarksService>().FlushAsync();
+        await app.RestartAsync();
+        await UiWait.UntilAsync(() => app.ShellPage.Conversations.Items.Count == 2);
+        await app.ShellPage.Conversations.Loaded;
+        var marks = app.Services.GetRequiredService<IConversationMarks>();
+        Assert.True(marks.IsUnread(second));
+        Assert.True(marks.IsUnread(first));
+    }
+
+    [AvaloniaFact]
+    public async Task Deleting_a_marked_conversation_removes_it_from_the_stored_marks()
+    {
+        await using var app = DesktopHarness.Create();
+        Open(app);
+        var (first, _) = await TwoConversationsAsync(app);
+        var preferences = app.Services.GetRequiredService<IPreferenceStore>();
+        await AskElsewhereAsync(app, first, "再讲讲斯蒂芬森。");
+        await UiWait.UntilAsync(() => Item(app, first).IsUnread);
+        await app.Services.GetRequiredService<ConversationMarksService>().FlushAsync();
+        Assert.Contains(first.ToString(), await preferences.GetAsync(ConversationMarksService.UnreadKey, CancellationToken.None) ?? string.Empty);
+
+        Assert.True((await app.Services.GetRequiredService<ConversationService>().DeleteAsync(first, CancellationToken.None)).Deleted);
+        Assert.False(app.Services.GetRequiredService<IConversationMarks>().IsUnread(first));
+        await app.Services.GetRequiredService<ConversationMarksService>().FlushAsync();
+        Assert.DoesNotContain(first.ToString(), await preferences.GetAsync(ConversationMarksService.UnreadKey, CancellationToken.None) ?? string.Empty);
+    }
+
+    [AvaloniaFact]
+    public async Task The_state_markers_reach_automation_names_not_only_tooltips()
+    {
+        await using var app = DesktopHarness.Create();
+        var window = Open(app);
+        var (first, _) = await TwoConversationsAsync(app);
+        var expand = Part<Button>(window, "ExpandSidebar");
+        Assert.Equal(UiText.ExpandSidebar, AutomationProperties.GetName(expand));
+
+        await AskElsewhereAsync(app, first, "再讲讲斯蒂芬森。");
+        await UiWait.UntilAsync(() => app.ShellPage.Conversations.ShowsUnread);
+        window.UpdateLayout();
+        Assert.Equal(UiText.ExpandSidebar + " · " + UiText.MarkerNewAnswer, AutomationProperties.GetName(expand));
+        Assert.Equal(UiText.MarkerNewAnswer, AutomationProperties.GetHelpText(Row(window, first)));
+        window.Close();
+    }
+
+    /// <summary>Frames keep arriving while the spinner is in sight, and none arrive (after the one already asked for) while it is not.</summary>
+    private static async Task AssertFramesAsync(ActivitySpinner spinner, bool arrive)
+    {
+        for (var settle = 0; settle < 3; settle++)
+        {
+            Dispatcher.UIThread.RunJobs();
+            AvaloniaHeadlessPlatform.ForceRenderTimerTick();
+        }
+
+        var before = spinner.FramesReceived;
+        for (var tick = 0; tick < 5; tick++)
+        {
+            await Task.Delay(5);
+            Dispatcher.UIThread.RunJobs();
+            AvaloniaHeadlessPlatform.ForceRenderTimerTick();
+            Dispatcher.UIThread.RunJobs();
+        }
+
+        if (arrive)
+        {
+            Assert.True(spinner.FramesReceived > before, "The spinner received no frames while in sight.");
+        }
+        else
+        {
+            Assert.Equal(before, spinner.FramesReceived);
+        }
+    }
+
+    /// <summary>The real preference store, made to fail reads or writes of the unread marks on demand.</summary>
+    private sealed class FlakyPreferences
+    {
+        public volatile bool FailReads;
+        public volatile bool FailWrites;
+        private int _failedWrites;
+
+        public int FailedWrites => Volatile.Read(ref _failedWrites);
+
+        public void Register(IServiceCollection services) =>
+            services.AddSingleton<IPreferenceStore>(sp => new Store(this, new SqlitePreferenceStore(sp.GetRequiredService<SqliteDatabase>())));
+
+        private sealed class Store(FlakyPreferences owner, IPreferenceStore inner) : IPreferenceStore
+        {
+            public Task<string?> GetAsync(string key, CancellationToken cancellationToken) =>
+                owner.FailReads && key == ConversationMarksService.UnreadKey
+                    ? Task.FromException<string?>(new IOException("simulated read failure"))
+                    : inner.GetAsync(key, cancellationToken);
+
+            public Task SetAsync(string key, string value, CancellationToken cancellationToken)
+            {
+                if (owner.FailWrites && key == ConversationMarksService.UnreadKey)
+                {
+                    Interlocked.Increment(ref owner._failedWrites);
+                    return Task.FromException(new IOException("simulated write failure"));
+                }
+
+                return inner.SetAsync(key, value, cancellationToken);
+            }
+        }
     }
 
     /// <summary>Two finished conversations in a fresh workspace; the second one's page is shown.</summary>

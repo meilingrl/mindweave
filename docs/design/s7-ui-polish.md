@@ -291,3 +291,18 @@
 - **截图库**：`SeedAsync` 种下的回答都是在别的页面结束的，种完后统一标为已读，原有场景不出现未读圆点。新增 g34（侧栏同时有转圈、“!”、两个未读圆点）与 g34b（收起侧栏、只有未读时展开按钮的强调色圆点）。两种主题全部重新渲染（各 34 个场景，41 张图）；看过 g34、g34b、g06、g07、g17、g04：有标记的行（g06、g07、g17、g28）标记从标题后面移到了行右缘，其余场景侧栏不变。
 - **偏差**：任务里说的“需要处理”提示沿用了原有的“回答未完成，可重试”（说清了是什么、能做什么）。侧栏收起时生成中不在展开按钮上另作提示（任务没有要求）。删除会话不会从未读集合里去掉它的 id（只是不再显示；每个 id 36 字节，量很小），归档后恢复的会话保留原来的未读状态。退出时被“停止并退出”停下且有正文的回答，下次启动会显示为未读。
 - **未验证**：只在 macOS 无头渲染下看过两种主题的截图（转圈只看了固定角度那一帧）；真实窗口里的转动是否顺滑、深色下 12 px 圆弧是否够醒目、Windows 高 DPI 下的观感都没看过。动画帧只在无头平台上用强制渲染验证过会前进，没有在 Windows／macOS 实机上测量开销。全量运行中曾出现一次已知的偶发失败 `StorageHealthTests.A_terminal_write_failing_for_a_reason_other_than_storage…`（架构审查 L3 已记录，单独运行与之后两次全量都通过，与本块无关）。
+
+### 第 4 轮审查修正（sidebar-status）
+
+审查提出 6 条（均为 minor）。改了 1、2、3、5、6，第 4 条没改。每项修正都临时撤回验证过：对应测试会失败。
+
+- **1. “只在可见时转动”没有真正的测试**：`ActivitySpinner` 新增内部计数 `FramesReceived`（收到的动画帧数，不管是否在转）。新测试 `The_spinner_asks_for_no_frames_while_hidden_minimised_or_scrolled_out_of_view` 打开动画，在可见时确认帧在增加；侧栏收起、窗口最小化、滚出视口这三种情况下，等已经请求的那一帧到达后，再强制推进 5 帧，计数不变；恢复可见后计数又在增加。去掉 `RequestFrame`／`OnFrame` 里的可见判断（即审查里的改法），测试失败。
+- **3. 滚出视口或窗口最小化时仍在转**：`IsTurning` 增加两项条件：控件至少有一部分在有效视口内（`EffectiveViewportChanged` 给出的视口和自身范围相交），窗口不是最小化（监听 `Window.WindowState`）。视口变化、窗口状态变化、尺寸变化时都会重新判断，回到可见时自动接着转。上面那个测试分别覆盖这两项；只撤回视口判断，或只撤回最小化判断，测试都会失败。
+- **2. 存储暂停与退出补写没有测试；暂停时的拒绝方式**：写入改为和其他写入一样，先调用 `StorageHealth.ThrowIfBlocked()`，暂停时由 `StorageWriteException` 拒绝（记 Debug 日志，写入留待恢复后再做），不再自己判断 `IsBlocked` 后跳过。因此 `ConversationMarksService` 改为依赖 `StorageHealth`，不再依赖 `IStorageStatus`。新增两个测试：
+  - `A_mark_set_while_storage_is_paused_is_refused_then_written_once_storage_recovers`：回答生成到一半时，用一项保留写入（`Retain`）让存储保持暂停；回答结束后记为未读，但偏好表里没有写入；保留写入解决、存储恢复后，不需要再有变化也不需要退出，偏好表里就有了这条。去掉 `_storage.Changed` 里的补写，或去掉 `ThrowIfBlocked`，测试都会失败。
+  - `A_mark_whose_save_failed_is_written_by_the_exit_and_comes_back`：把偏好存储包一层，让未读键写入失败；之后恢复正常，走真实的退出流程和 `AppHost.DisposeAsync`，再在同一数据目录上新开一个应用，未读还在。去掉 `AppHost` 里的补写，测试失败。
+- **5. 启动时读取失败，下一次写入会清掉已存的集合；已删除会话留在集合里**：写入的是整个集合，所以必须先读到已存的集合才能写。启动时读取失败，就先不写；之后每次写入前都会再读一次，读成功后把已存的 id 合并进内存。读到之前看过或删除的会话会单独记下，合并时不会把它们带回来；如果已存集合里还有这些会话，读完后立即重写一次。`ConversationService` 新增 `Deleted` 事件（彻底删除后、发 `VisibilityChanged` 之前触发），标记服务收到后去掉该会话的未读。新增测试 `A_failed_read_at_start_does_not_let_the_next_mark_wipe_the_stored_ones`：第一次启动记下会话一的未读；重启时读取失败，期间会话二有了新回答；读取恢复后再重启，两条都在。改回旧做法（读失败也照写），测试失败。新增测试 `Deleting_a_marked_conversation_removes_it_from_the_stored_marks`：删除后，内存里和偏好表里都没有这个会话。去掉 `Deleted` 订阅，测试失败。这一条取代了上一节“偏差”里“删除会话不会从未读集合里去掉它的 id”的说法。
+- **6. 侧栏收起时的状态只出现在提示里**：展开按钮的辅助功能名称改为绑定 `ShellViewModel.ExpandSidebarName`。和提示说的内容一样，但不带快捷键：“展开侧栏”“展开侧栏 · 有会话需要处理”或“展开侧栏 · 有新回答”。UiText 新增 `SidebarNeedsAttention`，原有的提示文字也改为由它拼出，显示不变。会话行按钮的 `AutomationProperties.HelpText` 绑定 `MarkerHint`，读屏软件聚焦到行时能读到“正在回答”“有新回答”等状态，不必依赖不能聚焦的标记格。新增测试 `The_state_markers_reach_automation_names_not_only_tooltips`；撤回绑定后测试失败。
+- **4. 其他工作区的新回答（未改）**：未读集合只存会话 id，不知道会话属于哪个工作区。要在工作区选择器或展开按钮上提示“别的工作区有新回答”，需要按 id 查所属工作区，并在每次变化时重新统计，还要决定提示放在哪里、怎么显示。任务说明没有规定跨工作区该怎么表现；现有的“需要处理”标记也只显示当前工作区。所以这次没改，留给你决定：要不要做，提示放在工作区选择器还是展开按钮上。切回那个工作区时，未读会照常显示。
+- **测试与截图**：`SidebarStatusTests` 增加到 15 个。全量测试 0 失败、0 警告：Core 67、Architecture 8、Infrastructure 269（另跳过 16）、Desktop 217（另跳过 34，截图库场景在普通运行里跳过）。两种主题都重新渲染并看过 g34、g34b，画面和修正前一样：修正的是动画帧和辅助功能，截图里的固定帧不受影响。
+- **未验证**：视口和最小化的判断只在无头平台上测过；在真实 Windows 窗口里，最小化是否会通过 `WindowState` 通知到控件，没有实机确认。被其他窗口完全遮住但没有最小化时，转圈不会停。
