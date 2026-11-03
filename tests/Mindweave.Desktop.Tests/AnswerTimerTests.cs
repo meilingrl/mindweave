@@ -176,6 +176,35 @@ public class AnswerTimerTests
         window.Close();
     }
 
+    [AvaloniaFact]
+    public async Task Minimising_the_window_stops_the_counter_and_restoring_it_starts_it_again()
+    {
+        var clock = new ManualTime();
+        await using var app = DesktopHarness.Create(s => Use(s, clock));
+        var window = Open(app);
+        await app.StartWithWorkspaceAsync("火车");
+        await app.ConfigureModelAsync();
+        var held = app.Client.Hold();
+        var page = await AskAsync(app, held);
+        await UiWait.UntilAsync(() => page.IsTicking);
+
+        window.WindowState = WindowState.Minimized;
+        await UiWait.UntilAsync(() => !page.IsShown);
+        Assert.False(page.IsTicking);
+        Assert.Equal(0, clock.ActiveTimers);
+
+        // Back on screen: the counter picks up from the time the question was sent, not from the restore.
+        clock.Advance(TimeSpan.FromSeconds(20));
+        window.WindowState = WindowState.Normal;
+        await UiWait.UntilAsync(() => page.IsTicking);
+        Assert.Equal(1, clock.ActiveTimers);
+        await UiWait.UntilAsync(() => page.Messages[1].ElapsedText == "20 秒");
+
+        held.Release.TrySetResult();
+        await UiWait.UntilAsync(() => clock.ActiveTimers == 0);
+        window.Close();
+    }
+
     private static void Use(IServiceCollection services, ManualTime clock)
     {
         services.AddSingleton<TimeProvider>(clock);

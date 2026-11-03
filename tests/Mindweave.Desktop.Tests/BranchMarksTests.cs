@@ -193,6 +193,164 @@ public class BranchMarksTests
         }
     }
 
+    [AvaloniaFact]
+    public async Task Marks_crowded_at_the_end_stay_on_the_track_and_off_the_composer()
+    {
+        await using var app = DesktopHarness.Create();
+        var window = Open(app);
+        // Many long answers, then a run of short ones near the end, each with a branch: their natural places crowd
+        // into the last stretch of the track, with less room than the marks need apart.
+        const int longAnswers = 20;
+        const int shortAnswers = 12;
+        var page = await LongConversationAsync(app, window, answers: longAnswers);
+        for (var i = 1; i <= shortAnswers; i++)
+        {
+            app.Client.Reply($"短答{i}");
+            page.Composer.Text = $"短问{i}";
+            await page.Composer.SendCommand.ExecuteAsync(null);
+            var count = (longAnswers * 2) + (i * 2);
+            await UiWait.UntilAsync(() => page.Messages.Count == count && page.Messages[^1] is { State: MessageState.Complete, IsLive: false });
+        }
+
+        foreach (var answer in page.Messages.Skip(longAnswers * 2).Where(m => m.IsAnswer).ToList())
+        {
+            await BranchAsync(app, page, answer, "短答");
+        }
+
+        await UiWait.UntilAsync(() => Marks(window).Marks.Count == shortAnswers);
+        var scroller = Scroller(window);
+        var track = VerticalBar(scroller).GetVisualDescendants().OfType<Track>().Single();
+        var trackRect = Rect(track, window);
+        var marks = Marks(window).Marks;
+        for (var i = 0; i < marks.Count; i++)
+        {
+            var rect = Rect(marks[i].Mark, window);
+            Assert.True(rect.Top >= trackRect.Top - 0.5 && rect.Bottom <= trackRect.Bottom + 0.5, $"Mark {i} at {rect} is off the track {trackRect}");
+            if (i > 0)
+            {
+                Assert.True(rect.Top >= Rect(marks[i - 1].Mark, window).Bottom + BranchMarks.MarkSpacing - 0.5, $"Mark {i} overlaps the one above");
+            }
+        }
+
+        // The composer below is untouched: a real hit test at the right edge of the send button and the input box finds no mark.
+        Rendered(window);
+        var view = CurrentView(window);
+        foreach (var name in new[] { "SendButton", "Input" })
+        {
+            var control = view.GetVisualDescendants().OfType<Control>().Single(c => c.Name == name);
+            var rect = Rect(control, window);
+            var right = new Point(rect.Right - 3, rect.Center.Y);
+            var hit = (window.InputHitTest(right) as Visual)?.FindAncestorOfType<Button>(includeSelf: true);
+            Assert.False(hit?.Classes.Contains("branch-mark") == true, $"{name}: a branch mark covers its right edge");
+        }
+
+        window.Close();
+    }
+
+    [Fact]
+    public void Spread_keeps_each_mark_near_its_place_but_on_the_track_and_apart()
+    {
+        const double pitch = BranchMarks.MarkHeight + BranchMarks.MarkSpacing;
+
+        // Room for all: unchanged where apart, pushed down where close.
+        Assert.Equal([10, 100, 100 + pitch], BranchMarks.Spread([10, 100, 101], 0, 500));
+
+        // Crowded at the bottom: the stack is pulled up so the last one ends on the track's bottom.
+        Assert.Equal([490 - (2 * pitch), 490 - pitch, 490], BranchMarks.Spread([488, 489, 490], 0, 500));
+
+        // More marks than the track holds apart: they share it evenly, first at the top, last at the bottom.
+        var tops = BranchMarks.Spread([.. Enumerable.Repeat(50.0, 11)], 0, 110);
+        Assert.Equal(0, tops[0], 3);
+        Assert.Equal(100, tops[^1], 3);
+        Assert.All(tops.Zip(tops.Skip(1)), p => Assert.Equal(10, p.Second - p.First, 3));
+    }
+
+    [AvaloniaFact]
+    public async Task Marks_sit_on_a_faint_rail_along_the_track()
+    {
+        await using var app = DesktopHarness.Create();
+        var window = Open(app);
+        var page = await LongConversationAsync(app, window, answers: 3);
+        Assert.False(Marks(window).Rail.IsVisible);
+        await BranchAsync(app, page, page.Messages[3], "分支");
+        await UiWait.UntilAsync(() => Marks(window).Marks.Count == 1);
+
+        var rail = Marks(window).Rail;
+        var track = Rect(VerticalBar(Scroller(window)).GetVisualDescendants().OfType<Track>().Single(), window);
+        var railRect = Rect(rail, window);
+        var mark = Rect(Marks(window).Marks[0].Mark, window);
+        Assert.True(rail.IsEffectivelyVisible);
+        Assert.False(rail.IsHitTestVisible);
+        Assert.InRange(railRect.Top, track.Top - 0.5, track.Top + 0.5);
+        Assert.InRange(railRect.Height, track.Height - 0.5, track.Height + 0.5);
+        Assert.InRange(railRect.Center.X, mark.Center.X - 0.5, mark.Center.X + 0.5);
+        Assert.True(railRect.Right <= track.Left);
+        foreach (var theme in new[] { ThemeVariant.Light, ThemeVariant.Dark })
+        {
+            window.RequestedThemeVariant = theme;
+            window.UpdateLayout();
+            Assert.Equal(Colour("BranchMarkRail", theme), ((ISolidColorBrush)rail.Background!).Color);
+
+            // Faint: the mark stands out from the rail more than the rail does from the page.
+            var page_ = Colour("WindowBackground", theme);
+            Assert.True(SourceHighlightThemeTests.Contrast(Colour("BranchMarkRail", theme), page_) < 1.3, $"{theme}: rail too strong");
+            Assert.True(SourceHighlightThemeTests.Contrast(Colour("BranchMark", theme), Colour("BranchMarkRail", theme)) >= 2.5, $"{theme}: mark lost on the rail");
+        }
+
+        window.Close();
+    }
+
+    [AvaloniaFact]
+    public async Task The_wheel_over_a_mark_scrolls_the_conversation_and_a_click_leaves_the_keyboard_in_the_composer()
+    {
+        await using var app = DesktopHarness.Create();
+        var window = Open(app);
+        var page = await LongConversationAsync(app, window, answers: 4);
+        await BranchAsync(app, page, page.Messages[5], "分支");
+        await UiWait.UntilAsync(() => Marks(window).Marks.Count == 1);
+        var scroller = Scroller(window);
+        scroller.Offset = new Vector(0, 600);
+        window.UpdateLayout();
+
+        // The same notch over the text and over the mark scrolls the same distance.
+        Rendered(window);
+        var content = Rect(CurrentView(window).GetVisualDescendants().OfType<ItemsControl>().Single(c => c.Name == "MessageList"), window);
+        window.MouseWheel(new Point(content.Center.X, scroller.TranslatePoint(default, window)!.Value.Y + 100), new Vector(0, -1));
+        window.UpdateLayout();
+        var step = scroller.Offset.Y - 600;
+        Assert.True(step > 0, "The wheel over the text did not scroll");
+        var mark = Marks(window).Marks[0].Mark;
+        Rendered(window);
+        var before = scroller.Offset.Y;
+        window.MouseWheel(Centre(mark, window), new Vector(0, -1));
+        window.UpdateLayout();
+        Assert.Equal(before + step, scroller.Offset.Y, 1);
+
+        // A click on a mark: the branch list comes into view and the composer keeps the keyboard.
+        var input = CurrentView(window).GetVisualDescendants().OfType<TextBox>().Single(t => t.Name == "Input");
+        input.Focus();
+        Assert.True(input.IsFocused);
+        Click(window, Marks(window).Marks[0].Mark);
+        Assert.True(input.IsFocused, $"Focus moved to {window.FocusManager?.GetFocusedElement()}");
+        window.Close();
+    }
+
+    [AvaloniaFact]
+    public async Task Only_a_page_with_branches_makes_room_for_the_marks()
+    {
+        await using var app = DesktopHarness.Create();
+        var window = Open(app);
+        var page = await LongConversationAsync(app, window, answers: 3);
+        var list = CurrentView(window).GetVisualDescendants().OfType<ItemsControl>().Single(c => c.Name == "MessageList");
+        Assert.Equal(12, list.Margin.Right);
+        Assert.Empty(Marks(window).Marks);
+
+        await BranchAsync(app, page, page.Messages[3], "分支");
+        await UiWait.UntilAsync(() => Marks(window).Marks.Count == 1);
+        Assert.Equal(28, list.Margin.Right);
+        window.Close();
+    }
+
     /// <summary>Each mark sits where the scroll thumb's top would be with its answer's branch list at the top of the viewport.</summary>
     private static void AssertPlaced(Window window)
     {
@@ -204,9 +362,10 @@ public class BranchMarksTests
         var previous = double.NegativeInfinity;
         foreach (var (answer, mark) in marks.Marks)
         {
+            // Few marks spread through the conversation: each at its own place, pushed down only past the one above.
             var sectionTop = Section(window, answer).TranslatePoint(default, scroller)!.Value.Y + scroller.Offset.Y;
             var expected = trackTop + (sectionTop / scroller.Extent.Height * track.Bounds.Height) - (BranchMarks.MarkHeight / 2);
-            expected = Math.Max(Math.Clamp(expected, trackTop, trackTop + track.Bounds.Height - BranchMarks.MarkHeight), previous + 2);
+            expected = Math.Max(Math.Clamp(expected, trackTop, trackTop + track.Bounds.Height - BranchMarks.MarkHeight), previous + BranchMarks.MarkSpacing);
             Assert.InRange(Canvas.GetTop(mark), expected - 0.5, expected + 0.5);
             previous = Canvas.GetTop(mark) + BranchMarks.MarkHeight;
         }

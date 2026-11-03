@@ -3,6 +3,7 @@ using Avalonia.Automation;
 using Avalonia.Controls;
 using Avalonia.Controls.Primitives;
 using Avalonia.Controls.Templates;
+using Avalonia.Input;
 using Avalonia.Layout;
 using Avalonia.VisualTree;
 using Mindweave.Desktop.ViewModels.Conversations;
@@ -29,15 +30,33 @@ internal sealed class BranchMarks : Canvas
     /// <summary>Space kept above a revealed branch list when it is taller than half the viewport.</summary>
     internal const double RevealMargin = 24;
 
+    /// <summary>Space between neighbouring marks while the track has room for all of them.</summary>
+    internal const double MarkSpacing = 2;
+
+    /// <summary>Width of the faint rail the marks sit on, which ties them to the scroll bar rather than to the text beside them.</summary>
+    internal const double RailWidth = 2;
+
+    /// <summary>Pixels scrolled per wheel notch, as the scroll viewer's own content presenter does.</summary>
+    internal const double WheelStep = 50;
+
     private readonly Dictionary<MessageItemViewModel, Button> _marks = [];
     private ScrollViewer? _scroller;
     private ItemsControl? _list;
+    private readonly Border _rail = new() { Classes = { "branch-mark-rail" }, Width = RailWidth, IsVisible = false, IsHitTestVisible = false };
     private ScrollBar? _bar;
 
     public BranchMarks()
     {
-        ClipToBounds = false;
+        // The layer covers exactly the scroll viewer: nothing it draws may reach the composer below it.
+        ClipToBounds = true;
+        Children.Add(_rail);
+
+        // The layer is not inside the scroll viewer, so a wheel over a mark is passed on to it here.
+        AddHandler(PointerWheelChangedEvent, OnWheel, handledEventsToo: false);
     }
+
+    /// <summary>The rail behind the marks, shown while any mark is.</summary>
+    internal Border Rail => _rail;
 
     /// <summary>The marks now shown, top to bottom, with the answer each belongs to.</summary>
     internal IReadOnlyList<(MessageItemViewModel Answer, Button Mark)> Marks =>
@@ -88,25 +107,90 @@ internal sealed class BranchMarks : Canvas
         var extent = scroller.Extent.Height;
         var track = TrackRect(scroller);
         var scrolls = extent > scroller.Viewport.Height + 0.5 && track is not null;
-        var previousBottom = double.NegativeInfinity;
+        var placed = new List<(Button Mark, double Top)>();
         foreach (var answer in answers)
         {
             var mark = MarkFor(answer);
             var top = scrolls && Section(answer) is { } section ? ContentTop(section) : null;
             mark.IsVisible = top is not null;
-            if (top is not { } y || track is not { } rect)
+            if (top is { } y && track is { } rect)
             {
-                continue;
+                // Where the scroll thumb's top would be with this list at the top of the viewport.
+                var centre = rect.Top + (Math.Clamp(y / extent, 0, 1) * rect.Height);
+                placed.Add((mark, centre - (MarkHeight / 2)));
+            }
+        }
+
+        if (track is { } bounds && placed.Count > 0)
+        {
+            var tops = Spread([.. placed.Select(p => p.Top)], bounds.Top, bounds.Bottom);
+            var x = bounds.Left - Gap - MarkWidth;
+            for (var i = 0; i < placed.Count; i++)
+            {
+                Place(placed[i].Mark, x, tops[i]);
             }
 
-            // Where the scroll thumb's top would be with this list at the top of the viewport; kept on the track and
-            // never overlapping the previous mark, so each one stays its own target.
-            var centre = rect.Top + (Math.Clamp(y / extent, 0, 1) * rect.Height);
-            var markTop = Math.Clamp(centre - (MarkHeight / 2), rect.Top, Math.Max(rect.Top, rect.Bottom - MarkHeight));
-            markTop = Math.Max(markTop, previousBottom + 2);
-            previousBottom = markTop + MarkHeight;
-            Place(mark, rect.Left - Gap - MarkWidth, markTop);
+            Place(_rail, x + ((MarkWidth - RailWidth) / 2), bounds.Top);
+            if (Math.Abs(_rail.Height - bounds.Height) > 0.25 || double.IsNaN(_rail.Height))
+            {
+                _rail.Height = bounds.Height;
+            }
         }
+
+        _rail.IsVisible = placed.Count > 0;
+    }
+
+    /// <summary>
+    /// Final tops for marks wanted at <paramref name="wanted"/> (in order, top to bottom) on a track from
+    /// <paramref name="top"/> to <paramref name="bottom"/>: each on the track, in order and apart, as near its wanted
+    /// place as that allows. Marks crowded near the end are pushed up from the track's bottom, not past it; when even
+    /// that is too little room, they share the track evenly.
+    /// </summary>
+    internal static double[] Spread(IReadOnlyList<double> wanted, double top, double bottom)
+    {
+        var count = wanted.Count;
+        var result = new double[count];
+        if (count == 0)
+        {
+            return result;
+        }
+
+        var last = Math.Max(top, bottom - MarkHeight);
+        var pitch = MarkHeight + MarkSpacing;
+        if (count > 1 && (count - 1) * pitch > last - top)
+        {
+            pitch = (last - top) / (count - 1);
+        }
+
+        for (var i = 0; i < count; i++)
+        {
+            var at = Math.Clamp(wanted[i], top, last);
+            result[i] = i == 0 ? at : Math.Max(at, result[i - 1] + pitch);
+        }
+
+        for (var i = count - 1; i >= 0; i--)
+        {
+            result[i] = i == count - 1 ? Math.Min(result[i], last) : Math.Min(result[i], result[i + 1] - pitch);
+        }
+
+        for (var i = 0; i < count; i++)
+        {
+            result[i] = Math.Max(result[i], top);
+        }
+
+        return result;
+    }
+
+    private void OnWheel(object? sender, PointerWheelEventArgs e)
+    {
+        if (_scroller is not { } scroller || e.Delta.Y == 0)
+        {
+            return;
+        }
+
+        var max = Math.Max(0, scroller.Extent.Height - scroller.Viewport.Height);
+        scroller.Offset = new Vector(scroller.Offset.X, Math.Clamp(scroller.Offset.Y - (e.Delta.Y * WheelStep), 0, max));
+        e.Handled = true;
     }
 
     private Button MarkFor(MessageItemViewModel answer)
@@ -119,6 +203,8 @@ internal sealed class BranchMarks : Canvas
                 Width = MarkWidth,
                 Height = MarkHeight,
                 IsTabStop = false,
+                // A click leads to the branch list without taking the keyboard from the composer.
+                Focusable = false,
                 Content = new Border { Classes = { "branch-mark-bar" } },
             };
             mark.Click += (_, _) => Reveal(answer);

@@ -77,6 +77,7 @@
           <!-- Round 4 · conversation: marks in the margin for answers with branches -->
           <SolidColorBrush x:Key="BranchMark">#6A83F6</SolidColorBrush>
           <SolidColorBrush x:Key="BranchMarkHover">#2B47CC</SolidColorBrush>
+          <SolidColorBrush x:Key="BranchMarkRail">#EEECEA</SolidColorBrush>
           <!-- Scroll bars: a faint thin thumb at rest, a little stronger when hovered (Fluent's own keys) -->
           <Color x:Key="ScrollBarPanningThumbBackgroundColor">#33000000</Color>
           <SolidColorBrush x:Key="ScrollBarPanningThumbBackground">#2E1C1917</SolidColorBrush>
@@ -193,6 +194,7 @@
           <!-- Round 4 · conversation: marks in the margin for answers with branches -->
           <SolidColorBrush x:Key="BranchMark">#7286E6</SolidColorBrush>
           <SolidColorBrush x:Key="BranchMarkHover">#BDC9F2</SolidColorBrush>
+          <SolidColorBrush x:Key="BranchMarkRail">#26282D</SolidColorBrush>
           <Color x:Key="ScrollBarPanningThumbBackgroundColor">#38FFFFFF</Color>
           <SolidColorBrush x:Key="ScrollBarPanningThumbBackground">#2EFFFFFF</SolidColorBrush>
           <Color x:Key="ScrollBarThumbBackgroundColor">#66FFFFFF</Color>
@@ -1048,6 +1050,18 @@
       <Setter Property="Height" Value="4" />
       <Setter Property="CornerRadius" Value="2" />
       <Setter Property="Background" Value="{DynamicResource BranchMarkHover}" />
+    </Style>
+    <!-- The faint rail behind the marks: they read as places along the scroll bar, not notes on the text beside them. -->
+    <Style Selector="Border.branch-mark-rail">
+      <Setter Property="CornerRadius" Value="1" />
+      <Setter Property="Background" Value="{DynamicResource BranchMarkRail}" />
+    </Style>
+    <!-- The message list's right margin: the scroll bar (12), plus the gutter (16) only on pages that have branch marks. -->
+    <Style Selector="ItemsControl.messages">
+      <Setter Property="Margin" Value="0,0,12,0" />
+    </Style>
+    <Style Selector="ItemsControl.messages.with-branch-marks">
+      <Setter Property="Margin" Value="0,0,28,0" />
     </Style>
     <!-- ── end Round 4 · conversation ── -->
   </Application.Styles>

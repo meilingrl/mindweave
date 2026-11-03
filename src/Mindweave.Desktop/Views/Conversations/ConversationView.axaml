@@ -194,8 +194,8 @@
     <!-- Round 4: marks in the margin for answers with branches sit in a layer over the page, left of the scroll bar. -->
     <Panel>
     <ScrollViewer Name="Scroller" Classes="autohide" HorizontalScrollBarVisibility="Disabled">
-      <!-- Right margin: the scroll bar (16) plus the gutter for marks in the margin (12), so neither covers text. -->
-      <ItemsControl Name="MessageList" ItemsSource="{Binding Messages}" Margin="0,0,28,0">
+      <!-- Right margin (App.axaml, Round 4 · conversation): room for the scroll bar, and for the marks' gutter only on a page with branches. -->
+      <ItemsControl Name="MessageList" Classes="messages" Classes.with-branch-marks="{Binding HasBranches}" ItemsSource="{Binding Messages}">
         <ItemsControl.ItemTemplate>
           <DataTemplate x:DataType="vm:MessageItemViewModel">
             <StackPanel Margin="0,6" Spacing="6">

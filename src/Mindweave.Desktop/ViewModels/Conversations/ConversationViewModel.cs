@@ -199,6 +199,13 @@ public sealed partial class ConversationViewModel : PageViewModel, IDisposable
     [ObservableProperty]
     public partial string RenameText { get; set; } = string.Empty;
 
+    /// <summary>
+    /// Whether any answer on this page has branches. Known from the stored data before layout, so the message list's
+    /// room for marks in the margin is right on the first layout and does not reflow after the reading position is restored.
+    /// </summary>
+    [ObservableProperty]
+    public partial bool HasBranches { get; private set; }
+
     /// <summary>Interval of the running answer's live counter.</summary>
     internal static readonly TimeSpan ElapsedTick = TimeSpan.FromSeconds(1);
 
@@ -656,6 +663,7 @@ public sealed partial class ConversationViewModel : PageViewModel, IDisposable
             }
         }
 
+        HasBranches = Messages.Any(m => m.IsAnswer && m.Branches.Count > 0);
         Volatile.Write(ref _related, lineage.Select(l => l.Conversation.Id).Concat(branches.Select(b => b.Child)).ToHashSet());
         UpdateRunning();
         ContextUsage = await _conversations.GetContextUsageAsync(Id, CancellationToken.None);
