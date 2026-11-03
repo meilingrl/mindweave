@@ -27,6 +27,7 @@ public sealed partial class ConversationView : UserControl
     private readonly DispatcherTimer _capture;
     private TaskCompletionSource _restored = new(TaskCreationOptions.RunContinuationsAsynchronously);
     private ConversationViewModel? _page;
+    private Window? _window;
     private bool _followBottom = true;
     private bool _restoring = true;
 
@@ -56,6 +57,7 @@ public sealed partial class ConversationView : UserControl
             _capture.Stop();
             _capture.Start();
         };
+        BranchMarks.Attach(Scroller, MessageList);
         ComposerHost.SettingsRequested += (_, _) => (DataContext as ConversationViewModel)?.OpenSettingsCommand.Execute(null);
     }
 
@@ -65,7 +67,14 @@ public sealed partial class ConversationView : UserControl
     protected override void OnDataContextChanged(EventArgs e)
     {
         base.OnDataContextChanged(e);
+        if (_page is not null)
+        {
+            _page.IsShown = false;
+        }
+
         _page = DataContext as ConversationViewModel;
+        UpdateShown();
+
         _restoring = true;
         if (_restored.Task.IsCompleted)
         {
@@ -78,10 +87,54 @@ public sealed partial class ConversationView : UserControl
         }
     }
 
+    protected override void OnAttachedToVisualTree(VisualTreeAttachmentEventArgs e)
+    {
+        base.OnAttachedToVisualTree(e);
+        _window = TopLevel.GetTopLevel(this) as Window;
+        if (_window is not null)
+        {
+            _window.PropertyChanged += OnWindowPropertyChanged;
+        }
+
+        UpdateShown();
+    }
+
     protected override void OnDetachedFromVisualTree(VisualTreeAttachmentEventArgs e)
     {
+        // Off screen: the running answer's live counter stops ticking until the page is shown again.
+        if (_window is not null)
+        {
+            _window.PropertyChanged -= OnWindowPropertyChanged;
+            _window = null;
+        }
+
+        if (_page is not null)
+        {
+            _page.IsShown = false;
+        }
+
         _capture.Stop();
         base.OnDetachedFromVisualTree(e);
+    }
+
+    private void OnWindowPropertyChanged(object? sender, AvaloniaPropertyChangedEventArgs e)
+    {
+        if (e.Property == Window.WindowStateProperty || e.Property == IsVisibleProperty)
+        {
+            UpdateShown();
+        }
+    }
+
+    /// <summary>
+    /// The page is shown while it is in a window that is visible and not minimised. A window covered by others still
+    /// counts as shown: the platforms report no occlusion to Avalonia.
+    /// </summary>
+    private void UpdateShown()
+    {
+        if (_page is not null)
+        {
+            _page.IsShown = this.IsAttachedToVisualTree() && _window is not { WindowState: WindowState.Minimized } and not { IsVisible: false };
+        }
     }
 
     private async Task RestoreAsync(ConversationViewModel page)

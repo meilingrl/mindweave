@@ -218,6 +218,10 @@ public static class UiText
     public const string ReturnToSourceHint = "回到来源回答，并选中这段原文";
     public const string BranchFrom = "来自";
     public const string BranchesHeading = "从这里分出的探索";
+
+    /// <summary>A mark in the conversation's margin for an answer with branches: "2 个分支 · 「蒸汽机车」".</summary>
+    public static string BranchMark(int count, string firstQuote) =>
+        string.Format(CultureInfo.InvariantCulture, "{0} 个分支 · {1}", count, Quoted(firstQuote));
     public const string ModelSection = "模型连接";
     public const string ConnectionNameLabel = "名称";
     public const string BaseUrlLabel = "服务地址";
@@ -553,6 +557,18 @@ public static class UiText
         at.ToLocalTime().Date == now.ToLocalTime().Date
             ? at.ToLocalTime().ToString("HH:mm", CultureInfo.InvariantCulture)
             : FormatTime(at);
+
+    /// <summary>How long an answer has been running: "12 秒", "1 分 05 秒", "1 小时 02 分" (whole seconds, never negative).</summary>
+    public static string Elapsed(TimeSpan span)
+    {
+        var seconds = (long)Math.Max(0, Math.Floor(span.TotalSeconds));
+        return seconds < 60 ? string.Format(CultureInfo.InvariantCulture, "{0} 秒", seconds)
+            : seconds < 3600 ? string.Format(CultureInfo.InvariantCulture, "{0} 分 {1:00} 秒", seconds / 60, seconds % 60)
+            : string.Format(CultureInfo.InvariantCulture, "{0} 小时 {1:00} 分", seconds / 3600, seconds % 3600 / 60);
+    }
+
+    /// <summary>A finished answer's total time beside its clock time: "用时 14 秒"; "用时不到 1 秒" for an instant one.</summary>
+    public static string AnswerDuration(TimeSpan span) => span < TimeSpan.FromSeconds(1) ? "用时不到 1 秒" : "用时 " + Elapsed(span);
 
     public static string VersionNumber(int seq) => string.Format(CultureInfo.CurrentCulture, "第 {0} 版", seq);
 

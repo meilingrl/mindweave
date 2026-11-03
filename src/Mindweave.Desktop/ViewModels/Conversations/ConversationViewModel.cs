@@ -42,6 +42,8 @@ public sealed partial class ConversationViewModel : PageViewModel, IDisposable
     private Core.Workspaces.WorkspaceId _workspace;
     private IReadOnlySet<ConversationId> _related = new HashSet<ConversationId>();
     private bool _disposed;
+    private bool _isShown;
+    private ITimer? _tick;
 
     public ConversationViewModel(ConversationRoute route, PageContext context, IConversations conversations, IReadingState reading, IUiDispatcher dispatcher, IStorageStatus storage, ISummaries? summaries = null, TimeProvider? time = null)
         : base(route)
@@ -196,6 +198,36 @@ public sealed partial class ConversationViewModel : PageViewModel, IDisposable
 
     [ObservableProperty]
     public partial string RenameText { get; set; } = string.Empty;
+
+    /// <summary>
+    /// Whether any answer on this page has branches. Known from the stored data before layout, so the message list's
+    /// room for marks in the margin is right on the first layout and does not reflow after the reading position is restored.
+    /// </summary>
+    [ObservableProperty]
+    public partial bool HasBranches { get; private set; }
+
+    /// <summary>Interval of the running answer's live counter.</summary>
+    internal static readonly TimeSpan ElapsedTick = TimeSpan.FromSeconds(1);
+
+    /// <summary>
+    /// Set by the view while this page is on screen. The running answer's live counter ticks (on the app's clock) only
+    /// while the page is shown and something on it is generating; otherwise no timer exists.
+    /// </summary>
+    public bool IsShown
+    {
+        get => _isShown;
+        set
+        {
+            if (_isShown != value)
+            {
+                _isShown = value;
+                UpdateTicking();
+            }
+        }
+    }
+
+    /// <summary>Whether the live counter's timer is running now; tests check that an idle page has none.</summary>
+    internal bool IsTicking => _tick is not null;
 
     /// <summary>The view reports where the reader is; kept in memory at once, stored shortly after.</summary>
     public void ReportPosition(ReadingPosition position) => _reading.SetPosition(Id, _slot, position);
@@ -451,6 +483,7 @@ public sealed partial class ConversationViewModel : PageViewModel, IDisposable
     public void Dispose()
     {
         _disposed = true;
+        UpdateTicking();
         _conversations.ConversationChanged -= OnConversationChanged;
         _conversations.ModelChanged -= OnModelChanged;
         _storage.Changed -= OnStorageStateChanged;
@@ -633,6 +666,7 @@ public sealed partial class ConversationViewModel : PageViewModel, IDisposable
             }
         }
 
+        HasBranches = Messages.Any(m => m.IsAnswer && m.Branches.Count > 0);
         Volatile.Write(ref _related, lineage.Select(l => l.Conversation.Id).Concat(branches.Select(b => b.Child)).ToHashSet());
         UpdateRunning();
         ContextUsage = await _conversations.GetContextUsageAsync(Id, CancellationToken.None);
@@ -661,6 +695,37 @@ public sealed partial class ConversationViewModel : PageViewModel, IDisposable
         if (last is { IsAnswer: true })
         {
             last.CanRetry = !last.IsInProgress && !IsArchived;
+        }
+
+        UpdateTicking();
+    }
+
+    /// <summary>Starts the one-second tick when a shown page has a running answer, and ends it as soon as either stops.</summary>
+    private void UpdateTicking()
+    {
+        var wanted = _isShown && !_disposed && RunningAnswer is not null;
+        if (wanted && _tick is null)
+        {
+            RefreshElapsed();
+            _tick = _time.CreateTimer(_ => _dispatcher.Post(RefreshElapsed), null, ElapsedTick, ElapsedTick);
+        }
+        else if (!wanted && _tick is not null)
+        {
+            _tick.Dispose();
+            _tick = null;
+        }
+    }
+
+    private void RefreshElapsed()
+    {
+        if (_disposed)
+        {
+            return;
+        }
+
+        foreach (var message in Messages)
+        {
+            message.RefreshElapsed();
         }
     }
 }

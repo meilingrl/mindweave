@@ -32,6 +32,8 @@ public sealed partial class MessageItemViewModel : ViewModelBase, IDisposable
         Id = message.Id;
         Role = message.Role;
         SentAt = message.Role == MessageRole.Assistant ? message.CompletedAt ?? message.CreatedAt : message.CreatedAt;
+        StartedAt = message.CreatedAt;
+        CompletedAt = message.CompletedAt;
         IsRetryAttempt = message.Supersedes is not null;
         Body = message.Text;
         State = message.State;
@@ -68,6 +70,7 @@ public sealed partial class MessageItemViewModel : ViewModelBase, IDisposable
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(StateLabel), nameof(IsInProgress), nameof(IsProblem), nameof(CanBranch), nameof(IsWaiting), nameof(IsStreaming))]
     [NotifyPropertyChangedFor(nameof(ShowsQuietState), nameof(CanRetryQuietly), nameof(CanRetryInNotice), nameof(HasActions), nameof(TimestampText))]
+    [NotifyPropertyChangedFor(nameof(ElapsedText), nameof(DurationText))]
     public partial MessageState State { get; private set; }
 
     [ObservableProperty]
@@ -150,6 +153,35 @@ public sealed partial class MessageItemViewModel : ViewModelBase, IDisposable
 
     /// <summary>A quiet time beside the message: the clock today, the full date otherwise; none while an answer runs.</summary>
     public string? TimestampText => IsInProgress ? null : UiText.MessageTime(SentAt, _time.GetUtcNow());
+
+    /// <summary>When the message was created: for an answer, the moment its question was sent.</summary>
+    public DateTimeOffset StartedAt { get; }
+
+    /// <summary>When the answer ended, as stored; null while it runs and for data written before this was recorded.</summary>
+    public DateTimeOffset? CompletedAt { get; }
+
+    /// <summary>
+    /// A quiet live counter while an answer is pending or streaming ("12 秒"), counted from <see cref="StartedAt"/>.
+    /// The page refreshes it once a second while it is shown (<see cref="RefreshElapsed"/>); null otherwise.
+    /// </summary>
+    public string? ElapsedText => IsAnswer && IsInProgress ? UiText.Elapsed(_time.GetUtcNow() - StartedAt) : null;
+
+    /// <summary>
+    /// A finished answer's total time ("用时 14 秒"), beside its time in the quiet row. Only for an answer that completed
+    /// or was stopped and whose end is recorded; failed, interrupted and older answers show none.
+    /// </summary>
+    public string? DurationText => IsAnswer && State is MessageState.Complete or MessageState.Stopped && CompletedAt is { } end
+        ? UiText.AnswerDuration(end - StartedAt)
+        : null;
+
+    /// <summary>Re-reads the clock for <see cref="ElapsedText"/>; the page calls it on its one-second tick.</summary>
+    public void RefreshElapsed()
+    {
+        if (IsInProgress)
+        {
+            OnPropertyChanged(nameof(ElapsedText));
+        }
+    }
 
     /// <summary>The message's Markdown source can be copied once there is any; a failed or stopped partial answer included.</summary>
     public bool CanCopy => HasBody;

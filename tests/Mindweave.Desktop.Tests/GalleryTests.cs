@@ -704,6 +704,101 @@ public class GalleryTests
         window.Close();
     }
 
+    // ── Round 4 · conversation ─────────────────────────────────────────────────
+
+    [AvaloniaFact]
+    public async Task G35_answer_generating_with_its_live_timer()
+    {
+        await using var scene = Scene.Create("g35");
+        var window = Show(scene.App);
+        var seed = await SeedAsync(scene.App);
+        var page = await OpenConversationAsync(scene.App, window, seed.FirstRailway);
+        var held = scene.App.Client.Hold("吴淞铁路被拆除的原因有好几层：\n\n1. **安全事故**：通车不久就轧死了一名行人，引起民众强烈不满；\n2. **主权问题**：");
+        page.Composer.Text = "它为什么很快就被拆除了？";
+        await page.Composer.SendCommand.ExecuteAsync(null);
+        await held.Started.Task.WaitAsync(TimeSpan.FromSeconds(5));
+        await UiWait.UntilAsync(() => page.Messages.Count == 4 && page.Messages[3].IsStreaming);
+        Time(scene.App).Advance(TimeSpan.FromSeconds(12) - (Time(scene.App).GetUtcNow() - page.Messages[3].StartedAt));
+        // The page's one-second tick shows the moved clock.
+        await UiWait.UntilAsync(() => window.GetVisualDescendants().OfType<Avalonia.Controls.TextBlock>().Any(t => t is { Name: "StreamingElapsed", IsEffectivelyVisible: true, Text: "12 秒" or "13 秒" }), timeoutMs: 3000);
+        Scroller(window).ScrollToEnd();
+        await SettleAsync(window);
+        Capture(window, "g35-answer-generating-timer");
+
+        held.Finish("清政府认为有损主权。");
+        await UiWait.UntilAsync(() => page.Messages[3] is { State: MessageState.Complete, IsLive: false });
+        await SettleAsync(window);
+        Scroller(window).ScrollToEnd();
+        await SettleAsync(window);
+        Capture(window, "g35b-answer-finished-duration");
+        window.Close();
+    }
+
+    [AvaloniaFact]
+    public async Task G36_long_conversation_with_branch_marks_in_the_margin()
+    {
+        await using var scene = Scene.Create("g36");
+        var window = Show(scene.App);
+        await SeedAsync(scene.App);
+        var app = scene.App;
+        var conversations = app.Services.GetRequiredService<ConversationService>();
+        var time = Time(app);
+
+        // One long conversation of five exchanges, each answer taking a while; branches from the first, third and fifth.
+        var held = app.Client.Hold(RootAnswer);
+        var started = await conversations.StartAsync(app.Workbench.CurrentWorkspace!.Id, RootQuestion, CancellationToken.None);
+        await conversations.RenameAsync(started.Conversation, "蒸汽机车的演进", CancellationToken.None);
+        await TakesAsync(held, time, 14, conversations, started.Conversation);
+        foreach (var (question, answer, seconds) in new[]
+        {
+            ("雨山试验具体比了什么？", RainhillAnswer, 9),
+            ("固定蒸汽机拉缆绳是怎样运作的？", CableAnswer, 7),
+            ("为什么偏偏是 1435 毫米？", GaugeAnswer, 11),
+            (HighSpeedQuestion, HighSpeedAnswer, 16),
+        })
+        {
+            held = app.Client.Hold(answer);
+            await conversations.AskAsync(started.Conversation, question, CancellationToken.None);
+            await TakesAsync(held, time, seconds, conversations, started.Conversation);
+        }
+
+        var answers = (await conversations.LoadAsync(started.Conversation, CancellationToken.None))!.Messages.Where(m => m.Role == MessageRole.Assistant).ToList();
+        foreach (var (index, quote) in new[] { (0, "多管锅炉"), (0, "标准轨距"), (2, "缆绳磨损快"), (4, "无砟轨道") })
+        {
+            time.Advance(TimeSpan.FromSeconds(1));
+            var branch = await conversations.CreateBranchAsync(started.Conversation, new BranchSelection(answers[index].Id, 0, quote, "{\"v\":1}", 1, "gallery"), CancellationToken.None);
+            Assert.True(branch.Accepted, branch.Rejection?.ToString());
+        }
+
+        await OpenConversationAsync(app, window, started.Conversation);
+        Scroller(window).ScrollToEnd();
+        await SettleAsync(window);
+        var marks = window.GetVisualDescendants().OfType<BranchMarks>().Single();
+        Assert.Equal(3, marks.Marks.Count);
+        Capture(window, "g36-branch-marks");
+
+        // Clicking the first mark brings the first answer's branch list into view.
+        var mark = marks.Marks[0].Mark;
+        var centre = mark.TranslatePoint(new Avalonia.Point(mark.Bounds.Width / 2, mark.Bounds.Height / 2), window)!.Value;
+        window.MouseMove(centre);
+        window.MouseDown(centre, Avalonia.Input.MouseButton.Left);
+        window.MouseUp(centre, Avalonia.Input.MouseButton.Left);
+        await SettleAsync(window);
+        Capture(window, "g36b-branch-mark-revealed");
+        window.Close();
+    }
+
+    private static GalleryTime Time(DesktopHarness app) => (GalleryTime)app.Services.GetRequiredService<TimeProvider>();
+
+    /// <summary>Lets a held answer run for <paramref name="seconds"/> on the gallery clock, then finish.</summary>
+    private static async Task TakesAsync(Mindweave.Testing.FakeChatClient.HeldReply held, GalleryTime time, int seconds, ConversationService conversations, ConversationId conversation)
+    {
+        await held.Started.Task.WaitAsync(TimeSpan.FromSeconds(5));
+        time.Advance(TimeSpan.FromSeconds(seconds));
+        held.Release.TrySetResult();
+        await FinishedAsync(conversations, conversation);
+    }
+
     // ── Shell: sidebar resize and collapse (S7 round 3) ─────────────────────
 
     [AvaloniaFact]
@@ -1054,8 +1149,12 @@ public class GalleryTests
     private sealed class GalleryTime(DateTimeOffset start) : TimeProvider
     {
         private readonly long _origin = System.GetTimestamp();
+        private long _ahead;
 
-        public override DateTimeOffset GetUtcNow() => start + System.GetElapsedTime(_origin);
+        /// <summary>Moves the clock forward, so a scene can show an answer that took (or is taking) a while.</summary>
+        public void Advance(TimeSpan by) => Interlocked.Add(ref _ahead, by.Ticks);
+
+        public override DateTimeOffset GetUtcNow() => start + System.GetElapsedTime(_origin) + TimeSpan.FromTicks(Interlocked.Read(ref _ahead));
     }
 
     private sealed class GalleryClock(TimeProvider time) : IClock

@@ -191,8 +191,11 @@
                  IsVisible="{Binding ContextUsageText, Converter={x:Static ObjectConverters.IsNotNull}}" />
     </StackPanel>
 
+    <!-- Round 4: marks in the margin for answers with branches sit in a layer over the page, left of the scroll bar. -->
+    <Panel>
     <ScrollViewer Name="Scroller" Classes="autohide" HorizontalScrollBarVisibility="Disabled">
-      <ItemsControl Name="MessageList" ItemsSource="{Binding Messages}" Margin="0,0,12,0">
+      <!-- Right margin (App.axaml, Round 4 · conversation): room for the scroll bar, and for the marks' gutter only on a page with branches. -->
+      <ItemsControl Name="MessageList" Classes="messages" Classes.with-branch-marks="{Binding HasBranches}" ItemsSource="{Binding Messages}">
         <ItemsControl.ItemTemplate>
           <DataTemplate x:DataType="vm:MessageItemViewModel">
             <StackPanel Margin="0,6" Spacing="6">
@@ -214,6 +217,7 @@
                 <StackPanel Orientation="Horizontal" Spacing="8" IsVisible="{Binding IsWaiting}">
                   <ProgressBar Name="WaitingBar" IsIndeterminate="True" Width="60" MinWidth="60" VerticalAlignment="Center" />
                   <TextBlock Classes="caption" Text="{Binding WaitingLabel}" VerticalAlignment="Center" />
+                  <TextBlock Name="WaitingElapsed" Classes="timestamp" Text="{Binding ElapsedText}" VerticalAlignment="Center" />
                 </StackPanel>
                 <!-- Still being written: one small mark at the end of the text, not a bar under every paragraph. -->
                 <StackPanel Name="StreamingIndicator" Orientation="Horizontal" Spacing="4" IsVisible="{Binding IsStreaming}"
@@ -222,6 +226,8 @@
                   <Ellipse Classes="typing" Opacity="0.6" />
                   <Ellipse Classes="typing" Opacity="0.3" />
                   <TextBlock Classes="caption" Text="{x:Static d:UiText.AnswerStreaming}" VerticalAlignment="Center" Margin="4,0,0,0" />
+                  <!-- Round 4: a quiet live counter from the moment the question was sent. -->
+                  <TextBlock Name="StreamingElapsed" Classes="timestamp" Text="{Binding ElapsedText}" VerticalAlignment="Center" Margin="4,0,0,0" />
                 </StackPanel>
                 <TextBlock Classes="caption" Text="{x:Static d:UiText.ContextCompressedNote}" IsVisible="{Binding WasCompressed}" />
                 <!-- A failure: the error and its retry together, in one notice under the answer. -->
@@ -253,6 +259,9 @@
                   <TextBlock Name="StateText" Classes="caption" Text="{Binding StateLabel}" VerticalAlignment="Center" Margin="4,0,0,0"
                              IsVisible="{Binding ShowsQuietState}" />
                   <TextBlock Name="AnswerTime" Classes="timestamp" Text="{Binding TimestampText}" VerticalAlignment="Center" Margin="6,0,0,0" />
+                  <!-- Round 4: how long it took ("09:30 · 用时 14 秒"); none for failed, interrupted or older answers. -->
+                  <TextBlock Name="AnswerDuration" Classes="timestamp" Text="{Binding DurationText, StringFormat='· {0}'}" VerticalAlignment="Center" Margin="1,0,0,0"
+                             IsVisible="{Binding DurationText, Converter={x:Static ObjectConverters.IsNotNull}}" />
                 </StackPanel>
                 <!-- Branches made from this answer: a list that belongs to it, each entry a whole tappable row. -->
                 <Border Name="BranchSection" Classes="card" HorizontalAlignment="Left" MinWidth="340" MaxWidth="640" Padding="4,5,4,3" Margin="0,2,0,0"
@@ -285,5 +294,7 @@
         </ItemsControl.ItemTemplate>
       </ItemsControl>
     </ScrollViewer>
+    <v:BranchMarks Name="BranchMarks" />
+    </Panel>
   </DockPanel>
 </UserControl>
