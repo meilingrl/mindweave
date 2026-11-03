@@ -87,6 +87,12 @@ public class WorkspaceDeleteFlowTests
         var held = h.Client.Hold("半句");
         var running = await h.Conversations.AskAsync(root, "再问一句", Ct);
         await held.Started.Task.WaitAsync(TimeSpan.FromSeconds(5), Ct);
+        // The held text's one checkpoint must land before the snapshot; under load it could fall between the two.
+        var answer = running.Answer!.Value.ToString();
+        while (await h.Database.ReadAsync(c => c.Scalar<long>(null, "SELECT revision FROM message WHERE id = $id;", ("$id", answer)), Ct) == 0)
+        {
+            await Task.Delay(10, Ct);
+        }
 
         // A summary task row queued behind the UI's back.
         await h.Store.AddTaskAsync(
