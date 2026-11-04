@@ -809,6 +809,59 @@ public class GalleryTests
         await FinishedAsync(conversations, conversation);
     }
 
+    // ── Multi-select and deleting with a stated scope (requirements v0.12 §8.2) ─────────────────────────
+
+    /// <summary>
+    /// The sidebar with three conversations selected (one root with its branches, one branch, one lone conversation)
+    /// while the root is open, and the bar at the bottom (g37); the same list in the 选择 mode with its checkboxes (g37a).
+    /// </summary>
+    [AvaloniaFact]
+    public async Task G37_sidebar_selection_and_its_bar()
+    {
+        await using var scene = Scene.Create("g37");
+        var window = Show(scene.App);
+        var seed = await SeedAsync(scene.App, summaries: true);
+        await OpenConversationAsync(scene.App, window, seed.HighSpeed);
+        var list = scene.App.ShellPage.Conversations;
+        foreach (var id in new[] { seed.Root, seed.Cable, seed.FirstRailway })
+        {
+            list.Toggle(list.Items.Single(i => i.Id == id));
+        }
+
+        Assert.Equal(3, list.SelectedCount);
+        await SettleAsync(window);
+        Capture(window, "g37-sidebar-selection-bar");
+
+        list.ClearSelection();
+        list.ToggleSelectionModeCommand.Execute(null);
+        list.OpenCommand.Execute(list.Items.Single(i => i.Id == seed.Gauge));
+        list.OpenCommand.Execute(list.Items.Single(i => i.Id == seed.Wheels));
+        await SettleAsync(window);
+        Capture(window, "g37a-sidebar-selection-mode");
+        window.Close();
+    }
+
+    /// <summary>The confirmation for deleting a selection that takes branches and summaries along: counts, 改为归档, 删除.</summary>
+    [AvaloniaFact]
+    public async Task G37b_cascade_delete_confirmation_with_counts()
+    {
+        await using var scene = Scene.Create("g37b");
+        var window = Show(scene.App);
+        var seed = await SeedAsync(scene.App, summaries: true);
+        await OpenConversationAsync(scene.App, window, seed.Root);
+        var list = scene.App.ShellPage.Conversations;
+        list.Toggle(list.Items.Single(i => i.Id == seed.Root));
+        list.Toggle(list.Items.Single(i => i.Id == seed.Rainhill));
+        list.Toggle(list.Items.Single(i => i.Id == seed.HighSpeed));
+        list.DeleteSelectedCommand.Execute(null);
+        var dialog = scene.App.Root.ConversationDeletion;
+        await dialog.Loading;
+        Assert.True(dialog.IsCascade);
+        await SettleAsync(window);
+        Capture(window, "g37b-cascade-delete-confirm");
+        window.Close();
+    }
+
     // ── Shell: sidebar resize and collapse (S7 round 3) ─────────────────────
 
     [AvaloniaFact]

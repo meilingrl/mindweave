@@ -1,6 +1,7 @@
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Input;
+using Avalonia.VisualTree;
 using Mindweave.Application.Preferences;
 using Mindweave.Desktop.ViewModels;
 
@@ -22,6 +23,54 @@ public sealed partial class ShellView : UserControl
         SidebarSplitter.PointerMoved += OnSplitterMoved;
         SidebarSplitter.PointerReleased += OnSplitterReleased;
         SidebarSplitter.PointerCaptureLost += (_, _) => EndDrag();
+
+        // Multi-select (requirements v0.12 §8.2): a modified click on a row is taken before the row's button sees it,
+        // so it selects instead of opening. Esc is listened for on the window (see OnAttachedToVisualTree).
+        ConversationList.AddHandler(PointerPressedEvent, OnRowPressed, Avalonia.Interactivity.RoutingStrategies.Tunnel);
+    }
+
+    /// <summary>The modifier that adds a row to the selection: Cmd on macOS (where Ctrl click is a right click), Ctrl elsewhere.</summary>
+    internal static KeyModifiers ToggleModifier => OperatingSystem.IsMacOS() ? KeyModifiers.Meta : KeyModifiers.Control;
+
+    private void OnRowPressed(object? sender, PointerPressedEventArgs e)
+    {
+        if (ViewModel?.Conversations is not { } list
+            || !e.GetCurrentPoint(this).Properties.IsLeftButtonPressed
+            || (e.Source as StyledElement)?.DataContext is not ViewModels.Conversations.ConversationItemViewModel item)
+        {
+            return;
+        }
+
+        if (e.KeyModifiers.HasFlag(KeyModifiers.Shift))
+        {
+            list.SelectRange(item);
+            e.Handled = true;
+        }
+        else if (e.KeyModifiers.HasFlag(ToggleModifier))
+        {
+            list.Toggle(item);
+            e.Handled = true;
+        }
+    }
+
+    /// <summary>
+    /// Esc clears the sidebar's selection wherever the focus is in the shell, or when nothing has it (a Ctrl/Cmd click
+    /// does not move the focus). Focus in a window dialog (the delete confirmation) leaves Esc to that dialog's 取消.
+    /// </summary>
+    private void OnWindowKeyDown(object? sender, KeyEventArgs e)
+    {
+        if (e.Key != Key.Escape || e.KeyModifiers != KeyModifiers.None || !IsEffectivelyVisible
+            || ViewModel?.Conversations is not { ShowsSelectionBar: true } list)
+        {
+            return;
+        }
+
+        var focused = TopLevel.GetTopLevel(this)?.FocusManager?.GetFocusedElement() as Visual;
+        if (focused is null || ReferenceEquals(focused, TopLevel.GetTopLevel(this)) || this.IsVisualAncestorOf(focused))
+        {
+            list.ClearSelection();
+            e.Handled = true;
+        }
     }
 
     private ShellViewModel? ViewModel => DataContext as ShellViewModel;
@@ -54,6 +103,7 @@ public sealed partial class ShellView : UserControl
                 Command = new ToggleSidebar(this),
             };
             top.KeyBindings.Add(_toggleSidebar);
+            top.AddHandler(KeyDownEvent, OnWindowKeyDown, Avalonia.Interactivity.RoutingStrategies.Bubble);
         }
     }
 
@@ -62,6 +112,7 @@ public sealed partial class ShellView : UserControl
         if (_toggleSidebar is not null && TopLevel.GetTopLevel(this) is { } top)
         {
             top.KeyBindings.Remove(_toggleSidebar);
+            top.RemoveHandler(KeyDownEvent, OnWindowKeyDown);
         }
 
         _toggleSidebar = null;

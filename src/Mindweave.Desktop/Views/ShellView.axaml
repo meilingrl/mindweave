@@ -72,8 +72,15 @@
               <TextBlock Text="{x:Static d:UiText.SectionNetwork}" VerticalAlignment="Center" />
             </StackPanel>
           </Button>
-          <TextBlock Classes="caption" Text="{x:Static d:UiText.ConversationsHeading}" Margin="10,14,0,2"
-                     IsVisible="{Binding Conversations.Items.Count, Converter={x:Static d:Converters.IsPositive}}" />
+          <!-- The 会话 caption carries the 选择 entry (multi-select for touch and discoverability; Ctrl/Cmd and Shift click work without it). -->
+          <DockPanel Margin="10,14,0,2" IsVisible="{Binding Conversations.Items.Count, Converter={x:Static d:Converters.IsPositive}}">
+            <ToggleButton Name="SelectConversationsButton" DockPanel.Dock="Right" Classes="quiet select-toggle"
+                          IsChecked="{Binding Conversations.IsSelecting, Mode=OneWay}" Command="{Binding Conversations.ToggleSelectionModeCommand}"
+                          ToolTip.Tip="{x:Static d:UiText.SelectConversations}" AutomationProperties.Name="{x:Static d:UiText.SelectConversations}">
+              <PathIcon Data="{StaticResource IconSelect}" />
+            </ToggleButton>
+            <TextBlock Classes="caption" Text="{x:Static d:UiText.ConversationsHeading}" VerticalAlignment="Center" />
+          </DockPanel>
         </StackPanel>
         <Button Name="NavSettings" DockPanel.Dock="Bottom" Classes="nav" Classes.selected="{Binding IsSettings}" AutomationProperties.Name="{x:Static d:UiText.SectionSettings}"
                 Command="{Binding ShowSectionCommand}" CommandParameter="{x:Static nav:MainSection.Settings}" VerticalAlignment="Bottom">
@@ -91,17 +98,50 @@
             <TextBlock Text="{Binding Conversations.ArchivedLabel}" VerticalAlignment="Center" />
           </StackPanel>
         </Button>
+        <!-- While rows are selected (or in the 选择 mode): the count, then archive and delete, and a way out. -->
+        <StackPanel DockPanel.Dock="Bottom" Spacing="6" Margin="0,4,0,4" IsVisible="{Binding Conversations.ShowsSelectionBar}">
+          <TextBlock Name="SelectionNotice" Classes="error" Text="{Binding Conversations.SelectionNotice}" TextWrapping="Wrap" Margin="4,0"
+                     IsVisible="{Binding Conversations.SelectionNotice, Converter={x:Static ObjectConverters.IsNotNull}}" />
+          <Border Name="SelectionBar" Classes="selection-bar">
+            <DockPanel>
+              <Button Name="ClearSelectionButton" DockPanel.Dock="Right" Classes="quiet bar-icon" Command="{Binding Conversations.ClearSelectionCommand}"
+                      ToolTip.Tip="{x:Static d:UiText.ClearSelection}" AutomationProperties.Name="{x:Static d:UiText.ClearSelection}">
+                <PathIcon Data="{StaticResource IconClose}" />
+              </Button>
+              <Button Name="DeleteSelectedButton" DockPanel.Dock="Right" Classes="quiet small danger" Command="{Binding Conversations.DeleteSelectedCommand}"
+                      AutomationProperties.Name="{x:Static d:UiText.Delete}">
+                <StackPanel Orientation="Horizontal" Spacing="4">
+                  <PathIcon Data="{StaticResource IconDelete}" />
+                  <TextBlock Text="{x:Static d:UiText.Delete}" VerticalAlignment="Center" />
+                </StackPanel>
+              </Button>
+              <Button Name="ArchiveSelectedButton" DockPanel.Dock="Right" Classes="quiet small" Command="{Binding Conversations.ArchiveSelectedCommand}"
+                      AutomationProperties.Name="{x:Static d:UiText.Archive}">
+                <StackPanel Orientation="Horizontal" Spacing="4">
+                  <PathIcon Data="{StaticResource IconArchive}" />
+                  <TextBlock Text="{x:Static d:UiText.Archive}" VerticalAlignment="Center" />
+                </StackPanel>
+              </Button>
+              <TextBlock Name="SelectionCount" Classes="selection-count" Text="{Binding Conversations.SelectionLabel}" />
+            </DockPanel>
+          </Border>
+        </StackPanel>
         <ScrollViewer Classes="autohide" Margin="0,0,0,4" HorizontalScrollBarVisibility="Disabled">
           <ItemsControl Name="ConversationList" ItemsSource="{Binding Conversations.Items}">
             <ItemsControl.ItemTemplate>
               <DataTemplate x:DataType="cv:ConversationItemViewModel">
-                <Button Classes="nav" Classes.selected="{Binding IsSelected}" Margin="{Binding Depth, Converter={x:Static v:TreeIndent.Margin}}" Padding="10,5" HorizontalContentAlignment="Stretch"
+                <Button Classes="nav" Classes.selected="{Binding IsSelected}" Classes.checked="{Binding IsChecked}" Margin="{Binding Depth, Converter={x:Static v:TreeIndent.Margin}}" Padding="10,5" HorizontalContentAlignment="Stretch"
                         AutomationProperties.HelpText="{Binding MarkerHint}"
                         Command="{Binding $parent[ItemsControl].((vm:ShellViewModel)DataContext).Conversations.OpenCommand}" CommandParameter="{Binding}">
                   <DockPanel>
                     <!-- A branch: a small corner glyph from its parent's column, so the hierarchy reads at a glance. -->
                     <PathIcon Width="9" Height="9" Margin="-4,0,5,3" Foreground="{DynamicResource TreeGuide}" Data="{StaticResource IconTreeBranch}"
                               IsVisible="{Binding IsBranch}" VerticalAlignment="Center" />
+                    <!-- Only in the 选择 mode: after the branch glyph, a drawn box (the row itself takes the click), so the row holds no second button. -->
+                    <Border Name="RowCheck" Classes="row-check" Classes.checked="{Binding IsChecked}"
+                            IsVisible="{Binding $parent[ItemsControl].((vm:ShellViewModel)DataContext).Conversations.IsSelecting}">
+                      <PathIcon Data="{StaticResource IconCheck}" IsVisible="{Binding IsChecked}" />
+                    </Border>
                     <!-- Light markers (§6.1), one at a time: running as a small accent spinner, needs attention as a small
                          round "!", a new answer as an accent dot. The column keeps its width without one, so titles never shift. -->
                     <Panel Name="RowMarker" Classes="row-marker" DockPanel.Dock="Right" Background="Transparent"
