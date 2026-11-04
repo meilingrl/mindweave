@@ -24,8 +24,17 @@ public class StorageHealthTests
         Assert.False(h.Health.IsBlocked);
         Assert.Equal("答：问", h.Conversations.Observe(sent.Answer!.Value)!.Snapshot().Text);
 
-        // The exit's save reports it unsaved while it keeps failing, and saves it once it works.
-        Assert.False(await h.Generation.SaveUnsavedAsync());
+        // The exit's save reports it unsaved while it keeps failing, and saves it once it works. The answer shows Complete
+        // just before its terminal write is tried and kept, so the first save can come before there is anything to save:
+        // poll until the kept write is reported (a write that was never kept would time out here).
+        var deadline = DateTime.UtcNow.AddSeconds(10);
+        while (await h.Generation.SaveUnsavedAsync())
+        {
+            Assert.True(DateTime.UtcNow < deadline, "the failed terminal write was never kept as unsaved");
+            await Task.Delay(10, Ct);
+        }
+
+        Assert.False(h.Health.IsBlocked);
         flaky.FailFinishes = 0;
         Assert.True(await h.Generation.SaveUnsavedAsync());
         Assert.Equal("答：问", (await h.GetMessageAsync(sent.Answer!.Value))!.Text);

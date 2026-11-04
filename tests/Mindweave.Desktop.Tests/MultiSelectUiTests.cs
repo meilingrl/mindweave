@@ -309,6 +309,9 @@ public class MultiSelectUiTests
         var before = dialog.Scope!.Conversations.Count;
         await NetworkUiTests.BranchAsync(app, conversations, root, "又一个分支");
         await UiWait.UntilAsync(() => dialog.Scope!.Conversations.Count == before + 1);
+        // The branch's own answer runs for a moment, and the dialog recounts on a throttle: wait until the recount after
+        // it ended has replaced the running-work notice with the change notice.
+        await UiWait.UntilAsync(() => dialog.Problem == UiText.ConversationDeleteScopeChanged);
         Assert.Equal(UiText.ConversationDeleteContents(5, 4, 3), dialog.Contents);
         Assert.Equal(UiText.ConversationDeleteScopeChanged, dialog.Problem);
         window.UpdateLayout();
@@ -320,7 +323,7 @@ public class MultiSelectUiTests
         Dispatcher.UIThread.RunJobs();
         Assert.False(dialog.IsOpen);
         Assert.Equal([root], Selected(app.ShellPage.Conversations));
-        Assert.Equal(5, app.ShellPage.Conversations.Items.Count);
+        await UiWait.UntilAsync(() => app.ShellPage.Conversations.Items.Count == 5);
         window.Close();
     }
 
