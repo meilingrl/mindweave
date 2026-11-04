@@ -33,7 +33,7 @@ public class ConversationUiTests
 
         var page = Assert.IsType<ConversationViewModel>(app.Workbench.CurrentPage);
         await page.Loaded;
-        await UiWait.UntilAsync(() => page.Messages.Count == 2 && page.Messages[1].State == MessageState.Complete);
+        await UiWait.StoredAsync(page, 1, MessageState.Complete);
         Assert.Equal("答：蒸汽机是谁发明的？", page.Messages[1].Body);
         Assert.True(page.Messages[1].CanRetry);
         Assert.Equal(UiText.Regenerate, page.Messages[1].RetryLabel);
@@ -130,7 +130,7 @@ public class ConversationUiTests
         Assert.Equal(UiText.Retry, answer.RetryLabel);
 
         await page.RetryCommand.ExecuteAsync(answer);
-        await UiWait.UntilAsync(() => page.Messages.Count == 3 && page.Messages[2].State == MessageState.Complete);
+        await UiWait.StoredAsync(page, 2, MessageState.Complete);
         Assert.True(page.Messages[1].IsSuperseded);
         Assert.False(page.Messages[1].CanRetry);
         Assert.True(page.Messages[2].CanRetry);

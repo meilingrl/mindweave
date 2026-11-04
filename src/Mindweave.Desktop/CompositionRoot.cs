@@ -66,7 +66,8 @@ public static class CompositionRoot
 
         // View models depend on these interfaces, not the concrete services (course requirement C3); each resolves to the
         // one singleton above, so a page and the rest of the application share state.
-        services.AddSingleton<IConversations>(sp => sp.GetRequiredService<ConversationService>());
+        // A test may wrap the conversations interface (to hold a page reload); the application registers nothing else.
+        services.TryAddSingleton<IConversations>(sp => sp.GetRequiredService<ConversationService>());
         services.AddSingleton<IConversationMarks>(sp => sp.GetRequiredService<ConversationMarksService>());
         services.AddSingleton<IGenerationExit>(sp => sp.GetRequiredService<GenerationCoordinator>());
         services.AddSingleton<Application.Summaries.ISummaries>(sp => sp.GetRequiredService<Application.Summaries.SummaryService>());

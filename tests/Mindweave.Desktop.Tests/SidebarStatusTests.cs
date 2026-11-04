@@ -606,14 +606,7 @@ public class SidebarStatusTests
         where T : Control =>
         window.GetVisualDescendants().OfType<ShellView>().Single().GetVisualDescendants().OfType<T>().Single(c => c.Name == name);
 
-    private static void Click(Window window, Control control)
-    {
-        window.UpdateLayout();
-        var centre = control.TranslatePoint(new Point(control.Bounds.Width / 2, control.Bounds.Height / 2), window)!.Value;
-        window.MouseDown(centre, MouseButton.Left);
-        window.MouseUp(centre, MouseButton.Left);
-        window.UpdateLayout();
-    }
+    private static void Click(Window window, Control control) => UiInput.Click(window, control);
 
     private static MainWindow Open(DesktopHarness app)
     {

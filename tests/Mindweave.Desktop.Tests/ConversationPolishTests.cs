@@ -53,7 +53,7 @@ public class ConversationPolishTests
 
         Click(window, stop);
 
-        await UiWait.UntilAsync(() => page.Messages[1].State == MessageState.Stopped);
+        await UiWait.StoredAsync(page, 1, MessageState.Stopped);
         window.UpdateLayout();
         Assert.Equal("半句", page.Messages[1].Body);
         Assert.False(stop.IsEffectivelyVisible);
@@ -67,7 +67,7 @@ public class ConversationPolishTests
         Assert.DoesNotContain(view.GetVisualDescendants().OfType<Border>(), b => b.Name == "ErrorNotice" && b.IsEffectivelyVisible);
         app.Client.Reply("完整的回答。");
         Click(window, retry);
-        await UiWait.UntilAsync(() => page.Messages.Count == 3 && page.Messages[2].State == MessageState.Complete);
+        await UiWait.StoredAsync(page, 2, MessageState.Complete);
         window.Close();
     }
 
@@ -102,7 +102,7 @@ public class ConversationPolishTests
 
         app.Client.Reply("完整的回答。");
         Click(window, retry);
-        await UiWait.UntilAsync(() => page.Messages.Count == 3 && page.Messages[2].State == MessageState.Complete);
+        await UiWait.StoredAsync(page, 2, MessageState.Complete);
         Assert.True(page.Messages[1].IsSuperseded);
         window.UpdateLayout();
         Assert.DoesNotContain(view.GetVisualDescendants().OfType<Button>(), b => b.Name == "ErrorRetryButton" && b.IsEffectivelyVisible);
@@ -418,15 +418,7 @@ public class ConversationPolishTests
     }
 
     /// <summary>A real pointer click at the button's centre, so the button is where the reader would click it.</summary>
-    private static void Click(Window window, Button button)
-    {
-        button.BringIntoView();
-        window.UpdateLayout();
-        var centre = button.TranslatePoint(new Point(button.Bounds.Width / 2, button.Bounds.Height / 2), window)!.Value;
-        window.MouseDown(centre, MouseButton.Left);
-        window.MouseUp(centre, MouseButton.Left);
-        window.UpdateLayout();
-    }
+    private static void Click(Window window, Button button) => UiInput.Click(window, button);
 
     private static MainWindow Open(DesktopHarness app)
     {

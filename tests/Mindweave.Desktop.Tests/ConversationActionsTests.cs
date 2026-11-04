@@ -287,7 +287,7 @@ public partial class ConversationActionsTests
         Assert.DoesNotContain(view.GetVisualDescendants().OfType<CopyButton>(), b => b.Name == "AnswerCopy" && b.IsEffectivelyVisible);
 
         page.StopCommand.Execute(null);
-        await UiWait.UntilAsync(() => page.Messages[1].State == MessageState.Stopped);
+        await UiWait.StoredAsync(page, 1, MessageState.Stopped);
         window.UpdateLayout();
         var copy = VisibleNamed<CopyButton>(view, "AnswerCopy");
         Assert.True(copy.IsEffectivelyEnabled);
@@ -298,7 +298,7 @@ public partial class ConversationActionsTests
         // A failure before any text: the row is there (with its time), copy is disabled.
         app.Client.Fail(GenerationErrorKind.Network, "connection reset");
         await page.RetryCommand.ExecuteAsync(page.Messages[1]);
-        await UiWait.UntilAsync(() => page.Messages.Count == 3 && page.Messages[2].State == MessageState.Failed);
+        await UiWait.StoredAsync(page, 2, MessageState.Failed);
         window.UpdateLayout();
         Assert.False(page.Messages[2].CanCopy);
         var failedCopy = view.GetVisualDescendants().OfType<CopyButton>().Last(b => b.Name == "AnswerCopy" && b.IsEffectivelyVisible);
@@ -508,15 +508,7 @@ public partial class ConversationActionsTests
     }
 
     /// <summary>A real pointer click at the button's centre.</summary>
-    private static void Click(Window window, Button button)
-    {
-        button.BringIntoView();
-        window.UpdateLayout();
-        var centre = button.TranslatePoint(new Point(button.Bounds.Width / 2, button.Bounds.Height / 2), window)!.Value;
-        window.MouseDown(centre, MouseButton.Left);
-        window.MouseUp(centre, MouseButton.Left);
-        window.UpdateLayout();
-    }
+    private static void Click(Window window, Button button) => UiInput.Click(window, button);
 
     private static MainWindow Open(DesktopHarness app, double height = 700)
     {
