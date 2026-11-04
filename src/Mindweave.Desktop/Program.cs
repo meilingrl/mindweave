@@ -36,8 +36,9 @@ internal static class Program
         AppDomain.CurrentDomain.UnhandledException += (_, e) => LogCrash(logger, e.ExceptionObject as Exception);
         TaskScheduler.UnobservedTaskException += (_, e) => LogCrash(logger, e.Exception);
 
+        // The host releases (and closes the database) only after the UI loop has ended; see AppHost.Run.
         var host = new AppHost(instance, services);
-        return BuildAvaloniaApp(host).StartWithClassicDesktopLifetime(args);
+        return host.Run(() => BuildAvaloniaApp(host).StartWithClassicDesktopLifetime(args));
     }
 
     /// <summary>Used by the Avalonia previewer; the real entry point passes a host.</summary>

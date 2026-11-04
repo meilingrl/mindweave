@@ -13,13 +13,31 @@ internal sealed class AppHost(SingleInstance instance, ServiceProvider services)
     public ServiceProvider Services { get; } = services;
 
     /// <summary>
+    /// Runs the desktop lifetime's loop (<paramref name="runUiLoop"/>), then releases everything. The database closes only
+    /// once that loop has returned: by then Avalonia's dispatcher has shut down, so queued UI work was dropped and new posts
+    /// are refused, and no page refresh can reach a closed database. Closing it in the lifetime's <c>Exit</c> event was too
+    /// early: on macOS the loop still ran one queued UI job after that event in about half of the exits (2026-11-05).
+    /// </summary>
+    /// <remarks>
+    /// Released on a pool thread: the UI thread's synchronization context may still be installed, and a continuation
+    /// posted to the stopped dispatcher would never run.
+    /// </remarks>
+    public int Run(Func<int> runUiLoop)
+    {
+        ArgumentNullException.ThrowIfNull(runUiLoop);
+        var code = runUiLoop();
+        Task.Run(async () => await DisposeAsync().ConfigureAwait(false)).GetAwaiter().GetResult();
+        return code;
+    }
+
+    /// <summary>
     /// Last resort after the exit coordinator (architecture §12.3 step 6): stops generation, stops storage recovery, and
     /// flushes kept writes and page state again (all idempotent, normally nothing is left), then closes the database. The single-instance
     /// lock is released whatever fails before it.
     /// </summary>
     /// <remarks>
-    /// Runs on the UI thread with the window already gone. When the coordinator has stopped generation (it is
-    /// releasing) a task still running has already had its bounded wait, so this one does not wait for it again.
+    /// Runs after the UI loop has ended (see <see cref="Run"/>), with the window gone. When the coordinator has stopped
+    /// generation (it is releasing) a task still running has already had its bounded wait, so this one does not wait for it again.
     /// </remarks>
     public async ValueTask DisposeAsync()
     {
