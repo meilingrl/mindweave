@@ -117,10 +117,16 @@ public class MultiSelectUiTests
         Assert.Equal(rowWidths, Rows(window).Select(r => r.Bounds.Width));
 
         // The boxes sit at the right edge, one column for every depth (root and branch alike), right of the marker column.
-        var boxEdges = Checks(window).Select(c => c.TranslatePoint(new Point(c.Bounds.Width, 0), window)!.Value.X).ToList();
-        Assert.True(boxEdges.Max() - boxEdges.Min() < 0.5, string.Join(" ", boxEdges));
+        // Measured in layout terms (the row's place plus the box's place inside it): a clicked row's Fluent press scale
+        // eases back over a few frames, and a render-space measurement taken during it is off by up to a pixel or two.
+        var boxEdges = Checks(window).Select(c =>
+        {
+            var row = c.FindAncestorOfType<Button>()!;
+            return row.Bounds.X + c.TranslatePoint(new Point(c.Bounds.Width, 0), row)!.Value.X;
+        }).ToList();
+        Assert.True(boxEdges.Max() - boxEdges.Min() < 0.01, string.Join(" ", boxEdges));
         var marker = Row(window, middle).GetVisualDescendants().OfType<Panel>().Single(p => p.Name == "RowMarker");
-        Assert.True(marker.TranslatePoint(default, window)!.Value.X < Find<Border>(Row(window, middle), "RowCheck").TranslatePoint(default, window)!.Value.X);
+        Assert.True(marker.TranslatePoint(default, Row(window, middle))!.Value.X < Find<Border>(Row(window, middle), "RowCheck").TranslatePoint(default, Row(window, middle))!.Value.X);
 
         var clear = Find<Button>(window, "ClearSelectionButton");
         Assert.Equal(UiText.ClearSelection, AutomationProperties.GetName(clear));
@@ -210,7 +216,7 @@ public class MultiSelectUiTests
         Click(window, Find<Button>(window, "ConversationDeleteArchive"));
         await dialog.Running;
         Assert.False(dialog.IsOpen);
-        Assert.Empty(Selected(list));
+        await UiWait.UntilAsync(() => Selected(list).Count == 0);
         await UiWait.UntilAsync(() => list.Items.Count == 1 && list.ArchivedCount == 2);
         var conversations = app.Services.GetRequiredService<ConversationService>();
         Assert.Equal(new HashSet<ConversationId> { middle, sibling }, (await conversations.ArchivedAmongAsync([root, middle, sibling], CancellationToken.None)).ToHashSet());
@@ -218,6 +224,7 @@ public class MultiSelectUiTests
         // A lone conversation without branches or summary: the same dialog, the plain sentence, and no backup.
         var lone = await NetworkUiTests.AskAsync(app, conversations, null, app.Workbench.CurrentWorkspace!.Id, "单独的问题");
         await UiWait.UntilAsync(() => list.Items.Count == 2);
+        await UiWait.UntilAsync(() => list.Items.Single(i => i.Id == lone).Title == Mindweave.Testing.FakeChatClient.DefaultTitle);
         ClickRow(window, lone, Toggle);
         Click(window, Find<Button>(window, "DeleteSelectedButton"));
         await dialog.Loading;
@@ -423,6 +430,8 @@ public class MultiSelectUiTests
         var list = app.ShellPage.Conversations;
         var conversations = app.Services.GetRequiredService<ConversationService>();
         var lone = await NetworkUiTests.AskAsync(app, conversations, null, app.Workbench.CurrentWorkspace!.Id, "单独的问题");
+        // The background title lands at its own time; the refusal names the conversation, so let it land first.
+        await UiWait.UntilAsync(() => list.Items.Any(i => i.Id == lone && i.Title == Mindweave.Testing.FakeChatClient.DefaultTitle));
         app.Workbench.Navigate(new NavigationRequest(MainSection.Explore, new ConversationRoute(lone)));
         var page = Assert.IsType<ConversationViewModel>(app.Workbench.CurrentPage);
         await page.Loaded;
