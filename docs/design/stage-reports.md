@@ -6,7 +6,7 @@
 
 依据你 2026-11-04 的决定：删除改为“先说清范围再删”（`main` 需求 v0.12，bf4b549），批量删除“一次确认全部删除”，多选只在侧栏列表。设计与实现记录见 [s7-ui-polish.md](s7-ui-polish.md)“实现记录（多选与连带删除）”。
 
-**怎样体验**：Windows 试用版待 SSH 恢复后发布到 `E:\mindweave-claude-auto\app-del\`（`app-s7r4` 保留）；Mac 上 `MINDWEAVE_DATA_DIR=/tmp/mw-try dotnet run --project src/Mindweave.Desktop`。数据库仍是 v8，不需要迁移。
+**怎样体验**：Windows `E:\mindweave-claude-auto\app-del\Mindweave.exe`（`app-s7r4` 保留）；Mac 上 `MINDWEAVE_DATA_DIR=/tmp/mw-try dotnet run --project src/Mindweave.Desktop`。数据库仍是 v8，不需要迁移。
 
 - **删除带分支或总结的会话**：会话页或已归档页点“删除”，弹出对话框写明会删多少会话（含几个分支）和总结，可选“改为归档”“删除”“取消”（默认）。先自动备份（数据与存储页标为“删除会话前”），备份失败就不删。只有其中有回答或总结在生成或排队时拒绝，结束后自动解除。没有分支和总结的会话仍是原来的就地确认，不备份。
 - **侧栏多选**：Ctrl 点击（Mac 上 Cmd）加入或移出一行，Shift 点击选一段，Esc 清除；普通点击照常打开。“会话”标题旁的选择按钮打开复选框，不用键盘也能选。有选择时底部出现“已选 N · 归档 · 删除 · ×”。删除对所选的并集只确认一次、只备份一次、一个事务完成。
@@ -23,7 +23,7 @@
 | 中途被杀 | 连带删除在 COMMIT 前杀进程（56 行改动），重开后每行不变，再删成功 | 通过 |
 | 多选交互 | 界面测试用真实指针与按键：Cmd／Ctrl、Shift、Esc、选择模式、条上的归档与删除、对话框数量与焦点、范围变化提示、切换工作区清空 | 通过 |
 | 全量（macOS） | `dotnet test`：626 通过、55 跳过、0 失败，0 警告；截图库两种主题各 39 个场景 | 通过 |
-| 全量（Windows 实机） | 未跑：SSH 连不上笔记本（Tailscale 能 ping 通但只经中继，SSH 超时），连上后补跑 | 待补 |
+| 全量（Windows 实机） | `scripts/windows.sh test`（SSH 一度超时，重试后连上）：631 通过、50 跳过、0 失败；这次没有出现界面测试超时 | 通过 |
 
 **还没验证 / 未做**：
 
