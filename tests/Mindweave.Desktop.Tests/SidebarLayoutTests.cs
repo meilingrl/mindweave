@@ -229,14 +229,7 @@ public class SidebarLayoutTests
         window.UpdateLayout();
     }
 
-    private static void Click(Window window, Button button)
-    {
-        window.UpdateLayout();
-        var centre = button.TranslatePoint(new Point(button.Bounds.Width / 2, button.Bounds.Height / 2), window)!.Value;
-        window.MouseDown(centre, MouseButton.Left);
-        window.MouseUp(centre, MouseButton.Left);
-        window.UpdateLayout();
-    }
+    private static void Click(Window window, Button button) => UiInput.Click(window, button);
 
     private static MainWindow Open(DesktopHarness app)
     {

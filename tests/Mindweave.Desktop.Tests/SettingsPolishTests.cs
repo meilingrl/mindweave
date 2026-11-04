@@ -456,15 +456,7 @@ public class SettingsPolishTests
     private static Color Colour(Visual control, string key) =>
         Assert.IsAssignableFrom<ISolidColorBrush>(((StyledElement)control).FindResource(((Control)control).ActualThemeVariant, key)).Color;
 
-    private static void Click(Window window, Control control)
-    {
-        control.BringIntoView();
-        window.UpdateLayout();
-        var centre = control.TranslatePoint(new Point(control.Bounds.Width / 2, control.Bounds.Height / 2), window)!.Value;
-        window.MouseDown(centre, MouseButton.Left);
-        window.MouseUp(centre, MouseButton.Left);
-        window.UpdateLayout();
-    }
+    private static void Click(Window window, Control control) => UiInput.Click(window, control);
 
     private static T Find<T>(Visual root, string name)
         where T : Control =>
