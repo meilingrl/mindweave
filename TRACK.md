@@ -18,7 +18,7 @@ Claude 自主开发，目的是比稳健轨更早走到关键阶段，提前暴�
 
 ## 当前状态
 
-- 阶段：**需求 v0.12 删除规则 · 已合并，等你看截图**（2026-11-04：会话连带删除，先说清范围、先备份；侧栏多选归档／删除，一次确认；见阶段报告与 [s7-ui-polish.md](docs/design/s7-ui-polish.md)“实现记录（多选与连带删除）”）。此前 **S7 界面打磨 · 已完成**（第 4 轮你 2026-11-04 看截图确认；2026-11-03 合并，你 Windows 验收的 5 条意见，D-024；设计见 [s7-ui-polish.md](docs/design/s7-ui-polish.md)，D-022–D-024）。S0–S7 已完成。Windows 试用版：`E:\mindweave-claude-auto\app-s7r4\Mindweave.exe`（上一版 `app-s7` 保留）。
+- 阶段：**需求 v0.12 删除规则 · 已合并，等你看截图**（2026-11-04：会话连带删除，先说清范围、先备份；侧栏多选归档／删除，一次确认；见阶段报告与 [s7-ui-polish.md](docs/design/s7-ui-polish.md)“实现记录（多选与连带删除）”）。此前 **S7 界面打磨 · 已完成**（第 4 轮你 2026-11-04 看截图确认；2026-11-03 合并，你 Windows 验收的 5 条意见，D-024；设计见 [s7-ui-polish.md](docs/design/s7-ui-polish.md)，D-022–D-024）。S0–S7 已完成。Windows 试用版：`E:\mindweave-claude-auto\app-del\Mindweave.exe`（`app-s7r4`、`app-s7` 保留）。
 - 架构整改 A1–A6 已合并（2026-11-01，a8ad9b6；依据 [审查与方案](docs/reviews/claude-auto-architecture-20261101/README.md)，见下方“发现”）：存储健康独立、总结编辑草稿归应用层、列表与网络不读总结正文、页面经接口取得应用服务。未改迁移（仍为 v8）。
 - 测试：macOS 626 通过、55 跳过，0 警告（删除规则合并后；截图库两种主题各 39 个场景；Windows 实机 631 通过、50 跳过、0 失败）。S7 第 4 轮时：macOS 600 通过、53 跳过（跳过的需显式开启、仅限 Windows 或为截图库）；截图库两种主题各 37 个场景（macOS）。Windows 实机（71c543b）三次全量：一次全部通过（605 通过、48 跳过），两次各有 1 个界面测试超时，每次不是同一个，单独重跑都通过（见“发现”）。真实服务 7/7（S5 时）。迁移到 v8。
 - 演进接缝 E1–E4、E6 已落地（E2–E4、E6 为迁移 v3，E1 随 S2 迁移 v4），E5 只有规格。详见 [演进接缝](docs/design/evolution-seams.md)。
@@ -39,7 +39,7 @@ Claude 自主开发，目的是比稳健轨更早走到关键阶段，提前暴�
 
 | 事项 | 原因 | 阻塞什么 | 在此之前我做什么 |
 | --- | --- | --- | --- |
-| （可选，不阻塞）在 Windows 桌面上试用 `E:\mindweave-claude-auto\app-s7r4\Mindweave.exe`；想逐项核对时用 [验收清单](docs/design/s6-windows-checklist.md) | 系统保存对话框、凭据管理器、中文输入法、二次启动激活、真实退出路径、DPI 缩放只能在桌面会话里验证；实机自动测试与截图已通过 | 不阻塞（S7 已完成） | 按你定的下一步继续 |
+| （可选，不阻塞）在 Windows 桌面上试用 `E:\mindweave-claude-auto\app-del\Mindweave.exe`；想逐项核对时用 [验收清单](docs/design/s6-windows-checklist.md) | 系统保存对话框、凭据管理器、中文输入法、二次启动激活、真实退出路径、DPI 缩放只能在桌面会话里验证；实机自动测试与截图已通过 | 不阻塞（S7 已完成） | 按你定的下一步继续 |
 
 Windows 实机：`scripts/windows.sh test|publish|sync|exec`（主机 `win-home`，经本机用户态 Tailscale 实例 A 的 SOCKS `127.0.0.1:7898`，密钥登录，连接失败自动重试；目录 `E:\mindweave-claude-auto`，与稳健轨隔离）。2026-10-26 已修复笔记本上 Scoop 的 git（`current` 目录联接失效，`scoop reset git` 重建，现为 2.54.0）。
 
