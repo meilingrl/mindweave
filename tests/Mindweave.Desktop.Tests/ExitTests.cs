@@ -451,6 +451,25 @@ public class ExitTests
         Assert.NotNull(again);
     }
 
+    /// <summary>A UI loop that ends by throwing still has the database closed and the single-instance lock released.</summary>
+    [AvaloniaFact]
+    public async Task A_ui_loop_that_throws_still_closes_the_database_and_releases_the_lock()
+    {
+        await using var app = DesktopHarness.Create();
+        await ConversationAsync(app);
+        var database = app.Services.GetRequiredService<SqliteDatabase>();
+        var instance = SingleInstance.TryAcquire(app.Paths);
+        Assert.NotNull(instance);
+        var host = app.HandOverToHost(instance);
+
+        var thrown = Assert.Throws<InvalidOperationException>(() => host.Run(() => throw new InvalidOperationException("loop failed")));
+
+        Assert.Equal("loop failed", thrown.Message);
+        Assert.False(database.IsOpen);
+        await using var again = SingleInstance.TryAcquire(app.Paths);
+        Assert.NotNull(again);
+    }
+
     /// <summary>Runs UI jobs synchronously until <paramref name="task"/> ends, as the lifetime's loop would before returning.</summary>
     private static void PumpUntil(Task task)
     {

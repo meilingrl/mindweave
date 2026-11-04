@@ -25,9 +25,15 @@ internal sealed class AppHost(SingleInstance instance, ServiceProvider services)
     public int Run(Func<int> runUiLoop)
     {
         ArgumentNullException.ThrowIfNull(runUiLoop);
-        var code = runUiLoop();
-        Task.Run(async () => await DisposeAsync().ConfigureAwait(false)).GetAwaiter().GetResult();
-        return code;
+        try
+        {
+            return runUiLoop();
+        }
+        finally
+        {
+            // Also when the loop throws: kept writes are flushed, the database closed and the single-instance lock released.
+            Task.Run(async () => await DisposeAsync().ConfigureAwait(false)).GetAwaiter().GetResult();
+        }
     }
 
     /// <summary>
