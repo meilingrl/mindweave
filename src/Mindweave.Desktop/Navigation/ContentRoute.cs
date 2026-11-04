@@ -43,7 +43,7 @@ public sealed record SummaryRoute(Mindweave.Core.Summaries.SummaryNodeId Node) :
 {
     private const string Prefix = "summary:";
 
-    public string Key => Prefix + Node;
+    public string Key => Mindweave.Application.Storage.PageLocation.SummaryKey(Node);
 
     public static SummaryRoute? FromKey(string? key) =>
         key is not null && key.StartsWith(Prefix, StringComparison.Ordinal) && Guid.TryParseExact(key[Prefix.Length..], "D", out var id)

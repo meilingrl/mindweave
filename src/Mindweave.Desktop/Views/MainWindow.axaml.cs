@@ -5,6 +5,7 @@ namespace Mindweave.Desktop.Views;
 public sealed partial class MainWindow : Window
 {
     private ViewModels.WorkspaceDeletionViewModel? _deletion;
+    private ViewModels.ConversationDeletionViewModel? _conversationDeletion;
 
     public MainWindow()
     {
@@ -43,6 +44,26 @@ public sealed partial class MainWindow : Window
         if (_deletion is not null)
         {
             _deletion.PropertyChanged += OnDeletionChanged;
+        }
+
+        if (_conversationDeletion is not null)
+        {
+            _conversationDeletion.PropertyChanged -= OnConversationDeletionChanged;
+        }
+
+        _conversationDeletion = (DataContext as ViewModels.RootViewModel)?.ConversationDeletion;
+        if (_conversationDeletion is not null)
+        {
+            _conversationDeletion.PropertyChanged += OnConversationDeletionChanged;
+        }
+    }
+
+    /// <summary>The conversation delete dialog takes the keyboard when it opens: 取消 has the focus, Enter and Esc cancel.</summary>
+    private void OnConversationDeletionChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e)
+    {
+        if (e.PropertyName == nameof(ViewModels.ConversationDeletionViewModel.IsOpen) && _conversationDeletion?.IsOpen == true)
+        {
+            Avalonia.Threading.Dispatcher.UIThread.Post(() => ConversationDeleteCancel.Focus());
         }
     }
 

@@ -36,11 +36,15 @@ public sealed record DatabaseOpenResult(
     public bool IsReady => Status == DatabaseOpenStatus.Ready;
 }
 
-/// <summary>Why a backup was made: before a schema upgrade, or before a workspace was deleted (S7 round 4).</summary>
+/// <summary>
+/// Why a backup was made: before a schema upgrade, before a workspace was deleted (S7 round 4), or before a conversation
+/// delete that took branches or summaries along (requirements v0.12 §8.2). Only upgrade backups are rotated.
+/// </summary>
 public enum BackupReason
 {
     Migration,
     BeforeWorkspaceDelete,
+    BeforeConversationDelete,
 }
 
 public sealed record BackupInfo(string Path, int SchemaVersion, DateTimeOffset CreatedAt, long SizeBytes, BackupReason Reason = BackupReason.Migration);

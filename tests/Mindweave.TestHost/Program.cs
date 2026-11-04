@@ -210,7 +210,9 @@ internal static class KillPoint
                 await new SqliteArchiveStore(database).RestoreAsync(ConversationId.Parse(ids[0]), none);
                 break;
             case "delete":
-                await new SqliteArchiveStore(database).DeleteAsync(ConversationId.Parse(ids[0]), none);
+                // The selected conversations: their scope as it is now, deleted in one transaction.
+                var archive = new SqliteArchiveStore(database);
+                await archive.DeleteAsync(await archive.InspectDeleteAsync([.. ids.Select(ConversationId.Parse)], none), none);
                 break;
             case "delete-workspace":
                 await new SqliteWorkspaceStore(database).DeleteAsync(WorkspaceId.Parse(ids[0]), none);

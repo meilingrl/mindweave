@@ -96,7 +96,7 @@ public class ArchiveFlowTests
     }
 
     [Fact]
-    public async Task Deleting_is_refused_with_every_reason_at_once_and_changes_nothing()
+    public async Task Deleting_is_refused_while_an_answer_or_summary_in_the_scope_runs_and_changes_nothing()
     {
         await using var h = await ChatHarness.StartAsync();
         var (root, answer) = await RootWithAnswerAsync(h, "问");
@@ -113,11 +113,12 @@ public class ArchiveFlowTests
             Ct);
         var before = await TotalRowsAsync(h);
 
-        var result = await h.Conversations.DeleteAsync(root, Ct);
+        var result = await h.DeleteAsync(root);
 
-        Assert.False(result.Deleted);
-        Assert.Equal(DeleteBlockers.HasBranches | DeleteBlockers.HasSummary | DeleteBlockers.AnswerUnfinished | DeleteBlockers.SummaryUnfinished, result.Blockers);
+        Assert.Equal(ConversationDeleteStatus.Busy, result.Status);
+        Assert.Equal([new BusyConversation(root, Answer: true, Summary: true)], result.Scope.Busy);
         Assert.Equal(before, await TotalRowsAsync(h));
+        Assert.Empty(h.Database.ListBackups());
         held.Finish();
         await h.WaitForAnswerAsync(running.Answer!.Value);
     }
@@ -144,10 +145,13 @@ public class ArchiveFlowTests
         Assert.True(ids.Count > 8, "the conversation, its messages and tasks");
         var rootMessages = (await h.Store.GetMessagesAsync(root, Ct)).Count;
 
-        var result = await h.Conversations.DeleteAsync(child, Ct);
+        var result = await h.DeleteAsync(child);
 
-        Assert.True(result.Deleted);
-        Assert.Equal(root, result.Parent);
+        Assert.True(result.IsDeleted);
+        Assert.Equal(root, result.Scope.ParentOf[child]);
+        Assert.False(result.Scope.IsCascade);
+        Assert.Null(result.BackupPath);
+        Assert.Empty(h.Database.ListBackups());
         Assert.Empty(await ReferencesAsync(h, ids));
         Assert.Null(await h.Database.ReadAsync(c => SqliteConnections.ForeignKeyViolation(c), Ct));
         Assert.Null((await new SqliteLocationStore(h.Database, new SystemClock()).GetLastAsync(Ct))!.ContentKey);
@@ -155,7 +159,7 @@ public class ArchiveFlowTests
         Assert.Empty(await h.Conversations.ListBranchesAsync(root, Ct));
 
         // The parent has no dependants any more and can go as well.
-        Assert.True((await h.Conversations.DeleteAsync(root, Ct)).Deleted);
+        Assert.True((await h.DeleteAsync(root)).IsDeleted);
         Assert.Empty(await h.Conversations.ListAsync(h.Workspace, Ct));
     }
 
@@ -167,9 +171,9 @@ public class ArchiveFlowTests
         var (root, _) = await RootWithAnswerAsync(h, "问");
         await ChatHarness.UntilAsync(() => h.Client.Requests.Any(FakeChatClient.IsTitle));
 
-        var result = await h.Conversations.DeleteAsync(root, Ct);
+        var result = await h.DeleteAsync(root);
 
-        Assert.True(result.Deleted);
+        Assert.True(result.IsDeleted);
         Assert.Equal(0, h.Generation.UnfinishedCount);
         Assert.False(h.Health.IsBlocked);
         Assert.Equal(0, await CountAsync(h, "generation_task"));
@@ -203,12 +207,18 @@ public class ArchiveFlowTests
         var gate = h.Client.HoldTitles();
         var (root, answer) = await RootWithAnswerAsync(h, "问");
         await ChatHarness.UntilAsync(() => h.Client.Requests.Any(FakeChatClient.IsTitle));
-        await BranchAsync(h, root, answer, "甲");
+        var child = await BranchAsync(h, root, answer, "甲");
+        var held = h.Client.Hold("半句");
+        var running = await h.Conversations.AskAsync(child, "子问", Ct);
+        await held.Started.Task.WaitAsync(TimeSpan.FromSeconds(5), Ct);
 
-        var result = await h.Conversations.DeleteAsync(root, Ct);
+        var result = await h.DeleteAsync(root);
 
-        Assert.Equal(DeleteBlockers.HasBranches, result.Blockers);
+        Assert.Equal(ConversationDeleteStatus.Busy, result.Status);
+        Assert.Equal([new BusyConversation(child, Answer: true, Summary: false)], result.Scope.Busy);
         Assert.Equal("running", await TitleStateAsync(h, root));
+        held.Finish();
+        await h.WaitForAnswerAsync(running.Answer!.Value);
         gate.TrySetResult();
         await UntilAsync(async () => (await h.Store.GetAsync(root, Ct))!.TitleSource == TitleSource.Auto);
     }
@@ -270,7 +280,7 @@ public class ArchiveFlowTests
         // Straight to the store: the title task is still running when its rows disappear. Its late writes are updates
         // that find no row and a request trace whose foreign key fails (recorded best effort), so no special handling
         // is needed for storage to stay healthy.
-        Assert.True((await h.Archive.DeleteAsync(root, Ct)).Deleted);
+        Assert.Equal(ConversationDeleteStatus.Deleted, (await h.Archive.DeleteAsync(await h.Archive.InspectDeleteAsync([root], Ct), Ct)).Status);
         gate.TrySetResult();
         await ChatHarness.UntilAsync(() => h.Generation.UnfinishedCount == 0);
 

@@ -446,27 +446,24 @@ public sealed partial class ConversationService : IConversations
     }
 
     /// <summary>
-    /// Deletes a conversation that nothing depends on, irreversibly, with its unsent drafts (requirements §9.5). The
-    /// check and the delete are one transaction; a refusal names every reason and leaves its titles and naming alone.
-    /// Their task rows go with the delete, and the running ones are stopped after it: their late writes find nothing.
+    /// A delete committed by <see cref="ConversationDeletionService"/>: every member of the scope is forgotten here (its
+    /// title request mark), each gets <see cref="Deleted"/>, the parents the roots were branched from get
+    /// <see cref="ConversationChanged"/> (their branch lists changed), and <see cref="VisibilityChanged"/> covers all.
     /// </summary>
-    public async Task<DeleteResult> DeleteAsync(ConversationId id, CancellationToken cancellationToken)
+    internal void NotifyDeleted(ConversationDeleteScope scope)
     {
-        var result = await CommitAsync(() => RequireArchive().DeleteAsync(id, cancellationToken)).ConfigureAwait(false);
-        if (result.Deleted)
+        foreach (var id in scope.Conversations)
         {
-            await _generation.CancelBackgroundAsync(new HashSet<ConversationId> { id }).ConfigureAwait(false);
             _titleRequested.TryRemove(id, out _);
             Deleted?.Invoke(this, id);
-            if (result.Parent is { } parent)
-            {
-                ConversationChanged?.Invoke(this, parent);
-            }
-
-            NotifyVisibility([id]);
         }
 
-        return result;
+        foreach (var parent in scope.ParentOf.Values.Distinct())
+        {
+            ConversationChanged?.Invoke(this, parent);
+        }
+
+        NotifyVisibility(scope.Conversations);
     }
 
     /// <summary>Those of <paramref name="conversations"/> the user archived (markers on branch entries).</summary>

@@ -91,5 +91,38 @@
         </StackPanel>
       </Border>
     </Border>
+    <!-- Deleting conversations with what goes along (requirements v0.12 §8.2): counts in one sentence, 改为归档 as the
+         alternative, 删除 in the danger colour; 取消 is the default and the primary. -->
+    <Border Name="ConversationDeleteDialog" Classes="dialog-scrim" IsVisible="{Binding ConversationDeletion.IsOpen}">
+      <Border Classes="dialog">
+        <StackPanel Spacing="12" DataContext="{Binding ConversationDeletion}" x:DataType="vm:ConversationDeletionViewModel">
+          <TextBlock Name="ConversationDeleteTitle" Classes="dialog-title" Text="{Binding Title}" TextWrapping="Wrap" TextTrimming="CharacterEllipsis" MaxLines="2" />
+          <TextBlock Name="ConversationDeleteContents" Classes="dialog-body" Text="{Binding Contents}" />
+          <Border Name="ConversationDeleteProblem" Classes="notice error" IsVisible="{Binding Problem, Converter={x:Static ObjectConverters.IsNotNull}}">
+            <DockPanel>
+              <TextBlock Classes="notice-icon" Text="!" />
+              <TextBlock Text="{Binding Problem}" TextWrapping="Wrap" />
+            </DockPanel>
+          </Border>
+          <TextBlock Classes="caption" Text="{Binding DeletingText}" IsVisible="{Binding IsBusy}" />
+          <StackPanel Classes="dialog-buttons">
+            <Button Name="ConversationDeleteArchive" Classes="secondary" Command="{Binding ArchiveInsteadCommand}" IsVisible="{Binding Scope.VisibleRoots.Count, FallbackValue=0, Converter={x:Static d:Converters.IsPositive}}"
+                    AutomationProperties.Name="{x:Static d:UiText.ArchiveInstead}">
+              <StackPanel Orientation="Horizontal" Spacing="6">
+                <PathIcon Width="13" Height="13" Data="{StaticResource IconArchive}" />
+                <TextBlock Text="{x:Static d:UiText.ArchiveInstead}" VerticalAlignment="Center" />
+              </StackPanel>
+            </Button>
+            <Button Name="ConversationDeleteConfirm" Classes="secondary danger" Command="{Binding DeleteCommand}" AutomationProperties.Name="{x:Static d:UiText.Delete}">
+              <StackPanel Orientation="Horizontal" Spacing="6">
+                <PathIcon Width="13" Height="13" Data="{StaticResource IconDelete}" />
+                <TextBlock Text="{x:Static d:UiText.Delete}" VerticalAlignment="Center" />
+              </StackPanel>
+            </Button>
+            <Button Name="ConversationDeleteCancel" Classes="primary" Content="{x:Static d:UiText.Cancel}" Command="{Binding CancelCommand}" IsDefault="True" IsCancel="True" />
+          </StackPanel>
+        </StackPanel>
+      </Border>
+    </Border>
   </Panel>
 </Window>

@@ -1,11 +1,12 @@
 using Microsoft.Data.Sqlite;
 using Mindweave.Application.Storage;
 using Mindweave.Core.Conversations;
+using Mindweave.Core.Summaries;
 
 namespace Mindweave.Infrastructure.Sqlite;
 
 /// <summary>
-/// Archive, restore and dependency-free delete (requirements §9.5, D-021). Hidden is derived on every read: a
+/// Archive, restore and delete with a stated scope (requirements v0.12 §8.2, §9.5; D-021). Hidden is derived on every read: a
 /// conversation is hidden when it or any ancestor in its frozen <c>branch_context_range</c> has an archive row.
 /// </summary>
 internal sealed class SqliteArchiveStore(SqliteDatabase database) : IConversationArchiveStore
@@ -74,51 +75,82 @@ internal sealed class SqliteArchiveStore(SqliteDatabase database) : IConversatio
             },
             cancellationToken);
 
-    public Task<DeleteResult> DeleteAsync(ConversationId conversation, CancellationToken cancellationToken) =>
-        database.WriteAsync(
+    /// <summary>The per-member deletes, each run over the whole scope before the next.</summary>
+    private static readonly string[] MemberSteps =
+    [
+        "DELETE FROM generation_task WHERE conversation_id = $id;",
+        "DELETE FROM branch_source WHERE child_id = $id;",
+        "DELETE FROM branch_context_range WHERE child_id = $id;",
+        "UPDATE message SET supersedes_id = NULL WHERE conversation_id = $id AND supersedes_id IS NOT NULL;",
+        "DELETE FROM message WHERE conversation_id = $id;",
+    ];
+
+    public Task<ConversationDeleteScope> InspectDeleteAsync(IReadOnlyCollection<ConversationId> selected, CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(selected);
+        return database.ReadAsync(connection => DeleteScope(connection, null, [.. selected]), cancellationToken);
+    }
+
+    public Task<ConversationDeleteResult> DeleteAsync(ConversationDeleteScope confirmed, CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(confirmed);
+        return database.WriteAsync(
             (connection, transaction) =>
             {
-                var id = ("$id", (object?)conversation.ToString());
-                if (SqliteConversationStore.GetConversation(connection, transaction, conversation) is null)
+                // Recomputed inside the transaction: a branch or summary that came (or went) since the confirmation, or
+                // work that started, refuses the whole delete; nothing of it is done in part.
+                var scope = DeleteScope(connection, transaction, confirmed.Selected);
+                if (scope.IsEmpty)
                 {
-                    return new DeleteResult(DeleteBlockers.None, null, Missing: true);
+                    return new ConversationDeleteResult(ConversationDeleteStatus.Missing, scope);
                 }
 
-                var parent = connection.Scalar<string>(transaction, "SELECT parent_id FROM branch_source WHERE child_id = $id;", id) is { } p
-                    ? ConversationId.Parse(p)
-                    : (ConversationId?)null;
-                var blockers = DeleteBlockers.None;
-                if (connection.Scalar<long>(transaction, "SELECT EXISTS (SELECT 1 FROM branch_source WHERE parent_id = $id);", id) != 0)
+                if (scope.Busy.Count > 0)
                 {
-                    blockers |= DeleteBlockers.HasBranches;
+                    return new ConversationDeleteResult(ConversationDeleteStatus.Busy, scope);
                 }
 
-                if (connection.Scalar<long>(transaction, "SELECT EXISTS (SELECT 1 FROM summary_node WHERE conversation_id = $id);", id) != 0)
+                if (!scope.SameContents(confirmed))
                 {
-                    blockers |= DeleteBlockers.HasSummary;
+                    return new ConversationDeleteResult(ConversationDeleteStatus.ScopeChanged, scope);
                 }
 
-                var (answer, summary) = SqliteArchive.UnfinishedUserWork(connection, transaction, conversation);
-                blockers |= (answer ? DeleteBlockers.AnswerUnfinished : DeleteBlockers.None) | (summary ? DeleteBlockers.SummaryUnfinished : DeleteBlockers.None);
-                if (blockers != DeleteBlockers.None)
+                // Every RESTRICT reference cleared before its target, step by step over the whole scope (a member may be
+                // another member's parent or ancestor until both are gone). Summary nodes first: layout rows, edit drafts
+                // (their baselines restrict versions), versions (read states cascade), nodes; node and version keys are
+                // deferred and checked at COMMIT. Then task rows (request traces cascade), branch sources and ranges of
+                // the members, retry links, messages (blocks and reading positions cascade), last pages pointing at a
+                // member or one of its summaries, and the conversations (drafts, context summaries and archive rows
+                // cascade). The scope is closed (architecture §4.2): no row outside it names anything in it, so an
+                // ancestor's context summaries that a member reused stay with the ancestor.
+                foreach (var node in scope.Summaries)
                 {
-                    return new DeleteResult(blockers, parent);
+                    var n = ("$n", (object?)node.ToString());
+                    connection.Execute(transaction, "DELETE FROM node_layout WHERE node_id = $n;", n);
+                    connection.Execute(transaction, "DELETE FROM summary_edit_draft WHERE node_id = $n;", n);
+                    connection.Execute(transaction, "DELETE FROM summary_version WHERE node_id = $n;", n);
+                    connection.Execute(transaction, "DELETE FROM summary_node WHERE id = $n;", n);
+                    connection.Execute(transaction, "UPDATE workspace_location SET content_key = NULL WHERE content_key = $key;", ("$key", PageLocation.SummaryKey(node)));
                 }
 
-                // Everything that references the conversation with RESTRICT, cleared by hand in dependency order. With no
-                // branches and no summary node, nothing outside the conversation references its messages (MW-C02). Task
-                // rows of every kind go, and their request traces cascade; the messages lose their retry links first so
-                // the self-reference never points at a deleted row. Drafts, reading positions, context summaries, message
-                // blocks, ancestor ranges and the archive row cascade with the conversation.
-                connection.Execute(transaction, "DELETE FROM generation_task WHERE conversation_id = $id;", id);
-                connection.Execute(transaction, "DELETE FROM branch_source WHERE child_id = $id;", id);
-                connection.Execute(transaction, "UPDATE message SET supersedes_id = NULL WHERE conversation_id = $id AND supersedes_id IS NOT NULL;", id);
-                connection.Execute(transaction, "DELETE FROM message WHERE conversation_id = $id;", id);
-                connection.Execute(transaction, "UPDATE workspace_location SET content_key = NULL WHERE content_key = $key;", ("$key", PageLocation.ConversationKey(conversation)));
-                connection.Execute(transaction, "DELETE FROM conversation WHERE id = $id;", id);
-                return new DeleteResult(DeleteBlockers.None, parent);
+                foreach (var step in MemberSteps)
+                {
+                    foreach (var member in scope.Conversations)
+                    {
+                        connection.Execute(transaction, step, ("$id", member.ToString()));
+                    }
+                }
+
+                foreach (var member in scope.Conversations)
+                {
+                    connection.Execute(transaction, "UPDATE workspace_location SET content_key = NULL WHERE content_key = $key;", ("$key", PageLocation.ConversationKey(member)));
+                    connection.Execute(transaction, "DELETE FROM conversation WHERE id = $id;", ("$id", member.ToString()));
+                }
+
+                return new ConversationDeleteResult(ConversationDeleteStatus.Deleted, scope);
             },
             cancellationToken);
+    }
 
     public Task<IReadOnlySet<ConversationId>> ArchivedAmongAsync(IReadOnlyCollection<ConversationId> conversations, CancellationToken cancellationToken)
     {
@@ -128,6 +160,76 @@ internal sealed class SqliteArchiveStore(SqliteDatabase database) : IConversatio
                 .Where(c => connection.Scalar<long>(null, "SELECT EXISTS (SELECT 1 FROM conversation_archive WHERE conversation_id = $id);", ("$id", c.ToString())) != 0)
                 .ToHashSet(),
             cancellationToken);
+    }
+
+    /// <summary>
+    /// The union of each existing selected conversation's subtree with the summary nodes of its members (architecture
+    /// §9.1). A selected conversation inside another selected one's subtree adds nothing (and is not a root).
+    /// </summary>
+    private static ConversationDeleteScope DeleteScope(SqliteConnection connection, SqliteTransaction? transaction, IReadOnlyList<ConversationId> selected)
+    {
+        var members = new HashSet<ConversationId>();
+        foreach (var conversation in selected.Distinct())
+        {
+            if (connection.Scalar<long>(transaction, "SELECT EXISTS (SELECT 1 FROM conversation WHERE id = $id);", ("$id", conversation.ToString())) != 0)
+            {
+                members.UnionWith(Subtree(connection, transaction, conversation));
+            }
+        }
+
+        if (members.Count == 0)
+        {
+            return ConversationDeleteScope.Empty(selected);
+        }
+
+        var parentOf = new Dictionary<ConversationId, ConversationId>();
+        var roots = new List<ConversationId>();
+        foreach (var conversation in selected.Distinct().Where(members.Contains))
+        {
+            var parent = connection.Scalar<string>(transaction, "SELECT parent_id FROM branch_source WHERE child_id = $id;", ("$id", conversation.ToString())) is { } p
+                ? ConversationId.Parse(p)
+                : (ConversationId?)null;
+            if (parent is { } outside && members.Contains(outside))
+            {
+                continue;
+            }
+
+            roots.Add(conversation);
+            if (parent is { } q)
+            {
+                parentOf[conversation] = q;
+            }
+        }
+
+        var ordered = new List<ConversationId>(members.Count);
+        var rootOf = new Dictionary<ConversationId, ConversationId>();
+        foreach (var root in roots)
+        {
+            foreach (var member in Subtree(connection, transaction, root))
+            {
+                ordered.Add(member);
+                rootOf[member] = root;
+            }
+        }
+
+        var nodes = new List<SummaryNodeId>();
+        var busy = new List<BusyConversation>();
+        foreach (var member in ordered)
+        {
+            if (connection.Scalar<string>(transaction, "SELECT id FROM summary_node WHERE conversation_id = $id;", ("$id", member.ToString())) is { } node)
+            {
+                nodes.Add(SummaryNodeId.Parse(node));
+            }
+
+            var (answer, summary) = SqliteArchive.UnfinishedUserWork(connection, transaction, member);
+            if (answer || summary)
+            {
+                busy.Add(new BusyConversation(member, answer, summary));
+            }
+        }
+
+        var visible = roots.Where(r => !SqliteArchive.IsHidden(connection, transaction, r)).ToList();
+        return new ConversationDeleteScope(selected, roots, ordered, nodes, busy, rootOf, parentOf, visible);
     }
 
     private static List<ConversationId> Subtree(SqliteConnection connection, SqliteTransaction? transaction, ConversationId conversation)

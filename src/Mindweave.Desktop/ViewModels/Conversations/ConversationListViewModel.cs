@@ -16,6 +16,7 @@ public sealed partial class ConversationItemViewModel(ConversationId id) : ViewM
     public ConversationId Id { get; } = id;
 
     [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(AutomationName))]
     public partial string Title { get; set; } = string.Empty;
 
     /// <summary>
@@ -50,8 +51,20 @@ public sealed partial class ConversationItemViewModel(ConversationId id) : ViewM
     /// <summary>The stored state of the last answer, kept so the marker can be worked out again without a reload.</summary>
     internal MessageState? LastAnswerState { get; set; }
 
+    /// <summary>The conversation shown in the content area (the row's "current" look), not the multi-selection.</summary>
     [ObservableProperty]
     public partial bool IsSelected { get; set; }
+
+    /// <summary>Part of the sidebar's multi-selection (Ctrl/Cmd or Shift click, or the 选择 mode's checkbox).</summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(AutomationName))]
+    public partial bool IsChecked { get; set; }
+
+    /// <summary>The row's accessible name: its title, and whether it is part of the multi-selection (drawn only as a tick).</summary>
+    public string AutomationName => IsChecked ? UiText.CheckedRowName(Title) : Title;
+
+    /// <summary>The conversation it was branched from, when that one is listed too.</summary>
+    internal ConversationId? ParentId { get; set; }
 
     /// <summary>Branch level: 0 for a root conversation. The view shows it as indentation (<c>Views.TreeIndent</c>), not as a separate tree control.</summary>
     [ObservableProperty]
@@ -84,11 +97,29 @@ public sealed partial class ConversationListViewModel : ViewModelBase
     private readonly Workbench _workbench;
     private readonly SerialRefresh _load;
     private readonly UiThrottle _reload;
+    private readonly ConversationDeletionRequests? _deletionPrompt;
     private WorkspaceId? _shown;
 
-    public ConversationListViewModel(IConversations conversations, Workbench workbench, IUiDispatcher dispatcher, IConversationMarks? marks = null)
+    /// <summary>Where a Shift click's range starts: the last row toggled, or the conversation shown.</summary>
+    private ConversationId? _anchor;
+
+    public ConversationListViewModel(IConversations conversations, Workbench workbench, IUiDispatcher dispatcher, IConversationMarks? marks = null, ConversationDeletionRequests? deletion = null)
     {
         _conversations = conversations;
+        _deletionPrompt = deletion;
+        if (deletion is not null)
+        {
+            // The dialog deleted or archived the selection (or chose 改为归档): nothing of it is left to act on. A dialog
+            // opened from a conversation page for something else leaves the selection alone.
+            deletion.Completed += (_, done) =>
+            {
+                if (HasSelection && Selection.Select(i => i.Id).ToHashSet().SetEquals(done))
+                {
+                    ClearSelection();
+                }
+            };
+        }
+
         _marks = marks;
         _workbench = workbench;
         _load = new SerialRefresh(ReloadAsync);
@@ -134,9 +165,185 @@ public sealed partial class ConversationListViewModel : ViewModelBase
     [RelayCommand]
     private void OpenArchived() => _workbench.Navigate(new NavigationRequest(MainSection.Explore, ArchivedRoute.Instance));
 
+    /// <summary>
+    /// A plain click opens the conversation and ends any selection; in the 选择 mode it ticks the row instead (the mode
+    /// is for touch and for finding the feature without knowing the modifier keys).
+    /// </summary>
     [RelayCommand]
-    private void Open(ConversationItemViewModel item) =>
+    private void Open(ConversationItemViewModel item)
+    {
+        if (IsSelecting)
+        {
+            Toggle(item);
+            return;
+        }
+
+        ClearSelection();
         _workbench.Navigate(new NavigationRequest(MainSection.Explore, new ConversationRoute(item.Id)));
+    }
+
+    // ── Multi-select (requirements v0.12 §8.2) ─────────────────────────────────────────────────────────────────────
+
+    /// <summary>The 选择 mode: every row shows a checkbox and a click ticks it.</summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(ShowsSelectionBar))]
+    public partial bool IsSelecting { get; private set; }
+
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(HasSelection), nameof(SelectionLabel), nameof(ShowsSelectionBar))]
+    [NotifyCanExecuteChangedFor(nameof(ArchiveSelectedCommand), nameof(DeleteSelectedCommand))]
+    public partial int SelectedCount { get; private set; }
+
+    public bool HasSelection => SelectedCount > 0;
+
+    public string SelectionLabel => UiText.SelectionCount(SelectedCount);
+
+    /// <summary>The bar at the bottom of the sidebar: while something is selected, or in the 选择 mode.</summary>
+    public bool ShowsSelectionBar => HasSelection || IsSelecting;
+
+    /// <summary>Why archiving part of the selection did not happen.</summary>
+    [ObservableProperty]
+    public partial string? SelectionNotice { get; private set; }
+
+    /// <summary>The selected rows in the order they are listed.</summary>
+    public IReadOnlyList<ConversationItemViewModel> Selection => [.. Items.Where(i => i.IsChecked)];
+
+    /// <summary>The last archive of the selection; tests await it.</summary>
+    internal Task Archiving { get; private set; } = Task.CompletedTask;
+
+    /// <summary>Ctrl click (Cmd on macOS): adds the row to the selection, or takes it out.</summary>
+    public void Toggle(ConversationItemViewModel item)
+    {
+        ArgumentNullException.ThrowIfNull(item);
+        item.IsChecked = !item.IsChecked;
+        _anchor = item.Id;
+        SelectionChanged();
+    }
+
+    /// <summary>
+    /// Shift click: selects the rows from the anchor (the last row toggled, else the conversation shown, else this one)
+    /// to this one, in the order they are listed, in place of what was selected.
+    /// </summary>
+    public void SelectRange(ConversationItemViewModel item)
+    {
+        ArgumentNullException.ThrowIfNull(item);
+        var to = Items.IndexOf(item);
+        if (to < 0)
+        {
+            return;
+        }
+
+        var anchor = Items.FirstOrDefault(i => i.Id == _anchor) ?? Items.FirstOrDefault(i => i.IsSelected) ?? item;
+        _anchor = anchor.Id;
+        var from = Items.IndexOf(anchor);
+        var (low, high) = from <= to ? (from, to) : (to, from);
+        for (var i = 0; i < Items.Count; i++)
+        {
+            Items[i].IsChecked = i >= low && i <= high;
+        }
+
+        SelectionChanged();
+    }
+
+    /// <summary>Esc, the bar's clear button, a plain click, or the 选择 button again: nothing selected, the mode ends.</summary>
+    [RelayCommand]
+    public void ClearSelection()
+    {
+        foreach (var item in Items)
+        {
+            item.IsChecked = false;
+        }
+
+        _anchor = null;
+        IsSelecting = false;
+        SelectionNotice = null;
+        SelectionChanged();
+    }
+
+    [RelayCommand]
+    private void ToggleSelectionMode()
+    {
+        if (IsSelecting)
+        {
+            ClearSelection();
+        }
+        else
+        {
+            IsSelecting = true;
+        }
+    }
+
+    /// <summary>
+    /// Archives each selected conversation whose parent is not selected too, with its whole subtree, as a single archive
+    /// does. A refusal (work running) is named and those rows stay selected; the rest go.
+    /// </summary>
+    [RelayCommand(CanExecute = nameof(HasSelection))]
+    private Task ArchiveSelectedAsync()
+    {
+        Archiving = ArchiveSelectionAsync();
+        return Archiving;
+    }
+
+    private async Task ArchiveSelectionAsync()
+    {
+        SelectionNotice = null;
+        var roots = SelectionRoots();
+        var (busy, storageFailed) = await ConversationArchiving.ArchiveAllAsync(_conversations, roots.Select(r => r.Id));
+        if (storageFailed)
+        {
+            SelectionNotice = UiText.ArchiveStorageFailed;
+            return;
+        }
+
+        if (busy.Count > 0)
+        {
+            var titles = Items.ToDictionary(i => i.Id, i => i.Title);
+            var keep = roots.Where(r => busy.Any(b => b == r.Id || IsBelow(b, r.Id))).Select(r => r.Id).ToHashSet();
+            foreach (var item in Items.Where(i => i.IsChecked && !keep.Contains(i.Id) && !keep.Any(k => IsBelow(i.Id, k))))
+            {
+                item.IsChecked = false;
+            }
+
+            SelectionChanged();
+            SelectionNotice = UiText.ArchiveRefused([.. busy.Select(b => titles.GetValueOrDefault(b, UiText.NewConversation))]);
+            return;
+        }
+
+        ClearSelection();
+    }
+
+    /// <summary>One confirmation for the union of the selected conversations' scopes (the window's dialog).</summary>
+    [RelayCommand(CanExecute = nameof(HasSelection))]
+    private void DeleteSelected()
+    {
+        if (_workbench.CurrentWorkspace is { } workspace && HasSelection)
+        {
+            SelectionNotice = null;
+            _deletionPrompt?.Open(workspace.Id, [.. Selection.Select(i => i.Id)]);
+        }
+    }
+
+    /// <summary>Selected rows with no selected ancestor: each one stands for its subtree.</summary>
+    private List<ConversationItemViewModel> SelectionRoots()
+    {
+        var selected = Selection.Select(i => i.Id).ToHashSet();
+        return [.. Selection.Where(i => !Ancestors(i.Id).Any(selected.Contains))];
+    }
+
+    private bool IsBelow(ConversationId conversation, ConversationId ancestor) => Ancestors(conversation).Contains(ancestor);
+
+    private IEnumerable<ConversationId> Ancestors(ConversationId conversation)
+    {
+        var parents = Items.Where(i => i.ParentId is not null).ToDictionary(i => i.Id, i => i.ParentId!.Value);
+        var seen = new HashSet<ConversationId>();
+        while (parents.TryGetValue(conversation, out var parent) && seen.Add(parent))
+        {
+            yield return parent;
+            conversation = parent;
+        }
+    }
+
+    private void SelectionChanged() => SelectedCount = Items.Count(i => i.IsChecked);
 
     [RelayCommand]
     private void New() => _workbench.Navigate(new NavigationRequest(MainSection.Explore, NewConversationRoute.Instance));
@@ -145,6 +352,7 @@ public sealed partial class ConversationListViewModel : ViewModelBase
     {
         if (e.PropertyName == nameof(Workbench.CurrentWorkspace) && _workbench.CurrentWorkspace?.Id != _shown)
         {
+            ClearSelection();
             Loaded = _load.Request();
         }
         else if (e.PropertyName == nameof(Workbench.CurrentPage))
@@ -180,6 +388,7 @@ public sealed partial class ConversationListViewModel : ViewModelBase
             ordered[i].Title = UiText.ConversationTitle(tree[i].Summary.Conversation, tree[i].Summary.FirstQuestion, tree[i].Summary.Quote);
             ordered[i].LastAnswerState = tree[i].Summary.LastAnswerState;
             ordered[i].Depth = tree[i].Depth;
+            ordered[i].ParentId = tree[i].Summary.Parent;
         }
 
         for (var i = 0; i < ordered.Count; i++)
@@ -201,8 +410,12 @@ public sealed partial class ConversationListViewModel : ViewModelBase
 
         while (Items.Count > ordered.Count)
         {
+            Items[^1].IsChecked = false;
             Items.RemoveAt(Items.Count - 1);
         }
+
+        // Rows that went (deleted, archived, another workspace) leave the selection with them.
+        SelectionChanged();
 
         UpdateMarks();
         UpdateSelection();

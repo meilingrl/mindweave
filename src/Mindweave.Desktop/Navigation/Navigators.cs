@@ -27,6 +27,12 @@ public interface IWorkbenchNavigator : IMenuNavigator, IContentNavigator
     /// <paramref name="fallback"/> in the explore section, or the explore home when it is null.
     /// </summary>
     void Forget(Func<ContentRoute, bool> match, ContentRoute? fallback = null);
+
+    /// <summary>
+    /// As <see cref="Forget(Func{ContentRoute, bool}, ContentRoute?)"/>, with the fallback worked out from the route of
+    /// the page that was shown (a conversation deleted with its parent's branch lands on that parent).
+    /// </summary>
+    void Forget(Func<ContentRoute, bool> match, Func<ContentRoute, ContentRoute?> fallbackFor);
 }
 
 /// <summary>Content level: detail pages pushed within the current section, and back.</summary>

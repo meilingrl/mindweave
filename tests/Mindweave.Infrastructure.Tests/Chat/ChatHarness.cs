@@ -54,6 +54,7 @@ internal sealed class ChatHarness : IAsyncDisposable
         Workspaces = new SqliteWorkspaceStore(Database);
         WorkspaceDeletion = new Application.Workspaces.WorkspaceDeletionService(
             Workspaces, Database, Health, Generation, NullLogger<Application.Workspaces.WorkspaceDeletionService>.Instance);
+        ConversationDeletion = new ConversationDeletionService(Archive, Database, Health, Generation, Conversations, NullLogger<ConversationDeletionService>.Instance);
     }
 
     public SqliteDatabase Database { get; }
@@ -102,6 +103,8 @@ internal sealed class ChatHarness : IAsyncDisposable
     public SqliteWorkspaceStore Workspaces { get; }
 
     public Application.Workspaces.WorkspaceDeletionService WorkspaceDeletion { get; }
+
+    public ConversationDeletionService ConversationDeletion { get; }
 
     public string BackupDirectory => _dir.Paths.BackupDirectory;
 
@@ -178,6 +181,10 @@ internal sealed class ChatHarness : IAsyncDisposable
             await Task.Delay(20);
         }
     }
+
+    /// <summary>Deletes the scope of <paramref name="selected"/> as it is now, the way the confirmation does: inspect, then delete that.</summary>
+    public async Task<ConversationDeleteOutcome> DeleteAsync(params ConversationId[] selected) =>
+        await ConversationDeletion.DeleteAsync(await ConversationDeletion.InspectAsync(selected, CancellationToken.None), CancellationToken.None);
 
     public async Task<Message?> GetMessageAsync(MessageId id)
     {

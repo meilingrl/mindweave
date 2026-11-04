@@ -152,30 +152,32 @@ public class ConversationPolishTests
     }
 
     [AvaloniaFact]
-    public async Task A_refused_delete_offers_archive_once_next_to_its_reason()
+    public async Task A_delete_refused_for_running_work_names_it_and_the_toolbar_keeps_archive()
     {
         await using var app = DesktopHarness.Create();
         var window = Open(app);
         var root = await ConversationAsync(app);
-        await root.CreateBranchAsync(new BranchSelection(root.Messages[1].Id, 0, "火车", "{\"v\":1}", 1, "test-profile"));
         root = await OpenAsync(app, root.Id);
         window.UpdateLayout();
         var view = CurrentView(window);
-        Assert.True(Find<Button>(view, "ArchiveButton").IsEffectivelyVisible);
+        await root.DeleteCommand.ExecuteAsync(null);
+        Assert.Equal(UiText.DeleteConfirm, root.Confirmation!.Message);
 
-        root.DeleteCommand.Execute(null);
+        // An answer starts between the question and the press: the delete is refused and says which conversation runs.
+        var held = app.Client.Hold("半句");
+        root.Composer.Text = "再问一句";
+        await root.Composer.SendCommand.ExecuteAsync(null);
+        await held.Started.Task.WaitAsync(TimeSpan.FromSeconds(5));
         await root.ConfirmCommand.ExecuteAsync(null);
-        Assert.True(root.OfferArchive);
         window.UpdateLayout();
 
-        Assert.False(Find<Button>(view, "ArchiveButton").IsEffectivelyVisible);
-        var offer = Find<Button>(view, "OfferArchiveButton");
-        Assert.True(offer.IsEffectivelyVisible);
-        Assert.Contains(offer.GetVisualAncestors().OfType<Border>(), b => b.Name == "ArchiveNoticePanel");
-
-        Click(window, offer);
-        // Wait for the whole command, not just the flag: its refresh after archiving must not outlive the database.
-        await UiWait.UntilAsync(() => root.IsArchived && !root.ArchiveCommand.IsRunning);
+        Assert.NotNull(root.ArchiveNotice);
+        Assert.Contains(root.DisplayTitle, root.ArchiveNotice, StringComparison.Ordinal);
+        Assert.True(Find<Control>(view, "ArchiveNoticePanel").IsEffectivelyVisible);
+        Assert.True(Find<Button>(view, "ArchiveButton").IsEffectivelyVisible);
+        Assert.Same(root, app.Workbench.CurrentPage);
+        held.Finish();
+        await UiWait.UntilAsync(() => root.RunningAnswer is null);
         window.Close();
     }
 
@@ -232,8 +234,10 @@ public class ConversationPolishTests
         var list = Find<ItemsControl>(window.GetVisualDescendants().OfType<ShellView>().Single(), "ConversationList");
         var rows = list.GetVisualDescendants().OfType<Button>().ToList();
         Assert.Equal([0, TreeIndent.Step], rows.Select(r => r.Margin.Left));
-        Assert.False(rows[0].GetVisualDescendants().OfType<PathIcon>().Single().IsVisible);
-        Assert.True(rows[1].GetVisualDescendants().OfType<PathIcon>().Single().IsEffectivelyVisible);
+        // The branch glyph (the row also holds the 选择 mode's check box, hidden here).
+        static PathIcon Glyph(Button row) => row.GetVisualDescendants().OfType<PathIcon>().Single(p => p.FindAncestorOfType<Border>() is not { Name: "RowCheck" });
+        Assert.False(Glyph(rows[0]).IsVisible);
+        Assert.True(Glyph(rows[1]).IsEffectivelyVisible);
         Assert.True(rows[1].GetVisualDescendants().OfType<ActivitySpinner>().Single().IsEffectivelyVisible);
         Assert.Equal(UiText.MarkerGenerating, items[1].MarkerHint);
 
@@ -255,19 +259,17 @@ public class ConversationPolishTests
         await using var app = DesktopHarness.Create();
         var window = Open(app);
         var root = await ConversationAsync(app);
-        await root.CreateBranchAsync(new BranchSelection(root.Messages[1].Id, 0, "火车", "{\"v\":1}", 1, "test-profile"));
         root = await OpenAsync(app, root.Id);
-        root.DeleteCommand.Execute(null);
-        await root.ConfirmCommand.ExecuteAsync(null);
+        await root.DeleteCommand.ExecuteAsync(null);
         window.UpdateLayout();
         var view = CurrentView(window);
 
-        // A quiet action in a notice: icon and label both in the link colour, the notice's own text stays primary.
-        var offer = Find<Button>(view, "OfferArchiveButton");
-        var link = Brush(offer, "LinkText");
-        Assert.Equal(link, Colour(offer.GetVisualDescendants().OfType<TextBlock>().Single().Foreground));
-        Assert.Equal(link, Colour(offer.GetVisualDescendants().OfType<PathIcon>().Single().Foreground));
-        Assert.Equal(Brush(offer, "PrimaryText"), Colour(Find<TextBlock>(view, "ArchiveNotice").Foreground));
+        // A quiet action in a notice (the delete question's 取消): its label in the link colour, the notice's own text stays primary.
+        var panel = Find<Border>(view, "ConfirmationPanel");
+        var cancel = panel.GetVisualDescendants().OfType<Button>().Single(b => b.Classes.Contains("quiet"));
+        Assert.Equal(Brush(cancel, "LinkText"), Colour(cancel.GetVisualDescendants().OfType<TextBlock>().Single().Foreground));
+        Assert.Equal(Brush(cancel, "PrimaryText"), Colour(panel.GetVisualDescendants().OfType<TextBlock>().First(t => t.Text == UiText.DeleteConfirm).Foreground));
+        root.CancelConfirmationCommand.Execute(null);
 
         // A primary button in a notice: its label is the on-accent colour, not the notice's text colour.
         await root.ArchiveCommand.ExecuteAsync(null);
@@ -369,7 +371,7 @@ public class ConversationPolishTests
         var child = Assert.IsType<ConversationViewModel>(app.Workbench.CurrentPage);
         await child.Loaded;
 
-        child.DeleteCommand.Execute(null);
+        await child.DeleteCommand.ExecuteAsync(null);
         window.UpdateLayout();
         Assert.True(child.Confirmation!.IsDestructive);
         var confirm = Find<Button>(CurrentView(window), "ConfirmButton");

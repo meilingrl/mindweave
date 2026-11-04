@@ -118,7 +118,12 @@ public sealed partial class SqliteDatabase : IDatabaseLifecycle, IDatabaseBackup
 
             var version = int.Parse(match.Groups["version"].Value, CultureInfo.InvariantCulture);
             var created = DateTimeOffset.ParseExact(match.Groups["time"].Value, "yyyyMMdd'T'HHmmssfff'Z'", CultureInfo.InvariantCulture, DateTimeStyles.AssumeUniversal);
-            var reason = match.Groups["reason"].Success ? BackupReason.BeforeWorkspaceDelete : BackupReason.Migration;
+            var reason = match.Groups["reason"].Value switch
+            {
+                BeforeDeleteSuffix => BackupReason.BeforeWorkspaceDelete,
+                BeforeConversationDeleteSuffix => BackupReason.BeforeConversationDelete,
+                _ => BackupReason.Migration,
+            };
             backups.Add(new BackupInfo(file, version, created, new FileInfo(file).Length, reason));
         }
 
@@ -133,11 +138,17 @@ public sealed partial class SqliteDatabase : IDatabaseLifecycle, IDatabaseBackup
     public Task<string> BackupAsync(BackupReason reason, CancellationToken cancellationToken)
     {
         var writer = Volatile.Read(ref _writer) ?? throw new InvalidOperationException("The database is not open.");
-        var suffix = reason == BackupReason.BeforeWorkspaceDelete ? BeforeDeleteSuffix : string.Empty;
+        var suffix = reason switch
+        {
+            BackupReason.BeforeWorkspaceDelete => BeforeDeleteSuffix,
+            BackupReason.BeforeConversationDelete => BeforeConversationDeleteSuffix,
+            _ => string.Empty,
+        };
         return writer.EnqueueWithoutTransactionAsync(connection => CreateVerifiedBackup(connection, _catalog.LatestVersion, suffix), cancellationToken);
     }
 
     private const string BeforeDeleteSuffix = "-before-delete";
+    private const string BeforeConversationDeleteSuffix = "-before-conversation-delete";
 
     /// <inheritdoc />
     public void Discard(string path)
@@ -710,7 +721,7 @@ public sealed partial class SqliteDatabase : IDatabaseLifecycle, IDatabaseBackup
     private DatabaseOpenResult Result(DatabaseOpenStatus status, int? foundVersion, string? backupPath = null, string? detail = null) =>
         new(status, _paths.DataDirectory, _paths.DatabasePath, foundVersion, _catalog.LatestVersion, backupPath, detail);
 
-    [GeneratedRegex(@"^mindweave-v(?<version>\d+)-(?<time>\d{8}T\d{9}Z)(?<reason>-before-delete)?\.db$", RegexOptions.CultureInvariant)]
+    [GeneratedRegex(@"^mindweave-v(?<version>\d+)-(?<time>\d{8}T\d{9}Z)(?<reason>-before-delete|-before-conversation-delete)?\.db$", RegexOptions.CultureInvariant)]
     private static partial Regex BackupNameRegex();
 
     [LoggerMessage(Level = LogLevel.Information, Message = "Created database {Path} at schema {Version}")]

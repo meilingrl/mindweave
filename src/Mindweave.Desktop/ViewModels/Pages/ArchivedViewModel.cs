@@ -33,7 +33,7 @@ public sealed partial class ArchivedItemViewModel(ConversationId id, string titl
 /// <summary>
 /// The workspace's hidden conversations (S6, D-021): each archived conversation with the branches it hides, as a
 /// tree. A conversation opens read-only; restore brings back its path (asked first when archived ancestors come back
-/// too); delete is offered for conversations nothing depends on and says why when refused.
+/// too); delete states what goes with it (requirements v0.12 §8.2).
 /// </summary>
 public sealed partial class ArchivedViewModel : PageViewModel, IDisposable
 {
@@ -48,9 +48,20 @@ public sealed partial class ArchivedViewModel : PageViewModel, IDisposable
     /// <summary>The row the pending confirmation is about; kept across reloads by its id.</summary>
     private ConversationId? _confirming;
 
-    public ArchivedViewModel(Workspace workspace, IConversations conversations, IWorkbenchNavigator navigator, IUiDispatcher dispatcher)
+    private readonly IConversationDeletion? _deletion;
+    private readonly IConversationDeletionPrompt? _deletionPrompt;
+
+    public ArchivedViewModel(
+        Workspace workspace,
+        IConversations conversations,
+        IWorkbenchNavigator navigator,
+        IUiDispatcher dispatcher,
+        IConversationDeletion? deletion = null,
+        IConversationDeletionPrompt? deletionPrompt = null)
         : base(ArchivedRoute.Instance)
     {
+        _deletion = deletion;
+        _deletionPrompt = deletionPrompt;
         ArgumentNullException.ThrowIfNull(workspace);
         _workspace = workspace.Id;
         _conversations = conversations;
@@ -119,16 +130,51 @@ public sealed partial class ArchivedViewModel : PageViewModel, IDisposable
         }
     }
 
+    /// <summary>
+    /// A conversation without branches or summary is confirmed under its row, as before; one that takes branches or
+    /// summaries along opens the window's dialog with the counts (no archiving to suggest: it is hidden already).
+    /// </summary>
     [RelayCommand]
-    private void Delete(ArchivedItemViewModel item)
+    private async Task DeleteAsync(ArchivedItemViewModel item)
     {
         Notice = null;
+        Ask(null, null);
+        if (_deletion is null)
+        {
+            return;
+        }
+
+        ConversationDeleteScope scope;
+        try
+        {
+            scope = await _deletion.InspectAsync([item.Id], CancellationToken.None);
+        }
+#pragma warning disable CA1031 // An unreadable scope deletes nothing and says so.
+        catch (Exception)
+#pragma warning restore CA1031
+        {
+            Notice = UiText.ConversationDeleteCountFailed;
+            return;
+        }
+
+        if (scope.IsCascade)
+        {
+            _deletionPrompt?.Open(_workspace, [item.Id]);
+            return;
+        }
+
+        if (scope.Busy.Count > 0)
+        {
+            Notice = UiText.DeleteWorkspaceBusy([.. scope.Busy.Select(b => (TitleOf(b.Conversation), b.Answer, b.Summary))]);
+            return;
+        }
+
         Ask(item, new PendingConfirmation(UiText.DeleteConfirmFor(item.Title), async () =>
         {
-            DeleteResult result;
+            ConversationDeleteOutcome outcome;
             try
             {
-                result = await _conversations.DeleteAsync(item.Id, CancellationToken.None);
+                outcome = await _deletion.DeleteAsync(scope, CancellationToken.None);
             }
             catch (StorageWriteException)
             {
@@ -136,14 +182,18 @@ public sealed partial class ArchivedViewModel : PageViewModel, IDisposable
                 return;
             }
 
-            if (result.Deleted || result.Missing)
+            switch (outcome.Status)
             {
-                ConversationRemoval.Forget(_navigator, item.Id, result.Parent);
-            }
-            else
-            {
-                // Everything listed here is hidden already: no archiving to suggest.
-                Notice = UiText.DeleteRefused(result.Blockers, offerArchive: false);
+                case ConversationDeleteStatus.Deleted:
+                case ConversationDeleteStatus.Missing:
+                    ConversationRemoval.Forget(_navigator, outcome.Scope.IsEmpty ? scope : outcome.Scope);
+                    break;
+                case ConversationDeleteStatus.Busy:
+                    Notice = UiText.DeleteWorkspaceBusy([.. outcome.Scope.Busy.Select(b => (TitleOf(b.Conversation), b.Answer, b.Summary))]);
+                    break;
+                default:
+                    _deletionPrompt?.Open(_workspace, [item.Id]);
+                    break;
             }
 
             await _load.Request();

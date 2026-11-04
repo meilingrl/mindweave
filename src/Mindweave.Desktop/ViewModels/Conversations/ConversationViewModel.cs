@@ -44,10 +44,24 @@ public sealed partial class ConversationViewModel : PageViewModel, IDisposable
     private bool _disposed;
     private bool _isShown;
     private ITimer? _tick;
+    private readonly IConversationDeletion? _deletion;
+    private readonly IConversationDeletionPrompt? _deletionPrompt;
 
-    public ConversationViewModel(ConversationRoute route, PageContext context, IConversations conversations, IReadingState reading, IUiDispatcher dispatcher, IStorageStatus storage, ISummaries? summaries = null, TimeProvider? time = null)
+    public ConversationViewModel(
+        ConversationRoute route,
+        PageContext context,
+        IConversations conversations,
+        IReadingState reading,
+        IUiDispatcher dispatcher,
+        IStorageStatus storage,
+        ISummaries? summaries = null,
+        TimeProvider? time = null,
+        IConversationDeletion? deletion = null,
+        IConversationDeletionPrompt? deletionPrompt = null)
         : base(route)
     {
+        _deletion = deletion;
+        _deletionPrompt = deletionPrompt;
         ArgumentNullException.ThrowIfNull(route);
         ArgumentNullException.ThrowIfNull(context);
         Id = route.Id;
@@ -184,13 +198,8 @@ public sealed partial class ConversationViewModel : PageViewModel, IDisposable
     [ObservableProperty]
     public partial string? ArchiveNotice { get; private set; }
 
-    /// <summary>A delete was refused; archiving is offered instead.</summary>
-    [ObservableProperty]
-    [NotifyPropertyChangedFor(nameof(ShowArchiveInToolbar))]
-    public partial bool OfferArchive { get; private set; }
-
-    /// <summary>The toolbar's archive entry; left out while the refusal notice offers the same action next to its reason.</summary>
-    public bool ShowArchiveInToolbar => IsOpen && !OfferArchive;
+    /// <summary>The toolbar's archive entry (a delete that takes branches along offers archiving in its own dialog).</summary>
+    public bool ShowArchiveInToolbar => IsOpen;
 
     /// <summary>A question asked before deleting, or before a restore that brings back archived ancestors.</summary>
     [ObservableProperty]
@@ -339,7 +348,6 @@ public sealed partial class ConversationViewModel : PageViewModel, IDisposable
     [RelayCommand]
     private async Task ArchiveAsync()
     {
-        OfferArchive = false;
         ArchiveOutcome outcome;
         try
         {
@@ -362,35 +370,83 @@ public sealed partial class ConversationViewModel : PageViewModel, IDisposable
     [RelayCommand]
     private Task RestoreAndSummarizeAsync() => RestoreThenAsync(SummarizeAsync);
 
-    /// <summary>Asks first: deleting is irreversible and takes unsent drafts with it.</summary>
+    /// <summary>
+    /// Asks first (requirements v0.12 §8.2). A conversation without branches or summary is confirmed here, as before: it
+    /// goes with its messages and unsent drafts. One that takes branches or summaries along opens the window's dialog,
+    /// which states the counts, offers archiving instead and backs up first. Refused, and named, while an answer or
+    /// summary in it runs.
+    /// </summary>
     [RelayCommand]
-    private void Delete()
+    private async Task DeleteAsync()
     {
         ArchiveNotice = null;
-        OfferArchive = false;
-        Confirmation = new PendingConfirmation(UiText.DeleteConfirm, async () =>
+        Confirmation = null;
+        if (_deletion is null)
         {
-            DeleteResult result;
-            try
-            {
-                result = await _conversations.DeleteAsync(Id, CancellationToken.None);
-            }
-            catch (StorageWriteException)
-            {
-                ArchiveNotice = UiText.ArchiveStorageFailed;
-                return;
-            }
+            return;
+        }
 
-            if (result.Deleted || result.Missing)
-            {
-                ConversationRemoval.Forget(_navigator, Id, result.Parent);
-                return;
-            }
+        ConversationDeleteScope scope;
+        try
+        {
+            scope = await _deletion.InspectAsync([Id], CancellationToken.None);
+        }
+#pragma warning disable CA1031 // An unreadable scope deletes nothing and says so.
+        catch (Exception)
+#pragma warning restore CA1031
+        {
+            ArchiveNotice = UiText.ConversationDeleteCountFailed;
+            return;
+        }
 
-            ArchiveNotice = UiText.DeleteRefused(result.Blockers, offerArchive: !IsArchived);
-            OfferArchive = !IsArchived;
-        }, IsDestructive: true);
+        if (scope.IsCascade)
+        {
+            _deletionPrompt?.Open(_workspace, [Id]);
+            return;
+        }
+
+        if (scope.Busy.Count > 0)
+        {
+            // Refused before asking: confirming a delete that cannot happen yet only to be told so afterwards.
+            ArchiveNotice = await BusyNoticeAsync(scope);
+            return;
+        }
+
+        Confirmation = new PendingConfirmation(UiText.DeleteConfirm, () => DeletePlainAsync(scope), IsDestructive: true);
     }
+
+    private async Task DeletePlainAsync(ConversationDeleteScope confirmed)
+    {
+        ConversationDeleteOutcome outcome;
+        try
+        {
+            outcome = await _deletion!.DeleteAsync(confirmed, CancellationToken.None);
+        }
+        catch (StorageWriteException)
+        {
+            ArchiveNotice = UiText.ArchiveStorageFailed;
+            return;
+        }
+
+        switch (outcome.Status)
+        {
+            case ConversationDeleteStatus.Deleted:
+            case ConversationDeleteStatus.Missing:
+                ConversationRemoval.Forget(_navigator, outcome.Scope.IsEmpty ? confirmed : outcome.Scope);
+                break;
+            case ConversationDeleteStatus.Busy:
+                ArchiveNotice = await BusyNoticeAsync(outcome.Scope);
+                break;
+            default:
+                // A branch or summary came meanwhile: the scope is stated again, with its counts, in the dialog.
+                _deletionPrompt?.Open(_workspace, [Id]);
+                break;
+        }
+    }
+
+    private async Task<string> BusyNoticeAsync(ConversationDeleteScope scope) =>
+        UiText.DeleteWorkspaceBusy([.. (await TitlesAsync([.. scope.Busy.Select(b => b.Conversation)]))
+            .Zip(scope.Busy, (title, b) => (title, b.Answer, b.Summary))]);
 
     [RelayCommand]
     private async Task ConfirmAsync()
@@ -613,11 +669,6 @@ public sealed partial class ConversationViewModel : PageViewModel, IDisposable
         ArchiveText = !archive.IsHidden ? null
             : archive.ArchivedAncestors.Count == 0 ? UiText.ArchivedReadOnly
             : UiText.HiddenByAncestors([.. archive.ArchivedAncestors.Select(a => Lineage.FirstOrDefault(l => l.Id == a)?.Title ?? UiText.NewConversation)]);
-        if (IsArchived)
-        {
-            OfferArchive = false;
-        }
-
         // Update in place: a message view that is still valid keeps its control, so a selection, a highlighted
         // source or the layout being read survives a reload (a title arriving, a branch being made). Only new
         // messages are added, and an answer that was live and is now stored as finished is replaced, so its

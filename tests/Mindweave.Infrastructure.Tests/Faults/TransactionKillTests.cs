@@ -221,12 +221,41 @@ public sealed class TransactionKillTests : IDisposable
 
         await using var database = await ReopenAsync(before);
         Assert.Equal(PageLocation.ConversationKey(child), (await new SqliteLocationStore(database, new SystemClock()).GetLastAsync(Ct))!.ContentKey);
-        var result = await new SqliteArchiveStore(database).DeleteAsync(child, Ct);
-        Assert.Equal((DeleteBlockers.None, root, false), (result.Blockers, result.Parent, result.Missing));
+        var archive = new SqliteArchiveStore(database);
+        var result = await archive.DeleteAsync(await archive.InspectDeleteAsync([child], Ct), Ct);
+        Assert.Equal((ConversationDeleteStatus.Deleted, root), (result.Status, result.Scope.ParentOf[child]));
         Assert.Equal(0, await CountAsync(database, "SELECT count(*) FROM message WHERE conversation_id = $id;", ("$id", child.ToString())));
         Assert.Null(await new SqliteConversationStore(database).GetAsync(child, Ct));
         await StorageFaults.AssertIntactAsync(database);
     }
+
+    [Fact]
+    public async Task Killing_the_process_while_a_conversation_is_deleted_with_its_branches_and_summaries_keeps_all_of_it()
+    {
+        ConversationId root;
+        await using (var h = await ChatHarness.StartAsync(directory: _dir))
+        {
+            root = await WorkspaceSeed.FillAsync(h, h.Workspace);
+        }
+
+        var before = await SnapshotAsync();
+
+        // The summary nodes with their layout, drafts and versions, the last page, then every row of the three
+        // conversations: tasks, sources and ranges, retry links, messages and the conversations.
+        await KillInsideAsync(CascadeDeleteChanges, "delete", root.ToString());
+
+        await using var database = await ReopenAsync(before);
+        var archive = new SqliteArchiveStore(database);
+        var scope = await archive.InspectDeleteAsync([root], Ct);
+        Assert.Equal((1, 2, 2), (scope.Roots.Count, scope.Branches, scope.Summaries.Count));
+        Assert.Equal(ConversationDeleteStatus.Deleted, (await archive.DeleteAsync(scope, Ct)).Status);
+        Assert.Equal(0, await CountAsync(database, "SELECT count(*) FROM conversation;"));
+        Assert.Equal(0, await CountAsync(database, "SELECT count(*) FROM summary_node;"));
+        await StorageFaults.AssertIntactAsync(database);
+    }
+
+    /// <summary>The workspace delete's 58 for the same rows, less its workspace, last-workspace marker and location rows, plus one cleared last page.</summary>
+    private const int CascadeDeleteChanges = 56;
 
     [Fact]
     public async Task Killing_the_process_while_a_workspace_is_deleted_keeps_all_of_it()
