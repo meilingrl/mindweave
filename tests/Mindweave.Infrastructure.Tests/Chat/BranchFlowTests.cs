@@ -135,7 +135,8 @@ public class BranchFlowTests
         await AskAsync(h, child, "谁发明的");
 
         await ChatHarness.UntilAsync(() => h.Client.Requests.Count(r => r.Turns[0].Role == ChatRole.System) == 2);
-        var title = h.Client.Requests.Last(r => r.Turns[0].Role == ChatRole.System);
+        // The root's and the branch's title requests run in the background in either order: take the branch's by its question.
+        var title = Assert.Single(h.Client.Requests, r => r.Turns[0].Role == ChatRole.System && r.Turns[1].Content.Contains("谁发明的", StringComparison.Ordinal));
         Assert.Contains("> 蒸汽机", title.Turns[1].Content, StringComparison.Ordinal);
     }
 
