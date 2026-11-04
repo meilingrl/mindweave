@@ -95,7 +95,7 @@ public static class CompositionRoot
         services.AddSingleton<WorkspaceDeletionViewModel>();
         services.AddSingleton<ConversationDeletionRequests>();
         services.AddSingleton<IConversationDeletionPrompt>(sp => sp.GetRequiredService<ConversationDeletionRequests>());
-        services.AddSingleton<ConversationDeletionViewModel>();
+        services.TryAddSingleton<ConversationDeletionViewModel>(); // Tests give it their own clock.
         services.AddSingleton<Network.NetworkSessions>();
         services.AddSingleton<ConversationListViewModel>();
         services.AddSingleton<RootViewModel>();

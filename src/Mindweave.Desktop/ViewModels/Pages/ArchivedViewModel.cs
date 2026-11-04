@@ -163,6 +163,12 @@ public sealed partial class ArchivedViewModel : PageViewModel, IDisposable
             return;
         }
 
+        if (scope.Busy.Count > 0)
+        {
+            Notice = UiText.DeleteWorkspaceBusy([.. scope.Busy.Select(b => (TitleOf(b.Conversation), b.Answer, b.Summary))]);
+            return;
+        }
+
         Ask(item, new PendingConfirmation(UiText.DeleteConfirmFor(item.Title), async () =>
         {
             ConversationDeleteOutcome outcome;

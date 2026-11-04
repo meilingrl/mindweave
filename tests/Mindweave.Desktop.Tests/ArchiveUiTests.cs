@@ -128,7 +128,7 @@ public class ArchiveUiTests
         var dialog = app.Root.ConversationDeletion;
         Assert.True(dialog.IsOpen);
         await dialog.Loading;
-        Assert.Equal(UiText.ConversationDeleteContents(1, 1, 0), dialog.Contents);
+        Assert.Equal(UiText.ConversationDeleteContents(2, 1, 0), dialog.Contents);
         dialog.CancelCommand.Execute(null);
 
         child = await OpenAsync(app, child.Id);
@@ -179,7 +179,7 @@ public class ArchiveUiTests
         var dialog = app.Root.ConversationDeletion;
         await dialog.Loading;
         window.UpdateLayout();
-        Assert.Equal(UiText.ConversationDeleteContents(1, 1, 0), dialog.Contents);
+        Assert.Equal(UiText.ConversationDeleteContents(2, 1, 0), dialog.Contents);
         Assert.False(dialog.CanArchive);
         Assert.False(Find<Button>(window, "ConversationDeleteArchive").IsEffectivelyVisible);
         await dialog.DeleteCommand.ExecuteAsync(null);

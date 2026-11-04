@@ -714,31 +714,38 @@ public static class UiText
     public const string ConversationDeleteScopeChanged = "要删除的内容有变化，数量已更新，请再确认。";
     public const string ConversationDeleteCountFailed = "没能读取要删除的内容，暂时不能删除。请关闭后重试。";
 
+    public static string CheckedRowName(string title) => $"{title}，已选";
+
     public static string SelectionCount(int count) => string.Format(CultureInfo.CurrentCulture, "已选 {0}", count);
 
     public static string ConversationDeleteTitle(string title) => $"删除“{title}”？";
 
-    public static string ConversationDeleteTitle(int conversations) => string.Format(CultureInfo.CurrentCulture, "删除 {0} 个会话？", conversations);
+    /// <summary>A selection's title counts the rows the user picked; the sentence below counts what goes with them.</summary>
+    public static string ConversationDeleteTitle(int selected) => string.Format(CultureInfo.CurrentCulture, "删除所选 {0} 个会话？", selected);
 
     /// <summary>
-    /// The one sentence a delete confirmation says: what goes, counted (a part that is zero is left out), that it cannot
-    /// be undone in the app, and, when branches or summaries go along, where the backup made first is listed.
+    /// The one sentence a delete confirmation says. With branches or summaries along: every conversation that goes,
+    /// how many of them are branches, the summaries (a part that is zero is left out), that it cannot be undone in the
+    /// app, and where the backup made first is listed. Without: no count, the title already names what goes.
     /// </summary>
     public static string ConversationDeleteContents(int conversations, int branches, int summaries)
     {
-        var parts = new List<string> { string.Format(CultureInfo.CurrentCulture, "{0} 个会话", conversations) };
-        if (branches > 0)
+        if (branches == 0 && summaries == 0)
         {
-            parts.Add(string.Format(CultureInfo.CurrentCulture, "{0} 个分支", branches));
+            return "全部消息和未发送的草稿将被永久删除，无法撤销。";
         }
 
+        var parts = new List<string>
+        {
+            branches > 0
+                ? string.Format(CultureInfo.CurrentCulture, "{0} 个会话（含 {1} 个分支）", conversations, branches)
+                : string.Format(CultureInfo.CurrentCulture, "{0} 个会话", conversations),
+        };
         if (summaries > 0)
         {
             parts.Add(string.Format(CultureInfo.CurrentCulture, "{0} 个总结", summaries));
         }
 
-        return branches > 0 || summaries > 0
-            ? string.Join("、", parts) + "将被永久删除，应用内无法撤销。删除前的备份会列在“数据与存储”中。"
-            : parts[0] + "将被永久删除，包括全部消息和未发送的草稿，无法撤销。";
+        return string.Join("、", parts) + "将被永久删除，应用内无法撤销。删除前的备份会列在“数据与存储”中。";
     }
 }

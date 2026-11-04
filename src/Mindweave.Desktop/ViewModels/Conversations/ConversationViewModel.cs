@@ -405,6 +405,13 @@ public sealed partial class ConversationViewModel : PageViewModel, IDisposable
             return;
         }
 
+        if (scope.Busy.Count > 0)
+        {
+            // Refused before asking: confirming a delete that cannot happen yet only to be told so afterwards.
+            ArchiveNotice = await BusyNoticeAsync(scope);
+            return;
+        }
+
         Confirmation = new PendingConfirmation(UiText.DeleteConfirm, () => DeletePlainAsync(scope), IsDestructive: true);
     }
 
@@ -428,8 +435,7 @@ public sealed partial class ConversationViewModel : PageViewModel, IDisposable
                 ConversationRemoval.Forget(_navigator, outcome.Scope.IsEmpty ? confirmed : outcome.Scope);
                 break;
             case ConversationDeleteStatus.Busy:
-                ArchiveNotice = UiText.DeleteWorkspaceBusy([.. (await TitlesAsync([.. outcome.Scope.Busy.Select(b => b.Conversation)]))
-                    .Zip(outcome.Scope.Busy, (title, b) => (title, b.Answer, b.Summary))]);
+                ArchiveNotice = await BusyNoticeAsync(outcome.Scope);
                 break;
             default:
                 // A branch or summary came meanwhile: the scope is stated again, with its counts, in the dialog.
@@ -437,6 +443,10 @@ public sealed partial class ConversationViewModel : PageViewModel, IDisposable
                 break;
         }
     }
+
+    private async Task<string> BusyNoticeAsync(ConversationDeleteScope scope) =>
+        UiText.DeleteWorkspaceBusy([.. (await TitlesAsync([.. scope.Busy.Select(b => b.Conversation)]))
+            .Zip(scope.Busy, (title, b) => (title, b.Answer, b.Summary))]);
 
     [RelayCommand]
     private async Task ConfirmAsync()

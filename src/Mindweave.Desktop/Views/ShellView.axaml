@@ -131,7 +131,7 @@
             <ItemsControl.ItemTemplate>
               <DataTemplate x:DataType="cv:ConversationItemViewModel">
                 <Button Classes="nav" Classes.selected="{Binding IsSelected}" Classes.checked="{Binding IsChecked}" Margin="{Binding Depth, Converter={x:Static v:TreeIndent.Margin}}" Padding="10,5" HorizontalContentAlignment="Stretch"
-                        AutomationProperties.HelpText="{Binding MarkerHint}"
+                        AutomationProperties.Name="{Binding AutomationName}" AutomationProperties.HelpText="{Binding MarkerHint}"
                         Command="{Binding $parent[ItemsControl].((vm:ShellViewModel)DataContext).Conversations.OpenCommand}" CommandParameter="{Binding}">
                   <DockPanel>
                     <!-- A branch: a small corner glyph from its parent's column, so the hierarchy reads at a glance. -->

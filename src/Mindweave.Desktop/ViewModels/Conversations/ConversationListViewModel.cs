@@ -16,6 +16,7 @@ public sealed partial class ConversationItemViewModel(ConversationId id) : ViewM
     public ConversationId Id { get; } = id;
 
     [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(AutomationName))]
     public partial string Title { get; set; } = string.Empty;
 
     /// <summary>
@@ -56,7 +57,11 @@ public sealed partial class ConversationItemViewModel(ConversationId id) : ViewM
 
     /// <summary>Part of the sidebar's multi-selection (Ctrl/Cmd or Shift click, or the 选择 mode's checkbox).</summary>
     [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(AutomationName))]
     public partial bool IsChecked { get; set; }
+
+    /// <summary>The row's accessible name: its title, and whether it is part of the multi-selection (drawn only as a tick).</summary>
+    public string AutomationName => IsChecked ? UiText.CheckedRowName(Title) : Title;
 
     /// <summary>The conversation it was branched from, when that one is listed too.</summary>
     internal ConversationId? ParentId { get; set; }
@@ -104,8 +109,15 @@ public sealed partial class ConversationListViewModel : ViewModelBase
         _deletionPrompt = deletion;
         if (deletion is not null)
         {
-            // The dialog deleted or archived the selection (or chose 改为归档): nothing of it is left to act on.
-            deletion.Completed += (_, _) => ClearSelection();
+            // The dialog deleted or archived the selection (or chose 改为归档): nothing of it is left to act on. A dialog
+            // opened from a conversation page for something else leaves the selection alone.
+            deletion.Completed += (_, done) =>
+            {
+                if (HasSelection && Selection.Select(i => i.Id).ToHashSet().SetEquals(done))
+                {
+                    ClearSelection();
+                }
+            };
         }
 
         _marks = marks;

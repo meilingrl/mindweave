@@ -21,12 +21,12 @@ public sealed class ConversationDeletionRequests : IConversationDeletionPrompt
 {
     public event EventHandler<(WorkspaceId Workspace, IReadOnlyList<ConversationId> Selected)>? Requested;
 
-    /// <summary>The dialog deleted or archived what it was opened for.</summary>
-    public event EventHandler? Completed;
+    /// <summary>The dialog deleted or archived what it was opened for; the argument is what it was opened with.</summary>
+    public event EventHandler<IReadOnlyList<ConversationId>>? Completed;
 
     public void Open(WorkspaceId workspace, IReadOnlyList<ConversationId> selected) => Requested?.Invoke(this, (workspace, selected));
 
-    internal void Complete() => Completed?.Invoke(this, EventArgs.Empty);
+    internal void Complete(IReadOnlyList<ConversationId> selected) => Completed?.Invoke(this, selected);
 }
 
 /// <summary>Archiving several conversations in one go, as the sidebar's bar and the delete dialog's "改为归档" do.</summary>
@@ -64,8 +64,9 @@ internal static class ConversationArchiving
 /// The delete confirmation for a conversation that takes branches or summaries along, or for a sidebar selection
 /// (requirements v0.12 §8.2): one sentence with the counts, "改为归档" as the alternative, "删除" in the danger colour and
 /// "取消" as the default. Work running in the scope is named and keeps "删除" disabled; the counts and that notice follow
-/// changes while the dialog is open. A scope that changed between the last look and the transaction is refused and
-/// shown again; a failed backup is said and nothing is deleted.
+/// changes while the dialog is open, and a scope that changes while open is said, as one the transaction finds changed
+/// is (refused and shown again); a press right after such a change is ignored. A failed backup is said and nothing is
+/// deleted.
 /// </summary>
 public sealed partial class ConversationDeletionViewModel : ViewModelBase
 {
@@ -75,11 +76,22 @@ public sealed partial class ConversationDeletionViewModel : ViewModelBase
     private readonly ConversationDeletionRequests _requests;
     private readonly UiThrottle _recheck;
     private readonly SerialRefresh _rechecks;
+    private readonly TimeProvider _time;
     private WorkspaceId _workspace;
     private volatile bool _watching;
 
-    public ConversationDeletionViewModel(IConversationDeletion deletion, IConversations conversations, Workbench workbench, ConversationDeletionRequests requests, IUiDispatcher dispatcher)
+    /// <summary>When the counts last changed under an open dialog; a press this soon after is not taken as confirming them.</summary>
+    private DateTimeOffset? _changedAt;
+
+    /// <summary>The counts changed while open and no press has confirmed them since.</summary>
+    private bool _unconfirmedChange;
+
+    /// <summary>How long after the counts change under the pointer a press is ignored (it may have started before).</summary>
+    internal static readonly TimeSpan ChangeHold = TimeSpan.FromMilliseconds(600);
+
+    public ConversationDeletionViewModel(IConversationDeletion deletion, IConversations conversations, Workbench workbench, ConversationDeletionRequests requests, IUiDispatcher dispatcher, TimeProvider? time = null)
     {
+        _time = time ?? TimeProvider.System;
         ArgumentNullException.ThrowIfNull(requests);
         ArgumentNullException.ThrowIfNull(conversations);
         _deletion = deletion;
@@ -151,6 +163,8 @@ public sealed partial class ConversationDeletionViewModel : ViewModelBase
         Title = string.Empty;
         Contents = null;
         Problem = null;
+        _changedAt = null;
+        _unconfirmedChange = false;
         IsOpen = true;
         _watching = true;
         Loading = LoadAsync(initial: true);
@@ -199,6 +213,13 @@ public sealed partial class ConversationDeletionViewModel : ViewModelBase
             return;
         }
 
+        if (_changedAt is { } changedAt && _time.GetUtcNow() - changedAt < ChangeHold)
+        {
+            // The counts changed just now, maybe between press and release: this press did not see them.
+            return;
+        }
+
+        _unconfirmedChange = false;
         IsBusy = true;
         Problem = null;
         ConversationDeleteOutcome outcome;
@@ -222,7 +243,7 @@ public sealed partial class ConversationDeletionViewModel : ViewModelBase
             case ConversationDeleteStatus.Missing:
                 Close();
                 ConversationRemoval.Forget(_navigator, outcome.Scope);
-                _requests.Complete();
+                _requests.Complete(_selected);
                 break;
             case ConversationDeleteStatus.Busy:
                 await ShowAsync(outcome.Scope);
@@ -268,7 +289,7 @@ public sealed partial class ConversationDeletionViewModel : ViewModelBase
         else
         {
             Close();
-            _requests.Complete();
+            _requests.Complete(_selected);
         }
     }
 
@@ -309,30 +330,54 @@ public sealed partial class ConversationDeletionViewModel : ViewModelBase
         }
 
         var hadRunning = Scope is { Busy.Count: > 0 };
-        await ShowAsync(scope);
-        if (scope.Busy.Count == 0 && (hadRunning || Problem == UiText.ConversationDeleteCountFailed))
+        _unconfirmedChange |= await ShowAsync(scope, live: !initial);
+        if (scope.Busy.Count > 0)
+        {
+            return;
+        }
+
+        // A scope that grew or shrank while open is said, as a change found in the transaction is: no delete of a
+        // scope the user has not seen (requirements v0.12 §8.2, architecture §9.1).
+        if (_unconfirmedChange)
+        {
+            Problem = UiText.ConversationDeleteScopeChanged;
+        }
+        else if (hadRunning || Problem == UiText.ConversationDeleteCountFailed)
         {
             Problem = null;
         }
     }
 
-    /// <summary>Shows <paramref name="scope"/>: the title, the counts, and who still runs.</summary>
-    private async Task ShowAsync(ConversationDeleteScope scope)
+    /// <summary>
+    /// Shows <paramref name="scope"/>: the title, the counts, and who still runs. On a <paramref name="live"/> recount,
+    /// returns whether it holds other conversations or summaries than the one shown, and marks when it changed.
+    /// </summary>
+    private async Task<bool> ShowAsync(ConversationDeleteScope scope, bool live = false)
     {
         var titles = await ConversationArchiving.TitlesAsync(_conversations, _workspace);
         if (!IsOpen)
         {
-            return;
+            return false;
+        }
+
+        var changed = live && Scope is { } shown && !scope.SameContents(shown);
+        if (changed)
+        {
+            _changedAt = _time.GetUtcNow();
         }
 
         Scope = scope;
-        Title = scope.Roots.Count == 1
-            ? UiText.ConversationDeleteTitle(titles.GetValueOrDefault(scope.Roots[0], UiText.NewConversation))
-            : UiText.ConversationDeleteTitle(scope.Roots.Count);
-        Contents = UiText.ConversationDeleteContents(scope.Roots.Count, scope.Branches, scope.Summaries.Count);
+        // The title counts the rows picked (as the bar's "已选 N" does); the sentence counts every conversation that goes.
+        var picked = scope.Selected.Where(scope.RootOf.ContainsKey).Distinct().ToList();
+        Title = picked.Count == 1
+            ? UiText.ConversationDeleteTitle(titles.GetValueOrDefault(picked[0], UiText.NewConversation))
+            : UiText.ConversationDeleteTitle(picked.Count);
+        Contents = UiText.ConversationDeleteContents(scope.Conversations.Count, scope.Branches, scope.Summaries.Count);
         if (scope.Busy.Count > 0)
         {
             Problem = UiText.DeleteWorkspaceBusy([.. scope.Busy.Select(b => (titles.GetValueOrDefault(b.Conversation, UiText.NewConversation), b.Answer, b.Summary))]);
         }
+
+        return changed;
     }
 }
