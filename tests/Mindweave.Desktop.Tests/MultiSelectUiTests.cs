@@ -116,6 +116,12 @@ public class MultiSelectUiTests
         // Rows keep their width: the marker column is where it was, the box takes room from the title only.
         Assert.Equal(rowWidths, Rows(window).Select(r => r.Bounds.Width));
 
+        // The boxes sit at the right edge, one column for every depth (root and branch alike), right of the marker column.
+        var boxEdges = Checks(window).Select(c => c.TranslatePoint(new Point(c.Bounds.Width, 0), window)!.Value.X).ToList();
+        Assert.True(boxEdges.Max() - boxEdges.Min() < 0.5, string.Join(" ", boxEdges));
+        var marker = Row(window, middle).GetVisualDescendants().OfType<Panel>().Single(p => p.Name == "RowMarker");
+        Assert.True(marker.TranslatePoint(default, window)!.Value.X < Find<Border>(Row(window, middle), "RowCheck").TranslatePoint(default, window)!.Value.X);
+
         var clear = Find<Button>(window, "ClearSelectionButton");
         Assert.Equal(UiText.ClearSelection, AutomationProperties.GetName(clear));
         Click(window, clear);

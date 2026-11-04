@@ -39,6 +39,8 @@
           <SolidColorBrush x:Key="LinkText">#2563EB</SolidColorBrush>
           <SolidColorBrush x:Key="SelectedRow">#E7E5E4</SolidColorBrush>
           <SolidColorBrush x:Key="HoverRow">#EFEEEC</SolidColorBrush>
+          <SolidColorBrush x:Key="CheckedRow">#E3E8FD</SolidColorBrush>
+          <SolidColorBrush x:Key="CheckedRowHover">#D9E0FC</SolidColorBrush>
           <SolidColorBrush x:Key="SourceHighlight">#FDE68A</SolidColorBrush>
           <SolidColorBrush x:Key="QuoteBar">#D6D3D1</SolidColorBrush>
           <!-- Shared styles -->
@@ -158,6 +160,8 @@
           <SolidColorBrush x:Key="LinkText">#A9B8F5</SolidColorBrush>
           <SolidColorBrush x:Key="SelectedRow">#2A2D35</SolidColorBrush>
           <SolidColorBrush x:Key="HoverRow">#24262C</SolidColorBrush>
+          <SolidColorBrush x:Key="CheckedRow">#263459</SolidColorBrush>
+          <SolidColorBrush x:Key="CheckedRowHover">#2C3B64</SolidColorBrush>
           <SolidColorBrush x:Key="SourceHighlight">#5A4A1E</SolidColorBrush>
           <SolidColorBrush x:Key="QuoteBar">#3A3D45</SolidColorBrush>
           <SolidColorBrush x:Key="AccentBrush">#5A72E6</SolidColorBrush>
@@ -1056,24 +1060,28 @@
     </Style>
     <!-- ===== end Round 4 · sidebar-status ===== -->
     <!-- ===== Multi-select (requirements v0.12 §8.2): selected rows, the 选择 entry, the bar ===== -->
-    <!-- A selected row: the accent tint, distinct from the grey of the conversation being shown; both together keep the tint. -->
+    <!-- A selected row: its own accent tint (CheckedRow), clearly apart from the grey of the conversation being shown in both themes. -->
     <Style Selector="Button.nav.checked">
-      <Setter Property="Background" Value="{DynamicResource BadgeAccentBackground}" />
+      <Setter Property="Background" Value="{DynamicResource CheckedRow}" />
     </Style>
     <Style Selector="Button.nav.checked:pointerover /template/ ContentPresenter#PART_ContentPresenter">
-      <Setter Property="Background" Value="{DynamicResource BadgeAccentBackground}" />
+      <Setter Property="Background" Value="{DynamicResource CheckedRowHover}" />
     </Style>
+    <!-- The box sits at the row's right edge, outside the marker column, so all boxes share one column whatever the depth. -->
     <Style Selector="Border.row-check">
-      <Setter Property="Width" Value="14" />
-      <Setter Property="Height" Value="14" />
-      <Setter Property="Margin" Value="0,0,7,0" />
+      <Setter Property="Width" Value="15" />
+      <Setter Property="Height" Value="15" />
+      <Setter Property="Margin" Value="8,0,-2,0" />
       <Setter Property="VerticalAlignment" Value="Center" />
-      <Setter Property="CornerRadius" Value="3" />
+      <Setter Property="CornerRadius" Value="4" />
       <Setter Property="BorderThickness" Value="1.5" />
       <Setter Property="BorderBrush" Value="{DynamicResource OutlineBrush}" />
-      <Setter Property="Background" Value="{DynamicResource WindowBackground}" />
+      <Setter Property="Background" Value="Transparent" />
     </Style>
-    <Style Selector="Border.row-check.checked">
+    <Style Selector="Button.nav:pointerover Border.row-check">
+      <Setter Property="BorderBrush" Value="{DynamicResource MutedText}" />
+    </Style>
+    <Style Selector="Border.row-check.checked, Button.nav:pointerover Border.row-check.checked">
       <Setter Property="BorderBrush" Value="{DynamicResource AccentBrush}" />
       <Setter Property="Background" Value="{DynamicResource AccentBrush}" />
     </Style>
@@ -1107,33 +1115,50 @@
     <Style Selector="ToggleButton.select-toggle:checked PathIcon">
       <Setter Property="Foreground" Value="{DynamicResource AccentBrush}" />
     </Style>
+    <!-- The bar: a raised strip on the window colour, the count on the left, the actions on the right, a thin rule before the way out. -->
     <Style Selector="Border.selection-bar">
-      <Setter Property="Background" Value="{DynamicResource CardBackground}" />
-      <Setter Property="BorderBrush" Value="{DynamicResource CardBorder}" />
+      <Setter Property="Background" Value="{DynamicResource WindowBackground}" />
+      <Setter Property="BorderBrush" Value="{DynamicResource OutlineBrush}" />
       <Setter Property="BorderThickness" Value="1" />
       <Setter Property="CornerRadius" Value="8" />
-      <Setter Property="Padding" Value="8,3,3,3" />
+      <Setter Property="Padding" Value="10,4,4,4" />
+      <Setter Property="BoxShadow" Value="0 1 3 0 #14000000" />
     </Style>
     <Style Selector="TextBlock.selection-count">
       <Setter Property="VerticalAlignment" Value="Center" />
       <Setter Property="FontSize" Value="12.5" />
       <Setter Property="FontWeight" Value="SemiBold" />
+      <Setter Property="Foreground" Value="{DynamicResource AccentBrush}" />
       <Setter Property="TextTrimming" Value="CharacterEllipsis" />
     </Style>
     <Style Selector="Border.selection-bar Button.small">
+      <Setter Property="Height" Value="26" />
+      <Setter Property="Padding" Value="7,0" />
       <Setter Property="Margin" Value="2,0,0,0" />
+      <Setter Property="VerticalContentAlignment" Value="Center" />
+    </Style>
+    <Style Selector="Border.selection-bar Button.small PathIcon">
+      <Setter Property="Width" Value="12" />
+      <Setter Property="Height" Value="12" />
+    </Style>
+    <Style Selector="Border.bar-divider">
+      <Setter Property="Width" Value="1" />
+      <Setter Property="Height" Value="14" />
+      <Setter Property="Margin" Value="5,0,3,0" />
+      <Setter Property="VerticalAlignment" Value="Center" />
+      <Setter Property="Background" Value="{DynamicResource DividerBrush}" />
     </Style>
     <Style Selector="Button.bar-icon">
       <Setter Property="Width" Value="26" />
       <Setter Property="Height" Value="26" />
       <Setter Property="Padding" Value="0" />
-      <Setter Property="Margin" Value="2,0,0,0" />
       <Setter Property="HorizontalContentAlignment" Value="Center" />
       <Setter Property="VerticalContentAlignment" Value="Center" />
     </Style>
     <Style Selector="Button.bar-icon PathIcon">
-      <Setter Property="Width" Value="11" />
-      <Setter Property="Height" Value="11" />
+      <Setter Property="Width" Value="10" />
+      <Setter Property="Height" Value="10" />
+      <Setter Property="Foreground" Value="{DynamicResource MutedText}" />
     </Style>
     <!-- ===== end Multi-select ===== -->
     <!-- ── Round 4 · conversation ────────────────────────────────────────────────────────────────────────────── -->

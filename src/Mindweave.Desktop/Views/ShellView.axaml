@@ -108,6 +108,7 @@
                       ToolTip.Tip="{x:Static d:UiText.ClearSelection}" AutomationProperties.Name="{x:Static d:UiText.ClearSelection}">
                 <PathIcon Data="{StaticResource IconClose}" />
               </Button>
+              <Border DockPanel.Dock="Right" Classes="bar-divider" />
               <Button Name="DeleteSelectedButton" DockPanel.Dock="Right" Classes="quiet small danger" Command="{Binding Conversations.DeleteSelectedCommand}"
                       AutomationProperties.Name="{x:Static d:UiText.Delete}">
                 <StackPanel Orientation="Horizontal" Spacing="4">
@@ -137,8 +138,9 @@
                     <!-- A branch: a small corner glyph from its parent's column, so the hierarchy reads at a glance. -->
                     <PathIcon Width="9" Height="9" Margin="-4,0,5,3" Foreground="{DynamicResource TreeGuide}" Data="{StaticResource IconTreeBranch}"
                               IsVisible="{Binding IsBranch}" VerticalAlignment="Center" />
-                    <!-- Only in the 选择 mode: after the branch glyph, a drawn box (the row itself takes the click), so the row holds no second button. -->
-                    <Border Name="RowCheck" Classes="row-check" Classes.checked="{Binding IsChecked}"
+                    <!-- Only in the 选择 mode: a drawn box at the right edge, so the boxes of every depth line up in one column
+                         (the row itself takes the click, so it holds no second button). -->
+                    <Border Name="RowCheck" Classes="row-check" Classes.checked="{Binding IsChecked}" DockPanel.Dock="Right"
                             IsVisible="{Binding $parent[ItemsControl].((vm:ShellViewModel)DataContext).Conversations.IsSelecting}">
                       <PathIcon Data="{StaticResource IconCheck}" IsVisible="{Binding IsChecked}" />
                     </Border>
