@@ -584,12 +584,61 @@ public class NetworkCanvasTests
         foreach (var theme in new[] { ThemeVariant.Light, ThemeVariant.Dark })
         {
             window.RequestedThemeVariant = theme;
+            // Dark may go deeper (black on a near-black canvas is otherwise invisible), but never fully opaque.
             var shadow = Assert.IsAssignableFrom<ISolidColorBrush>(NetworkCanvas.Palette.Resolve(canvas, "NetworkDragShadow"));
-            Assert.InRange(shadow.Color.A, (byte)0x20, (byte)0x70);
+            Assert.InRange(shadow.Color.A, (byte)0x20, theme == ThemeVariant.Light ? (byte)0x70 : (byte)0xE0);
         }
 
         window.Close();
     }
+
+    [AvaloniaFact]
+    public async Task A_dragged_node_stands_out_in_the_dark_theme_and_light_draws_no_glow()
+    {
+        // Dark: a black shadow hardly shows on the near-black canvas, so the lift must still read on pixels: a clearly
+        // darker crescent below the dot than above it, and a glow just outside the selection halo where the canvas was.
+        await using var app = DesktopHarness.Create();
+        var window = NetworkUiTests.Show(app);
+        await NetworkUiTests.SeedAsync(app);
+        var network = await NetworkUiTests.OpenNetworkAsync(app, window);
+        var canvas = Canvas(window);
+        var node = network.Nodes.First(n => !n.IsRoot);
+        var start = canvas.ToScreen(node.X, node.Y);
+        Point InWindow(Point p) => canvas.TranslatePoint(p, window)!.Value;
+        window.MouseMove(InWindow(start));
+        window.MouseDown(InWindow(start), MouseButton.Left);
+        window.MouseMove(InWindow(start + new Vector(10, 10)));
+        window.MouseMove(InWindow(start + new Vector(20, 20)));
+        Assert.Equal(node.Id, canvas.Dragging);
+
+        window.RequestedThemeVariant = ThemeVariant.Dark;
+        window.UpdateLayout();
+        var lifted = canvas.PaintNodes().Single(p => p.Lifted);
+        var (centre, r) = (lifted.Center, lifted.Radius);
+        using (var frame = window.CaptureRenderedFrame()!)
+        {
+            var below = Luma(Pixel(frame, canvas, centre + new Vector(0, r + 3)));
+            var above = Luma(Pixel(frame, canvas, centre - new Vector(0, r + 3)));
+            Assert.True(above - below >= 30, $"shadow too faint: above the dot {above:F0}, below it {below:F0}");
+
+            var background = Luma(ResourceColor(window, "NetworkBackground"));
+            var lit = Enumerable.Range(0, 8)
+                .Select(i => i * Math.PI / 4)
+                .Count(a => Luma(Pixel(frame, canvas, centre + new Vector(Math.Cos(a), Math.Sin(a)) * (r + 13))) - background >= 8);
+            Assert.True(lit >= 6, $"no glow around the lifted node: {lit} of 8 points lit");
+        }
+
+        // Light keeps its look (the shadow alone reads on the pale canvas): no glow at all.
+        window.RequestedThemeVariant = ThemeVariant.Light;
+        window.UpdateLayout();
+        Assert.Equal(Colors.Transparent, ResourceColor(window, "NetworkDragGlow"));
+        Assert.False(NetworkCanvas.Palette.From(canvas).HasDragGlow);
+        window.MouseUp(InWindow(start + new Vector(20, 20)), MouseButton.Left);
+        network.Session.DiscardChanges();
+        window.Close();
+    }
+
+    private static double Luma(Color c) => (0.2126 * c.R) + (0.7152 * c.G) + (0.0722 * c.B);
 
     /// <summary>The seeded network plus a third child of the root, arranged: one child sits left of the root.</summary>
     private static async Task<NetworkHomeViewModel> SeedThreeChildrenAsync(DesktopHarness app, MainWindow window)
