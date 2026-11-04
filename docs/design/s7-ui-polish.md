@@ -391,3 +391,13 @@
 - **复选框**：从分支折角之后移到行的最右端（标记列外侧），各层级的复选框落在同一列，与“会话”标题旁的选择按钮上下对齐。未勾选为空心框（悬停加深边框），勾选为强调色实心。测试：选择模式测试检查全部复选框右缘一致（容差 0.5 px）且在标记列右侧。
 - **选中底色**：新增主题色 `CheckedRow`／`CheckedRowHover`（浅色 #E3E8FD，深色 #263459），深色下与“当前打开”的灰底明显区分（取代上文“未验证”中的深色对比一条）。
 - **底部条**：改为窗口底色加细边框与轻阴影；“已选 N”用强调色；归档、删除高度一致；清除按钮前加一条细竖线。
+
+### 已有问题：退出时页面刷新与关闭数据库的竞态（2026-11-05）
+
+- **结论：会发生（macOS 上实测），已修正。** TRACK 2026-11-02 的发现原来只在测试里出现过，产品里没有确认。
+- **原来的顺序**：退出流程保存完毕后调用 `TryShutdown`；Avalonia 在同一次调用里先关窗口、触发 `Exit` 事件，再关界面线程的派发器。`App` 在 `Exit` 事件里同步执行 `AppHost.DisposeAsync`（停生成、补存、关数据库、释放服务容器）。页面刷新经 `UiThrottle` 投递到界面线程，或作为 `SerialRefresh` 中 `await` 之后的续体排在界面线程队列里。
+- **证据**：读 Avalonia 12.1.4 反编译源码：`DoShutdown` 在 `Exit` 之后才 `InvokeShutdown`，派发器关闭时丢弃队列；但作业循环是先执行一个作业再检查“已开始关闭”，原生消息循环在取消后仍可能再进一次。用一个最小程序在本机 macOS（原生平台）实测：界面线程队列里一直有待执行作业时，`Exit` 返回之后仍执行了恰好 1 个作业，20 次中 13 次；无头平台 5 次中 0 次（所以无头测试看不到）。把旧顺序放进新测试（在“循环”开头释放宿主）：随后那次归档命令失败，`InvalidOperationException: The database is not open.`，页面未变为已归档；由于服务容器也已释放，别的作业还可能碰到已释放的对象。这个进程随即退出，用户看不到报错，但那次作业若是写入（例如阅读进度）就会丢失。
+- **改动**：数据库改在界面循环结束之后关闭。`AppHost.Run(runUiLoop)` 先运行 `StartWithClassicDesktopLifetime`，返回后（派发器已关闭：队列已丢弃、新投递被拒绝、计时器不再触发）在线程池上执行 `DisposeAsync`（避开可能仍装着的界面同步上下文）。`App` 不再订阅 `Exit`；`Program` 改为 `host.Run(...)`。`DisposeAsync` 内的顺序不变。文件：`src/Mindweave.Desktop/AppHost.cs`、`App.axaml.cs`、`Program.cs`。
+- **测试**：`ExitTests.The_database_closes_only_after_the_ui_loop_so_its_last_jobs_still_find_it_open`：退出流程走到“释放”后交给真实 `AppHost.Run`，循环里模拟 `Exit` 之后的最后一个作业——一次归档（先变标记，再刷新页面）；断言命令成功、页面已归档、循环结束后数据库已关、单实例锁已释放。去掉循环后的释放时测试失败（数据库仍开着）；恢复旧顺序（在循环开头释放）时归档命令以“数据库未打开”失败（均已验证，随后恢复）。
+- **未验证**：Windows 上的原生消息循环是否也会在 `Exit` 之后再执行作业（按托管代码推断同样可能，改动对两边都适用）；真实应用里从归档到退出的完整操作没有手动试过，只用最小程序验证了 Avalonia 的行为；崩溃（界面循环抛异常）时仍与原来一样不执行释放。
+- **全量**：`dotnet build Mindweave.slnx -warnaserror` 0 警告；`dotnet test Mindweave.slnx` 一次全部通过（Core 67、Architecture 8、Infrastructure 295＋16 跳过、Desktop 257＋39 跳过）。其余几次里偶发失败的两个测试与本改动无关：`MultiSelectUiTests` 的复选框右缘对齐断言（改动前的提交上 4 次也失败 1 次）、`ConversationActionsTests` 复制停止回答的 5 秒超时（单独运行通过，属“界面测试偶发超时”一项）。

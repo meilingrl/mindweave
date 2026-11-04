@@ -410,6 +410,58 @@ public class ExitTests
         Assert.True(watch.Elapsed < TimeSpan.FromSeconds(1), $"The host waited {watch.Elapsed}.");
     }
 
+    /// <summary>
+    /// TRACK 2026-11-02: a command flips its flag and then refreshes the page. On macOS the lifetime still ran one queued UI
+    /// job after its Exit event in about half of the exits (probe, 2026-11-05), so the host closed the database too early when
+    /// it did so in that event. Here that last job is such a command; it must find the database open, which closes once the
+    /// UI loop has returned.
+    /// </summary>
+    [AvaloniaFact]
+    public async Task The_database_closes_only_after_the_ui_loop_so_its_last_jobs_still_find_it_open()
+    {
+        await using var app = DesktopHarness.Create();
+        var page = await ConversationAsync(app);
+        await UiWait.UntilAsync(() => page.RunningAnswer is null);
+        Assert.True(app.Root.Exit.InterceptClose());
+        await app.Root.Exit.Running;
+        Assert.Equal(ExitStage.Releasing, app.Root.Exit.Stage);
+        var database = app.Services.GetRequiredService<SqliteDatabase>();
+
+        var instance = SingleInstance.TryAcquire(app.Paths);
+        Assert.NotNull(instance);
+        var host = app.HandOverToHost(instance);
+        Task? archiving = null;
+        var openDuringLoop = false;
+        var code = host.Run(() =>
+        {
+            // The lifetime has raised Exit; one queued job still runs: archive (the flag) and then the page refresh.
+            openDuringLoop = database.IsOpen;
+            archiving = page.ArchiveCommand.ExecuteAsync(null);
+            PumpUntil(archiving);
+            return 7;
+        });
+
+        Assert.Equal(7, code);
+        Assert.True(openDuringLoop);
+        Assert.NotNull(archiving);
+        await archiving;
+        Assert.True(page.IsArchived);
+        Assert.False(database.IsOpen);
+        await using var again = SingleInstance.TryAcquire(app.Paths);
+        Assert.NotNull(again);
+    }
+
+    /// <summary>Runs UI jobs synchronously until <paramref name="task"/> ends, as the lifetime's loop would before returning.</summary>
+    private static void PumpUntil(Task task)
+    {
+        var deadline = DateTime.UtcNow.AddSeconds(5);
+        while (!task.IsCompleted && DateTime.UtcNow < deadline)
+        {
+            Avalonia.Threading.Dispatcher.UIThread.RunJobs();
+            Thread.Sleep(5);
+        }
+    }
+
     [AvaloniaFact]
     public async Task Returning_after_a_failed_save_accepts_new_questions_and_does_not_revive_stopped_answers()
     {
