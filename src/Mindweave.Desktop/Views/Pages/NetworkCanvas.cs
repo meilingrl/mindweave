@@ -120,6 +120,16 @@ public sealed class NetworkCanvas : Control
     /// <summary>The lift shadow's layers, outermost first: how much wider than the dot, how far down, how opaque.</summary>
     private static readonly (double Grow, double Drop, double Opacity)[] ShadowLayers = [(5, 4.5, 0.35), (3, 3.5, 0.55), (1, 2.5, 0.8)];
 
+    /// <summary>
+    /// The lift glow's layers (dark only), outermost first: how far past the dot it reaches and how opaque. The glow
+    /// sits just outside the selection halo (dot + 11), so the halo stays the same and the glow fades out around it.
+    /// </summary>
+    private static readonly (double Grow, double Opacity)[] GlowLayers = [(19, 0.08), (16, 0.14), (13.5, 0.22)];
+
+    /// <summary>The thin rim at the halo's edge that outlines a lifted node (dark only): radius past the dot, opacity.</summary>
+    private const double GlowRimGrow = 11;
+    private const double GlowRimOpacity = 0.6;
+
     private readonly Dictionary<SummaryNodeId, Vector> _offsets = [];
     private readonly DispatcherTimer _motion;
     private NetworkHomeViewModel? _page;
@@ -528,6 +538,19 @@ public sealed class NetworkCanvas : Control
         var p = node.Center;
         var r = node.Radius;
         var surface = palette.Background;
+        var glow = node.Lifted && palette.HasDragGlow;
+        if (glow)
+        {
+            // Dark only: a black shadow hardly shows on the near-black canvas, so the lifted node also glows faintly.
+            foreach (var (grow, opacity) in GlowLayers)
+            {
+                using (context.PushOpacity(opacity))
+                {
+                    context.DrawEllipse(palette.DragGlow, null, p, r + grow, r + grow);
+                }
+            }
+        }
+
         if (node.Halo)
         {
             surface = node.Ring == NodeRing.Selected ? palette.HaloSelected : palette.HaloHover;
@@ -543,6 +566,14 @@ public sealed class NetworkCanvas : Control
                 using (context.PushOpacity(opacity))
                 {
                     context.DrawEllipse(palette.DragShadow, null, p + new Vector(0, drop), r + grow, r + grow - 1);
+                }
+            }
+
+            if (glow)
+            {
+                using (context.PushOpacity(GlowRimOpacity))
+                {
+                    context.DrawEllipse(null, palette.DragGlowRim, p, r + GlowRimGrow, r + GlowRimGrow);
                 }
             }
         }
@@ -913,6 +944,7 @@ public sealed class NetworkCanvas : Control
     {
         private readonly Dictionary<(EdgeState, bool), IPen> _edges = [];
         private readonly Dictionary<IBrush, IPen> _rings = [];
+        private IPen? _glowRim;
 
         public required IBrush Background { get; init; }
 
@@ -954,13 +986,21 @@ public sealed class NetworkCanvas : Control
 
         public required IBrush DragShadow { get; init; }
 
+        /// <summary>The glow around a lifted node; transparent in a theme that does not use one (light).</summary>
+        public required IBrush DragGlow { get; init; }
+
+        /// <summary>Whether <see cref="DragGlow"/> draws anything: a fully transparent glow is skipped altogether.</summary>
+        public bool HasDragGlow => DragGlow is not ISolidColorBrush { Color.A: 0 } && DragGlow.Opacity > 0;
+
+        public IPen DragGlowRim => _glowRim ??= new Pen(DragGlow, 1);
+
         /// <summary>Every theme resource the canvas draws with; both themes must define each one as a brush.</summary>
         public static IReadOnlyList<string> Keys { get; } =
         [
             "NetworkBackground", "NetworkGridDot", "NetworkNode", "NetworkNodeRead", "NetworkNodeTrail", "NetworkNodeHover",
             "NetworkUnreadDot", "NetworkHaloSelected", "NetworkHaloHover", "NetworkRingSelected", "NetworkRingMatch",
             "NetworkLabel", "NetworkLabelRead", "NetworkLabelActive", "NetworkCaption", "NetworkEdge", "NetworkEdgeIndirect",
-            "NetworkEdgeNear", "NetworkEdgeTrail", "NetworkDragShadow",
+            "NetworkEdgeNear", "NetworkEdgeTrail", "NetworkDragShadow", "NetworkDragGlow",
         ];
 
         /// <summary>The brush for a key in the control's current theme; null when the theme does not define it.</summary>
@@ -1006,6 +1046,7 @@ public sealed class NetworkCanvas : Control
                 EdgeNear = brushes["NetworkEdgeNear"],
                 EdgeTrail = brushes["NetworkEdgeTrail"],
                 DragShadow = brushes["NetworkDragShadow"],
+                DragGlow = brushes["NetworkDragGlow"],
             };
         }
 
