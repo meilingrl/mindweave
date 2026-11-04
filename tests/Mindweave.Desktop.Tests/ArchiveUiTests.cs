@@ -115,22 +115,27 @@ public class ArchiveUiTests
     }
 
     [AvaloniaFact]
-    public async Task Deleting_asks_first_names_every_reason_when_refused_and_then_leaves_for_the_parent()
+    public async Task A_plain_delete_asks_inline_and_leaves_for_the_parent_and_one_with_branches_opens_the_dialog()
     {
         await using var app = DesktopHarness.Create();
         var root = await ConversationAsync(app);
         var child = await BranchAsync(app, root, "火车");
         root = await OpenAsync(app, root.Id);
 
-        root.DeleteCommand.Execute(null);
-        Assert.Equal(UiText.DeleteConfirm, root.Confirmation!.Message);
-        await root.ConfirmCommand.ExecuteAsync(null);
-        Assert.Equal(UiText.DeleteRefused(DeleteBlockers.HasBranches, offerArchive: true), root.ArchiveNotice);
-        Assert.True(root.OfferArchive);
+        // The root takes its branch along: the window's dialog states the counts instead of the inline question.
+        await root.DeleteCommand.ExecuteAsync(null);
+        Assert.Null(root.Confirmation);
+        var dialog = app.Root.ConversationDeletion;
+        Assert.True(dialog.IsOpen);
+        await dialog.Loading;
+        Assert.Equal(UiText.ConversationDeleteContents(1, 1, 0), dialog.Contents);
+        dialog.CancelCommand.Execute(null);
 
         child = await OpenAsync(app, child.Id);
         child.Composer.Text = "没发出去的草稿";
-        child.DeleteCommand.Execute(null);
+        await child.DeleteCommand.ExecuteAsync(null);
+        Assert.Equal(UiText.DeleteConfirm, child.Confirmation!.Message);
+        Assert.False(dialog.IsOpen);
         await child.ConfirmCommand.ExecuteAsync(null);
 
         // Every page of the child left every stack; the parent is shown.
@@ -144,40 +149,45 @@ public class ArchiveUiTests
 
         await UiWait.UntilAsync(() => app.ShellPage.Conversations.Items.Count == 1);
 
-        // The root has no dependants now; deleting it returns to the explore home.
+        // The root has no dependants now; deleting it is plain again and returns to the explore home.
         root = await OpenAsync(app, root.Id);
-        root.DeleteCommand.Execute(null);
+        await root.DeleteCommand.ExecuteAsync(null);
         await root.ConfirmCommand.ExecuteAsync(null);
         Assert.IsType<ExploreHomeViewModel>(app.Workbench.CurrentPage);
         Assert.False(app.Workbench.CanGoBack);
         await UiWait.UntilAsync(() => app.ShellPage.Conversations.Items.Count == 0);
+        Assert.Empty(app.Services.GetRequiredService<Application.Startup.IDatabaseLifecycle>().ListBackups());
     }
 
     [AvaloniaFact]
-    public async Task A_refused_delete_of_an_archived_conversation_does_not_suggest_archiving_it()
+    public async Task An_archived_conversation_with_branches_opens_the_dialog_without_offering_to_archive_it()
     {
         await using var app = DesktopHarness.Create();
+        var window = Open(app);
         var root = await ConversationAsync(app);
         await BranchAsync(app, root, "火车");
         root = await OpenAsync(app, root.Id);
         await root.ArchiveCommand.ExecuteAsync(null);
         Assert.True(root.IsArchived);
 
-        root.DeleteCommand.Execute(null);
-        await root.ConfirmCommand.ExecuteAsync(null);
-
-        Assert.Equal(UiText.DeleteRefused(DeleteBlockers.HasBranches, offerArchive: false), root.ArchiveNotice);
-        Assert.DoesNotContain("改为归档", root.ArchiveNotice, StringComparison.Ordinal);
-        Assert.False(root.OfferArchive);
-
         app.ShellPage.Conversations.OpenArchivedCommand.Execute(null);
         var archived = Assert.IsType<ArchivedViewModel>(app.Workbench.CurrentPage);
         await archived.RefreshAsync();
-        archived.DeleteCommand.Execute(archived.Items.Single(i => i.Id == root.Id));
-        await archived.ConfirmCommand.ExecuteAsync(null);
+        await archived.DeleteCommand.ExecuteAsync(archived.Items.Single(i => i.Id == root.Id));
 
-        Assert.Equal(UiText.DeleteRefused(DeleteBlockers.HasBranches, offerArchive: false), archived.Notice);
-        Assert.DoesNotContain("改为归档", archived.Notice, StringComparison.Ordinal);
+        Assert.Null(archived.Confirmation);
+        var dialog = app.Root.ConversationDeletion;
+        await dialog.Loading;
+        window.UpdateLayout();
+        Assert.Equal(UiText.ConversationDeleteContents(1, 1, 0), dialog.Contents);
+        Assert.False(dialog.CanArchive);
+        Assert.False(Find<Button>(window, "ConversationDeleteArchive").IsEffectivelyVisible);
+        await dialog.DeleteCommand.ExecuteAsync(null);
+        Assert.False(dialog.IsOpen);
+        await archived.RefreshAsync();
+        Assert.Empty(archived.Items);
+        Assert.IsType<ArchivedViewModel>(app.Workbench.CurrentPage);
+        window.Close();
     }
 
     [AvaloniaFact]
@@ -255,7 +265,7 @@ public class ArchiveUiTests
         Assert.Equal(UiText.ArchiveStorageFailed, root.ArchiveNotice);
         Assert.False(root.IsArchived);
 
-        root.DeleteCommand.Execute(null);
+        await root.DeleteCommand.ExecuteAsync(null);
         await root.ConfirmCommand.ExecuteAsync(null);
         Assert.Equal(UiText.ArchiveStorageFailed, root.ArchiveNotice);
         Assert.Same(root, app.Workbench.CurrentPage);
@@ -285,7 +295,7 @@ public class ArchiveUiTests
         var item = Assert.Single(archived.Items);
         await archived.RestoreCommand.ExecuteAsync(item);
         Assert.Equal(UiText.ArchiveStorageFailed, archived.Notice);
-        archived.DeleteCommand.Execute(item);
+        await archived.DeleteCommand.ExecuteAsync(item);
         await archived.ConfirmCommand.ExecuteAsync(null);
         Assert.Equal(UiText.ArchiveStorageFailed, archived.Notice);
         await archived.RefreshAsync();
@@ -310,8 +320,11 @@ public class ArchiveUiTests
             public Task<IReadOnlyList<Core.Conversations.ConversationId>> RestoreAsync(Core.Conversations.ConversationId conversation, CancellationToken cancellationToken) =>
                 owner.Fail ? Refuse<IReadOnlyList<Core.Conversations.ConversationId>>() : inner.RestoreAsync(conversation, cancellationToken);
 
-            public Task<DeleteResult> DeleteAsync(Core.Conversations.ConversationId conversation, CancellationToken cancellationToken) =>
-                owner.Fail ? Refuse<DeleteResult>() : inner.DeleteAsync(conversation, cancellationToken);
+            public Task<ConversationDeleteScope> InspectDeleteAsync(IReadOnlyCollection<Core.Conversations.ConversationId> selected, CancellationToken cancellationToken) =>
+                inner.InspectDeleteAsync(selected, cancellationToken);
+
+            public Task<ConversationDeleteResult> DeleteAsync(ConversationDeleteScope confirmed, CancellationToken cancellationToken) =>
+                owner.Fail ? Refuse<ConversationDeleteResult>() : inner.DeleteAsync(confirmed, cancellationToken);
 
             public Task<IReadOnlySet<Core.Conversations.ConversationId>> ArchivedAmongAsync(IReadOnlyCollection<Core.Conversations.ConversationId> conversations, CancellationToken cancellationToken) =>
                 inner.ArchivedAmongAsync(conversations, cancellationToken);
@@ -334,7 +347,7 @@ public class ArchiveUiTests
         await archived.RefreshAsync();
         var last = archived.Items.Single(i => i.Id == child.Id);
 
-        archived.DeleteCommand.Execute(last);
+        await archived.DeleteCommand.ExecuteAsync(last);
 
         // A reload (any conversation change) rebuilds the rows; the confirmation stays with its row.
         await archived.RefreshAsync();
@@ -391,7 +404,7 @@ public class ArchiveUiTests
         var archived = Assert.IsType<ArchivedViewModel>(app.Workbench.CurrentPage);
         await archived.RefreshAsync();
 
-        archived.DeleteCommand.Execute(archived.Items.Single(i => i.Id == first.Id));
+        await archived.DeleteCommand.ExecuteAsync(archived.Items.Single(i => i.Id == first.Id));
         Assert.NotNull(archived.Confirmation);
 
         // The second branch's parent is not archived, so it restores without asking; the stale question goes away.

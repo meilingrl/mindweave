@@ -141,10 +141,14 @@ public sealed class Workbench : ObservableObject, IWorkbenchNavigator
         Changed();
     }
 
-    public void Forget(Func<ContentRoute, bool> match, ContentRoute? fallback = null)
+    public void Forget(Func<ContentRoute, bool> match, ContentRoute? fallback = null) => Forget(match, _ => fallback);
+
+    public void Forget(Func<ContentRoute, bool> match, Func<ContentRoute, ContentRoute?> fallbackFor)
     {
         ArgumentNullException.ThrowIfNull(match);
+        ArgumentNullException.ThrowIfNull(fallbackFor);
         var shown = CurrentPage;
+        var fallback = shown is not null && match(shown.Route) ? fallbackFor(shown.Route) : null;
         var shownForgotten = false;
         foreach (var stack in _runtimes.Values.SelectMany(r => r.Slots).SelectMany(s => s.Stacks))
         {

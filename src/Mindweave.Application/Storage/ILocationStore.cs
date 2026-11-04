@@ -13,6 +13,9 @@ public sealed record PageLocation(WorkspaceId WorkspaceId, string SectionKey, st
     /// last page that points at it in the same transaction.
     /// </summary>
     public static string ConversationKey(Core.Conversations.ConversationId conversation) => "conversation:" + conversation;
+
+    /// <summary>The content key of a summary page; shared with storage for the same reason (a cascading conversation delete).</summary>
+    public static string SummaryKey(Core.Summaries.SummaryNodeId node) => "summary:" + node;
 }
 
 public interface ILocationStore

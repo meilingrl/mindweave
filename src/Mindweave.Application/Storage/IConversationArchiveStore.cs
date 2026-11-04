@@ -1,34 +1,72 @@
 using Mindweave.Core.Conversations;
+using Mindweave.Core.Summaries;
 
 namespace Mindweave.Application.Storage;
 
-/// <summary>Why a conversation cannot be deleted now. Every reason that applies is reported together.</summary>
-[Flags]
-public enum DeleteBlockers
-{
-    None = 0,
-
-    /// <summary>Branches were created from it (they depend on its messages, MW-C02).</summary>
-    HasBranches = 1,
-
-    /// <summary>It is the source of a summary node.</summary>
-    HasSummary = 2,
-
-    /// <summary>An answer of it is queued or being generated.</summary>
-    AnswerUnfinished = 4,
-
-    /// <summary>A summary of it is queued or being generated.</summary>
-    SummaryUnfinished = 8,
-}
-
 /// <summary>
-/// Outcome of a delete: removed (no blockers), refused with every blocker, or <paramref name="Missing"/> when the
-/// conversation no longer existed. <paramref name="Parent"/> is the conversation it was branched from, if any.
+/// What deleting a selection of conversations takes (requirements v0.12 §8.2, architecture §9.1): the union of each
+/// selected conversation with all its descendants (archived ones included) and the summary nodes of those
+/// conversations. <paramref name="Selected"/> is what was asked for, in that order; <paramref name="Roots"/> are the
+/// members whose parent is outside the scope (always selected ones), <paramref name="Conversations"/> every member, each
+/// root followed by its subtree. <paramref name="RootOf"/> maps every member to its root, <paramref name="ParentOf"/>
+/// a root to the conversation it was branched from (outside the scope), and <paramref name="VisibleRoots"/> are the
+/// roots not hidden by an archive (the ones "改为归档" can act on). <paramref name="Busy"/> names members with a
+/// user-started answer or summary queued or running.
 /// </summary>
-public sealed record DeleteResult(DeleteBlockers Blockers, ConversationId? Parent, bool Missing = false)
+public sealed record ConversationDeleteScope(
+    IReadOnlyList<ConversationId> Selected,
+    IReadOnlyList<ConversationId> Roots,
+    IReadOnlyList<ConversationId> Conversations,
+    IReadOnlyList<SummaryNodeId> Summaries,
+    IReadOnlyList<BusyConversation> Busy,
+    IReadOnlyDictionary<ConversationId, ConversationId> RootOf,
+    IReadOnlyDictionary<ConversationId, ConversationId> ParentOf,
+    IReadOnlyList<ConversationId> VisibleRoots)
 {
-    public bool Deleted => !Missing && Blockers == DeleteBlockers.None;
+    /// <summary>Nothing selected exists any more.</summary>
+    public bool IsEmpty => Conversations.Count == 0;
+
+    /// <summary>Members below a root: the branches that go with it.</summary>
+    public int Branches => Conversations.Count - Roots.Count;
+
+    /// <summary>
+    /// The delete takes branches or summaries along: it is confirmed with counts and backed up first. A selection of
+    /// conversations with neither is the plain, dependency-free delete.
+    /// </summary>
+    public bool IsCascade => Branches > 0 || Summaries.Count > 0;
+
+    /// <summary>The same conversations and summary nodes, whatever the order (the in-transaction check).</summary>
+    public bool SameContents(ConversationDeleteScope other)
+    {
+        ArgumentNullException.ThrowIfNull(other);
+        return Conversations.Count == other.Conversations.Count && Summaries.Count == other.Summaries.Count
+            && Conversations.ToHashSet().SetEquals(other.Conversations) && Summaries.ToHashSet().SetEquals(other.Summaries);
+    }
+
+    public static ConversationDeleteScope Empty(IReadOnlyList<ConversationId> selected) =>
+        new(selected, [], [], [], [], new Dictionary<ConversationId, ConversationId>(), new Dictionary<ConversationId, ConversationId>(), []);
 }
+
+public enum ConversationDeleteStatus
+{
+    /// <summary>Everything in the scope is gone.</summary>
+    Deleted,
+
+    /// <summary>A user-started answer or summary in the scope is queued or running; nothing was deleted.</summary>
+    Busy,
+
+    /// <summary>The scope is no longer what was confirmed (a branch or summary came or went); nothing was deleted.</summary>
+    ScopeChanged,
+
+    /// <summary>None of the selected conversations exists any more.</summary>
+    Missing,
+
+    /// <summary>The backup a cascading delete makes first did not succeed, so nothing was deleted.</summary>
+    BackupFailed,
+}
+
+/// <summary>Outcome of a delete transaction; <paramref name="Scope"/> is the scope as computed inside it.</summary>
+public sealed record ConversationDeleteResult(ConversationDeleteStatus Status, ConversationDeleteScope Scope);
 
 /// <summary>
 /// Outcome of archiving: refused when a conversation of the subtree still has an answer or summary queued or
@@ -77,11 +115,18 @@ public interface IConversationArchiveStore
     /// </summary>
     Task<IReadOnlyList<ConversationId>> RestoreAsync(ConversationId conversation, CancellationToken cancellationToken);
 
+    /// <summary>The delete scope of <paramref name="selected"/> as it is now (for the confirmation).</summary>
+    Task<ConversationDeleteScope> InspectDeleteAsync(IReadOnlyCollection<ConversationId> selected, CancellationToken cancellationToken);
+
     /// <summary>
-    /// Deletes a conversation without dependents together with everything that belongs only to it, after checking in
-    /// the same transaction that nothing depends on it; the last page pointing at it is cleared too.
+    /// Deletes the scope of <paramref name="confirmed"/>'s selection in one transaction that recomputes it inside: when
+    /// it is no longer the confirmed one, or a member has a user-started answer or summary queued or running, nothing
+    /// changes. Otherwise every row of every member goes (messages, tasks and request traces, branch sources and
+    /// ranges, reading positions, drafts, context summaries, archive rows), with the summary nodes of the members (versions,
+    /// read states, edit drafts, layout rows); a last page pointing at any of them is cleared. Nothing outside the scope
+    /// references it (architecture §4.2), so nothing dangles.
     /// </summary>
-    Task<DeleteResult> DeleteAsync(ConversationId conversation, CancellationToken cancellationToken);
+    Task<ConversationDeleteResult> DeleteAsync(ConversationDeleteScope confirmed, CancellationToken cancellationToken);
 
     /// <summary>Those of <paramref name="conversations"/> the user archived themselves (for markers on branch entries).</summary>
     Task<IReadOnlySet<ConversationId>> ArchivedAmongAsync(IReadOnlyCollection<ConversationId> conversations, CancellationToken cancellationToken);

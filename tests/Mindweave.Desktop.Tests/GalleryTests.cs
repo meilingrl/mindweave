@@ -485,7 +485,7 @@ public class GalleryTests
         Capture(window, "g19-archived-page");
 
         // Deleting asks first, in the danger colour.
-        archived.DeleteCommand.Execute(archived.Items[^1]);
+        await archived.DeleteCommand.ExecuteAsync(archived.Items[^1]);
         await SettleAsync(window);
         Capture(window, "g19b-archived-delete-confirm");
         window.Close();
@@ -504,18 +504,28 @@ public class GalleryTests
         window.Close();
     }
 
+    /// <summary>
+    /// A delete is refused only while work runs in it now (requirements v0.12 §8.2): the plain question was asked, an
+    /// answer started before the press, and the notice names the conversation.
+    /// </summary>
     [AvaloniaFact]
-    public async Task G21_delete_refused_notice()
+    public async Task G21_delete_refused_while_an_answer_runs()
     {
         await using var scene = Scene.Create("g21");
         var window = Show(scene.App);
         var seed = await SeedAsync(scene.App);
-        var page = await OpenConversationAsync(scene.App, window, seed.Root);
-        page.DeleteCommand.Execute(null);
+        var page = await OpenConversationAsync(scene.App, window, seed.FirstRailway);
+        await page.DeleteCommand.ExecuteAsync(null);
+        var held = scene.App.Client.Hold("吴淞铁路的机车是英国制造的“先导号”，");
+        page.Composer.Text = "它的机车是哪里造的？";
+        await page.Composer.SendCommand.ExecuteAsync(null);
+        await held.Started.Task.WaitAsync(TimeSpan.FromSeconds(5));
         await page.ConfirmCommand.ExecuteAsync(null);
-        Assert.True(page.OfferArchive);
+        Assert.NotNull(page.ArchiveNotice);
         await SettleAsync(window);
-        Capture(window, "g21-delete-refused");
+        Capture(window, "g21-delete-refused-running");
+        held.Finish("1876 年运到上海。");
+        await UiWait.UntilAsync(() => page.RunningAnswer is null);
         window.Close();
     }
 

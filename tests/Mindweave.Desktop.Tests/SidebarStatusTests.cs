@@ -453,7 +453,8 @@ public class SidebarStatusTests
         await app.Services.GetRequiredService<ConversationMarksService>().FlushAsync();
         Assert.Contains(first.ToString(), await preferences.GetAsync(ConversationMarksService.UnreadKey, CancellationToken.None) ?? string.Empty);
 
-        Assert.True((await app.Services.GetRequiredService<ConversationService>().DeleteAsync(first, CancellationToken.None)).Deleted);
+        var deletion = app.Services.GetRequiredService<ConversationDeletionService>();
+        Assert.True((await deletion.DeleteAsync(await deletion.InspectAsync([first], CancellationToken.None), CancellationToken.None)).IsDeleted);
         Assert.False(app.Services.GetRequiredService<IConversationMarks>().IsUnread(first));
         await app.Services.GetRequiredService<ConversationMarksService>().FlushAsync();
         Assert.DoesNotContain(first.ToString(), await preferences.GetAsync(ConversationMarksService.UnreadKey, CancellationToken.None) ?? string.Empty);

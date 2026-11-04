@@ -150,12 +150,6 @@
       <Border Name="ArchiveNoticePanel" Classes="notice warning" HorizontalAlignment="Left" IsVisible="{Binding ArchiveNotice, Converter={x:Static ObjectConverters.IsNotNull}}">
         <DockPanel>
           <TextBlock Classes="notice-icon" Text="!" VerticalAlignment="Center" />
-          <Button Name="OfferArchiveButton" DockPanel.Dock="Right" Classes="quiet" Command="{Binding ArchiveCommand}" IsVisible="{Binding OfferArchive}" Margin="10,0,0,0">
-            <StackPanel Orientation="Horizontal" Spacing="6">
-              <PathIcon Data="{StaticResource IconArchive}" />
-              <TextBlock Text="{x:Static d:UiText.ArchiveInstead}" VerticalAlignment="Center" />
-            </StackPanel>
-          </Button>
           <TextBlock Name="ArchiveNotice" Text="{Binding ArchiveNotice}" />
         </DockPanel>
       </Border>

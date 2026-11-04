@@ -56,8 +56,6 @@ public interface IConversations
 
     Task<IReadOnlyList<ConversationId>> RestoreAsync(ConversationId id, CancellationToken cancellationToken);
 
-    Task<DeleteResult> DeleteAsync(ConversationId id, CancellationToken cancellationToken);
-
     Task<IReadOnlySet<ConversationId>> ArchivedAmongAsync(IReadOnlyCollection<ConversationId> conversations, CancellationToken cancellationToken);
 
     Task RenameAsync(ConversationId id, string title, CancellationToken cancellationToken);

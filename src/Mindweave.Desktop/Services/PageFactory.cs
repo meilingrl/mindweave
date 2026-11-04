@@ -26,16 +26,18 @@ internal sealed class PageFactory(
     IThemeApplier theme,
     Application.Storage.IStorageStatus storage,
     IUiDispatcher dispatcher,
-    IWorkspaceDeletionPrompt workspaceDeletion) : IPageFactory
+    IWorkspaceDeletionPrompt workspaceDeletion,
+    IConversationDeletion conversationDeletion,
+    IConversationDeletionPrompt conversationDeletionPrompt) : IPageFactory
 {
     public PageViewModel Create(ContentRoute route, PageContext context) => route switch
     {
         ExploreHomeRoute => new ExploreHomeViewModel(context.Workspace, context.Navigator),
         NetworkHomeRoute => new NetworkHomeViewModel(context.Workspace, networks.Get(context.Workspace.Id), summaries, conversations, context.Navigator, dispatcher),
         SummaryRoute summary => new SummaryViewModel(summary, context, summaries, dispatcher, time, exports, shell),
-        ConversationRoute conversation => new ConversationViewModel(conversation, context, conversations, reading, dispatcher, storage, summaries, time),
+        ConversationRoute conversation => new ConversationViewModel(conversation, context, conversations, reading, dispatcher, storage, summaries, time, conversationDeletion, conversationDeletionPrompt),
         NewConversationRoute => new NewConversationViewModel(context.Workspace.Id, conversations, context.Navigator, context.Navigator),
-        ArchivedRoute => new ArchivedViewModel(context.Workspace, conversations, context.Navigator, dispatcher),
+        ArchivedRoute => new ArchivedViewModel(context.Workspace, conversations, context.Navigator, dispatcher, conversationDeletion, conversationDeletionPrompt),
         SettingsHomeRoute => new SettingsHomeViewModel(environment, new ModelSettingsViewModel(models), context.Navigator, appearance, theme, context.Workspace, workspaceDeletion),
         StorageDetailsRoute => new StorageDetailsViewModel(environment, database.ListBackups(), shell),
         _ => throw new ArgumentOutOfRangeException(nameof(route), route, "No page is registered for this route."),

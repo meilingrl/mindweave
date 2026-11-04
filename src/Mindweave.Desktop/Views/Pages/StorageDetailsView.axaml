@@ -52,7 +52,7 @@
                     <TextBlock Text="{Binding SchemaVersion, Converter={x:Static d:Converters.SchemaVersion}}" />
                   </Border>
                   <Border Grid.Column="2" Classes="badge" IsVisible="{Binding Reason, Converter={x:Static d:Converters.IsBeforeDelete}}">
-                    <TextBlock Text="{x:Static d:UiText.BackupBeforeDelete}" />
+                    <TextBlock Text="{Binding Reason, Converter={x:Static d:Converters.BackupReasonLabel}}" />
                   </Border>
                   <TextBlock Grid.Column="3" Classes="caption" HorizontalAlignment="Right" VerticalAlignment="Center"
                              Text="{Binding SizeBytes, Converter={x:Static d:Converters.FileSize}}" />

@@ -120,7 +120,7 @@ public static class UiText
     public const string DataSection = "数据";
     public const string LocationSection = "位置";
     public const string OpenFolder = "打开";
-    public const string NoBackupsShort = "暂无。数据升级前、删除工作区前会自动备份。";
+    public const string NoBackupsShort = "暂无。数据升级前和连带删除前会自动备份。";
     public const string AppearanceSaveFailed = "外观设置未能保存，本次运行中仍然有效。";
 
     // Summaries (S4)
@@ -432,7 +432,7 @@ public static class UiText
     {
         ArgumentNullException.ThrowIfNull(backup);
         var details = string.Format(CultureInfo.CurrentCulture, "结构版本 {0} · {1:N0} KB", backup.SchemaVersion, backup.SizeBytes / 1024);
-        return backup.Reason == BackupReason.BeforeWorkspaceDelete ? details + " · " + BackupBeforeDelete : details;
+        return BackupReasonLabel(backup.Reason) is { } reason ? details + " · " + reason : details;
     }
 
     public const string DataLocation = "数据位置";
@@ -452,7 +452,7 @@ public static class UiText
             FormatTime(backup.CreatedAt),
             backup.SchemaVersion,
             backup.SizeBytes / 1024);
-        return backup.Reason == BackupReason.BeforeWorkspaceDelete ? label + "　" + BackupBeforeDelete : label;
+        return BackupReasonLabel(backup.Reason) is { } reason ? label + "　" + reason : label;
     }
 
     public static string SummarizeRejected(SummarizeRejection rejection) => rejection switch
@@ -674,36 +674,6 @@ public static class UiText
         return "以下会话还有回答或总结在生成或排队，完成或停止后才能归档：" + string.Join("、", busy) + "。";
     }
 
-    /// <summary>
-    /// Every reason a delete was refused, together; archiving is suggested instead only when
-    /// <paramref name="offerArchive"/> (not for a conversation that is already archived or hidden).
-    /// </summary>
-    public static string DeleteRefused(DeleteBlockers blockers, bool offerArchive)
-    {
-        var reasons = new List<string>(4);
-        if (blockers.HasFlag(DeleteBlockers.HasBranches))
-        {
-            reasons.Add("已经从它创建了分支");
-        }
-
-        if (blockers.HasFlag(DeleteBlockers.HasSummary))
-        {
-            reasons.Add("它有总结（删除总结的全部版本后才能删除会话）");
-        }
-
-        if (blockers.HasFlag(DeleteBlockers.AnswerUnfinished))
-        {
-            reasons.Add("有回答正在生成或排队");
-        }
-
-        if (blockers.HasFlag(DeleteBlockers.SummaryUnfinished))
-        {
-            reasons.Add("有总结正在生成或排队");
-        }
-
-        return "不能删除：" + string.Join("；", reasons) + (offerArchive ? "。可以改为归档，归档可以随时恢复。" : "。");
-    }
-
     public static string NodeCreated(DateTimeOffset at) => "生成于 " + FormatTime(at);
     // Round 4 · topic-delete: deleting a whole workspace (user decision of 2026-11-02).
     public const string DeleteWorkspace = "删除工作区…";
@@ -712,6 +682,15 @@ public static class UiText
     public const string WorkspaceDeleteBackupFailed = "删除前的备份没有成功，所以没有删除任何内容。请检查磁盘空间与权限后重试。";
     public const string WorkspaceDeleteCountFailed = "没能读取这个工作区的内容，暂时不能删除。请关闭后重试。";
     public const string BackupBeforeDelete = "删除工作区前";
+    public const string BackupBeforeConversationDelete = "删除会话前";
+
+    /// <summary>The badge of a backup made before a delete; null for an upgrade backup.</summary>
+    public static string? BackupReasonLabel(BackupReason reason) => reason switch
+    {
+        BackupReason.BeforeWorkspaceDelete => BackupBeforeDelete,
+        BackupReason.BeforeConversationDelete => BackupBeforeConversationDelete,
+        _ => null,
+    };
 
     public static string DeleteWorkspaceTitle(string name) => $"删除工作区“{name}”？";
 
@@ -726,5 +705,40 @@ public static class UiText
         ArgumentNullException.ThrowIfNull(busy);
         var items = busy.Select(b => $"“{b.Title}”（{(b.Answer && b.Summary ? "回答、总结" : b.Answer ? "回答" : "总结")}）");
         return "还有回答或总结在生成或排队，完成或停止后才能删除：" + string.Join("、", items) + "。";
+    }
+
+    // Multi-select and deleting with a stated scope (requirements v0.12 §8.2; D-023: short, no restating the controls).
+    public const string SelectConversations = "选择";
+    public const string ClearSelection = "取消选择";
+    public const string ConversationDeleting = "正在删除…";
+    public const string ConversationDeleteScopeChanged = "要删除的内容有变化，数量已更新，请再确认。";
+    public const string ConversationDeleteCountFailed = "没能读取要删除的内容，暂时不能删除。请关闭后重试。";
+
+    public static string SelectionCount(int count) => string.Format(CultureInfo.CurrentCulture, "已选 {0}", count);
+
+    public static string ConversationDeleteTitle(string title) => $"删除“{title}”？";
+
+    public static string ConversationDeleteTitle(int conversations) => string.Format(CultureInfo.CurrentCulture, "删除 {0} 个会话？", conversations);
+
+    /// <summary>
+    /// The one sentence a delete confirmation says: what goes, counted (a part that is zero is left out), that it cannot
+    /// be undone in the app, and, when branches or summaries go along, where the backup made first is listed.
+    /// </summary>
+    public static string ConversationDeleteContents(int conversations, int branches, int summaries)
+    {
+        var parts = new List<string> { string.Format(CultureInfo.CurrentCulture, "{0} 个会话", conversations) };
+        if (branches > 0)
+        {
+            parts.Add(string.Format(CultureInfo.CurrentCulture, "{0} 个分支", branches));
+        }
+
+        if (summaries > 0)
+        {
+            parts.Add(string.Format(CultureInfo.CurrentCulture, "{0} 个总结", summaries));
+        }
+
+        return branches > 0 || summaries > 0
+            ? string.Join("、", parts) + "将被永久删除，应用内无法撤销。删除前的备份会列在“数据与存储”中。"
+            : parts[0] + "将被永久删除，包括全部消息和未发送的草稿，无法撤销。";
     }
 }
