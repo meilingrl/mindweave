@@ -96,10 +96,10 @@ public sealed partial class ContextCompressor(IContextSummaryStore summaries, IC
 
         // Summaries were budgeted at an assumed size; a much longer one may still not fit. The margin absorbs small
         // overruns, but the output reserve is never given up.
-        var estimate = TokenEstimator.PerRequest + turns.Sum(t => TokenEstimator.Message(t.Content));
-        if (estimate > budget.Capacity - budget.OutputReserve)
+        var estimate = TokenEstimator.Request(turns.Select(t => t.Content));
+        if (!budget.Fits(estimate))
         {
-            throw new ContextCompressionException($"压缩后的上下文约 {estimate} token，仍超出模型可用容量。");
+            throw new ContextCompressionException($"压缩后的上下文约 {budget.Predict(estimate)} token，仍超出模型可用容量。");
         }
 
         return new PreparedContext(turns, [.. used.Values.Select(s => s.Id).Distinct()]);
@@ -162,7 +162,7 @@ public sealed partial class ContextCompressor(IContextSummaryStore summaries, IC
     private async Task<(string? Summary, string Problem)> RequestSummaryAsync(
         GenerationTaskRecord task, ChatRequest request, string apiKey, Func<AiRequestRecord, Task> record, CancellationToken stop)
     {
-        var trace = new RequestTrace(task.Id, clock);
+        var trace = new RequestTrace(task.Id, clock, request);
         var text = new StringBuilder();
         ChatStreamEvent.Completed? completed = null;
         try

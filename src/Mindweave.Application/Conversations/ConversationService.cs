@@ -186,20 +186,21 @@ public sealed partial class ConversationService : IConversations
         }
 
         var history = await _store.GetMessagesAsync(id, cancellationToken).ConfigureAwait(false);
-        var budget = ContextBudget.For(model).Available;
+        var budget = await _generation.BudgetForAsync(model, cancellationToken).ConfigureAwait(false);
         var ancestors = await _branches.GetAncestorContextAsync(id, cancellationToken).ConfigureAwait(false);
         var source = ancestors.Count == 0 ? null : await _branches.GetSourceAsync(id, cancellationToken).ConfigureAwait(false);
         var own = new ContextSegment(id, source?.Quote, [.. history.Where(m => m.IsFinished)]);
         var full = TokenEstimator.PerRequest + BranchContext.Assemble(ancestors, own).Sum(i => TokenEstimator.Message(i.Text));
         if (own.Messages.Count == 0 && ancestors.Count == 0)
         {
-            return new ContextUsage(0, 0, budget, false, false);
+            return new ContextUsage(0, 0, budget.AvailableTokens, false, false);
         }
 
-        var planned = await PlanAsync(id, own.Messages, model, cancellationToken).ConfigureAwait(false);
+        // Shown in billed tokens: the estimate through what this model was seen to bill.
+        var planned = await PlanAsync(id, own.Messages, budget, cancellationToken).ConfigureAwait(false);
         return planned.Plan is { } plan
-            ? new ContextUsage(plan.EstimatedTokens, full, budget, plan.IsCompressed, false)
-            : new ContextUsage(full, full, budget, true, true);
+            ? new ContextUsage(budget.Predict(plan.EstimatedTokens), budget.Predict(full), budget.AvailableTokens, plan.IsCompressed, false)
+            : new ContextUsage(budget.Predict(full), budget.Predict(full), budget.AvailableTokens, true, true);
     }
 
     /// <summary>Creates a conversation from its first question and starts answering it.</summary>
@@ -216,7 +217,8 @@ public sealed partial class ConversationService : IConversations
         var conversation = new Conversation(id, workspace, null, TitleSource.None, now, now);
         var user = NewMessage(id, 0, MessageRole.User, question.Trim(), MessageState.Complete, null, now);
         var answer = NewMessage(id, 1, MessageRole.Assistant, string.Empty, MessageState.Pending, null, now);
-        var planned = await PlanAsync(id, [user], model, cancellationToken).ConfigureAwait(false);
+        var budget = await _generation.BudgetForAsync(model, cancellationToken).ConfigureAwait(false);
+        var planned = await PlanAsync(id, [user], budget, cancellationToken).ConfigureAwait(false);
         if (planned.Plan is not { } plan)
         {
             return SendOutcome.Reject(Rejection(planned.Rejection!.Value), id);
@@ -232,7 +234,7 @@ public sealed partial class ConversationService : IConversations
             return StorageRefused(ex, id);
         }
 
-        Enqueue(task, model, plan, answer);
+        Enqueue(task, model, plan, budget, answer);
         ConversationChanged?.Invoke(this, id);
         return new SendOutcome(null, id, answer.Id);
     }
@@ -254,7 +256,8 @@ public sealed partial class ConversationService : IConversations
         var now = _clock.UtcNow;
         var user = NewMessage(id, 0, MessageRole.User, question.Trim(), MessageState.Complete, null, now);
         var answer = NewMessage(id, 0, MessageRole.Assistant, string.Empty, MessageState.Pending, null, now);
-        var planned = await PlanAsync(id, [.. history, user], model, cancellationToken).ConfigureAwait(false);
+        var budget = await _generation.BudgetForAsync(model, cancellationToken).ConfigureAwait(false);
+        var planned = await PlanAsync(id, [.. history, user], budget, cancellationToken).ConfigureAwait(false);
         if (planned.Plan is not { } plan)
         {
             return SendOutcome.Reject(Rejection(planned.Rejection!.Value), id);
@@ -284,7 +287,7 @@ public sealed partial class ConversationService : IConversations
             return SendOutcome.Reject(SendRejection.ConversationMissing, id);
         }
 
-        Enqueue(task, model, plan, storedAnswer);
+        Enqueue(task, model, plan, budget, storedAnswer);
         ConversationChanged?.Invoke(this, id);
         return new SendOutcome(null, id, storedAnswer.Id);
     }
@@ -306,7 +309,8 @@ public sealed partial class ConversationService : IConversations
         // The answer is regenerated for the last question, from the history before that question.
         var question = history.Last(m => m.Role == MessageRole.User);
         var model = (await _models.GetActiveSnapshotAsync(cancellationToken).ConfigureAwait(false))!;
-        var planned = await PlanAsync(id, [.. history.Where(m => m.Seq <= question.Seq)], model, cancellationToken).ConfigureAwait(false);
+        var budget = await _generation.BudgetForAsync(model, cancellationToken).ConfigureAwait(false);
+        var planned = await PlanAsync(id, [.. history.Where(m => m.Seq <= question.Seq)], budget, cancellationToken).ConfigureAwait(false);
         if (planned.Plan is not { } plan)
         {
             return SendOutcome.Reject(Rejection(planned.Rejection!.Value), id);
@@ -338,7 +342,7 @@ public sealed partial class ConversationService : IConversations
             return SendOutcome.Reject(SendRejection.ConversationMissing, id);
         }
 
-        Enqueue(task, model, plan, stored);
+        Enqueue(task, model, plan, budget, stored);
         ConversationChanged?.Invoke(this, id);
         return new SendOutcome(null, id, stored.Id);
     }
@@ -569,7 +573,7 @@ public sealed partial class ConversationService : IConversations
     /// the model's budget (S3). Stored summaries count with their real size; missing ones are written later, in the
     /// answer task's own slot.
     /// </summary>
-    private async Task<PlanOutcome> PlanAsync(ConversationId id, IReadOnlyList<Message> own, ModelSnapshot model, CancellationToken cancellationToken)
+    private async Task<PlanOutcome> PlanAsync(ConversationId id, IReadOnlyList<Message> own, ContextBudget budget, CancellationToken cancellationToken)
     {
         var ancestors = await _branches.GetAncestorContextAsync(id, cancellationToken).ConfigureAwait(false);
         var source = ancestors.Count == 0 ? null : await _branches.GetSourceAsync(id, cancellationToken).ConfigureAwait(false);
@@ -577,7 +581,7 @@ public sealed partial class ConversationService : IConversations
             ? []
             : await _summaries.ListAsync([.. ancestors.Select(a => a.Conversation), id], cancellationToken).ConfigureAwait(false);
         var known = stored.ToDictionary(s => s.Key, s => ContextPlanner.SummaryTokens(s.Key, s.Text));
-        return ContextPlanner.Plan(ancestors, new ContextSegment(id, source?.Quote, own), ContextBudget.For(model).Available, key => known.TryGetValue(key, out var tokens) ? tokens : null);
+        return ContextPlanner.Plan(ancestors, new ContextSegment(id, source?.Quote, own), budget.Available, key => known.TryGetValue(key, out var tokens) ? tokens : null);
     }
 
     private static SendRejection Rejection(ContextRejection rejection) => rejection switch
@@ -586,10 +590,10 @@ public sealed partial class ConversationService : IConversations
         _ => SendRejection.HistoryTooLongForModel,
     };
 
-    private void Enqueue(GenerationTaskRecord task, ModelSnapshot model, ContextPlan plan, Message answer)
+    private void Enqueue(GenerationTaskRecord task, ModelSnapshot model, ContextPlan plan, ContextBudget budget, Message answer)
     {
         var request = new ChatRequest(model, ContextCompressor.Unsummarized(plan).Turns);
-        _generation.Enqueue(new AnswerWork(task, request, new LiveAnswer(answer.Id, answer.ConversationId), plan, ContextBudget.For(model)));
+        _generation.Enqueue(new AnswerWork(task, request, new LiveAnswer(answer.Id, answer.ConversationId), plan, budget));
     }
 
     private async void OnAnswerFinished(object? sender, AnswerOutcome e)

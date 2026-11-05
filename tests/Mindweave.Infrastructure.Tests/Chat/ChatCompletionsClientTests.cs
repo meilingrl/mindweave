@@ -57,6 +57,18 @@ public class ChatCompletionsClientTests
     }
 
     [Fact]
+    public async Task Usage_inside_the_final_choice_is_passed_on_too()
+    {
+        // Moonshot (Kimi), 2026-11-05: the counts ride on the last choice, not on the chunk.
+        var sse = "data: {\"choices\":[{\"delta\":{\"content\":\"好\"},\"finish_reason\":\"stop\",\"usage\":{\"prompt_tokens\":89,\"completion_tokens\":61}}]}\n\n"
+            + "data: [DONE]\n\n";
+
+        var events = await Collect(Client(_ => Sse(sse)));
+
+        Assert.Equal(new ChatStreamEvent.Usage(89, 61), Assert.Single(events.OfType<ChatStreamEvent.Usage>()));
+    }
+
+    [Fact]
     public async Task Done_without_finish_reason_still_completes_and_length_marks_truncation()
     {
         var plain = await Collect(Client(_ => Sse("data: {\"choices\":[{\"delta\":{\"content\":\"a\"}}]}\n\ndata: [DONE]\n\n")));

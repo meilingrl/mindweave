@@ -12,9 +12,9 @@ internal sealed class SqliteAiRequestStore(SqliteDatabase database) : IAiRequest
             (connection, transaction) => connection.Execute(transaction, """
                 INSERT INTO ai_request (id, task_id, started_at, finished_at, response_ms, first_text_ms, outcome,
                                         http_status, provider_request_id, error_kind, error_detail, output_chars,
-                                        prompt_tokens, completion_tokens)
+                                        prompt_tokens, completion_tokens, estimated_tokens)
                 VALUES ($id, $task, $started, $finished, $response, $first, $outcome, $status, $provider, $kind, $detail, $chars,
-                        $prompt, $completion);
+                        $prompt, $completion, $estimated);
                 """,
                 ("$id", record.Id.ToString("D")),
                 ("$task", record.TaskId.ToString()),
@@ -29,7 +29,8 @@ internal sealed class SqliteAiRequestStore(SqliteDatabase database) : IAiRequest
                 ("$detail", record.ErrorDetail is { Length: > 1000 } d ? d[..1000] : record.ErrorDetail),
                 ("$chars", record.OutputCharacters),
                 ("$prompt", record.PromptTokens),
-                ("$completion", record.CompletionTokens)),
+                ("$completion", record.CompletionTokens),
+                ("$estimated", record.EstimatedTokens)),
             cancellationToken);
     }
 
@@ -39,7 +40,8 @@ internal sealed class SqliteAiRequestStore(SqliteDatabase database) : IAiRequest
             {
                 using var command = connection.Command(null, """
                     SELECT id, task_id, started_at, finished_at, response_ms, first_text_ms, outcome,
-                           http_status, provider_request_id, error_kind, error_detail, output_chars, prompt_tokens, completion_tokens
+                           http_status, provider_request_id, error_kind, error_detail, output_chars, prompt_tokens, completion_tokens,
+                           estimated_tokens
                     FROM ai_request WHERE task_id = $task ORDER BY started_at, rowid;
                     """, ("$task", task.ToString()));
                 using var reader = command.ExecuteReader();
@@ -61,10 +63,38 @@ internal sealed class SqliteAiRequestStore(SqliteDatabase database) : IAiRequest
                         reader.NullableString(10),
                         reader.GetInt32(11),
                         reader.NullableInt64(12) is { } prompt ? (int)prompt : null,
-                        reader.NullableInt64(13) is { } completion ? (int)completion : null));
+                        reader.NullableInt64(13) is { } completion ? (int)completion : null,
+                        reader.NullableInt64(14) is { } estimated ? (int)estimated : null));
                 }
 
                 return list;
             },
             cancellationToken);
+
+    public Task<IReadOnlyList<TokenSample>> RecentTokenSamplesAsync(string baseUrl, string model, int limit, CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(baseUrl);
+        ArgumentNullException.ThrowIfNull(model);
+        return database.ReadAsync<IReadOnlyList<TokenSample>>(
+            connection =>
+            {
+                using var command = connection.Command(null, """
+                    SELECT r.estimated_tokens, r.prompt_tokens
+                    FROM ai_request r JOIN generation_task t ON t.id = r.task_id
+                    WHERE t.base_url = $base AND t.model = $model
+                      AND r.estimated_tokens IS NOT NULL AND r.prompt_tokens IS NOT NULL
+                    ORDER BY r.started_at DESC, r.rowid DESC
+                    LIMIT $limit;
+                    """, ("$base", baseUrl), ("$model", model), ("$limit", limit));
+                using var reader = command.ExecuteReader();
+                var list = new List<TokenSample>();
+                while (reader.Read())
+                {
+                    list.Add(new TokenSample(reader.GetInt32(0), reader.GetInt32(1)));
+                }
+
+                return list;
+            },
+            cancellationToken);
+    }
 }
