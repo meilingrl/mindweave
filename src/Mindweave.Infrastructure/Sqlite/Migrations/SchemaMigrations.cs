@@ -375,5 +375,15 @@ internal static class SchemaMigrations
             -- A conversation's subtree (archiving checks it for running work; restoring counts what reappears).
             CREATE INDEX branch_context_range_by_ancestor ON branch_context_range (ancestor_id);
             """),
+
+        Migration.Sql(9, "request token estimates", """
+            -- The app's own token estimate of each request as sent, beside the prompt tokens the service billed, so the
+            -- context budget can learn how each model counts (TokenCalibration, 2026-11-05). Older requests have none.
+            ALTER TABLE ai_request ADD COLUMN estimated_tokens INTEGER CHECK (estimated_tokens >= 0);
+
+            -- The newest requests of one address and model are read before each plan; tasks are found by model, then
+            -- their requests by the existing per-task index.
+            CREATE INDEX generation_task_by_model ON generation_task (model, base_url);
+            """),
     ];
 }

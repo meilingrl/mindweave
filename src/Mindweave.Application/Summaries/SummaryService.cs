@@ -194,7 +194,7 @@ public sealed partial class SummaryService : ISummaries
         // context in this task's own slot when the conversation does not fit (S3). It is never stored.
         var now = _clock.UtcNow;
         var request = new Message(MessageId.New(), conversation, toSeq + 1, MessageRole.User, ContentBlocks.FromText(Request), MessageState.Complete, 0, null, null, null, now, now);
-        var budget = ContextBudget.For(model);
+        var budget = await _generation.BudgetForAsync(model, cancellationToken).ConfigureAwait(false);
         var planned = await PlanAsync(conversation, [.. covered, request], budget.Available - system.Sum(t => TokenEstimator.Message(t.Content)), cancellationToken).ConfigureAwait(false);
         if (planned.Plan is not { } plan)
         {

@@ -69,7 +69,7 @@ public class WorkspaceDeleteFlowTests
         Assert.Equal(WorkspaceDeleteStatus.Deleted, outcome.Status);
         Assert.Null(outcome.Next);
         var backup = Assert.Single(h.Database.ListBackups());
-        Assert.Equal((outcome.BackupPath, BackupReason.BeforeWorkspaceDelete, 8), (backup.Path, backup.Reason, backup.SchemaVersion));
+        Assert.Equal((outcome.BackupPath, BackupReason.BeforeWorkspaceDelete, Infrastructure.Sqlite.Migrations.MigrationCatalog.Default.LatestVersion), (backup.Path, backup.Reason, backup.SchemaVersion));
         using var copy = SqliteConnections.OpenReadOnly(backup.Path);
         Assert.Equal(1, copy.Scalar<long>(null, "SELECT count(*) FROM workspace WHERE id = $id;", ("$id", h.Workspace.ToString())));
         Assert.Equal(3, copy.Scalar<long>(null, "SELECT count(*) FROM conversation WHERE workspace_id = $id;", ("$id", h.Workspace.ToString())));

@@ -4,8 +4,9 @@ using Mindweave.Core.Conversations;
 namespace Mindweave.Application.Diagnostics;
 
 /// <summary>Collects the facts of one AI request as its stream is consumed; not thread-safe (one consumer).</summary>
-internal sealed class RequestTrace(GenerationTaskId task, IClock clock)
+internal sealed class RequestTrace(GenerationTaskId task, IClock clock, ChatRequest request)
 {
+    private readonly int _estimate = Mindweave.Core.Context.TokenEstimator.Request(request.Turns.Select(t => t.Content));
     private readonly DateTimeOffset _started = clock.UtcNow;
     private TimeSpan? _toResponse;
     private TimeSpan? _toFirstText;
@@ -59,5 +60,6 @@ internal sealed class RequestTrace(GenerationTaskId task, IClock clock)
             detail is null ? null : Redaction.Scrub(detail),
             _characters,
             _promptTokens,
-            _completionTokens);
+            _completionTokens,
+            _estimate);
 }

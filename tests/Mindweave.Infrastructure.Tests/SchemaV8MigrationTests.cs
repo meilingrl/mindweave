@@ -38,7 +38,7 @@ public sealed class SchemaV8MigrationTests : IDisposable
         Assert.All(listed, c => Assert.False(c.IsHidden));
 
         using var raw = _dir.Raw();
-        Assert.Equal(8, SqliteConnections.Scalar<long>(raw, "PRAGMA user_version;"));
+        Assert.Equal(MigrationCatalog.Default.LatestVersion, SqliteConnections.Scalar<long>(raw, "PRAGMA user_version;"));
         Assert.Equal(0, SqliteConnections.Scalar<long>(raw, "SELECT count(*) FROM conversation_archive;"));
         Assert.Equal(1, SqliteConnections.Scalar<long>(raw, "SELECT count(*) FROM sqlite_schema WHERE name = 'branch_context_range_by_ancestor';"));
         Assert.Null(SqliteConnections.ForeignKeyViolation(raw));

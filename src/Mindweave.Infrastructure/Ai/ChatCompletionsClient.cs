@@ -246,7 +246,8 @@ public sealed class ChatCompletionsClient(HttpClient http, ChatClientOptions opt
         var finish = choice?["finish_reason"] is JsonValue reason && reason.TryGetValue<string>(out var r) ? r : null;
 
         // Services that report usage put it on the last chunk (or a final chunk without choices); it is never requested.
-        ChatStreamEvent.Usage? usage = node?["usage"] is JsonObject counts
+        // Moonshot (Kimi) puts it inside the final choice instead (2026-11-05, real service).
+        ChatStreamEvent.Usage? usage = (node?["usage"] as JsonObject ?? choice?["usage"] as JsonObject) is { } counts
             ? new ChatStreamEvent.Usage(Count(counts["prompt_tokens"]), Count(counts["completion_tokens"]))
             : null;
         return (text, finish, usage);

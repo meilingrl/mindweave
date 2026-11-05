@@ -13,7 +13,8 @@ public enum AiRequestOutcome
 /// <summary>
 /// One HTTP request to an AI service, for diagnostics. A task may make several (an agent loop will), so
 /// requests are recorded apart from the task. Holds timings and protocol facts, never content or secrets;
-/// <see cref="ErrorDetail"/> is already redacted.
+/// <see cref="ErrorDetail"/> is already redacted. <see cref="EstimatedTokens"/> is the app's own estimate of the request as
+/// sent, kept beside <see cref="PromptTokens"/> to learn how the model counts (<c>TokenCalibration</c>).
 /// </summary>
 public sealed record AiRequestRecord(
     Guid Id,
@@ -29,7 +30,11 @@ public sealed record AiRequestRecord(
     string? ErrorDetail,
     int OutputCharacters,
     int? PromptTokens = null,
-    int? CompletionTokens = null);
+    int? CompletionTokens = null,
+    int? EstimatedTokens = null);
+
+/// <summary>One request's own estimate next to the prompt tokens the service billed for it.</summary>
+public readonly record struct TokenSample(int Estimate, int Reported);
 
 /// <summary>Diagnostic persistence. Best effort: a failed write is logged and never blocks generation.</summary>
 public interface IAiRequestStore
@@ -37,4 +42,9 @@ public interface IAiRequestStore
     Task AddAsync(AiRequestRecord record, CancellationToken cancellationToken);
 
     Task<IReadOnlyList<AiRequestRecord>> ForTaskAsync(GenerationTaskId task, CancellationToken cancellationToken);
+
+    /// <summary>
+    /// The newest requests to this address and model that have both an estimate and billed prompt tokens, newest first.
+    /// </summary>
+    Task<IReadOnlyList<TokenSample>> RecentTokenSamplesAsync(string baseUrl, string model, int limit, CancellationToken cancellationToken);
 }
