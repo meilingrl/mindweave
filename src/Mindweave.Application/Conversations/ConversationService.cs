@@ -565,8 +565,27 @@ public sealed partial class ConversationService : IConversations
             return SendOutcome.Reject(SendRejection.NotConfigured, id);
         }
 
-        return _generation.HasUnfinishedAnswer(id) ? SendOutcome.Reject(SendRejection.AnswerInProgress, id) : null;
+        if (_generation.HasUnfinishedAnswer(id))
+        {
+            return SendOutcome.Reject(SendRejection.AnswerInProgress, id);
+        }
+
+        // The last answer may have ended on screen with its terminal write still landing: wait for it (normally
+        // milliseconds), so the history is read whole and the store does not see an answer still streaming. Bounded:
+        // past the bound the store decides, as before.
+        try
+        {
+            await _generation.AnswerWritesSettledAsync(id).WaitAsync(EndingAnswerWait, cancellationToken).ConfigureAwait(false);
+        }
+        catch (TimeoutException)
+        {
+        }
+
+        return null;
     }
+
+    /// <summary>How long a send waits for the previous answer's terminal write (<see cref="CheckReadyAsync"/>).</summary>
+    internal static readonly TimeSpan EndingAnswerWait = TimeSpan.FromSeconds(5);
 
     /// <summary>
     /// What is sent for <paramref name="own"/>: the frozen ancestor chain, then the conversation itself, fitted to

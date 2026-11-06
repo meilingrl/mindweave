@@ -81,6 +81,9 @@ public class ConversationPolishTests
         app.Client.Fail(GenerationErrorKind.Network, "connection reset", "半句");
         var page = await AskAsync(app, "问");
         await UiWait.UntilAsync(() => page.Messages.Count == 2 && page.Messages[1] is { State: MessageState.Failed, CanRetry: true });
+
+        // The row is rebuilt from storage once the failure is written; clicking the live row's button could miss.
+        await UiWait.StoredAsync(page, 1, MessageState.Failed);
         window.UpdateLayout();
         var view = CurrentView(window);
 

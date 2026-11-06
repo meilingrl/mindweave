@@ -141,6 +141,13 @@ public sealed partial class GenerationCoordinator : IGenerationExit, IAsyncDispo
     /// <summary>Any queue, task or storage-health change. Raised on worker threads.</summary>
     public event EventHandler? Changed;
 
+    /// <summary>
+    /// An answer reached its terminal state in memory, the moment the reader sees it end: raised before the terminal write,
+    /// so whatever depends on what was on screen then (the "new answer" mark) is not decided after a slow disk sync, when the
+    /// reader may already have moved on (2026-11-06). Raised on a worker thread.
+    /// </summary>
+    public event EventHandler<AnswerOutcome>? AnswerEnded;
+
     /// <summary>An answer reached a terminal state (after its terminal write was attempted).</summary>
     public event EventHandler<AnswerOutcome>? AnswerFinished;
 
@@ -220,6 +227,25 @@ public sealed partial class GenerationCoordinator : IGenerationExit, IAsyncDispo
             return _userQueue.Any(w => w is AnswerWork && w.Task.ConversationId == conversation)
                 || _running.Values.Any(r => r.Work is AnswerWork a && a.Task.ConversationId == conversation && IsLive(a));
         }
+    }
+
+    /// <summary>
+    /// Completes once every answer of the conversation that has ended in memory has also been through its terminal write
+    /// (and its run has finished). An answer ends on screen before that write lands; a follow-up sent in between would be
+    /// refused by the store (the stored answer is still streaming) and would plan from the stored, possibly partial, text
+    /// (2026-11-06, slow disk syncs). Answers still running are not waited for.
+    /// </summary>
+    public Task AnswerWritesSettledAsync(ConversationId conversation)
+    {
+        Task[] ending;
+        lock (_gate)
+        {
+            ending = [.. _running.Values
+                .Where(r => r.Work is AnswerWork a && a.Task.ConversationId == conversation && !IsLive(a))
+                .Select(r => r.Completion)];
+        }
+
+        return Task.WhenAll(ending);
     }
 
     /// <summary>A summary of the conversation is queued or being generated (naming and titles do not count).</summary>
@@ -666,6 +692,7 @@ public sealed partial class GenerationCoordinator : IGenerationExit, IAsyncDispo
         var live = work.Live;
         var revision = live.Finish(state, error, detail);
         var snapshot = live.Snapshot();
+        AnswerEnded?.Invoke(this, new AnswerOutcome(live.ConversationId, live.MessageId, state, snapshot.Text));
         await SaveAsync(() => _store.FinishAnswerAsync(work.Task.Id, live.MessageId, snapshot.Blocks, revision, state, error, detail, _clock.UtcNow, CancellationToken.None), retryOnFailure: true)
             .ConfigureAwait(false);
         LogAnswerFinished(_logger, work.Task.Id, state, error);

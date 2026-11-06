@@ -105,7 +105,7 @@ public class SidebarStatusTests
         var marks = app.Services.GetRequiredService<IConversationMarks>();
 
         var held = app.Client.Hold();
-        await conversations.AskAsync(first, "问", CancellationToken.None);
+        Assert.Null((await conversations.AskAsync(first, "问", CancellationToken.None)).Rejection);
         await held.Started.Task.WaitAsync(TimeSpan.FromSeconds(5));
         var empty = await RunningAnswerAsync(conversations, first);
         await conversations.StopAsync(empty);
@@ -114,7 +114,7 @@ public class SidebarStatusTests
         Assert.False(marks.IsUnread(first));
 
         held = app.Client.Hold("写了一半");
-        await conversations.AskAsync(first, "再问", CancellationToken.None);
+        Assert.Null((await conversations.AskAsync(first, "再问", CancellationToken.None)).Rejection);
         await held.Started.Task.WaitAsync(TimeSpan.FromSeconds(5));
         var answer = await RunningAnswerAsync(conversations, first);
         await UiWait.UntilAsync(() => conversations.Observe(answer)?.Snapshot().Text.Length > 0);
@@ -238,15 +238,15 @@ public class SidebarStatusTests
         await using var app = DesktopHarness.Create();
         var window = Open(app);
         var (first, _) = await TwoConversationsAsync(app);
-        var item = Item(app, first);
+        // The row is looked up afresh each time: the list may be rebuilt from storage while the marks change.
         var conversations = app.Services.GetRequiredService<ConversationService>();
         await AskElsewhereAsync(app, first, "再讲讲斯蒂芬森。");
-        await UiWait.UntilAsync(() => item.Mark == ConversationMark.Unread);
+        await UiWait.UntilAsync(() => Item(app, first).Mark == ConversationMark.Unread);
 
         // A failed answer after the unread one: the conversation needs attention, and the dot gives way to "!".
         app.Client.Fail(GenerationErrorKind.Network, "connection reset", "半句");
-        await conversations.AskAsync(first, "雨山试验呢？", CancellationToken.None);
-        await UiWait.UntilAsync(() => item.Mark == ConversationMark.NeedsAttention);
+        Assert.Null((await conversations.AskAsync(first, "雨山试验呢？", CancellationToken.None)).Rejection);
+        await UiWait.UntilAsync(() => Item(app, first).Mark == ConversationMark.NeedsAttention);
         window.UpdateLayout();
         Assert.True(Marker<Border>(window, first, "attention-badge").IsEffectivelyVisible);
         Assert.False(Marker<Ellipse>(window, first, "unread-dot").IsVisible);
@@ -254,16 +254,16 @@ public class SidebarStatusTests
         // Retrying it: running wins over both.
         var held = app.Client.Hold("雨山");
         var failed = (await conversations.LoadAsync(first, CancellationToken.None))!.Messages.Last(m => m.Role == MessageRole.Assistant);
-        await conversations.RetryAsync(first, failed.Id, CancellationToken.None);
+        Assert.Null((await conversations.RetryAsync(first, failed.Id, CancellationToken.None)).Rejection);
         await held.Started.Task.WaitAsync(TimeSpan.FromSeconds(5));
-        await UiWait.UntilAsync(() => item.Mark == ConversationMark.Answering);
+        await UiWait.UntilAsync(() => Item(app, first).Mark == ConversationMark.Answering);
         window.UpdateLayout();
         Assert.True(Row(window, first).GetVisualDescendants().OfType<ActivitySpinner>().Single().IsEffectivelyVisible);
         Assert.False(Marker<Border>(window, first, "attention-badge").IsVisible);
         Assert.False(Marker<Ellipse>(window, first, "unread-dot").IsVisible);
 
         held.Finish("试验在 1829 年。");
-        await UiWait.UntilAsync(() => item.Mark == ConversationMark.Unread);
+        await UiWait.UntilAsync(() => Item(app, first).Mark == ConversationMark.Unread);
         window.Close();
     }
 

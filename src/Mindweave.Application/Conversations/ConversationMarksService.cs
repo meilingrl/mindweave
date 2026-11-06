@@ -46,7 +46,8 @@ public sealed partial class ConversationMarksService : IConversationMarks
         _store = store;
         _storage = storage;
         _logger = logger;
-        _generation.AnswerFinished += OnAnswerFinished;
+        // Decided when the answer visibly ends, not after its terminal write: on a slow disk the reader may have moved on.
+        _generation.AnswerEnded += OnAnswerEnded;
         conversations.Deleted += (_, id) => MarkSeen(id);
         _storage.Changed += (_, _) =>
         {
@@ -251,7 +252,7 @@ public sealed partial class ConversationMarksService : IConversationMarks
         return ids;
     }
 
-    private void OnAnswerFinished(object? sender, AnswerOutcome e)
+    private void OnAnswerEnded(object? sender, AnswerOutcome e)
     {
         if (e.State is not (MessageState.Complete or MessageState.Stopped) || string.IsNullOrWhiteSpace(e.Text))
         {
