@@ -25,6 +25,7 @@ public sealed partial class ConversationView : UserControl
     private const double SourceContext = 80;
 
     private readonly DispatcherTimer _capture;
+    private readonly Dictionary<MessageId, IReadOnlyList<CarriedSegment>> _handedOver = [];
     private TaskCompletionSource _restored = new(TaskCreationOptions.RunContinuationsAsynchronously);
     private ConversationViewModel? _page;
     private Window? _window;
@@ -61,6 +62,12 @@ public sealed partial class ConversationView : UserControl
         ComposerHost.SettingsRequested += (_, _) => (DataContext as ConversationViewModel)?.OpenSettingsCommand.Execute(null);
     }
 
+    /// <summary>A streaming answer's selection, kept while its row is replaced by the stored one (see <see cref="AnswerView"/>).</summary>
+    internal void HandOverSelection(MessageId answer, IReadOnlyList<CarriedSegment> selection) => _handedOver[answer] = selection;
+
+    /// <summary>The selection handed over for <paramref name="answer"/>, once; null when there is none.</summary>
+    internal IReadOnlyList<CarriedSegment>? TakeOverSelection(MessageId answer) => _handedOver.Remove(answer, out var selection) ? selection : null;
+
     /// <summary>Completes once the page has been placed at its source, reading position or end; tests await it.</summary>
     internal Task Restored => _restored.Task;
 
@@ -73,6 +80,7 @@ public sealed partial class ConversationView : UserControl
         }
 
         _page = DataContext as ConversationViewModel;
+        _handedOver.Clear();
         UpdateShown();
 
         _restoring = true;

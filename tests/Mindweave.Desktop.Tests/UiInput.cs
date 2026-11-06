@@ -33,6 +33,17 @@ internal static class UiInput
         window.UpdateLayout();
     }
 
+    /// <summary>
+    /// Waits out the platform's double-click time, so the next press is a single click even at the point of the last
+    /// one. Two presses there within that time count as a double click, which selects a whole word (in CJK text, the
+    /// whole run) and anchors a drag at its start.
+    /// </summary>
+    public static Task PastDoubleClickAsync()
+    {
+        var time = Avalonia.Application.Current?.PlatformSettings?.GetDoubleTapTime(PointerType.Mouse) ?? TimeSpan.FromMilliseconds(500);
+        return Task.Delay(time + TimeSpan.FromMilliseconds(50));
+    }
+
     /// <summary>What the headless press does before it delivers the input: run queued jobs and render, a few rounds.</summary>
     private static void Settle()
     {
