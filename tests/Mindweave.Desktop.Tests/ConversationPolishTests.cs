@@ -19,6 +19,7 @@ using Mindweave.Desktop.Views.Conversations;
 using Microsoft.Extensions.DependencyInjection;
 using Mindweave.Testing;
 using TextBlock = Avalonia.Controls.TextBlock;
+using static Mindweave.Desktop.Tests.UiTree;
 
 namespace Mindweave.Desktop.Tests;
 
@@ -458,12 +459,6 @@ public class ConversationPolishTests
         await page.Loaded;
         return page;
     }
-
-    private static ConversationView CurrentView(Window window) => window.GetVisualDescendants().OfType<ConversationView>().Single();
-
-    private static T Find<T>(Visual root, string name)
-        where T : Control =>
-        root.GetVisualDescendants().OfType<T>().First(c => c.Name == name);
 
     private static T VisibleNamed<T>(Visual root, string name)
         where T : Control =>

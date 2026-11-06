@@ -15,6 +15,7 @@ using Mindweave.Desktop.Navigation;
 using Mindweave.Desktop.ViewModels.Pages;
 using Mindweave.Desktop.Views;
 using Mindweave.Desktop.Views.Pages;
+using static Mindweave.Desktop.Tests.UiTree;
 
 namespace Mindweave.Desktop.Tests;
 
@@ -457,8 +458,4 @@ public class SettingsPolishTests
         Assert.IsAssignableFrom<ISolidColorBrush>(((StyledElement)control).FindResource(((Control)control).ActualThemeVariant, key)).Color;
 
     private static void Click(Window window, Control control) => UiInput.Click(window, control);
-
-    private static T Find<T>(Visual root, string name)
-        where T : Control =>
-        root.GetVisualDescendants().OfType<T>().First(c => c.Name == name);
 }

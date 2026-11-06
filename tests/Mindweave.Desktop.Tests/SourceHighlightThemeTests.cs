@@ -11,6 +11,7 @@ using Mindweave.Desktop.Markdown;
 using Mindweave.Desktop.ViewModels.Conversations;
 using Mindweave.Desktop.Views;
 using Mindweave.Desktop.Views.Conversations;
+using static Mindweave.Desktop.Tests.UiTree;
 
 namespace Mindweave.Desktop.Tests;
 
@@ -68,8 +69,8 @@ public class SourceHighlightThemeTests
     {
         foreach (var theme in new[] { ThemeVariant.Light, ThemeVariant.Dark })
         {
-            var text = Colour("PrimaryText", theme);
-            var highlight = Colour("SourceHighlight", theme);
+            var text = ThemeColour("PrimaryText", theme);
+            var highlight = ThemeColour("SourceHighlight", theme);
             Assert.True(Contrast(text, highlight) >= 4.5, $"{theme}: {text} on {highlight} is {Contrast(text, highlight):0.0}:1");
         }
     }
@@ -137,15 +138,7 @@ public class SourceHighlightThemeTests
 
     private static Color TextColour(MarkdownTextBlock block) => Assert.IsAssignableFrom<ISolidColorBrush>(block.Foreground).Color;
 
-    private static Color Expected(ThemeVariant theme) => Colour("SourceHighlight", theme);
-
-    private static Color Colour(string key, ThemeVariant theme)
-    {
-        Assert.True(Avalonia.Application.Current!.Resources.TryGetResource(key, theme, out var value));
-        return Assert.IsAssignableFrom<ISolidColorBrush>(value).Color;
-    }
-
-    private static ConversationView CurrentView(Window window) => window.GetVisualDescendants().OfType<ConversationView>().Single();
+    private static Color Expected(ThemeVariant theme) => ThemeColour("SourceHighlight", theme);
 
     private static AnswerView? Answer(Window window) =>
         CurrentView(window).GetVisualDescendants().OfType<AnswerView>().LastOrDefault(a => a.DataContext is MessageItemViewModel { IsAnswer: true });

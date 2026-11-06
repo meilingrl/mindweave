@@ -19,6 +19,7 @@ using Mindweave.Desktop.Navigation;
 using Mindweave.Desktop.ViewModels.Conversations;
 using Mindweave.Desktop.Views;
 using TextBlock = Avalonia.Controls.TextBlock;
+using static Mindweave.Desktop.Tests.UiTree;
 
 namespace Mindweave.Desktop.Tests;
 
@@ -601,10 +602,6 @@ public class SidebarStatusTests
     private static T Marker<T>(Window window, ConversationId id, string className)
         where T : Control =>
         Row(window, id).GetVisualDescendants().OfType<T>().Single(c => c.Classes.Contains(className));
-
-    private static T Part<T>(Window window, string name)
-        where T : Control =>
-        window.GetVisualDescendants().OfType<ShellView>().Single().GetVisualDescendants().OfType<T>().Single(c => c.Name == name);
 
     private static void Click(Window window, Control control) => UiInput.Click(window, control);
 

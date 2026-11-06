@@ -10,6 +10,7 @@ using Mindweave.Application.Conversations;
 using Mindweave.Application.Storage;
 using Mindweave.Core.Conversations;
 using Mindweave.Desktop.Views.Conversations;
+using static Mindweave.Desktop.Tests.UiTree;
 
 namespace Mindweave.Desktop.Tests;
 

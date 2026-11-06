@@ -15,6 +15,7 @@ using Mindweave.Desktop.ViewModels;
 using Mindweave.Desktop.ViewModels.Conversations;
 using Mindweave.Desktop.ViewModels.Pages;
 using Mindweave.Desktop.Views;
+using static Mindweave.Desktop.Tests.UiTree;
 
 namespace Mindweave.Desktop.Tests;
 
@@ -289,8 +290,4 @@ public class WorkspaceDeleteUiTests
         public Task<WorkspaceDeleteOutcome> DeleteAsync(WorkspaceId workspace, CancellationToken cancellationToken) =>
             throw new InvalidOperationException("not expected");
     }
-
-    private static T Find<T>(Visual root, string name)
-        where T : Control =>
-        root.GetVisualDescendants().OfType<T>().First(c => c.Name == name);
 }

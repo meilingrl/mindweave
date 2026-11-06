@@ -10,6 +10,7 @@ using Mindweave.Desktop.ViewModels.Conversations;
 using Mindweave.Desktop.Views;
 using Mindweave.Desktop.Views.Conversations;
 using Mindweave.Testing;
+using static Mindweave.Desktop.Tests.UiTree;
 
 namespace Mindweave.Desktop.Tests;
 
@@ -229,8 +230,6 @@ public class AnswerTimerTests
         await UiWait.UntilAsync(() => page.Messages.Count == 2);
         return page;
     }
-
-    private static ConversationView CurrentView(Window window) => window.GetVisualDescendants().OfType<ConversationView>().Single();
 
     private static TextBlock? Visible(ConversationView view, string name)
     {

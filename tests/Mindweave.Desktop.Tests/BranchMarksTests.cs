@@ -18,6 +18,7 @@ using Mindweave.Desktop.ViewModels.Conversations;
 using Mindweave.Desktop.Views;
 using Mindweave.Desktop.Views.Conversations;
 using Mindweave.Testing;
+using static Mindweave.Desktop.Tests.UiTree;
 
 namespace Mindweave.Desktop.Tests;
 
@@ -159,10 +160,10 @@ public class BranchMarksTests
         var bar = Marks(window).Marks[0].Mark.GetVisualDescendants().OfType<Border>().Single(b => b.Classes.Contains("branch-mark-bar"));
         window.RequestedThemeVariant = ThemeVariant.Dark;
         window.UpdateLayout();
-        Assert.Equal(Colour("BranchMark", ThemeVariant.Dark), ((ISolidColorBrush)bar.Background!).Color);
+        Assert.Equal(ThemeColour("BranchMark", ThemeVariant.Dark), ((ISolidColorBrush)bar.Background!).Color);
         window.RequestedThemeVariant = ThemeVariant.Light;
         window.UpdateLayout();
-        Assert.Equal(Colour("BranchMark", ThemeVariant.Light), ((ISolidColorBrush)bar.Background!).Color);
+        Assert.Equal(ThemeColour("BranchMark", ThemeVariant.Light), ((ISolidColorBrush)bar.Background!).Color);
         window.Close();
     }
 
@@ -188,7 +189,7 @@ public class BranchMarksTests
     {
         foreach (var theme in new[] { ThemeVariant.Light, ThemeVariant.Dark })
         {
-            var ratio = SourceHighlightThemeTests.Contrast(Colour("BranchMark", theme), Colour("WindowBackground", theme));
+            var ratio = SourceHighlightThemeTests.Contrast(ThemeColour("BranchMark", theme), ThemeColour("WindowBackground", theme));
             Assert.True(ratio >= 3, $"{theme}: mark on the page is {ratio:0.0}:1");
         }
     }
@@ -289,12 +290,12 @@ public class BranchMarksTests
         {
             window.RequestedThemeVariant = theme;
             window.UpdateLayout();
-            Assert.Equal(Colour("BranchMarkRail", theme), ((ISolidColorBrush)rail.Background!).Color);
+            Assert.Equal(ThemeColour("BranchMarkRail", theme), ((ISolidColorBrush)rail.Background!).Color);
 
             // Faint: the mark stands out from the rail more than the rail does from the page.
-            var page_ = Colour("WindowBackground", theme);
-            Assert.True(SourceHighlightThemeTests.Contrast(Colour("BranchMarkRail", theme), page_) < 1.3, $"{theme}: rail too strong");
-            Assert.True(SourceHighlightThemeTests.Contrast(Colour("BranchMark", theme), Colour("BranchMarkRail", theme)) >= 2.5, $"{theme}: mark lost on the rail");
+            var page_ = ThemeColour("WindowBackground", theme);
+            Assert.True(SourceHighlightThemeTests.Contrast(ThemeColour("BranchMarkRail", theme), page_) < 1.3, $"{theme}: rail too strong");
+            Assert.True(SourceHighlightThemeTests.Contrast(ThemeColour("BranchMark", theme), ThemeColour("BranchMarkRail", theme)) >= 2.5, $"{theme}: mark lost on the rail");
         }
 
         window.Close();
@@ -419,15 +420,11 @@ public class BranchMarksTests
         return window;
     }
 
-    private static ConversationView CurrentView(Window window) => window.GetVisualDescendants().OfType<ConversationView>().Single();
-
     private static BranchMarks Marks(Window window)
     {
         window.UpdateLayout();
         return CurrentView(window).GetVisualDescendants().OfType<BranchMarks>().Single();
     }
-
-    private static ScrollViewer Scroller(Window window) => CurrentView(window).GetVisualDescendants().OfType<ScrollViewer>().Single(s => s.Name == "Scroller");
 
     private static ScrollBar VerticalBar(ScrollViewer scroller) =>
         scroller.GetVisualDescendants().OfType<ScrollBar>().Single(b => b.Orientation == Orientation.Vertical);
@@ -459,11 +456,5 @@ public class BranchMarksTests
         window.MouseDown(centre, MouseButton.Left);
         window.MouseUp(centre, MouseButton.Left);
         window.UpdateLayout();
-    }
-
-    private static Color Colour(string key, ThemeVariant theme)
-    {
-        Assert.True(Avalonia.Application.Current!.Resources.TryGetResource(key, theme, out var value));
-        return ((ISolidColorBrush)value!).Color;
     }
 }

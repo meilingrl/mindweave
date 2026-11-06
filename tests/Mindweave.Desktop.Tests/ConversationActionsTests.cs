@@ -16,6 +16,7 @@ using Mindweave.Desktop.Views.Conversations;
 using Microsoft.Extensions.DependencyInjection;
 using Mindweave.Testing;
 using TextBlock = Avalonia.Controls.TextBlock;
+using static Mindweave.Desktop.Tests.UiTree;
 
 namespace Mindweave.Desktop.Tests;
 
@@ -465,9 +466,6 @@ public partial class ConversationActionsTests
         window.UpdateLayout();
     }
 
-    private static List<AnswerView> Answers(Window window) =>
-        window.GetVisualDescendants().OfType<AnswerView>().Where(a => a.DataContext is MessageItemViewModel { IsAnswer: true }).ToList();
-
     private static AnswerView AnswerOf(Window window) =>
         window.GetVisualDescendants().OfType<AnswerView>().Last(a => a.DataContext is MessageItemViewModel { IsAnswer: true });
 
@@ -543,8 +541,6 @@ public partial class ConversationActionsTests
         window.UpdateLayout();
         return page;
     }
-
-    private static ConversationView CurrentView(Window window) => window.GetVisualDescendants().OfType<ConversationView>().Single();
 
     private static T VisibleNamed<T>(Visual root, string name)
         where T : Control =>

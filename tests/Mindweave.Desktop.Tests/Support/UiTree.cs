@@ -37,7 +37,7 @@ internal static class UiTree
         [.. window.GetVisualDescendants().OfType<AnswerView>().Where(a => a.DataContext is MessageItemViewModel { IsAnswer: true })];
 
     /// <summary>The knowledge network's canvas.</summary>
-    public static NetworkCanvas Canvas(Window window) => window.GetVisualDescendants().OfType<NetworkCanvas>().Single();
+    public static NetworkCanvas CanvasOf(Window window) => window.GetVisualDescendants().OfType<NetworkCanvas>().Single();
 
     /// <summary>The colour of the application's brush resource <paramref name="key"/> in <paramref name="theme"/>.</summary>
     public static Color ThemeColour(string key, ThemeVariant theme)

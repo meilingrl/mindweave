@@ -28,6 +28,7 @@ using Mindweave.Desktop.Views.Conversations;
 using Mindweave.Desktop.Views.Pages;
 using Mindweave.Infrastructure.Sqlite;
 using Mindweave.Infrastructure.Sqlite.Migrations;
+using static Mindweave.Desktop.Tests.UiTree;
 
 namespace Mindweave.Desktop.Tests;
 
@@ -1176,16 +1177,6 @@ public class GalleryTests
         await SettleAsync(window);
         return summary;
     }
-
-    private static IEnumerable<AnswerView> Answers(MainWindow window) =>
-        window.GetVisualDescendants().OfType<AnswerView>().Where(a => a.DataContext is MessageItemViewModel { IsAnswer: true });
-
-    private static ScrollViewer Scroller(MainWindow window) =>
-        window.GetVisualDescendants().OfType<ConversationView>().Single().GetVisualDescendants().OfType<ScrollViewer>().First(s => s.Name == "Scroller");
-
-    private static T Find<T>(MainWindow window, string name)
-        where T : Control =>
-        window.GetVisualDescendants().OfType<T>().First(c => c.Name == name);
 
     private static MainWindow Show(DesktopHarness app)
     {

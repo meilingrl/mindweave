@@ -14,6 +14,7 @@ using Mindweave.Desktop.Markdown;
 using Mindweave.Desktop.ViewModels.Conversations;
 using Mindweave.Desktop.Views;
 using Mindweave.Desktop.Views.Conversations;
+using static Mindweave.Desktop.Tests.UiTree;
 
 namespace Mindweave.Desktop.Tests;
 
@@ -330,17 +331,9 @@ public class BranchUiTests
     private static List<MarkdownTextBlock> HighlightedBlocks(Window window) =>
         [.. CurrentView(window).GetVisualDescendants().OfType<MarkdownTextBlock>().Where(b => b.Highlights.TryGetValue("branch-source", out _))];
 
-    private static ConversationView CurrentView(Window window) => window.GetVisualDescendants().OfType<ConversationView>().Single();
-
     /// <summary>The page's last answer view (the message template also hosts a hidden one for each question).</summary>
     private static AnswerView Answer(Window window) => TryAnswer(window) ?? throw new InvalidOperationException("No answer is shown.");
 
     private static AnswerView? TryAnswer(Window window) =>
         CurrentView(window).GetVisualDescendants().OfType<AnswerView>().LastOrDefault(a => a.DataContext is MessageItemViewModel { IsAnswer: true });
-
-    private static ScrollViewer Scroller(Window window) => Find<ScrollViewer>(CurrentView(window), "Scroller");
-
-    private static T Find<T>(Visual root, string name)
-        where T : Control =>
-        root.GetVisualDescendants().OfType<T>().Single(c => c.Name == name);
 }

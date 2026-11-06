@@ -11,6 +11,7 @@ using Mindweave.Application.Storage;
 using Mindweave.Core.Conversations;
 using Mindweave.Desktop.ViewModels.Conversations;
 using Mindweave.Desktop.Views;
+using static Mindweave.Desktop.Tests.UiTree;
 
 namespace Mindweave.Desktop.Tests;
 
@@ -212,10 +213,6 @@ public class SidebarLayoutTests
 
     private static async Task<SidebarLayout> Stored(DesktopHarness app) =>
         await app.Services.GetRequiredService<ISidebarLayout>().GetAsync(CancellationToken.None);
-
-    private static T Part<T>(Window window, string name)
-        where T : Control =>
-        window.GetVisualDescendants().OfType<ShellView>().Single().GetVisualDescendants().OfType<T>().Single(c => c.Name == name);
 
     private static void Drag(Window window, Control splitter, double dx)
     {

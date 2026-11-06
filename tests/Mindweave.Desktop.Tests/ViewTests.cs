@@ -7,6 +7,7 @@ using Mindweave.Desktop.Navigation;
 using Mindweave.Desktop.ViewModels;
 using Mindweave.Desktop.Views;
 using Mindweave.Desktop.Views.Pages;
+using static Mindweave.Desktop.Tests.UiTree;
 
 namespace Mindweave.Desktop.Tests;
 
@@ -85,10 +86,6 @@ public class ViewTests
         button.Command!.Execute(button.CommandParameter);
         window.UpdateLayout();
     }
-
-    private static T Find<T>(Window window, string name)
-        where T : Control =>
-        window.GetVisualDescendants().OfType<T>().Single(c => c.Name == name);
 
     /// <summary>Writes a rendered frame when MINDWEAVE_SCREENSHOT_DIR is set, for visual review.</summary>
     internal static void Capture(Window window, string name)

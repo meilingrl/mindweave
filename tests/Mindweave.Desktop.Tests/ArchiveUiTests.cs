@@ -15,6 +15,7 @@ using Mindweave.Desktop.Views;
 using Mindweave.Desktop.Views.Conversations;
 using Mindweave.Desktop.Views.Pages;
 using Mindweave.Testing;
+using static Mindweave.Desktop.Tests.UiTree;
 
 namespace Mindweave.Desktop.Tests;
 
@@ -475,8 +476,4 @@ public class ArchiveUiTests
         await page.Loaded;
         return page;
     }
-
-    private static T Find<T>(Visual root, string name)
-        where T : Control =>
-        root.GetVisualDescendants().OfType<T>().First(c => c.Name == name);
 }
