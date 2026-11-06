@@ -13,7 +13,7 @@
 | 1. [产品需求与首版范围](docs/requirements.md) | 现行产品行为、核心流程、首版／后续边界与验收；回答“做什么” |
 | 2. [架构与技术方案](docs/architecture.md) | 现行工程职责、导航、数据与生命周期、网络保存、验证状态及实施待办；回答“如何实现” |
 | 3. [开发路线](docs/development-routes.md) | 两条路线的目标、推进方式、互审与验证边界 |
-| [演进方向与工程指引](docs/evolution.md) | 首版之后的六个扩展方向、前置接缝与推进机制；方向性指引，不是现行需求，各轨道采纳状态见文末 |
+| [演进方向与工程指引](docs/evolution.md) | 首版之后的七个扩展方向、前置接缝与推进机制；方向性指引，不是现行需求，各轨道采纳状态见文末 |
 | [设计沿革与历史记录](docs/history/design-history.md) | 旧路线比较、阶段停止点、原型验收与复审决定溯源；按需查阅，不作为现行待办 |
 | [详细设计就绪审查](docs/reviews/claude-design-readiness-20261024-172436/README.md) | 2026-10-24 独立审查：问题分级、v1–v4 版本、用户决定记录及[详细设计交接](docs/reviews/claude-design-readiness-20261024-172436/detailed-design-handoff.md)；v4 已写回现行需求与架构，交接不是开发授权 |
 | [独立设计复审](docs/reviews/review-20261023-023314-sgt/README.md) | 继续分层导航：冻结的五轮报告、版本与D1–D8讨论来源；后续已确认调整以现行需求和架构为准 |
