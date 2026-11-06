@@ -206,15 +206,17 @@ public sealed class FakeChatClient : IChatClient
         {
             held.Started.TrySetResult();
 
-            // Text pushed while held streams at once; the reply waits for more until released.
+            // Text pushed while held streams at once; the reply waits for more until released. Release is read before
+            // the drain: text pushed before the release is then in the channel and is sent, never skipped.
             while (true)
             {
+                var released = held.Release.Task.IsCompleted;
                 while (held.Pushed.Reader.TryRead(out var pushed))
                 {
                     yield return new ChatStreamEvent.TextDelta(pushed);
                 }
 
-                if (held.Release.Task.IsCompleted)
+                if (released)
                 {
                     break;
                 }

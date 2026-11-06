@@ -6,6 +6,7 @@ using Avalonia.Controls.Primitives;
 using Avalonia.Input;
 using Avalonia.Interactivity;
 using Avalonia.Media;
+using Avalonia.Threading;
 using Avalonia.VisualTree;
 using LiveMarkdown.Avalonia;
 using Mindweave.Core.Branches;
@@ -198,15 +199,32 @@ public sealed partial class AnswerView : UserControl
     {
         if (_item is { IsLive: true } live && _conversation is { } page && SelectionCarry.Capture(_renderer) is { } selection)
         {
-            page.HandOverSelection(live.Id, selection);
+            var focused = _topLevel?.FocusManager?.GetFocusedElement() is Visual focus && (focus == _renderer || _renderer.IsVisualAncestorOf(focus));
+            page.HandOverSelection(live.Id, new CarriedSelection(selection, focused));
         }
     }
 
     private void TakeOverSelection()
     {
-        if (_item is { IsLive: false } stored && _conversation?.TakeOverSelection(stored.Id) is { } selection && SelectionCarry.Apply(_renderer, selection))
+        if (_item is { IsLive: false } stored && _conversation?.TakeOverSelection(stored.Id) is { } selection && SelectionCarry.Apply(_renderer, selection.Segments))
         {
+            // Focus went with the old view; take it back (once this view's controls are attached and can hold it) unless
+            // something else has it since, so the copy gesture still copies the selection.
+            if (selection.Focused)
+            {
+                Dispatcher.UIThread.Post(RestoreFocus, DispatcherPriority.Loaded);
+            }
+
             UpdateBranchButton();
+        }
+    }
+
+    private void RestoreFocus()
+    {
+        if (_topLevel is { FocusManager: { } focus } top && focus.GetFocusedElement() is var focused && (focused is null || ReferenceEquals(focused, top))
+            && SourceAnchors.HasSelection(_renderer))
+        {
+            _renderer.Focus();
         }
     }
 

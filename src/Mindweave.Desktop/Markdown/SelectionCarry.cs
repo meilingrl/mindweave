@@ -9,6 +9,14 @@ namespace Mindweave.Desktop.Markdown;
 /// <param name="Quote">The selected displayed text.</param>
 public sealed record CarriedSegment(int SourceStart, int Ordinal, int Start, string Quote);
 
+/// <summary>A selection on its way from a streaming answer's view to the finished answer's view.</summary>
+/// <param name="Segments">The selected parts, block by block (<see cref="SelectionCarry.Capture"/>).</param>
+/// <param name="Focused">
+/// Whether the answer had keyboard focus. Its view leaves the page with it, so focus is lost; the copy gesture only
+/// reaches a focused answer, so the finished answer's view takes focus back to keep the selection copyable.
+/// </param>
+public sealed record CarriedSelection(IReadOnlyList<CarriedSegment> Segments, bool Focused);
+
 /// <summary>
 /// Carries a reader's selection from a streaming answer's view to the view of its finished text. The stored answer is
 /// a new view parsed in full, and its last block has grown since the selection was made, so a branch anchor (bound to

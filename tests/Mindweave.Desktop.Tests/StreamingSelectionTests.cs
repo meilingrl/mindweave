@@ -3,6 +3,7 @@ using Avalonia.Controls;
 using Avalonia.Headless;
 using Avalonia.Headless.XUnit;
 using Avalonia.Input;
+using Avalonia.Input.Platform;
 using Avalonia.VisualTree;
 using LiveMarkdown.Avalonia;
 using Mindweave.Desktop.Markdown;
@@ -82,6 +83,35 @@ public class StreamingSelectionTests
     }
 
     [AvaloniaFact]
+    public async Task An_answer_ending_during_a_drag_keeps_what_was_selected_so_far()
+    {
+        await using var app = DesktopHarness.Create();
+        var window = await OpenAsync(app);
+        var held = app.Client.Hold("正在增长的回答文字");
+        var page = await AskAsync(app, held);
+        var answer = await StreamingAnswerAsync(window, page);
+        var (down, up) = Points(window, SourceAnchors.Blocks(answer.Renderer).Single(), 2, 4);
+
+        window.MouseMove(down);
+        window.MouseDown(down, MouseButton.Left);
+        window.MouseMove(up, RawInputModifiers.LeftMouseButton);
+        held.Finish("，写完了。");
+        await UiWait.StoredAsync(page, 1, Mindweave.Core.Conversations.MessageState.Complete);
+        await UiWait.UntilAsync(() => TryAnswer(window) is { IsLayoutCurrent: true, DataContext: MessageItemViewModel { IsLive: false } });
+        window.UpdateLayout();
+
+        // The rest of the gesture lands on the stored answer's view, which never saw its press.
+        window.MouseMove(new Point(up.X + 20, up.Y), RawInputModifiers.LeftMouseButton);
+        window.MouseUp(new Point(up.X + 20, up.Y), MouseButton.Left);
+        window.UpdateLayout();
+
+        var stored = TryAnswer(window)!;
+        Assert.Equal("增长", stored.Renderer.SelectedText);
+        Assert.True(stored.BranchButton.IsEffectivelyVisible);
+        window.Close();
+    }
+
+    [AvaloniaFact]
     public async Task A_selection_made_while_streaming_survives_the_answer_finishing()
     {
         await using var app = DesktopHarness.Create();
@@ -101,6 +131,40 @@ public class StreamingSelectionTests
         Assert.Equal("增长", stored.Renderer.SelectedText);
         Assert.True(stored.BranchButton.IsEffectivelyVisible);
         Assert.Equal("增长", stored.CaptureSelection()?.Quote);
+        window.Close();
+    }
+
+    [AvaloniaFact]
+    public async Task A_carried_selection_can_still_be_copied_with_the_keyboard()
+    {
+        await using var app = DesktopHarness.Create();
+        var window = await OpenAsync(app);
+        var held = app.Client.Hold("正在增长的回答文字");
+        var page = await AskAsync(app, held);
+        var answer = await StreamingAnswerAsync(window, page);
+        Drag(window, SourceAnchors.Blocks(answer.Renderer).Single(), 2, 4);
+        var clipboard = TopLevel.GetTopLevel(window)!.Clipboard!;
+        await clipboard.SetTextAsync("之前的内容");
+
+        // The streaming answer's view leaves the page with keyboard focus; the copy gesture only reaches a focused answer.
+        held.Finish("，写完了。");
+        await UiWait.StoredAsync(page, 1, Mindweave.Core.Conversations.MessageState.Complete);
+        await UiWait.UntilAsync(() => TryAnswer(window) is { IsLayoutCurrent: true, DataContext: MessageItemViewModel { IsLive: false } });
+        window.UpdateLayout();
+        Assert.Equal("增长", TryAnswer(window)!.Renderer.SelectedText);
+
+        var copy = Avalonia.Application.Current!.PlatformSettings!.HotkeyConfiguration.Copy[0];
+        var modifiers = (RawInputModifiers)(int)copy.KeyModifiers;
+        window.KeyPress(copy.Key, modifiers, PhysicalKey.C, "c");
+        window.KeyRelease(copy.Key, modifiers, PhysicalKey.C, "c");
+        string? copied = null;
+        for (var deadline = DateTime.UtcNow.AddSeconds(5); copied != "增长" && DateTime.UtcNow < deadline; await Task.Delay(10))
+        {
+            Avalonia.Threading.Dispatcher.UIThread.RunJobs();
+            copied = await clipboard.TryGetTextAsync();
+        }
+
+        Assert.Equal("增长", copied);
         window.Close();
     }
 
