@@ -69,7 +69,7 @@ pending ──开始──▶ streaming ──▶ complete
 - **超时**：推理分块也是流事件，每个事件都重置分块间空闲超时（120 秒），长时间思考不会被当成卡住。
 - **其他请求**：标题、知识总结、上下文压缩与连接测试只取正文，忽略推理；请求记录的首字时间与字数只算正文。
 - **停止**：思考中停止，回答以“已停止”结束、正文为空；操作行显示“已停止”、用时与“重试”，复制不可用，不显示错误提示。
-- **测试**：客户端解析与空闲超时（`ChatCompletionsClientTests`）、协调器阶段与停止（`ThinkingPhaseTests`）、压缩后再思考（`ContextCompressionTests`、`ContextUiTests`）、界面文字与计时（`StreamingIndicatorTests`）；截图库 g38；真实服务的停止测试改为思考中也可停止，并检查停止前已到的正文都保留。
+- **测试**：客户端解析与空闲超时（`ChatCompletionsClientTests`）、协调器阶段、只通知一次与停止（`ThinkingPhaseTests`）、压缩后再思考（`ContextCompressionTests`、`ContextUiTests`）、界面文字与计时（`StreamingIndicatorTests`）；截图库 g38；真实服务的停止测试改为思考中也可停止，并检查停止前已到的正文都保留。
 
 ## 凭据
 

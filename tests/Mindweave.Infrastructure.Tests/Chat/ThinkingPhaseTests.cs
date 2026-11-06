@@ -92,6 +92,27 @@ public class ThinkingPhaseTests
         Assert.Equal(FakeChatClient.DefaultSummaryTitle, (await h.SummaryService.ForConversationAsync(sent.Conversation, Ct))!.Current.Title);
     }
 
+    [Fact]
+    public async Task Hundreds_of_reasoning_chunks_notify_the_answer_once()
+    {
+        var client = new GatedReasoningClient(chunks: 200);
+        await using var h = await ChatHarness.StartAsync(client: client);
+
+        var sent = await h.Conversations.StartAsync(h.Workspace, "火车", Ct);
+        await client.Entered.Task.WaitAsync(TimeSpan.FromSeconds(5), Ct);
+        var live = h.Conversations.Observe(sent.Answer!.Value)!;
+        var changes = 0;
+        live.Changed += (_, _) => Interlocked.Increment(ref changes);
+        client.Go.TrySetResult();
+        await client.Reasoned.Task.WaitAsync(TimeSpan.FromSeconds(5), Ct);
+
+        // The view re-reads the answer on every change; reasoning only needs to say once that the model is thinking.
+        Assert.Equal(AnswerPhase.Thinking, live.Snapshot().Phase);
+        Assert.Equal(1, Volatile.Read(ref changes));
+        client.Release.TrySetResult();
+        Assert.Equal("答", (await h.WaitForAnswerAsync(sent.Answer!.Value)).Text);
+    }
+
     /// <summary>The trace is written after the answer's terminal state, so wait for it.</summary>
     private static async Task<IReadOnlyList<AiRequestRecord>> RequestsForAsync(ChatHarness h, MessageId answer)
     {
@@ -105,6 +126,48 @@ public class ThinkingPhaseTests
         IReadOnlyList<AiRequestRecord> records = [];
         await ChatHarness.UntilAsync(() => (records = h.Requests.ForTaskAsync(task, Ct).Result).Count > 0);
         return records;
+    }
+
+    /// <summary>
+    /// Once the answer's stream has started, waits for <see cref="Go"/>, reasons in many chunks, then waits for
+    /// <see cref="Release"/> before its text; titles get a plain reply.
+    /// </summary>
+    private sealed class GatedReasoningClient(int chunks) : IChatClient
+    {
+        public TaskCompletionSource Entered { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+
+        public TaskCompletionSource Go { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+
+        public TaskCompletionSource Reasoned { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+
+        public TaskCompletionSource Release { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+
+        public async IAsyncEnumerable<ChatStreamEvent> StreamAsync(ChatRequest request, string apiKey, [EnumeratorCancellation] CancellationToken cancellationToken)
+        {
+            await Task.Yield();
+            if (!FakeChatClient.IsAnswer(request))
+            {
+                yield return new ChatStreamEvent.TextDelta("标题");
+                yield return new ChatStreamEvent.Completed(false);
+                yield break;
+            }
+
+            Entered.TrySetResult();
+            await Go.Task.WaitAsync(cancellationToken);
+            for (var i = 0; i < chunks; i++)
+            {
+                yield return new ChatStreamEvent.ReasoningDelta(4);
+            }
+
+            // The coordinator has handled the last reasoning chunk once the next event is asked for.
+            Reasoned.TrySetResult();
+            await Release.Task.WaitAsync(cancellationToken);
+            yield return new ChatStreamEvent.TextDelta("答");
+            yield return new ChatStreamEvent.Completed(false);
+        }
+
+        public Task<IReadOnlyList<string>> ListModelsAsync(string baseUrl, string apiKey, CancellationToken cancellationToken) =>
+            Task.FromResult<IReadOnlyList<string>>(["fake-model"]);
     }
 
     /// <summary>Answers with some text, then reasons (some models interleave), then waits; titles get a plain reply.</summary>
