@@ -6,11 +6,14 @@ namespace Mindweave.Application.Conversations;
 /// <summary>What a running answer is doing before its text arrives.</summary>
 public enum AnswerPhase
 {
-    /// <summary>Waiting for the service (queued, connecting, or a reasoning model thinking).</summary>
+    /// <summary>Waiting for the service (queued, connecting, or its first text not yet arrived).</summary>
     Waiting,
 
     /// <summary>Summarizing older context so the request fits (S3).</summary>
     Compressing,
+
+    /// <summary>A reasoning model sent reasoning before any answer text; the reasoning itself is not kept (2026-11-06).</summary>
+    Thinking,
 }
 
 /// <summary>
@@ -54,6 +57,26 @@ public sealed class LiveAnswer
     internal void MarkStreaming() => Update(() => _state = MessageState.Streaming);
 
     internal void SetPhase(AnswerPhase phase) => Update(() => _phase = phase);
+
+    /// <summary>
+    /// The service is reasoning. Moves <see cref="AnswerPhase.Waiting"/> to <see cref="AnswerPhase.Thinking"/> while the answer
+    /// is running with no text; any other phase is kept. Raises <see cref="Changed"/> only when the phase changes, as reasoning
+    /// arrives in hundreds of small chunks.
+    /// </summary>
+    internal void MarkThinking()
+    {
+        lock (_gate)
+        {
+            if (_phase != AnswerPhase.Waiting || _text.Length > 0 || _state is not (MessageState.Pending or MessageState.Streaming))
+            {
+                return;
+            }
+
+            _phase = AnswerPhase.Thinking;
+        }
+
+        Changed?.Invoke(this, EventArgs.Empty);
+    }
 
     internal void Append(string delta)
     {

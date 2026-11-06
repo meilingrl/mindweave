@@ -41,6 +41,42 @@ public class ChatCompletionsClientTests
     }
 
     [Fact]
+    public async Task Reasoning_is_passed_on_as_its_length_only_and_never_as_text()
+    {
+        // Kimi and GLM (2026-11-05): many reasoning_content chunks, then content; some chunks carry an empty or null field.
+        var sse = "data: {\"choices\":[{\"delta\":{\"role\":\"assistant\",\"reasoning_content\":\"用户问\"}}]}\n\n"
+            + "data: {\"choices\":[{\"delta\":{\"reasoning_content\":\"火车的起源。\"}}]}\n\n"
+            + "data: {\"choices\":[{\"delta\":{\"reasoning_content\":\"\"}}]}\n\n"
+            + "data: {\"choices\":[{\"delta\":{\"reasoning_content\":null,\"content\":\"蒸汽\"}}]}\n\n"
+            + "data: {\"choices\":[{\"delta\":{\"content\":\"机\"},\"finish_reason\":\"stop\"}]}\n\n"
+            + "data: [DONE]\n\n";
+
+        var events = await Collect(Client(_ => Sse(sse)));
+
+        Assert.Equal([3, 6], events.OfType<ChatStreamEvent.ReasoningDelta>().Select(e => e.Characters));
+        Assert.Equal(["蒸汽", "机"], events.OfType<ChatStreamEvent.TextDelta>().Select(e => e.Text));
+        Assert.IsType<ChatStreamEvent.ReasoningDelta>(events[1]);
+        Assert.Equal(new ChatStreamEvent.Completed(false), Assert.Single(events.OfType<ChatStreamEvent.Completed>()));
+    }
+
+    [Fact]
+    public async Task Reasoning_keeps_a_long_thinking_stream_alive()
+    {
+        // Eight reasoning events 250 ms apart: twice the idle limit in total, never silent for that long.
+        var events = Enumerable.Repeat("data: {\"choices\":[{\"delta\":{\"reasoning_content\":\"想\"}}]}\n\n", 8)
+            .Append("data: {\"choices\":[{\"delta\":{\"content\":\"答\"},\"finish_reason\":\"stop\"}]}\n\n")
+            .ToArray();
+        var options = new ChatClientOptions { IdleTimeout = TimeSpan.FromSeconds(1) };
+        var paced = new StubHandler(_ => new HttpResponseMessage(HttpStatusCode.OK) { Content = new StreamContent(new PacedStream(events, TimeSpan.FromMilliseconds(250))) });
+
+        var received = await Collect(new ChatCompletionsClient(new HttpClient(paced), options));
+
+        Assert.Equal(8, received.OfType<ChatStreamEvent.ReasoningDelta>().Count());
+        Assert.Equal("答", Assert.Single(received.OfType<ChatStreamEvent.TextDelta>()).Text);
+        Assert.Equal(new ChatStreamEvent.Completed(false), received[^1]);
+    }
+
+    [Fact]
     public async Task Reported_usage_is_passed_on_and_never_requested()
     {
         var sse = "data: {\"choices\":[{\"delta\":{\"content\":\"a\"},\"finish_reason\":\"stop\"}]}\n\n"
@@ -212,6 +248,57 @@ public class ChatCompletionsClientTests
             Requests.Add((request.RequestUri!.ToString(), request.Headers.Authorization?.ToString(), body));
             return respond(request);
         }
+    }
+
+    /// <summary>A response body that sends one event at a time with a pause before each, like a model thinking slowly.</summary>
+    private sealed class PacedStream(IReadOnlyList<string> events, TimeSpan pause) : Stream
+    {
+        private int _next;
+        private ReadOnlyMemory<byte> _pending;
+
+        public override bool CanRead => true;
+
+        public override bool CanSeek => false;
+
+        public override bool CanWrite => false;
+
+        public override long Length => throw new NotSupportedException();
+
+        public override long Position { get => throw new NotSupportedException(); set => throw new NotSupportedException(); }
+
+        public override async ValueTask<int> ReadAsync(Memory<byte> buffer, CancellationToken cancellationToken = default)
+        {
+            if (_pending.IsEmpty)
+            {
+                if (_next == events.Count)
+                {
+                    return 0;
+                }
+
+                await Task.Delay(pause, cancellationToken);
+                _pending = Encoding.UTF8.GetBytes(events[_next++]);
+            }
+
+            var count = Math.Min(buffer.Length, _pending.Length);
+            _pending[..count].CopyTo(buffer);
+            _pending = _pending[count..];
+            return count;
+        }
+
+        public override Task<int> ReadAsync(byte[] buffer, int offset, int count, CancellationToken cancellationToken) =>
+            ReadAsync(buffer.AsMemory(offset, count), cancellationToken).AsTask();
+
+        public override int Read(byte[] buffer, int offset, int count) => throw new NotSupportedException();
+
+        public override void Flush()
+        {
+        }
+
+        public override long Seek(long offset, SeekOrigin origin) => throw new NotSupportedException();
+
+        public override void SetLength(long value) => throw new NotSupportedException();
+
+        public override void Write(byte[] buffer, int offset, int count) => throw new NotSupportedException();
     }
 
     /// <summary>A response body that never produces data, like a stalled server.</summary>

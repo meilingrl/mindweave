@@ -85,6 +85,11 @@ public sealed class ChatCompletionsClient(HttpClient http, ChatClientOptions opt
             }
 
             var chunk = Parse(data);
+            if (chunk.Reasoning > 0)
+            {
+                yield return new ChatStreamEvent.ReasoningDelta(chunk.Reasoning);
+            }
+
             if (chunk.Text is { Length: > 0 } text)
             {
                 yield return new ChatStreamEvent.TextDelta(text);
@@ -224,7 +229,7 @@ public sealed class ChatCompletionsClient(HttpClient http, ChatClientOptions opt
         }
     }
 
-    private static (string? Text, string? FinishReason, ChatStreamEvent.Usage? Usage) Parse(string data)
+    private static (string? Text, int Reasoning, string? FinishReason, ChatStreamEvent.Usage? Usage) Parse(string data)
     {
         JsonNode? node;
         try
@@ -243,6 +248,9 @@ public sealed class ChatCompletionsClient(HttpClient http, ChatClientOptions opt
 
         var choice = node?["choices"]?.AsArray().FirstOrDefault();
         var text = choice?["delta"]?["content"] is JsonValue content && content.TryGetValue<string>(out var s) ? s : null;
+
+        // Reasoning models (Kimi, GLM; 2026-11-05) stream reasoning_content long before any content. Only its length is kept.
+        var reasoning = choice?["delta"]?["reasoning_content"] is JsonValue thought && thought.TryGetValue<string>(out var t) ? t.Length : 0;
         var finish = choice?["finish_reason"] is JsonValue reason && reason.TryGetValue<string>(out var r) ? r : null;
 
         // Services that report usage put it on the last chunk (or a final chunk without choices); it is never requested.
@@ -250,7 +258,7 @@ public sealed class ChatCompletionsClient(HttpClient http, ChatClientOptions opt
         ChatStreamEvent.Usage? usage = (node?["usage"] as JsonObject ?? choice?["usage"] as JsonObject) is { } counts
             ? new ChatStreamEvent.Usage(Count(counts["prompt_tokens"]), Count(counts["completion_tokens"]))
             : null;
-        return (text, finish, usage);
+        return (text, reasoning, finish, usage);
 
         static int? Count(JsonNode? value) => value is JsonValue number && number.TryGetValue<int>(out var n) && n >= 0 ? n : null;
     }

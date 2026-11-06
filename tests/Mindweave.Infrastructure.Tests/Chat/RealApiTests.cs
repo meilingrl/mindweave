@@ -1,5 +1,6 @@
 using Mindweave.Application.Models;
 using Mindweave.Application.Ai;
+using Mindweave.Application.Conversations;
 using Mindweave.Core.Context;
 using Mindweave.Core.Conversations;
 using Mindweave.Infrastructure.Ai;
@@ -41,12 +42,21 @@ public class RealApiTests
         await using var h = await StartAsync();
 
         var sent = await h.Conversations.StartAsync(h.Workspace, "请详细讲述铁路发展史，至少 1500 字。", Ct);
-        await h.WaitForAnswerAsync(sent.Answer!.Value, m => m.Text.Length > 20, timeoutMs: 120_000);
-        await h.Conversations.StopAsync(sent.Answer!.Value);
-        var answer = await h.WaitForAnswerAsync(sent.Answer!.Value);
+        var id = sent.Answer!.Value;
 
-        Assert.Equal(MessageState.Stopped, answer.State);
-        Assert.NotEmpty(answer.Text);
+        // A reasoning model can think for minutes before any text (Kimi, 2026-11-05): stop once text streams, or while it
+        // is thinking. Null means the answer is no longer running, and the state check below says how it ended.
+        await ChatHarness.UntilAsync(() => h.Conversations.Observe(id)?.Snapshot() is not { } s || s.Text.Length > 20 || s.Phase == AnswerPhase.Thinking, 120_000);
+        var before = h.Conversations.Observe(id)?.Snapshot();
+        await h.Conversations.StopAsync(id);
+        var answer = await h.WaitForAnswerAsync(id);
+
+        Assert.True(answer.State == MessageState.Stopped, $"{answer.State}: {answer.ErrorKind} {answer.ErrorDetail}");
+        Assert.NotNull(before);
+
+        // Everything that arrived before the stop is kept; a model stopped while thinking may have none, and its reasoning is never stored.
+        Assert.StartsWith(before.Text, answer.Text, StringComparison.Ordinal);
+        TestContext.Current.SendDiagnosticMessage($"stopped while {(before.Text.Length > 20 ? "streaming" : before.Phase.ToString())}; kept {answer.Text.Length} chars");
     }
 
     [Fact]

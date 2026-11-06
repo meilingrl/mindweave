@@ -1,4 +1,6 @@
+using Avalonia.Controls;
 using Avalonia.Headless.XUnit;
+using Avalonia.VisualTree;
 using Microsoft.Extensions.DependencyInjection;
 using Mindweave.Application.Conversations;
 using Mindweave.Application.Models;
@@ -6,6 +8,7 @@ using Mindweave.Core.Conversations;
 using Mindweave.Desktop.Navigation;
 using Mindweave.Desktop.ViewModels.Conversations;
 using Mindweave.Desktop.ViewModels.Pages;
+using Mindweave.Desktop.Views;
 using Mindweave.Testing;
 
 namespace Mindweave.Desktop.Tests;
@@ -53,6 +56,58 @@ public class ContextUiTests
         await UiWait.UntilAsync(() => page.ContextUsage is { Compressed: false, Budget: > 100_000 });
         Assert.False(page.ContextIsTight);
         Assert.StartsWith("上下文约", page.ContextUsageText, StringComparison.Ordinal);
+    }
+
+    [AvaloniaFact]
+    public async Task While_older_turns_are_summarized_the_answer_says_so_then_thinks_then_streams()
+    {
+        await using var app = DesktopHarness.Create();
+        var window = new MainWindow { DataContext = app.Root, Width = 1000, Height = 700 };
+        window.Show();
+        await app.StartWithWorkspaceAsync("火车");
+        await SmallModelAsync(app);
+        var conversations = app.Services.GetRequiredService<ConversationService>();
+        app.Client.Reply(LongAnswer);
+        var started = await conversations.StartAsync(app.Workbench.CurrentWorkspace!.Id, "问题 0", CancellationToken.None);
+        await AnsweredAsync(conversations, started.Conversation, 2);
+        for (var i = 1; i < 6; i++)
+        {
+            app.Client.Reply(LongAnswer);
+            await conversations.AskAsync(started.Conversation, $"问题 {i}", CancellationToken.None);
+            await AnsweredAsync(conversations, started.Conversation, (i + 1) * 2);
+        }
+
+        // A reasoning model: its summary request reasons too, which must not hide the compression notice.
+        app.Client.ReasonFirst = true;
+        app.Client.SummaryGate = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var held = app.Client.HoldThinking();
+        app.Workbench.Navigate(new NavigationRequest(MainSection.Explore, new ConversationRoute(started.Conversation)));
+        var page = Assert.IsType<ConversationViewModel>(app.Workbench.CurrentPage);
+        await page.Loaded;
+        page.Composer.Text = "最后的问题" + new string('补', 800);
+        await page.Composer.SendCommand.ExecuteAsync(null);
+
+        await UiWait.UntilAsync(() => page.Messages.Count == 14 && page.Messages[^1].WaitingLabel == UiText.CompressingContext && WaitingCaption(window) == UiText.CompressingContext);
+        Assert.True(page.Messages[^1].IsWaiting);
+
+        app.Client.SummaryGate.TrySetResult();
+        await held.Started.Task.WaitAsync(TimeSpan.FromSeconds(5));
+        await UiWait.UntilAsync(() => WaitingCaption(window) == UiText.ModelThinking);
+
+        held.Finish("回答");
+        await UiWait.UntilAsync(() => page.Messages[^1].Body == "回答" && WaitingCaption(window) is null);
+        await UiWait.StoredAsync(page, 13, MessageState.Complete);
+        window.Close();
+    }
+
+    /// <summary>The caption beside the visible waiting bar, or null when no answer is waiting.</summary>
+    private static string? WaitingCaption(Window window)
+    {
+        window.UpdateLayout();
+        return window.GetVisualDescendants().OfType<ProgressBar>()
+            .Where(b => b.Name == "WaitingBar" && b.IsEffectivelyVisible)
+            .Select(b => ((Panel)b.GetVisualParent()!).Children.OfType<Avalonia.Controls.TextBlock>().First().Text)
+            .SingleOrDefault();
     }
 
     [AvaloniaFact]

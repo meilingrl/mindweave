@@ -83,6 +83,22 @@ public sealed class FakeChatClient : IChatClient
         return held;
     }
 
+    /// <summary>
+    /// Like <see cref="Hold"/>, as a reasoning model: the next answer sends reasoning first, then <paramref name="before"/>
+    /// (usually nothing), and waits.
+    /// </summary>
+    public HeldReply HoldThinking(params string[] before)
+    {
+        var held = new HeldReply(before) { ReasoningChunks = 3 };
+        _scripts.Enqueue(new Script(held));
+        return held;
+    }
+
+    /// <summary>
+    /// Every stream (answers, titles, summaries, naming) starts with reasoning, as a reasoning model's does before its text.
+    /// </summary>
+    public bool ReasonFirst { get; set; }
+
     public void Fail(GenerationErrorKind kind, string detail = "simulated", params string[] before) =>
         _scripts.Enqueue(new Script(null, before, kind, detail));
 
@@ -107,6 +123,12 @@ public sealed class FakeChatClient : IChatClient
         KeysSent.Enqueue((request.Model.BaseUrl, apiKey));
         Requests.Enqueue(request);
         await Task.Yield();
+        if (ReasonFirst)
+        {
+            yield return new ChatStreamEvent.ReasoningDelta(12);
+            yield return new ChatStreamEvent.ReasoningDelta(30);
+        }
+
         if (PromptTokens?.Invoke(request) is { } billed)
         {
             yield return new ChatStreamEvent.Usage(billed, null);
@@ -195,6 +217,11 @@ public sealed class FakeChatClient : IChatClient
             yield break;
         }
 
+        for (var i = 0; i < (script.Held?.ReasoningChunks ?? 0); i++)
+        {
+            yield return new ChatStreamEvent.ReasoningDelta(20);
+        }
+
         foreach (var chunk in script.Held?.Before ?? script.Chunks ?? [])
         {
             cancellationToken.ThrowIfCancellationRequested();
@@ -231,6 +258,9 @@ public sealed class FakeChatClient : IChatClient
     public sealed class HeldReply(string[] before)
     {
         public string[] Before { get; } = before;
+
+        /// <summary>How many reasoning chunks come before <see cref="Before"/>.</summary>
+        public int ReasoningChunks { get; init; }
 
         public List<string> After { get; } = [];
 
