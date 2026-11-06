@@ -1,13 +1,19 @@
-using Mindweave.Testing;
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.DependencyInjection.Extensions;
+using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
+using Mindweave.Testing;
 using Mindweave.Application;
 using Mindweave.Application.Ai;
+using Mindweave.Application.Credentials;
+using Mindweave.Application.Diagnostics;
 using Mindweave.Application.Conversations;
 using Mindweave.Application.Models;
 using Mindweave.Application.Reading;
 using Mindweave.Application.Storage;
 using Mindweave.Core.Conversations;
 using Mindweave.Core.Workspaces;
+using Mindweave.Infrastructure.Hosting;
 using Mindweave.Infrastructure.Sqlite;
 
 namespace Mindweave.Infrastructure.Tests.Chat;
@@ -18,43 +24,35 @@ internal sealed class ChatHarness : IAsyncDisposable
     private readonly TempDataDirectory _dir;
     private readonly bool _ownsDirectory;
 
+    // Not disposed itself: DisposeAsync tears the services down in the order the stores need (flushes before the database).
+    private readonly ServiceProvider _services;
+
     private ChatHarness(TempDataDirectory dir, bool ownsDirectory, Func<IConversationStore, IConversationStore>? wrapStore, IChatClient? client, SqliteDatabaseOptions? databaseOptions)
     {
         ActiveClient = client ?? Client;
         _dir = dir;
         _ownsDirectory = ownsDirectory;
-        Database = dir.Database(options: databaseOptions);
-        Store = new SqliteConversationStore(Database);
-        Settings = new SqliteModelSettingsStore(Database);
-        Requests = new SqliteAiRequestStore(Database);
-        Branches = new SqliteBranchStore(Database);
-        ReadingStore = new SqliteReadingStateStore(Database);
-        Summaries = new SqliteContextSummaryStore(Database);
-        var storeOverride = wrapStore?.Invoke(Store);
-        Health = new StorageHealth(Database, new StorageHealthOptions { RetryInterval = TimeSpan.FromMilliseconds(50) }, NullLogger<StorageHealth>.Instance);
-        Generation = new GenerationCoordinator(
-            storeOverride ?? Store,
-            ActiveClient,
-            Credentials,
-            Requests,
-            Health,
-            new SystemClock(),
-            new GenerationOptions { CheckpointInterval = TimeSpan.FromMilliseconds(50) },
-            NullLogger<GenerationCoordinator>.Instance,
-            new ContextCompressor(Summaries, ActiveClient, new SystemClock(), NullLogger<ContextCompressor>.Instance));
-        Models = new ModelSettingsService(Settings, Store, Credentials, ActiveClient, new SystemClock(), NullLogger<ModelSettingsService>.Instance);
-        Archive = new SqliteArchiveStore(Database);
-        Conversations = new ConversationService(storeOverride ?? Store, Branches, Generation, Health, Models, new SystemClock(), NullLogger<ConversationService>.Instance, Summaries, Archive);
-        Reading = new ReadingStateService(ReadingStore, new SystemClock(), NullLogger<ReadingStateService>.Instance, TimeSpan.FromMilliseconds(20), Health);
-        SummaryNodes = new SqliteSummaryStore(Database);
-        Drafts = new Application.Summaries.SummaryDrafts(SummaryNodes, new SystemClock(), Health, NullLogger<Application.Summaries.SummaryDrafts>.Instance, TimeSpan.FromMilliseconds(20));
-        SummaryService = new Application.Summaries.SummaryService(
-            SummaryNodes, storeOverride ?? Store, Branches, Generation, Health, Drafts, Models, new SystemClock(), NullLogger<Application.Summaries.SummaryService>.Instance, Summaries);
-        Network = new Application.Network.NetworkService(SummaryNodes, new SqliteNetworkStore(Database), new SystemClock());
-        Workspaces = new SqliteWorkspaceStore(Database);
-        WorkspaceDeletion = new Application.Workspaces.WorkspaceDeletionService(
-            Workspaces, Database, Health, Generation, NullLogger<Application.Workspaces.WorkspaceDeletionService>.Instance);
-        ConversationDeletion = new ConversationDeletionService(Archive, Database, Health, Generation, Conversations, NullLogger<ConversationDeletionService>.Instance);
+        _services = BuildServices(dir.Paths, ActiveClient, Credentials, wrapStore, databaseOptions);
+        Database = _services.GetRequiredService<SqliteDatabase>();
+        Store = _services.GetRequiredService<SqliteConversationStore>();
+        Settings = (SqliteModelSettingsStore)_services.GetRequiredService<IModelSettingsStore>();
+        Requests = (SqliteAiRequestStore)_services.GetRequiredService<IAiRequestStore>();
+        Branches = (SqliteBranchStore)_services.GetRequiredService<IBranchStore>();
+        ReadingStore = (SqliteReadingStateStore)_services.GetRequiredService<IReadingStateStore>();
+        Summaries = (SqliteContextSummaryStore)_services.GetRequiredService<IContextSummaryStore>();
+        Health = _services.GetRequiredService<StorageHealth>();
+        Generation = _services.GetRequiredService<GenerationCoordinator>();
+        Models = _services.GetRequiredService<ModelSettingsService>();
+        Archive = (SqliteArchiveStore)_services.GetRequiredService<IConversationArchiveStore>();
+        Conversations = _services.GetRequiredService<ConversationService>();
+        Reading = _services.GetRequiredService<ReadingStateService>();
+        SummaryNodes = (SqliteSummaryStore)_services.GetRequiredService<ISummaryStore>();
+        Drafts = _services.GetRequiredService<Application.Summaries.SummaryDrafts>();
+        SummaryService = _services.GetRequiredService<Application.Summaries.SummaryService>();
+        Network = _services.GetRequiredService<Application.Network.NetworkService>();
+        Workspaces = (SqliteWorkspaceStore)_services.GetRequiredService<IWorkspaceStore>();
+        WorkspaceDeletion = _services.GetRequiredService<Application.Workspaces.WorkspaceDeletionService>();
+        ConversationDeletion = _services.GetRequiredService<ConversationDeletionService>();
     }
 
     public SqliteDatabase Database { get; }
@@ -219,6 +217,56 @@ internal sealed class ChatHarness : IAsyncDisposable
 
             await Task.Delay(10);
         }
+    }
+
+    /// <summary>
+    /// The app's own wiring (<see cref="InfrastructureServices.AddMindweaveInfrastructure"/> and
+    /// <see cref="ApplicationServices.AddMindweaveApplication"/>) with the test doubles and short timings in place.
+    /// </summary>
+    private static ServiceProvider BuildServices(
+        AppPaths paths,
+        IChatClient client,
+        ICredentialStore credentials,
+        Func<IConversationStore, IConversationStore>? wrapStore,
+        SqliteDatabaseOptions? databaseOptions)
+    {
+        var services = new ServiceCollection();
+        services.AddSingleton(typeof(ILogger<>), typeof(NullLogger<>));
+
+        // Added first: the app's defaults for these are only registered where nothing is yet.
+        services.AddSingleton(client);
+        services.AddSingleton(credentials);
+        services.AddSingleton(new StorageHealthOptions { RetryInterval = TimeSpan.FromMilliseconds(50) });
+        services.AddSingleton(new GenerationOptions { CheckpointInterval = TimeSpan.FromMilliseconds(50) });
+        if (databaseOptions is not null)
+        {
+            services.AddSingleton(databaseOptions);
+        }
+
+        services.AddMindweaveInfrastructure(paths);
+        services.AddMindweaveApplication();
+
+        // Replaced after: the services write through the (possibly wrapped) store, while Store stays the real one; reading
+        // positions and summary drafts save after a short delay.
+        services.AddSingleton<SqliteConversationStore>();
+        services.Replace(ServiceDescriptor.Singleton<IConversationStore>(sp =>
+        {
+            var store = sp.GetRequiredService<SqliteConversationStore>();
+            return wrapStore?.Invoke(store) ?? store;
+        }));
+        services.Replace(ServiceDescriptor.Singleton(sp => new ReadingStateService(
+            sp.GetRequiredService<IReadingStateStore>(),
+            sp.GetRequiredService<IClock>(),
+            sp.GetRequiredService<ILogger<ReadingStateService>>(),
+            TimeSpan.FromMilliseconds(20),
+            sp.GetRequiredService<StorageHealth>())));
+        services.Replace(ServiceDescriptor.Singleton(sp => new Application.Summaries.SummaryDrafts(
+            sp.GetRequiredService<ISummaryStore>(),
+            sp.GetRequiredService<IClock>(),
+            sp.GetRequiredService<StorageHealth>(),
+            sp.GetRequiredService<ILogger<Application.Summaries.SummaryDrafts>>(),
+            TimeSpan.FromMilliseconds(20))));
+        return services.BuildServiceProvider(new ServiceProviderOptions { ValidateOnBuild = true, ValidateScopes = true });
     }
 
     public async ValueTask DisposeAsync()

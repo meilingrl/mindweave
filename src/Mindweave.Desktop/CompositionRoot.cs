@@ -3,11 +3,6 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Logging;
 using Mindweave.Application;
-using Mindweave.Application.Conversations;
-using Mindweave.Application.Models;
-using Mindweave.Application.Reading;
-using Mindweave.Application.Startup;
-using Mindweave.Application.Workspaces;
 using Mindweave.Desktop.Navigation;
 using Mindweave.Desktop.Services;
 using Mindweave.Desktop.ViewModels;
@@ -43,43 +38,7 @@ public static class CompositionRoot
             paths.LogDirectory,
             sp.GetRequiredService<MigrationCatalog>().LatestVersion));
 
-        services.AddSingleton<StartupCoordinator>();
-        services.TryAddSingleton(new Application.Storage.StorageHealthOptions());
-        services.AddSingleton<Application.Storage.StorageHealth>();
-        services.AddSingleton<Application.Storage.IStorageStatus>(sp => sp.GetRequiredService<Application.Storage.StorageHealth>());
-        services.AddSingleton<WorkspaceService>();
-        services.AddSingleton<WorkspaceDeletionService>();
-        services.AddSingleton<ConversationDeletionService>();
-        services.TryAddSingleton(new GenerationOptions());
-        services.AddSingleton<ContextCompressor>();
-        services.AddSingleton<GenerationCoordinator>();
-        services.AddSingleton<ModelSettingsService>();
-        services.AddSingleton<ConversationService>();
-        services.AddSingleton<ConversationMarksService>();
-        services.AddSingleton<Application.Summaries.SummaryDrafts>();
-        services.AddSingleton<Application.Summaries.SummaryService>();
-        services.AddSingleton<Application.Network.NetworkService>();
-        services.AddSingleton<Application.Export.SummaryExportService>();
-        services.AddSingleton<ReadingStateService>();
-        services.AddSingleton<Application.Preferences.AppearanceService>();
-        services.AddSingleton<Application.Preferences.SidebarLayoutService>();
-
-        // View models depend on these interfaces, not the concrete services (course requirement C3); each resolves to the
-        // one singleton above, so a page and the rest of the application share state.
-        // A test may wrap the conversations interface (to hold a page reload); the application registers nothing else.
-        services.TryAddSingleton<IConversations>(sp => sp.GetRequiredService<ConversationService>());
-        services.AddSingleton<IConversationMarks>(sp => sp.GetRequiredService<ConversationMarksService>());
-        services.AddSingleton<IGenerationExit>(sp => sp.GetRequiredService<GenerationCoordinator>());
-        services.AddSingleton<Application.Summaries.ISummaries>(sp => sp.GetRequiredService<Application.Summaries.SummaryService>());
-        services.AddSingleton<IReadingState>(sp => sp.GetRequiredService<ReadingStateService>());
-        services.AddSingleton<Application.Export.ISummaryExport>(sp => sp.GetRequiredService<Application.Export.SummaryExportService>());
-        services.AddSingleton<IModelSettings>(sp => sp.GetRequiredService<ModelSettingsService>());
-        services.AddSingleton<IWorkspaces>(sp => sp.GetRequiredService<WorkspaceService>());
-        services.AddSingleton<IWorkspaceDeletion>(sp => sp.GetRequiredService<WorkspaceDeletionService>());
-        services.AddSingleton<IConversationDeletion>(sp => sp.GetRequiredService<ConversationDeletionService>());
-        services.AddSingleton<Application.Preferences.IAppearance>(sp => sp.GetRequiredService<Application.Preferences.AppearanceService>());
-        services.AddSingleton<Application.Preferences.ISidebarLayout>(sp => sp.GetRequiredService<Application.Preferences.SidebarLayoutService>());
-        services.AddSingleton<Application.Network.INetworkLayout>(sp => sp.GetRequiredService<Application.Network.NetworkService>());
+        services.AddMindweaveApplication();
         services.TryAddSingleton<IThemeApplier, AvaloniaThemeApplier>();
         services.TryAddSingleton<IUiDispatcher, AvaloniaUiDispatcher>();
 
