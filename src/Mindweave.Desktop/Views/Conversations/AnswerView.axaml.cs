@@ -6,6 +6,7 @@ using Avalonia.Controls.Primitives;
 using Avalonia.Input;
 using Avalonia.Interactivity;
 using Avalonia.Media;
+using Avalonia.Threading;
 using Avalonia.VisualTree;
 using LiveMarkdown.Avalonia;
 using Mindweave.Core.Branches;
@@ -32,6 +33,7 @@ public sealed partial class AnswerView : UserControl
     private string _shown = string.Empty;
     private ScrollViewer? _scroller;
     private TopLevel? _topLevel;
+    private ConversationView? _conversation;
 
     public AnswerView()
     {
@@ -138,6 +140,7 @@ public sealed partial class AnswerView : UserControl
         if (_item is not null)
         {
             _item.PropertyChanged -= OnItemChanged;
+            HandOverSelection();
         }
 
         // The message template hosts this view for questions too (hidden); only answers are rendered.
@@ -148,6 +151,7 @@ public sealed partial class AnswerView : UserControl
         {
             _item.PropertyChanged += OnItemChanged;
             Show(_item.Body);
+            TakeOverSelection();
         }
 
         UpdateBranchButton();
@@ -161,8 +165,10 @@ public sealed partial class AnswerView : UserControl
         }
 
         // Leaving the page (or the answer being removed) takes the floating card with it.
+        HandOverSelection();
         HideSelectionActions();
         _scroller = null;
+        _conversation = null;
         _topLevel?.RemoveHandler(GotFocusEvent, OnFocusMoved);
         _topLevel = null;
         base.OnDetachedFromVisualTree(e);
@@ -172,6 +178,7 @@ public sealed partial class AnswerView : UserControl
     {
         base.OnAttachedToVisualTree(e);
         _scroller = this.FindAncestorOfType<ScrollViewer>();
+        _conversation = this.FindAncestorOfType<ConversationView>();
         _topLevel = TopLevel.GetTopLevel(this);
         _topLevel?.AddHandler(GotFocusEvent, OnFocusMoved, RoutingStrategies.Bubble, handledEventsToo: true);
         if (_item is not null)
@@ -179,6 +186,45 @@ public sealed partial class AnswerView : UserControl
             _item.PropertyChanged -= OnItemChanged;
             _item.PropertyChanged += OnItemChanged;
             Show(_item.Body);
+            TakeOverSelection();
+        }
+    }
+
+    /// <summary>
+    /// A streaming answer's row is replaced by a new row for its stored text when it ends (its view switches from the
+    /// live builder to a full parse). Text can be selected and copied while it streams, so the selection is handed
+    /// over to the page here, as this view leaves, and taken over by the stored answer's view (<see cref="TakeOverSelection"/>).
+    /// </summary>
+    private void HandOverSelection()
+    {
+        if (_item is { IsLive: true } live && _conversation is { } page && SelectionCarry.Capture(_renderer) is { } selection)
+        {
+            var focused = _topLevel?.FocusManager?.GetFocusedElement() is Visual focus && (focus == _renderer || _renderer.IsVisualAncestorOf(focus));
+            page.HandOverSelection(live.Id, new CarriedSelection(selection, focused));
+        }
+    }
+
+    private void TakeOverSelection()
+    {
+        if (_item is { IsLive: false } stored && _conversation?.TakeOverSelection(stored.Id) is { } selection && SelectionCarry.Apply(_renderer, selection.Segments))
+        {
+            // Focus went with the old view; take it back (once this view's controls are attached and can hold it) unless
+            // something else has it since, so the copy gesture still copies the selection.
+            if (selection.Focused)
+            {
+                Dispatcher.UIThread.Post(RestoreFocus, DispatcherPriority.Loaded);
+            }
+
+            UpdateBranchButton();
+        }
+    }
+
+    private void RestoreFocus()
+    {
+        if (_topLevel is { FocusManager: { } focus } top && focus.GetFocusedElement() is var focused && (focused is null || ReferenceEquals(focused, top))
+            && SourceAnchors.HasSelection(_renderer))
+        {
+            _renderer.Focus();
         }
     }
 

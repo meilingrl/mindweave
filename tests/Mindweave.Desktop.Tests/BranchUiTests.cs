@@ -202,17 +202,19 @@ public class BranchUiTests
         await CurrentView(window).Restored;
         await UiWait.UntilAsync(() => Answer(window).IsLayoutCurrent && SourceAnchors.Blocks(Answer(window).Renderer).Count > 0);
 
-        // While it grows, even an existing selection cannot become a branch. (Selected directly: the live layout
-        // may still be animating text in, so mouse positions are not a stable way to select here.)
-        var growing = SourceAnchors.Blocks(Answer(window).Renderer).Single();
-        growing.SelectionStart = 2;
-        growing.SelectionEnd = 4;
+        // While it grows, even a selection made with the mouse cannot become a branch.
+        Select(window, Answer(window), "增长");
         Assert.False(Answer(window).BranchButton.IsEffectivelyVisible);
         Assert.Null(Answer(window).CaptureSelection());
 
         held.Release.TrySetResult();
         await UiWait.UntilAsync(() => page.Messages[1].State == MessageState.Complete && page.Messages[1].CanBranch);
         window.UpdateLayout();
+        Answer(window).ClearSelection();
+
+        // The same drag again: a second press at the same point within the double-click time is a double click, which
+        // selects the whole run of CJK text and anchors the drag at its start (the [0,4) of 2026-10-27).
+        await UiInput.PastDoubleClickAsync();
         Select(window, Answer(window), "增长");
         Assert.True(Answer(window).BranchButton.IsEffectivelyVisible);
         window.Close();

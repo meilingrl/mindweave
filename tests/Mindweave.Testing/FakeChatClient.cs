@@ -1,5 +1,6 @@
 using System.Collections.Concurrent;
 using System.Runtime.CompilerServices;
+using System.Threading.Channels;
 using Mindweave.Application.Ai;
 using Mindweave.Core.Conversations;
 
@@ -231,7 +232,26 @@ public sealed class FakeChatClient : IChatClient
         if (script.Held is { } held)
         {
             held.Started.TrySetResult();
-            await held.Release.Task.WaitAsync(cancellationToken);
+
+            // Text pushed while held streams at once; the reply waits for more until released. Release is read before
+            // the drain: text pushed before the release is then in the channel and is sent, never skipped.
+            while (true)
+            {
+                var released = held.Release.Task.IsCompleted;
+                while (held.Pushed.Reader.TryRead(out var pushed))
+                {
+                    yield return new ChatStreamEvent.TextDelta(pushed);
+                }
+
+                if (released)
+                {
+                    break;
+                }
+
+                await Task.WhenAny(held.Pushed.Reader.WaitToReadAsync(cancellationToken).AsTask(), held.Release.Task).WaitAsync(cancellationToken);
+                cancellationToken.ThrowIfCancellationRequested();
+            }
+
             foreach (var chunk in held.After)
             {
                 yield return new ChatStreamEvent.TextDelta(chunk);
@@ -267,6 +287,18 @@ public sealed class FakeChatClient : IChatClient
         public TaskCompletionSource Started { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
 
         public TaskCompletionSource Release { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+
+        /// <summary>Text the held reply sends now, before it is released.</summary>
+        internal Channel<string> Pushed { get; } = Channel.CreateUnbounded<string>();
+
+        /// <summary>Streams <paramref name="chunks"/> while the reply stays held, as a service still writing does.</summary>
+        public void Push(params string[] chunks)
+        {
+            foreach (var chunk in chunks)
+            {
+                Pushed.Writer.TryWrite(chunk);
+            }
+        }
 
         public void Finish(params string[] after)
         {
