@@ -1,3 +1,4 @@
+using Avalonia.Styling;
 using Microsoft.Data.Sqlite;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging.Abstractions;
@@ -12,6 +13,7 @@ using Mindweave.Testing;
 using Mindweave.Desktop.Navigation;
 using Mindweave.Desktop.Services;
 using Mindweave.Desktop.ViewModels;
+using Mindweave.Desktop.Views;
 using Mindweave.Infrastructure.Hosting;
 using Mindweave.Infrastructure.Sqlite;
 
@@ -68,6 +70,22 @@ public sealed class DesktopHarness : IAsyncDisposable
         new(directory ?? Path.Combine(Path.GetTempPath(), "mindweave-desktop-tests", Guid.NewGuid().ToString("N")), overrides, directory is null);
 
     public Task StartAsync() => Services.GetRequiredService<AppStartup>().RunAsync();
+
+    /// <summary>
+    /// Shows the main window over <see cref="Root"/> at the given size, optionally in <paramref name="theme"/> (set on
+    /// the window only: the tests share one application).
+    /// </summary>
+    public MainWindow ShowWindow(double width = 1000, double height = 700, ThemeVariant? theme = null)
+    {
+        var window = new MainWindow { DataContext = Root, Width = width, Height = height };
+        if (theme is not null)
+        {
+            window.RequestedThemeVariant = theme;
+        }
+
+        window.Show();
+        return window;
+    }
 
     /// <summary>Starts, creates a first workspace through onboarding, and lands in the workbench.</summary>
     public async Task<Workspace> StartWithWorkspaceAsync(string name)
