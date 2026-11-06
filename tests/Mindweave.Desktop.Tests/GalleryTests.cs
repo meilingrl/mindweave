@@ -745,6 +745,29 @@ public class GalleryTests
     }
 
     [AvaloniaFact]
+    public async Task G38_reasoning_model_thinking_with_its_live_timer()
+    {
+        await using var scene = Scene.Create("g38");
+        var window = Show(scene.App);
+        var seed = await SeedAsync(scene.App);
+        var page = await OpenConversationAsync(scene.App, window, seed.FirstRailway);
+        var held = scene.App.Client.HoldThinking();
+        page.Composer.Text = "它为什么很快就被拆除了？";
+        await page.Composer.SendCommand.ExecuteAsync(null);
+        await held.Started.Task.WaitAsync(TimeSpan.FromSeconds(5));
+        await UiWait.UntilAsync(() => page.Messages.Count == 4 && page.Messages[3].WaitingLabel == UiText.ModelThinking);
+        Time(scene.App).Advance(TimeSpan.FromSeconds(48) - (Time(scene.App).GetUtcNow() - page.Messages[3].StartedAt));
+        await UiWait.UntilAsync(() => window.GetVisualDescendants().OfType<Avalonia.Controls.TextBlock>().Any(t => t is { Name: "WaitingElapsed", IsEffectivelyVisible: true, Text: "48 秒" or "49 秒" }), timeoutMs: 3000);
+        Scroller(window).ScrollToEnd();
+        await SettleAsync(window);
+        Capture(window, "g38-answer-thinking");
+
+        held.Finish("清政府认为有损主权。");
+        await UiWait.UntilAsync(() => page.Messages[3] is { State: MessageState.Complete, IsLive: false });
+        window.Close();
+    }
+
+    [AvaloniaFact]
     public async Task G36_long_conversation_with_branch_marks_in_the_margin()
     {
         await using var scene = Scene.Create("g36");

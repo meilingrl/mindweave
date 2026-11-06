@@ -622,6 +622,10 @@ public sealed partial class GenerationCoordinator : IGenerationExit, IAsyncDispo
                     case ChatStreamEvent.TextDelta delta:
                         live.Append(delta.Text);
                         break;
+                    case ChatStreamEvent.ReasoningDelta:
+                        // Only says the model is working; the reasoning is not shown or stored.
+                        live.MarkThinking();
+                        break;
                     case ChatStreamEvent.Completed:
                         completed = true;
                         break;

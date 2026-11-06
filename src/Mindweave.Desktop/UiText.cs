@@ -232,6 +232,7 @@ public static class UiText
     public const string WaitingForAnswer = "正在等待回答…";
     public const string AnswerStreaming = "正在生成…";
     public const string CompressingContext = "正在压缩较早的对话…";
+    public const string ModelThinking = "正在思考…";
     public const string ContextCompressedNote = "较早的对话已压缩为摘要发送，原记录完整保留";
     public const string ModelLabel = "模型";
     public const string FetchModels = "获取列表";

@@ -26,6 +26,12 @@ public abstract record ChatStreamEvent
 
     public sealed record TextDelta(string Text) : ChatStreamEvent;
 
+    /// <summary>
+    /// A reasoning model sent part of its reasoning (<c>reasoning_content</c>) instead of answer text. Only its length is
+    /// passed on: the reasoning is neither shown nor stored, it only says the service is working (2026-11-06).
+    /// </summary>
+    public sealed record ReasoningDelta(int Characters) : ChatStreamEvent;
+
     /// <summary>The provider declared the answer finished. <paramref name="Truncated"/> when it stopped at the length limit.</summary>
     public sealed record Completed(bool Truncated) : ChatStreamEvent;
 

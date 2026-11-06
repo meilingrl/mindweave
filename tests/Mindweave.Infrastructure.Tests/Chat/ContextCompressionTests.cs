@@ -44,6 +44,31 @@ public class ContextCompressionTests
     }
 
     [Fact]
+    public async Task A_reasoning_model_compresses_first_and_then_thinks()
+    {
+        await using var h = await ChatHarness.StartAsync(model: SmallModel);
+        var conversation = await LongConversationAsync(h, turns: 6);
+        h.Client.ReasonFirst = true;
+        h.Client.SummaryGate = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var held = h.Client.HoldThinking();
+
+        var sent = await h.Conversations.AskAsync(conversation, "最后的问题" + Tipping, Ct);
+        var live = h.Conversations.Observe(sent.Answer!.Value)!;
+        await ChatHarness.UntilAsync(() => h.Client.Requests.Count(FakeChatClient.IsSummary) == 1);
+
+        // The summary request reasons before it waits at the gate; that never turns the answer to thinking.
+        Assert.Equal(AnswerPhase.Compressing, live.Snapshot().Phase);
+        h.Client.SummaryGate.TrySetResult();
+        await held.Started.Task.WaitAsync(TimeSpan.FromSeconds(5), Ct);
+        await ChatHarness.UntilAsync(() => live.Snapshot().Phase == AnswerPhase.Thinking);
+
+        held.Finish("答");
+        Assert.Equal("答", (await h.WaitForAnswerAsync(sent.Answer!.Value)).Text);
+        var summary = Assert.Single(await h.Summaries.ListAsync([conversation], Ct));
+        Assert.StartsWith("摘要：", summary.Text, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public async Task A_later_question_reuses_the_stored_summary()
     {
         await using var h = await ChatHarness.StartAsync(model: SmallModel);

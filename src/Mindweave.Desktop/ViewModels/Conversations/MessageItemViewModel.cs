@@ -124,7 +124,12 @@ public sealed partial class MessageItemViewModel : ViewModelBase, IDisposable
     /// </summary>
     public bool IsWaiting => IsInProgress && !HasBody;
 
-    public string WaitingLabel => Phase == AnswerPhase.Compressing ? UiText.CompressingContext : UiText.WaitingForAnswer;
+    public string WaitingLabel => Phase switch
+    {
+        AnswerPhase.Compressing => UiText.CompressingContext,
+        AnswerPhase.Thinking => UiText.ModelThinking,
+        _ => UiText.WaitingForAnswer,
+    };
 
     public bool IsProblem => State is MessageState.Failed or MessageState.Interrupted;
 

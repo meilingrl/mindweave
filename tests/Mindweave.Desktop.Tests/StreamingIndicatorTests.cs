@@ -1,6 +1,9 @@
 using Avalonia.Controls;
 using Avalonia.Headless.XUnit;
 using Avalonia.VisualTree;
+using Microsoft.Extensions.DependencyInjection;
+using Mindweave.Application.Conversations;
+using MessageState = Mindweave.Core.Conversations.MessageState;
 using Mindweave.Desktop.ViewModels.Conversations;
 using Mindweave.Desktop.Views;
 using Mindweave.Desktop.Views.Conversations;
@@ -49,6 +52,63 @@ public class StreamingIndicatorTests
 
         held.Release.TrySetResult();
         window.Close();
+    }
+
+    [AvaloniaFact]
+    public async Task A_reasoning_model_shows_thinking_with_its_timer_until_the_text_arrives()
+    {
+        await using var app = DesktopHarness.Create();
+        var window = new MainWindow { DataContext = app.Root, Width = 1000, Height = 700 };
+        window.Show();
+        await app.StartWithWorkspaceAsync("火车");
+        await app.ConfigureModelAsync();
+        var held = app.Client.HoldThinking();
+        var page = await AskAsync(app, held);
+
+        await UiWait.UntilAsync(() => page.Messages[1].WaitingLabel == UiText.ModelThinking);
+        Assert.Equal(1, VisibleWaitingBars(window));
+        Assert.Contains(VisibleTexts(window), t => t.Text == UiText.ModelThinking);
+        Assert.Contains(VisibleTexts(window), t => t.Name == "WaitingElapsed" && !string.IsNullOrEmpty(t.Text));
+
+        held.Finish("蒸汽机车");
+        await UiWait.UntilAsync(() => page.Messages[1].Body == "蒸汽机车");
+        Assert.Equal(0, VisibleWaitingBars(window));
+        Assert.DoesNotContain(VisibleTexts(window), t => t.Text == UiText.ModelThinking);
+        await UiWait.StoredAsync(page, 1, MessageState.Complete);
+        window.Close();
+    }
+
+    [AvaloniaFact]
+    public async Task An_answer_stopped_while_thinking_shows_it_stopped_with_retry_and_nothing_to_copy()
+    {
+        await using var app = DesktopHarness.Create();
+        var window = new MainWindow { DataContext = app.Root, Width = 1000, Height = 700 };
+        window.Show();
+        await app.StartWithWorkspaceAsync("火车");
+        await app.ConfigureModelAsync();
+        var held = app.Client.HoldThinking();
+        var page = await AskAsync(app, held);
+        await UiWait.UntilAsync(() => page.Messages[1].WaitingLabel == UiText.ModelThinking);
+
+        await app.Services.GetRequiredService<ConversationService>().StopAsync(page.Messages[1].Id);
+
+        await UiWait.StoredAsync(page, 1, MessageState.Stopped);
+        Assert.Equal(0, VisibleWaitingBars(window));
+        var texts = VisibleTexts(window);
+        Assert.Contains(texts, t => t.Name == "StateText" && t.Text == "已停止");
+        Assert.Contains(texts, t => t.Name == "AnswerDuration");
+        var view = window.GetVisualDescendants().OfType<ConversationView>().Single();
+        Assert.Contains(view.GetVisualDescendants().OfType<Button>(), b => b.Name == "RetryButton" && b.IsEffectivelyVisible && b.IsEffectivelyEnabled);
+        Assert.DoesNotContain(view.GetVisualDescendants().OfType<CopyButton>(), b => b.Name == "AnswerCopy" && b.IsEffectivelyVisible && b.IsEffectivelyEnabled);
+        Assert.DoesNotContain(view.GetVisualDescendants().OfType<Border>(), b => b.Name == "ErrorNotice" && b.IsEffectivelyVisible);
+        window.Close();
+    }
+
+    private static List<TextBlock> VisibleTexts(Window window)
+    {
+        window.UpdateLayout();
+        return window.GetVisualDescendants().OfType<ConversationView>().Single().GetVisualDescendants().OfType<TextBlock>()
+            .Where(t => t.IsEffectivelyVisible).ToList();
     }
 
     private static async Task<ConversationViewModel> AskAsync(DesktopHarness app, FakeChatClient.HeldReply held)

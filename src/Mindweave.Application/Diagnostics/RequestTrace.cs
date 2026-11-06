@@ -30,6 +30,9 @@ internal sealed class RequestTrace(GenerationTaskId task, IClock clock, ChatRequ
                 _toFirstText ??= clock.UtcNow - _started;
                 _characters += delta.Text.Length;
                 break;
+            case ChatStreamEvent.ReasoningDelta:
+                // Not answer text: time to first text and the character count stay about what the reader sees.
+                break;
             case ChatStreamEvent.Completed completed:
                 _truncated = completed.Truncated;
                 break;
