@@ -27,7 +27,7 @@ public class MathRenderingTests
         Assert.DoesNotContain("\\frac", text, StringComparison.Ordinal);
         Assert.Equal(2, answer.Renderer.GetVisualDescendants().Count(v => v.GetType().Name == "FormulaControl"));
         Assert.Contains("之后的段落照常显示。", text, StringComparison.Ordinal);
-        ViewTests.Capture(window, "05-math");
+        Screenshots.Capture(window, "05-math");
         _ = page;
         window.Close();
     }
@@ -54,7 +54,7 @@ public class MathRenderingTests
         block.SelectionEnd = block.LayoutText.Length;
         var selection = Assert.IsType<Mindweave.Core.Branches.BranchSelection>(answer.CaptureSelection());
         Assert.Equal("其中 \\(n \\approx 1.47\\) 是折射率。", selection.Quote);
-        ViewTests.Capture(window, "05-math-backslash");
+        Screenshots.Capture(window, "05-math-backslash");
         _ = page;
         window.Close();
     }

@@ -323,7 +323,7 @@ public class GalleryTests
         await using var scene = Scene.Create("g13");
         var window = scene.App.ShowWindow(1100, 720, Theme);
         var seed = await SeedAsync(scene.App, summaries: true);
-        var network = await NetworkUiTests.OpenNetworkAsync(scene.App, window);
+        var network = await NetworkScenario.OpenNetworkAsync(scene.App, window);
         Assert.Equal(8, network.Nodes.Count);
         Assert.Contains(network.Edges, e => !e.IsDirect);
         network.Select(seed.Nodes[seed.Gauge]);
@@ -342,7 +342,7 @@ public class GalleryTests
         await using var scene = Scene.Create("g14");
         var window = scene.App.ShowWindow(1100, 720, Theme);
         await SeedAsync(scene.App, summaries: true);
-        var network = await NetworkUiTests.OpenNetworkAsync(scene.App, window);
+        var network = await NetworkScenario.OpenNetworkAsync(scene.App, window);
         network.ToggleViewCommand.Execute(null);
         Assert.True(network.IsListView);
         await SettleAsync(window);
@@ -356,8 +356,8 @@ public class GalleryTests
         await using var scene = Scene.Create("g15");
         var window = scene.App.ShowWindow(1100, 720, Theme);
         await SeedAsync(scene.App, summaries: true);
-        var network = await NetworkUiTests.OpenNetworkAsync(scene.App, window);
-        await NetworkUiTests.MoveSomethingAsync(scene.App, network);
+        var network = await NetworkScenario.OpenNetworkAsync(scene.App, window);
+        await NetworkScenario.MoveSomethingAsync(scene.App, network);
         network.ArrangeCommand.Execute(null);
         Assert.True(network.IsDirty);
         await SettleAsync(window);
@@ -374,8 +374,8 @@ public class GalleryTests
         await SeedAsync(scene.App, summaries: true);
         var other = await scene.App.Services.GetRequiredService<WorkspaceService>().CreateAsync(WorkspaceName.FromStored("摄影史"), CancellationToken.None);
         scene.App.Workbench.Workspaces.Add(other);
-        var network = await NetworkUiTests.OpenNetworkAsync(scene.App, window);
-        await NetworkUiTests.MoveSomethingAsync(scene.App, network);
+        var network = await NetworkScenario.OpenNetworkAsync(scene.App, window);
+        await NetworkScenario.MoveSomethingAsync(scene.App, network);
         network.ArrangeCommand.Execute(null);
         scene.App.ShellPage.SelectedWorkspace = other;
         Assert.True(scene.App.Root.LayoutPrompt.IsOpen);
@@ -392,7 +392,7 @@ public class GalleryTests
         await using var scene = Scene.Create("g16a");
         var window = scene.App.ShowWindow(1100, 720, Theme);
         var seed = await SeedAsync(scene.App, summaries: true);
-        var network = await NetworkUiTests.OpenNetworkAsync(scene.App, window);
+        var network = await NetworkScenario.OpenNetworkAsync(scene.App, window);
         await SettleAsync(window);
         var canvas = window.GetVisualDescendants().OfType<NetworkCanvas>().Single();
         var node = network.Nodes.Single(n => n.Id == seed.Nodes[seed.Gauge]);
@@ -1195,7 +1195,7 @@ public class GalleryTests
     private static void Capture(MainWindow window, string name)
     {
         window.UpdateLayout();
-        ViewTests.Capture(window, name);
+        Screenshots.Capture(window, name);
     }
 
     /// <summary>

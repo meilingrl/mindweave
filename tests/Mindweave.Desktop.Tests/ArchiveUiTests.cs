@@ -57,7 +57,7 @@ public class ArchiveUiTests
         // The view turns the level into indentation (the view model exposes only the number, L5).
         var rows = window.GetVisualDescendants().OfType<ArchivedView>().Single().GetVisualDescendants().OfType<Border>().Where(b => b.Classes.Contains("archived-row")).ToList();
         Assert.Equal([0, Views.TreeIndent.Step], rows.Select(r => r.Margin.Left));
-        ViewTests.Capture(window, "08-archived");
+        Screenshots.Capture(window, "08-archived");
 
         await archived.RestoreCommand.ExecuteAsync(archived.Items[0]);
 

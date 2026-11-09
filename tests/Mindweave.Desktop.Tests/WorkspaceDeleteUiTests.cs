@@ -27,7 +27,7 @@ public class WorkspaceDeleteUiTests
     {
         await using var app = DesktopHarness.Create();
         var window = app.ShowWindow(1100, 720);
-        await NetworkUiTests.SeedAsync(app);
+        await NetworkScenario.SeedAsync(app);
         app.ShellPage.ShowSectionCommand.Execute(MainSection.Settings);
         var settings = Assert.IsType<SettingsHomeViewModel>(app.Workbench.CurrentPage);
         window.UpdateLayout();
@@ -81,7 +81,7 @@ public class WorkspaceDeleteUiTests
     {
         await using var app = DesktopHarness.Create();
         var window = app.ShowWindow(1100, 720);
-        await NetworkUiTests.SeedAsync(app);
+        await NetworkScenario.SeedAsync(app);
         var train = app.Workbench.CurrentWorkspace!;
         var workspaces = app.Services.GetRequiredService<WorkspaceService>();
         var older = await workspaces.CreateAsync(WorkspaceName.FromStored("摄影史"), CancellationToken.None);
@@ -98,8 +98,8 @@ public class WorkspaceDeleteUiTests
         var root = app.ShellPage.Conversations.Items[0];
         app.ShellPage.Conversations.OpenCommand.Execute(root);
         var page = Assert.IsType<ConversationViewModel>(app.Workbench.CurrentPage);
-        var network = await NetworkUiTests.OpenNetworkAsync(app, window);
-        await NetworkUiTests.MoveSomethingAsync(app, network);
+        var network = await NetworkScenario.OpenNetworkAsync(app, window);
+        await NetworkScenario.MoveSomethingAsync(app, network);
         network.ArrangeCommand.Execute(null);
         Assert.True(network.IsDirty);
 

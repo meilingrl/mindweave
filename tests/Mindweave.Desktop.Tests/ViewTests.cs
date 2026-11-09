@@ -50,7 +50,7 @@ public class ViewTests
 
         Assert.IsType<ShellView>(window.GetVisualDescendants().OfType<ShellView>().Single());
         Assert.IsType<ExploreHomeView>(Find<ContentControl>(window, "PageHost").GetVisualDescendants().OfType<ExploreHomeView>().Single());
-        Capture(window, "01-explore-home");
+        Screenshots.Capture(window, "01-explore-home");
         window.Close();
     }
 
@@ -67,7 +67,7 @@ public class ViewTests
         Invoke(window, "StorageDetailsButton");
         Assert.Single(window.GetVisualDescendants().OfType<StorageDetailsView>());
         Assert.True(Find<Button>(window, "BackButton").IsVisible);
-        Capture(window, "02-storage-details");
+        Screenshots.Capture(window, "02-storage-details");
 
         Invoke(window, "BackButton");
         Assert.Single(window.GetVisualDescendants().OfType<SettingsHomeView>());
@@ -86,19 +86,5 @@ public class ViewTests
         Assert.True(button.IsEffectivelyEnabled, $"{name} is disabled");
         button.Command!.Execute(button.CommandParameter);
         window.UpdateLayout();
-    }
-
-    /// <summary>Writes a rendered frame when MINDWEAVE_SCREENSHOT_DIR is set, for visual review.</summary>
-    internal static void Capture(Window window, string name)
-    {
-        var target = Environment.GetEnvironmentVariable("MINDWEAVE_SCREENSHOT_DIR");
-        if (string.IsNullOrEmpty(target))
-        {
-            return;
-        }
-
-        Directory.CreateDirectory(target);
-        using var frame = window.CaptureRenderedFrame();
-        frame?.Save(Path.Combine(target, name + ".png"), new Avalonia.Media.Imaging.PngBitmapEncoderOptions());
     }
 }

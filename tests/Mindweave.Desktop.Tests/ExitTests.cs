@@ -572,9 +572,9 @@ public class ExitTests
 
     private static async Task<NetworkHomeViewModel> DirtyLayoutAsync(DesktopHarness app, MainWindow window)
     {
-        await NetworkUiTests.SeedAsync(app);
-        var network = await NetworkUiTests.OpenNetworkAsync(app, window);
-        await NetworkUiTests.MoveSomethingAsync(app, network);
+        await NetworkScenario.SeedAsync(app);
+        var network = await NetworkScenario.OpenNetworkAsync(app, window);
+        await NetworkScenario.MoveSomethingAsync(app, network);
         network.ArrangeCommand.Execute(null);
         Assert.True(network.IsDirty);
         return network;

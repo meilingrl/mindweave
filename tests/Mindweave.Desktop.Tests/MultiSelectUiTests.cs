@@ -223,7 +223,7 @@ public class MultiSelectUiTests
         Assert.Equal(new HashSet<ConversationId> { middle, sibling }, (await conversations.ArchivedAmongAsync([root, middle, sibling], CancellationToken.None)).ToHashSet());
 
         // A lone conversation without branches or summary: the same dialog, the plain sentence, and no backup.
-        var lone = await NetworkUiTests.AskAsync(app, conversations, null, app.Workbench.CurrentWorkspace!.Id, "单独的问题");
+        var lone = await NetworkScenario.AskAsync(app, conversations, null, app.Workbench.CurrentWorkspace!.Id, "单独的问题");
         await UiWait.UntilAsync(() => list.Items.Count == 2);
         await UiWait.UntilAsync(() => list.Items.Single(i => i.Id == lone).Title == Mindweave.Testing.FakeChatClient.DefaultTitle);
         ClickRow(window, lone, Toggle);
@@ -308,7 +308,7 @@ public class MultiSelectUiTests
 
         // A branch made while the dialog is open is counted before anything is deleted, and the change is said.
         var before = dialog.Scope!.Conversations.Count;
-        await NetworkUiTests.BranchAsync(app, conversations, root, "又一个分支");
+        await NetworkScenario.BranchAsync(app, conversations, root, "又一个分支");
         await UiWait.UntilAsync(() => dialog.Scope!.Conversations.Count == before + 1);
         // The branch's own answer runs for a moment, and the dialog recounts on a throttle: wait until the recount after
         // it ended has replaced the running-work notice with the change notice.
@@ -402,7 +402,7 @@ public class MultiSelectUiTests
         Assert.Null(dialog.Problem);
         Assert.Equal(UiText.ConversationDeleteContents(1, 0, 1), dialog.Contents);
 
-        var branch = await NetworkUiTests.BranchAsync(app, conversations, sibling, "旁支的分支");
+        var branch = await NetworkScenario.BranchAsync(app, conversations, sibling, "旁支的分支");
         await UiWait.UntilAsync(() => dialog.Scope!.Conversations.Count == 2);
         Assert.Equal(UiText.ConversationDeleteScopeChanged, dialog.Problem);
         Assert.Equal(UiText.ConversationDeleteContents(2, 1, 1), dialog.Contents);
@@ -433,7 +433,7 @@ public class MultiSelectUiTests
         await SeedAsync(app, window);
         var list = app.ShellPage.Conversations;
         var conversations = app.Services.GetRequiredService<ConversationService>();
-        var lone = await NetworkUiTests.AskAsync(app, conversations, null, app.Workbench.CurrentWorkspace!.Id, "单独的问题");
+        var lone = await NetworkScenario.AskAsync(app, conversations, null, app.Workbench.CurrentWorkspace!.Id, "单独的问题");
         // The background title lands at its own time; the refusal names the conversation, so let it land first.
         await UiWait.UntilAsync(() => list.Items.Any(i => i.Id == lone && i.Title == Mindweave.Testing.FakeChatClient.DefaultTitle));
         app.Workbench.Navigate(new NavigationRequest(MainSection.Explore, new ConversationRoute(lone)));
@@ -493,7 +493,7 @@ public class MultiSelectUiTests
     /// <summary>The network seed, the sibling's page open and the sidebar laid out; returns root, middle, leaf, sibling.</summary>
     private static async Task<(ConversationId Root, ConversationId Middle, ConversationId Leaf, ConversationId Sibling)> SeedAsync(DesktopHarness app, MainWindow window)
     {
-        await NetworkUiTests.SeedAsync(app);
+        await NetworkScenario.SeedAsync(app);
         var list = app.ShellPage.Conversations;
         await UiWait.UntilAsync(() => list.Items.Count == 4);
         var ids = list.Items.Select(i => i.Id).ToList();

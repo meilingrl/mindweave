@@ -55,7 +55,7 @@ public class BranchUiTests
         Assert.Equal(["火车是怎么发明的？", LongAnswer, "关于上文中的这段内容：\n> 铁路随后\n\n它最先通往哪里？"], sent.Turns.Select(t => t.Content));
 
         window.UpdateLayout();
-        ViewTests.Capture(window, "04-branch");
+        Screenshots.Capture(window, "04-branch");
         window.Close();
     }
 

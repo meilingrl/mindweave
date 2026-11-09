@@ -44,7 +44,7 @@ public class SummaryUiTests
         window.UpdateLayout();
         var view = window.GetVisualDescendants().OfType<SummaryView>().Single();
         Assert.Contains("总结了", string.Concat(SourceAnchors.Blocks(view.Renderer).Select(b => b.LayoutText)), StringComparison.Ordinal);
-        ViewTests.Capture(window, "06-summary");
+        Screenshots.Capture(window, "06-summary");
 
         // Fully in view at once, but opened only just now: not read yet.
         await summary.ReportProgressAsync(1.0, null);
