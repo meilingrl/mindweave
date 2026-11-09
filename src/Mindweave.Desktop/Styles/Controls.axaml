@@ -1,0 +1,289 @@
+<Styles xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+  <!-- Shared control classes: text levels, links and list names, navigation rows, the three button levels, notices, badges, disabled states, breadcrumbs, auto-hiding scroll bars and destructive menu entries. -->
+  <Style Selector="TextBlock.h1">
+    <Setter Property="FontSize" Value="22" />
+    <Setter Property="FontWeight" Value="SemiBold" />
+  </Style>
+  <Style Selector="TextBlock.muted">
+    <Setter Property="Foreground" Value="{DynamicResource MutedText}" />
+  </Style>
+  <Style Selector="TextBlock.warning">
+    <Setter Property="Foreground" Value="{DynamicResource WarningText}" />
+  </Style>
+  <Style Selector="TextBlock.error">
+    <Setter Property="Foreground" Value="{DynamicResource ErrorText}" />
+  </Style>
+  <Style Selector="Button.link">
+    <Setter Property="Background" Value="Transparent" />
+    <Setter Property="Padding" Value="4,2" />
+    <Setter Property="Foreground" Value="{DynamicResource LinkText}" />
+  </Style>
+  <!-- A name in a list that opens it: primary colour; a read one regular and secondary (the weight comes from the item). -->
+  <Style Selector="Button.list-name">
+    <Setter Property="Background" Value="Transparent" />
+    <Setter Property="Padding" Value="4,2" />
+    <Setter Property="Foreground" Value="{DynamicResource PrimaryText}" />
+  </Style>
+  <Style Selector="Button.list-name.read">
+    <Setter Property="Foreground" Value="{DynamicResource MutedText}" />
+  </Style>
+  <Style Selector="Button.list-name:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+    <Setter Property="Background" Value="{DynamicResource HoverRow}" />
+    <Setter Property="Foreground" Value="{DynamicResource LinkText}" />
+  </Style>
+  <!-- Sidebar rows: navigation and the conversation tree. Hover is a faint row, selection a stronger one with the accent icon. -->
+  <Style Selector="Button.nav">
+    <Setter Property="HorizontalAlignment" Value="Stretch" />
+    <Setter Property="HorizontalContentAlignment" Value="Left" />
+    <Setter Property="Background" Value="Transparent" />
+    <Setter Property="BorderThickness" Value="0" />
+    <Setter Property="Foreground" Value="{DynamicResource PrimaryText}" />
+    <Setter Property="CornerRadius" Value="6" />
+    <Setter Property="Padding" Value="10,6" />
+  </Style>
+  <Style Selector="Button.nav:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+    <Setter Property="Background" Value="{DynamicResource HoverRow}" />
+    <Setter Property="Foreground" Value="{DynamicResource PrimaryText}" />
+  </Style>
+  <Style Selector="Button.nav:pressed /template/ ContentPresenter#PART_ContentPresenter">
+    <Setter Property="Background" Value="{DynamicResource SelectedRow}" />
+  </Style>
+  <Style Selector="Button.nav.selected">
+    <Setter Property="Background" Value="{DynamicResource SelectedRow}" />
+    <Setter Property="FontWeight" Value="SemiBold" />
+  </Style>
+  <Style Selector="Button.nav.selected:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+    <Setter Property="Background" Value="{DynamicResource SelectedRow}" />
+  </Style>
+  <Style Selector="Button.nav PathIcon.nav-icon">
+    <Setter Property="Width" Value="15" />
+    <Setter Property="Height" Value="15" />
+    <Setter Property="Foreground" Value="{DynamicResource NavIcon}" />
+    <Setter Property="VerticalAlignment" Value="Center" />
+  </Style>
+  <Style Selector="Button.nav.selected PathIcon.nav-icon">
+    <Setter Property="Foreground" Value="{DynamicResource AccentBrush}" />
+  </Style>
+  <!-- The 已归档（N） entry: quieter than navigation, at the bottom of the tree. -->
+  <Style Selector="Button.nav.subtle">
+    <Setter Property="Foreground" Value="{DynamicResource MutedText}" />
+    <Setter Property="FontSize" Value="12.5" />
+    <Setter Property="Padding" Value="10,4" />
+  </Style>
+  <Style Selector="Button.nav.subtle:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+    <Setter Property="Foreground" Value="{DynamicResource PrimaryText}" />
+  </Style>
+  <!-- Fluent's dark expander is pure black; both themes use the panel surface instead. -->
+  <Style Selector="Expander">
+    <Setter Property="Background" Value="{DynamicResource PanelBackground}" />
+    <Setter Property="BorderBrush" Value="{DynamicResource DividerBrush}" />
+  </Style>
+  <Style Selector="Expander /template/ ToggleButton#ExpanderHeader">
+    <Setter Property="Background" Value="{DynamicResource PanelBackground}" />
+    <Setter Property="BorderBrush" Value="{DynamicResource DividerBrush}" />
+  </Style>
+
+  <!-- Buttons, three levels (S7 共用样式): primary (at most one per view), secondary (outline), quiet (toolbars). -->
+  <Style Selector="Button.primary">
+    <Setter Property="Background" Value="{DynamicResource AccentBrush}" />
+    <Setter Property="Foreground" Value="{DynamicResource OnAccentText}" />
+    <Setter Property="BorderThickness" Value="0" />
+    <Setter Property="Padding" Value="14,6" />
+    <Setter Property="FontWeight" Value="SemiBold" />
+  </Style>
+  <Style Selector="Button.primary:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+    <Setter Property="Background" Value="{DynamicResource AccentHoverBrush}" />
+    <Setter Property="Foreground" Value="{DynamicResource OnAccentText}" />
+  </Style>
+  <Style Selector="Button.primary:pressed /template/ ContentPresenter#PART_ContentPresenter">
+    <Setter Property="Background" Value="{DynamicResource AccentPressedBrush}" />
+    <Setter Property="Foreground" Value="{DynamicResource OnAccentText}" />
+  </Style>
+  <Style Selector="Button.secondary">
+    <Setter Property="Background" Value="Transparent" />
+    <Setter Property="BorderBrush" Value="{DynamicResource OutlineBrush}" />
+    <Setter Property="BorderThickness" Value="1" />
+    <Setter Property="Foreground" Value="{DynamicResource PrimaryText}" />
+    <Setter Property="Padding" Value="13,5" />
+  </Style>
+  <Style Selector="Button.secondary:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+    <Setter Property="Background" Value="{DynamicResource HoverRow}" />
+    <Setter Property="BorderBrush" Value="{DynamicResource OutlineBrush}" />
+    <Setter Property="Foreground" Value="{DynamicResource PrimaryText}" />
+  </Style>
+  <Style Selector=":is(Button).quiet">
+    <Setter Property="Background" Value="Transparent" />
+    <Setter Property="BorderThickness" Value="0" />
+    <Setter Property="Foreground" Value="{DynamicResource PrimaryText}" />
+    <Setter Property="Padding" Value="8,5" />
+    <Setter Property="VerticalAlignment" Value="Center" />
+  </Style>
+  <Style Selector=":is(Button).quiet:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+    <Setter Property="Background" Value="{DynamicResource HoverRow}" />
+    <Setter Property="Foreground" Value="{DynamicResource PrimaryText}" />
+  </Style>
+  <Style Selector="ToggleButton.quiet:checked /template/ ContentPresenter#PART_ContentPresenter">
+    <Setter Property="Background" Value="{DynamicResource SelectedRow}" />
+    <Setter Property="Foreground" Value="{DynamicResource PrimaryText}" />
+  </Style>
+  <Style Selector="Button.danger">
+    <Setter Property="Foreground" Value="{DynamicResource DangerText}" />
+  </Style>
+  <Style Selector="Button.danger:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+    <Setter Property="Foreground" Value="{DynamicResource DangerText}" />
+  </Style>
+
+  <!-- Notices: info / warning / error, icon on the left (a TextBlock.notice-icon inside). -->
+  <Style Selector="Border.notice">
+    <Setter Property="CornerRadius" Value="6" />
+    <Setter Property="BorderThickness" Value="1" />
+    <Setter Property="Padding" Value="10,7" />
+  </Style>
+  <Style Selector="Border.notice.info">
+    <Setter Property="Background" Value="{DynamicResource NoticeInfoBackground}" />
+    <Setter Property="BorderBrush" Value="{DynamicResource NoticeInfoBorder}" />
+  </Style>
+  <Style Selector="Border.notice.warning">
+    <Setter Property="Background" Value="{DynamicResource NoticeWarningBackground}" />
+    <Setter Property="BorderBrush" Value="{DynamicResource NoticeWarningBorder}" />
+  </Style>
+  <Style Selector="Border.notice.error">
+    <Setter Property="Background" Value="{DynamicResource NoticeErrorBackground}" />
+    <Setter Property="BorderBrush" Value="{DynamicResource NoticeErrorBorder}" />
+  </Style>
+  <!-- Not the label inside a notice's button: it inherits the button's own foreground (link, on-accent, danger, disabled). -->
+  <Style Selector="Border.notice TextBlock:not(Button TextBlock)">
+    <Setter Property="Foreground" Value="{DynamicResource PrimaryText}" />
+    <Setter Property="TextWrapping" Value="Wrap" />
+    <Setter Property="VerticalAlignment" Value="Center" />
+  </Style>
+  <Style Selector="Border.notice TextBlock.notice-icon">
+    <Setter Property="FontWeight" Value="Bold" />
+    <Setter Property="Margin" Value="0,0,8,0" />
+    <Setter Property="VerticalAlignment" Value="Top" />
+  </Style>
+  <Style Selector="Border.notice.info TextBlock.notice-icon">
+    <Setter Property="Foreground" Value="{DynamicResource NoticeInfoIcon}" />
+  </Style>
+  <Style Selector="Border.notice.warning TextBlock.notice-icon">
+    <Setter Property="Foreground" Value="{DynamicResource NoticeWarningIcon}" />
+  </Style>
+  <Style Selector="Border.notice.error TextBlock.notice-icon">
+    <Setter Property="Foreground" Value="{DynamicResource NoticeErrorIcon}" />
+  </Style>
+
+  <!-- Badges: small rounded tags (未读 accent, 已读 neutral, 候选 warning …). -->
+  <Style Selector="Border.badge">
+    <Setter Property="CornerRadius" Value="9" />
+    <Setter Property="Padding" Value="7,1,7,2" />
+    <Setter Property="VerticalAlignment" Value="Center" />
+    <Setter Property="Background" Value="{DynamicResource BadgeNeutralBackground}" />
+  </Style>
+  <Style Selector="Border.badge > TextBlock">
+    <Setter Property="FontSize" Value="11.5" />
+    <Setter Property="Foreground" Value="{DynamicResource BadgeNeutralText}" />
+  </Style>
+  <Style Selector="Border.badge.accent">
+    <Setter Property="Background" Value="{DynamicResource BadgeAccentBackground}" />
+  </Style>
+  <Style Selector="Border.badge.accent > TextBlock">
+    <Setter Property="Foreground" Value="{DynamicResource BadgeAccentText}" />
+    <Setter Property="FontWeight" Value="SemiBold" />
+  </Style>
+  <Style Selector="Border.badge.warning">
+    <Setter Property="Background" Value="{DynamicResource BadgeWarningBackground}" />
+  </Style>
+  <Style Selector="Border.badge.warning > TextBlock">
+    <Setter Property="Foreground" Value="{DynamicResource BadgeWarningText}" />
+  </Style>
+
+  <!-- Disabled buttons keep their level's look, only muted: a quiet or link button never turns into a grey block. -->
+  <Style Selector=":is(Button).quiet:disabled /template/ ContentPresenter#PART_ContentPresenter, Button.link:disabled /template/ ContentPresenter#PART_ContentPresenter, Button.nav:disabled /template/ ContentPresenter#PART_ContentPresenter">
+    <Setter Property="Background" Value="Transparent" />
+    <Setter Property="BorderBrush" Value="Transparent" />
+    <Setter Property="Foreground" Value="{DynamicResource MutedText}" />
+    <Setter Property="Opacity" Value="0.6" />
+  </Style>
+  <Style Selector="Button.secondary:disabled /template/ ContentPresenter#PART_ContentPresenter">
+    <Setter Property="Background" Value="Transparent" />
+    <Setter Property="BorderBrush" Value="{DynamicResource DividerBrush}" />
+    <Setter Property="Foreground" Value="{DynamicResource MutedText}" />
+  </Style>
+  <!-- A disabled primary is a neutral surface with muted text: a faded accent still read as enabled on dark. -->
+  <Style Selector="Button.primary:disabled /template/ ContentPresenter#PART_ContentPresenter">
+    <Setter Property="Background" Value="{DynamicResource DisabledButtonBackground}" />
+    <Setter Property="Foreground" Value="{DynamicResource MutedText}" />
+  </Style>
+  <Style Selector="Button.danger:disabled /template/ ContentPresenter#PART_ContentPresenter">
+    <Setter Property="Foreground" Value="{DynamicResource MutedText}" />
+  </Style>
+  <Style Selector=":is(Button).quiet PathIcon, Button.secondary PathIcon">
+    <Setter Property="Width" Value="13" />
+    <Setter Property="Height" Value="13" />
+    <Setter Property="VerticalAlignment" Value="Center" />
+  </Style>
+  <!-- Smaller quiet buttons for the row under an answer: a soft text colour until hovered, clearly fainter when disabled. -->
+  <Style Selector=":is(Button).quiet.small">
+    <Setter Property="FontSize" Value="12.5" />
+    <Setter Property="Padding" Value="7,3" />
+    <Setter Property="Foreground" Value="{DynamicResource QuietActionText}" />
+  </Style>
+  <Style Selector=":is(Button).quiet.small:disabled /template/ ContentPresenter#PART_ContentPresenter">
+    <Setter Property="Opacity" Value="0.45" />
+  </Style>
+  <Style Selector=":is(Button).quiet.small:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+    <Setter Property="Foreground" Value="{DynamicResource PrimaryText}" />
+  </Style>
+  <Style Selector=":is(Button).quiet.small PathIcon">
+    <Setter Property="Width" Value="12" />
+    <Setter Property="Height" Value="12" />
+  </Style>
+  <!-- A notice's action sits right after its text, not at the far edge; it reads as a link-coloured quiet button. -->
+  <Style Selector="Border.notice Button">
+    <Setter Property="VerticalAlignment" Value="Center" />
+  </Style>
+  <Style Selector="Border.notice Button.quiet">
+    <Setter Property="Padding" Value="8,3" />
+    <Setter Property="Foreground" Value="{DynamicResource LinkText}" />
+    <Setter Property="FontWeight" Value="SemiBold" />
+  </Style>
+  <Style Selector="Border.notice Button.quiet:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+    <Setter Property="Foreground" Value="{DynamicResource LinkText}" />
+  </Style>
+
+  <!-- Breadcrumb links: muted, the accent only on hover. -->
+  <Style Selector="Button.crumb">
+    <Setter Property="Background" Value="Transparent" />
+    <Setter Property="BorderThickness" Value="0" />
+    <Setter Property="Padding" Value="3,1" />
+    <Setter Property="FontSize" Value="12.5" />
+    <Setter Property="Foreground" Value="{DynamicResource MutedText}" />
+    <Setter Property="VerticalAlignment" Value="Center" />
+  </Style>
+  <Style Selector="Button.crumb:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+    <Setter Property="Background" Value="{DynamicResource HoverRow}" />
+    <Setter Property="Foreground" Value="{DynamicResource LinkText}" />
+  </Style>
+  <!-- Long scroll areas (answers, the sidebar tree): the faint thin scroll bar shows only while the pointer is over the area. -->
+  <Style Selector="ScrollViewer.autohide /template/ ScrollBar#PART_VerticalScrollBar">
+    <Setter Property="Opacity" Value="0" />
+  </Style>
+  <Style Selector="ScrollViewer.autohide:pointerover /template/ ScrollBar#PART_VerticalScrollBar">
+    <Setter Property="Opacity" Value="1" />
+  </Style>
+  <!-- A quiet small action that removes something keeps the danger colour (the small style would otherwise soften it). -->
+  <Style Selector=":is(Button).quiet.small.danger">
+    <Setter Property="Foreground" Value="{DynamicResource DangerText}" />
+  </Style>
+  <Style Selector=":is(Button).quiet.small.danger:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+    <Setter Property="Foreground" Value="{DynamicResource DangerText}" />
+  </Style>
+  <!-- A destructive menu entry: the workspace delete entry in the picker's menu. -->
+  <Style Selector="MenuItem.danger">
+    <Setter Property="Foreground" Value="{DynamicResource DangerText}" />
+  </Style>
+  <Style Selector="MenuItem.danger PathIcon">
+    <Setter Property="Foreground" Value="{DynamicResource DangerText}" />
+  </Style>
+</Styles>
