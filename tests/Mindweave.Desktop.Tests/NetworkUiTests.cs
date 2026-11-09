@@ -15,6 +15,8 @@ using Mindweave.Desktop.Views;
 using Mindweave.Desktop.Views.Pages;
 using Mindweave.Infrastructure.Sqlite;
 
+using static Mindweave.Desktop.Tests.NetworkScenario;
+
 namespace Mindweave.Desktop.Tests;
 
 /// <summary>
@@ -31,7 +33,7 @@ public class NetworkUiTests
         IReadOnlyDictionary<SummaryNodeId, NodePosition> first;
         await using (var app = DesktopHarness.Create(directory: dir))
         {
-            var window = Show(app);
+            var window = app.ShowWindow(1100, 720);
             await SeedAsync(app);
             var network = await OpenNetworkAsync(app, window);
 
@@ -41,12 +43,12 @@ public class NetworkUiTests
             Assert.False(network.IsDirty);
             first = await Layout(app);
             Assert.Equal(3, first.Count);
-            ViewTests.Capture(window, "07-network");
+            Screenshots.Capture(window, "07-network");
             window.Close();
         }
 
         await using var restarted = DesktopHarness.Create(directory: dir);
-        var again = Show(restarted);
+        var again = restarted.ShowWindow(1100, 720);
         await restarted.StartAsync();
         var reopened = await OpenNetworkAsync(restarted, again);
         Assert.Equal(first, reopened.Nodes.ToDictionary(n => n.Id, n => new NodePosition(n.X, n.Y)));
@@ -59,7 +61,7 @@ public class NetworkUiTests
     {
         var gate = new GatedStore();
         await using var app = DesktopHarness.Create(s => s.AddSingleton<INetworkStore>(sp => gate.Wrap(sp.GetRequiredService<SqliteDatabase>())));
-        var window = Show(app);
+        var window = app.ShowWindow(1100, 720);
         await SeedAsync(app);
         var network = await OpenNetworkAsync(app, window);
         await MoveSomethingAsync(app, network);
@@ -89,7 +91,7 @@ public class NetworkUiTests
     {
         var gate = new GatedStore();
         await using var app = DesktopHarness.Create(s => s.AddSingleton<INetworkStore>(sp => gate.Wrap(sp.GetRequiredService<SqliteDatabase>())));
-        var window = Show(app);
+        var window = app.ShowWindow(1100, 720);
         await SeedAsync(app);
         var network = await OpenNetworkAsync(app, window);
 
@@ -110,7 +112,7 @@ public class NetworkUiTests
     public async Task Leaving_the_workspace_with_an_unsaved_layout_asks_first()
     {
         await using var app = DesktopHarness.Create();
-        var window = Show(app);
+        var window = app.ShowWindow(1100, 720);
         await SeedAsync(app);
         var network = await OpenNetworkAsync(app, window);
         var trains = app.Workbench.CurrentWorkspace!;
@@ -147,7 +149,7 @@ public class NetworkUiTests
     public async Task Quitting_with_an_unsaved_layout_asks_first_and_saving_then_quits()
     {
         await using var app = DesktopHarness.Create();
-        var window = Show(app);
+        var window = app.ShowWindow(1100, 720);
         await SeedAsync(app);
         var network = await OpenNetworkAsync(app, window);
         await MoveSomethingAsync(app, network);
@@ -177,7 +179,7 @@ public class NetworkUiTests
     public async Task Selecting_a_node_does_not_read_it_and_the_viewport_survives_reading_the_summary()
     {
         await using var app = DesktopHarness.Create();
-        var window = Show(app);
+        var window = app.ShowWindow(1100, 720);
         await SeedAsync(app);
         var network = await OpenNetworkAsync(app, window);
         var canvas = window.GetVisualDescendants().OfType<NetworkCanvas>().Single();
@@ -214,7 +216,7 @@ public class NetworkUiTests
     public async Task Search_selects_the_first_match_and_brings_it_to_the_centre()
     {
         await using var app = DesktopHarness.Create();
-        var window = Show(app);
+        var window = app.ShowWindow(1100, 720);
         await SeedAsync(app);
         var network = await OpenNetworkAsync(app, window);
         var target = network.Nodes.Single(n => n.ShortTitle == "铁轨");
@@ -225,70 +227,6 @@ public class NetworkUiTests
         Assert.Equal(target.Id, network.Selected?.Id);
         Assert.Equal((target.X, target.Y), (network.Session.Viewport!.Value.CenterX, network.Session.Viewport.Value.CenterY));
         window.Close();
-    }
-
-    /// <summary>Root "火车" summarized; a branch without a summary; its branch summarized; a sibling summarized.</summary>
-    internal static async Task SeedAsync(DesktopHarness app)
-    {
-        await app.StartWithWorkspaceAsync("火车");
-        await app.ConfigureModelAsync();
-        var conversations = app.Services.GetRequiredService<ConversationService>();
-        var workspace = app.Workbench.CurrentWorkspace!.Id;
-        var root = await AskAsync(app, conversations, null, workspace, "火车是怎么发明的？");
-        var middle = await BranchAsync(app, conversations, root, "谁造了第一台？");
-        var leaf = await BranchAsync(app, conversations, middle, "它跑多快？");
-        var sibling = await BranchAsync(app, conversations, root, "铁轨用什么做？");
-        var summaries = app.Services.GetRequiredService<SummaryService>();
-        foreach (var (conversation, title) in new[] { (root, "火车起源"), (leaf, "火箭号速度"), (sibling, "铁轨") })
-        {
-            app.Client.SummaryReplies.Enqueue($"标题：{title}的详细说明\n短名：{title}\n\n正文");
-            var outcome = await summaries.SummarizeAsync(conversation, CancellationToken.None);
-            Assert.True(outcome.Accepted, outcome.Rejection?.ToString());
-            await UiWait.UntilAsync(() => summaries.LatestTaskAsync(conversation, CancellationToken.None).Result is { State: GenerationTaskState.Completed });
-        }
-    }
-
-    internal static async Task<ConversationId> AskAsync(DesktopHarness app, ConversationService conversations, ConversationId? existing, WorkspaceId workspace, string question)
-    {
-        var sent = existing is { } id ? await conversations.AskAsync(id, question, CancellationToken.None) : await conversations.StartAsync(workspace, question, CancellationToken.None);
-        await UiWait.UntilAsync(() => conversations.LoadAsync(sent.Conversation, CancellationToken.None).Result!.Messages.All(m => m.IsFinished));
-        _ = app;
-        return sent.Conversation;
-    }
-
-    internal static async Task<ConversationId> BranchAsync(DesktopHarness app, ConversationService conversations, ConversationId parent, string question)
-    {
-        var source = (await conversations.LoadAsync(parent, CancellationToken.None))!.Messages.Last(m => m.Role == MessageRole.Assistant);
-        var branch = await conversations.CreateBranchAsync(parent, new BranchSelection(source.Id, 0, source.Text[..2], "{\"v\":1}", 1, "test-profile"), CancellationToken.None);
-        Assert.True(branch.Accepted);
-        return await AskAsync(app, conversations, branch.Child, default, question);
-    }
-
-    internal static MainWindow Show(DesktopHarness app)
-    {
-        var window = new MainWindow { DataContext = app.Root, Width = 1100, Height = 720 };
-        window.Show();
-        return window;
-    }
-
-    internal static async Task<NetworkHomeViewModel> OpenNetworkAsync(DesktopHarness app, MainWindow window)
-    {
-        app.ShellPage.ShowSectionCommand.Execute(MainSection.Network);
-        var network = Assert.IsType<NetworkHomeViewModel>(app.Workbench.CurrentPage);
-        await network.Loaded;
-        await UiWait.UntilAsync(() => network.Nodes.Count > 0);
-        window.UpdateLayout();
-        return network;
-    }
-
-    /// <summary>Moves a saved position away so that "arrange" visibly changes the layout.</summary>
-    internal static async Task MoveSomethingAsync(DesktopHarness app, NetworkHomeViewModel network)
-    {
-        var node = network.Nodes[0];
-        await app.Services.GetRequiredService<SqliteDatabase>().WriteAsync(
-            (c, t) => c.Execute(t, "UPDATE node_layout SET x = x + 900 WHERE node_id = $id;", ("$id", node.Id.ToString())), CancellationToken.None);
-        network.Session.DiscardChanges();
-        await network.Session.LoadAsync(CancellationToken.None);
     }
 
     private static Task<IReadOnlyDictionary<SummaryNodeId, NodePosition>> Layout(DesktopHarness app, WorkspaceId? workspace = null) =>

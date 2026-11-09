@@ -14,6 +14,7 @@ using Mindweave.Desktop.Markdown;
 using Mindweave.Desktop.ViewModels.Conversations;
 using Mindweave.Desktop.Views;
 using Mindweave.Desktop.Views.Conversations;
+using static Mindweave.Desktop.Tests.UiTree;
 
 namespace Mindweave.Desktop.Tests;
 
@@ -54,7 +55,7 @@ public class BranchUiTests
         Assert.Equal(["火车是怎么发明的？", LongAnswer, "关于上文中的这段内容：\n> 铁路随后\n\n它最先通往哪里？"], sent.Turns.Select(t => t.Content));
 
         window.UpdateLayout();
-        ViewTests.Capture(window, "04-branch");
+        Screenshots.Capture(window, "04-branch");
         window.Close();
     }
 
@@ -223,8 +224,7 @@ public class BranchUiTests
 
     private static async Task<MainWindow> OpenAsync(DesktopHarness app, bool started = false)
     {
-        var window = new MainWindow { DataContext = app.Root, Width = 1000, Height = 700 };
-        window.Show();
+        var window = app.ShowWindow();
         if (!started)
         {
             await app.StartWithWorkspaceAsync("火车历史");
@@ -306,14 +306,25 @@ public class BranchUiTests
     private static void OpenFromSidebar(DesktopHarness app, ConversationId id) =>
         app.ShellPage.Conversations.OpenCommand.Execute(app.ShellPage.Conversations.Items.Single(i => i.Id == id));
 
-    /// <summary>Scrolls the current page to a fraction of its height and waits until the position is recorded.</summary>
+    /// <summary>
+    /// Scrolls the current page to a fraction of its height and waits until the position is recorded: the view records
+    /// it once scrolling has been still for a moment, so this waits for a stable offset and a newly recorded position.
+    /// </summary>
     private static async Task<double> ScrollToAsync(Window window, double fraction)
     {
+        var view = CurrentView(window);
+        var page = Assert.IsType<ConversationViewModel>(view.DataContext);
+        var before = await page.CurrentPositionAsync();
         var scroller = Scroller(window);
         scroller.Offset = new Vector(0, Math.Round((scroller.Extent.Height - scroller.Viewport.Height) * fraction));
         window.UpdateLayout();
-        await Task.Delay(400);
-        Avalonia.Threading.Dispatcher.UIThread.RunJobs();
+        var last = double.NaN;
+        await UiWait.UntilAsync(() =>
+        {
+            var stable = scroller.Offset.Y == last;
+            last = scroller.Offset.Y;
+            return stable && page.CurrentPositionAsync().Result != before;
+        });
         return scroller.Offset.Y;
     }
 
@@ -330,17 +341,9 @@ public class BranchUiTests
     private static List<MarkdownTextBlock> HighlightedBlocks(Window window) =>
         [.. CurrentView(window).GetVisualDescendants().OfType<MarkdownTextBlock>().Where(b => b.Highlights.TryGetValue("branch-source", out _))];
 
-    private static ConversationView CurrentView(Window window) => window.GetVisualDescendants().OfType<ConversationView>().Single();
-
     /// <summary>The page's last answer view (the message template also hosts a hidden one for each question).</summary>
     private static AnswerView Answer(Window window) => TryAnswer(window) ?? throw new InvalidOperationException("No answer is shown.");
 
     private static AnswerView? TryAnswer(Window window) =>
         CurrentView(window).GetVisualDescendants().OfType<AnswerView>().LastOrDefault(a => a.DataContext is MessageItemViewModel { IsAnswer: true });
-
-    private static ScrollViewer Scroller(Window window) => Find<ScrollViewer>(CurrentView(window), "Scroller");
-
-    private static T Find<T>(Visual root, string name)
-        where T : Control =>
-        root.GetVisualDescendants().OfType<T>().Single(c => c.Name == name);
 }

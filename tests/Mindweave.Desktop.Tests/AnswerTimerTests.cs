@@ -10,6 +10,7 @@ using Mindweave.Desktop.ViewModels.Conversations;
 using Mindweave.Desktop.Views;
 using Mindweave.Desktop.Views.Conversations;
 using Mindweave.Testing;
+using static Mindweave.Desktop.Tests.UiTree;
 
 namespace Mindweave.Desktop.Tests;
 
@@ -37,7 +38,7 @@ public class AnswerTimerTests
     {
         var clock = new ManualTime();
         await using var app = DesktopHarness.Create(s => Use(s, clock));
-        var window = Open(app);
+        var window = app.ShowWindow();
         await app.StartWithWorkspaceAsync("火车");
         await app.ConfigureModelAsync();
         var held = app.Client.Hold();
@@ -62,7 +63,7 @@ public class AnswerTimerTests
     {
         var clock = new ManualTime();
         await using var app = DesktopHarness.Create(s => Use(s, clock));
-        var window = Open(app);
+        var window = app.ShowWindow();
         await app.StartWithWorkspaceAsync("火车");
         await app.ConfigureModelAsync();
         var held = app.Client.Hold("第一句。");
@@ -99,7 +100,7 @@ public class AnswerTimerTests
     {
         var clock = new ManualTime();
         await using var app = DesktopHarness.Create(s => Use(s, clock));
-        var window = Open(app);
+        var window = app.ShowWindow();
         await app.StartWithWorkspaceAsync("火车");
         await app.ConfigureModelAsync();
         var held = app.Client.Hold("半句");
@@ -140,7 +141,7 @@ public class AnswerTimerTests
     {
         var clock = new ManualTime();
         await using var app = DesktopHarness.Create(s => Use(s, clock));
-        var window = Open(app);
+        var window = app.ShowWindow();
         await app.StartWithWorkspaceAsync("火车");
         await app.ConfigureModelAsync();
 
@@ -181,7 +182,7 @@ public class AnswerTimerTests
     {
         var clock = new ManualTime();
         await using var app = DesktopHarness.Create(s => Use(s, clock));
-        var window = Open(app);
+        var window = app.ShowWindow();
         await app.StartWithWorkspaceAsync("火车");
         await app.ConfigureModelAsync();
         var held = app.Client.Hold();
@@ -211,13 +212,6 @@ public class AnswerTimerTests
         services.AddSingleton<IClock>(clock);
     }
 
-    private static MainWindow Open(DesktopHarness app)
-    {
-        var window = new MainWindow { DataContext = app.Root, Width = 1000, Height = 700 };
-        window.Show();
-        return window;
-    }
-
     private static async Task<ConversationViewModel> AskAsync(DesktopHarness app, FakeChatClient.HeldReply held)
     {
         app.ShellPage.Conversations.NewCommand.Execute(null);
@@ -229,8 +223,6 @@ public class AnswerTimerTests
         await UiWait.UntilAsync(() => page.Messages.Count == 2);
         return page;
     }
-
-    private static ConversationView CurrentView(Window window) => window.GetVisualDescendants().OfType<ConversationView>().Single();
 
     private static TextBlock? Visible(ConversationView view, string name)
     {

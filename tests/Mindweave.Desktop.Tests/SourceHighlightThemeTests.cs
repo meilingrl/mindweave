@@ -11,6 +11,7 @@ using Mindweave.Desktop.Markdown;
 using Mindweave.Desktop.ViewModels.Conversations;
 using Mindweave.Desktop.Views;
 using Mindweave.Desktop.Views.Conversations;
+using static Mindweave.Desktop.Tests.UiTree;
 
 namespace Mindweave.Desktop.Tests;
 
@@ -38,7 +39,7 @@ public class SourceHighlightThemeTests
         Assert.Equal(ThemeVariant.Dark, block.ActualThemeVariant);
         Assert.Equal(Expected(ThemeVariant.Dark), HighlightColour(block));
         Assert.True(Contrast(TextColour(block), HighlightColour(block)) >= 4.5, $"Text {TextColour(block)} on {HighlightColour(block)}");
-        ViewTests.Capture(window, "r4-source-highlight-dark");
+        Screenshots.Capture(window, "r4-source-highlight-dark");
         window.Close();
     }
 
@@ -50,7 +51,7 @@ public class SourceHighlightThemeTests
         var block = Highlighted(window);
         Assert.Equal(Expected(ThemeVariant.Light), HighlightColour(block));
         Assert.True(Contrast(TextColour(block), HighlightColour(block)) >= 4.5);
-        ViewTests.Capture(window, "r4-source-highlight-light");
+        Screenshots.Capture(window, "r4-source-highlight-light");
 
         window.RequestedThemeVariant = ThemeVariant.Dark;
         window.UpdateLayout();
@@ -68,16 +69,15 @@ public class SourceHighlightThemeTests
     {
         foreach (var theme in new[] { ThemeVariant.Light, ThemeVariant.Dark })
         {
-            var text = Colour("PrimaryText", theme);
-            var highlight = Colour("SourceHighlight", theme);
+            var text = ThemeColour("PrimaryText", theme);
+            var highlight = ThemeColour("SourceHighlight", theme);
             Assert.True(Contrast(text, highlight) >= 4.5, $"{theme}: {text} on {highlight} is {Contrast(text, highlight):0.0}:1");
         }
     }
 
     private static async Task<MainWindow> ReturnToSourceAsync(DesktopHarness app, ThemeVariant theme)
     {
-        var window = new MainWindow { DataContext = app.Root, Width = 1000, Height = 700, RequestedThemeVariant = theme };
-        window.Show();
+        var window = app.ShowWindow(theme: theme);
         await app.StartWithWorkspaceAsync("火车历史");
         await app.ConfigureModelAsync();
 
@@ -137,15 +137,7 @@ public class SourceHighlightThemeTests
 
     private static Color TextColour(MarkdownTextBlock block) => Assert.IsAssignableFrom<ISolidColorBrush>(block.Foreground).Color;
 
-    private static Color Expected(ThemeVariant theme) => Colour("SourceHighlight", theme);
-
-    private static Color Colour(string key, ThemeVariant theme)
-    {
-        Assert.True(Avalonia.Application.Current!.Resources.TryGetResource(key, theme, out var value));
-        return Assert.IsAssignableFrom<ISolidColorBrush>(value).Color;
-    }
-
-    private static ConversationView CurrentView(Window window) => window.GetVisualDescendants().OfType<ConversationView>().Single();
+    private static Color Expected(ThemeVariant theme) => ThemeColour("SourceHighlight", theme);
 
     private static AnswerView? Answer(Window window) =>
         CurrentView(window).GetVisualDescendants().OfType<AnswerView>().LastOrDefault(a => a.DataContext is MessageItemViewModel { IsAnswer: true });

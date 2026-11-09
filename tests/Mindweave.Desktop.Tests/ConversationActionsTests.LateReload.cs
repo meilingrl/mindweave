@@ -10,6 +10,7 @@ using Mindweave.Application.Conversations;
 using Mindweave.Application.Storage;
 using Mindweave.Core.Conversations;
 using Mindweave.Desktop.Views.Conversations;
+using static Mindweave.Desktop.Tests.UiTree;
 
 namespace Mindweave.Desktop.Tests;
 
@@ -27,7 +28,7 @@ public partial class ConversationActionsTests
     {
         var reload = new HeldReload();
         await using var app = DesktopHarness.Create(s => s.AddSingleton<IConversations>(sp => reload.Wrap(sp.GetRequiredService<ConversationService>())));
-        var window = Open(app);
+        var window = app.ShowWindow();
         await app.StartWithWorkspaceAsync("火车");
         await app.ConfigureModelAsync();
         var held = app.Client.Hold("半句");
@@ -61,13 +62,13 @@ public partial class ConversationActionsTests
         Assert.Null(TopLevel.GetTopLevel(liveCopy));
 
         // The shared click measures after pending work runs, so it reports a control that is gone instead of missing.
-        Assert.Throws<InvalidOperationException>(() => Click(window, liveCopy));
+        Assert.Throws<InvalidOperationException>(() => UiInput.Click(window, liveCopy));
 
         // After the stored wait the row is the one on screen, and its copy confirms.
         window.UpdateLayout();
         var copy = VisibleNamed<CopyButton>(view, "AnswerCopy");
         Assert.NotSame(liveCopy, copy);
-        Click(window, copy);
+        UiInput.Click(window, copy);
         await UiWait.UntilAsync(() => copy.ShowsCopied);
         window.Close();
     }

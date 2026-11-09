@@ -11,6 +11,7 @@ using Mindweave.Application.Storage;
 using Mindweave.Core.Conversations;
 using Mindweave.Desktop.ViewModels.Conversations;
 using Mindweave.Desktop.Views;
+using static Mindweave.Desktop.Tests.UiTree;
 
 namespace Mindweave.Desktop.Tests;
 
@@ -24,7 +25,7 @@ public class SidebarLayoutTests
     public async Task Dragging_the_splitter_resizes_the_sidebar_within_its_bounds_and_keeps_the_width()
     {
         await using var app = DesktopHarness.Create();
-        var window = Open(app);
+        var window = app.ShowWindow(1100, 720);
         await app.StartWithWorkspaceAsync("火车");
         window.UpdateLayout();
         var sidebar = Part<Border>(window, "Sidebar");
@@ -55,7 +56,7 @@ public class SidebarLayoutTests
     public async Task Collapsing_hides_the_sidebar_and_gives_its_width_to_the_content()
     {
         await using var app = DesktopHarness.Create();
-        var window = Open(app);
+        var window = app.ShowWindow(1100, 720);
         await app.StartWithWorkspaceAsync("火车");
         window.UpdateLayout();
         var content = Part<Control>(window, "ContentArea");
@@ -63,7 +64,7 @@ public class SidebarLayoutTests
         var expand = Part<Button>(window, "ExpandSidebar");
         Assert.False(expand.IsEffectivelyVisible);
 
-        Click(window, Part<Button>(window, "CollapseSidebar"));
+        UiInput.Click(window, Part<Button>(window, "CollapseSidebar"));
         Assert.True(app.ShellPage.IsSidebarCollapsed);
         Assert.False(Part<Border>(window, "Sidebar").IsEffectivelyVisible);
         Assert.False(Part<Control>(window, "SidebarSplitter").IsEffectivelyVisible);
@@ -74,7 +75,7 @@ public class SidebarLayoutTests
         Assert.True((await Stored(app)).IsCollapsed);
 
         // Expanding brings back the width it had.
-        Click(window, expand);
+        UiInput.Click(window, expand);
         Assert.False(app.ShellPage.IsSidebarCollapsed);
         Assert.True(Part<Border>(window, "Sidebar").IsEffectivelyVisible);
         Assert.Equal(before, content.Bounds.Width, 0.5);
@@ -96,20 +97,20 @@ public class SidebarLayoutTests
     public async Task Width_and_collapsed_state_come_back_after_a_restart()
     {
         await using var app = DesktopHarness.Create();
-        var window = Open(app);
+        var window = app.ShowWindow(1100, 720);
         await app.StartWithWorkspaceAsync("火车");
         window.UpdateLayout();
         Drag(window, Part<Control>(window, "SidebarSplitter"), 60);
-        Click(window, Part<Button>(window, "CollapseSidebar"));
+        UiInput.Click(window, Part<Button>(window, "CollapseSidebar"));
         await app.ShellPage.SidebarSaving;
         window.Close();
 
         await app.RestartAsync();
-        var again = Open(app);
+        var again = app.ShowWindow(1100, 720);
         again.UpdateLayout();
         Assert.True(app.ShellPage.IsSidebarCollapsed);
         Assert.False(Part<Border>(again, "Sidebar").IsEffectivelyVisible);
-        Click(again, Part<Button>(again, "ExpandSidebar"));
+        UiInput.Click(again, Part<Button>(again, "ExpandSidebar"));
         Assert.Equal(300, Part<Border>(again, "Sidebar").Bounds.Width);
         again.Close();
     }
@@ -141,10 +142,10 @@ public class SidebarLayoutTests
     public async Task While_collapsed_the_expand_button_shows_that_a_conversation_needs_attention()
     {
         await using var app = DesktopHarness.Create();
-        var window = Open(app);
+        var window = app.ShowWindow(1100, 720);
         await app.StartWithWorkspaceAsync("火车");
         await app.ConfigureModelAsync();
-        Click(window, Part<Button>(window, "CollapseSidebar"));
+        UiInput.Click(window, Part<Button>(window, "CollapseSidebar"));
         var dot = Part<Ellipse>(window, "ExpandSidebarAttention");
         Assert.False(dot.IsEffectivelyVisible);
 
@@ -166,7 +167,7 @@ public class SidebarLayoutTests
     public async Task A_narrow_window_narrows_the_sidebar_not_the_content_and_keeps_the_stored_width()
     {
         await using var app = DesktopHarness.Create();
-        var window = Open(app);
+        var window = app.ShowWindow(1100, 720);
         await app.StartWithWorkspaceAsync("火车");
         window.UpdateLayout();
         Drag(window, Part<Control>(window, "SidebarSplitter"), 600);
@@ -213,10 +214,6 @@ public class SidebarLayoutTests
     private static async Task<SidebarLayout> Stored(DesktopHarness app) =>
         await app.Services.GetRequiredService<ISidebarLayout>().GetAsync(CancellationToken.None);
 
-    private static T Part<T>(Window window, string name)
-        where T : Control =>
-        window.GetVisualDescendants().OfType<ShellView>().Single().GetVisualDescendants().OfType<T>().Single(c => c.Name == name);
-
     private static void Drag(Window window, Control splitter, double dx)
     {
         window.UpdateLayout();
@@ -227,14 +224,5 @@ public class SidebarLayoutTests
         window.MouseMove(start + new Vector(dx, 0), RawInputModifiers.LeftMouseButton);
         window.MouseUp(start + new Vector(dx, 0), MouseButton.Left);
         window.UpdateLayout();
-    }
-
-    private static void Click(Window window, Button button) => UiInput.Click(window, button);
-
-    private static MainWindow Open(DesktopHarness app)
-    {
-        var window = new MainWindow { DataContext = app.Root, Width = 1100, Height = 720 };
-        window.Show();
-        return window;
     }
 }

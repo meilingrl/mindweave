@@ -14,22 +14,32 @@ internal static class UiInput
     /// on something else. A press that still misses an enabled button fails here, by name, instead of as a later wait
     /// that never ends.
     /// </summary>
-    public static void Click(Window window, Control target)
+    /// <param name="window">The window that receives the input.</param>
+    /// <param name="target">What is clicked.</param>
+    /// <param name="modifiers">Keys held during the click (for example ⇧ or ⌘ to extend a selection).</param>
+    /// <param name="at">Where in <paramref name="target"/> to click, in its own coordinates; its centre when null.</param>
+    /// <param name="hover">Moves the pointer there first, so the target is hovered when it is pressed, as with a real mouse.</param>
+    public static void Click(Window window, Control target, RawInputModifiers modifiers = RawInputModifiers.None, Point? at = null, bool hover = false)
     {
         Settle();
         target.BringIntoView();
         window.UpdateLayout();
-        var centre = target.TranslatePoint(new Point(target.Bounds.Width / 2, target.Bounds.Height / 2), window)
+        var point = target.TranslatePoint(at ?? new Point(target.Bounds.Width / 2, target.Bounds.Height / 2), window)
             ?? throw new InvalidOperationException($"{Describe(target)} is no longer in the window.");
+        if (hover)
+        {
+            window.MouseMove(point, modifiers);
+        }
+
         var enabled = target.IsEffectivelyEnabled;
-        window.MouseDown(centre, MouseButton.Left);
+        window.MouseDown(point, MouseButton.Left, modifiers);
         if (enabled && target is Button { IsPressed: false })
         {
-            window.MouseUp(centre, MouseButton.Left);
+            window.MouseUp(point, MouseButton.Left, modifiers);
             throw new InvalidOperationException($"The press did not reach {Describe(target)} (it was replaced or moved).");
         }
 
-        window.MouseUp(centre, MouseButton.Left);
+        window.MouseUp(point, MouseButton.Left, modifiers);
         window.UpdateLayout();
     }
 

@@ -12,6 +12,7 @@ using Mindweave.Desktop.ViewModels.Conversations;
 using Mindweave.Desktop.Views;
 using Mindweave.Desktop.Views.Conversations;
 using Mindweave.Infrastructure.Sqlite;
+using static Mindweave.Desktop.Tests.UiTree;
 
 namespace Mindweave.Desktop.Tests;
 
@@ -29,8 +30,7 @@ public class StoragePauseUiTests
     public async Task A_failed_answer_write_pauses_the_page_keeps_content_readable_and_lifts_when_storage_recovers()
     {
         await using var app = DesktopHarness.Create();
-        var window = new MainWindow { DataContext = app.Root, Width = 1000, Height = 700 };
-        window.Show();
+        var window = app.ShowWindow();
         await app.StartWithWorkspaceAsync("火车历史");
         await app.ConfigureModelAsync();
         var page = await StartConversationAsync(app, window);
@@ -154,10 +154,4 @@ public class StoragePauseUiTests
         window.UpdateLayout();
         Assert.Equal(quote, block.LayoutText[Math.Min(block.SelectionStart, block.SelectionEnd)..Math.Max(block.SelectionStart, block.SelectionEnd)]);
     }
-
-    private static ConversationView CurrentView(Window window) => window.GetVisualDescendants().OfType<ConversationView>().Single();
-
-    private static T Find<T>(Visual root, string name)
-        where T : Control =>
-        root.GetVisualDescendants().OfType<T>().Single(c => c.Name == name);
 }

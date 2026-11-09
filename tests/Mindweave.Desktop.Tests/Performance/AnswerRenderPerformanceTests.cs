@@ -200,8 +200,7 @@ public class AnswerRenderPerformanceTests
         foreach (var target in lengths)
         {
             await using var app = DesktopHarness.Create();
-            var window = new MainWindow { DataContext = app.Root, Width = 1000, Height = 700 };
-            window.Show();
+            var window = app.ShowWindow();
             await app.StartWithWorkspaceAsync("性能");
             await app.ConfigureModelAsync();
             var markdown = LongMarkdown.Generate(target + ((appends + 1) * ChunkCharacters));
@@ -274,8 +273,7 @@ public class AnswerRenderPerformanceTests
     private static async Task OpenAsync(int characters, int runs, bool enforce)
     {
         await using var app = DesktopHarness.Create();
-        var window = new MainWindow { DataContext = app.Root, Width = 1000, Height = 700 };
-        window.Show();
+        var window = app.ShowWindow();
         await app.StartWithWorkspaceAsync("性能");
         await app.ConfigureModelAsync();
 

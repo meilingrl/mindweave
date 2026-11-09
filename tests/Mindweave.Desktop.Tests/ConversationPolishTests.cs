@@ -19,6 +19,7 @@ using Mindweave.Desktop.Views.Conversations;
 using Microsoft.Extensions.DependencyInjection;
 using Mindweave.Testing;
 using TextBlock = Avalonia.Controls.TextBlock;
+using static Mindweave.Desktop.Tests.UiTree;
 
 namespace Mindweave.Desktop.Tests;
 
@@ -33,7 +34,7 @@ public class ConversationPolishTests
     public async Task Stop_sits_where_send_is_while_an_answer_runs_and_still_stops_it()
     {
         await using var app = DesktopHarness.Create();
-        var window = Open(app);
+        var window = app.ShowWindow();
         await app.StartWithWorkspaceAsync("火车");
         await app.ConfigureModelAsync();
         var held = app.Client.Hold("半句");
@@ -51,7 +52,7 @@ public class ConversationPolishTests
         Assert.False(Find<Button>(composer, "SendButton").IsEffectivelyVisible);
         Assert.True(view.GetVisualDescendants().OfType<StackPanel>().Single(p => p.Name == "StreamingIndicator" && p.IsVisible).IsEffectivelyVisible);
 
-        Click(window, stop);
+        UiInput.Click(window, stop);
 
         await UiWait.StoredAsync(page, 1, MessageState.Stopped);
         window.UpdateLayout();
@@ -66,7 +67,7 @@ public class ConversationPolishTests
         Assert.Equal("已停止", VisibleNamed<TextBlock>(view, "StateText").Text);
         Assert.DoesNotContain(view.GetVisualDescendants().OfType<Border>(), b => b.Name == "ErrorNotice" && b.IsEffectivelyVisible);
         app.Client.Reply("完整的回答。");
-        Click(window, retry);
+        UiInput.Click(window, retry);
         await UiWait.StoredAsync(page, 2, MessageState.Complete);
         window.Close();
     }
@@ -75,7 +76,7 @@ public class ConversationPolishTests
     public async Task A_failed_answer_shows_its_error_and_retry_together_and_the_retry_still_retries()
     {
         await using var app = DesktopHarness.Create();
-        var window = Open(app);
+        var window = app.ShowWindow();
         await app.StartWithWorkspaceAsync("火车");
         await app.ConfigureModelAsync();
         app.Client.Fail(GenerationErrorKind.Network, "connection reset", "半句");
@@ -104,7 +105,7 @@ public class ConversationPolishTests
         Assert.DoesNotContain(view.GetVisualDescendants().OfType<Button>(), b => b.Name == "RetryButton" && b.IsEffectivelyVisible);
 
         app.Client.Reply("完整的回答。");
-        Click(window, retry);
+        UiInput.Click(window, retry);
         await UiWait.StoredAsync(page, 2, MessageState.Complete);
         Assert.True(page.Messages[1].IsSuperseded);
         window.UpdateLayout();
@@ -137,8 +138,8 @@ public class ConversationPolishTests
     public async Task Disabled_quiet_buttons_keep_the_quiet_look()
     {
         await using var app = DesktopHarness.Create();
-        var window = Open(app);
-        var page = await ConversationAsync(app);
+        var window = app.ShowWindow();
+        var page = await app.StartWithConversationAsync(waitForTitle: true);
         window.UpdateLayout();
         var summarize = Find<Button>(CurrentView(window), "SummarizeButton");
         Assert.True(summarize.IsEffectivelyEnabled);
@@ -158,8 +159,8 @@ public class ConversationPolishTests
     public async Task A_delete_refused_for_running_work_names_it_and_the_toolbar_keeps_archive()
     {
         await using var app = DesktopHarness.Create();
-        var window = Open(app);
-        var root = await ConversationAsync(app);
+        var window = app.ShowWindow();
+        var root = await app.StartWithConversationAsync(waitForTitle: true);
         root = await OpenAsync(app, root.Id);
         window.UpdateLayout();
         var view = CurrentView(window);
@@ -188,8 +189,8 @@ public class ConversationPolishTests
     public async Task The_breadcrumb_separates_ancestors_without_a_trailing_mark()
     {
         await using var app = DesktopHarness.Create();
-        var window = Open(app);
-        var root = await ConversationAsync(app);
+        var window = app.ShowWindow();
+        var root = await app.StartWithConversationAsync(waitForTitle: true);
         await root.CreateBranchAsync(new BranchSelection(root.Messages[1].Id, 0, "火车", "{\"v\":1}", 1, "test-profile"));
         var child = Assert.IsType<ConversationViewModel>(app.Workbench.CurrentPage);
         await child.Loaded;
@@ -219,8 +220,8 @@ public class ConversationPolishTests
     public async Task The_sidebar_draws_branches_with_a_glyph_and_markers_as_small_badges()
     {
         await using var app = DesktopHarness.Create();
-        var window = Open(app);
-        var root = await ConversationAsync(app);
+        var window = app.ShowWindow();
+        var root = await app.StartWithConversationAsync(waitForTitle: true);
         await root.CreateBranchAsync(new BranchSelection(root.Messages[1].Id, 0, "火车", "{\"v\":1}", 1, "test-profile"));
         var child = Assert.IsType<ConversationViewModel>(app.Workbench.CurrentPage);
         await child.Loaded;
@@ -260,8 +261,8 @@ public class ConversationPolishTests
     public async Task A_notice_button_label_takes_the_button_colour_not_the_notice_text_colour()
     {
         await using var app = DesktopHarness.Create();
-        var window = Open(app);
-        var root = await ConversationAsync(app);
+        var window = app.ShowWindow();
+        var root = await app.StartWithConversationAsync(waitForTitle: true);
         root = await OpenAsync(app, root.Id);
         await root.DeleteCommand.ExecuteAsync(null);
         window.UpdateLayout();
@@ -288,8 +289,8 @@ public class ConversationPolishTests
     public async Task Renaming_keeps_one_primary_button_on_the_page()
     {
         await using var app = DesktopHarness.Create();
-        var window = Open(app);
-        var page = await ConversationAsync(app);
+        var window = app.ShowWindow();
+        var page = await app.StartWithConversationAsync(waitForTitle: true);
         page.Composer.Text = "下一个问题";
         page.BeginRenameCommand.Execute(null);
         window.UpdateLayout();
@@ -307,8 +308,8 @@ public class ConversationPolishTests
     public async Task A_disabled_send_is_a_neutral_surface_in_both_themes()
     {
         await using var app = DesktopHarness.Create();
-        var window = Open(app);
-        var page = await ConversationAsync(app);
+        var window = app.ShowWindow();
+        var page = await app.StartWithConversationAsync(waitForTitle: true);
         foreach (var theme in new[] { ThemeVariant.Light, ThemeVariant.Dark })
         {
             window.RequestedThemeVariant = theme;
@@ -334,8 +335,8 @@ public class ConversationPolishTests
     public async Task A_disabled_answer_action_is_visibly_fainter_than_an_enabled_one()
     {
         await using var app = DesktopHarness.Create();
-        var window = Open(app);
-        await ConversationAsync(app);
+        var window = app.ShowWindow();
+        await app.StartWithConversationAsync(waitForTitle: true);
         window.UpdateLayout();
         var regenerate = VisibleNamed<Button>(CurrentView(window), "RetryButton");
         Assert.True(regenerate.IsEffectivelyEnabled);
@@ -368,8 +369,8 @@ public class ConversationPolishTests
     public async Task Only_a_delete_confirms_in_the_danger_colour()
     {
         await using var app = DesktopHarness.Create();
-        var window = Open(app);
-        var root = await ConversationAsync(app);
+        var window = app.ShowWindow();
+        var root = await app.StartWithConversationAsync(waitForTitle: true);
         await root.CreateBranchAsync(new BranchSelection(root.Messages[1].Id, 0, "火车", "{\"v\":1}", 1, "test-profile"));
         var child = Assert.IsType<ConversationViewModel>(app.Workbench.CurrentPage);
         await child.Loaded;
@@ -420,16 +421,6 @@ public class ConversationPolishTests
         return (high + 0.05) / (low + 0.05);
     }
 
-    /// <summary>A real pointer click at the button's centre, so the button is where the reader would click it.</summary>
-    private static void Click(Window window, Button button) => UiInput.Click(window, button);
-
-    private static MainWindow Open(DesktopHarness app)
-    {
-        var window = new MainWindow { DataContext = app.Root, Width = 1000, Height = 700 };
-        window.Show();
-        return window;
-    }
-
     private static async Task<ConversationViewModel> AskAsync(DesktopHarness app, string question)
     {
         app.ShellPage.Conversations.NewCommand.Execute(null);
@@ -441,16 +432,6 @@ public class ConversationPolishTests
         return page;
     }
 
-    private static async Task<ConversationViewModel> ConversationAsync(DesktopHarness app)
-    {
-        await app.StartWithWorkspaceAsync("火车");
-        await app.ConfigureModelAsync();
-        var page = await AskAsync(app, "火车是怎么发明的？");
-        await UiWait.UntilAsync(() => page.Messages.Count == 2 && page.Messages[1].CanBranch);
-        await UiWait.UntilAsync(() => page.Title == FakeChatClient.DefaultTitle);
-        return page;
-    }
-
     private static async Task<ConversationViewModel> OpenAsync(DesktopHarness app, ConversationId id)
     {
         app.Workbench.Navigate(new NavigationRequest(MainSection.Explore, new ConversationRoute(id)));
@@ -458,12 +439,6 @@ public class ConversationPolishTests
         await page.Loaded;
         return page;
     }
-
-    private static ConversationView CurrentView(Window window) => window.GetVisualDescendants().OfType<ConversationView>().Single();
-
-    private static T Find<T>(Visual root, string name)
-        where T : Control =>
-        root.GetVisualDescendants().OfType<T>().First(c => c.Name == name);
 
     private static T VisibleNamed<T>(Visual root, string name)
         where T : Control =>

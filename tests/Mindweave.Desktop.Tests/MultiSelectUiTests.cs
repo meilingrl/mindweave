@@ -19,6 +19,7 @@ using Mindweave.Desktop.ViewModels.Conversations;
 using Mindweave.Desktop.ViewModels.Pages;
 using Mindweave.Desktop.Views;
 using TextBlock = Avalonia.Controls.TextBlock;
+using static Mindweave.Desktop.Tests.UiTree;
 
 namespace Mindweave.Desktop.Tests;
 
@@ -36,7 +37,7 @@ public class MultiSelectUiTests
     public async Task Ctrl_or_cmd_click_toggles_shift_click_takes_a_range_esc_clears_and_a_plain_click_opens()
     {
         await using var app = DesktopHarness.Create();
-        var window = NetworkUiTests.Show(app);
+        var window = app.ShowWindow(1100, 720);
         var (root, middle, leaf, sibling) = await SeedAsync(app, window);
         var list = app.ShellPage.Conversations;
         var page = Assert.IsType<ConversationViewModel>(app.Workbench.CurrentPage);
@@ -81,7 +82,7 @@ public class MultiSelectUiTests
     public async Task The_selection_mode_shows_check_boxes_ticks_on_a_plain_click_and_ends_from_the_bar()
     {
         await using var app = DesktopHarness.Create();
-        var window = NetworkUiTests.Show(app);
+        var window = app.ShowWindow(1100, 720);
         var (root, middle, _, sibling) = await SeedAsync(app, window);
         var list = app.ShellPage.Conversations;
         var page = app.Workbench.CurrentPage;
@@ -91,7 +92,7 @@ public class MultiSelectUiTests
         Assert.All(Checks(window), c => Assert.False(c.IsEffectivelyVisible));
         var rowWidths = Rows(window).Select(r => r.Bounds.Width).ToList();
 
-        Click(window, select);
+        UiInput.Click(window, select);
         Assert.True(list.IsSelecting);
         var rootTitle = list.Items.Single(i => i.Id == root).Title;
         Assert.Equal(rootTitle, ControlAutomationPeer.CreatePeerForElement(Row(window, root)).GetName());
@@ -130,7 +131,7 @@ public class MultiSelectUiTests
 
         var clear = Find<Button>(window, "ClearSelectionButton");
         Assert.Equal(UiText.ClearSelection, AutomationProperties.GetName(clear));
-        Click(window, clear);
+        UiInput.Click(window, clear);
         Assert.False(list.IsSelecting);
         Assert.Empty(Selected(list));
         Assert.False(Find<Control>(window, "SelectionBar").IsEffectivelyVisible);
@@ -141,7 +142,7 @@ public class MultiSelectUiTests
     public async Task Deleting_a_parent_and_its_child_together_confirms_the_union_once_backs_up_and_lands_on_the_explore_home()
     {
         await using var app = DesktopHarness.Create();
-        var window = NetworkUiTests.Show(app);
+        var window = app.ShowWindow(1100, 720);
         var (root, _, leaf, sibling) = await SeedAsync(app, window);
         var list = app.ShellPage.Conversations;
         var summaries = app.Services.GetRequiredService<Application.Summaries.SummaryService>();
@@ -155,7 +156,7 @@ public class MultiSelectUiTests
         ClickRow(window, root, Toggle);
         ClickRow(window, leaf, Toggle);
         Assert.Equal(UiText.Delete, AutomationProperties.GetName(Find<Button>(window, "DeleteSelectedButton")));
-        Click(window, Find<Button>(window, "DeleteSelectedButton"));
+        UiInput.Click(window, Find<Button>(window, "DeleteSelectedButton"));
         var dialog = app.Root.ConversationDeletion;
         await dialog.Loading;
         Dispatcher.UIThread.RunJobs();
@@ -175,7 +176,7 @@ public class MultiSelectUiTests
         Assert.True(Find<Button>(window, "ConversationDeleteArchive").IsEffectivelyVisible);
         Assert.Equal(UiText.ArchiveInstead, AutomationProperties.GetName(Find<Button>(window, "ConversationDeleteArchive")));
 
-        Click(window, Find<Button>(window, "ConversationDeleteConfirm"));
+        UiInput.Click(window, Find<Button>(window, "ConversationDeleteConfirm"));
         await dialog.Running;
         Dispatcher.UIThread.RunJobs();
 
@@ -200,20 +201,20 @@ public class MultiSelectUiTests
     public async Task Archive_instead_archives_every_selected_tree_and_a_delete_of_plain_rows_needs_no_backup()
     {
         await using var app = DesktopHarness.Create();
-        var window = NetworkUiTests.Show(app);
+        var window = app.ShowWindow(1100, 720);
         var (root, middle, _, sibling) = await SeedAsync(app, window);
         var list = app.ShellPage.Conversations;
 
         ClickRow(window, middle, Toggle);
         ClickRow(window, sibling, Toggle);
-        Click(window, Find<Button>(window, "DeleteSelectedButton"));
+        UiInput.Click(window, Find<Button>(window, "DeleteSelectedButton"));
         var dialog = app.Root.ConversationDeletion;
         await dialog.Loading;
         window.UpdateLayout();
         Assert.Equal(UiText.ConversationDeleteTitle(2), dialog.Title);
         Assert.Equal(UiText.ConversationDeleteContents(3, 1, 2), dialog.Contents);
 
-        Click(window, Find<Button>(window, "ConversationDeleteArchive"));
+        UiInput.Click(window, Find<Button>(window, "ConversationDeleteArchive"));
         await dialog.Running;
         Assert.False(dialog.IsOpen);
         await UiWait.UntilAsync(() => Selected(list).Count == 0);
@@ -222,11 +223,11 @@ public class MultiSelectUiTests
         Assert.Equal(new HashSet<ConversationId> { middle, sibling }, (await conversations.ArchivedAmongAsync([root, middle, sibling], CancellationToken.None)).ToHashSet());
 
         // A lone conversation without branches or summary: the same dialog, the plain sentence, and no backup.
-        var lone = await NetworkUiTests.AskAsync(app, conversations, null, app.Workbench.CurrentWorkspace!.Id, "单独的问题");
+        var lone = await NetworkScenario.AskAsync(app, conversations, null, app.Workbench.CurrentWorkspace!.Id, "单独的问题");
         await UiWait.UntilAsync(() => list.Items.Count == 2);
         await UiWait.UntilAsync(() => list.Items.Single(i => i.Id == lone).Title == Mindweave.Testing.FakeChatClient.DefaultTitle);
         ClickRow(window, lone, Toggle);
-        Click(window, Find<Button>(window, "DeleteSelectedButton"));
+        UiInput.Click(window, Find<Button>(window, "DeleteSelectedButton"));
         await dialog.Loading;
         Assert.Equal(UiText.ConversationDeleteTitle(list.Items.Single(i => i.Id == lone).Title), dialog.Title);
         Assert.Equal("全部消息和未发送的草稿将被永久删除，无法撤销。", dialog.Contents);
@@ -242,7 +243,7 @@ public class MultiSelectUiTests
     public async Task The_bar_archives_each_selected_tree_once_and_names_what_was_refused()
     {
         await using var app = DesktopHarness.Create();
-        var window = NetworkUiTests.Show(app);
+        var window = app.ShowWindow(1100, 720);
         var (root, middle, leaf, sibling) = await SeedAsync(app, window);
         var list = app.ShellPage.Conversations;
         var conversations = app.Services.GetRequiredService<ConversationService>();
@@ -255,7 +256,7 @@ public class MultiSelectUiTests
         ClickRow(window, leaf, Toggle);
         ClickRow(window, sibling, Toggle);
         Assert.Equal(UiText.Archive, AutomationProperties.GetName(Find<Button>(window, "ArchiveSelectedButton")));
-        Click(window, Find<Button>(window, "ArchiveSelectedButton"));
+        UiInput.Click(window, Find<Button>(window, "ArchiveSelectedButton"));
         await list.Archiving;
         window.UpdateLayout();
 
@@ -270,7 +271,7 @@ public class MultiSelectUiTests
         _ = running;
 
         // Now it goes; the leaf is inside the middle's tree, so only the middle gets an archive mark of its own.
-        Click(window, Find<Button>(window, "ArchiveSelectedButton"));
+        UiInput.Click(window, Find<Button>(window, "ArchiveSelectedButton"));
         await list.Archiving;
         Assert.Null(list.SelectionNotice);
         Assert.Empty(Selected(list));
@@ -282,11 +283,11 @@ public class MultiSelectUiTests
     public async Task Running_work_keeps_delete_disabled_and_the_notice_follows_it_live()
     {
         await using var app = DesktopHarness.Create();
-        var window = NetworkUiTests.Show(app);
+        var window = app.ShowWindow(1100, 720);
         var (root, _, leaf, _) = await SeedAsync(app, window);
         var conversations = app.Services.GetRequiredService<ConversationService>();
         ClickRow(window, root, Toggle);
-        Click(window, Find<Button>(window, "DeleteSelectedButton"));
+        UiInput.Click(window, Find<Button>(window, "DeleteSelectedButton"));
         var dialog = app.Root.ConversationDeletion;
         await dialog.Loading;
         Assert.True(dialog.CanDelete);
@@ -307,7 +308,7 @@ public class MultiSelectUiTests
 
         // A branch made while the dialog is open is counted before anything is deleted, and the change is said.
         var before = dialog.Scope!.Conversations.Count;
-        await NetworkUiTests.BranchAsync(app, conversations, root, "又一个分支");
+        await NetworkScenario.BranchAsync(app, conversations, root, "又一个分支");
         await UiWait.UntilAsync(() => dialog.Scope!.Conversations.Count == before + 1);
         // The branch's own answer runs for a moment, and the dialog recounts on a throttle: wait until the recount after
         // it ended has replaced the running-work notice with the change notice.
@@ -331,7 +332,7 @@ public class MultiSelectUiTests
     public async Task A_failed_backup_is_said_in_the_dialog_and_nothing_is_deleted()
     {
         await using var app = DesktopHarness.Create();
-        var window = NetworkUiTests.Show(app);
+        var window = app.ShowWindow(1100, 720);
         var (root, _, _, _) = await SeedAsync(app, window);
         Directory.CreateDirectory(Path.GetDirectoryName(app.Paths.BackupDirectory)!);
         if (Directory.Exists(app.Paths.BackupDirectory))
@@ -365,7 +366,7 @@ public class MultiSelectUiTests
     public async Task Switching_workspace_drops_the_selection()
     {
         await using var app = DesktopHarness.Create();
-        var window = NetworkUiTests.Show(app);
+        var window = app.ShowWindow(1100, 720);
         var (root, _, _, _) = await SeedAsync(app, window);
         var list = app.ShellPage.Conversations;
         ClickRow(window, root, Toggle);
@@ -390,32 +391,32 @@ public class MultiSelectUiTests
         await using var app = DesktopHarness.Create(s => s.AddSingleton(sp => new ConversationDeletionViewModel(
             sp.GetRequiredService<IConversationDeletion>(), sp.GetRequiredService<IConversations>(), sp.GetRequiredService<Workbench>(),
             sp.GetRequiredService<ConversationDeletionRequests>(), sp.GetRequiredService<Services.IUiDispatcher>(), clock)));
-        var window = NetworkUiTests.Show(app);
+        var window = app.ShowWindow(1100, 720);
         var (root, _, _, sibling) = await SeedAsync(app, window);
         var list = app.ShellPage.Conversations;
         var conversations = app.Services.GetRequiredService<ConversationService>();
         ClickRow(window, sibling, Toggle);
-        Click(window, Find<Button>(window, "DeleteSelectedButton"));
+        UiInput.Click(window, Find<Button>(window, "DeleteSelectedButton"));
         var dialog = app.Root.ConversationDeletion;
         await dialog.Loading;
         Assert.Null(dialog.Problem);
         Assert.Equal(UiText.ConversationDeleteContents(1, 0, 1), dialog.Contents);
 
-        var branch = await NetworkUiTests.BranchAsync(app, conversations, sibling, "旁支的分支");
+        var branch = await NetworkScenario.BranchAsync(app, conversations, sibling, "旁支的分支");
         await UiWait.UntilAsync(() => dialog.Scope!.Conversations.Count == 2);
         Assert.Equal(UiText.ConversationDeleteScopeChanged, dialog.Problem);
         Assert.Equal(UiText.ConversationDeleteContents(2, 1, 1), dialog.Contents);
 
         // Within the hold: the press is not taken as confirming counts the user may not have seen.
         clock.Now += TimeSpan.FromMilliseconds(100);
-        Click(window, Find<Button>(window, "ConversationDeleteConfirm"));
+        UiInput.Click(window, Find<Button>(window, "ConversationDeleteConfirm"));
         await dialog.Running;
         Assert.True(dialog.IsOpen);
         Assert.Empty(app.Services.GetRequiredService<IDatabaseLifecycle>().ListBackups());
         Assert.Contains(list.Items, i => i.Id == branch);
 
         clock.Now += ConversationDeletionViewModel.ChangeHold;
-        Click(window, Find<Button>(window, "ConversationDeleteConfirm"));
+        UiInput.Click(window, Find<Button>(window, "ConversationDeleteConfirm"));
         await dialog.Running;
         Assert.False(dialog.IsOpen);
         await UiWait.UntilAsync(() => list.Items.All(i => i.Id != branch && i.Id != sibling));
@@ -428,11 +429,11 @@ public class MultiSelectUiTests
     public async Task A_plain_delete_with_work_running_says_so_before_asking()
     {
         await using var app = DesktopHarness.Create();
-        var window = NetworkUiTests.Show(app);
+        var window = app.ShowWindow(1100, 720);
         await SeedAsync(app, window);
         var list = app.ShellPage.Conversations;
         var conversations = app.Services.GetRequiredService<ConversationService>();
-        var lone = await NetworkUiTests.AskAsync(app, conversations, null, app.Workbench.CurrentWorkspace!.Id, "单独的问题");
+        var lone = await NetworkScenario.AskAsync(app, conversations, null, app.Workbench.CurrentWorkspace!.Id, "单独的问题");
         // The background title lands at its own time; the refusal names the conversation, so let it land first.
         await UiWait.UntilAsync(() => list.Items.Any(i => i.Id == lone && i.Title == Mindweave.Testing.FakeChatClient.DefaultTitle));
         app.Workbench.Navigate(new NavigationRequest(MainSection.Explore, new ConversationRoute(lone)));
@@ -458,7 +459,7 @@ public class MultiSelectUiTests
     public async Task A_delete_opened_from_a_page_keeps_an_unrelated_selection()
     {
         await using var app = DesktopHarness.Create();
-        var window = NetworkUiTests.Show(app);
+        var window = app.ShowWindow(1100, 720);
         var (_, middle, leaf, sibling) = await SeedAsync(app, window);
         var list = app.ShellPage.Conversations;
         ClickRow(window, sibling, Toggle);
@@ -472,7 +473,7 @@ public class MultiSelectUiTests
         await dialog.Loading;
         Assert.True(dialog.IsOpen);
         window.UpdateLayout();
-        Click(window, Find<Button>(window, "ConversationDeleteConfirm"));
+        UiInput.Click(window, Find<Button>(window, "ConversationDeleteConfirm"));
         await dialog.Running;
         Assert.False(dialog.IsOpen);
         await UiWait.UntilAsync(() => list.Items.All(i => i.Id != middle && i.Id != leaf));
@@ -492,7 +493,7 @@ public class MultiSelectUiTests
     /// <summary>The network seed, the sibling's page open and the sidebar laid out; returns root, middle, leaf, sibling.</summary>
     private static async Task<(ConversationId Root, ConversationId Middle, ConversationId Leaf, ConversationId Sibling)> SeedAsync(DesktopHarness app, MainWindow window)
     {
-        await NetworkUiTests.SeedAsync(app);
+        await NetworkScenario.SeedAsync(app);
         var list = app.ShellPage.Conversations;
         await UiWait.UntilAsync(() => list.Items.Count == 4);
         var ids = list.Items.Select(i => i.Id).ToList();
@@ -519,24 +520,8 @@ public class MultiSelectUiTests
     {
         window.UpdateLayout();
         var title = Find<TextBlock>(Row(window, id), "RowTitle");
-        var point = title.TranslatePoint(new Point(4, title.Bounds.Height / 2), window)!.Value;
-        window.MouseDown(point, MouseButton.Left, modifiers);
-        window.MouseUp(point, MouseButton.Left, modifiers);
+        UiInput.Click(window, title, modifiers, new Point(4, title.Bounds.Height / 2));
         Dispatcher.UIThread.RunJobs();
         window.UpdateLayout();
     }
-
-    private static void Click(Window window, Control control)
-    {
-        window.UpdateLayout();
-        var centre = control.TranslatePoint(new Point(control.Bounds.Width / 2, control.Bounds.Height / 2), window)!.Value;
-        window.MouseDown(centre, MouseButton.Left);
-        window.MouseUp(centre, MouseButton.Left);
-        Dispatcher.UIThread.RunJobs();
-        window.UpdateLayout();
-    }
-
-    private static T Find<T>(Visual root, string name)
-        where T : Control =>
-        root.GetVisualDescendants().OfType<T>().First(c => c.Name == name);
 }

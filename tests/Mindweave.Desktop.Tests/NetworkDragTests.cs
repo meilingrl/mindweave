@@ -11,6 +11,7 @@ using Mindweave.Desktop.Navigation;
 using Mindweave.Desktop.ViewModels.Pages;
 using Mindweave.Desktop.Views;
 using Mindweave.Desktop.Views.Pages;
+using static Mindweave.Desktop.Tests.UiTree;
 
 namespace Mindweave.Desktop.Tests;
 
@@ -25,10 +26,10 @@ public class NetworkDragTests
     public async Task Dragging_a_node_moves_it_live_and_its_end_leaves_the_layout_unsaved()
     {
         await using var app = DesktopHarness.Create();
-        var window = NetworkUiTests.Show(app);
-        await NetworkUiTests.SeedAsync(app);
-        var network = await NetworkUiTests.OpenNetworkAsync(app, window);
-        var canvas = Canvas(window);
+        var window = app.ShowWindow(1100, 720);
+        await NetworkScenario.SeedAsync(app);
+        var network = await NetworkScenario.OpenNetworkAsync(app, window);
+        var canvas = CanvasOf(window);
         var leaf = network.Nodes.Single(n => n.ShortTitle == "铁轨");
         var viewport = canvas.Current;
         var start = canvas.ToScreen(leaf.X, leaf.Y);
@@ -78,10 +79,10 @@ public class NetworkDragTests
         NodePosition dragged;
         await using (var app = DesktopHarness.Create(directory: dir))
         {
-            var window = NetworkUiTests.Show(app);
-            await NetworkUiTests.SeedAsync(app);
-            var network = await NetworkUiTests.OpenNetworkAsync(app, window);
-            var canvas = Canvas(window);
+            var window = app.ShowWindow(1100, 720);
+            await NetworkScenario.SeedAsync(app);
+            var network = await NetworkScenario.OpenNetworkAsync(app, window);
+            var canvas = CanvasOf(window);
             var node = network.Nodes.Single(n => n.ShortTitle == "火箭号速度");
             id = node.Id;
             Drag(window, canvas, canvas.ToScreen(node.X, node.Y), new Vector(-50, 70));
@@ -96,9 +97,9 @@ public class NetworkDragTests
         }
 
         await using var restarted = DesktopHarness.Create(directory: dir);
-        var again = NetworkUiTests.Show(restarted);
+        var again = restarted.ShowWindow(1100, 720);
         await restarted.StartAsync();
-        var reopened = await NetworkUiTests.OpenNetworkAsync(restarted, again);
+        var reopened = await NetworkScenario.OpenNetworkAsync(restarted, again);
         var back = reopened.Nodes.Single(n => n.Id == id);
         Assert.Equal(dragged, new NodePosition(back.X, back.Y));
         Assert.False(reopened.IsDirty);
@@ -109,13 +110,13 @@ public class NetworkDragTests
     public async Task Leaving_after_a_drag_asks_first_and_dont_save_puts_the_node_back()
     {
         await using var app = DesktopHarness.Create();
-        var window = NetworkUiTests.Show(app);
-        await NetworkUiTests.SeedAsync(app);
-        var network = await NetworkUiTests.OpenNetworkAsync(app, window);
+        var window = app.ShowWindow(1100, 720);
+        await NetworkScenario.SeedAsync(app);
+        var network = await NetworkScenario.OpenNetworkAsync(app, window);
         var trains = app.Workbench.CurrentWorkspace!;
         var other = await app.Services.GetRequiredService<Application.Workspaces.WorkspaceService>().CreateAsync(WorkspaceName.FromStored("摄影"), CancellationToken.None);
         app.Workbench.Workspaces.Add(other);
-        var canvas = Canvas(window);
+        var canvas = CanvasOf(window);
         var saved = await Layout(app);
         var node = network.Nodes.Single(n => n.ShortTitle == "铁轨");
 
@@ -141,10 +142,10 @@ public class NetworkDragTests
     public async Task Dont_save_on_the_page_itself_reverts_the_dragged_node()
     {
         await using var app = DesktopHarness.Create();
-        var window = NetworkUiTests.Show(app);
-        await NetworkUiTests.SeedAsync(app);
-        var network = await NetworkUiTests.OpenNetworkAsync(app, window);
-        var canvas = Canvas(window);
+        var window = app.ShowWindow(1100, 720);
+        await NetworkScenario.SeedAsync(app);
+        var network = await NetworkScenario.OpenNetworkAsync(app, window);
+        var canvas = CanvasOf(window);
         var node = network.Nodes.Single(n => n.ShortTitle == "铁轨");
 
         Drag(window, canvas, canvas.ToScreen(node.X, node.Y), new Vector(40, 40));
@@ -160,10 +161,10 @@ public class NetworkDragTests
     public async Task A_click_selects_a_double_click_opens_and_neither_moves_anything()
     {
         await using var app = DesktopHarness.Create();
-        var window = NetworkUiTests.Show(app);
-        await NetworkUiTests.SeedAsync(app);
-        var network = await NetworkUiTests.OpenNetworkAsync(app, window);
-        var canvas = Canvas(window);
+        var window = app.ShowWindow(1100, 720);
+        await NetworkScenario.SeedAsync(app);
+        var network = await NetworkScenario.OpenNetworkAsync(app, window);
+        var canvas = CanvasOf(window);
         var node = network.Nodes.Single(n => n.ShortTitle == "铁轨");
         var before = Positions(network);
         var at = canvas.TranslatePoint(canvas.ToScreen(node.X, node.Y), window)!.Value;
@@ -189,10 +190,10 @@ public class NetworkDragTests
     public async Task Pointer_jitter_below_the_threshold_is_a_click_not_a_drag()
     {
         await using var app = DesktopHarness.Create();
-        var window = NetworkUiTests.Show(app);
-        await NetworkUiTests.SeedAsync(app);
-        var network = await NetworkUiTests.OpenNetworkAsync(app, window);
-        var canvas = Canvas(window);
+        var window = app.ShowWindow(1100, 720);
+        await NetworkScenario.SeedAsync(app);
+        var network = await NetworkScenario.OpenNetworkAsync(app, window);
+        var canvas = CanvasOf(window);
         var node = network.Nodes.Single(n => n.ShortTitle == "铁轨");
         var before = Positions(network);
         var start = canvas.ToScreen(node.X, node.Y);
@@ -216,10 +217,10 @@ public class NetworkDragTests
     public async Task Dragging_empty_canvas_still_pans_and_leaves_nothing_unsaved()
     {
         await using var app = DesktopHarness.Create();
-        var window = NetworkUiTests.Show(app);
-        await NetworkUiTests.SeedAsync(app);
-        var network = await NetworkUiTests.OpenNetworkAsync(app, window);
-        var canvas = Canvas(window);
+        var window = app.ShowWindow(1100, 720);
+        await NetworkScenario.SeedAsync(app);
+        var network = await NetworkScenario.OpenNetworkAsync(app, window);
+        var canvas = CanvasOf(window);
         var before = Positions(network);
         var viewport = canvas.Current;
         var start = new Point(12, 12);
@@ -239,10 +240,10 @@ public class NetworkDragTests
     public async Task Dragging_while_a_save_runs_stays_unsaved_afterwards()
     {
         await using var app = DesktopHarness.Create();
-        var window = NetworkUiTests.Show(app);
-        await NetworkUiTests.SeedAsync(app);
-        var network = await NetworkUiTests.OpenNetworkAsync(app, window);
-        var canvas = Canvas(window);
+        var window = app.ShowWindow(1100, 720);
+        await NetworkScenario.SeedAsync(app);
+        var network = await NetworkScenario.OpenNetworkAsync(app, window);
+        var canvas = CanvasOf(window);
         var first = network.Nodes.Single(n => n.ShortTitle == "铁轨");
         Drag(window, canvas, canvas.ToScreen(first.X, first.Y), new Vector(40, 0));
         var saving = network.SaveLayoutCommand.ExecuteAsync(null);
@@ -260,9 +261,9 @@ public class NetworkDragTests
     public async Task Moving_an_unknown_node_or_to_the_same_place_changes_nothing()
     {
         await using var app = DesktopHarness.Create();
-        var window = NetworkUiTests.Show(app);
-        await NetworkUiTests.SeedAsync(app);
-        var network = await NetworkUiTests.OpenNetworkAsync(app, window);
+        var window = app.ShowWindow(1100, 720);
+        await NetworkScenario.SeedAsync(app);
+        var network = await NetworkScenario.OpenNetworkAsync(app, window);
         var node = network.Nodes[0];
         var revision = network.Session.Revision;
 
@@ -277,10 +278,10 @@ public class NetworkDragTests
     public async Task After_a_drag_the_save_button_is_the_one_primary_and_open_summary_steps_back()
     {
         await using var app = DesktopHarness.Create();
-        var window = NetworkUiTests.Show(app);
-        await NetworkUiTests.SeedAsync(app);
-        var network = await NetworkUiTests.OpenNetworkAsync(app, window);
-        var canvas = Canvas(window);
+        var window = app.ShowWindow(1100, 720);
+        await NetworkScenario.SeedAsync(app);
+        var network = await NetworkScenario.OpenNetworkAsync(app, window);
+        var canvas = CanvasOf(window);
         var node = network.Nodes.Single(n => n.ShortTitle == "铁轨");
         string[] Primaries()
         {
@@ -305,10 +306,10 @@ public class NetworkDragTests
     public async Task Scrolling_or_zooming_mid_drag_keeps_the_node_under_the_pointer()
     {
         await using var app = DesktopHarness.Create();
-        var window = NetworkUiTests.Show(app);
-        await NetworkUiTests.SeedAsync(app);
-        var network = await NetworkUiTests.OpenNetworkAsync(app, window);
-        var canvas = Canvas(window);
+        var window = app.ShowWindow(1100, 720);
+        await NetworkScenario.SeedAsync(app);
+        var network = await NetworkScenario.OpenNetworkAsync(app, window);
+        var canvas = CanvasOf(window);
         var leaf = network.Nodes.Single(n => n.ShortTitle == "铁轨");
         var start = canvas.ToScreen(leaf.X, leaf.Y);
         var grip = start + new Vector(3, -2);
@@ -348,10 +349,10 @@ public class NetworkDragTests
     public async Task Losing_the_pointer_capture_mid_drag_puts_the_node_back_and_leaves_nothing_unsaved()
     {
         await using var app = DesktopHarness.Create();
-        var window = NetworkUiTests.Show(app);
-        await NetworkUiTests.SeedAsync(app);
-        var network = await NetworkUiTests.OpenNetworkAsync(app, window);
-        var canvas = Canvas(window);
+        var window = app.ShowWindow(1100, 720);
+        await NetworkScenario.SeedAsync(app);
+        var network = await NetworkScenario.OpenNetworkAsync(app, window);
+        var canvas = CanvasOf(window);
         var leaf = network.Nodes.Single(n => n.ShortTitle == "铁轨");
         var start = canvas.ToScreen(leaf.X, leaf.Y);
         IPointer? pointer = null;
@@ -380,10 +381,10 @@ public class NetworkDragTests
     public async Task Leaving_the_canvas_mid_drag_keeps_the_drag_cursor_and_the_pointer()
     {
         await using var app = DesktopHarness.Create();
-        var window = NetworkUiTests.Show(app);
-        await NetworkUiTests.SeedAsync(app);
-        var network = await NetworkUiTests.OpenNetworkAsync(app, window);
-        var canvas = Canvas(window);
+        var window = app.ShowWindow(1100, 720);
+        await NetworkScenario.SeedAsync(app);
+        var network = await NetworkScenario.OpenNetworkAsync(app, window);
+        var canvas = CanvasOf(window);
         var leaf = network.Nodes.Single(n => n.ShortTitle == "铁轨");
         var start = canvas.ToScreen(leaf.X, leaf.Y);
         Point InWindow(Point p) => canvas.TranslatePoint(p, window)!.Value;
@@ -427,8 +428,6 @@ public class NetworkDragTests
 
     private static Dictionary<SummaryNodeId, NodePosition> Positions(NetworkHomeViewModel network) =>
         network.Nodes.ToDictionary(n => n.Id, n => new NodePosition(n.X, n.Y));
-
-    private static NetworkCanvas Canvas(MainWindow window) => window.GetVisualDescendants().OfType<NetworkCanvas>().Single();
 
     private static Task<IReadOnlyDictionary<SummaryNodeId, NodePosition>> Layout(DesktopHarness app, WorkspaceId? workspace = null) =>
         app.Services.GetRequiredService<INetworkStore>().GetLayoutAsync(workspace ?? app.Workbench.CurrentWorkspace!.Id, CancellationToken.None);

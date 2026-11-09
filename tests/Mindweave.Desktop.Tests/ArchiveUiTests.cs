@@ -15,6 +15,7 @@ using Mindweave.Desktop.Views;
 using Mindweave.Desktop.Views.Conversations;
 using Mindweave.Desktop.Views.Pages;
 using Mindweave.Testing;
+using static Mindweave.Desktop.Tests.UiTree;
 
 namespace Mindweave.Desktop.Tests;
 
@@ -25,8 +26,8 @@ public class ArchiveUiTests
     public async Task Archiving_hides_the_tree_from_the_sidebar_and_the_archived_page_restores_it()
     {
         await using var app = DesktopHarness.Create();
-        var window = Open(app);
-        var root = await ConversationAsync(app);
+        var window = app.ShowWindow();
+        var root = await app.StartWithConversationAsync(waitForTitle: true);
         var child = await BranchAsync(app, root, "火车");
         root = await OpenAsync(app, root.Id);
         await UiWait.UntilAsync(() => app.ShellPage.Conversations.Items.Count == 2);
@@ -56,7 +57,7 @@ public class ArchiveUiTests
         // The view turns the level into indentation (the view model exposes only the number, L5).
         var rows = window.GetVisualDescendants().OfType<ArchivedView>().Single().GetVisualDescendants().OfType<Border>().Where(b => b.Classes.Contains("archived-row")).ToList();
         Assert.Equal([0, Views.TreeIndent.Step], rows.Select(r => r.Margin.Left));
-        ViewTests.Capture(window, "08-archived");
+        Screenshots.Capture(window, "08-archived");
 
         await archived.RestoreCommand.ExecuteAsync(archived.Items[0]);
 
@@ -70,7 +71,7 @@ public class ArchiveUiTests
     public async Task A_branch_hidden_by_its_archived_parent_restores_its_path_after_saying_so()
     {
         await using var app = DesktopHarness.Create();
-        var root = await ConversationAsync(app);
+        var root = await app.StartWithConversationAsync(waitForTitle: true);
         var child = await BranchAsync(app, root, "火车");
         await app.Services.GetService<ConversationService>()!.ArchiveAsync(root.Id, CancellationToken.None);
 
@@ -99,7 +100,7 @@ public class ArchiveUiTests
     public async Task New_work_on_an_archived_page_is_refused_even_when_its_controls_are_bypassed()
     {
         await using var app = DesktopHarness.Create();
-        var page = await ConversationAsync(app);
+        var page = await app.StartWithConversationAsync(waitForTitle: true);
         await page.ArchiveCommand.ExecuteAsync(null);
         Assert.True(page.IsArchived);
 
@@ -118,7 +119,7 @@ public class ArchiveUiTests
     public async Task A_plain_delete_asks_inline_and_leaves_for_the_parent_and_one_with_branches_opens_the_dialog()
     {
         await using var app = DesktopHarness.Create();
-        var root = await ConversationAsync(app);
+        var root = await app.StartWithConversationAsync(waitForTitle: true);
         var child = await BranchAsync(app, root, "火车");
         root = await OpenAsync(app, root.Id);
 
@@ -163,8 +164,8 @@ public class ArchiveUiTests
     public async Task An_archived_conversation_with_branches_opens_the_dialog_without_offering_to_archive_it()
     {
         await using var app = DesktopHarness.Create();
-        var window = Open(app);
-        var root = await ConversationAsync(app);
+        var window = app.ShowWindow();
+        var root = await app.StartWithConversationAsync(waitForTitle: true);
         await BranchAsync(app, root, "火车");
         root = await OpenAsync(app, root.Id);
         await root.ArchiveCommand.ExecuteAsync(null);
@@ -194,7 +195,7 @@ public class ArchiveUiTests
     public async Task An_archived_source_opens_read_only_from_its_summary_and_restore_and_summarize_continues()
     {
         await using var app = DesktopHarness.Create();
-        var page = await ConversationAsync(app);
+        var page = await app.StartWithConversationAsync(waitForTitle: true);
         await page.SummarizeCommand.ExecuteAsync(null);
         await UiWait.UntilAsync(() => page.HasSummary && page.RunningSummary is null);
         await page.ArchiveCommand.ExecuteAsync(null);
@@ -225,7 +226,7 @@ public class ArchiveUiTests
     public async Task A_separately_archived_branch_keeps_its_entry_under_the_answer_with_a_marker()
     {
         await using var app = DesktopHarness.Create();
-        var root = await ConversationAsync(app);
+        var root = await app.StartWithConversationAsync(waitForTitle: true);
         var child = await BranchAsync(app, root, "火车");
         await child.ArchiveCommand.ExecuteAsync(null);
 
@@ -240,7 +241,7 @@ public class ArchiveUiTests
     public async Task The_archived_page_is_reopened_after_a_restart()
     {
         await using var app = DesktopHarness.Create();
-        var page = await ConversationAsync(app);
+        var page = await app.StartWithConversationAsync(waitForTitle: true);
         await page.ArchiveCommand.ExecuteAsync(null);
         await UiWait.UntilAsync(() => app.ShellPage.Conversations.HasArchived);
         app.ShellPage.Conversations.OpenArchivedCommand.Execute(null);
@@ -257,8 +258,8 @@ public class ArchiveUiTests
     {
         var failing = new FailingArchiveStore();
         await using var app = DesktopHarness.Create(s => s.AddSingleton<IConversationArchiveStore>(sp => failing.Wrap(ActivatorUtilities.CreateInstance<Infrastructure.Sqlite.SqliteArchiveStore>(sp))));
-        Open(app);
-        var root = await ConversationAsync(app);
+        app.ShowWindow();
+        var root = await app.StartWithConversationAsync(waitForTitle: true);
 
         failing.Fail = true;
         await root.ArchiveCommand.ExecuteAsync(null);
@@ -337,8 +338,8 @@ public class ArchiveUiTests
     public async Task The_archived_delete_confirmation_opens_under_its_row_names_it_and_deletes_in_the_danger_tone()
     {
         await using var app = DesktopHarness.Create();
-        var window = Open(app);
-        var root = await ConversationAsync(app);
+        var window = app.ShowWindow();
+        var root = await app.StartWithConversationAsync(waitForTitle: true);
         var child = await BranchAsync(app, root, "火车");
         root = await OpenAsync(app, root.Id);
         await root.ArchiveCommand.ExecuteAsync(null);
@@ -393,8 +394,8 @@ public class ArchiveUiTests
     public async Task Restoring_another_row_directly_dismisses_a_pending_confirmation()
     {
         await using var app = DesktopHarness.Create();
-        Open(app);
-        var root = await ConversationAsync(app);
+        app.ShowWindow();
+        var root = await app.StartWithConversationAsync(waitForTitle: true);
         var first = await BranchAsync(app, root, "火车");
         await first.ArchiveCommand.ExecuteAsync(null);
         root = await OpenAsync(app, root.Id);
@@ -417,8 +418,8 @@ public class ArchiveUiTests
     public async Task Clicking_anywhere_in_an_archived_row_but_its_actions_opens_the_conversation()
     {
         await using var app = DesktopHarness.Create();
-        var window = Open(app);
-        var root = await ConversationAsync(app);
+        var window = app.ShowWindow();
+        var root = await app.StartWithConversationAsync(waitForTitle: true);
         await root.ArchiveCommand.ExecuteAsync(null);
         app.ShellPage.Conversations.OpenArchivedCommand.Execute(null);
         var archived = Assert.IsType<ArchivedViewModel>(app.Workbench.CurrentPage);
@@ -428,35 +429,11 @@ public class ArchiveUiTests
         // The row lights up across its width, so a click in its empty middle opens it too.
         var view = window.GetVisualDescendants().OfType<ArchivedView>().Single();
         var row = view.GetVisualDescendants().OfType<Border>().Single(b => b.Classes.Contains("archived-row"));
-        var middle = row.TranslatePoint(new Point(row.Bounds.Width * 0.6, row.Bounds.Height / 2), window)!.Value;
-        window.MouseDown(middle, Avalonia.Input.MouseButton.Left);
-        window.MouseUp(middle, Avalonia.Input.MouseButton.Left);
+        UiInput.Click(window, row, at: new Point(row.Bounds.Width * 0.6, row.Bounds.Height / 2));
 
         var opened = Assert.IsType<ConversationViewModel>(app.Workbench.CurrentPage);
         Assert.Equal(root.Id, opened.Id);
         window.Close();
-    }
-
-    private static MainWindow Open(DesktopHarness app)
-    {
-        var window = new MainWindow { DataContext = app.Root, Width = 1000, Height = 700 };
-        window.Show();
-        return window;
-    }
-
-    private static async Task<ConversationViewModel> ConversationAsync(DesktopHarness app)
-    {
-        await app.StartWithWorkspaceAsync("火车");
-        await app.ConfigureModelAsync();
-        app.ShellPage.Conversations.NewCommand.Execute(null);
-        var draft = Assert.IsType<NewConversationViewModel>(app.Workbench.CurrentPage);
-        draft.Composer.Text = "火车是怎么发明的？";
-        await draft.Composer.SendCommand.ExecuteAsync(null);
-        var page = Assert.IsType<ConversationViewModel>(app.Workbench.CurrentPage);
-        await page.Loaded;
-        await UiWait.UntilAsync(() => page.Messages.Count == 2 && page.Messages[1].CanBranch);
-        await UiWait.UntilAsync(() => page.Title == FakeChatClient.DefaultTitle);
-        return page;
     }
 
     private static async Task<ConversationViewModel> BranchAsync(DesktopHarness app, ConversationViewModel parent, string quote)
@@ -475,8 +452,4 @@ public class ArchiveUiTests
         await page.Loaded;
         return page;
     }
-
-    private static T Find<T>(Visual root, string name)
-        where T : Control =>
-        root.GetVisualDescendants().OfType<T>().First(c => c.Name == name);
 }

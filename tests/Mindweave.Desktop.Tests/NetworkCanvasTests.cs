@@ -15,6 +15,7 @@ using Mindweave.Desktop.ViewModels.Pages;
 using Mindweave.Desktop.Network;
 using Mindweave.Desktop.Views;
 using Mindweave.Desktop.Views.Pages;
+using static Mindweave.Desktop.Tests.UiTree;
 
 namespace Mindweave.Desktop.Tests;
 
@@ -30,15 +31,15 @@ public class NetworkCanvasTests
     public async Task Read_nodes_are_hollow_rings_and_unread_nodes_solid_dots_in_both_themes()
     {
         await using var app = DesktopHarness.Create();
-        var window = NetworkUiTests.Show(app);
-        await NetworkUiTests.SeedAsync(app);
+        var window = app.ShowWindow(1100, 720);
+        await NetworkScenario.SeedAsync(app);
         var summaries = app.Services.GetRequiredService<SummaryService>();
-        var network = await NetworkUiTests.OpenNetworkAsync(app, window);
+        var network = await NetworkScenario.OpenNetworkAsync(app, window);
         var read = network.Nodes.Single(n => n.ShortTitle == "铁轨");
         var entry = (await summaries.GetAsync(read.Id, CancellationToken.None))!;
         await summaries.SetReadAsync(read.Id, entry.Current.Id, true, CancellationToken.None);
         await UiWait.UntilAsync(() => !network.Nodes.Single(n => n.Id == read.Id).Unread);
-        var canvas = Canvas(window);
+        var canvas = CanvasOf(window);
 
         var paints = canvas.PaintNodes();
         var hollow = paints.Single(p => p.Node.Id == read.Id);
@@ -74,10 +75,10 @@ public class NetworkCanvasTests
     public async Task Labels_are_hidden_at_045_and_below_except_the_selected_and_matching_ones()
     {
         await using var app = DesktopHarness.Create();
-        var window = NetworkUiTests.Show(app);
-        await NetworkUiTests.SeedAsync(app);
-        var network = await NetworkUiTests.OpenNetworkAsync(app, window);
-        var canvas = Canvas(window);
+        var window = app.ShowWindow(1100, 720);
+        await NetworkScenario.SeedAsync(app);
+        var network = await NetworkScenario.OpenNetworkAsync(app, window);
+        var canvas = CanvasOf(window);
         var viewport = canvas.Current;
 
         network.Session.Viewport = viewport with { Zoom = 0.5 };
@@ -104,10 +105,10 @@ public class NetworkCanvasTests
     public async Task Selecting_a_node_highlights_its_whole_source_trail_to_the_root()
     {
         await using var app = DesktopHarness.Create();
-        var window = NetworkUiTests.Show(app);
-        await NetworkUiTests.SeedAsync(app);
-        var network = await NetworkUiTests.OpenNetworkAsync(app, window);
-        var canvas = Canvas(window);
+        var window = app.ShowWindow(1100, 720);
+        await NetworkScenario.SeedAsync(app);
+        var network = await NetworkScenario.OpenNetworkAsync(app, window);
+        var canvas = CanvasOf(window);
         var root = network.Nodes.Single(n => n.ShortTitle == "火车起源");
         var leaf = network.Nodes.Single(n => n.ShortTitle == "火箭号速度");
         var sibling = network.Nodes.Single(n => n.ShortTitle == "铁轨");
@@ -151,10 +152,10 @@ public class NetworkCanvasTests
     public async Task Search_matches_get_the_amber_ring_and_the_selection_ring_wins()
     {
         await using var app = DesktopHarness.Create();
-        var window = NetworkUiTests.Show(app);
-        await NetworkUiTests.SeedAsync(app);
-        var network = await NetworkUiTests.OpenNetworkAsync(app, window);
-        var canvas = Canvas(window);
+        var window = app.ShowWindow(1100, 720);
+        await NetworkScenario.SeedAsync(app);
+        var network = await NetworkScenario.OpenNetworkAsync(app, window);
+        var canvas = CanvasOf(window);
         var rails = network.Nodes.Single(n => n.ShortTitle == "铁轨");
 
         network.SearchText = "铁";
@@ -174,10 +175,10 @@ public class NetworkCanvasTests
     public async Task Hovering_a_node_enlarges_it_brightens_its_edges_and_the_pull_stops_when_idle()
     {
         await using var app = DesktopHarness.Create();
-        var window = NetworkUiTests.Show(app);
-        await NetworkUiTests.SeedAsync(app);
-        var network = await NetworkUiTests.OpenNetworkAsync(app, window);
-        var canvas = Canvas(window);
+        var window = app.ShowWindow(1100, 720);
+        await NetworkScenario.SeedAsync(app);
+        var network = await NetworkScenario.OpenNetworkAsync(app, window);
+        var canvas = CanvasOf(window);
         var root = network.Nodes.Single(n => n.ShortTitle == "火车起源");
         var before = canvas.PaintNodes().Single(p => p.Node.Id == root.Id);
 
@@ -211,15 +212,15 @@ public class NetworkCanvasTests
     public async Task Each_exploration_is_named_above_its_root_or_above_its_top_left_node_when_the_root_has_no_summary()
     {
         await using var app = DesktopHarness.Create();
-        var window = NetworkUiTests.Show(app);
-        await NetworkUiTests.SeedAsync(app);
+        var window = app.ShowWindow(1100, 720);
+        await NetworkScenario.SeedAsync(app);
         var conversations = app.Services.GetRequiredService<ConversationService>();
-        var photos = await NetworkUiTests.AskAsync(app, conversations, null, app.Workbench.CurrentWorkspace!.Id, "摄影是怎么发明的？");
-        var plate = await NetworkUiTests.BranchAsync(app, conversations, photos, "银版法怎么做？");
+        var photos = await NetworkScenario.AskAsync(app, conversations, null, app.Workbench.CurrentWorkspace!.Id, "摄影是怎么发明的？");
+        var plate = await NetworkScenario.BranchAsync(app, conversations, photos, "银版法怎么做？");
         var summaries = app.Services.GetRequiredService<SummaryService>();
         app.Client.SummaryReplies.Enqueue("标题：银版法\n短名：银版法\n\n正文");
         Assert.True((await summaries.SummarizeAsync(plate, CancellationToken.None)).Accepted);
-        var network = await NetworkUiTests.OpenNetworkAsync(app, window);
+        var network = await NetworkScenario.OpenNetworkAsync(app, window);
         await UiWait.UntilAsync(() => network.Nodes.Count == 4);
 
         Assert.Equal(2, network.Captions.Count);
@@ -237,19 +238,19 @@ public class NetworkCanvasTests
     public async Task The_source_path_names_every_conversation_from_the_root_and_marks_the_unsummarized_ones()
     {
         await using var app = DesktopHarness.Create();
-        var window = NetworkUiTests.Show(app);
-        await NetworkUiTests.SeedAsync(app);
+        var window = app.ShowWindow(1100, 720);
+        await NetworkScenario.SeedAsync(app);
         var conversations = app.Services.GetRequiredService<ConversationService>();
         var summaries = app.Services.GetRequiredService<SummaryService>();
         var workspace = app.Workbench.CurrentWorkspace!.Id;
 
         // A second exploration whose root and middle conversation have no summary: root → A → B, only B summarized.
-        var photos = await NetworkUiTests.AskAsync(app, conversations, null, workspace, "摄影是怎么发明的？");
-        var plates = await NetworkUiTests.BranchAsync(app, conversations, photos, "银版法怎么做？");
-        var mercury = await NetworkUiTests.BranchAsync(app, conversations, plates, "为什么用汞蒸气？");
+        var photos = await NetworkScenario.AskAsync(app, conversations, null, workspace, "摄影是怎么发明的？");
+        var plates = await NetworkScenario.BranchAsync(app, conversations, photos, "银版法怎么做？");
+        var mercury = await NetworkScenario.BranchAsync(app, conversations, plates, "为什么用汞蒸气？");
         app.Client.SummaryReplies.Enqueue("标题：汞蒸气显影\n短名：汞蒸气\n\n正文");
         Assert.True((await summaries.SummarizeAsync(mercury, CancellationToken.None)).Accepted);
-        var network = await NetworkUiTests.OpenNetworkAsync(app, window);
+        var network = await NetworkScenario.OpenNetworkAsync(app, window);
         await UiWait.UntilAsync(() => network.Nodes.Count == 4);
         var titles = (await conversations.ListAsync(workspace, CancellationToken.None))
             .ToDictionary(c => c.Conversation.Id, c => UiText.ConversationTitle(c.Conversation, c.FirstQuestion, c.Quote));
@@ -300,10 +301,10 @@ public class NetworkCanvasTests
 
         // The canvas beside the details panel in the gallery's 1100 × 720 window.
         await using var app = DesktopHarness.Create();
-        var window = NetworkUiTests.Show(app);
-        await NetworkUiTests.SeedAsync(app);
-        await NetworkUiTests.OpenNetworkAsync(app, window);
-        var size = Canvas(window).Bounds.Size;
+        var window = app.ShowWindow(1100, 720);
+        await NetworkScenario.SeedAsync(app);
+        await NetworkScenario.OpenNetworkAsync(app, window);
+        var size = CanvasOf(window).Bounds.Size;
         window.Close();
         var fitted = NetworkCanvas.FitTo(views, size);
         Assert.True(fitted.Zoom >= 0.8, $"default zoom {fitted.Zoom:0.00} in {size}");
@@ -332,9 +333,9 @@ public class NetworkCanvasTests
     public async Task At_the_fitted_zoom_no_label_overlaps_another_label_or_dot()
     {
         await using var app = DesktopHarness.Create();
-        var window = NetworkUiTests.Show(app);
+        var window = app.ShowWindow(1100, 720);
         var network = await SeedThreeChildrenAsync(app, window);
-        var canvas = Canvas(window);
+        var canvas = CanvasOf(window);
         network.ShowAllCommand.Execute(null);
         window.UpdateLayout();
         var zoom = canvas.Current.Zoom;
@@ -361,9 +362,9 @@ public class NetworkCanvasTests
     public async Task A_highlighted_trail_stays_visible_for_a_node_left_of_its_source()
     {
         await using var app = DesktopHarness.Create();
-        var window = NetworkUiTests.Show(app);
+        var window = app.ShowWindow(1100, 720);
         var network = await SeedThreeChildrenAsync(app, window);
-        var canvas = Canvas(window);
+        var canvas = CanvasOf(window);
         foreach (var theme in new[] { ThemeVariant.Dark, ThemeVariant.Light })
         {
             window.RequestedThemeVariant = theme;
@@ -403,9 +404,9 @@ public class NetworkCanvasTests
     public async Task Captions_sit_above_their_group_and_no_edge_or_label_crosses_them()
     {
         await using var app = DesktopHarness.Create();
-        var window = NetworkUiTests.Show(app);
+        var window = app.ShowWindow(1100, 720);
         var network = await SeedThreeChildrenAsync(app, window);
-        var canvas = Canvas(window);
+        var canvas = CanvasOf(window);
         foreach (var arrange in new[] { false, true })
         {
             if (arrange)
@@ -452,9 +453,9 @@ public class NetworkCanvasTests
         Assert.False(NetworkCanvas.HitBox(new Point(0, 0), upper, z, true).Intersects(NetworkCanvas.HitBox(new Point(right.X * z, 0), right, z, true)));
 
         await using var app = DesktopHarness.Create();
-        var window = NetworkUiTests.Show(app);
+        var window = app.ShowWindow(1100, 720);
         var network = await SeedThreeChildrenAsync(app, window);
-        var canvas = Canvas(window);
+        var canvas = CanvasOf(window);
         network.Session.Viewport = canvas.Current with { Zoom = Viewport.MinZoom };
         var boxes = network.Nodes.Select(n => NetworkCanvas.HitBox(canvas.ToScreen(n.X, n.Y), n, Viewport.MinZoom, false)).ToList();
         for (var i = 0; i < boxes.Count; i++)
@@ -478,10 +479,10 @@ public class NetworkCanvasTests
     public async Task Hover_follows_what_is_under_the_pointer_after_a_pan()
     {
         await using var app = DesktopHarness.Create();
-        var window = NetworkUiTests.Show(app);
-        await NetworkUiTests.SeedAsync(app);
-        var network = await NetworkUiTests.OpenNetworkAsync(app, window);
-        var canvas = Canvas(window);
+        var window = app.ShowWindow(1100, 720);
+        await NetworkScenario.SeedAsync(app);
+        var network = await NetworkScenario.OpenNetworkAsync(app, window);
+        var canvas = CanvasOf(window);
         var root = network.Nodes.Single(n => n.IsRoot);
         Point InWindow(Point p) => canvas.TranslatePoint(p, window)!.Value;
 
@@ -511,10 +512,10 @@ public class NetworkCanvasTests
     public async Task Saved_is_a_quiet_status_unsaved_an_accent_button_and_read_names_are_secondary()
     {
         await using var app = DesktopHarness.Create();
-        var window = NetworkUiTests.Show(app);
-        await NetworkUiTests.SeedAsync(app);
+        var window = app.ShowWindow(1100, 720);
+        await NetworkScenario.SeedAsync(app);
         var summaries = app.Services.GetRequiredService<SummaryService>();
-        var network = await NetworkUiTests.OpenNetworkAsync(app, window);
+        var network = await NetworkScenario.OpenNetworkAsync(app, window);
         var read = network.Nodes.Single(n => n.ShortTitle == "铁轨");
         var entry = (await summaries.GetAsync(read.Id, CancellationToken.None))!;
         await summaries.SetReadAsync(read.Id, entry.Current.Id, true, CancellationToken.None);
@@ -526,7 +527,7 @@ public class NetworkCanvasTests
         Assert.False(Named<Button>("SaveLayoutButton").IsVisible);
         Assert.True(Named<StackPanel>("LayoutSavedStatus").IsVisible);
 
-        await NetworkUiTests.MoveSomethingAsync(app, network);
+        await NetworkScenario.MoveSomethingAsync(app, network);
         network.ArrangeCommand.Execute(null);
         window.UpdateLayout();
         var save = Named<Button>("SaveLayoutButton");
@@ -598,10 +599,10 @@ public class NetworkCanvasTests
         // Dark: a black shadow hardly shows on the near-black canvas, so the lift must still read on pixels: a clearly
         // darker crescent below the dot than above it, and a glow just outside the selection halo where the canvas was.
         await using var app = DesktopHarness.Create();
-        var window = NetworkUiTests.Show(app);
-        await NetworkUiTests.SeedAsync(app);
-        var network = await NetworkUiTests.OpenNetworkAsync(app, window);
-        var canvas = Canvas(window);
+        var window = app.ShowWindow(1100, 720);
+        await NetworkScenario.SeedAsync(app);
+        var network = await NetworkScenario.OpenNetworkAsync(app, window);
+        var canvas = CanvasOf(window);
         var node = network.Nodes.First(n => !n.IsRoot);
         var start = canvas.ToScreen(node.X, node.Y);
         Point InWindow(Point p) => canvas.TranslatePoint(p, window)!.Value;
@@ -643,12 +644,12 @@ public class NetworkCanvasTests
     /// <summary>The seeded network plus a third child of the root, arranged: one child sits left of the root.</summary>
     private static async Task<NetworkHomeViewModel> SeedThreeChildrenAsync(DesktopHarness app, MainWindow window)
     {
-        await NetworkUiTests.SeedAsync(app);
+        await NetworkScenario.SeedAsync(app);
         var conversations = app.Services.GetRequiredService<ConversationService>();
         var summaries = app.Services.GetRequiredService<SummaryService>();
-        var network = await NetworkUiTests.OpenNetworkAsync(app, window);
+        var network = await NetworkScenario.OpenNetworkAsync(app, window);
         var root = network.Session.Projection.Nodes.Single(n => n.Conversation == n.Root).Conversation;
-        var engines = await NetworkUiTests.BranchAsync(app, conversations, root, "蒸汽机车怎么造？");
+        var engines = await NetworkScenario.BranchAsync(app, conversations, root, "蒸汽机车怎么造？");
         app.Client.SummaryReplies.Enqueue("标题：蒸汽机车的构造\n短名：蒸汽机车\n\n正文");
         Assert.True((await summaries.SummarizeAsync(engines, CancellationToken.None)).Accepted);
         await UiWait.UntilAsync(() => network.Nodes.Count == 4);
@@ -673,8 +674,6 @@ public class NetworkCanvasTests
 
         return false;
     }
-
-    private static NetworkCanvas Canvas(MainWindow window) => window.GetVisualDescendants().OfType<NetworkCanvas>().Single();
 
     private static Color ResourceColor(MainWindow window, string key)
     {

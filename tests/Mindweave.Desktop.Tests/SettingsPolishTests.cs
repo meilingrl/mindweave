@@ -15,6 +15,7 @@ using Mindweave.Desktop.Navigation;
 using Mindweave.Desktop.ViewModels.Pages;
 using Mindweave.Desktop.Views;
 using Mindweave.Desktop.Views.Pages;
+using static Mindweave.Desktop.Tests.UiTree;
 
 namespace Mindweave.Desktop.Tests;
 
@@ -38,7 +39,7 @@ public class SettingsPolishTests
         Assert.All(segments, s => Assert.NotNull(s.GetVisualDescendants().OfType<PathIcon>().SingleOrDefault()));
 
         // A real click on 深色: applied at once; the chosen segment is filled, the others are not.
-        Click(window, segments[1]);
+        UiInput.Click(window, segments[1]);
         Assert.Equal(Appearance.Dark, app.Theme.Applied.Last());
         Assert.True(settings.IsDark);
         await settings.Saving;
@@ -170,7 +171,7 @@ public class SettingsPolishTests
         Assert.False(popup.IsOpen);
 
         // Without typing anything — the field still says fake-model, which matches none of them.
-        Click(window, Find<Button>(window, "FetchModels"));
+        UiInput.Click(window, Find<Button>(window, "FetchModels"));
         await UiWait.UntilAsync(() => !model.IsBusy);
         window.UpdateLayout();
         Assert.True(popup.IsOpen);
@@ -221,7 +222,7 @@ public class SettingsPolishTests
         box.Focus();
         window.KeyPress(Key.Escape, RawInputModifiers.None, PhysicalKey.Escape, null);
         Assert.False(popup.IsOpen);
-        Click(window, box);
+        UiInput.Click(window, box);
         Assert.True(popup.IsOpen);
         Assert.Equal(["alpha", "beta", "gamma"], Suggestions(popup));
 
@@ -234,7 +235,7 @@ public class SettingsPolishTests
         Assert.False(popup.IsOpen);
 
         // The arrow inside the field opens it too.
-        Click(window, Find<Button>(window, "ModelListToggle"));
+        UiInput.Click(window, Find<Button>(window, "ModelListToggle"));
         Assert.True(popup.IsOpen);
         window.Close();
     }
@@ -265,7 +266,7 @@ public class SettingsPolishTests
 
         // 获取列表, 测试连接 and 保存 with the key field empty: refused, and nothing is sent anywhere.
         var missingKey = UiText.SettingsProblem(ModelSettingsProblem.MissingKey);
-        Click(window, Find<Button>(window, "FetchModels"));
+        UiInput.Click(window, Find<Button>(window, "FetchModels"));
         await UiWait.UntilAsync(() => !model.IsBusy);
         Assert.Equal(missingKey, model.Status);
         model.Model = "gpt-4o";
@@ -312,12 +313,12 @@ public class SettingsPolishTests
         model.IsModelListOpen = false;
         window.UpdateLayout();
 
-        Click(window, toggle);
+        UiInput.Click(window, toggle);
         Assert.True(popup.IsOpen);
-        Click(window, toggle);
+        UiInput.Click(window, toggle);
         Assert.False(popup.IsOpen);
         Assert.False(model.IsModelListOpen);
-        Click(window, toggle);
+        UiInput.Click(window, toggle);
         Assert.True(popup.IsOpen);
         window.Close();
     }
@@ -350,7 +351,7 @@ public class SettingsPolishTests
         Assert.True(popup.IsOpen);
 
         // A click elsewhere (another field) closes it too.
-        Click(window, Find<TextBox>(window, "ConnectionName"));
+        UiInput.Click(window, Find<TextBox>(window, "ConnectionName"));
         Assert.False(popup.IsOpen);
         window.Close();
     }
@@ -377,7 +378,7 @@ public class SettingsPolishTests
     public async Task Settings_storage_and_onboarding_each_have_one_primary_action()
     {
         await using var app = DesktopHarness.Create();
-        var window = NetworkUiTests.Show(app);
+        var window = app.ShowWindow(1100, 720);
         await app.StartAsync();
         window.UpdateLayout();
         var onboarding = window.GetVisualDescendants().OfType<OnboardingView>().Single();
@@ -397,12 +398,12 @@ public class SettingsPolishTests
         var texts = page.GetVisualDescendants().OfType<TextBlock>().Where(t => t.IsEffectivelyVisible).Select(t => t.Text ?? string.Empty).ToList();
         Assert.DoesNotContain(texts, t => t.Contains("立即生效", StringComparison.Ordinal) || t.Contains("操作系统", StringComparison.Ordinal) || t.Contains("/v1 结尾", StringComparison.Ordinal));
 
-        Click(window, Find<Button>(window, "StorageDetailsButton"));
+        UiInput.Click(window, Find<Button>(window, "StorageDetailsButton"));
         var storage = window.GetVisualDescendants().OfType<StorageDetailsView>().Single();
         Assert.Empty(VisiblePrimaries(storage));
         var open = Find<Button>(storage, "OpenDataFolder");
         Assert.Contains("quiet", open.Classes);
-        Click(window, open);
+        UiInput.Click(window, open);
         Assert.Equal([app.Paths.DataDirectory], app.Shell.OpenedFolders);
         window.Close();
     }
@@ -417,7 +418,7 @@ public class SettingsPolishTests
         await app.StartWithWorkspaceAsync("火车");
         await app.ConfigureModelAsync();
         var (window, settings) = await OpenSettingsAsync(app, started: true);
-        Click(window, Find<Button>(window, "FetchModels"));
+        UiInput.Click(window, Find<Button>(window, "FetchModels"));
         await UiWait.UntilAsync(() => !settings.Model.IsBusy);
         window.UpdateLayout();
         return (app, window, settings.Model, Find<Popup>(window, "ModelPopup"));
@@ -427,7 +428,7 @@ public class SettingsPolishTests
 
     private static async Task<(MainWindow Window, SettingsHomeViewModel Settings)> OpenSettingsAsync(DesktopHarness app, bool started = false)
     {
-        var window = NetworkUiTests.Show(app);
+        var window = app.ShowWindow(1100, 720);
         if (!started)
         {
             await app.StartWithWorkspaceAsync("火车");
@@ -455,10 +456,4 @@ public class SettingsPolishTests
 
     private static Color Colour(Visual control, string key) =>
         Assert.IsAssignableFrom<ISolidColorBrush>(((StyledElement)control).FindResource(((Control)control).ActualThemeVariant, key)).Color;
-
-    private static void Click(Window window, Control control) => UiInput.Click(window, control);
-
-    private static T Find<T>(Visual root, string name)
-        where T : Control =>
-        root.GetVisualDescendants().OfType<T>().First(c => c.Name == name);
 }

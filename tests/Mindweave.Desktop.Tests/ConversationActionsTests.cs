@@ -16,6 +16,7 @@ using Mindweave.Desktop.Views.Conversations;
 using Microsoft.Extensions.DependencyInjection;
 using Mindweave.Testing;
 using TextBlock = Avalonia.Controls.TextBlock;
+using static Mindweave.Desktop.Tests.UiTree;
 
 namespace Mindweave.Desktop.Tests;
 
@@ -54,7 +55,7 @@ public partial class ConversationActionsTests
     public async Task Selecting_text_floats_the_branch_action_next_to_it_and_clearing_the_selection_hides_it()
     {
         await using var app = DesktopHarness.Create();
-        var window = Open(app);
+        var window = app.ShowWindow();
         var page = await ConversationAsync(app, window);
         await AskAgainAsync(app, window, page, Answer);
         var answer = Answers(window)[0];
@@ -105,7 +106,7 @@ public partial class ConversationActionsTests
     public async Task Clicking_the_floating_action_creates_the_branch_with_the_same_anchor_as_the_selection()
     {
         await using var app = DesktopHarness.Create();
-        var window = Open(app);
+        var window = app.ShowWindow();
         var root = await ConversationAsync(app, window);
         var answer = AnswerOf(window);
         Select(window, answer, "斯蒂芬森");
@@ -118,7 +119,7 @@ public partial class ConversationActionsTests
     {
         // Above the first line is outside the answer itself (the question is there): the action must not be cut off.
         await using var app = DesktopHarness.Create();
-        var window = Open(app);
+        var window = app.ShowWindow();
         var root = await ConversationAsync(app, window);
         var answer = AnswerOf(window);
         Select(window, answer, "第1段");
@@ -132,7 +133,7 @@ public partial class ConversationActionsTests
     public async Task A_selection_on_the_last_line_at_the_top_of_the_page_gets_the_action_below_it_over_the_answers_row()
     {
         await using var app = DesktopHarness.Create();
-        var window = Open(app, height: 480);
+        var window = app.ShowWindow(height: 480);
         var root = await ConversationAsync(app, window);
         await AskAgainAsync(app, window, root, Answer);
         var answer = Answers(window)[0];
@@ -157,7 +158,7 @@ public partial class ConversationActionsTests
     public async Task A_single_line_answer_can_be_branched_from()
     {
         await using var app = DesktopHarness.Create();
-        var window = Open(app);
+        var window = app.ShowWindow();
         await app.StartWithWorkspaceAsync("火车");
         await app.ConfigureModelAsync();
         app.Client.Reply("蒸汽机车由斯蒂芬森改良。");
@@ -179,7 +180,7 @@ public partial class ConversationActionsTests
     public async Task Only_one_selection_floats_an_action_and_typing_in_the_composer_ends_it()
     {
         await using var app = DesktopHarness.Create();
-        var window = Open(app);
+        var window = app.ShowWindow();
         var page = await ConversationAsync(app, window);
         await AskAgainAsync(app, window, page, "第二个回答：铁路很快传到欧洲大陆，随后到了世界各地。");
         var (first, second) = (Answers(window)[0], Answers(window)[1]);
@@ -194,10 +195,7 @@ public partial class ConversationActionsTests
 
         // A real click into the composer: the selection and its action go.
         var input = VisibleNamed<TextBox>(CurrentView(window), "Input");
-        var centre = input.TranslatePoint(new Point(input.Bounds.Width / 2, input.Bounds.Height / 2), window)!.Value;
-        window.MouseDown(centre, MouseButton.Left);
-        window.MouseUp(centre, MouseButton.Left);
-        window.UpdateLayout();
+        UiInput.Click(window, input);
         Assert.True(input.IsFocused);
         Assert.False(SourceAnchors.HasSelection(second.Renderer));
         Assert.DoesNotContain(window.GetVisualDescendants().OfType<Border>(), b => b.Name == "SelectionActions" && b.IsEffectivelyVisible);
@@ -208,7 +206,7 @@ public partial class ConversationActionsTests
     public async Task Leaving_the_page_takes_the_floating_action_with_it()
     {
         await using var app = DesktopHarness.Create();
-        var window = Open(app);
+        var window = app.ShowWindow();
         await ConversationAsync(app, window);
         var answer = AnswerOf(window);
         Select(window, answer, "铁路随后");
@@ -228,7 +226,7 @@ public partial class ConversationActionsTests
     {
         // The app's clock says it is three days later: the messages sent "now" (by the system clock) are not today.
         await using var app = DesktopHarness.Create(s => s.AddSingleton<TimeProvider>(new LaterTime(TimeSpan.FromDays(3))));
-        var window = Open(app);
+        var window = app.ShowWindow();
         var page = await ConversationAsync(app, window);
         var question = VisibleNamed<TextBlock>(CurrentView(window), "QuestionTime");
         Assert.DoesNotMatch(Clock(), question.Text!);
@@ -241,7 +239,7 @@ public partial class ConversationActionsTests
     public async Task Copy_puts_the_exact_markdown_source_of_a_question_and_an_answer_on_the_clipboard_and_confirms_briefly()
     {
         await using var app = DesktopHarness.Create();
-        var window = Open(app);
+        var window = app.ShowWindow();
         var page = await ConversationAsync(app, window);
         var view = CurrentView(window);
         var clipboard = TopLevel.GetTopLevel(window)!.Clipboard!;
@@ -249,7 +247,7 @@ public partial class ConversationActionsTests
         var answerCopy = VisibleNamed<CopyButton>(view, "AnswerCopy");
         Assert.Equal(UiText.Copy, ToolTip.GetTip(answerCopy));
         Assert.Empty(answerCopy.GetVisualDescendants().OfType<TextBlock>());
-        Click(window, answerCopy);
+        UiInput.Click(window, answerCopy);
         await UiWait.UntilAsync(() => answerCopy.ShowsCopied);
         var copiedAt = DateTime.UtcNow;
         Assert.Equal(Answer, await clipboard.TryGetTextAsync());
@@ -261,7 +259,7 @@ public partial class ConversationActionsTests
         Assert.Equal(UiText.Copy, ToolTip.GetTip(answerCopy));
 
         var questionCopy = VisibleNamed<CopyButton>(view, "QuestionCopy");
-        Click(window, questionCopy);
+        UiInput.Click(window, questionCopy);
         await UiWait.UntilAsync(() => questionCopy.ShowsCopied);
         Assert.Equal(page.Messages[0].Body, await clipboard.TryGetTextAsync());
         Assert.Equal("火车是怎么发明的？\n**第二行**", await clipboard.TryGetTextAsync());
@@ -272,7 +270,7 @@ public partial class ConversationActionsTests
     public async Task A_stopped_partial_answer_can_be_copied_and_a_failed_answer_without_text_cannot()
     {
         await using var app = DesktopHarness.Create();
-        var window = Open(app);
+        var window = app.ShowWindow();
         await app.StartWithWorkspaceAsync("火车");
         await app.ConfigureModelAsync();
         var held = app.Client.Hold("半句**粗体**");
@@ -291,7 +289,7 @@ public partial class ConversationActionsTests
         window.UpdateLayout();
         var copy = VisibleNamed<CopyButton>(view, "AnswerCopy");
         Assert.True(copy.IsEffectivelyEnabled);
-        Click(window, copy);
+        UiInput.Click(window, copy);
         await UiWait.UntilAsync(() => copy.ShowsCopied);
         Assert.Equal("半句**粗体**", await TopLevel.GetTopLevel(window)!.Clipboard!.TryGetTextAsync());
 
@@ -311,7 +309,7 @@ public partial class ConversationActionsTests
     public async Task Questions_and_finished_answers_show_their_time_quietly()
     {
         await using var app = DesktopHarness.Create();
-        var window = Open(app);
+        var window = app.ShowWindow();
         var page = await ConversationAsync(app, window);
         var view = CurrentView(window);
 
@@ -336,7 +334,7 @@ public partial class ConversationActionsTests
     public async Task A_window_dialog_covers_the_branch_action_and_it_is_reachable_again_once_the_dialog_closes()
     {
         await using var app = DesktopHarness.Create();
-        var window = Open(app);
+        var window = app.ShowWindow();
         var page = await ConversationAsync(app, window);
         var answer = AnswerOf(window);
         Select(window, answer, "铁路随后");
@@ -379,7 +377,7 @@ public partial class ConversationActionsTests
     public async Task Stop_is_an_icon_with_its_name_and_tooltip()
     {
         await using var app = DesktopHarness.Create();
-        var window = Open(app);
+        var window = app.ShowWindow();
         await app.StartWithWorkspaceAsync("火车");
         await app.ConfigureModelAsync();
         var held = app.Client.Hold("半句");
@@ -465,9 +463,6 @@ public partial class ConversationActionsTests
         window.UpdateLayout();
     }
 
-    private static List<AnswerView> Answers(Window window) =>
-        window.GetVisualDescendants().OfType<AnswerView>().Where(a => a.DataContext is MessageItemViewModel { IsAnswer: true }).ToList();
-
     private static AnswerView AnswerOf(Window window) =>
         window.GetVisualDescendants().OfType<AnswerView>().Last(a => a.DataContext is MessageItemViewModel { IsAnswer: true });
 
@@ -507,16 +502,6 @@ public partial class ConversationActionsTests
         window.CaptureRenderedFrame()?.Dispose();
     }
 
-    /// <summary>A real pointer click at the button's centre.</summary>
-    private static void Click(Window window, Button button) => UiInput.Click(window, button);
-
-    private static MainWindow Open(DesktopHarness app, double height = 700)
-    {
-        var window = new MainWindow { DataContext = app.Root, Width = 1000, Height = height };
-        window.Show();
-        return window;
-    }
-
     private static async Task<ConversationViewModel> AskAsync(DesktopHarness app, Window window, string question)
     {
         app.ShellPage.Conversations.NewCommand.Execute(null);
@@ -543,8 +528,6 @@ public partial class ConversationActionsTests
         window.UpdateLayout();
         return page;
     }
-
-    private static ConversationView CurrentView(Window window) => window.GetVisualDescendants().OfType<ConversationView>().Single();
 
     private static T VisibleNamed<T>(Visual root, string name)
         where T : Control =>

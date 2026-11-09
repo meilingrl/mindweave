@@ -7,6 +7,7 @@ using Mindweave.Desktop.Navigation;
 using Mindweave.Desktop.ViewModels;
 using Mindweave.Desktop.Views;
 using Mindweave.Desktop.Views.Pages;
+using static Mindweave.Desktop.Tests.UiTree;
 
 namespace Mindweave.Desktop.Tests;
 
@@ -49,7 +50,7 @@ public class ViewTests
 
         Assert.IsType<ShellView>(window.GetVisualDescendants().OfType<ShellView>().Single());
         Assert.IsType<ExploreHomeView>(Find<ContentControl>(window, "PageHost").GetVisualDescendants().OfType<ExploreHomeView>().Single());
-        Capture(window, "01-explore-home");
+        Screenshots.Capture(window, "01-explore-home");
         window.Close();
     }
 
@@ -62,45 +63,28 @@ public class ViewTests
         await app.StartWithWorkspaceAsync("火车历史");
         window.UpdateLayout();
 
-        Click(window, "NavSettings");
-        Click(window, "StorageDetailsButton");
+        Invoke(window, "NavSettings");
+        Invoke(window, "StorageDetailsButton");
         Assert.Single(window.GetVisualDescendants().OfType<StorageDetailsView>());
         Assert.True(Find<Button>(window, "BackButton").IsVisible);
-        Capture(window, "02-storage-details");
+        Screenshots.Capture(window, "02-storage-details");
 
-        Click(window, "BackButton");
+        Invoke(window, "BackButton");
         Assert.Single(window.GetVisualDescendants().OfType<SettingsHomeView>());
         Assert.False(Find<Button>(window, "BackButton").IsVisible);
 
-        Click(window, "NavNetwork");
+        Invoke(window, "NavNetwork");
         Assert.Single(window.GetVisualDescendants().OfType<NetworkHomeView>());
         Assert.Equal(MainSection.Network, app.Workbench.CurrentSection);
         window.Close();
     }
 
-    private static void Click(Window window, string name)
+    /// <summary>Runs the named button's command directly, without a pointer click.</summary>
+    private static void Invoke(Window window, string name)
     {
         var button = Find<Button>(window, name);
         Assert.True(button.IsEffectivelyEnabled, $"{name} is disabled");
         button.Command!.Execute(button.CommandParameter);
         window.UpdateLayout();
-    }
-
-    private static T Find<T>(Window window, string name)
-        where T : Control =>
-        window.GetVisualDescendants().OfType<T>().Single(c => c.Name == name);
-
-    /// <summary>Writes a rendered frame when MINDWEAVE_SCREENSHOT_DIR is set, for visual review.</summary>
-    internal static void Capture(Window window, string name)
-    {
-        var target = Environment.GetEnvironmentVariable("MINDWEAVE_SCREENSHOT_DIR");
-        if (string.IsNullOrEmpty(target))
-        {
-            return;
-        }
-
-        Directory.CreateDirectory(target);
-        using var frame = window.CaptureRenderedFrame();
-        frame?.Save(Path.Combine(target, name + ".png"), new Avalonia.Media.Imaging.PngBitmapEncoderOptions());
     }
 }

@@ -249,7 +249,7 @@ public class ConversationUiTests
         await UiWait.UntilAsync(() => app.ShellPage.Conversations.Items.Count == 1);
         window.UpdateLayout();
         Assert.Single(window.GetVisualDescendants().OfType<ConversationView>());
-        ViewTests.Capture(window, "03-conversation");
+        Screenshots.Capture(window, "03-conversation");
         window.Close();
     }
 
