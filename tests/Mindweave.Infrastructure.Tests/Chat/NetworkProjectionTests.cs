@@ -25,7 +25,7 @@ public class NetworkProjectionTests
         var other = await ConversationAsync(h, "摄影怎么入门？");
         foreach (var conversation in new[] { root, leaf, sibling, other })
         {
-            await SummarizeAsync(h, conversation);
+            await h.SummarizeAsync(conversation);
         }
 
         var projection = await h.Network.ProjectAsync(h.Workspace, Ct);
@@ -49,7 +49,7 @@ public class NetworkProjectionTests
         await using var h = await ChatHarness.StartAsync();
         var conversation = await ConversationAsync(h, "火车是怎么发明的？");
         h.Client.SummaryReplies.Enqueue("标题：早期蒸汽机车在铁路运输中的作用与局限\n短名：蒸汽机车\n\n正文");
-        await SummarizeAsync(h, conversation);
+        await h.SummarizeAsync(conversation);
 
         var node = Assert.Single((await h.Network.ProjectAsync(h.Workspace, Ct)).Nodes);
 
@@ -67,8 +67,8 @@ public class NetworkProjectionTests
         await using var h = await ChatHarness.StartAsync();
         var a = await ConversationAsync(h, "火车？");
         var b = await ConversationAsync(h, "摄影？");
-        await SummarizeAsync(h, a);
-        await SummarizeAsync(h, b);
+        await h.SummarizeAsync(a);
+        await h.SummarizeAsync(b);
         var nodes = (await h.Network.ProjectAsync(h.Workspace, Ct)).Nodes;
 
         Assert.True(await h.Network.PlaceAsync(h.Workspace, nodes[0].Id, new NodePosition(10, 20), Ct));
@@ -92,7 +92,7 @@ public class NetworkProjectionTests
     {
         await using var h = await ChatHarness.StartAsync();
         var a = await ConversationAsync(h, "火车？");
-        await SummarizeAsync(h, a);
+        await h.SummarizeAsync(a);
         var node = Assert.Single((await h.Network.ProjectAsync(h.Workspace, Ct)).Nodes);
         await h.Network.PlaceAsync(h.Workspace, node.Id, new NodePosition(5, 5), Ct);
 
@@ -100,13 +100,6 @@ public class NetworkProjectionTests
         await h.SummaryService.DeleteVersionsAsync(node.Id, detail.Versions.Select(v => v.Id).ToHashSet(), Ct);
 
         Assert.Empty(await h.Network.GetLayoutAsync(h.Workspace, Ct));
-    }
-
-    private static async Task SummarizeAsync(ChatHarness h, ConversationId conversation)
-    {
-        var outcome = await h.SummaryService.SummarizeAsync(conversation, Ct);
-        Assert.True(outcome.Accepted, outcome.Rejection?.ToString());
-        await ChatHarness.UntilAsync(() => h.SummaryService.LatestTaskAsync(conversation, Ct).Result is { State: GenerationTaskState.Completed } s && s.Id == outcome.Task);
     }
 
     private static async Task<ConversationId> ConversationAsync(ChatHarness h, string question)

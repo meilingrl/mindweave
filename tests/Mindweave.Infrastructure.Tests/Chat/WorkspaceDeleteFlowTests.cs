@@ -289,26 +289,26 @@ internal static class WorkspaceSeed
         await h.SettleAsync(root);
         await h.Summaries.AddAsync(new ContextSummary(Guid.NewGuid(), new SummaryKey(root, 0, 1, "hash", 1), "fake-model", "早期铁路的背景", DateTimeOffset.UtcNow), Ct);
 
-        var child = await BranchAsync(h, root, rootAnswer);
+        var child = await h.BranchAsync(root, rootAnswer);
         h.Client.Fail(GenerationErrorKind.ServerError);
-        var failed = await AskAsync(h, child, "子问");
-        var retried = await RetryAsync(h, child, failed.Id);
-        var regenerated = await RetryAsync(h, child, retried.Id);
+        var failed = await h.AskAsync(child, "子问");
+        var retried = await h.RetryAsync(child, failed.Id);
+        var regenerated = await h.RetryAsync(child, retried.Id);
         await ChatHarness.UntilAsync(() => h.Generation.UnfinishedCount == 0);
         h.Reading.SetDraft(child, ViewerSlotKey.Primary, "没发出去的草稿");
         h.Reading.SetPosition(child, ViewerSlotKey.Primary, new ReadingPosition(regenerated.Id, 0, null, 1));
         await h.Reading.FlushAsync();
 
-        var grandchild = await BranchAsync(h, child, regenerated);
+        var grandchild = await h.BranchAsync(child, regenerated);
         await h.SettleAsync(child);
         Assert.True((await h.Conversations.ArchiveAsync(grandchild, Ct)).Archived);
 
-        var rootNode = await SummarizeAsync(h, root);
+        var rootNode = await h.SummarizeAsync(root);
         var current = (await h.SummaryService.GetAsync(rootNode, Ct))!.Node.Current;
         await h.SummaryService.SetReadAsync(rootNode, current, read: true, Ct);
-        await SummarizeAsync(h, root);
+        await h.SummarizeAsync(root);
         await h.SummaryNodes.SaveDraftAsync(new SummaryEditDraft(rootNode, current, "改过的标题", "改过的正文", DateTimeOffset.UtcNow), Ct);
-        var childNode = await SummarizeAsync(h, child);
+        var childNode = await h.SummarizeAsync(child);
         await h.Network.SaveLayoutAsync(workspace, new Dictionary<SummaryNodeId, NodePosition> { [rootNode] = new(10, 20), [childNode] = new(30, 40) }, Ct);
         await h.SettleAsync(root);
         await h.SettleAsync(child);
@@ -426,35 +426,5 @@ internal static class WorkspaceSeed
         }
 
         return tables;
-    }
-
-    private static async Task<ConversationId> BranchAsync(ChatHarness h, ConversationId parent, Message answer)
-    {
-        var branch = await h.Conversations.CreateBranchAsync(parent, BranchFlowTests.Selection(answer, "q"), Ct);
-        Assert.True(branch.Accepted, branch.Rejection?.ToString());
-        return branch.Child;
-    }
-
-    private static async Task<Message> AskAsync(ChatHarness h, ConversationId conversation, string question)
-    {
-        var sent = await h.Conversations.AskAsync(conversation, question, Ct);
-        Assert.True(sent.Accepted, sent.Rejection?.ToString());
-        return await h.WaitForAnswerAsync(sent.Answer!.Value);
-    }
-
-    private static async Task<Message> RetryAsync(ChatHarness h, ConversationId conversation, MessageId answer)
-    {
-        await ChatHarness.UntilAsync(() => !h.Generation.HasUnfinishedAnswer(conversation));
-        var sent = await h.Conversations.RetryAsync(conversation, answer, Ct);
-        Assert.True(sent.Accepted, sent.Rejection?.ToString());
-        return await h.WaitForAnswerAsync(sent.Answer!.Value);
-    }
-
-    private static async Task<SummaryNodeId> SummarizeAsync(ChatHarness h, ConversationId conversation)
-    {
-        var outcome = await h.SummaryService.SummarizeAsync(conversation, Ct);
-        Assert.True(outcome.Accepted, outcome.Rejection?.ToString());
-        await ChatHarness.UntilAsync(() => h.SummaryService.LatestTaskAsync(conversation, Ct).Result is { State: GenerationTaskState.Completed } s && s.Id == outcome.Task);
-        return (await h.SummaryService.ForConversationAsync(conversation, Ct))!.Node.Id;
     }
 }

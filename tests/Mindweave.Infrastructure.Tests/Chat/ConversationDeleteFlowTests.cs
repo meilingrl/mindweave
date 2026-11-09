@@ -296,7 +296,7 @@ public class ConversationDeleteFlowTests
         h.Health.Report(new StorageWriteException(StorageFailureKind.Full, "disk full", null));
         await Assert.ThrowsAsync<StorageWriteException>(() => h.ConversationDeletion.DeleteAsync(scope, Ct));
         Assert.Empty(h.Database.ListBackups());
-        await UntilAsync(() => !h.Health.IsBlocked);
+        await ChatHarness.UntilAsync(() => !h.Health.IsBlocked);
 
         Assert.Equal(ConversationDeleteStatus.Deleted, (await h.ConversationDeletion.DeleteAsync(scope, Ct)).Status);
         Assert.Equal(ConversationDeleteStatus.Missing, (await h.ConversationDeletion.DeleteAsync(scope, Ct)).Status);
@@ -394,16 +394,6 @@ public class ConversationDeleteFlowTests
         while (await h.Database.ReadAsync(c => c.Scalar<long>(null, "SELECT revision FROM message WHERE id = $id;", ("$id", answer.ToString())), Ct) == 0)
         {
             await Task.Delay(10, Ct);
-        }
-    }
-
-    private static async Task UntilAsync(Func<bool> condition)
-    {
-        var deadline = DateTime.UtcNow.AddSeconds(5);
-        while (!condition())
-        {
-            Assert.True(DateTime.UtcNow < deadline, "condition not reached");
-            await Task.Delay(20, Ct);
         }
     }
 

@@ -35,9 +35,9 @@ public sealed class TransactionKillTests : IDisposable
         MessageId source;
         await using (var h = await ChatHarness.StartAsync(directory: _dir))
         {
-            var (root, rootAnswer) = await RootWithAnswerAsync(h, "根");
-            parent = await BranchAsync(h, root, rootAnswer);
-            source = (await AskAsync(h, parent, "子问")).Id;
+            var (root, rootAnswer) = await h.RootWithAnswerAsync("根");
+            parent = await h.BranchAsync(root, rootAnswer);
+            source = (await h.AskAsync(parent, "子问")).Id;
             await h.SettleAsync(parent);
         }
 
@@ -62,11 +62,11 @@ public sealed class TransactionKillTests : IDisposable
         SummaryVersionId current, candidate;
         await using (var h = await ChatHarness.StartAsync(directory: _dir))
         {
-            var (conversation, _) = await RootWithAnswerAsync(h, "火车是怎么发明的？");
-            node = await SummarizeAsync(h, conversation);
+            var (conversation, _) = await h.RootWithAnswerAsync("火车是怎么发明的？");
+            node = await h.SummarizeAsync(conversation);
             current = (await h.SummaryService.GetAsync(node, Ct))!.Node.Current;
             await h.SummaryService.SetReadAsync(node, current, read: true, Ct);
-            await SummarizeAsync(h, conversation);
+            await h.SummarizeAsync(conversation);
             candidate = (await h.SummaryService.GetAsync(node, Ct))!.Node.Pending!.Value;
             await h.SettleAsync(conversation);
         }
@@ -92,8 +92,8 @@ public sealed class TransactionKillTests : IDisposable
         SummaryVersionId first, second, third;
         await using (var h = await ChatHarness.StartAsync(directory: _dir))
         {
-            var (conversation, _) = await RootWithAnswerAsync(h, "火车是怎么发明的？");
-            node = await SummarizeAsync(h, conversation);
+            var (conversation, _) = await h.RootWithAnswerAsync("火车是怎么发明的？");
+            node = await h.SummarizeAsync(conversation);
             first = (await h.SummaryService.GetAsync(node, Ct))!.Node.Current;
             second = await SummarizeAndAdoptAsync(h, conversation, node);
             third = await SummarizeAndAdoptAsync(h, conversation, node);
@@ -129,10 +129,10 @@ public sealed class TransactionKillTests : IDisposable
         await using (var h = await ChatHarness.StartAsync(directory: _dir))
         {
             Message rootAnswer;
-            (root, rootAnswer) = await RootWithAnswerAsync(h, "根");
-            child = await BranchAsync(h, root, rootAnswer);
-            var childAnswer = await AskAsync(h, child, "子问");
-            grandchild = await BranchAsync(h, child, childAnswer);
+            (root, rootAnswer) = await h.RootWithAnswerAsync("根");
+            child = await h.BranchAsync(root, rootAnswer);
+            var childAnswer = await h.AskAsync(child, "子问");
+            grandchild = await h.BranchAsync(child, childAnswer);
             await h.SettleAsync(child);
 
             // Queued behind the coordinator's back, so they are still queued when the archive runs (MW-C14).
@@ -168,10 +168,10 @@ public sealed class TransactionKillTests : IDisposable
         await using (var h = await ChatHarness.StartAsync(directory: _dir))
         {
             Message rootAnswer;
-            (root, rootAnswer) = await RootWithAnswerAsync(h, "根");
-            child = await BranchAsync(h, root, rootAnswer);
-            var childAnswer = await AskAsync(h, child, "子问");
-            grandchild = await BranchAsync(h, child, childAnswer);
+            (root, rootAnswer) = await h.RootWithAnswerAsync("根");
+            child = await h.BranchAsync(root, rootAnswer);
+            var childAnswer = await h.AskAsync(child, "子问");
+            grandchild = await h.BranchAsync(child, childAnswer);
             await h.SettleAsync(child);
             Assert.True((await h.Conversations.ArchiveAsync(child, Ct)).Archived);
             Assert.True((await h.Conversations.ArchiveAsync(root, Ct)).Archived);
@@ -198,12 +198,12 @@ public sealed class TransactionKillTests : IDisposable
         await using (var h = await ChatHarness.StartAsync(directory: _dir))
         {
             Message rootAnswer;
-            (root, rootAnswer) = await RootWithAnswerAsync(h, "根");
-            child = await BranchAsync(h, root, rootAnswer);
+            (root, rootAnswer) = await h.RootWithAnswerAsync("根");
+            child = await h.BranchAsync(root, rootAnswer);
             h.Client.Fail(GenerationErrorKind.ServerError);
-            var failed = await AskAsync(h, child, "子问");
-            var retried = await RetryAsync(h, child, failed.Id);
-            var regenerated = await RetryAsync(h, child, retried.Id);
+            var failed = await h.AskAsync(child, "子问");
+            var retried = await h.RetryAsync(child, failed.Id);
+            var regenerated = await h.RetryAsync(child, retried.Id);
             Assert.Equal(retried.Id, regenerated.Supersedes);
             await ChatHarness.UntilAsync(() => h.Generation.UnfinishedCount == 0);
             h.Reading.SetDraft(child, ViewerSlotKey.Primary, "没发出去的草稿");
@@ -297,8 +297,8 @@ public sealed class TransactionKillTests : IDisposable
             var placed = new Dictionary<SummaryNodeId, Application.Storage.NodePosition>();
             for (var i = 0; i < Nodes; i++)
             {
-                var (conversation, _) = await RootWithAnswerAsync(h, $"问题 {i}");
-                var node = await SummarizeAsync(h, conversation);
+                var (conversation, _) = await h.RootWithAnswerAsync($"问题 {i}");
+                var node = await h.SummarizeAsync(conversation);
                 await h.SettleAsync(conversation);
                 if (i % 4 == 0)
                 {
@@ -440,46 +440,9 @@ public sealed class TransactionKillTests : IDisposable
         return await CountAsync(database, sql, parameters);
     }
 
-    private static async Task<(ConversationId Root, Message Answer)> RootWithAnswerAsync(ChatHarness h, string question)
-    {
-        var sent = await h.Conversations.StartAsync(h.Workspace, question, Ct);
-        return (sent.Conversation, await h.WaitForAnswerAsync(sent.Answer!.Value));
-    }
-
-    private static async Task<ConversationId> BranchAsync(ChatHarness h, ConversationId parent, Message answer)
-    {
-        var branch = await h.Conversations.CreateBranchAsync(parent, BranchFlowTests.Selection(answer, "q"), Ct);
-        Assert.True(branch.Accepted, branch.Rejection?.ToString());
-        return branch.Child;
-    }
-
-    private static async Task<Message> AskAsync(ChatHarness h, ConversationId conversation, string question)
-    {
-        var sent = await h.Conversations.AskAsync(conversation, question, Ct);
-        Assert.True(sent.Accepted, sent.Rejection?.ToString());
-        return await h.WaitForAnswerAsync(sent.Answer!.Value);
-    }
-
-    private static async Task<Message> RetryAsync(ChatHarness h, ConversationId conversation, MessageId answer)
-    {
-        await ChatHarness.UntilAsync(() => !h.Generation.HasUnfinishedAnswer(conversation));
-        var sent = await h.Conversations.RetryAsync(conversation, answer, Ct);
-        Assert.True(sent.Accepted, sent.Rejection?.ToString());
-        return await h.WaitForAnswerAsync(sent.Answer!.Value);
-    }
-
-    /// <summary>Summarizes and waits until the task completed; returns the node.</summary>
-    private static async Task<SummaryNodeId> SummarizeAsync(ChatHarness h, ConversationId conversation)
-    {
-        var outcome = await h.SummaryService.SummarizeAsync(conversation, Ct);
-        Assert.True(outcome.Accepted, outcome.Rejection?.ToString());
-        await ChatHarness.UntilAsync(() => h.SummaryService.LatestTaskAsync(conversation, Ct).Result is { State: GenerationTaskState.Completed } s && s.Id == outcome.Task);
-        return (await h.SummaryService.ForConversationAsync(conversation, Ct))!.Node.Id;
-    }
-
     private static async Task<SummaryVersionId> SummarizeAndAdoptAsync(ChatHarness h, ConversationId conversation, SummaryNodeId node)
     {
-        await SummarizeAsync(h, conversation);
+        await h.SummarizeAsync(conversation);
         var candidate = (await h.SummaryService.GetAsync(node, Ct))!.Node.Pending!.Value;
         await h.SummaryService.AdoptAsync(node, candidate, Ct);
         return candidate;
