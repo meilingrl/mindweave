@@ -1,9 +1,6 @@
 using System.Collections.Concurrent;
 using Microsoft.Extensions.Logging;
-using Mindweave.Application.Ai;
-using Mindweave.Application.Diagnostics;
 using Mindweave.Application.Storage;
-using Mindweave.Core.Context;
 using Mindweave.Core.Conversations;
 
 namespace Mindweave.Application.Conversations;
@@ -30,6 +27,7 @@ public sealed partial class GenerationCoordinator : IGenerationExit, IGeneration
     private readonly StorageHealth _health;
     private readonly TerminalWrites _writes;
     private readonly AnswerRunner _answers;
+    private readonly TaskRunners _tasks;
 
     private bool _closed;
     private int _shutDown;
@@ -51,6 +49,7 @@ public sealed partial class GenerationCoordinator : IGenerationExit, IGeneration
         _logger = logger;
         _writes = new TerminalWrites(health, logger);
         _answers = new AnswerRunner(store, requests, _writes, health, clock, options, this, logger);
+        _tasks = new TaskRunners(store, requests, _writes, health, clock, this, logger);
         health.Changed += (_, _) =>
         {
             // Accepted work never sent waits while storage is blocked (D2) and starts once it recovers.
@@ -456,13 +455,13 @@ public sealed partial class GenerationCoordinator : IGenerationExit, IGeneration
                     await _answers.RunAsync(answer, running.Cancellation.Token).ConfigureAwait(false);
                     break;
                 case TitleWork title:
-                    await RunTitleAsync(title, running.Cancellation.Token).ConfigureAwait(false);
+                    await _tasks.RunTitleAsync(title, running.Cancellation.Token).ConfigureAwait(false);
                     break;
                 case SummaryWork summary:
-                    await RunSummaryAsync(summary, running.Cancellation.Token).ConfigureAwait(false);
+                    await _tasks.RunSummaryAsync(summary, running.Cancellation.Token).ConfigureAwait(false);
                     break;
                 case NamingWork naming:
-                    await RunNamingAsync(naming, running.Cancellation.Token).ConfigureAwait(false);
+                    await _tasks.RunNamingAsync(naming, running.Cancellation.Token).ConfigureAwait(false);
                     break;
             }
         }
@@ -482,179 +481,6 @@ public sealed partial class GenerationCoordinator : IGenerationExit, IGeneration
             // The token source is not disposed: a concurrent StopAsync may still cancel it after the run ends.
             Pump();
             RaiseChanged();
-        }
-    }
-
-    private async Task RunTitleAsync(TitleWork work, CancellationToken stop)
-    {
-        var task = work.Task;
-        if (await _writes.SaveAsync(() => _store.MarkRunningAsync(task.Id, null, _clock.UtcNow, CancellationToken.None)).ConfigureAwait(false) != SaveResult.Applied)
-        {
-            return;
-        }
-
-        var key = await _requests.ReadKeyAsync(task).ConfigureAwait(false);
-        if (key.Error is { } keyError)
-        {
-            await _writes.SaveAsync(() => _requests.FinishTaskAsync(task.Id, GenerationTaskState.Failed, keyError, key.Detail)).ConfigureAwait(false);
-            return;
-        }
-
-        try
-        {
-            // Like summaries and naming, a title is used only from a normal, non-empty finish; a cut-off one is not.
-            var (output, problem) = await _requests.RequestCompleteTextAsync(task, work.Request, key.Secret!, stop).ConfigureAwait(false);
-            var title = output is null ? null : ConversationRules.CleanGeneratedTitle(output);
-            if (title is not null)
-            {
-                if (await _writes.SaveAsync(() => _store.SetAutoTitleAsync(task.ConversationId, title, _clock.UtcNow, CancellationToken.None)).ConfigureAwait(false) == SaveResult.Applied)
-                {
-                    TitleSaved?.Invoke(this, task.ConversationId);
-                }
-            }
-
-            await _writes.SaveAsync(() => _requests.FinishTaskAsync(task.Id, title is null ? GenerationTaskState.Failed : GenerationTaskState.Completed, title is null ? GenerationErrorKind.InvalidResponse : null, title is null ? problem : null))
-                .ConfigureAwait(false);
-        }
-        catch (OperationCanceledException) when (stop.IsCancellationRequested)
-        {
-            await _writes.SaveAsync(() => _requests.FinishTaskAsync(task.Id, GenerationTaskState.Stopped, null, null)).ConfigureAwait(false);
-            TitleAbandoned?.Invoke(this, task.ConversationId);
-        }
-        catch (ChatClientException ex)
-        {
-            // Titles are best effort: keep the current name, never retry automatically.
-            await _writes.SaveAsync(() => _requests.FinishTaskAsync(task.Id, GenerationTaskState.Failed, ex.Kind, ex.Message)).ConfigureAwait(false);
-        }
-        catch (StorageAdmissionRefusedException ex)
-        {
-            await _writes.SaveAsync(() => _requests.FinishTaskAsync(task.Id, GenerationTaskState.Failed, GenerationErrorKind.StorageUnavailable, ex.Message)).ConfigureAwait(false);
-        }
-    }
-
-    private async Task RunSummaryAsync(SummaryWork work, CancellationToken stop)
-    {
-        var task = work.Task;
-        try
-        {
-            if (await _writes.SaveAsync(() => _store.MarkRunningAsync(task.Id, null, _clock.UtcNow, CancellationToken.None)).ConfigureAwait(false) != SaveResult.Applied)
-            {
-                return;
-            }
-
-            var key = await _requests.ReadKeyAsync(task).ConfigureAwait(false);
-            if (key.Error is { } keyError)
-            {
-                await _writes.SaveAsync(() => _requests.FinishTaskAsync(task.Id, GenerationTaskState.Failed, keyError, key.Detail)).ConfigureAwait(false);
-                return;
-            }
-
-            var request = work.Request;
-            if (work.Plan is { IsCompressed: true } plan)
-            {
-                var prepared = await _requests.PrepareCompressedAsync(task, plan, work.Budget, key.Secret!, stop).ConfigureAwait(false);
-                request = request with { Turns = [.. request.Turns.TakeWhile(t => t.Role == ChatRole.System), .. prepared.Turns] };
-                await _requests.RecordCompressedInputAsync(task.Id, prepared.SummaryIds).ConfigureAwait(false);
-            }
-
-            var (output, problem) = await _requests.RequestCompleteTextAsync(task, request, key.Secret!, stop).ConfigureAwait(false);
-            if (output is null)
-            {
-                await _writes.SaveAsync(() => _requests.FinishTaskAsync(task.Id, GenerationTaskState.Failed, GenerationErrorKind.InvalidResponse, problem)).ConfigureAwait(false);
-                return;
-            }
-
-            SummarySaveResult saved;
-            try
-            {
-                saved = await work.Save(output).ConfigureAwait(false);
-            }
-#pragma warning disable CA1031 // The version could not be stored: the task fails visibly and keeps nothing.
-            catch (Exception ex)
-#pragma warning restore CA1031
-            {
-                LogSummaryNotSaved(_logger, ex, task.Id);
-
-                // Only storage refusing writes pauses requests; any other error is a defect that fails this task (the
-                // version was not stored) without pausing everything else.
-                if (ex is StorageWriteException storage)
-                {
-                    _health.Report(storage);
-                }
-
-                await _writes.SaveAsync(() => _requests.FinishTaskAsync(task.Id, GenerationTaskState.Failed, GenerationErrorKind.StorageUnavailable, ex.Message), retryOnFailure: true).ConfigureAwait(false);
-                return;
-            }
-
-            if (saved == SummarySaveResult.Unusable)
-            {
-                await _writes.SaveAsync(() => _requests.FinishTaskAsync(task.Id, GenerationTaskState.Failed, GenerationErrorKind.InvalidResponse, "总结缺少标题或正文。")).ConfigureAwait(false);
-            }
-        }
-        catch (OperationCanceledException) when (stop.IsCancellationRequested)
-        {
-            await _writes.SaveAsync(() => _requests.FinishTaskAsync(task.Id, GenerationTaskState.Stopped, null, null)).ConfigureAwait(false);
-        }
-        catch (ContextCompressionException ex)
-        {
-            await _writes.SaveAsync(() => _requests.FinishTaskAsync(task.Id, GenerationTaskState.Failed, GenerationErrorKind.CompressionFailed, ex.Message)).ConfigureAwait(false);
-        }
-        catch (ChatClientException ex)
-        {
-            await _writes.SaveAsync(() => _requests.FinishTaskAsync(task.Id, GenerationTaskState.Failed, ex.Kind, ex.Message)).ConfigureAwait(false);
-        }
-        catch (StorageAdmissionRefusedException ex)
-        {
-            await _writes.SaveAsync(() => _requests.FinishTaskAsync(task.Id, GenerationTaskState.Failed, GenerationErrorKind.StorageUnavailable, ex.Message)).ConfigureAwait(false);
-        }
-        finally
-        {
-            SummaryTaskFinished?.Invoke(this, task);
-        }
-    }
-
-    private async Task RunNamingAsync(NamingWork work, CancellationToken stop)
-    {
-        var task = work.Task;
-        try
-        {
-            if (await _writes.SaveAsync(() => _store.MarkRunningAsync(task.Id, null, _clock.UtcNow, CancellationToken.None)).ConfigureAwait(false) != SaveResult.Applied)
-            {
-                return;
-            }
-
-            var key = await _requests.ReadKeyAsync(task).ConfigureAwait(false);
-            if (key.Error is { } keyError)
-            {
-                await _writes.SaveAsync(() => _requests.FinishTaskAsync(task.Id, GenerationTaskState.Failed, keyError, key.Detail)).ConfigureAwait(false);
-                return;
-            }
-
-            // Names are best effort: a failure keeps the current names and is never retried automatically.
-            var (output, problem) = await _requests.RequestCompleteTextAsync(task, work.Request, key.Secret!, stop).ConfigureAwait(false);
-            if (output is not null)
-            {
-                await work.Apply(output).ConfigureAwait(false);
-            }
-
-            await _writes.SaveAsync(() => _requests.FinishTaskAsync(task.Id, output is null ? GenerationTaskState.Failed : GenerationTaskState.Completed, output is null ? GenerationErrorKind.InvalidResponse : null, problem))
-                .ConfigureAwait(false);
-        }
-        catch (OperationCanceledException) when (stop.IsCancellationRequested)
-        {
-            await _writes.SaveAsync(() => _requests.FinishTaskAsync(task.Id, GenerationTaskState.Stopped, null, null)).ConfigureAwait(false);
-        }
-        catch (ChatClientException ex)
-        {
-            await _writes.SaveAsync(() => _requests.FinishTaskAsync(task.Id, GenerationTaskState.Failed, ex.Kind, ex.Message)).ConfigureAwait(false);
-        }
-        catch (StorageAdmissionRefusedException ex)
-        {
-            await _writes.SaveAsync(() => _requests.FinishTaskAsync(task.Id, GenerationTaskState.Failed, GenerationErrorKind.StorageUnavailable, ex.Message)).ConfigureAwait(false);
-        }
-        finally
-        {
-            SummaryTaskFinished?.Invoke(this, task);
         }
     }
 
@@ -680,9 +506,6 @@ public sealed partial class GenerationCoordinator : IGenerationExit, IGeneration
 
         public Task Completion { get; set; } = Task.CompletedTask;
     }
-
-    [LoggerMessage(Level = LogLevel.Error, Message = "Summary of task {TaskId} could not be stored")]
-    private static partial void LogSummaryNotSaved(ILogger logger, Exception exception, GenerationTaskId taskId);
 
     [LoggerMessage(Level = LogLevel.Warning, Message = "{Count} stopped tasks did not finish within the exit wait; their last checkpoints stand")]
     private static partial void LogStopTimedOut(ILogger logger, int count);
