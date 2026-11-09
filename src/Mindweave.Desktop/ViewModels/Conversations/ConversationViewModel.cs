@@ -499,11 +499,7 @@ public sealed partial class ConversationViewModel : PageViewModel, IDisposable
         }
     }
 
-    private async Task<IReadOnlyList<string>> TitlesAsync(IReadOnlyList<ConversationId> ids)
-    {
-        var rows = (await _conversations.ListAsync(_workspace, CancellationToken.None)).ToDictionary(r => r.Conversation.Id);
-        return [.. ids.Select(id => rows.TryGetValue(id, out var row) ? UiText.ConversationTitle(row.Conversation, row.FirstQuestion, row.Quote) : UiText.NewConversation)];
-    }
+    private Task<IReadOnlyList<string>> TitlesAsync(IEnumerable<ConversationId> ids) => ConversationArchiving.TitlesAsync(_conversations, _workspace, ids);
 
     /// <summary>Summarize the conversation as it is now; it can be done at any stage and chatting continues (§6.4).</summary>
     [RelayCommand(CanExecute = nameof(CanSummarize))]

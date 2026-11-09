@@ -29,37 +29,6 @@ public sealed class ConversationDeletionRequests : IConversationDeletionPrompt
     internal void Complete(IReadOnlyList<ConversationId> selected) => Completed?.Invoke(this, selected);
 }
 
-/// <summary>Archiving several conversations in one go, as the sidebar's bar and the delete dialog's "改为归档" do.</summary>
-internal static class ConversationArchiving
-{
-    /// <summary>
-    /// Archives each of <paramref name="roots"/> (each with its whole subtree, as a single archive does). Returns the
-    /// ones refused because an answer or summary in them runs, and whether storage refused; it goes on past refusals.
-    /// </summary>
-    public static async Task<(List<ConversationId> Busy, bool StorageFailed)> ArchiveAllAsync(IConversations conversations, IEnumerable<ConversationId> roots)
-    {
-        var busy = new List<ConversationId>();
-        foreach (var root in roots)
-        {
-            try
-            {
-                var outcome = await conversations.ArchiveAsync(root, CancellationToken.None);
-                busy.AddRange(outcome.Busy);
-            }
-            catch (StorageWriteException)
-            {
-                return (busy, true);
-            }
-        }
-
-        return (busy, false);
-    }
-
-    public static async Task<Dictionary<ConversationId, string>> TitlesAsync(IConversations conversations, WorkspaceId workspace) =>
-        (await conversations.ListAsync(workspace, CancellationToken.None))
-            .ToDictionary(r => r.Conversation.Id, r => UiText.ConversationTitle(r.Conversation, r.FirstQuestion, r.Quote));
-}
-
 /// <summary>
 /// The delete confirmation for a conversation that takes branches or summaries along, or for a sidebar selection
 /// (requirements v0.12 §8.2): one sentence with the counts, "改为归档" as the alternative, "删除" in the danger colour and
@@ -283,8 +252,7 @@ public sealed partial class ConversationDeletionViewModel : ViewModelBase
         }
         else if (result.Busy.Count > 0)
         {
-            var titles = await ConversationArchiving.TitlesAsync(_conversations, _workspace);
-            Problem = UiText.ArchiveRefused([.. result.Busy.Select(id => titles.GetValueOrDefault(id, UiText.NewConversation))]);
+            Problem = UiText.ArchiveRefused(await ConversationArchiving.TitlesAsync(_conversations, _workspace, result.Busy));
         }
         else
         {
