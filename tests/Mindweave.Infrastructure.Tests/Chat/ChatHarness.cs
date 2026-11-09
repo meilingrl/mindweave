@@ -27,12 +27,12 @@ internal sealed class ChatHarness : IAsyncDisposable
     // Not disposed itself: DisposeAsync tears the services down in the order the stores need (flushes before the database).
     private readonly ServiceProvider _services;
 
-    private ChatHarness(TempDataDirectory dir, bool ownsDirectory, Func<IConversationStore, IConversationStore>? wrapStore, IChatClient? client, SqliteDatabaseOptions? databaseOptions)
+    private ChatHarness(TempDataDirectory dir, bool ownsDirectory, Func<IConversationStore, IConversationStore>? wrapStore, IChatClient? client, SqliteDatabaseOptions? databaseOptions, int? slots)
     {
         ActiveClient = client ?? Client;
         _dir = dir;
         _ownsDirectory = ownsDirectory;
-        _services = BuildServices(dir.Paths, ActiveClient, Credentials, wrapStore, databaseOptions);
+        _services = BuildServices(dir.Paths, ActiveClient, Credentials, wrapStore, databaseOptions, slots);
         Database = _services.GetRequiredService<SqliteDatabase>();
         Store = _services.GetRequiredService<SqliteConversationStore>();
         Settings = (SqliteModelSettingsStore)_services.GetRequiredService<IModelSettingsStore>();
@@ -116,10 +116,11 @@ internal sealed class ChatHarness : IAsyncDisposable
         Func<IConversationStore, IConversationStore>? wrapStore = null,
         IChatClient? client = null,
         ModelSettingsInput? model = null,
-        SqliteDatabaseOptions? databaseOptions = null)
+        SqliteDatabaseOptions? databaseOptions = null,
+        int? slots = null)
     {
         var dir = directory ?? new TempDataDirectory();
-        var harness = new ChatHarness(dir, directory is null, wrapStore, client, databaseOptions);
+        var harness = new ChatHarness(dir, directory is null, wrapStore, client, databaseOptions, slots);
         Assert.True((await harness.Database.OpenAsync(CancellationToken.None)).IsReady);
         var workspace = new Workspace(WorkspaceId.New(), WorkspaceName.FromStored("测试"), DateTimeOffset.UtcNow);
         await new SqliteWorkspaceStore(harness.Database).AddAsync(workspace, CancellationToken.None);
@@ -228,7 +229,8 @@ internal sealed class ChatHarness : IAsyncDisposable
         IChatClient client,
         ICredentialStore credentials,
         Func<IConversationStore, IConversationStore>? wrapStore,
-        SqliteDatabaseOptions? databaseOptions)
+        SqliteDatabaseOptions? databaseOptions,
+        int? slots)
     {
         var services = new ServiceCollection();
         services.AddSingleton(typeof(ILogger<>), typeof(NullLogger<>));
@@ -237,7 +239,9 @@ internal sealed class ChatHarness : IAsyncDisposable
         services.AddSingleton(client);
         services.AddSingleton(credentials);
         services.AddSingleton(new StorageHealthOptions { RetryInterval = TimeSpan.FromMilliseconds(50) });
-        services.AddSingleton(new GenerationOptions { CheckpointInterval = TimeSpan.FromMilliseconds(50) });
+        services.AddSingleton(slots is { } count
+            ? new GenerationOptions { CheckpointInterval = TimeSpan.FromMilliseconds(50), Slots = count }
+            : new GenerationOptions { CheckpointInterval = TimeSpan.FromMilliseconds(50) });
         if (databaseOptions is not null)
         {
             services.AddSingleton(databaseOptions);
