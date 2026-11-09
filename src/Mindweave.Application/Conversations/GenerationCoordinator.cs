@@ -33,17 +33,8 @@ public sealed partial class GenerationCoordinator : IGenerationExit, IAsyncDispo
     private readonly Dictionary<GenerationTaskId, Running> _running = [];
     private readonly ConcurrentDictionary<MessageId, LiveAnswer> _live = new();
     private readonly StorageHealth _health;
+    private readonly TerminalWrites _writes;
 
-    // Terminal writes that storage refused, each with its obligation: storage does not count as recovered until they are saved.
-    private readonly ConcurrentQueue<KeptWrite> _unsaved = new();
-
-    // Terminal writes that failed for a reason other than storage (a defect): kept so the exit reports them unsaved, but
-    // they neither pause requests nor hold up recovery, which only storage itself can bring about.
-    private readonly ConcurrentQueue<KeptWrite> _unsavedDefects = new();
-
-    // One pass over the failed terminal writes at a time: the recovery retry and an exit's final save must not
-    // overlap, or the exit could see an empty queue while a dequeued write is still failing.
-    private readonly SemaphoreSlim _flushGate = new(1, 1);
     private bool _closed;
     private int _shutDown;
 
@@ -68,7 +59,7 @@ public sealed partial class GenerationCoordinator : IGenerationExit, IAsyncDispo
         _options = options;
         _logger = logger;
         _compressor = compressor;
-        health.RegisterRetry(_ => FlushUnsavedAsync());
+        _writes = new TerminalWrites(health, logger);
         health.Changed += (_, _) =>
         {
             // Accepted work never sent waits while storage is blocked (D2) and starts once it recovers.
@@ -264,7 +255,7 @@ public sealed partial class GenerationCoordinator : IGenerationExit, IAsyncDispo
 
         if (queued is not null)
         {
-            await SaveAsync(() => FinishTask(task, GenerationTaskState.Cancelled, null, null)).ConfigureAwait(false);
+            await _writes.SaveAsync(() => FinishTask(task, GenerationTaskState.Cancelled, null, null)).ConfigureAwait(false);
             SummaryTaskFinished?.Invoke(this, queued.Task);
             RaiseChanged();
         }
@@ -297,7 +288,7 @@ public sealed partial class GenerationCoordinator : IGenerationExit, IAsyncDispo
 
         foreach (var work in queued)
         {
-            await SaveAsync(() => FinishTask(work.Task.Id, GenerationTaskState.Cancelled, null, null)).ConfigureAwait(false);
+            await _writes.SaveAsync(() => FinishTask(work.Task.Id, GenerationTaskState.Cancelled, null, null)).ConfigureAwait(false);
             if (work is TitleWork)
             {
                 TitleAbandoned?.Invoke(this, work.Task.ConversationId);
@@ -349,7 +340,7 @@ public sealed partial class GenerationCoordinator : IGenerationExit, IAsyncDispo
                     await CancelQueuedAsync(answer).ConfigureAwait(false);
                     break;
                 default:
-                    await SaveAsync(() => FinishTask(work.Task.Id, GenerationTaskState.Cancelled, null, null)).ConfigureAwait(false);
+                    await _writes.SaveAsync(() => FinishTask(work.Task.Id, GenerationTaskState.Cancelled, null, null)).ConfigureAwait(false);
                     if (work is TitleWork)
                     {
                         TitleAbandoned?.Invoke(this, work.Task.ConversationId);
@@ -400,7 +391,7 @@ public sealed partial class GenerationCoordinator : IGenerationExit, IAsyncDispo
     }
 
     /// <summary>Tries the terminal writes that failed earlier once more, now. True when none is left unsaved.</summary>
-    public Task<bool> SaveUnsavedAsync() => FlushUnsavedAsync(includeDefects: true);
+    public Task<bool> SaveUnsavedAsync() => _writes.FlushAsync(includeDefects: true);
 
     /// <summary>
     /// Final stop when the process ends: <see cref="StopForExitAsync"/> (bounded by <paramref name="wait"/>, unbounded
@@ -414,14 +405,14 @@ public sealed partial class GenerationCoordinator : IGenerationExit, IAsyncDispo
         }
 
         await StopForExitAsync(wait ?? Timeout.InfiniteTimeSpan).ConfigureAwait(false);
-        await FlushUnsavedAsync(includeDefects: true).ConfigureAwait(false);
+        await _writes.FlushAsync(includeDefects: true).ConfigureAwait(false);
         RaiseChanged();
     }
 
     public async ValueTask DisposeAsync()
     {
         await ShutdownAsync().ConfigureAwait(false);
-        _flushGate.Dispose();
+        _writes.Dispose();
     }
 
     private GenerationWork? RemoveQueued(Func<GenerationWork, bool> match)
@@ -508,7 +499,7 @@ public sealed partial class GenerationCoordinator : IGenerationExit, IAsyncDispo
         var live = work.Live;
         var task = work.Task;
 
-        var marked = await SaveAsync(() => _store.MarkRunningAsync(task.Id, live.MessageId, _clock.UtcNow, CancellationToken.None)).ConfigureAwait(false);
+        var marked = await _writes.SaveAsync(() => _store.MarkRunningAsync(task.Id, live.MessageId, _clock.UtcNow, CancellationToken.None)).ConfigureAwait(false);
         if (marked == SaveResult.NotApplied)
         {
             // Cancelled between dequeue and start; the cancellation already wrote the terminal state.
@@ -632,7 +623,7 @@ public sealed partial class GenerationCoordinator : IGenerationExit, IAsyncDispo
         var revision = live.Finish(state, error, detail);
         var snapshot = live.Snapshot();
         AnswerEnded?.Invoke(this, new AnswerOutcome(live.ConversationId, live.MessageId, state, snapshot.Text));
-        await SaveAsync(() => _store.FinishAnswerAsync(work.Task.Id, live.MessageId, snapshot.Blocks, revision, state, error, detail, _clock.UtcNow, CancellationToken.None), retryOnFailure: true)
+        await _writes.SaveAsync(() => _store.FinishAnswerAsync(work.Task.Id, live.MessageId, snapshot.Blocks, revision, state, error, detail, _clock.UtcNow, CancellationToken.None), retryOnFailure: true)
             .ConfigureAwait(false);
         LogAnswerFinished(_logger, work.Task.Id, state, error);
         AnswerFinished?.Invoke(this, new AnswerOutcome(live.ConversationId, live.MessageId, state, snapshot.Text));
@@ -641,7 +632,7 @@ public sealed partial class GenerationCoordinator : IGenerationExit, IAsyncDispo
     private async Task CancelQueuedAsync(AnswerWork work)
     {
         var revision = work.Live.Finish(MessageState.Cancelled, null, null);
-        await SaveAsync(
+        await _writes.SaveAsync(
                 () => _store.FinishAnswerAsync(work.Task.Id, work.Live.MessageId, ContentBlocks.FromText(string.Empty), revision, MessageState.Cancelled, null, null, _clock.UtcNow, CancellationToken.None),
                 retryOnFailure: true)
             .ConfigureAwait(false);
@@ -663,7 +654,7 @@ public sealed partial class GenerationCoordinator : IGenerationExit, IAsyncDispo
                 }
 
                 // One write at a time per answer: a slow disk coalesces checkpoints instead of queuing them.
-                if (await SaveAsync(() => _store.CheckpointAsync(live.MessageId, snapshot.Blocks, snapshot.Revision, CancellationToken.None)).ConfigureAwait(false) != SaveResult.Failed)
+                if (await _writes.SaveAsync(() => _store.CheckpointAsync(live.MessageId, snapshot.Blocks, snapshot.Revision, CancellationToken.None)).ConfigureAwait(false) != SaveResult.Failed)
                 {
                     written = snapshot.Revision;
                 }
@@ -677,7 +668,7 @@ public sealed partial class GenerationCoordinator : IGenerationExit, IAsyncDispo
     private async Task RunTitleAsync(TitleWork work, CancellationToken stop)
     {
         var task = work.Task;
-        if (await SaveAsync(() => _store.MarkRunningAsync(task.Id, null, _clock.UtcNow, CancellationToken.None)).ConfigureAwait(false) != SaveResult.Applied)
+        if (await _writes.SaveAsync(() => _store.MarkRunningAsync(task.Id, null, _clock.UtcNow, CancellationToken.None)).ConfigureAwait(false) != SaveResult.Applied)
         {
             return;
         }
@@ -685,7 +676,7 @@ public sealed partial class GenerationCoordinator : IGenerationExit, IAsyncDispo
         var key = await ReadKeyAsync(task).ConfigureAwait(false);
         if (key.Error is { } keyError)
         {
-            await SaveAsync(() => FinishTask(task.Id, GenerationTaskState.Failed, keyError, key.Detail)).ConfigureAwait(false);
+            await _writes.SaveAsync(() => FinishTask(task.Id, GenerationTaskState.Failed, keyError, key.Detail)).ConfigureAwait(false);
             return;
         }
 
@@ -696,28 +687,28 @@ public sealed partial class GenerationCoordinator : IGenerationExit, IAsyncDispo
             var title = output is null ? null : ConversationRules.CleanGeneratedTitle(output);
             if (title is not null)
             {
-                if (await SaveAsync(() => _store.SetAutoTitleAsync(task.ConversationId, title, _clock.UtcNow, CancellationToken.None)).ConfigureAwait(false) == SaveResult.Applied)
+                if (await _writes.SaveAsync(() => _store.SetAutoTitleAsync(task.ConversationId, title, _clock.UtcNow, CancellationToken.None)).ConfigureAwait(false) == SaveResult.Applied)
                 {
                     TitleSaved?.Invoke(this, task.ConversationId);
                 }
             }
 
-            await SaveAsync(() => FinishTask(task.Id, title is null ? GenerationTaskState.Failed : GenerationTaskState.Completed, title is null ? GenerationErrorKind.InvalidResponse : null, title is null ? problem : null))
+            await _writes.SaveAsync(() => FinishTask(task.Id, title is null ? GenerationTaskState.Failed : GenerationTaskState.Completed, title is null ? GenerationErrorKind.InvalidResponse : null, title is null ? problem : null))
                 .ConfigureAwait(false);
         }
         catch (OperationCanceledException) when (stop.IsCancellationRequested)
         {
-            await SaveAsync(() => FinishTask(task.Id, GenerationTaskState.Stopped, null, null)).ConfigureAwait(false);
+            await _writes.SaveAsync(() => FinishTask(task.Id, GenerationTaskState.Stopped, null, null)).ConfigureAwait(false);
             TitleAbandoned?.Invoke(this, task.ConversationId);
         }
         catch (ChatClientException ex)
         {
             // Titles are best effort: keep the current name, never retry automatically.
-            await SaveAsync(() => FinishTask(task.Id, GenerationTaskState.Failed, ex.Kind, ex.Message)).ConfigureAwait(false);
+            await _writes.SaveAsync(() => FinishTask(task.Id, GenerationTaskState.Failed, ex.Kind, ex.Message)).ConfigureAwait(false);
         }
         catch (StorageAdmissionRefusedException ex)
         {
-            await SaveAsync(() => FinishTask(task.Id, GenerationTaskState.Failed, GenerationErrorKind.StorageUnavailable, ex.Message)).ConfigureAwait(false);
+            await _writes.SaveAsync(() => FinishTask(task.Id, GenerationTaskState.Failed, GenerationErrorKind.StorageUnavailable, ex.Message)).ConfigureAwait(false);
         }
     }
 
@@ -726,7 +717,7 @@ public sealed partial class GenerationCoordinator : IGenerationExit, IAsyncDispo
         var task = work.Task;
         try
         {
-            if (await SaveAsync(() => _store.MarkRunningAsync(task.Id, null, _clock.UtcNow, CancellationToken.None)).ConfigureAwait(false) != SaveResult.Applied)
+            if (await _writes.SaveAsync(() => _store.MarkRunningAsync(task.Id, null, _clock.UtcNow, CancellationToken.None)).ConfigureAwait(false) != SaveResult.Applied)
             {
                 return;
             }
@@ -734,7 +725,7 @@ public sealed partial class GenerationCoordinator : IGenerationExit, IAsyncDispo
             var key = await ReadKeyAsync(task).ConfigureAwait(false);
             if (key.Error is { } keyError)
             {
-                await SaveAsync(() => FinishTask(task.Id, GenerationTaskState.Failed, keyError, key.Detail)).ConfigureAwait(false);
+                await _writes.SaveAsync(() => FinishTask(task.Id, GenerationTaskState.Failed, keyError, key.Detail)).ConfigureAwait(false);
                 return;
             }
 
@@ -750,7 +741,7 @@ public sealed partial class GenerationCoordinator : IGenerationExit, IAsyncDispo
             var (output, problem) = await RequestCompleteTextAsync(task, request, key.Secret!, stop).ConfigureAwait(false);
             if (output is null)
             {
-                await SaveAsync(() => FinishTask(task.Id, GenerationTaskState.Failed, GenerationErrorKind.InvalidResponse, problem)).ConfigureAwait(false);
+                await _writes.SaveAsync(() => FinishTask(task.Id, GenerationTaskState.Failed, GenerationErrorKind.InvalidResponse, problem)).ConfigureAwait(false);
                 return;
             }
 
@@ -772,30 +763,30 @@ public sealed partial class GenerationCoordinator : IGenerationExit, IAsyncDispo
                     _health.Report(storage);
                 }
 
-                await SaveAsync(() => FinishTask(task.Id, GenerationTaskState.Failed, GenerationErrorKind.StorageUnavailable, ex.Message), retryOnFailure: true).ConfigureAwait(false);
+                await _writes.SaveAsync(() => FinishTask(task.Id, GenerationTaskState.Failed, GenerationErrorKind.StorageUnavailable, ex.Message), retryOnFailure: true).ConfigureAwait(false);
                 return;
             }
 
             if (saved == SummarySaveResult.Unusable)
             {
-                await SaveAsync(() => FinishTask(task.Id, GenerationTaskState.Failed, GenerationErrorKind.InvalidResponse, "总结缺少标题或正文。")).ConfigureAwait(false);
+                await _writes.SaveAsync(() => FinishTask(task.Id, GenerationTaskState.Failed, GenerationErrorKind.InvalidResponse, "总结缺少标题或正文。")).ConfigureAwait(false);
             }
         }
         catch (OperationCanceledException) when (stop.IsCancellationRequested)
         {
-            await SaveAsync(() => FinishTask(task.Id, GenerationTaskState.Stopped, null, null)).ConfigureAwait(false);
+            await _writes.SaveAsync(() => FinishTask(task.Id, GenerationTaskState.Stopped, null, null)).ConfigureAwait(false);
         }
         catch (ContextCompressionException ex)
         {
-            await SaveAsync(() => FinishTask(task.Id, GenerationTaskState.Failed, GenerationErrorKind.CompressionFailed, ex.Message)).ConfigureAwait(false);
+            await _writes.SaveAsync(() => FinishTask(task.Id, GenerationTaskState.Failed, GenerationErrorKind.CompressionFailed, ex.Message)).ConfigureAwait(false);
         }
         catch (ChatClientException ex)
         {
-            await SaveAsync(() => FinishTask(task.Id, GenerationTaskState.Failed, ex.Kind, ex.Message)).ConfigureAwait(false);
+            await _writes.SaveAsync(() => FinishTask(task.Id, GenerationTaskState.Failed, ex.Kind, ex.Message)).ConfigureAwait(false);
         }
         catch (StorageAdmissionRefusedException ex)
         {
-            await SaveAsync(() => FinishTask(task.Id, GenerationTaskState.Failed, GenerationErrorKind.StorageUnavailable, ex.Message)).ConfigureAwait(false);
+            await _writes.SaveAsync(() => FinishTask(task.Id, GenerationTaskState.Failed, GenerationErrorKind.StorageUnavailable, ex.Message)).ConfigureAwait(false);
         }
         finally
         {
@@ -808,7 +799,7 @@ public sealed partial class GenerationCoordinator : IGenerationExit, IAsyncDispo
         var task = work.Task;
         try
         {
-            if (await SaveAsync(() => _store.MarkRunningAsync(task.Id, null, _clock.UtcNow, CancellationToken.None)).ConfigureAwait(false) != SaveResult.Applied)
+            if (await _writes.SaveAsync(() => _store.MarkRunningAsync(task.Id, null, _clock.UtcNow, CancellationToken.None)).ConfigureAwait(false) != SaveResult.Applied)
             {
                 return;
             }
@@ -816,7 +807,7 @@ public sealed partial class GenerationCoordinator : IGenerationExit, IAsyncDispo
             var key = await ReadKeyAsync(task).ConfigureAwait(false);
             if (key.Error is { } keyError)
             {
-                await SaveAsync(() => FinishTask(task.Id, GenerationTaskState.Failed, keyError, key.Detail)).ConfigureAwait(false);
+                await _writes.SaveAsync(() => FinishTask(task.Id, GenerationTaskState.Failed, keyError, key.Detail)).ConfigureAwait(false);
                 return;
             }
 
@@ -827,20 +818,20 @@ public sealed partial class GenerationCoordinator : IGenerationExit, IAsyncDispo
                 await work.Apply(output).ConfigureAwait(false);
             }
 
-            await SaveAsync(() => FinishTask(task.Id, output is null ? GenerationTaskState.Failed : GenerationTaskState.Completed, output is null ? GenerationErrorKind.InvalidResponse : null, problem))
+            await _writes.SaveAsync(() => FinishTask(task.Id, output is null ? GenerationTaskState.Failed : GenerationTaskState.Completed, output is null ? GenerationErrorKind.InvalidResponse : null, problem))
                 .ConfigureAwait(false);
         }
         catch (OperationCanceledException) when (stop.IsCancellationRequested)
         {
-            await SaveAsync(() => FinishTask(task.Id, GenerationTaskState.Stopped, null, null)).ConfigureAwait(false);
+            await _writes.SaveAsync(() => FinishTask(task.Id, GenerationTaskState.Stopped, null, null)).ConfigureAwait(false);
         }
         catch (ChatClientException ex)
         {
-            await SaveAsync(() => FinishTask(task.Id, GenerationTaskState.Failed, ex.Kind, ex.Message)).ConfigureAwait(false);
+            await _writes.SaveAsync(() => FinishTask(task.Id, GenerationTaskState.Failed, ex.Kind, ex.Message)).ConfigureAwait(false);
         }
         catch (StorageAdmissionRefusedException ex)
         {
-            await SaveAsync(() => FinishTask(task.Id, GenerationTaskState.Failed, GenerationErrorKind.StorageUnavailable, ex.Message)).ConfigureAwait(false);
+            await _writes.SaveAsync(() => FinishTask(task.Id, GenerationTaskState.Failed, GenerationErrorKind.StorageUnavailable, ex.Message)).ConfigureAwait(false);
         }
         finally
         {
@@ -958,115 +949,6 @@ public sealed partial class GenerationCoordinator : IGenerationExit, IAsyncDispo
         return true;
     }
 
-    private enum SaveResult
-    {
-        Applied,
-        NotApplied,
-        Failed,
-    }
-
-    /// <summary>
-    /// Runs one core write. A storage failure blocks new requests until storage recovers (see <see cref="StorageHealth"/>);
-    /// terminal writes are kept and retried in the background so a finished answer is not lost while the app runs. Any
-    /// other failure is a defect: the write is kept for the exit to report, and requests are not paused.
-    /// </summary>
-    private async Task<SaveResult> SaveAsync(Func<Task<bool>> write, bool retryOnFailure = false)
-    {
-        try
-        {
-            var applied = await write().ConfigureAwait(false);
-            return applied ? SaveResult.Applied : SaveResult.NotApplied;
-        }
-        catch (StorageWriteException ex)
-        {
-            if (retryOnFailure)
-            {
-                _unsaved.Enqueue(new KeptWrite(write, _health.Retain(ex)));
-            }
-            else
-            {
-                _health.Report(ex);
-            }
-
-            return SaveResult.Failed;
-        }
-#pragma warning disable CA1031 // A defect in one write must not take down the run; the content stays in memory and is reported.
-        catch (Exception ex)
-#pragma warning restore CA1031
-        {
-            LogWriteDefect(_logger, ex);
-            if (retryOnFailure)
-            {
-                _unsavedDefects.Enqueue(new KeptWrite(write, null));
-            }
-
-            return SaveResult.Failed;
-        }
-    }
-
-    /// <summary>
-    /// One pass over the failed terminal writes kept for storage. True when none is left unsaved at the end of this pass.
-    /// With <paramref name="includeDefects"/> (the exit's save) the writes that failed for other reasons are tried too
-    /// and count as unsaved; recovery leaves them alone, as storage coming back does not fix them.
-    /// </summary>
-    private async Task<bool> FlushUnsavedAsync(bool includeDefects = false)
-    {
-        await _flushGate.WaitAsync().ConfigureAwait(false);
-        try
-        {
-            await RetryAsync(_unsaved).ConfigureAwait(false);
-            if (includeDefects)
-            {
-                await RetryAsync(_unsavedDefects).ConfigureAwait(false);
-            }
-
-            // Read while no other pass can have a write out of the queue.
-            return _unsaved.IsEmpty && (!includeDefects || _unsavedDefects.IsEmpty);
-        }
-        finally
-        {
-            _flushGate.Release();
-        }
-    }
-
-    private async Task RetryAsync(ConcurrentQueue<KeptWrite> queue)
-    {
-        var count = queue.Count;
-        for (var i = 0; i < count && queue.TryDequeue(out var kept); i++)
-        {
-            // While it is out of the queue its obligation stays open, so recovery cannot be declared over it.
-            try
-            {
-                await kept.Write().ConfigureAwait(false);
-                kept.Obligation?.Resolve();
-            }
-            catch (StorageWriteException ex)
-            {
-                if (kept.Obligation is { IsResolved: false })
-                {
-                    _health.Report(ex);
-                    _unsaved.Enqueue(kept);
-                }
-                else
-                {
-                    _unsaved.Enqueue(kept with { Obligation = _health.Retain(ex) });
-                }
-            }
-#pragma warning disable CA1031 // Still failing: keep it for the next attempt.
-            catch (Exception ex)
-#pragma warning restore CA1031
-            {
-                // Storage is no longer what stops it; the content stays kept, now as a defect the exit reports.
-                LogWriteDefect(_logger, ex);
-                kept.Obligation?.Resolve();
-                _unsavedDefects.Enqueue(kept with { Obligation = null });
-            }
-        }
-    }
-
-    /// <summary>A terminal write kept after it failed, with the storage obligation it holds open (none for a defect).</summary>
-    private sealed record KeptWrite(Func<Task<bool>> Write, StorageObligation? Obligation);
-
     private void RaiseChanged() => Changed?.Invoke(this, EventArgs.Empty);
 
     private sealed class Running(GenerationWork work, CancellationTokenSource cancellation)
@@ -1080,9 +962,6 @@ public sealed partial class GenerationCoordinator : IGenerationExit, IAsyncDispo
 
     [LoggerMessage(Level = LogLevel.Information, Message = "Answer task {TaskId} finished as {State} ({Error})")]
     private static partial void LogAnswerFinished(ILogger logger, GenerationTaskId taskId, MessageState state, GenerationErrorKind? error);
-
-    [LoggerMessage(Level = LogLevel.Error, Message = "A core write failed for a reason other than storage; its content is kept in memory and reported at exit")]
-    private static partial void LogWriteDefect(ILogger logger, Exception exception);
 
     [LoggerMessage(Level = LogLevel.Error, Message = "Summary of task {TaskId} could not be stored")]
     private static partial void LogSummaryNotSaved(ILogger logger, Exception exception, GenerationTaskId taskId);
