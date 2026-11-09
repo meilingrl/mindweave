@@ -35,6 +35,7 @@ public static class ApplicationServices
         services.TryAddSingleton(new GenerationOptions());
         services.AddSingleton<ContextBudgets>();
         services.AddSingleton<ContextCompressor>();
+        services.AddSingleton<GenerationRequests>();
         services.AddSingleton<GenerationCoordinator>();
         services.AddSingleton<ModelSettingsService>();
         services.AddSingleton<ConversationService>();

@@ -1,12 +1,10 @@
 using System.Collections.Concurrent;
 using Microsoft.Extensions.Logging;
 using Mindweave.Application.Ai;
-using Mindweave.Application.Credentials;
 using Mindweave.Application.Diagnostics;
 using Mindweave.Application.Storage;
 using Mindweave.Core.Context;
 using Mindweave.Core.Conversations;
-using Mindweave.Core.Models;
 
 namespace Mindweave.Application.Conversations;
 
@@ -19,14 +17,10 @@ namespace Mindweave.Application.Conversations;
 public sealed partial class GenerationCoordinator : IGenerationExit, IAsyncDisposable
 {
     private readonly IConversationStore _store;
-    private readonly IChatClient _client;
-    private readonly ICredentialStore _credentials;
-    private readonly IAiRequestStore _requests;
-    private readonly ContextBudgets _budgets;
+    private readonly GenerationRequests _requests;
     private readonly IClock _clock;
     private readonly GenerationOptions _options;
     private readonly ILogger<GenerationCoordinator> _logger;
-    private readonly ContextCompressor? _compressor;
 
     private readonly Lock _gate = new();
     private readonly LinkedList<GenerationWork> _userQueue = new();
@@ -41,27 +35,19 @@ public sealed partial class GenerationCoordinator : IGenerationExit, IAsyncDispo
 
     public GenerationCoordinator(
         IConversationStore store,
-        IChatClient client,
-        ICredentialStore credentials,
-        IAiRequestStore requests,
-        ContextBudgets budgets,
+        GenerationRequests requests,
         StorageHealth health,
         IClock clock,
         GenerationOptions options,
-        ILogger<GenerationCoordinator> logger,
-        ContextCompressor? compressor = null)
+        ILogger<GenerationCoordinator> logger)
     {
         ArgumentNullException.ThrowIfNull(health);
         _store = store;
-        _client = client;
-        _credentials = credentials;
         _requests = requests;
-        _budgets = budgets;
         _health = health;
         _clock = clock;
         _options = options;
         _logger = logger;
-        _compressor = compressor;
         _writes = new TerminalWrites(health, logger);
         health.Changed += (_, _) =>
         {
@@ -258,7 +244,7 @@ public sealed partial class GenerationCoordinator : IGenerationExit, IAsyncDispo
 
         if (queued is not null)
         {
-            await _writes.SaveAsync(() => FinishTask(task, GenerationTaskState.Cancelled, null, null)).ConfigureAwait(false);
+            await _writes.SaveAsync(() => _requests.FinishTaskAsync(task, GenerationTaskState.Cancelled, null, null)).ConfigureAwait(false);
             SummaryTaskFinished?.Invoke(this, queued.Task);
             RaiseChanged();
         }
@@ -291,7 +277,7 @@ public sealed partial class GenerationCoordinator : IGenerationExit, IAsyncDispo
 
         foreach (var work in queued)
         {
-            await _writes.SaveAsync(() => FinishTask(work.Task.Id, GenerationTaskState.Cancelled, null, null)).ConfigureAwait(false);
+            await _writes.SaveAsync(() => _requests.FinishTaskAsync(work.Task.Id, GenerationTaskState.Cancelled, null, null)).ConfigureAwait(false);
             if (work is TitleWork)
             {
                 TitleAbandoned?.Invoke(this, work.Task.ConversationId);
@@ -343,7 +329,7 @@ public sealed partial class GenerationCoordinator : IGenerationExit, IAsyncDispo
                     await CancelQueuedAsync(answer).ConfigureAwait(false);
                     break;
                 default:
-                    await _writes.SaveAsync(() => FinishTask(work.Task.Id, GenerationTaskState.Cancelled, null, null)).ConfigureAwait(false);
+                    await _writes.SaveAsync(() => _requests.FinishTaskAsync(work.Task.Id, GenerationTaskState.Cancelled, null, null)).ConfigureAwait(false);
                     if (work is TitleWork)
                     {
                         TitleAbandoned?.Invoke(this, work.Task.ConversationId);
@@ -519,7 +505,7 @@ public sealed partial class GenerationCoordinator : IGenerationExit, IAsyncDispo
         live.MarkStreaming();
         RaiseChanged();
 
-        var key = await ReadKeyAsync(task).ConfigureAwait(false);
+        var key = await _requests.ReadKeyAsync(task).ConfigureAwait(false);
         if (key.Error is { } keyError)
         {
             await FinishAnswerAsync(work, MessageState.Failed, keyError, key.Detail).ConfigureAwait(false);
@@ -533,11 +519,10 @@ public sealed partial class GenerationCoordinator : IGenerationExit, IAsyncDispo
             live.SetPhase(AnswerPhase.Compressing);
             try
             {
-                var compressor = _compressor ?? throw new ContextCompressionException("No context compressor is configured.");
-                var prepared = await compressor.PrepareAsync(task, plan, work.Budget ?? await _budgets.BudgetForAsync(task.Model, CancellationToken.None).ConfigureAwait(false), key.Secret!, RecordAsync, stop, _health.TryAdmit).ConfigureAwait(false);
+                var prepared = await _requests.PrepareCompressedAsync(task, plan, work.Budget, key.Secret!, stop).ConfigureAwait(false);
                 request = request with { Turns = prepared.Turns };
                 live.SetPhase(AnswerPhase.Waiting);
-                await compressor.RecordTaskInputAsync(task.Id, prepared.SummaryIds).ConfigureAwait(false);
+                await _requests.RecordCompressedInputAsync(task.Id, prepared.SummaryIds).ConfigureAwait(false);
             }
             catch (OperationCanceledException) when (stop.IsCancellationRequested)
             {
@@ -573,7 +558,7 @@ public sealed partial class GenerationCoordinator : IGenerationExit, IAsyncDispo
         try
         {
             var completed = false;
-            await foreach (var item in _client.StreamAsync(request, key.Secret!, stop).ConfigureAwait(false))
+            await foreach (var item in _requests.StreamAsync(request, key.Secret!, stop).ConfigureAwait(false))
             {
                 trace.Observe(item);
                 switch (item)
@@ -617,7 +602,7 @@ public sealed partial class GenerationCoordinator : IGenerationExit, IAsyncDispo
         await checkpointStop.CancelAsync().ConfigureAwait(false);
         await checkpoints.ConfigureAwait(false);
         await FinishAnswerAsync(work, final, error, detail).ConfigureAwait(false);
-        await RecordAsync(trace.Finish(final == MessageState.Stopped, error, detail)).ConfigureAwait(false);
+        await _requests.RecordAsync(trace.Finish(final == MessageState.Stopped, error, detail)).ConfigureAwait(false);
     }
 
     private async Task FinishAnswerAsync(AnswerWork work, MessageState state, GenerationErrorKind? error, string? detail)
@@ -676,17 +661,17 @@ public sealed partial class GenerationCoordinator : IGenerationExit, IAsyncDispo
             return;
         }
 
-        var key = await ReadKeyAsync(task).ConfigureAwait(false);
+        var key = await _requests.ReadKeyAsync(task).ConfigureAwait(false);
         if (key.Error is { } keyError)
         {
-            await _writes.SaveAsync(() => FinishTask(task.Id, GenerationTaskState.Failed, keyError, key.Detail)).ConfigureAwait(false);
+            await _writes.SaveAsync(() => _requests.FinishTaskAsync(task.Id, GenerationTaskState.Failed, keyError, key.Detail)).ConfigureAwait(false);
             return;
         }
 
         try
         {
             // Like summaries and naming, a title is used only from a normal, non-empty finish; a cut-off one is not.
-            var (output, problem) = await RequestCompleteTextAsync(task, work.Request, key.Secret!, stop).ConfigureAwait(false);
+            var (output, problem) = await _requests.RequestCompleteTextAsync(task, work.Request, key.Secret!, stop).ConfigureAwait(false);
             var title = output is null ? null : ConversationRules.CleanGeneratedTitle(output);
             if (title is not null)
             {
@@ -696,22 +681,22 @@ public sealed partial class GenerationCoordinator : IGenerationExit, IAsyncDispo
                 }
             }
 
-            await _writes.SaveAsync(() => FinishTask(task.Id, title is null ? GenerationTaskState.Failed : GenerationTaskState.Completed, title is null ? GenerationErrorKind.InvalidResponse : null, title is null ? problem : null))
+            await _writes.SaveAsync(() => _requests.FinishTaskAsync(task.Id, title is null ? GenerationTaskState.Failed : GenerationTaskState.Completed, title is null ? GenerationErrorKind.InvalidResponse : null, title is null ? problem : null))
                 .ConfigureAwait(false);
         }
         catch (OperationCanceledException) when (stop.IsCancellationRequested)
         {
-            await _writes.SaveAsync(() => FinishTask(task.Id, GenerationTaskState.Stopped, null, null)).ConfigureAwait(false);
+            await _writes.SaveAsync(() => _requests.FinishTaskAsync(task.Id, GenerationTaskState.Stopped, null, null)).ConfigureAwait(false);
             TitleAbandoned?.Invoke(this, task.ConversationId);
         }
         catch (ChatClientException ex)
         {
             // Titles are best effort: keep the current name, never retry automatically.
-            await _writes.SaveAsync(() => FinishTask(task.Id, GenerationTaskState.Failed, ex.Kind, ex.Message)).ConfigureAwait(false);
+            await _writes.SaveAsync(() => _requests.FinishTaskAsync(task.Id, GenerationTaskState.Failed, ex.Kind, ex.Message)).ConfigureAwait(false);
         }
         catch (StorageAdmissionRefusedException ex)
         {
-            await _writes.SaveAsync(() => FinishTask(task.Id, GenerationTaskState.Failed, GenerationErrorKind.StorageUnavailable, ex.Message)).ConfigureAwait(false);
+            await _writes.SaveAsync(() => _requests.FinishTaskAsync(task.Id, GenerationTaskState.Failed, GenerationErrorKind.StorageUnavailable, ex.Message)).ConfigureAwait(false);
         }
     }
 
@@ -725,26 +710,25 @@ public sealed partial class GenerationCoordinator : IGenerationExit, IAsyncDispo
                 return;
             }
 
-            var key = await ReadKeyAsync(task).ConfigureAwait(false);
+            var key = await _requests.ReadKeyAsync(task).ConfigureAwait(false);
             if (key.Error is { } keyError)
             {
-                await _writes.SaveAsync(() => FinishTask(task.Id, GenerationTaskState.Failed, keyError, key.Detail)).ConfigureAwait(false);
+                await _writes.SaveAsync(() => _requests.FinishTaskAsync(task.Id, GenerationTaskState.Failed, keyError, key.Detail)).ConfigureAwait(false);
                 return;
             }
 
             var request = work.Request;
             if (work.Plan is { IsCompressed: true } plan)
             {
-                var compressor = _compressor ?? throw new ContextCompressionException("No context compressor is configured.");
-                var prepared = await compressor.PrepareAsync(task, plan, work.Budget ?? await _budgets.BudgetForAsync(task.Model, CancellationToken.None).ConfigureAwait(false), key.Secret!, RecordAsync, stop, _health.TryAdmit).ConfigureAwait(false);
+                var prepared = await _requests.PrepareCompressedAsync(task, plan, work.Budget, key.Secret!, stop).ConfigureAwait(false);
                 request = request with { Turns = [.. request.Turns.TakeWhile(t => t.Role == ChatRole.System), .. prepared.Turns] };
-                await compressor.RecordTaskInputAsync(task.Id, prepared.SummaryIds).ConfigureAwait(false);
+                await _requests.RecordCompressedInputAsync(task.Id, prepared.SummaryIds).ConfigureAwait(false);
             }
 
-            var (output, problem) = await RequestCompleteTextAsync(task, request, key.Secret!, stop).ConfigureAwait(false);
+            var (output, problem) = await _requests.RequestCompleteTextAsync(task, request, key.Secret!, stop).ConfigureAwait(false);
             if (output is null)
             {
-                await _writes.SaveAsync(() => FinishTask(task.Id, GenerationTaskState.Failed, GenerationErrorKind.InvalidResponse, problem)).ConfigureAwait(false);
+                await _writes.SaveAsync(() => _requests.FinishTaskAsync(task.Id, GenerationTaskState.Failed, GenerationErrorKind.InvalidResponse, problem)).ConfigureAwait(false);
                 return;
             }
 
@@ -766,30 +750,30 @@ public sealed partial class GenerationCoordinator : IGenerationExit, IAsyncDispo
                     _health.Report(storage);
                 }
 
-                await _writes.SaveAsync(() => FinishTask(task.Id, GenerationTaskState.Failed, GenerationErrorKind.StorageUnavailable, ex.Message), retryOnFailure: true).ConfigureAwait(false);
+                await _writes.SaveAsync(() => _requests.FinishTaskAsync(task.Id, GenerationTaskState.Failed, GenerationErrorKind.StorageUnavailable, ex.Message), retryOnFailure: true).ConfigureAwait(false);
                 return;
             }
 
             if (saved == SummarySaveResult.Unusable)
             {
-                await _writes.SaveAsync(() => FinishTask(task.Id, GenerationTaskState.Failed, GenerationErrorKind.InvalidResponse, "总结缺少标题或正文。")).ConfigureAwait(false);
+                await _writes.SaveAsync(() => _requests.FinishTaskAsync(task.Id, GenerationTaskState.Failed, GenerationErrorKind.InvalidResponse, "总结缺少标题或正文。")).ConfigureAwait(false);
             }
         }
         catch (OperationCanceledException) when (stop.IsCancellationRequested)
         {
-            await _writes.SaveAsync(() => FinishTask(task.Id, GenerationTaskState.Stopped, null, null)).ConfigureAwait(false);
+            await _writes.SaveAsync(() => _requests.FinishTaskAsync(task.Id, GenerationTaskState.Stopped, null, null)).ConfigureAwait(false);
         }
         catch (ContextCompressionException ex)
         {
-            await _writes.SaveAsync(() => FinishTask(task.Id, GenerationTaskState.Failed, GenerationErrorKind.CompressionFailed, ex.Message)).ConfigureAwait(false);
+            await _writes.SaveAsync(() => _requests.FinishTaskAsync(task.Id, GenerationTaskState.Failed, GenerationErrorKind.CompressionFailed, ex.Message)).ConfigureAwait(false);
         }
         catch (ChatClientException ex)
         {
-            await _writes.SaveAsync(() => FinishTask(task.Id, GenerationTaskState.Failed, ex.Kind, ex.Message)).ConfigureAwait(false);
+            await _writes.SaveAsync(() => _requests.FinishTaskAsync(task.Id, GenerationTaskState.Failed, ex.Kind, ex.Message)).ConfigureAwait(false);
         }
         catch (StorageAdmissionRefusedException ex)
         {
-            await _writes.SaveAsync(() => FinishTask(task.Id, GenerationTaskState.Failed, GenerationErrorKind.StorageUnavailable, ex.Message)).ConfigureAwait(false);
+            await _writes.SaveAsync(() => _requests.FinishTaskAsync(task.Id, GenerationTaskState.Failed, GenerationErrorKind.StorageUnavailable, ex.Message)).ConfigureAwait(false);
         }
         finally
         {
@@ -807,125 +791,39 @@ public sealed partial class GenerationCoordinator : IGenerationExit, IAsyncDispo
                 return;
             }
 
-            var key = await ReadKeyAsync(task).ConfigureAwait(false);
+            var key = await _requests.ReadKeyAsync(task).ConfigureAwait(false);
             if (key.Error is { } keyError)
             {
-                await _writes.SaveAsync(() => FinishTask(task.Id, GenerationTaskState.Failed, keyError, key.Detail)).ConfigureAwait(false);
+                await _writes.SaveAsync(() => _requests.FinishTaskAsync(task.Id, GenerationTaskState.Failed, keyError, key.Detail)).ConfigureAwait(false);
                 return;
             }
 
             // Names are best effort: a failure keeps the current names and is never retried automatically.
-            var (output, problem) = await RequestCompleteTextAsync(task, work.Request, key.Secret!, stop).ConfigureAwait(false);
+            var (output, problem) = await _requests.RequestCompleteTextAsync(task, work.Request, key.Secret!, stop).ConfigureAwait(false);
             if (output is not null)
             {
                 await work.Apply(output).ConfigureAwait(false);
             }
 
-            await _writes.SaveAsync(() => FinishTask(task.Id, output is null ? GenerationTaskState.Failed : GenerationTaskState.Completed, output is null ? GenerationErrorKind.InvalidResponse : null, problem))
+            await _writes.SaveAsync(() => _requests.FinishTaskAsync(task.Id, output is null ? GenerationTaskState.Failed : GenerationTaskState.Completed, output is null ? GenerationErrorKind.InvalidResponse : null, problem))
                 .ConfigureAwait(false);
         }
         catch (OperationCanceledException) when (stop.IsCancellationRequested)
         {
-            await _writes.SaveAsync(() => FinishTask(task.Id, GenerationTaskState.Stopped, null, null)).ConfigureAwait(false);
+            await _writes.SaveAsync(() => _requests.FinishTaskAsync(task.Id, GenerationTaskState.Stopped, null, null)).ConfigureAwait(false);
         }
         catch (ChatClientException ex)
         {
-            await _writes.SaveAsync(() => FinishTask(task.Id, GenerationTaskState.Failed, ex.Kind, ex.Message)).ConfigureAwait(false);
+            await _writes.SaveAsync(() => _requests.FinishTaskAsync(task.Id, GenerationTaskState.Failed, ex.Kind, ex.Message)).ConfigureAwait(false);
         }
         catch (StorageAdmissionRefusedException ex)
         {
-            await _writes.SaveAsync(() => FinishTask(task.Id, GenerationTaskState.Failed, GenerationErrorKind.StorageUnavailable, ex.Message)).ConfigureAwait(false);
+            await _writes.SaveAsync(() => _requests.FinishTaskAsync(task.Id, GenerationTaskState.Failed, GenerationErrorKind.StorageUnavailable, ex.Message)).ConfigureAwait(false);
         }
         finally
         {
             SummaryTaskFinished?.Invoke(this, task);
         }
-    }
-
-    /// <summary>
-    /// One request whose output the program uses directly: only a normal, non-empty finish counts (D-015); a cut-off
-    /// output is never used. Returns the text, or null with the reason.
-    /// </summary>
-    private async Task<(string? Text, string? Problem)> RequestCompleteTextAsync(GenerationTaskRecord task, ChatRequest request, string apiKey, CancellationToken stop)
-    {
-        if (!_health.TryAdmit())
-        {
-            throw new StorageAdmissionRefusedException();
-        }
-
-        var trace = new RequestTrace(task.Id, _clock, request);
-        var text = new System.Text.StringBuilder();
-        ChatStreamEvent.Completed? completed = null;
-        try
-        {
-            await foreach (var item in _client.StreamAsync(request, apiKey, stop).ConfigureAwait(false))
-            {
-                trace.Observe(item);
-                if (item is ChatStreamEvent.TextDelta delta)
-                {
-                    text.Append(delta.Text);
-                }
-                else if (item is ChatStreamEvent.Completed done)
-                {
-                    completed = done;
-                }
-            }
-        }
-        catch (OperationCanceledException) when (stop.IsCancellationRequested)
-        {
-            await RecordAsync(trace.Finish(stopped: true, null, null)).ConfigureAwait(false);
-            throw;
-        }
-        catch (ChatClientException ex)
-        {
-            trace.Fail(ex);
-            await RecordAsync(trace.Finish(stopped: false, ex.Kind, ex.Message)).ConfigureAwait(false);
-            throw;
-        }
-
-        var output = text.ToString().Trim();
-        var problem = completed is null ? "回答流未正常结束。"
-            : completed.Truncated ? "输出达到上限被截断，未保存。"
-            : output.Length == 0 ? "服务返回了空内容。"
-            : null;
-        await RecordAsync(trace.Finish(stopped: false, problem is null ? null : GenerationErrorKind.InvalidResponse, problem)).ConfigureAwait(false);
-        return problem is null ? (output, null) : (null, problem);
-    }
-
-    /// <summary>Diagnostics only: a failed trace write is logged and does not count as a storage failure.</summary>
-    private async Task RecordAsync(AiRequestRecord record)
-    {
-        try
-        {
-            await _requests.AddAsync(record, CancellationToken.None).ConfigureAwait(false);
-        }
-#pragma warning disable CA1031 // A lost trace must not affect the answer or the storage-health state.
-        catch (Exception ex)
-#pragma warning restore CA1031
-        {
-            LogTraceFailed(_logger, ex, record.TaskId);
-        }
-    }
-
-    private async Task<(string? Secret, GenerationErrorKind? Error, string? Detail)> ReadKeyAsync(GenerationTaskRecord task)
-    {
-        try
-        {
-            var secret = await _credentials.ReadAsync(task.Model.CredentialRef, CancellationToken.None).ConfigureAwait(false);
-            return secret is null
-                ? (null, GenerationErrorKind.NotConfigured, "The API key for this connection is missing.")
-                : (secret, null, null);
-        }
-        catch (CredentialUnavailableException ex)
-        {
-            return (null, GenerationErrorKind.CredentialUnavailable, ex.Message);
-        }
-    }
-
-    private async Task<bool> FinishTask(GenerationTaskId id, GenerationTaskState state, GenerationErrorKind? error, string? detail)
-    {
-        await _store.FinishTaskAsync(id, state, error, detail, _clock.UtcNow, CancellationToken.None).ConfigureAwait(false);
-        return true;
     }
 
     private void RaiseChanged() => Changed?.Invoke(this, EventArgs.Empty);
@@ -944,9 +842,6 @@ public sealed partial class GenerationCoordinator : IGenerationExit, IAsyncDispo
 
     [LoggerMessage(Level = LogLevel.Error, Message = "Summary of task {TaskId} could not be stored")]
     private static partial void LogSummaryNotSaved(ILogger logger, Exception exception, GenerationTaskId taskId);
-
-    [LoggerMessage(Level = LogLevel.Warning, Message = "Request trace for task {TaskId} was not saved")]
-    private static partial void LogTraceFailed(ILogger logger, Exception exception, GenerationTaskId taskId);
 
     [LoggerMessage(Level = LogLevel.Warning, Message = "{Count} stopped tasks did not finish within the exit wait; their last checkpoints stand")]
     private static partial void LogStopTimedOut(ILogger logger, int count);

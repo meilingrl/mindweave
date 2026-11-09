@@ -18,7 +18,7 @@ public partial class SeamTests
             "CredentialStores.cs",
             "MacKeychainCredentialStore.cs",
             "WindowsCredentialStore.cs",
-            "GenerationCoordinator.cs",
+            "GenerationRequests.cs",
             "ModelSettingsService.cs",
         };
 

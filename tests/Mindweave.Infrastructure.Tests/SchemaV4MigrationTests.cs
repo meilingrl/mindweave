@@ -56,7 +56,8 @@ public sealed class SchemaV4MigrationTests : IDisposable
         await using var health = new StorageHealth(database, new StorageHealthOptions(), NullLogger<StorageHealth>.Instance);
         var requests = new SqliteAiRequestStore(database);
         var budgets = new ContextBudgets(requests, NullLogger<ContextBudgets>.Instance);
-        await using var generation = new GenerationCoordinator(store, client, credentials, requests, budgets, health, new SystemClock(), new GenerationOptions(), NullLogger<GenerationCoordinator>.Instance);
+        var generationRequests = new GenerationRequests(store, client, credentials, requests, budgets, health, new SystemClock(), NullLogger<GenerationRequests>.Instance);
+        await using var generation = new GenerationCoordinator(store, generationRequests, health, new SystemClock(), new GenerationOptions(), NullLogger<GenerationCoordinator>.Instance);
         var models = new ModelSettingsService(new SqliteModelSettingsStore(database), store, credentials, client, new SystemClock(), NullLogger<ModelSettingsService>.Instance);
         var conversations = new ConversationService(store, branches, generation, budgets, health, models, new SystemClock(), NullLogger<ConversationService>.Instance);
 
