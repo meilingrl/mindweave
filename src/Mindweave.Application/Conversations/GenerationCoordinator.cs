@@ -14,7 +14,7 @@ namespace Mindweave.Application.Conversations;
 /// writes. A late chunk or checkpoint can never overwrite a terminal answer, and nothing is ever re-sent
 /// automatically.
 /// </summary>
-public sealed partial class GenerationCoordinator : IGenerationExit, IAsyncDisposable
+public sealed partial class GenerationCoordinator : IGenerationExit, IGenerationEvents, IAsyncDisposable
 {
     private readonly IConversationStore _store;
     private readonly GenerationRequests _requests;
@@ -29,6 +29,7 @@ public sealed partial class GenerationCoordinator : IGenerationExit, IAsyncDispo
     private readonly ConcurrentDictionary<MessageId, LiveAnswer> _live = new();
     private readonly StorageHealth _health;
     private readonly TerminalWrites _writes;
+    private readonly AnswerRunner _answers;
 
     private bool _closed;
     private int _shutDown;
@@ -49,6 +50,7 @@ public sealed partial class GenerationCoordinator : IGenerationExit, IAsyncDispo
         _options = options;
         _logger = logger;
         _writes = new TerminalWrites(health, logger);
+        _answers = new AnswerRunner(store, requests, _writes, health, clock, options, this, logger);
         health.Changed += (_, _) =>
         {
             // Accepted work never sent waits while storage is blocked (D2) and starts once it recovers.
@@ -218,7 +220,7 @@ public sealed partial class GenerationCoordinator : IGenerationExit, IAsyncDispo
 
         if (queued is AnswerWork cancelled)
         {
-            await CancelQueuedAsync(cancelled).ConfigureAwait(false);
+            await _answers.CancelQueuedAsync(cancelled).ConfigureAwait(false);
             RaiseChanged();
         }
         else if (running is not null)
@@ -326,7 +328,7 @@ public sealed partial class GenerationCoordinator : IGenerationExit, IAsyncDispo
             switch (work)
             {
                 case AnswerWork answer:
-                    await CancelQueuedAsync(answer).ConfigureAwait(false);
+                    await _answers.CancelQueuedAsync(answer).ConfigureAwait(false);
                     break;
                 default:
                     await _writes.SaveAsync(() => _requests.FinishTaskAsync(work.Task.Id, GenerationTaskState.Cancelled, null, null)).ConfigureAwait(false);
@@ -451,7 +453,7 @@ public sealed partial class GenerationCoordinator : IGenerationExit, IAsyncDispo
             switch (running.Work)
             {
                 case AnswerWork answer:
-                    await RunAnswerAsync(answer, running.Cancellation.Token).ConfigureAwait(false);
+                    await _answers.RunAsync(answer, running.Cancellation.Token).ConfigureAwait(false);
                     break;
                 case TitleWork title:
                     await RunTitleAsync(title, running.Cancellation.Token).ConfigureAwait(false);
@@ -480,176 +482,6 @@ public sealed partial class GenerationCoordinator : IGenerationExit, IAsyncDispo
             // The token source is not disposed: a concurrent StopAsync may still cancel it after the run ends.
             Pump();
             RaiseChanged();
-        }
-    }
-
-    private async Task RunAnswerAsync(AnswerWork work, CancellationToken stop)
-    {
-        var live = work.Live;
-        var task = work.Task;
-
-        var marked = await _writes.SaveAsync(() => _store.MarkRunningAsync(task.Id, live.MessageId, _clock.UtcNow, CancellationToken.None)).ConfigureAwait(false);
-        if (marked == SaveResult.NotApplied)
-        {
-            // Cancelled between dequeue and start; the cancellation already wrote the terminal state.
-            return;
-        }
-
-        if (marked == SaveResult.Failed)
-        {
-            // Without a durable "running" row there is nowhere safe to put the answer: do not call the AI.
-            await FinishAnswerAsync(work, MessageState.Failed, GenerationErrorKind.StorageUnavailable, null).ConfigureAwait(false);
-            return;
-        }
-
-        live.MarkStreaming();
-        RaiseChanged();
-
-        var key = await _requests.ReadKeyAsync(task).ConfigureAwait(false);
-        if (key.Error is { } keyError)
-        {
-            await FinishAnswerAsync(work, MessageState.Failed, keyError, key.Detail).ConfigureAwait(false);
-            return;
-        }
-
-        var request = work.Request;
-        if (work.Plan is { IsCompressed: true } plan)
-        {
-            // Summaries are a prerequisite run in this slot, so the answer never waits for a slot of its own making.
-            live.SetPhase(AnswerPhase.Compressing);
-            try
-            {
-                var prepared = await _requests.PrepareCompressedAsync(task, plan, work.Budget, key.Secret!, stop).ConfigureAwait(false);
-                request = request with { Turns = prepared.Turns };
-                live.SetPhase(AnswerPhase.Waiting);
-                await _requests.RecordCompressedInputAsync(task.Id, prepared.SummaryIds).ConfigureAwait(false);
-            }
-            catch (OperationCanceledException) when (stop.IsCancellationRequested)
-            {
-                await FinishAnswerAsync(work, MessageState.Stopped, null, null).ConfigureAwait(false);
-                return;
-            }
-            catch (ContextCompressionException ex)
-            {
-                await FinishAnswerAsync(work, MessageState.Failed, GenerationErrorKind.CompressionFailed, ex.Message).ConfigureAwait(false);
-                return;
-            }
-            catch (StorageAdmissionRefusedException ex)
-            {
-                await FinishAnswerAsync(work, MessageState.Failed, GenerationErrorKind.StorageUnavailable, ex.Message).ConfigureAwait(false);
-                return;
-            }
-        }
-
-        if (!_health.TryAdmit())
-        {
-            // Storage failed while this task waited for its key or its summaries: the answer is not asked for (D2).
-            await FinishAnswerAsync(work, MessageState.Failed, GenerationErrorKind.StorageUnavailable, StorageAdmissionRefusedException.Detail).ConfigureAwait(false);
-            return;
-        }
-
-        using var checkpointStop = new CancellationTokenSource();
-        var checkpoints = CheckpointLoopAsync(live, checkpointStop.Token);
-
-        MessageState final;
-        GenerationErrorKind? error = null;
-        string? detail = null;
-        var trace = new RequestTrace(task.Id, _clock, request);
-        try
-        {
-            var completed = false;
-            await foreach (var item in _requests.StreamAsync(request, key.Secret!, stop).ConfigureAwait(false))
-            {
-                trace.Observe(item);
-                switch (item)
-                {
-                    case ChatStreamEvent.TextDelta delta:
-                        live.Append(delta.Text);
-                        break;
-                    case ChatStreamEvent.ReasoningDelta:
-                        // Only says the model is working; the reasoning is not shown or stored.
-                        live.MarkThinking();
-                        break;
-                    case ChatStreamEvent.Completed:
-                        completed = true;
-                        break;
-                }
-            }
-
-            if (completed)
-            {
-                final = MessageState.Complete;
-            }
-            else
-            {
-                final = MessageState.Failed;
-                error = GenerationErrorKind.InvalidResponse;
-                detail = "The service closed the stream without finishing the answer.";
-            }
-        }
-        catch (OperationCanceledException) when (stop.IsCancellationRequested)
-        {
-            final = MessageState.Stopped;
-        }
-        catch (ChatClientException ex)
-        {
-            final = MessageState.Failed;
-            error = ex.Kind;
-            detail = ex.Message;
-            trace.Fail(ex);
-        }
-
-        await checkpointStop.CancelAsync().ConfigureAwait(false);
-        await checkpoints.ConfigureAwait(false);
-        await FinishAnswerAsync(work, final, error, detail).ConfigureAwait(false);
-        await _requests.RecordAsync(trace.Finish(final == MessageState.Stopped, error, detail)).ConfigureAwait(false);
-    }
-
-    private async Task FinishAnswerAsync(AnswerWork work, MessageState state, GenerationErrorKind? error, string? detail)
-    {
-        var live = work.Live;
-        var revision = live.Finish(state, error, detail);
-        var snapshot = live.Snapshot();
-        AnswerEnded?.Invoke(this, new AnswerOutcome(live.ConversationId, live.MessageId, state, snapshot.Text));
-        await _writes.SaveAsync(() => _store.FinishAnswerAsync(work.Task.Id, live.MessageId, snapshot.Blocks, revision, state, error, detail, _clock.UtcNow, CancellationToken.None), retryOnFailure: true)
-            .ConfigureAwait(false);
-        LogAnswerFinished(_logger, work.Task.Id, state, error);
-        AnswerFinished?.Invoke(this, new AnswerOutcome(live.ConversationId, live.MessageId, state, snapshot.Text));
-    }
-
-    private async Task CancelQueuedAsync(AnswerWork work)
-    {
-        var revision = work.Live.Finish(MessageState.Cancelled, null, null);
-        await _writes.SaveAsync(
-                () => _store.FinishAnswerAsync(work.Task.Id, work.Live.MessageId, ContentBlocks.FromText(string.Empty), revision, MessageState.Cancelled, null, null, _clock.UtcNow, CancellationToken.None),
-                retryOnFailure: true)
-            .ConfigureAwait(false);
-        AnswerFinished?.Invoke(this, new AnswerOutcome(work.Live.ConversationId, work.Live.MessageId, MessageState.Cancelled, string.Empty));
-    }
-
-    private async Task CheckpointLoopAsync(LiveAnswer live, CancellationToken cancellationToken)
-    {
-        long written = 0;
-        try
-        {
-            while (true)
-            {
-                await Task.Delay(_options.CheckpointInterval, cancellationToken).ConfigureAwait(false);
-                var snapshot = live.Snapshot();
-                if (snapshot.State != MessageState.Streaming || snapshot.Revision <= written)
-                {
-                    continue;
-                }
-
-                // One write at a time per answer: a slow disk coalesces checkpoints instead of queuing them.
-                if (await _writes.SaveAsync(() => _store.CheckpointAsync(live.MessageId, snapshot.Blocks, snapshot.Revision, CancellationToken.None)).ConfigureAwait(false) != SaveResult.Failed)
-                {
-                    written = snapshot.Revision;
-                }
-            }
-        }
-        catch (OperationCanceledException)
-        {
         }
     }
 
@@ -828,6 +660,18 @@ public sealed partial class GenerationCoordinator : IGenerationExit, IAsyncDispo
 
     private void RaiseChanged() => Changed?.Invoke(this, EventArgs.Empty);
 
+    void IGenerationEvents.Changed() => RaiseChanged();
+
+    void IGenerationEvents.AnswerEnded(AnswerOutcome outcome) => AnswerEnded?.Invoke(this, outcome);
+
+    void IGenerationEvents.AnswerFinished(AnswerOutcome outcome) => AnswerFinished?.Invoke(this, outcome);
+
+    void IGenerationEvents.TitleSaved(ConversationId conversation) => TitleSaved?.Invoke(this, conversation);
+
+    void IGenerationEvents.TitleAbandoned(ConversationId conversation) => TitleAbandoned?.Invoke(this, conversation);
+
+    void IGenerationEvents.SummaryTaskFinished(GenerationTaskRecord task) => SummaryTaskFinished?.Invoke(this, task);
+
     private sealed class Running(GenerationWork work, CancellationTokenSource cancellation)
     {
         public GenerationWork Work { get; } = work;
@@ -836,9 +680,6 @@ public sealed partial class GenerationCoordinator : IGenerationExit, IAsyncDispo
 
         public Task Completion { get; set; } = Task.CompletedTask;
     }
-
-    [LoggerMessage(Level = LogLevel.Information, Message = "Answer task {TaskId} finished as {State} ({Error})")]
-    private static partial void LogAnswerFinished(ILogger logger, GenerationTaskId taskId, MessageState state, GenerationErrorKind? error);
 
     [LoggerMessage(Level = LogLevel.Error, Message = "Summary of task {TaskId} could not be stored")]
     private static partial void LogSummaryNotSaved(ILogger logger, Exception exception, GenerationTaskId taskId);

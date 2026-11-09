@@ -1,0 +1,204 @@
+using Microsoft.Extensions.Logging;
+using Mindweave.Application.Ai;
+using Mindweave.Application.Diagnostics;
+using Mindweave.Application.Storage;
+using Mindweave.Core.Conversations;
+
+namespace Mindweave.Application.Conversations;
+
+/// <summary>
+/// Runs one answer in its slot: marks it running, reads the key, summarizes older context when the plan says so,
+/// streams with periodic checkpoints, and makes the terminal write. Holds no scheduler state.
+/// </summary>
+internal sealed partial class AnswerRunner(
+    IConversationStore store,
+    GenerationRequests requests,
+    TerminalWrites writes,
+    StorageHealth health,
+    IClock clock,
+    GenerationOptions options,
+    IGenerationEvents events,
+    ILogger logger)
+{
+    private readonly IConversationStore _store = store;
+    private readonly GenerationRequests _requests = requests;
+    private readonly TerminalWrites _writes = writes;
+    private readonly StorageHealth _health = health;
+    private readonly IClock _clock = clock;
+    private readonly GenerationOptions _options = options;
+    private readonly IGenerationEvents _events = events;
+    private readonly ILogger _logger = logger;
+
+    public async Task RunAsync(AnswerWork work, CancellationToken stop)
+    {
+        var live = work.Live;
+        var task = work.Task;
+
+        var marked = await _writes.SaveAsync(() => _store.MarkRunningAsync(task.Id, live.MessageId, _clock.UtcNow, CancellationToken.None)).ConfigureAwait(false);
+        if (marked == SaveResult.NotApplied)
+        {
+            // Cancelled between dequeue and start; the cancellation already wrote the terminal state.
+            return;
+        }
+
+        if (marked == SaveResult.Failed)
+        {
+            // Without a durable "running" row there is nowhere safe to put the answer: do not call the AI.
+            await FinishAsync(work, MessageState.Failed, GenerationErrorKind.StorageUnavailable, null).ConfigureAwait(false);
+            return;
+        }
+
+        live.MarkStreaming();
+        _events.Changed();
+
+        var key = await _requests.ReadKeyAsync(task).ConfigureAwait(false);
+        if (key.Error is { } keyError)
+        {
+            await FinishAsync(work, MessageState.Failed, keyError, key.Detail).ConfigureAwait(false);
+            return;
+        }
+
+        var request = work.Request;
+        if (work.Plan is { IsCompressed: true } plan)
+        {
+            // Summaries are a prerequisite run in this slot, so the answer never waits for a slot of its own making.
+            live.SetPhase(AnswerPhase.Compressing);
+            try
+            {
+                var prepared = await _requests.PrepareCompressedAsync(task, plan, work.Budget, key.Secret!, stop).ConfigureAwait(false);
+                request = request with { Turns = prepared.Turns };
+                live.SetPhase(AnswerPhase.Waiting);
+                await _requests.RecordCompressedInputAsync(task.Id, prepared.SummaryIds).ConfigureAwait(false);
+            }
+            catch (OperationCanceledException) when (stop.IsCancellationRequested)
+            {
+                await FinishAsync(work, MessageState.Stopped, null, null).ConfigureAwait(false);
+                return;
+            }
+            catch (ContextCompressionException ex)
+            {
+                await FinishAsync(work, MessageState.Failed, GenerationErrorKind.CompressionFailed, ex.Message).ConfigureAwait(false);
+                return;
+            }
+            catch (StorageAdmissionRefusedException ex)
+            {
+                await FinishAsync(work, MessageState.Failed, GenerationErrorKind.StorageUnavailable, ex.Message).ConfigureAwait(false);
+                return;
+            }
+        }
+
+        if (!_health.TryAdmit())
+        {
+            // Storage failed while this task waited for its key or its summaries: the answer is not asked for (D2).
+            await FinishAsync(work, MessageState.Failed, GenerationErrorKind.StorageUnavailable, StorageAdmissionRefusedException.Detail).ConfigureAwait(false);
+            return;
+        }
+
+        using var checkpointStop = new CancellationTokenSource();
+        var checkpoints = CheckpointLoopAsync(live, checkpointStop.Token);
+
+        MessageState final;
+        GenerationErrorKind? error = null;
+        string? detail = null;
+        var trace = new RequestTrace(task.Id, _clock, request);
+        try
+        {
+            var completed = false;
+            await foreach (var item in _requests.StreamAsync(request, key.Secret!, stop).ConfigureAwait(false))
+            {
+                trace.Observe(item);
+                switch (item)
+                {
+                    case ChatStreamEvent.TextDelta delta:
+                        live.Append(delta.Text);
+                        break;
+                    case ChatStreamEvent.ReasoningDelta:
+                        // Only says the model is working; the reasoning is not shown or stored.
+                        live.MarkThinking();
+                        break;
+                    case ChatStreamEvent.Completed:
+                        completed = true;
+                        break;
+                }
+            }
+
+            if (completed)
+            {
+                final = MessageState.Complete;
+            }
+            else
+            {
+                final = MessageState.Failed;
+                error = GenerationErrorKind.InvalidResponse;
+                detail = "The service closed the stream without finishing the answer.";
+            }
+        }
+        catch (OperationCanceledException) when (stop.IsCancellationRequested)
+        {
+            final = MessageState.Stopped;
+        }
+        catch (ChatClientException ex)
+        {
+            final = MessageState.Failed;
+            error = ex.Kind;
+            detail = ex.Message;
+            trace.Fail(ex);
+        }
+
+        await checkpointStop.CancelAsync().ConfigureAwait(false);
+        await checkpoints.ConfigureAwait(false);
+        await FinishAsync(work, final, error, detail).ConfigureAwait(false);
+        await _requests.RecordAsync(trace.Finish(final == MessageState.Stopped, error, detail)).ConfigureAwait(false);
+    }
+
+    private async Task FinishAsync(AnswerWork work, MessageState state, GenerationErrorKind? error, string? detail)
+    {
+        var live = work.Live;
+        var revision = live.Finish(state, error, detail);
+        var snapshot = live.Snapshot();
+        _events.AnswerEnded(new AnswerOutcome(live.ConversationId, live.MessageId, state, snapshot.Text));
+        await _writes.SaveAsync(() => _store.FinishAnswerAsync(work.Task.Id, live.MessageId, snapshot.Blocks, revision, state, error, detail, _clock.UtcNow, CancellationToken.None), retryOnFailure: true)
+            .ConfigureAwait(false);
+        LogAnswerFinished(_logger, work.Task.Id, state, error);
+        _events.AnswerFinished(new AnswerOutcome(live.ConversationId, live.MessageId, state, snapshot.Text));
+    }
+
+    public async Task CancelQueuedAsync(AnswerWork work)
+    {
+        var revision = work.Live.Finish(MessageState.Cancelled, null, null);
+        await _writes.SaveAsync(
+                () => _store.FinishAnswerAsync(work.Task.Id, work.Live.MessageId, ContentBlocks.FromText(string.Empty), revision, MessageState.Cancelled, null, null, _clock.UtcNow, CancellationToken.None),
+                retryOnFailure: true)
+            .ConfigureAwait(false);
+        _events.AnswerFinished(new AnswerOutcome(work.Live.ConversationId, work.Live.MessageId, MessageState.Cancelled, string.Empty));
+    }
+
+    private async Task CheckpointLoopAsync(LiveAnswer live, CancellationToken cancellationToken)
+    {
+        long written = 0;
+        try
+        {
+            while (true)
+            {
+                await Task.Delay(_options.CheckpointInterval, cancellationToken).ConfigureAwait(false);
+                var snapshot = live.Snapshot();
+                if (snapshot.State != MessageState.Streaming || snapshot.Revision <= written)
+                {
+                    continue;
+                }
+
+                // One write at a time per answer: a slow disk coalesces checkpoints instead of queuing them.
+                if (await _writes.SaveAsync(() => _store.CheckpointAsync(live.MessageId, snapshot.Blocks, snapshot.Revision, CancellationToken.None)).ConfigureAwait(false) != SaveResult.Failed)
+                {
+                    written = snapshot.Revision;
+                }
+            }
+        }
+        catch (OperationCanceledException)
+        {
+        }
+    }
+
+    [LoggerMessage(Level = LogLevel.Information, Message = "Answer task {TaskId} finished as {State} ({Error})")]
+    private static partial void LogAnswerFinished(ILogger logger, GenerationTaskId taskId, MessageState state, GenerationErrorKind? error);
+}
