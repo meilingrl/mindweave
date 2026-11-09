@@ -144,54 +144,13 @@ public sealed partial class SqliteDatabase : IDatabaseLifecycle, IDatabaseBackup
             connection =>
             {
                 using var transaction = connection.BeginTransaction();
-                SqliteConnections.Execute(connection, $"INSERT OR REPLACE INTO app_state (key, value) VALUES ('storage-probe', hex(zeroblob({ProbeBytes / 2})));", transaction);
+                SqliteConnections.Execute(connection, $"INSERT OR REPLACE INTO app_state (key, value) VALUES ('storage-probe', hex(zeroblob({SqliteDiskProbe.ProbeBytes / 2})));", transaction);
                 transaction.Rollback();
                 return 0;
             },
             cancellationToken).ConfigureAwait(false);
-        await Task.Run(ProbeDisk, cancellationToken).ConfigureAwait(false);
+        await Task.Run(() => SqliteDiskProbe.Write(_paths.DataDirectory), cancellationToken).ConfigureAwait(false);
     }
-
-    private void ProbeDisk()
-    {
-        var probe = Path.Combine(_paths.DataDirectory, ".storage-probe");
-        try
-        {
-            using (var stream = new FileStream(probe, FileMode.Create, FileAccess.Write, FileShare.None, 4096, FileOptions.WriteThrough))
-            {
-                stream.Write(new byte[ProbeBytes]);
-                stream.Flush(flushToDisk: true);
-            }
-        }
-        catch (UnauthorizedAccessException ex)
-        {
-            throw new Application.Storage.StorageWriteException(Application.Storage.StorageFailureKind.ReadOnly, ex.Message, ex);
-        }
-        catch (IOException ex)
-        {
-            var kind = IsDiskFull(ex) ? Application.Storage.StorageFailureKind.Full : Application.Storage.StorageFailureKind.IoError;
-            throw new Application.Storage.StorageWriteException(kind, ex.Message, ex);
-        }
-        finally
-        {
-            try
-            {
-                File.Delete(probe);
-            }
-            catch (IOException)
-            {
-            }
-            catch (UnauthorizedAccessException)
-            {
-            }
-        }
-    }
-
-    /// <summary>ERROR_DISK_FULL or ERROR_HANDLE_DISK_FULL on Windows, ENOSPC elsewhere.</summary>
-    private static bool IsDiskFull(IOException ex) => (ex.HResult & 0xFFFF) is 0x70 or 0x27 || ex.HResult == 28;
-
-    /// <summary>How much the probe writes: more than a typical question or summary, so recovery is not declared early.</summary>
-    internal const int ProbeBytes = 64 * 1024;
 
     /// <summary>Runs <paramref name="work"/> on a fresh read-only connection in one snapshot; it never waits for the writer.</summary>
     public Task<T> ReadAsync<T>(Func<SqliteConnection, T> work, CancellationToken cancellationToken)
