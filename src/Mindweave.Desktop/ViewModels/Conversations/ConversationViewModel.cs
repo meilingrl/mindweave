@@ -669,54 +669,7 @@ public sealed partial class ConversationViewModel : PageViewModel, IDisposable
         ArchiveText = !archive.IsHidden ? null
             : archive.ArchivedAncestors.Count == 0 ? UiText.ArchivedReadOnly
             : UiText.HiddenByAncestors([.. archive.ArchivedAncestors.Select(a => Lineage.FirstOrDefault(l => l.Id == a)?.Title ?? UiText.NewConversation)]);
-        // Update in place: a message view that is still valid keeps its control, so a selection, a highlighted
-        // source or the layout being read survives a reload (a title arriving, a branch being made). Only new
-        // messages are added, and an answer that was live and is now stored as finished is replaced, so its
-        // view switches from the live builder to the stored text that anchors are captured against.
-        var last = ConversationRules.LastAnswer(content.Messages);
-        var superseded = content.Messages.Where(m => m.Supersedes is not null).Select(m => m.Supersedes!.Value).ToHashSet();
-        var stored = content.Messages.Select(m => m.Id).ToHashSet();
-        for (var i = Messages.Count - 1; i >= 0; i--)
-        {
-            if (!stored.Contains(Messages[i].Id))
-            {
-                Messages[i].Dispose();
-                Messages.RemoveAt(i);
-            }
-        }
-
-        for (var i = 0; i < content.Messages.Count; i++)
-        {
-            var message = content.Messages[i];
-            var item = i < Messages.Count && Messages[i].Id == message.Id ? Messages[i] : null;
-            if (item is not null && item.IsLive && message.IsFinished)
-            {
-                item.Dispose();
-                item = null;
-                Messages.RemoveAt(i);
-            }
-
-            if (item is null)
-            {
-                item = NewItem(message);
-                Messages.Insert(i, item);
-            }
-
-            item.IsSuperseded = superseded.Contains(message.Id);
-            item.WasCompressed = content.CompressedAnswers?.Contains(message.Id) == true;
-            item.IsArchived = IsArchived;
-            item.CanRetry = !IsArchived && last?.Id == message.Id && message.IsFinished;
-            var entries = branches.Where(b => b.SourceMessage == message.Id).Select(b => new BranchEntry(b.Child, b.Quote, archivedBranches.Contains(b.Child))).ToList();
-            if (!entries.SequenceEqual(item.Branches))
-            {
-                item.Branches.Clear();
-                foreach (var entry in entries)
-                {
-                    item.Branches.Add(entry);
-                }
-            }
-        }
-
+        MessageListReconciler.Reconcile(Messages, content, branches, archivedBranches, IsArchived, NewItem);
         HasBranches = Messages.Any(m => m.IsAnswer && m.Branches.Count > 0);
         Volatile.Write(ref _related, lineage.Select(l => l.Conversation.Id).Concat(branches.Select(b => b.Child)).ToHashSet());
         UpdateRunning();
