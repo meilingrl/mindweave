@@ -39,9 +39,6 @@ public sealed class NetworkCanvas : Control
     private const double EdgeLabelSize = 10;
     private const double EdgeLabelEmphasizedSize = 11;
 
-    /// <summary>Decorative pull towards the pointer: fixed at the sample's default 30% (1.5 px at most), drawing only.</summary>
-    internal const double AttractionStrength = 0.3;
-    private const double AttractionReach = 90;
     private const double GridSpacing = 28;
 
     private static readonly Typeface Face = new(FontFamily.Default);
@@ -158,12 +155,6 @@ public sealed class NetworkCanvas : Control
     }
 
     /// <summary>
-    /// Label size: <see cref="NetworkLayout.LabelEm"/> × zoom, at most 13 px. A label is then never wider on screen than
-    /// the box the layout reserved for it (its estimated width × zoom), so the no-overlap guarantee holds as drawn.
-    /// </summary>
-    internal static double LabelSize(double zoom) => Math.Min(LabelMaxSize, NetworkLayout.LabelEm * zoom);
-
-    /// <summary>
     /// The node under a control point: its hit box at its layout position. Hidden labels are not clickable.
     /// </summary>
     internal NodeView? HitTest(Point screen)
@@ -176,7 +167,7 @@ public sealed class NetworkCanvas : Control
         var zoom = Current.Zoom;
         foreach (var node in _page.Nodes.Reverse())
         {
-            if (HitBox(ScreenOf(node), node, zoom, IsLabelVisible(node, zoom)).Contains(screen))
+            if (NetworkGeometry.HitBox(ScreenOf(node), node, zoom, IsLabelVisible(node, zoom)).Contains(screen))
             {
                 return node;
             }
@@ -189,26 +180,6 @@ public sealed class NetworkCanvas : Control
     private bool IsLabelVisible(NodeView node, double zoom) =>
         zoom > LabelHideScale || node.Id == Hovered || (_page is { } page && (node.Id == page.Session.Selected || page.Matches.Contains(node.Id)));
 
-    /// <summary>
-    /// A node's hit box around its screen centre: from just left of the dot to the end of its label (only the dot when
-    /// the label is hidden), clamped to the node's layout box widened by half the layout's spacing. Boxes of nodes the
-    /// layout keeps apart therefore never overlap, at any zoom.
-    /// </summary>
-    internal static Rect HitBox(Point center, NodeView node, double zoom, bool labelVisible)
-    {
-        ArgumentNullException.ThrowIfNull(node);
-        var half = Math.Min(20, NetworkLayout.NodeHeight * zoom / 2);
-        var left = Math.Min(16, (NetworkLayout.NodeRadius + (NetworkLayout.LabelPadding / 2)) * zoom);
-        var right = labelVisible
-            ? Math.Min(
-                RadiusOf(node) + NetworkLayout.LabelGap + (node.LabelWidth * LabelSize(zoom) / NetworkLayout.LabelEm) + 12,
-                (NetworkLayout.NodeRadius + NetworkLayout.LabelGap + node.LabelWidth + (NetworkLayout.LabelPadding / 2)) * zoom)
-            : Math.Min(RadiusOf(node) + 4, (NetworkLayout.NodeRadius + (NetworkLayout.LabelPadding / 2)) * zoom);
-        return new Rect(center.X - left, center.Y - half, left + right, 2 * half);
-    }
-
-    private static double RadiusOf(NodeView node) => node.IsRoot ? RootRadius : ChildRadius;
-
     /// <summary>What each node looks like now, in drawing order. The render pass and the tests read the same list.</summary>
     internal IReadOnlyList<NodePaint> PaintNodes()
     {
@@ -219,7 +190,7 @@ public sealed class NetworkCanvas : Control
 
         var palette = _palette ??= NetworkPalette.From(this);
         var zoom = Current.Zoom;
-        var size = LabelSize(zoom);
+        var size = NetworkGeometry.LabelSize(zoom);
         var drawn = _page.Nodes.ToDictionary(n => n.Id, n => ScreenOf(n) + _offsets.GetValueOrDefault(n.Id));
         var incident = _page.Edges.SelectMany(e => new[] { (Node: e.From, Other: e.To), (Node: e.To, Other: e.From) })
             .Where(x => drawn.ContainsKey(x.Other)).ToLookup(x => x.Node, x => drawn[x.Other]);
@@ -232,7 +203,7 @@ public sealed class NetworkCanvas : Control
             var lifted = node.Id == Dragging;
             var isSelected = node.Id == selected;
             var matched = matches.Contains(node.Id);
-            var radius = RadiusOf(node) + (hovered || lifted ? HoverGrowth : 0);
+            var radius = NetworkGeometry.RadiusOf(node) + (hovered || lifted ? HoverGrowth : 0);
             var center = drawn[node.Id];
             var ring = isSelected ? NodeRing.Selected : matched ? NodeRing.Match : NodeRing.None;
             var label = NetworkLayout.Label(node.ShortTitle, node.HasCandidate);
@@ -240,7 +211,7 @@ public sealed class NetworkCanvas : Control
             var labelSize = zoom > LabelHideScale ? size : Math.Max(size, FocusedLabelMinSize);
             var brush = hovered || isSelected ? palette.LabelActive : !node.Unread ? palette.LabelRead : palette.Label;
             var text = visible ? Text(label, labelSize, brush, node.Unread ? FontWeight.SemiBold : FontWeight.Normal) : null;
-            var origin = text is null ? default : LabelOrigin(center, radius, new Size(text.Width, text.Height), incident[node.Id]);
+            var origin = text is null ? default : NetworkGeometry.LabelOrigin(center, radius, new Size(text.Width, text.Height), incident[node.Id]);
             return new NodePaint(
                 node,
                 center,
@@ -261,64 +232,6 @@ public sealed class NetworkCanvas : Control
                 Lifted = lifted,
             };
         })];
-    }
-
-    /// <summary>
-    /// Where a label goes: to the right of the dot, level with it; lifted above (or dropped below) the dot when one of
-    /// the node's own edges would run through it, as for a child drawn left of its source, so no edge strikes it out.
-    /// </summary>
-    internal static Point LabelOrigin(Point center, double radius, Size text, IEnumerable<Point> neighbours)
-    {
-        ArgumentNullException.ThrowIfNull(neighbours);
-        var x = center.X + radius + NetworkLayout.LabelGap;
-        var level = new Point(x, center.Y - 9);
-        var others = neighbours.ToList();
-        bool Clear(Point origin) => !others.Any(other => Crosses(center, other, new Rect(origin, text).Inflate(new Thickness(2, 0))));
-        if (Clear(level))
-        {
-            return level;
-        }
-
-        var above = new Point(x, center.Y - text.Height - 3);
-        var below = new Point(x, center.Y + 3);
-        return Clear(above) ? above : Clear(below) ? below : level;
-    }
-
-    /// <summary>Whether the segment from <paramref name="a"/> to <paramref name="b"/> passes through the rectangle (Liang–Barsky).</summary>
-    internal static bool Crosses(Point a, Point b, Rect rect)
-    {
-        var (t0, t1) = (0.0, 1.0);
-        var dx = b.X - a.X;
-        var dy = b.Y - a.Y;
-        foreach (var (p, q) in new[] { (-dx, a.X - rect.Left), (dx, rect.Right - a.X), (-dy, a.Y - rect.Top), (dy, rect.Bottom - a.Y) })
-        {
-            if (p == 0)
-            {
-                if (q < 0)
-                {
-                    return false;
-                }
-
-                continue;
-            }
-
-            var t = q / p;
-            if (p < 0)
-            {
-                t0 = Math.Max(t0, t);
-            }
-            else
-            {
-                t1 = Math.Min(t1, t);
-            }
-
-            if (t0 > t1)
-            {
-                return false;
-            }
-        }
-
-        return true;
     }
 
     /// <summary>Each edge from the parent's drawn position to the child's, with its state.</summary>
@@ -369,7 +282,7 @@ public sealed class NetworkCanvas : Control
             }
 
             var text = Text(caption.Text, CaptionSize, palette.Caption);
-            var left = members.Min(m => m.At.X - RadiusOf(m.Node));
+            var left = members.Min(m => m.At.X - NetworkGeometry.RadiusOf(m.Node));
             var top = members.Min(m => m.At.Y);
             result.Add(new CaptionPaint(caption, text, new Point(left, top - CaptionGap - text.Height)));
         }
@@ -440,18 +353,7 @@ public sealed class NetworkCanvas : Control
 
         var brush = !edge.LabelEmphasized ? palette.Caption : edge.State == EdgeState.Trail ? palette.EdgeTrail : palette.EdgeNear;
         var text = Text(via, edge.LabelEmphasized ? EdgeLabelEmphasizedSize : EdgeLabelSize, brush);
-        context.DrawText(text, EdgeLabelOrigin(edge, text));
-    }
-
-    /// <summary>Beside the edge's middle: above a mostly horizontal edge, to the right of a mostly vertical one.</summary>
-    internal static Point EdgeLabelOrigin(EdgePaint edge, FormattedText text)
-    {
-        ArgumentNullException.ThrowIfNull(edge);
-        ArgumentNullException.ThrowIfNull(text);
-        var middle = new Point((edge.From.X + edge.To.X) / 2, (edge.From.Y + edge.To.Y) / 2);
-        return Math.Abs(edge.To.X - edge.From.X) >= Math.Abs(edge.To.Y - edge.From.Y)
-            ? new Point(middle.X - (text.Width / 2), middle.Y - text.Height - 2)
-            : new Point(middle.X + 6, middle.Y - (text.Height / 2));
+        context.DrawText(text, NetworkGeometry.EdgeLabelOrigin(edge, text));
     }
 
     private void DrawGrid(DrawingContext context, NetworkPalette palette)
@@ -769,25 +671,6 @@ public sealed class NetworkCanvas : Control
         }
     }
 
-    /// <summary>Where the pull wants a node, in screen px: towards the pointer within 90 px, at most 5 × strength.</summary>
-    internal static Vector Attraction(Point node, Point? pointer)
-    {
-        if (pointer is not { } p)
-        {
-            return default;
-        }
-
-        var delta = p - node;
-        var distance = Math.Sqrt((delta.X * delta.X) + (delta.Y * delta.Y));
-        if (distance < 0.5 || distance >= AttractionReach)
-        {
-            return default;
-        }
-
-        var pull = 5 * AttractionStrength * Math.Sin(Math.PI * distance / AttractionReach);
-        return delta / distance * pull;
-    }
-
     /// <summary>One 16 ms easing step; stops the timer once every node has settled.</summary>
     internal void StepMotion()
     {
@@ -801,7 +684,7 @@ public sealed class NetworkCanvas : Control
         foreach (var node in _page.Nodes)
         {
             // The dragged node sits exactly under the pointer; no pull on it.
-            var target = node.Id == Dragging ? default : Attraction(ScreenOf(node), _pointer);
+            var target = node.Id == Dragging ? default : NetworkGeometry.Attraction(ScreenOf(node), _pointer);
             var now = _offsets.GetValueOrDefault(node.Id);
             var next = now + ((target - now) * 0.18);
             if (Math.Abs(next.X - target.X) + Math.Abs(next.Y - target.Y) < 0.02)
@@ -843,33 +726,9 @@ public sealed class NetworkCanvas : Control
             return new Viewport(0, 0, 1);
         }
 
-        var fitted = FitTo(_page.Nodes, Bounds.Size);
+        var fitted = NetworkGeometry.FitTo(_page.Nodes, Bounds.Size);
         _page.Session.Viewport = fitted;
         return fitted;
-    }
-
-    /// <summary>
-    /// The viewport that shows every node, its label and its group's caption. Positions and label widths are canvas
-    /// units; dots, the label gap and captions are screen px, so the zoom is solved with both (§11.3: zoom clamped,
-    /// at most 1.5 when fitting).
-    /// </summary>
-    internal static Viewport FitTo(IReadOnlyList<NodeView> nodes, Size size)
-    {
-        ArgumentNullException.ThrowIfNull(nodes);
-        const double left = RootRadius + HoverGrowth;
-        const double right = RootRadius + HoverGrowth + NetworkLayout.LabelGap;
-        const double top = CaptionGap + 16;
-        const double bottom = RootRadius + HoverGrowth + 4;
-        var minX = nodes.Min(n => n.X);
-        var maxX = nodes.Max(n => n.X + n.LabelWidth);
-        var minY = nodes.Min(n => n.Y);
-        var maxY = nodes.Max(n => n.Y);
-        var width = Math.Max(1, maxX - minX);
-        var height = Math.Max(1, maxY - minY);
-        var zoom = Math.Min(1.5, Viewport.Clamp(Math.Min(
-            (size.Width - (2 * Viewport.FitMargin) - left - right) / width,
-            (size.Height - (2 * Viewport.FitMargin) - top - bottom) / height)));
-        return new Viewport(((minX + maxX) / 2) + ((right - left) / (2 * zoom)), ((minY + maxY) / 2) + ((bottom - top) / (2 * zoom)), zoom);
     }
 
     internal static FormattedText Text(string text, double size, IBrush brush, FontWeight weight = FontWeight.Normal) =>

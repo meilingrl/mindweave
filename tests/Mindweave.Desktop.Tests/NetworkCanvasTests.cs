@@ -97,7 +97,7 @@ public class NetworkCanvasTests
         Assert.True(paints.Single(p => p.Node.Id == selected.Id).LabelVisible);
         Assert.True(paints.Single(p => p.Node.Id == matched.Id).LabelVisible);
         Assert.False(paints.Single(p => p.Node.ShortTitle == "火箭号速度").LabelVisible);
-        Assert.Equal(13, NetworkCanvas.LabelSize(1.2));
+        Assert.Equal(13, NetworkGeometry.LabelSize(1.2));
         window.Close();
     }
 
@@ -192,8 +192,8 @@ public class NetworkCanvasTests
         Assert.Same(NetworkCanvas.HandCursor, canvas.Cursor);
 
         // Decorative only: at most 1.5 px, never past 90 px, and no layout position changes.
-        Assert.Equal(1.5, NetworkCanvas.Attraction(new Point(0, 0), new Point(45, 0)).Length, 3);
-        Assert.Equal(default, NetworkCanvas.Attraction(new Point(0, 0), new Point(95, 0)));
+        Assert.Equal(1.5, NetworkGeometry.Attraction(new Point(0, 0), new Point(45, 0)).Length, 3);
+        Assert.Equal(default, NetworkGeometry.Attraction(new Point(0, 0), new Point(95, 0)));
         canvas.SetPointer(null);
         Assert.Same(Cursor.Default, canvas.Cursor);
         for (var i = 0; i < 500 && canvas.IsMoving; i++)
@@ -306,9 +306,9 @@ public class NetworkCanvasTests
         await NetworkScenario.OpenNetworkAsync(app, window);
         var size = CanvasOf(window).Bounds.Size;
         window.Close();
-        var fitted = NetworkCanvas.FitTo(views, size);
+        var fitted = NetworkGeometry.FitTo(views, size);
         Assert.True(fitted.Zoom >= 0.8, $"default zoom {fitted.Zoom:0.00} in {size}");
-        Assert.Equal(NetworkCanvas.LabelMaxSize, NetworkCanvas.LabelSize(fitted.Zoom), 0.5);
+        Assert.Equal(NetworkCanvas.LabelMaxSize, NetworkGeometry.LabelSize(fitted.Zoom), 0.5);
     }
 
     [AvaloniaFact]
@@ -322,7 +322,7 @@ public class NetworkCanvasTests
             {
                 foreach (var weight in new[] { FontWeight.Normal, FontWeight.SemiBold })
                 {
-                    var drawn = NetworkCanvas.Text(label, NetworkCanvas.LabelSize(zoom), Brushes.Black, weight).Width;
+                    var drawn = NetworkCanvas.Text(label, NetworkGeometry.LabelSize(zoom), Brushes.Black, weight).Width;
                     Assert.True(drawn <= NetworkLayout.LabelWidth(label) * zoom + 0.5, $"{label} at {zoom}: {drawn} > {NetworkLayout.LabelWidth(label) * zoom}");
                 }
             }
@@ -378,7 +378,7 @@ public class NetworkCanvasTests
             var paint = canvas.PaintNodes().Single(p => p.Node.Id == left.Id);
             var edge = canvas.PaintEdges().Single(e => e.Edge.To == left.Id);
             Assert.Equal(EdgeState.Trail, edge.State);
-            Assert.False(NetworkCanvas.Crosses(edge.From, edge.To, paint.LabelBounds), "the label is drawn across its own edge");
+            Assert.False(NetworkGeometry.Crosses(edge.From, edge.To, paint.LabelBounds), "the label is drawn across its own edge");
 
             // Every pixel of the edge between the two halos shows the trail colour: nothing is drawn over it.
             using var frame = window.CaptureRenderedFrame()!;
@@ -442,22 +442,22 @@ public class NetworkCanvasTests
         var lower = upper with { Id = new SummaryNodeId(Guid.NewGuid()), Y = NetworkLayout.NodeHeight };
         foreach (var zoom in new[] { Viewport.MinZoom, 0.45, 1.0 })
         {
-            var a = NetworkCanvas.HitBox(new Point(100, 100), upper, zoom, labelVisible: true);
-            var b = NetworkCanvas.HitBox(new Point(100, 100 + (NetworkLayout.NodeHeight * zoom)), lower, zoom, labelVisible: true);
+            var a = NetworkGeometry.HitBox(new Point(100, 100), upper, zoom, labelVisible: true);
+            var b = NetworkGeometry.HitBox(new Point(100, 100 + (NetworkLayout.NodeHeight * zoom)), lower, zoom, labelVisible: true);
             Assert.False(a.Intersects(b), $"hit boxes overlap at zoom {zoom}: {a} and {b}");
         }
 
         // Side by side at the layout's padding: also apart.
         var right = upper with { Id = new SummaryNodeId(Guid.NewGuid()), X = NetworkLayout.BoxRight(0, upper.LabelWidth) + NetworkLayout.LabelPadding + NetworkLayout.NodeRadius };
         var z = Viewport.MinZoom;
-        Assert.False(NetworkCanvas.HitBox(new Point(0, 0), upper, z, true).Intersects(NetworkCanvas.HitBox(new Point(right.X * z, 0), right, z, true)));
+        Assert.False(NetworkGeometry.HitBox(new Point(0, 0), upper, z, true).Intersects(NetworkGeometry.HitBox(new Point(right.X * z, 0), right, z, true)));
 
         await using var app = DesktopHarness.Create();
         var window = app.ShowWindow(1100, 720);
         var network = await SeedThreeChildrenAsync(app, window);
         var canvas = CanvasOf(window);
         network.Session.Viewport = canvas.Current with { Zoom = Viewport.MinZoom };
-        var boxes = network.Nodes.Select(n => NetworkCanvas.HitBox(canvas.ToScreen(n.X, n.Y), n, Viewport.MinZoom, false)).ToList();
+        var boxes = network.Nodes.Select(n => NetworkGeometry.HitBox(canvas.ToScreen(n.X, n.Y), n, Viewport.MinZoom, false)).ToList();
         for (var i = 0; i < boxes.Count; i++)
         {
             for (var j = i + 1; j < boxes.Count; j++)
