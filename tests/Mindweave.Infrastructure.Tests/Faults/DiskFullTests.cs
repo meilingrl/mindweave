@@ -121,7 +121,7 @@ public class DiskFullTests
         await StorageFaults.FillDiskAsync(h.Database, headroomPages: 8);
         var before = await StorageFaults.CountRowsAsync(h.Database);
         var body = new string('总', 40_000);
-        h.Client.SummaryReplies.Enqueue($"标题：很长的总结\n\n{body}");
+        h.Client.Knowledge.Replies.Enqueue($"标题：很长的总结\n\n{body}");
 
         var outcome = await h.SummaryService.SummarizeAsync(sent.Conversation, Ct);
 
@@ -141,7 +141,7 @@ public class DiskFullTests
 
         await StorageFaults.FreeDiskAsync(h.Database);
         await ChatHarness.UntilAsync(() => !h.Conversations.IsStorageBlocked);
-        h.Client.SummaryReplies.Enqueue($"标题：很长的总结\n\n{body}");
+        h.Client.Knowledge.Replies.Enqueue($"标题：很长的总结\n\n{body}");
         Assert.True((await h.SummaryService.SummarizeAsync(sent.Conversation, Ct)).Accepted);
         await ChatHarness.UntilAsync(async () => (await h.SummaryService.ForConversationAsync(sent.Conversation, Ct)) is not null);
         var saved = (await h.SummaryService.ForConversationAsync(sent.Conversation, Ct))!;

@@ -33,7 +33,7 @@ public class ConversationFlowTests
     public async Task A_title_cut_off_at_the_output_limit_is_not_used()
     {
         await using var h = await ChatHarness.StartAsync();
-        h.Client.TruncateTitles = 1;
+        h.Client.Titles.TruncateNext();
 
         var sent = await h.Conversations.StartAsync(h.Workspace, "火车是怎么发明的？", Ct);
         await h.WaitForAnswerAsync(sent.Answer!.Value);

@@ -52,7 +52,7 @@ public class ConversationUiTests
         await using var app = DesktopHarness.Create();
         await app.StartWithWorkspaceAsync("火车");
         await app.ConfigureModelAsync();
-        var titles = app.Client.HoldTitles();
+        var titles = app.Client.Titles.Hold();
 
         var page = await OpenConversationAsync(app, "蒸汽机是谁发明的？", null);
         await UiWait.UntilAsync(() => page.Messages[1].State == MessageState.Complete);

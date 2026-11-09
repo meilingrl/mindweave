@@ -92,7 +92,7 @@ public partial class SummaryReadTests
     {
         var sent = await h.Conversations.StartAsync(h.Workspace, title + "是什么？", Ct);
         await h.WaitForAnswerAsync(sent.Answer!.Value);
-        h.Client.SummaryReplies.Enqueue($"标题：{title}\n\n{body}");
+        h.Client.Knowledge.Replies.Enqueue($"标题：{title}\n\n{body}");
         Assert.True((await h.SummaryService.SummarizeAsync(sent.Conversation, Ct)).Accepted);
         await ChatHarness.UntilAsync(async () => (await h.SummaryService.ForConversationAsync(sent.Conversation, Ct)) is not null);
         return (await h.SummaryService.ForConversationAsync(sent.Conversation, Ct))!.Node;

@@ -167,7 +167,7 @@ public class ArchiveFlowTests
     public async Task Deleting_cancels_a_running_title_first()
     {
         await using var h = await ChatHarness.StartAsync();
-        var gate = h.Client.HoldTitles();
+        var gate = h.Client.Titles.Hold();
         var (root, _) = await h.RootWithAnswerAsync("问");
         await ChatHarness.UntilAsync(() => h.Client.Requests.Any(FakeChatClient.IsTitle));
 
@@ -184,7 +184,7 @@ public class ArchiveFlowTests
     public async Task Archiving_cancels_a_running_title_in_the_subtree_and_it_is_asked_for_again_after_a_restore()
     {
         await using var h = await ChatHarness.StartAsync();
-        var gate = h.Client.HoldTitles();
+        var gate = h.Client.Titles.Hold();
         var (root, _) = await h.RootWithAnswerAsync("问");
         await ChatHarness.UntilAsync(() => h.Client.Requests.Count(FakeChatClient.IsTitle) == 1);
 
@@ -204,7 +204,7 @@ public class ArchiveFlowTests
     public async Task A_refused_delete_leaves_the_running_title_alone()
     {
         await using var h = await ChatHarness.StartAsync();
-        var gate = h.Client.HoldTitles();
+        var gate = h.Client.Titles.Hold();
         var (root, answer) = await h.RootWithAnswerAsync("问");
         await ChatHarness.UntilAsync(() => h.Client.Requests.Any(FakeChatClient.IsTitle));
         var child = await h.BranchAsync(root, answer, "甲");
@@ -227,12 +227,12 @@ public class ArchiveFlowTests
     public async Task A_refused_archive_leaves_the_titles_in_the_subtree_alone()
     {
         await using var h = await ChatHarness.StartAsync();
-        var gate = h.Client.HoldTitles();
+        var gate = h.Client.Titles.Hold();
         var (root, answer) = await h.RootWithAnswerAsync("问");
         await ChatHarness.UntilAsync(() => h.Client.Requests.Any(FakeChatClient.IsTitle));
         var child = await h.BranchAsync(root, answer, "甲");
         await h.AskAsync(child, "子问");
-        h.Client.KnowledgeGate = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        h.Client.Knowledge.Gate = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         Assert.True((await h.SummaryService.SummarizeAsync(child, Ct)).Accepted);
 
         var refused = await h.Conversations.ArchiveAsync(root, Ct);
@@ -241,7 +241,7 @@ public class ArchiveFlowTests
         Assert.Equal(0, await h.Database.ReadAsync(
             c => c.Scalar<long>(null, "SELECT count(*) FROM generation_task WHERE kind = 'title' AND state NOT IN ('queued', 'running');"), Ct));
         gate.TrySetResult();
-        h.Client.KnowledgeGate.TrySetResult();
+        h.Client.Knowledge.Gate.TrySetResult();
         await ChatHarness.UntilAsync(async () => (await h.Store.GetAsync(root, Ct))!.TitleSource == TitleSource.Auto
             && (await h.Store.GetAsync(child, Ct))!.TitleSource == TitleSource.Auto);
     }
@@ -250,7 +250,7 @@ public class ArchiveFlowTests
     public async Task A_title_stored_before_the_archive_but_queued_after_it_never_runs()
     {
         await using var h = await ChatHarness.StartAsync();
-        var gate = h.Client.HoldTitles();
+        var gate = h.Client.Titles.Hold();
         var (root, _) = await h.RootWithAnswerAsync("问");
         await ChatHarness.UntilAsync(() => h.Client.Requests.Any(FakeChatClient.IsTitle));
 
@@ -273,7 +273,7 @@ public class ArchiveFlowTests
     public async Task A_late_title_for_a_conversation_deleted_under_it_is_ignored_and_storage_stays_healthy()
     {
         await using var h = await ChatHarness.StartAsync();
-        var gate = h.Client.HoldTitles();
+        var gate = h.Client.Titles.Hold();
         var (root, _) = await h.RootWithAnswerAsync("问");
         await ChatHarness.UntilAsync(() => h.Client.Requests.Any(FakeChatClient.IsTitle));
 
@@ -302,7 +302,7 @@ public class ArchiveFlowTests
         var (root, answer) = await h.RootWithAnswerAsync("问");
         var child = await h.BranchAsync(root, answer, "甲");
         await h.AskAsync(child, "子问");
-        h.Client.KnowledgeGate = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        h.Client.Knowledge.Gate = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         Assert.True((await h.SummaryService.SummarizeAsync(child, Ct)).Accepted);
         await ChatHarness.UntilAsync(async () => await h.SummaryService.LatestTaskAsync(child, Ct) is { State: GenerationTaskState.Running });
 
@@ -312,7 +312,7 @@ public class ArchiveFlowTests
         Assert.Equal([child], refused.Busy);
         Assert.Equal(0, await h.CountAsync("conversation_archive"));
 
-        h.Client.KnowledgeGate.TrySetResult();
+        h.Client.Knowledge.Gate.TrySetResult();
         await ChatHarness.UntilAsync(async () => await h.SummaryService.LatestTaskAsync(child, Ct) is { State: GenerationTaskState.Completed });
         Assert.True((await h.Conversations.ArchiveAsync(root, Ct)).Archived);
     }

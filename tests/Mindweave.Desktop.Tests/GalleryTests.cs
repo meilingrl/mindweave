@@ -1096,7 +1096,7 @@ public class GalleryTests
             };
             foreach (var (conversation, title, shortName, body, read) in plan)
             {
-                app.Client.SummaryReplies.Enqueue($"标题：{title}\n短名：{shortName}\n\n{body}");
+                app.Client.Knowledge.Replies.Enqueue($"标题：{title}\n短名：{shortName}\n\n{body}");
                 await SummarizeAsync(service, conversation);
                 var entry = (await service.ForConversationAsync(conversation, CancellationToken.None))!;
                 nodes[conversation] = entry.Node.Id;
@@ -1110,7 +1110,7 @@ public class GalleryTests
             var gaugeNode = nodes[gauge];
             var detail = (await service.GetAsync(gaugeNode, CancellationToken.None))!;
             await service.SaveEditAsync(gaugeNode, detail.Current.Id, detail.Current.Title, detail.Current.Body + "\n\n我的笔记：美国南北战争后，南方铁路在 1886 年的两天之内统一改成了这一轨距。", CancellationToken.None);
-            app.Client.SummaryReplies.Enqueue("标题：标准轨距 1435 毫米的由来与推广\n短名：标准轨距\n\n- 来源：煤矿马车道的轨距。\n- 推广：斯蒂芬森的线路、1846 年《轨距法》。\n- 例外：西班牙、俄罗斯等采用宽轨，日本早期采用窄轨。");
+            app.Client.Knowledge.Replies.Enqueue("标题：标准轨距 1435 毫米的由来与推广\n短名：标准轨距\n\n- 来源：煤矿马车道的轨距。\n- 推广：斯蒂芬森的线路、1846 年《轨距法》。\n- 例外：西班牙、俄罗斯等采用宽轨，日本早期采用窄轨。");
             await SummarizeAsync(service, gauge);
         }
 

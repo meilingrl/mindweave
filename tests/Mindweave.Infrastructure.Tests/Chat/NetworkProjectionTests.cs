@@ -48,7 +48,7 @@ public class NetworkProjectionTests
     {
         await using var h = await ChatHarness.StartAsync();
         var conversation = await ConversationAsync(h, "火车是怎么发明的？");
-        h.Client.SummaryReplies.Enqueue("标题：早期蒸汽机车在铁路运输中的作用与局限\n短名：蒸汽机车\n\n正文");
+        h.Client.Knowledge.Replies.Enqueue("标题：早期蒸汽机车在铁路运输中的作用与局限\n短名：蒸汽机车\n\n正文");
         await h.SummarizeAsync(conversation);
 
         var node = Assert.Single((await h.Network.ProjectAsync(h.Workspace, Ct)).Nodes);

@@ -19,13 +19,13 @@ public class ExitStopTests
     public async Task The_exit_prompt_counts_user_answers_and_summaries_separately_but_not_titles()
     {
         await using var h = await ChatHarness.StartAsync();
-        var titles = h.Client.HoldTitles();
+        var titles = h.Client.Titles.Hold();
         var done = await h.Conversations.StartAsync(h.Workspace, "火车是怎么发明的？", Ct);
         await h.WaitForAnswerAsync(done.Answer!.Value);
         await ChatHarness.UntilAsync(() => h.Client.Requests.Any(FakeChatClient.IsTitle));
         Assert.False(h.Generation.UnfinishedUserWork.Any);
 
-        h.Client.KnowledgeGate = new TaskCompletionSource();
+        h.Client.Knowledge.Gate = new TaskCompletionSource();
         Assert.True((await h.SummaryService.SummarizeAsync(done.Conversation, Ct)).Accepted);
         await ChatHarness.UntilAsync(() => h.Client.Requests.Any(FakeChatClient.IsKnowledgeSummary));
 
@@ -39,7 +39,7 @@ public class ExitStopTests
         Assert.False(h.Generation.UnfinishedUserWork.Any);
         Assert.Equal(0, h.Generation.UnfinishedCount);
         titles.TrySetResult();
-        h.Client.KnowledgeGate.TrySetResult();
+        h.Client.Knowledge.Gate.TrySetResult();
     }
 
     [Fact]
@@ -198,7 +198,7 @@ public class ExitStopTests
     public async Task A_title_stopped_by_an_exit_is_asked_for_again_when_the_next_answer_completes()
     {
         await using var h = await ChatHarness.StartAsync();
-        var titles = h.Client.HoldTitles();
+        var titles = h.Client.Titles.Hold();
         var sent = await h.Conversations.StartAsync(h.Workspace, "火车是怎么发明的？", Ct);
         await h.WaitForAnswerAsync(sent.Answer!.Value);
         await ChatHarness.UntilAsync(() => h.Client.Requests.Count(FakeChatClient.IsTitle) == 1);

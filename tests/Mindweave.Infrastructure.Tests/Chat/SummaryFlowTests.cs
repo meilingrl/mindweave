@@ -68,14 +68,14 @@ public class SummaryFlowTests
         held.Release.TrySetResult();
         await h.WaitForAnswerAsync(asked.Answer!.Value);
 
-        h.Client.KnowledgeGate = new TaskCompletionSource();
+        h.Client.Knowledge.Gate = new TaskCompletionSource();
         var first = await h.SummaryService.SummarizeAsync(conversation, Ct);
         Assert.True(first.Accepted);
         Assert.Equal(SummarizeRejection.SummaryInProgress, (await h.SummaryService.SummarizeAsync(conversation, Ct)).Rejection);
 
         // A question may still be asked while the summary runs; its coverage was frozen at acceptance.
         await h.AskAsync(conversation, "再问一个");
-        h.Client.KnowledgeGate.TrySetResult();
+        h.Client.Knowledge.Gate.TrySetResult();
         var node = await NodeAsync(h, conversation);
         Assert.Equal(3, (await h.SummaryService.GetAsync(node, Ct))!.Current.ToSeq);
 
@@ -100,7 +100,7 @@ public class SummaryFlowTests
     {
         await using var h = await ChatHarness.StartAsync();
         var conversation = await ConversationAsync(h, "火车是怎么发明的？");
-        h.Client.TruncateKnowledge = 1;
+        h.Client.Knowledge.TruncateNext();
 
         var failed = await h.SummaryService.SummarizeAsync(conversation, Ct);
         await UntilTaskAsync(h, conversation, GenerationTaskState.Failed);
@@ -119,7 +119,7 @@ public class SummaryFlowTests
     {
         await using var h = await ChatHarness.StartAsync();
         var conversation = await ConversationAsync(h, "火车是怎么发明的？");
-        h.Client.SummaryReplies.Enqueue("标题：只有标题");
+        h.Client.Knowledge.Replies.Enqueue("标题：只有标题");
 
         await h.SummaryService.SummarizeAsync(conversation, Ct);
         await UntilTaskAsync(h, conversation, GenerationTaskState.Failed);
@@ -132,7 +132,7 @@ public class SummaryFlowTests
     {
         await using var h = await ChatHarness.StartAsync();
         var conversation = await ConversationAsync(h, "火车是怎么发明的？");
-        h.Client.KnowledgeGate = new TaskCompletionSource();
+        h.Client.Knowledge.Gate = new TaskCompletionSource();
         var started = await h.SummaryService.SummarizeAsync(conversation, Ct);
         await UntilTaskAsync(h, conversation, GenerationTaskState.Running);
 
@@ -150,7 +150,7 @@ public class SummaryFlowTests
         await using (var h = await ChatHarness.StartAsync(directory: dir))
         {
             conversation = await ConversationAsync(h, "火车是怎么发明的？");
-            h.Client.KnowledgeGate = new TaskCompletionSource();
+            h.Client.Knowledge.Gate = new TaskCompletionSource();
             await h.SummaryService.SummarizeAsync(conversation, Ct);
             await UntilTaskAsync(h, conversation, GenerationTaskState.Running);
         }
@@ -175,7 +175,7 @@ public class SummaryFlowTests
         var first = await SummarizeAsync(h, conversation);
         var edited = await h.SummaryService.SaveEditAsync(first.Node, first.Version, "蒸汽机车", "我自己的笔记", Ct);
 
-        h.Client.SummaryReplies.Enqueue("标题：蒸汽机车\n\n新生成的正文");
+        h.Client.Knowledge.Replies.Enqueue("标题：蒸汽机车\n\n新生成的正文");
         Assert.True((await h.SummaryService.SummarizeAsync(conversation, Ct)).Accepted);
         await ChatHarness.UntilAsync(async () => (await h.SummaryService.GetAsync(first.Node, Ct))!.Pending is not null);
 
@@ -195,12 +195,12 @@ public class SummaryFlowTests
         await using var h = await ChatHarness.StartAsync();
         var conversation = await ConversationAsync(h, "火车是怎么发明的？");
         var first = await SummarizeAsync(h, conversation);
-        h.Client.KnowledgeGate = new TaskCompletionSource();
+        h.Client.Knowledge.Gate = new TaskCompletionSource();
         Assert.True((await h.SummaryService.SummarizeAsync(conversation, Ct)).Accepted);
         await UntilTaskAsync(h, conversation, GenerationTaskState.Running);
 
         await h.SummaryService.SaveEditAsync(first.Node, first.Version, "蒸汽机车", "生成期间的手改", Ct);
-        h.Client.KnowledgeGate.TrySetResult();
+        h.Client.Knowledge.Gate.TrySetResult();
         await ChatHarness.UntilAsync(async () => (await h.SummaryService.GetAsync(first.Node, Ct))!.Pending is not null);
 
         Assert.True((await h.SummaryService.CheckAdoptAsync(first.Node, Ct))!.BaselineChanged);
@@ -215,7 +215,7 @@ public class SummaryFlowTests
         var first = await SummarizeAsync(h, a);
         await h.SummaryNodes.SetReadAsync(first.Version, ReadSource.Manual, DateTimeOffset.UtcNow, Ct);
 
-        h.Client.NamingReplies.Enqueue("1：原理\n2：局限");
+        h.Client.Naming.Replies.Enqueue("1：原理\n2：局限");
         await SummarizeAsync(h, b);
 
         await ChatHarness.UntilAsync(async () => (await h.SummaryService.ListAsync(h.Workspace, Ct)).All(e => e.Node.NameSource == NameSource.Auto));
@@ -227,7 +227,7 @@ public class SummaryFlowTests
         // A third same-name summary renames the group again; the manual name stays.
         await h.SummaryService.RenameAsync(first.Node, "我的原理笔记", Ct);
         var c = await ConversationAsync(h, "蒸汽机市场？");
-        h.Client.NamingReplies.Enqueue("1：原理\n2：局限\n3：市场");
+        h.Client.Naming.Replies.Enqueue("1：原理\n2：局限\n3：市场");
         await SummarizeAsync(h, c);
         await ChatHarness.UntilAsync(async () => (await h.SummaryService.ForConversationAsync(c, Ct))!.Node.NameSource == NameSource.Auto);
 
@@ -242,12 +242,12 @@ public class SummaryFlowTests
         var a = await ConversationAsync(h, "蒸汽机原理？");
         var b = await ConversationAsync(h, "蒸汽机局限？");
         await SummarizeAsync(h, a);
-        h.Client.NamingGate = new TaskCompletionSource();
+        h.Client.Naming.Gate = new TaskCompletionSource();
         await SummarizeAsync(h, b);
         await ChatHarness.UntilAsync(() => Task.FromResult(h.Client.Requests.Any(FakeChatClient.IsNaming)));
 
         await h.SummaryService.RenameAsync((await h.SummaryService.ForConversationAsync(a, Ct))!.Node.Id, "改过的名字", Ct);
-        h.Client.NamingGate.TrySetResult();
+        h.Client.Naming.Gate.TrySetResult();
         await ChatHarness.UntilAsync(async () => (await h.SummaryService.ForConversationAsync(b, Ct))!.Node.NameSource == NameSource.Auto);
 
         Assert.Equal("改过的名字", (await h.SummaryService.ForConversationAsync(a, Ct))!.Node.DisplayName);
@@ -278,7 +278,7 @@ public class SummaryFlowTests
         await using var h = await ChatHarness.StartAsync();
         var conversation = await ConversationAsync(h, "火车是怎么发明的？");
         var first = await SummarizeAsync(h, conversation);
-        h.Client.SummaryReplies.Enqueue("标题：铁路的起源\n\n正文");
+        h.Client.Knowledge.Replies.Enqueue("标题：铁路的起源\n\n正文");
         Assert.True((await h.SummaryService.SummarizeAsync(conversation, Ct)).Accepted);
         await ChatHarness.UntilAsync(async () => (await h.SummaryService.GetAsync(first.Node, Ct))!.Pending is not null);
 

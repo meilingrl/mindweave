@@ -306,7 +306,7 @@ public class ConversationDeleteFlowTests
     public async Task Background_titles_in_the_scope_are_stopped_and_their_late_writes_find_nothing()
     {
         await using var h = await ChatHarness.StartAsync();
-        var gate = h.Client.HoldTitles();
+        var gate = h.Client.Titles.Hold();
         var sent = await h.Conversations.StartAsync(h.Workspace, "问", Ct);
         var answer = await h.WaitForAnswerAsync(sent.Answer!.Value);
         await ChatHarness.UntilAsync(() => h.Client.Requests.Any(Testing.FakeChatClient.IsTitle));

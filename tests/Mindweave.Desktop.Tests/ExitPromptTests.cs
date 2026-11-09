@@ -109,7 +109,7 @@ public class ExitPromptTests
         var conversations = app.Services.GetRequiredService<ConversationService>();
         var first = await conversations.StartAsync(app.Workbench.CurrentWorkspace!.Id, "火车是怎么发明的？", CancellationToken.None);
         await UiWait.UntilAsync(() => conversations.LoadAsync(first.Conversation, CancellationToken.None).Result!.Messages.All(m => m.IsFinished));
-        app.Client.KnowledgeGate = new TaskCompletionSource();
+        app.Client.Knowledge.Gate = new TaskCompletionSource();
         Assert.True((await app.Services.GetRequiredService<Application.Summaries.SummaryService>().SummarizeAsync(first.Conversation, CancellationToken.None)).Accepted);
         await RunningAnswerAsync(app);
 
@@ -117,6 +117,6 @@ public class ExitPromptTests
 
         Assert.Contains("1 个回答、1 个总结", app.Root.Exit.TaskMessage, StringComparison.Ordinal);
         app.Root.Exit.KeepRunningCommand.Execute(null);
-        app.Client.KnowledgeGate.TrySetResult();
+        app.Client.Knowledge.Gate.TrySetResult();
     }
 }

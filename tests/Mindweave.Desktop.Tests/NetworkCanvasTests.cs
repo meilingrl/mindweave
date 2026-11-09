@@ -218,7 +218,7 @@ public class NetworkCanvasTests
         var photos = await NetworkScenario.AskAsync(app, conversations, null, app.Workbench.CurrentWorkspace!.Id, "摄影是怎么发明的？");
         var plate = await NetworkScenario.BranchAsync(app, conversations, photos, "银版法怎么做？");
         var summaries = app.Services.GetRequiredService<SummaryService>();
-        app.Client.SummaryReplies.Enqueue("标题：银版法\n短名：银版法\n\n正文");
+        app.Client.Knowledge.Replies.Enqueue("标题：银版法\n短名：银版法\n\n正文");
         Assert.True((await summaries.SummarizeAsync(plate, CancellationToken.None)).Accepted);
         var network = await NetworkScenario.OpenNetworkAsync(app, window);
         await UiWait.UntilAsync(() => network.Nodes.Count == 4);
@@ -248,7 +248,7 @@ public class NetworkCanvasTests
         var photos = await NetworkScenario.AskAsync(app, conversations, null, workspace, "摄影是怎么发明的？");
         var plates = await NetworkScenario.BranchAsync(app, conversations, photos, "银版法怎么做？");
         var mercury = await NetworkScenario.BranchAsync(app, conversations, plates, "为什么用汞蒸气？");
-        app.Client.SummaryReplies.Enqueue("标题：汞蒸气显影\n短名：汞蒸气\n\n正文");
+        app.Client.Knowledge.Replies.Enqueue("标题：汞蒸气显影\n短名：汞蒸气\n\n正文");
         Assert.True((await summaries.SummarizeAsync(mercury, CancellationToken.None)).Accepted);
         var network = await NetworkScenario.OpenNetworkAsync(app, window);
         await UiWait.UntilAsync(() => network.Nodes.Count == 4);
@@ -650,7 +650,7 @@ public class NetworkCanvasTests
         var network = await NetworkScenario.OpenNetworkAsync(app, window);
         var root = network.Session.Projection.Nodes.Single(n => n.Conversation == n.Root).Conversation;
         var engines = await NetworkScenario.BranchAsync(app, conversations, root, "蒸汽机车怎么造？");
-        app.Client.SummaryReplies.Enqueue("标题：蒸汽机车的构造\n短名：蒸汽机车\n\n正文");
+        app.Client.Knowledge.Replies.Enqueue("标题：蒸汽机车的构造\n短名：蒸汽机车\n\n正文");
         Assert.True((await summaries.SummarizeAsync(engines, CancellationToken.None)).Accepted);
         await UiWait.UntilAsync(() => network.Nodes.Count == 4);
         network.ArrangeCommand.Execute(null);

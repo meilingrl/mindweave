@@ -121,7 +121,7 @@ public sealed class SummaryExportFlowTests : IDisposable
     {
         await using var h = await ChatHarness.StartAsync();
         var (conversation, node) = await SummarizedAsync(h);
-        h.Client.SummaryReplies.Enqueue($"标题：{FakeChatClient.DefaultSummaryTitle}\n\n候选正文");
+        h.Client.Knowledge.Replies.Enqueue($"标题：{FakeChatClient.DefaultSummaryTitle}\n\n候选正文");
         Assert.True((await h.SummaryService.SummarizeAsync(conversation, Ct)).Accepted);
         await ChatHarness.UntilAsync(async () => (await h.SummaryService.GetAsync(node, Ct))?.Pending is not null);
         var candidate = (await h.SummaryService.GetAsync(node, Ct))!.Pending!.Id;

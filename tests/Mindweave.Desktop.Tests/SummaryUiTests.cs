@@ -84,7 +84,7 @@ public class SummaryUiTests
         await UiWait.UntilAsync(() => summary.Shown?.Origin == SummaryOrigin.Edited && summary.ShownIsRead);
 
         // Regenerate: the edit stays current and the new text is a candidate, clearly labelled.
-        app.Client.SummaryReplies.Enqueue($"标题：{FakeChatClient.DefaultSummaryTitle}\n\n新生成的正文");
+        app.Client.Knowledge.Replies.Enqueue($"标题：{FakeChatClient.DefaultSummaryTitle}\n\n新生成的正文");
         summary.ReturnToConversationCommand.Execute(null);
         page = Assert.IsType<ConversationViewModel>(app.Workbench.CurrentPage);
         await page.SummarizeCommand.ExecuteAsync(null);
@@ -149,7 +149,7 @@ public class SummaryUiTests
     {
         await using var app = DesktopHarness.Create();
         var page = await app.StartWithConversationAsync(waitForTitle: false);
-        app.Client.TruncateKnowledge = 1;
+        app.Client.Knowledge.TruncateNext();
 
         await page.SummarizeCommand.ExecuteAsync(null);
         await UiWait.UntilAsync(() => page.SummaryProblem is not null);
@@ -186,7 +186,7 @@ public class SummaryUiTests
         await using var app = DesktopHarness.Create();
         var window = app.ShowWindow();
         var page = await app.StartWithConversationAsync(waitForTitle: false);
-        app.Client.SummaryReplies.Enqueue($"标题：{FakeChatClient.DefaultSummaryTitle}\n\n缆索牵引**适合陡坡**，但缆绳易磨损。\n\n$$P = F\\,v$$\n\n其中 $v$ 是缆绳速度。");
+        app.Client.Knowledge.Replies.Enqueue($"标题：{FakeChatClient.DefaultSummaryTitle}\n\n缆索牵引**适合陡坡**，但缆绳易磨损。\n\n$$P = F\\,v$$\n\n其中 $v$ 是缆绳速度。");
         await page.SummarizeCommand.ExecuteAsync(null);
         await UiWait.UntilAsync(() => page.HasSummary && page.RunningSummary is null);
         await OpenSummaryAsync(app, page);
@@ -214,7 +214,7 @@ public class SummaryUiTests
         var page = await app.StartWithConversationAsync(waitForTitle: false);
         await page.SummarizeCommand.ExecuteAsync(null);
         await UiWait.UntilAsync(() => page.HasSummary && page.RunningSummary is null);
-        app.Client.SummaryReplies.Enqueue($"标题：{FakeChatClient.DefaultSummaryTitle}\n\n新生成的正文");
+        app.Client.Knowledge.Replies.Enqueue($"标题：{FakeChatClient.DefaultSummaryTitle}\n\n新生成的正文");
         await page.SummarizeCommand.ExecuteAsync(null);
         await UiWait.UntilAsync(() => page.SummaryMarkersText?.Contains(UiText.MarkerCandidate, StringComparison.Ordinal) == true);
         var summary = await OpenSummaryAsync(app, page);

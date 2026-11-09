@@ -218,7 +218,7 @@ public class WorkspaceDeleteFlowTests
     public async Task A_running_title_is_stopped_and_its_late_write_finds_nothing()
     {
         await using var h = await ChatHarness.StartAsync();
-        var gate = h.Client.HoldTitles();
+        var gate = h.Client.Titles.Hold();
         var sent = await h.Conversations.StartAsync(h.Workspace, "问", Ct);
         await h.WaitForAnswerAsync(sent.Answer!.Value);
         await ChatHarness.UntilAsync(() => h.Client.Requests.Any(Testing.FakeChatClient.IsTitle));
