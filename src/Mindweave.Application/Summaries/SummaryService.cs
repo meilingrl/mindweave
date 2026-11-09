@@ -1,7 +1,3 @@
-using System.Collections.Concurrent;
-using System.Globalization;
-using System.Text;
-using System.Text.RegularExpressions;
 using Microsoft.Extensions.Logging;
 using Mindweave.Application.Ai;
 using Mindweave.Application.Conversations;
@@ -54,14 +50,12 @@ public sealed record AdoptCheck(bool BaselineChanged, SummaryVersion Current, Su
 /// Summary use cases (S4): accepting a summary (frozen coverage, one unfinished task and one candidate per
 /// conversation), saving it only on success, version operations, reading state, and two-level naming.
 /// </summary>
-public sealed partial class SummaryService : ISummaries
+public sealed class SummaryService : ISummaries
 {
     /// <summary>Output cap for a summary; reasoning models spend hidden reasoning against it (D-015).</summary>
     public const int SummaryOutputTokens = 16_384;
 
-    private const int NamingOutputTokens = 4_096;
     private const int SourceExcerpt = 3_000;
-    private const int NamingBodyExcerpt = 600;
 
     private const string Instructions = """
         你为用户整理一次探索对话的知识总结。只依据对话内容，不补充对话里没有的事实。
@@ -70,14 +64,6 @@ public sealed partial class SummaryService : ISummaries
         """;
 
     private const string Request = "请按要求总结以上对话。";
-
-    private const string NamingInstructions = """
-        下面是同一工作区里基础标题相同的几条知识总结。为每一条给出一个简短的区分词（2 到 8 个字），说明它与其他几条的区别，必须能在它的正文里找到依据。
-        现有名称里的区分词仍然准确时保留原词。确实无法区分时留空，不要编造区别。
-        每行输出一条，格式为“编号：区分词”，不要输出其他内容。
-        """;
-
-    private static readonly Regex NamingLine = new(@"^\s*\[?(?<n>\d+)\]?\s*[：:.、]\s*(?<term>.*)$", RegexOptions.CultureInvariant);
 
     private readonly ISummaryStore _summaries;
     private readonly IConversationStore _conversations;
@@ -89,9 +75,7 @@ public sealed partial class SummaryService : ISummaries
     private readonly SummaryDrafts _drafts;
     private readonly ModelSettingsService _models;
     private readonly IClock _clock;
-    private readonly ILogger<SummaryService> _logger;
-    private readonly ConcurrentDictionary<(WorkspaceId, string), byte> _namingQueued = new();
-    private readonly ConcurrentDictionary<GenerationTaskId, (WorkspaceId, string)> _namingTasks = new();
+    private readonly SummaryNaming _naming;
 
     public SummaryService(
         ISummaryStore summaries,
@@ -116,15 +100,10 @@ public sealed partial class SummaryService : ISummaries
         _drafts = drafts;
         _models = models;
         _clock = clock;
-        _logger = logger;
+        _naming = new SummaryNaming(summaries, conversations, generation, health, models, clock, logger, id => Changed?.Invoke(this, id));
         _generation.SummaryTaskFinished += (_, task) =>
         {
-            // A naming task stopped before its output arrived (an archive, an exit) never reached Apply's cleanup.
-            if (_namingTasks.TryRemove(task.Id, out var group))
-            {
-                _namingQueued.TryRemove(group, out byte _);
-            }
-
+            _naming.OnTaskFinished(task);
             Changed?.Invoke(this, task.ConversationId);
         };
     }
@@ -263,7 +242,7 @@ public sealed partial class SummaryService : ISummaries
         {
             if (result.NewCurrent is { } current && current != detail.Node.Current)
             {
-                await CheckNameAsync(node, cancellationToken).ConfigureAwait(false);
+                await _naming.CheckNameAsync(node, cancellationToken).ConfigureAwait(false);
             }
 
             Changed?.Invoke(this, detail.Node.Conversation);
@@ -316,7 +295,7 @@ public sealed partial class SummaryService : ISummaries
                 node, generation, revision, () => _summaries.SaveEditAsync(node, baseline, title.Trim(), body.Trim(), _clock.UtcNow, cancellationToken)).ConfigureAwait(false);
 
             // After the draft's gate is released: naming may write and schedule work of its own.
-            await CheckNameAsync(node, cancellationToken).ConfigureAwait(false);
+            await _naming.CheckNameAsync(node, cancellationToken).ConfigureAwait(false);
             if (before is not null)
             {
                 Changed?.Invoke(this, before.Node.Conversation);
@@ -396,7 +375,7 @@ public sealed partial class SummaryService : ISummaries
 
         if (!saved.IsCandidate)
         {
-            await ScheduleNamingSafelyAsync(saved.Node).ConfigureAwait(false);
+            await _naming.ScheduleNamingSafelyAsync(saved.Node).ConfigureAwait(false);
         }
 
         return SummarySaveResult.Saved;
@@ -451,7 +430,7 @@ public sealed partial class SummaryService : ISummaries
             async () =>
             {
                 await operation().ConfigureAwait(false);
-                await CheckNameAsync(node, cancellationToken).ConfigureAwait(false);
+                await _naming.CheckNameAsync(node, cancellationToken).ConfigureAwait(false);
             },
             cancellationToken);
 
@@ -461,123 +440,5 @@ public sealed partial class SummaryService : ISummaries
         return true;
     }
 
-    /// <summary>
-    /// After the current version changed (§10.2): if its title no longer matches the base title, the base title and
-    /// (unless manual) the display name follow it, and the new name's same-name group is checked.
-    /// </summary>
-    private async Task CheckNameAsync(SummaryNodeId node, CancellationToken cancellationToken)
-    {
-        if (await _summaries.GetAsync(node, cancellationToken).ConfigureAwait(false) is not { } detail)
-        {
-            return;
-        }
-
-        if (SummaryRules.NormalizeName(detail.Current.Title) != SummaryRules.NormalizeName(detail.Node.BaseTitle))
-        {
-            await _summaries.UpdateBaseTitleAsync(node, detail.Node.Current, detail.Current.Title, _clock.UtcNow, cancellationToken).ConfigureAwait(false);
-            await ScheduleNamingSafelyAsync(node).ConfigureAwait(false);
-        }
-    }
-
-    private async Task ScheduleNamingSafelyAsync(SummaryNodeId node)
-    {
-        try
-        {
-            await ScheduleNamingAsync(node).ConfigureAwait(false);
-        }
-#pragma warning disable CA1031 // Naming is best effort; the summary is already saved under its base name.
-        catch (Exception ex)
-#pragma warning restore CA1031
-        {
-            LogNamingNotScheduled(_logger, ex, node);
-        }
-    }
-
-    /// <summary>Queues naming for the node's same-name group when it has two or more members; groups are deduplicated.</summary>
-    private async Task ScheduleNamingAsync(SummaryNodeId node)
-    {
-        if (await _summaries.GetAsync(node, CancellationToken.None).ConfigureAwait(false) is not { } detail)
-        {
-            return;
-        }
-
-        var key = SummaryRules.NormalizeName(detail.Node.BaseTitle);
-        var members = (await _summaries.ListAsync(detail.Node.Workspace, CancellationToken.None).ConfigureAwait(false))
-            .Where(e => SummaryRules.NormalizeName(e.Node.BaseTitle) == key)
-            .ToList();
-        if (members.Count < 2 || members.All(e => e.Node.NameSource == NameSource.Manual) || _health.IsBlocked)
-        {
-            return;
-        }
-
-        // Excerpts of exactly the versions the group was read with; a member whose version is gone meanwhile drops out.
-        // One whose node has moved on keeps its group-time excerpt, and the apply-time expectation discards its name.
-        var excerpts = await _summaries.ExcerptsAsync([.. members.Select(e => e.Current.Id)], NamingBodyExcerpt, CancellationToken.None).ConfigureAwait(false);
-        var group = members.Where(e => excerpts.ContainsKey(e.Current.Id)).ToList();
-        if (group.Count < 2)
-        {
-            return;
-        }
-
-        if (await _models.GetActiveSnapshotAsync(CancellationToken.None).ConfigureAwait(false) is not { } model || !_namingQueued.TryAdd((detail.Node.Workspace, key), 0))
-        {
-            return;
-        }
-
-        var prompt = new StringBuilder().Append("基础标题：").Append(detail.Node.BaseTitle).Append("\n\n");
-        for (var i = 0; i < group.Count; i++)
-        {
-            prompt.Append(CultureInfo.InvariantCulture, $"[{i + 1}] 现有名称：{group[i].Node.DisplayName}\n标题：{group[i].Current.Title}\n正文开头：{excerpts[group[i].Current.Id]}\n\n");
-        }
-
-        var expectations = group.Select(e => new NamingExpectation(e.Node.Id, e.Node.Current, e.Node.DisplayName)).ToList();
-        var baseTitles = group.Select(e => e.Node.BaseTitle).ToList();
-        var task = new GenerationTaskRecord(
-            GenerationTaskId.New(), GenerationTaskKind.Naming, detail.Node.Conversation, null, model with { MaxOutputTokens = NamingOutputTokens }, [], _clock.UtcNow);
-        await _conversations.AddTaskAsync(task, CancellationToken.None).ConfigureAwait(false);
-        _namingTasks[task.Id] = (detail.Node.Workspace, key);
-        _generation.Enqueue(new NamingWork(
-            task,
-            new ChatRequest(task.Model, [new ChatTurn(ChatRole.System, NamingInstructions), new ChatTurn(ChatRole.User, prompt.ToString())]),
-            async output =>
-            {
-                try
-                {
-                    var terms = ParseNaming(output, group.Count);
-                    var names = expectations.Select((e, i) => (e, SummaryRules.DisplayName(baseTitles[i], terms[i]))).ToList();
-                    var renamed = await _summaries.ApplyNamesAsync(names, _clock.UtcNow, CancellationToken.None).ConfigureAwait(false);
-                    foreach (var entry in group.Where(e => renamed.Contains(e.Node.Id)))
-                    {
-                        Changed?.Invoke(this, entry.Node.Conversation);
-                    }
-                }
-                finally
-                {
-                    _namingTasks.TryRemove(task.Id, out _);
-                    _namingQueued.TryRemove((detail.Node.Workspace, key), out _);
-                }
-            }));
-    }
-
-    /// <summary>"编号：区分词" lines; a missing or empty line leaves that node with its base name.</summary>
-    internal static string?[] ParseNaming(string output, int count)
-    {
-        var terms = new string?[count];
-        foreach (var line in output.Split('\n'))
-        {
-            var match = NamingLine.Match(line);
-            if (match.Success && int.TryParse(match.Groups["n"].Value, CultureInfo.InvariantCulture, out var n) && n >= 1 && n <= count)
-            {
-                var term = match.Groups["term"].Value.Trim().Trim('“', '”', '"', '「', '」');
-                terms[n - 1] = term.Length is > 0 and <= 16 ? term : null;
-            }
-        }
-
-        return terms;
-    }
-
     private static SummarizeOutcome Reject(SummarizeRejection rejection) => new(rejection, null);
-
-    [LoggerMessage(Level = LogLevel.Warning, Message = "Naming for summary node {Node} not scheduled")]
-    private static partial void LogNamingNotScheduled(ILogger logger, Exception exception, SummaryNodeId node);
 }
