@@ -37,7 +37,7 @@ public class MultiSelectUiTests
     public async Task Ctrl_or_cmd_click_toggles_shift_click_takes_a_range_esc_clears_and_a_plain_click_opens()
     {
         await using var app = DesktopHarness.Create();
-        var window = NetworkUiTests.Show(app);
+        var window = app.ShowWindow(1100, 720);
         var (root, middle, leaf, sibling) = await SeedAsync(app, window);
         var list = app.ShellPage.Conversations;
         var page = Assert.IsType<ConversationViewModel>(app.Workbench.CurrentPage);
@@ -82,7 +82,7 @@ public class MultiSelectUiTests
     public async Task The_selection_mode_shows_check_boxes_ticks_on_a_plain_click_and_ends_from_the_bar()
     {
         await using var app = DesktopHarness.Create();
-        var window = NetworkUiTests.Show(app);
+        var window = app.ShowWindow(1100, 720);
         var (root, middle, _, sibling) = await SeedAsync(app, window);
         var list = app.ShellPage.Conversations;
         var page = app.Workbench.CurrentPage;
@@ -142,7 +142,7 @@ public class MultiSelectUiTests
     public async Task Deleting_a_parent_and_its_child_together_confirms_the_union_once_backs_up_and_lands_on_the_explore_home()
     {
         await using var app = DesktopHarness.Create();
-        var window = NetworkUiTests.Show(app);
+        var window = app.ShowWindow(1100, 720);
         var (root, _, leaf, sibling) = await SeedAsync(app, window);
         var list = app.ShellPage.Conversations;
         var summaries = app.Services.GetRequiredService<Application.Summaries.SummaryService>();
@@ -201,7 +201,7 @@ public class MultiSelectUiTests
     public async Task Archive_instead_archives_every_selected_tree_and_a_delete_of_plain_rows_needs_no_backup()
     {
         await using var app = DesktopHarness.Create();
-        var window = NetworkUiTests.Show(app);
+        var window = app.ShowWindow(1100, 720);
         var (root, middle, _, sibling) = await SeedAsync(app, window);
         var list = app.ShellPage.Conversations;
 
@@ -243,7 +243,7 @@ public class MultiSelectUiTests
     public async Task The_bar_archives_each_selected_tree_once_and_names_what_was_refused()
     {
         await using var app = DesktopHarness.Create();
-        var window = NetworkUiTests.Show(app);
+        var window = app.ShowWindow(1100, 720);
         var (root, middle, leaf, sibling) = await SeedAsync(app, window);
         var list = app.ShellPage.Conversations;
         var conversations = app.Services.GetRequiredService<ConversationService>();
@@ -283,7 +283,7 @@ public class MultiSelectUiTests
     public async Task Running_work_keeps_delete_disabled_and_the_notice_follows_it_live()
     {
         await using var app = DesktopHarness.Create();
-        var window = NetworkUiTests.Show(app);
+        var window = app.ShowWindow(1100, 720);
         var (root, _, leaf, _) = await SeedAsync(app, window);
         var conversations = app.Services.GetRequiredService<ConversationService>();
         ClickRow(window, root, Toggle);
@@ -332,7 +332,7 @@ public class MultiSelectUiTests
     public async Task A_failed_backup_is_said_in_the_dialog_and_nothing_is_deleted()
     {
         await using var app = DesktopHarness.Create();
-        var window = NetworkUiTests.Show(app);
+        var window = app.ShowWindow(1100, 720);
         var (root, _, _, _) = await SeedAsync(app, window);
         Directory.CreateDirectory(Path.GetDirectoryName(app.Paths.BackupDirectory)!);
         if (Directory.Exists(app.Paths.BackupDirectory))
@@ -366,7 +366,7 @@ public class MultiSelectUiTests
     public async Task Switching_workspace_drops_the_selection()
     {
         await using var app = DesktopHarness.Create();
-        var window = NetworkUiTests.Show(app);
+        var window = app.ShowWindow(1100, 720);
         var (root, _, _, _) = await SeedAsync(app, window);
         var list = app.ShellPage.Conversations;
         ClickRow(window, root, Toggle);
@@ -391,7 +391,7 @@ public class MultiSelectUiTests
         await using var app = DesktopHarness.Create(s => s.AddSingleton(sp => new ConversationDeletionViewModel(
             sp.GetRequiredService<IConversationDeletion>(), sp.GetRequiredService<IConversations>(), sp.GetRequiredService<Workbench>(),
             sp.GetRequiredService<ConversationDeletionRequests>(), sp.GetRequiredService<Services.IUiDispatcher>(), clock)));
-        var window = NetworkUiTests.Show(app);
+        var window = app.ShowWindow(1100, 720);
         var (root, _, _, sibling) = await SeedAsync(app, window);
         var list = app.ShellPage.Conversations;
         var conversations = app.Services.GetRequiredService<ConversationService>();
@@ -429,7 +429,7 @@ public class MultiSelectUiTests
     public async Task A_plain_delete_with_work_running_says_so_before_asking()
     {
         await using var app = DesktopHarness.Create();
-        var window = NetworkUiTests.Show(app);
+        var window = app.ShowWindow(1100, 720);
         await SeedAsync(app, window);
         var list = app.ShellPage.Conversations;
         var conversations = app.Services.GetRequiredService<ConversationService>();
@@ -459,7 +459,7 @@ public class MultiSelectUiTests
     public async Task A_delete_opened_from_a_page_keeps_an_unrelated_selection()
     {
         await using var app = DesktopHarness.Create();
-        var window = NetworkUiTests.Show(app);
+        var window = app.ShowWindow(1100, 720);
         var (_, middle, leaf, sibling) = await SeedAsync(app, window);
         var list = app.ShellPage.Conversations;
         ClickRow(window, sibling, Toggle);

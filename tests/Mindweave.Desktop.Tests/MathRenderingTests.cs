@@ -92,8 +92,7 @@ public class MathRenderingTests
 
     private static async Task<(MainWindow Window, ConversationViewModel Page)> OpenAnswerAsync(DesktopHarness app, string answer = Answer)
     {
-        var window = new MainWindow { DataContext = app.Root, Width = 1000, Height = 700 };
-        window.Show();
+        var window = app.ShowWindow();
         await app.StartWithWorkspaceAsync("物理");
         await app.ConfigureModelAsync();
         app.Client.Reply(answer);

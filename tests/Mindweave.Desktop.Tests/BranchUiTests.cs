@@ -224,8 +224,7 @@ public class BranchUiTests
 
     private static async Task<MainWindow> OpenAsync(DesktopHarness app, bool started = false)
     {
-        var window = new MainWindow { DataContext = app.Root, Width = 1000, Height = 700 };
-        window.Show();
+        var window = app.ShowWindow();
         if (!started)
         {
             await app.StartWithWorkspaceAsync("火车历史");

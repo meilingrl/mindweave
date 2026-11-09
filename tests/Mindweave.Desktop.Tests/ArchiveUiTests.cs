@@ -26,7 +26,7 @@ public class ArchiveUiTests
     public async Task Archiving_hides_the_tree_from_the_sidebar_and_the_archived_page_restores_it()
     {
         await using var app = DesktopHarness.Create();
-        var window = Open(app);
+        var window = app.ShowWindow();
         var root = await ConversationAsync(app);
         var child = await BranchAsync(app, root, "火车");
         root = await OpenAsync(app, root.Id);
@@ -164,7 +164,7 @@ public class ArchiveUiTests
     public async Task An_archived_conversation_with_branches_opens_the_dialog_without_offering_to_archive_it()
     {
         await using var app = DesktopHarness.Create();
-        var window = Open(app);
+        var window = app.ShowWindow();
         var root = await ConversationAsync(app);
         await BranchAsync(app, root, "火车");
         root = await OpenAsync(app, root.Id);
@@ -258,7 +258,7 @@ public class ArchiveUiTests
     {
         var failing = new FailingArchiveStore();
         await using var app = DesktopHarness.Create(s => s.AddSingleton<IConversationArchiveStore>(sp => failing.Wrap(ActivatorUtilities.CreateInstance<Infrastructure.Sqlite.SqliteArchiveStore>(sp))));
-        Open(app);
+        app.ShowWindow();
         var root = await ConversationAsync(app);
 
         failing.Fail = true;
@@ -338,7 +338,7 @@ public class ArchiveUiTests
     public async Task The_archived_delete_confirmation_opens_under_its_row_names_it_and_deletes_in_the_danger_tone()
     {
         await using var app = DesktopHarness.Create();
-        var window = Open(app);
+        var window = app.ShowWindow();
         var root = await ConversationAsync(app);
         var child = await BranchAsync(app, root, "火车");
         root = await OpenAsync(app, root.Id);
@@ -394,7 +394,7 @@ public class ArchiveUiTests
     public async Task Restoring_another_row_directly_dismisses_a_pending_confirmation()
     {
         await using var app = DesktopHarness.Create();
-        Open(app);
+        app.ShowWindow();
         var root = await ConversationAsync(app);
         var first = await BranchAsync(app, root, "火车");
         await first.ArchiveCommand.ExecuteAsync(null);
@@ -418,7 +418,7 @@ public class ArchiveUiTests
     public async Task Clicking_anywhere_in_an_archived_row_but_its_actions_opens_the_conversation()
     {
         await using var app = DesktopHarness.Create();
-        var window = Open(app);
+        var window = app.ShowWindow();
         var root = await ConversationAsync(app);
         await root.ArchiveCommand.ExecuteAsync(null);
         app.ShellPage.Conversations.OpenArchivedCommand.Execute(null);
@@ -436,13 +436,6 @@ public class ArchiveUiTests
         var opened = Assert.IsType<ConversationViewModel>(app.Workbench.CurrentPage);
         Assert.Equal(root.Id, opened.Id);
         window.Close();
-    }
-
-    private static MainWindow Open(DesktopHarness app)
-    {
-        var window = new MainWindow { DataContext = app.Root, Width = 1000, Height = 700 };
-        window.Show();
-        return window;
     }
 
     private static async Task<ConversationViewModel> ConversationAsync(DesktopHarness app)

@@ -31,7 +31,7 @@ public class NetworkUiTests
         IReadOnlyDictionary<SummaryNodeId, NodePosition> first;
         await using (var app = DesktopHarness.Create(directory: dir))
         {
-            var window = Show(app);
+            var window = app.ShowWindow(1100, 720);
             await SeedAsync(app);
             var network = await OpenNetworkAsync(app, window);
 
@@ -46,7 +46,7 @@ public class NetworkUiTests
         }
 
         await using var restarted = DesktopHarness.Create(directory: dir);
-        var again = Show(restarted);
+        var again = restarted.ShowWindow(1100, 720);
         await restarted.StartAsync();
         var reopened = await OpenNetworkAsync(restarted, again);
         Assert.Equal(first, reopened.Nodes.ToDictionary(n => n.Id, n => new NodePosition(n.X, n.Y)));
@@ -59,7 +59,7 @@ public class NetworkUiTests
     {
         var gate = new GatedStore();
         await using var app = DesktopHarness.Create(s => s.AddSingleton<INetworkStore>(sp => gate.Wrap(sp.GetRequiredService<SqliteDatabase>())));
-        var window = Show(app);
+        var window = app.ShowWindow(1100, 720);
         await SeedAsync(app);
         var network = await OpenNetworkAsync(app, window);
         await MoveSomethingAsync(app, network);
@@ -89,7 +89,7 @@ public class NetworkUiTests
     {
         var gate = new GatedStore();
         await using var app = DesktopHarness.Create(s => s.AddSingleton<INetworkStore>(sp => gate.Wrap(sp.GetRequiredService<SqliteDatabase>())));
-        var window = Show(app);
+        var window = app.ShowWindow(1100, 720);
         await SeedAsync(app);
         var network = await OpenNetworkAsync(app, window);
 
@@ -110,7 +110,7 @@ public class NetworkUiTests
     public async Task Leaving_the_workspace_with_an_unsaved_layout_asks_first()
     {
         await using var app = DesktopHarness.Create();
-        var window = Show(app);
+        var window = app.ShowWindow(1100, 720);
         await SeedAsync(app);
         var network = await OpenNetworkAsync(app, window);
         var trains = app.Workbench.CurrentWorkspace!;
@@ -147,7 +147,7 @@ public class NetworkUiTests
     public async Task Quitting_with_an_unsaved_layout_asks_first_and_saving_then_quits()
     {
         await using var app = DesktopHarness.Create();
-        var window = Show(app);
+        var window = app.ShowWindow(1100, 720);
         await SeedAsync(app);
         var network = await OpenNetworkAsync(app, window);
         await MoveSomethingAsync(app, network);
@@ -177,7 +177,7 @@ public class NetworkUiTests
     public async Task Selecting_a_node_does_not_read_it_and_the_viewport_survives_reading_the_summary()
     {
         await using var app = DesktopHarness.Create();
-        var window = Show(app);
+        var window = app.ShowWindow(1100, 720);
         await SeedAsync(app);
         var network = await OpenNetworkAsync(app, window);
         var canvas = window.GetVisualDescendants().OfType<NetworkCanvas>().Single();
@@ -214,7 +214,7 @@ public class NetworkUiTests
     public async Task Search_selects_the_first_match_and_brings_it_to_the_centre()
     {
         await using var app = DesktopHarness.Create();
-        var window = Show(app);
+        var window = app.ShowWindow(1100, 720);
         await SeedAsync(app);
         var network = await OpenNetworkAsync(app, window);
         var target = network.Nodes.Single(n => n.ShortTitle == "铁轨");
@@ -262,13 +262,6 @@ public class NetworkUiTests
         var branch = await conversations.CreateBranchAsync(parent, new BranchSelection(source.Id, 0, source.Text[..2], "{\"v\":1}", 1, "test-profile"), CancellationToken.None);
         Assert.True(branch.Accepted);
         return await AskAsync(app, conversations, branch.Child, default, question);
-    }
-
-    internal static MainWindow Show(DesktopHarness app)
-    {
-        var window = new MainWindow { DataContext = app.Root, Width = 1100, Height = 720 };
-        window.Show();
-        return window;
     }
 
     internal static async Task<NetworkHomeViewModel> OpenNetworkAsync(DesktopHarness app, MainWindow window)

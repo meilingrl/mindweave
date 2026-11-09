@@ -26,7 +26,7 @@ public class WorkspaceDeleteUiTests
     public async Task Only_the_exact_name_enables_delete_and_cancel_is_the_default()
     {
         await using var app = DesktopHarness.Create();
-        var window = NetworkUiTests.Show(app);
+        var window = app.ShowWindow(1100, 720);
         await NetworkUiTests.SeedAsync(app);
         app.ShellPage.ShowSectionCommand.Execute(MainSection.Settings);
         var settings = Assert.IsType<SettingsHomeViewModel>(app.Workbench.CurrentPage);
@@ -80,7 +80,7 @@ public class WorkspaceDeleteUiTests
     public async Task Deleting_the_current_workspace_opens_the_most_recent_one_and_drops_its_pages_and_unsaved_layout_unasked()
     {
         await using var app = DesktopHarness.Create();
-        var window = NetworkUiTests.Show(app);
+        var window = app.ShowWindow(1100, 720);
         await NetworkUiTests.SeedAsync(app);
         var train = app.Workbench.CurrentWorkspace!;
         var workspaces = app.Services.GetRequiredService<WorkspaceService>();
@@ -132,7 +132,7 @@ public class WorkspaceDeleteUiTests
     public async Task Deleting_the_last_workspace_returns_to_the_first_workspace_flow()
     {
         await using var app = DesktopHarness.Create();
-        var window = NetworkUiTests.Show(app);
+        var window = app.ShowWindow(1100, 720);
         await app.StartWithWorkspaceAsync("唯一");
         app.ShellPage.DeleteWorkspaceCommand.Execute(null);
         var dialog = app.Root.WorkspaceDeletion;
@@ -155,7 +155,7 @@ public class WorkspaceDeleteUiTests
     public async Task Running_work_is_named_and_nothing_is_deleted()
     {
         await using var app = DesktopHarness.Create();
-        var window = NetworkUiTests.Show(app);
+        var window = app.ShowWindow(1100, 720);
         await app.StartWithWorkspaceAsync("火车");
         await app.ConfigureModelAsync();
         var conversations = app.Services.GetRequiredService<ConversationService>();
@@ -207,7 +207,7 @@ public class WorkspaceDeleteUiTests
     public async Task A_failed_backup_or_paused_storage_is_said_in_the_dialog_and_nothing_is_deleted()
     {
         await using var app = DesktopHarness.Create();
-        var window = NetworkUiTests.Show(app);
+        var window = app.ShowWindow(1100, 720);
         await app.StartWithWorkspaceAsync("火车");
         app.ShellPage.DeleteWorkspaceCommand.Execute(null);
         var dialog = app.Root.WorkspaceDeletion;
@@ -234,7 +234,7 @@ public class WorkspaceDeleteUiTests
     public async Task Enter_in_the_name_box_keeps_the_typed_name_and_deletes_only_once_it_matches()
     {
         await using var app = DesktopHarness.Create();
-        var window = NetworkUiTests.Show(app);
+        var window = app.ShowWindow(1100, 720);
         await app.StartWithWorkspaceAsync("火车");
         app.ShellPage.DeleteWorkspaceCommand.Execute(null);
         var dialog = app.Root.WorkspaceDeletion;

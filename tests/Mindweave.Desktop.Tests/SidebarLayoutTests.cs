@@ -25,7 +25,7 @@ public class SidebarLayoutTests
     public async Task Dragging_the_splitter_resizes_the_sidebar_within_its_bounds_and_keeps_the_width()
     {
         await using var app = DesktopHarness.Create();
-        var window = Open(app);
+        var window = app.ShowWindow(1100, 720);
         await app.StartWithWorkspaceAsync("火车");
         window.UpdateLayout();
         var sidebar = Part<Border>(window, "Sidebar");
@@ -56,7 +56,7 @@ public class SidebarLayoutTests
     public async Task Collapsing_hides_the_sidebar_and_gives_its_width_to_the_content()
     {
         await using var app = DesktopHarness.Create();
-        var window = Open(app);
+        var window = app.ShowWindow(1100, 720);
         await app.StartWithWorkspaceAsync("火车");
         window.UpdateLayout();
         var content = Part<Control>(window, "ContentArea");
@@ -97,7 +97,7 @@ public class SidebarLayoutTests
     public async Task Width_and_collapsed_state_come_back_after_a_restart()
     {
         await using var app = DesktopHarness.Create();
-        var window = Open(app);
+        var window = app.ShowWindow(1100, 720);
         await app.StartWithWorkspaceAsync("火车");
         window.UpdateLayout();
         Drag(window, Part<Control>(window, "SidebarSplitter"), 60);
@@ -106,7 +106,7 @@ public class SidebarLayoutTests
         window.Close();
 
         await app.RestartAsync();
-        var again = Open(app);
+        var again = app.ShowWindow(1100, 720);
         again.UpdateLayout();
         Assert.True(app.ShellPage.IsSidebarCollapsed);
         Assert.False(Part<Border>(again, "Sidebar").IsEffectivelyVisible);
@@ -142,7 +142,7 @@ public class SidebarLayoutTests
     public async Task While_collapsed_the_expand_button_shows_that_a_conversation_needs_attention()
     {
         await using var app = DesktopHarness.Create();
-        var window = Open(app);
+        var window = app.ShowWindow(1100, 720);
         await app.StartWithWorkspaceAsync("火车");
         await app.ConfigureModelAsync();
         Click(window, Part<Button>(window, "CollapseSidebar"));
@@ -167,7 +167,7 @@ public class SidebarLayoutTests
     public async Task A_narrow_window_narrows_the_sidebar_not_the_content_and_keeps_the_stored_width()
     {
         await using var app = DesktopHarness.Create();
-        var window = Open(app);
+        var window = app.ShowWindow(1100, 720);
         await app.StartWithWorkspaceAsync("火车");
         window.UpdateLayout();
         Drag(window, Part<Control>(window, "SidebarSplitter"), 600);
@@ -227,11 +227,4 @@ public class SidebarLayoutTests
     }
 
     private static void Click(Window window, Button button) => UiInput.Click(window, button);
-
-    private static MainWindow Open(DesktopHarness app)
-    {
-        var window = new MainWindow { DataContext = app.Root, Width = 1100, Height = 720 };
-        window.Show();
-        return window;
-    }
 }

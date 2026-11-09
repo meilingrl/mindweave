@@ -18,8 +18,7 @@ public class StreamingIndicatorTests
     public async Task The_waiting_indicator_shows_until_the_first_text_and_never_under_streaming_text()
     {
         await using var app = DesktopHarness.Create();
-        var window = new MainWindow { DataContext = app.Root, Width = 1000, Height = 700 };
-        window.Show();
+        var window = app.ShowWindow();
         await app.StartWithWorkspaceAsync("火车");
         await app.ConfigureModelAsync();
         var held = app.Client.Hold();
@@ -37,8 +36,7 @@ public class StreamingIndicatorTests
     public async Task Streaming_text_has_no_progress_bar_under_it()
     {
         await using var app = DesktopHarness.Create();
-        var window = new MainWindow { DataContext = app.Root, Width = 1000, Height = 700 };
-        window.Show();
+        var window = app.ShowWindow();
         await app.StartWithWorkspaceAsync("火车");
         await app.ConfigureModelAsync();
         var held = app.Client.Hold("第一句话。\n\n第二段，", "还在继续写。");
@@ -58,8 +56,7 @@ public class StreamingIndicatorTests
     public async Task A_reasoning_model_shows_thinking_with_its_timer_until_the_text_arrives()
     {
         await using var app = DesktopHarness.Create();
-        var window = new MainWindow { DataContext = app.Root, Width = 1000, Height = 700 };
-        window.Show();
+        var window = app.ShowWindow();
         await app.StartWithWorkspaceAsync("火车");
         await app.ConfigureModelAsync();
         var held = app.Client.HoldThinking();
@@ -82,8 +79,7 @@ public class StreamingIndicatorTests
     public async Task An_answer_stopped_while_thinking_shows_it_stopped_with_retry_and_nothing_to_copy()
     {
         await using var app = DesktopHarness.Create();
-        var window = new MainWindow { DataContext = app.Root, Width = 1000, Height = 700 };
-        window.Show();
+        var window = app.ShowWindow();
         await app.StartWithWorkspaceAsync("火车");
         await app.ConfigureModelAsync();
         var held = app.Client.HoldThinking();

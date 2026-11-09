@@ -30,8 +30,7 @@ public class StoragePauseUiTests
     public async Task A_failed_answer_write_pauses_the_page_keeps_content_readable_and_lifts_when_storage_recovers()
     {
         await using var app = DesktopHarness.Create();
-        var window = new MainWindow { DataContext = app.Root, Width = 1000, Height = 700 };
-        window.Show();
+        var window = app.ShowWindow();
         await app.StartWithWorkspaceAsync("火车历史");
         await app.ConfigureModelAsync();
         var page = await StartConversationAsync(app, window);

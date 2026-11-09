@@ -62,8 +62,7 @@ public class ContextUiTests
     public async Task While_older_turns_are_summarized_the_answer_says_so_then_thinks_then_streams()
     {
         await using var app = DesktopHarness.Create();
-        var window = new MainWindow { DataContext = app.Root, Width = 1000, Height = 700 };
-        window.Show();
+        var window = app.ShowWindow();
         await app.StartWithWorkspaceAsync("火车");
         await SmallModelAsync(app);
         var conversations = app.Services.GetRequiredService<ConversationService>();

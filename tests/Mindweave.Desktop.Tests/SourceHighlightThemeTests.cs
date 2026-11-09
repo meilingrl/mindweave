@@ -77,8 +77,7 @@ public class SourceHighlightThemeTests
 
     private static async Task<MainWindow> ReturnToSourceAsync(DesktopHarness app, ThemeVariant theme)
     {
-        var window = new MainWindow { DataContext = app.Root, Width = 1000, Height = 700, RequestedThemeVariant = theme };
-        window.Show();
+        var window = app.ShowWindow(theme: theme);
         await app.StartWithWorkspaceAsync("火车历史");
         await app.ConfigureModelAsync();
 

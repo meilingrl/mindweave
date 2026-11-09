@@ -34,7 +34,7 @@ public class SidebarStatusTests
     public async Task An_answer_that_finishes_on_another_page_marks_its_conversation_until_it_is_opened()
     {
         await using var app = DesktopHarness.Create();
-        var window = Open(app);
+        var window = app.ShowWindow(1100, 720);
         var (first, second) = await TwoConversationsAsync(app);
         var item = Item(app, first);
         var title = Title(window, first);
@@ -73,7 +73,7 @@ public class SidebarStatusTests
     public async Task An_answer_that_finishes_while_its_conversation_is_on_screen_leaves_no_mark()
     {
         await using var app = DesktopHarness.Create();
-        var window = Open(app);
+        var window = app.ShowWindow(1100, 720);
         var (first, second) = await TwoConversationsAsync(app);
         var page = await OpenAsync(app, first);
         var held = app.Client.Hold("斯蒂芬森");
@@ -96,7 +96,7 @@ public class SidebarStatusTests
     public async Task A_stopped_answer_with_text_marks_it_and_one_without_text_does_not()
     {
         await using var app = DesktopHarness.Create();
-        Open(app);
+        app.ShowWindow(1100, 720);
         var (first, second) = await TwoConversationsAsync(app);
         var conversations = app.Services.GetRequiredService<ConversationService>();
 
@@ -128,13 +128,13 @@ public class SidebarStatusTests
     public async Task Unread_marks_come_back_after_a_restart_and_opening_clears_them_for_good()
     {
         await using var app = DesktopHarness.Create();
-        Open(app);
+        app.ShowWindow(1100, 720);
         var (first, second) = await TwoConversationsAsync(app);
         await AskElsewhereAsync(app, first, "再讲讲斯蒂芬森。");
         await UiWait.UntilAsync(() => Item(app, first).IsUnread);
 
         await app.RestartAsync();
-        var window = Open(app);
+        var window = app.ShowWindow(1100, 720);
         await UiWait.UntilAsync(() => app.ShellPage.Conversations.Items.Count == 2);
         await UiWait.UntilAsync(() => Item(app, first).IsUnread);
         Assert.False(Item(app, second).IsUnread);
@@ -153,7 +153,7 @@ public class SidebarStatusTests
     public async Task A_running_answer_shows_a_spinner_that_turns_only_while_it_is_visible()
     {
         await using var app = DesktopHarness.Create();
-        var window = Open(app);
+        var window = app.ShowWindow(1100, 720);
         var (first, _) = await TwoConversationsAsync(app);
         var held = app.Client.Hold("斯蒂芬森");
         await app.Services.GetRequiredService<ConversationService>().AskAsync(first, "再讲讲斯蒂芬森。", CancellationToken.None);
@@ -186,7 +186,7 @@ public class SidebarStatusTests
     public async Task The_spinner_advances_with_animation_frames_while_shown()
     {
         await using var app = DesktopHarness.Create();
-        var window = Open(app);
+        var window = app.ShowWindow(1100, 720);
         var (first, _) = await TwoConversationsAsync(app);
         var held = app.Client.Hold("斯蒂芬森");
         await app.Services.GetRequiredService<ConversationService>().AskAsync(first, "再讲讲斯蒂芬森。", CancellationToken.None);
@@ -221,7 +221,7 @@ public class SidebarStatusTests
     public async Task A_summary_being_written_shows_the_spinner_too()
     {
         await using var app = DesktopHarness.Create();
-        Open(app);
+        app.ShowWindow(1100, 720);
         var (first, _) = await TwoConversationsAsync(app);
         app.Client.KnowledgeGate = new TaskCompletionSource();
         Assert.True((await app.Services.GetRequiredService<SummaryService>().SummarizeAsync(first, CancellationToken.None)).Accepted);
@@ -237,7 +237,7 @@ public class SidebarStatusTests
     public async Task Running_wins_over_attention_and_attention_over_unread()
     {
         await using var app = DesktopHarness.Create();
-        var window = Open(app);
+        var window = app.ShowWindow(1100, 720);
         var (first, _) = await TwoConversationsAsync(app);
         // The row is looked up afresh each time: the list may be rebuilt from storage while the marks change.
         var conversations = app.Services.GetRequiredService<ConversationService>();
@@ -272,7 +272,7 @@ public class SidebarStatusTests
     public async Task While_collapsed_the_expand_button_shows_an_accent_dot_for_a_new_answer_unless_something_needs_attention()
     {
         await using var app = DesktopHarness.Create();
-        var window = Open(app);
+        var window = app.ShowWindow(1100, 720);
         var (first, second) = await TwoConversationsAsync(app);
         Click(window, Part<Button>(window, "CollapseSidebar"));
         var unread = Part<Ellipse>(window, "ExpandSidebarUnread");
@@ -302,7 +302,7 @@ public class SidebarStatusTests
     public async Task The_spinner_asks_for_no_frames_while_hidden_minimised_or_scrolled_out_of_view()
     {
         await using var app = DesktopHarness.Create();
-        var window = Open(app);
+        var window = app.ShowWindow(1100, 720);
         var (first, _) = await TwoConversationsAsync(app);
         var held = app.Client.Hold("斯蒂芬森");
         await app.Services.GetRequiredService<ConversationService>().AskAsync(first, "再讲讲斯蒂芬森。", CancellationToken.None);
@@ -361,7 +361,7 @@ public class SidebarStatusTests
     public async Task A_mark_set_while_storage_is_paused_is_refused_then_written_once_storage_recovers()
     {
         await using var app = DesktopHarness.Create();
-        Open(app);
+        app.ShowWindow(1100, 720);
         var (first, _) = await TwoConversationsAsync(app);
         var preferences = app.Services.GetRequiredService<IPreferenceStore>();
         var health = app.Services.GetRequiredService<StorageHealth>();
@@ -388,7 +388,7 @@ public class SidebarStatusTests
     {
         var flaky = new FlakyPreferences();
         await using var app = DesktopHarness.Create(flaky.Register);
-        Open(app);
+        app.ShowWindow(1100, 720);
         var (first, second) = await TwoConversationsAsync(app);
         flaky.FailWrites = true;
         await AskElsewhereAsync(app, first, "再讲讲斯蒂芬森。");
@@ -417,7 +417,7 @@ public class SidebarStatusTests
     {
         var flaky = new FlakyPreferences();
         await using var app = DesktopHarness.Create(flaky.Register);
-        Open(app);
+        app.ShowWindow(1100, 720);
         var (first, second) = await TwoConversationsAsync(app);
         await AskElsewhereAsync(app, first, "再讲讲斯蒂芬森。");
         await UiWait.UntilAsync(() => Item(app, first).IsUnread);
@@ -446,7 +446,7 @@ public class SidebarStatusTests
     public async Task Deleting_a_marked_conversation_removes_it_from_the_stored_marks()
     {
         await using var app = DesktopHarness.Create();
-        Open(app);
+        app.ShowWindow(1100, 720);
         var (first, _) = await TwoConversationsAsync(app);
         var preferences = app.Services.GetRequiredService<IPreferenceStore>();
         await AskElsewhereAsync(app, first, "再讲讲斯蒂芬森。");
@@ -465,7 +465,7 @@ public class SidebarStatusTests
     public async Task The_state_markers_reach_automation_names_not_only_tooltips()
     {
         await using var app = DesktopHarness.Create();
-        var window = Open(app);
+        var window = app.ShowWindow(1100, 720);
         var (first, _) = await TwoConversationsAsync(app);
         var expand = Part<Button>(window, "ExpandSidebar");
         Assert.Equal(UiText.ExpandSidebar, AutomationProperties.GetName(expand));
@@ -604,11 +604,4 @@ public class SidebarStatusTests
         Row(window, id).GetVisualDescendants().OfType<T>().Single(c => c.Classes.Contains(className));
 
     private static void Click(Window window, Control control) => UiInput.Click(window, control);
-
-    private static MainWindow Open(DesktopHarness app)
-    {
-        var window = new MainWindow { DataContext = app.Root, Width = 1100, Height = 720 };
-        window.Show();
-        return window;
-    }
 }

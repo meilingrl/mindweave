@@ -28,7 +28,7 @@ public partial class ConversationActionsTests
     {
         var reload = new HeldReload();
         await using var app = DesktopHarness.Create(s => s.AddSingleton<IConversations>(sp => reload.Wrap(sp.GetRequiredService<ConversationService>())));
-        var window = Open(app);
+        var window = app.ShowWindow();
         await app.StartWithWorkspaceAsync("火车");
         await app.ConfigureModelAsync();
         var held = app.Client.Hold("半句");

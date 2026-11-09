@@ -22,7 +22,7 @@ public class ThemeTests
     public async Task Choosing_dark_applies_at_once_and_is_applied_again_after_a_restart()
     {
         await using var app = DesktopHarness.Create();
-        var window = NetworkUiTests.Show(app);
+        var window = app.ShowWindow(1100, 720);
         await app.StartWithWorkspaceAsync("火车历史");
         Assert.Equal(Appearance.FollowSystem, app.Theme.Applied.Last());
 
@@ -65,7 +65,7 @@ public class ThemeTests
         var store = new GatedPreferences();
         store.Values[AppearanceService.Key] = AppearanceService.Format(Appearance.Light);
         await using var app = DesktopHarness.Create(s => s.AddSingleton<IPreferenceStore>(store));
-        var window = NetworkUiTests.Show(app);
+        var window = app.ShowWindow(1100, 720);
         await app.StartWithWorkspaceAsync("火车历史");
 
         // The settings page opens while reading the stored choice is still slow; the reader picks dark meanwhile.

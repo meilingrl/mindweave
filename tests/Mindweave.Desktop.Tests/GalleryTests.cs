@@ -115,7 +115,7 @@ public class GalleryTests
     public async Task G01_onboarding()
     {
         await using var scene = Scene.Create("g01");
-        var window = Show(scene.App);
+        var window = scene.App.ShowWindow(1100, 720, Theme);
         await scene.App.StartAsync();
         var onboarding = Assert.IsType<OnboardingViewModel>(scene.App.Root.Current);
         onboarding.Form.Name = "火车历史";
@@ -128,7 +128,7 @@ public class GalleryTests
     public async Task G02_explore_home_with_a_branch_tree_in_the_sidebar()
     {
         await using var scene = Scene.Create("g02");
-        var window = Show(scene.App);
+        var window = scene.App.ShowWindow(1100, 720, Theme);
         await SeedAsync(scene.App);
         scene.App.ShellPage.ShowSectionCommand.Execute(MainSection.Explore);
         Assert.IsType<ExploreHomeViewModel>(scene.App.Workbench.CurrentPage);
@@ -141,7 +141,7 @@ public class GalleryTests
     public async Task G03_new_conversation()
     {
         await using var scene = Scene.Create("g03");
-        var window = Show(scene.App);
+        var window = scene.App.ShowWindow(1100, 720, Theme);
         await SeedAsync(scene.App);
         scene.App.ShellPage.Conversations.NewCommand.Execute(null);
         var draft = Assert.IsType<NewConversationViewModel>(scene.App.Workbench.CurrentPage);
@@ -155,7 +155,7 @@ public class GalleryTests
     public async Task G04_conversation_with_a_long_answer_branch_entries_and_regenerate()
     {
         await using var scene = Scene.Create("g04");
-        var window = Show(scene.App);
+        var window = scene.App.ShowWindow(1100, 720, Theme);
         var seed = await SeedAsync(scene.App);
         var page = await OpenConversationAsync(scene.App, window, seed.Root);
         Assert.Equal(3, page.Messages[1].Branches.Count);
@@ -172,7 +172,7 @@ public class GalleryTests
     public async Task G05_second_level_branch_with_its_quote_and_breadcrumb()
     {
         await using var scene = Scene.Create("g05");
-        var window = Show(scene.App);
+        var window = scene.App.ShowWindow(1100, 720, Theme);
         var seed = await SeedAsync(scene.App);
         var page = await OpenConversationAsync(scene.App, window, seed.Cable);
         Assert.Equal(2, page.Lineage.Count);
@@ -185,7 +185,7 @@ public class GalleryTests
     public async Task G06_an_answer_streaming()
     {
         await using var scene = Scene.Create("g06");
-        var window = Show(scene.App);
+        var window = scene.App.ShowWindow(1100, 720, Theme);
         var seed = await SeedAsync(scene.App);
         var page = await OpenConversationAsync(scene.App, window, seed.FirstRailway);
         var held = scene.App.Client.Hold("吴淞铁路被拆除的原因有好几层：\n\n1. **安全事故**：通车不久就轧死了一名行人，引起民众强烈不满；\n2. **主权问题**：", "铁路是英商未经正式许可修建的，");
@@ -207,7 +207,7 @@ public class GalleryTests
     public async Task G07_a_failed_answer_with_its_error_and_retry()
     {
         await using var scene = Scene.Create("g07");
-        var window = Show(scene.App);
+        var window = scene.App.ShowWindow(1100, 720, Theme);
         var seed = await SeedAsync(scene.App);
         var page = await OpenConversationAsync(scene.App, window, seed.FirstRailway);
         scene.App.Client.Fail(GenerationErrorKind.Network, "connection reset by peer", "唐胥铁路最初只有约 10 公里，起初甚至");
@@ -225,7 +225,7 @@ public class GalleryTests
     public async Task G08_storage_paused_notice()
     {
         await using var scene = Scene.Create("g08");
-        var window = Show(scene.App);
+        var window = scene.App.ShowWindow(1100, 720, Theme);
         var seed = await SeedAsync(scene.App);
         var page = await OpenConversationAsync(scene.App, window, seed.FirstRailway);
         var held = scene.App.Client.Hold("唐胥铁路由开平矿务局修建，");
@@ -253,7 +253,7 @@ public class GalleryTests
     public async Task G09_summary_current_version_unread()
     {
         await using var scene = Scene.Create("g09");
-        var window = Show(scene.App);
+        var window = scene.App.ShowWindow(1100, 720, Theme);
         var seed = await SeedAsync(scene.App, summaries: true);
         var summary = await OpenSummaryAsync(scene.App, window, seed.Nodes[seed.Cable]);
         Assert.False(summary.ShownIsRead);
@@ -272,7 +272,7 @@ public class GalleryTests
     public async Task G10_summary_candidate_beside_an_edited_current_version()
     {
         await using var scene = Scene.Create("g10");
-        var window = Show(scene.App);
+        var window = scene.App.ShowWindow(1100, 720, Theme);
         var seed = await SeedAsync(scene.App, summaries: true);
         var summary = await OpenSummaryAsync(scene.App, window, seed.Nodes[seed.Gauge]);
         Assert.True(summary.HasCandidate);
@@ -290,7 +290,7 @@ public class GalleryTests
     public async Task G11_summary_edit_mode()
     {
         await using var scene = Scene.Create("g11");
-        var window = Show(scene.App);
+        var window = scene.App.ShowWindow(1100, 720, Theme);
         var seed = await SeedAsync(scene.App, summaries: true);
         var summary = await OpenSummaryAsync(scene.App, window, seed.Nodes[seed.HighSpeed]);
         await summary.BeginEditCommand.ExecuteAsync(null);
@@ -305,7 +305,7 @@ public class GalleryTests
     public async Task G12_summary_version_history_expanded()
     {
         await using var scene = Scene.Create("g12");
-        var window = Show(scene.App);
+        var window = scene.App.ShowWindow(1100, 720, Theme);
         var seed = await SeedAsync(scene.App, summaries: true);
         var summary = await OpenSummaryAsync(scene.App, window, seed.Nodes[seed.Gauge]);
         Assert.Equal(3, summary.History.Count);
@@ -321,7 +321,7 @@ public class GalleryTests
     public async Task G13_network_with_a_selected_node()
     {
         await using var scene = Scene.Create("g13");
-        var window = Show(scene.App);
+        var window = scene.App.ShowWindow(1100, 720, Theme);
         var seed = await SeedAsync(scene.App, summaries: true);
         var network = await NetworkUiTests.OpenNetworkAsync(scene.App, window);
         Assert.Equal(8, network.Nodes.Count);
@@ -340,7 +340,7 @@ public class GalleryTests
     public async Task G14_network_list_view()
     {
         await using var scene = Scene.Create("g14");
-        var window = Show(scene.App);
+        var window = scene.App.ShowWindow(1100, 720, Theme);
         await SeedAsync(scene.App, summaries: true);
         var network = await NetworkUiTests.OpenNetworkAsync(scene.App, window);
         network.ToggleViewCommand.Execute(null);
@@ -354,7 +354,7 @@ public class GalleryTests
     public async Task G15_network_after_arrange_is_unsaved()
     {
         await using var scene = Scene.Create("g15");
-        var window = Show(scene.App);
+        var window = scene.App.ShowWindow(1100, 720, Theme);
         await SeedAsync(scene.App, summaries: true);
         var network = await NetworkUiTests.OpenNetworkAsync(scene.App, window);
         await NetworkUiTests.MoveSomethingAsync(scene.App, network);
@@ -370,7 +370,7 @@ public class GalleryTests
     public async Task G16_layout_leave_prompt()
     {
         await using var scene = Scene.Create("g16");
-        var window = Show(scene.App);
+        var window = scene.App.ShowWindow(1100, 720, Theme);
         await SeedAsync(scene.App, summaries: true);
         var other = await scene.App.Services.GetRequiredService<WorkspaceService>().CreateAsync(WorkspaceName.FromStored("摄影史"), CancellationToken.None);
         scene.App.Workbench.Workspaces.Add(other);
@@ -390,7 +390,7 @@ public class GalleryTests
     public async Task G16a_network_node_drag()
     {
         await using var scene = Scene.Create("g16a");
-        var window = Show(scene.App);
+        var window = scene.App.ShowWindow(1100, 720, Theme);
         var seed = await SeedAsync(scene.App, summaries: true);
         var network = await NetworkUiTests.OpenNetworkAsync(scene.App, window);
         await SettleAsync(window);
@@ -422,7 +422,7 @@ public class GalleryTests
     public async Task G17_exit_task_prompt()
     {
         await using var scene = Scene.Create("g17");
-        var window = Show(scene.App);
+        var window = scene.App.ShowWindow(1100, 720, Theme);
         var seed = await SeedAsync(scene.App);
         var page = await OpenConversationAsync(scene.App, window, seed.FirstRailway);
         var held = scene.App.Client.Hold("吴淞铁路的机车是英国制造的“先导号”，");
@@ -446,7 +446,7 @@ public class GalleryTests
     {
         var failing = new FailingDrafts();
         await using var scene = Scene.Create("g18", s => s.AddSingleton<IReadingStateStore>(sp => failing.Wrap(sp.GetRequiredService<SqliteDatabase>())));
-        var window = Show(scene.App);
+        var window = scene.App.ShowWindow(1100, 720, Theme);
         var seed = await SeedAsync(scene.App);
         var page = await OpenConversationAsync(scene.App, window, seed.FirstRailway);
         failing.Fail = true;
@@ -470,7 +470,7 @@ public class GalleryTests
     public async Task G19_archived_page_with_a_nested_archived_tree()
     {
         await using var scene = Scene.Create("g19");
-        var window = Show(scene.App);
+        var window = scene.App.ShowWindow(1100, 720, Theme);
         var seed = await SeedAsync(scene.App);
         var conversations = scene.App.Services.GetRequiredService<ConversationService>();
         await conversations.ArchiveAsync(seed.Rainhill, CancellationToken.None);
@@ -496,7 +496,7 @@ public class GalleryTests
     public async Task G20_archived_conversation_read_only()
     {
         await using var scene = Scene.Create("g20");
-        var window = Show(scene.App);
+        var window = scene.App.ShowWindow(1100, 720, Theme);
         var seed = await SeedAsync(scene.App);
         await scene.App.Services.GetRequiredService<ConversationService>().ArchiveAsync(seed.Root, CancellationToken.None);
         var page = await OpenConversationAsync(scene.App, window, seed.Root);
@@ -513,7 +513,7 @@ public class GalleryTests
     public async Task G21_delete_refused_while_an_answer_runs()
     {
         await using var scene = Scene.Create("g21");
-        var window = Show(scene.App);
+        var window = scene.App.ShowWindow(1100, 720, Theme);
         var seed = await SeedAsync(scene.App);
         var page = await OpenConversationAsync(scene.App, window, seed.FirstRailway);
         await page.DeleteCommand.ExecuteAsync(null);
@@ -536,7 +536,7 @@ public class GalleryTests
     public async Task G22_settings_page()
     {
         await using var scene = Scene.Create("g22");
-        var window = Show(scene.App);
+        var window = scene.App.ShowWindow(1100, 720, Theme);
         await SeedAsync(scene.App);
         scene.App.ShellPage.ShowSectionCommand.Execute(MainSection.Settings);
         Assert.IsType<SettingsHomeViewModel>(scene.App.Workbench.CurrentPage);
@@ -549,7 +549,7 @@ public class GalleryTests
     public async Task G23_storage_details()
     {
         await using var scene = Scene.Create("g23");
-        var window = Show(scene.App);
+        var window = scene.App.ShowWindow(1100, 720, Theme);
         await SeedAsync(scene.App);
         scene.App.ShellPage.ShowSectionCommand.Execute(MainSection.Settings);
         await SettleAsync(window);
@@ -567,7 +567,7 @@ public class GalleryTests
     public async Task G25_settings_model_list_after_fetching()
     {
         await using var scene = Scene.Create("g25");
-        var window = Show(scene.App);
+        var window = scene.App.ShowWindow(1100, 720, Theme);
         await SeedAsync(scene.App);
         scene.App.Client.Models = ["deepseek-chat", "deepseek-reasoner", "deepseek-flash", "deepseek-coder"];
         await scene.App.Services.GetRequiredService<Application.Models.IModelSettings>().SaveAsync(
@@ -587,7 +587,7 @@ public class GalleryTests
     public async Task G26_settings_provider_presets()
     {
         await using var scene = Scene.Create("g26");
-        var window = Show(scene.App);
+        var window = scene.App.ShowWindow(1100, 720, Theme);
         await SeedAsync(scene.App);
         scene.App.ShellPage.ShowSectionCommand.Execute(MainSection.Settings);
         await SettleAsync(window);
@@ -601,7 +601,7 @@ public class GalleryTests
     public async Task G27_storage_details_with_backups()
     {
         await using var scene = Scene.Create("g27");
-        var window = Show(scene.App);
+        var window = scene.App.ShowWindow(1100, 720, Theme);
         await SeedAsync(scene.App);
         var backups = Path.Combine(Scene.Directory("g27"), "backups");
         System.IO.Directory.CreateDirectory(backups);
@@ -634,7 +634,7 @@ public class GalleryTests
             new Migration(MigrationCatalog.Default.LatestVersion + 1, "broken", (_, _) => throw new InvalidOperationException("simulated upgrade failure")),
         ]);
         await using var scene = Scene.Create("g24", s => s.AddSingleton(broken), fresh: false);
-        var window = Show(scene.App);
+        var window = scene.App.ShowWindow(1100, 720, Theme);
         await scene.App.StartAsync();
         var recovery = Assert.IsType<RecoveryViewModel>(scene.App.Root.Current);
         Assert.Equal(DatabaseOpenStatus.MigrationFailed, recovery.Result.Status);
@@ -654,7 +654,7 @@ public class GalleryTests
     public async Task G30_selected_text_with_the_floating_branch_action()
     {
         await using var scene = Scene.Create("g30");
-        var window = Show(scene.App);
+        var window = scene.App.ShowWindow(1100, 720, Theme);
         var seed = await SeedAsync(scene.App);
         await OpenConversationAsync(scene.App, window, seed.Root);
         var answer = Answers(window).Single();
@@ -670,7 +670,7 @@ public class GalleryTests
     {
         // The floating action lives in the window's overlay, so above the first line (over the question) it is not cut off.
         await using var scene = Scene.Create("g32");
-        var window = Show(scene.App);
+        var window = scene.App.ShowWindow(1100, 720, Theme);
         var seed = await SeedAsync(scene.App);
         await OpenConversationAsync(scene.App, window, seed.Root);
         var answer = Answers(window).Single();
@@ -702,7 +702,7 @@ public class GalleryTests
     public async Task G31_answer_copied_with_message_times()
     {
         await using var scene = Scene.Create("g31");
-        var window = Show(scene.App);
+        var window = scene.App.ShowWindow(1100, 720, Theme);
         var seed = await SeedAsync(scene.App);
         await OpenConversationAsync(scene.App, window, seed.FirstRailway);
         var copy = window.GetVisualDescendants().OfType<CopyButton>().First(b => b.Name == "AnswerCopy" && b.IsEffectivelyVisible);
@@ -721,7 +721,7 @@ public class GalleryTests
     public async Task G35_answer_generating_with_its_live_timer()
     {
         await using var scene = Scene.Create("g35");
-        var window = Show(scene.App);
+        var window = scene.App.ShowWindow(1100, 720, Theme);
         var seed = await SeedAsync(scene.App);
         var page = await OpenConversationAsync(scene.App, window, seed.FirstRailway);
         var held = scene.App.Client.Hold("吴淞铁路被拆除的原因有好几层：\n\n1. **安全事故**：通车不久就轧死了一名行人，引起民众强烈不满；\n2. **主权问题**：");
@@ -749,7 +749,7 @@ public class GalleryTests
     public async Task G38_reasoning_model_thinking_with_its_live_timer()
     {
         await using var scene = Scene.Create("g38");
-        var window = Show(scene.App);
+        var window = scene.App.ShowWindow(1100, 720, Theme);
         var seed = await SeedAsync(scene.App);
         var page = await OpenConversationAsync(scene.App, window, seed.FirstRailway);
         var held = scene.App.Client.HoldThinking();
@@ -772,7 +772,7 @@ public class GalleryTests
     public async Task G36_long_conversation_with_branch_marks_in_the_margin()
     {
         await using var scene = Scene.Create("g36");
-        var window = Show(scene.App);
+        var window = scene.App.ShowWindow(1100, 720, Theme);
         await SeedAsync(scene.App);
         var app = scene.App;
         var conversations = app.Services.GetRequiredService<ConversationService>();
@@ -843,7 +843,7 @@ public class GalleryTests
     public async Task G37_sidebar_selection_and_its_bar()
     {
         await using var scene = Scene.Create("g37");
-        var window = Show(scene.App);
+        var window = scene.App.ShowWindow(1100, 720, Theme);
         var seed = await SeedAsync(scene.App, summaries: true);
         await OpenConversationAsync(scene.App, window, seed.HighSpeed);
         var list = scene.App.ShellPage.Conversations;
@@ -870,7 +870,7 @@ public class GalleryTests
     public async Task G37b_cascade_delete_confirmation_with_counts()
     {
         await using var scene = Scene.Create("g37b");
-        var window = Show(scene.App);
+        var window = scene.App.ShowWindow(1100, 720, Theme);
         var seed = await SeedAsync(scene.App, summaries: true);
         await OpenConversationAsync(scene.App, window, seed.Root);
         var list = scene.App.ShellPage.Conversations;
@@ -892,7 +892,7 @@ public class GalleryTests
     public async Task G28_shell_sidebar_collapsed_while_a_conversation_needs_attention()
     {
         await using var scene = Scene.Create("g28");
-        var window = Show(scene.App);
+        var window = scene.App.ShowWindow(1100, 720, Theme);
         var seed = await SeedAsync(scene.App);
         var conversations = scene.App.Services.GetRequiredService<ConversationService>();
         scene.App.Client.Fail(GenerationErrorKind.Network, "connection reset", "吴淞铁路");
@@ -909,7 +909,7 @@ public class GalleryTests
     public async Task G29_shell_sidebar_widened()
     {
         await using var scene = Scene.Create("g29");
-        var window = Show(scene.App);
+        var window = scene.App.ShowWindow(1100, 720, Theme);
         var seed = await SeedAsync(scene.App);
         scene.App.ShellPage.ShowSectionCommand.Execute(MainSection.Explore);
         scene.App.ShellPage.SidebarWidth = 340;
@@ -935,7 +935,7 @@ public class GalleryTests
     public async Task G33_delete_workspace_confirmation()
     {
         await using var scene = Scene.Create("g33");
-        var window = Show(scene.App);
+        var window = scene.App.ShowWindow(1100, 720, Theme);
         var seed = await SeedAsync(scene.App, summaries: true);
 
         // Opened from 设置 › 工作区, scrolled into view behind the dialog.
@@ -994,7 +994,7 @@ public class GalleryTests
     public async Task G34_sidebar_status_spinner_unread_and_attention()
     {
         await using var scene = Scene.Create("g34");
-        var window = Show(scene.App);
+        var window = scene.App.ShowWindow(1100, 720, Theme);
         var seed = await SeedAsync(scene.App);
         var conversations = scene.App.Services.GetRequiredService<ConversationService>();
         var list = scene.App.ShellPage.Conversations;
@@ -1176,13 +1176,6 @@ public class GalleryTests
         await UiWait.UntilAsync(() => summary.Shown is not null);
         await SettleAsync(window);
         return summary;
-    }
-
-    private static MainWindow Show(DesktopHarness app)
-    {
-        var window = new MainWindow { DataContext = app.Root, Width = 1100, Height = 720, RequestedThemeVariant = Theme };
-        window.Show();
-        return window;
     }
 
     /// <summary>Lets bindings, Markdown layout and deferred work settle before a frame is taken.</summary>

@@ -22,8 +22,7 @@ public class SummaryUiTests
     {
         var clock = new ManualTime();
         await using var app = DesktopHarness.Create(s => s.AddSingleton<TimeProvider>(clock));
-        var window = new MainWindow { DataContext = app.Root, Width = 1000, Height = 700 };
-        window.Show();
+        var window = app.ShowWindow();
         var page = await ConversationAsync(app);
 
         await page.SummarizeCommand.ExecuteAsync(null);
@@ -185,8 +184,7 @@ public class SummaryUiTests
     public async Task A_summary_draws_bold_and_a_one_line_display_formula_like_an_answer()
     {
         await using var app = DesktopHarness.Create();
-        var window = new MainWindow { DataContext = app.Root, Width = 1000, Height = 700 };
-        window.Show();
+        var window = app.ShowWindow();
         var page = await ConversationAsync(app);
         app.Client.SummaryReplies.Enqueue($"标题：{FakeChatClient.DefaultSummaryTitle}\n\n缆索牵引**适合陡坡**，但缆绳易磨损。\n\n$$P = F\\,v$$\n\n其中 $v$ 是缆绳速度。");
         await page.SummarizeCommand.ExecuteAsync(null);
@@ -212,8 +210,7 @@ public class SummaryUiTests
     public async Task The_page_has_one_primary_action_and_adopt_takes_it_only_while_the_candidate_is_on_screen()
     {
         await using var app = DesktopHarness.Create();
-        var window = new MainWindow { DataContext = app.Root, Width = 1000, Height = 700 };
-        window.Show();
+        var window = app.ShowWindow();
         var page = await ConversationAsync(app);
         await page.SummarizeCommand.ExecuteAsync(null);
         await UiWait.UntilAsync(() => page.HasSummary && page.RunningSummary is null);
@@ -281,8 +278,7 @@ public class SummaryUiTests
     public async Task History_rows_show_their_parts_the_shown_version_and_delete_waits_for_a_tick()
     {
         await using var app = DesktopHarness.Create();
-        var window = new MainWindow { DataContext = app.Root, Width = 1000, Height = 700 };
-        window.Show();
+        var window = app.ShowWindow();
         var page = await ConversationAsync(app);
         await page.SummarizeCommand.ExecuteAsync(null);
         await UiWait.UntilAsync(() => page.HasSummary && page.RunningSummary is null);

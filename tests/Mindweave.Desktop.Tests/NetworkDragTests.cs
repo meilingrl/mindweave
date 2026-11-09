@@ -26,7 +26,7 @@ public class NetworkDragTests
     public async Task Dragging_a_node_moves_it_live_and_its_end_leaves_the_layout_unsaved()
     {
         await using var app = DesktopHarness.Create();
-        var window = NetworkUiTests.Show(app);
+        var window = app.ShowWindow(1100, 720);
         await NetworkUiTests.SeedAsync(app);
         var network = await NetworkUiTests.OpenNetworkAsync(app, window);
         var canvas = CanvasOf(window);
@@ -79,7 +79,7 @@ public class NetworkDragTests
         NodePosition dragged;
         await using (var app = DesktopHarness.Create(directory: dir))
         {
-            var window = NetworkUiTests.Show(app);
+            var window = app.ShowWindow(1100, 720);
             await NetworkUiTests.SeedAsync(app);
             var network = await NetworkUiTests.OpenNetworkAsync(app, window);
             var canvas = CanvasOf(window);
@@ -97,7 +97,7 @@ public class NetworkDragTests
         }
 
         await using var restarted = DesktopHarness.Create(directory: dir);
-        var again = NetworkUiTests.Show(restarted);
+        var again = restarted.ShowWindow(1100, 720);
         await restarted.StartAsync();
         var reopened = await NetworkUiTests.OpenNetworkAsync(restarted, again);
         var back = reopened.Nodes.Single(n => n.Id == id);
@@ -110,7 +110,7 @@ public class NetworkDragTests
     public async Task Leaving_after_a_drag_asks_first_and_dont_save_puts_the_node_back()
     {
         await using var app = DesktopHarness.Create();
-        var window = NetworkUiTests.Show(app);
+        var window = app.ShowWindow(1100, 720);
         await NetworkUiTests.SeedAsync(app);
         var network = await NetworkUiTests.OpenNetworkAsync(app, window);
         var trains = app.Workbench.CurrentWorkspace!;
@@ -142,7 +142,7 @@ public class NetworkDragTests
     public async Task Dont_save_on_the_page_itself_reverts_the_dragged_node()
     {
         await using var app = DesktopHarness.Create();
-        var window = NetworkUiTests.Show(app);
+        var window = app.ShowWindow(1100, 720);
         await NetworkUiTests.SeedAsync(app);
         var network = await NetworkUiTests.OpenNetworkAsync(app, window);
         var canvas = CanvasOf(window);
@@ -161,7 +161,7 @@ public class NetworkDragTests
     public async Task A_click_selects_a_double_click_opens_and_neither_moves_anything()
     {
         await using var app = DesktopHarness.Create();
-        var window = NetworkUiTests.Show(app);
+        var window = app.ShowWindow(1100, 720);
         await NetworkUiTests.SeedAsync(app);
         var network = await NetworkUiTests.OpenNetworkAsync(app, window);
         var canvas = CanvasOf(window);
@@ -190,7 +190,7 @@ public class NetworkDragTests
     public async Task Pointer_jitter_below_the_threshold_is_a_click_not_a_drag()
     {
         await using var app = DesktopHarness.Create();
-        var window = NetworkUiTests.Show(app);
+        var window = app.ShowWindow(1100, 720);
         await NetworkUiTests.SeedAsync(app);
         var network = await NetworkUiTests.OpenNetworkAsync(app, window);
         var canvas = CanvasOf(window);
@@ -217,7 +217,7 @@ public class NetworkDragTests
     public async Task Dragging_empty_canvas_still_pans_and_leaves_nothing_unsaved()
     {
         await using var app = DesktopHarness.Create();
-        var window = NetworkUiTests.Show(app);
+        var window = app.ShowWindow(1100, 720);
         await NetworkUiTests.SeedAsync(app);
         var network = await NetworkUiTests.OpenNetworkAsync(app, window);
         var canvas = CanvasOf(window);
@@ -240,7 +240,7 @@ public class NetworkDragTests
     public async Task Dragging_while_a_save_runs_stays_unsaved_afterwards()
     {
         await using var app = DesktopHarness.Create();
-        var window = NetworkUiTests.Show(app);
+        var window = app.ShowWindow(1100, 720);
         await NetworkUiTests.SeedAsync(app);
         var network = await NetworkUiTests.OpenNetworkAsync(app, window);
         var canvas = CanvasOf(window);
@@ -261,7 +261,7 @@ public class NetworkDragTests
     public async Task Moving_an_unknown_node_or_to_the_same_place_changes_nothing()
     {
         await using var app = DesktopHarness.Create();
-        var window = NetworkUiTests.Show(app);
+        var window = app.ShowWindow(1100, 720);
         await NetworkUiTests.SeedAsync(app);
         var network = await NetworkUiTests.OpenNetworkAsync(app, window);
         var node = network.Nodes[0];
@@ -278,7 +278,7 @@ public class NetworkDragTests
     public async Task After_a_drag_the_save_button_is_the_one_primary_and_open_summary_steps_back()
     {
         await using var app = DesktopHarness.Create();
-        var window = NetworkUiTests.Show(app);
+        var window = app.ShowWindow(1100, 720);
         await NetworkUiTests.SeedAsync(app);
         var network = await NetworkUiTests.OpenNetworkAsync(app, window);
         var canvas = CanvasOf(window);
@@ -306,7 +306,7 @@ public class NetworkDragTests
     public async Task Scrolling_or_zooming_mid_drag_keeps_the_node_under_the_pointer()
     {
         await using var app = DesktopHarness.Create();
-        var window = NetworkUiTests.Show(app);
+        var window = app.ShowWindow(1100, 720);
         await NetworkUiTests.SeedAsync(app);
         var network = await NetworkUiTests.OpenNetworkAsync(app, window);
         var canvas = CanvasOf(window);
@@ -349,7 +349,7 @@ public class NetworkDragTests
     public async Task Losing_the_pointer_capture_mid_drag_puts_the_node_back_and_leaves_nothing_unsaved()
     {
         await using var app = DesktopHarness.Create();
-        var window = NetworkUiTests.Show(app);
+        var window = app.ShowWindow(1100, 720);
         await NetworkUiTests.SeedAsync(app);
         var network = await NetworkUiTests.OpenNetworkAsync(app, window);
         var canvas = CanvasOf(window);
@@ -381,7 +381,7 @@ public class NetworkDragTests
     public async Task Leaving_the_canvas_mid_drag_keeps_the_drag_cursor_and_the_pointer()
     {
         await using var app = DesktopHarness.Create();
-        var window = NetworkUiTests.Show(app);
+        var window = app.ShowWindow(1100, 720);
         await NetworkUiTests.SeedAsync(app);
         var network = await NetworkUiTests.OpenNetworkAsync(app, window);
         var canvas = CanvasOf(window);

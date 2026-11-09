@@ -40,7 +40,7 @@ public class ExitTests
     public async Task An_unsaved_layout_alone_is_asked_about_and_dont_save_discards_only_once_the_exit_commits(ExitEntry entry)
     {
         await using var app = DesktopHarness.Create();
-        var window = NetworkUiTests.Show(app);
+        var window = app.ShowWindow(1100, 720);
         var network = await DirtyLayoutAsync(app, window);
 
         Assert.True(Quit(app, window, entry));
@@ -64,7 +64,7 @@ public class ExitTests
     public async Task A_running_answer_alone_is_asked_about_and_stopping_keeps_what_arrived(ExitEntry entry)
     {
         await using var app = DesktopHarness.Create();
-        var window = NetworkUiTests.Show(app);
+        var window = app.ShowWindow(1100, 720);
         await app.StartWithWorkspaceAsync("火车");
         await app.ConfigureModelAsync();
         var answer = await RunningAnswerAsync(app);
@@ -90,7 +90,7 @@ public class ExitTests
     public async Task With_both_the_layout_is_asked_first_and_cancelling_the_task_prompt_keeps_it_unsaved(ExitEntry entry)
     {
         await using var app = DesktopHarness.Create();
-        var window = NetworkUiTests.Show(app);
+        var window = app.ShowWindow(1100, 720);
         var network = await DirtyLayoutAsync(app, window);
         var answer = await RunningAnswerAsync(app);
 
@@ -145,7 +145,7 @@ public class ExitTests
     public async Task Drafts_typed_just_before_quitting_are_saved_before_the_window_closes()
     {
         await using var app = DesktopHarness.Create();
-        var window = NetworkUiTests.Show(app);
+        var window = app.ShowWindow(1100, 720);
         var page = await ConversationAsync(app);
         await page.SummarizeCommand.ExecuteAsync(null);
         await UiWait.UntilAsync(() => page.HasSummary && page.RunningSummary is null);
@@ -173,7 +173,7 @@ public class ExitTests
     {
         var failing = new FailingDrafts();
         await using var app = DesktopHarness.Create(s => s.AddSingleton<IReadingStateStore>(sp => failing.Wrap(sp.GetRequiredService<SqliteDatabase>())));
-        var window = NetworkUiTests.Show(app);
+        var window = app.ShowWindow(1100, 720);
         var closed = false;
         window.Closed += (_, _) => closed = true;
         var page = await ConversationAsync(app);
@@ -210,7 +210,7 @@ public class ExitTests
     {
         var failing = new FailingSummaryDrafts();
         await using var app = DesktopHarness.Create(s => s.AddSingleton<ISummaryStore>(sp => failing.Wrap(sp.GetRequiredService<SqliteDatabase>())));
-        var window = NetworkUiTests.Show(app);
+        var window = app.ShowWindow(1100, 720);
         var page = await ConversationAsync(app);
         await page.SummarizeCommand.ExecuteAsync(null);
         await UiWait.UntilAsync(() => page.HasSummary && page.RunningSummary is null);
@@ -251,7 +251,7 @@ public class ExitTests
     {
         var failing = new FailingSummaryDrafts();
         await using var app = DesktopHarness.Create(s => s.AddSingleton<ISummaryStore>(sp => failing.Wrap(sp.GetRequiredService<SqliteDatabase>())));
-        var window = NetworkUiTests.Show(app);
+        var window = app.ShowWindow(1100, 720);
         var page = await ConversationAsync(app);
         await page.SummarizeCommand.ExecuteAsync(null);
         await UiWait.UntilAsync(() => page.HasSummary && page.RunningSummary is null);
@@ -292,7 +292,7 @@ public class ExitTests
     {
         var writer = new GatedExportWriter();
         await using var app = DesktopHarness.Create(s => s.AddSingleton<IExportFileWriter>(writer));
-        var window = NetworkUiTests.Show(app);
+        var window = app.ShowWindow(1100, 720);
         var page = await ConversationAsync(app);
         await page.SummarizeCommand.ExecuteAsync(null);
         await UiWait.UntilAsync(() => page.HasSummary && page.RunningSummary is null);
@@ -336,7 +336,7 @@ public class ExitTests
     public async Task A_step_that_throws_while_stopping_shows_the_failure_instead_of_hanging()
     {
         await using var app = DesktopHarness.Create();
-        var window = NetworkUiTests.Show(app);
+        var window = app.ShowWindow(1100, 720);
         await app.StartWithWorkspaceAsync("火车");
         var generation = app.Services.GetRequiredService<GenerationCoordinator>();
         void Throwing(object? sender, EventArgs e) => throw new InvalidOperationException("simulated listener failure");
@@ -363,7 +363,7 @@ public class ExitTests
     public async Task A_second_launch_during_the_final_release_does_not_touch_the_closed_window()
     {
         await using var app = DesktopHarness.Create();
-        var window = NetworkUiTests.Show(app);
+        var window = app.ShowWindow(1100, 720);
         await app.StartWithWorkspaceAsync("火车");
 
         window.Close();

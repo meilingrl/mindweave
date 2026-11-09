@@ -38,7 +38,7 @@ public class AnswerTimerTests
     {
         var clock = new ManualTime();
         await using var app = DesktopHarness.Create(s => Use(s, clock));
-        var window = Open(app);
+        var window = app.ShowWindow();
         await app.StartWithWorkspaceAsync("火车");
         await app.ConfigureModelAsync();
         var held = app.Client.Hold();
@@ -63,7 +63,7 @@ public class AnswerTimerTests
     {
         var clock = new ManualTime();
         await using var app = DesktopHarness.Create(s => Use(s, clock));
-        var window = Open(app);
+        var window = app.ShowWindow();
         await app.StartWithWorkspaceAsync("火车");
         await app.ConfigureModelAsync();
         var held = app.Client.Hold("第一句。");
@@ -100,7 +100,7 @@ public class AnswerTimerTests
     {
         var clock = new ManualTime();
         await using var app = DesktopHarness.Create(s => Use(s, clock));
-        var window = Open(app);
+        var window = app.ShowWindow();
         await app.StartWithWorkspaceAsync("火车");
         await app.ConfigureModelAsync();
         var held = app.Client.Hold("半句");
@@ -141,7 +141,7 @@ public class AnswerTimerTests
     {
         var clock = new ManualTime();
         await using var app = DesktopHarness.Create(s => Use(s, clock));
-        var window = Open(app);
+        var window = app.ShowWindow();
         await app.StartWithWorkspaceAsync("火车");
         await app.ConfigureModelAsync();
 
@@ -182,7 +182,7 @@ public class AnswerTimerTests
     {
         var clock = new ManualTime();
         await using var app = DesktopHarness.Create(s => Use(s, clock));
-        var window = Open(app);
+        var window = app.ShowWindow();
         await app.StartWithWorkspaceAsync("火车");
         await app.ConfigureModelAsync();
         var held = app.Client.Hold();
@@ -210,13 +210,6 @@ public class AnswerTimerTests
     {
         services.AddSingleton<TimeProvider>(clock);
         services.AddSingleton<IClock>(clock);
-    }
-
-    private static MainWindow Open(DesktopHarness app)
-    {
-        var window = new MainWindow { DataContext = app.Root, Width = 1000, Height = 700 };
-        window.Show();
-        return window;
     }
 
     private static async Task<ConversationViewModel> AskAsync(DesktopHarness app, FakeChatClient.HeldReply held)

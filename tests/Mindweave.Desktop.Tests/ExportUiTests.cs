@@ -24,8 +24,7 @@ public sealed class ExportUiTests : IDisposable
     public async Task Exporting_asks_where_with_the_title_as_name_writes_the_file_and_says_so_without_reading_it()
     {
         await using var app = DesktopHarness.Create();
-        var window = new MainWindow { DataContext = app.Root, Width = 1000, Height = 700 };
-        window.Show();
+        var window = app.ShowWindow();
         var (_, summary) = await SummaryAsync(app);
         var target = Path.Combine(_dir, "导出.md");
         app.Shell.NextExport = _ => new ExportDestination("导出.md", target, null);

@@ -36,7 +36,7 @@ public class BranchMarksTests
     public async Task Each_answer_with_branches_has_one_mark_at_its_place_named_with_the_count_and_first_quote()
     {
         await using var app = DesktopHarness.Create();
-        var window = Open(app);
+        var window = app.ShowWindow();
         var page = await LongConversationAsync(app, window, answers: 4);
         await BranchAsync(app, page, page.Messages[1], "第一个分支");
         await BranchAsync(app, page, page.Messages[1], "第二个分支");
@@ -67,7 +67,7 @@ public class BranchMarksTests
     public async Task Clicking_a_mark_scrolls_its_answers_branch_list_into_view()
     {
         await using var app = DesktopHarness.Create();
-        var window = Open(app);
+        var window = app.ShowWindow();
         var page = await LongConversationAsync(app, window, answers: 4);
         await BranchAsync(app, page, page.Messages[1], "最早的分支");
         await UiWait.UntilAsync(() => Marks(window).Marks.Count == 1);
@@ -89,7 +89,7 @@ public class BranchMarksTests
     public async Task Marks_stay_off_the_scroll_bar_and_dragging_the_thumb_still_scrolls()
     {
         await using var app = DesktopHarness.Create();
-        var window = Open(app);
+        var window = app.ShowWindow();
         var page = await LongConversationAsync(app, window, answers: 4);
         await BranchAsync(app, page, page.Messages[1], "分支");
         await BranchAsync(app, page, page.Messages[3], "分支二");
@@ -127,7 +127,7 @@ public class BranchMarksTests
     public async Task Marks_follow_streaming_text_a_new_branch_a_resize_and_the_theme()
     {
         await using var app = DesktopHarness.Create();
-        var window = Open(app);
+        var window = app.ShowWindow();
         var page = await LongConversationAsync(app, window, answers: 3);
         await BranchAsync(app, page, page.Messages[3], "中间的分支");
         await UiWait.UntilAsync(() => Marks(window).Marks.Count == 1);
@@ -171,7 +171,7 @@ public class BranchMarksTests
     public async Task A_conversation_that_fits_on_screen_shows_no_marks()
     {
         await using var app = DesktopHarness.Create();
-        var window = Open(app);
+        var window = app.ShowWindow();
         await app.StartWithWorkspaceAsync("火车");
         await app.ConfigureModelAsync();
         app.Client.Reply("很短的回答，可以从中分出探索。");
@@ -198,7 +198,7 @@ public class BranchMarksTests
     public async Task Marks_crowded_at_the_end_stay_on_the_track_and_off_the_composer()
     {
         await using var app = DesktopHarness.Create();
-        var window = Open(app);
+        var window = app.ShowWindow();
         // Many long answers, then a run of short ones near the end, each with a branch: their natural places crowd
         // into the last stretch of the track, with less room than the marks need apart.
         const int longAnswers = 20;
@@ -270,7 +270,7 @@ public class BranchMarksTests
     public async Task Marks_sit_on_a_faint_rail_along_the_track()
     {
         await using var app = DesktopHarness.Create();
-        var window = Open(app);
+        var window = app.ShowWindow();
         var page = await LongConversationAsync(app, window, answers: 3);
         Assert.False(Marks(window).Rail.IsVisible);
         await BranchAsync(app, page, page.Messages[3], "分支");
@@ -305,7 +305,7 @@ public class BranchMarksTests
     public async Task The_wheel_over_a_mark_scrolls_the_conversation_and_a_click_leaves_the_keyboard_in_the_composer()
     {
         await using var app = DesktopHarness.Create();
-        var window = Open(app);
+        var window = app.ShowWindow();
         var page = await LongConversationAsync(app, window, answers: 4);
         await BranchAsync(app, page, page.Messages[5], "分支");
         await UiWait.UntilAsync(() => Marks(window).Marks.Count == 1);
@@ -340,7 +340,7 @@ public class BranchMarksTests
     public async Task Only_a_page_with_branches_makes_room_for_the_marks()
     {
         await using var app = DesktopHarness.Create();
-        var window = Open(app);
+        var window = app.ShowWindow();
         var page = await LongConversationAsync(app, window, answers: 3);
         var list = CurrentView(window).GetVisualDescendants().OfType<ItemsControl>().Single(c => c.Name == "MessageList");
         Assert.Equal(12, list.Margin.Right);
@@ -411,13 +411,6 @@ public class BranchMarksTests
             page.Id, new BranchSelection(answer.Id, 0, quote, "{}", SourceAnchors.FormatVersion, SourceAnchors.RenderProfile), CancellationToken.None);
         Assert.True(outcome.Accepted, outcome.Rejection?.ToString());
         await UiWait.UntilAsync(() => answer.Branches.Count == count + 1);
-    }
-
-    private static MainWindow Open(DesktopHarness app)
-    {
-        var window = new MainWindow { DataContext = app.Root, Width = 1000, Height = 700 };
-        window.Show();
-        return window;
     }
 
     private static BranchMarks Marks(Window window)

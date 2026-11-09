@@ -204,8 +204,7 @@ public class StreamingSelectionTests
 
     private static async Task<MainWindow> OpenAsync(DesktopHarness app)
     {
-        var window = new MainWindow { DataContext = app.Root, Width = 1000, Height = 700 };
-        window.Show();
+        var window = app.ShowWindow();
         await app.StartWithWorkspaceAsync("火车");
         await app.ConfigureModelAsync();
         window.UpdateLayout();

@@ -18,7 +18,7 @@ public class DraftLossTests
     {
         var failing = new ExitTests.FailingSummaryDrafts();
         await using var app = DesktopHarness.Create(s => s.AddSingleton<ISummaryStore>(sp => failing.Wrap(sp.GetRequiredService<SqliteDatabase>())));
-        NetworkUiTests.Show(app);
+        app.ShowWindow(1100, 720);
         var page = await ExitTests.ConversationAsync(app);
         await page.SummarizeCommand.ExecuteAsync(null);
         await UiWait.UntilAsync(() => page.HasSummary && page.RunningSummary is null);
@@ -50,7 +50,7 @@ public class DraftLossTests
     {
         var failing = new ExitTests.FailingSummaryDrafts();
         await using var app = DesktopHarness.Create(s => s.AddSingleton<ISummaryStore>(sp => failing.Wrap(sp.GetRequiredService<SqliteDatabase>())));
-        NetworkUiTests.Show(app);
+        app.ShowWindow(1100, 720);
         var page = await ExitTests.ConversationAsync(app);
         await page.SummarizeCommand.ExecuteAsync(null);
         await UiWait.UntilAsync(() => page.HasSummary && page.RunningSummary is null);
@@ -73,7 +73,7 @@ public class DraftLossTests
     {
         var failing = new ExitTests.FailingSummaryDrafts();
         await using var app = DesktopHarness.Create(s => s.AddSingleton<ISummaryStore>(sp => failing.Wrap(sp.GetRequiredService<SqliteDatabase>())));
-        var window = NetworkUiTests.Show(app);
+        var window = app.ShowWindow(1100, 720);
         var page = await ExitTests.ConversationAsync(app);
         await page.SummarizeCommand.ExecuteAsync(null);
         await UiWait.UntilAsync(() => page.HasSummary && page.RunningSummary is null);

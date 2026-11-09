@@ -378,7 +378,7 @@ public class SettingsPolishTests
     public async Task Settings_storage_and_onboarding_each_have_one_primary_action()
     {
         await using var app = DesktopHarness.Create();
-        var window = NetworkUiTests.Show(app);
+        var window = app.ShowWindow(1100, 720);
         await app.StartAsync();
         window.UpdateLayout();
         var onboarding = window.GetVisualDescendants().OfType<OnboardingView>().Single();
@@ -428,7 +428,7 @@ public class SettingsPolishTests
 
     private static async Task<(MainWindow Window, SettingsHomeViewModel Settings)> OpenSettingsAsync(DesktopHarness app, bool started = false)
     {
-        var window = NetworkUiTests.Show(app);
+        var window = app.ShowWindow(1100, 720);
         if (!started)
         {
             await app.StartWithWorkspaceAsync("火车");
