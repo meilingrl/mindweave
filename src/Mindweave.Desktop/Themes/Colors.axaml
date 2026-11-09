@@ -1,0 +1,249 @@
+<ResourceDictionary xmlns="https://github.com/avaloniaui"
+                    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+  <!--
+    Every colour is a theme resource (D-022): the light and dark dictionaries define the same keys, pages and the
+    network canvas only refer to them (DynamicResource / FindResource), so switching the theme needs no restart.
+    Light keeps the warm greys of S1–S6; dark is the network sample's palette (s7-prototype-visual-language.md).
+  -->
+  <ResourceDictionary.ThemeDictionaries>
+    <ResourceDictionary x:Key="Light">
+      <!-- Pages -->
+      <SolidColorBrush x:Key="WindowBackground">#FFFFFF</SolidColorBrush>
+      <SolidColorBrush x:Key="SidebarBackground">#F5F5F4</SolidColorBrush>
+      <SolidColorBrush x:Key="PanelBackground">#F5F5F4</SolidColorBrush>
+      <SolidColorBrush x:Key="DialogBackground">#FFFFFF</SolidColorBrush>
+      <SolidColorBrush x:Key="ScrimBrush">#66000000</SolidColorBrush>
+      <BoxShadows x:Key="DialogShadow">0 12 32 0 #33000000</BoxShadows>
+      <SolidColorBrush x:Key="DividerBrush">#E7E5E4</SolidColorBrush>
+      <SolidColorBrush x:Key="OutlineBrush">#D6D3D1</SolidColorBrush>
+      <SolidColorBrush x:Key="PrimaryText">#1C1917</SolidColorBrush>
+      <SolidColorBrush x:Key="MutedText">#78716C</SolidColorBrush>
+      <SolidColorBrush x:Key="ErrorText">#B91C1C</SolidColorBrush>
+      <SolidColorBrush x:Key="WarningText">#B45309</SolidColorBrush>
+      <SolidColorBrush x:Key="DangerText">#B91C1C</SolidColorBrush>
+      <SolidColorBrush x:Key="LinkText">#2563EB</SolidColorBrush>
+      <SolidColorBrush x:Key="SelectedRow">#E7E5E4</SolidColorBrush>
+      <SolidColorBrush x:Key="HoverRow">#EFEEEC</SolidColorBrush>
+      <SolidColorBrush x:Key="CheckedRow">#E3E8FD</SolidColorBrush>
+      <SolidColorBrush x:Key="CheckedRowHover">#D9E0FC</SolidColorBrush>
+      <SolidColorBrush x:Key="SourceHighlight">#FDE68A</SolidColorBrush>
+      <SolidColorBrush x:Key="QuoteBar">#D6D3D1</SolidColorBrush>
+      <!-- Shared styles -->
+      <SolidColorBrush x:Key="AccentBrush">#4B6BFB</SolidColorBrush>
+      <SolidColorBrush x:Key="AccentHoverBrush">#3756E8</SolidColorBrush>
+      <SolidColorBrush x:Key="AccentPressedBrush">#2B47CC</SolidColorBrush>
+      <SolidColorBrush x:Key="OnAccentText">#FFFFFF</SolidColorBrush>
+      <SolidColorBrush x:Key="BadgeAccentBackground">#E2E8FF</SolidColorBrush>
+      <SolidColorBrush x:Key="BadgeAccentText">#2B47CC</SolidColorBrush>
+      <SolidColorBrush x:Key="BadgeNeutralBackground">#EEEDEB</SolidColorBrush>
+      <SolidColorBrush x:Key="BadgeNeutralText">#57534E</SolidColorBrush>
+      <SolidColorBrush x:Key="BadgeWarningBackground">#FDF0D5</SolidColorBrush>
+      <SolidColorBrush x:Key="BadgeWarningText">#92400E</SolidColorBrush>
+      <SolidColorBrush x:Key="NoticeInfoBackground">#EEF2FF</SolidColorBrush>
+      <SolidColorBrush x:Key="NoticeInfoBorder">#C7D2FE</SolidColorBrush>
+      <SolidColorBrush x:Key="NoticeInfoIcon">#4B6BFB</SolidColorBrush>
+      <SolidColorBrush x:Key="NoticeWarningBackground">#FEF6E4</SolidColorBrush>
+      <SolidColorBrush x:Key="NoticeWarningBorder">#F5D9A3</SolidColorBrush>
+      <SolidColorBrush x:Key="NoticeWarningIcon">#B45309</SolidColorBrush>
+      <SolidColorBrush x:Key="NoticeErrorBackground">#FDECEC</SolidColorBrush>
+      <SolidColorBrush x:Key="NoticeErrorBorder">#F5C2C2</SolidColorBrush>
+      <SolidColorBrush x:Key="NoticeErrorIcon">#B91C1C</SolidColorBrush>
+      <!-- Conversation page and sidebar -->
+      <SolidColorBrush x:Key="QuestionBubbleBackground">#F0EFED</SolidColorBrush>
+      <SolidColorBrush x:Key="CardBackground">#F7F7F6</SolidColorBrush>
+      <SolidColorBrush x:Key="CardBorder">#ECEAE8</SolidColorBrush>
+      <SolidColorBrush x:Key="CardHover">#EDECEA</SolidColorBrush>
+      <SolidColorBrush x:Key="NavIcon">#8A847F</SolidColorBrush>
+      <SolidColorBrush x:Key="TreeGuide">#C4C0BC</SolidColorBrush>
+      <SolidColorBrush x:Key="QuietActionText">#57534E</SolidColorBrush>
+      <SolidColorBrush x:Key="DisabledButtonBackground">#EEEDEB</SolidColorBrush>
+      <!-- Conversation: the selection's floating action and message timestamps -->
+      <SolidColorBrush x:Key="FloatingBackground">#FFFFFF</SolidColorBrush>
+      <SolidColorBrush x:Key="FloatingBorder">#E2DFDC</SolidColorBrush>
+      <BoxShadows x:Key="FloatingShadow">0 4 14 0 #1F000000</BoxShadows>
+      <SolidColorBrush x:Key="TimestampText">#857F79</SolidColorBrush>
+      <!-- Conversation: marks in the margin for answers with branches -->
+      <SolidColorBrush x:Key="BranchMark">#6A83F6</SolidColorBrush>
+      <SolidColorBrush x:Key="BranchMarkHover">#2B47CC</SolidColorBrush>
+      <SolidColorBrush x:Key="BranchMarkRail">#EEECEA</SolidColorBrush>
+      <!-- Scroll bars: a faint thin thumb at rest, a little stronger when hovered (Fluent's own keys) -->
+      <Color x:Key="ScrollBarPanningThumbBackgroundColor">#33000000</Color>
+      <SolidColorBrush x:Key="ScrollBarPanningThumbBackground">#2E1C1917</SolidColorBrush>
+      <Color x:Key="ScrollBarThumbBackgroundColor">#66000000</Color>
+      <SolidColorBrush x:Key="ScrollBarThumbFillPointerOver">#57534E</SolidColorBrush>
+      <SolidColorBrush x:Key="ScrollBarThumbFillPressed">#44403C</SolidColorBrush>
+      <SolidColorBrush x:Key="ScrollBarBackgroundPointerOver">#0A000000</SolidColorBrush>
+      <SolidColorBrush x:Key="ScrollBarTrackFillPointerOver">#0A000000</SolidColorBrush>
+      <SolidColorBrush x:Key="ScrollBarButtonArrowForeground">#A8A29E</SolidColorBrush>
+      <!-- Network canvas: the sample's behaviour in light colours -->
+      <SolidColorBrush x:Key="NetworkBackground">#FCFCFB</SolidColorBrush>
+      <SolidColorBrush x:Key="NetworkGridDot">#E2E0DD</SolidColorBrush>
+      <SolidColorBrush x:Key="NetworkNode">#4B6BFB</SolidColorBrush>
+      <SolidColorBrush x:Key="NetworkNodeRead">#8E99B8</SolidColorBrush>
+      <SolidColorBrush x:Key="NetworkNodeTrail">#2B47CC</SolidColorBrush>
+      <SolidColorBrush x:Key="NetworkNodeHover">#6F89FF</SolidColorBrush>
+      <SolidColorBrush x:Key="NetworkUnreadDot">#2B47CC</SolidColorBrush>
+      <SolidColorBrush x:Key="NetworkHaloSelected">#DCE3FF</SolidColorBrush>
+      <SolidColorBrush x:Key="NetworkHaloHover">#E9EDFB</SolidColorBrush>
+      <SolidColorBrush x:Key="NetworkRingSelected">#2B47CC</SolidColorBrush>
+      <SolidColorBrush x:Key="NetworkRingMatch">#D97706</SolidColorBrush>
+      <SolidColorBrush x:Key="NetworkLabel">#1F2430</SolidColorBrush>
+      <SolidColorBrush x:Key="NetworkLabelRead">#6B7280</SolidColorBrush>
+      <SolidColorBrush x:Key="NetworkLabelActive">#0B1020</SolidColorBrush>
+      <SolidColorBrush x:Key="NetworkCaption">#8A8F99</SolidColorBrush>
+      <SolidColorBrush x:Key="NetworkEdge">#D3D7DE</SolidColorBrush>
+      <SolidColorBrush x:Key="NetworkEdgeIndirect">#A3A9B6</SolidColorBrush>
+      <SolidColorBrush x:Key="NetworkEdgeNear">#7E8698</SolidColorBrush>
+      <SolidColorBrush x:Key="NetworkEdgeTrail">#5B78F5</SolidColorBrush>
+      <SolidColorBrush x:Key="NetworkFrame">#E7E5E4</SolidColorBrush>
+      <!-- Network: the soft shadow under a node while it is dragged -->
+      <SolidColorBrush x:Key="NetworkDragShadow">#551F2A44</SolidColorBrush>
+      <!-- Light needs no glow: the shadow alone reads on the pale canvas -->
+      <SolidColorBrush x:Key="NetworkDragGlow">Transparent</SolidColorBrush>
+      <!-- Text fields (Fluent's own keys), so inputs match the page in both themes -->
+      <SolidColorBrush x:Key="TextControlBackground">#FFFFFF</SolidColorBrush>
+      <SolidColorBrush x:Key="TextControlBackgroundPointerOver">#FAFAF9</SolidColorBrush>
+      <SolidColorBrush x:Key="TextControlBackgroundFocused">#FFFFFF</SolidColorBrush>
+      <SolidColorBrush x:Key="TextControlBackgroundDisabled">#F5F5F4</SolidColorBrush>
+      <SolidColorBrush x:Key="TextControlBorderBrush">#D6D3D1</SolidColorBrush>
+      <SolidColorBrush x:Key="TextControlBorderBrushPointerOver">#A8A29E</SolidColorBrush>
+      <SolidColorBrush x:Key="TextControlBorderBrushFocused">#4B6BFB</SolidColorBrush>
+      <SolidColorBrush x:Key="TextControlForeground">#1C1917</SolidColorBrush>
+      <SolidColorBrush x:Key="TextControlForegroundPointerOver">#1C1917</SolidColorBrush>
+      <SolidColorBrush x:Key="TextControlForegroundFocused">#1C1917</SolidColorBrush>
+      <SolidColorBrush x:Key="TextControlPlaceholderForeground">#A8A29E</SolidColorBrush>
+      <SolidColorBrush x:Key="TextControlPlaceholderForegroundPointerOver">#A8A29E</SolidColorBrush>
+      <SolidColorBrush x:Key="TextControlPlaceholderForegroundFocused">#A8A29E</SolidColorBrush>
+      <!-- LiveMarkdown's own keys (its defaults assume a dark surface) -->
+      <Color x:Key="ForegroundColor">#1C1917</Color>
+      <Color x:Key="BorderColor">#E7E5E4</Color>
+      <Color x:Key="CardBackgroundColor">#FAFAF9</Color>
+      <Color x:Key="SecondaryCardBackgroundColor">#F3F2F0</Color>
+      <Color x:Key="CodeInlineColor">#9D174D</Color>
+      <Color x:Key="QuoteBorderColor">#D6D3D1</Color>
+      <!-- Settings: segmented control, suggestion list -->
+      <SolidColorBrush x:Key="SegmentedTrack">#EFEEEC</SolidColorBrush>
+      <SolidColorBrush x:Key="SegmentedSelected">#FFFFFF</SolidColorBrush>
+      <SolidColorBrush x:Key="SegmentedSelectedBorder">#DDDAD6</SolidColorBrush>
+      <SolidColorBrush x:Key="SegmentedHover">#E6E4E1</SolidColorBrush>
+      <BoxShadows x:Key="SegmentedShadow">0 1 2 0 #1F000000</BoxShadows>
+      <BoxShadows x:Key="PopupShadow">0 8 24 0 #24000000</BoxShadows>
+    </ResourceDictionary>
+    <ResourceDictionary x:Key="Dark">
+      <SolidColorBrush x:Key="WindowBackground">#18191B</SolidColorBrush>
+      <SolidColorBrush x:Key="SidebarBackground">#1D1E22</SolidColorBrush>
+      <SolidColorBrush x:Key="PanelBackground">#1D1E22</SolidColorBrush>
+      <SolidColorBrush x:Key="DialogBackground">#222327</SolidColorBrush>
+      <SolidColorBrush x:Key="ScrimBrush">#99000000</SolidColorBrush>
+      <BoxShadows x:Key="DialogShadow">0 16 40 0 #8C000000</BoxShadows>
+      <SolidColorBrush x:Key="DividerBrush">#2C2E33</SolidColorBrush>
+      <SolidColorBrush x:Key="OutlineBrush">#3A3D45</SolidColorBrush>
+      <SolidColorBrush x:Key="PrimaryText">#E6E8EE</SolidColorBrush>
+      <SolidColorBrush x:Key="MutedText">#9299A6</SolidColorBrush>
+      <SolidColorBrush x:Key="ErrorText">#F2A0A0</SolidColorBrush>
+      <SolidColorBrush x:Key="WarningText">#DFB87C</SolidColorBrush>
+      <SolidColorBrush x:Key="DangerText">#F2A0A0</SolidColorBrush>
+      <SolidColorBrush x:Key="LinkText">#A9B8F5</SolidColorBrush>
+      <SolidColorBrush x:Key="SelectedRow">#2A2D35</SolidColorBrush>
+      <SolidColorBrush x:Key="HoverRow">#24262C</SolidColorBrush>
+      <SolidColorBrush x:Key="CheckedRow">#263459</SolidColorBrush>
+      <SolidColorBrush x:Key="CheckedRowHover">#2C3B64</SolidColorBrush>
+      <SolidColorBrush x:Key="SourceHighlight">#5A4A1E</SolidColorBrush>
+      <SolidColorBrush x:Key="QuoteBar">#3A3D45</SolidColorBrush>
+      <SolidColorBrush x:Key="AccentBrush">#5A72E6</SolidColorBrush>
+      <SolidColorBrush x:Key="AccentHoverBrush">#6C83F2</SolidColorBrush>
+      <SolidColorBrush x:Key="AccentPressedBrush">#4C63D2</SolidColorBrush>
+      <SolidColorBrush x:Key="OnAccentText">#FFFFFF</SolidColorBrush>
+      <SolidColorBrush x:Key="BadgeAccentBackground">#26324D</SolidColorBrush>
+      <SolidColorBrush x:Key="BadgeAccentText">#C1C6FA</SolidColorBrush>
+      <SolidColorBrush x:Key="BadgeNeutralBackground">#2A2C31</SolidColorBrush>
+      <SolidColorBrush x:Key="BadgeNeutralText">#A3A9B5</SolidColorBrush>
+      <SolidColorBrush x:Key="BadgeWarningBackground">#3A2F17</SolidColorBrush>
+      <SolidColorBrush x:Key="BadgeWarningText">#DFB87C</SolidColorBrush>
+      <SolidColorBrush x:Key="NoticeInfoBackground">#1F2638</SolidColorBrush>
+      <SolidColorBrush x:Key="NoticeInfoBorder">#2F3A57</SolidColorBrush>
+      <SolidColorBrush x:Key="NoticeInfoIcon">#A9B8F5</SolidColorBrush>
+      <SolidColorBrush x:Key="NoticeWarningBackground">#2E2717</SolidColorBrush>
+      <SolidColorBrush x:Key="NoticeWarningBorder">#4A3C1E</SolidColorBrush>
+      <SolidColorBrush x:Key="NoticeWarningIcon">#DFB87C</SolidColorBrush>
+      <SolidColorBrush x:Key="NoticeErrorBackground">#33201F</SolidColorBrush>
+      <SolidColorBrush x:Key="NoticeErrorBorder">#55302F</SolidColorBrush>
+      <SolidColorBrush x:Key="NoticeErrorIcon">#F2A0A0</SolidColorBrush>
+      <SolidColorBrush x:Key="QuestionBubbleBackground">#26282E</SolidColorBrush>
+      <SolidColorBrush x:Key="CardBackground">#1E1F23</SolidColorBrush>
+      <SolidColorBrush x:Key="CardBorder">#2A2C31</SolidColorBrush>
+      <SolidColorBrush x:Key="CardHover">#272A31</SolidColorBrush>
+      <SolidColorBrush x:Key="NavIcon">#7E8594</SolidColorBrush>
+      <SolidColorBrush x:Key="TreeGuide">#4A4E57</SolidColorBrush>
+      <SolidColorBrush x:Key="QuietActionText">#B4BAC6</SolidColorBrush>
+      <SolidColorBrush x:Key="DisabledButtonBackground">#2A2C31</SolidColorBrush>
+      <!-- Conversation: the selection's floating action and message timestamps -->
+      <SolidColorBrush x:Key="FloatingBackground">#2A2C31</SolidColorBrush>
+      <SolidColorBrush x:Key="FloatingBorder">#3A3D45</SolidColorBrush>
+      <BoxShadows x:Key="FloatingShadow">0 6 18 0 #73000000</BoxShadows>
+      <SolidColorBrush x:Key="TimestampText">#7E8492</SolidColorBrush>
+      <!-- Conversation: marks in the margin for answers with branches -->
+      <SolidColorBrush x:Key="BranchMark">#7286E6</SolidColorBrush>
+      <SolidColorBrush x:Key="BranchMarkHover">#BDC9F2</SolidColorBrush>
+      <SolidColorBrush x:Key="BranchMarkRail">#26282D</SolidColorBrush>
+      <Color x:Key="ScrollBarPanningThumbBackgroundColor">#38FFFFFF</Color>
+      <SolidColorBrush x:Key="ScrollBarPanningThumbBackground">#2EFFFFFF</SolidColorBrush>
+      <Color x:Key="ScrollBarThumbBackgroundColor">#66FFFFFF</Color>
+      <SolidColorBrush x:Key="ScrollBarThumbFillPointerOver">#8B919C</SolidColorBrush>
+      <SolidColorBrush x:Key="ScrollBarThumbFillPressed">#A3A9B5</SolidColorBrush>
+      <SolidColorBrush x:Key="ScrollBarBackgroundPointerOver">#0DFFFFFF</SolidColorBrush>
+      <SolidColorBrush x:Key="ScrollBarTrackFillPointerOver">#0DFFFFFF</SolidColorBrush>
+      <SolidColorBrush x:Key="ScrollBarButtonArrowForeground">#737985</SolidColorBrush>
+      <SolidColorBrush x:Key="NetworkBackground">#18191B</SolidColorBrush>
+      <SolidColorBrush x:Key="NetworkGridDot">#292B30</SolidColorBrush>
+      <SolidColorBrush x:Key="NetworkNode">#B4BACD</SolidColorBrush>
+      <SolidColorBrush x:Key="NetworkNodeRead">#747B88</SolidColorBrush>
+      <SolidColorBrush x:Key="NetworkNodeTrail">#BDC9F2</SolidColorBrush>
+      <SolidColorBrush x:Key="NetworkNodeHover">#E2E8FF</SolidColorBrush>
+      <SolidColorBrush x:Key="NetworkUnreadDot">#A3B8EE</SolidColorBrush>
+      <SolidColorBrush x:Key="NetworkHaloSelected">#26324D</SolidColorBrush>
+      <SolidColorBrush x:Key="NetworkHaloHover">#282E3C</SolidColorBrush>
+      <SolidColorBrush x:Key="NetworkRingSelected">#C1C6FA</SolidColorBrush>
+      <SolidColorBrush x:Key="NetworkRingMatch">#DFB87C</SolidColorBrush>
+      <SolidColorBrush x:Key="NetworkLabel">#CBD0DA</SolidColorBrush>
+      <SolidColorBrush x:Key="NetworkLabelRead">#8B919C</SolidColorBrush>
+      <SolidColorBrush x:Key="NetworkLabelActive">#F0F2FF</SolidColorBrush>
+      <SolidColorBrush x:Key="NetworkCaption">#858B97</SolidColorBrush>
+      <SolidColorBrush x:Key="NetworkEdge">#363A42</SolidColorBrush>
+      <SolidColorBrush x:Key="NetworkEdgeIndirect">#626577</SolidColorBrush>
+      <SolidColorBrush x:Key="NetworkEdgeNear">#7F899E</SolidColorBrush>
+      <SolidColorBrush x:Key="NetworkEdgeTrail">#AAB8F5</SolidColorBrush>
+      <SolidColorBrush x:Key="NetworkFrame">Transparent</SolidColorBrush>
+      <!-- Network: the soft shadow under a node while it is dragged. A black shadow barely shows on the
+           near-black canvas, so dark makes it deeper and adds a soft accent glow with a thin rim around the lifted node. -->
+      <SolidColorBrush x:Key="NetworkDragShadow">#D9000000</SolidColorBrush>
+      <SolidColorBrush x:Key="NetworkDragGlow">#8EA2F5</SolidColorBrush>
+      <SolidColorBrush x:Key="TextControlBackground">#222327</SolidColorBrush>
+      <SolidColorBrush x:Key="TextControlBackgroundPointerOver">#26282D</SolidColorBrush>
+      <SolidColorBrush x:Key="TextControlBackgroundFocused">#1D1E22</SolidColorBrush>
+      <SolidColorBrush x:Key="TextControlBackgroundDisabled">#1D1E22</SolidColorBrush>
+      <SolidColorBrush x:Key="TextControlBorderBrush">#3A3D45</SolidColorBrush>
+      <SolidColorBrush x:Key="TextControlBorderBrushPointerOver">#4A4E58</SolidColorBrush>
+      <SolidColorBrush x:Key="TextControlBorderBrushFocused">#6C83F2</SolidColorBrush>
+      <SolidColorBrush x:Key="TextControlForeground">#E6E8EE</SolidColorBrush>
+      <SolidColorBrush x:Key="TextControlForegroundPointerOver">#E6E8EE</SolidColorBrush>
+      <SolidColorBrush x:Key="TextControlForegroundFocused">#E6E8EE</SolidColorBrush>
+      <SolidColorBrush x:Key="TextControlPlaceholderForeground">#737985</SolidColorBrush>
+      <SolidColorBrush x:Key="TextControlPlaceholderForegroundPointerOver">#737985</SolidColorBrush>
+      <SolidColorBrush x:Key="TextControlPlaceholderForegroundFocused">#737985</SolidColorBrush>
+      <Color x:Key="ForegroundColor">#E6E8EE</Color>
+      <Color x:Key="BorderColor">#2C2E33</Color>
+      <Color x:Key="CardBackgroundColor">#1D1E22</Color>
+      <Color x:Key="SecondaryCardBackgroundColor">#25272C</Color>
+      <Color x:Key="CodeInlineColor">#F0A6C8</Color>
+      <Color x:Key="QuoteBorderColor">#3A3D45</Color>
+      <!-- Settings -->
+      <SolidColorBrush x:Key="SegmentedTrack">#141517</SolidColorBrush>
+      <SolidColorBrush x:Key="SegmentedSelected">#2E3138</SolidColorBrush>
+      <SolidColorBrush x:Key="SegmentedSelectedBorder">#3A3D45</SolidColorBrush>
+      <SolidColorBrush x:Key="SegmentedHover">#202227</SolidColorBrush>
+      <BoxShadows x:Key="SegmentedShadow">0 1 2 0 #66000000</BoxShadows>
+      <BoxShadows x:Key="PopupShadow">0 8 24 0 #80000000</BoxShadows>
+    </ResourceDictionary>
+  </ResourceDictionary.ThemeDictionaries>
+</ResourceDictionary>
