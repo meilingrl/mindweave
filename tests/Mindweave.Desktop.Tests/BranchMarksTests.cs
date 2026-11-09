@@ -77,7 +77,7 @@ public class BranchMarksTests
         var section = Section(window, page.Messages[1]);
         Assert.False(InView(scroller, section));
 
-        Click(window, Marks(window).Marks[0].Mark);
+        ClickMark(window, Marks(window).Marks[0].Mark);
         Assert.True(InView(scroller, section), $"Branch list at {section.TranslatePoint(default, scroller)?.Y} in a {scroller.Viewport.Height} viewport");
 
         // The entries themselves are there to open.
@@ -331,7 +331,7 @@ public class BranchMarksTests
         var input = CurrentView(window).GetVisualDescendants().OfType<TextBox>().Single(t => t.Name == "Input");
         input.Focus();
         Assert.True(input.IsFocused);
-        Click(window, Marks(window).Marks[0].Mark);
+        ClickMark(window, Marks(window).Marks[0].Mark);
         Assert.True(input.IsFocused, $"Focus moved to {window.FocusManager?.GetFocusedElement()}");
         window.Close();
     }
@@ -441,13 +441,10 @@ public class BranchMarksTests
         window.CaptureRenderedFrame()?.Dispose();
     }
 
-    private static void Click(Window window, Button button)
+    /// <summary>A real click on a mark, hovered first like a real mouse, once the marks have been drawn.</summary>
+    private static void ClickMark(Window window, Button mark)
     {
         Rendered(window);
-        var centre = Centre(button, window);
-        window.MouseMove(centre);
-        window.MouseDown(centre, MouseButton.Left);
-        window.MouseUp(centre, MouseButton.Left);
-        window.UpdateLayout();
+        UiInput.Click(window, mark, hover: true);
     }
 }

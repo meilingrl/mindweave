@@ -64,7 +64,7 @@ public class SidebarLayoutTests
         var expand = Part<Button>(window, "ExpandSidebar");
         Assert.False(expand.IsEffectivelyVisible);
 
-        Click(window, Part<Button>(window, "CollapseSidebar"));
+        UiInput.Click(window, Part<Button>(window, "CollapseSidebar"));
         Assert.True(app.ShellPage.IsSidebarCollapsed);
         Assert.False(Part<Border>(window, "Sidebar").IsEffectivelyVisible);
         Assert.False(Part<Control>(window, "SidebarSplitter").IsEffectivelyVisible);
@@ -75,7 +75,7 @@ public class SidebarLayoutTests
         Assert.True((await Stored(app)).IsCollapsed);
 
         // Expanding brings back the width it had.
-        Click(window, expand);
+        UiInput.Click(window, expand);
         Assert.False(app.ShellPage.IsSidebarCollapsed);
         Assert.True(Part<Border>(window, "Sidebar").IsEffectivelyVisible);
         Assert.Equal(before, content.Bounds.Width, 0.5);
@@ -101,7 +101,7 @@ public class SidebarLayoutTests
         await app.StartWithWorkspaceAsync("火车");
         window.UpdateLayout();
         Drag(window, Part<Control>(window, "SidebarSplitter"), 60);
-        Click(window, Part<Button>(window, "CollapseSidebar"));
+        UiInput.Click(window, Part<Button>(window, "CollapseSidebar"));
         await app.ShellPage.SidebarSaving;
         window.Close();
 
@@ -110,7 +110,7 @@ public class SidebarLayoutTests
         again.UpdateLayout();
         Assert.True(app.ShellPage.IsSidebarCollapsed);
         Assert.False(Part<Border>(again, "Sidebar").IsEffectivelyVisible);
-        Click(again, Part<Button>(again, "ExpandSidebar"));
+        UiInput.Click(again, Part<Button>(again, "ExpandSidebar"));
         Assert.Equal(300, Part<Border>(again, "Sidebar").Bounds.Width);
         again.Close();
     }
@@ -145,7 +145,7 @@ public class SidebarLayoutTests
         var window = app.ShowWindow(1100, 720);
         await app.StartWithWorkspaceAsync("火车");
         await app.ConfigureModelAsync();
-        Click(window, Part<Button>(window, "CollapseSidebar"));
+        UiInput.Click(window, Part<Button>(window, "CollapseSidebar"));
         var dot = Part<Ellipse>(window, "ExpandSidebarAttention");
         Assert.False(dot.IsEffectivelyVisible);
 
@@ -225,6 +225,4 @@ public class SidebarLayoutTests
         window.MouseUp(start + new Vector(dx, 0), MouseButton.Left);
         window.UpdateLayout();
     }
-
-    private static void Click(Window window, Button button) => UiInput.Click(window, button);
 }

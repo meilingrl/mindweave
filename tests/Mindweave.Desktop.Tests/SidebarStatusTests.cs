@@ -59,7 +59,7 @@ public class SidebarStatusTests
         Assert.False(Item(app, second).IsUnread);
 
         // Opening it clears the mark at once, and the stored mark with it.
-        Click(window, Row(window, first));
+        UiInput.Click(window, Row(window, first));
         Assert.Equal(new ConversationRoute(first), app.Workbench.CurrentPage?.Route);
         Assert.False(item.IsUnread);
         Assert.False(app.ShellPage.Conversations.HasUnread);
@@ -274,7 +274,7 @@ public class SidebarStatusTests
         await using var app = DesktopHarness.Create();
         var window = app.ShowWindow(1100, 720);
         var (first, second) = await TwoConversationsAsync(app);
-        Click(window, Part<Button>(window, "CollapseSidebar"));
+        UiInput.Click(window, Part<Button>(window, "CollapseSidebar"));
         var unread = Part<Ellipse>(window, "ExpandSidebarUnread");
         var attention = Part<Ellipse>(window, "ExpandSidebarAttention");
         var expand = Part<Button>(window, "ExpandSidebar");
@@ -602,6 +602,4 @@ public class SidebarStatusTests
     private static T Marker<T>(Window window, ConversationId id, string className)
         where T : Control =>
         Row(window, id).GetVisualDescendants().OfType<T>().Single(c => c.Classes.Contains(className));
-
-    private static void Click(Window window, Control control) => UiInput.Click(window, control);
 }

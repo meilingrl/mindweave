@@ -429,9 +429,7 @@ public class ArchiveUiTests
         // The row lights up across its width, so a click in its empty middle opens it too.
         var view = window.GetVisualDescendants().OfType<ArchivedView>().Single();
         var row = view.GetVisualDescendants().OfType<Border>().Single(b => b.Classes.Contains("archived-row"));
-        var middle = row.TranslatePoint(new Point(row.Bounds.Width * 0.6, row.Bounds.Height / 2), window)!.Value;
-        window.MouseDown(middle, Avalonia.Input.MouseButton.Left);
-        window.MouseUp(middle, Avalonia.Input.MouseButton.Left);
+        UiInput.Click(window, row, at: new Point(row.Bounds.Width * 0.6, row.Bounds.Height / 2));
 
         var opened = Assert.IsType<ConversationViewModel>(app.Workbench.CurrentPage);
         Assert.Equal(root.Id, opened.Id);

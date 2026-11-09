@@ -52,7 +52,7 @@ public class ConversationPolishTests
         Assert.False(Find<Button>(composer, "SendButton").IsEffectivelyVisible);
         Assert.True(view.GetVisualDescendants().OfType<StackPanel>().Single(p => p.Name == "StreamingIndicator" && p.IsVisible).IsEffectivelyVisible);
 
-        Click(window, stop);
+        UiInput.Click(window, stop);
 
         await UiWait.StoredAsync(page, 1, MessageState.Stopped);
         window.UpdateLayout();
@@ -67,7 +67,7 @@ public class ConversationPolishTests
         Assert.Equal("已停止", VisibleNamed<TextBlock>(view, "StateText").Text);
         Assert.DoesNotContain(view.GetVisualDescendants().OfType<Border>(), b => b.Name == "ErrorNotice" && b.IsEffectivelyVisible);
         app.Client.Reply("完整的回答。");
-        Click(window, retry);
+        UiInput.Click(window, retry);
         await UiWait.StoredAsync(page, 2, MessageState.Complete);
         window.Close();
     }
@@ -105,7 +105,7 @@ public class ConversationPolishTests
         Assert.DoesNotContain(view.GetVisualDescendants().OfType<Button>(), b => b.Name == "RetryButton" && b.IsEffectivelyVisible);
 
         app.Client.Reply("完整的回答。");
-        Click(window, retry);
+        UiInput.Click(window, retry);
         await UiWait.StoredAsync(page, 2, MessageState.Complete);
         Assert.True(page.Messages[1].IsSuperseded);
         window.UpdateLayout();
@@ -420,9 +420,6 @@ public class ConversationPolishTests
         var (high, low) = (Math.Max(Luminance(a), Luminance(b)), Math.Min(Luminance(a), Luminance(b)));
         return (high + 0.05) / (low + 0.05);
     }
-
-    /// <summary>A real pointer click at the button's centre, so the button is where the reader would click it.</summary>
-    private static void Click(Window window, Button button) => UiInput.Click(window, button);
 
     private static async Task<ConversationViewModel> AskAsync(DesktopHarness app, string question)
     {

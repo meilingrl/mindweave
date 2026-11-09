@@ -63,23 +63,24 @@ public class ViewTests
         await app.StartWithWorkspaceAsync("火车历史");
         window.UpdateLayout();
 
-        Click(window, "NavSettings");
-        Click(window, "StorageDetailsButton");
+        Invoke(window, "NavSettings");
+        Invoke(window, "StorageDetailsButton");
         Assert.Single(window.GetVisualDescendants().OfType<StorageDetailsView>());
         Assert.True(Find<Button>(window, "BackButton").IsVisible);
         Capture(window, "02-storage-details");
 
-        Click(window, "BackButton");
+        Invoke(window, "BackButton");
         Assert.Single(window.GetVisualDescendants().OfType<SettingsHomeView>());
         Assert.False(Find<Button>(window, "BackButton").IsVisible);
 
-        Click(window, "NavNetwork");
+        Invoke(window, "NavNetwork");
         Assert.Single(window.GetVisualDescendants().OfType<NetworkHomeView>());
         Assert.Equal(MainSection.Network, app.Workbench.CurrentSection);
         window.Close();
     }
 
-    private static void Click(Window window, string name)
+    /// <summary>Runs the named button's command directly, without a pointer click.</summary>
+    private static void Invoke(Window window, string name)
     {
         var button = Find<Button>(window, name);
         Assert.True(button.IsEffectivelyEnabled, $"{name} is disabled");

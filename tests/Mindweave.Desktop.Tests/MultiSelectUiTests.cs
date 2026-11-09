@@ -92,7 +92,7 @@ public class MultiSelectUiTests
         Assert.All(Checks(window), c => Assert.False(c.IsEffectivelyVisible));
         var rowWidths = Rows(window).Select(r => r.Bounds.Width).ToList();
 
-        Click(window, select);
+        UiInput.Click(window, select);
         Assert.True(list.IsSelecting);
         var rootTitle = list.Items.Single(i => i.Id == root).Title;
         Assert.Equal(rootTitle, ControlAutomationPeer.CreatePeerForElement(Row(window, root)).GetName());
@@ -131,7 +131,7 @@ public class MultiSelectUiTests
 
         var clear = Find<Button>(window, "ClearSelectionButton");
         Assert.Equal(UiText.ClearSelection, AutomationProperties.GetName(clear));
-        Click(window, clear);
+        UiInput.Click(window, clear);
         Assert.False(list.IsSelecting);
         Assert.Empty(Selected(list));
         Assert.False(Find<Control>(window, "SelectionBar").IsEffectivelyVisible);
@@ -156,7 +156,7 @@ public class MultiSelectUiTests
         ClickRow(window, root, Toggle);
         ClickRow(window, leaf, Toggle);
         Assert.Equal(UiText.Delete, AutomationProperties.GetName(Find<Button>(window, "DeleteSelectedButton")));
-        Click(window, Find<Button>(window, "DeleteSelectedButton"));
+        UiInput.Click(window, Find<Button>(window, "DeleteSelectedButton"));
         var dialog = app.Root.ConversationDeletion;
         await dialog.Loading;
         Dispatcher.UIThread.RunJobs();
@@ -176,7 +176,7 @@ public class MultiSelectUiTests
         Assert.True(Find<Button>(window, "ConversationDeleteArchive").IsEffectivelyVisible);
         Assert.Equal(UiText.ArchiveInstead, AutomationProperties.GetName(Find<Button>(window, "ConversationDeleteArchive")));
 
-        Click(window, Find<Button>(window, "ConversationDeleteConfirm"));
+        UiInput.Click(window, Find<Button>(window, "ConversationDeleteConfirm"));
         await dialog.Running;
         Dispatcher.UIThread.RunJobs();
 
@@ -207,14 +207,14 @@ public class MultiSelectUiTests
 
         ClickRow(window, middle, Toggle);
         ClickRow(window, sibling, Toggle);
-        Click(window, Find<Button>(window, "DeleteSelectedButton"));
+        UiInput.Click(window, Find<Button>(window, "DeleteSelectedButton"));
         var dialog = app.Root.ConversationDeletion;
         await dialog.Loading;
         window.UpdateLayout();
         Assert.Equal(UiText.ConversationDeleteTitle(2), dialog.Title);
         Assert.Equal(UiText.ConversationDeleteContents(3, 1, 2), dialog.Contents);
 
-        Click(window, Find<Button>(window, "ConversationDeleteArchive"));
+        UiInput.Click(window, Find<Button>(window, "ConversationDeleteArchive"));
         await dialog.Running;
         Assert.False(dialog.IsOpen);
         await UiWait.UntilAsync(() => Selected(list).Count == 0);
@@ -227,7 +227,7 @@ public class MultiSelectUiTests
         await UiWait.UntilAsync(() => list.Items.Count == 2);
         await UiWait.UntilAsync(() => list.Items.Single(i => i.Id == lone).Title == Mindweave.Testing.FakeChatClient.DefaultTitle);
         ClickRow(window, lone, Toggle);
-        Click(window, Find<Button>(window, "DeleteSelectedButton"));
+        UiInput.Click(window, Find<Button>(window, "DeleteSelectedButton"));
         await dialog.Loading;
         Assert.Equal(UiText.ConversationDeleteTitle(list.Items.Single(i => i.Id == lone).Title), dialog.Title);
         Assert.Equal("全部消息和未发送的草稿将被永久删除，无法撤销。", dialog.Contents);
@@ -256,7 +256,7 @@ public class MultiSelectUiTests
         ClickRow(window, leaf, Toggle);
         ClickRow(window, sibling, Toggle);
         Assert.Equal(UiText.Archive, AutomationProperties.GetName(Find<Button>(window, "ArchiveSelectedButton")));
-        Click(window, Find<Button>(window, "ArchiveSelectedButton"));
+        UiInput.Click(window, Find<Button>(window, "ArchiveSelectedButton"));
         await list.Archiving;
         window.UpdateLayout();
 
@@ -271,7 +271,7 @@ public class MultiSelectUiTests
         _ = running;
 
         // Now it goes; the leaf is inside the middle's tree, so only the middle gets an archive mark of its own.
-        Click(window, Find<Button>(window, "ArchiveSelectedButton"));
+        UiInput.Click(window, Find<Button>(window, "ArchiveSelectedButton"));
         await list.Archiving;
         Assert.Null(list.SelectionNotice);
         Assert.Empty(Selected(list));
@@ -287,7 +287,7 @@ public class MultiSelectUiTests
         var (root, _, leaf, _) = await SeedAsync(app, window);
         var conversations = app.Services.GetRequiredService<ConversationService>();
         ClickRow(window, root, Toggle);
-        Click(window, Find<Button>(window, "DeleteSelectedButton"));
+        UiInput.Click(window, Find<Button>(window, "DeleteSelectedButton"));
         var dialog = app.Root.ConversationDeletion;
         await dialog.Loading;
         Assert.True(dialog.CanDelete);
@@ -396,7 +396,7 @@ public class MultiSelectUiTests
         var list = app.ShellPage.Conversations;
         var conversations = app.Services.GetRequiredService<ConversationService>();
         ClickRow(window, sibling, Toggle);
-        Click(window, Find<Button>(window, "DeleteSelectedButton"));
+        UiInput.Click(window, Find<Button>(window, "DeleteSelectedButton"));
         var dialog = app.Root.ConversationDeletion;
         await dialog.Loading;
         Assert.Null(dialog.Problem);
@@ -409,14 +409,14 @@ public class MultiSelectUiTests
 
         // Within the hold: the press is not taken as confirming counts the user may not have seen.
         clock.Now += TimeSpan.FromMilliseconds(100);
-        Click(window, Find<Button>(window, "ConversationDeleteConfirm"));
+        UiInput.Click(window, Find<Button>(window, "ConversationDeleteConfirm"));
         await dialog.Running;
         Assert.True(dialog.IsOpen);
         Assert.Empty(app.Services.GetRequiredService<IDatabaseLifecycle>().ListBackups());
         Assert.Contains(list.Items, i => i.Id == branch);
 
         clock.Now += ConversationDeletionViewModel.ChangeHold;
-        Click(window, Find<Button>(window, "ConversationDeleteConfirm"));
+        UiInput.Click(window, Find<Button>(window, "ConversationDeleteConfirm"));
         await dialog.Running;
         Assert.False(dialog.IsOpen);
         await UiWait.UntilAsync(() => list.Items.All(i => i.Id != branch && i.Id != sibling));
@@ -473,7 +473,7 @@ public class MultiSelectUiTests
         await dialog.Loading;
         Assert.True(dialog.IsOpen);
         window.UpdateLayout();
-        Click(window, Find<Button>(window, "ConversationDeleteConfirm"));
+        UiInput.Click(window, Find<Button>(window, "ConversationDeleteConfirm"));
         await dialog.Running;
         Assert.False(dialog.IsOpen);
         await UiWait.UntilAsync(() => list.Items.All(i => i.Id != middle && i.Id != leaf));
@@ -520,19 +520,7 @@ public class MultiSelectUiTests
     {
         window.UpdateLayout();
         var title = Find<TextBlock>(Row(window, id), "RowTitle");
-        var point = title.TranslatePoint(new Point(4, title.Bounds.Height / 2), window)!.Value;
-        window.MouseDown(point, MouseButton.Left, modifiers);
-        window.MouseUp(point, MouseButton.Left, modifiers);
-        Dispatcher.UIThread.RunJobs();
-        window.UpdateLayout();
-    }
-
-    private static void Click(Window window, Control control)
-    {
-        window.UpdateLayout();
-        var centre = control.TranslatePoint(new Point(control.Bounds.Width / 2, control.Bounds.Height / 2), window)!.Value;
-        window.MouseDown(centre, MouseButton.Left);
-        window.MouseUp(centre, MouseButton.Left);
+        UiInput.Click(window, title, modifiers, new Point(4, title.Bounds.Height / 2));
         Dispatcher.UIThread.RunJobs();
         window.UpdateLayout();
     }

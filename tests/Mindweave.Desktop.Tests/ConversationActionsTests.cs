@@ -195,10 +195,7 @@ public partial class ConversationActionsTests
 
         // A real click into the composer: the selection and its action go.
         var input = VisibleNamed<TextBox>(CurrentView(window), "Input");
-        var centre = input.TranslatePoint(new Point(input.Bounds.Width / 2, input.Bounds.Height / 2), window)!.Value;
-        window.MouseDown(centre, MouseButton.Left);
-        window.MouseUp(centre, MouseButton.Left);
-        window.UpdateLayout();
+        UiInput.Click(window, input);
         Assert.True(input.IsFocused);
         Assert.False(SourceAnchors.HasSelection(second.Renderer));
         Assert.DoesNotContain(window.GetVisualDescendants().OfType<Border>(), b => b.Name == "SelectionActions" && b.IsEffectivelyVisible);
@@ -250,7 +247,7 @@ public partial class ConversationActionsTests
         var answerCopy = VisibleNamed<CopyButton>(view, "AnswerCopy");
         Assert.Equal(UiText.Copy, ToolTip.GetTip(answerCopy));
         Assert.Empty(answerCopy.GetVisualDescendants().OfType<TextBlock>());
-        Click(window, answerCopy);
+        UiInput.Click(window, answerCopy);
         await UiWait.UntilAsync(() => answerCopy.ShowsCopied);
         var copiedAt = DateTime.UtcNow;
         Assert.Equal(Answer, await clipboard.TryGetTextAsync());
@@ -262,7 +259,7 @@ public partial class ConversationActionsTests
         Assert.Equal(UiText.Copy, ToolTip.GetTip(answerCopy));
 
         var questionCopy = VisibleNamed<CopyButton>(view, "QuestionCopy");
-        Click(window, questionCopy);
+        UiInput.Click(window, questionCopy);
         await UiWait.UntilAsync(() => questionCopy.ShowsCopied);
         Assert.Equal(page.Messages[0].Body, await clipboard.TryGetTextAsync());
         Assert.Equal("火车是怎么发明的？\n**第二行**", await clipboard.TryGetTextAsync());
@@ -292,7 +289,7 @@ public partial class ConversationActionsTests
         window.UpdateLayout();
         var copy = VisibleNamed<CopyButton>(view, "AnswerCopy");
         Assert.True(copy.IsEffectivelyEnabled);
-        Click(window, copy);
+        UiInput.Click(window, copy);
         await UiWait.UntilAsync(() => copy.ShowsCopied);
         Assert.Equal("半句**粗体**", await TopLevel.GetTopLevel(window)!.Clipboard!.TryGetTextAsync());
 
@@ -504,9 +501,6 @@ public partial class ConversationActionsTests
         window.UpdateLayout();
         window.CaptureRenderedFrame()?.Dispose();
     }
-
-    /// <summary>A real pointer click at the button's centre.</summary>
-    private static void Click(Window window, Button button) => UiInput.Click(window, button);
 
     private static async Task<ConversationViewModel> AskAsync(DesktopHarness app, Window window, string question)
     {
