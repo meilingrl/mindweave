@@ -11,56 +11,6 @@ using Mindweave.Desktop.Services;
 
 namespace Mindweave.Desktop.ViewModels.Pages;
 
-/// <summary>One row of the version history.</summary>
-public sealed partial class SummaryVersionItem(SummaryVersion version, bool isCurrent, bool isCandidate, bool isRead) : ObservableObject
-{
-    public SummaryVersion Version { get; } = version;
-
-    public SummaryVersionId Id => Version.Id;
-
-    public bool IsCurrent { get; } = isCurrent;
-
-    public bool IsCandidate { get; } = isCandidate;
-
-    /// <summary>Saved, non-current versions can become current; the candidate is adopted instead.</summary>
-    public bool CanSetCurrent => !IsCurrent && !IsCandidate;
-
-    /// <summary>The candidate is discarded, not deleted as a version.</summary>
-    public bool CanSelect => !IsCandidate;
-
-    public bool IsRead { get; } = isRead;
-
-    public bool IsEdited => Version.Origin == SummaryOrigin.Edited;
-
-    /// <summary>A saved version that is neither current nor the candidate.</summary>
-    public bool IsHistory => !IsCurrent && !IsCandidate;
-
-    /// <summary>The row in words, for screen readers; the view shows the same parts in columns.</summary>
-    public string Label => UiText.VersionLabel(Version, IsCurrent, IsCandidate) + (IsRead ? " · " + UiText.MarkerRead : string.Empty);
-
-    public string Number => UiText.VersionNumber(Version.Seq);
-
-    public string Role => UiText.VersionRole(IsCurrent, IsCandidate);
-
-    public string Origin => UiText.VersionOrigin(Version.Origin);
-
-    public string Coverage => UiText.VersionCoverage(Version);
-
-    [ObservableProperty]
-    public partial bool IsSelected { get; set; }
-
-    /// <summary>The version on screen above; its row is highlighted and has no "view" action.</summary>
-    [ObservableProperty]
-    public partial bool IsShown { get; set; }
-}
-
-/// <summary>
-/// A question the page asks before an irreversible or replacing step; <see cref="Proceed"/> runs on "confirm".
-/// <see cref="IsDestructive"/> marks a step that removes something (deleting versions, discarding the candidate), whose
-/// confirm button is drawn in the danger style; adopting only replaces the current version, which stays in the history.
-/// </summary>
-public sealed record PendingConfirmation(string Message, Func<Task> Proceed, bool IsDestructive = false);
-
 /// <summary>
 /// A summary node's page (S4): the shown version (current by default), its read state and markers, the candidate
 /// with adopt and discard, editing the current version with an autosaved draft, the history with "set current" and

@@ -94,8 +94,8 @@ public sealed class ExportUiTests : IDisposable
 
         summary.ReturnToConversationCommand.Execute(null);
         page = Assert.IsType<ConversationViewModel>(app.Workbench.CurrentPage);
-        await page.SummarizeCommand.ExecuteAsync(null);
-        await UiWait.UntilAsync(() => page.SummaryMarkersText?.Contains(UiText.MarkerCandidate, StringComparison.Ordinal) == true);
+        await page.Summary.SummarizeCommand.ExecuteAsync(null);
+        await UiWait.UntilAsync(() => page.Summary.SummaryMarkersText?.Contains(UiText.MarkerCandidate, StringComparison.Ordinal) == true);
         summary = await OpenAsync(app, page);
         await UiWait.UntilAsync(() => summary.HasCandidate);
 
@@ -161,15 +161,15 @@ public sealed class ExportUiTests : IDisposable
         var page = Assert.IsType<ConversationViewModel>(app.Workbench.CurrentPage);
         await page.Loaded;
         await UiWait.UntilAsync(() => page.Messages.Count == 2 && page.Messages[1].CanBranch && page.Title == FakeChatClient.DefaultTitle);
-        await page.SummarizeCommand.ExecuteAsync(null);
-        await UiWait.UntilAsync(() => page.HasSummary && page.RunningSummary is null);
+        await page.Summary.SummarizeCommand.ExecuteAsync(null);
+        await UiWait.UntilAsync(() => page.Summary.HasSummary && page.Summary.RunningSummary is null);
         return (page, await OpenAsync(app, page));
     }
 
     private static async Task<SummaryViewModel> OpenAsync(DesktopHarness app, ConversationViewModel page)
     {
-        await UiWait.UntilAsync(() => page.HasSummary);
-        page.OpenSummaryCommand.Execute(null);
+        await UiWait.UntilAsync(() => page.Summary.HasSummary);
+        page.Summary.OpenSummaryCommand.Execute(null);
         var summary = Assert.IsType<SummaryViewModel>(app.Workbench.CurrentPage);
         await summary.Loaded;
         return summary;

@@ -20,9 +20,9 @@ public class DraftLossTests
         await using var app = DesktopHarness.Create(s => s.AddSingleton<ISummaryStore>(sp => failing.Wrap(sp.GetRequiredService<SqliteDatabase>())));
         app.ShowWindow(1100, 720);
         var page = await app.StartWithConversationAsync(waitForTitle: false);
-        await page.SummarizeCommand.ExecuteAsync(null);
-        await UiWait.UntilAsync(() => page.HasSummary && page.RunningSummary is null);
-        page.OpenSummaryCommand.Execute(null);
+        await page.Summary.SummarizeCommand.ExecuteAsync(null);
+        await UiWait.UntilAsync(() => page.Summary.HasSummary && page.Summary.RunningSummary is null);
+        page.Summary.OpenSummaryCommand.Execute(null);
         var first = Assert.IsType<SummaryViewModel>(app.Workbench.CurrentPage);
         await first.Loaded;
         await first.BeginEditCommand.ExecuteAsync(null);
@@ -34,7 +34,7 @@ public class DraftLossTests
         Assert.False(await app.Services.GetRequiredService<SummaryDrafts>().FlushAsync());
         failing.Fail = false;
 
-        page.OpenSummaryCommand.Execute(null);
+        page.Summary.OpenSummaryCommand.Execute(null);
         var second = Assert.IsType<SummaryViewModel>(app.Workbench.CurrentPage);
         await second.Loaded;
         await second.BeginEditCommand.ExecuteAsync(null);
@@ -52,9 +52,9 @@ public class DraftLossTests
         await using var app = DesktopHarness.Create(s => s.AddSingleton<ISummaryStore>(sp => failing.Wrap(sp.GetRequiredService<SqliteDatabase>())));
         app.ShowWindow(1100, 720);
         var page = await app.StartWithConversationAsync(waitForTitle: false);
-        await page.SummarizeCommand.ExecuteAsync(null);
-        await UiWait.UntilAsync(() => page.HasSummary && page.RunningSummary is null);
-        page.OpenSummaryCommand.Execute(null);
+        await page.Summary.SummarizeCommand.ExecuteAsync(null);
+        await UiWait.UntilAsync(() => page.Summary.HasSummary && page.Summary.RunningSummary is null);
+        page.Summary.OpenSummaryCommand.Execute(null);
         var summary = Assert.IsType<SummaryViewModel>(app.Workbench.CurrentPage);
         await summary.Loaded;
         await summary.BeginEditCommand.ExecuteAsync(null);
@@ -75,9 +75,9 @@ public class DraftLossTests
         await using var app = DesktopHarness.Create(s => s.AddSingleton<ISummaryStore>(sp => failing.Wrap(sp.GetRequiredService<SqliteDatabase>())));
         var window = app.ShowWindow(1100, 720);
         var page = await app.StartWithConversationAsync(waitForTitle: false);
-        await page.SummarizeCommand.ExecuteAsync(null);
-        await UiWait.UntilAsync(() => page.HasSummary && page.RunningSummary is null);
-        page.OpenSummaryCommand.Execute(null);
+        await page.Summary.SummarizeCommand.ExecuteAsync(null);
+        await UiWait.UntilAsync(() => page.Summary.HasSummary && page.Summary.RunningSummary is null);
+        page.Summary.OpenSummaryCommand.Execute(null);
         var first = Assert.IsType<SummaryViewModel>(app.Workbench.CurrentPage);
         await first.Loaded;
         var original = first.Shown!.Id;
@@ -94,7 +94,7 @@ public class DraftLossTests
         Assert.False(await app.Services.GetRequiredService<SummaryDrafts>().FlushAsync());
         failing.Fail = false;
 
-        page.OpenSummaryCommand.Execute(null);
+        page.Summary.OpenSummaryCommand.Execute(null);
         var second = Assert.IsType<SummaryViewModel>(app.Workbench.CurrentPage);
         await second.Loaded;
         await second.SetCurrentCommand.ExecuteAsync(original);

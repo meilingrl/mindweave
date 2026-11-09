@@ -164,19 +164,19 @@ public class ConversationPolishTests
         root = await OpenAsync(app, root.Id);
         window.UpdateLayout();
         var view = CurrentView(window);
-        await root.DeleteCommand.ExecuteAsync(null);
-        Assert.Equal(UiText.DeleteConfirm, root.Confirmation!.Message);
+        await root.Lifecycle.DeleteCommand.ExecuteAsync(null);
+        Assert.Equal(UiText.DeleteConfirm, root.Lifecycle.Confirmation!.Message);
 
         // An answer starts between the question and the press: the delete is refused and says which conversation runs.
         var held = app.Client.Hold("半句");
         root.Composer.Text = "再问一句";
         await root.Composer.SendCommand.ExecuteAsync(null);
         await held.Started.Task.WaitAsync(TimeSpan.FromSeconds(5));
-        await root.ConfirmCommand.ExecuteAsync(null);
+        await root.Lifecycle.ConfirmCommand.ExecuteAsync(null);
         window.UpdateLayout();
 
-        Assert.NotNull(root.ArchiveNotice);
-        Assert.Contains(root.DisplayTitle, root.ArchiveNotice, StringComparison.Ordinal);
+        Assert.NotNull(root.Lifecycle.ArchiveNotice);
+        Assert.Contains(root.DisplayTitle, root.Lifecycle.ArchiveNotice, StringComparison.Ordinal);
         Assert.True(Find<Control>(view, "ArchiveNoticePanel").IsEffectivelyVisible);
         Assert.True(Find<Button>(view, "ArchiveButton").IsEffectivelyVisible);
         Assert.Same(root, app.Workbench.CurrentPage);
@@ -264,7 +264,7 @@ public class ConversationPolishTests
         var window = app.ShowWindow();
         var root = await app.StartWithConversationAsync(waitForTitle: true);
         root = await OpenAsync(app, root.Id);
-        await root.DeleteCommand.ExecuteAsync(null);
+        await root.Lifecycle.DeleteCommand.ExecuteAsync(null);
         window.UpdateLayout();
         var view = CurrentView(window);
 
@@ -273,10 +273,10 @@ public class ConversationPolishTests
         var cancel = panel.GetVisualDescendants().OfType<Button>().Single(b => b.Classes.Contains("quiet"));
         Assert.Equal(Brush(cancel, "LinkText"), Colour(cancel.GetVisualDescendants().OfType<TextBlock>().Single().Foreground));
         Assert.Equal(Brush(cancel, "PrimaryText"), Colour(panel.GetVisualDescendants().OfType<TextBlock>().First(t => t.Text == UiText.DeleteConfirm).Foreground));
-        root.CancelConfirmationCommand.Execute(null);
+        root.Lifecycle.CancelConfirmationCommand.Execute(null);
 
         // A primary button in a notice: its label is the on-accent colour, not the notice's text colour.
-        await root.ArchiveCommand.ExecuteAsync(null);
+        await root.Lifecycle.ArchiveCommand.ExecuteAsync(null);
         await UiWait.UntilAsync(() => root.IsArchived);
         window.UpdateLayout();
         var restore = Find<Button>(view, "RestoreAndContinueButton");
@@ -375,15 +375,15 @@ public class ConversationPolishTests
         var child = Assert.IsType<ConversationViewModel>(app.Workbench.CurrentPage);
         await child.Loaded;
 
-        await child.DeleteCommand.ExecuteAsync(null);
+        await child.Lifecycle.DeleteCommand.ExecuteAsync(null);
         window.UpdateLayout();
-        Assert.True(child.Confirmation!.IsDestructive);
+        Assert.True(child.Lifecycle.Confirmation!.IsDestructive);
         var confirm = Find<Button>(CurrentView(window), "ConfirmButton");
         Assert.True(confirm.IsEffectivelyVisible);
         Assert.Contains("danger", confirm.Classes);
         Assert.Contains("secondary", confirm.Classes);
         Assert.Equal(Brush(confirm, "DangerText"), Colour(confirm.GetVisualDescendants().OfType<TextBlock>().Single().Foreground));
-        child.CancelConfirmationCommand.Execute(null);
+        child.Lifecycle.CancelConfirmationCommand.Execute(null);
 
         // Restoring archived ancestors asks too, but it is not destructive: a plain secondary confirm.
         await app.Services.GetService<ConversationService>()!.ArchiveAsync(root.Id, CancellationToken.None);
@@ -395,9 +395,9 @@ public class ConversationPolishTests
         child = Assert.IsType<ConversationViewModel>(app.Workbench.CurrentPage);
         await child.Loaded;
         Assert.True(child.IsArchived);
-        await child.RestoreAndContinueCommand.ExecuteAsync(null);
+        await child.Lifecycle.RestoreAndContinueCommand.ExecuteAsync(null);
         window.UpdateLayout();
-        Assert.False(child.Confirmation!.IsDestructive);
+        Assert.False(child.Lifecycle.Confirmation!.IsDestructive);
         confirm = Find<Button>(CurrentView(window), "ConfirmButton");
         Assert.True(confirm.IsEffectivelyVisible);
         Assert.DoesNotContain("danger", confirm.Classes);

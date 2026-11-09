@@ -121,7 +121,7 @@ public class AppHostLifecycleTests
         {
             // The lifetime has raised Exit; one queued job still runs: archive (the flag) and then the page refresh.
             openDuringLoop = database.IsOpen;
-            archiving = page.ArchiveCommand.ExecuteAsync(null);
+            archiving = page.Lifecycle.ArchiveCommand.ExecuteAsync(null);
             PumpUntil(archiving);
             return 7;
         });
