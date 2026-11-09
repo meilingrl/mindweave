@@ -1,0 +1,77 @@
+using System.Globalization;
+using Mindweave.Application.Models;
+using Mindweave.Core.Conversations;
+
+namespace Mindweave.Desktop;
+
+// Settings: appearance (D-022) and the model connection.
+public static partial class UiText
+{
+    // Appearance (S7, D-022)
+    public const string AppearanceSection = "外观";
+    public const string AppearanceFollowSystem = "跟随系统";
+    public const string AppearanceLight = "浅色";
+    public const string AppearanceDark = "深色";
+    public const string ThemeLabel = "主题";
+
+    // Settings pages: presets fill the address; hints only where the page cannot show it otherwise.
+    public const string ProviderLabel = "服务商";
+    public const string ProviderPlaceholder = "选择服务商";
+    public const string ProviderDashScope = "阿里云百炼（通义）";
+    public const string ProviderMoonshot = "Moonshot（Kimi）";
+    public const string ProviderZhipu = "智谱 GLM";
+    public const string ProviderSiliconFlow = "硅基流动";
+    public const string ProviderOllama = "Ollama（本机）";
+    public const string ProviderCustom = "自定义";
+    public const string BaseUrlPlaceholder = "https://…/v1";
+    public const string KeySavedPlaceholder = "已保存，留空则继续使用";
+    public const string KeyMissingPlaceholder = "尚未保存";
+    public const string KeyOtherServicePlaceholder = "请填写此服务的密钥";
+    public const string OllamaKeyPlaceholder = "本机服务不校验，可填任意内容";
+    public const string ConnectionNamePlaceholder = "可选";
+    public const string ModelPlaceholder = "选择或输入模型名称";
+    public const string ShowModels = "显示模型列表";
+    public const string TokensUnit = "token";
+    public const string DataSection = "数据";
+    public const string LocationSection = "位置";
+    public const string OpenFolder = "打开";
+    public const string NoBackupsShort = "暂无。数据升级前和连带删除前会自动备份。";
+    public const string AppearanceSaveFailed = "外观设置未能保存，本次运行中仍然有效。";
+
+    public const string SettingsTitle = "设置";
+
+    public const string ModelSection = "模型连接";
+    public const string ConnectionNameLabel = "名称";
+    public const string BaseUrlLabel = "服务地址";
+    public const string ApiKeyLabel = "API 密钥";
+    public const string ContextWindowLabel = "上下文容量";
+    public const string ContextWindowPlaceholder = "留空按 32000 计";
+    public const string ContextWindowHint = "对话超出时，较早的内容先压缩成摘要再发送，会多几次请求、多些等待与费用；原始记录完整保留。";
+
+    public const string ModelLabel = "模型";
+    public const string FetchModels = "获取列表";
+    public const string TestConnection = "测试连接";
+    public const string TestCostHint = "可能产生少量费用";
+    public const string TestCostTip = "发出一次很短的真实请求。获取模型列表不生成内容。";
+    public const string PrivacyHint = "提问与会话内容会发送到此服务；密钥只存于系统钥匙串／凭据管理器。";
+    public const string SettingsSaved = "已保存。新的提问将使用此配置；正在进行的回答不受影响。";
+    public const string NoModelsFound = "服务没有返回模型，可以直接手动填写模型名称。";
+    public const string TestSucceeded = "连接正常。";
+
+    public static string ModelsFound(int count) => string.Format(CultureInfo.CurrentCulture, "找到 {0} 个模型。", count);
+
+    public static string TestFailed(GenerationErrorKind? kind, string? detail) =>
+        $"连接失败：{(kind is { } k ? ErrorKind(k) : "未知错误")}{(string.IsNullOrWhiteSpace(detail) ? string.Empty : $"（{detail}）")}";
+
+    public static string SettingsProblem(ModelSettingsProblem problem) => problem switch
+    {
+        ModelSettingsProblem.InvalidUrl => "服务地址无效，需要以 https:// 开头的完整地址。",
+        ModelSettingsProblem.InsecureUrl => "只允许 https 地址（本机地址除外），以免密钥以明文传输。",
+        ModelSettingsProblem.MissingModel => "请填写模型名称。",
+        ModelSettingsProblem.MissingKey => "请填写 API 密钥。",
+        ModelSettingsProblem.InvalidContextWindow => $"上下文容量应在 {ModelSettingsInput.MinContextWindow:N0} 到 {ModelSettingsInput.MaxContextWindow:N0} token 之间，不清楚可留空。",
+        _ => "设置无效。",
+    };
+
+    public static string CredentialUnavailable(string detail) => $"系统凭据服务不可用，请解锁后重试（{detail}）。密钥不会改为明文保存。";
+}
