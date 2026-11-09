@@ -602,13 +602,17 @@ public sealed class ConversationService : IConversations
         _generation.Enqueue(new AnswerWork(task, request, new LiveAnswer(answer.Id, answer.ConversationId), plan, budget));
     }
 
-    private void OnAnswerFinished(object? sender, AnswerOutcome e)
+    // async void on purpose: an exception from a ConversationChanged subscriber goes to the synchronization context,
+    // never back into the generation worker that raised AnswerFinished.
+    private async void OnAnswerFinished(object? sender, AnswerOutcome e)
     {
         ConversationChanged?.Invoke(this, e.ConversationId);
-        if (e.State == MessageState.Complete)
+        if (e.State != MessageState.Complete)
         {
-            _titler.OnAnswerCompleted(e);
+            return;
         }
+
+        await _titler.OnAnswerCompletedAsync(e).ConfigureAwait(false);
     }
 
     private static Message NewMessage(ConversationId conversation, int seq, MessageRole role, string body, MessageState state, MessageId? supersedes, DateTimeOffset at) =>

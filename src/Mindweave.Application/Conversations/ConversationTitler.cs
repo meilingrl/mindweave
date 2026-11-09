@@ -69,13 +69,13 @@ internal sealed partial class ConversationTitler
     }
 
     /// <summary>Schedules a title for a completed answer when its conversation has none yet. Never throws.</summary>
-    public async void OnAnswerCompleted(AnswerOutcome e)
+    public async Task OnAnswerCompletedAsync(AnswerOutcome e)
     {
         try
         {
             await ScheduleTitleAsync(e).ConfigureAwait(false);
         }
-#pragma warning disable CA1031 // Titles are best effort; an event handler must not throw.
+#pragma warning disable CA1031 // Titles are best effort; the answer-finished handler must not throw.
         catch (Exception ex)
 #pragma warning restore CA1031
         {
