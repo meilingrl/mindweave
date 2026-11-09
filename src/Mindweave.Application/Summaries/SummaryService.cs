@@ -84,6 +84,7 @@ public sealed partial class SummaryService : ISummaries
     private readonly IBranchStore _branches;
     private readonly IContextSummaryStore? _contextSummaries;
     private readonly GenerationCoordinator _generation;
+    private readonly ContextBudgets _budgets;
     private readonly StorageHealth _health;
     private readonly SummaryDrafts _drafts;
     private readonly ModelSettingsService _models;
@@ -97,6 +98,7 @@ public sealed partial class SummaryService : ISummaries
         IConversationStore conversations,
         IBranchStore branches,
         GenerationCoordinator generation,
+        ContextBudgets budgets,
         StorageHealth health,
         SummaryDrafts drafts,
         ModelSettingsService models,
@@ -109,6 +111,7 @@ public sealed partial class SummaryService : ISummaries
         _branches = branches;
         _contextSummaries = contextSummaries;
         _generation = generation;
+        _budgets = budgets;
         _health = health;
         _drafts = drafts;
         _models = models;
@@ -194,7 +197,7 @@ public sealed partial class SummaryService : ISummaries
         // context in this task's own slot when the conversation does not fit (S3). It is never stored.
         var now = _clock.UtcNow;
         var request = new Message(MessageId.New(), conversation, toSeq + 1, MessageRole.User, ContentBlocks.FromText(Request), MessageState.Complete, 0, null, null, null, now, now);
-        var budget = await _generation.BudgetForAsync(model, cancellationToken).ConfigureAwait(false);
+        var budget = await _budgets.BudgetForAsync(model, cancellationToken).ConfigureAwait(false);
         var planned = await PlanAsync(conversation, [.. covered, request], budget.Available - system.Sum(t => TokenEstimator.Message(t.Content)), cancellationToken).ConfigureAwait(false);
         if (planned.Plan is not { } plan)
         {

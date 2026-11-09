@@ -33,6 +33,7 @@ public static class ApplicationServices
         services.AddSingleton<WorkspaceDeletionService>();
         services.AddSingleton<ConversationDeletionService>();
         services.TryAddSingleton(new GenerationOptions());
+        services.AddSingleton<ContextBudgets>();
         services.AddSingleton<ContextCompressor>();
         services.AddSingleton<GenerationCoordinator>();
         services.AddSingleton<ModelSettingsService>();

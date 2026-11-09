@@ -22,6 +22,7 @@ public sealed partial class GenerationCoordinator : IGenerationExit, IAsyncDispo
     private readonly IChatClient _client;
     private readonly ICredentialStore _credentials;
     private readonly IAiRequestStore _requests;
+    private readonly ContextBudgets _budgets;
     private readonly IClock _clock;
     private readonly GenerationOptions _options;
     private readonly ILogger<GenerationCoordinator> _logger;
@@ -43,6 +44,7 @@ public sealed partial class GenerationCoordinator : IGenerationExit, IAsyncDispo
         IChatClient client,
         ICredentialStore credentials,
         IAiRequestStore requests,
+        ContextBudgets budgets,
         StorageHealth health,
         IClock clock,
         GenerationOptions options,
@@ -54,6 +56,7 @@ public sealed partial class GenerationCoordinator : IGenerationExit, IAsyncDispo
         _client = client;
         _credentials = credentials;
         _requests = requests;
+        _budgets = budgets;
         _health = health;
         _clock = clock;
         _options = options;
@@ -531,7 +534,7 @@ public sealed partial class GenerationCoordinator : IGenerationExit, IAsyncDispo
             try
             {
                 var compressor = _compressor ?? throw new ContextCompressionException("No context compressor is configured.");
-                var prepared = await compressor.PrepareAsync(task, plan, work.Budget ?? await BudgetForAsync(task.Model, CancellationToken.None).ConfigureAwait(false), key.Secret!, RecordAsync, stop, _health.TryAdmit).ConfigureAwait(false);
+                var prepared = await compressor.PrepareAsync(task, plan, work.Budget ?? await _budgets.BudgetForAsync(task.Model, CancellationToken.None).ConfigureAwait(false), key.Secret!, RecordAsync, stop, _health.TryAdmit).ConfigureAwait(false);
                 request = request with { Turns = prepared.Turns };
                 live.SetPhase(AnswerPhase.Waiting);
                 await compressor.RecordTaskInputAsync(task.Id, prepared.SummaryIds).ConfigureAwait(false);
@@ -733,7 +736,7 @@ public sealed partial class GenerationCoordinator : IGenerationExit, IAsyncDispo
             if (work.Plan is { IsCompressed: true } plan)
             {
                 var compressor = _compressor ?? throw new ContextCompressionException("No context compressor is configured.");
-                var prepared = await compressor.PrepareAsync(task, plan, work.Budget ?? await BudgetForAsync(task.Model, CancellationToken.None).ConfigureAwait(false), key.Secret!, RecordAsync, stop, _health.TryAdmit).ConfigureAwait(false);
+                var prepared = await compressor.PrepareAsync(task, plan, work.Budget ?? await _budgets.BudgetForAsync(task.Model, CancellationToken.None).ConfigureAwait(false), key.Secret!, RecordAsync, stop, _health.TryAdmit).ConfigureAwait(false);
                 request = request with { Turns = [.. request.Turns.TakeWhile(t => t.Role == ChatRole.System), .. prepared.Turns] };
                 await compressor.RecordTaskInputAsync(task.Id, prepared.SummaryIds).ConfigureAwait(false);
             }
@@ -889,30 +892,6 @@ public sealed partial class GenerationCoordinator : IGenerationExit, IAsyncDispo
         return problem is null ? (output, null) : (null, problem);
     }
 
-    /// <summary>
-    /// The model's context budget, with the calibration learned from what this address and model billed for recent
-    /// requests (<see cref="TokenCalibration"/>). If the requests cannot be read, the plain estimate is used: requests
-    /// are not held up for a diagnostic table, and the budget's margin still applies.
-    /// </summary>
-    public async Task<ContextBudget> BudgetForAsync(ModelSnapshot model, CancellationToken cancellationToken)
-    {
-        ArgumentNullException.ThrowIfNull(model);
-        var calibration = TokenCalibration.None;
-        try
-        {
-            var samples = await _requests.RecentTokenSamplesAsync(model.BaseUrl, model.Model, TokenCalibration.SampleSize, cancellationToken).ConfigureAwait(false);
-            calibration = TokenCalibration.Fit([.. samples.Select(s => (s.Estimate, s.Reported))]);
-        }
-#pragma warning disable CA1031 // Learned counts only refine the budget; without them the plain estimate is used.
-        catch (Exception ex) when (ex is not OperationCanceledException)
-#pragma warning restore CA1031
-        {
-            LogCalibrationFailed(_logger, ex, model.Model);
-        }
-
-        return ContextBudget.For(model, calibration);
-    }
-
     /// <summary>Diagnostics only: a failed trace write is logged and does not count as a storage failure.</summary>
     private async Task RecordAsync(AiRequestRecord record)
     {
@@ -968,9 +947,6 @@ public sealed partial class GenerationCoordinator : IGenerationExit, IAsyncDispo
 
     [LoggerMessage(Level = LogLevel.Warning, Message = "Request trace for task {TaskId} was not saved")]
     private static partial void LogTraceFailed(ILogger logger, Exception exception, GenerationTaskId taskId);
-
-    [LoggerMessage(Level = LogLevel.Warning, Message = "Token counts for model {Model} could not be read; the plain estimate is used")]
-    private static partial void LogCalibrationFailed(ILogger logger, Exception exception, string model);
 
     [LoggerMessage(Level = LogLevel.Warning, Message = "{Count} stopped tasks did not finish within the exit wait; their last checkpoints stand")]
     private static partial void LogStopTimedOut(ILogger logger, int count);
