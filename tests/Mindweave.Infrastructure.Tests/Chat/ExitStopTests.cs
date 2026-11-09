@@ -1,5 +1,3 @@
-using System.Runtime.CompilerServices;
-using Mindweave.Application.Ai;
 using Mindweave.Application.Conversations;
 using Mindweave.Core.Conversations;
 using Mindweave.Infrastructure.Sqlite;
@@ -124,8 +122,8 @@ public class ExitStopTests
     [Fact]
     public async Task Saving_unsaved_writes_waits_for_a_retry_already_writing_and_reports_that_it_failed()
     {
-        ConversationFlowTests.FlakyStore? flaky = null;
-        await using var h = await ChatHarness.StartAsync(wrapStore: s => flaky = new ConversationFlowTests.FlakyStore(s));
+        FlakyStore? flaky = null;
+        await using var h = await ChatHarness.StartAsync(wrapStore: s => flaky = new FlakyStore(s));
         var held = h.Client.Hold("已收到");
         var sent = await h.Conversations.StartAsync(h.Workspace, "问", Ct);
         await held.Started.Task.WaitAsync(TimeSpan.FromSeconds(5), Ct);
@@ -217,8 +215,8 @@ public class ExitStopTests
     [Fact]
     public async Task Failed_terminal_writes_are_reported_until_they_are_saved()
     {
-        ConversationFlowTests.FlakyStore? flaky = null;
-        await using var h = await ChatHarness.StartAsync(wrapStore: s => flaky = new ConversationFlowTests.FlakyStore(s));
+        FlakyStore? flaky = null;
+        await using var h = await ChatHarness.StartAsync(wrapStore: s => flaky = new FlakyStore(s));
         var held = h.Client.Hold("已收到");
         var sent = await h.Conversations.StartAsync(h.Workspace, "问", Ct);
         await held.Started.Task.WaitAsync(TimeSpan.FromSeconds(5), Ct);
@@ -230,36 +228,5 @@ public class ExitStopTests
         flaky.FailFinishes = 0;
         Assert.True(await h.Generation.SaveUnsavedAsync());
         Assert.Equal(MessageState.Stopped, (await h.GetMessageAsync(sent.Answer!.Value))!.State);
-    }
-
-    /// <summary>Streams one piece, then waits for <see cref="Release"/> without honouring cancellation.</summary>
-    private sealed class StubbornClient : IChatClient
-    {
-        private readonly FakeChatClient _fallback = new();
-
-        public TaskCompletionSource Started { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
-
-        public TaskCompletionSource Release { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
-
-        public async IAsyncEnumerable<ChatStreamEvent> StreamAsync(ChatRequest request, string apiKey, [EnumeratorCancellation] CancellationToken cancellationToken)
-        {
-            if (!FakeChatClient.IsAnswer(request))
-            {
-                await foreach (var item in _fallback.StreamAsync(request, apiKey, cancellationToken))
-                {
-                    yield return item;
-                }
-
-                yield break;
-            }
-
-            yield return new ChatStreamEvent.TextDelta("已收到");
-            Started.TrySetResult();
-            await Release.Task;
-            yield return new ChatStreamEvent.Completed(false);
-        }
-
-        public Task<IReadOnlyList<string>> ListModelsAsync(string baseUrl, string apiKey, CancellationToken cancellationToken) =>
-            _fallback.ListModelsAsync(baseUrl, apiKey, cancellationToken);
     }
 }

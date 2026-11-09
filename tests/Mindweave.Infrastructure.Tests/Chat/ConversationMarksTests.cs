@@ -12,8 +12,8 @@ public class ConversationMarksTests
     [Fact]
     public async Task An_answer_watched_to_its_end_is_not_marked_when_its_write_lands_after_the_reader_left()
     {
-        ConversationFlowTests.FlakyStore? flaky = null;
-        await using var h = await ChatHarness.StartAsync(wrapStore: s => flaky = new ConversationFlowTests.FlakyStore(s));
+        FlakyStore? flaky = null;
+        await using var h = await ChatHarness.StartAsync(wrapStore: s => flaky = new FlakyStore(s));
         var marks = new ConversationMarksService(h.Generation, h.Conversations, new SqlitePreferenceStore(h.Database), h.Health, NullLogger<ConversationMarksService>.Instance);
         var write = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         var writing = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
@@ -49,8 +49,8 @@ public class ConversationMarksTests
     [Fact]
     public async Task An_answer_that_ends_while_the_reader_is_elsewhere_is_marked_before_it_is_stored()
     {
-        ConversationFlowTests.FlakyStore? flaky = null;
-        await using var h = await ChatHarness.StartAsync(wrapStore: s => flaky = new ConversationFlowTests.FlakyStore(s));
+        FlakyStore? flaky = null;
+        await using var h = await ChatHarness.StartAsync(wrapStore: s => flaky = new FlakyStore(s));
         var marks = new ConversationMarksService(h.Generation, h.Conversations, new SqlitePreferenceStore(h.Database), h.Health, NullLogger<ConversationMarksService>.Instance);
         var write = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         var writing = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
@@ -85,8 +85,8 @@ public class ConversationMarksTests
     [Fact]
     public async Task A_follow_up_sent_while_the_last_answer_is_still_being_written_waits_for_it_and_sees_its_whole_text()
     {
-        ConversationFlowTests.FlakyStore? flaky = null;
-        await using var h = await ChatHarness.StartAsync(wrapStore: s => flaky = new ConversationFlowTests.FlakyStore(s));
+        FlakyStore? flaky = null;
+        await using var h = await ChatHarness.StartAsync(wrapStore: s => flaky = new FlakyStore(s));
         var write = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         var writing = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         flaky!.BeforeFinish = () =>

@@ -13,8 +13,8 @@ public class StorageHealthTests
     [Fact]
     public async Task A_terminal_write_failing_for_a_reason_other_than_storage_does_not_pause_requests_or_lose_the_answer()
     {
-        ConversationFlowTests.FlakyStore? flaky = null;
-        await using var h = await ChatHarness.StartAsync(wrapStore: s => flaky = new ConversationFlowTests.FlakyStore(s));
+        FlakyStore? flaky = null;
+        await using var h = await ChatHarness.StartAsync(wrapStore: s => flaky = new FlakyStore(s));
         flaky!.FailFinishes = int.MaxValue;
         flaky.FinishFailure = () => new InvalidOperationException("simulated defect in the terminal write");
 
@@ -43,8 +43,8 @@ public class StorageHealthTests
     [Fact]
     public async Task Storage_is_not_declared_recovered_while_an_exit_save_still_has_a_kept_write_in_flight()
     {
-        ConversationFlowTests.FlakyStore? flaky = null;
-        await using var h = await ChatHarness.StartAsync(wrapStore: s => flaky = new ConversationFlowTests.FlakyStore(s));
+        FlakyStore? flaky = null;
+        await using var h = await ChatHarness.StartAsync(wrapStore: s => flaky = new FlakyStore(s));
         flaky!.FailFinishes = 1;
         flaky.FinishFailure = () => new StorageWriteException(StorageFailureKind.Full, "simulated full disk", null);
         var sent = await h.Conversations.StartAsync(h.Workspace, "问", Ct);
