@@ -275,20 +275,14 @@ public class SummaryUiTests
     }
 
     [AvaloniaFact]
-    public async Task History_rows_show_their_parts_the_shown_version_and_delete_waits_for_a_tick()
+    public async Task The_history_steps_aside_while_editing()
     {
         await using var app = DesktopHarness.Create();
         var window = app.ShowWindow();
-        var page = await app.StartWithConversationAsync(waitForTitle: false);
-        await page.SummarizeCommand.ExecuteAsync(null);
-        await UiWait.UntilAsync(() => page.HasSummary && page.RunningSummary is null);
-        var summary = await OpenSummaryAsync(app, page);
-        window.UpdateLayout();
-        var view = window.GetVisualDescendants().OfType<SummaryView>().Single();
-        var history = view.GetVisualDescendants().OfType<Avalonia.Controls.Expander>().Single(e => e.Name == "HistoryPanel");
+        var (summary, _, history) = await OpenSummaryWithHistoryAsync(app, window);
         Assert.True(history.IsEffectivelyVisible);
 
-        // The history steps aside while editing: "set current", delete or view would change the version under the open edit.
+        // "Set current", delete or view would change the version under the open edit.
         await summary.BeginEditCommand.ExecuteAsync(null);
         window.UpdateLayout();
         Assert.False(history.IsEffectivelyVisible);
@@ -297,6 +291,16 @@ public class SummaryUiTests
         await UiWait.UntilAsync(() => summary.History.Count == 2);
         window.UpdateLayout();
         Assert.True(history.IsEffectivelyVisible);
+        window.Close();
+    }
+
+    [AvaloniaFact]
+    public async Task History_rows_show_their_parts_and_which_version_is_shown()
+    {
+        await using var app = DesktopHarness.Create();
+        var window = app.ShowWindow();
+        var (summary, view, history) = await OpenSummaryWithHistoryAsync(app, window);
+        await AddEditedVersionAsync(summary, window);
 
         Assert.Equal(UiText.HistoryHeadingCount(2), summary.HistoryHeader);
         var current = summary.History[0];
@@ -327,6 +331,19 @@ public class SummaryUiTests
         });
         var otherRow = view.GetVisualDescendants().OfType<Avalonia.Controls.Border>().Single(b => b.Classes.Contains("history-row") && !b.Classes.Contains("shown"));
         Assert.All(otherRow.GetVisualDescendants().OfType<Avalonia.Controls.Border>().Where(b => b.Classes.Contains("badge")), b => Assert.Equal(default, b.BorderThickness));
+        window.Close();
+    }
+
+    [AvaloniaFact]
+    public async Task Deleting_history_waits_for_a_tick_and_confirms_with_a_danger_button()
+    {
+        await using var app = DesktopHarness.Create();
+        var window = app.ShowWindow();
+        var (summary, view, history) = await OpenSummaryWithHistoryAsync(app, window);
+        await AddEditedVersionAsync(summary, window);
+        history.IsExpanded = true;
+        window.UpdateLayout();
+        var first = summary.History[1];
 
         // Delete waits for a tick, in the model and on the button itself.
         var delete = view.GetVisualDescendants().OfType<Avalonia.Controls.Button>().Single(b => b.Name == "DeleteSelectedButton");
@@ -363,6 +380,30 @@ public class SummaryUiTests
 
     private static Application.Storage.SummaryDetail Detail(DesktopHarness app, SummaryNodeId node) =>
         app.Services.GetRequiredService<Application.Summaries.SummaryService>().GetAsync(node, CancellationToken.None).Result!;
+
+    /// <summary>A conversation summarized once, its summary page open and laid out; returns the page, its view and the history panel.</summary>
+    private static async Task<(SummaryViewModel Summary, SummaryView View, Avalonia.Controls.Expander History)> OpenSummaryWithHistoryAsync(DesktopHarness app, Avalonia.Controls.Window window)
+    {
+        var page = await app.StartWithConversationAsync(waitForTitle: false);
+        await page.SummarizeCommand.ExecuteAsync(null);
+        await UiWait.UntilAsync(() => page.HasSummary && page.RunningSummary is null);
+        var summary = await OpenSummaryAsync(app, page);
+        window.UpdateLayout();
+        var view = window.GetVisualDescendants().OfType<SummaryView>().Single();
+        var history = view.GetVisualDescendants().OfType<Avalonia.Controls.Expander>().Single(e => e.Name == "HistoryPanel");
+        return (summary, view, history);
+    }
+
+    /// <summary>Saves an edit, so the history lists the edited version 2 (current) over the generated version 1.</summary>
+    private static async Task AddEditedVersionAsync(SummaryViewModel summary, Avalonia.Controls.Window window)
+    {
+        await summary.BeginEditCommand.ExecuteAsync(null);
+        window.UpdateLayout();
+        summary.EditBody = "第二版";
+        await summary.SaveEditCommand.ExecuteAsync(null);
+        await UiWait.UntilAsync(() => summary.History.Count == 2);
+        window.UpdateLayout();
+    }
 
     private static async Task<SummaryViewModel> OpenSummaryAsync(DesktopHarness app, ConversationViewModel page)
     {
