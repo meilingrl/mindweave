@@ -1,0 +1,203 @@
+<Styles xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:lm="using:LiveMarkdown.Avalonia"
+        xmlns:ratex="using:RaTeX.Avalonia">
+  <!-- Conversation page: answer typography, the question bubble, cards, the composer, the typing mark, stop and copy buttons, timestamps, the selection's floating action and the branch marks. -->
+  <!-- Answer typography. -->
+  <Style Selector="Border.QuoteBlock">
+    <Setter Property="Background" Value="{DynamicResource SidebarBackground}" />
+  </Style>
+  <Style Selector="StackPanel.MarkdownDocument">
+    <Setter Property="Spacing" Value="8" />
+  </Style>
+  <!--
+    Answer text puts a font with CJK glyphs first. With LiveMarkdown's Latin-only default, CJK characters come from
+    a fallback font, and Avalonia 12.1.4 reuses the previous run's fallback typeface, weight included, for the next
+    run: bold spread over the rest of a list item and never started in a paragraph that began plain.
+    List numbers and bullets use it too, so digits in a marker match those in the item (their LiveMarkdown style has
+    a class selector, so this one needs one as well to take precedence). The trade-off: Latin letters and digits in
+    answers come from the CJK face, not Inter as in the rest of the interface. Code blocks bind their own monospaced family and are not affected.
+  -->
+  <Style Selector="lm|MarkdownTextBlock, TextBlock.ListBlockNumber, TextBlock.ListBlockBullet">
+    <Setter Property="FontFamily" Value="{StaticResource AnswerFontFamily}" />
+  </Style>
+  <!-- Display formulas ($$…$$, \[…\]) are centred blocks, a little larger than body text as in print. -->
+  <Style Selector="lm|MarkdownTextBlock.MathBlock">
+    <Setter Property="FontSize" Value="{StaticResource DisplayFormulaFontSize}" />
+  </Style>
+  <Style Selector="ratex|FormulaControl.MathBlock">
+    <Setter Property="HorizontalAlignment" Value="Center" />
+    <Setter Property="Margin" Value="0,6" />
+  </Style>
+  <!-- Conversation page: question bubble, cards (source, branches), composer. -->
+  <Style Selector="Border.question">
+    <Setter Property="Background" Value="{DynamicResource QuestionBubbleBackground}" />
+    <Setter Property="CornerRadius" Value="14" />
+    <Setter Property="Padding" Value="14,9" />
+  </Style>
+  <Style Selector="Border.question SelectableTextBlock">
+    <Setter Property="Foreground" Value="{DynamicResource PrimaryText}" />
+  </Style>
+  <Style Selector="Border.card">
+    <Setter Property="Background" Value="{DynamicResource CardBackground}" />
+    <Setter Property="BorderBrush" Value="{DynamicResource CardBorder}" />
+    <Setter Property="BorderThickness" Value="1" />
+    <Setter Property="CornerRadius" Value="8" />
+  </Style>
+  <Style Selector="Border.quote">
+    <Setter Property="BorderBrush" Value="{DynamicResource QuoteBar}" />
+    <Setter Property="BorderThickness" Value="3,0,0,0" />
+    <Setter Property="Padding" Value="10,1,0,1" />
+  </Style>
+  <Style Selector="TextBlock.caption">
+    <Setter Property="FontSize" Value="12" />
+    <Setter Property="Foreground" Value="{DynamicResource MutedText}" />
+  </Style>
+  <Style Selector="Button.entry">
+    <Setter Property="Background" Value="Transparent" />
+    <Setter Property="BorderThickness" Value="0" />
+    <Setter Property="CornerRadius" Value="6" />
+    <Setter Property="Padding" Value="8,4" />
+    <Setter Property="HorizontalAlignment" Value="Stretch" />
+    <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+    <Setter Property="Foreground" Value="{DynamicResource PrimaryText}" />
+  </Style>
+  <Style Selector="Button.entry:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+    <Setter Property="Background" Value="{DynamicResource CardHover}" />
+    <Setter Property="Foreground" Value="{DynamicResource PrimaryText}" />
+  </Style>
+  <Style Selector="Button.entry PathIcon.entry-icon">
+    <Setter Property="Width" Value="13" />
+    <Setter Property="Height" Value="13" />
+    <Setter Property="Foreground" Value="{DynamicResource LinkText}" />
+    <Setter Property="VerticalAlignment" Value="Top" />
+    <Setter Property="Margin" Value="0,3,10,0" />
+  </Style>
+  <Style Selector="Button.entry PathIcon.entry-chevron">
+    <Setter Property="Width" Value="10" />
+    <Setter Property="Height" Value="10" />
+    <Setter Property="Foreground" Value="{DynamicResource MutedText}" />
+    <Setter Property="VerticalAlignment" Value="Center" />
+    <Setter Property="Margin" Value="10,0,0,0" />
+    <Setter Property="Opacity" Value="0.6" />
+  </Style>
+  <Style Selector="Button.entry:pointerover PathIcon.entry-chevron">
+    <Setter Property="Opacity" Value="1" />
+  </Style>
+  <Style Selector="Border.composer">
+    <Setter Property="Background" Value="{DynamicResource TextControlBackground}" />
+    <Setter Property="BorderBrush" Value="{DynamicResource TextControlBorderBrush}" />
+    <Setter Property="BorderThickness" Value="1" />
+    <Setter Property="CornerRadius" Value="12" />
+    <Setter Property="Padding" Value="6" />
+  </Style>
+  <Style Selector="Border.composer:focus-within">
+    <Setter Property="BorderBrush" Value="{DynamicResource TextControlBorderBrushFocused}" />
+  </Style>
+  <!-- The input inside the composer has no frame of its own in any state; the composer draws it. -->
+  <Style Selector="Border.composer TextBox /template/ Border#PART_BorderElement">
+    <Setter Property="Background" Value="Transparent" />
+    <Setter Property="BorderThickness" Value="0" />
+  </Style>
+  <Style Selector="Border.composer TextBox:pointerover /template/ Border#PART_BorderElement">
+    <Setter Property="Background" Value="Transparent" />
+    <Setter Property="BorderThickness" Value="0" />
+  </Style>
+  <Style Selector="Border.composer TextBox:focus /template/ Border#PART_BorderElement">
+    <Setter Property="Background" Value="Transparent" />
+    <Setter Property="BorderThickness" Value="0" />
+  </Style>
+  <!-- A small "still writing" mark at the end of a streaming answer. -->
+  <Style Selector="Ellipse.typing">
+    <Setter Property="Width" Value="5" />
+    <Setter Property="Height" Value="5" />
+    <Setter Property="Fill" Value="{DynamicResource AccentBrush}" />
+    <Setter Property="VerticalAlignment" Value="Center" />
+  </Style>
+  <!-- Stop while an answer runs: the familiar round button with a filled square, where send is, no label. -->
+  <Style Selector="Button.stop">
+    <Setter Property="Width" Value="34" />
+    <Setter Property="Height" Value="34" />
+    <Setter Property="Padding" Value="0" />
+    <Setter Property="CornerRadius" Value="17" />
+    <Setter Property="HorizontalContentAlignment" Value="Center" />
+    <Setter Property="VerticalContentAlignment" Value="Center" />
+  </Style>
+  <Style Selector="Button.stop PathIcon">
+    <Setter Property="Width" Value="11" />
+    <Setter Property="Height" Value="11" />
+  </Style>
+  <Style Selector="Button.stop:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+    <Setter Property="CornerRadius" Value="17" />
+  </Style>
+  <!-- Icon-only quiet buttons (copy): a square hit area around the glyph. -->
+  <Style Selector=":is(Button).quiet.icon">
+    <Setter Property="Padding" Value="6" />
+    <Setter Property="CornerRadius" Value="6" />
+  </Style>
+  <Style Selector=":is(Button).quiet.icon:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+    <Setter Property="CornerRadius" Value="6" />
+  </Style>
+  <!-- When a message was sent or answered: smaller and fainter than captions, never competing with the text. -->
+  <Style Selector="TextBlock.timestamp">
+    <Setter Property="FontSize" Value="11.5" />
+    <Setter Property="Foreground" Value="{DynamicResource TimestampText}" />
+  </Style>
+  <!-- The floating action next to a text selection: a small raised surface. -->
+  <Style Selector="Border.selection-actions">
+    <Setter Property="Background" Value="{DynamicResource FloatingBackground}" />
+    <Setter Property="BorderBrush" Value="{DynamicResource FloatingBorder}" />
+    <Setter Property="BorderThickness" Value="1" />
+    <Setter Property="CornerRadius" Value="8" />
+    <Setter Property="Padding" Value="2" />
+    <Setter Property="BoxShadow" Value="{DynamicResource FloatingShadow}" />
+  </Style>
+  <Style Selector="Border.selection-actions Button.quiet">
+    <Setter Property="Padding" Value="9,4" />
+    <Setter Property="FontSize" Value="13" />
+    <Setter Property="CornerRadius" Value="6" />
+  </Style>
+  <Style Selector="Border.selection-actions Button.quiet:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+    <Setter Property="CornerRadius" Value="6" />
+  </Style>
+  <Style Selector="Border.selection-actions Button.quiet PathIcon">
+    <Setter Property="Foreground" Value="{DynamicResource AccentBrush}" />
+  </Style>
+  <!-- Marks in the margin: a 10×10 target left of the scroll bar, a short bar inside; stronger on hover. -->
+  <Style Selector="Button.branch-mark">
+    <Setter Property="Padding" Value="0" />
+    <Setter Property="MinWidth" Value="0" />
+    <Setter Property="MinHeight" Value="0" />
+    <Setter Property="BorderThickness" Value="0" />
+    <Setter Property="Background" Value="Transparent" />
+    <Setter Property="Cursor" Value="Hand" />
+    <Setter Property="HorizontalContentAlignment" Value="Center" />
+    <Setter Property="VerticalContentAlignment" Value="Center" />
+  </Style>
+  <Style Selector="Button.branch-mark:pointerover /template/ ContentPresenter#PART_ContentPresenter, Button.branch-mark:pressed /template/ ContentPresenter#PART_ContentPresenter">
+    <Setter Property="Background" Value="Transparent" />
+  </Style>
+  <Style Selector="Button.branch-mark Border.branch-mark-bar">
+    <Setter Property="Width" Value="8" />
+    <Setter Property="Height" Value="3" />
+    <Setter Property="CornerRadius" Value="1.5" />
+    <Setter Property="Background" Value="{DynamicResource BranchMark}" />
+  </Style>
+  <Style Selector="Button.branch-mark:pointerover Border.branch-mark-bar">
+    <Setter Property="Height" Value="4" />
+    <Setter Property="CornerRadius" Value="2" />
+    <Setter Property="Background" Value="{DynamicResource BranchMarkHover}" />
+  </Style>
+  <!-- The faint rail behind the marks: they read as places along the scroll bar, not notes on the text beside them. -->
+  <Style Selector="Border.branch-mark-rail">
+    <Setter Property="CornerRadius" Value="1" />
+    <Setter Property="Background" Value="{DynamicResource BranchMarkRail}" />
+  </Style>
+  <!-- The message list's right margin: the scroll bar (12), plus the gutter (16) only on pages that have branch marks. -->
+  <Style Selector="ItemsControl.messages">
+    <Setter Property="Margin" Value="0,0,12,0" />
+  </Style>
+  <Style Selector="ItemsControl.messages.with-branch-marks">
+    <Setter Property="Margin" Value="0,0,28,0" />
+  </Style>
+</Styles>
