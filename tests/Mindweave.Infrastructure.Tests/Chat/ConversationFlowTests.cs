@@ -23,7 +23,7 @@ public class ConversationFlowTests
         Assert.Equal(MessageState.Complete, answer.State);
         Assert.Equal("答：火车是怎么发明的？", answer.Text);
         Assert.Equal("completed", await h.TaskStateAsync(answer.Id));
-        await ChatHarness.UntilAsync(() => h.Conversations.LoadAsync(sent.Conversation, Ct).Result!.Conversation.TitleSource == TitleSource.Auto);
+        await ChatHarness.UntilAsync(async () => (await h.Conversations.LoadAsync(sent.Conversation, Ct))!.Conversation.TitleSource == TitleSource.Auto);
         var content = await h.Conversations.LoadAsync(sent.Conversation, Ct);
         Assert.Equal(FakeChatClient.DefaultTitle, content!.Conversation.Title);
         Assert.Equal(["火车是怎么发明的？", "答：火车是怎么发明的？"], content.Messages.Select(m => m.Text));

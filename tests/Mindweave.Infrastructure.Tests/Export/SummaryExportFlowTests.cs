@@ -123,7 +123,7 @@ public sealed class SummaryExportFlowTests : IDisposable
         var (conversation, node) = await SummarizedAsync(h);
         h.Client.SummaryReplies.Enqueue($"标题：{FakeChatClient.DefaultSummaryTitle}\n\n候选正文");
         Assert.True((await h.SummaryService.SummarizeAsync(conversation, Ct)).Accepted);
-        await ChatHarness.UntilAsync(() => h.SummaryService.GetAsync(node, Ct).Result?.Pending is not null);
+        await ChatHarness.UntilAsync(async () => (await h.SummaryService.GetAsync(node, Ct))?.Pending is not null);
         var candidate = (await h.SummaryService.GetAsync(node, Ct))!.Pending!.Id;
         var export = Service(h);
 
@@ -198,7 +198,7 @@ public sealed class SummaryExportFlowTests : IDisposable
         await h.WaitForAnswerAsync(sent.Answer!.Value);
         var outcome = await h.SummaryService.SummarizeAsync(sent.Conversation, Ct);
         Assert.True(outcome.Accepted, outcome.Rejection?.ToString());
-        await ChatHarness.UntilAsync(() => h.SummaryService.LatestTaskAsync(sent.Conversation, Ct).Result is { State: GenerationTaskState.Completed });
+        await ChatHarness.UntilAsync(async () => (await h.SummaryService.LatestTaskAsync(sent.Conversation, Ct)) is { State: GenerationTaskState.Completed });
         return (sent.Conversation, (await h.SummaryService.ForConversationAsync(sent.Conversation, Ct))!.Node.Id);
     }
 

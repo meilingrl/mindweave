@@ -278,7 +278,7 @@ public class ContextCompressionTests
     {
         var task = await TaskOfAsync(h, answer);
         IReadOnlyList<AiRequestRecord> traces = [];
-        await ChatHarness.UntilAsync(() => (traces = h.Requests.ForTaskAsync(task, Ct).Result).Count >= expected);
+        await ChatHarness.UntilAsync(async () => (traces = await h.Requests.ForTaskAsync(task, Ct)).Count >= expected);
         return traces;
     }
 

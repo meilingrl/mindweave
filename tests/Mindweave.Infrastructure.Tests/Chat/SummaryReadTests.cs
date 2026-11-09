@@ -94,7 +94,7 @@ public partial class SummaryReadTests
         await h.WaitForAnswerAsync(sent.Answer!.Value);
         h.Client.SummaryReplies.Enqueue($"标题：{title}\n\n{body}");
         Assert.True((await h.SummaryService.SummarizeAsync(sent.Conversation, Ct)).Accepted);
-        await ChatHarness.UntilAsync(() => h.SummaryService.ForConversationAsync(sent.Conversation, Ct).Result is not null);
+        await ChatHarness.UntilAsync(async () => (await h.SummaryService.ForConversationAsync(sent.Conversation, Ct)) is not null);
         return (await h.SummaryService.ForConversationAsync(sent.Conversation, Ct))!.Node;
     }
 

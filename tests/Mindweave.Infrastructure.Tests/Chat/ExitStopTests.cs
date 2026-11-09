@@ -181,7 +181,7 @@ public class ExitStopTests
         h.Generation.Reopen();
         var again = await h.Conversations.AskAsync(sent.Conversation, "再问一个", Ct);
         await h.WaitForAnswerAsync(again.Answer!.Value);
-        await ChatHarness.UntilAsync(() => h.Store.GetAsync(sent.Conversation, Ct).Result!.Title == FakeChatClient.DefaultTitle);
+        await ChatHarness.UntilAsync(async () => (await h.Store.GetAsync(sent.Conversation, Ct))!.Title == FakeChatClient.DefaultTitle);
         Assert.Equal(0L, await QueuedTitlesAsync(h));
     }
 
@@ -210,7 +210,7 @@ public class ExitStopTests
 
         var again = await h.Conversations.AskAsync(sent.Conversation, "再问一个", Ct);
         await h.WaitForAnswerAsync(again.Answer!.Value);
-        await ChatHarness.UntilAsync(() => h.Store.GetAsync(sent.Conversation, Ct).Result!.Title == FakeChatClient.DefaultTitle);
+        await ChatHarness.UntilAsync(async () => (await h.Store.GetAsync(sent.Conversation, Ct))!.Title == FakeChatClient.DefaultTitle);
         Assert.Equal(2, h.Client.Requests.Count(FakeChatClient.IsTitle));
     }
 
