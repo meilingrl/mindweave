@@ -20,7 +20,7 @@ public class SummaryUiTests
     [AvaloniaFact]
     public async Task A_summary_made_midway_is_listed_unread_and_reading_it_long_enough_marks_it_read()
     {
-        var clock = new ManualTime();
+        var clock = ManualTime.Running();
         await using var app = DesktopHarness.Create(s => s.AddSingleton<TimeProvider>(clock));
         var window = app.ShowWindow();
         var page = await app.StartWithConversationAsync(waitForTitle: false);
@@ -371,17 +371,5 @@ public class SummaryUiTests
         var summary = Assert.IsType<SummaryViewModel>(app.Workbench.CurrentPage);
         await summary.Loaded;
         return summary;
-    }
-
-    /// <summary>Real time plus an offset the test moves forward, for the minimum reading time.</summary>
-    private sealed class ManualTime : TimeProvider
-    {
-        private long _offset;
-
-        public void Advance(TimeSpan by) => Interlocked.Add(ref _offset, (long)(by.TotalSeconds * TimestampFrequency));
-
-        public override long GetTimestamp() => System.GetTimestamp() + Interlocked.Read(ref _offset);
-
-        public override DateTimeOffset GetUtcNow() => System.GetUtcNow() + TimeSpan.FromSeconds((double)Interlocked.Read(ref _offset) / TimestampFrequency);
     }
 }

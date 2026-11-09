@@ -28,6 +28,7 @@ using Mindweave.Desktop.Views.Conversations;
 using Mindweave.Desktop.Views.Pages;
 using Mindweave.Infrastructure.Sqlite;
 using Mindweave.Infrastructure.Sqlite.Migrations;
+using Mindweave.Testing;
 using static Mindweave.Desktop.Tests.UiTree;
 
 namespace Mindweave.Desktop.Tests;
@@ -822,10 +823,10 @@ public class GalleryTests
         window.Close();
     }
 
-    private static GalleryTime Time(DesktopHarness app) => (GalleryTime)app.Services.GetRequiredService<TimeProvider>();
+    private static ManualTime Time(DesktopHarness app) => (ManualTime)app.Services.GetRequiredService<TimeProvider>();
 
     /// <summary>Lets a held answer run for <paramref name="seconds"/> on the gallery clock, then finish.</summary>
-    private static async Task TakesAsync(Mindweave.Testing.FakeChatClient.HeldReply held, GalleryTime time, int seconds, ConversationService conversations, ConversationId conversation)
+    private static async Task TakesAsync(Mindweave.Testing.FakeChatClient.HeldReply held, ManualTime time, int seconds, ConversationService conversations, ConversationId conversation)
     {
         await held.Started.Task.WaitAsync(TimeSpan.FromSeconds(5));
         time.Advance(TimeSpan.FromSeconds(seconds));
@@ -1211,25 +1212,9 @@ public class GalleryTests
     /// <summary>The application's clocks start at a fixed instant and then run in real time, so shown times repeat.</summary>
     private static void FixedTime(IServiceCollection services)
     {
-        var time = new GalleryTime(GalleryStart);
+        var time = ManualTime.Running(GalleryStart);
         services.AddSingleton<TimeProvider>(time);
-        services.AddSingleton<IClock>(new GalleryClock(time));
-    }
-
-    private sealed class GalleryTime(DateTimeOffset start) : TimeProvider
-    {
-        private readonly long _origin = System.GetTimestamp();
-        private long _ahead;
-
-        /// <summary>Moves the clock forward, so a scene can show an answer that took (or is taking) a while.</summary>
-        public void Advance(TimeSpan by) => Interlocked.Add(ref _ahead, by.Ticks);
-
-        public override DateTimeOffset GetUtcNow() => start + System.GetElapsedTime(_origin) + TimeSpan.FromTicks(Interlocked.Read(ref _ahead));
-    }
-
-    private sealed class GalleryClock(TimeProvider time) : IClock
-    {
-        public DateTimeOffset UtcNow => time.GetUtcNow();
+        services.AddSingleton<IClock>(time);
     }
 
     /// <summary>One scene's application over a fixed data directory (so paths shown repeat), removed afterwards.</summary>

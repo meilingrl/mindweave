@@ -248,6 +248,10 @@ public class WorkspaceDeleteFlowTests
         public void Discard(string path) => inner.Discard(path);
     }
 
+    /// <summary>
+    /// Moves one minute forward on every read, so each write gets a distinct, ordered time; kept apart from
+    /// <see cref="Mindweave.Testing.ManualTime"/>, which only moves when told.
+    /// </summary>
     private sealed class StepClock(DateTimeOffset start) : IClock
     {
         private DateTimeOffset _now = start;

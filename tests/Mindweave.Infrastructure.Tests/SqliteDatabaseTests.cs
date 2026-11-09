@@ -513,6 +513,10 @@ public sealed class SqliteDatabaseTests : IDisposable
     private static async Task<string> HashAsync(string path) =>
         Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(await File.ReadAllBytesAsync(path)));
 
+    /// <summary>
+    /// Moves one second forward on every read, so each backup gets its own time stamp without the test moving it; kept
+    /// apart from <see cref="Mindweave.Testing.ManualTime"/>, which only moves when told.
+    /// </summary>
     private sealed class SteppingTime : TimeProvider
     {
         private DateTimeOffset _now = new(2026, 10, 25, 0, 0, 0, TimeSpan.Zero);

@@ -225,7 +225,7 @@ public partial class ConversationActionsTests
     public async Task Message_times_use_the_apps_clock()
     {
         // The app's clock says it is three days later: the messages sent "now" (by the system clock) are not today.
-        await using var app = DesktopHarness.Create(s => s.AddSingleton<TimeProvider>(new LaterTime(TimeSpan.FromDays(3))));
+        await using var app = DesktopHarness.Create(s => s.AddSingleton<TimeProvider>(ManualTime.Running(DateTimeOffset.UtcNow + TimeSpan.FromDays(3))));
         var window = app.ShowWindow();
         var page = await ConversationAsync(app, window);
         var question = VisibleNamed<TextBlock>(CurrentView(window), "QuestionTime");
@@ -532,10 +532,4 @@ public partial class ConversationActionsTests
     private static T VisibleNamed<T>(Visual root, string name)
         where T : Control =>
         root.GetVisualDescendants().OfType<T>().Single(c => c.Name == name && c.IsEffectivelyVisible);
-
-    /// <summary>A clock some time ahead of the system clock.</summary>
-    private sealed class LaterTime(TimeSpan ahead) : TimeProvider
-    {
-        public override DateTimeOffset GetUtcNow() => base.GetUtcNow() + ahead;
-    }
 }
