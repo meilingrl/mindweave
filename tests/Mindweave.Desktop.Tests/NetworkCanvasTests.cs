@@ -567,10 +567,10 @@ public class NetworkCanvasTests
         foreach (var theme in new[] { ThemeVariant.Light, ThemeVariant.Dark })
         {
             window.RequestedThemeVariant = theme;
-            Assert.All(NetworkCanvas.Palette.Keys, key => Assert.NotNull(NetworkCanvas.Palette.Resolve(canvas, key)));
+            Assert.All(NetworkPalette.Keys, key => Assert.NotNull(NetworkPalette.Resolve(canvas, key)));
         }
 
-        Assert.Null(NetworkCanvas.Palette.Resolve(canvas, "NetworkNoSuchColour"));
+        Assert.Null(NetworkPalette.Resolve(canvas, "NetworkNoSuchColour"));
         window.Close();
     }
 
@@ -586,7 +586,7 @@ public class NetworkCanvasTests
         {
             window.RequestedThemeVariant = theme;
             // Dark may go deeper (black on a near-black canvas is otherwise invisible), but never fully opaque.
-            var shadow = Assert.IsAssignableFrom<ISolidColorBrush>(NetworkCanvas.Palette.Resolve(canvas, "NetworkDragShadow"));
+            var shadow = Assert.IsAssignableFrom<ISolidColorBrush>(NetworkPalette.Resolve(canvas, "NetworkDragShadow"));
             Assert.InRange(shadow.Color.A, (byte)0x20, theme == ThemeVariant.Light ? (byte)0x70 : (byte)0xE0);
         }
 
@@ -633,7 +633,7 @@ public class NetworkCanvasTests
         window.RequestedThemeVariant = ThemeVariant.Light;
         window.UpdateLayout();
         Assert.Equal(Colors.Transparent, ResourceColor(window, "NetworkDragGlow"));
-        Assert.False(NetworkCanvas.Palette.From(canvas).HasDragGlow);
+        Assert.False(NetworkPalette.From(canvas).HasDragGlow);
         window.MouseUp(InWindow(start + new Vector(20, 20)), MouseButton.Left);
         network.Session.DiscardChanges();
         window.Close();
