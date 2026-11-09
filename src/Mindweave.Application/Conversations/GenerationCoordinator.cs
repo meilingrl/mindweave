@@ -13,9 +13,7 @@ namespace Mindweave.Application.Conversations;
 /// </summary>
 public sealed partial class GenerationCoordinator : IGenerationExit, IGenerationEvents, IAsyncDisposable
 {
-    private readonly IConversationStore _store;
     private readonly GenerationRequests _requests;
-    private readonly IClock _clock;
     private readonly GenerationOptions _options;
     private readonly ILogger<GenerationCoordinator> _logger;
 
@@ -41,10 +39,8 @@ public sealed partial class GenerationCoordinator : IGenerationExit, IGeneration
         ILogger<GenerationCoordinator> logger)
     {
         ArgumentNullException.ThrowIfNull(health);
-        _store = store;
         _requests = requests;
         _health = health;
-        _clock = clock;
         _options = options;
         _logger = logger;
         _writes = new TerminalWrites(health, logger);
@@ -245,8 +241,7 @@ public sealed partial class GenerationCoordinator : IGenerationExit, IGeneration
 
         if (queued is not null)
         {
-            await _writes.SaveAsync(() => _requests.FinishTaskAsync(task, GenerationTaskState.Cancelled, null, null)).ConfigureAwait(false);
-            SummaryTaskFinished?.Invoke(this, queued.Task);
+            await CancelQueuedTaskAsync(queued).ConfigureAwait(false);
             RaiseChanged();
         }
         else if (running is not null)
@@ -278,15 +273,7 @@ public sealed partial class GenerationCoordinator : IGenerationExit, IGeneration
 
         foreach (var work in queued)
         {
-            await _writes.SaveAsync(() => _requests.FinishTaskAsync(work.Task.Id, GenerationTaskState.Cancelled, null, null)).ConfigureAwait(false);
-            if (work is TitleWork)
-            {
-                TitleAbandoned?.Invoke(this, work.Task.ConversationId);
-            }
-            else
-            {
-                SummaryTaskFinished?.Invoke(this, work.Task);
-            }
+            await CancelQueuedTaskAsync(work).ConfigureAwait(false);
         }
 
         foreach (var r in running)
@@ -330,16 +317,7 @@ public sealed partial class GenerationCoordinator : IGenerationExit, IGeneration
                     await _answers.CancelQueuedAsync(answer).ConfigureAwait(false);
                     break;
                 default:
-                    await _writes.SaveAsync(() => _requests.FinishTaskAsync(work.Task.Id, GenerationTaskState.Cancelled, null, null)).ConfigureAwait(false);
-                    if (work is TitleWork)
-                    {
-                        TitleAbandoned?.Invoke(this, work.Task.ConversationId);
-                    }
-                    else
-                    {
-                        SummaryTaskFinished?.Invoke(this, work.Task);
-                    }
-
+                    await CancelQueuedTaskAsync(work).ConfigureAwait(false);
                     break;
             }
         }
@@ -403,6 +381,23 @@ public sealed partial class GenerationCoordinator : IGenerationExit, IGeneration
     {
         await ShutdownAsync().ConfigureAwait(false);
         _writes.Dispose();
+    }
+
+    /// <summary>
+    /// Cancels a title, summary or naming task taken off a queue before it started: its row becomes cancelled, then a
+    /// title is reported abandoned (asked for again after the next answer) and anything else reported finished.
+    /// </summary>
+    private async Task CancelQueuedTaskAsync(GenerationWork work)
+    {
+        await _writes.SaveAsync(() => _requests.FinishTaskAsync(work.Task.Id, GenerationTaskState.Cancelled, null, null)).ConfigureAwait(false);
+        if (work is TitleWork)
+        {
+            TitleAbandoned?.Invoke(this, work.Task.ConversationId);
+        }
+        else
+        {
+            SummaryTaskFinished?.Invoke(this, work.Task);
+        }
     }
 
     private GenerationWork? RemoveQueued(Func<GenerationWork, bool> match)
