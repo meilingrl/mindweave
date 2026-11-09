@@ -1,0 +1,43 @@
+<Styles xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+  <!-- Single pages: archived rows, the explore home mark and the recovery page's backup rows. -->
+  <!-- Archived page rows: the whole row lights up on hover; the name opens, the actions sit at the right. -->
+  <Style Selector="Border.archived-row">
+    <Setter Property="Background" Value="Transparent" />
+    <Setter Property="CornerRadius" Value="6" />
+    <Setter Property="Padding" Value="6,3" />
+    <Setter Property="MinHeight" Value="36" />
+  </Style>
+  <Style Selector="Border.archived-row:pointerover">
+    <Setter Property="Background" Value="{DynamicResource HoverRow}" />
+  </Style>
+  <Style Selector="Button.list-name.archived-name">
+    <Setter Property="Padding" Value="2,3" />
+    <Setter Property="VerticalAlignment" Value="Center" />
+  </Style>
+  <Style Selector="Button.list-name.archived-name:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+    <Setter Property="Background" Value="Transparent" />
+  </Style>
+  <!-- Explore home: a soft round mark above the page's one primary action. -->
+  <Style Selector="Border.home-mark">
+    <Setter Property="Width" Value="56" />
+    <Setter Property="Height" Value="56" />
+    <Setter Property="CornerRadius" Value="28" />
+    <Setter Property="Background" Value="{DynamicResource BadgeAccentBackground}" />
+  </Style>
+  <Style Selector="Border.home-mark > PathIcon">
+    <Setter Property="Width" Value="22" />
+    <Setter Property="Height" Value="22" />
+    <Setter Property="Foreground" Value="{DynamicResource BadgeAccentText}" />
+  </Style>
+  <!-- Recovery page: backups as rows in a card, the date first. -->
+  <Style Selector="Border.backup-row">
+    <Setter Property="Padding" Value="14,8" />
+    <Setter Property="BorderBrush" Value="{DynamicResource CardBorder}" />
+    <Setter Property="BorderThickness" Value="0,1,0,0" />
+  </Style>
+  <Style Selector="SelectableTextBlock.mono">
+    <Setter Property="FontFamily" Value="Menlo, Consolas, monospace" />
+    <Setter Property="FontSize" Value="12" />
+  </Style>
+</Styles>
