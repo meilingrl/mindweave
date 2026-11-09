@@ -306,14 +306,25 @@ public class BranchUiTests
     private static void OpenFromSidebar(DesktopHarness app, ConversationId id) =>
         app.ShellPage.Conversations.OpenCommand.Execute(app.ShellPage.Conversations.Items.Single(i => i.Id == id));
 
-    /// <summary>Scrolls the current page to a fraction of its height and waits until the position is recorded.</summary>
+    /// <summary>
+    /// Scrolls the current page to a fraction of its height and waits until the position is recorded: the view records
+    /// it once scrolling has been still for a moment, so this waits for a stable offset and a newly recorded position.
+    /// </summary>
     private static async Task<double> ScrollToAsync(Window window, double fraction)
     {
+        var view = CurrentView(window);
+        var page = Assert.IsType<ConversationViewModel>(view.DataContext);
+        var before = await page.CurrentPositionAsync();
         var scroller = Scroller(window);
         scroller.Offset = new Vector(0, Math.Round((scroller.Extent.Height - scroller.Viewport.Height) * fraction));
         window.UpdateLayout();
-        await Task.Delay(400);
-        Avalonia.Threading.Dispatcher.UIThread.RunJobs();
+        var last = double.NaN;
+        await UiWait.UntilAsync(() =>
+        {
+            var stable = scroller.Offset.Y == last;
+            last = scroller.Offset.Y;
+            return stable && page.CurrentPositionAsync().Result != before;
+        });
         return scroller.Offset.Y;
     }
 
