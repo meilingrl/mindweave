@@ -8,7 +8,8 @@ namespace Mindweave.Testing;
 
 /// <summary>
 /// Scriptable AI service. By default answers "答：{question}" and titles with <see cref="DefaultTitle"/>.
-/// <see cref="Hold"/> makes the next answer emit some text and then wait until released or cancelled.
+/// <see cref="Hold"/> makes the next answer emit some text and then wait until released or cancelled. Internal requests
+/// (titles, context summaries, knowledge summaries, naming) follow their own <see cref="RequestScript"/>.
 /// </summary>
 public sealed class FakeChatClient : IChatClient
 {
@@ -39,60 +40,6 @@ public sealed class FakeChatClient : IChatClient
 
     /// <summary>Naming requests that tell similar summaries apart; the default is "n：区分n" for every node.</summary>
     public RequestScript Naming { get; }
-
-    [Obsolete("Use ContextSummaries.FailNext.")]
-    public GenerationErrorKind? FailSummaries
-    {
-        set => ContextSummaries.FailNext(value ?? default, value is null ? 0 : int.MaxValue);
-    }
-
-    [Obsolete("Use ContextSummaries.TruncateNext.")]
-    public int TruncateSummaries
-    {
-        set => ContextSummaries.TruncateNext(value);
-    }
-
-    [Obsolete("Use ContextSummaries.Gate.")]
-    public TaskCompletionSource? SummaryGate
-    {
-        get => ContextSummaries.Gate;
-        set => ContextSummaries.Gate = value;
-    }
-
-    [Obsolete("Feeds knowledge summaries: use Knowledge.Replies.")]
-    public ConcurrentQueue<string> SummaryReplies => Knowledge.Replies;
-
-    [Obsolete("Use Knowledge.Gate.")]
-    public TaskCompletionSource? KnowledgeGate
-    {
-        get => Knowledge.Gate;
-        set => Knowledge.Gate = value;
-    }
-
-    [Obsolete("Use Knowledge.TruncateNext.")]
-    public int TruncateKnowledge
-    {
-        set => Knowledge.TruncateNext(value);
-    }
-
-    [Obsolete("Use Titles.TruncateNext.")]
-    public int TruncateTitles
-    {
-        set => Titles.TruncateNext(value);
-    }
-
-    [Obsolete("Use Naming.Replies.")]
-    public ConcurrentQueue<string> NamingReplies => Naming.Replies;
-
-    [Obsolete("Use Naming.Gate.")]
-    public TaskCompletionSource? NamingGate
-    {
-        get => Naming.Gate;
-        set => Naming.Gate = value;
-    }
-
-    [Obsolete("Use Titles.Hold.")]
-    public TaskCompletionSource HoldTitles() => Titles.Hold();
 
     /// <summary>What a context summary cut off at the output limit says.</summary>
     public const string TruncatedSummaryText = "摘要：背景是";
@@ -177,6 +124,7 @@ public sealed class FakeChatClient : IChatClient
         {
             yield return new ChatStreamEvent.Usage(billed, null);
         }
+
         if (ScriptFor(request) is { } internalRequest)
         {
             await foreach (var item in internalRequest.StreamAsync(request, cancellationToken))
