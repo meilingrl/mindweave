@@ -32,7 +32,7 @@ public class ArchiveUiTests
         root = await OpenAsync(app, root.Id);
         await UiWait.UntilAsync(() => app.ShellPage.Conversations.Items.Count == 2);
 
-        await root.ArchiveCommand.ExecuteAsync(null);
+        await root.Lifecycle.ArchiveCommand.ExecuteAsync(null);
 
         Assert.True(root.IsArchived);
         Assert.Equal(UiText.ArchivedReadOnly, root.ArchiveText);
@@ -84,10 +84,10 @@ public class ArchiveUiTests
         Assert.True(page.IsArchived);
         Assert.Equal(UiText.HiddenByAncestors([root.Title]), page.ArchiveText);
 
-        await page.RestoreAndContinueCommand.ExecuteAsync(null);
-        Assert.Equal(UiText.RestoreConfirm([root.Title], 0), page.Confirmation!.Message);
+        await page.Lifecycle.RestoreAndContinueCommand.ExecuteAsync(null);
+        Assert.Equal(UiText.RestoreConfirm([root.Title], 0), page.Lifecycle.Confirmation!.Message);
         Assert.True(page.IsArchived);
-        await page.ConfirmCommand.ExecuteAsync(null);
+        await page.Lifecycle.ConfirmCommand.ExecuteAsync(null);
 
         Assert.False(page.IsArchived);
         page.Composer.Text = "接着问";
@@ -101,7 +101,7 @@ public class ArchiveUiTests
     {
         await using var app = DesktopHarness.Create();
         var page = await app.StartWithConversationAsync(waitForTitle: true);
-        await page.ArchiveCommand.ExecuteAsync(null);
+        await page.Lifecycle.ArchiveCommand.ExecuteAsync(null);
         Assert.True(page.IsArchived);
 
         page.Composer.Text = "还能问吗";
@@ -124,8 +124,8 @@ public class ArchiveUiTests
         root = await OpenAsync(app, root.Id);
 
         // The root takes its branch along: the window's dialog states the counts instead of the inline question.
-        await root.DeleteCommand.ExecuteAsync(null);
-        Assert.Null(root.Confirmation);
+        await root.Lifecycle.DeleteCommand.ExecuteAsync(null);
+        Assert.Null(root.Lifecycle.Confirmation);
         var dialog = app.Root.ConversationDeletion;
         Assert.True(dialog.IsOpen);
         await dialog.Loading;
@@ -134,10 +134,10 @@ public class ArchiveUiTests
 
         child = await OpenAsync(app, child.Id);
         child.Composer.Text = "没发出去的草稿";
-        await child.DeleteCommand.ExecuteAsync(null);
-        Assert.Equal(UiText.DeleteConfirm, child.Confirmation!.Message);
+        await child.Lifecycle.DeleteCommand.ExecuteAsync(null);
+        Assert.Equal(UiText.DeleteConfirm, child.Lifecycle.Confirmation!.Message);
         Assert.False(dialog.IsOpen);
-        await child.ConfirmCommand.ExecuteAsync(null);
+        await child.Lifecycle.ConfirmCommand.ExecuteAsync(null);
 
         // Every page of the child left every stack; the parent is shown.
         var shown = Assert.IsType<ConversationViewModel>(app.Workbench.CurrentPage);
@@ -152,8 +152,8 @@ public class ArchiveUiTests
 
         // The root has no dependants now; deleting it is plain again and returns to the explore home.
         root = await OpenAsync(app, root.Id);
-        await root.DeleteCommand.ExecuteAsync(null);
-        await root.ConfirmCommand.ExecuteAsync(null);
+        await root.Lifecycle.DeleteCommand.ExecuteAsync(null);
+        await root.Lifecycle.ConfirmCommand.ExecuteAsync(null);
         Assert.IsType<ExploreHomeViewModel>(app.Workbench.CurrentPage);
         Assert.False(app.Workbench.CanGoBack);
         await UiWait.UntilAsync(() => app.ShellPage.Conversations.Items.Count == 0);
@@ -168,7 +168,7 @@ public class ArchiveUiTests
         var root = await app.StartWithConversationAsync(waitForTitle: true);
         await BranchAsync(app, root, "火车");
         root = await OpenAsync(app, root.Id);
-        await root.ArchiveCommand.ExecuteAsync(null);
+        await root.Lifecycle.ArchiveCommand.ExecuteAsync(null);
         Assert.True(root.IsArchived);
 
         app.ShellPage.Conversations.OpenArchivedCommand.Execute(null);
@@ -198,7 +198,7 @@ public class ArchiveUiTests
         var page = await app.StartWithConversationAsync(waitForTitle: true);
         await page.Summary.SummarizeCommand.ExecuteAsync(null);
         await UiWait.UntilAsync(() => page.Summary.HasSummary && page.Summary.RunningSummary is null);
-        await page.ArchiveCommand.ExecuteAsync(null);
+        await page.Lifecycle.ArchiveCommand.ExecuteAsync(null);
 
         app.ShellPage.ShowSectionCommand.Execute(MainSection.Network);
         var network = Assert.IsType<NetworkHomeViewModel>(app.Workbench.CurrentPage);
@@ -215,7 +215,7 @@ public class ArchiveUiTests
         await source.Loaded;
         await UiWait.UntilAsync(() => source.IsArchived && source.Messages.Count == 2);
 
-        await source.RestoreAndSummarizeCommand.ExecuteAsync(null);
+        await source.Lifecycle.RestoreAndSummarizeCommand.ExecuteAsync(null);
 
         Assert.False(source.IsArchived);
         await UiWait.UntilAsync(() => source.Summary.SummaryMarkersText?.Contains(UiText.MarkerCandidate, StringComparison.Ordinal) == true);
@@ -228,7 +228,7 @@ public class ArchiveUiTests
         await using var app = DesktopHarness.Create();
         var root = await app.StartWithConversationAsync(waitForTitle: true);
         var child = await BranchAsync(app, root, "火车");
-        await child.ArchiveCommand.ExecuteAsync(null);
+        await child.Lifecycle.ArchiveCommand.ExecuteAsync(null);
 
         root = await OpenAsync(app, root.Id);
         await UiWait.UntilAsync(() => root.Messages[1].Branches.Count == 1 && root.Messages[1].Branches[0].Archived);
@@ -242,7 +242,7 @@ public class ArchiveUiTests
     {
         await using var app = DesktopHarness.Create();
         var page = await app.StartWithConversationAsync(waitForTitle: true);
-        await page.ArchiveCommand.ExecuteAsync(null);
+        await page.Lifecycle.ArchiveCommand.ExecuteAsync(null);
         await UiWait.UntilAsync(() => app.ShellPage.Conversations.HasArchived);
         app.ShellPage.Conversations.OpenArchivedCommand.Execute(null);
 
@@ -262,13 +262,13 @@ public class ArchiveUiTests
         var root = await app.StartWithConversationAsync(waitForTitle: true);
 
         failing.Fail = true;
-        await root.ArchiveCommand.ExecuteAsync(null);
-        Assert.Equal(UiText.ArchiveStorageFailed, root.ArchiveNotice);
+        await root.Lifecycle.ArchiveCommand.ExecuteAsync(null);
+        Assert.Equal(UiText.ArchiveStorageFailed, root.Lifecycle.ArchiveNotice);
         Assert.False(root.IsArchived);
 
-        await root.DeleteCommand.ExecuteAsync(null);
-        await root.ConfirmCommand.ExecuteAsync(null);
-        Assert.Equal(UiText.ArchiveStorageFailed, root.ArchiveNotice);
+        await root.Lifecycle.DeleteCommand.ExecuteAsync(null);
+        await root.Lifecycle.ConfirmCommand.ExecuteAsync(null);
+        Assert.Equal(UiText.ArchiveStorageFailed, root.Lifecycle.ArchiveNotice);
         Assert.Same(root, app.Workbench.CurrentPage);
 
         // The refusal paused storage-dependent commits (§9.3, D1): while paused, archiving is refused even though the
@@ -276,15 +276,15 @@ public class ArchiveUiTests
         failing.Fail = false;
         var health = app.Services.GetRequiredService<Application.Storage.StorageHealth>();
         Assert.True(health.IsBlocked);
-        await root.ArchiveCommand.ExecuteAsync(null);
-        Assert.Equal(UiText.ArchiveStorageFailed, root.ArchiveNotice);
+        await root.Lifecycle.ArchiveCommand.ExecuteAsync(null);
+        Assert.Equal(UiText.ArchiveStorageFailed, root.Lifecycle.ArchiveNotice);
         Assert.False(root.IsArchived);
         await UiWait.UntilAsync(() => !health.IsBlocked);
-        await root.ArchiveCommand.ExecuteAsync(null);
+        await root.Lifecycle.ArchiveCommand.ExecuteAsync(null);
         Assert.True(root.IsArchived);
         failing.Fail = true;
-        await root.RestoreAndContinueCommand.ExecuteAsync(null);
-        Assert.Equal(UiText.ArchiveStorageFailed, root.ArchiveNotice);
+        await root.Lifecycle.RestoreAndContinueCommand.ExecuteAsync(null);
+        Assert.Equal(UiText.ArchiveStorageFailed, root.Lifecycle.ArchiveNotice);
         Assert.True(root.IsArchived);
         failing.Fail = false;
         await UiWait.UntilAsync(() => !health.IsBlocked);
@@ -342,7 +342,7 @@ public class ArchiveUiTests
         var root = await app.StartWithConversationAsync(waitForTitle: true);
         var child = await BranchAsync(app, root, "火车");
         root = await OpenAsync(app, root.Id);
-        await root.ArchiveCommand.ExecuteAsync(null);
+        await root.Lifecycle.ArchiveCommand.ExecuteAsync(null);
         app.ShellPage.Conversations.OpenArchivedCommand.Execute(null);
         var archived = Assert.IsType<ArchivedViewModel>(app.Workbench.CurrentPage);
         await archived.RefreshAsync();
@@ -397,10 +397,10 @@ public class ArchiveUiTests
         app.ShowWindow();
         var root = await app.StartWithConversationAsync(waitForTitle: true);
         var first = await BranchAsync(app, root, "火车");
-        await first.ArchiveCommand.ExecuteAsync(null);
+        await first.Lifecycle.ArchiveCommand.ExecuteAsync(null);
         root = await OpenAsync(app, root.Id);
         var second = await BranchAsync(app, root, "火车");
-        await second.ArchiveCommand.ExecuteAsync(null);
+        await second.Lifecycle.ArchiveCommand.ExecuteAsync(null);
         app.ShellPage.Conversations.OpenArchivedCommand.Execute(null);
         var archived = Assert.IsType<ArchivedViewModel>(app.Workbench.CurrentPage);
         await archived.RefreshAsync();
@@ -420,7 +420,7 @@ public class ArchiveUiTests
         await using var app = DesktopHarness.Create();
         var window = app.ShowWindow();
         var root = await app.StartWithConversationAsync(waitForTitle: true);
-        await root.ArchiveCommand.ExecuteAsync(null);
+        await root.Lifecycle.ArchiveCommand.ExecuteAsync(null);
         app.ShellPage.Conversations.OpenArchivedCommand.Execute(null);
         var archived = Assert.IsType<ArchivedViewModel>(app.Workbench.CurrentPage);
         await archived.RefreshAsync();

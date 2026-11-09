@@ -38,7 +38,7 @@
           </Button>
         </Panel>
         <!-- An archived conversation is never summarized directly (D-021). -->
-        <Button Name="RestoreAndSummarizeButton" Classes="quiet" Command="{Binding RestoreAndSummarizeCommand}" IsVisible="{Binding IsArchived}" Margin="0,0,2,0">
+        <Button Name="RestoreAndSummarizeButton" Classes="quiet" Command="{Binding Lifecycle.RestoreAndSummarizeCommand}" IsVisible="{Binding IsArchived}" Margin="0,0,2,0">
           <StackPanel Orientation="Horizontal" Spacing="6">
             <PathIcon Data="{StaticResource IconSummarize}" />
             <TextBlock Text="{x:Static d:UiText.RestoreAndSummarize}" VerticalAlignment="Center" />
@@ -55,13 +55,13 @@
             </StackPanel>
           </Button>
         </StackPanel>
-        <Button Name="ArchiveButton" Classes="quiet" Command="{Binding ArchiveCommand}" IsVisible="{Binding ShowArchiveInToolbar}" Margin="0,0,2,0">
+        <Button Name="ArchiveButton" Classes="quiet" Command="{Binding Lifecycle.ArchiveCommand}" IsVisible="{Binding ShowArchiveInToolbar}" Margin="0,0,2,0">
           <StackPanel Orientation="Horizontal" Spacing="6">
             <PathIcon Data="{StaticResource IconArchive}" />
             <TextBlock Text="{x:Static d:UiText.Archive}" VerticalAlignment="Center" />
           </StackPanel>
         </Button>
-        <Button Name="DeleteButton" Classes="quiet danger" Command="{Binding DeleteCommand}">
+        <Button Name="DeleteButton" Classes="quiet danger" Command="{Binding Lifecycle.DeleteCommand}">
           <StackPanel Orientation="Horizontal" Spacing="6">
             <PathIcon Data="{StaticResource IconDelete}" />
             <TextBlock Text="{x:Static d:UiText.Delete}" VerticalAlignment="Center" />
@@ -133,24 +133,24 @@
           <TextBlock Name="BranchNotice" Text="{Binding BranchNotice}" />
         </DockPanel>
       </Border>
-      <Border Name="ConfirmationPanel" Classes="notice warning" IsVisible="{Binding Confirmation, Converter={x:Static ObjectConverters.IsNotNull}}">
+      <Border Name="ConfirmationPanel" Classes="notice warning" IsVisible="{Binding Lifecycle.Confirmation, Converter={x:Static ObjectConverters.IsNotNull}}">
         <DockPanel>
           <TextBlock Classes="notice-icon" Text="?" />
           <StackPanel Spacing="8">
-            <TextBlock Text="{Binding Confirmation.Message, FallbackValue=''}" />
+            <TextBlock Text="{Binding Lifecycle.Confirmation.Message, FallbackValue=''}" />
             <StackPanel Orientation="Horizontal" Spacing="6">
               <!-- A delete confirms in the danger colour; a restore confirms as a plain secondary button. -->
-              <Button Name="ConfirmButton" Classes="secondary" Classes.danger="{Binding Confirmation.IsDestructive, FallbackValue=False}"
-                      Content="{x:Static d:UiText.Confirm}" Command="{Binding ConfirmCommand}" />
-              <Button Classes="quiet" Content="{x:Static d:UiText.Cancel}" Command="{Binding CancelConfirmationCommand}" />
+              <Button Name="ConfirmButton" Classes="secondary" Classes.danger="{Binding Lifecycle.Confirmation.IsDestructive, FallbackValue=False}"
+                      Content="{x:Static d:UiText.Confirm}" Command="{Binding Lifecycle.ConfirmCommand}" />
+              <Button Classes="quiet" Content="{x:Static d:UiText.Cancel}" Command="{Binding Lifecycle.CancelConfirmationCommand}" />
             </StackPanel>
           </StackPanel>
         </DockPanel>
       </Border>
-      <Border Name="ArchiveNoticePanel" Classes="notice warning" HorizontalAlignment="Left" IsVisible="{Binding ArchiveNotice, Converter={x:Static ObjectConverters.IsNotNull}}">
+      <Border Name="ArchiveNoticePanel" Classes="notice warning" HorizontalAlignment="Left" IsVisible="{Binding Lifecycle.ArchiveNotice, Converter={x:Static ObjectConverters.IsNotNull}}">
         <DockPanel>
           <TextBlock Classes="notice-icon" Text="!" VerticalAlignment="Center" />
-          <TextBlock Name="ArchiveNotice" Text="{Binding ArchiveNotice}" />
+          <TextBlock Name="ArchiveNotice" Text="{Binding Lifecycle.ArchiveNotice}" />
         </DockPanel>
       </Border>
       <Border Classes="notice error" IsVisible="{Binding Summary.SummaryNotice, Converter={x:Static ObjectConverters.IsNotNull}}">
@@ -176,7 +176,7 @@
         <DockPanel>
           <TextBlock Classes="notice-icon" Text="i" VerticalAlignment="Center" />
           <Button Name="RestoreAndContinueButton" DockPanel.Dock="Right" Classes="primary" Content="{x:Static d:UiText.RestoreAndContinue}"
-                  Command="{Binding RestoreAndContinueCommand}" Margin="12,0,0,0" />
+                  Command="{Binding Lifecycle.RestoreAndContinueCommand}" Margin="12,0,0,0" />
           <TextBlock Name="ArchivedText" Text="{Binding ArchiveText}" />
         </DockPanel>
       </Border>

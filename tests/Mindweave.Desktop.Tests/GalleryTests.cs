@@ -516,13 +516,13 @@ public class GalleryTests
         var window = scene.App.ShowWindow(1100, 720, Theme);
         var seed = await SeedAsync(scene.App);
         var page = await OpenConversationAsync(scene.App, window, seed.FirstRailway);
-        await page.DeleteCommand.ExecuteAsync(null);
+        await page.Lifecycle.DeleteCommand.ExecuteAsync(null);
         var held = scene.App.Client.Hold("吴淞铁路的机车是英国制造的“先导号”，");
         page.Composer.Text = "它的机车是哪里造的？";
         await page.Composer.SendCommand.ExecuteAsync(null);
         await held.Started.Task.WaitAsync(TimeSpan.FromSeconds(5));
-        await page.ConfirmCommand.ExecuteAsync(null);
-        Assert.NotNull(page.ArchiveNotice);
+        await page.Lifecycle.ConfirmCommand.ExecuteAsync(null);
+        Assert.NotNull(page.Lifecycle.ArchiveNotice);
         await SettleAsync(window);
         Capture(window, "g21-delete-refused-running");
         held.Finish("1876 年运到上海。");

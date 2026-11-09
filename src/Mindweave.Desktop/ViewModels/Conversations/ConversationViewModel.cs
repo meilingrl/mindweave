@@ -44,8 +44,6 @@ public sealed partial class ConversationViewModel : PageViewModel, IDisposable
     private bool _disposed;
     private bool _isShown;
     private ITimer? _tick;
-    private readonly IConversationDeletion? _deletion;
-    private readonly IConversationDeletionPrompt? _deletionPrompt;
 
     public ConversationViewModel(
         ConversationRoute route,
@@ -60,8 +58,6 @@ public sealed partial class ConversationViewModel : PageViewModel, IDisposable
         IConversationDeletionPrompt? deletionPrompt = null)
         : base(route)
     {
-        _deletion = deletion;
-        _deletionPrompt = deletionPrompt;
         ArgumentNullException.ThrowIfNull(route);
         ArgumentNullException.ThrowIfNull(context);
         Id = route.Id;
@@ -82,6 +78,7 @@ public sealed partial class ConversationViewModel : PageViewModel, IDisposable
         IsStorageBlocked = _storage.IsBlocked;
         Composer.IsStoragePaused = IsStorageBlocked;
         Summary = new ConversationSummaryPanel(Id, summaries, _navigator, () => IsStorageBlocked, () => _disposed);
+        Lifecycle = new ConversationLifecycleActions(Id, conversations, deletion, deletionPrompt, _navigator, () => _workspace, () => _load.Request(), Summary.SummarizeAsync);
         _summaries = summaries;
         if (_summaries is not null)
         {
@@ -97,6 +94,9 @@ public sealed partial class ConversationViewModel : PageViewModel, IDisposable
 
     /// <summary>The entry to this conversation's summary, and summarizing it.</summary>
     public ConversationSummaryPanel Summary { get; }
+
+    /// <summary>Archiving, restoring and deleting this conversation, with the questions asked first.</summary>
+    public ConversationLifecycleActions Lifecycle { get; }
 
     public ObservableCollection<MessageItemViewModel> Messages { get; } = [];
 
@@ -171,16 +171,8 @@ public sealed partial class ConversationViewModel : PageViewModel, IDisposable
     [ObservableProperty]
     public partial string? ArchiveText { get; private set; }
 
-    /// <summary>Why archiving or deleting did not happen.</summary>
-    [ObservableProperty]
-    public partial string? ArchiveNotice { get; private set; }
-
     /// <summary>The toolbar's archive entry (a delete that takes branches along offers archiving in its own dialog).</summary>
     public bool ShowArchiveInToolbar => IsOpen;
-
-    /// <summary>A question asked before deleting, or before a restore that brings back archived ancestors.</summary>
-    [ObservableProperty]
-    public partial PendingConfirmation? Confirmation { get; private set; }
 
     [ObservableProperty]
     public partial string RenameText { get; set; } = string.Empty;
@@ -311,163 +303,6 @@ public sealed partial class ConversationViewModel : PageViewModel, IDisposable
 
     [RelayCommand]
     private void OpenSettings() => _navigator.Navigate(new NavigationRequest(MainSection.Settings));
-
-    /// <summary>Hides the conversation and its branches; refused (and named) while an answer or summary in them runs.</summary>
-    [RelayCommand]
-    private async Task ArchiveAsync()
-    {
-        ArchiveOutcome outcome;
-        try
-        {
-            outcome = await _conversations.ArchiveAsync(Id, CancellationToken.None);
-        }
-        catch (StorageWriteException)
-        {
-            ArchiveNotice = UiText.ArchiveStorageFailed;
-            return;
-        }
-
-        ArchiveNotice = outcome.Busy.Count > 0 ? UiText.ArchiveRefused(await TitlesAsync(outcome.Busy)) : null;
-        await _load.Request();
-    }
-
-    [RelayCommand]
-    private Task RestoreAndContinueAsync() => RestoreThenAsync(null);
-
-    /// <summary>An archived conversation is never summarized directly (D-021): restore first, then summarize.</summary>
-    [RelayCommand]
-    private Task RestoreAndSummarizeAsync() => RestoreThenAsync(Summary.SummarizeAsync);
-
-    /// <summary>
-    /// Asks first (requirements v0.12 §8.2). A conversation without branches or summary is confirmed here, as before: it
-    /// goes with its messages and unsent drafts. One that takes branches or summaries along opens the window's dialog,
-    /// which states the counts, offers archiving instead and backs up first. Refused, and named, while an answer or
-    /// summary in it runs.
-    /// </summary>
-    [RelayCommand]
-    private async Task DeleteAsync()
-    {
-        ArchiveNotice = null;
-        Confirmation = null;
-        if (_deletion is null)
-        {
-            return;
-        }
-
-        ConversationDeleteScope scope;
-        try
-        {
-            scope = await _deletion.InspectAsync([Id], CancellationToken.None);
-        }
-#pragma warning disable CA1031 // An unreadable scope deletes nothing and says so.
-        catch (Exception)
-#pragma warning restore CA1031
-        {
-            ArchiveNotice = UiText.ConversationDeleteCountFailed;
-            return;
-        }
-
-        if (scope.IsCascade)
-        {
-            _deletionPrompt?.Open(_workspace, [Id]);
-            return;
-        }
-
-        if (scope.Busy.Count > 0)
-        {
-            // Refused before asking: confirming a delete that cannot happen yet only to be told so afterwards.
-            ArchiveNotice = await BusyNoticeAsync(scope);
-            return;
-        }
-
-        Confirmation = new PendingConfirmation(UiText.DeleteConfirm, () => DeletePlainAsync(scope), IsDestructive: true);
-    }
-
-    private async Task DeletePlainAsync(ConversationDeleteScope confirmed)
-    {
-        ConversationDeleteOutcome outcome;
-        try
-        {
-            outcome = await _deletion!.DeleteAsync(confirmed, CancellationToken.None);
-        }
-        catch (StorageWriteException)
-        {
-            ArchiveNotice = UiText.ArchiveStorageFailed;
-            return;
-        }
-
-        switch (outcome.Status)
-        {
-            case ConversationDeleteStatus.Deleted:
-            case ConversationDeleteStatus.Missing:
-                ConversationRemoval.Forget(_navigator, outcome.Scope.IsEmpty ? confirmed : outcome.Scope);
-                break;
-            case ConversationDeleteStatus.Busy:
-                ArchiveNotice = await BusyNoticeAsync(outcome.Scope);
-                break;
-            default:
-                // A branch or summary came meanwhile: the scope is stated again, with its counts, in the dialog.
-                _deletionPrompt?.Open(_workspace, [Id]);
-                break;
-        }
-    }
-
-    private async Task<string> BusyNoticeAsync(ConversationDeleteScope scope) =>
-        UiText.DeleteWorkspaceBusy([.. (await TitlesAsync([.. scope.Busy.Select(b => b.Conversation)]))
-            .Zip(scope.Busy, (title, b) => (title, b.Answer, b.Summary))]);
-
-    [RelayCommand]
-    private async Task ConfirmAsync()
-    {
-        if (Confirmation is { } pending)
-        {
-            Confirmation = null;
-            await pending.Proceed();
-        }
-    }
-
-    [RelayCommand]
-    private void CancelConfirmation() => Confirmation = null;
-
-    /// <summary>Restores this conversation's path, asking first when archived ancestors come back with it, then continues.</summary>
-    private async Task RestoreThenAsync(Func<Task>? then)
-    {
-        ArchiveNotice = null;
-        var plan = await _conversations.PlanRestoreAsync(Id, CancellationToken.None);
-        async Task Restore()
-        {
-            if (plan.IsHidden)
-            {
-                try
-                {
-                    await _conversations.RestoreAsync(Id, CancellationToken.None);
-                }
-                catch (StorageWriteException)
-                {
-                    ArchiveNotice = UiText.ArchiveStorageFailed;
-                    return;
-                }
-
-                await _load.Request();
-            }
-
-            if (then is not null)
-            {
-                await then();
-            }
-        }
-
-        if (plan.ArchivedAncestors.Count > 0)
-        {
-            Confirmation = new PendingConfirmation(UiText.RestoreConfirm(await TitlesAsync(plan.ArchivedAncestors), plan.OthersReappearing), Restore);
-        }
-        else
-        {
-            await Restore();
-        }
-    }
-
-    private Task<IReadOnlyList<string>> TitlesAsync(IEnumerable<ConversationId> ids) => ConversationArchiving.TitlesAsync(_conversations, _workspace, ids);
 
     /// <summary>The page left every stack; tests check pages of deleted content were released.</summary>
     internal bool IsDisposed => _disposed;

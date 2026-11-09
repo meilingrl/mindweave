@@ -347,7 +347,7 @@ public class MultiSelectUiTests
         await rootPage.Loaded;
 
         // From the conversation page: it takes branches along, so the dialog states the scope.
-        await rootPage.DeleteCommand.ExecuteAsync(null);
+        await rootPage.Lifecycle.DeleteCommand.ExecuteAsync(null);
         var dialog = app.Root.ConversationDeletion;
         await dialog.Loading;
         await dialog.DeleteCommand.ExecuteAsync(null);
@@ -443,12 +443,12 @@ public class MultiSelectUiTests
         var held = app.Client.Hold("半句");
         await conversations.AskAsync(lone, "再问", CancellationToken.None);
         await held.Started.Task.WaitAsync(TimeSpan.FromSeconds(5));
-        await page.DeleteCommand.ExecuteAsync(null);
+        await page.Lifecycle.DeleteCommand.ExecuteAsync(null);
 
-        Assert.Null(page.Confirmation);
+        Assert.Null(page.Lifecycle.Confirmation);
         Assert.False(app.Root.ConversationDeletion.IsOpen);
         await UiWait.UntilAsync(() => list.Items.Any(i => i.Id == lone));
-        Assert.Equal(UiText.DeleteWorkspaceBusy([(list.Items.Single(i => i.Id == lone).Title, true, false)]), page.ArchiveNotice);
+        Assert.Equal(UiText.DeleteWorkspaceBusy([(list.Items.Single(i => i.Id == lone).Title, true, false)]), page.Lifecycle.ArchiveNotice);
         held.Finish();
         await UiWait.UntilAsync(() => !conversations.HasUnfinishedAnswer(lone));
         window.Close();
@@ -468,7 +468,7 @@ public class MultiSelectUiTests
         await page.Loaded;
 
         // The middle has the leaf below it: the page opens the dialog.
-        await page.DeleteCommand.ExecuteAsync(null);
+        await page.Lifecycle.DeleteCommand.ExecuteAsync(null);
         var dialog = app.Root.ConversationDeletion;
         await dialog.Loading;
         Assert.True(dialog.IsOpen);
