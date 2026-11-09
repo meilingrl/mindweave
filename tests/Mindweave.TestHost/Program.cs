@@ -1,5 +1,7 @@
 // Child process for fault-injection tests: lets a test kill a real process at a known point.
 using System.Runtime.CompilerServices;
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 using Mindweave.Application;
 using Mindweave.Application.Ai;
@@ -11,6 +13,7 @@ using Mindweave.Core.Branches;
 using Mindweave.Core.Conversations;
 using Mindweave.Core.Summaries;
 using Mindweave.Core.Workspaces;
+using Mindweave.Infrastructure;
 using Mindweave.Infrastructure.Hosting;
 using Mindweave.Infrastructure.Sqlite;
 using Mindweave.Infrastructure.Sqlite.Migrations;
@@ -119,19 +122,23 @@ switch (args[0])
     {
         // A real coordinator streams an answer until its partial text is checkpointed, then the process hangs
         // mid-answer so the test can kill it.
-        var database = new SqliteDatabase(paths, MigrationCatalog.Default, TimeProvider.System, NullLogger<SqliteDatabase>.Instance);
+        // The app's own wiring with a fake key and AI; the process is killed, so nothing is disposed.
+        var services = new ServiceCollection();
+        services.AddSingleton(typeof(ILogger<>), typeof(NullLogger<>));
+        services.AddSingleton<ICredentialStore>(new OneKey());
+        services.AddSingleton<IChatClient>(new EndlessClient());
+        services.AddSingleton(new GenerationOptions { CheckpointInterval = TimeSpan.FromMilliseconds(50) });
+        services.AddMindweaveInfrastructure(paths);
+        services.AddMindweaveApplication();
+        var provider = services.BuildServiceProvider(new ServiceProviderOptions { ValidateOnBuild = true, ValidateScopes = true });
+        var database = provider.GetRequiredService<SqliteDatabase>();
         await database.OpenAsync(CancellationToken.None);
-        var store = new SqliteConversationStore(database);
-        var credentials = new OneKey();
-        var client = new EndlessClient();
-        var clock = new SystemClock();
-        var health = new StorageHealth(database, new StorageHealthOptions(), NullLogger<StorageHealth>.Instance);
-        var generation = new GenerationCoordinator(store, client, credentials, new SqliteAiRequestStore(database), health, clock, new GenerationOptions { CheckpointInterval = TimeSpan.FromMilliseconds(50) }, NullLogger<GenerationCoordinator>.Instance);
-        var models = new ModelSettingsService(new SqliteModelSettingsStore(database), store, credentials, client, clock, NullLogger<ModelSettingsService>.Instance);
+        var store = provider.GetRequiredService<IConversationStore>();
+        var models = provider.GetRequiredService<ModelSettingsService>();
         await models.SaveAsync(new ModelSettingsInput("fake", "https://fake.example/v1", "m", "sk"), CancellationToken.None);
         var workspace = new Workspace(WorkspaceId.New(), WorkspaceName.FromStored("w"), DateTimeOffset.UtcNow);
-        await new SqliteWorkspaceStore(database).AddAsync(workspace, CancellationToken.None);
-        var conversations = new ConversationService(store, new SqliteBranchStore(database), generation, health, models, clock, NullLogger<ConversationService>.Instance);
+        await provider.GetRequiredService<IWorkspaceStore>().AddAsync(workspace, CancellationToken.None);
+        var conversations = provider.GetRequiredService<ConversationService>();
         var sent = await conversations.StartAsync(workspace.Id, "问", CancellationToken.None);
         while ((await store.GetMessagesAsync(sent.Conversation, CancellationToken.None))[1].Text.Length == 0)
         {

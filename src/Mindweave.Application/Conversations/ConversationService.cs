@@ -90,6 +90,7 @@ public sealed partial class ConversationService : IConversations
     private readonly IContextSummaryStore? _summaries;
     private readonly IConversationArchiveStore? _archive;
     private readonly GenerationCoordinator _generation;
+    private readonly ContextBudgets _budgets;
     private readonly StorageHealth _health;
     private readonly ModelSettingsService _models;
     private readonly IClock _clock;
@@ -100,6 +101,7 @@ public sealed partial class ConversationService : IConversations
         IConversationStore store,
         IBranchStore branches,
         GenerationCoordinator generation,
+        ContextBudgets budgets,
         StorageHealth health,
         ModelSettingsService models,
         IClock clock,
@@ -112,6 +114,7 @@ public sealed partial class ConversationService : IConversations
         _summaries = summaries;
         _archive = archive;
         _generation = generation;
+        _budgets = budgets;
         _health = health;
         _models = models;
         _clock = clock;
@@ -186,7 +189,7 @@ public sealed partial class ConversationService : IConversations
         }
 
         var history = await _store.GetMessagesAsync(id, cancellationToken).ConfigureAwait(false);
-        var budget = await _generation.BudgetForAsync(model, cancellationToken).ConfigureAwait(false);
+        var budget = await _budgets.BudgetForAsync(model, cancellationToken).ConfigureAwait(false);
         var ancestors = await _branches.GetAncestorContextAsync(id, cancellationToken).ConfigureAwait(false);
         var source = ancestors.Count == 0 ? null : await _branches.GetSourceAsync(id, cancellationToken).ConfigureAwait(false);
         var own = new ContextSegment(id, source?.Quote, [.. history.Where(m => m.IsFinished)]);
@@ -217,7 +220,7 @@ public sealed partial class ConversationService : IConversations
         var conversation = new Conversation(id, workspace, null, TitleSource.None, now, now);
         var user = NewMessage(id, 0, MessageRole.User, question.Trim(), MessageState.Complete, null, now);
         var answer = NewMessage(id, 1, MessageRole.Assistant, string.Empty, MessageState.Pending, null, now);
-        var budget = await _generation.BudgetForAsync(model, cancellationToken).ConfigureAwait(false);
+        var budget = await _budgets.BudgetForAsync(model, cancellationToken).ConfigureAwait(false);
         var planned = await PlanAsync(id, [user], budget, cancellationToken).ConfigureAwait(false);
         if (planned.Plan is not { } plan)
         {
@@ -256,7 +259,7 @@ public sealed partial class ConversationService : IConversations
         var now = _clock.UtcNow;
         var user = NewMessage(id, 0, MessageRole.User, question.Trim(), MessageState.Complete, null, now);
         var answer = NewMessage(id, 0, MessageRole.Assistant, string.Empty, MessageState.Pending, null, now);
-        var budget = await _generation.BudgetForAsync(model, cancellationToken).ConfigureAwait(false);
+        var budget = await _budgets.BudgetForAsync(model, cancellationToken).ConfigureAwait(false);
         var planned = await PlanAsync(id, [.. history, user], budget, cancellationToken).ConfigureAwait(false);
         if (planned.Plan is not { } plan)
         {
@@ -309,7 +312,7 @@ public sealed partial class ConversationService : IConversations
         // The answer is regenerated for the last question, from the history before that question.
         var question = history.Last(m => m.Role == MessageRole.User);
         var model = (await _models.GetActiveSnapshotAsync(cancellationToken).ConfigureAwait(false))!;
-        var budget = await _generation.BudgetForAsync(model, cancellationToken).ConfigureAwait(false);
+        var budget = await _budgets.BudgetForAsync(model, cancellationToken).ConfigureAwait(false);
         var planned = await PlanAsync(id, [.. history.Where(m => m.Seq <= question.Seq)], budget, cancellationToken).ConfigureAwait(false);
         if (planned.Plan is not { } plan)
         {

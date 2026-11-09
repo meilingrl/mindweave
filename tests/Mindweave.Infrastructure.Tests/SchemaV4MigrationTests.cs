@@ -54,9 +54,12 @@ public sealed class SchemaV4MigrationTests : IDisposable
         var client = new FakeChatClient();
         var credentials = new MemoryCredentialStore();
         await using var health = new StorageHealth(database, new StorageHealthOptions(), NullLogger<StorageHealth>.Instance);
-        await using var generation = new GenerationCoordinator(store, client, credentials, new SqliteAiRequestStore(database), health, new SystemClock(), new GenerationOptions(), NullLogger<GenerationCoordinator>.Instance);
+        var requests = new SqliteAiRequestStore(database);
+        var budgets = new ContextBudgets(requests, NullLogger<ContextBudgets>.Instance);
+        var generationRequests = new GenerationRequests(store, client, credentials, requests, budgets, health, new SystemClock(), NullLogger<GenerationRequests>.Instance);
+        await using var generation = new GenerationCoordinator(store, generationRequests, health, new SystemClock(), new GenerationOptions(), NullLogger<GenerationCoordinator>.Instance);
         var models = new ModelSettingsService(new SqliteModelSettingsStore(database), store, credentials, client, new SystemClock(), NullLogger<ModelSettingsService>.Instance);
-        var conversations = new ConversationService(store, branches, generation, health, models, new SystemClock(), NullLogger<ConversationService>.Instance);
+        var conversations = new ConversationService(store, branches, generation, budgets, health, models, new SystemClock(), NullLogger<ConversationService>.Instance);
 
         var branch = await conversations.CreateBranchAsync(
             ConversationId.Parse(Conversation), new BranchSelection(MessageId.Parse(Answer), 0, "蒸汽机", "{}", 1, "p"), Ct);
