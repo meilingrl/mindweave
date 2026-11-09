@@ -139,7 +139,7 @@ public class ConversationPolishTests
     {
         await using var app = DesktopHarness.Create();
         var window = app.ShowWindow();
-        var page = await ConversationAsync(app);
+        var page = await app.StartWithConversationAsync(waitForTitle: true);
         window.UpdateLayout();
         var summarize = Find<Button>(CurrentView(window), "SummarizeButton");
         Assert.True(summarize.IsEffectivelyEnabled);
@@ -160,7 +160,7 @@ public class ConversationPolishTests
     {
         await using var app = DesktopHarness.Create();
         var window = app.ShowWindow();
-        var root = await ConversationAsync(app);
+        var root = await app.StartWithConversationAsync(waitForTitle: true);
         root = await OpenAsync(app, root.Id);
         window.UpdateLayout();
         var view = CurrentView(window);
@@ -190,7 +190,7 @@ public class ConversationPolishTests
     {
         await using var app = DesktopHarness.Create();
         var window = app.ShowWindow();
-        var root = await ConversationAsync(app);
+        var root = await app.StartWithConversationAsync(waitForTitle: true);
         await root.CreateBranchAsync(new BranchSelection(root.Messages[1].Id, 0, "火车", "{\"v\":1}", 1, "test-profile"));
         var child = Assert.IsType<ConversationViewModel>(app.Workbench.CurrentPage);
         await child.Loaded;
@@ -221,7 +221,7 @@ public class ConversationPolishTests
     {
         await using var app = DesktopHarness.Create();
         var window = app.ShowWindow();
-        var root = await ConversationAsync(app);
+        var root = await app.StartWithConversationAsync(waitForTitle: true);
         await root.CreateBranchAsync(new BranchSelection(root.Messages[1].Id, 0, "火车", "{\"v\":1}", 1, "test-profile"));
         var child = Assert.IsType<ConversationViewModel>(app.Workbench.CurrentPage);
         await child.Loaded;
@@ -262,7 +262,7 @@ public class ConversationPolishTests
     {
         await using var app = DesktopHarness.Create();
         var window = app.ShowWindow();
-        var root = await ConversationAsync(app);
+        var root = await app.StartWithConversationAsync(waitForTitle: true);
         root = await OpenAsync(app, root.Id);
         await root.DeleteCommand.ExecuteAsync(null);
         window.UpdateLayout();
@@ -290,7 +290,7 @@ public class ConversationPolishTests
     {
         await using var app = DesktopHarness.Create();
         var window = app.ShowWindow();
-        var page = await ConversationAsync(app);
+        var page = await app.StartWithConversationAsync(waitForTitle: true);
         page.Composer.Text = "下一个问题";
         page.BeginRenameCommand.Execute(null);
         window.UpdateLayout();
@@ -309,7 +309,7 @@ public class ConversationPolishTests
     {
         await using var app = DesktopHarness.Create();
         var window = app.ShowWindow();
-        var page = await ConversationAsync(app);
+        var page = await app.StartWithConversationAsync(waitForTitle: true);
         foreach (var theme in new[] { ThemeVariant.Light, ThemeVariant.Dark })
         {
             window.RequestedThemeVariant = theme;
@@ -336,7 +336,7 @@ public class ConversationPolishTests
     {
         await using var app = DesktopHarness.Create();
         var window = app.ShowWindow();
-        await ConversationAsync(app);
+        await app.StartWithConversationAsync(waitForTitle: true);
         window.UpdateLayout();
         var regenerate = VisibleNamed<Button>(CurrentView(window), "RetryButton");
         Assert.True(regenerate.IsEffectivelyEnabled);
@@ -370,7 +370,7 @@ public class ConversationPolishTests
     {
         await using var app = DesktopHarness.Create();
         var window = app.ShowWindow();
-        var root = await ConversationAsync(app);
+        var root = await app.StartWithConversationAsync(waitForTitle: true);
         await root.CreateBranchAsync(new BranchSelection(root.Messages[1].Id, 0, "火车", "{\"v\":1}", 1, "test-profile"));
         var child = Assert.IsType<ConversationViewModel>(app.Workbench.CurrentPage);
         await child.Loaded;
@@ -429,16 +429,6 @@ public class ConversationPolishTests
         await draft.Composer.SendCommand.ExecuteAsync(null);
         var page = Assert.IsType<ConversationViewModel>(app.Workbench.CurrentPage);
         await page.Loaded;
-        return page;
-    }
-
-    private static async Task<ConversationViewModel> ConversationAsync(DesktopHarness app)
-    {
-        await app.StartWithWorkspaceAsync("火车");
-        await app.ConfigureModelAsync();
-        var page = await AskAsync(app, "火车是怎么发明的？");
-        await UiWait.UntilAsync(() => page.Messages.Count == 2 && page.Messages[1].CanBranch);
-        await UiWait.UntilAsync(() => page.Title == FakeChatClient.DefaultTitle);
         return page;
     }
 

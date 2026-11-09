@@ -146,7 +146,7 @@ public class ExitTests
     {
         await using var app = DesktopHarness.Create();
         var window = app.ShowWindow(1100, 720);
-        var page = await ConversationAsync(app);
+        var page = await app.StartWithConversationAsync(waitForTitle: false);
         await page.SummarizeCommand.ExecuteAsync(null);
         await UiWait.UntilAsync(() => page.HasSummary && page.RunningSummary is null);
 
@@ -176,7 +176,7 @@ public class ExitTests
         var window = app.ShowWindow(1100, 720);
         var closed = false;
         window.Closed += (_, _) => closed = true;
-        var page = await ConversationAsync(app);
+        var page = await app.StartWithConversationAsync(waitForTitle: false);
         failing.Fail = true;
         page.Composer.Text = "还没发出去的问题";
 
@@ -211,7 +211,7 @@ public class ExitTests
         var failing = new FailingSummaryDrafts();
         await using var app = DesktopHarness.Create(s => s.AddSingleton<ISummaryStore>(sp => failing.Wrap(sp.GetRequiredService<SqliteDatabase>())));
         var window = app.ShowWindow(1100, 720);
-        var page = await ConversationAsync(app);
+        var page = await app.StartWithConversationAsync(waitForTitle: false);
         await page.SummarizeCommand.ExecuteAsync(null);
         await UiWait.UntilAsync(() => page.HasSummary && page.RunningSummary is null);
         page.OpenSummaryCommand.Execute(null);
@@ -252,7 +252,7 @@ public class ExitTests
         var failing = new FailingSummaryDrafts();
         await using var app = DesktopHarness.Create(s => s.AddSingleton<ISummaryStore>(sp => failing.Wrap(sp.GetRequiredService<SqliteDatabase>())));
         var window = app.ShowWindow(1100, 720);
-        var page = await ConversationAsync(app);
+        var page = await app.StartWithConversationAsync(waitForTitle: false);
         await page.SummarizeCommand.ExecuteAsync(null);
         await UiWait.UntilAsync(() => page.HasSummary && page.RunningSummary is null);
         page.OpenSummaryCommand.Execute(null);
@@ -293,7 +293,7 @@ public class ExitTests
         var writer = new GatedExportWriter();
         await using var app = DesktopHarness.Create(s => s.AddSingleton<IExportFileWriter>(writer));
         var window = app.ShowWindow(1100, 720);
-        var page = await ConversationAsync(app);
+        var page = await app.StartWithConversationAsync(waitForTitle: false);
         await page.SummarizeCommand.ExecuteAsync(null);
         await UiWait.UntilAsync(() => page.HasSummary && page.RunningSummary is null);
         page.OpenSummaryCommand.Execute(null);
@@ -420,7 +420,7 @@ public class ExitTests
     public async Task The_database_closes_only_after_the_ui_loop_so_its_last_jobs_still_find_it_open()
     {
         await using var app = DesktopHarness.Create();
-        var page = await ConversationAsync(app);
+        var page = await app.StartWithConversationAsync(waitForTitle: false);
         await UiWait.UntilAsync(() => page.RunningAnswer is null);
         Assert.True(app.Root.Exit.InterceptClose());
         await app.Root.Exit.Running;
@@ -456,7 +456,7 @@ public class ExitTests
     public async Task A_ui_loop_that_throws_still_closes_the_database_and_releases_the_lock()
     {
         await using var app = DesktopHarness.Create();
-        await ConversationAsync(app);
+        await app.StartWithConversationAsync(waitForTitle: false);
         var database = app.Services.GetRequiredService<SqliteDatabase>();
         var instance = SingleInstance.TryAcquire(app.Paths);
         Assert.NotNull(instance);
@@ -486,7 +486,7 @@ public class ExitTests
     {
         var failing = new FailingDrafts();
         await using var app = DesktopHarness.Create(s => s.AddSingleton<IReadingStateStore>(sp => failing.Wrap(sp.GetRequiredService<SqliteDatabase>())));
-        var page = await ConversationAsync(app);
+        var page = await app.StartWithConversationAsync(waitForTitle: false);
         var answer = await RunningAnswerAsync(app);
         failing.Fail = true;
         page.Composer.Text = "草稿";
@@ -589,20 +589,6 @@ public class ExitTests
         return sent.Answer!.Value;
     }
 
-    internal static async Task<ConversationViewModel> ConversationAsync(DesktopHarness app)
-    {
-        await app.StartWithWorkspaceAsync("火车");
-        await app.ConfigureModelAsync();
-        app.ShellPage.Conversations.NewCommand.Execute(null);
-        var draft = Assert.IsType<NewConversationViewModel>(app.Workbench.CurrentPage);
-        draft.Composer.Text = "火车是怎么发明的？";
-        await draft.Composer.SendCommand.ExecuteAsync(null);
-        var page = Assert.IsType<ConversationViewModel>(app.Workbench.CurrentPage);
-        await page.Loaded;
-        await UiWait.UntilAsync(() => page.Messages.Count == 2 && page.Messages[1].CanBranch);
-        return page;
-    }
-
     private static async Task<Message> StoredAsync(DesktopHarness app, MessageId answer)
     {
         var store = app.Services.GetRequiredService<IConversationStore>();
@@ -616,103 +602,6 @@ public class ExitTests
         }
 
         throw new InvalidOperationException($"Answer {answer} not found.");
-    }
-
-    /// <summary>The real reading-state store, whose draft writes fail while <see cref="Fail"/> is set.</summary>
-    private sealed class FailingDrafts
-    {
-        public volatile bool Fail;
-
-        public IReadingStateStore Wrap(SqliteDatabase database) => new Store(new SqliteReadingStateStore(database), this);
-
-        private sealed class Store(IReadingStateStore inner, FailingDrafts gate) : IReadingStateStore
-        {
-            public Task<ReadingPosition?> GetPositionAsync(ConversationId conversation, ViewerSlotKey slot, CancellationToken cancellationToken) =>
-                inner.GetPositionAsync(conversation, slot, cancellationToken);
-
-            public Task SavePositionAsync(ConversationId conversation, ViewerSlotKey slot, ReadingPosition position, DateTimeOffset at, CancellationToken cancellationToken) =>
-                inner.SavePositionAsync(conversation, slot, position, at, cancellationToken);
-
-            public Task<string?> GetDraftAsync(ConversationId conversation, ViewerSlotKey slot, CancellationToken cancellationToken) =>
-                inner.GetDraftAsync(conversation, slot, cancellationToken);
-
-            public Task SaveDraftAsync(ConversationId conversation, ViewerSlotKey slot, string text, DateTimeOffset at, CancellationToken cancellationToken) =>
-                gate.Fail ? throw new IOException("simulated draft write failure") : inner.SaveDraftAsync(conversation, slot, text, at, cancellationToken);
-        }
-    }
-
-    /// <summary>The real summary store, whose edit-draft writes fail while <see cref="Fail"/> is set.</summary>
-    internal sealed class FailingSummaryDrafts
-    {
-        public volatile bool Fail;
-
-        /// <summary>Saving an edit as a version fails as storage refusing the write.</summary>
-        public volatile bool FailEdits;
-
-        public ISummaryStore Wrap(SqliteDatabase database)
-        {
-            var proxy = System.Reflection.DispatchProxy.Create<ISummaryStore, Proxy>();
-            ((Proxy)(object)proxy).Configure(new SqliteSummaryStore(database), this);
-            return proxy;
-        }
-
-#pragma warning disable CA1852 // DispatchProxy derives a runtime type from it, so it cannot be sealed.
-        public class Proxy : System.Reflection.DispatchProxy
-#pragma warning restore CA1852
-        {
-            private ISummaryStore _inner = null!;
-            private FailingSummaryDrafts _gate = null!;
-
-            public void Configure(ISummaryStore inner, FailingSummaryDrafts gate)
-            {
-                _inner = inner;
-                _gate = gate;
-            }
-
-            protected override object? Invoke(System.Reflection.MethodInfo? targetMethod, object?[]? args)
-            {
-                ArgumentNullException.ThrowIfNull(targetMethod);
-                if (targetMethod.Name == nameof(ISummaryStore.SaveEditAsync) && _gate.FailEdits)
-                {
-                    return Task.FromException<SummaryVersionId?>(new StorageWriteException(StorageFailureKind.Full, "simulated full disk", null));
-                }
-
-                return targetMethod.Name == nameof(ISummaryStore.SaveDraftAsync) && _gate.Fail
-                    ? Task.FromException(new IOException("simulated summary draft write failure"))
-                    : targetMethod.Invoke(_inner, args);
-            }
-        }
-    }
-
-    /// <summary>Streams one piece of an answer, then waits for <see cref="Release"/> without honouring cancellation.</summary>
-    private sealed class StubbornClient : IChatClient
-    {
-        private readonly FakeChatClient _fallback = new();
-
-        public TaskCompletionSource Started { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
-
-        public TaskCompletionSource Release { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
-
-        public async IAsyncEnumerable<ChatStreamEvent> StreamAsync(ChatRequest request, string apiKey, [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken cancellationToken)
-        {
-            if (!FakeChatClient.IsAnswer(request))
-            {
-                await foreach (var item in _fallback.StreamAsync(request, apiKey, cancellationToken))
-                {
-                    yield return item;
-                }
-
-                yield break;
-            }
-
-            yield return new ChatStreamEvent.TextDelta("已收到");
-            Started.TrySetResult();
-            await Release.Task;
-            yield return new ChatStreamEvent.Completed(false);
-        }
-
-        public Task<IReadOnlyList<string>> ListModelsAsync(string baseUrl, string apiKey, CancellationToken cancellationToken) =>
-            _fallback.ListModelsAsync(baseUrl, apiKey, cancellationToken);
     }
 
     /// <summary>A client whose disposal fails, standing in for any resource that throws while the host shuts down.</summary>

@@ -27,7 +27,7 @@ public class ArchiveUiTests
     {
         await using var app = DesktopHarness.Create();
         var window = app.ShowWindow();
-        var root = await ConversationAsync(app);
+        var root = await app.StartWithConversationAsync(waitForTitle: true);
         var child = await BranchAsync(app, root, "火车");
         root = await OpenAsync(app, root.Id);
         await UiWait.UntilAsync(() => app.ShellPage.Conversations.Items.Count == 2);
@@ -71,7 +71,7 @@ public class ArchiveUiTests
     public async Task A_branch_hidden_by_its_archived_parent_restores_its_path_after_saying_so()
     {
         await using var app = DesktopHarness.Create();
-        var root = await ConversationAsync(app);
+        var root = await app.StartWithConversationAsync(waitForTitle: true);
         var child = await BranchAsync(app, root, "火车");
         await app.Services.GetService<ConversationService>()!.ArchiveAsync(root.Id, CancellationToken.None);
 
@@ -100,7 +100,7 @@ public class ArchiveUiTests
     public async Task New_work_on_an_archived_page_is_refused_even_when_its_controls_are_bypassed()
     {
         await using var app = DesktopHarness.Create();
-        var page = await ConversationAsync(app);
+        var page = await app.StartWithConversationAsync(waitForTitle: true);
         await page.ArchiveCommand.ExecuteAsync(null);
         Assert.True(page.IsArchived);
 
@@ -119,7 +119,7 @@ public class ArchiveUiTests
     public async Task A_plain_delete_asks_inline_and_leaves_for_the_parent_and_one_with_branches_opens_the_dialog()
     {
         await using var app = DesktopHarness.Create();
-        var root = await ConversationAsync(app);
+        var root = await app.StartWithConversationAsync(waitForTitle: true);
         var child = await BranchAsync(app, root, "火车");
         root = await OpenAsync(app, root.Id);
 
@@ -165,7 +165,7 @@ public class ArchiveUiTests
     {
         await using var app = DesktopHarness.Create();
         var window = app.ShowWindow();
-        var root = await ConversationAsync(app);
+        var root = await app.StartWithConversationAsync(waitForTitle: true);
         await BranchAsync(app, root, "火车");
         root = await OpenAsync(app, root.Id);
         await root.ArchiveCommand.ExecuteAsync(null);
@@ -195,7 +195,7 @@ public class ArchiveUiTests
     public async Task An_archived_source_opens_read_only_from_its_summary_and_restore_and_summarize_continues()
     {
         await using var app = DesktopHarness.Create();
-        var page = await ConversationAsync(app);
+        var page = await app.StartWithConversationAsync(waitForTitle: true);
         await page.SummarizeCommand.ExecuteAsync(null);
         await UiWait.UntilAsync(() => page.HasSummary && page.RunningSummary is null);
         await page.ArchiveCommand.ExecuteAsync(null);
@@ -226,7 +226,7 @@ public class ArchiveUiTests
     public async Task A_separately_archived_branch_keeps_its_entry_under_the_answer_with_a_marker()
     {
         await using var app = DesktopHarness.Create();
-        var root = await ConversationAsync(app);
+        var root = await app.StartWithConversationAsync(waitForTitle: true);
         var child = await BranchAsync(app, root, "火车");
         await child.ArchiveCommand.ExecuteAsync(null);
 
@@ -241,7 +241,7 @@ public class ArchiveUiTests
     public async Task The_archived_page_is_reopened_after_a_restart()
     {
         await using var app = DesktopHarness.Create();
-        var page = await ConversationAsync(app);
+        var page = await app.StartWithConversationAsync(waitForTitle: true);
         await page.ArchiveCommand.ExecuteAsync(null);
         await UiWait.UntilAsync(() => app.ShellPage.Conversations.HasArchived);
         app.ShellPage.Conversations.OpenArchivedCommand.Execute(null);
@@ -259,7 +259,7 @@ public class ArchiveUiTests
         var failing = new FailingArchiveStore();
         await using var app = DesktopHarness.Create(s => s.AddSingleton<IConversationArchiveStore>(sp => failing.Wrap(ActivatorUtilities.CreateInstance<Infrastructure.Sqlite.SqliteArchiveStore>(sp))));
         app.ShowWindow();
-        var root = await ConversationAsync(app);
+        var root = await app.StartWithConversationAsync(waitForTitle: true);
 
         failing.Fail = true;
         await root.ArchiveCommand.ExecuteAsync(null);
@@ -339,7 +339,7 @@ public class ArchiveUiTests
     {
         await using var app = DesktopHarness.Create();
         var window = app.ShowWindow();
-        var root = await ConversationAsync(app);
+        var root = await app.StartWithConversationAsync(waitForTitle: true);
         var child = await BranchAsync(app, root, "火车");
         root = await OpenAsync(app, root.Id);
         await root.ArchiveCommand.ExecuteAsync(null);
@@ -395,7 +395,7 @@ public class ArchiveUiTests
     {
         await using var app = DesktopHarness.Create();
         app.ShowWindow();
-        var root = await ConversationAsync(app);
+        var root = await app.StartWithConversationAsync(waitForTitle: true);
         var first = await BranchAsync(app, root, "火车");
         await first.ArchiveCommand.ExecuteAsync(null);
         root = await OpenAsync(app, root.Id);
@@ -419,7 +419,7 @@ public class ArchiveUiTests
     {
         await using var app = DesktopHarness.Create();
         var window = app.ShowWindow();
-        var root = await ConversationAsync(app);
+        var root = await app.StartWithConversationAsync(waitForTitle: true);
         await root.ArchiveCommand.ExecuteAsync(null);
         app.ShellPage.Conversations.OpenArchivedCommand.Execute(null);
         var archived = Assert.IsType<ArchivedViewModel>(app.Workbench.CurrentPage);
@@ -434,21 +434,6 @@ public class ArchiveUiTests
         var opened = Assert.IsType<ConversationViewModel>(app.Workbench.CurrentPage);
         Assert.Equal(root.Id, opened.Id);
         window.Close();
-    }
-
-    private static async Task<ConversationViewModel> ConversationAsync(DesktopHarness app)
-    {
-        await app.StartWithWorkspaceAsync("火车");
-        await app.ConfigureModelAsync();
-        app.ShellPage.Conversations.NewCommand.Execute(null);
-        var draft = Assert.IsType<NewConversationViewModel>(app.Workbench.CurrentPage);
-        draft.Composer.Text = "火车是怎么发明的？";
-        await draft.Composer.SendCommand.ExecuteAsync(null);
-        var page = Assert.IsType<ConversationViewModel>(app.Workbench.CurrentPage);
-        await page.Loaded;
-        await UiWait.UntilAsync(() => page.Messages.Count == 2 && page.Messages[1].CanBranch);
-        await UiWait.UntilAsync(() => page.Title == FakeChatClient.DefaultTitle);
-        return page;
     }
 
     private static async Task<ConversationViewModel> BranchAsync(DesktopHarness app, ConversationViewModel parent, string quote)

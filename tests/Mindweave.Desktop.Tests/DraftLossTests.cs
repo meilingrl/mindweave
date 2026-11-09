@@ -16,10 +16,10 @@ public class DraftLossTests
     [AvaloniaFact]
     public async Task A_reopened_editor_shows_and_commits_the_newest_draft_left_unsaved()
     {
-        var failing = new ExitTests.FailingSummaryDrafts();
+        var failing = new FailingSummaryDrafts();
         await using var app = DesktopHarness.Create(s => s.AddSingleton<ISummaryStore>(sp => failing.Wrap(sp.GetRequiredService<SqliteDatabase>())));
         app.ShowWindow(1100, 720);
-        var page = await ExitTests.ConversationAsync(app);
+        var page = await app.StartWithConversationAsync(waitForTitle: false);
         await page.SummarizeCommand.ExecuteAsync(null);
         await UiWait.UntilAsync(() => page.HasSummary && page.RunningSummary is null);
         page.OpenSummaryCommand.Execute(null);
@@ -48,10 +48,10 @@ public class DraftLossTests
     [AvaloniaFact]
     public async Task Saving_a_version_while_storage_refuses_keeps_the_edit_and_says_why()
     {
-        var failing = new ExitTests.FailingSummaryDrafts();
+        var failing = new FailingSummaryDrafts();
         await using var app = DesktopHarness.Create(s => s.AddSingleton<ISummaryStore>(sp => failing.Wrap(sp.GetRequiredService<SqliteDatabase>())));
         app.ShowWindow(1100, 720);
-        var page = await ExitTests.ConversationAsync(app);
+        var page = await app.StartWithConversationAsync(waitForTitle: false);
         await page.SummarizeCommand.ExecuteAsync(null);
         await UiWait.UntilAsync(() => page.HasSummary && page.RunningSummary is null);
         page.OpenSummaryCommand.Execute(null);
@@ -71,10 +71,10 @@ public class DraftLossTests
     [AvaloniaFact]
     public async Task A_draft_left_unsaved_keeps_versions_from_being_switched_and_survives()
     {
-        var failing = new ExitTests.FailingSummaryDrafts();
+        var failing = new FailingSummaryDrafts();
         await using var app = DesktopHarness.Create(s => s.AddSingleton<ISummaryStore>(sp => failing.Wrap(sp.GetRequiredService<SqliteDatabase>())));
         var window = app.ShowWindow(1100, 720);
-        var page = await ExitTests.ConversationAsync(app);
+        var page = await app.StartWithConversationAsync(waitForTitle: false);
         await page.SummarizeCommand.ExecuteAsync(null);
         await UiWait.UntilAsync(() => page.HasSummary && page.RunningSummary is null);
         page.OpenSummaryCommand.Execute(null);
