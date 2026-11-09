@@ -1,3 +1,4 @@
+using System.Runtime.CompilerServices;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Logging;
@@ -206,19 +207,87 @@ internal sealed class ChatHarness : IAsyncDisposable
             },
             CancellationToken.None);
 
-    public static async Task UntilAsync(Func<bool> condition, int timeoutMs = 5000)
+    /// <summary>Polls <paramref name="condition"/> until it holds; fails after a timeout naming the condition and its caller.</summary>
+    public static async Task UntilAsync(
+        Func<bool> condition,
+        int timeoutMs = 5000,
+        [CallerArgumentExpression(nameof(condition))] string? expression = null,
+        [CallerFilePath] string? file = null,
+        [CallerLineNumber] int line = 0)
     {
         var deadline = DateTime.UtcNow.AddMilliseconds(timeoutMs);
         while (!condition())
         {
             if (DateTime.UtcNow > deadline)
             {
-                throw new TimeoutException("Condition not reached.");
+                throw NotReached(timeoutMs, expression, file, line);
             }
 
             await Task.Delay(10);
         }
     }
+
+    /// <summary>Like <see cref="UntilAsync(Func{bool}, int, string?, string?, int)"/>, for a condition that reads storage asynchronously.</summary>
+    public static async Task UntilAsync(
+        Func<Task<bool>> condition,
+        int timeoutMs = 5000,
+        [CallerArgumentExpression(nameof(condition))] string? expression = null,
+        [CallerFilePath] string? file = null,
+        [CallerLineNumber] int line = 0)
+    {
+        var deadline = DateTime.UtcNow.AddMilliseconds(timeoutMs);
+        while (!await condition())
+        {
+            if (DateTime.UtcNow > deadline)
+            {
+                throw NotReached(timeoutMs, expression, file, line);
+            }
+
+            await Task.Delay(10);
+        }
+    }
+
+    /// <summary>
+    /// Checks <paramref name="condition"/> repeatedly for <paramref name="durationMs"/> and fails as soon as it breaks:
+    /// a "nothing happens" check, in place of a fixed delay followed by one assertion.
+    /// </summary>
+    public static async Task StaysAsync(
+        Func<bool> condition,
+        int durationMs,
+        [CallerArgumentExpression(nameof(condition))] string? expression = null,
+        [CallerFilePath] string? file = null,
+        [CallerLineNumber] int line = 0)
+    {
+        var until = DateTime.UtcNow.AddMilliseconds(durationMs);
+        do
+        {
+            Assert.True(condition(), $"Condition broke within {durationMs} ms: {expression} ({Path.GetFileName(file)}:{line}).");
+            await Task.Delay(10);
+        }
+        while (DateTime.UtcNow < until);
+        Assert.True(condition(), $"Condition broke within {durationMs} ms: {expression} ({Path.GetFileName(file)}:{line}).");
+    }
+
+    /// <summary>Like <see cref="StaysAsync(Func{bool}, int, string?, string?, int)"/>, for a condition that reads storage asynchronously.</summary>
+    public static async Task StaysAsync(
+        Func<Task<bool>> condition,
+        int durationMs,
+        [CallerArgumentExpression(nameof(condition))] string? expression = null,
+        [CallerFilePath] string? file = null,
+        [CallerLineNumber] int line = 0)
+    {
+        var until = DateTime.UtcNow.AddMilliseconds(durationMs);
+        do
+        {
+            Assert.True(await condition(), $"Condition broke within {durationMs} ms: {expression} ({Path.GetFileName(file)}:{line}).");
+            await Task.Delay(10);
+        }
+        while (DateTime.UtcNow < until);
+        Assert.True(await condition(), $"Condition broke within {durationMs} ms: {expression} ({Path.GetFileName(file)}:{line}).");
+    }
+
+    private static TimeoutException NotReached(int timeoutMs, string? expression, string? file, int line) =>
+        new($"Condition not reached within {timeoutMs} ms: {expression} ({Path.GetFileName(file)}:{line}).");
 
     /// <summary>
     /// The app's own wiring (<see cref="InfrastructureServices.AddMindweaveInfrastructure"/> and

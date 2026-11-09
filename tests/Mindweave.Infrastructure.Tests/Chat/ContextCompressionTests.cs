@@ -28,7 +28,7 @@ public class ContextCompressionTests
         await using var h = await ChatHarness.StartAsync(model: SmallModel);
         var conversation = await LongConversationAsync(h, turns: 6);
 
-        var answer = await AskAsync(h, conversation, "最后的问题" + Tipping);
+        var answer = await h.AskAsync(conversation, "最后的问题" + Tipping);
 
         var request = h.Client.Requests.Last(FakeChatClient.IsAnswer);
         Assert.Equal(ChatRole.System, request.Turns[0].Role);
@@ -49,7 +49,7 @@ public class ContextCompressionTests
         await using var h = await ChatHarness.StartAsync(model: SmallModel);
         var conversation = await LongConversationAsync(h, turns: 6);
         h.Client.ReasonFirst = true;
-        h.Client.SummaryGate = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        h.Client.ContextSummaries.Gate = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         var held = h.Client.HoldThinking();
 
         var sent = await h.Conversations.AskAsync(conversation, "最后的问题" + Tipping, Ct);
@@ -58,7 +58,7 @@ public class ContextCompressionTests
 
         // The summary request reasons before it waits at the gate; that never turns the answer to thinking.
         Assert.Equal(AnswerPhase.Compressing, live.Snapshot().Phase);
-        h.Client.SummaryGate.TrySetResult();
+        h.Client.ContextSummaries.Gate.TrySetResult();
         await held.Started.Task.WaitAsync(TimeSpan.FromSeconds(5), Ct);
         await ChatHarness.UntilAsync(() => live.Snapshot().Phase == AnswerPhase.Thinking);
 
@@ -73,10 +73,10 @@ public class ContextCompressionTests
     {
         await using var h = await ChatHarness.StartAsync(model: SmallModel);
         var conversation = await LongConversationAsync(h, turns: 6);
-        await AskAsync(h, conversation, "第一次" + Tipping);
+        await h.AskAsync(conversation, "第一次" + Tipping);
         var summaries = h.Client.Requests.Count(FakeChatClient.IsSummary);
 
-        await AskAsync(h, conversation, "第二次" + Tipping);
+        await h.AskAsync(conversation, "第二次" + Tipping);
 
         Assert.Equal(summaries, h.Client.Requests.Count(FakeChatClient.IsSummary));
         Assert.Single(await h.Summaries.ListAsync([conversation], Ct));
@@ -91,9 +91,9 @@ public class ContextCompressionTests
         var first = (await h.Conversations.CreateBranchAsync(root, BranchFlowTests.Selection(source, "史"), Ct)).Child;
         var second = (await h.Conversations.CreateBranchAsync(root, BranchFlowTests.Selection(source, "史史"), Ct)).Child;
 
-        await AskAsync(h, first, "甲" + Tipping);
+        await h.AskAsync(first, "甲" + Tipping);
         var afterFirst = h.Client.Requests.Count(FakeChatClient.IsSummary);
-        await AskAsync(h, second, "乙" + Tipping);
+        await h.AskAsync(second, "乙" + Tipping);
 
         Assert.Equal(afterFirst, h.Client.Requests.Count(FakeChatClient.IsSummary));
         var owned = Assert.Single(await h.Summaries.ListAsync([root, first, second], Ct));
@@ -105,9 +105,9 @@ public class ContextCompressionTests
     {
         await using var h = await ChatHarness.StartAsync(model: SmallModel);
         var conversation = await LongConversationAsync(h, turns: 6);
-        h.Client.FailSummaries = GenerationErrorKind.Network;
+        h.Client.ContextSummaries.FailNext(GenerationErrorKind.Network);
 
-        var failed = await AskAsync(h, conversation, "会失败的问题" + Tipping);
+        var failed = await h.AskAsync(conversation, "会失败的问题" + Tipping);
 
         Assert.Equal(MessageState.Failed, failed.State);
         Assert.Equal(GenerationErrorKind.CompressionFailed, failed.ErrorKind);
@@ -116,7 +116,6 @@ public class ContextCompressionTests
         var messages = await h.Store.GetMessagesAsync(conversation, Ct);
         Assert.StartsWith("会失败的问题", messages[^2].Text, StringComparison.Ordinal);
 
-        h.Client.FailSummaries = null;
         var retry = await h.Conversations.RetryAsync(conversation, failed.Id, Ct);
         Assert.Equal(MessageState.Complete, (await h.WaitForAnswerAsync(retry.Answer!.Value)).State);
     }
@@ -126,9 +125,9 @@ public class ContextCompressionTests
     {
         await using var h = await ChatHarness.StartAsync(model: SmallModel);
         var conversation = await LongConversationAsync(h, turns: 6);
-        h.Client.TruncateSummaries = 1;
+        h.Client.ContextSummaries.TruncateNext();
 
-        var answer = await AskAsync(h, conversation, "问" + Tipping);
+        var answer = await h.AskAsync(conversation, "问" + Tipping);
 
         Assert.Equal(MessageState.Complete, answer.State);
         Assert.Equal(2, h.Client.Requests.Count(FakeChatClient.IsSummary));
@@ -146,9 +145,9 @@ public class ContextCompressionTests
     {
         await using var h = await ChatHarness.StartAsync(model: SmallModel);
         var conversation = await LongConversationAsync(h, turns: 6);
-        h.Client.TruncateSummaries = 2;
+        h.Client.ContextSummaries.TruncateNext(2);
 
-        var answer = await AskAsync(h, conversation, "问" + Tipping);
+        var answer = await h.AskAsync(conversation, "问" + Tipping);
 
         Assert.Equal(GenerationErrorKind.CompressionFailed, answer.ErrorKind);
         Assert.Contains("截断", answer.ErrorDetail, StringComparison.Ordinal);
@@ -161,7 +160,7 @@ public class ContextCompressionTests
     {
         await using var h = await ChatHarness.StartAsync(model: SmallModel);
         var conversation = await LongConversationAsync(h, turns: 6);
-        h.Client.SummaryGate = new TaskCompletionSource();
+        h.Client.ContextSummaries.Gate = new TaskCompletionSource();
 
         var sent = await h.Conversations.AskAsync(conversation, "问" + Tipping, Ct);
         await ChatHarness.UntilAsync(() => h.Client.Requests.Count(FakeChatClient.IsSummary) == 1);
@@ -194,7 +193,7 @@ public class ContextCompressionTests
         await using var h = await ChatHarness.StartAsync(model: SmallModel);
         var conversation = await LongConversationAsync(h, turns: 3);
 
-        var answer = await AskAsync(h, conversation, "问");
+        var answer = await h.AskAsync(conversation, "问");
 
         Assert.Equal(0, h.Client.Requests.Count(FakeChatClient.IsSummary));
         Assert.DoesNotContain(answer.Id, await h.Summaries.CompressedAnswersAsync(conversation, Ct));
@@ -255,7 +254,7 @@ public class ContextCompressionTests
         for (var i = 1; i < turns; i++)
         {
             h.Client.Reply(LongAnswer);
-            await AskAsync(h, sent.Conversation, $"问题 {i}");
+            await h.AskAsync(sent.Conversation, $"问题 {i}");
         }
 
         return sent.Conversation;
@@ -266,15 +265,8 @@ public class ContextCompressionTests
         for (var i = 0; i < turns; i++)
         {
             h.Client.Reply(LongAnswer);
-            await AskAsync(h, conversation, $"追加 {i}");
+            await h.AskAsync(conversation, $"追加 {i}");
         }
-    }
-
-    private static async Task<Message> AskAsync(ChatHarness h, ConversationId conversation, string question)
-    {
-        var sent = await h.Conversations.AskAsync(conversation, question, Ct);
-        Assert.True(sent.Accepted, sent.Rejection?.ToString());
-        return await h.WaitForAnswerAsync(sent.Answer!.Value);
     }
 
     /// <summary>
@@ -285,7 +277,7 @@ public class ContextCompressionTests
     {
         var task = await TaskOfAsync(h, answer);
         IReadOnlyList<AiRequestRecord> traces = [];
-        await ChatHarness.UntilAsync(() => (traces = h.Requests.ForTaskAsync(task, Ct).Result).Count >= expected);
+        await ChatHarness.UntilAsync(async () => (traces = await h.Requests.ForTaskAsync(task, Ct)).Count >= expected);
         return traces;
     }
 

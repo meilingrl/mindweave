@@ -32,7 +32,7 @@ internal static class NetworkScenario
         var summaries = app.Services.GetRequiredService<SummaryService>();
         foreach (var (conversation, title) in new[] { (root, "火车起源"), (leaf, "火箭号速度"), (sibling, "铁轨") })
         {
-            app.Client.SummaryReplies.Enqueue($"标题：{title}的详细说明\n短名：{title}\n\n正文");
+            app.Client.Knowledge.Replies.Enqueue($"标题：{title}的详细说明\n短名：{title}\n\n正文");
             var outcome = await summaries.SummarizeAsync(conversation, CancellationToken.None);
             Assert.True(outcome.Accepted, outcome.Rejection?.ToString());
             await UiWait.UntilAsync(() => summaries.LatestTaskAsync(conversation, CancellationToken.None).Result is { State: GenerationTaskState.Completed });

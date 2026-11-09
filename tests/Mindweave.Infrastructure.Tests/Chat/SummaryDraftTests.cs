@@ -150,7 +150,7 @@ public class SummaryDraftTests
         var outcome = await h.SummaryService.SummarizeAsync(sent.Conversation, Ct);
         Assert.True(outcome.Accepted, outcome.Rejection?.ToString());
         SummaryEntry? entry = null;
-        await ChatHarness.UntilAsync(() => (entry = h.SummaryService.ForConversationAsync(sent.Conversation, Ct).Result) is not null);
+        await ChatHarness.UntilAsync(async () => (entry = await h.SummaryService.ForConversationAsync(sent.Conversation, Ct)) is not null);
         return (entry!.Node.Id, entry.Node.Current);
     }
 

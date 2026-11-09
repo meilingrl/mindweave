@@ -62,8 +62,7 @@ public class DiskFullTests
         Assert.Equal(1, h.Client.StartedAnswers);
 
         // Still full: the probe keeps failing, so requests stay paused, even short ones that would fit.
-        await Task.Delay(300, Ct);
-        Assert.True(h.Conversations.IsStorageBlocked);
+        await ChatHarness.StaysAsync(() => h.Conversations.IsStorageBlocked, 300);
         Assert.Equal(SendRejection.StorageUnavailable, (await h.Conversations.AskAsync(first.Conversation, "短问题", Ct)).Rejection);
 
         await StorageFaults.FreeDiskAsync(h.Database);
@@ -104,7 +103,7 @@ public class DiskFullTests
         var outcome = await h.SummaryService.SummarizeAsync(sent.Conversation, Ct);
 
         Assert.True(outcome.Accepted, outcome.Rejection.ToString());
-        await ChatHarness.UntilAsync(() => h.SummaryService.LatestTaskAsync(sent.Conversation, Ct).Result is { State: GenerationTaskState.Failed });
+        await ChatHarness.UntilAsync(async () => (await h.SummaryService.LatestTaskAsync(sent.Conversation, Ct)) is { State: GenerationTaskState.Failed });
         Assert.False(h.Conversations.IsStorageBlocked);
         Assert.Null(await h.SummaryService.ForConversationAsync(sent.Conversation, Ct));
     }
@@ -121,12 +120,12 @@ public class DiskFullTests
         await StorageFaults.FillDiskAsync(h.Database, headroomPages: 8);
         var before = await StorageFaults.CountRowsAsync(h.Database);
         var body = new string('总', 40_000);
-        h.Client.SummaryReplies.Enqueue($"标题：很长的总结\n\n{body}");
+        h.Client.Knowledge.Replies.Enqueue($"标题：很长的总结\n\n{body}");
 
         var outcome = await h.SummaryService.SummarizeAsync(sent.Conversation, Ct);
 
         Assert.True(outcome.Accepted, outcome.Rejection.ToString());
-        await ChatHarness.UntilAsync(() => h.SummaryService.LatestTaskAsync(sent.Conversation, Ct).Result is { State: GenerationTaskState.Failed });
+        await ChatHarness.UntilAsync(async () => (await h.SummaryService.LatestTaskAsync(sent.Conversation, Ct)) is { State: GenerationTaskState.Failed });
         var task = (await h.SummaryService.LatestTaskAsync(sent.Conversation, Ct))!;
         Assert.Equal(GenerationErrorKind.StorageUnavailable, task.Error);
         Assert.True(h.Conversations.IsStorageBlocked);
@@ -136,14 +135,13 @@ public class DiskFullTests
         Assert.Null(await h.SummaryService.ForConversationAsync(sent.Conversation, Ct));
         await StorageFaults.AssertIntactAsync(h.Database);
 
-        await Task.Delay(300, Ct);
-        Assert.True(h.Conversations.IsStorageBlocked);
+        await ChatHarness.StaysAsync(() => h.Conversations.IsStorageBlocked, 300);
 
         await StorageFaults.FreeDiskAsync(h.Database);
         await ChatHarness.UntilAsync(() => !h.Conversations.IsStorageBlocked);
-        h.Client.SummaryReplies.Enqueue($"标题：很长的总结\n\n{body}");
+        h.Client.Knowledge.Replies.Enqueue($"标题：很长的总结\n\n{body}");
         Assert.True((await h.SummaryService.SummarizeAsync(sent.Conversation, Ct)).Accepted);
-        await ChatHarness.UntilAsync(() => h.SummaryService.ForConversationAsync(sent.Conversation, Ct).Result is not null);
+        await ChatHarness.UntilAsync(async () => (await h.SummaryService.ForConversationAsync(sent.Conversation, Ct)) is not null);
         var saved = (await h.SummaryService.ForConversationAsync(sent.Conversation, Ct))!;
         Assert.Equal(body, (await h.SummaryService.GetAsync(saved.Node.Id, Ct))!.Current.Body);
         await StorageFaults.AssertIntactAsync(h.Database);

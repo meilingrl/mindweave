@@ -67,7 +67,7 @@ public class RequestTraceTests
             },
             Ct);
         IReadOnlyList<AiRequestRecord> records = [];
-        await ChatHarness.UntilAsync(() => (records = h.Requests.ForTaskAsync(task, Ct).Result).Count > 0);
+        await ChatHarness.UntilAsync(async () => (records = await h.Requests.ForTaskAsync(task, Ct)).Count > 0);
         return records;
     }
 }

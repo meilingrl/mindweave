@@ -2,6 +2,7 @@ using System.Globalization;
 using Mindweave.Application.Startup;
 using Mindweave.Infrastructure.Sqlite;
 using Mindweave.Infrastructure.Sqlite.Migrations;
+using Mindweave.Testing;
 
 namespace Mindweave.Infrastructure.Tests.Faults;
 
@@ -34,7 +35,7 @@ public sealed class RestoreFailureTests : IDisposable
         Directory.CreateDirectory($"{_dir.Paths.DatabasePath}.replaced-{Stamp}-shm");
         var before = await HashAsync(_dir.Paths.DatabasePath);
 
-        await using var database = _dir.Database(time: new FixedTime(Now));
+        await using var database = _dir.Database(time: new ManualTime(Now));
         var result = await database.RestoreAsync(backup, Ct);
 
         Assert.Equal(DatabaseOpenStatus.IoError, result.Status);
@@ -53,7 +54,7 @@ public sealed class RestoreFailureTests : IDisposable
         var backup = await SeedWithBackupAsync();
         var before = await HashAsync(_dir.Paths.DatabasePath);
 
-        await using var database = _dir.Database(time: new FixedTime(Now));
+        await using var database = _dir.Database(time: new ManualTime(Now));
         DatabaseOpenResult result;
         using (new FileStream(_dir.Paths.DatabasePath, FileMode.Open, FileAccess.Read, FileShare.None))
         {
@@ -75,7 +76,7 @@ public sealed class RestoreFailureTests : IDisposable
         var shm = _dir.Paths.DatabasePath + "-shm";
         var before = await HashAsync(_dir.Paths.DatabasePath);
 
-        await using var database = _dir.Database(time: new FixedTime(Now));
+        await using var database = _dir.Database(time: new ManualTime(Now));
         DatabaseOpenResult result;
         using (new FileStream(shm, FileMode.OpenOrCreate, FileAccess.ReadWrite, FileShare.None))
         {
@@ -124,9 +125,4 @@ public sealed class RestoreFailureTests : IDisposable
 
     private static async Task<string> HashAsync(string path) =>
         Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(await File.ReadAllBytesAsync(path)));
-
-    private sealed class FixedTime(DateTimeOffset now) : TimeProvider
-    {
-        public override DateTimeOffset GetUtcNow() => now;
-    }
 }

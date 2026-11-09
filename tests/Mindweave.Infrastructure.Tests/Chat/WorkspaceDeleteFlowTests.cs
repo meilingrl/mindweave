@@ -218,7 +218,7 @@ public class WorkspaceDeleteFlowTests
     public async Task A_running_title_is_stopped_and_its_late_write_finds_nothing()
     {
         await using var h = await ChatHarness.StartAsync();
-        var gate = h.Client.HoldTitles();
+        var gate = h.Client.Titles.Hold();
         var sent = await h.Conversations.StartAsync(h.Workspace, "问", Ct);
         await h.WaitForAnswerAsync(sent.Answer!.Value);
         await ChatHarness.UntilAsync(() => h.Client.Requests.Any(Testing.FakeChatClient.IsTitle));
@@ -228,8 +228,7 @@ public class WorkspaceDeleteFlowTests
         Assert.Equal(WorkspaceDeleteStatus.Deleted, outcome.Status);
         Assert.Equal(0, h.Generation.UnfinishedCount);
         gate.TrySetResult();
-        await Task.Delay(100, Ct);
-        Assert.False(h.Health.IsBlocked);
+        await ChatHarness.StaysAsync(() => !h.Health.IsBlocked, 100);
         Assert.Equal(0, await h.Database.ReadAsync(c => c.Scalar<long>(null, "SELECT count(*) FROM generation_task;"), Ct));
     }
 
@@ -248,6 +247,10 @@ public class WorkspaceDeleteFlowTests
         public void Discard(string path) => inner.Discard(path);
     }
 
+    /// <summary>
+    /// Moves one minute forward on every read, so each write gets a distinct, ordered time; kept apart from
+    /// <see cref="Mindweave.Testing.ManualTime"/>, which only moves when told.
+    /// </summary>
     private sealed class StepClock(DateTimeOffset start) : IClock
     {
         private DateTimeOffset _now = start;
@@ -289,26 +292,26 @@ internal static class WorkspaceSeed
         await h.SettleAsync(root);
         await h.Summaries.AddAsync(new ContextSummary(Guid.NewGuid(), new SummaryKey(root, 0, 1, "hash", 1), "fake-model", "早期铁路的背景", DateTimeOffset.UtcNow), Ct);
 
-        var child = await BranchAsync(h, root, rootAnswer);
+        var child = await h.BranchAsync(root, rootAnswer);
         h.Client.Fail(GenerationErrorKind.ServerError);
-        var failed = await AskAsync(h, child, "子问");
-        var retried = await RetryAsync(h, child, failed.Id);
-        var regenerated = await RetryAsync(h, child, retried.Id);
+        var failed = await h.AskAsync(child, "子问");
+        var retried = await h.RetryAsync(child, failed.Id);
+        var regenerated = await h.RetryAsync(child, retried.Id);
         await ChatHarness.UntilAsync(() => h.Generation.UnfinishedCount == 0);
         h.Reading.SetDraft(child, ViewerSlotKey.Primary, "没发出去的草稿");
         h.Reading.SetPosition(child, ViewerSlotKey.Primary, new ReadingPosition(regenerated.Id, 0, null, 1));
         await h.Reading.FlushAsync();
 
-        var grandchild = await BranchAsync(h, child, regenerated);
+        var grandchild = await h.BranchAsync(child, regenerated);
         await h.SettleAsync(child);
         Assert.True((await h.Conversations.ArchiveAsync(grandchild, Ct)).Archived);
 
-        var rootNode = await SummarizeAsync(h, root);
+        var rootNode = await h.SummarizeAsync(root);
         var current = (await h.SummaryService.GetAsync(rootNode, Ct))!.Node.Current;
         await h.SummaryService.SetReadAsync(rootNode, current, read: true, Ct);
-        await SummarizeAsync(h, root);
+        await h.SummarizeAsync(root);
         await h.SummaryNodes.SaveDraftAsync(new SummaryEditDraft(rootNode, current, "改过的标题", "改过的正文", DateTimeOffset.UtcNow), Ct);
-        var childNode = await SummarizeAsync(h, child);
+        var childNode = await h.SummarizeAsync(child);
         await h.Network.SaveLayoutAsync(workspace, new Dictionary<SummaryNodeId, NodePosition> { [rootNode] = new(10, 20), [childNode] = new(30, 40) }, Ct);
         await h.SettleAsync(root);
         await h.SettleAsync(child);
@@ -426,35 +429,5 @@ internal static class WorkspaceSeed
         }
 
         return tables;
-    }
-
-    private static async Task<ConversationId> BranchAsync(ChatHarness h, ConversationId parent, Message answer)
-    {
-        var branch = await h.Conversations.CreateBranchAsync(parent, BranchFlowTests.Selection(answer, "q"), Ct);
-        Assert.True(branch.Accepted, branch.Rejection?.ToString());
-        return branch.Child;
-    }
-
-    private static async Task<Message> AskAsync(ChatHarness h, ConversationId conversation, string question)
-    {
-        var sent = await h.Conversations.AskAsync(conversation, question, Ct);
-        Assert.True(sent.Accepted, sent.Rejection?.ToString());
-        return await h.WaitForAnswerAsync(sent.Answer!.Value);
-    }
-
-    private static async Task<Message> RetryAsync(ChatHarness h, ConversationId conversation, MessageId answer)
-    {
-        await ChatHarness.UntilAsync(() => !h.Generation.HasUnfinishedAnswer(conversation));
-        var sent = await h.Conversations.RetryAsync(conversation, answer, Ct);
-        Assert.True(sent.Accepted, sent.Rejection?.ToString());
-        return await h.WaitForAnswerAsync(sent.Answer!.Value);
-    }
-
-    private static async Task<SummaryNodeId> SummarizeAsync(ChatHarness h, ConversationId conversation)
-    {
-        var outcome = await h.SummaryService.SummarizeAsync(conversation, Ct);
-        Assert.True(outcome.Accepted, outcome.Rejection?.ToString());
-        await ChatHarness.UntilAsync(() => h.SummaryService.LatestTaskAsync(conversation, Ct).Result is { State: GenerationTaskState.Completed } s && s.Id == outcome.Task);
-        return (await h.SummaryService.ForConversationAsync(conversation, Ct))!.Node.Id;
     }
 }

@@ -8,32 +8,41 @@ namespace Mindweave.Testing;
 
 /// <summary>
 /// Scriptable AI service. By default answers "答：{question}" and titles with <see cref="DefaultTitle"/>.
-/// <see cref="Hold"/> makes the next answer emit some text and then wait until released or cancelled.
+/// <see cref="Hold"/> makes the next answer emit some text and then wait until released or cancelled. Internal requests
+/// (titles, context summaries, knowledge summaries, naming) follow their own <see cref="RequestScript"/>.
 /// </summary>
 public sealed class FakeChatClient : IChatClient
 {
     public const string DefaultTitle = "火车历史";
 
     private readonly ConcurrentQueue<Script> _scripts = new();
-    private volatile TaskCompletionSource? _titleGate;
+
+    public FakeChatClient()
+    {
+        Titles = new RequestScript("title", _ => $"“{DefaultTitle}”");
+        ContextSummaries = new RequestScript("summary", SummaryOf, TruncatedSummaryText);
+        Knowledge = new RequestScript("knowledge summary", KnowledgeOf);
+        Naming = new RequestScript("naming", NamesOf);
+    }
 
     public ConcurrentQueue<ChatRequest> Requests { get; } = new();
 
     public int StartedAnswers => Requests.Count(IsAnswer);
 
-    /// <summary>Fails the next summary requests with this kind, as a failing service would.</summary>
-    public GenerationErrorKind? FailSummaries { get; set; }
+    /// <summary>Automatic conversation titles.</summary>
+    public RequestScript Titles { get; }
 
-    /// <summary>
-    /// How many of the next summary requests stop at the output limit, as a reasoning model does when it spends the
-    /// limit on reasoning: <see cref="TruncatedSummaryText"/> then a truncated finish.
-    /// </summary>
-    public int TruncateSummaries { get; set; }
+    /// <summary>Context summaries (S3): background standing in for older turns. A truncated one sends <see cref="TruncatedSummaryText"/>.</summary>
+    public RequestScript ContextSummaries { get; }
 
+    /// <summary>Knowledge summaries of a conversation (S4); the default is <see cref="KnowledgeOf"/>.</summary>
+    public RequestScript Knowledge { get; }
+
+    /// <summary>Naming requests that tell similar summaries apart; the default is "n：区分n" for every node.</summary>
+    public RequestScript Naming { get; }
+
+    /// <summary>What a context summary cut off at the output limit says.</summary>
     public const string TruncatedSummaryText = "摘要：背景是";
-
-    /// <summary>Summary requests wait for this before answering, when set.</summary>
-    public TaskCompletionSource? SummaryGate { get; set; }
 
     public static bool IsTitle(ChatRequest request) => SystemSays(request, "起一个简短标题");
 
@@ -49,24 +58,6 @@ public sealed class FakeChatClient : IChatClient
 
     public const string DefaultSummaryTitle = "蒸汽机车";
 
-    /// <summary>Scripted knowledge-summary outputs, used in order; when empty, a default from the input.</summary>
-    public ConcurrentQueue<string> SummaryReplies { get; } = new();
-
-    /// <summary>Knowledge-summary requests wait for this before answering, when set.</summary>
-    public TaskCompletionSource? KnowledgeGate { get; set; }
-
-    /// <summary>How many of the next knowledge-summary requests stop at the output limit.</summary>
-    public int TruncateKnowledge { get; set; }
-
-    /// <summary>How many of the next title requests stop at the output limit (a truncated finish).</summary>
-    public int TruncateTitles { get; set; }
-
-    /// <summary>Scripted naming outputs, used in order; when empty, "n：区分n" for every node.</summary>
-    public ConcurrentQueue<string> NamingReplies { get; } = new();
-
-    /// <summary>Naming requests wait for this before answering, when set.</summary>
-    public TaskCompletionSource? NamingGate { get; set; }
-
     /// <summary>The default knowledge summary: titled <see cref="DefaultSummaryTitle"/>, saying how many turns it saw.</summary>
     public static string KnowledgeOf(ChatRequest request) =>
         $"标题：{DefaultSummaryTitle}\n\n总结了 {request.Turns.Count(t => t.Role != ChatRole.System) - 1} 条消息。";
@@ -76,6 +67,13 @@ public sealed class FakeChatClient : IChatClient
 
     /// <summary>The summary the fake writes for a request: derived from its input, so tests can see what was covered.</summary>
     public static string SummaryOf(ChatRequest request) => "摘要：" + request.Turns[^1].Content.Length + " 字";
+
+    /// <summary>The default names: "n：区分n" for every node listed in the request.</summary>
+    private static string NamesOf(ChatRequest request)
+    {
+        var count = request.Turns[^1].Content.Split('\n').Count(l => l.StartsWith('['));
+        return string.Join('\n', Enumerable.Range(1, count).Select(i => $"{i}：区分{i}"));
+    }
 
     public HeldReply Hold(params string[] before)
     {
@@ -105,14 +103,6 @@ public sealed class FakeChatClient : IChatClient
 
     public void Reply(params string[] chunks) => _scripts.Enqueue(new Script(null, chunks));
 
-    /// <summary>Title requests wait until the returned source is completed, as with a slow service.</summary>
-    public TaskCompletionSource HoldTitles()
-    {
-        var gate = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
-        _titleGate = gate;
-        return gate;
-    }
-
     /// <summary>Prompt tokens the service reports for a request, as a real one does at the end of its stream; null reports none.</summary>
     public Func<ChatRequest, int?>? PromptTokens { get; set; }
 
@@ -134,79 +124,14 @@ public sealed class FakeChatClient : IChatClient
         {
             yield return new ChatStreamEvent.Usage(billed, null);
         }
-        if (IsSummary(request))
+
+        if (ScriptFor(request) is { } internalRequest)
         {
-            if (SummaryGate is { } summaryGate)
+            await foreach (var item in internalRequest.StreamAsync(request, cancellationToken))
             {
-                await summaryGate.Task.WaitAsync(cancellationToken);
+                yield return item;
             }
 
-            if (FailSummaries is { } failure)
-            {
-                throw new ChatClientException(failure, "simulated summary failure");
-            }
-
-            if (TruncateSummaries > 0)
-            {
-                TruncateSummaries--;
-                yield return new ChatStreamEvent.TextDelta(TruncatedSummaryText);
-                yield return new ChatStreamEvent.Completed(Truncated: true);
-                yield break;
-            }
-
-            yield return new ChatStreamEvent.TextDelta(SummaryOf(request));
-            yield return new ChatStreamEvent.Completed(false);
-            yield break;
-        }
-
-        if (IsKnowledgeSummary(request))
-        {
-            if (KnowledgeGate is { } knowledgeGate)
-            {
-                await knowledgeGate.Task.WaitAsync(cancellationToken);
-            }
-
-            var truncated = TruncateKnowledge > 0;
-            if (truncated)
-            {
-                TruncateKnowledge--;
-            }
-
-            yield return new ChatStreamEvent.TextDelta(SummaryReplies.TryDequeue(out var scripted) ? scripted : KnowledgeOf(request));
-            yield return new ChatStreamEvent.Completed(truncated);
-            yield break;
-        }
-
-        if (IsNaming(request))
-        {
-            if (NamingGate is { } namingGate)
-            {
-                await namingGate.Task.WaitAsync(cancellationToken);
-            }
-
-            var count = request.Turns[^1].Content.Split('\n').Count(l => l.StartsWith('['));
-            yield return new ChatStreamEvent.TextDelta(NamingReplies.TryDequeue(out var names)
-                ? names
-                : string.Join('\n', Enumerable.Range(1, count).Select(i => $"{i}：区分{i}")));
-            yield return new ChatStreamEvent.Completed(false);
-            yield break;
-        }
-
-        if (IsTitle(request))
-        {
-            if (_titleGate is { } gate)
-            {
-                await gate.Task.WaitAsync(cancellationToken);
-            }
-
-            var truncated = TruncateTitles > 0;
-            if (truncated)
-            {
-                TruncateTitles--;
-            }
-
-            yield return new ChatStreamEvent.TextDelta($"“{DefaultTitle}”");
-            yield return new ChatStreamEvent.Completed(truncated);
             yield break;
         }
 
@@ -265,6 +190,14 @@ public sealed class FakeChatClient : IChatClient
 
         yield return new ChatStreamEvent.Completed(false);
     }
+
+    /// <summary>The script for an internal request, or null for an answer.</summary>
+    private RequestScript? ScriptFor(ChatRequest request) =>
+        IsSummary(request) ? ContextSummaries
+        : IsKnowledgeSummary(request) ? Knowledge
+        : IsNaming(request) ? Naming
+        : IsTitle(request) ? Titles
+        : null;
 
     /// <summary>What listing the models returns.</summary>
     public IReadOnlyList<string> Models { get; set; } = ["fake-model"];

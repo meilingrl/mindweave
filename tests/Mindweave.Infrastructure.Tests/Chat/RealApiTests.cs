@@ -31,7 +31,7 @@ public class RealApiTests
 
         Assert.True(answer.State == MessageState.Complete, $"{answer.State}: {answer.ErrorKind} {answer.ErrorDetail}");
         Assert.True(answer.Text.Length > 200, $"Only {answer.Text.Length} characters.");
-        await ChatHarness.UntilAsync(() => h.Conversations.LoadAsync(sent.Conversation, Ct).Result!.Conversation.TitleSource == TitleSource.Auto, 60_000);
+        await ChatHarness.UntilAsync(async () => (await h.Conversations.LoadAsync(sent.Conversation, Ct))!.Conversation.TitleSource == TitleSource.Auto, 60_000);
         var title = (await h.Conversations.LoadAsync(sent.Conversation, Ct))!.Conversation.Title;
         TestContext.Current.SendDiagnosticMessage($"{answer.Text.Length} chars; title: {title}");
     }

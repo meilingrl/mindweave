@@ -44,7 +44,7 @@ public class ReadingStateTests
             (conversation, answer) = await ConversationAsync(h);
             h.Reading.SetPosition(conversation, Slot, new ReadingPosition(answer, 0, null, 1));
             h.Reading.SetDraft(conversation, Slot, "草稿");
-            await ChatHarness.UntilAsync(() => h.ReadingStore.GetDraftAsync(conversation, Slot, Ct).Result == "草稿");
+            await ChatHarness.UntilAsync(async () => (await h.ReadingStore.GetDraftAsync(conversation, Slot, Ct)) == "草稿");
         }
 
         await using var reopened = await ChatHarness.StartAsync(directory: dir);

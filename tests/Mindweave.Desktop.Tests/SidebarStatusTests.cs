@@ -223,13 +223,13 @@ public class SidebarStatusTests
         await using var app = DesktopHarness.Create();
         app.ShowWindow(1100, 720);
         var (first, _) = await TwoConversationsAsync(app);
-        app.Client.KnowledgeGate = new TaskCompletionSource();
+        app.Client.Knowledge.Gate = new TaskCompletionSource();
         Assert.True((await app.Services.GetRequiredService<SummaryService>().SummarizeAsync(first, CancellationToken.None)).Accepted);
         await UiWait.UntilAsync(() => Item(app, first).Mark == ConversationMark.Summarizing);
         Assert.True(Item(app, first).IsGenerating);
         Assert.Equal(UiText.MarkerSummarizing, Item(app, first).MarkerHint);
 
-        app.Client.KnowledgeGate.TrySetResult();
+        app.Client.Knowledge.Gate.TrySetResult();
         await UiWait.UntilAsync(() => Item(app, first).Mark == ConversationMark.None);
     }
 

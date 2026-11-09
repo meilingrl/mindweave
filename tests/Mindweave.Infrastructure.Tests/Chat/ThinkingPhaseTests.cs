@@ -83,11 +83,11 @@ public class ThinkingPhaseTests
 
         Assert.Equal("答：火车", answer.Text);
         Assert.Equal("答：火车".Length, Assert.Single(await RequestsForAsync(h, answer.Id)).OutputCharacters);
-        await ChatHarness.UntilAsync(() => h.Conversations.LoadAsync(sent.Conversation, Ct).Result!.Conversation.TitleSource == TitleSource.Auto);
+        await ChatHarness.UntilAsync(async () => (await h.Conversations.LoadAsync(sent.Conversation, Ct))!.Conversation.TitleSource == TitleSource.Auto);
         Assert.Equal(FakeChatClient.DefaultTitle, (await h.Conversations.LoadAsync(sent.Conversation, Ct))!.Conversation.Title);
 
         Assert.True((await h.SummaryService.SummarizeAsync(sent.Conversation, Ct)).Accepted);
-        await ChatHarness.UntilAsync(() => h.SummaryService.LatestTaskAsync(sent.Conversation, Ct).Result is { State: not (Application.Storage.GenerationTaskState.Queued or Application.Storage.GenerationTaskState.Running) });
+        await ChatHarness.UntilAsync(async () => (await h.SummaryService.LatestTaskAsync(sent.Conversation, Ct)) is { State: not (Application.Storage.GenerationTaskState.Queued or Application.Storage.GenerationTaskState.Running) });
         Assert.Equal(Application.Storage.GenerationTaskState.Completed, (await h.SummaryService.LatestTaskAsync(sent.Conversation, Ct))!.State);
         Assert.Equal(FakeChatClient.DefaultSummaryTitle, (await h.SummaryService.ForConversationAsync(sent.Conversation, Ct))!.Current.Title);
     }
@@ -124,7 +124,7 @@ public class ThinkingPhaseTests
             },
             Ct);
         IReadOnlyList<AiRequestRecord> records = [];
-        await ChatHarness.UntilAsync(() => (records = h.Requests.ForTaskAsync(task, Ct).Result).Count > 0);
+        await ChatHarness.UntilAsync(async () => (records = await h.Requests.ForTaskAsync(task, Ct)).Count > 0);
         return records;
     }
 

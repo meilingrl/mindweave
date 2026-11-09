@@ -1,7 +1,6 @@
 using Mindweave.Testing;
 using Mindweave.Application.Ai;
 using Mindweave.Application.Conversations;
-using Mindweave.Application.Storage;
 using Mindweave.Core.Conversations;
 using Mindweave.Infrastructure.Sqlite;
 
@@ -23,7 +22,7 @@ public class ConversationFlowTests
         Assert.Equal(MessageState.Complete, answer.State);
         Assert.Equal("答：火车是怎么发明的？", answer.Text);
         Assert.Equal("completed", await h.TaskStateAsync(answer.Id));
-        await ChatHarness.UntilAsync(() => h.Conversations.LoadAsync(sent.Conversation, Ct).Result!.Conversation.TitleSource == TitleSource.Auto);
+        await ChatHarness.UntilAsync(async () => (await h.Conversations.LoadAsync(sent.Conversation, Ct))!.Conversation.TitleSource == TitleSource.Auto);
         var content = await h.Conversations.LoadAsync(sent.Conversation, Ct);
         Assert.Equal(FakeChatClient.DefaultTitle, content!.Conversation.Title);
         Assert.Equal(["火车是怎么发明的？", "答：火车是怎么发明的？"], content.Messages.Select(m => m.Text));
@@ -33,7 +32,7 @@ public class ConversationFlowTests
     public async Task A_title_cut_off_at_the_output_limit_is_not_used()
     {
         await using var h = await ChatHarness.StartAsync();
-        h.Client.TruncateTitles = 1;
+        h.Client.Titles.TruncateNext();
 
         var sent = await h.Conversations.StartAsync(h.Workspace, "火车是怎么发明的？", Ct);
         await h.WaitForAnswerAsync(sent.Answer!.Value);
@@ -106,9 +105,7 @@ public class ConversationFlowTests
         await Task.WhenAll(holds.Select(x => x.Started.Task)).WaitAsync(TimeSpan.FromSeconds(5), Ct);
 
         var c = await h.Conversations.StartAsync(h.Workspace, "c", Ct);
-        await Task.Delay(150, Ct);
-
-        Assert.Equal(2, h.Client.StartedAnswers);
+        await ChatHarness.StaysAsync(() => h.Client.StartedAnswers == 2, 150);
         Assert.Equal(MessageState.Pending, (await h.GetMessageAsync(c.Answer!.Value))!.State);
         Assert.Equal(3, h.Generation.UnfinishedAnswerCount);
 
@@ -142,8 +139,7 @@ public class ConversationFlowTests
             hold.Finish();
         }
 
-        await Task.Delay(100, Ct);
-        Assert.Equal(2, h.Client.StartedAnswers);
+        await ChatHarness.StaysAsync(() => h.Client.StartedAnswers == 2, 100);
     }
 
     [Fact]
@@ -202,7 +198,7 @@ public class ConversationFlowTests
         held.Finish("完");
         await h.WaitForAnswerAsync(sent.Answer!.Value);
         await ChatHarness.UntilAsync(() => h.Generation.UnfinishedCount == 0);
-        await Task.Delay(100, Ct);
+        await ChatHarness.StaysAsync(async () => (await h.Conversations.LoadAsync(sent.Conversation, Ct))!.Conversation.TitleSource == TitleSource.Manual, 100);
 
         var conversation = (await h.Conversations.LoadAsync(sent.Conversation, Ct))!.Conversation;
         Assert.Equal("我的 名字", conversation.Title);
@@ -319,63 +315,5 @@ public class ConversationFlowTests
         Assert.Equal("说到一半", recovered.Text);
         Assert.Equal("interrupted", await after.TaskStateAsync(answer));
         Assert.Empty(after.Client.Requests);
-    }
-
-    /// <summary>Wraps the real store and fails the first N terminal answer writes.</summary>
-    internal sealed class FlakyStore(IConversationStore inner) : IConversationStore
-    {
-        private int _failFinishes;
-
-        public int FailFinishes
-        {
-            get => Volatile.Read(ref _failFinishes);
-            set => Volatile.Write(ref _failFinishes, value);
-        }
-
-        /// <summary>Awaited at the start of every terminal answer write, before it fails or reaches the store.</summary>
-        public Func<Task>? BeforeFinish { get; set; }
-
-        /// <summary>What a failing terminal write throws; storage refusing it as a full disk unless a test sets another.</summary>
-        public Func<Exception> FinishFailure { get; set; } = () => new StorageWriteException(StorageFailureKind.Full, "simulated disk full", null);
-
-        public async Task<bool> FinishAnswerAsync(GenerationTaskId task, MessageId answer, IReadOnlyList<ContentBlock> blocks, long revision, MessageState state, GenerationErrorKind? errorKind, string? errorDetail, DateTimeOffset at, CancellationToken cancellationToken)
-        {
-            if (BeforeFinish is { } before)
-            {
-                await before();
-            }
-
-            return Interlocked.Decrement(ref _failFinishes) >= 0
-                ? throw FinishFailure()
-                : await inner.FinishAnswerAsync(task, answer, blocks, revision, state, errorKind, errorDetail, at, cancellationToken);
-        }
-
-        public Task<IReadOnlyList<ConversationSummary>> ListAsync(Core.Workspaces.WorkspaceId workspace, CancellationToken cancellationToken) => inner.ListAsync(workspace, cancellationToken);
-
-        public Task<Conversation?> GetAsync(ConversationId id, CancellationToken cancellationToken) => inner.GetAsync(id, cancellationToken);
-
-        public Task<IReadOnlyList<Message>> GetMessagesAsync(ConversationId id, CancellationToken cancellationToken) => inner.GetMessagesAsync(id, cancellationToken);
-
-        public Task CreateAsync(Conversation conversation, Message question, Message answer, GenerationTaskRecord task, CancellationToken cancellationToken) => inner.CreateAsync(conversation, question, answer, task, cancellationToken);
-
-        public Task<(Message Question, Message Answer)> AppendQuestionAsync(Message question, Message answer, GenerationTaskRecord task, CancellationToken cancellationToken) => inner.AppendQuestionAsync(question, answer, task, cancellationToken);
-
-        public Task<Message> AddRetryAsync(Message answer, GenerationTaskRecord task, CancellationToken cancellationToken) => inner.AddRetryAsync(answer, task, cancellationToken);
-
-        public Task AddTaskAsync(GenerationTaskRecord task, CancellationToken cancellationToken) => inner.AddTaskAsync(task, cancellationToken);
-
-        public Task<bool> MarkRunningAsync(GenerationTaskId task, MessageId? answer, DateTimeOffset at, CancellationToken cancellationToken) => inner.MarkRunningAsync(task, answer, at, cancellationToken);
-
-        public Task<bool> CheckpointAsync(MessageId answer, IReadOnlyList<ContentBlock> blocks, long revision, CancellationToken cancellationToken) => inner.CheckpointAsync(answer, blocks, revision, cancellationToken);
-
-        public Task FinishTaskAsync(GenerationTaskId task, GenerationTaskState state, GenerationErrorKind? errorKind, string? errorDetail, DateTimeOffset at, CancellationToken cancellationToken) => inner.FinishTaskAsync(task, state, errorKind, errorDetail, at, cancellationToken);
-
-        public Task<bool> SetAutoTitleAsync(ConversationId id, string title, DateTimeOffset at, CancellationToken cancellationToken) => inner.SetAutoTitleAsync(id, title, at, cancellationToken);
-
-        public Task SetManualTitleAsync(ConversationId id, string title, DateTimeOffset at, CancellationToken cancellationToken) => inner.SetManualTitleAsync(id, title, at, cancellationToken);
-
-        public Task<RecoveryReport> RecoverUnfinishedAsync(DateTimeOffset at, CancellationToken cancellationToken) => inner.RecoverUnfinishedAsync(at, cancellationToken);
-
-        public Task<IReadOnlySet<string>> CredentialRefsInUseAsync(CancellationToken cancellationToken) => inner.CredentialRefsInUseAsync(cancellationToken);
     }
 }

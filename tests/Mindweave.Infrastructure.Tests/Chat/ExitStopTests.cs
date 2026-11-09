@@ -1,5 +1,3 @@
-using System.Runtime.CompilerServices;
-using Mindweave.Application.Ai;
 using Mindweave.Application.Conversations;
 using Mindweave.Core.Conversations;
 using Mindweave.Infrastructure.Sqlite;
@@ -19,13 +17,13 @@ public class ExitStopTests
     public async Task The_exit_prompt_counts_user_answers_and_summaries_separately_but_not_titles()
     {
         await using var h = await ChatHarness.StartAsync();
-        var titles = h.Client.HoldTitles();
+        var titles = h.Client.Titles.Hold();
         var done = await h.Conversations.StartAsync(h.Workspace, "火车是怎么发明的？", Ct);
         await h.WaitForAnswerAsync(done.Answer!.Value);
         await ChatHarness.UntilAsync(() => h.Client.Requests.Any(FakeChatClient.IsTitle));
         Assert.False(h.Generation.UnfinishedUserWork.Any);
 
-        h.Client.KnowledgeGate = new TaskCompletionSource();
+        h.Client.Knowledge.Gate = new TaskCompletionSource();
         Assert.True((await h.SummaryService.SummarizeAsync(done.Conversation, Ct)).Accepted);
         await ChatHarness.UntilAsync(() => h.Client.Requests.Any(FakeChatClient.IsKnowledgeSummary));
 
@@ -39,7 +37,7 @@ public class ExitStopTests
         Assert.False(h.Generation.UnfinishedUserWork.Any);
         Assert.Equal(0, h.Generation.UnfinishedCount);
         titles.TrySetResult();
-        h.Client.KnowledgeGate.TrySetResult();
+        h.Client.Knowledge.Gate.TrySetResult();
     }
 
     [Fact]
@@ -124,8 +122,8 @@ public class ExitStopTests
     [Fact]
     public async Task Saving_unsaved_writes_waits_for_a_retry_already_writing_and_reports_that_it_failed()
     {
-        ConversationFlowTests.FlakyStore? flaky = null;
-        await using var h = await ChatHarness.StartAsync(wrapStore: s => flaky = new ConversationFlowTests.FlakyStore(s));
+        FlakyStore? flaky = null;
+        await using var h = await ChatHarness.StartAsync(wrapStore: s => flaky = new FlakyStore(s));
         var held = h.Client.Hold("已收到");
         var sent = await h.Conversations.StartAsync(h.Workspace, "问", Ct);
         await held.Started.Task.WaitAsync(TimeSpan.FromSeconds(5), Ct);
@@ -147,8 +145,7 @@ public class ExitStopTests
         try
         {
             save = h.Generation.SaveUnsavedAsync();
-            await Task.Delay(100, Ct);
-            Assert.False(save.IsCompleted);
+            await ChatHarness.StaysAsync(() => !save.IsCompleted, 100);
         }
         finally
         {
@@ -175,13 +172,12 @@ public class ExitStopTests
         stubborn.Release.TrySetResult();
         await h.WaitForAnswerAsync(sent.Answer!.Value, m => m.State == MessageState.Complete);
         await ChatHarness.UntilAsync(() => h.Generation.UnfinishedCount == 0);
-        await Task.Delay(300, Ct);
-        Assert.Equal(0L, await QueuedTitlesAsync(h));
+        await ChatHarness.StaysAsync(async () => await QueuedTitlesAsync(h) == 0, 300);
 
         h.Generation.Reopen();
         var again = await h.Conversations.AskAsync(sent.Conversation, "再问一个", Ct);
         await h.WaitForAnswerAsync(again.Answer!.Value);
-        await ChatHarness.UntilAsync(() => h.Store.GetAsync(sent.Conversation, Ct).Result!.Title == FakeChatClient.DefaultTitle);
+        await ChatHarness.UntilAsync(async () => (await h.Store.GetAsync(sent.Conversation, Ct))!.Title == FakeChatClient.DefaultTitle);
         Assert.Equal(0L, await QueuedTitlesAsync(h));
     }
 
@@ -198,7 +194,7 @@ public class ExitStopTests
     public async Task A_title_stopped_by_an_exit_is_asked_for_again_when_the_next_answer_completes()
     {
         await using var h = await ChatHarness.StartAsync();
-        var titles = h.Client.HoldTitles();
+        var titles = h.Client.Titles.Hold();
         var sent = await h.Conversations.StartAsync(h.Workspace, "火车是怎么发明的？", Ct);
         await h.WaitForAnswerAsync(sent.Answer!.Value);
         await ChatHarness.UntilAsync(() => h.Client.Requests.Count(FakeChatClient.IsTitle) == 1);
@@ -210,15 +206,15 @@ public class ExitStopTests
 
         var again = await h.Conversations.AskAsync(sent.Conversation, "再问一个", Ct);
         await h.WaitForAnswerAsync(again.Answer!.Value);
-        await ChatHarness.UntilAsync(() => h.Store.GetAsync(sent.Conversation, Ct).Result!.Title == FakeChatClient.DefaultTitle);
+        await ChatHarness.UntilAsync(async () => (await h.Store.GetAsync(sent.Conversation, Ct))!.Title == FakeChatClient.DefaultTitle);
         Assert.Equal(2, h.Client.Requests.Count(FakeChatClient.IsTitle));
     }
 
     [Fact]
     public async Task Failed_terminal_writes_are_reported_until_they_are_saved()
     {
-        ConversationFlowTests.FlakyStore? flaky = null;
-        await using var h = await ChatHarness.StartAsync(wrapStore: s => flaky = new ConversationFlowTests.FlakyStore(s));
+        FlakyStore? flaky = null;
+        await using var h = await ChatHarness.StartAsync(wrapStore: s => flaky = new FlakyStore(s));
         var held = h.Client.Hold("已收到");
         var sent = await h.Conversations.StartAsync(h.Workspace, "问", Ct);
         await held.Started.Task.WaitAsync(TimeSpan.FromSeconds(5), Ct);
@@ -230,36 +226,5 @@ public class ExitStopTests
         flaky.FailFinishes = 0;
         Assert.True(await h.Generation.SaveUnsavedAsync());
         Assert.Equal(MessageState.Stopped, (await h.GetMessageAsync(sent.Answer!.Value))!.State);
-    }
-
-    /// <summary>Streams one piece, then waits for <see cref="Release"/> without honouring cancellation.</summary>
-    private sealed class StubbornClient : IChatClient
-    {
-        private readonly FakeChatClient _fallback = new();
-
-        public TaskCompletionSource Started { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
-
-        public TaskCompletionSource Release { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
-
-        public async IAsyncEnumerable<ChatStreamEvent> StreamAsync(ChatRequest request, string apiKey, [EnumeratorCancellation] CancellationToken cancellationToken)
-        {
-            if (!FakeChatClient.IsAnswer(request))
-            {
-                await foreach (var item in _fallback.StreamAsync(request, apiKey, cancellationToken))
-                {
-                    yield return item;
-                }
-
-                yield break;
-            }
-
-            yield return new ChatStreamEvent.TextDelta("已收到");
-            Started.TrySetResult();
-            await Release.Task;
-            yield return new ChatStreamEvent.Completed(false);
-        }
-
-        public Task<IReadOnlyList<string>> ListModelsAsync(string baseUrl, string apiKey, CancellationToken cancellationToken) =>
-            _fallback.ListModelsAsync(baseUrl, apiKey, cancellationToken);
     }
 }

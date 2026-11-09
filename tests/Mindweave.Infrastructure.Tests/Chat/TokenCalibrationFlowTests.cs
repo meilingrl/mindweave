@@ -87,10 +87,10 @@ public class TokenCalibrationFlowTests
         if (conversation is null)
         {
             // The title is asked for beside the first answer; it is a request too, so wait until it is in.
-            await ChatHarness.UntilAsync(() => h.Conversations.LoadAsync(sent.Conversation, Ct).Result!.Conversation.TitleSource == TitleSource.Auto);
+            await ChatHarness.UntilAsync(async () => (await h.Conversations.LoadAsync(sent.Conversation, Ct))!.Conversation.TitleSource == TitleSource.Auto);
         }
 
-        await ChatHarness.UntilAsync(() => h.Requests.RecentTokenSamplesAsync("https://fake.example/v1", "fake-model", 1_000, Ct).Result.Count == (h.Client.PromptTokens is null ? 0 : h.Client.Requests.Count));
+        await ChatHarness.UntilAsync(async () => (await h.Requests.RecentTokenSamplesAsync("https://fake.example/v1", "fake-model", 1_000, Ct)).Count == (h.Client.PromptTokens is null ? 0 : h.Client.Requests.Count));
         return sent.Conversation;
     }
 }

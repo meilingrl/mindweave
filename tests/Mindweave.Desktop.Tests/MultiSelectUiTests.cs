@@ -18,6 +18,7 @@ using Mindweave.Desktop.ViewModels;
 using Mindweave.Desktop.ViewModels.Conversations;
 using Mindweave.Desktop.ViewModels.Pages;
 using Mindweave.Desktop.Views;
+using Mindweave.Testing;
 using TextBlock = Avalonia.Controls.TextBlock;
 using static Mindweave.Desktop.Tests.UiTree;
 
@@ -387,7 +388,7 @@ public class MultiSelectUiTests
     [AvaloniaFact]
     public async Task A_scope_that_changes_while_open_is_said_and_a_press_right_after_it_deletes_nothing()
     {
-        var clock = new SetTime();
+        var clock = new ManualTime(new DateTimeOffset(2026, 11, 4, 9, 0, 0, TimeSpan.FromHours(8)));
         await using var app = DesktopHarness.Create(s => s.AddSingleton(sp => new ConversationDeletionViewModel(
             sp.GetRequiredService<IConversationDeletion>(), sp.GetRequiredService<IConversations>(), sp.GetRequiredService<Workbench>(),
             sp.GetRequiredService<ConversationDeletionRequests>(), sp.GetRequiredService<Services.IUiDispatcher>(), clock)));
@@ -480,14 +481,6 @@ public class MultiSelectUiTests
         Assert.Equal([sibling], Selected(list));
         Assert.True(Find<Control>(window, "SelectionBar").IsEffectivelyVisible);
         window.Close();
-    }
-
-    /// <summary>The clock the delete dialog reads, moved only by the test.</summary>
-    private sealed class SetTime : TimeProvider
-    {
-        public DateTimeOffset Now { get; set; } = new(2026, 11, 4, 9, 0, 0, TimeSpan.FromHours(8));
-
-        public override DateTimeOffset GetUtcNow() => Now;
     }
 
     /// <summary>The network seed, the sibling's page open and the sidebar laid out; returns root, middle, leaf, sibling.</summary>

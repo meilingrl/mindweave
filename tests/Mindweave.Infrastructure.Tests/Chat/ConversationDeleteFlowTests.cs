@@ -296,7 +296,7 @@ public class ConversationDeleteFlowTests
         h.Health.Report(new StorageWriteException(StorageFailureKind.Full, "disk full", null));
         await Assert.ThrowsAsync<StorageWriteException>(() => h.ConversationDeletion.DeleteAsync(scope, Ct));
         Assert.Empty(h.Database.ListBackups());
-        await UntilAsync(() => !h.Health.IsBlocked);
+        await ChatHarness.UntilAsync(() => !h.Health.IsBlocked);
 
         Assert.Equal(ConversationDeleteStatus.Deleted, (await h.ConversationDeletion.DeleteAsync(scope, Ct)).Status);
         Assert.Equal(ConversationDeleteStatus.Missing, (await h.ConversationDeletion.DeleteAsync(scope, Ct)).Status);
@@ -306,7 +306,7 @@ public class ConversationDeleteFlowTests
     public async Task Background_titles_in_the_scope_are_stopped_and_their_late_writes_find_nothing()
     {
         await using var h = await ChatHarness.StartAsync();
-        var gate = h.Client.HoldTitles();
+        var gate = h.Client.Titles.Hold();
         var sent = await h.Conversations.StartAsync(h.Workspace, "问", Ct);
         var answer = await h.WaitForAnswerAsync(sent.Answer!.Value);
         await ChatHarness.UntilAsync(() => h.Client.Requests.Any(Testing.FakeChatClient.IsTitle));
@@ -318,8 +318,7 @@ public class ConversationDeleteFlowTests
         Assert.Equal([sent.Conversation, child], outcome.Scope.Conversations);
         Assert.Equal(0, h.Generation.UnfinishedCount);
         gate.TrySetResult();
-        await Task.Delay(100, Ct);
-        Assert.False(h.Health.IsBlocked);
+        await ChatHarness.StaysAsync(() => !h.Health.IsBlocked, 100);
         Assert.Equal(0, await h.Database.ReadAsync(c => c.Scalar<long>(null, "SELECT count(*) FROM generation_task;"), Ct));
     }
 
@@ -394,16 +393,6 @@ public class ConversationDeleteFlowTests
         while (await h.Database.ReadAsync(c => c.Scalar<long>(null, "SELECT revision FROM message WHERE id = $id;", ("$id", answer.ToString())), Ct) == 0)
         {
             await Task.Delay(10, Ct);
-        }
-    }
-
-    private static async Task UntilAsync(Func<bool> condition)
-    {
-        var deadline = DateTime.UtcNow.AddSeconds(5);
-        while (!condition())
-        {
-            Assert.True(DateTime.UtcNow < deadline, "condition not reached");
-            await Task.Delay(20, Ct);
         }
     }
 

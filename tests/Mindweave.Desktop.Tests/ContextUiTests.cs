@@ -78,7 +78,7 @@ public class ContextUiTests
 
         // A reasoning model: its summary request reasons too, which must not hide the compression notice.
         app.Client.ReasonFirst = true;
-        app.Client.SummaryGate = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        app.Client.ContextSummaries.Gate = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         var held = app.Client.HoldThinking();
         app.Workbench.Navigate(new NavigationRequest(MainSection.Explore, new ConversationRoute(started.Conversation)));
         var page = Assert.IsType<ConversationViewModel>(app.Workbench.CurrentPage);
@@ -89,7 +89,7 @@ public class ContextUiTests
         await UiWait.UntilAsync(() => page.Messages.Count == 14 && page.Messages[^1].WaitingLabel == UiText.CompressingContext && WaitingCaption(window) == UiText.CompressingContext);
         Assert.True(page.Messages[^1].IsWaiting);
 
-        app.Client.SummaryGate.TrySetResult();
+        app.Client.ContextSummaries.Gate.TrySetResult();
         await held.Started.Task.WaitAsync(TimeSpan.FromSeconds(5));
         await UiWait.UntilAsync(() => WaitingCaption(window) == UiText.ModelThinking);
 

@@ -71,8 +71,7 @@ public class BusyWriterTests
             Assert.Equal(MessageState.Streaming, stored.State);
 
             // Still held: the retries and the probe keep failing, so requests stay paused.
-            await Task.Delay(500, Ct);
-            Assert.True(h.Conversations.IsStorageBlocked);
+            await ChatHarness.StaysAsync(() => h.Conversations.IsStorageBlocked, 500);
         }
 
         await ChatHarness.UntilAsync(() => !h.Conversations.IsStorageBlocked, timeoutMs: 15_000);
