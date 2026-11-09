@@ -81,6 +81,7 @@ public sealed partial class ConversationViewModel : PageViewModel, IDisposable
         _storage.Changed += OnStorageStateChanged;
         IsStorageBlocked = _storage.IsBlocked;
         Composer.IsStoragePaused = IsStorageBlocked;
+        Summary = new ConversationSummaryPanel(Id, summaries, _navigator, () => IsStorageBlocked, () => _disposed);
         _summaries = summaries;
         if (_summaries is not null)
         {
@@ -93,6 +94,9 @@ public sealed partial class ConversationViewModel : PageViewModel, IDisposable
     public ConversationId Id { get; }
 
     public Composer Composer { get; }
+
+    /// <summary>The entry to this conversation's summary, and summarizing it.</summary>
+    public ConversationSummaryPanel Summary { get; }
 
     public ObservableCollection<MessageItemViewModel> Messages { get; } = [];
 
@@ -141,43 +145,16 @@ public sealed partial class ConversationViewModel : PageViewModel, IDisposable
     /// <summary>Near the limit, compressed, or over it: shown with emphasis rather than as a quiet note.</summary>
     public bool ContextIsTight => ContextUsage is { } usage && (usage.TooLong || usage.Compressed || usage.Fraction >= 0.8);
 
-    /// <summary>This conversation's summary node, if it has one.</summary>
-    [ObservableProperty]
-    [NotifyPropertyChangedFor(nameof(HasSummary), nameof(SummarizeLabel))]
-    public partial SummaryNodeId? SummaryNode { get; private set; }
-
-    public bool HasSummary => SummaryNode is not null;
-
-    public string SummarizeLabel => HasSummary ? UiText.Resummarize : UiText.Summarize;
-
-    [ObservableProperty]
-    public partial string? SummaryEntryText { get; private set; }
-
-    [ObservableProperty]
-    public partial string? SummaryMarkersText { get; private set; }
-
-    [ObservableProperty]
-    [NotifyCanExecuteChangedFor(nameof(StopSummaryCommand))]
-    public partial GenerationTaskId? RunningSummary { get; private set; }
-
-    /// <summary>Why the last summary attempt left nothing (failed, stopped or interrupted), shown with a retry.</summary>
-    [ObservableProperty]
-    public partial string? SummaryProblem { get; private set; }
-
     /// <summary>
     /// Core storage is failing (requirements §9.3): asking, retrying, branching and summarizing are disabled with the
     /// reason; everything shown stays readable and selectable. Lifts by itself once storage takes writes again.
     /// </summary>
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(StorageNotice))]
-    [NotifyCanExecuteChangedFor(nameof(SummarizeCommand), nameof(RetryCommand))]
+    [NotifyCanExecuteChangedFor(nameof(RetryCommand))]
     public partial bool IsStorageBlocked { get; private set; }
 
     public string? StorageNotice => IsStorageBlocked ? UiText.StoragePaused : null;
-
-    /// <summary>Why "summarize" was refused just now.</summary>
-    [ObservableProperty]
-    public partial string? SummaryNotice { get; private set; }
 
     [ObservableProperty]
     public partial bool IsRenaming { get; set; }
@@ -268,8 +245,6 @@ public sealed partial class ConversationViewModel : PageViewModel, IDisposable
 
     private bool CanRetryNow(MessageItemViewModel? answer) => !IsStorageBlocked;
 
-    private bool CanSummarize() => !IsStorageBlocked;
-
     partial void OnIsStorageBlockedChanged(bool value)
     {
         Composer.IsStoragePaused = value;
@@ -278,18 +253,11 @@ public sealed partial class ConversationViewModel : PageViewModel, IDisposable
             message.IsBranchPaused = value;
         }
 
-        if (!value)
+        // Refusals given because of the pause that just ended no longer apply.
+        Summary.OnStoragePauseChanged(value);
+        if (!value && BranchNotice == UiText.BranchRejected(BranchRejection.StorageUnavailable))
         {
-            // Refusals given because of the pause that just ended no longer apply.
-            if (SummaryNotice == UiText.SummarizeRejected(SummarizeRejection.StorageUnavailable))
-            {
-                SummaryNotice = null;
-            }
-
-            if (BranchNotice == UiText.BranchRejected(BranchRejection.StorageUnavailable))
-            {
-                BranchNotice = null;
-            }
+            BranchNotice = null;
         }
     }
 
@@ -368,7 +336,7 @@ public sealed partial class ConversationViewModel : PageViewModel, IDisposable
 
     /// <summary>An archived conversation is never summarized directly (D-021): restore first, then summarize.</summary>
     [RelayCommand]
-    private Task RestoreAndSummarizeAsync() => RestoreThenAsync(SummarizeAsync);
+    private Task RestoreAndSummarizeAsync() => RestoreThenAsync(Summary.SummarizeAsync);
 
     /// <summary>
     /// Asks first (requirements v0.12 §8.2). A conversation without branches or summary is confirmed here, as before: it
@@ -501,34 +469,6 @@ public sealed partial class ConversationViewModel : PageViewModel, IDisposable
 
     private Task<IReadOnlyList<string>> TitlesAsync(IEnumerable<ConversationId> ids) => ConversationArchiving.TitlesAsync(_conversations, _workspace, ids);
 
-    /// <summary>Summarize the conversation as it is now; it can be done at any stage and chatting continues (§6.4).</summary>
-    [RelayCommand(CanExecute = nameof(CanSummarize))]
-    private async Task SummarizeAsync()
-    {
-        if (_summaries is null)
-        {
-            return;
-        }
-
-        var outcome = await _summaries.SummarizeAsync(Id, CancellationToken.None);
-        SummaryNotice = outcome.Rejection is { } rejection ? UiText.SummarizeRejected(rejection) : null;
-        await LoadSummaryAsync();
-    }
-
-    [RelayCommand(CanExecute = nameof(CanStopSummary))]
-    private Task StopSummaryAsync() => RunningSummary is { } task && _summaries is not null ? _summaries.StopAsync(task) : Task.CompletedTask;
-
-    private bool CanStopSummary() => RunningSummary is not null;
-
-    [RelayCommand]
-    private void OpenSummary()
-    {
-        if (SummaryNode is { } node)
-        {
-            _navigator.Navigate(new NavigationRequest(MainSection.Network, new SummaryRoute(node)));
-        }
-    }
-
     /// <summary>The page left every stack; tests check pages of deleted content were released.</summary>
     internal bool IsDisposed => _disposed;
 
@@ -598,33 +538,6 @@ public sealed partial class ConversationViewModel : PageViewModel, IDisposable
         }
     }
 
-    private async Task LoadSummaryAsync()
-    {
-        if (_summaries is null || _disposed)
-        {
-            return;
-        }
-
-        var entry = await _summaries.ForConversationAsync(Id, CancellationToken.None);
-        var task = await _summaries.LatestTaskAsync(Id, CancellationToken.None);
-        if (_disposed)
-        {
-            return;
-        }
-
-        SummaryNode = entry?.Node.Id;
-        SummaryEntryText = entry is null ? null : UiText.SummaryEntry(entry.Node.DisplayName);
-        SummaryMarkersText = entry is null ? null : UiText.Markers(entry.Markers) is { Length: > 0 } markers ? markers : null;
-        RunningSummary = task is { State: GenerationTaskState.Queued or GenerationTaskState.Running } ? task.Id : null;
-        SummaryProblem = task is { State: GenerationTaskState.Failed or GenerationTaskState.Stopped or GenerationTaskState.Interrupted or GenerationTaskState.Cancelled }
-            ? UiText.SummaryFailed(task)
-            : null;
-        if (RunningSummary is not null)
-        {
-            SummaryNotice = null;
-        }
-    }
-
     private async Task LoadAsync()
     {
         var content = await _conversations.LoadAsync(Id, CancellationToken.None);
@@ -670,7 +583,7 @@ public sealed partial class ConversationViewModel : PageViewModel, IDisposable
         Volatile.Write(ref _related, lineage.Select(l => l.Conversation.Id).Concat(branches.Select(b => b.Child)).ToHashSet());
         UpdateRunning();
         ContextUsage = await _conversations.GetContextUsageAsync(Id, CancellationToken.None);
-        await LoadSummaryAsync();
+        await Summary.LoadAsync();
     }
 
     private MessageItemViewModel NewItem(Message message)

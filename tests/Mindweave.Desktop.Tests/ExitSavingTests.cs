@@ -24,12 +24,12 @@ public class ExitSavingTests
         await using var app = DesktopHarness.Create();
         var window = app.ShowWindow(1100, 720);
         var page = await app.StartWithConversationAsync(waitForTitle: false);
-        await page.SummarizeCommand.ExecuteAsync(null);
-        await UiWait.UntilAsync(() => page.HasSummary && page.RunningSummary is null);
+        await page.Summary.SummarizeCommand.ExecuteAsync(null);
+        await UiWait.UntilAsync(() => page.Summary.HasSummary && page.Summary.RunningSummary is null);
 
         // A message draft (saved 0.5 s after typing) and a summary edit draft (1 s throttle), both still pending.
         page.Composer.Text = "还没发出去的问题";
-        page.OpenSummaryCommand.Execute(null);
+        page.Summary.OpenSummaryCommand.Execute(null);
         var summary = Assert.IsType<SummaryViewModel>(app.Workbench.CurrentPage);
         await summary.Loaded;
         await summary.BeginEditCommand.ExecuteAsync(null);
@@ -89,9 +89,9 @@ public class ExitSavingTests
         await using var app = DesktopHarness.Create(s => s.AddSingleton<ISummaryStore>(sp => failing.Wrap(sp.GetRequiredService<SqliteDatabase>())));
         var window = app.ShowWindow(1100, 720);
         var page = await app.StartWithConversationAsync(waitForTitle: false);
-        await page.SummarizeCommand.ExecuteAsync(null);
-        await UiWait.UntilAsync(() => page.HasSummary && page.RunningSummary is null);
-        page.OpenSummaryCommand.Execute(null);
+        await page.Summary.SummarizeCommand.ExecuteAsync(null);
+        await UiWait.UntilAsync(() => page.Summary.HasSummary && page.Summary.RunningSummary is null);
+        page.Summary.OpenSummaryCommand.Execute(null);
         var summary = Assert.IsType<SummaryViewModel>(app.Workbench.CurrentPage);
         await summary.Loaded;
         await summary.BeginEditCommand.ExecuteAsync(null);
@@ -130,9 +130,9 @@ public class ExitSavingTests
         await using var app = DesktopHarness.Create(s => s.AddSingleton<ISummaryStore>(sp => failing.Wrap(sp.GetRequiredService<SqliteDatabase>())));
         var window = app.ShowWindow(1100, 720);
         var page = await app.StartWithConversationAsync(waitForTitle: false);
-        await page.SummarizeCommand.ExecuteAsync(null);
-        await UiWait.UntilAsync(() => page.HasSummary && page.RunningSummary is null);
-        page.OpenSummaryCommand.Execute(null);
+        await page.Summary.SummarizeCommand.ExecuteAsync(null);
+        await UiWait.UntilAsync(() => page.Summary.HasSummary && page.Summary.RunningSummary is null);
+        page.Summary.OpenSummaryCommand.Execute(null);
         var first = Assert.IsType<SummaryViewModel>(app.Workbench.CurrentPage);
         await first.Loaded;
         await first.BeginEditCommand.ExecuteAsync(null);
@@ -142,7 +142,7 @@ public class ExitSavingTests
 
         // Storage works again; the same summary is opened and its draft settled anew.
         failing.Fail = false;
-        page.OpenSummaryCommand.Execute(null);
+        page.Summary.OpenSummaryCommand.Execute(null);
         var second = Assert.IsType<SummaryViewModel>(app.Workbench.CurrentPage);
         await second.Loaded;
         await second.BeginEditCommand.ExecuteAsync(null);
@@ -171,9 +171,9 @@ public class ExitSavingTests
         await using var app = DesktopHarness.Create(s => s.AddSingleton<IExportFileWriter>(writer));
         var window = app.ShowWindow(1100, 720);
         var page = await app.StartWithConversationAsync(waitForTitle: false);
-        await page.SummarizeCommand.ExecuteAsync(null);
-        await UiWait.UntilAsync(() => page.HasSummary && page.RunningSummary is null);
-        page.OpenSummaryCommand.Execute(null);
+        await page.Summary.SummarizeCommand.ExecuteAsync(null);
+        await UiWait.UntilAsync(() => page.Summary.HasSummary && page.Summary.RunningSummary is null);
+        page.Summary.OpenSummaryCommand.Execute(null);
         var summary = Assert.IsType<SummaryViewModel>(app.Workbench.CurrentPage);
         await summary.Loaded;
         app.Shell.NextExport = _ => new ExportDestination("导出.md", "/unused/导出.md", null);

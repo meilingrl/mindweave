@@ -16,24 +16,24 @@
           </StackPanel>
         </Button>
         <!-- Summary at any stage (§6.4): its entry and markers, generation progress, the last failure. -->
-        <Button Name="SummaryEntry" Classes="quiet" Command="{Binding OpenSummaryCommand}" IsVisible="{Binding HasSummary}" Margin="0,0,2,0"
-                AutomationProperties.Name="{Binding SummaryEntryText}">
+        <Button Name="SummaryEntry" Classes="quiet" Command="{Binding Summary.OpenSummaryCommand}" IsVisible="{Binding Summary.HasSummary}" Margin="0,0,2,0"
+                AutomationProperties.Name="{Binding Summary.SummaryEntryText}">
           <StackPanel Orientation="Horizontal" Spacing="6">
             <PathIcon Data="{StaticResource IconSummary}" />
-            <TextBlock Text="{Binding SummaryEntryText}" VerticalAlignment="Center" MaxWidth="260" TextTrimming="CharacterEllipsis" />
+            <TextBlock Text="{Binding Summary.SummaryEntryText}" VerticalAlignment="Center" MaxWidth="260" TextTrimming="CharacterEllipsis" />
           </StackPanel>
         </Button>
         <Border Name="SummaryMarkersBadge" Classes="badge warning" Margin="0,0,8,0"
-                IsVisible="{Binding SummaryMarkersText, Converter={x:Static ObjectConverters.IsNotNull}}">
-          <TextBlock Name="SummaryMarkers" Text="{Binding SummaryMarkersText}" />
+                IsVisible="{Binding Summary.SummaryMarkersText, Converter={x:Static ObjectConverters.IsNotNull}}">
+          <TextBlock Name="SummaryMarkers" Text="{Binding Summary.SummaryMarkersText}" />
         </Border>
         <Panel IsVisible="{Binding IsOpen}" VerticalAlignment="Center" Margin="0,0,2,0">
-          <Button Name="SummarizeButton" Classes="quiet" Command="{Binding SummarizeCommand}"
-                  IsVisible="{Binding RunningSummary, Converter={x:Static ObjectConverters.IsNull}}"
-                  ToolTip.Tip="{Binding StorageNotice}" ToolTip.ShowOnDisabled="True" AutomationProperties.Name="{Binding SummarizeLabel}">
+          <Button Name="SummarizeButton" Classes="quiet" Command="{Binding Summary.SummarizeCommand}"
+                  IsVisible="{Binding Summary.RunningSummary, Converter={x:Static ObjectConverters.IsNull}}"
+                  ToolTip.Tip="{Binding StorageNotice}" ToolTip.ShowOnDisabled="True" AutomationProperties.Name="{Binding Summary.SummarizeLabel}">
             <StackPanel Orientation="Horizontal" Spacing="6">
               <PathIcon Data="{StaticResource IconSummarize}" />
-              <TextBlock Text="{Binding SummarizeLabel}" VerticalAlignment="Center" />
+              <TextBlock Text="{Binding Summary.SummarizeLabel}" VerticalAlignment="Center" />
             </StackPanel>
           </Button>
         </Panel>
@@ -45,10 +45,10 @@
           </StackPanel>
         </Button>
         <StackPanel Orientation="Horizontal" Spacing="6" VerticalAlignment="Center" Margin="8,0,2,0"
-                    IsVisible="{Binding RunningSummary, Converter={x:Static ObjectConverters.IsNotNull}}">
+                    IsVisible="{Binding Summary.RunningSummary, Converter={x:Static ObjectConverters.IsNotNull}}">
           <ProgressBar IsIndeterminate="True" Width="40" MinWidth="40" VerticalAlignment="Center" />
           <TextBlock Classes="caption" Text="{x:Static d:UiText.SummaryGenerating}" VerticalAlignment="Center" />
-          <Button Name="StopSummaryButton" Classes="quiet" Command="{Binding StopSummaryCommand}">
+          <Button Name="StopSummaryButton" Classes="quiet" Command="{Binding Summary.StopSummaryCommand}">
             <StackPanel Orientation="Horizontal" Spacing="6">
               <PathIcon Width="10" Height="10" Data="{StaticResource IconStop}" />
               <TextBlock Text="{x:Static d:UiText.SummaryStop}" VerticalAlignment="Center" />
@@ -153,16 +153,16 @@
           <TextBlock Name="ArchiveNotice" Text="{Binding ArchiveNotice}" />
         </DockPanel>
       </Border>
-      <Border Classes="notice error" IsVisible="{Binding SummaryNotice, Converter={x:Static ObjectConverters.IsNotNull}}">
+      <Border Classes="notice error" IsVisible="{Binding Summary.SummaryNotice, Converter={x:Static ObjectConverters.IsNotNull}}">
         <DockPanel>
           <TextBlock Classes="notice-icon" Text="!" />
-          <TextBlock Name="SummaryNotice" Text="{Binding SummaryNotice}" />
+          <TextBlock Name="SummaryNotice" Text="{Binding Summary.SummaryNotice}" />
         </DockPanel>
       </Border>
-      <Border Classes="notice error" IsVisible="{Binding SummaryProblem, Converter={x:Static ObjectConverters.IsNotNull}}">
+      <Border Classes="notice error" IsVisible="{Binding Summary.SummaryProblem, Converter={x:Static ObjectConverters.IsNotNull}}">
         <DockPanel>
           <TextBlock Classes="notice-icon" Text="!" />
-          <TextBlock Name="SummaryProblem" Text="{Binding SummaryProblem}" />
+          <TextBlock Name="SummaryProblem" Text="{Binding Summary.SummaryProblem}" />
         </DockPanel>
       </Border>
     </StackPanel>

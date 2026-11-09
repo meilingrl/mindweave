@@ -108,8 +108,8 @@ public class ArchiveUiTests
         Assert.False(page.Composer.SendCommand.CanExecute(null));
         await page.RetryCommand.ExecuteAsync(page.Messages[1]);
         Assert.Equal(SendRejection.ConversationArchived, page.Composer.Rejection);
-        await page.SummarizeCommand.ExecuteAsync(null);
-        Assert.Equal(UiText.SummarizeRejected(SummarizeRejection.ConversationArchived), page.SummaryNotice);
+        await page.Summary.SummarizeCommand.ExecuteAsync(null);
+        Assert.Equal(UiText.SummarizeRejected(SummarizeRejection.ConversationArchived), page.Summary.SummaryNotice);
         await page.CreateBranchAsync(new BranchSelection(page.Messages[1].Id, 0, "火车", "{\"v\":1}", 1, "test-profile"));
         Assert.Equal(UiText.BranchRejected(BranchRejection.ConversationArchived), page.BranchNotice);
         Assert.Equal(2, page.Messages.Count);
@@ -196,8 +196,8 @@ public class ArchiveUiTests
     {
         await using var app = DesktopHarness.Create();
         var page = await app.StartWithConversationAsync(waitForTitle: true);
-        await page.SummarizeCommand.ExecuteAsync(null);
-        await UiWait.UntilAsync(() => page.HasSummary && page.RunningSummary is null);
+        await page.Summary.SummarizeCommand.ExecuteAsync(null);
+        await UiWait.UntilAsync(() => page.Summary.HasSummary && page.Summary.RunningSummary is null);
         await page.ArchiveCommand.ExecuteAsync(null);
 
         app.ShellPage.ShowSectionCommand.Execute(MainSection.Network);
@@ -218,7 +218,7 @@ public class ArchiveUiTests
         await source.RestoreAndSummarizeCommand.ExecuteAsync(null);
 
         Assert.False(source.IsArchived);
-        await UiWait.UntilAsync(() => source.SummaryMarkersText?.Contains(UiText.MarkerCandidate, StringComparison.Ordinal) == true);
+        await UiWait.UntilAsync(() => source.Summary.SummaryMarkersText?.Contains(UiText.MarkerCandidate, StringComparison.Ordinal) == true);
         await UiWait.UntilAsync(() => !network.Items[0].Markers.Contains(UiText.SourceArchived, StringComparison.Ordinal));
     }
 

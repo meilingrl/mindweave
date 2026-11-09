@@ -25,11 +25,11 @@ public class SummaryUiTests
         var window = app.ShowWindow();
         var page = await app.StartWithConversationAsync(waitForTitle: false);
 
-        await page.SummarizeCommand.ExecuteAsync(null);
-        await UiWait.UntilAsync(() => page.HasSummary && page.RunningSummary is null);
-        Assert.Equal(UiText.SummaryEntry(FakeChatClient.DefaultSummaryTitle), page.SummaryEntryText);
-        Assert.Equal(UiText.MarkerUnread, page.SummaryMarkersText);
-        Assert.Equal(UiText.Resummarize, page.SummarizeLabel);
+        await page.Summary.SummarizeCommand.ExecuteAsync(null);
+        await UiWait.UntilAsync(() => page.Summary.HasSummary && page.Summary.RunningSummary is null);
+        Assert.Equal(UiText.SummaryEntry(FakeChatClient.DefaultSummaryTitle), page.Summary.SummaryEntryText);
+        Assert.Equal(UiText.MarkerUnread, page.Summary.SummaryMarkersText);
+        Assert.Equal(UiText.Resummarize, page.Summary.SummarizeLabel);
 
         // The network section lists it; opening the list does not read it.
         app.ShellPage.ShowSectionCommand.Execute(MainSection.Network);
@@ -68,8 +68,8 @@ public class SummaryUiTests
     {
         await using var app = DesktopHarness.Create();
         var page = await app.StartWithConversationAsync(waitForTitle: false);
-        await page.SummarizeCommand.ExecuteAsync(null);
-        await UiWait.UntilAsync(() => page.HasSummary && page.RunningSummary is null);
+        await page.Summary.SummarizeCommand.ExecuteAsync(null);
+        await UiWait.UntilAsync(() => page.Summary.HasSummary && page.Summary.RunningSummary is null);
         var summary = await OpenSummaryAsync(app, page);
 
         // Edit the current version; the draft survives leaving the page.
@@ -87,8 +87,8 @@ public class SummaryUiTests
         app.Client.SummaryReplies.Enqueue($"标题：{FakeChatClient.DefaultSummaryTitle}\n\n新生成的正文");
         summary.ReturnToConversationCommand.Execute(null);
         page = Assert.IsType<ConversationViewModel>(app.Workbench.CurrentPage);
-        await page.SummarizeCommand.ExecuteAsync(null);
-        await UiWait.UntilAsync(() => page.SummaryMarkersText?.Contains(UiText.MarkerCandidate, StringComparison.Ordinal) == true);
+        await page.Summary.SummarizeCommand.ExecuteAsync(null);
+        await UiWait.UntilAsync(() => page.Summary.SummaryMarkersText?.Contains(UiText.MarkerCandidate, StringComparison.Ordinal) == true);
         summary = await OpenSummaryAsync(app, page);
 
         // The page may be the one opened before, refreshed by the change notification rather than rebuilt.
@@ -118,8 +118,8 @@ public class SummaryUiTests
     {
         await using var app = DesktopHarness.Create();
         var page = await app.StartWithConversationAsync(waitForTitle: false);
-        await page.SummarizeCommand.ExecuteAsync(null);
-        await UiWait.UntilAsync(() => page.HasSummary && page.RunningSummary is null);
+        await page.Summary.SummarizeCommand.ExecuteAsync(null);
+        await UiWait.UntilAsync(() => page.Summary.HasSummary && page.Summary.RunningSummary is null);
         var summary = await OpenSummaryAsync(app, page);
         await summary.BeginEditCommand.ExecuteAsync(null);
         summary.EditBody = "第二版";
@@ -139,9 +139,9 @@ public class SummaryUiTests
 
         var conversation = Assert.IsType<ConversationViewModel>(app.Workbench.CurrentPage);
         await conversation.Loaded;
-        await UiWait.UntilAsync(() => !conversation.HasSummary);
+        await UiWait.UntilAsync(() => !conversation.Summary.HasSummary);
         Assert.Equal(2, conversation.Messages.Count);
-        Assert.Equal(UiText.Summarize, conversation.SummarizeLabel);
+        Assert.Equal(UiText.Summarize, conversation.Summary.SummarizeLabel);
     }
 
     [AvaloniaFact]
@@ -151,13 +151,13 @@ public class SummaryUiTests
         var page = await app.StartWithConversationAsync(waitForTitle: false);
         app.Client.TruncateKnowledge = 1;
 
-        await page.SummarizeCommand.ExecuteAsync(null);
-        await UiWait.UntilAsync(() => page.SummaryProblem is not null);
-        Assert.Contains("截断", page.SummaryProblem, StringComparison.Ordinal);
-        Assert.False(page.HasSummary);
+        await page.Summary.SummarizeCommand.ExecuteAsync(null);
+        await UiWait.UntilAsync(() => page.Summary.SummaryProblem is not null);
+        Assert.Contains("截断", page.Summary.SummaryProblem, StringComparison.Ordinal);
+        Assert.False(page.Summary.HasSummary);
 
-        await page.SummarizeCommand.ExecuteAsync(null);
-        await UiWait.UntilAsync(() => page.HasSummary && page.SummaryProblem is null);
+        await page.Summary.SummarizeCommand.ExecuteAsync(null);
+        await UiWait.UntilAsync(() => page.Summary.HasSummary && page.Summary.SummaryProblem is null);
     }
 
     [AvaloniaFact]
@@ -170,9 +170,9 @@ public class SummaryUiTests
         await page.Composer.SendCommand.ExecuteAsync(null);
         await held.Started.Task;
 
-        await page.SummarizeCommand.ExecuteAsync(null);
+        await page.Summary.SummarizeCommand.ExecuteAsync(null);
 
-        Assert.Equal(UiText.SummarizeRejected(Application.Summaries.SummarizeRejection.AnswerInProgress), page.SummaryNotice);
+        Assert.Equal(UiText.SummarizeRejected(Application.Summaries.SummarizeRejection.AnswerInProgress), page.Summary.SummaryNotice);
         held.Release.TrySetResult();
     }
 
@@ -187,8 +187,8 @@ public class SummaryUiTests
         var window = app.ShowWindow();
         var page = await app.StartWithConversationAsync(waitForTitle: false);
         app.Client.SummaryReplies.Enqueue($"标题：{FakeChatClient.DefaultSummaryTitle}\n\n缆索牵引**适合陡坡**，但缆绳易磨损。\n\n$$P = F\\,v$$\n\n其中 $v$ 是缆绳速度。");
-        await page.SummarizeCommand.ExecuteAsync(null);
-        await UiWait.UntilAsync(() => page.HasSummary && page.RunningSummary is null);
+        await page.Summary.SummarizeCommand.ExecuteAsync(null);
+        await UiWait.UntilAsync(() => page.Summary.HasSummary && page.Summary.RunningSummary is null);
         await OpenSummaryAsync(app, page);
         window.UpdateLayout();
         var renderer = window.GetVisualDescendants().OfType<SummaryView>().Single().Renderer;
@@ -212,11 +212,11 @@ public class SummaryUiTests
         await using var app = DesktopHarness.Create();
         var window = app.ShowWindow();
         var page = await app.StartWithConversationAsync(waitForTitle: false);
-        await page.SummarizeCommand.ExecuteAsync(null);
-        await UiWait.UntilAsync(() => page.HasSummary && page.RunningSummary is null);
+        await page.Summary.SummarizeCommand.ExecuteAsync(null);
+        await UiWait.UntilAsync(() => page.Summary.HasSummary && page.Summary.RunningSummary is null);
         app.Client.SummaryReplies.Enqueue($"标题：{FakeChatClient.DefaultSummaryTitle}\n\n新生成的正文");
-        await page.SummarizeCommand.ExecuteAsync(null);
-        await UiWait.UntilAsync(() => page.SummaryMarkersText?.Contains(UiText.MarkerCandidate, StringComparison.Ordinal) == true);
+        await page.Summary.SummarizeCommand.ExecuteAsync(null);
+        await UiWait.UntilAsync(() => page.Summary.SummaryMarkersText?.Contains(UiText.MarkerCandidate, StringComparison.Ordinal) == true);
         var summary = await OpenSummaryAsync(app, page);
         await UiWait.UntilAsync(() => summary.HasCandidate);
         window.UpdateLayout();
@@ -280,8 +280,8 @@ public class SummaryUiTests
         await using var app = DesktopHarness.Create();
         var window = app.ShowWindow();
         var page = await app.StartWithConversationAsync(waitForTitle: false);
-        await page.SummarizeCommand.ExecuteAsync(null);
-        await UiWait.UntilAsync(() => page.HasSummary && page.RunningSummary is null);
+        await page.Summary.SummarizeCommand.ExecuteAsync(null);
+        await UiWait.UntilAsync(() => page.Summary.HasSummary && page.Summary.RunningSummary is null);
         var summary = await OpenSummaryAsync(app, page);
         window.UpdateLayout();
         var view = window.GetVisualDescendants().OfType<SummaryView>().Single();
@@ -366,8 +366,8 @@ public class SummaryUiTests
 
     private static async Task<SummaryViewModel> OpenSummaryAsync(DesktopHarness app, ConversationViewModel page)
     {
-        await UiWait.UntilAsync(() => page.HasSummary);
-        page.OpenSummaryCommand.Execute(null);
+        await UiWait.UntilAsync(() => page.Summary.HasSummary);
+        page.Summary.OpenSummaryCommand.Execute(null);
         var summary = Assert.IsType<SummaryViewModel>(app.Workbench.CurrentPage);
         await summary.Loaded;
         return summary;
