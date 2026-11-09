@@ -35,11 +35,21 @@ public sealed partial class AnswerView : UserControl
     private TopLevel? _topLevel;
     private ConversationView? _conversation;
 
+    /// <summary>
+    /// What the reader selected in this streaming answer, as text per block. Re-rendering can shift the displayed text under
+    /// unchanged offsets (a closing emphasis drops its markers), so after each layout the selection is put back on this
+    /// text (<see cref="KeepSelectionOnItsText"/>), and it is what is handed over when the answer ends.
+    /// </summary>
+    private IReadOnlyList<CarriedSegment>? _chosen;
+
     public AnswerView()
     {
         InitializeComponent();
         BodyHost.Content = _renderer;
         _renderer.LinkClick += (_, e) => e.Handled = true;
+        // A new press or key starts a new selection gesture: the chosen text is set again when it ends.
+        _renderer.AddHandler(PointerPressedEvent, (_, _) => _chosen = null, RoutingStrategies.Tunnel | RoutingStrategies.Bubble, handledEventsToo: true);
+        _renderer.AddHandler(KeyDownEvent, (_, _) => _chosen = null, RoutingStrategies.Tunnel | RoutingStrategies.Bubble, handledEventsToo: true);
         _renderer.AddHandler(PointerReleasedEvent, (_, _) => OnSelectionGestureEnded(), RoutingStrategies.Bubble, handledEventsToo: true);
         _renderer.AddHandler(KeyUpEvent, (_, _) => OnSelectionGestureEnded(), RoutingStrategies.Bubble, handledEventsToo: true);
 
@@ -69,6 +79,7 @@ public sealed partial class AnswerView : UserControl
         EffectiveViewportChanged += (_, _) => PlaceSelectionActions();
         ActualThemeVariantChanged += OnThemeChanged;
         _renderer.SizeChanged += (_, _) => PlaceSelectionActions();
+        _renderer.LayoutUpdated += (_, _) => KeepSelectionOnItsText();
     }
 
     /// <summary>The floating card next to the selection; in the nearest overlay layer only while it is shown.</summary>
@@ -197,7 +208,8 @@ public sealed partial class AnswerView : UserControl
     /// </summary>
     private void HandOverSelection()
     {
-        if (_item is { IsLive: true } live && _conversation is { } page && SelectionCarry.Capture(_renderer) is { } selection)
+        // The chosen text, not the current offsets: the last update may have shifted the text before the layout pass.
+        if (_item is { IsLive: true } live && _conversation is { } page && (_chosen ?? SelectionCarry.Capture(_renderer)) is { } selection)
         {
             var focused = _topLevel?.FocusManager?.GetFocusedElement() is Visual focus && (focus == _renderer || _renderer.IsVisualAncestorOf(focus));
             page.HandOverSelection(live.Id, new CarriedSelection(selection, focused));
@@ -268,9 +280,37 @@ public sealed partial class AnswerView : UserControl
         _shown = markdown;
     }
 
+    /// <summary>
+    /// While the answer streams, keeps the selection on the text the reader chose: if a re-render shifted the displayed text,
+    /// the selection moves to where that text now is, or is cleared when it is no longer shown.
+    /// </summary>
+    private void KeepSelectionOnItsText()
+    {
+        if (_chosen is not { } chosen || _item is not { IsLive: true })
+        {
+            return;
+        }
+
+        if (SelectionCarry.Same(SelectionCarry.Capture(_renderer), chosen))
+        {
+            return;
+        }
+
+        if (!SelectionCarry.Apply(_renderer, chosen))
+        {
+            _chosen = null;
+            ClearSelection();
+            return;
+        }
+
+        _chosen = SelectionCarry.Capture(_renderer);
+        UpdateBranchButton();
+    }
+
     /// <summary>Clears this answer's selection, and with it the floating action.</summary>
     internal void ClearSelection()
     {
+        _chosen = null;
         foreach (var block in SourceAnchors.Blocks(_renderer))
         {
             block.SelectionStart = 0;
@@ -283,6 +323,7 @@ public sealed partial class AnswerView : UserControl
     /// <summary>A selection made here replaces any selection in another answer: one floating action on the page at a time.</summary>
     private void OnSelectionGestureEnded()
     {
+        _chosen = _item is { IsLive: true } ? SelectionCarry.Capture(_renderer) : null;
         if (SourceAnchors.HasSelection(_renderer) && this.FindAncestorOfType<ConversationView>() is { } page)
         {
             foreach (var other in page.GetVisualDescendants().OfType<AnswerView>().Where(a => a != this))

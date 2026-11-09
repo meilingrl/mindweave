@@ -169,13 +169,13 @@ public class StreamingSelectionTests
     }
 
     [AvaloniaFact]
-    public async Task A_carried_selection_whose_text_the_finished_answer_shows_differently_is_dropped()
+    public async Task A_carried_selection_stays_on_its_text_when_the_finished_answer_closes_an_emphasis_before_it()
     {
         await using var app = DesktopHarness.Create();
         var window = await OpenAsync(app);
 
         // Until the emphasis is closed its markers are shown as text; the finished answer shows them as bold instead,
-        // so the selected characters sit at a different place and nothing is selected rather than the wrong text.
+        // so the selected characters move two places to the left. The selection follows its text (2026-11-10).
         var held = app.Client.Hold("正在**增长的回答");
         var page = await AskAsync(app, held);
         var answer = await StreamingAnswerAsync(window, page);
@@ -191,8 +191,56 @@ public class StreamingSelectionTests
 
         var stored = TryAnswer(window)!;
         Assert.Equal("正在增长的回答文字。", SourceAnchors.Blocks(stored.Renderer).Single().LayoutText);
-        Assert.Equal(string.Empty, stored.Renderer.SelectedText);
-        Assert.False(stored.BranchButton.IsEffectivelyVisible);
+        Assert.Equal("增长", stored.Renderer.SelectedText);
+        Assert.True(stored.BranchButton.IsEffectivelyVisible);
+        window.Close();
+    }
+
+    [AvaloniaFact]
+    public async Task A_selection_in_a_streaming_answer_stays_on_its_text_when_an_emphasis_before_it_closes()
+    {
+        await using var app = DesktopHarness.Create();
+        var window = await OpenAsync(app);
+        var held = app.Client.Hold("正在**增长的回答");
+        var page = await AskAsync(app, held);
+        var answer = await StreamingAnswerAsync(window, page);
+        Drag(window, SourceAnchors.Blocks(answer.Renderer).Single(), 4, 6);
+        Assert.Equal("增长", answer.Renderer.SelectedText);
+
+        // Still streaming: the closing markers turn the start into bold, and the displayed text shifts left under the selection.
+        held.Push("**文字");
+        await GrownAsync(window, page, answer, "**文字");
+        await UiWait.UntilAsync(() => SourceAnchors.Blocks(answer.Renderer).Single().LayoutText == "正在增长的回答文字" && answer.Renderer.SelectedText == "增长");
+        window.UpdateLayout();
+        Assert.Equal("增长", answer.Renderer.SelectedText);
+
+        held.Finish("。");
+        await UiWait.StoredAsync(page, 1, Mindweave.Core.Conversations.MessageState.Complete);
+        await UiWait.UntilAsync(() => TryAnswer(window) is { IsLayoutCurrent: true, DataContext: MessageItemViewModel { IsLive: false } });
+        window.UpdateLayout();
+        Assert.Equal("增长", TryAnswer(window)!.Renderer.SelectedText);
+        window.Close();
+    }
+
+    [AvaloniaFact]
+    public async Task A_selection_whose_text_a_re_render_no_longer_shows_is_cleared_not_moved_to_other_text()
+    {
+        await using var app = DesktopHarness.Create();
+        var window = await OpenAsync(app);
+
+        // The selection covers the markers themselves; once the emphasis closes they are not shown at all.
+        var held = app.Client.Hold("正在**增长的回答");
+        var page = await AskAsync(app, held);
+        var answer = await StreamingAnswerAsync(window, page);
+        Drag(window, SourceAnchors.Blocks(answer.Renderer).Single(), 2, 5);
+        Assert.Equal("**增", answer.Renderer.SelectedText);
+
+        held.Push("**文字");
+        await GrownAsync(window, page, answer, "**文字");
+        await UiWait.UntilAsync(() => SourceAnchors.Blocks(answer.Renderer).Single().LayoutText == "正在增长的回答文字" && answer.Renderer.SelectedText.Length == 0);
+        Assert.False(answer.BranchButton.IsEffectivelyVisible);
+        held.Finish("。");
+        await UiWait.StoredAsync(page, 1, Mindweave.Core.Conversations.MessageState.Complete);
         window.Close();
     }
 

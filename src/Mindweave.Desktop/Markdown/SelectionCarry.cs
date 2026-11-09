@@ -18,11 +18,13 @@ public sealed record CarriedSegment(int SourceStart, int Ordinal, int Start, str
 public sealed record CarriedSelection(IReadOnlyList<CarriedSegment> Segments, bool Focused);
 
 /// <summary>
-/// Carries a reader's selection from a streaming answer's view to the view of its finished text. The stored answer is
-/// a new view parsed in full, and its last block has grown since the selection was made, so a branch anchor (bound to
-/// the block's whole span and text) cannot be used. Text before the end only ever grows, so each part is found again
-/// by where its block starts and checked against the same displayed text at the same offset; if any part differs
-/// (the final text changed the block, e.g. closed an emphasis), nothing is selected rather than a guess.
+/// Keeps a reader's selection on the text they chose while an answer streams, and carries it to the view of the finished
+/// text. The stored answer is a new view parsed in full, and its last block has grown since the selection was made, so a
+/// branch anchor (bound to the block's whole span and text) cannot be used. Each part is found again by where its block
+/// starts and by its selected text: at the same offset if it is still there, otherwise at the nearest place in that block
+/// showing the same text. Displayed text can shift while it streams, e.g. when a closing <c>**</c> turns marked-up
+/// characters into an emphasis and removes the markers before the selection (2026-11-10); keeping the offsets alone
+/// would then select other characters. If any part is no longer shown, nothing is selected rather than a guess.
 /// </summary>
 public static class SelectionCarry
 {
@@ -48,7 +50,7 @@ public static class SelectionCarry
         return segments.Count > 0 ? segments : null;
     }
 
-    /// <summary>Selects every carried part again, or nothing when any part is no longer shown the same way; returns whether it did.</summary>
+    /// <summary>Selects every carried part again (<see cref="Locate"/>), or nothing when any part is no longer shown; returns whether it did.</summary>
     public static bool Apply(Visual renderer, IReadOnlyList<CarriedSegment> segments)
     {
         ArgumentNullException.ThrowIfNull(segments);
@@ -63,13 +65,12 @@ public static class SelectionCarry
             }
 
             var block = matches[segment.Ordinal];
-            var text = block.LayoutText;
-            if (segment.Start < 0 || segment.Start > text.Length - segment.Quote.Length || string.CompareOrdinal(text, segment.Start, segment.Quote, 0, segment.Quote.Length) != 0)
+            if (Locate(block.LayoutText, segment) is not { } start)
             {
                 return false;
             }
 
-            resolved.Add((block, segment.Start, segment.Start + segment.Quote.Length));
+            resolved.Add((block, start, start + segment.Quote.Length));
         }
 
         foreach (var (block, start, end) in resolved)
@@ -79,5 +80,32 @@ public static class SelectionCarry
         }
 
         return true;
+    }
+
+    /// <summary>Whether two captured selections cover the same text at the same places.</summary>
+    public static bool Same(IReadOnlyList<CarriedSegment>? a, IReadOnlyList<CarriedSegment>? b) =>
+        a is null || b is null ? a is null && b is null : a.SequenceEqual(b);
+
+    /// <summary>Where the part's text is shown in its block: at its offset, else at the nearest occurrence; null when absent.</summary>
+    internal static int? Locate(string text, CarriedSegment segment)
+    {
+        ArgumentNullException.ThrowIfNull(text);
+        ArgumentNullException.ThrowIfNull(segment);
+        var quote = segment.Quote;
+        if (segment.Start >= 0 && segment.Start <= text.Length - quote.Length && string.CompareOrdinal(text, segment.Start, quote, 0, quote.Length) == 0)
+        {
+            return segment.Start;
+        }
+
+        int? best = null;
+        for (var at = text.IndexOf(quote, StringComparison.Ordinal); at >= 0; at = text.IndexOf(quote, at + 1, StringComparison.Ordinal))
+        {
+            if (best is not { } b || Math.Abs(at - segment.Start) < Math.Abs(b - segment.Start))
+            {
+                best = at;
+            }
+        }
+
+        return best;
     }
 }
