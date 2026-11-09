@@ -74,10 +74,11 @@ public sealed partial class ConversationViewModel : PageViewModel, IDisposable
         Composer = new Composer(text => _conversations.AskAsync(Id, text, CancellationToken.None)) { StopCommand = StopCommand, HostShowsStoragePause = true };
         _conversations.ConversationChanged += OnConversationChanged;
         _conversations.ModelChanged += OnModelChanged;
+        // Before the first storage state is taken: a page opened while storage is paused tells the summary part at once.
+        Summary = new ConversationSummaryPanel(Id, summaries, _navigator, () => IsStorageBlocked, () => _disposed);
         _storage.Changed += OnStorageStateChanged;
         IsStorageBlocked = _storage.IsBlocked;
         Composer.IsStoragePaused = IsStorageBlocked;
-        Summary = new ConversationSummaryPanel(Id, summaries, _navigator, () => IsStorageBlocked, () => _disposed);
         Lifecycle = new ConversationLifecycleActions(Id, conversations, deletion, deletionPrompt, _navigator, () => _workspace, () => _load.Request(), Summary.SummarizeAsync);
         _summaries = summaries;
         if (_summaries is not null)

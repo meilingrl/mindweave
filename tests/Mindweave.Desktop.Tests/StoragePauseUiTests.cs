@@ -6,8 +6,10 @@ using Avalonia.Input;
 using Avalonia.VisualTree;
 using Microsoft.Extensions.DependencyInjection;
 using Mindweave.Application.Conversations;
+using Mindweave.Application.Storage;
 using Mindweave.Core.Conversations;
 using Mindweave.Desktop.Markdown;
+using Mindweave.Desktop.Navigation;
 using Mindweave.Desktop.ViewModels.Conversations;
 using Mindweave.Desktop.Views;
 using Mindweave.Desktop.Views.Conversations;
@@ -101,6 +103,40 @@ public class StoragePauseUiTests
         await page.Composer.SendCommand.ExecuteAsync(null);
         Assert.Null(page.Composer.Rejection);
         await UiWait.UntilAsync(() => page.Messages.Count == 6 && page.Messages[5].State == MessageState.Complete);
+        window.Close();
+    }
+
+    [AvaloniaFact]
+    public async Task A_conversation_opened_while_storage_is_paused_opens_paused_and_lifts_with_it()
+    {
+        await using var app = DesktopHarness.Create();
+        var window = app.ShowWindow();
+        await app.StartWithWorkspaceAsync("火车历史");
+        await app.ConfigureModelAsync();
+        var first = await StartConversationAsync(app, window);
+        app.Client.Reply("高铁靠专用线路和动力分散。");
+        app.ShellPage.Conversations.NewCommand.Execute(null);
+        var draft = Assert.IsType<NewConversationViewModel>(app.Workbench.CurrentPage);
+        draft.Composer.Text = "高铁为什么快？";
+        await draft.Composer.SendCommand.ExecuteAsync(null);
+        var second = Assert.IsType<ConversationViewModel>(app.Workbench.CurrentPage);
+        await UiWait.UntilAsync(() => second.Messages.Count == 2 && second.Messages[1].State == MessageState.Complete);
+
+        // Storage pauses while another page is shown; the conversation opened afterwards starts paused.
+        var health = app.Services.GetRequiredService<StorageHealth>();
+        var kept = health.Retain(new StorageWriteException(StorageFailureKind.Full, "simulated full disk", null));
+        Assert.True(health.IsBlocked);
+        app.Workbench.Navigate(new NavigationRequest(MainSection.Explore, new ConversationRoute(first.Id)));
+        var page = Assert.IsType<ConversationViewModel>(app.Workbench.CurrentPage);
+        Assert.NotSame(first, page);
+        await page.Loaded;
+        Assert.True(page.IsStorageBlocked);
+        Assert.True(page.Composer.IsStoragePaused);
+        Assert.False(page.Summary.SummarizeCommand.CanExecute(null));
+
+        kept.Resolve();
+        await UiWait.UntilAsync(() => !page.IsStorageBlocked, timeoutMs: 15_000);
+        Assert.True(page.Summary.SummarizeCommand.CanExecute(null));
         window.Close();
     }
 
