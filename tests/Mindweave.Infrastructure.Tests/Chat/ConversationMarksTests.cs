@@ -109,8 +109,7 @@ public class ConversationMarksTests
             // The answer has ended on screen; its terminal write has not landed yet.
             Assert.False(h.Conversations.HasUnfinishedAnswer(sent.Conversation));
             asked = h.Conversations.AskAsync(sent.Conversation, "谁造的？", Ct);
-            await Task.Delay(100, Ct);
-            Assert.False(asked.IsCompleted);
+            await ChatHarness.StaysAsync(() => !asked.IsCompleted, 100);
         }
         finally
         {

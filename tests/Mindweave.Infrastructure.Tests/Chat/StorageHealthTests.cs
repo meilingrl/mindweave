@@ -62,8 +62,7 @@ public class StorageHealthTests
         await inFlight.Task.WaitAsync(TimeSpan.FromSeconds(5), Ct);
 
         // Several retry intervals (50 ms in the harness) pass with the write still in flight.
-        await Task.Delay(400, Ct);
-        Assert.True(h.Health.IsBlocked);
+        await ChatHarness.StaysAsync(() => h.Health.IsBlocked, 400);
 
         release.SetResult();
         Assert.True(await exitSave);

@@ -145,8 +145,7 @@ public class ExitStopTests
         try
         {
             save = h.Generation.SaveUnsavedAsync();
-            await Task.Delay(100, Ct);
-            Assert.False(save.IsCompleted);
+            await ChatHarness.StaysAsync(() => !save.IsCompleted, 100);
         }
         finally
         {
@@ -173,8 +172,7 @@ public class ExitStopTests
         stubborn.Release.TrySetResult();
         await h.WaitForAnswerAsync(sent.Answer!.Value, m => m.State == MessageState.Complete);
         await ChatHarness.UntilAsync(() => h.Generation.UnfinishedCount == 0);
-        await Task.Delay(300, Ct);
-        Assert.Equal(0L, await QueuedTitlesAsync(h));
+        await ChatHarness.StaysAsync(async () => await QueuedTitlesAsync(h) == 0, 300);
 
         h.Generation.Reopen();
         var again = await h.Conversations.AskAsync(sent.Conversation, "再问一个", Ct);

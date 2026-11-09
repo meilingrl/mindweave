@@ -62,8 +62,7 @@ public class DiskFullTests
         Assert.Equal(1, h.Client.StartedAnswers);
 
         // Still full: the probe keeps failing, so requests stay paused, even short ones that would fit.
-        await Task.Delay(300, Ct);
-        Assert.True(h.Conversations.IsStorageBlocked);
+        await ChatHarness.StaysAsync(() => h.Conversations.IsStorageBlocked, 300);
         Assert.Equal(SendRejection.StorageUnavailable, (await h.Conversations.AskAsync(first.Conversation, "短问题", Ct)).Rejection);
 
         await StorageFaults.FreeDiskAsync(h.Database);
@@ -136,8 +135,7 @@ public class DiskFullTests
         Assert.Null(await h.SummaryService.ForConversationAsync(sent.Conversation, Ct));
         await StorageFaults.AssertIntactAsync(h.Database);
 
-        await Task.Delay(300, Ct);
-        Assert.True(h.Conversations.IsStorageBlocked);
+        await ChatHarness.StaysAsync(() => h.Conversations.IsStorageBlocked, 300);
 
         await StorageFaults.FreeDiskAsync(h.Database);
         await ChatHarness.UntilAsync(() => !h.Conversations.IsStorageBlocked);

@@ -228,8 +228,7 @@ public class WorkspaceDeleteFlowTests
         Assert.Equal(WorkspaceDeleteStatus.Deleted, outcome.Status);
         Assert.Equal(0, h.Generation.UnfinishedCount);
         gate.TrySetResult();
-        await Task.Delay(100, Ct);
-        Assert.False(h.Health.IsBlocked);
+        await ChatHarness.StaysAsync(() => !h.Health.IsBlocked, 100);
         Assert.Equal(0, await h.Database.ReadAsync(c => c.Scalar<long>(null, "SELECT count(*) FROM generation_task;"), Ct));
     }
 

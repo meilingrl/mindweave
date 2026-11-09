@@ -105,9 +105,7 @@ public class ConversationFlowTests
         await Task.WhenAll(holds.Select(x => x.Started.Task)).WaitAsync(TimeSpan.FromSeconds(5), Ct);
 
         var c = await h.Conversations.StartAsync(h.Workspace, "c", Ct);
-        await Task.Delay(150, Ct);
-
-        Assert.Equal(2, h.Client.StartedAnswers);
+        await ChatHarness.StaysAsync(() => h.Client.StartedAnswers == 2, 150);
         Assert.Equal(MessageState.Pending, (await h.GetMessageAsync(c.Answer!.Value))!.State);
         Assert.Equal(3, h.Generation.UnfinishedAnswerCount);
 
@@ -141,8 +139,7 @@ public class ConversationFlowTests
             hold.Finish();
         }
 
-        await Task.Delay(100, Ct);
-        Assert.Equal(2, h.Client.StartedAnswers);
+        await ChatHarness.StaysAsync(() => h.Client.StartedAnswers == 2, 100);
     }
 
     [Fact]
@@ -201,7 +198,7 @@ public class ConversationFlowTests
         held.Finish("完");
         await h.WaitForAnswerAsync(sent.Answer!.Value);
         await ChatHarness.UntilAsync(() => h.Generation.UnfinishedCount == 0);
-        await Task.Delay(100, Ct);
+        await ChatHarness.StaysAsync(async () => (await h.Conversations.LoadAsync(sent.Conversation, Ct))!.Conversation.TitleSource == TitleSource.Manual, 100);
 
         var conversation = (await h.Conversations.LoadAsync(sent.Conversation, Ct))!.Conversation;
         Assert.Equal("我的 名字", conversation.Title);

@@ -74,15 +74,13 @@ public class StorageRecoveryTests
         health.Report(Full());
         await probe.Entered.Task.WaitAsync(TimeSpan.FromSeconds(5), Ct);
         var stop = health.StopAsync();
-        await Task.Delay(100, Ct);
-        Assert.False(stop.IsCompleted);
+        await ChatHarness.StaysAsync(() => !stop.IsCompleted, 100);
 
         gate.SetResult();
         await stop.WaitAsync(TimeSpan.FromSeconds(5), Ct);
         var calls = probe.Calls;
         health.Report(Full());
-        await Task.Delay(100, Ct);
-        Assert.Equal(calls, probe.Calls);
+        await ChatHarness.StaysAsync(() => probe.Calls == calls, 100);
         Assert.True(health.IsBlocked);
     }
 
@@ -148,8 +146,7 @@ public class StorageRecoveryTests
         var kept = h.Health.Retain(Full());
         first.Finish();
         await h.WaitForAnswerAsync(a.Answer!.Value);
-        await Task.Delay(300, Ct);
-        Assert.DoesNotContain(h.Client.Requests, r => r.Turns[^1].Content == "问C");
+        await ChatHarness.StaysAsync(() => !h.Client.Requests.Any(r => r.Turns[^1].Content == "问C"), 300);
         Assert.Equal(MessageState.Pending, (await h.GetMessageAsync(c.Answer!.Value))!.State);
 
         kept.Resolve();
