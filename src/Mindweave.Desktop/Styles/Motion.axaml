@@ -7,7 +7,7 @@
     settled states). Panels and prompts appearing are in Views/Motion.cs (the Appear attached property).
     The workspace switcher's own controls (the picker and its +) are left as they are.
   -->
-  <Style Selector="Button.nav /template/ ContentPresenter#PART_ContentPresenter, :is(Button).quiet /template/ ContentPresenter#PART_ContentPresenter, Button.primary /template/ ContentPresenter#PART_ContentPresenter, Button.secondary:not(#ToggleNewWorkspace) /template/ ContentPresenter#PART_ContentPresenter, Button.entry /template/ ContentPresenter#PART_ContentPresenter, Button.crumb /template/ ContentPresenter#PART_ContentPresenter, Button.list-name /template/ ContentPresenter#PART_ContentPresenter, Button.link /template/ ContentPresenter#PART_ContentPresenter, Button.toast-body /template/ ContentPresenter#PART_ContentPresenter, Button.field-toggle /template/ ContentPresenter#PART_ContentPresenter">
+  <Style Selector="Button.nav /template/ ContentPresenter#PART_ContentPresenter, :is(Button).quiet /template/ ContentPresenter#PART_ContentPresenter, Button.primary /template/ ContentPresenter#PART_ContentPresenter, Button.secondary /template/ ContentPresenter#PART_ContentPresenter, Button.entry /template/ ContentPresenter#PART_ContentPresenter, Button.crumb /template/ ContentPresenter#PART_ContentPresenter, Button.list-name /template/ ContentPresenter#PART_ContentPresenter, Button.link /template/ ContentPresenter#PART_ContentPresenter, Button.toast-body /template/ ContentPresenter#PART_ContentPresenter, Button.field-toggle /template/ ContentPresenter#PART_ContentPresenter">
     <Setter Property="Transitions">
       <Transitions>
         <BrushTransition Property="ContentPresenter.Background" Duration="0:0:0.12" Easing="CubicEaseOut" />

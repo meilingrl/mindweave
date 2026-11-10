@@ -306,7 +306,7 @@
       </FocusAdornerTemplate>
     </Setter>
   </Style>
-  <Style Selector="Button.primary, Button.secondary:not(#ToggleNewWorkspace)">
+  <Style Selector="Button.primary, Button.secondary">
     <Setter Property="FocusAdorner">
       <FocusAdornerTemplate>
         <Border BorderThickness="2" BorderBrush="{DynamicResource FocusRing}" CornerRadius="9" Margin="-3" AdornerLayer.IsClipEnabled="False" />

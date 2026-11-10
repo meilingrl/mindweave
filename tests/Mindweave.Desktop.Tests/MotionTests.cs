@@ -64,7 +64,7 @@ public class MotionTests
     }
 
     [AvaloniaFact]
-    public void The_transitions_fade_every_button_level_and_leave_the_workspace_plus_alone()
+    public void The_transitions_fade_every_button_level()
     {
         Button Make(string classes, string? name = null)
         {
@@ -74,12 +74,11 @@ public class MotionTests
         }
 
         var buttons = new[] { Make("nav"), Make("quiet"), Make("quiet small"), Make("primary"), Make("secondary"), Make("entry"), Make("crumb"), Make("list-name"), Make("toast-body") };
-        var plus = Make("secondary", "ToggleNewWorkspace");
         var segment = new RadioButton { Content = "浅色", Classes = { "segment" } };
         var scroller = new ScrollViewer { Height = 60, Classes = { "autohide" }, Content = new Border { Height = 400 } };
         var panel = new StackPanel();
         panel.Children.AddRange(buttons);
-        panel.Children.AddRange([plus, segment, scroller]);
+        panel.Children.AddRange([segment, scroller]);
 
         // Without Motion.axaml (as in every other test): nothing is animated.
         var plain = new Window { Width = 400, Height = 700, Content = panel };
@@ -105,8 +104,6 @@ public class MotionTests
             }
         }
 
-        // The workspace switcher's + is being redesigned separately and keeps its own behaviour.
-        Assert.Null(BrushTransition(Presenter(plus), ContentPresenter.BackgroundProperty));
         var segmentBorder = segment.GetVisualDescendants().OfType<Border>().First(b => b.Name == "PART_Segment");
         Assert.NotNull(BrushTransition(segmentBorder, Border.BackgroundProperty));
         var bar = scroller.GetVisualDescendants().OfType<ScrollBar>().First(b => b.Name == "PART_VerticalScrollBar");
