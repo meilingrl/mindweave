@@ -181,6 +181,24 @@
     <Setter Property="Height" Value="10" />
     <Setter Property="Foreground" Value="{DynamicResource MutedText}" />
   </Style>
+  <!-- A row's context menu (2026-11-10): the inline rename box keeps the row's height, padding and corners, so the
+       title does not move when it turns into a box; a refused action's note sits on the window colour like the bar. -->
+  <Style Selector="TextBox.row-rename">
+    <Setter Property="MinHeight" Value="30" />
+    <Setter Property="Padding" Value="9,5" />
+    <Setter Property="CornerRadius" Value="6" />
+    <Setter Property="VerticalContentAlignment" Value="Center" />
+  </Style>
+  <Style Selector="Border.row-notice">
+    <Setter Property="Background" Value="{DynamicResource WindowBackground}" />
+    <Setter Property="BorderBrush" Value="{DynamicResource OutlineBrush}" />
+    <Setter Property="BorderThickness" Value="1" />
+    <Setter Property="CornerRadius" Value="8" />
+    <Setter Property="Padding" Value="10,6,4,6" />
+  </Style>
+  <Style Selector="Border.row-notice TextBlock">
+    <Setter Property="FontSize" Value="12.5" />
+  </Style>
   <!-- New answers in other workspaces (2026-11-10): the closed picker's count badge, and the pop-up hints. -->
   <!-- A pill in the accent colour, the sidebar dot grown to hold a number; it scales from its centre when it pulses. -->
   <Style Selector="Border.news-badge">
