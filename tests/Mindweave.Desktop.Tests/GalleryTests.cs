@@ -989,6 +989,33 @@ public class GalleryTests
         window.Close();
     }
 
+    // ── New answers in another workspace (2026-11-10) ───────────────────────
+
+    [AvaloniaFact]
+    public async Task G41_workspace_picker_shows_new_answers_elsewhere()
+    {
+        await using var scene = Scene.Create("g41");
+        var window = scene.App.ShowWindow(1100, 720, Theme);
+        var seed = await SeedAsync(scene.App);
+        var conversations = scene.App.Services.GetRequiredService<ConversationService>();
+        var held = scene.App.Client.Hold("轨距之争");
+        await conversations.AskAsync(seed.Gauge, "后来为什么统一成标准轨？", CancellationToken.None);
+        await held.Started.Task.WaitAsync(TimeSpan.FromSeconds(5));
+        scene.App.ShellPage.NewWorkspace.Name = "城市交通";
+        await scene.App.ShellPage.NewWorkspace.SubmitCommand.ExecuteAsync(null);
+        await UiWait.UntilAsync(() => scene.App.Workbench.CurrentWorkspace?.Name.Value == "城市交通");
+        held.Finish("以标准轨为主。");
+        await UiWait.UntilAsync(() => scene.App.ShellPage.WorkspaceNews!.HasNews);
+        await SettleAsync(window);
+        Capture(window, "g41-workspace-news");
+
+        var picker = window.GetVisualDescendants().OfType<ComboBox>().Single(c => c.Name == "WorkspacePicker");
+        picker.IsDropDownOpen = true;
+        await SettleAsync(window);
+        Capture(window, "g41b-workspace-news-list");
+        picker.IsDropDownOpen = false;
+    }
+
     // ── Sidebar status (S7 round 4) ─────────────────────────────────────────
 
     [AvaloniaFact]

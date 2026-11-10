@@ -43,6 +43,12 @@ public static partial class UiText
 
     public static string ExpandSidebarUnread { get; } = ExpandSidebarTip + " · " + MarkerNewAnswer;
 
+    /// <summary>The closed workspace picker's hint when other workspaces have a new answer (2026-11-10).</summary>
+    public static string OtherWorkspacesNews(IEnumerable<string> names) => "其他工作区有新回答：" + string.Join("、", names);
+
+    /// <summary>A workspace in the picker's list with a new answer, for screen readers.</summary>
+    public static string WorkspaceWithNews(string name) => name + "，" + MarkerNewAnswer;
+
     public const string ExploreEmpty = "这个工作区还没有会话。";
 
     public const string ExitTitle = "仍有任务在生成";

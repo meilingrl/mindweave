@@ -5,6 +5,22 @@ namespace Mindweave.Desktop;
 
 public static class Converters
 {
+    /// <summary>Whether a workspace (first value) is in a set of workspaces (second value): the picker's new-answer dot.</summary>
+    public static FuncMultiValueConverter<object?, bool> WorkspaceIn { get; } = new(values => HasNews(values.ToList()));
+
+    /// <summary>A picker entry's automation name: the workspace's name, and that it has a new answer when it does.</summary>
+    public static FuncMultiValueConverter<object?, string?> WorkspaceAutomationName { get; } = new(values =>
+    {
+        var list = values.ToList();
+        return list.Count > 0 && list[0] is Mindweave.Core.Workspaces.Workspace workspace
+            ? HasNews(list) ? UiText.WorkspaceWithNews(workspace.Name.Value) : workspace.Name.Value
+            : null;
+    });
+
+    private static bool HasNews(List<object?> values) =>
+        values.Count == 2 && values[0] is Mindweave.Core.Workspaces.Workspace workspace
+        && values[1] is IReadOnlySet<Mindweave.Core.Workspaces.WorkspaceId> set && set.Contains(workspace.Id);
+
     public static FuncValueConverter<bool, double> SupersededOpacity { get; } = new(superseded => superseded ? 0.55 : 1.0);
 
     /// <summary>Unread names are bold (S7 已读／未读约定).</summary>

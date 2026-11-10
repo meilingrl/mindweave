@@ -60,6 +60,7 @@ public static class CompositionRoot
         services.AddSingleton<ConversationListViewModel>();
         services.AddSingleton<RootViewModel>();
         services.AddSingleton<IRootNavigator>(sp => sp.GetRequiredService<RootViewModel>());
+        services.AddSingleton<WorkspaceNewsViewModel>();
         services.AddSingleton<ShellViewModel>();
         services.AddSingleton<AppStartup>();
         return services.BuildServiceProvider(new ServiceProviderOptions { ValidateOnBuild = true, ValidateScopes = true });

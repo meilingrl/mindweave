@@ -122,4 +122,33 @@ public class ConversationMarksTests
         var request = h.Client.Requests.Last(Mindweave.Testing.FakeChatClient.IsAnswer);
         Assert.Contains(request.Turns, t => t.Content == "火车是蒸汽机车。");
     }
+
+    [Fact]
+    public async Task Workspaces_with_unread_lists_where_new_answers_are_and_leaves_out_archived_and_seen_ones()
+    {
+        await using var h = await ChatHarness.StartAsync();
+        var marks = new ConversationMarksService(h.Generation, h.Conversations, new SqlitePreferenceStore(h.Database), h.Health, NullLogger<ConversationMarksService>.Instance);
+        var other = new Core.Workspaces.Workspace(Core.Workspaces.WorkspaceId.New(), Core.Workspaces.WorkspaceName.FromStored("另一个"), DateTimeOffset.UtcNow);
+        await new SqliteWorkspaceStore(h.Database).AddAsync(other, Ct);
+        Core.Workspaces.WorkspaceId[] both = [h.Workspace, other.Id];
+        Assert.Empty(await marks.WorkspacesWithUnreadAsync(both, Ct));
+
+        // An answer that ends while nothing is on screen marks its conversation; the workspace it is in is listed.
+        var sent = await h.Conversations.StartAsync(h.Workspace, "火车是怎么发明的？", Ct);
+        await h.WaitForAnswerAsync(sent.Answer!.Value);
+        await ChatHarness.UntilAsync(() => marks.IsUnread(sent.Conversation));
+        Assert.Equal([h.Workspace], await marks.WorkspacesWithUnreadAsync(both, Ct));
+        Assert.Empty(await marks.WorkspacesWithUnreadAsync([other.Id], Ct));
+
+        // Archived: the sidebar leaves it out, so the workspace has nothing new to show.
+        await ChatHarness.UntilAsync(() => !h.Conversations.HasUnfinishedAnswer(sent.Conversation));
+        Assert.True((await h.Conversations.ArchiveAsync(sent.Conversation, Ct)).Archived);
+        Assert.Empty(await marks.WorkspacesWithUnreadAsync(both, Ct));
+        Assert.Contains(sent.Conversation, await h.Conversations.RestoreAsync(sent.Conversation, Ct));
+        Assert.Equal([h.Workspace], await marks.WorkspacesWithUnreadAsync(both, Ct));
+
+        // Seen: no longer listed.
+        marks.SetViewing(sent.Conversation);
+        Assert.Empty(await marks.WorkspacesWithUnreadAsync(both, Ct));
+    }
 }

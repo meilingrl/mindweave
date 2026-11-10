@@ -1,6 +1,7 @@
 using Microsoft.Extensions.Logging;
 using Mindweave.Application.Storage;
 using Mindweave.Core.Conversations;
+using Mindweave.Core.Workspaces;
 
 namespace Mindweave.Application.Conversations;
 
@@ -18,6 +19,7 @@ public sealed partial class ConversationMarksService : IConversationMarks
     public const string UnreadKey = "conversations.unread";
 
     private readonly GenerationCoordinator _generation;
+    private readonly ConversationService _conversations;
     private readonly IPreferenceStore _store;
     private readonly StorageHealth _storage;
     private readonly ILogger<ConversationMarksService> _logger;
@@ -43,6 +45,7 @@ public sealed partial class ConversationMarksService : IConversationMarks
         ArgumentNullException.ThrowIfNull(conversations);
         ArgumentNullException.ThrowIfNull(storage);
         _generation = generation;
+        _conversations = conversations;
         _store = store;
         _storage = storage;
         _logger = logger;
@@ -80,6 +83,33 @@ public sealed partial class ConversationMarksService : IConversationMarks
         }
 
         Announce(changed);
+    }
+
+    public async Task<IReadOnlySet<WorkspaceId>> WorkspacesWithUnreadAsync(IReadOnlyCollection<WorkspaceId> workspaces, CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(workspaces);
+        HashSet<ConversationId> unread;
+        lock (_gate)
+        {
+            unread = [.. _unread];
+        }
+
+        var result = new HashSet<WorkspaceId>();
+        if (unread.Count == 0)
+        {
+            return result;
+        }
+
+        foreach (var workspace in workspaces)
+        {
+            var listed = await _conversations.ListAsync(workspace, cancellationToken).ConfigureAwait(false);
+            if (listed.Any(s => !s.IsHidden && unread.Contains(s.Conversation.Id)))
+            {
+                result.Add(workspace);
+            }
+        }
+
+        return result;
     }
 
     /// <summary>Clears the mark without showing the conversation (a deleted conversation, seeding screenshots, tests).</summary>
