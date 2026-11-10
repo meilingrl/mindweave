@@ -448,6 +448,63 @@ public class RowMenuUiTests
         window.Close();
     }
 
+
+    /// <summary>
+    /// The rename box's own cut/copy/paste menu takes the focus while it is open; that is not leaving the box, so the
+    /// rename goes on (to paste a name, say). Closing that menu by a click elsewhere leaves the box and saves.
+    /// </summary>
+    [AvaloniaFact]
+    public async Task The_rename_boxs_own_menu_does_not_end_the_rename()
+    {
+        await using var app = DesktopHarness.Create();
+        var window = app.ShowWindow(1100, 720);
+        var (_, middle, _, sibling) = await SeedAsync(app, window);
+        var list = app.ShellPage.Conversations;
+        var conversations = app.Services.GetRequiredService<ConversationService>();
+        var row = list.Items.Single(i => i.Id == middle);
+
+        OpenMenu(window, middle);
+        UiInput.Click(window, MenuEntry(window, "RowMenuRename"));
+        await UiWait.UntilAsync(() => RenameBox(window, middle) is { IsFocused: true, IsEffectivelyVisible: true });
+        var box = RenameBox(window, middle);
+        window.KeyTextInput("蒸汽");
+        RightClick(window, box);
+        Assert.True(box.ContextFlyout!.IsOpen);
+        Assert.True(row.IsRenaming);
+        Assert.True(box.IsEffectivelyVisible);
+
+        // Esc closes that menu only; the focus comes back to the box and typing goes on.
+        window.KeyPress(Key.Escape, RawInputModifiers.None, PhysicalKey.Escape, null);
+        window.KeyRelease(Key.Escape, RawInputModifiers.None, PhysicalKey.Escape, null);
+        await UiWait.UntilAsync(() => !box.ContextFlyout!.IsOpen);
+        Dispatcher.UIThread.RunJobs();
+        Assert.True(row.IsRenaming);
+        box.Focus();
+        window.KeyTextInput("机车");
+        window.KeyPress(Key.Enter, RawInputModifiers.None, PhysicalKey.Enter, null);
+        await list.RowAction;
+        Assert.Equal("蒸汽机车", (await conversations.LoadAsync(middle, CancellationToken.None))!.Conversation.Title);
+
+        // Opened again and dismissed by a click elsewhere: that click only closes the menu, as menus do; the next one
+        // leaves the box and saves.
+        OpenMenu(window, sibling);
+        UiInput.Click(window, MenuEntry(window, "RowMenuRename"));
+        await UiWait.UntilAsync(() => RenameBox(window, sibling) is { IsFocused: true, IsEffectivelyVisible: true });
+        var siblingBox = RenameBox(window, sibling);
+        window.KeyTextInput("铁轨");
+        RightClick(window, siblingBox);
+        Assert.True(siblingBox.ContextFlyout!.IsOpen);
+        UiInput.Click(window, Find<TextBox>(CurrentView(window), "Input"));
+        await UiWait.UntilAsync(() => !siblingBox.ContextFlyout.IsOpen);
+        Dispatcher.UIThread.RunJobs();
+        Assert.True(list.Items.Single(i => i.Id == sibling).IsRenaming);
+        UiInput.Click(window, Find<TextBox>(CurrentView(window), "Input"));
+        await UiWait.UntilAsync(() => !list.Items.Single(i => i.Id == sibling).IsRenaming);
+        await list.RowAction;
+        Assert.Equal("铁轨", (await conversations.LoadAsync(sibling, CancellationToken.None))!.Conversation.Title);
+        window.Close();
+    }
+
     /// <summary>The network seed, the sibling's page open and the sidebar laid out; returns root, middle, leaf, sibling.</summary>
     private static async Task<(ConversationId Root, ConversationId Middle, ConversationId Leaf, ConversationId Sibling)> SeedAsync(DesktopHarness app, MainWindow window)
     {
@@ -507,6 +564,15 @@ public class RowMenuUiTests
         Dispatcher.UIThread.RunJobs();
         var title = Find<TextBlock>(Row(window, id), "RowTitle");
         var point = title.TranslatePoint(new Point(4, title.Bounds.Height / 2), window)!.Value;
+        window.MouseDown(point, MouseButton.Right);
+        window.MouseUp(point, MouseButton.Right);
+        Dispatcher.UIThread.RunJobs();
+        window.UpdateLayout();
+    }
+
+    private static void RightClick(Window window, Control target)
+    {
+        var point = target.TranslatePoint(new Point(20, target.Bounds.Height / 2), window)!.Value;
         window.MouseDown(point, MouseButton.Right);
         window.MouseUp(point, MouseButton.Right);
         Dispatcher.UIThread.RunJobs();

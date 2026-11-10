@@ -170,10 +170,19 @@ public sealed partial class ShellView : UserControl
     /// <summary>Leaving the box (a click elsewhere, Tab) saves, as file lists do.</summary>
     private void OnRenameBoxLostFocus(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
     {
-        if ((sender as Control)?.DataContext is ConversationItemViewModel { IsRenaming: true } item)
+        if (sender is not TextBox box || box.DataContext is not ConversationItemViewModel { IsRenaming: true } item)
         {
-            _list?.CommitRenameRowCommand.Execute(item);
+            return;
         }
+
+        // The box's own cut/copy/paste menu took the focus: still editing (to paste a name, say). The focus comes back
+        // to the box when that menu closes, and leaving the box after that saves as usual.
+        if (box.ContextFlyout is { IsOpen: true })
+        {
+            return;
+        }
+
+        _list?.CommitRenameRowCommand.Execute(item);
     }
 
     /// <summary>The row that holds <paramref name="menu"/> (asked before the menu is attached to it, too).</summary>
