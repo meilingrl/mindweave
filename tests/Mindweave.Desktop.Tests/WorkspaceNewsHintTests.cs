@@ -133,6 +133,7 @@ public class WorkspaceNewsHintTests
         await using var scene = await Scene.StartAsync();
         var (app, window, news) = (scene.App, scene.Window, scene.News);
         var answered = await scene.AnswerAsync(scene.Trains, "火车是怎么发明的？");
+        window.UpdateLayout();
 
         UiInput.Click(window, Find<Button>(window, "OpenNewsToast"));
         await UiWait.UntilAsync(() => app.Workbench.CurrentWorkspace?.Id == scene.Trains.Id);
@@ -151,6 +152,7 @@ public class WorkspaceNewsHintTests
         var first = await scene.AnswerAsync(scene.Trains, "火车是怎么发明的？");
         var second = await scene.AnswerAsync(scene.Trains, "蒸汽机车有多重？");
         Assert.Equal(2, Assert.Single(news.Toasts).Count);
+        window.UpdateLayout();
 
         UiInput.Click(window, Find<Button>(window, "OpenNewsToast"));
         await UiWait.UntilAsync(() => app.Workbench.CurrentWorkspace?.Id == scene.Trains.Id);
