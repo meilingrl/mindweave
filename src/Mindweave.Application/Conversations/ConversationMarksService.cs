@@ -65,6 +65,8 @@ public sealed partial class ConversationMarksService : IConversationMarks
 
     public event EventHandler<ConversationId>? Marked;
 
+    public event EventHandler<ConversationId>? Answered;
+
     public bool IsSummarizing(ConversationId conversation) => _generation.HasUnfinishedSummary(conversation);
 
     public bool IsUnread(ConversationId conversation)
@@ -292,10 +294,12 @@ public sealed partial class ConversationMarksService : IConversationMarks
             return;
         }
 
+        bool offScreen;
         bool changed;
         lock (_gate)
         {
-            changed = _viewing != e.ConversationId && _unread.Add(e.ConversationId);
+            offScreen = _viewing != e.ConversationId;
+            changed = offScreen && _unread.Add(e.ConversationId);
             if (changed)
             {
                 _version++;
@@ -305,6 +309,11 @@ public sealed partial class ConversationMarksService : IConversationMarks
         if (changed)
         {
             Marked?.Invoke(this, e.ConversationId);
+        }
+
+        if (offScreen)
+        {
+            Answered?.Invoke(this, e.ConversationId);
         }
 
         Announce(changed);

@@ -47,16 +47,23 @@
       </Grid>
     </Border>
 
-    <!-- 提示 (2026-11-10): the sound for a new answer in another workspace, off unless chosen. -->
+    <!-- 提示 (2026-11-10): whether the open workspace's conversations pop up a hint too (on unless turned off), and the
+         sound for a hint (off unless chosen). -->
     <StackPanel IsVisible="{Binding CanChooseNewsSound}">
       <TextBlock Classes="section-heading" Margin="2,28,0,8" Text="{x:Static d:UiText.HintsSection}" />
       <Border Classes="card settings">
-        <Grid ColumnDefinitions="96,*" RowDefinitions="Auto,Auto,Auto">
-          <TextBlock Classes="field-label" Text="{x:Static d:UiText.NewsSoundLabel}" />
-          <CheckBox Grid.Column="1" Name="NewsSoundToggle" IsChecked="{Binding PlaysNewsSound}" Content="{x:Static d:UiText.NewsSound}"
+        <Grid ColumnDefinitions="96,*" RowDefinitions="Auto,Auto,Auto,Auto,Auto,Auto">
+          <TextBlock Classes="field-label" Text="{x:Static d:UiText.NewsInWorkspaceLabel}" />
+          <CheckBox Grid.Column="1" Name="NewsInWorkspaceToggle" IsChecked="{Binding ShowsInWorkspaceNews}" Content="{x:Static d:UiText.NewsInWorkspace}"
+                    AutomationProperties.Name="{x:Static d:UiText.NewsInWorkspace}" AutomationProperties.HelpText="{x:Static d:UiText.NewsInWorkspaceHint}" />
+          <TextBlock Grid.Row="1" Grid.Column="1" Classes="caption" TextWrapping="Wrap" Margin="0,4,0,0" Text="{x:Static d:UiText.NewsInWorkspaceHint}" />
+          <TextBlock Grid.Row="2" Grid.Column="1" Name="InWorkspaceNewsStatus" Classes="error" FontSize="12" TextWrapping="Wrap" Margin="0,8,0,0"
+                     Text="{Binding InWorkspaceNewsStatus}" IsVisible="{Binding InWorkspaceNewsStatus, Converter={x:Static ObjectConverters.IsNotNull}}" />
+          <TextBlock Grid.Row="3" Classes="field-label" Margin="0,16,0,0" Text="{x:Static d:UiText.NewsSoundLabel}" />
+          <CheckBox Grid.Row="3" Grid.Column="1" Name="NewsSoundToggle" Margin="0,16,0,0" IsChecked="{Binding PlaysNewsSound}" Content="{x:Static d:UiText.NewsSound}"
                     AutomationProperties.Name="{x:Static d:UiText.NewsSound}" AutomationProperties.HelpText="{x:Static d:UiText.NewsSoundHint}" />
-          <TextBlock Grid.Row="1" Grid.Column="1" Classes="caption" TextWrapping="Wrap" Margin="0,4,0,0" Text="{x:Static d:UiText.NewsSoundHint}" />
-          <TextBlock Grid.Row="2" Grid.Column="1" Name="NewsSoundStatus" Classes="error" FontSize="12" TextWrapping="Wrap" Margin="0,8,0,0"
+          <TextBlock Grid.Row="4" Grid.Column="1" Classes="caption" TextWrapping="Wrap" Margin="0,4,0,0" Text="{x:Static d:UiText.NewsSoundHint}" />
+          <TextBlock Grid.Row="5" Grid.Column="1" Name="NewsSoundStatus" Classes="error" FontSize="12" TextWrapping="Wrap" Margin="0,8,0,0"
                      Text="{Binding NewsSoundStatus}" IsVisible="{Binding NewsSoundStatus, Converter={x:Static ObjectConverters.IsNotNull}}" />
         </Grid>
       </Border>

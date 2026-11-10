@@ -34,6 +34,7 @@ public sealed partial class SettingsHomeViewModel : PageViewModel
     private bool _loading;
     private bool _chosen;
     private bool _soundChosen;
+    private bool _inWorkspaceChosen;
 
     public SettingsHomeViewModel(
         AppEnvironment environment,
@@ -104,8 +105,8 @@ public sealed partial class SettingsHomeViewModel : PageViewModel
     public bool CanChooseNewsSound => _newsAlerts is not null;
 
     /// <summary>
-    /// The system's alert sound when an answer ends in another workspace (2026-11-10); off unless chosen. Changing it
-    /// applies at once and is saved in the background.
+    /// The system's alert sound when a new-answer hint pops up (2026-11-10); off unless chosen. Changing it applies at
+    /// once and is saved in the background.
     /// </summary>
     [ObservableProperty]
     public partial bool PlaysNewsSound { get; set; }
@@ -113,6 +114,17 @@ public sealed partial class SettingsHomeViewModel : PageViewModel
     /// <summary>Shown only when saving the sound choice failed; the choice still applies until the application closes.</summary>
     [ObservableProperty]
     public partial string? NewsSoundStatus { get; private set; }
+
+    /// <summary>
+    /// Conversations of the open workspace pop up a hint too, not only other workspaces (2026-11-10); on unless turned
+    /// off. Changing it applies at once and is saved in the background.
+    /// </summary>
+    [ObservableProperty]
+    public partial bool ShowsInWorkspaceNews { get; set; } = true;
+
+    /// <summary>Shown only when saving that choice failed; the choice still applies until the application closes.</summary>
+    [ObservableProperty]
+    public partial string? InWorkspaceNewsStatus { get; private set; }
 
     [RelayCommand]
     private void ShowStorageDetails() => _content.Push(StorageDetailsRoute.Instance);
@@ -147,6 +159,34 @@ public sealed partial class SettingsHomeViewModel : PageViewModel
 
         _soundChosen = true;
         Saving = SaveSoundAsync(_newsAlerts, value, Saving);
+    }
+
+    partial void OnShowsInWorkspaceNewsChanged(bool value)
+    {
+        if (_loading || _newsAlerts is null)
+        {
+            return;
+        }
+
+        _inWorkspaceChosen = true;
+        Saving = SaveInWorkspaceAsync(_newsAlerts, value, Saving);
+    }
+
+    private async Task SaveInWorkspaceAsync(INewsAlerts alerts, bool on, Task previous)
+    {
+        // One write after another, so the last choice made is the one that stays.
+        await previous;
+        try
+        {
+            await alerts.SetInWorkspaceAsync(on, CancellationToken.None);
+            InWorkspaceNewsStatus = null;
+        }
+#pragma warning disable CA1031 // As for the sound: reported beside the setting, still applies for this run.
+        catch (Exception)
+#pragma warning restore CA1031
+        {
+            InWorkspaceNewsStatus = UiText.NewsInWorkspaceSaveFailed;
+        }
     }
 
     private async Task SaveSoundAsync(INewsAlerts alerts, bool on, Task previous)
@@ -205,6 +245,7 @@ public sealed partial class SettingsHomeViewModel : PageViewModel
         }
 
         var sound = false;
+        var inWorkspace = true;
         if (_newsAlerts is not null)
         {
             try
@@ -212,6 +253,16 @@ public sealed partial class SettingsHomeViewModel : PageViewModel
                 sound = await _newsAlerts.GetSoundAsync(CancellationToken.None);
             }
 #pragma warning disable CA1031 // Unreadable means off, the default.
+            catch (Exception)
+#pragma warning restore CA1031
+            {
+            }
+
+            try
+            {
+                inWorkspace = await _newsAlerts.GetInWorkspaceAsync(CancellationToken.None);
+            }
+#pragma warning disable CA1031 // Unreadable means on, the default.
             catch (Exception)
 #pragma warning restore CA1031
             {
@@ -228,6 +279,11 @@ public sealed partial class SettingsHomeViewModel : PageViewModel
         if (!_soundChosen)
         {
             PlaysNewsSound = sound;
+        }
+
+        if (!_inWorkspaceChosen)
+        {
+            ShowsInWorkspaceNews = inWorkspace;
         }
 
         _loading = false;

@@ -29,7 +29,7 @@ public class WorkspaceNewsHintTests
     private static readonly TimeSpan Duration = WorkspaceNewsOptions.DefaultToastDuration;
 
     [AvaloniaFact]
-    public async Task An_answer_in_another_workspace_pops_up_a_hint_without_taking_the_focus_and_one_in_the_open_workspace_does_not()
+    public async Task An_answer_in_another_workspace_pops_up_a_hint_without_taking_the_focus_and_with_in_workspace_hints_off_one_in_the_open_workspace_does_not()
     {
         await using var scene = await Scene.StartAsync();
         var (app, window, news) = (scene.App, scene.Window, scene.News);
@@ -57,7 +57,8 @@ public class WorkspaceNewsHintTests
         Assert.InRange(content.Bounds.Width - corner.X, 0, 40);
         Assert.InRange(content.Bounds.Height - corner.Y, 0, 120);
 
-        // An answer in the open workspace: its sidebar marks it, and no hint pops up for it.
+        // With the open workspace's hints turned off, an answer there: its sidebar marks it, and no hint pops up for it.
+        await app.Services.GetRequiredService<INewsAlerts>().SetInWorkspaceAsync(false, CancellationToken.None);
         var open = await scene.AnswerAsync(scene.HighSpeed, "高铁有多快？", expectHint: false);
         await UiWait.UntilAsync(() => app.ShellPage.Conversations.Items.SingleOrDefault(i => i.Id == open)?.Mark == ConversationMark.Unread);
         await scene.SettledAsync();
@@ -67,7 +68,7 @@ public class WorkspaceNewsHintTests
     }
 
     [AvaloniaFact]
-    public async Task An_answer_that_ended_while_its_workspace_was_open_pops_up_nothing_after_the_user_leaves_it()
+    public async Task An_answer_that_ended_while_its_workspace_was_open_pops_up_no_workspace_hint_after_the_user_leaves_it()
     {
         await using var scene = await Scene.StartAsync();
         var (app, news) = (scene.App, scene.News);
@@ -81,9 +82,10 @@ public class WorkspaceNewsHintTests
         await UiWait.UntilAsync(() => news.Count == 1);
         await scene.SettledAsync();
 
-        // The badge counts it, as for any mark elsewhere; but the user saw that workspace when it ended, so nothing pops up.
+        // The badge counts it, as for any mark elsewhere; but the user saw that workspace when it ended, so its hint is
+        // the conversation's (it ended in the open workspace), never the workspace's.
         Assert.Contains(scene.Trains.Id, news.Workspaces);
-        Assert.Empty(news.Toasts);
+        Assert.Equal([answered], news.Toasts.Select(t => t.Conversation));
         Assert.True(app.Services.GetRequiredService<IConversationMarks>().IsUnread(answered));
         scene.Window.Close();
     }
@@ -131,6 +133,7 @@ public class WorkspaceNewsHintTests
         await using var scene = await Scene.StartAsync();
         var (app, window, news) = (scene.App, scene.Window, scene.News);
         var answered = await scene.AnswerAsync(scene.Trains, "火车是怎么发明的？");
+        window.UpdateLayout();
 
         UiInput.Click(window, Find<Button>(window, "OpenNewsToast"));
         await UiWait.UntilAsync(() => app.Workbench.CurrentWorkspace?.Id == scene.Trains.Id);
@@ -149,6 +152,7 @@ public class WorkspaceNewsHintTests
         var first = await scene.AnswerAsync(scene.Trains, "火车是怎么发明的？");
         var second = await scene.AnswerAsync(scene.Trains, "蒸汽机车有多重？");
         Assert.Equal(2, Assert.Single(news.Toasts).Count);
+        window.UpdateLayout();
 
         UiInput.Click(window, Find<Button>(window, "OpenNewsToast"));
         await UiWait.UntilAsync(() => app.Workbench.CurrentWorkspace?.Id == scene.Trains.Id);
@@ -164,6 +168,7 @@ public class WorkspaceNewsHintTests
         await using var scene = await Scene.StartAsync();
         var (window, news) = (scene.Window, scene.News);
         await scene.AnswerAsync(scene.Trains, "火车是怎么发明的？");
+        window.UpdateLayout();
 
         UiInput.Click(window, Find<Button>(window, "CloseNewsToast"));
         Assert.Empty(news.Toasts);
@@ -259,11 +264,12 @@ public class WorkspaceNewsHintTests
         await scene.SettledAsync();
         Assert.Equal(0, news.Count);
 
-        // Leaving it makes it another workspace: the badge shows 1, but nothing new arrived, so it does not pulse.
+        // Leaving it makes it another workspace: the badge shows 1, but nothing new arrived, so it does not pulse, and no
+        // workspace hint pops up (the conversation's own hint, from when it ended, may still be up).
         app.ShellPage.SelectedWorkspace = scene.Trains;
         await UiWait.UntilAsync(() => news.Count == 1);
         Assert.False(shell.IsPulsing);
-        Assert.Empty(news.Toasts);
+        Assert.DoesNotContain(news.Toasts, t => t.Conversation is null);
         window.Close();
     }
 
@@ -332,7 +338,7 @@ public class WorkspaceNewsHintTests
     }
 
     /// <summary>Two workspaces, 火车 and 高铁 (open), a standing clock for the hints' time, and a window.</summary>
-    private sealed class Scene : IAsyncDisposable
+    internal sealed class Scene : IAsyncDisposable
     {
         private Scene(DesktopHarness app, ManualTime clock)
         {
@@ -352,10 +358,14 @@ public class WorkspaceNewsHintTests
 
         public Workspace HighSpeed { get; private set; } = null!;
 
-        public static async Task<Scene> StartAsync()
+        public static async Task<Scene> StartAsync(Action<IServiceCollection>? overrides = null)
         {
             var clock = new ManualTime();
-            var app = DesktopHarness.Create(s => s.AddSingleton(new WorkspaceNewsOptions { Time = clock }));
+            var app = DesktopHarness.Create(s =>
+            {
+                s.AddSingleton(new WorkspaceNewsOptions { Time = clock });
+                overrides?.Invoke(s);
+            });
             var scene = new Scene(app, clock) { Window = app.ShowWindow() };
             scene.Trains = await app.StartWithWorkspaceAsync("火车");
             await app.ConfigureModelAsync();
@@ -392,6 +402,17 @@ public class WorkspaceNewsHintTests
             }
 
             return sent.Conversation;
+        }
+
+        /// <summary>Asks again in <paramref name="conversation"/> (off screen) and waits until that answer has ended and been noted.</summary>
+        public async Task AskAsync(ConversationId conversation, string question)
+        {
+            var conversations = App.Services.GetRequiredService<ConversationService>();
+            await UiWait.UntilAsync(() => !conversations.HasUnfinishedAnswer(conversation));
+            var noted = News.MarksNoted;
+            var asked = await conversations.AskAsync(conversation, question, CancellationToken.None);
+            Assert.Null(asked.Rejection);
+            await UiWait.UntilAsync(() => News.MarksNoted > noted);
         }
 
         /// <summary>Past the hints' 100 ms refresh delay and any refresh it started, so a hint that would come has come.</summary>
