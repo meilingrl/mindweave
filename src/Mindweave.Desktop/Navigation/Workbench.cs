@@ -13,7 +13,7 @@ namespace Mindweave.Desktop.Navigation;
 /// per visited workspace with its viewer slots, and the active slot's content stacks. Implements the menu and content navigators so
 /// view models navigate through contracts rather than touching each other.
 /// </summary>
-public sealed class Workbench : ObservableObject, IWorkbenchNavigator
+public sealed class Workbench : ObservableObject, IWorkbenchNavigator, IWorkspaceDirectory
 {
     private readonly Dictionary<WorkspaceId, WorkspaceRuntime> _runtimes = [];
     private readonly IPageFactory _pages;
@@ -226,6 +226,35 @@ public sealed class Workbench : ObservableObject, IWorkbenchNavigator
         Changed();
     }
 
+    /// <summary>
+    /// A renamed workspace (2026-11-10) takes its place in the list (a replacement, so the switcher and the new-answer
+    /// hints follow), its runtime holds the new one, and its pages that show the name are told.
+    /// </summary>
+    public void RenameWorkspace(Workspace renamed)
+    {
+        ArgumentNullException.ThrowIfNull(renamed);
+        var index = Workspaces.ToList().FindIndex(w => w.Id == renamed.Id);
+        if (index < 0)
+        {
+            return;
+        }
+
+        Workspaces[index] = renamed;
+        if (_runtimes.TryGetValue(renamed.Id, out var runtime))
+        {
+            runtime.Workspace = renamed;
+            foreach (var page in runtime.AllPages().OfType<IShowsWorkspaceName>())
+            {
+                page.WorkspaceRenamed(renamed);
+            }
+        }
+
+        if (_active?.Workspace.Id == renamed.Id)
+        {
+            OnPropertyChanged(nameof(CurrentWorkspace));
+        }
+    }
+
     /// <summary>Back within the current section's history. The section home is never popped.</summary>
     public void GoBack()
     {
@@ -286,7 +315,7 @@ public sealed class Workbench : ObservableObject, IWorkbenchNavigator
         var stack = slot.StackOf(slot.Section);
         if (stack.Count == 0)
         {
-            stack.Add(_pages.Create(ContentRoute.HomeOf(slot.Section), new PageContext(runtime.Workspace, slot.Key, this)));
+            stack.Add(_pages.Create(ContentRoute.HomeOf(slot.Section), new PageContext(runtime.Workspace, slot.Key, this, this)));
         }
     }
 
@@ -298,7 +327,7 @@ public sealed class Workbench : ObservableObject, IWorkbenchNavigator
             return;
         }
 
-        stack.Add(_pages.Create(route, new PageContext(runtime.Workspace, slot.Key, this)));
+        stack.Add(_pages.Create(route, new PageContext(runtime.Workspace, slot.Key, this, this)));
         if (stack.Count > MaxHistory)
         {
             // Keep the section home; drop the oldest detail page.

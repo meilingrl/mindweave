@@ -131,6 +131,8 @@
       <SolidColorBrush x:Key="SegmentedHover">#E6E4E1</SolidColorBrush>
       <BoxShadows x:Key="SegmentedShadow">0 1 2 0 #1F000000</BoxShadows>
       <BoxShadows x:Key="PopupShadow">0 8 24 0 #24000000</BoxShadows>
+      <!-- The workspace menu (2026-11-10): falls downwards only, so the popup that clips it shows no hard edge -->
+      <BoxShadows x:Key="MenuShadow">0 8 16 -6 #33000000</BoxShadows>
     </ResourceDictionary>
     <ResourceDictionary x:Key="Dark">
       <SolidColorBrush x:Key="WindowBackground">#18191B</SolidColorBrush>
@@ -250,6 +252,7 @@
       <SolidColorBrush x:Key="SegmentedHover">#202227</SolidColorBrush>
       <BoxShadows x:Key="SegmentedShadow">0 1 2 0 #66000000</BoxShadows>
       <BoxShadows x:Key="PopupShadow">0 8 24 0 #80000000</BoxShadows>
+      <BoxShadows x:Key="MenuShadow">0 8 16 -6 #B3000000</BoxShadows>
     </ResourceDictionary>
   </ResourceDictionary.ThemeDictionaries>
 </ResourceDictionary>

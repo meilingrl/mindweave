@@ -28,12 +28,14 @@ public class WorkspaceDeleteUiTests
         await using var app = DesktopHarness.Create();
         var window = app.ShowWindow(1100, 720);
         await NetworkScenario.SeedAsync(app);
+        // From 设置 › 工作区 (2026-11-10: every workspace's delete is there, one per row).
         app.ShellPage.ShowSectionCommand.Execute(MainSection.Settings);
-        var settings = Assert.IsType<SettingsHomeViewModel>(app.Workbench.CurrentPage);
+        Assert.IsType<SettingsHomeViewModel>(app.Workbench.CurrentPage).ShowWorkspacesCommand.Execute(null);
+        var page = Assert.IsType<WorkspacesViewModel>(app.Workbench.CurrentPage);
         window.UpdateLayout();
-        Assert.Equal("火车", Find<TextBlock>(window, "SettingsWorkspaceName").Text);
+        Assert.Equal("火车", Assert.Single(page.Rows).Name);
 
-        settings.DeleteWorkspaceCommand.Execute(null);
+        page.Rows[0].DeleteCommand.Execute(null);
         var dialog = app.Root.WorkspaceDeletion;
         await dialog.Loading;
         window.UpdateLayout();
@@ -63,14 +65,10 @@ public class WorkspaceDeleteUiTests
         Assert.False(dialog.IsOpen);
         Assert.Single(app.Workbench.Workspaces);
 
-        // The same dialog from the workspace picker's context menu, in the danger colour.
-        var picker = Find<ComboBox>(window, "WorkspacePicker");
-        picker.ContextMenu!.Open(picker);
-        var item = Assert.IsType<MenuItem>(picker.ContextMenu.Items.Single());
-        Assert.Equal(UiText.DeleteWorkspace, item.Header);
-        Assert.Contains("danger", item.Classes);
-        item.Command!.Execute(null);
-        picker.ContextMenu.Close();
+        // The row's entry is in the danger colour; opening it again starts with an empty name.
+        var entry = Find<Button>(window, "DeleteWorkspaceButton");
+        Assert.Contains("danger", entry.Classes);
+        UiInput.Click(window, entry);
         Assert.True(dialog.IsOpen);
         Assert.Equal(string.Empty, dialog.TypedName);
         window.Close();

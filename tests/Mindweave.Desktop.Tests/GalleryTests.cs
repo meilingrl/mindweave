@@ -1031,8 +1031,9 @@ public class GalleryTests
     // ── Round 4 · topic-delete ───────────────────────────────────────────────
 
     /// <summary>
-    /// The 工作区 section of the settings (g33a), the delete-a-workspace confirmation opened from it with the name typed
-    /// (g33), the dialog refusing while an answer runs (g33b), and after the delete the storage page with its backup (g33c).
+    /// 设置 › 工作区 (g33a; 2026-11-10: every workspace, where the delete entries now are), the delete-a-workspace
+    /// confirmation opened from its row with the name typed (g33), the dialog refusing while an answer runs (g33b), and
+    /// after the delete the storage page with its backup (g33c).
     /// </summary>
     [AvaloniaFact]
     public async Task G33_delete_workspace_confirmation()
@@ -1041,14 +1042,13 @@ public class GalleryTests
         var window = scene.App.ShowWindow(1100, 720, Theme);
         var seed = await SeedAsync(scene.App, summaries: true);
 
-        // Opened from 设置 › 工作区, scrolled into view behind the dialog.
-        scene.App.ShellPage.ShowSectionCommand.Execute(MainSection.Settings);
-        var settings = Assert.IsType<SettingsHomeViewModel>(scene.App.Workbench.CurrentPage);
-        await SettleAsync(window);
-        window.GetVisualDescendants().OfType<SettingsHomeView>().Single().GetVisualDescendants().OfType<ScrollViewer>().First().ScrollToEnd();
+        // Opened from 设置 › 工作区, behind the dialog.
+        scene.App.ShellPage.ManageWorkspacesCommand.Execute(null);
+        var workspaces = Assert.IsType<WorkspacesViewModel>(scene.App.Workbench.CurrentPage);
+        await workspaces.Loaded;
         await SettleAsync(window);
         Capture(window, "g33a-settings-workspace-section");
-        settings.DeleteWorkspaceCommand.Execute(null);
+        workspaces.Rows[0].DeleteCommand.Execute(null);
         var dialog = scene.App.Root.WorkspaceDeletion;
         await dialog.Loading;
         dialog.TypedName = "火车历史";
@@ -1113,11 +1113,10 @@ public class GalleryTests
         await NewsSettledAsync(window);
         Capture(window, "g41-workspace-news");
 
-        var picker = window.GetVisualDescendants().OfType<ComboBox>().Single(c => c.Name == "WorkspacePicker");
-        picker.IsDropDownOpen = true;
+        scene.App.ShellPage.IsWorkspaceMenuOpen = true;
         await SettleAsync(window);
         Capture(window, "g41b-workspace-news-list");
-        picker.IsDropDownOpen = false;
+        scene.App.ShellPage.IsWorkspaceMenuOpen = false;
 
         // Reading a conversation in 城市交通 meanwhile, so the hints are seen over a page with its composer.
         scene.App.Client.Reply("1863 年，伦敦。");
@@ -1189,6 +1188,84 @@ public class GalleryTests
         await settings.Saving;
         await SettleAsync(window);
         Capture(window, "g43-settings-news-sound");
+        window.Close();
+    }
+
+    // ── Workspaces in one place (2026-11-10) ────────────────────────────────
+
+    /// <summary>
+    /// The switcher closed (g46), its menu opened from the keyboard with the open workspace checked (g46a), the inline
+    /// new-workspace form (g46b), the settings home's 工作区 entry (g46f), 设置 › 工作区 with every workspace and its
+    /// counts (g46c), a row being renamed with a refused name (g46d) and the page's own new-workspace form (g46e).
+    /// </summary>
+    [AvaloniaFact]
+    public async Task G46_workspace_switcher_and_the_workspaces_page()
+    {
+        await using var scene = Scene.Create("g46");
+        var window = scene.App.ShowWindow(1100, 720, Theme);
+        var seed = await SeedAsync(scene.App, summaries: true);
+        var service = scene.App.Services.GetRequiredService<WorkspaceService>();
+        var conversations = scene.App.Services.GetRequiredService<ConversationService>();
+        foreach (var name in new[] { "城市交通", "摄影史：从银版到数码" })
+        {
+            scene.App.Workbench.Workspaces.Add(await service.CreateAsync(WorkspaceName.FromStored(name), CancellationToken.None));
+        }
+
+        // Something in 城市交通 to count; seen at once, so no hint or badge stands in the shots.
+        var city = scene.App.Workbench.Workspaces[1];
+        scene.App.Client.Reply("1863 年，伦敦。");
+        var subway = await conversations.StartAsync(city.Id, "第一条地铁在哪里？", CancellationToken.None);
+        await UiWait.UntilAsync(() => !conversations.HasUnfinishedAnswer(subway.Conversation));
+        var marks = scene.App.Services.GetRequiredService<ConversationMarksService>();
+        await UiWait.UntilAsync(() => marks.IsUnread(subway.Conversation));
+        marks.MarkSeen(subway.Conversation);
+        var news = scene.App.ShellPage.WorkspaceNews!;
+        await UiWait.UntilAsync(() => !news.HasNews && news.Toasts.Count == 0);
+        await OpenConversationAsync(scene.App, window, seed.Root);
+        await SettleAsync(window);
+        Capture(window, "g46-workspace-switcher");
+
+        var picker = Part<Button>(window, "WorkspacePicker");
+        picker.Focus(NavigationMethod.Tab);
+        window.KeyPress(Key.Down, RawInputModifiers.None, PhysicalKey.ArrowDown, null);
+        await UiWait.UntilAsync(() => scene.App.ShellPage.IsWorkspaceMenuOpen);
+        await SettleAsync(window);
+        window.KeyPress(Key.Down, RawInputModifiers.None, PhysicalKey.ArrowDown, null);
+        await SettleAsync(window);
+        Capture(window, "g46a-workspace-menu");
+
+        UiInput.Click(window, Find<Button>(window, "NewWorkspaceEntry"));
+        await SettleAsync(window);
+        scene.App.ShellPage.NewWorkspace.Name = "航空史";
+        await SettleAsync(window);
+        Capture(window, "g46b-new-workspace-form");
+        scene.App.ShellPage.CancelCreateWorkspaceCommand.Execute(null);
+
+        // The settings home's 工作区 entry, with how many there are.
+        scene.App.ShellPage.ShowSectionCommand.Execute(MainSection.Settings);
+        await Assert.IsType<SettingsHomeViewModel>(scene.App.Workbench.CurrentPage).Loaded;
+        await SettleAsync(window);
+        window.GetVisualDescendants().OfType<SettingsHomeView>().Single().GetVisualDescendants().OfType<ScrollViewer>().First().ScrollToEnd();
+        await SettleAsync(window);
+        Capture(window, "g46f-settings-workspaces-entry");
+
+        scene.App.ShellPage.ManageWorkspacesCommand.Execute(null);
+        var page = Assert.IsType<WorkspacesViewModel>(scene.App.Workbench.CurrentPage);
+        await page.Loaded;
+        await SettleAsync(window);
+        Capture(window, "g46c-workspaces-page");
+
+        page.Rows[1].BeginRenameCommand.Execute(null);
+        page.Rows[1].RenameText = "   ";
+        await page.Rows[1].CommitRenameCommand.ExecuteAsync(null);
+        await SettleAsync(window);
+        Capture(window, "g46d-workspace-rename");
+        page.Rows[1].CancelRenameCommand.Execute(null);
+
+        page.BeginCreateCommand.Execute(null);
+        page.NewWorkspace.Name = "航空史";
+        await SettleAsync(window);
+        Capture(window, "g46e-workspaces-page-new");
         window.Close();
     }
 

@@ -24,7 +24,7 @@ public class WorkspaceNewsTests
         var trains = await app.StartWithWorkspaceAsync("火车");
         await app.ConfigureModelAsync();
         var news = app.ShellPage.WorkspaceNews!;
-        var picker = Find<ComboBox>(window, "WorkspacePicker");
+        var picker = Find<Button>(window, "WorkspacePicker");
         var badge = Find<Border>(window, "OtherWorkspacesNews");
 
         // An answer is still running in 火车 when the user opens a second workspace.
@@ -50,21 +50,18 @@ public class WorkspaceNewsTests
         Assert.Equal(UiText.OtherWorkspacesNews(["火车"]), AutomationProperties.GetHelpText(picker));
 
         // In the list, the dot is beside 火车 only; the open workspace never has one here.
-        picker.IsDropDownOpen = true;
+        UiInput.Click(window, picker);
         window.UpdateLayout();
-        var entries = Enumerable.Range(0, picker.ItemCount).Select(i => (ComboBoxItem)picker.ContainerFromIndex(i)!).ToList();
-        foreach (var entry in entries)
-        {
-            entry.UpdateLayout();
-        }
+        var entries = window.GetVisualDescendants().OfType<Button>().Where(b => b.DataContext is ViewModels.WorkspaceChoice).ToList();
+        Assert.Equal(2, entries.Count);
 
-        bool Dotted(string name) => entries.Single(e => ((Core.Workspaces.Workspace)e.DataContext!).Name.Value == name)
+        bool Dotted(string name) => entries.Single(e => ((ViewModels.WorkspaceChoice)e.DataContext!).Workspace.Name.Value == name)
             .GetVisualDescendants().OfType<Ellipse>().Single(x => x.Name == "WorkspaceNewsDot").IsVisible;
         Assert.True(Dotted("火车"));
         Assert.False(Dotted("高铁"));
-        var trainsPanel = entries.Single(e => ((Core.Workspaces.Workspace)e.DataContext!).Name.Value == "火车").GetVisualDescendants().OfType<DockPanel>().First();
-        Assert.Equal(UiText.WorkspaceWithNews("火车"), AutomationProperties.GetName(trainsPanel));
-        picker.IsDropDownOpen = false;
+        var trainsEntry = entries.Single(e => ((ViewModels.WorkspaceChoice)e.DataContext!).Workspace.Name.Value == "火车");
+        Assert.Equal(UiText.WorkspaceWithNews("火车"), AutomationProperties.GetName(trainsEntry));
+        app.ShellPage.IsWorkspaceMenuOpen = false;
 
         // Opening 火车: the hint goes; that workspace's own sidebar shows the conversation's mark instead.
         app.ShellPage.SelectedWorkspace = trains;

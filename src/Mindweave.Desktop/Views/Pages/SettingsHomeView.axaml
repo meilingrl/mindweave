@@ -158,19 +158,21 @@
         </DockPanel>
       </Button>
     </Border>
-    <!-- 工作区 (Round 4 · topic-delete): the workspace these settings were opened in, and its quiet delete. -->
-    <StackPanel IsVisible="{Binding CanDeleteWorkspace}">
+    <!-- 工作区 (2026-11-10): every workspace in one place — listed, switched to, renamed and deleted on 设置 › 工作区,
+         the same drill-in as 数据与存储; the entry says how many there are. -->
+    <StackPanel IsVisible="{Binding CanManageWorkspaces}">
       <TextBlock Classes="section-heading" Margin="2,28,0,8" Text="{x:Static d:UiText.WorkspaceSection}" />
-      <Border Classes="card settings">
-        <DockPanel>
-          <Button Name="DeleteWorkspaceButton" DockPanel.Dock="Right" Classes="quiet danger" Command="{Binding DeleteWorkspaceCommand}" Margin="8,-4,-6,-4">
-            <StackPanel Orientation="Horizontal" Spacing="6">
-              <PathIcon Data="{StaticResource IconDelete}" />
-              <TextBlock Text="{x:Static d:UiText.DeleteWorkspace}" VerticalAlignment="Center" />
-            </StackPanel>
-          </Button>
-          <TextBlock Name="SettingsWorkspaceName" Text="{Binding Workspace.Name.Value}" FontWeight="SemiBold" VerticalAlignment="Center" TextTrimming="CharacterEllipsis" />
-        </DockPanel>
+      <Border Classes="card" Padding="4">
+        <Button Name="ManageWorkspacesButton" Classes="entry" Padding="14,10" Command="{Binding ShowWorkspacesCommand}"
+                AutomationProperties.Name="{Binding ManageWorkspacesName}">
+          <DockPanel>
+            <PathIcon DockPanel.Dock="Right" Classes="entry-chevron" Data="{StaticResource IconChevron}" />
+            <TextBlock Name="WorkspaceCountText" DockPanel.Dock="Right" Classes="caption" Margin="0,0,10,0" VerticalAlignment="Center"
+                       Text="{Binding WorkspaceCountText}" />
+            <PathIcon Classes="entry-icon" Margin="0,0,12,0" VerticalAlignment="Center" Data="{StaticResource IconWorkspaces}" />
+            <TextBlock VerticalAlignment="Center" Text="{x:Static d:UiText.ManageWorkspacesLink}" />
+          </DockPanel>
+        </Button>
       </Border>
     </StackPanel>
     <TextBlock Name="AppVersion" Classes="caption" Margin="2,14,0,0">

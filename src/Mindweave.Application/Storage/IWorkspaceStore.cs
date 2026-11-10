@@ -10,6 +10,9 @@ public interface IWorkspaceStore
 
     Task AddAsync(Workspace workspace, CancellationToken cancellationToken);
 
+    /// <summary>Stores a new name; the workspace as now stored, or null when it does not exist.</summary>
+    Task<Workspace?> RenameAsync(WorkspaceId workspace, WorkspaceName name, CancellationToken cancellationToken);
+
     /// <summary>What deleting the workspace would remove, and which of its conversations have work running or queued.</summary>
     Task<WorkspaceContents> InspectAsync(WorkspaceId workspace, CancellationToken cancellationToken);
 

@@ -44,6 +44,24 @@ internal sealed class SqliteWorkspaceStore(SqliteDatabase database) : IWorkspace
             cancellationToken);
     }
 
+    public Task<Workspace?> RenameAsync(WorkspaceId workspace, WorkspaceName name, CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(name);
+        return database.WriteAsync(
+            (connection, transaction) =>
+            {
+                using var command = connection.Command(
+                    transaction,
+                    "UPDATE workspace SET name = $name WHERE id = $id RETURNING created_at;",
+                    ("$name", name.Value),
+                    ("$id", workspace.ToString()));
+                return command.ExecuteScalar() is long created
+                    ? new Workspace(workspace, name, DateTimeOffset.FromUnixTimeMilliseconds(created))
+                    : null;
+            },
+            cancellationToken);
+    }
+
     public Task<WorkspaceContents> InspectAsync(WorkspaceId workspace, CancellationToken cancellationToken) =>
         database.ReadAsync(
             connection =>

@@ -1,0 +1,105 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:Mindweave.Desktop.ViewModels"
+             xmlns:d="using:Mindweave.Desktop"
+             x:Class="Mindweave.Desktop.Views.SidebarHeader"
+             x:DataType="vm:ShellViewModel">
+  <!-- The sidebar's top (2026-11-10): the workspace switcher with the collapse button beside it, and the inline
+       new-workspace form under them. Every workspace action starts here or on 设置 › 工作区 (Styles/WorkspaceSwitcher.axaml). -->
+  <StackPanel Spacing="2">
+    <DockPanel Margin="0,0,0,4">
+      <Button Name="CollapseSidebar" DockPanel.Dock="Right" Classes="quiet sidebar-toggle" Command="{Binding ToggleSidebarCommand}"
+              Margin="4,0,-4,0" ToolTip.Tip="{x:Static d:UiText.CollapseSidebarTip}" AutomationProperties.Name="{x:Static d:UiText.CollapseSidebar}">
+        <PathIcon Data="{StaticResource IconSidebar}" />
+      </Button>
+      <!-- Inside this row (it takes no room here), so the header is exactly the switcher's height. -->
+      <!-- The menu: like the app's other floating surfaces (rounded, raised, theme colours). The open workspace has a check
+           and semibold text, never a filled band; hover and keyboard focus are a faint tint. A long list scrolls. -->
+      <!-- At least as wide as the switcher (set when it opens), at most 360 px. The card keeps a margin below for its
+           shadow, which falls downwards only (MenuShadow), since the popup clips to its bounds. -->
+      <Popup Name="WorkspaceMenu" DockPanel.Dock="Right" PlacementTarget="{Binding #WorkspacePicker}" Placement="BottomEdgeAlignedLeft" VerticalOffset="4"
+             IsOpen="{Binding IsWorkspaceMenuOpen, Mode=TwoWay}" IsLightDismissEnabled="True" ShouldUseOverlayLayer="True"
+             MaxWidth="360" Opened="OnMenuOpened" Closed="OnMenuClosed">
+        <Border Name="WorkspaceMenuCard" Classes="workspace-menu" AutomationProperties.Name="{x:Static d:UiText.WorkspaceMenuName}">
+          <StackPanel>
+            <ScrollViewer Name="WorkspaceMenuScroller" Classes="autohide" MaxHeight="292" HorizontalScrollBarVisibility="Disabled">
+              <ItemsControl Name="WorkspaceMenuList" ItemsSource="{Binding WorkspaceChoices}">
+                <ItemsControl.ItemTemplate>
+                  <DataTemplate x:DataType="vm:WorkspaceChoice">
+                    <Button Classes="switcher-row" Classes.current="{Binding IsCurrent}" Command="{Binding Choose}" CommandParameter="{Binding}"
+                            AutomationProperties.Name="{Binding AutomationName}" AutomationProperties.HelpText="{Binding CurrentHint}">
+                      <DockPanel>
+                        <!-- The check column is always there, so names line up whichever row is current. -->
+                        <Panel DockPanel.Dock="Left" Classes="switcher-check">
+                          <PathIcon Name="WorkspaceCurrentCheck" Data="{StaticResource IconCheck}" IsVisible="{Binding IsCurrent}" />
+                        </Panel>
+                        <!-- A new answer there (2026-11-10): the sidebar's accent dot after its name. -->
+                        <Ellipse Name="WorkspaceNewsDot" DockPanel.Dock="Right" Classes="unread-dot" Margin="8,0,2,0" VerticalAlignment="Center"
+                                 IsVisible="{Binding HasNews}" />
+                        <TextBlock Name="WorkspaceChoiceName" Text="{Binding Workspace.Name.Value}" TextTrimming="CharacterEllipsis" VerticalAlignment="Center" />
+                      </DockPanel>
+                    </Button>
+                  </DataTemplate>
+                </ItemsControl.ItemTemplate>
+              </ItemsControl>
+            </ScrollViewer>
+            <Border Classes="switcher-divider" />
+            <Button Name="NewWorkspaceEntry" Classes="switcher-row footer" Command="{Binding BeginCreateWorkspaceCommand}"
+                    AutomationProperties.Name="{x:Static d:UiText.NewWorkspaceEntry}">
+              <DockPanel>
+                <Panel DockPanel.Dock="Left" Classes="switcher-check">
+                  <PathIcon Data="{StaticResource IconPlus}" />
+                </Panel>
+                <TextBlock Text="{x:Static d:UiText.NewWorkspaceEntry}" VerticalAlignment="Center" />
+              </DockPanel>
+            </Button>
+            <Button Name="ManageWorkspacesEntry" Classes="switcher-row footer" Command="{Binding ManageWorkspacesCommand}"
+                    AutomationProperties.Name="{x:Static d:UiText.ManageWorkspaces}">
+              <DockPanel>
+                <Panel DockPanel.Dock="Left" Classes="switcher-check">
+                  <PathIcon Data="{StaticResource IconWorkspaces}" />
+                </Panel>
+                <TextBlock Text="{x:Static d:UiText.ManageWorkspaces}" VerticalAlignment="Center" />
+              </DockPanel>
+            </Button>
+          </StackPanel>
+        </Border>
+      </Popup>
+      <!-- Closed: a quiet row that belongs to the sidebar, not a form field — the workspace's initial, its name, the
+           count of new answers elsewhere, and a chevron. Click, Enter, Space, Down or Alt+Down opens the menu. -->
+      <Button Name="WorkspacePicker" Classes="workspace-switcher" Classes.open="{Binding IsWorkspaceMenuOpen}"
+              Click="OnSwitcherClick" ToolTip.Tip="{Binding WorkspaceNews.Hint, FallbackValue={x:Null}}"
+              AutomationProperties.Name="{Binding SwitcherName}" AutomationProperties.HelpText="{Binding WorkspaceNews.Hint, FallbackValue={x:Null}}">
+        <DockPanel>
+          <PathIcon Name="WorkspaceSwitcherChevron" DockPanel.Dock="Right" Classes="switcher-chevron" Data="{StaticResource IconChevronDown}" />
+          <!-- How many conversations in other workspaces have a new answer (2026-11-10: a plain dot was too easy to miss);
+               one short pulse when it grows. The names are in the tooltip. -->
+          <Border Name="OtherWorkspacesNews" DockPanel.Dock="Right" Classes="news-badge" Margin="6,0,6,0" VerticalAlignment="Center"
+                  IsHitTestVisible="False" IsVisible="{Binding WorkspaceNews.HasNews, FallbackValue=False}">
+            <TextBlock Name="OtherWorkspacesNewsCount" Text="{Binding WorkspaceNews.BadgeText, FallbackValue={x:Null}}" />
+          </Border>
+          <Border DockPanel.Dock="Left" Classes="workspace-initial">
+            <TextBlock Text="{Binding SelectedWorkspace, Converter={x:Static d:Converters.WorkspaceInitial}}" />
+          </Border>
+          <TextBlock Name="WorkspacePickerName" Classes="switcher-name" Text="{Binding SelectedWorkspace.Name.Value, FallbackValue={x:Null}}" />
+        </DockPanel>
+      </Button>
+    </DockPanel>
+    <!-- 新建工作区… opens this form in place, under the switcher: the focus goes into the box, Enter creates and opens
+         the new workspace, Esc or 取消 closes it. -->
+    <Border Name="NewWorkspaceForm" Classes="new-workspace-form" IsVisible="{Binding IsCreatingWorkspace}">
+      <StackPanel Spacing="8">
+        <TextBox Name="NewWorkspaceName" Text="{Binding NewWorkspace.Name}" PlaceholderText="{x:Static d:UiText.WorkspaceNameWatermark}"
+                 AutomationProperties.Name="{x:Static d:UiText.WorkspaceNameLabel}" KeyDown="OnNewWorkspaceKeyDown" />
+        <TextBlock Name="NewWorkspaceError" Classes="error" FontSize="12" Text="{Binding NewWorkspace.Error}" TextWrapping="Wrap"
+                   IsVisible="{Binding NewWorkspace.Error, Converter={x:Static ObjectConverters.IsNotNull}}" />
+        <StackPanel Orientation="Horizontal" Spacing="6" HorizontalAlignment="Right">
+          <Button Name="CancelNewWorkspaceButton" Classes="quiet small" Content="{x:Static d:UiText.Cancel}" Command="{Binding CancelCreateWorkspaceCommand}"
+                  AutomationProperties.Name="{x:Static d:UiText.CancelNewWorkspace}" />
+          <Button Name="CreateWorkspaceButton" Classes="primary small" Content="{x:Static d:UiText.Create}" Command="{Binding NewWorkspace.SubmitCommand}"
+                  AutomationProperties.Name="{x:Static d:UiText.CreateWorkspace}" />
+        </StackPanel>
+      </StackPanel>
+    </Border>
+  </StackPanel>
+</UserControl>

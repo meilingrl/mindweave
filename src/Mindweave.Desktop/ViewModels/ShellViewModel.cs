@@ -1,3 +1,4 @@
+using System.Collections.ObjectModel;
 using System.ComponentModel;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
@@ -28,7 +29,8 @@ public sealed partial class ShellViewModel : ViewModelBase
         Network.NetworkSessions? networks = null,
         ISidebarLayout? sidebarLayout = null,
         IWorkspaceDeletionPrompt? workspaceDeletion = null,
-        WorkspaceNewsViewModel? workspaceNews = null)
+        WorkspaceNewsViewModel? workspaceNews = null,
+        WorkspaceSwitchRequests? switches = null)
     {
         WorkspaceNews = workspaceNews;
         _workspaceDeletion = workspaceDeletion;
@@ -41,7 +43,18 @@ public sealed partial class ShellViewModel : ViewModelBase
         _workspaces = workspaces;
         NewWorkspace = new WorkspaceNameForm(CreateWorkspaceAsync);
         Workbench.PropertyChanged += OnWorkbenchChanged;
+        Workbench.Workspaces.CollectionChanged += (_, _) => RefreshChoices();
         Conversations.PropertyChanged += OnConversationsChanged;
+        if (workspaceNews is not null)
+        {
+            workspaceNews.PropertyChanged += OnNewsChanged;
+        }
+
+        if (switches is not null)
+        {
+            // 设置 › 工作区's 切换到此工作区 goes the switcher's way, so an unsaved layout is asked about first.
+            switches.Requested += (_, workspace) => SelectedWorkspace = workspace;
+        }
     }
 
     public Workbench Workbench { get; }
@@ -79,6 +92,17 @@ public sealed partial class ShellViewModel : ViewModelBase
         }
     }
 
+    /// <summary>The switcher button's accessible name: what it is and which workspace is open.</summary>
+    public string SwitcherName => UiText.WorkspaceSwitcherName(Workbench.CurrentWorkspace?.Name.Value);
+
+    /// <summary>The switcher's menu is open (2026-11-10): every workspace, the open one checked, then 新建 and 管理.</summary>
+    [ObservableProperty]
+    public partial bool IsWorkspaceMenuOpen { get; set; }
+
+    /// <summary>The menu's rows, rebuilt whenever it opens and while open when the list or the open workspace changes.</summary>
+    public ObservableCollection<WorkspaceChoice> WorkspaceChoices { get; } = [];
+
+    /// <summary>The inline new-workspace form under the switcher is open (the view moves the focus into its box).</summary>
     [ObservableProperty]
     public partial bool IsCreatingWorkspace { get; set; }
 
@@ -187,7 +211,69 @@ public sealed partial class ShellViewModel : ViewModelBase
     [RelayCommand]
     private void ToggleCreateWorkspace() => IsCreatingWorkspace = !IsCreatingWorkspace;
 
-    /// <summary>From the workspace picker's context menu: asks to delete the workspace shown (S7 round 4).</summary>
+    /// <summary>A row of the switcher's menu: closes it and switches the way <see cref="SelectedWorkspace"/> does.</summary>
+    [RelayCommand]
+    private void ChooseWorkspace(WorkspaceChoice choice)
+    {
+        ArgumentNullException.ThrowIfNull(choice);
+        IsWorkspaceMenuOpen = false;
+        SelectedWorkspace = choice.Workspace;
+    }
+
+    /// <summary>The menu's 新建工作区…: the form under the switcher opens (no dialog: the switcher stays in view).</summary>
+    [RelayCommand]
+    private void BeginCreateWorkspace()
+    {
+        IsWorkspaceMenuOpen = false;
+        IsCreatingWorkspace = true;
+    }
+
+    /// <summary>Esc or 取消 in the form: it closes and forgets what was typed.</summary>
+    [RelayCommand]
+    private void CancelCreateWorkspace()
+    {
+        IsCreatingWorkspace = false;
+        NewWorkspace.Reset();
+    }
+
+    /// <summary>The menu's 管理工作区…: 设置 › 工作区, where every workspace is listed.</summary>
+    [RelayCommand]
+    private void ManageWorkspaces()
+    {
+        IsWorkspaceMenuOpen = false;
+        Workbench.Navigate(new NavigationRequest(MainSection.Settings, WorkspacesRoute.Instance));
+    }
+
+    partial void OnIsWorkspaceMenuOpenChanged(bool value) => RefreshChoices();
+
+    private void RefreshChoices()
+    {
+        if (!IsWorkspaceMenuOpen)
+        {
+            return;
+        }
+
+        var current = Workbench.CurrentWorkspace?.Id;
+        var news = WorkspaceNews?.Workspaces;
+        WorkspaceChoices.Clear();
+        foreach (var workspace in Workbench.Workspaces)
+        {
+            WorkspaceChoices.Add(new WorkspaceChoice(workspace, workspace.Id == current, news?.Contains(workspace.Id) == true, ChooseWorkspaceCommand));
+        }
+    }
+
+    private void OnNewsChanged(object? sender, PropertyChangedEventArgs e)
+    {
+        if (e.PropertyName == nameof(WorkspaceNewsViewModel.Workspaces) && WorkspaceNews is { } news)
+        {
+            foreach (var choice in WorkspaceChoices)
+            {
+                choice.HasNews = news.Workspaces.Contains(choice.Workspace.Id);
+            }
+        }
+    }
+
+    /// <summary>Asks to delete the workspace shown (S7 round 4); the entries are now on 设置 › 工作区, one per workspace.</summary>
     [RelayCommand]
     private void DeleteWorkspace()
     {
@@ -324,6 +410,8 @@ public sealed partial class ShellViewModel : ViewModelBase
                 break;
             case nameof(Workbench.CurrentWorkspace):
                 OnPropertyChanged(nameof(SelectedWorkspace));
+                OnPropertyChanged(nameof(SwitcherName));
+                RefreshChoices();
                 break;
         }
     }

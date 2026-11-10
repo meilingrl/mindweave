@@ -29,7 +29,10 @@ internal sealed class PageFactory(
     IWorkspaceDeletionPrompt workspaceDeletion,
     IConversationDeletion conversationDeletion,
     IConversationDeletionPrompt conversationDeletionPrompt,
-    Application.Preferences.INewsAlerts newsAlerts) : IPageFactory
+    Application.Preferences.INewsAlerts newsAlerts,
+    Application.Workspaces.IWorkspaces workspaces,
+    Application.Workspaces.IWorkspaceDeletion workspaceContents,
+    IWorkspaceSwitcher workspaceSwitcher) : IPageFactory
 {
     public PageViewModel Create(ContentRoute route, PageContext context) => route switch
     {
@@ -39,8 +42,14 @@ internal sealed class PageFactory(
         ConversationRoute conversation => new ConversationViewModel(conversation, context, conversations, reading, dispatcher, storage, summaries, time, conversationDeletion, conversationDeletionPrompt),
         NewConversationRoute => new NewConversationViewModel(context.Workspace.Id, conversations, context.Navigator, context.Navigator),
         ArchivedRoute => new ArchivedViewModel(context.Workspace, conversations, context.Navigator, dispatcher, conversationDeletion, conversationDeletionPrompt),
-        SettingsHomeRoute => new SettingsHomeViewModel(environment, new ModelSettingsViewModel(models), context.Navigator, appearance, theme, context.Workspace, workspaceDeletion, newsAlerts),
+        SettingsHomeRoute => new SettingsHomeViewModel(environment, new ModelSettingsViewModel(models), context.Navigator, appearance, theme, context.Workspaces, newsAlerts),
         StorageDetailsRoute => new StorageDetailsViewModel(environment, database.ListBackups(), shell),
+        WorkspacesRoute => new WorkspacesViewModel(
+            context.Workspaces ?? throw new InvalidOperationException("The workspaces page needs the workbench's list."),
+            workspaces,
+            workspaceContents,
+            workspaceDeletion,
+            workspaceSwitcher),
         _ => throw new ArgumentOutOfRangeException(nameof(route), route, "No page is registered for this route."),
     };
 }

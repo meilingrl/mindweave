@@ -18,7 +18,6 @@ public static partial class UiText
     public const string WorkspaceNameLabel = "工作区名称";
     public const string Create = "创建";
     public const string Cancel = "取消";
-    public const string NewWorkspace = "新建工作区";
     public const string SectionExplore = "探索";
     public const string SectionNetwork = "总结网络";
     public const string SectionSettings = "设置";

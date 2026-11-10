@@ -54,6 +54,8 @@ public static class CompositionRoot
         services.AddSingleton<WorkspaceDeletionRequests>();
         services.AddSingleton<IWorkspaceDeletionPrompt>(sp => sp.GetRequiredService<WorkspaceDeletionRequests>());
         services.AddSingleton<WorkspaceDeletionViewModel>();
+        services.AddSingleton<WorkspaceSwitchRequests>();
+        services.AddSingleton<IWorkspaceSwitcher>(sp => sp.GetRequiredService<WorkspaceSwitchRequests>());
         services.AddSingleton<ConversationDeletionRequests>();
         services.AddSingleton<IConversationDeletionPrompt>(sp => sp.GetRequiredService<ConversationDeletionRequests>());
         services.TryAddSingleton<ConversationDeletionViewModel>(); // Tests give it their own clock.

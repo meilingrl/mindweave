@@ -8,6 +8,7 @@ public sealed partial class WorkspaceService(
     IWorkspaceStore store,
     ILocationStore locations,
     IClock clock,
+    StorageHealth health,
     ILogger<WorkspaceService> logger) : IWorkspaces
 {
     public Task<IReadOnlyList<Workspace>> ListAsync(CancellationToken cancellationToken) =>
@@ -20,6 +21,29 @@ public sealed partial class WorkspaceService(
         await store.AddAsync(workspace, cancellationToken).ConfigureAwait(false);
         LogCreated(logger, workspace.Id);
         return workspace;
+    }
+
+    public async Task<Workspace?> RenameAsync(WorkspaceId workspace, WorkspaceName name, CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(name);
+        health.ThrowIfBlocked();
+        Workspace? renamed;
+        try
+        {
+            renamed = await store.RenameAsync(workspace, name, cancellationToken).ConfigureAwait(false);
+        }
+        catch (StorageWriteException ex)
+        {
+            health.Report(ex);
+            throw;
+        }
+
+        if (renamed is not null)
+        {
+            LogRenamed(logger, workspace);
+        }
+
+        return renamed;
     }
 
     /// <summary>
@@ -46,6 +70,9 @@ public sealed partial class WorkspaceService(
 
     [LoggerMessage(Level = LogLevel.Information, Message = "Created workspace {WorkspaceId}")]
     private static partial void LogCreated(ILogger logger, WorkspaceId workspaceId);
+
+    [LoggerMessage(Level = LogLevel.Information, Message = "Renamed workspace {WorkspaceId}")]
+    private static partial void LogRenamed(ILogger logger, WorkspaceId workspaceId);
 
     [LoggerMessage(Level = LogLevel.Warning, Message = "Last page could not be saved")]
     private static partial void LogLocationNotSaved(ILogger logger, Exception exception);
