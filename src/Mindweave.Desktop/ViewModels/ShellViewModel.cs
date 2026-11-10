@@ -3,6 +3,7 @@ using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Mindweave.Application.Preferences;
 using Mindweave.Application.Workspaces;
+using Mindweave.Core.Conversations;
 using Mindweave.Core.Workspaces;
 using Mindweave.Desktop.Navigation;
 
@@ -194,6 +195,41 @@ public sealed partial class ShellViewModel : ViewModelBase
         {
             _workspaceDeletion?.Open(workspace);
         }
+    }
+
+    /// <summary>
+    /// A click on a pop-up hint (2026-11-10): switches to its workspace the same way the picker does, and opens the
+    /// conversation when exactly one there has a new answer; with several the sidebar shows which. The hint goes when the
+    /// workspace opens (<see cref="WorkspaceNewsViewModel"/>).
+    /// </summary>
+    [RelayCommand]
+    private void OpenWorkspaceNews(WorkspaceToastViewModel toast)
+    {
+        ArgumentNullException.ThrowIfNull(toast);
+        if (Workbench.Workspaces.FirstOrDefault(w => w.Id == toast.Workspace) is not { } workspace)
+        {
+            WorkspaceNews?.Dismiss(toast);
+            return;
+        }
+
+        ConversationId? only = toast.Conversations.Count == 1 ? toast.Conversations[0] : null;
+        void Open()
+        {
+            Workbench.SwitchWorkspace(workspace.Id);
+            if (only is { } conversation && Workbench.CurrentWorkspace?.Id == workspace.Id)
+            {
+                Workbench.Navigate(new NavigationRequest(MainSection.Explore, new ConversationRoute(conversation)));
+            }
+        }
+
+        if (workspace.Id == Workbench.CurrentWorkspace?.Id)
+        {
+            Open();
+            WorkspaceNews?.Dismiss(toast);
+            return;
+        }
+
+        Leave(Open);
     }
 
     private async Task CreateWorkspaceAsync(WorkspaceName name)

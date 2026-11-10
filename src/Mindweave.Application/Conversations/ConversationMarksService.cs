@@ -63,6 +63,8 @@ public sealed partial class ConversationMarksService : IConversationMarks
 
     public event EventHandler? Changed;
 
+    public event EventHandler<ConversationId>? Marked;
+
     public bool IsSummarizing(ConversationId conversation) => _generation.HasUnfinishedSummary(conversation);
 
     public bool IsUnread(ConversationId conversation)
@@ -85,7 +87,7 @@ public sealed partial class ConversationMarksService : IConversationMarks
         Announce(changed);
     }
 
-    public async Task<IReadOnlySet<WorkspaceId>> WorkspacesWithUnreadAsync(IReadOnlyCollection<WorkspaceId> workspaces, CancellationToken cancellationToken)
+    public async Task<IReadOnlyDictionary<WorkspaceId, IReadOnlyList<ConversationId>>> UnreadByWorkspaceAsync(IReadOnlyCollection<WorkspaceId> workspaces, CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(workspaces);
         HashSet<ConversationId> unread;
@@ -94,7 +96,7 @@ public sealed partial class ConversationMarksService : IConversationMarks
             unread = [.. _unread];
         }
 
-        var result = new HashSet<WorkspaceId>();
+        var result = new Dictionary<WorkspaceId, IReadOnlyList<ConversationId>>();
         if (unread.Count == 0)
         {
             return result;
@@ -103,9 +105,10 @@ public sealed partial class ConversationMarksService : IConversationMarks
         foreach (var workspace in workspaces)
         {
             var listed = await _conversations.ListAsync(workspace, cancellationToken).ConfigureAwait(false);
-            if (listed.Any(s => !s.IsHidden && unread.Contains(s.Conversation.Id)))
+            ConversationId[] found = [.. listed.Where(s => !s.IsHidden && unread.Contains(s.Conversation.Id)).Select(s => s.Conversation.Id)];
+            if (found.Length > 0)
             {
-                result.Add(workspace);
+                result[workspace] = found;
             }
         }
 
@@ -297,6 +300,11 @@ public sealed partial class ConversationMarksService : IConversationMarks
             {
                 _version++;
             }
+        }
+
+        if (changed)
+        {
+            Marked?.Invoke(this, e.ConversationId);
         }
 
         Announce(changed);

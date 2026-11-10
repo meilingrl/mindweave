@@ -28,7 +28,8 @@ internal sealed class PageFactory(
     IUiDispatcher dispatcher,
     IWorkspaceDeletionPrompt workspaceDeletion,
     IConversationDeletion conversationDeletion,
-    IConversationDeletionPrompt conversationDeletionPrompt) : IPageFactory
+    IConversationDeletionPrompt conversationDeletionPrompt,
+    Application.Preferences.INewsAlerts newsAlerts) : IPageFactory
 {
     public PageViewModel Create(ContentRoute route, PageContext context) => route switch
     {
@@ -38,7 +39,7 @@ internal sealed class PageFactory(
         ConversationRoute conversation => new ConversationViewModel(conversation, context, conversations, reading, dispatcher, storage, summaries, time, conversationDeletion, conversationDeletionPrompt),
         NewConversationRoute => new NewConversationViewModel(context.Workspace.Id, conversations, context.Navigator, context.Navigator),
         ArchivedRoute => new ArchivedViewModel(context.Workspace, conversations, context.Navigator, dispatcher, conversationDeletion, conversationDeletionPrompt),
-        SettingsHomeRoute => new SettingsHomeViewModel(environment, new ModelSettingsViewModel(models), context.Navigator, appearance, theme, context.Workspace, workspaceDeletion),
+        SettingsHomeRoute => new SettingsHomeViewModel(environment, new ModelSettingsViewModel(models), context.Navigator, appearance, theme, context.Workspace, workspaceDeletion, newsAlerts),
         StorageDetailsRoute => new StorageDetailsViewModel(environment, database.ListBackups(), shell),
         _ => throw new ArgumentOutOfRangeException(nameof(route), route, "No page is registered for this route."),
     };

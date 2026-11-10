@@ -39,6 +39,9 @@ public sealed class DesktopHarness : IAsyncDisposable
 
             // Tests share one Avalonia application: an appearance choice is recorded, never applied to it.
             services.AddSingleton<IThemeApplier>(Theme);
+
+            // Never the real system beep in tests: the alerts are counted.
+            services.AddSingleton<Application.Notifications.IAlertSound>(Sound);
             overrides?.Invoke(services);
         };
         _ownsDirectory = ownsDirectory;
@@ -50,6 +53,8 @@ public sealed class DesktopHarness : IAsyncDisposable
     public MemoryCredentialStore Credentials { get; } = new();
 
     public RecordingThemeApplier Theme { get; } = new();
+
+    public RecordingAlertSound Sound { get; } = new();
 
     public async Task ConfigureModelAsync() =>
         await Services.GetRequiredService<ModelSettingsService>().SaveAsync(new ModelSettingsInput("fake", "https://fake.example/v1", "fake-model", "sk-test"), CancellationToken.None);
@@ -143,6 +148,16 @@ public sealed class DesktopHarness : IAsyncDisposable
             {
             }
         }
+    }
+
+    /// <summary>Counts the alert sounds the application played (2026-11-10).</summary>
+    public sealed class RecordingAlertSound : Application.Notifications.IAlertSound
+    {
+        private int _played;
+
+        public int Played => Volatile.Read(ref _played);
+
+        public void Play() => Interlocked.Increment(ref _played);
     }
 
     /// <summary>The appearances the application asked for, in order.</summary>

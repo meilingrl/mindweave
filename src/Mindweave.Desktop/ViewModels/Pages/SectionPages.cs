@@ -30,8 +30,10 @@ public sealed partial class SettingsHomeViewModel : PageViewModel
     private readonly IAppearance _appearanceService;
     private readonly IThemeApplier _theme;
     private readonly IWorkspaceDeletionPrompt? _workspaceDeletion;
+    private readonly INewsAlerts? _newsAlerts;
     private bool _loading;
     private bool _chosen;
+    private bool _soundChosen;
 
     public SettingsHomeViewModel(
         AppEnvironment environment,
@@ -40,9 +42,11 @@ public sealed partial class SettingsHomeViewModel : PageViewModel
         IAppearance appearance,
         IThemeApplier theme,
         Workspace? workspace = null,
-        IWorkspaceDeletionPrompt? workspaceDeletion = null)
+        IWorkspaceDeletionPrompt? workspaceDeletion = null,
+        INewsAlerts? newsAlerts = null)
         : base(SettingsHomeRoute.Instance)
     {
+        _newsAlerts = newsAlerts;
         Workspace = workspace;
         _workspaceDeletion = workspaceDeletion;
         Environment = environment;
@@ -96,6 +100,20 @@ public sealed partial class SettingsHomeViewModel : PageViewModel
     /// <summary>Completes when the last choice made on this page has been written (or failed).</summary>
     internal Task Saving { get; private set; } = Task.CompletedTask;
 
+    /// <summary>The settings page can offer the sound (it is built with the preference).</summary>
+    public bool CanChooseNewsSound => _newsAlerts is not null;
+
+    /// <summary>
+    /// The system's alert sound when an answer ends in another workspace (2026-11-10); off unless chosen. Changing it
+    /// applies at once and is saved in the background.
+    /// </summary>
+    [ObservableProperty]
+    public partial bool PlaysNewsSound { get; set; }
+
+    /// <summary>Shown only when saving the sound choice failed; the choice still applies until the application closes.</summary>
+    [ObservableProperty]
+    public partial string? NewsSoundStatus { get; private set; }
+
     [RelayCommand]
     private void ShowStorageDetails() => _content.Push(StorageDetailsRoute.Instance);
 
@@ -118,6 +136,34 @@ public sealed partial class SettingsHomeViewModel : PageViewModel
         _chosen = true;
         _theme.Apply(value);
         Saving = SaveAsync(value);
+    }
+
+    partial void OnPlaysNewsSoundChanged(bool value)
+    {
+        if (_loading || _newsAlerts is null)
+        {
+            return;
+        }
+
+        _soundChosen = true;
+        Saving = SaveSoundAsync(_newsAlerts, value, Saving);
+    }
+
+    private async Task SaveSoundAsync(INewsAlerts alerts, bool on, Task previous)
+    {
+        // One write after another, so the last choice made is the one that stays.
+        await previous;
+        try
+        {
+            await alerts.SetSoundAsync(on, CancellationToken.None);
+            NewsSoundStatus = null;
+        }
+#pragma warning disable CA1031 // As for the appearance: reported beside the setting, still applies for this run.
+        catch (Exception)
+#pragma warning restore CA1031
+        {
+            NewsSoundStatus = UiText.NewsSoundSaveFailed;
+        }
     }
 
     private void Choose(bool chosen, Appearance appearance)
@@ -158,14 +204,32 @@ public sealed partial class SettingsHomeViewModel : PageViewModel
             stored = Appearance.FollowSystem;
         }
 
-        // A choice the reader made while this was loading wins over the stored one it would otherwise overwrite.
-        if (_chosen)
+        var sound = false;
+        if (_newsAlerts is not null)
         {
-            return;
+            try
+            {
+                sound = await _newsAlerts.GetSoundAsync(CancellationToken.None);
+            }
+#pragma warning disable CA1031 // Unreadable means off, the default.
+            catch (Exception)
+#pragma warning restore CA1031
+            {
+            }
         }
 
+        // A choice the reader made while this was loading wins over the stored one it would otherwise overwrite.
         _loading = true;
-        Appearance = stored;
+        if (!_chosen)
+        {
+            Appearance = stored;
+        }
+
+        if (!_soundChosen)
+        {
+            PlaysNewsSound = sound;
+        }
+
         _loading = false;
     }
 }
