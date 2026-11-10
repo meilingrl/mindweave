@@ -114,7 +114,7 @@ internal sealed partial class SummaryNaming
             var match = NamingLine.Match(line);
             if (match.Success && int.TryParse(match.Groups["n"].Value, CultureInfo.InvariantCulture, out var n) && n >= 1 && n <= count)
             {
-                var term = match.Groups["term"].Value.Trim().Trim('“', '”', '"', '「', '」');
+                var term = Core.Text.EnclosingMarks.Strip(match.Groups["term"].Value);
                 terms[n - 1] = term.Length is > 0 and <= 16 ? term : null;
             }
         }

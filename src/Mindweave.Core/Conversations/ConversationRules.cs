@@ -10,7 +10,6 @@ public static class ConversationRules
     public const int MaxTitleLength = 60;
 
     private static readonly string[] TitlePrefixes = ["标题：", "标题:", "Title:", "Title："];
-    private static readonly char[] TitleWrappers = ['"', '\'', '“', '”', '‘', '’', '「', '」', '『', '』', '《', '》', '*', '#', '`'];
     private static readonly char[] TitleTrailing = ['。', '.', '！', '!', '？', '?', '：', ':', '；', ';', '，', ','];
 
     /// <summary>
@@ -82,12 +81,12 @@ public static class ConversationRules
             }
         }
 
-        // Quotes, Markdown emphasis and trailing punctuation can nest in any order ("“标题”。"): strip until stable.
+        // Headings, wrappers and trailing punctuation can nest in any order ("**“标题”**。"): strip until stable.
         string previous;
         do
         {
             previous = line;
-            line = line.Trim().Trim(TitleWrappers).TrimEnd(TitleTrailing);
+            line = Text.EnclosingMarks.Strip(line.Trim().TrimStart('#').Trim().TrimEnd(TitleTrailing));
         }
         while (line != previous);
 

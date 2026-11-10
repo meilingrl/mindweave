@@ -110,4 +110,17 @@ public class SummaryRulesTests
             .Select(i => new SummaryVersion(SummaryVersionId.New(), node, i, $"第{i}版", "正文", 3, SummaryOrigin.Generated, null, null, null, DateTimeOffset.UnixEpoch))
             .ToList();
     }
+
+    [Theory]
+    [InlineData("标题：《三体》读后感\n短名：《三体》\n\n正文", "《三体》读后感", "三体")]
+    [InlineData("# **“蒸汽机车的局限”**\n短名：“蒸汽机车”\n\n正文", "蒸汽机车的局限", "蒸汽机车")]
+    [InlineData("标题：“火箭号”与“机车”\n\n正文", "“火箭号”与“机车”", null)]
+    public void Book_marks_and_quotes_inside_a_generated_title_are_kept(string output, string title, string? shortTitle)
+    {
+        var parsed = SummaryRules.ParseGenerated(output)!;
+
+        Assert.Equal(title, parsed.Title);
+        Assert.Equal(shortTitle, parsed.ShortTitle);
+    }
 }
+
