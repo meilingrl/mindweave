@@ -932,6 +932,8 @@ public class GalleryTests
         await using var scene = Scene.Create("g45");
         var window = scene.App.ShowWindow(1100, 720, Theme);
         var seed = await SeedAsync(scene.App, summaries: true);
+        // The answer the disabled-menu shot holds would pop a new-answer card into the later shots (that card is g44).
+        await scene.App.Services.GetRequiredService<INewsAlerts>().SetInWorkspaceAsync(false, CancellationToken.None);
         await OpenConversationAsync(scene.App, window, seed.HighSpeed);
         var list = scene.App.ShellPage.Conversations;
 
