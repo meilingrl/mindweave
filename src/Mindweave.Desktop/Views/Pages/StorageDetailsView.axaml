@@ -5,7 +5,7 @@
              xmlns:d="using:Mindweave.Desktop"
              x:Class="Mindweave.Desktop.Views.Pages.StorageDetailsView"
              x:DataType="vm:StorageDetailsViewModel">
-  <ScrollViewer HorizontalScrollBarVisibility="Disabled">
+  <ScrollViewer Classes="autohide" HorizontalScrollBarVisibility="Disabled">
   <Grid Margin="0,4,16,24">
     <Grid.ColumnDefinitions>
       <ColumnDefinition Width="*" MaxWidth="640" />

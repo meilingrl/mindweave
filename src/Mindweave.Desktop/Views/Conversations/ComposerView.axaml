@@ -16,12 +16,16 @@
     </Border>
     <Border Classes="composer">
       <DockPanel>
-        <!-- Send is the page's one primary button; while an answer runs, stop takes its place. -->
-        <Panel DockPanel.Dock="Right" VerticalAlignment="Bottom" Margin="8,0,0,0">
+        <!-- Send is the page's one primary button; while an answer runs, stop takes its place. The slot keeps send's
+             width while stop shows (an unseen copy of its label holds it), so the input does not widen and rewrap when
+             an answer starts or ends (2026-11-10). -->
+        <Panel Name="SendSlot" DockPanel.Dock="Right" VerticalAlignment="Bottom" Margin="8,0,0,0">
+          <TextBlock Name="SendWidthHolder" Text="{x:Static d:UiText.Send}" FontWeight="SemiBold" Margin="14,0" Opacity="0"
+                     IsHitTestVisible="False" AutomationProperties.AccessibilityView="Raw" />
           <Button Name="SendButton" Classes="primary" Content="{x:Static d:UiText.Send}" Command="{Binding SendCommand}"
                   IsVisible="{Binding !IsAnswerRunning}" MinHeight="34" />
           <!-- Stop is the familiar round button with a square, no label (S7 round 3); its name and tooltip say 停止. -->
-          <Button Name="StopButton" Classes="secondary stop" Command="{Binding StopCommand}" IsVisible="{Binding IsAnswerRunning}"
+          <Button Name="StopButton" Classes="secondary stop" HorizontalAlignment="Right" Command="{Binding StopCommand}" IsVisible="{Binding IsAnswerRunning}"
                   ToolTip.Tip="{x:Static d:UiText.Stop}" AutomationProperties.Name="{x:Static d:UiText.Stop}">
             <PathIcon Data="{StaticResource IconStop}" />
           </Button>

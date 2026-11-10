@@ -133,6 +133,8 @@
       <BoxShadows x:Key="PopupShadow">0 8 24 0 #24000000</BoxShadows>
       <!-- The workspace menu (2026-11-10): falls downwards only, so the popup that clips it shows no hard edge -->
       <BoxShadows x:Key="MenuShadow">0 8 16 -6 #33000000</BoxShadows>
+      <!-- Keyboard focus ring on buttons and rows (2026-11-10): the accent, 4.4:1 on the window, 4.0:1 on the sidebar -->
+      <SolidColorBrush x:Key="FocusRing">#4B6BFB</SolidColorBrush>
     </ResourceDictionary>
     <ResourceDictionary x:Key="Dark">
       <SolidColorBrush x:Key="WindowBackground">#18191B</SolidColorBrush>
@@ -253,6 +255,8 @@
       <BoxShadows x:Key="SegmentedShadow">0 1 2 0 #66000000</BoxShadows>
       <BoxShadows x:Key="PopupShadow">0 8 24 0 #80000000</BoxShadows>
       <BoxShadows x:Key="MenuShadow">0 8 16 -6 #B3000000</BoxShadows>
+      <!-- A lighter accent than the fill colour, 7.2:1 on the window, 6.8:1 on the sidebar -->
+      <SolidColorBrush x:Key="FocusRing">#8EA2F5</SolidColorBrush>
     </ResourceDictionary>
   </ResourceDictionary.ThemeDictionaries>
 </ResourceDictionary>

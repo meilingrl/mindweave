@@ -40,6 +40,15 @@ public sealed partial class ShellView : UserControl
             WatchNews(ViewModel?.WorkspaceNews);
             WatchList(ViewModel?.Conversations);
         };
+
+        // A new page fades in rising 4 px instead of replacing the old one in a single frame (2026-11-10 polish).
+        PageHost.PropertyChanged += (_, e) =>
+        {
+            if (e.Property == ContentControl.ContentProperty && e.OldValue is not null && e.NewValue is not null && Motion.Enabled)
+            {
+                _ = Motion.Play(PageHost, AppearMotion.Page);
+            }
+        };
     }
 
     /// <summary>Set while the switcher's badge pulses (tests).</summary>

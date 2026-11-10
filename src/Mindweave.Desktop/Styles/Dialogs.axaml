@@ -1,8 +1,11 @@
 <Styles xmlns="https://github.com/avaloniaui"
-        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:v="using:Mindweave.Desktop.Views">
   <!-- Dialogs: one surface for every prompt over the window. -->
   <!-- Dialogs: one surface for every prompt over the window — title, short message, buttons right-aligned with one primary. -->
+  <!-- Shown: the scrim fades in, the dialog rises 8 px and grows from 98 % (Views/Motion.cs); closing is instant. -->
   <Style Selector="Border.dialog-scrim">
+    <Setter Property="v:Motion.Appear" Value="Dialog" />
     <Setter Property="Background" Value="{DynamicResource ScrimBrush}" />
   </Style>
   <Style Selector="Border.dialog">
@@ -25,6 +28,10 @@
     <Setter Property="TextWrapping" Value="Wrap" />
     <Setter Property="LineHeight" Value="21" />
     <Setter Property="Foreground" Value="{DynamicResource MutedText}" />
+  </Style>
+  <!-- A field in a prompt has the controls' 6 px corner, like the buttons under it (2026-11-10). -->
+  <Style Selector="Border.dialog TextBox">
+    <Setter Property="CornerRadius" Value="6" />
   </Style>
   <Style Selector="Border.dialog StackPanel.dialog-buttons">
     <Setter Property="Orientation" Value="Horizontal" />

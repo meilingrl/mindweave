@@ -3,8 +3,10 @@
              xmlns:vm="using:Mindweave.Desktop.ViewModels.Conversations"
              xmlns:v="using:Mindweave.Desktop.Views.Conversations"
              xmlns:d="using:Mindweave.Desktop"
+             xmlns:vv="using:Mindweave.Desktop.Views"
              x:Class="Mindweave.Desktop.Views.Conversations.ConversationView"
-             x:DataType="vm:ConversationViewModel">
+             x:DataType="vm:ConversationViewModel"
+             ClipToBounds="False">
   <DockPanel>
     <StackPanel DockPanel.Dock="Top" Spacing="8" Margin="0,0,0,6">
       <!-- Page toolbar: quiet icon-and-text buttons in one row (S7); delete in the danger colour. -->
@@ -69,7 +71,7 @@
         </Button>
       </WrapPanel>
       <!-- Renaming: save is secondary (still the default for Enter); send stays the page's one primary button. -->
-      <StackPanel Orientation="Horizontal" Spacing="6" IsVisible="{Binding IsRenaming}">
+      <StackPanel Orientation="Horizontal" Spacing="6" IsVisible="{Binding IsRenaming}" vv:Motion.Appear="Fade">
         <TextBox Name="RenameBox" Text="{Binding RenameText}" Width="320" />
         <Button Name="SaveRenameButton" Classes="secondary" Content="{x:Static d:UiText.Save}" Command="{Binding CommitRenameCommand}" IsDefault="True" />
         <Button Classes="quiet" Content="{x:Static d:UiText.Cancel}" Command="{Binding CancelRenameCommand}" />
@@ -187,7 +189,9 @@
 
     <!-- Round 4: marks in the margin for answers with branches sit in a layer over the page, left of the scroll bar. -->
     <Panel>
-    <ScrollViewer Name="Scroller" Classes="autohide" HorizontalScrollBarVisibility="Disabled">
+    <!-- Starts 8 px left of the page's text edge and the list puts the 8 px back (Conversation.axaml), so the answer's quiet
+         actions, which hang 7 px left to line their icons up with the text, keep their whole hover tint and focus ring. -->
+    <ScrollViewer Name="Scroller" Classes="autohide" Margin="-8,0,0,0" HorizontalScrollBarVisibility="Disabled">
       <!-- Right margin (App.axaml, Round 4 · conversation): room for the scroll bar, and for the marks' gutter only on a page with branches. -->
       <ItemsControl Name="MessageList" Classes="messages" Classes.with-branch-marks="{Binding HasBranches}" ItemsSource="{Binding Messages}">
         <ItemsControl.ItemTemplate>

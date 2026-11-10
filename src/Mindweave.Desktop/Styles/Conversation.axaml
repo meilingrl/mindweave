@@ -80,9 +80,15 @@
     <Setter Property="VerticalAlignment" Value="Center" />
     <Setter Property="Margin" Value="10,0,0,0" />
     <Setter Property="Opacity" Value="0.6" />
+    <Setter Property="RenderTransform" Value="none" />
   </Style>
+  <!-- Hovered: the chevron brightens and moves 2 px towards where the row leads (2026-11-10). -->
   <Style Selector="Button.entry:pointerover PathIcon.entry-chevron">
     <Setter Property="Opacity" Value="1" />
+    <Setter Property="RenderTransform" Value="translateX(2px)" />
+  </Style>
+  <Style Selector="Button.entry:pressed /template/ ContentPresenter#PART_ContentPresenter">
+    <Setter Property="Background" Value="{DynamicResource SelectedRow}" />
   </Style>
   <Style Selector="Border.composer">
     <Setter Property="Background" Value="{DynamicResource TextControlBackground}" />
@@ -193,11 +199,13 @@
     <Setter Property="CornerRadius" Value="1" />
     <Setter Property="Background" Value="{DynamicResource BranchMarkRail}" />
   </Style>
-  <!-- The message list's right margin: the scroll bar (12), plus the gutter (16) only on pages that have branch marks. -->
+  <!-- The message list's right margin: the scroll bar (12), plus the gutter (16) only on pages that have branch marks.
+       On the left, the 8 px the scroller starts early (ConversationView), so the text stays on the page's edge. -->
   <Style Selector="ItemsControl.messages">
-    <Setter Property="Margin" Value="0,0,12,0" />
+    <Setter Property="Margin" Value="8,0,12,0" />
+    <Setter Property="ClipToBounds" Value="False" />
   </Style>
   <Style Selector="ItemsControl.messages.with-branch-marks">
-    <Setter Property="Margin" Value="0,0,28,0" />
+    <Setter Property="Margin" Value="8,0,28,0" />
   </Style>
 </Styles>
