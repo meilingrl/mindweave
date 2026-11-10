@@ -204,6 +204,32 @@ public class ConversationNewsHintTests
     }
 
     [AvaloniaFact]
+    public async Task A_conversations_hint_outlasts_a_workspace_switch_and_stays_apart_from_its_workspaces_hint()
+    {
+        await using var scene = await Scene.StartAsync();
+        var (app, news) = (scene.App, scene.News);
+        var first = await scene.AnswerAsync(scene.HighSpeed, "高铁有多快？");
+
+        // The user moves to 火车: the conversation still has news, so its hint stays (clicking it would switch back).
+        app.ShellPage.SelectedWorkspace = scene.Trains;
+        await UiWait.UntilAsync(() => news.Count == 1);
+        await scene.SettledAsync();
+        Assert.Equal([first], news.Toasts.Select(t => t.Conversation));
+
+        // A further answer in 高铁, now another workspace: its own workspace hint, beside the conversation's.
+        var second = await scene.AnswerAsync(scene.HighSpeed, "复兴号有几节车厢？");
+        Assert.Equal([(first, 1), (null, 2)], news.Toasts.Select(t => ((ConversationId?)t.Conversation, t.Count)));
+        Assert.Equal("「" + news.Toasts[0].Name + "」有新回答", news.Toasts[0].Text);
+        Assert.Equal("高铁：2 个会话有新回答", news.Toasts[1].Text);
+
+        // Back in 高铁: the workspace's hint has done its job; the conversation's stays until the conversation shows.
+        app.ShellPage.SelectedWorkspace = scene.HighSpeed;
+        Assert.Equal([(ConversationId?)first], news.Toasts.Select(t => t.Conversation));
+        Assert.True(app.Services.GetRequiredService<IConversationMarks>().IsUnread(second));
+        scene.Window.Close();
+    }
+
+    [AvaloniaFact]
     public async Task With_the_setting_off_only_other_workspaces_pop_up_and_the_sidebar_still_marks_the_conversation()
     {
         await using var scene = await Scene.StartAsync();
