@@ -38,6 +38,13 @@ public static partial class UiText
     public const string NoBackupsShort = "暂无。数据升级前和连带删除前会自动备份。";
     public const string AppearanceSaveFailed = "外观设置未能保存，本次运行中仍然有效。";
 
+    // Hints (2026-11-10): the sound for a new answer in another workspace; off unless chosen.
+    public const string HintsSection = "提示";
+    public const string NewsSoundLabel = "提示音";
+    public const string NewsSound = "其他工作区有新回答时提示音";
+    public const string NewsSoundHint = "使用系统的提示音，每条提示响一次；应用启动时不会响。";
+    public const string NewsSoundSaveFailed = "提示音设置未能保存，本次运行中仍然有效。";
+
     public const string SettingsTitle = "设置";
 
     public const string ModelSection = "模型连接";

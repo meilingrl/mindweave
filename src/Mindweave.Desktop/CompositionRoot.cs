@@ -10,6 +10,7 @@ using Mindweave.Desktop.ViewModels.Conversations;
 using Mindweave.Infrastructure;
 using Mindweave.Infrastructure.Hosting;
 using Mindweave.Infrastructure.Logging;
+using Mindweave.Infrastructure.Platform;
 using Mindweave.Infrastructure.Sqlite.Migrations;
 
 namespace Mindweave.Desktop;
@@ -60,6 +61,8 @@ public static class CompositionRoot
         services.AddSingleton<ConversationListViewModel>();
         services.AddSingleton<RootViewModel>();
         services.AddSingleton<IRootNavigator>(sp => sp.GetRequiredService<RootViewModel>());
+        services.TryAddSingleton(SystemAlertSound.ForPlatform()); // Tests count calls with their own.
+        services.TryAddSingleton(new WorkspaceNewsOptions());
         services.AddSingleton<WorkspaceNewsViewModel>();
         services.AddSingleton<ShellViewModel>();
         services.AddSingleton<AppStartup>();

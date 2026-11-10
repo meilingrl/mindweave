@@ -25,7 +25,7 @@ public class WorkspaceNewsTests
         await app.ConfigureModelAsync();
         var news = app.ShellPage.WorkspaceNews!;
         var picker = Find<ComboBox>(window, "WorkspacePicker");
-        var dot = Find<Ellipse>(window, "OtherWorkspacesNews");
+        var badge = Find<Border>(window, "OtherWorkspacesNews");
 
         // An answer is still running in 火车 when the user opens a second workspace.
         var held = app.Client.Hold("半句");
@@ -37,14 +37,15 @@ public class WorkspaceNewsTests
         await UiWait.UntilAsync(() => app.Workbench.CurrentWorkspace?.Name.Value == "高铁");
         await news.Loaded;
         window.UpdateLayout();
-        Assert.False(dot.IsEffectivelyVisible);
+        Assert.False(badge.IsEffectivelyVisible);
         Assert.Null(ToolTip.GetTip(picker));
 
-        // It ends while 高铁 is open: the closed picker shows one dot, and its tooltip names the workspace.
+        // It ends while 高铁 is open: the closed picker shows a badge with the count, and its tooltip names the workspace.
         held.Finish("的回答。");
         await UiWait.UntilAsync(() => news.HasNews);
         window.UpdateLayout();
-        Assert.True(dot.IsEffectivelyVisible);
+        Assert.True(badge.IsEffectivelyVisible);
+        Assert.Equal("1", Find<TextBlock>(window, "OtherWorkspacesNewsCount").Text);
         Assert.Equal(UiText.OtherWorkspacesNews(["火车"]), ToolTip.GetTip(picker));
         Assert.Equal(UiText.OtherWorkspacesNews(["火车"]), AutomationProperties.GetHelpText(picker));
 
@@ -69,7 +70,7 @@ public class WorkspaceNewsTests
         app.ShellPage.SelectedWorkspace = trains;
         await UiWait.UntilAsync(() => app.Workbench.CurrentWorkspace?.Id == trains.Id && !news.HasNews);
         window.UpdateLayout();
-        Assert.False(dot.IsEffectivelyVisible);
+        Assert.False(badge.IsEffectivelyVisible);
         await UiWait.UntilAsync(() => app.ShellPage.Conversations.Items.SingleOrDefault(i => i.Id == sent.Conversation)?.Mark == ConversationMark.Unread);
         window.Close();
     }

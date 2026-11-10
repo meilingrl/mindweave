@@ -63,9 +63,12 @@
                 </DataTemplate>
               </ComboBox.ItemTemplate>
             </ComboBox>
-            <!-- The closed box: one dot left of the drop-down arrow when any other workspace has a new answer; its names are in the tooltip. -->
-            <Ellipse Name="OtherWorkspacesNews" Classes="unread-dot" HorizontalAlignment="Right" VerticalAlignment="Center" Margin="0,0,34,0"
-                     IsHitTestVisible="False" IsVisible="{Binding WorkspaceNews.HasNews, FallbackValue=False}" />
+            <!-- The closed box: left of the drop-down arrow, an accent badge with how many conversations in other workspaces
+                 have a new answer (2026-11-10: a plain dot was too easy to miss); one short pulse when it grows. The names are in the tooltip. -->
+            <Border Name="OtherWorkspacesNews" Classes="news-badge" HorizontalAlignment="Right" VerticalAlignment="Center" Margin="0,0,30,0"
+                    IsHitTestVisible="False" IsVisible="{Binding WorkspaceNews.HasNews, FallbackValue=False}">
+              <TextBlock Name="OtherWorkspacesNewsCount" Text="{Binding WorkspaceNews.BadgeText, FallbackValue={x:Null}}" />
+            </Border>
             </Panel>
           </DockPanel>
           <StackPanel IsVisible="{Binding IsCreatingWorkspace}" Spacing="6" Margin="0,2,0,6">
@@ -213,5 +216,38 @@
       </DockPanel>
       <ContentControl Name="PageHost" Content="{Binding CurrentPage}" Margin="24,4,24,20" />
     </DockPanel>
+
+    <!-- New answers in other workspaces (2026-11-10): small cards at the content area's bottom right, above the page, never
+         a dialog and never taking the focus. One per workspace, newest at the bottom; each closes itself after a while. -->
+    <ItemsControl Name="NewsToasts" Grid.Column="1" ZIndex="10" HorizontalAlignment="Right" VerticalAlignment="Bottom" Margin="0,0,20,20"
+                  ItemsSource="{Binding WorkspaceNews.Toasts, FallbackValue={x:Null}}">
+      <ItemsControl.ItemsPanel>
+        <ItemsPanelTemplate>
+          <StackPanel Spacing="8" />
+        </ItemsPanelTemplate>
+      </ItemsControl.ItemsPanel>
+      <ItemsControl.ItemTemplate>
+        <DataTemplate x:DataType="vm:WorkspaceToastViewModel">
+          <Border Classes="news-toast" PointerEntered="OnToastPointerEntered" PointerExited="OnToastPointerExited">
+            <DockPanel>
+              <Button Name="CloseNewsToast" DockPanel.Dock="Right" Classes="quiet toast-close" Command="{Binding CloseCommand}"
+                      ToolTip.Tip="{x:Static d:UiText.CloseWorkspaceNewsToast}" AutomationProperties.Name="{x:Static d:UiText.CloseWorkspaceNewsToast}">
+                <PathIcon Data="{StaticResource IconClose}" />
+              </Button>
+              <!-- Read out politely when it appears or changes; the focus stays where the user is working. -->
+              <Button Name="OpenNewsToast" Classes="toast-body" CommandParameter="{Binding}"
+                      Command="{Binding $parent[UserControl].((vm:ShellViewModel)DataContext).OpenWorkspaceNewsCommand}"
+                      ToolTip.Tip="{x:Static d:UiText.WorkspaceNewsToastAction}"
+                      AutomationProperties.Name="{Binding AutomationName}" AutomationProperties.LiveSetting="Polite">
+                <DockPanel>
+                  <Ellipse DockPanel.Dock="Left" Classes="unread-dot" Margin="0,0,10,0" VerticalAlignment="Center" />
+                  <TextBlock Name="NewsToastText" Text="{Binding Text}" TextWrapping="Wrap" VerticalAlignment="Center" />
+                </DockPanel>
+              </Button>
+            </DockPanel>
+          </Border>
+        </DataTemplate>
+      </ItemsControl.ItemTemplate>
+    </ItemsControl>
   </Grid>
 </UserControl>

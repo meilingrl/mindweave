@@ -13,6 +13,13 @@ public interface IConversationMarks
     /// <summary>A conversation became unread or was seen. Raised on any thread.</summary>
     event EventHandler? Changed;
 
+    /// <summary>
+    /// An answer just ended with text and marked its conversation (it was not marked yet). Raised on any thread, before
+    /// <see cref="Changed"/>; never for marks restored from storage, so a hint that interrupts (2026-11-10) follows only
+    /// answers that end while the application runs.
+    /// </summary>
+    event EventHandler<ConversationId>? Marked;
+
     /// <summary>A summary of the conversation is queued or being generated.</summary>
     bool IsSummarizing(ConversationId conversation);
 
@@ -26,8 +33,9 @@ public interface IConversationMarks
     void SetViewing(ConversationId? conversation);
 
     /// <summary>
-    /// Which of these workspaces have a conversation with a new answer that the sidebar would show (archived ones are left
-    /// out). The marks are kept per conversation; this tells the workspace picker where they are (2026-11-10).
+    /// The conversations with a new answer that the sidebar would show (archived ones are left out), per workspace, for
+    /// those of these workspaces that have any. The marks are kept per conversation; this tells the workspace picker and
+    /// its hints where they are and how many (2026-11-10).
     /// </summary>
-    Task<IReadOnlySet<WorkspaceId>> WorkspacesWithUnreadAsync(IReadOnlyCollection<WorkspaceId> workspaces, CancellationToken cancellationToken);
+    Task<IReadOnlyDictionary<WorkspaceId, IReadOnlyList<ConversationId>>> UnreadByWorkspaceAsync(IReadOnlyCollection<WorkspaceId> workspaces, CancellationToken cancellationToken);
 }

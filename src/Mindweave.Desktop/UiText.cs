@@ -49,6 +49,18 @@ public static partial class UiText
     /// <summary>A workspace in the picker's list with a new answer, for screen readers.</summary>
     public static string WorkspaceWithNews(string name) => name + "，" + MarkerNewAnswer;
 
+    /// <summary>The hint that pops up when an answer ends in a workspace that is not open (2026-11-10).</summary>
+    public static string WorkspaceNewsToast(string name, int conversations) =>
+        conversations > 1 ? $"{name}：{conversations} 个会话有新回答" : name + " 有新回答";
+
+    /// <summary>What clicking the hint does, for its tooltip and screen readers.</summary>
+    public const string WorkspaceNewsToastAction = "点击切换到这个工作区";
+
+    public const string CloseWorkspaceNewsToast = "关闭提示";
+
+    /// <summary>The closed picker's badge: how many conversations in other workspaces have a new answer.</summary>
+    public static string NewsBadge(int count) => count > 9 ? "9+" : count.ToString(CultureInfo.InvariantCulture);
+
     public const string ExploreEmpty = "这个工作区还没有会话。";
 
     public const string ExitTitle = "仍有任务在生成";

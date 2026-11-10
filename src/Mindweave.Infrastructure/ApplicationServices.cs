@@ -47,6 +47,7 @@ public static class ApplicationServices
         services.AddSingleton<ReadingStateService>();
         services.AddSingleton<AppearanceService>();
         services.AddSingleton<SidebarLayoutService>();
+        services.AddSingleton<NewsAlertsService>();
 
         // View models depend on these interfaces, not the concrete services (course requirement C3); each resolves to the
         // one singleton above, so a page and the rest of the application share state.
@@ -63,6 +64,7 @@ public static class ApplicationServices
         services.AddSingleton<IConversationDeletion>(sp => sp.GetRequiredService<ConversationDeletionService>());
         services.AddSingleton<IAppearance>(sp => sp.GetRequiredService<AppearanceService>());
         services.AddSingleton<ISidebarLayout>(sp => sp.GetRequiredService<SidebarLayoutService>());
+        services.AddSingleton<INewsAlerts>(sp => sp.GetRequiredService<NewsAlertsService>());
         services.AddSingleton<INetworkLayout>(sp => sp.GetRequiredService<NetworkService>());
         return services;
     }
