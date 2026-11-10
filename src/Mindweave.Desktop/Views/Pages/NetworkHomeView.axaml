@@ -161,7 +161,7 @@
       <Border Name="CanvasFrame" BorderBrush="{DynamicResource NetworkFrame}" BorderThickness="1" CornerRadius="8" ClipToBounds="True" IsVisible="{Binding !IsListView}">
         <v:NetworkCanvas Name="Canvas" />
       </Border>
-      <ScrollViewer IsVisible="{Binding IsListView}">
+      <ScrollViewer Classes="autohide" IsVisible="{Binding IsListView}">
         <StackPanel Spacing="8">
           <ItemsControl Name="SummaryList" ItemsSource="{Binding Items}">
             <ItemsControl.ItemTemplate>

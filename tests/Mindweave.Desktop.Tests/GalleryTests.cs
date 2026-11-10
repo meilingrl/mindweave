@@ -968,6 +968,38 @@ public class GalleryTests
         window.Close();
     }
 
+    /// <summary>
+    /// Keyboard focus (2026-11-10 polish): the ring drawn inside a sidebar row (g46), inside a quiet toolbar button
+    /// (g46a), and outside the settings page's filled primary button (g46b). Focus is moved as Tab moves it.
+    /// </summary>
+    [AvaloniaFact]
+    public async Task G46_keyboard_focus_ring()
+    {
+        await using var scene = Scene.Create("g46");
+        var window = scene.App.ShowWindow(1100, 720, Theme);
+        var seed = await SeedAsync(scene.App);
+        await OpenConversationAsync(scene.App, window, seed.HighSpeed);
+
+        var row = window.GetVisualDescendants().OfType<Button>().Single(b => b.DataContext is ConversationItemViewModel item && item.Id == seed.Gauge && b.Classes.Contains("nav"));
+        row.Focus(NavigationMethod.Tab);
+        await SettleAsync(window);
+        Capture(window, "g46-focus-ring-sidebar-row");
+
+        Find<Button>(window, "RenameButton").Focus(NavigationMethod.Tab);
+        await SettleAsync(window);
+        Capture(window, "g46a-focus-ring-toolbar-button");
+
+        // The settings page's 保存, the filled primary level.
+        scene.App.ShellPage.ShowSectionCommand.Execute(MainSection.Settings);
+        await SettleAsync(window);
+        var save = Find<Button>(window, "SaveModel");
+        save.BringIntoView();
+        save.Focus(NavigationMethod.Tab);
+        await SettleAsync(window);
+        Capture(window, "g46b-focus-ring-primary-button");
+        window.Close();
+    }
+
     private static void RightClickRow(MainWindow window, ConversationId id)
     {
         window.UpdateLayout();

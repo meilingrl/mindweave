@@ -1,5 +1,6 @@
 <Styles xmlns="https://github.com/avaloniaui"
-        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:v="using:Mindweave.Desktop.Views">
   <!-- Settings page: section headings and cards, segmented control, field toggle, suggestion list, provider picker and file paths. -->
   <!-- A settings section: a heading above a card of aligned label/field rows. -->
   <Style Selector="TextBlock.section-heading">
@@ -90,6 +91,7 @@
   </Style>
   <!-- Suggestions under a field: a floating card of plain rows; the highlighted row is a neutral band, not accent. -->
   <Style Selector="Border.suggestions">
+    <Setter Property="v:Motion.Appear" Value="Popup" />
     <Setter Property="Background" Value="{DynamicResource DialogBackground}" />
     <Setter Property="BorderBrush" Value="{DynamicResource OutlineBrush}" />
     <Setter Property="BorderThickness" Value="1" />
@@ -118,6 +120,10 @@
   <Style Selector="Border.suggestions ListBoxItem:selected /template/ ContentPresenter#PART_ContentPresenter">
     <Setter Property="Background" Value="{DynamicResource SelectedRow}" />
     <Setter Property="Foreground" Value="{DynamicResource PrimaryText}" />
+  </Style>
+  <!-- Fields in a settings card share the controls' 6 px corner (2026-11-10; Fluent's own is 3 px, next to 8 px cards). -->
+  <Style Selector="Border.card.settings TextBox, Border.card.settings ComboBox">
+    <Setter Property="CornerRadius" Value="6" />
   </Style>
   <!-- The provider picker is framed like the text fields in the same card, at rest and under the pointer. -->
   <Style Selector="ComboBox.settings">

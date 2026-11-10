@@ -24,6 +24,12 @@ public sealed partial class App : Avalonia.Application
     {
         Markdown.MarkdownSetup.EnsureRegistered();
         AvaloniaXamlLoader.Load(this);
+
+        // Hover, press and selection transitions (s7-ui-polish.md, 2026-11-10); left out of headless tests and screenshots.
+        if (Motion.Enabled)
+        {
+            Styles.Add(Motion.LoadStyles());
+        }
     }
 
     public override void OnFrameworkInitializationCompleted()

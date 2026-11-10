@@ -10,7 +10,7 @@
              x:DataType="vm:ShellViewModel">
   <Grid ColumnDefinitions="Auto,*">
     <!-- The sidebar: resizable by its right edge, collapsible from its header or with the shortcut (S7 round 3). -->
-    <Panel Name="SidebarColumn" ZIndex="1" IsVisible="{Binding !IsSidebarCollapsed}">
+    <Panel Name="SidebarColumn" ZIndex="1" IsVisible="{Binding !IsSidebarCollapsed}" v:Motion.Appear="SlideIn">
     <Border Name="Sidebar" Width="{Binding SidebarWidth}" Background="{DynamicResource SidebarBackground}" BorderBrush="{DynamicResource DividerBrush}" BorderThickness="0,0,1,0">
       <DockPanel Margin="10,14,10,12">
         <StackPanel DockPanel.Dock="Top" Spacing="2">
@@ -137,7 +137,7 @@
           </DockPanel>
         </Border>
         <!-- While rows are selected (or in the 选择 mode): the count, then archive and delete, and a way out. -->
-        <StackPanel DockPanel.Dock="Bottom" Spacing="6" Margin="0,4,0,4" IsVisible="{Binding Conversations.ShowsSelectionBar}">
+        <StackPanel DockPanel.Dock="Bottom" Spacing="6" Margin="0,4,0,4" IsVisible="{Binding Conversations.ShowsSelectionBar}" v:Motion.Appear="Rise">
           <TextBlock Name="SelectionNotice" Classes="error" Text="{Binding Conversations.SelectionNotice}" TextWrapping="Wrap" Margin="4,0"
                      IsVisible="{Binding Conversations.SelectionNotice, Converter={x:Static ObjectConverters.IsNotNull}}" />
           <Border Name="SelectionBar" Classes="selection-bar">
@@ -176,7 +176,7 @@
                   <!-- The page toolbar's actions on this row (2026-11-10); right click, or Shift+F10 / the menu key on the focused row.
                        An entry is disabled when the page would refuse it now, and says why. Not offered while rows are selected (the bar acts then). -->
                   <Button.ContextMenu>
-                    <ContextMenu Name="RowMenu" Opening="OnRowMenuOpening" Opened="OnRowMenuOpened" Closed="OnRowMenuClosed">
+                    <ContextMenu Name="RowMenu" v:Motion.Appear="Popup" Opening="OnRowMenuOpening" Opened="OnRowMenuOpened" Closed="OnRowMenuClosed">
                       <MenuItem Name="RowMenuOpen" Header="{x:Static d:UiText.RowOpen}" FontWeight="SemiBold" Command="{Binding Owner.OpenCommand, FallbackValue={x:Null}}" CommandParameter="{Binding}">
                         <MenuItem.Icon>
                           <PathIcon Width="13" Height="13" Data="{StaticResource IconExplore}" />
@@ -269,7 +269,9 @@
         </Button>
         <TextBlock Classes="h1" Text="{Binding Title}" VerticalAlignment="Center" TextTrimming="CharacterEllipsis" />
       </DockPanel>
-      <ContentControl Name="PageHost" Content="{Binding CurrentPage}" Margin="24,4,24,20" />
+      <!-- Not clipped (2026-11-10): a page's toolbar and quiet buttons hang 8 px left of the text edge so their labels
+           line up with it, and their hover tint and focus ring must not be cut flat there. -->
+      <ContentControl Name="PageHost" Content="{Binding CurrentPage}" Margin="24,4,24,20" ClipToBounds="False" />
     </DockPanel>
 
     <!-- New answers (2026-11-10): small cards at the content area's bottom right, above the page, never a dialog and never

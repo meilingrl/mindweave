@@ -330,7 +330,7 @@
     </Grid>
     <!-- Reading: the answer typography in a left column of at most 720 px, so lines stay a comfortable length; the
          scroll bar stays at the page's edge. -->
-    <ScrollViewer Name="Scroller" HorizontalScrollBarVisibility="Disabled" IsVisible="{Binding !IsEditing}">
+    <ScrollViewer Name="Scroller" Classes="autohide" HorizontalScrollBarVisibility="Disabled" IsVisible="{Binding !IsEditing}">
       <Grid Margin="0,0,12,16">
         <Grid.ColumnDefinitions>
           <ColumnDefinition Width="*" MaxWidth="720" />

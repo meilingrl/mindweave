@@ -1,5 +1,6 @@
 <Styles xmlns="https://github.com/avaloniaui"
-        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:v="using:Mindweave.Desktop.Views">
   <!-- Shared control classes: text levels, links and list names, navigation rows, the three button levels, notices, badges, disabled states, breadcrumbs, auto-hiding scroll bars and destructive menu entries. -->
   <Style Selector="TextBlock.h1">
     <Setter Property="FontSize" Value="22" />
@@ -91,6 +92,7 @@
     <Setter Property="BorderThickness" Value="0" />
     <Setter Property="Padding" Value="14,6" />
     <Setter Property="FontWeight" Value="SemiBold" />
+    <Setter Property="CornerRadius" Value="6" />
   </Style>
   <Style Selector="Button.primary:pointerover /template/ ContentPresenter#PART_ContentPresenter">
     <Setter Property="Background" Value="{DynamicResource AccentHoverBrush}" />
@@ -106,6 +108,7 @@
     <Setter Property="BorderThickness" Value="1" />
     <Setter Property="Foreground" Value="{DynamicResource PrimaryText}" />
     <Setter Property="Padding" Value="13,5" />
+    <Setter Property="CornerRadius" Value="6" />
   </Style>
   <Style Selector="Button.secondary:pointerover /template/ ContentPresenter#PART_ContentPresenter">
     <Setter Property="Background" Value="{DynamicResource HoverRow}" />
@@ -118,10 +121,15 @@
     <Setter Property="Foreground" Value="{DynamicResource PrimaryText}" />
     <Setter Property="Padding" Value="8,5" />
     <Setter Property="VerticalAlignment" Value="Center" />
+    <Setter Property="CornerRadius" Value="6" />
   </Style>
   <Style Selector=":is(Button).quiet:pointerover /template/ ContentPresenter#PART_ContentPresenter">
     <Setter Property="Background" Value="{DynamicResource HoverRow}" />
     <Setter Property="Foreground" Value="{DynamicResource PrimaryText}" />
+  </Style>
+  <!-- Pressed (2026-11-10): one step stronger than hover, so a click is felt before it acts (hover alone looked the same as pressed). -->
+  <Style Selector=":is(Button).quiet:pressed /template/ ContentPresenter#PART_ContentPresenter, Button.secondary:pressed /template/ ContentPresenter#PART_ContentPresenter, Button.crumb:pressed /template/ ContentPresenter#PART_ContentPresenter, Button.list-name:pressed /template/ ContentPresenter#PART_ContentPresenter, Button.toast-body:pressed /template/ ContentPresenter#PART_ContentPresenter">
+    <Setter Property="Background" Value="{DynamicResource SelectedRow}" />
   </Style>
   <Style Selector="ToggleButton.quiet:checked /template/ ContentPresenter#PART_ContentPresenter">
     <Setter Property="Background" Value="{DynamicResource SelectedRow}" />
@@ -135,7 +143,9 @@
   </Style>
 
   <!-- Notices: info / warning / error, icon on the left (a TextBlock.notice-icon inside). -->
+  <!-- A notice that comes up (a refusal, a confirmation, a failure) fades in dropping 4 px (Views/Motion.cs). -->
   <Style Selector="Border.notice">
+    <Setter Property="v:Motion.Appear" Value="Drop" />
     <Setter Property="CornerRadius" Value="6" />
     <Setter Property="BorderThickness" Value="1" />
     <Setter Property="Padding" Value="10,7" />
@@ -278,6 +288,26 @@
   </Style>
   <Style Selector=":is(Button).quiet.small.danger:pointerover /template/ ContentPresenter#PART_ContentPresenter">
     <Setter Property="Foreground" Value="{DynamicResource DangerText}" />
+  </Style>
+  <!--
+    Keyboard focus (2026-11-10): one ring for every button level, in FocusRing, instead of Fluent's square two-tone
+    frame. Rows and toolbar buttons draw it inside their own rounded shape (the sidebar's list clips anything outside);
+    filled and outlined buttons draw it 3 px outside (not clipped to the button), where it does not vanish into the accent fill.
+    Shown only for keyboard focus (Avalonia's focus adorner), never after a click.
+  -->
+  <Style Selector="Button.nav, :is(Button).quiet, Button.entry, Button.crumb, Button.list-name, Button.link, Button.toast-body">
+    <Setter Property="FocusAdorner">
+      <FocusAdornerTemplate>
+        <Border BorderThickness="2" BorderBrush="{DynamicResource FocusRing}" CornerRadius="6" />
+      </FocusAdornerTemplate>
+    </Setter>
+  </Style>
+  <Style Selector="Button.primary, Button.secondary:not(#ToggleNewWorkspace)">
+    <Setter Property="FocusAdorner">
+      <FocusAdornerTemplate>
+        <Border BorderThickness="2" BorderBrush="{DynamicResource FocusRing}" CornerRadius="9" Margin="-3" AdornerLayer.IsClipEnabled="False" />
+      </FocusAdornerTemplate>
+    </Setter>
   </Style>
   <!-- A destructive menu entry: the workspace delete entry in the picker's menu. -->
   <Style Selector="MenuItem.danger">
