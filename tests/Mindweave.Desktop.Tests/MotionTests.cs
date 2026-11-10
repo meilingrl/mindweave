@@ -275,6 +275,39 @@ public class MotionTests
         window.Close();
     }
 
+    /// <summary>
+    /// Review (2026-11-10): a mouse press is always also a hover, and a hover style declared after the pressed style
+    /// (breadcrumbs, the new-answer card) used to win, so pressing looked exactly like hovering on those levels.
+    /// </summary>
+    [AvaloniaFact]
+    public void Pressing_under_the_pointer_is_stronger_than_hover_on_every_level_that_has_a_pressed_state()
+    {
+        var levels = new[] { "quiet", "quiet small", "secondary", "crumb", "list-name", "toast-body", "entry" };
+        var buttons = levels.Select(classes =>
+        {
+            var button = new Button { Content = "按钮" };
+            button.Classes.AddRange(classes.Split(' '));
+            return button;
+        }).ToArray();
+        var panel = new StackPanel();
+        panel.Children.AddRange(buttons);
+        var window = new Window { Width = 300, Height = 400, Content = panel };
+        window.Show();
+        window.UpdateLayout();
+        var pressed = Colour(window, "SelectedRow");
+
+        foreach (var button in buttons)
+        {
+            var pseudo = (IPseudoClasses)button.Classes;
+            pseudo.Set(":pointerover", true);
+            pseudo.Set(":pressed", true);
+            window.UpdateLayout();
+            Assert.True(pressed == Background(button), string.Join(' ', button.Classes));
+        }
+
+        window.Close();
+    }
+
     [AvaloniaFact]
     public async Task The_question_box_keeps_its_width_when_stop_replaces_send_and_hanging_buttons_are_not_cut()
     {

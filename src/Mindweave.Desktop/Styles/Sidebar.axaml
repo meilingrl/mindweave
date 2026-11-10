@@ -267,6 +267,10 @@
     <Setter Property="Background" Value="{DynamicResource HoverRow}" />
     <Setter Property="Foreground" Value="{DynamicResource PrimaryText}" />
   </Style>
+  <!-- Pressed after hover, so it wins while the pointer is on the card (review 2026-11-10). -->
+  <Style Selector="Button.toast-body:pressed /template/ ContentPresenter#PART_ContentPresenter">
+    <Setter Property="Background" Value="{DynamicResource SelectedRow}" />
+  </Style>
   <Style Selector="Button.toast-body TextBlock.toast-title">
     <Setter Property="FontSize" Value="13" />
     <Setter Property="FontWeight" Value="SemiBold" />

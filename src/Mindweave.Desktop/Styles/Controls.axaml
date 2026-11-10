@@ -128,7 +128,7 @@
     <Setter Property="Foreground" Value="{DynamicResource PrimaryText}" />
   </Style>
   <!-- Pressed (2026-11-10): one step stronger than hover, so a click is felt before it acts (hover alone looked the same as pressed). -->
-  <Style Selector=":is(Button).quiet:pressed /template/ ContentPresenter#PART_ContentPresenter, Button.secondary:pressed /template/ ContentPresenter#PART_ContentPresenter, Button.crumb:pressed /template/ ContentPresenter#PART_ContentPresenter, Button.list-name:pressed /template/ ContentPresenter#PART_ContentPresenter, Button.toast-body:pressed /template/ ContentPresenter#PART_ContentPresenter">
+  <Style Selector=":is(Button).quiet:pressed /template/ ContentPresenter#PART_ContentPresenter, Button.secondary:pressed /template/ ContentPresenter#PART_ContentPresenter, Button.list-name:pressed /template/ ContentPresenter#PART_ContentPresenter">
     <Setter Property="Background" Value="{DynamicResource SelectedRow}" />
   </Style>
   <Style Selector="ToggleButton.quiet:checked /template/ ContentPresenter#PART_ContentPresenter">
@@ -274,6 +274,10 @@
   <Style Selector="Button.crumb:pointerover /template/ ContentPresenter#PART_ContentPresenter">
     <Setter Property="Background" Value="{DynamicResource HoverRow}" />
     <Setter Property="Foreground" Value="{DynamicResource LinkText}" />
+  </Style>
+  <!-- Pressed after hover: a press is always also a hover, and the later style wins (review 2026-11-10). -->
+  <Style Selector="Button.crumb:pressed /template/ ContentPresenter#PART_ContentPresenter">
+    <Setter Property="Background" Value="{DynamicResource SelectedRow}" />
   </Style>
   <!-- Long scroll areas (answers, the sidebar tree): the faint thin scroll bar shows only while the pointer is over the area. -->
   <Style Selector="ScrollViewer.autohide /template/ ScrollBar#PART_VerticalScrollBar">
