@@ -247,6 +247,27 @@ public class WorkspaceNewsHintTests
     }
 
     [AvaloniaFact]
+    public async Task The_badge_does_not_pulse_when_it_grows_only_because_the_user_left_a_workspace_with_new_answers()
+    {
+        await using var scene = await Scene.StartAsync();
+        var (app, window, news) = (scene.App, scene.Window, scene.News);
+        var shell = window.GetVisualDescendants().OfType<ShellView>().Single();
+
+        // A new answer in the open workspace: its sidebar marks it, the badge does not count it.
+        var open = await scene.AnswerAsync(scene.HighSpeed, "高铁有多快？", expectHint: false);
+        await UiWait.UntilAsync(() => app.ShellPage.Conversations.Items.SingleOrDefault(i => i.Id == open)?.Mark == ConversationMark.Unread);
+        await scene.SettledAsync();
+        Assert.Equal(0, news.Count);
+
+        // Leaving it makes it another workspace: the badge shows 1, but nothing new arrived, so it does not pulse.
+        app.ShellPage.SelectedWorkspace = scene.Trains;
+        await UiWait.UntilAsync(() => news.Count == 1);
+        Assert.False(shell.IsPulsing);
+        Assert.Empty(news.Toasts);
+        window.Close();
+    }
+
+    [AvaloniaFact]
     public async Task The_sound_is_off_by_default_and_once_chosen_plays_once_per_hint_and_never_at_start()
     {
         await using var scene = await Scene.StartAsync();

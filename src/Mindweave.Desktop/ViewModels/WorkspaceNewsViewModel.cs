@@ -92,6 +92,13 @@ public sealed partial class WorkspaceNewsViewModel : ObservableObject
 
     public string BadgeText => UiText.NewsBadge(Count);
 
+    /// <summary>
+    /// The count grew because answers just ended in other workspaces (the ones that pop up a hint): the badge pulses once.
+    /// Not for marks restored at startup, nor when the count grows only because the workspace just left now counts as
+    /// another one.
+    /// </summary>
+    public event EventHandler? CountRose;
+
     public bool HasNews => Workspaces.Count > 0;
 
     /// <summary>The closed picker's tooltip and automation help: which workspaces have a new answer, in the picker's order.</summary>
@@ -197,7 +204,9 @@ public sealed partial class WorkspaceNewsViewModel : ObservableObject
             OnPropertyChanged(nameof(Hint));
         }
 
-        Count = shown.Values.Sum(c => c.Count);
+        var count = shown.Values.Sum(c => c.Count);
+        var grew = count > Count;
+        Count = count;
         UpdateToasts(shown);
 
         // A hint pops up only for an answer that ended here, in a workspace that was not open then and is not now.
@@ -215,6 +224,10 @@ public sealed partial class WorkspaceNewsViewModel : ObservableObject
         if (alerted.Count > 0)
         {
             Alerting = PlaySoundAsync();
+            if (grew)
+            {
+                CountRose?.Invoke(this, EventArgs.Empty);
+            }
         }
     }
 

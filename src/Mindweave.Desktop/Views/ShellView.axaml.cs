@@ -1,4 +1,3 @@
-using System.ComponentModel;
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Input;
@@ -21,7 +20,6 @@ public sealed partial class ShellView : UserControl
     private double? _dragStartX;
     private double _dragStartWidth;
     private WorkspaceNewsViewModel? _news;
-    private int _newsCount;
     private int _pulses;
 
     public ShellView()
@@ -50,31 +48,17 @@ public sealed partial class ShellView : UserControl
 
         if (_news is not null)
         {
-            _news.PropertyChanged -= OnNewsChanged;
+            _news.CountRose -= OnNewsCountRose;
         }
 
         _news = news;
-        _newsCount = news?.Count ?? 0;
         if (news is not null)
         {
-            news.PropertyChanged += OnNewsChanged;
+            news.CountRose += OnNewsCountRose;
         }
     }
 
-    private void OnNewsChanged(object? sender, PropertyChangedEventArgs e)
-    {
-        if (e.PropertyName != nameof(WorkspaceNewsViewModel.Count) || _news is not { } news)
-        {
-            return;
-        }
-
-        var grew = news.Count > _newsCount;
-        _newsCount = news.Count;
-        if (grew)
-        {
-            Pulse();
-        }
-    }
+    private void OnNewsCountRose(object? sender, EventArgs e) => Pulse();
 
     /// <summary>
     /// One brief swell and fade of the badge from its centre: the "pulsing" class runs the style's animation once
