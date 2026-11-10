@@ -46,8 +46,8 @@ public static partial class UiText
     public const string NewsInWorkspaceHint = "没在看的会话有新回答时也弹出；关闭后只为其他工作区弹出，侧栏的圆点照常显示。";
     public const string NewsInWorkspaceSaveFailed = "弹出提示设置未能保存，本次运行中仍然有效。";
     public const string NewsSoundLabel = "提示音";
-    public const string NewsSound = "弹出新回答提示时响提示音";
-    public const string NewsSoundHint = "使用系统的提示音，弹出提示时响一次（同时弹出的几条只响一次）；应用启动时不会响。";
+    public const string NewsSound = "新回答提示音";
+    public const string NewsSoundHint = "有多个新回答时只响一次";
     public const string NewsSoundSaveFailed = "提示音设置未能保存，本次运行中仍然有效。";
 
     public const string SettingsTitle = "设置";
