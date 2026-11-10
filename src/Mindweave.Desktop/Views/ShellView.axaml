@@ -26,8 +26,10 @@
                     ToolTip.Tip="{x:Static d:UiText.NewWorkspace}" AutomationProperties.Name="{x:Static d:UiText.NewWorkspace}">
               <PathIcon Width="12" Height="12" Data="{StaticResource IconPlus}" />
             </Button>
+            <Panel>
             <ComboBox Name="WorkspacePicker" HorizontalAlignment="Stretch" Height="32" ItemsSource="{Binding Workbench.Workspaces}"
-                      SelectedItem="{Binding SelectedWorkspace}" AutomationProperties.Name="工作区">
+                      SelectedItem="{Binding SelectedWorkspace}" AutomationProperties.Name="工作区"
+                      ToolTip.Tip="{Binding WorkspaceNews.Hint}" AutomationProperties.HelpText="{Binding WorkspaceNews.Hint}">
               <!-- Round 4 · topic-delete: the rare, destructive action is one right-click away; also in 设置 › 工作区. -->
               <ComboBox.ContextMenu>
                 <ContextMenu>
@@ -40,10 +42,31 @@
               </ComboBox.ContextMenu>
               <ComboBox.ItemTemplate>
                 <DataTemplate x:DataType="ws:Workspace">
-                  <TextBlock Text="{Binding Name.Value}" TextTrimming="CharacterEllipsis" FontWeight="SemiBold" />
+                  <!-- A new answer in another workspace (2026-11-10): the sidebar's accent dot after its name. -->
+                  <DockPanel>
+                    <AutomationProperties.Name>
+                      <MultiBinding Converter="{x:Static d:Converters.WorkspaceAutomationName}">
+                        <Binding />
+                        <Binding Path="$parent[ComboBox].((vm:ShellViewModel)DataContext).WorkspaceNews.Workspaces" />
+                      </MultiBinding>
+                    </AutomationProperties.Name>
+                    <Ellipse Name="WorkspaceNewsDot" DockPanel.Dock="Right" Classes="unread-dot" Margin="8,0,0,0" VerticalAlignment="Center">
+                      <Ellipse.IsVisible>
+                        <MultiBinding Converter="{x:Static d:Converters.WorkspaceIn}">
+                          <Binding />
+                          <Binding Path="$parent[ComboBox].((vm:ShellViewModel)DataContext).WorkspaceNews.Workspaces" />
+                        </MultiBinding>
+                      </Ellipse.IsVisible>
+                    </Ellipse>
+                    <TextBlock Text="{Binding Name.Value}" TextTrimming="CharacterEllipsis" FontWeight="SemiBold" />
+                  </DockPanel>
                 </DataTemplate>
               </ComboBox.ItemTemplate>
             </ComboBox>
+            <!-- The closed box: one dot left of the drop-down arrow when any other workspace has a new answer; its names are in the tooltip. -->
+            <Ellipse Name="OtherWorkspacesNews" Classes="unread-dot" HorizontalAlignment="Right" VerticalAlignment="Center" Margin="0,0,34,0"
+                     IsHitTestVisible="False" IsVisible="{Binding WorkspaceNews.HasNews, FallbackValue=False}" />
+            </Panel>
           </DockPanel>
           <StackPanel IsVisible="{Binding IsCreatingWorkspace}" Spacing="6" Margin="0,2,0,6">
             <TextBox Name="NewWorkspaceName" Text="{Binding NewWorkspace.Name}" PlaceholderText="{x:Static d:UiText.WorkspaceNameWatermark}" />

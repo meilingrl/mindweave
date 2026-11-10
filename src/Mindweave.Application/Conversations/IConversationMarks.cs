@@ -1,4 +1,5 @@
 using Mindweave.Core.Conversations;
+using Mindweave.Core.Workspaces;
 
 namespace Mindweave.Application.Conversations;
 
@@ -23,4 +24,10 @@ public interface IConversationMarks
     /// it is shown leaves none.
     /// </summary>
     void SetViewing(ConversationId? conversation);
+
+    /// <summary>
+    /// Which of these workspaces have a conversation with a new answer that the sidebar would show (archived ones are left
+    /// out). The marks are kept per conversation; this tells the workspace picker where they are (2026-11-10).
+    /// </summary>
+    Task<IReadOnlySet<WorkspaceId>> WorkspacesWithUnreadAsync(IReadOnlyCollection<WorkspaceId> workspaces, CancellationToken cancellationToken);
 }

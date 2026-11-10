@@ -26,8 +26,10 @@ public sealed partial class ShellViewModel : ViewModelBase
         LayoutPromptViewModel? layoutPrompt = null,
         Network.NetworkSessions? networks = null,
         ISidebarLayout? sidebarLayout = null,
-        IWorkspaceDeletionPrompt? workspaceDeletion = null)
+        IWorkspaceDeletionPrompt? workspaceDeletion = null,
+        WorkspaceNewsViewModel? workspaceNews = null)
     {
+        WorkspaceNews = workspaceNews;
         _workspaceDeletion = workspaceDeletion;
         _layoutPrompt = layoutPrompt;
         _networks = networks;
@@ -44,6 +46,9 @@ public sealed partial class ShellViewModel : ViewModelBase
     public Workbench Workbench { get; }
 
     public WorkspaceNameForm NewWorkspace { get; }
+
+    /// <summary>New answers in the other workspaces, for the picker; null where the shell is built without it (tests).</summary>
+    public WorkspaceNewsViewModel? WorkspaceNews { get; }
 
     public Conversations.ConversationListViewModel Conversations { get; }
 
