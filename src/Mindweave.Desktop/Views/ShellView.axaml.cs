@@ -22,7 +22,6 @@ public sealed partial class ShellView : UserControl
     private double _dragStartWidth;
     private WorkspaceNewsViewModel? _news;
     private ConversationListViewModel? _list;
-    private int _pulses;
 
     public ShellView()
     {
@@ -43,29 +42,11 @@ public sealed partial class ShellView : UserControl
         };
     }
 
-    /// <summary>Set while the badge's pulse runs (tests).</summary>
-    internal bool IsPulsing => OtherWorkspacesNews.Classes.Contains("pulsing");
+    /// <summary>Set while the switcher's badge pulses (tests).</summary>
+    internal bool IsPulsing => Header.IsPulsing;
 
-    private void WatchNews(WorkspaceNewsViewModel? news)
-    {
-        if (ReferenceEquals(news, _news))
-        {
-            return;
-        }
-
-        if (_news is not null)
-        {
-            _news.CountRose -= OnNewsCountRose;
-        }
-
-        _news = news;
-        if (news is not null)
-        {
-            news.CountRose += OnNewsCountRose;
-        }
-    }
-
-    private void OnNewsCountRose(object? sender, EventArgs e) => Pulse();
+    /// <summary>The pop-up hints are held while the pointer is on them (the switcher's badge watches its own count).</summary>
+    private void WatchNews(WorkspaceNewsViewModel? news) => _news = news;
 
     private void WatchList(ConversationListViewModel? list)
     {
@@ -195,25 +176,6 @@ public sealed partial class ShellView : UserControl
 
     private Button? RowButton(ConversationItemViewModel item) =>
         ConversationList.GetVisualDescendants().OfType<Button>().FirstOrDefault(b => b.Classes.Contains("nav") && ReferenceEquals(b.DataContext, item));
-
-    /// <summary>
-    /// One brief swell and fade of the badge from its centre: the "pulsing" class runs the style's animation once
-    /// (Sidebar.axaml) and is taken off after it. While one runs, a further increase only lengthens it.
-    /// </summary>
-    private void Pulse()
-    {
-        var pulse = ++_pulses;
-        OtherWorkspacesNews.Classes.Set("pulsing", true);
-        _ = Task.Delay(PulseDuration).ContinueWith(
-            _ => Dispatcher.UIThread.Post(() =>
-            {
-                if (pulse == _pulses)
-                {
-                    OtherWorkspacesNews.Classes.Set("pulsing", false);
-                }
-            }),
-            TaskScheduler.Default);
-    }
 
     /// <summary>A hint under the pointer stays; it gets its full time again once the pointer leaves.</summary>
     private void OnToastPointerEntered(object? sender, PointerEventArgs e) => HoldToast(sender, held: true);

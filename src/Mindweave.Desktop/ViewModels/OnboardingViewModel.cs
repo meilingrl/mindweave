@@ -42,6 +42,13 @@ public sealed partial class WorkspaceNameForm : ViewModelBase
     }
 
     private bool CanSubmit() => !string.IsNullOrWhiteSpace(Name);
+
+    /// <summary>Back to empty, as when the form is cancelled (the sidebar's and the workspaces page's forms).</summary>
+    public void Reset()
+    {
+        Name = string.Empty;
+        Error = null;
+    }
 }
 
 /// <summary>First run: no workspace exists yet, so ask for one before opening the workbench.</summary>

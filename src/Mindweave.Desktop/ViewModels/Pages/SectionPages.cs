@@ -12,24 +12,32 @@ using Mindweave.Desktop.Services;
 
 namespace Mindweave.Desktop.ViewModels.Pages;
 
-/// <summary>Workspace entry page: start a conversation or pick one from the sidebar.</summary>
-public sealed partial class ExploreHomeViewModel(Workspace workspace, IContentNavigator content) : PageViewModel(ExploreHomeRoute.Instance)
+/// <summary>Workspace entry page: start a conversation or pick one from the sidebar. Its title is the workspace's name.</summary>
+public sealed partial class ExploreHomeViewModel(Workspace workspace, IContentNavigator content) : PageViewModel(ExploreHomeRoute.Instance), IShowsWorkspaceName
 {
-    public Workspace Workspace { get; } = workspace;
+    public Workspace Workspace { get; private set; } = workspace;
 
     public override string Title => Workspace.Name.Value;
+
+    public void WorkspaceRenamed(Workspace renamed)
+    {
+        ArgumentNullException.ThrowIfNull(renamed);
+        Workspace = renamed;
+        OnPropertyChanged(nameof(Workspace));
+        OnPropertyChanged(nameof(Title));
+    }
 
     [RelayCommand]
     private void NewConversation() => content.Push(NewConversationRoute.Instance);
 }
 
 /// <summary>Settings: the model connection, the appearance (D-022) and where data lives.</summary>
-public sealed partial class SettingsHomeViewModel : PageViewModel
+public sealed partial class SettingsHomeViewModel : PageViewModel, IDisposable
 {
     private readonly IContentNavigator _content;
     private readonly IAppearance _appearanceService;
     private readonly IThemeApplier _theme;
-    private readonly IWorkspaceDeletionPrompt? _workspaceDeletion;
+    private readonly IWorkspaceDirectory? _workspaces;
     private readonly INewsAlerts? _newsAlerts;
     private bool _loading;
     private bool _chosen;
@@ -42,14 +50,17 @@ public sealed partial class SettingsHomeViewModel : PageViewModel
         IContentNavigator content,
         IAppearance appearance,
         IThemeApplier theme,
-        Workspace? workspace = null,
-        IWorkspaceDeletionPrompt? workspaceDeletion = null,
+        IWorkspaceDirectory? workspaces = null,
         INewsAlerts? newsAlerts = null)
         : base(SettingsHomeRoute.Instance)
     {
         _newsAlerts = newsAlerts;
-        Workspace = workspace;
-        _workspaceDeletion = workspaceDeletion;
+        _workspaces = workspaces;
+        if (workspaces is not null)
+        {
+            workspaces.Workspaces.CollectionChanged += OnWorkspacesChanged;
+        }
+
         Environment = environment;
         Model = model;
         _content = content;
@@ -62,10 +73,15 @@ public sealed partial class SettingsHomeViewModel : PageViewModel
 
     public ModelSettingsViewModel Model { get; }
 
-    /// <summary>The workspace these settings were opened in; its delete entry sits in the 工作区 section (S7 round 4).</summary>
-    public Workspace? Workspace { get; }
+    /// <summary>The 工作区 section's entry to 设置 › 工作区 is offered (the page is built with the workbench's list).</summary>
+    public bool CanManageWorkspaces => _workspaces is not null;
 
-    public bool CanDeleteWorkspace => Workspace is not null && _workspaceDeletion is not null;
+    /// <summary>How many workspaces there are, beside that entry (2026-11-10).</summary>
+    public int WorkspaceCount => _workspaces?.Workspaces.Count ?? 0;
+
+    public string WorkspaceCountText => UiText.WorkspacesCount(WorkspaceCount);
+
+    public string ManageWorkspacesName => UiText.ManageWorkspacesName(WorkspaceCount);
 
     public override string Title => UiText.SettingsTitle;
 
@@ -129,13 +145,23 @@ public sealed partial class SettingsHomeViewModel : PageViewModel
     [RelayCommand]
     private void ShowStorageDetails() => _content.Push(StorageDetailsRoute.Instance);
 
+    /// <summary>Every workspace in one place (2026-11-10): listed, switched to, renamed and deleted there.</summary>
     [RelayCommand]
-    private void DeleteWorkspace()
+    private void ShowWorkspaces() => _content.Push(WorkspacesRoute.Instance);
+
+    public void Dispose()
     {
-        if (Workspace is { } workspace)
+        if (_workspaces is not null)
         {
-            _workspaceDeletion?.Open(workspace);
+            _workspaces.Workspaces.CollectionChanged -= OnWorkspacesChanged;
         }
+    }
+
+    private void OnWorkspacesChanged(object? sender, System.Collections.Specialized.NotifyCollectionChangedEventArgs e)
+    {
+        OnPropertyChanged(nameof(WorkspaceCount));
+        OnPropertyChanged(nameof(WorkspaceCountText));
+        OnPropertyChanged(nameof(ManageWorkspacesName));
     }
 
     partial void OnAppearanceChanged(Appearance value)

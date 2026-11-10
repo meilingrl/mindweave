@@ -26,6 +26,7 @@ public sealed class ViewLocator : IDataTemplate
         [typeof(SummaryViewModel)] = () => new SummaryView(),
         [typeof(SettingsHomeViewModel)] = () => new SettingsHomeView(),
         [typeof(StorageDetailsViewModel)] = () => new StorageDetailsView(),
+        [typeof(WorkspacesViewModel)] = () => new WorkspacesView(),
         [typeof(ConversationViewModel)] = () => new ConversationView(),
         [typeof(NewConversationViewModel)] = () => new NewConversationView(),
         [typeof(ArchivedViewModel)] = () => new ArchivedView(),

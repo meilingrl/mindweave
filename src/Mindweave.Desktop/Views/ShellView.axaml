@@ -14,70 +14,9 @@
     <Border Name="Sidebar" Width="{Binding SidebarWidth}" Background="{DynamicResource SidebarBackground}" BorderBrush="{DynamicResource DividerBrush}" BorderThickness="0,0,1,0">
       <DockPanel Margin="10,14,10,12">
         <StackPanel DockPanel.Dock="Top" Spacing="2">
-          <!-- Workspace: the selector and its + share one height and one frame style. -->
-          <DockPanel Margin="0,0,0,4">
-            <Button Name="CollapseSidebar" DockPanel.Dock="Right" Classes="quiet sidebar-toggle" Command="{Binding ToggleSidebarCommand}"
-                    Margin="4,0,-4,0" ToolTip.Tip="{x:Static d:UiText.CollapseSidebarTip}" AutomationProperties.Name="{x:Static d:UiText.CollapseSidebar}">
-              <PathIcon Data="{StaticResource IconSidebar}" />
-            </Button>
-            <Button Name="ToggleNewWorkspace" DockPanel.Dock="Right" Classes="secondary" Command="{Binding ToggleCreateWorkspaceCommand}"
-                    Width="32" Height="32" Padding="0" Margin="6,0,0,0" HorizontalContentAlignment="Center" VerticalContentAlignment="Center"
-                    CornerRadius="{DynamicResource ControlCornerRadius}" BorderBrush="{DynamicResource TextControlBorderBrush}"
-                    ToolTip.Tip="{x:Static d:UiText.NewWorkspace}" AutomationProperties.Name="{x:Static d:UiText.NewWorkspace}">
-              <PathIcon Width="12" Height="12" Data="{StaticResource IconPlus}" />
-            </Button>
-            <Panel>
-            <ComboBox Name="WorkspacePicker" HorizontalAlignment="Stretch" Height="32" ItemsSource="{Binding Workbench.Workspaces}"
-                      SelectedItem="{Binding SelectedWorkspace}" AutomationProperties.Name="工作区"
-                      ToolTip.Tip="{Binding WorkspaceNews.Hint}" AutomationProperties.HelpText="{Binding WorkspaceNews.Hint}">
-              <!-- Round 4 · topic-delete: the rare, destructive action is one right-click away; also in 设置 › 工作区. -->
-              <ComboBox.ContextMenu>
-                <ContextMenu>
-                  <MenuItem Name="DeleteWorkspaceMenuItem" Classes="danger" Header="{x:Static d:UiText.DeleteWorkspace}" Command="{Binding DeleteWorkspaceCommand}">
-                    <MenuItem.Icon>
-                      <PathIcon Width="13" Height="13" Data="{StaticResource IconDelete}" />
-                    </MenuItem.Icon>
-                  </MenuItem>
-                </ContextMenu>
-              </ComboBox.ContextMenu>
-              <ComboBox.ItemTemplate>
-                <DataTemplate x:DataType="ws:Workspace">
-                  <!-- A new answer in another workspace (2026-11-10): the sidebar's accent dot after its name. -->
-                  <DockPanel>
-                    <AutomationProperties.Name>
-                      <MultiBinding Converter="{x:Static d:Converters.WorkspaceAutomationName}">
-                        <Binding />
-                        <Binding Path="$parent[ComboBox].((vm:ShellViewModel)DataContext).WorkspaceNews.Workspaces" />
-                      </MultiBinding>
-                    </AutomationProperties.Name>
-                    <Ellipse Name="WorkspaceNewsDot" DockPanel.Dock="Right" Classes="unread-dot" Margin="8,0,0,0" VerticalAlignment="Center">
-                      <Ellipse.IsVisible>
-                        <MultiBinding Converter="{x:Static d:Converters.WorkspaceIn}">
-                          <Binding />
-                          <Binding Path="$parent[ComboBox].((vm:ShellViewModel)DataContext).WorkspaceNews.Workspaces" />
-                        </MultiBinding>
-                      </Ellipse.IsVisible>
-                    </Ellipse>
-                    <TextBlock Text="{Binding Name.Value}" TextTrimming="CharacterEllipsis" FontWeight="SemiBold" />
-                  </DockPanel>
-                </DataTemplate>
-              </ComboBox.ItemTemplate>
-            </ComboBox>
-            <!-- The closed box: left of the drop-down arrow, an accent badge with how many conversations in other workspaces
-                 have a new answer (2026-11-10: a plain dot was too easy to miss); one short pulse when it grows. The names are in the tooltip. -->
-            <Border Name="OtherWorkspacesNews" Classes="news-badge" HorizontalAlignment="Right" VerticalAlignment="Center" Margin="0,0,30,0"
-                    IsHitTestVisible="False" IsVisible="{Binding WorkspaceNews.HasNews, FallbackValue=False}">
-              <TextBlock Name="OtherWorkspacesNewsCount" Text="{Binding WorkspaceNews.BadgeText, FallbackValue={x:Null}}" />
-            </Border>
-            </Panel>
-          </DockPanel>
-          <StackPanel IsVisible="{Binding IsCreatingWorkspace}" Spacing="6" Margin="0,2,0,6">
-            <TextBox Name="NewWorkspaceName" Text="{Binding NewWorkspace.Name}" PlaceholderText="{x:Static d:UiText.WorkspaceNameWatermark}" />
-            <TextBlock Classes="error" Text="{Binding NewWorkspace.Error}" TextWrapping="Wrap"
-                       IsVisible="{Binding NewWorkspace.Error, Converter={x:Static ObjectConverters.IsNotNull}}" />
-            <Button Name="CreateWorkspaceButton" Classes="primary" Content="{x:Static d:UiText.Create}" Command="{Binding NewWorkspace.SubmitCommand}" HorizontalAlignment="Right" />
-          </StackPanel>
-          <Border Height="1" Background="{DynamicResource DividerBrush}" Margin="0,8,0,8" />
+          <!-- Workspaces (2026-11-10): the switcher, its menu and the new-workspace form (SidebarHeader). -->
+          <v:SidebarHeader Name="Header" />
+          <Border Height="1" Background="{DynamicResource DividerBrush}" Margin="0,4,0,8" />
           <Button Name="NewConversationButton" Classes="nav" Command="{Binding Conversations.NewCommand}" AutomationProperties.Name="{x:Static d:UiText.NewConversation}">
             <StackPanel Orientation="Horizontal" Spacing="10">
               <PathIcon Classes="nav-icon" Data="{StaticResource IconPlus}" />

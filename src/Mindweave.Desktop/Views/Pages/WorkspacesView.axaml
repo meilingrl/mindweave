@@ -1,0 +1,104 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:Mindweave.Desktop.ViewModels.Pages"
+             xmlns:d="using:Mindweave.Desktop"
+             x:Class="Mindweave.Desktop.Views.Pages.WorkspacesView"
+             x:DataType="vm:WorkspacesViewModel">
+  <!-- 设置 › 工作区 (2026-11-10): every workspace with what it holds; the open one tagged 当前; per row 切换, 改名 (in
+       place: Enter saves, Esc cancels) and 删除工作区… (the window's confirmation). Styles/WorkspaceSwitcher.axaml. -->
+  <ScrollViewer HorizontalScrollBarVisibility="Disabled">
+  <Grid Margin="0,4,16,24">
+    <Grid.ColumnDefinitions>
+      <ColumnDefinition Width="*" MaxWidth="640" />
+    </Grid.ColumnDefinitions>
+    <StackPanel>
+      <DockPanel Margin="2,0,0,12">
+        <Button Name="NewWorkspaceOnPage" DockPanel.Dock="Right" Classes="secondary" Command="{Binding BeginCreateCommand}" Margin="16,0,0,0"
+                VerticalAlignment="Center" IsEnabled="{Binding !IsCreating}" AutomationProperties.Name="{x:Static d:UiText.NewWorkspaceEntry}">
+          <StackPanel Orientation="Horizontal" Spacing="6">
+            <PathIcon Data="{StaticResource IconPlus}" />
+            <TextBlock Text="{x:Static d:UiText.NewWorkspaceEntry}" VerticalAlignment="Center" />
+          </StackPanel>
+        </Button>
+        <TextBlock Classes="caption" TextWrapping="Wrap" VerticalAlignment="Center" Text="{x:Static d:UiText.WorkspacesIntro}" />
+      </DockPanel>
+
+      <!-- A new workspace is named here and listed without switching to it, so this page stays in view. -->
+      <Border Name="NewWorkspaceCard" Classes="card settings" Margin="0,0,0,12" IsVisible="{Binding IsCreating}">
+        <StackPanel Spacing="8">
+          <TextBox Name="NewWorkspaceNameOnPage" Text="{Binding NewWorkspace.Name}" PlaceholderText="{x:Static d:UiText.WorkspaceNameWatermark}"
+                   AutomationProperties.Name="{x:Static d:UiText.WorkspaceNameLabel}" KeyDown="OnNewWorkspaceKeyDown" />
+          <TextBlock Name="NewWorkspaceErrorOnPage" Classes="error" FontSize="12" TextWrapping="Wrap" Text="{Binding NewWorkspace.Error}"
+                     IsVisible="{Binding NewWorkspace.Error, Converter={x:Static ObjectConverters.IsNotNull}}" />
+          <StackPanel Orientation="Horizontal" Spacing="8" HorizontalAlignment="Right">
+            <Button Name="CancelNewWorkspaceOnPage" Classes="quiet" Content="{x:Static d:UiText.Cancel}" Command="{Binding CancelCreateCommand}"
+                    AutomationProperties.Name="{x:Static d:UiText.CancelNewWorkspace}" />
+            <Button Name="CreateWorkspaceOnPage" Classes="primary" Content="{x:Static d:UiText.Create}" Command="{Binding NewWorkspace.SubmitCommand}"
+                    AutomationProperties.Name="{x:Static d:UiText.CreateWorkspace}" />
+          </StackPanel>
+        </StackPanel>
+      </Border>
+
+      <Border Classes="card" Padding="4">
+        <ItemsControl Name="WorkspaceRows" ItemsSource="{Binding Rows}">
+          <ItemsControl.ItemsPanel>
+            <ItemsPanelTemplate>
+              <StackPanel Spacing="2" />
+            </ItemsPanelTemplate>
+          </ItemsControl.ItemsPanel>
+          <ItemsControl.ItemTemplate>
+            <DataTemplate x:DataType="vm:WorkspaceRowViewModel">
+              <Border Name="WorkspaceRow" Classes="workspace-row" AutomationProperties.Name="{Binding AutomationName}">
+                <DockPanel>
+                  <!-- The row's actions; while renaming, 保存 and 取消 take their place. -->
+                  <StackPanel Name="WorkspaceRowActions" DockPanel.Dock="Right" Orientation="Horizontal" Spacing="2" VerticalAlignment="Center"
+                              Margin="12,0,0,0" IsVisible="{Binding !IsRenaming}">
+                    <Button Name="SwitchWorkspaceButton" Classes="quiet small" Command="{Binding SwitchCommand}" IsVisible="{Binding !IsCurrent}"
+                            AutomationProperties.Name="{Binding SwitchName}" Content="{x:Static d:UiText.SwitchToWorkspace}" />
+                    <Button Name="RenameWorkspaceButton" Classes="quiet small" Command="{Binding BeginRenameCommand}"
+                            AutomationProperties.Name="{Binding RenameName}" ToolTip.Tip="{x:Static d:UiText.Rename}">
+                      <StackPanel Orientation="Horizontal" Spacing="4">
+                        <PathIcon Data="{StaticResource IconRename}" />
+                        <TextBlock Text="{x:Static d:UiText.Rename}" VerticalAlignment="Center" />
+                      </StackPanel>
+                    </Button>
+                    <Button Name="DeleteWorkspaceButton" Classes="quiet small danger" Command="{Binding DeleteCommand}"
+                            AutomationProperties.Name="{Binding DeleteName}" ToolTip.Tip="{x:Static d:UiText.DeleteWorkspace}">
+                      <StackPanel Orientation="Horizontal" Spacing="4">
+                        <PathIcon Data="{StaticResource IconDelete}" />
+                        <TextBlock Text="{x:Static d:UiText.RowDelete}" VerticalAlignment="Center" />
+                      </StackPanel>
+                    </Button>
+                  </StackPanel>
+                  <StackPanel Name="WorkspaceRenameActions" DockPanel.Dock="Right" Orientation="Horizontal" Spacing="4" VerticalAlignment="Top"
+                              Margin="10,0,0,0" Height="28" IsVisible="{Binding IsRenaming}">
+                    <Button Name="CancelRenameWorkspaceButton" Classes="quiet small" Content="{x:Static d:UiText.Cancel}" Command="{Binding CancelRenameCommand}" />
+                    <Button Name="SaveRenameWorkspaceButton" Classes="primary" Padding="12,4" FontSize="12.5" Content="{x:Static d:UiText.Save}" Command="{Binding CommitRenameCommand}" />
+                  </StackPanel>
+                  <Border DockPanel.Dock="Left" Classes="workspace-initial" VerticalAlignment="Top" Margin="0,4,12,0">
+                    <TextBlock Text="{Binding Workspace, Converter={x:Static d:Converters.WorkspaceInitial}}" />
+                  </Border>
+                  <StackPanel Spacing="1" VerticalAlignment="Center">
+                    <DockPanel Classes="workspace-name-line" LastChildFill="False" IsVisible="{Binding !IsRenaming}">
+                      <TextBlock Name="WorkspaceRowName" DockPanel.Dock="Left" Classes="workspace-row-name" Text="{Binding Name}" />
+                      <Border Name="CurrentWorkspaceTag" DockPanel.Dock="Left" Classes="badge accent" Margin="8,0,0,0" IsVisible="{Binding IsCurrent}">
+                        <TextBlock Text="{x:Static d:UiText.CurrentWorkspaceTag}" />
+                      </Border>
+                    </DockPanel>
+                    <!-- The name turns into a box of the same place and weight: Enter saves, Esc cancels. -->
+                    <TextBox Name="WorkspaceRenameBox" Classes="workspace-rename" IsVisible="{Binding IsRenaming}" Text="{Binding RenameText}"
+                             AutomationProperties.Name="{x:Static d:UiText.WorkspaceNameLabel}" KeyDown="OnRenameBoxKeyDown" />
+                    <TextBlock Name="WorkspaceRowCounts" Classes="caption" Text="{Binding CountsText}" />
+                    <TextBlock Name="WorkspaceRenameError" Classes="error" FontSize="12" TextWrapping="Wrap" Text="{Binding RenameError}"
+                               IsVisible="{Binding RenameError, Converter={x:Static ObjectConverters.IsNotNull}}" />
+                  </StackPanel>
+                </DockPanel>
+              </Border>
+            </DataTemplate>
+          </ItemsControl.ItemTemplate>
+        </ItemsControl>
+      </Border>
+    </StackPanel>
+  </Grid>
+  </ScrollViewer>
+</UserControl>

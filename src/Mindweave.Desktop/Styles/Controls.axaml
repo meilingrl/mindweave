@@ -279,7 +279,7 @@
   <Style Selector=":is(Button).quiet.small.danger:pointerover /template/ ContentPresenter#PART_ContentPresenter">
     <Setter Property="Foreground" Value="{DynamicResource DangerText}" />
   </Style>
-  <!-- A destructive menu entry: the workspace delete entry in the picker's menu. -->
+  <!-- A destructive menu entry: a sidebar row's 删除…. -->
   <Style Selector="MenuItem.danger">
     <Setter Property="Foreground" Value="{DynamicResource DangerText}" />
   </Style>
