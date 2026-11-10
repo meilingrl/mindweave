@@ -43,7 +43,7 @@ public static partial class UiText
     public const string HintsSection = "提示";
     public const string NewsInWorkspaceLabel = "弹出提示";
     public const string NewsInWorkspace = "当前工作区内也弹出提示";
-    public const string NewsInWorkspaceHint = "当前工作区里没在看的会话有新回答时也弹出提示；关闭后只为其他工作区弹出，侧栏的圆点照常显示。";
+    public const string NewsInWorkspaceHint = "没在看的会话有新回答时也弹出；关闭后只为其他工作区弹出，侧栏的圆点照常显示。";
     public const string NewsInWorkspaceSaveFailed = "弹出提示设置未能保存，本次运行中仍然有效。";
     public const string NewsSoundLabel = "提示音";
     public const string NewsSound = "弹出新回答提示时响提示音";

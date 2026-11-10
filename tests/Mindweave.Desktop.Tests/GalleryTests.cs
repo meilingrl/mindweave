@@ -10,6 +10,7 @@ using Microsoft.Data.Sqlite;
 using Microsoft.Extensions.DependencyInjection;
 using Mindweave.Application;
 using Mindweave.Application.Conversations;
+using Mindweave.Application.Preferences;
 using Mindweave.Application.Startup;
 using Mindweave.Application.Storage;
 using Mindweave.Application.Summaries;
@@ -1078,6 +1079,34 @@ public class GalleryTests
     }
 
     [AvaloniaFact]
+    public async Task G44_new_answer_hints_for_a_conversation_here_and_for_another_workspace()
+    {
+        // As in g41, the hints stand still while captured.
+        await using var scene = Scene.Create("g44", s => s.AddSingleton(new WorkspaceNewsOptions { Time = new ManualTime() }));
+        var window = scene.App.ShowWindow(1100, 720, Theme);
+        var seed = await SeedAsync(scene.App);
+        var conversations = scene.App.Services.GetRequiredService<ConversationService>();
+        var news = scene.App.ShellPage.WorkspaceNews!;
+        var city = await scene.App.Services.GetRequiredService<WorkspaceService>().CreateAsync(WorkspaceName.FromStored("城市交通"), CancellationToken.None);
+        scene.App.Workbench.Workspaces.Add(city);
+
+        // Reading the root; a branch of it gets a new answer meanwhile, then a conversation in 城市交通 does.
+        await OpenConversationAsync(scene.App, window, seed.Root);
+        scene.App.Client.Reply("多数国家用 1435 毫米，俄罗斯用宽轨，日本早期用窄轨。");
+        await conversations.AskAsync(seed.Gauge, "其他国家用什么轨距？", CancellationToken.None);
+        await UiWait.UntilAsync(() => news.Toasts.Count == 1 && news.Toasts[0].Conversation == seed.Gauge);
+        scene.App.Client.Reply("1863 年，伦敦。");
+        await conversations.StartAsync(city.Id, "第一条地铁在哪里？", CancellationToken.None);
+        await UiWait.UntilAsync(() => news.Toasts.Count == 2 && news.Count == 1);
+        var shell = window.GetVisualDescendants().OfType<ShellView>().Single();
+        await UiWait.UntilAsync(() => !shell.IsPulsing);
+        await SettleAsync(window);
+        Capture(window, "g44-news-hints-here-and-elsewhere");
+        window.Close();
+    }
+
+    /// <summary>The 提示 section: the open workspace's hints (on, the default) and the sound (chosen here).</summary>
+    [AvaloniaFact]
     public async Task G43_settings_news_sound()
     {
         await using var scene = Scene.Create("g43");
@@ -1101,6 +1130,9 @@ public class GalleryTests
         await using var scene = Scene.Create("g34");
         var window = scene.App.ShowWindow(1100, 720, Theme);
         var seed = await SeedAsync(scene.App);
+
+        // The sidebar's own marks, without the hints the answers below would pop up (those are in g44).
+        await scene.App.Services.GetRequiredService<INewsAlerts>().SetInWorkspaceAsync(false, CancellationToken.None);
         var conversations = scene.App.Services.GetRequiredService<ConversationService>();
         var list = scene.App.ShellPage.Conversations;
         await OpenConversationAsync(scene.App, window, seed.Root);
@@ -1183,6 +1215,9 @@ public class GalleryTests
         }
 
         await UiWait.UntilAsync(() => app.ShellPage.Conversations.Items.All(i => !i.IsUnread));
+
+        // The hints those answers popped up in the open workspace go with their marks.
+        await UiWait.UntilAsync(() => app.ShellPage.WorkspaceNews!.Toasts.Count == 0);
 
         var nodes = new Dictionary<ConversationId, SummaryNodeId>();
         if (summaries)
