@@ -75,9 +75,6 @@
                     <Button Name="CancelRenameWorkspaceButton" Classes="quiet small" Content="{x:Static d:UiText.Cancel}" Command="{Binding CancelRenameCommand}" />
                     <Button Name="SaveRenameWorkspaceButton" Classes="primary" Padding="12,4" FontSize="12.5" Content="{x:Static d:UiText.Save}" Command="{Binding CommitRenameCommand}" />
                   </StackPanel>
-                  <Border DockPanel.Dock="Left" Classes="workspace-initial" VerticalAlignment="Top" Margin="0,4,12,0">
-                    <TextBlock Text="{Binding Workspace, Converter={x:Static d:Converters.WorkspaceInitial}}" />
-                  </Border>
                   <StackPanel Spacing="1" VerticalAlignment="Center">
                     <DockPanel Classes="workspace-name-line" LastChildFill="False" IsVisible="{Binding !IsRenaming}">
                       <TextBlock Name="WorkspaceRowName" DockPanel.Dock="Left" Classes="workspace-row-name" Text="{Binding Name}" />

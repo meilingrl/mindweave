@@ -40,8 +40,11 @@ public static partial class UiText
 
     public const string CurrentWorkspaceTag = "当前";
 
-    public static string WorkspaceCounts(int conversations, int summaries) =>
-        string.Format(CultureInfo.CurrentCulture, "{0} 个会话 · {1} 个总结", conversations, summaries);
+    /// <summary>"10 个会话，包含 3 个归档对话 · 8 个总结" (2026-11-10: say how many are archived); without archived ones, "10 个会话 · 8 个总结".</summary>
+    public static string WorkspaceCounts(int conversations, int summaries, int archived = 0) =>
+        archived > 0
+            ? string.Format(CultureInfo.CurrentCulture, "{0} 个会话，包含 {1} 个归档对话 · {2} 个总结", conversations, archived, summaries)
+            : string.Format(CultureInfo.CurrentCulture, "{0} 个会话 · {1} 个总结", conversations, summaries);
 
     public const string WorkspaceCountsLoading = "正在统计…";
 

@@ -34,7 +34,11 @@ public sealed record BusyConversation(ConversationId Conversation, bool Answer, 
 /// What a workspace holds, as the delete confirmation states it: every conversation (branches and archived ones
 /// included) and every summary node. <paramref name="Exists"/> is false when the workspace is gone.
 /// </summary>
-public sealed record WorkspaceContents(bool Exists, int Conversations, int Summaries, IReadOnlyList<BusyConversation> Busy);
+public sealed record WorkspaceContents(bool Exists, int Conversations, int Summaries, IReadOnlyList<BusyConversation> Busy)
+{
+    /// <summary>How many of <see cref="Conversations"/> are archived: archived themselves or under an archived conversation.</summary>
+    public int Archived { get; init; }
+}
 
 /// <summary>
 /// Outcome of a workspace delete: <paramref name="Missing"/> when it no longer existed, refused when

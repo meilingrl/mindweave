@@ -313,6 +313,25 @@
       </FocusAdornerTemplate>
     </Setter>
   </Style>
+  <!--
+    Menus (2026-11-10, user feedback with a reference picture): the entries sit inside the menu's rounded card with a
+    margin all round, and the hover/selection band is itself rounded, instead of running edge to edge. Applies to every
+    context menu and menu flyout (a sidebar row's menu, a text box's cut/copy/paste).
+  -->
+  <Style Selector="ContextMenu, MenuFlyoutPresenter">
+    <Setter Property="Padding" Value="5" />
+    <Setter Property="CornerRadius" Value="10" />
+  </Style>
+  <Style Selector="ContextMenu MenuItem, MenuFlyoutPresenter MenuItem">
+    <Setter Property="CornerRadius" Value="6" />
+    <Setter Property="Padding" Value="10,6" />
+  </Style>
+  <Style Selector="ContextMenu MenuItem /template/ Border#PART_LayoutRoot, MenuFlyoutPresenter MenuItem /template/ Border#PART_LayoutRoot">
+    <Setter Property="CornerRadius" Value="6" />
+  </Style>
+  <Style Selector="ContextMenu Separator, MenuFlyoutPresenter Separator">
+    <Setter Property="Margin" Value="8,4" />
+  </Style>
   <!-- A destructive menu entry: a sidebar row's 删除…. -->
   <Style Selector="MenuItem.danger">
     <Setter Property="Foreground" Value="{DynamicResource DangerText}" />

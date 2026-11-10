@@ -5,12 +5,6 @@ namespace Mindweave.Desktop;
 
 public static class Converters
 {
-    /// <summary>The switcher's small square (2026-11-10): the workspace name's first character as a reader sees it (an emoji stays whole).</summary>
-    public static FuncValueConverter<Mindweave.Core.Workspaces.Workspace?, string> WorkspaceInitial { get; } = new(workspace =>
-        workspace is null || workspace.Name.Value.Length == 0
-            ? string.Empty
-            : System.Globalization.StringInfo.GetNextTextElement(workspace.Name.Value).ToUpperInvariant());
-
     public static FuncValueConverter<bool, double> SupersededOpacity { get; } = new(superseded => superseded ? 0.55 : 1.0);
 
     /// <summary>Unread names are bold (S7 已读／未读约定).</summary>

@@ -64,7 +64,7 @@ public class MotionTests
     }
 
     [AvaloniaFact]
-    public void The_transitions_fade_every_button_level()
+    public void Hover_press_and_selection_colours_switch_at_once_and_scroll_bars_fade()
     {
         Button Make(string classes, string? name = null)
         {
@@ -88,7 +88,8 @@ public class MotionTests
         plain.Content = null;
         plain.Close();
 
-        // With it, as the app loads it: background, text and frame colours fade over Motion.Fast.
+        // With it, as the app loads it: hover, press and selection colours still switch at once (a fade from
+        // Transparent flashed pale grey on the way in and out, user feedback 2026-11-10); auto-hiding scroll bars fade.
         var window = new Window { Width = 400, Height = 700 };
         window.Styles.Add(Motion.LoadStyles());
         window.Content = panel;
@@ -98,14 +99,12 @@ public class MotionTests
         {
             foreach (var property in new AvaloniaProperty[] { ContentPresenter.BackgroundProperty, ContentPresenter.ForegroundProperty, ContentPresenter.BorderBrushProperty })
             {
-                var transition = BrushTransition(Presenter(button), property);
-                Assert.True(transition is not null, $"{string.Join(' ', button.Classes)}: {property.Name}");
-                Assert.Equal(Motion.Fast, transition.Duration);
+                Assert.True(BrushTransition(Presenter(button), property) is null, $"{string.Join(' ', button.Classes)}: {property.Name}");
             }
         }
 
         var segmentBorder = segment.GetVisualDescendants().OfType<Border>().First(b => b.Name == "PART_Segment");
-        Assert.NotNull(BrushTransition(segmentBorder, Border.BackgroundProperty));
+        Assert.Null(BrushTransition(segmentBorder, Border.BackgroundProperty));
         var bar = scroller.GetVisualDescendants().OfType<ScrollBar>().First(b => b.Name == "PART_VerticalScrollBar");
         Assert.Contains(bar.Transitions!, t => t is DoubleTransition { Property.Name: "Opacity" });
         window.Close();

@@ -77,7 +77,10 @@ internal sealed class SqliteWorkspaceStore(SqliteDatabase database) : IWorkspace
                     true,
                     conversations.Count,
                     (int)connection.Scalar<long>(null, "SELECT count(*) FROM summary_node WHERE workspace_id = $ws;", ws),
-                    Busy(connection, null, conversations));
+                    Busy(connection, null, conversations))
+                {
+                    Archived = conversations.Count(id => SqliteArchive.IsHidden(connection, null, id)),
+                };
             },
             cancellationToken);
 

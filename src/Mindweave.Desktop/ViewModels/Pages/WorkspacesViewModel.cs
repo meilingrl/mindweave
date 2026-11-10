@@ -275,7 +275,7 @@ public sealed partial class WorkspacesViewModel : PageViewModel, IDisposable
                 var contents = await _deletion.InspectAsync(row.Workspace.Id, CancellationToken.None);
                 if (contents.Exists)
                 {
-                    row.SetCounts(contents.Conversations, contents.Summaries);
+                    row.SetCounts(contents.Conversations, contents.Summaries, contents.Archived);
                 }
             }
 #pragma warning disable CA1031 // A count is information only: the row says it could not be read and stays usable.
@@ -352,7 +352,7 @@ public sealed partial class WorkspaceRowViewModel : ObservableObject
 
     public string DeleteName => UiText.DeleteWorkspaceName(Name);
 
-    internal void SetCounts(int conversations, int summaries) => CountsText = UiText.WorkspaceCounts(conversations, summaries);
+    internal void SetCounts(int conversations, int summaries, int archived = 0) => CountsText = UiText.WorkspaceCounts(conversations, summaries, archived);
 
     internal void CountsFailed()
     {

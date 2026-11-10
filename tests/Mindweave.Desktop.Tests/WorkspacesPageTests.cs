@@ -82,6 +82,33 @@ public class WorkspacesPageTests
     }
 
     [AvaloniaFact]
+    public async Task A_row_says_how_many_of_its_conversations_are_archived()
+    {
+        await using var app = DesktopHarness.Create();
+        var window = app.ShowWindow(1100, 720);
+        await NetworkScenario.SeedAsync(app);
+        var (city, _) = await WorkspaceSwitcherTests.AddAsync(app, "城市交通", "摄影史");
+        var conversations = app.Services.GetRequiredService<ConversationService>();
+        app.Client.Reply("1863 年，伦敦。");
+        await NetworkScenario.AskAsync(app, conversations, null, city.Id, "第一条地铁在哪里？");
+        var subway = Assert.Single(await conversations.ListAsync(city.Id, CancellationToken.None));
+        Assert.True((await conversations.ArchiveAsync(subway.Conversation.Id, CancellationToken.None)).Archived);
+
+        app.ShellPage.ShowSectionCommand.Execute(MainSection.Settings);
+        window.UpdateLayout();
+        UiInput.Click(window, Find<Button>(window, "ManageWorkspacesButton"));
+        var page = Assert.IsType<WorkspacesViewModel>(app.Workbench.CurrentPage);
+        await page.Loaded;
+        window.UpdateLayout();
+
+        // 2026-11-10: the count says how many are archived, and says nothing of archiving where none is.
+        Assert.Equal("1 个会话，包含 1 个归档对话 · 0 个总结", Texts(window, "WorkspaceRowCounts")[1]);
+        Assert.Equal(UiText.WorkspaceCounts(4, 3), Texts(window, "WorkspaceRowCounts")[0]);
+        Assert.Equal("4 个会话 · 3 个总结", UiText.WorkspaceCounts(4, 3));
+        window.Close();
+    }
+
+    [AvaloniaFact]
     public async Task Switching_from_the_page_opens_that_workspace_and_asks_about_an_unsaved_layout_first()
     {
         await using var app = DesktopHarness.Create();

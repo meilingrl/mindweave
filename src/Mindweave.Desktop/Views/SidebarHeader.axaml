@@ -66,7 +66,7 @@
           </StackPanel>
         </Border>
       </Popup>
-      <!-- Closed: a quiet row that belongs to the sidebar, not a form field — the workspace's initial, its name, the
+      <!-- Closed: a quiet row that belongs to the sidebar, not a form field — its name, the
            count of new answers elsewhere, and a chevron. Click, Enter, Space, Down or Alt+Down opens the menu. -->
       <!-- A button that also tells a screen reader whether the menu is open (expand/collapse), as the old drop-down did. -->
       <v:WorkspaceSwitcherButton Name="WorkspacePicker" Classes="workspace-switcher" Classes.open="{Binding IsWorkspaceMenuOpen}"
@@ -80,9 +80,6 @@
           <Border Name="OtherWorkspacesNews" DockPanel.Dock="Right" Classes="news-badge" Margin="6,0,6,0" VerticalAlignment="Center"
                   IsHitTestVisible="False" IsVisible="{Binding WorkspaceNews.HasNews, FallbackValue=False}">
             <TextBlock Name="OtherWorkspacesNewsCount" Text="{Binding WorkspaceNews.BadgeText, FallbackValue={x:Null}}" />
-          </Border>
-          <Border DockPanel.Dock="Left" Classes="workspace-initial">
-            <TextBlock Text="{Binding SelectedWorkspace, Converter={x:Static d:Converters.WorkspaceInitial}}" />
           </Border>
           <TextBlock Name="WorkspacePickerName" Classes="switcher-name" Text="{Binding SelectedWorkspace.Name.Value, FallbackValue={x:Null}}" />
         </DockPanel>

@@ -1,39 +1,12 @@
 <Styles xmlns="https://github.com/avaloniaui"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
   <!--
-    Motion (s7-ui-polish.md, 2026-11-10): hover, press and selection colours fade over 120 ms instead of switching in
-    one frame. Only colours, opacity and a 2 px nudge move; nothing changes size, so no layout runs per frame and input
-    is never delayed. Loaded by App only while Motion.Enabled (off in headless tests and screenshots, which then capture
+    Motion (s7-ui-polish.md, 2026-11-10). Hover, press and selection colours switch at once, as macOS sidebars and
+    menus do: a colour fade from Transparent (white at zero alpha) passed through a pale grey on the way in and out and
+    read as a flash (user feedback, 2026-11-10). Only opacity and a 2 px nudge move here; nothing changes size, so no
+    layout runs per frame and input is never delayed. Loaded by App only while Motion.Enabled (off in headless tests and screenshots, which then capture
     settled states). Panels and prompts appearing are in Views/Motion.cs (the Appear attached property).
-    The workspace switcher's own controls (the picker and its +) are left as they are.
   -->
-  <Style Selector="Button.nav /template/ ContentPresenter#PART_ContentPresenter, :is(Button).quiet /template/ ContentPresenter#PART_ContentPresenter, Button.primary /template/ ContentPresenter#PART_ContentPresenter, Button.secondary /template/ ContentPresenter#PART_ContentPresenter, Button.entry /template/ ContentPresenter#PART_ContentPresenter, Button.crumb /template/ ContentPresenter#PART_ContentPresenter, Button.list-name /template/ ContentPresenter#PART_ContentPresenter, Button.link /template/ ContentPresenter#PART_ContentPresenter, Button.toast-body /template/ ContentPresenter#PART_ContentPresenter, Button.field-toggle /template/ ContentPresenter#PART_ContentPresenter">
-    <Setter Property="Transitions">
-      <Transitions>
-        <BrushTransition Property="ContentPresenter.Background" Duration="0:0:0.12" Easing="CubicEaseOut" />
-        <BrushTransition Property="ContentPresenter.Foreground" Duration="0:0:0.12" Easing="CubicEaseOut" />
-        <BrushTransition Property="ContentPresenter.BorderBrush" Duration="0:0:0.12" Easing="CubicEaseOut" />
-      </Transitions>
-    </Setter>
-  </Style>
-  <!-- The appearance segments: the raised segment's fill and frame follow the choice smoothly. -->
-  <Style Selector="RadioButton.segment /template/ Border#PART_Segment">
-    <Setter Property="Transitions">
-      <Transitions>
-        <BrushTransition Property="Border.Background" Duration="0:0:0.12" Easing="CubicEaseOut" />
-        <BrushTransition Property="Border.BorderBrush" Duration="0:0:0.12" Easing="CubicEaseOut" />
-      </Transitions>
-    </Setter>
-  </Style>
-  <!-- Rows and boxes that light up as a whole: archived rows, the selection boxes, the margin's branch marks. -->
-  <Style Selector="Border.archived-row, Border.row-check, Border.branch-mark-bar">
-    <Setter Property="Transitions">
-      <Transitions>
-        <BrushTransition Property="Border.Background" Duration="0:0:0.12" Easing="CubicEaseOut" />
-        <BrushTransition Property="Border.BorderBrush" Duration="0:0:0.12" Easing="CubicEaseOut" />
-      </Transitions>
-    </Setter>
-  </Style>
   <!-- A row's chevron brightens and moves 2 px towards where it leads. -->
   <Style Selector="Button.entry PathIcon.entry-chevron">
     <Setter Property="Transitions">
@@ -48,22 +21,6 @@
     <Setter Property="Transitions">
       <Transitions>
         <DoubleTransition Property="Opacity" Duration="0:0:0.16" Easing="CubicEaseOut" />
-      </Transitions>
-    </Setter>
-  </Style>
-  <!-- The splitter's accent line on hover. -->
-  <Style Selector="Border.sidebar-splitter > Border.sidebar-splitter-line">
-    <Setter Property="Transitions">
-      <Transitions>
-        <BrushTransition Property="Border.Background" Duration="0:0:0.12" Easing="CubicEaseOut" />
-      </Transitions>
-    </Setter>
-  </Style>
-  <!-- Entries of a conversation row's menu. -->
-  <Style Selector="ContextMenu#RowMenu MenuItem /template/ Border#PART_LayoutRoot">
-    <Setter Property="Transitions">
-      <Transitions>
-        <BrushTransition Property="Border.Background" Duration="0:0:0.12" Easing="CubicEaseOut" />
       </Transitions>
     </Setter>
   </Style>
