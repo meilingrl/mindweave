@@ -26,6 +26,8 @@ public sealed partial class AnswerView : UserControl
     internal const double ActionGap = 6;
 
     private const string HighlightResource = "SourceHighlight";
+    private const string HighlightTextResource = "SourceHighlightText";
+    private const string HighlightMarkResource = "SourceHighlightMark";
 
     private readonly MarkdownRenderer _renderer = new();
     private MessageItemViewModel? _item;
@@ -126,7 +128,7 @@ public sealed partial class AnswerView : UserControl
 
         try
         {
-            var resolved = SourceAnchors.Restore(SourceAnchors.Deserialize(source.AnchorJson), _shown, _renderer, HighlightBrush());
+            var resolved = SourceAnchors.Restore(SourceAnchors.Deserialize(source.AnchorJson), _shown, _renderer, HighlightPaint());
             return SourceAnchors.TopOf(resolved[0], relativeTo);
         }
         catch (Exception ex) when (ex is InvalidDataException or System.Text.Json.JsonException or ArgumentException)
@@ -136,14 +138,17 @@ public sealed partial class AnswerView : UserControl
     }
 
     /// <summary>
-    /// The highlight colour of the theme this answer is shown in. A lookup without the theme finds nothing in the
-    /// theme dictionaries (the fallback used to be a bright khaki, unreadable under dark text colours, S7 round 4).
+    /// The highlight colours of the theme this answer is shown in: the tint, the text on it and the line under it. A
+    /// lookup without the theme finds nothing in the theme dictionaries (the fallback used to be a bright khaki,
+    /// unreadable under dark text colours, S7 round 4); a missing tint is transparent, a missing text colour or line none.
     /// </summary>
-    private IBrush HighlightBrush() =>
-        this.TryFindResource(HighlightResource, ActualThemeVariant, out var value) && value is IBrush brush ? brush : Brushes.Transparent;
+    private SourceHighlightPaint HighlightPaint() =>
+        new(ThemeBrush(HighlightResource) ?? Brushes.Transparent, ThemeBrush(HighlightTextResource), ThemeBrush(HighlightMarkResource));
+
+    private IBrush? ThemeBrush(string key) => this.TryFindResource(key, ActualThemeVariant, out var value) ? value as IBrush : null;
 
     /// <summary>A theme switch while a source passage is highlighted recolours the highlight in place.</summary>
-    private void OnThemeChanged(object? sender, EventArgs e) => SourceAnchors.RecolorHighlight(_renderer, HighlightBrush());
+    private void OnThemeChanged(object? sender, EventArgs e) => SourceAnchors.RecolorHighlight(_renderer, HighlightPaint());
 
     protected override void OnDataContextChanged(EventArgs e)
     {

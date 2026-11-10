@@ -3,6 +3,7 @@ using System.Text;
 using System.Text.Json;
 using Avalonia;
 using Avalonia.Controls;
+using Avalonia.Controls.Primitives;
 using Avalonia.Media;
 using Avalonia.VisualTree;
 using LiveMarkdown.Avalonia;
@@ -243,9 +244,14 @@ public static class SourceAnchors
     /// Validates every segment against the current text and layout, then — and only then — selects and highlights
     /// it. Throws <see cref="InvalidDataException"/> on any mismatch; a failed restore changes nothing.
     /// </summary>
-    public static IReadOnlyList<ResolvedSegment> Restore(SelectionAnchor anchor, string markdown, Visual renderer, IBrush highlight)
+    public static IReadOnlyList<ResolvedSegment> Restore(SelectionAnchor anchor, string markdown, Visual renderer, IBrush highlight) =>
+        Restore(anchor, markdown, renderer, new SourceHighlightPaint(highlight));
+
+    /// <inheritdoc cref="Restore(SelectionAnchor, string, Visual, IBrush)"/>
+    public static IReadOnlyList<ResolvedSegment> Restore(SelectionAnchor anchor, string markdown, Visual renderer, SourceHighlightPaint paint)
     {
         ArgumentNullException.ThrowIfNull(anchor);
+        ArgumentNullException.ThrowIfNull(paint);
         ArgumentNullException.ThrowIfNull(markdown);
         if (anchor.Version != FormatVersion || anchor.SourceLength < 0 || markdown.Length < anchor.SourceLength ||
             Hash(markdown[..anchor.SourceLength]) != anchor.SourceHash || anchor.Segments is not { Count: > 0 })
@@ -284,26 +290,42 @@ public static class SourceAnchors
         }
 
         ClearHighlight(renderer);
-        foreach (var part in resolved)
+        foreach (var group in resolved.GroupBy(r => r.Block))
         {
-            var styles = part.Block.HighlightStyles ?? new TextHighlightStyles();
-            styles.Set(HighlightKey, new TextHighlightStyle { Background = highlight, CornerRadius = new CornerRadius(3) });
-            part.Block.HighlightStyles = styles;
-            part.Block.Highlights.Set(HighlightKey, [new TextHighlightRange(part.Start, part.Length)], 20);
+            var block = group.Key;
+            TextHighlightRange[] ranges = [.. group.Select(part => new TextHighlightRange(part.Start, part.Length))];
+            var styles = block.HighlightStyles ?? new TextHighlightStyles();
+            styles.Set(HighlightKey, StyleOf(paint));
+            block.HighlightStyles = styles;
+            block.Highlights.Set(HighlightKey, ranges, 20);
+            AdornerLayer.SetAdorner(block, new SourceHighlightMark(block, ranges, paint.Mark));
         }
 
         return resolved;
     }
 
-    /// <summary>Gives the source highlight already shown (if any) a new background, e.g. after a theme switch; ranges stay.</summary>
-    public static void RecolorHighlight(Visual renderer, IBrush highlight)
+    /// <summary>
+    /// Gives the source highlight already shown (if any) the colours of <paramref name="paint"/>, e.g. after a theme
+    /// switch: the tint, the text on it and the line under it; ranges stay.
+    /// </summary>
+    public static void RecolorHighlight(Visual renderer, SourceHighlightPaint paint)
     {
+        ArgumentNullException.ThrowIfNull(paint);
         foreach (var block in Blocks(renderer))
         {
-            if (block.Highlights.TryGetValue(HighlightKey, out _) && block.HighlightStyles is { } styles &&
-                styles.TryGetValue(HighlightKey, out var style) && !Equals(style!.Background, highlight))
+            if (!block.Highlights.TryGetValue(HighlightKey, out _))
             {
-                styles.Set(HighlightKey, new TextHighlightStyle { Background = highlight, CornerRadius = style.CornerRadius });
+                continue;
+            }
+
+            if (block.HighlightStyles is { } styles && styles.TryGetValue(HighlightKey, out var style) && style != StyleOf(paint))
+            {
+                styles.Set(HighlightKey, StyleOf(paint));
+            }
+
+            if (AdornerLayer.GetAdorner(block) is SourceHighlightMark mark)
+            {
+                mark.Brush = paint.Mark;
             }
         }
     }
@@ -313,8 +335,15 @@ public static class SourceAnchors
         foreach (var block in Blocks(renderer))
         {
             block.Highlights.Remove(HighlightKey);
+            if (AdornerLayer.GetAdorner(block) is SourceHighlightMark)
+            {
+                AdornerLayer.SetAdorner(block, null);
+            }
         }
     }
+
+    private static TextHighlightStyle StyleOf(SourceHighlightPaint paint) =>
+        new() { Background = paint.Background, Foreground = paint.Foreground, CornerRadius = new CornerRadius(3) };
 
     /// <summary>The vertical position of a resolved segment's first line, relative to <paramref name="relativeTo"/>.</summary>
     public static double? TopOf(ResolvedSegment segment, Visual relativeTo)
