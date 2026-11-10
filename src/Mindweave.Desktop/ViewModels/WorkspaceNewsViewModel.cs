@@ -31,8 +31,9 @@ public sealed record WorkspaceNewsOptions
 /// only; the workspace picker shows a badge with how many conversations elsewhere have one, a dot beside each such
 /// workspace in its list, and its tooltip names them. An answer that ends in another workspace while the application
 /// runs also pops up a hint (<see cref="Toasts"/>; the user's feedback the same day: the dot alone was too easy to miss),
-/// with the system's alert sound when the user chose it. The open workspace never counts here: its own sidebar already
-/// shows its marks.
+/// with the system's alert sound when the user chose it. The open workspace never counts on the badge: its own sidebar
+/// already shows its marks. An answer that ends in a conversation of the open workspace that is not on screen pops up a
+/// hint for that conversation too, unless the user turned that off (accepted the same day).
 /// </summary>
 public sealed partial class WorkspaceNewsViewModel : ObservableObject
 {
@@ -41,11 +42,12 @@ public sealed partial class WorkspaceNewsViewModel : ObservableObject
     private readonly IUiDispatcher _dispatcher;
     private readonly INewsAlerts? _alerts;
     private readonly IAlertSound? _sound;
+    private readonly IConversations? _conversations;
     private readonly WorkspaceNewsOptions _options;
     private readonly SerialRefresh _load;
     private readonly UiThrottle _reload;
 
-    /// <summary>Conversations an answer just marked, with the workspace open when it ended; taken by the next refresh.</summary>
+    /// <summary>Conversations whose answer just ended off screen, with the workspace open then; taken by the next refresh.</summary>
     private readonly List<(ConversationId Conversation, WorkspaceId? OpenThen)> _justMarked = [];
 
     /// <summary>The open workspace, readable from the thread an answer ends on (set on the UI thread).</summary>
@@ -59,7 +61,8 @@ public sealed partial class WorkspaceNewsViewModel : ObservableObject
         IUiDispatcher dispatcher,
         INewsAlerts? alerts = null,
         IAlertSound? sound = null,
-        WorkspaceNewsOptions? options = null)
+        WorkspaceNewsOptions? options = null,
+        IConversations? conversations = null)
     {
         ArgumentNullException.ThrowIfNull(workbench);
         ArgumentNullException.ThrowIfNull(marks);
@@ -69,12 +72,20 @@ public sealed partial class WorkspaceNewsViewModel : ObservableObject
         _dispatcher = dispatcher;
         _alerts = alerts;
         _sound = sound;
+        _conversations = conversations;
         _options = options ?? new WorkspaceNewsOptions();
         _open = workbench.CurrentWorkspace;
         _load = new SerialRefresh(RefreshAsync);
         _reload = new UiThrottle(dispatcher, TimeSpan.FromMilliseconds(100), () => Loaded = _load.Request());
-        _marks.Marked += OnMarked;
+        _marks.Answered += OnAnswered;
         _marks.Changed += (_, _) => _reload.Request();
+        if (conversations is not null)
+        {
+            // A conversation's hint follows its title (named automatically after its first answer), and goes with it.
+            conversations.ConversationChanged += (_, id) => _dispatcher.Post(() => ReloadIfShown([id]));
+            conversations.VisibilityChanged += (_, ids) => _dispatcher.Post(() => ReloadIfShown(ids));
+        }
+
         _workbench.Workspaces.CollectionChanged += OnWorkspacesChanged;
         _workbench.PropertyChanged += OnWorkbenchChanged;
         Loaded = _load.Request();
@@ -112,7 +123,7 @@ public sealed partial class WorkspaceNewsViewModel : ObservableObject
     /// <summary>Completes when the newest refresh has run (tests).</summary>
     public Task Loaded { get; private set; }
 
-    /// <summary>How many marks from answers that just ended have been noted with the workspace open then (tests).</summary>
+    /// <summary>How many answers that just ended off screen have been noted with the workspace open then (tests).</summary>
     internal int MarksNoted => Volatile.Read(ref _marksNoted);
 
     /// <summary>The last check of the sound setting and the sound it played, if any (tests).</summary>
@@ -139,7 +150,7 @@ public sealed partial class WorkspaceNewsViewModel : ObservableObject
         Toasts.Remove(toast);
     }
 
-    private void OnMarked(object? sender, ConversationId conversation)
+    private void OnAnswered(object? sender, ConversationId conversation)
     {
         // Any thread, as the answer ends: what is open is taken now, not when the UI thread gets to it (the user may have
         // switched meanwhile, and then saw that workspace when the answer ended). Counted on the UI thread.
@@ -154,6 +165,15 @@ public sealed partial class WorkspaceNewsViewModel : ObservableObject
 
     private void OnWorkspacesChanged(object? sender, NotifyCollectionChangedEventArgs e) => _reload.Request();
 
+    /// <summary>On the UI thread: a conversation with a hint up changed (renamed, archived): the hint follows.</summary>
+    private void ReloadIfShown(IReadOnlyList<ConversationId> changed)
+    {
+        if (Toasts.Any(t => t.Conversation is { } shown && changed.Contains(shown)))
+        {
+            _reload.Request();
+        }
+    }
+
     private void OnWorkbenchChanged(object? sender, PropertyChangedEventArgs e)
     {
         if (e.PropertyName == nameof(Workbench.CurrentWorkspace))
@@ -161,14 +181,23 @@ public sealed partial class WorkspaceNewsViewModel : ObservableObject
             _open = _workbench.CurrentWorkspace;
 
             // However the workspace was opened, its hint has done its job.
-            if (_workbench.CurrentWorkspace is { } open && Toasts.FirstOrDefault(t => t.Workspace == open.Id) is { } shown)
+            if (_workbench.CurrentWorkspace is { } open && Toasts.FirstOrDefault(t => t.Conversation is null && t.Workspace == open.Id) is { } shown)
             {
                 Dismiss(shown);
             }
 
             _reload.Request();
         }
+        else if (e.PropertyName == nameof(Workbench.CurrentPage)
+            && OnScreen() is { } conversation
+            && Toasts.FirstOrDefault(t => t.Conversation == conversation) is { } hint)
+        {
+            // However the conversation was opened (its hint, the sidebar, a link), its hint goes as it shows.
+            Dismiss(hint);
+        }
     }
+
+    private ConversationId? OnScreen() => (_workbench.CurrentPage?.Route as ConversationRoute)?.Id;
 
     private async Task RefreshAsync()
     {
@@ -178,11 +207,21 @@ public sealed partial class WorkspaceNewsViewModel : ObservableObject
         var current = _workbench.CurrentWorkspace?.Id;
         WorkspaceId[] others = [.. _workbench.Workspaces.Select(w => w.Id).Where(id => id != current)];
         IReadOnlyDictionary<WorkspaceId, IReadOnlyList<ConversationId>> found;
+        IReadOnlyDictionary<ConversationId, (WorkspaceId Workspace, string Title)> titles;
+        bool inWorkspace;
         try
         {
             found = others.Length == 0
                 ? new Dictionary<WorkspaceId, IReadOnlyList<ConversationId>>()
                 : await _marks.UnreadByWorkspaceAsync(others, CancellationToken.None);
+
+            // For the conversations' hints: those up already, and the answers that may have ended in the workspace open
+            // then (not those just found in a different one).
+            WorkspaceId[] openThen = [.. justMarked
+                .Where(m => m.OpenThen is { } then && !found.Any(p => p.Key != then && p.Value.Contains(m.Conversation)))
+                .Select(m => m.OpenThen!.Value)];
+            inWorkspace = openThen.Length > 0 && await InWorkspaceAsync();
+            titles = await TitlesAsync(Toasts.Where(t => t.Conversation is not null).Select(t => t.Workspace).Concat(inWorkspace ? openThen : []));
         }
 #pragma warning disable CA1031 // A hint is never worth an error: keep the last one shown.
         catch (Exception)
@@ -207,9 +246,9 @@ public sealed partial class WorkspaceNewsViewModel : ObservableObject
         var count = shown.Values.Sum(c => c.Count);
         var grew = count > Count;
         Count = count;
-        UpdateToasts(shown);
+        UpdateToasts(shown, titles);
 
-        // A hint pops up only for an answer that ended here, in a workspace that was not open then and is not now.
+        // A workspace's hint pops up only for an answer that ended here, in a workspace that was not open then and is not now.
         var alerted = justMarked
             .Select(m => (m.OpenThen, Workspace: shown.Where(p => p.Value.Contains(m.Conversation)).Select(p => (WorkspaceId?)p.Key).FirstOrDefault()))
             .Where(m => m.Workspace is not null && m.Workspace != m.OpenThen)
@@ -221,21 +260,59 @@ public sealed partial class WorkspaceNewsViewModel : ObservableObject
             ShowToast(workspace, shown[workspace]);
         }
 
-        if (alerted.Count > 0)
+        // A conversation's hint, for an answer that ended in the workspace open then, unless the user has seen it since.
+        var onScreen = OnScreen();
+        var answered = justMarked
+            .Where(m => inWorkspace
+                && m.OpenThen is { } then
+                && titles.TryGetValue(m.Conversation, out var listed) && listed.Workspace == then
+                && m.Conversation != onScreen
+                && _marks.IsUnread(m.Conversation))
+            .Select(m => m.Conversation)
+            .Distinct()
+            .ToList();
+        foreach (var conversation in answered)
         {
+            ShowToast(conversation, titles[conversation]);
+        }
+
+        if (alerted.Count > 0 || answered.Count > 0)
+        {
+            // One sound for everything that popped up together.
             Alerting = PlaySoundAsync();
-            if (grew)
+            if (alerted.Count > 0 && grew)
             {
                 CountRose?.Invoke(this, EventArgs.Empty);
             }
         }
     }
 
-    /// <summary>Hints already up follow the counts; one whose workspace has nothing new left (or is gone) closes.</summary>
-    private void UpdateToasts(Dictionary<WorkspaceId, IReadOnlyList<ConversationId>> shown)
+    /// <summary>
+    /// Hints already up follow what they show. A workspace's follows the counts and closes when its workspace has nothing
+    /// new left (or is gone); a conversation's follows the sidebar's title and closes once the conversation has been seen,
+    /// is on screen, or was archived or deleted.
+    /// </summary>
+    private void UpdateToasts(
+        Dictionary<WorkspaceId, IReadOnlyList<ConversationId>> shown,
+        IReadOnlyDictionary<ConversationId, (WorkspaceId Workspace, string Title)> titles)
     {
+        var onScreen = OnScreen();
         foreach (var toast in Toasts.ToList())
         {
+            if (toast.Conversation is { } conversation)
+            {
+                if (conversation == onScreen || !_marks.IsUnread(conversation) || !titles.TryGetValue(conversation, out var listed))
+                {
+                    Dismiss(toast);
+                }
+                else
+                {
+                    toast.Name = listed.Title;
+                }
+
+                continue;
+            }
+
             if (!shown.TryGetValue(toast.Workspace, out var conversations))
             {
                 Dismiss(toast);
@@ -250,24 +327,77 @@ public sealed partial class WorkspaceNewsViewModel : ObservableObject
         }
     }
 
-    /// <summary>A new hint, or the workspace's hint again with its new count and its full time.</summary>
+    /// <summary>A new hint for the workspace, or its hint again with its new count and its full time.</summary>
     private void ShowToast(WorkspaceId workspace, IReadOnlyList<ConversationId> conversations)
     {
-        var toast = Toasts.FirstOrDefault(t => t.Workspace == workspace);
-        if (toast is null)
-        {
-            var name = _workbench.Workspaces.First(w => w.Id == workspace).Name.Value;
-            toast = new WorkspaceToastViewModel(workspace, name, conversations, Dismiss);
-            while (Toasts.Count >= Math.Max(1, _options.MaxToasts))
-            {
-                Dismiss(Toasts[0]);
-            }
-
-            Toasts.Add(toast);
-        }
-
+        var toast = Toasts.FirstOrDefault(t => t.Conversation is null && t.Workspace == workspace)
+            ?? Add(new WorkspaceToastViewModel(workspace, _workbench.Workspaces.First(w => w.Id == workspace).Name.Value, conversations, Dismiss));
         toast.Conversations = conversations;
         StartTimer(toast);
+    }
+
+    /// <summary>A new hint for the conversation, or its hint again with its title as now shown and its full time.</summary>
+    private void ShowToast(ConversationId conversation, (WorkspaceId Workspace, string Title) listed)
+    {
+        var toast = Toasts.FirstOrDefault(t => t.Conversation == conversation)
+            ?? Add(new WorkspaceToastViewModel(listed.Workspace, conversation, listed.Title, Dismiss));
+        toast.Name = listed.Title;
+        StartTimer(toast);
+    }
+
+    /// <summary>Adds a hint below the others; at most <see cref="WorkspaceNewsOptions.MaxToasts"/> of both kinds, the oldest goes.</summary>
+    private WorkspaceToastViewModel Add(WorkspaceToastViewModel toast)
+    {
+        while (Toasts.Count >= Math.Max(1, _options.MaxToasts))
+        {
+            Dismiss(Toasts[0]);
+        }
+
+        Toasts.Add(toast);
+        return toast;
+    }
+
+    /// <summary>Each listed conversation of these workspaces, with its workspace and its title as the sidebar shows it.</summary>
+    private async Task<IReadOnlyDictionary<ConversationId, (WorkspaceId Workspace, string Title)>> TitlesAsync(IEnumerable<WorkspaceId> workspaces)
+    {
+        var titles = new Dictionary<ConversationId, (WorkspaceId, string)>();
+        if (_conversations is null)
+        {
+            return titles;
+        }
+
+        foreach (var workspace in workspaces.Distinct().ToList())
+        {
+            foreach (var summary in await _conversations.ListAsync(workspace, CancellationToken.None))
+            {
+                if (!summary.IsHidden)
+                {
+                    titles[summary.Conversation.Id] = (workspace, UiText.ConversationTitle(summary.Conversation, summary.FirstQuestion, summary.Quote));
+                }
+            }
+        }
+
+        return titles;
+    }
+
+    /// <summary>Whether the open workspace's conversations pop up hints: on by default, and when the setting cannot be read.</summary>
+    private async Task<bool> InWorkspaceAsync()
+    {
+        if (_alerts is null)
+        {
+            return true;
+        }
+
+        try
+        {
+            return await _alerts.GetInWorkspaceAsync(CancellationToken.None);
+        }
+#pragma warning disable CA1031 // Unreadable means the default.
+        catch (Exception)
+#pragma warning restore CA1031
+        {
+            return true;
+        }
     }
 
     private void StartTimer(WorkspaceToastViewModel toast)

@@ -38,10 +38,15 @@ public static partial class UiText
     public const string NoBackupsShort = "暂无。数据升级前和连带删除前会自动备份。";
     public const string AppearanceSaveFailed = "外观设置未能保存，本次运行中仍然有效。";
 
-    // Hints (2026-11-10): the sound for a new answer in another workspace; off unless chosen.
+    // Hints (2026-11-10): whether the open workspace's conversations pop up a hint too (on unless turned off), and the
+    // sound for a hint (off unless chosen).
     public const string HintsSection = "提示";
+    public const string NewsInWorkspaceLabel = "弹出提示";
+    public const string NewsInWorkspace = "当前工作区内也弹出提示";
+    public const string NewsInWorkspaceHint = "当前工作区里没在看的会话有新回答时也弹出提示；关闭后只为其他工作区弹出，侧栏的圆点照常显示。";
+    public const string NewsInWorkspaceSaveFailed = "弹出提示设置未能保存，本次运行中仍然有效。";
     public const string NewsSoundLabel = "提示音";
-    public const string NewsSound = "其他工作区有新回答时提示音";
+    public const string NewsSound = "弹出新回答提示时响提示音";
     public const string NewsSoundHint = "使用系统的提示音，弹出提示时响一次（同时弹出的几条只响一次）；应用启动时不会响。";
     public const string NewsSoundSaveFailed = "提示音设置未能保存，本次运行中仍然有效。";
 

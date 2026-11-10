@@ -197,4 +197,48 @@ public class ConversationMarksTests
         Assert.True(restored.IsUnread(sent.Conversation));
         Assert.Equal(0, restoredRaised);
     }
+
+    [Fact]
+    public async Task Answered_is_raised_for_every_answer_that_ends_off_screen_and_never_on_screen_or_for_restored_marks()
+    {
+        await using var h = await ChatHarness.StartAsync();
+        var store = new SqlitePreferenceStore(h.Database);
+        var marks = new ConversationMarksService(h.Generation, h.Conversations, store, h.Health, NullLogger<ConversationMarksService>.Instance);
+        await marks.LoadAsync(Ct);
+        var raised = new System.Collections.Concurrent.ConcurrentQueue<Core.Conversations.ConversationId>();
+        marks.Answered += (_, id) => raised.Enqueue(id);
+
+        var sent = await h.Conversations.StartAsync(h.Workspace, "火车是怎么发明的？", Ct);
+        await h.WaitForAnswerAsync(sent.Answer!.Value);
+        await ChatHarness.UntilAsync(() => raised.Count == 1);
+        Assert.Equal([sent.Conversation], raised);
+
+        // A further answer in the conversation already marked is news again: raised once more (Marked is not).
+        await ChatHarness.UntilAsync(() => !h.Conversations.HasUnfinishedAnswer(sent.Conversation));
+        var asked = await h.Conversations.AskAsync(sent.Conversation, "谁造的？", Ct);
+        await h.WaitForAnswerAsync(asked.Answer!.Value);
+        await ChatHarness.UntilAsync(() => raised.Count == 2);
+        Assert.Equal([sent.Conversation, sent.Conversation], raised);
+
+        // On screen it leaves no mark, and nothing is raised.
+        marks.SetViewing(sent.Conversation);
+        await ChatHarness.UntilAsync(() => !h.Conversations.HasUnfinishedAnswer(sent.Conversation));
+        var watched = await h.Conversations.AskAsync(sent.Conversation, "多快？", Ct);
+        await h.WaitForAnswerAsync(watched.Answer!.Value);
+        await marks.FlushAsync();
+        Assert.Equal(2, raised.Count);
+
+        // A restored mark is not an answer that just ended.
+        marks.SetViewing(null);
+        var other = await h.Conversations.StartAsync(h.Workspace, "高铁有多快？", Ct);
+        await h.WaitForAnswerAsync(other.Answer!.Value);
+        await ChatHarness.UntilAsync(() => marks.IsUnread(other.Conversation));
+        await marks.FlushAsync();
+        var restored = new ConversationMarksService(h.Generation, h.Conversations, store, h.Health, NullLogger<ConversationMarksService>.Instance);
+        var restoredRaised = 0;
+        restored.Answered += (_, _) => restoredRaised++;
+        await restored.LoadAsync(Ct);
+        Assert.True(restored.IsUnread(other.Conversation));
+        Assert.Equal(0, restoredRaised);
+    }
 }

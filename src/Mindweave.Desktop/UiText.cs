@@ -58,6 +58,32 @@ public static partial class UiText
 
     public const string CloseWorkspaceNewsToast = "关闭提示";
 
+    /// <summary>The longest conversation title a hint shows whole, in characters as the reader sees them.</summary>
+    public const int ConversationNewsTitleLength = 16;
+
+    /// <summary>
+    /// The hint that pops up when an answer ends in a conversation of the open workspace that is not on screen
+    /// (2026-11-10): its title as the sidebar shows it, cut with an ellipsis when long.
+    /// </summary>
+    public static string ConversationNewsToast(string title) => "「" + Shortened(title, ConversationNewsTitleLength) + "」有新回答";
+
+    /// <summary>What a screen reader hears for that hint: the whole title, then what clicking does.</summary>
+    public static string ConversationNewsToastName(string title) => "「" + title + "」有新回答。" + ConversationNewsToastAction;
+
+    /// <summary>What clicking a conversation's hint does.</summary>
+    public const string ConversationNewsToastAction = "点击打开这个会话";
+
+    /// <summary>
+    /// At most <paramref name="length"/> characters as the reader sees them (an emoji or a combined mark counts once and is
+    /// never split): a longer text keeps its first ones and ends with "…".
+    /// </summary>
+    public static string Shortened(string text, int length)
+    {
+        ArgumentNullException.ThrowIfNull(text);
+        var info = new StringInfo(text);
+        return info.LengthInTextElements <= length ? text : info.SubstringByTextElements(0, length - 1) + "…";
+    }
+
     /// <summary>The closed picker's badge: how many conversations in other workspaces have a new answer.</summary>
     public static string NewsBadge(int count) => count > 9 ? "9+" : count.ToString(CultureInfo.InvariantCulture);
 

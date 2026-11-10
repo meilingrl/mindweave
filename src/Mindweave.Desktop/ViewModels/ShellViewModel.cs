@@ -198,9 +198,10 @@ public sealed partial class ShellViewModel : ViewModelBase
     }
 
     /// <summary>
-    /// A click on a pop-up hint (2026-11-10): switches to its workspace the same way the picker does, and opens the
-    /// conversation when exactly one there has a new answer; with several the sidebar shows which. The hint goes when the
-    /// workspace opens (<see cref="WorkspaceNewsViewModel"/>).
+    /// A click on a pop-up hint (2026-11-10): switches to its workspace the same way the picker does (unless it is open),
+    /// and opens the conversation when exactly one there has a new answer, which a conversation's hint always has; with
+    /// several the sidebar shows which. The hint goes when its workspace, or its conversation, opens
+    /// (<see cref="WorkspaceNewsViewModel"/>).
     /// </summary>
     [RelayCommand]
     private void OpenWorkspaceNews(WorkspaceToastViewModel toast)

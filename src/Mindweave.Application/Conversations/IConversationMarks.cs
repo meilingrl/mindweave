@@ -20,6 +20,14 @@ public interface IConversationMarks
     /// </summary>
     event EventHandler<ConversationId>? Marked;
 
+    /// <summary>
+    /// An answer just ended with text while its conversation was not on screen: raised for every such answer, also when
+    /// the conversation was marked already (a further answer there is news again), after <see cref="Marked"/> when both
+    /// are raised. Raised on any thread; never for marks restored from storage. The new-answer hints follow it
+    /// (2026-11-10).
+    /// </summary>
+    event EventHandler<ConversationId>? Answered;
+
     /// <summary>A summary of the conversation is queued or being generated.</summary>
     bool IsSummarizing(ConversationId conversation);
 
