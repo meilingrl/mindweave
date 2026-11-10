@@ -243,9 +243,13 @@
     <Setter Property="Background" Value="{DynamicResource HoverRow}" />
     <Setter Property="Foreground" Value="{DynamicResource PrimaryText}" />
   </Style>
-  <Style Selector="Button.toast-body TextBlock">
+  <Style Selector="Button.toast-body TextBlock.toast-title">
     <Setter Property="FontSize" Value="13" />
     <Setter Property="FontWeight" Value="SemiBold" />
+  </Style>
+  <Style Selector="Button.toast-body TextBlock.toast-action">
+    <Setter Property="FontSize" Value="11.5" />
+    <Setter Property="Foreground" Value="{DynamicResource MutedText}" />
   </Style>
   <Style Selector="Button.quiet.toast-close">
     <Setter Property="Width" Value="26" />

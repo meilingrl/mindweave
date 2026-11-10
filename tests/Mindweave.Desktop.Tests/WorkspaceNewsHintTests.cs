@@ -55,7 +55,7 @@ public class WorkspaceNewsHintTests
         Assert.Contains("news-toast", card.Classes);
         var corner = card.TranslatePoint(new Point(card.Bounds.Width, card.Bounds.Height), content)!.Value;
         Assert.InRange(content.Bounds.Width - corner.X, 0, 40);
-        Assert.InRange(content.Bounds.Height - corner.Y, 0, 40);
+        Assert.InRange(content.Bounds.Height - corner.Y, 0, 120);
 
         // An answer in the open workspace: its sidebar marks it, and no hint pops up for it.
         var open = await scene.AnswerAsync(scene.HighSpeed, "高铁有多快？", expectHint: false);

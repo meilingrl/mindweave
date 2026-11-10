@@ -994,7 +994,8 @@ public class GalleryTests
     [AvaloniaFact]
     public async Task G41_workspace_picker_shows_new_answers_elsewhere()
     {
-        await using var scene = Scene.Create("g41");
+        // The hints stand still while captured (a standing clock), so none closes itself under a slow run.
+        await using var scene = Scene.Create("g41", s => s.AddSingleton(new WorkspaceNewsOptions { Time = new ManualTime() }));
         var window = scene.App.ShowWindow(1100, 720, Theme);
         var seed = await SeedAsync(scene.App);
         var conversations = scene.App.Services.GetRequiredService<ConversationService>();
@@ -1005,8 +1006,9 @@ public class GalleryTests
         await scene.App.ShellPage.NewWorkspace.SubmitCommand.ExecuteAsync(null);
         await UiWait.UntilAsync(() => scene.App.Workbench.CurrentWorkspace?.Name.Value == "城市交通");
         held.Finish("以标准轨为主。");
-        await UiWait.UntilAsync(() => scene.App.ShellPage.WorkspaceNews!.HasNews);
-        await SettleAsync(window);
+        var news = scene.App.ShellPage.WorkspaceNews!;
+        await UiWait.UntilAsync(() => news.HasNews && news.Toasts.Count == 1);
+        await NewsSettledAsync(window);
         Capture(window, "g41-workspace-news");
 
         var picker = window.GetVisualDescendants().OfType<ComboBox>().Single(c => c.Name == "WorkspacePicker");
@@ -1014,6 +1016,50 @@ public class GalleryTests
         await SettleAsync(window);
         Capture(window, "g41b-workspace-news-list");
         picker.IsDropDownOpen = false;
+
+        // Reading a conversation in 城市交通 meanwhile, so the hints are seen over a page with its composer.
+        scene.App.Client.Reply("1863 年，伦敦。");
+        scene.App.Client.Titles.Replies.Enqueue("伦敦地铁");
+        var local = await conversations.StartAsync(scene.App.Workbench.CurrentWorkspace!.Id, "第一条地铁在哪里？", CancellationToken.None);
+        await UiWait.UntilAsync(() => !conversations.HasUnfinishedAnswer(local.Conversation));
+        await OpenConversationAsync(scene.App, window, local.Conversation);
+
+        // A second conversation there, and a third workspace: the first hint counts two, a second stacks under it; the badge says 3.
+        scene.App.Client.Reply("约 1435 毫米。");
+        await conversations.AskAsync(seed.Wheels, "标准轨距是多少？", CancellationToken.None);
+        await UiWait.UntilAsync(() => news.Toasts.Count == 1 && news.Toasts[0].Count == 2);
+        var flights = await scene.App.Services.GetRequiredService<WorkspaceService>().CreateAsync(WorkspaceName.FromStored("航空史"), CancellationToken.None);
+        scene.App.Workbench.Workspaces.Add(flights);
+        scene.App.Client.Reply("1903 年，莱特兄弟。");
+        await conversations.StartAsync(flights.Id, "第一架飞机是谁造的？", CancellationToken.None);
+        await UiWait.UntilAsync(() => news.Toasts.Count == 2 && news.Count == 3);
+        await NewsSettledAsync(window);
+        Capture(window, "g41c-workspace-news-stacked");
+        window.Close();
+
+        // Captured after the badge's one pulse, so the picture never catches it half-way.
+        async Task NewsSettledAsync(MainWindow shown)
+        {
+            var shell = shown.GetVisualDescendants().OfType<ShellView>().Single();
+            await UiWait.UntilAsync(() => !shell.IsPulsing);
+            await SettleAsync(shown);
+        }
+    }
+
+    [AvaloniaFact]
+    public async Task G42_settings_news_sound()
+    {
+        await using var scene = Scene.Create("g42");
+        var window = scene.App.ShowWindow(1100, 720, Theme);
+        await SeedAsync(scene.App);
+        scene.App.ShellPage.ShowSectionCommand.Execute(MainSection.Settings);
+        var settings = Assert.IsType<SettingsHomeViewModel>(scene.App.Workbench.CurrentPage);
+        await settings.Loaded;
+        settings.PlaysNewsSound = true;
+        await settings.Saving;
+        await SettleAsync(window);
+        Capture(window, "g42-settings-news-sound");
+        window.Close();
     }
 
     // ── Sidebar status (S7 round 4) ─────────────────────────────────────────

@@ -218,8 +218,9 @@
     </DockPanel>
 
     <!-- New answers in other workspaces (2026-11-10): small cards at the content area's bottom right, above the page, never
-         a dialog and never taking the focus. One per workspace, newest at the bottom; each closes itself after a while. -->
-    <ItemsControl Name="NewsToasts" Grid.Column="1" ZIndex="10" HorizontalAlignment="Right" VerticalAlignment="Bottom" Margin="0,0,20,20"
+         a dialog and never taking the focus. One per workspace, newest at the bottom; each closes itself after a while.
+         They sit above a conversation's composer (about 90 px), so they never cover its send button. -->
+    <ItemsControl Name="NewsToasts" Grid.Column="1" ZIndex="10" HorizontalAlignment="Right" VerticalAlignment="Bottom" Margin="0,0,24,100"
                   ItemsSource="{Binding WorkspaceNews.Toasts, FallbackValue={x:Null}}">
       <ItemsControl.ItemsPanel>
         <ItemsPanelTemplate>
@@ -237,11 +238,13 @@
               <!-- Read out politely when it appears or changes; the focus stays where the user is working. -->
               <Button Name="OpenNewsToast" Classes="toast-body" CommandParameter="{Binding}"
                       Command="{Binding $parent[UserControl].((vm:ShellViewModel)DataContext).OpenWorkspaceNewsCommand}"
-                      ToolTip.Tip="{x:Static d:UiText.WorkspaceNewsToastAction}"
                       AutomationProperties.Name="{Binding AutomationName}" AutomationProperties.LiveSetting="Polite">
                 <DockPanel>
-                  <Ellipse DockPanel.Dock="Left" Classes="unread-dot" Margin="0,0,10,0" VerticalAlignment="Center" />
-                  <TextBlock Name="NewsToastText" Text="{Binding Text}" TextWrapping="Wrap" VerticalAlignment="Center" />
+                  <Ellipse DockPanel.Dock="Left" Classes="unread-dot" Margin="0,6,10,0" VerticalAlignment="Top" />
+                  <StackPanel Spacing="2">
+                    <TextBlock Name="NewsToastText" Classes="toast-title" Text="{Binding Text}" TextWrapping="Wrap" />
+                    <TextBlock Classes="toast-action" Text="{x:Static d:UiText.WorkspaceNewsToastAction}" />
+                  </StackPanel>
                 </DockPanel>
               </Button>
             </DockPanel>

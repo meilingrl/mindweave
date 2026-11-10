@@ -42,7 +42,7 @@ public static partial class UiText
     public const string HintsSection = "提示";
     public const string NewsSoundLabel = "提示音";
     public const string NewsSound = "其他工作区有新回答时提示音";
-    public const string NewsSoundHint = "使用系统的提示音，每条提示响一次；应用启动时不会响。";
+    public const string NewsSoundHint = "使用系统的提示音，弹出提示时响一次（同时弹出的几条只响一次）；应用启动时不会响。";
     public const string NewsSoundSaveFailed = "提示音设置未能保存，本次运行中仍然有效。";
 
     public const string SettingsTitle = "设置";
