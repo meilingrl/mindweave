@@ -2,6 +2,7 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:vm="using:Mindweave.Desktop.ViewModels"
              xmlns:d="using:Mindweave.Desktop"
+             xmlns:v="using:Mindweave.Desktop.Views"
              x:Class="Mindweave.Desktop.Views.SidebarHeader"
              x:DataType="vm:ShellViewModel">
   <!-- The sidebar's top (2026-11-10): the workspace switcher with the collapse button beside it, and the inline
@@ -67,7 +68,9 @@
       </Popup>
       <!-- Closed: a quiet row that belongs to the sidebar, not a form field — the workspace's initial, its name, the
            count of new answers elsewhere, and a chevron. Click, Enter, Space, Down or Alt+Down opens the menu. -->
-      <Button Name="WorkspacePicker" Classes="workspace-switcher" Classes.open="{Binding IsWorkspaceMenuOpen}"
+      <!-- A button that also tells a screen reader whether the menu is open (expand/collapse), as the old drop-down did. -->
+      <v:WorkspaceSwitcherButton Name="WorkspacePicker" Classes="workspace-switcher" Classes.open="{Binding IsWorkspaceMenuOpen}"
+              IsMenuOpen="{Binding IsWorkspaceMenuOpen, Mode=TwoWay}"
               Click="OnSwitcherClick" ToolTip.Tip="{Binding WorkspaceNews.Hint, FallbackValue={x:Null}}"
               AutomationProperties.Name="{Binding SwitcherName}" AutomationProperties.HelpText="{Binding WorkspaceNews.Hint, FallbackValue={x:Null}}">
         <DockPanel>
@@ -83,7 +86,7 @@
           </Border>
           <TextBlock Name="WorkspacePickerName" Classes="switcher-name" Text="{Binding SelectedWorkspace.Name.Value, FallbackValue={x:Null}}" />
         </DockPanel>
-      </Button>
+      </v:WorkspaceSwitcherButton>
     </DockPanel>
     <!-- 新建工作区… opens this form in place, under the switcher: the focus goes into the box, Enter creates and opens
          the new workspace, Esc or 取消 closes it. -->

@@ -156,6 +156,35 @@ public class WorkspaceSwitcherTests
     }
 
     [AvaloniaFact]
+    public async Task A_screen_reader_is_told_whether_the_menu_is_open_and_can_open_and_close_it()
+    {
+        await using var app = DesktopHarness.Create();
+        var window = app.ShowWindow(1100, 720);
+        await app.StartWithWorkspaceAsync("火车历史");
+        await AddAsync(app, "城市交通", "摄影史");
+        window.UpdateLayout();
+        var picker = Part<Button>(window, "WorkspacePicker");
+
+        // As the stock drop-down did: the expand/collapse pattern follows the menu, however it opens or closes.
+        var peer = Assert.IsAssignableFrom<Avalonia.Automation.Provider.IExpandCollapseProvider>(Avalonia.Automation.Peers.ControlAutomationPeer.CreatePeerForElement(picker));
+        Assert.True(peer.ShowsMenu);
+        Assert.Equal(ExpandCollapseState.Collapsed, peer.ExpandCollapseState);
+        UiInput.Click(window, picker);
+        Assert.True(app.ShellPage.IsWorkspaceMenuOpen);
+        Assert.Equal(ExpandCollapseState.Expanded, peer.ExpandCollapseState);
+        app.ShellPage.IsWorkspaceMenuOpen = false;
+        Assert.Equal(ExpandCollapseState.Collapsed, peer.ExpandCollapseState);
+
+        // And through it the menu opens and closes.
+        peer.Expand();
+        Assert.True(app.ShellPage.IsWorkspaceMenuOpen);
+        await UiWait.UntilAsync(() => MenuRows(window).Count == 5);
+        peer.Collapse();
+        Assert.False(app.ShellPage.IsWorkspaceMenuOpen);
+        window.Close();
+    }
+
+    [AvaloniaFact]
     public async Task Clicking_a_row_switches_and_an_unsaved_layout_is_still_asked_about_first()
     {
         await using var app = DesktopHarness.Create();
