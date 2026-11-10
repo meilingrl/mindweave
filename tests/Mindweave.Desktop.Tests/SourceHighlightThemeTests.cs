@@ -78,6 +78,92 @@ public class SourceHighlightThemeTests
         window.Close();
     }
 
+    /// <summary>
+    /// When the highlighted text rewraps (a narrower column), the line follows it onto every line it now spans: the
+    /// line is measured again and redrawn, not left where the text used to end.
+    /// </summary>
+    [AvaloniaFact]
+    public async Task The_line_under_the_highlight_follows_the_text_when_it_rewraps()
+    {
+        await using var app = DesktopHarness.Create();
+        var window = await ReturnToSourceAsync(app, ThemeVariant.Dark);
+        var block = Highlighted(window);
+        var markColour = ThemeColour("SourceHighlightMark", ThemeVariant.Dark);
+        using (var frame = window.CaptureRenderedFrame()!)
+        {
+            Assert.True(Near(Pixel(frame, block, Assert.Single(Mark(block).LineRects()).Center), markColour));
+        }
+
+        // Narrow enough that "铁路随后" is split over two lines, after three characters, then after one: the second
+        // rewrap keeps the block's height, so only the text inside it moves.
+        var start = block.LayoutText.IndexOf("铁路随后", StringComparison.Ordinal);
+        block.Width = block.GetTextRangeBoundsInControl(start, 3)[0].Right + 2;
+        window.UpdateLayout();
+        using (window.CaptureRenderedFrame())
+        {
+        }
+
+        var height = block.Bounds.Height;
+        block.Width = block.GetTextRangeBoundsInControl(start, 1)[0].Right + 2;
+        window.UpdateLayout();
+        Assert.Equal(height, block.Bounds.Height);
+        Assert.Single(block.GetTextRangeBoundsInControl(start, 1));
+        Assert.Equal(2, block.GetTextRangeBoundsInControl(start, "铁路随后".Length).Count);
+        var lines = Mark(block).LineRects();
+        Assert.Equal(2, lines.Count);
+        using (var frame = window.CaptureRenderedFrame()!)
+        {
+            foreach (var line in lines)
+            {
+                var onLine = Pixel(frame, block, line.Center);
+                Assert.True(Near(onLine, markColour), $"{onLine} at {line} is not the line colour {markColour}");
+            }
+        }
+
+        window.Close();
+    }
+
+    /// <summary>
+    /// The line is drawn over the page, not inside the answer list, so it must still be cut off where the list is:
+    /// scrolled just above the list's top edge it does not show over the toolbar, scrolled back it shows again.
+    /// </summary>
+    [AvaloniaFact]
+    public async Task The_line_under_the_highlight_is_cut_off_with_the_text_when_scrolled_out_of_view()
+    {
+        await using var app = DesktopHarness.Create();
+        var window = await ReturnToSourceAsync(app, ThemeVariant.Dark);
+        var scroller = CurrentView(window).GetVisualDescendants().OfType<ScrollViewer>().Single(s => s.Name == "Scroller");
+        window.Height = 380;
+        await UiWait.UntilAsync(() =>
+        {
+            window.UpdateLayout();
+            return scroller.Extent.Height - scroller.Viewport.Height > 300;
+        });
+        var block = Highlighted(window);
+        var line = Assert.Single(Mark(block).LineRects());
+        var markColour = ThemeColour("SourceHighlightMark", ThemeVariant.Dark);
+        var visible = scroller.Offset;
+
+        // The line's top 6 px above the list's top edge: outside the list, over the page behind it.
+        scroller.Offset = new Vector(0, scroller.Offset.Y + block.TranslatePoint(line.TopLeft, scroller)!.Value.Y + 6);
+        window.UpdateLayout();
+        Assert.True(block.TranslatePoint(line.Center, scroller)!.Value.Y < 0);
+        using (var frame = window.CaptureRenderedFrame()!)
+        {
+            var outside = Pixel(frame, block, line.Center);
+            Assert.False(Near(outside, markColour), $"{outside} outside the list is the line colour");
+        }
+
+        scroller.Offset = visible;
+        window.UpdateLayout();
+        using (var frame = window.CaptureRenderedFrame()!)
+        {
+            Assert.True(Near(Pixel(frame, block, line.Center), markColour));
+        }
+
+        window.Close();
+    }
+
     [AvaloniaFact]
     public async Task A_theme_switch_while_the_source_is_highlighted_recolours_the_highlight()
     {

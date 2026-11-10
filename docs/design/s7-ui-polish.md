@@ -467,6 +467,6 @@ Windows 测试偏慢的分析（在 Mac 上给每次磁盘同步加 10 ms 延迟
   | 底边线对页面背景 | 5.02:1 | 10.80:1 |
 
   浅色底色与白色页面的亮度差本来就小，黄色靠色相醒目，这次没改；底边线对页面 ≥ 3:1（非文字对比度），所以即使在底色不明显的屏幕上也能看出范围。
-- **测试**（`SourceHighlightThemeTests`）：`The_highlight_colours_meet_their_contrast_targets` 从主题资源检查上表各项（文字 ≥ 7:1、正文 ≥ 4.5:1、底边线对底色和页面 ≥ 3:1、深色底色对页面 ≥ 2.3:1）；深色窗口与主题来回切换两项现在同时检查底色、文字颜色和底边线颜色；新增 `The_line_under_the_highlight_is_drawn_along_the_bottom_of_the_highlighted_text`：线与高亮文字的行框左右、底边相差不超过半像素，渲染出的画面里线的中点是线的颜色、线上方是底色，清除高亮后装饰一并移除。逐项撤回验证：深色底色改回旧值、不设置装饰、换主题时不换线色、不设文字颜色、清除时不移除装饰、不对齐像素，各自至少一项测试失败。
+- **测试**（`SourceHighlightThemeTests`）：`The_highlight_colours_meet_their_contrast_targets` 从主题资源检查上表各项（文字 ≥ 7:1、正文 ≥ 4.5:1、底边线对底色和页面 ≥ 3:1、深色底色对页面 ≥ 2.3:1）；深色窗口与主题来回切换两项现在同时检查底色、文字颜色和底边线颜色；新增 `The_line_under_the_highlight_is_drawn_along_the_bottom_of_the_highlighted_text`：线与高亮文字的行框左右、底边相差不超过半像素，渲染出的画面里线的中点是线的颜色、线上方是底色，清除高亮后装饰一并移除；`The_line_under_the_highlight_follows_the_text_when_it_rewraps`：文字块变窄、“铁路随后”折成两行（第二次折行高度不变、只有字的位置变）后，两行底边都重新画出线；`The_line_under_the_highlight_is_cut_off_with_the_text_when_scrolled_out_of_view`：装饰层画在页面之上，线滚到回答列表上沿之外时被一起裁掉，不会压在工具栏上，滚回来又出现（缓存线的位置、关闭装饰层裁剪，各自让对应测试失败）。逐项撤回验证：深色底色改回旧值、不设置装饰、换主题时不换线色、不设文字颜色、清除时不移除装饰、不对齐像素，各自至少一项测试失败。
 - **截图**：新增画廊场景 `g42`（在根会话真实选中“斯托克顿—达灵顿铁路”创建分支，再返回来源）浅色与深色各一张；`r4-source-highlight-*` 随之变化。其余场景与改动前逐字节相同（`g35b`、`g38` 为已知计时噪声）。
 - **未验证**：只在 macOS 无头渲染中看过；Windows 实机和高分屏下 2 px 线的观感没有实机看过（线宽按渲染缩放对齐到整像素，高分屏下仍是 2 个逻辑像素）。
