@@ -81,9 +81,9 @@ public sealed partial class WorkspaceNewsViewModel : ObservableObject
         _marks.Changed += (_, _) => _reload.Request();
         if (conversations is not null)
         {
-            // A conversation's hint follows its title (named automatically after its first answer), and goes with it.
-            conversations.ConversationChanged += (_, id) => _dispatcher.Post(() => ReloadIfShown([id]));
-            conversations.VisibilityChanged += (_, ids) => _dispatcher.Post(() => ReloadIfShown(ids));
+            // A conversation's hint follows its title (renamed, or named automatically after its first answer), and goes
+            // when it is archived or deleted.
+            conversations.ConversationChanged += (_, id) => _dispatcher.Post(() => ReloadIfShown(id));
         }
 
         _workbench.Workspaces.CollectionChanged += OnWorkspacesChanged;
@@ -166,9 +166,9 @@ public sealed partial class WorkspaceNewsViewModel : ObservableObject
     private void OnWorkspacesChanged(object? sender, NotifyCollectionChangedEventArgs e) => _reload.Request();
 
     /// <summary>On the UI thread: a conversation with a hint up changed (renamed, archived): the hint follows.</summary>
-    private void ReloadIfShown(IReadOnlyList<ConversationId> changed)
+    private void ReloadIfShown(ConversationId changed)
     {
-        if (Toasts.Any(t => t.Conversation is { } shown && changed.Contains(shown)))
+        if (Toasts.Any(t => t.Conversation == changed))
         {
             _reload.Request();
         }

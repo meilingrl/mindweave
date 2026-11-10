@@ -120,6 +120,29 @@ public class ConversationNewsHintTests
     }
 
     [AvaloniaFact]
+    public async Task The_hint_goes_when_its_conversation_is_seen_another_way_or_archived()
+    {
+        await using var scene = await Scene.StartAsync();
+        var (app, news) = (scene.App, scene.News);
+        var seen = await scene.AnswerAsync(scene.HighSpeed, "高铁有多快？");
+        var archived = await scene.AnswerAsync(scene.HighSpeed, "复兴号有几节车厢？");
+        Assert.Equal(2, news.Toasts.Count);
+
+        // Its mark cleared without the page changing (as when it is shown elsewhere): the hint follows the mark.
+        var marks = app.Services.GetRequiredService<IConversationMarks>();
+        marks.SetViewing(seen);
+        marks.SetViewing(null);
+        await UiWait.UntilAsync(() => news.Toasts.All(t => t.Conversation != seen));
+
+        // Archived, it leaves the sidebar, and its hint goes with it.
+        await UiWait.UntilAsync(() => !app.Services.GetRequiredService<ConversationService>().HasUnfinishedAnswer(archived));
+        var outcome = await app.Services.GetRequiredService<ConversationService>().ArchiveAsync(archived, CancellationToken.None);
+        Assert.True(outcome.Archived, outcome.ToString());
+        await UiWait.UntilAsync(() => news.Toasts.Count == 0);
+        scene.Window.Close();
+    }
+
+    [AvaloniaFact]
     public async Task Nothing_pops_up_for_the_conversation_on_screen()
     {
         await using var scene = await Scene.StartAsync();
