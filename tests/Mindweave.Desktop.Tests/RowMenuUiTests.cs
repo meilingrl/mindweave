@@ -43,6 +43,10 @@ public class RowMenuUiTests
         Assert.Same(page, app.Workbench.CurrentPage);
         Assert.Empty(app.ShellPage.Conversations.Selection);
 
+        // The row keeps a hover tint while its menu is open, so it is clear what the menu acts on.
+        Assert.Contains("menu-open", Row(window, middle).Classes);
+        Assert.Equal(ThemeColour("HoverRow", Avalonia.Styling.ThemeVariant.Light), Assert.IsAssignableFrom<Avalonia.Media.ISolidColorBrush>(Row(window, middle).Background).Color);
+
         // The page's entries in the page's words and icons, the default first and bold, the destructive one last in the danger colour.
         var items = menu.Items.OfType<MenuItem>().ToList();
         Assert.Equal(["RowMenuOpen", "RowMenuRename", "RowMenuSummarize", "RowMenuArchive", "RowMenuDelete"], items.Select(i => i.Name));
@@ -57,6 +61,7 @@ public class RowMenuUiTests
         UiInput.Click(window, MenuEntry(window, "RowMenuOpen"));
         Dispatcher.UIThread.RunJobs();
         Assert.False(menu.IsOpen);
+        Assert.DoesNotContain("menu-open", Row(window, middle).Classes);
         var opened = Assert.IsType<ConversationViewModel>(app.Workbench.CurrentPage);
         Assert.Equal(middle, opened.Id);
         await opened.Loaded;
@@ -114,6 +119,7 @@ public class RowMenuUiTests
         Assert.Equal(middleTitle, box.SelectedText);
         Assert.Equal(UiText.RowRenameBox, AutomationProperties.GetName(box));
         Assert.Equal(rowBounds.Width, box.Bounds.Width);
+        Assert.Equal(rowBounds.Height, box.Bounds.Height);
         Assert.Equal(rowBounds.X, box.Bounds.X);
 
         // Typing replaces the selection; Enter saves through the page's rename and gives the focus back to the row.

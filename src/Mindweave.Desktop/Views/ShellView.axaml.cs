@@ -93,13 +93,16 @@ public sealed partial class ShellView : UserControl
     /// <summary>Not while rows are selected (the bar acts on them), and not on a row being renamed.</summary>
     private void OnRowMenuOpening(object? sender, System.ComponentModel.CancelEventArgs e)
     {
-        // Asked before the menu is attached to its row: the row is the one that holds this menu.
-        var row = ConversationList.GetVisualDescendants().OfType<Button>().FirstOrDefault(b => b.ContextMenu is { } menu && ReferenceEquals(menu, sender));
-        if (row?.DataContext is not ConversationItemViewModel || _list?.OffersRowMenu != true)
+        if (MenuRow(sender)?.DataContext is not ConversationItemViewModel || _list?.OffersRowMenu != true)
         {
             e.Cancel = true;
         }
     }
+
+    /// <summary>While its menu is open the row keeps a hover tint, so it is clear which conversation the menu acts on.</summary>
+    private void OnRowMenuOpened(object? sender, Avalonia.Interactivity.RoutedEventArgs e) => MenuRow(sender)?.Classes.Set("menu-open", true);
+
+    private void OnRowMenuClosed(object? sender, Avalonia.Interactivity.RoutedEventArgs e) => MenuRow(sender)?.Classes.Set("menu-open", false);
 
     /// <summary>
     /// Shift+F10 asks for the focused row's menu, as on Windows and Linux; the platform's own gesture (the menu key) is
@@ -172,6 +175,10 @@ public sealed partial class ShellView : UserControl
             _list?.CommitRenameRowCommand.Execute(item);
         }
     }
+
+    /// <summary>The row that holds <paramref name="menu"/> (asked before the menu is attached to it, too).</summary>
+    private Button? MenuRow(object? menu) =>
+        ConversationList.GetVisualDescendants().OfType<Button>().FirstOrDefault(b => b.ContextMenu is { } held && ReferenceEquals(held, menu));
 
     private T? RowPart<T>(ConversationItemViewModel item, string name)
         where T : Control =>

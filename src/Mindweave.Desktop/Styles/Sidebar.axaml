@@ -183,9 +183,12 @@
   </Style>
   <!-- A row's context menu (2026-11-10): the inline rename box keeps the row's height, padding and corners, so the
        title does not move when it turns into a box; a refused action's note sits on the window colour like the bar. -->
+  <Style Selector="Button.nav.menu-open:not(.selected)">
+    <Setter Property="Background" Value="{DynamicResource HoverRow}" />
+  </Style>
   <Style Selector="TextBox.row-rename">
-    <Setter Property="MinHeight" Value="30" />
-    <Setter Property="Padding" Value="9,5" />
+    <Setter Property="MinHeight" Value="0" />
+    <Setter Property="Padding" Value="9,4" />
     <Setter Property="CornerRadius" Value="6" />
     <Setter Property="VerticalContentAlignment" Value="Center" />
   </Style>

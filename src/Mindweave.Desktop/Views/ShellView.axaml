@@ -176,7 +176,7 @@
                   <!-- The page toolbar's actions on this row (2026-11-10); right click, or Shift+F10 / the menu key on the focused row.
                        An entry is disabled when the page would refuse it now, and says why. Not offered while rows are selected (the bar acts then). -->
                   <Button.ContextMenu>
-                    <ContextMenu Name="RowMenu" Opening="OnRowMenuOpening">
+                    <ContextMenu Name="RowMenu" Opening="OnRowMenuOpening" Opened="OnRowMenuOpened" Closed="OnRowMenuClosed">
                       <MenuItem Name="RowMenuOpen" Header="{x:Static d:UiText.RowOpen}" FontWeight="SemiBold" Command="{Binding Owner.OpenCommand, FallbackValue={x:Null}}" CommandParameter="{Binding}">
                         <MenuItem.Icon>
                           <PathIcon Width="13" Height="13" Data="{StaticResource IconExplore}" />
