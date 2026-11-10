@@ -685,6 +685,37 @@ public class GalleryTests
         window.Close();
     }
 
+    /// <summary>
+    /// After 返回来源 (2026-11-10): the source passage in the parent answer with its tint, its own text colour and the
+    /// line along its bottom. The branch is made from a real selection, so the anchor restores as in the app.
+    /// </summary>
+    [AvaloniaFact]
+    public async Task G42_source_passage_highlighted_after_returning_from_a_branch()
+    {
+        await using var scene = Scene.Create("g42");
+        var window = scene.App.ShowWindow(1100, 720, Theme);
+        var seed = await SeedAsync(scene.App);
+        var root = await OpenConversationAsync(scene.App, window, seed.Root);
+        DragSelect(window, Answers(window).Single(), "斯托克顿—达灵顿铁路");
+        await SettleAsync(window);
+        Find<Button>(window, "BranchButton").RaiseEvent(new Avalonia.Interactivity.RoutedEventArgs(Button.ClickEvent));
+        await UiWait.UntilAsync(() => scene.App.Workbench.CurrentPage is ConversationViewModel page && page.Id != root.Id);
+        var child = (ConversationViewModel)scene.App.Workbench.CurrentPage!;
+        await child.Loaded;
+        await UiWait.UntilAsync(() => CurrentView(window).DataContext == child && CurrentView(window).Restored.IsCompleted);
+
+        child.ReturnToSourceCommand.Execute(null);
+        await UiWait.UntilAsync(() => scene.App.Workbench.CurrentPage is ConversationViewModel page && page.Id == root.Id);
+        var back = (ConversationViewModel)scene.App.Workbench.CurrentPage!;
+        await back.Loaded;
+        await UiWait.UntilAsync(() => CurrentView(window).DataContext == back && CurrentView(window).Restored.IsCompleted);
+        await SettleAsync(window);
+        Assert.Null(back.SourceNotice);
+        Assert.Contains(window.GetVisualDescendants(), v => v is Mindweave.Desktop.Markdown.SourceHighlightMark);
+        Capture(window, "g42-source-highlight-after-return");
+        window.Close();
+    }
+
     private static void DragSelect(Window window, AnswerView answer, string quote)
     {
         var block = Mindweave.Desktop.Markdown.SourceAnchors.Blocks(answer.Renderer).First(b => b.LayoutText.Contains(quote, StringComparison.Ordinal));

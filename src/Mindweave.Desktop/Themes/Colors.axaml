@@ -26,7 +26,10 @@
       <SolidColorBrush x:Key="HoverRow">#EFEEEC</SolidColorBrush>
       <SolidColorBrush x:Key="CheckedRow">#E3E8FD</SolidColorBrush>
       <SolidColorBrush x:Key="CheckedRowHover">#D9E0FC</SolidColorBrush>
+      <!-- Source passage after 返回来源: tint, the text on it, and the line along its bottom (contrast in s7-ui-polish.md) -->
       <SolidColorBrush x:Key="SourceHighlight">#FDE68A</SolidColorBrush>
+      <SolidColorBrush x:Key="SourceHighlightText">#1C1917</SolidColorBrush>
+      <SolidColorBrush x:Key="SourceHighlightMark">#B45309</SolidColorBrush>
       <SolidColorBrush x:Key="QuoteBar">#D6D3D1</SolidColorBrush>
       <!-- Shared styles -->
       <SolidColorBrush x:Key="AccentBrush">#4B6BFB</SolidColorBrush>
@@ -148,7 +151,10 @@
       <SolidColorBrush x:Key="HoverRow">#24262C</SolidColorBrush>
       <SolidColorBrush x:Key="CheckedRow">#263459</SolidColorBrush>
       <SolidColorBrush x:Key="CheckedRowHover">#2C3B64</SolidColorBrush>
-      <SolidColorBrush x:Key="SourceHighlight">#5A4A1E</SolidColorBrush>
+      <!-- A clearer amber than before (#5A4A1E read as muddy brown); white text keeps 7:1 on it, the gold line marks the edge -->
+      <SolidColorBrush x:Key="SourceHighlight">#6E5210</SolidColorBrush>
+      <SolidColorBrush x:Key="SourceHighlightText">#FFFFFF</SolidColorBrush>
+      <SolidColorBrush x:Key="SourceHighlightMark">#F5C451</SolidColorBrush>
       <SolidColorBrush x:Key="QuoteBar">#3A3D45</SolidColorBrush>
       <SolidColorBrush x:Key="AccentBrush">#5A72E6</SolidColorBrush>
       <SolidColorBrush x:Key="AccentHoverBrush">#6C83F2</SolidColorBrush>

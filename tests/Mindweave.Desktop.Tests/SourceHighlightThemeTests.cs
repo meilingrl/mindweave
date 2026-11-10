@@ -1,5 +1,7 @@
 using Avalonia;
+using System.Runtime.InteropServices;
 using Avalonia.Controls;
+using Avalonia.Controls.Primitives;
 using Avalonia.Headless;
 using Avalonia.Headless.XUnit;
 using Avalonia.Input;
@@ -18,7 +20,8 @@ namespace Mindweave.Desktop.Tests;
 /// <summary>
 /// S7 round 4 (your Windows test, finding 4): after 返回来源 the source passage is highlighted in the colours of the
 /// theme the page is actually shown in — a dark window, or a theme switched while the highlight is on — and the text
-/// on it stays readable (at least 4.5:1).
+/// on it stays readable. 2026-11-10 (dark highlight still too dark): a clearer tint with its own text colour (7:1) and a
+/// second cue, a line along the bottom of each highlighted line, recoloured with the theme like the tint.
 /// </summary>
 public class SourceHighlightThemeTests
 {
@@ -37,9 +40,127 @@ public class SourceHighlightThemeTests
 
         var block = Highlighted(window);
         Assert.Equal(ThemeVariant.Dark, block.ActualThemeVariant);
-        Assert.Equal(Expected(ThemeVariant.Dark), HighlightColour(block));
-        Assert.True(Contrast(TextColour(block), HighlightColour(block)) >= 4.5, $"Text {TextColour(block)} on {HighlightColour(block)}");
+        AssertPaint(block, ThemeVariant.Dark);
+        Assert.True(Contrast(TextColour(block), HighlightColour(block)) >= 7, $"Text {TextColour(block)} on {HighlightColour(block)}");
         Screenshots.Capture(window, "r4-source-highlight-dark");
+        window.Close();
+    }
+
+    [AvaloniaFact]
+    public async Task The_line_under_the_highlight_is_drawn_along_the_bottom_of_the_highlighted_text()
+    {
+        await using var app = DesktopHarness.Create();
+        var window = await ReturnToSourceAsync(app, ThemeVariant.Dark);
+        var block = Highlighted(window);
+        var line = Assert.Single(Mark(block).LineRects());
+        var start = block.LayoutText.IndexOf("铁路随后", StringComparison.Ordinal);
+        var text = Assert.Single(block.GetTextRangeBoundsInControl(start, "铁路随后".Length));
+        // The highlighted text's line box, give or take the half pixel the line is snapped by.
+        Assert.InRange(line.Left - text.Left, -0.5, 0.5);
+        Assert.InRange(line.Right - text.Right, -0.5, 0.5);
+        Assert.InRange(line.Bottom - text.Bottom, -0.5, 0.5);
+        Assert.Equal(SourceHighlightMark.Thickness, line.Height, 3);
+
+        // On screen: the line's middle is the line colour, the tint just above it is not.
+        using (var frame = window.CaptureRenderedFrame()!)
+        {
+            var markColour = ThemeColour("SourceHighlightMark", ThemeVariant.Dark);
+            var onLine = Pixel(frame, block, line.Center);
+            var above = Pixel(frame, block, new Point(line.Left + 2, line.Top - 2));
+            Assert.True(Near(onLine, markColour), $"{onLine} is not the line colour {markColour}");
+            Assert.True(Near(above, Expected(ThemeVariant.Dark)), $"{above} above the line is not the tint");
+        }
+
+        // Clearing the highlight takes the line away with it.
+        SourceAnchors.ClearHighlight(CurrentView(window));
+        Assert.Null(AdornerLayer.GetAdorner(block));
+        Assert.DoesNotContain(window.GetVisualDescendants(), v => v is SourceHighlightMark);
+        window.Close();
+    }
+
+    /// <summary>
+    /// When the highlighted text rewraps (a narrower column), the line follows it onto every line it now spans: the
+    /// line is measured again and redrawn, not left where the text used to end.
+    /// </summary>
+    [AvaloniaFact]
+    public async Task The_line_under_the_highlight_follows_the_text_when_it_rewraps()
+    {
+        await using var app = DesktopHarness.Create();
+        var window = await ReturnToSourceAsync(app, ThemeVariant.Dark);
+        var block = Highlighted(window);
+        var markColour = ThemeColour("SourceHighlightMark", ThemeVariant.Dark);
+        using (var frame = window.CaptureRenderedFrame()!)
+        {
+            Assert.True(Near(Pixel(frame, block, Assert.Single(Mark(block).LineRects()).Center), markColour));
+        }
+
+        // Narrow enough that "铁路随后" is split over two lines, after three characters, then after one: the second
+        // rewrap keeps the block's height, so only the text inside it moves.
+        var start = block.LayoutText.IndexOf("铁路随后", StringComparison.Ordinal);
+        block.Width = block.GetTextRangeBoundsInControl(start, 3)[0].Right + 2;
+        window.UpdateLayout();
+        using (window.CaptureRenderedFrame())
+        {
+        }
+
+        var height = block.Bounds.Height;
+        block.Width = block.GetTextRangeBoundsInControl(start, 1)[0].Right + 2;
+        window.UpdateLayout();
+        Assert.Equal(height, block.Bounds.Height);
+        Assert.Single(block.GetTextRangeBoundsInControl(start, 1));
+        Assert.Equal(2, block.GetTextRangeBoundsInControl(start, "铁路随后".Length).Count);
+        var lines = Mark(block).LineRects();
+        Assert.Equal(2, lines.Count);
+        using (var frame = window.CaptureRenderedFrame()!)
+        {
+            foreach (var line in lines)
+            {
+                var onLine = Pixel(frame, block, line.Center);
+                Assert.True(Near(onLine, markColour), $"{onLine} at {line} is not the line colour {markColour}");
+            }
+        }
+
+        window.Close();
+    }
+
+    /// <summary>
+    /// The line is drawn over the page, not inside the answer list, so it must still be cut off where the list is:
+    /// scrolled just above the list's top edge it does not show over the toolbar, scrolled back it shows again.
+    /// </summary>
+    [AvaloniaFact]
+    public async Task The_line_under_the_highlight_is_cut_off_with_the_text_when_scrolled_out_of_view()
+    {
+        await using var app = DesktopHarness.Create();
+        var window = await ReturnToSourceAsync(app, ThemeVariant.Dark);
+        var scroller = CurrentView(window).GetVisualDescendants().OfType<ScrollViewer>().Single(s => s.Name == "Scroller");
+        window.Height = 380;
+        await UiWait.UntilAsync(() =>
+        {
+            window.UpdateLayout();
+            return scroller.Extent.Height - scroller.Viewport.Height > 300;
+        });
+        var block = Highlighted(window);
+        var line = Assert.Single(Mark(block).LineRects());
+        var markColour = ThemeColour("SourceHighlightMark", ThemeVariant.Dark);
+        var visible = scroller.Offset;
+
+        // The line's top 6 px above the list's top edge: outside the list, over the page behind it.
+        scroller.Offset = new Vector(0, scroller.Offset.Y + block.TranslatePoint(line.TopLeft, scroller)!.Value.Y + 6);
+        window.UpdateLayout();
+        Assert.True(block.TranslatePoint(line.Center, scroller)!.Value.Y < 0);
+        using (var frame = window.CaptureRenderedFrame()!)
+        {
+            var outside = Pixel(frame, block, line.Center);
+            Assert.False(Near(outside, markColour), $"{outside} outside the list is the line colour");
+        }
+
+        scroller.Offset = visible;
+        window.UpdateLayout();
+        using (var frame = window.CaptureRenderedFrame()!)
+        {
+            Assert.True(Near(Pixel(frame, block, line.Center), markColour));
+        }
+
         window.Close();
     }
 
@@ -49,31 +170,71 @@ public class SourceHighlightThemeTests
         await using var app = DesktopHarness.Create();
         var window = await ReturnToSourceAsync(app, ThemeVariant.Light);
         var block = Highlighted(window);
-        Assert.Equal(Expected(ThemeVariant.Light), HighlightColour(block));
-        Assert.True(Contrast(TextColour(block), HighlightColour(block)) >= 4.5);
+        AssertPaint(block, ThemeVariant.Light);
+        Assert.True(Contrast(TextColour(block), HighlightColour(block)) >= 7);
         Screenshots.Capture(window, "r4-source-highlight-light");
 
         window.RequestedThemeVariant = ThemeVariant.Dark;
         window.UpdateLayout();
-        Assert.Equal(Expected(ThemeVariant.Dark), HighlightColour(Highlighted(window)));
-        Assert.True(Contrast(TextColour(Highlighted(window)), HighlightColour(Highlighted(window))) >= 4.5);
+        AssertPaint(Highlighted(window), ThemeVariant.Dark);
+        Assert.True(Contrast(TextColour(Highlighted(window)), HighlightColour(Highlighted(window))) >= 7);
 
         window.RequestedThemeVariant = ThemeVariant.Light;
         window.UpdateLayout();
-        Assert.Equal(Expected(ThemeVariant.Light), HighlightColour(Highlighted(window)));
+        AssertPaint(Highlighted(window), ThemeVariant.Light);
         window.Close();
     }
 
+    /// <summary>
+    /// The numbers behind the colours (WCAG contrast, recorded in s7-ui-polish.md): the highlight's text on its tint at
+    /// least 7:1, ordinary body text on it still 4.5:1; the line at least 3:1 (non-text contrast) against both the tint
+    /// and the page, so it shows even where the tint is faint; in dark the tint itself clearly apart from the page.
+    /// </summary>
     [AvaloniaFact]
-    public void Both_highlight_colours_keep_the_body_text_readable()
+    public void The_highlight_colours_meet_their_contrast_targets()
     {
         foreach (var theme in new[] { ThemeVariant.Light, ThemeVariant.Dark })
         {
-            var text = ThemeColour("PrimaryText", theme);
-            var highlight = ThemeColour("SourceHighlight", theme);
-            Assert.True(Contrast(text, highlight) >= 4.5, $"{theme}: {text} on {highlight} is {Contrast(text, highlight):0.0}:1");
+            var tint = ThemeColour("SourceHighlight", theme);
+            var page = ThemeColour("WindowBackground", theme);
+            var mark = ThemeColour("SourceHighlightMark", theme);
+            AssertAtLeast(ThemeColour("SourceHighlightText", theme), tint, 7, $"{theme} highlight text");
+            AssertAtLeast(ThemeColour("PrimaryText", theme), tint, 4.5, $"{theme} body text");
+            AssertAtLeast(mark, tint, 3, $"{theme} line on the tint");
+            AssertAtLeast(mark, page, 3, $"{theme} line on the page");
         }
+
+        AssertAtLeast(ThemeColour("SourceHighlight", ThemeVariant.Dark), ThemeColour("WindowBackground", ThemeVariant.Dark), 2.3, "Dark tint on the page");
     }
+
+    private static void AssertAtLeast(Color a, Color b, double ratio, string what) =>
+        Assert.True(Contrast(a, b) >= ratio, $"{what}: {a} on {b} is {Contrast(a, b):0.00}:1, below {ratio}:1");
+
+    /// <summary>The highlight on <paramref name="block"/> uses all three colours of <paramref name="theme"/>.</summary>
+    private static void AssertPaint(MarkdownTextBlock block, ThemeVariant theme)
+    {
+        Assert.Equal(Expected(theme), HighlightColour(block));
+        Assert.Equal(ThemeColour("SourceHighlightText", theme), TextColour(block));
+        Assert.Equal(ThemeColour("SourceHighlightMark", theme), Assert.IsAssignableFrom<ISolidColorBrush>(Mark(block).Brush).Color);
+    }
+
+    private static SourceHighlightMark Mark(MarkdownTextBlock block) => Assert.IsType<SourceHighlightMark>(AdornerLayer.GetAdorner(block));
+
+    private static Color Pixel(Avalonia.Media.Imaging.WriteableBitmap frame, Visual visual, Point point)
+    {
+        var at = visual.TranslatePoint(point, TopLevel.GetTopLevel(visual)!)!.Value;
+        using var buffer = frame.Lock();
+        var x = (int)Math.Round(at.X * frame.Dpi.X / 96);
+        var y = (int)Math.Round(at.Y * frame.Dpi.Y / 96);
+        var value = Marshal.ReadInt32(buffer.Address, (y * buffer.RowBytes) + (x * 4));
+        var b = (byte)(value & 0xFF);
+        var g = (byte)((value >> 8) & 0xFF);
+        var r = (byte)((value >> 16) & 0xFF);
+        return buffer.Format == Avalonia.Platform.PixelFormat.Rgba8888 ? Color.FromRgb(b, g, r) : Color.FromRgb(r, g, b);
+    }
+
+    private static bool Near(Color a, Color b, int tolerance = 12) =>
+        Math.Abs(a.R - b.R) <= tolerance && Math.Abs(a.G - b.G) <= tolerance && Math.Abs(a.B - b.B) <= tolerance;
 
     private static async Task<MainWindow> ReturnToSourceAsync(DesktopHarness app, ThemeVariant theme)
     {
@@ -135,7 +296,12 @@ public class SourceHighlightThemeTests
         return Assert.IsAssignableFrom<ISolidColorBrush>(style!.Background).Color;
     }
 
-    private static Color TextColour(MarkdownTextBlock block) => Assert.IsAssignableFrom<ISolidColorBrush>(block.Foreground).Color;
+    /// <summary>The colour the highlighted text is drawn in: the highlight's own text colour, else the block's.</summary>
+    private static Color TextColour(MarkdownTextBlock block)
+    {
+        Assert.True(block.HighlightStyles!.TryGetValue("branch-source", out var style));
+        return Assert.IsAssignableFrom<ISolidColorBrush>(style!.Foreground ?? block.Foreground).Color;
+    }
 
     private static Color Expected(ThemeVariant theme) => ThemeColour("SourceHighlight", theme);
 
