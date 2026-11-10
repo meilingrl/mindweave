@@ -1,3 +1,6 @@
+using System.Diagnostics;
+using System.Reflection;
+using System.Runtime.ExceptionServices;
 using Avalonia;
 using Avalonia.Automation;
 using Avalonia.Controls;
@@ -7,6 +10,8 @@ using Avalonia.VisualTree;
 using Microsoft.Extensions.DependencyInjection;
 using Mindweave.Application.Conversations;
 using Mindweave.Application.Preferences;
+using Mindweave.Application.Storage;
+using Mindweave.Core.Workspaces;
 using Mindweave.Desktop.Navigation;
 using Mindweave.Desktop.ViewModels;
 using Mindweave.Desktop.ViewModels.Conversations;
@@ -59,6 +64,34 @@ public class ConversationNewsHintTests
         Assert.Equal(0, news.Count);
         Assert.False(Find<Border>(window, "OtherWorkspacesNews").IsEffectivelyVisible);
         window.Close();
+    }
+
+    [AvaloniaFact]
+    public async Task A_rename_that_lands_while_its_hint_is_being_made_still_reaches_the_hint()
+    {
+        // The hints read the titles, then the conversation is renamed before the hint is up: the hint must not keep the
+        // title read just before.
+        ListingInterceptor? interceptor = null;
+        await using var scene = await Scene.StartAsync(s => s.AddSingleton<IConversations>(sp =>
+        {
+            var proxy = DispatchProxy.Create<IConversations, ListingInterceptor>();
+            interceptor = (ListingInterceptor)(object)proxy;
+            interceptor.Inner = sp.GetRequiredService<ConversationService>();
+            return proxy;
+        }));
+        var (app, news) = (scene.App, scene.News);
+        var answered = await scene.AnswerAsync(scene.HighSpeed, "高铁有多快？");
+        var item = await SidebarItemAsync(app, answered);
+        await UiWait.UntilAsync(() => item.Title == Testing.FakeChatClient.DefaultTitle && news.Toasts.Single().Name == item.Title);
+        news.Dismiss(news.Toasts.Single());
+
+        const string Renamed = "高铁的速度";
+        var service = app.Services.GetRequiredService<ConversationService>();
+        interceptor!.DuringNewsListing = () => service.RenameAsync(answered, Renamed, CancellationToken.None);
+        await scene.AskAsync(answered, "比飞机快吗？");
+        await UiWait.UntilAsync(() => interceptor.DuringNewsListing is null && news.Toasts.Count == 1);
+        await UiWait.UntilAsync(() => news.Toasts.Single().Name == Renamed);
+        scene.Window.Close();
     }
 
     [AvaloniaFact]
@@ -335,6 +368,46 @@ public class ConversationNewsHintTests
     {
         await UiWait.UntilAsync(() => app.ShellPage.Conversations.Items.Any(i => i.Id == id));
         return app.ShellPage.Conversations.Items.Single(i => i.Id == id);
+    }
+
+    /// <summary>
+    /// Passes every call to the real service; once armed, the hints' next read of a workspace's conversations runs
+    /// <see cref="DuringNewsListing"/> after reading and before handing the (now stale) list back.
+    /// </summary>
+    public class ListingInterceptor : DispatchProxy
+    {
+        public IConversations Inner { get; set; } = null!;
+
+        public Func<Task>? DuringNewsListing { get; set; }
+
+        protected override object? Invoke(MethodInfo? targetMethod, object?[]? args)
+        {
+            ArgumentNullException.ThrowIfNull(targetMethod);
+            if (targetMethod.Name == nameof(IConversations.ListAsync)
+                && DuringNewsListing is { } during
+                && new StackTrace().GetFrames().Any(f => f.GetMethod()?.DeclaringType?.FullName?.StartsWith(typeof(WorkspaceNewsViewModel).FullName!, StringComparison.Ordinal) == true))
+            {
+                DuringNewsListing = null;
+                return ListThenAsync((WorkspaceId)args![0]!, during);
+            }
+
+            try
+            {
+                return targetMethod.Invoke(Inner, args);
+            }
+            catch (TargetInvocationException e) when (e.InnerException is not null)
+            {
+                ExceptionDispatchInfo.Throw(e.InnerException);
+                throw;
+            }
+        }
+
+        private async Task<IReadOnlyList<ConversationSummary>> ListThenAsync(WorkspaceId workspace, Func<Task> during)
+        {
+            var listed = await Inner.ListAsync(workspace, CancellationToken.None);
+            await during();
+            return listed;
+        }
     }
 
     private static Button Row(Window window, ConversationId id)

@@ -358,10 +358,14 @@ public class WorkspaceNewsHintTests
 
         public Workspace HighSpeed { get; private set; } = null!;
 
-        public static async Task<Scene> StartAsync()
+        public static async Task<Scene> StartAsync(Action<IServiceCollection>? overrides = null)
         {
             var clock = new ManualTime();
-            var app = DesktopHarness.Create(s => s.AddSingleton(new WorkspaceNewsOptions { Time = clock }));
+            var app = DesktopHarness.Create(s =>
+            {
+                s.AddSingleton(new WorkspaceNewsOptions { Time = clock });
+                overrides?.Invoke(s);
+            });
             var scene = new Scene(app, clock) { Window = app.ShowWindow() };
             scene.Trains = await app.StartWithWorkspaceAsync("火车");
             await app.ConfigureModelAsync();

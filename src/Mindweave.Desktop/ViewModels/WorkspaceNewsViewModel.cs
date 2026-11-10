@@ -50,6 +50,9 @@ public sealed partial class WorkspaceNewsViewModel : ObservableObject
     /// <summary>Conversations whose answer just ended off screen, with the workspace open then; taken by the next refresh.</summary>
     private readonly List<(ConversationId Conversation, WorkspaceId? OpenThen)> _justMarked = [];
 
+    /// <summary>A refresh is running (UI thread only).</summary>
+    private bool _refreshing;
+
     /// <summary>The open workspace, readable from the thread an answer ends on (set on the UI thread).</summary>
     private volatile Workspace? _open;
 
@@ -165,10 +168,13 @@ public sealed partial class WorkspaceNewsViewModel : ObservableObject
 
     private void OnWorkspacesChanged(object? sender, NotifyCollectionChangedEventArgs e) => _reload.Request();
 
-    /// <summary>On the UI thread: a conversation with a hint up changed (renamed, archived): the hint follows.</summary>
+    /// <summary>
+    /// On the UI thread: a conversation with a hint up changed (renamed, archived): the hint follows. During a refresh any
+    /// change counts, since the hint it is making may have read the title just before.
+    /// </summary>
     private void ReloadIfShown(ConversationId changed)
     {
-        if (Toasts.Any(t => t.Conversation == changed))
+        if (_refreshing || Toasts.Any(t => t.Conversation == changed))
         {
             _reload.Request();
         }
@@ -200,6 +206,19 @@ public sealed partial class WorkspaceNewsViewModel : ObservableObject
     private ConversationId? OnScreen() => (_workbench.CurrentPage?.Route as ConversationRoute)?.Id;
 
     private async Task RefreshAsync()
+    {
+        _refreshing = true;
+        try
+        {
+            await RefreshCoreAsync();
+        }
+        finally
+        {
+            _refreshing = false;
+        }
+    }
+
+    private async Task RefreshCoreAsync()
     {
         // Taken before the marks are read, so every conversation noted here is among them unless it was seen since.
         List<(ConversationId Conversation, WorkspaceId? OpenThen)> justMarked = [.. _justMarked];
