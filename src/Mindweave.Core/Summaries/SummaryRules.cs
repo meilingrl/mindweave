@@ -63,7 +63,8 @@ public static class SummaryRules
             return line;
         }
 
-        static string Clean(string text) => text.Trim('*', '"', '“', '”', '《', '》').Trim();
+        // Only pairs around the whole name; marks inside it stay (2026-11-10).
+        static string Clean(string text) => Text.EnclosingMarks.Strip(text);
     }
 
     /// <summary>

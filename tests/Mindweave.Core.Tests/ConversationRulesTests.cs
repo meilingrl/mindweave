@@ -55,7 +55,25 @@ public class ConversationRulesTests
     [InlineData("题目分析的方法", "题目分析的方法")]
     [InlineData("Title: \"Steam\".", "Steam")]
     [InlineData("   ", null)]
+    [InlineData("# 火车历史", "火车历史")]
+    [InlineData("**“蒸汽机”**。", "蒸汽机")]
     public void Generated_titles_are_cleaned(string raw, string? expected) =>
+        Assert.Equal(expected, ConversationRules.CleanGeneratedTitle(raw));
+
+    /// <summary>
+    /// Only a pair enclosing the whole title is a wrapper; marks inside the title stay (2026-11-10: “死寂》 电影剧情概括” lost
+    /// its 《 because each end was trimmed on its own).
+    /// </summary>
+    [Theory]
+    [InlineData("《死寂》电影剧情概括", "《死寂》电影剧情概括")]
+    [InlineData("《死寂》", "死寂")]
+    [InlineData("“《死寂》剧情概括”", "《死寂》剧情概括")]
+    [InlineData("**《三体》读后感**。", "《三体》读后感")]
+    [InlineData("「蒸汽机」与铁路", "「蒸汽机」与铁路")]
+    [InlineData("“火箭号”与“机车”", "“火箭号”与“机车”")]
+    [InlineData("\"Steam\" engines", "\"Steam\" engines")]
+    [InlineData("铁路与《物种起源》", "铁路与《物种起源》")]
+    public void Marks_that_belong_to_the_title_are_kept(string raw, string expected) =>
         Assert.Equal(expected, ConversationRules.CleanGeneratedTitle(raw));
 
     [Fact]
