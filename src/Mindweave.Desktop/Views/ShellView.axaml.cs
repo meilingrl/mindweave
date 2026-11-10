@@ -5,6 +5,7 @@ using Avalonia.Threading;
 using Avalonia.VisualTree;
 using Mindweave.Application.Preferences;
 using Mindweave.Desktop.ViewModels;
+using Mindweave.Desktop.ViewModels.Conversations;
 
 namespace Mindweave.Desktop.Views;
 
@@ -20,6 +21,7 @@ public sealed partial class ShellView : UserControl
     private double? _dragStartX;
     private double _dragStartWidth;
     private WorkspaceNewsViewModel? _news;
+    private ConversationListViewModel? _list;
     private int _pulses;
 
     public ShellView()
@@ -33,7 +35,12 @@ public sealed partial class ShellView : UserControl
         // Multi-select (requirements v0.12 §8.2): a modified click on a row is taken before the row's button sees it,
         // so it selects instead of opening. Esc is listened for on the window (see OnAttachedToVisualTree).
         ConversationList.AddHandler(PointerPressedEvent, OnRowPressed, Avalonia.Interactivity.RoutingStrategies.Tunnel);
-        DataContextChanged += (_, _) => WatchNews(ViewModel?.WorkspaceNews);
+        ConversationList.AddHandler(KeyDownEvent, OnRowKeyDown, Avalonia.Interactivity.RoutingStrategies.Bubble);
+        DataContextChanged += (_, _) =>
+        {
+            WatchNews(ViewModel?.WorkspaceNews);
+            WatchList(ViewModel?.Conversations);
+        };
     }
 
     /// <summary>Set while the badge's pulse runs (tests).</summary>
@@ -59,6 +66,135 @@ public sealed partial class ShellView : UserControl
     }
 
     private void OnNewsCountRose(object? sender, EventArgs e) => Pulse();
+
+    private void WatchList(ConversationListViewModel? list)
+    {
+        if (ReferenceEquals(list, _list))
+        {
+            return;
+        }
+
+        if (_list is not null)
+        {
+            _list.RenameStarted -= OnRenameStarted;
+            _list.RenameEnded -= OnRenameEnded;
+        }
+
+        _list = list;
+        if (list is not null)
+        {
+            list.RenameStarted += OnRenameStarted;
+            list.RenameEnded += OnRenameEnded;
+        }
+    }
+
+    // ── A row's context menu and its inline rename (2026-11-10) ──────────────────────────────────────────────────────
+
+    /// <summary>Not while rows are selected (the bar acts on them), and not on a row being renamed.</summary>
+    private void OnRowMenuOpening(object? sender, System.ComponentModel.CancelEventArgs e)
+    {
+        if (MenuRow(sender)?.DataContext is not ConversationItemViewModel || _list?.OffersRowMenu != true)
+        {
+            e.Cancel = true;
+        }
+    }
+
+    /// <summary>While its menu is open the row keeps a hover tint, so it is clear which conversation the menu acts on.</summary>
+    private void OnRowMenuOpened(object? sender, Avalonia.Interactivity.RoutedEventArgs e) => MenuRow(sender)?.Classes.Set("menu-open", true);
+
+    private void OnRowMenuClosed(object? sender, Avalonia.Interactivity.RoutedEventArgs e) => MenuRow(sender)?.Classes.Set("menu-open", false);
+
+    /// <summary>
+    /// Shift+F10 asks for the focused row's menu, as on Windows and Linux; the platform's own gesture (the menu key) is
+    /// handled by Avalonia. Only Shift+F10 is added here, so a platform that has both does not open the menu twice.
+    /// </summary>
+    private void OnRowKeyDown(object? sender, KeyEventArgs e)
+    {
+        if (e.Handled || e.Key != Key.F10 || e.KeyModifiers != KeyModifiers.Shift || e.Source is not Button { ContextMenu: not null } row
+            || row.DataContext is not ConversationItemViewModel)
+        {
+            return;
+        }
+
+        if (Avalonia.Application.Current?.PlatformSettings?.HotkeyConfiguration.OpenContextMenu.Any(g => g.Matches(e)) == true)
+        {
+            return;
+        }
+
+        row.RaiseEvent(new ContextRequestedEventArgs());
+        e.Handled = true;
+    }
+
+    /// <summary>The row's box takes the focus with its text selected, once the menu that started it has closed.</summary>
+    private void OnRenameStarted(object? sender, ConversationItemViewModel item) =>
+        Dispatcher.UIThread.Post(
+            () =>
+            {
+                if (item.IsRenaming && RowPart<TextBox>(item, "RowRenameBox") is { } box)
+                {
+                    // Focused as by Tab, the box selects its whole text: typing replaces the old name.
+                    box.Focus(NavigationMethod.Tab);
+                }
+            },
+            DispatcherPriority.Background);
+
+    /// <summary>Back to the row, so the keyboard user can go on from where they were (only if the box had the focus).</summary>
+    private void OnRenameEnded(object? sender, ConversationItemViewModel item)
+    {
+        if (RowPart<TextBox>(item, "RowRenameBox") is { IsKeyboardFocusWithin: true })
+        {
+            Dispatcher.UIThread.Post(() => RowButton(item)?.Focus(NavigationMethod.Tab), DispatcherPriority.Background);
+        }
+    }
+
+    /// <summary>Enter saves and Esc cancels; both stop here, so the row's button and the window's Esc never see them.</summary>
+    private void OnRenameBoxKeyDown(object? sender, KeyEventArgs e)
+    {
+        if ((sender as Control)?.DataContext is not ConversationItemViewModel item || _list is null || e.KeyModifiers != KeyModifiers.None)
+        {
+            return;
+        }
+
+        if (e.Key == Key.Enter)
+        {
+            _list.CommitRenameRowCommand.Execute(item);
+            e.Handled = true;
+        }
+        else if (e.Key == Key.Escape)
+        {
+            _list.CancelRenameRowCommand.Execute(item);
+            e.Handled = true;
+        }
+    }
+
+    /// <summary>Leaving the box (a click elsewhere, Tab) saves, as file lists do.</summary>
+    private void OnRenameBoxLostFocus(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
+    {
+        if (sender is not TextBox box || box.DataContext is not ConversationItemViewModel { IsRenaming: true } item)
+        {
+            return;
+        }
+
+        // The box's own cut/copy/paste menu took the focus: still editing (to paste a name, say). The focus comes back
+        // to the box when that menu closes, and leaving the box after that saves as usual.
+        if (box.ContextFlyout is { IsOpen: true })
+        {
+            return;
+        }
+
+        _list?.CommitRenameRowCommand.Execute(item);
+    }
+
+    /// <summary>The row that holds <paramref name="menu"/> (asked before the menu is attached to it, too).</summary>
+    private Button? MenuRow(object? menu) =>
+        ConversationList.GetVisualDescendants().OfType<Button>().FirstOrDefault(b => b.ContextMenu is { } held && ReferenceEquals(held, menu));
+
+    private T? RowPart<T>(ConversationItemViewModel item, string name)
+        where T : Control =>
+        ConversationList.GetVisualDescendants().OfType<T>().FirstOrDefault(c => c.Name == name && ReferenceEquals(c.DataContext, item));
+
+    private Button? RowButton(ConversationItemViewModel item) =>
+        ConversationList.GetVisualDescendants().OfType<Button>().FirstOrDefault(b => b.Classes.Contains("nav") && ReferenceEquals(b.DataContext, item));
 
     /// <summary>
     /// One brief swell and fade of the badge from its centre: the "pulsing" class runs the style's animation once

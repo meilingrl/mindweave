@@ -4,6 +4,7 @@ using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Mindweave.Application.Conversations;
 using Mindweave.Application.Storage;
+using Mindweave.Application.Summaries;
 using Mindweave.Core.Conversations;
 using Mindweave.Core.Workspaces;
 using Mindweave.Desktop.Navigation;
@@ -24,14 +25,34 @@ public sealed partial class ConversationListViewModel : ViewModelBase
     private readonly SerialRefresh _load;
     private readonly UiThrottle _reload;
     private readonly ConversationDeletionRequests? _deletionPrompt;
+    private readonly ISummaries? _summaries;
+    private readonly IStorageStatus? _storage;
+    private readonly IUiDispatcher _dispatcher;
     private WorkspaceId? _shown;
 
     /// <summary>Where a Shift click's range starts: the last row toggled, or the conversation shown.</summary>
     private ConversationId? _anchor;
 
-    public ConversationListViewModel(IConversations conversations, Workbench workbench, IUiDispatcher dispatcher, IConversationMarks? marks = null, ConversationDeletionRequests? deletion = null)
+    public ConversationListViewModel(
+        IConversations conversations,
+        Workbench workbench,
+        IUiDispatcher dispatcher,
+        IConversationMarks? marks = null,
+        ConversationDeletionRequests? deletion = null,
+        ISummaries? summaries = null,
+        IStorageStatus? storage = null)
     {
         _conversations = conversations;
+        _summaries = summaries;
+        _storage = storage;
+        _dispatcher = dispatcher;
+        if (storage is not null)
+        {
+            // Raised on worker threads; the rows' menus follow the pause on the UI thread.
+            IsStoragePaused = storage.IsBlocked;
+            storage.Changed += (_, _) => _dispatcher.Post(() => IsStoragePaused = storage.IsBlocked);
+        }
+
         _deletionPrompt = deletion;
         if (deletion is not null)
         {
@@ -271,6 +292,163 @@ public sealed partial class ConversationListViewModel : ViewModelBase
 
     private void SelectionChanged() => SelectedCount = Items.Count(i => i.IsChecked);
 
+    // ── A row's context menu (2026-11-10) ──────────────────────────────────────────────────────────────────────────
+    // The page toolbar's actions on one row, through the same services and dialogs: renaming in the row itself,
+    // summarizing in the background (the row's spinner shows it), archiving as the bar does, deleting through the
+    // window's dialog that states the scope and backs up first. Refusals are named in a notice above the sidebar's foot.
+
+    /// <summary>Storage takes no writes; every row's menu disables what writes.</summary>
+    [ObservableProperty]
+    public partial bool IsStoragePaused { get; private set; }
+
+    partial void OnIsStoragePausedChanged(bool value)
+    {
+        foreach (var item in Items)
+        {
+            item.IsStoragePaused = value;
+        }
+    }
+
+    /// <summary>Why a row's menu action did not happen, named after its conversation.</summary>
+    [ObservableProperty]
+    public partial string? RowNotice { get; private set; }
+
+    /// <summary>
+    /// Whether a row's context menu opens. Not while rows are selected or in the 选择 mode: the bar at the sidebar's foot
+    /// acts on the selection, and a menu on one row would leave unclear whether it acts on that row or on the ticked ones.
+    /// (A row being renamed shows its box instead, which has the text field's own menu.)
+    /// </summary>
+    public bool OffersRowMenu => !ShowsSelectionBar;
+
+    /// <summary>The menu's rename started on a row; the view moves the focus into its box.</summary>
+    public event EventHandler<ConversationItemViewModel>? RenameStarted;
+
+    /// <summary>A row's rename is being saved or cancelled (raised just before its box goes); the view gives the focus back to the row if the box had it.</summary>
+    public event EventHandler<ConversationItemViewModel>? RenameEnded;
+
+    /// <summary>The last action started from a row's menu; tests await it.</summary>
+    internal Task RowAction { get; private set; } = Task.CompletedTask;
+
+    [RelayCommand]
+    private void CloseRowNotice() => RowNotice = null;
+
+    /// <summary>改名: the row's title turns into a box holding it; Enter or leaving the box saves, Esc cancels.</summary>
+    [RelayCommand]
+    private void BeginRenameRow(ConversationItemViewModel item)
+    {
+        RowNotice = null;
+        if (!item.CanRename)
+        {
+            return;
+        }
+
+        item.RenameText = item.Title;
+        item.IsRenaming = true;
+        RenameStarted?.Invoke(this, item);
+    }
+
+    /// <summary>Saves the name as the page's 保存 does (an empty name changes nothing); once, however the box was left.</summary>
+    [RelayCommand]
+    private Task CommitRenameRowAsync(ConversationItemViewModel item)
+    {
+        if (!item.IsRenaming)
+        {
+            return Task.CompletedTask;
+        }
+
+        RenameEnded?.Invoke(this, item);
+        item.IsRenaming = false;
+        RowAction = RenameAsync(item, item.RenameText);
+        return RowAction;
+    }
+
+    [RelayCommand]
+    private void CancelRenameRow(ConversationItemViewModel item)
+    {
+        if (item.IsRenaming)
+        {
+            RenameEnded?.Invoke(this, item);
+            item.IsRenaming = false;
+        }
+    }
+
+    private async Task RenameAsync(ConversationItemViewModel item, string text)
+    {
+        try
+        {
+            await _conversations.RenameAsync(item.Id, text, CancellationToken.None);
+        }
+        catch (StorageWriteException)
+        {
+            RowNotice = UiText.RowNotice(item.Title, UiText.ArchiveStorageFailed);
+        }
+    }
+
+    /// <summary>
+    /// 总结此会话: starts the summary the page's button starts, in the background, without opening the page. The row's
+    /// spinner shows it running; its page shows it, its result and a failure as usual; a refusal is named here.
+    /// </summary>
+    [RelayCommand]
+    private Task SummarizeRowAsync(ConversationItemViewModel item)
+    {
+        RowNotice = null;
+        if (_summaries is null || !item.CanSummarize)
+        {
+            return Task.CompletedTask;
+        }
+
+        RowAction = SummarizeAsync(item);
+        return RowAction;
+    }
+
+    private async Task SummarizeAsync(ConversationItemViewModel item)
+    {
+        var outcome = await _summaries!.SummarizeAsync(item.Id, CancellationToken.None);
+        if (outcome.Rejection is { } rejection)
+        {
+            RowNotice = UiText.RowNotice(item.Title, UiText.SummarizeRejected(rejection));
+        }
+    }
+
+    /// <summary>归档: the conversation with its branches, as the page's button and the bar do; a refusal is named.</summary>
+    [RelayCommand]
+    private Task ArchiveRowAsync(ConversationItemViewModel item)
+    {
+        RowNotice = null;
+        if (!item.CanArchive)
+        {
+            return Task.CompletedTask;
+        }
+
+        RowAction = ArchiveAsync(item);
+        return RowAction;
+    }
+
+    private async Task ArchiveAsync(ConversationItemViewModel item)
+    {
+        var title = item.Title;
+        var (busy, storageFailed) = await ConversationArchiving.ArchiveAllAsync(_conversations, [item.Id]);
+        if (storageFailed)
+        {
+            RowNotice = UiText.RowNotice(title, UiText.ArchiveStorageFailed);
+        }
+        else if (busy.Count > 0 && _workbench.CurrentWorkspace is { } workspace)
+        {
+            RowNotice = UiText.ArchiveRefused(await ConversationArchiving.TitlesAsync(_conversations, workspace.Id, busy));
+        }
+    }
+
+    /// <summary>删除…: the window's dialog states what goes, offers archiving instead and backs up first, as for a selection.</summary>
+    [RelayCommand]
+    private void DeleteRow(ConversationItemViewModel item)
+    {
+        RowNotice = null;
+        if (item.CanDelete && _workbench.CurrentWorkspace is { } workspace)
+        {
+            _deletionPrompt?.Open(workspace.Id, [item.Id]);
+        }
+    }
+
     [RelayCommand]
     private void New() => _workbench.Navigate(new NavigationRequest(MainSection.Explore, NewConversationRoute.Instance));
 
@@ -279,6 +457,7 @@ public sealed partial class ConversationListViewModel : ViewModelBase
         if (e.PropertyName == nameof(Workbench.CurrentWorkspace) && _workbench.CurrentWorkspace?.Id != _shown)
         {
             ClearSelection();
+            RowNotice = null;
             Loaded = _load.Request();
         }
         else if (e.PropertyName == nameof(Workbench.CurrentPage))
@@ -308,7 +487,7 @@ public sealed partial class ConversationListViewModel : ViewModelBase
         ArchivedCount = summaries.Count(s => s.IsArchived);
         var tree = AsTree([.. summaries.Where(s => !s.IsHidden)]);
         var existing = Items.ToDictionary(i => i.Id);
-        var ordered = tree.Select(t => existing.GetValueOrDefault(t.Summary.Conversation.Id) ?? new ConversationItemViewModel(t.Summary.Conversation.Id)).ToList();
+        var ordered = tree.Select(t => existing.GetValueOrDefault(t.Summary.Conversation.Id) ?? new ConversationItemViewModel(t.Summary.Conversation.Id, this) { IsStoragePaused = IsStoragePaused }).ToList();
         for (var i = 0; i < tree.Count; i++)
         {
             ordered[i].Title = UiText.ConversationTitle(tree[i].Summary.Conversation, tree[i].Summary.FirstQuestion, tree[i].Summary.Quote);
@@ -353,6 +532,14 @@ public sealed partial class ConversationListViewModel : ViewModelBase
         foreach (var item in Items)
         {
             item.Mark = MarkOf(item);
+        }
+
+        // What archiving or deleting a row would take along: the listed rows below it (archived ones are not listed and run nothing).
+        var busy = Items.Where(i => i.IsGenerating).Select(i => i.Id).ToList();
+        var below = busy.SelectMany(Ancestors).ToHashSet();
+        foreach (var item in Items)
+        {
+            item.IsBusyBelow = below.Contains(item.Id);
         }
 
         HasAttention = Items.Any(i => i.NeedsAttention);

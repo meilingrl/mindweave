@@ -124,6 +124,18 @@
             <TextBlock Text="{Binding Conversations.ArchivedLabel}" VerticalAlignment="Center" />
           </StackPanel>
         </Button>
+        <!-- Why an action from a row's menu did not happen, until closed or the next one. -->
+        <Border Name="RowNoticePanel" DockPanel.Dock="Bottom" Classes="row-notice" Margin="0,4,0,4"
+                IsVisible="{Binding Conversations.RowNotice, Converter={x:Static ObjectConverters.IsNotNull}}">
+          <DockPanel>
+            <Button Name="CloseRowNoticeButton" DockPanel.Dock="Right" VerticalAlignment="Top" Classes="quiet bar-icon" Command="{Binding Conversations.CloseRowNoticeCommand}"
+                    ToolTip.Tip="{x:Static d:UiText.CloseRowNotice}" AutomationProperties.Name="{x:Static d:UiText.CloseRowNotice}">
+              <PathIcon Data="{StaticResource IconClose}" />
+            </Button>
+            <TextBlock Name="RowNotice" Classes="error" Text="{Binding Conversations.RowNotice}" TextWrapping="Wrap" VerticalAlignment="Center"
+                       AutomationProperties.LiveSetting="Polite" />
+          </DockPanel>
+        </Border>
         <!-- While rows are selected (or in the 选择 mode): the count, then archive and delete, and a way out. -->
         <StackPanel DockPanel.Dock="Bottom" Spacing="6" Margin="0,4,0,4" IsVisible="{Binding Conversations.ShowsSelectionBar}">
           <TextBlock Name="SelectionNotice" Classes="error" Text="{Binding Conversations.SelectionNotice}" TextWrapping="Wrap" Margin="4,0"
@@ -157,9 +169,47 @@
           <ItemsControl Name="ConversationList" ItemsSource="{Binding Conversations.Items}">
             <ItemsControl.ItemTemplate>
               <DataTemplate x:DataType="cv:ConversationItemViewModel">
+                <Panel>
                 <Button Classes="nav" Classes.selected="{Binding IsSelected}" Classes.checked="{Binding IsChecked}" Margin="{Binding Depth, Converter={x:Static v:TreeIndent.Margin}}" Padding="10,5" HorizontalContentAlignment="Stretch"
-                        AutomationProperties.Name="{Binding AutomationName}" AutomationProperties.HelpText="{Binding MarkerHint}"
+                        AutomationProperties.Name="{Binding AutomationName}" AutomationProperties.HelpText="{Binding MarkerHint}" IsVisible="{Binding !IsRenaming}"
                         Command="{Binding $parent[ItemsControl].((vm:ShellViewModel)DataContext).Conversations.OpenCommand}" CommandParameter="{Binding}">
+                  <!-- The page toolbar's actions on this row (2026-11-10); right click, or Shift+F10 / the menu key on the focused row.
+                       An entry is disabled when the page would refuse it now, and says why. Not offered while rows are selected (the bar acts then). -->
+                  <Button.ContextMenu>
+                    <ContextMenu Name="RowMenu" Opening="OnRowMenuOpening" Opened="OnRowMenuOpened" Closed="OnRowMenuClosed">
+                      <MenuItem Name="RowMenuOpen" Header="{x:Static d:UiText.RowOpen}" FontWeight="SemiBold" Command="{Binding Owner.OpenCommand, FallbackValue={x:Null}}" CommandParameter="{Binding}">
+                        <MenuItem.Icon>
+                          <PathIcon Width="13" Height="13" Data="{StaticResource IconExplore}" />
+                        </MenuItem.Icon>
+                      </MenuItem>
+                      <Separator />
+                      <MenuItem Name="RowMenuRename" Header="{x:Static d:UiText.Rename}" Command="{Binding Owner.BeginRenameRowCommand, FallbackValue={x:Null}}" CommandParameter="{Binding}"
+                                IsEnabled="{Binding CanRename}" ToolTip.Tip="{Binding RenameBlockedReason}" ToolTip.ShowOnDisabled="True">
+                        <MenuItem.Icon>
+                          <PathIcon Width="13" Height="13" Data="{StaticResource IconRename}" />
+                        </MenuItem.Icon>
+                      </MenuItem>
+                      <MenuItem Name="RowMenuSummarize" Header="{x:Static d:UiText.Summarize}" Command="{Binding Owner.SummarizeRowCommand, FallbackValue={x:Null}}" CommandParameter="{Binding}"
+                                IsEnabled="{Binding CanSummarize}" ToolTip.Tip="{Binding SummarizeBlockedReason}" ToolTip.ShowOnDisabled="True">
+                        <MenuItem.Icon>
+                          <PathIcon Width="13" Height="13" Data="{StaticResource IconSummarize}" />
+                        </MenuItem.Icon>
+                      </MenuItem>
+                      <MenuItem Name="RowMenuArchive" Header="{x:Static d:UiText.Archive}" Command="{Binding Owner.ArchiveRowCommand, FallbackValue={x:Null}}" CommandParameter="{Binding}"
+                                IsEnabled="{Binding CanArchive}" ToolTip.Tip="{Binding ArchiveBlockedReason}" ToolTip.ShowOnDisabled="True">
+                        <MenuItem.Icon>
+                          <PathIcon Width="13" Height="13" Data="{StaticResource IconArchive}" />
+                        </MenuItem.Icon>
+                      </MenuItem>
+                      <Separator />
+                      <MenuItem Name="RowMenuDelete" Classes="danger" Header="{x:Static d:UiText.RowDelete}" Command="{Binding Owner.DeleteRowCommand, FallbackValue={x:Null}}" CommandParameter="{Binding}"
+                                IsEnabled="{Binding CanDelete}" ToolTip.Tip="{Binding DeleteBlockedReason}" ToolTip.ShowOnDisabled="True">
+                        <MenuItem.Icon>
+                          <PathIcon Width="13" Height="13" Data="{StaticResource IconDelete}" />
+                        </MenuItem.Icon>
+                      </MenuItem>
+                    </ContextMenu>
+                  </Button.ContextMenu>
                   <DockPanel>
                     <!-- A branch: a small corner glyph from its parent's column, so the hierarchy reads at a glance. -->
                     <PathIcon Width="9" Height="9" Margin="-4,0,5,3" Foreground="{DynamicResource TreeGuide}" Data="{StaticResource IconTreeBranch}"
@@ -183,6 +233,11 @@
                     <TextBlock Name="RowTitle" Text="{Binding Title}" TextTrimming="CharacterEllipsis" VerticalAlignment="Center" />
                   </DockPanel>
                 </Button>
+                <!-- 改名 from the menu edits the title where it is, as file lists do: Enter or leaving the box saves, Esc cancels. -->
+                <TextBox Name="RowRenameBox" Classes="row-rename" Margin="{Binding Depth, Converter={x:Static v:TreeIndent.Margin}}" IsVisible="{Binding IsRenaming}"
+                         Text="{Binding RenameText}" AutomationProperties.Name="{x:Static d:UiText.RowRenameBox}"
+                         KeyDown="OnRenameBoxKeyDown" LostFocus="OnRenameBoxLostFocus" />
+                </Panel>
               </DataTemplate>
             </ItemsControl.ItemTemplate>
           </ItemsControl>

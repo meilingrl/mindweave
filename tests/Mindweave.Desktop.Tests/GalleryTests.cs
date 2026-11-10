@@ -919,6 +919,74 @@ public class GalleryTests
         window.Close();
     }
 
+    // ── The sidebar row's context menu (2026-11-10) ─────────────────────────
+
+    /// <summary>
+    /// A right click on a branch row while another conversation is open: the page toolbar's actions, 删除… in the danger
+    /// colour (g45); the same menu on a row whose branch is answering, archive and delete disabled (g45a); the row's
+    /// title turned into its rename box (g45b); a refused summary named above the sidebar's foot (g45c).
+    /// </summary>
+    [AvaloniaFact]
+    public async Task G45_sidebar_row_context_menu()
+    {
+        await using var scene = Scene.Create("g45");
+        var window = scene.App.ShowWindow(1100, 720, Theme);
+        var seed = await SeedAsync(scene.App, summaries: true);
+        await OpenConversationAsync(scene.App, window, seed.HighSpeed);
+        var list = scene.App.ShellPage.Conversations;
+
+        RightClickRow(window, seed.Gauge);
+        await SettleAsync(window);
+        Capture(window, "g45-sidebar-row-menu");
+        CloseRowMenu(window, seed.Gauge);
+
+        var conversations = scene.App.Services.GetRequiredService<ConversationService>();
+        var held = scene.App.Client.Hold("雨山试验之后");
+        await conversations.AskAsync(seed.Cable, "缆索牵引后来还用在哪里？", CancellationToken.None);
+        await held.Started.Task.WaitAsync(TimeSpan.FromSeconds(5));
+        await UiWait.UntilAsync(() => list.Items.Single(i => i.Id == seed.Rainhill).IsBusyBelow);
+        RightClickRow(window, seed.Rainhill);
+        await SettleAsync(window);
+        Capture(window, "g45a-sidebar-row-menu-disabled");
+        CloseRowMenu(window, seed.Rainhill);
+        held.Finish("在陡坡上保留。");
+        await FinishedAsync(conversations, seed.Cable);
+
+        list.BeginRenameRowCommand.Execute(list.Items.Single(i => i.Id == seed.Wheels));
+        await SettleAsync(window);
+        Capture(window, "g45b-sidebar-row-rename");
+        // Left as a click elsewhere leaves it (Esc would give the row the keyboard focus and its ring, which is not this scene).
+        list.Items.Single(i => i.Id == seed.Wheels).IsRenaming = false;
+
+        // A candidate waits on the gauge summary (seed): another summary is refused until it is adopted or discarded.
+        await list.SummarizeRowCommand.ExecuteAsync(list.Items.Single(i => i.Id == seed.Gauge));
+        Assert.NotNull(list.RowNotice);
+        await SettleAsync(window);
+        Capture(window, "g45c-sidebar-row-notice");
+        window.Close();
+    }
+
+    private static void RightClickRow(MainWindow window, ConversationId id)
+    {
+        window.UpdateLayout();
+        var row = window.GetVisualDescendants().OfType<Button>().Single(b => b.DataContext is ConversationItemViewModel item && item.Id == id && b.Classes.Contains("nav"));
+        var title = row.GetVisualDescendants().OfType<Avalonia.Controls.TextBlock>().Single(t => t.Name == "RowTitle");
+        var point = title.TranslatePoint(new Point(24, title.Bounds.Height / 2), window)!.Value;
+        window.MouseMove(point);
+        window.MouseDown(point, MouseButton.Right);
+        window.MouseUp(point, MouseButton.Right);
+        Dispatcher.UIThread.RunJobs();
+        Assert.True(row.ContextMenu!.IsOpen);
+    }
+
+    private static void CloseRowMenu(MainWindow window, ConversationId id)
+    {
+        var row = window.GetVisualDescendants().OfType<Button>().Single(b => b.DataContext is ConversationItemViewModel item && item.Id == id && b.Classes.Contains("nav"));
+        row.ContextMenu!.Close();
+        Dispatcher.UIThread.RunJobs();
+        window.MouseMove(new Point(700, 700));
+    }
+
     // ── Shell: sidebar resize and collapse (S7 round 3) ─────────────────────
 
     [AvaloniaFact]

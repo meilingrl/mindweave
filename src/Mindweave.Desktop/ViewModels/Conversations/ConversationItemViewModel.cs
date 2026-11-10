@@ -1,11 +1,15 @@
 using CommunityToolkit.Mvvm.ComponentModel;
+using Mindweave.Application.Summaries;
 using Mindweave.Core.Conversations;
 
 namespace Mindweave.Desktop.ViewModels.Conversations;
 
-public sealed partial class ConversationItemViewModel(ConversationId id) : ViewModelBase
+public sealed partial class ConversationItemViewModel(ConversationId id, ConversationListViewModel? owner = null) : ViewModelBase
 {
     public ConversationId Id { get; } = id;
+
+    /// <summary>The list that holds the row; its context menu's commands take the row as their parameter.</summary>
+    public ConversationListViewModel? Owner { get; } = owner;
 
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(AutomationName))]
@@ -17,6 +21,7 @@ public sealed partial class ConversationItemViewModel(ConversationId id) : ViewM
     /// </summary>
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(HasMarker), nameof(IsGenerating), nameof(NeedsAttention), nameof(IsUnread), nameof(MarkerHint))]
+    [NotifyPropertyChangedFor(nameof(SummarizeBlockedReason), nameof(CanSummarize), nameof(ArchiveBlockedReason), nameof(CanArchive), nameof(DeleteBlockedReason), nameof(CanDelete))]
     public partial ConversationMark Mark { get; set; }
 
     /// <summary>Tooltip and accessible name of the marker; null without one.</summary>
@@ -65,4 +70,48 @@ public sealed partial class ConversationItemViewModel(ConversationId id) : ViewM
 
     /// <summary>A branch, drawn with a small corner glyph so the tree reads as a hierarchy, not only as indentation.</summary>
     public bool IsBranch => Depth > 0;
+
+    // ── The row's context menu (2026-11-10) ───────────────────────────────────────────────────────────────────────
+    // An entry is disabled, with the refusal as its tooltip, when the same action on the page would be refused now.
+
+    /// <summary>Storage takes no writes (requirements §9.3): every entry that writes is disabled.</summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(RenameBlockedReason), nameof(CanRename), nameof(SummarizeBlockedReason), nameof(CanSummarize))]
+    [NotifyPropertyChangedFor(nameof(ArchiveBlockedReason), nameof(CanArchive), nameof(DeleteBlockedReason), nameof(CanDelete))]
+    public partial bool IsStoragePaused { get; set; }
+
+    /// <summary>An answer or summary runs in a listed branch below this row; archiving or deleting the row would take it along.</summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(ArchiveBlockedReason), nameof(CanArchive), nameof(DeleteBlockedReason), nameof(CanDelete))]
+    public partial bool IsBusyBelow { get; set; }
+
+    public string? RenameBlockedReason => IsStoragePaused ? UiText.RowStoragePaused : null;
+
+    public bool CanRename => RenameBlockedReason is null;
+
+    /// <summary>As the summary service refuses: no summary while an answer of it or another summary of it runs (§6.4).</summary>
+    public string? SummarizeBlockedReason =>
+        IsStoragePaused ? UiText.RowStoragePaused
+        : Mark == ConversationMark.Answering ? UiText.SummarizeRejected(SummarizeRejection.AnswerInProgress)
+        : Mark == ConversationMark.Summarizing ? UiText.SummarizeRejected(SummarizeRejection.SummaryInProgress)
+        : null;
+
+    public bool CanSummarize => SummarizeBlockedReason is null;
+
+    /// <summary>As archiving refuses: nothing running in the conversation or the branches it takes along.</summary>
+    public string? ArchiveBlockedReason => IsStoragePaused ? UiText.RowStoragePaused : IsGenerating || IsBusyBelow ? UiText.RowArchiveBusy : null;
+
+    public bool CanArchive => ArchiveBlockedReason is null;
+
+    /// <summary>As a delete refuses before asking: nothing running in its scope.</summary>
+    public string? DeleteBlockedReason => IsStoragePaused ? UiText.RowStoragePaused : IsGenerating || IsBusyBelow ? UiText.RowDeleteBusy : null;
+
+    public bool CanDelete => DeleteBlockedReason is null;
+
+    /// <summary>The row shows a box to type its new name in, in place of its title.</summary>
+    [ObservableProperty]
+    public partial bool IsRenaming { get; set; }
+
+    [ObservableProperty]
+    public partial string RenameText { get; set; } = string.Empty;
 }
