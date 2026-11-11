@@ -156,13 +156,17 @@ public sealed partial class WorkspacesView : UserControl
             },
             DispatcherPriority.Background);
 
-    /// <summary>Back to the row's 改名, so the keyboard user goes on from where they were (only if the box had the focus).</summary>
+    /// <summary>
+    /// Back to the row's 改名, so the keyboard user goes on from where they were (only if the box, the rename's actions
+    /// or the suggested names under the box had the focus: all of them disappear with the rename).
+    /// </summary>
     private void OnRenameEnded(object? sender, WorkspaceRowViewModel row)
     {
         var box = RowPart<TextBox>(row, "WorkspaceRenameBox");
         var focused = TopLevel.GetTopLevel(this)?.FocusManager?.GetFocusedElement() as Visual;
         var hadFocus = box is { IsKeyboardFocusWithin: true }
-            || (focused is not null && RowPart<Control>(row, "WorkspaceRenameActions") is { } actions && actions.IsVisualAncestorOf(focused));
+            || (focused is not null && RowPart<Control>(row, "WorkspaceRenameActions") is { } actions && actions.IsVisualAncestorOf(focused))
+            || (focused is not null && RowPart<Control>(row, "SuggestionPanel") is { } suggestions && suggestions.IsVisualAncestorOf(focused));
         if (hadFocus)
         {
             Dispatcher.UIThread.Post(() => RowPart<Button>(row, "RenameWorkspaceButton")?.Focus(NavigationMethod.Tab), DispatcherPriority.Background);

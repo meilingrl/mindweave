@@ -117,6 +117,45 @@ public class WorkspaceNameSuggestionUiTests
         window.Close();
     }
 
+    /// <summary>
+    /// Review 2026-11-11: the names (and 重试, 前往设置) sit under the box, outside the row's actions; Esc on one of them ends
+    /// the rename and must hand the keyboard back to the row's 改名, not drop it when the names disappear.
+    /// </summary>
+    [AvaloniaFact]
+    public async Task Esc_on_a_suggested_name_ends_the_rename_and_the_focus_returns_to_rename()
+    {
+        await using var app = DesktopHarness.Create();
+        var window = app.ShowWindow(1100, 720);
+        await NetworkScenario.SeedAsync(app);
+        var page = await OpenPageAsync(app, window);
+        var row = page.Rows[0];
+        UiInput.Click(window, Rows<Button>(window, "RenameWorkspaceButton")[0]);
+        var box = Rows<TextBox>(window, "WorkspaceRenameBox")[0];
+        await UiWait.UntilAsync(() => box.IsFocused);
+
+        Rows<Button>(window, "SuggestNamesButton")[0].Focus(NavigationMethod.Tab);
+        window.KeyPress(Key.Enter, RawInputModifiers.None, PhysicalKey.Enter, null);
+        await page.Suggesting;
+        await UiWait.UntilAsync(() => Rows<Button>(window, "SuggestionChip") is [{ IsFocused: true }, ..]);
+
+        window.KeyPress(Key.Escape, RawInputModifiers.None, PhysicalKey.Escape, null);
+        Assert.False(row.IsRenaming);
+        await UiWait.UntilAsync(() => Rows<Button>(window, "RenameWorkspaceButton")[0].IsFocused);
+
+        // The same from 重试 after a failure.
+        row.BeginRenameCommand.Execute(null);
+        await UiWait.UntilAsync(() => box.IsFocused);
+        app.Client.WorkspaceNames.FailNext(GenerationErrorKind.Network);
+        Rows<Button>(window, "SuggestNamesButton")[0].Focus(NavigationMethod.Tab);
+        window.KeyPress(Key.Enter, RawInputModifiers.None, PhysicalKey.Enter, null);
+        await page.Suggesting;
+        await UiWait.UntilAsync(() => Rows<Button>(window, "RetrySuggestButton")[0].IsFocused);
+        window.KeyPress(Key.Escape, RawInputModifiers.None, PhysicalKey.Escape, null);
+        Assert.False(row.IsRenaming);
+        await UiWait.UntilAsync(() => Rows<Button>(window, "RenameWorkspaceButton")[0].IsFocused);
+        window.Close();
+    }
+
     [AvaloniaFact]
     public async Task Esc_or_stop_ends_a_running_request_and_a_second_esc_ends_the_rename()
     {
