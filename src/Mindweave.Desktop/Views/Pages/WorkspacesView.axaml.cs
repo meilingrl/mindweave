@@ -31,6 +31,8 @@ public sealed partial class WorkspacesView : UserControl
             _page.RenameStarted -= OnRenameStarted;
             _page.RenameEnded -= OnRenameEnded;
             _page.CreateStarted -= OnCreateStarted;
+            _page.SuggestionPicked -= OnSuggestionPicked;
+            _page.SuggestionStateChanged -= OnSuggestionStateChanged;
         }
 
         _page = page;
@@ -40,6 +42,8 @@ public sealed partial class WorkspacesView : UserControl
             page.RenameStarted += OnRenameStarted;
             page.RenameEnded += OnRenameEnded;
             page.CreateStarted += OnCreateStarted;
+            page.SuggestionPicked += OnSuggestionPicked;
+            page.SuggestionStateChanged += OnSuggestionStateChanged;
         }
     }
 
@@ -53,6 +57,87 @@ public sealed partial class WorkspacesView : UserControl
         }
 
         _shownOnce = true;
+    }
+
+    /// <summary>Leaving the page stops any request for suggested names: a late answer would show where no one is looking.</summary>
+    protected override void OnDetachedFromVisualTree(VisualTreeAttachmentEventArgs e)
+    {
+        _page?.StopAllSuggestions();
+        base.OnDetachedFromVisualTree(e);
+    }
+
+    /// <summary>A picked name is in the box: the focus goes back there, the caret after the name, ready for Enter or more typing.</summary>
+    private void OnSuggestionPicked(object? sender, WorkspaceRowViewModel row) =>
+        Dispatcher.UIThread.Post(
+            () =>
+            {
+                if (row.IsRenaming && RowPart<TextBox>(row, "WorkspaceRenameBox") is { } box)
+                {
+                    box.Focus(NavigationMethod.Pointer);
+                    box.ClearSelection();
+                    box.CaretIndex = box.Text?.Length ?? 0;
+                }
+            },
+            DispatcherPriority.Background);
+
+    /// <summary>
+    /// The keyboard follows the suggestions when it was on them (建议名称, 停止, a name, 重试), or was dropped because the
+    /// button it was on turned unavailable: to 停止 while asking, the first name once they arrive, 重试 or 前往设置 when
+    /// there are none, and back to 建议名称 when stopped. Someone typing in the box keeps typing.
+    /// </summary>
+    private void OnSuggestionStateChanged(object? sender, WorkspaceRowViewModel row)
+    {
+        var focused = TopLevel.GetTopLevel(this)?.FocusManager?.GetFocusedElement() as Visual;
+        var button = RowPart<Button>(row, "SuggestNamesButton");
+        var panel = RowPart<Control>(row, "SuggestionPanel");
+        var follow = focused is null
+            || (button is not null && (ReferenceEquals(button, focused) || button.IsVisualAncestorOf(focused)))
+            || (panel is not null && panel.IsVisualAncestorOf(focused));
+        if (!follow)
+        {
+            return;
+        }
+
+        Dispatcher.UIThread.Post(
+            () =>
+            {
+                if (!row.IsRenaming)
+                {
+                    return;
+                }
+
+                Control? target = row.SuggestionState switch
+                {
+                    NameSuggestionState.Generating => RowPart<Button>(row, "StopSuggestingButton"),
+                    // The names' own data context is the name, not the row: found inside the row's list.
+                    NameSuggestionState.Shown => RowPart<ItemsControl>(row, "SuggestionChips")?.GetVisualDescendants().OfType<Button>().FirstOrDefault(),
+                    NameSuggestionState.Failed => new[] { RowPart<Button>(row, "RetrySuggestButton"), RowPart<Button>(row, "SuggestSettingsButton") }
+                        .FirstOrDefault(b => b is { IsEffectivelyVisible: true }),
+                    _ => RowPart<Button>(row, "SuggestNamesButton") is { IsEffectivelyEnabled: true } again ? again : null,
+                };
+                (target ?? RowPart<TextBox>(row, "WorkspaceRenameBox"))?.Focus(NavigationMethod.Tab);
+            },
+            DispatcherPriority.Background);
+    }
+
+    /// <summary>Esc anywhere in a row being renamed: stops a request for names first, then a second Esc ends the rename.</summary>
+    private void OnRowKeyDown(object? sender, KeyEventArgs e)
+    {
+        if (e.Key != Key.Escape || e.KeyModifiers != KeyModifiers.None || (sender as Control)?.DataContext is not WorkspaceRowViewModel { IsRenaming: true } row)
+        {
+            return;
+        }
+
+        if (row.IsSuggesting)
+        {
+            row.StopSuggestingNamesCommand.Execute(null);
+        }
+        else
+        {
+            row.CancelRenameCommand.Execute(null);
+        }
+
+        e.Handled = true;
     }
 
     private void OnCreateStarted(object? sender, EventArgs e) =>
@@ -99,7 +184,16 @@ public sealed partial class WorkspacesView : UserControl
         }
         else if (e.Key == Key.Escape)
         {
-            row.CancelRenameCommand.Execute(null);
+            // A running request for names is stopped first; the rename ends on the next Esc.
+            if (row.IsSuggesting)
+            {
+                row.StopSuggestingNamesCommand.Execute(null);
+            }
+            else
+            {
+                row.CancelRenameCommand.Execute(null);
+            }
+
             e.Handled = true;
         }
     }

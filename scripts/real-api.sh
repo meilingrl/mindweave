@@ -2,7 +2,8 @@
 # Real AI service for development tests (macOS). Secrets never touch the repository, the command line or logs.
 #
 #   scripts/real-api.sh configure [profile]   enter address, model and key once (key goes to the login keychain)
-#   scripts/real-api.sh test [profile]        run the opt-in real-service tests against that profile
+#   scripts/real-api.sh test [profile] [name] run the opt-in real-service tests against that profile; with a name,
+#                                             only the tests whose full name contains it (e.g. Workspace_names)
 #   scripts/real-api.sh list                  show configured profiles (never the key)
 #   scripts/real-api.sh remove [profile]      delete a profile and its key
 #
@@ -43,7 +44,7 @@ case "${1:-}" in
     source "$CONFIG_DIR/$PROFILE.env"
     key="$(security find-generic-password -s "$SERVICE" -a "$PROFILE" -w)" || { echo "Key for '$PROFILE' not found in the keychain." >&2; exit 1; }
     MINDWEAVE_REAL_API_URL="$MINDWEAVE_REAL_API_URL" MINDWEAVE_REAL_API_MODEL="$MINDWEAVE_REAL_API_MODEL" MINDWEAVE_REAL_API_KEY="$key" \
-      dotnet test "$ROOT/tests/Mindweave.Infrastructure.Tests" --filter "Category=RealApi" --logger "console;verbosity=normal"
+      dotnet test "$ROOT/tests/Mindweave.Infrastructure.Tests" --filter "Category=RealApi${3:+&FullyQualifiedName~$3}" --logger "console;verbosity=normal"
     ;;
   list)
     ls "$CONFIG_DIR" 2>/dev/null | sed -n 's/\.env$//p' || true
@@ -53,5 +54,5 @@ case "${1:-}" in
     rm -f "$CONFIG_DIR/$PROFILE.env"
     echo "Removed profile '$PROFILE'."
     ;;
-  *) sed -n '2,15p' "$0"; exit 64 ;;
+  *) sed -n '2,13p' "$0"; exit 64 ;;
 esac

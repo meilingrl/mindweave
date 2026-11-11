@@ -23,6 +23,7 @@ public sealed class FakeChatClient : IChatClient
         ContextSummaries = new RequestScript("summary", SummaryOf, TruncatedSummaryText);
         Knowledge = new RequestScript("knowledge summary", KnowledgeOf);
         Naming = new RequestScript("naming", NamesOf);
+        WorkspaceNames = new RequestScript("workspace names", _ => DefaultWorkspaceNames);
     }
 
     public ConcurrentQueue<ChatRequest> Requests { get; } = new();
@@ -41,6 +42,14 @@ public sealed class FakeChatClient : IChatClient
     /// <summary>Naming requests that tell similar summaries apart; the default is "n：区分n" for every node.</summary>
     public RequestScript Naming { get; }
 
+    /// <summary>Names suggested for a workspace while renaming it (2026-11-11); the default is <see cref="DefaultWorkspaceNames"/>.</summary>
+    public RequestScript WorkspaceNames { get; }
+
+    public const string DefaultWorkspaceNames = "蒸汽机车史\n铁路发展\n火车与工业革命";
+
+    /// <summary>A request for a workspace's suggested names.</summary>
+    public static bool IsWorkspaceNaming(ChatRequest request) => SystemSays(request, "为这个工作区起");
+
     /// <summary>What a context summary cut off at the output limit says.</summary>
     public const string TruncatedSummaryText = "摘要：背景是";
 
@@ -54,7 +63,8 @@ public sealed class FakeChatClient : IChatClient
 
     public static bool IsNaming(ChatRequest request) => SystemSays(request, "区分词");
 
-    public static bool IsAnswer(ChatRequest request) => !IsTitle(request) && !IsSummary(request) && !IsKnowledgeSummary(request) && !IsNaming(request);
+    public static bool IsAnswer(ChatRequest request) =>
+        !IsTitle(request) && !IsSummary(request) && !IsKnowledgeSummary(request) && !IsNaming(request) && !IsWorkspaceNaming(request);
 
     public const string DefaultSummaryTitle = "蒸汽机车";
 
@@ -197,6 +207,7 @@ public sealed class FakeChatClient : IChatClient
         : IsKnowledgeSummary(request) ? Knowledge
         : IsNaming(request) ? Naming
         : IsTitle(request) ? Titles
+        : IsWorkspaceNaming(request) ? WorkspaceNames
         : null;
 
     /// <summary>What listing the models returns.</summary>

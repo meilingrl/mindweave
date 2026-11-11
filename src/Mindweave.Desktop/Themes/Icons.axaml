@@ -1,6 +1,8 @@
 <ResourceDictionary xmlns="https://github.com/avaloniaui"
                     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
   <!-- Icons (16×16, filled; S7 round 2). Shared so a toolbar or list draws each glyph the same everywhere. -->
+  <!-- 建议名称 (2026-11-11): a four-pointed spark, "the model suggests". -->
+  <StreamGeometry x:Key="IconSparkle">M7,1 C7.5,4.6 9.4,6.5 13,7 C9.4,7.5 7.5,9.4 7,13 C6.5,9.4 4.6,7.5 1,7 C4.6,6.5 6.5,4.6 7,1 Z M13,10 C13.2,11.6 13.9,12.3 15.5,12.5 C13.9,12.7 13.2,13.4 13,15 C12.8,13.4 12.1,12.7 10.5,12.5 C12.1,12.3 12.8,11.6 13,10 Z</StreamGeometry>
   <StreamGeometry x:Key="IconRename">M10.6,1.6 L14.4,5.4 L5.4,14.4 L1.5,14.5 L1.6,10.6 Z M3.1,11.2 L3,13 L4.8,12.9 L12.3,5.4 L10.6,3.7 Z</StreamGeometry>
   <StreamGeometry x:Key="IconSummary">M3,1 H13 V15 H3 Z M4.5,2.5 V13.5 H11.5 V2.5 Z M6,4.8 H10 V6.1 H6 Z M6,7.4 H10 V8.7 H6 Z M6,10 H8.6 V11.3 H6 Z</StreamGeometry>
   <StreamGeometry x:Key="IconSummarize">M2,2.5 H14 V4 H2 Z M2,6.5 H11.5 V8 H2 Z M2,10.5 H9 V12 H2 Z M12.5,9 L15,11.25 L12.5,13.5 Z</StreamGeometry>

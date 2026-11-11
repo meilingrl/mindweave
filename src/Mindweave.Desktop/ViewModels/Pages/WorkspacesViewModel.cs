@@ -5,6 +5,7 @@ using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Mindweave.Application.Storage;
 using Mindweave.Application.Workspaces;
+using Mindweave.Core.Conversations;
 using Mindweave.Core.Workspaces;
 using Mindweave.Desktop.Navigation;
 
@@ -22,6 +23,8 @@ public sealed partial class WorkspacesViewModel : PageViewModel, IDisposable
     private readonly IWorkspaceDeletion _deletion;
     private readonly IWorkspaceDeletionPrompt? _deletionPrompt;
     private readonly IWorkspaceSwitcher? _switcher;
+    private readonly IWorkspaceNameSuggestions? _suggestions;
+    private readonly IMenuNavigator? _navigator;
     private bool _disposed;
 
     public WorkspacesViewModel(
@@ -29,7 +32,9 @@ public sealed partial class WorkspacesViewModel : PageViewModel, IDisposable
         IWorkspaces workspaces,
         IWorkspaceDeletion deletion,
         IWorkspaceDeletionPrompt? deletionPrompt = null,
-        IWorkspaceSwitcher? switcher = null)
+        IWorkspaceSwitcher? switcher = null,
+        IWorkspaceNameSuggestions? suggestions = null,
+        IMenuNavigator? navigator = null)
         : base(WorkspacesRoute.Instance)
     {
         ArgumentNullException.ThrowIfNull(directory);
@@ -38,6 +43,8 @@ public sealed partial class WorkspacesViewModel : PageViewModel, IDisposable
         _deletion = deletion;
         _deletionPrompt = deletionPrompt;
         _switcher = switcher;
+        _suggestions = suggestions;
+        _navigator = navigator;
         NewWorkspace = new WorkspaceNameForm(CreateAsync);
         Sync();
         directory.Workspaces.CollectionChanged += OnWorkspacesChanged;
@@ -68,6 +75,18 @@ public sealed partial class WorkspacesViewModel : PageViewModel, IDisposable
 
     /// <summary>The last rename; tests await it.</summary>
     internal Task Renaming { get; private set; } = Task.CompletedTask;
+
+    /// <summary>The last request for suggested names; tests await it.</summary>
+    internal Task Suggesting { get; private set; } = Task.CompletedTask;
+
+    /// <summary>Suggested names can be asked for (the page was given the service).</summary>
+    public bool CanSuggestNames => _suggestions is not null;
+
+    /// <summary>A suggested name was put into the row's box (the view moves the focus back into it, the caret at the end).</summary>
+    public event EventHandler<WorkspaceRowViewModel>? SuggestionPicked;
+
+    /// <summary>A row's suggestions started, arrived, failed or were stopped by the request itself (the view may move the focus).</summary>
+    public event EventHandler<WorkspaceRowViewModel>? SuggestionStateChanged;
 
     /// <summary>A row's name turned into a box (the view moves the focus into it), or is about to turn back (the view returns the focus to the row).</summary>
     public event EventHandler<WorkspaceRowViewModel>? RenameStarted;
@@ -114,6 +133,7 @@ public sealed partial class WorkspacesViewModel : PageViewModel, IDisposable
 
         row.RenameText = row.Workspace.Name.Value;
         row.RenameError = null;
+        row.StopSuggesting();
         row.IsRenaming = true;
         RenameStarted?.Invoke(this, row);
     }
@@ -190,9 +210,95 @@ public sealed partial class WorkspacesViewModel : PageViewModel, IDisposable
     {
         // Said while the box is still shown, so the view can tell whether it had the focus.
         RenameEnded?.Invoke(this, row);
+
+        // A request still running is stopped; whatever it would have said belongs to this rename only.
+        row.StopSuggesting();
         row.IsRenaming = false;
         row.RenameError = null;
     }
+
+    /// <summary>
+    /// Asks the model for names drawn from the row's conversations (2026-11-11). Nothing is renamed: a name is picked
+    /// into the box, and saving stays the explicit Enter or 保存. A result that arrives after the request was stopped,
+    /// restarted or its rename ended is dropped, so it never shows in another rename or another row.
+    /// </summary>
+    internal Task SuggestNamesAsync(WorkspaceRowViewModel row)
+    {
+        Suggesting = SuggestCoreAsync(row);
+        return Suggesting;
+    }
+
+    private async Task SuggestCoreAsync(WorkspaceRowViewModel row)
+    {
+        if (_suggestions is null || _disposed || !row.IsRenaming)
+        {
+            return;
+        }
+
+        var request = row.StartSuggesting();
+        SuggestionStateChanged?.Invoke(this, row);
+        NameSuggestions result;
+        try
+        {
+            result = await _suggestions.SuggestAsync(row.Workspace.Id, row.Workspace.Name, request.Token);
+        }
+        catch (OperationCanceledException)
+        {
+            // Stopped by the user, the rename's end or leaving the page (the state is already reset), or by an exit,
+            // which leaves the request current: then the row goes back to its button.
+            if (row.Owns(request))
+            {
+                row.StopSuggesting();
+                SuggestionStateChanged?.Invoke(this, row);
+            }
+
+            return;
+        }
+#pragma warning disable CA1031 // The workspace could not be read: say so beside the button, and the rename stays usable.
+        catch (Exception)
+#pragma warning restore CA1031
+        {
+            if (row.Owns(request))
+            {
+                row.ShowSuggestionProblem(UiText.SuggestionsFailed(null), retry: true);
+                SuggestionStateChanged?.Invoke(this, row);
+            }
+
+            return;
+        }
+
+        if (!row.Owns(request) || !row.IsRenaming || _disposed)
+        {
+            return;
+        }
+
+        row.ShowSuggestions(result);
+        SuggestionStateChanged?.Invoke(this, row);
+    }
+
+    /// <summary>Leaving the page stops every request; the renames themselves stay open.</summary>
+    public void StopAllSuggestions()
+    {
+        foreach (var row in Rows)
+        {
+            row.StopSuggesting();
+        }
+    }
+
+    /// <summary>Fills the box with a suggested name, still editable; nothing is saved.</summary>
+    internal void PickSuggestion(WorkspaceRowViewModel row, string name)
+    {
+        if (!row.IsRenaming || row.IsSaving)
+        {
+            return;
+        }
+
+        row.RenameText = name;
+        row.RenameError = null;
+        SuggestionPicked?.Invoke(this, row);
+    }
+
+    internal void OpenModelSettings() => _navigator?.Navigate(new NavigationRequest(MainSection.Settings, SettingsHomeRoute.Instance));
 
     private async Task CreateAsync(WorkspaceName name)
     {
@@ -252,6 +358,7 @@ public sealed partial class WorkspacesViewModel : PageViewModel, IDisposable
 
         foreach (var gone in byId.Values)
         {
+            gone.Dispose();
             Rows.Remove(gone);
         }
 
@@ -295,6 +402,11 @@ public sealed partial class WorkspacesViewModel : PageViewModel, IDisposable
         }
 
         _disposed = true;
+        foreach (var row in Rows)
+        {
+            row.Dispose();
+        }
+
         _directory.Workspaces.CollectionChanged -= OnWorkspacesChanged;
         if (_directory is INotifyPropertyChanged observable)
         {
@@ -304,7 +416,7 @@ public sealed partial class WorkspacesViewModel : PageViewModel, IDisposable
 }
 
 /// <summary>One workspace on 设置 › 工作区: its name (or the box renaming it), what it holds, and its actions.</summary>
-public sealed partial class WorkspaceRowViewModel : ObservableObject
+public sealed partial class WorkspaceRowViewModel : ObservableObject, IDisposable
 {
     private readonly WorkspacesViewModel _owner;
 
@@ -315,7 +427,7 @@ public sealed partial class WorkspaceRowViewModel : ObservableObject
     }
 
     [ObservableProperty]
-    [NotifyPropertyChangedFor(nameof(Name), nameof(AutomationName), nameof(SwitchName), nameof(RenameName), nameof(DeleteName))]
+    [NotifyPropertyChangedFor(nameof(Name), nameof(AutomationName), nameof(SwitchName), nameof(RenameName), nameof(DeleteName), nameof(SuggestName))]
     public partial Workspace Workspace { get; internal set; }
 
     public string Name => Workspace.Name.Value;
@@ -331,6 +443,8 @@ public sealed partial class WorkspaceRowViewModel : ObservableObject
     public partial string CountsText { get; private set; } = UiText.WorkspaceCountsLoading;
 
     [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(ShowsSuggestHint), nameof(ShowsCounts))]
+    [NotifyCanExecuteChangedFor(nameof(SuggestNamesCommand))]
     public partial bool IsRenaming { get; internal set; }
 
     [ObservableProperty]
@@ -341,8 +455,57 @@ public sealed partial class WorkspaceRowViewModel : ObservableObject
     public partial string? RenameError { get; internal set; }
 
     [ObservableProperty]
-    [NotifyCanExecuteChangedFor(nameof(CommitRenameCommand), nameof(CancelRenameCommand))]
+    [NotifyCanExecuteChangedFor(nameof(CommitRenameCommand), nameof(CancelRenameCommand), nameof(SuggestNamesCommand))]
     public partial bool IsSaving { get; internal set; }
+
+    /// <summary>
+    /// Whether the workspace holds anything to name it after: false once counted empty (or the service found nothing),
+    /// null while not known, which leaves the button available.
+    /// </summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(SuggestTip), nameof(ShowsSuggestHint), nameof(ShowsCounts))]
+    [NotifyCanExecuteChangedFor(nameof(SuggestNamesCommand))]
+    public partial bool? HasContent { get; private set; }
+
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(IsSuggesting), nameof(HasSuggestions), nameof(HasSuggestionProblem), nameof(ShowsSuggestionPanel))]
+    [NotifyCanExecuteChangedFor(nameof(SuggestNamesCommand))]
+    public partial NameSuggestionState SuggestionState { get; private set; }
+
+    /// <summary>The names to pick from (2–3, fewer when fewer were usable).</summary>
+    public ObservableCollection<NameSuggestionViewModel> Suggestions { get; } = [];
+
+    /// <summary>Why there are no names: not configured, storage paused, the service failed, nothing usable came back.</summary>
+    [ObservableProperty]
+    public partial string? SuggestionProblem { get; private set; }
+
+    /// <summary>The problem is fixed in the model settings: 前往设置 is offered.</summary>
+    [ObservableProperty]
+    public partial bool SuggestionNeedsSettings { get; private set; }
+
+    /// <summary>Asking again may help: 重试 is offered.</summary>
+    [ObservableProperty]
+    public partial bool SuggestionCanRetry { get; private set; }
+
+    public bool IsSuggesting => SuggestionState == NameSuggestionState.Generating;
+
+    public bool HasSuggestions => SuggestionState == NameSuggestionState.Shown;
+
+    public bool HasSuggestionProblem => SuggestionState == NameSuggestionState.Failed;
+
+    public bool ShowsSuggestionPanel => SuggestionState != NameSuggestionState.Idle;
+
+    /// <summary>The 建议名称 button is there at all (the page was given the service).</summary>
+    public bool CanSuggestNames => _owner.CanSuggestNames;
+
+    /// <summary>While renaming a workspace with something in it, the line under the box says what 建议名称 sends.</summary>
+    public bool ShowsSuggestHint => IsRenaming && HasContent != false && _owner.CanSuggestNames;
+
+    public bool ShowsCounts => !ShowsSuggestHint;
+
+    public string SuggestTip => HasContent == false ? UiText.SuggestNamesEmptyTip : UiText.SuggestNamesTip;
+
+    public string SuggestName => UiText.SuggestNamesName(Name);
 
     public string AutomationName => UiText.WorkspaceRowName(Name, IsCurrent, CountsText);
 
@@ -352,7 +515,117 @@ public sealed partial class WorkspaceRowViewModel : ObservableObject
 
     public string DeleteName => UiText.DeleteWorkspaceName(Name);
 
-    internal void SetCounts(int conversations, int summaries, int archived = 0) => CountsText = UiText.WorkspaceCounts(conversations, summaries, archived);
+    internal void SetCounts(int conversations, int summaries, int archived = 0)
+    {
+        CountsText = UiText.WorkspaceCounts(conversations, summaries, archived);
+        HasContent = conversations + summaries > 0;
+    }
+
+    private CancellationTokenSource? _suggestion;
+
+    /// <summary>Starts a request: any earlier one is stopped and what it showed is cleared.</summary>
+    internal CancellationTokenSource StartSuggesting()
+    {
+        StopSuggesting();
+        _suggestion = new CancellationTokenSource();
+        SuggestionState = NameSuggestionState.Generating;
+        return _suggestion;
+    }
+
+    /// <summary>The request is still this row's current one (not stopped, not replaced).</summary>
+    internal bool Owns(CancellationTokenSource request) => ReferenceEquals(_suggestion, request);
+
+    /// <summary>Stops a running request and clears the names and messages: the row shows its button again.</summary>
+    internal void StopSuggesting()
+    {
+        if (_suggestion is { } running)
+        {
+            _suggestion = null;
+            running.Cancel();
+            running.Dispose();
+        }
+
+        Suggestions.Clear();
+        SuggestionProblem = null;
+        SuggestionNeedsSettings = false;
+        SuggestionCanRetry = false;
+        SuggestionState = NameSuggestionState.Idle;
+    }
+
+    internal void ShowSuggestions(NameSuggestions result)
+    {
+        switch (result.Problem)
+        {
+            case null when result.Names.Count > 0:
+                Release();
+                Suggestions.Clear();
+                foreach (var name in result.Names)
+                {
+                    Suggestions.Add(new NameSuggestionViewModel(name.Value, this, _owner));
+                }
+
+                SuggestionProblem = null;
+                SuggestionNeedsSettings = false;
+                SuggestionCanRetry = false;
+                SuggestionState = NameSuggestionState.Shown;
+                break;
+            case null:
+                ShowSuggestionProblem(UiText.SuggestionsNone, retry: true);
+                break;
+            case NameSuggestionProblem.EmptyWorkspace:
+                HasContent = false;
+                ShowSuggestionProblem(UiText.SuggestionsEmpty, retry: false);
+                break;
+            case NameSuggestionProblem.NotConfigured:
+                ShowSuggestionProblem(UiText.SuggestionsNotConfigured, retry: false, settings: true);
+                break;
+            case NameSuggestionProblem.StoragePaused:
+                ShowSuggestionProblem(UiText.SuggestionsStoragePaused, retry: true);
+                break;
+            case NameSuggestionProblem.Unavailable:
+                ShowSuggestionProblem(UiText.SuggestionsUnavailable, retry: false);
+                break;
+            default:
+                // A missing key is fixed in the settings; anything else may work on a second try.
+                ShowSuggestionProblem(UiText.SuggestionsFailed(result.Error), retry: true, settings: result.Error == GenerationErrorKind.NotConfigured);
+                break;
+        }
+    }
+
+    internal void ShowSuggestionProblem(string message, bool retry, bool settings = false)
+    {
+        Release();
+        Suggestions.Clear();
+        SuggestionProblem = message;
+        SuggestionCanRetry = retry;
+        SuggestionNeedsSettings = settings;
+        SuggestionState = NameSuggestionState.Failed;
+    }
+
+    /// <summary>The request has answered: it is no longer running and needs no stopping.</summary>
+    private void Release()
+    {
+        _suggestion?.Dispose();
+        _suggestion = null;
+    }
+
+    private bool CanSuggest() => IsRenaming && !IsSaving && HasContent != false && SuggestionState != NameSuggestionState.Generating;
+
+    /// <summary>
+    /// Starts a request (its task is the page's <see cref="WorkspacesViewModel.Suggesting"/>). Not an async command: one
+    /// that was stopped may take a moment to end, and the button must be usable again at once.
+    /// </summary>
+    [RelayCommand(CanExecute = nameof(CanSuggest))]
+    private void SuggestNames() => _ = _owner.SuggestNamesAsync(this);
+
+    [RelayCommand]
+    private void StopSuggestingNames() => StopSuggesting();
+
+    /// <summary>The row left the page (its workspace is gone, or the page closed): a request still running is stopped.</summary>
+    public void Dispose() => StopSuggesting();
+
+    [RelayCommand]
+    private void OpenModelSettings() => _owner.OpenModelSettings();
 
     internal void CountsFailed()
     {
@@ -381,4 +654,41 @@ public sealed partial class WorkspaceRowViewModel : ObservableObject
 
     [RelayCommand]
     private void Delete() => _owner.Delete(this);
+}
+
+/// <summary>Where a rename row's suggested names stand.</summary>
+public enum NameSuggestionState
+{
+    /// <summary>Nothing asked: the row shows its 建议名称 button only.</summary>
+    Idle,
+
+    /// <summary>The model is being asked; 停止 or Esc stops it.</summary>
+    Generating,
+
+    /// <summary>Names to pick from.</summary>
+    Shown,
+
+    /// <summary>No names, and why (with 重试 or 前往设置 when that helps).</summary>
+    Failed,
+}
+
+/// <summary>One suggested name: picking it fills the rename box (nothing is saved).</summary>
+public sealed partial class NameSuggestionViewModel
+{
+    private readonly WorkspaceRowViewModel _row;
+    private readonly WorkspacesViewModel _owner;
+
+    internal NameSuggestionViewModel(string name, WorkspaceRowViewModel row, WorkspacesViewModel owner)
+    {
+        Name = name;
+        _row = row;
+        _owner = owner;
+    }
+
+    public string Name { get; }
+
+    public string AutomationName => UiText.SuggestionChipName(Name);
+
+    [RelayCommand]
+    private void Pick() => _owner.PickSuggestion(_row, Name);
 }

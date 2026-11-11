@@ -1,5 +1,6 @@
 using System.Collections.Concurrent;
 using Microsoft.Extensions.Logging;
+using Mindweave.Application.Ai;
 using Mindweave.Application.Storage;
 using Mindweave.Core.Conversations;
 
@@ -26,6 +27,7 @@ public sealed partial class GenerationCoordinator : IGenerationExit, IGeneration
     private readonly TerminalWrites _writes;
     private readonly AnswerRunner _answers;
     private readonly TaskRunners _tasks;
+    private readonly IClock _clock;
 
     private bool _closed;
     private int _shutDown;
@@ -43,6 +45,7 @@ public sealed partial class GenerationCoordinator : IGenerationExit, IGeneration
         _health = health;
         _options = options;
         _logger = logger;
+        _clock = clock;
         _writes = new TerminalWrites(health, logger);
         _answers = new AnswerRunner(store, requests, _writes, health, clock, options, this, logger);
         _tasks = new TaskRunners(store, requests, _writes, health, clock, this, logger);
@@ -199,6 +202,29 @@ public sealed partial class GenerationCoordinator : IGenerationExit, IGeneration
         RaiseChanged();
     }
 
+    /// <summary>
+    /// Runs one request whose output is only shown, never stored (<see cref="TransientWork"/>), in a slot like any other
+    /// work the user started, and returns its complete text. Cancelling <paramref name="cancellationToken"/> takes it off
+    /// the queue or stops it, and the returned task is then cancelled. Throws <see cref="InvalidOperationException"/> when
+    /// new work is refused (an exit is under way), <see cref="ChatClientException"/> when the service failed or its output
+    /// was cut off or empty, and <see cref="StorageAdmissionRefusedException"/> when storage paused before it was sent.
+    /// </summary>
+    internal async Task<string> RequestTransientAsync(ChatRequest request, CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+        cancellationToken.ThrowIfCancellationRequested();
+        var task = new GenerationTaskRecord(GenerationTaskId.New(), GenerationTaskKind.NameSuggestion, default, null, request.Model, [], _clock.UtcNow);
+        var work = new TransientWork(task, request);
+        Enqueue(work);
+
+        // Registered after the work is queued, so a stop always finds it (queued or running); a token already cancelled
+        // runs the callback at once.
+        using (cancellationToken.Register(() => _ = StopTaskAsync(task.Id)))
+        {
+            return await work.Output.Task.ConfigureAwait(false);
+        }
+    }
+
     /// <summary>Stops an answer: a queued one becomes cancelled, a running one stops and keeps what arrived.</summary>
     public async Task StopAsync(MessageId answer)
     {
@@ -225,7 +251,9 @@ public sealed partial class GenerationCoordinator : IGenerationExit, IGeneration
         }
     }
 
-    /// <summary>Stops a summary or naming task: a queued one becomes cancelled, a running one stops and stores nothing.</summary>
+    /// <summary>
+    /// Stops a summary, naming or transient task: a queued one becomes cancelled, a running one stops and stores nothing.
+    /// </summary>
     public async Task StopTaskAsync(GenerationTaskId task)
     {
         GenerationWork? queued;
@@ -389,6 +417,13 @@ public sealed partial class GenerationCoordinator : IGenerationExit, IGeneration
     /// </summary>
     private async Task CancelQueuedTaskAsync(GenerationWork work)
     {
+        if (work is TransientWork transient)
+        {
+            // No row to finish: only its caller is told.
+            transient.Output.TrySetCanceled();
+            return;
+        }
+
         await _writes.SaveAsync(() => _requests.FinishTaskAsync(work.Task.Id, GenerationTaskState.Cancelled, null, null)).ConfigureAwait(false);
         if (work is TitleWork)
         {
@@ -458,6 +493,9 @@ public sealed partial class GenerationCoordinator : IGenerationExit, IGeneration
                 case NamingWork naming:
                     await _tasks.RunNamingAsync(naming, running.Cancellation.Token).ConfigureAwait(false);
                     break;
+                case TransientWork transient:
+                    await _tasks.RunTransientAsync(transient, running.Cancellation.Token).ConfigureAwait(false);
+                    break;
             }
         }
 #pragma warning disable CA1031 // A failed run must never take down the scheduler; it is logged and its slot freed.
@@ -468,6 +506,8 @@ public sealed partial class GenerationCoordinator : IGenerationExit, IGeneration
         }
         finally
         {
+            // Never leaves a caller waiting, whatever ended the run (no-op when the runner already answered).
+            (running.Work as TransientWork)?.Output.TrySetCanceled();
             lock (_gate)
             {
                 _running.Remove(running.Work.Task.Id);

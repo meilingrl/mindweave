@@ -48,6 +48,7 @@ public static class ApplicationServices
         services.AddSingleton<AppearanceService>();
         services.AddSingleton<SidebarLayoutService>();
         services.AddSingleton<NewsAlertsService>();
+        services.AddSingleton<WorkspaceNameSuggester>();
 
         // View models depend on these interfaces, not the concrete services (course requirement C3); each resolves to the
         // one singleton above, so a page and the rest of the application share state.
@@ -60,6 +61,8 @@ public static class ApplicationServices
         services.AddSingleton<ISummaryExport>(sp => sp.GetRequiredService<SummaryExportService>());
         services.AddSingleton<IModelSettings>(sp => sp.GetRequiredService<ModelSettingsService>());
         services.AddSingleton<IWorkspaces>(sp => sp.GetRequiredService<WorkspaceService>());
+        // A test may stand in for the model's suggestions (to hold or reorder them), as for the conversations interface.
+        services.TryAddSingleton<IWorkspaceNameSuggestions>(sp => sp.GetRequiredService<WorkspaceNameSuggester>());
         services.AddSingleton<IWorkspaceDeletion>(sp => sp.GetRequiredService<WorkspaceDeletionService>());
         services.AddSingleton<IConversationDeletion>(sp => sp.GetRequiredService<ConversationDeletionService>());
         services.AddSingleton<IAppearance>(sp => sp.GetRequiredService<AppearanceService>());

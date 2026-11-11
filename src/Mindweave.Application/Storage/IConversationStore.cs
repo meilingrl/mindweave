@@ -14,6 +14,12 @@ public enum GenerationTaskKind
 
     /// <summary>Distinguishes summary nodes whose base titles collide (§10.1).</summary>
     Naming,
+
+    /// <summary>
+    /// Candidate names for a workspace, asked for while renaming it (2026-11-11). Never stored: the request runs in a slot
+    /// like any other but has no task row and no trace (see <see cref="Conversations.TransientWork"/>).
+    /// </summary>
+    NameSuggestion,
 }
 
 public enum GenerationTaskState

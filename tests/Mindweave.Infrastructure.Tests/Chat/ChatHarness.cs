@@ -108,6 +108,9 @@ internal sealed class ChatHarness : IAsyncDisposable
 
     public ConversationDeletionService ConversationDeletion { get; }
 
+    /// <summary>Names suggested for a workspace while renaming it (2026-11-11).</summary>
+    public Application.Workspaces.WorkspaceNameSuggester NameSuggester => _services.GetRequiredService<Application.Workspaces.WorkspaceNameSuggester>();
+
     public string BackupDirectory => _dir.Paths.BackupDirectory;
 
     public string DataDirectory => _dir.Paths.DataDirectory;

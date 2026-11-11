@@ -65,3 +65,17 @@ public sealed record SummaryWork(GenerationTaskRecord Task, ChatRequest Request,
 /// <summary>Background naming of same-name summary nodes; <paramref name="Apply"/> receives the complete output.</summary>
 public sealed record NamingWork(GenerationTaskRecord Task, ChatRequest Request, Func<string, Task> Apply)
     : GenerationWork(Task, Request, GenerationPriority.Background);
+
+/// <summary>
+/// A request whose output is only shown and never stored (a workspace's suggested names, 2026-11-11). It takes a slot at
+/// user priority like other work the user started and waits while storage is paused, but has no task row: nothing of it
+/// survives a restart, so there is nothing to mark interrupted or keep a key for, and the exit prompt does not ask about it
+/// (an exit cancels it silently). <paramref name="Task"/> is an identity in memory only. The output, or why there is none,
+/// arrives through <see cref="Output"/>: cancelled when stopped, a <see cref="Ai.ChatClientException"/> (or
+/// <see cref="StorageAdmissionRefusedException"/>) when it failed.
+/// </summary>
+public sealed record TransientWork(GenerationTaskRecord Task, ChatRequest Request)
+    : GenerationWork(Task, Request, GenerationPriority.User)
+{
+    public TaskCompletionSource<string> Output { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+}

@@ -1,5 +1,6 @@
 <Styles xmlns="https://github.com/avaloniaui"
-        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:v="using:Mindweave.Desktop.Views">
   <!--
     Workspaces (2026-11-10): the sidebar's switcher, its menu and the inline new-workspace form, and the rows of
     设置 › 工作区. Quiet rows that belong to the sidebar rather than form fields: a tint on hover, a stronger one while
@@ -173,5 +174,41 @@
     <Setter Property="Padding" Value="8,4" />
     <Setter Property="CornerRadius" Value="6" />
     <Setter Property="VerticalContentAlignment" Value="Center" />
+  </Style>
+  <!--
+    Suggested names under a rename box (2026-11-11): quiet outlined chips that read as choices, not actions; hover and
+    keyboard focus pick out the one that would be used. Theme tokens only, so both themes follow.
+  -->
+  <Style Selector="Button.suggestion-chip">
+    <Setter Property="Padding" Value="10,3" />
+    <Setter Property="FontSize" Value="12.5" />
+    <Setter Property="CornerRadius" Value="12" />
+    <Setter Property="BorderThickness" Value="1" />
+    <Setter Property="BorderBrush" Value="{DynamicResource OutlineBrush}" />
+    <Setter Property="Background" Value="{DynamicResource WindowBackground}" />
+    <Setter Property="Foreground" Value="{DynamicResource PrimaryText}" />
+    <Setter Property="FocusAdorner">
+      <FocusAdornerTemplate>
+        <Border BorderThickness="2" BorderBrush="{DynamicResource FocusRing}" CornerRadius="14" Margin="-3" AdornerLayer.IsClipEnabled="False" />
+      </FocusAdornerTemplate>
+    </Setter>
+  </Style>
+  <Style Selector="Button.suggestion-chip:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+    <Setter Property="Background" Value="{DynamicResource BadgeAccentBackground}" />
+    <Setter Property="BorderBrush" Value="{DynamicResource AccentBrush}" />
+    <Setter Property="Foreground" Value="{DynamicResource BadgeAccentText}" />
+  </Style>
+  <Style Selector="Button.suggestion-chip:pressed /template/ ContentPresenter#PART_ContentPresenter">
+    <Setter Property="Background" Value="{DynamicResource CheckedRowHover}" />
+    <Setter Property="BorderBrush" Value="{DynamicResource AccentPressedBrush}" />
+  </Style>
+  <Style Selector="v|ActivitySpinner.suggest-spinner">
+    <Setter Property="Width" Value="12" />
+    <Setter Property="Height" Value="12" />
+    <Setter Property="Foreground" Value="{DynamicResource AccentBrush}" />
+  </Style>
+  <!-- The rename row's 建议名称: the spark in the accent colour marks the one action that asks the model. -->
+  <Style Selector="Button.suggest-names PathIcon">
+    <Setter Property="Foreground" Value="{DynamicResource AccentBrush}" />
   </Style>
 </Styles>

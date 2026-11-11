@@ -1,4 +1,5 @@
 using System.Globalization;
+using Mindweave.Core.Conversations;
 
 namespace Mindweave.Desktop;
 
@@ -67,4 +68,50 @@ public static partial class UiText
 
     /// <summary>The workspace was deleted elsewhere while its name was being edited.</summary>
     public const string WorkspaceRenameMissing = "这个工作区已不存在。";
+
+    // ── Suggested names while renaming (2026-11-11) ────────────────────────────
+
+    /// <summary>The rename row's button: asks the model for names drawn from the workspace's conversations.</summary>
+    public const string SuggestNames = "建议名称";
+
+    public static string SuggestNamesName(string name) => $"根据会话为工作区“{name}”建议名称";
+
+    /// <summary>The button's tooltip and help text: what it does, and that it never renames by itself.</summary>
+    public const string SuggestNamesTip = "根据这个工作区的会话与总结的标题，由模型给出 2–3 个名称供选择；不会自动改名。";
+
+    /// <summary>Why the button is unavailable: nothing to name the workspace after.</summary>
+    public const string SuggestNamesEmptyTip = "这个工作区还没有会话，无法根据会话建议名称。";
+
+    /// <summary>Under the rename box (in place of the counts) while the workspace has something to name it after.</summary>
+    public const string SuggestNamesHint = "建议名称会把会话与总结的标题发给模型，可能产生少量费用";
+
+    public const string SuggestingNames = "正在根据会话想名称…";
+
+    public const string StopSuggesting = "停止";
+
+    public const string StopSuggestingName = "停止建议名称";
+
+    /// <summary>Above the candidates: what picking one does, and what it does not.</summary>
+    public const string SuggestionsCaption = "选一个填入名称框，仍可修改；保存后才会改名";
+
+    /// <summary>The candidates, as a screen reader names the group.</summary>
+    public const string SuggestionsListName = "建议的名称";
+
+    public static string SuggestionChipName(string name) => $"使用名称“{name}”，填入名称框";
+
+    public const string RetrySuggestName = "重新建议名称";
+
+    public const string SuggestionsNone = "没有得到可用的名称，可以重试或自己输入。";
+
+    public const string SuggestionsEmpty = SuggestNamesEmptyTip;
+
+    public const string SuggestionsNotConfigured = "还没有配置模型，无法建议名称。";
+
+    public const string SuggestionsStoragePaused = "本地数据暂时无法保存，已暂停 AI 请求；恢复保存后可以重试。";
+
+    public const string SuggestionsUnavailable = "正在退出，暂时不能请求建议。";
+
+    /// <summary>The service failed (or the workspace could not be read: <paramref name="kind"/> null).</summary>
+    public static string SuggestionsFailed(GenerationErrorKind? kind) =>
+        kind is { } k ? $"没能得到建议：{ErrorKind(k)}。" : "没能得到建议，请重试。";
 }

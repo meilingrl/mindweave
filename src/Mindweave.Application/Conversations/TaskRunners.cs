@@ -199,6 +199,43 @@ internal sealed partial class TaskRunners(
         }
     }
 
+    /// <summary>
+    /// A request whose output is only shown (<see cref="TransientWork"/>): no row is marked or finished and no trace is
+    /// written; the outcome goes to the waiting caller, a cut-off or empty output as a failed response.
+    /// </summary>
+    public async Task RunTransientAsync(TransientWork work, CancellationToken stop)
+    {
+        try
+        {
+            var key = await _requests.ReadKeyAsync(work.Task).ConfigureAwait(false);
+            if (key.Error is { } keyError)
+            {
+                work.Output.TrySetException(new ChatClientException(keyError, key.Detail ?? keyError.ToString()));
+                return;
+            }
+
+            var (output, problem) = await _requests.RequestCompleteTextAsync(work.Task, work.Request, key.Secret!, stop, record: false).ConfigureAwait(false);
+            if (output is null)
+            {
+                work.Output.TrySetException(new ChatClientException(GenerationErrorKind.InvalidResponse, problem ?? "服务返回了空内容。"));
+            }
+            else
+            {
+                work.Output.TrySetResult(output);
+            }
+        }
+        catch (OperationCanceledException) when (stop.IsCancellationRequested)
+        {
+            work.Output.TrySetCanceled(stop);
+        }
+#pragma warning disable CA1031 // Whatever ended the request is the caller's to show; the slot must be freed either way.
+        catch (Exception ex)
+#pragma warning restore CA1031
+        {
+            work.Output.TrySetException(ex);
+        }
+    }
+
     [LoggerMessage(Level = LogLevel.Error, Message = "Summary of task {TaskId} could not be stored")]
     private static partial void LogSummaryNotSaved(ILogger logger, Exception exception, GenerationTaskId taskId);
 }

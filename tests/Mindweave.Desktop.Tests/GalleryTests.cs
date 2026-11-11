@@ -1301,6 +1301,58 @@ public class GalleryTests
         window.Close();
     }
 
+    /// <summary>
+    /// Renaming a workspace with names suggested from its conversations (2026-11-11): the line under the box says what
+    /// 建议名称 sends, and the three names to pick from, the second picked into the box and still hovered (g48); the request running, with 停止 (g48a);
+    /// a failed request with 重试 (g48b).
+    /// </summary>
+    [AvaloniaFact]
+    public async Task G48_workspace_rename_with_suggested_names()
+    {
+        await using var scene = Scene.Create("g48");
+        var window = scene.App.ShowWindow(1100, 720, Theme);
+        await SeedAsync(scene.App, summaries: true);
+        var service = scene.App.Services.GetRequiredService<WorkspaceService>();
+        foreach (var name in new[] { "城市交通", "摄影史：从银版到数码" })
+        {
+            scene.App.Workbench.Workspaces.Add(await service.CreateAsync(WorkspaceName.FromStored(name), CancellationToken.None));
+        }
+
+        scene.App.ShellPage.ManageWorkspacesCommand.Execute(null);
+        var page = Assert.IsType<WorkspacesViewModel>(scene.App.Workbench.CurrentPage);
+        await page.Loaded;
+        var row = page.Rows[0];
+        row.BeginRenameCommand.Execute(null);
+        await SettleAsync(window);
+        scene.App.Client.WorkspaceNames.Replies.Enqueue("蒸汽机车与铁路\n火车的演进\n铁路技术史");
+        row.SuggestNamesCommand.Execute(null);
+        await page.Suggesting;
+        await SettleAsync(window);
+        var chips = window.GetVisualDescendants().OfType<WorkspacesView>().Single().GetVisualDescendants().OfType<Button>().Where(b => b.Name == "SuggestionChip").ToList();
+        Assert.Equal(3, chips.Count);
+        UiInput.Click(window, chips[1], hover: true);
+        Assert.Equal("火车的演进", row.RenameText);
+        await SettleAsync(window);
+        Capture(window, "g48-workspace-name-suggestions");
+
+        var gate = scene.App.Client.WorkspaceNames.Hold();
+        row.SuggestNamesCommand.Execute(null);
+        await UiWait.UntilAsync(() => row.IsSuggesting);
+        await SettleAsync(window);
+        Capture(window, "g48a-workspace-name-suggesting");
+        row.StopSuggestingNamesCommand.Execute(null);
+        scene.App.Client.WorkspaceNames.Gate = null;
+        gate.TrySetResult();
+        await page.Suggesting;
+
+        scene.App.Client.WorkspaceNames.FailNext(GenerationErrorKind.Network);
+        row.SuggestNamesCommand.Execute(null);
+        await page.Suggesting;
+        await SettleAsync(window);
+        Capture(window, "g48b-workspace-name-suggestion-failed");
+        window.Close();
+    }
+
     // ── Sidebar status (S7 round 4) ─────────────────────────────────────────
 
     [AvaloniaFact]

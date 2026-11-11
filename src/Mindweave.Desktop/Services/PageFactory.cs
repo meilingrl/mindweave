@@ -32,7 +32,8 @@ internal sealed class PageFactory(
     Application.Preferences.INewsAlerts newsAlerts,
     Application.Workspaces.IWorkspaces workspaces,
     Application.Workspaces.IWorkspaceDeletion workspaceContents,
-    IWorkspaceSwitcher workspaceSwitcher) : IPageFactory
+    IWorkspaceSwitcher workspaceSwitcher,
+    Application.Workspaces.IWorkspaceNameSuggestions nameSuggestions) : IPageFactory
 {
     public PageViewModel Create(ContentRoute route, PageContext context) => route switch
     {
@@ -49,7 +50,9 @@ internal sealed class PageFactory(
             workspaces,
             workspaceContents,
             workspaceDeletion,
-            workspaceSwitcher),
+            workspaceSwitcher,
+            nameSuggestions,
+            context.Navigator),
         _ => throw new ArgumentOutOfRangeException(nameof(route), route, "No page is registered for this route."),
     };
 }

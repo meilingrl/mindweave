@@ -202,6 +202,36 @@ public class RealApiTests
         Assert.Contains("雨山", body, StringComparison.Ordinal);
     }
 
+    /// <summary>
+    /// 2026-11-11: names suggested for a workspace of Chinese conversations come back usable (2–3 short Chinese names after
+    /// cleaning). Run alone with <c>scripts/real-api.sh test default Workspace_names</c>; about seven short requests.
+    /// </summary>
+    [Fact]
+    public async Task Workspace_names_suggested_from_real_conversations_are_short_and_usable()
+    {
+        await using var h = await StartAsync();
+        foreach (var question in new[] { "斯蒂芬森的火箭号机车有什么特点？请用两句话回答。", "蒸汽机车的锅炉是怎么产生动力的？请用两句话回答。", "早期铁路为什么用铸铁轨道？请用两句话回答。" })
+        {
+            var (conversation, _) = await AskAsync(h, null, question);
+            await ChatHarness.UntilAsync(async () => (await h.Conversations.LoadAsync(conversation, Ct))!.Conversation.TitleSource != TitleSource.None, 120_000);
+        }
+
+        Assert.True(Core.Workspaces.WorkspaceName.TryCreate("测试", out var current, out _));
+        var result = await h.NameSuggester.SuggestAsync(h.Workspace, current!, Ct);
+
+        var said = $"problem: {result.Problem} {result.Error}; names: {string.Join(" | ", result.Names.Select(n => n.Value))}";
+        TestContext.Current.SendDiagnosticMessage(said);
+
+        // The console logger hides a passing test's messages; a run that wants the names names a file for them.
+        if (Environment.GetEnvironmentVariable("MINDWEAVE_REAL_API_REPORT") is { Length: > 0 } report)
+        {
+            await File.AppendAllTextAsync(report, said + Environment.NewLine, Ct);
+        }
+        Assert.Null(result.Problem);
+        Assert.InRange(result.Names.Count, 2, Application.Workspaces.WorkspaceNamePrompt.MaxCandidates);
+        Assert.All(result.Names, n => Assert.Matches(@"\p{IsCJKUnifiedIdeographs}", n.Value));
+    }
+
     private static async Task<(ConversationId Conversation, Message Answer)> AskAsync(ChatHarness h, ConversationId? conversation, string question)
     {
         var sent = conversation is { } id

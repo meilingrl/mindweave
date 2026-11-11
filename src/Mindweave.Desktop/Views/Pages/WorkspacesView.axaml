@@ -2,6 +2,7 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:vm="using:Mindweave.Desktop.ViewModels.Pages"
              xmlns:d="using:Mindweave.Desktop"
+             xmlns:v="using:Mindweave.Desktop.Views"
              x:Class="Mindweave.Desktop.Views.Pages.WorkspacesView"
              x:DataType="vm:WorkspacesViewModel">
   <!-- 设置 › 工作区 (2026-11-10): every workspace with what it holds; the open one tagged 当前; per row 切换, 改名 (in
@@ -48,7 +49,7 @@
           </ItemsControl.ItemsPanel>
           <ItemsControl.ItemTemplate>
             <DataTemplate x:DataType="vm:WorkspaceRowViewModel">
-              <Border Name="WorkspaceRow" Classes="workspace-row" AutomationProperties.Name="{Binding AutomationName}">
+              <Border Name="WorkspaceRow" Classes="workspace-row" AutomationProperties.Name="{Binding AutomationName}" KeyDown="OnRowKeyDown">
                 <DockPanel>
                   <!-- The row's actions; while renaming, 保存 and 取消 take their place. -->
                   <StackPanel Name="WorkspaceRowActions" DockPanel.Dock="Right" Orientation="Horizontal" Spacing="2" VerticalAlignment="Center"
@@ -72,6 +73,15 @@
                   </StackPanel>
                   <StackPanel Name="WorkspaceRenameActions" DockPanel.Dock="Right" Orientation="Horizontal" Spacing="4" VerticalAlignment="Top"
                               Margin="10,0,0,0" Height="28" IsVisible="{Binding IsRenaming}">
+                    <!-- 2026-11-11: asks the model for names drawn from the conversations; never renames by itself. -->
+                    <Button Name="SuggestNamesButton" Classes="quiet small suggest-names" Command="{Binding SuggestNamesCommand}"
+                            IsVisible="{Binding CanSuggestNames}" ToolTip.Tip="{Binding SuggestTip}" ToolTip.ShowOnDisabled="True"
+                            AutomationProperties.Name="{Binding SuggestName}" AutomationProperties.HelpText="{Binding SuggestTip}">
+                      <StackPanel Orientation="Horizontal" Spacing="4">
+                        <PathIcon Data="{StaticResource IconSparkle}" />
+                        <TextBlock Text="{x:Static d:UiText.SuggestNames}" VerticalAlignment="Center" />
+                      </StackPanel>
+                    </Button>
                     <Button Name="CancelRenameWorkspaceButton" Classes="quiet small" Content="{x:Static d:UiText.Cancel}" Command="{Binding CancelRenameCommand}" />
                     <Button Name="SaveRenameWorkspaceButton" Classes="primary" Padding="12,4" FontSize="12.5" Content="{x:Static d:UiText.Save}" Command="{Binding CommitRenameCommand}" />
                   </StackPanel>
@@ -85,9 +95,44 @@
                     <!-- The name turns into a box of the same place and weight: Enter saves, Esc cancels. -->
                     <TextBox Name="WorkspaceRenameBox" Classes="workspace-rename" IsVisible="{Binding IsRenaming}" Text="{Binding RenameText}"
                              AutomationProperties.Name="{x:Static d:UiText.WorkspaceNameLabel}" KeyDown="OnRenameBoxKeyDown" />
-                    <TextBlock Name="WorkspaceRowCounts" Classes="caption" Text="{Binding CountsText}" />
+                    <TextBlock Name="WorkspaceRowCounts" Classes="caption" Text="{Binding CountsText}" IsVisible="{Binding ShowsCounts}" />
+                    <!-- While renaming, the same line says what 建议名称 sends, before anything is sent (the row keeps its height). -->
+                    <TextBlock Name="SuggestNamesHint" Classes="caption" Text="{x:Static d:UiText.SuggestNamesHint}" TextTrimming="CharacterEllipsis"
+                               IsVisible="{Binding ShowsSuggestHint}" ToolTip.Tip="{x:Static d:UiText.SuggestNamesHint}" />
                     <TextBlock Name="WorkspaceRenameError" Classes="error" FontSize="12" TextWrapping="Wrap" Text="{Binding RenameError}"
                                IsVisible="{Binding RenameError, Converter={x:Static ObjectConverters.IsNotNull}}" />
+                    <!-- Suggested names (2026-11-11): shown only once asked for; Tab reaches them after the box, Enter or Space picks. -->
+                    <StackPanel Name="SuggestionPanel" Spacing="6" Margin="0,8,0,2" IsVisible="{Binding ShowsSuggestionPanel}" v:Motion.Appear="Fade">
+                      <StackPanel Name="SuggestingLine" Orientation="Horizontal" Spacing="8" IsVisible="{Binding IsSuggesting}">
+                        <v:ActivitySpinner Classes="suggest-spinner" VerticalAlignment="Center" />
+                        <TextBlock Classes="caption" VerticalAlignment="Center" Text="{x:Static d:UiText.SuggestingNames}" />
+                        <Button Name="StopSuggestingButton" Classes="quiet small" Content="{x:Static d:UiText.StopSuggesting}"
+                                Command="{Binding StopSuggestingNamesCommand}" AutomationProperties.Name="{x:Static d:UiText.StopSuggestingName}" />
+                      </StackPanel>
+                      <TextBlock Name="SuggestionsCaption" Classes="caption" Text="{x:Static d:UiText.SuggestionsCaption}" IsVisible="{Binding HasSuggestions}" />
+                      <ItemsControl Name="SuggestionChips" ItemsSource="{Binding Suggestions}" IsVisible="{Binding HasSuggestions}"
+                                    AutomationProperties.Name="{x:Static d:UiText.SuggestionsListName}">
+                        <ItemsControl.ItemsPanel>
+                          <ItemsPanelTemplate>
+                            <WrapPanel ItemSpacing="6" LineSpacing="6" />
+                          </ItemsPanelTemplate>
+                        </ItemsControl.ItemsPanel>
+                        <ItemsControl.ItemTemplate>
+                          <DataTemplate x:DataType="vm:NameSuggestionViewModel">
+                            <Button Name="SuggestionChip" Classes="suggestion-chip" Content="{Binding Name}" Command="{Binding PickCommand}"
+                                    AutomationProperties.Name="{Binding AutomationName}" />
+                          </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                      </ItemsControl>
+                      <WrapPanel Name="SuggestionProblemLine" IsVisible="{Binding HasSuggestionProblem}" ItemSpacing="4">
+                        <TextBlock Name="SuggestionProblemText" Classes="caption" TextWrapping="Wrap" VerticalAlignment="Center" Margin="0,0,4,0"
+                                   Text="{Binding SuggestionProblem}" />
+                        <Button Name="RetrySuggestButton" Classes="quiet small" Content="{x:Static d:UiText.Retry}" Command="{Binding SuggestNamesCommand}"
+                                IsVisible="{Binding SuggestionCanRetry}" AutomationProperties.Name="{x:Static d:UiText.RetrySuggestName}" />
+                        <Button Name="SuggestSettingsButton" Classes="quiet small" Content="{x:Static d:UiText.OpenSettingsLink}"
+                                Command="{Binding OpenModelSettingsCommand}" IsVisible="{Binding SuggestionNeedsSettings}" />
+                      </WrapPanel>
+                    </StackPanel>
                   </StackPanel>
                 </DockPanel>
               </Border>

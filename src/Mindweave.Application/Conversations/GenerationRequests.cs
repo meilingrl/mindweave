@@ -64,9 +64,10 @@ public sealed partial class GenerationRequests
 
     /// <summary>
     /// One request whose output the program uses directly: only a normal, non-empty finish counts (D-015); a cut-off
-    /// output is never used. Returns the text, or null with the reason.
+    /// output is never used. Returns the text, or null with the reason. <paramref name="record"/> false sends no trace: a
+    /// request without a task row (<see cref="TransientWork"/>) has nothing to attach one to.
     /// </summary>
-    internal async Task<(string? Text, string? Problem)> RequestCompleteTextAsync(GenerationTaskRecord task, ChatRequest request, string apiKey, CancellationToken stop)
+    internal async Task<(string? Text, string? Problem)> RequestCompleteTextAsync(GenerationTaskRecord task, ChatRequest request, string apiKey, CancellationToken stop, bool record = true)
     {
         if (!_health.TryAdmit())
         {
@@ -93,13 +94,21 @@ public sealed partial class GenerationRequests
         }
         catch (OperationCanceledException) when (stop.IsCancellationRequested)
         {
-            await RecordAsync(trace.Finish(stopped: true, null, null)).ConfigureAwait(false);
+            if (record)
+            {
+                await RecordAsync(trace.Finish(stopped: true, null, null)).ConfigureAwait(false);
+            }
+
             throw;
         }
         catch (ChatClientException ex)
         {
             trace.Fail(ex);
-            await RecordAsync(trace.Finish(stopped: false, ex.Kind, ex.Message)).ConfigureAwait(false);
+            if (record)
+            {
+                await RecordAsync(trace.Finish(stopped: false, ex.Kind, ex.Message)).ConfigureAwait(false);
+            }
+
             throw;
         }
 
@@ -108,7 +117,11 @@ public sealed partial class GenerationRequests
             : completed.Truncated ? "输出达到上限被截断，未保存。"
             : output.Length == 0 ? "服务返回了空内容。"
             : null;
-        await RecordAsync(trace.Finish(stopped: false, problem is null ? null : GenerationErrorKind.InvalidResponse, problem)).ConfigureAwait(false);
+        if (record)
+        {
+            await RecordAsync(trace.Finish(stopped: false, problem is null ? null : GenerationErrorKind.InvalidResponse, problem)).ConfigureAwait(false);
+        }
+
         return problem is null ? (output, null) : (null, problem);
     }
 
