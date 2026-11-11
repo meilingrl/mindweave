@@ -104,6 +104,10 @@ public class WorkspaceNameSuggestionTests
         Assert.Equal(["蒸汽机车史", "《死寂》与恐怖片", "铁路发展"], names.Select(n => n.Value));
         Assert.Equal(["火车与工业", "第四个"], WorkspaceNamePrompt.ParseCandidates("**火车与工业**\n  第四个  \n\n", Name("测试")).Select(n => n.Value));
         Assert.Empty(WorkspaceNamePrompt.ParseCandidates("测试\n“测试”\n。\n", Name("测试")));
+
+        // A lead-in without a colon is not a name; a marker inside emphasis goes too (review, 2026-11-11).
+        Assert.Equal(["蒸汽机车史", "铁路的诞生"], WorkspaceNamePrompt.ParseCandidates("以下是候选名称\n**1. 蒸汽机车史**\n2. 铁路的诞生", Name("测试")).Select(n => n.Value));
+        Assert.Equal(["Early Railways"], WorkspaceNamePrompt.ParseCandidates("Here are some names\nEarly Railways", Name("测试")).Select(n => n.Value));
     }
 
     [Fact]

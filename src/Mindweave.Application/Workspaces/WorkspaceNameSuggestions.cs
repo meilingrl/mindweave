@@ -233,12 +233,14 @@ public static partial class WorkspaceNamePrompt
         foreach (var raw in output.Split('\n'))
         {
             var line = raw.Trim();
-            if (line.Length == 0 || line.EndsWith(':') || line.EndsWith('：'))
+            if (line.Length == 0 || line.EndsWith(':') || line.EndsWith('：') || Preamble().IsMatch(line))
             {
                 continue;
             }
 
+            // The marker may sit inside emphasis ("**1. 名称**"): strip it before and after the wrapping marks go.
             var cleaned = ConversationRules.CleanGeneratedTitle(ListMarker().Replace(line, string.Empty));
+            cleaned = cleaned is null ? null : ConversationRules.CleanGeneratedTitle(ListMarker().Replace(cleaned, string.Empty));
             if (cleaned is null
                 || new StringInfo(cleaned).LengthInTextElements > MaxCandidateLength
                 || !WorkspaceName.TryCreate(cleaned, out var name, out _)
@@ -290,4 +292,8 @@ public static partial class WorkspaceNamePrompt
     /// <summary>"1. ", "2、", "(3)", "- ", "• " before a name; a bare "*" or "-" stays (it may be emphasis around the name).</summary>
     [GeneratedRegex(@"^(?:[-*+]\s+|[•·]\s*|\d{1,2}\s*[.、)）:：]\s*|[（(]\d{1,2}[)）]\s*)")]
     private static partial Regex ListMarker();
+
+    /// <summary>A chatty model's lead-in ("以下是候选名称", "Here are three names"), even without a closing colon.</summary>
+    [GeneratedRegex(@"^(?:以下|下面|这里|好的|当然|候选名称|Here\b|Sure\b|Candidates?\b|Suggestions?\b)", RegexOptions.IgnoreCase)]
+    private static partial Regex Preamble();
 }

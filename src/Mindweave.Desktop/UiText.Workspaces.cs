@@ -77,7 +77,7 @@ public static partial class UiText
     public static string SuggestNamesName(string name) => $"根据会话为工作区“{name}”建议名称";
 
     /// <summary>The button's tooltip and help text: what it does, and that it never renames by itself.</summary>
-    public const string SuggestNamesTip = "根据这个工作区的会话与总结的标题，由模型给出 2–3 个名称供选择；不会自动改名。";
+    public const string SuggestNamesTip = "根据这个工作区的会话与总结的标题，由模型给出 2–3 个名称供选择；会把标题发给模型，可能产生少量费用；不会自动改名。";
 
     /// <summary>Why the button is unavailable: nothing to name the workspace after.</summary>
     public const string SuggestNamesEmptyTip = "这个工作区还没有会话，无法根据会话建议名称。";
