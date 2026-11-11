@@ -9,7 +9,8 @@ public sealed partial class WorkspaceService(
     ILocationStore locations,
     IClock clock,
     StorageHealth health,
-    ILogger<WorkspaceService> logger) : IWorkspaces
+    ILogger<WorkspaceService> logger,
+    IWorkspaceNameCache? names = null) : IWorkspaces
 {
     public Task<IReadOnlyList<Workspace>> ListAsync(CancellationToken cancellationToken) =>
         store.ListAsync(cancellationToken);
@@ -41,6 +42,12 @@ public sealed partial class WorkspaceService(
         if (renamed is not null)
         {
             LogRenamed(logger, workspace);
+
+            // A kept candidate equal to the new name was taken: it is no longer offered (2026-11-11).
+            if (names is not null)
+            {
+                await names.RenamedAsync(workspace, name, CancellationToken.None).ConfigureAwait(false);
+            }
         }
 
         return renamed;

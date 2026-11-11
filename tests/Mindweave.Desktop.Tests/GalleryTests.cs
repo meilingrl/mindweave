@@ -1206,7 +1206,10 @@ public class GalleryTests
         window.Close();
     }
 
-    /// <summary>The 提示 section: the open workspace's hints (on, the default) and the sound (chosen here).</summary>
+    /// <summary>
+    /// The 提示 section: the open workspace's hints (on, the default), the sound (chosen here), and the workspace names
+    /// prepared in the background (2026-11-11, on, the default).
+    /// </summary>
     [AvaloniaFact]
     public async Task G43_settings_news_sound()
     {
@@ -1302,9 +1305,10 @@ public class GalleryTests
     }
 
     /// <summary>
-    /// Renaming a workspace with names suggested from its conversations (2026-11-11): the line under the box says what
-    /// 建议名称 sends, and the three names to pick from, the second picked into the box and still hovered (g48); the request running, with 停止 (g48a);
-    /// a failed request with 重试 (g48b).
+    /// Renaming a workspace with names suggested from its conversations (2026-11-11; reworked the same day by the user's
+    /// decision): the first name offered dimly after the selected name, with its Tab hint, and 换一批 (g48); 更多建议 open,
+    /// the second name picked into the box and still hovered (g48c); 换一批 running, with 停止 (g48a); a failed request with
+    /// 重试, the names offered before still there (g48b).
     /// </summary>
     [AvaloniaFact]
     public async Task G48_workspace_rename_with_suggested_names()
@@ -1323,26 +1327,35 @@ public class GalleryTests
         await page.Loaded;
         var row = page.Rows[0];
         row.BeginRenameCommand.Execute(null);
+        await page.KeptNamesRead;
         await SettleAsync(window);
-        scene.App.Client.WorkspaceNames.Replies.Enqueue("蒸汽机车与铁路\n火车的演进\n铁路技术史");
+        scene.App.Client.WorkspaceNames.Replies.Enqueue("火车的演进\n蒸汽机车与铁路\n铁路技术史");
         row.SuggestNamesCommand.Execute(null);
         await page.Suggesting;
+        var box = window.GetVisualDescendants().OfType<WorkspacesView>().Single().GetVisualDescendants().OfType<GhostTextBox>().First(b => ReferenceEquals(b.DataContext, row));
+        box.Focus(NavigationMethod.Tab);
+        await UiWait.UntilAsync(() => box.IsFocused && box.ShowsGhost);
+        await SettleAsync(window);
+        Capture(window, "g48-workspace-name-suggestions");
+
+        row.ToggleChipsCommand.Execute(null);
         await SettleAsync(window);
         var chips = window.GetVisualDescendants().OfType<WorkspacesView>().Single().GetVisualDescendants().OfType<Button>().Where(b => b.Name == "SuggestionChip").ToList();
         Assert.Equal(3, chips.Count);
         UiInput.Click(window, chips[1], hover: true);
-        Assert.Equal("火车的演进", row.RenameText);
+        Assert.Equal("蒸汽机车与铁路", row.RenameText);
         await SettleAsync(window);
-        Capture(window, "g48-workspace-name-suggestions");
+        Capture(window, "g48c-workspace-name-suggestion-chips");
+        row.ToggleChipsCommand.Execute(null);
 
-        var gate = scene.App.Client.WorkspaceNames.Hold();
+        var held = scene.App.Client.WorkspaceNames.Hold();
         row.SuggestNamesCommand.Execute(null);
         await UiWait.UntilAsync(() => row.IsSuggesting);
         await SettleAsync(window);
         Capture(window, "g48a-workspace-name-suggesting");
         row.StopSuggestingNamesCommand.Execute(null);
         scene.App.Client.WorkspaceNames.Gate = null;
-        gate.TrySetResult();
+        held.TrySetResult();
         await page.Suggesting;
 
         scene.App.Client.WorkspaceNames.FailNext(GenerationErrorKind.Network);

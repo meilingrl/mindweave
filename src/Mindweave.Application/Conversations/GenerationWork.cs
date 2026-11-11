@@ -18,6 +18,12 @@ public enum GenerationPriority
 {
     User,
     Background,
+
+    /// <summary>
+    /// Prepared in advance, never asked for (a workspace's names, 2026-11-11): starts only when no user or background work
+    /// waits, and gives its slot up as soon as such work would otherwise wait for it.
+    /// </summary>
+    Idle,
 }
 
 /// <summary>Work accepted for generation; the request (model snapshot and turns) is already frozen.</summary>
@@ -67,15 +73,46 @@ public sealed record NamingWork(GenerationTaskRecord Task, ChatRequest Request, 
     : GenerationWork(Task, Request, GenerationPriority.Background);
 
 /// <summary>
-/// A request whose output is only shown and never stored (a workspace's suggested names, 2026-11-11). It takes a slot at
-/// user priority like other work the user started and waits while storage is paused, but has no task row: nothing of it
-/// survives a restart, so there is nothing to mark interrupted or keep a key for, and the exit prompt does not ask about it
-/// (an exit cancels it silently). <paramref name="Task"/> is an identity in memory only. The output, or why there is none,
-/// arrives through <see cref="Output"/>: cancelled when stopped, a <see cref="Ai.ChatClientException"/> (or
-/// <see cref="StorageAdmissionRefusedException"/>) when it failed.
+/// Who a request without a task row is counted for (2026-11-11): the workspace and the kind of request, so its token use
+/// is recorded (<c>ai_request</c> without a task, migration v10) and the statistics page can count it.
 /// </summary>
-public sealed record TransientWork(GenerationTaskRecord Task, ChatRequest Request)
-    : GenerationWork(Task, Request, GenerationPriority.User)
+public sealed record RequestAttribution(Core.Workspaces.WorkspaceId Workspace, string Kind)
+{
+    /// <summary>A workspace's suggested names, asked for while renaming it or prepared in the background.</summary>
+    public const string WorkspaceNames = "workspace-name";
+}
+
+/// <summary>
+/// A request whose output is only shown and never stored as content (a workspace's suggested names, 2026-11-11). It takes a
+/// slot like other work (<paramref name="Priority"/>: user when asked for, idle when prepared in the background) and waits
+/// while storage is paused, but has no task row: nothing of it survives a restart, so there is nothing to mark interrupted
+/// or keep a key for, and the exit prompt does not ask about it (an exit cancels it silently). <paramref name="Task"/> is an
+/// identity in memory only. The request itself is recorded for <paramref name="Attribution"/> when one is given. The
+/// output, or why there is none, arrives through <see cref="Output"/>: cancelled when stopped, a
+/// <see cref="Ai.ChatClientException"/> (or <see cref="StorageAdmissionRefusedException"/>) when it failed, and a
+/// <see cref="GenerationPreemptedException"/> when idle work gave its slot up.
+/// </summary>
+public sealed record TransientWork(GenerationTaskRecord Task, ChatRequest Request, GenerationPriority Priority, RequestAttribution? Attribution = null)
+    : GenerationWork(Task, Request, Priority)
 {
     public TaskCompletionSource<string> Output { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+}
+
+/// <summary>Idle work gave its slot up to user or background work that would otherwise have waited; it may be asked again later.</summary>
+public sealed class GenerationPreemptedException : OperationCanceledException
+{
+    public GenerationPreemptedException()
+        : base("Idle work gave its slot to other work.")
+    {
+    }
+
+    public GenerationPreemptedException(string message)
+        : base(message)
+    {
+    }
+
+    public GenerationPreemptedException(string message, Exception innerException)
+        : base(message, innerException)
+    {
+    }
 }

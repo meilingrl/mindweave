@@ -53,7 +53,8 @@ public sealed partial class WorkspaceDeletionService(
     IDatabaseBackup backup,
     StorageHealth health,
     GenerationCoordinator generation,
-    ILogger<WorkspaceDeletionService> logger) : IWorkspaceDeletion
+    ILogger<WorkspaceDeletionService> logger,
+    IWorkspaceNameCache? names = null) : IWorkspaceDeletion
 {
     public Task<WorkspaceContents> InspectAsync(WorkspaceId workspace, CancellationToken cancellationToken) =>
         store.InspectAsync(workspace, cancellationToken);
@@ -118,6 +119,13 @@ public sealed partial class WorkspaceDeletionService(
 
         // Their task rows are gone with the commit; a title or naming still running is stopped and its late write finds nothing.
         await generation.CancelBackgroundAsync(result.Deleted.ToHashSet()).ConfigureAwait(false);
+
+        // Its kept names go with it (2026-11-11); its requests were recorded for it and went with the commit (v10 cascade).
+        if (names is not null)
+        {
+            await names.ForgetAsync(workspace, CancellationToken.None).ConfigureAwait(false);
+        }
+
         LogDeleted(logger, workspace, result.Deleted.Count, path);
         return new WorkspaceDeleteOutcome(WorkspaceDeleteStatus.Deleted, [], result.Next, path);
     }

@@ -108,7 +108,11 @@ public sealed class ConversationService : IConversations
         _models = models;
         _clock = clock;
         _generation.AnswerFinished += OnAnswerFinished;
-        _generation.TitleSaved += (_, id) => ConversationChanged?.Invoke(this, id);
+        _generation.TitleSaved += (_, id) =>
+        {
+            ConversationChanged?.Invoke(this, id);
+            TitleSet?.Invoke(this, id);
+        };
         _titler = new ConversationTitler(store, branches, generation, health, models, clock, logger);
         _models.Changed += (_, _) => ModelChanged?.Invoke(this, EventArgs.Empty);
     }
@@ -118,6 +122,12 @@ public sealed class ConversationService : IConversations
 
     /// <summary>A conversation's stored content or title changed. Raised on worker threads.</summary>
     public event EventHandler<ConversationId>? ConversationChanged;
+
+    /// <summary>
+    /// A conversation was given a title, automatic or manual, in any workspace (after it was stored). The workspace's names
+    /// are prepared from these (2026-11-11). Raised on worker threads.
+    /// </summary>
+    public event EventHandler<ConversationId>? TitleSet;
 
     /// <summary><see cref="IsStorageBlocked"/> changed. Raised on worker threads.</summary>
     public event EventHandler? StorageStateChanged
@@ -497,6 +507,7 @@ public sealed class ConversationService : IConversations
             return true;
         }).ConfigureAwait(false);
         ConversationChanged?.Invoke(this, id);
+        TitleSet?.Invoke(this, id);
     }
 
     /// <summary>

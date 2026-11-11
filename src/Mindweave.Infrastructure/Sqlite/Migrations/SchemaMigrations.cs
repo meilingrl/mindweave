@@ -385,5 +385,49 @@ internal static class SchemaMigrations
             -- their requests by the existing per-task index.
             CREATE INDEX generation_task_by_model ON generation_task (model, base_url);
             """),
+
+        Migration.Sql(10, "requests without a task, counted for a workspace", """
+            -- A request may be made without a task row (2026-11-11: a workspace's suggested names, asked for or prepared in
+            -- the background): it is then counted for its workspace and a kind, with its own model, so the statistics page
+            -- can count its tokens. Exactly one of task and workspace. The kind is checked by the application, as message
+            -- blocks are (a CHECK on its values would need another rebuild for each new kind). The workspace's requests go
+            -- with it, as a task's go with the task. task_id can only lose NOT NULL by rebuilding the table; nothing
+            -- references ai_request, so the rebuild touches no other table.
+            CREATE TABLE ai_request_v10 (
+                id                  TEXT    NOT NULL PRIMARY KEY,
+                task_id             TEXT    REFERENCES generation_task (id) ON DELETE CASCADE,
+                workspace_id        TEXT    REFERENCES workspace (id) ON DELETE CASCADE,
+                kind                TEXT    CHECK (length(kind) > 0),
+                model               TEXT,
+                base_url            TEXT,
+                started_at          INTEGER NOT NULL,
+                finished_at         INTEGER NOT NULL,
+                response_ms         INTEGER,
+                first_text_ms       INTEGER,
+                outcome             TEXT    NOT NULL CHECK (outcome IN ('completed', 'truncated', 'stopped', 'failed')),
+                http_status         INTEGER,
+                provider_request_id TEXT,
+                error_kind          TEXT,
+                error_detail        TEXT,
+                output_chars        INTEGER NOT NULL CHECK (output_chars >= 0),
+                prompt_tokens       INTEGER,
+                completion_tokens   INTEGER,
+                estimated_tokens    INTEGER CHECK (estimated_tokens >= 0),
+                CHECK ((task_id IS NULL) <> (workspace_id IS NULL)),
+                CHECK (task_id IS NOT NULL OR (kind IS NOT NULL AND model IS NOT NULL AND base_url IS NOT NULL)),
+                CHECK (task_id IS NULL OR (kind IS NULL AND model IS NULL AND base_url IS NULL))
+            ) STRICT;
+            INSERT INTO ai_request_v10 (
+                id, task_id, started_at, finished_at, response_ms, first_text_ms, outcome, http_status, provider_request_id,
+                error_kind, error_detail, output_chars, prompt_tokens, completion_tokens, estimated_tokens)
+            SELECT
+                id, task_id, started_at, finished_at, response_ms, first_text_ms, outcome, http_status, provider_request_id,
+                error_kind, error_detail, output_chars, prompt_tokens, completion_tokens, estimated_tokens
+            FROM ai_request;
+            DROP TABLE ai_request;
+            ALTER TABLE ai_request_v10 RENAME TO ai_request;
+            CREATE INDEX ai_request_by_task ON ai_request (task_id, started_at);
+            CREATE INDEX ai_request_by_workspace ON ai_request (workspace_id, started_at) WHERE workspace_id IS NOT NULL;
+            """),
     ];
 }

@@ -65,6 +65,8 @@
       <SolidColorBrush x:Key="FloatingBorder">#E2DFDC</SolidColorBrush>
       <BoxShadows x:Key="FloatingShadow">0 4 14 0 #1F000000</BoxShadows>
       <SolidColorBrush x:Key="TimestampText">#857F79</SolidColorBrush>
+      <!-- A suggestion drawn after typed text (ghost text, 2026-11-11): legible, clearly secondary to the text itself. -->
+      <SolidColorBrush x:Key="SuggestionGhostText">#948E88</SolidColorBrush>
       <!-- Conversation: marks in the margin for answers with branches -->
       <SolidColorBrush x:Key="BranchMark">#6A83F6</SolidColorBrush>
       <SolidColorBrush x:Key="BranchMarkHover">#2B47CC</SolidColorBrush>
@@ -192,6 +194,7 @@
       <SolidColorBrush x:Key="FloatingBorder">#3A3D45</SolidColorBrush>
       <BoxShadows x:Key="FloatingShadow">0 6 18 0 #73000000</BoxShadows>
       <SolidColorBrush x:Key="TimestampText">#7E8492</SolidColorBrush>
+      <SolidColorBrush x:Key="SuggestionGhostText">#7F8696</SolidColorBrush>
       <!-- Conversation: marks in the margin for answers with branches -->
       <SolidColorBrush x:Key="BranchMark">#7286E6</SolidColorBrush>
       <SolidColorBrush x:Key="BranchMarkHover">#BDC9F2</SolidColorBrush>

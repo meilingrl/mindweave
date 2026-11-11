@@ -1,5 +1,7 @@
+using Mindweave.Application.Conversations;
 using Mindweave.Application.Diagnostics;
 using Mindweave.Core.Conversations;
+using Mindweave.Core.Workspaces;
 
 namespace Mindweave.Infrastructure.Sqlite;
 
@@ -8,16 +10,30 @@ internal sealed class SqliteAiRequestStore(SqliteDatabase database) : IAiRequest
     public Task AddAsync(AiRequestRecord record, CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(record);
+        if ((record.TaskId is null) == (record.Attribution is null))
+        {
+            throw new ArgumentException("A request is recorded for a task or for a workspace, not both or neither.", nameof(record));
+        }
+
+        if (record.Attribution is { } owner && owner.Kind != RequestAttribution.WorkspaceNames)
+        {
+            throw new ArgumentException($"Unknown request kind '{owner.Kind}'.", nameof(record));
+        }
+
         return database.WriteAsync(
             (connection, transaction) => connection.Execute(transaction, """
-                INSERT INTO ai_request (id, task_id, started_at, finished_at, response_ms, first_text_ms, outcome,
-                                        http_status, provider_request_id, error_kind, error_detail, output_chars,
-                                        prompt_tokens, completion_tokens, estimated_tokens)
-                VALUES ($id, $task, $started, $finished, $response, $first, $outcome, $status, $provider, $kind, $detail, $chars,
-                        $prompt, $completion, $estimated);
+                INSERT INTO ai_request (id, task_id, workspace_id, kind, model, base_url, started_at, finished_at, response_ms,
+                                        first_text_ms, outcome, http_status, provider_request_id, error_kind, error_detail,
+                                        output_chars, prompt_tokens, completion_tokens, estimated_tokens)
+                VALUES ($id, $task, $workspace, $owner, $model, $base, $started, $finished, $response, $first, $outcome, $status,
+                        $provider, $kind, $detail, $chars, $prompt, $completion, $estimated);
                 """,
                 ("$id", record.Id.ToString("D")),
-                ("$task", record.TaskId.ToString()),
+                ("$task", record.TaskId?.ToString()),
+                ("$workspace", record.Attribution?.Workspace.ToString()),
+                ("$owner", record.Attribution?.Kind),
+                ("$model", record.Attribution is null ? null : record.Model),
+                ("$base", record.Attribution is null ? null : record.BaseUrl),
                 ("$started", record.StartedAt.Ms()),
                 ("$finished", record.FinishedAt.Ms()),
                 ("$response", (long?)record.TimeToResponse?.TotalMilliseconds),
@@ -35,23 +51,30 @@ internal sealed class SqliteAiRequestStore(SqliteDatabase database) : IAiRequest
     }
 
     public Task<IReadOnlyList<AiRequestRecord>> ForTaskAsync(GenerationTaskId task, CancellationToken cancellationToken) =>
+        ReadAsync("task_id = $owner", task.ToString(), cancellationToken);
+
+    public Task<IReadOnlyList<AiRequestRecord>> ForWorkspaceAsync(WorkspaceId workspace, CancellationToken cancellationToken) =>
+        ReadAsync("workspace_id = $owner", workspace.ToString(), cancellationToken);
+
+    private Task<IReadOnlyList<AiRequestRecord>> ReadAsync(string where, string owner, CancellationToken cancellationToken) =>
         database.ReadAsync<IReadOnlyList<AiRequestRecord>>(
             connection =>
             {
-                using var command = connection.Command(null, """
+                using var command = connection.Command(null, $"""
                     SELECT id, task_id, started_at, finished_at, response_ms, first_text_ms, outcome,
                            http_status, provider_request_id, error_kind, error_detail, output_chars, prompt_tokens, completion_tokens,
-                           estimated_tokens
-                    FROM ai_request WHERE task_id = $task ORDER BY started_at, rowid;
-                    """, ("$task", task.ToString()));
+                           estimated_tokens, workspace_id, kind, model, base_url
+                    FROM ai_request WHERE {where} ORDER BY started_at, rowid;
+                    """, ("$owner", owner));
                 using var reader = command.ExecuteReader();
                 var list = new List<AiRequestRecord>();
                 while (reader.Read())
                 {
                     var kind = reader.NullableString(9);
+                    var workspace = reader.NullableString(15);
                     list.Add(new AiRequestRecord(
                         Guid.ParseExact(reader.GetString(0), "D"),
-                        GenerationTaskId.Parse(reader.GetString(1)),
+                        reader.NullableString(1) is { } taskId ? GenerationTaskId.Parse(taskId) : null,
                         reader.Time(2),
                         reader.Time(3),
                         reader.NullableInt64(4) is { } response ? TimeSpan.FromMilliseconds(response) : null,
@@ -64,7 +87,10 @@ internal sealed class SqliteAiRequestStore(SqliteDatabase database) : IAiRequest
                         reader.GetInt32(11),
                         reader.NullableInt64(12) is { } prompt ? (int)prompt : null,
                         reader.NullableInt64(13) is { } completion ? (int)completion : null,
-                        reader.NullableInt64(14) is { } estimated ? (int)estimated : null));
+                        reader.NullableInt64(14) is { } estimated ? (int)estimated : null,
+                        workspace is null ? null : new RequestAttribution(WorkspaceId.Parse(workspace), reader.GetString(16)),
+                        reader.NullableString(17),
+                        reader.NullableString(18)));
                 }
 
                 return list;

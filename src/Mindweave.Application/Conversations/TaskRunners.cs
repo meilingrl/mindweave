@@ -200,8 +200,9 @@ internal sealed partial class TaskRunners(
     }
 
     /// <summary>
-    /// A request whose output is only shown (<see cref="TransientWork"/>): no row is marked or finished and no trace is
-    /// written; the outcome goes to the waiting caller, a cut-off or empty output as a failed response.
+    /// A request whose output is only shown (<see cref="TransientWork"/>): no task row is marked or finished; the request
+    /// is recorded for the work's attribution, if any (2026-11-11). The outcome goes to the waiting caller, a cut-off or
+    /// empty output as a failed response.
     /// </summary>
     public async Task RunTransientAsync(TransientWork work, CancellationToken stop)
     {
@@ -214,7 +215,7 @@ internal sealed partial class TaskRunners(
                 return;
             }
 
-            var (output, problem) = await _requests.RequestCompleteTextAsync(work.Task, work.Request, key.Secret!, stop, record: false).ConfigureAwait(false);
+            var (output, problem) = await _requests.RequestCompleteTextAsync(work.Task, work.Request, key.Secret!, stop, record: false, attribution: work.Attribution).ConfigureAwait(false);
             if (output is null)
             {
                 work.Output.TrySetException(new ChatClientException(GenerationErrorKind.InvalidResponse, problem ?? "服务返回了空内容。"));

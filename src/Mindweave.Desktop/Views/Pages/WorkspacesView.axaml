@@ -73,13 +73,14 @@
                   </StackPanel>
                   <StackPanel Name="WorkspaceRenameActions" DockPanel.Dock="Right" Orientation="Horizontal" Spacing="4" VerticalAlignment="Top"
                               Margin="10,0,0,0" Height="28" IsVisible="{Binding IsRenaming}">
-                    <!-- 2026-11-11: asks the model for names drawn from the conversations; never renames by itself. -->
+                    <!-- 2026-11-11: asks the model for names drawn from the conversations (换一批 once names are offered);
+                         never renames by itself. -->
                     <Button Name="SuggestNamesButton" Classes="quiet small suggest-names" Command="{Binding SuggestNamesCommand}"
                             IsVisible="{Binding CanSuggestNames}" ToolTip.Tip="{Binding SuggestTip}" ToolTip.ShowOnDisabled="True"
                             AutomationProperties.Name="{Binding SuggestName}" AutomationProperties.HelpText="{Binding SuggestTip}">
                       <StackPanel Orientation="Horizontal" Spacing="4">
                         <PathIcon Data="{StaticResource IconSparkle}" />
-                        <TextBlock Text="{x:Static d:UiText.SuggestNames}" VerticalAlignment="Center" />
+                        <TextBlock Text="{Binding SuggestLabel}" VerticalAlignment="Center" />
                       </StackPanel>
                     </Button>
                     <Button Name="CancelRenameWorkspaceButton" Classes="quiet small" Content="{x:Static d:UiText.Cancel}" Command="{Binding CancelRenameCommand}" />
@@ -92,16 +93,27 @@
                         <TextBlock Text="{x:Static d:UiText.CurrentWorkspaceTag}" />
                       </Border>
                     </DockPanel>
-                    <!-- The name turns into a box of the same place and weight: Enter saves, Esc cancels. -->
-                    <TextBox Name="WorkspaceRenameBox" Classes="workspace-rename" IsVisible="{Binding IsRenaming}" Text="{Binding RenameText}"
-                             AutomationProperties.Name="{x:Static d:UiText.WorkspaceNameLabel}" KeyDown="OnRenameBoxKeyDown" />
+                    <!-- The name turns into a box of the same place and weight: Enter saves, Esc cancels. A suggested name
+                         (kept from before, or just asked for) shows dimly after the text: Tab takes it, Tab again the next. -->
+                    <v:GhostTextBox Name="WorkspaceRenameBox" Classes="workspace-rename" IsVisible="{Binding IsRenaming}" Text="{Binding RenameText}"
+                                    Suggestions="{Binding GhostNames}" OfferHelpFormat="{x:Static d:UiText.GhostNameHelpFormat}"
+                                    GhostForeground="{DynamicResource SuggestionGhostText}" KeyHintBorderBrush="{DynamicResource OutlineBrush}"
+                                    AutomationProperties.Name="{x:Static d:UiText.WorkspaceNameLabel}" KeyDown="OnRenameBoxKeyDown" />
                     <TextBlock Name="WorkspaceRowCounts" Classes="caption" Text="{Binding CountsText}" IsVisible="{Binding ShowsCounts}" />
                     <!-- While renaming, the same line says what 建议名称 sends, before anything is sent (the row keeps its height). -->
                     <TextBlock Name="SuggestNamesHint" Classes="caption" Text="{x:Static d:UiText.SuggestNamesHint}" TextTrimming="CharacterEllipsis"
                                IsVisible="{Binding ShowsSuggestHint}" ToolTip.Tip="{x:Static d:UiText.SuggestNamesHint}" />
+                    <!-- Once names are offered: what Tab does, and 更多建议 to see them all as chips (the line keeps the row's height). -->
+                    <DockPanel Name="GhostNamesHintLine" IsVisible="{Binding ShowsGhostHint}">
+                      <Button Name="NameChipsToggle" DockPanel.Dock="Right" Classes="link caption-link" Margin="8,0,0,0" Content="{Binding ChipsToggleLabel}"
+                              Command="{Binding ToggleChipsCommand}" AutomationProperties.Name="{Binding ChipsToggleName}" />
+                      <TextBlock Name="GhostNamesHint" Classes="caption" Text="{x:Static d:UiText.GhostNamesHint}" TextTrimming="CharacterEllipsis"
+                                 VerticalAlignment="Center" ToolTip.Tip="{x:Static d:UiText.GhostNamesHint}" />
+                    </DockPanel>
                     <TextBlock Name="WorkspaceRenameError" Classes="error" FontSize="12" TextWrapping="Wrap" Text="{Binding RenameError}"
                                IsVisible="{Binding RenameError, Converter={x:Static ObjectConverters.IsNotNull}}" />
-                    <!-- Suggested names (2026-11-11): shown only once asked for; Tab reaches them after the box, Enter or Space picks. -->
+                    <!-- Under the box (2026-11-11): the request running, a problem, or, under 更多建议, every name as a chip
+                         (Enter or Space picks one). -->
                     <StackPanel Name="SuggestionPanel" Spacing="6" Margin="0,8,0,2" IsVisible="{Binding ShowsSuggestionPanel}" v:Motion.Appear="Fade">
                       <StackPanel Name="SuggestingLine" Orientation="Horizontal" Spacing="8" IsVisible="{Binding IsSuggesting}">
                         <v:ActivitySpinner Classes="suggest-spinner" VerticalAlignment="Center" />
@@ -109,8 +121,8 @@
                         <Button Name="StopSuggestingButton" Classes="quiet small" Content="{x:Static d:UiText.StopSuggesting}"
                                 Command="{Binding StopSuggestingNamesCommand}" AutomationProperties.Name="{x:Static d:UiText.StopSuggestingName}" />
                       </StackPanel>
-                      <TextBlock Name="SuggestionsCaption" Classes="caption" Text="{x:Static d:UiText.SuggestionsCaption}" IsVisible="{Binding HasSuggestions}" />
-                      <ItemsControl Name="SuggestionChips" ItemsSource="{Binding Suggestions}" IsVisible="{Binding HasSuggestions}"
+                      <TextBlock Name="SuggestionsCaption" Classes="caption" Text="{x:Static d:UiText.SuggestionsCaption}" IsVisible="{Binding ShowsChipList}" />
+                      <ItemsControl Name="SuggestionChips" ItemsSource="{Binding Suggestions}" IsVisible="{Binding ShowsChipList}"
                                     AutomationProperties.Name="{x:Static d:UiText.SuggestionsListName}">
                         <ItemsControl.ItemsPanel>
                           <ItemsPanelTemplate>

@@ -207,6 +207,18 @@
     <Setter Property="Height" Value="12" />
     <Setter Property="Foreground" Value="{DynamicResource AccentBrush}" />
   </Style>
+  <!-- 更多建议 after the line under the rename box: a link of the caption's size, so the line (and the row) keeps its height. -->
+  <Style Selector="Button.caption-link">
+    <Setter Property="Padding" Value="2,0" />
+    <Setter Property="MinHeight" Value="0" />
+    <Setter Property="FontSize" Value="12" />
+    <Setter Property="VerticalAlignment" Value="Center" />
+  </Style>
+  <Style Selector="Button.caption-link:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+    <Setter Property="Background" Value="Transparent" />
+    <Setter Property="Foreground" Value="{DynamicResource LinkText}" />
+    <Setter Property="TextBlock.TextDecorations" Value="Underline" />
+  </Style>
   <!-- The rename row's 建议名称: the spark in the accent colour marks the one action that asks the model. -->
   <Style Selector="Button.suggest-names PathIcon">
     <Setter Property="Foreground" Value="{DynamicResource AccentBrush}" />

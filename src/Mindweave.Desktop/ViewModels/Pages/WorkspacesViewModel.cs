@@ -25,6 +25,7 @@ public sealed partial class WorkspacesViewModel : PageViewModel, IDisposable
     private readonly IWorkspaceSwitcher? _switcher;
     private readonly IWorkspaceNameSuggestions? _suggestions;
     private readonly IMenuNavigator? _navigator;
+    private readonly IWorkspaceNameCache? _names;
     private bool _disposed;
 
     public WorkspacesViewModel(
@@ -34,7 +35,8 @@ public sealed partial class WorkspacesViewModel : PageViewModel, IDisposable
         IWorkspaceDeletionPrompt? deletionPrompt = null,
         IWorkspaceSwitcher? switcher = null,
         IWorkspaceNameSuggestions? suggestions = null,
-        IMenuNavigator? navigator = null)
+        IMenuNavigator? navigator = null,
+        IWorkspaceNameCache? names = null)
         : base(WorkspacesRoute.Instance)
     {
         ArgumentNullException.ThrowIfNull(directory);
@@ -45,6 +47,7 @@ public sealed partial class WorkspacesViewModel : PageViewModel, IDisposable
         _switcher = switcher;
         _suggestions = suggestions;
         _navigator = navigator;
+        _names = names;
         NewWorkspace = new WorkspaceNameForm(CreateAsync);
         Sync();
         directory.Workspaces.CollectionChanged += OnWorkspacesChanged;
@@ -78,6 +81,9 @@ public sealed partial class WorkspacesViewModel : PageViewModel, IDisposable
 
     /// <summary>The last request for suggested names; tests await it.</summary>
     internal Task Suggesting { get; private set; } = Task.CompletedTask;
+
+    /// <summary>The kept names of the last rename started, read; tests await it.</summary>
+    internal Task KeptNamesRead { get; private set; } = Task.CompletedTask;
 
     /// <summary>Suggested names can be asked for (the page was given the service).</summary>
     public bool CanSuggestNames => _suggestions is not null;
@@ -134,8 +140,39 @@ public sealed partial class WorkspacesViewModel : PageViewModel, IDisposable
         row.RenameText = row.Workspace.Name.Value;
         row.RenameError = null;
         row.StopSuggesting();
+        row.ClearNames();
         row.IsRenaming = true;
         RenameStarted?.Invoke(this, row);
+        KeptNamesRead = ShowKeptNamesAsync(row, row.RenameText);
+    }
+
+    /// <summary>
+    /// The names kept for the workspace (made earlier, asked for or in the background, 2026-11-11) are offered in the box at
+    /// once, unless the user has typed meanwhile or asked for new ones.
+    /// </summary>
+    private async Task ShowKeptNamesAsync(WorkspaceRowViewModel row, string started)
+    {
+        if (_names is null)
+        {
+            return;
+        }
+
+        PreparedNames? kept;
+        try
+        {
+            kept = await _names.GetAsync(row.Workspace.Id, row.Workspace.Name, CancellationToken.None);
+        }
+#pragma warning disable CA1031 // Kept names are a convenience: none is shown, the rename works as before.
+        catch (Exception)
+#pragma warning restore CA1031
+        {
+            return;
+        }
+
+        if (kept is { Names.Count: > 0 } && row.IsRenaming && !_disposed && row.RenameText == started && !row.HasNames && !row.IsSuggesting)
+        {
+            row.SetNames(kept.Names.Select(n => n.Value));
+        }
     }
 
     internal void CancelRename(WorkspaceRowViewModel row)
@@ -213,14 +250,16 @@ public sealed partial class WorkspacesViewModel : PageViewModel, IDisposable
 
         // A request still running is stopped; whatever it would have said belongs to this rename only.
         row.StopSuggesting();
+        row.ClearNames();
         row.IsRenaming = false;
         row.RenameError = null;
     }
 
     /// <summary>
-    /// Asks the model for names drawn from the row's conversations (2026-11-11). Nothing is renamed: a name is picked
-    /// into the box, and saving stays the explicit Enter or 保存. A result that arrives after the request was stopped,
-    /// restarted or its rename ended is dropped, so it never shows in another rename or another row.
+    /// Asks the model for names drawn from the row's conversations (2026-11-11; 换一批 once names are there). Nothing is
+    /// renamed: a name is offered after the text in the box (Tab takes it) or picked from 更多建议, and saving stays the
+    /// explicit Enter or 保存. A result that arrives after the request was stopped, restarted or its rename ended is
+    /// dropped, so it never shows in another rename or another row.
     /// </summary>
     internal Task SuggestNamesAsync(WorkspaceRowViewModel row)
     {
@@ -430,6 +469,20 @@ public sealed partial class WorkspaceRowViewModel : ObservableObject, IDisposabl
     [NotifyPropertyChangedFor(nameof(Name), nameof(AutomationName), nameof(SwitchName), nameof(RenameName), nameof(DeleteName), nameof(SuggestName))]
     public partial Workspace Workspace { get; internal set; }
 
+    /// <summary>
+    /// The names offered in the box, best first (2026-11-11): kept from before when the rename starts, or just asked for.
+    /// A new list each time, so the box starts a new offer.
+    /// </summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(HasNames), nameof(ShowsSuggestHint), nameof(ShowsGhostHint), nameof(ShowsCounts), nameof(ShowsChipList),
+        nameof(ShowsSuggestionPanel), nameof(SuggestLabel), nameof(SuggestTip), nameof(SuggestName))]
+    public partial IReadOnlyList<string> GhostNames { get; private set; } = [];
+
+    /// <summary>更多建议: every name as a chip under the box (for the mouse; the keyboard has Tab).</summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(ShowsChipList), nameof(ShowsSuggestionPanel), nameof(ChipsToggleLabel), nameof(ChipsToggleName))]
+    public partial bool ShowsChips { get; set; }
+
     public string Name => Workspace.Name.Value;
 
     [ObservableProperty]
@@ -443,7 +496,7 @@ public sealed partial class WorkspaceRowViewModel : ObservableObject, IDisposabl
     public partial string CountsText { get; private set; } = UiText.WorkspaceCountsLoading;
 
     [ObservableProperty]
-    [NotifyPropertyChangedFor(nameof(ShowsSuggestHint), nameof(ShowsCounts))]
+    [NotifyPropertyChangedFor(nameof(ShowsSuggestHint), nameof(ShowsGhostHint), nameof(ShowsCounts))]
     [NotifyCanExecuteChangedFor(nameof(SuggestNamesCommand))]
     public partial bool IsRenaming { get; internal set; }
 
@@ -463,7 +516,7 @@ public sealed partial class WorkspaceRowViewModel : ObservableObject, IDisposabl
     /// null while not known, which leaves the button available.
     /// </summary>
     [ObservableProperty]
-    [NotifyPropertyChangedFor(nameof(SuggestTip), nameof(ShowsSuggestHint), nameof(ShowsCounts))]
+    [NotifyPropertyChangedFor(nameof(SuggestTip), nameof(ShowsSuggestHint), nameof(ShowsGhostHint), nameof(ShowsCounts))]
     [NotifyCanExecuteChangedFor(nameof(SuggestNamesCommand))]
     public partial bool? HasContent { get; private set; }
 
@@ -472,7 +525,7 @@ public sealed partial class WorkspaceRowViewModel : ObservableObject, IDisposabl
     [NotifyCanExecuteChangedFor(nameof(SuggestNamesCommand))]
     public partial NameSuggestionState SuggestionState { get; private set; }
 
-    /// <summary>The names to pick from (2–3, fewer when fewer were usable).</summary>
+    /// <summary>The same names as chips to click (2–3, fewer when fewer were usable); shown under 更多建议.</summary>
     public ObservableCollection<NameSuggestionViewModel> Suggestions { get; } = [];
 
     /// <summary>Why there are no names: not configured, storage paused, the service failed, nothing usable came back.</summary>
@@ -489,23 +542,43 @@ public sealed partial class WorkspaceRowViewModel : ObservableObject, IDisposabl
 
     public bool IsSuggesting => SuggestionState == NameSuggestionState.Generating;
 
+    /// <summary>Names just arrived from a request (the view moves the focus to the box, or to the first chip).</summary>
     public bool HasSuggestions => SuggestionState == NameSuggestionState.Shown;
 
     public bool HasSuggestionProblem => SuggestionState == NameSuggestionState.Failed;
 
-    public bool ShowsSuggestionPanel => SuggestionState != NameSuggestionState.Idle;
+    /// <summary>There are names to offer (kept from before or just asked for).</summary>
+    public bool HasNames => GhostNames.Count > 0;
+
+    /// <summary>The chips are shown: asked for with 更多建议, and there are names.</summary>
+    public bool ShowsChipList => ShowsChips && HasNames;
+
+    /// <summary>Under the box: a request running, a problem, or the chips.</summary>
+    public bool ShowsSuggestionPanel => IsSuggesting || HasSuggestionProblem || ShowsChipList;
 
     /// <summary>The 建议名称 button is there at all (the page was given the service).</summary>
     public bool CanSuggestNames => _owner.CanSuggestNames;
 
-    /// <summary>While renaming a workspace with something in it, the line under the box says what 建议名称 sends.</summary>
-    public bool ShowsSuggestHint => IsRenaming && HasContent != false && _owner.CanSuggestNames;
+    /// <summary>
+    /// While renaming a workspace with something in it and no names yet, the line under the box says what 建议名称 sends.
+    /// </summary>
+    public bool ShowsSuggestHint => IsRenaming && HasContent != false && _owner.CanSuggestNames && !HasNames;
 
-    public bool ShowsCounts => !ShowsSuggestHint;
+    /// <summary>Once names are offered, the line under the box says what Tab does, with 更多建议.</summary>
+    public bool ShowsGhostHint => IsRenaming && HasNames;
 
-    public string SuggestTip => HasContent == false ? UiText.SuggestNamesEmptyTip : UiText.SuggestNamesTip;
+    public bool ShowsCounts => !ShowsSuggestHint && !ShowsGhostHint;
 
-    public string SuggestName => UiText.SuggestNamesName(Name);
+    /// <summary>建议名称, or 换一批 once names are there.</summary>
+    public string SuggestLabel => HasNames ? UiText.SuggestOtherNames : UiText.SuggestNames;
+
+    public string SuggestTip => HasContent == false ? UiText.SuggestNamesEmptyTip : HasNames ? UiText.SuggestOtherNamesTip : UiText.SuggestNamesTip;
+
+    public string SuggestName => HasNames ? UiText.SuggestOtherNamesName(Name) : UiText.SuggestNamesName(Name);
+
+    public string ChipsToggleLabel => ShowsChips ? UiText.HideNameChips : UiText.ShowNameChips;
+
+    public string ChipsToggleName => ShowsChips ? UiText.HideNameChipsName : UiText.ShowNameChipsName;
 
     public string AutomationName => UiText.WorkspaceRowName(Name, IsCurrent, CountsText);
 
@@ -523,7 +596,7 @@ public sealed partial class WorkspaceRowViewModel : ObservableObject, IDisposabl
 
     private CancellationTokenSource? _suggestion;
 
-    /// <summary>Starts a request: any earlier one is stopped and what it showed is cleared.</summary>
+    /// <summary>Starts a request: any earlier one is stopped and its message cleared; the names offered stay until new ones arrive.</summary>
     internal CancellationTokenSource StartSuggesting()
     {
         StopSuggesting();
@@ -535,7 +608,7 @@ public sealed partial class WorkspaceRowViewModel : ObservableObject, IDisposabl
     /// <summary>The request is still this row's current one (not stopped, not replaced).</summary>
     internal bool Owns(CancellationTokenSource request) => ReferenceEquals(_suggestion, request);
 
-    /// <summary>Stops a running request and clears the names and messages: the row shows its button again.</summary>
+    /// <summary>Stops a running request and clears its message: the row shows its button again (the names offered stay).</summary>
     internal void StopSuggesting()
     {
         if (_suggestion is { } running)
@@ -545,7 +618,6 @@ public sealed partial class WorkspaceRowViewModel : ObservableObject, IDisposabl
             running.Dispose();
         }
 
-        Suggestions.Clear();
         SuggestionProblem = null;
         SuggestionNeedsSettings = false;
         SuggestionCanRetry = false;
@@ -558,12 +630,7 @@ public sealed partial class WorkspaceRowViewModel : ObservableObject, IDisposabl
         {
             case null when result.Names.Count > 0:
                 Release();
-                Suggestions.Clear();
-                foreach (var name in result.Names)
-                {
-                    Suggestions.Add(new NameSuggestionViewModel(name.Value, this, _owner));
-                }
-
+                SetNames(result.Names.Select(n => n.Value));
                 SuggestionProblem = null;
                 SuggestionNeedsSettings = false;
                 SuggestionCanRetry = false;
@@ -594,13 +661,37 @@ public sealed partial class WorkspaceRowViewModel : ObservableObject, IDisposabl
 
     internal void ShowSuggestionProblem(string message, bool retry, bool settings = false)
     {
+        // The names offered before stay offered: a failed 换一批 takes nothing away.
         Release();
-        Suggestions.Clear();
         SuggestionProblem = message;
         SuggestionCanRetry = retry;
         SuggestionNeedsSettings = settings;
         SuggestionState = NameSuggestionState.Failed;
     }
+
+    /// <summary>Offers these names in the box (a new offer) and as chips.</summary>
+    internal void SetNames(IEnumerable<string> names)
+    {
+        string[] list = [.. names];
+        Suggestions.Clear();
+        foreach (var name in list)
+        {
+            Suggestions.Add(new NameSuggestionViewModel(name, this, _owner));
+        }
+
+        GhostNames = list;
+    }
+
+    /// <summary>The rename ended (or starts afresh): no names, chips folded.</summary>
+    internal void ClearNames()
+    {
+        Suggestions.Clear();
+        GhostNames = [];
+        ShowsChips = false;
+    }
+
+    [RelayCommand]
+    private void ToggleChips() => ShowsChips = !ShowsChips;
 
     /// <summary>The request has answered: it is no longer running and needs no stopping.</summary>
     private void Release()

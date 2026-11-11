@@ -64,17 +64,20 @@ public sealed partial class GenerationRequests
 
     /// <summary>
     /// One request whose output the program uses directly: only a normal, non-empty finish counts (D-015); a cut-off
-    /// output is never used. Returns the text, or null with the reason. <paramref name="record"/> false sends no trace: a
-    /// request without a task row (<see cref="TransientWork"/>) has nothing to attach one to.
+    /// output is never used. Returns the text, or null with the reason. The request is recorded for its task, or, for a
+    /// request without a task row (<see cref="TransientWork"/>), for <paramref name="attribution"/>: without either,
+    /// <paramref name="record"/> false, nothing is recorded.
     /// </summary>
-    internal async Task<(string? Text, string? Problem)> RequestCompleteTextAsync(GenerationTaskRecord task, ChatRequest request, string apiKey, CancellationToken stop, bool record = true)
+    internal async Task<(string? Text, string? Problem)> RequestCompleteTextAsync(
+        GenerationTaskRecord task, ChatRequest request, string apiKey, CancellationToken stop, bool record = true, RequestAttribution? attribution = null)
     {
         if (!_health.TryAdmit())
         {
             throw new StorageAdmissionRefusedException();
         }
 
-        var trace = new RequestTrace(task.Id, _clock, request);
+        var trace = attribution is null ? new RequestTrace(task.Id, _clock, request) : new RequestTrace(attribution, _clock, request);
+        record = record || attribution is not null;
         var text = new System.Text.StringBuilder();
         ChatStreamEvent.Completed? completed = null;
         try
@@ -136,7 +139,7 @@ public sealed partial class GenerationRequests
         catch (Exception ex)
 #pragma warning restore CA1031
         {
-            LogTraceFailed(_logger, ex, record.TaskId);
+            LogTraceFailed(_logger, ex, record.TaskId?.ToString() ?? record.Attribution?.Kind);
         }
     }
 
@@ -161,6 +164,6 @@ public sealed partial class GenerationRequests
         return true;
     }
 
-    [LoggerMessage(Level = LogLevel.Warning, Message = "Request trace for task {TaskId} was not saved")]
-    private static partial void LogTraceFailed(ILogger logger, Exception exception, GenerationTaskId taskId);
+    [LoggerMessage(Level = LogLevel.Warning, Message = "Request trace for {Owner} was not saved")]
+    private static partial void LogTraceFailed(ILogger logger, Exception exception, string? owner);
 }

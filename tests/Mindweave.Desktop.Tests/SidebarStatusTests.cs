@@ -535,6 +535,8 @@ public class SidebarStatusTests
 
                 return inner.SetAsync(key, value, cancellationToken);
             }
+
+            public Task RemoveAsync(string key, CancellationToken cancellationToken) => inner.RemoveAsync(key, cancellationToken);
         }
     }
 

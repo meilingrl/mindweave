@@ -10,7 +10,7 @@ namespace Mindweave.Infrastructure.Tests.Chat;
 /// <summary>
 /// Names suggested for a workspace while renaming it (2026-11-11), through the real coordinator and SQLite with the fake
 /// service: what is sent (bounded), how the answer is cleaned, and that the request is stopped, refused or failed without
-/// leaving anything stored.
+/// leaving a task behind. Each request is recorded for its workspace (2026-11-11, migration v10).
 /// </summary>
 public class WorkspaceNameSuggestionTests
 {
@@ -23,7 +23,7 @@ public class WorkspaceNameSuggestionTests
     }
 
     [Fact]
-    public async Task The_request_sends_the_conversation_and_summary_titles_and_the_current_name_and_stores_nothing()
+    public async Task The_request_sends_the_conversation_and_summary_titles_and_the_current_name_and_leaves_no_task()
     {
         await using var h = await ChatHarness.StartAsync();
         var steam = await StartAsync(h, "蒸汽机是怎么工作的？", "蒸汽机的原理");
@@ -48,9 +48,11 @@ public class WorkspaceNameSuggestionTests
         Assert.Contains("- 铁轨为什么是工字形的？", sent, StringComparison.Ordinal);
         Assert.Contains($"总结标题（共 1 个，列出 1 个）：\n- {FakeChatClient.DefaultSummaryTitle}", sent, StringComparison.Ordinal);
 
-        // Shown only: no task row, no request trace, nothing left running.
+        // No task row and no task trace, nothing left running; the request is recorded for the workspace and the names kept.
         Assert.Equal(before, await StoredRowsAsync(h));
         Assert.Equal(0, h.Generation.UnfinishedCount);
+        Assert.Single(await h.Requests.ForWorkspaceAsync(h.Workspace, Ct));
+        Assert.Equal(["蒸汽机车史", "铁路发展", "火车与工业革命"], (await h.NameCache.GetAsync(h.Workspace, null, Ct))!.Names.Select(n => n.Value));
     }
 
     [Fact]
@@ -128,7 +130,7 @@ public class WorkspaceNameSuggestionTests
     }
 
     [Fact]
-    public async Task A_failed_cut_off_or_unusable_answer_says_why_and_stores_nothing()
+    public async Task A_failed_cut_off_or_unusable_answer_says_why_and_keeps_no_names()
     {
         await using var h = await ChatHarness.StartAsync();
         await StartAsync(h, "蒸汽机是怎么工作的？", "蒸汽机的原理");
@@ -149,6 +151,8 @@ public class WorkspaceNameSuggestionTests
 
         Assert.Equal(before, await StoredRowsAsync(h));
         Assert.Equal(0, h.Generation.UnfinishedCount);
+        Assert.Equal(3, (await h.Requests.ForWorkspaceAsync(h.Workspace, Ct)).Count);
+        Assert.Null(await h.NameCache.GetAsync(h.Workspace, null, Ct));
     }
 
     [Fact]
@@ -227,6 +231,6 @@ public class WorkspaceNameSuggestionTests
 
     private static Task<(long Tasks, long Requests)> StoredRowsAsync(ChatHarness h) =>
         h.Database.ReadAsync(
-            c => (c.Scalar<long>(null, "SELECT count(*) FROM generation_task;"), c.Scalar<long>(null, "SELECT count(*) FROM ai_request;")),
+            c => (c.Scalar<long>(null, "SELECT count(*) FROM generation_task;"), c.Scalar<long>(null, "SELECT count(*) FROM ai_request WHERE task_id IS NOT NULL;")),
             CancellationToken.None);
 }

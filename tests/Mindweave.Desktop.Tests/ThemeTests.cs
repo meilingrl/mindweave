@@ -157,6 +157,12 @@ public class ThemeTests
             Values[key] = value;
             return Task.CompletedTask;
         }
+
+        public Task RemoveAsync(string key, CancellationToken cancellationToken)
+        {
+            Values.Remove(key);
+            return Task.CompletedTask;
+        }
     }
 
     private static Color Brush(Window window, string key)

@@ -8,7 +8,8 @@ namespace Mindweave.Application.Conversations;
 
 /// <summary>
 /// Owns every AI request for the lifetime of the application, independent of any view: a two-slot
-/// scheduler with user work ahead of background work, per-answer checkpoint loops, and guarded terminal
+/// scheduler with user work ahead of background work, and idle work (prepared in advance) after both, giving its slot up
+/// to them; per-answer checkpoint loops, and guarded terminal
 /// writes. A late chunk or checkpoint can never overwrite a terminal answer, and nothing is ever re-sent
 /// automatically.
 /// </summary>
@@ -21,6 +22,7 @@ public sealed partial class GenerationCoordinator : IGenerationExit, IGeneration
     private readonly Lock _gate = new();
     private readonly LinkedList<GenerationWork> _userQueue = new();
     private readonly LinkedList<GenerationWork> _backgroundQueue = new();
+    private readonly LinkedList<GenerationWork> _idleQueue = new();
     private readonly Dictionary<GenerationTaskId, Running> _running = [];
     private readonly ConcurrentDictionary<MessageId, LiveAnswer> _live = new();
     private readonly StorageHealth _health;
@@ -86,7 +88,7 @@ public sealed partial class GenerationCoordinator : IGenerationExit, IGeneration
         {
             lock (_gate)
             {
-                return _userQueue.Count + _backgroundQueue.Count + _running.Count;
+                return _userQueue.Count + _backgroundQueue.Count + _idleQueue.Count + _running.Count;
             }
         }
     }
@@ -195,7 +197,7 @@ public sealed partial class GenerationCoordinator : IGenerationExit, IGeneration
                 _live[answer.Live.MessageId] = answer.Live;
             }
 
-            (work.Priority == GenerationPriority.User ? _userQueue : _backgroundQueue).AddLast(work);
+            QueueFor(work.Priority).AddLast(work);
         }
 
         Pump();
@@ -203,18 +205,21 @@ public sealed partial class GenerationCoordinator : IGenerationExit, IGeneration
     }
 
     /// <summary>
-    /// Runs one request whose output is only shown, never stored (<see cref="TransientWork"/>), in a slot like any other
-    /// work the user started, and returns its complete text. Cancelling <paramref name="cancellationToken"/> takes it off
-    /// the queue or stops it, and the returned task is then cancelled. Throws <see cref="InvalidOperationException"/> when
-    /// new work is refused (an exit is under way), <see cref="ChatClientException"/> when the service failed or its output
-    /// was cut off or empty, and <see cref="StorageAdmissionRefusedException"/> when storage paused before it was sent.
+    /// Runs one request whose output is only shown, never stored as content (<see cref="TransientWork"/>), in a slot at
+    /// <paramref name="priority"/> (user when asked for, idle when prepared in advance), and returns its complete text.
+    /// The request is recorded for <paramref name="attribution"/> when one is given. Cancelling
+    /// <paramref name="cancellationToken"/> takes it off the queue or stops it, and the returned task is then cancelled.
+    /// Throws <see cref="InvalidOperationException"/> when new work is refused (an exit is under way),
+    /// <see cref="ChatClientException"/> when the service failed or its output was cut off or empty,
+    /// <see cref="StorageAdmissionRefusedException"/> when storage paused before it was sent, and
+    /// <see cref="GenerationPreemptedException"/> when idle work gave its slot up to other work.
     /// </summary>
-    internal async Task<string> RequestTransientAsync(ChatRequest request, CancellationToken cancellationToken)
+    internal async Task<string> RequestTransientAsync(ChatRequest request, CancellationToken cancellationToken, GenerationPriority priority = GenerationPriority.User, RequestAttribution? attribution = null)
     {
         ArgumentNullException.ThrowIfNull(request);
         cancellationToken.ThrowIfCancellationRequested();
         var task = new GenerationTaskRecord(GenerationTaskId.New(), GenerationTaskKind.NameSuggestion, default, null, request.Model, [], _clock.UtcNow);
-        var work = new TransientWork(task, request);
+        var work = new TransientWork(task, request, priority, attribution);
         Enqueue(work);
 
         // Registered after the work is queued, so a stop always finds it (queued or running); a token already cancelled
@@ -331,9 +336,10 @@ public sealed partial class GenerationCoordinator : IGenerationExit, IGeneration
         {
             // Re-entrant: a second call finds nothing queued (the entry is closed) and only waits again.
             _closed = true;
-            queued = [.. _userQueue, .. _backgroundQueue];
+            queued = [.. _userQueue, .. _backgroundQueue, .. _idleQueue];
             _userQueue.Clear();
             _backgroundQueue.Clear();
+            _idleQueue.Clear();
             running = [.. _running.Values];
         }
 
@@ -437,7 +443,7 @@ public sealed partial class GenerationCoordinator : IGenerationExit, IGeneration
 
     private GenerationWork? RemoveQueued(Func<GenerationWork, bool> match)
     {
-        foreach (var queue in new[] { _userQueue, _backgroundQueue })
+        foreach (var queue in new[] { _userQueue, _backgroundQueue, _idleQueue })
         {
             for (var node = queue.First; node is not null; node = node.Next)
             {
@@ -452,16 +458,24 @@ public sealed partial class GenerationCoordinator : IGenerationExit, IGeneration
         return null;
     }
 
+    private LinkedList<GenerationWork> QueueFor(GenerationPriority priority) => priority switch
+    {
+        GenerationPriority.User => _userQueue,
+        GenerationPriority.Background => _backgroundQueue,
+        _ => _idleQueue,
+    };
+
     private void Pump()
     {
+        Running? yielding = null;
         lock (_gate)
         {
             while (!_closed && _running.Count < _options.Slots && _health.TryAdmit())
             {
-                var queue = _userQueue.Count > 0 ? _userQueue : _backgroundQueue.Count > 0 ? _backgroundQueue : null;
+                var queue = _userQueue.Count > 0 ? _userQueue : _backgroundQueue.Count > 0 ? _backgroundQueue : _idleQueue.Count > 0 ? _idleQueue : null;
                 if (queue is null)
                 {
-                    return;
+                    break;
                 }
 
                 var work = queue.First!.Value;
@@ -472,6 +486,21 @@ public sealed partial class GenerationCoordinator : IGenerationExit, IGeneration
                 // Assigned under the lock, so the run's own cleanup (which takes the lock) always sees it.
                 running.Completion = Task.Run(() => RunAsync(running));
             }
+
+            // Idle work never makes other work wait (2026-11-11): with every slot taken and user or background work
+            // queued, a running idle request gives its slot up. It is told so, and may be asked again later.
+            if (!_closed && _userQueue.Count + _backgroundQueue.Count > 0 && _running.Count >= _options.Slots)
+            {
+                yielding = _running.Values.FirstOrDefault(r => r.Work.Priority == GenerationPriority.Idle && !r.Yielding);
+                yielding?.Yield();
+            }
+        }
+
+        // Cancelled outside the lock: the stream's cancellation callbacks run synchronously.
+        if (yielding is not null)
+        {
+            (yielding.Work as TransientWork)?.Output.TrySetException(new GenerationPreemptedException());
+            yielding.Cancellation.Cancel();
         }
     }
 
@@ -540,6 +569,11 @@ public sealed partial class GenerationCoordinator : IGenerationExit, IGeneration
         public CancellationTokenSource Cancellation { get; } = cancellation;
 
         public Task Completion { get; set; } = Task.CompletedTask;
+
+        /// <summary>Idle work giving its slot up (set under the coordinator's lock): it is stopped once only.</summary>
+        public bool Yielding { get; private set; }
+
+        public void Yield() => Yielding = true;
     }
 
     [LoggerMessage(Level = LogLevel.Warning, Message = "{Count} stopped tasks did not finish within the exit wait; their last checkpoints stand")]

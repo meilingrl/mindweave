@@ -9,4 +9,7 @@ public interface IPreferenceStore
     Task<string?> GetAsync(string key, CancellationToken cancellationToken);
 
     Task SetAsync(string key, string value, CancellationToken cancellationToken);
+
+    /// <summary>Removes the key; nothing happens when it is not there.</summary>
+    Task RemoveAsync(string key, CancellationToken cancellationToken);
 }

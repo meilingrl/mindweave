@@ -43,6 +43,7 @@ public sealed partial class SettingsHomeViewModel : PageViewModel, IDisposable
     private bool _chosen;
     private bool _soundChosen;
     private bool _inWorkspaceChosen;
+    private bool _prepareNamesChosen;
 
     public SettingsHomeViewModel(
         AppEnvironment environment,
@@ -142,6 +143,17 @@ public sealed partial class SettingsHomeViewModel : PageViewModel, IDisposable
     [ObservableProperty]
     public partial string? InWorkspaceNewsStatus { get; private set; }
 
+    /// <summary>
+    /// A workspace's names are prepared in the background once new conversations have titles (2026-11-11); on unless
+    /// turned off. Changing it applies at once and is saved in the background.
+    /// </summary>
+    [ObservableProperty]
+    public partial bool PreparesNames { get; set; } = true;
+
+    /// <summary>Shown only when saving that choice failed; the choice still applies until the application closes.</summary>
+    [ObservableProperty]
+    public partial string? PrepareNamesStatus { get; private set; }
+
     [RelayCommand]
     private void ShowStorageDetails() => _content.Push(StorageDetailsRoute.Instance);
 
@@ -196,6 +208,34 @@ public sealed partial class SettingsHomeViewModel : PageViewModel, IDisposable
 
         _inWorkspaceChosen = true;
         Saving = SaveInWorkspaceAsync(_newsAlerts, value, Saving);
+    }
+
+    partial void OnPreparesNamesChanged(bool value)
+    {
+        if (_loading || _newsAlerts is null)
+        {
+            return;
+        }
+
+        _prepareNamesChosen = true;
+        Saving = SavePrepareNamesAsync(_newsAlerts, value, Saving);
+    }
+
+    private async Task SavePrepareNamesAsync(INewsAlerts alerts, bool on, Task previous)
+    {
+        // One write after another, so the last choice made is the one that stays.
+        await previous;
+        try
+        {
+            await alerts.SetPrepareNamesAsync(on, CancellationToken.None);
+            PrepareNamesStatus = null;
+        }
+#pragma warning disable CA1031 // As for the other hints: reported beside the setting, still applies for this run.
+        catch (Exception)
+#pragma warning restore CA1031
+        {
+            PrepareNamesStatus = UiText.PrepareNamesSaveFailed;
+        }
     }
 
     private async Task SaveInWorkspaceAsync(INewsAlerts alerts, bool on, Task previous)
@@ -272,6 +312,7 @@ public sealed partial class SettingsHomeViewModel : PageViewModel, IDisposable
 
         var sound = false;
         var inWorkspace = true;
+        var prepareNames = true;
         if (_newsAlerts is not null)
         {
             try
@@ -287,6 +328,16 @@ public sealed partial class SettingsHomeViewModel : PageViewModel, IDisposable
             try
             {
                 inWorkspace = await _newsAlerts.GetInWorkspaceAsync(CancellationToken.None);
+            }
+#pragma warning disable CA1031 // Unreadable means on, the default.
+            catch (Exception)
+#pragma warning restore CA1031
+            {
+            }
+
+            try
+            {
+                prepareNames = await _newsAlerts.GetPrepareNamesAsync(CancellationToken.None);
             }
 #pragma warning disable CA1031 // Unreadable means on, the default.
             catch (Exception)
@@ -310,6 +361,11 @@ public sealed partial class SettingsHomeViewModel : PageViewModel, IDisposable
         if (!_inWorkspaceChosen)
         {
             ShowsInWorkspaceNews = inWorkspace;
+        }
+
+        if (!_prepareNamesChosen)
+        {
+            PreparesNames = prepareNames;
         }
 
         _loading = false;

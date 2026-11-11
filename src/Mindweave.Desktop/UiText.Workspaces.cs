@@ -111,6 +111,31 @@ public static partial class UiText
 
     public const string SuggestionsUnavailable = "正在退出，暂时不能请求建议。";
 
+    // ── Ghost names in the rename box (2026-11-11, user decision) ─────────────
+
+    /// <summary>The rename button once names are there: asks for different ones.</summary>
+    public const string SuggestOtherNames = "换一批";
+
+    public static string SuggestOtherNamesName(string name) => $"为工作区“{name}”换一批建议名称";
+
+    /// <summary>The 换一批 button's tooltip and help text.</summary>
+    public const string SuggestOtherNamesTip = "根据会话与总结的标题重新给出 2–3 个名称；会把标题发给模型，可能产生少量费用；不会自动改名。";
+
+    /// <summary>The rename box's help text while a name is offered after the text (screen readers; it changes as Tab cycles).</summary>
+    public const string GhostNameHelpFormat = "建议名称：{0}，按 Tab 使用";
+
+    /// <summary>Under the rename box (in place of the counts) once names are there.</summary>
+    public const string GhostNamesHint = "按 Tab 填入建议的名称，再按 Tab 换一个；保存后才会改名";
+
+    /// <summary>The small toggle after that line: every name as a chip to click.</summary>
+    public const string ShowNameChips = "更多建议";
+
+    public const string HideNameChips = "收起";
+
+    public const string ShowNameChipsName = "显示全部建议名称";
+
+    public const string HideNameChipsName = "收起建议名称";
+
     /// <summary>The service failed (or the workspace could not be read: <paramref name="kind"/> null).</summary>
     public static string SuggestionsFailed(GenerationErrorKind? kind) =>
         kind is { } k ? $"没能得到建议：{ErrorKind(k)}。" : "没能得到建议，请重试。";

@@ -49,6 +49,10 @@ public static class ApplicationServices
         services.AddSingleton<SidebarLayoutService>();
         services.AddSingleton<NewsAlertsService>();
         services.AddSingleton<WorkspaceNameSuggester>();
+        services.AddSingleton<WorkspaceNameCache>();
+        services.AddSingleton<IWorkspaceNameCache>(sp => sp.GetRequiredService<WorkspaceNameCache>());
+        services.TryAddSingleton(new WorkspaceNamePreparationOptions());
+        services.AddSingleton<WorkspaceNamePreparer>();
 
         // View models depend on these interfaces, not the concrete services (course requirement C3); each resolves to the
         // one singleton above, so a page and the rest of the application share state.

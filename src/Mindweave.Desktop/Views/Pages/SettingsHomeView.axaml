@@ -49,11 +49,11 @@
     </Border>
 
     <!-- 提示 (2026-11-10): whether the open workspace's conversations pop up a hint too (on unless turned off), and the
-         sound for a hint (off unless chosen). -->
+         sound for a hint (off unless chosen); 2026-11-11: whether a workspace's names are prepared in the background (on). -->
     <StackPanel IsVisible="{Binding CanChooseNewsSound}">
       <TextBlock Classes="section-heading" Margin="2,28,0,8" Text="{x:Static d:UiText.HintsSection}" />
       <Border Classes="card settings">
-        <Grid ColumnDefinitions="96,*" RowDefinitions="Auto,Auto,Auto,Auto,Auto,Auto">
+        <Grid ColumnDefinitions="96,*" RowDefinitions="Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto">
           <TextBlock Classes="field-label" Text="{x:Static d:UiText.NewsInWorkspaceLabel}" />
           <CheckBox Grid.Column="1" Name="NewsInWorkspaceToggle" IsChecked="{Binding ShowsInWorkspaceNews}" Content="{x:Static d:UiText.NewsInWorkspace}"
                     AutomationProperties.Name="{x:Static d:UiText.NewsInWorkspace}" AutomationProperties.HelpText="{x:Static d:UiText.NewsInWorkspaceHint}" />
@@ -66,6 +66,12 @@
           <TextBlock Grid.Row="4" Grid.Column="1" Classes="caption" TextWrapping="Wrap" Margin="0,4,0,0" Text="{x:Static d:UiText.NewsSoundHint}" />
           <TextBlock Grid.Row="5" Grid.Column="1" Name="NewsSoundStatus" v:Motion.Appear="Fade" Classes="error" FontSize="12" TextWrapping="Wrap" Margin="0,8,0,0"
                      Text="{Binding NewsSoundStatus}" IsVisible="{Binding NewsSoundStatus, Converter={x:Static ObjectConverters.IsNotNull}}" />
+          <TextBlock Grid.Row="6" Classes="field-label" Margin="0,16,0,0" Text="{x:Static d:UiText.PrepareNamesLabel}" />
+          <CheckBox Grid.Row="6" Grid.Column="1" Name="PrepareNamesToggle" Margin="0,16,0,0" IsChecked="{Binding PreparesNames}" Content="{x:Static d:UiText.PrepareNames}"
+                    AutomationProperties.Name="{x:Static d:UiText.PrepareNames}" AutomationProperties.HelpText="{x:Static d:UiText.PrepareNamesHint}" />
+          <TextBlock Grid.Row="7" Grid.Column="1" Classes="caption" TextWrapping="Wrap" Margin="0,4,0,0" Text="{x:Static d:UiText.PrepareNamesHint}" />
+          <TextBlock Grid.Row="8" Grid.Column="1" Name="PrepareNamesStatus" v:Motion.Appear="Fade" Classes="error" FontSize="12" TextWrapping="Wrap" Margin="0,8,0,0"
+                     Text="{Binding PrepareNamesStatus}" IsVisible="{Binding PrepareNamesStatus, Converter={x:Static ObjectConverters.IsNotNull}}" />
         </Grid>
       </Border>
     </StackPanel>

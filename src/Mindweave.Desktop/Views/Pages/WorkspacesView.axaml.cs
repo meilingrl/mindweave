@@ -81,9 +81,10 @@ public sealed partial class WorkspacesView : UserControl
             DispatcherPriority.Background);
 
     /// <summary>
-    /// The keyboard follows the suggestions when it was on them (建议名称, 停止, a name, 重试), or was dropped because the
-    /// button it was on turned unavailable: to 停止 while asking, the first name once they arrive, 重试 or 前往设置 when
-    /// there are none, and back to 建议名称 when stopped. Someone typing in the box keeps typing.
+    /// The keyboard follows the suggestions when it was on them (建议名称 or 换一批, 停止, a name, 重试), or was dropped
+    /// because the button it was on turned unavailable: to 停止 while asking, the box once names arrive (the first is
+    /// offered there; the first chip when 更多建议 is open), 重试 or 前往设置 when there are none, and back to the button when
+    /// stopped. Someone typing in the box keeps typing.
     /// </summary>
     private void OnSuggestionStateChanged(object? sender, WorkspaceRowViewModel row)
     {
@@ -109,8 +110,10 @@ public sealed partial class WorkspacesView : UserControl
                 Control? target = row.SuggestionState switch
                 {
                     NameSuggestionState.Generating => RowPart<Button>(row, "StopSuggestingButton"),
-                    // The names' own data context is the name, not the row: found inside the row's list.
-                    NameSuggestionState.Shown => RowPart<ItemsControl>(row, "SuggestionChips")?.GetVisualDescendants().OfType<Button>().FirstOrDefault(),
+                    // New names are offered in the box (Tab takes one), or, with 更多建议 open, as chips: the names' own
+                    // data context is the name, not the row, so they are found inside the row's list.
+                    NameSuggestionState.Shown when row.ShowsChips => RowPart<ItemsControl>(row, "SuggestionChips")?.GetVisualDescendants().OfType<Button>().FirstOrDefault(),
+                    NameSuggestionState.Shown => RowPart<TextBox>(row, "WorkspaceRenameBox"),
                     NameSuggestionState.Failed => new[] { RowPart<Button>(row, "RetrySuggestButton"), RowPart<Button>(row, "SuggestSettingsButton") }
                         .FirstOrDefault(b => b is { IsEffectivelyVisible: true }),
                     _ => RowPart<Button>(row, "SuggestNamesButton") is { IsEffectivelyEnabled: true } again ? again : null,
@@ -166,7 +169,8 @@ public sealed partial class WorkspacesView : UserControl
         var focused = TopLevel.GetTopLevel(this)?.FocusManager?.GetFocusedElement() as Visual;
         var hadFocus = box is { IsKeyboardFocusWithin: true }
             || (focused is not null && RowPart<Control>(row, "WorkspaceRenameActions") is { } actions && actions.IsVisualAncestorOf(focused))
-            || (focused is not null && RowPart<Control>(row, "SuggestionPanel") is { } suggestions && suggestions.IsVisualAncestorOf(focused));
+            || (focused is not null && RowPart<Control>(row, "SuggestionPanel") is { } suggestions && suggestions.IsVisualAncestorOf(focused))
+            || (focused is not null && RowPart<Control>(row, "GhostNamesHintLine") is { } hint && hint.IsVisualAncestorOf(focused));
         if (hadFocus)
         {
             Dispatcher.UIThread.Post(() => RowPart<Button>(row, "RenameWorkspaceButton")?.Focus(NavigationMethod.Tab), DispatcherPriority.Background);

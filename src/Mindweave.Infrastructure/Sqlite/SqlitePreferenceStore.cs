@@ -25,4 +25,12 @@ internal sealed class SqlitePreferenceStore(SqliteDatabase database) : IPreferen
                 ("$key", Prefix + key), ("$value", value)),
             cancellationToken);
     }
+
+    public Task RemoveAsync(string key, CancellationToken cancellationToken)
+    {
+        ArgumentException.ThrowIfNullOrEmpty(key);
+        return database.WriteAsync(
+            (connection, transaction) => connection.Execute(transaction, "DELETE FROM app_state WHERE key = $key;", ("$key", Prefix + key)),
+            cancellationToken);
+    }
 }

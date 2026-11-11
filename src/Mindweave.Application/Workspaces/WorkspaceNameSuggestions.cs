@@ -28,6 +28,19 @@ public enum NameSuggestionProblem
 
     /// <summary>The service failed, or its output was cut off or empty; <see cref="NameSuggestions.Error"/> says how.</summary>
     Failed,
+
+    /// <summary>Prepared in the background, it gave its slot to the user's work before it finished; it may be asked again later.</summary>
+    Deferred,
+}
+
+/// <summary>Who wants the names: the user in the rename row, or the background preparing them in advance.</summary>
+public enum NameRequestMode
+{
+    /// <summary>Asked for in the rename row: a slot at user priority.</summary>
+    Asked,
+
+    /// <summary>Prepared in the background (2026-11-11): idle priority, giving its slot up to any other work.</summary>
+    Prepared,
 }
 
 /// <summary>
@@ -53,9 +66,12 @@ public interface IWorkspaceNameSuggestions
 }
 
 /// <summary>
-/// The request is one short, user-started call whose output is only shown: it runs through the generation coordinator
-/// (a slot under the global limit of two, user priority, refused during an exit, held while storage is paused) without a
-/// task row or trace, since nothing of it is stored (<see cref="TransientWork"/>).
+/// The request is one short call whose output is only shown: it runs through the generation coordinator (a slot under the
+/// global limit of two, refused during an exit, held while storage is paused) without a task row (<see cref="TransientWork"/>).
+/// Asked for in the rename row it has user priority; prepared in the background, idle priority. Either way the request is
+/// recorded for the workspace (<see cref="RequestAttribution.WorkspaceNames"/>), so its token use can be counted, and the
+/// names it gives are kept for the workspace (<see cref="IWorkspaceNameCache"/>) with the number of titled conversations
+/// they were made from.
 /// </summary>
 public sealed partial class WorkspaceNameSuggester(
     IConversationStore conversations,
@@ -63,9 +79,18 @@ public sealed partial class WorkspaceNameSuggester(
     ModelSettingsService models,
     StorageHealth health,
     GenerationCoordinator generation,
+    IWorkspaceNameCache cache,
+    IClock clock,
     ILogger<WorkspaceNameSuggester> logger) : IWorkspaceNameSuggestions
 {
-    public async Task<NameSuggestions> SuggestAsync(WorkspaceId workspace, WorkspaceName current, CancellationToken cancellationToken)
+    public Task<NameSuggestions> SuggestAsync(WorkspaceId workspace, WorkspaceName current, CancellationToken cancellationToken) =>
+        SuggestAsync(workspace, current, NameRequestMode.Asked, cancellationToken);
+
+    /// <summary>
+    /// As <see cref="SuggestAsync(WorkspaceId, WorkspaceName, CancellationToken)"/>, for <paramref name="mode"/>. A prepared
+    /// request that gave its slot up says <see cref="NameSuggestionProblem.Deferred"/>.
+    /// </summary>
+    public async Task<NameSuggestions> SuggestAsync(WorkspaceId workspace, WorkspaceName current, NameRequestMode mode, CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(current);
 
@@ -92,7 +117,15 @@ public sealed partial class WorkspaceNameSuggester(
         string output;
         try
         {
-            output = await generation.RequestTransientAsync(WorkspaceNamePrompt.Request(model, current, input), cancellationToken).ConfigureAwait(false);
+            output = await generation.RequestTransientAsync(
+                WorkspaceNamePrompt.Request(model, current, input),
+                cancellationToken,
+                mode == NameRequestMode.Asked ? GenerationPriority.User : GenerationPriority.Idle,
+                new RequestAttribution(workspace, RequestAttribution.WorkspaceNames)).ConfigureAwait(false);
+        }
+        catch (GenerationPreemptedException)
+        {
+            return NameSuggestions.Refused(NameSuggestionProblem.Deferred);
         }
         catch (InvalidOperationException)
         {
@@ -108,7 +141,13 @@ public sealed partial class WorkspaceNameSuggester(
             return NameSuggestions.Refused(NameSuggestionProblem.Failed, ex.Kind);
         }
 
-        return new NameSuggestions(WorkspaceNamePrompt.ParseCandidates(output, current));
+        var names = WorkspaceNamePrompt.ParseCandidates(output, current);
+        if (names.Count > 0)
+        {
+            await cache.SetAsync(workspace, new PreparedNames(names, clock.UtcNow, NameRefreshRule.TitledConversations(listed)), CancellationToken.None).ConfigureAwait(false);
+        }
+
+        return new NameSuggestions(names);
     }
 
     [LoggerMessage(Level = LogLevel.Information, Message = "Workspace name suggestion failed: {Kind}")]

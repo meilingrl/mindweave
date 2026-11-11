@@ -50,6 +50,12 @@ public static partial class UiText
     public const string NewsSoundHint = "有多个新回答时只响一次";
     public const string NewsSoundSaveFailed = "提示音设置未能保存，本次运行中仍然有效。";
 
+    // Names prepared in the background (2026-11-11): on unless turned off.
+    public const string PrepareNamesLabel = "名称建议";
+    public const string PrepareNames = "自动准备工作区名称建议";
+    public const string PrepareNamesHint = "新会话有了标题后，在后台为工作区想好名称，改名时直接显示；会把标题发给模型，可能产生少量费用。";
+    public const string PrepareNamesSaveFailed = "名称建议设置未能保存，本次运行中仍然有效。";
+
     public const string SettingsTitle = "设置";
 
     public const string ModelSection = "模型连接";

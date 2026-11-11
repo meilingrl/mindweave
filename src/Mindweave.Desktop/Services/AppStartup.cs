@@ -36,8 +36,12 @@ public sealed class AppStartup : IRecoveryActions
         IThemeApplier theme,
         StorageHealth health,
         WorkspaceDeletionViewModel workspaceDeletion,
-        ConversationMarksService marks)
+        ConversationMarksService marks,
+        Application.Workspaces.WorkspaceNamePreparer namePreparer)
     {
+        // Composed here so it listens for titles from the start (2026-11-11); it acts on its own from then on.
+        ArgumentNullException.ThrowIfNull(namePreparer);
+
         _coordinator = coordinator;
         _workspaces = workspaces;
         _root = root;

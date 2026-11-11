@@ -47,7 +47,7 @@ public sealed class SchemaV9MigrationTests : IDisposable
         Assert.Equal(8, Assert.Single(database.ListBackups()).SchemaVersion);
 
         using var raw = _dir.Raw();
-        Assert.Equal(9, SqliteConnections.Scalar<long>(raw, "PRAGMA user_version;"));
+        Assert.Equal(MigrationCatalog.Default.LatestVersion, SqliteConnections.Scalar<long>(raw, "PRAGMA user_version;"));
         Assert.Equal(700, SqliteConnections.Scalar<long>(raw, "SELECT prompt_tokens FROM ai_request;"));
         Assert.Equal(0, SqliteConnections.Scalar<long>(raw, "SELECT count(*) FROM ai_request WHERE estimated_tokens IS NOT NULL;"));
         Assert.Equal(1, SqliteConnections.Scalar<long>(raw, "SELECT count(*) FROM sqlite_schema WHERE name = 'generation_task_by_model';"));

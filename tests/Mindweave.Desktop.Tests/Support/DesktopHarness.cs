@@ -42,6 +42,9 @@ public sealed class DesktopHarness : IAsyncDisposable
 
             // Never the real system beep in tests: the alerts are counted.
             services.AddSingleton<Application.Notifications.IAlertSound>(Sound);
+
+            // The background names' 30 s wait (2026-11-11) stands still unless a test moves this clock.
+            services.AddSingleton(new Application.Workspaces.WorkspaceNamePreparationOptions { Time = PreparationTime });
             overrides?.Invoke(services);
         };
         _ownsDirectory = ownsDirectory;
@@ -49,6 +52,9 @@ public sealed class DesktopHarness : IAsyncDisposable
     }
 
     public FakeChatClient Client { get; } = new();
+
+    /// <summary>The clock the background names wait on: standing still, so no test sends them unless it moves it.</summary>
+    public ManualTime PreparationTime { get; } = new();
 
     public MemoryCredentialStore Credentials { get; } = new();
 

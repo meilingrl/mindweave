@@ -1,4 +1,6 @@
 using System.Collections.Concurrent;
+using System.Globalization;
+using System.Text;
 using Avalonia.Automation;
 using Avalonia.Controls;
 using Avalonia.Headless;
@@ -22,13 +24,15 @@ using static Mindweave.Desktop.Tests.UiTree;
 namespace Mindweave.Desktop.Tests;
 
 /// <summary>
-/// 设置 › 工作区, renaming (2026-11-11): 建议名称 asks the model for names drawn from the workspace's conversations; a picked
-/// name fills the box and nothing is saved until Enter or 保存. Stopping, failures, an empty workspace and late answers.
+/// 设置 › 工作区, renaming (2026-11-11): 建议名称 asks the model for names drawn from the workspace's conversations. The
+/// first is offered dimly after the text in the box (user decision of 2026-11-11): Tab takes it, Tab again the next;
+/// 更多建议 shows them all as chips. Nothing is saved until Enter or 保存. Stopping, failures, an empty workspace and late
+/// answers.
 /// </summary>
 public class WorkspaceNameSuggestionUiTests
 {
     [AvaloniaFact]
-    public async Task Asking_shows_names_to_pick_and_picking_one_fills_the_box_without_saving()
+    public async Task Asking_offers_the_first_name_after_the_text_and_tab_takes_it_and_cycles_without_saving()
     {
         await using var app = DesktopHarness.Create();
         var window = app.ShowWindow(1100, 720);
@@ -42,11 +46,12 @@ public class WorkspaceNameSuggestionUiTests
         Assert.False(Rows(window, "SuggestNamesButton")[0].IsEffectivelyVisible);
 
         UiInput.Click(window, Rows<Button>(window, "RenameWorkspaceButton")[0]);
-        var box = Rows<TextBox>(window, "WorkspaceRenameBox")[0];
+        var box = Rows<GhostTextBox>(window, "WorkspaceRenameBox")[0];
         await UiWait.UntilAsync(() => box.IsFocused);
+        await page.KeptNamesRead;
         window.UpdateLayout();
 
-        // While renaming, the line under the box says what the button sends, before anything is sent.
+        // While renaming, the line under the box says what the button sends, before anything is sent; nothing is offered.
         var button = Rows<Button>(window, "SuggestNamesButton")[0];
         Assert.True(button.IsEffectivelyVisible && button.IsEffectivelyEnabled);
         Assert.Equal(UiText.SuggestNamesName("火车"), AutomationProperties.GetName(button));
@@ -54,42 +59,174 @@ public class WorkspaceNameSuggestionUiTests
         Assert.True(Rows(window, "SuggestNamesHint")[0].IsEffectivelyVisible);
         Assert.False(Rows(window, "WorkspaceRowCounts")[0].IsEffectivelyVisible);
         Assert.False(Rows(window, "SuggestionPanel")[0].IsEffectivelyVisible);
+        Assert.Null(box.Offered);
+        Assert.False(box.ShowsGhost);
         Assert.DoesNotContain(app.Client.Requests, FakeChatClient.IsWorkspaceNaming);
 
         UiInput.Click(window, button);
         await page.Suggesting;
+        await UiWait.UntilAsync(() => box.IsFocused);
         window.UpdateLayout();
+
+        // The first name is offered after the text, said in the box's help text; no chips unless asked; 换一批 now.
         Assert.Equal(NameSuggestionState.Shown, row.SuggestionState);
-        var chips = Rows<Button>(window, "SuggestionChip");
-        Assert.Equal(["蒸汽机车史", "铁路发展", "火车与工业革命"], chips.Select(c => c.Content as string));
-        Assert.Equal(UiText.SuggestionChipName("铁路发展"), AutomationProperties.GetName(chips[1]));
-        Assert.True(Rows(window, "SuggestionsCaption")[0].IsEffectivelyVisible);
+        Assert.Equal("蒸汽机车史", box.Offered);
+        Assert.True(box.ShowsGhost);
+        Assert.Equal(OfferHelp("蒸汽机车史"), AutomationProperties.GetHelpText(box));
+        Assert.False(Rows(window, "SuggestionPanel")[0].IsEffectivelyVisible);
+        Assert.True(Rows(window, "GhostNamesHintLine")[0].IsEffectivelyVisible);
+        Assert.False(Rows(window, "SuggestNamesHint")[0].IsEffectivelyVisible);
+        Assert.Equal(UiText.SuggestOtherNamesName("火车"), AutomationProperties.GetName(Rows(window, "SuggestNamesButton")[0]));
+        Assert.Equal("火车", box.Text);
         var sent = Assert.Single(app.Client.Requests, FakeChatClient.IsWorkspaceNaming).Turns[1].Content;
         Assert.Contains("当前名称：火车", sent, StringComparison.Ordinal);
 
-        // Picking fills the box, still editable, and saves nothing; the focus is back in the box after the name.
-        UiInput.Click(window, chips[1]);
-        Assert.True(row.IsRenaming);
-        Assert.Equal("铁路发展", row.RenameText);
-        await UiWait.UntilAsync(() => box.IsFocused && box.CaretIndex == "铁路发展".Length && string.IsNullOrEmpty(box.SelectedText));
-        Assert.Equal("火车", row.Name);
+        // Tab takes it: in the box, the caret at the end, still editable; nothing saved. The next one is offered.
+        Tab(window);
+        Assert.True(box.IsFocused);
+        Assert.Equal("蒸汽机车史", row.RenameText);
+        Assert.Equal("蒸汽机车史".Length, box.CaretIndex);
+        Assert.True(string.IsNullOrEmpty(box.SelectedText));
+        Assert.Equal("铁路发展", box.Offered);
+        Assert.Equal(OfferHelp("铁路发展"), AutomationProperties.GetHelpText(box));
         Assert.Equal("火车", app.Workbench.CurrentWorkspace!.Name.Value);
-        Assert.Equal("火车", (await app.Services.GetRequiredService<WorkspaceService>().ListAsync(CancellationToken.None)).Single().Name.Value);
-        Assert.Equal(3, Rows<Button>(window, "SuggestionChip").Count);
 
-        // Typing goes on from the picked name; Enter saves what the box says, and the names go with the rename.
-        window.KeyTextInput("史");
+        // Tab again cycles through the three, wrapping.
+        Tab(window);
+        Assert.Equal("铁路发展", row.RenameText);
+        Tab(window);
+        Assert.Equal("火车与工业革命", row.RenameText);
+        Tab(window);
+        Assert.Equal("蒸汽机车史", row.RenameText);
+        Assert.True(box.IsFocused);
+        Assert.Equal("火车", (await app.Services.GetRequiredService<WorkspaceService>().ListAsync(CancellationToken.None)).Single().Name.Value);
+
+        // Typing ends the offer for this rename: nothing drawn, the help text plain, and Tab moves on as usual.
+        window.KeyTextInput("与铁路");
+        Assert.Null(box.Offered);
+        Assert.False(box.ShowsGhost);
+        Assert.Null(AutomationProperties.GetHelpText(box));
+        Tab(window);
+        Assert.False(box.IsFocused);
+        Assert.Equal("蒸汽机车史与铁路", row.RenameText);
+
+        // Enter saves what the box says, and the names go with the rename.
+        box.Focus(NavigationMethod.Pointer);
         window.KeyPress(Key.Enter, RawInputModifiers.None, PhysicalKey.Enter, null);
         await page.Renaming;
         Assert.False(row.IsRenaming);
-        Assert.Equal("铁路发展史", app.Workbench.CurrentWorkspace!.Name.Value);
-        Assert.Empty(row.Suggestions);
+        Assert.Equal("蒸汽机车史与铁路", app.Workbench.CurrentWorkspace!.Name.Value);
+        Assert.Empty(row.GhostNames);
         Assert.Equal(NameSuggestionState.Idle, row.SuggestionState);
         window.Close();
     }
 
     [AvaloniaFact]
-    public async Task The_keyboard_goes_from_the_button_to_the_names_and_enter_picks_one()
+    public async Task Deleting_hides_the_offer_shift_tab_always_moves_back_and_tab_moves_on_when_nothing_is_offered()
+    {
+        await using var app = DesktopHarness.Create();
+        var window = app.ShowWindow(1100, 720);
+        await NetworkScenario.SeedAsync(app);
+        var page = await OpenPageAsync(app, window);
+        var row = page.Rows[0];
+        row.BeginRenameCommand.Execute(null);
+        var box = Rows<GhostTextBox>(window, "WorkspaceRenameBox")[0];
+        await UiWait.UntilAsync(() => box.IsFocused);
+
+        // Nothing offered: Tab leaves the box (to 更多建议's line is not there yet: the next stop after the box).
+        Tab(window);
+        Assert.False(box.IsFocused);
+        box.Focus(NavigationMethod.Tab);
+
+        row.SuggestNamesCommand.Execute(null);
+        await page.Suggesting;
+        await UiWait.UntilAsync(() => box.IsFocused && box.Offered == "蒸汽机车史");
+
+        // Shift+Tab is never taken: it moves back to 保存.
+        window.KeyPress(Key.Tab, RawInputModifiers.Shift, PhysicalKey.Tab, null);
+        await UiWait.UntilAsync(() => Rows<Button>(window, "SaveRenameWorkspaceButton")[0].IsFocused);
+        Assert.Equal("火车", row.RenameText);
+
+        // Back in the box, Tab takes a name; deleting a character ends the offer.
+        box.Focus(NavigationMethod.Pointer);
+        box.CaretIndex = box.Text!.Length;
+        Tab(window);
+        Assert.Equal("蒸汽机车史", row.RenameText);
+        window.KeyPress(Key.Back, RawInputModifiers.None, PhysicalKey.Backspace, null);
+        Assert.Equal("蒸汽机车", row.RenameText);
+        Assert.Null(box.Offered);
+        Tab(window);
+        Assert.False(box.IsFocused);
+        Assert.Equal("蒸汽机车", row.RenameText);
+
+        // 换一批 brings a new offer, even after typing; a failed one keeps the names offered before.
+        app.Client.WorkspaceNames.Replies.Enqueue("蒸汽时代\n铁路网络");
+        row.SuggestNamesCommand.Execute(null);
+        await page.Suggesting;
+        Assert.Equal(["蒸汽时代", "铁路网络"], row.GhostNames);
+        Assert.Equal("蒸汽时代", box.Offered);
+        app.Client.WorkspaceNames.FailNext(GenerationErrorKind.Network);
+        row.SuggestNamesCommand.Execute(null);
+        await page.Suggesting;
+        Assert.Equal(["蒸汽时代", "铁路网络"], row.GhostNames);
+        Assert.Equal(UiText.SuggestionsFailed(GenerationErrorKind.Network), row.SuggestionProblem);
+        window.Close();
+    }
+
+    [AvaloniaFact]
+    public async Task The_offer_is_drawn_after_the_text_never_over_it_and_trimmed_to_the_box()
+    {
+        await using var app = DesktopHarness.Create();
+        var window = app.ShowWindow(1100, 720);
+        await NetworkScenario.SeedAsync(app);
+        var page = await OpenPageAsync(app, window);
+        var row = page.Rows[0];
+        row.BeginRenameCommand.Execute(null);
+        var box = Rows<GhostTextBox>(window, "WorkspaceRenameBox")[0];
+        await UiWait.UntilAsync(() => box.IsFocused);
+
+        app.Client.WorkspaceNames.Replies.Enqueue("蒸汽机车\n" + new string('长', 19));
+        row.SuggestNamesCommand.Execute(null);
+        await page.Suggesting;
+        await UiWait.UntilAsync(() => box.IsFocused);
+        window.UpdateLayout();
+        var place = box.Place()!;
+        Assert.True(place.Ghost.Left >= place.Text.Right + 4, $"{place.Ghost} after {place.Text}");
+        Assert.True(place.Key.Left >= place.Ghost.Right);
+        Assert.True(place.Key.Right <= place.View.Right + 0.5, $"{place.Key} inside {place.View}");
+        Assert.False(place.Trimmed);
+
+        // A long name is trimmed to what fits after the text; it still ends inside the box.
+        Tab(window);
+        window.UpdateLayout();
+        Assert.Equal(new string('长', 19), box.Offered);
+        row.RenameText = string.Concat(Enumerable.Repeat("很长的名字", 3));
+        row.SetNames([new string('长', 19)]);
+        window.UpdateLayout();
+        place = box.Place()!;
+        Assert.True(place.Trimmed);
+        Assert.True(place.Ghost.Left >= place.Text.Right + 4);
+        Assert.True(place.Key.Right <= place.View.Right + 0.5);
+
+        // Without the focus, or without room after the text, nothing is drawn (the help text still says it).
+        row.RenameText = string.Concat(Enumerable.Repeat("很长的名字", 12));
+        row.SetNames(["火车史"]);
+        window.UpdateLayout();
+        Assert.Equal("火车史", box.Offered);
+        Assert.Null(box.Place());
+        row.RenameText = "火车";
+        row.SetNames(["火车史"]);
+        window.UpdateLayout();
+        Assert.NotNull(box.Place());
+        Rows<Button>(window, "SaveRenameWorkspaceButton")[0].Focus(NavigationMethod.Tab);
+        window.UpdateLayout();
+        Assert.Null(box.Place());
+        Assert.Equal(OfferHelp("火车史"), AutomationProperties.GetHelpText(box));
+        window.Close();
+    }
+
+    [AvaloniaFact]
+    public async Task More_suggestions_shows_every_name_as_a_chip_and_picking_one_fills_the_box()
     {
         await using var app = DesktopHarness.Create();
         var window = app.ShowWindow(1100, 720);
@@ -97,24 +234,106 @@ public class WorkspaceNameSuggestionUiTests
         var page = await OpenPageAsync(app, window);
         var row = page.Rows[0];
         UiInput.Click(window, Rows<Button>(window, "RenameWorkspaceButton")[0]);
-        var box = Rows<TextBox>(window, "WorkspaceRenameBox")[0];
+        var box = Rows<GhostTextBox>(window, "WorkspaceRenameBox")[0];
         await UiWait.UntilAsync(() => box.IsFocused);
-
-        var button = Rows<Button>(window, "SuggestNamesButton")[0];
-        button.Focus(NavigationMethod.Tab);
-        window.KeyPress(Key.Enter, RawInputModifiers.None, PhysicalKey.Enter, null);
+        UiInput.Click(window, Rows<Button>(window, "SuggestNamesButton")[0]);
         await page.Suggesting;
         window.UpdateLayout();
-        await UiWait.UntilAsync(() => Rows<Button>(window, "SuggestionChip") is [{ IsFocused: true }, ..]);
 
-        window.KeyPress(Key.Tab, RawInputModifiers.None, PhysicalKey.Tab, null);
+        var toggle = Rows<Button>(window, "NameChipsToggle")[0];
+        Assert.Equal(UiText.ShowNameChipsName, AutomationProperties.GetName(toggle));
+        UiInput.Click(window, toggle);
+        window.UpdateLayout();
+        Assert.True(Rows(window, "SuggestionPanel")[0].IsEffectivelyVisible);
+        Assert.True(Rows(window, "SuggestionsCaption")[0].IsEffectivelyVisible);
+        Assert.Equal(UiText.HideNameChipsName, AutomationProperties.GetName(Rows<Button>(window, "NameChipsToggle")[0]));
+        var chips = Rows<Button>(window, "SuggestionChip");
+        Assert.Equal(["蒸汽机车史", "铁路发展", "火车与工业革命"], chips.Select(c => c.Content as string));
+        Assert.Equal(UiText.SuggestionChipName("铁路发展"), AutomationProperties.GetName(chips[1]));
+
+        // Picking fills the box, still editable, and saves nothing; the focus is back in the box after the name.
+        UiInput.Click(window, chips[1]);
+        Assert.True(row.IsRenaming);
+        Assert.Equal("铁路发展", row.RenameText);
+        await UiWait.UntilAsync(() => box.IsFocused && box.CaretIndex == "铁路发展".Length && string.IsNullOrEmpty(box.SelectedText));
+        Assert.Equal("火车", row.Name);
+        Assert.Equal(3, Rows<Button>(window, "SuggestionChip").Count);
+
+        // From the keyboard: a chip, Tab to the next, Enter picks it.
+        Rows<Button>(window, "SuggestionChip")[0].Focus(NavigationMethod.Tab);
+        Tab(window);
         await UiWait.UntilAsync(() => Rows<Button>(window, "SuggestionChip")[1].IsFocused);
         window.KeyPress(Key.Enter, RawInputModifiers.None, PhysicalKey.Enter, null);
         Assert.Equal("铁路发展", row.RenameText);
-        Assert.True(row.IsRenaming);
         await UiWait.UntilAsync(() => box.IsFocused);
-        Assert.Equal("火车", app.Workbench.CurrentWorkspace!.Name.Value);
+
+        // Folded again; a new rename starts folded.
+        UiInput.Click(window, Rows<Button>(window, "NameChipsToggle")[0]);
+        window.UpdateLayout();
+        Assert.False(Rows(window, "SuggestionPanel")[0].IsEffectivelyVisible);
+        box.Focus(NavigationMethod.Pointer);
+        box.CaretIndex = box.Text!.Length;
+        window.KeyTextInput("史");
+        window.KeyPress(Key.Enter, RawInputModifiers.None, PhysicalKey.Enter, null);
+        await page.Renaming;
+        Assert.Equal("铁路发展史", app.Workbench.CurrentWorkspace!.Name.Value);
+        Assert.False(row.ShowsChips);
         window.Close();
+    }
+
+    [AvaloniaFact]
+    public async Task Names_kept_from_before_are_offered_at_once_and_a_new_batch_replaces_them()
+    {
+        await using var app = DesktopHarness.Create();
+        var window = app.ShowWindow(1100, 720);
+        await NetworkScenario.SeedAsync(app);
+        var workspace = app.Workbench.CurrentWorkspace!;
+        var cache = app.Services.GetRequiredService<IWorkspaceNameCache>();
+        await cache.SetAsync(workspace.Id, new PreparedNames([Name("火车的演进"), Name("火车"), Name("铁路技术史")], DateTimeOffset.UtcNow, 4), CancellationToken.None);
+        var page = await OpenPageAsync(app, window);
+        var row = page.Rows[0];
+
+        UiInput.Click(window, Rows<Button>(window, "RenameWorkspaceButton")[0]);
+        var box = Rows<GhostTextBox>(window, "WorkspaceRenameBox")[0];
+        await page.KeptNamesRead;
+        await UiWait.UntilAsync(() => box.IsFocused && box.Offered is not null);
+        window.UpdateLayout();
+
+        // Offered without asking; the current name is never among them; the button asks for another batch.
+        Assert.Equal(["火车的演进", "铁路技术史"], row.GhostNames);
+        Assert.Equal("火车的演进", box.Offered);
+        Assert.True(box.ShowsGhost);
+        Assert.DoesNotContain(app.Client.Requests, FakeChatClient.IsWorkspaceNaming);
+        Assert.Equal(UiText.SuggestOtherNames, row.SuggestLabel);
+        Assert.Equal(UiText.SuggestOtherNamesTip, AutomationProperties.GetHelpText(Rows<Button>(window, "SuggestNamesButton")[0]));
+
+        // 换一批: a request, and the new names replace the kept ones (and are kept in their place).
+        app.Client.WorkspaceNames.Replies.Enqueue("蒸汽与钢轨\n轨道上的世纪");
+        UiInput.Click(window, Rows<Button>(window, "SuggestNamesButton")[0]);
+        await page.Suggesting;
+        Assert.Equal(["蒸汽与钢轨", "轨道上的世纪"], row.GhostNames);
+        await UiWait.UntilAsync(() => box.Offered == "蒸汽与钢轨");
+        Assert.Equal(["蒸汽与钢轨", "轨道上的世纪"], (await cache.GetAsync(workspace.Id, null, CancellationToken.None))!.Names.Select(n => n.Value));
+
+        // Typed before the kept names were read: they are not offered over what was typed.
+        row.CancelRenameCommand.Execute(null);
+        row.BeginRenameCommand.Execute(null);
+        row.RenameText = "我自己起的";
+        await page.KeptNamesRead;
+        Assert.Empty(row.GhostNames);
+        window.Close();
+    }
+
+    private static readonly CompositeFormat OfferFormat = CompositeFormat.Parse(UiText.GhostNameHelpFormat);
+
+    private static string OfferHelp(string name) => string.Format(CultureInfo.CurrentCulture, OfferFormat, name);
+
+    private static void Tab(Window window) => window.KeyPress(Key.Tab, RawInputModifiers.None, PhysicalKey.Tab, null);
+
+    private static WorkspaceName Name(string raw)
+    {
+        Assert.True(WorkspaceName.TryCreate(raw, out var name, out _));
+        return name!;
     }
 
     /// <summary>
@@ -133,6 +352,10 @@ public class WorkspaceNameSuggestionUiTests
         var box = Rows<TextBox>(window, "WorkspaceRenameBox")[0];
         await UiWait.UntilAsync(() => box.IsFocused);
 
+        // With 更多建议 open, the keyboard follows new names to the first chip.
+        row.SuggestNamesCommand.Execute(null);
+        await page.Suggesting;
+        row.ToggleChipsCommand.Execute(null);
         Rows<Button>(window, "SuggestNamesButton")[0].Focus(NavigationMethod.Tab);
         window.KeyPress(Key.Enter, RawInputModifiers.None, PhysicalKey.Enter, null);
         await page.Suggesting;
@@ -236,12 +459,12 @@ public class WorkspaceNameSuggestionUiTests
         Assert.Equal(UiText.SuggestionsFailed(GenerationErrorKind.Network), Rows<Avalonia.Controls.TextBlock>(window, "SuggestionProblemText")[0].Text);
         Assert.True(Rows(window, "RetrySuggestButton")[0].IsEffectivelyVisible);
         Assert.False(Rows(window, "SuggestSettingsButton")[0].IsEffectivelyVisible);
-        Assert.Empty(Rows(window, "SuggestionChip"));
+        Assert.Empty(row.GhostNames);
 
         UiInput.Click(window, Rows<Button>(window, "RetrySuggestButton")[0]);
         await page.Suggesting;
         window.UpdateLayout();
-        Assert.Equal(3, Rows(window, "SuggestionChip").Count);
+        Assert.Equal(3, row.GhostNames.Count);
         Assert.False(Rows(window, "SuggestionProblemLine")[0].IsEffectivelyVisible);
 
         // Nothing usable in the answer: said, with 重试.

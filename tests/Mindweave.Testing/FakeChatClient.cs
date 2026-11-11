@@ -116,6 +116,9 @@ public sealed class FakeChatClient : IChatClient
     /// <summary>Prompt tokens the service reports for a request, as a real one does at the end of its stream; null reports none.</summary>
     public Func<ChatRequest, int?>? PromptTokens { get; set; }
 
+    /// <summary>Completion tokens the service reports for a request; null reports none.</summary>
+    public Func<ChatRequest, int?>? CompletionTokens { get; set; }
+
     /// <summary>Every (address, key) pair sent to the service, by listing models or generating, in order.</summary>
     public ConcurrentQueue<(string BaseUrl, string ApiKey)> KeysSent { get; } = new();
 
@@ -130,9 +133,11 @@ public sealed class FakeChatClient : IChatClient
             yield return new ChatStreamEvent.ReasoningDelta(30);
         }
 
-        if (PromptTokens?.Invoke(request) is { } billed)
+        var billed = PromptTokens?.Invoke(request);
+        var produced = CompletionTokens?.Invoke(request);
+        if (billed is not null || produced is not null)
         {
-            yield return new ChatStreamEvent.Usage(billed, null);
+            yield return new ChatStreamEvent.Usage(billed, produced);
         }
 
         if (ScriptFor(request) is { } internalRequest)

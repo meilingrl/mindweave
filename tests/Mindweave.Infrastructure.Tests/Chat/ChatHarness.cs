@@ -28,12 +28,12 @@ internal sealed class ChatHarness : IAsyncDisposable
     // Not disposed itself: DisposeAsync tears the services down in the order the stores need (flushes before the database).
     private readonly ServiceProvider _services;
 
-    private ChatHarness(TempDataDirectory dir, bool ownsDirectory, Func<IConversationStore, IConversationStore>? wrapStore, IChatClient? client, SqliteDatabaseOptions? databaseOptions, int? slots)
+    private ChatHarness(TempDataDirectory dir, bool ownsDirectory, Func<IConversationStore, IConversationStore>? wrapStore, IChatClient? client, SqliteDatabaseOptions? databaseOptions, int? slots, TimeSpan? storageRetry)
     {
         ActiveClient = client ?? Client;
         _dir = dir;
         _ownsDirectory = ownsDirectory;
-        _services = BuildServices(dir.Paths, ActiveClient, Credentials, wrapStore, databaseOptions, slots);
+        _services = BuildServices(dir.Paths, ActiveClient, Credentials, wrapStore, databaseOptions, slots, storageRetry);
         Database = _services.GetRequiredService<SqliteDatabase>();
         Store = _services.GetRequiredService<SqliteConversationStore>();
         Settings = (SqliteModelSettingsStore)_services.GetRequiredService<IModelSettingsStore>();
@@ -108,6 +108,18 @@ internal sealed class ChatHarness : IAsyncDisposable
 
     public ConversationDeletionService ConversationDeletion { get; }
 
+    /// <summary>The clock the background names wait on (2026-11-11): it stands still until a test moves it.</summary>
+    public ManualTime PreparationTime { get; } = new();
+
+    /// <summary>Names prepared in the background (2026-11-11); created, and listening, once first asked for.</summary>
+    public Application.Workspaces.WorkspaceNamePreparer NamePreparer => _services.GetRequiredService<Application.Workspaces.WorkspaceNamePreparer>();
+
+    /// <summary>Each workspace's kept names.</summary>
+    public Application.Workspaces.IWorkspaceNameCache NameCache => _services.GetRequiredService<Application.Workspaces.IWorkspaceNameCache>();
+
+    /// <summary>The 提示 choices, the background names among them.</summary>
+    public Application.Preferences.INewsAlerts Hints => _services.GetRequiredService<Application.Preferences.INewsAlerts>();
+
     /// <summary>Names suggested for a workspace while renaming it (2026-11-11).</summary>
     public Application.Workspaces.WorkspaceNameSuggester NameSuggester => _services.GetRequiredService<Application.Workspaces.WorkspaceNameSuggester>();
 
@@ -124,10 +136,11 @@ internal sealed class ChatHarness : IAsyncDisposable
         IChatClient? client = null,
         ModelSettingsInput? model = null,
         SqliteDatabaseOptions? databaseOptions = null,
-        int? slots = null)
+        int? slots = null,
+        TimeSpan? storageRetry = null)
     {
         var dir = directory ?? new TempDataDirectory();
-        var harness = new ChatHarness(dir, directory is null, wrapStore, client, databaseOptions, slots);
+        var harness = new ChatHarness(dir, directory is null, wrapStore, client, databaseOptions, slots, storageRetry);
         Assert.True((await harness.Database.OpenAsync(CancellationToken.None)).IsReady);
         var workspace = new Workspace(WorkspaceId.New(), WorkspaceName.FromStored("测试"), DateTimeOffset.UtcNow);
         await new SqliteWorkspaceStore(harness.Database).AddAsync(workspace, CancellationToken.None);
@@ -172,7 +185,7 @@ internal sealed class ChatHarness : IAsyncDisposable
         {
             var title = (await Store.GetAsync(conversation, CancellationToken.None))?.Title;
             var (started, traced) = await Database.ReadAsync(
-                c => (c.Scalar<long>(null, "SELECT count(*) FROM generation_task WHERE started_at IS NOT NULL;"), c.Scalar<long>(null, "SELECT count(*) FROM ai_request;")),
+                c => (c.Scalar<long>(null, "SELECT count(*) FROM generation_task WHERE started_at IS NOT NULL;"), c.Scalar<long>(null, "SELECT count(*) FROM ai_request WHERE task_id IS NOT NULL;")),
                 CancellationToken.None);
             if (title is not null && Generation.UnfinishedCount == 0 && traced >= started)
             {
@@ -299,13 +312,14 @@ internal sealed class ChatHarness : IAsyncDisposable
     /// The app's own wiring (<see cref="InfrastructureServices.AddMindweaveInfrastructure"/> and
     /// <see cref="ApplicationServices.AddMindweaveApplication"/>) with the test doubles and short timings in place.
     /// </summary>
-    private static ServiceProvider BuildServices(
+    private ServiceProvider BuildServices(
         AppPaths paths,
         IChatClient client,
         ICredentialStore credentials,
         Func<IConversationStore, IConversationStore>? wrapStore,
         SqliteDatabaseOptions? databaseOptions,
-        int? slots)
+        int? slots,
+        TimeSpan? storageRetry)
     {
         var services = new ServiceCollection();
         services.AddSingleton(typeof(ILogger<>), typeof(NullLogger<>));
@@ -313,7 +327,10 @@ internal sealed class ChatHarness : IAsyncDisposable
         // Added first: the app's defaults for these are only registered where nothing is yet.
         services.AddSingleton(client);
         services.AddSingleton(credentials);
-        services.AddSingleton(new StorageHealthOptions { RetryInterval = TimeSpan.FromMilliseconds(50) });
+        services.AddSingleton(new StorageHealthOptions { RetryInterval = storageRetry ?? TimeSpan.FromMilliseconds(50) });
+
+        // The background's 30 s wait runs on a clock that stands still unless a test moves it.
+        services.AddSingleton(new Application.Workspaces.WorkspaceNamePreparationOptions { Time = PreparationTime });
         services.AddSingleton(slots is { } count
             ? new GenerationOptions { CheckpointInterval = TimeSpan.FromMilliseconds(50), Slots = count }
             : new GenerationOptions { CheckpointInterval = TimeSpan.FromMilliseconds(50) });

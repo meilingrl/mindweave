@@ -4,10 +4,14 @@ using Mindweave.Core.Conversations;
 namespace Mindweave.Application.Diagnostics;
 
 /// <summary>Collects the facts of one AI request as its stream is consumed; not thread-safe (one consumer).</summary>
-internal sealed class RequestTrace(GenerationTaskId task, IClock clock, ChatRequest request)
+internal sealed class RequestTrace
 {
-    private readonly int _estimate = Mindweave.Core.Context.TokenEstimator.Request(request.Turns.Select(t => t.Content));
-    private readonly DateTimeOffset _started = clock.UtcNow;
+    private readonly GenerationTaskId? _task;
+    private readonly Conversations.RequestAttribution? _attribution;
+    private readonly IClock _clock;
+    private readonly ChatRequest _request;
+    private readonly int _estimate;
+    private readonly DateTimeOffset _started;
     private TimeSpan? _toResponse;
     private TimeSpan? _toFirstText;
     private int? _status;
@@ -17,17 +21,39 @@ internal sealed class RequestTrace(GenerationTaskId task, IClock clock, ChatRequ
     private int? _promptTokens;
     private int? _completionTokens;
 
+    /// <summary>A request made for a task (its model is the task's snapshot).</summary>
+    public RequestTrace(GenerationTaskId task, IClock clock, ChatRequest request)
+        : this(clock, request)
+    {
+        _task = task;
+    }
+
+    /// <summary>A request without a task row, counted for a workspace and a kind (2026-11-11); its model is recorded with it.</summary>
+    public RequestTrace(Conversations.RequestAttribution attribution, IClock clock, ChatRequest request)
+        : this(clock, request)
+    {
+        _attribution = attribution;
+    }
+
+    private RequestTrace(IClock clock, ChatRequest request)
+    {
+        _clock = clock;
+        _request = request;
+        _estimate = Mindweave.Core.Context.TokenEstimator.Request(request.Turns.Select(t => t.Content));
+        _started = clock.UtcNow;
+    }
+
     public void Observe(ChatStreamEvent item)
     {
         switch (item)
         {
             case ChatStreamEvent.ResponseStarted started:
-                _toResponse ??= clock.UtcNow - _started;
+                _toResponse ??= _clock.UtcNow - _started;
                 _status = started.HttpStatus;
                 _providerRequestId = started.ProviderRequestId;
                 break;
             case ChatStreamEvent.TextDelta delta:
-                _toFirstText ??= clock.UtcNow - _started;
+                _toFirstText ??= _clock.UtcNow - _started;
                 _characters += delta.Text.Length;
                 break;
             case ChatStreamEvent.ReasoningDelta:
@@ -48,9 +74,9 @@ internal sealed class RequestTrace(GenerationTaskId task, IClock clock, ChatRequ
     public AiRequestRecord Finish(bool stopped, GenerationErrorKind? error, string? detail) =>
         new(
             Guid.CreateVersion7(),
-            task,
+            _task,
             _started,
-            clock.UtcNow,
+            _clock.UtcNow,
             _toResponse,
             _toFirstText,
             stopped ? AiRequestOutcome.Stopped
@@ -64,5 +90,8 @@ internal sealed class RequestTrace(GenerationTaskId task, IClock clock, ChatRequ
             _characters,
             _promptTokens,
             _completionTokens,
-            _estimate);
+            _estimate,
+            _attribution,
+            _attribution is null ? null : _request.Model.Model,
+            _attribution is null ? null : _request.Model.BaseUrl);
 }

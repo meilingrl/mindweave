@@ -16,8 +16,9 @@ public enum GenerationTaskKind
     Naming,
 
     /// <summary>
-    /// Candidate names for a workspace, asked for while renaming it (2026-11-11). Never stored: the request runs in a slot
-    /// like any other but has no task row and no trace (see <see cref="Conversations.TransientWork"/>).
+    /// Candidate names for a workspace, asked for while renaming it or prepared in the background (2026-11-11). Never a
+    /// task row: the request runs in a slot like any other and is recorded for its workspace instead (migration v10; see
+    /// <see cref="Conversations.TransientWork"/>).
     /// </summary>
     NameSuggestion,
 }
