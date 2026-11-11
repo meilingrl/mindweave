@@ -376,6 +376,19 @@ public class WorkspaceNamePreparationTests
         Assert.Empty(await again.Requests.ForWorkspaceAsync(workspace, Ct));
     }
 
+    [Fact]
+    public async Task Names_that_arrive_after_their_workspace_was_deleted_are_not_kept()
+    {
+        // Review 2026-11-12: a request (asked for, or in the background) still running when its workspace is deleted
+        // answers afterwards; its names must not be kept under the deleted workspace for ever.
+        await using var h = await ChatHarness.StartAsync();
+        var workspace = h.Workspace;
+        await h.NameCache.ForgetAsync(workspace, Ct);
+        await h.NameCache.SetAsync(workspace, new PreparedNames([Name("蒸汽机车史")], DateTimeOffset.UnixEpoch, 3), Ct);
+        Assert.Null(await h.NameCache.GetAsync(workspace, null, Ct));
+        Assert.Equal(0, await h.Database.ReadAsync(c => c.Scalar<long>(null, $"SELECT count(*) FROM app_state WHERE key LIKE '%{workspace}%';"), Ct));
+    }
+
     private static WorkspaceName Name(string raw)
     {
         Assert.True(WorkspaceName.TryCreate(raw, out var name, out _));

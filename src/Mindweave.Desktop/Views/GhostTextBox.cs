@@ -18,7 +18,9 @@ namespace Mindweave.Desktop.Views;
 /// there, offers and takes the next one, wrapping. Typing, pasting or deleting anything ends the offer until the next
 /// <see cref="Suggestions"/>. With nothing offered Tab moves the focus as usual, and Shift+Tab always does. The offer is
 /// announced through the help text (<see cref="OfferHelpFormat"/>); the ghost itself is drawn only, never a focus stop.
-/// It never overlaps the text: it starts after it, is trimmed to the visible width, and is left out when there is no room.
+/// It never overlaps the text: it starts after it, is trimmed to the visible width, and is left out when there is no room
+/// or while an input method is composing; then Tab takes nothing and the help text does not mention it (review
+/// 2026-11-12: Tab never replaces the text with an offer that cannot be seen).
 /// </summary>
 public class GhostTextBox : TextBox
 {
@@ -44,7 +46,7 @@ public class GhostTextBox : TextBox
     public static readonly StyledProperty<IBrush?> KeyHintBorderBrushProperty =
         AvaloniaProperty.Register<GhostTextBox, IBrush?>(nameof(KeyHintBorderBrush));
 
-    /// <summary>What Tab would put in the box now, or null.</summary>
+    /// <summary>What is offered now, or null; Tab puts it in the box while it is drawn (<see cref="ShowsGhost"/>).</summary>
     public static readonly DirectProperty<GhostTextBox, string?> OfferedProperty =
         AvaloniaProperty.RegisterDirect<GhostTextBox, string?>(nameof(Offered), o => o.Offered);
 
@@ -112,10 +114,16 @@ public class GhostTextBox : TextBox
     protected override Type StyleKeyOverride => typeof(TextBox);
 
     /// <summary>Where the ghost and its key hint go, in this box's coordinates; null when nothing is drawn.</summary>
-    internal GhostPlacement? Place()
+    internal GhostPlacement? Place() => Place(requireFocus: true);
+
+    /// <summary>
+    /// Where the ghost goes; null when nothing is offered, there is no room after the text, an input method is composing
+    /// (its text is shown where the ghost would start) or, with <paramref name="requireFocus"/>, the box has no focus.
+    /// </summary>
+    private GhostPlacement? Place(bool requireFocus)
     {
-        if (Offered is not { } offered || !IsKeyboardFocusWithin || _presenter is not { IsEffectivelyVisible: true } presenter
-            || presenter.TranslatePoint(default, this) is not { } origin)
+        if (Offered is not { } offered || (requireFocus && !IsKeyboardFocusWithin) || _presenter is not { IsEffectivelyVisible: true } presenter
+            || !string.IsNullOrEmpty(presenter.PreeditText) || presenter.TranslatePoint(default, this) is not { } origin)
         {
             return null;
         }
@@ -180,7 +188,9 @@ public class GhostTextBox : TextBox
     protected override void OnKeyDown(KeyEventArgs e)
     {
         ArgumentNullException.ThrowIfNull(e);
-        if (e.Key == Key.Tab && e.KeyModifiers == KeyModifiers.None && _offerIndex >= 0 && Suggestions is { } list && _offerIndex < list.Count)
+        // Only an offer that is drawn is taken: without room for it (a long name) Tab moves on as usual.
+        if (e.Key == Key.Tab && e.KeyModifiers == KeyModifiers.None && _offerIndex >= 0 && Suggestions is { } list && _offerIndex < list.Count
+            && ShowsGhost)
         {
             Accept(list, _offerIndex);
             e.Handled = true;
@@ -221,11 +231,33 @@ public class GhostTextBox : TextBox
         }
     }
 
+    protected override void OnAttachedToVisualTree(VisualTreeAttachmentEventArgs e)
+    {
+        base.OnAttachedToVisualTree(e);
+        LayoutUpdated += OnLayoutUpdated;
+    }
+
+    protected override void OnDetachedFromVisualTree(VisualTreeAttachmentEventArgs e)
+    {
+        LayoutUpdated -= OnLayoutUpdated;
+        base.OnDetachedFromVisualTree(e);
+    }
+
     private void OnPresenterChanged(object? sender, AvaloniaPropertyChangedEventArgs e)
     {
-        if (e.Property == BoundsProperty)
+        if (e.Property == BoundsProperty || e.Property == TextPresenter.PreeditTextProperty)
         {
             _layer.InvalidateVisual();
+            RefreshHelp();
+        }
+    }
+
+    /// <summary>Whether the offer fits depends on the laid-out text: the help text follows each layout.</summary>
+    private void OnLayoutUpdated(object? sender, EventArgs e)
+    {
+        if (Offered is not null)
+        {
+            RefreshHelp();
         }
     }
 
@@ -269,10 +301,20 @@ public class GhostTextBox : TextBox
 
         _offerIndex = index;
         Offered = index >= 0 ? Suggestions![index] : null;
-        AutomationProperties.SetHelpText(
-            this,
-            Offered is { } offered && OfferHelpFormat is { } format ? string.Format(CultureInfo.CurrentCulture, format, offered) : IdleHelpText);
+        RefreshHelp();
         _layer.InvalidateVisual();
+    }
+
+    /// <summary>The help text says what Tab does: the offer while it fits after the text (focused or not), else the plain one.</summary>
+    private void RefreshHelp()
+    {
+        var help = Offered is { } offered && OfferHelpFormat is { } format && Place(requireFocus: false) is not null
+            ? string.Format(CultureInfo.CurrentCulture, format, offered)
+            : IdleHelpText;
+        if (!string.Equals(AutomationProperties.GetHelpText(this), help, StringComparison.Ordinal))
+        {
+            AutomationProperties.SetHelpText(this, help);
+        }
     }
 
     private void RenderGhost(DrawingContext context)

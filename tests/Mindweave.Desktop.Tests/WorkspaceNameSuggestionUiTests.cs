@@ -208,12 +208,36 @@ public class WorkspaceNameSuggestionUiTests
         Assert.True(place.Ghost.Left >= place.Text.Right + 4);
         Assert.True(place.Key.Right <= place.View.Right + 0.5);
 
-        // Without the focus, or without room after the text, nothing is drawn (the help text still says it).
-        row.RenameText = string.Concat(Enumerable.Repeat("很长的名字", 12));
+        // Without room after the text nothing is drawn, so Tab takes nothing either (review 2026-11-12): the help text is
+        // plain and Tab moves on as usual instead of silently replacing a long name with an offer nobody can see.
+        var longName = string.Concat(Enumerable.Repeat("很长的名字", 12));
+        row.RenameText = longName;
         row.SetNames(["火车史"]);
         window.UpdateLayout();
         Assert.Equal("火车史", box.Offered);
         Assert.Null(box.Place());
+        Assert.Null(AutomationProperties.GetHelpText(box));
+        Tab(window);
+        Assert.False(box.IsFocused);
+        Assert.Equal(longName, row.RenameText);
+        box.Focus(NavigationMethod.Pointer);
+
+        // Nor while an input method is composing (pinyin shown in the box, not yet text): nothing drawn or announced.
+        row.RenameText = "火车";
+        row.SetNames(["火车史"]);
+        window.UpdateLayout();
+        Assert.True(box.ShowsGhost);
+        var presenter = box.GetVisualDescendants().OfType<Avalonia.Controls.Presenters.TextPresenter>().Single();
+        presenter.SetCurrentValue(Avalonia.Controls.Presenters.TextPresenter.PreeditTextProperty, "huoche");
+        window.UpdateLayout();
+        Assert.False(box.ShowsGhost);
+        Assert.Null(AutomationProperties.GetHelpText(box));
+        presenter.SetCurrentValue(Avalonia.Controls.Presenters.TextPresenter.PreeditTextProperty, null);
+        window.UpdateLayout();
+        Assert.True(box.ShowsGhost);
+        Assert.Equal(OfferHelp("火车史"), AutomationProperties.GetHelpText(box));
+
+        // Without the focus nothing is drawn; the help text still says it (it is read when the box gets the focus).
         row.RenameText = "火车";
         row.SetNames(["火车史"]);
         window.UpdateLayout();

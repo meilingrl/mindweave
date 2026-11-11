@@ -41,6 +41,10 @@ public sealed partial class WorkspaceNameCache(IPreferenceStore store, ILogger<W
 {
     public const string KeyPrefix = "workspace.names:";
 
+    // Workspaces deleted during this run (review 2026-11-12): a request still running when its workspace was deleted
+    // answers afterwards, and its names must not be kept for a workspace that is gone. Ids are never reused.
+    private readonly System.Collections.Concurrent.ConcurrentDictionary<WorkspaceId, byte> _forgotten = new();
+
     public event EventHandler<WorkspaceId>? Changed;
 
     public static string KeyFor(WorkspaceId workspace) => KeyPrefix + workspace;
@@ -73,9 +77,21 @@ public sealed partial class WorkspaceNameCache(IPreferenceStore store, ILogger<W
     public async Task SetAsync(WorkspaceId workspace, PreparedNames names, CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(names);
+        if (_forgotten.ContainsKey(workspace))
+        {
+            return;
+        }
+
         try
         {
             await store.SetAsync(KeyFor(workspace), Format(names), cancellationToken).ConfigureAwait(false);
+
+            // Deleted while this was written: the forgetting may have run first, so it is done again.
+            if (_forgotten.ContainsKey(workspace))
+            {
+                await store.RemoveAsync(KeyFor(workspace), cancellationToken).ConfigureAwait(false);
+                return;
+            }
         }
         catch (OperationCanceledException)
         {
@@ -105,6 +121,7 @@ public sealed partial class WorkspaceNameCache(IPreferenceStore store, ILogger<W
 
     public async Task ForgetAsync(WorkspaceId workspace, CancellationToken cancellationToken)
     {
+        _forgotten.TryAdd(workspace, 0);
         try
         {
             await store.RemoveAsync(KeyFor(workspace), cancellationToken).ConfigureAwait(false);
