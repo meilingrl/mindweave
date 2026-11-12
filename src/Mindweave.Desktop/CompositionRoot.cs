@@ -59,6 +59,11 @@ public static class CompositionRoot
         services.AddSingleton<ConversationDeletionRequests>();
         services.AddSingleton<IConversationDeletionPrompt>(sp => sp.GetRequiredService<ConversationDeletionRequests>());
         services.TryAddSingleton<ConversationDeletionViewModel>(); // Tests give it their own clock.
+        services.AddSingleton<BackupRequests>();
+        services.AddSingleton<IBackupPrompts>(sp => sp.GetRequiredService<BackupRequests>());
+        services.TryAddSingleton<IInAppRestore, UnavailableInAppRestore>(); // The application session registers itself first.
+        services.AddSingleton<BackupRestoreViewModel>();
+        services.AddSingleton<BackupDeletionViewModel>();
         services.AddSingleton<Network.NetworkSessions>();
         services.AddSingleton<ConversationListViewModel>();
         services.AddSingleton<RootViewModel>();

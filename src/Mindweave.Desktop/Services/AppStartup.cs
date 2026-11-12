@@ -83,6 +83,29 @@ public sealed class AppStartup : IRecoveryActions
     }
 
     /// <summary>
+    /// The first thing a session started for an in-app restore does (2026-11-12): put the backup in place (or, after a
+    /// failure, the previous data back) and continue as a start does, to the last valid page; then say what happened.
+    /// When even the previous data cannot be opened, the recovery page shows, never an empty database.
+    /// </summary>
+    public async Task RestoreInPlaceAsync(BackupInfo backup, string keptCopy)
+    {
+        ArgumentNullException.ThrowIfNull(backup);
+        _health.Start();
+        _root.Show(new StartupViewModel());
+        var restore = await _coordinator.RestoreInPlaceAsync(backup, keptCopy, CancellationToken.None);
+        await ApplyPreferencesAsync(restore.Outcome);
+        Apply(restore.Outcome);
+        if (restore.Result.Restored)
+        {
+            _shell.ShowRestoreNotice(UiText.RestoredNotice(backup.CreatedAt), isError: false);
+        }
+        else if (restore.Result.Open.IsReady)
+        {
+            _shell.ShowRestoreNotice(UiText.RestoreFailedNotice(backup.CreatedAt, restore.Result.Failure), isError: true);
+        }
+    }
+
+    /// <summary>
     /// The stored appearance, sidebar layout and unread marks take effect as soon as the database is open; until then (and on the
     /// recovery page) the application follows the system. A failed read is not an error worth a page: the defaults stay.
     /// </summary>

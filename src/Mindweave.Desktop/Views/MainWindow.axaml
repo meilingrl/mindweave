@@ -2,6 +2,7 @@
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:vm="using:Mindweave.Desktop.ViewModels"
         xmlns:d="using:Mindweave.Desktop"
+        xmlns:sys="using:System"
         x:Class="Mindweave.Desktop.Views.MainWindow"
         x:DataType="vm:RootViewModel"
         Title="Mindweave"
@@ -19,31 +20,109 @@
       one primary; an action that stops or discards work is in the danger colour. Nothing irreversible happens before
       "stop and quit".
     -->
+    <!-- Restoring a backup in the app (2026-11-12): what it does, in short sentences; 恢复 is the primary, 取消 the default
+         (Enter and Esc cancel, and it has the focus). The exit sequence's prompts below draw over it while it runs. -->
+    <Border Name="BackupRestoreDialog" Classes="dialog-scrim" IsVisible="{Binding BackupRestore.IsOpen}">
+      <Border Classes="dialog wide">
+        <StackPanel Spacing="12" DataContext="{Binding BackupRestore}" x:DataType="vm:BackupRestoreViewModel">
+          <TextBlock Name="BackupRestoreTitle" Classes="dialog-title" Text="{Binding Title}" TextWrapping="Wrap" />
+          <ItemsControl Name="BackupRestorePoints" ItemsSource="{Binding Points}">
+            <ItemsControl.ItemsPanel>
+              <ItemsPanelTemplate>
+                <StackPanel Spacing="6" />
+              </ItemsPanelTemplate>
+            </ItemsControl.ItemsPanel>
+            <ItemsControl.ItemTemplate>
+              <DataTemplate x:DataType="sys:String">
+                <DockPanel>
+                  <Ellipse DockPanel.Dock="Left" Classes="dialog-bullet" />
+                  <TextBlock Classes="dialog-body" Text="{Binding}" />
+                </DockPanel>
+              </DataTemplate>
+            </ItemsControl.ItemTemplate>
+          </ItemsControl>
+          <Border Name="BackupRestoreProblem" Classes="notice error" IsVisible="{Binding Problem, Converter={x:Static ObjectConverters.IsNotNull}}">
+            <DockPanel>
+              <TextBlock Classes="notice-icon" Text="!" />
+              <TextBlock Text="{Binding Problem}" TextWrapping="Wrap" AutomationProperties.LiveSetting="Assertive" />
+            </DockPanel>
+          </Border>
+          <StackPanel Classes="dialog-buttons">
+            <Button Name="BackupRestoreCancel" Classes="secondary" Content="{x:Static d:UiText.Cancel}" Command="{Binding CancelCommand}" IsDefault="True" IsCancel="True" />
+            <Button Name="BackupRestoreConfirm" Classes="primary" Content="{x:Static d:UiText.RestoreBackupConfirm}" Command="{Binding RestoreCommand}"
+                    AutomationProperties.Name="{Binding Title}" />
+          </StackPanel>
+        </StackPanel>
+      </Border>
+    </Border>
+    <!-- Deleting backups (2026-11-12): what is freed, that it cannot be undone, and what may be the only copy; 删除 in the
+         danger colour, 取消 the default and the primary. -->
+    <Border Name="BackupDeleteDialog" Classes="dialog-scrim" IsVisible="{Binding BackupDeletion.IsOpen}">
+      <Border Classes="dialog">
+        <StackPanel Spacing="12" DataContext="{Binding BackupDeletion}" x:DataType="vm:BackupDeletionViewModel">
+          <TextBlock Name="BackupDeleteTitle" Classes="dialog-title" Text="{Binding Title}" TextWrapping="Wrap" />
+          <TextBlock Name="BackupDeleteBody" Classes="dialog-body" Text="{Binding Body}" />
+          <ItemsControl Name="BackupDeleteWarnings" ItemsSource="{Binding Warnings}" IsVisible="{Binding Warnings.Count, Converter={x:Static d:Converters.IsPositive}}">
+            <ItemsControl.ItemsPanel>
+              <ItemsPanelTemplate>
+                <StackPanel Spacing="6" />
+              </ItemsPanelTemplate>
+            </ItemsControl.ItemsPanel>
+            <ItemsControl.ItemTemplate>
+              <DataTemplate x:DataType="sys:String">
+                <Border Classes="notice warning">
+                  <DockPanel>
+                    <TextBlock Classes="notice-icon" Text="!" />
+                    <TextBlock Text="{Binding}" />
+                  </DockPanel>
+                </Border>
+              </DataTemplate>
+            </ItemsControl.ItemTemplate>
+          </ItemsControl>
+          <Border Name="BackupDeleteProblem" Classes="notice error" IsVisible="{Binding Problem, Converter={x:Static ObjectConverters.IsNotNull}}">
+            <DockPanel>
+              <TextBlock Classes="notice-icon" Text="!" />
+              <TextBlock Text="{Binding Problem}" TextWrapping="Wrap" AutomationProperties.LiveSetting="Assertive" />
+            </DockPanel>
+          </Border>
+          <TextBlock Classes="caption" Text="{x:Static d:UiText.BackupsDeleting}" IsVisible="{Binding IsBusy}" />
+          <StackPanel Classes="dialog-buttons">
+            <Button Name="BackupDeleteConfirm" Classes="secondary danger" Command="{Binding DeleteCommand}" AutomationProperties.Name="{Binding Title}">
+              <StackPanel Orientation="Horizontal" Spacing="6">
+                <PathIcon Width="13" Height="13" Data="{StaticResource IconDelete}" />
+                <TextBlock Text="{x:Static d:UiText.Delete}" VerticalAlignment="Center" />
+              </StackPanel>
+            </Button>
+            <Button Name="BackupDeleteCancel" Classes="primary" Content="{x:Static d:UiText.Cancel}" Command="{Binding CancelCommand}" IsDefault="True" IsCancel="True" />
+          </StackPanel>
+        </StackPanel>
+      </Border>
+    </Border>
     <Border Name="ExitTaskPrompt" Classes="dialog-scrim" IsVisible="{Binding Exit.IsTaskPromptOpen}">
       <Border Classes="dialog">
         <StackPanel Spacing="12">
-          <TextBlock Classes="dialog-title" Text="{x:Static d:UiText.ExitTitle}" />
+          <TextBlock Classes="dialog-title" Text="{Binding Exit.TaskTitle}" />
           <TextBlock Classes="dialog-body" Text="{Binding Exit.TaskMessage}" />
           <StackPanel Classes="dialog-buttons">
-            <Button Name="ExitConfirm" Classes="secondary danger" Content="{x:Static d:UiText.ExitConfirm}" Command="{Binding Exit.StopAndExitCommand}" />
-            <Button Name="ExitCancel" Classes="primary" Content="{x:Static d:UiText.ExitCancel}" Command="{Binding Exit.KeepRunningCommand}" IsDefault="True" />
+            <Button Name="ExitConfirm" Classes="secondary danger" Content="{Binding Exit.TaskConfirm}" Command="{Binding Exit.StopAndExitCommand}" />
+            <Button Name="ExitCancel" Classes="primary" Content="{Binding Exit.TaskCancel}" Command="{Binding Exit.KeepRunningCommand}" IsDefault="True" />
           </StackPanel>
         </StackPanel>
       </Border>
     </Border>
     <Border Name="ExitSavingPrompt" Classes="dialog-scrim" IsVisible="{Binding Exit.IsBusy}">
       <Border Classes="dialog">
-        <TextBlock Classes="dialog-body" Text="{x:Static d:UiText.ExitSaving}" />
+        <TextBlock Classes="dialog-body" Text="{Binding Exit.BusyText}" />
       </Border>
     </Border>
     <Border Name="ExitFailedPrompt" Classes="dialog-scrim" IsVisible="{Binding Exit.IsFailed}">
       <Border Classes="dialog">
         <StackPanel Spacing="12">
           <TextBlock Classes="dialog-title" Text="{x:Static d:UiText.ExitSaveFailedTitle}" />
-          <TextBlock Classes="dialog-body" Text="{x:Static d:UiText.ExitSaveFailedBody}" />
+          <TextBlock Classes="dialog-body" Text="{Binding Exit.FailedBody}" />
           <StackPanel Classes="dialog-buttons">
             <Button Name="ExitReturn" Classes="secondary" Content="{x:Static d:UiText.ExitReturn}" Command="{Binding Exit.ReturnCommand}" />
-            <Button Name="ExitRetry" Classes="primary" Content="{x:Static d:UiText.ExitRetry}" Command="{Binding Exit.RetryCommand}" IsDefault="True" />
+            <Button Name="ExitRetry" Classes="primary" Content="{Binding Exit.FailedRetry}" Command="{Binding Exit.RetryCommand}" IsDefault="True" />
           </StackPanel>
         </StackPanel>
       </Border>

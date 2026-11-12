@@ -25,6 +25,9 @@ public enum ExitStage
     Stopping,
     Flushing,
     Failed,
+
+    /// <summary>A restore (2026-11-12): everything is saved; the current data is being backed up and the backup put in place.</summary>
+    Restoring,
     Releasing,
 }
 
@@ -36,6 +39,11 @@ public enum ExitStage
 /// drafts, reading state, failed terminal writes and the write queue are saved while the window is still open. A
 /// failed save keeps the window with "retry" and "return"; returning accepts new work only. When everything is saved
 /// the coordinator asks for a programmatic shutdown, which the hooks let through.
+/// <para>
+/// Restoring a backup in the running application (2026-11-12) goes through the same prompts and steps
+/// (<see cref="BeginRestore"/>): instead of the shutdown, the restore's own step runs once everything is saved; when it
+/// does not go ahead, new work is accepted again and nothing else changes.
+/// </para>
 /// </summary>
 public sealed partial class ExitCoordinator(
     IGenerationExit generation,
@@ -51,9 +59,11 @@ public sealed partial class ExitCoordinator(
 {
     private IReadOnlyList<NetworkSession> _discardOnCommit = [];
     private bool _stopped;
+    private Func<Task<bool>>? _restore;
+    private Action? _restoreEnded;
 
     [ObservableProperty]
-    [NotifyPropertyChangedFor(nameof(IsTaskPromptOpen), nameof(IsBusy), nameof(IsFailed))]
+    [NotifyPropertyChangedFor(nameof(IsTaskPromptOpen), nameof(IsBusy), nameof(IsFailed), nameof(BusyText))]
     [NotifyCanExecuteChangedFor(nameof(StopAndExitCommand), nameof(KeepRunningCommand), nameof(RetryCommand), nameof(ReturnCommand))]
     public partial ExitStage Stage { get; private set; }
 
@@ -62,8 +72,25 @@ public sealed partial class ExitCoordinator(
 
     public bool IsTaskPromptOpen => Stage == ExitStage.TaskPrompt;
 
-    /// <summary>Stopping or saving: the overlay shows progress and offers nothing to press.</summary>
-    public bool IsBusy => Stage is ExitStage.Stopping or ExitStage.Flushing;
+    /// <summary>The sequence leads to a restore rather than to quitting; the prompts say so.</summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(TaskTitle), nameof(TaskConfirm), nameof(TaskCancel), nameof(BusyText), nameof(FailedBody), nameof(FailedRetry))]
+    public partial bool IsForRestore { get; private set; }
+
+    public string TaskTitle => IsForRestore ? UiText.RestoreTaskTitle : UiText.ExitTitle;
+
+    public string TaskConfirm => IsForRestore ? UiText.RestoreTaskConfirm : UiText.ExitConfirm;
+
+    public string TaskCancel => IsForRestore ? UiText.Cancel : UiText.ExitCancel;
+
+    public string BusyText => Stage == ExitStage.Restoring ? UiText.RestoreRunning : IsForRestore ? UiText.RestoreSaving : UiText.ExitSaving;
+
+    public string FailedBody => IsForRestore ? UiText.RestoreSaveFailedBody : UiText.ExitSaveFailedBody;
+
+    public string FailedRetry => IsForRestore ? UiText.RestoreRetry : UiText.ExitRetry;
+
+    /// <summary>Stopping, saving or restoring: the overlay shows progress and offers nothing to press.</summary>
+    public bool IsBusy => Stage is ExitStage.Stopping or ExitStage.Flushing or ExitStage.Restoring;
 
     public bool IsFailed => Stage == ExitStage.Failed;
 
@@ -89,9 +116,42 @@ public sealed partial class ExitCoordinator(
         return true;
     }
 
+    /// <summary>
+    /// Starts the sequence for a restore: the unsaved-layout and running-task prompts as on exit (cancelling either ends
+    /// it with nothing changed), then stopping and saving; then <paramref name="restore"/> runs. It returns false when it
+    /// did not go ahead (the backup of the current data failed): new work is accepted again. <paramref name="ended"/> runs
+    /// whenever the sequence ends without the restore having gone ahead. False when an exit or restore is already under way.
+    /// </summary>
+    public bool BeginRestore(Func<Task<bool>> restore, Action ended)
+    {
+        ArgumentNullException.ThrowIfNull(restore);
+        ArgumentNullException.ThrowIfNull(ended);
+        if (Stage != ExitStage.Idle)
+        {
+            return false;
+        }
+
+        _restore = restore;
+        _restoreEnded = ended;
+        IsForRestore = true;
+        Begin();
+        return true;
+    }
+
+    /// <summary>Back to idle with nothing irreversible done (a prompt cancelled, or "return" after a failed save).</summary>
+    private void BackToIdle()
+    {
+        Stage = ExitStage.Idle;
+        var ended = _restoreEnded;
+        _restore = null;
+        _restoreEnded = null;
+        IsForRestore = false;
+        ended?.Invoke();
+    }
+
     private void Begin()
     {
-        if (layout.HoldExit(OnLayoutAnswered, () => Stage = ExitStage.Idle))
+        if (layout.HoldExit(OnLayoutAnswered, BackToIdle))
         {
             Stage = ExitStage.LayoutPrompt;
         }
@@ -112,7 +172,7 @@ public sealed partial class ExitCoordinator(
         var work = generation.UnfinishedUserWork;
         if (work.Any)
         {
-            TaskMessage = UiText.ExitWithUnfinished(work.Answers, work.Summaries);
+            TaskMessage = IsForRestore ? UiText.RestoreWithUnfinished(work.Answers, work.Summaries) : UiText.ExitWithUnfinished(work.Answers, work.Summaries);
             Stage = ExitStage.TaskPrompt;
         }
         else
@@ -129,7 +189,7 @@ public sealed partial class ExitCoordinator(
     private void KeepRunning()
     {
         _discardOnCommit = [];
-        Stage = ExitStage.Idle;
+        BackToIdle();
     }
 
     /// <summary>Retry after a failure: the stop step again if it did not finish, then saving.</summary>
@@ -141,7 +201,7 @@ public sealed partial class ExitCoordinator(
     private void Return()
     {
         generation.Reopen();
-        Stage = ExitStage.Idle;
+        BackToIdle();
     }
 
     /// <summary>
@@ -214,8 +274,46 @@ public sealed partial class ExitCoordinator(
             return;
         }
 
+        if (_restore is { } restore)
+        {
+            await RestoreAsync(restore);
+            return;
+        }
+
         Stage = ExitStage.Releasing;
         shell.ExitApplication();
+    }
+
+    /// <summary>
+    /// Everything is saved and nothing new can start: the restore's own step. When it does not go ahead, new work is
+    /// accepted again, as after "return"; when it does, this session is over (the next one has its own coordinator).
+    /// </summary>
+    private async Task RestoreAsync(Func<Task<bool>> restore)
+    {
+        Stage = ExitStage.Restoring;
+        bool restored;
+        try
+        {
+            restored = await restore();
+        }
+#pragma warning disable CA1031 // Anything failing before the swap leaves the data as it was: back to work.
+        catch (Exception ex)
+#pragma warning restore CA1031
+        {
+            LogStepFailed(logger, ex, ExitStage.Restoring);
+            restored = false;
+        }
+
+        if (!restored)
+        {
+            generation.Reopen();
+            BackToIdle();
+            return;
+        }
+
+        _restore = null;
+        _restoreEnded = null;
+        Stage = ExitStage.Releasing;
     }
 
     [LoggerMessage(Level = LogLevel.Error, Message = "Exit step {Stage} failed; the window stays open with retry and return")]

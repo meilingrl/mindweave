@@ -208,6 +208,19 @@
         </Button>
         <TextBlock Classes="h1" Text="{Binding Title}" VerticalAlignment="Center" TextTrimming="CharacterEllipsis" />
       </DockPanel>
+      <!-- After a restore in the app (2026-11-12): what was restored, or why not; above every page until closed, never a dialog. -->
+      <Border Name="RestoreNoticePanel" DockPanel.Dock="Top" Classes="notice" Classes.error="{Binding RestoreNoticeIsError}" Classes.info="{Binding !RestoreNoticeIsError}"
+              Margin="24,4,24,4" IsVisible="{Binding RestoreNotice, Converter={x:Static ObjectConverters.IsNotNull}}">
+        <DockPanel>
+          <Button Name="CloseRestoreNoticeButton" DockPanel.Dock="Right" VerticalAlignment="Top" Classes="quiet bar-icon" Command="{Binding CloseRestoreNoticeCommand}"
+                  ToolTip.Tip="{x:Static d:UiText.CloseRestoreNotice}" AutomationProperties.Name="{x:Static d:UiText.CloseRestoreNotice}">
+            <PathIcon Data="{StaticResource IconClose}" />
+          </Button>
+          <TextBlock Classes="notice-icon" Text="✓" IsVisible="{Binding !RestoreNoticeIsError}" />
+          <TextBlock Classes="notice-icon" Text="!" IsVisible="{Binding RestoreNoticeIsError}" />
+          <TextBlock Name="RestoreNotice" Text="{Binding RestoreNotice}" AutomationProperties.LiveSetting="Polite" />
+        </DockPanel>
+      </Border>
       <!-- Not clipped (2026-11-10): a page's toolbar and quiet buttons hang 8 px left of the text edge so their labels
            line up with it, and their hover tint and focus ring must not be cut flat there. -->
       <ContentControl Name="PageHost" Content="{Binding CurrentPage}" Margin="24,4,24,20" ClipToBounds="False" />

@@ -130,6 +130,25 @@ public sealed partial class ShellViewModel : ViewModelBase
     /// <summary>Completes when the last layout change has been written (or failed); tests await it.</summary>
     internal Task SidebarSaving { get; private set; } = Task.CompletedTask;
 
+    /// <summary>
+    /// After an in-app restore (2026-11-12): "已恢复到 … 的备份", or why it did not happen. Above the page, never a dialog,
+    /// until closed.
+    /// </summary>
+    [ObservableProperty]
+    public partial string? RestoreNotice { get; private set; }
+
+    [ObservableProperty]
+    public partial bool RestoreNoticeIsError { get; private set; }
+
+    public void ShowRestoreNotice(string text, bool isError)
+    {
+        RestoreNoticeIsError = isError;
+        RestoreNotice = text;
+    }
+
+    [RelayCommand]
+    private void CloseRestoreNotice() => RestoreNotice = null;
+
     [RelayCommand]
     private void ToggleSidebar()
     {

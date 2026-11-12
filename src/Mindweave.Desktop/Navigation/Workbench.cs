@@ -285,6 +285,21 @@ public sealed class Workbench : ObservableObject, IWorkbenchNavigator, IWorkspac
         }
     }
 
+    /// <summary>
+    /// The session ends for an in-app restore (2026-11-12): every page of every workspace leaves the stacks and is
+    /// disposed. The window already shows the next session, so nothing is navigated to.
+    /// </summary>
+    public void ReleaseAll()
+    {
+        var pages = _runtimes.Values.SelectMany(r => r.AllPages()).ToList();
+        _runtimes.Clear();
+        _active = null;
+        foreach (var page in pages)
+        {
+            Release(page);
+        }
+    }
+
     /// <summary>A page leaves the stacks and is disposed; what the user typed is already with its owner.</summary>
     private static void Release(PageViewModel page) => (page as IDisposable)?.Dispose();
 

@@ -31,13 +31,13 @@ internal static class Program
             }
         }
 
-        var services = CompositionRoot.Build(paths);
-        var logger = services.GetRequiredService<ILoggerFactory>().CreateLogger("Mindweave");
-        AppDomain.CurrentDomain.UnhandledException += (_, e) => LogCrash(logger, e.ExceptionObject as Exception);
-        TaskScheduler.UnobservedTaskException += (_, e) => LogCrash(logger, e.Exception);
+        // One session of services per open database; restoring a backup in the app starts the next (AppSession).
+        var session = new AppSession(extra => CompositionRoot.Build(paths, overrides: extra));
+        AppDomain.CurrentDomain.UnhandledException += (_, e) => LogCrash(session, e.ExceptionObject as Exception);
+        TaskScheduler.UnobservedTaskException += (_, e) => LogCrash(session, e.Exception);
 
         // The host releases (and closes the database) only after the UI loop has ended; see AppHost.Run.
-        var host = new AppHost(instance, services);
+        var host = new AppHost(instance, session);
         return host.Run(() => BuildAvaloniaApp(host).StartWithClassicDesktopLifetime(args));
     }
 
@@ -48,7 +48,16 @@ internal static class Program
         AppBuilder.Configure(() => new App(host)).UsePlatformDetect().WithInterFont();
 
 #pragma warning disable CA1848 // Crash path: a plain call is clearer than a source-generated delegate.
-    private static void LogCrash(ILogger logger, Exception? exception) =>
-        logger.LogCritical(exception, "Unhandled exception");
+    private static void LogCrash(AppSession session, Exception? exception)
+    {
+        try
+        {
+            session.Services.GetRequiredService<ILoggerFactory>().CreateLogger("Mindweave").LogCritical(exception, "Unhandled exception");
+        }
+        catch (ObjectDisposedException)
+        {
+            // Between two sessions, or after the last one: nothing is left to log to.
+        }
+    }
 #pragma warning restore CA1848
 }

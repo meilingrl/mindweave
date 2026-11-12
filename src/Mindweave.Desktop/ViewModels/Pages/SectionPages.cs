@@ -372,27 +372,3 @@ public sealed partial class SettingsHomeViewModel : PageViewModel, IDisposable
     }
 }
 
-/// <summary>Where data lives and which migration backups exist. Read-only; restoring is offered only on the recovery page.</summary>
-public sealed partial class StorageDetailsViewModel : PageViewModel
-{
-    private readonly ISystemShell _shell;
-
-    public StorageDetailsViewModel(AppEnvironment environment, IReadOnlyList<BackupInfo> backups, ISystemShell shell)
-        : base(StorageDetailsRoute.Instance)
-    {
-        Environment = environment;
-        Backups = new ObservableCollection<BackupInfo>(backups);
-        _shell = shell;
-    }
-
-    public AppEnvironment Environment { get; }
-
-    public ObservableCollection<BackupInfo> Backups { get; }
-
-    public bool HasBackups => Backups.Count > 0;
-
-    public override string Title => UiText.StorageTitle;
-
-    [RelayCommand]
-    private void OpenDataFolder() => _shell.OpenFolder(Environment.DataDirectory);
-}

@@ -13,7 +13,8 @@ namespace Mindweave.Desktop.Services;
 
 internal sealed class PageFactory(
     AppEnvironment environment,
-    IDatabaseLifecycle database,
+    IBackupFiles backupFiles,
+    IBackupPrompts backupPrompts,
     ISystemShell shell,
     IConversations conversations,
     IReadingState reading,
@@ -45,7 +46,7 @@ internal sealed class PageFactory(
         NewConversationRoute => new NewConversationViewModel(context.Workspace.Id, conversations, context.Navigator, context.Navigator),
         ArchivedRoute => new ArchivedViewModel(context.Workspace, conversations, context.Navigator, dispatcher, conversationDeletion, conversationDeletionPrompt),
         SettingsHomeRoute => new SettingsHomeViewModel(environment, new ModelSettingsViewModel(models), context.Navigator, appearance, theme, context.Workspaces, newsAlerts),
-        StorageDetailsRoute => new StorageDetailsViewModel(environment, database.ListBackups(), shell),
+        StorageDetailsRoute => new StorageDetailsViewModel(environment, backupFiles, shell, backupPrompts),
         WorkspacesRoute => new WorkspacesViewModel(
             context.Workspaces ?? throw new InvalidOperationException("The workspaces page needs the workbench's list."),
             workspaces,

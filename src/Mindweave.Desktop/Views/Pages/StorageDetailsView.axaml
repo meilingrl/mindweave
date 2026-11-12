@@ -1,7 +1,6 @@
 <UserControl xmlns="https://github.com/avaloniaui"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:vm="using:Mindweave.Desktop.ViewModels.Pages"
-             xmlns:startup="using:Mindweave.Application.Startup"
              xmlns:d="using:Mindweave.Desktop"
              x:Class="Mindweave.Desktop.Views.Pages.StorageDetailsView"
              x:DataType="vm:StorageDetailsViewModel">
@@ -33,29 +32,48 @@
         </Grid>
       </Border>
 
-      <!-- 备份: before an upgrade, or before a workspace was deleted (Round 4 · topic-delete, marked by a badge) -->
+      <!-- 备份 (2026-11-12): each can be restored or deleted, several deleted at once through their boxes; a backup made
+           before a delete or a restore is marked by a badge, the files an earlier restore put aside are listed with them. -->
       <TextBlock Classes="section-heading" Margin="2,28,0,8" Text="{x:Static d:UiText.BackupsLabel}" />
       <Border Classes="card settings">
-        <StackPanel>
+        <StackPanel Spacing="12">
           <TextBlock Name="NoBackups" Classes="muted" Text="{x:Static d:UiText.NoBackupsShort}" IsVisible="{Binding !HasBackups}" />
-          <ItemsControl Name="BackupList" ItemsSource="{Binding Backups}" IsVisible="{Binding HasBackups}">
+          <DockPanel IsVisible="{Binding HasBackups}" MinHeight="28">
+            <Button Name="DeleteSelectedBackups" DockPanel.Dock="Right" Classes="quiet small danger" Command="{Binding DeleteSelectedCommand}"
+                    IsVisible="{Binding HasSelection}" AutomationProperties.Name="{Binding DeleteSelectedText}">
+              <StackPanel Orientation="Horizontal" Spacing="4">
+                <PathIcon Data="{StaticResource IconDelete}" />
+                <TextBlock Text="{Binding DeleteSelectedText}" VerticalAlignment="Center" />
+              </StackPanel>
+            </Button>
+            <TextBlock Name="BackupsTotal" Classes="caption" VerticalAlignment="Center" Text="{Binding TotalText}" />
+          </DockPanel>
+          <ItemsControl Name="BackupList" ItemsSource="{Binding Rows}" IsVisible="{Binding HasBackups}">
             <ItemsControl.ItemsPanel>
               <ItemsPanelTemplate>
-                <StackPanel Spacing="10" />
+                <StackPanel Spacing="6" />
               </ItemsPanelTemplate>
             </ItemsControl.ItemsPanel>
             <ItemsControl.ItemTemplate>
-              <DataTemplate x:DataType="startup:BackupInfo">
-                <Grid ColumnDefinitions="Auto,Auto,Auto,*" ColumnSpacing="12">
-                  <TextBlock VerticalAlignment="Center" Text="{Binding CreatedAt, Converter={x:Static d:Converters.Time}}" />
-                  <Border Grid.Column="1" Classes="badge">
-                    <TextBlock Text="{Binding SchemaVersion, Converter={x:Static d:Converters.SchemaVersion}}" />
+              <DataTemplate x:DataType="vm:BackupRowViewModel">
+                <Grid ColumnDefinitions="Auto,Auto,Auto,Auto,*,Auto,Auto,Auto" ColumnSpacing="10" ToolTip.Tip="{Binding Hint}">
+                  <ToggleButton Name="BackupCheck" Classes="row-check-toggle" Margin="-3,0,0,0" IsChecked="{Binding IsChecked}"
+                                AutomationProperties.Name="{Binding SelectName}" />
+                  <TextBlock Grid.Column="1" VerticalAlignment="Center" Text="{Binding TimeText}" />
+                  <Border Grid.Column="2" Classes="badge" Classes.warning="{Binding IsTooNew}" IsVisible="{Binding VersionText, Converter={x:Static ObjectConverters.IsNotNull}}">
+                    <TextBlock Text="{Binding VersionText}" />
                   </Border>
-                  <Border Grid.Column="2" Classes="badge" IsVisible="{Binding Reason, Converter={x:Static d:Converters.IsBeforeDelete}}">
-                    <TextBlock Text="{Binding Reason, Converter={x:Static d:Converters.BackupReasonLabel}}" />
+                  <Border Grid.Column="3" Name="BackupBadge" Classes="badge" Classes.accent="{Binding IsBeforeRestore}" IsVisible="{Binding Badge, Converter={x:Static ObjectConverters.IsNotNull}}">
+                    <TextBlock Text="{Binding Badge}" />
                   </Border>
-                  <TextBlock Grid.Column="3" Classes="caption" HorizontalAlignment="Right" VerticalAlignment="Center"
-                             Text="{Binding SizeBytes, Converter={x:Static d:Converters.FileSize}}" />
+                  <TextBlock Grid.Column="5" Classes="caption" VerticalAlignment="Center" Text="{Binding SizeText}" />
+                  <Button Grid.Column="6" Name="RestoreBackupButton" Classes="quiet small" Content="{x:Static d:UiText.RestoreBackup}"
+                          IsVisible="{Binding IsBackup}" IsEnabled="{Binding CanRestore}" ToolTip.Tip="{Binding Hint}" ToolTip.ShowOnDisabled="True"
+                          Command="{Binding $parent[ItemsControl].((vm:StorageDetailsViewModel)DataContext).RestoreCommand}" CommandParameter="{Binding}"
+                          AutomationProperties.Name="{Binding RestoreName}" AutomationProperties.HelpText="{Binding Hint}" />
+                  <Button Grid.Column="7" Name="DeleteBackupButton" Classes="quiet small danger" Content="{x:Static d:UiText.DeleteBackup}"
+                          Command="{Binding $parent[ItemsControl].((vm:StorageDetailsViewModel)DataContext).DeleteCommand}" CommandParameter="{Binding}"
+                          AutomationProperties.Name="{Binding DeleteName}" />
                 </Grid>
               </DataTemplate>
             </ItemsControl.ItemTemplate>

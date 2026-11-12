@@ -48,7 +48,7 @@ public sealed class DesktopHarness : IAsyncDisposable
             overrides?.Invoke(services);
         };
         _ownsDirectory = ownsDirectory;
-        Services = CompositionRoot.Build(Paths, Shell, NullLoggerProvider.Instance, _overrides);
+        Session = NewSession();
     }
 
     public FakeChatClient Client { get; } = new();
@@ -69,7 +69,10 @@ public sealed class DesktopHarness : IAsyncDisposable
 
     public RecordingShell Shell { get; } = new();
 
-    public ServiceProvider Services { get; private set; }
+    /// <summary>The application session: an in-app restore (2026-11-12) replaces its services, and with them <see cref="Root"/>.</summary>
+    internal AppSession Session { get; private set; }
+
+    public ServiceProvider Services => Session.Services;
 
     public RootViewModel Root => Services.GetRequiredService<RootViewModel>();
 
@@ -89,6 +92,7 @@ public sealed class DesktopHarness : IAsyncDisposable
     public MainWindow ShowWindow(double width = 1000, double height = 700, ThemeVariant? theme = null)
     {
         var window = new MainWindow { DataContext = Root, Width = width, Height = height };
+        window.Follow(Session);
         if (theme is not null)
         {
             window.RequestedThemeVariant = theme;
@@ -119,7 +123,7 @@ public sealed class DesktopHarness : IAsyncDisposable
         await Services.GetRequiredService<ConversationMarksService>().FlushAsync();
         await Services.GetRequiredService<SqliteDatabase>().CloseAsync();
         await Services.DisposeAsync();
-        Services = CompositionRoot.Build(Paths, Shell, NullLoggerProvider.Instance, _overrides);
+        Session = NewSession();
         await StartAsync();
     }
 
@@ -127,8 +131,15 @@ public sealed class DesktopHarness : IAsyncDisposable
     internal AppHost HandOverToHost(SingleInstance instance)
     {
         _handedOver = true;
-        return new AppHost(instance, Services);
+        return new AppHost(instance, Session);
     }
+
+    private AppSession NewSession() =>
+        new(extra => CompositionRoot.Build(Paths, Shell, NullLoggerProvider.Instance, services =>
+        {
+            _overrides!(services);
+            extra(services);
+        }));
 
     public async ValueTask DisposeAsync()
     {

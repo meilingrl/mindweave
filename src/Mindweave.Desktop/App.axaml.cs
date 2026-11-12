@@ -36,12 +36,15 @@ public sealed partial class App : Avalonia.Application
     {
         if (_host is not null && ApplicationLifetime is IClassicDesktopStyleApplicationLifetime desktop)
         {
-            var root = _host.Services.GetRequiredService<RootViewModel>();
-            var window = new MainWindow { DataContext = root };
+            var session = _host.Session;
+            var window = new MainWindow { DataContext = session.Root };
+            window.Follow(session);
             desktop.MainWindow = window;
-            desktop.ShutdownRequested += (_, e) => OnShutdownRequested(root, e);
+
+            // The session's root: a restore in the app (2026-11-12) replaces it, and quitting goes through the current one.
+            desktop.ShutdownRequested += (_, e) => OnShutdownRequested(session.Root, e);
             _host.Instance.StartListening(() => Dispatcher.UIThread.Post(window.BringToFront));
-            Dispatcher.UIThread.Post(async () => await _host.Services.GetRequiredService<AppStartup>().RunAsync());
+            Dispatcher.UIThread.Post(async () => await session.Services.GetRequiredService<AppStartup>().RunAsync());
         }
 
         base.OnFrameworkInitializationCompleted();

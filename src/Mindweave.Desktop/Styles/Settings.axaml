@@ -12,6 +12,40 @@
   <Style Selector="Border.card.settings">
     <Setter Property="Padding" Value="18,16" />
   </Style>
+  <!--
+    A list row's check box (the backups, 2026-11-12): the sidebar's drawn box (Border.row-check), as a toggle so it takes
+    the keyboard (Space) and is announced as a check box; the ring shows only for keyboard focus.
+  -->
+  <Style Selector="ToggleButton.row-check-toggle">
+    <Setter Property="Background" Value="Transparent" />
+    <Setter Property="Padding" Value="3" />
+    <Setter Property="VerticalAlignment" Value="Center" />
+    <Setter Property="Cursor" Value="Hand" />
+    <Setter Property="Template">
+      <ControlTemplate>
+        <Border Background="{TemplateBinding Background}" Padding="{TemplateBinding Padding}" CornerRadius="5">
+          <Border Name="PART_Box" Classes="row-check" Margin="0">
+            <PathIcon Name="PART_Check" Data="{StaticResource IconCheck}" IsVisible="False" />
+          </Border>
+        </Border>
+      </ControlTemplate>
+    </Setter>
+    <Setter Property="FocusAdorner">
+      <FocusAdornerTemplate>
+        <Border BorderThickness="2" BorderBrush="{DynamicResource FocusRing}" CornerRadius="6" />
+      </FocusAdornerTemplate>
+    </Setter>
+  </Style>
+  <Style Selector="ToggleButton.row-check-toggle:pointerover /template/ Border#PART_Box">
+    <Setter Property="BorderBrush" Value="{DynamicResource MutedText}" />
+  </Style>
+  <Style Selector="ToggleButton.row-check-toggle:checked /template/ Border#PART_Box">
+    <Setter Property="BorderBrush" Value="{DynamicResource AccentBrush}" />
+    <Setter Property="Background" Value="{DynamicResource AccentBrush}" />
+  </Style>
+  <Style Selector="ToggleButton.row-check-toggle:checked /template/ PathIcon#PART_Check">
+    <Setter Property="IsVisible" Value="True" />
+  </Style>
   <Style Selector="Border.card.settings TextBlock.field-label">
     <Setter Property="VerticalAlignment" Value="Center" />
     <Setter Property="Foreground" Value="{DynamicResource PrimaryText}" />

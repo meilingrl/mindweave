@@ -20,6 +20,7 @@ public class ViewTests
         var inline = new[]
         {
             typeof(RootViewModel), typeof(WorkspaceNameForm), typeof(ExitCoordinator), typeof(LayoutPromptViewModel), typeof(WorkspaceDeletionViewModel), typeof(ConversationDeletionViewModel),
+            typeof(BackupRestoreViewModel), typeof(BackupDeletionViewModel),
             typeof(ViewModels.Conversations.Composer), typeof(ViewModels.Conversations.MessageItemViewModel),
             typeof(ViewModels.Conversations.ConversationItemViewModel), typeof(ViewModels.Conversations.ConversationListViewModel),
             typeof(ViewModels.Conversations.ConversationSummaryPanel), typeof(ViewModels.Conversations.ConversationLifecycleActions),

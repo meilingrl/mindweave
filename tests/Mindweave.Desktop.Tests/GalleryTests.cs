@@ -614,7 +614,7 @@ public class GalleryTests
         var details = Find<Button>(window, "StorageDetailsButton");
         details.Command!.Execute(details.CommandParameter);
         var page = Assert.IsType<StorageDetailsViewModel>(scene.App.Workbench.CurrentPage);
-        Assert.Equal(2, page.Backups.Count);
+        Assert.Equal(2, page.Rows.Count);
         await SettleAsync(window);
         Capture(window, "g27-storage-backups");
         window.Close();
@@ -1117,7 +1117,7 @@ public class GalleryTests
         await SettleAsync(window);
         var details = Find<Button>(window, "StorageDetailsButton");
         details.Command!.Execute(details.CommandParameter);
-        Assert.Single(Assert.IsType<StorageDetailsViewModel>(scene.App.Workbench.CurrentPage).Backups);
+        Assert.Single(Assert.IsType<StorageDetailsViewModel>(scene.App.Workbench.CurrentPage).Rows);
         await SettleAsync(window);
         Capture(window, "g33c-storage-backup-before-delete");
         window.Close();

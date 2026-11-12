@@ -6,6 +6,8 @@ public sealed partial class MainWindow : Window
 {
     private ViewModels.WorkspaceDeletionViewModel? _deletion;
     private ViewModels.ConversationDeletionViewModel? _conversationDeletion;
+    private ViewModels.BackupRestoreViewModel? _backupRestore;
+    private ViewModels.BackupDeletionViewModel? _backupDeletion;
 
     public MainWindow()
     {
@@ -29,6 +31,16 @@ public sealed partial class MainWindow : Window
         {
             delete.Execute(null);
         }
+    }
+
+    /// <summary>
+    /// Shows whichever session is current: an in-app restore (2026-11-12) replaces the services, and with them the root
+    /// this window shows and closes through.
+    /// </summary>
+    internal void Follow(AppSession session)
+    {
+        ArgumentNullException.ThrowIfNull(session);
+        session.Replaced += (_, _) => DataContext = session.Root;
     }
 
     /// <summary>The delete-a-workspace dialog puts the caret in its name box when it opens (Round 4 · topic-delete).</summary>
@@ -55,6 +67,46 @@ public sealed partial class MainWindow : Window
         if (_conversationDeletion is not null)
         {
             _conversationDeletion.PropertyChanged += OnConversationDeletionChanged;
+        }
+
+        if (_backupRestore is not null)
+        {
+            _backupRestore.PropertyChanged -= OnBackupDialogChanged;
+        }
+
+        _backupRestore = (DataContext as ViewModels.RootViewModel)?.BackupRestore;
+        if (_backupRestore is not null)
+        {
+            _backupRestore.PropertyChanged += OnBackupDialogChanged;
+        }
+
+        if (_backupDeletion is not null)
+        {
+            _backupDeletion.PropertyChanged -= OnBackupDialogChanged;
+        }
+
+        _backupDeletion = (DataContext as ViewModels.RootViewModel)?.BackupDeletion;
+        if (_backupDeletion is not null)
+        {
+            _backupDeletion.PropertyChanged += OnBackupDialogChanged;
+        }
+    }
+
+    /// <summary>The backup dialogs take the keyboard when they open: 取消 has the focus, Enter and Esc cancel (2026-11-12).</summary>
+    private void OnBackupDialogChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e)
+    {
+        if (e.PropertyName != nameof(ViewModels.BackupRestoreViewModel.IsOpen))
+        {
+            return;
+        }
+
+        if (sender is ViewModels.BackupRestoreViewModel { IsOpen: true })
+        {
+            Avalonia.Threading.Dispatcher.UIThread.Post(() => BackupRestoreCancel.Focus());
+        }
+        else if (sender is ViewModels.BackupDeletionViewModel { IsOpen: true })
+        {
+            Avalonia.Threading.Dispatcher.UIThread.Post(() => BackupDeleteCancel.Focus());
         }
     }
 

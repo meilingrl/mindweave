@@ -98,6 +98,7 @@ public static partial class UiText
     {
         BackupReason.BeforeWorkspaceDelete => BackupBeforeDelete,
         BackupReason.BeforeConversationDelete => BackupBeforeConversationDelete,
+        BackupReason.BeforeRestore => BackupBeforeRestore,
         _ => null,
     };
 }
