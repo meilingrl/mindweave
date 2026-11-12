@@ -308,6 +308,9 @@ public sealed partial class UsageStatisticsViewModel : PageViewModel, IShowsWork
         {
             var token = _disposed.Token;
             var report = await _statistics.LoadAsync(workspace, period, token);
+
+            // A price or symbol saved just before this read is the one it shows (the writes never throw).
+            await Saving;
             var currency = await _prices.GetCurrencyAsync(token);
             var prices = new Dictionary<ModelKey, ModelPrice?>();
             foreach (var model in report.Usage.ByModel)
@@ -599,13 +602,13 @@ public sealed class PurposeRowViewModel(PurposeUsage usage, long periodTotal)
 
     public string Hint => UiText.PurposeHint(Purpose);
 
-    public string UsageText => Counts.Requests + Counts.Unreported == 0 ? "没有请求" : UiText.UsageLine(Counts);
+    public string UsageText => Counts.Requests + Counts.Unreported == 0 ? UiText.NoRequests : UiText.UsageLine(Counts);
 
     public string ShareText { get; } = UiText.Share(usage.Counts.Total, periodTotal);
 
     public bool IsEmpty => Counts.Requests + Counts.Unreported == 0;
 
-    public string AutomationName => Name + "：" + UsageText + "，占 " + ShareText;
+    public string AutomationName => UiText.PurposeRowName(Name, UsageText, ShareText);
 }
 
 /// <summary>One activity count: "提问 128".</summary>

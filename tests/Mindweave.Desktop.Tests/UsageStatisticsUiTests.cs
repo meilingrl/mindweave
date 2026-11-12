@@ -260,6 +260,12 @@ public class UsageStatisticsUiTests
         Assert.Contains("用量最多的是 11月9日（1,000）", page.ChartSummary, StringComparison.Ordinal);
         Assert.Contains("28 天没有用量", page.ChartSummary, StringComparison.Ordinal);
 
+        // Review 2026-11-12: the summary names the parts by position, not by shade: in the dark theme input is the
+        // lighter of the two, so "深色为输入" was true only in the light theme.
+        Assert.Contains("下段为输入，上段为输出", page.ChartSummary, StringComparison.Ordinal);
+        Assert.DoesNotContain("深色", page.ChartSummary, StringComparison.Ordinal);
+        Assert.DoesNotContain("浅色", page.ChartSummary, StringComparison.Ordinal);
+
         // Focus lands on today; the arrows walk the bars and each is told to a screen reader.
         chart.Focus(NavigationMethod.Tab);
         Assert.Equal(29, chart.ActiveIndex);
@@ -380,6 +386,45 @@ public class UsageStatisticsUiTests
         window.Close();
     }
 
+    /// <summary>
+    /// Review 2026-11-12: a price saved just before the period (or scope) switches is the one the new rows show, even
+    /// when the write is still under way as the new read starts.
+    /// </summary>
+    [AvaloniaFact]
+    public async Task A_price_saved_just_before_a_switch_is_shown_after_it()
+    {
+        await using var app = Create();
+        var workspace = await app.StartWithWorkspaceAsync("火车历史");
+        await app.ConfigureModelAsync();
+        var seed = new UsageSeed(app.Services.GetRequiredService<SqliteDatabase>());
+        var c = await seed.ConversationAsync(workspace.Id, Now.AddDays(-2));
+        await seed.RequestAsync(c, "answer", "deepseek-flash", Now.AddDays(-2), 1_000_000, 500_000, "https://api.deepseek.com");
+
+        var prices = new HeldPrices();
+        var statistics = new ThenReleasing(app.Services.GetRequiredService<IUsageStatistics>(), prices);
+        var page = new UsageStatisticsViewModel(app.Workbench.CurrentWorkspace!, statistics, prices, app.Workbench);
+        await page.Loaded;
+        var row = Assert.Single(page.Models);
+        Assert.Null(row.Price);
+
+        prices.HoldWrites();
+        row.EditPriceCommand.Execute(null);
+        row.InputPrice = "2";
+        row.OutputPrice = "8";
+        var saving = row.SavePriceCommand.ExecuteAsync(null);
+
+        // The write finishes only once the new read has its figures and the page has gone on from there.
+        statistics.ReleaseAfterNextLoad = true;
+        page.IsMonthly = true;
+        await saving;
+        await page.Loaded;
+
+        var shown = Assert.Single(page.Models);
+        Assert.Equal(new ModelPrice(2, 8), shown.Price);
+        Assert.Equal("约 ¥6.00", shown.CostText);
+        page.Dispose();
+    }
+
     // ── Helpers ──────────────────────────────────────────────────────────────
 
     private static async Task<(MainWindow Window, UsageStatisticsViewModel Page, UsageStatisticsView View)> OpenAsync(DesktopHarness app)
@@ -432,6 +477,60 @@ public class UsageStatisticsUiTests
             var (from, to) = UsageStatisticsService.Window(period, today);
             var usage = UsageStatisticsService.Summarize(period, from, to, new Application.Storage.UsageRows([], 0));
             return new StatisticsReport(usage, new ActivityFacts(0, 0, 0, 0, 0, 0, 0, 0, 0, null, []), HasModel: true, today);
+        }
+    }
+
+    /// <summary>
+    /// The real statistics; after the next read it lets the held price writes finish, queued behind whatever the page
+    /// does next with the figures on the UI thread.
+    /// </summary>
+    private sealed class ThenReleasing(IUsageStatistics inner, HeldPrices prices) : IUsageStatistics
+    {
+        public bool ReleaseAfterNextLoad { get; set; }
+
+        public async Task<StatisticsReport> LoadAsync(WorkspaceId? workspace, UsagePeriod period, CancellationToken cancellationToken)
+        {
+            var report = await inner.LoadAsync(workspace, period, cancellationToken);
+            if (ReleaseAfterNextLoad)
+            {
+                ReleaseAfterNextLoad = false;
+                Dispatcher.UIThread.Post(prices.ReleaseWrites, DispatcherPriority.Background);
+            }
+
+            return report;
+        }
+    }
+
+    /// <summary>Prices in memory whose writes wait for the test (a slow disk) while reads answer at once.</summary>
+    private sealed class HeldPrices : IUsagePrices
+    {
+        private readonly Dictionary<ModelKey, ModelPrice> _prices = [];
+        private TaskCompletionSource _writes = new(TaskCreationOptions.RunContinuationsAsynchronously);
+
+        public HeldPrices() => _writes.SetResult();
+
+        public void HoldWrites() => _writes = new(TaskCreationOptions.RunContinuationsAsynchronously);
+
+        public void ReleaseWrites() => _writes.TrySetResult();
+
+        public Task<string> GetCurrencyAsync(CancellationToken cancellationToken) => Task.FromResult(UsagePricing.DefaultCurrency);
+
+        public Task SetCurrencyAsync(string symbol, CancellationToken cancellationToken) => Task.CompletedTask;
+
+        public Task<ModelPrice?> GetAsync(ModelKey key, CancellationToken cancellationToken) =>
+            Task.FromResult(_prices.TryGetValue(key, out var price) ? price : null);
+
+        public async Task SetAsync(ModelKey key, ModelPrice? price, CancellationToken cancellationToken)
+        {
+            await _writes.Task.WaitAsync(cancellationToken);
+            if (price is null)
+            {
+                _prices.Remove(key);
+            }
+            else
+            {
+                _prices[key] = price;
+            }
         }
     }
 }

@@ -80,7 +80,7 @@ public static partial class UiText
     public static string BarDetail(UsagePeriod period, DateOnly start, TokenCounts counts)
     {
         var text = counts.Requests == 0 && counts.Unreported == 0
-            ? string.Format(CultureInfo.CurrentCulture, "{0}：没有请求", BucketName(period, start))
+            ? string.Format(CultureInfo.CurrentCulture, "{0}：{1}", BucketName(period, start), NoRequests)
             : string.Format(CultureInfo.CurrentCulture, "{0}：输入 {1}，输出 {2}，{3} 次请求", BucketName(period, start), Tokens(counts.Input), Tokens(counts.Output), counts.Requests);
         return counts.Unreported > 0 ? text + string.Format(CultureInfo.CurrentCulture, "，另有 {0} 次未返回用量", counts.Unreported) : text;
     }
@@ -99,7 +99,7 @@ public static partial class UiText
 
         return string.Format(
             CultureInfo.CurrentCulture,
-            "最近 {0} {1}的 token 用量，深色为输入，浅色为输出。用量最多的是 {2}（{3}）；{4} {1}没有用量。用左右方向键逐个查看，或打开“以表格查看”。",
+            "最近 {0} {1}的 token 用量，每根柱子下段为输入，上段为输出。用量最多的是 {2}（{3}）；{4} {1}没有用量。用左右方向键逐个查看，或打开“以表格查看”。",
             buckets.Count,
             unit,
             BucketName(period, busiest.Start),
@@ -108,6 +108,16 @@ public static partial class UiText
     }
 
     public static string ChartMaxLabel(long max) => "最高 " + Tokens(max);
+
+    /// <summary>A day, month or purpose without any request.</summary>
+    public const string NoRequests = "没有请求";
+
+    /// <summary>The hover card's line for requests whose service returned no usage.</summary>
+    public static string BarUnreported(int count) => string.Format(CultureInfo.CurrentCulture, "另有 {0} 次未返回用量", count);
+
+    /// <summary>A purpose row as a screen reader hears it: "回答：输入 … · 3 次请求，占 45%".</summary>
+    public static string PurposeRowName(string name, string usage, string share) =>
+        string.Format(CultureInfo.CurrentCulture, "{0}：{1}，占 {2}", name, usage, share);
 
     public static string NoRequestsYet => "还没有向模型发出过请求。提问、生成标题和总结后，服务返回的用量会出现在这里。";
 

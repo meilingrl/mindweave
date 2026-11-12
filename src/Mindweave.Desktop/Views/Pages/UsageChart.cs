@@ -262,7 +262,7 @@ public sealed class UsageChart : Control
         };
         if (bar.Unreported > 0)
         {
-            lines.Add(Text(string.Format(CultureInfo.CurrentCulture, "另有 {0} 次未返回用量", bar.Unreported), 11, muted));
+            lines.Add(Text(UiText.BarUnreported(bar.Unreported), 11, muted));
         }
 
         const double Padding = 8;
