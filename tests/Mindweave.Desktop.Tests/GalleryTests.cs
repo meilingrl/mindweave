@@ -605,19 +605,109 @@ public class GalleryTests
         await using var scene = Scene.Create("g27");
         var window = scene.App.ShowWindow(1100, 720, Theme);
         await SeedAsync(scene.App);
-        var backups = Path.Combine(Scene.Directory("g27"), "backups");
-        System.IO.Directory.CreateDirectory(backups);
-        await File.WriteAllBytesAsync(Path.Combine(backups, "mindweave-v7-20260301T081500000Z.db"), new byte[412 * 1024]);
-        await File.WriteAllBytesAsync(Path.Combine(backups, "mindweave-v6-20260212T193000000Z.db"), new byte[(int)(2.4 * 1024 * 1024)]);
-        scene.App.ShellPage.ShowSectionCommand.Execute(MainSection.Settings);
-        await SettleAsync(window);
-        var details = Find<Button>(window, "StorageDetailsButton");
-        details.Command!.Execute(details.CommandParameter);
-        var page = Assert.IsType<StorageDetailsViewModel>(scene.App.Workbench.CurrentPage);
-        Assert.Equal(2, page.Rows.Count);
+        // 2026-11-12: every kind of row (a "恢复前" one, before a delete, an upgrade, one from a newer build that cannot be
+        // restored, and the files an earlier restore put aside), the total size, and 恢复… / 删除… on each.
+        await GalleryBackupsAsync(scene.App, "g27");
+        var page = await OpenStorageDetailsAsync(scene.App, window);
+        Assert.Equal(6, page.Rows.Count);
         await SettleAsync(window);
         Capture(window, "g27-storage-backups");
         window.Close();
+    }
+
+    // ── Restoring and removing backups (2026-11-12) ───────────────────────────
+
+    /// <summary>
+    /// The restore confirmation over the storage page: when and why the backup was made, that every workspace goes back,
+    /// that a deleted workspace comes back with everything else, the "恢复前" copy, stopped work, and the upgrade after.
+    /// </summary>
+    [AvaloniaFact]
+    public async Task G49_restore_confirmation()
+    {
+        await using var scene = Scene.Create("g49");
+        var window = scene.App.ShowWindow(1100, 720, Theme);
+        await SeedAsync(scene.App);
+        await GalleryBackupsAsync(scene.App, "g49");
+        var page = await OpenStorageDetailsAsync(scene.App, window);
+        page.RestoreCommand.Execute(page.Rows.Single(r => r.Entry.Backup?.Reason == BackupReason.BeforeWorkspaceDelete));
+        Assert.True(scene.App.Root.BackupRestore.IsOpen);
+        await SettleAsync(window);
+        Capture(window, "g49-restore-confirmation");
+        window.Close();
+    }
+
+    /// <summary>Three rows checked: 删除所选 with the count and size, then its one confirmation with what may be lost.</summary>
+    [AvaloniaFact]
+    public async Task G49a_delete_selected_backups_confirmation()
+    {
+        await using var scene = Scene.Create("g49a");
+        var window = scene.App.ShowWindow(1100, 720, Theme);
+        await SeedAsync(scene.App);
+        await GalleryBackupsAsync(scene.App, "g49a");
+        var page = await OpenStorageDetailsAsync(scene.App, window);
+        foreach (var row in page.Rows.Where(r => r.Entry.Backup?.Reason is BackupReason.BeforeWorkspaceDelete or BackupReason.Migration || r.Entry.Leftover is not null))
+        {
+            row.IsChecked = true;
+        }
+
+        await SettleAsync(window);
+        Capture(window, "g49a-storage-backups-selected");
+        page.DeleteSelectedCommand.Execute(null);
+        Assert.True(scene.App.Root.BackupDeletion.IsOpen);
+        await SettleAsync(window);
+        Capture(window, "g49a-delete-selected-confirmation");
+        window.Close();
+    }
+
+    /// <summary>A real restore of a backup made before a conversation was deleted: the workbench again, with the notice.</summary>
+    [AvaloniaFact]
+    public async Task G49b_after_a_restore_with_its_notice()
+    {
+        await using var scene = Scene.Create("g49b");
+        var window = scene.App.ShowWindow(1100, 720, Theme);
+        await SeedAsync(scene.App);
+        await scene.App.Services.GetRequiredService<IDatabaseBackup>().BackupAsync(BackupReason.BeforeConversationDelete, CancellationToken.None);
+        var page = await OpenStorageDetailsAsync(scene.App, window);
+        var oldRoot = scene.App.Root;
+        page.RestoreCommand.Execute(Assert.Single(page.Rows));
+        scene.App.Root.BackupRestore.RestoreCommand.Execute(null);
+        await UiWait.UntilAsync(() => !ReferenceEquals(scene.App.Root, oldRoot), 15000);
+        await scene.App.Session.LastRestore;
+        Assert.NotNull(scene.App.ShellPage.RestoreNotice);
+        await SettleAsync(window);
+        Capture(window, "g49b-after-restore-notice");
+
+        // The storage page afterwards: the "恢复前" copy is listed, marked, first.
+        var details = await OpenStorageDetailsAsync(scene.App, window);
+        Assert.Equal(BackupReason.BeforeRestore, details.Rows[0].Entry.Backup?.Reason);
+        await SettleAsync(window);
+        Capture(window, "g49b-storage-after-restore");
+        window.Close();
+    }
+
+    /// <summary>Backups of every kind in a scene's data directory (empty files: only their names and sizes are shown).</summary>
+    private static async Task GalleryBackupsAsync(DesktopHarness app, string scene)
+    {
+        var backups = Path.Combine(Scene.Directory(scene), "backups");
+        System.IO.Directory.CreateDirectory(backups);
+        var current = MigrationCatalog.Default.LatestVersion;
+        await File.WriteAllBytesAsync(Path.Combine(backups, $"mindweave-v{current}-20260313T221000000Z-before-restore.db"), new byte[1300 * 1024]);
+        await File.WriteAllBytesAsync(Path.Combine(backups, $"mindweave-v{current - 1}-20260310T090500000Z-before-delete.db"), new byte[980 * 1024]);
+        await File.WriteAllBytesAsync(Path.Combine(backups, $"mindweave-v{current}-20260308T181200000Z-before-conversation-delete.db"), new byte[860 * 1024]);
+        await File.WriteAllBytesAsync(Path.Combine(backups, "mindweave-v7-20260301T081500000Z.db"), new byte[412 * 1024]);
+        await File.WriteAllBytesAsync(Path.Combine(backups, $"mindweave-v{current + 1}-20260226T120000000Z.db"), new byte[1100 * 1024]);
+        await File.WriteAllBytesAsync($"{app.Paths.DatabasePath}.replaced-20260212T193000000Z", new byte[(int)(2.4 * 1024 * 1024)]);
+    }
+
+    private static async Task<StorageDetailsViewModel> OpenStorageDetailsAsync(DesktopHarness app, MainWindow window)
+    {
+        app.ShellPage.ShowSectionCommand.Execute(MainSection.Settings);
+        await SettleAsync(window);
+        var details = Find<Button>(window, "StorageDetailsButton");
+        details.Command!.Execute(details.CommandParameter);
+        var page = Assert.IsType<StorageDetailsViewModel>(app.Workbench.CurrentPage);
+        await SettleAsync(window);
+        return page;
     }
 
     [AvaloniaFact]

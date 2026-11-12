@@ -35,7 +35,7 @@ public static partial class UiText
     public static string RestoreMadeAt(BackupInfo backup)
     {
         ArgumentNullException.ThrowIfNull(backup);
-        return string.Format(CultureInfo.CurrentCulture, "这份备份创建于 {0}，{1}。", FormatTime(backup.CreatedAt), BackupMadeWhen(backup.Reason));
+        return string.Format(CultureInfo.CurrentCulture, "这份备份是 {0} {1}自动保存的。", FormatTime(backup.CreatedAt), BackupMadeWhen(backup.Reason));
     }
 
     /// <summary>An older schema is upgraded right after the restore, as on startup.</summary>
@@ -44,10 +44,10 @@ public static partial class UiText
 
     private static string BackupMadeWhen(BackupReason reason) => reason switch
     {
-        BackupReason.BeforeWorkspaceDelete => "在删除工作区前",
-        BackupReason.BeforeConversationDelete => "在删除会话前",
-        BackupReason.BeforeRestore => "在恢复另一份备份前",
-        _ => "在数据升级前",
+        BackupReason.BeforeWorkspaceDelete => "删除工作区前",
+        BackupReason.BeforeConversationDelete => "删除会话前",
+        BackupReason.BeforeRestore => "恢复另一份备份前",
+        _ => "数据升级前",
     };
 
     /// <summary>Why a backup cannot be restored; shown in the dialog, nothing was changed.</summary>

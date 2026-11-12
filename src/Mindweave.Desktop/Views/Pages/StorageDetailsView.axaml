@@ -48,7 +48,8 @@
             </Button>
             <TextBlock Name="BackupsTotal" Classes="caption" VerticalAlignment="Center" Text="{Binding TotalText}" />
           </DockPanel>
-          <ItemsControl Name="BackupList" ItemsSource="{Binding Rows}" IsVisible="{Binding HasBackups}">
+          <!-- One column grid for all rows (shared sizes), so dates, badges, sizes and actions line up whatever a row lacks. -->
+          <ItemsControl Name="BackupList" ItemsSource="{Binding Rows}" IsVisible="{Binding HasBackups}" Grid.IsSharedSizeScope="True">
             <ItemsControl.ItemsPanel>
               <ItemsPanelTemplate>
                 <StackPanel Spacing="6" />
@@ -56,17 +57,27 @@
             </ItemsControl.ItemsPanel>
             <ItemsControl.ItemTemplate>
               <DataTemplate x:DataType="vm:BackupRowViewModel">
-                <Grid ColumnDefinitions="Auto,Auto,Auto,Auto,*,Auto,Auto,Auto" ColumnSpacing="10" ToolTip.Tip="{Binding Hint}">
+                <Grid ColumnSpacing="10" ToolTip.Tip="{Binding Hint}">
+                  <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="Auto" SharedSizeGroup="Check" />
+                    <ColumnDefinition Width="Auto" SharedSizeGroup="Time" />
+                    <ColumnDefinition Width="Auto" SharedSizeGroup="Version" />
+                    <ColumnDefinition Width="Auto" />
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="Auto" SharedSizeGroup="Size" />
+                    <ColumnDefinition Width="Auto" SharedSizeGroup="Restore" />
+                    <ColumnDefinition Width="Auto" SharedSizeGroup="Delete" />
+                  </Grid.ColumnDefinitions>
                   <ToggleButton Name="BackupCheck" Classes="row-check-toggle" Margin="-3,0,0,0" IsChecked="{Binding IsChecked}"
                                 AutomationProperties.Name="{Binding SelectName}" />
                   <TextBlock Grid.Column="1" VerticalAlignment="Center" Text="{Binding TimeText}" />
-                  <Border Grid.Column="2" Classes="badge" Classes.warning="{Binding IsTooNew}" IsVisible="{Binding VersionText, Converter={x:Static ObjectConverters.IsNotNull}}">
+                  <Border Grid.Column="2" Classes="badge" HorizontalAlignment="Left" Classes.warning="{Binding IsTooNew}" IsVisible="{Binding VersionText, Converter={x:Static ObjectConverters.IsNotNull}}">
                     <TextBlock Text="{Binding VersionText}" />
                   </Border>
                   <Border Grid.Column="3" Name="BackupBadge" Classes="badge" Classes.accent="{Binding IsBeforeRestore}" IsVisible="{Binding Badge, Converter={x:Static ObjectConverters.IsNotNull}}">
                     <TextBlock Text="{Binding Badge}" />
                   </Border>
-                  <TextBlock Grid.Column="5" Classes="caption" VerticalAlignment="Center" Text="{Binding SizeText}" />
+                  <TextBlock Grid.Column="5" Classes="caption" HorizontalAlignment="Right" VerticalAlignment="Center" Text="{Binding SizeText}" />
                   <Button Grid.Column="6" Name="RestoreBackupButton" Classes="quiet small" Content="{x:Static d:UiText.RestoreBackup}"
                           IsVisible="{Binding IsBackup}" IsEnabled="{Binding CanRestore}" ToolTip.Tip="{Binding Hint}" ToolTip.ShowOnDisabled="True"
                           Command="{Binding $parent[ItemsControl].((vm:StorageDetailsViewModel)DataContext).RestoreCommand}" CommandParameter="{Binding}"

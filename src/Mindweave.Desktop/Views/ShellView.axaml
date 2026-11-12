@@ -216,8 +216,8 @@
                   ToolTip.Tip="{x:Static d:UiText.CloseRestoreNotice}" AutomationProperties.Name="{x:Static d:UiText.CloseRestoreNotice}">
             <PathIcon Data="{StaticResource IconClose}" />
           </Button>
-          <TextBlock Classes="notice-icon" Text="✓" IsVisible="{Binding !RestoreNoticeIsError}" />
-          <TextBlock Classes="notice-icon" Text="!" IsVisible="{Binding RestoreNoticeIsError}" />
+          <TextBlock Classes="notice-icon" Text="✓" VerticalAlignment="Center" IsVisible="{Binding !RestoreNoticeIsError}" />
+          <TextBlock Classes="notice-icon" Text="!" VerticalAlignment="Center" IsVisible="{Binding RestoreNoticeIsError}" />
           <TextBlock Name="RestoreNotice" Text="{Binding RestoreNotice}" AutomationProperties.LiveSetting="Polite" />
         </DockPanel>
       </Border>
