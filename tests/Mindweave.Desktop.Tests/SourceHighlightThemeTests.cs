@@ -61,14 +61,22 @@ public class SourceHighlightThemeTests
         Assert.InRange(line.Bottom - text.Bottom, -0.5, 0.5);
         Assert.Equal(SourceHighlightMark.Thickness, line.Height, 3);
 
-        // On screen: the line's middle is the line colour, the tint just above it is not.
+        // On screen: the line's middle is the line colour; just above it is the tint, not more line. The row above
+        // runs through the bottom of the glyphs, and where their strokes reach depends on the platform's CJK font
+        // (Windows 2026-11-12: one point 2 px above the line landed on a glyph), so the whole row is checked: no
+        // pixel of it is the line colour, and the tint shows between the strokes.
         using (var frame = window.CaptureRenderedFrame()!)
         {
             var markColour = ThemeColour("SourceHighlightMark", ThemeVariant.Dark);
+            var tint = Expected(ThemeVariant.Dark);
             var onLine = Pixel(frame, block, line.Center);
-            var above = Pixel(frame, block, new Point(line.Left + 2, line.Top - 2));
             Assert.True(Near(onLine, markColour), $"{onLine} is not the line colour {markColour}");
-            Assert.True(Near(above, Expected(ThemeVariant.Dark)), $"{above} above the line is not the tint");
+            var above = Enumerable.Range(0, (int)Math.Floor(line.Width) - 2)
+                .Select(dx => Pixel(frame, block, new Point(line.Left + 1 + dx, line.Top - 2)))
+                .ToList();
+            Assert.DoesNotContain(above, p => Near(p, markColour));
+            var tinted = above.Count(p => Near(p, tint));
+            Assert.True(tinted * 4 >= above.Count, $"only {tinted} of {above.Count} pixels above the line are the tint {tint}");
         }
 
         // Clearing the highlight takes the line away with it.

@@ -51,6 +51,8 @@ Windows 实机：`scripts/windows.sh test|publish|sync|exec`（主机 `win-home`
 
 多个会话并行的规则见 [AGENTS.md](AGENTS.md)“多个 Agent 并行”（2026-10-27 起）。本轨道的运行时资源：从任务工作树运行应用时设 `MINDWEAVE_DATA_DIR` 为该工作树自己的目录；Windows 实机用 `MINDWEAVE_WIN_DIR` 指向各自的目录，或排队使用默认目录。
 
+与 Windows 上的 Claude 之间用信箱传递任务与报告（2026-11-12 起）：`E:\mindweave-mailbox\`，Mac 侧 `scripts/mailbox.sh`，Windows 侧 `mailbox.ps1`，协议见 [docs/mailbox.md](docs/mailbox.md)。发出任务后请你对 Windows 上的 Claude 说“check the mailbox”；它的回复我自己读，不必转述。
+
 ## 演进接缝 E1–E6（2026-10-26 用户决定本轨道采纳为实验）
 
 依据 `main` 的 [演进方向与工程指引](docs/evolution.md)：S2 起引入前置接缝，不实现 D1–D6 功能本身；每个接缝记录实际成本与发现。
@@ -89,6 +91,7 @@ Windows 实机：`scripts/windows.sh test|publish|sync|exec`（主机 `win-home`
 
 ## 发现
 
+- **2026-11-12 · Windows 上的 Claude 开始做实机测试；第一次报告暴露一个按单点取色的测试依赖字体。** 你在 Windows 笔记本上装了 Claude Code，分工：它按指定提交在自己的克隆 `E:\mindweave-wintest` 里测试，不改产品代码、不推送，报告写到 `E:\mindweave-reports\`（本机可经 `scripts/windows.sh exec` 读取）；本轨道的 `E:\mindweave-claude-auto` 仍归 Mac 侧。首份报告（`f90da66`，桌面会话）：823 通过、1 失败、63 跳过，3 分 25 秒，无文件锁问题，Defender 开启。失败的是 `SourceHighlightThemeTests` 的高亮下划线测试，单独 5/5 失败：它取下划线上方 2 px 的一个点，期望是深色高亮底色，Windows 上读到 `#F5F4C3`——字形笔画（微软雅黑比苹方更靠下）。下划线位置与颜色本身正确。处理：改为检查整行——该行没有一个像素是下划线颜色，且至少四分之一是底色；两种变异（下划线向上画高 4 px、不画底色）都使它失败。另：凭据管理器测试是靠 `MINDWEAVE_CREDENTIAL_TESTS=1` 开启而不是只限平台，Windows 上的 Claude 在桌面会话里可以跑（会写入并删除一条临时凭据，需你同意）。
 - **2026-11-10 · 结构重构的结果与经验。** 最长文件：`GenerationCoordinator` 1,186→510（剩下的是共用一把锁的调度核心，按计划不再拆）、`App.axaml` 1,208→38、`ConversationViewModel` 782→480、`SqliteDatabase` 768→506、`NetworkCanvas` 1,083→736、`FakeChatClient` 311→244；约 600 行重复的测试辅助合并，原先绕过 `UiInput.Click` 保护的点击改走它。经验：（1）纯移动也会改行为——审查抓到两处：把 `async void` 处理器改成同步，使订阅者异常落进生成线程；子模型在构造时读存储状态，存储暂停时打开会话崩溃（已加回归测试）。（2）慢同步注入能把隐藏的时序问题变成可复现的失败：这次找到生成中选区随闭合 `**` 漂移的产品缺陷（已修，见 [s2-branching.md](docs/design/s2-branching.md)）。（3）多个并行分支都追加到同一个大文件（`App.axaml`、`UiText`）是合并冲突的主要来源，拆文件后应减少。
 
 - **2026-11-06 · Windows 测试偏慢主要来自磁盘同步。** 数据库用 WAL ＋ `synchronous=FULL`，每次提交都同步磁盘；macOS 上这一步几乎不花时间，Windows 要等磁盘。桌面测试全量约 9,800 次同步（每个测试约 38 次），且在一个界面线程上串行，所以每毫秒都直接累加：在 Mac 上给每次同步加 10 ms，40 秒变成 2 分 16 秒，接近 Windows 的 2 分 20–35 秒。其次可能是 Defender 扫描临时目录、Windows 计时器 15.6 ms 粒度（测试轮询 `Task.Delay(10)`）、单核性能。产品设置不改；只在测试里降低同步级别由你决定。Windows 恢复后的测量计划：给 `scripts/windows.sh test` 加 trx 记录每个测试的时间，按类与 Mac 对比（无数据库的类反映 CPU／绘制，数据库多的类反映存储）；测 `%TEMP%` 与 E: 的同步延迟、计时器粒度、Defender 状态（只读）。分析脚本与 Mac 上的四次记录在会话临时目录，未入库。
