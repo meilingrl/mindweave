@@ -21,6 +21,10 @@ namespace Mindweave.Desktop.Views;
 /// It never overlaps the text: it starts after it, is trimmed to the visible width, and is left out when there is no room
 /// or while an input method is composing; then Tab takes nothing and the help text does not mention it (review
 /// 2026-11-12: Tab never replaces the text with an offer that cannot be seen).
+/// With <see cref="OffersOnlyWhenEmpty"/> (recommended questions, 2026-11-12, requirements §10.3.1) it works as a
+/// placeholder instead: the first suggestion is offered only while the box is empty, drawn where the text would start (in
+/// place of the placeholder text, focused or not); Tab puts it in once, and since the box is then no longer empty, Tab
+/// moves the focus as usual afterwards. Typing hides it; emptying the box offers it again.
 /// </summary>
 public class GhostTextBox : TextBox
 {
@@ -39,6 +43,10 @@ public class GhostTextBox : TextBox
     /// <summary>The key hint drawn after the ghost.</summary>
     public static readonly StyledProperty<string> KeyHintProperty =
         AvaloniaProperty.Register<GhostTextBox, string>(nameof(KeyHint), "Tab");
+
+    /// <summary>Offer the first suggestion only while the box is empty, as a placeholder (no cycling).</summary>
+    public static readonly StyledProperty<bool> OffersOnlyWhenEmptyProperty =
+        AvaloniaProperty.Register<GhostTextBox, bool>(nameof(OffersOnlyWhenEmpty));
 
     public static readonly StyledProperty<IBrush?> GhostForegroundProperty =
         AvaloniaProperty.Register<GhostTextBox, IBrush?>(nameof(GhostForeground));
@@ -60,6 +68,8 @@ public class GhostTextBox : TextBox
     private int _acceptedIndex = -1;
     private bool _dismissed;
     private bool _applying;
+    private bool _placeholderHidden;
+    private string? _hiddenPlaceholder;
 
     public GhostTextBox()
     {
@@ -90,6 +100,12 @@ public class GhostTextBox : TextBox
         set => SetValue(KeyHintProperty, value);
     }
 
+    public bool OffersOnlyWhenEmpty
+    {
+        get => GetValue(OffersOnlyWhenEmptyProperty);
+        set => SetValue(OffersOnlyWhenEmptyProperty, value);
+    }
+
     public IBrush? GhostForeground
     {
         get => GetValue(GhostForegroundProperty);
@@ -114,7 +130,7 @@ public class GhostTextBox : TextBox
     protected override Type StyleKeyOverride => typeof(TextBox);
 
     /// <summary>Where the ghost and its key hint go, in this box's coordinates; null when nothing is drawn.</summary>
-    internal GhostPlacement? Place() => Place(requireFocus: true);
+    internal GhostPlacement? Place() => Place(requireFocus: !OffersOnlyWhenEmpty);
 
     /// <summary>
     /// Where the ghost goes; null when nothing is offered, there is no room after the text, an input method is composing
@@ -140,7 +156,8 @@ public class GhostTextBox : TextBox
         var brush = GhostForeground ?? Brushes.Gray;
         var key = new TextLayout(KeyHint, typeface, Math.Max(8, FontSize - 3), brush);
         var keyWidth = key.WidthIncludingTrailingWhitespace + 8;
-        var left = origin.X + presenter.TextLayout.WidthIncludingTrailingWhitespace + Gap;
+        // As a placeholder the ghost starts where the text would; after text, a little after it.
+        var left = OffersOnlyWhenEmpty && string.IsNullOrEmpty(Text) ? origin.X : origin.X + presenter.TextLayout.WidthIncludingTrailingWhitespace + Gap;
         var room = view.Right - left - KeyGap - keyWidth;
         if (room < FontSize * 2)
         {
@@ -214,7 +231,7 @@ public class GhostTextBox : TextBox
 
             Update();
         }
-        else if (change.Property == SuggestionsProperty)
+        else if (change.Property == SuggestionsProperty || change.Property == OffersOnlyWhenEmptyProperty)
         {
             _dismissed = false;
             _acceptedIndex = -1;
@@ -285,7 +302,15 @@ public class GhostTextBox : TextBox
     {
         var text = Text ?? string.Empty;
         var index = -1;
-        if (!_dismissed && Suggestions is { Count: > 0 } list)
+        if (OffersOnlyWhenEmpty)
+        {
+            // A placeholder: the first usable suggestion while the box is empty, whatever happened before.
+            if (text.Length == 0 && Suggestions is { Count: > 0 } offers)
+            {
+                index = Enumerable.Range(0, offers.Count).FirstOrDefault(i => !string.IsNullOrWhiteSpace(offers[i]), -1);
+            }
+        }
+        else if (!_dismissed && Suggestions is { Count: > 0 } list)
         {
             var start = _acceptedIndex >= 0 ? _acceptedIndex + 1 : 0;
             for (var i = 0; i < list.Count; i++)
@@ -301,8 +326,28 @@ public class GhostTextBox : TextBox
 
         _offerIndex = index;
         Offered = index >= 0 ? Suggestions![index] : null;
+        SyncPlaceholder();
         RefreshHelp();
         _layer.InvalidateVisual();
+    }
+
+    /// <summary>As a placeholder the ghost takes the placeholder text's place: that text is hidden while it is offered.</summary>
+    private void SyncPlaceholder()
+    {
+        if (OffersOnlyWhenEmpty && Offered is not null)
+        {
+            if (!_placeholderHidden)
+            {
+                _hiddenPlaceholder = PlaceholderText;
+                _placeholderHidden = true;
+                SetCurrentValue(PlaceholderTextProperty, null);
+            }
+        }
+        else if (_placeholderHidden)
+        {
+            _placeholderHidden = false;
+            SetCurrentValue(PlaceholderTextProperty, _hiddenPlaceholder);
+        }
     }
 
     /// <summary>The help text says what Tab does: the offer while it fits after the text (focused or not), else the plain one.</summary>

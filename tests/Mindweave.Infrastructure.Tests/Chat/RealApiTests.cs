@@ -232,6 +232,54 @@ public class RealApiTests
         Assert.All(result.Names, n => Assert.Matches(@"\p{IsCJKUnifiedIdeographs}", n.Value));
     }
 
+    /// <summary>
+    /// 2026-11-12 (requirements §10.3.1): questions recommended from real conversation titles and a real summary's excerpt
+    /// come back readable (JSON or lines), three of them, Chinese, of a sensible length, none repeating a conversation.
+    /// Run alone with <c>scripts/real-api.sh test default Recommended_questions</c>; about eight short requests.
+    /// </summary>
+    [Fact]
+    public async Task Recommended_questions_from_real_titles_and_an_excerpt_are_usable()
+    {
+        await using var h = await StartAsync();
+        var conversations = new List<ConversationId>();
+        foreach (var question in new[] { "斯蒂芬森的火箭号机车有什么特点？请用两句话回答。", "蒸汽机车的锅炉是怎么产生动力的？请用两句话回答。", "早期铁路为什么用铸铁轨道？请用两句话回答。" })
+        {
+            var (conversation, _) = await AskAsync(h, null, question);
+            await ChatHarness.UntilAsync(async () => (await h.Conversations.LoadAsync(conversation, Ct))!.Conversation.TitleSource != TitleSource.None, 120_000);
+            conversations.Add(conversation);
+        }
+
+        var summarized = await h.SummaryService.SummarizeAsync(conversations[1], Ct);
+        Assert.True(summarized.Accepted, summarized.Rejection?.ToString());
+        await ChatHarness.UntilAsync(async () => await h.SummaryService.LatestTaskAsync(conversations[1], Ct) is { State: Application.Storage.GenerationTaskState.Completed or Application.Storage.GenerationTaskState.Failed }, 180_000);
+
+        var outcome = await h.Recommendations.RefreshQuestionsAsync(h.Workspace, Ct);
+        var items = (await h.Recommendations.GetQuestionsAsync(h.Workspace, Ct)).Items;
+        var said = $"problem: {outcome.Problem} {outcome.Error}; questions: {string.Join(" | ", items.Select(i => $"{i.Question} [{i.BasisName}] ({i.Reason})"))}";
+        TestContext.Current.SendDiagnosticMessage(said);
+        if (Environment.GetEnvironmentVariable("MINDWEAVE_REAL_API_REPORT") is { Length: > 0 } report)
+        {
+            await File.AppendAllTextAsync(report, said + Environment.NewLine, Ct);
+        }
+
+        Assert.Null(outcome.Problem);
+        Assert.Equal(Application.Recommendations.RecommendationService.ShownQuestions, items.Count);
+        var titles = new List<string>();
+        foreach (var id in conversations)
+        {
+            titles.Add(Application.Recommendations.RecommendationText.Normalize((await h.Conversations.LoadAsync(id, Ct))!.Conversation.Title!));
+        }
+
+        Assert.All(items, i =>
+        {
+            Assert.Matches(@"\p{IsCJKUnifiedIdeographs}", i.Question);
+            Assert.InRange(i.Question.Length, Application.Recommendations.RecommendationPrompt.MinQuestionLength, Application.Recommendations.RecommendationPrompt.MaxQuestionLength);
+            Assert.DoesNotContain(Application.Recommendations.RecommendationText.Normalize(i.Question), titles);
+        });
+        var recorded = Assert.Single(await h.Requests.ForWorkspaceAsync(h.Workspace, Ct));
+        Assert.Equal(RequestAttribution.RecommendQuestions, recorded.Attribution!.Kind);
+    }
+
     private static async Task<(ConversationId Conversation, Message Answer)> AskAsync(ChatHarness h, ConversationId? conversation, string question)
     {
         var sent = conversation is { } id

@@ -15,7 +15,7 @@ internal sealed class SqliteAiRequestStore(SqliteDatabase database) : IAiRequest
             throw new ArgumentException("A request is recorded for a task or for a workspace, not both or neither.", nameof(record));
         }
 
-        if (record.Attribution is { } owner && owner.Kind != RequestAttribution.WorkspaceNames)
+        if (record.Attribution is { } owner && !RequestAttribution.Known.Contains(owner.Kind))
         {
             throw new ArgumentException($"Unknown request kind '{owner.Kind}'.", nameof(record));
         }

@@ -80,6 +80,15 @@ public sealed record RequestAttribution(Core.Workspaces.WorkspaceId Workspace, s
 {
     /// <summary>A workspace's suggested names, asked for while renaming it or prepared in the background.</summary>
     public const string WorkspaceNames = "workspace-name";
+
+    /// <summary>Recommended questions for 新探索 (requirements §10.3.1), asked for with 换一批 or prepared in the background.</summary>
+    public const string RecommendQuestions = "recommend-questions";
+
+    /// <summary>Recommended nodes for the summary network (requirements §10.3.2).</summary>
+    public const string RecommendNodes = "recommend-nodes";
+
+    /// <summary>Every kind a request without a task may be recorded for; storage refuses any other.</summary>
+    public static IReadOnlySet<string> Known { get; } = new HashSet<string>(StringComparer.Ordinal) { WorkspaceNames, RecommendQuestions, RecommendNodes };
 }
 
 /// <summary>
@@ -90,9 +99,11 @@ public sealed record RequestAttribution(Core.Workspaces.WorkspaceId Workspace, s
 /// identity in memory only. The request itself is recorded for <paramref name="Attribution"/> when one is given. The
 /// output, or why there is none, arrives through <see cref="Output"/>: cancelled when stopped, a
 /// <see cref="Ai.ChatClientException"/> (or <see cref="StorageAdmissionRefusedException"/>) when it failed, and a
-/// <see cref="GenerationPreemptedException"/> when idle work gave its slot up.
+/// <see cref="GenerationPreemptedException"/> when idle work gave its slot up. Idle work that must not be interrupted once
+/// it runs (recommendations, architecture §6: "已在运行的不打断") sets <paramref name="Yields"/> false: it still starts only
+/// when no user or background work waits, but keeps its slot until it ends.
 /// </summary>
-public sealed record TransientWork(GenerationTaskRecord Task, ChatRequest Request, GenerationPriority Priority, RequestAttribution? Attribution = null)
+public sealed record TransientWork(GenerationTaskRecord Task, ChatRequest Request, GenerationPriority Priority, RequestAttribution? Attribution = null, bool Yields = true)
     : GenerationWork(Task, Request, Priority)
 {
     public TaskCompletionSource<string> Output { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);

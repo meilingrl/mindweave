@@ -49,11 +49,13 @@
     </Border>
 
     <!-- 提示 (2026-11-10): whether the open workspace's conversations pop up a hint too (on unless turned off), and the
-         sound for a hint (off unless chosen); 2026-11-11: whether a workspace's names are prepared in the background (on). -->
+         sound for a hint (off unless chosen); 2026-11-11: whether a workspace's names are prepared in the background (on);
+         2026-11-12: recommended questions, recommended nodes and preparing them in the background (all on, §10.3), with
+         what is sent and that preparing costs a little. -->
     <StackPanel IsVisible="{Binding CanChooseNewsSound}">
       <TextBlock Classes="section-heading" Margin="2,28,0,8" Text="{x:Static d:UiText.HintsSection}" />
       <Border Classes="card settings">
-        <Grid ColumnDefinitions="96,*" RowDefinitions="Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto">
+        <Grid ColumnDefinitions="96,*" RowDefinitions="Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto">
           <TextBlock Classes="field-label" Text="{x:Static d:UiText.NewsInWorkspaceLabel}" />
           <CheckBox Grid.Column="1" Name="NewsInWorkspaceToggle" IsChecked="{Binding ShowsInWorkspaceNews}" Content="{x:Static d:UiText.NewsInWorkspace}"
                     AutomationProperties.Name="{x:Static d:UiText.NewsInWorkspace}" AutomationProperties.HelpText="{x:Static d:UiText.NewsInWorkspaceHint}" />
@@ -72,6 +74,19 @@
           <TextBlock Grid.Row="7" Grid.Column="1" Classes="caption" TextWrapping="Wrap" Margin="0,4,0,0" Text="{x:Static d:UiText.PrepareNamesHint}" />
           <TextBlock Grid.Row="8" Grid.Column="1" Name="PrepareNamesStatus" v:Motion.Appear="Fade" Classes="error" FontSize="12" TextWrapping="Wrap" Margin="0,8,0,0"
                      Text="{Binding PrepareNamesStatus}" IsVisible="{Binding PrepareNamesStatus, Converter={x:Static ObjectConverters.IsNotNull}}" />
+          <TextBlock Grid.Row="9" Classes="field-label" Margin="0,22,0,0" VerticalAlignment="Top" Text="{x:Static d:UiText.RecommendationsLabel}" IsVisible="{Binding CanChooseRecommendations}" />
+          <StackPanel Grid.Row="9" Grid.Column="1" Name="RecommendationChoices" Margin="0,16,0,0" Spacing="2" IsVisible="{Binding CanChooseRecommendations}">
+            <CheckBox Name="RecommendQuestionsToggle" IsChecked="{Binding RecommendsQuestions}" Content="{x:Static d:UiText.RecommendQuestionsSetting}"
+                      AutomationProperties.Name="{x:Static d:UiText.RecommendQuestionsSetting}" AutomationProperties.HelpText="{x:Static d:UiText.RecommendationsHint}" />
+            <CheckBox Name="RecommendNodesToggle" IsChecked="{Binding RecommendsNodes}" Content="{x:Static d:UiText.RecommendNodesSetting}"
+                      AutomationProperties.Name="{x:Static d:UiText.RecommendNodesSetting}" AutomationProperties.HelpText="{x:Static d:UiText.RecommendationsHint}" />
+            <CheckBox Name="AutoPrepareRecommendationsToggle" IsChecked="{Binding AutoPreparesRecommendations}" Content="{x:Static d:UiText.AutoPrepareRecommendations}"
+                      AutomationProperties.Name="{x:Static d:UiText.AutoPrepareRecommendations}" AutomationProperties.HelpText="{x:Static d:UiText.RecommendationsHint}" />
+          </StackPanel>
+          <TextBlock Grid.Row="10" Grid.Column="1" Name="RecommendationsHint" Classes="caption" TextWrapping="Wrap" Margin="0,4,0,0" Text="{x:Static d:UiText.RecommendationsHint}"
+                     IsVisible="{Binding CanChooseRecommendations}" />
+          <TextBlock Grid.Row="11" Grid.Column="1" Name="RecommendationsStatus" v:Motion.Appear="Fade" Classes="error" FontSize="12" TextWrapping="Wrap" Margin="0,8,0,0"
+                     Text="{Binding RecommendationsStatus}" IsVisible="{Binding RecommendationsStatus, Converter={x:Static ObjectConverters.IsNotNull}}" />
         </Grid>
       </Border>
     </StackPanel>

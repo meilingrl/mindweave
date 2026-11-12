@@ -107,7 +107,7 @@ public class UsageStatisticsTests
     }
 
     [Fact]
-    public async Task Models_are_told_apart_by_name_and_host_and_purposes_include_workspace_names()
+    public async Task Models_are_told_apart_by_name_and_host_and_purposes_include_workspace_names_and_recommendations()
     {
         await using var h = await ChatHarness.StartAsync(configure: false);
         var seed = new UsageSeed(h.Database);
@@ -120,11 +120,15 @@ public class UsageStatisticsTests
         await seed.RequestAsync(c, "naming", "glm-5", now.AddHours(-3), 100, 20, "https://open.bigmodel.cn/api/paas/v4");
         await seed.WorkspaceRequestAsync(h.Workspace, "deepseek-flash", now.AddHours(-2), 80, 30, "https://api.deepseek.com/v1");
 
+        // Recommended questions and nodes (2026-11-12) count together as 推荐, apart from the names.
+        await seed.WorkspaceRequestAsync(h.Workspace, "glm-5", now.AddHours(-1), 400, 60, "https://open.bigmodel.cn/api/paas/v4", "recommend-questions");
+        await seed.WorkspaceRequestAsync(h.Workspace, "glm-5", now.AddHours(-1), 300, 40, "https://open.bigmodel.cn/api/paas/v4", "recommend-nodes");
+
         var report = (await Service(h, now).LoadAsync(null, UsagePeriod.Daily, Ct)).Usage;
 
         Assert.Equal(
             [
-                (new ModelKey("glm-5", "open.bigmodel.cn"), new TokenCounts(3100, 820, 2, 0)),
+                (new ModelKey("glm-5", "open.bigmodel.cn"), new TokenCounts(3800, 920, 4, 0)),
                 (new ModelKey("deepseek-flash", "api.deepseek.com"), new TokenCounts(1580, 530, 3, 0)),
                 (new ModelKey("deepseek-flash", "relay.example.org:8443"), new TokenCounts(50, 10, 1, 0)),
             ],
@@ -136,6 +140,7 @@ public class UsageStatisticsTests
                 (UsagePurpose.Summary, new TokenCounts(3000, 800, 1, 0)),
                 (UsagePurpose.Naming, new TokenCounts(100, 20, 1, 0)),
                 (UsagePurpose.WorkspaceName, new TokenCounts(80, 30, 1, 0)),
+                (UsagePurpose.Recommendation, new TokenCounts(700, 100, 2, 0)),
             ],
             report.ByPurpose.Select(p => (p.Purpose, p.Counts)));
     }

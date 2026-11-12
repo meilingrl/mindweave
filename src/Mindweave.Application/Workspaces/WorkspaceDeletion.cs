@@ -54,7 +54,8 @@ public sealed partial class WorkspaceDeletionService(
     StorageHealth health,
     GenerationCoordinator generation,
     ILogger<WorkspaceDeletionService> logger,
-    IWorkspaceNameCache? names = null) : IWorkspaceDeletion
+    IWorkspaceNameCache? names = null,
+    Recommendations.RecommendationService? recommendations = null) : IWorkspaceDeletion
 {
     public Task<WorkspaceContents> InspectAsync(WorkspaceId workspace, CancellationToken cancellationToken) =>
         store.InspectAsync(workspace, cancellationToken);
@@ -124,6 +125,13 @@ public sealed partial class WorkspaceDeletionService(
         if (names is not null)
         {
             await names.ForgetAsync(workspace, CancellationToken.None).ConfigureAwait(false);
+        }
+
+        // Its recommendations went with the commit (v11 cascade); a request still running for it is stopped, and what was
+        // remembered about it in memory goes (architecture §6: recommendations never hold a deletion up).
+        if (recommendations is not null)
+        {
+            await recommendations.ForgetAsync(workspace).ConfigureAwait(false);
         }
 
         LogDeleted(logger, workspace, result.Deleted.Count, path);

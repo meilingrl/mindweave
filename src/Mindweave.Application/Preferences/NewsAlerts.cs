@@ -44,9 +44,9 @@ public sealed class NewsAlertsService(IPreferenceStore store) : INewsAlerts
 
     public const string PrepareNamesKey = "workspace.prepare-names";
 
-    private readonly Choice _sound = new(store, SoundKey, fallback: false);
-    private readonly Choice _inWorkspace = new(store, InWorkspaceKey, fallback: true);
-    private readonly Choice _prepareNames = new(store, PrepareNamesKey, fallback: true);
+    private readonly PreferenceChoice _sound = new(store, SoundKey, fallback: false);
+    private readonly PreferenceChoice _inWorkspace = new(store, InWorkspaceKey, fallback: true);
+    private readonly PreferenceChoice _prepareNames = new(store, PrepareNamesKey, fallback: true);
 
     public Task<bool> GetSoundAsync(CancellationToken cancellationToken) => _sound.GetAsync(cancellationToken);
 
@@ -59,39 +59,39 @@ public sealed class NewsAlertsService(IPreferenceStore store) : INewsAlerts
     public Task<bool> GetPrepareNamesAsync(CancellationToken cancellationToken) => _prepareNames.GetAsync(cancellationToken);
 
     public Task SetPrepareNamesAsync(bool enabled, CancellationToken cancellationToken) => _prepareNames.SetAsync(enabled, cancellationToken);
+}
 
-    /// <summary>One on/off choice under one key: stored as "on" or "off"; anything else is <paramref name="fallback"/>.</summary>
-    private sealed class Choice(IPreferenceStore store, string key, bool fallback)
+/// <summary>One on/off choice under one key: stored as "on" or "off"; anything else is <paramref name="fallback"/>.</summary>
+internal sealed class PreferenceChoice(IPreferenceStore store, string key, bool fallback)
+{
+    private const int Unknown = -1;
+
+    /// <summary><see cref="Unknown"/>, 0 (off) or 1 (on).</summary>
+    private int _value = Unknown;
+
+    public async Task<bool> GetAsync(CancellationToken cancellationToken)
     {
-        private const int Unknown = -1;
-
-        /// <summary><see cref="Unknown"/>, 0 (off) or 1 (on).</summary>
-        private int _value = Unknown;
-
-        public async Task<bool> GetAsync(CancellationToken cancellationToken)
+        var known = Volatile.Read(ref _value);
+        if (known != Unknown)
         {
-            var known = Volatile.Read(ref _value);
-            if (known != Unknown)
-            {
-                return known == 1;
-            }
-
-            var stored = await store.GetAsync(key, cancellationToken).ConfigureAwait(false) switch
-            {
-                "on" => 1,
-                "off" => 0,
-                _ => fallback ? 1 : 0,
-            };
-
-            // A choice made while this was reading wins over what was stored before it.
-            var now = Interlocked.CompareExchange(ref _value, stored, Unknown);
-            return (now == Unknown ? stored : now) == 1;
+            return known == 1;
         }
 
-        public Task SetAsync(bool enabled, CancellationToken cancellationToken)
+        var stored = await store.GetAsync(key, cancellationToken).ConfigureAwait(false) switch
         {
-            Volatile.Write(ref _value, enabled ? 1 : 0);
-            return store.SetAsync(key, enabled ? "on" : "off", cancellationToken);
-        }
+            "on" => 1,
+            "off" => 0,
+            _ => fallback ? 1 : 0,
+        };
+
+        // A choice made while this was reading wins over what was stored before it.
+        var now = Interlocked.CompareExchange(ref _value, stored, Unknown);
+        return (now == Unknown ? stored : now) == 1;
+    }
+
+    public Task SetAsync(bool enabled, CancellationToken cancellationToken)
+    {
+        Volatile.Write(ref _value, enabled ? 1 : 0);
+        return store.SetAsync(key, enabled ? "on" : "off", cancellationToken);
     }
 }

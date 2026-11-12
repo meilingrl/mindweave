@@ -2,6 +2,7 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:vm="using:Mindweave.Desktop.ViewModels.Conversations"
              xmlns:d="using:Mindweave.Desktop"
+             xmlns:views="using:Mindweave.Desktop.Views"
              x:Class="Mindweave.Desktop.Views.Conversations.ComposerView"
              x:DataType="vm:Composer">
   <StackPanel Spacing="8">
@@ -30,9 +31,14 @@
             <PathIcon Data="{StaticResource IconStop}" />
           </Button>
         </Panel>
-        <TextBox Name="Input" Text="{Binding Text}" AcceptsReturn="True" TextWrapping="Wrap" MaxHeight="220" MinHeight="34"
-                 VerticalContentAlignment="Center" PlaceholderText="{x:Static d:UiText.AskPlaceholder}"
-                 AutomationProperties.Name="提问" />
+        <!-- On 新探索 the first recommended question shows in the empty input as a dim placeholder (requirements §10.3.1):
+             Tab puts it in once, typing hides it; elsewhere nothing is offered and this is a plain text box. -->
+        <views:GhostTextBox Name="Input" Text="{Binding Text}" AcceptsReturn="True" TextWrapping="Wrap" MaxHeight="220" MinHeight="34"
+                            VerticalContentAlignment="Center" PlaceholderText="{x:Static d:UiText.AskPlaceholder}"
+                            Suggestions="{Binding GhostSuggestions}" OffersOnlyWhenEmpty="True"
+                            OfferHelpFormat="{x:Static d:UiText.RecommendedQuestionHelpFormat}"
+                            GhostForeground="{DynamicResource SuggestionGhostText}" KeyHintBorderBrush="{DynamicResource OutlineBrush}"
+                            AutomationProperties.Name="提问" />
       </DockPanel>
     </Border>
   </StackPanel>

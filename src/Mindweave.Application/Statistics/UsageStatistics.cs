@@ -19,6 +19,9 @@ public enum UsagePurpose
     Naming,
     WorkspaceName,
 
+    /// <summary>Recommended questions and nodes (requirements §10.3), asked for or prepared in the background.</summary>
+    Recommendation,
+
     /// <summary>A kind this build does not know (written by a newer one); counted, never hidden.</summary>
     Other,
 }
@@ -210,6 +213,7 @@ public sealed class UsageStatisticsService(IStatisticsStore store, IModelSetting
         "summary" => UsagePurpose.Summary,
         "naming" => UsagePurpose.Naming,
         Conversations.RequestAttribution.WorkspaceNames => UsagePurpose.WorkspaceName,
+        Conversations.RequestAttribution.RecommendQuestions or Conversations.RequestAttribution.RecommendNodes => UsagePurpose.Recommendation,
         _ => UsagePurpose.Other,
     };
 }

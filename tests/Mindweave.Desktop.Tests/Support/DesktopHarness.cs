@@ -45,6 +45,9 @@ public sealed class DesktopHarness : IAsyncDisposable
 
             // The background names' 30 s wait (2026-11-11) stands still unless a test moves this clock.
             services.AddSingleton(new Application.Workspaces.WorkspaceNamePreparationOptions { Time = PreparationTime });
+
+            // Recommendations prepared on opening 新探索 (2026-11-12) wait on the same standing clock.
+            services.AddSingleton(new Application.Recommendations.RecommendationOptions { Time = PreparationTime });
             overrides?.Invoke(services);
         };
         _ownsDirectory = ownsDirectory;

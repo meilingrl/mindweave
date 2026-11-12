@@ -427,6 +427,29 @@ public class UsageStatisticsUiTests
 
     // ── Helpers ──────────────────────────────────────────────────────────────
 
+    [AvaloniaFact]
+    public async Task Recommendation_requests_have_their_own_purpose_row_and_the_other_rows_stay()
+    {
+        await using var app = Create();
+        var workspace = await app.StartWithWorkspaceAsync("火车历史");
+        await app.ConfigureModelAsync();
+        var seed = new UsageSeed(app.Services.GetRequiredService<SqliteDatabase>());
+        var c = await seed.ConversationAsync(workspace.Id, Now.AddDays(-2));
+        await seed.RequestAsync(c, "answer", "m", Now.AddDays(-2), 600, 200);
+        await seed.WorkspaceRequestAsync(workspace.Id, "m", Now.AddDays(-1), 150, 50, kind: "recommend-questions");
+        await seed.WorkspaceRequestAsync(workspace.Id, "m", Now.AddDays(-1), 40, 10, kind: "workspace-name");
+
+        var (window, page, view) = await OpenAsync(app);
+
+        Assert.Equal(["回答", "标题", "总结", "命名", "工作区名称", "推荐"], page.Purposes.Select(p => p.Name));
+        var row = page.Purposes.Single(p => p.Purpose == UsagePurpose.Recommendation);
+        Assert.Equal(200, row.Counts.Total);
+        Assert.Equal(UiText.PurposeHint(UsagePurpose.Recommendation), row.Hint);
+        Assert.StartsWith("推荐：", row.AutomationName, StringComparison.Ordinal);
+        Assert.Contains(view.GetVisualDescendants().OfType<Grid>(), g => g.Classes.Contains("purpose-row") && AutomationProperties.GetName(g) == row.AutomationName);
+        window.Close();
+    }
+
     private static async Task<(MainWindow Window, UsageStatisticsViewModel Page, UsageStatisticsView View)> OpenAsync(DesktopHarness app)
     {
         var window = app.ShowWindow(1100, 820);

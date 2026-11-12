@@ -429,5 +429,31 @@ internal static class SchemaMigrations
             CREATE INDEX ai_request_by_task ON ai_request (task_id, started_at);
             CREATE INDEX ai_request_by_workspace ON ai_request (workspace_id, started_at) WHERE workspace_id IS NOT NULL;
             """),
+
+        Migration.Sql(11, "recommendations", """
+            -- Recommended questions for 新探索 and recommended network nodes (requirements §10.3, architecture
+            -- "Recommendation"): hints, not knowledge. Kept per workspace across restarts; a pending one is shown, a used
+            -- or ignored one is kept only so it is not offered again. An ignored row keeps only the normalized question it
+            -- is matched by (no reason). The basis summary is required for a node and kept for a question that shows
+            -- "延伸自"; deleting that summary deletes its recommendations, ignored ones included, and deleting the workspace
+            -- deletes all of them. generation_id names the request that made the row, generated_at when.
+            CREATE TABLE recommendation (
+                id            TEXT    NOT NULL PRIMARY KEY,
+                workspace_id  TEXT    NOT NULL REFERENCES workspace (id) ON DELETE CASCADE,
+                kind          TEXT    NOT NULL CHECK (kind IN ('question', 'node')),
+                question      TEXT    NOT NULL CHECK (length(question) > 0),
+                reason        TEXT,
+                basis_node_id TEXT    REFERENCES summary_node (id) ON DELETE CASCADE,
+                generation_id TEXT    NOT NULL,
+                generated_at  INTEGER NOT NULL,
+                seq           INTEGER NOT NULL CHECK (seq >= 0),
+                state         TEXT    NOT NULL CHECK (state IN ('pending', 'used', 'ignored')),
+                updated_at    INTEGER NOT NULL,
+                CHECK (kind = 'question' OR basis_node_id IS NOT NULL),
+                CHECK (state <> 'ignored' OR reason IS NULL)
+            ) STRICT;
+            CREATE INDEX recommendation_by_workspace ON recommendation (workspace_id, kind, state);
+            CREATE INDEX recommendation_by_basis ON recommendation (basis_node_id) WHERE basis_node_id IS NOT NULL;
+            """),
     ];
 }

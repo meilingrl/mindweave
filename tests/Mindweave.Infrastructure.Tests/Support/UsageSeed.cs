@@ -76,17 +76,17 @@ internal sealed class UsageSeed(SqliteDatabase database)
                     VALUES ($id, $kind, $conv, $target, 'completed', 'seed', $base, 'chat_completions', $model, 'seed/key', '[]', $at, $at, $at,
                             CASE WHEN $kind = 'summary' THEN 0 END);
                     """, ("$id", task), ("$kind", kind), ("$conv", conversation.ToString()), ("$target", target), ("$base", baseUrl), ("$model", model), ("$at", at.Ms()));
-                InsertRequest(c, t, task, null, model, baseUrl, at, prompt, completion, outcome, estimated);
+                InsertRequest(c, t, task, null, model, baseUrl, at, prompt, completion, outcome, estimated, null);
                 return 0;
             },
             CancellationToken.None);
 
-    /// <summary>One request made without a task for the workspace (its suggested names).</summary>
-    public Task WorkspaceRequestAsync(WorkspaceId workspace, string model, DateTimeOffset at, int? prompt, int? completion, string baseUrl = DefaultBase) =>
+    /// <summary>One request made without a task for the workspace (its suggested names, or another <paramref name="kind"/>).</summary>
+    public Task WorkspaceRequestAsync(WorkspaceId workspace, string model, DateTimeOffset at, int? prompt, int? completion, string baseUrl = DefaultBase, string kind = "workspace-name") =>
         database.WriteAsync(
             (c, t) =>
             {
-                InsertRequest(c, t, null, workspace, model, baseUrl, at, prompt, completion, "completed", null);
+                InsertRequest(c, t, null, workspace, model, baseUrl, at, prompt, completion, "completed", null, kind);
                 return 0;
             },
             CancellationToken.None);
@@ -139,7 +139,7 @@ internal sealed class UsageSeed(SqliteDatabase database)
 
     private static void InsertRequest(
         SqliteConnection c, SqliteTransaction t, string? task, WorkspaceId? workspace, string model, string baseUrl, DateTimeOffset at,
-        int? prompt, int? completion, string outcome, int? estimated) =>
+        int? prompt, int? completion, string outcome, int? estimated, string? kind) =>
         c.Execute(t, """
             INSERT INTO ai_request (id, task_id, workspace_id, kind, model, base_url, started_at, finished_at, outcome, output_chars,
                                     prompt_tokens, completion_tokens, estimated_tokens)
@@ -148,7 +148,7 @@ internal sealed class UsageSeed(SqliteDatabase database)
             ("$id", Guid.NewGuid().ToString("D")),
             ("$task", task),
             ("$ws", workspace?.ToString()),
-            ("$kind", workspace is null ? null : "workspace-name"),
+            ("$kind", workspace is null ? null : kind),
             ("$model", workspace is null ? null : model),
             ("$base", workspace is null ? null : baseUrl),
             ("$at", at.Ms()),

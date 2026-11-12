@@ -7,6 +7,8 @@ namespace Mindweave.Desktop.Views.Conversations;
 
 public sealed partial class ComposerView : UserControl
 {
+    private Composer? _composer;
+
     public ComposerView()
     {
         InitializeComponent();
@@ -22,6 +24,30 @@ public sealed partial class ComposerView : UserControl
     {
         base.OnLoaded(e);
         OpenSettingsFromNotice.Click += (_, _) => SettingsRequested?.Invoke(this, EventArgs.Empty);
+    }
+
+    protected override void OnDataContextChanged(EventArgs e)
+    {
+        if (_composer is not null)
+        {
+            _composer.FillRequested -= OnFillRequested;
+        }
+
+        _composer = DataContext as Composer;
+        if (_composer is not null)
+        {
+            _composer.FillRequested += OnFillRequested;
+        }
+
+        base.OnDataContextChanged(e);
+    }
+
+    /// <summary>A recommended question was put in: the input takes the focus, the caret after the text, nothing selected.</summary>
+    private void OnFillRequested(object? sender, EventArgs e)
+    {
+        Input.Focus(NavigationMethod.Pointer);
+        Input.ClearSelection();
+        Input.CaretIndex = Input.Text?.Length ?? 0;
     }
 
     private void OnInputKeyDown(object? sender, KeyEventArgs e)

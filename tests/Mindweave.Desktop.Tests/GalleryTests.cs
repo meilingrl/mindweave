@@ -1601,6 +1601,82 @@ public class GalleryTests
         window.Close();
     }
 
+    // ── Recommended questions on 新探索 (2026-11-12, requirements §10.3.1) ─────────────
+
+    [AvaloniaFact]
+    public async Task G51_new_exploration_with_three_recommended_questions_and_the_first_as_ghost_text()
+    {
+        await using var scene = Scene.Create("g51");
+        var window = scene.App.ShowWindow(1100, 720, Theme);
+        var (page, view) = await OpenRecommendationsAsync(scene.App, window);
+        Assert.Equal(3, page.Recommendations.Count);
+        Assert.Equal(page.Recommendations[0].Question, Find<GhostTextBox>(view, "Input").Offered);
+        await SettleAsync(window);
+        Capture(window, "g51-new-exploration-recommended-questions");
+        window.Close();
+    }
+
+    [AvaloniaFact]
+    public async Task G51a_one_question_dismissed_and_a_new_batch_on_its_way()
+    {
+        await using var scene = Scene.Create("g51a");
+        var window = scene.App.ShowWindow(1100, 720, Theme);
+        var (page, _) = await OpenRecommendationsAsync(scene.App, window);
+        await page.Recommendations[0].IgnoreCommand.ExecuteAsync(null);
+        scene.App.Client.Recommendations.Hold();
+        page.RefreshCommand.Execute(null);
+        await UiWait.UntilAsync(() => page.IsRefreshing);
+        Assert.Equal(2, page.Recommendations.Count);
+        await SettleAsync(window);
+        Capture(window, "g51a-new-exploration-dismissed-and-refreshing");
+        window.Close();
+    }
+
+    [AvaloniaFact]
+    public async Task G51b_recommended_questions_could_not_be_prepared_in_the_background()
+    {
+        await using var scene = Scene.Create("g51b");
+        var window = scene.App.ShowWindow(1100, 720, Theme);
+        var (page, _) = await OpenRecommendationsAsync(scene.App, window);
+        scene.App.Client.Recommendations.FailNext(GenerationErrorKind.Network);
+        while (page.Recommendations.Count > 0)
+        {
+            await page.Recommendations[0].IgnoreCommand.ExecuteAsync(null);
+        }
+
+        scene.App.PreparationTime.Advance(TimeSpan.FromSeconds(1));
+        await scene.App.Services.GetRequiredService<Application.Recommendations.RecommendationService>().SettledAsync();
+        await UiWait.UntilAsync(() => page.Note == UiText.RecommendationsQuietFailure);
+        await SettleAsync(window);
+        Capture(window, "g51b-new-exploration-quiet-failure");
+        window.Close();
+    }
+
+    /// <summary>
+    /// The summarized train workspace with three questions made the way 换一批 makes them (two extend a summary), and 新探索
+    /// open with the input empty and focused.
+    /// </summary>
+    private static async Task<(NewConversationViewModel Page, NewConversationView View)> OpenRecommendationsAsync(DesktopHarness app, MainWindow window)
+    {
+        await SeedAsync(app, summaries: true);
+        var workspace = app.Workbench.CurrentWorkspace!.Id;
+        var bases = await app.Services.GetRequiredService<IRecommendationStore>().ListBasesAsync(workspace, Application.Recommendations.RecommendationPrompt.MaxSummaries, 10, CancellationToken.None);
+        string Label(string name) => "S" + (bases.Listed.ToList().FindIndex(b => b.DisplayName.StartsWith(name, StringComparison.Ordinal)) + 1);
+        app.Client.Recommendations.Replies.Enqueue(
+            $"[{{\"question\":\"缆索牵引在今天的山区铁路还有用武之地吗？\",\"reason\":\"顺着缆索牵引的局限往后看\",\"basis\":\"{Label("缆索牵引")}\"}}," +
+            $"{{\"question\":\"无砟轨道遇到地基沉降时怎么修复？\",\"reason\":\"接着无砟轨道的代价\",\"basis\":\"{Label("无砟轨道")}\"}}," +
+            "{\"question\":\"蒸汽机车是怎样一步步被内燃机车取代的？\",\"reason\":\"还没问过的相邻方向\",\"basis\":\"\"}]");
+        var outcome = await app.Services.GetRequiredService<Application.Recommendations.IRecommendations>().RefreshQuestionsAsync(workspace, CancellationToken.None);
+        Assert.Equal(3, outcome.Added);
+        app.ShellPage.Conversations.NewCommand.Execute(null);
+        var page = Assert.IsType<NewConversationViewModel>(app.Workbench.CurrentPage);
+        await page.Loaded;
+        window.UpdateLayout();
+        var view = window.GetVisualDescendants().OfType<NewConversationView>().Single();
+        await UiWait.UntilAsync(() => Find<GhostTextBox>(view, "Input").IsFocused);
+        return (page, view);
+    }
+
     /// <summary>
     /// The train workspace (its own answers and titles report their usage), plus 30 days of requests on two more models
     /// and every purpose, and a second workspace with half a year of questions and summaries behind it, so the milestones

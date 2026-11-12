@@ -24,6 +24,7 @@ public class ViewTests
             typeof(ViewModels.Conversations.Composer), typeof(ViewModels.Conversations.MessageItemViewModel),
             typeof(ViewModels.Conversations.ConversationItemViewModel), typeof(ViewModels.Conversations.ConversationListViewModel),
             typeof(ViewModels.Conversations.ConversationSummaryPanel), typeof(ViewModels.Conversations.ConversationLifecycleActions),
+            typeof(ViewModels.Conversations.RecommendedQuestionViewModel),
             typeof(ViewModels.Pages.ModelSettingsViewModel), typeof(ViewModels.Pages.ArchivedItemViewModel),
         };
         var hosted = typeof(ViewModelBase).Assembly.GetTypes()

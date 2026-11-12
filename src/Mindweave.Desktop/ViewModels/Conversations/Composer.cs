@@ -30,6 +30,23 @@ public sealed partial class Composer : ViewModelBase
     [ObservableProperty]
     public partial bool IsAnswerRunning { get; set; }
 
+    /// <summary>
+    /// Recommended questions offered in the empty input as a placeholder (新探索 only, requirements §10.3.1): the first is
+    /// drawn dimly, Tab puts it in. Null elsewhere.
+    /// </summary>
+    [ObservableProperty]
+    public partial IReadOnlyList<string>? GhostSuggestions { get; set; }
+
+    /// <summary>The view puts the focus in the input, the caret at the end (after <see cref="Fill"/>).</summary>
+    public event EventHandler? FillRequested;
+
+    /// <summary>Puts <paramref name="text"/> in the input, not sent, and has the view focus it.</summary>
+    public void Fill(string text)
+    {
+        Text = text;
+        FillRequested?.Invoke(this, EventArgs.Empty);
+    }
+
     /// <summary>Stops the running answer; null on a page that never runs one (a new conversation).</summary>
     public ICommand? StopCommand { get; init; }
 

@@ -204,6 +204,7 @@ public static partial class UiText
         UsagePurpose.Summary => "总结",
         UsagePurpose.Naming => "命名",
         UsagePurpose.WorkspaceName => "工作区名称",
+        UsagePurpose.Recommendation => "推荐",
         _ => "其他",
     };
 
@@ -214,6 +215,7 @@ public static partial class UiText
         UsagePurpose.Summary => "生成总结",
         UsagePurpose.Naming => "为同名的总结取区分名称",
         UsagePurpose.WorkspaceName => "建议工作区名称，含后台准备",
+        UsagePurpose.Recommendation => "推荐问题与推荐节点，含后台准备",
         _ => "新版本记录的其他用途",
     };
 

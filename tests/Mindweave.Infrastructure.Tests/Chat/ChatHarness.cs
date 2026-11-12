@@ -123,6 +123,14 @@ internal sealed class ChatHarness : IAsyncDisposable
     /// <summary>Names suggested for a workspace while renaming it (2026-11-11).</summary>
     public Application.Workspaces.WorkspaceNameSuggester NameSuggester => _services.GetRequiredService<Application.Workspaces.WorkspaceNameSuggester>();
 
+    /// <summary>Recommended questions and nodes (2026-11-12).</summary>
+    public Application.Recommendations.RecommendationService Recommendations => _services.GetRequiredService<Application.Recommendations.RecommendationService>();
+
+    public SqliteRecommendationStore RecommendationStore => (SqliteRecommendationStore)_services.GetRequiredService<IRecommendationStore>();
+
+    /// <summary>The recommendation choices.</summary>
+    public Application.Preferences.IRecommendationSettings RecommendationSettings => _services.GetRequiredService<Application.Preferences.IRecommendationSettings>();
+
     public string BackupDirectory => _dir.Paths.BackupDirectory;
 
     public string DataDirectory => _dir.Paths.DataDirectory;
@@ -331,6 +339,7 @@ internal sealed class ChatHarness : IAsyncDisposable
 
         // The background's 30 s wait runs on a clock that stands still unless a test moves it.
         services.AddSingleton(new Application.Workspaces.WorkspaceNamePreparationOptions { Time = PreparationTime });
+        services.AddSingleton(new Application.Recommendations.RecommendationOptions { Time = PreparationTime });
         services.AddSingleton(slots is { } count
             ? new GenerationOptions { CheckpointInterval = TimeSpan.FromMilliseconds(50), Slots = count }
             : new GenerationOptions { CheckpointInterval = TimeSpan.FromMilliseconds(50) });

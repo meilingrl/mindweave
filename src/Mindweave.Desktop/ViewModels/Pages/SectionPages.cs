@@ -39,6 +39,8 @@ public sealed partial class SettingsHomeViewModel : PageViewModel, IDisposable
     private readonly IThemeApplier _theme;
     private readonly IWorkspaceDirectory? _workspaces;
     private readonly INewsAlerts? _newsAlerts;
+    private readonly IRecommendationSettings? _recommendationSettings;
+    private readonly HashSet<string> _recommendationChosen = [];
     private bool _loading;
     private bool _chosen;
     private bool _soundChosen;
@@ -52,10 +54,12 @@ public sealed partial class SettingsHomeViewModel : PageViewModel, IDisposable
         IAppearance appearance,
         IThemeApplier theme,
         IWorkspaceDirectory? workspaces = null,
-        INewsAlerts? newsAlerts = null)
+        INewsAlerts? newsAlerts = null,
+        IRecommendationSettings? recommendationSettings = null)
         : base(SettingsHomeRoute.Instance)
     {
         _newsAlerts = newsAlerts;
+        _recommendationSettings = recommendationSettings;
         _workspaces = workspaces;
         if (workspaces is not null)
         {
@@ -153,6 +157,60 @@ public sealed partial class SettingsHomeViewModel : PageViewModel, IDisposable
     /// <summary>Shown only when saving that choice failed; the choice still applies until the application closes.</summary>
     [ObservableProperty]
     public partial string? PrepareNamesStatus { get; private set; }
+
+    /// <summary>The recommendation choices are offered (requirements §10.3; the page is built with them).</summary>
+    public bool CanChooseRecommendations => _recommendationSettings is not null;
+
+    /// <summary>新探索推荐问题 (on unless turned off).</summary>
+    [ObservableProperty]
+    public partial bool RecommendsQuestions { get; set; } = true;
+
+    /// <summary>网络推荐节点 (on unless turned off).</summary>
+    [ObservableProperty]
+    public partial bool RecommendsNodes { get; set; } = true;
+
+    /// <summary>自动准备推荐 (on unless turned off): off, recommendations are made only when asked for.</summary>
+    [ObservableProperty]
+    public partial bool AutoPreparesRecommendations { get; set; } = true;
+
+    /// <summary>Shown only when saving one of those choices failed; the choice still applies until the application closes.</summary>
+    [ObservableProperty]
+    public partial string? RecommendationsStatus { get; private set; }
+
+    partial void OnRecommendsQuestionsChanged(bool value) => ChooseRecommendation(nameof(RecommendsQuestions), value, (s, on) => s.SetQuestionsAsync(on, CancellationToken.None));
+
+    partial void OnRecommendsNodesChanged(bool value) => ChooseRecommendation(nameof(RecommendsNodes), value, (s, on) => s.SetNodesAsync(on, CancellationToken.None));
+
+    partial void OnAutoPreparesRecommendationsChanged(bool value) =>
+        ChooseRecommendation(nameof(AutoPreparesRecommendations), value, (s, on) => s.SetAutoPrepareAsync(on, CancellationToken.None));
+
+    private void ChooseRecommendation(string choice, bool value, Func<IRecommendationSettings, bool, Task> save)
+    {
+        if (_loading || _recommendationSettings is not { } settings)
+        {
+            return;
+        }
+
+        _recommendationChosen.Add(choice);
+        Saving = SaveRecommendationAsync(settings, value, save, Saving);
+    }
+
+    private async Task SaveRecommendationAsync(IRecommendationSettings settings, bool on, Func<IRecommendationSettings, bool, Task> save, Task previous)
+    {
+        // One write after another, so the last choice made is the one that stays.
+        await previous;
+        try
+        {
+            await save(settings, on);
+            RecommendationsStatus = null;
+        }
+#pragma warning disable CA1031 // As for the other hints: reported beside the settings, still applies for this run.
+        catch (Exception)
+#pragma warning restore CA1031
+        {
+            RecommendationsStatus = UiText.RecommendationsSaveFailed;
+        }
+    }
 
     [RelayCommand]
     private void ShowStorageDetails() => _content.Push(StorageDetailsRoute.Instance);
@@ -276,6 +334,21 @@ public sealed partial class SettingsHomeViewModel : PageViewModel, IDisposable
         }
     }
 
+    /// <summary>A stored choice; unreadable means its default (on), as at startup.</summary>
+    private static async Task<bool> ReadChoiceAsync(Func<Task<bool>> read)
+    {
+        try
+        {
+            return await read();
+        }
+#pragma warning disable CA1031 // Unreadable means on, the default.
+        catch (Exception)
+#pragma warning restore CA1031
+        {
+            return true;
+        }
+    }
+
     private void Choose(bool chosen, Appearance appearance)
     {
         if (chosen)
@@ -350,8 +423,31 @@ public sealed partial class SettingsHomeViewModel : PageViewModel, IDisposable
             }
         }
 
+        bool? questions = null, nodes = null, auto = null;
+        if (_recommendationSettings is { } recommendations)
+        {
+            questions = await ReadChoiceAsync(() => recommendations.GetQuestionsAsync(CancellationToken.None));
+            nodes = await ReadChoiceAsync(() => recommendations.GetNodesAsync(CancellationToken.None));
+            auto = await ReadChoiceAsync(() => recommendations.GetAutoPrepareAsync(CancellationToken.None));
+        }
+
         // A choice the reader made while this was loading wins over the stored one it would otherwise overwrite.
         _loading = true;
+        if (questions is { } q && !_recommendationChosen.Contains(nameof(RecommendsQuestions)))
+        {
+            RecommendsQuestions = q;
+        }
+
+        if (nodes is { } n && !_recommendationChosen.Contains(nameof(RecommendsNodes)))
+        {
+            RecommendsNodes = n;
+        }
+
+        if (auto is { } a && !_recommendationChosen.Contains(nameof(AutoPreparesRecommendations)))
+        {
+            AutoPreparesRecommendations = a;
+        }
+
         if (!_chosen)
         {
             Appearance = stored;

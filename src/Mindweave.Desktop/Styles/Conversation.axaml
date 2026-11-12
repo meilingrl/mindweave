@@ -208,4 +208,15 @@
   <Style Selector="ItemsControl.messages.with-branch-marks">
     <Setter Property="Margin" Value="8,0,28,0" />
   </Style>
+  <!-- Recommended questions under the input on 新探索 (2026-11-12): entry rows in a card, as the settings' entries; the
+       question in the body size, its basis as a caption; the cross (不感兴趣) muted until hovered. -->
+  <Style Selector="TextBlock.recommended-question">
+    <Setter Property="FontSize" Value="13.5" />
+    <Setter Property="Foreground" Value="{DynamicResource PrimaryText}" />
+  </Style>
+  <Style Selector="Button.recommendation-ignore PathIcon">
+    <Setter Property="Width" Value="10" />
+    <Setter Property="Height" Value="10" />
+    <Setter Property="Foreground" Value="{DynamicResource MutedText}" />
+  </Style>
 </Styles>

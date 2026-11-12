@@ -212,14 +212,15 @@ public sealed partial class GenerationCoordinator : IGenerationExit, IGeneration
     /// Throws <see cref="InvalidOperationException"/> when new work is refused (an exit is under way),
     /// <see cref="ChatClientException"/> when the service failed or its output was cut off or empty,
     /// <see cref="StorageAdmissionRefusedException"/> when storage paused before it was sent, and
-    /// <see cref="GenerationPreemptedException"/> when idle work gave its slot up to other work.
+    /// <see cref="GenerationPreemptedException"/> when idle work gave its slot up to other work (never when
+    /// <paramref name="yields"/> is false: such idle work waits its turn but is not interrupted once it runs).
     /// </summary>
-    internal async Task<string> RequestTransientAsync(ChatRequest request, CancellationToken cancellationToken, GenerationPriority priority = GenerationPriority.User, RequestAttribution? attribution = null)
+    internal async Task<string> RequestTransientAsync(ChatRequest request, CancellationToken cancellationToken, GenerationPriority priority = GenerationPriority.User, RequestAttribution? attribution = null, bool yields = true)
     {
         ArgumentNullException.ThrowIfNull(request);
         cancellationToken.ThrowIfCancellationRequested();
         var task = new GenerationTaskRecord(GenerationTaskId.New(), GenerationTaskKind.NameSuggestion, default, null, request.Model, [], _clock.UtcNow);
-        var work = new TransientWork(task, request, priority, attribution);
+        var work = new TransientWork(task, request, priority, attribution, yields);
         Enqueue(work);
 
         // Registered after the work is queued, so a stop always finds it (queued or running); a token already cancelled
@@ -488,10 +489,11 @@ public sealed partial class GenerationCoordinator : IGenerationExit, IGeneration
             }
 
             // Idle work never makes other work wait (2026-11-11): with every slot taken and user or background work
-            // queued, a running idle request gives its slot up. It is told so, and may be asked again later.
+            // queued, a running idle request gives its slot up. It is told so, and may be asked again later. Idle work
+            // that does not yield (recommendations, architecture §6) is left running.
             if (!_closed && _userQueue.Count + _backgroundQueue.Count > 0 && _running.Count >= _options.Slots)
             {
-                yielding = _running.Values.FirstOrDefault(r => r.Work.Priority == GenerationPriority.Idle && !r.Yielding);
+                yielding = _running.Values.FirstOrDefault(r => r.Work.Priority == GenerationPriority.Idle && r.Work is not TransientWork { Yields: false } && !r.Yielding);
                 yielding?.Yield();
             }
         }

@@ -24,6 +24,7 @@ public sealed class FakeChatClient : IChatClient
         Knowledge = new RequestScript("knowledge summary", KnowledgeOf);
         Naming = new RequestScript("naming", NamesOf);
         WorkspaceNames = new RequestScript("workspace names", _ => DefaultWorkspaceNames);
+        Recommendations = new RequestScript("recommendations", _ => DefaultRecommendations);
     }
 
     public ConcurrentQueue<ChatRequest> Requests { get; } = new();
@@ -47,6 +48,18 @@ public sealed class FakeChatClient : IChatClient
 
     public const string DefaultWorkspaceNames = "蒸汽机车史\n铁路发展\n火车与工业革命";
 
+    /// <summary>Recommended questions (requirements §10.3.1); the default is <see cref="DefaultRecommendations"/>.</summary>
+    public RequestScript Recommendations { get; }
+
+    /// <summary>Three questions: the first two extend the first two summaries listed (S1, S2), the third none.</summary>
+    public const string DefaultRecommendations =
+        "[{\"question\":\"蒸汽机车为什么被电力机车取代？\",\"reason\":\"顺着火车的发展往后看\",\"basis\":\"S1\"}," +
+        "{\"question\":\"高铁的轨道和普通铁轨有什么不同？\",\"reason\":\"从铁轨延伸\",\"basis\":\"S2\"}," +
+        "{\"question\":\"火车的刹车是怎样工作的？\",\"reason\":\"还没问过的相邻方向\",\"basis\":\"\"}]";
+
+    /// <summary>A request for recommended questions or nodes.</summary>
+    public static bool IsRecommendation(ChatRequest request) => SystemSays(request, "值得接着探索的新问题");
+
     /// <summary>A request for a workspace's suggested names.</summary>
     public static bool IsWorkspaceNaming(ChatRequest request) => SystemSays(request, "为这个工作区起");
 
@@ -64,7 +77,7 @@ public sealed class FakeChatClient : IChatClient
     public static bool IsNaming(ChatRequest request) => SystemSays(request, "区分词");
 
     public static bool IsAnswer(ChatRequest request) =>
-        !IsTitle(request) && !IsSummary(request) && !IsKnowledgeSummary(request) && !IsNaming(request) && !IsWorkspaceNaming(request);
+        !IsTitle(request) && !IsSummary(request) && !IsKnowledgeSummary(request) && !IsNaming(request) && !IsWorkspaceNaming(request) && !IsRecommendation(request);
 
     public const string DefaultSummaryTitle = "蒸汽机车";
 
@@ -213,6 +226,7 @@ public sealed class FakeChatClient : IChatClient
         : IsNaming(request) ? Naming
         : IsTitle(request) ? Titles
         : IsWorkspaceNaming(request) ? WorkspaceNames
+        : IsRecommendation(request) ? Recommendations
         : null;
 
     /// <summary>What listing the models returns.</summary>
