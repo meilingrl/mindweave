@@ -35,7 +35,7 @@ public static partial class UiText
     public const string DataSection = "数据";
     public const string LocationSection = "位置";
     public const string OpenFolder = "打开";
-    public const string NoBackupsShort = "暂无。数据升级前和连带删除前会自动备份。";
+    public const string NoBackupsShort = "暂无。数据升级前、连带删除前和恢复备份前会自动备份。";
     public const string AppearanceSaveFailed = "外观设置未能保存，本次运行中仍然有效。";
 
     // Hints (2026-11-10): whether the open workspace's conversations pop up a hint too (on unless turned off), and the
