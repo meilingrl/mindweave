@@ -140,7 +140,7 @@ public sealed partial class UsageStatisticsViewModel : PageViewModel, IShowsWork
     [ObservableProperty]
     public partial string RequestsText { get; private set; } = "0";
 
-    /// <summary>"另有 N 次请求服务未返回用量，未计入"; null when every request reported its usage.</summary>
+    /// <summary>"另有 N 次请求没有用量记录（服务未返回，或请求没有送达），未计入"; null when every request reported its usage.</summary>
     [ObservableProperty]
     public partial string? UnreportedText { get; private set; }
 

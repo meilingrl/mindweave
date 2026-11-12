@@ -53,7 +53,7 @@ public static partial class UiText
         : string.Format(CultureInfo.CurrentCulture, "最近 {0} 个月（{1}–{2}）", UsageStatisticsService.RecentMonths, Month(from), Month(to));
 
     public static string UnreportedRequests(int count) =>
-        string.Format(CultureInfo.CurrentCulture, "另有 {0} 次请求服务未返回用量，未计入", count);
+        string.Format(CultureInfo.CurrentCulture, "另有 {0} 次请求没有用量记录（服务未返回，或请求没有送达），未计入", count);
 
     public static string RequestCount(int count) => string.Format(CultureInfo.CurrentCulture, "{0:N0} 次", count);
 
