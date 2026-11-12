@@ -51,7 +51,11 @@ public sealed record SummaryRoute(Mindweave.Core.Summaries.SummaryNodeId Node) :
             : null;
 }
 
-public sealed record NewConversationRoute : ContentRoute
+/// <summary>
+/// 新探索: the first question of a new root conversation. Opened from a recommended node (requirements §10.3.2) it carries
+/// that recommendation's identity and question, put in the input unsent; the plain page has neither.
+/// </summary>
+public sealed record NewConversationRoute(Mindweave.Application.Recommendations.RecommendationId? From = null, string? Question = null) : ContentRoute
 {
     public static NewConversationRoute Instance { get; } = new();
 }

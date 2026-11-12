@@ -23,6 +23,7 @@ public sealed partial class NewConversationViewModel : PageViewModel, IDisposabl
     private readonly IRecommendations? _recommendations;
     private readonly IUiDispatcher? _dispatcher;
     private RecommendedQuestionViewModel? _source;
+    private RecommendationId? _node;
     private int _loads;
     private bool _autoPrepares = true;
     private bool _disposed;
@@ -33,8 +34,9 @@ public sealed partial class NewConversationViewModel : PageViewModel, IDisposabl
         IContentNavigator content,
         IMenuNavigator menu,
         IRecommendations? recommendations = null,
-        IUiDispatcher? dispatcher = null)
-        : base(NewConversationRoute.Instance)
+        IUiDispatcher? dispatcher = null,
+        NewConversationRoute? route = null)
+        : base(route ?? NewConversationRoute.Instance)
     {
         _workspace = workspace;
         _menu = menu;
@@ -43,6 +45,7 @@ public sealed partial class NewConversationViewModel : PageViewModel, IDisposabl
         Composer = new Composer(async text =>
         {
             var source = _source;
+            var node = _node;
             var outcome = await conversations.StartAsync(workspace, text, CancellationToken.None);
             if (outcome.Accepted)
             {
@@ -50,12 +53,24 @@ public sealed partial class NewConversationViewModel : PageViewModel, IDisposabl
                 {
                     Marking = MarkUsedAsync(source.Recommendation);
                 }
+                else if (node is { } id)
+                {
+                    // Explored from a recommended node: it leaves the network now (§10.3.2); no branch source is made.
+                    Marking = MarkNodeUsedAsync(id);
+                }
 
                 content.Replace(new ConversationRoute(outcome.Conversation));
             }
 
             return outcome;
         });
+        // From a recommended node: its question waits in the input, unsent; no conversation exists until it is sent.
+        if (route is { From: { } from, Question: { } question })
+        {
+            _node = from;
+            Composer.Text = question;
+        }
+
         Composer.PropertyChanged += OnComposerChanged;
         if (recommendations is not null)
         {
@@ -172,6 +187,7 @@ public sealed partial class NewConversationViewModel : PageViewModel, IDisposabl
     internal void Fill(RecommendedQuestionViewModel item)
     {
         _source = item;
+        _node = null;
         Composer.Fill(item.Question);
     }
 
@@ -228,6 +244,19 @@ public sealed partial class NewConversationViewModel : PageViewModel, IDisposabl
         }
     }
 
+    private async Task MarkNodeUsedAsync(RecommendationId id)
+    {
+        try
+        {
+            await _recommendations!.MarkUsedAsync(_workspace, id, CancellationToken.None);
+        }
+#pragma warning disable CA1031 // A hint: if it cannot be marked, it stays in the network; the question was sent either way.
+        catch (Exception)
+#pragma warning restore CA1031
+        {
+        }
+    }
+
     private void OnRecommendationsChanged(object? sender, WorkspaceId workspace)
     {
         if (workspace != _workspace || _disposed)
@@ -260,6 +289,7 @@ public sealed partial class NewConversationViewModel : PageViewModel, IDisposabl
         if (string.IsNullOrEmpty(text))
         {
             _source = null;
+            _node = null;
         }
         else if (Recommendations.FirstOrDefault(r => r.Question == text) is { } match)
         {

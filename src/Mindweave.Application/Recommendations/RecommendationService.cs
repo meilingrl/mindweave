@@ -83,6 +83,27 @@ public interface IRecommendations
 
     /// <summary>A question filled in from it was sent: removed, remembered as used.</summary>
     Task MarkUsedAsync(Recommendation recommendation, CancellationToken cancellationToken);
+
+    /// <summary>
+    /// The same by identity, for a recommended node explored from 新探索 (the page holds only its identity and question).
+    /// Nothing happens when it is no longer pending (ignored meanwhile, or gone with its basis summary).
+    /// </summary>
+    Task MarkUsedAsync(WorkspaceId workspace, RecommendationId id, CancellationToken cancellationToken);
+
+    /// <summary>What the summary network shows (requirements §10.3.2).</summary>
+    Task<NodeOffer> GetNodesAsync(WorkspaceId workspace, CancellationToken cancellationToken);
+
+    /// <summary>
+    /// The network was opened or its summaries changed: when §10.3.2's rules call for it, new nodes are prepared in the
+    /// background shortly after; a drop below a tier removes the extra ones (no request). Nothing else is asked.
+    /// </summary>
+    void NetworkOpened(WorkspaceId workspace);
+
+    /// <summary>换一批推荐 (or 重试): replaces the shown nodes with as many as the tier allows. Never throws for a refused or failed request.</summary>
+    Task<RecommendationOutcome> RefreshNodesAsync(WorkspaceId workspace, CancellationToken cancellationToken);
+
+    /// <summary>隐藏推荐 / 显示推荐: display only, remembered per workspace; while hidden nothing is prepared by itself.</summary>
+    Task SetNodesHiddenAsync(WorkspaceId workspace, bool hidden, CancellationToken cancellationToken);
 }
 
 /// <summary>How long after 新探索 opens the background looks, and the clock it waits on (tests stand it still).</summary>
@@ -113,6 +134,7 @@ public sealed partial class RecommendationService : IRecommendations, IDisposabl
     private readonly StorageHealth _health;
     private readonly GenerationCoordinator _generation;
     private readonly IRecommendationSettings _settings;
+    private readonly IPreferenceStore _preferences;
     private readonly RecommendationOptions _options;
     private readonly IClock _clock;
     private readonly ILogger<RecommendationService> _logger;
@@ -122,7 +144,9 @@ public sealed partial class RecommendationService : IRecommendations, IDisposabl
     private readonly Dictionary<WorkspaceId, Task> _tails = [];
     private readonly Dictionary<(WorkspaceId, RecommendationKind), RecommendationOutcome> _failures = [];
     private readonly Dictionary<(WorkspaceId, RecommendationKind), string> _tried = [];
-    private readonly Dictionary<WorkspaceId, ITimer> _timers = [];
+    private readonly Dictionary<(WorkspaceId, RecommendationKind), ITimer> _timers = [];
+    private readonly Dictionary<WorkspaceId, bool> _hidden = [];
+    private readonly HashSet<WorkspaceId> _forgotten = [];
     private readonly HashSet<WorkspaceId> _openedPending = [];
     private readonly HashSet<Task> _inFlight = [];
     private bool _disposed;
@@ -135,6 +159,7 @@ public sealed partial class RecommendationService : IRecommendations, IDisposabl
         StorageHealth health,
         GenerationCoordinator generation,
         IRecommendationSettings settings,
+        IPreferenceStore preferences,
         RecommendationOptions options,
         IClock clock,
         ILogger<RecommendationService> logger)
@@ -145,6 +170,7 @@ public sealed partial class RecommendationService : IRecommendations, IDisposabl
         _health = health;
         _generation = generation;
         _settings = settings;
+        _preferences = preferences;
         _options = options;
         _clock = clock;
         _logger = logger;
@@ -160,7 +186,16 @@ public sealed partial class RecommendationService : IRecommendations, IDisposabl
     {
         lock (_gate)
         {
-            return _timers.ContainsKey(workspace);
+            return _timers.Keys.Any(k => k.Item1 == workspace);
+        }
+    }
+
+    /// <summary>A background look at one kind is waiting to run for this workspace (tests).</summary>
+    public bool IsWaiting(WorkspaceId workspace, RecommendationKind kind)
+    {
+        lock (_gate)
+        {
+            return _timers.ContainsKey((workspace, kind));
         }
     }
 
@@ -203,7 +238,7 @@ public sealed partial class RecommendationService : IRecommendations, IDisposabl
         }
     }
 
-    public void NewExplorationOpened(WorkspaceId workspace) => Arm(workspace, opened: true);
+    public void NewExplorationOpened(WorkspaceId workspace) => Arm(workspace, RecommendationKind.Question, opened: true);
 
     public async Task<RecommendationOutcome> RefreshQuestionsAsync(WorkspaceId workspace, CancellationToken cancellationToken)
     {
@@ -212,7 +247,7 @@ public sealed partial class RecommendationService : IRecommendations, IDisposabl
             return RecommendationOutcome.Refused(RecommendationProblem.Disabled);
         }
 
-        return await RunAsync(workspace, RecommendationKind.Question, ShownQuestions, manual: true).WaitAsync(cancellationToken).ConfigureAwait(false);
+        return await RunAsync(workspace, RecommendationKind.Question, ShownQuestions, manual: true, replace: true, planTier: null).WaitAsync(cancellationToken).ConfigureAwait(false);
     }
 
     public async Task IgnoreAsync(Recommendation recommendation, CancellationToken cancellationToken)
@@ -220,7 +255,12 @@ public sealed partial class RecommendationService : IRecommendations, IDisposabl
         ArgumentNullException.ThrowIfNull(recommendation);
         await _store.SetStateAsync(recommendation.Id, RecommendationState.Ignored, RecommendationText.Normalize(recommendation.Question), _clock.UtcNow, cancellationToken).ConfigureAwait(false);
         Changed?.Invoke(this, recommendation.Workspace);
-        Arm(recommendation.Workspace, opened: false);
+
+        // An ignored node's slot stays empty (§10.3.2); an ignored question may leave none to show (§10.3.1).
+        if (recommendation.Kind == RecommendationKind.Question)
+        {
+            Arm(recommendation.Workspace, RecommendationKind.Question, opened: false);
+        }
     }
 
     public async Task MarkUsedAsync(Recommendation recommendation, CancellationToken cancellationToken)
@@ -228,7 +268,19 @@ public sealed partial class RecommendationService : IRecommendations, IDisposabl
         ArgumentNullException.ThrowIfNull(recommendation);
         await _store.SetStateAsync(recommendation.Id, RecommendationState.Used, RecommendationText.Normalize(recommendation.Question), _clock.UtcNow, cancellationToken).ConfigureAwait(false);
         Changed?.Invoke(this, recommendation.Workspace);
-        Arm(recommendation.Workspace, opened: false);
+        if (recommendation.Kind == RecommendationKind.Question)
+        {
+            Arm(recommendation.Workspace, RecommendationKind.Question, opened: false);
+        }
+    }
+
+    public async Task MarkUsedAsync(WorkspaceId workspace, RecommendationId id, CancellationToken cancellationToken)
+    {
+        // Used keeps the question as it is; only an ignored row is reduced to its normalized form.
+        if (await _store.SetStateAsync(id, RecommendationState.Used, "-", _clock.UtcNow, cancellationToken).ConfigureAwait(false))
+        {
+            Changed?.Invoke(this, workspace);
+        }
     }
 
     /// <summary>
@@ -240,9 +292,12 @@ public sealed partial class RecommendationService : IRecommendations, IDisposabl
         List<Run> runs;
         lock (_gate)
         {
-            if (_timers.Remove(workspace, out var timer))
+            _forgotten.Add(workspace);
+            _hidden.Remove(workspace);
+            foreach (var key in _timers.Keys.Where(k => k.Item1 == workspace).ToList())
             {
-                timer.Dispose();
+                _timers.Remove(key, out var timer);
+                timer!.Dispose();
             }
 
             runs = [.. _running.Where(r => r.Key.Item1 == workspace).Select(r => r.Value)];
@@ -274,6 +329,9 @@ public sealed partial class RecommendationService : IRecommendations, IDisposabl
             {
             }
         }
+
+        // The network's remembered tier and hidden state are kept as preferences: they go with the workspace too.
+        await ForgetPreferencesAsync(workspace).ConfigureAwait(false);
     }
 
     private async Task<bool> HasContentAsync(WorkspaceId workspace, CancellationToken cancellationToken)
@@ -287,8 +345,8 @@ public sealed partial class RecommendationService : IRecommendations, IDisposabl
         return (await _store.ListBasesAsync(workspace, 0, 1, cancellationToken).ConfigureAwait(false)).Count > 0;
     }
 
-    /// <summary>A background look at the workspace's questions, after <see cref="RecommendationOptions.Delay"/> (each call restarts the wait).</summary>
-    private void Arm(WorkspaceId workspace, bool opened)
+    /// <summary>A background look at the workspace's recommendations of a kind, after <see cref="RecommendationOptions.Delay"/> (each call restarts the wait).</summary>
+    private void Arm(WorkspaceId workspace, RecommendationKind kind, bool opened)
     {
         lock (_gate)
         {
@@ -298,47 +356,50 @@ public sealed partial class RecommendationService : IRecommendations, IDisposabl
             }
 
             // A wait already armed by opening the page keeps its stronger reason.
-            if (_timers.Remove(workspace, out var old))
+            if (_timers.Remove((workspace, kind), out var old))
             {
                 old.Dispose();
-                opened |= _openedPending.Contains(workspace);
+                opened |= kind == RecommendationKind.Question && _openedPending.Contains(workspace);
             }
 
-            if (opened)
+            if (kind == RecommendationKind.Question)
             {
-                _openedPending.Add(workspace);
-            }
-            else
-            {
-                _openedPending.Remove(workspace);
+                if (opened)
+                {
+                    _openedPending.Add(workspace);
+                }
+                else
+                {
+                    _openedPending.Remove(workspace);
+                }
             }
 
             var slot = new StrongBox<ITimer?>();
-            slot.Value = _options.Time.CreateTimer(_ => Fire(workspace, slot), null, _options.Delay, Timeout.InfiniteTimeSpan);
-            _timers[workspace] = slot.Value;
+            slot.Value = _options.Time.CreateTimer(_ => Fire(workspace, kind, slot), null, _options.Delay, Timeout.InfiniteTimeSpan);
+            _timers[(workspace, kind)] = slot.Value;
         }
     }
 
-    private void Fire(WorkspaceId workspace, StrongBox<ITimer?> slot)
+    private void Fire(WorkspaceId workspace, RecommendationKind kind, StrongBox<ITimer?> slot)
     {
         bool opened;
         lock (_gate)
         {
-            if (!_timers.TryGetValue(workspace, out var current) || !ReferenceEquals(current, slot.Value))
+            if (!_timers.TryGetValue((workspace, kind), out var current) || !ReferenceEquals(current, slot.Value))
             {
                 return;
             }
 
-            _timers.Remove(workspace);
+            _timers.Remove((workspace, kind));
             current.Dispose();
-            opened = _openedPending.Remove(workspace);
+            opened = kind == RecommendationKind.Question && _openedPending.Remove(workspace);
             if (_disposed)
             {
                 return;
             }
         }
 
-        Track(ConsiderAsync(workspace, opened));
+        Track(kind == RecommendationKind.Question ? ConsiderAsync(workspace, opened) : ConsiderNodesAsync(workspace));
     }
 
     /// <summary>
@@ -384,7 +445,7 @@ public sealed partial class RecommendationService : IRecommendations, IDisposabl
             _tried[key] = signature;
         }
 
-        var outcome = await RunAsync(workspace, RecommendationKind.Question, ShownQuestions, manual: false).ConfigureAwait(false);
+        var outcome = await RunAsync(workspace, RecommendationKind.Question, ShownQuestions, manual: false, replace: true, planTier: null).ConfigureAwait(false);
         if (outcome.NothingSent)
         {
             // Nothing was asked (no model yet, nothing to draw on, storage paused…): a later look may ask.
@@ -398,8 +459,12 @@ public sealed partial class RecommendationService : IRecommendations, IDisposabl
         }
     }
 
-    /// <summary>One request for the workspace's recommendations of <paramref name="kind"/>, after any other of the workspace.</summary>
-    private Task<RecommendationOutcome> RunAsync(WorkspaceId workspace, RecommendationKind kind, int count, bool manual)
+    /// <summary>
+    /// One request for the workspace's recommendations of <paramref name="kind"/>, after any other of the workspace. With
+    /// <paramref name="replace"/> the pending ones go when the new ones are stored; with <paramref name="planTier"/> a
+    /// network that got nodes remembers that it was filled for that tier from the request's start (§10.3.2).
+    /// </summary>
+    private Task<RecommendationOutcome> RunAsync(WorkspaceId workspace, RecommendationKind kind, int count, bool manual, bool replace, int? planTier)
     {
         Run run;
         Task previous;
@@ -425,12 +490,12 @@ public sealed partial class RecommendationService : IRecommendations, IDisposabl
             _tails[workspace] = run.Task;
         }
 
-        Track(Task.Run(() => ExecuteAfterAsync(previous, workspace, kind, count, manual, run, started)));
+        Track(Task.Run(() => ExecuteAfterAsync(previous, workspace, kind, count, manual, replace, planTier, run, started)));
         Changed?.Invoke(this, workspace);
         return run.Task;
     }
 
-    private async Task ExecuteAfterAsync(Task previous, WorkspaceId workspace, RecommendationKind kind, int count, bool manual, Run run, TaskCompletionSource<RecommendationOutcome> result)
+    private async Task ExecuteAfterAsync(Task previous, WorkspaceId workspace, RecommendationKind kind, int count, bool manual, bool replace, int? planTier, Run run, TaskCompletionSource<RecommendationOutcome> result)
     {
         RecommendationOutcome outcome;
         try
@@ -445,7 +510,7 @@ public sealed partial class RecommendationService : IRecommendations, IDisposabl
             {
             }
 
-            outcome = await ExecuteAsync(workspace, kind, count, run.Stop.Token).ConfigureAwait(false);
+            outcome = await ExecuteAsync(workspace, kind, count, replace, planTier, run.Stop.Token).ConfigureAwait(false);
         }
         catch (OperationCanceledException)
         {
@@ -486,8 +551,9 @@ public sealed partial class RecommendationService : IRecommendations, IDisposabl
         Changed?.Invoke(this, workspace);
     }
 
-    private async Task<RecommendationOutcome> ExecuteAsync(WorkspaceId workspace, RecommendationKind kind, int count, CancellationToken stop)
+    private async Task<RecommendationOutcome> ExecuteAsync(WorkspaceId workspace, RecommendationKind kind, int count, bool replace, int? planTier, CancellationToken stop)
     {
+        var start = _clock.UtcNow;
         var model = await _models.GetActiveSnapshotAsync(stop).ConfigureAwait(false);
         if (model is null)
         {
@@ -572,8 +638,13 @@ public sealed partial class RecommendationService : IRecommendations, IDisposabl
             workspace,
             kind,
             new RecommendationBatch(Guid.CreateVersion7(), _clock.UtcNow, items),
-            replacePending: kind == RecommendationKind.Question,
+            replacePending: replace,
             CancellationToken.None).ConfigureAwait(false);
+        if (stored > 0 && planTier is { } tier)
+        {
+            await WritePlanAsync(workspace, new NodePlan(tier, start)).ConfigureAwait(false);
+        }
+
         return stored switch
         {
             null => RecommendationOutcome.Refused(RecommendationProblem.Cancelled),

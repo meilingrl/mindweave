@@ -25,6 +25,7 @@ public sealed class FakeChatClient : IChatClient
         Naming = new RequestScript("naming", NamesOf);
         WorkspaceNames = new RequestScript("workspace names", _ => DefaultWorkspaceNames);
         Recommendations = new RequestScript("recommendations", _ => DefaultRecommendations);
+        NodeRecommendations = new RequestScript("node recommendations", _ => DefaultNodeRecommendations);
     }
 
     public ConcurrentQueue<ChatRequest> Requests { get; } = new();
@@ -56,6 +57,18 @@ public sealed class FakeChatClient : IChatClient
         "[{\"question\":\"蒸汽机车为什么被电力机车取代？\",\"reason\":\"顺着火车的发展往后看\",\"basis\":\"S1\"}," +
         "{\"question\":\"高铁的轨道和普通铁轨有什么不同？\",\"reason\":\"从铁轨延伸\",\"basis\":\"S2\"}," +
         "{\"question\":\"火车的刹车是怎样工作的？\",\"reason\":\"还没问过的相邻方向\",\"basis\":\"\"}]";
+
+    /// <summary>Recommended network nodes (requirements §10.3.2); the default is <see cref="DefaultNodeRecommendations"/>.</summary>
+    public RequestScript NodeRecommendations { get; }
+
+    /// <summary>Three directions, each extending one of the first three summaries listed (S1, S2, S3).</summary>
+    public const string DefaultNodeRecommendations =
+        "[{\"question\":\"蒸汽机车的锅炉为什么会爆炸？\",\"reason\":\"从动力往安全延伸\",\"basis\":\"S1\"}," +
+        "{\"question\":\"铁路信号灯是怎样发展起来的？\",\"reason\":\"相邻但还没问过\",\"basis\":\"S2\"}," +
+        "{\"question\":\"世界上最长的铁路隧道在哪里？\",\"reason\":\"换个角度看铁路\",\"basis\":\"S3\"}]";
+
+    /// <summary>A request for recommended nodes (its prompt requires a basis for each).</summary>
+    public static bool IsNodeRecommendation(ChatRequest request) => IsRecommendation(request) && SystemSays(request, "必须延伸自");
 
     /// <summary>A request for recommended questions or nodes.</summary>
     public static bool IsRecommendation(ChatRequest request) => SystemSays(request, "值得接着探索的新问题");
@@ -226,6 +239,7 @@ public sealed class FakeChatClient : IChatClient
         : IsNaming(request) ? Naming
         : IsTitle(request) ? Titles
         : IsWorkspaceNaming(request) ? WorkspaceNames
+        : IsNodeRecommendation(request) ? NodeRecommendations
         : IsRecommendation(request) ? Recommendations
         : null;
 

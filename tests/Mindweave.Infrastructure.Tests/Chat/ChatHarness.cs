@@ -131,6 +131,9 @@ internal sealed class ChatHarness : IAsyncDisposable
     /// <summary>The recommendation choices.</summary>
     public Application.Preferences.IRecommendationSettings RecommendationSettings => _services.GetRequiredService<Application.Preferences.IRecommendationSettings>();
 
+    /// <summary>The preference store the services remember small choices in (app_state).</summary>
+    public IPreferenceStore Preferences => _services.GetRequiredService<IPreferenceStore>();
+
     public string BackupDirectory => _dir.Paths.BackupDirectory;
 
     public string DataDirectory => _dir.Paths.DataDirectory;

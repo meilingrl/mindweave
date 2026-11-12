@@ -4,6 +4,7 @@ using Avalonia.Controls;
 using Avalonia.Input;
 using Avalonia.Media;
 using Avalonia.Threading;
+using Mindweave.Application.Recommendations;
 using Mindweave.Core.Summaries;
 using Mindweave.Desktop.Network;
 using Mindweave.Desktop.ViewModels.Pages;
@@ -94,6 +95,9 @@ public sealed class NetworkCanvas : Control
     /// <summary>The node under the pointer, if any (drawn larger, with a halo and its edges brightened).</summary>
     internal SummaryNodeId? Hovered { get; private set; }
 
+    /// <summary>The recommended node under the pointer, if any (its ring and line drawn stronger).</summary>
+    internal RecommendationId? HoveredRecommendation { get; private set; }
+
     /// <summary>Where the pointer is for hover and the pull; null when it is off the canvas.</summary>
     internal Point? Pointer => _pointer;
 
@@ -119,6 +123,7 @@ public sealed class NetworkCanvas : Control
         }
 
         Hovered = null;
+        HoveredRecommendation = null;
         _pressed = null;
         Dragging = null;
         _offsets.Clear();
@@ -174,6 +179,51 @@ public sealed class NetworkCanvas : Control
         }
 
         return null;
+    }
+
+    /// <summary>
+    /// The recommended node under a control point, when no summary node is (summaries win). Hidden question text is not
+    /// clickable; the ring and the "推荐" tag always are.
+    /// </summary>
+    internal RecommendedNodeView? HitTestRecommendation(Point screen) =>
+        PaintRecommendations().LastOrDefault(r => r.HitBounds.Contains(screen))?.Node;
+
+    /// <summary>What each recommended node looks like now (requirements §10.3.2). The render pass and the tests read the same list.</summary>
+    internal IReadOnlyList<RecommendationPaint> PaintRecommendations()
+    {
+        if (_page is null || _page.RecommendedNodes.Count == 0)
+        {
+            return [];
+        }
+
+        var palette = _palette ??= NetworkPalette.From(this);
+        var zoom = Current.Zoom;
+        var size = NetworkGeometry.LabelSize(zoom);
+        var nodes = _page.Nodes.ToDictionary(n => n.Id);
+        var selected = _page.SelectedRecommendation?.Id;
+        return [.. _page.RecommendedNodes.Select(node =>
+        {
+            var center = ToScreen(node.X, node.Y);
+            var basis = nodes.TryGetValue(node.Basis, out var b) ? ScreenOf(b) + _offsets.GetValueOrDefault(b.Id) : ToScreen(node.BasisX, node.BasisY);
+            var isSelected = node.Id == selected;
+            var hovered = node.Id == HoveredRecommendation;
+            var radius = ChildRadius + (hovered ? HoverGrowth : 0);
+            var tagSize = Math.Max(9, Math.Min(11, size * 0.85));
+            var tag = Text(UiText.RecommendedTag, tagSize, palette.Recommendation, FontWeight.SemiBold);
+            var tagOrigin = new Point(center.X + radius + NetworkLayout.LabelGap + 3, center.Y - (tag.Height / 2));
+            var tagBounds = new Rect(tagOrigin, new Size(tag.Width, tag.Height)).Inflate(new Thickness(3, 0));
+            var visible = zoom > LabelHideScale || isSelected || hovered;
+            var labelSize = zoom > LabelHideScale ? size : Math.Max(size, FocusedLabelMinSize);
+            var text = visible ? Text(node.Label, labelSize, isSelected || hovered ? palette.LabelActive : palette.LabelRead) : null;
+            var labelOrigin = text is null ? default : new Point(tagBounds.Right + 5, center.Y - (text.Height / 2));
+            return new RecommendationPaint(node, center, radius, basis, isSelected, hovered)
+            {
+                Tag = tag,
+                TagBounds = tagBounds,
+                Text = text,
+                LabelBounds = text is null ? default : new Rect(labelOrigin, new Size(text.Width, text.Height)),
+            };
+        })];
     }
 
     /// <summary>Labels show above the hiding threshold; below it only the selected, hovered and matching ones.</summary>
@@ -305,9 +355,21 @@ public sealed class NetworkCanvas : Control
         // backdrops, so a trail is never hidden by a label), nodes, label text, captions.
         var edges = PaintEdges();
         var nodes = PaintNodes().OrderBy(n => n.Lifted).ToList();
+        var recommended = PaintRecommendations();
         foreach (var edge in edges.Where(e => !e.Highlighted))
         {
             DrawEdge(context, palette, edge);
+        }
+
+        // Recommended nodes: their dotted lines rest with the edges, their rings below the summaries (never covering one).
+        foreach (var item in recommended)
+        {
+            context.DrawLine(palette.RecommendationLink(item.Selected || item.Hovered), item.Basis, item.Center);
+        }
+
+        foreach (var item in recommended)
+        {
+            DrawRecommendation(context, palette, item);
         }
 
         using (context.PushOpacity(0.85))
@@ -340,6 +402,35 @@ public sealed class NetworkCanvas : Control
         {
             // Always drawn, even when labels are hidden: it names the exploration.
             context.DrawText(caption.Text, caption.Origin);
+        }
+    }
+
+    private static void DrawRecommendation(DrawingContext context, NetworkPalette palette, RecommendationPaint item)
+    {
+        var p = item.Center;
+        var r = item.Radius;
+        if (item.Selected || item.Hovered)
+        {
+            context.DrawEllipse(item.Selected ? palette.HaloSelected : palette.HaloHover, null, p, r + 11, r + 11);
+        }
+
+        if (item.Selected)
+        {
+            context.DrawEllipse(null, palette.RingSelected, p, r + 5, r + 5);
+        }
+
+        // A dashed ring over a pale fill (the line to the basis ends under it), then the word in a thin frame.
+        context.DrawEllipse(palette.RecommendationFill, palette.RecommendationRing(item.Selected || item.Hovered), p, r, r);
+        using (context.PushOpacity(0.85))
+        {
+            context.FillRectangle(palette.Background, item.TagBounds.Union(item.Text is null ? item.TagBounds : item.LabelBounds).Inflate(new Thickness(2, 0)), 3);
+        }
+
+        context.DrawRectangle(palette.RecommendationFill, palette.RecommendationTag, item.TagBounds, 3, 3);
+        context.DrawText(item.Tag, item.TagBounds.TopLeft + new Vector(3, 0));
+        if (item.Text is { } text)
+        {
+            context.DrawText(text, item.LabelBounds.TopLeft);
         }
     }
 
@@ -468,6 +559,14 @@ public sealed class NetworkCanvas : Control
                 e.Pointer.Capture(this);
             }
 
+            e.Handled = true;
+            return;
+        }
+
+        if (HitTestRecommendation(point) is { } recommended)
+        {
+            // Selected only: never dragged (it has no place of its own), never opened by a double click.
+            _page?.SelectRecommendation(recommended);
             e.Handled = true;
             return;
         }
@@ -657,13 +756,15 @@ public sealed class NetworkCanvas : Control
     {
         _pointer = point;
         var hovered = point is { } p ? HitTest(p)?.Id : null;
-        if (hovered != Hovered)
+        var recommended = hovered is null && Dragging is null && point is { } q ? HitTestRecommendation(q)?.Id : null;
+        if (hovered != Hovered || recommended != HoveredRecommendation)
         {
             Hovered = hovered;
+            HoveredRecommendation = recommended;
             InvalidateVisual();
         }
 
-        Cursor = Dragging is not null ? GrabCursor : hovered is null ? Cursor.Default : HandCursor;
+        Cursor = Dragging is not null ? GrabCursor : hovered is null && recommended is null ? Cursor.Default : HandCursor;
 
         if (!_motion.IsEnabled)
         {
@@ -726,7 +827,7 @@ public sealed class NetworkCanvas : Control
             return new Viewport(0, 0, 1);
         }
 
-        var fitted = NetworkGeometry.FitTo(_page.Nodes, Bounds.Size);
+        var fitted = NetworkGeometry.FitTo(_page.Nodes, Bounds.Size, _page.RecommendedNodes);
         _page.Session.Viewport = fitted;
         return fitted;
     }

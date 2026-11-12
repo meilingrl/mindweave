@@ -33,6 +33,12 @@ public interface IRecommendationStore
     Task<int?> AddBatchAsync(WorkspaceId workspace, RecommendationKind kind, RecommendationBatch batch, bool replacePending, CancellationToken cancellationToken);
 
     /// <summary>
+    /// Deletes these pending rows of the kind in the workspace without remembering them (a network whose summaries fell
+    /// below a tier shows fewer nodes, §10.3.2); used and ignored rows are left alone. Returns how many went.
+    /// </summary>
+    Task<int> RemovePendingAsync(WorkspaceId workspace, RecommendationKind kind, IReadOnlyCollection<RecommendationId> ids, CancellationToken cancellationToken);
+
+    /// <summary>
     /// A pending row becomes used or ignored; an ignored one keeps only <paramref name="normalized"/> (its question in the
     /// form duplicates are matched in) and no reason. False when it was not pending (or is gone).
     /// </summary>

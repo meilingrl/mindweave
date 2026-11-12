@@ -10,6 +10,11 @@ internal sealed class NetworkPalette
     private readonly Dictionary<(EdgeState, bool), IPen> _edges = [];
     private readonly Dictionary<IBrush, IPen> _rings = [];
     private IPen? _glowRim;
+    private IPen? _recommendationRing;
+    private IPen? _recommendationRingActive;
+    private IPen? _recommendationLink;
+    private IPen? _recommendationLinkActive;
+    private IPen? _recommendationTag;
 
     public required IBrush Background { get; init; }
 
@@ -59,13 +64,36 @@ internal sealed class NetworkPalette
 
     public IPen DragGlowRim => _glowRim ??= new Pen(DragGlow, 1);
 
+    /// <summary>A recommended node's ring, its tag and its line (requirements §10.3.2).</summary>
+    public required IBrush Recommendation { get; init; }
+
+    /// <summary>The pale inside of a recommended node's ring.</summary>
+    public required IBrush RecommendationFill { get; init; }
+
+    /// <summary>The ring: dashed, unlike every summary node.</summary>
+    public IPen RecommendationRing(bool active) => active
+        ? _recommendationRingActive ??= new Pen(Recommendation, 2, new DashStyle([2.2, 1.6], 0))
+        : _recommendationRing ??= new Pen(Recommendation, 1.5, new DashStyle([2.2, 1.6], 0));
+
+    /// <summary>
+    /// The line to the basis summary: round dots, unlike the solid source edge and the dashed "经未总结会话" edge (and the
+    /// planned content-link and link-suggestion edges, see the design note).
+    /// </summary>
+    public IPen RecommendationLink(bool active) => active
+        ? _recommendationLinkActive ??= new Pen(Recommendation, 2, new DashStyle([0, 2.2], 0), PenLineCap.Round)
+        : _recommendationLink ??= new Pen(Recommendation, 1.5, new DashStyle([0, 2.6], 0), PenLineCap.Round);
+
+    /// <summary>The thin frame around the word "推荐".</summary>
+    public IPen RecommendationTag => _recommendationTag ??= new Pen(Recommendation, 1);
+
     /// <summary>Every theme resource the canvas draws with; both themes must define each one as a brush.</summary>
     public static IReadOnlyList<string> Keys { get; } =
     [
         "NetworkBackground", "NetworkGridDot", "NetworkNode", "NetworkNodeRead", "NetworkNodeTrail", "NetworkNodeHover",
         "NetworkUnreadDot", "NetworkHaloSelected", "NetworkHaloHover", "NetworkRingSelected", "NetworkRingMatch",
         "NetworkLabel", "NetworkLabelRead", "NetworkLabelActive", "NetworkCaption", "NetworkEdge", "NetworkEdgeIndirect",
-        "NetworkEdgeNear", "NetworkEdgeTrail", "NetworkDragShadow", "NetworkDragGlow",
+        "NetworkEdgeNear", "NetworkEdgeTrail", "NetworkDragShadow", "NetworkDragGlow", "NetworkRecommendation",
+        "NetworkRecommendationFill",
     ];
 
     /// <summary>The brush for a key in the control's current theme; null when the theme does not define it.</summary>
@@ -112,6 +140,8 @@ internal sealed class NetworkPalette
             EdgeTrail = brushes["NetworkEdgeTrail"],
             DragShadow = brushes["NetworkDragShadow"],
             DragGlow = brushes["NetworkDragGlow"],
+            Recommendation = brushes["NetworkRecommendation"],
+            RecommendationFill = brushes["NetworkRecommendationFill"],
         };
     }
 

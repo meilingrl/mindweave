@@ -26,7 +26,13 @@ public sealed partial class NewConversationView : UserControl
     protected override void OnLoaded(RoutedEventArgs e)
     {
         base.OnLoaded(e);
-        ComposerHost.FindControl<TextBox>("Input")?.Focus();
+        if (ComposerHost.FindControl<TextBox>("Input") is { } input)
+        {
+            input.Focus();
+
+            // A question put there by 开始探索 (§10.3.2) is ready to edit or send: the caret after it.
+            input.CaretIndex = input.Text?.Length ?? 0;
+        }
     }
 
     protected override void OnDataContextChanged(EventArgs e)

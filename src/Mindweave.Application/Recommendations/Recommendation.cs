@@ -45,7 +45,11 @@ public sealed record Recommendation(
     Guid Generation,
     DateTimeOffset GeneratedAt,
     int Order,
-    RecommendationState State);
+    RecommendationState State)
+{
+    /// <summary>When it was made, or last became used or ignored (counts a network's spent slots, §10.3.2).</summary>
+    public DateTimeOffset UpdatedAt { get; init; }
+}
 
 /// <summary>One item of a new batch, already cleaned and validated.</summary>
 public sealed record NewRecommendation(string Question, string? Reason, SummaryNodeId? Basis);

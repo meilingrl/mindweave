@@ -14,7 +14,7 @@ internal sealed class SqliteRecommendationStore(SqliteDatabase database) : IReco
             connection =>
             {
                 using var command = connection.Command(null, """
-                    SELECT r.id, r.question, r.reason, r.basis_node_id, n.display_name, r.generation_id, r.generated_at, r.seq, r.state
+                    SELECT r.id, r.question, r.reason, r.basis_node_id, n.display_name, r.generation_id, r.generated_at, r.seq, r.state, r.updated_at
                     FROM recommendation r LEFT JOIN summary_node n ON n.id = r.basis_node_id
                     WHERE r.workspace_id = $ws AND r.kind = $kind
                     ORDER BY r.state <> 'pending',
@@ -36,7 +36,10 @@ internal sealed class SqliteRecommendationStore(SqliteDatabase database) : IReco
                         Guid.ParseExact(reader.GetString(5), "D"),
                         reader.Time(6),
                         reader.GetInt32(7),
-                        ParseState(reader.GetString(8))));
+                        ParseState(reader.GetString(8)))
+                    {
+                        UpdatedAt = reader.Time(9),
+                    });
                 }
 
                 return list;
@@ -85,6 +88,21 @@ internal sealed class SqliteRecommendationStore(SqliteDatabase database) : IReco
 
                 return stored;
             },
+            cancellationToken);
+    }
+
+    public Task<int> RemovePendingAsync(WorkspaceId workspace, RecommendationKind kind, IReadOnlyCollection<RecommendationId> ids, CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(ids);
+        if (ids.Count == 0)
+        {
+            return Task.FromResult(0);
+        }
+
+        return database.WriteAsync(
+            (connection, transaction) => ids.Sum(id => connection.Execute(transaction, """
+                DELETE FROM recommendation WHERE id = $id AND workspace_id = $ws AND kind = $kind AND state = 'pending';
+                """, ("$id", id.ToString()), ("$ws", workspace.ToString()), ("$kind", KindName(kind)))),
             cancellationToken);
     }
 

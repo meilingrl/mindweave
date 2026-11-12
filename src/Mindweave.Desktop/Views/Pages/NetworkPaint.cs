@@ -66,3 +66,31 @@ internal sealed record CaptionPaint(GroupCaption Caption, FormattedText Text, Po
 {
     public Rect Bounds => new(Origin, new Size(Text.Width, Text.Height));
 }
+
+/// <summary>
+/// A recommended node as drawn (requirements §10.3.2): a pale dashed ring, the word "推荐" in a small frame (never colour
+/// alone), the start of its question, and a dotted line to its basis summary.
+/// </summary>
+internal sealed record RecommendationPaint(RecommendedNodeView Node, Point Center, double Radius, Point Basis, bool Selected, bool Hovered)
+{
+    public required FormattedText Tag { get; init; }
+
+    /// <summary>The frame around <see cref="Tag"/>.</summary>
+    public Rect TagBounds { get; init; }
+
+    /// <summary>The question's start (null when labels are hidden at this zoom), and where.</summary>
+    public FormattedText? Text { get; init; }
+
+    public Rect LabelBounds { get; init; }
+
+    /// <summary>What a click selects: the ring and everything written beside it.</summary>
+    public Rect HitBounds
+    {
+        get
+        {
+            var ring = new Rect(Center.X - Radius - 4, Center.Y - Math.Max(Radius + 4, 11), (Radius + 4) * 2, Math.Max(Radius + 4, 11) * 2);
+            var union = ring.Union(TagBounds);
+            return Text is null ? union : union.Union(LabelBounds);
+        }
+    }
+}

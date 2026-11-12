@@ -43,3 +43,35 @@ public sealed record PathStep(string Name, bool Summarized, bool IsFirst)
 /// </summary>
 public sealed record NodeDetail(SummaryNodeId Id, ConversationId Conversation, string DisplayName, string ShortTitle, string Markers, string Source, string Created, string? Via,
     bool Unread, bool HasCandidate, bool SourceArchived, string Path, IReadOnlyList<PathStep> Steps);
+
+/// <summary>
+/// A recommended node as the canvas, the list view and the details draw it (requirements §10.3.2): its question,
+/// reason and basis summary, its place worked out beside the basis (canvas units, never stored), and the short label
+/// drawn after the "推荐" tag. Not a summary: never searched, never read or unread.
+/// </summary>
+public sealed record RecommendedNodeView(
+    Mindweave.Application.Recommendations.Recommendation Recommendation,
+    SummaryNodeId Basis,
+    string BasisName,
+    double X,
+    double Y,
+    double BasisX,
+    double BasisY,
+    string Label,
+    double LabelWidth)
+{
+    public Mindweave.Application.Recommendations.RecommendationId Id => Recommendation.Id;
+
+    public string Question => Recommendation.Question;
+
+    public string? Reason => Recommendation.Reason;
+
+    public bool HasReason => !string.IsNullOrWhiteSpace(Reason);
+
+    /// <summary>"推荐：<question>，延伸自 <basis>".</summary>
+    public string AutomationName => UiText.RecommendedNodeName(Question, BasisName);
+
+    public string BasisText => UiText.ExtendsFrom(BasisName);
+
+    public string IgnoreName => UiText.IgnoreRecommendedNodeName(Question);
+}

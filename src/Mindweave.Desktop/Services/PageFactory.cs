@@ -44,10 +44,10 @@ internal sealed class PageFactory(
     public PageViewModel Create(ContentRoute route, PageContext context) => route switch
     {
         ExploreHomeRoute => new ExploreHomeViewModel(context.Workspace, context.Navigator),
-        NetworkHomeRoute => new NetworkHomeViewModel(context.Workspace, networks.Get(context.Workspace.Id), summaries, conversations, context.Navigator, dispatcher),
+        NetworkHomeRoute => new NetworkHomeViewModel(context.Workspace, networks.Get(context.Workspace.Id), summaries, conversations, context.Navigator, dispatcher, recommendations, recommendationSettings),
         SummaryRoute summary => new SummaryViewModel(summary, context, summaries, dispatcher, time, exports, shell),
         ConversationRoute conversation => new ConversationViewModel(conversation, context, conversations, reading, dispatcher, storage, summaries, time, conversationDeletion, conversationDeletionPrompt),
-        NewConversationRoute => new NewConversationViewModel(context.Workspace.Id, conversations, context.Navigator, context.Navigator, recommendations, dispatcher),
+        NewConversationRoute fresh => new NewConversationViewModel(context.Workspace.Id, conversations, context.Navigator, context.Navigator, recommendations, dispatcher, fresh),
         ArchivedRoute => new ArchivedViewModel(context.Workspace, conversations, context.Navigator, dispatcher, conversationDeletion, conversationDeletionPrompt),
         SettingsHomeRoute => new SettingsHomeViewModel(environment, new ModelSettingsViewModel(models), context.Navigator, appearance, theme, context.Workspaces, newsAlerts, recommendationSettings),
         StorageDetailsRoute => new StorageDetailsViewModel(environment, backupFiles, shell, backupPrompts),

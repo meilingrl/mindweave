@@ -1652,6 +1652,51 @@ public class GalleryTests
         window.Close();
     }
 
+    // ── Recommended nodes on the summary network (2026-11-12, requirements §10.3.2) ─────────
+
+    [AvaloniaFact]
+    public async Task G52_network_with_a_recommended_node_and_its_legend()
+    {
+        await using var scene = Scene.Create("g52");
+        var window = scene.App.ShowWindow(1100, 720, Theme);
+        await SeedAsync(scene.App, summaries: true);
+        var network = await NetworkScenario.OpenNetworkAsync(scene.App, window);
+        await RecommendedNodesUiTests.PrepareAsync(scene.App, network, window);
+        Assert.Single(network.RecommendedNodes);
+        Assert.False(network.IsDirty);
+        await SettleAsync(window);
+        Capture(window, "g52-network-recommended-node");
+        window.Close();
+    }
+
+    [AvaloniaFact]
+    public async Task G52a_a_selected_recommended_node_with_its_details()
+    {
+        await using var scene = Scene.Create("g52a");
+        var window = scene.App.ShowWindow(1100, 720, Theme);
+        await SeedAsync(scene.App, summaries: true);
+        var network = await NetworkScenario.OpenNetworkAsync(scene.App, window);
+        await RecommendedNodesUiTests.PrepareAsync(scene.App, network, window);
+        network.SelectRecommendation(network.RecommendedNodes[0]);
+        await SettleAsync(window);
+        Capture(window, "g52a-network-recommended-node-selected");
+        window.Close();
+    }
+
+    [AvaloniaFact]
+    public async Task G52b_the_list_view_with_a_recommended_node()
+    {
+        await using var scene = Scene.Create("g52b");
+        var window = scene.App.ShowWindow(1100, 720, Theme);
+        await SeedAsync(scene.App, summaries: true);
+        var network = await NetworkScenario.OpenNetworkAsync(scene.App, window);
+        await RecommendedNodesUiTests.PrepareAsync(scene.App, network, window);
+        network.ToggleViewCommand.Execute(null);
+        await SettleAsync(window);
+        Capture(window, "g52b-network-list-recommended-node");
+        window.Close();
+    }
+
     /// <summary>
     /// The summarized train workspace with three questions made the way 换一批 makes them (two extend a summary), and 新探索
     /// open with the input empty and focused.

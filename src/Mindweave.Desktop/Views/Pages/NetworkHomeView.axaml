@@ -3,6 +3,7 @@
              xmlns:vm="using:Mindweave.Desktop.ViewModels.Pages"
              xmlns:v="using:Mindweave.Desktop.Views.Pages"
              xmlns:d="using:Mindweave.Desktop"
+             xmlns:views="using:Mindweave.Desktop.Views"
              x:Class="Mindweave.Desktop.Views.Pages.NetworkHomeView"
              x:DataType="vm:NetworkHomeViewModel">
   <UserControl.KeyBindings>
@@ -59,8 +60,40 @@
             <TextBlock Text="{x:Static d:UiText.ListView}" VerticalAlignment="Center" />
           </StackPanel>
         </ToggleButton>
+        <!-- Recommended nodes (§10.3.2): only when they are on and a summary exists to extend. -->
+        <StackPanel Orientation="Horizontal" IsVisible="{Binding ShowsRecommendationTools}">
+          <Button Name="RefreshRecommendedNodesButton" Classes="quiet" Command="{Binding RefreshRecommendationsCommand}"
+                  ToolTip.Tip="{x:Static d:UiText.RefreshRecommendedNodesTip}" ToolTip.ShowOnDisabled="True"
+                  AutomationProperties.Name="{x:Static d:UiText.RefreshRecommendedNodes}" AutomationProperties.HelpText="{x:Static d:UiText.RefreshRecommendedNodesTip}">
+            <StackPanel Orientation="Horizontal" Spacing="6">
+              <PathIcon Width="13" Height="13" Data="{StaticResource IconRegenerate}" />
+              <TextBlock Text="{x:Static d:UiText.RefreshRecommendedNodes}" VerticalAlignment="Center" />
+            </StackPanel>
+          </Button>
+          <Button Name="ToggleRecommendedNodesButton" Classes="quiet" Command="{Binding ToggleRecommendationsCommand}"
+                  ToolTip.Tip="{x:Static d:UiText.HideRecommendedNodesTip}"
+                  AutomationProperties.Name="{Binding ToggleRecommendationsLabel}" AutomationProperties.HelpText="{x:Static d:UiText.HideRecommendedNodesTip}">
+            <StackPanel Orientation="Horizontal" Spacing="6">
+              <PathIcon Width="14" Height="14" Data="{StaticResource IconEye}" />
+              <TextBlock Name="ToggleRecommendedNodesText" Text="{Binding ToggleRecommendationsLabel}" VerticalAlignment="Center" />
+            </StackPanel>
+          </Button>
+        </StackPanel>
       </WrapPanel>
     </DockPanel>
+    <!-- 换一批推荐 running, or the background preparing while none is drawn; then a quiet line when it did not work. -->
+    <StackPanel DockPanel.Dock="Top" Name="RecommendedNodesBusyLine" Orientation="Horizontal" Spacing="8" Margin="2,0,0,8"
+                IsVisible="{Binding ShowsRecommendationBusy}">
+      <views:ActivitySpinner Classes="suggest-spinner" VerticalAlignment="Center" />
+      <TextBlock Classes="caption" VerticalAlignment="Center" Text="{Binding RecommendationBusyText}" />
+    </StackPanel>
+    <WrapPanel DockPanel.Dock="Top" Name="RecommendedNodesNoteLine" Margin="2,0,0,8" ItemSpacing="4" IsVisible="{Binding HasRecommendationNote}">
+      <TextBlock Name="RecommendedNodesNote" Classes="caption" TextWrapping="Wrap" VerticalAlignment="Center" Margin="0,0,4,0" Text="{Binding RecommendationNote}" />
+      <Button Name="RetryRecommendedNodesButton" Classes="quiet small" Content="{x:Static d:UiText.Retry}" Command="{Binding RefreshRecommendationsCommand}"
+              IsVisible="{Binding RecommendationNoteCanRetry}" AutomationProperties.Name="{x:Static d:UiText.RetryRecommendedNodesName}" />
+      <Button Name="RecommendedNodesSettingsButton" Classes="quiet small" Content="{x:Static d:UiText.OpenSettingsLink}"
+              Command="{Binding OpenSettingsCommand}" IsVisible="{Binding RecommendationNoteNeedsSettings}" />
+    </WrapPanel>
     <Border DockPanel.Dock="Top" Name="SaveFailedNotice" Classes="notice error" IsVisible="{Binding SaveFailed}" Margin="0,0,0,8">
       <DockPanel>
         <TextBlock Classes="notice-icon" Text="!" />
@@ -73,7 +106,7 @@
     <Border DockPanel.Dock="Right" Width="260" Margin="10,0,0,0" Padding="16" Background="{DynamicResource PanelBackground}" CornerRadius="8"
             IsVisible="{Binding !IsEmpty}">
       <Panel>
-        <StackPanel Spacing="8" IsVisible="{Binding Selected, Converter={x:Static ObjectConverters.IsNull}}">
+        <StackPanel Spacing="8" IsVisible="{Binding !HasSelection}">
           <TextBlock FontWeight="SemiBold" FontSize="18" Text="{x:Static d:UiText.NetworkTitle}" />
           <TextBlock Classes="muted" FontSize="12" TextWrapping="Wrap" Text="{x:Static d:UiText.NetworkSelectHint}" />
         </StackPanel>
@@ -129,6 +162,34 @@
                     Content="{x:Static d:UiText.ReturnToConversation}" Command="{Binding ReturnToConversationCommand}" />
           </StackPanel>
         </StackPanel>
+
+        <!-- A recommended node (§10.3.2): question, reason, basis; 开始探索 fills 新探索 without sending, 忽略 removes it. -->
+        <StackPanel Name="RecommendationDetailPanel" Spacing="12" IsVisible="{Binding SelectedRecommendation, Converter={x:Static ObjectConverters.IsNotNull}}">
+          <WrapPanel Orientation="Horizontal">
+            <Border Classes="badge recommended" Margin="0,0,6,0">
+              <TextBlock Text="{x:Static d:UiText.RecommendedTag}" />
+            </Border>
+            <TextBlock Classes="muted" FontSize="12" VerticalAlignment="Center" Text="{x:Static d:UiText.RecommendedNodeHeading}" />
+          </WrapPanel>
+          <TextBlock Name="RecommendationQuestion" FontWeight="SemiBold" FontSize="16" TextWrapping="Wrap" Text="{Binding SelectedRecommendation.Question, FallbackValue=''}"
+                     AutomationProperties.Name="{Binding SelectedRecommendation.AutomationName, FallbackValue=''}" />
+          <StackPanel Spacing="3" IsVisible="{Binding SelectedRecommendation.HasReason, FallbackValue=False}">
+            <TextBlock Classes="muted" FontSize="12" Text="{x:Static d:UiText.RecommendedReasonHeading}" />
+            <TextBlock Name="RecommendationReason" TextWrapping="Wrap" Text="{Binding SelectedRecommendation.Reason, FallbackValue=''}" />
+          </StackPanel>
+          <StackPanel Spacing="3">
+            <TextBlock Classes="muted" FontSize="12" Text="{x:Static d:UiText.RecommendedBasisHeading}" />
+            <TextBlock Name="RecommendationBasis" TextWrapping="Wrap" Text="{Binding SelectedRecommendation.BasisName, FallbackValue=''}" />
+          </StackPanel>
+          <TextBlock Classes="muted" FontSize="12" TextWrapping="Wrap" Text="{x:Static d:UiText.RecommendedNodeNote}" />
+          <StackPanel Spacing="8">
+            <Button Name="StartExplorationButton" Classes.primary="{Binding !IsDirty}" Classes.secondary="{Binding IsDirty}" HorizontalAlignment="Stretch" HorizontalContentAlignment="Center"
+                    Content="{x:Static d:UiText.StartExploration}" Command="{Binding StartExplorationCommand}" />
+            <Button Name="IgnoreRecommendedNodeButton" Classes="secondary" HorizontalAlignment="Stretch" HorizontalContentAlignment="Center"
+                    Content="{x:Static d:UiText.IgnoreRecommendedNode}" Command="{Binding IgnoreRecommendationCommand}"
+                    AutomationProperties.Name="{Binding SelectedRecommendation.IgnoreName, FallbackValue=''}" />
+          </StackPanel>
+        </StackPanel>
       </Panel>
     </Border>
 
@@ -152,6 +213,15 @@
         <TextBlock Text="{x:Static d:UiText.LegendCandidate}" />
         <Line StartPoint="0,0" EndPoint="20,0" Stroke="{DynamicResource NetworkEdgeIndirect}" StrokeThickness="1.4" StrokeDashArray="3,2" VerticalAlignment="Center" Margin="0,0,6,0" />
         <TextBlock Text="{x:Static d:UiText.LegendIndirect}" />
+        <!-- Recommended nodes (§10.3.2): the same dashed ring and dotted line as drawn, with words. -->
+        <StackPanel Name="RecommendationLegend" Orientation="Horizontal" IsVisible="{Binding ShowsRecommendationLegend}">
+          <Ellipse Width="11" Height="11" Fill="{DynamicResource NetworkRecommendationFill}" Stroke="{DynamicResource NetworkRecommendation}" StrokeThickness="1.4"
+                   StrokeDashArray="2,1.5" VerticalAlignment="Center" Margin="0,0,6,0" />
+          <TextBlock Text="{x:Static d:UiText.LegendRecommended}" />
+          <Line StartPoint="0,0" EndPoint="20,0" Stroke="{DynamicResource NetworkRecommendation}" StrokeThickness="1.6" StrokeDashArray="0,2.4" StrokeLineCap="Round"
+                VerticalAlignment="Center" Margin="0,0,6,0" />
+          <TextBlock Text="{x:Static d:UiText.LegendRecommendedLink}" />
+        </StackPanel>
       </WrapPanel>
     </DockPanel>
     </Panel>
@@ -186,6 +256,27 @@
               </DataTemplate>
             </ItemsControl.ItemTemplate>
           </ItemsControl>
+
+          <!-- The recommended nodes for the keyboard and screen readers (D-018): a row each selects it; the details offer 开始探索 and 忽略. -->
+          <StackPanel Name="RecommendedNodesList" Spacing="4" Margin="0,10,0,0" IsVisible="{Binding RecommendedNodes.Count, Converter={x:Static d:Converters.IsPositive}}">
+            <TextBlock Classes="muted" FontSize="12" Margin="5,0,0,0" Text="{x:Static d:UiText.RecommendedNodesListHeading}" />
+            <ItemsControl ItemsSource="{Binding RecommendedNodes}">
+              <ItemsControl.ItemTemplate>
+                <DataTemplate x:DataType="vm:RecommendedNodeView">
+                  <StackPanel Orientation="Horizontal" Spacing="6" Margin="0,2">
+                    <!-- As the summaries' rows: the name first, then its tag in words. -->
+                    <Button Name="RecommendedNodeRow" Classes="list-name read" Content="{Binding Question}" AutomationProperties.Name="{Binding AutomationName}"
+                            ToolTip.Tip="{Binding BasisText}"
+                            Command="{Binding $parent[v:NetworkHomeView].((vm:NetworkHomeViewModel)DataContext).SelectRecommendationCommand}" CommandParameter="{Binding}" />
+                    <Border Classes="badge recommended">
+                      <TextBlock Text="{x:Static d:UiText.RecommendedTag}" />
+                    </Border>
+                    <TextBlock Classes="muted" FontSize="12" VerticalAlignment="Center" Text="{Binding BasisText}" />
+                  </StackPanel>
+                </DataTemplate>
+              </ItemsControl.ItemTemplate>
+            </ItemsControl>
+          </StackPanel>
         </StackPanel>
       </ScrollViewer>
     </Panel>

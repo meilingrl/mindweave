@@ -133,19 +133,21 @@ internal static class NetworkGeometry
     /// <summary>
     /// The viewport that shows every node, its label and its group's caption. Positions and label widths are canvas
     /// units; dots, the label gap and captions are screen px, so the zoom is solved with both (§11.3: zoom clamped,
-    /// at most 1.5 when fitting).
+    /// at most 1.5 when fitting). Recommended nodes are included.
     /// </summary>
-    internal static Viewport FitTo(IReadOnlyList<NodeView> nodes, Size size)
+    internal static Viewport FitTo(IReadOnlyList<NodeView> nodes, Size size, IReadOnlyList<RecommendedNodeView>? recommended = null)
     {
         ArgumentNullException.ThrowIfNull(nodes);
+        recommended ??= [];
         const double left = NetworkCanvas.RootRadius + NetworkCanvas.HoverGrowth;
         const double right = NetworkCanvas.RootRadius + NetworkCanvas.HoverGrowth + NetworkLayout.LabelGap;
         const double top = NetworkCanvas.CaptionGap + 16;
         const double bottom = NetworkCanvas.RootRadius + NetworkCanvas.HoverGrowth + 4;
-        var minX = nodes.Min(n => n.X);
-        var maxX = nodes.Max(n => n.X + n.LabelWidth);
-        var minY = nodes.Min(n => n.Y);
-        var maxY = nodes.Max(n => n.Y);
+        // Recommended nodes count too (§10.3.2: 显示全部 shows them), each with its tag and label.
+        var minX = nodes.Select(n => n.X).Concat(recommended.Select(r => r.X)).Min();
+        var maxX = nodes.Select(n => n.X + n.LabelWidth).Concat(recommended.Select(r => r.X + r.LabelWidth)).Max();
+        var minY = nodes.Select(n => n.Y).Concat(recommended.Select(r => r.Y)).Min();
+        var maxY = nodes.Select(n => n.Y).Concat(recommended.Select(r => r.Y)).Max();
         var width = Math.Max(1, maxX - minX);
         var height = Math.Max(1, maxY - minY);
         var zoom = Math.Min(1.5, Viewport.Clamp(Math.Min(

@@ -9,6 +9,9 @@ namespace Mindweave.Application.Preferences;
 /// </summary>
 public interface IRecommendationSettings
 {
+    /// <summary>One of the three changed (raised once it applies, also when the write then fails); pages that stay open follow it.</summary>
+    event EventHandler? Changed;
+
     Task<bool> GetQuestionsAsync(CancellationToken cancellationToken);
 
     /// <summary>Applies at once for this run, even when the write then fails.</summary>
@@ -38,15 +41,29 @@ public sealed class RecommendationSettingsService(IPreferenceStore store) : IRec
     private readonly PreferenceChoice _nodes = new(store, NodesKey, fallback: true);
     private readonly PreferenceChoice _autoPrepare = new(store, AutoPrepareKey, fallback: true);
 
+    public event EventHandler? Changed;
+
     public Task<bool> GetQuestionsAsync(CancellationToken cancellationToken) => _questions.GetAsync(cancellationToken);
 
-    public Task SetQuestionsAsync(bool enabled, CancellationToken cancellationToken) => _questions.SetAsync(enabled, cancellationToken);
+    public Task SetQuestionsAsync(bool enabled, CancellationToken cancellationToken) => SetAsync(_questions, enabled, cancellationToken);
 
     public Task<bool> GetNodesAsync(CancellationToken cancellationToken) => _nodes.GetAsync(cancellationToken);
 
-    public Task SetNodesAsync(bool enabled, CancellationToken cancellationToken) => _nodes.SetAsync(enabled, cancellationToken);
+    public Task SetNodesAsync(bool enabled, CancellationToken cancellationToken) => SetAsync(_nodes, enabled, cancellationToken);
 
     public Task<bool> GetAutoPrepareAsync(CancellationToken cancellationToken) => _autoPrepare.GetAsync(cancellationToken);
 
-    public Task SetAutoPrepareAsync(bool enabled, CancellationToken cancellationToken) => _autoPrepare.SetAsync(enabled, cancellationToken);
+    public Task SetAutoPrepareAsync(bool enabled, CancellationToken cancellationToken) => SetAsync(_autoPrepare, enabled, cancellationToken);
+
+    private async Task SetAsync(PreferenceChoice choice, bool enabled, CancellationToken cancellationToken)
+    {
+        try
+        {
+            await choice.SetAsync(enabled, cancellationToken).ConfigureAwait(false);
+        }
+        finally
+        {
+            Changed?.Invoke(this, EventArgs.Empty);
+        }
+    }
 }
