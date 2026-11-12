@@ -149,7 +149,9 @@ public sealed partial class RecommendationService : IRecommendations, IDisposabl
     private readonly HashSet<WorkspaceId> _forgotten = [];
     private readonly HashSet<WorkspaceId> _openedPending = [];
     private readonly HashSet<Task> _inFlight = [];
+    private readonly HashSet<WorkspaceId> _shown = [];
     private bool _disposed;
+    private bool _credentialsRefused;
     private int _sent;
 
     public RecommendationService(
@@ -174,6 +176,7 @@ public sealed partial class RecommendationService : IRecommendations, IDisposabl
         _options = options;
         _clock = clock;
         _logger = logger;
+        _models.Changed += OnModelsChanged;
     }
 
     public event EventHandler<WorkspaceId>? Changed;
@@ -230,6 +233,14 @@ public sealed partial class RecommendationService : IRecommendations, IDisposabl
         var rows = await _store.ListAsync(workspace, RecommendationKind.Question, cancellationToken).ConfigureAwait(false);
         var pending = rows.Where(r => r.State == RecommendationState.Pending).Take(ShownQuestions).ToList();
         var hasContent = pending.Count > 0 || await HasContentAsync(workspace, cancellationToken).ConfigureAwait(false);
+
+        // No model, or its key refused: none is shown (§10.3 共同规则); 换一批 is still there to say why. Stored ones come
+        // back with a model (or a key) that works.
+        if (!await UsableModelAsync(workspace, cancellationToken).ConfigureAwait(false))
+        {
+            pending = [];
+        }
+
         var auto = await _settings.GetAutoPrepareAsync(cancellationToken).ConfigureAwait(false);
         lock (_gate)
         {
@@ -261,6 +272,10 @@ public sealed partial class RecommendationService : IRecommendations, IDisposabl
         {
             Arm(recommendation.Workspace, RecommendationKind.Question, opened: false);
         }
+        else
+        {
+            await SpendNodeSlotAsync(recommendation.Workspace).ConfigureAwait(false);
+        }
     }
 
     public async Task MarkUsedAsync(Recommendation recommendation, CancellationToken cancellationToken)
@@ -272,6 +287,10 @@ public sealed partial class RecommendationService : IRecommendations, IDisposabl
         {
             Arm(recommendation.Workspace, RecommendationKind.Question, opened: false);
         }
+        else
+        {
+            await SpendNodeSlotAsync(recommendation.Workspace).ConfigureAwait(false);
+        }
     }
 
     public async Task MarkUsedAsync(WorkspaceId workspace, RecommendationId id, CancellationToken cancellationToken)
@@ -279,6 +298,7 @@ public sealed partial class RecommendationService : IRecommendations, IDisposabl
         // Used keeps the question as it is; only an ignored row is reduced to its normalized form.
         if (await _store.SetStateAsync(id, RecommendationState.Used, "-", _clock.UtcNow, cancellationToken).ConfigureAwait(false))
         {
+            await SpendNodeSlotAsync(workspace).ConfigureAwait(false);
             Changed?.Invoke(this, workspace);
         }
     }
@@ -332,6 +352,45 @@ public sealed partial class RecommendationService : IRecommendations, IDisposabl
 
         // The network's remembered tier and hidden state are kept as preferences: they go with the workspace too.
         await ForgetPreferencesAsync(workspace).ConfigureAwait(false);
+    }
+
+    /// <summary>A model is configured (whether its key works is known only by asking).</summary>
+    private async Task<bool> HasModelAsync(CancellationToken cancellationToken) =>
+        await _models.GetActiveSnapshotAsync(cancellationToken).ConfigureAwait(false) is not null;
+
+    /// <summary>
+    /// Recommendations may be shown: a model is configured and its key was not refused by the last recommendation request
+    /// (§10.3 共同规则 "未配置模型或凭据失效时…不显示推荐"; review 2026-11-13). The workspace is remembered, so a change of
+    /// model reloads its pages.
+    /// </summary>
+    private async Task<bool> UsableModelAsync(WorkspaceId workspace, CancellationToken cancellationToken)
+    {
+        lock (_gate)
+        {
+            _shown.Add(workspace);
+            if (_credentialsRefused)
+            {
+                return false;
+            }
+        }
+
+        return await HasModelAsync(cancellationToken).ConfigureAwait(false);
+    }
+
+    /// <summary>The model or its key was saved: a refused key may work now, and pages showing none look again.</summary>
+    private void OnModelsChanged(object? sender, EventArgs e)
+    {
+        WorkspaceId[] shown;
+        lock (_gate)
+        {
+            _credentialsRefused = false;
+            shown = [.. _shown];
+        }
+
+        foreach (var workspace in shown)
+        {
+            Changed?.Invoke(this, workspace);
+        }
     }
 
     private async Task<bool> HasContentAsync(WorkspaceId workspace, CancellationToken cancellationToken)
@@ -430,6 +489,12 @@ public sealed partial class RecommendationService : IRecommendations, IDisposabl
         var bases = await _store.ListBasesAsync(workspace, 0, 1, CancellationToken.None).ConfigureAwait(false);
         var newer = opened && latest is not null && bases.NewestCreatedAt is { } newest && newest > latest.GeneratedAt;
         if (pending > 0 && !newer)
+        {
+            return;
+        }
+
+        // Without a model nothing would be sent; not starting at all keeps the page from flashing "正在准备…".
+        if (!await HasModelAsync(CancellationToken.None).ConfigureAwait(false))
         {
             return;
         }
@@ -539,6 +604,16 @@ public sealed partial class RecommendationService : IRecommendations, IDisposabl
             if (!manual && outcome.ShownQuietly && !_disposed)
             {
                 _failures[(workspace, kind)] = outcome;
+            }
+
+            // A refused key hides what is stored until a request gets through again or the model is saved.
+            if (outcome.Problem == RecommendationProblem.Credentials)
+            {
+                _credentialsRefused = true;
+            }
+            else if (!outcome.NothingSent)
+            {
+                _credentialsRefused = false;
             }
         }
 
@@ -698,6 +773,8 @@ public sealed partial class RecommendationService : IRecommendations, IDisposabl
         {
             timer.Dispose();
         }
+
+        _models.Changed -= OnModelsChanged;
 
         // Cancelled, not disposed: a request ending meanwhile may still read the token.
         _stop.Cancel();

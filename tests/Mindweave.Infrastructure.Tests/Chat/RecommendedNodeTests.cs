@@ -173,6 +173,45 @@ public class RecommendedNodeTests
     }
 
     [Fact]
+    public async Task Deleting_the_summary_an_ignored_or_explored_node_extended_does_not_refill_its_slot()
+    {
+        // Review 2026-11-13: the ignored row goes with its basis summary (cascade), and the slot it had spent was then
+        // counted free again: deleting that summary made a request §10.3.2 does not ask for (忽略后的空位不自动补足).
+        await using var h = await ChatHarness.StartAsync();
+        var seed = new UsageSeed(h.Database);
+        await SummariesAsync(h, seed, 3);
+        await OpenAsync(h);
+        var node = Assert.Single((await h.Recommendations.GetNodesAsync(h.Workspace, Ct)).Items);
+        await h.Recommendations.IgnoreAsync(node, Ct);
+
+        await DeleteSummaryAsync(h, node.Basis!.Value);
+        Assert.Equal(0, await h.CountAsync("recommendation"));
+        await OpenAsync(h);
+        Assert.Single(h.Client.Requests, FakeChatClient.IsNodeRecommendation);
+        Assert.Empty((await h.Recommendations.GetNodesAsync(h.Workspace, Ct)).Items);
+
+        // The same for an explored one, after 换一批推荐 filled the slot again.
+        h.Client.NodeRecommendations.Replies.Enqueue("[{\"question\":\"火车头为什么要加沙子？\",\"basis\":\"S1\"}]");
+        Assert.Equal(new RecommendationOutcome(1), await h.Recommendations.RefreshNodesAsync(h.Workspace, Ct));
+        var explored = Assert.Single((await h.Recommendations.GetNodesAsync(h.Workspace, Ct)).Items);
+        await h.Recommendations.MarkUsedAsync(h.Workspace, explored.Id, Ct);
+        await DeleteSummaryAsync(h, explored.Basis!.Value);
+        await OpenAsync(h);
+        Assert.Equal(2, h.Client.Requests.Count(FakeChatClient.IsNodeRecommendation));
+
+        // A shown node's basis deleted still frees its slot.
+        h.Client.NodeRecommendations.Replies.Enqueue("[{\"question\":\"铁轨为什么要留缝？\",\"basis\":\"S1\"}]");
+        Assert.Equal(new RecommendationOutcome(1), await h.Recommendations.RefreshNodesAsync(h.Workspace, Ct));
+        var shown = Assert.Single((await h.Recommendations.GetNodesAsync(h.Workspace, Ct)).Items);
+        await DeleteSummaryAsync(h, shown.Basis!.Value);
+        await SummariesAsync(h, seed, 1);
+        h.Client.NodeRecommendations.Replies.Enqueue("[{\"question\":\"枕木为什么换成了水泥？\",\"basis\":\"S1\"}]");
+        await OpenAsync(h);
+        Assert.Equal(4, h.Client.Requests.Count(FakeChatClient.IsNodeRecommendation));
+        Assert.Single((await h.Recommendations.GetNodesAsync(h.Workspace, Ct)).Items);
+    }
+
+    [Fact]
     public async Task Hidden_nodes_are_remembered_and_not_prepared_and_off_or_manual_only_prepares_nothing()
     {
         await using var h = await ChatHarness.StartAsync();

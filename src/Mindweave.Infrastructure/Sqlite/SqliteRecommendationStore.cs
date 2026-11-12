@@ -58,12 +58,6 @@ internal sealed class SqliteRecommendationStore(SqliteDatabase database) : IReco
                     return null;
                 }
 
-                if (replacePending)
-                {
-                    connection.Execute(transaction, "DELETE FROM recommendation WHERE workspace_id = $ws AND kind = $kind AND state = 'pending';",
-                        ws, ("$kind", KindName(kind)));
-                }
-
                 var stored = 0;
                 for (var i = 0; i < batch.Items.Count; i++)
                 {
@@ -84,6 +78,15 @@ internal sealed class SqliteRecommendationStore(SqliteDatabase database) : IReco
                         ("$generation", batch.Generation.ToString("D")),
                         ("$at", batch.At.Ms()),
                         ("$seq", i));
+                }
+
+                // The old pending ones go only when new ones replace them (review 2026-11-13): a batch whose every
+                // item lost its basis meanwhile stores nothing and must leave the shown ones, as a failure does.
+                if (replacePending && stored > 0)
+                {
+                    connection.Execute(transaction, """
+                        DELETE FROM recommendation WHERE workspace_id = $ws AND kind = $kind AND state = 'pending' AND generation_id <> $generation;
+                        """, ws, ("$kind", KindName(kind)), ("$generation", batch.Generation.ToString("D")));
                 }
 
                 return stored;

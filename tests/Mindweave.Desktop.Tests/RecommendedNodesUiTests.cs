@@ -156,7 +156,10 @@ public class RecommendedNodesUiTests
         var workspace = app.Workbench.CurrentWorkspace!.Id;
         var conversations = app.Services.GetRequiredService<IConversations>();
         var before = (await conversations.ListAsync(workspace, CancellationToken.None)).Count;
-        var sidebar = app.ShellPage.Conversations.Items.Count;
+
+        // The sidebar loads on its own; under load it may not have listed the seeded conversations yet.
+        await UiWait.UntilAsync(() => app.ShellPage.Conversations.Items.Count == before);
+        var sidebar = before;
         network.SelectRecommendation(network.RecommendedNodes[0]);
         window.UpdateLayout();
 
@@ -339,7 +342,9 @@ public class RecommendedNodesUiTests
         Assert.Equal(UiText.RecommendedNodesProblemText(RecommendationProblem.NotConfigured, null), network.RecommendationNote);
         window.UpdateLayout();
         Assert.True(Find<Button>(window, "RecommendedNodesSettingsButton").IsEffectivelyVisible);
-        Assert.Single(network.RecommendedNodes);
+
+        // Without a model none is drawn (§10.3 共同规则; review 2026-11-13), the kept one included.
+        Assert.Empty(network.RecommendedNodes);
 
         // Turned off in the settings: no tools, no nodes, no legend.
         await app.Services.GetRequiredService<Application.Preferences.IRecommendationSettings>().SetNodesAsync(false, CancellationToken.None);

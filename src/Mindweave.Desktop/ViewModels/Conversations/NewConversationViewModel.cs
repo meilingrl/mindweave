@@ -22,6 +22,7 @@ public sealed partial class NewConversationViewModel : PageViewModel, IDisposabl
     private readonly IMenuNavigator _menu;
     private readonly IRecommendations? _recommendations;
     private readonly IUiDispatcher? _dispatcher;
+    private readonly Application.Preferences.IRecommendationSettings? _settings;
     private RecommendedQuestionViewModel? _source;
     private RecommendationId? _node;
     private int _loads;
@@ -35,7 +36,8 @@ public sealed partial class NewConversationViewModel : PageViewModel, IDisposabl
         IMenuNavigator menu,
         IRecommendations? recommendations = null,
         IUiDispatcher? dispatcher = null,
-        NewConversationRoute? route = null)
+        NewConversationRoute? route = null,
+        Application.Preferences.IRecommendationSettings? settings = null)
         : base(route ?? NewConversationRoute.Instance)
     {
         _workspace = workspace;
@@ -75,6 +77,14 @@ public sealed partial class NewConversationViewModel : PageViewModel, IDisposabl
         if (recommendations is not null)
         {
             recommendations.Changed += OnRecommendationsChanged;
+
+            // The page stays in its section while the reader is elsewhere (设置 included): a changed choice applies to it.
+            _settings = settings;
+            if (settings is not null)
+            {
+                settings.Changed += OnSettingsChanged;
+            }
+
             Loaded = LoadAsync();
             recommendations.NewExplorationOpened(workspace);
         }
@@ -229,7 +239,14 @@ public sealed partial class NewConversationViewModel : PageViewModel, IDisposabl
         {
             _recommendations.Changed -= OnRecommendationsChanged;
         }
+
+        if (_settings is not null)
+        {
+            _settings.Changed -= OnSettingsChanged;
+        }
     }
+
+    private void OnSettingsChanged(object? sender, EventArgs e) => OnRecommendationsChanged(sender, _workspace);
 
     private async Task MarkUsedAsync(Recommendation recommendation)
     {

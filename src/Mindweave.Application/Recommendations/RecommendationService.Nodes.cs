@@ -15,23 +15,27 @@ public sealed record NodeOffer(bool Enabled, int SummaryCount, IReadOnlyList<Rec
 
 /// <summary>
 /// The tier a network was last filled for and from when (§10.3.2): a node used or ignored since then keeps its slot
-/// empty, one whose basis summary went frees it.
+/// empty, one whose basis summary went frees it. <paramref name="Spent"/> counts the slots spent (忽略, 开始探索) since
+/// then, so a slot stays spent even when its row later goes with its basis summary (review 2026-11-13: deleting the
+/// summary an ignored node extended must not refill that slot).
 /// </summary>
-internal readonly record struct NodePlan(int Tier, DateTimeOffset Since)
+internal readonly record struct NodePlan(int Tier, DateTimeOffset Since, int Spent = 0)
 {
     public static NodePlan None { get; } = new(0, DateTimeOffset.MinValue);
 
-    public string Format() => Tier.ToString(CultureInfo.InvariantCulture) + "|" + Since.ToUnixTimeMilliseconds().ToString(CultureInfo.InvariantCulture);
+    public string Format() => string.Create(CultureInfo.InvariantCulture, $"{Tier}|{Since.ToUnixTimeMilliseconds()}|{Spent}");
 
     public static NodePlan? Parse(string? text)
     {
         var parts = text?.Split('|');
-        return parts is [var tier, var since]
+        var spent = 0;
+        return parts is [var tier, var since, ..] && parts.Length <= 3
             && int.TryParse(tier, NumberStyles.None, CultureInfo.InvariantCulture, out var t)
             && long.TryParse(since, NumberStyles.AllowLeadingSign, CultureInfo.InvariantCulture, out var ms)
+            && (parts.Length == 2 || int.TryParse(parts[2], NumberStyles.None, CultureInfo.InvariantCulture, out spent))
             && t is >= 0 and <= RecommendationService.MaxNodes
             && ms >= DateTimeOffset.MinValue.ToUnixTimeMilliseconds() && ms <= DateTimeOffset.MaxValue.ToUnixTimeMilliseconds()
-            ? new NodePlan(t, DateTimeOffset.FromUnixTimeMilliseconds(ms))
+            ? new NodePlan(t, DateTimeOffset.FromUnixTimeMilliseconds(ms), Math.Min(spent, RecommendationService.MaxNodes))
             : null;
     }
 }
@@ -68,6 +72,13 @@ public sealed partial class RecommendationService
 
         // Below a tier the extra ones are not shown even before they are removed.
         var pending = rows.Where(r => r.State == RecommendationState.Pending).Take(NodeTarget(bases.Count)).ToList();
+
+        // No model, or its key refused: none is drawn (§10.3 共同规则); 换一批推荐 is still there to say why.
+        if (!await UsableModelAsync(workspace, cancellationToken).ConfigureAwait(false))
+        {
+            pending = [];
+        }
+
         var hidden = await IsHiddenAsync(workspace, cancellationToken).ConfigureAwait(false);
         var auto = await _settings.GetAutoPrepareAsync(cancellationToken).ConfigureAwait(false);
         lock (_gate)
@@ -229,13 +240,19 @@ public sealed partial class RecommendationService
         else
         {
             // Same tier: slots spent since it was filled stay spent; a node gone with its basis summary left one free.
-            var spent = rows.Count(r => r.State != RecommendationState.Pending && r.UpdatedAt >= plan.Since);
+            var spent = Math.Max(plan.Spent, rows.Count(r => r.State != RecommendationState.Pending && r.UpdatedAt >= plan.Since));
             missing = plan.Tier - pending.Count - spent;
             planTier = null;
             if (missing <= 0)
             {
                 return;
             }
+        }
+
+        // Without a model nothing would be sent; not starting at all keeps the network from flashing "正在准备推荐…".
+        if (!await HasModelAsync(CancellationToken.None).ConfigureAwait(false))
+        {
+            return;
         }
 
         var signature = string.Create(CultureInfo.InvariantCulture, $"{target}|{plan.Format()}|{string.Join(',', rows.Select(r => r.Id))}|{missing}");
@@ -259,6 +276,15 @@ public sealed partial class RecommendationService
                     _tried.Remove(key);
                 }
             }
+        }
+    }
+
+    /// <summary>A node was ignored or explored: its slot is spent for the tier the network was filled for.</summary>
+    private async Task SpendNodeSlotAsync(WorkspaceId workspace)
+    {
+        if (await ReadPlanAsync(workspace).ConfigureAwait(false) is { } plan)
+        {
+            await WritePlanAsync(workspace, plan with { Spent = Math.Min(plan.Spent + 1, MaxNodes) }).ConfigureAwait(false);
         }
     }
 

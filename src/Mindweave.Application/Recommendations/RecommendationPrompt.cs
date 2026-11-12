@@ -225,7 +225,7 @@ public static partial class RecommendationPrompt
         var labels = input.Summaries.ToDictionary(s => s.Label, s => s.Node, StringComparer.OrdinalIgnoreCase);
         var seen = new HashSet<string>(avoid, StringComparer.Ordinal);
         var items = new List<NewRecommendation>();
-        foreach (var (rawQuestion, rawReason, rawBasis) in FromJson(output) ?? FromLines(output))
+        foreach (var (rawQuestion, rawReason, rawBasis) in FromJson(output) ?? FromJsonFields(output) ?? FromLines(output))
         {
             var question = CleanQuestion(rawQuestion);
             if (question is null || !seen.Add(RecommendationText.Normalize(question)))
@@ -324,12 +324,64 @@ public static partial class RecommendationPrompt
         return null;
     }
 
+    /// <summary>
+    /// JSON that does not parse (review 2026-11-13: most often ASCII quotes left unescaped inside a Chinese question) is
+    /// read by its fields: in each object, a known key's value runs up to the next known key or the object's end, its
+    /// enclosing quotes and trailing comma removed. Null when the output has no such field.
+    /// </summary>
+    private static List<(string? Question, string? Reason, string? Basis)>? FromJsonFields(string output)
+    {
+        if (!JsonKey().IsMatch(output))
+        {
+            return null;
+        }
+
+        var list = new List<(string?, string?, string?)>();
+        foreach (Match block in JsonObject().Matches(output))
+        {
+            var body = block.Groups[1].Value;
+            var keys = JsonKey().Matches(body);
+            string? question = null, reason = null, basis = null;
+            for (var i = 0; i < keys.Count; i++)
+            {
+                var start = keys[i].Index + keys[i].Length;
+                var end = i + 1 < keys.Count ? keys[i + 1].Index : body.Length;
+                var value = body[start..end].Trim().TrimEnd(',').Trim();
+                if (value.Length >= 2 && value[0] == '"' && value[^1] == '"')
+                {
+                    value = value[1..^1];
+                }
+
+                switch (keys[i].Groups[1].Value.ToUpperInvariant())
+                {
+                    case "QUESTION" or "Q" or "问题":
+                        question ??= value;
+                        break;
+                    case "REASON" or "理由":
+                        reason ??= value;
+                        break;
+                    default:
+                        basis ??= value.Length > 0 && value.All(char.IsAsciiDigit) ? "S" + value : value;
+                        break;
+                }
+            }
+
+            if (question is not null)
+            {
+                list.Add((question, reason, basis));
+            }
+        }
+
+        return list;
+    }
+
     private static IEnumerable<(string? Question, string? Reason, string? Basis)> FromLines(string output)
     {
         foreach (var raw in output.Split('\n'))
         {
             var line = raw.Trim();
-            if (line.Length == 0 || line.StartsWith("```", StringComparison.Ordinal) || line.EndsWith(':') || line.EndsWith('：') || Preamble().IsMatch(line))
+            if (line.Length == 0 || line.StartsWith("```", StringComparison.Ordinal) || line.EndsWith(':') || line.EndsWith('：') || Preamble().IsMatch(line)
+                || line[0] is '{' or '}' or '[' or ']' || JsonKey().IsMatch(line))
             {
                 continue;
             }
@@ -357,6 +409,14 @@ public static partial class RecommendationPrompt
             yield return (parts[0], reason, basis);
         }
     }
+
+    /// <summary>A JSON field name the answer is asked for (or a near variant), quoted, with its colon.</summary>
+    [GeneratedRegex("\"(question|q|问题|reason|理由|basis|依据|source)\"\\s*:\\s*", RegexOptions.IgnoreCase)]
+    private static partial Regex JsonKey();
+
+    /// <summary>One JSON object's body; the last one may lack its closing brace (cut-off output).</summary>
+    [GeneratedRegex(@"\{([^{}]*)(?:\}|$)")]
+    private static partial Regex JsonObject();
 
     /// <summary>"S2", "延伸自：S2", "[S2]" as a basis label.</summary>
     [GeneratedRegex(@"^\s*(?:延伸自|依据|basis)?\s*[:：]?\s*\[?\s*[Ss]\s*(\d{1,2})\s*\]?\s*$")]

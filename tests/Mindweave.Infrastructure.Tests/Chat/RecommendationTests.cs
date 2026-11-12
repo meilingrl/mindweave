@@ -51,6 +51,40 @@ public class RecommendationTests
     }
 
     [Fact]
+    public void A_JSON_answer_with_unescaped_quotes_is_read_by_its_fields_and_never_as_lines_of_JSON()
+    {
+        // Review 2026-11-13: ASCII quotes inside a Chinese question make the array invalid JSON. Read line by line, its
+        // field lines (`"question": "…",`) were short enough to pass as questions, quotes and key included.
+        var input = Input(("S1", "蒸汽机"), ("S2", "铁轨"));
+        var output = """
+            [
+              {
+                "question": "为什么说"安全阀"救了蒸汽机车？",
+                "reason": "从原理延伸",
+                "basis": "S1"
+              },
+              {
+                "question": "铁轨的"轨距"是怎么定下来的？",
+                "reason": "相邻方向",
+                "basis": "S2"
+              }
+            ]
+            """;
+
+        var items = RecommendationPrompt.Parse(output, input, new RecommendationAsk(RecommendationKind.Question, 3), new HashSet<string>());
+
+        Assert.Equal(["为什么说\"安全阀\"救了蒸汽机车？", "铁轨的\"轨距\"是怎么定下来的？"], items.Select(i => i.Question));
+        Assert.Equal(["从原理延伸", "相邻方向"], items.Select(i => i.Reason));
+        Assert.Equal([Node(1), Node(2)], items.Select(i => i.Basis));
+
+        // Unreadable JSON is never taken apart into lines: no item carries a key, a quote or a brace.
+        var broken = "[\n  {\n    \"question\": \"蒸汽机效率多高？\"\n    \"reason\": \"缺了逗号\"\n  }\n";
+        Assert.All(
+            RecommendationPrompt.Parse(broken, input, new RecommendationAsk(RecommendationKind.Question, 3), new HashSet<string>()),
+            i => Assert.DoesNotContain("question", i.Question, StringComparison.Ordinal));
+    }
+
+    [Fact]
     public void Numbered_lines_are_read_when_there_is_no_JSON_and_a_node_needs_its_basis()
     {
         var input = Input(("S1", "蒸汽机"), ("S2", "铁轨"));
@@ -175,6 +209,87 @@ public class RecommendationTests
         Assert.Equal(RecommendationProblem.NotConfigured, (await h.Recommendations.RefreshQuestionsAsync(h.Workspace, Ct)).Problem);
         Assert.DoesNotContain(h.Client.Requests, FakeChatClient.IsRecommendation);
         Assert.Empty(await h.Requests.ForWorkspaceAsync(h.Workspace, Ct));
+    }
+
+    [Fact]
+    public async Task Without_a_model_stored_recommendations_are_not_shown_and_the_background_never_seems_to_prepare()
+    {
+        // Review 2026-11-13, §10.3 共同规则 / §11 "关闭推荐或未配置模型：不显示推荐、不报错、不发请求": stored ones were still
+        // listed with the model removed, and each look briefly reported a request running (a flashing "正在准备…").
+        await using var h = await ChatHarness.StartAsync();
+        var steam = await TitledAsync(h, "蒸汽机是怎么工作的？", "蒸汽机原理");
+        await SummaryAsync(h, steam, "蒸汽机", "蒸汽推动活塞往复运动。");
+        Assert.Equal(3, (await h.Recommendations.RefreshQuestionsAsync(h.Workspace, Ct)).Added);
+        Assert.Equal(1, (await h.Recommendations.RefreshNodesAsync(h.Workspace, Ct)).Added);
+
+        await h.Database.WriteAsync((c, t) => c.Execute(t, "DELETE FROM app_state WHERE key = 'active_model_config_id';"), Ct);
+        var questions = await h.Recommendations.GetQuestionsAsync(h.Workspace, Ct);
+        Assert.True(questions is { Enabled: true, HasContent: true, Failure: null });
+        Assert.Empty(questions.Items);
+        var nodes = await h.Recommendations.GetNodesAsync(h.Workspace, Ct);
+        Assert.True(nodes is { Enabled: true, SummaryCount: 1, Failure: null });
+        Assert.Empty(nodes.Items);
+
+        // All used up: a look would prepare, but there is no model, so it never even starts a request.
+        foreach (var item in (await h.RecommendationStore.ListAsync(h.Workspace, RecommendationKind.Question, Ct)).Where(r => r.State == RecommendationState.Pending))
+        {
+            await h.Recommendations.IgnoreAsync(item, Ct);
+        }
+
+        var changes = 0;
+        h.Recommendations.Changed += (_, _) => Interlocked.Increment(ref changes);
+        h.Recommendations.NewExplorationOpened(h.Workspace);
+        await h.RecommendationStore.RemovePendingAsync(h.Workspace, RecommendationKind.Node, [.. nodes.Items.Select(i => i.Id)], Ct);
+        await h.Database.WriteAsync((c, t) => c.Execute(t, "DELETE FROM app_state WHERE key LIKE '%recommend.nodes.plan:%';"), Ct);
+        h.Recommendations.NetworkOpened(h.Workspace);
+        await AdvanceAsync(h, Delay);
+        Assert.Equal(0, Volatile.Read(ref changes));
+        Assert.Equal(2, Requests(h));
+
+        // With a model again a look prepares (nothing was sent, so nothing was remembered as tried).
+        await h.Models.SaveAsync(new Application.Models.ModelSettingsInput("fake", "https://fake.example/v1", "fake-model", "sk-test"), Ct);
+        h.Client.Recommendations.Replies.Enqueue("[\"活塞为什么要往复运动？\",\"曲柄怎样把往复变成旋转？\",\"蒸汽机的效率有多高？\"]");
+        h.Recommendations.NewExplorationOpened(h.Workspace);
+        await AdvanceAsync(h, Delay);
+        Assert.Equal(3, Requests(h));
+        Assert.Equal(3, (await h.Recommendations.GetQuestionsAsync(h.Workspace, Ct)).Items.Count);
+    }
+
+    [Fact]
+    public async Task After_a_refused_key_stored_recommendations_are_not_shown_until_the_model_is_saved_again()
+    {
+        // Review 2026-11-13, §10.3 共同规则: "未配置模型或凭据失效时，推荐区域不报错、不显示推荐". A refused key left the
+        // stored questions and nodes on show.
+        await using var h = await ChatHarness.StartAsync();
+        var steam = await TitledAsync(h, "蒸汽机是怎么工作的？", "蒸汽机原理");
+        await SummaryAsync(h, steam, "蒸汽机", "蒸汽推动活塞往复运动。");
+        Assert.Equal(3, (await h.Recommendations.RefreshQuestionsAsync(h.Workspace, Ct)).Added);
+        Assert.Equal(1, (await h.Recommendations.RefreshNodesAsync(h.Workspace, Ct)).Added);
+
+        h.Client.Recommendations.FailNext(GenerationErrorKind.Unauthorized);
+        Assert.Equal(RecommendationProblem.Credentials, (await h.Recommendations.RefreshQuestionsAsync(h.Workspace, Ct)).Problem);
+        var questions = await h.Recommendations.GetQuestionsAsync(h.Workspace, Ct);
+        Assert.True(questions is { Enabled: true, HasContent: true, Failure: null });
+        Assert.Empty(questions.Items);
+        Assert.Empty((await h.Recommendations.GetNodesAsync(h.Workspace, Ct)).Items);
+        Assert.Equal(3, await h.Database.ReadAsync(c => c.Scalar<long>(null, "SELECT count(*) FROM recommendation WHERE kind = 'question' AND state = 'pending';"), Ct));
+
+        // A new key saved: the stored ones are shown again, and the pages are told.
+        var changed = 0;
+        h.Recommendations.Changed += (_, w) => { if (w == h.Workspace) { Interlocked.Increment(ref changed); } };
+        await h.Models.SaveAsync(new Application.Models.ModelSettingsInput("fake", "https://fake.example/v1", "fake-model", "sk-new"), Ct);
+        Assert.True(Volatile.Read(ref changed) > 0);
+        Assert.Equal(3, (await h.Recommendations.GetQuestionsAsync(h.Workspace, Ct)).Items.Count);
+        Assert.Single((await h.Recommendations.GetNodesAsync(h.Workspace, Ct)).Items);
+
+        // Refused again, then a request that gets through: shown again too.
+        h.Client.NodeRecommendations.FailNext(GenerationErrorKind.Unauthorized);
+        Assert.Equal(RecommendationProblem.Credentials, (await h.Recommendations.RefreshNodesAsync(h.Workspace, Ct)).Problem);
+        Assert.Empty((await h.Recommendations.GetQuestionsAsync(h.Workspace, Ct)).Items);
+        h.Client.Recommendations.Replies.Enqueue("[\"活塞为什么要往复运动？\",\"曲柄怎样把往复变成旋转？\",\"蒸汽机的效率有多高？\"]");
+        Assert.Equal(3, (await h.Recommendations.RefreshQuestionsAsync(h.Workspace, Ct)).Added);
+        Assert.Equal(3, (await h.Recommendations.GetQuestionsAsync(h.Workspace, Ct)).Items.Count);
+        Assert.Single((await h.Recommendations.GetNodesAsync(h.Workspace, Ct)).Items);
     }
 
     [Fact]
@@ -422,6 +537,13 @@ public class RecommendationTests
         var stored = await h.RecommendationStore.AddBatchAsync(h.Workspace, RecommendationKind.Question,
             new RecommendationBatch(Guid.CreateVersion7(), DateTimeOffset.UtcNow, [new("蒸汽机还在吗？", null, steamNode), new("轨距是多少？", null, null)]), true, Ct);
         Assert.Equal(1, stored);
+        Assert.Equal(["轨距是多少？"], (await h.Recommendations.GetQuestionsAsync(h.Workspace, Ct)).Items.Select(i => i.Question));
+
+        // Review 2026-11-13: a batch whose every item lost its basis stores nothing and replaces nothing; the shown ones
+        // stay, as after any failure (§11 "生成失败时旧推荐保留").
+        stored = await h.RecommendationStore.AddBatchAsync(h.Workspace, RecommendationKind.Question,
+            new RecommendationBatch(Guid.CreateVersion7(), DateTimeOffset.UtcNow, [new("蒸汽机还在吗？", null, steamNode)]), true, Ct);
+        Assert.Equal(0, stored);
         Assert.Equal(["轨距是多少？"], (await h.Recommendations.GetQuestionsAsync(h.Workspace, Ct)).Items.Select(i => i.Question));
     }
 

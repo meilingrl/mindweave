@@ -362,6 +362,40 @@ public class RecommendedQuestionsUiTests
         window.Close();
     }
 
+    [AvaloniaFact]
+    public async Task A_new_exploration_page_kept_open_follows_the_settings_when_the_reader_returns()
+    {
+        // Review 2026-11-13: each section keeps its pages, so 新探索 left open in 探索 is the page shown on return. Turning
+        // recommended questions off in 设置 left that page offering them, the placeholder included.
+        await using var app = DesktopHarness.Create();
+        var window = app.ShowWindow(1100, 900);
+        await SeedAsync(app);
+        var (page, view) = await OpenAsync(app, window);
+        Assert.Equal(3, page.Recommendations.Count);
+
+        app.ShellPage.ShowSectionCommand.Execute(MainSection.Settings);
+        var settings = Assert.IsType<SettingsHomeViewModel>(app.Workbench.CurrentPage);
+        await settings.Loaded;
+        window.UpdateLayout();
+        UiInput.Click(window, Find<CheckBox>(window, "RecommendQuestionsToggle"));
+        await settings.Saving;
+
+        app.ShellPage.ShowSectionCommand.Execute(MainSection.Explore);
+        Assert.Same(page, app.Workbench.CurrentPage);
+        await UiWait.UntilAsync(() => !page.ShowsRecommendations && page.Recommendations.Count == 0);
+        window.UpdateLayout();
+        view = window.GetVisualDescendants().OfType<NewConversationView>().Single();
+        Assert.False(Find<StackPanel>(view, "RecommendationPanel").IsEffectivelyVisible);
+        Assert.Null(page.Composer.GhostSuggestions);
+        Assert.Null(Input(view).Offered);
+
+        // On again: the kept ones are back.
+        await app.Services.GetRequiredService<IRecommendationSettings>().SetQuestionsAsync(true, CancellationToken.None);
+        await UiWait.UntilAsync(() => page.ShowsRecommendations && page.Recommendations.Count == 3);
+        Assert.Equal(First, page.Composer.GhostSuggestions?.Single());
+        window.Close();
+    }
+
     /// <summary>The network scenario's workspace with three questions made (by 换一批's request, as the fake answers it).</summary>
     internal static async Task SeedAsync(DesktopHarness app)
     {
