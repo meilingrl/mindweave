@@ -38,6 +38,8 @@ public class BackupRestoreUiTests
         var window = app.ShowWindow(1100, 720);
         var seed = await SeedAsync(app);
         var oldRoot = app.Root;
+        var oldDatabase = app.Services.GetRequiredService<SqliteDatabase>();
+        var oldWorkbench = app.Workbench;
         var page = await OpenStorageAsync(app, window);
         var row = Assert.Single(page.Rows);
         Assert.Equal(seed.Backup.Path, row.Entry.Backup!.Path);
@@ -87,6 +89,13 @@ public class BackupRestoreUiTests
 
         UiInput.Click(window, Find<Button>(window, "CloseRestoreNoticeButton"));
         Assert.Null(app.ShellPage.RestoreNotice);
+
+        // The old session is over: its database is closed and its pages are gone; quitting goes through the new one.
+        Assert.False(oldDatabase.IsOpen);
+        Assert.Empty(oldWorkbench.OpenWorkspaces);
+        Assert.True(ExitScenario.Quit(app, window, ExitEntry.Window));
+        await UiWait.UntilAsync(() => app.Shell.ExitRequests == 1);
+        Assert.Equal(ExitStage.Releasing, app.Root.Exit.Stage);
         window.Close();
     }
 
