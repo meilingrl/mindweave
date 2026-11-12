@@ -85,7 +85,8 @@ public class BackupRestoreUiTests
         Assert.Empty(Directory.GetFiles(app.Paths.DataDirectory, "mindweave.db.replaced-*"));
 
         // New work runs in the restored data.
-        Assert.True((await app.Services.GetRequiredService<ConversationService>().StartAsync(seed.Workspace, "再问一个", CancellationToken.None)).Accepted);
+        var asked = await NetworkScenario.AskAsync(app, app.Services.GetRequiredService<ConversationService>(), null, seed.Workspace, "再问一个");
+        Assert.Contains(asked, await ConversationIdsAsync(app, seed.Workspace));
 
         UiInput.Click(window, Find<Button>(window, "CloseRestoreNoticeButton"));
         Assert.Null(app.ShellPage.RestoreNotice);
