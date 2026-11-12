@@ -51,6 +51,8 @@ Windows 实机：`scripts/windows.sh test|publish|sync|exec`（主机 `win-home`
 
 多个会话并行的规则见 [AGENTS.md](AGENTS.md)“多个 Agent 并行”（2026-10-27 起）。本轨道的运行时资源：从任务工作树运行应用时设 `MINDWEAVE_DATA_DIR` 为该工作树自己的目录；Windows 实机用 `MINDWEAVE_WIN_DIR` 指向各自的目录，或排队使用默认目录。
 
+与 Windows 上的 Claude 之间用信箱传递任务与报告（2026-11-12 起）：`E:\mindweave-mailbox\`，Mac 侧 `scripts/mailbox.sh`，Windows 侧 `mailbox.ps1`，协议见 [docs/mailbox.md](docs/mailbox.md)。发出任务后请你对 Windows 上的 Claude 说“check the mailbox”；它的回复我自己读，不必转述。
+
 ## 演进接缝 E1–E6（2026-10-26 用户决定本轨道采纳为实验）
 
 依据 `main` 的 [演进方向与工程指引](docs/evolution.md)：S2 起引入前置接缝，不实现 D1–D6 功能本身；每个接缝记录实际成本与发现。
