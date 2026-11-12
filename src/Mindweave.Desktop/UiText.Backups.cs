@@ -112,7 +112,7 @@ public static partial class UiText
     public const string DeleteOnlyCopyOfWorkspace = "其中有删除工作区前的备份：它可能是被删除工作区唯一的副本。";
     public const string DeleteOnlyCopyOfConversations = "其中有删除会话前的备份：它可能是被删除会话唯一的副本。";
     public const string DeleteWayBackFromRestore = "其中有最近一次恢复前的备份：删除后就无法再回到最近一次恢复之前的数据。";
-    public const string DeleteLeftoverFiles = "其中有恢复时替换下的旧数据库文件。";
+    public const string DeleteLeftoverFiles = "其中有恢复时替换下的旧数据库文件：它是那次恢复之前的数据，在启动恢复页做的恢复没有“恢复前”备份，它可能是那份数据唯一的副本。";
 
     public static string BackupsDeleteFailed(int failed) =>
         string.Format(CultureInfo.CurrentCulture, "{0} 项没能删除，文件可能正被占用或没有权限；其余已删除。", failed);

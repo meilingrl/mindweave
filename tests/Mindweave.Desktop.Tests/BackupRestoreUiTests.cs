@@ -293,6 +293,10 @@ public class BackupRestoreUiTests
         Assert.Equal(UiText.DeleteBackupsTitle(3), dialog.Title);
         Assert.Equal(UiText.DeleteBackupsBody(3, 190 * 1024), dialog.Body);
         Assert.Equal([UiText.DeleteOnlyCopyOfWorkspace, UiText.DeleteWayBackFromRestore, UiText.DeleteLeftoverFiles], dialog.Warnings);
+
+        // A leftover from a restore on the startup page has no "恢复前" backup behind it: the warning says it may be the
+        // only copy of the data from before that restore (review 2026-11-12).
+        Assert.Contains("唯一的副本", UiText.DeleteLeftoverFiles, StringComparison.Ordinal);
         UiInput.Click(window, Find<Button>(window, "BackupDeleteConfirm"));
         await dialog.Running;
         Assert.False(dialog.IsOpen);
@@ -364,6 +368,11 @@ public class BackupRestoreUiTests
         var restore = Find<Button>(window, "RestoreBackupButton");
         var delete = Find<Button>(window, "DeleteBackupButton");
         Assert.Equal(row.SelectName, AutomationProperties.GetName(check));
+
+        // Announced as a check box with its state, not as a toggle button (review 2026-11-12).
+        var checkPeer = Avalonia.Automation.Peers.ControlAutomationPeer.CreatePeerForElement(check);
+        Assert.Equal(Avalonia.Automation.Peers.AutomationControlType.CheckBox, checkPeer.GetAutomationControlType());
+        Assert.IsAssignableFrom<Avalonia.Automation.Provider.IToggleProvider>(checkPeer);
         Assert.Equal(row.RestoreName, AutomationProperties.GetName(restore));
         Assert.Equal(row.DeleteName, AutomationProperties.GetName(delete));
         Assert.Contains(UiText.BackupBeforeRestore, row.RestoreName, StringComparison.Ordinal);

@@ -69,7 +69,7 @@
                     <ColumnDefinition Width="Auto" SharedSizeGroup="Delete" />
                   </Grid.ColumnDefinitions>
                   <ToggleButton Name="BackupCheck" Classes="row-check-toggle" Margin="-3,0,0,0" IsChecked="{Binding IsChecked}"
-                                AutomationProperties.Name="{Binding SelectName}" />
+                                AutomationProperties.Name="{Binding SelectName}" AutomationProperties.ControlTypeOverride="CheckBox" />
                   <TextBlock Grid.Column="1" VerticalAlignment="Center" Text="{Binding TimeText}" />
                   <Border Grid.Column="2" Classes="badge" HorizontalAlignment="Left" Classes.warning="{Binding IsTooNew}" IsVisible="{Binding VersionText, Converter={x:Static ObjectConverters.IsNotNull}}">
                     <TextBlock Text="{Binding VersionText}" />
