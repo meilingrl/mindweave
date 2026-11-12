@@ -21,7 +21,7 @@ public sealed class SqliteDatabaseOptions
 /// explicit request, and afterwards exposes one serialized writer plus short-lived read-only connections.
 /// Must only be used while the single-instance lock for the same data directory is held.
 /// </summary>
-public sealed partial class SqliteDatabase : IDatabaseLifecycle, IDatabaseBackup, IStorageProbe, IAsyncDisposable
+public sealed partial class SqliteDatabase : IDatabaseLifecycle, IDatabaseBackup, IBackupFiles, IStorageProbe, IAsyncDisposable
 {
     public const int MigrationBackupsKept = 5;
 
@@ -96,7 +96,114 @@ public sealed partial class SqliteDatabase : IDatabaseLifecycle, IDatabaseBackup
         }
     }
 
+    /// <inheritdoc />
+    public async Task<InPlaceRestoreResult> RestoreInPlaceAsync(BackupInfo backup, string keptCopy, CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(backup);
+        ArgumentException.ThrowIfNullOrEmpty(keptCopy);
+        await _lifecycleGate.WaitAsync(cancellationToken).ConfigureAwait(false);
+        try
+        {
+            await CloseCoreAsync().ConfigureAwait(false);
+            return await Task.Run(() => RestoreInPlaceCore(backup, keptCopy), CancellationToken.None).ConfigureAwait(false);
+        }
+        finally
+        {
+            _lifecycleGate.Release();
+        }
+    }
+
+    /// <summary>
+    /// Fault-injection seam for tests only: runs during an in-app restore after the backup's copy is made and before the
+    /// current files are moved, so a test can make moving them fail.
+    /// </summary>
+    internal Action? BeforeSwapForTests { get; set; }
+
+    /// <summary>
+    /// Fault-injection seam for tests only: runs during an in-app restore after the restored copy failed to open and
+    /// before the previous database is put back.
+    /// </summary>
+    internal Action? BeforePutBackForTests { get; set; }
+
+    private InPlaceRestoreResult RestoreInPlaceCore(BackupInfo backup, string keptCopy)
+    {
+        // Checked once more: the file may have changed since the user chose it. Nothing has been touched yet.
+        var problem = _backups.Check(backup, _catalog.LatestVersion);
+        if (problem != BackupProblem.None)
+        {
+            LogRestoreRefused(_logger, backup.Path, problem);
+            return new InPlaceRestoreResult(false, OpenExistingOnly(), RestoreFailure.BackupUnusable, problem.ToString());
+        }
+
+        // Pooling is off for every connection here; cleared anyway so no pooled handle elsewhere keeps the files open
+        // (Windows cannot rename an open file).
+        SqliteConnection.ClearAllPools();
+        SqliteBackupFiles.Replacement replacement;
+        try
+        {
+            replacement = _backups.ReplaceDatabaseWith(backup, BeforeSwapForTests);
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            // Everything that was moved is back: open what was there before.
+            LogRestoreFailed(_logger, ex, backup.Path);
+            return new InPlaceRestoreResult(false, OpenExistingOnly(), RestoreFailure.SwapFailed, ex.Message);
+        }
+
+        var restored = OpenCore();
+        if (restored.IsReady)
+        {
+            // The verified copy made just before holds what these files held; without it they stay.
+            if (File.Exists(keptCopy))
+            {
+                _backups.DropReplaced(replacement);
+            }
+
+            return new InPlaceRestoreResult(true, restored);
+        }
+
+        LogRestoredCopyUnusable(_logger, backup.Path, restored.Status, restored.ErrorDetail);
+        try
+        {
+            BeforePutBackForTests?.Invoke();
+            _backups.PutBack(replacement);
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            // Not opened: the recovery page shows what is there and offers the backups, never an empty database.
+            LogPutBackFailed(_logger, ex);
+            return new InPlaceRestoreResult(false, Result(DatabaseOpenStatus.IoError, restored.FoundVersion, detail: ex.Message), RestoreFailure.PutBackFailed, ex.Message);
+        }
+
+        return new InPlaceRestoreResult(false, OpenExistingOnly(), RestoreFailure.RestoredUnusable, restored.ErrorDetail ?? restored.Status.ToString());
+    }
+
+    /// <summary>
+    /// Opens the database after a failed restore, as on startup, but never creates one: a file missing here means a
+    /// failed undo, and an empty database in its place would look like a successful start with everything gone.
+    /// </summary>
+    private DatabaseOpenResult OpenExistingOnly() =>
+        File.Exists(_paths.DatabasePath)
+            ? OpenCore()
+            : Result(DatabaseOpenStatus.IoError, null, detail: "The database file is missing after a failed restore; see the files named \"replaced\" in the data directory.");
+
     public IReadOnlyList<BackupInfo> ListBackups() => _backups.List();
+
+    /// <inheritdoc />
+    public IReadOnlyList<LeftoverDatabase> ListLeftovers() => _backups.ListLeftovers();
+
+    /// <inheritdoc />
+    public BackupProblem Check(BackupInfo backup) => _backups.Check(backup, _catalog.LatestVersion);
+
+    /// <inheritdoc />
+    public void Delete(BackupInfo backup)
+    {
+        ArgumentNullException.ThrowIfNull(backup);
+        _backups.Delete(backup.Path);
+    }
+
+    /// <inheritdoc />
+    public void Delete(LeftoverDatabase leftover) => _backups.Delete(leftover);
 
     /// <summary>
     /// A verified copy of the open database, made on the single writer between two transactions so it holds every
@@ -503,4 +610,13 @@ public sealed partial class SqliteDatabase : IDatabaseLifecycle, IDatabaseBackup
 
     [LoggerMessage(Level = LogLevel.Error, Message = "Restore from {BackupPath} failed")]
     private static partial void LogRestoreFailed(ILogger logger, Exception exception, string backupPath);
+
+    [LoggerMessage(Level = LogLevel.Warning, Message = "Restore from {BackupPath} refused: {Problem}; nothing was changed")]
+    private static partial void LogRestoreRefused(ILogger logger, string backupPath, BackupProblem problem);
+
+    [LoggerMessage(Level = LogLevel.Error, Message = "The copy of {BackupPath} could not be opened ({Status}: {Detail}); putting the previous database back")]
+    private static partial void LogRestoredCopyUnusable(ILogger logger, string backupPath, DatabaseOpenStatus status, string? detail);
+
+    [LoggerMessage(Level = LogLevel.Critical, Message = "The previous database could not be put back after a failed restore; it is under its \"replaced\" name in the data directory")]
+    private static partial void LogPutBackFailed(ILogger logger, Exception exception);
 }

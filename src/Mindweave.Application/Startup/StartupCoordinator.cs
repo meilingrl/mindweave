@@ -18,6 +18,9 @@ public abstract record StartupOutcome
     public sealed record ReadyToWork(IReadOnlyList<Workspace> Workspaces, PageLocation? LastLocation) : StartupOutcome;
 }
 
+/// <summary>What an in-app restore led to: the page to show, and whether the backup is the data now.</summary>
+public sealed record InPlaceRestoreOutcome(StartupOutcome Outcome, InPlaceRestoreResult Result);
+
 /// <summary>
 /// Runs after the single-instance lock is held: open/migrate the database, then decide between
 /// the recovery page, first-run onboarding and the workbench. Nothing here starts AI work.
@@ -42,6 +45,18 @@ public sealed partial class StartupCoordinator(
         LogRestoring(logger, backup.Path);
         var result = await database.RestoreAsync(backup, cancellationToken).ConfigureAwait(false);
         return await ContinueAfterOpenAsync(result, cancellationToken).ConfigureAwait(false);
+    }
+
+    /// <summary>
+    /// Restoring from inside the running application (2026-11-12): the database is replaced (or, after a failure, the
+    /// previous one put back) and then continues exactly as a start would.
+    /// </summary>
+    public async Task<InPlaceRestoreOutcome> RestoreInPlaceAsync(BackupInfo backup, string keptCopy, CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(backup);
+        LogRestoring(logger, backup.Path);
+        var result = await database.RestoreInPlaceAsync(backup, keptCopy, cancellationToken).ConfigureAwait(false);
+        return new InPlaceRestoreOutcome(await ContinueAfterOpenAsync(result.Open, cancellationToken).ConfigureAwait(false), result);
     }
 
     private async Task<StartupOutcome> ContinueAfterOpenAsync(DatabaseOpenResult result, CancellationToken cancellationToken)

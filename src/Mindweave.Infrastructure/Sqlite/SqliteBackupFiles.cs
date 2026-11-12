@@ -17,8 +17,13 @@ internal sealed partial class SqliteBackupFiles(AppPaths paths, TimeProvider tim
     private const string StampFormat = "yyyyMMdd'T'HHmmssfff'Z'";
     private const string BeforeDeleteSuffix = "-before-delete";
     private const string BeforeConversationDeleteSuffix = "-before-conversation-delete";
+    private const string BeforeRestoreSuffix = "-before-restore";
+    private const string ReplacedInfix = ".replaced-";
 
     private static readonly Regex BackupName = BackupNameRegex();
+
+    /// <summary>What one restore moved aside: each current file and its "replaced" name.</summary>
+    internal sealed record Replacement(IReadOnlyList<(string From, string To)> Moved);
 
     public IReadOnlyList<BackupInfo> List()
     {
@@ -45,17 +50,10 @@ internal sealed partial class SqliteBackupFiles(AppPaths paths, TimeProvider tim
         return backups.OrderByDescending(b => b.CreatedAt).ToArray();
     }
 
-    /// <summary>Deletes one backup of this data directory; any other path is refused.</summary>
+    /// <summary>Deletes one backup of this data directory, best effort (a failure is logged); any other path is refused.</summary>
     public void Discard(string path)
     {
-        ArgumentException.ThrowIfNullOrEmpty(path);
-        var full = Path.GetFullPath(path);
-        if (!string.Equals(Path.GetDirectoryName(full), Path.GetFullPath(paths.BackupDirectory), StringComparison.Ordinal)
-            || !BackupNameRegex().IsMatch(Path.GetFileName(full)))
-        {
-            throw new ArgumentException("Not a backup of this data directory.", nameof(path));
-        }
-
+        var full = BackupPathOf(path);
         try
         {
             File.Delete(full);
@@ -63,6 +61,103 @@ internal sealed partial class SqliteBackupFiles(AppPaths paths, TimeProvider tim
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
         {
             LogDiscardFailed(logger, ex, full);
+        }
+    }
+
+    /// <summary>Deletes one backup of this data directory at the user's request; any other path is refused, a failure is thrown.</summary>
+    public void Delete(string path)
+    {
+        var full = BackupPathOf(path);
+        File.Delete(full);
+        LogDeleted(logger, full);
+    }
+
+    /// <summary>
+    /// Reads a backup without changing it (opened read-only): it exists, carries Mindweave's application id and a schema
+    /// version no newer than <paramref name="latestVersion"/>, and passes <c>quick_check</c>.
+    /// </summary>
+    public BackupProblem Check(BackupInfo backup, int latestVersion)
+    {
+        ArgumentNullException.ThrowIfNull(backup);
+        var full = BackupPathOf(backup.Path);
+        if (!File.Exists(full))
+        {
+            return BackupProblem.Missing;
+        }
+
+        try
+        {
+            using var connection = SqliteConnections.OpenReadOnly(full);
+            if (SqliteConnections.Scalar<int>(connection, "PRAGMA application_id;") != SqliteConnections.ApplicationId)
+            {
+                return BackupProblem.NotMindweave;
+            }
+
+            if (SqliteConnections.Scalar<int>(connection, "PRAGMA user_version;") > latestVersion)
+            {
+                return BackupProblem.TooNew;
+            }
+
+            return SqliteConnections.QuickCheck(connection) is null ? BackupProblem.None : BackupProblem.Unreadable;
+        }
+        catch (Exception ex) when (ex is SqliteException or IOException or UnauthorizedAccessException)
+        {
+            LogCheckFailed(logger, ex, full);
+            return BackupProblem.Unreadable;
+        }
+    }
+
+    /// <summary>
+    /// The files earlier restores kept under a "replaced" name in the data directory, one entry per restore (the database
+    /// with its log files), newest first.
+    /// </summary>
+    public IReadOnlyList<LeftoverDatabase> ListLeftovers()
+    {
+        if (!Directory.Exists(paths.DataDirectory))
+        {
+            return [];
+        }
+
+        var groups = new Dictionary<string, List<string>>(StringComparer.Ordinal);
+        foreach (var file in Directory.EnumerateFiles(paths.DataDirectory, Path.GetFileName(paths.DatabasePath) + ReplacedInfix + "*"))
+        {
+            if (LeftoverStampOf(file) is { } stamp)
+            {
+                if (!groups.TryGetValue(stamp, out var files))
+                {
+                    groups[stamp] = files = [];
+                }
+
+                files.Add(file);
+            }
+        }
+
+        return groups
+            .Select(g => new LeftoverDatabase(
+                DateTimeOffset.ParseExact(g.Key, StampFormat, CultureInfo.InvariantCulture, DateTimeStyles.AssumeUniversal),
+                [.. g.Value.Order(StringComparer.Ordinal)],
+                g.Value.Sum(f => new FileInfo(f).Length)))
+            .OrderByDescending(l => l.ReplacedAt)
+            .ToArray();
+    }
+
+    /// <summary>Deletes the files of one leftover entry; a path that is not a leftover of this data directory is refused before anything is deleted.</summary>
+    public void Delete(LeftoverDatabase leftover)
+    {
+        ArgumentNullException.ThrowIfNull(leftover);
+        var files = leftover.Files.Select(Path.GetFullPath).ToArray();
+        foreach (var file in files)
+        {
+            if (!string.Equals(Path.GetDirectoryName(file), Path.GetFullPath(paths.DataDirectory), StringComparison.Ordinal) || LeftoverStampOf(file) is null)
+            {
+                throw new ArgumentException("Not a leftover database file of this data directory.", nameof(leftover));
+            }
+        }
+
+        foreach (var file in files)
+        {
+            File.Delete(file);
+            LogDeleted(logger, file);
         }
     }
 
@@ -146,9 +241,11 @@ internal sealed partial class SqliteBackupFiles(AppPaths paths, TimeProvider tim
 
     /// <summary>
     /// Puts a copy of <paramref name="backup"/> in place of the database file, which must be closed. The current file
-    /// and its WAL are kept under a "replaced" name; a failure moves everything back and rethrows.
+    /// and its WAL are kept under a "replaced" name and returned; a failure moves everything back and rethrows.
+    /// <paramref name="beforeSwap"/> is the test host's fault-injection seam, run after the copy is made and before
+    /// anything is moved.
     /// </summary>
-    public void ReplaceDatabaseWith(BackupInfo backup)
+    public Replacement ReplaceDatabaseWith(BackupInfo backup, Action? beforeSwap = null)
     {
         if (!File.Exists(backup.Path))
         {
@@ -166,12 +263,13 @@ internal sealed partial class SqliteBackupFiles(AppPaths paths, TimeProvider tim
         var moved = new List<(string From, string To)>();
         try
         {
+            beforeSwap?.Invoke();
             foreach (var suffix in new[] { string.Empty, "-wal", "-shm" })
             {
                 var current = paths.DatabasePath + suffix;
                 if (File.Exists(current))
                 {
-                    var replaced = $"{paths.DatabasePath}.replaced-{stamp}{suffix}";
+                    var replaced = $"{paths.DatabasePath}{ReplacedInfix}{stamp}{suffix}";
                     File.Move(current, replaced);
                     moved.Add((current, replaced));
                 }
@@ -198,6 +296,39 @@ internal sealed partial class SqliteBackupFiles(AppPaths paths, TimeProvider tim
         }
 
         LogRestored(logger, backup.Path);
+        return new Replacement(moved);
+    }
+
+    /// <summary>
+    /// After the restored copy failed to open: puts the replaced database back. The copy's own log files go first, then
+    /// the database file is moved back over the copy (one rename, so a database file is always in place), then its log
+    /// files. Throws when a step fails; the file in place is then the copy or the original, never nothing.
+    /// </summary>
+    public void PutBack(Replacement replacement)
+    {
+        ArgumentNullException.ThrowIfNull(replacement);
+        foreach (var suffix in new[] { "-wal", "-shm", "-journal" })
+        {
+            File.Delete(paths.DatabasePath + suffix);
+        }
+
+        // The database file (the shortest name) first, then its -wal and -shm.
+        foreach (var (from, to) in replacement.Moved.OrderBy(m => m.From.Length))
+        {
+            File.Move(to, from, overwrite: true);
+        }
+
+        LogPutBack(logger);
+    }
+
+    /// <summary>Removes the files a successful restore kept under a "replaced" name; best effort, a failure is logged.</summary>
+    public void DropReplaced(Replacement replacement)
+    {
+        ArgumentNullException.ThrowIfNull(replacement);
+        foreach (var (_, to) in replacement.Moved)
+        {
+            TryDelete(to);
+        }
     }
 
     /// <summary>Deletes a database file together with its WAL, shared-memory and rollback-journal files.</summary>
@@ -213,6 +344,7 @@ internal sealed partial class SqliteBackupFiles(AppPaths paths, TimeProvider tim
     {
         BackupReason.BeforeWorkspaceDelete => BeforeDeleteSuffix,
         BackupReason.BeforeConversationDelete => BeforeConversationDeleteSuffix,
+        BackupReason.BeforeRestore => BeforeRestoreSuffix,
         _ => string.Empty,
     };
 
@@ -220,8 +352,37 @@ internal sealed partial class SqliteBackupFiles(AppPaths paths, TimeProvider tim
     {
         BeforeDeleteSuffix => BackupReason.BeforeWorkspaceDelete,
         BeforeConversationDeleteSuffix => BackupReason.BeforeConversationDelete,
+        BeforeRestoreSuffix => BackupReason.BeforeRestore,
         _ => BackupReason.Migration,
     };
+
+    /// <summary>A backup's full path, refused (<see cref="ArgumentException"/>) unless it names a backup of this data directory.</summary>
+    private string BackupPathOf(string path)
+    {
+        ArgumentException.ThrowIfNullOrEmpty(path);
+        var full = Path.GetFullPath(path);
+        if (!string.Equals(Path.GetDirectoryName(full), Path.GetFullPath(paths.BackupDirectory), StringComparison.Ordinal)
+            || !BackupNameRegex().IsMatch(Path.GetFileName(full)))
+        {
+            throw new ArgumentException("Not a backup of this data directory.", nameof(path));
+        }
+
+        return full;
+    }
+
+    /// <summary>The time stamp of a "replaced" database file of this data directory ("mindweave.db.replaced-…[-wal|-shm]"), or null.</summary>
+    private string? LeftoverStampOf(string file)
+    {
+        var name = Path.GetFileName(file);
+        var prefix = Path.GetFileName(paths.DatabasePath) + ReplacedInfix;
+        if (!name.StartsWith(prefix, StringComparison.Ordinal))
+        {
+            return null;
+        }
+
+        var match = LeftoverSuffixRegex().Match(name[prefix.Length..]);
+        return match.Success ? match.Groups["time"].Value : null;
+    }
 
     private void TryDelete(string path)
     {
@@ -235,8 +396,20 @@ internal sealed partial class SqliteBackupFiles(AppPaths paths, TimeProvider tim
         }
     }
 
-    [GeneratedRegex(@"^mindweave-v(?<version>\d+)-(?<time>\d{8}T\d{9}Z)(?<reason>-before-delete|-before-conversation-delete)?\.db$", RegexOptions.CultureInvariant)]
+    [GeneratedRegex(@"^mindweave-v(?<version>\d+)-(?<time>\d{8}T\d{9}Z)(?<reason>-before-delete|-before-conversation-delete|-before-restore)?\.db$", RegexOptions.CultureInvariant)]
     private static partial Regex BackupNameRegex();
+
+    [GeneratedRegex(@"^(?<time>\d{8}T\d{9}Z)(-wal|-shm)?$", RegexOptions.CultureInvariant)]
+    private static partial Regex LeftoverSuffixRegex();
+
+    [LoggerMessage(Level = LogLevel.Information, Message = "Deleted {Path} at the user's request")]
+    private static partial void LogDeleted(ILogger logger, string path);
+
+    [LoggerMessage(Level = LogLevel.Warning, Message = "Backup {Path} could not be read")]
+    private static partial void LogCheckFailed(ILogger logger, Exception exception, string path);
+
+    [LoggerMessage(Level = LogLevel.Warning, Message = "The restored copy could not be opened; the previous database was put back")]
+    private static partial void LogPutBack(ILogger logger);
 
     [LoggerMessage(Level = LogLevel.Warning, Message = "Old migration backups could not be pruned")]
     private static partial void LogPruneFailed(ILogger logger, Exception exception);
