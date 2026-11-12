@@ -86,6 +86,12 @@ public sealed record StorageDetailsRoute : ContentRoute
     public static StorageDetailsRoute Instance { get; } = new();
 }
 
+/// <summary>设置 › 使用统计 (2026-11-12): token use and activity facts. Not restored as the last page.</summary>
+public sealed record UsageStatisticsRoute : ContentRoute
+{
+    public static UsageStatisticsRoute Instance { get; } = new();
+}
+
 /// <summary>设置 › 工作区: every workspace, to switch to, rename or delete (2026-11-10). Not restored as the last page.</summary>
 public sealed record WorkspacesRoute : ContentRoute
 {

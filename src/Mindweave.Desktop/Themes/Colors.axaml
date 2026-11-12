@@ -137,6 +137,14 @@
       <BoxShadows x:Key="MenuShadow">0 8 16 -6 #33000000</BoxShadows>
       <!-- Keyboard focus ring on buttons and rows (2026-11-10): the accent, 4.4:1 on the window, 4.0:1 on the sidebar -->
       <SolidColorBrush x:Key="FocusRing">#4B6BFB</SolidColorBrush>
+      <!-- Statistics chart (2026-11-12): input in the accent, output a lighter shade stacked on it; an empty day a flat mark -->
+      <SolidColorBrush x:Key="UsageChartInput">#4B6BFB</SolidColorBrush>
+      <SolidColorBrush x:Key="UsageChartOutput">#A3B3FC</SolidColorBrush>
+      <SolidColorBrush x:Key="UsageChartBaseline">#D6D3D1</SolidColorBrush>
+      <SolidColorBrush x:Key="UsageChartGrid">#EFEEEC</SolidColorBrush>
+      <SolidColorBrush x:Key="UsageChartEmpty">#CFCBC7</SolidColorBrush>
+      <SolidColorBrush x:Key="UsageChartActive">#F3F2F0</SolidColorBrush>
+      <SolidColorBrush x:Key="UsageShareTrack">#EEEDEB</SolidColorBrush>
     </ResourceDictionary>
     <ResourceDictionary x:Key="Dark">
       <SolidColorBrush x:Key="WindowBackground">#18191B</SolidColorBrush>
@@ -260,6 +268,14 @@
       <BoxShadows x:Key="MenuShadow">0 8 16 -6 #B3000000</BoxShadows>
       <!-- A lighter accent than the fill colour, 7.2:1 on the window, 6.8:1 on the sidebar -->
       <SolidColorBrush x:Key="FocusRing">#8EA2F5</SolidColorBrush>
+      <!-- Statistics chart: the light accent for input, a deep blue for output, both clear of the window background -->
+      <SolidColorBrush x:Key="UsageChartInput">#7D93F5</SolidColorBrush>
+      <SolidColorBrush x:Key="UsageChartOutput">#46579E</SolidColorBrush>
+      <SolidColorBrush x:Key="UsageChartBaseline">#3A3D45</SolidColorBrush>
+      <SolidColorBrush x:Key="UsageChartGrid">#24262B</SolidColorBrush>
+      <SolidColorBrush x:Key="UsageChartEmpty">#4A4E57</SolidColorBrush>
+      <SolidColorBrush x:Key="UsageChartActive">#202227</SolidColorBrush>
+      <SolidColorBrush x:Key="UsageShareTrack">#2A2C31</SolidColorBrush>
     </ResourceDictionary>
   </ResourceDictionary.ThemeDictionaries>
 </ResourceDictionary>

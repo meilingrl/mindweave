@@ -28,6 +28,7 @@
   <StreamGeometry x:Key="IconChevronDown">M2.5,5.5 L8,11 L13.5,5.5 L12.4,4.4 L8,8.8 L3.6,4.4 Z</StreamGeometry>
   <StreamGeometry x:Key="IconFolder">M1,2.5 H6.2 L7.7,4 H15 V13.5 H1 Z M2.5,5.5 V12 H13.5 V5.5 Z</StreamGeometry>
   <StreamGeometry x:Key="IconStorage">M1.5,2 H14.5 V6.5 H1.5 Z M3,3.5 V5 H13 V3.5 Z M1.5,9 H14.5 V13.5 H1.5 Z M3,10.5 V12 H13 V10.5 Z M10.5,3.6 H12 V4.9 H10.5 Z M10.5,10.6 H12 V11.9 H10.5 Z</StreamGeometry>
+  <StreamGeometry x:Key="IconChart">M1.5,13.5 H14.5 V15 H1.5 Z M2.5,8 H5 V12.5 H2.5 Z M6.75,2.5 H9.25 V12.5 H6.75 Z M11,5.5 H13.5 V12.5 H11 Z</StreamGeometry>
   <!-- Copy (two offset sheets) and its confirmation check. -->
   <StreamGeometry x:Key="IconCopy">F1 M5,1 H14 V11 H5 Z M6.5,2.5 V9.5 H12.5 V2.5 Z M2,5 H3.5 V13.5 H10 V15 H2 Z</StreamGeometry>
   <!-- Multi-select: a ticked box (the 选择 entry) and a cross (clear the selection). -->

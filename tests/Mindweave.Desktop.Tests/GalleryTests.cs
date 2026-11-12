@@ -12,6 +12,7 @@ using Mindweave.Application;
 using Mindweave.Application.Conversations;
 using Mindweave.Application.Preferences;
 using Mindweave.Application.Startup;
+using Mindweave.Application.Statistics;
 using Mindweave.Application.Storage;
 using Mindweave.Application.Summaries;
 using Mindweave.Application.Workspaces;
@@ -30,6 +31,7 @@ using Mindweave.Desktop.Views.Pages;
 using Mindweave.Infrastructure.Sqlite;
 using Mindweave.Infrastructure.Sqlite.Migrations;
 using Mindweave.Testing;
+using Mindweave.Testing.Usage;
 using static Mindweave.Desktop.Tests.UiTree;
 
 namespace Mindweave.Desktop.Tests;
@@ -1499,6 +1501,179 @@ public class GalleryTests
         held.Finish("通常几个月。");
         await UiWait.UntilAsync(() => !conversations.HasUnfinishedAnswer(seed.HighSpeed));
         window.Close();
+    }
+
+    // ── Usage statistics (2026-11-12) ─────────────────────────────────────────
+
+    /// <summary>The statistics' "today" and zone in the gallery: the gallery's own day, in a fixed UTC+8.</summary>
+    private static readonly DateTimeOffset StatisticsNow = new(2026, 3, 14, 18, 0, 0, TimeSpan.FromHours(8));
+
+    private static readonly TimeZoneInfo StatisticsZone = TimeZoneInfo.CreateCustomTimeZone("Gallery/UTC+8", TimeSpan.FromHours(8), "UTC+8", "UTC+8");
+
+    private static void FixedStatistics(IServiceCollection services) =>
+        services.AddSingleton(new UsageStatisticsOptions { Time = new ManualTime(StatisticsNow), Zone = StatisticsZone });
+
+    /// <summary>
+    /// 设置 › 使用统计 for all workspaces, by day: the totals, a bar hovered with its numbers, by model and by purpose,
+    /// the activity counts and milestones (g50, a tall window so the whole page is in one frame).
+    /// </summary>
+    [AvaloniaFact]
+    public async Task G50_usage_statistics()
+    {
+        await using var scene = Scene.Create("g50", FixedStatistics);
+        var window = scene.App.ShowWindow(1100, 2010, Theme);
+        await SeedStatisticsAsync(scene.App);
+        var (page, view) = await OpenStatisticsAsync(scene.App, window);
+        var chart = Find<UsageChart>(view, "UsageChart");
+        window.MouseMove(chart.TranslatePoint(chart.SlotCentre(26), window)!.Value);
+        await SettleAsync(window);
+        Assert.Equal(26, chart.ActiveIndex);
+        Assert.True(page.HasUsage);
+        Capture(window, "g50-usage-statistics");
+        window.Close();
+    }
+
+    /// <summary>By month, with the table instead of the chart (g50a).</summary>
+    [AvaloniaFact]
+    public async Task G50a_usage_statistics_by_month_as_a_table()
+    {
+        await using var scene = Scene.Create("g50a", FixedStatistics);
+        var window = scene.App.ShowWindow(1100, 1000, Theme);
+        await SeedStatisticsAsync(scene.App);
+        var (page, view) = await OpenStatisticsAsync(scene.App, window);
+        UiInput.Click(window, Find<RadioButton>(view, "PeriodMonthly"));
+        await page.Loaded;
+        UiInput.Click(window, Find<CheckBox>(view, "TableToggle"));
+        await SettleAsync(window);
+        Assert.Equal(12, page.Bars.Count);
+        Capture(window, "g50a-usage-statistics-monthly-table");
+        window.Close();
+    }
+
+    /// <summary>
+    /// Unit prices: two models priced with their costs and the total, the currency, and the third model's editor open
+    /// with a refused value and its message (g50b, scrolled to 按模型).
+    /// </summary>
+    [AvaloniaFact]
+    public async Task G50b_usage_statistics_with_prices()
+    {
+        await using var scene = Scene.Create("g50b", FixedStatistics);
+        var window = scene.App.ShowWindow(1100, 1000, Theme);
+        await SeedStatisticsAsync(scene.App);
+        var (page, view) = await OpenStatisticsAsync(scene.App, window);
+        foreach (var (row, input, output) in new[] { (page.Models[0], "1", "4"), (page.Models[1], "2", "8") })
+        {
+            row.EditPriceCommand.Execute(null);
+            row.InputPrice = input;
+            row.OutputPrice = output;
+            await row.SavePriceCommand.ExecuteAsync(null);
+        }
+
+        await page.Saving;
+        var editing = page.Models[2];
+        editing.EditPriceCommand.Execute(null);
+        editing.InputPrice = "0.8";
+        editing.OutputPrice = "-2";
+        await editing.SavePriceCommand.ExecuteAsync(null);
+        Assert.NotNull(editing.PriceError);
+        Assert.NotNull(page.TotalCostText);
+        await SettleAsync(window);
+        // 按模型 at the top of the frame: its rows, the editor and the total below them.
+        var scroller = view.GetVisualDescendants().OfType<ScrollViewer>().First();
+        var top = Find<ItemsControl>(view, "ModelRows").TranslatePoint(default, (Visual)scroller.Content!)!.Value.Y;
+        scroller.Offset = new Vector(0, top - 70);
+        await SettleAsync(window);
+        Capture(window, "g50b-usage-statistics-prices");
+        window.Close();
+    }
+
+    /// <summary>A first start: no model yet, nothing asked; the page says so and leads to the model settings (g50c).</summary>
+    [AvaloniaFact]
+    public async Task G50c_usage_statistics_empty()
+    {
+        await using var scene = Scene.Create("g50c", FixedStatistics);
+        var window = scene.App.ShowWindow(1100, 720, Theme);
+        await scene.App.StartWithWorkspaceAsync("火车历史");
+        var (page, _) = await OpenStatisticsAsync(scene.App, window);
+        Assert.False(page.HasUsage);
+        await SettleAsync(window);
+        Capture(window, "g50c-usage-statistics-empty");
+        window.Close();
+    }
+
+    /// <summary>
+    /// The train workspace (its own answers and titles report their usage), plus 30 days of requests on two more models
+    /// and every purpose, and a second workspace with half a year of questions and summaries behind it, so the milestones
+    /// and the monthly chart have something to show. Fixed numbers (a seeded random), so frames repeat.
+    /// </summary>
+    private static async Task SeedStatisticsAsync(DesktopHarness app)
+    {
+        app.Client.PromptTokens = _ => 1_800;
+        app.Client.CompletionTokens = _ => 420;
+        var seed = await SeedAsync(app, summaries: true);
+        var usage = new UsageSeed(app.Services.GetRequiredService<SqliteDatabase>());
+        var random = new Random(20261112);
+        const string DeepSeek = "https://api.deepseek.com";
+        const string Glm = "https://open.bigmodel.cn/api/paas/v4";
+        ConversationId[] train = [seed.Root, seed.Rainhill, seed.Gauge, seed.HighSpeed, seed.FirstRailway];
+
+        var other = await usage.WorkspaceAsync("摄影史", StatisticsNow.AddDays(-200));
+        var history = await usage.ConversationAsync(other, StatisticsNow.AddDays(-176));
+        for (var day = 176; day >= 1; day--)
+        {
+            var at = StatisticsNow.AddDays(-day).AddHours(-random.Next(1, 9));
+            var asked = day > 40 ? (random.Next(4) == 0 ? 1 : 0) : random.Next(5) == 0 ? 0 : random.Next(1, 4);
+            for (var q = 0; q < asked; q++)
+            {
+                await usage.QuestionAsync(history, at.AddMinutes(q * 7));
+                await usage.RequestAsync(history, "answer", "deepseek-flash", at.AddMinutes(q * 7), random.Next(2_000, 14_000), random.Next(400, 1_800), DeepSeek);
+            }
+
+            if (day <= 30 && asked > 0)
+            {
+                var conversation = train[random.Next(train.Length)];
+                await usage.RequestAsync(conversation, "answer", "glm-5", at.AddMinutes(40), random.Next(3_000, 12_000), random.Next(600, 2_000), Glm);
+                if (random.Next(3) == 0)
+                {
+                    await usage.RequestAsync(conversation, "summary", "glm-5", at.AddMinutes(50), random.Next(6_000, 16_000), random.Next(500, 900), Glm);
+                }
+
+                if (random.Next(4) == 0)
+                {
+                    await usage.RequestAsync(conversation, "title", "deepseek-flash", at.AddMinutes(41), random.Next(300, 600), random.Next(10, 30), DeepSeek);
+                }
+            }
+
+            if (day % 9 == 0)
+            {
+                await usage.WorkspaceRequestAsync(other, "deepseek-flash", at.AddMinutes(55), random.Next(500, 900), random.Next(40, 80), DeepSeek);
+            }
+        }
+
+        // Two requests whose service reported no usage, and one stopped answer that was billed.
+        await usage.RequestAsync(seed.Gauge, "answer", "deepseek-flash", StatisticsNow.AddDays(-4), null, null, DeepSeek, outcome: "failed");
+        await usage.RequestAsync(seed.Gauge, "naming", "glm-5", StatisticsNow.AddDays(-2), null, null, Glm);
+        await usage.RequestAsync(seed.Wheels, "answer", "deepseek-flash", StatisticsNow.AddDays(-2), 5_200, 310, DeepSeek, outcome: "stopped");
+
+        for (var i = 0; i < 6; i++)
+        {
+            var summarized = await usage.ConversationAsync(other, StatisticsNow.AddDays(-150 + (i * 20)));
+            await usage.QuestionAsync(summarized, StatisticsNow.AddDays(-150 + (i * 20)));
+            await usage.SummaryAsync(summarized, StatisticsNow.AddDays(-149 + (i * 20)), versions: 1 + (i % 3), read: i % 2 == 0);
+        }
+
+        await usage.ArchiveAsync(history, StatisticsNow.AddDays(-1));
+    }
+
+    private static async Task<(UsageStatisticsViewModel Page, UsageStatisticsView View)> OpenStatisticsAsync(DesktopHarness app, MainWindow window)
+    {
+        app.ShellPage.ShowSectionCommand.Execute(MainSection.Settings);
+        await SettleAsync(window);
+        UiInput.Click(window, Find<Button>(window, "StatisticsButton"));
+        var page = Assert.IsType<UsageStatisticsViewModel>(app.Workbench.CurrentPage);
+        await page.Loaded;
+        await SettleAsync(window);
+        return (page, window.GetVisualDescendants().OfType<UsageStatisticsView>().Single());
     }
 
     // ── Seed ─────────────────────────────────────────────────────────────────

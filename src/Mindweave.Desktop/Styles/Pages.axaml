@@ -1,5 +1,6 @@
 <Styles xmlns="https://github.com/avaloniaui"
-        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:p="using:Mindweave.Desktop.Views.Pages">
   <!-- Single pages: archived rows, the explore home mark and the recovery page's backup rows. -->
   <!-- Archived page rows: the whole row lights up on hover; the name opens, the actions sit at the right. -->
   <Style Selector="Border.archived-row">
@@ -39,5 +40,30 @@
   <Style Selector="SelectableTextBlock.mono">
     <Setter Property="FontFamily" Value="Menlo, Consolas, monospace" />
     <Setter Property="FontSize" Value="12" />
+  </Style>
+  <!-- 设置 › 使用统计 (2026-11-12): large figures, the inline price editor, empty purposes dimmed; the chart draws its own
+       focus ring around the bar it is on, so the control-wide adorner is off. -->
+  <Style Selector="TextBlock.stat-value">
+    <Setter Property="FontSize" Value="20" />
+    <Setter Property="FontWeight" Value="SemiBold" />
+    <Setter Property="Foreground" Value="{DynamicResource PrimaryText}" />
+  </Style>
+  <Style Selector="Border.price-editor">
+    <Setter Property="Background" Value="{DynamicResource WindowBackground}" />
+    <Setter Property="BorderBrush" Value="{DynamicResource CardBorder}" />
+    <Setter Property="BorderThickness" Value="1" />
+    <Setter Property="CornerRadius" Value="8" />
+    <Setter Property="Padding" Value="12" />
+    <Setter Property="Margin" Value="0,4,0,0" />
+  </Style>
+  <Style Selector="Border.price-editor TextBlock.field-label">
+    <Setter Property="Foreground" Value="{DynamicResource PrimaryText}" />
+  </Style>
+  <Style Selector="Grid.purpose-row.empty">
+    <Setter Property="Opacity" Value="0.55" />
+  </Style>
+  <Style Selector="p|UsageChart">
+    <Setter Property="FocusAdorner" Value="{x:Null}" />
+    <Setter Property="Cursor" Value="Arrow" />
   </Style>
 </Styles>

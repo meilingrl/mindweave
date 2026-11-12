@@ -156,14 +156,26 @@
 
     <!-- 数据 -->
     <TextBlock Classes="section-heading" Margin="2,28,0,8" Text="{x:Static d:UiText.DataSection}" />
+    <!-- 2026-11-12: 使用统计 sits under 数据与存储 in the same card, the same drill-in with back navigation. -->
     <Border Classes="card" Padding="4">
-      <Button Name="StorageDetailsButton" Classes="entry" Padding="14,10" Command="{Binding ShowStorageDetailsCommand}">
-        <DockPanel>
-          <PathIcon DockPanel.Dock="Right" Classes="entry-chevron" Data="{StaticResource IconChevron}" />
-          <PathIcon Classes="entry-icon" Margin="0,0,12,0" VerticalAlignment="Center" Data="{StaticResource IconStorage}" />
-          <TextBlock VerticalAlignment="Center" Text="{x:Static d:UiText.StorageDetailsLink}" />
-        </DockPanel>
-      </Button>
+      <StackPanel Spacing="2">
+        <Button Name="StorageDetailsButton" Classes="entry" Padding="14,10" Command="{Binding ShowStorageDetailsCommand}">
+          <DockPanel>
+            <PathIcon DockPanel.Dock="Right" Classes="entry-chevron" Data="{StaticResource IconChevron}" />
+            <PathIcon Classes="entry-icon" Margin="0,0,12,0" VerticalAlignment="Center" Data="{StaticResource IconStorage}" />
+            <TextBlock VerticalAlignment="Center" Text="{x:Static d:UiText.StorageDetailsLink}" />
+          </DockPanel>
+        </Button>
+        <Border Height="1" Margin="14,0" Background="{DynamicResource DividerBrush}" />
+        <Button Name="StatisticsButton" Classes="entry" Padding="14,10" Command="{Binding ShowStatisticsCommand}"
+                AutomationProperties.Name="{x:Static d:UiText.StatisticsLink}">
+          <DockPanel>
+            <PathIcon DockPanel.Dock="Right" Classes="entry-chevron" Data="{StaticResource IconChevron}" />
+            <PathIcon Classes="entry-icon" Margin="0,0,12,0" VerticalAlignment="Center" Data="{StaticResource IconChart}" />
+            <TextBlock VerticalAlignment="Center" Text="{x:Static d:UiText.StatisticsLink}" />
+          </DockPanel>
+        </Button>
+      </StackPanel>
     </Border>
     <!-- 工作区 (2026-11-10): every workspace in one place — listed, switched to, renamed and deleted on 设置 › 工作区,
          the same drill-in as 数据与存储; the entry says how many there are. -->

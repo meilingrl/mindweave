@@ -1,0 +1,305 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:Mindweave.Desktop.ViewModels.Pages"
+             xmlns:d="using:Mindweave.Desktop"
+             xmlns:v="using:Mindweave.Desktop.Views"
+             xmlns:p="using:Mindweave.Desktop.Views.Pages"
+             x:Class="Mindweave.Desktop.Views.Pages.UsageStatisticsView"
+             x:DataType="vm:UsageStatisticsViewModel">
+  <!-- 设置 › 使用统计 (2026-11-12): the settings sub-pages' column, headings and cards (数据与存储), facts only. -->
+  <ScrollViewer Classes="autohide" HorizontalScrollBarVisibility="Disabled">
+  <Grid Margin="0,4,16,24">
+    <Grid.ColumnDefinitions>
+      <ColumnDefinition Width="*" MaxWidth="640" />
+    </Grid.ColumnDefinitions>
+    <StackPanel>
+      <!-- 范围: all workspaces (default) or the open one; both sections below follow it. A later read keeps the figures
+           and turns a small spinner beside the switch instead of blanking the page. -->
+      <DockPanel>
+        <v:ActivitySpinner DockPanel.Dock="Right" Name="StatisticsRefreshing" Width="14" Height="14" VerticalAlignment="Center"
+                           Foreground="{DynamicResource MutedText}" IsVisible="{Binding IsLoading}" />
+        <Border Name="ScopePicker" Classes="segmented">
+          <StackPanel Orientation="Horizontal" Spacing="2" KeyboardNavigation.TabNavigation="Once">
+            <RadioButton Name="ScopeAll" Classes="segment" GroupName="StatisticsScope" IsChecked="{Binding IsAllScope}"
+                         Content="{x:Static d:UiText.ScopeAllWorkspaces}" AutomationProperties.Name="{x:Static d:UiText.ScopeAllWorkspaces}" />
+            <RadioButton Name="ScopeWorkspace" Classes="segment" GroupName="StatisticsScope" IsChecked="{Binding IsWorkspaceScope}"
+                         Content="{x:Static d:UiText.ScopeCurrentWorkspace}" ToolTip.Tip="{Binding CurrentWorkspaceName}"
+                         AutomationProperties.Name="{Binding CurrentWorkspaceName}" />
+          </StackPanel>
+        </Border>
+      </DockPanel>
+      <TextBlock Name="ScopeCaption" Classes="caption" Margin="2,8,0,0" TextWrapping="Wrap" Text="{Binding ScopeCaption}" />
+
+      <StackPanel Name="StatisticsLoading" Orientation="Horizontal" Spacing="8" Margin="2,24,0,0" IsVisible="{Binding ShowsLoadingLine}">
+        <v:ActivitySpinner Width="14" Height="14" VerticalAlignment="Center" Foreground="{DynamicResource MutedText}" />
+        <TextBlock Classes="muted" VerticalAlignment="Center" Text="{x:Static d:UiText.StatisticsLoading}" />
+      </StackPanel>
+
+      <Border Name="StatisticsError" Classes="notice error" Margin="0,16,0,0" v:Motion.Appear="Fade"
+              IsVisible="{Binding LoadError, Converter={x:Static ObjectConverters.IsNotNull}}">
+        <DockPanel>
+          <Button DockPanel.Dock="Right" Name="StatisticsRetry" Classes="quiet small" Content="{x:Static d:UiText.StatisticsRetry}"
+                  Command="{Binding RetryCommand}" VerticalAlignment="Center" />
+          <TextBlock TextWrapping="Wrap" VerticalAlignment="Center" Text="{Binding LoadError}" />
+        </DockPanel>
+      </Border>
+
+      <StackPanel Name="StatisticsBody" IsVisible="{Binding HasReport}">
+        <!-- token 用量: the period's totals, a bar per day or month (or the same as a table), what is and is not counted. -->
+        <TextBlock Classes="section-heading" Margin="2,28,0,8" Text="{x:Static d:UiText.TokenUsageSection}" />
+        <Border Classes="card settings">
+          <StackPanel Spacing="14">
+            <DockPanel>
+              <CheckBox DockPanel.Dock="Right" Name="TableToggle" IsChecked="{Binding ShowsTable}" IsVisible="{Binding HasUsage}"
+                        Content="{x:Static d:UiText.ShowAsTable}" AutomationProperties.Name="{x:Static d:UiText.ShowAsTable}" />
+              <Border Name="PeriodPicker" Classes="segmented">
+                <StackPanel Orientation="Horizontal" Spacing="2" KeyboardNavigation.TabNavigation="Once">
+                  <RadioButton Name="PeriodDaily" Classes="segment" GroupName="StatisticsPeriod" IsChecked="{Binding IsDaily}"
+                               Content="{x:Static d:UiText.PeriodDaily}" AutomationProperties.Name="{x:Static d:UiText.PeriodDaily}" />
+                  <RadioButton Name="PeriodMonthly" Classes="segment" GroupName="StatisticsPeriod" IsChecked="{Binding IsMonthly}"
+                               Content="{x:Static d:UiText.PeriodMonthly}" AutomationProperties.Name="{x:Static d:UiText.PeriodMonthly}" />
+                </StackPanel>
+              </Border>
+            </DockPanel>
+            <TextBlock Name="RangeText" Classes="caption" Margin="0,-6,0,0" Text="{Binding RangeText}" />
+
+            <StackPanel Name="UsageEmpty" Spacing="10" IsVisible="{Binding !HasUsage}">
+              <TextBlock Name="UsageEmptyText" Classes="muted" TextWrapping="Wrap" Text="{Binding EmptyUsageText}" />
+              <Button Name="GoToModelSettings" Classes="secondary" HorizontalAlignment="Left" IsVisible="{Binding ShowsModelSetup}"
+                      Content="{x:Static d:UiText.GoToModelSettings}" Command="{Binding GoToModelSettingsCommand}" />
+            </StackPanel>
+
+            <StackPanel Spacing="14" IsVisible="{Binding HasUsage}">
+              <Grid ColumnDefinitions="*,*,*" ColumnSpacing="12">
+                <StackPanel Spacing="2">
+                  <TextBlock Classes="caption" Text="{x:Static d:UiText.InputTokensLabel}" />
+                  <TextBlock Name="InputTotal" Classes="stat-value" Text="{Binding InputText}" />
+                </StackPanel>
+                <StackPanel Grid.Column="1" Spacing="2">
+                  <TextBlock Classes="caption" Text="{x:Static d:UiText.OutputTokensLabel}" />
+                  <TextBlock Name="OutputTotal" Classes="stat-value" Text="{Binding OutputText}" />
+                </StackPanel>
+                <StackPanel Grid.Column="2" Spacing="2">
+                  <TextBlock Classes="caption" Text="{x:Static d:UiText.RequestsLabel}" />
+                  <TextBlock Name="RequestsTotal" Classes="stat-value" Text="{Binding RequestsText}" />
+                </StackPanel>
+              </Grid>
+              <TextBlock Name="UnreportedText" Classes="caption" Margin="0,-6,0,0" TextWrapping="Wrap" Text="{Binding UnreportedText}"
+                         IsVisible="{Binding UnreportedText, Converter={x:Static ObjectConverters.IsNotNull}}" />
+
+              <StackPanel Spacing="8" IsVisible="{Binding !ShowsTable}">
+                <p:UsageChart Name="UsageChart" Height="180" Bars="{Binding Bars}"
+                              AutomationProperties.Name="{x:Static d:UiText.UsageChartName}" AutomationProperties.HelpText="{Binding ChartSummary}" />
+                <StackPanel Orientation="Horizontal" Spacing="14">
+                  <StackPanel Orientation="Horizontal" Spacing="6">
+                    <Border Width="10" Height="10" CornerRadius="2" Background="{DynamicResource UsageChartInput}" VerticalAlignment="Center" />
+                    <TextBlock Classes="caption" Text="{x:Static d:UiText.ChartInput}" />
+                  </StackPanel>
+                  <StackPanel Orientation="Horizontal" Spacing="6">
+                    <Border Width="10" Height="10" CornerRadius="2" Background="{DynamicResource UsageChartOutput}" VerticalAlignment="Center" />
+                    <TextBlock Classes="caption" Text="{x:Static d:UiText.ChartOutput}" />
+                  </StackPanel>
+                </StackPanel>
+              </StackPanel>
+
+              <!-- The chart's text equivalent: every day (or month) with its numbers, columns shared across rows. -->
+              <StackPanel Name="UsageTable" Spacing="4" IsVisible="{Binding ShowsTable}" Grid.IsSharedSizeScope="True">
+                <Grid Classes="usage-table-head" ColumnSpacing="16">
+                  <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="Auto" SharedSizeGroup="In" />
+                    <ColumnDefinition Width="Auto" SharedSizeGroup="Out" />
+                    <ColumnDefinition Width="Auto" SharedSizeGroup="Req" />
+                  </Grid.ColumnDefinitions>
+                  <TextBlock Classes="caption" Text="{Binding TableHeader}" />
+                  <TextBlock Grid.Column="1" Classes="caption" HorizontalAlignment="Right" Text="{x:Static d:UiText.TableInputHeader}" />
+                  <TextBlock Grid.Column="2" Classes="caption" HorizontalAlignment="Right" Text="{x:Static d:UiText.TableOutputHeader}" />
+                  <TextBlock Grid.Column="3" Classes="caption" HorizontalAlignment="Right" Text="{x:Static d:UiText.TableRequestsHeader}" />
+                </Grid>
+                <ItemsControl Name="UsageTableRows" ItemsSource="{Binding Bars}">
+                  <ItemsControl.ItemTemplate>
+                    <DataTemplate x:DataType="vm:UsageBarViewModel">
+                      <Grid ColumnSpacing="16" Margin="0,2" AutomationProperties.Name="{Binding Detail}" Classes="usage-table-row">
+                        <Grid.ColumnDefinitions>
+                          <ColumnDefinition Width="*" />
+                          <ColumnDefinition Width="Auto" SharedSizeGroup="In" />
+                          <ColumnDefinition Width="Auto" SharedSizeGroup="Out" />
+                          <ColumnDefinition Width="Auto" SharedSizeGroup="Req" />
+                        </Grid.ColumnDefinitions>
+                        <TextBlock Text="{Binding Name}" />
+                        <TextBlock Grid.Column="1" HorizontalAlignment="Right" Text="{Binding InputText}" />
+                        <TextBlock Grid.Column="2" HorizontalAlignment="Right" Text="{Binding OutputText}" />
+                        <TextBlock Grid.Column="3" HorizontalAlignment="Right" Text="{Binding RequestsText}" />
+                      </Grid>
+                    </DataTemplate>
+                  </ItemsControl.ItemTemplate>
+                </ItemsControl>
+              </StackPanel>
+
+              <TextBlock Classes="caption" TextWrapping="Wrap" Text="{x:Static d:UiText.UsageBilledCaption}" />
+            </StackPanel>
+          </StackPanel>
+        </Border>
+
+        <!-- 按模型: one row per model and service host, with the user's own unit price and the cost it gives. -->
+        <StackPanel IsVisible="{Binding HasUsage}">
+          <TextBlock Classes="section-heading" Margin="2,28,0,8" Text="{x:Static d:UiText.ByModelSection}" />
+          <Border Classes="card settings">
+            <StackPanel Spacing="14">
+              <ItemsControl Name="ModelRows" ItemsSource="{Binding Models}">
+                <ItemsControl.ItemsPanel>
+                  <ItemsPanelTemplate>
+                    <StackPanel Spacing="16" />
+                  </ItemsPanelTemplate>
+                </ItemsControl.ItemsPanel>
+                <ItemsControl.ItemTemplate>
+                  <DataTemplate x:DataType="vm:ModelUsageRowViewModel">
+                    <StackPanel Name="ModelRow" Spacing="5">
+                      <DockPanel>
+                        <TextBlock DockPanel.Dock="Right" Name="ModelShare" Classes="caption" VerticalAlignment="Center" Text="{Binding ShareText}" />
+                        <TextBlock Name="ModelLabel" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" Text="{Binding Label}" ToolTip.Tip="{Binding Label}" />
+                      </DockPanel>
+                      <p:ShareBar Height="4" Fraction="{Binding ShareFraction}" />
+                      <DockPanel>
+                        <TextBlock DockPanel.Dock="Right" Name="ModelCost" FontWeight="SemiBold" VerticalAlignment="Center" Text="{Binding CostText}"
+                                   IsVisible="{Binding HasPrice}" />
+                        <TextBlock Classes="caption" VerticalAlignment="Center" TextWrapping="Wrap" Text="{Binding UsageText}" />
+                      </DockPanel>
+                      <DockPanel IsVisible="{Binding !IsEditing}">
+                        <Button DockPanel.Dock="Right" Name="SetPriceButton" Classes="quiet small" Content="{x:Static d:UiText.SetPrice}"
+                                Command="{Binding EditPriceCommand}" AutomationProperties.Name="{Binding SetPriceName}" Click="OnSetPriceClick" />
+                        <TextBlock Name="PriceText" Classes="caption" VerticalAlignment="Center" TextWrapping="Wrap" Text="{Binding PriceText}" />
+                      </DockPanel>
+                      <!-- The price editor: both per million tokens; Enter saves, Esc cancels; a refused value says why here. -->
+                      <Border Name="PriceEditor" Classes="price-editor" IsVisible="{Binding IsEditing}" v:Motion.Appear="Fade">
+                        <Border.KeyBindings>
+                          <KeyBinding Gesture="Enter" Command="{Binding SavePriceCommand}" />
+                          <KeyBinding Gesture="Escape" Command="{Binding CancelPriceCommand}" />
+                        </Border.KeyBindings>
+                        <StackPanel Spacing="10">
+                          <Grid ColumnDefinitions="Auto,*" RowDefinitions="Auto,Auto" ColumnSpacing="12" RowSpacing="8">
+                            <TextBlock Classes="field-label" VerticalAlignment="Center" Text="{x:Static d:UiText.InputPriceLabel}" />
+                            <TextBox Grid.Column="1" Name="InputPriceBox" Width="140" HorizontalAlignment="Left" Text="{Binding InputPrice}"
+                                     PlaceholderText="0.5" AutomationProperties.Name="{Binding InputPriceName}" />
+                            <TextBlock Grid.Row="1" Classes="field-label" VerticalAlignment="Center" Text="{x:Static d:UiText.OutputPriceLabel}" />
+                            <TextBox Grid.Row="1" Grid.Column="1" Name="OutputPriceBox" Width="140" HorizontalAlignment="Left" Text="{Binding OutputPrice}"
+                                     PlaceholderText="2" AutomationProperties.Name="{Binding OutputPriceName}" />
+                          </Grid>
+                          <TextBlock Name="PriceError" Classes="error" FontSize="12" TextWrapping="Wrap" Text="{Binding PriceError}" v:Motion.Appear="Fade"
+                                     IsVisible="{Binding PriceError, Converter={x:Static ObjectConverters.IsNotNull}}" />
+                          <StackPanel Orientation="Horizontal" Spacing="8">
+                            <Button Name="SavePriceButton" Classes="primary" Content="{x:Static d:UiText.SavePrice}" Command="{Binding SavePriceCommand}" />
+                            <Button Name="CancelPriceButton" Classes="secondary" Content="{x:Static d:UiText.CancelPrice}" Command="{Binding CancelPriceCommand}" />
+                            <Button Name="ClearPriceButton" Classes="quiet" Content="{x:Static d:UiText.ClearPrice}" Command="{Binding ClearPriceCommand}"
+                                    IsVisible="{Binding HasPrice}" />
+                          </StackPanel>
+                        </StackPanel>
+                      </Border>
+                    </StackPanel>
+                  </DataTemplate>
+                </ItemsControl.ItemTemplate>
+              </ItemsControl>
+              <Border Height="1" Background="{DynamicResource DividerBrush}" />
+              <StackPanel Spacing="8">
+                <StackPanel Orientation="Horizontal" Spacing="12">
+                  <TextBlock Classes="field-label" VerticalAlignment="Center" Text="{x:Static d:UiText.CurrencyLabel}" />
+                  <TextBox Name="CurrencyBox" Width="64" Text="{Binding CurrencyInput}" MaxLength="8"
+                           AutomationProperties.Name="{x:Static d:UiText.CurrencyLabel}" />
+                  <TextBlock Name="CurrencyError" Classes="error" FontSize="12" VerticalAlignment="Center" TextWrapping="Wrap" Text="{Binding CurrencyError}"
+                             IsVisible="{Binding CurrencyError, Converter={x:Static ObjectConverters.IsNotNull}}" />
+                </StackPanel>
+                <TextBlock Name="TotalCost" FontWeight="SemiBold" TextWrapping="Wrap" Text="{Binding TotalCostText}"
+                           IsVisible="{Binding TotalCostText, Converter={x:Static ObjectConverters.IsNotNull}}" />
+                <TextBlock Name="CostCaption" Classes="caption" TextWrapping="Wrap" Text="{x:Static d:UiText.CostCaption}" />
+                <TextBlock Classes="caption" TextWrapping="Wrap" Text="{x:Static d:UiText.PriceHint}" />
+              </StackPanel>
+            </StackPanel>
+          </Border>
+
+          <!-- 按用途: answers and the background work beside them. -->
+          <TextBlock Classes="section-heading" Margin="2,28,0,8" Text="{x:Static d:UiText.ByPurposeSection}" />
+          <Border Classes="card settings">
+            <ItemsControl Name="PurposeRows" ItemsSource="{Binding Purposes}" Grid.IsSharedSizeScope="True">
+              <ItemsControl.ItemsPanel>
+                <ItemsPanelTemplate>
+                  <StackPanel Spacing="12" />
+                </ItemsPanelTemplate>
+              </ItemsControl.ItemsPanel>
+              <ItemsControl.ItemTemplate>
+                <DataTemplate x:DataType="vm:PurposeRowViewModel">
+                  <Grid ColumnSpacing="12" AutomationProperties.Name="{Binding AutomationName}" Classes.empty="{Binding IsEmpty}" Classes="purpose-row">
+                    <Grid.ColumnDefinitions>
+                      <ColumnDefinition Width="Auto" SharedSizeGroup="PurposeName" />
+                      <ColumnDefinition Width="*" />
+                      <ColumnDefinition Width="Auto" SharedSizeGroup="PurposeShare" />
+                    </Grid.ColumnDefinitions>
+                    <StackPanel Spacing="1">
+                      <TextBlock FontWeight="SemiBold" Text="{Binding Name}" />
+                      <TextBlock Classes="caption" Text="{Binding Hint}" />
+                    </StackPanel>
+                    <TextBlock Grid.Column="1" Classes="caption" VerticalAlignment="Center" HorizontalAlignment="Right" TextWrapping="Wrap" Text="{Binding UsageText}" />
+                    <TextBlock Grid.Column="2" VerticalAlignment="Center" HorizontalAlignment="Right" MinWidth="36" TextAlignment="Right" Text="{Binding ShareText}" />
+                  </Grid>
+                </DataTemplate>
+              </ItemsControl.ItemTemplate>
+            </ItemsControl>
+          </Border>
+        </StackPanel>
+
+        <!-- 活动: plain counts of what is there now, active days and the first one; facts only. -->
+        <TextBlock Classes="section-heading" Margin="2,28,0,8" Text="{x:Static d:UiText.ActivitySection}" />
+        <Border Classes="card settings">
+          <StackPanel Spacing="14">
+            <TextBlock Name="NoQuestions" Classes="muted" TextWrapping="Wrap" Text="{Binding NoQuestionsText}"
+                       IsVisible="{Binding NoQuestionsText, Converter={x:Static ObjectConverters.IsNotNull}}" />
+            <ItemsControl Name="ActivityItems" ItemsSource="{Binding ActivityItems}" IsVisible="{Binding HasActivity}">
+              <ItemsControl.ItemsPanel>
+                <ItemsPanelTemplate>
+                  <UniformGrid Columns="4" RowSpacing="14" ColumnSpacing="12" />
+                </ItemsPanelTemplate>
+              </ItemsControl.ItemsPanel>
+              <ItemsControl.ItemTemplate>
+                <DataTemplate x:DataType="vm:ActivityItemViewModel">
+                  <StackPanel Spacing="2" AutomationProperties.Name="{Binding AutomationName}" Classes="activity-item">
+                    <TextBlock Classes="stat-value" Text="{Binding ValueText}" />
+                    <TextBlock Classes="caption" Text="{Binding Label}" />
+                  </StackPanel>
+                </DataTemplate>
+              </ItemsControl.ItemTemplate>
+            </ItemsControl>
+            <Border Height="1" Background="{DynamicResource DividerBrush}" IsVisible="{Binding HasActivity}" />
+            <Grid ColumnDefinitions="96,*" RowDefinitions="Auto,Auto" RowSpacing="4" IsVisible="{Binding HasActivity}">
+              <TextBlock Classes="field-label" Text="{x:Static d:UiText.ActiveDaysLabel}" />
+              <TextBlock Grid.Column="1" Name="ActiveDays" VerticalAlignment="Center" Text="{Binding ActiveDaysText}" />
+              <TextBlock Grid.Row="1" Grid.Column="1" Name="FirstActiveDay" Classes="caption" Text="{Binding FirstActiveDayText}"
+                         IsVisible="{Binding FirstActiveDayText, Converter={x:Static ObjectConverters.IsNotNull}}" />
+            </Grid>
+            <TextBlock Classes="caption" TextWrapping="Wrap" Text="{x:Static d:UiText.ActivityCaption}" />
+          </StackPanel>
+        </Border>
+
+        <!-- 里程碑: dated facts, only the thresholds reached. -->
+        <StackPanel IsVisible="{Binding Milestones.Count, Converter={x:Static d:Converters.IsPositive}}">
+          <TextBlock Classes="section-heading" Margin="2,28,0,8" Text="{x:Static d:UiText.MilestonesSection}" />
+          <Border Classes="card settings">
+            <ItemsControl Name="MilestoneList" ItemsSource="{Binding Milestones}">
+              <ItemsControl.ItemsPanel>
+                <ItemsPanelTemplate>
+                  <StackPanel Spacing="8" />
+                </ItemsPanelTemplate>
+              </ItemsControl.ItemsPanel>
+              <ItemsControl.ItemTemplate>
+                <DataTemplate x:DataType="x:String">
+                  <TextBlock Text="{Binding}" TextWrapping="Wrap" />
+                </DataTemplate>
+              </ItemsControl.ItemTemplate>
+            </ItemsControl>
+          </Border>
+        </StackPanel>
+
+        <TextBlock Name="DeletedUsageCaption" Classes="caption" Margin="2,14,0,0" TextWrapping="Wrap" Text="{x:Static d:UiText.DeletedUsageCaption}" />
+      </StackPanel>
+    </StackPanel>
+  </Grid>
+  </ScrollViewer>
+</UserControl>

@@ -157,6 +157,10 @@ public sealed partial class SettingsHomeViewModel : PageViewModel, IDisposable
     [RelayCommand]
     private void ShowStorageDetails() => _content.Push(StorageDetailsRoute.Instance);
 
+    /// <summary>Token use and activity facts (2026-11-12), a drill-in beside 数据与存储.</summary>
+    [RelayCommand]
+    private void ShowStatistics() => _content.Push(UsageStatisticsRoute.Instance);
+
     /// <summary>Every workspace in one place (2026-11-10): listed, switched to, renamed and deleted there.</summary>
     [RelayCommand]
     private void ShowWorkspaces() => _content.Push(WorkspacesRoute.Instance);

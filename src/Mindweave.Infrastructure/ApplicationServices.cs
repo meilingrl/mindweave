@@ -7,6 +7,7 @@ using Mindweave.Application.Network;
 using Mindweave.Application.Preferences;
 using Mindweave.Application.Reading;
 using Mindweave.Application.Startup;
+using Mindweave.Application.Statistics;
 using Mindweave.Application.Storage;
 using Mindweave.Application.Summaries;
 using Mindweave.Application.Workspaces;
@@ -53,6 +54,9 @@ public static class ApplicationServices
         services.AddSingleton<IWorkspaceNameCache>(sp => sp.GetRequiredService<WorkspaceNameCache>());
         services.TryAddSingleton(new WorkspaceNamePreparationOptions());
         services.AddSingleton<WorkspaceNamePreparer>();
+        services.TryAddSingleton(new UsageStatisticsOptions()); // Tests give their own clock and zone.
+        services.AddSingleton<UsageStatisticsService>();
+        services.AddSingleton<UsagePricesService>();
 
         // View models depend on these interfaces, not the concrete services (course requirement C3); each resolves to the
         // one singleton above, so a page and the rest of the application share state.
@@ -73,6 +77,9 @@ public static class ApplicationServices
         services.AddSingleton<ISidebarLayout>(sp => sp.GetRequiredService<SidebarLayoutService>());
         services.AddSingleton<INewsAlerts>(sp => sp.GetRequiredService<NewsAlertsService>());
         services.AddSingleton<INetworkLayout>(sp => sp.GetRequiredService<NetworkService>());
+        // A test may hold the statistics (to see the page while they load), as for the conversations interface.
+        services.TryAddSingleton<IUsageStatistics>(sp => sp.GetRequiredService<UsageStatisticsService>());
+        services.AddSingleton<IUsagePrices>(sp => sp.GetRequiredService<UsagePricesService>());
         return services;
     }
 }

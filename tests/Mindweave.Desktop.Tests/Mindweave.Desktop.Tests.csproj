@@ -10,6 +10,10 @@
     <PackageReference Include="Avalonia.Headless.XUnit" />
   </ItemGroup>
   <ItemGroup>
+    <!-- The statistics seed (2026-11-12) is shared with the infrastructure tests. -->
+    <Compile Include="..\Mindweave.Infrastructure.Tests\Support\UsageSeed.cs" Link="Support\UsageSeed.cs" />
+  </ItemGroup>
+  <ItemGroup>
     <ProjectReference Include="..\..\src\Mindweave.Desktop\Mindweave.Desktop.csproj" />
     <ProjectReference Include="..\Mindweave.Testing\Mindweave.Testing.csproj" />
   </ItemGroup>
