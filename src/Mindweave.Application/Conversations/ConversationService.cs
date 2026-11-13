@@ -71,7 +71,7 @@ public sealed record ArchiveOutcome(IReadOnlyList<ConversationId> Busy, bool Mis
 /// transaction) before it reaches the generation queue, so a crash after "send" never loses the question
 /// and never re-sends it.
 /// </summary>
-public sealed class ConversationService : IConversations
+public sealed partial class ConversationService : IConversations
 {
     public const int MaxQuestionLength = 100_000;
 
@@ -107,11 +107,21 @@ public sealed class ConversationService : IConversations
         _health = health;
         _models = models;
         _clock = clock;
+        _logger = logger;
         _generation.AnswerFinished += OnAnswerFinished;
         _generation.TitleSaved += (_, id) =>
         {
-            ConversationChanged?.Invoke(this, id);
-            TitleSet?.Invoke(this, id);
+            RaiseFromWorker(id);
+            try
+            {
+                TitleSet?.Invoke(this, id);
+            }
+#pragma warning disable CA1031 // Raised on the generation worker: see RaiseFromWorker.
+            catch (Exception ex)
+#pragma warning restore CA1031
+            {
+                LogSubscriberFailed(_logger, ex, id);
+            }
         };
         _titler = new ConversationTitler(store, branches, generation, health, models, clock, logger);
         _models.Changed += (_, _) => ModelChanged?.Invoke(this, EventArgs.Empty);
@@ -613,18 +623,39 @@ public sealed class ConversationService : IConversations
         _generation.Enqueue(new AnswerWork(task, request, new LiveAnswer(answer.Id, answer.ConversationId), plan, budget));
     }
 
-    // async void on purpose: an exception from a ConversationChanged subscriber goes to the synchronization context,
-    // never back into the generation worker that raised AnswerFinished.
-    private async void OnAnswerFinished(object? sender, AnswerOutcome e)
-    {
-        ConversationChanged?.Invoke(this, e.ConversationId);
-        if (e.State != MessageState.Complete)
-        {
-            return;
-        }
+    private readonly ILogger<ConversationService> _logger;
 
-        await _titler.OnAnswerCompletedAsync(e).ConfigureAwait(false);
+    /// <summary>
+    /// Raised on the generation worker. A throwing ConversationChanged subscriber is logged here (low findings
+    /// concurrency-6, errors-7): it used to escape an async void handler on a worker thread, ending the process, and the
+    /// title was never asked for. The titler handles its own failures.
+    /// </summary>
+    private void OnAnswerFinished(object? sender, AnswerOutcome e)
+    {
+        RaiseFromWorker(e.ConversationId);
+        if (e.State == MessageState.Complete)
+        {
+            _ = _titler.OnAnswerCompletedAsync(e);
+        }
     }
+
+    /// <summary>ConversationChanged raised on the generation worker: a subscriber's failure is logged, never thrown into the run.</summary>
+    private void RaiseFromWorker(ConversationId conversation)
+    {
+        try
+        {
+            ConversationChanged?.Invoke(this, conversation);
+        }
+#pragma warning disable CA1031 // A subscriber's failure must not reach the generation worker, fail its task or stop the title.
+        catch (Exception ex)
+#pragma warning restore CA1031
+        {
+            LogSubscriberFailed(_logger, ex, conversation);
+        }
+    }
+
+    [LoggerMessage(Level = LogLevel.Error, Message = "A subscriber to conversation {ConversationId} changes failed")]
+    private static partial void LogSubscriberFailed(ILogger logger, Exception exception, ConversationId conversationId);
 
     private static Message NewMessage(ConversationId conversation, int seq, MessageRole role, string body, MessageState state, MessageId? supersedes, DateTimeOffset at) =>
         new(MessageId.New(), conversation, seq, role, ContentBlocks.FromText(body), state, 0, supersedes, null, null, at, state == MessageState.Complete ? at : null);

@@ -243,9 +243,30 @@ public sealed partial class StorageHealth : IStorageStatus, IAsyncDisposable
 
         if (changed)
         {
-            Changed?.Invoke(this, EventArgs.Empty);
+            RaiseChanged();
         }
     }
+
+    /// <summary>
+    /// A throwing subscriber is logged (low finding errors-7): raised from the recovery loop, it used to end the loop while
+    /// it still counted as running, so storage never recovered; raised from a report, it reached the reporter.
+    /// </summary>
+    private void RaiseChanged()
+    {
+        try
+        {
+            Changed?.Invoke(this, EventArgs.Empty);
+        }
+#pragma warning disable CA1031 // A subscriber's failure must not stop recovery or reach whoever reported a failure.
+        catch (Exception ex)
+#pragma warning restore CA1031
+        {
+            LogSubscriberFailed(_logger, ex);
+        }
+    }
+
+    [LoggerMessage(Level = LogLevel.Error, Message = "A storage health subscriber failed")]
+    private static partial void LogSubscriberFailed(ILogger logger, Exception exception);
 
     private void EnsureLoop()
     {
@@ -320,7 +341,7 @@ public sealed partial class StorageHealth : IStorageStatus, IAsyncDisposable
             if (cleared)
             {
                 LogRecovered(_logger);
-                Changed?.Invoke(this, EventArgs.Empty);
+                RaiseChanged();
             }
         }
     }

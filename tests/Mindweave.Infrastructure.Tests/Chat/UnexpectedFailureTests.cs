@@ -206,6 +206,36 @@ public class UnexpectedFailureTests
         await ChatHarness.UntilAsync(async () => await KindStateAsync(h, "title", sent.Conversation) == "failed");
     }
 
+    /// <summary>Low finding concurrency-6: a throwing subscriber neither ends the process nor stops the title.</summary>
+    [Fact]
+    public async Task A_throwing_conversation_subscriber_does_not_stop_the_title()
+    {
+        await using var h = await ChatHarness.StartAsync();
+        var held = h.Client.Hold("答");
+        var sent = await h.Conversations.StartAsync(h.Workspace, "一", Ct);
+        await held.Started.Task.WaitAsync(TimeSpan.FromSeconds(5), Ct);
+
+        // Attached now, so it fires from the generation worker when the answer finishes.
+        h.Conversations.ConversationChanged += (_, _) => throw new InvalidOperationException("subscriber defect");
+        held.Finish();
+        await h.WaitForAnswerAsync(sent.Answer!.Value);
+
+        await ChatHarness.UntilAsync(async () => await KindStateAsync(h, "title", sent.Conversation) == "completed");
+    }
+
+    /// <summary>Low finding errors-7: a throwing storage-health subscriber does not stop recovery.</summary>
+    [Fact]
+    public async Task A_throwing_storage_health_subscriber_does_not_stop_recovery()
+    {
+        await using var h = await ChatHarness.StartAsync();
+        h.Health.Changed += (_, _) => throw new InvalidOperationException("subscriber defect");
+
+        h.Health.Report(new StorageWriteException(StorageFailureKind.Full, "simulated", null));
+
+        Assert.True(h.Health.IsBlocked);
+        await ChatHarness.UntilAsync(() => Task.FromResult(!h.Health.IsBlocked));
+    }
+
     private static Task<string?> TaskStateAsync(ChatHarness h, string kind, MessageId message) =>
         h.Database.ReadAsync(c => c.Scalar<string?>(null, "SELECT state FROM generation_task WHERE kind = $kind AND target_message_id = $m;", ("$kind", kind), ("$m", message.ToString())), Ct);
 
