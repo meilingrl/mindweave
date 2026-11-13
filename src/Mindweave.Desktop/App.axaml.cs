@@ -67,6 +67,43 @@ public sealed partial class App : Avalonia.Application
     {
         ArgumentNullException.ThrowIfNull(root);
         ArgumentNullException.ThrowIfNull(e);
+        if (IsSystemShutdown(e) && root.Exit.EndForSystem() is { } saving)
+        {
+            // Logout, restart or shutdown with nothing to ask (health check 2026-11-12, gap-lifecycle-2): save now and
+            // let the system go ahead, instead of vetoing it and quitting a moment later on our own.
+            WaitWithinLimit(saving, SystemShutdownSaveLimit);
+            return;
+        }
+
         e.Cancel |= root.Exit.InterceptClose();
+    }
+
+    /// <summary>
+    /// Whether the request comes from the system (logout, restart, shutdown) rather than ⌘Q or the dock. Avalonia 12.1.4
+    /// tracks this but does not make it public, so it is read by reflection; when it cannot be read the request is treated
+    /// as a quit, which asks as before.
+    /// </summary>
+    internal static bool IsSystemShutdown(ShutdownRequestedEventArgs e) =>
+        IsOsShutdownProperty?.GetValue(e) is true;
+
+    private static readonly System.Reflection.PropertyInfo? IsOsShutdownProperty =
+        typeof(ShutdownRequestedEventArgs).GetProperty("IsOSShutdown", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.NonPublic);
+
+    /// <summary>How long a system shutdown waits for saving; what is not written by then is lost, as a forced end would lose it.</summary>
+    internal static readonly TimeSpan SystemShutdownSaveLimit = TimeSpan.FromSeconds(5);
+
+    /// <summary>Keeps the UI loop running (the save steps continue on it) until <paramref name="task"/> ends or the limit passes.</summary>
+    private static void WaitWithinLimit(Task task, TimeSpan limit)
+    {
+        if (task.IsCompleted)
+        {
+            return;
+        }
+
+        var frame = new DispatcherFrame();
+        _ = task.ContinueWith(_ => Dispatcher.UIThread.Post(() => frame.Continue = false), TaskScheduler.Default);
+        var timer = DispatcherTimer.RunOnce(() => frame.Continue = false, limit);
+        Dispatcher.UIThread.PushFrame(frame);
+        timer.Dispose();
     }
 }

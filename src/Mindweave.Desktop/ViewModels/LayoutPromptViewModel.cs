@@ -40,6 +40,9 @@ public sealed partial class LayoutPromptViewModel(NetworkSessions sessions) : Vi
     /// <paramref name="continueWith"/> receives the sessions to discard once the exit is committed (none after "save"),
     /// or <paramref name="cancelled"/> runs.
     /// </summary>
+    /// <summary>A network layout has changes not yet saved (an exit would ask about them).</summary>
+    public bool HasUnsavedLayout => sessions.Dirty.Any();
+
     public bool HoldExit(Action<IReadOnlyList<NetworkSession>> continueWith, Action cancelled) =>
         Hold([.. sessions.Dirty], continueWith, cancelled, deferDiscard: true);
 

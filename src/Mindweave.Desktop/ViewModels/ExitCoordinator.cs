@@ -117,6 +117,47 @@ public sealed partial class ExitCoordinator(
     }
 
     /// <summary>
+    /// The system logs out, restarts or shuts down (health check 2026-11-12, gap-lifecycle-2). Vetoing it is right only
+    /// when something must be asked: an answer or summary still running, or a layout not saved; then the usual sequence
+    /// starts and null is returned (the caller cancels the request). Otherwise everything is saved now and the returned
+    /// task completes when it is; the caller waits for it, within a limit, and lets the system go ahead.
+    /// </summary>
+    public Task? EndForSystem()
+    {
+        if (Stage == ExitStage.Releasing)
+        {
+            return Task.CompletedTask;
+        }
+
+        if (Stage != ExitStage.Idle || layout.HasUnsavedLayout || generation.UnfinishedUserWork.Any)
+        {
+            InterceptClose();
+            return null;
+        }
+
+        Stage = ExitStage.Flushing;
+        return SaveForSystemAsync();
+    }
+
+    private async Task SaveForSystemAsync()
+    {
+        try
+        {
+            await SaveEverythingAsync();
+        }
+#pragma warning disable CA1031 // The system is ending the session either way; what could not be saved is logged.
+        catch (Exception ex)
+#pragma warning restore CA1031
+        {
+            LogStepFailed(logger, ex, ExitStage.Flushing);
+        }
+        finally
+        {
+            Stage = ExitStage.Releasing;
+        }
+    }
+
+    /// <summary>
     /// Starts the sequence for a restore: the unsaved-layout and running-task prompts as on exit (cancelling either ends
     /// it with nothing changed), then stopping and saving; then <paramref name="restore"/> runs. It returns false when it
     /// did not go ahead (the backup of the current data failed): new work is accepted again. <paramref name="ended"/> runs
