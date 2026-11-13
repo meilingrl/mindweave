@@ -105,7 +105,7 @@
           <TextBlock Classes="dialog-body" Text="{Binding Exit.TaskMessage}" />
           <StackPanel Classes="dialog-buttons">
             <Button Name="ExitConfirm" Classes="secondary danger" Content="{Binding Exit.TaskConfirm}" Command="{Binding Exit.StopAndExitCommand}" />
-            <Button Name="ExitCancel" Classes="primary" Content="{Binding Exit.TaskCancel}" Command="{Binding Exit.KeepRunningCommand}" IsDefault="True" />
+            <Button Name="ExitCancel" Classes="primary" Content="{Binding Exit.TaskCancel}" Command="{Binding Exit.KeepRunningCommand}" IsDefault="True" IsCancel="True" />
           </StackPanel>
         </StackPanel>
       </Border>
@@ -121,7 +121,7 @@
           <TextBlock Classes="dialog-title" Text="{x:Static d:UiText.ExitSaveFailedTitle}" />
           <TextBlock Classes="dialog-body" Text="{Binding Exit.FailedBody}" />
           <StackPanel Classes="dialog-buttons">
-            <Button Name="ExitReturn" Classes="secondary" Content="{x:Static d:UiText.ExitReturn}" Command="{Binding Exit.ReturnCommand}" />
+            <Button Name="ExitReturn" Classes="secondary" Content="{x:Static d:UiText.ExitReturn}" Command="{Binding Exit.ReturnCommand}" IsCancel="True" />
             <Button Name="ExitRetry" Classes="primary" Content="{Binding Exit.FailedRetry}" Command="{Binding Exit.RetryCommand}" IsDefault="True" />
           </StackPanel>
         </StackPanel>
@@ -139,7 +139,7 @@
             </DockPanel>
           </Border>
           <StackPanel Classes="dialog-buttons">
-            <Button Name="LayoutCancel" Classes="quiet" Content="{x:Static d:UiText.Cancel}" Command="{Binding LayoutPrompt.CancelCommand}" IsDefault="True" />
+            <Button Name="LayoutCancel" Classes="quiet" Content="{x:Static d:UiText.Cancel}" Command="{Binding LayoutPrompt.CancelCommand}" IsDefault="True" IsCancel="True" />
             <Button Name="LayoutDontSave" Classes="secondary" Content="{x:Static d:UiText.LayoutDontSave}" Command="{Binding LayoutPrompt.DontSaveCommand}" />
             <Button Name="LayoutSave" Classes="primary" Content="{x:Static d:UiText.LayoutSaveAndContinue}" Command="{Binding LayoutPrompt.SaveAndContinueCommand}" />
           </StackPanel>

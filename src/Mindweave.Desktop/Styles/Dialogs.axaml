@@ -9,6 +9,8 @@
     <Setter Property="Background" Value="{DynamicResource ScrimBrush}" />
   </Style>
   <Style Selector="Border.dialog">
+    <!-- Tab stays inside an open dialog (health check 2026-11-12); the window gives it the focus when it opens. -->
+    <Setter Property="KeyboardNavigation.TabNavigation" Value="Cycle" />
     <Setter Property="Background" Value="{DynamicResource DialogBackground}" />
     <Setter Property="BorderBrush" Value="{DynamicResource DividerBrush}" />
     <Setter Property="BorderThickness" Value="1" />

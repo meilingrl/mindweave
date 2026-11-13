@@ -1,4 +1,5 @@
 using Avalonia.Controls;
+using Avalonia.VisualTree;
 
 namespace Mindweave.Desktop.Views;
 
@@ -9,11 +10,85 @@ public sealed partial class MainWindow : Window
     private ViewModels.BackupRestoreViewModel? _backupRestore;
     private ViewModels.BackupDeletionViewModel? _backupDeletion;
 
+    private Avalonia.Input.IInputElement? _focusBeforePrompt;
+
     public MainWindow()
     {
         InitializeComponent();
         WorkspaceDeleteName.AddHandler(KeyDownEvent, OnDeleteNameKeyDown, Avalonia.Interactivity.RoutingStrategies.Tunnel);
+
+        // Prompts are modal for the keyboard too (health check 2026-11-12, item 11).
+        foreach (var scrim in Scrims)
+        {
+            scrim.PropertyChanged += (_, e) =>
+            {
+                if (e.Property == IsVisibleProperty)
+                {
+                    OnPromptsChanged();
+                }
+            };
+        }
+
+        AddHandler(KeyDownEvent, OnPromptKeyDown, Avalonia.Interactivity.RoutingStrategies.Tunnel);
     }
+
+    /// <summary>The window's prompts, in drawing order: a later one is drawn over an earlier one.</summary>
+    private IEnumerable<Border> Scrims => ((Panel)Content!).Children.OfType<Border>().Where(b => b.Classes.Contains("dialog-scrim"));
+
+    /// <summary>The prompt drawn on top, if any is open.</summary>
+    private Border? TopPrompt => Scrims.LastOrDefault(s => s.IsVisible);
+
+    /// <summary>
+    /// A prompt opened or closed. The top prompt takes the focus unless it already has it (its own default button; a
+    /// dialog that focuses something else of its own, such as a name box, does so afterwards). When the last one
+    /// closes, the focus goes back where it was before the first opened. Tab cycles inside a dialog (Styles/Dialogs.axaml).
+    /// </summary>
+    private void OnPromptsChanged()
+    {
+        var focused = FocusManager?.GetFocusedElement();
+        if (TopPrompt is not { } top)
+        {
+            if (_focusBeforePrompt is Control { IsEffectivelyVisible: true, IsEffectivelyEnabled: true } previous && previous.IsAttachedToVisualTree())
+            {
+                var restore = previous;
+                Avalonia.Threading.Dispatcher.UIThread.Post(() => restore.Focus());
+            }
+
+            _focusBeforePrompt = null;
+            return;
+        }
+
+        if (_focusBeforePrompt is null && !Scrims.Any(s => IsInside(focused, s)))
+        {
+            _focusBeforePrompt = focused;
+        }
+
+        Avalonia.Threading.Dispatcher.UIThread.Post(() => FocusPrompt(top));
+    }
+
+    private void FocusPrompt(Border prompt)
+    {
+        if (!prompt.IsVisible || !ReferenceEquals(prompt, TopPrompt) || IsInside(FocusManager?.GetFocusedElement(), prompt))
+        {
+            return;
+        }
+
+        var controls = prompt.GetVisualDescendants().OfType<Control>().Where(c => c.Focusable && c.IsEffectivelyVisible && c.IsEffectivelyEnabled).ToList();
+        (controls.OfType<Button>().FirstOrDefault(b => b.IsDefault) ?? controls.FirstOrDefault())?.Focus();
+    }
+
+    /// <summary>While a prompt is open, a key aimed at anything outside it (the page, a prompt beneath) goes to the prompt instead.</summary>
+    private void OnPromptKeyDown(object? sender, Avalonia.Input.KeyEventArgs e)
+    {
+        if (TopPrompt is { } top && !IsInside(e.Source as Avalonia.Input.IInputElement, top))
+        {
+            e.Handled = true;
+            FocusPrompt(top);
+        }
+    }
+
+    private static bool IsInside(Avalonia.Input.IInputElement? element, Avalonia.Visual container) =>
+        element is Avalonia.Visual visual && (ReferenceEquals(visual, container) || visual.GetVisualAncestors().Contains(container));
 
     /// <summary>
     /// Enter in the name box finishes the typed confirmation: it deletes once the name matches and otherwise does
