@@ -228,6 +228,38 @@ public sealed class SqliteDatabaseTests : IDisposable
         Assert.Contains(replaced, f => !f.EndsWith("-wal", StringComparison.Ordinal) && !f.EndsWith("-shm", StringComparison.Ordinal));
     }
 
+    /// <summary>
+    /// Health check 2026-11-12 (storage-1): backups are written by VACUUM INTO, which does not carry WAL mode, so a
+    /// restored database came back in rollback-journal mode for good. Every open puts WAL back.
+    /// </summary>
+    [Fact]
+    public async Task A_restored_database_is_back_in_wal_mode()
+    {
+        await SeedCurrentAsync("kept");
+        string backupPath;
+        await using (var first = _dir.Database())
+        {
+            Assert.True((await first.OpenAsync(Ct)).IsReady);
+            backupPath = await first.BackupAsync(BackupReason.BeforeRestore, Ct);
+            var kept = await first.BackupAsync(BackupReason.BeforeRestore, Ct);
+            await first.CloseAsync();
+            using (var copy = SqliteConnections.OpenReadWrite(backupPath))
+            {
+                Assert.Equal("delete", Scalar<string>(copy, "PRAGMA journal_mode;"));
+            }
+
+            SqliteConnection.ClearAllPools();
+            var result = await first.RestoreInPlaceAsync(first.ListBackups().Single(b => b.Path == backupPath), kept, Ct);
+            Assert.True(result.Restored, result.Failure.ToString());
+            Assert.Equal("wal", await first.ReadAsync(c => Scalar<string>(c, "PRAGMA journal_mode;"), Ct));
+        }
+
+        await using var second = _dir.Database();
+        var restored = await second.RestoreAsync(second.ListBackups().Single(b => b.Path == backupPath), Ct);
+        Assert.True(restored.IsReady);
+        Assert.Equal("wal", await second.ReadAsync(c => Scalar<string>(c, "PRAGMA journal_mode;"), Ct));
+    }
+
     [Fact]
     public async Task Only_the_newest_migration_backups_are_kept()
     {

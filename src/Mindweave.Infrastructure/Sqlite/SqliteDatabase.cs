@@ -491,6 +491,8 @@ public sealed partial class SqliteDatabase : IDatabaseLifecycle, IDatabaseBackup
             return Result(DatabaseOpenStatus.IoError, version, detail: refusal);
         }
 
+        EnsureWal(connection);
+
         if (version == _catalog.LatestVersion)
         {
             return Result(DatabaseOpenStatus.Ready, version);
@@ -607,6 +609,27 @@ public sealed partial class SqliteDatabase : IDatabaseLifecycle, IDatabaseBackup
             return $"The database file is read-only: {ex.Message}";
         }
     }
+
+    /// <summary>
+    /// Puts the database in WAL mode if it is not (health check 2026-11-12, storage-1): backups are written by
+    /// <c>VACUUM INTO</c>, which does not carry the mode, so a restored file came back in rollback-journal mode for good,
+    /// and readers and the writer then blocked each other. The mode is stored in the file; changing it needs no
+    /// transaction. A file that will not change (it should not happen once writable) is logged and used as it is.
+    /// </summary>
+    private void EnsureWal(SqliteConnection connection)
+    {
+        var mode = SqliteConnections.Scalar<string>(connection, "PRAGMA journal_mode;");
+        if (string.Equals(mode, "wal", StringComparison.OrdinalIgnoreCase))
+        {
+            return;
+        }
+
+        var now = SqliteConnections.Scalar<string>(connection, "PRAGMA journal_mode = WAL;");
+        LogJournalModeChanged(_logger, _paths.DatabasePath, mode, now);
+    }
+
+    [LoggerMessage(Level = LogLevel.Warning, Message = "Database {Path} was in journal mode {Was}; set to {Now}")]
+    private static partial void LogJournalModeChanged(ILogger logger, string path, string was, string now);
 
     private const int SqliteReadOnly = 8;
 
