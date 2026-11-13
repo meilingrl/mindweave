@@ -25,6 +25,11 @@ on:
         description: Runner
         default: windows-latest
 
+# The token can only read (low finding ci-build-8); inputs reach the shell as environment variables, never pasted
+# into the script, so an input cannot inject commands.
+permissions:
+  contents: read
+
 jobs:
   stress:
     runs-on: ${{ inputs.os || 'windows-latest' }}
@@ -32,29 +37,36 @@ jobs:
     env:
       DOTNET_NOLOGO: true
       DOTNET_CLI_TELEMETRY_OPTOUT: true
+      STRESS_PROJECT: ${{ inputs.project || 'tests/Mindweave.Infrastructure.Tests' }}
+      STRESS_FILTER: ${{ inputs.filter || 'Category=FaultInjection' }}
+      STRESS_RUNS: ${{ inputs.runs || '4' }}
+      STRESS_WORKERS: ${{ inputs.workers || '3' }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-dotnet@v4
         with:
           dotnet-version: 10.0.x
       - name: Build
-        run: dotnet build ${{ inputs.project || 'tests/Mindweave.Infrastructure.Tests' }} -c Release
+        shell: pwsh
+        run: dotnet build "$env:STRESS_PROJECT" -c Release
       - name: Stress
         shell: pwsh
         run: |
-          $jobs = 1..${{ inputs.workers || '3' }} | ForEach-Object {
-            Start-Job -ArgumentList $PWD.Path -ScriptBlock {
-              param($dir)
+          $workers = [int]$env:STRESS_WORKERS
+          $runs = [int]$env:STRESS_RUNS
+          $jobs = 1..$workers | ForEach-Object {
+            Start-Job -ArgumentList $PWD.Path, $env:STRESS_PROJECT, $env:STRESS_FILTER, $runs -ScriptBlock {
+              param($dir, $project, $filter, $runs)
               Set-Location $dir
               $failures = @()
-              for ($i = 0; $i -lt ${{ inputs.runs || '4' }}; $i++) {
-                $out = dotnet test ${{ inputs.project || 'tests/Mindweave.Infrastructure.Tests' }} -c Release --no-build --filter "${{ inputs.filter || 'Category=FaultInjection' }}" 2>&1 | Out-String
+              for ($i = 0; $i -lt $runs; $i++) {
+                $out = dotnet test $project -c Release --no-build --filter $filter 2>&1 | Out-String
                 if ($out -notmatch 'Passed!') { $failures += $out }
               }
               $failures
             }
           }
           $failures = @($jobs | Wait-Job | Receive-Job)
-          "failed runs: $($failures.Count) of $(${{ inputs.workers || '3' }} * ${{ inputs.runs || '4' }})"
+          "failed runs: $($failures.Count) of $($workers * $runs)"
           $failures | Select-Object -First 3 | ForEach-Object { "----"; $_ }
           if ($failures.Count -gt 0) { exit 1 }

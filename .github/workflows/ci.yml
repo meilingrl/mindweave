@@ -12,6 +12,10 @@ on:
         type: boolean
         default: false
 
+# The token can only read (low finding ci-build-8).
+permissions:
+  contents: read
+
 concurrency:
   group: ci-${{ github.ref }}
   cancel-in-progress: true
