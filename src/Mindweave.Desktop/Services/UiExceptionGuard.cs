@@ -16,13 +16,18 @@ internal sealed partial class UiExceptionGuard : IDisposable
     private readonly Func<ShellViewModel?> _shell;
     private readonly ILogger _logger;
 
-    public UiExceptionGuard(Dispatcher dispatcher, Func<ShellViewModel?> shell, ILogger logger)
+    /// <param name="watchRefreshes">Also report failed page reads (<see cref="SerialRefresh.Failed"/>, process-wide). Tests that
+    /// run several applications in one process turn it off, so one test's failed read does not show in another's shell.</param>
+    public UiExceptionGuard(Dispatcher dispatcher, Func<ShellViewModel?> shell, ILogger logger, bool watchRefreshes = true)
     {
         _dispatcher = dispatcher;
         _shell = shell;
         _logger = logger;
         _dispatcher.UnhandledException += OnUnhandledException;
-        SerialRefresh.Failed += OnRefreshFailed;
+        if (watchRefreshes)
+        {
+            SerialRefresh.Failed += OnRefreshFailed;
+        }
     }
 
     public void Dispose()

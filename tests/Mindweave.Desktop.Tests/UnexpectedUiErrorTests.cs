@@ -26,7 +26,7 @@ public class UnexpectedUiErrorTests
         await using var app = DesktopHarness.Create();
         app.ShowWindow();
         await app.StartWithWorkspaceAsync("火车");
-        using var guard = new UiExceptionGuard(Dispatcher.UIThread, () => app.ShellPage, NullLogger.Instance);
+        using var guard = new UiExceptionGuard(Dispatcher.UIThread, () => app.ShellPage, NullLogger.Instance, watchRefreshes: false);
 
         Dispatcher.UIThread.Post(() => throw new InvalidOperationException("boom"));
         Dispatcher.UIThread.RunJobs();
@@ -96,22 +96,29 @@ public class UnexpectedUiErrorTests
         await app.StartWithWorkspaceAsync("火车");
         using var guard = new UiExceptionGuard(Dispatcher.UIThread, () => app.ShellPage, NullLogger.Instance);
         var runs = 0;
-        var refresh = new SerialRefresh(async () =>
+        var failure = new InvalidOperationException("simulated read failure");
+        SerialRefresh? refresh = null;
+        refresh = new SerialRefresh(async () =>
         {
             await Task.Yield();
             if (++runs == 1)
             {
-                throw new InvalidOperationException("simulated read failure");
+                throw failure;
             }
         });
 
+        Exception? reported = null;
+        void OnFailed(object? sender, Exception e) => reported ??= ReferenceEquals(sender, refresh) ? e : null;
+        SerialRefresh.Failed += OnFailed;
         var first = refresh.Request();
         var second = refresh.Request();
         await first;
         await second;
+        SerialRefresh.Failed -= OnFailed;
 
         Assert.Equal(2, runs);
         Assert.Equal(UiText.LoadFailed, app.ShellPage.RestoreNotice);
+        Assert.Same(failure, reported);
     }
 
     /// <summary>Health check 2026-11-12, a11y-3: the service's message is shown and selectable, not only a hover tooltip.</summary>
