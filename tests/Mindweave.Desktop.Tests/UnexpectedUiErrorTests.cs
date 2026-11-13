@@ -1,3 +1,4 @@
+using Avalonia.VisualTree;
 using System.Windows.Input;
 using Avalonia.Headless.XUnit;
 using Avalonia.Threading;
@@ -111,5 +112,27 @@ public class UnexpectedUiErrorTests
 
         Assert.Equal(2, runs);
         Assert.Equal(UiText.LoadFailed, app.ShellPage.RestoreNotice);
+    }
+
+    /// <summary>Health check 2026-11-12, a11y-3: the service's message is shown and selectable, not only a hover tooltip.</summary>
+    [AvaloniaFact]
+    public async Task A_failed_answer_shows_the_services_message_as_selectable_text()
+    {
+        await using var app = DesktopHarness.Create();
+        var window = app.ShowWindow();
+        await app.StartWithWorkspaceAsync("火车");
+        await app.ConfigureModelAsync();
+        app.Client.Fail(Core.Conversations.GenerationErrorKind.InvalidResponse, "HTTP 400: model xyz does not exist");
+        app.ShellPage.Conversations.NewCommand.Execute(null);
+        var draft = Assert.IsType<NewConversationViewModel>(app.Workbench.CurrentPage);
+        draft.Composer.Text = "问题";
+        await draft.Composer.SendCommand.ExecuteAsync(null);
+        var page = Assert.IsType<ConversationViewModel>(app.Workbench.CurrentPage);
+        await UiWait.UntilAsync(() => page.Messages.Count == 2 && page.Messages[1].IsProblem);
+        window.UpdateLayout();
+
+        var detail = window.GetVisualDescendants().OfType<Avalonia.Controls.SelectableTextBlock>().Single(t => t.Name == "ErrorDetailText" && t.IsEffectivelyVisible);
+        Assert.True(detail.IsEffectivelyVisible);
+        Assert.Equal("HTTP 400: model xyz does not exist", detail.Text);
     }
 }

@@ -240,7 +240,14 @@
                           <TextBlock Text="{Binding RetryLabel}" VerticalAlignment="Center" />
                         </StackPanel>
                       </Button>
-                      <TextBlock Name="ErrorText" Text="{Binding StateLabel}" ToolTip.Tip="{Binding ErrorDetail}" />
+                      <!-- The service's own message under the category (health check 2026-11-12, a11y-3): selectable, so it can
+                           be read by keyboard and screen reader and copied, not only hovered with a mouse. -->
+                      <StackPanel Spacing="2" MaxWidth="640">
+                        <TextBlock Name="ErrorText" Text="{Binding StateLabel}" TextWrapping="Wrap" />
+                        <SelectableTextBlock Name="ErrorDetailText" Classes="caption" Text="{Binding ErrorDetail}" TextWrapping="Wrap"
+                                             IsVisible="{Binding ErrorDetail, Converter={x:Static StringConverters.IsNotNullOrEmpty}}"
+                                             AutomationProperties.Name="{Binding ErrorDetail}" />
+                      </StackPanel>
                   </DockPanel>
                 </Border>
                 <!-- The answer's own actions, quiet, in one row right under it: copy, retry or regenerate, its state, its time. -->
