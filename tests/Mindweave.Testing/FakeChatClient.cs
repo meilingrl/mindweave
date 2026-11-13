@@ -146,6 +146,9 @@ public sealed class FakeChatClient : IChatClient
     /// <summary>The next answer streams <paramref name="chunks"/> and ends as one stopped by the service's content filter.</summary>
     public void Filtered(params string[] chunks) => _scripts.Enqueue(new Script(null, chunks, End: new ChatStreamEvent.Completed(Truncated: true, Filtered: true)));
 
+    /// <summary>The next answer streams <paramref name="chunks"/> and the stream then ends without the service saying it finished.</summary>
+    public void EndWithoutFinishing(params string[] chunks) => _scripts.Enqueue(new Script(null, chunks, NoEnd: true));
+
     public void Reply(params string[] chunks) => _scripts.Enqueue(new Script(null, chunks));
 
     /// <summary>Prompt tokens the service reports for a request, as a real one does at the end of its stream; null reports none.</summary>
@@ -243,6 +246,11 @@ public sealed class FakeChatClient : IChatClient
             throw new ChatClientException(kind, script.Detail!);
         }
 
+        if (script.NoEnd)
+        {
+            yield break;
+        }
+
         yield return script.End ?? new ChatStreamEvent.Completed(false);
     }
 
@@ -298,5 +306,5 @@ public sealed class FakeChatClient : IChatClient
         }
     }
 
-    private sealed record Script(HeldReply? Held, string[]? Chunks = null, GenerationErrorKind? FailWith = null, string? Detail = null, Exception? Crash = null, ChatStreamEvent.Completed? End = null);
+    private sealed record Script(HeldReply? Held, string[]? Chunks = null, GenerationErrorKind? FailWith = null, string? Detail = null, Exception? Crash = null, ChatStreamEvent.Completed? End = null, bool NoEnd = false);
 }

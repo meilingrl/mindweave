@@ -177,6 +177,35 @@ public class UnexpectedFailureTests
         }
     }
 
+    /// <summary>Health check 2026-11-12, tests-1: a stream that ends without the service finishing the answer fails it, keeping the text.</summary>
+    [Fact]
+    public async Task An_answer_whose_stream_ends_without_finishing_fails_and_keeps_its_text()
+    {
+        await using var h = await ChatHarness.StartAsync();
+        h.Client.EndWithoutFinishing("说到一半");
+
+        var sent = await h.Conversations.StartAsync(h.Workspace, "问题", Ct);
+        var answer = await h.WaitForAnswerAsync(sent.Answer!.Value);
+
+        Assert.Equal(MessageState.Failed, answer.State);
+        Assert.Equal(GenerationErrorKind.InvalidResponse, answer.ErrorKind);
+        Assert.Equal("说到一半", answer.Text);
+        Assert.Contains("without finishing", answer.ErrorDetail, StringComparison.Ordinal);
+    }
+
+    /// <summary>Health check 2026-11-12, tests-2: an internal request answered with nothing is not used.</summary>
+    [Fact]
+    public async Task A_title_answered_with_nothing_fails_its_task_and_keeps_no_title()
+    {
+        await using var h = await ChatHarness.StartAsync();
+        h.Client.Titles.Replies.Enqueue("   ");
+
+        var sent = await h.Conversations.StartAsync(h.Workspace, "一", Ct);
+        await h.WaitForAnswerAsync(sent.Answer!.Value);
+
+        await ChatHarness.UntilAsync(async () => await KindStateAsync(h, "title", sent.Conversation) == "failed");
+    }
+
     private static Task<string?> TaskStateAsync(ChatHarness h, string kind, MessageId message) =>
         h.Database.ReadAsync(c => c.Scalar<string?>(null, "SELECT state FROM generation_task WHERE kind = $kind AND target_message_id = $m;", ("$kind", kind), ("$m", message.ToString())), Ct);
 

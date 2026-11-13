@@ -272,6 +272,66 @@ public class ChatCompletionsClientTests
         Assert.Equal(new ChatStreamEvent.Usage(5, 3), Assert.Single(events.OfType<ChatStreamEvent.Usage>()));
     }
 
+    // Health check 2026-11-12, tests-2: branches no test reached.
+
+    [Fact]
+    public async Task A_service_that_does_not_start_answering_in_time_times_out()
+    {
+        var client = new ChatCompletionsClient(new HttpClient(new SlowHandler(TimeSpan.FromSeconds(30))), new ChatClientOptions { FirstByteTimeout = TimeSpan.FromMilliseconds(100) });
+
+        var error = await Assert.ThrowsAsync<ChatClientException>(() => Collect(client));
+
+        Assert.Equal(GenerationErrorKind.Timeout, error.Kind);
+    }
+
+    [Fact]
+    public async Task Listing_models_times_out_and_reports_invalid_json_and_never_echoes_the_key()
+    {
+        var slow = new ChatCompletionsClient(new HttpClient(new SlowHandler(TimeSpan.FromSeconds(30))), new ChatClientOptions { ModelListTimeout = TimeSpan.FromMilliseconds(100) });
+        Assert.Equal(GenerationErrorKind.Timeout, (await Assert.ThrowsAsync<ChatClientException>(() => slow.ListModelsAsync("https://api.example.com/v1", Key, Ct))).Kind);
+
+        var garbage = Client(_ => new HttpResponseMessage(HttpStatusCode.OK) { Content = new StringContent("not json", Encoding.UTF8, "application/json") });
+        Assert.Equal(GenerationErrorKind.InvalidResponse, (await Assert.ThrowsAsync<ChatClientException>(() => garbage.ListModelsAsync("https://api.example.com/v1", Key, Ct))).Kind);
+
+        var refused = Client(_ => new HttpResponseMessage(HttpStatusCode.Unauthorized) { Content = new StringContent($"{{\"error\":{{\"message\":\"bad key {Key}\"}}}}") });
+        var error = await Assert.ThrowsAsync<ChatClientException>(() => refused.ListModelsAsync("https://api.example.com/v1", Key, Ct));
+        Assert.Equal(GenerationErrorKind.Unauthorized, error.Kind);
+        Assert.DoesNotContain(Key, error.Message, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task A_stream_event_that_is_not_json_is_an_invalid_response()
+    {
+        var error = await Assert.ThrowsAsync<ChatClientException>(() => Collect(Client(_ => Sse("data: {not json\n\n"))));
+
+        Assert.Equal(GenerationErrorKind.InvalidResponse, error.Kind);
+    }
+
+    [Fact]
+    public async Task A_413_naming_the_context_is_a_context_limit()
+    {
+        var error = await Assert.ThrowsAsync<ChatClientException>(() => Collect(Client(_ => new HttpResponseMessage(HttpStatusCode.RequestEntityTooLarge)
+        {
+            Content = new StringContent("{\"error\":{\"message\":\"This model's maximum context length is 8192 tokens\"}}"),
+        })));
+
+        Assert.Equal(GenerationErrorKind.ContextTooLong, error.Kind);
+    }
+
+    [Fact]
+    public async Task Silence_after_the_answer_finished_ends_the_stream_cleanly()
+    {
+        var options = new ChatClientOptions { IdleTimeout = TimeSpan.FromMilliseconds(200) };
+        var stalls = new StubHandler(_ => new HttpResponseMessage(HttpStatusCode.OK)
+        {
+            Content = new StreamContent(new FinishedThenSilent("data: {\"choices\":[{\"delta\":{\"content\":\"答\"},\"finish_reason\":\"stop\"}]}\n\n")),
+        });
+
+        var events = await Collect(new ChatCompletionsClient(new HttpClient(stalls), options));
+
+        Assert.Single(events.OfType<ChatStreamEvent.Completed>());
+    }
+
     [Fact]
     public async Task Other_bad_requests_are_not_retried()
     {
@@ -474,6 +534,61 @@ public class ChatCompletionsClientTests
     }
 
     /// <summary>A response body that never produces data, like a stalled server.</summary>
+    /// <summary>Answers only after <paramref name="delay"/> (or never, when cancelled first).</summary>
+    private sealed class SlowHandler(TimeSpan delay) : HttpMessageHandler
+    {
+        protected override async Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
+        {
+            await Task.Delay(delay, cancellationToken);
+            return new HttpResponseMessage(HttpStatusCode.OK) { Content = new StringContent("{}") };
+        }
+    }
+
+    /// <summary>Sends <paramref name="text"/>, then keeps the connection open without sending anything more.</summary>
+    private sealed class FinishedThenSilent(string text) : Stream
+    {
+        private ReadOnlyMemory<byte> _left = Encoding.UTF8.GetBytes(text);
+
+        public override bool CanRead => true;
+
+        public override bool CanSeek => false;
+
+        public override bool CanWrite => false;
+
+        public override long Length => throw new NotSupportedException();
+
+        public override long Position { get => throw new NotSupportedException(); set => throw new NotSupportedException(); }
+
+        public override async ValueTask<int> ReadAsync(Memory<byte> buffer, CancellationToken cancellationToken = default)
+        {
+            if (_left.Length > 0)
+            {
+                var n = Math.Min(buffer.Length, _left.Length);
+                _left[..n].CopyTo(buffer);
+                _left = _left[n..];
+                return n;
+            }
+
+            await Task.Delay(Timeout.Infinite, cancellationToken);
+            return 0;
+        }
+
+        public override Task<int> ReadAsync(byte[] buffer, int offset, int count, CancellationToken cancellationToken) =>
+            ReadAsync(buffer.AsMemory(offset, count), cancellationToken).AsTask();
+
+        public override int Read(byte[] buffer, int offset, int count) => throw new NotSupportedException();
+
+        public override void Flush()
+        {
+        }
+
+        public override long Seek(long offset, SeekOrigin origin) => throw new NotSupportedException();
+
+        public override void SetLength(long value) => throw new NotSupportedException();
+
+        public override void Write(byte[] buffer, int offset, int count) => throw new NotSupportedException();
+    }
+
     private sealed class NeverEndingStream : Stream
     {
         public override bool CanRead => true;
