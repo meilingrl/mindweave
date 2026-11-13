@@ -12,8 +12,10 @@
     <Deterministic>true</Deterministic>
     <InvariantGlobalization>false</InvariantGlobalization>
     <ManagePackageVersionsCentrally>true</ManagePackageVersionsCentrally>
-    <!-- Separates data directory, single-instance identity and credential namespace per track. -->
-    <MindweaveChannel>claude-auto</MindweaveChannel>
+    <!-- Separates data directory, single-instance identity and credential namespace per track.
+         Every build defaults to the dev channel; only scripts/daily.sh builds the daily channel "claude-auto",
+         so a dev run, test or agent preview can never open or migrate the daily data. -->
+    <MindweaveChannel Condition="'$(MindweaveChannel)' == ''">claude-auto-dev</MindweaveChannel>
     <Version>0.1.0</Version>
   </PropertyGroup>
   <ItemGroup>

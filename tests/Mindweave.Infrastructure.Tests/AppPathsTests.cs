@@ -28,6 +28,7 @@ public class AppPathsTests
     [Fact]
     public void Channel_is_stamped_into_built_assemblies()
     {
-        Assert.Equal("claude-auto", AppPaths.ChannelOf(typeof(AppPaths).Assembly));
+        // Builds default to the dev channel; only scripts/daily.sh stamps the daily channel "claude-auto".
+        Assert.Equal("claude-auto-dev", AppPaths.ChannelOf(typeof(AppPaths).Assembly));
     }
 }
