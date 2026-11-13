@@ -57,6 +57,12 @@ public sealed class ChatCompletionsClient(HttpClient http, ChatClientOptions opt
             {
                 throw Redacted(ex, apiKey);
             }
+            catch (Exception ex) when (ex is not OperationCanceledException)
+            {
+                // Health check 2026-11-12: anything else (a response shape nobody foresaw, a defect here) would escape the
+                // callers' failure handling and leave the answer streaming; it leaves this client as a failed response.
+                throw Unexpected(ex, apiKey);
+            }
 
             yield return item;
         }
@@ -118,6 +124,10 @@ public sealed class ChatCompletionsClient(HttpClient http, ChatClientOptions opt
         {
             throw Redacted(ex, apiKey);
         }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            throw Unexpected(ex, apiKey);
+        }
     }
 
     private async Task<IReadOnlyList<string>> ListModelsCoreAsync(string baseUrl, string apiKey, CancellationToken cancellationToken)
@@ -131,8 +141,8 @@ public sealed class ChatCompletionsClient(HttpClient http, ChatClientOptions opt
             using var response = await http.SendAsync(request, HttpCompletionOption.ResponseContentRead, timeout.Token).ConfigureAwait(false);
             await ThrowIfFailedAsync(response, timeout.Token).ConfigureAwait(false);
             var json = await response.Content.ReadFromJsonAsync<JsonNode>(timeout.Token).ConfigureAwait(false);
-            return json?["data"]?.AsArray()
-                .Select(m => m?["id"]?.GetValue<string>())
+            return ((json as JsonObject)?["data"] as JsonArray)?
+                .Select(m => (m as JsonObject)?["id"] is JsonValue id && id.TryGetValue<string>(out var s) ? s : null)
                 .OfType<string>()
                 .Where(id => id.Length > 0)
                 .Distinct(StringComparer.Ordinal)
@@ -241,21 +251,36 @@ public sealed class ChatCompletionsClient(HttpClient http, ChatClientOptions opt
             throw new ChatClientException(GenerationErrorKind.InvalidResponse, "A stream event is not valid JSON.", ex);
         }
 
-        if (node?["error"] is { } error)
+        // Every shape is checked rather than assumed (health check 2026-11-12): relays answer in their own shapes, and the
+        // indexers throw on a node of the wrong kind.
+        if (node is not JsonObject obj)
         {
-            throw new ChatClientException(GenerationErrorKind.ServerError, Limit(error["message"]?.ToString() ?? error.ToJsonString()));
+            throw new ChatClientException(GenerationErrorKind.InvalidResponse, "A stream event is not a JSON object.");
         }
 
-        var choice = node?["choices"]?.AsArray().FirstOrDefault();
-        var text = choice?["delta"]?["content"] is JsonValue content && content.TryGetValue<string>(out var s) ? s : null;
+        if (obj["error"] is { } error)
+        {
+            throw new ChatClientException(GenerationErrorKind.ServerError, Limit(ErrorMessage(error)));
+        }
+
+        JsonObject? choice = null;
+        if (obj["choices"] is { } choices)
+        {
+            choice = choices is JsonArray list && (list.Count == 0 || list[0] is null or JsonObject)
+                ? list.FirstOrDefault() as JsonObject
+                : throw new ChatClientException(GenerationErrorKind.InvalidResponse, "A stream event has choices of an unexpected shape.");
+        }
+
+        var delta = choice?["delta"] as JsonObject;
+        var text = delta?["content"] is JsonValue content && content.TryGetValue<string>(out var s) ? s : null;
 
         // Reasoning models (Kimi, GLM; 2026-11-05) stream reasoning_content long before any content. Only its length is kept.
-        var reasoning = choice?["delta"]?["reasoning_content"] is JsonValue thought && thought.TryGetValue<string>(out var t) ? t.Length : 0;
+        var reasoning = delta?["reasoning_content"] is JsonValue thought && thought.TryGetValue<string>(out var t) ? t.Length : 0;
         var finish = choice?["finish_reason"] is JsonValue reason && reason.TryGetValue<string>(out var r) ? r : null;
 
         // Services that report usage put it on the last chunk (or a final chunk without choices); it is never requested.
         // Moonshot (Kimi) puts it inside the final choice instead (2026-11-05, real service).
-        ChatStreamEvent.Usage? usage = (node?["usage"] as JsonObject ?? choice?["usage"] as JsonObject) is { } counts
+        ChatStreamEvent.Usage? usage = (obj["usage"] as JsonObject ?? choice?["usage"] as JsonObject) is { } counts
             ? new ChatStreamEvent.Usage(Count(counts["prompt_tokens"]), Count(counts["completion_tokens"]))
             : null;
         return (text, reasoning, finish, usage);
@@ -280,7 +305,7 @@ public sealed class ChatCompletionsClient(HttpClient http, ChatClientOptions opt
         string detail;
         try
         {
-            detail = JsonNode.Parse(text)?["error"]?["message"]?.ToString() ?? text;
+            detail = JsonNode.Parse(text) is JsonObject body && body["error"] is { } error ? ErrorMessage(error) : text;
         }
         catch (JsonException)
         {
@@ -298,6 +323,18 @@ public sealed class ChatCompletionsClient(HttpClient http, ChatClientOptions opt
         };
         throw new ChatClientException(kind, detail, httpStatus: status);
     }
+
+    /// <summary>The message of an error node: OpenAI's <c>{"message": …}</c> object, or whatever else a relay sent, as text.</summary>
+    private static string ErrorMessage(JsonNode error) =>
+        error switch
+        {
+            JsonObject o when o["message"] is { } message => message is JsonValue v && v.TryGetValue<string>(out var s) ? s : message.ToJsonString(),
+            JsonValue v when v.TryGetValue<string>(out var s) => s,
+            _ => error.ToJsonString(),
+        };
+
+    private static ChatClientException Unexpected(Exception ex, string apiKey) =>
+        new(GenerationErrorKind.InvalidResponse, Redaction.Scrub($"Unexpected failure reading the response: {ex.Message}", apiKey), ex);
 
     /// <summary>Every failure leaving this client is scrubbed of the key it was called with (services echo keys).</summary>
     private static ChatClientException Redacted(ChatClientException ex, string apiKey) =>

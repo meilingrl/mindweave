@@ -31,6 +31,29 @@ internal sealed partial class AnswerRunner(
 
     public async Task RunAsync(AnswerWork work, CancellationToken stop)
     {
+        try
+        {
+            await RunCoreAsync(work, stop).ConfigureAwait(false);
+        }
+#pragma warning disable CA1031 // Health check 2026-11-12: whatever ends a run, its answer ends too; one left streaming locks the conversation until restart.
+        catch (Exception ex) when (work.Live.Snapshot().State is MessageState.Pending or MessageState.Streaming)
+#pragma warning restore CA1031
+        {
+            var stopped = ex is OperationCanceledException && stop.IsCancellationRequested;
+            if (!stopped)
+            {
+                LogUnexpectedFailure(_logger, ex, work.Task.Id);
+            }
+
+            await FinishAsync(work, stopped ? MessageState.Stopped : MessageState.Failed, stopped ? null : GenerationErrorKind.InvalidResponse, stopped ? null : UnexpectedDetail(ex)).ConfigureAwait(false);
+        }
+    }
+
+    /// <summary>What the answer says when its run failed in a way nobody foresaw.</summary>
+    internal static string UnexpectedDetail(Exception ex) => $"Unexpected failure: {ex.Message}";
+
+    private async Task RunCoreAsync(AnswerWork work, CancellationToken stop)
+    {
         var live = work.Live;
         var task = work.Task;
 
@@ -144,6 +167,15 @@ internal sealed partial class AnswerRunner(
             detail = ex.Message;
             trace.Fail(ex);
         }
+#pragma warning disable CA1031 // Anything else still ends the answer, stops its checkpoints and records the request (health check 2026-11-12).
+        catch (Exception ex)
+#pragma warning restore CA1031
+        {
+            LogUnexpectedFailure(_logger, ex, task.Id);
+            final = MessageState.Failed;
+            error = GenerationErrorKind.InvalidResponse;
+            detail = UnexpectedDetail(ex);
+        }
 
         await checkpointStop.CancelAsync().ConfigureAwait(false);
         await checkpoints.ConfigureAwait(false);
@@ -198,6 +230,9 @@ internal sealed partial class AnswerRunner(
         {
         }
     }
+
+    [LoggerMessage(Level = LogLevel.Error, Message = "Answer task {TaskId} failed unexpectedly")]
+    private static partial void LogUnexpectedFailure(ILogger logger, Exception exception, GenerationTaskId taskId);
 
     [LoggerMessage(Level = LogLevel.Information, Message = "Answer task {TaskId} finished as {State} ({Error})")]
     private static partial void LogAnswerFinished(ILogger logger, GenerationTaskId taskId, MessageState state, GenerationErrorKind? error);

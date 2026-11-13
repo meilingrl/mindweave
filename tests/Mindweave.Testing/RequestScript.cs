@@ -19,6 +19,7 @@ public sealed class RequestScript
     private GenerationErrorKind _failure;
     private int _failures;
     private int _truncations;
+    private Exception? _crash;
 
     internal RequestScript(string name, Func<ChatRequest, string> defaultReply, string? truncatedText = null)
     {
@@ -51,6 +52,9 @@ public sealed class RequestScript
         }
     }
 
+    /// <summary>The next request of this kind throws <paramref name="crash"/>, as a defect or an unforeseen response shape would.</summary>
+    public void CrashNext(Exception crash) => Interlocked.Exchange(ref _crash, crash);
+
     /// <summary>
     /// The next <paramref name="count"/> requests of this kind stop at the output limit (a truncated finish), as a
     /// reasoning model does when it spends the limit on reasoning.
@@ -62,6 +66,11 @@ public sealed class RequestScript
         if (Gate is { } gate)
         {
             await gate.Task.WaitAsync(cancellationToken);
+        }
+
+        if (Interlocked.Exchange(ref _crash, null) is { } crash)
+        {
+            throw crash;
         }
 
         if (TakeFailure() is { } failure)

@@ -137,6 +137,9 @@ public sealed class FakeChatClient : IChatClient
     public void Fail(GenerationErrorKind kind, string detail = "simulated", params string[] before) =>
         _scripts.Enqueue(new Script(null, before, kind, detail));
 
+    /// <summary>The next answer streams <paramref name="before"/> and then throws <paramref name="crash"/> (not a client failure).</summary>
+    public void Crash(Exception crash, params string[] before) => _scripts.Enqueue(new Script(null, before, Crash: crash));
+
     public void Reply(params string[] chunks) => _scripts.Enqueue(new Script(null, chunks));
 
     /// <summary>Prompt tokens the service reports for a request, as a real one does at the end of its stream; null reports none.</summary>
@@ -224,6 +227,11 @@ public sealed class FakeChatClient : IChatClient
             }
         }
 
+        if (script.Crash is { } crash)
+        {
+            throw crash;
+        }
+
         if (script.FailWith is { } kind)
         {
             throw new ChatClientException(kind, script.Detail!);
@@ -284,5 +292,5 @@ public sealed class FakeChatClient : IChatClient
         }
     }
 
-    private sealed record Script(HeldReply? Held, string[]? Chunks = null, GenerationErrorKind? FailWith = null, string? Detail = null);
+    private sealed record Script(HeldReply? Held, string[]? Chunks = null, GenerationErrorKind? FailWith = null, string? Detail = null, Exception? Crash = null);
 }

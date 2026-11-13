@@ -175,6 +175,63 @@ public class ChatCompletionsClientTests
         Assert.Contains("overloaded", error.Message, StringComparison.Ordinal);
     }
 
+    /// <summary>Health check 2026-11-12, item 2: relays answer errors in shapes other than OpenAI's; none may escape as anything but a client failure.</summary>
+    [Theory]
+    [InlineData("{\"error\":\"invalid api key\"}", "invalid api key")]
+    [InlineData("\"Unauthorized\"", "Unauthorized")]
+    [InlineData("[1,2]", "[1,2]")]
+    [InlineData("{\"error\":{\"message\":42}}", "42")]
+    public async Task Error_bodies_of_any_json_shape_are_client_failures(string body, string expected)
+    {
+        var error = await Assert.ThrowsAsync<ChatClientException>(() => Collect(Client(_ => new HttpResponseMessage(HttpStatusCode.Unauthorized) { Content = new StringContent(body) })));
+
+        Assert.Equal(GenerationErrorKind.Unauthorized, error.Kind);
+        Assert.Contains(expected, error.Message, StringComparison.Ordinal);
+    }
+
+    [Theory]
+    [InlineData("data: {\"error\":\"upstream overloaded\"}\n\n", GenerationErrorKind.ServerError)]
+    [InlineData("data: {\"choices\":{\"delta\":{\"content\":\"a\"}}}\n\n", GenerationErrorKind.InvalidResponse)]
+    [InlineData("data: [\"not\",\"an\",\"object\"]\n\n", GenerationErrorKind.InvalidResponse)]
+    [InlineData("data: \"text\"\n\n", GenerationErrorKind.InvalidResponse)]
+    [InlineData("data: {\"choices\":[\"x\"]}\n\n", GenerationErrorKind.InvalidResponse)]
+    public async Task Stream_events_of_unexpected_shape_are_client_failures(string sse, GenerationErrorKind kind)
+    {
+        var error = await Assert.ThrowsAsync<ChatClientException>(() => Collect(Client(_ => Sse("data: {\"choices\":[{\"delta\":{\"content\":\"a\"}}]}\n\n" + sse))));
+
+        Assert.Equal(kind, error.Kind);
+    }
+
+    [Fact]
+    public async Task Choices_with_a_null_delta_or_content_are_not_failures()
+    {
+        var events = await Collect(Client(_ => Sse("data: {\"choices\":[{\"delta\":null}]}\n\ndata: {\"choices\":[{\"delta\":{\"content\":null},\"finish_reason\":\"stop\"}]}\n\n")));
+
+        Assert.Single(events.OfType<ChatStreamEvent.Completed>());
+    }
+
+    [Fact]
+    public async Task Anything_unexpected_inside_the_client_leaves_it_as_a_client_failure_without_the_key()
+    {
+        var error = await Assert.ThrowsAsync<ChatClientException>(() => Collect(Client(_ => throw new InvalidOperationException($"bad state near {Key}"))));
+
+        Assert.Equal(GenerationErrorKind.InvalidResponse, error.Kind);
+        Assert.DoesNotContain(Key, error.Message, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task Listing_models_tolerates_unexpected_shapes()
+    {
+        var client = Client(_ => new HttpResponseMessage(HttpStatusCode.OK)
+        {
+            Content = new StringContent("{\"data\":[\"x\",{\"id\":7},{\"id\":\"ok\"}]}", Encoding.UTF8, "application/json"),
+        });
+        Assert.Equal(["ok"], await client.ListModelsAsync("https://api.example.com/v1", "k", Ct));
+
+        var odd = Client(_ => new HttpResponseMessage(HttpStatusCode.OK) { Content = new StringContent("{\"data\":{}}", Encoding.UTF8, "application/json") });
+        Assert.Empty(await odd.ListModelsAsync("https://api.example.com/v1", "k", Ct));
+    }
+
     [Fact]
     public async Task A_stalled_stream_times_out_but_user_cancellation_is_a_cancellation()
     {

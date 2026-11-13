@@ -71,6 +71,12 @@ internal sealed partial class TaskRunners(
         {
             await _writes.SaveAsync(() => _requests.FinishTaskAsync(task.Id, GenerationTaskState.Failed, GenerationErrorKind.StorageUnavailable, ex.Message)).ConfigureAwait(false);
         }
+#pragma warning disable CA1031 // Health check 2026-11-12: whatever ends the run, its task row ends too instead of staying running.
+        catch (Exception ex)
+#pragma warning restore CA1031
+        {
+            await FailUnexpectedlyAsync(task, ex).ConfigureAwait(false);
+        }
     }
 
     public async Task RunSummaryAsync(SummaryWork work, CancellationToken stop)
@@ -148,6 +154,12 @@ internal sealed partial class TaskRunners(
         {
             await _writes.SaveAsync(() => _requests.FinishTaskAsync(task.Id, GenerationTaskState.Failed, GenerationErrorKind.StorageUnavailable, ex.Message)).ConfigureAwait(false);
         }
+#pragma warning disable CA1031 // Health check 2026-11-12: whatever ends the run, its task row ends too instead of staying running.
+        catch (Exception ex)
+#pragma warning restore CA1031
+        {
+            await FailUnexpectedlyAsync(task, ex).ConfigureAwait(false);
+        }
         finally
         {
             _events.SummaryTaskFinished(task);
@@ -193,6 +205,12 @@ internal sealed partial class TaskRunners(
         {
             await _writes.SaveAsync(() => _requests.FinishTaskAsync(task.Id, GenerationTaskState.Failed, GenerationErrorKind.StorageUnavailable, ex.Message)).ConfigureAwait(false);
         }
+#pragma warning disable CA1031 // Health check 2026-11-12: whatever ends the run, its task row ends too instead of staying running.
+        catch (Exception ex)
+#pragma warning restore CA1031
+        {
+            await FailUnexpectedlyAsync(task, ex).ConfigureAwait(false);
+        }
         finally
         {
             _events.SummaryTaskFinished(task);
@@ -236,6 +254,15 @@ internal sealed partial class TaskRunners(
             work.Output.TrySetException(ex);
         }
     }
+
+    private async Task FailUnexpectedlyAsync(GenerationTaskRecord task, Exception ex)
+    {
+        LogUnexpectedFailure(_logger, ex, task.Id);
+        await _writes.SaveAsync(() => _requests.FinishTaskAsync(task.Id, GenerationTaskState.Failed, GenerationErrorKind.InvalidResponse, AnswerRunner.UnexpectedDetail(ex))).ConfigureAwait(false);
+    }
+
+    [LoggerMessage(Level = LogLevel.Error, Message = "Task {TaskId} failed unexpectedly")]
+    private static partial void LogUnexpectedFailure(ILogger logger, Exception exception, GenerationTaskId taskId);
 
     [LoggerMessage(Level = LogLevel.Error, Message = "Summary of task {TaskId} could not be stored")]
     private static partial void LogSummaryNotSaved(ILogger logger, Exception exception, GenerationTaskId taskId);
