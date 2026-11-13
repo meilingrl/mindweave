@@ -85,4 +85,31 @@ public class UnexpectedUiErrorTests
         Assert.Equal(UiText.RowStoragePaused, settings.Status);
         Assert.True(settings.StatusIsError);
     }
+
+    /// <summary>Health check 2026-11-12, errors-5: a failed page read is named, never thrown into the command that awaited it.</summary>
+    [AvaloniaFact]
+    public async Task A_failed_refresh_is_reported_and_a_queued_one_still_runs()
+    {
+        await using var app = DesktopHarness.Create();
+        app.ShowWindow();
+        await app.StartWithWorkspaceAsync("火车");
+        using var guard = new UiExceptionGuard(Dispatcher.UIThread, () => app.ShellPage, NullLogger.Instance);
+        var runs = 0;
+        var refresh = new SerialRefresh(async () =>
+        {
+            await Task.Yield();
+            if (++runs == 1)
+            {
+                throw new InvalidOperationException("simulated read failure");
+            }
+        });
+
+        var first = refresh.Request();
+        var second = refresh.Request();
+        await first;
+        await second;
+
+        Assert.Equal(2, runs);
+        Assert.Equal(UiText.LoadFailed, app.ShellPage.RestoreNotice);
+    }
 }

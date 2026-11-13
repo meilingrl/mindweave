@@ -22,9 +22,32 @@ internal sealed partial class UiExceptionGuard : IDisposable
         _shell = shell;
         _logger = logger;
         _dispatcher.UnhandledException += OnUnhandledException;
+        SerialRefresh.Failed += OnRefreshFailed;
     }
 
-    public void Dispose() => _dispatcher.UnhandledException -= OnUnhandledException;
+    public void Dispose()
+    {
+        _dispatcher.UnhandledException -= OnUnhandledException;
+        SerialRefresh.Failed -= OnRefreshFailed;
+    }
+
+    /// <summary>A page could not read what it shows: logged, and the shell says so; the page keeps what it showed.</summary>
+    private void OnRefreshFailed(object? sender, Exception exception)
+    {
+        LogRefreshFailed(_logger, exception);
+        try
+        {
+            _shell()?.ShowRestoreNotice(UiText.LoadFailed, isError: true);
+        }
+#pragma warning disable CA1031 // Between two sessions the shell may be gone; the failure is logged either way.
+        catch (Exception)
+#pragma warning restore CA1031
+        {
+        }
+    }
+
+    [LoggerMessage(Level = LogLevel.Error, Message = "A page could not read its content")]
+    private static partial void LogRefreshFailed(ILogger logger, Exception exception);
 
     internal static bool IsFatal(Exception exception) =>
         exception is OutOfMemoryException or InsufficientExecutionStackException or AccessViolationException or System.Runtime.InteropServices.SEHException;

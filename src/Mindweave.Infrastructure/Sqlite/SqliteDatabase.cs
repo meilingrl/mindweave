@@ -287,14 +287,28 @@ public sealed partial class SqliteDatabase : IDatabaseLifecycle, IDatabaseBackup
                 // and a commit between them would otherwise pair a finished row with its earlier content. A raw
                 // BEGIN keeps commands usable without a transaction object.
                 SqliteConnections.Execute(connection, "BEGIN;");
+                T result;
                 try
                 {
-                    return work(connection);
+                    result = work(connection);
                 }
-                finally
+                catch
                 {
-                    SqliteConnections.Execute(connection, "COMMIT;");
+                    // The read's own failure is what the caller must see, not one from ending the snapshot after it
+                    // (health check 2026-11-12, errors-5); the connection is disposed either way.
+                    try
+                    {
+                        SqliteConnections.Execute(connection, "ROLLBACK;");
+                    }
+                    catch (SqliteException)
+                    {
+                    }
+
+                    throw;
                 }
+
+                SqliteConnections.Execute(connection, "COMMIT;");
+                return result;
             },
             cancellationToken);
     }

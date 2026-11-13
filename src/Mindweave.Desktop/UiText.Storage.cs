@@ -8,6 +8,9 @@ public static partial class UiText
 {
     /// <summary>Core storage failed (requirements §9.3): what is paused, what still works, and that it lifts by itself.</summary>
     /// <summary>Shown above the page when an operation failed in a way nothing on that page handles (health check 2026-11-12).</summary>
+    /// <summary>A page could not read what it shows (health check 2026-11-12); what it showed stays.</summary>
+    public const string LoadFailed = "有内容没有读取成功，页面显示的可能不是最新的。可以离开页面再回来重试；详情已记入日志。";
+
     public const string UnexpectedError = "操作没有完成：发生了意外错误，详情已记入日志。可以重试。";
 
     public const string StoragePaused = "本地数据暂时无法保存，已暂停提问、重试、创建分支和生成总结；已有内容仍可阅读和复制。恢复保存后会自动解除。";

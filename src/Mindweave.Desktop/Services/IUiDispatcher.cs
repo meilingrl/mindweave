@@ -63,6 +63,12 @@ public sealed class SerialRefresh(Func<Task> refresh)
         return _running;
     }
 
+    /// <summary>
+    /// A refresh failed (health check 2026-11-12, errors-5): reported here, once for the whole application (logged and
+    /// named on the shell), instead of leaving a page blank and silent, or crashing a command that awaited the reload.
+    /// </summary>
+    public static event EventHandler<Exception>? Failed;
+
     private async Task RunAsync()
     {
         _busy = true;
@@ -71,7 +77,16 @@ public sealed class SerialRefresh(Func<Task> refresh)
             do
             {
                 _again = false;
-                await refresh();
+                try
+                {
+                    await refresh();
+                }
+#pragma warning disable CA1031 // Reported centrally; the page keeps what it showed, and a queued request still runs.
+                catch (Exception ex) when (ex is not OperationCanceledException)
+#pragma warning restore CA1031
+                {
+                    Failed?.Invoke(this, ex);
+                }
             }
             while (_again);
         }
