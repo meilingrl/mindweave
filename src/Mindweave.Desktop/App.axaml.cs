@@ -21,6 +21,11 @@ public sealed partial class App : Avalonia.Application
 
     internal App(AppHost host) => _host = host;
 
+    /// <summary>An application that only says why Mindweave could not start (see Program.ShowStartupFailure).</summary>
+    internal App(string startupFailure) => _startupFailure = startupFailure;
+
+    private readonly string? _startupFailure;
+
     public override void Initialize()
     {
         Markdown.MarkdownSetup.EnsureRegistered();
@@ -35,6 +40,13 @@ public sealed partial class App : Avalonia.Application
 
     public override void OnFrameworkInitializationCompleted()
     {
+        if (_startupFailure is not null && ApplicationLifetime is IClassicDesktopStyleApplicationLifetime failed)
+        {
+            failed.MainWindow = new StartupFailureWindow(_startupFailure);
+            base.OnFrameworkInitializationCompleted();
+            return;
+        }
+
         if (_host is not null && ApplicationLifetime is IClassicDesktopStyleApplicationLifetime desktop)
         {
             var session = _host.Session;

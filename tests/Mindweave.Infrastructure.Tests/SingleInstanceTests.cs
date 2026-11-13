@@ -29,6 +29,31 @@ public sealed class SingleInstanceTests : IDisposable
         }
     }
 
+    /// <summary>
+    /// Health check 2026-11-12, errors-6: only a lock held by another instance means "already running"; a lock file this
+    /// user may not open is a start-up failure to report, not a running instance to signal.
+    /// </summary>
+    [Fact]
+    public void A_lock_file_that_cannot_be_opened_is_a_failure_not_a_running_instance()
+    {
+        Assert.SkipWhen(OperatingSystem.IsWindows(), "Uses POSIX permissions.");
+        if (OperatingSystem.IsWindows())
+        {
+            return;
+        }
+
+        File.WriteAllText(_dir.Paths.LockPath, string.Empty);
+        File.SetUnixFileMode(_dir.Paths.LockPath, UnixFileMode.UserRead);
+        try
+        {
+            Assert.Throws<UnauthorizedAccessException>(() => SingleInstance.TryAcquire(_dir.Paths));
+        }
+        finally
+        {
+            File.SetUnixFileMode(_dir.Paths.LockPath, UnixFileMode.UserRead | UnixFileMode.UserWrite);
+        }
+    }
+
     [Fact]
     public async Task Only_one_holder_per_data_directory_and_release_frees_it()
     {

@@ -43,15 +43,28 @@ public sealed class SingleInstance : IAsyncDisposable
     {
         ArgumentNullException.ThrowIfNull(paths);
         Directory.CreateDirectory(paths.DataDirectory);
+        FileStream stream;
         try
         {
-            var stream = new FileStream(paths.LockPath, FileMode.OpenOrCreate, FileAccess.ReadWrite, FileShare.None, 1, FileOptions.None);
-            WriteOwner(stream);
-            return new SingleInstance(stream, PipeNameFor(paths));
+            stream = new FileStream(paths.LockPath, FileMode.OpenOrCreate, FileAccess.ReadWrite, FileShare.None, 1, FileOptions.None);
         }
         catch (IOException)
         {
+            // Held by another instance. Anything else (no permission, a read-only volume) propagates: it is a failure to
+            // report, not a running instance to signal (health check 2026-11-12, errors-6).
             return null;
+        }
+
+        try
+        {
+            WriteOwner(stream);
+            return new SingleInstance(stream, PipeNameFor(paths));
+        }
+        catch
+        {
+            // Not kept open: a second attempt in this process must not find its own handle holding the lock.
+            stream.Dispose();
+            throw;
         }
     }
 

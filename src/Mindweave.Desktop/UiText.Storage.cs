@@ -8,6 +8,14 @@ public static partial class UiText
 {
     /// <summary>Core storage failed (requirements §9.3): what is paused, what still works, and that it lifts by itself.</summary>
     /// <summary>Shown above the page when an operation failed in a way nothing on that page handles (health check 2026-11-12).</summary>
+    public const string StartupFailedTitle = "Mindweave 无法启动";
+
+    public static string StartupFailed(string detail) =>
+        string.Format(CultureInfo.CurrentCulture, "启动时出错，数据没有被修改。请检查数据位置的权限与磁盘空间后重试。\n\n{0}", detail);
+
+    public static string AlreadyRunningNotResponding(string dataDirectory) =>
+        string.Format(CultureInfo.CurrentCulture, "Mindweave 已在使用这个数据位置，但没有响应：\n{0}\n\n请关闭正在运行的 Mindweave（必要时在活动监视器或任务管理器中结束它）后重试。", dataDirectory);
+
     /// <summary>A page could not read what it shows (health check 2026-11-12); what it showed stays.</summary>
     public const string LoadFailed = "有内容没有读取成功，页面显示的可能不是最新的。可以离开页面再回来重试；详情已记入日志。";
 

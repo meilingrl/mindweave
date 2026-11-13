@@ -10,35 +10,68 @@ internal static class Program
     [STAThread]
     public static int Main(string[] args)
     {
-        var paths = AppPaths.Resolve(AppPaths.ChannelOf(typeof(Program).Assembly));
-
-        // One writer per data directory: take the lock before touching the database at all.
-        var instance = SingleInstance.TryAcquire(paths);
-        if (instance is null)
+        AppPaths paths;
+        SingleInstance? instance;
+        AppSession session;
+        try
         {
-            var result = SingleInstance.SignalPrimaryAsync(paths, TimeSpan.FromSeconds(5), CancellationToken.None).GetAwaiter().GetResult();
-            if (result == SecondaryLaunchResult.Activated)
-            {
-                return 0;
-            }
+            paths = AppPaths.Resolve(AppPaths.ChannelOf(typeof(Program).Assembly));
 
-            // The holder may have just died (e.g. a crash): Windows releases its lock a moment after exit.
+            // One writer per data directory: take the lock before touching the database at all.
             instance = SingleInstance.TryAcquire(paths);
             if (instance is null)
             {
-                Console.Error.WriteLine($"Mindweave is already running for {paths.DataDirectory} but did not respond. Close it and try again.");
-                return 2;
+                var result = SingleInstance.SignalPrimaryAsync(paths, TimeSpan.FromSeconds(5), CancellationToken.None).GetAwaiter().GetResult();
+                if (result == SecondaryLaunchResult.Activated)
+                {
+                    return 0;
+                }
+
+                // The holder may have just died (e.g. a crash): Windows releases its lock a moment after exit.
+                instance = SingleInstance.TryAcquire(paths);
+                if (instance is null)
+                {
+                    Console.Error.WriteLine($"Mindweave is already running for {paths.DataDirectory} but did not respond. Close it and try again.");
+                    return ShowStartupFailure(args, UiText.AlreadyRunningNotResponding(paths.DataDirectory), 2);
+                }
             }
+
+            // One session of services per open database; restoring a backup in the app starts the next (AppSession).
+            session = new AppSession(extra => CompositionRoot.Build(paths, overrides: extra));
+        }
+#pragma warning disable CA1031 // Before the window exists: whatever failed is shown in a window of its own, not only on a console a GUI launch lacks.
+        catch (Exception ex)
+#pragma warning restore CA1031
+        {
+            Console.Error.WriteLine(ex);
+            return ShowStartupFailure(args, UiText.StartupFailed(ex.Message), 3);
         }
 
-        // One session of services per open database; restoring a backup in the app starts the next (AppSession).
-        var session = new AppSession(extra => CompositionRoot.Build(paths, overrides: extra));
         AppDomain.CurrentDomain.UnhandledException += (_, e) => LogCrash(session, e.ExceptionObject as Exception);
         TaskScheduler.UnobservedTaskException += (_, e) => LogCrash(session, e.Exception);
 
         // The host releases (and closes the database) only after the UI loop has ended; see AppHost.Run.
         var host = new AppHost(instance, session);
         return host.Run(() => BuildAvaloniaApp(host).StartWithClassicDesktopLifetime(args));
+    }
+
+    /// <summary>
+    /// Mindweave could not start (health check 2026-11-12, errors-6): a small window says why, since a launch from the
+    /// Finder or the Start menu has no console to read. Returns <paramref name="exitCode"/> when it is closed.
+    /// </summary>
+    private static int ShowStartupFailure(string[] args, string message, int exitCode)
+    {
+        try
+        {
+            AppBuilder.Configure(() => new App(startupFailure: message)).UsePlatformDetect().WithInterFont().StartWithClassicDesktopLifetime(args);
+        }
+#pragma warning disable CA1031 // Even the window failed: the console line written before is all there is.
+        catch (Exception)
+#pragma warning restore CA1031
+        {
+        }
+
+        return exitCode;
     }
 
     /// <summary>Used by the Avalonia previewer; the real entry point passes a host.</summary>
