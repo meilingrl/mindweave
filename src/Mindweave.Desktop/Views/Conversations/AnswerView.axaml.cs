@@ -78,6 +78,7 @@ public sealed partial class AnswerView : UserControl
         ToolTip.SetShowOnDisabled(BranchButton, true);
         AutomationProperties.SetName(BranchButton, UiText.CreateBranch);
         BranchButton.Click += (_, _) => _ = CreateBranchAsync();
+        AutomationProperties.SetHelpText(BranchButton, UiText.CreateBranchTip);
         SelectionActions = new Border { Name = nameof(SelectionActions), Classes = { "selection-actions" }, Child = BranchButton, IsVisible = false };
 
         // The action follows the selection when the page scrolls or resizes (raised inside the layout pass, after the
@@ -417,7 +418,8 @@ public sealed partial class AnswerView : UserControl
         // While storage is paused the entry stays in sight, disabled, and says why (§9.3); the selection is kept for copying.
         var paused = _item is { IsBranchPaused: true };
         BranchButton.IsEnabled = !paused;
-        ToolTip.SetTip(BranchButton, paused ? UiText.StoragePausedReason : null);
+        // Paused: why it is disabled; otherwise what it does and its shortcut (a11y-2, 2026-11-13).
+        ToolTip.SetTip(BranchButton, paused ? UiText.StoragePausedReason : UiText.CreateBranchTip);
 
         if (_item is { CanBranch: true } && SourceAnchors.HasSelection(_renderer))
         {
@@ -485,6 +487,21 @@ public sealed partial class AnswerView : UserControl
 
         Canvas.SetLeft(SelectionActions, x);
         Canvas.SetTop(SelectionActions, y);
+    }
+
+    /// <summary>
+    /// The keyboard route to a branch (health check 2026-11-12, a11y-2): ⌘/Ctrl+Shift+B on the page creates one from this
+    /// answer's selection. False when this answer has no selection that can be branched from.
+    /// </summary>
+    internal bool TryCreateBranchFromSelection()
+    {
+        if (CaptureSelection() is null)
+        {
+            return false;
+        }
+
+        _ = CreateBranchAsync();
+        return true;
     }
 
     private async Task CreateBranchAsync()

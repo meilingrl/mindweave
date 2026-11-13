@@ -94,7 +94,7 @@ public class StoragePauseUiTests
         Assert.True(Find<Button>(view, "SendButton").IsEffectivelyEnabled);
         Assert.True(Find<Button>(view, "SummarizeButton").IsEffectivelyEnabled);
         Assert.True(branch.IsEffectivelyEnabled);
-        Assert.Null(ToolTip.GetTip(branch));
+        Assert.Equal(UiText.CreateBranchTip, ToolTip.GetTip(branch));
         Assert.Null(page.Composer.Notice);
         var stored = (await app.Services.GetRequiredService<ConversationService>().LoadAsync(page.Id, CancellationToken.None))!.Messages[3];
         Assert.Equal(MessageState.Complete, stored.State);

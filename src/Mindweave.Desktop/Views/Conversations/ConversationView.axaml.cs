@@ -67,6 +67,27 @@ public sealed partial class ConversationView : UserControl
         ComposerHost.SettingsRequested += (_, _) => (DataContext as ConversationViewModel)?.OpenSettingsCommand.Execute(null);
     }
 
+    /// <summary>The page's own modifier for shortcuts: ⌘ on macOS, Ctrl elsewhere.</summary>
+    private static readonly Avalonia.Input.KeyModifiers Command = OperatingSystem.IsMacOS() ? Avalonia.Input.KeyModifiers.Meta : Avalonia.Input.KeyModifiers.Control;
+
+    /// <summary>⌘/Ctrl+Shift+B: a branch from the answer text selected on this page (health check 2026-11-12, a11y-2).</summary>
+    private void OnBranchShortcut(object? sender, Avalonia.Input.KeyEventArgs e)
+    {
+        if (e.Key != Avalonia.Input.Key.B || e.KeyModifiers != (Command | Avalonia.Input.KeyModifiers.Shift))
+        {
+            return;
+        }
+
+        foreach (var answer in this.GetVisualDescendants().OfType<AnswerView>())
+        {
+            if (answer.TryCreateBranchFromSelection())
+            {
+                e.Handled = true;
+                return;
+            }
+        }
+    }
+
     /// <summary>A streaming answer's selection, kept while its row is replaced by the stored one (see <see cref="AnswerView"/>).</summary>
     internal void HandOverSelection(MessageId answer, CarriedSelection selection) => _handedOver[answer] = selection;
 
@@ -133,6 +154,9 @@ public sealed partial class ConversationView : UserControl
         if (_window is not null)
         {
             _window.PropertyChanged += OnWindowPropertyChanged;
+
+            // On the window, as the sidebar's ⌘/Ctrl+B is: the shortcut works wherever the focus is while this page is shown.
+            _window.AddHandler(KeyDownEvent, OnBranchShortcut, Avalonia.Interactivity.RoutingStrategies.Tunnel);
         }
 
         UpdateShown();
@@ -144,6 +168,7 @@ public sealed partial class ConversationView : UserControl
         if (_window is not null)
         {
             _window.PropertyChanged -= OnWindowPropertyChanged;
+            _window.RemoveHandler(KeyDownEvent, OnBranchShortcut);
             _window = null;
         }
 

@@ -26,6 +26,11 @@ public static partial class UiText
     public const string MarkerNeedsAttention = "回答未完成，可重试";
     public const string MarkerNewAnswer = "有新回答";
     public const string CreateBranch = "创建分支";
+
+    /// <summary>Creating a branch from the selection by keyboard (2026-11-13; ⌘/Ctrl+B stays the sidebar's).</summary>
+    public static string BranchShortcut { get; } = OperatingSystem.IsMacOS() ? "⌘⇧B" : "Ctrl+Shift+B";
+
+    public static string CreateBranchTip { get; } = CreateBranch + "（" + BranchShortcut + "）";
     public const string ReturnToSource = "返回来源";
     public const string ReturnToSourceHint = "回到来源回答，并选中这段原文";
     public const string BranchFrom = "来自";
