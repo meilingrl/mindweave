@@ -77,7 +77,7 @@ public class ChatCompletionsClientTests
     }
 
     [Fact]
-    public async Task Reported_usage_is_passed_on_and_never_requested()
+    public async Task Reported_usage_is_passed_on_and_requested()
     {
         var sse = "data: {\"choices\":[{\"delta\":{\"content\":\"a\"},\"finish_reason\":\"stop\"}]}\n\n"
             + "data: {\"choices\":[],\"usage\":{\"prompt_tokens\":120,\"completion_tokens\":7,\"total_tokens\":127}}\n\n"
@@ -87,7 +87,9 @@ public class ChatCompletionsClientTests
         var events = await Collect(new ChatCompletionsClient(new HttpClient(handler), new ChatClientOptions()));
 
         Assert.Equal(new ChatStreamEvent.Usage(120, 7), Assert.Single(events.OfType<ChatStreamEvent.Usage>()));
-        Assert.Null(JsonNode.Parse(handler.Requests.Single().Body)!["stream_options"]);
+        // Requested (health check 2026-11-12): OpenAI-semantics endpoints send usage only when asked; statistics and
+        // token calibration depend on it.
+        Assert.True(JsonNode.Parse(handler.Requests.Single().Body)!["stream_options"]!["include_usage"]!.GetValue<bool>());
         var plain = await Collect(Client(_ => Sse("data: {\"choices\":[{\"delta\":{\"content\":\"a\"},\"finish_reason\":\"stop\"}]}\n\n")));
         Assert.Empty(plain.OfType<ChatStreamEvent.Usage>());
     }
@@ -214,6 +216,61 @@ public class ChatCompletionsClientTests
     [InlineData("HTTP 400: max_tokens must be less than or equal to 4096", 4096)]
     public void Only_a_round_output_limit_is_taken_from_the_message(string detail, int? expected) =>
         Assert.Equal(expected, ChatCompletionsClient.StatedLimit(detail, 16_384));
+
+    [Fact]
+    public async Task A_service_that_rejects_the_usage_option_is_asked_again_without_it()
+    {
+        var handler = new StubHandler(request =>
+            request.Content!.ReadAsStringAsync().GetAwaiter().GetResult().Contains("stream_options", StringComparison.Ordinal)
+                ? new HttpResponseMessage(HttpStatusCode.BadRequest) { Content = new StringContent("{\"error\":{\"message\":\"Unrecognized request argument supplied: stream_options\"}}") }
+                : Sse("data: {\"choices\":[{\"delta\":{\"content\":\"ok\"},\"finish_reason\":\"stop\"}]}\n\n"));
+
+        var events = await Collect(new ChatCompletionsClient(new HttpClient(handler), new ChatClientOptions()));
+
+        Assert.Single(events.OfType<ChatStreamEvent.Completed>());
+        Assert.Equal(2, handler.Requests.Count);
+        Assert.Null(JsonNode.Parse(handler.Requests[1].Body)!["stream_options"]);
+    }
+
+    /// <summary>Health check 2026-11-12, ai-client-4: comment keep-alives show the service is alive while it thinks silently.</summary>
+    [Fact]
+    public async Task Keep_alive_comments_keep_a_silent_stream_alive()
+    {
+        var events = Enumerable.Repeat(": keep-alive\n\n", 8)
+            .Append("data: {\"choices\":[{\"delta\":{\"content\":\"答\"},\"finish_reason\":\"stop\"}]}\n\n")
+            .ToArray();
+        var options = new ChatClientOptions { IdleTimeout = TimeSpan.FromSeconds(1) };
+        var paced = new StubHandler(_ => new HttpResponseMessage(HttpStatusCode.OK) { Content = new StreamContent(new PacedStream(events, TimeSpan.FromMilliseconds(250))) });
+
+        var received = await Collect(new ChatCompletionsClient(new HttpClient(paced), options));
+
+        Assert.Equal("答", Assert.Single(received.OfType<ChatStreamEvent.TextDelta>()).Text);
+    }
+
+    /// <summary>Health check 2026-11-12, ai-client-5: a 200 answered with plain JSON is read, not taken for a broken stream.</summary>
+    [Fact]
+    public async Task A_json_error_answered_with_status_200_is_reported_with_its_message()
+    {
+        var error = await Assert.ThrowsAsync<ChatClientException>(() => Collect(Client(_ => new HttpResponseMessage(HttpStatusCode.OK)
+        {
+            Content = new StringContent("{\"error\":{\"message\":\"insufficient balance\"}}", Encoding.UTF8, "application/json"),
+        })));
+
+        Assert.Contains("insufficient balance", error.Message, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task A_complete_answer_sent_without_streaming_is_used()
+    {
+        var events = await Collect(Client(_ => new HttpResponseMessage(HttpStatusCode.OK)
+        {
+            Content = new StringContent("{\"choices\":[{\"message\":{\"role\":\"assistant\",\"content\":\"完整的回答\"},\"finish_reason\":\"stop\"}],\"usage\":{\"prompt_tokens\":5,\"completion_tokens\":3}}", Encoding.UTF8, "application/json"),
+        }));
+
+        Assert.Equal("完整的回答", Assert.Single(events.OfType<ChatStreamEvent.TextDelta>()).Text);
+        Assert.Equal(new ChatStreamEvent.Completed(false), Assert.Single(events.OfType<ChatStreamEvent.Completed>()));
+        Assert.Equal(new ChatStreamEvent.Usage(5, 3), Assert.Single(events.OfType<ChatStreamEvent.Usage>()));
+    }
 
     [Fact]
     public async Task Other_bad_requests_are_not_retried()

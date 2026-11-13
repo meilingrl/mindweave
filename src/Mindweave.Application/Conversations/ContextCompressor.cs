@@ -214,7 +214,7 @@ public sealed partial class ContextCompressor(IContextSummaryStore summaries, IC
             throw new ContextCompressionException($"压缩较早的对话时请求失败：{ex.Message}", ex);
         }
 
-        var summary = text.ToString().Trim();
+        var summary = ConversationRules.WithoutInlineReasoning(text.ToString());
         var problem = completed is null ? "回答流未正常结束"
             : completed.Filtered ? FilteredProblem
             : completed.Truncated ? "达到输出上限被截断"

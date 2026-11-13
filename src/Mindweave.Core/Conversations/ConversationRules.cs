@@ -4,7 +4,7 @@ using System.Text;
 namespace Mindweave.Core.Conversations;
 
 /// <summary>Pure rules over a conversation's ordered messages.</summary>
-public static class ConversationRules
+public static partial class ConversationRules
 {
     public const int FallbackTitleLength = 30;
     public const int MaxTitleLength = 60;
@@ -68,6 +68,24 @@ public static class ConversationRules
     public static string FallbackTitle(string firstQuestion) => Shorten(firstQuestion, FallbackTitleLength);
 
     /// <summary>Cleans a generated title: one line, no wrapping quotes or trailing punctuation, bounded length.</summary>
+    /// <summary>
+    /// Removes reasoning a model wrote into its text (<c>&lt;think&gt;…&lt;/think&gt;</c>, as some reasoning models do when
+    /// served without a separate reasoning field) from text the program uses itself: titles, names, summaries (health check 2026-11-12). A reply
+    /// that starts reasoning and never closes it has no usable text.
+    /// </summary>
+    public static string WithoutInlineReasoning(string text)
+    {
+        ArgumentNullException.ThrowIfNull(text);
+        var cleaned = InlineReasoning().Replace(text, string.Empty).Trim();
+        return UnclosedReasoning().IsMatch(cleaned) ? string.Empty : cleaned;
+    }
+
+    [System.Text.RegularExpressions.GeneratedRegex(@"<(think|thinking)>[\s\S]*?</\1>", System.Text.RegularExpressions.RegexOptions.IgnoreCase)]
+    private static partial System.Text.RegularExpressions.Regex InlineReasoning();
+
+    [System.Text.RegularExpressions.GeneratedRegex(@"^<(think|thinking)>", System.Text.RegularExpressions.RegexOptions.IgnoreCase)]
+    private static partial System.Text.RegularExpressions.Regex UnclosedReasoning();
+
     public static string? CleanGeneratedTitle(string raw)
     {
         ArgumentNullException.ThrowIfNull(raw);

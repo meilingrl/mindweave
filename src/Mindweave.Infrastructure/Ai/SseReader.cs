@@ -11,6 +11,9 @@ internal sealed class SseReader(Stream stream) : IDisposable
     private readonly StreamReader _reader = new(stream, new UTF8Encoding(false), detectEncodingFromByteOrderMarks: false);
     private readonly StringBuilder _data = new();
 
+    /// <summary>Called for every line read, comments included: a keep-alive comment shows the service is alive.</summary>
+    public Action? LineRead { get; set; }
+
     /// <summary>The next event's data, or null at end of stream.</summary>
     public async Task<string?> ReadEventAsync(CancellationToken cancellationToken)
     {
@@ -18,6 +21,11 @@ internal sealed class SseReader(Stream stream) : IDisposable
         while (true)
         {
             var line = await _reader.ReadLineAsync(cancellationToken).ConfigureAwait(false);
+            if (line is not null)
+            {
+                LineRead?.Invoke();
+            }
+
             if (line is null)
             {
                 return hasData ? Take() : null;

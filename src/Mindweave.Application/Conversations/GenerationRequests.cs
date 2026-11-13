@@ -115,7 +115,7 @@ public sealed partial class GenerationRequests
             throw;
         }
 
-        var output = text.ToString().Trim();
+        var output = ConversationRules.WithoutInlineReasoning(text.ToString());
         var problem = completed is null ? "回答流未正常结束。"
             : completed.Filtered ? "服务的内容审核中止了输出，未保存。"
             : completed.Truncated ? "输出达到上限被截断，未保存。"

@@ -54,6 +54,8 @@ LiveMarkdown 有两种输入：整段 `MarkdownDocumentUpdate.Full` 与增量 `O
 
 Chat Completions 的 `stream_options.include_usage` 不是所有兼容服务都接受，发送未知字段可能导致整个请求被拒。只在服务主动返回 `usage` 时记录到 `ai_request`，用于核对估算与诊断。
 
+（2026-11-13 改为请求，健康检查 gap-unprompted-1）统计页（第 6 项）与按模型 token 校准都依赖 usage，而遵循 OpenAI 语义的服务只在请求了 `stream_options.include_usage` 时才返回。现在默认请求；服务因不认识该字段而以 400 拒绝（错误信息提到 `stream_options`）时，同一请求去掉它再发一次。官方 OpenAI 接口仍未直接实测。
+
 ## D-014 公式用 LiveMarkdown.Avalonia.Math 2.5.1（RaTeX）（2026-10-27）
 
 S3 试用中你指出 LaTeX 不渲染。LiveMarkdown 本身没有公式支持，同一作者的配套包 `LiveMarkdown.Avalonia.Math` 用 RaTeX 渲染行内 `$…$` 与块级 `$$…$$`。RaTeX 带原生库，覆盖 macOS arm64／x64、Windows x64 与 Linux（CI）；许可为 Apache-2.0、MIT 与 KaTeX 字体的 SIL OFL。版面中公式是一个对象占位字符，来源锚点照常工作；引用文字在捕获时按顺序把占位字符还原为该块里的 LaTeX 原文，发给模型的引用不会丢失公式。渲染配置身份改为 `livemarkdown-2.5.1/math-1`，旧身份的锚点仍然尝试恢复：校验以内容与版面哈希为准，没有公式的回答版面不变，有公式的回答校验失败后按 MW-C13 降级。

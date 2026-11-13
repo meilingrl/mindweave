@@ -72,8 +72,25 @@ public sealed class ChatCompletionsClient(HttpClient http, ChatClientOptions opt
     {
         using var response = await SendAsync(request, apiKey, cancellationToken).ConfigureAwait(false);
         yield return new ChatStreamEvent.ResponseStarted((int)response.StatusCode, ProviderRequestId(response));
+
+        // A 200 that is not a stream (health check 2026-11-12, ai-client-5): a relay's error, or an endpoint that ignored
+        // stream=true and sent the whole answer. Read it instead of reporting a stream that ended without finishing.
+        if (response.Content.Headers.ContentType?.MediaType is { } media && media.Contains("json", StringComparison.OrdinalIgnoreCase))
+        {
+            var body = await response.Content.ReadAsStringAsync(cancellationToken).ConfigureAwait(false);
+            foreach (var item in ParseWhole(body))
+            {
+                yield return item;
+            }
+
+            yield break;
+        }
+
         using var reader = new SseReader(await response.Content.ReadAsStreamAsync(cancellationToken).ConfigureAwait(false));
         using var idle = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+
+        // Any line, a keep-alive comment included, shows the service is alive (health check 2026-11-12, ai-client-4).
+        reader.LineRead = () => idle.CancelAfter(options.IdleTimeout);
         var completed = false;
         while (true)
         {
@@ -167,16 +184,28 @@ public sealed class ChatCompletionsClient(HttpClient http, ChatClientOptions opt
     private async Task<HttpResponseMessage> SendAsync(ChatRequest request, string apiKey, CancellationToken cancellationToken)
     {
         var max = request.Model.MaxOutputTokens;
-        try
+        var usage = true;
+        var limitLowered = false;
+        while (true)
         {
-            return await SendOnceAsync(request, apiKey, max, cancellationToken).ConfigureAwait(false);
-        }
-        catch (ChatClientException ex) when (max is not null && ex.HttpStatus == 400 && NamesOutputLimit(ex.Message))
-        {
-            // Health check 2026-11-12, item 8: internal requests ask for a large output allowance (D-015). A service whose
-            // limit is lower, or that does not take the parameter, refuses the request before answering anything; it
-            // is sent once more within the limit the service states, or without the parameter.
-            return await SendOnceAsync(request, apiKey, StatedLimit(ex.Message, max.Value), cancellationToken).ConfigureAwait(false);
+            try
+            {
+                return await SendOnceAsync(request, apiKey, max, usage, cancellationToken).ConfigureAwait(false);
+            }
+            catch (ChatClientException ex) when (ex.HttpStatus == 400 && usage && ex.Message.Contains("stream_options", StringComparison.OrdinalIgnoreCase))
+            {
+                // Usage is asked for (health check 2026-11-12): statistics and token calibration depend on it. A service
+                // that does not know the option refuses the request before answering; it is sent again without it.
+                usage = false;
+            }
+            catch (ChatClientException ex) when (ex.HttpStatus == 400 && max is not null && !limitLowered && NamesOutputLimit(ex.Message))
+            {
+                // Health check 2026-11-12, item 8: internal requests ask for a large output allowance (D-015). A service
+                // whose limit is lower, or that does not take the parameter, refuses the request before answering
+                // anything; it is sent once more within the limit the service states, or without the parameter.
+                limitLowered = true;
+                max = StatedLimit(ex.Message, max.Value);
+            }
         }
     }
 
@@ -204,7 +233,7 @@ public sealed class ChatCompletionsClient(HttpClient http, ChatClientOptions opt
     /// <summary>Numbers below this in an error message are not taken for an output limit.</summary>
     private const int MinStatedLimit = 1024;
 
-    private async Task<HttpResponseMessage> SendOnceAsync(ChatRequest request, string apiKey, int? maxOutputTokens, CancellationToken cancellationToken)
+    private async Task<HttpResponseMessage> SendOnceAsync(ChatRequest request, string apiKey, int? maxOutputTokens, bool includeUsage, CancellationToken cancellationToken)
     {
         var body = new JsonObject
         {
@@ -224,6 +253,11 @@ public sealed class ChatCompletionsClient(HttpClient http, ChatClientOptions opt
         if (maxOutputTokens is { } max)
         {
             body["max_tokens"] = max;
+        }
+
+        if (includeUsage)
+        {
+            body["stream_options"] = new JsonObject { ["include_usage"] = true };
         }
 
         using var message = new HttpRequestMessage(HttpMethod.Post, new Uri($"{request.Model.BaseUrl.TrimEnd('/')}/chat/completions"))
@@ -280,6 +314,57 @@ public sealed class ChatCompletionsClient(HttpClient http, ChatClientOptions opt
         }
     }
 
+    /// <summary>A whole JSON answer: an error, or a non-streamed completion turned into the events a stream would have sent.</summary>
+    private static List<ChatStreamEvent> ParseWhole(string body)
+    {
+        JsonNode? node;
+        try
+        {
+            node = JsonNode.Parse(body);
+        }
+        catch (JsonException ex)
+        {
+            throw new ChatClientException(GenerationErrorKind.InvalidResponse, $"The service answered with invalid JSON instead of a stream: {Limit(body)}", ex);
+        }
+
+        if (node is not JsonObject obj)
+        {
+            throw new ChatClientException(GenerationErrorKind.InvalidResponse, $"The service answered with JSON instead of a stream: {Limit(body)}");
+        }
+
+        if (obj["error"] is { } error)
+        {
+            throw new ChatClientException(GenerationErrorKind.ServerError, Limit(ErrorMessage(error)));
+        }
+
+        if ((obj["choices"] as JsonArray)?.FirstOrDefault() is not JsonObject choice || choice["message"] is not JsonObject message)
+        {
+            throw new ChatClientException(GenerationErrorKind.InvalidResponse, $"The service answered with JSON that is neither a stream nor an answer: {Limit(body)}");
+        }
+
+        var events = new List<ChatStreamEvent>();
+        if (message["reasoning_content"] is JsonValue thought && thought.TryGetValue<string>(out var t) && t.Length > 0)
+        {
+            events.Add(new ChatStreamEvent.ReasoningDelta(t.Length));
+        }
+
+        if (message["content"] is JsonValue content && content.TryGetValue<string>(out var text) && text.Length > 0)
+        {
+            events.Add(new ChatStreamEvent.TextDelta(text));
+        }
+
+        var reason = choice["finish_reason"] is JsonValue r && r.TryGetValue<string>(out var f) ? f : "stop";
+        events.Add(new ChatStreamEvent.Completed(Truncated: reason is "length" or "content_filter", Filtered: reason == "content_filter"));
+        if (obj["usage"] is JsonObject counts)
+        {
+            events.Add(new ChatStreamEvent.Usage(Count(counts["prompt_tokens"]), Count(counts["completion_tokens"])));
+        }
+
+        return events;
+
+        static int? Count(JsonNode? value) => value is JsonValue number && number.TryGetValue<int>(out var n) && n >= 0 ? n : null;
+    }
+
     private static (string? Text, int Reasoning, string? FinishReason, ChatStreamEvent.Usage? Usage) Parse(string data)
     {
         JsonNode? node;
@@ -319,7 +404,7 @@ public sealed class ChatCompletionsClient(HttpClient http, ChatClientOptions opt
         var reasoning = delta?["reasoning_content"] is JsonValue thought && thought.TryGetValue<string>(out var t) ? t.Length : 0;
         var finish = choice?["finish_reason"] is JsonValue reason && reason.TryGetValue<string>(out var r) ? r : null;
 
-        // Services that report usage put it on the last chunk (or a final chunk without choices); it is never requested.
+        // Usage comes on the last chunk (or a final chunk without choices); it is requested with stream_options.
         // Moonshot (Kimi) puts it inside the final choice instead (2026-11-05, real service).
         ChatStreamEvent.Usage? usage = (obj["usage"] as JsonObject ?? choice?["usage"] as JsonObject) is { } counts
             ? new ChatStreamEvent.Usage(Count(counts["prompt_tokens"]), Count(counts["completion_tokens"]))

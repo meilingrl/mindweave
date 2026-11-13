@@ -91,4 +91,14 @@ public class ConversationRulesTests
 
     private static Message Answer(int seq, string body, MessageState state, MessageId? supersedes = null) =>
         new(MessageId.New(), Conversation, seq, MessageRole.Assistant, ContentBlocks.FromText(body), state, 0, supersedes, null, null, DateTimeOffset.UnixEpoch, null);
+
+    /// <summary>Health check 2026-11-12: reasoning some models put inside the text is not part of what the program uses.</summary>
+    [Theory]
+    [InlineData("<think>\nThe user asks about trains.\n</think>\n蒸汽机的发明", "蒸汽机的发明")]
+    [InlineData("<THINKING>想一想</THINKING>标题", "标题")]
+    [InlineData("<think>只有推理，没有结束", "")]
+    [InlineData("没有推理的正文", "没有推理的正文")]
+    [InlineData("正文里提到 <think> 这个词", "正文里提到 <think> 这个词")]
+    public void Inline_reasoning_is_removed(string raw, string expected) =>
+        Assert.Equal(expected, ConversationRules.WithoutInlineReasoning(raw));
 }
