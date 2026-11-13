@@ -18,6 +18,10 @@ CONFIG_DIR="${XDG_CONFIG_HOME:-$HOME/.config}/mindweave-dev/claude-auto"
 ROOT="$(git -C "$(dirname "$0")" rev-parse --show-toplevel)"
 PROFILE="${2:-default}"
 
+# The profile names a file and a keychain account (low finding repo-scripts-10): letters, digits, - and _ only, so it
+# cannot reach outside the config folder.
+[[ "$PROFILE" =~ ^[A-Za-z0-9_-]+$ ]] || { echo "Profile names use letters, digits, - and _ only." >&2; exit 1; }
+
 if [[ "$(uname)" != "Darwin" ]]; then
   echo "real-api.sh uses the macOS keychain; run it on the Mac." >&2
   exit 1
@@ -29,7 +33,8 @@ case "${1:-}" in
     chmod 700 "$CONFIG_DIR"
     read -r -p "Base URL (OpenAI-compatible, e.g. https://api.deepseek.com or https://api.example.com/v1): " base
     read -r -p "Model ID: " model
-    [[ "$base" == https://* || "$base" == http://localhost* || "$base" == http://127.0.0.1* ]] || { echo "Use an https:// address." >&2; exit 1; }
+    # http only for this machine itself: http://localhost.example.com would otherwise pass a prefix match.
+    [[ "$base" == https://* || "$base" =~ ^http://(localhost|127\.0\.0\.1)(:[0-9]+)?(/|$) ]] || { echo "Use an https:// address." >&2; exit 1; }
     [[ -n "$model" ]] || { echo "Model ID is required." >&2; exit 1; }
     echo "Now paste the API key at the keychain prompt (input is hidden; you may be asked twice):"
     # -w as the last option makes `security` prompt for the secret itself; -U updates an existing item.
