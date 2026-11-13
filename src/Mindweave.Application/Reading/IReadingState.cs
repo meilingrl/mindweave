@@ -14,5 +14,10 @@ public interface IReadingState
 
     void SetDraft(ConversationId conversation, ViewerSlotKey slot, string text);
 
+    /// <summary>The unsent first question on a workspace's new-exploration page (no conversation exists yet); empty when none.</summary>
+    Task<string> GetNewDraftAsync(Core.Workspaces.WorkspaceId workspace, CancellationToken cancellationToken);
+
+    void SetNewDraft(Core.Workspaces.WorkspaceId workspace, string text);
+
     Task<bool> FlushAsync();
 }

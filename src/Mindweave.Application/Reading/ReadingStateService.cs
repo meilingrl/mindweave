@@ -26,12 +26,22 @@ public sealed partial class ReadingStateService : IReadingState, IDisposable
     private readonly SemaphoreSlim _flushing = new(1, 1);
     private readonly StorageHealth? _health;
 
+    // New-exploration drafts (health check 2026-11-12, requirements-3): one per workspace, kept as a preference, since
+    // no conversation exists yet for the draft table to point at.
+    private readonly IPreferenceStore? _preferences;
+    private readonly Dictionary<Core.Workspaces.WorkspaceId, string> _newDrafts = [];
+    private readonly HashSet<Core.Workspaces.WorkspaceId> _dirtyNewDrafts = [];
+
+    /// <summary>The preference key of a workspace's new-exploration draft.</summary>
+    public static string NewDraftKey(Core.Workspaces.WorkspaceId workspace) => $"draft.new-exploration:{workspace}";
+
     // One open obligation per draft storage refused; resolved when that draft's newest value is saved.
     private readonly Dictionary<(ConversationId, ViewerSlotKey), StorageObligation> _draftObligations = [];
     private bool _scheduled;
 
-    public ReadingStateService(IReadingStateStore store, IClock clock, ILogger<ReadingStateService> logger, TimeSpan? saveDelay = null, StorageHealth? health = null)
+    public ReadingStateService(IReadingStateStore store, IClock clock, ILogger<ReadingStateService> logger, TimeSpan? saveDelay = null, StorageHealth? health = null, IPreferenceStore? preferences = null)
     {
+        _preferences = preferences;
         _store = store;
         _clock = clock;
         _logger = logger;
@@ -127,6 +137,51 @@ public sealed partial class ReadingStateService : IReadingState, IDisposable
         ScheduleSave();
     }
 
+    public async Task<string> GetNewDraftAsync(Core.Workspaces.WorkspaceId workspace, CancellationToken cancellationToken)
+    {
+        lock (_gate)
+        {
+            if (_newDrafts.TryGetValue(workspace, out var known))
+            {
+                return known;
+            }
+        }
+
+        if (_preferences is null)
+        {
+            return string.Empty;
+        }
+
+        try
+        {
+            return await _preferences.GetAsync(NewDraftKey(workspace), cancellationToken).ConfigureAwait(false) ?? string.Empty;
+        }
+#pragma warning disable CA1031 // See GetDraftAsync: a failed read opens the page with an empty box.
+        catch (Exception ex) when (ex is not OperationCanceledException)
+#pragma warning restore CA1031
+        {
+            LogNewDraftFailed(_logger, ex, workspace);
+            return string.Empty;
+        }
+    }
+
+    public void SetNewDraft(Core.Workspaces.WorkspaceId workspace, string text)
+    {
+        ArgumentNullException.ThrowIfNull(text);
+        lock (_gate)
+        {
+            if (_newDrafts.TryGetValue(workspace, out var known) && known == text)
+            {
+                return;
+            }
+
+            _newDrafts[workspace] = text;
+            _dirtyNewDrafts.Add(workspace);
+        }
+
+        ScheduleSave();
+    }
+
     /// <summary>
     /// Writes every pending change now. Called on exit before the window closes; safe to call any time. A value whose
     /// write fails stays pending (dirty) for the next flush instead of being dropped. Returns false when a draft could
@@ -139,13 +194,16 @@ public sealed partial class ReadingStateService : IReadingState, IDisposable
         {
             List<((ConversationId Conversation, ViewerSlotKey Slot) Key, ReadingPosition Value)> positions;
             List<((ConversationId Conversation, ViewerSlotKey Slot) Key, string Value)> drafts;
+            List<(Core.Workspaces.WorkspaceId Workspace, string Value)> newDrafts;
             lock (_gate)
             {
                 _scheduled = false;
                 positions = [.. _dirtyPositions.Select(k => (k, _positions[k]))];
                 drafts = [.. _dirtyDrafts.Select(k => (k, _drafts[k]))];
+                newDrafts = [.. _dirtyNewDrafts.Select(w => (w, _newDrafts[w]))];
                 _dirtyPositions.Clear();
                 _dirtyDrafts.Clear();
+                _dirtyNewDrafts.Clear();
             }
 
             var now = _clock.UtcNow;
@@ -167,6 +225,19 @@ public sealed partial class ReadingStateService : IReadingState, IDisposable
                 }
             }
 
+            foreach (var (workspace, value) in newDrafts)
+            {
+                if (!await SaveNewDraftAsync(workspace, value).ConfigureAwait(false))
+                {
+                    lock (_gate)
+                    {
+                        _dirtyNewDrafts.Add(workspace);
+                    }
+
+                    draftsSaved = false;
+                }
+            }
+
             return draftsSaved;
         }
         finally
@@ -176,6 +247,45 @@ public sealed partial class ReadingStateService : IReadingState, IDisposable
     }
 
     public void Dispose() => _flushing.Dispose();
+
+    /// <summary>Writes one new-exploration draft (an empty one removes it); storage refusing it is reported like any draft.</summary>
+    private async Task<bool> SaveNewDraftAsync(Core.Workspaces.WorkspaceId workspace, string value)
+    {
+        if (_preferences is null)
+        {
+            return true;
+        }
+
+        try
+        {
+            if (value.Length == 0)
+            {
+                await _preferences.RemoveAsync(NewDraftKey(workspace), CancellationToken.None).ConfigureAwait(false);
+            }
+            else
+            {
+                await _preferences.SetAsync(NewDraftKey(workspace), value, CancellationToken.None).ConfigureAwait(false);
+            }
+
+            return true;
+        }
+        catch (StorageWriteException ex)
+        {
+            LogNewDraftFailed(_logger, ex, workspace);
+            _health?.Report(ex);
+            return false;
+        }
+#pragma warning disable CA1031 // Any other failure: logged; the in-memory value stays current and pending.
+        catch (Exception ex)
+#pragma warning restore CA1031
+        {
+            LogNewDraftFailed(_logger, ex, workspace);
+            return false;
+        }
+    }
+
+    [LoggerMessage(Level = LogLevel.Warning, Message = "New-exploration draft of workspace {Workspace} could not be read or saved")]
+    private static partial void LogNewDraftFailed(ILogger logger, Exception exception, Core.Workspaces.WorkspaceId workspace);
 
     private void ScheduleSave()
     {

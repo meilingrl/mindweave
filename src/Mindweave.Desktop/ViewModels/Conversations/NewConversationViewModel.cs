@@ -28,6 +28,8 @@ public sealed partial class NewConversationViewModel : PageViewModel, IDisposabl
     private int _loads;
     private bool _autoPrepares = true;
     private bool _disposed;
+    private readonly Application.Reading.IReadingState? _reading;
+    private bool _draftLoaded;
 
     public NewConversationViewModel(
         WorkspaceId workspace,
@@ -37,9 +39,11 @@ public sealed partial class NewConversationViewModel : PageViewModel, IDisposabl
         IRecommendations? recommendations = null,
         IUiDispatcher? dispatcher = null,
         NewConversationRoute? route = null,
-        Application.Preferences.IRecommendationSettings? settings = null)
+        Application.Preferences.IRecommendationSettings? settings = null,
+        Application.Reading.IReadingState? reading = null)
         : base(route ?? NewConversationRoute.Instance)
     {
+        _reading = reading;
         _workspace = workspace;
         _menu = menu;
         _recommendations = recommendations;
@@ -51,6 +55,9 @@ public sealed partial class NewConversationViewModel : PageViewModel, IDisposabl
             var outcome = await conversations.StartAsync(workspace, text, CancellationToken.None);
             if (outcome.Accepted)
             {
+                // Sent: the question is in the new conversation now (the page is replaced before its box is cleared).
+                _reading?.SetNewDraft(workspace, string.Empty);
+
                 if (source is not null)
                 {
                     Marking = MarkUsedAsync(source.Recommendation);
@@ -74,6 +81,10 @@ public sealed partial class NewConversationViewModel : PageViewModel, IDisposabl
         }
 
         Composer.PropertyChanged += OnComposerChanged;
+
+        // The unsent first question is kept per workspace (health check 2026-11-12, requirements-3): it survives going
+        // back, opening the page again and a restart. A question brought from a recommended node replaces it.
+        DraftLoaded = reading is null ? Task.CompletedTask : LoadDraftAsync(route is { Question: not null });
         if (recommendations is not null)
         {
             recommendations.Changed += OnRecommendationsChanged;
@@ -96,6 +107,9 @@ public sealed partial class NewConversationViewModel : PageViewModel, IDisposabl
 
     /// <summary>The recommended questions shown under the input, in order; the first is also the placeholder.</summary>
     public ObservableCollection<RecommendedQuestionViewModel> Recommendations { get; } = [];
+
+    /// <summary>The stored draft is in the box (tests).</summary>
+    public Task DraftLoaded { get; }
 
     /// <summary>The first load of the recommendations (tests).</summary>
     public Task Loaded { get; } = Task.CompletedTask;
@@ -295,11 +309,36 @@ public sealed partial class NewConversationViewModel : PageViewModel, IDisposabl
     /// The input says which recommendation a question would come from: one put there (or typed exactly), kept while it
     /// is edited, and forgotten once the input is empty again.
     /// </summary>
+    private async Task LoadDraftAsync(bool fromNode)
+    {
+        if (fromNode)
+        {
+            _draftLoaded = true;
+            _reading!.SetNewDraft(_workspace, Composer.Text);
+            return;
+        }
+
+        var stored = await _reading!.GetNewDraftAsync(_workspace, CancellationToken.None);
+
+        // Typed meanwhile: what was typed is the draft.
+        if (!_disposed && Composer.Text.Length == 0)
+        {
+            Composer.Text = stored;
+        }
+
+        _draftLoaded = true;
+    }
+
     private void OnComposerChanged(object? sender, PropertyChangedEventArgs e)
     {
         if (e.PropertyName != nameof(Composer.Text))
         {
             return;
+        }
+
+        if (_draftLoaded && !_disposed)
+        {
+            _reading?.SetNewDraft(_workspace, Composer.Text);
         }
 
         var text = Composer.Text;

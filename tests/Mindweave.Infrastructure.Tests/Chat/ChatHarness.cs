@@ -367,7 +367,8 @@ internal sealed class ChatHarness : IAsyncDisposable
             sp.GetRequiredService<IClock>(),
             sp.GetRequiredService<ILogger<ReadingStateService>>(),
             TimeSpan.FromMilliseconds(20),
-            sp.GetRequiredService<StorageHealth>())));
+            sp.GetRequiredService<StorageHealth>(),
+            sp.GetRequiredService<IPreferenceStore>())));
         services.Replace(ServiceDescriptor.Singleton(sp => new Application.Summaries.SummaryDrafts(
             sp.GetRequiredService<ISummaryStore>(),
             sp.GetRequiredService<IClock>(),
