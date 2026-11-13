@@ -236,9 +236,10 @@ public sealed partial class NetworkHomeViewModel : PageViewModel, IDisposable
             await _recommendations.IgnoreAsync(node.Recommendation, CancellationToken.None);
         }
 #pragma warning disable CA1031 // Not remembered this time: the next load shows it again.
-        catch (Exception)
+        catch (Exception swallowed)
 #pragma warning restore CA1031
         {
+            DesktopLog.Swallowed(swallowed);
         }
 
         await _recommendationLoad.Request();
@@ -261,9 +262,10 @@ public sealed partial class NetworkHomeViewModel : PageViewModel, IDisposable
             outcome = await _recommendations.RefreshNodesAsync(Workspace.Id, CancellationToken.None);
         }
 #pragma warning disable CA1031 // A recommendation is a hint: any failure is said beside it and can be retried.
-        catch (Exception)
+        catch (Exception swallowed)
 #pragma warning restore CA1031
         {
+            DesktopLog.Swallowed(swallowed);
             outcome = RecommendationOutcome.Refused(RecommendationProblem.Failed);
         }
 
@@ -309,9 +311,10 @@ public sealed partial class NetworkHomeViewModel : PageViewModel, IDisposable
             await _recommendations.SetNodesHiddenAsync(Workspace.Id, hidden, CancellationToken.None);
         }
 #pragma warning disable CA1031 // Applied for this run already; not remembered this time.
-        catch (Exception)
+        catch (Exception swallowed)
 #pragma warning restore CA1031
         {
+            DesktopLog.Swallowed(swallowed);
         }
     }
 
@@ -491,9 +494,10 @@ public sealed partial class NetworkHomeViewModel : PageViewModel, IDisposable
             _offer = await _recommendations.GetNodesAsync(Workspace.Id, CancellationToken.None);
         }
 #pragma warning disable CA1031 // Unreadable recommendations are none: the network works as before.
-        catch (Exception)
+        catch (Exception swallowed)
 #pragma warning restore CA1031
         {
+            DesktopLog.Swallowed(swallowed);
             _offer = NodeOffer.Off;
         }
     }

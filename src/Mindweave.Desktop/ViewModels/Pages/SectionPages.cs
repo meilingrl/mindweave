@@ -226,9 +226,10 @@ public sealed partial class SettingsHomeViewModel : PageViewModel, IDisposable
             RecommendationsStatus = null;
         }
 #pragma warning disable CA1031 // As for the other hints: reported beside the settings, still applies for this run.
-        catch (Exception)
+        catch (Exception swallowed)
 #pragma warning restore CA1031
         {
+            DesktopLog.Swallowed(swallowed);
             RecommendationsStatus = UiText.RecommendationsSaveFailed;
         }
     }
@@ -314,9 +315,10 @@ public sealed partial class SettingsHomeViewModel : PageViewModel, IDisposable
             PrepareNamesStatus = null;
         }
 #pragma warning disable CA1031 // As for the other hints: reported beside the setting, still applies for this run.
-        catch (Exception)
+        catch (Exception swallowed)
 #pragma warning restore CA1031
         {
+            DesktopLog.Swallowed(swallowed);
             PrepareNamesStatus = UiText.PrepareNamesSaveFailed;
         }
     }
@@ -331,9 +333,10 @@ public sealed partial class SettingsHomeViewModel : PageViewModel, IDisposable
             InWorkspaceNewsStatus = null;
         }
 #pragma warning disable CA1031 // As for the sound: reported beside the setting, still applies for this run.
-        catch (Exception)
+        catch (Exception swallowed)
 #pragma warning restore CA1031
         {
+            DesktopLog.Swallowed(swallowed);
             InWorkspaceNewsStatus = UiText.NewsInWorkspaceSaveFailed;
         }
     }
@@ -348,9 +351,10 @@ public sealed partial class SettingsHomeViewModel : PageViewModel, IDisposable
             NewsSoundStatus = null;
         }
 #pragma warning disable CA1031 // As for the appearance: reported beside the setting, still applies for this run.
-        catch (Exception)
+        catch (Exception swallowed)
 #pragma warning restore CA1031
         {
+            DesktopLog.Swallowed(swallowed);
             NewsSoundStatus = UiText.NewsSoundSaveFailed;
         }
     }
@@ -363,9 +367,10 @@ public sealed partial class SettingsHomeViewModel : PageViewModel, IDisposable
             return await read();
         }
 #pragma warning disable CA1031 // Unreadable means on, the default.
-        catch (Exception)
+        catch (Exception swallowed)
 #pragma warning restore CA1031
         {
+            DesktopLog.Swallowed(swallowed);
             return true;
         }
     }
@@ -387,9 +392,10 @@ public sealed partial class SettingsHomeViewModel : PageViewModel, IDisposable
             AppearanceStatus = null;
         }
 #pragma warning disable CA1031 // A lost appearance choice is reported beside the setting; it still applies for this run.
-        catch (Exception)
+        catch (Exception swallowed)
 #pragma warning restore CA1031
         {
+            DesktopLog.Swallowed(swallowed);
             AppearanceStatus = UiText.AppearanceSaveFailed;
         }
     }
@@ -402,9 +408,10 @@ public sealed partial class SettingsHomeViewModel : PageViewModel, IDisposable
             stored = await _appearanceService.GetAsync(CancellationToken.None);
         }
 #pragma warning disable CA1031 // Unreadable means the default, as at startup.
-        catch (Exception)
+        catch (Exception swallowed)
 #pragma warning restore CA1031
         {
+            DesktopLog.Swallowed(swallowed);
             stored = Appearance.FollowSystem;
         }
 
@@ -418,9 +425,10 @@ public sealed partial class SettingsHomeViewModel : PageViewModel, IDisposable
                 sound = await _newsAlerts.GetSoundAsync(CancellationToken.None);
             }
 #pragma warning disable CA1031 // Unreadable means off, the default.
-            catch (Exception)
+            catch (Exception swallowed)
 #pragma warning restore CA1031
             {
+                DesktopLog.Swallowed(swallowed);
             }
 
             try
@@ -428,9 +436,10 @@ public sealed partial class SettingsHomeViewModel : PageViewModel, IDisposable
                 inWorkspace = await _newsAlerts.GetInWorkspaceAsync(CancellationToken.None);
             }
 #pragma warning disable CA1031 // Unreadable means on, the default.
-            catch (Exception)
+            catch (Exception swallowed)
 #pragma warning restore CA1031
             {
+                DesktopLog.Swallowed(swallowed);
             }
 
             try
@@ -438,9 +447,10 @@ public sealed partial class SettingsHomeViewModel : PageViewModel, IDisposable
                 prepareNames = await _newsAlerts.GetPrepareNamesAsync(CancellationToken.None);
             }
 #pragma warning disable CA1031 // Unreadable means on, the default.
-            catch (Exception)
+            catch (Exception swallowed)
 #pragma warning restore CA1031
             {
+                DesktopLog.Swallowed(swallowed);
             }
         }
 

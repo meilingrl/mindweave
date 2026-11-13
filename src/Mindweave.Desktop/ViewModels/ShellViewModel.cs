@@ -7,6 +7,7 @@ using Mindweave.Application.Workspaces;
 using Mindweave.Core.Conversations;
 using Mindweave.Core.Workspaces;
 using Mindweave.Desktop.Navigation;
+using Mindweave.Desktop.Services;
 
 namespace Mindweave.Desktop.ViewModels;
 
@@ -173,9 +174,10 @@ public sealed partial class ShellViewModel : ViewModelBase
             stored = await _sidebarLayout.GetAsync(CancellationToken.None);
         }
 #pragma warning disable CA1031 // The layout is cosmetic: unreadable means the default, as for the appearance.
-        catch (Exception)
+        catch (Exception swallowed)
 #pragma warning restore CA1031
         {
+            DesktopLog.Swallowed(swallowed);
             stored = SidebarLayout.Default;
         }
 
@@ -203,9 +205,10 @@ public sealed partial class ShellViewModel : ViewModelBase
                 await _sidebarLayout.SetAsync(layout, CancellationToken.None);
             }
 #pragma warning disable CA1031 // A lost layout is not worth an error: the sidebar stays as it is for this run.
-            catch (Exception)
+            catch (Exception swallowed)
 #pragma warning restore CA1031
             {
+                DesktopLog.Swallowed(swallowed);
             }
         }
     }

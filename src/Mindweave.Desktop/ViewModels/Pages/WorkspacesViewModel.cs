@@ -8,6 +8,7 @@ using Mindweave.Application.Workspaces;
 using Mindweave.Core.Conversations;
 using Mindweave.Core.Workspaces;
 using Mindweave.Desktop.Navigation;
+using Mindweave.Desktop.Services;
 
 namespace Mindweave.Desktop.ViewModels.Pages;
 
@@ -171,9 +172,10 @@ public sealed partial class WorkspacesViewModel : PageViewModel, IDisposable
             kept = await _names.GetAsync(row.Workspace.Id, row.Workspace.Name, CancellationToken.None);
         }
 #pragma warning disable CA1031 // Kept names are a convenience: none is shown, the rename works as before.
-        catch (Exception)
+        catch (Exception swallowed)
 #pragma warning restore CA1031
         {
+            DesktopLog.Swallowed(swallowed);
             return;
         }
 
@@ -302,9 +304,10 @@ public sealed partial class WorkspacesViewModel : PageViewModel, IDisposable
             return;
         }
 #pragma warning disable CA1031 // The workspace could not be read: say so beside the button, and the rename stays usable.
-        catch (Exception)
+        catch (Exception swallowed)
 #pragma warning restore CA1031
         {
+            DesktopLog.Swallowed(swallowed);
             if (row.Owns(request))
             {
                 row.ShowSuggestionProblem(UiText.SuggestionsFailed(null), retry: true);
@@ -433,9 +436,10 @@ public sealed partial class WorkspacesViewModel : PageViewModel, IDisposable
                 }
             }
 #pragma warning disable CA1031 // A count is information only: the row says it could not be read and stays usable.
-            catch (Exception)
+            catch (Exception swallowed)
 #pragma warning restore CA1031
             {
+                DesktopLog.Swallowed(swallowed);
                 row.CountsFailed();
             }
         }

@@ -56,6 +56,7 @@ public sealed partial class App : Avalonia.Application
 
             // Before anything runs on the dispatcher: an exception a command does not handle is reported, not fatal.
             // The session is looked up each time, since an in-app restore replaces it.
+            DesktopLog.Use(_host.Session.Services.GetRequiredService<ILoggerFactory>().CreateLogger("Mindweave.Desktop"));
             var guard = new UiExceptionGuard(
                 Dispatcher.UIThread,
                 () => _host.Session.Services.GetService<ShellViewModel>(),

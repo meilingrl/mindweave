@@ -209,9 +209,10 @@ public sealed partial class WorkspaceDeletionViewModel : ViewModelBase
             contents = await _deletion.InspectAsync(workspace.Id, CancellationToken.None);
         }
 #pragma warning disable CA1031 // An unreadable count leaves the delete disabled and says so; cancelling still works.
-        catch (Exception)
+        catch (Exception swallowed)
 #pragma warning restore CA1031
         {
+            DesktopLog.Swallowed(swallowed);
             if (initial && Target?.Id == workspace.Id)
             {
                 Problem = UiText.WorkspaceDeleteCountFailed;

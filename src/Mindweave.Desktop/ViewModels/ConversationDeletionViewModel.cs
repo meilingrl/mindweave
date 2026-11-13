@@ -274,9 +274,10 @@ public sealed partial class ConversationDeletionViewModel : ViewModelBase
             scope = await _deletion.InspectAsync(_selected, CancellationToken.None);
         }
 #pragma warning disable CA1031 // An unreadable scope leaves the delete disabled and says so; cancelling still works.
-        catch (Exception)
+        catch (Exception swallowed)
 #pragma warning restore CA1031
         {
+            DesktopLog.Swallowed(swallowed);
             if (initial)
             {
                 Problem = UiText.ConversationDeleteCountFailed;

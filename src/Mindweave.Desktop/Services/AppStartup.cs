@@ -103,9 +103,10 @@ public sealed partial class AppStartup : IRecoveryActions
                 backups = _coordinator.ListBackups();
             }
 #pragma warning disable CA1031 // The list is a convenience on a page that is already about a failure.
-            catch (Exception)
+            catch (Exception swallowed)
 #pragma warning restore CA1031
             {
+                DesktopLog.Swallowed(swallowed);
                 backups = [];
             }
 
@@ -173,9 +174,10 @@ public sealed partial class AppStartup : IRecoveryActions
             _theme.Apply(await _appearance.GetAsync(CancellationToken.None));
         }
 #pragma warning disable CA1031 // Appearance is cosmetic; any storage failure here is reported by the pages that need storage.
-        catch (Exception)
+        catch (Exception swallowed)
 #pragma warning restore CA1031
         {
+            DesktopLog.Swallowed(swallowed);
             _theme.Apply(Appearance.FollowSystem);
         }
     }

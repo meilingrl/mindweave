@@ -179,9 +179,10 @@ public sealed partial class NewConversationViewModel : PageViewModel, IDisposabl
             outcome = await _recommendations.RefreshQuestionsAsync(_workspace, CancellationToken.None);
         }
 #pragma warning disable CA1031 // A recommendation is a hint: any failure is said beside it and can be retried.
-        catch (Exception)
+        catch (Exception swallowed)
 #pragma warning restore CA1031
         {
+            DesktopLog.Swallowed(swallowed);
             outcome = RecommendationOutcome.Refused(RecommendationProblem.Failed);
         }
 
@@ -237,9 +238,10 @@ public sealed partial class NewConversationViewModel : PageViewModel, IDisposabl
             await _recommendations.IgnoreAsync(item.Recommendation, CancellationToken.None);
         }
 #pragma warning disable CA1031 // Not remembered this time: the next load shows it again.
-        catch (Exception)
+        catch (Exception swallowed)
 #pragma warning restore CA1031
         {
+            DesktopLog.Swallowed(swallowed);
         }
 
         await ReloadAsync();
@@ -269,9 +271,10 @@ public sealed partial class NewConversationViewModel : PageViewModel, IDisposabl
             await _recommendations!.MarkUsedAsync(recommendation, CancellationToken.None);
         }
 #pragma warning disable CA1031 // A hint: if it cannot be marked, it is offered again; the question was sent either way.
-        catch (Exception)
+        catch (Exception swallowed)
 #pragma warning restore CA1031
         {
+            DesktopLog.Swallowed(swallowed);
         }
     }
 
@@ -282,9 +285,10 @@ public sealed partial class NewConversationViewModel : PageViewModel, IDisposabl
             await _recommendations!.MarkUsedAsync(_workspace, id, CancellationToken.None);
         }
 #pragma warning disable CA1031 // A hint: if it cannot be marked, it stays in the network; the question was sent either way.
-        catch (Exception)
+        catch (Exception swallowed)
 #pragma warning restore CA1031
         {
+            DesktopLog.Swallowed(swallowed);
         }
     }
 
@@ -369,9 +373,10 @@ public sealed partial class NewConversationViewModel : PageViewModel, IDisposabl
             offer = await _recommendations.GetQuestionsAsync(_workspace, CancellationToken.None);
         }
 #pragma warning disable CA1031 // Unreadable recommendations are none: the page works as before.
-        catch (Exception)
+        catch (Exception swallowed)
 #pragma warning restore CA1031
         {
+            DesktopLog.Swallowed(swallowed);
             return;
         }
 

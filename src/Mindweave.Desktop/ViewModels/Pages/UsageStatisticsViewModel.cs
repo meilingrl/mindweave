@@ -4,6 +4,7 @@ using CommunityToolkit.Mvvm.Input;
 using Mindweave.Application.Statistics;
 using Mindweave.Core.Workspaces;
 using Mindweave.Desktop.Navigation;
+using Mindweave.Desktop.Services;
 
 namespace Mindweave.Desktop.ViewModels.Pages;
 
@@ -283,9 +284,10 @@ public sealed partial class UsageStatisticsViewModel : PageViewModel, IShowsWork
             await _prices.SetCurrencyAsync(symbol, CancellationToken.None);
         }
 #pragma warning disable CA1031 // A lost currency choice is said beside the field; the page keeps showing it.
-        catch (Exception)
+        catch (Exception swallowed)
 #pragma warning restore CA1031
         {
+            DesktopLog.Swallowed(swallowed);
             CurrencyError = UiText.CurrencySaveFailed;
         }
     }
@@ -331,9 +333,10 @@ public sealed partial class UsageStatisticsViewModel : PageViewModel, IShowsWork
         {
         }
 #pragma warning disable CA1031 // A failed read is said on the page, with 重试; the figures shown before stay.
-        catch (Exception)
+        catch (Exception swallowed)
 #pragma warning restore CA1031
         {
+            DesktopLog.Swallowed(swallowed);
             if (generation == _generation && !_disposedFlag)
             {
                 LoadError = UiText.StatisticsLoadFailed;
@@ -432,9 +435,10 @@ public sealed partial class UsageStatisticsViewModel : PageViewModel, IShowsWork
                 await _prices.SetAsync(row.Key, price, CancellationToken.None);
             }
 #pragma warning disable CA1031 // Said beside the price; nothing changes on the page.
-            catch (Exception)
+            catch (Exception swallowed)
 #pragma warning restore CA1031
             {
+                DesktopLog.Swallowed(swallowed);
                 return false;
             }
 

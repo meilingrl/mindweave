@@ -6,6 +6,7 @@ using Mindweave.Core.Conversations;
 using Mindweave.Core.Workspaces;
 using Mindweave.Desktop.Navigation;
 using Mindweave.Desktop.ViewModels.Pages;
+using Mindweave.Desktop.Services;
 
 namespace Mindweave.Desktop.ViewModels.Conversations;
 
@@ -101,9 +102,10 @@ public sealed partial class ConversationLifecycleActions : ViewModelBase
             scope = await _deletion.InspectAsync([_conversation], CancellationToken.None);
         }
 #pragma warning disable CA1031 // An unreadable scope deletes nothing and says so.
-        catch (Exception)
+        catch (Exception swallowed)
 #pragma warning restore CA1031
         {
+            DesktopLog.Swallowed(swallowed);
             ArchiveNotice = UiText.ConversationDeleteCountFailed;
             return;
         }

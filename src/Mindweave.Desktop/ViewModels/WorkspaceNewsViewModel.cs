@@ -243,9 +243,10 @@ public sealed partial class WorkspaceNewsViewModel : ObservableObject
             titles = await TitlesAsync(Toasts.Where(t => t.Conversation is not null).Select(t => t.Workspace).Concat(inWorkspace ? openThen : []));
         }
 #pragma warning disable CA1031 // A hint is never worth an error: keep the last one shown.
-        catch (Exception)
+        catch (Exception swallowed)
 #pragma warning restore CA1031
         {
+            DesktopLog.Swallowed(swallowed);
             return;
         }
 
@@ -412,9 +413,10 @@ public sealed partial class WorkspaceNewsViewModel : ObservableObject
             return await _alerts.GetInWorkspaceAsync(CancellationToken.None);
         }
 #pragma warning disable CA1031 // Unreadable means the default.
-        catch (Exception)
+        catch (Exception swallowed)
 #pragma warning restore CA1031
         {
+            DesktopLog.Swallowed(swallowed);
             return true;
         }
     }
@@ -465,9 +467,10 @@ public sealed partial class WorkspaceNewsViewModel : ObservableObject
             on = await _alerts.GetSoundAsync(CancellationToken.None);
         }
 #pragma warning disable CA1031 // The visible hint is up already; without the setting it stays silent.
-        catch (Exception)
+        catch (Exception swallowed)
 #pragma warning restore CA1031
         {
+            DesktopLog.Swallowed(swallowed);
             return;
         }
 

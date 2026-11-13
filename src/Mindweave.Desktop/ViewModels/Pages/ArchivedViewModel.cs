@@ -150,9 +150,10 @@ public sealed partial class ArchivedViewModel : PageViewModel, IDisposable
             scope = await _deletion.InspectAsync([item.Id], CancellationToken.None);
         }
 #pragma warning disable CA1031 // An unreadable scope deletes nothing and says so.
-        catch (Exception)
+        catch (Exception swallowed)
 #pragma warning restore CA1031
         {
+            DesktopLog.Swallowed(swallowed);
             Notice = UiText.ConversationDeleteCountFailed;
             return;
         }

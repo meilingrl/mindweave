@@ -3,6 +3,7 @@ using Mindweave.Application.Network;
 using Mindweave.Application.Storage;
 using Mindweave.Core.Summaries;
 using Mindweave.Core.Workspaces;
+using Mindweave.Desktop.Services;
 
 namespace Mindweave.Desktop.Network;
 
@@ -101,9 +102,10 @@ public sealed partial class NetworkSession : ObservableObject
                 await _network.PlaceAsync(Workspace, id, position, cancellationToken);
             }
 #pragma warning disable CA1031 // Layout saving is independent of content; a lost automatic place is recomputed.
-            catch (Exception)
+            catch (Exception swallowed)
 #pragma warning restore CA1031
             {
+                DesktopLog.Swallowed(swallowed);
             }
         }
 
@@ -166,9 +168,10 @@ public sealed partial class NetworkSession : ObservableObject
             return !IsDirty;
         }
 #pragma warning disable CA1031 // A failed layout save is reported next to the button and can be retried.
-        catch (Exception)
+        catch (Exception swallowed)
 #pragma warning restore CA1031
         {
+            DesktopLog.Swallowed(swallowed);
             SaveFailed = true;
             return false;
         }
