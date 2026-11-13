@@ -67,6 +67,24 @@ public sealed partial class StartupCoordinator(
             return new StartupOutcome.NeedsRecovery(result, database.ListBackups());
         }
 
+        try
+        {
+            return await LoadAfterOpenAsync(cancellationToken).ConfigureAwait(false);
+        }
+#pragma warning disable CA1031 // Health check 2026-11-12: a database that opened but then refuses the first write or read
+        // (a full disk, a file made read-only meanwhile) leads to the recovery page, never to a start that throws with
+        // no window to explain it. Cancellation still propagates.
+        catch (Exception ex) when (ex is not OperationCanceledException)
+#pragma warning restore CA1031
+        {
+            LogFailedAfterOpen(logger, ex, result.DatabasePath);
+            var failed = result with { Status = DatabaseOpenStatus.IoError, ErrorDetail = ex.Message };
+            return new StartupOutcome.NeedsRecovery(failed, database.ListBackups());
+        }
+    }
+
+    private async Task<StartupOutcome> LoadAfterOpenAsync(CancellationToken cancellationToken)
+    {
         // Before anything can start new AI work: whatever the previous process left unfinished is
         // interrupted, never resumed or re-sent.
         var recovered = await conversations.RecoverUnfinishedAsync(clock.UtcNow, cancellationToken).ConfigureAwait(false);
@@ -107,6 +125,9 @@ public sealed partial class StartupCoordinator(
 
     [LoggerMessage(Level = LogLevel.Warning, Message = "Database not ready: {Status} at {Path}. {Detail}")]
     private static partial void LogNotReady(ILogger logger, DatabaseOpenStatus status, string path, string? detail);
+
+    [LoggerMessage(Level = LogLevel.Error, Message = "Database {Path} opened but could not be used; showing the recovery page")]
+    private static partial void LogFailedAfterOpen(ILogger logger, Exception exception, string path);
 
     [LoggerMessage(Level = LogLevel.Warning, Message = "Restoring database from backup {Path}")]
     private static partial void LogRestoring(ILogger logger, string path);

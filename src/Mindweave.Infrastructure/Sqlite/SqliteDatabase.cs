@@ -485,6 +485,12 @@ public sealed partial class SqliteDatabase : IDatabaseLifecycle, IDatabaseBackup
             return Result(DatabaseOpenStatus.TooNew, version);
         }
 
+        if (WriteRefusal(connection, version) is { } refusal)
+        {
+            LogNotWritable(_logger, _paths.DatabasePath, refusal);
+            return Result(DatabaseOpenStatus.IoError, version, detail: refusal);
+        }
+
         if (version == _catalog.LatestVersion)
         {
             return Result(DatabaseOpenStatus.Ready, version);
@@ -580,6 +586,32 @@ public sealed partial class SqliteDatabase : IDatabaseLifecycle, IDatabaseBackup
             SqliteConnections.Execute(connection, "PRAGMA foreign_keys = ON;");
         }
     }
+
+    /// <summary>
+    /// Proves the file takes writes before it is called ready (health check 2026-11-12): SQLite opens a write-protected
+    /// file read-only without complaint, and reading the header and the integrity check both pass, so the first real
+    /// write (recovering unfinished work at start-up) would fail instead. A header write that is rolled back stores
+    /// nothing. Lock conflicts are left to the caller's retry; other errors classify the file as before.
+    /// </summary>
+    private static string? WriteRefusal(SqliteConnection connection, int version)
+    {
+        try
+        {
+            using var transaction = connection.BeginTransaction();
+            SqliteConnections.Execute(connection, $"PRAGMA user_version = {version};", transaction);
+            transaction.Rollback();
+            return null;
+        }
+        catch (SqliteException ex) when (ex.SqliteErrorCode == SqliteReadOnly)
+        {
+            return $"The database file is read-only: {ex.Message}";
+        }
+    }
+
+    private const int SqliteReadOnly = 8;
+
+    [LoggerMessage(Level = LogLevel.Warning, Message = "Database {Path} cannot be written: {Detail}")]
+    private static partial void LogNotWritable(ILogger logger, string path, string detail);
 
     private DatabaseOpenResult Result(DatabaseOpenStatus status, int? foundVersion, string? backupPath = null, string? detail = null) =>
         new(status, _paths.DataDirectory, _paths.DatabasePath, foundVersion, _catalog.LatestVersion, backupPath, detail);
