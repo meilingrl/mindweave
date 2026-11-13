@@ -22,6 +22,9 @@ public enum DatabaseOpenStatus
 
     /// <summary>The data directory or database file could not be accessed.</summary>
     IoError,
+
+    /// <summary>Another program holds the database (health check 2026-11-12): nothing is wrong with the file; retry once it lets go.</summary>
+    InUse,
 }
 
 public sealed record DatabaseOpenResult(

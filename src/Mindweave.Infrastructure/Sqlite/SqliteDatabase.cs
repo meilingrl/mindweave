@@ -78,6 +78,17 @@ public sealed partial class SqliteDatabase : IDatabaseLifecycle, IDatabaseBackup
         try
         {
             await CloseCoreAsync().ConfigureAwait(false);
+
+            // Checked before anything is touched, as the in-app restore does (health check 2026-11-12, errors-4): a damaged
+            // backup must not replace the database, healthy or not.
+            var problem = await Task.Run(() => _backups.Check(backup, _catalog.LatestVersion), cancellationToken).ConfigureAwait(false);
+            if (problem != BackupProblem.None)
+            {
+                LogRestoreRefused(_logger, backup.Path, problem);
+                var current = await Task.Run(OpenCore, cancellationToken).ConfigureAwait(false);
+                return current with { ErrorDetail = $"The chosen backup cannot be used ({problem}); nothing was replaced. {current.ErrorDetail}".TrimEnd() };
+            }
+
             try
             {
                 await Task.Run(() => _backups.ReplaceDatabaseWith(backup), cancellationToken).ConfigureAwait(false);
@@ -405,8 +416,16 @@ public sealed partial class SqliteDatabase : IDatabaseLifecycle, IDatabaseBackup
             }
             catch (SqliteException ex)
             {
+                // Only damage is called damage (health check 2026-11-12, errors-4): a lock held elsewhere or a storage
+                // condition must not steer the user towards replacing a healthy database with an older backup.
+                var status = ex.SqliteErrorCode switch
+                {
+                    SqliteBusy or SqliteLocked => DatabaseOpenStatus.InUse,
+                    SqliteReadOnly or SqliteIoError or SqliteFull or SqliteCantOpen => DatabaseOpenStatus.IoError,
+                    _ => DatabaseOpenStatus.Unreadable,
+                };
                 LogUnreadable(_logger, ex, _paths.DatabasePath);
-                return Result(DatabaseOpenStatus.Unreadable, null, detail: $"{ex.Message} (extended code {ex.SqliteExtendedErrorCode})");
+                return Result(status, null, detail: $"{ex.Message} (extended code {ex.SqliteExtendedErrorCode})");
             }
             catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
             {
@@ -427,6 +446,8 @@ public sealed partial class SqliteDatabase : IDatabaseLifecycle, IDatabaseBackup
     private const int SqliteBusy = 5;
     private const int SqliteLocked = 6;
     private const int SqliteIoError = 10;
+    private const int SqliteFull = 13;
+    private const int SqliteCantOpen = 14;
 
     /// <summary>How long opening keeps retrying transient errors before classifying the file.</summary>
     internal static readonly TimeSpan TransientOpenWindow = TimeSpan.FromSeconds(3);

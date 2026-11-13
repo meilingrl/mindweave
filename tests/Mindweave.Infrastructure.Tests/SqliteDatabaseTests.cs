@@ -176,6 +176,49 @@ public sealed class SqliteDatabaseTests : IDisposable
         Assert.Equal(before, await HashAsync(_dir.Paths.DatabasePath));
     }
 
+    /// <summary>
+    /// Health check 2026-11-12, errors-4: a database another program holds is in use, not damaged; the user is not
+    /// steered towards replacing a healthy database with an older backup.
+    /// </summary>
+    [Fact]
+    public async Task A_database_locked_by_another_program_is_reported_in_use_not_damaged()
+    {
+        await SeedCurrentAsync("kept");
+        using var other = _dir.Raw();
+        SqliteConnections.Execute(other, "BEGIN IMMEDIATE;");
+        await using var database = _dir.Database(options: new SqliteDatabaseOptions { BusyTimeout = TimeSpan.FromMilliseconds(100) });
+
+        var result = await database.OpenAsync(Ct);
+
+        Assert.Equal(DatabaseOpenStatus.InUse, result.Status);
+        Assert.False(database.IsOpen);
+        SqliteConnections.Execute(other, "ROLLBACK;");
+    }
+
+    [Fact]
+    public async Task Restoring_from_the_recovery_page_checks_the_backup_and_replaces_nothing_when_it_is_damaged()
+    {
+        await SeedCurrentAsync("current");
+        await using (var first = _dir.Database())
+        {
+            Assert.True((await first.OpenAsync(Ct)).IsReady);
+            await first.BackupAsync(Mindweave.Application.Startup.BackupReason.BeforeRestore, Ct);
+        }
+
+        await using var database = _dir.Database();
+        var backup = Assert.Single(database.ListBackups());
+        var garbage = new byte[8192];
+        Random.Shared.NextBytes(garbage);
+        await File.WriteAllBytesAsync(backup.Path, garbage, Ct);
+
+        var result = await database.RestoreAsync(backup, Ct);
+
+        Assert.True(result.IsReady, $"{result.Status}: {result.ErrorDetail}");
+        Assert.Contains("backup", result.ErrorDetail, StringComparison.OrdinalIgnoreCase);
+        Assert.Equal(["current"], await database.ReadAsync(c => Strings(c, "SELECT name FROM workspace;"), Ct));
+        Assert.Empty(Directory.GetFiles(_dir.Paths.DataDirectory, "mindweave.db.replaced-*"));
+    }
+
     [Fact]
     public async Task A_non_database_file_is_reported_unreadable_and_kept()
     {

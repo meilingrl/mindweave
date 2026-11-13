@@ -37,6 +37,7 @@ public static partial class UiText
         DatabaseOpenStatus.BackupFailed => "升级前备份失败",
         DatabaseOpenStatus.MigrationFailed => "数据升级失败",
         DatabaseOpenStatus.IoError => "无法访问数据目录",
+        DatabaseOpenStatus.InUse => "数据正被其他程序使用",
         _ => "无法打开数据",
     };
 
@@ -55,6 +56,7 @@ public static partial class UiText
             DatabaseOpenStatus.BackupFailed => "数据需要升级，但升级前的备份没有成功，因此没有开始升级，原数据未改动。请检查磁盘空间与权限后重试。",
             DatabaseOpenStatus.MigrationFailed => "升级过程中出错，已整体撤销，原数据保持升级前的状态，升级前的备份也已保存。",
             DatabaseOpenStatus.IoError => "无法读写数据目录。请检查磁盘空间与权限后重试。",
+            DatabaseOpenStatus.InUse => "另一个程序（例如数据库查看工具、同步或备份软件）正在使用数据库文件。数据没有损坏，Mindweave 也没有修改它。请关闭那个程序后重试。",
             _ => string.Empty,
         };
     }
