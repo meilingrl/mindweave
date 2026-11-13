@@ -11,6 +11,9 @@ internal sealed class SseReader(Stream stream) : IDisposable
     private readonly StreamReader _reader = new(stream, new UTF8Encoding(false), detectEncodingFromByteOrderMarks: false);
     private readonly StringBuilder _data = new();
 
+    /// <summary>The largest event accepted, in characters.</summary>
+    internal const int MaxEventChars = 8 * 1024 * 1024;
+
     /// <summary>Called for every line read, comments included: a keep-alive comment shows the service is alive.</summary>
     public Action? LineRead { get; set; }
 
@@ -66,6 +69,11 @@ internal sealed class SseReader(Stream stream) : IDisposable
 
             _data.Append(value);
             hasData = true;
+            if (_data.Length > MaxEventChars)
+            {
+                // A runaway event would grow without bound (low finding security-4); no real event comes near this.
+                throw new InvalidDataException("A stream event is larger than any answer could be.");
+            }
         }
     }
 

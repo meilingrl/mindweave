@@ -112,4 +112,15 @@ public class ModelSettingsTests
             }
         }
     }
+
+    /// <summary>Low finding security-5: credentials in the address are refused, not stored in plain text.</summary>
+    [Theory]
+    [InlineData("https://user:secret@api.example.com/v1")]
+    [InlineData("https://token@api.example.com/v1")]
+    public void An_address_carrying_credentials_is_refused(string address)
+    {
+        var problem = Assert.Throws<ModelSettingsException>(() => ModelSettingsService.NormalizeBaseUrl(address));
+
+        Assert.Equal(ModelSettingsProblem.CredentialsInUrl, problem.Problem);
+    }
 }

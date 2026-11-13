@@ -334,7 +334,8 @@ public sealed class ChatCompletionsClient(HttpClient http, ChatClientOptions opt
         limit.CancelAfter(options.IdleTimeout);
         try
         {
-            return await response.Content.ReadAsStringAsync(limit.Token).ConfigureAwait(false);
+            var (body, cut) = await ReadAtMostAsync(response.Content, MaxWholeBodyBytes, limit.Token).ConfigureAwait(false);
+            return cut ? throw new ChatClientException(GenerationErrorKind.InvalidResponse, "The response is larger than any answer could be.") : body;
         }
         catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
         {
@@ -461,7 +462,7 @@ public sealed class ChatCompletionsClient(HttpClient http, ChatClientOptions opt
             throw new ChatClientException(GenerationErrorKind.InvalidResponse, $"HTTP {status}: redirects are not followed; check the service address.", httpStatus: status);
         }
 
-        var text = await response.Content.ReadAsStringAsync(cancellationToken).ConfigureAwait(false);
+        var (text, _) = await ReadAtMostAsync(response.Content, MaxErrorBodyBytes, cancellationToken).ConfigureAwait(false);
         string detail;
         try
         {
@@ -494,11 +495,11 @@ public sealed class ChatCompletionsClient(HttpClient http, ChatClientOptions opt
         };
 
     private static ChatClientException Unexpected(Exception ex, string apiKey) =>
-        new(GenerationErrorKind.InvalidResponse, Redaction.Scrub($"Unexpected failure reading the response: {ex.Message}", apiKey), ex);
+        new(GenerationErrorKind.InvalidResponse, ScrubbedAndShort($"Unexpected failure reading the response: {ex.Message}", apiKey), ex);
 
     /// <summary>Every failure leaving this client is scrubbed of the key it was called with (services echo keys).</summary>
     private static ChatClientException Redacted(ChatClientException ex, string apiKey) =>
-        new(ex.Kind, Redaction.Scrub(ex.Message, apiKey), ex.InnerException, ex.HttpStatus);
+        new(ex.Kind, ScrubbedAndShort(ex.Message, apiKey), ex.InnerException, ex.HttpStatus);
 
     private static string? ProviderRequestId(HttpResponseMessage response) =>
         response.Headers.TryGetValues("x-request-id", out var values) || response.Headers.TryGetValues("request-id", out values)
@@ -510,9 +511,41 @@ public sealed class ChatCompletionsClient(HttpClient http, ChatClientOptions opt
         || detail.Contains("too long", StringComparison.OrdinalIgnoreCase)
         || detail.Contains("maximum", StringComparison.OrdinalIgnoreCase);
 
-    private static string Limit(string text)
+    /// <summary>
+    /// The text as it goes into a failure. Not cut here: a key straddling the cut would survive in part, since the scrub
+    /// matches whole keys (low finding security-3); failures are cut after scrubbing, as they leave this client.
+    /// </summary>
+    private static string Limit(string text) => text.Trim();
+
+    /// <summary>The failure's text, scrubbed of the key first and only then cut to a readable length.</summary>
+    private static string ScrubbedAndShort(string text, string apiKey)
     {
-        text = text.Trim();
-        return text.Length > MaxErrorDetail ? text[..MaxErrorDetail] + "…" : text;
+        var scrubbed = Redaction.Scrub(text, apiKey);
+        return scrubbed.Length > MaxErrorDetail + 40 ? scrubbed[..(MaxErrorDetail + 40)] + "…" : scrubbed;
+    }
+
+    /// <summary>Most of an error body worth reading; a larger one is cut (low finding security-4: bodies were read in full).</summary>
+    private const int MaxErrorBodyBytes = 64 * 1024;
+
+    /// <summary>The largest whole JSON answer read (a non-streamed completion of a very long answer stays well below).</summary>
+    private const int MaxWholeBodyBytes = 16 * 1024 * 1024;
+
+    /// <summary>Reads at most <paramref name="maxBytes"/> of the body as UTF-8; <paramref name="cut"/> says whether more was there.</summary>
+    private static async Task<(string Text, bool Cut)> ReadAtMostAsync(HttpContent content, int maxBytes, CancellationToken cancellationToken)
+    {
+        await using var stream = await content.ReadAsStreamAsync(cancellationToken).ConfigureAwait(false);
+        var buffer = new byte[Math.Min(maxBytes + 1, 81920)];
+        using var collected = new MemoryStream();
+        int read;
+        while ((read = await stream.ReadAsync(buffer, cancellationToken).ConfigureAwait(false)) > 0)
+        {
+            collected.Write(buffer, 0, read);
+            if (collected.Length > maxBytes)
+            {
+                return (System.Text.Encoding.UTF8.GetString(collected.GetBuffer(), 0, maxBytes), true);
+            }
+        }
+
+        return (System.Text.Encoding.UTF8.GetString(collected.GetBuffer(), 0, (int)collected.Length), false);
     }
 }

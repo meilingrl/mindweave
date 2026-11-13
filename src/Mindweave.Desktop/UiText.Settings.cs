@@ -90,6 +90,7 @@ public static partial class UiText
         ModelSettingsProblem.InsecureUrl => "只允许 https 地址（本机地址除外），以免密钥以明文传输。",
         ModelSettingsProblem.MissingModel => "请填写模型名称。",
         ModelSettingsProblem.MissingKey => "请填写 API 密钥。",
+        ModelSettingsProblem.CredentialsInUrl => "服务地址里不能包含用户名或密码；密钥请填在“API 密钥”一栏，它会存进系统的密钥存储。",
         ModelSettingsProblem.InvalidContextWindow => $"上下文容量应在 {ModelSettingsInput.MinContextWindow:N0} 到 {ModelSettingsInput.MaxContextWindow:N0} token 之间，不清楚可留空。",
         _ => "设置无效。",
     };

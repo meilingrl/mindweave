@@ -13,6 +13,9 @@ public enum ModelSettingsProblem
     MissingModel,
     MissingKey,
     InvalidContextWindow,
+
+    /// <summary>A user name or password in the address (low finding security-5): it would be stored and sent in plain text.</summary>
+    CredentialsInUrl,
 }
 
 /// <param name="ContextWindowTokens">The model's context capacity as the user declared it; null when unknown (a default applies).</param>
@@ -230,6 +233,11 @@ public sealed partial class ModelSettingsService(
         if (uri.Scheme == Uri.UriSchemeHttp && !uri.IsLoopback)
         {
             throw new ModelSettingsException(ModelSettingsProblem.InsecureUrl);
+        }
+
+        if (uri.UserInfo.Length > 0)
+        {
+            throw new ModelSettingsException(ModelSettingsProblem.CredentialsInUrl);
         }
 
         return uri.GetLeftPart(UriPartial.Path).TrimEnd('/');

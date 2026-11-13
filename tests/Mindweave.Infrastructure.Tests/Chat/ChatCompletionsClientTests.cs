@@ -357,6 +357,25 @@ public class ChatCompletionsClientTests
         Assert.Single(events.OfType<ChatStreamEvent.Completed>());
     }
 
+    /// <summary>Low finding security-3: a key straddling the cut-off point is scrubbed before the text is cut.</summary>
+    [Fact]
+    public async Task A_key_at_the_cut_off_point_is_still_scrubbed()
+    {
+        var body = $"{{\"error\":{{\"message\":\"{new string('x', 495)}{Key} rejected\"}}}}";
+        var error = await Assert.ThrowsAsync<ChatClientException>(() => Collect(Client(_ => new HttpResponseMessage(HttpStatusCode.Unauthorized) { Content = new StringContent(body) })));
+
+        Assert.DoesNotContain(Key[..8], error.Message, StringComparison.Ordinal);
+    }
+
+    /// <summary>Low finding security-4: an endless error body is read only so far.</summary>
+    [Fact]
+    public async Task A_huge_error_body_is_read_only_in_part()
+    {
+        var error = await Assert.ThrowsAsync<ChatClientException>(() => Collect(Client(_ => new HttpResponseMessage(HttpStatusCode.InternalServerError) { Content = new StreamContent(new NeverEndingText()) })));
+
+        Assert.Equal(GenerationErrorKind.ServerError, error.Kind);
+    }
+
     [Fact]
     public async Task Other_bad_requests_are_not_retried()
     {
@@ -646,6 +665,36 @@ public class ChatCompletionsClientTests
             ReadAsync(buffer.AsMemory(offset, count), cancellationToken).AsTask();
 
         public override int Read(byte[] buffer, int offset, int count) => throw new NotSupportedException();
+
+        public override void Flush()
+        {
+        }
+
+        public override long Seek(long offset, SeekOrigin origin) => throw new NotSupportedException();
+
+        public override void SetLength(long value) => throw new NotSupportedException();
+
+        public override void Write(byte[] buffer, int offset, int count) => throw new NotSupportedException();
+    }
+
+    /// <summary>An endless body of 'x'.</summary>
+    private sealed class NeverEndingText : Stream
+    {
+        public override bool CanRead => true;
+
+        public override bool CanSeek => false;
+
+        public override bool CanWrite => false;
+
+        public override long Length => throw new NotSupportedException();
+
+        public override long Position { get => throw new NotSupportedException(); set => throw new NotSupportedException(); }
+
+        public override int Read(byte[] buffer, int offset, int count)
+        {
+            Array.Fill(buffer, (byte)'x', offset, count);
+            return count;
+        }
 
         public override void Flush()
         {
