@@ -90,6 +90,29 @@ public class MathRenderingTests
         window.Close();
     }
 
+    /// <summary>
+    /// Health check 2026-11-12, gap-branch-anchor-1: the quote puts back the formulas the renderer actually drew, found
+    /// in the same parse, so prices, code spans and escaped dollars beside a formula do not take its place.
+    /// </summary>
+    [AvaloniaTheory]
+    [InlineData("价格从 $5 涨到 $10，而公式 $a+b$ 不变。", "价格从 $5 涨到 $10，而公式 $a+b$ 不变。")]
+    [InlineData("变量 `$HOME` 和 `$PATH`，公式 $x^2$ 也在。", "变量 $HOME 和 $PATH，公式 $x^2$ 也在。")]
+    [InlineData("花费 \\$5 和 \\$6，公式 $a$ 在这。", "花费 $5 和 $6，公式 $a$ 在这。")]
+    public async Task The_quote_keeps_the_formula_the_renderer_drew_beside_other_dollars(string paragraph, string expected)
+    {
+        await using var app = DesktopHarness.Create();
+        var (window, _) = await OpenAnswerAsync(app, "开头一段。\n\n" + paragraph);
+        var answer = AnswerOf(window);
+        var block = SourceAnchors.Blocks(answer.Renderer).Single(b => b.LayoutText.Contains('\uFFFC', StringComparison.Ordinal));
+        block.SelectionStart = 0;
+        block.SelectionEnd = block.LayoutText.Length;
+
+        var selection = Assert.IsType<Mindweave.Core.Branches.BranchSelection>(answer.CaptureSelection());
+
+        Assert.Equal(expected, selection.Quote);
+        window.Close();
+    }
+
     private static async Task<(MainWindow Window, ConversationViewModel Page)> OpenAnswerAsync(DesktopHarness app, string answer = Answer)
     {
         var window = app.ShowWindow();

@@ -81,8 +81,6 @@ public static class SourceAnchors
     /// <summary>How a formula appears in a text block's layout text.</summary>
     private const char FormulaPlaceholder = '\uFFFC';
 
-    private static readonly System.Text.RegularExpressions.Regex Formula =
-        new(@"\$\$(?<tex>.+?)\$\$|\$(?<tex>[^$\n]+?)\$|\\\[(?<tex>.+?)\\\]|\\\((?<tex>.+?)\\\)", System.Text.RegularExpressions.RegexOptions.Singleline | System.Text.RegularExpressions.RegexOptions.CultureInvariant);
 
     private const string HighlightKey = "branch-source";
 
@@ -219,8 +217,10 @@ public static class SourceAnchors
     }
 
     /// <summary>
-    /// The quote with formulas restored: the n-th placeholder in the block is the n-th formula in its source. Null when
-    /// the quote has no formula; a placeholder without a matching formula stays as it is rather than being guessed.
+    /// The quote with formulas restored: the n-th placeholder in the block is the n-th embedded object in the block's
+    /// own parse, by the shared pipeline the renderer draws with (health check 2026-11-12, gap-branch-anchor-1: a regex
+    /// over the source took prices, code spans and escaped dollars for formulas). A formula is put back as its source; a
+    /// task-list box is dropped. Null when the quote has no placeholder; one without a matching object stays as it is.
     /// </summary>
     private static string? Readable(string quote, string before, string rawBlock)
     {
@@ -229,7 +229,7 @@ public static class SourceAnchors
             return null;
         }
 
-        var formulas = Formula.Matches(rawBlock).Select(m => m.Value).ToList();
+        var formulas = EmbeddedObjects(rawBlock);
         var index = before.Count(c => c == FormulaPlaceholder);
         var readable = new StringBuilder(quote.Length);
         foreach (var c in quote)
@@ -237,8 +237,17 @@ public static class SourceAnchors
             readable.Append(c == FormulaPlaceholder && index < formulas.Count ? formulas[index++] : c.ToString());
         }
 
-        return readable.ToString();
+        return readable.ToString().Trim();
     }
+
+    /// <summary>What each placeholder of a block stands for, in order: a formula's source, or nothing for a task-list box.</summary>
+    private static List<string> EmbeddedObjects(string rawBlock) =>
+        Markdig.Markdown.Parse(rawBlock, MarkdownUpdateProducer.DefaultPipeline)
+            .Descendants<Markdig.Syntax.Inlines.Inline>()
+            .Where(i => i is MathInline or Markdig.Extensions.TaskLists.TaskList)
+            .OrderBy(i => i.Span.Start)
+            .Select(i => i is MathInline && i.Span.Start >= 0 && i.Span.End < rawBlock.Length ? rawBlock[i.Span.Start..(i.Span.End + 1)] : string.Empty)
+            .ToList();
 
     /// <summary>
     /// Validates every segment against the current text and layout, then — and only then — selects and highlights
