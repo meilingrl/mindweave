@@ -140,6 +140,12 @@ public sealed class FakeChatClient : IChatClient
     /// <summary>The next answer streams <paramref name="before"/> and then throws <paramref name="crash"/> (not a client failure).</summary>
     public void Crash(Exception crash, params string[] before) => _scripts.Enqueue(new Script(null, before, Crash: crash));
 
+    /// <summary>The next answer streams <paramref name="chunks"/> and ends as the service ends one cut off at its output limit.</summary>
+    public void CutOff(params string[] chunks) => _scripts.Enqueue(new Script(null, chunks, End: new ChatStreamEvent.Completed(Truncated: true)));
+
+    /// <summary>The next answer streams <paramref name="chunks"/> and ends as one stopped by the service's content filter.</summary>
+    public void Filtered(params string[] chunks) => _scripts.Enqueue(new Script(null, chunks, End: new ChatStreamEvent.Completed(Truncated: true, Filtered: true)));
+
     public void Reply(params string[] chunks) => _scripts.Enqueue(new Script(null, chunks));
 
     /// <summary>Prompt tokens the service reports for a request, as a real one does at the end of its stream; null reports none.</summary>
@@ -237,7 +243,7 @@ public sealed class FakeChatClient : IChatClient
             throw new ChatClientException(kind, script.Detail!);
         }
 
-        yield return new ChatStreamEvent.Completed(false);
+        yield return script.End ?? new ChatStreamEvent.Completed(false);
     }
 
     /// <summary>The script for an internal request, or null for an answer.</summary>
@@ -292,5 +298,5 @@ public sealed class FakeChatClient : IChatClient
         }
     }
 
-    private sealed record Script(HeldReply? Held, string[]? Chunks = null, GenerationErrorKind? FailWith = null, string? Detail = null, Exception? Crash = null);
+    private sealed record Script(HeldReply? Held, string[]? Chunks = null, GenerationErrorKind? FailWith = null, string? Detail = null, Exception? Crash = null, ChatStreamEvent.Completed? End = null);
 }

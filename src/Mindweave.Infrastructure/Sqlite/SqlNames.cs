@@ -166,6 +166,8 @@ internal static class SqlNames
         GenerationErrorKind.NotConfigured => "not_configured",
         GenerationErrorKind.StorageUnavailable => "storage_unavailable",
         GenerationErrorKind.CompressionFailed => "compression_failed",
+        GenerationErrorKind.OutputLimit => "output_limit",
+        GenerationErrorKind.ContentFiltered => "content_filtered",
         _ => throw new ArgumentOutOfRangeException(nameof(kind)),
     };
 
@@ -182,6 +184,8 @@ internal static class SqlNames
         "not_configured" => GenerationErrorKind.NotConfigured,
         "storage_unavailable" => GenerationErrorKind.StorageUnavailable,
         "compression_failed" => GenerationErrorKind.CompressionFailed,
+        "output_limit" => GenerationErrorKind.OutputLimit,
+        "content_filtered" => GenerationErrorKind.ContentFiltered,
         _ => GenerationErrorKind.InvalidResponse,
     };
 

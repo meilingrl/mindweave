@@ -63,6 +63,63 @@ public class UnexpectedFailureTests
         await ChatHarness.UntilAsync(async () => await h.SummaryService.LatestTaskAsync(sent.Conversation, Ct) is { State: GenerationTaskState.Failed });
     }
 
+    /// <summary>Health check 2026-11-12, item 5: a cut-off answer keeps its text with an incomplete mark and its reason.</summary>
+    [Fact]
+    public async Task An_answer_cut_off_at_the_output_limit_is_kept_as_stopped_with_the_reason()
+    {
+        await using var h = await ChatHarness.StartAsync();
+        h.Client.CutOff("蒸汽机车的发明始于十八世纪，其中最重要的");
+
+        var sent = await h.Conversations.StartAsync(h.Workspace, "详细讲讲火车的历史", Ct);
+        var answer = await h.WaitForAnswerAsync(sent.Answer!.Value);
+
+        Assert.Equal(MessageState.Stopped, answer.State);
+        Assert.Equal(GenerationErrorKind.OutputLimit, answer.ErrorKind);
+        Assert.Equal("蒸汽机车的发明始于十八世纪，其中最重要的", answer.Text);
+        Assert.Equal("stopped", await TaskStateAsync(h, "answer", answer.Id));
+    }
+
+    [Fact]
+    public async Task An_answer_stopped_by_the_content_filter_says_so()
+    {
+        await using var h = await ChatHarness.StartAsync();
+        h.Client.Filtered("开头的部分");
+
+        var sent = await h.Conversations.StartAsync(h.Workspace, "问题", Ct);
+        var answer = await h.WaitForAnswerAsync(sent.Answer!.Value);
+
+        Assert.Equal(MessageState.Stopped, answer.State);
+        Assert.Equal(GenerationErrorKind.ContentFiltered, answer.ErrorKind);
+    }
+
+    [Fact]
+    public async Task An_answer_that_ends_without_any_text_fails_and_can_be_retried()
+    {
+        await using var h = await ChatHarness.StartAsync();
+        h.Client.CutOff();
+
+        var sent = await h.Conversations.StartAsync(h.Workspace, "问题", Ct);
+        var empty = await h.WaitForAnswerAsync(sent.Answer!.Value);
+
+        Assert.Equal(MessageState.Failed, empty.State);
+        Assert.Equal(GenerationErrorKind.OutputLimit, empty.ErrorKind);
+        var retry = await h.Conversations.RetryAsync(sent.Conversation, empty.Id, Ct);
+        Assert.Equal("答：问题", (await h.WaitForAnswerAsync(retry.Answer!.Value)).Text);
+    }
+
+    [Fact]
+    public async Task A_finished_answer_without_any_text_fails()
+    {
+        await using var h = await ChatHarness.StartAsync();
+        h.Client.Reply();
+
+        var sent = await h.Conversations.StartAsync(h.Workspace, "问题", Ct);
+        var empty = await h.WaitForAnswerAsync(sent.Answer!.Value);
+
+        Assert.Equal(MessageState.Failed, empty.State);
+        Assert.Equal(GenerationErrorKind.InvalidResponse, empty.ErrorKind);
+    }
+
     private static Task<string?> TaskStateAsync(ChatHarness h, string kind, MessageId message) =>
         h.Database.ReadAsync(c => c.Scalar<string?>(null, "SELECT state FROM generation_task WHERE kind = $kind AND target_message_id = $m;", ("$kind", kind), ("$m", message.ToString())), Ct);
 

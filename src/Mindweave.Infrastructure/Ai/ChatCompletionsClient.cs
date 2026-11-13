@@ -104,7 +104,8 @@ public sealed class ChatCompletionsClient(HttpClient http, ChatClientOptions opt
             if (chunk.FinishReason is { } reason && !completed)
             {
                 completed = true;
-                yield return new ChatStreamEvent.Completed(Truncated: reason == "length");
+                // A filtered answer is cut off too: internal requests reject it like one cut at the limit.
+                yield return new ChatStreamEvent.Completed(Truncated: reason is "length" or "content_filter", Filtered: reason == "content_filter");
             }
 
             if (chunk.Usage is { } usage)

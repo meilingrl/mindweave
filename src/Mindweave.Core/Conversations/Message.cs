@@ -36,6 +36,12 @@ public enum GenerationErrorKind
 
     /// <summary>Older context had to be summarized to fit and summarizing failed; the question is kept for retry.</summary>
     CompressionFailed,
+
+    /// <summary>The service stopped the answer at its output limit (health check 2026-11-12); what came is kept, marked incomplete.</summary>
+    OutputLimit,
+
+    /// <summary>The service's content filter stopped the answer; what came is kept, marked incomplete.</summary>
+    ContentFiltered,
 }
 
 public sealed record Message(

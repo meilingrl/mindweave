@@ -32,8 +32,11 @@ public abstract record ChatStreamEvent
     /// </summary>
     public sealed record ReasoningDelta(int Characters) : ChatStreamEvent;
 
-    /// <summary>The provider declared the answer finished. <paramref name="Truncated"/> when it stopped at the length limit.</summary>
-    public sealed record Completed(bool Truncated) : ChatStreamEvent;
+    /// <summary>
+    /// The provider declared the answer finished. <paramref name="Truncated"/> when it stopped before the answer was whole:
+    /// at the output limit, or (<paramref name="Filtered"/>, health check 2026-11-12) because its content filter stopped it.
+    /// </summary>
+    public sealed record Completed(bool Truncated, bool Filtered = false) : ChatStreamEvent;
 
     /// <summary>Token counts the service reported, if it did (usually with the last chunk). Diagnostic only.</summary>
     public sealed record Usage(int? PromptTokens, int? CompletionTokens) : ChatStreamEvent;

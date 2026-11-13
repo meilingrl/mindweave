@@ -126,7 +126,7 @@ internal sealed partial class AnswerRunner(
         var trace = new RequestTrace(task.Id, _clock, request);
         try
         {
-            var completed = false;
+            ChatStreamEvent.Completed? end = null;
             await foreach (var item in _requests.StreamAsync(request, key.Secret!, stop).ConfigureAwait(false))
             {
                 trace.Observe(item);
@@ -139,13 +139,27 @@ internal sealed partial class AnswerRunner(
                         // Only says the model is working; the reasoning is not shown or stored.
                         live.MarkThinking();
                         break;
-                    case ChatStreamEvent.Completed:
-                        completed = true;
+                    case ChatStreamEvent.Completed done:
+                        end = done;
                         break;
                 }
             }
 
-            if (completed)
+            var empty = string.IsNullOrWhiteSpace(live.Snapshot().Text);
+            if (end is { Truncated: true })
+            {
+                // Cut off by the service (health check 2026-11-12): what came is kept with an incomplete mark and the
+                // reason, as a stopped answer is; nothing at all is a failure to retry.
+                final = empty ? MessageState.Failed : MessageState.Stopped;
+                error = end.Filtered ? GenerationErrorKind.ContentFiltered : GenerationErrorKind.OutputLimit;
+            }
+            else if (end is not null && empty)
+            {
+                final = MessageState.Failed;
+                error = GenerationErrorKind.InvalidResponse;
+                detail = "The service finished without any text.";
+            }
+            else if (end is not null)
             {
                 final = MessageState.Complete;
             }
@@ -180,7 +194,9 @@ internal sealed partial class AnswerRunner(
         await checkpointStop.CancelAsync().ConfigureAwait(false);
         await checkpoints.ConfigureAwait(false);
         await FinishAsync(work, final, error, detail).ConfigureAwait(false);
-        await _requests.RecordAsync(trace.Finish(final == MessageState.Stopped, error, detail)).ConfigureAwait(false);
+        // A cut-off answer with text is recorded as truncated, not as stopped by the user or as failed.
+        var userStopped = final == MessageState.Stopped && error is null;
+        await _requests.RecordAsync(trace.Finish(userStopped, final == MessageState.Failed ? error : null, detail)).ConfigureAwait(false);
     }
 
     private async Task FinishAsync(AnswerWork work, MessageState state, GenerationErrorKind? error, string? detail)

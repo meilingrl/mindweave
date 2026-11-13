@@ -102,6 +102,8 @@ public static partial class UiText
         GenerationErrorKind.NotConfigured => "尚未配置模型或密钥",
         GenerationErrorKind.StorageUnavailable => "无法保存到本地数据",
         GenerationErrorKind.CompressionFailed => "压缩较早的对话失败，提问已保留",
+        GenerationErrorKind.OutputLimit => "达到模型的输出长度上限，回答不完整",
+        GenerationErrorKind.ContentFiltered => "服务的内容审核中止了回答",
         _ => "未知错误",
     };
 
@@ -109,7 +111,7 @@ public static partial class UiText
     {
         MessageState.Pending => "等待中…",
         MessageState.Streaming => null,
-        MessageState.Stopped => "已停止",
+        MessageState.Stopped => error is { } cut ? "未完成：" + ErrorKind(cut) : "已停止",
         MessageState.Failed => "失败：" + (error is { } e ? ErrorKind(e) : "未知错误"),
         MessageState.Interrupted => "已中断（上次退出时未完成，未自动重发）",
         MessageState.Cancelled => "已取消",

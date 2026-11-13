@@ -175,6 +175,14 @@ public class ChatCompletionsClientTests
         Assert.Contains("overloaded", error.Message, StringComparison.Ordinal);
     }
 
+    [Fact]
+    public async Task A_content_filter_finish_is_a_truncated_and_filtered_completion()
+    {
+        var events = await Collect(Client(_ => Sse("data: {\"choices\":[{\"delta\":{\"content\":\"a\"},\"finish_reason\":\"content_filter\"}]}\n\n")));
+
+        Assert.Equal(new ChatStreamEvent.Completed(Truncated: true, Filtered: true), Assert.Single(events.OfType<ChatStreamEvent.Completed>()));
+    }
+
     /// <summary>Health check 2026-11-12, item 2: relays answer errors in shapes other than OpenAI's; none may escape as anything but a client failure.</summary>
     [Theory]
     [InlineData("{\"error\":\"invalid api key\"}", "invalid api key")]
