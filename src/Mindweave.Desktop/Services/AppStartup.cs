@@ -142,17 +142,20 @@ public sealed partial class AppStartup : IRecoveryActions
         ArgumentNullException.ThrowIfNull(backup);
         _health.Start();
         _root.Show(new StartupViewModel());
-        var restore = await _coordinator.RestoreInPlaceAsync(backup, keptCopy, CancellationToken.None);
-        await ApplyPreferencesAsync(restore.Outcome);
-        Apply(restore.Outcome);
-        if (restore.Result.Restored)
+        await GuardAsync(async () =>
         {
-            _shell.ShowRestoreNotice(UiText.RestoredNotice(backup.CreatedAt), isError: false);
-        }
-        else if (restore.Result.Open.IsReady)
-        {
-            _shell.ShowRestoreNotice(UiText.RestoreFailedNotice(backup.CreatedAt, restore.Result.Failure), isError: true);
-        }
+            var restore = await _coordinator.RestoreInPlaceAsync(backup, keptCopy, CancellationToken.None);
+            await ApplyPreferencesAsync(restore.Outcome);
+            Apply(restore.Outcome);
+            if (restore.Result.Restored)
+            {
+                _shell.ShowRestoreNotice(UiText.RestoredNotice(backup.CreatedAt), isError: false);
+            }
+            else if (restore.Result.Open.IsReady)
+            {
+                _shell.ShowRestoreNotice(UiText.RestoreFailedNotice(backup.CreatedAt, restore.Result.Failure), isError: true);
+            }
+        });
     }
 
     /// <summary>

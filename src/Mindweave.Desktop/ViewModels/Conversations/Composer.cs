@@ -72,14 +72,19 @@ public sealed partial class Composer : ViewModelBase
     [RelayCommand(CanExecute = nameof(CanSend))]
     private async Task SendAsync()
     {
-        var outcome = await _send(Text);
+        var sent = Text;
+        var outcome = await _send(sent);
         Rejection = outcome.Rejection;
         OnPropertyChanged(nameof(Notice));
         OnPropertyChanged(nameof(ShowNotice));
         if (outcome.Accepted)
         {
-            // The question is stored; only now is the input cleared. A refused question stays editable.
-            Text = string.Empty;
+            // The question is stored; only now is the input cleared. A refused question stays editable. Text typed while
+            // the send was under way is the next question, and stays (low finding ui-vm-10).
+            if (Text == sent)
+            {
+                Text = string.Empty;
+            }
         }
     }
 

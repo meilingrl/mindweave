@@ -343,6 +343,20 @@ public class ChatCompletionsClientTests
         Assert.Single(events.OfType<ChatStreamEvent.Completed>());
     }
 
+    /// <summary>Low finding ai-client-6: a connection dropped after the service finished the answer is not a failure.</summary>
+    [Fact]
+    public async Task A_connection_dropped_after_the_answer_finished_still_completes()
+    {
+        var dropping = new StubHandler(_ => new HttpResponseMessage(HttpStatusCode.OK)
+        {
+            Content = new StreamContent(new FinishedThenDropped("data: {\"choices\":[{\"delta\":{\"content\":\"答\"},\"finish_reason\":\"stop\"}]}\n\n")),
+        });
+
+        var events = await Collect(new ChatCompletionsClient(new HttpClient(dropping), new ChatClientOptions()));
+
+        Assert.Single(events.OfType<ChatStreamEvent.Completed>());
+    }
+
     [Fact]
     public async Task Other_bad_requests_are_not_retried()
     {
@@ -553,6 +567,50 @@ public class ChatCompletionsClientTests
             await Task.Delay(delay, cancellationToken);
             return new HttpResponseMessage(HttpStatusCode.OK) { Content = new StringContent("{}") };
         }
+    }
+
+    /// <summary>Sends <paramref name="text"/>, then the connection breaks.</summary>
+    private sealed class FinishedThenDropped(string text) : Stream
+    {
+        private ReadOnlyMemory<byte> _left = Encoding.UTF8.GetBytes(text);
+
+        public override bool CanRead => true;
+
+        public override bool CanSeek => false;
+
+        public override bool CanWrite => false;
+
+        public override long Length => throw new NotSupportedException();
+
+        public override long Position { get => throw new NotSupportedException(); set => throw new NotSupportedException(); }
+
+        public override ValueTask<int> ReadAsync(Memory<byte> buffer, CancellationToken cancellationToken = default)
+        {
+            if (_left.Length == 0)
+            {
+                throw new IOException("connection reset");
+            }
+
+            var n = Math.Min(buffer.Length, _left.Length);
+            _left[..n].CopyTo(buffer);
+            _left = _left[n..];
+            return ValueTask.FromResult(n);
+        }
+
+        public override Task<int> ReadAsync(byte[] buffer, int offset, int count, CancellationToken cancellationToken) =>
+            ReadAsync(buffer.AsMemory(offset, count), cancellationToken).AsTask();
+
+        public override int Read(byte[] buffer, int offset, int count) => throw new NotSupportedException();
+
+        public override void Flush()
+        {
+        }
+
+        public override long Seek(long offset, SeekOrigin origin) => throw new NotSupportedException();
+
+        public override void SetLength(long value) => throw new NotSupportedException();
+
+        public override void Write(byte[] buffer, int offset, int count) => throw new NotSupportedException();
     }
 
     /// <summary>Sends <paramref name="text"/>, then keeps the connection open without sending anything more.</summary>

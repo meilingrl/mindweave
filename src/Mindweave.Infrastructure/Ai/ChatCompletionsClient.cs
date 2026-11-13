@@ -318,11 +318,12 @@ public sealed class ChatCompletionsClient(HttpClient http, ChatClientOptions opt
         }
         catch (IOException ex)
         {
-            throw new ChatClientException(GenerationErrorKind.Network, ex.Message, ex);
+            // A dropped connection after the service said the answer is finished loses nothing (low finding ai-client-6).
+            return afterCompletion ? null : throw new ChatClientException(GenerationErrorKind.Network, ex.Message, ex);
         }
         catch (HttpRequestException ex)
         {
-            throw new ChatClientException(GenerationErrorKind.Network, ex.Message, ex);
+            return afterCompletion ? null : throw new ChatClientException(GenerationErrorKind.Network, ex.Message, ex);
         }
     }
 

@@ -134,8 +134,21 @@ public sealed class AppSession : IInAppRestore
         // The old pages leave with their session: disposed, so none of their timers or reloads reaches the closed database.
         old.GetRequiredService<Workbench>().ReleaseAll();
 
-        // Its generation was stopped by the restore's exit steps; nothing waits for it again.
-        await EndAsync(old, TimeSpan.Zero);
+        // Its generation was stopped by the restore's exit steps; nothing waits for it again. A failure while it ends is
+        // logged and the restore goes on (low finding architecture-3): the window already shows the new session, and the
+        // restore itself checks the files and puts the previous data back if it cannot use the copy.
+        try
+        {
+            await EndAsync(old, TimeSpan.Zero);
+        }
+#pragma warning disable CA1031 // The old session is gone either way; the restore must not be left on a spinner.
+        catch (Exception ex)
+#pragma warning restore CA1031
+        {
+            next.GetRequiredService<Microsoft.Extensions.Logging.ILoggerFactory>().CreateLogger("Mindweave.Restore")
+                .LogOldSessionEndFailed(ex);
+        }
+
         await next.GetRequiredService<AppStartup>().RestoreInPlaceAsync(backup, keptCopy);
     }
 
@@ -173,4 +186,10 @@ public sealed class AppSession : IInAppRestore
             }
         }
     }
+}
+
+internal static partial class AppHostLog
+{
+    [Microsoft.Extensions.Logging.LoggerMessage(Level = Microsoft.Extensions.Logging.LogLevel.Error, Message = "Ending the previous session before a restore failed; the restore goes on")]
+    public static partial void LogOldSessionEndFailed(this Microsoft.Extensions.Logging.ILogger logger, Exception exception);
 }
