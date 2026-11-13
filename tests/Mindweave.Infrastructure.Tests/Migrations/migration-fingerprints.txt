@@ -1,0 +1,14 @@
+# Fingerprints of released schema migrations (MigrationFingerprintTests). Never edit a released line: add a new migration.
+# version sha256-prefix of the normalized migration source block
+1 1173a496df2c3e87
+2 711f983ab299d309
+3 7486bf0e1489fc37
+4 4c69a6379370fd97
+5 ea1a2faec4dc06a4
+6 5d175aef5ed77e47
+7 9f120e6c5188b6ef
+8 2b1d0c20ab3001a4
+9 5b9a69dc1ee1c5a2
+10 2e11c40267fb7c09
+11 387b9d18045d00cb
+12 a98c1c875d38e47a
