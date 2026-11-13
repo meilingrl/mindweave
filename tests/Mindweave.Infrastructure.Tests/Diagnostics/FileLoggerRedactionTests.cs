@@ -7,7 +7,14 @@ public sealed class FileLoggerRedactionTests : IDisposable
 {
     private readonly string _directory = Path.Combine(Path.GetTempPath(), "mindweave-tests", Guid.NewGuid().ToString("N"));
 
-    public void Dispose() => Directory.Delete(_directory, recursive: true);
+    public void Dispose()
+    {
+        // A test skipped before writing (the read-only folder test on Windows) leaves no folder to remove.
+        if (Directory.Exists(_directory))
+        {
+            Directory.Delete(_directory, recursive: true);
+        }
+    }
 
     [Fact]
     public void Keys_in_messages_and_exceptions_never_reach_the_file()
@@ -32,7 +39,7 @@ public sealed class FileLoggerRedactionTests : IDisposable
         Assert.SkipWhen(OperatingSystem.IsWindows(), "Uses POSIX permissions.");
         if (OperatingSystem.IsWindows())
         {
-            return;
+            return; // Unreachable after the skip; tells the platform analyzer the Unix calls below are safe.
         }
 
         var folder = Path.Combine(_directory, "read-only");
