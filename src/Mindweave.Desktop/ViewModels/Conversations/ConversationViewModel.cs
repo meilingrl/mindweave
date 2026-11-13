@@ -43,6 +43,7 @@ public sealed partial class ConversationViewModel : PageViewModel, IDisposable
     private IReadOnlySet<ConversationId> _related = new HashSet<ConversationId>();
     private bool _disposed;
     private bool _isShown;
+    private bool _draftLoaded;
     private ITimer? _tick;
 
     public ConversationViewModel(
@@ -201,6 +202,10 @@ public sealed partial class ConversationViewModel : PageViewModel, IDisposable
             {
                 _isShown = value;
                 UpdateTicking();
+                if (value && _draftLoaded)
+                {
+                    _ = FollowDraftAsync();
+                }
             }
         }
     }
@@ -340,12 +345,32 @@ public sealed partial class ConversationViewModel : PageViewModel, IDisposable
         // Page state first, so the draft is in place before the reader can type.
         Composer.Text = await _reading.GetDraftAsync(Id, _slot, CancellationToken.None);
         Composer.PropertyChanged += OnComposerChanged;
+        _draftLoaded = true;
         if (sourceOf is { } child)
         {
             _sourceFocus = await _conversations.GetSourceAsync(child, CancellationToken.None);
         }
 
         await _load.Request();
+    }
+
+    /// <summary>
+    /// Shown again (health check 2026-11-12, item 9): another page of this conversation further up the back stack may
+    /// have changed the shared draft meanwhile — typed into it, or sent it. The box takes the stored draft, so going back
+    /// never hides a newer draft (to be overwritten by the next keystroke) or offers a sent question again. The draft is
+    /// held in memory once read, so this normally completes before anything can be typed.
+    /// </summary>
+    private async Task FollowDraftAsync()
+    {
+        var stored = await _reading.GetDraftAsync(Id, _slot, CancellationToken.None);
+        if (_disposed || stored == Composer.Text)
+        {
+            return;
+        }
+
+        Composer.PropertyChanged -= OnComposerChanged;
+        Composer.Text = stored;
+        Composer.PropertyChanged += OnComposerChanged;
     }
 
     private void OnComposerChanged(object? sender, PropertyChangedEventArgs e)
