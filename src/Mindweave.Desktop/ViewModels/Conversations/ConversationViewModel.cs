@@ -296,7 +296,15 @@ public sealed partial class ConversationViewModel : PageViewModel, IDisposable
     private async Task CommitRenameAsync()
     {
         IsRenaming = false;
-        await _conversations.RenameAsync(Id, RenameText, CancellationToken.None);
+        try
+        {
+            await _conversations.RenameAsync(Id, RenameText, CancellationToken.None);
+        }
+        catch (StorageWriteException)
+        {
+            // Nothing was stored (health check 2026-11-12): the typed name stays in the box; the page already says storage is paused.
+            IsRenaming = true;
+        }
     }
 
     [RelayCommand]

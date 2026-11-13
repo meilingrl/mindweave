@@ -288,7 +288,9 @@ public sealed class SummaryService : ISummaries
     /// </summary>
     public Task<SummaryVersionId?> SaveEditAsync(
         SummaryNodeId node, SummaryVersionId baseline, string title, string body, long generation, long revision, CancellationToken cancellationToken) =>
-        CommitAsync(async () =>
+        string.IsNullOrWhiteSpace(title) || string.IsNullOrWhiteSpace(body)
+        ? Task.FromException<SummaryVersionId?>(new SummaryRefusedException(SummaryRefusal.Empty))
+        : CommitAsync(async () =>
         {
             var before = await _summaries.GetAsync(node, cancellationToken).ConfigureAwait(false);
             var saved = await _drafts.CommitAsync(

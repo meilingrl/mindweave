@@ -3,6 +3,7 @@ using Avalonia.Controls.ApplicationLifetimes;
 using Avalonia.Markup.Xaml;
 using Avalonia.Threading;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging;
 using Mindweave.Desktop.Services;
 using Mindweave.Desktop.ViewModels;
 using Mindweave.Desktop.Views;
@@ -40,6 +41,14 @@ public sealed partial class App : Avalonia.Application
             var window = new MainWindow { DataContext = session.Root };
             window.Follow(session);
             desktop.MainWindow = window;
+
+            // Before anything runs on the dispatcher: an exception a command does not handle is reported, not fatal.
+            // The session is looked up each time, since an in-app restore replaces it.
+            var guard = new UiExceptionGuard(
+                Dispatcher.UIThread,
+                () => _host.Session.Services.GetService<ShellViewModel>(),
+                _host.Session.Services.GetRequiredService<ILoggerFactory>().CreateLogger("Mindweave.UI"));
+            desktop.Exit += (_, _) => guard.Dispose();
 
             // The session's root: a restore in the app (2026-11-12) replaces it, and quitting goes through the current one.
             desktop.ShutdownRequested += (_, e) => OnShutdownRequested(session.Root, e);

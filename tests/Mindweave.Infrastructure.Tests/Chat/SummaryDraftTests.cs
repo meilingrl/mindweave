@@ -140,6 +140,26 @@ public class SummaryDraftTests
         Assert.Equal(second, (await h.SummaryService.GetAsync(node, Ct))!.Node.Current);
     }
 
+    /// <summary>Health check 2026-11-12, item 10: the schema refuses a blank title or body, so the service refuses it first, by name.</summary>
+    [Theory]
+    [InlineData("", "正文")]
+    [InlineData("   ", "正文")]
+    [InlineData("标题", "")]
+    [InlineData("标题", " \n\t ")]
+    public async Task A_blank_title_or_body_is_refused_and_the_current_version_stays(string title, string body)
+    {
+        await using var h = await ChatHarness.StartAsync();
+        var (node, current) = await SummaryAsync(h);
+        var session = await h.SummaryService.OpenDraftAsync(node, current, Ct);
+        var revision = h.SummaryService.SetDraft(node, session.Generation, current, title, body)!.Value;
+
+        var refused = await Assert.ThrowsAsync<SummaryRefusedException>(() => h.SummaryService.SaveEditAsync(node, current, title, body, session.Generation, revision, Ct));
+
+        Assert.Equal(SummaryRefusal.Empty, refused.Reason);
+        Assert.Equal(current, (await h.SummaryService.GetAsync(node, Ct))!.Node.Current);
+        Assert.False(h.Health.IsBlocked);
+    }
+
     private static SummaryDrafts Drafts(ChatHarness h, ISummaryStore store) =>
         new(store, new SystemClock(), h.Health, NullLogger<SummaryDrafts>.Instance, TimeSpan.FromHours(1));
 

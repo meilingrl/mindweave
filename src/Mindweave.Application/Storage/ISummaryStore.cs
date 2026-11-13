@@ -57,6 +57,9 @@ public enum SummaryRefusal
 
     /// <summary>The candidate cannot be deleted as a version; it is discarded instead.</summary>
     IsCandidate,
+
+    /// <summary>An edit with a blank title or body; a version needs both (health check 2026-11-12).</summary>
+    Empty,
 }
 
 public sealed class SummaryRefusedException(SummaryRefusal reason) : Exception(reason.ToString())

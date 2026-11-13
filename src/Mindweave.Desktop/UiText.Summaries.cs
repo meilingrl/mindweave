@@ -76,6 +76,7 @@ public static partial class UiText
         SummaryRefusal.TaskRunning => "这个会话的总结正在生成，完成或停止后才能删除版本。",
         SummaryRefusal.HasCandidate => "还有一个候选版本。删除全部已保存版本前，请先采用或丢弃它。",
         SummaryRefusal.IsCandidate => "候选版本不能设为当前或作为版本删除，请采用或丢弃它。",
+        SummaryRefusal.Empty => "标题和正文都不能为空。",
         _ => "总结已经变化，请查看最新内容后再操作。",
     };
 

@@ -232,6 +232,11 @@ internal sealed class SqliteSummaryStore(SqliteDatabase database) : ISummaryStor
         database.WriteAsync<SummaryVersionId?>(
             (connection, transaction) =>
             {
+                if (string.IsNullOrWhiteSpace(title) || string.IsNullOrWhiteSpace(body))
+                {
+                    throw new SummaryRefusedException(SummaryRefusal.Empty);
+                }
+
                 var detail = Detail(connection, transaction, node) ?? throw new SummaryRefusedException(SummaryRefusal.Changed);
                 if (detail.Node.Current != baseline)
                 {

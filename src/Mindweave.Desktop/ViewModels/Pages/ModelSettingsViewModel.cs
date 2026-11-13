@@ -288,6 +288,11 @@ public sealed partial class ModelSettingsViewModel : ViewModelBase
         {
             Report(UiText.CredentialUnavailable(ex.Message), isError: true);
         }
+        catch (StorageWriteException)
+        {
+            // Health check 2026-11-12: nothing was stored; what was typed stays on the page.
+            Report(UiText.RowStoragePaused, isError: true);
+        }
         finally
         {
             IsBusy = false;

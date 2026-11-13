@@ -33,7 +33,7 @@ public static class InfrastructureServices
         services.AddSingleton<ILocationStore, SqliteLocationStore>();
         services.TryAddSingleton<IPreferenceStore, SqlitePreferenceStore>();
         services.AddSingleton<IConversationStore, SqliteConversationStore>();
-        services.AddSingleton<IModelSettingsStore, SqliteModelSettingsStore>();
+        services.TryAddSingleton<IModelSettingsStore, SqliteModelSettingsStore>();
         services.AddSingleton<IAiRequestStore, SqliteAiRequestStore>();
         services.AddSingleton<IStatisticsStore, SqliteStatisticsStore>();
         services.AddSingleton<IRecommendationStore, SqliteRecommendationStore>();
