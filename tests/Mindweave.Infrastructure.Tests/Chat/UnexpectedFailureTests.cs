@@ -1,3 +1,4 @@
+using Mindweave.Testing;
 using Mindweave.Application.Storage;
 using Mindweave.Core.Conversations;
 using Mindweave.Infrastructure.Sqlite;
@@ -255,6 +256,20 @@ public class UnexpectedFailureTests
         h.Generation.Reopen();
         var again = await h.Conversations.RetryAsync(first.Conversation, late.Answer!.Value, Ct);
         Assert.True(again.Accepted, again.Rejection?.ToString());
+    }
+
+    /// <summary>Low finding gap-unprompted-4: a title request sends the gist of a long question, not all of it.</summary>
+    [Fact]
+    public async Task A_title_request_for_a_very_long_question_stays_short()
+    {
+        await using var h = await ChatHarness.StartAsync();
+
+        var sent = await h.Conversations.StartAsync(h.Workspace, new string('史', 20_000), Ct);
+        await h.WaitForAnswerAsync(sent.Answer!.Value);
+        await ChatHarness.UntilAsync(() => Task.FromResult(h.Client.Requests.Any(FakeChatClient.IsTitle)));
+
+        var title = h.Client.Requests.First(FakeChatClient.IsTitle);
+        Assert.True(title.Turns.Sum(t => t.Content.Length) < 5_000, $"{title.Turns.Sum(t => t.Content.Length)} characters sent for a title");
     }
 
     private static Task<string?> TaskStateAsync(ChatHarness h, string kind, MessageId message) =>

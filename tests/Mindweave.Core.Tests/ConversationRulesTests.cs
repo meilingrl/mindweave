@@ -101,4 +101,20 @@ public class ConversationRulesTests
     [InlineData("正文里提到 <think> 这个词", "正文里提到 <think> 这个词")]
     public void Inline_reasoning_is_removed(string raw, string expected) =>
         Assert.Equal(expected, ConversationRules.WithoutInlineReasoning(raw));
+
+    /// <summary>Low finding gap-unprompted-9: invisible control and direction characters never reach a title.</summary>
+    [Fact]
+    public void Shortening_drops_invisible_control_characters_but_keeps_emoji_joiners()
+    {
+        Assert.Equal("蒸汽机车", ConversationRules.Shorten("蒸\u202E汽\u200B机\u0007车", 20));
+        Assert.Equal("家庭👨\u200D👩\u200D👧", ConversationRules.Shorten("家庭👨\u200D👩\u200D👧", 20));
+    }
+
+    /// <summary>Low finding gap-summary-10: a cut never ends on half a character.</summary>
+    [Fact]
+    public void Cutting_keeps_whole_characters()
+    {
+        Assert.Equal("ab😀", ConversationRules.FirstTextElements("ab😀😀", 3));
+        Assert.Equal("ab", ConversationRules.FirstTextElements("ab", 3));
+    }
 }

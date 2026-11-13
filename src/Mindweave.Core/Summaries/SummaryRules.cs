@@ -38,7 +38,7 @@ public static class SummaryRules
         var next = Array.FindIndex(lines, rest, l => l.Trim().Length > 0);
         if (next >= 0 && StripPrefix(lines[next].Trim(), "短名：", "短名:", "Short:", "short:") is var candidate && candidate != lines[next].Trim())
         {
-            shortTitle = Clean(candidate) is { Length: > 0 } s ? (s.Length > MaxShortTitleLength ? s[..MaxShortTitleLength] : s) : null;
+            shortTitle = Clean(candidate) is { Length: > 0 } s ? Mindweave.Core.Conversations.ConversationRules.FirstTextElements(s, MaxShortTitleLength) : null;
             rest = next + 1;
         }
 
@@ -48,7 +48,7 @@ public static class SummaryRules
             return null;
         }
 
-        return new GeneratedSummary(title.Length > MaxTitleLength ? title[..MaxTitleLength] : title, shortTitle, body);
+        return new GeneratedSummary(Mindweave.Core.Conversations.ConversationRules.FirstTextElements(title, MaxTitleLength), shortTitle, body);
 
         static string StripPrefix(string line, params string[] prefixes)
         {

@@ -17,6 +17,9 @@ internal sealed partial class ConversationTitler
 {
     private const int TitleAnswerExcerpt = 2000;
 
+    /// <summary>How much of the first question (with its quote, for a branch) a title request sends.</summary>
+    internal const int TitleQuestionExcerpt = 1_000;
+
     /// <summary>
     /// Output cap for a title request. Reasoning models count hidden reasoning against it: with 64 tokens,
     /// a real reasoning model spent the whole budget reasoning and returned no title (finish_reason "length";
@@ -100,8 +103,9 @@ internal sealed partial class ConversationTitler
         var messages = await _store.GetMessagesAsync(e.ConversationId, CancellationToken.None).ConfigureAwait(false);
         var question = messages.First(m => m.Role == MessageRole.User);
         var source = await _branches.GetSourceAsync(e.ConversationId, CancellationToken.None).ConfigureAwait(false);
-        var asked = source is null ? question.Text : BranchContext.QuotedQuestion(source.Quote, question.Text);
-        var excerpt = e.Text.Length > TitleAnswerExcerpt ? e.Text[..TitleAnswerExcerpt] : e.Text;
+        // A title needs the gist, not a pasted document (low finding gap-unprompted-4): the question is cut like the answer.
+        var asked = ConversationRules.FirstTextElements(source is null ? question.Text : BranchContext.QuotedQuestion(source.Quote, question.Text), TitleQuestionExcerpt);
+        var excerpt = ConversationRules.FirstTextElements(e.Text, TitleAnswerExcerpt);
         var now = _clock.UtcNow;
         var task = new GenerationTaskRecord(GenerationTaskId.New(), GenerationTaskKind.Title, e.ConversationId, null, model, [question.Id, e.MessageId], now);
         if (_generation.IsClosed)

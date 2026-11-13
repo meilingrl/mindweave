@@ -112,6 +112,20 @@ public static partial class ConversationRules
         return line.Length == 0 ? null : line;
     }
 
+    private static bool IsInvisibleControl(char ch) =>
+        ch != '\u200D' && CharUnicodeInfo.GetUnicodeCategory(ch) is UnicodeCategory.Control or UnicodeCategory.Format;
+
+    /// <summary>
+    /// At most <paramref name="maxTextElements"/> whole characters as the reader sees them (low finding
+    /// gap-summary-10): cutting by UTF-16 index could end on half of an emoji or a combined character.
+    /// </summary>
+    public static string FirstTextElements(string text, int maxTextElements)
+    {
+        ArgumentNullException.ThrowIfNull(text);
+        var info = new StringInfo(text);
+        return info.LengthInTextElements <= maxTextElements ? text : info.SubstringByTextElements(0, maxTextElements);
+    }
+
     public static string Shorten(string text, int maxTextElements)
     {
         ArgumentNullException.ThrowIfNull(text);
@@ -122,6 +136,13 @@ public static partial class ConversationRules
             if (char.IsWhiteSpace(ch))
             {
                 space = true;
+                continue;
+            }
+
+            // Invisible control and direction characters a model may emit (low finding gap-unprompted-9): a right-to-left
+            // override would show a title backwards. The joiner inside emoji sequences stays.
+            if (IsInvisibleControl(ch))
+            {
                 continue;
             }
 

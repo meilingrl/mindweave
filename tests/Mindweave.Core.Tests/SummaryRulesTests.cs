@@ -122,5 +122,13 @@ public class SummaryRulesTests
         Assert.Equal(title, parsed.Title);
         Assert.Equal(shortTitle, parsed.ShortTitle);
     }
-}
 
+    /// <summary>Low finding gap-summary-10: a long title ending in emoji is cut between characters, not inside one.</summary>
+    [Fact]
+    public void A_generated_title_is_cut_between_whole_characters()
+    {
+        var parsed = SummaryRules.ParseGenerated("标题：" + new string('火', 39) + "🚂🚂\n\n正文")!;
+
+        Assert.Equal(new string('火', 39) + "🚂", parsed.Title);
+    }
+}
