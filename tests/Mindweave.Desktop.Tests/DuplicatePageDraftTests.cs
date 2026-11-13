@@ -54,6 +54,22 @@ public class DuplicatePageDraftTests
         await UiWait.UntilAsync(() => a1.Composer.Text.Length == 0);
     }
 
+    /// <summary>Low finding gap-lifecycle-6: deleting the conversation on screen leaves the page before it, not an empty history.</summary>
+    [AvaloniaFact]
+    public async Task Forgetting_the_shown_conversation_goes_back_to_the_page_before_it()
+    {
+        await using var app = DesktopHarness.Create();
+        app.ShowWindow();
+        var (a, b) = await TwoConversationsAsync(app);
+        var pageA = await OpenAsync(app, a);
+        await OpenAsync(app, b);
+
+        app.Workbench.Forget(route => route is ConversationRoute r && r.Id == b);
+
+        Assert.Same(pageA, app.Workbench.CurrentPage);
+        Assert.True(app.Workbench.CanGoBack);
+    }
+
     private static async Task<ConversationViewModel> OpenAsync(DesktopHarness app, ConversationId id)
     {
         app.Workbench.Navigate(new NavigationRequest(MainSection.Explore, new ConversationRoute(id)));

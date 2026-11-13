@@ -169,19 +169,11 @@ public sealed class Workbench : ObservableObject, IWorkbenchNavigator, IWorkspac
         {
             slot.Section = MainSection.Explore;
             EnsureHome(runtime, slot);
+            // Without a fallback the reader lands on the page before it: the forgotten pages are gone from every stack
+            // already, and the rest of the history stays (low finding gap-lifecycle-6: it used to be emptied too).
             if (fallback is not null)
             {
                 PushCore(runtime, slot, fallback);
-            }
-            else
-            {
-                var explore = slot.StackOf(MainSection.Explore);
-                while (explore.Count > 1)
-                {
-                    var leaving = explore[^1];
-                    explore.RemoveAt(explore.Count - 1);
-                    Release(leaving);
-                }
             }
         }
 

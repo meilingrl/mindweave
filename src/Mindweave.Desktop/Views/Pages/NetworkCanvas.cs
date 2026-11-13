@@ -657,6 +657,9 @@ public sealed class NetworkCanvas : Control
     protected override void OnPointerCaptureLost(PointerCaptureLostEventArgs e)
     {
         base.OnPointerCaptureLost(e);
+
+        // A pan ends with the capture too (low finding ui-vm-6): it used to follow the pointer after the button was let go elsewhere.
+        _panFrom = null;
         if (_pressed is not null)
         {
             _pressed = null;
