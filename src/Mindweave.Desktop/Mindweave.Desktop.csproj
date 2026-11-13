@@ -23,4 +23,9 @@
   <ItemGroup>
     <InternalsVisibleTo Include="Mindweave.Desktop.Tests" />
   </ItemGroup>
+  <ItemGroup>
+    <!-- Licences of the third-party packages the application ships, next to the executable in every build and publish
+         (health check 2026-11-12, dependencies-1). Regenerate with scripts/third-party-notices.py after changing packages. -->
+    <None Include="..\..\THIRD-PARTY-NOTICES.txt" Link="THIRD-PARTY-NOTICES.txt" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
+  </ItemGroup>
 </Project>
