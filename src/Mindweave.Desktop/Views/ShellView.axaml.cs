@@ -54,6 +54,9 @@ public sealed partial class ShellView : UserControl
     /// <summary>Set while the switcher's badge pulses (tests).</summary>
     internal bool IsPulsing => Header.IsPulsing;
 
+    /// <summary>How many times the switcher's badge has started to pulse (tests).</summary>
+    internal int PulsesStarted => Header.PulsesStarted;
+
     /// <summary>The pop-up hints are held while the pointer is on them (the switcher's badge watches its own count).</summary>
     private void WatchNews(WorkspaceNewsViewModel? news) => _news = news;
 

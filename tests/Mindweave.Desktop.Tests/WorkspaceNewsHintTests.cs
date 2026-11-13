@@ -230,21 +230,24 @@ public class WorkspaceNewsHintTests
         var count = Find<TextBlock>(window, "OtherWorkspacesNewsCount");
         Assert.False(shell.IsPulsing);
 
+        // Pulses are counted, not caught in the act: one lasts 600 ms, and a slow CI runner can take longer than that
+        // to finish the answer and look (it failed there once, 2026-11-13).
         await scene.AnswerAsync(scene.Trains, "火车是怎么发明的？");
         Assert.Equal(1, news.Count);
         Assert.Equal("1", count.Text);
-        Assert.True(shell.IsPulsing);
+        Assert.Equal(1, shell.PulsesStarted);
         await UiWait.UntilAsync(() => !shell.IsPulsing, timeoutMs: 2000);
 
         var other = await scene.AddWorkspaceAsync("地铁");
         await scene.AnswerAsync(other, "地铁是什么时候出现的？");
         Assert.Equal("2", count.Text);
-        Assert.True(shell.IsPulsing);
+        Assert.Equal(2, shell.PulsesStarted);
         await UiWait.UntilAsync(() => !shell.IsPulsing, timeoutMs: 2000);
 
         // Fewer (a workspace opened, its conversations counted there instead): no pulse.
         scene.App.ShellPage.SelectedWorkspace = other;
         await UiWait.UntilAsync(() => news.Count == 1);
+        Assert.Equal(2, shell.PulsesStarted);
         Assert.False(shell.IsPulsing);
         Assert.Equal("9+", UiText.NewsBadge(10));
         Assert.Equal("9", UiText.NewsBadge(9));

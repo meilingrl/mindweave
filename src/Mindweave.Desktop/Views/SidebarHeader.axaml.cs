@@ -31,6 +31,9 @@ public sealed partial class SidebarHeader : UserControl
     /// <summary>Set while the badge's pulse runs (tests).</summary>
     internal bool IsPulsing => OtherWorkspacesNews.Classes.Contains("pulsing");
 
+    /// <summary>How many pulses have started (tests: a pulse lasts 600 ms, shorter than a slow runner may take to look).</summary>
+    internal int PulsesStarted => _pulses;
+
     /// <summary>The menu's rows in order: every workspace, then 新建工作区… and 管理工作区… (what the arrow keys move between).</summary>
     internal IReadOnlyList<Button> MenuRows =>
         [.. WorkspaceMenuCard.GetVisualDescendants().OfType<Button>().Where(b => b.Classes.Contains("switcher-row") && b.IsEffectivelyVisible)];
