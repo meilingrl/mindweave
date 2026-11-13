@@ -54,6 +54,30 @@ public sealed class SingleInstanceTests : IDisposable
         }
     }
 
+    /// <summary>Low finding concurrency-10: a client that connects and says nothing does not block later launches.</summary>
+    [Fact]
+    public async Task A_silent_client_does_not_block_later_launches()
+    {
+        await using var holder = SingleInstance.TryAcquire(_dir.Paths)!;
+        var activated = 0;
+        holder.StartListening(() => Interlocked.Increment(ref activated));
+        await using var silent = new System.IO.Pipes.NamedPipeClientStream(".", SingleInstance.PipeNameFor(_dir.Paths), System.IO.Pipes.PipeDirection.InOut, System.IO.Pipes.PipeOptions.Asynchronous | System.IO.Pipes.PipeOptions.CurrentUserOnly);
+        await silent.ConnectAsync(Ct);
+
+        var result = await SingleInstance.SignalPrimaryAsync(_dir.Paths, SingleInstance.RequestTimeout + TimeSpan.FromSeconds(3), Ct);
+
+        Assert.Equal(SecondaryLaunchResult.Activated, result);
+
+        // The reply goes out just before the window is asked to come forward.
+        var deadline = DateTime.UtcNow + TimeSpan.FromSeconds(5);
+        while (Volatile.Read(ref activated) == 0 && DateTime.UtcNow < deadline)
+        {
+            await Task.Delay(20, Ct);
+        }
+
+        Assert.Equal(1, Volatile.Read(ref activated));
+    }
+
     [Fact]
     public async Task Only_one_holder_per_data_directory_and_release_frees_it()
     {

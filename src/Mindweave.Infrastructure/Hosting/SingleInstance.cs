@@ -84,7 +84,8 @@ public sealed class SingleInstance : IAsyncDisposable
             {
                 using var attempt = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
                 attempt.CancelAfter(remaining < TimeSpan.FromSeconds(1) ? remaining : TimeSpan.FromSeconds(1));
-                await using var client = new NamedPipeClientStream(".", PipeNameFor(paths), PipeDirection.InOut, PipeOptions.Asynchronous);
+                // Only a pipe owned by this user is talked to (low finding gap-native-interop-6), as the server only accepts this user.
+                await using var client = new NamedPipeClientStream(".", PipeNameFor(paths), PipeDirection.InOut, PipeOptions.Asynchronous | PipeOptions.CurrentUserOnly);
                 await client.ConnectAsync(attempt.Token).ConfigureAwait(false);
                 await client.WriteAsync(new[] { ActivateRequest }, attempt.Token).ConfigureAwait(false);
                 await client.FlushAsync(attempt.Token).ConfigureAwait(false);
@@ -141,6 +142,11 @@ public sealed class SingleInstance : IAsyncDisposable
         await _lock.DisposeAsync().ConfigureAwait(false);
     }
 
+    /// <summary>How long a connected client has to send its request.</summary>
+    internal static readonly TimeSpan RequestTimeout = TimeSpan.FromSeconds(2);
+
+    private static readonly TimeSpan ListenRetryDelay = TimeSpan.FromMilliseconds(100);
+
     /// <summary>EROFS (30 on Linux and macOS), which .NET reports as a plain I/O error carrying the errno (review 2026-11-13).</summary>
     private static bool IsReadOnlyVolume(IOException ex) => !OperatingSystem.IsWindows() && ex.HResult == 30;
 
@@ -166,22 +172,48 @@ public sealed class SingleInstance : IAsyncDisposable
                     PipeTransmissionMode.Byte,
                     PipeOptions.Asynchronous | PipeOptions.CurrentUserOnly);
                 await server.WaitForConnectionAsync(cancellationToken).ConfigureAwait(false);
-                var request = new byte[1];
-                var read = await server.ReadAsync(request, cancellationToken).ConfigureAwait(false);
-                if (read == 1 && request[0] == ActivateRequest)
+
+                // A client that connects and never sends is given up on (low finding concurrency-10): it used to hold the
+                // only connection for good, so every later launch reported "not responding".
+                using var request = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+                request.CancelAfter(RequestTimeout);
+                var buffer = new byte[1];
+                var read = await server.ReadAsync(buffer, request.Token).ConfigureAwait(false);
+                if (read == 1 && buffer[0] == ActivateRequest)
                 {
-                    await server.WriteAsync(new[] { Acknowledge }, cancellationToken).ConfigureAwait(false);
-                    await server.FlushAsync(cancellationToken).ConfigureAwait(false);
-                    onActivate();
+                    await server.WriteAsync(new[] { Acknowledge }, request.Token).ConfigureAwait(false);
+                    await server.FlushAsync(request.Token).ConfigureAwait(false);
+                    try
+                    {
+                        onActivate();
+                    }
+#pragma warning disable CA1031 // Bringing the window forward is a courtesy; it must not end the listener.
+                    catch (Exception)
+#pragma warning restore CA1031
+                    {
+                    }
                 }
             }
             catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
             {
                 return;
             }
-            catch (IOException)
+            catch (OperationCanceledException)
             {
-                // A client disconnected mid-request; keep serving.
+                // That client's request timed out; serve the next.
+            }
+#pragma warning disable CA1031 // Anything else (a broken pipe, a refused create): keep serving after a short pause, never spin.
+            catch (Exception)
+#pragma warning restore CA1031
+            {
+                try
+                {
+                    await Task.Delay(ListenRetryDelay, cancellationToken).ConfigureAwait(false);
+                }
+                catch (OperationCanceledException)
+                {
+                    return;
+                }
             }
         }
     }
