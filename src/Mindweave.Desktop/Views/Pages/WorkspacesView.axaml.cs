@@ -11,7 +11,6 @@ namespace Mindweave.Desktop.Views.Pages;
 public sealed partial class WorkspacesView : UserControl
 {
     private WorkspacesViewModel? _page;
-    private bool _shownOnce;
 
     public WorkspacesView()
     {
@@ -36,7 +35,12 @@ public sealed partial class WorkspacesView : UserControl
         }
 
         _page = page;
-        _shownOnce = false;
+        if (page is not null && this.IsAttachedToVisualTree())
+        {
+            // Attached before the page arrived: this is the showing (see OnAttachedToVisualTree).
+            page.Refresh();
+        }
+
         if (page is not null)
         {
             page.RenameStarted += OnRenameStarted;
@@ -51,12 +55,10 @@ public sealed partial class WorkspacesView : UserControl
     protected override void OnAttachedToVisualTree(VisualTreeAttachmentEventArgs e)
     {
         base.OnAttachedToVisualTree(e);
-        if (_shownOnce)
-        {
-            _page?.Refresh();
-        }
 
-        _shownOnce = true;
+        // The view is built anew each time the page is shown, so the page keeps the "shown before" flag (health check
+        // 2026-11-12, ui-vm-4); it skips the first showing, whose counts are already being read.
+        _page?.Refresh();
     }
 
     /// <summary>Leaving the page stops any request for suggested names: a late answer would show where no one is looking.</summary>

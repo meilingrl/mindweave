@@ -85,6 +85,8 @@ public sealed partial class WorkspacesViewModel : PageViewModel, IDisposable
     /// <summary>The kept names of the last rename started, read; tests await it.</summary>
     internal Task KeptNamesRead { get; private set; } = Task.CompletedTask;
 
+    private bool _shown;
+
     /// <summary>Suggested names can be asked for (the page was given the service).</summary>
     public bool CanSuggestNames => _suggestions is not null;
 
@@ -105,6 +107,12 @@ public sealed partial class WorkspacesViewModel : PageViewModel, IDisposable
     /// <summary>Counts again (the page is shown again: conversations may have come and gone meanwhile). Old counts stay until the new ones are in.</summary>
     public void Refresh()
     {
+        if (!_shown)
+        {
+            _shown = true;
+            return;
+        }
+
         if (!_disposed)
         {
             Loaded = RefreshCountsAsync();

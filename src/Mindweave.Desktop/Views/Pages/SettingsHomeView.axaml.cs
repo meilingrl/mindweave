@@ -32,9 +32,23 @@ public sealed partial class SettingsHomeView : UserControl
         ModelPopup.Opened += OnModelListOpened;
     }
 
+    /// <summary>
+    /// Each showing builds this view anew: whichever of attaching and receiving the page comes second tells the page it is
+    /// shown, so it can read the application's settings again (health check 2026-11-12, ui-vm-3).
+    /// </summary>
+    protected override void OnDataContextChanged(EventArgs e)
+    {
+        base.OnDataContextChanged(e);
+        if (this.IsAttachedToVisualTree())
+        {
+            (DataContext as SettingsHomeViewModel)?.Refresh();
+        }
+    }
+
     protected override void OnAttachedToVisualTree(VisualTreeAttachmentEventArgs e)
     {
         base.OnAttachedToVisualTree(e);
+        (DataContext as SettingsHomeViewModel)?.Refresh();
 
         // Registered before the popup's own light-dismiss handler (added each time it opens), so this sees the state first.
         _topLevel = TopLevel.GetTopLevel(this);

@@ -31,7 +31,24 @@ public sealed partial class ModelSettingsViewModel : ViewModelBase
         Loaded = LoadAsync();
     }
 
-    internal Task Loaded { get; }
+    internal Task Loaded { get; private set; }
+
+    /// <summary>
+    /// Shown again (health check 2026-11-12, ui-vm-3): the settings are the application's, and another workspace's
+    /// settings page may have saved new ones. The form is read again unless the reader has changed it since it was read.
+    /// </summary>
+    public void ReloadIfUnchanged()
+    {
+        if (IsBusy || ApiKey.Length > 0 || (Name, BaseUrl, Model, ContextWindow) != _shownValues)
+        {
+            return;
+        }
+
+        Loaded = LoadAsync();
+    }
+
+    /// <summary>The values the form was filled with by the last read; changed fields mean the reader is editing.</summary>
+    private (string Name, string BaseUrl, string Model, string ContextWindow) _shownValues = (string.Empty, string.Empty, string.Empty, string.Empty);
 
     [ObservableProperty]
     public partial string Name { get; set; } = string.Empty;
@@ -250,6 +267,7 @@ public sealed partial class ModelSettingsViewModel : ViewModelBase
         Model = saved.Model;
         _settingModel = false;
         ContextWindow = saved.Capabilities.ContextWindowTokens?.ToString(System.Globalization.CultureInfo.InvariantCulture) ?? string.Empty;
+        _shownValues = (Name, BaseUrl, Model, ContextWindow);
         HasSavedKey = true;
         OnPropertyChanged(nameof(SavedKeyApplies));
         OnPropertyChanged(nameof(KeyPlaceholder));

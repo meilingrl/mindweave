@@ -90,7 +90,28 @@ public sealed partial class SettingsHomeViewModel : PageViewModel, IDisposable
 
     public override string Title => UiText.SettingsTitle;
 
-    internal Task Loaded { get; }
+    internal Task Loaded { get; private set; }
+
+    private bool _shown;
+
+    /// <summary>
+    /// Shown again (health check 2026-11-12, ui-vm-3): each workspace has its own settings page, but the settings are the
+    /// application's, so another workspace's page may have changed them. They are read again; the model form keeps what
+    /// the reader is editing. The first showing is skipped (the constructor's read is under way).
+    /// </summary>
+    public void Refresh()
+    {
+        if (!_shown)
+        {
+            _shown = true;
+            return;
+        }
+
+        _chosen = _soundChosen = _inWorkspaceChosen = _prepareNamesChosen = false;
+        _recommendationChosen.Clear();
+        Loaded = LoadAsync();
+        Model.ReloadIfUnchanged();
+    }
 
     /// <summary>The stored choice; changing it applies at once and is saved in the background.</summary>
     [ObservableProperty]
