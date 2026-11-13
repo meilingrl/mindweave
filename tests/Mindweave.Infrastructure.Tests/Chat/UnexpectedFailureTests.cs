@@ -120,6 +120,63 @@ public class UnexpectedFailureTests
         Assert.Equal(GenerationErrorKind.InvalidResponse, empty.ErrorKind);
     }
 
+    /// <summary>
+    /// Health check 2026-11-12, gap-lifecycle-1: a summary task's final write refused by storage is kept and written
+    /// once storage takes writes again, as an answer's is, instead of leaving the task "running" until a restart.
+    /// </summary>
+    [Fact]
+    public async Task A_summary_tasks_final_write_refused_by_storage_is_kept_and_written_later()
+    {
+        var refusing = new RefuseOnce();
+        await using var h = await ChatHarness.StartAsync(wrapStore: store => RefuseOnce.Wrap(store, refusing));
+        var sent = await h.Conversations.StartAsync(h.Workspace, "一", Ct);
+        await h.WaitForAnswerAsync(sent.Answer!.Value);
+        await h.SettleAsync(sent.Conversation);
+        h.Client.Knowledge.FailNext(GenerationErrorKind.ServerError);
+        refusing.Armed = true;
+
+        var outcome = await h.SummaryService.SummarizeAsync(sent.Conversation, Ct);
+
+        Assert.True(outcome.Accepted, outcome.Rejection?.ToString());
+        await ChatHarness.UntilAsync(() => Task.FromResult(refusing.Refused));
+        await ChatHarness.UntilAsync(async () => await h.SummaryService.LatestTaskAsync(sent.Conversation, Ct) is { State: GenerationTaskState.Failed });
+        await ChatHarness.UntilAsync(() => Task.FromResult(!h.Health.IsBlocked));
+    }
+
+    /// <summary>A conversation store whose first task-finishing write after arming is refused as on a full disk.</summary>
+    public class RefuseOnce : System.Reflection.DispatchProxy
+    {
+        private IConversationStore _inner = null!;
+        private RefuseOnce _gate = null!;
+
+        private volatile bool _armed;
+        private volatile bool _refused;
+
+        public bool Armed { get => _armed; set => _armed = value; }
+
+        public bool Refused { get => _refused; set => _refused = value; }
+
+        public static IConversationStore Wrap(IConversationStore inner, RefuseOnce gate)
+        {
+            var proxy = Create<IConversationStore, RefuseOnce>();
+            ((RefuseOnce)(object)proxy)._inner = inner;
+            ((RefuseOnce)(object)proxy)._gate = gate;
+            return proxy;
+        }
+
+        protected override object? Invoke(System.Reflection.MethodInfo? targetMethod, object?[]? args)
+        {
+            ArgumentNullException.ThrowIfNull(targetMethod);
+            if (targetMethod.Name == nameof(IConversationStore.FinishTaskAsync) && _gate.Armed && !_gate.Refused)
+            {
+                _gate.Refused = true;
+                return Task.FromException(new StorageWriteException(StorageFailureKind.Full, "simulated full disk", null));
+            }
+
+            return targetMethod.Invoke(_inner, args);
+        }
+    }
+
     private static Task<string?> TaskStateAsync(ChatHarness h, string kind, MessageId message) =>
         h.Database.ReadAsync(c => c.Scalar<string?>(null, "SELECT state FROM generation_task WHERE kind = $kind AND target_message_id = $m;", ("$kind", kind), ("$m", message.ToString())), Ct);
 

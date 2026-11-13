@@ -431,7 +431,7 @@ public sealed partial class GenerationCoordinator : IGenerationExit, IGeneration
             return;
         }
 
-        await _writes.SaveAsync(() => _requests.FinishTaskAsync(work.Task.Id, GenerationTaskState.Cancelled, null, null)).ConfigureAwait(false);
+        await _writes.SaveAsync(() => _requests.FinishTaskAsync(work.Task.Id, GenerationTaskState.Cancelled, null, null), retryOnFailure: true).ConfigureAwait(false);
         if (work is TitleWork)
         {
             TitleAbandoned?.Invoke(this, work.Task.ConversationId);

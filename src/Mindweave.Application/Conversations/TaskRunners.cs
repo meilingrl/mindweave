@@ -31,7 +31,7 @@ internal sealed partial class TaskRunners(
         var task = work.Task;
         try
         {
-            if (await _writes.SaveAsync(() => _store.MarkRunningAsync(task.Id, null, _clock.UtcNow, CancellationToken.None)).ConfigureAwait(false) != SaveResult.Applied)
+            if (await MarkRunningAsync(task).ConfigureAwait(false) is not true)
             {
                 return;
             }
@@ -39,7 +39,7 @@ internal sealed partial class TaskRunners(
             var key = await _requests.ReadKeyAsync(task).ConfigureAwait(false);
             if (key.Error is { } keyError)
             {
-                await _writes.SaveAsync(() => _requests.FinishTaskAsync(task.Id, GenerationTaskState.Failed, keyError, key.Detail)).ConfigureAwait(false);
+                await _writes.SaveAsync(() => _requests.FinishTaskAsync(task.Id, GenerationTaskState.Failed, keyError, key.Detail), retryOnFailure: true).ConfigureAwait(false);
                 return;
             }
 
@@ -54,22 +54,22 @@ internal sealed partial class TaskRunners(
                 }
             }
 
-            await _writes.SaveAsync(() => _requests.FinishTaskAsync(task.Id, title is null ? GenerationTaskState.Failed : GenerationTaskState.Completed, title is null ? GenerationErrorKind.InvalidResponse : null, title is null ? problem : null))
+            await _writes.SaveAsync(() => _requests.FinishTaskAsync(task.Id, title is null ? GenerationTaskState.Failed : GenerationTaskState.Completed, title is null ? GenerationErrorKind.InvalidResponse : null, title is null ? problem : null), retryOnFailure: true)
                 .ConfigureAwait(false);
         }
         catch (OperationCanceledException) when (stop.IsCancellationRequested)
         {
-            await _writes.SaveAsync(() => _requests.FinishTaskAsync(task.Id, GenerationTaskState.Stopped, null, null)).ConfigureAwait(false);
+            await _writes.SaveAsync(() => _requests.FinishTaskAsync(task.Id, GenerationTaskState.Stopped, null, null), retryOnFailure: true).ConfigureAwait(false);
             _events.TitleAbandoned(task.ConversationId);
         }
         catch (ChatClientException ex)
         {
             // Titles are best effort: keep the current name, never retry automatically.
-            await _writes.SaveAsync(() => _requests.FinishTaskAsync(task.Id, GenerationTaskState.Failed, ex.Kind, ex.Message)).ConfigureAwait(false);
+            await _writes.SaveAsync(() => _requests.FinishTaskAsync(task.Id, GenerationTaskState.Failed, ex.Kind, ex.Message), retryOnFailure: true).ConfigureAwait(false);
         }
         catch (StorageAdmissionRefusedException ex)
         {
-            await _writes.SaveAsync(() => _requests.FinishTaskAsync(task.Id, GenerationTaskState.Failed, GenerationErrorKind.StorageUnavailable, ex.Message)).ConfigureAwait(false);
+            await _writes.SaveAsync(() => _requests.FinishTaskAsync(task.Id, GenerationTaskState.Failed, GenerationErrorKind.StorageUnavailable, ex.Message), retryOnFailure: true).ConfigureAwait(false);
         }
 #pragma warning disable CA1031 // Health check 2026-11-12: whatever ends the run, its task row ends too instead of staying running.
         catch (Exception ex)
@@ -84,7 +84,7 @@ internal sealed partial class TaskRunners(
         var task = work.Task;
         try
         {
-            if (await _writes.SaveAsync(() => _store.MarkRunningAsync(task.Id, null, _clock.UtcNow, CancellationToken.None)).ConfigureAwait(false) != SaveResult.Applied)
+            if (await MarkRunningAsync(task).ConfigureAwait(false) is not true)
             {
                 return;
             }
@@ -92,7 +92,7 @@ internal sealed partial class TaskRunners(
             var key = await _requests.ReadKeyAsync(task).ConfigureAwait(false);
             if (key.Error is { } keyError)
             {
-                await _writes.SaveAsync(() => _requests.FinishTaskAsync(task.Id, GenerationTaskState.Failed, keyError, key.Detail)).ConfigureAwait(false);
+                await _writes.SaveAsync(() => _requests.FinishTaskAsync(task.Id, GenerationTaskState.Failed, keyError, key.Detail), retryOnFailure: true).ConfigureAwait(false);
                 return;
             }
 
@@ -107,7 +107,7 @@ internal sealed partial class TaskRunners(
             var (output, problem) = await _requests.RequestCompleteTextAsync(task, request, key.Secret!, stop).ConfigureAwait(false);
             if (output is null)
             {
-                await _writes.SaveAsync(() => _requests.FinishTaskAsync(task.Id, GenerationTaskState.Failed, GenerationErrorKind.InvalidResponse, problem)).ConfigureAwait(false);
+                await _writes.SaveAsync(() => _requests.FinishTaskAsync(task.Id, GenerationTaskState.Failed, GenerationErrorKind.InvalidResponse, problem), retryOnFailure: true).ConfigureAwait(false);
                 return;
             }
 
@@ -135,24 +135,24 @@ internal sealed partial class TaskRunners(
 
             if (saved == SummarySaveResult.Unusable)
             {
-                await _writes.SaveAsync(() => _requests.FinishTaskAsync(task.Id, GenerationTaskState.Failed, GenerationErrorKind.InvalidResponse, "总结缺少标题或正文。")).ConfigureAwait(false);
+                await _writes.SaveAsync(() => _requests.FinishTaskAsync(task.Id, GenerationTaskState.Failed, GenerationErrorKind.InvalidResponse, "总结缺少标题或正文。"), retryOnFailure: true).ConfigureAwait(false);
             }
         }
         catch (OperationCanceledException) when (stop.IsCancellationRequested)
         {
-            await _writes.SaveAsync(() => _requests.FinishTaskAsync(task.Id, GenerationTaskState.Stopped, null, null)).ConfigureAwait(false);
+            await _writes.SaveAsync(() => _requests.FinishTaskAsync(task.Id, GenerationTaskState.Stopped, null, null), retryOnFailure: true).ConfigureAwait(false);
         }
         catch (ContextCompressionException ex)
         {
-            await _writes.SaveAsync(() => _requests.FinishTaskAsync(task.Id, GenerationTaskState.Failed, GenerationErrorKind.CompressionFailed, ex.Message)).ConfigureAwait(false);
+            await _writes.SaveAsync(() => _requests.FinishTaskAsync(task.Id, GenerationTaskState.Failed, GenerationErrorKind.CompressionFailed, ex.Message), retryOnFailure: true).ConfigureAwait(false);
         }
         catch (ChatClientException ex)
         {
-            await _writes.SaveAsync(() => _requests.FinishTaskAsync(task.Id, GenerationTaskState.Failed, ex.Kind, ex.Message)).ConfigureAwait(false);
+            await _writes.SaveAsync(() => _requests.FinishTaskAsync(task.Id, GenerationTaskState.Failed, ex.Kind, ex.Message), retryOnFailure: true).ConfigureAwait(false);
         }
         catch (StorageAdmissionRefusedException ex)
         {
-            await _writes.SaveAsync(() => _requests.FinishTaskAsync(task.Id, GenerationTaskState.Failed, GenerationErrorKind.StorageUnavailable, ex.Message)).ConfigureAwait(false);
+            await _writes.SaveAsync(() => _requests.FinishTaskAsync(task.Id, GenerationTaskState.Failed, GenerationErrorKind.StorageUnavailable, ex.Message), retryOnFailure: true).ConfigureAwait(false);
         }
 #pragma warning disable CA1031 // Health check 2026-11-12: whatever ends the run, its task row ends too instead of staying running.
         catch (Exception ex)
@@ -171,7 +171,7 @@ internal sealed partial class TaskRunners(
         var task = work.Task;
         try
         {
-            if (await _writes.SaveAsync(() => _store.MarkRunningAsync(task.Id, null, _clock.UtcNow, CancellationToken.None)).ConfigureAwait(false) != SaveResult.Applied)
+            if (await MarkRunningAsync(task).ConfigureAwait(false) is not true)
             {
                 return;
             }
@@ -179,7 +179,7 @@ internal sealed partial class TaskRunners(
             var key = await _requests.ReadKeyAsync(task).ConfigureAwait(false);
             if (key.Error is { } keyError)
             {
-                await _writes.SaveAsync(() => _requests.FinishTaskAsync(task.Id, GenerationTaskState.Failed, keyError, key.Detail)).ConfigureAwait(false);
+                await _writes.SaveAsync(() => _requests.FinishTaskAsync(task.Id, GenerationTaskState.Failed, keyError, key.Detail), retryOnFailure: true).ConfigureAwait(false);
                 return;
             }
 
@@ -190,20 +190,20 @@ internal sealed partial class TaskRunners(
                 await work.Apply(output).ConfigureAwait(false);
             }
 
-            await _writes.SaveAsync(() => _requests.FinishTaskAsync(task.Id, output is null ? GenerationTaskState.Failed : GenerationTaskState.Completed, output is null ? GenerationErrorKind.InvalidResponse : null, problem))
+            await _writes.SaveAsync(() => _requests.FinishTaskAsync(task.Id, output is null ? GenerationTaskState.Failed : GenerationTaskState.Completed, output is null ? GenerationErrorKind.InvalidResponse : null, problem), retryOnFailure: true)
                 .ConfigureAwait(false);
         }
         catch (OperationCanceledException) when (stop.IsCancellationRequested)
         {
-            await _writes.SaveAsync(() => _requests.FinishTaskAsync(task.Id, GenerationTaskState.Stopped, null, null)).ConfigureAwait(false);
+            await _writes.SaveAsync(() => _requests.FinishTaskAsync(task.Id, GenerationTaskState.Stopped, null, null), retryOnFailure: true).ConfigureAwait(false);
         }
         catch (ChatClientException ex)
         {
-            await _writes.SaveAsync(() => _requests.FinishTaskAsync(task.Id, GenerationTaskState.Failed, ex.Kind, ex.Message)).ConfigureAwait(false);
+            await _writes.SaveAsync(() => _requests.FinishTaskAsync(task.Id, GenerationTaskState.Failed, ex.Kind, ex.Message), retryOnFailure: true).ConfigureAwait(false);
         }
         catch (StorageAdmissionRefusedException ex)
         {
-            await _writes.SaveAsync(() => _requests.FinishTaskAsync(task.Id, GenerationTaskState.Failed, GenerationErrorKind.StorageUnavailable, ex.Message)).ConfigureAwait(false);
+            await _writes.SaveAsync(() => _requests.FinishTaskAsync(task.Id, GenerationTaskState.Failed, GenerationErrorKind.StorageUnavailable, ex.Message), retryOnFailure: true).ConfigureAwait(false);
         }
 #pragma warning disable CA1031 // Health check 2026-11-12: whatever ends the run, its task row ends too instead of staying running.
         catch (Exception ex)
@@ -255,10 +255,26 @@ internal sealed partial class TaskRunners(
         }
     }
 
+    /// <summary>
+    /// Marks the task running; false when it was cancelled meanwhile, or when storage refused the mark, in which case it
+    /// is finished as failed with that final write kept until storage takes it (health check 2026-11-12,
+    /// gap-lifecycle-1): a row left queued or running locks its conversation until a restart.
+    /// </summary>
+    private async Task<bool> MarkRunningAsync(GenerationTaskRecord task)
+    {
+        var marked = await _writes.SaveAsync(() => _store.MarkRunningAsync(task.Id, null, _clock.UtcNow, CancellationToken.None)).ConfigureAwait(false);
+        if (marked == SaveResult.Failed)
+        {
+            await _writes.SaveAsync(() => _requests.FinishTaskAsync(task.Id, GenerationTaskState.Failed, GenerationErrorKind.StorageUnavailable, null), retryOnFailure: true).ConfigureAwait(false);
+        }
+
+        return marked == SaveResult.Applied;
+    }
+
     private async Task FailUnexpectedlyAsync(GenerationTaskRecord task, Exception ex)
     {
         LogUnexpectedFailure(_logger, ex, task.Id);
-        await _writes.SaveAsync(() => _requests.FinishTaskAsync(task.Id, GenerationTaskState.Failed, GenerationErrorKind.InvalidResponse, AnswerRunner.UnexpectedDetail(ex))).ConfigureAwait(false);
+        await _writes.SaveAsync(() => _requests.FinishTaskAsync(task.Id, GenerationTaskState.Failed, GenerationErrorKind.InvalidResponse, AnswerRunner.UnexpectedDetail(ex)), retryOnFailure: true).ConfigureAwait(false);
     }
 
     [LoggerMessage(Level = LogLevel.Error, Message = "Task {TaskId} failed unexpectedly")]
