@@ -175,6 +175,49 @@ public class ChatCompletionsClientTests
         Assert.Contains("overloaded", error.Message, StringComparison.Ordinal);
     }
 
+    /// <summary>
+    /// Health check 2026-11-12, item 8: internal requests ask for 16,384 output tokens. A service whose limit is lower
+    /// rejects the request with a 400 naming the parameter; it is sent once more within the limit it states.
+    /// </summary>
+    [Fact]
+    public async Task An_output_limit_the_service_rejects_is_retried_once_within_the_limit_it_states()
+    {
+        var handler = new StubHandler(request =>
+            (JsonNode.Parse(request.Content!.ReadAsStringAsync().GetAwaiter().GetResult())!["max_tokens"]?.GetValue<int>() ?? 0) > 8192
+                ? new HttpResponseMessage(HttpStatusCode.BadRequest) { Content = new StringContent("{\"error\":{\"message\":\"Invalid max_tokens value, the valid range of max_tokens is [1, 8192]\"}}") }
+                : Sse("data: {\"choices\":[{\"delta\":{\"content\":\"ok\"},\"finish_reason\":\"stop\"}]}\n\n"));
+
+        var events = await CollectUntil(new ChatCompletionsClient(new HttpClient(handler), new ChatClientOptions()), Ct, Model with { MaxOutputTokens = 16_384 });
+
+        Assert.Single(events.OfType<ChatStreamEvent.Completed>());
+        Assert.Equal([16_384, 8_192], handler.Requests.Select(r => JsonNode.Parse(r.Body)!["max_tokens"]!.GetValue<int>()));
+    }
+
+    [Fact]
+    public async Task An_output_parameter_the_service_does_not_take_is_left_out_on_the_second_try()
+    {
+        var handler = new StubHandler(request =>
+            request.Content!.ReadAsStringAsync().GetAwaiter().GetResult().Contains("max_tokens", StringComparison.Ordinal)
+                ? new HttpResponseMessage(HttpStatusCode.BadRequest) { Content = new StringContent("{\"error\":{\"message\":\"Unsupported parameter: 'max_tokens' is not supported with this model.\"}}") }
+                : Sse("data: {\"choices\":[{\"delta\":{\"content\":\"ok\"},\"finish_reason\":\"stop\"}]}\n\n"));
+
+        var events = await CollectUntil(new ChatCompletionsClient(new HttpClient(handler), new ChatClientOptions()), Ct, Model with { MaxOutputTokens = 16_384 });
+
+        Assert.Single(events.OfType<ChatStreamEvent.Completed>());
+        Assert.Equal(2, handler.Requests.Count);
+        Assert.Null(JsonNode.Parse(handler.Requests[1].Body)!["max_tokens"]);
+    }
+
+    [Fact]
+    public async Task Other_bad_requests_are_not_retried()
+    {
+        var handler = new StubHandler(_ => new HttpResponseMessage(HttpStatusCode.BadRequest) { Content = new StringContent("{\"error\":{\"message\":\"model not found\"}}") });
+
+        await Assert.ThrowsAsync<ChatClientException>(() => CollectUntil(new ChatCompletionsClient(new HttpClient(handler), new ChatClientOptions()), Ct, Model with { MaxOutputTokens = 16_384 }));
+
+        Assert.Single(handler.Requests);
+    }
+
     [Fact]
     public async Task A_content_filter_finish_is_a_truncated_and_filtered_completion()
     {
@@ -285,10 +328,10 @@ public class ChatCompletionsClientTests
 
     private static Task<List<ChatStreamEvent>> Collect(ChatCompletionsClient client) => CollectUntil(client, Ct);
 
-    private static async Task<List<ChatStreamEvent>> CollectUntil(ChatCompletionsClient client, CancellationToken cancellationToken)
+    private static async Task<List<ChatStreamEvent>> CollectUntil(ChatCompletionsClient client, CancellationToken cancellationToken, ModelSnapshot? model = null)
     {
         var list = new List<ChatStreamEvent>();
-        var request = new ChatRequest(Model, [new ChatTurn(ChatRole.User, "hi")]);
+        var request = new ChatRequest(model ?? Model, [new ChatTurn(ChatRole.User, "hi")]);
         await foreach (var e in client.StreamAsync(request, Key, cancellationToken))
         {
             list.Add(e);

@@ -6,6 +6,7 @@ using Mindweave.Application.Storage;
 using Mindweave.Core.Branches;
 using Mindweave.Core.Context;
 using Mindweave.Core.Conversations;
+using Mindweave.Core.Models;
 
 namespace Mindweave.Application.Conversations;
 
@@ -44,6 +45,9 @@ public sealed partial class ContextCompressor(IContextSummaryStore summaries, IC
     /// with no text and one cut off after 179 characters (TRACK.md findings, 2026-10-27).
     /// </summary>
     public const int SummaryOutputTokens = 16_384;
+
+    /// <summary>The least output a chunk summary asks for, however full the window already is (600 characters of summary and some reasoning).</summary>
+    public const int MinimumSummaryOutputTokens = 2_048;
 
     /// <summary>A summary that comes back cut off or empty is requested again once, within the same answer task.</summary>
     public const int SummaryAttempts = 2;
@@ -134,11 +138,8 @@ public sealed partial class ContextCompressor(IContextSummaryStore summaries, IC
             transcript.Append(item.Message.Role == MessageRole.User ? "用户：" : "助手：").Append(item.Text).Append("\n\n");
         }
 
-        var request = new ChatRequest(task.Model with { MaxOutputTokens = SummaryOutputTokens },
-        [
-            new ChatTurn(ChatRole.System, Instructions),
-            new ChatTurn(ChatRole.User, transcript.ToString()),
-        ]);
+        var turns = new[] { new ChatTurn(ChatRole.System, Instructions), new ChatTurn(ChatRole.User, transcript.ToString()) };
+        var request = new ChatRequest(task.Model with { MaxOutputTokens = SummaryOutputCap(task.Model, TokenEstimator.Request(turns.Select(t => t.Content))) }, turns);
 
         // A summary is used only when the service says it finished normally: a cut-off summary would silently stand in
         // for the conversation it was meant to keep. Such a result is requested once more; this re-sends an internal
@@ -156,6 +157,18 @@ public sealed partial class ContextCompressor(IContextSummaryStore summaries, IC
         }
 
         throw new ContextCompressionException($"压缩较早的对话时服务没有返回完整摘要（{problem}），已尝试 {SummaryAttempts} 次。");
+    }
+
+    /// <summary>
+    /// The output a chunk summary asks for (health check 2026-11-12, item 8): the usual allowance, or less when the chunk
+    /// itself leaves less room in the model's window; a chunk is closed only at a question, so one long pasted message
+    /// makes a large one. Never below <see cref="MinimumSummaryOutputTokens"/>.
+    /// </summary>
+    internal static int SummaryOutputCap(ModelSnapshot model, int inputEstimate)
+    {
+        var budget = ContextBudget.For(model);
+        var room = budget.Capacity - budget.Margin - budget.Predict(inputEstimate);
+        return Math.Clamp(room, MinimumSummaryOutputTokens, SummaryOutputTokens);
     }
 
     /// <summary>One summary request; returns the summary, or null with the reason it cannot be used.</summary>
