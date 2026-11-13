@@ -32,12 +32,26 @@ internal sealed class SystemShell : ISystemShell
         AppleUniformTypeIdentifiers = ["net.daringfireball.markdown"],
     };
 
+    /// <summary>
+    /// Shows the folder in the system's file manager. The opener is named by its full path, so a program of the same name
+    /// earlier on the search path is never run (low finding gap-native-interop-5); a failure to start it is logged, not
+    /// thrown: the page shows the path either way.
+    /// </summary>
     public void OpenFolder(string path)
     {
-        var opener = OperatingSystem.IsWindows() ? "explorer.exe" : OperatingSystem.IsMacOS() ? "open" : "xdg-open";
+        var opener = OperatingSystem.IsWindows() ? Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.Windows), "explorer.exe")
+            : OperatingSystem.IsMacOS() ? "/usr/bin/open"
+            : "/usr/bin/xdg-open";
         var info = new ProcessStartInfo(opener) { UseShellExecute = false };
         info.ArgumentList.Add(path);
-        using var _ = Process.Start(info);
+        try
+        {
+            using var _ = Process.Start(info);
+        }
+        catch (Exception ex) when (ex is System.ComponentModel.Win32Exception or InvalidOperationException or PlatformNotSupportedException)
+        {
+            DesktopLog.Swallowed(ex);
+        }
     }
 
     /// <summary>
