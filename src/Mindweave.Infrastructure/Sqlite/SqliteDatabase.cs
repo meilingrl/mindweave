@@ -412,6 +412,13 @@ public sealed partial class SqliteDatabase : IDatabaseLifecycle, IDatabaseBackup
 
         if (!File.Exists(_paths.DatabasePath))
         {
+            // A restore's files without the database: a restore was interrupted between its renames (health check
+            // 2026-11-12, storage-3). A new empty database here would hide the real data, so it is reported instead.
+            if (_backups.HasRestoreLeftovers())
+            {
+                return Result(DatabaseOpenStatus.IoError, null, detail: "The database file is missing, but files of an interrupted restore are in the data directory (named \"replaced\" or \"restoring\"). Nothing was created; put the right file back as mindweave.db, or restore a backup.");
+            }
+
             return CreateNew();
         }
 
@@ -555,6 +562,9 @@ public sealed partial class SqliteDatabase : IDatabaseLifecycle, IDatabaseBackup
 #pragma warning restore CA1031
         {
             LogMigrationFailed(_logger, ex, version, _catalog.LatestVersion);
+
+            // Each failed attempt made a backup; they are rotated like any upgrade backup (health check 2026-11-12, storage-6).
+            _backups.Prune(MigrationBackupsKept);
             return Result(DatabaseOpenStatus.MigrationFailed, version, backupPath, ex.Message);
         }
 

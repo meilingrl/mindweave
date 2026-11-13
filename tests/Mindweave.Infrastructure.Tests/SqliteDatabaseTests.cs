@@ -272,6 +272,40 @@ public sealed class SqliteDatabaseTests : IDisposable
     }
 
     /// <summary>
+    /// Health check 2026-11-12, storage-3: the database file missing while a restore's files are there means a restore
+    /// was interrupted; a new empty database must not be made in its place (it would hide the real data).
+    /// </summary>
+    [Fact]
+    public async Task A_missing_database_beside_restore_leftovers_is_reported_not_replaced_by_an_empty_one()
+    {
+        await SeedCurrentAsync("real data");
+        File.Move(_dir.Paths.DatabasePath, _dir.Paths.DatabasePath + ".replaced-20261113T000000000Z");
+        await using var database = _dir.Database();
+
+        var result = await database.OpenAsync(Ct);
+
+        Assert.Equal(DatabaseOpenStatus.IoError, result.Status);
+        Assert.False(File.Exists(_dir.Paths.DatabasePath));
+    }
+
+    /// <summary>Health check 2026-11-12, storage-6: an upgrade that keeps failing does not pile up a backup per attempt.</summary>
+    [Fact]
+    public async Task Repeated_failed_upgrades_keep_only_the_newest_backups()
+    {
+        await SeedCurrentAsync("kept");
+        var time = new SteppingTime();
+        var broken = new MigrationCatalog([.. MigrationCatalog.Default.Migrations, new Migration(Current + 1, "broken", (_, _) => throw new InvalidOperationException("simulated"))]);
+        for (var attempt = 0; attempt < SqliteDatabase.MigrationBackupsKept + 3; attempt++)
+        {
+            await using var database = _dir.Database(broken, time);
+            Assert.Equal(DatabaseOpenStatus.MigrationFailed, (await database.OpenAsync(Ct)).Status);
+        }
+
+        await using var probe = _dir.Database();
+        Assert.Equal(SqliteDatabase.MigrationBackupsKept, probe.ListBackups().Count(b => b.Reason == BackupReason.Migration));
+    }
+
+    /// <summary>
     /// Health check 2026-11-12, storage-2: every foreign key's child column leads an index, so deleting a parent row does
     /// not scan the child table (deleting a workspace of 8,000 messages took 38 s without them, 0.1 s with them).
     /// Tables that hold a handful of rows by design are named here.

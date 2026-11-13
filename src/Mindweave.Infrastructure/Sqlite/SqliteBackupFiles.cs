@@ -255,7 +255,7 @@ internal sealed partial class SqliteBackupFiles(AppPaths paths, TimeProvider tim
         var stamp = time.GetUtcNow().UtcDateTime.ToString(StampFormat, CultureInfo.InvariantCulture);
         var incoming = paths.DatabasePath + ".restoring";
         DeleteDatabaseFiles(incoming);
-        File.Copy(backup.Path, incoming);
+        CopyFlushed(backup.Path, incoming);
 
         // Keep the current database (and any WAL) under a "replaced" name; nothing is deleted. Any step can fail (on
         // Windows a file still open or mapped elsewhere cannot be renamed); then everything already moved goes back,
@@ -297,6 +297,27 @@ internal sealed partial class SqliteBackupFiles(AppPaths paths, TimeProvider tim
 
         LogRestored(logger, backup.Path);
         return new Replacement(moved);
+    }
+
+    /// <summary>
+    /// Whether files a restore leaves behind are in the data directory: a copy being put in place, or a database kept
+    /// under a "replaced" name.
+    /// </summary>
+    public bool HasRestoreLeftovers() =>
+        File.Exists(paths.DatabasePath + ".restoring")
+        || (Directory.Exists(paths.DataDirectory) && Directory.EnumerateFiles(paths.DataDirectory, Path.GetFileName(paths.DatabasePath) + ReplacedInfix + "*").Any());
+
+    /// <summary>
+    /// Copies <paramref name="from"/> and flushes the copy through to the disk before it is renamed into place (health
+    /// check 2026-11-12, storage-4): a crash right after the swap must not leave a database file whose content never
+    /// reached the disk.
+    /// </summary>
+    private static void CopyFlushed(string from, string to)
+    {
+        using var source = new FileStream(from, FileMode.Open, FileAccess.Read, FileShare.Read);
+        using var target = new FileStream(to, FileMode.CreateNew, FileAccess.Write, FileShare.None);
+        source.CopyTo(target);
+        target.Flush(flushToDisk: true);
     }
 
     /// <summary>
