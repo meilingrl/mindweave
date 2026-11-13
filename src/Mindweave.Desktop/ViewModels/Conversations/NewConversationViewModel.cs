@@ -324,13 +324,21 @@ public sealed partial class NewConversationViewModel : PageViewModel, IDisposabl
 
         var stored = await _reading!.GetNewDraftAsync(_workspace, CancellationToken.None);
 
-        // Typed meanwhile: what was typed is the draft.
-        if (!_disposed && Composer.Text.Length == 0)
+        _draftLoaded = true;
+        if (_disposed)
+        {
+            return;
+        }
+
+        // Typed meanwhile: what was typed is the draft, and is stored as such (review 2026-11-13).
+        if (Composer.Text.Length == 0)
         {
             Composer.Text = stored;
         }
-
-        _draftLoaded = true;
+        else if (Composer.Text != stored)
+        {
+            _reading!.SetNewDraft(_workspace, Composer.Text);
+        }
     }
 
     private void OnComposerChanged(object? sender, PropertyChangedEventArgs e)

@@ -37,7 +37,16 @@ internal static class Program
             }
 
             // One session of services per open database; restoring a backup in the app starts the next (AppSession).
-            session = new AppSession(extra => CompositionRoot.Build(paths, overrides: extra));
+            try
+            {
+                session = new AppSession(extra => CompositionRoot.Build(paths, overrides: extra));
+            }
+            catch
+            {
+                // Released before the failure window opens: a relaunch meanwhile must not wait on a lock nobody serves.
+                instance.DisposeAsync().AsTask().GetAwaiter().GetResult();
+                throw;
+            }
         }
 #pragma warning disable CA1031 // Before the window exists: whatever failed is shown in a window of its own, not only on a console a GUI launch lacks.
         catch (Exception ex)

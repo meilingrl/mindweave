@@ -84,7 +84,13 @@ public sealed partial class App : Avalonia.Application
         {
             // Logout, restart or shutdown with nothing to ask (health check 2026-11-12, gap-lifecycle-2): save now and
             // let the system go ahead, instead of vetoing it and quitting a moment later on our own.
-            WaitWithinLimit(saving, SystemShutdownSaveLimit);
+            if (!WaitWithinLimit(saving, SystemShutdownSaveLimit))
+            {
+                // Not saved in time: the request is held after all, and the application quits once saving ends.
+                e.Cancel = true;
+                root.Exit.SystemSaveTimedOut();
+            }
+
             return;
         }
 
@@ -103,14 +109,15 @@ public sealed partial class App : Avalonia.Application
         typeof(ShutdownRequestedEventArgs).GetProperty("IsOSShutdown", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.NonPublic);
 
     /// <summary>How long a system shutdown waits for saving; what is not written by then is lost, as a forced end would lose it.</summary>
-    internal static readonly TimeSpan SystemShutdownSaveLimit = TimeSpan.FromSeconds(5);
+    internal static TimeSpan SystemShutdownSaveLimit { get; set; } = TimeSpan.FromSeconds(5);
 
     /// <summary>Keeps the UI loop running (the save steps continue on it) until <paramref name="task"/> ends or the limit passes.</summary>
-    private static void WaitWithinLimit(Task task, TimeSpan limit)
+    /// <returns>Whether <paramref name="task"/> ended within the limit.</returns>
+    private static bool WaitWithinLimit(Task task, TimeSpan limit)
     {
         if (task.IsCompleted)
         {
-            return;
+            return true;
         }
 
         var frame = new DispatcherFrame();
@@ -118,5 +125,6 @@ public sealed partial class App : Avalonia.Application
         var timer = DispatcherTimer.RunOnce(() => frame.Continue = false, limit);
         Dispatcher.UIThread.PushFrame(frame);
         timer.Dispose();
+        return task.IsCompleted;
     }
 }

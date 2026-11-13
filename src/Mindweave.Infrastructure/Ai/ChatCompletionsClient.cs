@@ -75,18 +75,30 @@ public sealed class ChatCompletionsClient(HttpClient http, ChatClientOptions opt
 
         // A 200 that is not a stream (health check 2026-11-12, ai-client-5): a relay's error, or an endpoint that ignored
         // stream=true and sent the whole answer. Read it instead of reporting a stream that ended without finishing.
+        Stream source;
         if (response.Content.Headers.ContentType?.MediaType is { } media && media.Contains("json", StringComparison.OrdinalIgnoreCase))
         {
-            var body = await response.Content.ReadAsStringAsync(cancellationToken).ConfigureAwait(false);
-            foreach (var item in ParseWhole(body))
+            var body = await ReadWholeAsync(response, cancellationToken).ConfigureAwait(false);
+
+            // Some relays stream events but label them as JSON (review 2026-11-13): those are read as a stream.
+            if (!LooksLikeEvents(body))
             {
-                yield return item;
+                foreach (var item in ParseWhole(body))
+                {
+                    yield return item;
+                }
+
+                yield break;
             }
 
-            yield break;
+            source = new MemoryStream(System.Text.Encoding.UTF8.GetBytes(body));
+        }
+        else
+        {
+            source = await response.Content.ReadAsStreamAsync(cancellationToken).ConfigureAwait(false);
         }
 
-        using var reader = new SseReader(await response.Content.ReadAsStreamAsync(cancellationToken).ConfigureAwait(false));
+        using var reader = new SseReader(source);
         using var idle = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
 
         // Any line, a keep-alive comment included, shows the service is alive (health check 2026-11-12, ai-client-4).
@@ -312,6 +324,27 @@ public sealed class ChatCompletionsClient(HttpClient http, ChatClientOptions opt
         {
             throw new ChatClientException(GenerationErrorKind.Network, ex.Message, ex);
         }
+    }
+
+    /// <summary>The whole body of a JSON answer, within the idle limit: a body that stalls after the headers is a timeout.</summary>
+    private async Task<string> ReadWholeAsync(HttpResponseMessage response, CancellationToken cancellationToken)
+    {
+        using var limit = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+        limit.CancelAfter(options.IdleTimeout);
+        try
+        {
+            return await response.Content.ReadAsStringAsync(limit.Token).ConfigureAwait(false);
+        }
+        catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
+        {
+            throw new ChatClientException(GenerationErrorKind.Timeout, "The response stalled.");
+        }
+    }
+
+    private static bool LooksLikeEvents(string body)
+    {
+        var start = body.TrimStart();
+        return start.StartsWith("data:", StringComparison.Ordinal) || start.StartsWith(':') || start.StartsWith("event:", StringComparison.Ordinal);
     }
 
     /// <summary>A whole JSON answer: an error, or a non-streamed completion turned into the events a stream would have sent.</summary>

@@ -260,6 +260,17 @@ public class ChatCompletionsClientTests
     }
 
     [Fact]
+    public async Task A_stream_labelled_as_json_is_still_read_as_a_stream()
+    {
+        var events = await Collect(Client(_ => new HttpResponseMessage(HttpStatusCode.OK)
+        {
+            Content = new StringContent("data: {\"choices\":[{\"delta\":{\"content\":\"答\"},\"finish_reason\":\"stop\"}]}\n\ndata: [DONE]\n\n", Encoding.UTF8, "application/json"),
+        }));
+
+        Assert.Equal("答", Assert.Single(events.OfType<ChatStreamEvent.TextDelta>()).Text);
+    }
+
+    [Fact]
     public async Task A_complete_answer_sent_without_streaming_is_used()
     {
         var events = await Collect(Client(_ => new HttpResponseMessage(HttpStatusCode.OK)

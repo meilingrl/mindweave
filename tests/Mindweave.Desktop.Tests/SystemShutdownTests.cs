@@ -50,6 +50,57 @@ public class SystemShutdownTests
         Assert.True(app.Root.Exit.IsTaskPromptOpen);
     }
 
+    /// <summary>Review 2026-11-13: a save that outlasts the system's wait holds the request, and the app quits itself once saved.</summary>
+    [AvaloniaFact]
+    public async Task A_save_that_outlasts_the_wait_holds_the_request_and_quits_once_saved()
+    {
+        var gate = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        await using var app = DesktopHarness.Create(s => s.AddSingleton<IPreferenceStore>(sp => new GatedPreferences(new Infrastructure.Sqlite.SqlitePreferenceStore(sp.GetRequiredService<Infrastructure.Sqlite.SqliteDatabase>()), gate)));
+        app.ShowWindow();
+        await app.StartWithWorkspaceAsync("火车");
+        app.ShellPage.Conversations.NewCommand.Execute(null);
+        var page = Assert.IsType<NewConversationViewModel>(app.Workbench.CurrentPage);
+        await page.DraftLoaded;
+        page.Composer.Text = "慢慢保存的问题";
+        var limit = App.SystemShutdownSaveLimit;
+        App.SystemShutdownSaveLimit = TimeSpan.FromMilliseconds(200);
+        try
+        {
+            var request = SystemRequest();
+            App.OnShutdownRequested(app.Root, request);
+
+            Assert.True(request.Cancel);
+            Assert.Equal(0, app.Shell.ExitRequests);
+            gate.SetResult();
+            await UiWait.UntilAsync(() => app.Shell.ExitRequests == 1);
+            Assert.Equal(ExitStage.Releasing, app.Root.Exit.Stage);
+        }
+        finally
+        {
+            App.SystemShutdownSaveLimit = limit;
+        }
+    }
+
+    /// <summary>The real preference store, whose writes wait for <paramref name="gate"/>.</summary>
+    private sealed class GatedPreferences(IPreferenceStore inner, TaskCompletionSource gate) : IPreferenceStore
+    {
+        private IPreferenceStore Inner => inner;
+
+        public Task<string?> GetAsync(string key, CancellationToken cancellationToken) => Inner.GetAsync(key, cancellationToken);
+
+        public async Task SetAsync(string key, string value, CancellationToken cancellationToken)
+        {
+            await gate.Task;
+            await Inner.SetAsync(key, value, cancellationToken);
+        }
+
+        public async Task RemoveAsync(string key, CancellationToken cancellationToken)
+        {
+            await gate.Task;
+            await Inner.RemoveAsync(key, cancellationToken);
+        }
+    }
+
     private static ShutdownRequestedEventArgs SystemRequest()
     {
         var request = new ShutdownRequestedEventArgs();

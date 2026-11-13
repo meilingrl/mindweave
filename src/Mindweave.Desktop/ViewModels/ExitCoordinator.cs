@@ -139,10 +139,28 @@ public sealed partial class ExitCoordinator(
         return SaveForSystemAsync();
     }
 
+    /// <summary>
+    /// The system's wait for <see cref="EndForSystem"/> ran out (review 2026-11-13): the request was vetoed after all, so
+    /// the application quits on its own once the save ends instead of staying open with new work refused nowhere.
+    /// </summary>
+    public void SystemSaveTimedOut()
+    {
+        _quitWhenSaved = true;
+        if (Stage == ExitStage.Releasing)
+        {
+            shell.ExitApplication();
+        }
+    }
+
+    private bool _quitWhenSaved;
+
     private async Task SaveForSystemAsync()
     {
         try
         {
+            // Background work (titles, names) stops first, so nothing writes during or after the save; no answer or
+            // summary is running, or the sequence would have asked.
+            await generation.StopForExitAsync(TimeSpan.FromSeconds(1));
             await SaveEverythingAsync();
         }
 #pragma warning disable CA1031 // The system is ending the session either way; what could not be saved is logged.
@@ -154,6 +172,10 @@ public sealed partial class ExitCoordinator(
         finally
         {
             Stage = ExitStage.Releasing;
+            if (_quitWhenSaved)
+            {
+                shell.ExitApplication();
+            }
         }
     }
 

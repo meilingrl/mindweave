@@ -48,7 +48,7 @@ public sealed class SingleInstance : IAsyncDisposable
         {
             stream = new FileStream(paths.LockPath, FileMode.OpenOrCreate, FileAccess.ReadWrite, FileShare.None, 1, FileOptions.None);
         }
-        catch (IOException)
+        catch (IOException ex) when (!IsReadOnlyVolume(ex))
         {
             // Held by another instance. Anything else (no permission, a read-only volume) propagates: it is a failure to
             // report, not a running instance to signal (health check 2026-11-12, errors-6).
@@ -140,6 +140,9 @@ public sealed class SingleInstance : IAsyncDisposable
         _stop.Dispose();
         await _lock.DisposeAsync().ConfigureAwait(false);
     }
+
+    /// <summary>EROFS (30 on Linux and macOS), which .NET reports as a plain I/O error carrying the errno (review 2026-11-13).</summary>
+    private static bool IsReadOnlyVolume(IOException ex) => !OperatingSystem.IsWindows() && ex.HResult == 30;
 
     private static void WriteOwner(FileStream stream)
     {

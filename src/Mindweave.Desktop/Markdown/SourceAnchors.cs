@@ -147,12 +147,18 @@ public static class SourceAnchors
         ArgumentNullException.ThrowIfNull(markdown);
         var segments = new List<AnchorSegment>();
         var ordinals = new Dictionary<(int, int), int>();
+
+        // Several layout blocks can share one source span (table cells): their placeholders count in order across all of
+        // them, as the span's parse lists its objects (review 2026-11-13).
+        var placeholders = new Dictionary<(int, int), int>();
         foreach (var block in Blocks(renderer))
         {
             var span = block.SourceSpan;
             var key = (span.Start, span.End);
             var ordinal = ordinals.GetValueOrDefault(key);
             ordinals[key] = ordinal + 1;
+            var earlier = placeholders.GetValueOrDefault(key);
+            placeholders[key] = earlier + block.LayoutText.Count(c => c == FormulaPlaceholder);
             var start = Math.Min(block.SelectionStart, block.SelectionEnd);
             var end = Math.Max(block.SelectionStart, block.SelectionEnd);
             if (start == end)
@@ -170,7 +176,7 @@ public static class SourceAnchors
 
             // A raw character offset is only asserted when source and displayed block are identical.
             int? exact = rawBlock == block.LayoutText ? span.Start + start : null;
-            segments.Add(new(span.Start, span.End, ordinal, Hash(block.LayoutText), start, end - start, quote, exact, Readable(quote, block.LayoutText[..start], rawBlock)));
+            segments.Add(new(span.Start, span.End, ordinal, Hash(block.LayoutText), start, end - start, quote, exact, Readable(quote, earlier + block.LayoutText[..start].Count(c => c == FormulaPlaceholder), rawBlock)));
         }
 
         if (segments.Count == 0)
@@ -222,7 +228,7 @@ public static class SourceAnchors
     /// over the source took prices, code spans and escaped dollars for formulas). A formula is put back as its source; a
     /// task-list box is dropped. Null when the quote has no placeholder; one without a matching object stays as it is.
     /// </summary>
-    private static string? Readable(string quote, string before, string rawBlock)
+    private static string? Readable(string quote, int index, string rawBlock)
     {
         if (!quote.Contains(FormulaPlaceholder, StringComparison.Ordinal))
         {
@@ -230,7 +236,6 @@ public static class SourceAnchors
         }
 
         var formulas = EmbeddedObjects(rawBlock);
-        var index = before.Count(c => c == FormulaPlaceholder);
         var readable = new StringBuilder(quote.Length);
         foreach (var c in quote)
         {

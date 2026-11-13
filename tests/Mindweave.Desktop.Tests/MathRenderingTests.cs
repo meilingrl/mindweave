@@ -113,6 +113,23 @@ public class MathRenderingTests
         window.Close();
     }
 
+    /// <summary>Review 2026-11-13: cells of one table share a source span; each cell's formula is its own.</summary>
+    [AvaloniaFact]
+    public async Task A_formula_in_a_later_table_cell_is_quoted_as_that_cells_formula()
+    {
+        await using var app = DesktopHarness.Create();
+        var (window, _) = await OpenAnswerAsync(app, "开头一段。\n\n| 量 | 公式 |\n| --- | --- |\n| 能量 $E=mc^2$ | 动量 $p=mv$ |");
+        var answer = AnswerOf(window);
+        var cell = SourceAnchors.Blocks(answer.Renderer).Single(b => b.LayoutText.StartsWith("动量", StringComparison.Ordinal));
+        cell.SelectionStart = 0;
+        cell.SelectionEnd = cell.LayoutText.Length;
+
+        var selection = Assert.IsType<Mindweave.Core.Branches.BranchSelection>(answer.CaptureSelection());
+
+        Assert.Equal("动量 $p=mv$", selection.Quote);
+        window.Close();
+    }
+
     private static async Task<(MainWindow Window, ConversationViewModel Page)> OpenAnswerAsync(DesktopHarness app, string answer = Answer)
     {
         var window = app.ShowWindow();

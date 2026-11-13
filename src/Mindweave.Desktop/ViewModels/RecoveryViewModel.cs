@@ -47,10 +47,11 @@ public sealed partial class RecoveryViewModel : ViewModelBase
     public ObservableCollection<BackupInfo> Backups { get; }
 
     /// <summary>
-    /// Backups are offered only when restoring one can help: not when the file is held by another program or the disk
-    /// refuses access, where the data itself is fine (health check 2026-11-12, errors-4).
+    /// Backups are not offered while the file is held by another program, where the data itself is fine (health check
+    /// 2026-11-12, errors-4). Access problems still offer them: the same status covers failures after the database
+    /// opened, where restoring may be the way out (review 2026-11-13), and a restore checks the backup before replacing.
     /// </summary>
-    public bool HasBackups => Backups.Count > 0 && Result.Status is not (DatabaseOpenStatus.InUse or DatabaseOpenStatus.IoError);
+    public bool HasBackups => Backups.Count > 0 && Result.Status != DatabaseOpenStatus.InUse;
 
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(IsConfirmingRestore), nameof(RestoreConsequence))]
