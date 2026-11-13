@@ -71,7 +71,16 @@ public sealed class FileLoggerProvider : ILoggerProvider
             catch (Exception ex) when (CannotWrite(ex))
             {
                 // Logging must never take the application down (low findings observability-9, cross-platform-10: a
-                // read-only or denied log folder raised UnauthorizedAccessException, which was not caught).
+                // read-only or denied log folder raised UnauthorizedAccessException, which was not caught). The broken
+                // writer is let go, its file handle with it.
+                try
+                {
+                    _writer?.Dispose();
+                }
+                catch (Exception closing) when (CannotWrite(closing))
+                {
+                }
+
                 _writer = null;
             }
         }

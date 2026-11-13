@@ -113,7 +113,7 @@ public static partial class ConversationRules
     }
 
     private static bool IsInvisibleControl(char ch) =>
-        ch != '\u200D' && CharUnicodeInfo.GetUnicodeCategory(ch) is UnicodeCategory.Control or UnicodeCategory.Format;
+        ch is not ('\u200D' or '\u200C') && CharUnicodeInfo.GetUnicodeCategory(ch) is UnicodeCategory.Control or UnicodeCategory.Format;
 
     /// <summary>
     /// At most <paramref name="maxTextElements"/> whole characters as the reader sees them (low finding

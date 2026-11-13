@@ -167,7 +167,12 @@ public sealed class Workbench : ObservableObject, IWorkbenchNavigator, IWorkspac
 
         if (shownForgotten && _active is { } runtime && ActiveSlot is { } slot)
         {
-            slot.Section = MainSection.Explore;
+            // A fallback opens in Explore; without one the reader stays in the section they were in (review 2026-11-14).
+            if (fallback is not null)
+            {
+                slot.Section = MainSection.Explore;
+            }
+
             EnsureHome(runtime, slot);
             // Without a fallback the reader lands on the page before it: the forgotten pages are gone from every stack
             // already, and the rest of the history stays (low finding gap-lifecycle-6: it used to be emptied too).

@@ -168,9 +168,11 @@ public sealed class ChatCompletionsClient(HttpClient http, ChatClientOptions opt
         request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", apiKey);
         try
         {
-            using var response = await http.SendAsync(request, HttpCompletionOption.ResponseContentRead, timeout.Token).ConfigureAwait(false);
+            using var response = await http.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, timeout.Token).ConfigureAwait(false);
             await ThrowIfFailedAsync(response, timeout.Token).ConfigureAwait(false);
-            var json = await response.Content.ReadFromJsonAsync<JsonNode>(timeout.Token).ConfigureAwait(false);
+            // Read within a limit like every other body (low finding security-4).
+            var (listing, cut) = await ReadAtMostAsync(response.Content, MaxErrorBodyBytes * 16, timeout.Token).ConfigureAwait(false);
+            var json = cut ? throw new ChatClientException(GenerationErrorKind.InvalidResponse, "The model list is larger than any list could be.") : JsonNode.Parse(listing);
             return ((json as JsonObject)?["data"] as JsonArray)?
                 .Select(m => (m as JsonObject)?["id"] is JsonValue id && id.TryGetValue<string>(out var s) ? s : null)
                 .OfType<string>()
@@ -478,7 +480,7 @@ public sealed class ChatCompletionsClient(HttpClient http, ChatClientOptions opt
         {
             401 or 403 => GenerationErrorKind.Unauthorized,
             402 or 429 => GenerationErrorKind.QuotaOrRateLimited,
-            400 or 413 when LooksLikeContextLimit(detail) => GenerationErrorKind.ContextTooLong,
+            400 or 413 when LooksLikeContextLimit(detail.Length > MaxErrorDetail ? detail[..MaxErrorDetail] : detail) => GenerationErrorKind.ContextTooLong,
             >= 500 => GenerationErrorKind.ServerError,
             _ => GenerationErrorKind.InvalidResponse,
         };
@@ -503,7 +505,7 @@ public sealed class ChatCompletionsClient(HttpClient http, ChatClientOptions opt
 
     private static string? ProviderRequestId(HttpResponseMessage response) =>
         response.Headers.TryGetValues("x-request-id", out var values) || response.Headers.TryGetValues("request-id", out values)
-            ? values.FirstOrDefault()
+            ? values.FirstOrDefault() is { } id ? (id.Length > 128 ? id[..128] : id) : null
             : null;
 
     private static bool LooksLikeContextLimit(string detail) =>
@@ -542,10 +544,27 @@ public sealed class ChatCompletionsClient(HttpClient http, ChatClientOptions opt
             collected.Write(buffer, 0, read);
             if (collected.Length > maxBytes)
             {
-                return (System.Text.Encoding.UTF8.GetString(collected.GetBuffer(), 0, maxBytes), true);
+                return (Decode(content, collected.GetBuffer(), maxBytes), true);
             }
         }
 
-        return (System.Text.Encoding.UTF8.GetString(collected.GetBuffer(), 0, (int)collected.Length), false);
+        return (Decode(content, collected.GetBuffer(), (int)collected.Length), false);
+    }
+
+    /// <summary>As ReadAsStringAsync does (review 2026-11-14): the declared charset, else UTF-8, and a byte-order mark dropped.</summary>
+    private static string Decode(HttpContent content, byte[] bytes, int length)
+    {
+        System.Text.Encoding encoding;
+        try
+        {
+            encoding = content.Headers.ContentType?.CharSet is { Length: > 0 } charset ? System.Text.Encoding.GetEncoding(charset.Trim('"')) : System.Text.Encoding.UTF8;
+        }
+        catch (ArgumentException)
+        {
+            encoding = System.Text.Encoding.UTF8;
+        }
+
+        using var reader = new StreamReader(new MemoryStream(bytes, 0, length, writable: false), encoding, detectEncodingFromByteOrderMarks: true);
+        return reader.ReadToEnd();
     }
 }

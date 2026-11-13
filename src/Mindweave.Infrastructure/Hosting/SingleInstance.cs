@@ -104,6 +104,10 @@ public sealed class SingleInstance : IAsyncDisposable
             {
                 // Pipe broken or not yet created.
             }
+            catch (UnauthorizedAccessException)
+            {
+                // A pipe of that name that is not this user's (review 2026-11-14): treated as no answer, never as a crash.
+            }
             catch (TimeoutException)
             {
             }

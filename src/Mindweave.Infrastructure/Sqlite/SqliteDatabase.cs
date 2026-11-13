@@ -416,7 +416,7 @@ public sealed partial class SqliteDatabase : IDatabaseLifecycle, IDatabaseBackup
             // 2026-11-12, storage-3). A new empty database here would hide the real data, so it is reported instead.
             if (_backups.HasRestoreLeftovers())
             {
-                return Result(DatabaseOpenStatus.IoError, null, detail: "The database file is missing, but files of an interrupted restore are in the data directory (named \"replaced\" or \"restoring\"). Nothing was created; put the right file back as mindweave.db, or restore a backup.");
+                return Result(DatabaseOpenStatus.IoError, null, detail: "The database file is missing while a restore was being put in place (mindweave.db.restoring). Nothing was created; the previous database is kept as mindweave.db.replaced-<time>: put it back as mindweave.db, or restore a backup.");
             }
 
             return CreateNew();
@@ -564,7 +564,7 @@ public sealed partial class SqliteDatabase : IDatabaseLifecycle, IDatabaseBackup
             LogMigrationFailed(_logger, ex, version, _catalog.LatestVersion);
 
             // Each failed attempt made a backup; they are rotated like any upgrade backup (health check 2026-11-12, storage-6).
-            _backups.Prune(MigrationBackupsKept);
+            _backups.Prune(MigrationBackupsKept, alsoKeep: backupPath);
             return Result(DatabaseOpenStatus.MigrationFailed, version, backupPath, ex.Message);
         }
 

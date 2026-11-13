@@ -9,7 +9,7 @@ internal static class ConversationRemoval
     /// <summary>
     /// Every page of a deleted conversation or of one of its deleted summaries leaves every stack and is disposed. If
     /// one of them was being shown, the conversation its tree was branched from opens instead (it is outside the scope),
-    /// or the explore home for a root conversation or a summary.
+    /// or, for a root conversation or a summary, the page before it in the same section.
     /// </summary>
     public static void Forget(IWorkbenchNavigator navigator, ConversationDeleteScope scope)
     {

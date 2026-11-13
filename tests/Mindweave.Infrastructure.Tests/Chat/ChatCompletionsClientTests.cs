@@ -283,6 +283,23 @@ public class ChatCompletionsClientTests
         Assert.Equal(new ChatStreamEvent.Usage(5, 3), Assert.Single(events.OfType<ChatStreamEvent.Usage>()));
     }
 
+    /// <summary>Review 2026-11-14: a whole answer is decoded as the service declares it, a byte-order mark dropped.</summary>
+    [Theory]
+    [InlineData("utf-8", true)]
+    [InlineData("utf-16", false)]
+    public async Task A_complete_answer_is_decoded_by_its_declared_charset(string charset, bool withMark)
+    {
+        var encoding = charset == "utf-8" ? new UTF8Encoding(withMark) : Encoding.Unicode;
+        var json = "{\"choices\":[{\"message\":{\"role\":\"assistant\",\"content\":\"完整的回答\"},\"finish_reason\":\"stop\"}]}";
+        var bytes = withMark ? [.. encoding.GetPreamble(), .. encoding.GetBytes(json)] : encoding.GetBytes(json);
+        var content = new ByteArrayContent(bytes);
+        content.Headers.ContentType = new System.Net.Http.Headers.MediaTypeHeaderValue("application/json") { CharSet = charset };
+
+        var events = await Collect(Client(_ => new HttpResponseMessage(HttpStatusCode.OK) { Content = content }));
+
+        Assert.Equal("完整的回答", Assert.Single(events.OfType<ChatStreamEvent.TextDelta>()).Text);
+    }
+
     // Health check 2026-11-12, tests-2: branches no test reached.
 
     [Fact]

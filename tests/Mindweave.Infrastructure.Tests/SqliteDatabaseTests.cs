@@ -279,13 +279,30 @@ public sealed class SqliteDatabaseTests : IDisposable
     public async Task A_missing_database_beside_restore_leftovers_is_reported_not_replaced_by_an_empty_one()
     {
         await SeedCurrentAsync("real data");
-        File.Move(_dir.Paths.DatabasePath, _dir.Paths.DatabasePath + ".replaced-20261113T000000000Z");
+        File.Move(_dir.Paths.DatabasePath, _dir.Paths.DatabasePath + ".restoring");
         await using var database = _dir.Database();
 
         var result = await database.OpenAsync(Ct);
 
         Assert.Equal(DatabaseOpenStatus.IoError, result.Status);
         Assert.False(File.Exists(_dir.Paths.DatabasePath));
+    }
+
+    /// <summary>
+    /// Review 2026-11-14: a database kept under a "replaced" name stays after every finished restore, so on its own it
+    /// does not stop a fresh database being made when the user removes mindweave.db to start over.
+    /// </summary>
+    [Fact]
+    public async Task A_database_kept_from_a_finished_restore_does_not_block_a_fresh_start()
+    {
+        await SeedCurrentAsync("old data");
+        File.Move(_dir.Paths.DatabasePath, _dir.Paths.DatabasePath + ".replaced-20261113T000000000Z");
+        await using var database = _dir.Database();
+
+        var result = await database.OpenAsync(Ct);
+
+        Assert.True(result.IsReady);
+        Assert.True(File.Exists(_dir.Paths.DatabasePath + ".replaced-20261113T000000000Z"));
     }
 
     /// <summary>Low findings architecture-1, errors-8: a backup name that only looks right is skipped, not a failure.</summary>
@@ -317,6 +334,30 @@ public sealed class SqliteDatabaseTests : IDisposable
 
         await using var probe = _dir.Database();
         Assert.Equal(SqliteDatabase.MigrationBackupsKept, probe.ListBackups().Count(b => b.Reason == BackupReason.Migration));
+    }
+
+    /// <summary>
+    /// Review 2026-11-14: the backup a failed upgrade just made is the one the recovery page points at, so pruning never
+    /// removes it, even when the clock has gone back and older attempts carry later times.
+    /// </summary>
+    [Fact]
+    public async Task A_failed_upgrade_keeps_the_backup_it_just_made_even_after_the_clock_went_back()
+    {
+        await SeedCurrentAsync("kept");
+        Directory.CreateDirectory(_dir.Paths.BackupDirectory);
+        for (var i = 0; i < SqliteDatabase.MigrationBackupsKept; i++)
+        {
+            File.Copy(_dir.Paths.DatabasePath, Path.Combine(_dir.Paths.BackupDirectory, $"mindweave-v{Current}-2030010{i + 1}T000000000Z.db"));
+        }
+
+        var broken = new MigrationCatalog([.. MigrationCatalog.Default.Migrations, new Migration(Current + 1, "broken", (_, _) => throw new InvalidOperationException("simulated"))]);
+        await using var database = _dir.Database(broken, new SteppingTime());
+
+        var result = await database.OpenAsync(Ct);
+
+        Assert.Equal(DatabaseOpenStatus.MigrationFailed, result.Status);
+        Assert.NotNull(result.BackupPath);
+        Assert.True(File.Exists(result.BackupPath));
     }
 
     /// <summary>

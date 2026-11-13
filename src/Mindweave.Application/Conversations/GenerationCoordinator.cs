@@ -189,35 +189,41 @@ public sealed partial class GenerationCoordinator : IGenerationExit, IGeneration
     public async Task<bool> EnqueueOrCancelAsync(GenerationWork work)
     {
         ArgumentNullException.ThrowIfNull(work);
-        try
+        if (TryEnqueue(work))
         {
-            Enqueue(work);
             return true;
         }
-        catch (InvalidOperationException) when (IsClosed)
-        {
-            if (work is AnswerWork answer)
-            {
-                await _answers.CancelQueuedAsync(answer).ConfigureAwait(false);
-            }
-            else
-            {
-                await CancelQueuedTaskAsync(work).ConfigureAwait(false);
-            }
 
-            return false;
+        if (work is AnswerWork answer)
+        {
+            await _answers.CancelQueuedAsync(answer).ConfigureAwait(false);
         }
+        else
+        {
+            await CancelQueuedTaskAsync(work).ConfigureAwait(false);
+        }
+
+        return false;
     }
 
     /// <summary>Queues work whose task row is already stored. Throws once shutdown has begun.</summary>
     public void Enqueue(GenerationWork work)
     {
         ArgumentNullException.ThrowIfNull(work);
+        if (!TryEnqueue(work))
+        {
+            throw new InvalidOperationException("Generation is shutting down.");
+        }
+    }
+
+    /// <summary>Queues the work unless shutdown has begun; the check and the queueing happen under one lock.</summary>
+    private bool TryEnqueue(GenerationWork work)
+    {
         lock (_gate)
         {
             if (_closed)
             {
-                throw new InvalidOperationException("Generation is shutting down.");
+                return false;
             }
 
             if (work is AnswerWork answer)
@@ -230,6 +236,7 @@ public sealed partial class GenerationCoordinator : IGenerationExit, IGeneration
 
         Pump();
         RaiseChanged();
+        return true;
     }
 
     /// <summary>

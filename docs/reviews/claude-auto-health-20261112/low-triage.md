@@ -6,6 +6,8 @@
 
 快速修复按影响先后处理：数据、崩溃、安全 → 界面 → 开发工具。一天的限时内（2026-11-14）修了 30 条（数据、崩溃、安全类全部处理完，另有 5 条界面类；其中 repo-scripts-6 只做了权限部分），每条先写测试；5 条改判（见状态列）。其余快速项状态为“待做”，留作待办。
 
+修完后另做了一次独立审查，确认的 10 处问题已在同一分支改正并补了测试（编码与 BOM、模型列表限长、请求号限长、Network 页删除后留在原区、只有 `.restoring` 才阻止新建数据库、失败升级保留刚做的备份、保留 ZWNJ、管道权限异常、日志写入器释放、关机时入队的竞态、Linux 打开器回退）。
+
 ## 快速修复（限时一天，按影响排序处理）
 
 | 编号 | 问题 | 处理 | 影响 | 状态 |
@@ -22,7 +24,7 @@
 | errors-7 | async-void and worker-thread events unisolated | Same as concurrency-6; loop flag in finally. | crash | 已修 e14cbf8 |
 | errors-8 | Listing backups can throw | TryParse; per-file catch. | crash | 已修 8473cf3 |
 | observability-9 | FileLoggerProvider catches only IOException | Catch access/not-supported; fall back. | crash | 已修 8473cf3 |
-| security-4 | Unbounded response bodies and SSE lines | Bounded error read; SSE line cap. | crash | 已修 40a9106 |
+| security-4 | Unbounded response bodies and SSE lines | Bounded error read; SSE line cap. | crash | 部分修复 40a9106：错误正文、整段回答、模型列表都限长；一个事件的多行累计限 8M 字符。没有换行的单行仍在 StreamReader 内部无上限读入，需要换掉按行读取，留作待办。 |
 | maintainability-5 | async void comment wrong; worker-thread throw kills process | Wrap ConversationChanged invoke in try/catch+log. | crash | 已修 e14cbf8 |
 | architecture-1 | Storage page sync unguarded file I/O | TryParse and per-file try/catch in backup listing. | crash | 已修 8473cf3 |
 | cross-platform-10 | Logging catches only IOException | Add UnauthorizedAccess/Security. | crash | 已修 8473cf3 |

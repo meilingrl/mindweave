@@ -41,7 +41,7 @@ internal sealed class SystemShell : ISystemShell
     {
         var opener = OperatingSystem.IsWindows() ? Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.Windows), "explorer.exe")
             : OperatingSystem.IsMacOS() ? "/usr/bin/open"
-            : "/usr/bin/xdg-open";
+            : File.Exists("/usr/bin/xdg-open") ? "/usr/bin/xdg-open" : "xdg-open";
         var info = new ProcessStartInfo(opener) { UseShellExecute = false };
         info.ArgumentList.Add(path);
         try

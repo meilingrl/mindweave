@@ -184,13 +184,16 @@ internal sealed partial class SqliteBackupFiles(AppPaths paths, TimeProvider tim
     }
 
     /// <summary>Keeps the newest <paramref name="keep"/> upgrade backups; backups of any other reason are never pruned.</summary>
-    public void Prune(int keep)
+    /// <param name="alsoKeep">A backup always among the kept, whatever its place in the order (the one just made for a failed upgrade).</param>
+    public void Prune(int keep, string? alsoKeep = null)
     {
         try
         {
             // Only upgrade backups rotate. One made before a workspace was deleted is the only copy of that workspace,
             // so it stays until the user removes it by hand, and it never pushes an upgrade backup out (round 4 review).
-            foreach (var old in List().Where(b => b.Reason == BackupReason.Migration).Skip(keep))
+            // The one to keep counts first among the kept, whatever its time says.
+            var upgrades = List().Where(b => b.Reason == BackupReason.Migration).OrderByDescending(b => b.Path == alsoKeep);
+            foreach (var old in upgrades.Skip(keep))
             {
                 File.Delete(old.Path);
             }
@@ -322,12 +325,10 @@ internal sealed partial class SqliteBackupFiles(AppPaths paths, TimeProvider tim
     }
 
     /// <summary>
-    /// Whether files a restore leaves behind are in the data directory: a copy being put in place, or a database kept
-    /// under a "replaced" name.
-    /// </summary>
-    public bool HasRestoreLeftovers() =>
-        File.Exists(paths.DatabasePath + ".restoring")
-        || (Directory.Exists(paths.DataDirectory) && Directory.EnumerateFiles(paths.DataDirectory, Path.GetFileName(paths.DatabasePath) + ReplacedInfix + "*").Any());
+    /// Whether a restore was interrupted in the middle of its swap: the copy being put in place is still there.
+    /// Only the copy being put in place counts: it exists exactly while a swap is under way, whereas databases kept under a
+    /// "replaced" name stay after any finished restore (review 2026-11-14).
+    public bool HasRestoreLeftovers() => File.Exists(paths.DatabasePath + ".restoring");
 
     /// <summary>
     /// Copies <paramref name="from"/> and flushes the copy through to the disk before it is renamed into place (health
