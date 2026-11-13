@@ -272,6 +272,41 @@ public sealed class SqliteDatabaseTests : IDisposable
     }
 
     /// <summary>
+    /// Health check 2026-11-12, storage-2: every foreign key's child column leads an index, so deleting a parent row does
+    /// not scan the child table (deleting a workspace of 8,000 messages took 38 s without them, 0.1 s with them).
+    /// Tables that hold a handful of rows by design are named here.
+    /// </summary>
+    [Fact]
+    public async Task Every_foreign_key_is_indexed_on_its_child_column()
+    {
+        await using var database = _dir.Database();
+        Assert.True((await database.OpenAsync(Ct)).IsReady);
+        string[] small = ["model_config.connection_id"];
+
+        var unindexed = await database.ReadAsync(
+            c =>
+            {
+                var missing = new List<string>();
+                foreach (var table in Strings(c, "SELECT name FROM sqlite_schema WHERE type = 'table' AND name NOT LIKE 'sqlite_%';"))
+                {
+                    var leading = Strings(c, $"SELECT ii.name FROM pragma_index_list('{table}') il JOIN pragma_index_info(il.name) ii WHERE ii.seqno = 0;").ToHashSet();
+                    foreach (var column in Strings(c, $"SELECT \"from\" FROM pragma_foreign_key_list('{table}');"))
+                    {
+                        if (!leading.Contains(column) && !small.Contains($"{table}.{column}"))
+                        {
+                            missing.Add($"{table}.{column}");
+                        }
+                    }
+                }
+
+                return missing;
+            },
+            Ct);
+
+        Assert.Empty(unindexed);
+    }
+
+    /// <summary>
     /// Health check 2026-11-12 (storage-1): backups are written by VACUUM INTO, which does not carry WAL mode, so a
     /// restored database came back in rollback-journal mode for good. Every open puts WAL back.
     /// </summary>

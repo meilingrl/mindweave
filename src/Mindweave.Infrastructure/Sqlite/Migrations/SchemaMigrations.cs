@@ -455,5 +455,17 @@ internal static class SchemaMigrations
             CREATE INDEX recommendation_by_workspace ON recommendation (workspace_id, kind, state);
             CREATE INDEX recommendation_by_basis ON recommendation (basis_node_id) WHERE basis_node_id IS NOT NULL;
             """),
+
+        Migration.Sql(12, "foreign keys indexed on their child columns", """
+            -- Health check 2026-11-12 (storage-2): deleting a parent row checks every child table for rows that point at
+            -- it, and without an index on the child column that is a scan per deleted row. Deleting a workspace of 8,000
+            -- messages took 38 s and held the only writer; with these indexes 0.1 s. Indexes only: no data changes.
+            CREATE INDEX message_by_supersedes ON message (supersedes_id);
+            CREATE INDEX reading_position_by_message ON reading_position (message_id);
+            CREATE INDEX generation_task_by_target ON generation_task (target_message_id);
+            CREATE INDEX summary_node_by_current ON summary_node (current_version_id);
+            CREATE INDEX summary_node_by_pending ON summary_node (pending_version_id);
+            CREATE INDEX summary_edit_draft_by_baseline ON summary_edit_draft (baseline_id);
+            """),
     ];
 }
