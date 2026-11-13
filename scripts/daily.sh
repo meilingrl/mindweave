@@ -105,8 +105,9 @@ build_release() {
   fi
   rm -rf "$src"
   # The channel decides which data and keychain entries the build opens; check it really is the daily one.
-  grep -aq "$CHANNEL-dev" "$out/Mindweave.dll" && die "build is stamped with the dev channel; refusing"
-  grep -aq "$CHANNEL" "$out/Mindweave.dll" || die "build carries no channel stamp; refusing"
+  # The attribute blob is the length-prefixed key then the length-prefixed value, so this matches the exact value.
+  perl -0777 -ne 'exit(/MindweaveChannel\x0bclaude-auto(?!-)/ ? 0 : 1)' "$out/Mindweave.dll" \
+    || die "build is not stamped with channel $CHANNEL; refusing"
   {
     echo "commit=$(git -C "$ROOT" rev-parse "$sha")"
     echo "subject=$(git -C "$ROOT" log -1 --format=%s "$sha")"
