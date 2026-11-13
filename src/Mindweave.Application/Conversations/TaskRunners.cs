@@ -29,20 +29,20 @@ internal sealed partial class TaskRunners(
     public async Task RunTitleAsync(TitleWork work, CancellationToken stop)
     {
         var task = work.Task;
-        if (await _writes.SaveAsync(() => _store.MarkRunningAsync(task.Id, null, _clock.UtcNow, CancellationToken.None)).ConfigureAwait(false) != SaveResult.Applied)
-        {
-            return;
-        }
-
-        var key = await _requests.ReadKeyAsync(task).ConfigureAwait(false);
-        if (key.Error is { } keyError)
-        {
-            await _writes.SaveAsync(() => _requests.FinishTaskAsync(task.Id, GenerationTaskState.Failed, keyError, key.Detail)).ConfigureAwait(false);
-            return;
-        }
-
         try
         {
+            if (await _writes.SaveAsync(() => _store.MarkRunningAsync(task.Id, null, _clock.UtcNow, CancellationToken.None)).ConfigureAwait(false) != SaveResult.Applied)
+            {
+                return;
+            }
+
+            var key = await _requests.ReadKeyAsync(task).ConfigureAwait(false);
+            if (key.Error is { } keyError)
+            {
+                await _writes.SaveAsync(() => _requests.FinishTaskAsync(task.Id, GenerationTaskState.Failed, keyError, key.Detail)).ConfigureAwait(false);
+                return;
+            }
+
             // Like summaries and naming, a title is used only from a normal, non-empty finish; a cut-off one is not.
             var (output, problem) = await _requests.RequestCompleteTextAsync(task, work.Request, key.Secret!, stop).ConfigureAwait(false);
             var title = output is null ? null : ConversationRules.CleanGeneratedTitle(output);

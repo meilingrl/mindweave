@@ -357,13 +357,16 @@ public sealed partial class ConversationViewModel : PageViewModel, IDisposable
     /// <summary>
     /// Shown again (health check 2026-11-12, item 9): another page of this conversation further up the back stack may
     /// have changed the shared draft meanwhile — typed into it, or sent it. The box takes the stored draft, so going back
-    /// never hides a newer draft (to be overwritten by the next keystroke) or offers a sent question again. The draft is
-    /// held in memory once read, so this normally completes before anything can be typed.
+    /// never hides a newer draft (to be overwritten by the next keystroke) or offers a sent question again. A draft set in
+    /// this run is held in memory, so this then completes at once; text typed before a slower read returns is kept.
     /// </summary>
     private async Task FollowDraftAsync()
     {
+        var shown = Composer.Text;
         var stored = await _reading.GetDraftAsync(Id, _slot, CancellationToken.None);
-        if (_disposed || stored == Composer.Text)
+
+        // Typed meanwhile (the read went to the database): what was typed is the draft now, and it is not replaced.
+        if (_disposed || stored == Composer.Text || Composer.Text != shown)
         {
             return;
         }

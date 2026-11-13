@@ -52,6 +52,8 @@ public sealed partial class ContextCompressor(IContextSummaryStore summaries, IC
     /// <summary>A summary that comes back cut off or empty is requested again once, within the same answer task.</summary>
     public const int SummaryAttempts = 2;
 
+    private const string FilteredProblem = "被服务的内容审核中止";
+
     private const string Instructions = """
         你在为一段较长的对话写背景摘要，供之后继续这段对话时使用。这不是给读者看的总结。
         请用对话所用的语言，按下面四部分写，每部分几条要点，总共不超过 600 字：
@@ -154,9 +156,16 @@ public sealed partial class ContextCompressor(IContextSummaryStore summaries, IC
             }
 
             problem = outcome;
+            if (outcome == FilteredProblem)
+            {
+                // The same chunk would be filtered again: asking once more only costs another request.
+                break;
+            }
         }
 
-        throw new ContextCompressionException($"压缩较早的对话时服务没有返回完整摘要（{problem}），已尝试 {SummaryAttempts} 次。");
+        throw new ContextCompressionException(problem == FilteredProblem
+            ? $"压缩较早的对话时服务没有返回完整摘要（{problem}）。"
+            : $"压缩较早的对话时服务没有返回完整摘要（{problem}），已尝试 {SummaryAttempts} 次。");
     }
 
     /// <summary>
@@ -207,6 +216,7 @@ public sealed partial class ContextCompressor(IContextSummaryStore summaries, IC
 
         var summary = text.ToString().Trim();
         var problem = completed is null ? "回答流未正常结束"
+            : completed.Filtered ? FilteredProblem
             : completed.Truncated ? "达到输出上限被截断"
             : summary.Length == 0 ? "内容为空"
             : null;

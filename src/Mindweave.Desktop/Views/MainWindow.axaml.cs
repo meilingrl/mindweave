@@ -30,6 +30,9 @@ public sealed partial class MainWindow : Window
         }
 
         AddHandler(KeyDownEvent, OnPromptKeyDown, Avalonia.Interactivity.RoutingStrategies.Tunnel);
+
+        // Typed text and IME commits are their own events: they must not reach a box behind the prompt either.
+        AddHandler(TextInputEvent, OnPromptTextInput, Avalonia.Interactivity.RoutingStrategies.Tunnel);
     }
 
     /// <summary>The window's prompts, in drawing order: a later one is drawn over an earlier one.</summary>
@@ -46,7 +49,16 @@ public sealed partial class MainWindow : Window
     private void OnPromptsChanged()
     {
         var focused = FocusManager?.GetFocusedElement();
-        if (TopPrompt is not { } top)
+        var topmost = TopPrompt;
+
+        // A prompt beneath the top one takes no input: its default and cancel buttons would otherwise answer Enter and
+        // Esc before the top one's (the window finds them in drawing order, not top first).
+        foreach (var scrim in Scrims)
+        {
+            scrim.IsEnabled = !scrim.IsVisible || ReferenceEquals(scrim, topmost);
+        }
+
+        if (topmost is not { } top)
         {
             if (_focusBeforePrompt is Control { IsEffectivelyVisible: true, IsEffectivelyEnabled: true } previous && previous.IsAttachedToVisualTree())
             {
@@ -79,6 +91,15 @@ public sealed partial class MainWindow : Window
 
     /// <summary>While a prompt is open, a key aimed at anything outside it (the page, a prompt beneath) goes to the prompt instead.</summary>
     private void OnPromptKeyDown(object? sender, Avalonia.Input.KeyEventArgs e)
+    {
+        if (TopPrompt is { } top && !IsInside(e.Source as Avalonia.Input.IInputElement, top))
+        {
+            e.Handled = true;
+            FocusPrompt(top);
+        }
+    }
+
+    private void OnPromptTextInput(object? sender, Avalonia.Input.TextInputEventArgs e)
     {
         if (TopPrompt is { } top && !IsInside(e.Source as Avalonia.Input.IInputElement, top))
         {

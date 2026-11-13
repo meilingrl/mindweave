@@ -185,20 +185,24 @@ public sealed class ChatCompletionsClient(HttpClient http, ChatClientOptions opt
         || detail.Contains("max_completion_tokens", StringComparison.OrdinalIgnoreCase)
         || detail.Contains("max_output_tokens", StringComparison.OrdinalIgnoreCase);
 
-    /// <summary>The largest plausible limit named in the service's message below what was asked for, or null (leave the parameter out).</summary>
+    /// <summary>
+    /// The largest plausible limit named in the service's message below what was asked for, or null (leave the parameter
+    /// out). Output limits are multiples of 1,024; other numbers in such messages (model versions such as 1106, token
+    /// counts of the input) are not taken for one (review 2026-11-13).
+    /// </summary>
     internal static int? StatedLimit(string detail, int asked)
     {
         // The status prefix ("HTTP 400: ") is not a limit.
         var message = detail.IndexOf(": ", StringComparison.Ordinal) is var colon and >= 0 ? detail[(colon + 2)..] : detail;
         var limits = System.Text.RegularExpressions.Regex.Matches(message, "[0-9]{3,7}")
             .Select(m => int.TryParse(m.Value, System.Globalization.NumberStyles.None, System.Globalization.CultureInfo.InvariantCulture, out var n) ? n : 0)
-            .Where(n => n >= MinStatedLimit && n < asked)
+            .Where(n => n >= MinStatedLimit && n < asked && n % 1024 == 0)
             .ToList();
         return limits.Count > 0 ? limits.Max() : null;
     }
 
     /// <summary>Numbers below this in an error message are not taken for an output limit.</summary>
-    private const int MinStatedLimit = 256;
+    private const int MinStatedLimit = 1024;
 
     private async Task<HttpResponseMessage> SendOnceAsync(ChatRequest request, string apiKey, int? maxOutputTokens, CancellationToken cancellationToken)
     {

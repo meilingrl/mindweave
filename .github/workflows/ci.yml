@@ -37,7 +37,13 @@ jobs:
       # to its LaTeX source. Desktop macOS and Windows ship such fonts; the Ubuntu runner does not.
       - name: CJK fonts (Linux)
         if: runner.os == 'Linux'
-        run: sudo apt-get update -q && sudo apt-get install -y -q --no-install-recommends fonts-noto-cjk
+        # Retried: two runs failed at this step on a mirror hiccup (health check 2026-11-12, item 7).
+        run: |
+          for attempt in 1 2 3; do
+            sudo apt-get update -q && sudo apt-get install -y -q --no-install-recommends fonts-noto-cjk && exit 0
+            echo "attempt $attempt failed; retrying"; sleep 20
+          done
+          exit 1
       - name: Restore
         run: dotnet restore Mindweave.slnx
       - name: Build (warnings are errors)

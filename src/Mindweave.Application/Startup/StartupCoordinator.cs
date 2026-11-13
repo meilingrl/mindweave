@@ -39,6 +39,9 @@ public sealed partial class StartupCoordinator(
         return await ContinueAfterOpenAsync(result, cancellationToken).ConfigureAwait(false);
     }
 
+    /// <summary>The backups the recovery page offers.</summary>
+    public IReadOnlyList<BackupInfo> ListBackups() => database.ListBackups();
+
     public async Task<StartupOutcome> RestoreAsync(BackupInfo backup, CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(backup);

@@ -208,6 +208,13 @@ public class ChatCompletionsClientTests
         Assert.Null(JsonNode.Parse(handler.Requests[1].Body)!["max_tokens"]);
     }
 
+    [Theory]
+    [InlineData("HTTP 400: max_tokens 16384 exceeds the limit for gpt-4-1106-preview", null)]
+    [InlineData("HTTP 400: max_tokens is too large: your request has 8000 input tokens (30000 > 32768 - 8000)", null)]
+    [InlineData("HTTP 400: max_tokens must be less than or equal to 4096", 4096)]
+    public void Only_a_round_output_limit_is_taken_from_the_message(string detail, int? expected) =>
+        Assert.Equal(expected, ChatCompletionsClient.StatedLimit(detail, 16_384));
+
     [Fact]
     public async Task Other_bad_requests_are_not_retried()
     {

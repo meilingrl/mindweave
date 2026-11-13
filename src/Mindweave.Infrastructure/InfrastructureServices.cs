@@ -25,7 +25,7 @@ public static class InfrastructureServices
         services.TryAddSingleton(TimeProvider.System);
         services.TryAddSingleton<IClock, SystemClock>();
         services.AddSingleton<SqliteDatabase>();
-        services.AddSingleton<IDatabaseLifecycle>(sp => sp.GetRequiredService<SqliteDatabase>());
+        services.TryAddSingleton<IDatabaseLifecycle>(sp => sp.GetRequiredService<SqliteDatabase>());
         services.AddSingleton<IStorageProbe>(sp => sp.GetRequiredService<SqliteDatabase>());
         services.AddSingleton<IDatabaseBackup>(sp => sp.GetRequiredService<SqliteDatabase>());
         services.AddSingleton<IBackupFiles>(sp => sp.GetRequiredService<SqliteDatabase>());

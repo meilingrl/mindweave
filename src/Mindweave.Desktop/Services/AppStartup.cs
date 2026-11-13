@@ -1,3 +1,4 @@
+using Microsoft.Extensions.Logging;
 using Mindweave.Application.Conversations;
 using Mindweave.Application.Preferences;
 using Mindweave.Application.Startup;
@@ -10,7 +11,7 @@ using Mindweave.Desktop.ViewModels;
 namespace Mindweave.Desktop.Services;
 
 /// <summary>Drives root navigation from the startup outcome: recovery page, onboarding, or the workbench.</summary>
-public sealed class AppStartup : IRecoveryActions
+public sealed partial class AppStartup : IRecoveryActions
 {
     private readonly StartupCoordinator _coordinator;
     private readonly WorkspaceService _workspaces;
@@ -23,6 +24,8 @@ public sealed class AppStartup : IRecoveryActions
     private readonly IThemeApplier _theme;
     private readonly StorageHealth _health;
     private readonly ConversationMarksService _marks;
+    private readonly Infrastructure.Hosting.AppPaths _paths;
+    private readonly ILogger<AppStartup> _logger;
 
     public AppStartup(
         StartupCoordinator coordinator,
@@ -37,8 +40,12 @@ public sealed class AppStartup : IRecoveryActions
         StorageHealth health,
         WorkspaceDeletionViewModel workspaceDeletion,
         ConversationMarksService marks,
-        Application.Workspaces.WorkspaceNamePreparer namePreparer)
+        Application.Workspaces.WorkspaceNamePreparer namePreparer,
+        Infrastructure.Hosting.AppPaths paths,
+        ILogger<AppStartup> logger)
     {
+        _paths = paths;
+        _logger = logger;
         // Composed here so it listens for titles from the start (2026-11-11); it acts on its own from then on.
         ArgumentNullException.ThrowIfNull(namePreparer);
 
@@ -65,10 +72,49 @@ public sealed class AppStartup : IRecoveryActions
         // so retry registration ends here, before any work is admitted.
         _health.Start();
         _root.Show(new StartupViewModel());
-        var outcome = await _coordinator.StartAsync(CancellationToken.None);
-        await ApplyPreferencesAsync(outcome);
-        Apply(outcome);
+        await GuardAsync(async () =>
+        {
+            var outcome = await _coordinator.StartAsync(CancellationToken.None);
+            await ApplyPreferencesAsync(outcome);
+            Apply(outcome);
+        });
     }
+
+    /// <summary>
+    /// Start-up's last line (health check 2026-11-12 review): anything a step throws lands on the recovery page with
+    /// what went wrong, never on a spinner that turns forever (the UI guard would keep the process alive but cannot show
+    /// a notice before the shell is up).
+    /// </summary>
+    private async Task GuardAsync(Func<Task> start)
+    {
+        try
+        {
+            await start();
+        }
+#pragma warning disable CA1031 // Whatever failed, the recovery page explains it and offers retry and backups.
+        catch (Exception ex) when (ex is not OperationCanceledException)
+#pragma warning restore CA1031
+        {
+            LogStartFailed(_logger, ex);
+            var result = new DatabaseOpenResult(DatabaseOpenStatus.IoError, _paths.DataDirectory, _paths.DatabasePath, null, 0, ErrorDetail: ex.Message);
+            IReadOnlyList<BackupInfo> backups;
+            try
+            {
+                backups = _coordinator.ListBackups();
+            }
+#pragma warning disable CA1031 // The list is a convenience on a page that is already about a failure.
+            catch (Exception)
+#pragma warning restore CA1031
+            {
+                backups = [];
+            }
+
+            _root.Show(new RecoveryViewModel(result, backups, this, _system));
+        }
+    }
+
+    [LoggerMessage(Level = LogLevel.Error, Message = "Start-up failed; showing the recovery page")]
+    private static partial void LogStartFailed(ILogger logger, Exception exception);
 
     public Task RetryAsync() => RunAsync();
 
@@ -77,9 +123,12 @@ public sealed class AppStartup : IRecoveryActions
     public async Task RestoreAsync(BackupInfo backup)
     {
         _root.Show(new StartupViewModel());
-        var outcome = await _coordinator.RestoreAsync(backup, CancellationToken.None);
-        await ApplyPreferencesAsync(outcome);
-        Apply(outcome);
+        await GuardAsync(async () =>
+        {
+            var outcome = await _coordinator.RestoreAsync(backup, CancellationToken.None);
+            await ApplyPreferencesAsync(outcome);
+            Apply(outcome);
+        });
     }
 
     /// <summary>

@@ -25,6 +25,9 @@ public class DialogKeyboardTests
         await app.StartWithWorkspaceAsync("火车");
         await app.ConfigureModelAsync();
         await ExitScenario.RunningAnswerAsync(app);
+        app.ShellPage.Conversations.NewCommand.Execute(null);
+        window.UpdateLayout();
+        var composer = Find<TextBox>(window, "Input");
         var before = Find<Button>(window, "NewConversationButton");
         before.Focus();
 
@@ -45,6 +48,13 @@ public class DialogKeyboardTests
         window.KeyPress(Key.Enter, RawInputModifiers.None, PhysicalKey.Enter, null);
         Dispatcher.UIThread.RunJobs();
         Assert.Same(page, app.Workbench.CurrentPage);
+        Assert.True(IsInside(Focused(window), prompt));
+
+        // Typed text (an IME commit is the same event) does not reach a box behind the prompt.
+        var draft = composer.Text ?? string.Empty;
+        composer.Focus();
+        window.KeyTextInput("背后");
+        Assert.Equal(draft, composer.Text ?? string.Empty);
         Assert.True(IsInside(Focused(window), prompt));
 
         window.KeyPress(Key.Escape, RawInputModifiers.None, PhysicalKey.Escape, null);
