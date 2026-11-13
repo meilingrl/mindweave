@@ -142,4 +142,9 @@ public class UnexpectedUiErrorTests
         Assert.True(detail.IsEffectivelyVisible);
         Assert.Equal("HTTP 400: model xyz does not exist", detail.Text);
     }
+
+    /// <summary>Low finding tests-6: every error kind has its own wording, never the generic fallback.</summary>
+    [Fact]
+    public void Every_error_kind_has_its_own_wording() =>
+        Assert.All(Enum.GetValues<Core.Conversations.GenerationErrorKind>(), kind => Assert.NotEqual("未知错误", UiText.ErrorKind(kind)));
 }
