@@ -41,10 +41,18 @@ internal sealed partial class SqliteBackupFiles(AppPaths paths, TimeProvider tim
                 continue;
             }
 
-            var version = int.Parse(match.Groups["version"].Value, CultureInfo.InvariantCulture);
-            var created = DateTimeOffset.ParseExact(match.Groups["time"].Value, StampFormat, CultureInfo.InvariantCulture, DateTimeStyles.AssumeUniversal);
+            // A name that only looks right (a version too large, an impossible date) or a file gone meanwhile is skipped:
+            // listing runs on the recovery page and the storage page, and must not fail there (low findings
+            // architecture-1, errors-8).
+            if (!int.TryParse(match.Groups["version"].Value, NumberStyles.None, CultureInfo.InvariantCulture, out var version)
+                || !DateTimeOffset.TryParseExact(match.Groups["time"].Value, StampFormat, CultureInfo.InvariantCulture, DateTimeStyles.AssumeUniversal, out var created)
+                || SizeOf(file) is not { } size)
+            {
+                continue;
+            }
+
             var reason = ReasonOf(match.Groups["reason"].Value);
-            backups.Add(new BackupInfo(file, version, created, new FileInfo(file).Length, reason));
+            backups.Add(new BackupInfo(file, version, created, size, reason));
         }
 
         return backups.OrderByDescending(b => b.CreatedAt).ToArray();
@@ -133,12 +141,26 @@ internal sealed partial class SqliteBackupFiles(AppPaths paths, TimeProvider tim
         }
 
         return groups
+            .Where(g => DateTimeOffset.TryParseExact(g.Key, StampFormat, CultureInfo.InvariantCulture, DateTimeStyles.AssumeUniversal, out _))
             .Select(g => new LeftoverDatabase(
                 DateTimeOffset.ParseExact(g.Key, StampFormat, CultureInfo.InvariantCulture, DateTimeStyles.AssumeUniversal),
                 [.. g.Value.Order(StringComparer.Ordinal)],
-                g.Value.Sum(f => new FileInfo(f).Length)))
+                g.Value.Sum(f => SizeOf(f) ?? 0)))
             .OrderByDescending(l => l.ReplacedAt)
             .ToArray();
+    }
+
+    /// <summary>The file's size, or null when it is gone or cannot be read.</summary>
+    private static long? SizeOf(string file)
+    {
+        try
+        {
+            return new FileInfo(file).Length;
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            return null;
+        }
     }
 
     /// <summary>Deletes the files of one leftover entry; a path that is not a leftover of this data directory is refused before anything is deleted.</summary>

@@ -288,6 +288,20 @@ public sealed class SqliteDatabaseTests : IDisposable
         Assert.False(File.Exists(_dir.Paths.DatabasePath));
     }
 
+    /// <summary>Low findings architecture-1, errors-8: a backup name that only looks right is skipped, not a failure.</summary>
+    [Fact]
+    public async Task Listing_backups_skips_names_that_only_look_right()
+    {
+        await SeedCurrentAsync("kept");
+        Directory.CreateDirectory(_dir.Paths.BackupDirectory);
+        await File.WriteAllTextAsync(Path.Combine(_dir.Paths.BackupDirectory, "mindweave-v99999999999-20261113T000000000Z.db"), "x", Ct);
+        await File.WriteAllTextAsync(Path.Combine(_dir.Paths.BackupDirectory, "mindweave-v11-20261399T000000000Z.db"), "x", Ct);
+        await using var database = _dir.Database();
+
+        Assert.Empty(database.ListBackups());
+        Assert.True((await database.OpenAsync(Ct)).IsReady);
+    }
+
     /// <summary>Health check 2026-11-12, storage-6: an upgrade that keeps failing does not pile up a backup per attempt.</summary>
     [Fact]
     public async Task Repeated_failed_upgrades_keep_only_the_newest_backups()

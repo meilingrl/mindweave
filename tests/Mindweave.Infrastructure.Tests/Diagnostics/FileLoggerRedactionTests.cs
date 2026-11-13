@@ -24,4 +24,30 @@ public sealed class FileLoggerRedactionTests : IDisposable
         Assert.DoesNotContain("sk-live", text, StringComparison.Ordinal);
         Assert.DoesNotContain("abcdefgh12345678", text, StringComparison.Ordinal);
     }
+
+    /// <summary>Low findings observability-9, cross-platform-10: a log folder that cannot be written never takes the app down.</summary>
+    [Fact]
+    public void Logging_into_a_read_only_folder_is_quietly_skipped()
+    {
+        Assert.SkipWhen(OperatingSystem.IsWindows(), "Uses POSIX permissions.");
+        if (OperatingSystem.IsWindows())
+        {
+            return;
+        }
+
+        var folder = Path.Combine(_directory, "read-only");
+        Directory.CreateDirectory(folder);
+        File.SetUnixFileMode(folder, UnixFileMode.UserRead | UnixFileMode.UserExecute);
+        try
+        {
+            using var provider = new FileLoggerProvider(folder, TimeProvider.System);
+#pragma warning disable CA1848 // A plain call in a test of the logger itself.
+            provider.CreateLogger("test").LogWarning("nothing may be thrown");
+#pragma warning restore CA1848
+        }
+        finally
+        {
+            File.SetUnixFileMode(folder, UnixFileMode.UserRead | UnixFileMode.UserWrite | UnixFileMode.UserExecute);
+        }
+    }
 }

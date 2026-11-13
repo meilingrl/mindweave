@@ -26,7 +26,15 @@ public sealed class FileLoggerProvider : ILoggerProvider
     {
         _directory = directory;
         _time = time;
-        Directory.CreateDirectory(directory);
+        try
+        {
+            Directory.CreateDirectory(directory);
+        }
+        catch (Exception ex) when (CannotWrite(ex))
+        {
+            // Logging must never stop the application; writes simply fail quietly below.
+        }
+
         Prune();
     }
 
@@ -60,9 +68,11 @@ public sealed class FileLoggerProvider : ILoggerProvider
             {
                 WriterFor(DateOnly.FromDateTime(now.UtcDateTime)).WriteLine(Redaction.Scrub(line.ToString()));
             }
-            catch (IOException)
+            catch (Exception ex) when (CannotWrite(ex))
             {
-                // Logging must never take the application down.
+                // Logging must never take the application down (low findings observability-9, cross-platform-10: a
+                // read-only or denied log folder raised UnauthorizedAccessException, which was not caught).
+                _writer = null;
             }
         }
     }
@@ -89,10 +99,13 @@ public sealed class FileLoggerProvider : ILoggerProvider
                 File.Delete(old);
             }
         }
-        catch (IOException)
+        catch (Exception ex) when (CannotWrite(ex))
         {
         }
     }
+
+    private static bool CannotWrite(Exception ex) =>
+        ex is IOException or UnauthorizedAccessException or NotSupportedException or System.Security.SecurityException;
 
     private static string LevelTag(LogLevel level) => level switch
     {
