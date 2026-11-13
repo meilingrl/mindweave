@@ -206,7 +206,7 @@ public sealed class SummaryService : ISummaries
         }
 
         var turns = new ChatRequest(model, [.. system, .. ContextCompressor.Unsummarized(plan).Turns]);
-        _generation.Enqueue(new SummaryWork(task, turns, plan, budget, output => SaveAsync(task, output)));
+        await _generation.EnqueueOrCancelAsync(new SummaryWork(task, turns, plan, budget, output => SaveAsync(task, output))).ConfigureAwait(false);
         Changed?.Invoke(this, conversation);
         return new SummarizeOutcome(null, task.Id);
     }

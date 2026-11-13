@@ -75,7 +75,8 @@ public class ExitStopTests
 
         Assert.True(await h.Generation.StopForExitAsync(TimeSpan.FromSeconds(5)));
         Assert.True(h.Generation.IsClosed);
-        await Assert.ThrowsAsync<InvalidOperationException>(() => h.Conversations.StartAsync(h.Workspace, "关闭中", Ct));
+        var late = await h.Conversations.StartAsync(h.Workspace, "关闭中", Ct);
+        Assert.Equal(MessageState.Cancelled, (await h.WaitForAnswerAsync(late.Answer!.Value)).State);
 
         h.Generation.Reopen();
         Assert.False(h.Generation.IsClosed);

@@ -181,6 +181,34 @@ public sealed partial class GenerationCoordinator : IGenerationExit, IGeneration
 
     private static bool IsLive(AnswerWork answer) => answer.Live.Snapshot().State is MessageState.Pending or MessageState.Streaming;
 
+    /// <summary>
+    /// Queues work whose task row is already stored; once shutdown has begun (an exit started while the row was being
+    /// written), the stored answer or task is finished as cancelled instead, and false is returned (low finding
+    /// concurrency-3: the throw reached the command, and an answer left pending locked its conversation).
+    /// </summary>
+    public async Task<bool> EnqueueOrCancelAsync(GenerationWork work)
+    {
+        ArgumentNullException.ThrowIfNull(work);
+        try
+        {
+            Enqueue(work);
+            return true;
+        }
+        catch (InvalidOperationException) when (IsClosed)
+        {
+            if (work is AnswerWork answer)
+            {
+                await _answers.CancelQueuedAsync(answer).ConfigureAwait(false);
+            }
+            else
+            {
+                await CancelQueuedTaskAsync(work).ConfigureAwait(false);
+            }
+
+            return false;
+        }
+    }
+
     /// <summary>Queues work whose task row is already stored. Throws once shutdown has begun.</summary>
     public void Enqueue(GenerationWork work)
     {

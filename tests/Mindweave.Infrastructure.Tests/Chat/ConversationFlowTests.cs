@@ -267,7 +267,10 @@ public class ConversationFlowTests
         Assert.Equal("已收到", (await h.GetMessageAsync(b.Answer!.Value))!.Text);
         Assert.Equal(MessageState.Cancelled, (await h.GetMessageAsync(c.Answer!.Value))!.State);
         Assert.Equal(0, h.Generation.UnfinishedCount);
-        await Assert.ThrowsAsync<InvalidOperationException>(() => h.Conversations.StartAsync(h.Workspace, "d", Ct));
+        // New work after shutdown began: the question is kept, its answer cancelled, nothing thrown (low finding concurrency-3).
+        var late = await h.Conversations.StartAsync(h.Workspace, "d", Ct);
+        Assert.Equal(MessageState.Cancelled, (await h.WaitForAnswerAsync(late.Answer!.Value)).State);
+        Assert.Equal(0, h.Generation.UnfinishedCount);
     }
 
     [Fact]

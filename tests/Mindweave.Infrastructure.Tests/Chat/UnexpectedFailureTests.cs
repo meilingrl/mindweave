@@ -236,6 +236,27 @@ public class UnexpectedFailureTests
         await ChatHarness.UntilAsync(() => Task.FromResult(!h.Health.IsBlocked));
     }
 
+    /// <summary>
+    /// Low finding concurrency-3: a question whose store write commits after an exit began is kept, its answer cancelled,
+    /// and nothing is thrown; once the exit is called off, the conversation takes questions again.
+    /// </summary>
+    [Fact]
+    public async Task A_question_accepted_as_the_app_quits_keeps_the_question_and_cancels_its_answer()
+    {
+        await using var h = await ChatHarness.StartAsync();
+        var first = await h.Conversations.StartAsync(h.Workspace, "一", Ct);
+        await h.WaitForAnswerAsync(first.Answer!.Value);
+        await h.Generation.StopForExitAsync(TimeSpan.Zero);
+
+        var late = await h.Conversations.AskAsync(first.Conversation, "退出时发出的问题", Ct);
+
+        Assert.True(late.Accepted);
+        Assert.Equal(MessageState.Cancelled, (await h.WaitForAnswerAsync(late.Answer!.Value)).State);
+        h.Generation.Reopen();
+        var again = await h.Conversations.RetryAsync(first.Conversation, late.Answer!.Value, Ct);
+        Assert.True(again.Accepted, again.Rejection?.ToString());
+    }
+
     private static Task<string?> TaskStateAsync(ChatHarness h, string kind, MessageId message) =>
         h.Database.ReadAsync(c => c.Scalar<string?>(null, "SELECT state FROM generation_task WHERE kind = $kind AND target_message_id = $m;", ("$kind", kind), ("$m", message.ToString())), Ct);
 

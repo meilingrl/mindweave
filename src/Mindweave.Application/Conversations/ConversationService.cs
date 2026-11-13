@@ -244,7 +244,7 @@ public sealed partial class ConversationService : IConversations
             return StorageRefused(ex, id);
         }
 
-        Enqueue(task, model, plan, budget, answer);
+        await EnqueueAsync(task, model, plan, budget, answer);
         ConversationChanged?.Invoke(this, id);
         return new SendOutcome(null, id, answer.Id);
     }
@@ -297,7 +297,7 @@ public sealed partial class ConversationService : IConversations
             return SendOutcome.Reject(SendRejection.ConversationMissing, id);
         }
 
-        Enqueue(task, model, plan, budget, storedAnswer);
+        await EnqueueAsync(task, model, plan, budget, storedAnswer);
         ConversationChanged?.Invoke(this, id);
         return new SendOutcome(null, id, storedAnswer.Id);
     }
@@ -352,7 +352,7 @@ public sealed partial class ConversationService : IConversations
             return SendOutcome.Reject(SendRejection.ConversationMissing, id);
         }
 
-        Enqueue(task, model, plan, budget, stored);
+        await EnqueueAsync(task, model, plan, budget, stored);
         ConversationChanged?.Invoke(this, id);
         return new SendOutcome(null, id, stored.Id);
     }
@@ -617,10 +617,10 @@ public sealed partial class ConversationService : IConversations
         _ => SendRejection.HistoryTooLongForModel,
     };
 
-    private void Enqueue(GenerationTaskRecord task, ModelSnapshot model, ContextPlan plan, ContextBudget budget, Message answer)
+    private Task<bool> EnqueueAsync(GenerationTaskRecord task, ModelSnapshot model, ContextPlan plan, ContextBudget budget, Message answer)
     {
         var request = new ChatRequest(model, ContextCompressor.Unsummarized(plan).Turns);
-        _generation.Enqueue(new AnswerWork(task, request, new LiveAnswer(answer.Id, answer.ConversationId), plan, budget));
+        return _generation.EnqueueOrCancelAsync(new AnswerWork(task, request, new LiveAnswer(answer.Id, answer.ConversationId), plan, budget));
     }
 
     private readonly ILogger<ConversationService> _logger;
