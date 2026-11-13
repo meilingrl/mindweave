@@ -378,6 +378,63 @@ public class SummaryUiTests
         Assert.DoesNotContain("PM", UiText.FormatTime(at.AddHours(5)), StringComparison.Ordinal);
     }
 
+    /// <summary>Health check 2026-11-12, requirements-2: "mark unread" sticks for the opening it was set in.</summary>
+    [AvaloniaFact]
+    public async Task Marking_a_read_summary_unread_is_not_undone_by_the_next_progress_report()
+    {
+        var clock = ManualTime.Running();
+        await using var app = DesktopHarness.Create(s => s.AddSingleton<TimeProvider>(clock));
+        var page = await app.StartWithConversationAsync(waitForTitle: false);
+        await page.Summary.SummarizeCommand.ExecuteAsync(null);
+        await UiWait.UntilAsync(() => page.Summary.HasSummary && page.Summary.RunningSummary is null);
+        var summary = await OpenSummaryAsync(app, page);
+        await ReadToTheEndAsync(summary, clock);
+
+        await summary.ToggleReadCommand.ExecuteAsync(null);
+        await UiWait.UntilAsync(() => !summary.ShownIsRead);
+        clock.Advance(TimeSpan.FromSeconds(1));
+        await summary.ReportProgressAsync(1.0, null);
+
+        Assert.False(Detail(app, summary.Node).ReadState(summary.Shown!.Id).IsRead);
+        Assert.False(summary.ShownIsRead);
+    }
+
+    /// <summary>Health check 2026-11-12, gap-summary-2: adopting a candidate without viewing it does not mark it read.</summary>
+    [AvaloniaFact]
+    public async Task An_adopted_candidate_not_yet_viewed_starts_unread()
+    {
+        var clock = ManualTime.Running();
+        await using var app = DesktopHarness.Create(s => s.AddSingleton<TimeProvider>(clock));
+        var page = await app.StartWithConversationAsync(waitForTitle: false);
+        await page.Summary.SummarizeCommand.ExecuteAsync(null);
+        await UiWait.UntilAsync(() => page.Summary.HasSummary && page.Summary.RunningSummary is null);
+        var summary = await OpenSummaryAsync(app, page);
+        await ReadToTheEndAsync(summary, clock);
+
+        app.Client.Knowledge.Replies.Enqueue($"标题：{FakeChatClient.DefaultSummaryTitle}\n\n新生成的正文");
+        summary.ReturnToConversationCommand.Execute(null);
+        page = Assert.IsType<ConversationViewModel>(app.Workbench.CurrentPage);
+        await page.Summary.SummarizeCommand.ExecuteAsync(null);
+        await UiWait.UntilAsync(() => page.Summary.SummaryMarkersText?.Contains(UiText.MarkerCandidate, StringComparison.Ordinal) == true);
+        summary = await OpenSummaryAsync(app, page);
+        await UiWait.UntilAsync(() => summary.HasCandidate);
+        Assert.False(summary.ShownIsCandidate);
+
+        await summary.AdoptCommand.ExecuteAsync(null);
+        await UiWait.UntilAsync(() => !summary.HasCandidate && summary.ShownIsCurrent);
+        await summary.ReportProgressAsync(1.0, null);
+
+        Assert.False(Detail(app, summary.Node).ReadState(summary.Shown!.Id).IsRead);
+    }
+
+    private static async Task ReadToTheEndAsync(SummaryViewModel summary, ManualTime clock)
+    {
+        await summary.ReportProgressAsync(1.0, null);
+        clock.Advance(SummaryRules.MinimumReadTime + TimeSpan.FromSeconds(1));
+        await summary.ReportProgressAsync(1.0, null);
+        Assert.True(summary.ShownIsRead);
+    }
+
     private static Application.Storage.SummaryDetail Detail(DesktopHarness app, SummaryNodeId node) =>
         app.Services.GetRequiredService<Application.Summaries.SummaryService>().GetAsync(node, CancellationToken.None).Result!;
 

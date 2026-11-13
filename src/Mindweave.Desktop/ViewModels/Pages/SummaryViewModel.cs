@@ -29,6 +29,16 @@ public sealed partial class SummaryViewModel : PageViewModel, IDisposable
     private readonly UiThrottle _reload;
     private SummaryDetail? _detail;
     private SummaryVersionId? _shownId;
+
+    /// <summary>
+    /// The version to show after the next reload (adopted, set current, or left after a delete). Kept apart from the
+    /// shown one so the reload sees a change and starts that version's own reading time and progress (health check
+    /// 2026-11-12, gap-summary-2): it was not read just because another version was.
+    /// </summary>
+    private SummaryVersionId? _showNext;
+
+    /// <summary>Marked unread by the reader in this opening: progress no longer marks it read until another version is shown (requirements-2).</summary>
+    private bool _keptUnread;
     private long _shownSince;
     private double _reportedProgress;
     private bool _readCheckScheduled;
@@ -173,7 +183,7 @@ public sealed partial class SummaryViewModel : PageViewModel, IDisposable
         }
 
         _reportedProgress = Math.Max(_reportedProgress, progress);
-        if (ShownIsRead || _reportedProgress < SummaryRules.ReadThreshold)
+        if (ShownIsRead || _keptUnread || _reportedProgress < SummaryRules.ReadThreshold)
         {
             await _summaries.RecordProgressAsync(Node, version.Id, progress, locator, TimeSpan.Zero, CancellationToken.None);
             return;
@@ -212,8 +222,17 @@ public sealed partial class SummaryViewModel : PageViewModel, IDisposable
     }
 
     [RelayCommand]
-    private Task ToggleReadAsync() =>
-        Shown is { } version ? RunAsync(() => _summaries.SetReadAsync(Node, version.Id, !ShownIsRead, CancellationToken.None)) : Task.CompletedTask;
+    private Task ToggleReadAsync()
+    {
+        if (Shown is not { } version)
+        {
+            return Task.CompletedTask;
+        }
+
+        var read = !ShownIsRead;
+        _keptUnread = !read;
+        return RunAsync(() => _summaries.SetReadAsync(Node, version.Id, read, CancellationToken.None));
+    }
 
     [RelayCommand]
     private void ShowVersion(SummaryVersionId version) => Show(version);
@@ -248,7 +267,7 @@ public sealed partial class SummaryViewModel : PageViewModel, IDisposable
         Task Adopt() => RunAsync(async () =>
         {
             await _summaries.AdoptAsync(Node, candidate, CancellationToken.None);
-            _shownId = candidate;
+            _showNext = candidate;
         });
 
         if (check is { BaselineChanged: true })
@@ -279,7 +298,7 @@ public sealed partial class SummaryViewModel : PageViewModel, IDisposable
         RunAsync(async () =>
         {
             await _summaries.SetCurrentAsync(Node, version, CancellationToken.None);
-            _shownId = version;
+            _showNext = version;
         });
 
     [RelayCommand]
@@ -308,7 +327,7 @@ public sealed partial class SummaryViewModel : PageViewModel, IDisposable
             }
             else if (_shownId is { } shown && selected.Contains(shown))
             {
-                _shownId = current;
+                _showNext = current;
             }
         }), IsDestructive: true);
     }
@@ -546,7 +565,9 @@ public sealed partial class SummaryViewModel : PageViewModel, IDisposable
 
         HistoryHeader = UiText.HistoryHeadingCount(History.Count);
         UpdateHasSelectedVersions();
-        Show(_shownId is { } id && detail.Versions.Any(v => v.Id == id) ? id : detail.Node.Current);
+        var wanted = _showNext ?? _shownId;
+        _showNext = null;
+        Show(wanted is { } id && detail.Versions.Any(v => v.Id == id) ? id : detail.Node.Current);
     }
 
     partial void OnShownIsReadChanged(bool value) => UpdateShownMarkers();
@@ -574,6 +595,7 @@ public sealed partial class SummaryViewModel : PageViewModel, IDisposable
             _shownSince = _time.GetTimestamp();
             _reportedProgress = 0;
             _readCheckScheduled = false;
+            _keptUnread = false;
             ShownLocator = detail.ReadState(id).Locator;
         }
 
