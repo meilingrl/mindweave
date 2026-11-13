@@ -32,6 +32,11 @@ public sealed partial class ConversationView : UserControl
     private bool _followBottom = true;
     private bool _restoring = true;
 
+    /// <summary>Answers waiting to be rendered while the page opens (health check 2026-11-12, performance-2).</summary>
+    private readonly List<AnswerView> _deferred = [];
+    private bool _opening = true;
+    private TaskCompletionSource _rendered = new(TaskCreationOptions.RunContinuationsAsynchronously);
+
     public ConversationView()
     {
         InitializeComponent();
@@ -71,6 +76,25 @@ public sealed partial class ConversationView : UserControl
     /// <summary>Completes once the page has been placed at its source, reading position or end; tests await it.</summary>
     internal Task Restored => _restored.Task;
 
+    /// <summary>When the page was placed (<see cref="System.Diagnostics.Stopwatch"/> ticks); for the open benchmark.</summary>
+    internal long RestoredTimestamp { get; private set; }
+
+    /// <summary>The longest single step of rendering the remaining answers, in ticks; for the open benchmark.</summary>
+    internal long LongestRenderStep { get; private set; }
+
+    /// <summary>Completes once every answer on the page is rendered (the ones away from the reading position come after <see cref="Restored"/>).</summary>
+    internal Task Rendered => _rendered.Task;
+
+    /// <summary>
+    /// While the page opens, finished answers wait to be rendered: opening used to lay out every answer of the
+    /// conversation at once on the UI thread, about 1.3 s for 60 answers of 2,500 characters on macOS (health check
+    /// 2026-11-12, performance-2). The answers around the reading position are rendered before the page is placed, the
+    /// rest one at a time afterwards, nearest first.
+    /// Only rows made before the page is placed wait; one made afterwards (an answer that just finished) renders at once.
+    internal bool DefersRendering => _opening && _restoring;
+
+    internal void Defer(AnswerView answer) => _deferred.Add(answer);
+
     protected override void OnDataContextChanged(EventArgs e)
     {
         base.OnDataContextChanged(e);
@@ -87,6 +111,13 @@ public sealed partial class ConversationView : UserControl
         if (_restored.Task.IsCompleted)
         {
             _restored = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        }
+
+        _opening = true;
+        _deferred.Clear();
+        if (_rendered.Task.IsCompleted)
+        {
+            _rendered = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         }
 
         if (_page is not null)
@@ -158,7 +189,9 @@ public sealed partial class ConversationView : UserControl
         }
 
         UpdateLayout();
-        if (page.TakeSourceFocus() is { } source)
+        var source = page.TakeSourceFocus();
+        RenderAround(page, source?.SourceMessage ?? position?.Message);
+        if (source is not null)
         {
             RevealSource(page, source);
         }
@@ -169,7 +202,121 @@ public sealed partial class ConversationView : UserControl
 
         _followBottom = IsAtBottom();
         _restoring = false;
+        RestoredTimestamp = System.Diagnostics.Stopwatch.GetTimestamp();
         _restored.TrySetResult();
+        Dispatcher.UIThread.Post(() => RenderNext(page), DispatcherPriority.Background);
+    }
+
+    /// <summary>
+    /// Renders the answer the page is placed at (the end when none) and its neighbours, until about two screens around it
+    /// are real text: positions are measured on rendered answers only.
+    /// </summary>
+    private void RenderAround(ConversationViewModel page, MessageId? target)
+    {
+        var index = target is { } id ? page.Messages.ToList().FindIndex(m => m.Id == id) : -1;
+        if (index < 0)
+        {
+            index = page.Messages.Count - 1;
+        }
+
+        var screen = Math.Max(Scroller.Viewport.Height, 400);
+        double below = 0, above = 0;
+        RenderRow(index);
+        for (var step = 1; step < page.Messages.Count && (below < screen * 1.5 || above < screen); step++)
+        {
+            if (below < screen * 1.5 && index + step < page.Messages.Count)
+            {
+                below += RenderRow(index + step);
+            }
+
+            if (above < screen && index - step >= 0)
+            {
+                above += RenderRow(index - step);
+            }
+        }
+
+        UpdateLayout();
+    }
+
+    /// <summary>Renders the answer in row <paramref name="index"/>, if it waits; returns the row's height before (its estimate).</summary>
+    private double RenderRow(int index)
+    {
+        if (MessageList.ContainerFromIndex(index) is not { } container)
+        {
+            return 0;
+        }
+
+        var height = container.Bounds.Height;
+        foreach (var answer in container.GetVisualDescendants().OfType<AnswerView>())
+        {
+            answer.RenderNow();
+            _deferred.Remove(answer);
+        }
+
+        return height;
+    }
+
+    /// <summary>
+    /// Renders the waiting answer nearest the reading position, then gives the UI thread back. A row above the reading
+    /// line grows or shrinks as it renders, so the page is moved by the same amount: what the reader sees stays put.
+    /// </summary>
+    private void RenderNext(ConversationViewModel page)
+    {
+        if (!ReferenceEquals(page, _page) || !this.IsAttachedToVisualTree())
+        {
+            return;
+        }
+
+        _deferred.RemoveAll(a => !a.IsAttachedToVisualTree() || a.IsRendered);
+        if (_deferred.Count == 0)
+        {
+            _opening = false;
+            _rendered.TrySetResult();
+            return;
+        }
+
+        var (anchorIndex, anchor) = ReadingRow(page);
+        var next = _deferred.MinBy(a => Math.Abs(RowOf(a) - anchorIndex))!;
+        var row = RowOf(next);
+        var before = anchor is null ? null : TopOf(anchor);
+        var started = System.Diagnostics.Stopwatch.GetTimestamp();
+        next.RenderNow();
+        _deferred.Remove(next);
+        UpdateLayout();
+        if (!_followBottom && row < anchorIndex && before is { } was && anchor is not null && TopOf(anchor) is { } now)
+        {
+            ScrollBy(now - was);
+        }
+
+        LongestRenderStep = Math.Max(LongestRenderStep, System.Diagnostics.Stopwatch.GetTimestamp() - started);
+        Dispatcher.UIThread.Post(() => RenderNext(page), DispatcherPriority.Background);
+    }
+
+    /// <summary>The row at the reading line and its container (the last row when the page ends above it).</summary>
+    private (int Index, Control? Container) ReadingRow(ConversationViewModel page)
+    {
+        for (var i = 0; i < page.Messages.Count; i++)
+        {
+            if (MessageList.ContainerFromIndex(i) is { } container && TopOf(container) is { } top && top + container.Bounds.Height > ReadingLine)
+            {
+                return (i, container);
+            }
+        }
+
+        return (page.Messages.Count - 1, null);
+    }
+
+    private int RowOf(AnswerView answer)
+    {
+        for (Visual? visual = answer; visual is not null; visual = visual.GetVisualParent())
+        {
+            if (visual is Control control && MessageList.IndexFromContainer(control) is var index and >= 0)
+            {
+                return index;
+            }
+        }
+
+        return int.MaxValue / 2;
     }
 
     /// <summary>Return to source: select and highlight the passage, or fall back to its answer with a notice (MW-C13).</summary>
@@ -223,7 +370,7 @@ public sealed partial class ConversationView : UserControl
             }
 
             var item = page.Messages[i];
-            var answer = item.IsAnswer ? container.GetVisualDescendants().OfType<AnswerView>().FirstOrDefault() : null;
+            var answer = item.IsAnswer ? container.GetVisualDescendants().OfType<AnswerView>().FirstOrDefault(a => a.IsRendered) : null;
             var locator = (answer is null ? null : SourceAnchors.LocatorAt(answer.Renderer, Scroller, ReadingLine))
                 ?? ReadingLocator.MessageTop(ReadingLine - top);
             page.ReportPosition(new ReadingPosition(item.Id, 0, SourceAnchors.Serialize(locator), SourceAnchors.LocatorVersion));

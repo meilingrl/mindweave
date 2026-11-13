@@ -33,6 +33,10 @@ public sealed partial class AnswerView : UserControl
     private MessageItemViewModel? _item;
     private ObservableStringBuilder? _live;
     private string _shown = string.Empty;
+
+    /// <summary>A finished answer waiting to be rendered (see <see cref="ConversationView"/>'s progressive opening); null once shown.</summary>
+    private string? _pending;
+    private readonly Border _placeholder = new() { Name = "AnswerPlaceholder" };
     private ScrollViewer? _scroller;
     private TopLevel? _topLevel;
     private ConversationView? _conversation;
@@ -95,8 +99,40 @@ public sealed partial class AnswerView : UserControl
 
     internal MarkdownRenderer Renderer => _renderer;
 
-    /// <summary>False while a streamed update is still being laid out; positions measured then are not trustworthy.</summary>
-    internal bool IsLayoutCurrent => _live is null || _renderer.DocumentUpdate?.Version == _live.Version;
+    /// <summary>False while a streamed update is still being laid out, or the answer is not rendered yet; positions measured then are not trustworthy.</summary>
+    internal bool IsLayoutCurrent => _pending is null && (_live is null || _renderer.DocumentUpdate?.Version == _live.Version);
+
+    /// <summary>The answer's text is rendered (not a placeholder waiting for its turn).</summary>
+    internal bool IsRendered => _pending is null;
+
+    /// <summary>
+    /// Renders a finished answer that was waiting (health check 2026-11-12, performance-2): the page renders the answers
+    /// around the reading position first and the rest afterwards, a few at a time. Does nothing when already rendered.
+    /// </summary>
+    internal void RenderNow()
+    {
+        if (_pending is not { } markdown)
+        {
+            return;
+        }
+
+        _pending = null;
+        _renderer.DocumentUpdate = new MarkdownDocumentUpdate.Full(Markdig.Markdown.Parse(markdown, MarkdownUpdateProducer.DefaultPipeline));
+        _shown = markdown;
+        BodyHost.Content = _renderer;
+        TakeOverSelection();
+        UpdateBranchButton();
+    }
+
+    /// <summary>
+    /// A rough height for an answer not rendered yet, so the scroll bar is about right meanwhile: lines of about 40
+    /// characters (CJK at the page's width and size) plus a gap per paragraph.
+    /// </summary>
+    internal static double EstimatedHeight(string markdown)
+    {
+        var paragraphs = markdown.Split("\n\n", StringSplitOptions.RemoveEmptyEntries);
+        return Math.Max(24, paragraphs.Sum(p => (Math.Ceiling(p.Length / 40.0) * 26) + 8));
+    }
 
     /// <summary>The selection as a branch request, or null when nothing is selected or the answer cannot be branched from.</summary>
     internal BranchSelection? CaptureSelection()
@@ -163,7 +199,11 @@ public sealed partial class AnswerView : UserControl
         _item = DataContext is MessageItemViewModel { IsAnswer: true } answer ? answer : null;
         _live = null;
         _shown = string.Empty;
-        if (_item is not null)
+        _pending = null;
+        BodyHost.Content = _renderer;
+
+        // Shown once attached, when the page it is on is known (it may render it later; see RenderNow).
+        if (_item is not null && this.IsAttachedToVisualTree())
         {
             _item.PropertyChanged += OnItemChanged;
             Show(_item.Body);
@@ -223,6 +263,11 @@ public sealed partial class AnswerView : UserControl
 
     private void TakeOverSelection()
     {
+        if (_pending is not null)
+        {
+            return;
+        }
+
         if (_item is { IsLive: false } stored && _conversation?.TakeOverSelection(stored.Id) is { } selection && SelectionCarry.Apply(_renderer, selection.Segments))
         {
             // Focus went with the old view; take it back (once this view's controls are attached and can hold it) unless
@@ -261,6 +306,24 @@ public sealed partial class AnswerView : UserControl
     {
         if (markdown == _shown && (_live is not null || _renderer.DocumentUpdate is not null))
         {
+            return;
+        }
+
+        // A finished answer on a page that is still placing itself waits for its turn (a placeholder of about its height).
+        // The page is looked up here too: the data context can arrive during attachment, before OnAttachedToVisualTree.
+        _conversation ??= this.IsAttachedToVisualTree() ? this.FindAncestorOfType<ConversationView>() : null;
+        var finished = _item is not { CanBranch: false, IsInProgress: true };
+        if (finished && (_pending is not null || (_renderer.DocumentUpdate is null && _live is null && _conversation is { DefersRendering: true })))
+        {
+            var first = _pending is null;
+            _pending = markdown;
+            _placeholder.Height = EstimatedHeight(markdown);
+            BodyHost.Content = _placeholder;
+            if (first)
+            {
+                _conversation!.Defer(this);
+            }
+
             return;
         }
 

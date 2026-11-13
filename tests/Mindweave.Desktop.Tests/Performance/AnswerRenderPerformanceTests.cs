@@ -6,6 +6,7 @@ using Avalonia.Headless;
 using Avalonia.Headless.XUnit;
 using Avalonia.Threading;
 using Avalonia.VisualTree;
+using Microsoft.Extensions.DependencyInjection;
 using LiveMarkdown.Avalonia;
 using Mindweave.Core.Conversations;
 using Mindweave.Desktop.Markdown;
@@ -50,6 +51,7 @@ public class AnswerRenderPerformanceTests
     [AvaloniaFact]
     public async Task Smoke()
     {
+        await OpenManyTurnsAsync(turns: 3, characters: 500, runs: 1, enforce: false);
         Show(3_000, runs: 1, enforce: false);
         Stream([1_000, 3_000], appends: 2, enforce: false);
         await StreamInAppAsync([3_000], appends: 2, enforce: false);
@@ -306,9 +308,91 @@ public class AnswerRenderPerformanceTests
         }
     }
 
-    private static async Task<ConversationId> AskAsync(DesktopHarness app, string question, string answer)
+    /// <summary>
+    /// A conversation of many ordinary turns (health check 2026-11-12, performance-2): opening it costs the same as one
+    /// answer of the same total length when every row is realized and laid out.
+    /// </summary>
+    [AvaloniaFact]
+    [Trait("Category", "Performance")]
+    public async Task Opening_a_conversation_with_many_turns_stays_within_budget()
     {
+        Assert.SkipUnless(Full, "Run through scripts/perf.sh.");
+        await OpenManyTurnsAsync(turns: 60, characters: 2_500, runs: 3, enforce: true);
+    }
+
+    /// <summary>Opening a conversation of <paramref name="turns"/> answers of <paramref name="characters"/> each, from the sidebar until placed.</summary>
+    internal static async Task<TimeSpan> OpenManyTurnsAsync(int turns, int characters, int runs, bool enforce)
+    {
+        await using var app = DesktopHarness.Create();
+        var window = app.ShowWindow();
+        await app.StartWithWorkspaceAsync("性能");
+        await app.ConfigureModelAsync();
+
+        var answer = LongMarkdown.Generate(characters);
         app.Client.Reply(answer);
+        var longOne = await AskAsync(app, "第 1 问", answer, fresh: true);
+        var conversations = app.Services.GetRequiredService<Application.Conversations.ConversationService>();
+        for (var turn = 2; turn <= turns; turn++)
+        {
+            app.Client.Reply(answer);
+            var sent = await conversations.AskAsync(longOne, $"第 {turn} 问", CancellationToken.None);
+            var deadline = Stopwatch.StartNew();
+            while (!(await conversations.LoadAsync(longOne, CancellationToken.None))!.Messages.Any(m => m.Id == sent.Answer!.Value && m.State == MessageState.Complete))
+            {
+                Assert.True(deadline.Elapsed < TimeSpan.FromSeconds(30), $"Turn {turn} did not finish.");
+                Dispatcher.UIThread.RunJobs();
+                await Task.Delay(5);
+            }
+        }
+
+        var other = await AskAsync(app, "短问题", "短回答。");
+        await UiWait.UntilAsync(() => app.ShellPage.Conversations.Items.Count == 2);
+        var samples = new List<TimeSpan>();
+        var rows = 0;
+        var longestStep = 0.0;
+        for (var run = 0; run <= runs; run++)
+        {
+            await OpenFromSidebarAsync(app, window, other);
+            Settle();
+            var start = Stopwatch.GetTimestamp();
+            var page = await OpenFromSidebarAsync(app, window, longOne);
+            var view = window.GetVisualDescendants().OfType<ConversationView>().Single();
+            var elapsed = Stopwatch.GetElapsedTime(start, view.RestoredTimestamp);
+            await view.Rendered;
+            longestStep = Math.Max(longestStep, Stopwatch.GetElapsedTime(0, view.LongestRenderStep).TotalMilliseconds);
+            rows = window.GetVisualDescendants().OfType<AnswerView>().Count(a => a.DataContext is MessageItemViewModel { IsAnswer: true });
+            Assert.Equal(turns * 2, page.Messages.Count);
+            if (run > 0)
+            {
+                samples.Add(elapsed);
+            }
+        }
+
+        window.Close();
+        var median = Median(samples);
+        Report($"open {turns} turns of {Size(characters)} ({Size(turns * characters)} in all, {rows} answers) from the sidebar: placed after {Ms(median)} (median of {samples.Count}); the rest rendered in steps of at most {longestStep:F1} ms");
+        if (enforce)
+        {
+            Assert.True(longestStep <= RenderStepBudget.TotalMilliseconds, $"A background render step took {longestStep:F1} ms (budget {Ms(RenderStepBudget)}).");
+            Assert.True(median <= ManyTurnsOpenBudget, $"Opening {turns} turns took {Ms(median)} (budget {Ms(ManyTurnsOpenBudget)}).");
+        }
+
+        return median;
+    }
+
+    /// <summary>Opening 60 turns of 2,500 characters (150,000 in all): what a long but ordinary study conversation is.</summary>
+    private static readonly TimeSpan ManyTurnsOpenBudget = TimeSpan.FromMilliseconds(500);
+
+    /// <summary>Each answer rendered after the page is placed: short enough that input between steps is not noticeably delayed.</summary>
+    private static readonly TimeSpan RenderStepBudget = TimeSpan.FromMilliseconds(100);
+
+    private static async Task<ConversationId> AskAsync(DesktopHarness app, string question, string answer, bool fresh = false)
+    {
+        if (!fresh)
+        {
+            app.Client.Reply(answer);
+        }
+
         app.ShellPage.Conversations.NewCommand.Execute(null);
         var draft = Assert.IsType<NewConversationViewModel>(app.Workbench.CurrentPage);
         draft.Composer.Text = question;

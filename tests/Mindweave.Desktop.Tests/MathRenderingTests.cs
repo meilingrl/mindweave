@@ -102,7 +102,8 @@ public class MathRenderingTests
         await draft.Composer.SendCommand.ExecuteAsync(null);
         var page = Assert.IsType<ConversationViewModel>(app.Workbench.CurrentPage);
         await UiWait.UntilAsync(() => page.Messages.Count == 2 && page.Messages[1].CanBranch);
-        await UiWait.UntilAsync(() => window.GetVisualDescendants().OfType<AnswerView>().Any(a => a.DataContext is MessageItemViewModel { CanBranch: true }));
+        // Rendered, not only finished: an answer that finished before its page was placed is rendered right after (performance-2).
+        await UiWait.UntilAsync(() => window.GetVisualDescendants().OfType<AnswerView>().Any(a => a.DataContext is MessageItemViewModel { CanBranch: true } && a.IsRendered));
         window.UpdateLayout();
         return (window, page);
     }
