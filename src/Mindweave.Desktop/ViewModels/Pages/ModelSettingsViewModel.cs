@@ -268,7 +268,13 @@ public sealed partial class ModelSettingsViewModel : ViewModelBase
         _settingModel = false;
         ContextWindow = saved.Capabilities.ContextWindowTokens?.ToString(System.Globalization.CultureInfo.InvariantCulture) ?? string.Empty;
         _shownValues = (Name, BaseUrl, Model, ContextWindow);
-        HasSavedKey = true;
+        HasSavedKey = await _settings.SavedKeyExistsAsync(CancellationToken.None);
+        if (!HasSavedKey)
+        {
+            // A restored backup can point at a key replaced and deleted since: say so instead of "saved".
+            Report(UiText.SavedKeyMissing, isError: true);
+        }
+
         OnPropertyChanged(nameof(SavedKeyApplies));
         OnPropertyChanged(nameof(KeyPlaceholder));
     }

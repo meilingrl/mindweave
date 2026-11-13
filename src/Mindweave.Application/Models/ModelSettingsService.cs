@@ -58,6 +58,23 @@ public sealed partial class ModelSettingsService(
 
     public Task<ModelSettings?> GetAsync(CancellationToken cancellationToken) => store.GetActiveAsync(cancellationToken);
 
+    public async Task<bool> SavedKeyExistsAsync(CancellationToken cancellationToken)
+    {
+        if (await store.GetActiveAsync(cancellationToken).ConfigureAwait(false) is not { CredentialRef: { Length: > 0 } reference })
+        {
+            return false;
+        }
+
+        try
+        {
+            return await credentials.ReadAsync(reference, cancellationToken).ConfigureAwait(false) is { Length: > 0 };
+        }
+        catch (CredentialUnavailableException)
+        {
+            return true;
+        }
+    }
+
     /// <summary>The frozen snapshot new tasks are accepted with, or null when nothing is configured.</summary>
     public async Task<ModelSnapshot?> GetActiveSnapshotAsync(CancellationToken cancellationToken)
     {

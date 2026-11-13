@@ -27,6 +27,9 @@ public static partial class UiText
     public const string KeySavedPlaceholder = "已保存，留空则继续使用";
     public const string KeyMissingPlaceholder = "尚未保存";
     public const string KeyOtherServicePlaceholder = "请填写此服务的密钥";
+
+    /// <summary>The settings point at a key no longer in the system's credential store (for example after restoring a backup).</summary>
+    public const string SavedKeyMissing = "保存的密钥已不在系统的密钥存储中（例如恢复了较早的备份）。请重新填写密钥并保存。";
     public const string OllamaKeyPlaceholder = "本机服务不校验，可填任意内容";
     public const string ConnectionNamePlaceholder = "可选";
     public const string ModelPlaceholder = "选择或输入模型名称";

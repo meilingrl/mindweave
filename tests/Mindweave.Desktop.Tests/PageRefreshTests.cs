@@ -77,4 +77,21 @@ public class PageRefreshTests
         Assert.Equal("我正在改的", settings.Model.Model);
         window.Close();
     }
+
+    /// <summary>Health check 2026-11-12, gap-schema-2: settings pointing at a key no longer stored say so instead of "saved".</summary>
+    [AvaloniaFact]
+    public async Task Settings_whose_key_is_gone_from_the_credential_store_ask_for_it_again()
+    {
+        await using var app = DesktopHarness.Create();
+        await app.StartWithWorkspaceAsync("火车");
+        await app.ConfigureModelAsync();
+        app.Credentials.Items.Clear();
+
+        var settings = new ModelSettingsViewModel(app.Services.GetRequiredService<IModelSettings>());
+        await settings.Loaded;
+
+        Assert.False(settings.HasSavedKey);
+        Assert.False(settings.SavedKeyApplies);
+        Assert.Equal(UiText.SavedKeyMissing, settings.Status);
+    }
 }
