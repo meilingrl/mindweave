@@ -25,7 +25,10 @@ internal static class SqliteConnections
             ForeignKeys = true,
             DefaultTimeout = Math.Max(1, (busyTimeoutMs + 999) / 1000),
         }.ToString());
-        return Prepare(connection, $"PRAGMA synchronous = FULL; PRAGMA busy_timeout = {busyTimeoutMs};");
+        // checkpoint_fullfsync (decision 2026-11-14): copying the log into the database waits until the drive has really
+        // written it (F_FULLFSYNC on macOS; no effect elsewhere), so a power cut then cannot damage the file. Commits keep
+        // the normal sync, which at worst loses the last seconds; a full sync on every commit is markedly slower on Macs.
+        return Prepare(connection, $"PRAGMA synchronous = FULL; PRAGMA checkpoint_fullfsync = ON; PRAGMA busy_timeout = {busyTimeoutMs};");
     }
 
     public static SqliteConnection OpenReadOnly(string path)

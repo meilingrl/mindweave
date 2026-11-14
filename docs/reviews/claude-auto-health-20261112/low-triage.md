@@ -18,7 +18,7 @@
 | ai-client-6 | Transport error after finish_reason fails complete answer | Forgive IOException/HttpRequestException after completion. | data | 已修 2a3ae6e |
 | ui-vm-10 | Composer clears text typed during send | Clear only if Text still equals the sent text. | data | 已修 2a3ae6e |
 | architecture-3 | In-app restore swap has no failure path | try/catch around EndAsync; continue to restore. | data | 已修 2a3ae6e |
-| cross-platform-2 | macOS SQLite commits not fullfsync'd | PRAGMA fullfsync=ON; measure cost. | data | 改为“需决定”：macOS 的 fullfsync 让每次提交等磁盘真正落盘，写入明显变慢，是安全与速度的取舍。 |
+| cross-platform-2 | macOS SQLite commits not fullfsync'd | PRAGMA fullfsync=ON; measure cost. | data | 已定 2026-11-14：只开 checkpoint_fullfsync（把日志并入数据库时完全落盘，断电不会损坏文件；本机每次并入约 2→9 ms），普通提交不改（断电最多丢最后几秒）。 |
 | tests-6 | No exhaustive enum mapping tests | Theories over Enum.GetValues for SqlNames/UiText. | data | 已修 afcacf2 |
 | concurrency-6 | async void OnAnswerFinished crashes on throw | Guarded handler. | crash | 已修 e14cbf8 |
 | errors-7 | async-void and worker-thread events unisolated | Same as concurrency-6; loop flag in finally. | crash | 已修 e14cbf8 |
@@ -29,13 +29,13 @@
 | architecture-1 | Storage page sync unguarded file I/O | TryParse and per-file try/catch in backup listing. | crash | 已修 8473cf3 |
 | cross-platform-10 | Logging catches only IOException | Add UnauthorizedAccess/Security. | crash | 已修 8473cf3 |
 | observability-10 | Error text truncated before key scrub | Scrub then truncate. | security | 已修 40a9106 |
-| gap-unprompted-8 | Name requests include archived conversations | Filter hidden conversations out of input. | security | 改为“需决定”：归档会话的标题放在最后发送是 2026-11-11 设计里明确的选择，是否排除由你定。 |
+| gap-unprompted-8 | Name requests include archived conversations | Filter hidden conversations out of input. | security | 已定 2026-11-14：保持发送。只发标题，且这些会话的全文当初已发给服务；归档的意思是“不在侧栏”，不是“保密”。 |
 | security-3 | Error detail cut before key scrub | Scrub then truncate. | security | 已修 40a9106 |
 | security-5 | Base URL userinfo accepted and stored | Reject non-empty UserInfo. | security | 已修 40a9106 |
-| security-6 | Deleted content recoverable from DB file | PRAGMA secure_delete=ON. | security | 改为“需决定”：secure_delete 会覆盖删除的数据，增加写入量；备份里仍有旧数据，要不要做由你定。 |
+| security-6 | Deleted content recoverable from DB file | PRAGMA secure_delete=ON. | security | 已定 2026-11-14：不开。删除前本来就做备份，备份里仍有全文，开了也做不到“删了就没了”；真要彻底清除应做成单独功能（同时清库文件与对应备份）。 |
 | security-7 | Link suppression untested | Headless test: link click does not launch. | security | 改为“不值得做”：要在无界面渲染里点中行内链接的确切位置，测试脆弱；防护只有一行，模型文字不加载任何内容已有图片测试覆盖。 |
 | ci-build-8 | Workflow hardening (permissions, stress.yml injection) | permissions: contents read; inputs via env; SHA pins. | security | 已修 35696e3 |
-| dependencies-5 | No dependabot; actions on mutable tags | dependabot.yml; SHA pins. | security | 改为“需决定”：Dependabot 会在仓库里自动开拉取请求，是否启用由你定。 |
+| dependencies-5 | No dependabot; actions on mutable tags | dependabot.yml; SHA pins. | security | 已定 2026-11-14：不用 Dependabot（它只读默认分支 main，那里没有代码）；CI 每次推送检查有安全公告的包（直接与间接依赖），有则失败；两个 CI 动作固定到提交。 |
 | repo-scripts-6 | CI permissions/tags | Overlaps ci-build-8. | security | 已修 35696e3（SHA 固定未做） |
 | repo-scripts-10 | real-api.sh unvalidated profile | Validate PROFILE; anchor localhost regex. | security | 已修 7f6f33c |
 | gap-native-interop-5 | Open data folder uses bare explorer.exe/open | Absolute paths; catch Win32Exception. | security | 已修 1215184 |

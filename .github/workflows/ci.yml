@@ -32,8 +32,9 @@ jobs:
       DOTNET_NOLOGO: true
       DOTNET_CLI_TELEMETRY_OPTOUT: true
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-dotnet@v4
+      # Actions are pinned to the commit their tag named on 2026-11-14 (a tag can be moved; a commit cannot).
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+      - uses: actions/setup-dotnet@67a3573c9a986a3f9c594539f4ab511d57bb3ce9 # v4.3.1
         with:
           # global.json accepts any .NET 10 feature band; CI uses the newest one.
           dotnet-version: 10.0.x
@@ -50,6 +51,19 @@ jobs:
           exit 1
       - name: Restore
         run: dotnet restore Mindweave.slnx
+      # Any package, direct or pulled in by another, with a published security advisory fails the run, on every push
+      # (decision 2026-11-14, instead of Dependabot, which reads only main, where no code lives).
+      - name: Known-vulnerable packages
+        shell: bash
+        run: |
+          dotnet list Mindweave.slnx package --vulnerable --include-transitive --format json > vulnerable.json
+          count=$(jq '[.. | objects | .vulnerabilities? // empty | .[]] | length' vulnerable.json)
+          if [ "$count" -ne 0 ]; then
+            dotnet list Mindweave.slnx package --vulnerable --include-transitive
+            echo "::error::$count known vulnerabilities in the packages above"
+            exit 1
+          fi
+          echo "No known-vulnerable packages."
       - name: Build (warnings are errors)
         run: dotnet build Mindweave.slnx --no-restore -c Release
       - name: Test

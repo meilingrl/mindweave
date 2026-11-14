@@ -32,6 +32,25 @@ public sealed class SqliteDatabaseTests : IDisposable
         Assert.Empty(database.ListBackups());
     }
 
+    /// <summary>
+    /// Decision 2026-11-14: copying the log into the database (a checkpoint) waits until the drive has really written it
+    /// (F_FULLFSYNC on macOS), so a power cut at that moment cannot leave a damaged file. Ordinary commits keep the
+    /// normal sync; they can lose the last seconds after a power cut, never the file.
+    /// </summary>
+    [Fact]
+    public async Task Writing_connections_sync_checkpoints_fully_and_commits_normally()
+    {
+        await using (var database = _dir.Database())
+        {
+            Assert.True((await database.OpenAsync(Ct)).IsReady);
+        }
+
+        using var connection = SqliteConnections.OpenReadWrite(_dir.Paths.DatabasePath);
+        Assert.Equal(1, Scalar<long>(connection, "PRAGMA checkpoint_fullfsync;"));
+        Assert.Equal(0, Scalar<long>(connection, "PRAGMA fullfsync;"));
+        Assert.Equal(2, Scalar<long>(connection, "PRAGMA synchronous;"));
+    }
+
     [Fact]
     public async Task A_read_sees_one_snapshot_even_when_a_write_commits_part_way()
     {
