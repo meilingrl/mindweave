@@ -327,15 +327,15 @@ public class GalleryTests
         await using var scene = Scene.Create("g13");
         var window = scene.App.ShowWindow(1100, 720, Theme);
         var seed = await SeedAsync(scene.App, summaries: true);
-        var network = await NetworkScenario.OpenNetworkAsync(scene.App, window);
+        var network = await SummaryNetworkScenario.OpenSummaryNetworkAsync(scene.App, window);
         Assert.Equal(8, network.Nodes.Count);
         Assert.Contains(network.Edges, e => !e.IsDirect);
         network.Select(seed.Nodes[seed.Gauge]);
         await SettleAsync(window);
-        var canvas = window.GetVisualDescendants().OfType<NetworkCanvas>().Single();
+        var canvas = window.GetVisualDescendants().OfType<SummaryNetworkCanvas>().Single();
         Assert.True(canvas.Current.Zoom >= 0.8, $"default zoom {canvas.Current.Zoom:0.00}");
         var gauge = canvas.PaintNodes().Single(p => p.Node.Id == seed.Nodes[seed.Gauge]);
-        Assert.All(canvas.PaintEdges(), e => Assert.False(NetworkGeometry.Crosses(e.From, e.To, gauge.LabelBounds), $"{gauge.LabelBounds} {e.From} {e.To}"));
+        Assert.All(canvas.PaintEdges(), e => Assert.False(SummaryNetworkGeometry.Crosses(e.From, e.To, gauge.LabelBounds), $"{gauge.LabelBounds} {e.From} {e.To}"));
         Capture(window, "g13-network");
         window.Close();
     }
@@ -346,7 +346,7 @@ public class GalleryTests
         await using var scene = Scene.Create("g14");
         var window = scene.App.ShowWindow(1100, 720, Theme);
         await SeedAsync(scene.App, summaries: true);
-        var network = await NetworkScenario.OpenNetworkAsync(scene.App, window);
+        var network = await SummaryNetworkScenario.OpenSummaryNetworkAsync(scene.App, window);
         network.ToggleViewCommand.Execute(null);
         Assert.True(network.IsListView);
         await SettleAsync(window);
@@ -360,8 +360,8 @@ public class GalleryTests
         await using var scene = Scene.Create("g15");
         var window = scene.App.ShowWindow(1100, 720, Theme);
         await SeedAsync(scene.App, summaries: true);
-        var network = await NetworkScenario.OpenNetworkAsync(scene.App, window);
-        await NetworkScenario.MoveSomethingAsync(scene.App, network);
+        var network = await SummaryNetworkScenario.OpenSummaryNetworkAsync(scene.App, window);
+        await SummaryNetworkScenario.MoveSomethingAsync(scene.App, network);
         network.ArrangeCommand.Execute(null);
         Assert.True(network.IsDirty);
         await SettleAsync(window);
@@ -378,8 +378,8 @@ public class GalleryTests
         await SeedAsync(scene.App, summaries: true);
         var other = await scene.App.Services.GetRequiredService<WorkspaceService>().CreateAsync(WorkspaceName.FromStored("摄影史"), CancellationToken.None);
         scene.App.Workbench.Workspaces.Add(other);
-        var network = await NetworkScenario.OpenNetworkAsync(scene.App, window);
-        await NetworkScenario.MoveSomethingAsync(scene.App, network);
+        var network = await SummaryNetworkScenario.OpenSummaryNetworkAsync(scene.App, window);
+        await SummaryNetworkScenario.MoveSomethingAsync(scene.App, network);
         network.ArrangeCommand.Execute(null);
         scene.App.ShellPage.SelectedWorkspace = other;
         Assert.True(scene.App.Root.LayoutPrompt.IsOpen);
@@ -396,9 +396,9 @@ public class GalleryTests
         await using var scene = Scene.Create("g16a");
         var window = scene.App.ShowWindow(1100, 720, Theme);
         var seed = await SeedAsync(scene.App, summaries: true);
-        var network = await NetworkScenario.OpenNetworkAsync(scene.App, window);
+        var network = await SummaryNetworkScenario.OpenSummaryNetworkAsync(scene.App, window);
         await SettleAsync(window);
-        var canvas = window.GetVisualDescendants().OfType<NetworkCanvas>().Single();
+        var canvas = window.GetVisualDescendants().OfType<SummaryNetworkCanvas>().Single();
         var node = network.Nodes.Single(n => n.Id == seed.Nodes[seed.Gauge]);
         var start = canvas.ToScreen(node.X, node.Y);
         Point InWindow(Point p) => canvas.TranslatePoint(p, window)!.Value;
@@ -1660,7 +1660,7 @@ public class GalleryTests
         await using var scene = Scene.Create("g52");
         var window = scene.App.ShowWindow(1100, 720, Theme);
         await SeedAsync(scene.App, summaries: true);
-        var network = await NetworkScenario.OpenNetworkAsync(scene.App, window);
+        var network = await SummaryNetworkScenario.OpenSummaryNetworkAsync(scene.App, window);
         await RecommendedNodesUiTests.PrepareAsync(scene.App, network, window);
         Assert.Single(network.RecommendedNodes);
         Assert.False(network.IsDirty);
@@ -1675,7 +1675,7 @@ public class GalleryTests
         await using var scene = Scene.Create("g52a");
         var window = scene.App.ShowWindow(1100, 720, Theme);
         await SeedAsync(scene.App, summaries: true);
-        var network = await NetworkScenario.OpenNetworkAsync(scene.App, window);
+        var network = await SummaryNetworkScenario.OpenSummaryNetworkAsync(scene.App, window);
         await RecommendedNodesUiTests.PrepareAsync(scene.App, network, window);
         network.SelectRecommendation(network.RecommendedNodes[0]);
         await SettleAsync(window);
@@ -1689,7 +1689,7 @@ public class GalleryTests
         await using var scene = Scene.Create("g52b");
         var window = scene.App.ShowWindow(1100, 720, Theme);
         await SeedAsync(scene.App, summaries: true);
-        var network = await NetworkScenario.OpenNetworkAsync(scene.App, window);
+        var network = await SummaryNetworkScenario.OpenSummaryNetworkAsync(scene.App, window);
         await RecommendedNodesUiTests.PrepareAsync(scene.App, network, window);
         network.ToggleViewCommand.Execute(null);
         await SettleAsync(window);
@@ -1940,7 +1940,7 @@ public class GalleryTests
 
     private static async Task<SummaryViewModel> OpenSummaryAsync(DesktopHarness app, MainWindow window, SummaryNodeId node)
     {
-        app.Workbench.Navigate(new NavigationRequest(MainSection.Network, new SummaryRoute(node)));
+        app.Workbench.Navigate(new NavigationRequest(MainSection.SummaryNetwork, new SummaryRoute(node)));
         var summary = Assert.IsType<SummaryViewModel>(app.Workbench.CurrentPage);
         await summary.Loaded;
         await UiWait.UntilAsync(() => summary.Shown is not null);

@@ -4,8 +4,8 @@
              xmlns:v="using:Mindweave.Desktop.Views.Pages"
              xmlns:d="using:Mindweave.Desktop"
              xmlns:views="using:Mindweave.Desktop.Views"
-             x:Class="Mindweave.Desktop.Views.Pages.NetworkHomeView"
-             x:DataType="vm:NetworkHomeViewModel">
+             x:Class="Mindweave.Desktop.Views.Pages.SummaryNetworkHomeView"
+             x:DataType="vm:SummaryNetworkHomeViewModel">
   <UserControl.KeyBindings>
     <KeyBinding Gesture="Ctrl+S" Command="{Binding SaveLayoutCommand}" />
     <KeyBinding Gesture="Meta+S" Command="{Binding SaveLayoutCommand}" />
@@ -100,15 +100,15 @@
         <TextBlock Text="{x:Static d:UiText.LayoutSaveFailed}" />
       </DockPanel>
     </Border>
-    <TextBlock DockPanel.Dock="Top" Classes="muted" TextWrapping="Wrap" Text="{x:Static d:UiText.NetworkEmpty}" IsVisible="{Binding IsEmpty}" />
+    <TextBlock DockPanel.Dock="Top" Classes="muted" TextWrapping="Wrap" Text="{x:Static d:UiText.SummaryNetworkEmpty}" IsVisible="{Binding IsEmpty}" />
 
     <!-- Details of the selected node: never the body, never counted as reading. -->
     <Border DockPanel.Dock="Right" Width="260" Margin="10,0,0,0" Padding="16" Background="{DynamicResource PanelBackground}" CornerRadius="8"
             IsVisible="{Binding !IsEmpty}">
       <Panel>
         <StackPanel Spacing="8" IsVisible="{Binding !HasSelection}">
-          <TextBlock FontWeight="SemiBold" FontSize="18" Text="{x:Static d:UiText.NetworkTitle}" />
-          <TextBlock Classes="muted" FontSize="12" TextWrapping="Wrap" Text="{x:Static d:UiText.NetworkSelectHint}" />
+          <TextBlock FontWeight="SemiBold" FontSize="18" Text="{x:Static d:UiText.SummaryNetworkTitle}" />
+          <TextBlock Classes="muted" FontSize="12" TextWrapping="Wrap" Text="{x:Static d:UiText.SummaryNetworkSelectHint}" />
         </StackPanel>
         <StackPanel Name="DetailPanel" Spacing="12" IsVisible="{Binding Selected, Converter={x:Static ObjectConverters.IsNotNull}}">
           <TextBlock Name="DetailTitle" FontWeight="SemiBold" FontSize="18" TextWrapping="Wrap" Text="{Binding Selected.DisplayName, FallbackValue=''}" />
@@ -206,19 +206,19 @@
             <Setter Property="Margin" Value="0,0,16,0" />
           </Style>
         </WrapPanel.Styles>
-        <Ellipse Width="10" Height="10" Fill="{DynamicResource NetworkNode}" VerticalAlignment="Center" Margin="0,0,6,0" />
+        <Ellipse Width="10" Height="10" Fill="{DynamicResource SummaryNetworkNode}" VerticalAlignment="Center" Margin="0,0,6,0" />
         <TextBlock Text="{x:Static d:UiText.LegendUnread}" FontWeight="SemiBold" />
-        <Ellipse Width="10" Height="10" Stroke="{DynamicResource NetworkNodeRead}" StrokeThickness="2" VerticalAlignment="Center" Margin="0,0,6,0" />
+        <Ellipse Width="10" Height="10" Stroke="{DynamicResource SummaryNetworkNodeRead}" StrokeThickness="2" VerticalAlignment="Center" Margin="0,0,6,0" />
         <TextBlock Text="{x:Static d:UiText.LegendRead}" />
         <TextBlock Text="{x:Static d:UiText.LegendCandidate}" />
-        <Line StartPoint="0,0" EndPoint="20,0" Stroke="{DynamicResource NetworkEdgeIndirect}" StrokeThickness="1.4" StrokeDashArray="3,2" VerticalAlignment="Center" Margin="0,0,6,0" />
+        <Line StartPoint="0,0" EndPoint="20,0" Stroke="{DynamicResource SummaryNetworkEdgeIndirect}" StrokeThickness="1.4" StrokeDashArray="3,2" VerticalAlignment="Center" Margin="0,0,6,0" />
         <TextBlock Text="{x:Static d:UiText.LegendIndirect}" />
         <!-- Recommended nodes (§10.3.2): the same dashed ring and dotted line as drawn, with words. -->
         <StackPanel Name="RecommendationLegend" Orientation="Horizontal" IsVisible="{Binding ShowsRecommendationLegend}">
-          <Ellipse Width="11" Height="11" Fill="{DynamicResource NetworkRecommendationFill}" Stroke="{DynamicResource NetworkRecommendation}" StrokeThickness="1.4"
+          <Ellipse Width="11" Height="11" Fill="{DynamicResource SummaryNetworkRecommendationFill}" Stroke="{DynamicResource SummaryNetworkRecommendation}" StrokeThickness="1.4"
                    StrokeDashArray="2,1.5" VerticalAlignment="Center" Margin="0,0,6,0" />
           <TextBlock Text="{x:Static d:UiText.LegendRecommended}" />
-          <Line StartPoint="0,0" EndPoint="20,0" Stroke="{DynamicResource NetworkRecommendation}" StrokeThickness="1.6" StrokeDashArray="0,2.4" StrokeLineCap="Round"
+          <Line StartPoint="0,0" EndPoint="20,0" Stroke="{DynamicResource SummaryNetworkRecommendation}" StrokeThickness="1.6" StrokeDashArray="0,2.4" StrokeLineCap="Round"
                 VerticalAlignment="Center" Margin="0,0,6,0" />
           <TextBlock Text="{x:Static d:UiText.LegendRecommendedLink}" />
         </StackPanel>
@@ -228,8 +228,8 @@
 
     <Panel>
       <!-- Frameless in dark, as in the sample; a faint edge in light, where the canvas is close to the page colour. -->
-      <Border Name="CanvasFrame" BorderBrush="{DynamicResource NetworkFrame}" BorderThickness="1" CornerRadius="8" ClipToBounds="True" IsVisible="{Binding !IsListView}">
-        <v:NetworkCanvas Name="Canvas" />
+      <Border Name="CanvasFrame" BorderBrush="{DynamicResource SummaryNetworkFrame}" BorderThickness="1" CornerRadius="8" ClipToBounds="True" IsVisible="{Binding !IsListView}">
+        <v:SummaryNetworkCanvas Name="Canvas" />
       </Border>
       <ScrollViewer Classes="autohide" IsVisible="{Binding IsListView}">
         <StackPanel Spacing="8">
@@ -239,7 +239,7 @@
                 <StackPanel Orientation="Horizontal" Spacing="6" Margin="0,2">
                   <!-- Unread: bold, primary colour; read: regular, secondary colour (S7 已读／未读约定). -->
                   <Button Classes="list-name" Classes.read="{Binding !Unread}" Content="{Binding DisplayName}" FontWeight="{Binding Unread, Converter={x:Static d:Converters.BoldWhen}}"
-                          Command="{Binding $parent[v:NetworkHomeView].((vm:NetworkHomeViewModel)DataContext).OpenCommand}" CommandParameter="{Binding Node}" />
+                          Command="{Binding $parent[v:SummaryNetworkHomeView].((vm:SummaryNetworkHomeViewModel)DataContext).OpenCommand}" CommandParameter="{Binding Node}" />
                   <Border Classes="badge accent" IsVisible="{Binding Unread}">
                     <TextBlock Text="{x:Static d:UiText.MarkerUnread}" />
                   </Border>
@@ -267,7 +267,7 @@
                     <!-- As the summaries' rows: the name first, then its tag in words. -->
                     <Button Name="RecommendedNodeRow" Classes="list-name read" Content="{Binding Question}" AutomationProperties.Name="{Binding AutomationName}"
                             ToolTip.Tip="{Binding BasisText}"
-                            Command="{Binding $parent[v:NetworkHomeView].((vm:NetworkHomeViewModel)DataContext).SelectRecommendationCommand}" CommandParameter="{Binding}" />
+                            Command="{Binding $parent[v:SummaryNetworkHomeView].((vm:SummaryNetworkHomeViewModel)DataContext).SelectRecommendationCommand}" CommandParameter="{Binding}" />
                     <Border Classes="badge recommended">
                       <TextBlock Text="{x:Static d:UiText.RecommendedTag}" />
                     </Border>

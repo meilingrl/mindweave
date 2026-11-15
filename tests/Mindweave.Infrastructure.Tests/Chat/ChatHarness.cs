@@ -50,7 +50,7 @@ internal sealed class ChatHarness : IAsyncDisposable
         SummaryNodes = (SqliteSummaryStore)_services.GetRequiredService<ISummaryStore>();
         Drafts = _services.GetRequiredService<Application.Summaries.SummaryDrafts>();
         SummaryService = _services.GetRequiredService<Application.Summaries.SummaryService>();
-        Network = _services.GetRequiredService<Application.Network.NetworkService>();
+        SummaryNetwork = _services.GetRequiredService<Application.SummaryNetwork.SummaryNetworkService>();
         Workspaces = (SqliteWorkspaceStore)_services.GetRequiredService<IWorkspaceStore>();
         WorkspaceDeletion = _services.GetRequiredService<Application.Workspaces.WorkspaceDeletionService>();
         ConversationDeletion = _services.GetRequiredService<ConversationDeletionService>();
@@ -95,7 +95,7 @@ internal sealed class ChatHarness : IAsyncDisposable
 
     public Application.Summaries.SummaryDrafts Drafts { get; }
 
-    public Application.Network.NetworkService Network { get; }
+    public Application.SummaryNetwork.SummaryNetworkService SummaryNetwork { get; }
 
     public WorkspaceId Workspace { get; private set; }
 

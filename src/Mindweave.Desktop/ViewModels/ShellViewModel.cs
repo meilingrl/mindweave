@@ -16,7 +16,7 @@ public sealed partial class ShellViewModel : ViewModelBase
 {
     private readonly IWorkspaces _workspaces;
     private readonly LayoutPromptViewModel? _layoutPrompt;
-    private readonly Network.NetworkSessions? _networks;
+    private readonly SummaryNetwork.SummaryNetworkSessions? _summaryNetworks;
     private readonly ISidebarLayout? _sidebarLayout;
     private readonly IWorkspaceDeletionPrompt? _workspaceDeletion;
     private PageViewModel? _observedPage;
@@ -27,7 +27,7 @@ public sealed partial class ShellViewModel : ViewModelBase
         IWorkspaces workspaces,
         Conversations.ConversationListViewModel conversations,
         LayoutPromptViewModel? layoutPrompt = null,
-        Network.NetworkSessions? networks = null,
+        SummaryNetwork.SummaryNetworkSessions? summaryNetworks = null,
         ISidebarLayout? sidebarLayout = null,
         IWorkspaceDeletionPrompt? workspaceDeletion = null,
         WorkspaceNewsViewModel? workspaceNews = null,
@@ -36,7 +36,7 @@ public sealed partial class ShellViewModel : ViewModelBase
         WorkspaceNews = workspaceNews;
         _workspaceDeletion = workspaceDeletion;
         _layoutPrompt = layoutPrompt;
-        _networks = networks;
+        _summaryNetworks = summaryNetworks;
         _sidebarLayout = sidebarLayout;
         ArgumentNullException.ThrowIfNull(workbench);
         Workbench = workbench;
@@ -73,7 +73,7 @@ public sealed partial class ShellViewModel : ViewModelBase
 
     public bool IsExplore => Workbench.CurrentSection == MainSection.Explore;
 
-    public bool IsNetwork => Workbench.CurrentSection == MainSection.Network;
+    public bool IsSummaryNetwork => Workbench.CurrentSection == MainSection.SummaryNetwork;
 
     public bool IsSettings => Workbench.CurrentSection == MainSection.Settings;
 
@@ -217,9 +217,9 @@ public sealed partial class ShellViewModel : ViewModelBase
     private void ShowSection(MainSection section)
     {
         // Entering the network from its section entry fits everything into view; coming back from a summary does not.
-        if (section == MainSection.Network && Workbench.CurrentWorkspace is { } workspace && _networks is not null)
+        if (section == MainSection.SummaryNetwork && Workbench.CurrentWorkspace is { } workspace && _summaryNetworks is not null)
         {
-            _networks.Get(workspace.Id).Viewport = null;
+            _summaryNetworks.Get(workspace.Id).Viewport = null;
         }
 
         Workbench.Navigate(new NavigationRequest(section));
@@ -360,9 +360,9 @@ public sealed partial class ShellViewModel : ViewModelBase
         var current = Workbench.CurrentWorkspace;
         void Go()
         {
-            if (current is not null && _networks is not null)
+            if (current is not null && _summaryNetworks is not null)
             {
-                _networks.Get(current.Id).Viewport = null;
+                _summaryNetworks.Get(current.Id).Viewport = null;
             }
 
             switchTo();
@@ -423,7 +423,7 @@ public sealed partial class ShellViewModel : ViewModelBase
                 break;
             case nameof(Workbench.CurrentSection):
                 OnPropertyChanged(nameof(IsExplore));
-                OnPropertyChanged(nameof(IsNetwork));
+                OnPropertyChanged(nameof(IsSummaryNetwork));
                 OnPropertyChanged(nameof(IsSettings));
                 break;
             case nameof(Workbench.CanGoBack):

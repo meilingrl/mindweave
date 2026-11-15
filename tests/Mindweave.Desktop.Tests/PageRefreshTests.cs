@@ -32,7 +32,7 @@ public class PageRefreshTests
 
         app.ShellPage.ShowSectionCommand.Execute(MainSection.Explore);
         app.Client.Reply("答");
-        await NetworkScenario.AskAsync(app, app.Services.GetRequiredService<ConversationService>(), null, workspace.Id, "问");
+        await SummaryNetworkScenario.AskAsync(app, app.Services.GetRequiredService<ConversationService>(), null, workspace.Id, "问");
         app.ShellPage.ShowSectionCommand.Execute(MainSection.Settings);
         window.UpdateLayout();
 

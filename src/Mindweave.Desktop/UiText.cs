@@ -19,7 +19,7 @@ public static partial class UiText
     public const string Create = "创建";
     public const string Cancel = "取消";
     public const string SectionExplore = "探索";
-    public const string SectionNetwork = "总结网络";
+    public const string SectionSummaryNetwork = "总结网络";
     public const string SectionSettings = "设置";
     public const string ConversationsHeading = "会话";
     public const string Back = "后退";

@@ -1,6 +1,6 @@
 using Avalonia;
 using Avalonia.Media;
-using Mindweave.Desktop.Network;
+using Mindweave.Desktop.SummaryNetwork;
 using Mindweave.Desktop.ViewModels.Pages;
 
 namespace Mindweave.Desktop.Views.Pages;
@@ -9,7 +9,7 @@ namespace Mindweave.Desktop.Views.Pages;
 /// The network canvas's pure geometry: label size and placement, hit boxes, segment crossing, the decorative pull and
 /// fitting the view. No state; the canvas and the tests call the same functions.
 /// </summary>
-internal static class NetworkGeometry
+internal static class SummaryNetworkGeometry
 {
     /// <summary>Decorative pull towards the pointer: fixed at the sample's default 30% (1.5 px at most), drawing only.</summary>
     internal const double AttractionStrength = 0.3;
@@ -17,10 +17,10 @@ internal static class NetworkGeometry
     private const double AttractionReach = 90;
 
     /// <summary>
-    /// Label size: <see cref="NetworkLayout.LabelEm"/> × zoom, at most 13 px. A label is then never wider on screen than
+    /// Label size: <see cref="SummaryNetworkLayout.LabelEm"/> × zoom, at most 13 px. A label is then never wider on screen than
     /// the box the layout reserved for it (its estimated width × zoom), so the no-overlap guarantee holds as drawn.
     /// </summary>
-    internal static double LabelSize(double zoom) => Math.Min(NetworkCanvas.LabelMaxSize, NetworkLayout.LabelEm * zoom);
+    internal static double LabelSize(double zoom) => Math.Min(SummaryNetworkCanvas.LabelMaxSize, SummaryNetworkLayout.LabelEm * zoom);
 
     /// <summary>
     /// A node's hit box around its screen centre: from just left of the dot to the end of its label (only the dot when
@@ -30,17 +30,17 @@ internal static class NetworkGeometry
     internal static Rect HitBox(Point center, NodeView node, double zoom, bool labelVisible)
     {
         ArgumentNullException.ThrowIfNull(node);
-        var half = Math.Min(20, NetworkLayout.NodeHeight * zoom / 2);
-        var left = Math.Min(16, (NetworkLayout.NodeRadius + (NetworkLayout.LabelPadding / 2)) * zoom);
+        var half = Math.Min(20, SummaryNetworkLayout.NodeHeight * zoom / 2);
+        var left = Math.Min(16, (SummaryNetworkLayout.NodeRadius + (SummaryNetworkLayout.LabelPadding / 2)) * zoom);
         var right = labelVisible
             ? Math.Min(
-                RadiusOf(node) + NetworkLayout.LabelGap + (node.LabelWidth * LabelSize(zoom) / NetworkLayout.LabelEm) + 12,
-                (NetworkLayout.NodeRadius + NetworkLayout.LabelGap + node.LabelWidth + (NetworkLayout.LabelPadding / 2)) * zoom)
-            : Math.Min(RadiusOf(node) + 4, (NetworkLayout.NodeRadius + (NetworkLayout.LabelPadding / 2)) * zoom);
+                RadiusOf(node) + SummaryNetworkLayout.LabelGap + (node.LabelWidth * LabelSize(zoom) / SummaryNetworkLayout.LabelEm) + 12,
+                (SummaryNetworkLayout.NodeRadius + SummaryNetworkLayout.LabelGap + node.LabelWidth + (SummaryNetworkLayout.LabelPadding / 2)) * zoom)
+            : Math.Min(RadiusOf(node) + 4, (SummaryNetworkLayout.NodeRadius + (SummaryNetworkLayout.LabelPadding / 2)) * zoom);
         return new Rect(center.X - left, center.Y - half, left + right, 2 * half);
     }
 
-    internal static double RadiusOf(NodeView node) => node.IsRoot ? NetworkCanvas.RootRadius : NetworkCanvas.ChildRadius;
+    internal static double RadiusOf(NodeView node) => node.IsRoot ? SummaryNetworkCanvas.RootRadius : SummaryNetworkCanvas.ChildRadius;
 
     /// <summary>
     /// Where a label goes: to the right of the dot, level with it; lifted above (or dropped below) the dot when one of
@@ -49,7 +49,7 @@ internal static class NetworkGeometry
     internal static Point LabelOrigin(Point center, double radius, Size text, IEnumerable<Point> neighbours)
     {
         ArgumentNullException.ThrowIfNull(neighbours);
-        var x = center.X + radius + NetworkLayout.LabelGap;
+        var x = center.X + radius + SummaryNetworkLayout.LabelGap;
         var level = new Point(x, center.Y - 9);
         var others = neighbours.ToList();
         bool Clear(Point origin) => !others.Any(other => Crosses(center, other, new Rect(origin, text).Inflate(new Thickness(2, 0))));
@@ -139,10 +139,10 @@ internal static class NetworkGeometry
     {
         ArgumentNullException.ThrowIfNull(nodes);
         recommended ??= [];
-        const double left = NetworkCanvas.RootRadius + NetworkCanvas.HoverGrowth;
-        const double right = NetworkCanvas.RootRadius + NetworkCanvas.HoverGrowth + NetworkLayout.LabelGap;
-        const double top = NetworkCanvas.CaptionGap + 16;
-        const double bottom = NetworkCanvas.RootRadius + NetworkCanvas.HoverGrowth + 4;
+        const double left = SummaryNetworkCanvas.RootRadius + SummaryNetworkCanvas.HoverGrowth;
+        const double right = SummaryNetworkCanvas.RootRadius + SummaryNetworkCanvas.HoverGrowth + SummaryNetworkLayout.LabelGap;
+        const double top = SummaryNetworkCanvas.CaptionGap + 16;
+        const double bottom = SummaryNetworkCanvas.RootRadius + SummaryNetworkCanvas.HoverGrowth + 4;
         // Recommended nodes count too (§10.3.2: 显示全部 shows them), each with its tag and label.
         var minX = nodes.Select(n => n.X).Concat(recommended.Select(r => r.X)).Min();
         var maxX = nodes.Select(n => n.X + n.LabelWidth).Concat(recommended.Select(r => r.X + r.LabelWidth)).Max();

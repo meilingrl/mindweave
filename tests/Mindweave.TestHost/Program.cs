@@ -226,7 +226,7 @@ internal static class KillPoint
                 break;
             case "layout":
                 var workspace = WorkspaceId.Parse(ids[0]);
-                await new SqliteNetworkStore(database).SaveLayoutAsync(workspace, Layout(await NodesAsync(database, workspace)), at, none);
+                await new SqliteSummaryNetworkStore(database).SaveLayoutAsync(workspace, Layout(await NodesAsync(database, workspace)), at, none);
                 break;
             default:
                 throw new ArgumentException($"unknown operation {operation}", nameof(operation));

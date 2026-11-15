@@ -85,7 +85,7 @@ public class BackupRestoreUiTests
         Assert.Empty(Directory.GetFiles(app.Paths.DataDirectory, "mindweave.db.replaced-*"));
 
         // New work runs in the restored data.
-        var asked = await NetworkScenario.AskAsync(app, app.Services.GetRequiredService<ConversationService>(), null, seed.Workspace, "再问一个");
+        var asked = await SummaryNetworkScenario.AskAsync(app, app.Services.GetRequiredService<ConversationService>(), null, seed.Workspace, "再问一个");
         Assert.Contains(asked, await ConversationIdsAsync(app, seed.Workspace));
 
         UiInput.Click(window, Find<Button>(window, "CloseRestoreNoticeButton"));
@@ -428,12 +428,12 @@ public class BackupRestoreUiTests
         await app.ConfigureModelAsync();
         var conversations = app.Services.GetRequiredService<ConversationService>();
         var workspace = app.Workbench.CurrentWorkspace!.Id;
-        var kept = await NetworkScenario.AskAsync(app, conversations, null, workspace, "火车是怎么发明的？");
-        var deleted = await NetworkScenario.AskAsync(app, conversations, null, workspace, "铁轨用什么做？");
+        var kept = await SummaryNetworkScenario.AskAsync(app, conversations, null, workspace, "火车是怎么发明的？");
+        var deleted = await SummaryNetworkScenario.AskAsync(app, conversations, null, workspace, "铁轨用什么做？");
         var path = await app.Services.GetRequiredService<IDatabaseBackup>().BackupAsync(BackupReason.BeforeConversationDelete, CancellationToken.None);
         var deletion = app.Services.GetRequiredService<IConversationDeletion>();
         Assert.True((await deletion.DeleteAsync(await deletion.InspectAsync([deleted], CancellationToken.None), CancellationToken.None)).IsDeleted);
-        var later = await NetworkScenario.AskAsync(app, conversations, null, workspace, "高铁为什么快？");
+        var later = await SummaryNetworkScenario.AskAsync(app, conversations, null, workspace, "高铁为什么快？");
         var backup = Assert.Single(app.Services.GetRequiredService<IBackupFiles>().ListBackups(), b => b.Path == path);
         return new Seed(workspace, kept, deleted, later, backup);
     }

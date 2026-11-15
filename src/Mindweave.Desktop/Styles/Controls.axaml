@@ -209,12 +209,12 @@
   </Style>
   <!-- 推荐 (recommended network nodes, §10.3.2): the canvas's dashed ring colours, a dashed outline, the word itself. -->
   <Style Selector="Border.badge.recommended">
-    <Setter Property="Background" Value="{DynamicResource NetworkRecommendationFill}" />
-    <Setter Property="BorderBrush" Value="{DynamicResource NetworkRecommendation}" />
+    <Setter Property="Background" Value="{DynamicResource SummaryNetworkRecommendationFill}" />
+    <Setter Property="BorderBrush" Value="{DynamicResource SummaryNetworkRecommendation}" />
     <Setter Property="BorderThickness" Value="1" />
   </Style>
   <Style Selector="Border.badge.recommended > TextBlock">
-    <Setter Property="Foreground" Value="{DynamicResource NetworkRecommendation}" />
+    <Setter Property="Foreground" Value="{DynamicResource SummaryNetworkRecommendation}" />
     <Setter Property="FontWeight" Value="SemiBold" />
   </Style>
 

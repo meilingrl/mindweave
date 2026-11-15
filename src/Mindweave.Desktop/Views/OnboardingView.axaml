@@ -6,7 +6,7 @@
              x:DataType="vm:OnboardingViewModel">
   <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center" Width="380" Margin="0,0,0,40">
     <Border Width="44" Height="44" CornerRadius="12" HorizontalAlignment="Left" Background="{DynamicResource BadgeAccentBackground}">
-      <PathIcon Width="20" Height="20" Data="{StaticResource IconNetwork}" Foreground="{DynamicResource AccentBrush}" />
+      <PathIcon Width="20" Height="20" Data="{StaticResource IconSummaryNetwork}" Foreground="{DynamicResource AccentBrush}" />
     </Border>
     <TextBlock Classes="h1" Margin="0,18,0,6" Text="{x:Static d:UiText.OnboardingHeading}" />
     <TextBlock Classes="muted" TextWrapping="Wrap" Margin="0,0,0,22" Text="{x:Static d:UiText.OnboardingBody}" />

@@ -70,19 +70,19 @@ public class DuplicatePageDraftTests
         Assert.True(app.Workbench.CanGoBack);
     }
 
-    /// <summary>Review 2026-11-14: deleting a page opened in the Network section, with no page to fall back to, keeps the reader in Network.</summary>
+    /// <summary>Review 2026-11-14: deleting a page opened in the summary network section, with no page to fall back to, keeps the reader there.</summary>
     [AvaloniaFact]
     public async Task Forgetting_a_page_shown_in_network_stays_in_network()
     {
         await using var app = DesktopHarness.Create();
         app.ShowWindow();
         var (_, b) = await TwoConversationsAsync(app);
-        app.Workbench.Navigate(new NavigationRequest(MainSection.Network, new ConversationRoute(b)));
-        Assert.Equal(MainSection.Network, app.Workbench.CurrentSection);
+        app.Workbench.Navigate(new NavigationRequest(MainSection.SummaryNetwork, new ConversationRoute(b)));
+        Assert.Equal(MainSection.SummaryNetwork, app.Workbench.CurrentSection);
 
         app.Workbench.Forget(route => route is ConversationRoute r && r.Id == b);
 
-        Assert.Equal(MainSection.Network, app.Workbench.CurrentSection);
+        Assert.Equal(MainSection.SummaryNetwork, app.Workbench.CurrentSection);
         Assert.NotNull(app.Workbench.CurrentPage);
     }
 

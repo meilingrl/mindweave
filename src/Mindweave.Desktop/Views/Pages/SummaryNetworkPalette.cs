@@ -5,7 +5,7 @@ using Avalonia.Media;
 namespace Mindweave.Desktop.Views.Pages;
 
 /// <summary>The canvas colours of the current theme, all from the shared theme resources (D-022).</summary>
-internal sealed class NetworkPalette
+internal sealed class SummaryNetworkPalette
 {
     private readonly Dictionary<(EdgeState, bool), IPen> _edges = [];
     private readonly Dictionary<IBrush, IPen> _rings = [];
@@ -89,11 +89,11 @@ internal sealed class NetworkPalette
     /// <summary>Every theme resource the canvas draws with; both themes must define each one as a brush.</summary>
     public static IReadOnlyList<string> Keys { get; } =
     [
-        "NetworkBackground", "NetworkGridDot", "NetworkNode", "NetworkNodeRead", "NetworkNodeTrail", "NetworkNodeHover",
-        "NetworkUnreadDot", "NetworkHaloSelected", "NetworkHaloHover", "NetworkRingSelected", "NetworkRingMatch",
-        "NetworkLabel", "NetworkLabelRead", "NetworkLabelActive", "NetworkCaption", "NetworkEdge", "NetworkEdgeIndirect",
-        "NetworkEdgeNear", "NetworkEdgeTrail", "NetworkDragShadow", "NetworkDragGlow", "NetworkRecommendation",
-        "NetworkRecommendationFill",
+        "SummaryNetworkBackground", "SummaryNetworkGridDot", "SummaryNetworkNode", "SummaryNetworkNodeRead", "SummaryNetworkNodeTrail", "SummaryNetworkNodeHover",
+        "SummaryNetworkUnreadDot", "SummaryNetworkHaloSelected", "SummaryNetworkHaloHover", "SummaryNetworkRingSelected", "SummaryNetworkRingMatch",
+        "SummaryNetworkLabel", "SummaryNetworkLabelRead", "SummaryNetworkLabelActive", "SummaryNetworkCaption", "SummaryNetworkEdge", "SummaryNetworkEdgeIndirect",
+        "SummaryNetworkEdgeNear", "SummaryNetworkEdgeTrail", "SummaryNetworkDragShadow", "SummaryNetworkDragGlow", "SummaryNetworkRecommendation",
+        "SummaryNetworkRecommendationFill",
     ];
 
     /// <summary>The brush for a key in the control's current theme; null when the theme does not define it.</summary>
@@ -103,7 +103,7 @@ internal sealed class NetworkPalette
         return control.TryFindResource(key, control.ActualThemeVariant, out var value) ? value as IBrush : null;
     }
 
-    public static NetworkPalette From(Control control)
+    public static SummaryNetworkPalette From(Control control)
     {
         var brushes = Keys.ToDictionary(key => key, key =>
         {
@@ -117,31 +117,31 @@ internal sealed class NetworkPalette
             return Brushes.Gray;
         });
 
-        return new NetworkPalette
+        return new SummaryNetworkPalette
         {
-            Background = brushes["NetworkBackground"],
-            GridDot = brushes["NetworkGridDot"],
-            Node = brushes["NetworkNode"],
-            NodeRead = brushes["NetworkNodeRead"],
-            NodeTrail = brushes["NetworkNodeTrail"],
-            NodeHover = brushes["NetworkNodeHover"],
-            UnreadDot = brushes["NetworkUnreadDot"],
-            HaloSelected = brushes["NetworkHaloSelected"],
-            HaloHover = brushes["NetworkHaloHover"],
-            RingSelected = new Pen(brushes["NetworkRingSelected"], 2),
-            RingMatch = new Pen(brushes["NetworkRingMatch"], 2),
-            Label = brushes["NetworkLabel"],
-            LabelRead = brushes["NetworkLabelRead"],
-            LabelActive = brushes["NetworkLabelActive"],
-            Caption = brushes["NetworkCaption"],
-            Edge = brushes["NetworkEdge"],
-            EdgeIndirect = brushes["NetworkEdgeIndirect"],
-            EdgeNear = brushes["NetworkEdgeNear"],
-            EdgeTrail = brushes["NetworkEdgeTrail"],
-            DragShadow = brushes["NetworkDragShadow"],
-            DragGlow = brushes["NetworkDragGlow"],
-            Recommendation = brushes["NetworkRecommendation"],
-            RecommendationFill = brushes["NetworkRecommendationFill"],
+            Background = brushes["SummaryNetworkBackground"],
+            GridDot = brushes["SummaryNetworkGridDot"],
+            Node = brushes["SummaryNetworkNode"],
+            NodeRead = brushes["SummaryNetworkNodeRead"],
+            NodeTrail = brushes["SummaryNetworkNodeTrail"],
+            NodeHover = brushes["SummaryNetworkNodeHover"],
+            UnreadDot = brushes["SummaryNetworkUnreadDot"],
+            HaloSelected = brushes["SummaryNetworkHaloSelected"],
+            HaloHover = brushes["SummaryNetworkHaloHover"],
+            RingSelected = new Pen(brushes["SummaryNetworkRingSelected"], 2),
+            RingMatch = new Pen(brushes["SummaryNetworkRingMatch"], 2),
+            Label = brushes["SummaryNetworkLabel"],
+            LabelRead = brushes["SummaryNetworkLabelRead"],
+            LabelActive = brushes["SummaryNetworkLabelActive"],
+            Caption = brushes["SummaryNetworkCaption"],
+            Edge = brushes["SummaryNetworkEdge"],
+            EdgeIndirect = brushes["SummaryNetworkEdgeIndirect"],
+            EdgeNear = brushes["SummaryNetworkEdgeNear"],
+            EdgeTrail = brushes["SummaryNetworkEdgeTrail"],
+            DragShadow = brushes["SummaryNetworkDragShadow"],
+            DragGlow = brushes["SummaryNetworkDragGlow"],
+            Recommendation = brushes["SummaryNetworkRecommendation"],
+            RecommendationFill = brushes["SummaryNetworkRecommendationFill"],
         };
     }
 

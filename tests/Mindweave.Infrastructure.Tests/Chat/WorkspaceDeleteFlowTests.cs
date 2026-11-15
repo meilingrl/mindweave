@@ -312,7 +312,7 @@ internal static class WorkspaceSeed
         await h.SummarizeAsync(root);
         await h.SummaryNodes.SaveDraftAsync(new SummaryEditDraft(rootNode, current, "改过的标题", "改过的正文", DateTimeOffset.UtcNow), Ct);
         var childNode = await h.SummarizeAsync(child);
-        await h.Network.SaveLayoutAsync(workspace, new Dictionary<SummaryNodeId, NodePosition> { [rootNode] = new(10, 20), [childNode] = new(30, 40) }, Ct);
+        await h.SummaryNetwork.SaveLayoutAsync(workspace, new Dictionary<SummaryNodeId, NodePosition> { [rootNode] = new(10, 20), [childNode] = new(30, 40) }, Ct);
         await h.SettleAsync(root);
         await h.SettleAsync(child);
 

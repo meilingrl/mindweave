@@ -73,7 +73,7 @@ public sealed class Workbench : ObservableObject, IWorkbenchNavigator, IWorkspac
         }
         else if (restoring && SummaryRoute.FromKey(last!.ContentKey) is { } summary)
         {
-            Navigate(new NavigationRequest(MainSection.Network, summary));
+            Navigate(new NavigationRequest(MainSection.SummaryNetwork, summary));
         }
         else if (restoring && last!.ContentKey == ArchivedRoute.RouteKey)
         {

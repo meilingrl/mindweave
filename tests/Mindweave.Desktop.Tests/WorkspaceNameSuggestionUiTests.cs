@@ -36,7 +36,7 @@ public class WorkspaceNameSuggestionUiTests
     {
         await using var app = DesktopHarness.Create();
         var window = app.ShowWindow(1100, 720);
-        await NetworkScenario.SeedAsync(app);
+        await SummaryNetworkScenario.SeedAsync(app);
         var page = await OpenPageAsync(app, window);
         var row = page.Rows[0];
 
@@ -126,7 +126,7 @@ public class WorkspaceNameSuggestionUiTests
     {
         await using var app = DesktopHarness.Create();
         var window = app.ShowWindow(1100, 720);
-        await NetworkScenario.SeedAsync(app);
+        await SummaryNetworkScenario.SeedAsync(app);
         var page = await OpenPageAsync(app, window);
         var row = page.Rows[0];
         row.BeginRenameCommand.Execute(null);
@@ -178,7 +178,7 @@ public class WorkspaceNameSuggestionUiTests
     {
         await using var app = DesktopHarness.Create();
         var window = app.ShowWindow(1100, 720);
-        await NetworkScenario.SeedAsync(app);
+        await SummaryNetworkScenario.SeedAsync(app);
         var page = await OpenPageAsync(app, window);
         var row = page.Rows[0];
         row.BeginRenameCommand.Execute(null);
@@ -254,7 +254,7 @@ public class WorkspaceNameSuggestionUiTests
     {
         await using var app = DesktopHarness.Create();
         var window = app.ShowWindow(1100, 720);
-        await NetworkScenario.SeedAsync(app);
+        await SummaryNetworkScenario.SeedAsync(app);
         var page = await OpenPageAsync(app, window);
         var row = page.Rows[0];
         UiInput.Click(window, Rows<Button>(window, "RenameWorkspaceButton")[0]);
@@ -310,7 +310,7 @@ public class WorkspaceNameSuggestionUiTests
     {
         await using var app = DesktopHarness.Create();
         var window = app.ShowWindow(1100, 720);
-        await NetworkScenario.SeedAsync(app);
+        await SummaryNetworkScenario.SeedAsync(app);
         var workspace = app.Workbench.CurrentWorkspace!;
         var cache = app.Services.GetRequiredService<IWorkspaceNameCache>();
         await cache.SetAsync(workspace.Id, new PreparedNames([Name("火车的演进"), Name("火车"), Name("铁路技术史")], DateTimeOffset.UtcNow, 4), CancellationToken.None);
@@ -369,7 +369,7 @@ public class WorkspaceNameSuggestionUiTests
     {
         await using var app = DesktopHarness.Create();
         var window = app.ShowWindow(1100, 720);
-        await NetworkScenario.SeedAsync(app);
+        await SummaryNetworkScenario.SeedAsync(app);
         var page = await OpenPageAsync(app, window);
         var row = page.Rows[0];
         UiInput.Click(window, Rows<Button>(window, "RenameWorkspaceButton")[0]);
@@ -408,7 +408,7 @@ public class WorkspaceNameSuggestionUiTests
     {
         await using var app = DesktopHarness.Create();
         var window = app.ShowWindow(1100, 720);
-        await NetworkScenario.SeedAsync(app);
+        await SummaryNetworkScenario.SeedAsync(app);
         var generation = app.Services.GetRequiredService<GenerationCoordinator>();
         var page = await OpenPageAsync(app, window);
         var row = page.Rows[0];
@@ -469,7 +469,7 @@ public class WorkspaceNameSuggestionUiTests
     {
         await using var app = DesktopHarness.Create();
         var window = app.ShowWindow(1100, 720);
-        await NetworkScenario.SeedAsync(app);
+        await SummaryNetworkScenario.SeedAsync(app);
         var page = await OpenPageAsync(app, window);
         var row = page.Rows[0];
         row.BeginRenameCommand.Execute(null);
@@ -542,7 +542,7 @@ public class WorkspaceNameSuggestionUiTests
     {
         await using var app = DesktopHarness.Create(s => s.AddSingleton(new StorageHealthOptions { RetryInterval = TimeSpan.FromHours(1) }));
         var window = app.ShowWindow(1100, 720);
-        await NetworkScenario.SeedAsync(app);
+        await SummaryNetworkScenario.SeedAsync(app);
         var page = await OpenPageAsync(app, window);
         var row = page.Rows[0];
         app.Services.GetRequiredService<StorageHealth>().Report(new StorageWriteException(StorageFailureKind.Full, "disk full", null));
@@ -563,7 +563,7 @@ public class WorkspaceNameSuggestionUiTests
         var late = new LateSuggestions();
         await using var app = DesktopHarness.Create(s => s.AddSingleton<IWorkspaceNameSuggestions>(late));
         var window = app.ShowWindow(1100, 720);
-        await NetworkScenario.SeedAsync(app);
+        await SummaryNetworkScenario.SeedAsync(app);
         await WorkspaceSwitcherTests.AddAsync(app, "城市交通", "摄影史");
         var page = await OpenPageAsync(app, window);
         var (trains, city) = (page.Rows[0], page.Rows[1]);

@@ -6,7 +6,7 @@ using Avalonia.Media;
 using Avalonia.Threading;
 using Mindweave.Application.Recommendations;
 using Mindweave.Core.Summaries;
-using Mindweave.Desktop.Network;
+using Mindweave.Desktop.SummaryNetwork;
 using Mindweave.Desktop.ViewModels.Pages;
 
 namespace Mindweave.Desktop.Views.Pages;
@@ -14,13 +14,13 @@ namespace Mindweave.Desktop.Views.Pages;
 /// <summary>
 /// Draws the network and turns pointer input into selection, opening and viewport changes (architecture §11.1). All
 /// drawing uses one canvas → screen transform, so nodes and edges always agree. Positions are never changed here;
-/// the viewport lives in the workspace's <see cref="NetworkSession"/>. The look follows the confirmed network sample
+/// the viewport lives in the workspace's <see cref="SummaryNetworkSession"/>. The look follows the confirmed network sample
 /// (S7): dot grid, labels to the right, hover halo, the selected node's source trail, search rings. Every colour is a
 /// theme resource, read again when the theme changes.
 /// </summary>
-public sealed class NetworkCanvas : Control
+public sealed class SummaryNetworkCanvas : Control
 {
-    public const double RootRadius = NetworkLayout.NodeRadius;
+    public const double RootRadius = SummaryNetworkLayout.NodeRadius;
     public const double ChildRadius = 7;
     public const double HoverGrowth = 2;
 
@@ -66,8 +66,8 @@ public sealed class NetworkCanvas : Control
 
     private readonly Dictionary<SummaryNodeId, Vector> _offsets = [];
     private readonly DispatcherTimer _motion;
-    private NetworkHomeViewModel? _page;
-    private NetworkPalette? _palette;
+    private SummaryNetworkHomeViewModel? _page;
+    private SummaryNetworkPalette? _palette;
     private Point? _panFrom;
     private Viewport _panStart;
     private bool _dragged;
@@ -77,7 +77,7 @@ public sealed class NetworkCanvas : Control
     private Vector _grab;
     private (double X, double Y) _dragAt;
 
-    public NetworkCanvas()
+    public SummaryNetworkCanvas()
     {
         ClipToBounds = true;
         Focusable = true;
@@ -115,7 +115,7 @@ public sealed class NetworkCanvas : Control
             _page.ZoomRequested -= OnZoomRequested;
         }
 
-        _page = DataContext as NetworkHomeViewModel;
+        _page = DataContext as SummaryNetworkHomeViewModel;
         if (_page is not null)
         {
             _page.ViewChanged += OnViewChanged;
@@ -172,7 +172,7 @@ public sealed class NetworkCanvas : Control
         var zoom = Current.Zoom;
         foreach (var node in _page.Nodes.Reverse())
         {
-            if (NetworkGeometry.HitBox(ScreenOf(node), node, zoom, IsLabelVisible(node, zoom)).Contains(screen))
+            if (SummaryNetworkGeometry.HitBox(ScreenOf(node), node, zoom, IsLabelVisible(node, zoom)).Contains(screen))
             {
                 return node;
             }
@@ -196,9 +196,9 @@ public sealed class NetworkCanvas : Control
             return [];
         }
 
-        var palette = _palette ??= NetworkPalette.From(this);
+        var palette = _palette ??= SummaryNetworkPalette.From(this);
         var zoom = Current.Zoom;
-        var size = NetworkGeometry.LabelSize(zoom);
+        var size = SummaryNetworkGeometry.LabelSize(zoom);
         var nodes = _page.Nodes.ToDictionary(n => n.Id);
         var selected = _page.SelectedRecommendation?.Id;
         return [.. _page.RecommendedNodes.Select(node =>
@@ -210,7 +210,7 @@ public sealed class NetworkCanvas : Control
             var radius = ChildRadius + (hovered ? HoverGrowth : 0);
             var tagSize = Math.Max(9, Math.Min(11, size * 0.85));
             var tag = Text(UiText.RecommendedTag, tagSize, palette.Recommendation, FontWeight.SemiBold);
-            var tagOrigin = new Point(center.X + radius + NetworkLayout.LabelGap + 3, center.Y - (tag.Height / 2));
+            var tagOrigin = new Point(center.X + radius + SummaryNetworkLayout.LabelGap + 3, center.Y - (tag.Height / 2));
             var tagBounds = new Rect(tagOrigin, new Size(tag.Width, tag.Height)).Inflate(new Thickness(3, 0));
             var visible = zoom > LabelHideScale || isSelected || hovered;
             var labelSize = zoom > LabelHideScale ? size : Math.Max(size, FocusedLabelMinSize);
@@ -238,9 +238,9 @@ public sealed class NetworkCanvas : Control
             return [];
         }
 
-        var palette = _palette ??= NetworkPalette.From(this);
+        var palette = _palette ??= SummaryNetworkPalette.From(this);
         var zoom = Current.Zoom;
-        var size = NetworkGeometry.LabelSize(zoom);
+        var size = SummaryNetworkGeometry.LabelSize(zoom);
         var drawn = _page.Nodes.ToDictionary(n => n.Id, n => ScreenOf(n) + _offsets.GetValueOrDefault(n.Id));
         var incident = _page.Edges.SelectMany(e => new[] { (Node: e.From, Other: e.To), (Node: e.To, Other: e.From) })
             .Where(x => drawn.ContainsKey(x.Other)).ToLookup(x => x.Node, x => drawn[x.Other]);
@@ -253,15 +253,15 @@ public sealed class NetworkCanvas : Control
             var lifted = node.Id == Dragging;
             var isSelected = node.Id == selected;
             var matched = matches.Contains(node.Id);
-            var radius = NetworkGeometry.RadiusOf(node) + (hovered || lifted ? HoverGrowth : 0);
+            var radius = SummaryNetworkGeometry.RadiusOf(node) + (hovered || lifted ? HoverGrowth : 0);
             var center = drawn[node.Id];
             var ring = isSelected ? NodeRing.Selected : matched ? NodeRing.Match : NodeRing.None;
-            var label = NetworkLayout.Label(node.ShortTitle, node.HasCandidate);
+            var label = SummaryNetworkLayout.Label(node.ShortTitle, node.HasCandidate);
             var visible = IsLabelVisible(node, zoom);
             var labelSize = zoom > LabelHideScale ? size : Math.Max(size, FocusedLabelMinSize);
             var brush = hovered || isSelected ? palette.LabelActive : !node.Unread ? palette.LabelRead : palette.Label;
             var text = visible ? Text(label, labelSize, brush, node.Unread ? FontWeight.SemiBold : FontWeight.Normal) : null;
-            var origin = text is null ? default : NetworkGeometry.LabelOrigin(center, radius, new Size(text.Width, text.Height), incident[node.Id]);
+            var origin = text is null ? default : SummaryNetworkGeometry.LabelOrigin(center, radius, new Size(text.Width, text.Height), incident[node.Id]);
             return new NodePaint(
                 node,
                 center,
@@ -320,7 +320,7 @@ public sealed class NetworkCanvas : Control
             return [];
         }
 
-        var palette = _palette ??= NetworkPalette.From(this);
+        var palette = _palette ??= SummaryNetworkPalette.From(this);
         var nodes = _page.Nodes.ToDictionary(n => n.Id);
         var result = new List<CaptionPaint>();
         foreach (var caption in _page.Captions)
@@ -332,7 +332,7 @@ public sealed class NetworkCanvas : Control
             }
 
             var text = Text(caption.Text, CaptionSize, palette.Caption);
-            var left = members.Min(m => m.At.X - NetworkGeometry.RadiusOf(m.Node));
+            var left = members.Min(m => m.At.X - SummaryNetworkGeometry.RadiusOf(m.Node));
             var top = members.Min(m => m.At.Y);
             result.Add(new CaptionPaint(caption, text, new Point(left, top - CaptionGap - text.Height)));
         }
@@ -343,7 +343,7 @@ public sealed class NetworkCanvas : Control
     public override void Render(DrawingContext context)
     {
         ArgumentNullException.ThrowIfNull(context);
-        var palette = _palette ??= NetworkPalette.From(this);
+        var palette = _palette ??= SummaryNetworkPalette.From(this);
         context.FillRectangle(palette.Background, new Rect(Bounds.Size));
         DrawGrid(context, palette);
         if (_page is null || _page.Nodes.Count == 0)
@@ -405,7 +405,7 @@ public sealed class NetworkCanvas : Control
         }
     }
 
-    private static void DrawRecommendation(DrawingContext context, NetworkPalette palette, RecommendationPaint item)
+    private static void DrawRecommendation(DrawingContext context, SummaryNetworkPalette palette, RecommendationPaint item)
     {
         var p = item.Center;
         var r = item.Radius;
@@ -434,7 +434,7 @@ public sealed class NetworkCanvas : Control
         }
     }
 
-    private static void DrawEdge(DrawingContext context, NetworkPalette palette, EdgePaint edge)
+    private static void DrawEdge(DrawingContext context, SummaryNetworkPalette palette, EdgePaint edge)
     {
         context.DrawLine(palette.EdgePen(edge.State, edge.Dashed), edge.From, edge.To);
         if (edge.Label is not { } via)
@@ -444,10 +444,10 @@ public sealed class NetworkCanvas : Control
 
         var brush = !edge.LabelEmphasized ? palette.Caption : edge.State == EdgeState.Trail ? palette.EdgeTrail : palette.EdgeNear;
         var text = Text(via, edge.LabelEmphasized ? EdgeLabelEmphasizedSize : EdgeLabelSize, brush);
-        context.DrawText(text, NetworkGeometry.EdgeLabelOrigin(edge, text));
+        context.DrawText(text, SummaryNetworkGeometry.EdgeLabelOrigin(edge, text));
     }
 
-    private void DrawGrid(DrawingContext context, NetworkPalette palette)
+    private void DrawGrid(DrawingContext context, SummaryNetworkPalette palette)
     {
         // Dots every 28 screen px; the grid pans with the view but its spacing does not scale.
         var origin = _page is { Nodes.Count: > 0 } ? ToScreen(0, 0) : default;
@@ -462,7 +462,7 @@ public sealed class NetworkCanvas : Control
         }
     }
 
-    private static void DrawNode(DrawingContext context, NetworkPalette palette, NodePaint node)
+    private static void DrawNode(DrawingContext context, SummaryNetworkPalette palette, NodePaint node)
     {
         var p = node.Center;
         var r = node.Radius;
@@ -788,7 +788,7 @@ public sealed class NetworkCanvas : Control
         foreach (var node in _page.Nodes)
         {
             // The dragged node sits exactly under the pointer; no pull on it.
-            var target = node.Id == Dragging ? default : NetworkGeometry.Attraction(ScreenOf(node), _pointer);
+            var target = node.Id == Dragging ? default : SummaryNetworkGeometry.Attraction(ScreenOf(node), _pointer);
             var now = _offsets.GetValueOrDefault(node.Id);
             var next = now + ((target - now) * 0.18);
             if (Math.Abs(next.X - target.X) + Math.Abs(next.Y - target.Y) < 0.02)
@@ -830,7 +830,7 @@ public sealed class NetworkCanvas : Control
             return new Viewport(0, 0, 1);
         }
 
-        var fitted = NetworkGeometry.FitTo(_page.Nodes, Bounds.Size, _page.RecommendedNodes);
+        var fitted = SummaryNetworkGeometry.FitTo(_page.Nodes, Bounds.Size, _page.RecommendedNodes);
         _page.Session.Viewport = fitted;
         return fitted;
     }

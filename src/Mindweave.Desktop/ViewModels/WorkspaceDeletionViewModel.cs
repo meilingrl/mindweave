@@ -6,7 +6,7 @@ using Mindweave.Application.Storage;
 using Mindweave.Application.Workspaces;
 using Mindweave.Core.Workspaces;
 using Mindweave.Desktop.Navigation;
-using Mindweave.Desktop.Network;
+using Mindweave.Desktop.SummaryNetwork;
 using Mindweave.Desktop.Services;
 
 namespace Mindweave.Desktop.ViewModels;
@@ -36,19 +36,19 @@ public sealed partial class WorkspaceDeletionViewModel : ViewModelBase
     private readonly IWorkspaceDeletion _deletion;
     private readonly IConversations _conversations;
     private readonly Workbench _workbench;
-    private readonly NetworkSessions _networks;
+    private readonly SummaryNetworkSessions _summaryNetworks;
     private readonly UiThrottle _recheck;
     private readonly SerialRefresh _rechecks;
     private volatile bool _watching;
 
-    public WorkspaceDeletionViewModel(IWorkspaceDeletion deletion, IConversations conversations, Workbench workbench, NetworkSessions networks, WorkspaceDeletionRequests requests, IUiDispatcher dispatcher)
+    public WorkspaceDeletionViewModel(IWorkspaceDeletion deletion, IConversations conversations, Workbench workbench, SummaryNetworkSessions summaryNetworks, WorkspaceDeletionRequests requests, IUiDispatcher dispatcher)
     {
         ArgumentNullException.ThrowIfNull(requests);
         ArgumentNullException.ThrowIfNull(conversations);
         _deletion = deletion;
         _conversations = conversations;
         _workbench = workbench;
-        _networks = networks;
+        _summaryNetworks = summaryNetworks;
         requests.Requested += (_, workspace) => Open(workspace);
 
         // While the dialog is open, an answer or summary starting or finishing re-checks what runs (round 4 review):
@@ -257,7 +257,7 @@ public sealed partial class WorkspaceDeletionViewModel : ViewModelBase
     private void Leave(WorkspaceId deleted, WorkspaceId? next)
     {
         _workbench.RemoveWorkspace(deleted, next);
-        _networks.Remove(deleted);
+        _summaryNetworks.Remove(deleted);
         if (_workbench.Workspaces.Count == 0)
         {
             NoWorkspaceLeft?.Invoke(this, EventArgs.Empty);

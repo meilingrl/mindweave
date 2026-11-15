@@ -16,7 +16,7 @@ namespace Mindweave.Desktop.Tests;
 /// A seeded workspace for the knowledge-network UI tests: summarized conversations made through the services, and the
 /// network page opened in a shown window.
 /// </summary>
-internal static class NetworkScenario
+internal static class SummaryNetworkScenario
 {
     /// <summary>Root "火车" summarized; a branch without a summary; its branch summarized; a sibling summarized.</summary>
     internal static async Task SeedAsync(DesktopHarness app)
@@ -55,10 +55,10 @@ internal static class NetworkScenario
         return await AskAsync(app, conversations, branch.Child, default, question);
     }
 
-    internal static async Task<NetworkHomeViewModel> OpenNetworkAsync(DesktopHarness app, MainWindow window)
+    internal static async Task<SummaryNetworkHomeViewModel> OpenSummaryNetworkAsync(DesktopHarness app, MainWindow window)
     {
-        app.ShellPage.ShowSectionCommand.Execute(MainSection.Network);
-        var network = Assert.IsType<NetworkHomeViewModel>(app.Workbench.CurrentPage);
+        app.ShellPage.ShowSectionCommand.Execute(MainSection.SummaryNetwork);
+        var network = Assert.IsType<SummaryNetworkHomeViewModel>(app.Workbench.CurrentPage);
         await network.Loaded;
         await UiWait.UntilAsync(() => network.Nodes.Count > 0);
         window.UpdateLayout();
@@ -66,7 +66,7 @@ internal static class NetworkScenario
     }
 
     /// <summary>Moves a saved position away so that "arrange" visibly changes the layout.</summary>
-    internal static async Task MoveSomethingAsync(DesktopHarness app, NetworkHomeViewModel network)
+    internal static async Task MoveSomethingAsync(DesktopHarness app, SummaryNetworkHomeViewModel network)
     {
         var node = network.Nodes[0];
         await app.Services.GetRequiredService<SqliteDatabase>().WriteAsync(

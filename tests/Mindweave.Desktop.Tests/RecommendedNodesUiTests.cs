@@ -12,7 +12,7 @@ using Mindweave.Application.Recommendations;
 using Mindweave.Application.Storage;
 using Mindweave.Core.Conversations;
 using Mindweave.Desktop.Navigation;
-using Mindweave.Desktop.Network;
+using Mindweave.Desktop.SummaryNetwork;
 using Mindweave.Desktop.ViewModels.Conversations;
 using Mindweave.Desktop.ViewModels.Pages;
 using Mindweave.Desktop.Views;
@@ -40,8 +40,8 @@ public class RecommendedNodesUiTests
     {
         await using var app = DesktopHarness.Create();
         var window = app.ShowWindow(1100, 720);
-        await NetworkScenario.SeedAsync(app);
-        var network = await NetworkScenario.OpenNetworkAsync(app, window);
+        await SummaryNetworkScenario.SeedAsync(app);
+        var network = await SummaryNetworkScenario.OpenSummaryNetworkAsync(app, window);
         var layoutRows = await LayoutRowsAsync(app);
         var revision = network.Session.Revision;
         Assert.Empty(network.RecommendedNodes);
@@ -69,7 +69,7 @@ public class RecommendedNodesUiTests
         Assert.Equal(canvas.PaintNodes().Single(p => p.Node.Id == node.Basis).Center, paint.Basis);
         Assert.True(paint.TagBounds.Width > 0);
         Assert.NotNull(paint.Text);
-        var palette = NetworkPalette.From(canvas);
+        var palette = SummaryNetworkPalette.From(canvas);
         Assert.NotNull(palette.RecommendationRing(false).DashStyle);
         var link = palette.RecommendationLink(false);
         Assert.Equal(PenLineCap.Round, link.LineCap);
@@ -111,8 +111,8 @@ public class RecommendedNodesUiTests
     {
         await using var app = DesktopHarness.Create();
         var window = app.ShowWindow(1100, 720);
-        await NetworkScenario.SeedAsync(app);
-        var network = await NetworkScenario.OpenNetworkAsync(app, window);
+        await SummaryNetworkScenario.SeedAsync(app);
+        var network = await SummaryNetworkScenario.OpenSummaryNetworkAsync(app, window);
         await PrepareAsync(app, network, window);
         var unread = network.Nodes.ToDictionary(n => n.Id, n => n.Unread);
         var canvas = CanvasOf(window);
@@ -150,8 +150,8 @@ public class RecommendedNodesUiTests
     {
         await using var app = DesktopHarness.Create();
         var window = app.ShowWindow(1100, 720);
-        await NetworkScenario.SeedAsync(app);
-        var network = await NetworkScenario.OpenNetworkAsync(app, window);
+        await SummaryNetworkScenario.SeedAsync(app);
+        var network = await SummaryNetworkScenario.OpenSummaryNetworkAsync(app, window);
         await PrepareAsync(app, network, window);
         var workspace = app.Workbench.CurrentWorkspace!.Id;
         var conversations = app.Services.GetRequiredService<IConversations>();
@@ -191,7 +191,7 @@ public class RecommendedNodesUiTests
 
         // Gone from the network, and its slot is not filled by itself.
         await UiWait.UntilAsync(() => network.RecommendedNodes.Count == 0);
-        app.ShellPage.ShowSectionCommand.Execute(MainSection.Network);
+        app.ShellPage.ShowSectionCommand.Execute(MainSection.SummaryNetwork);
         app.PreparationTime.Advance(TimeSpan.FromSeconds(1));
         await app.Services.GetRequiredService<RecommendationService>().SettledAsync();
         Assert.Single(app.Client.Requests, FakeChatClient.IsNodeRecommendation);
@@ -204,8 +204,8 @@ public class RecommendedNodesUiTests
     {
         await using var app = DesktopHarness.Create();
         var window = app.ShowWindow(1100, 720);
-        await NetworkScenario.SeedAsync(app);
-        var network = await NetworkScenario.OpenNetworkAsync(app, window);
+        await SummaryNetworkScenario.SeedAsync(app);
+        var network = await SummaryNetworkScenario.OpenSummaryNetworkAsync(app, window);
         await PrepareAsync(app, network, window);
         network.SelectRecommendation(network.RecommendedNodes[0]);
         window.UpdateLayout();
@@ -235,8 +235,8 @@ public class RecommendedNodesUiTests
     {
         await using var app = DesktopHarness.Create();
         var window = app.ShowWindow(1100, 720);
-        await NetworkScenario.SeedAsync(app);
-        var network = await NetworkScenario.OpenNetworkAsync(app, window);
+        await SummaryNetworkScenario.SeedAsync(app);
+        var network = await SummaryNetworkScenario.OpenSummaryNetworkAsync(app, window);
         await PrepareAsync(app, network, window);
         network.SelectRecommendation(network.RecommendedNodes[0]);
 
@@ -256,7 +256,7 @@ public class RecommendedNodesUiTests
         // While hidden, its basis summary goes: nothing is prepared for the free slot.
         var basis = (await store.ListAsync(workspace, RecommendationKind.Node, CancellationToken.None))[0].Basis!.Value;
         await DeleteSummaryAsync(app, basis);
-        app.Services.GetRequiredService<IRecommendations>().NetworkOpened(workspace);
+        app.Services.GetRequiredService<IRecommendations>().SummaryNetworkOpened(workspace);
         app.PreparationTime.Advance(TimeSpan.FromSeconds(1));
         await app.Services.GetRequiredService<RecommendationService>().SettledAsync();
         Assert.Single(app.Client.Requests, FakeChatClient.IsNodeRecommendation);
@@ -265,7 +265,7 @@ public class RecommendedNodesUiTests
         window.Close();
         await app.RestartAsync();
         window = app.ShowWindow(1100, 720);
-        network = await NetworkScenario.OpenNetworkAsync(app, window);
+        network = await SummaryNetworkScenario.OpenSummaryNetworkAsync(app, window);
         Assert.True(network.RecommendationsHidden);
         Assert.Equal(UiText.ShowRecommendedNodes, network.ToggleRecommendationsLabel);
         app.PreparationTime.Advance(TimeSpan.FromSeconds(1));
@@ -285,8 +285,8 @@ public class RecommendedNodesUiTests
     {
         await using var app = DesktopHarness.Create();
         var window = app.ShowWindow(1100, 720);
-        await NetworkScenario.SeedAsync(app);
-        var network = await NetworkScenario.OpenNetworkAsync(app, window);
+        await SummaryNetworkScenario.SeedAsync(app);
+        var network = await SummaryNetworkScenario.OpenSummaryNetworkAsync(app, window);
         await PrepareAsync(app, network, window);
         network.ToggleViewCommand.Execute(null);
         window.UpdateLayout();
@@ -318,9 +318,9 @@ public class RecommendedNodesUiTests
     {
         await using var app = DesktopHarness.Create();
         var window = app.ShowWindow(1100, 720);
-        await NetworkScenario.SeedAsync(app);
+        await SummaryNetworkScenario.SeedAsync(app);
         app.Client.NodeRecommendations.FailNext(GenerationErrorKind.Network);
-        var network = await NetworkScenario.OpenNetworkAsync(app, window);
+        var network = await SummaryNetworkScenario.OpenSummaryNetworkAsync(app, window);
         var service = app.Services.GetRequiredService<RecommendationService>();
         await UiWait.UntilAsync(() => service.IsWaiting(network.Workspace.Id, RecommendationKind.Node));
         app.PreparationTime.Advance(TimeSpan.FromSeconds(1));
@@ -358,7 +358,7 @@ public class RecommendedNodesUiTests
     }
 
     /// <summary>The network's background look runs (on the standing clock) and its node is drawn.</summary>
-    internal static async Task PrepareAsync(DesktopHarness app, NetworkHomeViewModel network, Window window, int expected = 1)
+    internal static async Task PrepareAsync(DesktopHarness app, SummaryNetworkHomeViewModel network, Window window, int expected = 1)
     {
         var service = app.Services.GetRequiredService<RecommendationService>();
         await UiWait.UntilAsync(() => service.IsWaiting(network.Workspace.Id, RecommendationKind.Node));

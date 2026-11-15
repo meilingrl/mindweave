@@ -241,7 +241,7 @@ public class RecommendationTests
         h.Recommendations.NewExplorationOpened(h.Workspace);
         await h.RecommendationStore.RemovePendingAsync(h.Workspace, RecommendationKind.Node, [.. nodes.Items.Select(i => i.Id)], Ct);
         await h.Database.WriteAsync((c, t) => c.Execute(t, "DELETE FROM app_state WHERE key LIKE '%recommend.nodes.plan:%';"), Ct);
-        h.Recommendations.NetworkOpened(h.Workspace);
+        h.Recommendations.SummaryNetworkOpened(h.Workspace);
         await AdvanceAsync(h, Delay);
         Assert.Equal(0, Volatile.Read(ref changes));
         Assert.Equal(2, Requests(h));

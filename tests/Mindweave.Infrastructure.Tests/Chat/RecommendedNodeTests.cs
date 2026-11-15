@@ -331,7 +331,7 @@ public class RecommendedNodeTests
     /// <summary>The network opened (or its summaries changed): the standing clock moves past the wait, and what started ends.</summary>
     private static async Task OpenAsync(ChatHarness h)
     {
-        h.Recommendations.NetworkOpened(h.Workspace);
+        h.Recommendations.SummaryNetworkOpened(h.Workspace);
         await AdvanceAsync(h, Delay);
     }
 

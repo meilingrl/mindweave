@@ -111,10 +111,10 @@ public class ThemeTests
 
         var window = new Window { RequestedThemeVariant = ThemeVariant.Dark };
         window.Show();
-        Assert.Equal(Color.Parse("#18191B"), Brush(window, "NetworkBackground"));
-        Assert.Equal(Color.Parse("#B4BACD"), Brush(window, "NetworkNode"));
+        Assert.Equal(Color.Parse("#18191B"), Brush(window, "SummaryNetworkBackground"));
+        Assert.Equal(Color.Parse("#B4BACD"), Brush(window, "SummaryNetworkNode"));
         window.RequestedThemeVariant = ThemeVariant.Light;
-        Assert.Equal(Color.Parse("#4B6BFB"), Brush(window, "NetworkNode"));
+        Assert.Equal(Color.Parse("#4B6BFB"), Brush(window, "SummaryNetworkNode"));
         window.Close();
     }
 

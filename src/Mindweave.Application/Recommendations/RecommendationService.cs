@@ -97,7 +97,7 @@ public interface IRecommendations
     /// The network was opened or its summaries changed: when §10.3.2's rules call for it, new nodes are prepared in the
     /// background shortly after; a drop below a tier removes the extra ones (no request). Nothing else is asked.
     /// </summary>
-    void NetworkOpened(WorkspaceId workspace);
+    void SummaryNetworkOpened(WorkspaceId workspace);
 
     /// <summary>换一批推荐 (or 重试): replaces the shown nodes with as many as the tier allows. Never throws for a refused or failed request.</summary>
     Task<RecommendationOutcome> RefreshNodesAsync(WorkspaceId workspace, CancellationToken cancellationToken);

@@ -76,9 +76,9 @@ public class ViewTests
         Assert.Single(window.GetVisualDescendants().OfType<SettingsHomeView>());
         Assert.False(Find<Button>(window, "BackButton").IsVisible);
 
-        Invoke(window, "NavNetwork");
-        Assert.Single(window.GetVisualDescendants().OfType<NetworkHomeView>());
-        Assert.Equal(MainSection.Network, app.Workbench.CurrentSection);
+        Invoke(window, "NavSummaryNetwork");
+        Assert.Single(window.GetVisualDescendants().OfType<SummaryNetworkHomeView>());
+        Assert.Equal(MainSection.SummaryNetwork, app.Workbench.CurrentSection);
         window.Close();
     }
 

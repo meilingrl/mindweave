@@ -5,8 +5,8 @@ namespace Mindweave.Desktop;
 // The summary network (S7): layout, the graph and list views, markers and source paths.
 public static partial class UiText
 {
-    public const string NetworkTitle = "总结网络";
-    public const string NetworkEmpty = "还没有总结。在会话中点“总结此会话”即可生成。";
+    public const string SummaryNetworkTitle = "总结网络";
+    public const string SummaryNetworkEmpty = "还没有总结。在会话中点“总结此会话”即可生成。";
     public const string LayoutUnsavedTitle = "布局还没有保存";
     public const string LayoutUnsavedBody = "不保存不会丢失会话或总结，下次按上次保存的位置显示。";
     public const string LayoutSaveAndContinue = "保存并继续";
@@ -23,9 +23,9 @@ public static partial class UiText
     public const string GraphView = "网络图";
     public const string WheelZooms = "鼠标滚轮直接缩放";
     public const string OpenSummary = "打开总结";
-    public const string NetworkSelectHint = "单击查看详情，双击打开总结。";
+    public const string SummaryNetworkSelectHint = "单击查看详情，双击打开总结。";
 
-    // Network page and markers (S7)
+    // Summary network page and markers (S7)
     public const string SaveLayoutUnsaved = "保存布局（未保存）";
     public const string LayoutSaved = "布局已保存";
     public const string MarkerRead = "已读";

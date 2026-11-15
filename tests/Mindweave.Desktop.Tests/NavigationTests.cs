@@ -83,15 +83,15 @@ public class NavigationTests
         Assert.NotEqual(first.Id, second.Id);
         Assert.False(shell.IsCreatingWorkspace);
         Assert.True(shell.IsExplore);
-        shell.ShowSectionCommand.Execute(MainSection.Network);
+        shell.ShowSectionCommand.Execute(MainSection.SummaryNetwork);
 
         shell.SelectedWorkspace = first;
         Assert.True(shell.IsSettings);
         Assert.IsType<StorageDetailsViewModel>(shell.CurrentPage);
 
         shell.SelectedWorkspace = second;
-        Assert.True(shell.IsNetwork);
-        Assert.Equal(second, Assert.IsType<NetworkHomeViewModel>(shell.CurrentPage).Workspace);
+        Assert.True(shell.IsSummaryNetwork);
+        Assert.Equal(second, Assert.IsType<SummaryNetworkHomeViewModel>(shell.CurrentPage).Workspace);
     }
 
     [AvaloniaFact]

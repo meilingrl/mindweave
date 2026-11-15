@@ -1,5 +1,5 @@
 using Mindweave.Application.Storage;
-using Mindweave.Desktop.Network;
+using Mindweave.Desktop.SummaryNetwork;
 
 namespace Mindweave.Desktop.Tests;
 

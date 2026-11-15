@@ -1,11 +1,11 @@
 using CommunityToolkit.Mvvm.ComponentModel;
-using Mindweave.Application.Network;
+using Mindweave.Application.SummaryNetwork;
 using Mindweave.Application.Storage;
 using Mindweave.Core.Summaries;
 using Mindweave.Core.Workspaces;
 using Mindweave.Desktop.Services;
 
-namespace Mindweave.Desktop.Network;
+namespace Mindweave.Desktop.SummaryNetwork;
 
 /// <summary>The part of the canvas in view: centre in canvas coordinates and zoom. Never stored (architecture §11.3).</summary>
 public readonly record struct Viewport(double CenterX, double CenterY, double Zoom)
@@ -24,22 +24,22 @@ public readonly record struct Viewport(double CenterX, double CenterY, double Zo
 /// saved one row at a time and never mark the layout as unsaved (U3); "arrange" does, and an explicit save writes a
 /// snapshot of one revision in one transaction.
 /// </summary>
-public sealed partial class NetworkSession : ObservableObject
+public sealed partial class SummaryNetworkSession : ObservableObject
 {
-    private readonly INetworkLayout _network;
+    private readonly ISummaryNetworkLayout _summarySummaryNetwork;
     private Dictionary<SummaryNodeId, NodePosition> _positions = [];
     private long _revision;
     private bool _loaded;
 
-    public NetworkSession(WorkspaceId workspace, INetworkLayout network)
+    public SummaryNetworkSession(WorkspaceId workspace, ISummaryNetworkLayout network)
     {
         Workspace = workspace;
-        _network = network;
+        _summarySummaryNetwork = network;
     }
 
     public WorkspaceId Workspace { get; }
 
-    public NetworkProjection Projection { get; private set; } = new([], []);
+    public SummaryNetworkProjection Projection { get; private set; } = new([], []);
 
     public IReadOnlyDictionary<SummaryNodeId, NodePosition> Positions => _positions;
 
@@ -74,8 +74,8 @@ public sealed partial class NetworkSession : ObservableObject
     /// </summary>
     public async Task LoadAsync(CancellationToken cancellationToken)
     {
-        var projection = await _network.ProjectAsync(Workspace, cancellationToken);
-        var saved = await _network.GetLayoutAsync(Workspace, cancellationToken);
+        var projection = await _summarySummaryNetwork.ProjectAsync(Workspace, cancellationToken);
+        var saved = await _summarySummaryNetwork.GetLayoutAsync(Workspace, cancellationToken);
         var nodes = LayoutNodes(projection);
         var ids = projection.Nodes.Select(n => n.Id).ToHashSet();
 
@@ -91,7 +91,7 @@ public sealed partial class NetworkSession : ObservableObject
             reference[id] = position;
         }
 
-        var added = NetworkLayout.PlaceNew(nodes, reference);
+        var added = SummaryNetworkLayout.PlaceNew(nodes, reference);
         foreach (var (id, position) in added)
         {
             reference[id] = position;
@@ -99,7 +99,7 @@ public sealed partial class NetworkSession : ObservableObject
             // A failed direct save is not reported; the next load computes the same place again (MW-C12).
             try
             {
-                await _network.PlaceAsync(Workspace, id, position, cancellationToken);
+                await _summarySummaryNetwork.PlaceAsync(Workspace, id, position, cancellationToken);
             }
 #pragma warning disable CA1031 // Layout saving is independent of content; a lost automatic place is recomputed.
             catch (Exception swallowed)
@@ -118,7 +118,7 @@ public sealed partial class NetworkSession : ObservableObject
     /// <summary>Explicit "arrange": a full new layout, kept in memory until saved.</summary>
     public void Arrange()
     {
-        _positions = NetworkLayout.Arrange(LayoutNodes(Projection)).ToDictionary(p => p.Key, p => p.Value);
+        _positions = SummaryNetworkLayout.Arrange(LayoutNodes(Projection)).ToDictionary(p => p.Key, p => p.Value);
         _revision++;
         OnPropertyChanged(nameof(IsDirty));
         OnPropertyChanged(nameof(Revision));
@@ -163,7 +163,7 @@ public sealed partial class NetworkSession : ObservableObject
         SaveFailed = false;
         try
         {
-            await _network.SaveLayoutAsync(Workspace, snapshot, cancellationToken);
+            await _summarySummaryNetwork.SaveLayoutAsync(Workspace, snapshot, cancellationToken);
             SavedRevision = Math.Max(SavedRevision, revision);
             return !IsDirty;
         }
@@ -193,31 +193,31 @@ public sealed partial class NetworkSession : ObservableObject
     /// <summary>Unsaved changes were dropped; what is shown must be read again.</summary>
     public event EventHandler? Discarded;
 
-    private static List<LayoutNode> LayoutNodes(NetworkProjection projection)
+    private static List<LayoutNode> LayoutNodes(SummaryNetworkProjection projection)
     {
         var parents = projection.Edges.ToDictionary(e => e.To, e => e.From);
         return [.. projection.Nodes.Select((n, i) => new LayoutNode(
-            n.Id, parents.TryGetValue(n.Id, out var parent) ? parent : null, n.Root.Value, i, NetworkLayout.LabelWidth(NetworkLayout.Label(n.ShortTitle, n.Markers.HasCandidate))))];
+            n.Id, parents.TryGetValue(n.Id, out var parent) ? parent : null, n.Root.Value, i, SummaryNetworkLayout.LabelWidth(SummaryNetworkLayout.Label(n.ShortTitle, n.Markers.HasCandidate))))];
     }
 }
 
 /// <summary>The network sessions of all workspaces opened in this process.</summary>
-public sealed class NetworkSessions(INetworkLayout network)
+public sealed class SummaryNetworkSessions(ISummaryNetworkLayout network)
 {
-    private readonly Dictionary<WorkspaceId, NetworkSession> _sessions = [];
+    private readonly Dictionary<WorkspaceId, SummaryNetworkSession> _sessions = [];
 
-    public NetworkSession Get(WorkspaceId workspace)
+    public SummaryNetworkSession Get(WorkspaceId workspace)
     {
         if (!_sessions.TryGetValue(workspace, out var session))
         {
-            session = new NetworkSession(workspace, network);
+            session = new SummaryNetworkSession(workspace, network);
             _sessions[workspace] = session;
         }
 
         return session;
     }
 
-    public IEnumerable<NetworkSession> Dirty => _sessions.Values.Where(s => s.IsDirty);
+    public IEnumerable<SummaryNetworkSession> Dirty => _sessions.Values.Where(s => s.IsDirty);
 
     /// <summary>
     /// The workspace was deleted: its session goes, unsaved layout included, without asking (there is nothing left to

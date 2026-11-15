@@ -67,7 +67,7 @@ public sealed class SchemaV6MigrationTests : IDisposable
         var detail = (await new SqliteSummaryStore(database).GetAsync(Core.Summaries.SummaryNodeId.Parse(Node), Ct))!;
         Assert.Null(detail.Current.ShortTitle);
         Assert.Equal("早期蒸汽机车在铁…", Core.Summaries.SummaryRules.ShortTitleOf(detail.Current));
-        Assert.Empty(await new SqliteNetworkStore(database).GetLayoutAsync(Core.Workspaces.WorkspaceId.Parse(Workspace), Ct));
+        Assert.Empty(await new SqliteSummaryNetworkStore(database).GetLayoutAsync(Core.Workspaces.WorkspaceId.Parse(Workspace), Ct));
     }
 
     [Fact]

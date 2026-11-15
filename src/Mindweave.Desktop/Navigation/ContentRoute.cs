@@ -9,7 +9,7 @@ public abstract record ContentRoute
     public static ContentRoute HomeOf(MainSection section) => section switch
     {
         MainSection.Explore => ExploreHomeRoute.Instance,
-        MainSection.Network => NetworkHomeRoute.Instance,
+        MainSection.SummaryNetwork => SummaryNetworkHomeRoute.Instance,
         MainSection.Settings => SettingsHomeRoute.Instance,
         _ => throw new ArgumentOutOfRangeException(nameof(section), section, null),
     };
@@ -65,9 +65,9 @@ public sealed record ExploreHomeRoute : ContentRoute
     public static ExploreHomeRoute Instance { get; } = new();
 }
 
-public sealed record NetworkHomeRoute : ContentRoute
+public sealed record SummaryNetworkHomeRoute : ContentRoute
 {
-    public static NetworkHomeRoute Instance { get; } = new();
+    public static SummaryNetworkHomeRoute Instance { get; } = new();
 }
 
 /// <summary>The archived conversations of the workspace (S6), in the explore section; restored as the last page.</summary>

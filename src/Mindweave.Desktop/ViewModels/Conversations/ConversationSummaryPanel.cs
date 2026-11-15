@@ -83,7 +83,7 @@ public sealed partial class ConversationSummaryPanel : ViewModelBase
     {
         if (SummaryNode is { } node)
         {
-            _navigator.Navigate(new NavigationRequest(MainSection.Network, new SummaryRoute(node)));
+            _navigator.Navigate(new NavigationRequest(MainSection.SummaryNetwork, new SummaryRoute(node)));
         }
     }
 

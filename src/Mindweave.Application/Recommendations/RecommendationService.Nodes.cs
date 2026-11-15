@@ -88,7 +88,7 @@ public sealed partial class RecommendationService
         }
     }
 
-    public void NetworkOpened(WorkspaceId workspace) => Arm(workspace, RecommendationKind.Node, opened: false);
+    public void SummaryNetworkOpened(WorkspaceId workspace) => Arm(workspace, RecommendationKind.Node, opened: false);
 
     public async Task<RecommendationOutcome> RefreshNodesAsync(WorkspaceId workspace, CancellationToken cancellationToken)
     {

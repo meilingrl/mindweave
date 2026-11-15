@@ -1,7 +1,7 @@
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Mindweave.Core.Workspaces;
-using Mindweave.Desktop.Network;
+using Mindweave.Desktop.SummaryNetwork;
 
 namespace Mindweave.Desktop.ViewModels;
 
@@ -11,10 +11,10 @@ namespace Mindweave.Desktop.ViewModels;
 /// never asks. When leaving a workspace "don't save" discards at once (nothing cancelable follows); when quitting it is
 /// only recorded and handed to the exit coordinator, which discards once the exit is committed (architecture §12.3).
 /// </summary>
-public sealed partial class LayoutPromptViewModel(NetworkSessions sessions) : ViewModelBase
+public sealed partial class LayoutPromptViewModel(SummaryNetworkSessions sessions) : ViewModelBase
 {
-    private List<NetworkSession> _pending = [];
-    private Action<IReadOnlyList<NetworkSession>>? _continue;
+    private List<SummaryNetworkSession> _pending = [];
+    private Action<IReadOnlyList<SummaryNetworkSession>>? _continue;
     private Action? _cancelled;
     private bool _deferDiscard;
 
@@ -43,10 +43,10 @@ public sealed partial class LayoutPromptViewModel(NetworkSessions sessions) : Vi
     /// <summary>A network layout has changes not yet saved (an exit would ask about them).</summary>
     public bool HasUnsavedLayout => sessions.Dirty.Any();
 
-    public bool HoldExit(Action<IReadOnlyList<NetworkSession>> continueWith, Action cancelled) =>
+    public bool HoldExit(Action<IReadOnlyList<SummaryNetworkSession>> continueWith, Action cancelled) =>
         Hold([.. sessions.Dirty], continueWith, cancelled, deferDiscard: true);
 
-    private bool Hold(List<NetworkSession> pending, Action<IReadOnlyList<NetworkSession>> continueWith, Action? cancelled, bool deferDiscard)
+    private bool Hold(List<SummaryNetworkSession> pending, Action<IReadOnlyList<SummaryNetworkSession>> continueWith, Action? cancelled, bool deferDiscard)
     {
         if (pending.Count == 0)
         {
@@ -114,7 +114,7 @@ public sealed partial class LayoutPromptViewModel(NetworkSessions sessions) : Vi
 
     private bool CanAct() => !IsSaving;
 
-    private void Proceed(IReadOnlyList<NetworkSession> discardLater)
+    private void Proceed(IReadOnlyList<SummaryNetworkSession> discardLater)
     {
         IsOpen = false;
         var next = _continue;

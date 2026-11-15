@@ -200,8 +200,8 @@ public class ArchiveUiTests
         await UiWait.UntilAsync(() => page.Summary.HasSummary && page.Summary.RunningSummary is null);
         await page.Lifecycle.ArchiveCommand.ExecuteAsync(null);
 
-        app.ShellPage.ShowSectionCommand.Execute(MainSection.Network);
-        var network = Assert.IsType<NetworkHomeViewModel>(app.Workbench.CurrentPage);
+        app.ShellPage.ShowSectionCommand.Execute(MainSection.SummaryNetwork);
+        var network = Assert.IsType<SummaryNetworkHomeViewModel>(app.Workbench.CurrentPage);
         await network.Loaded;
         await UiWait.UntilAsync(() => network.Items.Count == 1 && network.Items[0].Markers.Contains(UiText.SourceArchived, StringComparison.Ordinal));
         network.Select(network.Items[0].Node);

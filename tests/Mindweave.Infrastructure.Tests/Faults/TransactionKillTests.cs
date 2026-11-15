@@ -307,7 +307,7 @@ public sealed class TransactionKillTests : IDisposable
             }
 
             // A quarter already has a saved position: the save below both updates and inserts.
-            await h.Network.SaveLayoutAsync(workspace, placed, Ct);
+            await h.SummaryNetwork.SaveLayoutAsync(workspace, placed, Ct);
         }
 
         var before = await SnapshotAsync();
@@ -316,7 +316,7 @@ public sealed class TransactionKillTests : IDisposable
         Assert.True(walGrowth > 0, "the save outgrew the page cache, so uncommitted pages were in the WAL when the process died");
 
         await using var database = await ReopenAsync(before);
-        var network = new SqliteNetworkStore(database);
+        var network = new SqliteSummaryNetworkStore(database);
         var nodes = (await new SqliteSummaryStore(database).ListAsync(workspace, Ct)).Select(e => e.Node.Id).OrderBy(n => n.ToString(), StringComparer.Ordinal).ToList();
         Assert.Equal(Nodes, nodes.Count);
         var layout = nodes.Select((n, i) => (n, i)).ToDictionary(p => p.n, p => new Application.Storage.NodePosition(p.i * 10, p.i * 20));

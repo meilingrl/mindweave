@@ -1,7 +1,7 @@
 using Mindweave.Application.Storage;
 using Mindweave.Core.Summaries;
 
-namespace Mindweave.Desktop.Network;
+namespace Mindweave.Desktop.SummaryNetwork;
 
 /// <summary>
 /// One node as the layout sees it: its summarized parent (if any), its exploration group, its creation order and
@@ -14,7 +14,7 @@ public sealed record LayoutNode(SummaryNodeId Id, SummaryNodeId? Parent, Guid Gr
 /// Stable automatic layout (architecture §11.2): a radial tree per exploration group, groups side by side, and
 /// placement of new nodes beside their source without moving anything already placed. Pure and deterministic.
 /// </summary>
-public static class NetworkLayout
+public static class SummaryNetworkLayout
 {
     /// <summary>Distance between tree levels. S7 round-1 fix: 170 → 100, so a typical network fits at a readable zoom.</summary>
     public const double LevelSpacing = 100;

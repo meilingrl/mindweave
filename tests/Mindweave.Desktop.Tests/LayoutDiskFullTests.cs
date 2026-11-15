@@ -1,7 +1,7 @@
 using Avalonia.Headless.XUnit;
 using Microsoft.Extensions.DependencyInjection;
 using Mindweave.Application.Conversations;
-using Mindweave.Desktop.Network;
+using Mindweave.Desktop.SummaryNetwork;
 using Mindweave.Infrastructure.Sqlite;
 
 namespace Mindweave.Desktop.Tests;
@@ -23,7 +23,7 @@ public class LayoutDiskFullTests
         var workspace = await app.StartWithWorkspaceAsync("火车历史");
         var database = app.Services.GetRequiredService<SqliteDatabase>();
         await SeedSummariesAsync(database, workspace.Id.ToString());
-        var session = app.Services.GetRequiredService<NetworkSessions>().Get(workspace.Id);
+        var session = app.Services.GetRequiredService<SummaryNetworkSessions>().Get(workspace.Id);
 
         // Full before the network is opened: the automatic places that do not fit are not saved (and not reported).
         await StoragePauseUiTests.FillDiskAsync(database);
@@ -48,7 +48,7 @@ public class LayoutDiskFullTests
         Assert.False(session.SaveFailed);
         Assert.False(session.IsDirty);
         Assert.Equal(Nodes, await LayoutRowsAsync(database));
-        var saved = await app.Services.GetRequiredService<Application.Network.NetworkService>().GetLayoutAsync(workspace.Id, CancellationToken.None);
+        var saved = await app.Services.GetRequiredService<Application.SummaryNetwork.SummaryNetworkService>().GetLayoutAsync(workspace.Id, CancellationToken.None);
         Assert.Equal(arranged, saved.ToDictionary(p => p.Key, p => p.Value));
         await AssertIntactAsync(database);
     }

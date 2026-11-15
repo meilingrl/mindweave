@@ -5,7 +5,7 @@ using Mindweave.Core.Workspaces;
 
 namespace Mindweave.Infrastructure.Sqlite;
 
-internal sealed class SqliteNetworkStore(SqliteDatabase database) : INetworkStore
+internal sealed class SqliteSummaryNetworkStore(SqliteDatabase database) : ISummaryNetworkStore
 {
     public Task<IReadOnlyDictionary<SummaryNodeId, NodePosition>> GetLayoutAsync(WorkspaceId workspace, CancellationToken cancellationToken) =>
         database.ReadAsync<IReadOnlyDictionary<SummaryNodeId, NodePosition>>(

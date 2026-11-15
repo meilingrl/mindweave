@@ -2,14 +2,14 @@ using System.Collections.ObjectModel;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Mindweave.Application.Conversations;
-using Mindweave.Application.Network;
+using Mindweave.Application.SummaryNetwork;
 using Mindweave.Application.Recommendations;
 using Mindweave.Application.Summaries;
 using Mindweave.Core.Conversations;
 using Mindweave.Core.Summaries;
 using Mindweave.Core.Workspaces;
 using Mindweave.Desktop.Navigation;
-using Mindweave.Desktop.Network;
+using Mindweave.Desktop.SummaryNetwork;
 using Mindweave.Desktop.Services;
 
 namespace Mindweave.Desktop.ViewModels.Pages;
@@ -17,10 +17,10 @@ namespace Mindweave.Desktop.ViewModels.Pages;
 /// <summary>
 /// The summary network of the current workspace (requirement §7.3–7.4, architecture §11): nodes with short titles
 /// and real source edges, selection with details, search, show all, zoom, explicit arrange and save. State lives in
-/// the workspace's <see cref="NetworkSession"/>, so the viewport and selection survive reading a summary and coming
+/// the workspace's <see cref="SummaryNetworkSession"/>, so the viewport and selection survive reading a summary and coming
 /// back. A list view of the same summaries stays available for keyboard and screen-reader use.
 /// </summary>
-public sealed partial class NetworkHomeViewModel : PageViewModel, IDisposable
+public sealed partial class SummaryNetworkHomeViewModel : PageViewModel, IDisposable
 {
     private readonly ISummaries _summaries;
     private readonly IConversations _conversations;
@@ -36,16 +36,16 @@ public sealed partial class NetworkHomeViewModel : PageViewModel, IDisposable
     private RecommendationId? _selectedRecommendation;
     private bool _disposed;
 
-    public NetworkHomeViewModel(
+    public SummaryNetworkHomeViewModel(
         Workspace workspace,
-        NetworkSession session,
+        SummaryNetworkSession session,
         ISummaries summaries,
         IConversations conversations,
         IWorkbenchNavigator navigator,
         IUiDispatcher dispatcher,
         IRecommendations? recommendations = null,
         Application.Preferences.IRecommendationSettings? recommendationSettings = null)
-        : base(NetworkHomeRoute.Instance)
+        : base(SummaryNetworkHomeRoute.Instance)
     {
         Workspace = workspace;
         Session = session;
@@ -77,9 +77,9 @@ public sealed partial class NetworkHomeViewModel : PageViewModel, IDisposable
 
     public Workspace Workspace { get; }
 
-    public NetworkSession Session { get; }
+    public SummaryNetworkSession Session { get; }
 
-    public override string Title => UiText.NetworkTitle;
+    public override string Title => UiText.SummaryNetworkTitle;
 
     internal Task Loaded { get; }
 
@@ -323,7 +323,7 @@ public sealed partial class NetworkHomeViewModel : PageViewModel, IDisposable
 
     /// <summary>Double click or "open summary".</summary>
     [RelayCommand]
-    private void Open(SummaryNodeId node) => _navigator.Navigate(new NavigationRequest(MainSection.Network, new SummaryRoute(node)));
+    private void Open(SummaryNodeId node) => _navigator.Navigate(new NavigationRequest(MainSection.SummaryNetwork, new SummaryRoute(node)));
 
     [RelayCommand]
     private void OpenSelected()
@@ -467,7 +467,7 @@ public sealed partial class NetworkHomeViewModel : PageViewModel, IDisposable
         _dispatcher.Post(() =>
         {
             RecommendationsReloaded = _recommendationLoad.Request();
-            _recommendations?.NetworkOpened(Workspace.Id);
+            _recommendations?.SummaryNetworkOpened(Workspace.Id);
         });
     }
 
@@ -570,10 +570,10 @@ public sealed partial class NetworkHomeViewModel : PageViewModel, IDisposable
             var members = caption.Members.Where(nodes.ContainsKey).Select(id => nodes[id]).ToList();
             if (members.Count > 0)
             {
-                // The caption sits above the group's topmost node, from its leftmost one (NetworkCanvas.CaptionGap).
+                // The caption sits above the group's topmost node, from its leftmost one (SummaryNetworkCanvas.CaptionGap).
                 var top = members.Min(n => n.Y);
-                var left = members.Min(n => n.X) - NetworkLayout.NodeRadius;
-                obstacles.Add(new CanvasBox(left, top - NetworkLayout.CaptionHeadroom, left + NetworkLayout.LabelWidth(caption.Text), top - (NetworkLayout.NodeHeight / 2)));
+                var left = members.Min(n => n.X) - SummaryNetworkLayout.NodeRadius;
+                obstacles.Add(new CanvasBox(left, top - SummaryNetworkLayout.CaptionHeadroom, left + SummaryNetworkLayout.LabelWidth(caption.Text), top - (SummaryNetworkLayout.NodeHeight / 2)));
             }
         }
 
@@ -610,7 +610,7 @@ public sealed partial class NetworkHomeViewModel : PageViewModel, IDisposable
     internal static string RecommendedLabel(string question) => ConversationRules.Shorten(question, UiText.RecommendedNodeLabelLength);
 
     /// <summary>The room the label needs: the "推荐" tag (with its frame) and the question after it.</summary>
-    internal static double RecommendedLabelWidth(string label) => NetworkLayout.LabelWidth(UiText.RecommendedTag) + RecommendedTagExtra + NetworkLayout.LabelWidth(label);
+    internal static double RecommendedLabelWidth(string label) => SummaryNetworkLayout.LabelWidth(UiText.RecommendedTag) + RecommendedTagExtra + SummaryNetworkLayout.LabelWidth(label);
 
     /// <summary>The tag's frame and the gap after it, in canvas units.</summary>
     internal const double RecommendedTagExtra = 14;
@@ -682,7 +682,7 @@ public sealed partial class NetworkHomeViewModel : PageViewModel, IDisposable
         ViewChanged?.Invoke(this, Session.Viewport is null);
 
         // Opened, or its summaries changed: the recommendations look whether §10.3.2 asks for new ones.
-        _recommendations?.NetworkOpened(Workspace.Id);
+        _recommendations?.SummaryNetworkOpened(Workspace.Id);
     }
 
     private void BuildViews()
@@ -690,7 +690,7 @@ public sealed partial class NetworkHomeViewModel : PageViewModel, IDisposable
         var positions = Session.Positions;
         var parents = Session.Projection.Edges.ToDictionary(e => e.To, e => e.From);
         Nodes = [.. Session.Projection.Nodes.Where(n => positions.ContainsKey(n.Id)).Select(n => new NodeView(
-            n.Id, n.ShortTitle, n.DisplayName, positions[n.Id].X, positions[n.Id].Y, n.Markers.Unread, n.Markers.HasCandidate, NetworkLayout.LabelWidth(NetworkLayout.Label(n.ShortTitle, n.Markers.HasCandidate)),
+            n.Id, n.ShortTitle, n.DisplayName, positions[n.Id].X, positions[n.Id].Y, n.Markers.Unread, n.Markers.HasCandidate, SummaryNetworkLayout.LabelWidth(SummaryNetworkLayout.Label(n.ShortTitle, n.Markers.HasCandidate)),
             parents.TryGetValue(n.Id, out var parent) && positions.ContainsKey(parent) ? parent : null, n.Conversation == n.Root))];
         Edges = [.. Session.Projection.Edges.Where(e => positions.ContainsKey(e.From) && positions.ContainsKey(e.To)).Select(e => new EdgeView(
             e.From, e.To, positions[e.From].X, positions[e.From].Y, positions[e.To].X, positions[e.To].Y, e.IsDirect, e.IsDirect ? null : UiText.ViaCount(e.Via.Count)))];
@@ -733,7 +733,7 @@ public sealed partial class NetworkHomeViewModel : PageViewModel, IDisposable
     /// Every conversation from the exploration's root to this node, root first: summarized ones by short name, the
     /// unsummarized ones by title and marked, also when no summarized ancestor exists at all.
     /// </summary>
-    private List<PathStep> PathOf(NetworkNode node)
+    private List<PathStep> PathOf(SummaryNetworkNode node)
     {
         var summarized = Session.Projection.Nodes.ToDictionary(n => n.Conversation, n => n.ShortTitle);
         var chain = node.Ancestors.Append(node.Conversation).ToList();

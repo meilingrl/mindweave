@@ -328,7 +328,7 @@ public class ArchiveFlowTests
 
         var entry = Assert.Single(await h.SummaryService.ListAsync(h.Workspace, Ct));
         Assert.True(entry.SourceArchived);
-        Assert.True(Assert.Single((await h.Network.ProjectAsync(h.Workspace, Ct)).Nodes).SourceArchived);
+        Assert.True(Assert.Single((await h.SummaryNetwork.ProjectAsync(h.Workspace, Ct)).Nodes).SourceArchived);
         Assert.NotNull(await h.Conversations.LoadAsync(root, Ct));
 
         // Existing summaries stay usable: read, edit, delete versions.

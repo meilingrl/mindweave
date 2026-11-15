@@ -189,11 +189,11 @@ public class WorkspaceSwitcherTests
     {
         await using var app = DesktopHarness.Create();
         var window = app.ShowWindow(1100, 720);
-        await NetworkScenario.SeedAsync(app);
+        await SummaryNetworkScenario.SeedAsync(app);
         var trains = app.Workbench.CurrentWorkspace!;
         var (other, _) = await AddAsync(app, "摄影", "天文");
-        var network = await NetworkScenario.OpenNetworkAsync(app, window);
-        await NetworkScenario.MoveSomethingAsync(app, network);
+        var network = await SummaryNetworkScenario.OpenSummaryNetworkAsync(app, window);
+        await SummaryNetworkScenario.MoveSomethingAsync(app, network);
         network.ArrangeCommand.Execute(null);
         Assert.True(network.IsDirty);
 

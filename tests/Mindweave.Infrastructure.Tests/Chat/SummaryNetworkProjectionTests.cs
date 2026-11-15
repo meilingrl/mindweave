@@ -10,7 +10,7 @@ namespace Mindweave.Infrastructure.Tests.Chat;
 /// The network is derived from summaries and real branch sources (architecture §11): a summarized parent links
 /// directly; unsummarized conversations in between stay on the edge; positions persist without reviving deleted nodes.
 /// </summary>
-public class NetworkProjectionTests
+public class SummaryNetworkProjectionTests
 {
     private static CancellationToken Ct => TestContext.Current.CancellationToken;
 
@@ -28,7 +28,7 @@ public class NetworkProjectionTests
             await h.SummarizeAsync(conversation);
         }
 
-        var projection = await h.Network.ProjectAsync(h.Workspace, Ct);
+        var projection = await h.SummaryNetwork.ProjectAsync(h.Workspace, Ct);
 
         Assert.Equal(4, projection.Nodes.Count);
         var node = projection.Nodes.ToDictionary(n => n.Conversation);
@@ -44,21 +44,21 @@ public class NetworkProjectionTests
     }
 
     [Fact]
-    public async Task Network_nodes_show_the_short_title_and_keep_the_full_name()
+    public async Task Summary_network_nodes_show_the_short_title_and_keep_the_full_name()
     {
         await using var h = await ChatHarness.StartAsync();
         var conversation = await ConversationAsync(h, "火车是怎么发明的？");
         h.Client.Knowledge.Replies.Enqueue("标题：早期蒸汽机车在铁路运输中的作用与局限\n短名：蒸汽机车\n\n正文");
         await h.SummarizeAsync(conversation);
 
-        var node = Assert.Single((await h.Network.ProjectAsync(h.Workspace, Ct)).Nodes);
+        var node = Assert.Single((await h.SummaryNetwork.ProjectAsync(h.Workspace, Ct)).Nodes);
 
         Assert.Equal(("蒸汽机车", "早期蒸汽机车在铁路运输中的作用与局限"), (node.ShortTitle, node.DisplayName));
 
         // An edit keeps the short title of the version it was edited from.
         var entry = (await h.SummaryService.ForConversationAsync(conversation, Ct))!;
         await h.SummaryService.SaveEditAsync(entry.Node.Id, entry.Node.Current, entry.Current.Title, "改写", Ct);
-        Assert.Equal("蒸汽机车", Assert.Single((await h.Network.ProjectAsync(h.Workspace, Ct)).Nodes).ShortTitle);
+        Assert.Equal("蒸汽机车", Assert.Single((await h.SummaryNetwork.ProjectAsync(h.Workspace, Ct)).Nodes).ShortTitle);
     }
 
     [Fact]
@@ -69,19 +69,19 @@ public class NetworkProjectionTests
         var b = await ConversationAsync(h, "摄影？");
         await h.SummarizeAsync(a);
         await h.SummarizeAsync(b);
-        var nodes = (await h.Network.ProjectAsync(h.Workspace, Ct)).Nodes;
+        var nodes = (await h.SummaryNetwork.ProjectAsync(h.Workspace, Ct)).Nodes;
 
-        Assert.True(await h.Network.PlaceAsync(h.Workspace, nodes[0].Id, new NodePosition(10, 20), Ct));
-        Assert.False(await h.Network.PlaceAsync(h.Workspace, nodes[0].Id, new NodePosition(99, 99), Ct));
-        Assert.Equal(new NodePosition(10, 20), (await h.Network.GetLayoutAsync(h.Workspace, Ct))[nodes[0].Id]);
+        Assert.True(await h.SummaryNetwork.PlaceAsync(h.Workspace, nodes[0].Id, new NodePosition(10, 20), Ct));
+        Assert.False(await h.SummaryNetwork.PlaceAsync(h.Workspace, nodes[0].Id, new NodePosition(99, 99), Ct));
+        Assert.Equal(new NodePosition(10, 20), (await h.SummaryNetwork.GetLayoutAsync(h.Workspace, Ct))[nodes[0].Id]);
 
         // The second summary is deleted between taking the snapshot and saving it.
         var snapshot = new Dictionary<SummaryNodeId, NodePosition> { [nodes[0].Id] = new(1, 2), [nodes[1].Id] = new(3, 4) };
         var detail = (await h.SummaryService.GetAsync(nodes[1].Id, Ct))!;
         await h.SummaryService.DeleteVersionsAsync(nodes[1].Id, detail.Versions.Select(v => v.Id).ToHashSet(), Ct);
 
-        Assert.Equal(1, await h.Network.SaveLayoutAsync(h.Workspace, snapshot, Ct));
-        var layout = await h.Network.GetLayoutAsync(h.Workspace, Ct);
+        Assert.Equal(1, await h.SummaryNetwork.SaveLayoutAsync(h.Workspace, snapshot, Ct));
+        var layout = await h.SummaryNetwork.GetLayoutAsync(h.Workspace, Ct);
         Assert.Equal(new NodePosition(1, 2), layout[nodes[0].Id]);
         Assert.False(layout.ContainsKey(nodes[1].Id));
         Assert.Null(await h.SummaryService.GetAsync(nodes[1].Id, Ct));
@@ -93,13 +93,13 @@ public class NetworkProjectionTests
         await using var h = await ChatHarness.StartAsync();
         var a = await ConversationAsync(h, "火车？");
         await h.SummarizeAsync(a);
-        var node = Assert.Single((await h.Network.ProjectAsync(h.Workspace, Ct)).Nodes);
-        await h.Network.PlaceAsync(h.Workspace, node.Id, new NodePosition(5, 5), Ct);
+        var node = Assert.Single((await h.SummaryNetwork.ProjectAsync(h.Workspace, Ct)).Nodes);
+        await h.SummaryNetwork.PlaceAsync(h.Workspace, node.Id, new NodePosition(5, 5), Ct);
 
         var detail = (await h.SummaryService.GetAsync(node.Id, Ct))!;
         await h.SummaryService.DeleteVersionsAsync(node.Id, detail.Versions.Select(v => v.Id).ToHashSet(), Ct);
 
-        Assert.Empty(await h.Network.GetLayoutAsync(h.Workspace, Ct));
+        Assert.Empty(await h.SummaryNetwork.GetLayoutAsync(h.Workspace, Ct));
     }
 
     private static async Task<ConversationId> ConversationAsync(ChatHarness h, string question)

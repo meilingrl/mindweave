@@ -32,7 +32,7 @@ public partial class SummaryReadTests
 
         var statements = new ConcurrentQueue<string>();
         SqliteCommands.Observer.Value = statements.Enqueue;
-        var projection = await h.Network.ProjectAsync(h.Workspace, Ct);
+        var projection = await h.SummaryNetwork.ProjectAsync(h.Workspace, Ct);
         await h.SummaryService.ListAsync(h.Workspace, Ct);
         SqliteCommands.Observer.Value = null;
 

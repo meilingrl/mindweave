@@ -3,7 +3,7 @@ using Microsoft.Extensions.DependencyInjection.Extensions;
 using Mindweave.Application.Conversations;
 using Mindweave.Application.Export;
 using Mindweave.Application.Models;
-using Mindweave.Application.Network;
+using Mindweave.Application.SummaryNetwork;
 using Mindweave.Application.Preferences;
 using Mindweave.Application.Reading;
 using Mindweave.Application.Recommendations;
@@ -44,7 +44,7 @@ public static class ApplicationServices
         services.AddSingleton<ConversationMarksService>();
         services.AddSingleton<SummaryDrafts>();
         services.AddSingleton<SummaryService>();
-        services.AddSingleton<NetworkService>();
+        services.AddSingleton<SummaryNetworkService>();
         services.AddSingleton<SummaryExportService>();
         services.AddSingleton<ReadingStateService>();
         services.AddSingleton<AppearanceService>();
@@ -80,7 +80,7 @@ public static class ApplicationServices
         services.AddSingleton<IAppearance>(sp => sp.GetRequiredService<AppearanceService>());
         services.AddSingleton<ISidebarLayout>(sp => sp.GetRequiredService<SidebarLayoutService>());
         services.AddSingleton<INewsAlerts>(sp => sp.GetRequiredService<NewsAlertsService>());
-        services.AddSingleton<INetworkLayout>(sp => sp.GetRequiredService<NetworkService>());
+        services.AddSingleton<ISummaryNetworkLayout>(sp => sp.GetRequiredService<SummaryNetworkService>());
         // A test may hold the statistics (to see the page while they load), as for the conversations interface.
         services.TryAddSingleton<IUsageStatistics>(sp => sp.GetRequiredService<UsageStatisticsService>());
         services.AddSingleton<IUsagePrices>(sp => sp.GetRequiredService<UsagePricesService>());

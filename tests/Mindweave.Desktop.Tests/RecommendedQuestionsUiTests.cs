@@ -199,7 +199,7 @@ public class RecommendedQuestionsUiTests
     {
         await using var app = DesktopHarness.Create();
         var window = app.ShowWindow(1100, 720);
-        await NetworkScenario.SeedAsync(app);
+        await SummaryNetworkScenario.SeedAsync(app);
         var (page, view) = await OpenAsync(app, window);
 
         // Nothing yet, nothing said while the background is about to look (自动准备 on): the heading and 换一批 only.
@@ -252,7 +252,7 @@ public class RecommendedQuestionsUiTests
     {
         await using var app = DesktopHarness.Create();
         var window = app.ShowWindow(1100, 720);
-        await NetworkScenario.SeedAsync(app);
+        await SummaryNetworkScenario.SeedAsync(app);
         await app.Services.GetRequiredService<SqliteDatabase>().WriteAsync((c, t) => c.Execute(t, "DELETE FROM app_state WHERE key = 'active_model_config_id';"), CancellationToken.None);
         var (page, view) = await OpenAsync(app, window);
         app.PreparationTime.Advance(TimeSpan.FromSeconds(1));
@@ -399,7 +399,7 @@ public class RecommendedQuestionsUiTests
     /// <summary>The network scenario's workspace with three questions made (by 换一批's request, as the fake answers it).</summary>
     internal static async Task SeedAsync(DesktopHarness app)
     {
-        await NetworkScenario.SeedAsync(app);
+        await SummaryNetworkScenario.SeedAsync(app);
         var outcome = await app.Services.GetRequiredService<IRecommendations>().RefreshQuestionsAsync(app.Workbench.CurrentWorkspace!.Id, CancellationToken.None);
         Assert.Equal(new RecommendationOutcome(3), outcome);
     }

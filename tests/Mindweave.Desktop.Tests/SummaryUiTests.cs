@@ -32,8 +32,8 @@ public class SummaryUiTests
         Assert.Equal(UiText.Resummarize, page.Summary.SummarizeLabel);
 
         // The network section lists it; opening the list does not read it.
-        app.ShellPage.ShowSectionCommand.Execute(MainSection.Network);
-        var list = Assert.IsType<NetworkHomeViewModel>(app.Workbench.CurrentPage);
+        app.ShellPage.ShowSectionCommand.Execute(MainSection.SummaryNetwork);
+        var list = Assert.IsType<SummaryNetworkHomeViewModel>(app.Workbench.CurrentPage);
         await list.Loaded;
         var item = Assert.Single(list.Items);
         Assert.Equal(UiText.MarkerUnread, item.Markers);

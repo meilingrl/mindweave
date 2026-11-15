@@ -9,13 +9,13 @@ using Mindweave.Core.Conversations;
 using Mindweave.Core.Summaries;
 using Mindweave.Core.Workspaces;
 using Mindweave.Desktop.Navigation;
-using Mindweave.Desktop.Network;
+using Mindweave.Desktop.SummaryNetwork;
 using Mindweave.Desktop.ViewModels.Pages;
 using Mindweave.Desktop.Views;
 using Mindweave.Desktop.Views.Pages;
 using Mindweave.Infrastructure.Sqlite;
 
-using static Mindweave.Desktop.Tests.NetworkScenario;
+using static Mindweave.Desktop.Tests.SummaryNetworkScenario;
 
 namespace Mindweave.Desktop.Tests;
 
@@ -24,7 +24,7 @@ namespace Mindweave.Desktop.Tests;
 /// directly; an arrangement is saved only explicitly and survives a restart; a failed save keeps everything; changes
 /// made while saving stay unsaved; leaving asks first; the viewport survives reading a summary.
 /// </summary>
-public class NetworkUiTests
+public class SummaryNetworkUiTests
 {
     [AvaloniaFact]
     public async Task New_summaries_are_placed_and_saved_directly_and_come_back_after_a_restart()
@@ -35,7 +35,7 @@ public class NetworkUiTests
         {
             var window = app.ShowWindow(1100, 720);
             await SeedAsync(app);
-            var network = await OpenNetworkAsync(app, window);
+            var network = await OpenSummaryNetworkAsync(app, window);
 
             Assert.Equal(3, network.Nodes.Count);
             Assert.Equal(2, network.Edges.Count);
@@ -50,7 +50,7 @@ public class NetworkUiTests
         await using var restarted = DesktopHarness.Create(directory: dir);
         var again = restarted.ShowWindow(1100, 720);
         await restarted.StartAsync();
-        var reopened = await OpenNetworkAsync(restarted, again);
+        var reopened = await OpenSummaryNetworkAsync(restarted, again);
         Assert.Equal(first, reopened.Nodes.ToDictionary(n => n.Id, n => new NodePosition(n.X, n.Y)));
         Assert.False(reopened.IsDirty);
         again.Close();
@@ -60,10 +60,10 @@ public class NetworkUiTests
     public async Task An_arrangement_is_unsaved_until_saved_and_a_failed_save_keeps_it_in_the_window()
     {
         var gate = new GatedStore();
-        await using var app = DesktopHarness.Create(s => s.AddSingleton<INetworkStore>(sp => gate.Wrap(sp.GetRequiredService<SqliteDatabase>())));
+        await using var app = DesktopHarness.Create(s => s.AddSingleton<ISummaryNetworkStore>(sp => gate.Wrap(sp.GetRequiredService<SqliteDatabase>())));
         var window = app.ShowWindow(1100, 720);
         await SeedAsync(app);
-        var network = await OpenNetworkAsync(app, window);
+        var network = await OpenSummaryNetworkAsync(app, window);
         await MoveSomethingAsync(app, network);
 
         network.ArrangeCommand.Execute(null);
@@ -90,10 +90,10 @@ public class NetworkUiTests
     public async Task Arranging_again_while_saving_stays_unsaved()
     {
         var gate = new GatedStore();
-        await using var app = DesktopHarness.Create(s => s.AddSingleton<INetworkStore>(sp => gate.Wrap(sp.GetRequiredService<SqliteDatabase>())));
+        await using var app = DesktopHarness.Create(s => s.AddSingleton<ISummaryNetworkStore>(sp => gate.Wrap(sp.GetRequiredService<SqliteDatabase>())));
         var window = app.ShowWindow(1100, 720);
         await SeedAsync(app);
-        var network = await OpenNetworkAsync(app, window);
+        var network = await OpenSummaryNetworkAsync(app, window);
 
         network.ArrangeCommand.Execute(null);
         gate.Hold = new TaskCompletionSource();
@@ -114,7 +114,7 @@ public class NetworkUiTests
         await using var app = DesktopHarness.Create();
         var window = app.ShowWindow(1100, 720);
         await SeedAsync(app);
-        var network = await OpenNetworkAsync(app, window);
+        var network = await OpenSummaryNetworkAsync(app, window);
         var trains = app.Workbench.CurrentWorkspace!;
         var other = await app.Services.GetRequiredService<Application.Workspaces.WorkspaceService>().CreateAsync(WorkspaceName.FromStored("摄影"), CancellationToken.None);
         app.Workbench.Workspaces.Add(other);
@@ -137,8 +137,8 @@ public class NetworkUiTests
 
         // Back in the first workspace: the saved positions, fitted into view again (the viewport is not kept).
         app.ShellPage.SelectedWorkspace = trains;
-        app.ShellPage.ShowSectionCommand.Execute(MainSection.Network);
-        var back = Assert.IsType<NetworkHomeViewModel>(app.Workbench.CurrentPage);
+        app.ShellPage.ShowSectionCommand.Execute(MainSection.SummaryNetwork);
+        var back = Assert.IsType<SummaryNetworkHomeViewModel>(app.Workbench.CurrentPage);
         await back.Loaded;
         Assert.False(back.IsDirty);
         await UiWait.UntilAsync(() => back.Nodes.ToDictionary(n => n.Id, n => new NodePosition(n.X, n.Y)).OrderBy(p => p.Key.Value).SequenceEqual(saved.OrderBy(p => p.Key.Value)));
@@ -151,7 +151,7 @@ public class NetworkUiTests
         await using var app = DesktopHarness.Create();
         var window = app.ShowWindow(1100, 720);
         await SeedAsync(app);
-        var network = await OpenNetworkAsync(app, window);
+        var network = await OpenSummaryNetworkAsync(app, window);
         await MoveSomethingAsync(app, network);
         network.ArrangeCommand.Execute(null);
         var arranged = network.Nodes.ToDictionary(n => n.Id, n => new NodePosition(n.X, n.Y));
@@ -181,8 +181,8 @@ public class NetworkUiTests
         await using var app = DesktopHarness.Create();
         var window = app.ShowWindow(1100, 720);
         await SeedAsync(app);
-        var network = await OpenNetworkAsync(app, window);
-        var canvas = window.GetVisualDescendants().OfType<NetworkCanvas>().Single();
+        var network = await OpenSummaryNetworkAsync(app, window);
+        var canvas = window.GetVisualDescendants().OfType<SummaryNetworkCanvas>().Single();
         var node = network.Nodes[0];
 
         network.Select(node.Id);
@@ -197,7 +197,7 @@ public class NetworkUiTests
         await summary.Loaded;
         app.ShellPage.GoBackCommand.Execute(null);
 
-        var back = Assert.IsType<NetworkHomeViewModel>(app.Workbench.CurrentPage);
+        var back = Assert.IsType<SummaryNetworkHomeViewModel>(app.Workbench.CurrentPage);
         Assert.Equal(viewport, back.Session.Viewport);
         Assert.Equal(node.Id, back.Selected?.Id);
         Assert.True((await app.Services.GetRequiredService<SummaryService>().GetAsync(node.Id, CancellationToken.None))!.Markers.Unread);
@@ -218,7 +218,7 @@ public class NetworkUiTests
         await using var app = DesktopHarness.Create();
         var window = app.ShowWindow(1100, 720);
         await SeedAsync(app);
-        var network = await OpenNetworkAsync(app, window);
+        var network = await OpenSummaryNetworkAsync(app, window);
         var target = network.Nodes.Single(n => n.ShortTitle == "铁轨");
 
         network.SearchText = "铁轨";
@@ -230,7 +230,7 @@ public class NetworkUiTests
     }
 
     private static Task<IReadOnlyDictionary<SummaryNodeId, NodePosition>> Layout(DesktopHarness app, WorkspaceId? workspace = null) =>
-        app.Services.GetRequiredService<INetworkStore>().GetLayoutAsync(workspace ?? app.Workbench.CurrentWorkspace!.Id, CancellationToken.None);
+        app.Services.GetRequiredService<ISummaryNetworkStore>().GetLayoutAsync(workspace ?? app.Workbench.CurrentWorkspace!.Id, CancellationToken.None);
 
     /// <summary>The real layout store, with explicit saves that can fail or wait on demand.</summary>
     private sealed class GatedStore
@@ -239,9 +239,9 @@ public class NetworkUiTests
 
         public TaskCompletionSource? Hold { get; set; }
 
-        public INetworkStore Wrap(SqliteDatabase database) => new Store(new SqliteNetworkStore(database), this);
+        public ISummaryNetworkStore Wrap(SqliteDatabase database) => new Store(new SqliteSummaryNetworkStore(database), this);
 
-        private sealed class Store(INetworkStore inner, GatedStore gate) : INetworkStore
+        private sealed class Store(ISummaryNetworkStore inner, GatedStore gate) : ISummaryNetworkStore
         {
             public Task<IReadOnlyDictionary<SummaryNodeId, NodePosition>> GetLayoutAsync(WorkspaceId workspace, CancellationToken cancellationToken) =>
                 inner.GetLayoutAsync(workspace, cancellationToken);

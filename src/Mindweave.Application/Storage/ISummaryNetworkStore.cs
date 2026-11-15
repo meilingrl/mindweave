@@ -7,8 +7,8 @@ namespace Mindweave.Application.Storage;
 /// <summary>A node centre in absolute canvas coordinates (architecture §11.2).</summary>
 public readonly record struct NodePosition(double X, double Y);
 
-/// <summary>Network persistence: node positions only; nodes and edges are projected from summaries and branch sources.</summary>
-public interface INetworkStore
+/// <summary>Summary network persistence: node positions only; nodes and edges are projected from summaries and branch sources.</summary>
+public interface ISummaryNetworkStore
 {
     Task<IReadOnlyDictionary<SummaryNodeId, NodePosition>> GetLayoutAsync(WorkspaceId workspace, CancellationToken cancellationToken);
 

@@ -10,7 +10,7 @@ using Mindweave.Application.Storage;
 using Mindweave.Application.Workspaces;
 using Mindweave.Core.Workspaces;
 using Mindweave.Desktop.Navigation;
-using Mindweave.Desktop.Network;
+using Mindweave.Desktop.SummaryNetwork;
 using Mindweave.Desktop.ViewModels;
 using Mindweave.Desktop.ViewModels.Conversations;
 using Mindweave.Desktop.ViewModels.Pages;
@@ -27,7 +27,7 @@ public class WorkspaceDeleteUiTests
     {
         await using var app = DesktopHarness.Create();
         var window = app.ShowWindow(1100, 720);
-        await NetworkScenario.SeedAsync(app);
+        await SummaryNetworkScenario.SeedAsync(app);
         // From 设置 › 工作区 (2026-11-10: every workspace's delete is there, one per row).
         app.ShellPage.ShowSectionCommand.Execute(MainSection.Settings);
         Assert.IsType<SettingsHomeViewModel>(app.Workbench.CurrentPage).ShowWorkspacesCommand.Execute(null);
@@ -79,7 +79,7 @@ public class WorkspaceDeleteUiTests
     {
         await using var app = DesktopHarness.Create();
         var window = app.ShowWindow(1100, 720);
-        await NetworkScenario.SeedAsync(app);
+        await SummaryNetworkScenario.SeedAsync(app);
         var train = app.Workbench.CurrentWorkspace!;
         var workspaces = app.Services.GetRequiredService<WorkspaceService>();
         var older = await workspaces.CreateAsync(WorkspaceName.FromStored("摄影史"), CancellationToken.None);
@@ -96,8 +96,8 @@ public class WorkspaceDeleteUiTests
         var root = app.ShellPage.Conversations.Items[0];
         app.ShellPage.Conversations.OpenCommand.Execute(root);
         var page = Assert.IsType<ConversationViewModel>(app.Workbench.CurrentPage);
-        var network = await NetworkScenario.OpenNetworkAsync(app, window);
-        await NetworkScenario.MoveSomethingAsync(app, network);
+        var network = await SummaryNetworkScenario.OpenSummaryNetworkAsync(app, window);
+        await SummaryNetworkScenario.MoveSomethingAsync(app, network);
         network.ArrangeCommand.Execute(null);
         Assert.True(network.IsDirty);
 
@@ -110,7 +110,7 @@ public class WorkspaceDeleteUiTests
 
         Assert.False(dialog.IsOpen);
         Assert.False(app.Root.LayoutPrompt.IsOpen);
-        Assert.Empty(app.Services.GetRequiredService<NetworkSessions>().Dirty);
+        Assert.Empty(app.Services.GetRequiredService<SummaryNetworkSessions>().Dirty);
         Assert.Equal(recent.Id, app.Workbench.CurrentWorkspace!.Id);
         Assert.Equal(MainSection.Explore, app.Workbench.CurrentSection);
         Assert.IsType<ExploreHomeViewModel>(app.Workbench.CurrentPage);
@@ -266,7 +266,7 @@ public class WorkspaceDeleteUiTests
             new UnreadableDeletion(),
             app.Services.GetRequiredService<IConversations>(),
             app.Workbench,
-            app.Services.GetRequiredService<NetworkSessions>(),
+            app.Services.GetRequiredService<SummaryNetworkSessions>(),
             requests,
             app.Services.GetRequiredService<Services.IUiDispatcher>());
 

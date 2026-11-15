@@ -30,7 +30,7 @@ public class WorkspaceNamePreparationUiTests
     {
         await using var app = DesktopHarness.Create();
         var window = app.ShowWindow(1100, 720);
-        await NetworkScenario.SeedAsync(app);
+        await SummaryNetworkScenario.SeedAsync(app);
         var preparer = app.Services.GetRequiredService<WorkspaceNamePreparer>();
         var (city, _) = await WorkspaceSwitcherTests.AddAsync(app, "城市交通", "摄影史");
         Assert.NotEqual(city.Id, app.Workbench.CurrentWorkspace!.Id);

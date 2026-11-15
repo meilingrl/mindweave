@@ -4,7 +4,7 @@ namespace Mindweave.Desktop.Navigation;
 public enum MainSection
 {
     Explore,
-    Network,
+    SummaryNetwork,
     Settings,
 }
 
@@ -13,7 +13,7 @@ public static class MainSectionKeys
     public static string ToKey(this MainSection section) => section switch
     {
         MainSection.Explore => "explore",
-        MainSection.Network => "network",
+        MainSection.SummaryNetwork => "network",
         MainSection.Settings => "settings",
         _ => throw new ArgumentOutOfRangeException(nameof(section), section, null),
     };
@@ -21,7 +21,7 @@ public static class MainSectionKeys
     /// <summary>Unknown keys (e.g. written by a newer build) fall back to the explore area.</summary>
     public static MainSection FromKey(string? key) => key switch
     {
-        "network" => MainSection.Network,
+        "network" => MainSection.SummaryNetwork,
         "settings" => MainSection.Settings,
         _ => MainSection.Explore,
     };

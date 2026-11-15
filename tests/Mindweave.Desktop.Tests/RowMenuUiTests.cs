@@ -520,7 +520,7 @@ public class RowMenuUiTests
     /// <summary>The network seed, the sibling's page open and the sidebar laid out; returns root, middle, leaf, sibling.</summary>
     private static async Task<(ConversationId Root, ConversationId Middle, ConversationId Leaf, ConversationId Sibling)> SeedAsync(DesktopHarness app, MainWindow window)
     {
-        await NetworkScenario.SeedAsync(app);
+        await SummaryNetworkScenario.SeedAsync(app);
         var list = app.ShellPage.Conversations;
         await UiWait.UntilAsync(() => list.Items.Count == 4 && list.Items.All(i => i.Mark == ConversationMark.None || i.IsUnread));
         var ids = list.Items.Select(i => i.Id).ToList();

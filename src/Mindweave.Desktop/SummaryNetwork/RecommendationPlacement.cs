@@ -1,6 +1,6 @@
 using Mindweave.Application.Storage;
 
-namespace Mindweave.Desktop.Network;
+namespace Mindweave.Desktop.SummaryNetwork;
 
 /// <summary>Something on the canvas a recommended node must not cover: a box in canvas units.</summary>
 public readonly record struct CanvasBox(double Left, double Top, double Right, double Bottom)
@@ -9,10 +9,10 @@ public readonly record struct CanvasBox(double Left, double Top, double Right, d
 
     /// <summary>The box of a dot at (<paramref name="x"/>, <paramref name="y"/>) with its label to the right, as the layout reserves it.</summary>
     public static CanvasBox OfNode(double x, double y, double labelWidth) => new(
-        NetworkLayout.BoxLeft(x) - (NetworkLayout.LabelPadding / 2),
-        y - (NetworkLayout.NodeHeight / 2),
-        NetworkLayout.BoxRight(x, labelWidth) + (NetworkLayout.LabelPadding / 2),
-        y + (NetworkLayout.NodeHeight / 2));
+        SummaryNetworkLayout.BoxLeft(x) - (SummaryNetworkLayout.LabelPadding / 2),
+        y - (SummaryNetworkLayout.NodeHeight / 2),
+        SummaryNetworkLayout.BoxRight(x, labelWidth) + (SummaryNetworkLayout.LabelPadding / 2),
+        y + (SummaryNetworkLayout.NodeHeight / 2));
 }
 
 /// <summary>
@@ -25,7 +25,7 @@ public static class RecommendationPlacement
     /// <summary>Grid steps around the basis: a node's height plus a gap down, a short hop across.</summary>
     public const double StepX = 64;
 
-    public const double StepY = NetworkLayout.NodeHeight + 12;
+    public const double StepY = SummaryNetworkLayout.NodeHeight + 12;
 
     /// <summary>How many steps out in each direction are tried before giving up on a free place.</summary>
     public const int Reach = 6;

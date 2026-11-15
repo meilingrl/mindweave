@@ -28,10 +28,10 @@ public class WorkspacesPageTests
     {
         await using var app = DesktopHarness.Create();
         var window = app.ShowWindow(1100, 720);
-        await NetworkScenario.SeedAsync(app);
+        await SummaryNetworkScenario.SeedAsync(app);
         var (city, photos) = await WorkspaceSwitcherTests.AddAsync(app, "城市交通", "摄影史");
         app.Client.Reply("1863 年，伦敦。");
-        await NetworkScenario.AskAsync(app, app.Services.GetRequiredService<ConversationService>(), null, city.Id, "第一条地铁在哪里？");
+        await SummaryNetworkScenario.AskAsync(app, app.Services.GetRequiredService<ConversationService>(), null, city.Id, "第一条地铁在哪里？");
 
         app.ShellPage.ShowSectionCommand.Execute(MainSection.Settings);
         var settings = Assert.IsType<SettingsHomeViewModel>(app.Workbench.CurrentPage);
@@ -86,11 +86,11 @@ public class WorkspacesPageTests
     {
         await using var app = DesktopHarness.Create();
         var window = app.ShowWindow(1100, 720);
-        await NetworkScenario.SeedAsync(app);
+        await SummaryNetworkScenario.SeedAsync(app);
         var (city, _) = await WorkspaceSwitcherTests.AddAsync(app, "城市交通", "摄影史");
         var conversations = app.Services.GetRequiredService<ConversationService>();
         app.Client.Reply("1863 年，伦敦。");
-        await NetworkScenario.AskAsync(app, conversations, null, city.Id, "第一条地铁在哪里？");
+        await SummaryNetworkScenario.AskAsync(app, conversations, null, city.Id, "第一条地铁在哪里？");
         var subway = Assert.Single(await conversations.ListAsync(city.Id, CancellationToken.None));
         Assert.True((await conversations.ArchiveAsync(subway.Conversation.Id, CancellationToken.None)).Archived);
 
@@ -113,11 +113,11 @@ public class WorkspacesPageTests
     {
         await using var app = DesktopHarness.Create();
         var window = app.ShowWindow(1100, 720);
-        await NetworkScenario.SeedAsync(app);
+        await SummaryNetworkScenario.SeedAsync(app);
         var trains = app.Workbench.CurrentWorkspace!;
         var (city, _) = await WorkspaceSwitcherTests.AddAsync(app, "城市交通", "摄影史");
-        var network = await NetworkScenario.OpenNetworkAsync(app, window);
-        await NetworkScenario.MoveSomethingAsync(app, network);
+        var network = await SummaryNetworkScenario.OpenSummaryNetworkAsync(app, window);
+        await SummaryNetworkScenario.MoveSomethingAsync(app, network);
         network.ArrangeCommand.Execute(null);
 
         var page = await OpenPageAsync(app, window);
@@ -301,12 +301,12 @@ public class WorkspacesPageTests
     {
         await using var app = DesktopHarness.Create();
         var window = app.ShowWindow(1100, 720);
-        await NetworkScenario.SeedAsync(app);
+        await SummaryNetworkScenario.SeedAsync(app);
         var trains = app.Workbench.CurrentWorkspace!;
         var (city, photos) = await WorkspaceSwitcherTests.AddAsync(app, "城市交通", "摄影史");
         var conversations = app.Services.GetRequiredService<ConversationService>();
-        await NetworkScenario.AskAsync(app, conversations, null, city.Id, "第一条地铁在哪里？");
-        await NetworkScenario.AskAsync(app, conversations, null, photos.Id, "银版照相是怎么回事？");
+        await SummaryNetworkScenario.AskAsync(app, conversations, null, city.Id, "第一条地铁在哪里？");
+        await SummaryNetworkScenario.AskAsync(app, conversations, null, photos.Id, "银版照相是怎么回事？");
         var page = await OpenPageAsync(app, window);
 
         UiInput.Click(window, Rows<Button>(window, "DeleteWorkspaceButton")[1]);

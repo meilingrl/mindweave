@@ -5,7 +5,7 @@ using Mindweave.Application.Conversations;
 using Mindweave.Application.Reading;
 using Mindweave.Application.Startup;
 using Mindweave.Desktop.Navigation;
-using Mindweave.Desktop.Network;
+using Mindweave.Desktop.SummaryNetwork;
 using Mindweave.Desktop.Services;
 
 namespace Mindweave.Desktop.ViewModels;
@@ -57,7 +57,7 @@ public sealed partial class ExitCoordinator(
     ExitOptions options,
     ILogger<ExitCoordinator> logger) : ViewModelBase
 {
-    private IReadOnlyList<NetworkSession> _discardOnCommit = [];
+    private IReadOnlyList<SummaryNetworkSession> _discardOnCommit = [];
     private bool _stopped;
     private Func<Task<bool>>? _restore;
     private Action? _restoreEnded;
@@ -239,7 +239,7 @@ public sealed partial class ExitCoordinator(
         }
     }
 
-    private void OnLayoutAnswered(IReadOnlyList<NetworkSession> discardOnCommit)
+    private void OnLayoutAnswered(IReadOnlyList<SummaryNetworkSession> discardOnCommit)
     {
         _discardOnCommit = discardOnCommit;
         AskAboutTasks();
