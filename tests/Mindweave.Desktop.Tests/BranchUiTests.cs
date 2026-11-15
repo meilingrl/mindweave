@@ -135,6 +135,10 @@ public class BranchUiTests
         var window = await OpenAsync(app);
         var root = await StartConversationAsync(app, window, "火车是怎么发明的？", LongAnswer);
         var child = await BranchAsync(app, window, root, "铁路随后");
+        // The sidebar lists new conversations after its own reload; in a full desktop run that can come later than
+        // the branch page, and opening from the sidebar before it would find no row.
+        await UiWait.UntilAsync(() => app.ShellPage.Conversations.Items.Any(i => i.Id == root.Id)
+            && app.ShellPage.Conversations.Items.Any(i => i.Id == child.Id));
         OpenFromSidebar(app, root.Id);
         await PageAsync(app, window, root.Id);
         await UiWait.UntilAsync(() => !CurrentView(window).IsPositionPending);
