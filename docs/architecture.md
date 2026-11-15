@@ -87,7 +87,7 @@ ViewModel位于Desktop；课程导航映射见“工作区、界面与导航”�
 | 模型配置 | `ModelSettings` |
 | 凭据 | `Credential` |
 | 主区：探索、总结网络、设置 | `Explore`、`SummaryNetwork`、`Settings` |
-| 内容关联（首版后） | 实现前在此补上 |
+| 内容关联、关联建议（首版后） | `SummaryLink`（用户建立或经确认的关联，说明为 `Note`）、`LinkSuggestion`（AI 建议、待确认） |
 
 保留词只用于下列含义：`Network` 指网络连接（如连接失败），`Graph` 指布局算法里的通用图结构。
 
