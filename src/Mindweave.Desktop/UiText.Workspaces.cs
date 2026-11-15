@@ -37,7 +37,7 @@ public static partial class UiText
     /// <summary>The entry's accessible name, with the count it shows.</summary>
     public static string ManageWorkspacesName(int count) => $"{ManageWorkspacesLink}，{WorkspacesCount(count)}";
 
-    public const string WorkspacesIntro = "每个工作区有自己的会话、总结和知识网络。改名不影响其中的内容；删除前会先备份。";
+    public const string WorkspacesIntro = "每个工作区有自己的会话、总结和总结网络。改名不影响其中的内容；删除前会先备份。";
 
     public const string CurrentWorkspaceTag = "当前";
 
