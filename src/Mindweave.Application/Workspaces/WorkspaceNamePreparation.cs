@@ -251,7 +251,10 @@ public sealed class WorkspaceNamePreparationOptions
 /// <see cref="WorkspaceNamePreparationOptions.Wait"/> after the last new title (each restarts the wait), then asks once,
 /// at idle priority: never ahead of, and never keeping a slot from, answers, summaries, titles or naming. One such
 /// request at a time in the whole application; none while storage is paused, during an exit, or without a model.
-/// Failures are only logged (by kind); the next new title tries again.
+/// A request that gives no names (a failure, or no usable line) is only logged, and is asked again only once the
+/// workspace has grown by <see cref="NameRefreshRule.Threshold"/> since (low finding gap-unprompted-5: every later
+/// title used to send another billed request that was thrown away). Remembered for this run only: after a restart one
+/// request may be tried again.
 /// </summary>
 public sealed partial class WorkspaceNamePreparer : IDisposable
 {
@@ -269,6 +272,9 @@ public sealed partial class WorkspaceNamePreparer : IDisposable
     private readonly Lock _gate = new();
     private readonly Dictionary<WorkspaceId, ITimer> _timers = [];
     private readonly Dictionary<WorkspaceId, int> _seen = [];
+
+    // The titled count at which a request gave no names (failed, or nothing usable came back), per workspace, for this run.
+    private readonly Dictionary<WorkspaceId, int> _gaveNothingAt = [];
     private readonly List<WorkspaceId> _waiting = [];
     private readonly HashSet<Task> _inFlight = [];
     private WorkspaceId? _running;
@@ -362,7 +368,7 @@ public sealed partial class WorkspaceNamePreparer : IDisposable
             // A conversation titled again (renamed) does not restart a wait that runs; a newly titled one does.
             var grew = !_seen.TryGetValue(workspace, out var before) || titled > before;
             _seen[workspace] = titled;
-            if (!NameRefreshRule.IsDue(titled, kept) || (!grew && _timers.ContainsKey(workspace)))
+            if (!IsDueLocked(workspace, titled, kept) || (!grew && _timers.ContainsKey(workspace)))
             {
                 return;
             }
@@ -370,6 +376,11 @@ public sealed partial class WorkspaceNamePreparer : IDisposable
             ArmLocked(workspace);
         }
     }
+
+    /// <summary>Due by the rule, and not held back by a request that gave nothing at a count too close to this one.</summary>
+    private bool IsDueLocked(WorkspaceId workspace, int titled, PreparedNames? kept) =>
+        NameRefreshRule.IsDue(titled, kept)
+        && (!_gaveNothingAt.TryGetValue(workspace, out var at) || titled - at >= NameRefreshRule.Threshold(titled));
 
     private void ArmLocked(WorkspaceId workspace)
     {
@@ -463,9 +474,13 @@ public sealed partial class WorkspaceNamePreparer : IDisposable
         }
 
         var titled = NameRefreshRule.TitledConversations(await _store.ListAsync(workspace, CancellationToken.None).ConfigureAwait(false));
-        if (!NameRefreshRule.IsDue(titled, await _cache.GetAsync(workspace, null, CancellationToken.None).ConfigureAwait(false)))
+        var kept = await _cache.GetAsync(workspace, null, CancellationToken.None).ConfigureAwait(false);
+        lock (_gate)
         {
-            return;
+            if (!IsDueLocked(workspace, titled, kept))
+            {
+                return;
+            }
         }
 
         NameSuggestions result;
@@ -495,10 +510,30 @@ public sealed partial class WorkspaceNamePreparer : IDisposable
                 break;
             case NameSuggestionProblem.Failed:
                 LogFailed(_logger, result.Error);
+                GaveNothing(workspace, titled);
                 break;
             case { } other:
                 LogSkipped(_logger, other);
                 break;
+            case null when result.Names.Count == 0:
+                LogNoNames(_logger);
+                GaveNothing(workspace, titled);
+                break;
+            case null:
+                lock (_gate)
+                {
+                    _gaveNothingAt.Remove(workspace);
+                }
+
+                break;
+        }
+    }
+
+    private void GaveNothing(WorkspaceId workspace, int titled)
+    {
+        lock (_gate)
+        {
+            _gaveNothingAt[workspace] = titled;
         }
     }
 
@@ -556,6 +591,9 @@ public sealed partial class WorkspaceNamePreparer : IDisposable
 
     [LoggerMessage(Level = LogLevel.Information, Message = "Background workspace names failed: {Kind}")]
     private static partial void LogFailed(ILogger logger, GenerationErrorKind? kind);
+
+    [LoggerMessage(Level = LogLevel.Information, Message = "Background workspace names: the answer held no usable name")]
+    private static partial void LogNoNames(ILogger logger);
 
     [LoggerMessage(Level = LogLevel.Information, Message = "Background workspace names skipped: {Reason}")]
     private static partial void LogSkipped(ILogger logger, NameSuggestionProblem reason);

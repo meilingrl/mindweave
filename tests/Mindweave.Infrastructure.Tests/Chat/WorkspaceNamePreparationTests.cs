@@ -128,25 +128,47 @@ public class WorkspaceNamePreparationTests
         Assert.Single(h.Client.Requests, FakeChatClient.IsWorkspaceNaming);
     }
 
-    [Fact]
-    public async Task A_failed_background_request_shows_nothing_and_the_next_new_title_tries_again()
+    /// <summary>
+    /// Low finding gap-unprompted-5: a request that fails, or answers with no usable name (a reasoning model spending its
+    /// whole allowance thinking), is not repeated for every later title, each of them billed and thrown away. It is tried
+    /// again only once the workspace has grown as much as after names that were kept.
+    /// </summary>
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public async Task A_background_request_that_gives_no_names_waits_for_the_workspace_to_grow_before_trying_again(bool serviceFails)
     {
         await using var h = await ChatHarness.StartAsync();
         var preparer = h.NamePreparer;
         await ThreeTitlesAsync(h);
-        h.Client.WorkspaceNames.FailNext(GenerationErrorKind.ServerError);
+        if (serviceFails)
+        {
+            h.Client.WorkspaceNames.FailNext(GenerationErrorKind.ServerError);
+        }
+        else
+        {
+            h.Client.WorkspaceNames.Replies.Enqueue("这一行远远超过了工作区名称允许的十二个字的长度限制所以不能用");
+        }
+
         await AdvanceAsync(h, Wait);
         Assert.Equal(1, preparer.Sent);
         Assert.Null(await h.NameCache.GetAsync(h.Workspace, null, Ct));
         Assert.False(preparer.IsWaiting(h.Workspace));
+        Assert.Single(await h.Requests.ForWorkspaceAsync(h.Workspace, Ct));
 
-        // Recorded like any request; tried again once another conversation has its title.
-        Assert.Equal(Application.Diagnostics.AiRequestOutcome.Failed, Assert.Single(await h.Requests.ForWorkspaceAsync(h.Workspace, Ct)).Outcome);
+        // Two more titles (5 in all, growth 2 < T(5) = 3): nothing is asked.
         await TitledAsync(h, "第四个问题");
+        await TitledAsync(h, "第五个问题");
+        Assert.False(preparer.IsWaiting(h.Workspace));
+        await AdvanceAsync(h, Wait);
+        Assert.Equal(1, preparer.Sent);
+
+        // The sixth (growth 3): asked once more, and kept this time.
+        await TitledAsync(h, "第六个问题");
         Assert.True(preparer.IsWaiting(h.Workspace));
         await AdvanceAsync(h, Wait);
         Assert.Equal(2, preparer.Sent);
-        Assert.Equal(4, (await h.NameCache.GetAsync(h.Workspace, null, Ct))!.TitledConversations);
+        Assert.Equal(6, (await h.NameCache.GetAsync(h.Workspace, null, Ct))!.TitledConversations);
     }
 
     [Fact]
