@@ -247,15 +247,17 @@ public partial class ConversationActionsTests
         var answerCopy = VisibleNamed<CopyButton>(view, "AnswerCopy");
         Assert.Equal(UiText.Copy, ToolTip.GetTip(answerCopy));
         Assert.Empty(answerCopy.GetVisualDescendants().OfType<TextBlock>());
+        // Timed from before the click: the check cannot start earlier, so it must last at least its full time. Timing
+        // from when the wait first saw the check made a slow runner lose the slack (CI, 2026-11-13).
+        var sinceClick = System.Diagnostics.Stopwatch.StartNew();
         UiInput.Click(window, answerCopy);
         await UiWait.UntilAsync(() => answerCopy.ShowsCopied);
-        var copiedAt = DateTime.UtcNow;
         Assert.Equal(Answer, await clipboard.TryGetTextAsync());
         Assert.Equal(UiText.Copied, ToolTip.GetTip(answerCopy));
 
         // The check goes back to the copy icon after a moment.
         await UiWait.UntilAsync(() => !answerCopy.ShowsCopied, timeoutMs: 5_000);
-        Assert.True(DateTime.UtcNow - copiedAt >= TimeSpan.FromSeconds(1.2));
+        Assert.True(sinceClick.Elapsed >= CopyButton.ConfirmationTime - TimeSpan.FromMilliseconds(50), $"the check lasted {sinceClick.Elapsed}");
         Assert.Equal(UiText.Copy, ToolTip.GetTip(answerCopy));
 
         var questionCopy = VisibleNamed<CopyButton>(view, "QuestionCopy");
