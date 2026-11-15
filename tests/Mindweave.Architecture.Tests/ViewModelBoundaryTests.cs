@@ -13,12 +13,29 @@ public class ViewModelBoundaryTests
     private static readonly Assembly Application = typeof(Mindweave.Application.Startup.StartupCoordinator).Assembly;
     private static readonly Assembly Infrastructure = typeof(Mindweave.Infrastructure.InfrastructureServices).Assembly;
 
-    private static readonly string[] Presentation =
+    /// <summary>
+    /// The view layer and the Desktop adapters, which may use Avalonia and concrete services. Every other namespace under
+    /// <c>Mindweave.Desktop.</c> is presentation logic and is checked, so a new folder is covered without editing this
+    /// test. The project root (start-up and wiring) is not a presentation namespace either.
+    /// </summary>
+    private static readonly string[] ViewLayer =
     [
-        "Mindweave.Desktop.ViewModels",
-        "Mindweave.Desktop.Navigation",
-        "Mindweave.Desktop.Network",
+        "Mindweave.Desktop.Views",
+        "Mindweave.Desktop.Controls",
+        "Mindweave.Desktop.Markdown",
+        "Mindweave.Desktop.Services",
     ];
+
+    [Fact]
+    public void Every_presentation_namespace_is_checked()
+    {
+        var checkedNamespaces = PresentationTypes().Select(t => t.Namespace).ToHashSet();
+        Assert.Contains("Mindweave.Desktop.ViewModels", checkedNamespaces);
+        Assert.Contains("Mindweave.Desktop.ViewModels.Pages", checkedNamespaces);
+        Assert.Contains("Mindweave.Desktop.Navigation", checkedNamespaces);
+        Assert.Contains("Mindweave.Desktop.SummaryNetwork", checkedNamespaces);
+        Assert.DoesNotContain(checkedNamespaces, ns => IsIn(ns!, "Mindweave.Desktop.Views"));
+    }
 
     [Fact]
     public void View_models_take_no_concrete_application_or_infrastructure_service()
@@ -67,7 +84,12 @@ public class ViewModelBoundaryTests
     }
 
     private static IEnumerable<Type> PresentationTypes() =>
-        Desktop.GetTypes().Where(t => t.Namespace is { } ns && Presentation.Any(p => ns.StartsWith(p, StringComparison.Ordinal)));
+        Desktop.GetTypes().Where(t => t.Namespace is { } ns
+            && ns.StartsWith("Mindweave.Desktop.", StringComparison.Ordinal)
+            && !ViewLayer.Any(v => IsIn(ns, v)));
+
+    private static bool IsIn(string ns, string root) =>
+        ns == root || ns.StartsWith(root + ".", StringComparison.Ordinal);
 
     /// <summary>
     /// Observable state a view model watches rather than a service it calls: an answer's live text while it streams,
