@@ -43,19 +43,22 @@ The severity is overstated, because the claimed failure needs redistribution to 
 - The GitHub repo is PRIVATE with no licence set.
 - The published `app-*` folders in TRACK.md went to the user's own Windows machine (E:\mindweave-claude-auto\...) for their own trial, which is not redistribution.
 - There is no installer, release pipeline or download channel in the repo.
-- scripts/package-source.sh ships source via `git archive`, not third-party bina … (cut; full text in the workflow journal)
+- scripts/package-source.sh ships source via `git archive`, not third-party binaries, so the source package does not trigger binary-notice obligations.
+
+So today this is a release-readiness gap, not an active licence breach. It becomes a real compliance defect the moment a publish folder is handed to anyone else, and at the stated "industrial production quality" bar it should be fixed before any distribution. The recommendation (generated THIRD-PARTY-NOTICES copied to the publish directory, plus a check) is sound. The absence of a project LICENSE on a private repo is a separate product decision for the user, not a defect.
 
 *Corrections to the finding.* 1. Severity high is overstated; medium fits. No redistribution to a third party has occurred or is set up: the repo is private, this track is declared not the course submission version (TRACK.md:3), and the published folders went only to the user's own Windows machine.
 2. The "course submission binary" scenario does not apply to this branch; the submission track is track/codex-steady, which was not examined here.
 3. "Known but not acted on" overreads D-014. It records the licences as a property of the chosen package; it does not record a recognised notice obligation that was then skipped.
 4. Location line is off by a few lines: the LiveMarkdown references are at csproj lines 19-20, not 13 (line 13 opens the ItemGroup).
-5. Bundling "no project LICENSE" into the same finding conflates two things. A private repo without a licence is a product decision for the user, not a compliance defect. … (cut; full text in the workflow journal)
+5. Bundling "no project LICENSE" into the same finding conflates two things. A private repo without a licence is a product decision for the user, not a compliance defect.
+6. I did not independently verify the licences of the SkiaSharp, HarfBuzzSharp, ANGLE and Inter font components; the claim about them is plausible but unchecked.
 
 **Reproduction attempt: confirmed, medium.** Not a code defect, so no xUnit test was written; verified by inspection plus an actual publish. The facts in the finding are all true at track/claude-auto 1ba95c9: (1) the tree has no LICENSE/NOTICE/THIRD-PARTY/COPYING file anywhere; (2) Mindweave.Desktop.csproj, Directory.Build.props and the scripts contain no Content/None item or step copying licence text, and src/ has no in-app licence/about text; (3) a real `dotnet publish src/Mindweave.Desktop -c Release -r win-x64 --self-contained` (the exact command in run-guide.md:39 / scripts/windows.sh:84) produced 252 files - 242 dll, 6 pdb, 2 json, 2 exe - with zero licence or notice files, while shipping LiveMarkdown.Avalonia(.Math) (Apache-2.0), SQLitePCLRaw + e_sqlite3 (Apache-2.0), Markdig (BSD-2-Clause), RaTeX/ratex_ffi (MIT + KaTeX fonts under OFL, per the package's own licenses/ folder), Onigwrap/libonigwrap (Oniguruma), SkiaSharp, HarfBuzz, ANGLE (av_libglesv2) and Avalonia.Fonts.Inter. The upstream packages do carry the texts (ratex/1.0.0/licenses/*, onigwrap THIRD-PARTY-NOTICES.TXT, skiasharp LICENSE.txt, ANGLE LICENSE) but NuGet does not flow them to publish output, confirmed empirically. decisions.md D-014 names the Apache-2.0/MIT/OFL licences, so it was known.
 
-Severity lowered to medium: it is a real compliance gap that must be closed before any binary is handed to a third party, but there is no runtime/data/security impact, the fix is small and mechanical, and the only distribution evidenced so far is the user's own Windows test machine (E:\mindweave-claude-auto) - not a redistribution. The course deliverable buil … (cut; full text in the workflow journal)
+Severity lowered to medium: it is a real compliance gap that must be closed before any binary is handed to a third party, but there is no runtime/data/security impact, the fix is small and mechanical, and the only distribution evidenced so far is the user's own Windows test machine (E:\mindweave-claude-auto) - not a redistribution. The course deliverable built by scripts/package-source.sh is a source zip via git archive (no third-party binaries), so the "course submission binary" scenario is not what the repo's delivery script produces. The missing project LICENSE is a decision for the owner rather than a defect.
 
-*Corrections to the finding.* 1) "The published folder is handed out" is overstated: the only evidenced destination is the user's own Windows test machine (E:\mindweave-claude-auto via scripts/windows.sh); no release, installer or third-party hand-off exists in the repo or CI. The exposure is conditional on future distribution. 2) "or the course submission binary": the repo's delivery script (scripts/package-source.sh) produces a source-only git-archive zip, which redistributes no third-party binaries; a binary submission would be affected only if a published folder is added to it. 3) I did not verify the claim that KaTeX fonts are embedded inside ratex_ffi/RaTeX assemblies beyond the package shipping KaTeX-fonts-NOTICE.txt and SIL-OFL-1.1.txt, nor that Avalonia.Fonts.Inter's nuspec (MIT) covers the embedded Inter font's OFL - plausible but not independently checked. 4) Publish output also contains 6 .pdb files (libS … (cut; full text in the workflow journal)
+*Corrections to the finding.* 1) "The published folder is handed out" is overstated: the only evidenced destination is the user's own Windows test machine (E:\mindweave-claude-auto via scripts/windows.sh); no release, installer or third-party hand-off exists in the repo or CI. The exposure is conditional on future distribution. 2) "or the course submission binary": the repo's delivery script (scripts/package-source.sh) produces a source-only git-archive zip, which redistributes no third-party binaries; a binary submission would be affected only if a published folder is added to it. 3) I did not verify the claim that KaTeX fonts are embedded inside ratex_ffi/RaTeX assemblies beyond the package shipping KaTeX-fonts-NOTICE.txt and SIL-OFL-1.1.txt, nor that Avalonia.Fonts.Inter's nuspec (MIT) covers the embedded Inter font's OFL - plausible but not independently checked. 4) Publish output also contains 6 .pdb files (libSkiaSharp.pdb, libHarfBuzzSharp.pdb, etc.) - unrelated to licensing but worth noting for the package. Everything else in the finding checked out exactly.
 
 <details><summary>Reproduction</summary>
 
@@ -102,7 +105,11 @@ What holds:
 
 Why medium is too high:
 1. Scenario 1 (extra feed serving a same-ID package) needs a second feed on the restoring machine. On this Mac the user config has only nuget.org. The Windows machine's config was not inspected (SSH is forbidden), so that part is hypothetical. With one public source there is no dependency-confusion path, and all package IDs are public nuget.org IDs.
-2. Scenario 2 is partly wrong. nuget.org package versions are immutable, so "a re-published nupkg restores silently" cannot happen from nuget.org alone. It requires a different feed, a com … (cut; full text in the workflow journal)
+2. Scenario 2 is partly wrong. nuget.org package versions are immutable, so "a re-published nupkg restores silently" cannot happen from nuget.org alone. It requires a different feed, a compromised feed or a poisoned local cache. The narrower true statement is that no content hash is recorded in the repo, so cross-machine bit-identity cannot be demonstrated.
+3. Scenario 3 is overstated. All direct versions are exact pins in Directory.Packages.props, and NuGet resolves transitives deterministically (lowest applicable version), so they do not float between restores. They change only when someone edits a direct version, and that edit is itself a reviewable diff. What is missing is visibility of the resulting transitive changes, including native binaries.
+4. The app has no release pipeline or distribution channel. "Publish" produces a local folder on the developer's own Windows machine for interactive use.
+
+Against an industrial-quality bar the recommendation (repo nuget.config with `<clear/>` and source mapping, lock files, `--locked-mode`) is sound and cheap. It is defence in depth, so low is the right rating.
 
 *Corrections to the finding.* - "A re-published or tampered nupkg restores silently" is overstated: nuget.org versions are immutable, so this needs a non-nuget.org feed, a feed compromise or a poisoned local cache.
 - "A transitive version changes whenever a direct package is bumped with no diff to review" is overstated: the direct bump is a reviewable diff in Directory.Packages.props and resolution is deterministic; only the transitive consequences are invisible.
@@ -133,7 +140,13 @@ Why medium is too high:
 
 **What is overstated:**
 - The script header describes `publish` as producing an exe "for interactive use" on the "Windows 11 test machine". The `app-*` folders in `TRACK.md:40-46` are the owner's own trial builds on their own machine, not a distributed release. No installer, release pipeline or end-user distribution exists on this track, and `AGENTS.md` says the course submission is the other track.
-- "The shipped folder never gets fixes" therefore describes … (cut; full text in the workflow journal)
+- "The shipped folder never gets fixes" therefore describes a hypothetical future release. Each trial build is republished per stage.
+- "The released binary runs on a runtime no test run used" is only partly true. `scripts/windows.sh test` runs the full suite on the same Windows machine with the same SDK, so that runtime is exercised whenever the script is used. `TRACK.md:40` notes Windows real-machine testing has been paused since 2026-11-05.
+- The security exposure is narrow: the app is an HTTPS client to AI endpoints the user configures. A stale runtime is a hygiene gap, not a directly exploitable path.
+
+**Not verified:** whether the Windows machine is still on SDK 10.0.103. The last record is 2026-10-26 and SSH was out of bounds for this audit. The finding itself hedges with "if".
+
+**Severity:** low today, as a reproducibility and hygiene gap in trial builds. It becomes medium the moment a build from this script is handed to anyone else, so it should be fixed before any real release. The recommendation (minimum SDK patch check in the publish verb, record the bundled runtime version, or publish from CI) is sound and cheap.
 
 *Corrections to the finding.* - The builds affected are the owner's own interactive trial builds on their test machine, not a shipped or released binary. There is no distribution channel on this track, so "shipped folder never gets fixes" describes a future risk.
 - "Runs on a runtime no test run used" is too strong: `scripts/windows.sh test` runs the suite on the same machine and SDK. Only CI and the Mac use a different patch.
@@ -164,14 +177,19 @@ What holds up:
 
 What is overstated:
 - No crash, hang or memory fault was demonstrated; the scenario is conjecture. I could not run a reproduction under the read-only rules.
-- RaTeX's managed binding exposes `ratex_get_last_error`, `RatexError` and `ErrorCode`, so ordinary malformed LaTeX has an error-return path. TRACK.md:141 also records a fo … (cut; full text in the workflow journal)
+- RaTeX's managed binding exposes `ratex_get_last_error`, `RatexError` and `ErrorCode`, so ordinary malformed LaTeX has an error-return path. TRACK.md:141 also records a formula that could not be drawn falling back to LaTeX source rather than crashing.
+- The engine is Rust, so memory-corruption faults are unlikely. The realistic residual is a panic that aborts the process: the dylib contains "panic in a function that cannot unwind" strings, and I could not tell whether the FFI wraps calls in catch_unwind.
+- The TextMateSharp/Onigwrap leg is not a one-person chain. It has two further distinct authors, TextMateSharp is the stack AvaloniaEdit uses, and Oniguruma is a mature engine. Catastrophic backtracking would need a bad grammar regex, not just hostile input, and nothing shows highlighting runs on the UI thread.
+- "Model emits hostile output" is a reliability concern, not a security boundary: this is a single-user desktop app talking to the user's own configured provider.
+
+The recommendations (a malformed-input corpus test, a plain-text fallback, a written exit plan) are reasonable hardening for the stated quality bar.
 
 *Corrections to the finding.* - "Single-maintainer chain" is true only of the LiveMarkdown pair (DearVa) and the RaTeX pair (Sylinko). TextMateSharp (Daniel Peñalba) and Onigwrap (Aikawa Yataro) are separate authors, and that stack is widely used through AvaloniaEdit.
 - "A native fault ... memory error" is unlikely for the Rust engine; the realistic mode is a panic abort. The binding has an error-return API, so malformed LaTeX is not automatically a fault. No fault was demonstrated.
 - Catastrophic regex backtracking on the UI thread is unsupported: it would need a pathological grammar regex, and LiveMarkdown parses in the background per decisions.md:35; where highlighting runs was not shown.
 - "Untrusted model output" should read as a robustness concern, not a security one.
 - "First stable release in 2026" was not verified beyond the 1.0.0 version and an Oct 19 file date.
-- Severity should be low: a hardening and doc … (cut; full text in the workflow journal)
+- Severity should be low: a hardening and documentation gap (no malformed-input test, no plain-text fallback, no written exit plan), not a known defect.
 
 ### dependencies-5. No automated dependency updates, and GitHub Actions are pinned by mutable tag
 

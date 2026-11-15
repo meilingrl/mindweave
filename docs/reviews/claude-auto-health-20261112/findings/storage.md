@@ -46,7 +46,15 @@ What holds:
 - No design decision accepts this. s0-skeleton-storage.md:33 says WAL is set at creation and "persisted in the file header", which assumes it survives. decisions.md:15 and :27 and s0:34 rely on WAL so reads do not block writes.
 - TRACK.md has no entry for it, and the only journal-mode assertion in tests is on a fresh database (SqliteDatabaseTests.cs:30).
 
-So after any restore (startup recovery page, in-app restore, or restoring the pre-migration backup after a failed migration) the live database stays i … (cut; full text in the workflow journal)
+So after any restore (startup recovery page, in-app restore, or restoring the pre-migration backup after a failed migration) the live database stays in rollback-journal mode until it is recreated, with no log line.
+
+Why high is overstated:
+- No data loss or durability weakening: DELETE journal with `synchronous=FULL` is fully crash-safe and atomic.
+- The contention is bounded and mostly invisible. There is one serialized writer; reads are short-lived read-only connections with a 5 s busy timeout (SqliteDatabase.cs:263-289, SqliteConnections.cs:41), and the writer has a 5 s busy timeout plus Microsoft.Data.Sqlite retry. A commit waits for in-flight reads (typically milliseconds) and reads wait for a commit's fsync. SQLITE_BUSY needs a single read snapshot held for more than about 5 s, which is possible (e.g. a large export inside one `ReadAsync`) but not the normal case.
+- The cost is extra fsyncs and journal create/delete per commit, most visible on Windows during streaming checkpoints, plus the exit `wal_checkpoint(TRUNCATE)` becoming a harmless no-op.
+- It only affects users who have restored a backup.
+
+Medium fits: a silent, permanent departure from a documented storage invariant with latency and occasional Busy risk, untested, with a cheap fix. The recommendation is sound: set and verify WAL in `OpenExisting` outside a transaction, log when it changed, and add restore tests asserting `wal`.
 
 *Corrections to the finding.* - Severity should be medium, not high. There is no data-loss or durability impact; rollback journal with `synchronous=FULL` is fully crash-safe.
 - "A read that outlasts the 5 s busy timeout turns a write into SQLITE_BUSY" is technically right but needs one read snapshot held for more than about 5 s, on top of Microsoft.Data.Sqlite's own retry up to the command timeout. Normal reads are short, so expect extra commit latency rather than routine Busy errors.
@@ -77,13 +85,14 @@ No application code was built or run.
 
 The mechanism is as the finding states: `PRAGMA journal_mode = WAL` runs only in `InitializeEmpty`; `OpenExisting` neither sets nor checks it; backups are `VACUUM INTO` output, which is a rollback-journal file, and restore copies that file into place. No existing test asserts the journal mode after a restore, and TRACK.md does not record this as a known finding.
 
-I lowered severity from high to medium. No data is lost or corrupted, and `synchronous=FULL` still gives durability. The impact is a silent, permanent break of a documented design invariant (s0-skeleton-storage.md relies on WAL so reads do not block writes): slower commits, reader/writer blocking, and a possible Busy storage failure only when a read outlasts the 5 s busy timeout plus the Microsoft.Data.Sqlite retry. The app's reads are short-lived, so user-visible Busy errors should be uncom … (cut; full text in the workflow journal)
+I lowered severity from high to medium. No data is lost or corrupted, and `synchronous=FULL` still gives durability. The impact is a silent, permanent break of a documented design invariant (s0-skeleton-storage.md relies on WAL so reads do not block writes): slower commits, reader/writer blocking, and a possible Busy storage failure only when a read outlasts the 5 s busy timeout plus the Microsoft.Data.Sqlite retry. The app's reads are short-lived, so user-visible Busy errors should be uncommon. If the bar treats any silent, permanent storage-mode regression after a recovery operation as high, that is defensible; the fix is one PRAGMA plus a test.
 
 *Corrections to the finding.* - **Severity**: high overstates it. There is no data loss, corruption or durability loss; the impact is degraded concurrency and commit cost, and the break of a documented design invariant.
 - **"Every commit waits for all open read snapshots" / Busy errors**: mechanically right, and I reproduced the Busy with an artificial long-held reader. In the app, a Busy needs a read that outlasts the 5 s busy timeout plus the Microsoft.Data.Sqlite command retry; with short-lived read connections that should be uncommon. I did not measure it through the app's own `ReadAsync`/`WriteAsync` under load.
 - **fsync cost on Windows**: plausible but not measured here.
 - **Exit `wal_checkpoint(TRUNCATE)` becoming a no-op**: consistent with DELETE mode, harmless.
-- **Line references**: 550, 460-521 and 213 match at 1ba95c9. I did not check the cited restore lines 258/278 by number; the copy-into-place is in ` … (cut; full text in the workflow journal)
+- **Line references**: 550, 460-521 and 213 match at 1ba95c9. I did not check the cited restore lines 258/278 by number; the copy-into-place is in `ReplaceDatabaseWith`.
+- **Fix placement**: the recommended `PRAGMA journal_mode = WAL` must run outside any transaction and needs no other connection on the file. That holds at open time, but the change itself was not tested.
 
 <details><summary>Reproduction</summary>
 
@@ -127,7 +136,91 @@ public async Task Control_reader_snapshot_does_not_block_a_commit_before_restore
 }
 
 [Fact]
-public async Task Reader_snapshot_does_not_block … (cut; full text in the workflow journal)
+public async Task Reader_snapshot_does_not_block_a_commit_after_restore()
+{
+    var backup = await SeedAsync();
+    await using (var database = _dir.Database(time: new ManualTime(Now)))
+    {
+        Assert.Equal(DatabaseOpenStatus.Ready, (await database.RestoreAsync(backup, Ct)).Status);
+        await database.CloseAsync();
+    }
+    var error = CommitWhileReaderHoldsSnapshot();
+    _out.WriteLine($"commit error after restore: {error}");
+    Assert.Null(error);
+}
+
+private string? CommitWhileReaderHoldsSnapshot()
+{
+    using var reader = _dir.Raw();
+    using var writer = _dir.Raw();
+    writer.Execute(null, "PRAGMA busy_timeout = 300;");
+    writer.DefaultTimeout = 1;
+    reader.Execute(null, "BEGIN;");
+    reader.Scalar<long>(null, "SELECT count(*) FROM workspace;");
+    try { writer.Execute(null, "INSERT INTO workspace VALUES ('wx', 'while reading', 9);"); return null; }
+    catch (SqliteException ex) { return $"{ex.SqliteErrorCode}: {ex.Message}"; }
+    finally { reader.Execute(null, "ROLLBACK;"); }
+}
+
+private async Task AssertWalAsync(SqliteDatabase database)
+{
+    var live = await database.WriteAsync((c, t) => c.Scalar<string>(t, "PRAGMA journal_mode;"), Ct);
+    await database.WriteAsync((c, t) => c.Execute(t, "INSERT INTO workspace VALUES ('w3', 'after restore', 3);"), Ct);
+    var walFileWhileLive = File.Exists(_dir.Paths.DatabasePath + "-wal");
+    await database.CloseAsync();
+    string? reopened;
+    await using (var again = _dir.Database(time: new ManualTime(Now.AddMinutes(5))))
+    {
+        Assert.True((await again.OpenAsync(Ct)).IsReady);
+        reopened = await again.WriteAsync((c, t) => c.Scalar<string>(t, "PRAGMA journal_mode;"), Ct);
+    }
+    _out.WriteLine($"journal_mode live after restore: {live}; -wal file present while live: {walFileWhileLive}; after close+reopen: {reopened}");
+    Assert.Equal("wal", live);
+    Assert.Equal("wal", reopened);
+}
+
+private async Task<BackupInfo> SeedAsync()
+{
+    string backupPath;
+    await using (var database = _dir.Database(time: new ManualTime(Now.AddDays(-1))))
+    {
+        Assert.True((await database.OpenAsync(Ct)).IsReady);
+        Assert.Equal("wal", await database.WriteAsync((c, t) => c.Scalar<string>(t, "PRAGMA journal_mode;"), Ct));
+        await database.WriteAsync((c, t) => c.Execute(t, "INSERT INTO workspace VALUES ('w1', 'in backup', 1);"), Ct);
+        backupPath = await database.BackupAsync(BackupReason.BeforeWorkspaceDelete, Ct);
+        await database.WriteAsync((c, t) => c.Execute(t, "INSERT INTO workspace VALUES ('w2', 'after backup', 2);"), Ct);
+    }
+    await using var probe = _dir.Database();
+    return Assert.Single(probe.ListBackups(), b => b.Path == backupPath);
+}
+```
+
+Actual output (trimmed):
+
+```
+Failed ZzJournalModeReproTests.Reader_snapshot_does_not_block_a_commit_after_restore [1 s]
+  Assert.Null() Failure: Value is not null
+  Expected: null
+  Actual:   "5: SQLite Error 5: 'database is locked'."
+Failed ZzJournalModeReproTests.In_place_restore_keeps_wal [16 ms]
+  Assert.Equal() Failure: Strings differ
+  Expected: "wal"
+  Actual:   "delete"
+  Standard Output: journal_mode live after restore: delete; -wal file present while live: False; after close+reopen: delete
+Passed ZzJournalModeReproTests.Control_reader_snapshot_does_not_block_a_commit_before_restore [9 ms]
+Failed ZzJournalModeReproTests.Startup_restore_keeps_wal [12 ms]
+  Assert.Equal() Failure: Strings differ
+  Expected: "wal"
+  Actual:   "delete"
+  Standard Output: journal_mode live after restore: delete; -wal file present while live: False; after close+reopen: delete
+
+Test Run Failed.
+Total tests: 4
+     Passed: 1
+     Failed: 3
+```
+
+The seed step asserts `wal` before the backup is taken, so the mode change is caused by the restore. Cleanup: test file deleted, build outputs removed, worktree back on its original branch with a clean status; nothing committed.
 ```
 
 </details>
@@ -154,7 +247,7 @@ No mitigating guard exists:
 - Neither TRACK.md nor docs/design records this as known or accepted; data-model.md only states the RESTRICT/CASCADE policy.
 - The performance tests budget reads only (list, load, context, statistics); nothing times a delete.
 
-Medium stands. It is a latency and writer-starvation problem, not data loss, and it needs a large database plus a large delete. But the repo's own budge … (cut; full text in the workflow journal)
+Medium stands. It is a latency and writer-starvation problem, not data loss, and it needs a large database plus a large delete. But the repo's own budgeted "heavy year" shape is 2,000 conversations x 25 messages, which is the scale where this reaches tens of seconds.
 
 *Corrections to the finding.* Nothing in the finding is wrong. Three refinements:
 - The three indexes are not equally important: message(supersedes_id) carries most of the cost, generation_task(target_message_id) is second, and reading_position(message_id) is minor because the table holds about one row per conversation.
@@ -205,7 +298,12 @@ So the self-scan of message dominates (roughly 25 s of the total), generation_ta
 - Tests cover only in-process failures through the BeforeSwapForTests seam; none simulates a missing database with restore leftovers at open.
 - The undo-failure variant is also real, and slightly worse than claimed: after a failed undo, RestoreAsync returns IoError to the recovery page, and a Retry there calls OpenAsync, which reaches the same CreateNew without any restart. I did not trace the UI's Retry wiring, only the OpenAsync path.
 
-Severity lowered from … (cut; full text in the workflow journal)
+Severity lowered from medium to low because the trigger is narrow and nothing is destroyed:
+- The crash window is three or four same-directory renames with no I/O between them (the slow File.Copy happens before any rename), so it is microseconds for a kill, somewhat longer for power loss since the renames are not fsynced.
+- The undo-failure path needs a second rename failure straight after the first.
+- The old database survives intact under `replaced-*`, the source backup is untouched, and the in-app path also has a verified "before restore" backup. The leftover appears on the storage page.
+
+The real harm is the silent part: the user sees first-run onboarding instead of a recovery page, may assume the data is gone, and can start a diverging database. For a restore path held to a production bar it is worth fixing, and the fix is cheap: refuse CreateNew when `.restoring` or `replaced-*` siblings exist, or write an intent marker. If the reviewer weights "contradicts a written design guarantee on the data-recovery path" heavily, medium is defensible.
 
 *Corrections to the finding.* - Line numbers are off by one or two: the hazard comment is at 259-261 (cited 260-262) and the design-doc promise is at s0-skeleton-storage.md:55 (cited 54).
 - "Mentioned only on the storage page's leftovers list" holds for `replaced-*`; the `.restoring` file is not listed there, since ListLeftovers globs only the replaced infix.
@@ -232,13 +330,22 @@ Severity lowered from … (cut; full text in the workflow journal)
 
 **What is overstated**
 - **No data loss.** The restore source is copied, not moved, so it stays in `backups/`. The replaced files are deleted only when `File.Exists(keptCopy)` is true, and `keptCopy` is the "before restore" backup made just beforehand (`BackupDialogs.cs:206`). That backup is written by `VACUUM INTO`, integrity-checked and header-checked. So after the claimed power loss both the restored state and the pre-restore state survive as verified backups. `stage-reports.md:48` records deleting the replaced files as a deliberate decision for exactly this reason.
-- **Narrow trigger.** It needs a power loss or OS crash within seconds of an in-app restore, and the file must come back at exactly zero length. A … (cut; full text in the workflow journal)
+- **Narrow trigger.** It needs a power loss or OS crash within seconds of an in-app restore, and the file must come back at exactly zero length. A truncated, zero-filled or garbage file is caught as Unreadable and shows the recovery page, as the finding itself concedes.
+- **Zero-length initialization is deliberate and tested.** `s0-skeleton-storage.md:75` lists it among the tested behaviours, and `A_zero_length_file_is_initialized_in_place` covers it. A missing database file likewise creates a new one on a normal start.
+
+**What remains real**
+- The design promises never to pass off an empty database as a successful start (`architecture.md:424`, `s0-skeleton-storage.md:55`, and the §9.3 reference in `s6-wrapup.md:176`). A zero-length `mindweave.db` sitting beside existing backups does exactly that, with no notice, whether it came from a crash after restore, an interrupted external copy or a sync-tool placeholder.
+- The user must then find the in-app backup list unprompted. Restoring from it loses nothing in the post-restore case; in the other truncation cases the newest backup may be older than the lost data.
+- The recommended fixes are cheap and sound: flush the restored copy before the swap, and show the recovery page when a zero-length database is found while backups or leftovers exist.
+
+I rate it low rather than medium because the backups make it recoverable without loss and the trigger window is small. It is a robustness and consistency gap against the project's own "no silent empty database" rule.
 
 *Corrections to the finding.* - "The originals are already deleted" suggests data loss. The deleted files' content is held by the verified before-restore backup (deletion is conditional on that file existing), and the restore source also stays in `backups/`. The outcome is a silent empty start, recoverable without loss from the in-app backup list.
 - The title's "never flushed before the previous database is deleted" is accurate, but the deletion is a documented design choice (`stage-reports.md:48`), not an oversight.
 - Zero-length initialization is an intentional, tested S0 behaviour. The defect is narrower: it applies even when backups or leftover files exist beside the empty file.
 - A zero-length result is only one of several post-crash outcomes; the others (zero-filled, truncated) reach the recovery page.
-- Not checked: whether .NET's `File.Copy` uses an APFS clone on macOS, which would make the zero-length outcom … (cut; full text in the workflow journal)
+- Not checked: whether .NET's `File.Copy` uses an APFS clone on macOS, which would make the zero-length outcome less likely there. The `VACUUM INTO` backup is assumed durable from `synchronous=FULL`; this was not tested.
+- Severity is low, not medium.
 
 ### storage-5. Persistent lock, permission or disk errors at open are reported as a damaged database with advice to restore from backup
 
@@ -257,12 +364,20 @@ Severity lowered from … (cut; full text in the workflow journal)
 
 **What is overstated.**
 - **Retry is already offered.** `RecoveryViewModel` exposes Retry, Open data folder and Exit for every status, so the recommendation to "offer Retry" is already met.
-- **The real cause is visible.** The detail panel shows the raw SQLite message and extended code (for example "unable to open database file (extended code 14)") under the w … (cut; full text in the workflow journal)
+- **The real cause is visible.** The detail panel shows the raw SQLite message and extended code (for example "unable to open database file (extended code 14)") under the wrong explanation.
+- **Restore is not prompted by this status.** The backup list appears for any recovery status when backups exist. Restoring takes an explicit choice plus a confirmation stating that the current database is replaced, kept under a new name, and that later changes are not in the backup.
+- **In most of the claimed scenarios the restore cannot complete.** `ReplaceDatabaseWith` first copies the backup into the data directory, then renames the current files, and rolls back on failure. A read-only directory or full disk fails the copy. On Windows a file held open by another program cannot be renamed. Each case returns `IoError` ("Restore failed: ...") with the database untouched. The healthy-database-replaced outcome needs a file-level permission problem or a POSIX lock (rename succeeds on macOS), plus an existing backup, plus the user confirming past the warning. Even then the original survives as `mindweave.db.replaced-*`.
+- **Some listed codes are unlikely at open.** At the latest schema version, opening only reads (`application_id`, `user_version`, `quick_check`), so SQLITE_FULL is improbable. A read-only file is typically opened read-only by SQLite and would pass as Ready, which is a separate issue. Migration-time write failures are reported as `MigrationFailed`, not Unreadable.
+- **The window is longer than 3 seconds for locks.** Each attempt also waits the 5-second busy timeout, so a lock must persist for roughly 5 seconds or more.
+
+**Net.** A wrong diagnosis ("file is corrupt") for lock and permission failures at startup, in a storage error path that the requirements (§9.3) otherwise classify carefully. The remedy is cheap: map codes via `StorageFailures.Classify`, and reserve Unreadable for CORRUPT/NOTADB and `quick_check` failures.
 
 *Corrections to the finding.* - **Retry:** the recovery page already offers Retry for every status, so that part of the recommendation is already in place.
 - **Restore prompt:** the backup list is shown for any failed-open status when backups exist, not specifically because of Unreadable; only the explanation text suggests it. Restoring needs an explicit two-step confirmation that states the consequence.
 - **"Replaces a healthy database":** overstated. With a read-only directory or a full disk, the copy into the data directory fails. With a Windows file lock, the rename fails and is rolled back. All three return `IoError` with the database untouched. The outcome is reachable mainly with a POSIX lock or file-level permission problem, and the original is still kept as `mindweave.db.replaced-*`.
-- **Error codes:** SQLITE_FULL at open is unlikely because opening at the current schema version only reads. A read-only file … (cut; full text in the workflow journal)
+- **Error codes:** SQLITE_FULL at open is unlikely because opening at the current schema version only reads. A read-only file would more likely open as Ready than throw. Migration-time write errors map to `MigrationFailed`.
+- **Timing:** a lock must outlast roughly 5 s (busy timeout per attempt), not just 3 s.
+- **Visibility:** the raw SQLite message and extended code are shown on the page next to the wrong explanation.
 
 ### storage-6. Pre-migration backups are pruned only after a successful migration, so each retry of a failing migration adds another full copy
 

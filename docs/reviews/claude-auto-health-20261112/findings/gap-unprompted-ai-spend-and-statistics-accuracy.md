@@ -41,12 +41,20 @@ Background spending is deliberately bounded and disclosed, and the statistics ma
 
 Why I lower the severity from high to medium:
 1. The degradation is honest, not silent or wrong. Requests without usage are counted separately and shown on the page ("另有 N 次请求没有用量记录（服务未返回，或请求没有送达），未计入"), per bar, per model row and per table cell. Nothing is mis-stated; the design (s7-ui-polish.md:687) explicitly chose not to substitute estimates. Cost shows 0 next to an explicit "N requests returned no usage" note. The recommendation's last clause ("tell the user on the statistics page") is therefore already largely implemented at the request level, though not as a per-model "never reported" hint.
-2. The gap is already known and recorded by the team, not a new discovery: TRACK.md finding of 2026-11-05 and stage-reports.md:351 both state that official OpenAI needs stream_options to return usage, that it is not requested and was not tested. However it is NOT listed under "待决定" for the … (cut; full text in the workflow journal)
+2. The gap is already known and recorded by the team, not a new discovery: TRACK.md finding of 2026-11-05 and stage-reports.md:351 both state that official OpenAI needs stream_options to return usage, that it is not requested and was not tested. However it is NOT listed under "待决定" for the statistics feature (only deleted-content usage and chart contrast are), so the consequence for the statistics page was never put to the user as a decision.
+3. Calibration impact is bounded: calibration only scales the estimate up, never down, and TRACK's own measurements show the raw estimator runs high (safe) for OpenAI models. Without samples the budget falls back to the raw estimate plus the existing margin; that is the pre-2026-11-05 behaviour, not a new failure. It would matter for a local/self-hosted model whose tokenizer the estimator under-counts.
+4. No data loss, no incorrect billing, no crash; a secondary feature is empty-but-labelled for a class of endpoints.
+
+Why it stays at medium rather than low: api.openai.com is the reference implementation of the protocol this client targets, and for it (and Azure OpenAI, vLLM, LiteLLM and similar) the user-facing statistics feature shipped on 2026-11-12 is functionally empty and price entry is useless. That is a real feature gap against an industrial quality bar, and the fix is cheap and well understood.
+
+Not independently verified by me (no network calls allowed): the behaviour of the real OpenAI/Azure/vLLM/Ollama endpoints. That official OpenAI omits streaming usage unless stream_options.include_usage is set matches the project's own notes and my knowledge; the claim about Ollama is less certain (its OpenAI-compatible endpoint has varied by version), so the list of affected servers should be read as "likely" rather than established.
 
 *Corrections to the finding.* 1. Severity high is overstated; medium fits. The page does not silently show wrong numbers: it shows zero reported tokens together with an explicit count of requests that returned no usage, by design.
 2. The finding presents this as undiscovered. It is a known, documented limitation (TRACK.md:101, stage-reports.md:351, D-013). What is new is that the statistics page now depends on it and the decision was not revisited or raised under pending decisions.
 3. "context budgeting runs on the raw estimate" is true but its impact is overstated for OpenAI: the project's own measurements show the estimator runs high (safe) for OpenAI models, and calibration only ever enlarges. The risk is confined to endpoints whose models the estimator under-counts.
-4. The recommendation's "tell the user on the statistics page" is already implemented per request (unreported counts at every level); only a per-mode … (cut; full text in the workflow journal)
+4. The recommendation's "tell the user on the statistics page" is already implemented per request (unreported counts at every level); only a per-model "this model has never reported usage, here is why" hint is missing.
+5. File paths: the two stores are in src/Mindweave.Infrastructure/Sqlite/, not Persistence/. Line numbers are correct.
+6. The list of affected servers (Azure, vLLM, LiteLLM, Ollama) is unverified here; Ollama in particular may volunteer usage depending on version.
 
 **Reproduction attempt: confirmed, medium.** The code defect is real and reproduced. ChatCompletionsClient.SendAsync builds the body with only model, stream=true, messages and optional max_tokens; stream_options is never sent. A new test with a fake service that follows official OpenAI semantics (usage chunk streamed only when stream_options.include_usage is true) receives the text but no Usage event, so the test fails at Assert.Single.
 
@@ -57,12 +65,17 @@ Downstream consequences follow by code reading (not separately tested):
 Why I lower severity to medium:
 - It is a deliberate, documented trade-off, not an oversight. D-013 chose not to send the field because some compatible services reject unknown fields. TRACK.md's 2026-11-05 finding and stage-reports.md:351 both state that official OpenAI needs stream_options and was not tested. An existing test (Reported_usage_is_passed_on_and_never_requested) pins the behaviour.
 - The failure is visible, not silent. The statistics page already says "N 次请求未返回用量" / "另有 N 次请求没有用量记录（服务未返回，或请求没有送达），未计入". No wrong numbers are shown and chat itself works.
-- The calibration fallback is the pre-calibration behaviour. TRACK records the raw estimator as over-estimating (the safe direction) for OpenAI models, so the budgeting risk on api.openai.com is small; it is larger for u … (cut; full text in the workflow journal)
+- The calibration fallback is the pre-calibration behaviour. TRACK records the raw estimator as over-estimating (the safe direction) for OpenAI models, so the budgeting risk on api.openai.com is small; it is larger for unknown local models.
+
+What remains valid: D-013 predates the statistics page, which now makes usage a user-facing feature. For official OpenAI, Azure and most local servers the token and cost parts of that page are unusable, and the user is not told why or how to fix it. The recommendation (send include_usage with a remembered fallback on 400, or probe it in "Test connection") is sound, and the decision should be revisited.
+
+Method note: my worktree was cut from main, which has no product code, so I checked out track/claude-auto detached at 1ba95c9 inside my own worktree, ran the test, then restored the original branch and cleaned; git status is clean.
 
 *Corrections to the finding.* - "Statistics ... are empty" and the implication of a hidden failure are overstated. The page explicitly reports "N 次请求未返回用量" and gives the cause as "服务未返回，或请求没有送达", so the recommendation's last point (tell the user) is already partly implemented. What is missing is a per-model hint that usage was never reported and any way to fix it.
 - This is not a newly discovered gap. It is recorded in D-013, TRACK.md:101 ("OpenAI 官方需请求 stream_options 才返回…官方未测") and stage-reports.md:351, and an existing test pins it. The new point is only that the statistics page (2026-11-12) raises the stakes of the old decision.
 - "Context budgeting runs on the raw estimate" is true but is the designed fallback. TRACK records the raw estimate as over-estimating (safe) for OpenAI models, so the impact on api.openai.com is limited.
-- File paths are wrong: the stores are in src/Mindweave.Infrastructure/Sqlite/, not Pe … (cut; full text in the workflow journal)
+- File paths are wrong: the stores are in src/Mindweave.Infrastructure/Sqlite/, not Persistence/. The request body is at lines 158-175.
+- The claim that OpenAI, Azure, vLLM, LiteLLM and Ollama omit streaming usage unless include_usage is set was not tested against any real service (no paid calls allowed). It matches documented OpenAI behaviour and the project's own notes; LiteLLM and vLLM can be configured server-side to always include it.
 
 <details><summary>Reproduction</summary>
 
@@ -92,7 +105,15 @@ Added temporarily to tests/Mindweave.Infrastructure.Tests/Chat/ChatCompletionsCl
 Command: dotnet test tests/Mindweave.Infrastructure.Tests --filter "FullyQualifiedName~Repro_openai_semantics_service_yields_no_usage"
 
 Output:
-  [xUnit.net 00:00:00.77]     Mindweave.Infrastructure.Tests.Chat.ChatCompletionsClie … (cut; full text in the workflow journal)
+  [xUnit.net 00:00:00.77]     Mindweave.Infrastructure.Tests.Chat.ChatCompletionsClientTests.Repro_openai_semantics_service_yields_no_usage [FAIL]
+  Failed Mindweave.Infrastructure.Tests.Chat.ChatCompletionsClientTests.Repro_openai_semantics_service_yields_no_usage [23 ms]
+  Error Message:
+   Assert.Single() Failure: The collection was empty
+  Stack Trace:
+     at ...ChatCompletionsClientTests.Repro_openai_semantics_service_yields_no_usage() in .../ChatCompletionsClientTests.cs:line 97
+  Failed!  - Failed:     1, Passed:     0, Skipped:     0, Total:     1, Duration: 31 ms - Mindweave.Infrastructure.Tests.dll (net10.0)
+
+The failure is on the Usage assertion (line 97); the text-delta assertion on the line before passed. The test is deterministic, with no timing involved. The statistics and calibration consequences were verified by reading the SQL, not by a test.
 
 </details>
 
@@ -114,7 +135,10 @@ Output:
 - **Workspace names:** `ParseCandidates` skips only empty lines, lines ending in a colon, and preamble matches. `<think>`, `</think>` and any reasoning line of 20 text elements or fewer pass as candidates. Since `MaxCandidates` is 3, they can crowd out the real names. This path is also prepared in the background and shown as ghost text.
 - **Context summaries:** `ContextCompressor.RequestSummaryAsync` returns the trimmed raw text with no filtering, so the reasoning block is stored and re-sent.
 - **Shared entry point:** `RequestCompleteTextAsync` also returns the trimmed raw text, so knowledge summaries and naming terms are affected too.
-- **Only the separate field is handled:** the client reads `delta.content` and counts `reasoning_content` length. The design doc (`s1-chat.md` line 70) says background requests "只取正文，忽略推理", which assumes reasoning … (cut; full text in the workflow journal)
+- **Only the separate field is handled:** the client reads `delta.content` and counts `reasoning_content` length. The design doc (`s1-chat.md` line 70) says background requests "只取正文，忽略推理", which assumes reasoning arrives in the separate field.
+- **No coverage:** grep for `think>` in `tests/` and `docs/` returns nothing. TRACK findings and D-015 address only output caps and truncation.
+
+Medium holds because the scenario is in scope, not exotic. The settings page ships presets for Ollama (local), OpenRouter and SiliconFlow (`s7-ui-polish.md` line 210), which are where inline `<think>` output is most likely. The design docs say only DeepSeek, Kimi, GLM and Pinaic relays were actually tested, and all of those use `reasoning_content`. The damage is silent and persistent (a stored `<think>` title, junk name candidates, bloated context summaries re-sent at cost), but there is no data loss and the title is fixable by manual rename.
 
 *Corrections to the finding.* - "Never re-titled" should read "never re-titled automatically": the user can rename the conversation manually. I found no regenerate-title command in `src/`.
 - The scope is slightly understated. Knowledge summaries (`TaskRunners.cs:101`) and naming terms (`:175`) go through the same `RequestCompleteTextAsync` and are equally affected.
@@ -145,13 +169,20 @@ Output:
 
 **What is wrong or overstated:**
 1. **"Every saved summary" is not accurate.** Naming at save time fires only for non-candidate saves, which means the first summary of a conversation (a new node). A regenerated summary of an existing node is saved as a candidate and triggers nothing. Adopting, restoring, editing or deleting versions goes through `CheckNameAsync`, which schedules naming only when the current title's normalised form differs from the stored base title. Regenerating or editing without a title change costs nothing. The request fires once per node joining a group, or per title change into one.
-2. **Sending th … (cut; full text in the workflow journal)
+2. **Sending the whole group is the specified behaviour, not an oversight.** Requirements say the whole same-name group is renamed from content, keeping still-valid terms (`docs/requirements.md:194`). Architecture specifies merged, deduplicated group tasks, no automatic retry, and priority below user questions (`docs/architecture.md:353`). `docs/design/decisions.md:75` fixes the per-node payload as title, first 600 characters and existing name. The recommendation to name only the newcomer would change a documented design, because a newcomer can make an existing term stop distinguishing.
+3. **The 25-member scenario is unlikely in practice.** A group requires an exact match after NFKC, case and punctuation normalisation of model-generated content titles within one workspace. Groups of 2 to 4 are realistic; 25 identical titles would need a model that emits a generic title every time.
+4. **The cost at that size is small.** At 25 members the input is roughly 16k characters, about 10 to 16k tokens. Output is in practice about 25 short lines; 4,096 is a ceiling chosen for reasoning models (TRACK.md finding of 2026-10-26).
+5. **A context overflow fails soft.** The task is marked failed, existing names are kept, and nothing is retried. It does still recur on the next group change.
+6. **The spend is visible.** Naming usage appears in the statistics page under its own purpose.
+
+**What remains as a real gap:** an unbounded, un-budgeted background request, where sibling features (compression, workspace-name preparation) have thresholds or budgets. A member and character cap, or a window check, is a reasonable hardening item. It is a robustness gap rather than a medium-severity cost defect.
 
 *Corrections to the finding.* - "Calls it after every non-candidate summary save, and CheckNameAsync after edits and version changes" is literally true but misleading. Regenerations are candidates and trigger nothing. `CheckNameAsync` sends a request only when the title actually changed relative to the base title.
 - "Each new or regenerated summary in that group fires a background request" is wrong for regenerated summaries. Only a new node joining the group, or a title change into the group, fires one.
 - Re-sending the whole group with existing names is the documented design (requirements §10.2 line 194, architecture line 353, decisions.md line 75), not an oversight. The recommendation to name only the new member conflicts with that design and would need a user decision.
 - "Fails on every save" should read: fails softly, with names kept and no retry, on each subsequent group change.
-- The 25-identical-title scenario … (cut; full text in the workflow journal)
+- The 25-identical-title scenario is improbable given exact-match normalisation of model-generated content titles. At that size the cost is about 10 to 16k input tokens per group change.
+- The valid residue is the missing member/character cap and the missing pre-send window check. Severity is low.
 
 ### gap-unprompted-ai-spend-and-statistics-accuracy-4. The automatic title request sends the entire first question, unbounded, and pairs it with whichever answer just completed
 
@@ -173,7 +204,10 @@ Output:
 **What is overstated**
 - **"Unbounded" is wrong.** Questions are capped at 100,000 characters (`ConversationService.cs:76`, `:546`) and quotes at 4,000 (`BranchSource.cs:46`). The extra cost is real but bounded and happens once per conversation.
 - **The behaviour is documented design, not an oversight in code.** `docs/design/s1-chat.md:83` specifies the title input as "首问＋回答前 2000 字", and `decisions.md:39` deliberately includes the quote. The design did not weigh cost for a very long first question, so the recommendation to cap it is still valid as a cost improvement.
-- **The context-length failure is nearly unrea … (cut; full text in the workflow journal)
+- **The context-length failure is nearly unreachable.** The answer request already had to fit the question within Capacity − OutputReserve − Margin, where OutputReserve defaults to 4,096 and Margin is at least 1,000 or 10% of capacity (`ContextBudget.cs:150-182`). The title request adds only about 60 tokens of prompt, at most 2,000 characters of excerpt and 1,024 output tokens, which is normally less than that headroom. For a branch, the answer request also carried ancestors, so the title request is smaller still. Overflow needs a user-set small `MaxOutputTokens`, a question at the limit and a dense CJK answer; even then the title fails silently and the fallback title stays.
+- **The mismatch has small impact.** The prompt asks for a title summarising the question's topic (`:28`), the answer excerpt is secondary context, and the user can rename.
+
+Net: a genuine cost inefficiency (the first turn's input is roughly doubled for a 20-character title when the first question is very long) plus a minor prompt mismatch. No data loss, no user-visible failure. Low severity rather than medium.
 
 *Corrections to the finding.* - "Unbounded" is incorrect: the question is capped at 100,000 characters and the quote at 4,000.
 - The context-length failure claim is essentially refuted. The answer request reserves at least 4,096 output tokens plus a margin of at least 1,000, which exceeds the title request's overhead except with a small user-configured `MaxOutputTokens`; a failure there is silent and leaves the fallback title.

@@ -51,7 +51,12 @@ What I checked:
 - **No test reaches it through the answer flow.** A grep of tests/ for `InvalidResponse`, `without finishing` and `closed the stream` hits only workspace-name, knowledge-summary and HTTP-status tests. None is an answer-level assertion.
 - **No fake client can end an answer early.** FakeChatClient ends every answer path with `Completed(false)` or a thrown `ChatClientException`. `TruncateNext` exists only on `RequestScript`, which serves internal requests (titles, summaries, naming), not answers. The other test clients I read (GatedReasoningClient, TextThenReasoningClient, StubbornClient) end with `Completed`; CountingClient wraps FakeChatClient.
 - **The one real-client flow test takes a different branch.** StreamDropTests is the only harness test using the real `ChatCompletionsClient` offline, and its two cases ("io", "http-io") both throw, so they land in the Network catch. `BreakingStream` does support a clean EOF when `failure` is null, but `DroppingHandler` then serves all three chunks including `finish_reason` and `[DONE]`, so no clean-EOF-after-partial case exists.
-- **The client half is covered.** `A_stream_that_ends_without_finishing_yields_no_completion` asserts … (cut; full text in the workflow journal)
+- **The client half is covered.** `A_stream_that_ends_without_finishing_yields_no_completion` asserts the client emits no `Completed` on a clean EOF. Only the consumer half is unguarded.
+- **No design decision makes this intended.** Nothing in docs/design or TRACK.md addresses this path.
+
+So removing or inverting the `if (completed)` check in AnswerRunner would, by this read, leave the suite green; I did not run a mutation because the audit is read-only.
+
+Why medium rather than high: the client contract is tested, and the unguarded part is a ten-line explicit if/else. The harm needs a future regression plus a relay that closes cleanly mid-answer. The consequence if it did regress is real (a half answer stored as Complete, with no retry offered), which keeps it above low. The proposed fix is cheap and correct.
 
 *Corrections to the finding.* - Severity should be medium, not high: this is a regression-guard gap on a small explicit branch whose upstream contract is unit-tested, not a present defect.
 - The cited line is slightly off: the else-branch is AnswerRunner.cs:129-134 and the InvalidResponse assignment is at :132, not :131.
@@ -72,12 +77,13 @@ The static claims check out:
 - ChatCompletionsClientTests.cs:119-122 checks only the client layer (no Completed yielded).
 - No test references "closed the stream" or asserts an answer-level InvalidResponse.
 
-Severity lowered to medium because the current code is right and harm requires a future regression. It is still worth fixing: the unguarded branch is the only thing stopping … (cut; full text in the workflow journal)
+Severity lowered to medium because the current code is right and harm requires a future regression. It is still worth fixing: the unguarded branch is the only thing stopping a truncated answer from becoming Complete (branchable, summarizable, no retry) when a relay closes the stream cleanly, which is a realistic failure with OpenAI-compatible proxies. The fix is about 15 lines of test code.
 
 *Corrections to the finding.* - The claimed "high" is overstated. No current behaviour is wrong; the EOF path works end to end through the real client. This is an unguarded-regression risk, so medium.
 - The location is slightly off: the check is at AnswerRunner.cs:125 and the detail string at :133, not :131. StreamDropTests is under tests/Mindweave.Infrastructure.Tests/Faults/, not Chat/.
 - The recommendation to "add a third 'eof' case to Drops" does not work as a plain theory row. The existing theory asserts GenerationErrorKind.Network, and DroppingHandler sends the full chunk list (including finish_reason and [DONE]) whenever failure is null. It needs either a separate test or a parameterised expected kind, plus the one-line handler change shown in the reproduction.
-- "Every test still passes" is verified for the dropped-check mutation only. I did not test an inverted check; that would fail nearly every flow test a … (cut; full text in the workflow journal)
+- "Every test still passes" is verified for the dropped-check mutation only. I did not test an inverted check; that would fail nearly every flow test and is not a realistic gap.
+- 18 Infrastructure and 58 Desktop tests are skipped in this macOS environment. I did not check whether any of them (for example Windows-only ones) would kill the mutant; from the grep evidence that is unlikely.
 
 <details><summary>Reproduction</summary>
 
@@ -105,7 +111,22 @@ Run 1 — unmodified product code, `dotnet test tests/Mindweave.Infrastructure.T
     Passed!  - Failed: 0, Passed: 3, Skipped: 0, Total: 3, Duration: 433 ms
 So current behaviour is correct.
 
-Mutation — AnswerRunner.cs:125 `if (completed)` changed to `if (completed || !completed) // MUTATION`. … (cut; full text in the workflow journal)
+Mutation — AnswerRunner.cs:125 `if (completed)` changed to `if (completed || !completed) // MUTATION`.
+
+Run 2 — mutant, repro test only (`--filter FullyQualifiedName~Repro_a_body`):
+    Failed ...StreamDropTests.Repro_a_body_that_ends_cleanly_without_finishing_fails_as_invalid_response_and_offers_retry [123 ms]
+    Assert.Equal() Failure: Values differ
+    Expected: Failed
+    Actual:   Complete
+    Failed!  - Failed: 1, Passed: 0, Skipped: 0, Total: 1
+
+Run 3 — mutant, every existing test (`--filter FullyQualifiedName!~Repro_a_body` for Infrastructure; the other projects in full):
+    Passed!  - Failed: 0, Passed: 412, Skipped: 18, Total: 430, Duration: 11 s - Mindweave.Infrastructure.Tests.dll
+    Passed!  - Failed: 0, Passed: 381, Skipped: 58, Total: 439, Duration: 1 m 19 s - Mindweave.Desktop.Tests.dll
+    Passed!  - Failed: 0, Passed: 91, Skipped: 0, Total: 91 - Mindweave.Core.Tests.dll
+    Passed!  - Failed: 0, Passed: 8, Skipped: 0, Total: 8 - Mindweave.Architecture.Tests.dll
+
+The mutant survives the whole existing suite and is killed only by the new EOF test. None of this is timing-sensitive.
 
 </details>
 
@@ -130,12 +151,20 @@ Mutation — AnswerRunner.cs:125 `if (completed)` changed to `if (completed || !
 - **Invalid stream JSON:** no test feeds a malformed `data:` event.
 - **413:** `Http_errors_are_classified` has a 400 context-limit case but no 413 case.
 - **Empty and unfinished internal replies:** `RequestScript.StreamAsync` always yields a `TextDelta` then `Completed`, so the shared fake cannot produce an unfinished stream. No `Replies.Enqueue` call passes empty or whitespace text.
-- **No design d … (cut; full text in the workflow journal)
+- **No design decision covers this:** I found nothing in `TRACK.md` or `docs/design/decisions.md` that accepts these gaps.
+
+**Overstated**
+- **Empty title or summary being saved:** losing the `Length == 0` arm in `GenerationRequests` would not save an empty title. `ConversationRules.CleanGeneratedTitle` returns null for an empty line and the title runner then fails the task. Summaries go through `SummaryRules.ParseGenerated`, which is null-checked in `SummaryService` and has a test for a title-only reply; I did not open the parser to confirm it rejects empty text.
+- **Where the empty arm does matter:** the context-compression path (`ContextCompressor.cs:199`) and the workspace-name path have no second guard that I verified.
+- **Partial coverage of the 400/413 arm:** the classification arm is shared and the 400 case exercises it; only the 413 literal is uncovered.
+
+**Severity**
+Medium stands for the first-byte timeout alone: it is the sole protection against a held generation slot and has zero coverage. The production code is correct today, so this is regression risk, not a live defect. The other items are low individually.
 
 *Corrections to the finding.* - **Empty title or summary:** the claim that a whitespace-only reply "could be saved as an empty title or summary" is wrong for titles and probably wrong for summaries. `CleanGeneratedTitle` returns null on empty output and the task fails; summaries pass through `ParseGenerated` with a null check. The unguarded paths are context compression (`ContextCompressor.cs:199`) and workspace-name suggestion.
 - **File path:** `GenerationRequests.cs` is at `src/Mindweave.Application/Conversations/GenerationRequests.cs`. The empty arm is at line 121 as cited; the "stream not finished" arm is at line 119.
 - **413:** "the 413 context-limit classification" is untested only for the 413 literal. The shared arm is exercised by the 400 case at `ChatCompletionsClientTests.cs:129`.
-- **"Deleting line 186 passes every test":** consistent with the tests I read, but not demonstrated by a run. Even with the line … (cut; full text in the workflow journal)
+- **"Deleting line 186 passes every test":** consistent with the tests I read, but not demonstrated by a run. Even with the line removed the user can still stop the answer, so "forever" means until the user stops it or the app exits.
 
 ### tests-3. FakeChatClient does not reproduce real stream shapes: usage first, no ResponseStarted, no truncated answer
 
@@ -156,7 +185,13 @@ What is true in the code:
 - **Truncated answers:** the fake's answer path only ever yields Completed(false); truncation exists only in RequestScript for internal requests. AnswerRunner sets Complete on any Completed and ignores Truncated, so a length-truncated user answer is stored as a Complete message. No test covers this.
 - **Regression scenario:** AnswerRunner and GenerationRequests currently read to the end of the stream, so usage is recorded correctly today. If someone added an early exit at Completed (as ModelSettingsService.TestAsync already does), tokens would be lost with real services and fake-based calibration and statistics tests would stay green.
 
-Mitigati … (cut; full text in the workflow journal)
+Mitigations I looked for:
+- ChatCompletionsClientTests pin the real ordering at the client level, but not through the consumers.
+- StreamDropTests run the real client through the harness, but their SSE carries no usage and they do not assert status.
+- RealApiTests check prompt_tokens and calibration samples end to end, but only when run manually with a key via scripts/real-api.sh.
+- Neither decisions.md nor TRACK.md records the fake's ordering as intentional.
+
+Why low rather than medium: there is no present bug, the consumers are simple loops, and the regression is speculative. The fix is cheap (reorder the fake, emit ResponseStarted, add an answer Truncate()). The truncated-answer-stored-as-Complete behaviour is a separate product question worth its own decision.
 
 *Corrections to the finding.* - "Stored as Complete with no marker" is true for the message only: the ai_request diagnostics row does get outcome 'truncated' (RequestTrace.cs:84). Nothing user-visible marks it.
 - The real ordering is not wholly untested: ChatCompletionsClientTests pin it at client level, and RealApiTests cover prompt tokens and calibration end to end when run manually with a key. The gap is specifically the offline consumer-level tests (AnswerRunner / GenerationRequests / RequestTrace).
@@ -182,13 +217,18 @@ The finding is overstated in four ways, which is why I lower it to low:
 
 2. There is compensating manual evidence. stage-reports.md line 720 records "Windows Credential Manager, real-machine key save: passed (2026-10-26, user confirmed)", and s6-windows-checklist.md row 24 keeps a desktop-session check for it. TRACK.md line 94 says the Windows tester can run the opt-in test in a desktop session with the user's consent; I found no record that it has actually been run.
 
-3. Exposure to regression is small. `git log -- src/Mindweave.Infrastructure/Credentials` shows a single commit (c20a37a, 2026-10-26); th … (cut; full text in the workflow journal)
+3. Exposure to regression is small. `git log -- src/Mindweave.Infrastructure/Credentials` shows a single commit (c20a37a, 2026-10-26); the P/Invoke code has not changed since it was written. A break would surface on first use as a visible "credential service unavailable" error rather than silent data loss, because the design refuses a plaintext fallback.
+
+4. Part of the recommendation is already done. The existing test writes a non-ASCII secret ("sk-测试-1"), exercises the update-over-existing path (second WriteAsync), and deletes an already-deleted item at the end. Only the long-key case is missing.
+
+What remains valid: a credential-storage regression from a runtime or OS update would pass CI on both platforms, and the s6 checklist lists PlatformCredentialStoreTests in its "automatic coverage" column, which overstates what runs. Enabling the variable on the windows-latest job is a cheap fix. I did not verify that a hosted runner's logon session supports CredWrite or that the macOS runner's keychain is unlocked; that assumption in the recommendation is untested. The registration gap is real but trivial: CredentialStores.ForPlatform is a three-branch OS switch that the opt-in test calls directly.
 
 *Corrections to the finding.* - "Never run by any automated test" should read "skipped in every default and CI run"; an opt-in test exists and the opt-in is documented as deliberate (run-guide.md:16, the test's own doc comment, TRACK.md:94 and :124).
 - The recommendation to add missing-item delete and non-ASCII cases is redundant: the existing test already does both, plus the update-over-existing path. Only a long-key case is absent.
 - The finding omits the recorded manual verification on Windows (stage-reports.md:720) and the desktop-session checklist row (s6-windows-checklist.md:46).
 - The claim that hosted runners can use the credential stores is an untested assumption; TRACK.md:124 shows a Windows session type where CredWrite fails, so this needs a trial run before relying on it.
-- The failure scenario "saved key reads back wrong" is less likely than stated: the code has had one commit since creation, and the des … (cut; full text in the workflow journal)
+- The failure scenario "saved key reads back wrong" is less likely than stated: the code has had one commit since creation, and the design surfaces store failures as an explicit error rather than degrading.
+- Severity medium is too high given the deliberate opt-in, the manual evidence and the unchanged code; low fits, with the s6 checklist's "automatic coverage" wording worth correcting.
 
 ### tests-5. About 20 desktop assertions wait a fixed 200–300 ms and then assert nothing happened
 
@@ -217,7 +257,13 @@ The finding is overstated in four ways, which is why I lower it to low:
 - On a normal run the steps finish in milliseconds and the test would catch the regression. The guard is probabilistic, not absent.
 
 **What is overstated**
-- **Count.** There are 14 `scene.SettledAsync()` calls (8 in ConversationNewsHintTests, 6 in WorkspaceNewsHintTests) plus 4 inline slee … (cut; full text in the workflow journal)
+- **Count.** There are 14 `scene.SettledAsync()` calls (8 in ConversationNewsHintTests, 6 in WorkspaceNewsHintTests) plus 4 inline sleeps, so 18 sites, not "15+ uses" plus more.
+- **Negative assertions.** Only about 7–8 sites are followed by purely negative assertions: ConversationNewsHintTests 63, 194, 343; WorkspaceNewsHintTests 264, 309; WorkspaceNewsTests 100; ExitSavingTests 184; partly WorkspaceNewsHintTests 83. The rest precede positive assertions such as `Assert.Single(news.Toasts)` or an exact toast list. A late refresh there causes a visible false failure, not a silent pass.
+- **Partial determinism.** `ConversationNewsHintTests.cs:194` also asserts `MarksNoted` is unchanged, a counter incremented synchronously in `OnAnswered`, so the sleep is not its only guard. The two restart cases first poll for state that the first refresh produces (`news.Count == 3`, `IsUnread`), so a toast created in that same refresh would not depend on the sleep.
+- **Margin.** A false pass needs a real regression and a stall of more than 200 ms beyond the 100 ms throttle at that exact point. TRACK.md records the full desktop suite passing repeatedly with 10 ms added to every disk sync; the refresh path is mostly reads.
+- **Other `SettledAsync`.** The one in `WorkspaceNamePreparationUiTests` is a different method on the preparer, not this sleep.
+
+This is a real test-robustness weakness of about 8 time-bounded negative assertions, plus roughly 5 s of fixed sleeping per run. It is not a current defect and has no observed flake, so low rather than medium. The recommendation (inject `TimeProvider` into `UiThrottle`; assert `Exit.Stage` and `!Exit.Running.IsCompleted` while the gate is held) is sound.
 
 *Corrections to the finding.* - The site count is 18 (14 `scene.SettledAsync()` calls plus 4 inline sleeps), not "15+ uses" plus inlines.
 - Only about 7–8 sites guard purely negative assertions. The others precede positive assertions, where a late refresh produces a visible false failure, not a silent pass.
@@ -247,7 +293,12 @@ What holds:
 - I found no decision in TRACK.md or docs/design that waives such a test.
 
 What is wrong or overstated:
-1. "StorageHealth pauses all new requests" does not happen. That was the pre-A3 behaviour, which TRACK 2026-11-01 lists as a problem that was fixed. TerminalWrites.SaveAsync now treats only StorageWriteException as a storage condition. Any other exception, including ArgumentOutOfRangeException from SqlNames.Of, is logged as a write defect and queued in _unsavedDefects, which per the code comment "neither pause requests nor hold up recovery … (cut; full text in the workflow journal)
+1. "StorageHealth pauses all new requests" does not happen. That was the pre-A3 behaviour, which TRACK 2026-11-01 lists as a problem that was fixed. TerminalWrites.SaveAsync now treats only StorageWriteException as a storage condition. Any other exception, including ArgumentOutOfRangeException from SqlNames.Of, is logged as a write defect and queued in _unsavedDefects, which per the code comment "neither pause requests nor hold up recovery". StorageFailures.ForCaller only converts SqliteException with storage result codes. The real consequence is narrower: that one failed answer's terminal state is not persisted, it is reported unsaved at exit, and the message would likely surface as interrupted on next start.
+2. "The same pattern exists for MessageState, GenerationTaskState and AiRequestOutcome" is only partly true. Their Parse functions throw InvalidDataException on unknown strings, so there is no silent mis-mapping; the lenient fallback is unique to ParseErrorKind and is a documented forward-compatibility choice. These enums also have CHECK lists in the schema, and their values are exercised constantly by flow tests.
+3. The error_kind columns have no CHECK constraint, so the recommended "insert every value" test does not apply to GenerationErrorKind. It would apply to state, outcome, kind, origin, name_source and read_source. GenerationTaskKind is the one enum where this has mattered: the CHECK list had to be widened by migration from ('answer','title') to include 'summary' and 'naming'.
+4. Triggering any of this requires a developer to add an enum member and forget a switch arm sitting a few lines away in the same file. The resulting defect is bounded: one unsaved terminal state or a wrong error label, with no data corruption and no global pause.
+
+Net: a cheap, worthwhile hardening test is missing (round-trip theory per enum, UiText non-fallback, CHECK-list insert), but it guards a hypothetical future regression of limited blast radius. Low, not medium.
 
 *Corrections to the finding.* - The claim that an unmapped kind makes StorageHealth pause all new requests is false for current code. Since A3 (TerminalWrites.cs:26-28, 66-78) a non-storage exception in a terminal write is logged as a defect and kept for exit reporting without pausing. The actual impact is one answer's terminal state left unsaved.
 - "The same pattern" for MessageState, GenerationTaskState and AiRequestOutcome is overstated: their parsers throw rather than silently defaulting. Only ParseErrorKind is lenient, and that is a documented forward-compatibility choice.

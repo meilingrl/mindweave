@@ -56,12 +56,27 @@ Limits of my evidence: this was a read-only audit with no build. Delete and quer
 
 **The scale is the project's own.** docs/design/evolution-seams.md:62 defines "full scale" as 1,000 conversations x 200 rounds, about 400k messages, so 200k messages is inside the project's stated target rather than a contrived extreme.
 
-**Reproduction** (sqlite3 3.54 CLI, default cache, WAL, synchronous=FULL, same k … (cut; full text in the workflow journal)
+**Reproduction** (sqlite3 3.54 CLI, default cache, WAL, synchronous=FULL, same keys and indexes, 100 messages per conversation, 400-byte blocks, one task per assistant message):
+
+| Stored messages | Delete | Time |
+| --- | --- | --- |
+| 200k | 1 conversation (100 messages) | 5.21 s |
+| 200k | 20 conversations | 117.8 s |
+| 50k | 1 conversation | 1.18 s |
+| 20k | 1 conversation | 0.46 s |
+| 20k | 20 conversations | 8.27 s |
+| 50k, with the three recommended indexes | 20 conversations | 0.04 s |
+
+Cost scales with (rows deleted) x (total rows), and the recommended partial indexes are picked up by the FK check and remove it.
+
+**Severity.** High holds under the stated production bar: deleting a single ordinary conversation already takes seconds at 50k-200k messages while holding the only writer, and a workspace delete takes minutes at the project's own target scale. There is no data loss, and a typical first-months user (under about 10k messages) sees well under a second, so it sits at the lower edge of high. The fix is a one-migration change.
 
 *Corrections to the finding.* - Line number: the message.supersedes_id declaration is at SchemaMigrations.cs:56, not :58.
 - The cited delete line numbers are slightly off: SqliteArchiveStore.cs:85 and SqliteWorkspaceStore.cs:120 are right for the DELETE, but each is preceded by an `UPDATE message SET supersedes_id = NULL ...` step the finding does not mention. It does not change the outcome.
 - The auditor's timings are, if anything, conservative. With realistic row sizes (400-byte blocks, 370 MB database, default page cache) I measured 5.2 s for one conversation and 118 s for 20 at 200k messages, against the claimed 2.5 s and 49 s. The "about 8 minutes" extrapolation for a 200-conversation workspace would be nearer 15-20 minutes on my numbers.
-- "At a tenth of that data still tens of seconds" holds for a whole-workspace delete (20 conversations at 20k messages took 8.3 s, so 200 conversations would be more), but a si … (cut; full text in the workflow journal)
+- "At a tenth of that data still tens of seconds" holds for a whole-workspace delete (20 conversations at 20k messages took 8.3 s, so 200 conversations would be more), but a single conversation at that size is about 0.5 s.
+- reading_position contributes almost nothing in practice (one small row per conversation and slot); the cost comes from the message self-reference and generation_task. Indexing it is still correct.
+- Not verified: the UI-side claims (spinner, exit sequence queuing behind the writer). I checked only that both deletes run inside one write transaction.
 
 <details><summary>Reproduction</summary>
 
@@ -110,12 +125,14 @@ Those gaps are far too large to be load noise. The index listing from the migrat
 
 Why medium rather than high: the claimed scenario needs about 200k stored messages. The project's own budgeted "heavy year" shape (PerfShape.Full, docs/evolution.md E6) is about 2,800 messages. Extrapolating from my measurements (not measured at these sizes), deleting an entire workspace costs roughly 1 s at 2.8k messages, 15 s at 10k and 60 s at 20k. So it is a real scalability defect with a trivial fix and no data loss, but it only becomes painful at several times the documented design scale.
 
-Not verified: I did not test the claim that other writes (ch … (cut; full text in the workflow journal)
+Not verified: I did not test the claim that other writes (checkpoints, drafts, exit sequence) queue behind the delete. It follows from the single-writer WriteAsync design, but I only read that, did not exercise it. TRACK.md does not mention this issue (grep for the column names and for index/foreign-key terms found nothing relevant).
+
+Note on setup: the assigned worktree was created from main, which has no src/. I detached HEAD to track/claude-auto (1ba95c9) to run the test, then switched back to the worktree branch. The worktree is clean and nothing was committed.
 
 *Corrections to the finding.* - Line reference: message.supersedes_id is at SchemaMigrations.cs:56, not 58.
 - Severity is overstated relative to the project's documented scale. The 8-minute scenario needs about 200k stored messages, roughly 70x the project's own budgeted "heavy year" (about 2,800 messages, PerfShape.Full / evolution E6). At that budgeted size a whole-workspace delete extrapolates to about 1 s. "At a tenth of that data ... still tens of seconds" holds for a workspace-sized delete (about 2,000 messages out of 20k extrapolates to roughly 6 s; a full 20k wipe to roughly 60 s), not for a single conversation (about 0.3 s at 25k, measured).
 - In my run the workspace delete was slower per message (about 17 ms per message at 102k) than the single-conversation delete (about 15 ms), so the auditor's 49 s per 2,000 messages at 200k is, if anything, conservative.
-- The mechanism, the affected statements and the f … (cut; full text in the workflow journal)
+- The mechanism, the affected statements and the fix (three indexes) are all accurate. The claim that other writers queue behind the delete is plausible from the single-writer design but was not exercised by my test.
 
 <details><summary>Reproduction</summary>
 
@@ -139,7 +156,30 @@ public async Task Delete_cost_grows_with_total_stored_messages_until_child_index
     var wsC = await AddWorkspaceAsync(big, 10);                      // +1,000 messages
     var unindexedOne = await DeleteConversationAsync(big, main[10]);
     var unindexedWs  = await DeleteWorkspaceAsync(big, wsB);         // big.Workspaces.DeleteAsync
-    await big.Database.WriteAsync((c, t) => { SqliteConnections … (cut; full text in the workflow journal)
+    await big.Database.WriteAsync((c, t) => { SqliteConnections.Execute(c, """
+        CREATE INDEX message_by_supersedes ON message (supersedes_id) WHERE supersedes_id IS NOT NULL;
+        CREATE INDEX generation_task_by_target ON generation_task (target_message_id) WHERE target_message_id IS NOT NULL;
+        CREATE INDEX reading_position_by_message ON reading_position (message_id);
+        """, t); return 0; }, Ct);
+    var indexedOne = await DeleteConversationAsync(big, main[11]);
+    var indexedWs  = await DeleteWorkspaceAsync(big, wsC);
+    Assert.True(unindexedOne < indexedOne * 10, ...);
+}
+
+Actual output:
+
+[FAIL] Deleting one conversation took 1487 ms without child indexes and 2.1 ms with them.
+ 25k messages, no child indexes : delete one 100-message conversation = 327.8 ms
+ indexes on message/generation_task/reading_position: generation_task_by_conversation, generation_task_by_model, generation_task_unfinished, sqlite_autoindex_generation_task_1, sqlite_autoindex_message_1, sqlite_autoindex_message_2
+ 102k messages, no child indexes: delete one 100-message conversation = 1486.7 ms
+ 102k messages, no child indexes: delete 10-conversation workspace (1,000 messages) = 16933.6 ms
+ ~101k messages, with 3 indexes  : delete one 100-message conversation = 2.1 ms
+ ~101k messages, with 3 indexes  : delete 10-conversation workspace (1,000 messages) = 9.0 ms
+ ratio big/small (unindexed, same 100 rows deleted): 4.5x for 4x the data
+ ratio unindexed/indexed, one conversation: 719x; workspace: 1888x
+Total tests: 1  Failed: 1  Total time: 21.4492 Seconds
+
+Single run, on a machine where other agents were building at the same time; absolute numbers are indicative, the 700x-1,900x ratios are not load-sensitive.
 
 </details>
 
@@ -159,14 +199,18 @@ public async Task Delete_cost_grows_with_total_stored_messages_until_child_index
 What is overstated:
 1. The cost numbers are extrapolations, not measurements. The only measured figure is one 100,000-character answer: 577-624 ms from the sidebar on macOS. Nobody has measured a multi-turn open; linear scaling is a reasonable guess (the design doc calls the cost linear) but it is unverified in either direction.
 2. The Windows multiplier is misapplied. The auditor multiplies by the "3.5x slower desktop tests" figure, but TRACK.md (2026-11-06) attributes that slowdown mainly to disk sync under WAL + synchronous=FULL (about 38 fsyncs per test), not to CPU or layout. Opening a conversation is a read path with parse and layout, so "about 3 s on Windows" for 150,000 characters is not supported. The design doc states the render benchmark was never run on Windows, so the Windows figure is simply unknown.
-3. … (cut; full text in the workflow journal)
+3. The 4-million-character / 24-second case is a synthetic storage stress seed (200 turns x 20,000 characters), not a realistic conversation. It is fair as a worst-case bound, not as an expected user experience.
+4. This is partly a known, accepted trade-off, not a new discovery: s2-branching.md line 96 and TRACK.md line 99 record that text blocks are not virtualized, that anchors and reading position depend on all blocks being laid out, and that it was deliberately left unchanged ("属线性代价，未改"). evolution-seams.md line 65 names render-layer layout/virtualization as the main remaining risk. However, that decision was made on the single-long-answer measurement; the aggregate multi-turn case was never measured or explicitly accepted, so the benchmark gap is real.
+5. "Every back navigation" was not verified beyond ViewLocator creating a fresh view per view model; TRACK.md line 134 shows reloads within an open page update rows in place by message ID, so the cost is on open/navigation, not on every refresh.
+
+Net: a real, unmeasured scaling risk with a genuine benchmark gap. For realistic conversations (tens of turns, a few thousand characters each) the extrapolated cost is sub-second to about a second of UI stall on macOS, which is a noticeable hitch but not data loss or a functional failure, and no requirement in docs/requirements.md sets an open-time budget. Medium is appropriate; high would need a measurement showing multi-second stalls at realistic sizes.
 
 *Corrections to the finding.* 1. "About 3 s on Windows" and "over a minute on Windows" are unsupported: the 3.5x figure is a whole-test-suite slowdown that TRACK.md attributes mainly to fsync cost, which does not apply to parse/layout on open. The render benchmark has never been run on Windows.
 2. The 0.9 s and 24 s macOS figures are linear extrapolations from a single-answer measurement, not measured results; they should be presented as estimates.
 3. The 4-million-character case is a synthetic storage seed, not a representative conversation.
 4. The non-virtualized text blocks are a documented, deliberately deferred trade-off (s2-branching.md:96, TRACK.md:99), so the new information is the unmeasured multi-turn aggregate and the missing page-level benchmark, not the absence of virtualization itself.
 5. The rebuild cost applies to opening/navigating to a conversation; in-page reloads update rows in place.
-Severity sho … (cut; full text in the workflow journal)
+Severity should be medium, not high.
 
 **Reproduction attempt: confirmed, medium.** Reproduced with a headless-Avalonia xUnit test (real Skia layout, Release build, macOS) that seeds an N-turn conversation through ConversationService and opens it from the sidebar the same way the existing AnswerRenderPerformanceTests.OpenAsync does.
 
@@ -178,11 +222,13 @@ Findings from the run:
 
 The claimed 0.9 s for 150k characters on macOS is, if anything, optimistic: I measured 1.3 s (other agents were building concurrently, so absolute values may be inflated somewhat; the linear shape and the order of magnitude are not load artifacts, since the 100k multi-turn figure of ~1.0 s is consistent with the project's own 577-624 ms for a single 100k answer plus per-row overhead).
 
-Severity adjusted to medium rather than high: this is a respo … (cut; full text in the workflow journal)
+Severity adjusted to medium rather than high: this is a responsiveness degradation with no data loss or incorrect behaviour, the realistic case (tens of turns, a few thousand characters each) costs about 0.25-1.3 s per open on macOS, and the multi-second cases need hundreds of thousands of characters in one conversation. The project already documents the single-answer version of this as an accepted linear cost (docs/design/s2-branching.md:96) and names rendering/virtualization as the main remaining risk (docs/design/evolution-seams.md:65); what is new and valid in the finding is that the cost accumulates across turns and that this accumulated case has no benchmark or budget. For a chat app whose core use is long branching conversations, at an industrial quality bar, it sits at the upper end of medium and the recommendation (benchmark first, then incremental realization or virtualization) is sound.
 
 *Corrections to the finding.* 1. The 60 x 2,500 scenario measured 1.3 s on macOS in my run, not 0.9 s; the finding's figure was an extrapolation from the single-answer benchmark and slightly understates the multi-turn cost (machine was under load, so treat my number as an upper-ish estimate).
 2. The 4-million-character case (200 x 20,000, about 24 s) and all Windows figures (about 3 s, over a minute) were NOT measured by me and remain extrapolations; my per-character rate (about 8 ms per 1,000 characters) would put the 4M case nearer 30 s on macOS, and "more than 100,000 live text controls" is consistent with my block counts (about 28 blocks per 1,000 characters -> roughly 112,000). PerfShape.Full is a storage stress shape, not a realistic conversation, so that scenario is a worst case rather than an expected one.
-3. "Blocks the UI thread" for the whole duration: my measurement is wall-clock from the open command to … (cut; full text in the workflow journal)
+3. "Blocks the UI thread" for the whole duration: my measurement is wall-clock from the open command to restored+laid out, which includes the asynchronous SQLite load (tens of milliseconds per the project's own storage benchmark); the dominant remainder is synchronous parse/build/layout on the UI thread per code reading (AnswerView.axaml.cs:282), but I did not separately instrument UI-thread busy time.
+4. "On every back navigation": I verified re-opening from the sidebar costs the same each time (no caching); I did not separately exercise the back-navigation path.
+5. The non-virtualization of text blocks within one answer is already a documented, accepted trade-off (s2-branching.md:96), so the finding is partly known; the genuinely new parts are the accumulation across turns and the missing benchmark. Severity lowered from high to medium accordingly (responsiveness only, no correctness or data impact).
 
 <details><summary>Reproduction</summary>
 
@@ -211,7 +257,27 @@ public async Task Repro_open_multi_turn(int turns, int charactersPerAnswer)
     // ... seed a short second conversation, then 4 times: open the short one, GC, start Stopwatch,
     // open the long one from the sidebar (OpenCommand, await page.Loaded, await view.Restored, window.UpdateLayout()),
     // stop; first run discarded as warm-up.
-    Assert.Equal(turns * 2, page.Messages.Count); … (cut; full text in the workflow journal)
+    Assert.Equal(turns * 2, page.Messages.Count);
+    var answers = window.GetVisualDescendants().OfType<AnswerView>().ToList();
+    blocks = answers.Where(a => a.DataContext is MessageItemViewModel { IsAnswer: true }).Sum(a => SourceAnchors.Blocks(a.Renderer).Count);
+    panel = window.GetVisualDescendants().OfType<ItemsControl>().Single(c => c.Name == "MessageList").ItemsPanelRoot?.GetType().Name;
+    Assert.Equal("StackPanel", panel);
+    Assert.Equal(turns * 2, views); // every row realized, questions included
+}
+```
+
+Command: `dotnet test tests/Mindweave.Desktop.Tests -c Release --filter "FullyQualifiedName~ReproLongConversationOpenTests" --logger "console;verbosity=detailed"`
+
+Actual output (macOS, Release, headless Skia; other agents were building concurrently):
+```
+REPRO turns=10 chars/answer=2500 total=25000 panel=StackPanel answerViews=20 textBlocks=680 open ms: [247, 248, 249] median=248
+REPRO turns=20 chars/answer=2500 total=50000 panel=StackPanel answerViews=40 textBlocks=1360 open ms: [624, 629, 763] median=629
+REPRO turns=40 chars/answer=2500 total=100000 panel=StackPanel answerViews=80 textBlocks=2720 open ms: [907, 1041, 1111] median=1041
+REPRO turns=60 chars/answer=2500 total=150000 panel=StackPanel answerViews=120 textBlocks=4080 open ms: [1281, 1314, 1443] median=1314
+REPRO turns=40 chars/answer=10000 total=400000 panel=StackPanel answerViews=80 textBlocks=11240 open ms: [3202, 3215, 3979] median=3215
+Test Run Successful. Total tests: 5  Passed: 5  Total time: 44.8951 Seconds
+```
+The structural assertions (StackPanel panel, 2N AnswerViews, all text blocks built) are deterministic; the timings are indicative only but scale linearly across a 16x range of total text.
 ```
 
 </details>
@@ -239,7 +305,13 @@ What holds:
 
 What is overstated:
 - **"O(n^2) on reload" is wrong for the scenario given.** When a finished answer moves its tree to the top, only that tree's k rows mismatch; after they move, the rest hit the `Items[i] == ordered[i]` fast path. That is O(k·n) reference comparisons, microseconds at n=1000.
-- **The true quadratic case is negligible … (cut; full text in the workflow journal)
+- **The true quadratic case is negligible.** A first load or workspace switch runs Contains over a growing list, about 500k reference comparisons, roughly 1 ms.
+- **Ancestors() cost is small.** Select-all on 1,000 rows is about 1M dictionary inserts, tens of milliseconds, once per user action. UpdateMarks calls it only per generating row, normally 0 to a few.
+- **"30,000 controls built at startup" inflates the visual cost.** The ContextMenu and its MenuItems are instantiated but are not in the visual tree and are not templated or laid out until opened. Several row elements are IsVisible=false and skip measure. The realized visual work is closer to 10–15 light controls per row.
+- **The list length is smaller than the conversation count.** Archived/hidden conversations are filtered out by `!s.IsHidden`, and the list is per workspace.
+- No timing was given, and I could not run one under the read-only, no-build rule.
+
+Net: a real scalability gap (no virtualization, per-row menu instances, no sidebar benchmark) that will plausibly cost a few hundred milliseconds to a second at 1,000 visible rows in one workspace. It is not a demonstrated defect at realistic sizes. The index-dictionary and parent-map recommendations are micro-optimizations. Low severity; the most defensible action is adding the 1,000-row sidebar benchmark before deciding on virtualization, which would also affect scroll-position and row-rebuild behaviour the code and tests rely on.
 
 *Corrections to the finding.* - "O(n^2) list work on reload" is wrong for the answer-finishes case: it is O(k·n) for a moved tree of k rows. It is quadratic only on a full repopulation, and that is about 1 ms at n=1000.
 - "Relayouts the full list" on each move and "before the window responds" are unmeasured assertions.
@@ -266,13 +338,18 @@ Nothing in TRACK.md or decisions.md records this as known or intended. The A5 fi
 Why the severity is overstated:
 - **Reload frequency.** "Re-run on every generation event" is too strong. The sidebar reload goes through a 100 ms UiThrottle plus SerialRefresh, and ConversationChanged fires at enqueue, answer finish and title save, not per streamed chunk. I did not check how often ActivityChanged fires. A question costs a handful of reloads, not a stream of them.
 - **Fan-out.** UnreadByWorkspaceAsync lists once per *other* workspace, and only when something is unread. It is called from WorkspaceNewsViewModel, not on every sidebar reload.
-- **Scenario.** The claimed case needs 1,000-2,000 conversations in a single workspace, nearly all opening with a 20-30k-char … (cut; full text in the workflow journal)
+- **Scenario.** The claimed case needs 1,000-2,000 conversations in a single workspace, nearly all opening with a 20-30k-character paste. That is an extreme profile for a personal desktop app; with a typical mix the waste is a few MB per reload.
+- **Measurement.** The 54 MB / 52 ms / 108 MB figures are the auditor's and I could not rerun them (read-only, no build). The arithmetic is consistent: 1,800 x 30,000 ASCII characters is 54 MB of UTF-8 and about 108 MB of UTF-16.
+- **Impact.** Even in the worst case this is transient large-object-heap churn and GC pressure off the UI thread. There is no correctness or data risk, and no evidence of visible lag.
+
+It is a real inefficiency with a cheap fix (`CASE WHEN c.title IS NULL THEN substr(b.text, 1, N) END`), and it is inconsistent with the project's own A5 rule. Low is the right severity, medium at most under the extreme profile.
 
 *Corrections to the finding.* - "Re-run on every generation event" is overstated: reloads are coalesced by a 100 ms throttle and a serial refresh, and ConversationChanged is raised at enqueue, finish and title save, not per streaming chunk.
 - The unread fan-out covers only workspaces other than the current one, only while something is unread, and is driven by WorkspaceNewsViewModel rather than by every sidebar reload.
 - "About 11 callers" is right in order of magnitude: I count 11 call sites outside the store, including two the finding did not list (WorkspaceDeletionViewModel.cs:268, WorkspaceNameSuggestions.cs:104).
 - The 54 MB / 52 ms / 108 MB figures were not reproduced; they are arithmetically plausible only for the extreme profile where every one of 1,800 conversations opens with a 30k-character question.
-- "Visible sidebar lag" is not demonstrated: the query and string materialisation run off the UI thread, so … (cut; full text in the workflow journal)
+- "Visible sidebar lag" is not demonstrated: the query and string materialisation run off the UI thread, so the realistic effect is transient large-object allocation and GC pressure.
+- Severity should be low, not medium.
 
 ### performance-5. Each conversation page reload reads the whole conversation twice and the ancestor chain twice over about 15 fresh connections; hidden pages in the back stack reload too
 
@@ -297,7 +374,12 @@ What is true:
 
 What is overstated:
 - **Root conversations pay less.** With no ancestors, both GetAncestorContextAsync calls return an empty chain cheaply and GetSourceAsync is skipped. The "ancestors twice" cost applies only to branch conversations.
-- **The headline numbers need an extreme input.** "Hundreds of MB per question" depends on the 4 MB syntheti … (cut; full text in the workflow journal)
+- **The headline numbers need an extreme input.** "Hundreds of MB per question" depends on the 4 MB synthetic conversation plus about 10 stacked duplicates. For a realistic conversation of tens to a few hundred KB, the same scenario allocates a few MB of short-lived strings.
+- **No UI-thread blocking from the reads.** They run on Task.Run; only the reconcile of hidden pages runs on the UI thread. Requests are coalesced by a 30 ms throttle and a serial refresh.
+- **Retention is bounded.** It is at most 50 pages per section, and trivial at realistic sizes.
+- **No correctness or data impact.**
+
+This is real waste and worth fixing (reuse the loaded messages and ancestors, mark hidden pages stale, de-duplicate the stack). User-visible impact needs pathological data plus a specific navigation pattern, so low fits better than medium.
 
 *Corrections to the finding.* - The double ancestor read costs something only for branch conversations; for a root conversation both calls return an empty chain.
 - "About 15 connections" is roughly right (13-16 plus the summary load) but varies with ancestors and configuration.
@@ -329,7 +411,12 @@ What is overstated:
 
 **Why the severity drops to low**
 - The opt-in design is deliberate and documented: E6 says the full size "需显式运行 scripts/perf.sh" and the budgets exist "用来发现数量级退化".
-- The Windows gap is self-di … (cut; full text in the workflow journal)
+- The Windows gap is self-disclosed in the design doc, so this is a known limitation rather than a hidden defect.
+- This is a test-infrastructure gap in a single-user desktop app, with no direct user-facing failure. Its impact is entirely derivative of the regressions it would fail to catch.
+- The read budgets still run against the current schema whenever the script is run; only the recorded number is old. Measured values were about 30 ms against 200-300 ms budgets.
+- The claim that the "two high findings" (quadratic delete, long-conversation open) pass every benchmark is true only trivially, because no benchmark covers them. I did not verify those two findings.
+
+The recommendation is reasonable, with one caveat: hosted-runner timing is noisy, so relative thresholds or recorded numbers would work better than absolute budgets.
 
 *Corrections to the finding.* - Severity should be low, not medium: the opt-in design and the missing Windows run are both documented in the design docs, and the impact is indirect.
 - "Nothing runs these tests" needs a qualifier: smoke-size variants of all three benchmark classes run in every CI job on Ubuntu and Windows, so the code paths are exercised there, just not timed and not at full size.
@@ -359,13 +446,19 @@ What is overstated:
 **What weakens it:**
 - **Intended design.** Never pruning is an explicit round-4 review fix: a pre-delete backup is the only copy of the deleted content and must not be rotated out. D-005 limits rotation to migration backups, and "backup fails, so delete nothing" is also a stated rule. The "eleventh delete is refused on a full disk" outcome is the designed fail-safe, not a defect.
 - **Accumulation was already known and addressed.** TRACK.md recorded "pre-delete backups accumulate, no cleanup entry" and item 5 (merged 2026-11-12) answered it with a storage page offering single and multi-select delete with sizes.
-- **Part of the recommendation already exists.** The storage page already shows the total size of all backups (`TotalText`), so "show total backup size" … (cut; full text in the workflow journal)
+- **Part of the recommendation already exists.** The storage page already shows the total size of all backups (`TotalText`), so "show total backup size" is done; only the threshold warning is missing.
+- **The 500 MB premise is implausible.** The database holds text chat, summaries and request records. `VACUUM INTO` plus `quick_check` on a realistic tens-of-MB file takes well under a second, and ten such backups are hundreds of MB, not 5 GB.
+- **Fewer backups than "every delete" implies.** Only cascade scopes (branches or summaries) back up; a multi-select delete makes one backup for the whole batch; a delete refused inside the transaction discards its backup.
+- **Writer blocking delays, it does not lose.** Streaming checkpoints queue behind the copy and run afterwards. I found no timeout that would turn this delay into a failure, though I did not trace the generation path exhaustively.
+
+**What remains:** a low-severity hardening gap. Backup growth is unbounded with no proactive warning and no optional retention policy, and the copy holds the writer for a time proportional to database size. That matters only for unusually large databases or users who never open the storage page.
 
 *Corrections to the finding.* - "Every cascading delete" is one backup per delete operation, not per conversation: a multi-select delete of ten trees makes one backup, and a delete refused in the transaction discards its backup.
 - "No warning until the user finds the storage page" is partly wrong: the cascade-delete dialog itself says the backup will be listed under Data & Storage, and that page already shows the total backup size. The recommendation to "show total backup size" is already implemented; only a threshold warning, age or count retention, and reuse of a recent backup are missing.
 - The 500 MB / 5 GB scenario is not realistic for a text-only chat database; at plausible sizes the writer stall is sub-second.
 - "Running answers cannot checkpoint" overstates the effect: their writes are queued behind the copy and complete afterwards; nothing is lost.
-- "Deletes are refused when the backup fails" is the designe … (cut; full text in the workflow journal)
+- "Deletes are refused when the backup fails" is the designed rule (decisions.md:133), not a failure mode.
+- Never pruning these backups is a deliberate review-driven decision with a regression test, and accumulation is already a known item in TRACK.md. This is an optional hardening suggestion, not a new defect.
 
 ### performance-8. Live answers are never released: every answer generated in a session keeps its full text in memory until exit
 

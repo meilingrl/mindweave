@@ -47,7 +47,16 @@ The storage and AI-request core is well instrumented: a per-request ai_request t
 
 So `checkpointStop.CancelAsync()`, `FinishAsync` (which does `live.Finish`, `FinishAnswerAsync` and the `AnswerFinished` event) and `_requests.RecordAsync(trace.Finish(...))` are all skipped. The only handler is the catch-all in `GenerationCoordinator.RunAsync`, which logs "Generation task {TaskId} crashed" and frees the slot.
 
-**Test connection crashes the app.** `ModelSettingsService.TestAsync` catches only `ChatClientException` and `CredentialUnavailableException`. `ModelSettingsViewModel.RunAsync` adds only `ModelSettingsException`. The command is a plain `[RelayCommand]` on CommunityToolkit.Mvvm 8.4.2 with no `FlowExceptionsToTaskScheduler`, so the exception is rethrown on the UI thread. The only global handlers are `AppDomain.UnhandledException` and `UnobservedTaskException` in `Program.cs`, and both only log. The crash itself is inferred … (cut; full text in the workflow journal)
+**Test connection crashes the app.** `ModelSettingsService.TestAsync` catches only `ChatClientException` and `CredentialUnavailableException`. `ModelSettingsViewModel.RunAsync` adds only `ModelSettingsException`. The command is a plain `[RelayCommand]` on CommunityToolkit.Mvvm 8.4.2 with no `FlowExceptionsToTaskScheduler`, so the exception is rethrown on the UI thread. The only global handlers are `AppDomain.UnhandledException` and `UnobservedTaskException` in `Program.cs`, and both only log. The crash itself is inferred from toolkit semantics; I did not run the app.
+
+**No mitigating decision or test.** No test references the crash log or a string-valued error body.
+
+**Severity stays high**, for three reasons:
+- The trigger is realistic: string-valued `error` bodies are common from proxies and gateways on 401/404/5xx, and the app targets arbitrary OpenAI-compatible services.
+- The consequences are worse than the finding states (see corrections): the conversation is blocked until restart.
+- A remote response body terminates the app from Settings.
+
+It is not critical: no data is lost, and a restart recovers.
 
 *Corrections to the finding.* Nothing in the finding is wrong; it is understated in three places.
 
@@ -55,7 +64,7 @@ So `checkpointStop.CancelAsync()`, `FinishAsync` (which does `live.Finish`, `Fin
 2. **The checkpoint loop is orphaned.** `checkpointStop` is disposed by `using` without being cancelled, so `CheckpointLoopAsync` keeps running for the life of the process.
 3. **More paths share the defect.** `ListModelsCoreAsync` has the same hole (`json?["data"]?.AsArray()` plus the shared `ThrowIfFailedAsync`). The transient/title/summary path in `GenerationRequests` (lines 83-99) has the same narrow catch pattern, though I did not trace its consequences.
 
-One precision point: the Test-conne … (cut; full text in the workflow journal)
+One precision point: the Test-connection crash rests on CommunityToolkit `AsyncRelayCommand` semantics and the absence of any dispatcher-level handler in `src`. I did not observe the process terminating.
 
 <details><summary>Reproduction</summary>
 
@@ -91,7 +100,9 @@ What the tests showed:
 2. Answer run: with HTTP 401 `{"error":"Unauthorized"}` or SSE `data: {"error":"overloaded"}`, after the coordinator freed the slot (UnfinishedCount == 0) plus a 1 s wait, the message row was still `Streaming` with no error kind, generation_task was still `running`, and ai_request had 0 rows. The control (`{"error":{"message":"bad key"}}`) gave Failed / Unauthorized / task failed / 1 row.
 3. Test connection: ModelSettingsService.TestAsync throws InvalidOperationException for the same two bodies (stack traces through ChatCompletionsClient.cs:283 and :246); the control returns a failed ConnectionTestResult.
 
-Not reproduced by test, confirmed by reading only: the app crash. ModelSettingsViewModel.RunAsync catches only ModelSettingsException, ChatClientException and CredentialU … (cut; full text in the workflow journal)
+Not reproduced by test, confirmed by reading only: the app crash. ModelSettingsViewModel.RunAsync catches only ModelSettingsException, ChatClientException and CredentialUnavailableException; TestAsync is a plain [RelayCommand] (CommunityToolkit.Mvvm 8.4.2, no FlowExceptionsToTaskScheduler anywhere in src); there is no Dispatcher unhandled-exception handler; AppHost.Run has try/finally only. So the exception should leave the UI loop and end the process, but I did not run the desktop app or a headless UI test.
+
+Severity stays high: string-valued `error` bodies are common from proxies and gateways, the trigger is entirely server-side, and the result is either a process exit from Settings or an answer stuck in streaming with zero user-visible or ai_request evidence.
 
 *Corrections to the finding.* - The generation_task row is also left in `running`, not only the message in `streaming`; the finding mentions only the message.
 - "Terminates the app" from Settings > Test connection is confirmed only down to the service call throwing InvalidOperationException; the process exit itself is inferred from code (no general catch in the view model, no dispatcher handler), not run.
@@ -123,7 +134,63 @@ public async Task Client_reports_odd_shapes_as_ChatClientException(int status, s
 public async Task Answer_run_ends_failed_with_a_request_record(int status, string body, bool sse)
 {
     using var http = new HttpClient(new Handler(status, body, sse));
-    await using var h = await ChatHarness.StartAsync(client: new ChatCompletionsClient(http, new … (cut; full text in the workflow journal)
+    await using var h = await ChatHarness.StartAsync(client: new ChatCompletionsClient(http, new ChatClientOptions()));
+    var sent = await h.Conversations.StartAsync(h.Workspace, "火车是怎么发明的？", Ct);
+    var deadline = DateTime.UtcNow.AddSeconds(20);
+    while (h.Generation.UnfinishedCount != 0 && DateTime.UtcNow < deadline) await Task.Delay(20, Ct);
+    await Task.Delay(1000, Ct);
+    var answer = (await h.GetMessageAsync(sent.Answer!.Value))!;
+    var task = await h.TaskStateAsync(sent.Answer!.Value);
+    var requests = await h.Database.ReadAsync(c => c.Scalar<long>(null, "SELECT count(*) FROM ai_request;"), Ct);
+    output.WriteLine($"... -> message={answer.State} error={answer.ErrorKind} task={task} ai_request rows={requests} unfinished={h.Generation.UnfinishedCount}");
+    Assert.Equal(MessageState.Failed, answer.State);
+    Assert.Equal("failed", task);
+    Assert.Equal(1, requests);
+}
+
+[Theory] // same three InlineData rows
+public async Task Test_connection_returns_a_failed_result_instead_of_throwing(int status, string body, bool sse)
+{
+    using var http = new HttpClient(new Handler(status, body, sse));
+    await using var h = await ChatHarness.StartAsync(client: new ChatCompletionsClient(http, new ChatClientOptions()));
+    var thrown = await Record.ExceptionAsync(async () =>
+        output.WriteLine($"result {await h.Models.TestAsync("https://fake.example/v1", "fake-model", "sk-test", Ct)}"));
+    Assert.Null(thrown);
+}
+```
+
+Actual output (per-case lines, trimmed):
+
+```
+Passed Answer_run...(401, {"error":{"message":"bad key"}})
+ -> message=Failed error=Unauthorized task=failed ai_request rows=1 unfinished=0
+Failed Answer_run...(401, {"error":"Unauthorized"})
+ -> message=Streaming error= task=running ai_request rows=0 unfinished=0
+Failed Answer_run...(200, data: {"error":"overloaded"})
+ -> message=Streaming error= task=running ai_request rows=0 unfinished=0
+
+Failed Client... 401 {"error":"Unauthorized"} -> InvalidOperationException: The node must be of type 'JsonObject'.
+Failed Client... 404 {"error":"model not found"} -> InvalidOperationException: The node must be of type 'JsonObject'.
+Failed Client... 500 "keepalive" -> InvalidOperationException: The node must be of type 'JsonObject'.
+Failed Client... 500 [1] -> InvalidOperationException: The node must be of type 'JsonObject'.
+Failed Client... 200 data: {"error":"overloaded"} -> InvalidOperationException: The node must be of type 'JsonObject'.
+Failed Client... 200 data: "keepalive" -> InvalidOperationException: The node must be of type 'JsonObject'.
+Failed Client... 200 data: [1] -> InvalidOperationException: The node must be of type 'JsonObject'.
+Failed Client... 200 data: {"choices":{}} -> InvalidOperationException: The node must be of type 'JsonArray'.
+Passed Client... 401 {"error":{"message":"bad key"}} -> ChatClientException: HTTP 401: bad key
+Passed Client... 200 data: {"error":{"message":"overloaded"}} -> ChatClientException: overloaded
+
+Failed Test_connection...(401, {"error":"Unauthorized"}) -> thrown InvalidOperationException: The node must be of type 'JsonObject'.
+   at JsonNode.get_Item(String) / ChatCompletionsClient.ThrowIfFailedAsync ... ChatCompletionsClient.cs:line 283 / ModelSettingsService.TestAsync ... line 185
+Failed Test_connection...(200, data: {"error":"overloaded"}) -> thrown InvalidOperationException: The node must be of type 'JsonObject'.
+   at ChatCompletionsClient.Parse ... ChatCompletionsClient.cs:line 246
+Passed Test_connection...(401, {"error":{"message":"bad key"}}) -> result ConnectionTestResult { Succeeded = False, Error = Unauthorized, Detail = HTTP 401: bad key }
+
+Test Run Failed.
+Total tests: 16
+     Passed: 4
+     Failed: 12
+```
 ```
 
 </details>
@@ -149,13 +216,22 @@ public async Task Answer_run_ends_failed_with_a_request_record(int status, strin
 - No design decision in docs/design/decisions.md or TRACK.md says these are deliberately unlogged. The docs repeatedly say comparable best-effort failures are "只记日志" (log only), so silent swallowing goes against the project's own convention.
 
 **Why high is overstated**
-- Core content writes are logged before they reach the UI. ConversationService, SummaryService, SummaryDrafts, TerminalWrites, WorkspaceService, WorkspaceDeletion, ConversationDeletion and … (cut; full text in the workflow journal)
+- Core content writes are logged before they reach the UI. ConversationService, SummaryService, SummaryDrafts, TerminalWrites, WorkspaceService, WorkspaceDeletion, ConversationDeletion and ReadingStateService call `StorageHealth.Report` or `Retain`, which logs at Error with the exception (StorageHealth.cs:135, 143, 354).
+- Startup, migration, backup and restore failures are logged in SqliteDatabase; unhandled exceptions are logged at Critical.
+- The unlogged set is therefore non-core paths: cosmetic preferences (appearance, sidebar, news toggles), network layout, statistics and other reads, and scope inspection.
+- No data is lost and the user is told in every non-cosmetic case. Each catch carries a CA1031 pragma with a written justification for swallowing, so the swallowing is deliberate; only the missing log is the defect.
+- The impact is a diagnosability gap in a local single-user desktop app, including a view-model bug such as a NullReferenceException being masked as "could not load". That is real but medium.
+
+**One thing the finding missed**
+Four more `catch (Exception ex)` blocks in Desktop also do not log, though they show `ex.Message` to the user: OnboardingViewModel.cs:37, BackupDialogs.cs:209, SummaryViewModel.cs:353 and WorkspacesViewModel.cs:225.
+
+The recommendation (inject a logger or a small UI-fault service, plus an architecture test) is sound.
 
 *Corrections to the finding.* - Severity should be medium, not high. Core content write failures are logged at Error through `StorageHealth.Report`/`Retain` before the UI catches them, and startup, migration, backup, restore and crash paths are logged. The gap is limited to non-core paths.
 - The scenario list overreaches on "SQLITE_BUSY, a corrupt page" for writes to core content: those are logged. It is accurate for the two examples given (statistics load, network layout save) and for a view-model bug masked by the catch.
 - NetworkSession.cs is at src/Mindweave.Desktop/Network/, not under ViewModels/Pages/.
 - The swallowing itself is deliberate and justified per site by CA1031 pragmas, mostly for cosmetic preferences; the defect is only the missing log line.
-- The finding undercounts slightly: four `catch (Exception ex)` sites (OnboardingViewModel.cs:37, BackupDialogs.cs:209, SummaryViewModel.cs:353, WorkspacesViewM … (cut; full text in the workflow journal)
+- The finding undercounts slightly: four `catch (Exception ex)` sites (OnboardingViewModel.cs:37, BackupDialogs.cs:209, SummaryViewModel.cs:353, WorkspacesViewModel.cs:225) also do not log, though they show `ex.Message` to the user.
 
 **Reproduction attempt: confirmed, medium.** Reproduced on track/claude-auto at 1ba95c9 with two focused tests in tests/Mindweave.Desktop.Tests, both of which failed exactly as the finding predicts.
 
@@ -165,12 +241,14 @@ A recording ILoggerProvider was added through the harness's service overrides, s
 
 The counts are exact. There are 26 `catch (Exception)` blocks without a variable across 11 files in src/Mindweave.Desktop, with the per-file numbers as stated. Each carries a `#pragma warning disable CA1031` with a comment justifying the user-visible handling, so the swallow is deliberate for the UI, but none logs. The only logger consumers in Desktop are ExitCoordinator and the crash hook at Program.cs:55. TRACK.md does not list this as a known finding.
 
-Severity adjusted to medium. This is a diagnosability gap, not data loss or wrong behaviour: every site tells the user about the failure and most offer a retry. Some failures on write paths are probably logged lower down, since many Application services have loggers, but I did not trace each of the 26 sites. For a single-user local desktop app the impact i … (cut; full text in the workflow journal)
+Severity adjusted to medium. This is a diagnosability gap, not data loss or wrong behaviour: every site tells the user about the failure and most offer a retry. Some failures on write paths are probably logged lower down, since many Application services have loggers, but I did not trace each of the 26 sites. For a single-user local desktop app the impact is that field reports of these failures cannot be diagnosed from the log; that is a real gap against the stated production bar, and medium-to-high is defensible. The recommended fix is sound and cheap.
+
+The worktree is restored: test file deleted, original branch checked out, build artifacts removed, nothing committed.
 
 *Corrections to the finding.* - The finding says ExitCoordinator's is "the only ILogger" in Desktop. More precisely, it is the only injected logger; Program.cs:55 also creates one for the crash hook (the finding does mention this) and CompositionRoot wires the provider.
 - All 26 sites carry a deliberate CA1031 suppression with a comment justifying the UI handling. The defect is the missing log call, not careless swallowing, and every site still tells the user about the failure.
 - "Nothing is written to the log" is demonstrated for the statistics read path, both with a stubbed service and with a real SQLite failure. For sites that call Application services which own loggers (write paths), some failures may already be logged below Desktop; I did not trace each of the 26, so "nothing logged" should not be assumed for all of them.
-- Severity: high overstates it for a local single-user app where every failure is shown to … (cut; full text in the workflow journal)
+- Severity: high overstates it for a local single-user app where every failure is shown to the user and no data is lost; medium fits better.
 
 <details><summary>Reproduction</summary>
 
@@ -203,7 +281,48 @@ public class ReproSwallowedExceptionTests(ITestOutputHelper output)
         var log = new Recorder();
         await using var app = DesktopHarness.Create(s => s.AddLogging(b => b.AddProvider(log)));
         await app.StartWithWorkspaceAsync("火车历史");
-        var db = app.Services.GetRequiredService<SqliteDatab … (cut; full text in the workflow journal)
+        var db = app.Services.GetRequiredService<SqliteDatabase>();
+        await db.WriteAsync((connection, transaction) =>
+        {
+            using var command = connection.CreateCommand();
+            command.Transaction = transaction;
+            command.CommandText = "ALTER TABLE ai_request RENAME TO ai_request_gone;";
+            return command.ExecuteNonQuery();
+        }, CancellationToken.None);
+        var before = log.Entries.Count;
+        var page = await OpenAsync(app);
+        Assert.Equal(UiText.StatisticsLoadFailed, page.LoadError);   // passed
+        Dump(log);
+        Assert.Contains(log.Entries.Skip(before), e => e.Level >= LogLevel.Warning && e.Exception is not null);
+    }
+}
+```
+
+Command: `dotnet test tests/Mindweave.Desktop.Tests --filter FullyQualifiedName~ReproSwallowedExceptionTests --logger "console;verbosity=detailed" -p:TreatWarningsAsErrors=false -p:EnforceCodeStyleInBuild=false`
+
+Actual output (trimmed):
+
+```
+Mindweave.Desktop.Tests.ReproSwallowedExceptionTests.A_view_model_fault_on_the_statistics_page_reaches_the_log [FAIL]
+  Assert.Contains() Failure: Filter not matched in collection
+  ... ReproSwallowedExceptionTests.cs:line 34
+  Output:
+    log entries: 2
+      [Information] Mindweave.Infrastructure.Sqlite.SqliteDatabase: Created database /var/folders/.../mindweave.db at schema 10 | ex=:
+      [Information] Mindweave.Application.Workspaces.WorkspaceService: Created workspace 01a1d1e6-bbe4-7287-b102-18fd35cf7cec | ex=:
+Mindweave.Desktop.Tests.ReproSwallowedExceptionTests.A_real_sqlite_read_failure_on_the_statistics_page_reaches_the_log [FAIL]
+  Assert.Contains() Failure: Filter not matched in collection
+  Collection: []
+  ... ReproSwallowedExceptionTests.cs:line 58
+  Output:
+    log entries: 2   (same two startup Information lines; none after the table rename)
+Test Run Failed.
+Total tests: 2
+     Failed: 2
+ Total time: 2.9648 Seconds
+```
+
+In both tests the preceding assertion `LoadError == UiText.StatisticsLoadFailed` passed, so the failure path was taken and the UI showed the fixed sentence. The failing assertion is the one requiring a Warning-or-above log entry carrying the exception. Neither result depends on timing.
 ```
 
 </details>
@@ -231,13 +350,19 @@ public class ReproSwallowedExceptionTests(ITestOutputHelper output)
 - No design decision or TRACK.md entry accepts this, and `SerialRefreshTests` has a single test that does not cover faults.
 
 **Where the finding understates it**
-- `SerialRefresh` keeps the faulted task in its `_running` field. It cannot be finalized while the page view model is alive and no new request replaces it, so the log line is delayed until at least page disposal … (cut; full text in the workflow journal)
+- `SerialRefresh` keeps the faulted task in its `_running` field. It cannot be finalized while the page view model is alive and no new request replaces it, so the log line is delayed until at least page disposal plus a GC, not merely "at GC time".
+
+**Why medium, not high**
+- The trigger is rare. The database is local SQLite behind a single-instance lock with a 5 s busy timeout (`SqliteConnections.cs:12`), and write-side storage failures have their own visible pause mechanism (`StorageHealth` / `IsStorageBlocked`).
+- When it does happen there is no data loss or corruption, the app keeps running, and the next change event retries the load.
+- The log record is usually late and misleadingly labelled rather than absent.
+- It is a real diagnosability and UX gap against a production bar, but not high.
 
 *Corrections to the finding.* - **Severity:** high is overstated; medium fits. The trigger is rare, nothing is lost or corrupted, and the next change event retries the load.
 - **"No timely log line":** this is, if anything, understated. `SerialRefresh._running` holds the faulted task, so it cannot be finalized while the page is alive and no new request arrives.
 - **"Awaits five store reads":** they are five `IConversations` service calls, which wrap more store reads than that. The point stands.
 - **`WorkspacesViewModel.cs:710`:** weaker than the other examples. `SuggestCoreAsync` has its own handling (at least for cancellation), and the task is kept in `Suggesting`. I did not read its full catch list.
-- **Not mentioned by the finding:** other view models (`WorkspaceNewsViewModel:82`, `ConversationListViewModel:73`) store the task in `Loaded` instead of discarding it. That observes nothing either unless something awai … (cut; full text in the workflow journal)
+- **Not mentioned by the finding:** other view models (`WorkspaceNewsViewModel:82`, `ConversationListViewModel:73`) store the task in `Loaded` instead of discarding it. That observes nothing either unless something awaits it, so the gap is somewhat wider than the four files listed.
 
 **Reproduction attempt: confirmed, medium.** Reproduced with a headless UI test on track/claude-auto at 1ba95c9 (checked out detached in my isolated worktree, because the worktree branch itself is cut from main and has no product code).
 
@@ -257,13 +382,23 @@ Why I lower it to medium:
 - There is no data loss or corruption. SerialRefresh resets _busy in finally, so the next change notification reloads normally.
 - The cost is a stale or empty page plus missing diagnostics, which is a real observability gap for an industrial bar but not a high-severity defect.
 
-Code reading confirms the rest of th … (cut; full text in the workflow journal)
+Code reading confirms the rest of the pattern:
+- SerialRefresh.RunAsync has try/finally only.
+- ConversationViewModel.LoadAsync has no catch.
+- The same `() => _ = _load.Request()` appears in SummaryViewModel:57, ArchivedViewModel:70 and NetworkHomeViewModel:41.
+- The first load is also lost: Loaded = LoadFirstAsync(...) is awaited only by ConversationView.RestoreAsync, which is itself discarded at ConversationView.axaml.cs:94 and has no catch.
+- AnswerView.CreateBranchAsync (line 427) has no catch and is discarded at line 76.
+- I did not find a try/catch in the first ~20-25 lines of WorkspacesViewModel.SuggestNamesAsync or SummaryViewModel.ReportProgressAsync, but I did not read those methods in full or the callees, so those two sites are plausible rather than confirmed.
 
 *Corrections to the finding.* 1. The logging claim is understated. The finding says the fault reaches the log "at GC time (possibly minutes later or never)". In the test, UnobservedTaskException did not fire even after five forced GC + finalizer passes. The likely reason is that SerialRefresh keeps the faulted task in its `_running` field, so it stays reachable until the next Request() replaces it or the page is collected. For a page that stays open, "never" is the normal case, so the "misleading Critical 'Unhandled exception' at an unrelated time" scenario is rarer than claimed for the SerialRefresh sites. It still applies to the discarded tasks that nothing holds (RestoreAsync, CreateBranchAsync and the like).
 
 2. "A blank page" (first load) was not exercised by the test. Code reading supports it: LoadFirstAsync's task (Loaded) is only awaited by the discarded RestoreAsync.
 
-3. Severity high looks overstated; I rat … (cut; full text in the workflow journal)
+3. Severity high looks overstated; I rate it medium. The trigger is a rare local-read failure, nothing is lost or corrupted, and the page recovers on the next change notification. The harm is a silently stale or empty page and no diagnostics.
+
+4. Line references are accurate. One small precision: LoadAsync at line 377 awaits seven calls (five store reads before the UI update, then GetContextUsageAsync and Summary.LoadAsync), all without a catch.
+
+5. The recommendation to catch inside SerialRefresh.RunAsync needs care. ConversationLifecycleActions is handed `() => _load.Request()` (ConversationViewModel.cs:84) and LoadFirstAsync awaits it, so some callers may rely on the fault propagating. An onError callback, or log-and-rethrow, is safer than swallowing.
 
 <details><summary>Reproduction</summary>
 
@@ -296,7 +431,61 @@ public async Task A_failed_reload_leaves_a_stale_page_no_notice_and_no_log_line(
     var page = await app.StartWithConversationAsync(waitForTitle: true);
     var titleBefore = page.Title; var messagesBefore = page.Messages.Count; var logsBefore = logs.Entries.Count;
     var unobserved = new ConcurrentQueue<Exception>();
-    EventHandler<UnobservedTas … (cut; full text in the workflow journal)
+    EventHandler<UnobservedTaskExceptionEventArgs> handler = (_, e) => unobserved.Enqueue(e.Exception);
+    TaskScheduler.UnobservedTaskException += handler;
+    try
+    {
+        gate.Fail = true;
+        await app.Services.GetRequiredService<ConversationService>().RenameAsync(page.Id, "改名后的标题", CancellationToken.None);
+        await UiWait.UntilAsync(() => gate.FailedLoads > 0);
+        for (var i = 0; i < 20; i++) { Dispatcher.UIThread.RunJobs(); await Task.Delay(10); }
+        // ... output.WriteLine diagnostics ...
+        Assert.Equal(titleBefore, page.Title);
+        Assert.Equal(messagesBefore, page.Messages.Count);
+        Assert.DoesNotContain(logs.Entries.Skip(logsBefore), e => e.Text.Contains("simulated", StringComparison.Ordinal));
+        Assert.Empty(unobserved);
+        for (var i = 0; i < 5 && unobserved.IsEmpty; i++) { await Task.Delay(50); GC.Collect(); GC.WaitForPendingFinalizers(); GC.Collect(); }
+        output.WriteLine($"unobserved task exceptions after forced GC: {unobserved.Count}");
+    }
+    finally { gate.Fail = false; TaskScheduler.UnobservedTaskException -= handler; }
+}
+
+// DispatchProxy over IConversations: forwards everything to the real service, except
+protected override object? Invoke(MethodInfo? targetMethod, object?[]? args)
+{
+    if (_gate.Fail && targetMethod!.Name == nameof(IConversations.LoadAsync))
+    {
+        Interlocked.Increment(ref _gate.FailedLoads);
+        return Task.FromException<ConversationContent?>(new InvalidOperationException("simulated read failure"));
+    }
+    return targetMethod!.Invoke(_inner, args);
+}
+```
+
+Actual output:
+
+```
+  Passed Mindweave.Desktop.Tests.ReproLostLoadFaultTests.A_failed_reload_leaves_a_stale_page_no_notice_and_no_log_line [894 ms]
+  Standard Output Messages:
+ failed LoadAsync calls: 1
+ title before: '火车历史', after: '火车历史' (stored title is now '改名后的标题')
+ messages before: 2, after: 2
+ IsMissing: False
+ error/notice-like properties on the page: [SourceNotice=, BranchNotice=, StorageNotice=]
+ warning+ or matching log entries since the failure, before GC: 0
+ unobserved task exceptions before GC: 0
+ unobserved task exceptions after forced GC: 0:
+
+  Passed Mindweave.Desktop.Tests.ReproLostLoadFaultTests.SerialRefresh_fault_is_only_on_the_returned_task [< 1 ms]
+  Standard Output Messages:
+ SerialRefresh task status: Faulted; exception: boom
+
+Test Run Successful.
+Total tests: 2
+     Passed: 2
+```
+
+The tests pass because they assert the defective behaviour (stale page, no log entry, no unobserved-exception event). The harness uses NullLoggerProvider by default; I added a recording provider, so "nothing logged" was measured at the ILogger level, not against the real log file.
 ```
 
 </details>
@@ -320,7 +509,13 @@ public async Task A_failed_reload_leaves_a_stale_page_no_notice_and_no_log_line(
 
 **(c) No dispatcher handler, no top-level catch: confirmed.** A grep of `src` for `UnhandledException` finds only Program.cs:36-37. `AppHost.Run` is try/finally only. `LogCrash` writes one Critical entry and catches only `ObjectDisposedException`. The entry is likely to reach disk, because the file logger uses `AutoFlush = true`.
 
-**(d) No previous-crash detection: confirmed.** I found no clean-exit marker or "close … (cut; full text in the workflow journal)
+**(d) No previous-crash detection: confirmed.** I found no clean-exit marker or "closed unexpectedly" notice in `src`. Requirements (docs/requirements.md:264) only require that the app can be safely reopened after an abnormal exit, so this part is a quality gap, not a requirement violation.
+
+**(e) Async void startup post: confirmed, but narrower than implied.** App.axaml.cs:48 posts an async lambda. An exception from `AppStartup.RunAsync` would reach the dispatcher and crash the process, though it would be logged by the line-36 handler. Database open failures are returned as a `NeedsRecovery` outcome and shown on a recovery page, so only unexpected exceptions take this path.
+
+I found no decision in TRACK.md or docs/design that accepts or defers any of this. The closest is docs/design/s7-ui-polish.md:411, which only notes that a UI-loop crash skips release.
+
+Medium stands: no data is lost (the crash-safe storage design is separate), but supportability is poor for a production-quality bar, and (b) breaks documented behaviour.
 
 *Corrections to the finding.* 1. "No artifact" is overstated. A pre-hook unhandled .NET exception still leaves an OS-level trace: a ".NET Runtime" / Application Error entry in the Windows Event Log, or a macOS crash report under DiagnosticReports. What is missing is any Mindweave log entry or user-visible message. The exit-code-2 path does leave nothing at all.
 
@@ -328,7 +523,11 @@ public async Task A_failed_reload_leaves_a_stale_page_no_notice_and_no_log_line(
 
 3. The read-only data directory case usually throws `UnauthorizedAccessException`, which is not an `IOException`. Moving `CreateDirectory` inside the existing try would therefore not fix it; the catch at SingleInstance.cs:52 would also miss it from the `FileStream` open.
 
-4. For (e), … (cut; full text in the workflow journal)
+4. For (e), startup storage failures are handled as a recovery page, so the async-void path covers only unexpected exceptions, and those are logged.
+
+5. In-loop crashes are logged with a flushed Critical entry (`AutoFlush = true`). The gap for that case is the missing user notice and next-start detection, not a missing log.
+
+6. Not in the original finding: the "did not respond" silent exit contradicts docs/design/s0-skeleton-storage.md:27, which specifies a user-facing notice. That strengthens part (b).
 
 ### observability-5. The log has no session banner: version, channel, OS and schema version are never written, and a normal start logs nothing
 
@@ -355,7 +554,11 @@ What I verified:
 Why low rather than medium:
 - Nothing malfunctions; the cost is slower triage of a log file sent in isolation.
 - The log directory sits under the per-channel data directory, so channel and track can be inferred when the log is collected in place.
-- An unclean previous run is sometimes visible through the "Marke … (cut; full text in the workflow journal)
+- An unclean previous run is sometimes visible through the "Marked ... from the previous run as interrupted" warning.
+- No requirement or architecture clause mandates a banner.
+- The app is pre-release at a constant 0.1.0, so the commit hash is the only useful build identity. It is already embedded in the assembly (obj AssemblyInfo shows 0.1.0+<sha>), which makes the fix a few lines.
+
+The recommendation is sound and cheap.
 
 *Corrections to the finding.* - "Impossible to tell where one process run ends and the next begins" is slightly overstated. A run that follows an unclean exit with unfinished work logs the "previous run ... interrupted" warning (StartupCoordinator.cs:105), and a first run or a migration logs an Information line. For ordinary clean starts the claim holds.
 - "Cannot be tied to a build/channel" holds only for a log file sent on its own. In place, the logs directory is under the channel-specific data directory (AppPaths.cs:21).
@@ -380,13 +583,15 @@ The impact is overstated, though, because logs/ lives inside the data directory 
 - Volume remounted read-only, or quota exhausted: the log cannot be written either, so again no growth.
 - The flood only materialises when the database refuses writes while the data directory stays writable: the DB file locked by another process, corruption, DB-file-only permission change, page-count limit.
 
-In those narrower cases the growth is roughly 17-50 MB per day (my estimate from a StorageWriteException wrapping a SqliteException at 1-3 KB per entry; not measured). That is a nuisance on a desktop machine, not a data-loss or availability risk. The first informative failure is logged at Error ("Core write failed...") while the repeats are INF, so it stays findable by level even if buried by volume. The a … (cut; full text in the workflow journal)
+In those narrower cases the growth is roughly 17-50 MB per day (my estimate from a StorageWriteException wrapping a SqliteException at 1-3 KB per entry; not measured). That is a nuisance on a desktop machine, not a data-loss or availability risk. The first informative failure is logged at Error ("Core write failed...") while the repeats are INF, so it stays findable by level even if buried by volume. The app is also visibly paused to the user in this state, which makes multi-day unattended runs less likely.
+
+Net: a real log-hygiene defect worth fixing as recommended (log once per pause plus a periodic summary; add a size cap and prune on date roll), but low rather than medium.
 
 *Corrections to the finding.* 1. The claimed failure scenarios (volume remounted read-only, quota, full disk) are mostly ones where the log cannot grow, because logs/ is on the same volume and failed log writes are swallowed (FileLoggerProvider.cs:63-66). The flood needs the database blocked while the data directory is still writable (lock held by another process, corruption, DB-file permissions, page limit).
 2. "Burying the first, informative failure" is overstated: the first failure is logged at Error, the repeats at Information, so it is distinguishable by level.
 3. "Tens of MB per day" is plausible only at the upper end; roughly 17-50 MB/day depending on stack depth, and it was not measured.
 4. "A long-running process is never pruned" is correct but only matters after more than 14 days of continuous uptime; pruning resumes at the next start.
-5. Severity medium -> low: bounded disk nuisance and log noise in a narr … (cut; full text in the workflow journal)
+5. Severity medium -> low: bounded disk nuisance and log noise in a narrow state, with no data loss or functional impact.
 
 ### observability-7. No diagnostics surface: ai_request is never read for diagnosis, error detail is only a tooltip, and there is no log entry point or diagnostic export
 
@@ -411,7 +616,11 @@ In those narrower cases the growth is roughly 17-50 MB per day (my estimate from
 
 **Why the severity drops:**
 - The deferral is recorded in two places: `evolution-seams.md` ("未做（等 D2）: 用户可见的请求详情界面与诊断包导出") and the E3 row in `TRACK.md` ("诊断界面留给 D2"). `decisions.md` also anticipates the D2 diagnostics screen. The auditor acknowledged this.
-- `docs/requirements.md` contains no requirement for a diagnostics UI, request-detail view or log access (grep for 诊断/日志/请求 ID/错误详情 returned nothing there), so there … (cut; full text in the workflow journal)
+- `docs/requirements.md` contains no requirement for a diagnostics UI, request-detail view or log access (grep for 诊断/日志/请求 ID/错误详情 returned nothing there), so there is no spec non-conformance.
+- The user is not left without information: the redacted provider error text is visible on hover, the state label carries the error kind, and "open data folder" in StorageDetails lands one level above `logs` (`LogDirectory` = `DataDirectory/logs`).
+- There is no data loss or correctness impact. The cost is supportability friction, mainly that the provider request id and timing are reachable only through SQLite.
+
+This is a valid backlog item for D2 at low severity. It would be medium only if the product were shipping to external users with a support channel before D2 lands.
 
 *Corrections to the finding.* - Severity should be low, not medium: this is a known, documented deferral to D2 with no requirement behind it, not a newly discovered defect.
 - "Must locate the logs folder themselves" is slightly overstated: the existing "open data folder" action opens the directory that contains `logs`.

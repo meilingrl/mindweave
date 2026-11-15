@@ -93,7 +93,7 @@
 | docs-5 | decisions.md superseded values; stops at D-024 | Superseded notes; new entries. | dev | 待做 |
 | docs-6 | Design index omits half the files | Update docs/design/README.md. | dev | 待做 |
 | docs-7 | run-guide.md stale | Update docs map and backup rotation. | dev | 待做 |
-| docs-10 | No register of open defects | 未解决问题 section in TRACK.md. | dev | 待做 |
+| docs-10 | No register of open defects | 未解决问题 section in TRACK.md. | dev | 已修 2026-11-15：TRACK.md 新增“未解决问题”一节，指向本表并记下表外的未解决问题。 |
 | repo-scripts-3 | Prototypes don't restore | Duplicate of dependencies-7. | dev | 待做 |
 | repo-scripts-5 | package-source.sh output location, leftovers | artifacts/, temp-then-rename, .env pattern. | dev | 待做 |
 | repo-scripts-8 | mailbox.sh wait hides unreachable | Capture remote status. | dev | 待做 |
@@ -123,7 +123,7 @@
 | repo-scripts-9 | Personal paths/email committed | History rewrite is owner's decision before going public. | security | 待决定 |
 | errors-9 | Exit-save failure offers only retry/return | "Quit anyway" changes architecture §12.3. | UX | 待决定 |
 | observability-7 | No diagnostics surface | D2 deferral. | UX | 待决定 |
-| gap-lifecycle-4 | SummaryDrafts not told of deleted node | Cross-service delete signal. | UX | 待决定 |
+| gap-lifecycle-4 | SummaryDrafts not told of deleted node | Cross-service delete signal. | UX | 已解决 2026-11-15（0097623、8585c98）：没有另加删除通知，改为写入或退出保存时发现总结已删除就丢弃它的草稿，效果相同。 |
 | gap-schema-4 | Upgrade invisible | Phase reporting UX. | UX | 待决定 |
 | ai-client-8 | Summaries sent as mid-conversation system messages | Documented in s3-context.md; message-form choice. | UX | 待决定 |
 | gap-unprompted-6 | Stopped/failed requests omitted from cost totals | Deliberate (s7); UX decision. | UX | 待决定 |
