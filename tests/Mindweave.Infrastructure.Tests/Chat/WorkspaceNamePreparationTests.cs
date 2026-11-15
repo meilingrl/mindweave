@@ -110,7 +110,7 @@ public class WorkspaceNamePreparationTests
         var preparer = h.NamePreparer;
         h.Client.Titles.FailNext(GenerationErrorKind.ServerError);
         var untitled = await StartAsync(h, "没有标题的会话");
-        await ChatHarness.UntilAsync(() => h.Generation.UnfinishedCount == 0);
+        await h.TitleEndedAsync(untitled);
         var first = await TitledAsync(h, "蒸汽机是怎么工作的？");
         await TitledAsync(h, "铁轨为什么是工字形的？");
         Assert.False(preparer.IsWaiting(h.Workspace));
