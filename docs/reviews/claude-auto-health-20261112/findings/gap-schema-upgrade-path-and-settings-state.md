@@ -47,7 +47,11 @@ The core upgrade mechanism is sound and better tested than most desktop apps: ve
 - **The design docs do not treat this as an accepted trade-off.** `docs/design/s0-skeleton-storage.md` and `data-model.md` define `user_version` as the schema version and say nothing about drift detection; I did not find it in TRACK.md either.
 
 **What is overstated**
-- **Scenario (2) is effectively impossible.** cb91650 (03:16:32) and 91bf3b8 (03:22:16) on 2026-10-28 are six minutes apart, consecutive commits of the same in-progress S4 stage. The summary store that uses the table first appears in 91bf3b8. No trial build could have been cut from cb91650, so no databa … (cut; full text in the workflow journal)
+- **Scenario (2) is effectively impossible.** cb91650 (03:16:32) and 91bf3b8 (03:22:16) on 2026-10-28 are six minutes apart, consecutive commits of the same in-progress S4 stage. The summary store that uses the table first appears in 91bf3b8. No trial build could have been cut from cb91650, so no database plausibly holds the RESTRICT variant. This is an unreleased step fixed during development, not a precedent of editing a released step.
+- **Scenario (1) needs a convention breach plus a merge race.** A task-worktree build must run against the default data directory, against TRACK.md line 52, and two branches must both add a migration with the other merging first. The mechanism is real: the channel is shared by all worktrees of this track (`Directory.Build.props:16`) and AGENTS.md rule 3 does prescribe renumbering. But the exposure is developer and tester machines on a single-user pre-release track, and the automatic pre-migration backup limits loss.
+- **Remaining risk is latent.** It is a missing defence-in-depth control and a test-fidelity gap, not a defect that corrupts data today. It becomes more important once builds reach real users, where a v8+ database edited-under would be undetectable.
+
+The recommendation (applied-migrations table or pinned per-step hashes, plus frozen fixtures) is sound and cheap.
 
 *Corrections to the finding.* - **File path:** the "never edit" comment is in `src/Mindweave.Infrastructure/Sqlite/Migrations/SchemaMigrations.cs`, not `Sqlite/SchemaMigrations.cs`.
 - **"History already has one in-place edit" is misleading.** The v6 edit landed six minutes after v6 was introduced, in the next commit of the same unfinished stage, before any code used the table. It is not an edit of a released step.
@@ -61,11 +65,20 @@ What is confirmed:
 - OpenExisting decides solely on PRAGMA application_id + user_version. `version == LatestVersion` returns Ready with no schema comparison; Migrate writes only `PRAGMA user_version`. There is no migration table, step name or hash anywhere in src (grep for schema_migration/hash found nothing; the Migration record's Name is never persisted, and Migration.Sql hides its SQL in a closure so it cannot even be hashed today).
 - Scenario 1 reproduced: a database whose step 10 was a different migration opens with the default catalog as Ready (FoundVersion 10, no backup), ai_request has no workspace_id, a foreign table is present, and a v10 query fails at run time with "no such column: workspace_id".
 - Scenario 2 reproduced with the real store: a database built with v6 as first committed in cb91650 (ON DELETE RESTRICT on summary_version.node_id) upgrades 6 -> 10 as Ready, still carries RESTRICT, and SqliteSummaryStore.DeleteVersionsAsync for a node's last version throws SqliteException 19 "FOREIGN KEY constraint failed"; the node remains. On today's schema the same call succeeds (existing SummaryStoreTests).
-- Scenario 3 confirmed by inspection: every SchemaV*MigrationTests seeds its old version from MigrationCatalog.Default.Migrations.Where(m => m.Version <= N); no fixture directory, no .db/.sql dump, no golden sqlite_schema, no hash pin. My scenario-2 test had to reconstruct the old DDL from git history because nothing in … (cut; full text in the workflow journal)
+- Scenario 3 confirmed by inspection: every SchemaV*MigrationTests seeds its old version from MigrationCatalog.Default.Migrations.Where(m => m.Version <= N); no fixture directory, no .db/.sql dump, no golden sqlite_schema, no hash pin. My scenario-2 test had to reconstruct the old DDL from git history because nothing in the repo preserves it. An edit to a released step would leave the suite green.
+- Enabling conditions are real: one channel "claude-auto" in Directory.Build.props:16 for every build of the track; per-worktree MINDWEAVE_DATA_DIR is only a convention (TRACK.md:52); AGENTS.md rule 3 makes renumbering the documented procedure; and an unmerged branch (worktree-wf_e0cb2e5e-84d-1, commit c75c215) already carries its own v11 while the track is at v10, so the collision in scenario 1 is one un-isolated app launch away.
+
+Why I lower the severity to medium:
+- Scenario 1 needs a developer process slip (running a task-branch build against the default data directory, then a renumber). It is a dev/tester-machine hazard under the current multi-agent workflow, not something an end user of a single released line of builds can hit. Trial builds are distributed to a Windows machine, so the exposure is not zero, but only sequential track builds go there.
+- Scenario 2's real exposure is nearly nil: cb91650 and 91bf3b8 are consecutive commits 6 minutes apart (03:16 and 03:22 on 2026-10-28), v6 was not in any distributed build in between. It matters as proof that an in-place edit of a committed step has already happened and went unnoticed by any guard, not as live data damage.
+- No data loss occurs in either reproduction: failures are run-time SQL errors and a refused delete; a pre-migration backup is still taken on real upgrades.
+The gap is still a genuine production-quality defect (silent Ready on a divergent schema, and upgrade tests that cannot catch edits to shipped steps), and the recommendation (applied-migration table with hash verified at open, hash pins + golden schema dump, frozen per-version fixtures) is sound. Note for the hash pin: TRACK.md:133 records that CRLF checkout once changed raw string literals, so hashes should be computed over normalized line endings.
 
 *Corrections to the finding.* 1) File path: the migrations file is src/Mindweave.Infrastructure/Sqlite/Migrations/SchemaMigrations.cs (not Sqlite/SchemaMigrations.cs). The `PRAGMA user_version` line is 572, not 575; line 488 is correct.
 2) Scenario 2 is overstated as "any database created between cb91650 and 91bf3b8": those are adjacent commits six minutes apart in one session, so realistically no such database exists outside a developer's scratch run. Its value is as evidence that a committed step has already been edited in place with no guard, not as live breakage. Also the upgraded database reports FoundVersion 6 then Ready; "still has RESTRICT at v10" is correct.
-3) Scenario 1's "a later v12 fails or half-applies": half-apply is not possible; Migrate applies all pending steps in a single transaction with foreign_key_check, so a failing later step rolls back and yields MigrationFailed with a verified backup. A lat … (cut; full text in the workflow journal)
+3) Scenario 1's "a later v12 fails or half-applies": half-apply is not possible; Migrate applies all pending steps in a single transaction with foreign_key_check, so a failing later step rolls back and yields MigrationFailed with a verified backup. A later step could, however, succeed on top of the wrong schema.
+4) Scenario 1 is a development-workflow hazard (requires running a task-branch build against the shared default data directory), not a path an end user on sequential track builds can reach; an unmerged branch with its own v11 (c75c215) does exist, so the precondition is plausible. For these reasons I rate it medium rather than high.
+5) "Every SchemaV*MigrationTests" — verified for V3 and V10 by reading and consistent with the absence of any fixture files; there is no SchemaV7MigrationTests file at all (V3, V4, V5, V6, V8, V9, V10 exist).
 
 <details><summary>Reproduction</summary>
 
@@ -90,7 +103,53 @@ var failure = await Assert.ThrowsAsync<SqliteException>(() =>
 Core of test 2 (v6 as first committed in cb91650, then upgraded by today's code):
 ```csharp
 var v6 = MigrationCatalog.Default.Migrations.Single(m => m.Version == 6);
-var asFirstCommitted = v6 with { Apply = (connection … (cut; full text in the workflow journal)
+var asFirstCommitted = v6 with { Apply = (connection, transaction) => {
+    v6.Apply(connection, transaction);
+    // empty table, FKs off: replace with cb91650's DDL verbatim
+    SqliteConnections.Execute(connection, """
+        DROP TABLE summary_version;
+        CREATE TABLE summary_version (
+            id TEXT NOT NULL PRIMARY KEY,
+            node_id TEXT NOT NULL REFERENCES summary_node (id) ON DELETE RESTRICT DEFERRABLE INITIALLY DEFERRED,
+            seq INTEGER NOT NULL CHECK (seq >= 1), title TEXT NOT NULL CHECK (length(title) > 0),
+            body TEXT NOT NULL CHECK (length(body) > 0), to_seq INTEGER NOT NULL CHECK (to_seq >= 0),
+            origin TEXT NOT NULL CHECK (origin IN ('generated', 'edited')),
+            baseline_id TEXT, task_id TEXT, model TEXT, created_at INTEGER NOT NULL, UNIQUE (node_id, seq)
+        ) STRICT;
+        """, transaction); } };
+var old = new MigrationCatalog(MigrationCatalog.Default.Migrations.Where(m => m.Version < 6).Append(asFirstCommitted));
+await using (var first = _dir.Database(old)) { Assert.True((await first.OpenAsync(Ct)).IsReady); }
+SqliteConnection.ClearAllPools();
+await using var database = _dir.Database();
+var opened = await database.OpenAsync(Ct);
+Assert.Equal(DatabaseOpenStatus.Ready, opened.Status);
+Assert.Equal(6, opened.FoundVersion);
+Assert.Contains("ON DELETE RESTRICT DEFERRABLE", ddlOfSummaryVersion, StringComparison.Ordinal);
+// seed workspace, conversation, 2 messages, running summary task; then
+var saved = (await store.SaveGeneratedAsync(task, Conversation, new GeneratedSummary("蒸汽机", null, "正文"), 1, null, "m", At, Ct))!;
+var failure = await Record.ExceptionAsync(() => store.DeleteVersionsAsync(saved.Node, new HashSet<SummaryVersionId> { saved.Version }, At, Ct));
+Assert.IsType<SqliteException>(failure);
+Assert.NotNull(await store.GetAsync(saved.Node, Ct));
+```
+
+Command: dotnet test tests/Mindweave.Infrastructure.Tests --filter "FullyQualifiedName~ReproSchemaIdentityTests" --logger "console;verbosity=detailed"
+
+Actual output:
+```
+  Passed Mindweave.Infrastructure.Tests.ReproSchemaIdentityTests.A_database_whose_step_10_was_a_different_migration_opens_as_Ready_with_the_wrong_schema [571 ms]
+  Standard Output Messages:
+ scenario 1: status=Ready, found=10, run-time failure: SQLite Error 1: 'no such column: workspace_id'.
+
+  Passed Mindweave.Infrastructure.Tests.ReproSchemaIdentityTests.A_database_created_from_the_first_committed_v6_is_Ready_at_v10_and_cannot_delete_a_nodes_last_version [21 ms]
+  Standard Output Messages:
+ scenario 2: status=Ready, found=6, delete last version -> SqliteException: SQLite Error 19: 'FOREIGN KEY constraint failed'.
+
+Test Run Successful.
+Total tests: 2
+     Passed: 2
+```
+
+Scenario 3 (tests stay green after an edit to a released step) and the process/config parts (single channel, convention-only data-dir isolation, renumbering rule) were verified by inspection, not by test. I did not reproduce the "later v12 fails or half-applies" tail of scenario 1; migrations run in one transaction, so a failure there would roll back and report MigrationFailed rather than half-apply.
 ```
 
 </details>
@@ -117,13 +176,19 @@ var asFirstCommitted = v6 with { Apply = (connection … (cut; full text in the 
 - No restore confirmation string mentions keys, and I found no post-restore credential check.
 - Neither `TRACK.md` nor `docs/design/decisions.md` records this as a known or accepted limitation. `docs/architecture.md` §7.3 specifies the retire-then-clean rule but says nothing about restore.
 
-**Restore case:** holds as claimed. After restoring a backup older than the last key replacement, `ReadKeyAsync` gets null and every generation fails. The send pre-check in `ConversationService` only tests that a settings row exists, so question … (cut; full text in the workflow journal)
+**Restore case:** holds as claimed. After restoring a backup older than the last key replacement, `ReadKeyAsync` gets null and every generation fails. The send pre-check in `ConversationService` only tests that a settings row exists, so questions are accepted and then fail.
+
+**Shared-directory case:** holds by code. Two data directories in the same channel that share a database copy share reference strings; replacing the key in one deletes the entry the other still points to.
+
+**Severity:** medium stands, at the low end. There is no data loss or secret exposure, and recovery is retyping the key. Against that, a headline data-safety feature (restore) silently breaks all AI functions while the settings page says the key is saved. The second case needs a manually copied data directory in the same channel, which is a tester scenario more than an end-user one.
 
 *Corrections to the finding.* - The failure is not shown as a "credential error". A missing key maps to `NotConfigured`, displayed as "尚未配置模型或密钥" (model or key not configured). The "credential service unavailable" text is a different path (store locked).
 - Discoverability is better than "until the user works out": Test connection and Fetch model list with a blank key field both answer "请填写 API 密钥。" (please enter the API key). The contradiction is that the placeholder still says saved and Save still succeeds.
 - Line references are off by one: reference reuse is at `ModelSettingsService.cs:87` (not 86); retire logic is 91-100.
 - The old key is deleted at replace time only if no queued or running task holds it. Otherwise it waits for the next `SaveAsync`, because cleanup has no other caller in `src` (no startup sweep).
-- The "upgrade backup" variant fails only if the key was replaced after that backup was taken; the res … (cut; full text in the workflow journal)
+- The "upgrade backup" variant fails only if the key was replaced after that backup was taken; the restore itself does not cause it.
+- Not in the finding: after such a restore the newer key stays in the OS store forever, because the restored retired list does not know about it (an orphaned secret, minor).
+- The shared-directory case needs a manually copied data directory in the same channel. The documented use of `MINDWEAVE_DATA_DIR` (`docs/design/s6-windows-checklist.md:5`) is a fresh empty directory, which is not affected.
 
 ### gap-schema-upgrade-path-and-settings-state-3. Format changes that need no DDL have no version gate: an older build opens the database as Ready and then throws on rows it does not understand
 
@@ -150,12 +215,19 @@ What holds up:
 Why medium is overstated:
 - No reachable failure exists today. `TextBlock` is the only `ContentBlock` subtype, and `ReplaceBlocks` throws `NotSupportedException` for anything else, so no build can have written a non-text block.
 - The one real precedent went the safe way: the new request kind 'workspace-name' shipped with migration v10, which bumped user_version, so older builds get TooNew.
-- The comments say a CHECK constraint is av … (cut; full text in the workflow journal)
+- The comments say a CHECK constraint is avoided; they do not say the version bump will be skipped. Whoever adds a kind can still add a no-DDL migration.
+- Preference keys unknown to an older build are simply never read, which is harmless.
+- The capabilities concern needs a future field whose protocol default is `true`. All current fields are present in every row written since the column existed.
+- The side-by-side Windows builds (TRACK.md:21) are developer trial builds for one user; there is no released user base.
+
+What remains valid is that no mechanism or test forces a version bump when stored values change meaning, and the strict reader would then fail with a generic error instead of TooNew. That is worth a low-severity hardening item: a rule or test that a new kind requires a migration, and reading capabilities onto protocol defaults.
 
 *Corrections to the finding.* - Path: the migration comments are in src/Mindweave.Infrastructure/Sqlite/Migrations/SchemaMigrations.cs (lines 112-113 and 392-393), not Sqlite/SchemaMigrations.cs.
 - "Frozen task snapshot" is wrong for reads: generation_task.capabilities is written (SqliteConversationStore.cs:340) but production code never parses it back. The only `ParseCapabilities` caller is SqliteModelSettingsStore.cs:38; the other use is a test. Capability drift would affect only the active model_config row.
 - "Exactly as the comment plans" overstates the comment. It explains why there is no CHECK constraint; it does not say new kinds ship without a user_version bump. The one precedent (request kind 'workspace-name') came with migration v10.
-- The `JsonException` paths (malformed capabilities, `retired_credential_refs`) need corrupted or hand-edited JSON. The app writes both values itself with the same serializer, … (cut; full text in the workflow journal)
+- The `JsonException` paths (malformed capabilities, `retired_credential_refs`) need corrupted or hand-edited JSON. The app writes both values itself with the same serializer, so this is not an upgrade or downgrade scenario.
+- "Unknown properties are dropped on the next save" and "missing constructor parameters read as default" match standard System.Text.Json behaviour, but I did not run anything to confirm them.
+- Severity should be low: no current data or build can trigger the failure.
 
 ### gap-schema-upgrade-path-and-settings-state-4. The upgrade is invisible: the same 'opening data' line for a full backup plus migration, and no notice afterwards that data was upgraded or where the backup is
 
@@ -179,12 +251,16 @@ What holds:
 What reduces the severity:
 - The work runs on a background thread (Task.Run(OpenCore)) and the page has an animated progress bar. The window is responsive and not "not responding"; it is only uninformative.
 - The backup is not hidden. Settings > Data and storage lists backups with their reason, including "升级前" rows, with restore and delete (s7-ui-polish.md:214, 648, and the g27 screenshot description). Only a proactive notice is missing.
-- Force-quit is safe, as the finding itself concedes. Migration ba … (cut; full text in the workflow journal)
+- Force-quit is safe, as the finding itself concedes. Migration backups are pruned to MigrationBackupsKept, so repeated attempts do not accumulate without bound. I did not verify whether an interrupted VACUUM INTO temp file is cleaned up.
+- This is a single-user local chat database of text. The existing screenshots show backups of roughly 1-5 MB. A database of several hundred MB, where quick_check plus VACUUM takes long enough to trigger a force-quit, is an unmeasured hypothetical. The duration claim is speculation in the finding as well.
+- Failure paths are well explained: the BackupFailed, MigrationFailed and TooNew recovery texts exist. An older build opening upgraded data gets a clear TooNew message.
+
+The remaining gap is real: a generic startup caption during a backup plus migration, and no one-time "data upgraded from vX to vY, backup at ..." notice.
 
 *Corrections to the finding.* 1. "No notice ... where the backup is" is overstated. Pre-upgrade backups are listed, labelled, and restorable or deletable in Settings > Data and storage > Backups. What is missing is only a proactive one-time notice.
 2. The s7-ui-polish.md:672 citation is about the in-place restore flow ("真实窗口里的整个恢复过程 ... 实际耗时没量过"), not the upgrade path. It supports "large-database duration on the startup page was never measured" only by analogy.
 3. The finding omits that the open runs on a background thread with an animated indeterminate progress bar, so the app does not look frozen to the OS. The "user thinks it has hung" scenario needs a database far larger than anything evidenced for this text-only, single-user app.
-4. "Two full reads plus a full copy" is approximately right: quick_check on the source, VACUUM INTO, verification of the copy. No requirement is violated, and force-quit is safe with ba … (cut; full text in the workflow journal)
+4. "Two full reads plus a full copy" is approximately right: quick_check on the source, VACUUM INTO, verification of the copy. No requirement is violated, and force-quit is safe with backups pruned, so the impact is cosmetic. Low, not medium.
 
 ### gap-schema-upgrade-path-and-settings-state-5. From the 'newer version' recovery page, restoring an older backup moves the newer data aside, and the app can never bring it back
 
@@ -209,13 +285,20 @@ What reduces the severity:
 **Why it is low, not medium**
 - **Deliberate and documented.** `docs/design/s7-ui-polish.md` says replaced files are listed but cannot be restored from the storage page (manual rename, as before), that the startup restore is unchanged and keeps the replaced files, and that such a file may be the only copy of a newer-version database, which is why the delete warning was added.
 - **No data loss.** Nothing is deleted and nothing is cleaned up automatically. The newer build lists the file with its size and warns on delete that it may be the only copy.
-- **Restore is not the obvious act … (cut; full text in the workflow journal)
+- **Restore is not the obvious action on TooNew.** The explanation says the program will not write and to open the data with a newer Mindweave. Retry is the primary button; restore is a secondary button behind an explicit confirmation stating that the current database is replaced, the file is kept renamed in the data directory, and later changes are not in the backup.
+- **Narrow trigger.** It needs an older build run against a data directory a newer build has already upgraded, plus a restore chosen against the on-screen advice.
+- **Requirements are met.** `docs/requirements.md` §9.3 asks only that restore be an explicit user choice that never silently overwrites the original.
+
+**What remains valid**
+A non-technical user who does restore has no in-app way back to the newer data; they must rename files by hand, and the leftover row gives them only a delete button. The confirmation text is generic and does not say that on TooNew the data being set aside is newer and intact. A TooNew-specific confirmation, or a restore action for leftovers that pass the backup check, would be a reasonable hardening.
+
+Nothing was built or run; this is from reading code and docs only.
 
 *Corrections to the finding.* - "The app can never bring it back" is true only of the UI. The data is preserved intact and recoverable by renaming files, which is the documented recovery route (`s7-ui-polish.md:663`).
 - The finding presents restore as the obvious action on TooNew. It is not: the page tells the user to open the data with a newer Mindweave, the primary button is Retry, and restore is a secondary button behind a confirmation that says the current database is replaced and kept renamed.
 - The finding reads as a newly discovered defect. It is a known, documented trade-off: the 2026-11-12 review explicitly considered the newer-version case and chose a delete warning as the mitigation.
 - Severity should be low: no data loss, explicit confirmation, narrow trigger (older build run against already-upgraded data), and the requirement in `docs/requirements.md` §9.3 is satisfied.
-- The cited `StartupCoordinator.cs … (cut; full text in the workflow journal)
+- The cited `StartupCoordinator.cs:68-72` is slightly off; the `NeedsRecovery` return is at about lines 63-67 of `src/Mindweave.Application/Startup/StartupCoordinator.cs`.
 
 ### gap-schema-upgrade-path-and-settings-state-6. Each restore of an older-schema backup writes a duplicate 'upgrade backup' and rotates a real upgrade backup out
 

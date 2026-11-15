@@ -46,13 +46,29 @@ The lifecycle journeys are unusually well defended for a codebase this size: del
 - Line 149 is the worst-placed write: `StorageAdmissionRefusedException` is thrown only when `_health.TryAdmit()` fails (GenerationRequests.cs:74-77), so the unretried write is attempted exactly while storage is paused.
 
 **Why the stuck row matters**
-- The summary panel shows "in progress" from the stored row (ConversationSummary … (cut; full text in the workflow journal)
+- The summary panel shows "in progress" from the stored row (ConversationSummaryPanel.cs:109, 118).
+- `SummarizeAsync` rejects with `SummaryInProgress` from the same row (SummaryService.cs:159-164).
+- `SqliteArchive.UnfinishedUserWork` treats a `queued`/`running` summary row as busy (SqliteArchiveStore.cs:346-357), and archive, delete and workspace delete call it (SqliteArchiveStore.cs:23, 224; SqliteWorkspaceStore.cs:156).
+- `StopTaskAsync` looks only at in-memory queued and running work (GenerationCoordinator.cs:262-285), so Stop does nothing once the runner has exited.
+- The `finally` at TaskRunners.cs:151-154 still raises `SummaryTaskFinished`, so the panel reloads and re-reads the stale row.
+
+**Tests and design docs**
+- `FlakyStore` passes `MarkRunningAsync` and `FinishTaskAsync` straight through (FlakyStore.cs:49, 53), so no test can exercise this path.
+- `StorageHealthTests` and `BusyWriterTests` have no summary-task case; `BusyWriterTests` covers only the answer terminal write.
+- TRACK.md and docs/design/s6-wrapup.md describe kept terminal writes for answers and the summary version-save failure only. I found no entry accepting the gap for other task writes.
+
+**Severity**
+Medium stands. The trigger needs a storage refusal at a specific small write. On a full disk small updates often still succeed (s6-wrapup.md:174-175 says so), so the more realistic trigger is a held writer lock, which the project already tests for answers. There is no data loss and a restart clears it. Against that, the conversation subtree and workspace stay locked with a dead Stop button and no hint that a restart is needed, in a codebase whose stated invariant is recovery from a storage pause without restart.
 
 *Corrections to the finding.* 1. **The lock applies to summary tasks only.** `UnfinishedUserWork`, `LatestTaskAsync` and the summary panel all filter on `kind = 'summary'`. A stuck title or naming row has the same missing-retry defect but does not block archive, delete or summarize, and does not show in the panel. It is a stale row until restart (and, for a title, possibly no re-request this session). The finding's title overstates this by saying title and naming rows "lock the conversation".
 
 2. **Disk-full is the weaker trigger.** The project's own notes say small updates such as a failed terminal state usually still succeed on a full disk (s6-wrapup.md:174-175). A writer lock held by another program is the more credible trigger: every write fails, admission is refused, and the unretried write at line 149 fails too.
 
-3. **The unretried failure is not silent to storage health.** `_health.Report` does pause requests … (cut; full text in the workflow journal)
+3. **The unretried failure is not silent to storage health.** `_health.Report` does pause requests and start the recovery loop. What is missing is any kept write or reconciliation for the task row once storage recovers.
+
+4. **One more unguarded write the finding did not list.** `ConversationTitler.cs:137` calls `_store.FinishTaskAsync` directly, outside `TerminalWrites`. It affects title rows only.
+
+5. **A fix must split NotApplied from Failed.** The recommendation to write a kept Failed state on a failed MarkRunning is right, but the current `!= Applied` check also covers the legitimate cancelled case, which must keep returning without a write, as `AnswerRunner` does.
 
 ### gap-lifecycle-journey-archive-delete-exit-recovery-2. Every OS logout, restart or shutdown is vetoed, even when nothing is unsaved; there is no handler for termination that cannot be cancelled
 
@@ -78,12 +94,23 @@ The lifecycle journeys are unusually well defended for a codebase this size: del
 
 **Not an accepted decision**
 - Architecture §12.3 defines the exit order but says nothing about OS-initiated shutdown.
-- `docs/design/s6-wrapup.md:56` and `d … (cut; full text in the workflow journal)
+- `docs/design/s6-wrapup.md:56` and `docs/design/stage-reports.md:534` list real macOS quit, system shutdown and Windows exit as unverified. That acknowledges a test gap, not this behaviour.
+- TRACK.md has no entry for vetoing an idle OS shutdown.
+
+**Where the finding is overstated**
+- The user-visible consequences on both platforms are inferred from documentation; nobody has run a real logout or sign-out.
+- The Windows part is the weakest. The app normally finishes its save and exits within about a second, and Windows only shows the blocking screen after a delay, so the screen may barely appear or the shutdown may simply continue.
+- The macOS part is the strongest. A cancelled terminate aborts the whole logout or restart with an "interrupted" notice, and the app quitting on its own afterwards does not resume it.
+- The missing forced-termination hook is a low-severity sub-point. The loss is bounded to 500 ms of reading position, 1 s of summary draft and 1 s of streamed answer; startup recovery handles the rest, and `s6-wrapup.md:44` already accepts "forced end guarantees only committed checkpoints".
+- There is no data loss on the normal path: everything is saved before the programmatic `TryShutdown`.
+
+Medium stands on the macOS consequence: an aborted restart or logout on every occasion the app is open, which is a visible defect at an industrial bar. Without that it would be low.
 
 *Corrections to the finding.* - The user-visible outcomes are inferred from Avalonia's documentation and platform conventions, not observed. Nothing was run on a real macOS logout or Windows sign-out, and the project's own docs list this as unverified.
 - The Windows scenario is overstated. The idle app saves and exits within about a second, so the "preventing shutdown" screen may not appear or may clear by itself. "Shut down anyway kills the process mid-sequence" needs the user to act inside that window, or a long stop wait (up to the 5 s `StopWait`) with an answer generating.
 - "Answers marked interrupted, text since the last 1 s checkpoint lost" applies only when an answer is generating at the moment of the kill, not to the idle case in the title.
-- The missing `ProcessExit`/`SIGTERM` hook is a separate low-severity point: the loss is bounded to 500 ms–1 s of debounced state, and `s6-wrapup.md:44` already accepts t … (cut; full text in the workflow journal)
+- The missing `ProcessExit`/`SIGTERM` hook is a separate low-severity point: the loss is bounded to 500 ms–1 s of debounced state, and `s6-wrapup.md:44` already accepts that a forced end guarantees only committed checkpoints.
+- The finding missed that `ShutdownRequestedEventArgs.IsOSShutdown` is available in the pinned Avalonia 12.1.4 and unused. That makes the recommended fix straightforward: let an OS shutdown through when no prompt is needed, after a bounded synchronous flush.
 
 ### gap-lifecycle-journey-archive-delete-exit-recovery-3. The exit sequence has unbounded waits under an overlay that offers nothing to press, and queued work is cancelled before running streams are stopped
 

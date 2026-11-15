@@ -42,7 +42,12 @@ The summary core is carefully built: every version operation re-checks its preco
 4. **The exception is not translated.** `StorageFailures.Classify` returns null for code 19, and `ForCaller` then returns the raw `SqliteException`; the doc comment says this is deliberate for constraint violations.
 5. **Nothing catches it.** `SummaryService.CommitAsync` catches only `StorageWriteException`. `SummaryViewModel.RunAsync` catches only `SummaryRefusedException` and `StorageWriteException`. By contrast, the export command in the same file has a general `catch (Exception ex) when (ex is not OperationCanceledException)`.
 6. **The UI does not block it.** `SaveEditCommand` is a plain `[RelayCommand]` with no `CanExecute`, and the Save button binds to it unconditionally. The only blank guard in the view model is on rename.
-7. **The app terminates.** CommunityToolkit.Mvvm 8.4.2's `AsyncRelayCommand.Execute` rethrows a faulted task on the UI … (cut; full text in the workflow journal)
+7. **The app terminates.** CommunityToolkit.Mvvm 8.4.2's `AsyncRelayCommand.Execute` rethrows a faulted task on the UI synchronization context unless `FlowExceptionsToTaskScheduler` is set, and it is not set anywhere in `src`. There is no `Dispatcher.UIThread.UnhandledException` handler; `Program.cs` only logs via `AppDomain.UnhandledException`. `AppHost.Run` has try/finally with no catch, so the exception leaves `Main`.
+8. **The empty draft persists.** `summary_edit_draft` has no CHECK on title or body. Every edit goes through `RequestDraftSave` to `SummaryDrafts.Set`, which schedules an autosave. `SummaryDrafts.CommitAsync` clears the in-memory draft only after the save succeeds, and the store's draft DELETE is in the transaction that rolls back. `AppHost.Run`'s finally block then flushes kept writes, so the empty draft is very likely written even if the crash beats the autosave delay. On restart, Edit reloads it through `OpenDraftAsync`.
+
+I found no design decision or TRACK.md entry that makes this intended or already known, and no test that sets a blank `EditTitle` or `EditBody` or calls `SaveEditAsync` with blank text.
+
+**Severity.** I kept high. It is a deterministic crash from ordinary input on a primary flow (clearing the title is enough), with no message to the user. Mitigating factors: no committed data is lost (the transaction rolls back and the previous version stays current), and the repeat crash after restart only happens if the user presses Save again without typing or discarding. If the general uncaught-command crash is tracked as its own finding, the part specific to this one (missing validation) would be medium.
 
 *Corrections to the finding.* - The CHECK constraints are at `SchemaMigrations.cs:318-319`, not 317-318.
 - "The app goes down" is inferred from CommunityToolkit's `AsyncRelayCommand` rethrow behaviour and the absence of any dispatcher-level handler; it was not observed in a run.
@@ -60,7 +65,9 @@ Process termination itself was not reproduced; the headless test awaits ExecuteA
 
 The crash-again-after-restart loop also follows from code reading: BeginEdit reloads the stored draft, which the test shows still holds the blank text. The user escapes by typing something or discarding.
 
-High stands: a plausible, or … (cut; full text in the workflow journal)
+High stands: a plausible, ordinary user action (clear the body or title, click Save) crashes a desktop app deterministically and repeats after restart. No committed data is lost, which keeps it below critical.
+
+TRACK.md does not list this as a known finding. No existing test sets a blank EditTitle or EditBody.
 
 *Corrections to the finding.* - The file paths in the finding are wrong. The store and migrations are under src/Mindweave.Infrastructure/Sqlite/ (SqliteSummaryStore.cs, StorageFailures.cs, Migrations/SchemaMigrations.cs), not Storage/. The CHECK lines are 318-319, not 317-318.
 - "The app terminates" was not directly observed. It is inferred from the AsyncRelayCommand rethrow on the UI thread and the absence of any dispatcher-level handler. The exception escaping the command is observed.
@@ -98,7 +105,72 @@ public class ReproEmptyEditTests
         var current = entry.Node.Current;
 
         var session = await h.SummaryService.OpenDraftAsync(node, current, Ct);
-        var revision = h.SummaryService.SetDraft(node, session.Generation, current, title, bod … (cut; full text in the workflow journal)
+        var revision = h.SummaryService.SetDraft(node, session.Generation, current, title, body)!.Value;
+        Assert.True(await h.SummaryService.FlushDraftsAsync());
+
+        var ex = await Record.ExceptionAsync(() => h.SummaryService.SaveEditAsync(node, current, title, body, session.Generation, revision, Ct));
+        TestContext.Current.TestOutputHelper!.WriteLine($"THROWN: {ex?.GetType().FullName}: {ex?.Message}");
+        var detail = (await h.SummaryService.GetAsync(node, Ct))!;
+        TestContext.Current.TestOutputHelper!.WriteLine($"CURRENT unchanged: {detail.Node.Current == current}; stored draft: title='{detail.Draft?.Title}' body='{detail.Draft?.Body}'; health blocked: {h.Health.IsBlocked}");
+        Assert.True(ex is null or SummaryRefusedException, $"unexpected {ex?.GetType().FullName}: {ex?.Message}");
+    }
+}
+
+Command: dotnet test tests/Mindweave.Infrastructure.Tests --filter "FullyQualifiedName~ReproEmptyEdit"
+Output (abridged):
+  Failed ...(title: "标题", body: "") [295 ms]
+   unexpected Microsoft.Data.Sqlite.SqliteException: SQLite Error 19: 'CHECK constraint failed: length(body) > 0'.
+   THROWN: Microsoft.Data.Sqlite.SqliteException: SQLite Error 19: 'CHECK constraint failed: length(body) > 0'.
+   CURRENT unchanged: True; stored draft: title='标题' body=''; health blocked: False
+  Failed ...(title: "标题", body: "   \n ") [24 ms]
+   unexpected Microsoft.Data.Sqlite.SqliteException: SQLite Error 19: 'CHECK constraint failed: length(body) > 0'.
+   CURRENT unchanged: True; stored draft: title='标题' body='   \n '; health blocked: False
+  Failed ...(title: "  ", body: "正文") [21 ms]
+   unexpected Microsoft.Data.Sqlite.SqliteException: SQLite Error 19: 'CHECK constraint failed: length(title) > 0'.
+   CURRENT unchanged: True; stored draft: title='  ' body='正文'; health blocked: False
+  Failed ...(title: "", body: "正文") [21 ms]
+   unexpected Microsoft.Data.Sqlite.SqliteException: SQLite Error 19: 'CHECK constraint failed: length(title) > 0'.
+   CURRENT unchanged: True; stored draft: title='' body='正文'; health blocked: False
+  Test Run Failed. Total tests: 4  Failed: 4
+
+=== tests/Mindweave.Desktop.Tests/ReproEmptyEditUiTests.cs ===
+using Avalonia.Headless.XUnit;
+using Mindweave.Desktop.ViewModels.Pages;
+namespace Mindweave.Desktop.Tests;
+public class ReproEmptyEditUiTests
+{
+    [AvaloniaFact]
+    public async Task Repro_saving_an_empty_body_from_the_page_throws_out_of_the_command()
+    {
+        await using var app = DesktopHarness.Create();
+        app.ShowWindow(1100, 720);
+        var page = await app.StartWithConversationAsync(waitForTitle: false);
+        await page.Summary.SummarizeCommand.ExecuteAsync(null);
+        await UiWait.UntilAsync(() => page.Summary.HasSummary && page.Summary.RunningSummary is null);
+        page.Summary.OpenSummaryCommand.Execute(null);
+        var summary = Assert.IsType<SummaryViewModel>(app.Workbench.CurrentPage);
+        await summary.Loaded;
+        await summary.BeginEditCommand.ExecuteAsync(null);
+        summary.EditBody = "";
+        TestContext.Current.TestOutputHelper!.WriteLine($"CanExecute with empty body: {summary.SaveEditCommand.CanExecute(null)}");
+        var ex = await Record.ExceptionAsync(() => summary.SaveEditCommand.ExecuteAsync(null));
+        TestContext.Current.TestOutputHelper!.WriteLine($"THROWN: {ex?.GetType().FullName}: {ex?.Message}; Notice='{summary.Notice}' IsEditing={summary.IsEditing}");
+        Assert.Null(ex);
+    }
+}
+
+Command: dotnet test tests/Mindweave.Desktop.Tests --filter "FullyQualifiedName~ReproEmptyEdit"
+Output (abridged):
+   at Mindweave.Infrastructure.Sqlite.SqliteSummaryStore.InsertVersion(...) in .../SqliteSummaryStore.cs:line 493
+   at ...SqliteSummaryStore.<SaveEditAsync>b__0 in .../SqliteSummaryStore.cs:line 250
+   at Mindweave.Application.Summaries.SummaryDrafts.CommitAsync[T](...) in .../SummaryDrafts.cs:line 195
+   at Mindweave.Application.Summaries.SummaryService.CommitAsync[T](Func`1 commit) in .../SummaryService.cs:line 338
+   at ...SummaryViewModel.<SaveEditAsync>b__0 in .../SummaryViewModel.cs:line 418
+   at Mindweave.Desktop.ViewModels.Pages.SummaryViewModel.RunAsync(Func`1 operation) in .../SummaryViewModel.cs:line 487
+  Standard Output Messages:
+   CanExecute with empty body: True
+   THROWN: Microsoft.Data.Sqlite.SqliteException: SQLite Error 19: 'CHECK constraint failed: length(body) > 0'.; Notice='' IsEditing=True
+  Test Run Failed. Total tests: 1  Failed: 1
 
 </details>
 
@@ -124,7 +196,11 @@ Trace for Adopt while the current version v1 is on screen:
 
 SetCurrentAsync has the identical pre-assignment, and its button sits on history rows gated by CanSetCurrent, not by being shown. DeleteSelected does the same when the shown version is among those deleted.
 
-This contradicts the requirements directly: docs/requirements.md line 183 says viewing an old versio … (cut; full text in the workflow journal)
+This contradicts the requirements directly: docs/requirements.md line 183 says viewing an old version does not equal having read the new one, line 188 says that when the current version changes the unread marker follows the new current version's own read record, and line 182 says opening alone is not read. The service's own doc comment says "visible long enough in this opening".
+
+No existing test covers it. The adopt test in SummaryUiTests views the candidate first (ShowCandidateCommand at line 104, adopt at line 110) and asserts nothing about read state afterwards. I found no mention in TRACK.md or docs/design of this being intended.
+
+Severity medium is fair. It is a silent wrong read flag on a rule the requirements spell out, and it shows up in the list and network markers. It is not data loss, and the user can flip it back with the manual read toggle if they notice. The precondition is easy to meet: for a summary that fits on one screen, Progress is 1.0 without scrolling, so the page only needs to have been open 8 seconds.
 
 *Corrections to the finding.* The finding is accurate; three refinements.
 
@@ -158,13 +234,19 @@ This contradicts the requirements directly: docs/requirements.md line 183 says v
 - No guard, test or TRACK.md entry covers a zero-input session surviving a version operation. The existing test `Unsaved_input_in_memory_keeps_the_current_version_from_being_switched` covers only the Dirty case.
 
 **Why the severity drops**
-1. **The stated path is not reachable as written.** Network home is stack index 0, rea … (cut; full text in the workflow journal)
+1. **The stated path is not reachable as written.** Network home is stack index 0, reached only by Back, which disposes the editing page. Re-navigating to the same summary while it is top of the Network stack is deduplicated to the same page, where adopt, set-current and history are hidden during editing. A second page for the same node needs a different summary pushed in between: Edit on A with no typing, switch to Explore, open summary B from another conversation, switch to Explore again, open A from its conversation, adopt there, Back twice, then type. That is six or more deliberate steps.
+2. **Any real keystroke closes the hole.** Once input is stored, the store's `ThrowIfDraft` refuses version operations. Only a session with literally zero input is exposed.
+3. **Nothing is silently lost.** The text stays in memory and on the page, and Discard from that page (or from Edit on a reopened page, which shows the DraftConflict notice) clears it. Blocking exit on a Conflict is deliberate per the `FlushAsync` doc comment. The defects are the missing staleness signal, the misleading autosave note, and an exit message that does not say which summary to visit.
+4. **The deleted-node dead end is a compound case.** It needs the record to be Dirty inside the 1-second autosave window when the delete commits, or an existing Conflict record left behind before the conversation is deleted. A Clean record is harmless. When it does happen it is a true dead end: the page is forgotten, a missing summary offers no Edit, and exit and in-app restore stay blocked until force-quit. No stored data is lost, since the node is gone.
+
+The recommendations are sound: bump the generation after a successful current-changing operation, drop records on node removal, and name the conflicted summaries at exit.
 
 *Corrections to the finding.* 1. "Opens the same summary again from the network" is not a working path. Network home is reachable only via Back, which disposes the editing page, and same-route navigation onto the stack top is deduplicated. A second page for the node requires a different summary page pushed in between, via conversation summary panels in Explore.
 2. Only a session with zero input is exposed. After any stored keystroke, `ThrowIfDraft` refuses adopt and set-current.
 3. "Retry fails forever" holds only until the user presses Return, opens that summary's Edit and discards. The real gap is that nothing says which summary.
 4. The deleted-node variant is not a simple "delete while Dirty". It needs the delete to land inside the 1-second autosave window, or a pre-existing Conflict record. Clean records are harmless. When it occurs, the force-quit dead end is accurate and also blocks in-app restore.
-5. The exit … (cut; full text in the workflow journal)
+5. The exit block on Conflict is documented, intended behaviour; the defect is the generic message and the missing invalidation of the open session.
+6. Severity: low (rare, multi-step trigger; no silent loss of stored data), with the deleted-node dead end as the worst case.
 
 ### gap-summary-and-network-subsystem-4. Ticks in the version history are wiped by any reload, including the page's own 'marked read' event about 8 seconds after opening
 

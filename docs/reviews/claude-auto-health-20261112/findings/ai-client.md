@@ -42,12 +42,17 @@ I found no guard, test or decision making this intended. docs/design/s1-chat.md:
 
 Why medium rather than high:
 - "No way to recover" is overstated. The last finished answer in a conversation, including a Complete one, gets a "重新生成" (Regenerate) action, and the user can simply ask the model to continue.
-- Frequency is lower than claimed. With no `max_tokens` sent, most OpenAI-compatible providers apply the model's maximum or a generous default; the 4,096 and 64 caps seen in TRACK were … (cut; full text in the workflow journal)
+- Frequency is lower than claimed. With no `max_tokens` sent, most OpenAI-compatible providers apply the model's maximum or a generous default; the 4,096 and 64 caps seen in TRACK were ones the app set itself. The scenario is real for services with small defaults, but it is not the common case.
+- A mid-sentence cut-off is usually visible to the user, and no stored data is corrupted.
+- The worst sub-cases remain: a reasoning model that spends the whole cap on reasoning produces an empty answer stored as Complete with no error, and a cut-off answer can be summarized into the network or sent as history as if whole. These are silent, and the user cannot raise the cap from settings.
+- The requirements' "不静默截断" (no silent truncation) rule at requirements.md:282 and architecture.md:219 is about context compression, so this is not a direct breach of a stated requirement.
+
+Not checked: whether Regenerate on an empty Complete answer renders usably in the UI (I read the view-model flags only), and actual provider defaults were not probed.
 
 *Corrections to the finding.* 1. "No way to raise the cap" is correct for settings, but "no retry hint" is overstated: the last answer in a conversation shows a "重新生成" (Regenerate) action even when Complete (MessageItemViewModel.cs:194, MessageListReconciler.cs:69). There is still no notice telling the user the answer was cut off.
 2. "Several providers default to 1k-4k tokens" is an unverified generalization. The app sends no `max_tokens` for user answers, and many compatible providers then use the model maximum. The small caps recorded in TRACK (64, 4,096) were set by the app on internal requests.
 3. Severity high is overstated: no data loss, a visible symptom in the common case, and a user workaround exist. Medium fits; the empty-Complete-answer and truncated-answer-into-summary cases are the parts worth fixing first.
-4. Minor: `ai_request.outcome` is read back by SqliteAiRequestStore.cs:64, but no Desktop UI surfa … (cut; full text in the workflow journal)
+4. Minor: `ai_request.outcome` is read back by SqliteAiRequestStore.cs:64, but no Desktop UI surfaces the truncated outcome, so the claim's substance stands.
 
 **Reproduction attempt: confirmed, high.** Reproduced with three focused xUnit tests against track/claude-auto (1ba95c9); all three passed, and each asserts the defective behaviour.
 
@@ -58,14 +63,16 @@ Why medium rather than high:
 
 The project already treats this as dangerous for internal requests: GenerationRequests.cs:120 and ContextCompressor.cs:197 reject truncated results, and TRACK.md:146 (2026-10-27, D-015) records why. User answers are the one path that ignores the flag. TRACK.md does not list this as a known finding.
 
-High stands: it is silent corruption of the product's primary content, which then feeds history, titles, summaries and branches, and re … (cut; full text in the workflow journal)
+High stands: it is silent corruption of the product's primary content, which then feeds history, titles, summaries and branches, and requirements.md:282 and :371 say context must not be silently truncated (that wording is about context compression, so it supports the severity by analogy rather than as a direct violation). It is not critical because the stored text is exactly what the provider sent and the diagnostics row records the truncation.
+
+Cleanup: the worktree had been created from main (no product code), so I detached it at track/claude-auto for the test, then deleted the test file and build outputs and returned to the original branch. git status is clean, nothing committed.
 
 *Corrections to the finding.* Nothing in the finding is wrong; these parts are narrower than stated or were not tested.
 
 - "Several providers default to 1k-4k tokens" is a claim about external services that I did not check (no network or paid calls). How often real users hit this depends on the provider and model; the code behaviour is certain either way.
 - The auto-title, summarise and branch consequences are inferred from the message being stored as an ordinary Complete answer. I directly reproduced only the reuse as history.
 - I did not check how the Desktop view renders an empty Complete answer. The absence of any truncation indicator rests on the grep of src/Mindweave.Desktop, not on a UI test.
-- An existing test, Done_without_finish_reason_still_completes_and_length_marks_truncation (ChatCompletionsClientTests.cs:108), covers the client-level length flag, so the gap is specifically AnswerRunner ignoring it and … (cut; full text in the workflow journal)
+- An existing test, Done_without_finish_reason_still_completes_and_length_marks_truncation (ChatCompletionsClientTests.cs:108), covers the client-level length flag, so the gap is specifically AnswerRunner ignoring it and the missing content_filter mapping.
 
 <details><summary>Reproduction</summary>
 
@@ -96,7 +103,52 @@ public async Task Repro_answer_cut_at_length_limit_is_saved_as_Complete_and_reus
 
     var next = await h.Conversations.AskAsync(sent.Conversation, "继续", Ct);
     await h.WaitForAnswerAsync(next.Answer!.Value);
-    Assert.Contains(client.Answers[1].Turns, t => … (cut; full text in the workflow journal)
+    Assert.Contains(client.Answers[1].Turns, t => t.Role == ChatRole.Assistant && t.Content == "蒸汽机车的发明始于十八世纪，其中最重要的");
+}
+
+[Fact]
+public async Task Repro_reasoning_model_that_spends_the_cap_yields_an_empty_Complete_answer()
+{
+    var client = new CutOffClient(text: null);
+    await using var h = await ChatHarness.StartAsync(client: client);
+    var sent = await h.Conversations.StartAsync(h.Workspace, "火车", Ct);
+    var answer = await h.WaitForAnswerAsync(sent.Answer!.Value);
+    Assert.Equal(MessageState.Complete, answer.State);
+    Assert.Equal(string.Empty, answer.Text);
+    Assert.Null(answer.ErrorKind);
+}
+
+[Fact]
+public async Task Repro_content_filter_is_a_plain_completion_and_no_cap_is_sent_without_MaxOutputTokens()
+{
+    var model = new ModelSnapshot("cfg", "https://api.example.com/v1/", ChatProtocol.ChatCompletions, "m1", "ref", null, ModelCapabilities.DefaultsFor(ChatProtocol.ChatCompletions));
+    var handler = new Stub("data: {\"choices\":[{\"delta\":{\"content\":\"部分\"},\"finish_reason\":\"content_filter\"}]}\n\ndata: [DONE]\n\n");
+    var http = new ChatCompletionsClient(new HttpClient(handler), new ChatClientOptions());
+    var events = new List<ChatStreamEvent>();
+    await foreach (var e in http.StreamAsync(new ChatRequest(model, [new ChatTurn(ChatRole.User, "hi")]), "gw-key-0123456789", Ct)) events.Add(e);
+    Assert.Equal(new ChatStreamEvent.Completed(false), Assert.Single(events.OfType<ChatStreamEvent.Completed>()));
+    var body = JsonNode.Parse(handler.Body!)!.AsObject();
+    Assert.False(body.ContainsKey("max_tokens"));
+    Assert.False(body.ContainsKey("max_completion_tokens"));
+}
+
+// CutOffClient : IChatClient — for answer requests yields ReasoningDelta(4096), the optional TextDelta, then
+// Completed(Truncated: true); title and other internal requests get a plain "标题" + Completed(false).
+// Stub : HttpMessageHandler — captures the request body and returns the given SSE text.
+```
+
+Output of `dotnet test tests/Mindweave.Infrastructure.Tests --filter "FullyQualifiedName~ZzTruncatedAnswerReproTests" --logger "console;verbosity=normal"`:
+
+```
+  Passed Mindweave.Infrastructure.Tests.Chat.ZzTruncatedAnswerReproTests.Repro_answer_cut_at_length_limit_is_saved_as_Complete_and_reused_as_history [308 ms]
+  Passed Mindweave.Infrastructure.Tests.Chat.ZzTruncatedAnswerReproTests.Repro_content_filter_is_a_plain_completion_and_no_cap_is_sent_without_MaxOutputTokens [9 ms]
+  Passed Mindweave.Infrastructure.Tests.Chat.ZzTruncatedAnswerReproTests.Repro_reasoning_model_that_spends_the_cap_yields_an_empty_Complete_answer [9 ms]
+
+Test Run Successful.
+Total tests: 3
+     Passed: 3
+ Total time: 1.1772 Seconds
+```
 ```
 
 </details>
@@ -123,12 +175,24 @@ public async Task Repro_answer_cut_at_length_limit_is_saved_as_Complete_and_reus
 4. GenerationCoordinator.RunAsync (531-535) logs "Generation task {TaskId} crashed" and its finally removes the work from _running. It never finishes the LiveAnswer or the stored rows.
 
 5. The stuck-state consequences hold:
-- StopAsync (233-256) looks only in the queue and in _running, so it does nothing for this a … (cut; full text in the workflow journal)
+- StopAsync (233-256) looks only in the queue and in _running, so it does nothing for this answer.
+- The LiveAnswer stays Streaming, so the UI keeps showing it as in progress.
+- SqliteConversationStore line 279 counts pending/streaming messages for the conversation, consistent with the coordinator comment (154-157) that a follow-up is refused while the stored answer is streaming.
+- Recovery is only at startup: line 240 marks pending/streaming rows 'interrupted'.
+- `using var checkpointStop` is disposed without being cancelled, so CheckpointLoopAsync's Task.Delay never ends and the loop is orphaned.
+
+6. No guard or design decision makes this intended. A grep of TRACK.md and docs/design for this path found nothing. The CA1031 comment in the coordinator ("logged and its slot freed") shows the catch-all was meant to protect the scheduler, not to make the answer terminal. No test covers a string-valued error or wrong-typed fields.
+
+7. Settings: ModelSettingsViewModel.RunAsync (281-290) catches ModelSettingsException, ChatClientException and CredentialUnavailableException only, so an InvalidOperationException from ListModels escapes it.
+
+Severity: I keep high. The trigger needs a provider or relay that returns a JSON error body that is not OpenAI-shaped. Plain-text or HTML bodies are handled (JsonException), as are JSON objects without an `error` key. That makes the trigger uncommon but realistic for an app whose purpose is to talk to arbitrary OpenAI-compatible endpoints. When it happens it repeats on every send to that provider, each time leaving a conversation stuck with no error shown until restart. No data is lost; restart recovers the conversation as 'interrupted'. The missing catch-all also means any future unexpected exception type has the same outcome.
 
 *Corrections to the finding.* - "The checkpoint loop keeps ticking forever" is accurate as a leak, but the practical effect is small: nothing appends to the LiveAnswer after the crash, so at most one more checkpoint write happens and later ticks do nothing. It is an orphaned timer loop per crashed answer, not continuing I/O.
 - "A follow-up is presumably refused" is supported by the count query at SqliteConversationStore.cs:279 and the coordinator comment. I did not trace the exact refusal site in ConversationService or what the UI shows.
 - The compression-prelude variant depends on summaries.AddAsync throwing something other than the three caught types. I did not verify what the SQLite summary store throws on failure, so that sub-claim is plausible rather than confirmed.
-- I did not trace what happens to the InvalidOperationException after it escapes ModelSettingsViewModel.RunAsync (crash, or swallowed by the command … (cut; full text in the workflow journal)
+- I did not trace what happens to the InvalidOperationException after it escapes ModelSettingsViewModel.RunAsync (crash, or swallowed by the command infrastructure). The claim that it gets past the catch list is correct; the user-visible result is unverified.
+- "String-valued error is common outside OpenAI itself" is an unverified frequency claim. The shape is realistic, but many failing gateways return HTML, plain text, or `{"detail":...}` / `{"message":...}`, all of which this code handles.
+- The title and summary runners in TaskRunners.cs have similar narrow catch lists, with finally blocks at 151 and 196 that I did not read in full. The finding's "no runner catches" was verified only for AnswerRunner.
 
 **Reproduction attempt: confirmed, high.** Reproduced end to end against track/claude-auto at 1ba95c9 (checked out detached in my isolated worktree, since the worktree branch itself is cut from main and has no src/). 11 of 11 repro tests failed in the way the finding predicts; none of the results are timing-dependent (the state was still wrong after a 1.5 s settle with a 50 ms checkpoint interval, and the client-level cases are synchronous).
 
@@ -136,13 +200,16 @@ public async Task Repro_answer_cut_at_length_limit_is_saved_as_Complete_and_reus
 
 2. The answer is left non-terminal. With the real client, real GenerationCoordinator and real SQLite (ChatHarness), a 401 with a string-valued `error` leaves: stored message state Streaming, live state Streaming, generation_task state running, 0 ai_request rows, coordinator UnfinishedCount 0 and HasUnfinishedAnswer false (slot freed, work gone from _running). StopAsync returns without changing anything. A follow-up AskAsync is rejected with AnswerInProgress and ConversationRules.CanRetry is false, so the user can neither stop, retry nor continue in that conversation in this process, and never sees the service's error text.
 
-Code reading matches: AnswerRunner.Ru … (cut; full text in the workflow journal)
+Code reading matches: AnswerRunner.RunAsync catches only OperationCanceledException-when-stopped and ChatClientException around the stream; GenerationCoordinator.RunAsync's catch-all only logs and frees the slot, it never calls FinishAsync. The trigger is realistic for the product's target (arbitrary OpenAI-compatible gateways and local servers; string-valued `error` on 4xx/5xx is common), and a wrong API key or model name is a first-run scenario. High severity stands: a deterministic stuck conversation with no in-app recovery and a hidden error, though no data is lost.
+
+Not directly demonstrated by a test (code reading only): (a) the checkpoint loop continuing after the crash — `using var checkpointStop` is disposed without Cancel on the exception path and the loop is `while (true)` on Task.Delay with that token, so it does keep waking, but it only does a snapshot comparison each interval and writes nothing unless a revision is unsaved, so its practical cost is small; (b) recovery on restart — I did not run a restart; (c) the compression-prelude path (non-ChatClient exceptions there) and the ModelSettingsViewModel path — the catch lists read as claimed, and the ListModels exception type was reproduced at client level, but the UI consequence in settings was not exercised.
 
 *Corrections to the finding.* Mostly accurate; small adjustments only.
 - "A follow-up is presumably refused" is now confirmed, not presumed: AskAsync returns SendRejection.AnswerInProgress, and CanRetry is false as well.
 - "The checkpoint loop keeps ticking forever" is true by code reading but overstated as an impact: after the crash it only wakes each interval and compares revisions; it writes only if text arrived that was not yet checkpointed, and then goes idle. It is a small leak per crashed answer, not ongoing work. Not demonstrated by a test.
 - "Unusable until the app restarts" — the stuck state within the process is demonstrated; that a restart actually recovers it (startup marking streaming answers as interrupted) was not verified here.
-- The coordinator also reports HasUnfinishedAnswer == false and UnfinishedCount == 0 for the stuck conversation, so in-memory and stored state disagree; the finding did not me … (cut; full text in the workflow journal)
+- The coordinator also reports HasUnfinishedAnswer == false and UnfinishedCount == 0 for the stuck conversation, so in-memory and stored state disagree; the finding did not mention this, and it may make some UI surfaces (e.g. sidebar status) show the conversation as idle while the transcript shows a spinner.
+- The compression-prelude and ModelSettingsViewModel consequences are supported by the catch lists but were not exercised by a test; only the ListModels exception type was reproduced.
 
 <details><summary>Reproduction</summary>
 
@@ -177,7 +244,58 @@ public async Task Client_reports_unexpected_shapes_as_ChatClientException(int st
 [InlineData("[1]")]
 public async Task ListModels_reports_unexpected_shapes_as_ChatClientException(string body)
 {
-    var client = new ChatCompletionsClient(new HttpClient(new FixedHandler(200, body)), new ChatClientOptions()); … (cut; full text in the workflow journal)
+    var client = new ChatCompletionsClient(new HttpClient(new FixedHandler(200, body)), new ChatClientOptions());
+    var thrown = await Record.ExceptionAsync(() => client.ListModelsAsync("https://api.example.com/v1", "gw-key-0123456789", Ct));
+    Assert.IsType<ChatClientException>(thrown);
+}
+
+[Fact]
+public async Task A_string_valued_error_body_still_ends_the_answer()
+{
+    using var http = new HttpClient(new FixedHandler(401, "{\"error\":\"invalid api key\"}"));
+    await using var h = await ChatHarness.StartAsync(client: new ChatCompletionsClient(http, new ChatClientOptions()));
+    var sent = await h.Conversations.StartAsync(h.Workspace, "火车是怎么发明的？", Ct);
+    var id = sent.Answer!.Value;
+    await ChatHarness.UntilAsync(() => h.Generation.UnfinishedCount == 0 || h.Generation.Observe(id)?.Snapshot().State is not (MessageState.Pending or MessageState.Streaming), 10000);
+    await Task.Delay(1500, Ct);
+    var stored = await h.GetMessageAsync(id);
+    // ... prints live state, task state, ai_request count, then StopAsync, AskAsync follow-up, CanRetry ...
+    Assert.Equal(MessageState.Failed, stored.State);
+}
+// FixedHandler: HttpMessageHandler returning the given status/body (text/event-stream for "data:" bodies).
+```
+
+Actual output (dotnet test tests/Mindweave.Infrastructure.Tests --filter "FullyQualifiedName~ReproUnexpectedShapeTests"):
+
+```
+http-error-string: InvalidOperationException: The node must be of type 'JsonObject'.
+http-json-string: InvalidOperationException: The node must be of type 'JsonObject'.
+http-json-array: InvalidOperationException: The node must be of type 'JsonObject'.
+sse-error-string: InvalidOperationException: The node must be of type 'JsonObject'.
+sse-array-event: InvalidOperationException: The node must be of type 'JsonObject'.
+sse-string-event: InvalidOperationException: The node must be of type 'JsonObject'.
+sse-choices-object: InvalidOperationException: The node must be of type 'JsonArray'.
+{"data":"nope"}: InvalidOperationException: The node must be of type 'JsonArray'.
+(the other two ListModels cases also failed Assert.IsType with Actual: System.InvalidOperationException)
+
+A_string_valued_error_body_still_ends_the_answer [FAIL]
+  Assert.Equal() Failure: Values differ
+  Expected: Failed
+  Actual:   Streaming
+  Output:
+    stored message state: Streaming, error:
+    live state: Streaming
+    task state: running
+    ai_request rows: 0
+    coordinator UnfinishedCount: 0, HasUnfinishedAnswer: False
+    after Stop: stored Streaming, live Streaming
+    follow-up accepted: False, rejection: AnswerInProgress
+    CanRetry: False
+
+Test Run Failed.
+Total tests: 11
+     Failed: 11
+```
 ```
 
 </details>
@@ -202,12 +320,20 @@ What holds:
 - AnswerRunner and TaskRunners turn that into CompressionFailed. A user retry rebuilds the same request, so the failure repeats.
 - The compressor's own request is not budgeted. The transcript is the whole chunk, and a chunk only closes at a user message once it has reached 4,000 tokens. Questions may be up to 100,000 characters and answers are unbounded, so one long message makes one arbitrarily large chunk.
 - The output cap is not a user setting: `MaxOutputTokens` is not referenced anywhere in Mindweave.Desktop, and ModelSettingsService only carries the existing value forward. Plain answers therefore send no cap, which makes the asymmetry in (b) real, and there is no in-app workaround.
-- 16,384 is a deliberate decision (D-015), made after reasoning models exhausted 4,096. The decision … (cut; full text in the workflow journal)
+- 16,384 is a deliberate decision (D-015), made after reasoning models exhausted 4,096. The decision does not consider models whose output limit is below 16,384 or endpoints that reject `max_tokens`. TRACK line 84 and s3-context.md:25 record only the small-window variant.
+
+What is overstated:
+- "Nothing compares it with the declared context window" is wrong for SummaryService. It builds its budget from the model with the 16,384 override, so the reserve is 16,384, and it rejects with TooLongForModel when the plan does not fit. Scenario (c) applies only to the compressor's inner summary request.
+- The unbudgeted compressor request is partly a known, documented limitation (s3-context.md:25, TRACK pending decision). The new part is that the chunk is not a "fixed ~4,000 block" as that doc says; it is unbounded.
+- Severity depends on the provider. The providers this track actually tried (deepseek-flash, Kimi, GLM) accept 16,384. Whether a given endpoint rejects or silently clamps an oversized `max_tokens` is provider behaviour I could not test (no network calls allowed).
+- When it does fail, the failure is visible, the provider's message is shown, the question is kept, and no data is lost. Title and naming failures are background niceties.
+
+For an app whose premise is arbitrary OpenAI-compatible endpoints this is a real compatibility defect: on an affected model, long conversations cannot continue and "Summarize" never works. It is not a universal high.
 
 *Corrections to the finding.* 1. SummaryService does budget its request against the declared or default window with a 16,384 reserve (SummaryService.cs:178-183, ContextBudget.cs:181). The "never checked against any budget" claim and scenario (c) apply only to ContextCompressor's inner summary request.
 2. The window-overflow part of the compressor request is already documented as a pending decision (s3-context.md:25, TRACK.md:84). What is new is that the chunk is unbounded rather than about 4,000 tokens, so it can also hit models with a 32k or larger window, plus the output-cap and parameter-name variants (a) and (b), which are recorded nowhere.
 3. Scenarios (a) and (b) depend on the provider rejecting rather than clamping `max_tokens`. That is plausible for several real APIs but was not verified here, and the providers this track tested accept 16,384.
-4. Severity should be medium: a compatibility defect with a visibl … (cut; full text in the workflow journal)
+4. Severity should be medium: a compatibility defect with a visible, non-destructive failure and no in-app workaround, not a universal break.
 
 **Reproduction attempt: confirmed, high.** Reproduced with three focused xUnit tests (written against track/claude-auto at 1ba95c9, run through the real store/coordinator via ChatHarness; all three fail as the finding predicts).
 
@@ -217,11 +343,14 @@ What holds:
 
 (b) Not reproduced by test (needs a real endpoint's behaviour); confirmed by code reading only: ChatCompletionsClient always emits the cap as `max_tokens`, never `max_completion_tokens`, and titles/naming/workspace names/summaries/compression all set a cap.
 
-Why high stands: MaxOutputToken … (cut; full text in the workflow journal)
+Why high stands: MaxOutputTokens is not user-settable anywhere (ModelSettingsService only carries over existing?.MaxOutputTokens, the Desktop layer never references it), so a user on an affected model has no workaround; the failure is permanent for that conversation and disables the summary feature entirely, which is core product scope. Caveat on reach: whether a given provider rejects or silently clamps an over-large max_tokens varies; the track's own real-API runs (Kimi, GLM) evidently accept 16,384, so this hits a subset of OpenAI-compatible models, not all.
 
 *Corrections to the finding.* 1. ContextPlanner lives at src/Mindweave.Core/Context/ContextPlanner.cs (line 173 is right), not under Application/Conversations.
 2. "The summary request's own input is never checked against any budget" is true for the compressor's chunk requests only. SummaryService does budget the knowledge-summary input, using the 16,384 reserve (SummaryService.cs:180). The side effect there is different and not in the finding: with a declared window at or below roughly 18k, capacity - 16,384 - margin leaves no input space, so "Summarize conversation" would be rejected as TooLongForModel before any request (code reading, not tested; settings accept windows down to 2,000).
-3. "Many 4k/8k-output chat models answer 400" is provider-dependent: some services clamp an over-large max_tokens instead of rejecting it. My reproduction simulates the rejecting kind; the code has no defence against it, but the affe … (cut; full text in the workflow journal)
+3. "Many 4k/8k-output chat models answer 400" is provider-dependent: some services clamp an over-large max_tokens instead of rejecting it. My reproduction simulates the rejecting kind; the code has no defence against it, but the affected population is a subset of endpoints.
+4. Scenario (b) is plausible but unverified by test. Additional context the finding omits: the connection test also sends a cap (MaxOutputTokens: 16, ModelSettingsService.cs:183), so an endpoint that rejects the `max_tokens` parameter itself would already fail the connection test at setup, making (b) more visible up front than "plain answers work, internal requests fail" suggests.
+5. A 400 naming max_tokens may be classified ContextTooLong rather than InvalidResponse (ChatCompletionsClient.cs:295); either way the user sees CompressionFailed for answers.
+6. The existing SmallModel test fixture (12,000 window) already sends ~4,000 + 16,384 to a 12k model in every compression test; that is the variant TRACK.md:84 already records, so only the output-cap, parameter-name and oversized-chunk-on-default-window variants are new.
 
 <details><summary>Reproduction</summary>
 
@@ -247,7 +376,58 @@ Test code (essentials):
         var input = TokenEstimator.Request(summary.Turns.Select(t => t.Content));
         var output = summary.Model.MaxOutputTokens ?? 0;
         Assert.True(input + output <= ContextBudget.DefaultCapacity,
-            $"summary request: input estimate {input} + max_tokens {output} = {input + output} > window … (cut; full text in the workflow journal)
+            $"summary request: input estimate {input} + max_tokens {output} = {input + output} > window {ContextBudget.DefaultCapacity}");
+    }
+
+    [Fact] // (a) compression on a model with an 8,192 output limit
+    public async Task Repro_a_model_with_8k_output_cap_can_continue_a_conversation_that_needs_compression()
+    {
+        var strict = new OutputCappedClient(8_192);
+        await using var h = await ChatHarness.StartAsync(model: SmallModel, client: strict);
+        strict.Inner = h.Client;
+        h.Client.Reply(LongAnswer);
+        var sent = await h.Conversations.StartAsync(h.Workspace, "问题 0", Ct);
+        Assert.Equal(MessageState.Complete, (await h.WaitForAnswerAsync(sent.Answer!.Value)).State);
+        for (var i = 1; i < 6; i++) { h.Client.Reply(LongAnswer); Assert.Equal(MessageState.Complete, (await h.AskAsync(sent.Conversation, $"问题 {i}")).State); }
+        Assert.All(strict.Seen.Where(FakeChatClient.IsAnswer), r => Assert.Null(r.Model.MaxOutputTokens));
+        var first = await h.AskAsync(sent.Conversation, "最后的问题" + Tipping);
+        var retry = await h.Conversations.RetryAsync(sent.Conversation, first.Id, Ct);
+        var second = await h.WaitForAnswerAsync(retry.Answer!.Value);
+        var caps = string.Join(",", strict.Seen.Where(FakeChatClient.IsSummary).Select(r => r.Model.MaxOutputTokens));
+        Assert.True(first.State == MessageState.Complete || second.State == MessageState.Complete,
+            $"first: {first.State}/{first.ErrorKind}/{first.ErrorDetail}; retry: {second.State}/{second.ErrorKind}/{second.ErrorDetail}; summary max_tokens sent: [{caps}]");
+    }
+
+    [Fact] // (a) "Summarize conversation" on the same service
+    public async Task Repro_a_model_with_8k_output_cap_can_summarize_a_conversation()
+    {
+        var strict = new OutputCappedClient(8_192);
+        await using var h = await ChatHarness.StartAsync(client: strict);
+        strict.Inner = h.Client;
+        var (root, _) = await h.RootWithAnswerAsync("蒸汽机车是谁发明的？");
+        var outcome = await h.SummaryService.SummarizeAsync(root, Ct);
+        Assert.True(outcome.Accepted, outcome.Rejection?.ToString());
+        await ChatHarness.UntilAsync(async () => await h.SummaryService.LatestTaskAsync(root, Ct) is { State: not (GenerationTaskState.Queued or GenerationTaskState.Running) });
+        var task = await h.SummaryService.LatestTaskAsync(root, Ct);
+        var caps = string.Join(",", strict.Seen.Where(FakeChatClient.IsKnowledgeSummary).Select(r => r.Model.MaxOutputTokens));
+        Assert.True(task!.State == GenerationTaskState.Completed, $"summary task: {task.State}; max_tokens sent: [{caps}]; rejected: {strict.Rejected}");
+    }
+
+    // IChatClient wrapper: records the request, throws
+    // ChatClientException(InvalidResponse, "HTTP 400: max_tokens is too large: {n}. This model supports at most {limit} completion tokens.", httpStatus: 400)
+    // when request.Model.MaxOutputTokens > limit, otherwise delegates to the harness's FakeChatClient.
+
+Actual output:
+
+  Failed ...Repro_a_model_with_8k_output_cap_can_continue_a_conversation_that_needs_compression [372 ms]
+   first: Failed/CompressionFailed/压缩较早的对话时请求失败：HTTP 400: max_tokens is too large: 16384. This model supports at most 8192 completion tokens.; retry: Failed/CompressionFailed/压缩较早的对话时请求失败：HTTP 400: max_tokens is too large: 16384. This model supports at most 8192 completion tokens.; summary max_tokens sent: [16384,16384]
+  Failed ...Repro_a_model_with_8k_output_cap_can_summarize_a_conversation [29 ms]
+   summary task: Failed; max_tokens sent: [16384]; rejected: 1
+  Failed ...Repro_c_summary_request_of_a_large_chunk_fits_the_default_window [56 ms]
+   summary request: input estimate 20232 + max_tokens 16384 = 36616 > window 32000
+  Failed!  - Failed: 3, Passed: 0, Skipped: 0, Total: 3, Duration: 471 ms
+
+Not timing-sensitive (deterministic assertions on request contents and terminal states). The 400 in the two (a) tests is a simulated provider response, not a real API call; (c) asserts only on what the app itself sent. Scenario (b) was not tested. Worktree restored: test file deleted, build outputs cleaned, branch worktree-wf_5c3b45e2-023-24 checked out again, git status clean, nothing committed.
 
 </details>
 
@@ -271,7 +451,7 @@ Test code (essentials):
 - **Not an accepted trade-off:** the design doc states the intent that long thinking must not be treated as a stall, but achieves it only through reasoning chunks being stream events. Comment keep-alives are not mentioned in the design docs or TRACK.md.
 - **Tests:** the only idle-timeout tests use reasoning data events or a fully stalled stream; none sends comment lines.
 
-Severity stays at medium. The trigger is narrow (a provider or relay that hides reasoning, sends comment keep-alives, and thinks for more than two minutes), but that is a real pattern for OpenAI-co … (cut; full text in the workflow journal)
+Severity stays at medium. The trigger is narrow (a provider or relay that hides reasoning, sends comment keep-alives, and thinks for more than two minutes), but that is a real pattern for OpenAI-compatible relays, the app explicitly targets reasoning models, and the failure is deterministic for the same hard question with no user workaround.
 
 *Corrections to the finding.* - The SseReader comment skip is at SseReader.cs:36-39, not 38-41.
 - "The request is billed" is provider-dependent and not verifiable from the code. Likewise "a retry fails the same way" is likely for the same prompt but not guaranteed, since thinking time varies.
@@ -303,7 +483,9 @@ A non-streamed `chat.completion` object takes the same path and is silently drop
 
 **Guards and design decisions checked:**
 - Tests: every 200-response fixture in `ChatCompletionsClientTests.cs` uses `text/event-stream`. The only `application/json` fixture is for the model list. `A_stream_that_ends_without_finishing_yields_no_completion` covers a truncated SSE stream, not a non-SSE body.
-- Docs: grep of `TRACK.md`, `docs/design`, `docs/requi … (cut; full text in the workflow journal)
+- Docs: grep of `TRACK.md`, `docs/design`, `docs/requirements.md` and `docs/architecture.md` found no decision to ignore non-SSE 200 bodies and no existing record of this finding.
+
+**Severity:** medium holds. The app accepts arbitrary OpenAI-compatible base URLs and the project already uses a relay (Pinaic, per TRACK.md); relays of this kind are known to return errors as HTTP 200 JSON. The impact is a diagnosability and robustness gap: the answer fails cleanly, with no data loss or corruption, but the provider's explanation is lost and the kind is misclassified as InvalidResponse rather than quota or server error. The request trace still records HTTP 200 with zero characters, which gives a developer some forensic value but tells the user nothing.
 
 *Corrections to the finding.* - "A fully generated, billed non-streamed answer is thrown away" is plausible but speculative. Billing depends on the endpoint, and an endpoint that ignores `stream=true` is rarer than a relay returning a JSON error with HTTP 200. The error-body case is the realistic one.
 - The line citation is slightly narrow: the skip logic is `SseReader.cs:41-46`, not just line 43.
@@ -330,7 +512,11 @@ A non-streamed `chat.completion` object takes the same path and is silently drop
 - No test covers a drop after finish_reason: StreamDropTests cuts the body before the finish chunk, and no design decision or TRACK.md entry mentions transport errors after completion.
 
 Severity is overstated at medium; I put it at low:
-- The trigger is narrow. The stream must deliver finish_reason, then fail with a transport error before either [DONE] or a clean end … (cut; full text in the workflow journal)
+- The trigger is narrow. The stream must deliver finish_reason, then fail with a transport error before either [DONE] or a clean end of body. If [DONE] arrives in the same read or any time before the reset, the client stops reading at [DONE] and never sees the error. Most OpenAI-compatible services send finish_reason and [DONE] back to back.
+- Nothing is lost. The full text is saved and stays readable on the Failed message (StreamDropTests asserts received text is kept), and Retry is offered. The cost is a misleading network-error label, exclusion from context, and a paid retry.
+- The fix is small and local (apply the afterCompletion rule to the transport-error catches, or honour `completed` in the callers).
+
+It is still a real robustness gap for an app that explicitly targets third-party relays, which is why I did not drop it to info.
 
 *Corrections to the finding.* - Severity: low rather than medium. The answer text is preserved on the Failed message and Retry is available, and the trigger needs a transport error in the gap between finish_reason and [DONE] or clean end of body.
 - "Re-pays for a retry" is accurate but is the whole cost for chat answers; there is no data loss.
@@ -361,7 +547,11 @@ What holds:
 
 What narrows it:
 - Closed chunks are always at least 4,000 tokens (lines 173, 186), so they always save about 3,160 or more. Only tails can inflate.
-- Tails are reache … (cut; full text in the workflow journal)
+- Tails are reached only after every closed chunk in the whole chain is summarized and the plan is still over budget. At the default budget (32,000 capacity, about 24,700 available) that needs very long histories or very large required items. It is more likely with a small configured capacity or deep chains of short branches, where each ancestor adds a small tail.
+- Every generated summary, tails included, is persisted (ContextCompressor.cs:84) and looked up by key on the next plan (ConversationService.cs:597-601). Ancestor ranges are frozen, so the extra requests for ancestor tails are paid once per tail, not per question. Afterwards the planner uses the stored summary's real size, which for a 200-token exchange is probably well under 800.
+- When the planner is into tails the conversation is already close to HistoryTooLong, so the avoidable refusals sit in a thin band.
+
+Net: a real inefficiency and fidelity loss plus a rare avoidable refusal, no data loss or corruption. The recommended fix (skip chunks whose raw cost is not above the summary cost, add a small-tail test) is sound; it would need a matching change to s3-context.md on main.
 
 *Corrections to the finding.* - The scenario is reachable only after all closed chunks across the chain are already summarized and the plan is still over budget; the finding does not state this precondition. At the default 32k capacity that is uncommon.
 - "Three summary requests where one sufficed" is a one-time cost for the ancestor tails: their summaries are stored and reused by key on later questions in the same branch, then counted at real size.

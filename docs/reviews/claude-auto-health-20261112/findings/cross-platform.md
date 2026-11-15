@@ -52,11 +52,24 @@ Platform-sensitive code is written with unusual care: Windows file-locking seman
 - TRACK.md:94 nevertheless says the problem was exposed by the first Windows-machine report on 2026-11-12. CI had been reporting it for two days.
 - The fix 4ca799c was pushed (run 43175370696), went green on Windows only, and three more pushes including two merges followed on a red run.
 
-**Why … (cut; full text in the workflow journal)
+**Why high is overstated**
+- No product defect is shown; TRACK.md:94 says the line's position and colour are correct, and the geometric assertions pass on all platforms.
+- Linux is not a shipping platform (Windows and macOS only).
+- The matrix has `fail-fast: false`, so the Windows job reports its own green or red. The latest run does show Windows green, so a Windows-only regression would still be visible at job level, though the run-level X is masked.
+- Compensating controls exist: a full macOS run is recorded per merge (TRACK.md:23) and the Windows machine tests by SHA (TRACK.md:94).
+- The macOS-off-by-default setting is a documented cost decision (ci.yml:12, TRACK.md:48), not an oversight.
+
+The remaining issue is a real process gap: a permanently red gate, unrecorded, that desensitises exactly the cross-platform signal this project has relied on before (TRACK.md:119, 133, 145). That is medium.
 
 *Corrections to the finding.* 1. **Duration.** "Three days of red" is about 2.2 days of pushes (2026-11-10T07:51Z to 2026-11-12T11:22Z). The run has been red since the commit that introduced the test (95608ad, 2026-11-10), not since some later regression.
 
-2. **Root cause is unverified.** The finding states as fact that the Linux failure is glyph strokes of Noto CJK. Only 4 of 54 pixels (7%) match the tint, which is far lower than strokes crossing a row would explain. The earlier single-pixel Linux reading was #96BED9, a bluish colour that is not a blend of white text (#FFFFFF) and the tint (#6E5210). The mark-colour check on the same frame passes, so it is not a channel-order problem. It may be that on Linux the row 2 px above the line is not covered by the tint at all (different line metrics), which could be a real rendering difference and not only a test artefact. This should be diagnosed before the test is skippe … (cut; full text in the workflow journal)
+2. **Root cause is unverified.** The finding states as fact that the Linux failure is glyph strokes of Noto CJK. Only 4 of 54 pixels (7%) match the tint, which is far lower than strokes crossing a row would explain. The earlier single-pixel Linux reading was #96BED9, a bluish colour that is not a blend of white text (#FFFFFF) and the tint (#6E5210). The mark-colour check on the same frame passes, so it is not a channel-order problem. It may be that on Linux the row 2 px above the line is not covered by the tint at all (different line metrics), which could be a real rendering difference and not only a test artefact. This should be diagnosed before the test is skipped on Linux; a blanket skip could hide it.
+
+3. **Failure scenario is partly mitigated.** With `fail-fast: false` the Windows job shows its own status, and it is currently green. The masking applies to the run-level status and to any new Linux failure.
+
+4. **The macOS point is a known decision.** macOS being opt-in is a documented cost choice (10x billing on private repos), and macOS is the local development machine with a full run per merge. It is a recommendation, not a defect.
+
+5. **Severity.** Medium, not high: no product bug, Linux is not a target platform, and local macOS plus Windows-machine testing compensate.
 
 **Reproduction attempt: confirmed, medium.** This is a CI/process finding, so I verified it by read-only inspection (gh run list / gh run view --log-failed, git show of track/claude-auto files) rather than by a new xUnit test. The failure is Linux-only and cannot be reproduced on this macOS machine: the baseline full run here shows Mindweave.Desktop.Tests at 0 failed / 381 passed / 58 skipped, while the Ubuntu runner on the same head commit shows 1 failed / 380 passed / 58 skipped.
 
@@ -65,13 +78,24 @@ Every factual claim checks out:
 - In the latest run (head 1ba95c9, the current tip of track/claude-auto), `test (windows-latest)` succeeds and `test (ubuntu-latest)` fails in step Test with exactly one failure: `SourceHighlightThemeTests.The_line_under_the_highlight_is_drawn_along_the_bottom_of_the_highlighted_text`, "only 4 of 54 pixels above the line are the tint #ff6e5210", at SourceHighlightThemeTests.cs line 79.
 - Commit 4ca799c (2026-11-12 15:27 +0800) rewrote the assertion. Its own CI run (43175370696) already failed on Ubuntu with the identical 4-of-54 message while Windows went green, so the fix was verified for Windows only and the Linux result was not read.
 - The test still samples the row at line.Top - 2 and requires `tinted * 4 >= above.Count`. The test's own comment says this row runs through the glyph bottoms and depends on the platform CJK font.
-- TRACK.md line 94 records only the Windows failure and the rewri … (cut; full text in the workflow journal)
+- TRACK.md line 94 records only the Windows failure and the rewrite. TRACK.md line 23 reports macOS counts only. Nothing in TRACK.md says CI is red or that Linux fails.
+- ci.yml builds the OS matrix from `inputs.macos`, so macOS runs only on a manual dispatch with that input set; push and pull_request runs are Ubuntu + Windows.
+
+One thing strengthens the finding: the first red run (42778270780, 2026-11-10T07:54Z) failed this same test on both Windows and Ubuntu. TRACK.md attributes the discovery to the Windows Claude tester's report on 2026-11-12, so CI had flagged the defect two days and about seven pushes earlier without anyone acting on it. That is direct evidence the CI signal is not being read.
+
+I lowered severity to medium for three reasons:
+- The defect is a brittle test assertion, not a product bug; the same test asserts the underline geometry before the pixel check and passes on Windows and macOS.
+- Linux is not a shipping platform (Windows and macOS are), and the Windows job is a separately visible green check, so a Windows-only regression would still show as a state change at job level.
+- Windows has an additional real-machine tester channel.
+
+The masking risk remains real for the run-level status and for Linux as the cheap canary: Items 3 through 6 were all merged under a red run.
 
 *Corrections to the finding.* - The count is 12 pushes since the last green run (11 failure, 1 cancelled). "11 consecutive failures" is accurate only if the cancelled run is set aside.
 - The font-dependence root cause is plausible and matches the test's own comment, but it is not proven for Linux. The log shows only that 4 of 54 sampled pixels matched the tint under Noto CJK with headless rendering; I could not render on Linux to confirm where the glyph strokes fall.
 - The finding understates one point: the first red run (2026-11-10) failed this test on both Windows and Ubuntu, two days before TRACK.md says the Windows tester "exposed" it.
 - The "indistinguishable red X" claim is overstated at job level. The Windows job is a separate green check, so a new Windows failure would be a visible change; the masking applies to the overall run status and to any new Linux failure.
-- Linux is not a shipping platform, and macOS … (cut; full text in the workflow journal)
+- Linux is not a shipping platform, and macOS being off by default in CI is a documented cost decision for a private repo (TRACK.md:48, ci.yml input description), not an oversight. Scheduled macOS coverage is still a reasonable suggestion.
+- The location is cited as line 79, but the standing defect is the sampling design at lines 74-79.
 
 <details><summary>Reproduction</summary>
 
@@ -119,7 +143,11 @@ The worktree is clean: `git status --short` is empty, and the one scratch file I
 
 **Why I lowered it to low**
 1. The trigger is narrow: sudden power loss, or a hard panic or reset that stops the drive flushing its cache. Mac laptops have batteries, and a process crash or force-quit is unaffected because committed WAL frames are already in the OS cache. The realistic exposure is a desktop Mac losing mains power or a forced power-off.
-2. The realistic loss is the last few com … (cut; full text in the workflow journal)
+2. The realistic loss is the last few commits, within the drive's cache window. In WAL mode a torn or missing tail is discarded by frame checksums, so the usual outcome is rollback to an earlier consistent state, not corruption.
+3. Corruption needs the drive to reorder writes across a checkpoint (WAL reset persisted, database pages not). That is theoretically allowed but is the tail risk, not the expected outcome; the finding leans on it too much.
+4. This is stock SQLite default behaviour on macOS, shared by most Mac apps that embed SQLite. It is a gap between the documented promise and the delivered behaviour on one platform, not a defect that loses data in normal operation.
+
+The fix is cheap and the recommendation is sound: either add the two pragmas and measure, or reword the promise in decisions.md. TRACK.md:97 suggests the full-flush cost will be noticeable in the desktop test suite (about 9,800 syncs), so tests would need the lower setting the finding already mentions.
 
 *Corrections to the finding.* - Severity should be low, not medium: the loss is bounded to the last few commits under sudden power loss or hard reset on macOS only.
 - The corruption outcome ("recovery page") is overstated. WAL frame checksums make loss of the trailing commits the expected result; corruption requires cross-file write reordering by the drive around a checkpoint and is a tail risk.
@@ -160,13 +188,19 @@ What holds:
 - The design record shows the Releasing guard was added to stop Show() throwing on a closed window (s6-wrapup.md:53). It treats the request as ignorable and never considers the launcher's outcome, so this is an unconsidered consequence, not an intended behaviour. Requirements line 264 ("repeat launch returns to the existing window") is not met in this window. TRACK.md has no entry for it.
 
 Why the severity drops:
-- On the normal exit path, Releasing is set only after the coordinator has already done the bounded generation st … (cut; full text in the workflow journal)
+- On the normal exit path, Releasing is set only after the coordinator has already done the bounded generation stop and the full save (ExitCoordinator.cs:271-284). The slow steps happen before Releasing, while the window is still up and BringToFront still works.
+- After Releasing, AppHost.DisposeAsync passes wait = TimeSpan.Zero, and the remaining steps are idempotent re-flushes that normally find nothing, plus the database close and DI disposal. That is typically tens to a few hundred milliseconds, not seconds.
+- The "up to StopWait = 5 s more" case applies only when the UI loop ends without the coordinator reaching Releasing (the loop throwing, for example). That is a rare crash-like path, not the "close and immediately relaunch" scenario.
+- The user must start a new process within that short interval after the window disappears. That is possible (a slow Windows disk during the final WAL checkpoint, or a scripted or keyboard relaunch) but uncommon by hand.
+- The consequence is one silent failed launch with no data loss; a second attempt works.
+
+The recommendation (stop acknowledging once releasing, or reply with a distinct byte and have the launcher poll TryAcquire) is sound.
 
 *Corrections to the finding.* - AppHost.cs is at src/Mindweave.Desktop/AppHost.cs, not under Infrastructure/Hosting. The cited line numbers (59-73) are correct for that file.
 - "Up to StopWait = 5 s more" does not apply to the stated scenario. When the user closes the window, the coordinator reaches Releasing and AppHost uses a zero wait. The 5 s wait applies only when the loop ends without the coordinator releasing, and on that path the miss comes from the stopped dispatcher dropping the post, not from the Releasing guard.
 - "Still holding the lock while it flushes and closes the database" overstates the duration. The real stop and save run before Releasing; what remains is idempotent re-flushes, the database close and container disposal, normally well under a second.
 - The TRACK.md:97 claim about Windows sync cost was not checked, and I did not measure the window's actual length on either platform.
-- Severity shoul … (cut; full text in the workflow journal)
+- Severity should be low: a narrow timing window, no data loss, and a second launch attempt recovers.
 
 ### cross-platform-4. macOS, the primary platform, has no distributable form: no .app bundle, Info.plist, icon or code signature, so Keychain access is tied to an unsigned per-build binary
 
@@ -191,13 +225,21 @@ Why the severity drops:
 **Refuted: "changes identity on every rebuild"**
 - `codesign -dvvv` on the two existing apphosts shows the same identity: `bin/Release/net10.0/Mindweave` (built Nov 12 15:25) and `bin/Debug/net10.0/Mindweave` (built Nov 12 21:14) both have Identifier=apphost, Signature=adhoc and CDHash=21c50774ced39c358aaca557c03d1acb29b26e53.
 - The apphost is the SDK's template binary with only the DLL name patched in, so its code hash does not depend on the app's code. It is stable across rebuilds and configurations.
-- It would change only when the SDK's … (cut; full text in the workflow journal)
+- It would change only when the SDK's apphost pack changes. `global.json` uses `latestFeature`, so an SDK update could trigger a one-time Keychain prompt, which the user can answer with "Always Allow".
+- TRACK.md records weeks of macOS use across many rebuilds with no finding about Keychain prompts, which is consistent with this. The auditor also stated they did not reproduce (b).
+
+**Other scenarios**
+- (a) is true but low impact under the current requirements: §5.3 names macOS as the owner's main development and use environment and Windows as the course demo environment, with a source package as the deliverable. No non-developer Mac user is in scope. It remains a real gap against the stated "industrial production" bar.
+- (c) is plausible but unverified. `AtomicFileWriter` does write a sibling `.mindweave-export-*.tmp` beside the target, and an unbundled process launched from Terminal would have privacy consent attributed to Terminal. No failure follows from that; it is a cosmetic attribution issue.
+
+**Net**
+This is a missing macOS packaging, icon and acceptance-checklist item, not a present Keychain correctness defect. The bundle and stable-signature recommendation is sound for when the app is distributed, since a Developer ID or stable identity would also survive SDK updates. Low severity.
 
 *Corrections to the finding.* - "That binary ... changes identity on every rebuild" is wrong. The ad-hoc apphost has the same CDHash in the Debug and Release outputs built hours apart. Its identity changes only when the SDK's apphost pack changes.
 - Scenario (b) should therefore read: a one-time Keychain prompt may appear after a .NET SDK update, or when moving to a differently built binary such as a future self-contained publish. It is dismissable with "Always Allow", and denial surfaces as "credential service unavailable". It does not occur on each rebuild.
 - "A non-developer cannot run the app on a Mac" is accurate, but no such user is in the current requirements: macOS is the owner's own development and use machine, and the course deliverable is the Windows build plus a source package.
 - Scenario (c) is unverified and has no functional consequence.
-- Severity should be low, not medium: this is a packaging and pol … (cut; full text in the workflow journal)
+- Severity should be low, not medium: this is a packaging and polish gap with no present correctness failure.
 
 ### cross-platform-5. The two native credential stores (hand-written P/Invoke) have no automated coverage on any platform
 
@@ -216,12 +258,16 @@ I could not refute it, but the severity is overstated for three reasons:
 
 1. **It is a known, deliberate opt-in, with manual verification on record.** The test's own doc comment says it is opt-in because it writes to the signed-in user's secret store. TRACK.md:94 and :124 already record the gap. stage-reports.md records a macOS Keychain read/write/delete run and a user-confirmed Windows Credential Manager save on 2026-10-26. The Windows acceptance checklist row 24 assigns this test to the desktop session.
 2. **The code has not moved since it was verified.** `git log` on `src/Mindweave.Infrastructure/Credentials` shows a single commit (c20a37a, 2026-10-26), the same date as the manual verification. The scenario needs a future refactor of 382 lines of stable code, or a runtime change to LibraryImport blittable marshalling, which is unlikely.
-3. **A break would be loud and recoverable.** Both stores map failures to `CredentialUnavailableException` with no plaintext fallback, so the user sees a clear credential error; … (cut; full text in the workflow journal)
+3. **A break would be loud and recoverable.** Both stores map failures to `CredentialUnavailableException` with no plaintext fallback, so the user sees a clear credential error; nothing is corrupted or lost. It would surface on the first manual smoke test of saving a key. A struct-layout error could in principle crash or return garbage instead, but that is equally visible.
+
+What remains is a regression-safety gap on a critical-path component (no API key means no chat), fixable with one env line in CI. That is a low-severity test-coverage finding, not a present defect.
 
 *Corrections to the finding.* - "No automated coverage on any platform" should read "no coverage in any default or CI run". An automated round-trip test exists and has been run manually on macOS; the Windows tester can run it in a desktop session with the user's consent.
 - The finding omits that the gap is already recorded (TRACK.md:94, :124; s6-windows-checklist row 24) and that the opt-in is a deliberate choice, documented in the test, to avoid writing to the user's real secret store by default.
 - The failure scenario is hypothetical: the credential code has one commit and has not changed since it was manually verified on both platforms. A break would give a loud credential error on first use, with no data loss.
-- The recommendation's claim that hosted runners have a usable credential session is unverified in this repo. It is plausible for the hosted Windows and macOS runners, but TRACK.md:124 shows session type ma … (cut; full text in the workflow journal)
+- The recommendation's claim that hosted runners have a usable credential session is unverified in this repo. It is plausible for the hosted Windows and macOS runners, but TRACK.md:124 shows session type matters (1312 over SSH), so it should be trialled, not assumed.
+- Adding the variable to the Mac-local full run would write to the developer's login keychain on every run, which is exactly what the opt-in was designed to avoid; that part needs the user's decision.
+- Severity: low, not medium.
 
 ### cross-platform-6. Start-up failures before the window exists are invisible on GUI launches, and a non-IOException while taking the lock crashes without any message
 
@@ -243,13 +289,19 @@ I could not refute it, but the severity is overstated for three reasons:
 - **No handler yet.** The `UnhandledException` and `UnobservedTaskException` handlers are registered at `Program.cs:36-37`, after the lock. The logger lives under `DataDirectory/logs`, so it could not write in that case anyway.
 - **Not already known.** `TRACK.md` and `docs/design` have no entry for this; the only related finding (`TRACK.md:120`) covers the retry after a killed holder. The only test of this path asserts the enum result, not user-visible feedback (`SingleInstanceTests.cs:65`).
 
-**What is o … (cut; full text in the workflow journal)
+**What is overstated**
+- **"First instance is hung" mostly does not reach line 29.** The listener runs on a pool thread and acknowledges before calling `onActivate` (`SingleInstance.cs:110`, `157-159`), and `onActivate` only posts to the UI thread (`App.axaml.cs:46`). A primary with a frozen UI still answers, so the second launch returns 0. That is also silent, but it is a different path from the one cited.
+- **Line 29 is reached in a narrower window.** The holder must have the lock but not yet be listening: start-up before `App.axaml.cs:46` taking longer than 5 seconds, a pipe mismatch, or a non-sharing `IOException` (the catch-all at line 52 reports any I/O error as "another instance").
+- **The pipe-mismatch triggers are edge cases.** `InstanceKey` hashes the full path, upper-cased on Windows and macOS (`AppPaths.cs:28-36`), so spelling differences would have to be symlink or 8.3 short-name aliases, or a different `TMPDIR` on macOS. These are developer scenarios, not normal use.
+- **Scenario 2 is rare and loses no data.** An unwritable per-user data directory is uncommon, and the app could not run regardless. The defect is a missing diagnostic.
+
+The recommendation (catch `UnauthorizedAccessException`, show a minimal native error, log to the temp directory) is sound.
 
 *Corrections to the finding.* - A primary with a hung UI thread still acknowledges the pipe request, so the second launch exits 0 silently instead of reaching `Program.cs:29`. The cited line is reached only when the holder is not yet listening (start-up longer than 5 s before `App.axaml.cs:46`), when the pipe name or path differs, or when a non-sharing `IOException` is misread as "another instance".
 - The `TMPDIR` and "differently spelled `MINDWEAVE_DATA_DIR`" triggers are developer edge cases: `InstanceKey` already normalises to a full, upper-cased path on Windows and macOS.
 - The "restored profile, read-only share" trigger is rare, and the app cannot run in that state anyway; the defect is the missing diagnostic.
 - Severity is better stated as low: a diagnosability and design-conformance gap with no data-integrity impact.
-- Additional point the finding missed: because `Directory.CreateDirectory` is outside the `try … (cut; full text in the workflow journal)
+- Additional point the finding missed: because `Directory.CreateDirectory` is outside the `try`, an `IOException` from it (for example, the data path is an existing file) also crashes instead of returning null.
 
 ### cross-platform-7. On Windows a second launch probably cannot bring the existing window to the foreground (no AllowSetForegroundWindow hand-off)
 

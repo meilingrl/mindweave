@@ -44,13 +44,26 @@ Build hygiene is good: warnings as errors, latest analyzers, central package ver
 - **Merges landed on red:** the "Track: item N merged" commits 89c85d9, f90da66, 6389275 and da4c804/1e6da26 all fall inside the red window.
 - **Nobody was watching CI:** TRACK.md line 23 records only macOS counts. Line 94 credits the Windows tester's manual report on f90da66 for finding the failure, although Windows CI had been failing on that test since f0632e1, about two days earlier.
 - **Masking has already happened once:** run 42800376085 (1ae0e83) also failed `ConversationNewsHintTests` and `WorkspaceNewsHintTests` on top of the standing failure.
-- **No guard exi … (cut; full text in the workflow journal)
+- **No guard exists:** I found no decision in `docs/design/decisions.md` or TRACK.md that accepts a red Ubuntu leg, and no skip or platform condition on the test.
+
+**Corrections**
+- The count is 11 failures plus 1 cancelled, not "12 failures, 1 cancelled". "12 consecutive completed runs" is only right if the cancelled run is counted.
+- The last recommendation (require the check before merging) is not available: the branch-protection API returns 403, "Upgrade to GitHub Pro or make this repository public".
+
+**Why medium, not high**
+- The only leg red today is Ubuntu, which is not a supported platform; requirements target Windows and macOS.
+- The failure is a font-dependent pixel assertion in a test, not a product defect.
+- The matrix has `fail-fast: false`, so the Windows job result is still visible per job on every run.
+- No shipped regression has been shown to result from the red state.
+- The fix is small: skip or correct one assertion on Linux.
+
+The process gap is real and proven by the two days of unnoticed Windows red, so it should not go lower than medium.
 
 *Corrections to the finding.* - The failure count is 11 failures plus 1 cancelled since the last success, not "12 failures, 1 cancelled". "12 consecutive completed runs" is only accurate if the cancelled run c77d6b5 is counted.
 - "The same test fails each time" is consistent with the 6 of 11 failing runs whose logs I read; the other 5 I checked only at job level. Run 42800376085 had two further failing tests on top of it.
 - The item 3 merge is not identifiable as a distinct "Track:" commit in the log I inspected. Items 4, 4 follow-up, 5 and 6 are verified as landing on red; item 3 is dated 2026-11-10 in TRACK.md and plausibly did too, but I did not pin its commit.
 - The recommendation to require the check before merging is not available on the current GitHub plan (branch protection returns 403 for this private repository).
-- Severity is overstated. The currently red leg is Ubuntu, an unsupported platform, failing on … (cut; full text in the workflow journal)
+- Severity is overstated. The currently red leg is Ubuntu, an unsupported platform, failing on a font-dependent test assertion; the Windows leg is green and visible per job. The real defect is the process gap (red not tracked, not a stop condition), which the two days of unnoticed Windows red demonstrate. Medium fits better than high.
 
 **Reproduction attempt: confirmed, high.** This is a CI/process finding, so it cannot be shown by an xUnit test; I verified it by read-only inspection (gh run list / gh run view --log-failed, git log and git show on track/claude-auto). No build was run and no files in the worktree were changed.
 
@@ -63,12 +76,13 @@ Every factual claim checks out:
 - The first-parent log shows the track commits for item 3 (5d5d55b), item 4 (89c85d9), item 4 follow-up (f90da66), item 5 (6389275) and item 6 (da4c804 / 1e6da26) all landed while CI was red.
 - TRACK.md line 23 reports only macOS numbers ("macOS 892 通过"), and line 94 credits the Windows tester's first report on 2026-11-12 for finding the font-dependent test. CI had been showing that same Windows failure for two days.
 
-The masking scenario is not hypothetical. During the red period two other tests failed in CI under the standing f … (cut; full text in the workflow journal)
+The masking scenario is not hypothetical. During the red period two other tests failed in CI under the standing failure: ConversationNewsHintTests.Opening_the_conversation_from_the_sidebar_takes_its_hint_away_at_once_and_leaves_the_others (Windows, runs 42800376085 and 42838876940) and WorkspaceNewsHintTests.The_badge_counts_new_conversations_in_other_workspaces_and_pulses_once_when_the_count_grows (Ubuntu, run 42800376085). That, plus the two-day-old Windows failure being found manually, shows the run status is not being read. I kept the severity at high for that reason, even though the leg that is still red (Linux) is not a supported platform and the Windows leg is currently green.
 
 *Corrections to the finding.* - "The same test fails each time" is slightly overstated. In 2 of the 12 failed runs (43034686900, 43058906488) the Ubuntu leg never reached the tests: it failed at the "CJK fonts (Linux)" apt-get step on a DNS error, and only the Windows leg failed on the SourceHighlight test. The test does fail in all 12 runs on at least one leg. The unretried apt-get install is a second, independent source of red.
 - The finding understates the masking: two other tests (ConversationNewsHintTests on Windows twice, WorkspaceNewsHintTests on Ubuntu once) already failed under the standing failure on 2026-11-10.
 - "Until 2026-11-12 it failed on both Windows and Ubuntu" is right; more precisely Windows was last red at 6389275e (04:28Z) and first green at 4ca799c7 (07:27Z).
-- The last recommendation (require the check before merging) is not available today: branch protection returns 403 on the current GitHub … (cut; full text in the workflow journal)
+- The last recommendation (require the check before merging) is not available today: branch protection returns 403 on the current GitHub plan for this private repository. It would need GitHub Pro or a public repo, so the stop condition has to live in the track protocol.
+- The location ci.yml:44 (the Test step) is only where the failure surfaces. The cause is the font-dependent assertion in SourceHighlightThemeTests.cs, together with nobody acting on CI status.
 
 <details><summary>Reproduction</summary>
 
@@ -95,7 +109,10 @@ $ gh run view 43208608079 --json jobs / --log-failed
 test (ubuntu-latest) failure Test
 test (windows-latest) success
 [xUnit.net 00:02:23.37] Mindweave.Desktop.Tests.SourceHighlightThemeTests.The_line_under_the_highlight_is_drawn_along_the_bottom_of_the_highlighted_text [FAIL]
-only 4 of 54 pixels above the line a … (cut; full text in the workflow journal)
+only 4 of 54 pixels above the line are the tint #ff6e5210
+Failed! - Failed: 1, Passed: 380, Skipped: 58, Total: 439, Duration: 2 m 37 s - Mindweave.Desktop.Tests.dll (net10.0)
+
+The worktree was left clean: nothing added, modified or committed.
 
 </details>
 
@@ -120,7 +137,11 @@ What holds:
 What is overstated:
 1. This is a documented decision, not a gap nobody noticed. TRACK.md:48 records the authorization of 2026-10-25: CI runs Linux and Windows only while the repository is private, and the user may make the repo public to get free minutes. The 10x macOS billing is noted in ci.yml:11.
 2. macOS is not untested. TRACK.md:23 records a full macOS run after every merged item (latest: 892 passed, 76 skipped, 0 warnings), plus slow-sync desktop runs and the screenshot gallery on macOS. Keychain, data-path and single-instance code is exercised there on every merge. Only a clean-checkout macOS build is missing.
-3. The "untracked file" scenario is largely mitigated. AGENTS.md and TRACK.md:30 show each task is built in a fresh `git worktree add` checkout, whi … (cut; full text in the workflow journal)
+3. The "untracked file" scenario is largely mitigated. AGENTS.md and TRACK.md:30 show each task is built in a fresh `git worktree add` checkout, which contains no untracked sources, and the same commit must also build from a clean checkout on two CI operating systems. A missing tracked file would fail there.
+4. The SDK feature-band scenario is already handled. TRACK.md:126 records that global.json was changed to 10.0.100 with `latestFeature`, and CI uses the newest 10.0.x (ci.yml:34-35).
+5. Ubuntu is not wasted. It is the cheapest runner (1x), Linux is a stated later target, and it found a real defect (TRACK.md:141, missing CJK fonts for RaTeX formulas). Windows CI also found several real bugs (TRACK.md:119, 133, 145).
+
+What remains is narrow: there is no automated clean-room macOS build or test, so a macOS-only failure that depends on the developer machine's state (NuGet cache, an osx-x64 difference, installed fonts) would go unnoticed, and the dispatch input is probably dead configuration. For a single-developer project that runs the full suite on macOS at every merge, that is low severity. A scheduled macOS job or removing the dead input is a reasonable improvement, not a high-severity fix.
 
 *Corrections to the finding.* - "Never built or tested in CI" is correct, but the implication that macOS coverage is weak is not: the full suite runs on macOS at every merge (TRACK.md:23). Only a clean-checkout macOS run is missing.
 - The omission is a recorded cost decision authorized by the user (TRACK.md:48), which the finding does not mention.
@@ -144,13 +165,22 @@ What is overstated:
 - I inspected the jobs of the latest run only; the earlier failures were not broken down by platform.
 
 **Why medium, not high.**
-- Omitting macOS is a recorded, deliberate cost decision, not an oversight. `TRACK.md` line 48 says CI runs only Linux … (cut; full text in the workflow journal)
+- Omitting macOS is a recorded, deliberate cost decision, not an oversight. `TRACK.md` line 48 says CI runs only Linux and Windows while the repo is private; the repo is private, and the input description cites 10x billing.
+- macOS is exercised on every change on the developer machine, with full-suite counts logged in `TRACK.md`.
+- The scenario of a dirty tree or untracked file masking a build break is largely covered: the Ubuntu and Windows jobs do a clean checkout and build with warnings as errors.
+- The real residual gap is narrower: macOS-only runtime paths (Keychain, data path, single-instance pipe) and clean-clone macOS builds are never checked by automation, and there is no release or packaging pipeline that would catch them later.
+
+No files were added or changed; the worktree is clean.
 
 *Corrections to the finding.* 1. **"The macOS option is not reachable" is overstated.** Two `workflow_dispatch` runs of `ci` exist on `track/claude-auto` (2026-10-27), so dispatch against the non-default branch works, presumably via `gh workflow run --ref` or the API. Because `ci.yml` also has push triggers, GitHub registered the workflow (`gh workflow list` shows `ci` as active). The input is reachable but has never been used with `macos=true`. Whether the web UI shows a "Run workflow" button was not checked.
 
 2. **The omission is a documented decision, not an oversight.** `TRACK.md` line 48 records that CI runs only Linux and Windows while the repo is private, for cost reasons. The finding should be framed as an accepted risk worth revisiting.
 
-3. **The "dirty working tree" scenario is weaker than stated.** Ubuntu and Windows clean-checkout builds with warnings as errors would catch untracked-file and most SDK-band … (cut; full text in the workflow journal)
+3. **The "dirty working tree" scenario is weaker than stated.** Ubuntu and Windows clean-checkout builds with warnings as errors would catch untracked-file and most SDK-band build breaks. The uncovered part is macOS-specific compile and runtime paths.
+
+4. **Missing from the finding, and arguably the more urgent symptom:** CI on `track/claude-auto` has been red for 12 consecutive runs (2026-11-10 to 2026-11-12). In the latest run the cause is a single Ubuntu-only Desktop rendering test, `SourceHighlightThemeTests.The_line_under_the_highlight_is_drawn_along_the_bottom_of_the_highlighted_text`, while Windows passes. A real Windows regression would now be hidden behind an already-red badge. I inspected only the latest run's jobs, so the cause of the earlier 11 is unconfirmed.
+
+5. **Minor:** the workflow uses `macos-latest`, which is arm64 only; osx-x64 would not be covered even with the input enabled.
 
 <details><summary>Reproduction</summary>
 
@@ -212,13 +242,19 @@ No macOS job appears in any run. `git status --short` is empty.
 **Why high is too strong**
 - **No requirement is violated.** `docs/requirements.md` asks for no installer, signing or distribution; it names macOS as the main development and use environment and Windows as the course demo environment. `docs/architecture.md:463` lists the release target as still to be settled.
 - **The failure scenario needs users who do not exist yet.** The published exe is used only by the developer for the manual Windows checklist, so "a user reports a bug from a published exe" is hypothetical today.
-- **The course deli … (cut; full text in the workflow journal)
+- **The course deliverable is already traceable.** `scripts/package-source.sh` uses `git archive` and names the zip by SHA.
+- **The publish path is not fully untraceable.** The sync step prints `synced <sha>[+dirty]` to the operator's console, and stage reports record what was published. It is still not stamped into the binary.
+- **macOS is not limited to `dotnet run`.** `dotnet publish -r osx-arm64 --self-contained` yields a runnable folder without an SDK; what is missing is a `.app` bundle, icon and signing. Gatekeeper and SmartScreen only matter once the binary is downloaded on another machine.
+
+**What remains real**
+At the stated industrial bar, the app cannot identify the commit it was built from, the publish path can build from a dirty tree, and there is no macOS bundle or reproducible CI artifact. The cheapest high-value fix is to keep the SHA in the displayed version and stamp or refuse dirty publishes.
 
 *Corrections to the finding.* - Severity should be medium, not high. No requirement calls for distribution, signing or installers, and the release target is an open architecture item.
 - "On macOS there is no distributable at all: the app runs only through `dotnet run` with an SDK installed" is overstated. A self-contained `dotnet publish -r osx-arm64` folder would run without an SDK; what is missing is a documented path, a `.app` bundle, an icon and signing.
 - "The commit cannot be identified" is slightly overstated. The sync step prints `synced <sha>[+dirty]` to the operator's console (`scripts/windows.sh:71`) and stage reports record publishes. It is true that nothing is stamped into the binary.
 - The SHA is lost twice over, which the finding only half states: the Windows snapshot has no `.git`, and `CompositionRoot.cs:35` strips the suffix even where the SDK would supply it.
-- The Gatekeeper and SmartScreen conseq … (cut; full text in the workflow journal)
+- The Gatekeeper and SmartScreen consequences are hypothetical; they apply only once binaries are downloaded on other machines, which no current workflow does.
+- Add the context that a SHA-named `git archive` source package (`scripts/package-source.sh`) is the actual course deliverable and is traceable.
 
 **Reproduction attempt: confirmed, medium.** This is a process/release-engineering finding, not a code defect, so I verified it by read-only inspection of track/claude-auto (1ba95c9) rather than by a test. No build or test was run.
 
@@ -228,11 +264,15 @@ Every factual claim checks out:
 - The published Windows build has no SHA at all: `scripts/windows.sh publish` runs `sync` first, which tars `git ls-files --cached --others --exclude-standard` (tracked plus untracked, uncommitted edits included) into `src-snapshot` with no .git, then runs `dotnet publish ... -r win-x64 --self-contained` (line 84).
 - No macOS distributable: run-guide.md has only `dotnet run` for running and a "Windows 发布" section. A grep of the whole track tree (excluding reviews/history/prototypes) for Info.plist, CFBundle, .icns, ApplicationIcon, codesign, notari*, signtool, PublishSingleFile, ReadyToRun, RuntimeIdentifier returns nothing. There is no Assets directory under src/Mindweave.Desktop.
 - Mindweave.Desktop.csproj sets only OutputType, AssemblyName, RootNamespace, compiled bindings and ApplicationManifest. app.manifest declares assemblyIdentity version 1.0.0.0, which disagrees with 0.1.0.
-- CI: ci.yml does restore/build/test only; stress.yml does bui … (cut; full text in the workflow journal)
+- CI: ci.yml does restore/build/test only; stress.yml does build/test only. Neither has a publish or upload-artifact step, and macOS runs only on manual dispatch.
+
+Severity lowered to medium. This is a missing capability, not a defect in shipped behaviour. The project is pre-release with a single developer/user; the only published binaries are trial builds on the developer's own Windows test machine. TRACK.md:114 explicitly records packaging as out of scope of the earlier architecture review, and neither requirements.md nor architecture.md defines a release/installer requirement (architecture.md:463 lists "发布目标" as still to be decided). The traceability gap is real today (trial builds such as app-s7, app-del, app-fix are indistinguishable by version), and requirements.md:118 names macOS as the primary usage environment while it has no packaged form, so it is a genuine gap against an industrial quality bar, but it blocks distribution rather than causing data loss or wrong behaviour.
 
 *Corrections to the finding.* 1. "may have been built from a dirty tree, so the commit cannot be identified" is slightly overstated: windows.sh:73 does print `synced <short-sha>[+dirty]` to the operator's console at sync time. The gap is that nothing is stamped into the binary or the publish folder, so the information is lost once the terminal scrolls away.
 2. "CompositionRoot strips everything after '+' ... so every build identifies itself as 0.1.0" is accurate, but for the Windows publish path the strip is not even the cause: the snapshot has no .git, so the SDK has no SHA to append in the first place. Removing the Split alone would not fix published builds; the SHA must be passed in (e.g. -p:SourceRevisionId) or the build must run from a real checkout.
-3. The Gatekeeper and SmartScreen consequences are inferences from the absence of any signing configuration, not something observed; there is no bundle to test. The … (cut; full text in the workflow journal)
+3. The Gatekeeper and SmartScreen consequences are inferences from the absence of any signing configuration, not something observed; there is no bundle to test. They are standard platform behaviour for unsigned downloaded binaries and only apply once a build is distributed to another machine via download.
+4. Severity: high is too strong for a pre-release project with no external distribution and no release requirement in the authoritative docs; medium fits.
+5. Minor addition not in the finding: scripts/package-source.sh exists and does package from committed files via git archive, so a clean-source path exists for the source package, just not for binaries.
 
 <details><summary>Reproduction</summary>
 
@@ -263,7 +303,10 @@ Not reproducible by a unit test (release process / CI / packaging gap); verified
 **Why the severity drops**
 - Only 2 files out of roughly 69k lines deviate from the dotnet-format defaults. The codebase is in practice almost fully consistent, so "style is whatever each session produces" is not what the evidence shows.
 - The 127 TestHost errors are one stylistic choice: bodies of braced `case` blocks are not given the extra indent that the default `csharp_indent_case_contents_when_block = true` expects. The 4 ModelSettingsService errors are one multi-line conditional expression with a `with` clause.
-- The merge-conflict scenario between parallel worktrees is speculative. Nothing in the repo tells a … (cut; full text in the workflow journal)
+- The merge-conflict scenario between parallel worktrees is speculative. Nothing in the repo tells anyone to run `dotnet format`, and I found no git-history evidence of reformat churn.
+- There is no runtime, correctness or release impact. This is a hygiene gap: an unpinned style and no CI gate.
+
+The recommendation (commit an .editorconfig, fix or exempt the two spots, add a verify step to CI) is reasonable and cheap.
 
 *Corrections to the finding.* - Severity should be low, not medium: the measured drift is two files, and the merge-conflict scenario is hypothetical.
 - "Enforces nothing in practice" is slightly absolute. It is accurate that default IDE-rule severities do not surface as build warnings without an editorconfig, but `AnalysisMode=Recommended` with `TreatWarningsAsErrors` does still enforce CA rules; only the IDE/code-style half is inert.
@@ -293,7 +336,9 @@ Why medium is overstated:
 - Manual coverage exists. Stage reports record a measured macOS Keychain read/write/delete and a user-confirmed Windows Credential Manager save on 2026-10-26. The Windows acceptance checklist row 24 lists this test for desktop-session runs, and the Windows tester can run it there with the user's consent.
 - The code is 129 lines (Windows) and 217 lines (macOS) and rarely changes.
 - If it did break, the product raises CredentialUnavailableException and fails the request explicitly rather than falling back to plaintext. The outcome is a loud functional failure, not a silent security regression.
-- The "truncated … (cut; full text in the workflow journal)
+- The "truncated for non-ASCII keys" scenario is speculative: the Windows store sizes the blob from the UTF-8 byte count, and the opt-in test already uses a non-ASCII secret.
+
+The recommendation is still reasonable and cheap, with one caveat: I could not verify that hosted Windows runners have a usable Credential Manager. This repo has already seen CredWrite fail with error 1312 in a non-interactive SSH logon, so it should be tried on the runner before being relied on.
 
 *Corrections to the finding.* - "CI has no macOS leg" is inaccurate. ci.yml has an opt-in macOS leg through the workflow_dispatch input `macos` (default false, off for push and PR). That leg would also skip the test, since the variable is not set.
 - "Never exercised" is true only for automated runs. Manual and desktop-session runs are documented (stage-reports.md, s6-windows-checklist.md row 24, TRACK.md 2026-11-12).
@@ -325,14 +370,21 @@ Why medium is overstated:
 1. Console output is enough to diagnose an ordinary failure. The latest failed run's log names the failing test (`SourceHighlightThemeTests.The_line_under_the_highlight_is_drawn_along_the_bottom_of_the_highlighted_text`) with its error message. "No diagnostics" is really "no trx and no hang dump".
 2. CI is not the pre-merge gate by design. AGENTS.md requires merging the track branch into the task branch and running all tests before merging back. TRACK.md records local macOS full runs and Windows real-machine runs per stage.
 3. A cancelled run means an intermediate SHA was skipped, not that the code went unverified: the newest SHA in the group still runs. Attribution across two or three single-author merges is cheap to redo locally.
-4. … (cut; full text in the workflow journal)
+4. The hang scenario is hypothetical. TRACK.md line 106 describes 5-second UI wait timeouts that fail as normal test failures with names, and marks them fixed on 2026-11-05. Line 145 is an intermittent kill-test failure, also fixed, and `stress.yml` exists to reproduce such failures on hosted runners. I found no record of a CI run hitting the 20-minute job timeout.
+5. This is a single-developer private repo where CI minutes are a stated constraint (TRACK.md line 48; macOS is opt-in). Cancelling superseded runs is a deliberate cost trade-off.
+
+**What remains valid**
+A genuine hang would leave nothing to diagnose, and TestResults are not kept. Adding `--blame-hang-timeout` and upload-on-failure is cheap and worthwhile.
+
+**Related observation, more serious than the finding**
+The last 12 completed CI runs on the track branch all failed (2026-11-10 to 2026-11-12), and 37 of the 94 runs failed overall. For the latest run (1ba95c9), the ubuntu job fails on the Desktop test named above while windows passes; I did not inspect the earlier 11. TRACK.md line 23 reports only macOS results for the recent stages, so the post-merge signal the finding worries about is currently red and apparently not acted on. That deserves its own finding.
 
 *Corrections to the finding.* - "Keeps no diagnostics from failures" is overstated. Console logs are retained and include failing test names and error messages; what is missing is trx files, hang dumps and uploaded TestResults.
 - TRACK.md lines 105-106 and 145 describe issues that were root-caused and fixed (2026-11-05 and 2026-10-28). They are not open intermittent hangs, and none was a 20-minute job timeout.
 - The 22 cancelled runs break down as 21 push runs and 1 workflow_dispatch run.
 - "Those SHAs were never verified" holds for hosted CI only. The repo's process requires a local full test run before each merge, and the superseding SHA is still run.
 - Severity should be low, not medium: this is a diagnosability and cost trade-off in a single-developer private repo.
-- Omitted by the finding and more important: the last 12 completed CI runs on the track branch are all red, with a Linux-only Desktop test failure on … (cut; full text in the workflow journal)
+- Omitted by the finding and more important: the last 12 completed CI runs on the track branch are all red, with a Linux-only Desktop test failure on the latest SHA.
 
 ### ci-build-7. Builds are not reproducible: the SDK floats across feature bands with AnalysisLevel=latest, there are no NuGet lock files, and no package source is pinned
 
@@ -357,12 +409,22 @@ Why medium is overstated:
 
 **What is overstated**
 - The SDK float is intentional, not an oversight. TRACK.md line 126 records that the earlier pin (10.0.402 + latestPatch) stopped the Windows machine from building, so it was changed to 10.0.100 + latestFeature. The CI comment and docs/design/run-guide.md line 7 say the same. The real defect is narrower: AnalysisLevel=latest plus warnings-as-errors on top of an accepted float, and CI not logging the SDK version.
-- "A clean restore weeks later can resolve different transitive packages" is mostly wrong for this repo. Central package mana … (cut; full text in the workflow journal)
+- "A clean restore weeks later can resolve different transitive packages" is mostly wrong for this repo. Central package management is on and all 15 PackageVersion entries are exact, with no floating or range versions. NuGet resolves transitives by lowest applicable version, which is deterministic for a fixed source. SQLitePCLRaw, SkiaSharp and HarfBuzzSharp are therefore fixed by the pinned Microsoft.Data.Sqlite and Avalonia versions.
+- What a lock file would add is content-hash verification and detection of a different source set. That is supply-chain hardening, not a fix for routine drift.
+- The missing nuget.config matters less than implied: the baseline vulnerability scan shows only nuget.org in use on this Mac, and CI runners default to nuget.org. Source mapping guards against dependency confusion, which is not a live risk with no private feed.
+- Deterministic=true is set, so compiler output is deterministic for a given SDK.
+
+**Severity**
+The failure mode is a loud red build on a new feature band or a new advisory, fixable in minutes. It is not silent wrong output or data loss. There is no release pipeline whose shipped artifacts would diverge; scripts/package-source.sh ships source. That makes this low-severity hardening, not medium.
+
+The recommendations still hold as cheap improvements: pin AnalysisLevel to 10.0, exempt NU190x from warnings-as-errors with a separate audit job, add lock files with locked-mode restore, and log `dotnet --version` in CI.
 
 *Corrections to the finding.* - The title's "builds are not reproducible" is too strong. Direct package versions are pinned exactly through central package management, transitive resolution is deterministic for a fixed source, and Deterministic=true is set. The real exposure is toolchain drift (SDK and analyzers), not package drift.
 - The claim that a later clean restore "can resolve different transitive packages" should be dropped or narrowed. It needs a changed source set or a tampered or replaced package, since no floating versions exist here. Lock files add hash verification, not drift protection.
 - The SDK float should be presented as a recorded decision (TRACK.md line 126, run-guide.md line 7, the ci.yml comment), not a gap. The actionable part is AnalysisLevel=latest with warnings-as-errors, and CI not recording the SDK version.
-- "No package source is pinned" is accurate, but the practical risk is low: only n … (cut; full text in the workflow journal)
+- "No package source is pinned" is accurate, but the practical risk is low: only nuget.org is in use and there is no private feed.
+- The NU190x point is correct and is the most concrete sub-item: nothing exempts audit warnings from TreatWarningsAsErrors. No advisory applies today.
+- Severity should be low, not medium.
 
 ### ci-build-8. Workflow supply-chain hardening is missing: mutable action tags, no permissions block, script injection in stress.yml, no dependency update automation
 
@@ -388,14 +450,23 @@ What holds up:
 
 What is overstated or wrong:
 1. **The injection path is unreachable today.** `main` and `track/codex-steady` have no `.github` directory, so `workflow_dispatch` cannot be started; the file's own comment and commit 8f249a1 say so. On the push trigger `inputs.*` is empty and only the hard-coded literals are used. Even if dispatch became reachable it needs write access, and anyone with write access can already edit the workflow, so there is no privilege gain.
-2. **The token-scope risk is speculative.** I could not check the repository's default GITHUB_TOKEN permission (no network or settings access); repositories created since February 2023 default to read-only. The workflows reference no secrets an … (cut; full text in the workflow journal)
+2. **The token-scope risk is speculative.** I could not check the repository's default GITHUB_TOKEN permission (no network or settings access); repositories created since February 2023 default to read-only. The workflows reference no secrets and publish nothing. "A repo that auto-pushes" is not supported by anything in the workflows. Both actions are GitHub-owned first-party actions, the lowest-risk case for tag pinning.
+3. **The dependabot recommendation is not actionable as written.** Dependabot reads its config only from the default branch. The file would have to go on `main` with `target-branch: track/claude-auto`, and AGENTS.md reserves `main` for shared baseline content, with corrections to it decided by the user. So this is a user decision, not a track-branch change.
+4. **The link to the font bug is unproven.** Nothing shows that 12.1.5 or 12.1.6 fixes the bug in TRACK.md line 154.
+5. **The defaults mismatch is a misleading comment, not a supply-chain issue.**
+6. **The cited line is slightly off.** Line 44 is the `run: |` line; the interpolations are at 41, 45, 50, 51 and 58. The finding also misses `runs-on: ${{ inputs.os }}` at line 30, which lets a dispatcher pick any runner label.
+
+A related gap the finding does not mention: there is no `packages.lock.json` or locked-mode restore, although versions are exact-pinned centrally in `Directory.Packages.props`.
+
+The remaining value is cheap defence in depth: add `permissions: contents: read`, route inputs through `env:`, pin actions by SHA, and fix the stale comment.
 
 *Corrections to the finding.* - Severity should be low, not medium.
 - The script-injection path cannot be triggered today: `workflow_dispatch` needs the workflow on the default branch and `main` has no `.github` directory. Only the push trigger runs, with hard-coded literals. If dispatch became reachable it would still need write access, which already allows editing the workflow.
 - "A token that may have write scope on a repo that auto-pushes" is unsupported. The default token scope was not verified, and the workflows use no secrets and publish nothing.
 - "Add dependabot on the track branch" would not work. Dependabot reads its config only from the default branch, so it needs a file on `main` with `target-branch`, which under AGENTS.md is a user decision.
 - Nothing shows that Avalonia 12.1.5 or 12.1.6 fixes the font bug in TRACK.md line 154.
-- The injection sites are lines 41, 45, 50, 51 and 58, not just line 44. `ru … (cut; full text in the workflow journal)
+- The injection sites are lines 41, 45, 50, 51 and 58, not just line 44. `runs-on: ${{ inputs.os }}` at line 30 is also dispatcher-controlled and was not mentioned.
+- The runs/workers mismatch is a stale comment ("using the defaults below"), not a supply-chain problem.
 
 ### ci-build-9. The screenshot gallery (55 scenes x 2 themes) and all performance budgets never run in CI
 
@@ -420,14 +491,19 @@ What I confirmed:
 Why medium is overstated:
 - The gallery is a screenshot generator for human review (s7-ui-polish.md:57 says each scene is looked at by hand), not a regression suite. The same views and view models are covered by 381 Desktop tests that pass in CI, including real-pointer UI tests, so "a XAML or view-model change breaks and CI stays green" applies only to scene-seeding code or paths no other test touches.
 - "Renders blank on Windows fonts" would not be caught by the recommendation either: the gallery has no pixel comparison (about 70 asserts across 55 scenes), so running it in CI catches only thrown exceptions unless someone inspects the uploaded PNGs.
-- Pe … (cut; full text in the workflow journal)
+- Perf smoke tests do run the same code paths at small scale on every CI run, so crashes are caught; only timing regressions are not.
+- Keeping millisecond budgets (200–500 ms storage, 25 ms per streamed chunk) out of shared hosted runners is standard practice; TRACK.md:97 already records that Windows disk sync makes timings machine-dependent.
+- The gap is process-mitigated: the track regenerates the gallery in both themes at each stage merge and records the count in TRACK.md.
+
+The residual risk is real but narrow: a scene that throws, or a timing regression, is found at the next manual run rather than at push time. That is a low-severity improvement, not a medium defect. The recommendation (run the gallery on the Windows leg and upload PNGs; scheduled perf run that records times) is reasonable and cheap.
 
 *Corrections to the finding.* - Severity: low, not medium. The gallery is a human-review screenshot generator with no image comparison; the pages it renders are covered by 381 Desktop tests that run in CI.
 - "All performance budgets never run in CI" is accurate for budget enforcement, but the same code paths do run at smoke size in three Smoke tests on every CI run.
 - The "renders blank on Windows fonts" scenario would not be detected by the proposed fix unless someone looks at the uploaded PNGs, since no scene asserts on pixels.
 - "CI stays green" is hypothetical at the moment: the two most recent ci runs on track/claude-auto are marked failed (cause not investigated here).
 - "The CI logs show 58 skipped" was not verified from CI logs; I verified it only from the local baseline test.txt, which lists some gallery skips by name and gives the 58 total (55 gallery + 3 Desktop perf by count).
-- File path and line numbers … (cut; full text in the workflow journal)
+- File path and line numbers for AnswerRenderPerformanceTests are slightly off: the file is in tests/Mindweave.Desktop.Tests/Performance/, Smoke is at line 50, and the skips are at 62/72/82.
+- "Produced manually on macOS only" is supported for the gallery by the s7-ui-polish.md "未验证" notes and by scripts/windows.sh having no gallery step, but TRACK.md also records Windows real-machine screenshot checks in S7, so Windows visuals have been looked at by other means.
 
 ### ci-build-10. The publish and source-package scripts do not guarantee a clean, buildable, traceable output
 

@@ -42,7 +42,14 @@ Callers: none catches InvalidOperationException on these paths.
 - ModelSettingsService.TestAsync (195-202) catches ChatClientException and CredentialUnavailableException; DiscoverModels (173) catches nothing.
 - ModelSettingsViewModel.RunAsync (279-290) catches ModelSettingsException, ChatClientException, CredentialUnavailableException.
 - Both commands are [RelayCommand] Task methods (CommunityToolkit.Mvvm 8.4.2, no FlowExceptionsToTaskScheduler option anywhere in src), so the exception is rethrown on the Avalonia dispatcher. The only global handlers are AppDomain.UnhandledException and TaskScheduler.UnobservedTaskException in Program.cs:36-37, and both only log. AppHost.Run (36-48) is try/finally with no catch. So the process exits; the finally block still flushes writes, closes the database and releases the lock.
-- AnswerRunner.RunAsync (136-146) catches OperationCanceledException and ChatClientException … (cut; full text in the workflow journal)
+- AnswerRunner.RunAsync (136-146) catches OperationCanceledException and ChatClientException. An InvalidOperationException skips the FinishAsync and RecordAsync calls at 148-151 and lands in GenerationCoordinator.RunAsync's catch-all (531-534), which logs "Generation task crashed" and frees the slot. The answer is never written as Failed and no AnswerEnded/AnswerFinished event fires.
+
+Not known or intended: TRACK.md and docs/design/decisions.md have no entry about this. The tests (ChatCompletionsClientTests 125-175) cover only `{"error":{"message":...}}`, plain text, HTML and empty bodies.
+
+Severity lowered from high to medium:
+- Trigger is narrow. It needs a non-standard body from the endpoint. OpenAI, Moonshot, GLM, DeepSeek and Ollama's /v1 all use `{"error":{"message":...}}`, and plain-text, HTML and empty bodies are handled. The realistic triggers are self-hosted or proxy gateways (for example HF TGI style `{"error":"...","error_type":"..."}`) and a few aggregators.
+- No data loss. The settings-page crash still goes through AppHost's finally, so the database is closed cleanly.
+- Offsetting that: when triggered, it is a hard crash of a desktop app from untrusted remote input, and it repeats every time the user presses the button against that gateway, with no message explaining why. A reviewer weighting crash-on-remote-input more heavily could defend high.
 
 *Corrections to the finding.* 1. "The conversation is locked until restart" is not verified here and is partly contradicted. GenerationCoordinator.RunAsync's finally (536-547) removes the task from _running and pumps the queue, so the scheduler slot is freed. What is confirmed is that the LiveAnswer is never finished, the message is never persisted as Failed, no AnswerEnded/AnswerFinished event is raised, and no request trace is recorded. Whether the UI then blocks further sends in that conversation was not traced.
 
@@ -50,7 +57,11 @@ Callers: none catches InvalidOperationException on these paths.
 
 3. The settings-page crash is an orderly exit, not an abrupt kill: AppHost.Run's finally still flushes kept writes, closes the database and releases the single-instance lock.
 
-4. One more trigger the finding did not list: a /models e … (cut; full text in the workflow journal)
+4. One more trigger the finding did not list: a /models entry whose `id` is a non-string (e.g. a number) throws InvalidOperationException from GetValue<string>() at line 135.
+
+5. I did not run the app or the Avalonia/CommunityToolkit rethrow path. That step rests on AsyncRelayCommand's documented default behaviour and the absence of any handler in src.
+
+6. The recommendation also mentions FormatException and IOException. I found no path here that produces FormatException, and IOException is already translated in ReadAsync (222-225). InvalidOperationException is the real gap.
 
 <details><summary>Reproduction</summary>
 
@@ -65,7 +76,9 @@ choice elem string `{"choices":["x"]}` first?["delta"]                      -> I
 delta string       `{"choices":[{"delta":"x"}]}` ?["delta"]?["content"]     -> InvalidOperationException: The node must be of type 'JsonObject'.
 data non-array     `{"data":{}}` .AsArray()                                 -> InvalidOperationException: The node must be of type 'JsonArray'.
 id number          `{"data":[{"id":5}]}` GetValue<string>()                 -> InvalidOperationException: An element of type 'Number' cannot be converted to a 'System.String'.
-empty body         JsonNode.Parse("") … (cut; full text in the workflow journal)
+empty body         JsonNode.Parse("")                                       -> JsonReaderException (a JsonException, so already handled)
+
+None of these is a JsonException except the last, so none is caught by the client's handlers.
 
 </details>
 
@@ -79,7 +92,10 @@ Three independent leak sites, all reproduced:
 The outer wrappers (lines 56, 117) only translate ChatClientException, so nothing converts these.
 
 Downstream consequences were verified by code reading only, not by a test:
-- ModelSettingsService.TestAsync catches only ChatClientException and CredentialUnavailableException; DiscoverModelsAsync has no catch. ModelSettingsViewModel.RunAsync catches ModelSettingsException, ChatClientException and CredentialUnavailableException, so InvalidOperationException escapes the [RelayCommand] task for both Test and Dis … (cut; full text in the workflow journal)
+- ModelSettingsService.TestAsync catches only ChatClientException and CredentialUnavailableException; DiscoverModelsAsync has no catch. ModelSettingsViewModel.RunAsync catches ModelSettingsException, ChatClientException and CredentialUnavailableException, so InvalidOperationException escapes the [RelayCommand] task for both Test and Discover. There is no FlowExceptionsToTaskScheduler option and no dispatcher-level handler anywhere in src; Program.cs registers only AppDomain.UnhandledException and TaskScheduler.UnobservedTaskException, both of which only log. With CommunityToolkit.Mvvm 8.4.2 the command rethrows on the UI synchronization context, so an app exit is the expected result. I did not run the desktop app to observe the exit.
+- AnswerRunner.RunAsync catches only OperationCanceledException and ChatClientException, so the exception skips FinishAsync and RecordAsync. GenerationCoordinator.RunAsync catches it, logs and frees the slot, so the scheduler survives but the answer is never moved to a terminal state. This supports the "stranded answer" claim; "locked until restart" was not exercised.
+
+High severity stands. The trigger is a plausible third-party response (string-valued "error" is common among OpenAI-compatible gateways and proxies), it sits on the first-run path (Test connection / Discover models), and the result is a process crash or a stuck answer rather than a displayed error. It is not critical: it needs a non-standard gateway, and no data is lost or corrupted.
 
 *Corrections to the finding.* Nothing in the finding is wrong; three points are narrower or broader than stated.
 
@@ -87,7 +103,9 @@ Downstream consequences were verified by code reading only, not by a test:
 
 2. The scheduler itself is not harmed: GenerationCoordinator.RunAsync (lines 525-530) catches every exception, logs it and frees the slot. The damage on the answer path is limited to the one answer never reaching a terminal state and its request trace never being recorded.
 
-3. The finding understates the ListModels surface. Besides data not being an array, data:["a"] and data:[{"id":1}] also leak, the latter via GetValue<string>() on a number (line 135). The fix needs type check … (cut; full text in the workflow journal)
+3. The finding understates the ListModels surface. Besides data not being an array, data:["a"] and data:[{"id":1}] also leak, the latter via GetValue<string>() on a number (line 135). The fix needs type checks on each element and on id, not just on data.
+
+The recommendation's mention of FormatException and IOException was not exercised; no row in my test produced either.
 
 <details><summary>Reproduction</summary>
 
@@ -119,7 +137,80 @@ public async Task Http_error_body_of_unexpected_json_shape(HttpStatusCode status
 [InlineData("[1,2]")]
 [InlineData("\"hello\"")]
 [InlineData("42")]
-public as … (cut; full text in the workflow journal)
+public async Task Stream_event_of_unexpected_json_shape(string data)
+{
+    var ex = await Record.ExceptionAsync(() => Stream(_ => new HttpResponseMessage(HttpStatusCode.OK)
+    {
+        Content = new StringContent($"data: {data}\n\ndata: [DONE]\n\n", Encoding.UTF8, "text/event-stream"),
+    }));
+    Assert.True(ex is null or ChatClientException, $"leaked {ex?.GetType().FullName}: {ex?.Message}");
+}
+
+[Theory]
+[InlineData(HttpStatusCode.Unauthorized, "{\"error\":\"Invalid API key\"}")]
+[InlineData(HttpStatusCode.OK, "{\"data\":{\"id\":\"a\"}}")]
+[InlineData(HttpStatusCode.OK, "{\"data\":\"none\"}")]
+[InlineData(HttpStatusCode.OK, "[{\"id\":\"a\"}]")]
+[InlineData(HttpStatusCode.OK, "{\"data\":[\"a\"]}")]
+[InlineData(HttpStatusCode.OK, "{\"data\":[{\"id\":1}]}")]
+[InlineData(HttpStatusCode.OK, "\"x\"")]
+public async Task List_models_body_of_unexpected_json_shape(HttpStatusCode status, string body)
+{
+    var client = Client(_ => new HttpResponseMessage(status) { Content = new StringContent(body, Encoding.UTF8, "application/json") });
+    var ex = await Record.ExceptionAsync(() => client.ListModelsAsync("https://api.example.com/v1", "k", Ct));
+    Assert.True(ex is null or ChatClientException, $"leaked {ex?.GetType().FullName}: {ex?.Message}");
+}
+
+Actual output (condensed; class prefix removed):
+
+Failed Stream_event_of_unexpected_json_shape(data: "{\"error\":\"upstream overloaded\"}")
+   leaked System.InvalidOperationException: The node must be of type 'JsonObject'.
+Failed Stream_event_of_unexpected_json_shape(data: "{\"choices\":{\"delta\":{\"content\":\"a\"}}}")
+   leaked System.InvalidOperationException: The node must be of type 'JsonArray'.
+Failed Stream_event_of_unexpected_json_shape(data: "[1,2]")
+   leaked System.InvalidOperationException: The node must be of type 'JsonObject'.
+Failed Stream_event_of_unexpected_json_shape(data: "{\"choices\":\"none\"}")
+   leaked System.InvalidOperationException: The node must be of type 'JsonArray'.
+Failed Stream_event_of_unexpected_json_shape(data: "{\"choices\":[{\"delta\":\"x\"}]}")
+   leaked System.InvalidOperationException: The node must be of type 'JsonObject'.
+Failed Stream_event_of_unexpected_json_shape(data: "{\"choices\":[\"x\"]}")
+   leaked System.InvalidOperationException: The node must be of type 'JsonObject'.
+Failed Stream_event_of_unexpected_json_shape(data: "42")
+   leaked System.InvalidOperationException: The node must be of type 'JsonObject'.
+Failed Stream_event_of_unexpected_json_shape(data: "\"hello\"")
+   leaked System.InvalidOperationException: The node must be of type 'JsonObject'.
+Failed Http_error_body_of_unexpected_json_shape(status: InternalServerError, body: "\"boom\"")
+   Expected: typeof(Mindweave.Application.Ai.ChatClientException)  Actual: typeof(System.InvalidOperationException)
+Failed Http_error_body_of_unexpected_json_shape(status: InternalServerError, body: "{\"error\":\"boom\"}")
+   Actual: typeof(System.InvalidOperationException)
+Failed Http_error_body_of_unexpected_json_shape(status: TooManyRequests, body: "{\"error\":\"Model is overloaded\"}")
+   Actual: typeof(System.InvalidOperationException)
+Failed Http_error_body_of_unexpected_json_shape(status: InternalServerError, body: "[\"boom\"]")
+   Actual: typeof(System.InvalidOperationException)
+Failed Http_error_body_of_unexpected_json_shape(status: BadRequest, body: "{\"error\":[{\"message\":\"x\"}]}")
+   Actual: typeof(System.InvalidOperationException)
+Failed Http_error_body_of_unexpected_json_shape(status: Unauthorized, body: "{\"error\":\"Invalid API key\"}")
+   Actual: typeof(System.InvalidOperationException)
+Failed List_models_body_of_unexpected_json_shape(status: OK, body: "{\"data\":{\"id\":\"a\"}}")
+   leaked System.InvalidOperationException: The node must be of type 'JsonArray'.
+Failed List_models_body_of_unexpected_json_shape(status: OK, body: "{\"data\":\"none\"}")
+   leaked System.InvalidOperationException: The node must be of type 'JsonArray'.
+Failed List_models_body_of_unexpected_json_shape(status: Unauthorized, body: "{\"error\":\"Invalid API key\"}")
+   leaked System.InvalidOperationException: The node must be of type 'JsonObject'.
+Failed List_models_body_of_unexpected_json_shape(status: OK, body: "\"x\"")
+   leaked System.InvalidOperationException: The node must be of type 'JsonObject'.
+Failed List_models_body_of_unexpected_json_shape(status: OK, body: "{\"data\":[{\"id\":1}]}")
+   leaked System.InvalidOperationException: An element of type 'Number' cannot be converted to a 'System.String'.
+Failed List_models_body_of_unexpected_json_shape(status: OK, body: "[{\"id\":\"a\"}]")
+   leaked System.InvalidOperationException: The node must be of type 'JsonObject'.
+Failed List_models_body_of_unexpected_json_shape(status: OK, body: "{\"data\":[\"a\"]}")
+   leaked System.InvalidOperationException: The node must be of type 'JsonObject'.
+
+Failed!  - Failed: 21, Passed: 1, Skipped: 0, Total: 22, Duration: 37 ms - Mindweave.Infrastructure.Tests.dll (net10.0)
+
+The single pass is the control row {"error":{"message":"x"}}. Results are deterministic (stubbed handler, no timing).
+
+Cleanup: test file deleted, build outputs removed, worktree back on worktree-wf_5c3b45e2-023-123 @ dbc5705 with clean git status. Nothing committed.
 
 </details>
 
@@ -143,11 +234,26 @@ public as … (cut; full text in the workflow journal)
 - `TaskRunners` title, summary and naming have the same catch lists and no generic catch around the request.
 
 **Reachable triggers today.**
-- **Malformed stream event.** `ChatCompletionsClient.Parse` wraps only `JsonNode.Parse` in a `JsonException` catch. `node?["error"]`, `error["message"]` and `node?["choices"]?.AsArray()` throw `InvalidOperationException` when the node is not the expected shape. A 200-status SSE event such as `{"error":"rate limited"}` (error as a string, common on OpenAI-compatible relays), a bare scalar or array, or a non-array `choices` does this. `StreamAsync` rewraps only `ChatClientException`, s … (cut; full text in the workflow journal)
+- **Malformed stream event.** `ChatCompletionsClient.Parse` wraps only `JsonNode.Parse` in a `JsonException` catch. `node?["error"]`, `error["message"]` and `node?["choices"]?.AsArray()` throw `InvalidOperationException` when the node is not the expected shape. A 200-status SSE event such as `{"error":"rate limited"}` (error as a string, common on OpenAI-compatible relays), a bare scalar or array, or a non-array `choices` does this. `StreamAsync` rewraps only `ChatClientException`, so the exception reaches the coordinator's catch-all.
+- **Store failure during compression.** `ContextCompressor.PrepareAsync` calls `summaries.ListAsync` and `summaries.AddAsync` directly, not through `TerminalWrites.SaveAsync`. A disk-full or I/O failure there is not in the runner's catch lists for answers or summaries.
+- **Naming.** `work.Apply(output)` in `RunNamingAsync` is unguarded at the runner level. I did not read all of the delegate's own try block in `SummaryNaming.cs`.
+
+**Consequences hold.**
+- **Stop does nothing.** The answer is in neither the queues nor `_running`, so `StopAsync` falls through; `ConversationService.StopAsync` only delegates to it.
+- **Asking again is refused.** The stored message stays pending/streaming, so `AskAsync` rejects with `AnswerInProgress` via `ConversationRules.HasUnfinishedAnswer(history)`.
+- **Only a restart repairs it.** `RecoverUnfinishedAsync` is the only code that flips these rows, and its only caller is `StartupCoordinator`.
+- **Archive, delete and summary blocking.** I did not open `SqliteArchiveStore` or `SqliteSummaryStore` to check the cited `state IN ('queued','running')` tests. They are consistent with the row states I did verify.
+
+**No mitigation found.** No test injects a non-`ChatClientException` into a runner: `tests/` has no reference to the crash log or to a fake client throwing a generic exception. TRACK.md and `docs/design` do not record this as known or accepted. The CA1031 comment ("logged and its slot freed") shows the catch-all was meant as a safety net; it is incomplete rather than intentionally leaving rows unfinished.
+
+**Severity.** High stands. The trigger is controlled by the provider, and the user-visible result is a conversation that cannot be asked, stopped, archived or deleted until restart. Mitigating factors: nothing is lost (checkpoints stand, restart marks the answer interrupted), it is logged at Error, and it affects one conversation or task rather than the scheduler.
 
 *Corrections to the finding.* - **"The previous finding" is not needed as a trigger.** Concrete triggers exist in the cited code: `ChatCompletionsClient.Parse` lines 244-249 on a non-object event, a string-valued `error`, or a non-array `choices`; and unguarded `summaries.ListAsync` / `AddAsync` in `ContextCompressor.PrepareAsync`. "Tracing" is not a trigger: `RecordAsync` and `RecordCompressedInputAsync` swallow everything, as does `TerminalWrites.SaveAsync`.
 - **Summary and naming already raise `SummaryTaskFinished`.** `RunSummaryAsync` and `RunNamingAsync` do so in a `finally`, even on an unexpected exception. Only the terminal row write is missing there, so that part of the recommendation applies to titles and answers only.
-- **The title consequence is weaker than stated.** `_titleRequested` is also left set on an ordinary `ChatClientException` failure, by design ("never retry automatically"). No automatic title … (cut; full text in the workflow journal)
+- **The title consequence is weaker than stated.** `_titleRequested` is also left set on an ordinary `ChatClientException` failure, by design ("never retry automatically"). No automatic title for the rest of the session is therefore the designed outcome of any title failure. The real defect for titles is only the task row left in `running`.
+- **The app-level busy check for answers is in-memory, not row-based.** `GenerationCoordinator.HasUnfinishedAnswer` and `UnfinishedUserWork` return not-busy after the crash. The blocking comes from the stored rows (`AskAsync` line 250, the store's `AnswerInProgressException`, and the SQL checks cited in the finding, which I did not open).
+- **Line numbers are slightly off.** The catch is at lines 531-535, the log call at 534.
+- **Extra leak not mentioned.** The `LiveAnswer` stays in `_live` in the Streaming state for the rest of the session, which is why the bubble keeps showing streaming.
 
 **Reproduction attempt: confirmed, high.** Reproduced with three focused xUnit tests against the real coordinator, services and SQLite stores (ChatHarness), using a chat client that yields one TextDelta and then throws InvalidOperationException. Code under test is track/claude-auto at commit 1ba95c9, checked out into the isolated worktree.
 
@@ -159,13 +265,18 @@ All three tests assert the correct behaviour and all three fail, so the finding 
 
 Code reading agrees. GenerationCoordinator.RunAsync's catch-all only logs, and its finally only removes the entry from _running. AnswerRunner catches only OperationCanceledException and ChatClientException around the stream, and the checkpointStop cancel and FinishAsync sit after the try with no finally. TaskRunners.RunTitleAsync and RunSummaryAsync have the same typed-catch shape. Only RunTransientAsync has a real catch-all.
 
-Severity stays high. The impact is a conversation locked until restart (ask, stop, archive, summarize), with n … (cut; full text in the workflow journal)
+Severity stays high. The impact is a conversation locked until restart (ask, stop, archive, summarize), with no in-session recovery. What I did not establish is how likely the trigger is in production: the real ChatCompletionsClient catches only HttpRequestException, IOException, JsonException and OperationCanceledException, so other exception types from parsing, tracing (trace.Observe), compression or store calls inside the runner would escape, but I did not reproduce a concrete real-world trigger. The "previous finding" the scenario leans on was not checked here.
+
+Not tested: workspace delete and conversation delete reporting busy (only archive was exercised), naming tasks, and the UI symptoms (bubble, composer). These follow from the same persisted rows but are inferred.
+
+The worktree was restored to clean (git reset --hard, git clean); nothing was committed.
 
 *Corrections to the finding.* - The checkpoint loop does not run forever in the answer case: `using var checkpointStop` disposes the CTS without cancelling it, so the loop keeps polling every CheckpointInterval while the app runs, but it only writes while the live state is Streaming and the revision advances. In practice it is a leaked idle timer loop per crashed answer, not a growing cost. I did not measure the leak directly.
 - "Stop does nothing" is confirmed at the service level (StopAsync leaves message Streaming and task 'running'); the UI symptoms (bubble, composer) are inferred, not tested.
 - Workspace delete and conversation delete reporting busy were not exercised; only ArchiveAsync was, and it does report the conversation busy.
 - Naming tasks were not exercised; the same catch shape is visible in TaskRunners.RunNamingAsync.
-- The trigger's likelihood is unproven: the scenario depends on a non-ChatClientExce … (cut; full text in the workflow journal)
+- The trigger's likelihood is unproven: the scenario depends on a non-ChatClientException escaping a runner, which I simulated with a fake client. The "previous finding" cited as the real trigger was not verified here.
+- Line numbers in the finding match the code at 1ba95c9 to within a few lines.
 
 <details><summary>Reproduction</summary>
 
@@ -197,7 +308,54 @@ var client = new CrashingClient(new FakeChatClient()) { CrashWhen = FakeChatClie
 await using var h = await ChatHarness.StartAsync(client: client);
 var sent = await h.Conversations.StartAsync(h.Workspace, "问", Ct);
 var answer = sent.Answer!.Value;
-await client.Crashed.Task.WaitAsync(TimeSpan.FromS … (cut; full text in the workflow journal)
+await client.Crashed.Task.WaitAsync(TimeSpan.FromSeconds(10), Ct);
+await ChatHarness.UntilAsync(() => h.Generation.UnfinishedCount == 0, 10000);
+await Task.Delay(1500, Ct);
+// log message state, task row, live state
+await h.Conversations.StopAsync(answer);
+var afterStop = await h.GetMessageAsync(answer);
+var again = await h.Conversations.AskAsync(sent.Conversation, "再问", Ct);
+var archive = await h.Conversations.ArchiveAsync(sent.Conversation, Ct);
+Assert.True(afterStop.IsFinished, ...);
+Assert.Null(again.Rejection);
+
+[Fact] // summary: CrashWhen = IsKnowledgeSummary after a settled first answer
+var first = await h.SummaryService.SummarizeAsync(root, Ct);   // accepted
+// wait for crash, UnfinishedCount == 0, then 1.5 s
+var task = await h.SummaryService.LatestTaskAsync(root, Ct);
+client.CrashWhen = _ => false;
+var second = await h.SummaryService.SummarizeAsync(root, Ct);
+Assert.NotEqual(GenerationTaskState.Running, task!.State);
+Assert.True(second.Accepted);
+
+[Fact] // title: CrashWhen = IsTitle; then a second, healthy AskAsync in the same conversation
+Assert.DoesNotContain("running", titleStates);   // group_concat(state) of kind='title' rows
+Assert.Equal(TitleSource.Auto, conversation.TitleSource);
+```
+
+Actual output:
+
+```
+Summary_runner_crash_leaves_the_task_running_and_refuses_another_summary [FAIL]
+  Assert.NotEqual() Failure: Values are equal  Expected: Not Running  Actual: Running
+  Output: summary task state: Running; scheduler unfinished: 0; second SummarizeAsync rejection: SummaryInProgress
+
+Title_runner_crash_leaves_the_task_running_and_no_title_is_asked_for_again [FAIL]
+  Assert.DoesNotContain() Failure: Sub-string found  String: "running"  Found: "running"
+  Output: title task rows: running; title requests sent: 1; title: '' (None)
+
+Answer_runner_crash_leaves_the_answer_streaming_and_the_conversation_blocked [FAIL]
+  Answer is still Streaming with task row 'running' after the runner crashed and Stop was pressed.
+  Output:
+    stored message state: Streaming; task row: running; live state: Streaming; scheduler unfinished: 0
+    after Stop: message Streaming; task row: running
+    AskAsync again: rejection = AnswerInProgress
+    ArchiveAsync: busy = [01a1d1ea-ae36-7979-b293-281c02848cb3] (conversation 01a1d1ea-ae36-7979-b293-281c02848cb3)
+
+Test Run Failed. Total tests: 3  Failed: 3  Total time: 7.16 Seconds
+```
+
+The outcomes are state-based (polled until the scheduler reports 0 unfinished, plus a 1.5 s grace period), not timing-sensitive.
 ```
 
 </details>
@@ -222,7 +380,12 @@ What holds:
 - No dispatcher-level handler exists. A grep of src for FlowExceptionsToTaskScheduler and Dispatcher UnhandledException found nothing. Program.cs only logs from AppDomain.UnhandledException and TaskScheduler.UnobservedTaskException. AppHost.Run is try/finally with no catch.
 - With CommunityToolkit.Mvvm 8.4.2 defaults, a faulted AsyncRelayCommand started via ICommand.Execute rethrows on the UI synchronization context, so the exception ends the UI loop. The finally block still flushes and closes the database, so this is a process exit without data loss.
 - The sibling paths do catch it: ConversationListViewModel.RenameAsync catches StorageWriteException and sets a RowNotice.
-- No test runs the page's CommitRenameCommand. ConversationPolishTests only executes BeginRenameCommand and checks button styling; RowMenuUiTests sets the page's RenameText but commits through the row. … (cut; full text in the workflow journal)
+- No test runs the page's CommitRenameCommand. ConversationPolishTests only executes BeginRenameCommand and checks button styling; RowMenuUiTests sets the page's RenameText but commits through the row.
+- TRACK.md and decisions.md record no decision making this intended. TRACK.md line 95 records a previously fixed crash of the same class (opening a conversation while storage is paused), so this is a missed sibling, not a design choice.
+
+One mitigating detail: a blank title returns before CommitAsync, so only a non-empty rename throws.
+
+Medium is right: an edge state (disk full or storage failure) plus a deliberate user action, ending in an app exit with no data loss, but in exactly the state the design treats as a recoverable pause.
 
 *Corrections to the finding.* The finding's facts about the page rename path are accurate. Three qualifications:
 - The crash is inferred from code plus CommunityToolkit.Mvvm's default AsyncRelayCommand behaviour; it was not reproduced.
@@ -253,13 +416,27 @@ What holds:
 **Drift 2 (closed queue) is real.**
 - `ConversationTitler` checks `IsClosed`, then catches `InvalidOperationException` from `Enqueue`, removes its mark and writes Cancelled.
 - `ScheduleNamingAsync` does `_namingQueued.TryAdd`, `AddTaskAsync`, `_namingTasks[...] =`, then `Enqueue` with no handling. `Enqueue` throws when `_closed`.
-- `ScheduleNamingSafelyAsync` only logs. The `_namingQueued` key is removed only in the Ap … (cut; full text in the workflow journal)
+- `ScheduleNamingSafelyAsync` only logs. The `_namingQueued` key is removed only in the Apply finally or `OnTaskFinished`, and neither runs for work that was never enqueued.
+- `StopForExitAsync` cancels only work already in the in-memory queues, and `Reopen` re-queues nothing, so after a Reopen the row stays `queued` and the group is deduplicated away for the session.
+
+**Drift 3 (duplicate stream loops and constant) is real.**
+- The collect-until-Completed loop appears in `GenerationRequests`, `ContextCompressor` and `ModelSettingsService.TestAsync`.
+- The problem strings differ ("回答流未正常结束。" vs "回答流未正常结束"), and the compressor records the mixed-language `$"Summary unusable: {problem}."`.
+- `SummaryOutputTokens = 16_384` is declared in both `ContextCompressor.cs` and `SummaryService.cs`.
+
+**Why low, not medium.**
+- Drift 1 needs a storage write failure at the exact naming-apply write. Names are best effort, the dedupe key is released by the finally, and the next write through `TerminalWrites` or a service will report to `StorageHealth` anyway. The archive-blocking query only looks at answer and summary kinds, so a stuck naming row does not block archiving.
+- Drift 2 needs an exit to begin inside a window of a few awaits and then be abandoned via Reopen. The consequence is one same-name group left unnamed until restart.
+- The duplication is about 170 lines in one file plus two stream loops: a genuine maintainability concern with demonstrated drift, but small in blast radius.
+
+`TRACK.md` and the design docs contain no decision that makes this divergence intended; the 2026-11-10 refactor note does not address it.
 
 *Corrections to the finding.* - The title's "closed-queue case that summaries and titles guard" is imprecise. Only `ConversationTitler` guards the closed queue. `SummaryService.cs:209` enqueues with no `IsClosed` check and no catch, so summaries share the naming gap (the recommendation implicitly acknowledges this). Summaries guard only the apply/save step.
 - "The app does not pause until some other write fails" is accurate but overstated as harm: under a real storage fault, the next terminal write or service write reports to `StorageHealth` almost immediately.
 - The stuck `running` naming row does not block archiving. It may count toward the credential-in-use query at `SqliteConversationStore.cs:253` until restart; I did not trace that query's callers.
 - In drift 1 the `_namingQueued` key is released by the Apply finally, so only the task row is stuck, not the dedupe key. The finding does not claim otherwise.
-- In d … (cut; full text in the workflow journal)
+- In drift 2 the `_namingTasks` entry is also leaked alongside the `_namingQueued` key; the finding omits this.
+- Severity is better stated as low: both failure scenarios need rare preconditions, affect a best-effort feature, and clear on restart.
 
 ### maintainability-5. The 'async void on purpose' comment in ConversationService is wrong about where exceptions go: on worker threads they terminate the process
 

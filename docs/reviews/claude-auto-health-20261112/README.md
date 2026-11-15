@@ -103,7 +103,7 @@ The 18 high rows are 11 distinct problems: the ten main-round items above plus t
 - **Low and info findings (171 after verification, 101 of them never sent to a verifier) are unverified auditor claims** or findings a verifier lowered. Treat them as leads.
 - **Nothing ran on Windows.** All reproductions are macOS; Windows-specific claims rest on code reading.
 - **No real AI service was called.** Provider-behaviour claims (item 8, default output limits) use simulated responses.
-- **Reproduction tests were deleted** after running; their code is quoted in the findings files, cut where long.
+- **Reproduction tests were deleted** after running; their code is quoted in the findings files. Passages first cut for length were restored in full from the review's run record on 2026-11-15.
 - **Counts include duplicates.** The same defect reported by several auditors is counted once per auditor.
 
 ## Gap round

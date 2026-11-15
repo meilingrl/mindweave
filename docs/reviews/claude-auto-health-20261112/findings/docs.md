@@ -48,7 +48,15 @@ What is true:
 What weakens it:
 - Item 7 is already being implemented in a task worktree. Branch worktree-wf_e0cb2e5e-84d-1 has c75c215 "Recommended questions ... (item 7a, v11)" (20:29) and 3558693 "Recommended nodes ... (item 7b)" (21:24), with uncommitted edits still in progress.
 - AGENTS.md parallel rule 3 says TRACK.md is updated only when a task branch merges back, and the task branch must not edit it. So TRACK lagging while item 7 is in flight is the designed behaviour, not neglect; it will be rewritten at the item 7 merge.
-- AGENTS.md parallel rule 1 requires a new session to check `git worktree list` before writing. That would show the item 7 worktree, so "re-draft the requirements on main" i … (cut; full text in the workflow journal)
+- AGENTS.md parallel rule 1 requires a new session to check `git worktree list` before writing. That would show the item 7 worktree, so "re-draft the requirements on main" is unlikely in practice.
+- A session that did re-draft would open docs/requirements.md and find v0.13 §10.3 immediately. The realistic cost is brief confusion, not conflicting work.
+- §10.3 itself records "用户 2026-11-10 决定", so the user's direction is recorded in the authoritative doc. Explicit confirmation of the v0.13 wording is recorded nowhere I could find; implementation starting an hour after the merge suggests it was given in conversation, but that is inference.
+
+What remains a real defect:
+- The merge commit 1ba95c9 landed on the track branch itself, where the TRACK update rule applies, and it did not touch TRACK.md. For the window between that merge and the item 7 merge, the "single entry point" is wrong about the next step.
+- The "two unpushed commits" statement is stale (three), and it omits that the commits are already public through origin/track/claude-auto. That makes the recorded "do not push main" decision partly moot, which is worth telling the user.
+
+This is a transient documentation lag of under a day with compensating guards, not a high-severity hazard. Low is appropriate; the recommendation (update at the merge, fix the count, record whether v0.13 was confirmed) is still worth doing.
 
 *Corrections to the finding.* - Severity should be low, not high: item 7 is already under implementation in task worktree wf_e0cb2e5e-84d-1 (commits c75c215, 3558693), and AGENTS.md rule 3 defers TRACK.md updates to the merge back.
 - The scenario "a new session re-drafts requirements on main" ignores the mandatory `git worktree list` check (AGENTS.md rule 1) and the fact that §10.3 is visible on opening the file.
@@ -69,7 +77,7 @@ Every factual claim checks out:
 
 Nothing in the repo records whether the user confirmed v0.13. The merge into the track hints at it but is not a record.
 
-I lowered severity from high to medium. The staleness is about three hours and one merge old, with no product code a … (cut; full text in the workflow journal)
+I lowered severity from high to medium. The staleness is about three hours and one merge old, with no product code affected. A new session's first required step (git log, or looking at main before drafting) would show the v0.13 commit immediately, so duplicate drafting is unlikely. The realistic harm is narrower: the confirmation status of v0.13 is unknown, so a session may either wait needlessly or implement item 7 against an unconfirmed draft, and the push statement is wrong about what is already on the remote. That matters because TRACK.md is declared the single progress entry point, but it is a cheap fix.
 
 *Corrections to the finding.* The facts in the finding are accurate; two points are overstated or need context.
 
@@ -107,13 +115,21 @@ What is overstated:
 - Each long bullet leads with the current fact. Line 21 opens with item 6 merged, line 23 with 892 passed / v10 / 55 scenes, line 31 with the item 7 next step and the current asks. A reader who stops at the first sentence gets the right state.
 - The v8 statements are dated history, not contradictions. Line 22 is a 2026-11-01 entry ("did not change migrations, still v8"); line 23's '迁移到 v8' closes the S5-era clause.
 - Line 86 sits under a bullet marked resolved 2026-11-04, and line 31's "optional items remaining" follows a '此前下一步' marker. Both are stale but flagged as past.
-- '当前没有阻塞项' is literally true: the asks in line 31 a … (cut; full text in the workflow journal)
+- '当前没有阻塞项' is literally true: the asks in line 31 are non-blocking. Windows testing is deferred by the user's 2026-11-05 decision, so the stale `app-fix` row is explicitly optional.
+- Of the three asks cited in (e), the macOS restore trial sits behind '此前下一步', so it is a prior ask, not clearly open.
+
+One extra staleness the auditor missed: HEAD 1ba95c9 merged requirements v0.13 (recommended questions/nodes) at 19:22 on 2026-11-12, after TRACK.md was last touched (1e6da26, 16:13). Line 31's next step still says to draft that requirements update on main first.
+
+Impact is limited to documentation hygiene: no code or data risk, and the worst outcome is a misread scene count or a missed non-blocking ask. The recommendation (current facts only, history moved to docs/design/stage-reports.md, asks in the table) is sound.
+
+Not verified: that the code has exactly 55 gallery scenes. GalleryTests.cs has 88 `Capture(` calls and I did not run the tests (read-only rule).
 
 *Corrections to the finding.* - (b) is not a contradiction. Both v8 statements are dated history: line 22 is the 2026-11-01 A1-A6 entry, and line 23's "迁移到 v8" closes the S5-era clause. The current fact (v10) leads line 23.
 - (c) is weaker than stated. Line 86 is inside a bullet marked resolved 2026-11-04, and line 31's "可选项还剩" follows a "此前下一步" marker. They are stale leftovers, not statements presented as current.
 - (e) is overstated. "当前没有阻塞项" is literally true because the asks are non-blocking, and the macOS restore trial is behind "此前下一步". The valid point is narrower: the open non-blocking asks are missing from the 需要你 table, whose only row is the outdated `app-fix` trial.
 - "The code has 55" gallery scenes was not confirmed; only TRACK.md's own 55-vs-39 inconsistency was.
-- The failure scenario is overstated: each bullet opens with the current fact, so a reader has to go deep into the "此前" tail to pick up a supe … (cut; full text in the workflow journal)
+- The failure scenario is overstated: each bullet opens with the current fact, so a reader has to go deep into the "此前" tail to pick up a superseded one. The gallery scene count is the one stale value with no date beside it.
+- Missed by the auditor: line 31's next step (draft the requirements update on main first) is itself stale, since v0.13 is already merged at HEAD 1ba95c9.
 
 ### docs-3. Windows acceptance checklist expects the pre-v0.12 behaviour (refuse deleting a conversation with branches or summaries), yet TRACK still offers it for acceptance
 
@@ -139,7 +155,9 @@ Why the severity is overstated:
 - The stale path is hedged in the checklist itself ("发布后的路径以阶段报告为准"), and TRACK names the current build (`app-fix`).
 - Row 23's "升级 v8" is stale wording at most; a pre-migration backup is still the expected result.
 - The "agent fixes the product back" scenario is speculative: AGENTS.md makes requirements.md authoritative, and the code comments cite v0.12.
-- The checklist was scoped as "one row per §11 scenario … (cut; full text in the workflow journal)
+- The checklist was scoped as "one row per §11 scenario", so the missing rows are staleness against the updated §11, not a broken promise.
+
+The realistic impact is a confusing or false "不通过" on one row during an optional walkthrough, plus missing manual rows for post-S6 features. That is a documentation-staleness issue with a cheap fix.
 
 *Corrections to the finding.* - Severity should be low, not medium: the link is optional and non-blocking, Windows testing is deferred, and the user already accepted the new delete flow on a real Windows build (`app-del`, 2026-11-05).
 - The stale `app-s6` path is hedged by the checklist's own caveat, and TRACK gives the current path.
@@ -169,11 +187,22 @@ What holds:
 - The comment at SummaryExportService.cs:119 ("a conversation with a summary cannot be deleted") is stale. It is comment-only: the code below it handles a missing conversation via FirstOrDefault.
 
 What is overstated:
-1. "There is no current schema reference for 10 migrations" is wrong as a defect claim. data-model.md:3 says by design that it fixes only identities and boundaries and that concrete fields land with each stage's migration. Each … (cut; full text in the workflow journal)
+1. "There is no current schema reference for 10 migrations" is wrong as a defect claim. data-model.md:3 says by design that it fixes only identities and boundaries and that concrete fields land with each stage's migration. Each migration is documented in its stage doc: s2-branching (v4), s3-context (v5), s4-summaries (v6), s6-wrapup.md:61 and :114 (v8), stage-reports.md:78 (v10). A single per-migration index is missing, which is a convenience gap.
+2. The as-built deletion contract is documented in the same directory. docs/design/s7-ui-polish.md:364-370 ("实现记录（多选与连带删除）") gives the scope, the single-transaction recheck, the ordered table list, the backup-first rule and the tests. decisions.md D-024 covers workspace deletion. TRACK.md:21 points to both. A contributor is not left with only the stale doc; the problem is two documents that disagree, and README does not route delete rules to s7-ui-polish.md.
+3. The failure scenario is caught by existing guards:
+   - Both delete paths carry in-code comments stating the dependency order and the RESTRICT/CASCADE rationale (SqliteArchiveStore.cs around lines 118-126, SqliteWorkspaceStore.cs:104-109).
+   - ArchiveFlowTests.cs:446 and WorkspaceDeleteFlowTests.cs:362 enumerate every table and every TEXT column via pragma_table_info after a delete and assert that no in-scope ID remains and that foreign_key_check is clean. If a fixture populates a new v0.13 table, a RESTRICT omission fails the test at delete time and a missed non-FK reference fails the residue scan. That coverage depends on the fixture populating the new table; a new table left empty in the fixture would not be caught.
+   - The CASCADE variant (rows silently removed that the dialog never counted) is a UI-count concern that these tests would not catch. However, requirements v0.13 §8.2 (line 347) already says links are deleted with the node and that the confirmation states the count, so the contract is in the authoritative doc.
+
+This leaves a documentation-drift item: one stale design doc that contradicts current behaviour and requirements v0.12, plus one stale code comment. No runtime impact. The recommendation is still reasonable: rewrite or redirect the 删除边界 and 事务边界 sections to s7-ui-polish.md and D-024, and fix the comment.
+
+Not verified: I did not run any tests; the test coverage statements come from reading the test sources and the stage docs.
 
 *Corrections to the finding.* - "No current schema reference for 10 migrations" is overstated. Each migration is documented in its stage doc (s2-branching, s3-context, s4-summaries, s6-wrapup, stage-reports for v9/v10), and data-model.md:3 explicitly declines to be a schema reference. Only a consolidated index is missing.
 - The finding omits that the as-built cascade-delete contract (scope, in-transaction recheck, ordered table list, backup first) is already written in docs/design/s7-ui-polish.md:364-370 and decisions.md D-024, and is linked from TRACK.md. The defect is a stale, contradicting data-model.md and a README that does not route to the current text.
-- The runtime failure scenario is mostly caught. A RESTRICT omission fails ArchiveFlowTests and WorkspaceDeleteFlowTests (all-table TEXT-column residue scan plus foreign_key_check), provided the fixture populates the new table. Both delete paths also carry in-co … (cut; full text in the workflow journal)
+- The runtime failure scenario is mostly caught. A RESTRICT omission fails ArchiveFlowTests and WorkspaceDeleteFlowTests (all-table TEXT-column residue scan plus foreign_key_check), provided the fixture populates the new table. Both delete paths also carry in-code ordering comments. The CASCADE "uncounted rows" variant is not covered by those tests, but requirements v0.13 §8.2 already states the count rule.
+- The SummaryExportService.cs:119 item is a stale comment only; behaviour is correct.
+- Severity should be low (documentation drift), not medium.
 
 ### docs-5. Decision record and S5 design state superseded values as current; decisions.md stops at D-024 (2026-11-03)
 
@@ -197,14 +226,20 @@ What holds:
 
 Why the severity is overstated:
 1. decisions.md is a dated, append-only log. Each entry carries its date, and a dated decision that was later changed is normal for this format. The real defect is the missing forward pointers, not false statements.
-2. The post-S7 choices are documented, just elsewhere: s3-context.md:17 (calibration, migration v9), s7-ui-polish.md (layout constants, math-3, deletion, name suggestions), stage-reports.md (dated sections through 2026-11-05 and later), and TRACK.md. "Silent on the last nine days" is true of decisions.md only, not of the documentatio … (cut; full text in the workflow journal)
+2. The post-S7 choices are documented, just elsewhere: s3-context.md:17 (calibration, migration v9), s7-ui-polish.md (layout constants, math-3, deletion, name suggestions), stage-reports.md (dated sections through 2026-11-05 and later), and TRACK.md. "Silent on the last nine days" is true of decisions.md only, not of the documentation set.
+3. The code is self-documenting at the point of use: NetworkLayout.cs:19–23 comments say "S7 round-1 fix: 170 → 100" and "160 → 72"; SourceAnchors.cs:71–76 lists math-2 as a compatible profile. Someone tuning layout or writing a test references the public constants and gallery baselines, so the "wrong coordinates" scenario would be caught immediately.
+4. The D-024 scenario is mitigated because D-024 itself points to TRACK "待决定", where the item is marked resolved.
+5. No runtime, data or user impact; the audience is a single-developer track with agents that read TRACK.md first.
+
+The s5-network.md parameter table is the most misleading item: it is an undated "current parameters" table in a design doc, not a dated log entry, and it is simply wrong today. The recommendation (one-line "superseded by" notes, D-025+ or an explicit statement that later choices live in stage-reports / s7-ui-polish) is sound and cheap.
 
 *Corrections to the finding.* - Severity is low, not medium: this is drift in a dated log plus one stale parameter table, with no behavioural impact, and the current values are documented in s7-ui-polish.md, s3-context.md, stage-reports.md, TRACK.md and code comments.
 - "The change is recorded only in s7-ui-polish.md:83" is overstated: NetworkLayout.cs:19–23 also records the old → new values in comments.
 - "The decision log is silent on the last nine days" is true of decisions.md only; the same choices are recorded in stage-reports.md, s7-ui-polish.md, s3-context.md and TRACK.md.
 - D-024's stale statement is partly mitigated by its own pointer to TRACK "待决定", where the deviation is marked resolved (TRACK.md:86).
 - D-014 correctly says math-1 for its date; only D-016 ends at math-2. Citing D-014 as claiming math-2 is inaccurate.
-- The layout-test scenario is unlikely in practice: a test author would reference the publ … (cut; full text in the workflow journal)
+- The layout-test scenario is unlikely in practice: a test author would reference the public constants (NetworkLayout.LevelSpacing, NetworkLayout.GroupGap, NetworkSession.FitMargin) and gallery baselines, and a mismatch would fail immediately.
+- The auditor's list of post-2026-11-03 features lacking D-entries (thinking state, notifications, name requests, statistics semantics) was not checked item by item; I confirmed only that no D-025+ exists and that TRACK and stage-reports cover those items.
 
 ### docs-6. Design for backup restore, migration v10 and statistics is buried in a 248 KB 'UI polish' file; the design index omits half the directory and nothing links to run-guide.md
 
@@ -227,13 +262,18 @@ What holds:
 - No design document enumerates migrations v1-v10; they are scattered across s1 (v2), evolution-seams (v3), s2 (v4), s3 (v5, v9), s4 (v6), s5 (v7), s6-wrapup (v8) and s7-ui-polish / stage-reports (v10).
 
 What is overstated:
-- "Never finds the as-built design" is not accurate. AGENTS.md sends contributors to TRACK.md first, and TRACK.md:26 links stage-reports.md. That file has purpose-named "##" headings per feature, e.g. line 37 "第 5 项：从备份恢复与备份清理" and line 5 "第 6 项：统计页", and each links on to s7-ui-polish.md naming the dated section (stage-reports.md:39). TRACK.md links s7-ui-polish.md four times, plus s6-wrapup.md and s6-windows-checklist. … (cut; full text in the workflow journal)
+- "Never finds the as-built design" is not accurate. AGENTS.md sends contributors to TRACK.md first, and TRACK.md:26 links stage-reports.md. That file has purpose-named "##" headings per feature, e.g. line 37 "第 5 项：从备份恢复与备份清理" and line 5 "第 6 项：统计页", and each links on to s7-ui-polish.md naming the dated section (stage-reports.md:39). TRACK.md links s7-ui-polish.md four times, plus s6-wrapup.md and s6-windows-checklist.md.
+- So stage-reports.md already acts as a de facto feature index. The omitted files are reachable from TRACK.md; only run-guide.md is truly orphaned.
+- Line 610 is not the only description of migration v10: stage-reports.md:78 and :87 also describe it and its test coverage.
+- The README says the directory records implementer design choices for this track; the progress entry point by project convention is TRACK.md, not this index.
+
+Net: a real documentation-organisation debt (stale index, mis-named 248 KB catch-all file, orphaned run guide, no migration map) with discoverability friction, but no missing content and a working two-hop path. That is low, not medium.
 
 *Corrections to the finding.* - The claim that a contributor "never finds" the restore design is wrong: TRACK.md:26 -> stage-reports.md:37 (a "##" heading named for backup restore) -> s7-ui-polish.md is a working two-hop path.
 - "Half the directory is unreachable" should read: the design README index is stale, but TRACK.md links stage-reports.md, s6-wrapup.md, s6-windows-checklist.md and s7-ui-polish.md. Only run-guide.md is orphaned; s7-prototype-visual-language.md was not checked for inbound links.
 - s7-ui-polish.md:610 is not the only description of migration v10; stage-reports.md:78 and :87 also cover it.
 - Severity should be low: this is discoverability and naming debt, not missing or wrong documentation.
-- The recommendation still stands in reduced form: add the six missing rows to docs/design/README.md, link run-guide.md from TRACK.md or the root README, and promote the post-S7 sections to "##" or split them o … (cut; full text in the workflow journal)
+- The recommendation still stands in reduced form: add the six missing rows to docs/design/README.md, link run-guide.md from TRACK.md or the root README, and promote the post-S7 sections to "##" or split them out.
 
 ### docs-7. run-guide.md is stale and incomplete as the track's only how-to-run document
 
@@ -270,7 +310,11 @@ Why the severity is overstated:
 - Line 114 is a one-sentence scope summary that ends with "具体行为见后文", deferring to the later sections. A reader scoping v1 is sent to §8.2.
 - Every normative location is consistent with cascade delete: §8.2, §6.1 line 130, §9.5 line 274, acceptance rows at lines 386-388, and architecture.md line 169. One leftover phrase against five consistent places makes a track implementing "dependency-free delete only" unlikely.
 - The README status is explicitly date-stamped "当前状态 · 2026-10-25", and its next paragraph (line 7) says both tracks are developing from baseline-v0.11 and points to each TRACK.md. A reader is not really led to believe no development exists.
-- "正式开发 … (cut; full text in the workflow journal)
+- "正式开发尚未开始" is partly defensible for main, which by AGENTS.md holds no product code. It is still misleading in a v0.13 header.
+- evolution.md line 156 is a dated decision record ("2026-10-26 用户决定…v0.11"), which is historically accurate. Only line 7 ("仍以需求 v0.11…为准") is truly stale.
+- There is no code or runtime impact: this track already implements the v0.12 cascade delete (TRACK.md line 21).
+
+The recommendation stands: record both items in TRACK.md "待决定" for the user to fix on main, and do not edit them on this branch.
 
 *Corrections to the finding.* - Severity should be low, not medium. The §5.2 phrase is a leftover summary that defers to later sections, and all normative sections, the acceptance table and architecture.md agree on cascade delete, so the "tracks diverge on a destructive feature" scenario is improbable.
 - The README status is an explicitly dated snapshot (2026-10-25) and the next paragraph points to the active tracks. The claim that a reader concludes there is no product code is overstated.
@@ -294,13 +338,31 @@ The finding is overstated in four ways, which is why I lower it to low.
 
 1. These are not silent drift. Every listed feature was requested or designed by the user and accepted on a recorded date. TRACK.md:71 says the user accepted all eight items on 2026-11-10 and that only items 7 and 8 need a `main` requirements update first. Requirements v0.13 §10.3 was then written on `main` and merged (commits 1086f87, 1ba95c9). The split between 'needs requirements' and '不改需求' therefore reflects a decision already put to the user. It also matches requirements.md:421 ('新增范围、费用行为或明显改变使用方式时再讨论'): they were discussed. AGENTS.md only requires recording in TRACK.md and letting the user decide on `main`; that route was followed.
 
-2. 'No consolidated list' is wrong. TRACK.md:71-79 is a numbered list of the post-v1 additions with merge dates. docs/design/stage-reports.md has one section per feature (lines 5, 37, 67, 97, 127, 160, 192, 222), each with how to try it, what was built, a verification table and what is unverified. decisions.md D-022/D-023/D-024 cover the theme, node dragging and workspace deletion. What is actually missing is narrower … (cut; full text in the workflow journal)
+2. 'No consolidated list' is wrong. TRACK.md:71-79 is a numbered list of the post-v1 additions with merge dates. docs/design/stage-reports.md has one section per feature (lines 5, 37, 67, 97, 127, 160, 192, 222), each with how to try it, what was built, a verification table and what is unverified. decisions.md D-022/D-023/D-024 cover the theme, node dragging and workspace deletion. What is actually missing is narrower: decisions.md stops at D-024, so items 1-6 have no D-entry, and there is no per-feature 'promote / keep track-only / remove' status.
+
+3. The two example 'untestable' questions are already handled.
+   - Whether deleted conversations' usage should disappear is an open item in TRACK.md:80 (a), left for the user, with the current behaviour stated on the statistics page.
+   - The default-on background name preparation was specified by the user ('自动准备默认开启', stage-reports.md:69). It has a settings switch, uses the lowest 'idle' priority within the two-request cap, does not run at startup, and its requests are recorded (migration v10) and counted in statistics (stage-reports.md:71-76). Requirements §10.3 common rules (lines 316-317) set the same pattern for the analogous recommendation feature, though they do not literally cover workspace names.
+
+4. In-app restore is not unspecified. requirements.md:266 says '恢复备份由用户明确选择，不自动覆盖原库、不用空库冒充恢复成功', and line 244 separates database backup/restore from project import. The restore entry and backup cleanup were raised as open options in TRACK.md:87 before being built. Only backup deletion and the whole-database-restore UI specifics lack requirement text.
+
+Also, 'only the workspace-delete deviation went through the route' misreads the rule: that was a contradiction with the requirements, whereas items 1-6 are additions that contradict nothing, apart from the stale line 293.
+
+Residual valid points, all documentation hygiene rather than product risk:
+- `main` requirements and §11 have no rules or acceptance scenarios for statistics, notifications and sound, the context menu, the theme, backup deletion or workspace-name suggestions, so a steady-track parity effort would have to assemble the list from TRACK.md, stage-reports.md and decisions.md.
+- requirements.md:293 is stale relative to D-023 on this track.
+- Items 5 and 6 carry no explicit '不改需求' note, and items 1-6 have no decisions.md entry.
+
+A short register or D-entries would be a reasonable improvement. This track is explicitly not the course submission (TRACK.md:3), which further limits impact.
 
 *Corrections to the finding.* - 'No consolidated list' is wrong: TRACK.md:71-79 lists the additions with dates, and stage-reports.md has a section per feature with verification evidence. The real gap is that there is no per-feature promote/keep/remove status and no decisions.md entry after D-024.
 - 'Each was added as 不改需求' applies to items 1-4 only, and that classification was part of a list the user accepted on 2026-11-10. Items 5-6 simply carry no note.
 - The deleted-usage question is already an open user decision at TRACK.md:80, not an unnoticed gap.
 - Default-on background name requests were specified by the user and ship with a settings switch, idle priority, no run at startup, and request recording; they are not an undisclosed cost behaviour. Whether the settings text states the cost was not checked.
-- Restore is partially covered by requirements.md:266 (user-chosen, never auto-overwrite). Only backup deletion … (cut; full text in the workflow journal)
+- Restore is partially covered by requirements.md:266 (user-chosen, never auto-overwrite). Only backup deletion and the in-app UI specifics are unspecified.
+- 'Only the workspace-delete deviation went through the route' conflates a contradiction with the requirements (which needed a `main` correction) with additive features (which contradict nothing except the stale line 293).
+- The architecture count for '外观' is 1, not 0, though the hit is unrelated to theming.
+- Severity should be low: documentation hygiene on a track that is not the course submission, with no behavioural defect.
 
 ### docs-10. Open defects and operational knowledge have no register: unfixed issues live only as tail sentences of dated findings, and the Windows tester's instructions are not in the repo
 

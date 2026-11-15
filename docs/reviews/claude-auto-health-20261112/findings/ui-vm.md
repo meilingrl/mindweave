@@ -56,7 +56,20 @@ All findings come from reading the code; nothing was executed. The baseline Desk
 - CommunityToolkit.Mvvm is pinned at 8.4.2; the DLL contains `AsyncRelayCommand.AwaitAndThrowIfFailed`, the async-void rethrow used when `FlowExceptionsToTaskScheduler` is not set.
 - Grep of `src` finds no `FlowExceptionsToTaskScheduler`, no `AsyncRelayCommandOptions`, and no `Dispatcher.UIThread.UnhandledException` handler.
 - `Program.cs` only logs `AppDomain.UnhandledException` and `UnobservedTaskException`; neither prevents termination.
-- `AppHost.Run`'s finally closes the database "also when the l … (cut; full text in the workflow journal)
+- `AppHost.Run`'s finally closes the database "also when the loop throws", so the data-safe claim holds.
+- The project's docs already treat this mechanism as real: `s6-wrapup.md:173` notes an exception from a send command becomes an unhandled UI exception, and `s6-wrapup.md:108` records a fix so that no exception leaves the export button onto the UI thread.
+
+**Model settings instance**
+- `ModelSettingsViewModel.RunAsync` catches only `ModelSettingsException`, `ChatClientException` and `CredentialUnavailableException`.
+- `ModelSettingsService` has no `ThrowIfBlocked` and no storage catch, and `SaveActiveAsync` goes straight to `database.WriteAsync`.
+- This one is conditional, not deterministic: it crashes only if the write itself fails at that moment.
+
+**No mitigating evidence found**
+- Nothing in TRACK.md or the design docs records this as known or accepted.
+- No test runs the page rename or model-settings save under blocked storage; `RowMenuUiTests.cs:153` covers the page rename on the success path only.
+
+**Severity**
+High stands, narrowly. The trigger is uncommon (storage must be paused) and no stored data is lost. But the crash is deterministic in a degraded state the design says must stay usable, the notice invites the user to keep working, and the absence of any dispatcher-level safety net makes every uncaught async-command exception fatal. If the two instances are judged alone, medium is defensible.
 
 *Corrections to the finding.* - The model-settings instance is conditional, not deterministic. `ModelSettingsService` never calls `ThrowIfBlocked`, so Save crashes only if the write itself fails at that moment; the write queue normally surfaces that as `StorageWriteException` (per s6-wrapup.md:173).
 - The file is at src/Mindweave.Desktop/ViewModels/Pages/ModelSettingsViewModel.cs; the finding gave no path.
@@ -69,7 +82,7 @@ Production has no such handler. Program.cs:36-37 hooks only AppDomain.UnhandledE
 
 The path is deterministic, not timing-dependent: ThrowIfBlocked is the first statement of CommitAsync. The sidebar's equivalent (ConversationListViewModel.RenameAsync, lines 375-385) catches StorageWriteException, which confirms the page path is an oversight. High stands: a documented degraded state that is meant to stay readable turns an ordinary toolbar action into an abrupt exit, though without data loss.
 
-The second instance (ModelSettingsViewModel) was checked by code reading only. RunAsync catches just ModelS … (cut; full text in the workflow journal)
+The second instance (ModelSettingsViewModel) was checked by code reading only. RunAsync catches just ModelSettingsException, ChatClientException and CredentialUnavailableException, and SaveAsync goes through it to store.SaveActiveAsync. I found no ThrowIfBlocked on that path, so it needs a real write failure rather than merely the paused state; it is plausible but less deterministic than the rename.
 
 *Corrections to the finding.* - ConversationListViewModel is at src/Mindweave.Desktop/ViewModels/Conversations/ConversationListViewModel.cs (the line numbers 375-385 are right).
 - The ModelSettings instance is overstated as "the same happens": that save path has no ThrowIfBlocked that I found, so it needs an actual failing database write, not just the paused state. It was verified by reading only.
@@ -104,7 +117,35 @@ public async Task Page_rename_while_storage_is_paused_faults_the_command()
     Dispatcher.UIThread.UnhandledException += OnUnhandled;
     Exception? escaped = null;
     try
-    { … (cut; full text in the workflow journal)
+    {
+        UiInput.Click(window, save);
+        for (var i = 0; i < 40 && unhandled.Count == 0; i++) { Dispatcher.UIThread.RunJobs(); await Task.Delay(25); }
+    }
+    catch (Exception ex) { escaped = ex; }
+    finally { Dispatcher.UIThread.UnhandledException -= OnUnhandled; }
+    Assert.Null(escaped);
+    Assert.Empty(unhandled); // fails if the finding is real
+    window.Close();
+}
+
+Command: dotnet test tests/Mindweave.Desktop.Tests --filter "FullyQualifiedName~ReproRenamePausedTests"
+
+Output (trimmed to the relevant part):
+Mindweave.Desktop.Tests.ReproRenamePausedTests.Page_rename_while_storage_is_paused_faults_the_command [FAIL]
+  Assert.Empty() Failure: Collection was not empty
+  Collection: [Mindweave.Application.Storage.StorageWriteException: Storage is paused after a failed write; nothing was stored.
+     at Mindweave.Application.Storage.StorageHealth.ThrowIfBlocked() in .../StorageHealth.cs:line 128
+     at Mindweave.Application.Conversations.ConversationService.CommitAsync[T](Func`1 commit) in .../ConversationService.cs:line 519
+     at Mindweave.Application.Conversations.ConversationService.RenameAsync(...) in .../ConversationService.cs:line 504
+     at Mindweave.Desktop.ViewModels.Conversations.ConversationViewModel.CommitRenameAsync() in .../ConversationViewModel.cs:line 299
+     at CommunityToolkit.Mvvm.Input.AsyncRelayCommand.AwaitAndThrowIfFailed(Task executionTask) in /_/src/CommunityToolkit.Mvvm/Input/AsyncRelayCommand.cs:line 351
+     at System.Threading.Tasks.Task.<>c.<ThrowAsync>b__124_0(Object state)
+     at Avalonia.Threading.SendOrPostCallbackDispatcherOperation.InvokeCore()]
+Test Run Failed. Total tests: 1, Failed: 1, Total time: 2.4631 Seconds
+
+The failure is the Assert.Empty on the dispatcher's unhandled exceptions, i.e. the finding's behaviour. The ModelSettingsViewModel instance was not put under test.
+
+Cleanup: test file deleted, worktree switched back to branch worktree-wf_5c3b45e2-023-129 and build output removed; git status is clean, nothing committed.
 
 </details>
 
@@ -133,7 +174,13 @@ public async Task Page_rename_while_storage_is_paused_faults_the_command()
 - `docs/design/s2-branching.md` lines 49 and 66 only say the draft is keyed by (conversation, slot) and updated as the user types; duplicate pages are not addressed.
 - I found no test for A → B → A → Back → Back by grep; I did not open `NavigationTests.cs` or `DraftLossTests.cs`.
 
-**A more common trigger … (cut; full text in the workflow journal)
+**A more common trigger than the one cited**
+`Navigate`'s doc comment says `ReturnToSource` "always opens a new page". So parent → branch → return to source yields [Home, Parent, Child, Parent(SourceOf)] through a core designed flow, with no sidebar clicks needed.
+
+**Why medium rather than high**
+- The stored draft is not lost by navigation alone. It is overwritten only if the user then types in the stale page; otherwise it comes back on restart or when a fresh page for that conversation is created.
+- The duplicate send needs the user to press Enter on a page whose message list should already show the sent question (inferred from the page's `ConversationChanged` subscription; I did not read the handler).
+- It is still a real defect: the project classes message drafts as core content (TRACK.md line 112), and the only user-visible sign is a stale composer.
 
 *Corrections to the finding.* - The stored draft is not lost by Back alone. It is overwritten only when the user types in the stale page; until then it survives in `ReadingStateService` and the database and reappears on restart or on a freshly created page.
 - Clicking A in the sidebar while the stale A page is on top does not help: `PushCore` skips the push because the route matches.
@@ -151,7 +198,9 @@ Scenario 2 (duplicate send): with a draft loaded by both A1 and A2, sending from
 
 Severity stays high: silent loss of user-typed content, which requirements §9.3 / architecture §12.1 treat as core content, plus a duplicate send, reached by ordinary sidebar navigation and the Back button. It is not critical because it needs the specific A -> B -> A -> Back -> Back path, and in scenario 2 the stale text is visible before the user presses Enter.
 
-TRACK.md does not list t … (cut; full text in the workflow journal)
+TRACK.md does not list this. Its 2026-11-01 finding (H1/H2) fixed the same root cause for summary edit drafts by moving the newest input into SummaryDrafts, but message drafts in ConversationViewModel did not get the equivalent treatment.
+
+Method notes: the tests drive Workbench.Navigate(new NavigationRequest(MainSection.Explore, new ConversationRoute(id))), which is exactly what ConversationListViewModel.Open calls, rather than clicking the sidebar row; Back is Workbench.GoBack(). The isolated worktree was based on main (no src/), so I temporarily detached HEAD to track/claude-auto to build, then restored the original branch. Nothing was committed, the test file was deleted, and the worktree is clean.
 
 *Corrections to the finding.* No substantive errors; line references and mechanism match the code.
 
@@ -191,7 +240,83 @@ public class ReproDuplicateDraftTests
         Assert.Equal(existing.Id, again.Id);
         await again.Loaded;
         return again;
-    } … (cut; full text in the workflow journal)
+    }
+
+    [AvaloniaFact]
+    public async Task Back_to_an_older_page_of_the_same_conversation_shows_the_current_draft()
+    {
+        await using var app = DesktopHarness.Create();
+        app.ShowWindow(1100, 720);
+        var (a1, b) = await OpenAThenBAsync(app);
+        var a2 = await OpenAsync(app, a1);
+        var reading = app.Services.GetRequiredService<IReadingState>();
+
+        a2.Composer.Text = "一个很长的还没发出去的问题";
+        Assert.Equal("一个很长的还没发出去的问题", await reading.GetDraftAsync(a1.Id, ViewerSlotKey.Primary, CancellationToken.None));
+
+        app.Workbench.GoBack();
+        Assert.Same(b, app.Workbench.CurrentPage);
+        app.Workbench.GoBack();
+        Assert.Same(a1, app.Workbench.CurrentPage);
+        Assert.False(a1.IsDisposed);
+
+        var shown = a1.Composer.Text;
+        a1.Composer.Text = shown + "x"; // one keystroke in the page that came back
+        var stored = await reading.GetDraftAsync(a1.Id, ViewerSlotKey.Primary, CancellationToken.None);
+
+        Assert.True(
+            shown == "一个很长的还没发出去的问题" && stored == "一个很长的还没发出去的问题x",
+            $"REPRO: composer after Back = '{shown}', stored draft after one keystroke = '{stored}'");
+    }
+
+    [AvaloniaFact]
+    public async Task Back_to_an_older_page_does_not_offer_an_already_sent_question_again()
+    {
+        await using var app = DesktopHarness.Create();
+        app.ShowWindow(1100, 720);
+        var (a1, b) = await OpenAThenBAsync(app);
+        app.Workbench.GoBack();
+        Assert.Same(a1, app.Workbench.CurrentPage);
+        a1.Composer.Text = "只该发一次的问题";
+        await OpenAsync(app, b);
+        var a2 = await OpenAsync(app, a1);
+        Assert.Equal("只该发一次的问题", a2.Composer.Text);
+
+        await a2.Composer.SendCommand.ExecuteAsync(null);
+        Assert.Equal(string.Empty, a2.Composer.Text);
+        await UiWait.UntilAsync(() => a2.Messages.Count == 4 && a2.Messages[3].CanBranch);
+
+        app.Workbench.GoBack();
+        app.Workbench.GoBack();
+        Assert.Same(a1, app.Workbench.CurrentPage);
+        await UiWait.UntilAsync(() => a1.Messages.Count == 4 && a1.Messages[3].CanBranch);
+
+        var shown = a1.Composer.Text;
+        var canSend = a1.Composer.SendCommand.CanExecute(null);
+        if (canSend)
+        {
+            await a1.Composer.SendCommand.ExecuteAsync(null);
+            await UiWait.UntilAsync(() => a1.Messages.Count >= 6);
+        }
+
+        Assert.True(
+            shown.Length == 0 && !canSend,
+            $"REPRO: composer after Back = '{shown}', CanSend = {canSend}, messages now = {a1.Messages.Count} (4 expected)");
+    }
+}
+```
+
+Actual output:
+```
+Failed Mindweave.Desktop.Tests.ReproDuplicateDraftTests.Back_to_an_older_page_of_the_same_conversation_shows_the_current_draft [1 s]
+  Error Message:
+   REPRO: composer after Back = '', stored draft after one keystroke = 'x'
+Failed Mindweave.Desktop.Tests.ReproDuplicateDraftTests.Back_to_an_older_page_does_not_offer_an_already_sent_question_again [539 ms]
+  Error Message:
+   REPRO: composer after Back = '只该发一次的问题', CanSend = True, messages now = 6 (4 expected)
+
+Failed!  - Failed:     2, Passed:     0, Skipped:     0, Total:     2, Duration: 1 s - Mindweave.Desktop.Tests.dll (net10.0)
+```
 ```
 
 </details>
@@ -218,13 +343,22 @@ public class ReproDuplicateDraftTests
 - `SwitchWorkspace` restores the section the workspace was left on, so returning to A shows the same stale instance.
 
 **Consequences verified**
-- **Model revert:** A's form still holds model-1 after B saved model-2. Save in A sends the form's Name, BaseUrl, Model and ContextWindow, so the active model goes back to model-1. Because `existing.Model != model` … (cut; full text in the workflow journal)
+- **Model revert:** A's form still holds model-1 after B saved model-2. Save in A sends the form's Name, BaseUrl, Model and ContextWindow, so the active model goes back to model-1. Because `existing.Model != model`, the service also resets declared capabilities to protocol defaults.
+- **Missing key after a host change:** A's `_saved.BaseUrl` is still the old host, so `SavedKeyApplies` is true and the placeholder says the saved key is kept. On Save the service compares against the new stored host, drops the credential ref, and throws `MissingKey`. This fails safe: the key is never sent to the wrong host.
+- **Appearance and toggles:** stale display confirmed. Because the stale property equals the shown value, choosing the shown-but-not-actual option is a no-op (`OnAppearanceChanged` does not fire, and a checked radio cannot be re-checked). The user must pick another option first.
+
+**Design docs and tests**
+- TRACK.md and `docs/design` (decisions.md, s7-ui-polish.md) have no entry accepting or noting per-workspace stale settings.
+- The existing tests (`SettingsPolishTests`, `ThemeTests`) use a single workspace.
+
+**Severity**
+Medium is fair but at the low end. It needs at least two workspaces with Settings opened in both during one session. The revert happens only on an explicit Save of a form that visibly shows the old values. There is no data loss or key leak, and a restart clears it.
 
 *Corrections to the finding.* - `PageFactory` line is 50, not 53.
 - `Changed` is declared on `ModelSettingsService`, not on the `IModelSettings` interface (`IModelSettings.cs` has only Get/Save/Discover/Test). The recommended "reload on `IModelSettings.Changed`" needs the event added to the interface or a different notification path.
 - "Can re-save stale appearance" is overstated. Appearance and the three toggles are written only when the user changes them on that page. What actually happens is a stale display, plus the shown-but-not-actual option being impossible to select directly.
 - "Silently reverting the active model" is partly overstated. The form visibly shows model-1 when the user presses Save; the surprise is that the form does not reflect the current state. Save also overwrites name, address and context window with the stale values and resets declared capabilities — the finding did not mention this.
-- The m … (cut; full text in the workflow journal)
+- The missing-key case fails safe (error shown, no key sent to another host).
 
 ### ui-vm-4. The Workspaces page never recounts when shown again, because the 'shown once' flag lives in a view that is rebuilt on every navigation
 
@@ -244,7 +378,12 @@ public class ReproDuplicateDraftTests
 - **The view model survives the round trip.** `UsageStatisticsUiTests` asserts `Assert.Same(page, app.Workbench.CurrentPage)` after Explore → Settings, then re-queries the visual tree for the view. So the same view model is paired with a new view, which is exactly the case the flag misses.
 - **No other recount path.** `RefreshCountsAsync` is called only from the constructor and `Refresh()`. `OnWorkspacesChanged` counts only newly added rows. `OnDirectoryChanged` only updates `IsCurrent`. There is no subscription to conversation or summary changes.
 - **The sibling page does it correctly.** `UsageStatisticsViewModel` keeps `_shown` in the view model and its view calls `Refresh()` on every attach. The Workspaces page predates it (commit f4d709e vs 420dc90) and was not brought in line.
-- **Consequence is real.** `SetCounts` sets `HasContent = conversations + summaries > 0`. `CanSuggest` … (cut; full text in the workflow journal)
+- **Consequence is real.** `SetCounts` sets `HasContent = conversations + summaries > 0`. `CanSuggest` requires `HasContent != false`, and `SuggestTip` shows the empty-workspace tooltip when it is false. A workspace counted while empty keeps the suggest-names button disabled with a misleading tooltip after content is added.
+- **No test or decision covers it.** No Workspaces test leaves the section and asserts a recount; the section switches in `WorkspacesPageTests` and `WorkspaceNameSuggestionUiTests` check other things. TRACK.md and docs/design do not record this as known or intended; the code comments on both the view and `Refresh()` state the recount is intended.
+
+Severity: medium is defensible but at the low end. No data is lost and popping and reopening the page fixes it. Against that, an intended behaviour is dead code, counts are stale, and a feature is wrongly disabled with a wrong explanation.
+
+Limit of verification: I did not run anything (read-only, no build). That Avalonia's `ContentPresenter` rebuilds the child for a non-recycling template is from framework knowledge, consistent with the statistics test and the statistics view model's design.
 
 *Corrections to the finding.* - "Effectively unreachable" is accurate for the running app; `Refresh()` is still public and callable from tests.
 - The stale state ends not only when the page is popped and re-created. A successful count for a newly added row does not help existing rows, but anything that re-creates the view model (popping the page, and possibly a workspace switch if that resets the stacks — not checked) clears it.
@@ -275,7 +414,11 @@ Scenario 2 (duplicate Settings home) holds:
 - `PushCore` only skips the push when the top of the stack has the same route. With Workspaces on top it builds a second `SettingsHomeViewModel`, giving [Home, Workspaces, Home].
 - `PageFactory` gives that second home its own new `ModelSettingsViewModel`, so its form state is separate from the original home's.
 - From the duplicate home, either `ShellViewModel.ManageWorkspaces` or the home's own `ShowWorkspaces` pushes another Workspaces page, so [Home, Workspaces, Home, Workspaces] is reachable. Growth is bounded only by `MaxHistory` = 50.
-- The existing test for this link only asserts the current page type, not the stack shape. … (cut; full text in the workflow journal)
+- The existing test for this link only asserts the current page type, not the stack shape.
+
+The design intent supports calling this a defect: `s7-ui-polish.md` says the Workspaces link goes "到设置首页的模型设置", and the composer link is meant to reach the model form. Nothing in TRACK.md or the design docs records this as known or intended.
+
+Severity lowered from medium to low. This is a navigation inconsistency with no data loss or corruption. In scenario 1 the user is one Back click from the model form. In scenario 2 the user does reach a working model form; the cost is a confusing Back history and a redundant page instance. Scenario 1 also needs the user to have left Settings while on a sub-page.
 
 *Corrections to the finding.* - Severity is overstated: low, not medium. Both scenarios are navigation and back-history flaws with no data impact.
 - [Home, Workspaces, Home, Workspaces] needs the duplicate home from the Workspaces link to exist first. `ManageWorkspaces` alone does not stack duplicates when Workspaces is already on top. The duplicate home's own "管理工作区" entry (`ShowWorkspaces`) reaches the same state, not only the shell menu.
@@ -305,12 +448,20 @@ Scenario 2 (duplicate Settings home) holds:
 - Impact is viewport-only. No layout change, no unsaved state, no data touched.
 
 **(b) Refuted for mouse input.**
-- Decompiled `Avalonia.Input.MouseDevice.ProcessRawEvent` from Avalonia.Base 12.1.4 (the version pinned in `Directory.Pac … (cut; full text in the workflow journal)
+- Decompiled `Avalonia.Input.MouseDevice.ProcessRawEvent` from Avalonia.Base 12.1.4 (the version pinned in `Directory.Packages.props`).
+- On a button-down, `if (ButtonCount(props) > 1)` routes to `MouseMove`, so a second button raises PointerMoved, not PointerPressed.
+- On a button-up, `if (ButtonCount(props) != 0)` routes to `MouseMove`, so PointerReleased fires only when the last button is released.
+- `OnPointerPressed` is therefore never re-entered during a left-drag, `_grab` is not recomputed, and releasing the second button does not commit the move.
+- The missing guard in `OnPointerPressed` could only matter for multi-pointer input (a second touch contact arrives as a separate pointer). That is a different scenario from the one claimed, and I did not analyse it.
+
+**Severity.** Low rather than medium: one real but narrow, self-healing, cosmetic state leak, and one half that does not occur.
 
 *Corrections to the finding.* - **Scenario (b) is wrong for mouse input.** Avalonia 12.1.4 delivers a second mouse button press as PointerMoved and raises PointerReleased only when the last button goes up. The node does not jump, and no wrong position is committed. Drop the claims that "a second mouse button during a node drag corrupts and ends the drag" and that `OnPointerReleased` "commits the move on any button's release".
 - **The `e.InitialPressMouseButton` recommendation is unnecessary for mouse.** A guard against re-entrant presses would only be defensive hardening for multi-touch.
 - **Scenario (a) holds but is narrower than stated.** It needs the release to be delivered away from the canvas. If the button is released over the canvas after capture loss, the state clears normally. Whether macOS Cmd-Tab triggers it is unverified; Windows Alt-Tab with the button held is the plausible case.
-- **Scenario (a) recover … (cut; full text in the workflow journal)
+- **Scenario (a) recovery is understated.** "Until the next click" should read "until the next click on empty canvas"; a click on a node leaves `_panFrom` set.
+- **Fix for (a).** Clear `_panFrom` (and `_dragged`) in `OnPointerCaptureLost`, and add a headless test mirroring the existing node-drag capture-loss test.
+- **Severity.** Low, not medium: transient viewport-only glitch, no data or layout-state impact.
 
 <details><summary>Reproduction</summary>
 
@@ -341,7 +492,12 @@ What holds:
 
 Why the severity is lower than claimed:
 - The trigger is a failed local SQLite read, which is rare. The auditor offers "I/O error, or a reload racing a database close" without showing that either actually happens; I did not find evidence either way.
-- The wrong 'no summaries' state only arises when the first load of a page instance fails. A failed later reload leaves the previous It … (cut; full text in the workflow journal)
+- The wrong 'no summaries' state only arises when the first load of a page instance fails. A failed later reload leaves the previous Items in place, so the page is stale, not falsely empty.
+- "Permanently" is overstated: the next summary or visibility change, or reopening the page, starts a fresh load because `_busy` is reset.
+- Nothing is lost or corrupted; this is a display and resilience gap.
+- The empty-text flash on first open is a real consequence of having no loading state, but it lasts one local read and is cosmetic.
+
+The structural gap (no shared loading/error/retry contract, SerialRefresh dropping its queued run) is real and worth fixing at an industrial quality bar, so I rate it low rather than info.
 
 *Corrections to the finding.* - ConversationViewModel.cs is in ViewModels/Conversations and ConversationView.axaml.cs is in Views/Conversations, not the Pages folders.
 - "Permanently shows 'no summaries'" applies only when the first load of that page instance fails, and it clears on the next summary or visibility change or on reopening the page. A failed later reload leaves stale content, not the empty text.

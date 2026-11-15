@@ -51,7 +51,16 @@ A reachable trigger is in ChatCompletionsClient: `error["message"]` (line 245) a
    This was read from code and known API behaviour, not executed (no builds allowed in the worktree).
 
 4. Consequences check out:
-   - StopAsync looks only in the queues and _r … (cut; full text in the workflow journal)
+   - StopAsync looks only in the queues and _running, so it is a no-op once the run has been removed.
+   - The stored message stays 'streaming', so ThrowIfUnfinished throws AnswerInProgressException for any new send/retry in that conversation.
+   - Only startup recovery (UPDATE ... SET state='interrupted' WHERE state IN ('pending','streaming')) clears it.
+   - The checkpoint loop's token source is disposed without cancel, so its Task.Delay loop runs until process exit (a minor leak).
+
+5. Title, summary and naming runners have the same catch set (OCE, ChatClientException, StorageAdmissionRefused, plus ContextCompression for summaries) and no catch-all, so their task rows stay 'running'. RequestCompleteTextAsync also records no trace for other exception types. RunTransientAsync does have a catch-all and is not affected.
+
+6. No coverage or accepted-risk note: client tests only use object-form `{"error":{"message":...}}` bodies, and a grep of TRACK.md and docs/design for this gap found nothing.
+
+Severity stays high: a plain misconfiguration against a non-conforming relay locks the conversation with no in-app recovery and no visible error. It is not critical because nothing is lost and a restart recovers.
 
 *Corrections to the finding.* Nothing in the finding is wrong. Three points on scope:
 
@@ -73,7 +82,14 @@ End to end (real SQLite stores, real GenerationCoordinator, real ChatCompletions
 
 The run took about 0.3 s and each wait was on a state condition, not a fixed delay, so this is not a timing artefact. The mechanism matches the code: AnswerRunner.RunAsync catches only OperationCanceledException and ChatClientException around the stream, and GenerationCoordinator.RunAsync's catch-all only logs and frees the slot.
 
-High severity stands. A plausible third-party relay response permanently wedges a conversation for the session with no in-app recovery (stop, ask and retry are all dead) and leaves no diagnostic trace. No dat … (cut; full text in the workflow journal)
+High severity stands. A plausible third-party relay response permanently wedges a conversation for the session with no in-app recovery (stop, ask and retry are all dead) and leaves no diagnostic trace. No data is lost, and a restart is claimed to recover it.
+
+Not exercised by a test, code reading only:
+- The orphaned checkpoint loop: `using var checkpointStop` is disposed without being cancelled on the exception path, so the Task.Delay loop never ends.
+- The title, summary and naming runners: TaskRunners.cs has the same narrow catch lists at 60-70, 135-147 and 184-192.
+- Startup marking the answer interrupted: I did not check this.
+
+TRACK.md does not list this as a known finding.
 
 *Corrections to the finding.* - Retry is refused as NotRetryable, not AnswerInProgress as the finding says ("Every new question or retry ... is refused as AnswerInProgress"). A new question is refused as AnswerInProgress. The user-visible effect is the same: both are blocked.
 - The claims about the title, summary and naming runners, the never-ending checkpoint loop, and recovery on restart were not exercised by a test. The first two are consistent with the code I read; I did not check the restart path.
@@ -108,7 +124,102 @@ public class ZzReproCrashedRunTests(ITestOutputHelper output)
     }
 
     [Fact]
-    public … (cut; full text in the workflow journal)
+    public async Task Client_choices_not_an_array_is_a_ChatClientException()
+    {
+        var client = Client(_ => Sse("data: {\"choices\":{\"delta\":{\"content\":\"a\"}}}\n\n"));
+        var ex = await Record.ExceptionAsync(() => Drain(client));
+        output.WriteLine($"choices object -> {ex?.GetType().FullName}: {ex?.Message}");
+        Assert.IsType<ChatClientException>(ex);
+    }
+
+    [Fact]
+    public async Task Answer_whose_run_throws_unexpectedly_still_reaches_a_terminal_state()
+    {
+        var http = new HttpClient(new Stub(_ => new HttpResponseMessage(HttpStatusCode.Unauthorized) { Content = new StringContent("{\"error\":\"invalid api key\"}") }));
+        await using var h = await ChatHarness.StartAsync(client: new ChatCompletionsClient(http, new ChatClientOptions()));
+
+        var sent = await h.Conversations.StartAsync(h.Workspace, "火车是谁发明的？", Ct);
+        Assert.True(sent.Accepted);
+        var answer = sent.Answer!.Value;
+
+        await ChatHarness.UntilAsync(async () => await h.TaskStateAsync(answer) is not "queued", 20_000);
+        await ChatHarness.UntilAsync(() => h.Generation.UnfinishedCount == 0, 20_000);
+
+        var live = h.Generation.Observe(answer)?.Snapshot().State;
+        var stored = (await h.GetMessageAsync(answer))!.State;
+        var task = await h.TaskStateAsync(answer);
+        output.WriteLine($"after run ended: live={live}, stored message={stored}, task row={task}");
+        output.WriteLine($"HasUnfinishedAnswer={h.Generation.HasUnfinishedAnswer(sent.Conversation)}, UnfinishedCount={h.Generation.UnfinishedCount}");
+
+        await h.Generation.StopAsync(answer);
+        var afterStop = (await h.GetMessageAsync(answer))!.State;
+        output.WriteLine($"after StopAsync: stored message={afterStop}, task row={await h.TaskStateAsync(answer)}");
+
+        var again = await h.Conversations.AskAsync(sent.Conversation, "再问一次", Ct);
+        output.WriteLine($"second question: accepted={again.Accepted}, rejection={again.Rejection}");
+        var retry = await h.Conversations.RetryAsync(sent.Conversation, answer, Ct);
+        output.WriteLine($"retry: accepted={retry.Accepted}, rejection={retry.Rejection}");
+        output.WriteLine($"ai_request rows={await h.CountAsync("ai_request")}");
+
+        Assert.True(afterStop is MessageState.Failed or MessageState.Stopped, $"stored answer is still {afterStop}; task row {task}; live {live}");
+        Assert.True(again.Accepted, $"second question refused: {again.Rejection}");
+    }
+
+    private static ChatCompletionsClient Client(Func<HttpRequestMessage, HttpResponseMessage> respond) =>
+        new(new HttpClient(new Stub(respond)), new ChatClientOptions());
+
+    private static async Task Drain(ChatCompletionsClient client)
+    {
+        var request = new ChatRequest(Model, [new ChatTurn(ChatRole.User, "hi")]);
+        await foreach (var _ in client.StreamAsync(request, "gw-key-0123456789", Ct)) { }
+    }
+
+    private static HttpResponseMessage Sse(string text) =>
+        new(HttpStatusCode.OK) { Content = new StringContent(text, Encoding.UTF8, "text/event-stream") };
+
+    private sealed class Stub(Func<HttpRequestMessage, HttpResponseMessage> respond) : HttpMessageHandler
+    {
+        protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken) => Task.FromResult(respond(request));
+    }
+}
+```
+
+Actual output of `dotnet test tests/Mindweave.Infrastructure.Tests --filter "FullyQualifiedName~ZzReproCrashedRunTests" --logger "console;verbosity=detailed"`:
+
+```
+Failed ...Client_string_error_event_mid_stream_is_a_ChatClientException [25 ms]
+  Assert.IsType() Failure: Value is not the exact type
+  Expected: typeof(Mindweave.Application.Ai.ChatClientException)
+  Actual:   typeof(System.InvalidOperationException)
+  Standard Output Messages:
+  mid-stream string error -> System.InvalidOperationException: The node must be of type 'JsonObject'.
+
+Failed ...Client_string_error_body_with_401_is_a_ChatClientException [< 1 ms]
+  Expected: typeof(Mindweave.Application.Ai.ChatClientException)
+  Actual:   typeof(System.InvalidOperationException)
+  401 string error -> System.InvalidOperationException: The node must be of type 'JsonObject'.
+
+Failed ...Answer_whose_run_throws_unexpectedly_still_reaches_a_terminal_state [276 ms]
+  Error Message:
+   stored answer is still Streaming; task row running; live Streaming
+  Standard Output Messages:
+  after run ended: live=Streaming, stored message=Streaming, task row=running
+  HasUnfinishedAnswer=False, UnfinishedCount=0
+  after StopAsync: stored message=Streaming, task row=running
+  second question: accepted=False, rejection=AnswerInProgress
+  retry: accepted=False, rejection=NotRetryable
+  ai_request rows=0
+
+Failed ...Client_choices_not_an_array_is_a_ChatClientException [< 1 ms]
+  Expected: typeof(Mindweave.Application.Ai.ChatClientException)
+  Actual:   typeof(System.InvalidOperationException)
+  choices object -> System.InvalidOperationException: The node must be of type 'JsonArray'.
+
+Test Run Failed.
+Total tests: 4
+     Failed: 4
+ Total time: 1.2569 Seconds
+```
 ```
 
 </details>
@@ -141,11 +252,19 @@ For in-app restore, AppSession.RunAsync swaps the window to the new session's St
 **In-app restore path (b)**
 - `AppSession.RunAsync` (`AppHost.cs:126-140`) shows `StartupViewModel` on the new session and fires `Replaced` (130-132; `MainWindow.axaml.cs:43` rebinds the window) before awaiting `EndAsync(old)` and `RestoreInPlaceAsync` with no catch.
 - `EndAsync` (148-175) is try/finally only, so a failure in flush, close or dispose propagates.
-- The exception travels back through `BackupDialogs.HandOverAsync … (cut; full text in the workflow journal)
+- The exception travels back through `BackupDialogs.HandOverAsync` (line 219) into the old session's `ExitCoordinator.RestoreAsync` catch (300-311), which logs, calls `generation.Reopen()` and `BackToIdle()`. None of that touches the new root the window now shows, so the spinner stays.
+
+**Looked for mitigations, found none**
+- No test makes `RecoverUnfinishedAsync` throw at startup: the only test hits are direct store calls and a `FlakyStore` pass-through. Restore tests (`BackupRestoreUiTests`, `InPlaceRestoreTests`, `InPlaceRestoreFailureTests`) cover failures inside `database.RestoreInPlaceAsync`, which returns a result, not post-open throws.
+- `TRACK.md` and `docs/design` do not record this as known or accepted. `s7-ui-polish.md:672` lists other unverified restore edge cases, not this one.
+
+**Severity**
+Medium holds. No data is lost and the kept copy and put-back logic exist, but the trigger (disk full, I/O error or read-only volume at the moment of the startup write) is exactly what the app's storage-paused design is meant to absorb everywhere else. The result is a crash on every launch with no user-facing message, which is below the stated production bar. It is not high because it needs a storage fault in a narrow window and resolves once the fault clears.
 
 *Corrections to the finding.* - The stuck-spinner outcome in (b) applies when `EndAsync(old)` throws, or when `RestoreInPlaceAsync` throws before `Apply`. A throw from the new session's `RecoverUnfinishedAsync` or `ListAsync` fits this. Not every late failure leaves a spinner.
 - The same gap exists on the recovery page's own buttons: `RecoveryViewModel.RetryAsync` and `ConfirmRestoreAsync` (63-106) are try/finally only and call the same uncaught `AppStartup.RunAsync` / `RestoreAsync`. A post-open throw there goes to the relay command's default handling; I did not verify the resulting UI behaviour.
-- "Exits at every launch" is accurate only while the storage fault persists and unfinished rows or the write itself keeps failing. I did not check whether `OpenCore` performs a write that would turn disk-full into `NeedsRecovery` first. Even if it does, any other post-open throw (for example from `ListAsync`) takes the same … (cut; full text in the workflow journal)
+- "Exits at every launch" is accurate only while the storage fault persists and unfinished rows or the write itself keeps failing. I did not check whether `OpenCore` performs a write that would turn disk-full into `NeedsRecovery` first. Even if it does, any other post-open throw (for example from `ListAsync`) takes the same uncaught path.
+- The file citations are otherwise accurate. `AppSession` lives in `src/Mindweave.Desktop/AppHost.cs`, not under `Services/`.
 
 ### concurrency-3. Enqueue after the durable commit is unguarded against a concurrent exit: uncaught exception on the UI thread and an orphaned pending answer
 
@@ -168,11 +287,24 @@ What holds up (read, not executed — builds and tests were off-limits):
 - The exit's save step ends with `database.DrainAsync()`, so the in-flight write commits rather than being abandoned, and Enqueue then throws.
 - Nothing above catches it: Composer.SendAsync, the two page delegates, ConversationViewModel.RetryAsync and both SummarizeAsync callers have no try/catch.
 - No dispatcher-level handler exists. Program.cs only logs AppDomain.UnhandledException and UnobservedTaskException; a grep for Dispatcher.UIThread.UnhandledException and FlowExceptionsToTaskScheduler in src found nothing.
-- ConversationTitler is the only caller that handles the race (IsClosed check plus catch that finishes the task as Cancelled) … (cut; full text in the workflow journal)
+- ConversationTitler is the only caller that handles the race (IsClosed check plus catch that finishes the task as Cancelled), which shows the authors knew of it but did not apply it to user sends.
+- No test closes the coordinator between a send's store write and Enqueue; the tests that touch IsClosed/StopForExitAsync are exit-stop, exit-saving, restore and workspace-name tests.
+
+Why it is low, not medium:
+- The window is the send's own pipeline (a few local SQLite reads plus one write), normally milliseconds. The user must press send and close within that. The 5-second widening only applies when the previous answer's terminal write is still landing, which is itself a rare slow-disk condition.
+- The process is exiting anyway. AppHost.Run disposes in a `finally` even when the UI loop throws, so the database is closed and the lock released.
+- No user data is lost. The question is stored, and the pending answer is marked interrupted on the next start (SqliteConversationStore.cs:240), where it can be retried.
+- If the dispatcher has already stopped when the continuation is posted, the exception is never observed at all.
+- Reaching it through in-app restore needs the send to be in flight while the user navigates to settings and confirms a restore, which is only possible inside the rare 5-second wait.
+
+The crash itself is inferred from CommunityToolkit.Mvvm 8.4.2's known behaviour (AsyncRelayCommand rethrows on the synchronization context via an async void helper unless FlowExceptionsToTaskScheduler is set); I did not reproduce it.
+
+The recommended fix (a refusal from Enqueue, or the titler's catch-and-cancel pattern at the four call sites, plus a test) is sound and cheap.
 
 *Corrections to the finding.* 1. The "orphaned pending answer, every ask refused until restart" consequence is not an independent outcome. The exception always travels back to the awaiting command on the UI thread. In the "save failed, user picks return" and "restore did not go ahead" cases the window and dispatcher are still alive, so the rethrow crashes the app before any stuck state can be experienced. After the restart the pending answer is recovered as interrupted. The stuck conversation would only appear if something swallowed the exception, and nothing does.
 2. In the save-failed case the send's own write is likely to fail too and return StorageRefused, so Enqueue is often never reached there.
-3. "Crash in the middle of the exit sequence" is conditional. By the time the write commits (during DrainAsync) the exit is at or past its last step; depending on whether the dispatcher is still pumping, the result is ei … (cut; full text in the workflow journal)
+3. "Crash in the middle of the exit sequence" is conditional. By the time the write commits (during DrainAsync) the exit is at or past its last step; depending on whether the dispatcher is still pumping, the result is either an unhandled-exception exit with a critical log entry or nothing visible.
+4. Line references are accurate: ConversationService.cs 237, 290, 345; SummaryService.cs 209; GenerationCoordinator.cs 190-193 and 338; ConversationTitler.cs 107-138; Composer.cs 56-67. The 5-second wait is at ConversationService.cs 571-584 and applies to all three send paths.
 
 ### concurrency-4. The terminal write depends on every synchronous event subscriber not throwing: events are raised on the generation worker between in-memory finish and the store write
 
@@ -198,12 +330,18 @@ What holds up (read, not executed — builds and tests were off-limits):
 - Every current synchronous subscriber is effectively non-throwing:
   - `WorkspaceNewsViewModel.OnAnswered` does a field read, an `Interlocked.Increment` and a dispatcher `Post`.
   - The `marks.Changed` handlers call `UiThrottle.Request`, which is an `Interlocked.Exchange` plus `Task.Delay().ContinueWith`.
-  - `MessageItemViewModel.OnLiveChanged` calls the same thr … (cut; full text in the workflow journal)
+  - `MessageItemViewModel.OnLiveChanged` calls the same throttle.
+  - `Announce` fires `_ = FlushAsync()`, an async method whose exceptions are captured in its task.
+- The "disposed object after in-app restore" example is speculative; none of these handlers touch disposable state.
+- The team already treats this class as a defect: the 2026-11-10 refactor review fixed subscriber exceptions landing in the generation thread for `AnswerFinished`. That fix does not cover `AnswerEnded` or `LiveAnswer.Changed`.
+
+Impact if it ever fires is real (wrong persisted state plus up to one checkpoint interval of lost text for one answer), so the recommendation to guard the invokes or register the write first is sound. With no reachable trigger today, low is the right rating.
 
 *Corrections to the finding.* - Severity should be low, not medium: the finding itself calls the issue latent, and every current synchronous subscriber only does Interlocked operations, a dispatcher post or a throttle request.
 - The "handler touching a disposed object after an in-app restore" example is not supported by any existing handler.
 - "Missing catch-all" needs qualifying: `GenerationCoordinator.RunAsync` does have a catch-all (line 531) that logs and frees the slot. What is missing is a catch inside `AnswerRunner` that would still perform the terminal write.
-- One consequence the finding understates: if `LiveAnswer.Changed` throws from `live.Append` inside the stream loop, the exception also skips lines 148-150. The checkpoint loop is then never cancelled (the `using` only disposes the token source), so it polls for the life of the process, and `FinishAsync` is never called, leaving the in-memory answer in S … (cut; full text in the workflow journal)
+- One consequence the finding understates: if `LiveAnswer.Changed` throws from `live.Append` inside the stream loop, the exception also skips lines 148-150. The checkpoint loop is then never cancelled (the `using` only disposes the token source), so it polls for the life of the process, and `FinishAsync` is never called, leaving the in-memory answer in Streaming as well.
+- The generation_task row also stays `running` until restart, not only the message row.
 
 ### concurrency-5. Page reloads are fire-and-forget with no error path: a failed read is silent, drops the queued refresh, and surfaces only as a GC-time 'Unhandled exception' log
 
@@ -226,13 +364,19 @@ What holds:
 - The only SerialRefresh test covers ordering and non-overlap, not a throwing refresh. TRACK.md and docs/design record no read-failure policy; the TRACK 2026-10-27 entry is about out-of-order completion only.
 
 Why I lowered the severity:
-- It needs a SQLite read to fail on an already-open database (I/O error or corruption). Reads run in a snaps … (cut; full text in the workflow journal)
+- It needs a SQLite read to fail on an already-open database (I/O error or corruption). Reads run in a snapshot read transaction, so this is rare.
+- The "database closed under an old page" trigger was already narrowed: the 2026-11-05 fix in s7-ui-polish.md closes the database only after the UI loop ends. I did not check whether a backup-restore session swap can still reach it.
+- The consequence is stale page content until the next change event or reopening the page. Nothing is lost or corrupted, and the process does not crash, since UnobservedTaskException does not terminate on modern .NET.
+- A disk failure bad enough to break reads will usually break writes too, and those already surface through the StorageWriteException / storage-pause path.
+
+It remains a real gap at the stated quality bar: no read-error policy, a misleading and delayed Critical log line, and no deliberate UI-thread exception handler.
 
 *Corrections to the finding.* - The discard is at ConversationViewModel.cs:72, not 71. LoadAsync is at roughly 376-420, not 368-415, and awaits five service reads, not six.
 - SerialRefresh lives in src/Mindweave.Desktop/Services/IUiDispatcher.cs; the finding gave only the file name.
 - "View-model catches target StorageWriteException almost exclusively" is overstated: there are 11 StorageWriteException catches against 30 general Exception catches in the view models. None of them wraps a page reload, so the point about reloads still stands.
 - The "database closed under an old page" trigger was largely removed for the exit path by the 2026-11-05 AppHost.Run change. It should be limited to genuine read I/O errors, or to a backup-restore session swap if that is shown to be reachable; I did not verify that.
-- "Unhandled on the UI thread" for awaited command paths depends on the command library's behaviour. I did not verify … (cut; full text in the workflow journal)
+- "Unhandled on the UI thread" for awaited command paths depends on the command library's behaviour. I did not verify it, and the project's own s6-wrapup.md:173 marks the same claim as inferred.
+- Severity should be low: rare trigger, transient stale UI, no data loss, no crash.
 
 ### concurrency-6. `async void OnAnswerFinished` rests on a wrong assumption: on a worker thread a subscriber exception terminates the process
 

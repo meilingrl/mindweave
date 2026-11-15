@@ -47,13 +47,21 @@ What holds:
 - No test covers malformed backup names or a file vanishing mid-listing; every ListBackups test I found is a happy path.
 
 Why the severity drops:
-- Scenario (a), the in-app half, is weak. The delete dialog's Task.Run is awaited and Refresh fires via Changed afterwards, so the user would have to navigate away and back while th … (cut; full text in the workflow journal)
+- Scenario (a), the in-app half, is weak. The delete dialog's Task.Run is awaited and Refresh fires via Changed afterwards, so the user would have to navigate away and back while the delete is in flight. The gap between EnumerateFiles and FileInfo.Length is microseconds per file. An external deleter hitting that gap is possible but very unlikely.
+- Scenario (b) needs a file the app never writes. CreateVerified always formats the stamp with StampFormat and an int version, so only a hand-renamed or hand-crafted file triggers it. It fails closed (a crash, no data loss), but it is a robustness gap rather than a likely field failure.
+- Scenario (c) is overstated. The listing is one directory enumeration plus one stat per file, with no content read. Migration backups are pruned to 5; before-delete and before-restore backups are not rotated, but even hundreds of stats take milliseconds on a local disk. Only a network-redirected profile would make it noticeable.
+- StartupCoordinator.cs:67 runs after ConfigureAwait(false) awaits, so that call is not UI-blocking; only the unguarded parse applies there.
+
+One thing the finding missed, which is arguably worse than the page crash: Prune() calls List() and catches only IOException and UnauthorizedAccessException. A single malformed-but-regex-matching filename therefore throws FormatException or OverflowException out of Prune, which is called from the migration path (SqliteDatabase.cs:519). The same file would also break the recovery listing at StartupCoordinator.cs:67. I did not trace what the callers above those two points do with the exception.
+
+Net: a real architecture deviation and a real unguarded-parse defect, with low likelihood and a fail-closed outcome. The recommended fix (TryParse and skip, per-file IO catch, async load) is sound and cheap.
 
 *Corrections to the finding.* - Severity is low, not medium. The triggers are a hand-crafted or hand-renamed filename, or a microsecond external-deletion race.
 - Scenario (a): the in-app concurrency with the delete dialog's Task.Run is not a practical path. Refresh is triggered by Changed after the awaited delete completes; only navigating away and back mid-delete, or an external deleter, could hit the window.
 - Scenario (c): the freeze claim is overstated. Listing is one stat per file with no content read, and migration backups are capped at 5. It would only be noticeable on a network-redirected profile.
 - The StartupCoordinator.cs:67 call is off the UI thread, so only the unguarded-parse part of the finding applies there.
-- Missed by the finding: Prune() (SqliteBackupFiles.cs:165-180) calls the same List() and does not catch FormatException or OverflowException, so a malformed-but-matching filename also throws out … (cut; full text in the workflow journal)
+- Missed by the finding: Prune() (SqliteBackupFiles.cs:165-180) calls the same List() and does not catch FormatException or OverflowException, so a malformed-but-matching filename also throws out of the migration path's prune step at SqliteDatabase.cs:519.
+- The claim that a UI-thread exception terminates the process rests on the absence of any Dispatcher-level handler in src; I did not reproduce it at runtime.
 
 ### architecture-2. ViewModelBoundaryTests (A6) only checks constructor parameter types in three namespaces; storage ports and concrete services already slip through
 
@@ -77,12 +85,19 @@ What holds:
 
 Why the severity is overstated:
 - The narrow scope is an explicit, reviewed decision. proposal.md §8.2 says the universal reflection rule was withdrawn and replaced by exactly this bounded rule, and the test's own doc comment says "Bounded on purpose". It implements course requirement C3 (view models get interface references through constructors), which it does enforce. It was never specified as a storage-gating guard.
-- No store … (cut; full text in the workflow journal)
+- No store interface, IServiceProvider or IChatClient appears anywhere in Desktop outside composition. The only Application ports found in presentation code are the three backup/lifecycle interfaces, which are use-case-level ports in Mindweave.Application.Startup, not persistence stores. Taking them through constructors is consistent with C3.
+- The "bypass StorageHealth gating" scenario is purely prospective. A separate layering test already keeps Infrastructure mentions out of Desktop except the three composition files.
+- AppStartup is a startup orchestrator, not a view model, so it is outside the rule as written. The one real inconsistency is small: proposal §8.2 lists AppStartup as a consumer of IWorkspaces, and IWorkspaces, IAppearance, IStorageStatus and IConversationMarks all exist, yet AppStartup still takes the concrete classes. I did not check whether it needs members those interfaces lack.
+- UiText reading the constant UsageStatisticsService.RecentDays is a compile-time constant reference in a text helper, not a service dependency.
+
+Net: this is a real but low-severity test-hardening opportunity (forbid store interfaces and IServiceProvider, unwrap generics, perhaps cover Services), plus a minor doc/code mismatch on AppStartup. The TRACK.md phrase "页面经接口取得应用服务" is satisfied by the current code.
 
 *Corrections to the finding.* - "Storage ports and concrete services already slip through" is overstated. No store interface is injected into any presentation type. The interfaces that pass (IBackupFiles, IDatabaseBackup, IDatabaseLifecycle) are application-level ports, and passing interfaces through constructors is what rule C3/A6 asks for.
 - The concrete services are in AppStartup, which is in Mindweave.Desktop.Services and is not a view model. The reviewed proposal scoped the rule to ViewModels/, Navigation/ and Network/ on purpose, so this is not a hole in an intended check. The fair residual point is that proposal §8.2 names AppStartup as an IWorkspaces consumer while the code takes WorkspaceService.
 - The claim that TRACK.md's rule "is violated" while the suite stays green does not describe the current code; it describes a hypothetical future change.
-- Line and path corrections: IsConcreteService is at lines 78 … (cut; full text in the workflow journal)
+- Line and path corrections: IsConcreteService is at lines 78-84, not 86-91; StorageDetailsViewModel is at ViewModels/Pages/StorageDetailsViewModel.cs; UiText.Statistics.cs is at the Desktop project root.
+- The record exemption and the static RecentDays read are true but immaterial: no service is declared as a record to dodge the test, and RecentDays is a constant.
+- The recommended allow-list inversion would reintroduce the universal rule that the architecture review explicitly withdrew. A narrower hardening (forbid store interfaces and IServiceProvider, unwrap generic arguments) fits the adopted decision better.
 
 ### architecture-3. In-app restore session swap has no failure path: an exception while ending the old session leaves the window on the startup page with no database
 
@@ -106,13 +121,19 @@ Why the severity is overstated:
 **Why low, not medium.**
 - The teardown steps I read are defensive:
   - `GenerationCoordinator.ShutdownAsync` is idempotent and was already stopped by the exit steps.
-  - `StorageHealth.StopAsync` swallows `OperationCanceled … (cut; full text in the workflow journal)
+  - `StorageHealth.StopAsync` swallows `OperationCanceledException`.
+  - `SqliteDatabase.CloseAsync` is idempotent and only disposes the writer.
+- A throw therefore needs an unexpected defect, such as a singleton `Dispose` throwing or an event handler throwing from `RaiseChanged`. I did not read the two `FlushAsync` bodies or every singleton's `Dispose`.
+- Consequence is bounded: the live database is untouched because replacement happens only inside `RestoreInPlaceAsync`, the "before restore" backup exists, and the failure is logged at Error. A restart recovers.
+
+So this is a real robustness gap in a rare, destructive-adjacent flow: a stuck startup page with no message. It is not a data-loss risk.
 
 *Corrections to the finding.* - **No trigger shown.** The finding's examples ("I/O error closing the database or a Dispose in a singleton") are hypothetical. `CloseAsync` only disposes the writer and is idempotent, and the other steps I read are defensive.
 - **"Unusable until restarted" is unverified.** Window close routes through the new session's root and exit coordinator. I did not confirm whether closing works cleanly from the stuck startup page.
 - **"Silently" is slightly overstated.** The exception is logged at Error by `ExitCoordinator.LogStepFailed`, though the message text wrongly says the window stays open with retry and return. Nothing is shown to the user.
 - **`Reopen()`/`BackToIdle()` on the old session looks harmless.** They act on objects that are no longer displayed.
-- **The gap is wider than stated.** `AppStartup.RestoreInPlaceAsync` can also throw after the swap: in `ApplyPreferencesAsync`, `_shell. … (cut; full text in the workflow journal)
+- **The gap is wider than stated.** `AppStartup.RestoreInPlaceAsync` can also throw after the swap: in `ApplyPreferencesAsync`, `_shell.RestoreSidebarAsync()` and `_marks.LoadAsync()` are unguarded and run before `Apply(outcome)`. That would leave the same stuck startup page and the same misrouted catch.
+- **The fix should cover the whole of `RunAsync`.** Guard both the old-session teardown and the new-session start, not only the teardown.
 
 ### architecture-4. About 25 optional (`= null`) constructor parameters on container-built singletons make ValidateOnBuild blind to missing registrations
 
@@ -135,13 +156,16 @@ What holds:
 Why it is low rather than medium:
 - Every one of these dependencies is registered today, so nothing is currently broken. The failure needs a future refactor to drop a registration.
 - The suite makes the headline scenario unlikely to go unnoticed. 50 test files use `DesktopHarness`, which calls the real `CompositionRoot.Build` with real SQLite infrastructure. `ArchiveUiTests`, `RowMenuUiTests` and `MultiSelectUiTests` exercise archiving, and `ContextUiTests`, `LayoutDiskFullTests` and `SidebarStatusTests` touch compression and storage health. I did not run them or confirm they would fail for each specific dependency; the `ReadingStateService` retry path is the least certain to be covered.
-- Not every null path is silent: archive mutations throw `InvalidOperati … (cut; full text in the workflow journal)
+- Not every null path is silent: archive mutations throw `InvalidOperationException("No archive store is configured.")`.
+- The "test override registers a different service type" scenario does not affect the shipped app, since production passes no overrides.
+
+The recommendation (required parameters, or a composition test asserting no Mindweave-typed parameter fell back to its default) is sound and cheap, but this is hardening.
 
 *Corrections to the finding.* - Severity should be low: all the dependencies are registered today and the real composition root is exercised by 50 harness-based test files.
 - "With no error anywhere" is too strong for the archive store: mutation paths throw at ConversationService.cs:480. Only the read paths (restore plan, archived-among, compression flags) degrade silently.
 - The order-sensitive TryAdd citation is slightly off. The relevant lines in InfrastructureServices.cs are 40-45, and line 42 (`IContextSummaryStore`) is a plain `AddSingleton`, not TryAdd.
 - "About 25" is roughly right for container-built types: I count about 21 reference-type optional parameters, or 22 with the `TimeProvider?` on `ConversationDeletionViewModel`. The auditor omitted `IWorkspaceNameCache?` on `WorkspaceService` and `WorkspaceDeletionService`.
-- Other optional parameters in the grep (`ConversationViewModel`, `ArchivedViewModel`, `W … (cut; full text in the workflow journal)
+- Other optional parameters in the grep (`ConversationViewModel`, `ArchivedViewModel`, `WorkspacesViewModel`, `SectionPages`) belong to page view models that are not registered in `CompositionRoot`. I did not inspect how `PageFactory` constructs them, so they are not counted.
 
 ### architecture-5. Backup-restore and exit use cases are orchestrated inside Desktop view models instead of Application
 

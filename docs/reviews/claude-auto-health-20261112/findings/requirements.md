@@ -54,13 +54,18 @@ High B, close to A-. Almost every must-level rule in requirements §5-§9 that I
 - No test covers it. `Completed(true)` appears in tests only in the client parser test, and the fake client has a truncated script only for context summaries.
 
 **Why I lowered the severity to medium**
-1. Answers send no `max_tokens`: the stored value is only ever carried over from `existing?.MaxOutputTokens`, and nothi … (cut; full text in the workflow journal)
+1. Answers send no `max_tokens`: the stored value is only ever carried over from `existing?.MaxOutputTokens`, and nothing in `src/Mindweave.Desktop` sets it. So the trigger is the provider's default cap, which is usually large. The observed hits in TRACK.md were at caps of 64 and 4,096 on internal requests, not on user answers. Likelihood is low to moderate, higher for reasoning models.
+2. No data is lost or corrupted. The received text is saved faithfully, and "重新生成" (regenerate) is available on a Complete last answer.
+3. The empty-and-truncated case is partly contained: `CountsAsContext` requires non-empty text, so an empty answer is not sent as context. It still shows as a blank Complete answer with no explanation.
+4. The requirements citation is looser than stated. §6.2 line 139 ("不完整的回答保留不完整标记") defines incompleteness in terms of stopped, failed and interrupted states. §9.1 line 252 lists failure, interruption, cancel and regenerate. Neither names output-limit truncation. This is a gap against the spirit of those clauses and against the project's own D-015 principle, not a literal violation.
+
+The recommendation is sound.
 
 *Corrections to the finding.* - Severity is overstated: medium, not high. With no `max_tokens` sent for answers, only the provider's default cap triggers this, and the text received is kept intact with regenerate available.
 - "Sent as full context" is not true for the empty-content case: `CountsAsContext` excludes whitespace-only answers. The empty case is a blank Complete answer with no explanation, which is a display problem only.
 - Requirements §6.2 and §9.1 do not name output-limit truncation. The conflict is with their intent and with the D-015 principle, not their literal text.
 - "No test covers a truncated answer" is right at flow and UI level, but the client parser does test `finish_reason=length` (`ChatCompletionsClientTests.cs:114`).
-- The claim that the rejection of truncated output for titles and naming falls under D-015 is loosely attributed: D-015 covers context summaries; the others follow the same rul … (cut; full text in the workflow journal)
+- The claim that the rejection of truncated output for titles and naming falls under D-015 is loosely attributed: D-015 covers context summaries; the others follow the same rule via `GenerationRequests.cs:120`.
 
 **Reproduction attempt: confirmed, high.** Reproduced with a flow test through the real coordinator, AnswerRunner and SQLite stores. A chat client that ends an answer stream with Completed(Truncated: true) (what ChatCompletionsClient emits for finish_reason=length) produces a message row `complete|NULL|NULL` and a `completed` task. The only trace of truncation is ai_request.outcome = 'truncated'.
 
@@ -72,13 +77,17 @@ Code reading agrees. AnswerRunner's `case ChatStreamEvent.Completed: completed =
 
 The precondition is realistic: max_tokens is sent only when MaxOutputTokens is set, and ModelSettingsService carries over `existing?.MaxOutputTokens`, which is null for a fresh configuration, so the provider's default cap applies.
 
-Requirements §6.2 line 139 ("不完整的回答保留不完整标记") and §9.1 line 252 (clear status for interrupted responses) support the conformance claim. High is justified at the stated production bar: silent, persisted, propagates into context, branches and summaries, and the empty v … (cut; full text in the workflow journal)
+Requirements §6.2 line 139 ("不完整的回答保留不完整标记") and §9.1 line 252 (clear status for interrupted responses) support the conformance claim. High is justified at the stated production bar: silent, persisted, propagates into context, branches and summaries, and the empty variant shows a blank "complete" answer. Slight mitigation: a mid-sentence cut is usually visible to an attentive user and the diagnostic row is correct.
+
+Not exercised: the Desktop view model/UI test (established by reading UiText and MessageItemViewModel only) and the summarization/branching consequences (inferred from the Complete state).
+
+Worktree restored: the test file was deleted and `git status` is clean; nothing committed.
 
 *Corrections to the finding.* Nothing material is wrong.
 - "No test covers a truncated answer" is accurate, and FakeChatClient cannot script one at all (answers always end with Completed(false)); the repro needed a wrapping IChatClient.
 - "Titles ... reject truncated output": there is also a title test (ConversationFlowTests.A_title_cut_off_at_the_output_limit_is_not_used) that uses RequestScript.TruncateNext rather than the word "Truncated", so the grep-based statement slightly undercounts truncation coverage for internal requests. This does not affect the finding.
 - "can be branched from" and "is summarized as if it were the whole explanation" follow from the Complete state but were not exercised by my test.
-- The empty-content variant is stored as Complete with empty text; CountsAsContext excludes it from later context (blank text), so that variant's harm is a blank "complete" answer with no reason shown, not cont … (cut; full text in the workflow journal)
+- The empty-content variant is stored as Complete with empty text; CountsAsContext excludes it from later context (blank text), so that variant's harm is a blank "complete" answer with no reason shown, not context pollution.
 
 <details><summary>Reproduction</summary>
 
@@ -111,7 +120,51 @@ public async Task Repro_answer_cut_off_at_output_limit_is_stored_as_complete_and
     var fake = new FakeChatClient();
     await using var h = await ChatHarness.StartAsync(client: new LengthLimitedClient(fake, Cut));
     var sent = await h.Conversations.StartAsync(h.Workspace, "详细讲讲火车的历史", Ct);
-    var answer = await h.WaitForAnswerAsy … (cut; full text in the workflow journal)
+    var answer = await h.WaitForAnswerAsync(sent.Answer!.Value);
+    await h.SettleAsync(sent.Conversation);
+    var stored = await h.GetMessageAsync(answer.Id);
+    var outcome = /* SELECT r.outcome FROM ai_request r JOIN generation_task t ON t.id = r.task_id WHERE t.kind = 'answer' */;
+    var row = /* SELECT state || '|' || coalesce(error_kind,'NULL') || '|' || coalesce(error_detail,'NULL') FROM message WHERE role = 'assistant' */;
+    var task = await h.TaskStateAsync(answer.Id);
+    var second = await h.Conversations.AskAsync(sent.Conversation, "然后呢？", Ct);
+    await h.WaitForAnswerAsync(second.Answer!.Value);
+    var followUp = fake.Requests.Last(FakeChatClient.IsAnswer);
+    // prints state/error/text/countsAsContext/row/task/outcome/followUpTurns
+    Assert.Equal("truncated", outcome);
+    Assert.False(stored.State == MessageState.Complete && stored.ErrorKind is null, "...");
+}
+
+[Fact]
+public async Task Repro_empty_answer_cut_off_at_output_limit_is_stored_as_complete()
+{
+    // same client with cutText = ""
+    Assert.NotEqual(MessageState.Complete, stored.State);
+}
+```
+
+Command: dotnet test tests/Mindweave.Infrastructure.Tests --filter "FullyQualifiedName~ZzTruncatedAnswerReproTests" --logger "console;verbosity=detailed"
+
+Actual output (trimmed):
+```
+Failed ...Repro_answer_cut_off_at_output_limit_is_stored_as_complete_and_reused_as_context [308 ms]
+  Error Message:
+   A length-truncated answer was saved as a plain Complete answer with no mark (message row: complete|NULL|NULL, task: completed).
+  Standard Output Messages:
+ state=Complete error=null text='蒸汽机车的发明始于十八世纪，瓦特改良的' countsAsContext=True messageRow=complete|NULL|NULL task=completed ai_request.outcome=truncated followUpTurns=[User:详细讲讲火车的历史 | Assistant:蒸汽机车的发明始于十八世纪，瓦特改良的 | User:然后呢？]
+
+Failed ...Repro_empty_answer_cut_off_at_output_limit_is_stored_as_complete [33 ms]
+  Error Message:
+   Assert.NotEqual() Failure: Values are equal
+Expected: Not Complete
+Actual:       Complete
+  Standard Output Messages:
+ state=Complete error=null text=''
+
+Test Run Failed.
+Total tests: 2
+     Failed: 2
+```
+The tests are written to fail when the defect is present; both failed. The `Assert.Equal("truncated", outcome)` line passed in the first test, so the diagnostic row does record the truncation. Results are deterministic (no timing dependence).
 ```
 
 </details>
@@ -138,14 +191,16 @@ The chain:
 
 Triggers: any `ScrollChanged` starts the 300 ms report timer, and `ScrollChanged` also fires on extent or viewport changes, not only user scrolling. The view also calls `Report()` in `OnDetachedFromVisualTree`.
 
-No design decision makes this intended. Requirements §7.1 (line 182) says the switch can change it back to unread, the §11 scenario (line 365) repeats it, and decisions.md line 71 says the manual switch can be changed at any time. TRACK.md does not list it as a known finding. No test covers progress after a manual unread: `S … (cut; full text in the workflow journal)
+No design decision makes this intended. Requirements §7.1 (line 182) says the switch can change it back to unread, the §11 scenario (line 365) repeats it, and decisions.md line 71 says the manual switch can be changed at any time. TRACK.md does not list it as a known finding. No test covers progress after a manual unread: `SummaryUiTests` and `SummaryFlowTests` both stop right after the toggle.
+
+Medium stands. No data is lost and the user can toggle again, but the required function fails in its most natural use (flagging a just-read summary to revisit), and the state reverts silently across the network, list and statistics.
 
 *Corrections to the finding.* Two refinements; the core claim is accurate.
 
 - The leave-the-page trigger is not established. The finding itself says "probably". `ReportProgressAsync` returns early when `_disposed` is set (SummaryViewModel.cs:170), and I did not check whether navigation disposes the view model before the view detaches. The scroll trigger is certain; `ScrollChanged` on extent or viewport change (window resize, marker text reflow) is also a trigger.
 - The recommendation should cover the scheduled re-check as well. If the toggle to unread happens while `_readCheckScheduled` is pending, the delayed callback at lines 192-201 calls `ReportProgressAsync` itself and can re-mark the version. The fix should reset or guard that flag along with `_reportedProgress` and `_shownSince`.
 
-Separately, and by design rather than a defect: a short summary that fits on one screen is marked read again 8 s into any later ope … (cut; full text in the workflow journal)
+Separately, and by design rather than a defect: a short summary that fits on one screen is marked read again 8 s into any later opening (decisions.md line 71), so a manual unread on a short summary never survives the next visit of 8 s or more.
 
 ### requirements-3. The first question typed on the new-exploration page is not persisted and is easily lost
 
@@ -166,12 +221,21 @@ What holds:
 - **Not in the exit flush.** `ExitCoordinator.SaveEverythingAsync` flushes the workbench location, summary drafts and `reading.FlushAsync()` (conversation drafts). None of these can see the new-page text, and there is no exit prompt for it.
 - **Back discards it.** `GoBack` removes the top page from the stack. The view model is not `IDisposable`, so nothing is literally disposed, but the instance becomes unreachable and the text is gone.
 - **Deliberate but unrecorded.** `docs/design/s2-branching.md:66` states the new-page draft lives only in the page instance. A grep for 草稿 in `docs/design/decisions.md` and the TRACK.md pending-decisions and findings sections shows no entry for it as a deviation.
-- **Requirements.** §9.3 (line 263) says restart restores "the last valid page, reading position … (cut; full text in the workflow journal)
+- **Requirements.** §9.3 (line 263) says restart restores "the last valid page, reading position and drafts"; §11 (line 363) lists drafts as recoverable after close and reopen; §6.3 (line 154) says back and switching do not discard unsent text. None of these exempts the first question.
+- **No tests.** No test covers a new-conversation draft across restart or navigation; the existing tests only use the page to send.
+
+What is overstated:
+- **Scenario (b) is not a loss.** After opening another conversation and clicking "new exploration" again, the old instance stays in the stack with its text and is reachable by pressing Back twice. It is a discoverability problem, capped by `MaxHistory` = 50.
+- **The "model not configured" example mostly survives in-session.** The settings link calls `_menu.Navigate(Settings)`, which switches section; stacks are per section, so the page and its text remain. Clicking "new exploration" again while that page is on top is a no-op (`PushCore` same-route guard). Workspace switches also keep the page.
+- **The requirement reading is interpretive.** §5.1 and §6.3 are phrased around conversations ("before entering other conversations…"), and the design's reason — no conversation row exists to key a draft on — is legitimate. It is a real gap against §9.3 and §11, but arguably an under-specified case, not a flat contradiction.
+
+Why medium stands: actual loss is limited to quit, crash, Back, or in-app restore (`ReleaseAll`). It is silent loss of user-typed content against an explicit acceptance scenario. v0.13 §10.3.1 also makes this page more central, since recommended questions are filled into this input unsent.
 
 *Corrections to the finding.* - Scenario (b) is not data loss. The earlier page instance stays in the back stack with its text; the user sees a fresh empty page and must press Back twice to find it. Describe it as a discoverability problem.
 - "`GoBack`/`Replace` dispose the instance" is imprecise. `NewConversationViewModel` is not `IDisposable`, so `Release` is a no-op; the text is lost because the instance leaves the stack. `Replace` is only reached on an accepted send, where clearing is intended.
 - "Easily lost" is overstated for in-session use. Switching section (including the composer's own "go to settings" link), switching workspace, and clicking "new exploration" while that page is already on top all keep the text. Actual loss needs quit, crash, Back, or in-app restore.
-- The requirement breach is clearest against §9.3 and the §11 close-and-reopen scenario. §5.1 and §6.3 are worded around existing conversations … (cut; full text in the workflow journal)
+- The requirement breach is clearest against §9.3 and the §11 close-and-reopen scenario. §5.1 and §6.3 are worded around existing conversations, so the breach there is arguable.
+- The behaviour is a deliberate, documented design choice (`s2-branching.md:66`), not an oversight. The accurate framing is an unrecorded deviation that should go to TRACK.md for a user decision, alongside the code fix.
 
 ### requirements-4. Summaries queue at the same priority as user questions, contrary to §9.2 and architecture §6
 
@@ -188,7 +252,10 @@ What holds:
 
 Mitigating points that lower severity rather than refute:
 1. The choice looks deliberate, not accidental: s4-summaries.md:22 states it explicitly, and requirements §238 / architecture §322 classify summaries as user-initiated work alongside answers (must finish or be stopped before delete/archive), unlike system-initiated titles. So the code follows the S4 design; the gap is that the design departs from the baseline wording without a recorded decision or a correction raised on main, which AGENTS.md requires.
-2. The user-visible impact is narrow. The extra wait occurs only when both slots are busy AND at least one summary is already queued … (cut; full text in the workflow journal)
+2. The user-visible impact is narrow. The extra wait occurs only when both slots are busy AND at least one summary is already queued ahead of the question (e.g. three or more summaries requested at once, or two answers running plus a queued summary). With both slots busy the question waits for a slot regardless; the deviation costs one extra summary's duration per queued summary ahead. Queued summaries are cancellable, so the user has a workaround. No data loss or incorrect result.
+3. The requirement wording "自动标题和总结" is slightly ambiguous given summaries are user-started, though the plain reading (and architecture's "总结任务") supports the auditor.
+
+Net: a real, undocumented requirements/architecture deviation plus an internal design-doc contradiction and a missing test, but with limited practical impact for a single-user desktop app; low rather than medium.
 
 *Corrections to the finding.* Severity is overstated: medium -> low. The scenario needs both slots busy plus a summary already queued ahead of the question, and queued summaries can be cancelled. The finding should also note that the user-priority placement is an explicit S4 design statement (s4-summaries.md:22) consistent with the docs treating summaries as user-initiated work, so the defect is primarily an unrecorded deviation from requirements §9.2 / architecture §6 and a stale s1-chat.md:44, not an implementation slip. Line reference: SummaryWork's priority is on line 69 (declaration starts at 68), as cited.
 

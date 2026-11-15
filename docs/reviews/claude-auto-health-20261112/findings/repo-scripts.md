@@ -46,7 +46,12 @@ What I checked:
 Why only partially confirmed:
 - "Over two weeks of work" is wrong. It is three days of commits (Oct 26-28); the branch has been idle and unpushed for about 16 days since.
 - A mistaken `git branch -D` would not make the commits unrecoverable; they stay reachable through the reflog until gc. Disk loss, deleting the repository directory, or theft are the real scenarios.
-- `main` being ahead by 3 is a recorded user decision, … (cut; full text in the workflow journal)
+- `main` being ahead by 3 is a recorded user decision, not an oversight (TRACK.md line 31: the user decided on 2026-11-10 not to push for now). All three commits are also contained in the pushed `origin/track/claude-auto`.
+- The two commits on `worktree-wf_e0cb2e5e-84d-1` (c75c215, 3558693, both 2026-11-12) are one day old, in-progress task-branch work. That is the normal workflow state, not a hygiene defect.
+
+Severity stays high. Probability is low, but the impact is irreversible loss of about 33k lines of the graded deliverable, and the fix is one push that needs the user's authorization.
+
+Not verified: I did not query GitHub directly (no `git ls-remote`), so the remote state is inferred from the local tracking ref. The last fetch (2026-11-13 01:36) recorded only `main` in FETCH_HEAD.
 
 *Corrections to the finding.* 1. "Over two weeks of the graded track's work" is overstated: the 112 commits span three days (2026-10-26 to 10-28). They have been unpushed for about 16 days.
 2. A mistaken `git branch -D` is recoverable through the reflog until gc. The unrecoverable scenarios are disk failure, loss of the machine, or deleting /Users/meilingluo/Developer/Projects/mindweave/.git.
@@ -65,12 +70,12 @@ Confirmed facts:
 - worktree-wf_e0cb2e5e-84d-1 (3558693) has 2 commits on no remote ref — as claimed.
 - All worktrees (git worktree list shows 9) share the single repository at /Users/meilingluo/Developer/Projects/mindweave, so there is no second local object store.
 
-The failure scenario is real for disk loss or loss of the machine: the graded track's implementation exists in one place. Severity high is appropriate given that this is the course-submission branch and the fix is a single push ( … (cut; full text in the workflow journal)
+The failure scenario is real for disk loss or loss of the machine: the graded track's implementation exists in one place. Severity high is appropriate given that this is the course-submission branch and the fix is a single push (needing the user's authorization). I did not check for out-of-band backups (Time Machine, cloud sync of the folder, a copy on the Windows test machine), which would reduce the practical risk but are not visible from git.
 
 *Corrections to the finding.* 1. "Over two weeks of the graded track's work" is overstated: the 112 commits span three days (2026-10-26 to 2026-10-28). What is true is that they have sat unpushed for about 16 days, and that the branch has had no commits since 2026-10-28. The volume is still large (292 files, ~33.6k inserted lines).
 2. The claim that a mistaken `git branch -D` or worktree clean-up makes the work "unrecoverable" is too strong: after a branch deletion the commits remain in the object store and are recoverable from the reflog until gc expiry (default 90 days for reachable entries), and removing a worktree does not delete its branch. Only disk/machine loss or deletion of the shared .git directory is truly unrecoverable.
 3. "No second copy" is verified only at the git level (one remote, one shared object store). I did not check for Time Machine or other out-of-band backups.
-4. Minor: the local branches tra … (cut; full text in the workflow journal)
+4. Minor: the local branches track/claude-auto-arch-review and codex/claude-auto-arch-review (6843143) have no upstream configured but are fully contained in pushed refs, so they are not at risk.
 
 <details><summary>Reproduction</summary>
 
@@ -116,13 +121,17 @@ $ git diff --shortstat origin/track/codex-steady track/codex-steady
 - **The state is deliberate and disclosed.** README.md:29 itself says the review is "kept in Codex's own worktree (branch `codex/claude-auto-arch-review`, uncommitted)", and discussion.md:134 says the same. This is a recorded choice, consistent with AGENTS.md rule 5 (do not touch another agent's changes), not an unnoticed accident.
 - **The loss scenario needs a deliberate override.** Plain `git worktree remove` refuses when the worktree has untracked or modified files; only `--force` deletes them. AGENTS.md rule 5 also forbids deleting another session's uncommitted changes without the user confirming.
 - **Rule 6 does not straightforwardly apply.** The branch has no commits of its own, so "merged" is only trivially true; it is not a completed, merged task branch.
-- **The substance survives in tracked files.** proposal. … (cut; full text in the workflow journal)
+- **The substance survives in tracked files.** proposal.md §0 maps the round-1 to round-2 changes against R1–R7, and discussion.md records the finding IDs, agreements and disagreements. What is at risk is the original review text (about 22 KB and 16 KB), not the decisions.
+- **No product or runtime impact.** This is review-archive documentation only.
+
+The residual risk is real: evidence the tracked proposal cites has no durable copy, and the links break off this Mac. The recommendation (commit the two files with the user's decision, switch to relative links) is sound.
 
 *Corrections to the finding.* - **"Fully merged" is misleading.** The branch codex/claude-auto-arch-review has zero commits of its own; it simply points at 6843143, an ancestor of the track. It is an idle branch, not a merged task.
 - **The failure scenario omits two guards.** `git worktree remove` without `--force` refuses on untracked files, and AGENTS.md rule 5 requires user confirmation before deleting another session's changes.
 - **The untracked state is explicitly documented** in README.md:29 and discussion.md:134 ("uncommitted"), which the finding does not mention.
 - **The untracked set is larger than stated.** The Codex worktree also has an untracked README.md in that directory and a modified docs/reviews/README.md.
-- **A sibling worktree is in a similar state.** claude-auto-arch-review (also at 6843143) has the whole review directory untracked plus a modified docs/reviews/README.md; I did not compare its copi … (cut; full text in the workflow journal)
+- **A sibling worktree is in a similar state.** claude-auto-arch-review (also at 6843143) has the whole review directory untracked plus a modified docs/reviews/README.md; I did not compare its copies against the tracked versions on the track.
+- **More absolute paths than the four cited.** README.md:18-20 and discussion.md:120-124, 173 and 191 also carry absolute /Users/... paths, though as provenance text rather than links.
 
 ### repo-scripts-3. Tracked prototypes no longer restore on this branch: root Central Package Management applies to them
 
@@ -149,13 +158,16 @@ What holds:
 Why medium is too high:
 - The prototypes are declared standalone and discardable (network-layout README line 3), and no product code, test or script depends on them.
 - The network README's run instructions point at the main checkout (`cd .../Projects/mindweave/prototypes/network-layout`). main has no Directory.Build.props, so the approved visual reference still runs there. "The reference can no longer be run for comparison" is only true from this branch's tree.
-- docs/design/s7-prototype-visual-language.md:3 already says its screenshots were rendered "from a scratch copy", so the existing workflow sidesteps the problem, and S7 is marked complete in TRACK.md:33. … (cut; full text in the workflow journal)
+- docs/design/s7-prototype-visual-language.md:3 already says its screenshots were rendered "from a scratch copy", so the existing workflow sidesteps the problem, and S7 is marked complete in TRACK.md:33.
+- The fix is trivial: a prototypes/Directory.Build.props that stops the upward import.
+
+Not verified: the claim that TreatWarningsAsErrors and AnalysisMode=Recommended would also break prototype builds. It is plausible because the same props are imported, but restore fails first and I did not build past it.
 
 *Corrections to the finding.* 1. Severity should be low, not medium: this is a hygiene and documentation-accuracy defect in discardable prototypes with no product, test or CI impact and a trivial workaround.
 2. "The reference can no longer be run for comparison" is overstated. The README's run instructions point at the main checkout, where no root Directory.Build.props exists and the prototype is unaffected. Only running from the track/claude-auto tree (or a source zip of that branch) fails.
 3. The orphan directory claude-auto-token-calib/prototypes is weak evidence of a workaround: it contains only avalonia-chat/tests, not the network prototype, and looks more like leftover build output from a removed worktree.
 4. The finding under-reports scope: prototypes/livemarkdown-chat and the avalonia-chat test project also use inline versions and are affected the same way.
-5. The TreatWarningsAsErrors / AnalysisMode conseque … (cut; full text in the workflow journal)
+5. The TreatWarningsAsErrors / AnalysisMode consequence is unverified; restore fails before compilation.
 
 <details><summary>Reproduction</summary>
 
@@ -193,13 +205,20 @@ Nothing was built or written in the audited worktree; `git status --short` there
 - **Incident and rules:** TRACK.md line 123 records the 2026-10-26 overwrite incident; AGENTS.md rules 1 and 6 read as quoted.
 
 **Why the severity is overstated**
-- **The failure scenario is hypothetical.** No evidence shows an agent refusing to write or ignoring status because of `?? .claude/`. It is a single untracked directory with an obvious harness origin, and main carries no product code. Rule 1 also asks agents to check `git worktree list` and other sessions, so the check does n … (cut; full text in the workflow journal)
+- **The failure scenario is hypothetical.** No evidence shows an agent refusing to write or ignoring status because of `?? .claude/`. It is a single untracked directory with an obvious harness origin, and main carries no product code. Rule 1 also asks agents to check `git worktree list` and other sessions, so the check does not rest on status alone.
+- **The 2026-10-26 incident had a different cause.** It was two sessions writing in the same working directory, not misreading an untracked directory.
+- **Rule 6 is only loosely violated.** It governs task branches an agent creates and merges. The 14 branches are harness-created placeholders that never received a commit, so they are harness leftovers rather than merged task branches left behind.
+- **The live branch is easy to identify.** `git worktree list` and `git branch -vv` show wf_e0cb2e5e-84d-1 as the only `worktree-wf_*` branch not at dbc5705 and with a worktree attached.
+- **The remaining items are harmless.** The "garbage" is one empty directory, and the token-calib directory is an empty `obj/` chain.
+
+The recommendation is reasonable and cheap, and it correctly says the clean-up needs the user's go-ahead. A local `.git/info/exclude` entry would also silence the status noise without a commit to main.
 
 *Corrections to the finding.* - **Branch count:** there are 17 `worktree-wf_*` branches at dbc5705, not 14. The figure of 14 is right only for leftovers from earlier runs; the other three belong to the live workflow (wf_5c3b45e2), and two of those have locked worktrees.
 - **Uncommitted work in the 7a/7b worktree:** `wf_e0cb2e5e-84d-1` has at least 5 modified files on top of its 2 unmerged commits. The finding does not mention this, and any clean-up must not touch that worktree.
 - **Rule 6 framing:** the 14 branches are harness-created placeholders that never diverged from dbc5705, not merged task branches. This is harness residue rather than a clear breach of rule 6.
 - **Incident link:** the 2026-10-26 incident was two concurrent writers in one directory, so "defeats the check that prevented the incident" is a stretch.
-- **Minor items:** the "garbage" is a single empty directory, and the token-calib directory holds o … (cut; full text in the workflow journal)
+- **Minor items:** the "garbage" is a single empty directory, and the token-calib directory holds only an empty `obj/` path. Both are cosmetic.
+- **Severity:** low, not medium.
 
 ### repo-scripts-5. package-source.sh drops its zip into the worktree, leaves it on failure, and its content check has gaps
 
@@ -225,14 +244,19 @@ Nothing was built or written in the audited worktree; `git status --short` there
 **Why the severity is low**
 - **Not silent.** A failed run prints `FAIL ...` to stderr and exits non-zero; the leftover zip is a tidiness issue.
 - **Trivially recoverable.** The stray zip is visible in `git status` and removed with one `rm`. Nothing breaks: sync retries and verifies file counts.
-- **Pattern gaps are second-line only.** `git archive` packs tracked files only, and `.gitignore` already blocks `.env` and `.env.*`. No `.env`, `.pem` … (cut; full text in the workflow journal)
+- **Pattern gaps are second-line only.** `git archive` packs tracked files only, and `.gitignore` already blocks `.env` and `.env.*`. No `.env`, `.pem`, `.zip` or `.log` file is tracked today.
+- **Quoting is cosmetic.** It affects only the diagnostic listing; `fail=1` is still set.
+- **Package contents are a policy choice.** No requirement excludes AGENTS.md, TRACK.md or the review archives from the course package; run-guide.md itself points readers at TRACK.md. The home-directory paths reveal only the local username.
+
+No design decision or test makes any of this intended, so the hygiene defects stand. The recommended fixes are reasonable and cheap.
 
 *Corrections to the finding.* - Severity should be low, not medium: no data loss, no secret leak with the current tree, and nothing silent.
 - "Nothing marks it as rejected" is overstated: the script prints FAIL lines and exits non-zero; only the leftover file itself is unmarked.
 - The `.env.local` gap is defence in depth only, since `.gitignore` already ignores `.env.*` and `git archive` packs tracked files only. `prod.env.bak` is a real gap in both layers but hypothetical.
 - The unquoted `$bad` only garbles the diagnostic listing; detection and exit code are unaffected.
 - Shipping AGENTS.md, CLAUDE.md, TRACK.md, .github/ and docs/reviews is an undecided policy question, not a defect; the run guide deliberately points readers to TRACK.md. The `/Users/` paths expose only the local username.
-- The sync cost is better stated as roughly quadrupling the payload (about 320 KB to about 1.4 MB, since a zip does not recompres … (cut; full text in the workflow journal)
+- The sync cost is better stated as roughly quadrupling the payload (about 320 KB to about 1.4 MB, since a zip does not recompress), which is the size that previously failed over the relay.
+- I did not verify the cited "line 59" in windows.sh by number; the behaviour is in `sync_once` as described.
 
 ### repo-scripts-6. CI has no token permissions block, floating action tags, and no package lock
 
@@ -258,12 +282,24 @@ Nothing was built or written in the audited worktree; `git status --short` there
 **Why the scenarios are overstated**
 1. **Token scope.** The repository default is already read-only: the GitHub API returns `default_workflow_permissions: "read"` and `can_approve_pull_request_reviews: false`. A compromised or re-tagged action would not get write scope. The workflows also reference no secrets. An explicit `permissions:` block would only guard against someone changing the repo setting later.
 2. **Package drift.** All 15 direct dependencies are pinned to exact versions through central package management in `Directory.Packages.props`, with no floating or range versions. NuGet resolves transitive dependencies to the lowest applicable version, so identical source restores the same graph on every run. "A transitive dependency changes between two pushes of identical source" does not happen in normal operation. A lock file would add content-hash verification and protection against a package being replaced on the feed, which is a narrower benefit.
-3. **SDK drift.** This is real, but it is a re … (cut; full text in the workflow journal)
+3. **SDK drift.** This is real, but it is a recorded decision. TRACK.md line 126 (2026-10-26) explains the two dev machines are on different feature bands (10.0.402 and 10.0.103), so `global.json` was deliberately relaxed and CI set to newest `10.0.x`; the comment at `ci.yml:34` says the same. With `TreatWarningsAsErrors`, `AnalysisLevel=latest` and `EnforceCodeStyleInBuild`, a new feature band can turn CI red on unchanged source. That is a real but minor reproducibility cost.
+4. **Script injection.** `workflow_dispatch` needs write access, and the repo is private with exactly one collaborator. Anyone who can dispatch can already push arbitrary workflow code, the token is read-only, and there are no secrets. There is no privilege boundary to cross; it is a robustness and style issue only.
+5. **macOS on dispatch.** Already recorded as an authorized cost decision at TRACK.md line 48, and the finding itself says so. macOS is the primary local dev machine, with a full local run recorded after every merge (TRACK.md line 23). The platform that only CI covers is Linux.
+
+**What is left**
+- Mutable action tags on first-party `actions/*` actions: low supply-chain risk given the read-only token and no secrets.
+- SDK feature-band float: documented and intentional.
+- No lock file: defence-in-depth only.
+- No explicit `permissions:` block: defence-in-depth only.
+
+The recommendations are still reasonable and cheap to apply.
 
 *Corrections to the finding.* - **Token scope:** "jobs get the repository default GITHUB_TOKEN scope" is true, but that default is read-only, so the "whatever write scope the repo default grants" scenario grants none.
 - **Transitive packages:** the claim that transitive package versions float between runs is wrong. All direct versions are exact-pinned in `Directory.Packages.props`, and NuGet's lowest-applicable resolution is deterministic without a lock file. Only the SDK feature band floats, and that is a documented decision (TRACK.md line 126).
 - **Line numbers:** the `stress.yml` interpolations are at lines 41, 45, 50, 51 and 58, not 49-52. The finding also misses `runs-on: ${{ inputs.os }}` at line 30.
-- **Injection:** "arbitrary PowerShell on the runner (limited to collaborators)" is not an escalation. The private repo has one collaborator, dispatch needs write access, the token is read-only and no secrets are u … (cut; full text in the workflow journal)
+- **Injection:** "arbitrary PowerShell on the runner (limited to collaborators)" is not an escalation. The private repo has one collaborator, dispatch needs write access, the token is read-only and no secrets are used.
+- **macOS:** the dispatch-only decision is already recorded and macOS is the primary local test platform, so it adds little as a finding.
+- **Severity:** low, not medium.
 
 ### repo-scripts-7. windows.sh sync runs with errexit silently disabled and misreports a failed remote clean-up as a transfer failure
 

@@ -47,13 +47,24 @@ The hand-written interop is small, careful and, as far as static reading can tel
 - The scheduler has two slots (`_options.Slots`), so two blocked reads stall all generation.
 - The settings view model passes `CancellationToken.None` to Save and Test.
 
-I found no design decision or TRACK.md entry that accepts or mitigates this. The architecture only says an unavailable credential service must surfa … (cut; full text in the workflow journal)
+I found no design decision or TRACK.md entry that accepts or mitigates this. The architecture only says an unavailable credential service must surface as unlock/retry, which a blocked prompt never reaches.
+
+**Why the severity is overstated:**
+- **Trigger frequency.** The documented way to run on macOS is `dotnet run`. The process identity the keychain sees is then the apphost stub, whose bytes do not normally change when only managed DLLs are rebuilt. A re-prompt is realistic after an SDK/apphost change, a single-file or bundled publish, or a move to a signed build, not after every rebuild. No macOS packaging exists in `src/` or `scripts/`; only the Windows publish command is documented.
+- **One-time cost.** The system dialog offers "Always Allow", after which the new binary stops prompting.
+- **Windows is unaffected.** `CredReadW` does not show UI. The known SSH-session failure returns error 1312 immediately and maps to `CredentialUnavailable`.
+- **No data loss or security impact.** The outcome is a stalled answer or task until the user answers the dialog. The login keychain is normally unlocked for the whole session.
+- **Unobserved.** The stage report records a live keychain read/write/delete as passing. I did not run anything to reproduce the prompt (read-only audit).
+
+**What remains a real gap:** an OS call that can block indefinitely sits inside a scheduler slot with no stop token, no timeout and no fail-instead-of-prompt flag, and the user-facing Stop awaits it. The recommendation (pass the stop token and race it with a timeout, serialise prompts, optionally cache per session) is sound. Session caching is a trade-off, since it keeps the secret in memory longer, not a clear defect.
 
 *Corrections to the finding.* - The file is `src/Mindweave.Application/Models/ModelSettingsService.cs`, not under `Settings/`.
 - Line 94 of that file is a credential write (`WriteAsync` in Save), not a read; line 234 is the read used by Test and model listing. Writes to an existing item can also prompt, so the point stands with the wording corrected.
 - "After any rebuild" is overstated. Under `dotnet run` the keychain identity is the apphost stub, which normally stays byte-identical when only managed code is rebuilt. Re-prompting is expected after an SDK/apphost change, a single-file or bundled publish, or a signing-identity change. This is platform reasoning, not something I reproduced.
 - "Slots stay blocked indefinitely" needs the qualifier that this lasts only until the dialog is answered, and "Always Allow" removes it for that binary.
-- "Stop has no effect" understates one detail: `StopAsync` also awaits `running … (cut; full text in the workflow journal)
+- "Stop has no effect" understates one detail: `StopAsync` also awaits `running.Completion`, so the Stop call itself hangs until the read returns.
+- The scenario is macOS-only; the Windows store does not prompt.
+- Severity: low, not medium — a real robustness gap, with a rare, self-clearing trigger and no data or security consequence.
 
 ### gap-native-interop-and-process-boundary-2. Settings always claims a key is saved; a credential reference with no item behind it is never detected until a request fails
 
@@ -79,13 +90,20 @@ What holds:
 What is overstated:
 - The failure text is "尚未配置模型或密钥" ("model or key not configured"). It names the key, so the user is not left purely guessing. It is still inaccurate (the model is configured) and contradicts the settings placeholder.
 - The settings page does surface the problem on two paths: "测试连接" and "获取列表" go through KeyForAsync, which reads the store and throws MissingKey ("请填写 API 密钥。") when the item is absent.
-- The workspace name-suggestion … (cut; full text in the workflow journal)
+- The workspace name-suggestion flow already handles a lost key with a "前往设置" link (s7-ui-polish.md:589). Summaries and titles I did not trace.
+- No data is lost and nothing leaks. The question is kept, and typing the key again fully recovers.
+- All triggers are uncommon manual or environmental events.
+
+Against the requirement: requirements.md:385 asks that a new request "明确失败并提示解锁或重新填写" when the key is invalid. The current behaviour fails explicitly but only weakly prompts re-entry, and I found no settings link on the failed answer: the composer link is tied to SendRejection, not to the task's error kind (Composer.cs:53). I did not open the failed-answer view itself, so that last point rests on grep.
+
+This is a real UX and diagnosability gap, best rated low to low-medium rather than medium. The recommended fixes (probe on load, MissingKey on save, a specific message) are reasonable.
 
 *Corrections to the finding.* - "The only way out is to guess that the key must be typed again" is too strong. The failure text names the key ("尚未配置模型或密钥"), and "测试连接" or "获取列表" with an empty key field report "请填写 API 密钥。" because KeyForAsync reads the store.
 - "Never detected until a request fails" is true for load, save and send, but not for the test and fetch buttons on the same page.
 - The lost-key case is already handled with a "前往设置" link in the workspace name-suggestion flow; the gap is the settings page, SaveAsync and the conversation send path.
 - The line reference is slightly off: the null check is GenerationRequests.cs:150-152, inside ReadKeyAsync.
-- Severity should be low (low-medium at most): rare triggers, no data loss, full recovery by re-entering the key. The substantive defects are the false "saved" placeholder, Save succeeding over a dangling reference, and a weaker prompt than requirements.md:385 a … (cut; full text in the workflow journal)
+- Severity should be low (low-medium at most): rare triggers, no data loss, full recovery by re-entering the key. The substantive defects are the false "saved" placeholder, Save succeeding over a dangling reference, and a weaker prompt than requirements.md:385 asks for.
+- Not verified: that Windows items are CRED_PERSIST_LOCAL_MACHINE (my grep for it did not run cleanly). The finding does not depend on it.
 
 ### gap-native-interop-and-process-boundary-3. Every secret-store failure is reported as 'locked, unlock and retry' with a raw status number
 
@@ -111,7 +129,11 @@ The severity is overstated, for these reasons:
    - Windows 1312 over SSH is a developer/test situation, already recorded in TRACK.md:124 as behaving as designed.
    - -34018 is hypothetical: there is no sandboxing or entitlement today.
    - An oversized secret on Windows would need an API key over about 2560 bytes.
-   - That leaves the use … (cut; full text in the workflow journal)
+   - That leaves the user clicking Deny on a macOS keychain prompt (or the prompt appearing after a binary signature change). It is real, but narrow, and the retry does re-present the dialog where the user can click Allow.
+
+4. **Impact is limited to misleading advice plus an opaque number.** There is no data loss, no security consequence and no stuck state. The raw code is preserved in the message, the stored ErrorDetail and the logs, so it is diagnosable.
+
+I did not run anything; this is from reading the code and docs. The recommendation (a reason enum with per-reason text) is reasonable polish. Because the wording is fixed by requirements.md and architecture.md, changing it needs a TRACK.md note and a user decision under the AGENTS.md rule.
 
 *Corrections to the finding.* - The "unlock and retry" advice is not an implementation oversight: requirements.md:385 and architecture.md:257 prescribe that wording, so a fix needs a docs decision by the user, not just a code change.
 - The Linux scenario is out of scope, since Linux is not a supported platform.

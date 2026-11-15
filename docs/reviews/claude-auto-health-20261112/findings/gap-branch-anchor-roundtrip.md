@@ -47,7 +47,9 @@ It is not an A because of one verified silent corruption of the stored quote (th
 
 **No downstream guard.** `AnswerView.axaml.cs:112` passes `QuoteOf(anchor)` straight into `BranchSelection`. `BranchContext.cs:42` prefixes it to the first question. `Restore` checks only `Quote` (the displayed text), never `Readable`, so nothing detects the mismatch and return-to-source still works.
 
-**Tests.** The existing quote tests use paragraphs whos … (cut; full text in the workflow journal)
+**Tests.** The existing quote tests use paragraphs whose only dollars or delimiters are the formula itself.
+
+**Severity.** Medium holds. It silently corrupts stored data and the text sent to the model in a core feature, with no crash and no anchor damage. The trigger is realistic but narrow: one paragraph must hold both a rendered inline formula and another `$`, or an inline image or other embedded object before it.
 
 *Corrections to the finding.* - The task-list case is a separate, smaller defect. With no formula in the block, `Readable()` leaves the placeholder alone, so the raw U+FFFC in the quote comes from embedded objects in general not being handled, not from a wrong substitution.
 - "Nothing indicates it" is slightly overstated. The wrong text is visible to the user in the quote card and the branch title; it just is not flagged as wrong.
@@ -84,7 +86,13 @@ Not re-run (read-only audit; no builds in the worktree). Existing probe output r
 **Why medium is overstated**
 - **No present defect.** The auditor's own probe says all block kinds work today; this is missing regression protection only.
 - **The failure mode is designed degradation.** A refused or unrestorable anchor produces the `SourceNotLocated` notice and still navigates to the source message (MW-C13). `BranchUiTests.cs:165-185` tests exactly that path. Nothing is lost or corrupted.
-- **The trigger is a deliberate act.** The Liv … (cut; full text in the workflow journal)
+- **The trigger is a deliberate act.** The LiveMarkdown version is baked into the profile string (`livemarkdown-2.5.1`), so an upgrade forces a conscious profile decision. All three past bumps appended the previous profile.
+- **Blast radius is small.** There are no release tags; "every database" today means development and trial databases.
+
+**Corrections to the evidence**
+- End-to-end return-to-source coverage is wider than "BranchUiTests drives one plain paragraph". `MathRenderingTests.cs:83`, `GalleryTests.cs:800` and `SourceHighlightThemeTests.cs:271` also run branch then return-to-source through the real Capture/Restore path, including a paragraph with an inline formula. None covers tables, code blocks or lists, so the gap for those block kinds stands.
+
+The recommendation (a per-profile anchor corpus plus a test that every profile ever written is in `CompatibleProfiles`) is sound and cheap. It is a low-severity test-hardening item, worth doing before the first rendering-package upgrade.
 
 *Corrections to the finding.* - Severity should be low, not medium: this is a test-coverage gap with no present defect, the failure mode is the designed MW-C13 notice with no data loss, and the trigger is a deliberate package or profile bump.
 - "BranchUiTests drives one plain paragraph" understates end-to-end coverage: `MathRenderingTests.cs:83`, `GalleryTests.cs:800` and `SourceHighlightThemeTests.cs:271` also run branch then return-to-source through the real Capture/Restore path, including an inline-formula paragraph. None covers table, code or list blocks.
