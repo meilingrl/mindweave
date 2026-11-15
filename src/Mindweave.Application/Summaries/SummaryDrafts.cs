@@ -165,6 +165,19 @@ public sealed partial class SummaryDrafts : IDisposable
             saved &= await WriteAsync(node).ConfigureAwait(false);
         }
 
+        // An edit that already could not be saved goes with its summary if that was deleted since (review 2026-11-15):
+        // deleting a conversation removes the stored rows without telling this class, and no page is left to discard it.
+        SummaryNodeId[] conflicted;
+        lock (_lock)
+        {
+            conflicted = [.. _records.Where(r => r.Value.Status == DraftStatus.Conflict).Select(r => r.Key)];
+        }
+
+        foreach (var node in conflicted)
+        {
+            await DropIfGoneAsync(node).ConfigureAwait(false);
+        }
+
         lock (_lock)
         {
             return saved && !_records.Values.Any(r => r.Status is DraftStatus.Dirty or DraftStatus.Failed or DraftStatus.Deleting or DraftStatus.Conflict);
@@ -327,6 +340,35 @@ public sealed partial class SummaryDrafts : IDisposable
             ? new DraftRead.Conflict(record.Generation, record.Revision, content.Baseline, content.Title, content.Body)
             : new DraftRead.Draft(record.Generation, record.Revision, content.Baseline, content.Title, content.Body)
         : new DraftRead.None(record.Generation, record.Revision);
+
+    /// <summary>Drops a conflicted draft whose node no longer exists.</summary>
+    private async Task DropIfGoneAsync(SummaryNodeId node)
+    {
+        var gate = GateOf(node);
+        await gate.WaitAsync().ConfigureAwait(false);
+        try
+        {
+            if (!await IsGoneAsync(node).ConfigureAwait(false))
+            {
+                return;
+            }
+
+            lock (_lock)
+            {
+                var record = RecordOf(node);
+                if (record.Status == DraftStatus.Conflict)
+                {
+                    record.Generation++;
+                    record.Content = null;
+                    record.Status = DraftStatus.None;
+                }
+            }
+        }
+        finally
+        {
+            gate.Release();
+        }
+    }
 
     /// <summary>The node no longer exists. A failed read answers no: the draft is then kept.</summary>
     private async Task<bool> IsGoneAsync(SummaryNodeId node)

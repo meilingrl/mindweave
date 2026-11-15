@@ -185,6 +185,34 @@ public class SummaryDraftTests
         Assert.True(await drafts.FlushAsync());
     }
 
+    /// <summary>
+    /// Review 2026-11-15: an edit that already could not be saved (typed on one page while another saved a version) goes
+    /// with its summary when the conversation is then deleted; otherwise no page is left to discard it and the exit waits.
+    /// </summary>
+    [Fact]
+    public async Task An_unsaveable_edit_goes_with_its_deleted_summary()
+    {
+        await using var h = await ChatHarness.StartAsync();
+        var (node, current) = await SummaryAsync(h);
+        var conversation = (await h.SummaryService.GetAsync(node, Ct))!.Node.Conversation;
+        var store = Gated.Wrap(h.SummaryNodes);
+        using var drafts = Drafts(h, store.Store);
+        var session = await drafts.OpenAsync(node, current, Ct);
+        var revision = drafts.Set(node, session.Generation, current, "标题", "保存这一版")!.Value;
+        var hold = store.Hold(nameof(ISummaryStore.SaveEditAsync));
+        var committing = drafts.CommitAsync(node, session.Generation, revision, () => store.Store.SaveEditAsync(node, current, "标题", "保存这一版", DateTimeOffset.UtcNow, Ct));
+        await hold.Entered.Task.WaitAsync(TimeSpan.FromSeconds(5), Ct);
+        Assert.NotNull(drafts.Set(node, session.Generation, current, "标题", "另一页上更新的输入"));
+        hold.Release.SetResult();
+        await committing;
+        Assert.Equal([node], drafts.Unsaveable());
+
+        Assert.True((await h.DeleteAsync(conversation)).IsDeleted);
+
+        Assert.True(await drafts.FlushAsync());
+        Assert.Empty(drafts.Unsaveable());
+    }
+
     /// <summary>Health check 2026-11-12, item 10: the schema refuses a blank title or body, so the service refuses it first, by name.</summary>
     [Theory]
     [InlineData("", "正文")]

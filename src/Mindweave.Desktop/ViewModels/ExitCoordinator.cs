@@ -92,6 +92,16 @@ public sealed partial class ExitCoordinator(
     [NotifyPropertyChangedFor(nameof(FailedBody))]
     public partial IReadOnlyList<string> UnsaveableSummaries { get; private set; } = [];
 
+    // The names belong to the failure they explain (review 2026-11-15): leaving it (retry, return) clears them, so a
+    // later failure at another step never shows an old list.
+    partial void OnStageChanged(ExitStage value)
+    {
+        if (value != ExitStage.Failed)
+        {
+            UnsaveableSummaries = [];
+        }
+    }
+
     public string FailedRetry => IsForRestore ? UiText.RestoreRetry : UiText.ExitRetry;
 
     /// <summary>Stopping, saving or restoring: the overlay shows progress and offers nothing to press.</summary>
@@ -388,12 +398,6 @@ public sealed partial class ExitCoordinator(
     [LoggerMessage(Level = LogLevel.Error, Message = "Exit step {Stage} failed; the window stays open with retry and return")]
     private static partial void LogStepFailed(ILogger logger, Exception exception, ExitStage stage);
 
-    /// <summary>
-    /// Step 4: an export still writing its file (so it is not cut off and leaves no temporary file), summary edit drafts
-    /// (including any still inside their autosave delay), message drafts and reading positions, the stopped answers' terminal
-    /// writes that failed, the last location, then the write queue and a best-effort checkpoint. True when nothing the
-    /// user wrote or received is left unsaved; page state alone may degrade.
-    /// </summary>
     /// <summary>Best effort: a failed read only leaves the names out of the message.</summary>
     private async Task<IReadOnlyList<string>> UnsaveableSummariesAsync()
     {
@@ -410,6 +414,12 @@ public sealed partial class ExitCoordinator(
         }
     }
 
+    /// <summary>
+    /// Step 4: an export still writing its file (so it is not cut off and leaves no temporary file), summary edit drafts
+    /// (including any still inside their autosave delay), message drafts and reading positions, the stopped answers' terminal
+    /// writes that failed, the last location, then the write queue and a best-effort checkpoint. True when nothing the
+    /// user wrote or received is left unsaved; page state alone may degrade.
+    /// </summary>
     private async Task<bool> SaveEverythingAsync()
     {
         await exports.WhenIdleAsync();
