@@ -93,6 +93,11 @@ public static partial class UiText
     public const string ExitCancel = "继续生成";
     public const string ExitSaving = "正在停止任务并保存……";
     public const string ExitSaveFailedTitle = "部分内容未能保存";
+    /// <summary>Added to the save-failed message when summary edits can never be saved as they are (low finding gap-summary-3).</summary>
+    public static string UnsaveableSummaryEdits(IReadOnlyList<string> names) => names is null || names.Count == 0
+        ? string.Empty
+        : $"\n\n这些总结里的编辑是在旧版本上改的，无法保存：{string.Join("、", names.Select(n => $"《{n}》"))}。请返回打开它，复制需要的文字后点“{DiscardEdit}”，再退出。";
+
     public const string ExitSaveFailedBody = "草稿或回答的结束状态没能写入，内容仍保留在程序里，写入成功前不会退出。已停止的任务不会自动恢复。";
     public const string ExitRetry = "重试退出";
     public const string ExitReturn = "返回";

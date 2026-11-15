@@ -80,6 +80,12 @@ public class SummaryDraftTests
         var kept = Assert.IsType<DraftRead.Conflict>(await drafts.OpenAsync(node, saved.Value, Ct));
         Assert.Equal("另一页上更新的输入", kept.Body);
         Assert.False(await drafts.FlushAsync());
+
+        // The exit can say which summary holds it (low finding gap-summary-3), and a discard on its page clears it.
+        Assert.Equal([node], drafts.Unsaveable());
+        await drafts.DiscardAsync(node, kept.Generation, kept.Revision);
+        Assert.Empty(drafts.Unsaveable());
+        Assert.True(await drafts.FlushAsync());
     }
 
     [Fact]
@@ -138,6 +144,45 @@ public class SummaryDraftTests
         var refused = await Assert.ThrowsAsync<SummaryRefusedException>(() => h.SummaryService.SetCurrentAsync(node, first, Ct));
         Assert.Equal(SummaryRefusal.HasDraft, refused.Reason);
         Assert.Equal(second, (await h.SummaryService.GetAsync(node, Ct))!.Node.Current);
+    }
+
+    /// <summary>
+    /// Low finding gap-summary-3: an edit opened with nothing typed yet does not outlive a change of current version.
+    /// Its next input used to be accepted, refused in the background as a conflict, and then block the exit for good.
+    /// Now the session is stale: the page says so and keeps its text, and nothing is left unsaved.
+    /// </summary>
+    [Fact]
+    public async Task An_edit_opened_before_the_current_version_changed_is_stale_and_blocks_nothing()
+    {
+        await using var h = await ChatHarness.StartAsync();
+        var (node, first) = await SummaryAsync(h);
+        var second = (await h.SummaryService.SaveEditAsync(node, first, "标题", "第二版", Ct))!.Value;
+        var session = await h.SummaryService.OpenDraftAsync(node, second, Ct);
+
+        await h.SummaryService.SetCurrentAsync(node, first, Ct);
+
+        Assert.Null(h.SummaryService.SetDraft(node, session.Generation, second, "标题", "在旧编辑框里打的字"));
+        Assert.True(await h.SummaryService.FlushDraftsAsync());
+    }
+
+    /// <summary>
+    /// Low finding gap-summary-3: a draft whose summary was deleted (its conversation deleted before the draft was
+    /// written) is dropped with it, not kept as a conflict that no page can discard and that blocks the exit for good.
+    /// </summary>
+    [Fact]
+    public async Task A_draft_whose_summary_was_deleted_is_dropped_and_blocks_nothing()
+    {
+        await using var h = await ChatHarness.StartAsync();
+        var (node, current) = await SummaryAsync(h);
+        var conversation = (await h.SummaryService.GetAsync(node, Ct))!.Node.Conversation;
+        using var drafts = Drafts(h, h.SummaryNodes);
+        var session = await drafts.OpenAsync(node, current, Ct);
+        Assert.NotNull(drafts.Set(node, session.Generation, current, "标题", "删除前还没写入的修改"));
+
+        Assert.True((await h.DeleteAsync(conversation)).IsDeleted);
+
+        Assert.True(await drafts.FlushAsync());
+        Assert.True(await drafts.FlushAsync());
     }
 
     /// <summary>Health check 2026-11-12, item 10: the schema refuses a blank title or body, so the service refuses it first, by name.</summary>

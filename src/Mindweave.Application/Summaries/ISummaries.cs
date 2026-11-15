@@ -50,4 +50,7 @@ public interface ISummaries
 
     /// <summary>Writes every unsaved summary edit draft now (the exit); false when one is left unsaved.</summary>
     Task<bool> FlushDraftsAsync();
+
+    /// <summary>The names of the summaries holding edits that can be neither saved nor stored as a draft (the exit names them).</summary>
+    Task<IReadOnlyList<string>> UnsaveableDraftsAsync(CancellationToken cancellationToken);
 }

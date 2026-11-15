@@ -253,6 +253,20 @@ public sealed class SummaryService : ISummaries
 
     public Task<bool> FlushDraftsAsync() => _drafts.FlushAsync();
 
+    public async Task<IReadOnlyList<string>> UnsaveableDraftsAsync(CancellationToken cancellationToken)
+    {
+        var names = new List<string>();
+        foreach (var node in _drafts.Unsaveable())
+        {
+            if (await _summaries.GetAsync(node, cancellationToken).ConfigureAwait(false) is { } detail)
+            {
+                names.Add(detail.Node.DisplayName);
+            }
+        }
+
+        return names;
+    }
+
     /// <summary>Opens an edit of the node's current version, continuing its newest draft (memory first, then stored).</summary>
     public Task<DraftRead> OpenDraftAsync(SummaryNodeId node, SummaryVersionId current, CancellationToken cancellationToken) =>
         _drafts.OpenAsync(node, current, cancellationToken);

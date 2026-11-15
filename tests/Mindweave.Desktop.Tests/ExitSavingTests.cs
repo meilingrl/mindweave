@@ -164,6 +164,16 @@ public class ExitSavingTests
         Assert.Equal(discard ? null : "新的草稿", detail!.Draft?.Body);
     }
 
+    /// <summary>Low finding gap-summary-3: when a summary edit can never be saved, the failed exit says which summary and what to press.</summary>
+    [Fact]
+    public void A_failed_exit_names_the_summaries_whose_edits_cannot_be_saved()
+    {
+        Assert.Equal(string.Empty, UiText.UnsaveableSummaryEdits([]));
+        var text = UiText.UnsaveableSummaryEdits(["蒸汽机车史", "铁路发展"]);
+        Assert.Contains("《蒸汽机车史》、《铁路发展》", text, StringComparison.Ordinal);
+        Assert.Contains(UiText.DiscardEdit, text, StringComparison.Ordinal);
+    }
+
     [AvaloniaFact]
     public async Task An_export_still_writing_its_file_is_finished_before_the_window_closes()
     {

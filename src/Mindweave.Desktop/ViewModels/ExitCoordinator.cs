@@ -85,7 +85,12 @@ public sealed partial class ExitCoordinator(
 
     public string BusyText => Stage == ExitStage.Restoring ? UiText.RestoreRunning : IsForRestore ? UiText.RestoreSaving : UiText.ExitSaving;
 
-    public string FailedBody => IsForRestore ? UiText.RestoreSaveFailedBody : UiText.ExitSaveFailedBody;
+    public string FailedBody => (IsForRestore ? UiText.RestoreSaveFailedBody : UiText.ExitSaveFailedBody) + UiText.UnsaveableSummaryEdits(UnsaveableSummaries);
+
+    /// <summary>Summaries holding an edit that can never be saved as it is; named so the user knows where to discard it.</summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(FailedBody))]
+    public partial IReadOnlyList<string> UnsaveableSummaries { get; private set; } = [];
 
     public string FailedRetry => IsForRestore ? UiText.RestoreRetry : UiText.ExitRetry;
 
@@ -333,6 +338,7 @@ public sealed partial class ExitCoordinator(
 
         if (!saved)
         {
+            UnsaveableSummaries = await UnsaveableSummariesAsync();
             Stage = ExitStage.Failed;
             return;
         }
@@ -388,6 +394,22 @@ public sealed partial class ExitCoordinator(
     /// writes that failed, the last location, then the write queue and a best-effort checkpoint. True when nothing the
     /// user wrote or received is left unsaved; page state alone may degrade.
     /// </summary>
+    /// <summary>Best effort: a failed read only leaves the names out of the message.</summary>
+    private async Task<IReadOnlyList<string>> UnsaveableSummariesAsync()
+    {
+        try
+        {
+            return await summaries.UnsaveableDraftsAsync(CancellationToken.None);
+        }
+#pragma warning disable CA1031 // The message stays generic; retry and return still work.
+        catch (Exception ex)
+#pragma warning restore CA1031
+        {
+            LogStepFailed(logger, ex, ExitStage.Failed);
+            return [];
+        }
+    }
+
     private async Task<bool> SaveEverythingAsync()
     {
         await exports.WhenIdleAsync();

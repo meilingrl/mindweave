@@ -19,7 +19,7 @@ public abstract record DraftRead(long Generation, long Revision)
 /// Owner of summary edit drafts (architecture §2: "总结编辑草稿 · 总结用例 · 独立自动保存"; review F2). One draft per node,
 /// as stored. The newest input lives here, not in a page, so a page reopened after its draft failed to save shows that
 /// input, and no page decides which leftover wins. An edit session is bound to the node's generation (bumped by every
-/// commit and discard) and to the revision it last set, so a stale page can neither overwrite nor commit or discard
+/// commit, discard and version operation, and when the node is found deleted) and to the revision it last set, so a stale page can neither overwrite nor commit or discard
 /// newer input. Writes are coalesced and trail by <see cref="SaveDelay"/>.
 /// </summary>
 /// <remarks>
@@ -172,6 +172,18 @@ public sealed partial class SummaryDrafts : IDisposable
     }
 
     /// <summary>
+    /// The nodes whose input can be neither stored nor saved as a version (its baseline stopped being current while it
+    /// was typed): only a discard on its page clears it. The exit names them (low finding gap-summary-3).
+    /// </summary>
+    public IReadOnlyList<SummaryNodeId> Unsaveable()
+    {
+        lock (_lock)
+        {
+            return [.. _records.Where(r => r.Value.Status == DraftStatus.Conflict).Select(r => r.Key)];
+        }
+    }
+
+    /// <summary>
     /// Saves the session's draft as a version through <paramref name="saveEdit"/> (which removes the stored draft in the
     /// same transaction). Refused with <see cref="SummaryRefusal.Changed"/> when the session is stale or another page set
     /// newer input. If newer input arrives while the version is being written, it is kept as a conflict, not dropped.
@@ -282,7 +294,16 @@ public sealed partial class SummaryDrafts : IDisposable
                 _health.ThrowIfBlocked();
             }
 
-            return await operation().ConfigureAwait(false);
+            var result = await operation().ConfigureAwait(false);
+
+            // The current version may have changed: an edit opened before it, with nothing typed yet, is now stale, so its
+            // next input is refused at once instead of becoming a conflict that cannot be saved (low finding gap-summary-3).
+            lock (_lock)
+            {
+                RecordOf(node).Generation++;
+            }
+
+            return result;
         }
         finally
         {
@@ -306,6 +327,22 @@ public sealed partial class SummaryDrafts : IDisposable
             ? new DraftRead.Conflict(record.Generation, record.Revision, content.Baseline, content.Title, content.Body)
             : new DraftRead.Draft(record.Generation, record.Revision, content.Baseline, content.Title, content.Body)
         : new DraftRead.None(record.Generation, record.Revision);
+
+    /// <summary>The node no longer exists. A failed read answers no: the draft is then kept.</summary>
+    private async Task<bool> IsGoneAsync(SummaryNodeId node)
+    {
+        try
+        {
+            return await _store.GetAsync(node, CancellationToken.None).ConfigureAwait(false) is null;
+        }
+#pragma warning disable CA1031 // Unknown means kept: dropping input on a read error would lose it.
+        catch (Exception ex)
+#pragma warning restore CA1031
+        {
+            LogWriteFailed(_logger, ex, node);
+            return false;
+        }
+    }
 
     private Record RecordOf(SummaryNodeId node)
     {
@@ -371,18 +408,32 @@ public sealed partial class SummaryDrafts : IDisposable
             }
             catch (SummaryRefusedException)
             {
-                // The baseline is gone (another version became current): a domain conflict, not a storage failure.
+                // The summary itself is gone (its conversation was deleted before this was written): the draft goes with
+                // it. Kept, it could never be written and no page is left to discard it, so the exit would wait for good
+                // (low finding gap-summary-3).
+                var gone = await IsGoneAsync(node).ConfigureAwait(false);
+
+                // Otherwise the baseline is gone (another version became current): a domain conflict, not a storage failure.
                 StorageObligation? resolved;
                 lock (_lock)
                 {
                     var record = RecordOf(node);
-                    record.Status = DraftStatus.Conflict;
                     resolved = record.Obligation;
                     record.Obligation = null;
+                    if (gone)
+                    {
+                        record.Generation++;
+                        record.Content = null;
+                        record.Status = DraftStatus.None;
+                    }
+                    else
+                    {
+                        record.Status = DraftStatus.Conflict;
+                    }
                 }
 
                 resolved?.Resolve();
-                return false;
+                return gone;
             }
 #pragma warning disable CA1031 // Any other failure is a defect: logged, and the input stays in memory, pending.
             catch (Exception ex)
