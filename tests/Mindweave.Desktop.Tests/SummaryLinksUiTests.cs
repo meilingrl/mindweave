@@ -70,8 +70,14 @@ public class SummaryLinksUiTests
 
         var paints = canvas.PaintLinks();
         Assert.Equal(2, paints.Count);
-        var noted = Assert.Single(paints, p => p.Note is not null);
+        var noted = Assert.Single(paints, p => p.Link.Note is not null);
         Assert.Equal("对比", noted.Link.Note);
+        Assert.Equal("对比", noted.Label);
+
+        // A link without a note still carries a word on its line, so it never reads as a source edge by colour alone.
+        var bare = Assert.Single(paints, p => p.Link.Note is null);
+        Assert.Equal(UiText.LinkTag, bare.Label);
+        Assert.NotNull(bare.Note);
         var middle = new Avalonia.Point((noted.From.X + noted.To.X) / 2, (noted.From.Y + noted.To.Y) / 2);
         Assert.True(noted.NoteBounds.Contains(middle));
         var leafPaint = canvas.PaintNodes().Single(n => n.Node.ShortTitle == Leaf);
@@ -178,6 +184,171 @@ public class SummaryLinksUiTests
     }
 
     [AvaloniaFact]
+    public async Task A_double_click_in_pick_mode_links_once_and_keeps_the_note_editor_instead_of_opening_the_summary()
+    {
+        await using var app = DesktopHarness.Create();
+        var window = app.ShowWindow(1100, 720);
+        await SeedAsync(app);
+        var network = await SummaryNetworkScenario.OpenSummaryNetworkAsync(app, window);
+        var root = NodeOf(network, Root);
+        var leaf = NodeOf(network, Leaf);
+        var sibling = NodeOf(network, Sibling);
+        var canvas = CanvasOf(window);
+        UiInput.Click(window, canvas, at: canvas.PaintNodes().Single(n => n.Node.Id == root).Center);
+        await network.LinksReloaded;
+        window.UpdateLayout();
+        var links = app.Services.GetRequiredService<ISummaryLinks>();
+
+        // A double click whose second press comes once the link is made: it stays one pick; the summary is not opened and
+        // the new link's note editor stays open.
+        network.BeginLinkCommand.Execute(null);
+        await UiInput.PastDoubleClickAsync();
+        window.UpdateLayout();
+        var origin = PointIn(window, canvas, default);
+        var leafAt = PointIn(window, canvas, canvas.PaintNodes().Single(n => n.Node.Id == leaf).Center);
+        Press(window, leafAt);
+        await UiWait.UntilAsync(() => !network.IsPicking && network.Links!.Items.Any(i => i.IsEditing));
+        await SettledAsync(network);
+        window.UpdateLayout();
+
+        // The canvas did not move under the pointer: the hint lies over it, and the toolbar's 隐藏关联 came with 关联到….
+        Assert.Equal(origin, PointIn(window, canvas, default));
+        Press(window, leafAt);
+        Assert.Same(network, app.Workbench.CurrentPage);
+        Assert.Equal(root, network.Selected?.Id);
+        Assert.True(Assert.Single(network.Links!.Items).IsEditing);
+        Assert.Null(network.Links.Notice);
+
+        // Both presses before the first link is written: still one link, and no "already linked" said about it.
+        network.Links.Items[0].CancelEditCommand.Execute(null);
+        network.BeginLinkCommand.Execute(null);
+        await UiInput.PastDoubleClickAsync();
+        var siblingAt = PointIn(window, canvas, canvas.PaintNodes().Single(n => n.Node.Id == sibling).Center);
+        Press(window, siblingAt);
+        Press(window, siblingAt);
+        await UiWait.UntilAsync(() => !network.IsPicking && network.Links.Items.Count == 2 && network.Links.Items.Any(i => i.IsEditing));
+        await SettledAsync(network);
+        Assert.Same(network, app.Workbench.CurrentPage);
+        Assert.Equal(root, network.Selected?.Id);
+        Assert.Null(network.Links.Notice);
+        Assert.Null(network.PickRefusal);
+        Assert.Equal(2, (await links.ListAsync(network.Workspace.Id, CancellationToken.None)).Count);
+
+        // The same two clicks reaching the page at once (however they came): one link is written, nothing is refused.
+        await links.DeleteAsync(network.Links.Items.Single(i => i.Other == sibling).Id, CancellationToken.None);
+        await UiWait.UntilAsync(() => network.Links.Items.Count == 1 && network.LinkEdges.Count == 1);
+        network.BeginLinkCommand.Execute(null);
+        await Task.WhenAll(network.PickNodeAsync(sibling), network.PickNodeAsync(sibling));
+        await UiWait.UntilAsync(() => network.Links.Items.Count == 2);
+        Assert.False(network.IsPicking);
+        Assert.Null(network.Links.Notice);
+        Assert.Null(network.PickRefusal);
+
+        // A double click on the summary itself: refused, and its page is not opened.
+        network.Links.Items.Single(i => i.IsEditing).CancelEditCommand.Execute(null);
+        network.BeginLinkCommand.Execute(null);
+        await UiInput.PastDoubleClickAsync();
+        var rootAt = PointIn(window, canvas, canvas.PaintNodes().Single(n => n.Node.Id == root).Center);
+        Press(window, rootAt);
+        Press(window, rootAt);
+        Assert.Same(network, app.Workbench.CurrentPage);
+        Assert.True(network.IsPicking);
+        Assert.Equal(UiText.LinkPickRefusedSelf, network.PickRefusal);
+
+        // Outside pick mode a double click still opens the summary.
+        network.CancelPickCommand.Execute(null);
+        await UiInput.PastDoubleClickAsync();
+        Press(window, leafAt);
+        Press(window, leafAt);
+        await UiWait.UntilAsync(() => app.Workbench.CurrentPage is SummaryViewModel);
+        window.Close();
+
+        // Raw presses: UiInput.Click lets the headless clock run between clicks, so two of them never make a double click.
+        static Avalonia.Point PointIn(Window window, Control control, Avalonia.Point at) =>
+            Avalonia.VisualExtensions.TranslatePoint(control, at, window) ?? throw new InvalidOperationException("The canvas left the window.");
+
+        static void Press(Window window, Avalonia.Point at)
+        {
+            window.MouseDown(at, MouseButton.Left);
+            window.MouseUp(at, MouseButton.Left);
+        }
+    }
+
+    [AvaloniaFact]
+    public async Task Leaving_the_picker_or_pick_mode_without_a_link_gives_focus_back_to_link_to_and_the_list_view_ends_pick_mode()
+    {
+        await using var app = DesktopHarness.Create();
+        var window = app.ShowWindow(1100, 720);
+        await SeedAsync(app);
+        var network = await SummaryNetworkScenario.OpenSummaryNetworkAsync(app, window);
+        network.Select(NodeOf(network, Root));
+        await network.LinksReloaded;
+        window.UpdateLayout();
+
+        // Pick mode, then Esc: focus returns to 关联到… (it was on 从列表选择…, which is now hidden).
+        UiInput.Click(window, Find<Button>(window, "LinkToButton"));
+        await UiWait.UntilAsync(() => Find<Button>(window, "PickFromListButton").IsFocused);
+        window.KeyPress(Key.Escape, RawInputModifiers.None, PhysicalKey.Escape, null);
+        Assert.False(network.IsPicking);
+        await UiWait.UntilAsync(() => Find<Button>(window, "LinkToButton").IsFocused);
+
+        // The keyboard picker, then Esc: the same.
+        window.KeyPress(Key.Enter, RawInputModifiers.None, PhysicalKey.Enter, null);
+        await UiWait.UntilAsync(() => Find<Button>(window, "PickFromListButton").IsFocused);
+        window.KeyPress(Key.Enter, RawInputModifiers.None, PhysicalKey.Enter, null);
+        await UiWait.UntilAsync(() => network.ShowsLinkPicker);
+        window.UpdateLayout();
+        await UiWait.UntilAsync(() => Find<TextBox>(window, "LinkPickerSearch").IsFocused);
+        window.KeyPress(Key.Escape, RawInputModifiers.None, PhysicalKey.Escape, null);
+        Assert.False(network.Links!.IsPickerOpen);
+        await UiWait.UntilAsync(() => Find<Button>(window, "LinkToButton").IsFocused);
+
+        // The list view has no nodes to click: pick mode ends with it, and the hint goes.
+        network.BeginLinkCommand.Execute(null);
+        Assert.True(network.IsPicking);
+        network.ToggleViewCommand.Execute(null);
+        Assert.False(network.IsPicking);
+        window.UpdateLayout();
+        Assert.False(Find<Border>(window, "LinkPickLine").IsEffectivelyVisible);
+        network.ToggleViewCommand.Execute(null);
+
+        // The summary page's picker: Esc gives focus back to its 关联到….
+        var summary = await OpenSummaryAsync(app, window, NodeOf(network, Root));
+        UiInput.Click(window, Find<Button>(window, "LinkToButton"));
+        await UiWait.UntilAsync(() => summary.Links!.IsPickerOpen);
+        window.UpdateLayout();
+        await UiWait.UntilAsync(() => Find<TextBox>(window, "LinkPickerSearch").IsFocused);
+        window.KeyPress(Key.Escape, RawInputModifiers.None, PhysicalKey.Escape, null);
+        Assert.False(summary.Links!.IsPickerOpen);
+        await UiWait.UntilAsync(() => Find<Button>(window, "LinkToButton").IsFocused);
+        window.Close();
+    }
+
+    [AvaloniaFact]
+    public async Task Renaming_the_other_summary_renames_every_name_of_its_link_row()
+    {
+        await using var app = DesktopHarness.Create();
+        var window = app.ShowWindow(1100, 720);
+        await SeedAsync(app);
+        var network = await SummaryNetworkScenario.OpenSummaryNetworkAsync(app, window);
+        var root = NodeOf(network, Root);
+        var sibling = NodeOf(network, Sibling);
+        await LinkAsync(app, network, root, sibling, null);
+        network.Select(root);
+        await network.LinksReloaded;
+        var item = Assert.Single(network.Links!.Items);
+        var raised = new List<string?>();
+        item.PropertyChanged += (_, e) => raised.Add(e.PropertyName);
+
+        await app.Services.GetRequiredService<Application.Summaries.ISummaries>().RenameAsync(sibling, "改过的名字", CancellationToken.None);
+        await UiWait.UntilAsync(() => item.OtherName == "改过的名字");
+        Assert.Contains(nameof(SummaryLinkItem.EditorName), raised);
+        Assert.Contains(nameof(SummaryLinkItem.DeleteConfirmText), raised);
+        Assert.Equal(UiText.LinkNoteEditorName("改过的名字"), item.EditorName);
+        window.Close();
+    }
+
+    [AvaloniaFact]
     public async Task The_keyboard_picker_links_from_the_keyboard_alone_and_shows_linked_summaries_disabled()
     {
         await using var app = DesktopHarness.Create();
@@ -257,6 +428,12 @@ public class SummaryLinksUiTests
         await UiWait.UntilAsync(() => network.Items.Count(i => i.HasLinks) == 3);
         window.UpdateLayout();
         var lines = window.GetVisualDescendants().OfType<TextBlock>().Where(t => t.Name == "SummaryRowLinks" && t.IsEffectivelyVisible).Select(t => t.Text).ToList();
+
+        // A screen reader tabbing through the rows hears each summary's links with its name.
+        var rowButtons = Find<ItemsControl>(window, "SummaryList").GetVisualDescendants().OfType<Button>().ToList();
+        Assert.Equal(3, rowButtons.Count);
+        Assert.All(rowButtons, b => Assert.Equal(((SummaryListItem)b.DataContext!).Links, AutomationProperties.GetHelpText(b)));
+        Assert.All(rowButtons, b => Assert.StartsWith("关联：", AutomationProperties.GetHelpText(b), StringComparison.Ordinal));
         // In the order they were made.
         Assert.Contains(UiText.LinksLine([(network.Nodes.Single(n => n.Id == sibling).DisplayName, null), (network.Nodes.Single(n => n.Id == leaf).DisplayName, null)]), lines);
         Assert.Equal(3, lines.Count);

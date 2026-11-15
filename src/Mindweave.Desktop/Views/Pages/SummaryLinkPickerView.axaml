@@ -9,7 +9,7 @@
   <!-- "关联到…" from the keyboard (D-018: canvas nodes are not keyboard-reachable): the search box takes focus, Enter picks the
        first match, Tab reaches each row; an already-linked summary is listed, disabled, and says why. Esc closes it. -->
   <UserControl.KeyBindings>
-    <KeyBinding Gesture="Escape" Command="{Binding ClosePickerCommand}" />
+    <KeyBinding Gesture="Escape" Command="{Binding CancelPickerCommand}" />
   </UserControl.KeyBindings>
   <StackPanel Spacing="8">
     <TextBlock Name="LinkPickerHeading" FontWeight="SemiBold" TextWrapping="Wrap" Text="{Binding PickerHeading}" />
@@ -40,7 +40,7 @@
     <TextBlock Name="LinkPickerEmpty" Classes="muted" FontSize="12" TextWrapping="Wrap" Text="{Binding PickerEmptyText}"
                IsVisible="{Binding PickerEmptyText, Converter={x:Static ObjectConverters.IsNotNull}}" />
     <TextBlock Name="LinkPickerNotice" Classes="warning" FontSize="12" TextWrapping="Wrap" Text="{Binding Notice}" IsVisible="{Binding HasNotice}" />
-    <Button Name="CloseLinkPickerButton" Classes="quiet" HorizontalAlignment="Left" Content="{x:Static t:UiText.Cancel}" Command="{Binding ClosePickerCommand}"
+    <Button Name="CloseLinkPickerButton" Classes="quiet" HorizontalAlignment="Left" Content="{x:Static t:UiText.Cancel}" Command="{Binding CancelPickerCommand}"
             AutomationProperties.Name="{x:Static t:UiText.LinkPickCancelName}" />
   </StackPanel>
 </UserControl>

@@ -99,20 +99,6 @@
       <views:ActivitySpinner Classes="suggest-spinner" VerticalAlignment="Center" />
       <TextBlock Classes="caption" VerticalAlignment="Center" Text="{Binding RecommendationBusyText}" />
     </StackPanel>
-    <!-- "关联到…" waiting for a click on another summary: what to do (or why the last click did not link), the keyboard way, 取消. -->
-    <Border DockPanel.Dock="Top" Name="LinkPickLine" Classes="notice info" Margin="0,0,0,8" IsVisible="{Binding IsPicking}">
-      <DockPanel>
-        <PathIcon DockPanel.Dock="Left" Width="13" Height="13" Margin="0,0,8,0" VerticalAlignment="Center" Data="{StaticResource IconLink}"
-                  Foreground="{DynamicResource SummaryNetworkLink}" />
-        <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" Spacing="4" VerticalAlignment="Center">
-          <Button Name="PickFromListButton" Classes="quiet" Content="{x:Static t:UiText.LinkPickFromList}" Command="{Binding PickFromListCommand}"
-                  AutomationProperties.Name="{x:Static t:UiText.LinkPickFromListName}" views:FocusRequest.When="{Binding IsPicking}" />
-          <Button Name="CancelPickButton" Classes="quiet" Content="{x:Static t:UiText.Cancel}" Command="{Binding CancelPickCommand}"
-                  AutomationProperties.Name="{x:Static t:UiText.LinkPickCancelName}" />
-        </StackPanel>
-        <TextBlock Name="LinkPickHint" TextWrapping="Wrap" VerticalAlignment="Center" Text="{Binding PickHint}" Classes.warning="{Binding HasPickRefusal}" />
-      </DockPanel>
-    </Border>
     <WrapPanel DockPanel.Dock="Top" Name="RecommendedNodesNoteLine" Margin="2,0,0,8" ItemSpacing="4" IsVisible="{Binding HasRecommendationNote}">
       <TextBlock Name="RecommendedNodesNote" Classes="caption" TextWrapping="Wrap" VerticalAlignment="Center" Margin="0,0,4,0" Text="{Binding RecommendationNote}" />
       <Button Name="RetryRecommendedNodesButton" Classes="quiet small" Content="{x:Static t:UiText.Retry}" Command="{Binding RefreshRecommendationsCommand}"
@@ -196,6 +182,7 @@
             <TextBlock Classes="muted" FontSize="12" Text="{x:Static t:UiText.LinksHeading}" IsVisible="{Binding Links.HasItems, FallbackValue=False}" />
             <v:SummaryLinksView Name="DetailLinks" DataContext="{Binding Links}" />
             <Button Name="LinkToButton" Classes="quiet" HorizontalAlignment="Left" Command="{Binding BeginLinkCommand}"
+                    views:FocusRequest.When="{Binding Links.ReturnsFocus, FallbackValue=False}"
                     ToolTip.Tip="{x:Static t:UiText.LinkToTip}" AutomationProperties.HelpText="{x:Static t:UiText.LinkToTip}">
               <StackPanel Orientation="Horizontal" Spacing="6">
                 <PathIcon Width="13" Height="13" Data="{StaticResource IconLink}" />
@@ -279,6 +266,21 @@
       <Border Name="CanvasFrame" BorderBrush="{DynamicResource SummaryNetworkFrame}" BorderThickness="1" CornerRadius="8" ClipToBounds="True" IsVisible="{Binding !IsListView}">
         <v:SummaryNetworkCanvas Name="Canvas" />
       </Border>
+      <!-- "关联到…" waiting for a click on another summary: what to do (or why the last click did not link), the keyboard way, 取消.
+           Laid over the top of the canvas, so the network does not move under the pointer when it appears or goes. -->
+      <Border Name="LinkPickLine" Classes="notice info" Margin="10,10,10,0" VerticalAlignment="Top" IsVisible="{Binding IsPicking}">
+        <DockPanel>
+          <PathIcon DockPanel.Dock="Left" Width="13" Height="13" Margin="0,0,8,0" VerticalAlignment="Center" Data="{StaticResource IconLink}"
+                    Foreground="{DynamicResource SummaryNetworkLink}" />
+          <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" Spacing="4" VerticalAlignment="Center">
+            <Button Name="PickFromListButton" Classes="quiet" Content="{x:Static t:UiText.LinkPickFromList}" Command="{Binding PickFromListCommand}"
+                    AutomationProperties.Name="{x:Static t:UiText.LinkPickFromListName}" views:FocusRequest.When="{Binding IsPicking}" />
+            <Button Name="CancelPickButton" Classes="quiet" Content="{x:Static t:UiText.Cancel}" Command="{Binding CancelPickCommand}"
+                    AutomationProperties.Name="{x:Static t:UiText.LinkPickCancelName}" />
+          </StackPanel>
+          <TextBlock Name="LinkPickHint" TextWrapping="Wrap" VerticalAlignment="Center" Text="{Binding PickHint}" Classes.warning="{Binding HasPickRefusal}" />
+        </DockPanel>
+      </Border>
       <ScrollViewer Classes="autohide" IsVisible="{Binding IsListView}">
         <StackPanel Spacing="8">
           <ItemsControl Name="SummaryList" ItemsSource="{Binding Items}">
@@ -287,6 +289,7 @@
                 <StackPanel Orientation="Horizontal" Spacing="6" Margin="0,2">
                   <!-- Unread: bold, primary colour; read: regular, secondary colour (S7 已读／未读约定). -->
                   <Button Classes="list-name" Classes.read="{Binding !Unread}" Content="{Binding DisplayName}" FontWeight="{Binding Unread, Converter={x:Static d:Converters.BoldWhen}}"
+                          AutomationProperties.HelpText="{Binding Links}"
                           Command="{Binding $parent[v:SummaryNetworkHomeView].((vm:SummaryNetworkHomeViewModel)DataContext).OpenCommand}" CommandParameter="{Binding Node}" />
                   <Border Classes="badge accent" IsVisible="{Binding Unread}">
                     <TextBlock Text="{x:Static t:UiText.MarkerUnread}" />

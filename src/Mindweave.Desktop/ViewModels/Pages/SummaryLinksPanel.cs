@@ -121,12 +121,32 @@ public sealed partial class SummaryLinksPanel : ObservableObject
         IsPickerOpen = true;
     }
 
-    [RelayCommand]
     public void ClosePicker()
     {
         IsPickerOpen = false;
         PickerQuery = string.Empty;
         PickerItems.Clear();
+    }
+
+    /// <summary>Esc or 取消 in the picker: closed without a link, and keyboard focus goes back to "关联到…".</summary>
+    [RelayCommand]
+    private void CancelPicker()
+    {
+        ClosePicker();
+        ReturnFocus();
+    }
+
+    /// <summary>
+    /// Turns true each time the picker or the network's pick mode is left without a link, so "关联到…" takes keyboard focus
+    /// again instead of focus being lost with the hidden picker.
+    /// </summary>
+    [ObservableProperty]
+    public partial bool ReturnsFocus { get; private set; }
+
+    internal void ReturnFocus()
+    {
+        ReturnsFocus = false;
+        ReturnsFocus = true;
     }
 
     /// <summary>Picks a row of the picker: the link is made and its note editor opens.</summary>
@@ -376,6 +396,8 @@ public sealed partial class SummaryLinkItem : ObservableObject
         OnPropertyChanged(nameof(JumpName));
         OnPropertyChanged(nameof(EditName));
         OnPropertyChanged(nameof(DeleteName));
+        OnPropertyChanged(nameof(EditorName));
+        OnPropertyChanged(nameof(DeleteConfirmText));
     }
 
     internal void BeginNew()

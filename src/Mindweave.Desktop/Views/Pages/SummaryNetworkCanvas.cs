@@ -73,6 +73,12 @@ public sealed class SummaryNetworkCanvas : Control
     private bool _dragged;
     private Point? _pointer;
     private SummaryNodeId? _pressed;
+
+    /// <summary>
+    /// The summary the last press of "关联到…" landed on: the second press of a double click there belongs to that pick,
+    /// so it neither opens the summary (leaving the new link's note editor) nor links it again.
+    /// </summary>
+    private SummaryNodeId? _picked;
     private Point _pressedAt;
     private Vector _grab;
     private (double X, double Y) _dragAt;
@@ -313,8 +319,10 @@ public sealed class SummaryNetworkCanvas : Control
     }
 
     /// <summary>
-    /// Each content link between the two summaries as drawn (following a drag and the pull), with its note at the middle.
-    /// Notes hide with the other labels when zoomed far out, unless an end is selected or hovered.
+    /// Each content link between the two summaries as drawn (following a drag and the pull), with its note at the middle,
+    /// or the word "关联" when it has none: every link carries a word on the line, so it reads apart from a solid source edge
+    /// without its colour (requirements §10.3). The words hide with the other labels when zoomed far out, unless an end is
+    /// selected or hovered.
     /// </summary>
     internal IReadOnlyList<LinkPaint> PaintLinks()
     {
@@ -334,15 +342,17 @@ public sealed class SummaryNetworkCanvas : Control
             var to = ToScreen(bx, by) + _offsets.GetValueOrDefault(link.B);
             var active = link.A == selected || link.B == selected || link.A == Hovered || link.B == Hovered;
             FormattedText? note = null;
+            string? label = null;
             var bounds = default(Rect);
-            if (link.Note is { } text && (zoom > LabelHideScale || active))
+            if (zoom > LabelHideScale || active)
             {
-                note = Text(text, active ? EdgeLabelEmphasizedSize : EdgeLabelSize, palette.Link, active ? FontWeight.SemiBold : FontWeight.Normal);
+                label = link.Note ?? UiText.LinkTag;
+                note = Text(label, active ? EdgeLabelEmphasizedSize : EdgeLabelSize, palette.Link, active ? FontWeight.SemiBold : FontWeight.Normal);
                 var middle = new Point((from.X + to.X) / 2, (from.Y + to.Y) / 2);
                 bounds = new Rect(middle.X - (note.Width / 2) - 4, middle.Y - (note.Height / 2) - 1, note.Width + 8, note.Height + 2);
             }
 
-            return new LinkPaint(link, from, to, active) { Note = note, NoteBounds = bounds };
+            return new LinkPaint(link, from, to, active) { Note = note, Label = label, NoteBounds = bounds };
         })];
     }
 
@@ -591,12 +601,20 @@ public sealed class SummaryNetworkCanvas : Control
         base.OnPointerPressed(e);
         Focus();
         var point = e.GetPosition(this);
+        if (e.ClickCount >= 2 && _picked is { } last && HitTest(point)?.Id == last)
+        {
+            e.Handled = true;
+            return;
+        }
+
+        _picked = null;
         if (_page is { IsPicking: true } picking)
         {
             // "关联到…": a click on another summary links it; a recommended node is refused with the reason; nothing is
             // selected. Empty canvas still pans.
             if (HitTest(point) is { } picked)
             {
+                _picked = picked.Id;
                 _ = picking.PickNodeAsync(picked.Id);
                 e.Handled = true;
                 return;

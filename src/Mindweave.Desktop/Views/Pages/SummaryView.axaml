@@ -4,6 +4,7 @@
              xmlns:v="using:Mindweave.Desktop.Views.Pages"
              xmlns:d="using:Mindweave.Desktop"
              xmlns:t="using:Mindweave.Desktop.Text"
+             xmlns:views="using:Mindweave.Desktop.Views"
              x:Class="Mindweave.Desktop.Views.Pages.SummaryView"
              x:DataType="vm:SummaryViewModel">
   <!-- Page-only styles (S7 round 2); the shared button, notice and badge classes come from App.axaml. -->
@@ -152,6 +153,7 @@
         </Button>
         <!-- 关联到… (§10.3.3): the keyboard picker opens below the bar. -->
         <Button Name="LinkToButton" Classes="quiet" Command="{Binding Links.OpenPickerCommand, FallbackValue={x:Null}}"
+                views:FocusRequest.When="{Binding Links.ReturnsFocus, FallbackValue=False}"
                 IsVisible="{Binding Links, Converter={x:Static ObjectConverters.IsNotNull}}"
                 ToolTip.Tip="{x:Static t:UiText.LinkToTip}" AutomationProperties.HelpText="{x:Static t:UiText.LinkToTip}">
           <StackPanel Orientation="Horizontal" Spacing="6">

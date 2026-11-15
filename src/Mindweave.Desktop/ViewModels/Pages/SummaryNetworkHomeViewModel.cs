@@ -39,6 +39,8 @@ public sealed partial class SummaryNetworkHomeViewModel : PageViewModel, IDispos
     private readonly SerialRefresh _linkLoad;
     private IReadOnlyList<SummaryLink> _workspaceLinks = [];
     private bool _linksHidden;
+    private bool _linking;
+    private bool _linkToolsShown;
     private bool _disposed;
 
     public SummaryNetworkHomeViewModel(
@@ -124,8 +126,12 @@ public sealed partial class SummaryNetworkHomeViewModel : PageViewModel, IDispos
     /// <summary>The latest reload of the links after a change (tests).</summary>
     internal Task LinksReloaded { get; private set; } = Task.CompletedTask;
 
-    /// <summary>The workspace has links, or hides them: the toolbar offers 显示关联 / 隐藏关联.</summary>
-    public bool ShowsLinkTools => _links is not null && (_workspaceLinks.Count > 0 || _linksHidden);
+    /// <summary>
+    /// The workspace has links, or hides them: the toolbar offers 显示关联 / 隐藏关联. It appears as "关联到…" starts waiting
+    /// for a click and then stays for this page, so the toolbar never gains a row (moving the canvas) under the pointer
+    /// right after the click that makes the first link.
+    /// </summary>
+    public bool ShowsLinkTools => _links is not null && (_linkToolsShown = _linkToolsShown || _workspaceLinks.Count > 0 || _linksHidden || IsPicking);
 
     /// <summary>隐藏关联 is on for this workspace (remembered across restarts).</summary>
     public bool LinksHidden => _linksHidden;
@@ -137,7 +143,7 @@ public sealed partial class SummaryNetworkHomeViewModel : PageViewModel, IDispos
 
     /// <summary>"关联到…" is waiting for a click on another summary (Esc or 取消 leaves it).</summary>
     [ObservableProperty]
-    [NotifyPropertyChangedFor(nameof(PickHint))]
+    [NotifyPropertyChangedFor(nameof(PickHint), nameof(ShowsLinkTools))]
     [NotifyCanExecuteChangedFor(nameof(CancelPickCommand))]
     public partial bool IsPicking { get; private set; }
 
@@ -278,6 +284,7 @@ public sealed partial class SummaryNetworkHomeViewModel : PageViewModel, IDispos
     {
         IsPicking = false;
         PickRefusal = null;
+        Links?.ReturnFocus();
     }
 
     /// <summary>从列表选择…: leaves pick mode for the searchable list in the details.</summary>
@@ -292,7 +299,7 @@ public sealed partial class SummaryNetworkHomeViewModel : PageViewModel, IDispos
     /// <summary>A click on a summary in pick mode: links it, or says why not (the same summary, an already linked one).</summary>
     public async Task PickNodeAsync(SummaryNodeId node)
     {
-        if (!IsPicking || Selected is not { } source || Links is null)
+        if (!IsPicking || _linking || Selected is not { } source || Links is null)
         {
             return;
         }
@@ -310,14 +317,23 @@ public sealed partial class SummaryNetworkHomeViewModel : PageViewModel, IDispos
             return;
         }
 
-        if (await Links.LinkToAsync(node, name))
+        // One link at a time: a second click while this one is written would only be refused as a duplicate.
+        _linking = true;
+        try
         {
-            IsPicking = false;
-            PickRefusal = null;
+            if (await Links.LinkToAsync(node, name))
+            {
+                IsPicking = false;
+                PickRefusal = null;
+            }
+            else
+            {
+                PickRefusal = Links.Notice;
+            }
         }
-        else
+        finally
         {
-            PickRefusal = Links.Notice;
+            _linking = false;
         }
     }
 
@@ -697,6 +713,13 @@ public sealed partial class SummaryNetworkHomeViewModel : PageViewModel, IDispos
 
     partial void OnIsListViewChanged(bool value)
     {
+        // The list has no nodes to click: "关联到…" waiting for one ends (the details still offer it, and its keyboard list).
+        if (value)
+        {
+            IsPicking = false;
+            PickRefusal = null;
+        }
+
         OnPropertyChanged(nameof(ShowsRecommendationLegend));
         OnPropertyChanged(nameof(ShowsLinkLegend));
     }

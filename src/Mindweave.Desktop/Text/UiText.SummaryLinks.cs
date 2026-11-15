@@ -20,6 +20,9 @@ public static partial class UiText
 
     public const string HideLinksTip = "只影响网络中的显示，不删除关联";
 
+    /// <summary>The word on a link line that has no note, so every link line carries a word (never colour alone).</summary>
+    public const string LinkTag = "关联";
+
     /// <summary>Legend: the line drawn, in words (requirements §10.3: never colour alone).</summary>
     public const string LegendLink = "彩色实线：内容关联";
 
