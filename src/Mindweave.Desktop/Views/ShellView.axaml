@@ -5,6 +5,7 @@
              xmlns:ws="using:Mindweave.Core.Workspaces"
              xmlns:cv="using:Mindweave.Desktop.ViewModels.Conversations"
              xmlns:d="using:Mindweave.Desktop"
+             xmlns:t="using:Mindweave.Desktop.Text"
              xmlns:v="using:Mindweave.Desktop.Views"
              x:Class="Mindweave.Desktop.Views.ShellView"
              x:DataType="vm:ShellViewModel">
@@ -17,41 +18,41 @@
           <!-- Workspaces (2026-11-10): the switcher, its menu and the new-workspace form (SidebarHeader). -->
           <v:SidebarHeader Name="Header" />
           <Border Height="1" Background="{DynamicResource DividerBrush}" Margin="0,4,0,8" />
-          <Button Name="NewConversationButton" Classes="nav" Command="{Binding Conversations.NewCommand}" AutomationProperties.Name="{x:Static d:UiText.NewConversation}">
+          <Button Name="NewConversationButton" Classes="nav" Command="{Binding Conversations.NewCommand}" AutomationProperties.Name="{x:Static t:UiText.NewConversation}">
             <StackPanel Orientation="Horizontal" Spacing="10">
               <PathIcon Classes="nav-icon" Data="{StaticResource IconPlus}" />
-              <TextBlock Text="{x:Static d:UiText.NewConversation}" VerticalAlignment="Center" />
+              <TextBlock Text="{x:Static t:UiText.NewConversation}" VerticalAlignment="Center" />
             </StackPanel>
           </Button>
-          <Button Name="NavExplore" Classes="nav" Classes.selected="{Binding IsExplore}" AutomationProperties.Name="{x:Static d:UiText.SectionExplore}"
+          <Button Name="NavExplore" Classes="nav" Classes.selected="{Binding IsExplore}" AutomationProperties.Name="{x:Static t:UiText.SectionExplore}"
                   Command="{Binding ShowSectionCommand}" CommandParameter="{x:Static nav:MainSection.Explore}">
             <StackPanel Orientation="Horizontal" Spacing="10">
               <PathIcon Classes="nav-icon" Data="{StaticResource IconExplore}" />
-              <TextBlock Text="{x:Static d:UiText.SectionExplore}" VerticalAlignment="Center" />
+              <TextBlock Text="{x:Static t:UiText.SectionExplore}" VerticalAlignment="Center" />
             </StackPanel>
           </Button>
-          <Button Name="NavSummaryNetwork" Classes="nav" Classes.selected="{Binding IsSummaryNetwork}" AutomationProperties.Name="{x:Static d:UiText.SectionSummaryNetwork}"
+          <Button Name="NavSummaryNetwork" Classes="nav" Classes.selected="{Binding IsSummaryNetwork}" AutomationProperties.Name="{x:Static t:UiText.SectionSummaryNetwork}"
                   Command="{Binding ShowSectionCommand}" CommandParameter="{x:Static nav:MainSection.SummaryNetwork}">
             <StackPanel Orientation="Horizontal" Spacing="10">
               <PathIcon Classes="nav-icon" Data="{StaticResource IconSummaryNetwork}" />
-              <TextBlock Text="{x:Static d:UiText.SectionSummaryNetwork}" VerticalAlignment="Center" />
+              <TextBlock Text="{x:Static t:UiText.SectionSummaryNetwork}" VerticalAlignment="Center" />
             </StackPanel>
           </Button>
           <!-- The 会话 caption carries the 选择 entry (multi-select for touch and discoverability; Ctrl/Cmd and Shift click work without it). -->
           <DockPanel Margin="10,14,0,2" IsVisible="{Binding Conversations.Items.Count, Converter={x:Static d:Converters.IsPositive}}">
             <ToggleButton Name="SelectConversationsButton" DockPanel.Dock="Right" Classes="quiet select-toggle"
                           IsChecked="{Binding Conversations.IsSelecting, Mode=OneWay}" Command="{Binding Conversations.ToggleSelectionModeCommand}"
-                          ToolTip.Tip="{x:Static d:UiText.SelectConversations}" AutomationProperties.Name="{x:Static d:UiText.SelectConversations}">
+                          ToolTip.Tip="{x:Static t:UiText.SelectConversations}" AutomationProperties.Name="{x:Static t:UiText.SelectConversations}">
               <PathIcon Data="{StaticResource IconSelect}" />
             </ToggleButton>
-            <TextBlock Classes="caption" Text="{x:Static d:UiText.ConversationsHeading}" VerticalAlignment="Center" />
+            <TextBlock Classes="caption" Text="{x:Static t:UiText.ConversationsHeading}" VerticalAlignment="Center" />
           </DockPanel>
         </StackPanel>
-        <Button Name="NavSettings" DockPanel.Dock="Bottom" Classes="nav" Classes.selected="{Binding IsSettings}" AutomationProperties.Name="{x:Static d:UiText.SectionSettings}"
+        <Button Name="NavSettings" DockPanel.Dock="Bottom" Classes="nav" Classes.selected="{Binding IsSettings}" AutomationProperties.Name="{x:Static t:UiText.SectionSettings}"
                 Command="{Binding ShowSectionCommand}" CommandParameter="{x:Static nav:MainSection.Settings}" VerticalAlignment="Bottom">
           <StackPanel Orientation="Horizontal" Spacing="10">
             <PathIcon Classes="nav-icon" Data="{StaticResource IconSettings}" />
-            <TextBlock Text="{x:Static d:UiText.SectionSettings}" VerticalAlignment="Center" />
+            <TextBlock Text="{x:Static t:UiText.SectionSettings}" VerticalAlignment="Center" />
           </StackPanel>
         </Button>
         <Border DockPanel.Dock="Bottom" Height="1" Background="{DynamicResource DividerBrush}" Margin="0,6,0,6" />
@@ -68,7 +69,7 @@
                 IsVisible="{Binding Conversations.RowNotice, Converter={x:Static ObjectConverters.IsNotNull}}">
           <DockPanel>
             <Button Name="CloseRowNoticeButton" DockPanel.Dock="Right" VerticalAlignment="Top" Classes="quiet bar-icon" Command="{Binding Conversations.CloseRowNoticeCommand}"
-                    ToolTip.Tip="{x:Static d:UiText.CloseRowNotice}" AutomationProperties.Name="{x:Static d:UiText.CloseRowNotice}">
+                    ToolTip.Tip="{x:Static t:UiText.CloseRowNotice}" AutomationProperties.Name="{x:Static t:UiText.CloseRowNotice}">
               <PathIcon Data="{StaticResource IconClose}" />
             </Button>
             <TextBlock Name="RowNotice" Classes="error" Text="{Binding Conversations.RowNotice}" TextWrapping="Wrap" VerticalAlignment="Center"
@@ -82,22 +83,22 @@
           <Border Name="SelectionBar" Classes="selection-bar">
             <DockPanel>
               <Button Name="ClearSelectionButton" DockPanel.Dock="Right" Classes="quiet bar-icon" Command="{Binding Conversations.ClearSelectionCommand}"
-                      ToolTip.Tip="{x:Static d:UiText.ClearSelection}" AutomationProperties.Name="{x:Static d:UiText.ClearSelection}">
+                      ToolTip.Tip="{x:Static t:UiText.ClearSelection}" AutomationProperties.Name="{x:Static t:UiText.ClearSelection}">
                 <PathIcon Data="{StaticResource IconClose}" />
               </Button>
               <Border DockPanel.Dock="Right" Classes="bar-divider" />
               <Button Name="DeleteSelectedButton" DockPanel.Dock="Right" Classes="quiet small danger" Command="{Binding Conversations.DeleteSelectedCommand}"
-                      AutomationProperties.Name="{x:Static d:UiText.Delete}">
+                      AutomationProperties.Name="{x:Static t:UiText.Delete}">
                 <StackPanel Orientation="Horizontal" Spacing="4">
                   <PathIcon Data="{StaticResource IconDelete}" />
-                  <TextBlock Text="{x:Static d:UiText.Delete}" VerticalAlignment="Center" />
+                  <TextBlock Text="{x:Static t:UiText.Delete}" VerticalAlignment="Center" />
                 </StackPanel>
               </Button>
               <Button Name="ArchiveSelectedButton" DockPanel.Dock="Right" Classes="quiet small" Command="{Binding Conversations.ArchiveSelectedCommand}"
-                      AutomationProperties.Name="{x:Static d:UiText.Archive}">
+                      AutomationProperties.Name="{x:Static t:UiText.Archive}">
                 <StackPanel Orientation="Horizontal" Spacing="4">
                   <PathIcon Data="{StaticResource IconArchive}" />
-                  <TextBlock Text="{x:Static d:UiText.Archive}" VerticalAlignment="Center" />
+                  <TextBlock Text="{x:Static t:UiText.Archive}" VerticalAlignment="Center" />
                 </StackPanel>
               </Button>
               <TextBlock Name="SelectionCount" Classes="selection-count" Text="{Binding Conversations.SelectionLabel}" />
@@ -116,32 +117,32 @@
                        An entry is disabled when the page would refuse it now, and says why. Not offered while rows are selected (the bar acts then). -->
                   <Button.ContextMenu>
                     <ContextMenu Name="RowMenu" v:Motion.Appear="Popup" Opening="OnRowMenuOpening" Opened="OnRowMenuOpened" Closed="OnRowMenuClosed">
-                      <MenuItem Name="RowMenuOpen" Header="{x:Static d:UiText.RowOpen}" FontWeight="SemiBold" Command="{Binding Owner.OpenCommand, FallbackValue={x:Null}}" CommandParameter="{Binding}">
+                      <MenuItem Name="RowMenuOpen" Header="{x:Static t:UiText.RowOpen}" FontWeight="SemiBold" Command="{Binding Owner.OpenCommand, FallbackValue={x:Null}}" CommandParameter="{Binding}">
                         <MenuItem.Icon>
                           <PathIcon Width="13" Height="13" Data="{StaticResource IconExplore}" />
                         </MenuItem.Icon>
                       </MenuItem>
                       <Separator />
-                      <MenuItem Name="RowMenuRename" Header="{x:Static d:UiText.Rename}" Command="{Binding Owner.BeginRenameRowCommand, FallbackValue={x:Null}}" CommandParameter="{Binding}"
+                      <MenuItem Name="RowMenuRename" Header="{x:Static t:UiText.Rename}" Command="{Binding Owner.BeginRenameRowCommand, FallbackValue={x:Null}}" CommandParameter="{Binding}"
                                 IsEnabled="{Binding CanRename}" ToolTip.Tip="{Binding RenameBlockedReason}" ToolTip.ShowOnDisabled="True">
                         <MenuItem.Icon>
                           <PathIcon Width="13" Height="13" Data="{StaticResource IconRename}" />
                         </MenuItem.Icon>
                       </MenuItem>
-                      <MenuItem Name="RowMenuSummarize" Header="{x:Static d:UiText.Summarize}" Command="{Binding Owner.SummarizeRowCommand, FallbackValue={x:Null}}" CommandParameter="{Binding}"
+                      <MenuItem Name="RowMenuSummarize" Header="{x:Static t:UiText.Summarize}" Command="{Binding Owner.SummarizeRowCommand, FallbackValue={x:Null}}" CommandParameter="{Binding}"
                                 IsEnabled="{Binding CanSummarize}" ToolTip.Tip="{Binding SummarizeBlockedReason}" ToolTip.ShowOnDisabled="True">
                         <MenuItem.Icon>
                           <PathIcon Width="13" Height="13" Data="{StaticResource IconSummarize}" />
                         </MenuItem.Icon>
                       </MenuItem>
-                      <MenuItem Name="RowMenuArchive" Header="{x:Static d:UiText.Archive}" Command="{Binding Owner.ArchiveRowCommand, FallbackValue={x:Null}}" CommandParameter="{Binding}"
+                      <MenuItem Name="RowMenuArchive" Header="{x:Static t:UiText.Archive}" Command="{Binding Owner.ArchiveRowCommand, FallbackValue={x:Null}}" CommandParameter="{Binding}"
                                 IsEnabled="{Binding CanArchive}" ToolTip.Tip="{Binding ArchiveBlockedReason}" ToolTip.ShowOnDisabled="True">
                         <MenuItem.Icon>
                           <PathIcon Width="13" Height="13" Data="{StaticResource IconArchive}" />
                         </MenuItem.Icon>
                       </MenuItem>
                       <Separator />
-                      <MenuItem Name="RowMenuDelete" Classes="danger" Header="{x:Static d:UiText.RowDelete}" Command="{Binding Owner.DeleteRowCommand, FallbackValue={x:Null}}" CommandParameter="{Binding}"
+                      <MenuItem Name="RowMenuDelete" Classes="danger" Header="{x:Static t:UiText.RowDelete}" Command="{Binding Owner.DeleteRowCommand, FallbackValue={x:Null}}" CommandParameter="{Binding}"
                                 IsEnabled="{Binding CanDelete}" ToolTip.Tip="{Binding DeleteBlockedReason}" ToolTip.ShowOnDisabled="True">
                         <MenuItem.Icon>
                           <PathIcon Width="13" Height="13" Data="{StaticResource IconDelete}" />
@@ -174,7 +175,7 @@
                 </Button>
                 <!-- 改名 from the menu edits the title where it is, as file lists do: Enter or leaving the box saves, Esc cancels. -->
                 <TextBox Name="RowRenameBox" Classes="row-rename" Margin="{Binding Depth, Converter={x:Static v:TreeIndent.Margin}}" IsVisible="{Binding IsRenaming}"
-                         Text="{Binding RenameText}" AutomationProperties.Name="{x:Static d:UiText.RowRenameBox}"
+                         Text="{Binding RenameText}" AutomationProperties.Name="{x:Static t:UiText.RowRenameBox}"
                          KeyDown="OnRenameBoxKeyDown" LostFocus="OnRenameBoxLostFocus" />
                 </Panel>
               </DataTemplate>
@@ -185,7 +186,7 @@
     </Border>
     <!-- Straddles the divider: a wider grip than the 1 px line it shows on hover. The resize pointer says what it does. -->
     <Border Name="SidebarSplitter" Classes="sidebar-splitter" HorizontalAlignment="Right" Width="7" Margin="0,0,-3,0"
-            AutomationProperties.Name="{x:Static d:UiText.SidebarSplitter}">
+            AutomationProperties.Name="{x:Static t:UiText.SidebarSplitter}">
       <Border Classes="sidebar-splitter-line" />
     </Border>
     </Panel>
@@ -203,7 +204,7 @@
         </Button>
         <Button Name="BackButton" Classes="quiet" Command="{Binding GoBackCommand}" IsVisible="{Binding CanGoBack}"
                 Width="32" Height="32" Padding="0" HorizontalContentAlignment="Center" Margin="-6,0,6,0"
-                ToolTip.Tip="{x:Static d:UiText.Back}" AutomationProperties.Name="{x:Static d:UiText.Back}">
+                ToolTip.Tip="{x:Static t:UiText.Back}" AutomationProperties.Name="{x:Static t:UiText.Back}">
           <PathIcon Width="15" Height="15" Data="{StaticResource IconBack}" />
         </Button>
         <TextBlock Classes="h1" Text="{Binding Title}" VerticalAlignment="Center" TextTrimming="CharacterEllipsis" />
@@ -213,7 +214,7 @@
               Margin="24,4,24,4" IsVisible="{Binding RestoreNotice, Converter={x:Static ObjectConverters.IsNotNull}}">
         <DockPanel>
           <Button Name="CloseRestoreNoticeButton" DockPanel.Dock="Right" VerticalAlignment="Top" Classes="quiet bar-icon" Command="{Binding CloseRestoreNoticeCommand}"
-                  ToolTip.Tip="{x:Static d:UiText.CloseRestoreNotice}" AutomationProperties.Name="{x:Static d:UiText.CloseRestoreNotice}">
+                  ToolTip.Tip="{x:Static t:UiText.CloseRestoreNotice}" AutomationProperties.Name="{x:Static t:UiText.CloseRestoreNotice}">
             <PathIcon Data="{StaticResource IconClose}" />
           </Button>
           <TextBlock Classes="notice-icon" Text="✓" VerticalAlignment="Center" IsVisible="{Binding !RestoreNoticeIsError}" />
@@ -242,7 +243,7 @@
           <Border Classes="news-toast" PointerEntered="OnToastPointerEntered" PointerExited="OnToastPointerExited">
             <DockPanel>
               <Button Name="CloseNewsToast" DockPanel.Dock="Right" Classes="quiet toast-close" Command="{Binding CloseCommand}"
-                      ToolTip.Tip="{x:Static d:UiText.CloseWorkspaceNewsToast}" AutomationProperties.Name="{x:Static d:UiText.CloseWorkspaceNewsToast}">
+                      ToolTip.Tip="{x:Static t:UiText.CloseWorkspaceNewsToast}" AutomationProperties.Name="{x:Static t:UiText.CloseWorkspaceNewsToast}">
                 <PathIcon Data="{StaticResource IconClose}" />
               </Button>
               <!-- Read out politely when it appears or changes; the focus stays where the user is working. -->

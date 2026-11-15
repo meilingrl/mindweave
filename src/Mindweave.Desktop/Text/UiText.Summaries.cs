@@ -4,7 +4,7 @@ using Mindweave.Application.Storage;
 using Mindweave.Application.Summaries;
 using Mindweave.Core.Summaries;
 
-namespace Mindweave.Desktop;
+namespace Mindweave.Desktop.Text;
 
 // Summaries (S4): generating, versions, candidates, editing and reading; exporting one (S6, §8.3).
 public static partial class UiText

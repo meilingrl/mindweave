@@ -28,4 +28,8 @@
          (health check 2026-11-12, dependencies-1). Regenerate with scripts/third-party-notices.py after changing packages. -->
     <None Include="..\..\THIRD-PARTY-NOTICES.txt" Link="THIRD-PARTY-NOTICES.txt" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
   </ItemGroup>
+  <ItemGroup>
+    <!-- User-visible text (Text/UiText*.cs) is used across the project. -->
+    <Using Include="Mindweave.Desktop.Text" />
+  </ItemGroup>
 </Project>

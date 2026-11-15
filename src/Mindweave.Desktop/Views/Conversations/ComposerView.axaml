@@ -1,7 +1,7 @@
 <UserControl xmlns="https://github.com/avaloniaui"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:vm="using:Mindweave.Desktop.ViewModels.Conversations"
-             xmlns:d="using:Mindweave.Desktop"
+             xmlns:t="using:Mindweave.Desktop.Text"
              xmlns:views="using:Mindweave.Desktop.Views"
              x:Class="Mindweave.Desktop.Views.Conversations.ComposerView"
              x:DataType="vm:Composer">
@@ -10,7 +10,7 @@
     <Border Name="NoticePanel" Classes="notice warning" HorizontalAlignment="Left" IsVisible="{Binding ShowNotice}">
       <DockPanel>
         <TextBlock Classes="notice-icon" Text="!" VerticalAlignment="Center" />
-        <Button DockPanel.Dock="Right" Name="OpenSettingsFromNotice" Classes="quiet" Content="{x:Static d:UiText.OpenSettingsLink}"
+        <Button DockPanel.Dock="Right" Name="OpenSettingsFromNotice" Classes="quiet" Content="{x:Static t:UiText.OpenSettingsLink}"
                 IsVisible="{Binding ShowSettingsLink}" Tag="settings" Margin="8,0,0,0" />
         <TextBlock Name="Notice" Text="{Binding Notice}" />
       </DockPanel>
@@ -21,22 +21,22 @@
              width while stop shows (an unseen copy of its label holds it), so the input does not widen and rewrap when
              an answer starts or ends (2026-11-10). -->
         <Panel Name="SendSlot" DockPanel.Dock="Right" VerticalAlignment="Bottom" Margin="8,0,0,0">
-          <TextBlock Name="SendWidthHolder" Text="{x:Static d:UiText.Send}" FontWeight="SemiBold" Margin="14,0" Opacity="0"
+          <TextBlock Name="SendWidthHolder" Text="{x:Static t:UiText.Send}" FontWeight="SemiBold" Margin="14,0" Opacity="0"
                      IsHitTestVisible="False" AutomationProperties.AccessibilityView="Raw" />
-          <Button Name="SendButton" Classes="primary" Content="{x:Static d:UiText.Send}" Command="{Binding SendCommand}"
+          <Button Name="SendButton" Classes="primary" Content="{x:Static t:UiText.Send}" Command="{Binding SendCommand}"
                   IsVisible="{Binding !IsAnswerRunning}" MinHeight="34" />
           <!-- Stop is the familiar round button with a square, no label (S7 round 3); its name and tooltip say 停止. -->
           <Button Name="StopButton" Classes="secondary stop" HorizontalAlignment="Right" Command="{Binding StopCommand}" IsVisible="{Binding IsAnswerRunning}"
-                  ToolTip.Tip="{x:Static d:UiText.Stop}" AutomationProperties.Name="{x:Static d:UiText.Stop}">
+                  ToolTip.Tip="{x:Static t:UiText.Stop}" AutomationProperties.Name="{x:Static t:UiText.Stop}">
             <PathIcon Data="{StaticResource IconStop}" />
           </Button>
         </Panel>
         <!-- On 新探索 the first recommended question shows in the empty input as a dim placeholder (requirements §10.3.1):
              Tab puts it in once, typing hides it; elsewhere nothing is offered and this is a plain text box. -->
         <views:GhostTextBox Name="Input" Text="{Binding Text}" AcceptsReturn="True" TextWrapping="Wrap" MaxHeight="220" MinHeight="34"
-                            VerticalContentAlignment="Center" PlaceholderText="{x:Static d:UiText.AskPlaceholder}"
+                            VerticalContentAlignment="Center" PlaceholderText="{x:Static t:UiText.AskPlaceholder}"
                             Suggestions="{Binding GhostSuggestions}" OffersOnlyWhenEmpty="True"
-                            OfferHelpFormat="{x:Static d:UiText.RecommendedQuestionHelpFormat}"
+                            OfferHelpFormat="{x:Static t:UiText.RecommendedQuestionHelpFormat}"
                             GhostForeground="{DynamicResource SuggestionGhostText}" KeyHintBorderBrush="{DynamicResource OutlineBrush}"
                             AutomationProperties.Name="提问" />
       </DockPanel>

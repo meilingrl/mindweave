@@ -1,7 +1,7 @@
 using System.Globalization;
 using Mindweave.Core.Workspaces;
 
-namespace Mindweave.Desktop;
+namespace Mindweave.Desktop.Text;
 
 /// <summary>
 /// All user-facing text in one class, so wording stays consistent and can be localized later. The class is split by

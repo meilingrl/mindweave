@@ -1,7 +1,7 @@
 using Mindweave.Application.Recommendations;
 using Mindweave.Core.Conversations;
 
-namespace Mindweave.Desktop;
+namespace Mindweave.Desktop.Text;
 
 // Recommended nodes on the summary network (requirements §10.3.2, 2026-11-12).
 public static partial class UiText

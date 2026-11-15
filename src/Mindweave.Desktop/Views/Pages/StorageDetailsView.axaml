@@ -2,6 +2,7 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:vm="using:Mindweave.Desktop.ViewModels.Pages"
              xmlns:d="using:Mindweave.Desktop"
+             xmlns:t="using:Mindweave.Desktop.Text"
              x:Class="Mindweave.Desktop.Views.Pages.StorageDetailsView"
              x:DataType="vm:StorageDetailsViewModel">
   <ScrollViewer Classes="autohide" HorizontalScrollBarVisibility="Disabled">
@@ -11,33 +12,33 @@
     </Grid.ColumnDefinitions>
     <StackPanel>
       <!-- 位置 -->
-      <TextBlock Classes="section-heading" Text="{x:Static d:UiText.LocationSection}" />
+      <TextBlock Classes="section-heading" Text="{x:Static t:UiText.LocationSection}" />
       <Border Classes="card settings">
         <Grid ColumnDefinitions="96,*,Auto" RowDefinitions="Auto,Auto,Auto" RowSpacing="12" ColumnSpacing="12">
-          <TextBlock Classes="field-label" Text="{x:Static d:UiText.DataDirectoryLabel}" />
+          <TextBlock Classes="field-label" Text="{x:Static t:UiText.DataDirectoryLabel}" />
           <SelectableTextBlock Grid.Column="1" Name="DataDirectory" Classes="path" Text="{Binding Environment.DataDirectory}" />
           <Button Grid.Column="2" Name="OpenDataFolder" Classes="quiet" Command="{Binding OpenDataFolderCommand}"
-                  ToolTip.Tip="{x:Static d:UiText.OpenDataFolder}" AutomationProperties.Name="{x:Static d:UiText.OpenDataFolder}">
+                  ToolTip.Tip="{x:Static t:UiText.OpenDataFolder}" AutomationProperties.Name="{x:Static t:UiText.OpenDataFolder}">
             <StackPanel Orientation="Horizontal" Spacing="6">
               <PathIcon Data="{StaticResource IconFolder}" />
-              <TextBlock Text="{x:Static d:UiText.OpenFolder}" />
+              <TextBlock Text="{x:Static t:UiText.OpenFolder}" />
             </StackPanel>
           </Button>
-          <TextBlock Grid.Row="1" Classes="field-label" Text="{x:Static d:UiText.DatabaseLabel}" />
+          <TextBlock Grid.Row="1" Classes="field-label" Text="{x:Static t:UiText.DatabaseLabel}" />
           <SelectableTextBlock Grid.Row="1" Grid.Column="1" Grid.ColumnSpan="2" Name="DatabaseFile" Classes="path"
                                Text="{Binding Environment.DatabasePath, Converter={x:Static d:Converters.FileName}}"
                                ToolTip.Tip="{Binding Environment.DatabasePath}" />
-          <TextBlock Grid.Row="2" Classes="field-label" Text="{x:Static d:UiText.SchemaVersionLabel}" />
+          <TextBlock Grid.Row="2" Classes="field-label" Text="{x:Static t:UiText.SchemaVersionLabel}" />
           <TextBlock Grid.Row="2" Grid.Column="1" VerticalAlignment="Center" Text="{Binding Environment.SchemaVersion}" />
         </Grid>
       </Border>
 
       <!-- 备份 (2026-11-12): each can be restored or deleted, several deleted at once through their boxes; a backup made
            before a delete or a restore is marked by a badge, the files an earlier restore put aside are listed with them. -->
-      <TextBlock Classes="section-heading" Margin="2,28,0,8" Text="{x:Static d:UiText.BackupsLabel}" />
+      <TextBlock Classes="section-heading" Margin="2,28,0,8" Text="{x:Static t:UiText.BackupsLabel}" />
       <Border Classes="card settings">
         <StackPanel Spacing="12">
-          <TextBlock Name="NoBackups" Classes="muted" Text="{x:Static d:UiText.NoBackupsShort}" IsVisible="{Binding !HasBackups}" />
+          <TextBlock Name="NoBackups" Classes="muted" Text="{x:Static t:UiText.NoBackupsShort}" IsVisible="{Binding !HasBackups}" />
           <DockPanel IsVisible="{Binding HasBackups}" MinHeight="28">
             <Button Name="DeleteSelectedBackups" DockPanel.Dock="Right" Classes="quiet small danger" Command="{Binding DeleteSelectedCommand}"
                     IsVisible="{Binding HasSelection}" AutomationProperties.Name="{Binding DeleteSelectedText}">
@@ -78,11 +79,11 @@
                     <TextBlock Text="{Binding Badge}" />
                   </Border>
                   <TextBlock Grid.Column="5" Classes="caption" HorizontalAlignment="Right" VerticalAlignment="Center" Text="{Binding SizeText}" />
-                  <Button Grid.Column="6" Name="RestoreBackupButton" Classes="quiet small" Content="{x:Static d:UiText.RestoreBackup}"
+                  <Button Grid.Column="6" Name="RestoreBackupButton" Classes="quiet small" Content="{x:Static t:UiText.RestoreBackup}"
                           IsVisible="{Binding IsBackup}" IsEnabled="{Binding CanRestore}" ToolTip.Tip="{Binding Hint}" ToolTip.ShowOnDisabled="True"
                           Command="{Binding $parent[ItemsControl].((vm:StorageDetailsViewModel)DataContext).RestoreCommand}" CommandParameter="{Binding}"
                           AutomationProperties.Name="{Binding RestoreName}" AutomationProperties.HelpText="{Binding Hint}" />
-                  <Button Grid.Column="7" Name="DeleteBackupButton" Classes="quiet small danger" Content="{x:Static d:UiText.DeleteBackup}"
+                  <Button Grid.Column="7" Name="DeleteBackupButton" Classes="quiet small danger" Content="{x:Static t:UiText.DeleteBackup}"
                           Command="{Binding $parent[ItemsControl].((vm:StorageDetailsViewModel)DataContext).DeleteCommand}" CommandParameter="{Binding}"
                           AutomationProperties.Name="{Binding DeleteName}" />
                 </Grid>

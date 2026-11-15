@@ -4,6 +4,7 @@
              xmlns:v="using:Mindweave.Desktop.Views.Conversations"
              xmlns:views="using:Mindweave.Desktop.Views"
              xmlns:d="using:Mindweave.Desktop"
+             xmlns:t="using:Mindweave.Desktop.Text"
              x:Class="Mindweave.Desktop.Views.Conversations.NewConversationView"
              x:DataType="vm:NewConversationViewModel">
   <Grid RowDefinitions="2*,Auto,3*">
@@ -17,19 +18,19 @@
                 IsVisible="{Binding ShowsRecommendations}" views:Motion.Appear="Fade">
       <DockPanel Margin="4,0,0,0">
         <Button DockPanel.Dock="Right" Name="RefreshRecommendationsButton" Classes="quiet small" Command="{Binding RefreshCommand}"
-                ToolTip.Tip="{x:Static d:UiText.RefreshRecommendationsTip}" AutomationProperties.Name="{x:Static d:UiText.RefreshRecommendationsName}"
-                AutomationProperties.HelpText="{x:Static d:UiText.RefreshRecommendationsTip}">
+                ToolTip.Tip="{x:Static t:UiText.RefreshRecommendationsTip}" AutomationProperties.Name="{x:Static t:UiText.RefreshRecommendationsName}"
+                AutomationProperties.HelpText="{x:Static t:UiText.RefreshRecommendationsTip}">
           <StackPanel Orientation="Horizontal" Spacing="5">
             <PathIcon Data="{StaticResource IconRegenerate}" />
-            <TextBlock Text="{x:Static d:UiText.RefreshRecommendations}" VerticalAlignment="Center" />
+            <TextBlock Text="{x:Static t:UiText.RefreshRecommendations}" VerticalAlignment="Center" />
           </StackPanel>
         </Button>
-        <TextBlock Classes="caption" VerticalAlignment="Center" Text="{x:Static d:UiText.RecommendedQuestions}" />
+        <TextBlock Classes="caption" VerticalAlignment="Center" Text="{x:Static t:UiText.RecommendedQuestions}" />
       </DockPanel>
 
       <Border Classes="card recommendations" Padding="4" IsVisible="{Binding Recommendations.Count, Converter={x:Static d:Converters.IsPositive}}">
         <ItemsControl Name="RecommendedQuestions" ItemsSource="{Binding Recommendations}"
-                      AutomationProperties.Name="{x:Static d:UiText.RecommendedQuestionsListName}">
+                      AutomationProperties.Name="{x:Static t:UiText.RecommendedQuestionsListName}">
           <ItemsControl.ItemsPanel>
             <ItemsPanelTemplate>
               <StackPanel Spacing="2" />
@@ -39,7 +40,7 @@
             <DataTemplate x:DataType="vm:RecommendedQuestionViewModel">
               <DockPanel Classes="recommendation-row">
                 <Button DockPanel.Dock="Right" Name="IgnoreRecommendationButton" Classes="quiet small recommendation-ignore" VerticalAlignment="Center" Margin="4,0,4,0"
-                        Command="{Binding IgnoreCommand}" ToolTip.Tip="{x:Static d:UiText.IgnoreRecommendation}"
+                        Command="{Binding IgnoreCommand}" ToolTip.Tip="{x:Static t:UiText.IgnoreRecommendation}"
                         AutomationProperties.Name="{Binding IgnoreName}">
                   <PathIcon Data="{StaticResource IconClose}" />
                 </Button>
@@ -64,14 +65,14 @@
         <TextBlock Classes="caption" VerticalAlignment="Center" Text="{Binding BusyText}" />
       </StackPanel>
 
-      <TextBlock Name="RecommendationEmptyHint" Classes="caption" Margin="4,2,0,0" TextWrapping="Wrap" Text="{x:Static d:UiText.NoRecommendationsYet}"
+      <TextBlock Name="RecommendationEmptyHint" Classes="caption" Margin="4,2,0,0" TextWrapping="Wrap" Text="{x:Static t:UiText.NoRecommendationsYet}"
                  IsVisible="{Binding ShowsEmptyHint}" />
 
       <WrapPanel Name="RecommendationNoteLine" Margin="4,2,0,0" ItemSpacing="4" IsVisible="{Binding HasNote}">
         <TextBlock Name="RecommendationNote" Classes="caption" TextWrapping="Wrap" VerticalAlignment="Center" Margin="0,0,4,0" Text="{Binding Note}" />
-        <Button Name="RetryRecommendationsButton" Classes="quiet small" Content="{x:Static d:UiText.Retry}" Command="{Binding RefreshCommand}"
-                IsVisible="{Binding NoteCanRetry}" AutomationProperties.Name="{x:Static d:UiText.RetryRecommendationsName}" />
-        <Button Name="RecommendationSettingsButton" Classes="quiet small" Content="{x:Static d:UiText.OpenSettingsLink}"
+        <Button Name="RetryRecommendationsButton" Classes="quiet small" Content="{x:Static t:UiText.Retry}" Command="{Binding RefreshCommand}"
+                IsVisible="{Binding NoteCanRetry}" AutomationProperties.Name="{x:Static t:UiText.RetryRecommendationsName}" />
+        <Button Name="RecommendationSettingsButton" Classes="quiet small" Content="{x:Static t:UiText.OpenSettingsLink}"
                 Command="{Binding OpenSettingsCommand}" IsVisible="{Binding NoteNeedsSettings}" />
       </WrapPanel>
     </StackPanel>

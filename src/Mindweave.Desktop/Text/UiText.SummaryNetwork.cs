@@ -1,6 +1,6 @@
 using System.Globalization;
 
-namespace Mindweave.Desktop;
+namespace Mindweave.Desktop.Text;
 
 // The summary network (S7): layout, the graph and list views, markers and source paths.
 public static partial class UiText

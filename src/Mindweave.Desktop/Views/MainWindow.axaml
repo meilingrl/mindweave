@@ -2,6 +2,7 @@
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:vm="using:Mindweave.Desktop.ViewModels"
         xmlns:d="using:Mindweave.Desktop"
+        xmlns:t="using:Mindweave.Desktop.Text"
         xmlns:sys="using:System"
         x:Class="Mindweave.Desktop.Views.MainWindow"
         x:DataType="vm:RootViewModel"
@@ -48,8 +49,8 @@
             </DockPanel>
           </Border>
           <StackPanel Classes="dialog-buttons">
-            <Button Name="BackupRestoreCancel" Classes="secondary" Content="{x:Static d:UiText.Cancel}" Command="{Binding CancelCommand}" IsDefault="True" IsCancel="True" />
-            <Button Name="BackupRestoreConfirm" Classes="primary" Content="{x:Static d:UiText.RestoreBackupConfirm}" Command="{Binding RestoreCommand}"
+            <Button Name="BackupRestoreCancel" Classes="secondary" Content="{x:Static t:UiText.Cancel}" Command="{Binding CancelCommand}" IsDefault="True" IsCancel="True" />
+            <Button Name="BackupRestoreConfirm" Classes="primary" Content="{x:Static t:UiText.RestoreBackupConfirm}" Command="{Binding RestoreCommand}"
                     AutomationProperties.Name="{Binding Title}" />
           </StackPanel>
         </StackPanel>
@@ -85,15 +86,15 @@
               <TextBlock Text="{Binding Problem}" TextWrapping="Wrap" AutomationProperties.LiveSetting="Assertive" />
             </DockPanel>
           </Border>
-          <TextBlock Classes="caption" Text="{x:Static d:UiText.BackupsDeleting}" IsVisible="{Binding IsBusy}" />
+          <TextBlock Classes="caption" Text="{x:Static t:UiText.BackupsDeleting}" IsVisible="{Binding IsBusy}" />
           <StackPanel Classes="dialog-buttons">
             <Button Name="BackupDeleteConfirm" Classes="secondary danger" Command="{Binding DeleteCommand}" AutomationProperties.Name="{Binding Title}">
               <StackPanel Orientation="Horizontal" Spacing="6">
                 <PathIcon Width="13" Height="13" Data="{StaticResource IconDelete}" />
-                <TextBlock Text="{x:Static d:UiText.Delete}" VerticalAlignment="Center" />
+                <TextBlock Text="{x:Static t:UiText.Delete}" VerticalAlignment="Center" />
               </StackPanel>
             </Button>
-            <Button Name="BackupDeleteCancel" Classes="primary" Content="{x:Static d:UiText.Cancel}" Command="{Binding CancelCommand}" IsDefault="True" IsCancel="True" />
+            <Button Name="BackupDeleteCancel" Classes="primary" Content="{x:Static t:UiText.Cancel}" Command="{Binding CancelCommand}" IsDefault="True" IsCancel="True" />
           </StackPanel>
         </StackPanel>
       </Border>
@@ -118,10 +119,10 @@
     <Border Name="ExitFailedPrompt" Classes="dialog-scrim" IsVisible="{Binding Exit.IsFailed}">
       <Border Classes="dialog">
         <StackPanel Spacing="12">
-          <TextBlock Classes="dialog-title" Text="{x:Static d:UiText.ExitSaveFailedTitle}" />
+          <TextBlock Classes="dialog-title" Text="{x:Static t:UiText.ExitSaveFailedTitle}" />
           <TextBlock Classes="dialog-body" Text="{Binding Exit.FailedBody}" />
           <StackPanel Classes="dialog-buttons">
-            <Button Name="ExitReturn" Classes="secondary" Content="{x:Static d:UiText.ExitReturn}" Command="{Binding Exit.ReturnCommand}" IsCancel="True" />
+            <Button Name="ExitReturn" Classes="secondary" Content="{x:Static t:UiText.ExitReturn}" Command="{Binding Exit.ReturnCommand}" IsCancel="True" />
             <Button Name="ExitRetry" Classes="primary" Content="{Binding Exit.FailedRetry}" Command="{Binding Exit.RetryCommand}" IsDefault="True" />
           </StackPanel>
         </StackPanel>
@@ -130,18 +131,18 @@
     <Border Name="LayoutPromptDialog" Classes="dialog-scrim" IsVisible="{Binding LayoutPrompt.IsOpen}">
       <Border Classes="dialog">
         <StackPanel Spacing="12">
-          <TextBlock Classes="dialog-title" Text="{x:Static d:UiText.LayoutUnsavedTitle}" />
-          <TextBlock Classes="dialog-body" Text="{x:Static d:UiText.LayoutUnsavedBody}" />
+          <TextBlock Classes="dialog-title" Text="{x:Static t:UiText.LayoutUnsavedTitle}" />
+          <TextBlock Classes="dialog-body" Text="{x:Static t:UiText.LayoutUnsavedBody}" />
           <Border Classes="notice error" IsVisible="{Binding LayoutPrompt.SaveFailed}">
             <DockPanel>
               <TextBlock Classes="notice-icon" Text="!" />
-              <TextBlock Text="{x:Static d:UiText.LayoutSaveFailed}" />
+              <TextBlock Text="{x:Static t:UiText.LayoutSaveFailed}" />
             </DockPanel>
           </Border>
           <StackPanel Classes="dialog-buttons">
-            <Button Name="LayoutCancel" Classes="quiet" Content="{x:Static d:UiText.Cancel}" Command="{Binding LayoutPrompt.CancelCommand}" IsDefault="True" IsCancel="True" />
-            <Button Name="LayoutDontSave" Classes="secondary" Content="{x:Static d:UiText.LayoutDontSave}" Command="{Binding LayoutPrompt.DontSaveCommand}" />
-            <Button Name="LayoutSave" Classes="primary" Content="{x:Static d:UiText.LayoutSaveAndContinue}" Command="{Binding LayoutPrompt.SaveAndContinueCommand}" />
+            <Button Name="LayoutCancel" Classes="quiet" Content="{x:Static t:UiText.Cancel}" Command="{Binding LayoutPrompt.CancelCommand}" IsDefault="True" IsCancel="True" />
+            <Button Name="LayoutDontSave" Classes="secondary" Content="{x:Static t:UiText.LayoutDontSave}" Command="{Binding LayoutPrompt.DontSaveCommand}" />
+            <Button Name="LayoutSave" Classes="primary" Content="{x:Static t:UiText.LayoutSaveAndContinue}" Command="{Binding LayoutPrompt.SaveAndContinueCommand}" />
           </StackPanel>
         </StackPanel>
       </Border>
@@ -162,10 +163,10 @@
               <TextBlock Text="{Binding Problem}" TextWrapping="Wrap" />
             </DockPanel>
           </Border>
-          <TextBlock Classes="caption" Text="{x:Static d:UiText.WorkspaceDeleting}" IsVisible="{Binding IsDeleting}" />
+          <TextBlock Classes="caption" Text="{x:Static t:UiText.WorkspaceDeleting}" IsVisible="{Binding IsDeleting}" />
           <StackPanel Classes="dialog-buttons">
-            <Button Name="WorkspaceDeleteConfirm" Classes="secondary danger" Content="{x:Static d:UiText.Delete}" Command="{Binding DeleteCommand}" />
-            <Button Name="WorkspaceDeleteCancel" Classes="primary" Content="{x:Static d:UiText.Cancel}" Command="{Binding CancelCommand}" IsDefault="True" IsCancel="True" />
+            <Button Name="WorkspaceDeleteConfirm" Classes="secondary danger" Content="{x:Static t:UiText.Delete}" Command="{Binding DeleteCommand}" />
+            <Button Name="WorkspaceDeleteCancel" Classes="primary" Content="{x:Static t:UiText.Cancel}" Command="{Binding CancelCommand}" IsDefault="True" IsCancel="True" />
           </StackPanel>
         </StackPanel>
       </Border>
@@ -186,19 +187,19 @@
           <TextBlock Classes="caption" Text="{Binding DeletingText}" IsVisible="{Binding IsBusy}" />
           <StackPanel Classes="dialog-buttons">
             <Button Name="ConversationDeleteArchive" Classes="secondary" Command="{Binding ArchiveInsteadCommand}" IsVisible="{Binding Scope.VisibleRoots.Count, FallbackValue=0, Converter={x:Static d:Converters.IsPositive}}"
-                    AutomationProperties.Name="{x:Static d:UiText.ArchiveInstead}">
+                    AutomationProperties.Name="{x:Static t:UiText.ArchiveInstead}">
               <StackPanel Orientation="Horizontal" Spacing="6">
                 <PathIcon Width="13" Height="13" Data="{StaticResource IconArchive}" />
-                <TextBlock Text="{x:Static d:UiText.ArchiveInstead}" VerticalAlignment="Center" />
+                <TextBlock Text="{x:Static t:UiText.ArchiveInstead}" VerticalAlignment="Center" />
               </StackPanel>
             </Button>
-            <Button Name="ConversationDeleteConfirm" Classes="secondary danger" Command="{Binding DeleteCommand}" AutomationProperties.Name="{x:Static d:UiText.Delete}">
+            <Button Name="ConversationDeleteConfirm" Classes="secondary danger" Command="{Binding DeleteCommand}" AutomationProperties.Name="{x:Static t:UiText.Delete}">
               <StackPanel Orientation="Horizontal" Spacing="6">
                 <PathIcon Width="13" Height="13" Data="{StaticResource IconDelete}" />
-                <TextBlock Text="{x:Static d:UiText.Delete}" VerticalAlignment="Center" />
+                <TextBlock Text="{x:Static t:UiText.Delete}" VerticalAlignment="Center" />
               </StackPanel>
             </Button>
-            <Button Name="ConversationDeleteCancel" Classes="primary" Content="{x:Static d:UiText.Cancel}" Command="{Binding CancelCommand}" IsDefault="True" IsCancel="True" />
+            <Button Name="ConversationDeleteCancel" Classes="primary" Content="{x:Static t:UiText.Cancel}" Command="{Binding CancelCommand}" IsDefault="True" IsCancel="True" />
           </StackPanel>
         </StackPanel>
       </Border>

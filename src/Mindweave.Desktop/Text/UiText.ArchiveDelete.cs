@@ -1,6 +1,6 @@
 using System.Globalization;
 
-namespace Mindweave.Desktop;
+namespace Mindweave.Desktop.Text;
 
 // Archiving, restoring and deleting conversations and workspaces (S6, §9.5, D-021; requirements v0.12 §8.2).
 public static partial class UiText

@@ -1,4 +1,4 @@
-namespace Mindweave.Desktop;
+namespace Mindweave.Desktop.Text;
 
 // The sidebar conversation row's context menu (2026-11-10): the page toolbar's actions, one right click away.
 public static partial class UiText

@@ -1,7 +1,7 @@
 using System.Globalization;
 using Mindweave.Application.Statistics;
 
-namespace Mindweave.Desktop;
+namespace Mindweave.Desktop.Text;
 
 // 设置 › 使用统计 (2026-11-12): token use by day or month, by model and by purpose, optional unit prices, and plain
 // activity facts. Facts only: nothing here rates learning (requirements §5.4, §10).

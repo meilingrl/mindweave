@@ -4,12 +4,12 @@ using Mindweave.Application.Models;
 using Mindweave.Application.Reading;
 using Mindweave.Application.Startup;
 using Mindweave.Application.Summaries;
-using Mindweave.Desktop.Navigation;
+using Mindweave.Desktop.Services;
 using Mindweave.Desktop.ViewModels;
 using Mindweave.Desktop.ViewModels.Conversations;
 using Mindweave.Desktop.ViewModels.Pages;
 
-namespace Mindweave.Desktop.Services;
+namespace Mindweave.Desktop.Navigation;
 
 internal sealed class PageFactory(
     AppEnvironment environment,

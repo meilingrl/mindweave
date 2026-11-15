@@ -2,6 +2,7 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:vm="using:Mindweave.Desktop.ViewModels.Pages"
              xmlns:d="using:Mindweave.Desktop"
+             xmlns:t="using:Mindweave.Desktop.Text"
              xmlns:v="using:Mindweave.Desktop.Views"
              x:Class="Mindweave.Desktop.Views.Pages.WorkspacesView"
              x:DataType="vm:WorkspacesViewModel">
@@ -15,27 +16,27 @@
     <StackPanel>
       <DockPanel Margin="2,0,0,12">
         <Button Name="NewWorkspaceOnPage" DockPanel.Dock="Right" Classes="secondary" Command="{Binding BeginCreateCommand}" Margin="16,0,0,0"
-                VerticalAlignment="Center" IsEnabled="{Binding !IsCreating}" AutomationProperties.Name="{x:Static d:UiText.NewWorkspaceEntry}">
+                VerticalAlignment="Center" IsEnabled="{Binding !IsCreating}" AutomationProperties.Name="{x:Static t:UiText.NewWorkspaceEntry}">
           <StackPanel Orientation="Horizontal" Spacing="6">
             <PathIcon Data="{StaticResource IconPlus}" />
-            <TextBlock Text="{x:Static d:UiText.NewWorkspaceEntry}" VerticalAlignment="Center" />
+            <TextBlock Text="{x:Static t:UiText.NewWorkspaceEntry}" VerticalAlignment="Center" />
           </StackPanel>
         </Button>
-        <TextBlock Classes="caption" TextWrapping="Wrap" VerticalAlignment="Center" Text="{x:Static d:UiText.WorkspacesIntro}" />
+        <TextBlock Classes="caption" TextWrapping="Wrap" VerticalAlignment="Center" Text="{x:Static t:UiText.WorkspacesIntro}" />
       </DockPanel>
 
       <!-- A new workspace is named here and listed without switching to it, so this page stays in view. -->
       <Border Name="NewWorkspaceCard" Classes="card settings" Margin="0,0,0,12" IsVisible="{Binding IsCreating}">
         <StackPanel Spacing="8">
-          <TextBox Name="NewWorkspaceNameOnPage" Text="{Binding NewWorkspace.Name}" PlaceholderText="{x:Static d:UiText.WorkspaceNameWatermark}"
-                   AutomationProperties.Name="{x:Static d:UiText.WorkspaceNameLabel}" KeyDown="OnNewWorkspaceKeyDown" />
+          <TextBox Name="NewWorkspaceNameOnPage" Text="{Binding NewWorkspace.Name}" PlaceholderText="{x:Static t:UiText.WorkspaceNameWatermark}"
+                   AutomationProperties.Name="{x:Static t:UiText.WorkspaceNameLabel}" KeyDown="OnNewWorkspaceKeyDown" />
           <TextBlock Name="NewWorkspaceErrorOnPage" Classes="error" FontSize="12" TextWrapping="Wrap" Text="{Binding NewWorkspace.Error}"
                      IsVisible="{Binding NewWorkspace.Error, Converter={x:Static ObjectConverters.IsNotNull}}" />
           <StackPanel Orientation="Horizontal" Spacing="8" HorizontalAlignment="Right">
-            <Button Name="CancelNewWorkspaceOnPage" Classes="quiet" Content="{x:Static d:UiText.Cancel}" Command="{Binding CancelCreateCommand}"
-                    AutomationProperties.Name="{x:Static d:UiText.CancelNewWorkspace}" />
-            <Button Name="CreateWorkspaceOnPage" Classes="primary" Content="{x:Static d:UiText.Create}" Command="{Binding NewWorkspace.SubmitCommand}"
-                    AutomationProperties.Name="{x:Static d:UiText.CreateWorkspace}" />
+            <Button Name="CancelNewWorkspaceOnPage" Classes="quiet" Content="{x:Static t:UiText.Cancel}" Command="{Binding CancelCreateCommand}"
+                    AutomationProperties.Name="{x:Static t:UiText.CancelNewWorkspace}" />
+            <Button Name="CreateWorkspaceOnPage" Classes="primary" Content="{x:Static t:UiText.Create}" Command="{Binding NewWorkspace.SubmitCommand}"
+                    AutomationProperties.Name="{x:Static t:UiText.CreateWorkspace}" />
           </StackPanel>
         </StackPanel>
       </Border>
@@ -55,19 +56,19 @@
                   <StackPanel Name="WorkspaceRowActions" DockPanel.Dock="Right" Orientation="Horizontal" Spacing="2" VerticalAlignment="Center"
                               Margin="12,0,0,0" IsVisible="{Binding !IsRenaming}">
                     <Button Name="SwitchWorkspaceButton" Classes="quiet small" Command="{Binding SwitchCommand}" IsVisible="{Binding !IsCurrent}"
-                            AutomationProperties.Name="{Binding SwitchName}" Content="{x:Static d:UiText.SwitchToWorkspace}" />
+                            AutomationProperties.Name="{Binding SwitchName}" Content="{x:Static t:UiText.SwitchToWorkspace}" />
                     <Button Name="RenameWorkspaceButton" Classes="quiet small" Command="{Binding BeginRenameCommand}"
-                            AutomationProperties.Name="{Binding RenameName}" ToolTip.Tip="{x:Static d:UiText.Rename}">
+                            AutomationProperties.Name="{Binding RenameName}" ToolTip.Tip="{x:Static t:UiText.Rename}">
                       <StackPanel Orientation="Horizontal" Spacing="4">
                         <PathIcon Data="{StaticResource IconRename}" />
-                        <TextBlock Text="{x:Static d:UiText.Rename}" VerticalAlignment="Center" />
+                        <TextBlock Text="{x:Static t:UiText.Rename}" VerticalAlignment="Center" />
                       </StackPanel>
                     </Button>
                     <Button Name="DeleteWorkspaceButton" Classes="quiet small danger" Command="{Binding DeleteCommand}"
-                            AutomationProperties.Name="{Binding DeleteName}" ToolTip.Tip="{x:Static d:UiText.DeleteWorkspace}">
+                            AutomationProperties.Name="{Binding DeleteName}" ToolTip.Tip="{x:Static t:UiText.DeleteWorkspace}">
                       <StackPanel Orientation="Horizontal" Spacing="4">
                         <PathIcon Data="{StaticResource IconDelete}" />
-                        <TextBlock Text="{x:Static d:UiText.RowDelete}" VerticalAlignment="Center" />
+                        <TextBlock Text="{x:Static t:UiText.RowDelete}" VerticalAlignment="Center" />
                       </StackPanel>
                     </Button>
                   </StackPanel>
@@ -83,32 +84,32 @@
                         <TextBlock Text="{Binding SuggestLabel}" VerticalAlignment="Center" />
                       </StackPanel>
                     </Button>
-                    <Button Name="CancelRenameWorkspaceButton" Classes="quiet small" Content="{x:Static d:UiText.Cancel}" Command="{Binding CancelRenameCommand}" />
-                    <Button Name="SaveRenameWorkspaceButton" Classes="primary" Padding="12,4" FontSize="12.5" Content="{x:Static d:UiText.Save}" Command="{Binding CommitRenameCommand}" />
+                    <Button Name="CancelRenameWorkspaceButton" Classes="quiet small" Content="{x:Static t:UiText.Cancel}" Command="{Binding CancelRenameCommand}" />
+                    <Button Name="SaveRenameWorkspaceButton" Classes="primary" Padding="12,4" FontSize="12.5" Content="{x:Static t:UiText.Save}" Command="{Binding CommitRenameCommand}" />
                   </StackPanel>
                   <StackPanel Spacing="1" VerticalAlignment="Center">
                     <DockPanel Classes="workspace-name-line" LastChildFill="False" IsVisible="{Binding !IsRenaming}">
                       <TextBlock Name="WorkspaceRowName" DockPanel.Dock="Left" Classes="workspace-row-name" Text="{Binding Name}" />
                       <Border Name="CurrentWorkspaceTag" DockPanel.Dock="Left" Classes="badge accent" Margin="8,0,0,0" IsVisible="{Binding IsCurrent}">
-                        <TextBlock Text="{x:Static d:UiText.CurrentWorkspaceTag}" />
+                        <TextBlock Text="{x:Static t:UiText.CurrentWorkspaceTag}" />
                       </Border>
                     </DockPanel>
                     <!-- The name turns into a box of the same place and weight: Enter saves, Esc cancels. A suggested name
                          (kept from before, or just asked for) shows dimly after the text: Tab takes it, Tab again the next. -->
                     <v:GhostTextBox Name="WorkspaceRenameBox" Classes="workspace-rename" IsVisible="{Binding IsRenaming}" Text="{Binding RenameText}"
-                                    Suggestions="{Binding GhostNames}" OfferHelpFormat="{x:Static d:UiText.GhostNameHelpFormat}"
+                                    Suggestions="{Binding GhostNames}" OfferHelpFormat="{x:Static t:UiText.GhostNameHelpFormat}"
                                     GhostForeground="{DynamicResource SuggestionGhostText}" KeyHintBorderBrush="{DynamicResource OutlineBrush}"
-                                    AutomationProperties.Name="{x:Static d:UiText.WorkspaceNameLabel}" KeyDown="OnRenameBoxKeyDown" />
+                                    AutomationProperties.Name="{x:Static t:UiText.WorkspaceNameLabel}" KeyDown="OnRenameBoxKeyDown" />
                     <TextBlock Name="WorkspaceRowCounts" Classes="caption" Text="{Binding CountsText}" IsVisible="{Binding ShowsCounts}" />
                     <!-- While renaming, the same line says what 建议名称 sends, before anything is sent (the row keeps its height). -->
-                    <TextBlock Name="SuggestNamesHint" Classes="caption" Text="{x:Static d:UiText.SuggestNamesHint}" TextTrimming="CharacterEllipsis"
-                               IsVisible="{Binding ShowsSuggestHint}" ToolTip.Tip="{x:Static d:UiText.SuggestNamesHint}" />
+                    <TextBlock Name="SuggestNamesHint" Classes="caption" Text="{x:Static t:UiText.SuggestNamesHint}" TextTrimming="CharacterEllipsis"
+                               IsVisible="{Binding ShowsSuggestHint}" ToolTip.Tip="{x:Static t:UiText.SuggestNamesHint}" />
                     <!-- Once names are offered: what Tab does, and 更多建议 to see them all as chips (the line keeps the row's height). -->
                     <DockPanel Name="GhostNamesHintLine" IsVisible="{Binding ShowsGhostHint}">
                       <Button Name="NameChipsToggle" DockPanel.Dock="Right" Classes="link caption-link" Margin="8,0,0,0" Content="{Binding ChipsToggleLabel}"
                               Command="{Binding ToggleChipsCommand}" AutomationProperties.Name="{Binding ChipsToggleName}" />
-                      <TextBlock Name="GhostNamesHint" Classes="caption" Text="{x:Static d:UiText.GhostNamesHint}" TextTrimming="CharacterEllipsis"
-                                 VerticalAlignment="Center" ToolTip.Tip="{x:Static d:UiText.GhostNamesHint}" />
+                      <TextBlock Name="GhostNamesHint" Classes="caption" Text="{x:Static t:UiText.GhostNamesHint}" TextTrimming="CharacterEllipsis"
+                                 VerticalAlignment="Center" ToolTip.Tip="{x:Static t:UiText.GhostNamesHint}" />
                     </DockPanel>
                     <TextBlock Name="WorkspaceRenameError" Classes="error" FontSize="12" TextWrapping="Wrap" Text="{Binding RenameError}"
                                IsVisible="{Binding RenameError, Converter={x:Static ObjectConverters.IsNotNull}}" />
@@ -117,13 +118,13 @@
                     <StackPanel Name="SuggestionPanel" Spacing="6" Margin="0,8,0,2" IsVisible="{Binding ShowsSuggestionPanel}" v:Motion.Appear="Fade">
                       <StackPanel Name="SuggestingLine" Orientation="Horizontal" Spacing="8" IsVisible="{Binding IsSuggesting}">
                         <v:ActivitySpinner Classes="suggest-spinner" VerticalAlignment="Center" />
-                        <TextBlock Classes="caption" VerticalAlignment="Center" Text="{x:Static d:UiText.SuggestingNames}" />
-                        <Button Name="StopSuggestingButton" Classes="quiet small" Content="{x:Static d:UiText.StopSuggesting}"
-                                Command="{Binding StopSuggestingNamesCommand}" AutomationProperties.Name="{x:Static d:UiText.StopSuggestingName}" />
+                        <TextBlock Classes="caption" VerticalAlignment="Center" Text="{x:Static t:UiText.SuggestingNames}" />
+                        <Button Name="StopSuggestingButton" Classes="quiet small" Content="{x:Static t:UiText.StopSuggesting}"
+                                Command="{Binding StopSuggestingNamesCommand}" AutomationProperties.Name="{x:Static t:UiText.StopSuggestingName}" />
                       </StackPanel>
-                      <TextBlock Name="SuggestionsCaption" Classes="caption" Text="{x:Static d:UiText.SuggestionsCaption}" IsVisible="{Binding ShowsChipList}" />
+                      <TextBlock Name="SuggestionsCaption" Classes="caption" Text="{x:Static t:UiText.SuggestionsCaption}" IsVisible="{Binding ShowsChipList}" />
                       <ItemsControl Name="SuggestionChips" ItemsSource="{Binding Suggestions}" IsVisible="{Binding ShowsChipList}"
-                                    AutomationProperties.Name="{x:Static d:UiText.SuggestionsListName}">
+                                    AutomationProperties.Name="{x:Static t:UiText.SuggestionsListName}">
                         <ItemsControl.ItemsPanel>
                           <ItemsPanelTemplate>
                             <WrapPanel ItemSpacing="6" LineSpacing="6" />
@@ -139,9 +140,9 @@
                       <WrapPanel Name="SuggestionProblemLine" IsVisible="{Binding HasSuggestionProblem}" ItemSpacing="4">
                         <TextBlock Name="SuggestionProblemText" Classes="caption" TextWrapping="Wrap" VerticalAlignment="Center" Margin="0,0,4,0"
                                    Text="{Binding SuggestionProblem}" />
-                        <Button Name="RetrySuggestButton" Classes="quiet small" Content="{x:Static d:UiText.Retry}" Command="{Binding SuggestNamesCommand}"
-                                IsVisible="{Binding SuggestionCanRetry}" AutomationProperties.Name="{x:Static d:UiText.RetrySuggestName}" />
-                        <Button Name="SuggestSettingsButton" Classes="quiet small" Content="{x:Static d:UiText.OpenSettingsLink}"
+                        <Button Name="RetrySuggestButton" Classes="quiet small" Content="{x:Static t:UiText.Retry}" Command="{Binding SuggestNamesCommand}"
+                                IsVisible="{Binding SuggestionCanRetry}" AutomationProperties.Name="{x:Static t:UiText.RetrySuggestName}" />
+                        <Button Name="SuggestSettingsButton" Classes="quiet small" Content="{x:Static t:UiText.OpenSettingsLink}"
                                 Command="{Binding OpenModelSettingsCommand}" IsVisible="{Binding SuggestionNeedsSettings}" />
                       </WrapPanel>
                     </StackPanel>

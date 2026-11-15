@@ -4,6 +4,7 @@
              xmlns:v="using:Mindweave.Desktop.Views.Pages"
              xmlns:views="using:Mindweave.Desktop.Views"
              xmlns:d="using:Mindweave.Desktop"
+             xmlns:t="using:Mindweave.Desktop.Text"
              x:Class="Mindweave.Desktop.Views.Pages.ArchivedView"
              x:DataType="vm:ArchivedViewModel">
   <!-- A reading column at most 760 wide, left-aligned with the page title; rows fill it so actions line up. -->
@@ -13,7 +14,7 @@
     </Grid.ColumnDefinitions>
   <DockPanel>
     <StackPanel DockPanel.Dock="Top" Spacing="10" Margin="0,0,0,10">
-      <TextBlock Classes="caption" TextWrapping="Wrap" Text="{x:Static d:UiText.ArchivedNote}" IsVisible="{Binding !IsEmpty}" />
+      <TextBlock Classes="caption" TextWrapping="Wrap" Text="{x:Static t:UiText.ArchivedNote}" IsVisible="{Binding !IsEmpty}" />
       <Border Name="NoticePanel" Classes="notice error" IsVisible="{Binding Notice, Converter={x:Static ObjectConverters.IsNotNull}}">
         <DockPanel>
           <TextBlock Classes="notice-icon" Text="!" />
@@ -24,7 +25,7 @@
     <!-- Empty: one quiet line with the archive glyph, nothing to explain. -->
     <StackPanel Name="EmptyState" DockPanel.Dock="Top" Orientation="Horizontal" Spacing="8" Margin="2,4,0,0" IsVisible="{Binding IsEmpty}">
       <PathIcon Width="13" Height="13" Foreground="{DynamicResource MutedText}" Data="{StaticResource IconArchive}" />
-      <TextBlock Classes="muted" Text="{x:Static d:UiText.ArchivedEmpty}" VerticalAlignment="Center" />
+      <TextBlock Classes="muted" Text="{x:Static t:UiText.ArchivedEmpty}" VerticalAlignment="Center" />
     </StackPanel>
     <ScrollViewer Classes="autohide" HorizontalScrollBarVisibility="Disabled">
       <ItemsControl Name="ArchivedList" ItemsSource="{Binding Items}">
@@ -35,25 +36,25 @@
             <Border Classes="archived-row" Margin="{Binding Depth, Converter={x:Static views:TreeIndent.Margin}}">
               <DockPanel>
                 <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" Spacing="2" Margin="8,0,0,0">
-                  <Button Name="RestoreButton" Classes="quiet small" AutomationProperties.Name="{x:Static d:UiText.Restore}"
+                  <Button Name="RestoreButton" Classes="quiet small" AutomationProperties.Name="{x:Static t:UiText.Restore}"
                           Command="{Binding $parent[v:ArchivedView].((vm:ArchivedViewModel)DataContext).RestoreCommand}" CommandParameter="{Binding}">
                     <StackPanel Orientation="Horizontal" Spacing="5">
                       <PathIcon Data="{StaticResource IconReturn}" />
-                      <TextBlock Text="{x:Static d:UiText.Restore}" VerticalAlignment="Center" />
+                      <TextBlock Text="{x:Static t:UiText.Restore}" VerticalAlignment="Center" />
                     </StackPanel>
                   </Button>
-                  <Button Name="DeleteButton" Classes="quiet small danger" AutomationProperties.Name="{x:Static d:UiText.Delete}"
+                  <Button Name="DeleteButton" Classes="quiet small danger" AutomationProperties.Name="{x:Static t:UiText.Delete}"
                           Command="{Binding $parent[v:ArchivedView].((vm:ArchivedViewModel)DataContext).DeleteCommand}" CommandParameter="{Binding}">
                     <StackPanel Orientation="Horizontal" Spacing="5">
                       <PathIcon Data="{StaticResource IconDelete}" />
-                      <TextBlock Text="{x:Static d:UiText.Delete}" VerticalAlignment="Center" />
+                      <TextBlock Text="{x:Static t:UiText.Delete}" VerticalAlignment="Center" />
                     </StackPanel>
                   </Button>
                 </StackPanel>
                 <!-- Archived itself: the archive glyph; hidden only because an ancestor is archived: the tree corner. -->
                 <Panel Width="14" Margin="2,0,8,0" VerticalAlignment="Center">
                   <PathIcon Width="12" Height="12" Foreground="{DynamicResource MutedText}" Data="{StaticResource IconArchive}"
-                            IsVisible="{Binding IsArchived}" ToolTip.Tip="{x:Static d:UiText.ArchivedMarker}" />
+                            IsVisible="{Binding IsArchived}" ToolTip.Tip="{x:Static t:UiText.ArchivedMarker}" />
                   <PathIcon Width="9" Height="9" Margin="0,0,0,3" Foreground="{DynamicResource TreeGuide}" Data="{StaticResource IconTreeBranch}"
                             IsVisible="{Binding !IsArchived}" />
                 </Panel>
@@ -77,7 +78,7 @@
                             Classes.danger="{Binding $parent[v:ArchivedView].((vm:ArchivedViewModel)DataContext).Confirmation.IsDestructive, FallbackValue=False}"
                             Content="{Binding $parent[v:ArchivedView].((vm:ArchivedViewModel)DataContext).ConfirmLabel}"
                             Command="{Binding $parent[v:ArchivedView].((vm:ArchivedViewModel)DataContext).ConfirmCommand}" />
-                    <Button Name="CancelConfirmButton" Classes="quiet" Content="{x:Static d:UiText.Cancel}"
+                    <Button Name="CancelConfirmButton" Classes="quiet" Content="{x:Static t:UiText.Cancel}"
                             Command="{Binding $parent[v:ArchivedView].((vm:ArchivedViewModel)DataContext).CancelConfirmationCommand}" />
                   </StackPanel>
                 </StackPanel>

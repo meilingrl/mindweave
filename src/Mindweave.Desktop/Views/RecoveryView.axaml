@@ -3,7 +3,7 @@
              xmlns:vm="using:Mindweave.Desktop.ViewModels"
              xmlns:startup="using:Mindweave.Application.Startup"
              xmlns:v="using:Mindweave.Desktop.Views"
-             xmlns:d="using:Mindweave.Desktop"
+             xmlns:t="using:Mindweave.Desktop.Text"
              x:Class="Mindweave.Desktop.Views.RecoveryView"
              x:DataType="vm:RecoveryViewModel">
   <ScrollViewer Classes="autohide">
@@ -25,25 +25,25 @@
         <SelectableTextBlock Classes="mono" Foreground="{DynamicResource MutedText}" TextWrapping="Wrap" Text="{Binding Detail}" />
       </Border>
       <StackPanel Spacing="3">
-        <TextBlock Classes="caption" Text="{x:Static d:UiText.DataLocation}" />
+        <TextBlock Classes="caption" Text="{x:Static t:UiText.DataLocation}" />
         <SelectableTextBlock Classes="mono" TextWrapping="Wrap" Text="{Binding DataDirectory}" />
       </StackPanel>
       <!-- The page's one primary action is trying again. -->
       <StackPanel Orientation="Horizontal" Spacing="8">
-        <Button Name="RetryButton" Classes="primary" Content="{x:Static d:UiText.Retry}" Command="{Binding RetryCommand}" />
-        <Button Name="OpenDataFolderButton" Classes="secondary" Content="{x:Static d:UiText.OpenDataFolder}" Command="{Binding OpenDataFolderCommand}" />
-        <Button Name="ExitButton" Classes="quiet" Content="{x:Static d:UiText.Exit}" Command="{Binding ExitCommand}" />
+        <Button Name="RetryButton" Classes="primary" Content="{x:Static t:UiText.Retry}" Command="{Binding RetryCommand}" />
+        <Button Name="OpenDataFolderButton" Classes="secondary" Content="{x:Static t:UiText.OpenDataFolder}" Command="{Binding OpenDataFolderCommand}" />
+        <Button Name="ExitButton" Classes="quiet" Content="{x:Static t:UiText.Exit}" Command="{Binding ExitCommand}" />
       </StackPanel>
 
       <StackPanel Spacing="8" IsVisible="{Binding HasBackups}" Margin="0,14,0,0">
-        <TextBlock FontWeight="SemiBold" Text="{x:Static d:UiText.AvailableBackups}" />
+        <TextBlock FontWeight="SemiBold" Text="{x:Static t:UiText.AvailableBackups}" />
         <Border Classes="card" ClipToBounds="True">
           <ItemsControl Name="BackupList" ItemsSource="{Binding Backups}" Margin="0,-1,0,0">
             <ItemsControl.ItemTemplate>
               <DataTemplate x:DataType="startup:BackupInfo">
                 <Border Classes="backup-row">
                   <DockPanel>
-                    <Button DockPanel.Dock="Right" Classes="secondary" Content="{x:Static d:UiText.RestoreThis}"
+                    <Button DockPanel.Dock="Right" Classes="secondary" Content="{x:Static t:UiText.RestoreThis}"
                             Command="{Binding $parent[ItemsControl].((vm:RecoveryViewModel)DataContext).ChooseRestoreCommand}"
                             CommandParameter="{Binding}" />
                     <StackPanel Orientation="Horizontal" Spacing="12" VerticalAlignment="Center">
@@ -65,8 +65,8 @@
           <StackPanel Spacing="8">
             <TextBlock TextWrapping="Wrap" Text="{Binding RestoreConsequence}" />
             <StackPanel Orientation="Horizontal" Spacing="6">
-              <Button Name="ConfirmRestoreButton" Classes="secondary" Content="{x:Static d:UiText.ConfirmRestore}" Command="{Binding ConfirmRestoreCommand}" />
-              <Button Classes="quiet" Content="{x:Static d:UiText.Cancel}" Command="{Binding CancelRestoreCommand}" />
+              <Button Name="ConfirmRestoreButton" Classes="secondary" Content="{x:Static t:UiText.ConfirmRestore}" Command="{Binding ConfirmRestoreCommand}" />
+              <Button Classes="quiet" Content="{x:Static t:UiText.Cancel}" Command="{Binding CancelRestoreCommand}" />
             </StackPanel>
           </StackPanel>
         </DockPanel>

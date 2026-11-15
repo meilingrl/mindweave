@@ -3,6 +3,7 @@
              xmlns:vm="using:Mindweave.Desktop.ViewModels.Pages"
              xmlns:v="using:Mindweave.Desktop.Views.Pages"
              xmlns:d="using:Mindweave.Desktop"
+             xmlns:t="using:Mindweave.Desktop.Text"
              xmlns:views="using:Mindweave.Desktop.Views"
              x:Class="Mindweave.Desktop.Views.Pages.SummaryNetworkHomeView"
              x:DataType="vm:SummaryNetworkHomeViewModel">
@@ -17,10 +18,10 @@
         <ProgressBar IsIndeterminate="True" Width="40" VerticalAlignment="Center" IsVisible="{Binding IsSaving}" />
         <!-- Unsaved: the accent button itself says so (its accessible name adds "未保存"). Saved: a quiet status, not a button. -->
         <Button Name="SaveLayoutButton" Classes="primary" Command="{Binding SaveLayoutCommand}" IsVisible="{Binding IsDirty}"
-                ToolTip.Tip="{x:Static d:UiText.SaveLayout}" AutomationProperties.Name="{Binding SaveLayoutLabel}">
+                ToolTip.Tip="{x:Static t:UiText.SaveLayout}" AutomationProperties.Name="{Binding SaveLayoutLabel}">
           <StackPanel Orientation="Horizontal" Spacing="6">
             <PathIcon Width="14" Height="14" Data="M2,1 H12 L15,4 V15 H1 V1 Z M4,1 V5 H11 V1 Z M3,9 H13 V14 H3 Z" />
-            <TextBlock Name="SaveLayoutText" Text="{x:Static d:UiText.SaveLayout}" VerticalAlignment="Center" />
+            <TextBlock Name="SaveLayoutText" Text="{x:Static t:UiText.SaveLayout}" VerticalAlignment="Center" />
           </StackPanel>
         </Button>
         <StackPanel Name="LayoutSavedStatus" Orientation="Horizontal" Spacing="5" Margin="0,0,4,0" VerticalAlignment="Center" IsVisible="{Binding !IsDirty}"
@@ -30,7 +31,7 @@
         </StackPanel>
       </StackPanel>
       <WrapPanel Orientation="Horizontal" VerticalAlignment="Center">
-        <TextBox Name="FindBox" Text="{Binding SearchText}" PlaceholderText="{x:Static d:UiText.FindWatermark}" Width="190" Margin="0,0,10,0" VerticalAlignment="Center">
+        <TextBox Name="FindBox" Text="{Binding SearchText}" PlaceholderText="{x:Static t:UiText.FindWatermark}" Width="190" Margin="0,0,10,0" VerticalAlignment="Center">
           <TextBox.KeyBindings>
             <KeyBinding Gesture="Enter" Command="{Binding FindCommand}" />
           </TextBox.KeyBindings>
@@ -38,41 +39,41 @@
         <Button Name="ShowAllButton" Classes="quiet" Command="{Binding ShowAllCommand}">
           <StackPanel Orientation="Horizontal" Spacing="6">
             <PathIcon Width="13" Height="13" Data="M1,1 H6 V3 H3 V6 H1 Z M10,1 H15 V6 H13 V3 H10 Z M1,10 H3 V13 H6 V15 H1 Z M13,10 H15 V15 H10 V13 H13 Z" />
-            <TextBlock Text="{x:Static d:UiText.ShowAll}" VerticalAlignment="Center" />
+            <TextBlock Text="{x:Static t:UiText.ShowAll}" VerticalAlignment="Center" />
           </StackPanel>
         </Button>
         <!-- The same drawn glyph for both, so − and ＋ match in weight and width on every font. -->
-        <Button Name="ZoomOutButton" Classes="quiet" Command="{Binding ZoomOutCommand}" ToolTip.Tip="{x:Static d:UiText.ZoomOut}" AutomationProperties.Name="{x:Static d:UiText.ZoomOut}" MinWidth="30">
+        <Button Name="ZoomOutButton" Classes="quiet" Command="{Binding ZoomOutCommand}" ToolTip.Tip="{x:Static t:UiText.ZoomOut}" AutomationProperties.Name="{x:Static t:UiText.ZoomOut}" MinWidth="30">
           <PathIcon Width="12" Height="12" Data="M1,7 H15 V9 H1 Z" />
         </Button>
-        <Button Name="ZoomInButton" Classes="quiet" Command="{Binding ZoomInCommand}" ToolTip.Tip="{x:Static d:UiText.ZoomIn}" AutomationProperties.Name="{x:Static d:UiText.ZoomIn}" MinWidth="30">
+        <Button Name="ZoomInButton" Classes="quiet" Command="{Binding ZoomInCommand}" ToolTip.Tip="{x:Static t:UiText.ZoomIn}" AutomationProperties.Name="{x:Static t:UiText.ZoomIn}" MinWidth="30">
           <PathIcon Width="12" Height="12" Data="M7,1 H9 V7 H15 V9 H9 V15 H7 V9 H1 V7 H7 Z" />
         </Button>
         <Button Name="ArrangeButton" Classes="quiet" Command="{Binding ArrangeCommand}">
           <StackPanel Orientation="Horizontal" Spacing="6">
             <PathIcon Width="13" Height="13" Data="M1,6 H5 V10 H1 Z M11,1 H15 V5 H11 Z M11,11 H15 V15 H11 Z M5,7.25 H10 V8.75 H5 Z M9,2.25 H11 V3.75 H9 Z M9,12.25 H11 V13.75 H9 Z M8.25,2.25 H9.75 V13.75 H8.25 Z" />
-            <TextBlock Text="{x:Static d:UiText.ArrangeLayout}" VerticalAlignment="Center" />
+            <TextBlock Text="{x:Static t:UiText.ArrangeLayout}" VerticalAlignment="Center" />
           </StackPanel>
         </Button>
         <ToggleButton Name="ListViewToggle" Classes="quiet" IsChecked="{Binding IsListView}">
           <StackPanel Orientation="Horizontal" Spacing="6">
             <PathIcon Width="13" Height="13" Data="M1,2 H3 V4 H1 Z M5,2 H15 V4 H5 Z M1,7 H3 V9 H1 Z M5,7 H15 V9 H5 Z M1,12 H3 V14 H1 Z M5,12 H15 V14 H5 Z" />
-            <TextBlock Text="{x:Static d:UiText.ListView}" VerticalAlignment="Center" />
+            <TextBlock Text="{x:Static t:UiText.ListView}" VerticalAlignment="Center" />
           </StackPanel>
         </ToggleButton>
         <!-- Recommended nodes (§10.3.2): only when they are on and a summary exists to extend. -->
         <StackPanel Orientation="Horizontal" IsVisible="{Binding ShowsRecommendationTools}">
           <Button Name="RefreshRecommendedNodesButton" Classes="quiet" Command="{Binding RefreshRecommendationsCommand}"
-                  ToolTip.Tip="{x:Static d:UiText.RefreshRecommendedNodesTip}" ToolTip.ShowOnDisabled="True"
-                  AutomationProperties.Name="{x:Static d:UiText.RefreshRecommendedNodes}" AutomationProperties.HelpText="{x:Static d:UiText.RefreshRecommendedNodesTip}">
+                  ToolTip.Tip="{x:Static t:UiText.RefreshRecommendedNodesTip}" ToolTip.ShowOnDisabled="True"
+                  AutomationProperties.Name="{x:Static t:UiText.RefreshRecommendedNodes}" AutomationProperties.HelpText="{x:Static t:UiText.RefreshRecommendedNodesTip}">
             <StackPanel Orientation="Horizontal" Spacing="6">
               <PathIcon Width="13" Height="13" Data="{StaticResource IconRegenerate}" />
-              <TextBlock Text="{x:Static d:UiText.RefreshRecommendedNodes}" VerticalAlignment="Center" />
+              <TextBlock Text="{x:Static t:UiText.RefreshRecommendedNodes}" VerticalAlignment="Center" />
             </StackPanel>
           </Button>
           <Button Name="ToggleRecommendedNodesButton" Classes="quiet" Command="{Binding ToggleRecommendationsCommand}"
-                  ToolTip.Tip="{x:Static d:UiText.HideRecommendedNodesTip}"
-                  AutomationProperties.Name="{Binding ToggleRecommendationsLabel}" AutomationProperties.HelpText="{x:Static d:UiText.HideRecommendedNodesTip}">
+                  ToolTip.Tip="{x:Static t:UiText.HideRecommendedNodesTip}"
+                  AutomationProperties.Name="{Binding ToggleRecommendationsLabel}" AutomationProperties.HelpText="{x:Static t:UiText.HideRecommendedNodesTip}">
             <StackPanel Orientation="Horizontal" Spacing="6">
               <PathIcon Width="14" Height="14" Data="{StaticResource IconEye}" />
               <TextBlock Name="ToggleRecommendedNodesText" Text="{Binding ToggleRecommendationsLabel}" VerticalAlignment="Center" />
@@ -89,46 +90,46 @@
     </StackPanel>
     <WrapPanel DockPanel.Dock="Top" Name="RecommendedNodesNoteLine" Margin="2,0,0,8" ItemSpacing="4" IsVisible="{Binding HasRecommendationNote}">
       <TextBlock Name="RecommendedNodesNote" Classes="caption" TextWrapping="Wrap" VerticalAlignment="Center" Margin="0,0,4,0" Text="{Binding RecommendationNote}" />
-      <Button Name="RetryRecommendedNodesButton" Classes="quiet small" Content="{x:Static d:UiText.Retry}" Command="{Binding RefreshRecommendationsCommand}"
-              IsVisible="{Binding RecommendationNoteCanRetry}" AutomationProperties.Name="{x:Static d:UiText.RetryRecommendedNodesName}" />
-      <Button Name="RecommendedNodesSettingsButton" Classes="quiet small" Content="{x:Static d:UiText.OpenSettingsLink}"
+      <Button Name="RetryRecommendedNodesButton" Classes="quiet small" Content="{x:Static t:UiText.Retry}" Command="{Binding RefreshRecommendationsCommand}"
+              IsVisible="{Binding RecommendationNoteCanRetry}" AutomationProperties.Name="{x:Static t:UiText.RetryRecommendedNodesName}" />
+      <Button Name="RecommendedNodesSettingsButton" Classes="quiet small" Content="{x:Static t:UiText.OpenSettingsLink}"
               Command="{Binding OpenSettingsCommand}" IsVisible="{Binding RecommendationNoteNeedsSettings}" />
     </WrapPanel>
     <Border DockPanel.Dock="Top" Name="SaveFailedNotice" Classes="notice error" IsVisible="{Binding SaveFailed}" Margin="0,0,0,8">
       <DockPanel>
         <TextBlock Classes="notice-icon" Text="!" />
-        <TextBlock Text="{x:Static d:UiText.LayoutSaveFailed}" />
+        <TextBlock Text="{x:Static t:UiText.LayoutSaveFailed}" />
       </DockPanel>
     </Border>
-    <TextBlock DockPanel.Dock="Top" Classes="muted" TextWrapping="Wrap" Text="{x:Static d:UiText.SummaryNetworkEmpty}" IsVisible="{Binding IsEmpty}" />
+    <TextBlock DockPanel.Dock="Top" Classes="muted" TextWrapping="Wrap" Text="{x:Static t:UiText.SummaryNetworkEmpty}" IsVisible="{Binding IsEmpty}" />
 
     <!-- Details of the selected node: never the body, never counted as reading. -->
     <Border DockPanel.Dock="Right" Width="260" Margin="10,0,0,0" Padding="16" Background="{DynamicResource PanelBackground}" CornerRadius="8"
             IsVisible="{Binding !IsEmpty}">
       <Panel>
         <StackPanel Spacing="8" IsVisible="{Binding !HasSelection}">
-          <TextBlock FontWeight="SemiBold" FontSize="18" Text="{x:Static d:UiText.SummaryNetworkTitle}" />
-          <TextBlock Classes="muted" FontSize="12" TextWrapping="Wrap" Text="{x:Static d:UiText.SummaryNetworkSelectHint}" />
+          <TextBlock FontWeight="SemiBold" FontSize="18" Text="{x:Static t:UiText.SummaryNetworkTitle}" />
+          <TextBlock Classes="muted" FontSize="12" TextWrapping="Wrap" Text="{x:Static t:UiText.SummaryNetworkSelectHint}" />
         </StackPanel>
         <StackPanel Name="DetailPanel" Spacing="12" IsVisible="{Binding Selected, Converter={x:Static ObjectConverters.IsNotNull}}">
           <TextBlock Name="DetailTitle" FontWeight="SemiBold" FontSize="18" TextWrapping="Wrap" Text="{Binding Selected.DisplayName, FallbackValue=''}" />
           <!-- The same tags as the list and the summary page; words, not only colour (MW-C07). -->
           <WrapPanel Name="DetailMarkers" Orientation="Horizontal" AutomationProperties.Name="{Binding Selected.Markers, FallbackValue=''}">
             <Border Name="UnreadBadge" Classes="badge accent" Margin="0,0,6,4" IsVisible="{Binding Selected.Unread, FallbackValue=False}">
-              <TextBlock Text="{x:Static d:UiText.MarkerUnread}" />
+              <TextBlock Text="{x:Static t:UiText.MarkerUnread}" />
             </Border>
             <Border Name="ReadBadge" Classes="badge" Margin="0,0,6,4" IsVisible="{Binding !Selected.Unread, FallbackValue=False}">
-              <TextBlock Text="{x:Static d:UiText.MarkerRead}" />
+              <TextBlock Text="{x:Static t:UiText.MarkerRead}" />
             </Border>
             <Border Classes="badge warning" Margin="0,0,6,4" IsVisible="{Binding Selected.HasCandidate, FallbackValue=False}">
-              <TextBlock Text="{x:Static d:UiText.MarkerCandidate}" />
+              <TextBlock Text="{x:Static t:UiText.MarkerCandidate}" />
             </Border>
             <Border Classes="badge" Margin="0,0,6,4" IsVisible="{Binding Selected.SourceArchived, FallbackValue=False}">
-              <TextBlock Text="{x:Static d:UiText.SourceArchived}" />
+              <TextBlock Text="{x:Static t:UiText.SourceArchived}" />
             </Border>
           </WrapPanel>
           <StackPanel Spacing="3">
-            <TextBlock Classes="muted" FontSize="12" Text="{x:Static d:UiText.SourcePathHeading}" />
+            <TextBlock Classes="muted" FontSize="12" Text="{x:Static t:UiText.SourcePathHeading}" />
             <!-- Root first; unsummarized conversations are muted and say so, never passing for summaries (§11). -->
             <ItemsControl Name="SourcePath" ItemsSource="{Binding Selected.Steps, FallbackValue={x:Null}}"
                           AutomationProperties.Name="{Binding Selected.Path, FallbackValue=''}">
@@ -157,9 +158,9 @@
           <StackPanel Spacing="8">
             <!-- One primary per view: while the layout is unsaved, the accent save button is it and this steps back. -->
             <Button Name="OpenSelectedButton" Classes.primary="{Binding !IsDirty}" Classes.secondary="{Binding IsDirty}" HorizontalAlignment="Stretch" HorizontalContentAlignment="Center"
-                    Content="{x:Static d:UiText.OpenSummary}" Command="{Binding OpenSelectedCommand}" />
+                    Content="{x:Static t:UiText.OpenSummary}" Command="{Binding OpenSelectedCommand}" />
             <Button Name="ReturnSelectedButton" Classes="secondary" HorizontalAlignment="Stretch" HorizontalContentAlignment="Center"
-                    Content="{x:Static d:UiText.ReturnToConversation}" Command="{Binding ReturnToConversationCommand}" />
+                    Content="{x:Static t:UiText.ReturnToConversation}" Command="{Binding ReturnToConversationCommand}" />
           </StackPanel>
         </StackPanel>
 
@@ -167,26 +168,26 @@
         <StackPanel Name="RecommendationDetailPanel" Spacing="12" IsVisible="{Binding SelectedRecommendation, Converter={x:Static ObjectConverters.IsNotNull}}">
           <WrapPanel Orientation="Horizontal">
             <Border Classes="badge recommended" Margin="0,0,6,0">
-              <TextBlock Text="{x:Static d:UiText.RecommendedTag}" />
+              <TextBlock Text="{x:Static t:UiText.RecommendedTag}" />
             </Border>
-            <TextBlock Classes="muted" FontSize="12" VerticalAlignment="Center" Text="{x:Static d:UiText.RecommendedNodeHeading}" />
+            <TextBlock Classes="muted" FontSize="12" VerticalAlignment="Center" Text="{x:Static t:UiText.RecommendedNodeHeading}" />
           </WrapPanel>
           <TextBlock Name="RecommendationQuestion" FontWeight="SemiBold" FontSize="16" TextWrapping="Wrap" Text="{Binding SelectedRecommendation.Question, FallbackValue=''}"
                      AutomationProperties.Name="{Binding SelectedRecommendation.AutomationName, FallbackValue=''}" />
           <StackPanel Spacing="3" IsVisible="{Binding SelectedRecommendation.HasReason, FallbackValue=False}">
-            <TextBlock Classes="muted" FontSize="12" Text="{x:Static d:UiText.RecommendedReasonHeading}" />
+            <TextBlock Classes="muted" FontSize="12" Text="{x:Static t:UiText.RecommendedReasonHeading}" />
             <TextBlock Name="RecommendationReason" TextWrapping="Wrap" Text="{Binding SelectedRecommendation.Reason, FallbackValue=''}" />
           </StackPanel>
           <StackPanel Spacing="3">
-            <TextBlock Classes="muted" FontSize="12" Text="{x:Static d:UiText.RecommendedBasisHeading}" />
+            <TextBlock Classes="muted" FontSize="12" Text="{x:Static t:UiText.RecommendedBasisHeading}" />
             <TextBlock Name="RecommendationBasis" TextWrapping="Wrap" Text="{Binding SelectedRecommendation.BasisName, FallbackValue=''}" />
           </StackPanel>
-          <TextBlock Classes="muted" FontSize="12" TextWrapping="Wrap" Text="{x:Static d:UiText.RecommendedNodeNote}" />
+          <TextBlock Classes="muted" FontSize="12" TextWrapping="Wrap" Text="{x:Static t:UiText.RecommendedNodeNote}" />
           <StackPanel Spacing="8">
             <Button Name="StartExplorationButton" Classes.primary="{Binding !IsDirty}" Classes.secondary="{Binding IsDirty}" HorizontalAlignment="Stretch" HorizontalContentAlignment="Center"
-                    Content="{x:Static d:UiText.StartExploration}" Command="{Binding StartExplorationCommand}" />
+                    Content="{x:Static t:UiText.StartExploration}" Command="{Binding StartExplorationCommand}" />
             <Button Name="IgnoreRecommendedNodeButton" Classes="secondary" HorizontalAlignment="Stretch" HorizontalContentAlignment="Center"
-                    Content="{x:Static d:UiText.IgnoreRecommendedNode}" Command="{Binding IgnoreRecommendationCommand}"
+                    Content="{x:Static t:UiText.IgnoreRecommendedNode}" Command="{Binding IgnoreRecommendationCommand}"
                     AutomationProperties.Name="{Binding SelectedRecommendation.IgnoreName, FallbackValue=''}" />
           </StackPanel>
         </StackPanel>
@@ -196,7 +197,7 @@
     <!-- One line of legend under the canvas (the same shapes as the nodes), and the wheel option beside it. -->
     <Panel DockPanel.Dock="Bottom" IsVisible="{Binding !IsEmpty}">
     <DockPanel Margin="2,6,0,0" IsVisible="{Binding !IsListView}">
-      <CheckBox DockPanel.Dock="Right" Content="{x:Static d:UiText.WheelZooms}" IsChecked="{Binding WheelZooms}" FontSize="12" VerticalAlignment="Center" MinHeight="0" />
+      <CheckBox DockPanel.Dock="Right" Content="{x:Static t:UiText.WheelZooms}" IsChecked="{Binding WheelZooms}" FontSize="12" VerticalAlignment="Center" MinHeight="0" />
       <WrapPanel Name="Legend" Orientation="Horizontal" VerticalAlignment="Center">
         <WrapPanel.Styles>
           <Style Selector="TextBlock">
@@ -207,20 +208,20 @@
           </Style>
         </WrapPanel.Styles>
         <Ellipse Width="10" Height="10" Fill="{DynamicResource SummaryNetworkNode}" VerticalAlignment="Center" Margin="0,0,6,0" />
-        <TextBlock Text="{x:Static d:UiText.LegendUnread}" FontWeight="SemiBold" />
+        <TextBlock Text="{x:Static t:UiText.LegendUnread}" FontWeight="SemiBold" />
         <Ellipse Width="10" Height="10" Stroke="{DynamicResource SummaryNetworkNodeRead}" StrokeThickness="2" VerticalAlignment="Center" Margin="0,0,6,0" />
-        <TextBlock Text="{x:Static d:UiText.LegendRead}" />
-        <TextBlock Text="{x:Static d:UiText.LegendCandidate}" />
+        <TextBlock Text="{x:Static t:UiText.LegendRead}" />
+        <TextBlock Text="{x:Static t:UiText.LegendCandidate}" />
         <Line StartPoint="0,0" EndPoint="20,0" Stroke="{DynamicResource SummaryNetworkEdgeIndirect}" StrokeThickness="1.4" StrokeDashArray="3,2" VerticalAlignment="Center" Margin="0,0,6,0" />
-        <TextBlock Text="{x:Static d:UiText.LegendIndirect}" />
+        <TextBlock Text="{x:Static t:UiText.LegendIndirect}" />
         <!-- Recommended nodes (§10.3.2): the same dashed ring and dotted line as drawn, with words. -->
         <StackPanel Name="RecommendationLegend" Orientation="Horizontal" IsVisible="{Binding ShowsRecommendationLegend}">
           <Ellipse Width="11" Height="11" Fill="{DynamicResource SummaryNetworkRecommendationFill}" Stroke="{DynamicResource SummaryNetworkRecommendation}" StrokeThickness="1.4"
                    StrokeDashArray="2,1.5" VerticalAlignment="Center" Margin="0,0,6,0" />
-          <TextBlock Text="{x:Static d:UiText.LegendRecommended}" />
+          <TextBlock Text="{x:Static t:UiText.LegendRecommended}" />
           <Line StartPoint="0,0" EndPoint="20,0" Stroke="{DynamicResource SummaryNetworkRecommendation}" StrokeThickness="1.6" StrokeDashArray="0,2.4" StrokeLineCap="Round"
                 VerticalAlignment="Center" Margin="0,0,6,0" />
-          <TextBlock Text="{x:Static d:UiText.LegendRecommendedLink}" />
+          <TextBlock Text="{x:Static t:UiText.LegendRecommendedLink}" />
         </StackPanel>
       </WrapPanel>
     </DockPanel>
@@ -241,13 +242,13 @@
                   <Button Classes="list-name" Classes.read="{Binding !Unread}" Content="{Binding DisplayName}" FontWeight="{Binding Unread, Converter={x:Static d:Converters.BoldWhen}}"
                           Command="{Binding $parent[v:SummaryNetworkHomeView].((vm:SummaryNetworkHomeViewModel)DataContext).OpenCommand}" CommandParameter="{Binding Node}" />
                   <Border Classes="badge accent" IsVisible="{Binding Unread}">
-                    <TextBlock Text="{x:Static d:UiText.MarkerUnread}" />
+                    <TextBlock Text="{x:Static t:UiText.MarkerUnread}" />
                   </Border>
                   <Border Classes="badge" IsVisible="{Binding !Unread}">
-                    <TextBlock Text="{x:Static d:UiText.MarkerRead}" />
+                    <TextBlock Text="{x:Static t:UiText.MarkerRead}" />
                   </Border>
                   <Border Classes="badge warning" IsVisible="{Binding HasCandidate}">
-                    <TextBlock Text="{x:Static d:UiText.MarkerCandidate}" />
+                    <TextBlock Text="{x:Static t:UiText.MarkerCandidate}" />
                   </Border>
                   <Border Classes="badge" IsVisible="{Binding HasOther}">
                     <TextBlock Text="{Binding Other}" />
@@ -259,7 +260,7 @@
 
           <!-- The recommended nodes for the keyboard and screen readers (D-018): a row each selects it; the details offer 开始探索 and 忽略. -->
           <StackPanel Name="RecommendedNodesList" Spacing="4" Margin="0,10,0,0" IsVisible="{Binding RecommendedNodes.Count, Converter={x:Static d:Converters.IsPositive}}">
-            <TextBlock Classes="muted" FontSize="12" Margin="5,0,0,0" Text="{x:Static d:UiText.RecommendedNodesListHeading}" />
+            <TextBlock Classes="muted" FontSize="12" Margin="5,0,0,0" Text="{x:Static t:UiText.RecommendedNodesListHeading}" />
             <ItemsControl ItemsSource="{Binding RecommendedNodes}">
               <ItemsControl.ItemTemplate>
                 <DataTemplate x:DataType="vm:RecommendedNodeView">
@@ -269,7 +270,7 @@
                             ToolTip.Tip="{Binding BasisText}"
                             Command="{Binding $parent[v:SummaryNetworkHomeView].((vm:SummaryNetworkHomeViewModel)DataContext).SelectRecommendationCommand}" CommandParameter="{Binding}" />
                     <Border Classes="badge recommended">
-                      <TextBlock Text="{x:Static d:UiText.RecommendedTag}" />
+                      <TextBlock Text="{x:Static t:UiText.RecommendedTag}" />
                     </Border>
                     <TextBlock Classes="muted" FontSize="12" VerticalAlignment="Center" Text="{Binding BasisText}" />
                   </StackPanel>

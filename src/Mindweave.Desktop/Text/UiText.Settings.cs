@@ -2,7 +2,7 @@ using System.Globalization;
 using Mindweave.Application.Models;
 using Mindweave.Core.Conversations;
 
-namespace Mindweave.Desktop;
+namespace Mindweave.Desktop.Text;
 
 // Settings: appearance (D-022) and the model connection.
 public static partial class UiText

@@ -1,7 +1,7 @@
 using System.Globalization;
 using Mindweave.Application.Startup;
 
-namespace Mindweave.Desktop;
+namespace Mindweave.Desktop.Text;
 
 // Restoring a backup from inside the application and removing backups (2026-11-12): 设置 › 数据与存储 › 备份.
 public static partial class UiText

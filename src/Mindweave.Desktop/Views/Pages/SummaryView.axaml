@@ -3,6 +3,7 @@
              xmlns:vm="using:Mindweave.Desktop.ViewModels.Pages"
              xmlns:v="using:Mindweave.Desktop.Views.Pages"
              xmlns:d="using:Mindweave.Desktop"
+             xmlns:t="using:Mindweave.Desktop.Text"
              x:Class="Mindweave.Desktop.Views.Pages.SummaryView"
              x:DataType="vm:SummaryViewModel">
   <!-- Page-only styles (S7 round 2); the shared button, notice and badge classes come from App.axaml. -->
@@ -94,15 +95,15 @@
             <TextBlock Text="{Binding ShownReadMarker}" />
           </Border>
           <Border Name="CandidateBadge" Classes="badge warning" Margin="0,0,6,0" IsVisible="{Binding HasCandidate}">
-            <TextBlock Text="{x:Static d:UiText.MarkerCandidate}" />
+            <TextBlock Text="{x:Static t:UiText.MarkerCandidate}" />
           </Border>
           <Border Name="LaterBadge" Classes="badge" Margin="0,0,6,0" IsVisible="{Binding HasLaterContent}">
-            <TextBlock Text="{x:Static d:UiText.MarkerLater}" />
+            <TextBlock Text="{x:Static t:UiText.MarkerLater}" />
           </Border>
         </WrapPanel>
         <TextBlock Name="ShownLabel" Classes="meta" Margin="4,0,0,0" Text="{Binding ShownLabel}" TextWrapping="Wrap" />
       </WrapPanel>
-      <TextBlock Name="LaterContentNote" Classes="meta" Margin="0,-4,0,0" Text="{x:Static d:UiText.LaterContentNote}" TextWrapping="Wrap"
+      <TextBlock Name="LaterContentNote" Classes="meta" Margin="0,-4,0,0" Text="{x:Static t:UiText.LaterContentNote}" TextWrapping="Wrap"
                  IsVisible="{Binding HasLaterContent}" />
 
       <!-- One action bar: exactly one primary (back to the source conversation, or 采用 while the candidate is on screen), the rest quiet. -->
@@ -113,7 +114,7 @@
             <Binding Path="!IsRenaming" />
           </MultiBinding>
         </WrapPanel.IsVisible>
-        <Button Name="ReturnButton" Content="{x:Static d:UiText.ReturnToConversation}" Command="{Binding ReturnToConversationCommand}"
+        <Button Name="ReturnButton" Content="{x:Static t:UiText.ReturnToConversation}" Command="{Binding ReturnToConversationCommand}"
                 Classes.primary="{Binding !ShownIsCandidate}" Classes.secondary="{Binding ShownIsCandidate}" VerticalAlignment="Center" />
         <Rectangle Classes="bar-divider" />
         <Button Name="ShowCurrentButton" Classes="quiet" Command="{Binding ShowCurrentCommand}">
@@ -125,7 +126,7 @@
           </Button.IsVisible>
           <StackPanel Orientation="Horizontal" Spacing="6">
             <PathIcon Width="12" Height="12" Data="M10,2 L4,8 L10,14 L11.5,12.5 L7,8 L11.5,3.5 Z" />
-            <TextBlock Text="{x:Static d:UiText.ViewCurrent}" VerticalAlignment="Center" />
+            <TextBlock Text="{x:Static t:UiText.ViewCurrent}" VerticalAlignment="Center" />
           </StackPanel>
         </Button>
         <Button Name="ReadToggle" Classes="quiet" Command="{Binding ToggleReadCommand}"
@@ -140,17 +141,17 @@
         <Button Name="EditButton" Classes="quiet" Command="{Binding BeginEditCommand}" IsVisible="{Binding ShownIsCurrent}" IsEnabled="{Binding !IsEditing}">
           <StackPanel Orientation="Horizontal" Spacing="6">
             <PathIcon Width="13" Height="13" Data="M11,1 L15,5 L5.5,14.5 H1.5 V10.5 Z M11,3.1 L3,11.1 V13 H4.9 L12.9,5 Z" />
-            <TextBlock Text="{x:Static d:UiText.Edit}" VerticalAlignment="Center" />
+            <TextBlock Text="{x:Static t:UiText.Edit}" VerticalAlignment="Center" />
           </StackPanel>
         </Button>
         <Button Name="RenameButton" Classes="quiet" Command="{Binding BeginRenameCommand}">
           <StackPanel Orientation="Horizontal" Spacing="6">
             <PathIcon Width="13" Height="13" Data="M1,2 H10 V4 H6.5 V13 H4.5 V4 H1 Z M9,9 H15 V11 H9 Z M9,12.5 H13 V14.5 H9 Z" />
-            <TextBlock Text="{x:Static d:UiText.Rename}" VerticalAlignment="Center" />
+            <TextBlock Text="{x:Static t:UiText.Rename}" VerticalAlignment="Center" />
           </StackPanel>
         </Button>
         <!-- Export opens its options (§8.3): the source-note choice and what is exported sit with the action itself. -->
-        <Button Name="ExportButton" Classes="quiet" Content="{x:Static d:UiText.ExportMarkdown}">
+        <Button Name="ExportButton" Classes="quiet" Content="{x:Static t:UiText.ExportMarkdown}">
           <Button.ContentTemplate>
             <DataTemplate x:DataType="x:String">
               <StackPanel Orientation="Horizontal" Spacing="6">
@@ -162,14 +163,14 @@
           <Button.Flyout>
             <Flyout Placement="BottomEdgeAlignedLeft" FlyoutPresenterClasses="export-options">
               <StackPanel Name="ExportOptions" Width="300" Spacing="10">
-                <TextBlock FontWeight="SemiBold" Text="{x:Static d:UiText.ExportOptionsHeading}" />
-                <CheckBox Name="ExportOmitSource" Content="{x:Static d:UiText.ExportOmitSource}" IsChecked="{Binding ExportOmitSource}" />
-                <TextBlock Name="ExportDraftNote" Classes="muted" FontSize="12" Text="{x:Static d:UiText.ExportDraftNote}" TextWrapping="Wrap" />
+                <TextBlock FontWeight="SemiBold" Text="{x:Static t:UiText.ExportOptionsHeading}" />
+                <CheckBox Name="ExportOmitSource" Content="{x:Static t:UiText.ExportOmitSource}" IsChecked="{Binding ExportOmitSource}" />
+                <TextBlock Name="ExportDraftNote" Classes="muted" FontSize="12" Text="{x:Static t:UiText.ExportDraftNote}" TextWrapping="Wrap" />
                 <!-- Secondary: the page keeps its one primary (back to the conversation) while the options are open. -->
                 <!-- Export takes the shown saved version only: never the candidate, never an unsaved edit (§8.3). -->
                 <TextBlock Name="ExportHint" Classes="warning" FontSize="12" Text="{Binding ExportHint}" TextWrapping="Wrap"
                            IsVisible="{Binding ExportHint, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
-                <Button Name="ExportRunButton" Classes="secondary" HorizontalAlignment="Right" Content="{x:Static d:UiText.ExportRun}"
+                <Button Name="ExportRunButton" Classes="secondary" HorizontalAlignment="Right" Content="{x:Static t:UiText.ExportRun}"
                         Command="{Binding ExportCommand}" />
               </StackPanel>
             </Flyout>
@@ -179,15 +180,15 @@
 
       <!-- Renaming takes the bar's place: a name field, save, cancel. -->
       <StackPanel Name="RenameRow" Orientation="Horizontal" Spacing="8" IsVisible="{Binding IsRenaming}">
-        <TextBox Name="RenameBox" Text="{Binding RenameText}" Width="340" PlaceholderText="{x:Static d:UiText.RenameWatermark}" VerticalAlignment="Center" />
-        <Button Name="CommitRenameButton" Classes="primary" Content="{x:Static d:UiText.Save}" Command="{Binding CommitRenameCommand}" IsDefault="True" VerticalAlignment="Center" />
-        <Button Classes="quiet" Content="{x:Static d:UiText.Cancel}" Command="{Binding CancelRenameCommand}" />
+        <TextBox Name="RenameBox" Text="{Binding RenameText}" Width="340" PlaceholderText="{x:Static t:UiText.RenameWatermark}" VerticalAlignment="Center" />
+        <Button Name="CommitRenameButton" Classes="primary" Content="{x:Static t:UiText.Save}" Command="{Binding CommitRenameCommand}" IsDefault="True" VerticalAlignment="Center" />
+        <Button Classes="quiet" Content="{x:Static t:UiText.Cancel}" Command="{Binding CancelRenameCommand}" />
       </StackPanel>
 
       <!-- Editing: a heading in place of the tags and the bar, which are hidden while the edit is open. -->
       <StackPanel Name="EditHeader" Spacing="2" IsVisible="{Binding IsEditing}">
         <TextBlock FontWeight="SemiBold" Text="{Binding EditingHeading}" />
-        <TextBlock Classes="meta" Text="{x:Static d:UiText.EditNote}" TextWrapping="Wrap" />
+        <TextBlock Classes="meta" Text="{x:Static t:UiText.EditNote}" TextWrapping="Wrap" />
       </StackPanel>
 
       <Border Name="NoticePanel" Classes="notice" Classes.error="{Binding NoticeIsError}" Classes.info="{Binding !NoticeIsError}"
@@ -207,8 +208,8 @@
             <TextBlock Text="{Binding Confirmation.Message, FallbackValue=''}" />
             <StackPanel Orientation="Horizontal" Spacing="6">
               <!-- Confirming a removal (deleting versions, discarding the candidate) is a danger button. -->
-              <Button Name="ConfirmButton" Classes="secondary" Classes.danger="{Binding ConfirmationIsDestructive}" Content="{x:Static d:UiText.Confirm}" Command="{Binding ConfirmCommand}" />
-              <Button Classes="quiet" Content="{x:Static d:UiText.Cancel}" Command="{Binding CancelConfirmationCommand}" />
+              <Button Name="ConfirmButton" Classes="secondary" Classes.danger="{Binding ConfirmationIsDestructive}" Content="{x:Static t:UiText.Confirm}" Command="{Binding ConfirmCommand}" />
+              <Button Classes="quiet" Content="{x:Static t:UiText.Cancel}" Command="{Binding CancelConfirmationCommand}" />
             </StackPanel>
           </StackPanel>
         </DockPanel>
@@ -228,16 +229,16 @@
           <TextBlock Classes="notice-icon" Text="↻" />
           <StackPanel Spacing="8">
             <StackPanel Spacing="2">
-              <TextBlock FontWeight="SemiBold" Text="{x:Static d:UiText.CandidateHeading}" />
-              <TextBlock Name="CandidateNote" Classes="muted" FontSize="12" Text="{x:Static d:UiText.CandidateNote}" />
+              <TextBlock FontWeight="SemiBold" Text="{x:Static t:UiText.CandidateHeading}" />
+              <TextBlock Name="CandidateNote" Classes="muted" FontSize="12" Text="{x:Static t:UiText.CandidateNote}" />
             </StackPanel>
             <StackPanel Orientation="Horizontal" Spacing="6">
-              <Button Name="ViewCandidateButton" Classes="secondary" Content="{x:Static d:UiText.ViewCandidate}" Command="{Binding ShowCandidateCommand}" IsVisible="{Binding !ShownIsCandidate}" />
-              <Button Name="ViewCurrentButton" Classes="secondary" Content="{x:Static d:UiText.ViewCurrent}" Command="{Binding ShowCurrentCommand}" IsVisible="{Binding ShownIsCandidate}" />
+              <Button Name="ViewCandidateButton" Classes="secondary" Content="{x:Static t:UiText.ViewCandidate}" Command="{Binding ShowCandidateCommand}" IsVisible="{Binding !ShownIsCandidate}" />
+              <Button Name="ViewCurrentButton" Classes="secondary" Content="{x:Static t:UiText.ViewCurrent}" Command="{Binding ShowCurrentCommand}" IsVisible="{Binding ShownIsCandidate}" />
               <!-- 采用 is the page's primary only while the candidate itself is on screen. -->
-              <Button Name="AdoptButton" Content="{x:Static d:UiText.Adopt}" Command="{Binding AdoptCommand}"
+              <Button Name="AdoptButton" Content="{x:Static t:UiText.Adopt}" Command="{Binding AdoptCommand}"
                       Classes.primary="{Binding ShownIsCandidate}" Classes.secondary="{Binding !ShownIsCandidate}" />
-              <Button Name="DiscardButton" Classes="quiet danger" Content="{x:Static d:UiText.Discard}" Command="{Binding DiscardCommand}" />
+              <Button Name="DiscardButton" Classes="quiet danger" Content="{x:Static t:UiText.Discard}" Command="{Binding DiscardCommand}" />
             </StackPanel>
           </StackPanel>
         </DockPanel>
@@ -245,7 +246,7 @@
     </StackPanel>
     </Grid>
 
-    <TextBlock DockPanel.Dock="Top" Classes="muted" Text="{x:Static d:UiText.SummaryMissing}" IsVisible="{Binding IsMissing}" />
+    <TextBlock DockPanel.Dock="Top" Classes="muted" Text="{x:Static t:UiText.SummaryMissing}" IsVisible="{Binding IsMissing}" />
 
     <!-- ── Version history: aligned columns, tick to delete, quiet row actions ── -->
     <!-- Hidden while editing: "set current", delete and view would change the version under the open edit. -->
@@ -286,12 +287,12 @@
                     <Border Classes="badge" IsVisible="{Binding IsHistory}"><TextBlock Text="{Binding Role}" /></Border>
                   </Panel>
                   <Border Grid.Column="4" Classes="badge" IsVisible="{Binding IsEdited}"><TextBlock Text="{Binding Origin}" /></Border>
-                  <Border Grid.Column="3" Classes="badge" IsVisible="{Binding IsRead}"><TextBlock Text="{x:Static d:UiText.MarkerRead}" /></Border>
+                  <Border Grid.Column="3" Classes="badge" IsVisible="{Binding IsRead}"><TextBlock Text="{x:Static t:UiText.MarkerRead}" /></Border>
                   <TextBlock Grid.Column="5" Classes="meta" Margin="4,0,8,0" Text="{Binding Coverage}" TextTrimming="CharacterEllipsis" />
                   <StackPanel Grid.Column="6" Orientation="Horizontal" Spacing="2" HorizontalAlignment="Right">
-                    <Button Classes="quiet" Padding="8,3" Content="{x:Static d:UiText.View}" IsVisible="{Binding !IsShown}"
+                    <Button Classes="quiet" Padding="8,3" Content="{x:Static t:UiText.View}" IsVisible="{Binding !IsShown}"
                             Command="{Binding $parent[v:SummaryView].((vm:SummaryViewModel)DataContext).ShowVersionCommand}" CommandParameter="{Binding Id}" />
-                    <Button Classes="quiet" Padding="8,3" Content="{x:Static d:UiText.SetCurrent}" IsVisible="{Binding CanSetCurrent}"
+                    <Button Classes="quiet" Padding="8,3" Content="{x:Static t:UiText.SetCurrent}" IsVisible="{Binding CanSetCurrent}"
                             Command="{Binding $parent[v:SummaryView].((vm:SummaryViewModel)DataContext).SetCurrentCommand}" CommandParameter="{Binding Id}" />
                   </StackPanel>
                 </Grid>
@@ -300,9 +301,9 @@
           </ItemsControl.ItemTemplate>
         </ItemsControl>
         <DockPanel Margin="6,2,0,0">
-          <Button DockPanel.Dock="Left" Name="DeleteSelectedButton" Classes="secondary danger" Content="{x:Static d:UiText.DeleteSelected}"
+          <Button DockPanel.Dock="Left" Name="DeleteSelectedButton" Classes="secondary danger" Content="{x:Static t:UiText.DeleteSelected}"
                   Command="{Binding DeleteSelectedCommand}" IsEnabled="{Binding HasSelectedVersions}" VerticalAlignment="Center" />
-          <TextBlock Classes="meta" Margin="12,0,0,0" Text="{x:Static d:UiText.ReadIsNotMastery}" TextWrapping="Wrap" />
+          <TextBlock Classes="meta" Margin="12,0,0,0" Text="{x:Static t:UiText.ReadIsNotMastery}" TextWrapping="Wrap" />
         </DockPanel>
       </StackPanel>
     </Expander>
@@ -315,13 +316,13 @@
       </Grid.ColumnDefinitions>
       <!-- Edit mode: title, Markdown source filling the page, and the save/discard row. -->
       <DockPanel Name="Editor" IsVisible="{Binding IsEditing}">
-        <TextBox DockPanel.Dock="Top" Name="EditTitleBox" Classes="edit-title" Text="{Binding EditTitle}" PlaceholderText="{x:Static d:UiText.EditTitleWatermark}" Margin="0,0,0,8" />
+        <TextBox DockPanel.Dock="Top" Name="EditTitleBox" Classes="edit-title" Text="{Binding EditTitle}" PlaceholderText="{x:Static t:UiText.EditTitleWatermark}" Margin="0,0,0,8" />
         <DockPanel DockPanel.Dock="Bottom" Margin="0,10,0,0">
           <StackPanel DockPanel.Dock="Left" Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
-            <Button Name="SaveEditButton" Classes="primary" Content="{x:Static d:UiText.SaveEdit}" Command="{Binding SaveEditCommand}" />
-            <Button Name="DiscardEditButton" Classes="secondary" Content="{x:Static d:UiText.DiscardEdit}" Command="{Binding DiscardEditCommand}" />
+            <Button Name="SaveEditButton" Classes="primary" Content="{x:Static t:UiText.SaveEdit}" Command="{Binding SaveEditCommand}" />
+            <Button Name="DiscardEditButton" Classes="secondary" Content="{x:Static t:UiText.DiscardEdit}" Command="{Binding DiscardEditCommand}" />
           </StackPanel>
-          <TextBlock Name="EditDraftNote" Classes="meta" Margin="14,0,0,0" Text="{x:Static d:UiText.EditDraftSaved}" TextWrapping="Wrap" />
+          <TextBlock Name="EditDraftNote" Classes="meta" Margin="14,0,0,0" Text="{x:Static t:UiText.EditDraftSaved}" TextWrapping="Wrap" />
         </DockPanel>
         <TextBox Name="EditBodyBox" Classes="edit-body" Text="{Binding EditBody}" AcceptsReturn="True" TextWrapping="Wrap" MinHeight="240"
                  VerticalContentAlignment="Top" />

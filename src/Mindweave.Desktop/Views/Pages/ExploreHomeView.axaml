@@ -1,7 +1,7 @@
 <UserControl xmlns="https://github.com/avaloniaui"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:vm="using:Mindweave.Desktop.ViewModels.Pages"
-             xmlns:d="using:Mindweave.Desktop"
+             xmlns:t="using:Mindweave.Desktop.Text"
              x:Class="Mindweave.Desktop.Views.Pages.ExploreHomeView"
              x:DataType="vm:ExploreHomeViewModel">
   <!-- The workspace's starting point: a quiet mark and the page's one primary action; the button says what to do. -->
@@ -11,10 +11,10 @@
         <PathIcon Data="{StaticResource IconExplore}" />
       </Border>
       <Button Name="StartConversation" Classes="primary" Command="{Binding NewConversationCommand}" HorizontalAlignment="Center"
-              Padding="18,8" AutomationProperties.Name="{x:Static d:UiText.NewConversation}">
+              Padding="18,8" AutomationProperties.Name="{x:Static t:UiText.NewConversation}">
         <StackPanel Orientation="Horizontal" Spacing="7">
           <PathIcon Width="12" Height="12" Data="{StaticResource IconPlus}" />
-          <TextBlock Text="{x:Static d:UiText.NewConversation}" VerticalAlignment="Center" />
+          <TextBlock Text="{x:Static t:UiText.NewConversation}" VerticalAlignment="Center" />
         </StackPanel>
       </Button>
     </StackPanel>

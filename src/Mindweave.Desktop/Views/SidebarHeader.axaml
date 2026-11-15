@@ -2,6 +2,7 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:vm="using:Mindweave.Desktop.ViewModels"
              xmlns:d="using:Mindweave.Desktop"
+             xmlns:t="using:Mindweave.Desktop.Text"
              xmlns:v="using:Mindweave.Desktop.Views"
              x:Class="Mindweave.Desktop.Views.SidebarHeader"
              x:DataType="vm:ShellViewModel">
@@ -10,7 +11,7 @@
   <StackPanel Spacing="2">
     <DockPanel Margin="0,0,0,4">
       <Button Name="CollapseSidebar" DockPanel.Dock="Right" Classes="quiet sidebar-toggle" Command="{Binding ToggleSidebarCommand}"
-              Margin="4,0,-4,0" ToolTip.Tip="{x:Static d:UiText.CollapseSidebarTip}" AutomationProperties.Name="{x:Static d:UiText.CollapseSidebar}">
+              Margin="4,0,-4,0" ToolTip.Tip="{x:Static t:UiText.CollapseSidebarTip}" AutomationProperties.Name="{x:Static t:UiText.CollapseSidebar}">
         <PathIcon Data="{StaticResource IconSidebar}" />
       </Button>
       <!-- Inside this row (it takes no room here), so the header is exactly the switcher's height. -->
@@ -21,7 +22,7 @@
       <Popup Name="WorkspaceMenu" DockPanel.Dock="Right" PlacementTarget="{Binding #WorkspacePicker}" Placement="BottomEdgeAlignedLeft" VerticalOffset="4"
              IsOpen="{Binding IsWorkspaceMenuOpen, Mode=TwoWay}" IsLightDismissEnabled="True" ShouldUseOverlayLayer="True"
              MaxWidth="360" Opened="OnMenuOpened" Closed="OnMenuClosed">
-        <Border Name="WorkspaceMenuCard" Classes="workspace-menu" AutomationProperties.Name="{x:Static d:UiText.WorkspaceMenuName}">
+        <Border Name="WorkspaceMenuCard" Classes="workspace-menu" AutomationProperties.Name="{x:Static t:UiText.WorkspaceMenuName}">
           <StackPanel>
             <ScrollViewer Name="WorkspaceMenuScroller" Classes="autohide" MaxHeight="292" HorizontalScrollBarVisibility="Disabled">
               <ItemsControl Name="WorkspaceMenuList" ItemsSource="{Binding WorkspaceChoices}">
@@ -46,21 +47,21 @@
             </ScrollViewer>
             <Border Classes="switcher-divider" />
             <Button Name="NewWorkspaceEntry" Classes="switcher-row footer" Command="{Binding BeginCreateWorkspaceCommand}"
-                    AutomationProperties.Name="{x:Static d:UiText.NewWorkspaceEntry}">
+                    AutomationProperties.Name="{x:Static t:UiText.NewWorkspaceEntry}">
               <DockPanel>
                 <Panel DockPanel.Dock="Left" Classes="switcher-check">
                   <PathIcon Data="{StaticResource IconPlus}" />
                 </Panel>
-                <TextBlock Text="{x:Static d:UiText.NewWorkspaceEntry}" VerticalAlignment="Center" />
+                <TextBlock Text="{x:Static t:UiText.NewWorkspaceEntry}" VerticalAlignment="Center" />
               </DockPanel>
             </Button>
             <Button Name="ManageWorkspacesEntry" Classes="switcher-row footer" Command="{Binding ManageWorkspacesCommand}"
-                    AutomationProperties.Name="{x:Static d:UiText.ManageWorkspaces}">
+                    AutomationProperties.Name="{x:Static t:UiText.ManageWorkspaces}">
               <DockPanel>
                 <Panel DockPanel.Dock="Left" Classes="switcher-check">
                   <PathIcon Data="{StaticResource IconWorkspaces}" />
                 </Panel>
-                <TextBlock Text="{x:Static d:UiText.ManageWorkspaces}" VerticalAlignment="Center" />
+                <TextBlock Text="{x:Static t:UiText.ManageWorkspaces}" VerticalAlignment="Center" />
               </DockPanel>
             </Button>
           </StackPanel>
@@ -89,15 +90,15 @@
          the new workspace, Esc or 取消 closes it. -->
     <Border Name="NewWorkspaceForm" Classes="new-workspace-form" IsVisible="{Binding IsCreatingWorkspace}">
       <StackPanel Spacing="8">
-        <TextBox Name="NewWorkspaceName" Text="{Binding NewWorkspace.Name}" PlaceholderText="{x:Static d:UiText.WorkspaceNameWatermark}"
-                 AutomationProperties.Name="{x:Static d:UiText.WorkspaceNameLabel}" KeyDown="OnNewWorkspaceKeyDown" />
+        <TextBox Name="NewWorkspaceName" Text="{Binding NewWorkspace.Name}" PlaceholderText="{x:Static t:UiText.WorkspaceNameWatermark}"
+                 AutomationProperties.Name="{x:Static t:UiText.WorkspaceNameLabel}" KeyDown="OnNewWorkspaceKeyDown" />
         <TextBlock Name="NewWorkspaceError" Classes="error" FontSize="12" Text="{Binding NewWorkspace.Error}" TextWrapping="Wrap"
                    IsVisible="{Binding NewWorkspace.Error, Converter={x:Static ObjectConverters.IsNotNull}}" />
         <StackPanel Orientation="Horizontal" Spacing="6" HorizontalAlignment="Right">
-          <Button Name="CancelNewWorkspaceButton" Classes="quiet small" Content="{x:Static d:UiText.Cancel}" Command="{Binding CancelCreateWorkspaceCommand}"
-                  AutomationProperties.Name="{x:Static d:UiText.CancelNewWorkspace}" />
-          <Button Name="CreateWorkspaceButton" Classes="primary small" Content="{x:Static d:UiText.Create}" Command="{Binding NewWorkspace.SubmitCommand}"
-                  AutomationProperties.Name="{x:Static d:UiText.CreateWorkspace}" />
+          <Button Name="CancelNewWorkspaceButton" Classes="quiet small" Content="{x:Static t:UiText.Cancel}" Command="{Binding CancelCreateWorkspaceCommand}"
+                  AutomationProperties.Name="{x:Static t:UiText.CancelNewWorkspace}" />
+          <Button Name="CreateWorkspaceButton" Classes="primary small" Content="{x:Static t:UiText.Create}" Command="{Binding NewWorkspace.SubmitCommand}"
+                  AutomationProperties.Name="{x:Static t:UiText.CreateWorkspace}" />
         </StackPanel>
       </StackPanel>
     </Border>

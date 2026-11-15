@@ -1,7 +1,7 @@
 using System.Globalization;
 using Mindweave.Core.Conversations;
 
-namespace Mindweave.Desktop;
+namespace Mindweave.Desktop.Text;
 
 // Workspaces in one place (2026-11-10): the sidebar's switcher and its menu, the inline new-workspace form, and the
 // 设置 › 工作区 page that lists, switches, renames and deletes any of them.

@@ -3,6 +3,7 @@
              xmlns:vm="using:Mindweave.Desktop.ViewModels.Conversations"
              xmlns:v="using:Mindweave.Desktop.Views.Conversations"
              xmlns:d="using:Mindweave.Desktop"
+             xmlns:t="using:Mindweave.Desktop.Text"
              xmlns:vv="using:Mindweave.Desktop.Views"
              x:Class="Mindweave.Desktop.Views.Conversations.ConversationView"
              x:DataType="vm:ConversationViewModel"
@@ -14,7 +15,7 @@
         <Button Name="RenameButton" Classes="quiet" Command="{Binding BeginRenameCommand}" IsVisible="{Binding !IsRenaming}" Margin="0,0,2,0">
           <StackPanel Orientation="Horizontal" Spacing="6">
             <PathIcon Data="{StaticResource IconRename}" />
-            <TextBlock Text="{x:Static d:UiText.Rename}" VerticalAlignment="Center" />
+            <TextBlock Text="{x:Static t:UiText.Rename}" VerticalAlignment="Center" />
           </StackPanel>
         </Button>
         <!-- Summary at any stage (§6.4): its entry and markers, generation progress, the last failure. -->
@@ -43,53 +44,53 @@
         <Button Name="RestoreAndSummarizeButton" Classes="quiet" Command="{Binding Lifecycle.RestoreAndSummarizeCommand}" IsVisible="{Binding IsArchived}" Margin="0,0,2,0">
           <StackPanel Orientation="Horizontal" Spacing="6">
             <PathIcon Data="{StaticResource IconSummarize}" />
-            <TextBlock Text="{x:Static d:UiText.RestoreAndSummarize}" VerticalAlignment="Center" />
+            <TextBlock Text="{x:Static t:UiText.RestoreAndSummarize}" VerticalAlignment="Center" />
           </StackPanel>
         </Button>
         <StackPanel Orientation="Horizontal" Spacing="6" VerticalAlignment="Center" Margin="8,0,2,0"
                     IsVisible="{Binding Summary.RunningSummary, Converter={x:Static ObjectConverters.IsNotNull}}">
           <ProgressBar IsIndeterminate="True" Width="40" MinWidth="40" VerticalAlignment="Center" />
-          <TextBlock Classes="caption" Text="{x:Static d:UiText.SummaryGenerating}" VerticalAlignment="Center" />
+          <TextBlock Classes="caption" Text="{x:Static t:UiText.SummaryGenerating}" VerticalAlignment="Center" />
           <Button Name="StopSummaryButton" Classes="quiet" Command="{Binding Summary.StopSummaryCommand}">
             <StackPanel Orientation="Horizontal" Spacing="6">
               <PathIcon Width="10" Height="10" Data="{StaticResource IconStop}" />
-              <TextBlock Text="{x:Static d:UiText.SummaryStop}" VerticalAlignment="Center" />
+              <TextBlock Text="{x:Static t:UiText.SummaryStop}" VerticalAlignment="Center" />
             </StackPanel>
           </Button>
         </StackPanel>
         <Button Name="ArchiveButton" Classes="quiet" Command="{Binding Lifecycle.ArchiveCommand}" IsVisible="{Binding ShowArchiveInToolbar}" Margin="0,0,2,0">
           <StackPanel Orientation="Horizontal" Spacing="6">
             <PathIcon Data="{StaticResource IconArchive}" />
-            <TextBlock Text="{x:Static d:UiText.Archive}" VerticalAlignment="Center" />
+            <TextBlock Text="{x:Static t:UiText.Archive}" VerticalAlignment="Center" />
           </StackPanel>
         </Button>
         <Button Name="DeleteButton" Classes="quiet danger" Command="{Binding Lifecycle.DeleteCommand}">
           <StackPanel Orientation="Horizontal" Spacing="6">
             <PathIcon Data="{StaticResource IconDelete}" />
-            <TextBlock Text="{x:Static d:UiText.Delete}" VerticalAlignment="Center" />
+            <TextBlock Text="{x:Static t:UiText.Delete}" VerticalAlignment="Center" />
           </StackPanel>
         </Button>
       </WrapPanel>
       <!-- Renaming: save is secondary (still the default for Enter); send stays the page's one primary button. -->
       <StackPanel Orientation="Horizontal" Spacing="6" IsVisible="{Binding IsRenaming}" vv:Motion.Appear="Fade">
         <TextBox Name="RenameBox" Text="{Binding RenameText}" Width="320" />
-        <Button Name="SaveRenameButton" Classes="secondary" Content="{x:Static d:UiText.Save}" Command="{Binding CommitRenameCommand}" IsDefault="True" />
-        <Button Classes="quiet" Content="{x:Static d:UiText.Cancel}" Command="{Binding CancelRenameCommand}" />
+        <Button Name="SaveRenameButton" Classes="secondary" Content="{x:Static t:UiText.Save}" Command="{Binding CommitRenameCommand}" IsDefault="True" />
+        <Button Classes="quiet" Content="{x:Static t:UiText.Cancel}" Command="{Binding CancelRenameCommand}" />
       </StackPanel>
 
       <!-- Where this branch sits: its ancestors (each opens normally) and the passage it was created from, read as a quotation. -->
       <Border Name="BranchHeader" Classes="card" Padding="12,9,8,10" IsVisible="{Binding IsBranch}">
         <DockPanel>
           <Button Name="ReturnButton" DockPanel.Dock="Right" Classes="quiet" Command="{Binding ReturnToSourceCommand}" VerticalAlignment="Top"
-                  Margin="12,0,0,0" ToolTip.Tip="{x:Static d:UiText.ReturnToSourceHint}">
+                  Margin="12,0,0,0" ToolTip.Tip="{x:Static t:UiText.ReturnToSourceHint}">
             <StackPanel Orientation="Horizontal" Spacing="6">
               <PathIcon Data="{StaticResource IconReturn}" />
-              <TextBlock Text="{x:Static d:UiText.ReturnToSource}" VerticalAlignment="Center" />
+              <TextBlock Text="{x:Static t:UiText.ReturnToSource}" VerticalAlignment="Center" />
             </StackPanel>
           </Button>
           <StackPanel Spacing="6">
             <WrapPanel Orientation="Horizontal">
-              <TextBlock Classes="caption" Text="{x:Static d:UiText.BranchFrom}" VerticalAlignment="Center" Margin="0,0,3,0" />
+              <TextBlock Classes="caption" Text="{x:Static t:UiText.BranchFrom}" VerticalAlignment="Center" Margin="0,0,3,0" />
               <ItemsControl Name="LineagePath" ItemsSource="{Binding Lineage}" VerticalAlignment="Center">
                 <ItemsControl.ItemsPanel>
                   <ItemsPanelTemplate>
@@ -143,8 +144,8 @@
             <StackPanel Orientation="Horizontal" Spacing="6">
               <!-- A delete confirms in the danger colour; a restore confirms as a plain secondary button. -->
               <Button Name="ConfirmButton" Classes="secondary" Classes.danger="{Binding Lifecycle.Confirmation.IsDestructive, FallbackValue=False}"
-                      Content="{x:Static d:UiText.Confirm}" Command="{Binding Lifecycle.ConfirmCommand}" />
-              <Button Classes="quiet" Content="{x:Static d:UiText.Cancel}" Command="{Binding Lifecycle.CancelConfirmationCommand}" />
+                      Content="{x:Static t:UiText.Confirm}" Command="{Binding Lifecycle.ConfirmCommand}" />
+              <Button Classes="quiet" Content="{x:Static t:UiText.Cancel}" Command="{Binding Lifecycle.CancelConfirmationCommand}" />
             </StackPanel>
           </StackPanel>
         </DockPanel>
@@ -177,7 +178,7 @@
       <Border Name="ArchivedPanel" Classes="notice info" IsVisible="{Binding IsArchived}">
         <DockPanel>
           <TextBlock Classes="notice-icon" Text="i" VerticalAlignment="Center" />
-          <Button Name="RestoreAndContinueButton" DockPanel.Dock="Right" Classes="primary" Content="{x:Static d:UiText.RestoreAndContinue}"
+          <Button Name="RestoreAndContinueButton" DockPanel.Dock="Right" Classes="primary" Content="{x:Static t:UiText.RestoreAndContinue}"
                   Command="{Binding Lifecycle.RestoreAndContinueCommand}" Margin="12,0,0,0" />
           <TextBlock Name="ArchivedText" Text="{Binding ArchiveText}" />
         </DockPanel>
@@ -209,7 +210,7 @@
               <!-- Answer: Markdown on the page; selecting text in a finished answer offers a branch. -->
               <StackPanel IsVisible="{Binding IsAnswer}" Spacing="6" Opacity="{Binding IsSuperseded, Converter={x:Static d:Converters.SupersededOpacity}}">
                 <Border Classes="badge" HorizontalAlignment="Left" IsVisible="{Binding IsSuperseded}">
-                  <TextBlock Text="{x:Static d:UiText.EarlierAttempt}" />
+                  <TextBlock Text="{x:Static t:UiText.EarlierAttempt}" />
                 </Border>
                 <v:AnswerView IsVisible="{Binding IsAnswer}" />
                 <StackPanel Orientation="Horizontal" Spacing="8" IsVisible="{Binding IsWaiting}">
@@ -219,15 +220,15 @@
                 </StackPanel>
                 <!-- Still being written: one small mark at the end of the text, not a bar under every paragraph. -->
                 <StackPanel Name="StreamingIndicator" Orientation="Horizontal" Spacing="4" IsVisible="{Binding IsStreaming}"
-                            AutomationProperties.Name="{x:Static d:UiText.AnswerStreaming}">
+                            AutomationProperties.Name="{x:Static t:UiText.AnswerStreaming}">
                   <Ellipse Classes="typing" />
                   <Ellipse Classes="typing" Opacity="0.6" />
                   <Ellipse Classes="typing" Opacity="0.3" />
-                  <TextBlock Classes="caption" Text="{x:Static d:UiText.AnswerStreaming}" VerticalAlignment="Center" Margin="4,0,0,0" />
+                  <TextBlock Classes="caption" Text="{x:Static t:UiText.AnswerStreaming}" VerticalAlignment="Center" Margin="4,0,0,0" />
                   <!-- Round 4: a quiet live counter from the moment the question was sent. -->
                   <TextBlock Name="StreamingElapsed" Classes="timestamp" Text="{Binding ElapsedText}" VerticalAlignment="Center" Margin="4,0,0,0" />
                 </StackPanel>
-                <TextBlock Classes="caption" Text="{x:Static d:UiText.ContextCompressedNote}" IsVisible="{Binding WasCompressed}" />
+                <TextBlock Classes="caption" Text="{x:Static t:UiText.ContextCompressedNote}" IsVisible="{Binding WasCompressed}" />
                 <!-- A failure: the error and its retry together, in one notice under the answer. -->
                 <Border Name="ErrorNotice" Classes="notice error" HorizontalAlignment="Left" IsVisible="{Binding IsProblem}" Margin="0,2,0,0">
                   <DockPanel>
@@ -272,7 +273,7 @@
                 <Border Name="BranchSection" Classes="card" HorizontalAlignment="Left" MinWidth="340" MaxWidth="640" Padding="4,5,4,3" Margin="0,2,0,0"
                         IsVisible="{Binding Branches.Count, Converter={x:Static d:Converters.IsPositive}}">
                   <StackPanel Spacing="1">
-                    <TextBlock Classes="caption" Text="{x:Static d:UiText.BranchesHeading}" Margin="8,0,8,3" />
+                    <TextBlock Classes="caption" Text="{x:Static t:UiText.BranchesHeading}" Margin="8,0,8,3" />
                     <ItemsControl Name="BranchEntries" ItemsSource="{Binding Branches}">
                       <ItemsControl.ItemTemplate>
                         <DataTemplate x:DataType="vm:BranchEntry">
@@ -283,7 +284,7 @@
                               <PathIcon Classes="entry-icon" Data="{StaticResource IconBranch}" />
                               <PathIcon Classes="entry-chevron" DockPanel.Dock="Right" Data="{StaticResource IconChevron}" />
                               <Border Classes="badge" DockPanel.Dock="Right" Margin="8,0,0,0" IsVisible="{Binding Archived}">
-                                <TextBlock Text="{x:Static d:UiText.ArchivedMarker}" />
+                                <TextBlock Text="{x:Static t:UiText.ArchivedMarker}" />
                               </Border>
                               <TextBlock Text="{Binding Quote}" TextWrapping="Wrap" MaxLines="2" TextTrimming="CharacterEllipsis" />
                             </DockPanel>

@@ -1,6 +1,6 @@
 using System.Globalization;
 
-namespace Mindweave.Desktop;
+namespace Mindweave.Desktop.Text;
 
 // Times, durations and sizes as the interface writes them everywhere.
 public static partial class UiText

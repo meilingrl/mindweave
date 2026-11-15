@@ -3,7 +3,7 @@ using Mindweave.Application.Conversations;
 using Mindweave.Core.Branches;
 using Mindweave.Core.Conversations;
 
-namespace Mindweave.Desktop;
+namespace Mindweave.Desktop.Text;
 
 // The conversation page: asking, answers and their states, branches and the context line.
 public static partial class UiText

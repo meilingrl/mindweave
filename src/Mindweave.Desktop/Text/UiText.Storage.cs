@@ -1,7 +1,7 @@
 using System.Globalization;
 using Mindweave.Application.Startup;
 
-namespace Mindweave.Desktop;
+namespace Mindweave.Desktop.Text;
 
 // Local data: the storage pause, the recovery page, the data and storage page and backups.
 public static partial class UiText

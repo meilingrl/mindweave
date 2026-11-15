@@ -1,7 +1,7 @@
 using Mindweave.Application.Recommendations;
 using Mindweave.Core.Conversations;
 
-namespace Mindweave.Desktop;
+namespace Mindweave.Desktop.Text;
 
 // Recommended questions on 新探索 (requirements §10.3.1, 2026-11-12) and the recommendation settings in 设置 › 提示.
 public static partial class UiText
