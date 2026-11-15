@@ -396,6 +396,97 @@ public class RecommendedQuestionsUiTests
         window.Close();
     }
 
+    /// <summary>
+    /// A reload that read the questions before a 不感兴趣 was stored (the one the previous 不感兴趣 or a settings change set
+    /// off) must not bring the question back when it lands: that rebuilt the rows and took away the focus the removal had
+    /// just moved on, so a quick second 不感兴趣 lost the keyboard (and the settings test timed out waiting for the focus).
+    /// </summary>
+    [AvaloniaFact]
+    public async Task A_reload_that_read_before_an_ignore_was_stored_does_not_bring_the_question_back()
+    {
+        HeldRecommendationStore? store = null;
+        await using var app = DesktopHarness.Create(services =>
+            services.AddSingleton<IRecommendationStore>(sp => store = new HeldRecommendationStore(new SqliteRecommendationStore(sp.GetRequiredService<SqliteDatabase>()))));
+        var window = app.ShowWindow(1100, 900);
+        await SeedAsync(app);
+        var (page, view) = await OpenAsync(app, window);
+        Assert.Equal(3, page.Recommendations.Count);
+
+        // A reload reads the three, and is slow to land.
+        var read = store!.HoldNextList();
+        await app.Services.GetRequiredService<IRecommendationSettings>().SetNodesAsync(true, CancellationToken.None);
+        await read.Reached.Task.WaitAsync(TimeSpan.FromSeconds(5), TestContext.Current.CancellationToken);
+
+        // Meanwhile 不感兴趣 on the first, its ignoring not stored yet; the focus moves to the question now in its place.
+        var write = store.HoldNextWrite();
+        var ignored = page.Recommendations[0];
+        IgnoreButtons(view)[0].Focus(NavigationMethod.Tab);
+        window.KeyPress(Key.Enter, RawInputModifiers.None, PhysicalKey.Enter, null);
+        Assert.Equal(2, page.Recommendations.Count);
+        await UiWait.UntilAsync(() => QuestionButtons(view).Count == 2 && QuestionButtons(view)[0].IsFocused);
+        var focused = QuestionButtons(view)[0];
+
+        // The slow reload lands: the question stays gone and the focus stays where it went.
+        var stale = page.Reloaded;
+        read.Release.SetResult();
+        await UiWait.UntilAsync(() => stale.IsCompleted);
+        window.UpdateLayout();
+        Assert.DoesNotContain(page.Recommendations, r => r.Recommendation.Id == ignored.Recommendation.Id);
+        Assert.Equal(2, page.Recommendations.Count);
+        Assert.True(focused.IsFocused);
+
+        write.SetResult();
+        await UiWait.UntilAsync(() => !ignored.IgnoreCommand.IsRunning);
+        Assert.Equal(2, page.Recommendations.Count);
+        Assert.True(focused.IsFocused);
+        window.Close();
+    }
+
+    /// <summary>The real store; its next question list (after the read) or next state change can be held.</summary>
+    private sealed class HeldRecommendationStore(IRecommendationStore inner) : IRecommendationStore
+    {
+        private HeldRead? _read;
+        private TaskCompletionSource? _write;
+
+        public sealed record HeldRead(TaskCompletionSource Reached, TaskCompletionSource Release);
+
+        public HeldRead HoldNextList() =>
+            _read = new HeldRead(new(TaskCreationOptions.RunContinuationsAsynchronously), new(TaskCreationOptions.RunContinuationsAsynchronously));
+
+        public TaskCompletionSource HoldNextWrite() => _write = new(TaskCreationOptions.RunContinuationsAsynchronously);
+
+        public async Task<IReadOnlyList<Recommendation>> ListAsync(Core.Workspaces.WorkspaceId workspace, RecommendationKind kind, CancellationToken cancellationToken)
+        {
+            var rows = await inner.ListAsync(workspace, kind, cancellationToken).ConfigureAwait(false);
+            if (kind == RecommendationKind.Question && Interlocked.Exchange(ref _read, null) is { } held)
+            {
+                held.Reached.SetResult();
+                await held.Release.Task.ConfigureAwait(false);
+            }
+
+            return rows;
+        }
+
+        public async Task<bool> SetStateAsync(RecommendationId id, RecommendationState state, string normalized, DateTimeOffset at, CancellationToken cancellationToken)
+        {
+            if (Interlocked.Exchange(ref _write, null) is { } held)
+            {
+                await held.Task.ConfigureAwait(false);
+            }
+
+            return await inner.SetStateAsync(id, state, normalized, at, cancellationToken).ConfigureAwait(false);
+        }
+
+        public Task<int?> AddBatchAsync(Core.Workspaces.WorkspaceId workspace, RecommendationKind kind, RecommendationBatch batch, bool replacePending, CancellationToken cancellationToken) =>
+            inner.AddBatchAsync(workspace, kind, batch, replacePending, cancellationToken);
+
+        public Task<int> RemovePendingAsync(Core.Workspaces.WorkspaceId workspace, RecommendationKind kind, IReadOnlyCollection<RecommendationId> ids, CancellationToken cancellationToken) =>
+            inner.RemovePendingAsync(workspace, kind, ids, cancellationToken);
+
+        public Task<RecommendationBases> ListBasesAsync(Core.Workspaces.WorkspaceId workspace, int limit, int bodyChars, CancellationToken cancellationToken) =>
+            inner.ListBasesAsync(workspace, limit, bodyChars, cancellationToken);
+    }
+
     /// <summary>The network scenario's workspace with three questions made (by 换一批's request, as the fake answers it).</summary>
     internal static async Task SeedAsync(DesktopHarness app)
     {

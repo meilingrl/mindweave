@@ -26,6 +26,9 @@ public sealed partial class NewConversationViewModel : PageViewModel, IDisposabl
     private RecommendedQuestionViewModel? _source;
     private RecommendationId? _node;
     private int _loads;
+
+    // Questions removed by 不感兴趣 whose ignoring is not stored yet: a load that read them before it was stays without them.
+    private readonly HashSet<RecommendationId> _ignoring = [];
     private bool _autoPrepares = true;
     private bool _disposed;
     private readonly Application.Reading.IReadingState? _reading;
@@ -224,6 +227,7 @@ public sealed partial class NewConversationViewModel : PageViewModel, IDisposabl
             return;
         }
 
+        _ignoring.Add(item.Recommendation.Id);
         Recommendations.RemoveAt(index);
         if (ReferenceEquals(_source, item))
         {
@@ -244,6 +248,8 @@ public sealed partial class NewConversationViewModel : PageViewModel, IDisposabl
             DesktopLog.Swallowed(swallowed);
         }
 
+        // Stored (or not, and then shown again): from here on a load reads it as it is.
+        _ignoring.Remove(item.Recommendation.Id);
         await ReloadAsync();
     }
 
@@ -401,10 +407,13 @@ public sealed partial class NewConversationViewModel : PageViewModel, IDisposabl
         {
             Recommendations.Clear();
         }
-        else if (!offer.Items.Select(i => i.Id).SequenceEqual(Recommendations.Select(r => r.Recommendation.Id)))
+        else if (offer.Items.Where(i => !_ignoring.Contains(i.Id)).ToList() is var items
+            && !items.Select(i => i.Id).SequenceEqual(Recommendations.Select(r => r.Recommendation.Id)))
         {
+            // A load that read a question before its 不感兴趣 was stored must not bring it back (nor rebuild the rows,
+            // which takes the keyboard focus the removal just moved to the next one).
             Recommendations.Clear();
-            foreach (var item in offer.Items)
+            foreach (var item in items)
             {
                 Recommendations.Add(new RecommendedQuestionViewModel(this, item));
             }
