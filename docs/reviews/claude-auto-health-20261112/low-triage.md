@@ -152,8 +152,8 @@
 | cross-platform-5 | Native credential stores lack coverage | Opt-in by design. | dev | 待决定 |
 | ci-build-7 | Builds not reproducible (SDK, lock files) | Dependency policy. | dev | 待决定 |
 | ci-build-9 | Gallery and perf budgets never run in CI | CI minutes choice. | dev | 待决定 |
-| repo-scripts-2 | Codex review files untracked in stale worktree | Other agent's files; owner decides. | dev | 待决定 |
-| repo-scripts-4 | Stale worktree-wf branches/worktrees | Deleting touches other sessions; owner go-ahead. | dev | 待决定 |
+| repo-scripts-2 | Codex review files untracked in stale worktree | Owner approved 2026-11-15: both files copied into the review folder, links made relative. | dev | 已解决 |
+| repo-scripts-4 | Stale worktree-wf branches/worktrees | Owner approved 2026-11-15: workflow branches, arch-review worktrees and leftover folders removed. | dev | 已解决 |
 | tests-7 | No coverage, no per-test timeout | New dependency/CI policy. | dev | 待决定 |
 | tests-10 | Application has no direct tests | Project structure decision. | dev | 待决定 |
 | storage-9 | Cross-row invariants only in app code | Composite FKs need a migration. | none | 待决定 |

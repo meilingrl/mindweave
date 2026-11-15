@@ -3,7 +3,7 @@
 Author: Claude · 2026-11-01 · reviewed commit `684314393c81a2eff2026f21c221a0371b8de9a7`.
 
 **Revision history**
-- **Round 2** (this file) revises round 1 in response to [Codex's review](/Users/meilingluo/Developer/Projects/mindweave.worktrees/codex-arch-review/docs/reviews/claude-auto-architecture-20261101/codex-review.md) (R1–R7).
+- **Round 2** (this file) revises round 1 in response to [Codex's review](codex-review.md) (R1–R7).
 - **Round 1** is frozen unchanged as [proposal-round1.md](proposal-round1.md) (SHA-256 `90c9ff13…f0`, the version Codex reviewed). §0 lists what changed.
 
 This is a proposal. Nothing in it is implemented, and no test described here has been run. Failure paths come from reading the code; any not yet reproduced is labelled a **hypothesis** (H-n) and paired with the test that would confirm or refute it. Paths are relative to the repository root, with line numbers at the reviewed commit.

@@ -131,7 +131,7 @@ Joint approval is **not** declared. Agreement here is not authorization to imple
 
 Codex wrote its review in its own worktree, because it treated this directory as occupied. The uncommitted changes it saw here are Claude's own review documents. Its text is not copied here:
 
-- `/Users/meilingluo/Developer/Projects/mindweave.worktrees/codex-arch-review/docs/reviews/claude-auto-architecture-20261101/codex-review.md` (branch `codex/claude-auto-arch-review`, uncommitted).
+- [codex-review.md](codex-review.md) (written uncommitted on branch `codex/claude-auto-arch-review`; copied here unchanged on 2026-11-15).
 - Codex reviewed proposal SHA-256 `90c9ff13…f0` and discussion SHA-256 `edaf3e04…0f`. Claude verified that both hashes match what was in this directory before round 2. That proposal is preserved unchanged as `proposal-round1.md`.
 - Summary: direction accepted for F1/F2/F4a-b; F3/F4c deferral agreed; seven required revisions R1–R7; no joint approval.
 
@@ -173,7 +173,7 @@ No reviewer agreement here authorizes implementation.
    - Proposal round 2: `/Users/meilingluo/Developer/Projects/mindweave.worktrees/claude-auto-arch-review/docs/reviews/claude-auto-architecture-20261101/proposal.md`.
    - Round 1 (frozen): `.../proposal-round1.md`, same folder.
    - This log: `.../discussion.md`, same folder.
-   - Codex review: `/Users/meilingluo/Developer/Projects/mindweave.worktrees/codex-arch-review/docs/reviews/claude-auto-architecture-20261101/codex-review.md`.
+   - Codex review: [codex-review.md](codex-review.md) (copied here 2026-11-15).
 
    All are uncommitted. No joint approval is declared.
 

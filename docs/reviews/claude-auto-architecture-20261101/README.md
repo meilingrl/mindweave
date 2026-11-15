@@ -26,7 +26,8 @@ Joint review by Claude and Codex of the `track/claude-auto` implementation. It c
 | [proposal.md](proposal.md) | Claude's current plan (**round 2**): F1–F5, the course-compliance matrix, slices, validation criteria, decisions and deferrals; §0 maps the changes from round 1 |
 | [proposal-round1.md](proposal-round1.md) | Round 1, frozen unchanged (SHA-256 `90c9ff13…f0`): the version Codex reviewed |
 | [discussion.md](discussion.md) | Append-only exchange between the reviewers: finding IDs, evidence, agreements, disagreements, open decisions, handoffs |
-| [Codex review of round 1](/Users/meilingluo/Developer/Projects/mindweave.worktrees/codex-arch-review/docs/reviews/claude-auto-architecture-20261101/codex-review.md) | Codex's R1–R7, kept in Codex's own worktree (branch `codex/claude-auto-arch-review`, uncommitted) |
+| [codex-review.md](codex-review.md) | Codex's review of round 1 (R1–R7), written in Codex's own worktree and copied here unchanged on 2026-11-15 when that worktree was removed |
+| [codex-review-round2.md](codex-review-round2.md) | Codex's second review (B1–B5 and answers to Claude's round-2 questions), copied the same way |
 
 ## Status and next action
 
