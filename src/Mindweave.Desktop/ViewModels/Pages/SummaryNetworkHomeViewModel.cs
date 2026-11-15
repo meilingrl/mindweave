@@ -5,6 +5,7 @@ using Mindweave.Application.Conversations;
 using Mindweave.Application.SummaryNetwork;
 using Mindweave.Application.Recommendations;
 using Mindweave.Application.Summaries;
+using Mindweave.Application.SummaryLinks;
 using Mindweave.Core.Conversations;
 using Mindweave.Core.Summaries;
 using Mindweave.Core.Workspaces;
@@ -34,6 +35,10 @@ public sealed partial class SummaryNetworkHomeViewModel : PageViewModel, IDispos
     private Dictionary<ConversationId, string> _titles = [];
     private NodeOffer _offer = NodeOffer.Off;
     private RecommendationId? _selectedRecommendation;
+    private readonly ISummaryLinks? _links;
+    private readonly SerialRefresh _linkLoad;
+    private IReadOnlyList<SummaryLink> _workspaceLinks = [];
+    private bool _linksHidden;
     private bool _disposed;
 
     public SummaryNetworkHomeViewModel(
@@ -44,7 +49,8 @@ public sealed partial class SummaryNetworkHomeViewModel : PageViewModel, IDispos
         IWorkbenchNavigator navigator,
         IUiDispatcher dispatcher,
         IRecommendations? recommendations = null,
-        Application.Preferences.IRecommendationSettings? recommendationSettings = null)
+        Application.Preferences.IRecommendationSettings? recommendationSettings = null,
+        ISummaryLinks? links = null)
         : base(SummaryNetworkHomeRoute.Instance)
     {
         Workspace = workspace;
@@ -57,6 +63,19 @@ public sealed partial class SummaryNetworkHomeViewModel : PageViewModel, IDispos
         _recommendationSettings = recommendationSettings;
         _load = new SerialRefresh(LoadAsync);
         _recommendationLoad = new SerialRefresh(ReloadRecommendationsAsync);
+        _links = links;
+        _linkLoad = new SerialRefresh(ReloadLinksAsync);
+        Links = links is null ? null : new SummaryLinksPanel(links, JumpTo, opens: false);
+        if (Links is not null)
+        {
+            Links.PropertyChanged += OnLinksPanelChanged;
+        }
+
+        if (_links is not null)
+        {
+            _links.Changed += OnLinksChanged;
+        }
+
         _reload = new UiThrottle(dispatcher, TimeSpan.FromMilliseconds(30), () => _ = _load.Request());
         _summaries.Changed += OnChanged;
         _conversations.VisibilityChanged += OnVisibilityChanged;
@@ -92,6 +111,51 @@ public sealed partial class SummaryNetworkHomeViewModel : PageViewModel, IDispos
     public IReadOnlyList<EdgeView> Edges { get; private set; } = [];
 
     public IReadOnlyList<GroupCaption> Captions { get; private set; } = [];
+
+    /// <summary>
+    /// The content links drawn (requirements §10.3.3): solid, in the link colour, between two summaries at their positions in
+    /// memory. Empty while 隐藏关联 is on. Never used by 整理布局 and never part of the layout.
+    /// </summary>
+    public IReadOnlyList<LinkEdgeView> LinkEdges { get; private set; } = [];
+
+    /// <summary>The selected summary's links with jump, note editing, delete and the "关联到…" picker; null without the links service.</summary>
+    public SummaryLinksPanel? Links { get; }
+
+    /// <summary>The latest reload of the links after a change (tests).</summary>
+    internal Task LinksReloaded { get; private set; } = Task.CompletedTask;
+
+    /// <summary>The workspace has links, or hides them: the toolbar offers 显示关联 / 隐藏关联.</summary>
+    public bool ShowsLinkTools => _links is not null && (_workspaceLinks.Count > 0 || _linksHidden);
+
+    /// <summary>隐藏关联 is on for this workspace (remembered across restarts).</summary>
+    public bool LinksHidden => _linksHidden;
+
+    public string ToggleLinksLabel => _linksHidden ? UiText.ShowLinks : UiText.HideLinks;
+
+    /// <summary>The legend explains the link line only while one is drawn.</summary>
+    public bool ShowsLinkLegend => LinkEdges.Count > 0 && !IsListView;
+
+    /// <summary>"关联到…" is waiting for a click on another summary (Esc or 取消 leaves it).</summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(PickHint))]
+    [NotifyCanExecuteChangedFor(nameof(CancelPickCommand))]
+    public partial bool IsPicking { get; private set; }
+
+    /// <summary>The line above the canvas while picking: what to do, or why the last click did not link.</summary>
+    public string PickHint => PickRefusal ?? UiText.LinkPickHint(Selected?.DisplayName ?? string.Empty);
+
+    /// <summary>Why the last click in pick mode made no link (itself, a recommended node, already linked, a refusal).</summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(PickHint), nameof(HasPickRefusal))]
+    public partial string? PickRefusal { get; private set; }
+
+    public bool HasPickRefusal => PickRefusal is not null;
+
+    /// <summary>The details show the selected summary (not the keyboard picker, which takes their place while open).</summary>
+    public bool ShowsDetail => Selected is not null && Links is not { IsPickerOpen: true };
+
+    /// <summary>The keyboard picker of "关联到…" is open in the details' place.</summary>
+    public bool ShowsLinkPicker => Selected is not null && Links is { IsPickerOpen: true };
 
     /// <summary>
     /// The recommended nodes drawn (requirements §10.3.2): placed beside their basis summaries on every rebuild, never in
@@ -164,7 +228,7 @@ public sealed partial class SummaryNetworkHomeViewModel : PageViewModel, IDispos
     public partial string SearchText { get; set; } = string.Empty;
 
     [ObservableProperty]
-    [NotifyPropertyChangedFor(nameof(HasSelection))]
+    [NotifyPropertyChangedFor(nameof(HasSelection), nameof(ShowsDetail), nameof(ShowsLinkPicker), nameof(PickHint))]
     public partial NodeDetail? Selected { get; private set; }
 
     public bool IsDirty => Session.IsDirty;
@@ -182,12 +246,233 @@ public sealed partial class SummaryNetworkHomeViewModel : PageViewModel, IDispos
     /// <summary>Single click: select and show details. Not reading: the summary's read state does not change.</summary>
     public void Select(SummaryNodeId? node)
     {
+        // Selecting another summary ends "关联到…" (its source was the one selected).
+        IsPicking = false;
+        PickRefusal = null;
         _selectedRecommendation = null;
         SelectedRecommendation = null;
         Session.Selected = node;
         Selected = node is { } id ? Detail(id) : null;
         Trail = TrailOf(node);
+        ShowLinksOfSelected();
         ViewChanged?.Invoke(this, false);
+    }
+
+    /// <summary>"关联到…" on the network: the next click on another summary links it to the selected one (D-018: the hint also offers the keyboard picker).</summary>
+    [RelayCommand]
+    private void BeginLink()
+    {
+        if (Selected is null || Links is null)
+        {
+            return;
+        }
+
+        Links.ClosePicker();
+        Links.Notice = null;
+        PickRefusal = null;
+        IsPicking = true;
+    }
+
+    [RelayCommand(CanExecute = nameof(IsPicking))]
+    private void CancelPick()
+    {
+        IsPicking = false;
+        PickRefusal = null;
+    }
+
+    /// <summary>从列表选择…: leaves pick mode for the searchable list in the details.</summary>
+    [RelayCommand]
+    private Task PickFromListAsync()
+    {
+        IsPicking = false;
+        PickRefusal = null;
+        return Links?.OpenPickerCommand.ExecuteAsync(null) ?? Task.CompletedTask;
+    }
+
+    /// <summary>A click on a summary in pick mode: links it, or says why not (the same summary, an already linked one).</summary>
+    public async Task PickNodeAsync(SummaryNodeId node)
+    {
+        if (!IsPicking || Selected is not { } source || Links is null)
+        {
+            return;
+        }
+
+        var name = Nodes.FirstOrDefault(n => n.Id == node)?.DisplayName ?? string.Empty;
+        if (node == source.Id)
+        {
+            PickRefusal = UiText.LinkPickRefusedSelf;
+            return;
+        }
+
+        if (_workspaceLinks.Any(l => l.Touches(node) && l.Touches(source.Id)))
+        {
+            PickRefusal = UiText.LinkPickRefusedLinked(name);
+            return;
+        }
+
+        if (await Links.LinkToAsync(node, name))
+        {
+            IsPicking = false;
+            PickRefusal = null;
+        }
+        else
+        {
+            PickRefusal = Links.Notice;
+        }
+    }
+
+    /// <summary>A click on a recommended node in pick mode: it is not a summary yet, so it cannot be linked.</summary>
+    public void RefusePickOfRecommendation() => PickRefusal = UiText.LinkPickRefusedRecommended;
+
+    /// <summary>显示关联 / 隐藏关联: display only, remembered for the workspace.</summary>
+    [RelayCommand]
+    private async Task ToggleLinksAsync()
+    {
+        if (_links is null)
+        {
+            return;
+        }
+
+        _linksHidden = !_linksHidden;
+        BuildLinkViews();
+        RaiseLinkState();
+        ViewChanged?.Invoke(this, false);
+        try
+        {
+            await _links.SetHiddenAsync(Workspace.Id, _linksHidden, CancellationToken.None);
+        }
+#pragma warning disable CA1031 // Applied for this run already; not remembered this time.
+        catch (Exception swallowed)
+#pragma warning restore CA1031
+        {
+            DesktopLog.Swallowed(swallowed);
+        }
+    }
+
+    /// <summary>Jump from a link in the details: the other summary is selected and brought to the centre.</summary>
+    private void JumpTo(SummaryNodeId node)
+    {
+        if (Nodes.FirstOrDefault(n => n.Id == node) is { } target)
+        {
+            Session.Viewport = new Viewport(target.X, target.Y, Session.Viewport?.Zoom ?? 1);
+            Select(target.Id);
+        }
+    }
+
+    private void ShowLinksOfSelected()
+    {
+        if (Links is null)
+        {
+            return;
+        }
+
+        if (Selected is null)
+        {
+            IsPicking = false;
+            PickRefusal = null;
+        }
+
+        LinksReloaded = Links.ShowAsync(Selected?.Id, Selected?.DisplayName ?? string.Empty);
+    }
+
+    private void OnLinksPanelChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e)
+    {
+        if (e.PropertyName == nameof(SummaryLinksPanel.IsPickerOpen))
+        {
+            OnPropertyChanged(nameof(ShowsDetail));
+            OnPropertyChanged(nameof(ShowsLinkPicker));
+        }
+    }
+
+    private void OnLinksChanged(object? sender, WorkspaceId workspace)
+    {
+        if (workspace != Workspace.Id || _disposed)
+        {
+            return;
+        }
+
+        _dispatcher.Post(() => LinksReloaded = _linkLoad.Request());
+    }
+
+    /// <summary>Reads the workspace's links and whether they are hidden; the views are rebuilt by the caller.</summary>
+    private async Task ReadLinksAsync()
+    {
+        if (_links is null)
+        {
+            return;
+        }
+
+        try
+        {
+            _workspaceLinks = await _links.ListAsync(Workspace.Id, CancellationToken.None);
+            _linksHidden = await _links.AreHiddenAsync(Workspace.Id, CancellationToken.None);
+        }
+#pragma warning disable CA1031 // Unreadable links are none: the network works as before.
+        catch (Exception swallowed)
+#pragma warning restore CA1031
+        {
+            DesktopLog.Swallowed(swallowed);
+            _workspaceLinks = [];
+        }
+    }
+
+    private async Task ReloadLinksAsync()
+    {
+        await ReadLinksAsync();
+        if (_disposed)
+        {
+            return;
+        }
+
+        BuildLinkViews();
+        RefreshListLinks();
+        RaiseLinkState();
+        if (Links is not null)
+        {
+            await Links.ReloadAsync();
+        }
+
+        ViewChanged?.Invoke(this, false);
+    }
+
+    private void RaiseLinkState()
+    {
+        OnPropertyChanged(nameof(ShowsLinkTools));
+        OnPropertyChanged(nameof(LinksHidden));
+        OnPropertyChanged(nameof(ToggleLinksLabel));
+        OnPropertyChanged(nameof(ShowsLinkLegend));
+    }
+
+    /// <summary>The link edges between summaries at their positions in memory, so they follow 整理布局 and drags.</summary>
+    private void BuildLinkViews()
+    {
+        var nodes = Nodes.ToDictionary(n => n.Id);
+        LinkEdges = _linksHidden
+            ? []
+            : [.. _workspaceLinks.Where(l => nodes.ContainsKey(l.NodeA) && nodes.ContainsKey(l.NodeB)).Select(l => new LinkEdgeView(
+                l.Id, l.NodeA, l.NodeB, nodes[l.NodeA].X, nodes[l.NodeA].Y, nodes[l.NodeB].X, nodes[l.NodeB].Y, l.Note))];
+        OnPropertyChanged(nameof(LinkEdges));
+        OnPropertyChanged(nameof(ShowsLinkLegend));
+    }
+
+    /// <summary>The list view's "关联：…" line of a summary; empty without links.</summary>
+    private string LinksLineOf(SummaryNodeId node, IReadOnlyDictionary<SummaryNodeId, string> names)
+    {
+        var links = _workspaceLinks.Where(l => l.Touches(node)).Select(l => (names.GetValueOrDefault(l.Other(node)) ?? string.Empty, l.Note)).ToList();
+        return links.Count == 0 ? string.Empty : UiText.LinksLine(links);
+    }
+
+    private void RefreshListLinks()
+    {
+        var names = Session.Projection.Nodes.ToDictionary(n => n.Id, n => n.DisplayName);
+        for (var i = 0; i < Items.Count; i++)
+        {
+            var line = LinksLineOf(Items[i].Node, names);
+            if (line != Items[i].Links)
+            {
+                Items[i] = Items[i] with { Links = line };
+            }
+        }
     }
 
     /// <summary>
@@ -200,6 +485,7 @@ public sealed partial class SummaryNetworkHomeViewModel : PageViewModel, IDispos
         Session.Selected = null;
         Selected = null;
         Trail = TrailOf(null);
+        ShowLinksOfSelected();
         _selectedRecommendation = node?.Id;
         SelectedRecommendation = node;
         ViewChanged?.Invoke(this, false);
@@ -409,7 +695,11 @@ public sealed partial class SummaryNetworkHomeViewModel : PageViewModel, IDispos
     [RelayCommand]
     private void ToggleView() => IsListView = !IsListView;
 
-    partial void OnIsListViewChanged(bool value) => OnPropertyChanged(nameof(ShowsRecommendationLegend));
+    partial void OnIsListViewChanged(bool value)
+    {
+        OnPropertyChanged(nameof(ShowsRecommendationLegend));
+        OnPropertyChanged(nameof(ShowsLinkLegend));
+    }
 
     partial void OnSearchTextChanged(string value)
     {
@@ -453,6 +743,16 @@ public sealed partial class SummaryNetworkHomeViewModel : PageViewModel, IDispos
         if (_recommendationSettings is not null)
         {
             _recommendationSettings.Changed -= OnRecommendationSettingsChanged;
+        }
+
+        if (_links is not null)
+        {
+            _links.Changed -= OnLinksChanged;
+        }
+
+        if (Links is not null)
+        {
+            Links.PropertyChanged -= OnLinksPanelChanged;
         }
     }
 
@@ -659,6 +959,7 @@ public sealed partial class SummaryNetworkHomeViewModel : PageViewModel, IDispos
         }
 
         _titles = conversations.ToDictionary(c => c.Conversation.Id, c => UiText.ConversationTitle(c.Conversation, c.FirstQuestion, c.Quote));
+        await ReadLinksAsync();
         await ReadOfferAsync();
         if (_disposed)
         {
@@ -667,17 +968,20 @@ public sealed partial class SummaryNetworkHomeViewModel : PageViewModel, IDispos
 
         BuildViews();
         RaiseRecommendationState();
+        RaiseLinkState();
         Items.Clear();
+        var names = Session.Projection.Nodes.ToDictionary(n => n.Id, n => n.DisplayName);
         foreach (var node in Session.Projection.Nodes)
         {
             var markers = string.Join(" · ", new[] { UiText.Markers(node.Markers), node.SourceArchived ? UiText.SourceArchived : string.Empty }.Where(m => m.Length > 0));
             var other = string.Join(" · ", new[] { node.Markers.HasLaterContent ? UiText.MarkerLater : string.Empty, node.SourceArchived ? UiText.SourceArchived : string.Empty }.Where(m => m.Length > 0));
-            Items.Add(new SummaryListItem(node.Id, node.DisplayName, markers, markers.Length > 0, node.Markers.Unread, node.Markers.HasCandidate, other));
+            Items.Add(new SummaryListItem(node.Id, node.DisplayName, markers, markers.Length > 0, node.Markers.Unread, node.Markers.HasCandidate, other) { Links = LinksLineOf(node.Id, names) });
         }
 
         OnPropertyChanged(nameof(IsEmpty));
         Selected = Session.Selected is { } selected && Session.Projection.Nodes.Any(n => n.Id == selected) ? Detail(selected) : null;
         Trail = TrailOf(Selected?.Id);
+        ShowLinksOfSelected();
         Matches = FindMatches();
         ViewChanged?.Invoke(this, Session.Viewport is null);
 
@@ -701,6 +1005,7 @@ public sealed partial class SummaryNetworkHomeViewModel : PageViewModel, IDispos
             return new GroupCaption(UiText.ExplorationCaption(_titles.GetValueOrDefault(g.Key)), anchor.Id, [.. g.Select(n => n.Id)]);
         })];
         Trail = TrailOf(Session.Selected);
+        BuildLinkViews();
         BuildRecommendationViews();
     }
 

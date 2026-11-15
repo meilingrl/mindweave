@@ -229,7 +229,10 @@ internal sealed class SqliteArchiveStore(SqliteDatabase database) : IConversatio
         }
 
         var visible = roots.Where(r => !SqliteArchive.IsHidden(connection, transaction, r)).ToList();
-        return new ConversationDeleteScope(selected, roots, ordered, nodes, busy, rootOf, parentOf, visible);
+        return new ConversationDeleteScope(selected, roots, ordered, nodes, busy, rootOf, parentOf, visible)
+        {
+            Links = SqliteSummaryLinkStore.CountTouching(connection, transaction, nodes),
+        };
     }
 
     private static List<ConversationId> Subtree(SqliteConnection connection, SqliteTransaction? transaction, ConversationId conversation)

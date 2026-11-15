@@ -4,6 +4,7 @@ using CommunityToolkit.Mvvm.Input;
 using Mindweave.Application.Export;
 using Mindweave.Application.Storage;
 using Mindweave.Application.Summaries;
+using Mindweave.Application.SummaryLinks;
 using Mindweave.Core.Conversations;
 using Mindweave.Core.Summaries;
 using Mindweave.Desktop.Navigation;
@@ -27,6 +28,7 @@ public sealed partial class SummaryViewModel : PageViewModel, IDisposable
     private readonly IUiDispatcher _dispatcher;
     private readonly SerialRefresh _load;
     private readonly UiThrottle _reload;
+    private readonly ISummaryLinks? _links;
     private SummaryDetail? _detail;
     private SummaryVersionId? _shownId;
 
@@ -51,7 +53,7 @@ public sealed partial class SummaryViewModel : PageViewModel, IDisposable
     private long _draftRevision;
     private SummaryVersionId _draftBaseline;
 
-    public SummaryViewModel(SummaryRoute route, PageContext context, ISummaries summaries, IUiDispatcher dispatcher, TimeProvider time, ISummaryExport exports, ISystemShell shell)
+    public SummaryViewModel(SummaryRoute route, PageContext context, ISummaries summaries, IUiDispatcher dispatcher, TimeProvider time, ISummaryExport exports, ISystemShell shell, ISummaryLinks? links = null)
         : base(route)
     {
         ArgumentNullException.ThrowIfNull(route);
@@ -66,10 +68,24 @@ public sealed partial class SummaryViewModel : PageViewModel, IDisposable
         _load = new SerialRefresh(LoadAsync);
         _reload = new UiThrottle(dispatcher, TimeSpan.FromMilliseconds(30), () => _ = _load.Request());
         _summaries.Changed += OnChanged;
+        _links = links;
+        if (links is not null)
+        {
+            // Jumping from a link opens the other summary, in the network section like every summary page.
+            Links = new SummaryLinksPanel(links, other => _navigator.Navigate(new NavigationRequest(MainSection.SummaryNetwork, new SummaryRoute(other))), opens: true);
+            links.Changed += OnLinksChanged;
+        }
+
         Loaded = _load.Request();
     }
 
     public SummaryNodeId Node { get; }
+
+    /// <summary>
+    /// This summary's content links (requirements §10.3.3): "关联到…" in the action bar opens the keyboard picker; the list shows
+    /// only when there are links, each with open, 改说明 and 删除关联. Null without the links service.
+    /// </summary>
+    public SummaryLinksPanel? Links { get; }
 
     internal Task Loaded { get; }
 
@@ -317,7 +333,10 @@ public sealed partial class SummaryViewModel : PageViewModel, IDisposable
 
         var next = SummaryRules.NextCurrent(detail.Saved, detail.Node.Current, selected);
         var nextVersion = next is { } id ? detail.Versions.Single(v => v.Id == id) : null;
-        Confirmation = new PendingConfirmation(UiText.DeleteVersionsConfirm(selected.Count, nextVersion), () => RunAsync(async () =>
+
+        // The last version takes the summary and its content links along: the question says how many (§8.2).
+        var links = nextVersion is null ? Links?.Items.Count ?? 0 : 0;
+        Confirmation = new PendingConfirmation(UiText.DeleteVersionsConfirm(selected.Count, nextVersion, links), () => RunAsync(async () =>
         {
             var current = await _summaries.DeleteVersionsAsync(Node, selected, CancellationToken.None);
             if (current is null)
@@ -477,6 +496,19 @@ public sealed partial class SummaryViewModel : PageViewModel, IDisposable
     {
         _disposed = true;
         _summaries.Changed -= OnChanged;
+        if (_links is not null)
+        {
+            _links.Changed -= OnLinksChanged;
+        }
+    }
+
+    /// <summary>A link changed somewhere (this page, the network): the list follows.</summary>
+    private void OnLinksChanged(object? sender, Core.Workspaces.WorkspaceId workspace)
+    {
+        if (!_disposed && Links is not null)
+        {
+            _dispatcher.Post(() => _ = Links.ReloadAsync());
+        }
     }
 
     /// <summary>Hands every change to the draft owner, which autosaves it; the page keeps nothing of its own to save.</summary>
@@ -537,6 +569,7 @@ public sealed partial class SummaryViewModel : PageViewModel, IDisposable
         _detail = detail;
         if (detail is null)
         {
+            Links?.ClosePicker();
             IsMissing = true;
             DisplayName = UiText.SummaryMissing;
             Shown = null;
@@ -545,6 +578,11 @@ public sealed partial class SummaryViewModel : PageViewModel, IDisposable
         }
 
         DisplayName = detail.Node.DisplayName;
+        if (Links is not null)
+        {
+            await Links.ShowAsync(Node, detail.Node.DisplayName);
+        }
+
         var markers = detail.Markers;
         MarkersText = UiText.Markers(markers);
         HasLaterContent = markers.HasLaterContent;

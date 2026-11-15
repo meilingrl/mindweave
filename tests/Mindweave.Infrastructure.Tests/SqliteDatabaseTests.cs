@@ -382,7 +382,8 @@ public sealed class SqliteDatabaseTests : IDisposable
     /// <summary>
     /// Health check 2026-11-12, storage-2: every foreign key's child column leads an index, so deleting a parent row does
     /// not scan the child table (deleting a workspace of 8,000 messages took 38 s without them, 0.1 s with them).
-    /// Tables that hold a handful of rows by design are named here.
+    /// Tables that hold a handful of rows by design are named here. A key of several columns (v13: a summary link's node
+    /// together with its workspace) is indexed when its columns lead one index together, in any order.
     /// </summary>
     [Fact]
     public async Task Every_foreign_key_is_indexed_on_its_child_column()
@@ -397,12 +398,16 @@ public sealed class SqliteDatabaseTests : IDisposable
                 var missing = new List<string>();
                 foreach (var table in Strings(c, "SELECT name FROM sqlite_schema WHERE type = 'table' AND name NOT LIKE 'sqlite_%';"))
                 {
-                    var leading = Strings(c, $"SELECT ii.name FROM pragma_index_list('{table}') il JOIN pragma_index_info(il.name) ii WHERE ii.seqno = 0;").ToHashSet();
-                    foreach (var column in Strings(c, $"SELECT \"from\" FROM pragma_foreign_key_list('{table}');"))
+                    var indexes = Strings(c, $"SELECT name FROM pragma_index_list('{table}');")
+                        .Select(index => Strings(c, $"SELECT name FROM pragma_index_info('{index}') ORDER BY seqno;"))
+                        .ToList();
+                    foreach (var key in Strings(c, $"SELECT group_concat(\"from\", ',') FROM (SELECT id, \"from\" FROM pragma_foreign_key_list('{table}') ORDER BY id, seq) GROUP BY id;"))
                     {
-                        if (!leading.Contains(column) && !small.Contains($"{table}.{column}"))
+                        var columns = key.Split(',');
+                        var covered = indexes.Any(index => index.Count >= columns.Length && index.Take(columns.Length).ToHashSet().SetEquals(columns));
+                        if (!covered && !small.Contains($"{table}.{key}"))
                         {
-                            missing.Add($"{table}.{column}");
+                            missing.Add($"{table}.{key}");
                         }
                     }
                 }

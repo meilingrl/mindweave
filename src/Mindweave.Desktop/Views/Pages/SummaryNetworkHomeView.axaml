@@ -10,6 +10,8 @@
   <UserControl.KeyBindings>
     <KeyBinding Gesture="Ctrl+S" Command="{Binding SaveLayoutCommand}" />
     <KeyBinding Gesture="Meta+S" Command="{Binding SaveLayoutCommand}" />
+    <!-- "关联到…" waiting for a click: Esc leaves it (only while it waits). -->
+    <KeyBinding Gesture="Escape" Command="{Binding CancelPickCommand}" />
   </UserControl.KeyBindings>
   <DockPanel>
     <!-- Toolbar: one quiet style throughout (S7), find, show all, zoom, arrange; save on the right, accented while unsaved. -->
@@ -80,6 +82,15 @@
             </StackPanel>
           </Button>
         </StackPanel>
+        <!-- Content links (§10.3.3): 隐藏关联 / 显示关联, the same quiet button as 隐藏推荐; only once the workspace has a link. -->
+        <Button Name="ToggleLinksButton" Classes="quiet" Command="{Binding ToggleLinksCommand}" IsVisible="{Binding ShowsLinkTools}"
+                ToolTip.Tip="{x:Static t:UiText.HideLinksTip}"
+                AutomationProperties.Name="{Binding ToggleLinksLabel}" AutomationProperties.HelpText="{x:Static t:UiText.HideLinksTip}">
+          <StackPanel Orientation="Horizontal" Spacing="6">
+            <PathIcon Width="14" Height="14" Data="{StaticResource IconLink}" />
+            <TextBlock Name="ToggleLinksText" Text="{Binding ToggleLinksLabel}" VerticalAlignment="Center" />
+          </StackPanel>
+        </Button>
       </WrapPanel>
     </DockPanel>
     <!-- 换一批推荐 running, or the background preparing while none is drawn; then a quiet line when it did not work. -->
@@ -88,6 +99,20 @@
       <views:ActivitySpinner Classes="suggest-spinner" VerticalAlignment="Center" />
       <TextBlock Classes="caption" VerticalAlignment="Center" Text="{Binding RecommendationBusyText}" />
     </StackPanel>
+    <!-- "关联到…" waiting for a click on another summary: what to do (or why the last click did not link), the keyboard way, 取消. -->
+    <Border DockPanel.Dock="Top" Name="LinkPickLine" Classes="notice info" Margin="0,0,0,8" IsVisible="{Binding IsPicking}">
+      <DockPanel>
+        <PathIcon DockPanel.Dock="Left" Width="13" Height="13" Margin="0,0,8,0" VerticalAlignment="Center" Data="{StaticResource IconLink}"
+                  Foreground="{DynamicResource SummaryNetworkLink}" />
+        <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" Spacing="4" VerticalAlignment="Center">
+          <Button Name="PickFromListButton" Classes="quiet" Content="{x:Static t:UiText.LinkPickFromList}" Command="{Binding PickFromListCommand}"
+                  AutomationProperties.Name="{x:Static t:UiText.LinkPickFromListName}" views:FocusRequest.When="{Binding IsPicking}" />
+          <Button Name="CancelPickButton" Classes="quiet" Content="{x:Static t:UiText.Cancel}" Command="{Binding CancelPickCommand}"
+                  AutomationProperties.Name="{x:Static t:UiText.LinkPickCancelName}" />
+        </StackPanel>
+        <TextBlock Name="LinkPickHint" TextWrapping="Wrap" VerticalAlignment="Center" Text="{Binding PickHint}" Classes.warning="{Binding HasPickRefusal}" />
+      </DockPanel>
+    </Border>
     <WrapPanel DockPanel.Dock="Top" Name="RecommendedNodesNoteLine" Margin="2,0,0,8" ItemSpacing="4" IsVisible="{Binding HasRecommendationNote}">
       <TextBlock Name="RecommendedNodesNote" Classes="caption" TextWrapping="Wrap" VerticalAlignment="Center" Margin="0,0,4,0" Text="{Binding RecommendationNote}" />
       <Button Name="RetryRecommendedNodesButton" Classes="quiet small" Content="{x:Static t:UiText.Retry}" Command="{Binding RefreshRecommendationsCommand}"
@@ -111,7 +136,10 @@
           <TextBlock FontWeight="SemiBold" FontSize="18" Text="{x:Static t:UiText.SummaryNetworkTitle}" />
           <TextBlock Classes="muted" FontSize="12" TextWrapping="Wrap" Text="{x:Static t:UiText.SummaryNetworkSelectHint}" />
         </StackPanel>
-        <StackPanel Name="DetailPanel" Spacing="12" IsVisible="{Binding Selected, Converter={x:Static ObjectConverters.IsNotNull}}">
+        <!-- "关联到…" from the keyboard: the searchable list takes the details' place until picked or closed. -->
+        <v:SummaryLinkPickerView Name="LinkPicker" DataContext="{Binding Links}" IsVisible="{Binding $parent[v:SummaryNetworkHomeView].((vm:SummaryNetworkHomeViewModel)DataContext).ShowsLinkPicker, FallbackValue=False}" />
+        <ScrollViewer Classes="autohide" Name="DetailScroller" HorizontalScrollBarVisibility="Disabled" IsVisible="{Binding ShowsDetail}">
+        <StackPanel Name="DetailPanel" Spacing="12" Margin="0,0,6,0">
           <TextBlock Name="DetailTitle" FontWeight="SemiBold" FontSize="18" TextWrapping="Wrap" Text="{Binding Selected.DisplayName, FallbackValue=''}" />
           <!-- The same tags as the list and the summary page; words, not only colour (MW-C07). -->
           <WrapPanel Name="DetailMarkers" Orientation="Horizontal" AutomationProperties.Name="{Binding Selected.Markers, FallbackValue=''}">
@@ -162,7 +190,21 @@
             <Button Name="ReturnSelectedButton" Classes="secondary" HorizontalAlignment="Stretch" HorizontalContentAlignment="Center"
                     Content="{x:Static t:UiText.ReturnToConversation}" Command="{Binding ReturnToConversationCommand}" />
           </StackPanel>
+          <!-- Content links (§10.3.3): each with jump, 改说明 and 删除关联; then 关联到…. Quiet when there are none. -->
+          <StackPanel Name="LinksSection" Spacing="4" IsVisible="{Binding Links, Converter={x:Static ObjectConverters.IsNotNull}}">
+            <Rectangle Height="1" Fill="{DynamicResource DividerBrush}" Margin="0,0,0,6" />
+            <TextBlock Classes="muted" FontSize="12" Text="{x:Static t:UiText.LinksHeading}" IsVisible="{Binding Links.HasItems, FallbackValue=False}" />
+            <v:SummaryLinksView Name="DetailLinks" DataContext="{Binding Links}" />
+            <Button Name="LinkToButton" Classes="quiet" HorizontalAlignment="Left" Command="{Binding BeginLinkCommand}"
+                    ToolTip.Tip="{x:Static t:UiText.LinkToTip}" AutomationProperties.HelpText="{x:Static t:UiText.LinkToTip}">
+              <StackPanel Orientation="Horizontal" Spacing="6">
+                <PathIcon Width="13" Height="13" Data="{StaticResource IconLink}" />
+                <TextBlock Text="{x:Static t:UiText.LinkTo}" VerticalAlignment="Center" />
+              </StackPanel>
+            </Button>
+          </StackPanel>
         </StackPanel>
+        </ScrollViewer>
 
         <!-- A recommended node (§10.3.2): question, reason, basis; 开始探索 fills 新探索 without sending, 忽略 removes it. -->
         <StackPanel Name="RecommendationDetailPanel" Spacing="12" IsVisible="{Binding SelectedRecommendation, Converter={x:Static ObjectConverters.IsNotNull}}">
@@ -214,6 +256,11 @@
         <TextBlock Text="{x:Static t:UiText.LegendCandidate}" />
         <Line StartPoint="0,0" EndPoint="20,0" Stroke="{DynamicResource SummaryNetworkEdgeIndirect}" StrokeThickness="1.4" StrokeDashArray="3,2" VerticalAlignment="Center" Margin="0,0,6,0" />
         <TextBlock Text="{x:Static t:UiText.LegendIndirect}" />
+        <!-- Content links (§10.3.3): the same solid coloured line as drawn, with words. -->
+        <StackPanel Name="LinkLegend" Orientation="Horizontal" IsVisible="{Binding ShowsLinkLegend}">
+          <Line StartPoint="0,0" EndPoint="20,0" Stroke="{DynamicResource SummaryNetworkLink}" StrokeThickness="1.8" StrokeLineCap="Round" VerticalAlignment="Center" Margin="0,0,6,0" />
+          <TextBlock Text="{x:Static t:UiText.LegendLink}" />
+        </StackPanel>
         <!-- Recommended nodes (§10.3.2): the same dashed ring and dotted line as drawn, with words. -->
         <StackPanel Name="RecommendationLegend" Orientation="Horizontal" IsVisible="{Binding ShowsRecommendationLegend}">
           <Ellipse Width="11" Height="11" Fill="{DynamicResource SummaryNetworkRecommendationFill}" Stroke="{DynamicResource SummaryNetworkRecommendation}" StrokeThickness="1.4"
@@ -253,6 +300,9 @@
                   <Border Classes="badge" IsVisible="{Binding HasOther}">
                     <TextBlock Text="{Binding Other}" />
                   </Border>
+                  <!-- Its content links in words, for the keyboard and screen readers (D-018). -->
+                  <TextBlock Name="SummaryRowLinks" Classes="muted" FontSize="12" VerticalAlignment="Center" Margin="6,0,0,0" Text="{Binding Links}"
+                             IsVisible="{Binding HasLinks}" />
                 </StackPanel>
               </DataTemplate>
             </ItemsControl.ItemTemplate>

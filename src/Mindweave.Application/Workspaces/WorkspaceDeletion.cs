@@ -55,7 +55,8 @@ public sealed partial class WorkspaceDeletionService(
     GenerationCoordinator generation,
     ILogger<WorkspaceDeletionService> logger,
     IWorkspaceNameCache? names = null,
-    Recommendations.RecommendationService? recommendations = null) : IWorkspaceDeletion
+    Recommendations.RecommendationService? recommendations = null,
+    SummaryLinks.SummaryLinkService? links = null) : IWorkspaceDeletion
 {
     public Task<WorkspaceContents> InspectAsync(WorkspaceId workspace, CancellationToken cancellationToken) =>
         store.InspectAsync(workspace, cancellationToken);
@@ -132,6 +133,12 @@ public sealed partial class WorkspaceDeletionService(
         if (recommendations is not null)
         {
             await recommendations.ForgetAsync(workspace).ConfigureAwait(false);
+        }
+
+        // Its links and suggestions went with the commit (v13 cascade); its remembered 显示关联 goes too.
+        if (links is not null)
+        {
+            await links.ForgetAsync(workspace).ConfigureAwait(false);
         }
 
         LogDeleted(logger, workspace, result.Deleted.Count, path);

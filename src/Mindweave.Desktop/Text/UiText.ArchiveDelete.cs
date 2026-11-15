@@ -63,8 +63,13 @@ public static partial class UiText
 
     public static string DeleteWorkspaceTitle(string name) => $"删除工作区“{name}”？";
 
-    public static string DeleteWorkspaceContents(int conversations, int summaries) => string.Format(
-        CultureInfo.CurrentCulture, "{0} 个会话（含分支与已归档）、{1} 个总结将被永久删除，应用内无法撤销。删除前的备份会列在“数据与存储”中。", conversations, summaries);
+    /// <summary>What goes with a workspace; its content links (requirements §10.3.3, §8.2) are named only when there are any.</summary>
+    public static string DeleteWorkspaceContents(int conversations, int summaries, int links = 0) => string.Format(
+        CultureInfo.CurrentCulture,
+        "{0} 个会话（含分支与已归档）、{1} 个总结{2}将被永久删除，应用内无法撤销。删除前的备份会列在“数据与存储”中。",
+        conversations,
+        summaries,
+        links > 0 ? string.Format(CultureInfo.CurrentCulture, "、{0} 条内容关联", links) : string.Empty);
 
     public static string DeleteWorkspaceTypeName(string name) => $"输入工作区名称“{name}”以确认";
 
@@ -95,9 +100,10 @@ public static partial class UiText
     /// <summary>
     /// The one sentence a delete confirmation says. With branches or summaries along: every conversation that goes,
     /// how many of them are branches, the summaries (a part that is zero is left out), that it cannot be undone in the
-    /// app, and where the backup made first is listed. Without: no count, the title already names what goes.
+    /// app, and where the backup made first is listed. Without: no count, the title already names what goes. The content
+    /// links of those summaries (requirements §8.2, §10.3.3) are named when there are any.
     /// </summary>
-    public static string ConversationDeleteContents(int conversations, int branches, int summaries)
+    public static string ConversationDeleteContents(int conversations, int branches, int summaries, int links = 0)
     {
         if (branches == 0 && summaries == 0)
         {
@@ -115,6 +121,7 @@ public static partial class UiText
             parts.Add(string.Format(CultureInfo.CurrentCulture, "{0} 个总结", summaries));
         }
 
-        return string.Join("、", parts) + "将被永久删除，应用内无法撤销。删除前的备份会列在“数据与存储”中。";
+        var along = links > 0 ? string.Format(CultureInfo.CurrentCulture, "，{0} 条内容关联随之移除", links) : string.Empty;
+        return string.Join("、", parts) + "将被永久删除" + along + "，应用内无法撤销。删除前的备份会列在“数据与存储”中。";
     }
 }

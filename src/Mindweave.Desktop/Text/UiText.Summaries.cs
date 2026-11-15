@@ -174,8 +174,13 @@ public static partial class UiText
 
     public const string DiscardCandidateConfirm = "丢弃候选会删除它的正文和阅读记录，无法恢复。";
 
-    public static string DeleteVersionsConfirm(int count, SummaryVersion? nextCurrent) => nextCurrent is null
-        ? string.Format(CultureInfo.CurrentCulture, "将删除全部 {0} 个版本，总结本身也会被删除；原会话和分支保留，以后可以重新总结。删除后无法恢复。", count)
+    /// <summary>Deleting versions; when the last one goes the summary goes, and its content links with it (§8.2, §10.3.3).</summary>
+    public static string DeleteVersionsConfirm(int count, SummaryVersion? nextCurrent, int links = 0) => nextCurrent is null
+        ? string.Format(
+            CultureInfo.CurrentCulture,
+            "将删除全部 {0} 个版本，总结本身也会被删除{1}；原会话和分支保留，以后可以重新总结。删除后无法恢复。",
+            count,
+            links > 0 ? string.Format(CultureInfo.CurrentCulture, "，它的 {0} 条内容关联随之移除", links) : string.Empty)
         : string.Format(CultureInfo.CurrentCulture, "将删除 {0} 个版本，删除后无法恢复。当前总结将是第 {1} 版。", count, nextCurrent.Seq);
 
     public static string Exported(string fileName) => "已导出到 " + fileName + "。";

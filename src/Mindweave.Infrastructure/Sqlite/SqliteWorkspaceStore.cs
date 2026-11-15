@@ -80,6 +80,7 @@ internal sealed class SqliteWorkspaceStore(SqliteDatabase database) : IWorkspace
                     Busy(connection, null, conversations))
                 {
                     Archived = conversations.Count(id => SqliteArchive.IsHidden(connection, null, id)),
+                    Links = (int)connection.Scalar<long>(null, "SELECT count(*) FROM summary_link WHERE workspace_id = $ws;", ws),
                 };
             },
             cancellationToken);
@@ -106,7 +107,8 @@ internal sealed class SqliteWorkspaceStore(SqliteDatabase database) : IWorkspace
                 // with their versions. Task rows go before the messages they target (request traces cascade); retry
                 // links are cut before the messages go. Message blocks, reading positions, drafts, context summaries
                 // and archive rows cascade with their messages or conversations; ranges are removed by hand because a
-                // conversation may still be another one's ancestor until both are gone.
+                // conversation may still be another one's ancestor until both are gone. Summary links and link suggestions
+                // (v13) cascade with their summary nodes, recommendations (v11) with their basis or the workspace.
                 const string InWorkspace = "(SELECT id FROM conversation WHERE workspace_id = $ws)";
                 const string NodesInWorkspace = "(SELECT id FROM summary_node WHERE workspace_id = $ws)";
                 connection.Execute(transaction, "DELETE FROM node_layout WHERE workspace_id = $ws;", ws);

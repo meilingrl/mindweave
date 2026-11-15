@@ -126,6 +126,9 @@ internal sealed class ChatHarness : IAsyncDisposable
     /// <summary>Recommended questions and nodes (2026-11-12).</summary>
     public Application.Recommendations.RecommendationService Recommendations => _services.GetRequiredService<Application.Recommendations.RecommendationService>();
 
+    /// <summary>User-made content links between summaries (2026-11-16).</summary>
+    public Application.SummaryLinks.SummaryLinkService Links => _services.GetRequiredService<Application.SummaryLinks.SummaryLinkService>();
+
     public SqliteRecommendationStore RecommendationStore => (SqliteRecommendationStore)_services.GetRequiredService<IRecommendationStore>();
 
     /// <summary>The recommendation choices.</summary>

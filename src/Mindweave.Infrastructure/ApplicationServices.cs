@@ -11,6 +11,7 @@ using Mindweave.Application.Startup;
 using Mindweave.Application.Statistics;
 using Mindweave.Application.Storage;
 using Mindweave.Application.Summaries;
+using Mindweave.Application.SummaryLinks;
 using Mindweave.Application.Workspaces;
 
 namespace Mindweave.Infrastructure;
@@ -61,6 +62,7 @@ public static class ApplicationServices
         services.AddSingleton<RecommendationSettingsService>();
         services.TryAddSingleton(new RecommendationOptions()); // Tests stand its clock still.
         services.AddSingleton<RecommendationService>();
+        services.AddSingleton<SummaryLinkService>();
 
         // View models depend on these interfaces, not the concrete services (course requirement C3); each resolves to the
         // one singleton above, so a page and the rest of the application share state.
@@ -87,6 +89,7 @@ public static class ApplicationServices
         services.AddSingleton<IRecommendationSettings>(sp => sp.GetRequiredService<RecommendationSettingsService>());
         // A test may hold the recommendations (to see the page while they load), as for the conversations interface.
         services.TryAddSingleton<IRecommendations>(sp => sp.GetRequiredService<RecommendationService>());
+        services.AddSingleton<ISummaryLinks>(sp => sp.GetRequiredService<SummaryLinkService>());
         return services;
     }
 }

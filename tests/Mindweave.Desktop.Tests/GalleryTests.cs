@@ -1697,6 +1697,103 @@ public class GalleryTests
         window.Close();
     }
 
+    // ── Content links between summaries (2026-11-16, requirements §10.3.3) ─────────
+
+    [AvaloniaFact]
+    public async Task G53_network_with_two_links_one_with_a_note_and_the_legend()
+    {
+        await using var scene = Scene.Create("g53");
+        var window = scene.App.ShowWindow(1100, 720, Theme);
+        var network = await OpenLinkedNetworkAsync(scene.App, window);
+        Assert.Equal(2, network.LinkEdges.Count);
+        Assert.False(network.IsDirty);
+        await SettleAsync(window);
+        Capture(window, "g53-network-links");
+        window.Close();
+    }
+
+    [AvaloniaFact]
+    public async Task G53a_pick_mode_waits_for_another_summary()
+    {
+        await using var scene = Scene.Create("g53a");
+        var window = scene.App.ShowWindow(1100, 720, Theme);
+        var network = await OpenLinkedNetworkAsync(scene.App, window);
+        network.Select(NodeNamed(network, "缆索牵引"));
+        network.BeginLinkCommand.Execute(null);
+        Assert.True(network.IsPicking);
+        await SettleAsync(window);
+        Capture(window, "g53a-network-link-pick-mode");
+        window.Close();
+    }
+
+    [AvaloniaFact]
+    public async Task G53b_the_keyboard_picker_open_with_a_linked_summary_disabled()
+    {
+        await using var scene = Scene.Create("g53b");
+        var window = scene.App.ShowWindow(1100, 720, Theme);
+        var network = await OpenLinkedNetworkAsync(scene.App, window);
+        network.Select(NodeNamed(network, "动轮与速度"));
+        await network.LinksReloaded;
+        network.BeginLinkCommand.Execute(null);
+        await network.PickFromListCommand.ExecuteAsync(null);
+        Assert.True(network.ShowsLinkPicker);
+        Assert.Contains(network.Links!.PickerItems, i => i.Linked);
+        await SettleAsync(window);
+        Capture(window, "g53b-network-link-picker");
+        window.Close();
+    }
+
+    [AvaloniaFact]
+    public async Task G53c_the_details_list_the_links_with_a_note_being_edited()
+    {
+        await using var scene = Scene.Create("g53c");
+        var window = scene.App.ShowWindow(1100, 720, Theme);
+        var network = await OpenLinkedNetworkAsync(scene.App, window);
+        network.Select(NodeNamed(network, "高铁速度"));
+        await network.LinksReloaded;
+        Assert.Equal(2, network.Links!.Items.Count);
+        var item = network.Links.Items.Single(i => !i.HasNote);
+        item.BeginEditCommand.Execute(null);
+        item.EditText = "结构与速度";
+        await SettleAsync(window);
+        Capture(window, "g53c-network-link-details-edit");
+        window.Close();
+    }
+
+    [AvaloniaFact]
+    public async Task G53d_the_summary_page_with_its_links()
+    {
+        await using var scene = Scene.Create("g53d");
+        var window = scene.App.ShowWindow(1100, 720, Theme);
+        var seed = await SeedAsync(scene.App, summaries: true);
+        await LinkGalleryAsync(scene.App, seed);
+        var summary = await OpenSummaryAsync(scene.App, window, seed.Nodes[seed.HighSpeed]);
+        await summary.Links!.Loaded;
+        Assert.Equal(2, summary.Links.Items.Count);
+        await SettleAsync(window);
+        Capture(window, "g53d-summary-links");
+        window.Close();
+    }
+
+    /// <summary>The summarized train workspace with two links (动轮与速度–高铁速度 "对比", 标准轨距–高铁速度 without a note), on the network.</summary>
+    private static async Task<SummaryNetworkHomeViewModel> OpenLinkedNetworkAsync(DesktopHarness app, MainWindow window)
+    {
+        var seed = await SeedAsync(app, summaries: true);
+        await LinkGalleryAsync(app, seed);
+        var network = await SummaryNetworkScenario.OpenSummaryNetworkAsync(app, window);
+        await UiWait.UntilAsync(() => network.LinkEdges.Count == 2);
+        return network;
+    }
+
+    private static async Task LinkGalleryAsync(DesktopHarness app, Seed seed)
+    {
+        var links = app.Services.GetRequiredService<Application.SummaryLinks.ISummaryLinks>();
+        await links.CreateAsync(seed.Nodes[seed.Wheels], seed.Nodes[seed.HighSpeed], "对比", CancellationToken.None);
+        await links.CreateAsync(seed.Nodes[seed.Gauge], seed.Nodes[seed.HighSpeed], null, CancellationToken.None);
+    }
+
+    private static SummaryNodeId NodeNamed(SummaryNetworkHomeViewModel network, string name) => network.Nodes.Single(n => n.ShortTitle == name).Id;
+
     /// <summary>
     /// The summarized train workspace with three questions made the way 换一批 makes them (two extend a summary), and 新探索
     /// open with the input empty and focused.

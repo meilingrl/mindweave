@@ -150,6 +150,15 @@
             <TextBlock Text="{x:Static t:UiText.Rename}" VerticalAlignment="Center" />
           </StackPanel>
         </Button>
+        <!-- 关联到… (§10.3.3): the keyboard picker opens below the bar. -->
+        <Button Name="LinkToButton" Classes="quiet" Command="{Binding Links.OpenPickerCommand, FallbackValue={x:Null}}"
+                IsVisible="{Binding Links, Converter={x:Static ObjectConverters.IsNotNull}}"
+                ToolTip.Tip="{x:Static t:UiText.LinkToTip}" AutomationProperties.HelpText="{x:Static t:UiText.LinkToTip}">
+          <StackPanel Orientation="Horizontal" Spacing="6">
+            <PathIcon Width="13" Height="13" Data="{StaticResource IconLink}" />
+            <TextBlock Text="{x:Static t:UiText.LinkTo}" VerticalAlignment="Center" />
+          </StackPanel>
+        </Button>
         <!-- Export opens its options (§8.3): the source-note choice and what is exported sit with the action itself. -->
         <Button Name="ExportButton" Classes="quiet" Content="{x:Static t:UiText.ExportMarkdown}">
           <Button.ContentTemplate>
@@ -177,6 +186,24 @@
           </Button.Flyout>
         </Button>
       </WrapPanel>
+
+      <!-- "关联到…": the searchable list of this workspace's other summaries, until one is picked or it is closed. -->
+      <Border Name="LinkPickerPanel" Background="{DynamicResource PanelBackground}" CornerRadius="8" Padding="14,12" MaxWidth="420" HorizontalAlignment="Left"
+              IsVisible="{Binding Links.IsPickerOpen, FallbackValue=False}">
+        <v:SummaryLinkPickerView Name="LinkPicker" DataContext="{Binding Links}" />
+      </Border>
+
+      <!-- This summary's content links, quiet: nothing at all when there are none (the action stays in the bar). -->
+      <StackPanel Name="LinksArea" Spacing="2" MaxWidth="420" HorizontalAlignment="Left">
+        <StackPanel.IsVisible>
+          <MultiBinding Converter="{x:Static BoolConverters.And}">
+            <Binding Path="Links.HasItems" FallbackValue="False" />
+            <Binding Path="!IsEditing" />
+          </MultiBinding>
+        </StackPanel.IsVisible>
+        <TextBlock Classes="meta" Text="{x:Static t:UiText.LinksHeading}" />
+        <v:SummaryLinksView Name="SummaryLinks" DataContext="{Binding Links}" />
+      </StackPanel>
 
       <!-- Renaming takes the bar's place: a name field, save, cancel. -->
       <StackPanel Name="RenameRow" Orientation="Horizontal" Spacing="8" IsVisible="{Binding IsRenaming}">

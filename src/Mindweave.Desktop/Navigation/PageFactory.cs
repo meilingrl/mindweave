@@ -39,13 +39,14 @@ internal sealed class PageFactory(
     Application.Statistics.IUsageStatistics statistics,
     Application.Statistics.IUsagePrices prices,
     Application.Recommendations.IRecommendations recommendations,
-    Application.Preferences.IRecommendationSettings recommendationSettings) : IPageFactory
+    Application.Preferences.IRecommendationSettings recommendationSettings,
+    Application.SummaryLinks.ISummaryLinks links) : IPageFactory
 {
     public PageViewModel Create(ContentRoute route, PageContext context) => route switch
     {
         ExploreHomeRoute => new ExploreHomeViewModel(context.Workspace, context.Navigator),
-        SummaryNetworkHomeRoute => new SummaryNetworkHomeViewModel(context.Workspace, summaryNetworks.Get(context.Workspace.Id), summaries, conversations, context.Navigator, dispatcher, recommendations, recommendationSettings),
-        SummaryRoute summary => new SummaryViewModel(summary, context, summaries, dispatcher, time, exports, shell),
+        SummaryNetworkHomeRoute => new SummaryNetworkHomeViewModel(context.Workspace, summaryNetworks.Get(context.Workspace.Id), summaries, conversations, context.Navigator, dispatcher, recommendations, recommendationSettings, links),
+        SummaryRoute summary => new SummaryViewModel(summary, context, summaries, dispatcher, time, exports, shell, links),
         ConversationRoute conversation => new ConversationViewModel(conversation, context, conversations, reading, dispatcher, storage, summaries, time, conversationDeletion, conversationDeletionPrompt),
         NewConversationRoute fresh => new NewConversationViewModel(context.Workspace.Id, conversations, context.Navigator, context.Navigator, recommendations, dispatcher, fresh, recommendationSettings, reading),
         ArchivedRoute => new ArchivedViewModel(context.Workspace, conversations, context.Navigator, dispatcher, conversationDeletion, conversationDeletionPrompt),

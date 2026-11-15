@@ -108,6 +108,10 @@
       <!-- Summary network: recommended nodes (§10.3.2), a pale violet apart from the summaries' blue; dashed ring, dotted line, the word "推荐" -->
       <SolidColorBrush x:Key="SummaryNetworkRecommendation">#6B50BD</SolidColorBrush>
       <SolidColorBrush x:Key="SummaryNetworkRecommendationFill">#F3F0FB</SolidColorBrush>
+      <!-- Summary network: content links (§10.3.3), a teal apart from the blue selection trail and the violet recommendations;
+           solid and a little thicker than source edges, the note in the same colour (about 4.6:1 on the fill and the panel) -->
+      <SolidColorBrush x:Key="SummaryNetworkLink">#0E7C70</SolidColorBrush>
+      <SolidColorBrush x:Key="SummaryNetworkLinkFill">#EBF6F3</SolidColorBrush>
       <!-- Text fields (Fluent's own keys), so inputs match the page in both themes -->
       <SolidColorBrush x:Key="TextControlBackground">#FFFFFF</SolidColorBrush>
       <SolidColorBrush x:Key="TextControlBackgroundPointerOver">#FAFAF9</SolidColorBrush>
@@ -245,6 +249,9 @@
       <!-- Summary network: recommended nodes (§10.3.2) -->
       <SolidColorBrush x:Key="SummaryNetworkRecommendation">#A893EA</SolidColorBrush>
       <SolidColorBrush x:Key="SummaryNetworkRecommendationFill">#221F2E</SolidColorBrush>
+      <!-- Summary network: content links (§10.3.3) -->
+      <SolidColorBrush x:Key="SummaryNetworkLink">#4FBFB1</SolidColorBrush>
+      <SolidColorBrush x:Key="SummaryNetworkLinkFill">#16302C</SolidColorBrush>
       <SolidColorBrush x:Key="TextControlBackground">#222327</SolidColorBrush>
       <SolidColorBrush x:Key="TextControlBackgroundPointerOver">#26282D</SolidColorBrush>
       <SolidColorBrush x:Key="TextControlBackgroundFocused">#1D1E22</SolidColorBrush>

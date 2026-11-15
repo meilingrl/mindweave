@@ -38,6 +38,9 @@ public sealed record WorkspaceContents(bool Exists, int Conversations, int Summa
 {
     /// <summary>How many of <see cref="Conversations"/> are archived: archived themselves or under an archived conversation.</summary>
     public int Archived { get; init; }
+
+    /// <summary>How many content links between its summaries go with it (requirements §10.3.3, stated in the confirmation).</summary>
+    public int Links { get; init; }
 }
 
 /// <summary>

@@ -35,6 +35,12 @@ public sealed record ConversationDeleteScope(
     /// </summary>
     public bool IsCascade => Branches > 0 || Summaries.Count > 0;
 
+    /// <summary>
+    /// How many content links (requirements §10.3.3) go with <see cref="Summaries"/>: each link touching one of them, once.
+    /// Stated in the confirmation (§8.2); a relation, not content, so it is not part of <see cref="SameContents"/>.
+    /// </summary>
+    public int Links { get; init; }
+
     /// <summary>The same conversations and summary nodes, whatever the order (the in-transaction check).</summary>
     public bool SameContents(ConversationDeleteScope other)
     {

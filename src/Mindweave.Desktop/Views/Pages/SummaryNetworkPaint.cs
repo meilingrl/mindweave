@@ -61,6 +61,19 @@ internal sealed record EdgePaint(EdgeView Edge, Point From, Point To, EdgeState 
     public bool Highlighted => State is EdgeState.Trail or EdgeState.Near;
 }
 
+/// <summary>
+/// A content link as drawn (requirements §10.3.3): a solid line in the link colour between the two summaries as drawn,
+/// stronger while either end is selected or hovered, and its note (null when none, or hidden at this zoom) in a small frame
+/// at the middle.
+/// </summary>
+internal sealed record LinkPaint(LinkEdgeView Link, Point From, Point To, bool Active)
+{
+    public FormattedText? Note { get; init; }
+
+    /// <summary>The frame around <see cref="Note"/>, centred on the line's middle.</summary>
+    public Rect NoteBounds { get; init; }
+}
+
 /// <summary>An exploration's caption, above the bounding box of its nodes.</summary>
 internal sealed record CaptionPaint(GroupCaption Caption, FormattedText Text, Point Origin)
 {

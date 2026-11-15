@@ -218,8 +218,16 @@
     <Setter Property="FontWeight" Value="SemiBold" />
   </Style>
 
+  <!-- A content link's note (§10.3.3): the network's link colours, the note itself in words. -->
+  <Style Selector="Border.badge.link">
+    <Setter Property="Background" Value="{DynamicResource SummaryNetworkLinkFill}" />
+  </Style>
+  <Style Selector="Border.badge.link > TextBlock">
+    <Setter Property="Foreground" Value="{DynamicResource SummaryNetworkLink}" />
+  </Style>
+
   <!-- Disabled buttons keep their level's look, only muted: a quiet or link button never turns into a grey block. -->
-  <Style Selector=":is(Button).quiet:disabled /template/ ContentPresenter#PART_ContentPresenter, Button.link:disabled /template/ ContentPresenter#PART_ContentPresenter, Button.nav:disabled /template/ ContentPresenter#PART_ContentPresenter">
+  <Style Selector=":is(Button).quiet:disabled /template/ ContentPresenter#PART_ContentPresenter, Button.link:disabled /template/ ContentPresenter#PART_ContentPresenter, Button.nav:disabled /template/ ContentPresenter#PART_ContentPresenter, Button.list-name:disabled /template/ ContentPresenter#PART_ContentPresenter">
     <Setter Property="Background" Value="Transparent" />
     <Setter Property="BorderBrush" Value="Transparent" />
     <Setter Property="Foreground" Value="{DynamicResource MutedText}" />

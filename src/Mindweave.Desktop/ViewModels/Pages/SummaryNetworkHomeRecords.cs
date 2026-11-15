@@ -10,6 +10,11 @@ namespace Mindweave.Desktop.ViewModels.Pages;
 public sealed record SummaryListItem(SummaryNodeId Node, string DisplayName, string Markers, bool HasMarkers, bool Unread = false, bool HasCandidate = false, string Other = "")
 {
     public bool HasOther => Other.Length > 0;
+
+    /// <summary>Its content links in words ("关联：铁轨（对比）"), so the list view reaches them too (D-018); empty without links.</summary>
+    public string Links { get; init; } = string.Empty;
+
+    public bool HasLinks => Links.Length > 0;
 }
 
 /// <summary>
@@ -24,6 +29,12 @@ public sealed record NodeView(SummaryNodeId Id, string ShortTitle, string Displa
 /// so no edge of the group crosses it.
 /// </summary>
 public sealed record GroupCaption(string Text, SummaryNodeId Anchor, IReadOnlyList<SummaryNodeId> Members);
+
+/// <summary>
+/// A content link as the canvas draws it (requirements §10.3.3): between two summaries at their positions in memory, with
+/// its note (null when none) written at the middle. Never part of the arrangement or the layout.
+/// </summary>
+public sealed record LinkEdgeView(Mindweave.Application.SummaryLinks.SummaryLinkId Id, SummaryNodeId A, SummaryNodeId B, double AX, double AY, double BX, double BY, string? Note);
 
 /// <summary>A source edge as the canvas draws it; dashed with a label when it passes unsummarized conversations.</summary>
 public sealed record EdgeView(SummaryNodeId From, SummaryNodeId To, double FromX, double FromY, double ToX, double ToY, bool IsDirect, string? Label);

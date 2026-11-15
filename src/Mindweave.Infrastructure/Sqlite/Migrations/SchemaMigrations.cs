@@ -467,5 +467,55 @@ internal static class SchemaMigrations
             CREATE INDEX summary_node_by_pending ON summary_node (pending_version_id);
             CREATE INDEX summary_edit_draft_by_baseline ON summary_edit_draft (baseline_id);
             """),
+
+        Migration.Sql(13, "summary links and link suggestions", """
+            -- Content links between two summaries of one workspace (requirements §10.3.3–10.3.4, architecture "SummaryLink",
+            -- "LinkSuggestion"), both tables in one step so the AI-suggested links (8b) need no migration of their own. A link
+            -- has no direction: the pair is kept in one order (node_a < node_b), so a pair is unique whichever way round it was
+            -- made, and a summary is never linked to itself. Both nodes are referenced together with the link's workspace, so
+            -- SQLite itself refuses a link across workspaces; deleting either summary (its last version, its conversation, its
+            -- workspace) deletes its links and suggestions in the same transaction, and deleting the workspace deletes the rest.
+            -- The note is at most 16 characters (length() counts characters); the application stores none as NULL.
+            CREATE UNIQUE INDEX summary_node_by_workspace_id ON summary_node (workspace_id, id);
+
+            CREATE TABLE summary_link (
+                id           TEXT    NOT NULL PRIMARY KEY,
+                workspace_id TEXT    NOT NULL REFERENCES workspace (id) ON DELETE CASCADE,
+                node_a       TEXT    NOT NULL,
+                node_b       TEXT    NOT NULL,
+                note         TEXT    CHECK (note IS NULL OR length(note) <= 16),
+                origin       TEXT    NOT NULL CHECK (origin IN ('user', 'confirmed')),
+                created_at   INTEGER NOT NULL,
+                CHECK (node_a < node_b),
+                UNIQUE (workspace_id, node_a, node_b),
+                FOREIGN KEY (workspace_id, node_a) REFERENCES summary_node (workspace_id, id) ON DELETE CASCADE,
+                FOREIGN KEY (workspace_id, node_b) REFERENCES summary_node (workspace_id, id) ON DELETE CASCADE
+            ) STRICT;
+            CREATE INDEX summary_link_by_b ON summary_link (workspace_id, node_b);
+
+            -- Suggested pairs (8b): pending ones are shown until accepted (they become a summary_link with origin 'confirmed')
+            -- or ignored; ignored ones are kept, with no reason, so the pair is not suggested again. A pair whose link the user
+            -- deleted is recorded here as ignored (§10.3.4), without a request. generation_id names the request that made a
+            -- pending row. One row per pair, in the same order as links.
+            CREATE TABLE link_suggestion (
+                id            TEXT    NOT NULL PRIMARY KEY,
+                workspace_id  TEXT    NOT NULL REFERENCES workspace (id) ON DELETE CASCADE,
+                node_a        TEXT    NOT NULL,
+                node_b        TEXT    NOT NULL,
+                note          TEXT    CHECK (note IS NULL OR length(note) <= 16),
+                reason        TEXT,
+                state         TEXT    NOT NULL CHECK (state IN ('pending', 'ignored')),
+                generation_id TEXT,
+                created_at    INTEGER NOT NULL,
+                updated_at    INTEGER NOT NULL,
+                CHECK (node_a < node_b),
+                CHECK (state = 'ignored' OR generation_id IS NOT NULL),
+                CHECK (state = 'pending' OR reason IS NULL),
+                UNIQUE (workspace_id, node_a, node_b),
+                FOREIGN KEY (workspace_id, node_a) REFERENCES summary_node (workspace_id, id) ON DELETE CASCADE,
+                FOREIGN KEY (workspace_id, node_b) REFERENCES summary_node (workspace_id, id) ON DELETE CASCADE
+            ) STRICT;
+            CREATE INDEX link_suggestion_by_b ON link_suggestion (workspace_id, node_b);
+            """),
     ];
 }

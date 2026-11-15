@@ -1,0 +1,104 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:Mindweave.Desktop.ViewModels.Pages"
+             xmlns:t="using:Mindweave.Desktop.Text"
+             xmlns:views="using:Mindweave.Desktop.Views"
+             x:Class="Mindweave.Desktop.Views.Pages.SummaryLinksView"
+             x:DataType="vm:SummaryLinksPanel">
+  <!-- A summary's content links (requirements §10.3.3), shared by the network's details and the summary page: the other
+       summary (jump), its note, 改说明 inline (at most 16 characters, said while typing) and 删除关联 with one confirmation. -->
+  <UserControl.Styles>
+    <Style Selector="Button.link-icon">
+      <Setter Property="Padding" Value="5" />
+      <Setter Property="MinWidth" Value="0" />
+      <Setter Property="VerticalAlignment" Value="Center" />
+    </Style>
+    <Style Selector="Button.link-icon PathIcon">
+      <Setter Property="Width" Value="12" />
+      <Setter Property="Height" Value="12" />
+      <Setter Property="Foreground" Value="{DynamicResource MutedText}" />
+    </Style>
+    <Style Selector="Button.link-other">
+      <Setter Property="HorizontalAlignment" Value="Left" />
+      <Setter Property="HorizontalContentAlignment" Value="Left" />
+    </Style>
+  </UserControl.Styles>
+  <StackPanel Spacing="4">
+    <ItemsControl Name="LinkList" ItemsSource="{Binding Items}">
+      <ItemsControl.ItemTemplate>
+        <DataTemplate x:DataType="vm:SummaryLinkItem">
+          <Border Name="LinkRow" Padding="0,1,0,3" AutomationProperties.Name="{Binding AutomationName}">
+            <StackPanel Spacing="4">
+              <DockPanel>
+                <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" IsVisible="{Binding !IsEditing}">
+                  <Button Name="EditLinkNoteButton" Classes="quiet link-icon" Command="{Binding BeginEditCommand}"
+                          ToolTip.Tip="{x:Static t:UiText.EditLinkNote}" AutomationProperties.Name="{Binding EditName}">
+                    <PathIcon Data="{StaticResource IconRename}" />
+                  </Button>
+                  <Button Name="DeleteLinkButton" Classes="quiet link-icon" Command="{Binding AskDeleteCommand}"
+                          ToolTip.Tip="{x:Static t:UiText.DeleteLink}" AutomationProperties.Name="{Binding DeleteName}">
+                    <PathIcon Data="{StaticResource IconClose}" />
+                  </Button>
+                </StackPanel>
+                <!-- The other summary, as a link in words (the colour is never the only cue), and its note right after it. -->
+                <WrapPanel VerticalAlignment="Center">
+                  <Button Name="JumpToLinkedButton" Classes="list-name link-other" Command="{Binding JumpCommand}"
+                          ToolTip.Tip="{Binding JumpName}" AutomationProperties.Name="{Binding JumpName}">
+                    <DockPanel>
+                      <PathIcon DockPanel.Dock="Left" Width="12" Height="12" Margin="0,0,6,0" VerticalAlignment="Center" Data="{StaticResource IconLink}"
+                                Foreground="{DynamicResource SummaryNetworkLink}" />
+                      <TextBlock Text="{Binding OtherName}" TextWrapping="Wrap" VerticalAlignment="Center" />
+                    </DockPanel>
+                  </Button>
+                  <Border Name="LinkNote" Classes="badge link" Margin="2,0,0,0">
+                    <Border.IsVisible>
+                      <MultiBinding Converter="{x:Static BoolConverters.And}">
+                        <Binding Path="HasNote" />
+                        <Binding Path="!IsEditing" />
+                      </MultiBinding>
+                    </Border.IsVisible>
+                    <TextBlock Text="{Binding Note}" />
+                  </Border>
+                </WrapPanel>
+              </DockPanel>
+
+              <!-- The note editor: optional; 跳过 right after linking, 取消 when changing it. -->
+              <StackPanel Name="LinkNoteEditor" Spacing="4" Margin="22,0,0,0" IsVisible="{Binding IsEditing}">
+                <TextBox Name="LinkNoteBox" Text="{Binding EditText}" PlaceholderText="{x:Static t:UiText.LinkNoteWatermark}"
+                         AutomationProperties.Name="{Binding EditorName}" views:FocusRequest.When="{Binding IsEditing}">
+                  <TextBox.KeyBindings>
+                    <KeyBinding Gesture="Enter" Command="{Binding SaveEditCommand}" />
+                    <KeyBinding Gesture="Escape" Command="{Binding CancelEditCommand}" />
+                  </TextBox.KeyBindings>
+                </TextBox>
+                <DockPanel>
+                  <TextBlock DockPanel.Dock="Right" Name="LinkNoteCount" Classes="muted" Classes.warning="{Binding HasEditError}" FontSize="11"
+                             VerticalAlignment="Top" Margin="6,0,0,0" Text="{Binding EditCount}" />
+                  <TextBlock Name="LinkNoteError" Classes="warning" FontSize="12" TextWrapping="Wrap" Text="{Binding EditError}"
+                             IsVisible="{Binding HasEditError}" />
+                </DockPanel>
+                <StackPanel Orientation="Horizontal" Spacing="6">
+                  <Button Name="SaveLinkNoteButton" Classes="secondary" Content="{x:Static t:UiText.Save}" Command="{Binding SaveEditCommand}" />
+                  <Button Name="CancelLinkNoteButton" Classes="quiet" Content="{Binding CancelEditLabel}" Command="{Binding CancelEditCommand}" />
+                </StackPanel>
+              </StackPanel>
+
+              <!-- One confirmation, no backup: only this relation goes (requirements §10.3.3). -->
+              <Border Name="DeleteLinkConfirmation" Classes="notice warning" Margin="0,2,0,0" IsVisible="{Binding IsConfirmingDelete}">
+                <StackPanel Spacing="6">
+                  <TextBlock Text="{Binding DeleteConfirmText}" TextWrapping="Wrap" FontSize="12" />
+                  <StackPanel Orientation="Horizontal" Spacing="6">
+                    <Button Name="ConfirmDeleteLinkButton" Classes="secondary danger" Content="{x:Static t:UiText.DeleteLink}" Command="{Binding ConfirmDeleteCommand}"
+                            views:FocusRequest.When="{Binding IsConfirmingDelete}" />
+                    <Button Name="CancelDeleteLinkButton" Classes="quiet" Content="{x:Static t:UiText.Cancel}" Command="{Binding CancelDeleteConfirmationCommand}" />
+                  </StackPanel>
+                </StackPanel>
+              </Border>
+            </StackPanel>
+          </Border>
+        </DataTemplate>
+      </ItemsControl.ItemTemplate>
+    </ItemsControl>
+    <TextBlock Name="LinksNotice" Classes="warning" FontSize="12" TextWrapping="Wrap" Text="{Binding Notice}" IsVisible="{Binding HasNotice}" />
+  </StackPanel>
+</UserControl>
