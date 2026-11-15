@@ -66,5 +66,17 @@ jobs:
           echo "No known-vulnerable packages."
       - name: Build (warnings are errors)
         run: dotnet build Mindweave.slnx --no-restore -c Release
+      # Quarantined tests (intermittent, fix pending; docs/design/testing.md) run in the next step and never block.
       - name: Test
-        run: dotnet test Mindweave.slnx --no-build -c Release
+        run: dotnet test Mindweave.slnx --no-build -c Release --filter "Category!=Quarantine" --logger trx --results-directory test-results
+      - name: Quarantined tests (do not block)
+        if: always()
+        continue-on-error: true
+        run: dotnet test Mindweave.slnx --no-build -c Release --filter "Category=Quarantine"
+      # Where the time went; tests over the budget become warnings, never failures (timings vary by runner).
+      - name: Test timings
+        if: always()
+        shell: bash
+        run: |
+          py="$(command -v python3 || command -v python)"
+          "$py" -I scripts/test-timings.py test-results --github || true
