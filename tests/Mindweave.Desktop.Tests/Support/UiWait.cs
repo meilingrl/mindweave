@@ -1,7 +1,10 @@
 using System.Runtime.CompilerServices;
+using Avalonia.Controls;
+using Avalonia.VisualTree;
 using Avalonia.Threading;
 using Mindweave.Core.Conversations;
 using Mindweave.Desktop.ViewModels.Conversations;
+using Mindweave.Desktop.Views.Conversations;
 
 namespace Mindweave.Desktop.Tests;
 
@@ -47,6 +50,25 @@ internal static class UiWait
             () => page.Messages.Count > index && page.Messages[index] is { IsLive: false } item && item.State == state,
             timeoutMs,
             $"answer {index} stored as {state}",
+            file,
+            line);
+
+    /// <summary>
+    /// Waits until every answer shown in <paramref name="window"/> is rendered and laid out. A finished answer on a page
+    /// that is still placing itself first shows a placeholder of about its height and is rendered a moment later
+    /// (health check 2026-11-12, performance-2); the controls under it move when it is. A button under an answer is
+    /// clicked only after this: rendered between the press and the release, the answer moves the button away from the
+    /// pointer and the click is lost.
+    /// </summary>
+    public static Task AnswersRenderedAsync(
+        Window window,
+        int timeoutMs = 5000,
+        [CallerFilePath] string? file = null,
+        [CallerLineNumber] int line = 0) =>
+        UntilAsync(
+            () => window.GetVisualDescendants().OfType<AnswerView>().All(a => a.IsLayoutCurrent),
+            timeoutMs,
+            "every answer rendered",
             file,
             line);
 }
