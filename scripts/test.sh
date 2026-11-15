@@ -22,7 +22,11 @@ INFRA="$ROOT/tests/Mindweave.Infrastructure.Tests"
 DESKTOP="$ROOT/tests/Mindweave.Desktop.Tests"
 NOT_QUARANTINED="Category!=Quarantine"
 
+LOAD_PIDS=()
+
 die() { echo "test: $*" >&2; exit 1; }
+
+stop_load() { ((${#LOAD_PIDS[@]})) && kill "${LOAD_PIDS[@]}" 2>/dev/null; LOAD_PIDS=(); }
 
 build() { dotnet build "$SLN" -v q -nologo; }
 
@@ -61,12 +65,13 @@ repeat() {
   done
 
   build
-  local pids=()
   if ((load)); then
     local cores
     cores="$(getconf _NPROCESSORS_ONLN 2>/dev/null || echo 4)"
-    for ((i = 0; i < cores; i++)); do (while :; do :; done) & pids+=($!); done
-    trap 'kill "${pids[@]}" 2>/dev/null || true' EXIT
+    # Global, not local: the EXIT trap runs after this function has returned. The loops' output goes nowhere so a
+    # pipe on this script's output closes when the script ends.
+    trap stop_load EXIT INT TERM
+    for ((i = 0; i < cores; i++)); do (while :; do :; done) >/dev/null 2>&1 & LOAD_PIDS+=($!); done
     echo "test: $cores busy loops running"
   fi
 
