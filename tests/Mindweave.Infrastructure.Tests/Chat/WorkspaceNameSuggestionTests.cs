@@ -220,7 +220,7 @@ public class WorkspaceNameSuggestionTests
         await h.WaitForAnswerAsync(sent.Answer!.Value);
         if (title is null)
         {
-            await ChatHarness.UntilAsync(() => h.Generation.UnfinishedCount == 0);
+            await h.TitleEndedAsync(sent.Conversation);
             return sent.Conversation;
         }
 
