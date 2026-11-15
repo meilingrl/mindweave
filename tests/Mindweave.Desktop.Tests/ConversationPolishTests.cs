@@ -55,6 +55,7 @@ public class ConversationPolishTests
         UiInput.Click(window, stop);
 
         await UiWait.StoredAsync(page, 1, MessageState.Stopped);
+        await UiWait.AnswersRenderedAsync(window);
         window.UpdateLayout();
         Assert.Equal("半句", page.Messages[1].Body);
         Assert.False(stop.IsEffectivelyVisible);
@@ -85,6 +86,7 @@ public class ConversationPolishTests
 
         // The row is rebuilt from storage once the failure is written; clicking the live row's button could miss.
         await UiWait.StoredAsync(page, 1, MessageState.Failed);
+        await UiWait.AnswersRenderedAsync(window);
         window.UpdateLayout();
         var view = CurrentView(window);
 
