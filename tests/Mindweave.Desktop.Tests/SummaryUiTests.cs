@@ -334,6 +334,32 @@ public class SummaryUiTests
         window.Close();
     }
 
+    /// <summary>
+    /// Low finding gap-summary-4: a reload (the page's own read mark about 8 s after opening, a rename, a naming result)
+    /// keeps the versions the user ticked; it used to clear them and disable "delete selected".
+    /// </summary>
+    [AvaloniaFact]
+    public async Task Ticked_versions_stay_ticked_when_the_page_reloads()
+    {
+        await using var app = DesktopHarness.Create();
+        var window = app.ShowWindow();
+        var (summary, _, _) = await OpenSummaryWithHistoryAsync(app, window);
+        await AddEditedVersionAsync(summary, window);
+        var older = summary.History.Single(h => !h.IsCurrent).Id;
+        summary.History.Single(h => h.Id == older).IsSelected = true;
+        Assert.True(summary.HasSelectedVersions);
+
+        summary.BeginRenameCommand.Execute(null);
+        summary.RenameText = "改过的名字";
+        await summary.CommitRenameCommand.ExecuteAsync(null);
+        await UiWait.UntilAsync(() => summary.DisplayName == "改过的名字");
+
+        Assert.True(summary.History.Single(h => h.Id == older).IsSelected);
+        Assert.False(summary.History.Single(h => h.IsCurrent).IsSelected);
+        Assert.True(summary.HasSelectedVersions);
+        window.Close();
+    }
+
     [AvaloniaFact]
     public async Task Deleting_history_waits_for_a_tick_and_confirms_with_a_danger_button()
     {

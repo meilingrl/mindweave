@@ -549,10 +549,14 @@ public sealed partial class SummaryViewModel : PageViewModel, IDisposable
         MarkersText = UiText.Markers(markers);
         HasLaterContent = markers.HasLaterContent;
         HasCandidate = detail.Node.Pending is not null;
+        // A reload (a read mark, a rename, a naming result) keeps the user's ticks on versions that still exist and can
+        // still be ticked (low finding gap-summary-4: they used to vanish a few seconds after opening).
+        var ticked = History.Where(h => h.IsSelected).Select(h => h.Id).ToHashSet();
         History.Clear();
         foreach (var version in detail.Versions.OrderByDescending(v => v.Seq))
         {
             var item = new SummaryVersionItem(version, version.Id == detail.Node.Current, version.Id == detail.Node.Pending, detail.ReadState(version.Id).IsRead);
+            item.IsSelected = item.CanSelect && ticked.Contains(version.Id);
             item.PropertyChanged += (_, e) =>
             {
                 if (e.PropertyName == nameof(SummaryVersionItem.IsSelected))
