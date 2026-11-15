@@ -52,8 +52,8 @@
 | gap-unprompted-10 | Statistics use cached local time zone | TimeZoneInfo.ClearCachedData() before load. | UX | 待做 |
 | requirements-7 | One-summary-task rule checked before write only | In-transaction check / lock. | UX | 待做 |
 | requirements-8 | Failed naming enqueue leaves group marked queued | Remove key on failure. | UX | 待做 |
-| gap-summary-3 | Version ops don't invalidate open edit session | Bump Generation after operation. | UX | 待做 |
-| gap-summary-4 | Version-history ticks wiped by reload | Keep IsSelected for surviving ids. | UX | 待做 |
+| gap-summary-3 | Version ops don't invalidate open edit session | Bump Generation after operation. | UX | 已修 2026-11-15 |
+| gap-summary-4 | Version-history ticks wiped by reload | Keep IsSelected for surviving ids. | UX | 已修 2026-11-15 |
 | gap-summary-5 | Exported Markdown title/source unescaped | Escape Markdown punctuation in heading/source. | UX | 待做 |
 | gap-summary-6 | Second-step failure reports nothing stored | Name check best-effort after commit. | UX | 待做 |
 | gap-summary-10 | Titles cut by UTF-16 index split surrogates | Cut by text elements. | UX | 已修 196bb5f |
@@ -103,7 +103,7 @@
 | concurrency-4 | Terminal write depends on subscribers not throwing | Guard event invocations. | none | 待做 |
 | gap-lifecycle-5 | Workspace delete skips per-conversation notifications | Notify deleted ids. | none | 待做 |
 | gap-unprompted-4 | Title request sends whole first question | Truncate question to a few hundred chars. | none | 已修 196bb5f |
-| gap-unprompted-5 | Failed name preparation retried on every title | Record failed attempt / session backoff. | none | 待做 |
+| gap-unprompted-5 | Failed name preparation retried on every title | Record failed attempt / session backoff. | none | 已修 2026-11-15 |
 | architecture-7 | Per-session logger/HttpClient never disposed | Register via factory lambdas. | none | 待做 |
 | repo-scripts-7 | windows.sh sync ignores errexit | ` | 待做 |
 
