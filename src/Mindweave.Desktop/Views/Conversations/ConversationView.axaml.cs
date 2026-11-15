@@ -97,6 +97,9 @@ public sealed partial class ConversationView : UserControl
     /// <summary>Completes once the page has been placed at its source, reading position or end; tests await it.</summary>
     internal Task Restored => _restored.Task;
 
+    /// <summary>A scroll is waiting to be recorded as the reading position (recorded once scrolling has been still for a moment, or on leaving).</summary>
+    internal bool IsPositionPending => _capture.IsEnabled;
+
     /// <summary>When the page was placed (<see cref="System.Diagnostics.Stopwatch"/> ticks); for the open benchmark.</summary>
     internal long RestoredTimestamp { get; private set; }
 
@@ -164,6 +167,14 @@ public sealed partial class ConversationView : UserControl
 
     protected override void OnDetachedFromVisualTree(VisualTreeAttachmentEventArgs e)
     {
+        // Leaving the page (another page opens, the window closes) within the capture delay of a scroll: record where
+        // the reader is now instead of dropping it, or the page reopens where it was before that scroll. The rows are
+        // still laid out here (BranchUiTests.A_page_left_right_after_a_scroll_reopens_where_it_was_left).
+        if (_capture.IsEnabled)
+        {
+            CapturePosition();
+        }
+
         // Off screen: the running answer's live counter stops ticking until the page is shown again.
         if (_window is not null)
         {
