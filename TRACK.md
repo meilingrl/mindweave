@@ -78,7 +78,7 @@ Windows 实机：`scripts/windows.sh test|publish|sync|exec`（主机 `win-home`
 
 ## 待决定
 
-- **命名与结构规则是否放到 `main`（2026-11-15）**：[命名与结构](docs/design/naming-and-structure.md) A 节是建议加进 `AGENTS.md` 的 4 条规则（一个概念一个名字、存盘名称不随代码改名、文件夹即命名空间、沿用现有模式），B 节是建议加进 `docs/architecture.md` 的术语表（每行需先对照需求核对）。我建议放，措辞由你定。另：架构 §11 写的 `NetworkViewModel` 实际是 `NetworkHomeViewModel`（现为 `SummaryNetworkHomeViewModel`），可一并更正。
+- （已定 2026-11-15，你同意放到 `main`，规则只管新代码，稳健轨已有的 `Network` 由它自己决定）**命名与结构规则是否放到 `main`**：已提交 `main` 79d46cb（`AGENTS.md`“命名与结构”、架构 §2.3 术语表、§11.1 不再写具体类名）并合并到本轨道。原问题：[命名与结构](docs/design/naming-and-structure.md) A 节是建议加进 `AGENTS.md` 的 4 条规则（一个概念一个名字、存盘名称不随代码改名、文件夹即命名空间、沿用现有模式），B 节是建议加进 `docs/architecture.md` 的术语表（每行需先对照需求核对）。我建议放，措辞由你定。另：架构 §11 写的 `NetworkViewModel` 实际是 `NetworkHomeViewModel`（现为 `SummaryNetworkHomeViewModel`），可一并更正。
 
 - （已定 2026-11-14，你采纳了全部建议）低／信息级分拣留下的四件事：(a) 只开 `checkpoint_fullfsync`（并入数据库时完全落盘，本机约 2→9 ms），普通提交不改；(b) `secure_delete` 不开（删除前的备份仍有全文；彻底清除另做功能）；(c) 建议工作区名称仍发送归档会话的标题；(d) 不用 Dependabot，改为 CI 检查有安全公告的包，两个 CI 动作固定到提交。已完成，见 [low-triage.md](docs/reviews/claude-auto-health-20261112/low-triage.md)。分拣文档里 49 条需设计的条目仍等你挑。
 
