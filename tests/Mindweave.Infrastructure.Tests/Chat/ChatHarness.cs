@@ -215,6 +215,23 @@ internal sealed class ChatHarness : IAsyncDisposable
         }
     }
 
+    /// <summary>
+    /// Waits until the conversation's automatic title task has ended, whatever its outcome (a failed one leaves no title),
+    /// and nothing else is unfinished. "Nothing unfinished" alone is not enough: the title task is added only after the
+    /// answer has finished and freed its slot (ConversationTitler reads the conversation first), so for a moment nothing
+    /// is unfinished and the title task does not exist yet.
+    /// </summary>
+    public Task TitleEndedAsync(ConversationId conversation) =>
+        UntilAsync(
+            async () => await Database.ReadAsync(
+                    c => c.Scalar<long>(
+                        null,
+                        "SELECT count(*) FROM generation_task WHERE kind = 'title' AND conversation_id = $id AND state NOT IN ('queued', 'running');",
+                        ("$id", conversation.ToString())),
+                    CancellationToken.None) > 0
+                && Generation.UnfinishedCount == 0,
+            expression: $"title task of {conversation} ended");
+
     /// <summary>Deletes the scope of <paramref name="selected"/> as it is now, the way the confirmation does: inspect, then delete that.</summary>
     public async Task<ConversationDeleteOutcome> DeleteAsync(params ConversationId[] selected) =>
         await ConversationDeletion.DeleteAsync(await ConversationDeletion.InspectAsync(selected, CancellationToken.None), CancellationToken.None);

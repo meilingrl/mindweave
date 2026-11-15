@@ -67,11 +67,15 @@ public class BranchUiTests
         var root = await StartConversationAsync(app, window, "火车是怎么发明的？", LongAnswer);
         var child = await BranchAsync(app, window, root, "斯蒂芬森");
         app.Client.Reply("斯蒂芬森是英国工程师。\n\n他的**火箭号**赢得了雨山试验。");
+
+        // The branch's first answer earns it an automatic title. Wait for it while the branch is shown: a title landing
+        // after the branch is left updates the grandchild's lineage but not the page left behind (CI 2026-11-15).
+        app.Client.Titles.Replies.Enqueue(ChildTitle);
         child.Composer.Text = "他是谁？";
         await child.Composer.SendCommand.ExecuteAsync(null);
-        await UiWait.UntilAsync(() => child.Messages.Count == 2 && child.Messages[1].CanBranch);
+        await UiWait.UntilAsync(() => child.Messages.Count == 2 && child.Messages[1].CanBranch && child.Title == ChildTitle);
         var grandchild = await BranchAsync(app, window, child, "雨山试验");
-        Assert.Equal([root.Title, child.Title], grandchild.Lineage.Select(l => l.Title));
+        Assert.Equal([FakeChatClient_DefaultTitle, ChildTitle], grandchild.Lineage.Select(l => l.Title));
 
         // Grandchild → child: the source passage is selected, highlighted and on screen.
         grandchild.ReturnToSourceCommand.Execute(null);
@@ -121,6 +125,33 @@ public class BranchUiTests
         var conversations = app.Services.GetRequiredService<ConversationService>();
         Assert.Single(await conversations.ListBranchesAsync(root.Id, CancellationToken.None));
         Assert.Equal(2, (await conversations.ListAsync(app.Workbench.CurrentWorkspace!.Id, CancellationToken.None)).Count);
+        window.Close();
+    }
+
+    [AvaloniaFact]
+    public async Task A_page_left_right_after_a_scroll_reopens_where_it_was_left()
+    {
+        await using var app = DesktopHarness.Create();
+        var window = await OpenAsync(app);
+        var root = await StartConversationAsync(app, window, "火车是怎么发明的？", LongAnswer);
+        var child = await BranchAsync(app, window, root, "铁路随后");
+        OpenFromSidebar(app, root.Id);
+        await PageAsync(app, window, root.Id);
+        await UiWait.UntilAsync(() => !CurrentView(window).IsPositionPending);
+
+        // Scroll and leave at once, before the scroll has been still long enough to be recorded on its own (the
+        // likely cause of a CI failure on 2026-11-15, where a page reopened after a restart at its earlier place).
+        var scroller = Scroller(window);
+        scroller.Offset = new Vector(0, Math.Round((scroller.Extent.Height - scroller.Viewport.Height) * 0.3));
+        window.UpdateLayout();
+        var left = scroller.Offset.Y;
+        Assert.True(CurrentView(window).IsPositionPending);
+        OpenFromSidebar(app, child.Id);
+        await PageAsync(app, window, child.Id);
+
+        OpenFromSidebar(app, root.Id);
+        await PageAsync(app, window, root.Id);
+        Assert.InRange(Scroller(window).Offset.Y, left - 4, left + 4);
         window.Close();
     }
 
@@ -252,6 +283,8 @@ public class BranchUiTests
 
     private const string FakeChatClient_DefaultTitle = Mindweave.Testing.FakeChatClient.DefaultTitle;
 
+    private const string ChildTitle = "斯蒂芬森其人";
+
     /// <summary>Drags across <paramref name="quote"/> in the page's last answer and clicks "create branch".</summary>
     private static async Task<ConversationViewModel> BranchAsync(DesktopHarness app, Window window, ConversationViewModel parent, string quote)
     {
@@ -307,14 +340,15 @@ public class BranchUiTests
         app.ShellPage.Conversations.OpenCommand.Execute(app.ShellPage.Conversations.Items.Single(i => i.Id == id));
 
     /// <summary>
-    /// Scrolls the current page to a fraction of its height and waits until the position is recorded: the view records
-    /// it once scrolling has been still for a moment, so this waits for a stable offset and a newly recorded position.
+    /// Scrolls the current page to a fraction of its height and waits until that position is recorded: the view records
+    /// it once scrolling has been still for a moment. A newly recorded position is not enough: a recording still pending
+    /// from an earlier scroll (the page following the answer to its end) could land after a "before" value was read and
+    /// look new (the likely cause of a CI failure on 2026-11-15, where a restart reopened the page at its end), so this
+    /// waits until nothing is pending at a stable offset.
     /// </summary>
     private static async Task<double> ScrollToAsync(Window window, double fraction)
     {
         var view = CurrentView(window);
-        var page = Assert.IsType<ConversationViewModel>(view.DataContext);
-        var before = await page.CurrentPositionAsync();
         var scroller = Scroller(window);
         scroller.Offset = new Vector(0, Math.Round((scroller.Extent.Height - scroller.Viewport.Height) * fraction));
         window.UpdateLayout();
@@ -323,7 +357,7 @@ public class BranchUiTests
         {
             var stable = scroller.Offset.Y == last;
             last = scroller.Offset.Y;
-            return stable && page.CurrentPositionAsync().Result != before;
+            return stable && !view.IsPositionPending;
         });
         return scroller.Offset.Y;
     }

@@ -53,7 +53,7 @@ public static class ApplicationServices
         services.AddSingleton<NewsAlertsService>();
         services.AddSingleton<WorkspaceNameSuggester>();
         services.AddSingleton<WorkspaceNameCache>();
-        services.AddSingleton<IWorkspaceNameCache>(sp => sp.GetRequiredService<WorkspaceNameCache>());
+        services.TryAddSingleton<IWorkspaceNameCache>(sp => sp.GetRequiredService<WorkspaceNameCache>());
         services.TryAddSingleton(new WorkspaceNamePreparationOptions());
         services.AddSingleton<WorkspaceNamePreparer>();
         services.TryAddSingleton(new UsageStatisticsOptions()); // Tests give their own clock and zone.

@@ -2,6 +2,7 @@ using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Headless;
 using Avalonia.Input;
+using Avalonia.Interactivity;
 using Avalonia.Threading;
 
 namespace Mindweave.Desktop.Tests;
@@ -32,14 +33,40 @@ internal static class UiInput
         }
 
         var enabled = target.IsEffectivelyEnabled;
-        window.MouseDown(point, MouseButton.Left, modifiers);
-        if (enabled && target is Button { IsPressed: false })
+        var clicked = false;
+        void OnClick(object? sender, RoutedEventArgs e) => clicked = true;
+        var button = target as Button;
+        if (button is not null)
         {
-            window.MouseUp(point, MouseButton.Left, modifiers);
-            throw new InvalidOperationException($"The press did not reach {Describe(target)} (it was replaced or moved).");
+            button.Click += OnClick;
         }
 
-        window.MouseUp(point, MouseButton.Left, modifiers);
+        try
+        {
+            window.MouseDown(point, MouseButton.Left, modifiers);
+            if (enabled && button is { IsPressed: false } && !clicked)
+            {
+                window.MouseUp(point, MouseButton.Left, modifiers);
+                throw new InvalidOperationException($"The press did not reach {Describe(target)} (it was replaced or moved).");
+            }
+
+            window.MouseUp(point, MouseButton.Left, modifiers);
+
+            // A button clicks on release only if the release lands on it too: content that moved in between (an answer
+            // above it rendered, say) takes the click away without a word, and the test would wait for its effect in vain.
+            if (enabled && button is not null && !clicked)
+            {
+                throw new InvalidOperationException($"The release did not reach {Describe(target)} (it moved while pressed).");
+            }
+        }
+        finally
+        {
+            if (button is not null)
+            {
+                button.Click -= OnClick;
+            }
+        }
+
         window.UpdateLayout();
     }
 

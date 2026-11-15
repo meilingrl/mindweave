@@ -478,7 +478,13 @@ public class SidebarStatusTests
         window.Close();
     }
 
-    /// <summary>Frames keep arriving while the spinner is in sight, and none arrive (after the one already asked for) while it is not.</summary>
+    /// <summary>
+    /// Frames keep arriving while the spinner is in sight, and none arrive (after the one already asked for) while it is
+    /// not. In sight, the next frame is waited for, render tick by render tick: a frame takes several dispatcher hops
+    /// (the request, a render pass, the compositor taking the batch, the batch reported back), and a fixed number of
+    /// ticks was a guess a slow runner could miss (CI, Windows, 2026-11-13). Out of sight, a fixed stretch of ticks
+    /// must bring none.
+    /// </summary>
     private static async Task AssertFramesAsync(ActivitySpinner spinner, bool arrive)
     {
         for (var settle = 0; settle < 3; settle++)
@@ -488,6 +494,27 @@ public class SidebarStatusTests
         }
 
         var before = spinner.FramesReceived;
+        if (arrive)
+        {
+            try
+            {
+                await UiWait.UntilAsync(() =>
+                {
+                    AvaloniaHeadlessPlatform.ForceRenderTimerTick();
+                    Dispatcher.UIThread.RunJobs();
+                    return spinner.FramesReceived > before;
+                });
+            }
+            catch (TimeoutException)
+            {
+                // Which of the spinner's own conditions failed, so a recurrence names its cause.
+                Assert.Fail($"The spinner received no frames while in sight: turning {spinner.IsTurning}, attached {spinner.IsAttachedToVisualTree()}, "
+                    + $"effectively visible {spinner.IsEffectivelyVisible}, bounds {spinner.Bounds}, frames {spinner.FramesReceived}.");
+            }
+
+            return;
+        }
+
         for (var tick = 0; tick < 5; tick++)
         {
             await Task.Delay(5);
@@ -496,14 +523,7 @@ public class SidebarStatusTests
             Dispatcher.UIThread.RunJobs();
         }
 
-        if (arrive)
-        {
-            Assert.True(spinner.FramesReceived > before, "The spinner received no frames while in sight.");
-        }
-        else
-        {
-            Assert.Equal(before, spinner.FramesReceived);
-        }
+        Assert.Equal(before, spinner.FramesReceived);
     }
 
     /// <summary>The real preference store, made to fail reads or writes of the unread marks on demand.</summary>

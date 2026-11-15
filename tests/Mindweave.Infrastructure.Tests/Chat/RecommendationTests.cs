@@ -160,7 +160,7 @@ public class RecommendationTests
         Assert.True((await h.Conversations.ArchiveAsync(first, Ct)).Archived);
         h.Client.Titles.FailNext(GenerationErrorKind.ServerError);
         var untitled = await h.RootWithAnswerAsync("这一句只是问题不是标题");
-        await ChatHarness.UntilAsync(() => h.Generation.UnfinishedCount == 0);
+        await h.TitleEndedAsync(untitled.Root);
         Assert.Null((await h.Store.GetAsync(untitled.Root, Ct))!.Title);
         h.Client.PromptTokens = r => FakeChatClient.IsRecommendation(r) ? 520 : null;
         h.Client.CompletionTokens = r => FakeChatClient.IsRecommendation(r) ? 80 : null;

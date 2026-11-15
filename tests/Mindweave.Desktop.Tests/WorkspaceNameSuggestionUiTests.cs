@@ -308,7 +308,8 @@ public class WorkspaceNameSuggestionUiTests
     [AvaloniaFact]
     public async Task Names_kept_from_before_are_offered_at_once_and_a_new_batch_replaces_them()
     {
-        await using var app = DesktopHarness.Create();
+        HeldNameCache? held = null;
+        await using var app = DesktopHarness.Create(s => s.AddSingleton<IWorkspaceNameCache>(sp => held = new HeldNameCache(sp.GetRequiredService<WorkspaceNameCache>())));
         var window = app.ShowWindow(1100, 720);
         await SummaryNetworkScenario.SeedAsync(app);
         var workspace = app.Workbench.CurrentWorkspace!;
@@ -339,13 +340,47 @@ public class WorkspaceNameSuggestionUiTests
         await UiWait.UntilAsync(() => box.Offered == "蒸汽与钢轨");
         Assert.Equal(["蒸汽与钢轨", "轨道上的世纪"], (await cache.GetAsync(workspace.Id, null, CancellationToken.None))!.Names.Select(n => n.Value));
 
-        // Typed before the kept names were read: they are not offered over what was typed.
+        // Typed before the kept names were read: they are not offered over what was typed. The read is held until the
+        // typing is in: a read that ends at once (it can, under load) offers them before anything was typed.
         row.CancelRenameCommand.Execute(null);
+        var read = held!.Hold();
         row.BeginRenameCommand.Execute(null);
         row.RenameText = "我自己起的";
+        read.SetResult();
         await page.KeptNamesRead;
         Assert.Empty(row.GhostNames);
         window.Close();
+    }
+
+    /// <summary>The real cache, whose next read of kept names can be held until the test lets it end.</summary>
+    private sealed class HeldNameCache(IWorkspaceNameCache inner) : IWorkspaceNameCache
+    {
+        private TaskCompletionSource? _gate;
+
+        public event EventHandler<WorkspaceId>? Changed
+        {
+            add => inner.Changed += value;
+            remove => inner.Changed -= value;
+        }
+
+        /// <summary>The next read waits for the returned source.</summary>
+        public TaskCompletionSource Hold() => _gate = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+
+        public async Task<PreparedNames?> GetAsync(WorkspaceId workspace, WorkspaceName? current, CancellationToken cancellationToken)
+        {
+            if (Interlocked.Exchange(ref _gate, null) is { } gate)
+            {
+                await gate.Task.ConfigureAwait(false);
+            }
+
+            return await inner.GetAsync(workspace, current, cancellationToken).ConfigureAwait(false);
+        }
+
+        public Task SetAsync(WorkspaceId workspace, PreparedNames names, CancellationToken cancellationToken) => inner.SetAsync(workspace, names, cancellationToken);
+
+        public Task RenamedAsync(WorkspaceId workspace, WorkspaceName name, CancellationToken cancellationToken) => inner.RenamedAsync(workspace, name, cancellationToken);
+
+        public Task ForgetAsync(WorkspaceId workspace, CancellationToken cancellationToken) => inner.ForgetAsync(workspace, cancellationToken);
     }
 
     private static readonly CompositeFormat OfferFormat = CompositeFormat.Parse(UiText.GhostNameHelpFormat);
