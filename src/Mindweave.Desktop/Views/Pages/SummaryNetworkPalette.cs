@@ -18,6 +18,9 @@ internal sealed class SummaryNetworkPalette
     private IPen? _link;
     private IPen? _linkActive;
     private IPen? _linkNoteFrame;
+    private IPen? _suggestion;
+    private IPen? _suggestionActive;
+    private IPen? _suggestionFrame;
 
     public required IBrush Background { get; init; }
 
@@ -106,6 +109,20 @@ internal sealed class SummaryNetworkPalette
     /// <summary>The thin frame around a link's note.</summary>
     public IPen LinkNoteFrame => _linkNoteFrame ??= new Pen(Link, 1);
 
+    /// <summary>A pending link suggestion's line (requirements §10.3.4): a lighter tone of the link colour.</summary>
+    public required IBrush LinkSuggestion { get; init; }
+
+    /// <summary>
+    /// A pending link suggestion: light and dash-dotted, unlike the solid link, the solid source edge, the dashed
+    /// "经未总结会话" edge and the round-dotted recommendation line; its words say "建议".
+    /// </summary>
+    public IPen LinkSuggestionPen(bool active) => active
+        ? _suggestionActive ??= new Pen(LinkSuggestion, 2.2, new DashStyle([5, 2.2, 1.2, 2.2], 0))
+        : _suggestion ??= new Pen(LinkSuggestion, 1.5, new DashStyle([5.5, 2.5, 1.2, 2.5], 0));
+
+    /// <summary>The dashed frame around a suggestion's words, in the same light tone.</summary>
+    public IPen LinkSuggestionFrame => _suggestionFrame ??= new Pen(LinkSuggestion, 1, new DashStyle([2, 1.5], 0));
+
     /// <summary>Every theme resource the canvas draws with; both themes must define each one as a brush.</summary>
     public static IReadOnlyList<string> Keys { get; } =
     [
@@ -113,7 +130,7 @@ internal sealed class SummaryNetworkPalette
         "SummaryNetworkUnreadDot", "SummaryNetworkHaloSelected", "SummaryNetworkHaloHover", "SummaryNetworkRingSelected", "SummaryNetworkRingMatch",
         "SummaryNetworkLabel", "SummaryNetworkLabelRead", "SummaryNetworkLabelActive", "SummaryNetworkCaption", "SummaryNetworkEdge", "SummaryNetworkEdgeIndirect",
         "SummaryNetworkEdgeNear", "SummaryNetworkEdgeTrail", "SummaryNetworkDragShadow", "SummaryNetworkDragGlow", "SummaryNetworkRecommendation",
-        "SummaryNetworkRecommendationFill", "SummaryNetworkLink", "SummaryNetworkLinkFill",
+        "SummaryNetworkRecommendationFill", "SummaryNetworkLink", "SummaryNetworkLinkFill", "SummaryNetworkLinkSuggestion",
     ];
 
     /// <summary>The brush for a key in the control's current theme; null when the theme does not define it.</summary>
@@ -164,6 +181,7 @@ internal sealed class SummaryNetworkPalette
             RecommendationFill = brushes["SummaryNetworkRecommendationFill"],
             Link = brushes["SummaryNetworkLink"],
             LinkFill = brushes["SummaryNetworkLinkFill"],
+            LinkSuggestion = brushes["SummaryNetworkLinkSuggestion"],
         };
     }
 

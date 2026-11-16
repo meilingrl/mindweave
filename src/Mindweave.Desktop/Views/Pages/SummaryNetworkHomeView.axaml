@@ -33,7 +33,7 @@
         </StackPanel>
       </StackPanel>
       <WrapPanel Orientation="Horizontal" VerticalAlignment="Center">
-        <TextBox Name="FindBox" Text="{Binding SearchText}" PlaceholderText="{x:Static t:UiText.FindWatermark}" Width="190" Margin="0,0,10,0" VerticalAlignment="Center">
+        <TextBox Name="FindBox" Text="{Binding SearchText}" PlaceholderText="{x:Static t:UiText.FindWatermark}" Width="120" Margin="0,0,6,0" VerticalAlignment="Center">
           <TextBox.KeyBindings>
             <KeyBinding Gesture="Enter" Command="{Binding FindCommand}" />
           </TextBox.KeyBindings>
@@ -82,14 +82,37 @@
             </StackPanel>
           </Button>
         </StackPanel>
-        <!-- Content links (§10.3.3): 隐藏关联 / 显示关联, the same quiet button as 隐藏推荐; only once the workspace has a link. -->
-        <Button Name="ToggleLinksButton" Classes="quiet" Command="{Binding ToggleLinksCommand}" IsVisible="{Binding ShowsLinkTools}"
-                ToolTip.Tip="{x:Static t:UiText.HideLinksTip}"
-                AutomationProperties.Name="{Binding ToggleLinksLabel}" AutomationProperties.HelpText="{x:Static t:UiText.HideLinksTip}">
+        <!-- Content links (§10.3.3–10.3.4): one quiet menu button holds 建议关联 (manual only, at least three summaries) and
+             隐藏关联 / 显示关联 (once the workspace has a link), so the toolbar stays one row at 1100 px. -->
+        <Button Name="LinksMenuButton" Classes="quiet" IsVisible="{Binding ShowsLinksMenu}"
+                ToolTip.Tip="{x:Static t:UiText.LinksMenuName}" AutomationProperties.Name="{x:Static t:UiText.LinksMenuName}">
           <StackPanel Orientation="Horizontal" Spacing="6">
             <PathIcon Width="14" Height="14" Data="{StaticResource IconLink}" />
-            <TextBlock Name="ToggleLinksText" Text="{Binding ToggleLinksLabel}" VerticalAlignment="Center" />
+            <TextBlock Name="LinksMenuText" Text="{x:Static t:UiText.LinksMenu}" VerticalAlignment="Center" />
+            <PathIcon Width="9" Height="9" Margin="-1,1,0,0" Data="{StaticResource IconChevronDown}" Foreground="{DynamicResource MutedText}" />
           </StackPanel>
+          <Button.Flyout>
+            <MenuFlyout Placement="BottomEdgeAlignedLeft">
+              <MenuItem Name="SuggestLinksMenuItem" Header="{x:Static t:UiText.SuggestLinks}" Command="{Binding Suggestions.SuggestCommand, FallbackValue={x:Null}}"
+                        IsVisible="{Binding Suggestions, Converter={x:Static ObjectConverters.IsNotNull}}"
+                        ToolTip.Tip="{Binding Suggestions.SuggestHelp, FallbackValue=''}" ToolTip.ShowOnDisabled="True"
+                        AutomationProperties.HelpText="{Binding Suggestions.SuggestHelp, FallbackValue=''}">
+                <MenuItem.Icon>
+                  <PathIcon Width="13" Height="13" Data="{StaticResource IconSparkle}" />
+                </MenuItem.Icon>
+              </MenuItem>
+              <!-- Why 建议关联 is unavailable, in words beside it (a disabled entry says nothing by itself). -->
+              <MenuItem Name="SuggestLinksUnavailable" Header="{x:Static t:UiText.SuggestLinksNeedsSummaries}" IsEnabled="False" FontSize="12"
+                        IsVisible="{Binding !Suggestions.CanSuggest, FallbackValue=False}" />
+              <Separator IsVisible="{Binding ShowsLinkTools}" />
+              <MenuItem Name="ToggleLinksMenuItem" Header="{Binding ToggleLinksLabel}" Command="{Binding ToggleLinksCommand}" IsVisible="{Binding ShowsLinkTools}"
+                        ToolTip.Tip="{x:Static t:UiText.HideLinksTip}" AutomationProperties.HelpText="{x:Static t:UiText.HideLinksTip}">
+                <MenuItem.Icon>
+                  <PathIcon Width="14" Height="14" Data="{StaticResource IconEye}" />
+                </MenuItem.Icon>
+              </MenuItem>
+            </MenuFlyout>
+          </Button.Flyout>
         </Button>
       </WrapPanel>
     </DockPanel>
@@ -106,6 +129,19 @@
       <Button Name="RecommendedNodesSettingsButton" Classes="quiet small" Content="{x:Static t:UiText.OpenSettingsLink}"
               Command="{Binding OpenSettingsCommand}" IsVisible="{Binding RecommendationNoteNeedsSettings}" />
     </WrapPanel>
+    <!-- 建议关联 running, then a quiet line when it stored nothing: why, with 重试 or a way to the settings (never a dialog). -->
+    <StackPanel DockPanel.Dock="Top" Name="LinkSuggestionsBusyLine" Orientation="Horizontal" Spacing="8" Margin="2,0,0,8"
+                IsVisible="{Binding Suggestions.IsRunning, FallbackValue=False}">
+      <views:ActivitySpinner Classes="suggest-spinner" VerticalAlignment="Center" />
+      <TextBlock Classes="caption" VerticalAlignment="Center" Text="{x:Static t:UiText.SuggestingLinks}" />
+    </StackPanel>
+    <WrapPanel DockPanel.Dock="Top" Name="LinkSuggestionsNoteLine" Margin="2,0,0,8" ItemSpacing="4" IsVisible="{Binding Suggestions.HasNote, FallbackValue=False}">
+      <TextBlock Name="LinkSuggestionsNote" Classes="caption" TextWrapping="Wrap" VerticalAlignment="Center" Margin="0,0,4,0" Text="{Binding Suggestions.Note, FallbackValue=''}" />
+      <Button Name="RetryLinkSuggestionsButton" Classes="quiet small" Content="{x:Static t:UiText.Retry}" Command="{Binding Suggestions.SuggestCommand, FallbackValue={x:Null}}"
+              IsVisible="{Binding Suggestions.NoteCanRetry, FallbackValue=False}" AutomationProperties.Name="{x:Static t:UiText.RetryLinkSuggestionsName}" />
+      <Button Name="LinkSuggestionsSettingsButton" Classes="quiet small" Content="{x:Static t:UiText.OpenSettingsLink}"
+              Command="{Binding Suggestions.OpenSettingsCommand, FallbackValue={x:Null}}" IsVisible="{Binding Suggestions.NoteNeedsSettings, FallbackValue=False}" />
+    </WrapPanel>
     <Border DockPanel.Dock="Top" Name="SaveFailedNotice" Classes="notice error" IsVisible="{Binding SaveFailed}" Margin="0,0,0,8">
       <DockPanel>
         <TextBlock Classes="notice-icon" Text="!" />
@@ -118,10 +154,19 @@
     <Border DockPanel.Dock="Right" Width="260" Margin="10,0,0,0" Padding="16" Background="{DynamicResource PanelBackground}" CornerRadius="8"
             IsVisible="{Binding !IsEmpty}">
       <Panel>
-        <StackPanel Spacing="8" IsVisible="{Binding !HasSelection}">
-          <TextBlock FontWeight="SemiBold" FontSize="18" Text="{x:Static t:UiText.SummaryNetworkTitle}" />
-          <TextBlock Classes="muted" FontSize="12" TextWrapping="Wrap" Text="{x:Static t:UiText.SummaryNetworkSelectHint}" />
-        </StackPanel>
+        <ScrollViewer Classes="autohide" Name="OverviewScroller" HorizontalScrollBarVisibility="Disabled" IsVisible="{Binding !HasSelection}">
+          <StackPanel Spacing="8" Margin="0,0,6,0">
+            <TextBlock FontWeight="SemiBold" FontSize="18" Text="{x:Static t:UiText.SummaryNetworkTitle}" />
+            <TextBlock Classes="muted" FontSize="12" TextWrapping="Wrap" Text="{x:Static t:UiText.SummaryNetworkSelectHint}" />
+            <!-- Pending link suggestions (§10.3.4) while nothing is selected: 接受, 忽略, the note, 全部忽略. -->
+            <StackPanel Name="SuggestionsSection" Spacing="6" Margin="0,4,0,0" IsVisible="{Binding ShowsSuggestionsInDetails}">
+              <Rectangle Height="1" Fill="{DynamicResource DividerBrush}" Margin="0,0,0,6" />
+              <TextBlock FontWeight="SemiBold" Text="{x:Static t:UiText.LinkSuggestionsHeading}" />
+              <TextBlock Classes="muted" FontSize="12" TextWrapping="Wrap" Text="{x:Static t:UiText.LinkSuggestionsHint}" />
+              <v:LinkSuggestionsView Name="DetailSuggestions" DataContext="{Binding Suggestions}" />
+            </StackPanel>
+          </StackPanel>
+        </ScrollViewer>
         <!-- "关联到…" from the keyboard: the searchable list takes the details' place until picked or closed. -->
         <v:SummaryLinkPickerView Name="LinkPicker" DataContext="{Binding Links}" IsVisible="{Binding $parent[v:SummaryNetworkHomeView].((vm:SummaryNetworkHomeViewModel)DataContext).ShowsLinkPicker, FallbackValue=False}" />
         <ScrollViewer Classes="autohide" Name="DetailScroller" HorizontalScrollBarVisibility="Disabled" IsVisible="{Binding ShowsDetail}">
@@ -248,6 +293,12 @@
           <Line StartPoint="0,0" EndPoint="20,0" Stroke="{DynamicResource SummaryNetworkLink}" StrokeThickness="1.8" StrokeLineCap="Round" VerticalAlignment="Center" Margin="0,0,6,0" />
           <TextBlock Text="{x:Static t:UiText.LegendLink}" />
         </StackPanel>
+        <!-- Link suggestions (§10.3.4): the same light dash-dot line as drawn, with words. -->
+        <StackPanel Name="SuggestionLegend" Orientation="Horizontal" IsVisible="{Binding ShowsSuggestionLegend}">
+          <Line StartPoint="0,0" EndPoint="22,0" Stroke="{DynamicResource SummaryNetworkLinkSuggestion}" StrokeThickness="1.5" StrokeDashArray="3.6,1.6,0.8,1.6"
+                VerticalAlignment="Center" Margin="0,0,6,0" />
+          <TextBlock Text="{x:Static t:UiText.LegendLinkSuggestion}" />
+        </StackPanel>
         <!-- Recommended nodes (§10.3.2): the same dashed ring and dotted line as drawn, with words. -->
         <StackPanel Name="RecommendationLegend" Orientation="Horizontal" IsVisible="{Binding ShowsRecommendationLegend}">
           <Ellipse Width="11" Height="11" Fill="{DynamicResource SummaryNetworkRecommendationFill}" Stroke="{DynamicResource SummaryNetworkRecommendation}" StrokeThickness="1.4"
@@ -330,6 +381,12 @@
                 </DataTemplate>
               </ItemsControl.ItemTemplate>
             </ItemsControl>
+          </StackPanel>
+
+          <!-- The pending link suggestions for the keyboard and screen readers (D-018), the same rows as in the details. -->
+          <StackPanel Name="LinkSuggestionsList" Spacing="6" Margin="5,10,0,0" MaxWidth="560" HorizontalAlignment="Left" IsVisible="{Binding ShowsSuggestionsInList}">
+            <TextBlock Classes="muted" FontSize="12" Text="{x:Static t:UiText.LinkSuggestionsHeading}" />
+            <v:LinkSuggestionsView Name="ListSuggestions" DataContext="{Binding Suggestions}" />
           </StackPanel>
         </StackPanel>
       </ScrollViewer>

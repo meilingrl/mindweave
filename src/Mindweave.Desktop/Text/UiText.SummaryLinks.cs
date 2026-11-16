@@ -87,14 +87,19 @@ public static partial class UiText
 
     public static string OpenLinkedName(string other) => $"打开“{other}”";
 
-    /// <summary>A link as listed: "关联：<other>，说明：<note>".</summary>
-    public static string LinkItemName(string other, string? note) => note is null ? $"关联：{other}" : $"关联：{other}，说明：{note}";
+    /// <summary>A link as listed: "关联：<other>，说明：<note>", and "，AI 建议，经你确认" for an accepted suggestion (§10.3.4).</summary>
+    public static string LinkItemName(string other, string? note, bool confirmed = false) =>
+        (note is null ? $"关联：{other}" : $"关联：{other}，说明：{note}") + (confirmed ? $"，{LinkConfirmedMarker}" : string.Empty);
 
-    /// <summary>The list view's line under a summary that has links.</summary>
-    public static string LinksLine(IReadOnlyList<(string Other, string? Note)> links)
+    /// <summary>The list view's line under a summary that has links; an accepted suggestion says so in words.</summary>
+    public static string LinksLine(IReadOnlyList<(string Other, string? Note, bool Confirmed)> links)
     {
         ArgumentNullException.ThrowIfNull(links);
-        return "关联：" + string.Join("、", links.Select(l => l.Note is null ? l.Other : $"{l.Other}（{l.Note}）"));
+        return "关联：" + string.Join("、", links.Select(l =>
+        {
+            var said = string.Join("；", new[] { l.Note, l.Confirmed ? LinkConfirmedMarker : null }.Where(s => s is not null));
+            return said.Length == 0 ? l.Other : $"{l.Other}（{said}）";
+        }));
     }
 
     public static string SummaryLinkRefused(SummaryLinkRefusal reason) => reason switch

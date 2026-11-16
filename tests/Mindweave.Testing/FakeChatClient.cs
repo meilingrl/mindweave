@@ -26,6 +26,7 @@ public sealed class FakeChatClient : IChatClient
         WorkspaceNames = new RequestScript("workspace names", _ => DefaultWorkspaceNames);
         Recommendations = new RequestScript("recommendations", _ => DefaultRecommendations);
         NodeRecommendations = new RequestScript("node recommendations", _ => DefaultNodeRecommendations);
+        LinkSuggestions = new RequestScript("link suggestions", r => LinkSuggestionAnswer?.Invoke(r) ?? DefaultLinkSuggestions);
     }
 
     public ConcurrentQueue<ChatRequest> Requests { get; } = new();
@@ -67,6 +68,47 @@ public sealed class FakeChatClient : IChatClient
         "{\"question\":\"铁路信号灯是怎样发展起来的？\",\"reason\":\"相邻但还没问过\",\"basis\":\"S2\"}," +
         "{\"question\":\"世界上最长的铁路隧道在哪里？\",\"reason\":\"换个角度看铁路\",\"basis\":\"S3\"}]";
 
+    /// <summary>Suggested links between summaries (requirements §10.3.4); the default is <see cref="DefaultLinkSuggestions"/>.</summary>
+    public RequestScript LinkSuggestions { get; }
+
+    /// <summary>Two pairs of the first three summaries listed: S1–S2 "对比" and S2–S3 "原因", each with a reason.</summary>
+    public const string DefaultLinkSuggestions =
+        "[{\"a\":\"S1\",\"b\":\"S2\",\"note\":\"对比\",\"reason\":\"两者讲的是同一时期的不同技术路线\"}," +
+        "{\"a\":\"S2\",\"b\":\"S3\",\"note\":\"原因\",\"reason\":\"后者解释了前者为什么出现\"}]";
+
+    /// <summary>
+    /// The reply to a link-suggestion request when no scripted one is queued; null for <see cref="DefaultLinkSuggestions"/>.
+    /// <see cref="PairsByName"/> answers with pairs of summaries named as they are listed in the request.
+    /// </summary>
+    public Func<ChatRequest, string>? LinkSuggestionAnswer { get; set; }
+
+    /// <summary>
+    /// A link-suggestion answer naming summaries by their shown names: each name is replaced by the label ("S2") the request
+    /// lists it under (an unlisted name is sent as it is, so the answer refers to nothing).
+    /// </summary>
+    public static string PairsByName(ChatRequest request, params (string A, string B, string? Note, string? Reason)[] pairs)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+        ArgumentNullException.ThrowIfNull(pairs);
+        var labels = new Dictionary<string, string>(StringComparer.Ordinal);
+        foreach (var line in request.Turns[^1].Content.Split('\n'))
+        {
+            var match = System.Text.RegularExpressions.Regex.Match(line, @"^\[(S\d+)\] ([^：]+)");
+            if (match.Success)
+            {
+                labels.TryAdd(match.Groups[2].Value.Trim(), match.Groups[1].Value);
+            }
+        }
+
+        string Label(string name) => labels.GetValueOrDefault(name, name);
+        return System.Text.Json.JsonSerializer.Serialize(pairs.Select(p => new Dictionary<string, string?> { ["a"] = Label(p.A), ["b"] = Label(p.B), ["note"] = p.Note, ["reason"] = p.Reason }), PairJson);
+    }
+
+    private static readonly System.Text.Json.JsonSerializerOptions PairJson = new() { Encoder = System.Text.Encodings.Web.JavaScriptEncoder.UnsafeRelaxedJsonEscaping };
+
+    /// <summary>A request for link suggestions.</summary>
+    public static bool IsLinkSuggestion(ChatRequest request) => SystemSays(request, "可能相关的总结对");
+
     /// <summary>A request for recommended nodes (its prompt requires a basis for each).</summary>
     public static bool IsNodeRecommendation(ChatRequest request) => IsRecommendation(request) && SystemSays(request, "必须延伸自");
 
@@ -90,7 +132,7 @@ public sealed class FakeChatClient : IChatClient
     public static bool IsNaming(ChatRequest request) => SystemSays(request, "区分词");
 
     public static bool IsAnswer(ChatRequest request) =>
-        !IsTitle(request) && !IsSummary(request) && !IsKnowledgeSummary(request) && !IsNaming(request) && !IsWorkspaceNaming(request) && !IsRecommendation(request);
+        !IsTitle(request) && !IsSummary(request) && !IsKnowledgeSummary(request) && !IsNaming(request) && !IsWorkspaceNaming(request) && !IsRecommendation(request) && !IsLinkSuggestion(request);
 
     public const string DefaultSummaryTitle = "蒸汽机车";
 
@@ -263,6 +305,7 @@ public sealed class FakeChatClient : IChatClient
         : IsWorkspaceNaming(request) ? WorkspaceNames
         : IsNodeRecommendation(request) ? NodeRecommendations
         : IsRecommendation(request) ? Recommendations
+        : IsLinkSuggestion(request) ? LinkSuggestions
         : null;
 
     /// <summary>What listing the models returns.</summary>

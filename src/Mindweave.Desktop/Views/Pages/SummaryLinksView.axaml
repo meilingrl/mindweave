@@ -61,6 +61,9 @@
                   </Border>
                 </WrapPanel>
               </DockPanel>
+              <!-- Suggested by AI and accepted (requirements §10.3.4): said in words under the row, never by colour alone. -->
+              <TextBlock Name="LinkConfirmedMarker" Classes="muted" FontSize="11" Margin="22,0,0,0" TextWrapping="Wrap"
+                         Text="{x:Static t:UiText.LinkConfirmedMarker}" IsVisible="{Binding IsConfirmed}" />
 
               <!-- The note editor: optional; 跳过 right after linking, 取消 when changing it. -->
               <StackPanel Name="LinkNoteEditor" Spacing="4" Margin="22,0,0,0" IsVisible="{Binding IsEditing}">

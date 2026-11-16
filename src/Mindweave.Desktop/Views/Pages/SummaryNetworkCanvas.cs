@@ -104,6 +104,9 @@ public sealed class SummaryNetworkCanvas : Control
     /// <summary>The recommended node under the pointer, if any (its ring and line drawn stronger).</summary>
     internal RecommendationId? HoveredRecommendation { get; private set; }
 
+    /// <summary>The link suggestion whose words are under the pointer, if any (its line drawn stronger).</summary>
+    internal Mindweave.Application.SummaryLinks.LinkSuggestionId? HoveredSuggestion { get; private set; }
+
     /// <summary>Where the pointer is for hover and the pull; null when it is off the canvas.</summary>
     internal Point? Pointer => _pointer;
 
@@ -130,6 +133,7 @@ public sealed class SummaryNetworkCanvas : Control
 
         Hovered = null;
         HoveredRecommendation = null;
+        HoveredSuggestion = null;
         _pressed = null;
         Dragging = null;
         _offsets.Clear();
@@ -356,6 +360,58 @@ public sealed class SummaryNetworkCanvas : Control
         })];
     }
 
+    /// <summary>Where along a suggestion's line its words may go, the middle first: away from a summary, a link's note or another suggestion's words.</summary>
+    private static readonly double[] SuggestionLabelStops = [0.5, 0.4, 0.6, 0.32, 0.68, 0.25, 0.75];
+
+    /// <summary>
+    /// Each pending link suggestion between the two summaries as drawn (following a drag and the pull), with "建议" and its
+    /// note on the line, at the middle unless a summary, a link's note or another suggestion's words are there (requirements §10.3.4:
+    /// never colour or line style alone). The words hide with the other labels when zoomed far out, unless an end is selected
+    /// or hovered or the suggestion is highlighted.
+    /// </summary>
+    internal IReadOnlyList<SuggestionPaint> PaintSuggestions()
+    {
+        if (_page is null || _page.SuggestionEdges.Count == 0)
+        {
+            return [];
+        }
+
+        var palette = _palette ??= SummaryNetworkPalette.From(this);
+        var zoom = Current.Zoom;
+        var selected = _page.Session.Selected;
+        var highlighted = _page.HighlightedSuggestion;
+        // A summary lying on the line (its ring and its name) is never covered: the words would hide it and take its clicks.
+        var taken = PaintLinks().Where(l => l.Note is not null).Select(l => l.NoteBounds)
+            .Concat(_page.Nodes.Select(n => SummaryNetworkGeometry.HitBox(ScreenOf(n) + _offsets.GetValueOrDefault(n.Id), n, zoom, IsLabelVisible(n, zoom))))
+            .ToList();
+        return [.. _page.SuggestionEdges.Select(edge =>
+        {
+            var (ax, ay) = PositionOf(edge.A, edge.AX, edge.AY);
+            var (bx, by) = PositionOf(edge.B, edge.BX, edge.BY);
+            var from = ToScreen(ax, ay) + _offsets.GetValueOrDefault(edge.A);
+            var to = ToScreen(bx, by) + _offsets.GetValueOrDefault(edge.B);
+            var active = edge.Id == highlighted || edge.Id == HoveredSuggestion || edge.A == selected || edge.B == selected || edge.A == Hovered || edge.B == Hovered;
+            FormattedText? text = null;
+            string? label = null;
+            var bounds = default(Rect);
+            if (zoom > LabelHideScale || active)
+            {
+                label = edge.Label;
+                text = Text(label, active ? EdgeLabelEmphasizedSize : EdgeLabelSize, palette.Link, active ? FontWeight.SemiBold : FontWeight.Normal);
+                var size = new Size(text.Width + 8, text.Height + 2);
+                Rect At(double t) => new(from.X + ((to.X - from.X) * t) - (size.Width / 2), from.Y + ((to.Y - from.Y) * t) - (size.Height / 2), size.Width, size.Height);
+                bounds = SuggestionLabelStops.Select(At).FirstOrDefault(r => !taken.Any(o => o.Intersects(r)), At(0.5));
+                taken.Add(bounds);
+            }
+
+            return new SuggestionPaint(edge, from, to, active) { Text = text, Label = label, LabelBounds = bounds };
+        })];
+    }
+
+    /// <summary>The suggestion whose words are under a control point (drawn last, so above summaries and their labels).</summary>
+    internal SuggestionEdgeView? HitTestSuggestion(Point screen) =>
+        PaintSuggestions().LastOrDefault(s => s.Text is not null && s.LabelBounds.Inflate(2).Contains(screen))?.Suggestion;
+
     /// <summary>Each exploration's caption, just above the topmost of its nodes and starting at the leftmost one.</summary>
     internal IReadOnlyList<CaptionPaint> PaintCaptions()
     {
@@ -401,6 +457,7 @@ public sealed class SummaryNetworkCanvas : Control
         var nodes = PaintNodes().OrderBy(n => n.Lifted).ToList();
         var recommended = PaintRecommendations();
         var links = PaintLinks();
+        var suggestions = PaintSuggestions();
         foreach (var edge in edges.Where(e => !e.Highlighted))
         {
             DrawEdge(context, palette, edge);
@@ -410,6 +467,12 @@ public sealed class SummaryNetworkCanvas : Control
         foreach (var link in links)
         {
             context.DrawLine(palette.LinkPen(link.Active), link.From, link.To);
+        }
+
+        // Pending link suggestions: light and dash-dotted beside the links; their words come last with the notes.
+        foreach (var suggestion in suggestions)
+        {
+            context.DrawLine(palette.LinkSuggestionPen(suggestion.Active), suggestion.From, suggestion.To);
         }
 
         // Recommended nodes: their dotted lines rest with the edges, their rings below the summaries (never covering one).
@@ -461,6 +524,14 @@ public sealed class SummaryNetworkCanvas : Control
             context.DrawRectangle(palette.Background, null, link.NoteBounds, 4, 4);
             context.DrawRectangle(palette.LinkFill, palette.LinkNoteFrame, link.NoteBounds, 4, 4);
             context.DrawText(link.Note!, link.NoteBounds.TopLeft + new Vector(4, 1));
+        }
+
+        foreach (var suggestion in suggestions.Where(s => s.Text is not null))
+        {
+            // "建议 · note" in a dashed frame (a link's note has a solid one), so the two never read alike.
+            context.DrawRectangle(palette.Background, null, suggestion.LabelBounds, 4, 4);
+            context.DrawRectangle(palette.LinkFill, palette.LinkSuggestionFrame, suggestion.LabelBounds, 4, 4);
+            context.DrawText(suggestion.Text!, suggestion.LabelBounds.TopLeft + new Vector(4, 1));
         }
     }
 
@@ -626,6 +697,14 @@ public sealed class SummaryNetworkCanvas : Control
                 e.Handled = true;
                 return;
             }
+        }
+
+        if (_page is { IsPicking: false } && HitTest(point) is null && HitTestSuggestion(point) is { } suggestion)
+        {
+            // The suggestion's words (a summary under them wins): its row in the details stands out with 接受 and 忽略.
+            _page.SelectSuggestion(suggestion.Id);
+            e.Handled = true;
+            return;
         }
 
         if (HitTest(point) is { } node)
@@ -845,15 +924,17 @@ public sealed class SummaryNetworkCanvas : Control
     {
         _pointer = point;
         var hovered = point is { } p ? HitTest(p)?.Id : null;
-        var recommended = hovered is null && Dragging is null && point is { } q ? HitTestRecommendation(q)?.Id : null;
-        if (hovered != Hovered || recommended != HoveredRecommendation)
+        var suggestion = hovered is null && Dragging is null && _page is { IsPicking: false } && point is { } s ? HitTestSuggestion(s)?.Id : null;
+        var recommended = hovered is null && suggestion is null && Dragging is null && point is { } q ? HitTestRecommendation(q)?.Id : null;
+        if (hovered != Hovered || recommended != HoveredRecommendation || suggestion != HoveredSuggestion)
         {
             Hovered = hovered;
             HoveredRecommendation = recommended;
+            HoveredSuggestion = suggestion;
             InvalidateVisual();
         }
 
-        Cursor = Dragging is not null ? GrabCursor : hovered is null && recommended is null ? Cursor.Default : HandCursor;
+        Cursor = Dragging is not null ? GrabCursor : hovered is null && recommended is null && suggestion is null ? Cursor.Default : HandCursor;
 
         if (!_motion.IsEnabled)
         {

@@ -1,6 +1,5 @@
 using System.Globalization;
 using System.Text;
-using System.Text.Json;
 using System.Text.RegularExpressions;
 using Mindweave.Application.Ai;
 using Mindweave.Application.Storage;
@@ -267,112 +266,31 @@ public static partial class RecommendationPrompt
         return length < MinQuestionLength || length > MaxQuestionLength ? null : question;
     }
 
-    private static List<(string? Question, string? Reason, string? Basis)>? FromJson(string output)
+    /// <summary>A field name the answer is asked for (or a near variant) as the item field it fills; null for any other.</summary>
+    private static string? Canonical(string name) => name.ToUpperInvariant() switch
     {
-        var start = output.IndexOf('[', StringComparison.Ordinal);
-        var end = output.LastIndexOf(']');
-        if (start < 0 || end <= start)
-        {
-            return null;
-        }
+        "QUESTION" or "Q" or "问题" => "question",
+        "REASON" or "理由" => "reason",
+        "BASIS" or "依据" or "SOURCE" => "basis",
+        _ => null,
+    };
 
-        try
-        {
-            using var json = JsonDocument.Parse(output[start..(end + 1)], new JsonDocumentOptions { AllowTrailingCommas = true, CommentHandling = JsonCommentHandling.Skip });
-            if (json.RootElement.ValueKind != JsonValueKind.Array)
-            {
-                return null;
-            }
-
-            var list = new List<(string?, string?, string?)>();
-            foreach (var item in json.RootElement.EnumerateArray())
-            {
-                switch (item.ValueKind)
-                {
-                    case JsonValueKind.String:
-                        list.Add((item.GetString(), null, null));
-                        break;
-                    case JsonValueKind.Object:
-                        list.Add((Field(item, "question", "q", "问题"), Field(item, "reason", "理由"), Field(item, "basis", "依据", "source")));
-                        break;
-                }
-            }
-
-            return list;
-        }
-        catch (JsonException)
-        {
-            return null;
-        }
-    }
-
-    private static string? Field(JsonElement item, params string[] names)
-    {
-        foreach (var property in item.EnumerateObject())
-        {
-            if (names.Contains(property.Name, StringComparer.OrdinalIgnoreCase))
-            {
-                return property.Value.ValueKind switch
-                {
-                    JsonValueKind.String => property.Value.GetString(),
-                    JsonValueKind.Number => "S" + property.Value.GetRawText(),
-                    _ => null,
-                };
-            }
-        }
-
-        return null;
-    }
+    private static List<(string? Question, string? Reason, string? Basis)>? FromJson(string output) =>
+        LooseJson.FromArray(output, Canonical)?.Select(Item).ToList();
 
     /// <summary>
     /// JSON that does not parse (review 2026-11-13: most often ASCII quotes left unescaped inside a Chinese question) is
-    /// read by its fields: in each object, a known key's value runs up to the next known key or the object's end, its
-    /// enclosing quotes and trailing comma removed. Null when the output has no such field.
+    /// read by its fields (<see cref="LooseJson.FromFields"/>); an object without a question is left out.
     /// </summary>
-    private static List<(string? Question, string? Reason, string? Basis)>? FromJsonFields(string output)
+    private static List<(string? Question, string? Reason, string? Basis)>? FromJsonFields(string output) =>
+        LooseJson.FromFields(output, JsonKey(), Canonical)?.Where(f => f.ContainsKey("question")).Select(Item).ToList();
+
+    /// <summary>One object's fields: a bare string is a question; a basis given as a number is that label ("2" is S2).</summary>
+    private static (string? Question, string? Reason, string? Basis) Item(Dictionary<string, string?> fields)
     {
-        if (!JsonKey().IsMatch(output))
-        {
-            return null;
-        }
-
-        var list = new List<(string?, string?, string?)>();
-        foreach (Match block in JsonObject().Matches(output))
-        {
-            var body = block.Groups[1].Value;
-            var keys = JsonKey().Matches(body);
-            string? question = null, reason = null, basis = null;
-            for (var i = 0; i < keys.Count; i++)
-            {
-                var start = keys[i].Index + keys[i].Length;
-                var end = i + 1 < keys.Count ? keys[i + 1].Index : body.Length;
-                var value = body[start..end].Trim().TrimEnd(',').Trim();
-                if (value.Length >= 2 && value[0] == '"' && value[^1] == '"')
-                {
-                    value = value[1..^1];
-                }
-
-                switch (keys[i].Groups[1].Value.ToUpperInvariant())
-                {
-                    case "QUESTION" or "Q" or "问题":
-                        question ??= value;
-                        break;
-                    case "REASON" or "理由":
-                        reason ??= value;
-                        break;
-                    default:
-                        basis ??= value.Length > 0 && value.All(char.IsAsciiDigit) ? "S" + value : value;
-                        break;
-                }
-            }
-
-            if (question is not null)
-            {
-                list.Add((question, reason, basis));
-            }
-        }
-
-        return list;
+        var basis = fields.GetValueOrDefault("basis");
+        return (fields.GetValueOrDefault("question") ?? fields.GetValueOrDefault(LooseJson.BareString), fields.GetValueOrDefault("reason"),
+            basis is { Length: > 0 } && basis.All(char.IsAsciiDigit) ? "S" + basis : basis);
     }
 
     private static IEnumerable<(string? Question, string? Reason, string? Basis)> FromLines(string output)
@@ -413,10 +331,6 @@ public static partial class RecommendationPrompt
     /// <summary>A JSON field name the answer is asked for (or a near variant), quoted, with its colon.</summary>
     [GeneratedRegex("\"(question|q|问题|reason|理由|basis|依据|source)\"\\s*:\\s*", RegexOptions.IgnoreCase)]
     private static partial Regex JsonKey();
-
-    /// <summary>One JSON object's body; the last one may lack its closing brace (cut-off output).</summary>
-    [GeneratedRegex(@"\{([^{}]*)(?:\}|$)")]
-    private static partial Regex JsonObject();
 
     /// <summary>"S2", "延伸自：S2", "[S2]" as a basis label.</summary>
     [GeneratedRegex(@"^\s*(?:延伸自|依据|basis)?\s*[:：]?\s*\[?\s*[Ss]\s*(\d{1,2})\s*\]?\s*$")]

@@ -87,8 +87,11 @@ public sealed record RequestAttribution(Core.Workspaces.WorkspaceId Workspace, s
     /// <summary>Recommended nodes for the summary network (requirements §10.3.2).</summary>
     public const string RecommendNodes = "recommend-nodes";
 
+    /// <summary>Suggested links between summaries (requirements §10.3.4), asked for only with 建议关联.</summary>
+    public const string SuggestLinks = "suggest-links";
+
     /// <summary>Every kind a request without a task may be recorded for; storage refuses any other.</summary>
-    public static IReadOnlySet<string> Known { get; } = new HashSet<string>(StringComparer.Ordinal) { WorkspaceNames, RecommendQuestions, RecommendNodes };
+    public static IReadOnlySet<string> Known { get; } = new HashSet<string>(StringComparer.Ordinal) { WorkspaceNames, RecommendQuestions, RecommendNodes, SuggestLinks };
 }
 
 /// <summary>

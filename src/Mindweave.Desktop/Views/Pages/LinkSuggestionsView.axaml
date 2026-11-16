@@ -1,0 +1,138 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:Mindweave.Desktop.ViewModels.Pages"
+             xmlns:t="using:Mindweave.Desktop.Text"
+             xmlns:views="using:Mindweave.Desktop.Views"
+             x:Class="Mindweave.Desktop.Views.Pages.LinkSuggestionsView"
+             x:DataType="vm:LinkSuggestionsPanel">
+  <!-- The workspace's pending link suggestions (requirements §10.3.4), shared by the network's details and its list view:
+       each with both summaries (each a way to it), the note (editable before accepting, at most 16 characters, said while
+       typing), the reason, 接受 and 忽略; then 全部忽略 after one confirmation. Every control is reachable by Tab. -->
+  <UserControl.Styles>
+    <Style Selector="Button.link-icon">
+      <Setter Property="Padding" Value="5" />
+      <Setter Property="MinWidth" Value="0" />
+      <Setter Property="VerticalAlignment" Value="Center" />
+    </Style>
+    <Style Selector="Button.link-icon PathIcon">
+      <Setter Property="Width" Value="12" />
+      <Setter Property="Height" Value="12" />
+      <Setter Property="Foreground" Value="{DynamicResource MutedText}" />
+    </Style>
+    <Style Selector="Button.suggested-name">
+      <Setter Property="HorizontalAlignment" Value="Left" />
+      <Setter Property="HorizontalContentAlignment" Value="Left" />
+    </Style>
+    <!-- A row stands out (its line was clicked on the network) by a frame in the suggestion tone, not by colour of text. -->
+    <Style Selector="Border.suggestion">
+      <Setter Property="BorderThickness" Value="1" />
+      <Setter Property="BorderBrush" Value="{DynamicResource DividerBrush}" />
+      <Setter Property="CornerRadius" Value="6" />
+      <Setter Property="Padding" Value="8,6,8,8" />
+    </Style>
+    <Style Selector="Border.suggestion.highlighted">
+      <Setter Property="BorderBrush" Value="{DynamicResource SummaryNetworkLinkSuggestion}" />
+      <Setter Property="BorderThickness" Value="1.5" />
+      <Setter Property="Background" Value="{DynamicResource SummaryNetworkLinkFill}" />
+    </Style>
+    <Style Selector="Border.suggestion-tag">
+      <Setter Property="CornerRadius" Value="4" />
+      <Setter Property="Padding" Value="5,0,5,1" />
+      <Setter Property="BorderThickness" Value="1" />
+      <Setter Property="BorderBrush" Value="{DynamicResource SummaryNetworkLinkSuggestion}" />
+      <Setter Property="Background" Value="{DynamicResource SummaryNetworkLinkFill}" />
+      <Setter Property="VerticalAlignment" Value="Center" />
+    </Style>
+    <Style Selector="Border.suggestion-tag > TextBlock">
+      <Setter Property="FontSize" Value="11" />
+      <Setter Property="Foreground" Value="{DynamicResource SummaryNetworkLink}" />
+      <Setter Property="FontWeight" Value="SemiBold" />
+    </Style>
+  </UserControl.Styles>
+  <StackPanel Spacing="6">
+    <ItemsControl Name="SuggestionList" ItemsSource="{Binding Items}">
+      <ItemsControl.ItemsPanel>
+        <ItemsPanelTemplate>
+          <StackPanel Spacing="6" />
+        </ItemsPanelTemplate>
+      </ItemsControl.ItemsPanel>
+      <ItemsControl.ItemTemplate>
+        <DataTemplate x:DataType="vm:LinkSuggestionItem">
+          <Border Name="SuggestionRow" Classes="suggestion" Classes.highlighted="{Binding IsHighlighted}" AutomationProperties.Name="{Binding AutomationName}">
+            <StackPanel Spacing="4">
+              <!-- Both summaries, each a way to it on the network: the tag in words, then one name per line. -->
+              <Grid ColumnDefinitions="Auto,*" RowDefinitions="Auto,Auto">
+                <Border Classes="suggestion-tag" Margin="0,0,6,0">
+                  <TextBlock Text="{x:Static t:UiText.LinkSuggestionTag}" />
+                </Border>
+                <Button Grid.Column="1" Name="SuggestedNameA" Classes="list-name suggested-name" Command="{Binding JumpACommand}"
+                        ToolTip.Tip="{Binding JumpAName}" AutomationProperties.Name="{Binding JumpAName}">
+                  <TextBlock Text="{Binding NameA}" TextWrapping="Wrap" />
+                </Button>
+                <TextBlock Grid.Row="1" Classes="muted" Text="↔" HorizontalAlignment="Center" VerticalAlignment="Center" Margin="0,0,6,0" />
+                <Button Grid.Row="1" Grid.Column="1" Name="SuggestedNameB" Classes="list-name suggested-name" Command="{Binding JumpBCommand}"
+                        ToolTip.Tip="{Binding JumpBName}" AutomationProperties.Name="{Binding JumpBName}">
+                  <TextBlock Text="{Binding NameB}" TextWrapping="Wrap" />
+                </Button>
+              </Grid>
+              <!-- The note as it would be accepted, with 改说明; the editor in its place while open. -->
+              <DockPanel IsVisible="{Binding !IsEditing}">
+                <Button DockPanel.Dock="Right" Name="EditSuggestedNoteButton" Classes="quiet link-icon" Command="{Binding BeginEditCommand}"
+                        ToolTip.Tip="{x:Static t:UiText.EditLinkNote}" AutomationProperties.Name="{Binding EditName}">
+                  <PathIcon Data="{StaticResource IconRename}" />
+                </Button>
+                <WrapPanel VerticalAlignment="Center">
+                  <TextBlock Classes="muted" FontSize="12" Text="{x:Static t:UiText.SuggestedNoteLabel}" VerticalAlignment="Center" />
+                  <Border Name="SuggestedNote" Classes="badge link" IsVisible="{Binding HasNote}">
+                    <TextBlock Text="{Binding Note}" />
+                  </Border>
+                  <TextBlock Classes="muted" FontSize="12" Text="{x:Static t:UiText.SuggestedNoteNone}" VerticalAlignment="Center" IsVisible="{Binding !HasNote}" />
+                </WrapPanel>
+              </DockPanel>
+              <StackPanel Name="SuggestedNoteEditor" Spacing="4" IsVisible="{Binding IsEditing}">
+                <TextBox Name="SuggestedNoteBox" Text="{Binding EditText}" PlaceholderText="{x:Static t:UiText.LinkNoteWatermark}"
+                         AutomationProperties.Name="{Binding EditorName}" views:FocusRequest.When="{Binding IsEditing}">
+                  <TextBox.KeyBindings>
+                    <KeyBinding Gesture="Enter" Command="{Binding SaveEditCommand}" />
+                    <KeyBinding Gesture="Escape" Command="{Binding CancelEditCommand}" />
+                  </TextBox.KeyBindings>
+                </TextBox>
+                <DockPanel>
+                  <TextBlock DockPanel.Dock="Right" Name="SuggestedNoteCount" Classes="muted" Classes.warning="{Binding HasEditError}" FontSize="11"
+                             VerticalAlignment="Top" Margin="6,0,0,0" Text="{Binding EditCount}" />
+                  <TextBlock Name="SuggestedNoteError" Classes="warning" FontSize="12" TextWrapping="Wrap" Text="{Binding EditError}"
+                             IsVisible="{Binding HasEditError}" />
+                </DockPanel>
+                <StackPanel Orientation="Horizontal" Spacing="6">
+                  <Button Name="SaveSuggestedNoteButton" Classes="quiet" Content="{x:Static t:UiText.SuggestedNoteDone}" Command="{Binding SaveEditCommand}" />
+                  <Button Name="CancelSuggestedNoteButton" Classes="quiet" Content="{x:Static t:UiText.Cancel}" Command="{Binding CancelEditCommand}" />
+                </StackPanel>
+              </StackPanel>
+              <TextBlock Name="SuggestionReason" FontSize="12" TextWrapping="Wrap" Text="{Binding Reason}" IsVisible="{Binding HasReason}" />
+              <StackPanel Orientation="Horizontal" Spacing="6" Margin="0,2,0,0">
+                <Button Name="AcceptSuggestionButton" Classes="secondary" Content="{x:Static t:UiText.AcceptLinkSuggestion}" Command="{Binding AcceptCommand}"
+                        AutomationProperties.Name="{Binding AcceptName}" views:FocusRequest.When="{Binding IsHighlighted}" />
+                <Button Name="IgnoreSuggestionButton" Classes="quiet" Content="{x:Static t:UiText.IgnoreLinkSuggestion}" Command="{Binding IgnoreCommand}"
+                        AutomationProperties.Name="{Binding IgnoreName}" />
+              </StackPanel>
+            </StackPanel>
+          </Border>
+        </DataTemplate>
+      </ItemsControl.ItemTemplate>
+    </ItemsControl>
+    <TextBlock Name="SuggestionsNotice" Classes="muted" FontSize="12" TextWrapping="Wrap" Text="{Binding Notice}" IsVisible="{Binding HasNotice}" />
+    <!-- 全部忽略: one confirmation, then every pending one is remembered as ignored. -->
+    <Button Name="IgnoreAllSuggestionsButton" Classes="quiet" HorizontalAlignment="Left" Content="{x:Static t:UiText.IgnoreAllLinkSuggestions}"
+            Command="{Binding AskIgnoreAllCommand}" IsVisible="{Binding HasItems}" />
+    <Border Name="IgnoreAllConfirmation" Classes="notice warning" IsVisible="{Binding IsConfirmingIgnoreAll}">
+      <StackPanel Spacing="6">
+        <TextBlock Text="{Binding IgnoreAllConfirmText}" TextWrapping="Wrap" FontSize="12" />
+        <StackPanel Orientation="Horizontal" Spacing="6">
+          <Button Name="ConfirmIgnoreAllButton" Classes="secondary" Content="{x:Static t:UiText.IgnoreAllLinkSuggestions}" Command="{Binding ConfirmIgnoreAllCommand}"
+                  views:FocusRequest.When="{Binding IsConfirmingIgnoreAll}" />
+          <Button Name="CancelIgnoreAllButton" Classes="quiet" Content="{x:Static t:UiText.Cancel}" Command="{Binding CancelIgnoreAllCommand}" />
+        </StackPanel>
+      </StackPanel>
+    </Border>
+  </StackPanel>
+</UserControl>

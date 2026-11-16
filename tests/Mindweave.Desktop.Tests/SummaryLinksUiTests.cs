@@ -41,7 +41,10 @@ public class SummaryLinksUiTests
         var layoutRows = await LayoutRowsAsync(app);
         var revision = network.Session.Revision;
         Assert.Empty(network.LinkEdges);
-        Assert.False(Find<Button>(window, "ToggleLinksButton").IsEffectivelyVisible);
+        Assert.False(network.ShowsLinkTools);
+        LinksMenu.Open(window);
+        Assert.False(LinksMenu.Shows(window, "ToggleLinksMenuItem"));
+        LinksMenu.Close(window);
         Assert.False(Find<StackPanel>(window, "LinkLegend").IsEffectivelyVisible);
 
         await LinkAsync(app, network, NodeOf(network, Leaf), NodeOf(network, Sibling), "对比");
@@ -92,7 +95,9 @@ public class SummaryLinksUiTests
         window.UpdateLayout();
         Assert.True(Find<StackPanel>(window, "LinkLegend").IsEffectivelyVisible);
         Assert.Contains(Find<StackPanel>(window, "LinkLegend").GetVisualDescendants().OfType<TextBlock>(), t => t.Text == UiText.LegendLink);
-        Assert.Equal(UiText.HideLinks, AutomationProperties.GetName(Find<Button>(window, "ToggleLinksButton")));
+        LinksMenu.Open(window);
+        Assert.Equal(UiText.HideLinks, LinksMenu.Entry(window, "ToggleLinksMenuItem").Header);
+        LinksMenu.Close(window);
 
         // 整理布局 uses the exploration sources only: the same arrangement with or without the links; saving writes summaries only.
         network.ArrangeCommand.Execute(null);
@@ -435,7 +440,7 @@ public class SummaryLinksUiTests
         Assert.All(rowButtons, b => Assert.Equal(((SummaryListItem)b.DataContext!).Links, AutomationProperties.GetHelpText(b)));
         Assert.All(rowButtons, b => Assert.StartsWith("关联：", AutomationProperties.GetHelpText(b), StringComparison.Ordinal));
         // In the order they were made.
-        Assert.Contains(UiText.LinksLine([(network.Nodes.Single(n => n.Id == sibling).DisplayName, null), (network.Nodes.Single(n => n.Id == leaf).DisplayName, null)]), lines);
+        Assert.Contains(UiText.LinksLine([(network.Nodes.Single(n => n.Id == sibling).DisplayName, null, false), (network.Nodes.Single(n => n.Id == leaf).DisplayName, null, false)]), lines);
         Assert.Equal(3, lines.Count);
         window.Close();
     }
@@ -517,13 +522,14 @@ public class SummaryLinksUiTests
         await LinkAsync(app, network, NodeOf(network, Root), NodeOf(network, Leaf), "原因");
         window.UpdateLayout();
 
-        UiInput.Click(window, Find<Button>(window, "ToggleLinksButton"));
+        LinksMenu.Choose(window, "ToggleLinksMenuItem");
         await UiWait.UntilAsync(() => !network.ToggleLinksCommand.IsRunning);
         window.UpdateLayout();
         Assert.Empty(network.LinkEdges);
         Assert.Empty(CanvasOf(window).PaintLinks());
-        Assert.Equal(UiText.ShowLinks, Find<TextBlock>(window, "ToggleLinksText").Text);
-        Assert.Equal(UiText.ShowLinks, AutomationProperties.GetName(Find<Button>(window, "ToggleLinksButton")));
+        LinksMenu.Open(window);
+        Assert.Equal(UiText.ShowLinks, LinksMenu.Entry(window, "ToggleLinksMenuItem").Header);
+        LinksMenu.Close(window);
         Assert.False(Find<StackPanel>(window, "LinkLegend").IsEffectivelyVisible);
         Assert.Single(await app.Services.GetRequiredService<ISummaryLinks>().ListAsync(network.Workspace.Id, CancellationToken.None));
 
@@ -660,20 +666,7 @@ public class SummaryLinksUiTests
     /// The scenario's three summaries, every answer seen: the hints its answers popped up are gone, so none covers the
     /// details panel a test clicks in.
     /// </summary>
-    private static async Task SeedAsync(DesktopHarness app)
-    {
-        await SummaryNetworkScenario.SeedAsync(app);
-        var marks = app.Services.GetRequiredService<Application.Conversations.ConversationMarksService>();
-        var all = (await app.Services.GetRequiredService<Application.Conversations.ConversationService>().ListAsync(app.Workbench.CurrentWorkspace!.Id, CancellationToken.None))
-            .Select(c => c.Conversation.Id).ToList();
-        await UiWait.UntilAsync(() => all.All(marks.IsUnread));
-        foreach (var id in all)
-        {
-            marks.MarkSeen(id);
-        }
-
-        await UiWait.UntilAsync(() => app.ShellPage.WorkspaceNews!.Toasts.Count == 0);
-    }
+    private static Task SeedAsync(DesktopHarness app) => SummaryNetworkScenario.SeedSeenAsync(app);
 
     private static SummaryNodeId NodeOf(SummaryNetworkHomeViewModel network, string shortTitle) => network.Nodes.Single(n => n.ShortTitle == shortTitle).Id;
 
