@@ -23,7 +23,7 @@ internal sealed partial class ConversationTitler
     /// <summary>
     /// Output cap for a title request. Reasoning models count hidden reasoning against it: with 64 tokens,
     /// a real reasoning model spent the whole budget reasoning and returned no title (finish_reason "length";
-    /// see TRACK.md findings, 2026-10-26).
+    /// see the development findings, 2026-10-26).
     /// The title itself is still cut to <see cref="ConversationRules.MaxTitleLength"/>.
     /// </summary>
     private const int TitleOutputTokens = 1024;

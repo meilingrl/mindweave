@@ -15,7 +15,7 @@ public static class TokenEstimator
     /// <summary>
     /// Fixed overhead of a request (chat template, role markers). Measured against a real service's reported prompt tokens
     /// (2026-10-27): with 3 the smallest request was undercounted (56 estimated, 62 billed); larger requests were
-    /// overestimated by about 1.4–1.5× (TRACK.md findings).
+    /// overestimated by about 1.4–1.5× (development findings).
     /// </summary>
     public const int PerRequest = 16;
 

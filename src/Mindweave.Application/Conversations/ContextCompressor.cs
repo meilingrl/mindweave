@@ -42,7 +42,7 @@ public sealed partial class ContextCompressor(IContextSummaryStore summaries, IC
     /// <summary>
     /// Room for reasoning models, which spend part of the output limit before writing anything. With 4,096 a real
     /// reasoning model replaying the same summary request reasoned 718–4,096 tokens: 2 of 8 runs hit the limit, one
-    /// with no text and one cut off after 179 characters (TRACK.md findings, 2026-10-27).
+    /// with no text and one cut off after 179 characters (development findings, 2026-10-27).
     /// </summary>
     public const int SummaryOutputTokens = 16_384;
 

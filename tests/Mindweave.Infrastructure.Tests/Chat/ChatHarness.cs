@@ -193,7 +193,7 @@ internal sealed class ChatHarness : IAsyncDisposable
 
     /// <summary>
     /// Waits until the conversation's automatic title is stored and every started task's request record is written
-    /// (records follow their task's finish, TRACK.md findings), so later row counts are not racing background work.
+    /// (records follow their task's finish, development findings), so later row counts are not racing background work.
     /// </summary>
     public async Task SettleAsync(ConversationId conversation)
     {

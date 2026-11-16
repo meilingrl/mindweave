@@ -1,6 +1,6 @@
-# 激进轨详细设计
+# 详细设计
 
-本目录只属于 `track/claude-auto`，记录交接文档允许实现者自行细化的选择。产品行为以 `main` 上的[需求](../requirements.md)与[架构](../architecture.md)为准；这里与它们冲突时以它们为准，并在 [TRACK.md](../../TRACK.md) “待决定”中记录。
+本目录记录交接文档允许实现者自行细化的选择（2026-11-16 前写于 Claude 轨道，见 [AGENTS.md](../../AGENTS.md)“分支”）。产品行为以[需求](../requirements.md)与[架构](../architecture.md)为准；这里与它们冲突时以它们为准，并在 [STATUS.md](../../STATUS.md)“待决定”中记录。
 
 | 文档 | 内容 |
 | --- | --- |

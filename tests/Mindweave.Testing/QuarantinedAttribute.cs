@@ -5,7 +5,7 @@ namespace Mindweave.Testing;
 /// <summary>
 /// Marks a test that fails intermittently for a reason not yet fixed. It keeps running, but in a separate step that
 /// reports without blocking (scripts/test.sh, CI), so a red run means a real failure. A quarantine is temporary: the
-/// test is fixed in the next repair batch and the attribute removed; TRACK.md lists every open one
+/// test is fixed in the next repair batch and the attribute removed; STATUS.md lists every open one
 /// (docs/design/testing.md).
 /// </summary>
 [AttributeUsage(AttributeTargets.Method | AttributeTargets.Class, AllowMultiple = false)]

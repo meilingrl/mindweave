@@ -42,7 +42,7 @@ public sealed class BackupKillTests : IDisposable
             Assert.Equal(Rows, await current.ReadAsync(c => c.Scalar<long>(null, "SELECT count(*) FROM app_state WHERE key LIKE 'bulk-%';"), Ct));
         }
 
-        // On Windows a killed process's handles close a moment after it exits (TRACK.md findings); wait, bounded, until
+        // On Windows a killed process's handles close a moment after it exits (development findings); wait, bounded, until
         // the leftover could be removed, so the cleanup below is what is tested rather than that timing.
         await WaitUntilFreeAsync(partial);
         await using var upgraded = _dir.Database(new MigrationCatalog([.. MigrationCatalog.Default.Migrations, Migration.Sql(Current + 1, "add note", "CREATE TABLE note (id TEXT PRIMARY KEY) STRICT;")]));
