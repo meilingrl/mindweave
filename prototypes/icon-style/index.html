@@ -1,0 +1,267 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Mindweave icon style</title>
+<!--
+  Standalone prototype; no build step, no network. Open the file directly, or let scripts/render.sh screenshot it.
+  Query parameters:
+    view   = sheet | mocks | grid      (default sheet)
+    theme  = light | dark              (default light)
+    stroke = stroke width of A/B in 16-grid units (default 1.5)
+-->
+<style>
+  :root {
+    --win: #FFFFFF; --side: #F5F5F4; --divider: #E7E5E4; --outline: #D6D3D1;
+    --text: #1C1917; --muted: #78716C; --danger: #B91C1C; --accent: #4B6BFB; --on-accent: #FFFFFF;
+    --selected: #E7E5E4; --hover: #EFEEEC; --nav-icon: #8A847F; --quiet: #57534E; --tree: #C4C0BC;
+    --card: #F7F7F6; --card-border: #ECEAE8; --bubble: #F0EFED;
+    --badge-acc-bg: #E2E8FF; --badge-acc: #2B47CC; --badge-bg: #EEEDEB; --badge: #57534E;
+    --badge-warn-bg: #FDF0D5; --badge-warn: #92400E; --rec: #6B50BD; --rec-bg: #F3F0FB;
+    --input-bg: #FFFFFF; --net-bg: #FCFCFB;
+  }
+  body.dark {
+    --win: #18191B; --side: #1D1E22; --divider: #2C2E33; --outline: #3A3D45;
+    --text: #E6E8EE; --muted: #9299A6; --danger: #F2A0A0; --accent: #5A72E6; --on-accent: #FFFFFF;
+    --selected: #2A2D35; --hover: #24262C; --nav-icon: #7E8594; --quiet: #B4BAC6; --tree: #4A4E57;
+    --card: #1E1F23; --card-border: #2A2C31; --bubble: #26282E;
+    --badge-acc-bg: #26324D; --badge-acc: #C1C6FA; --badge-bg: #2A2D35; --badge: #B4BAC6;
+    --badge-warn-bg: #3A2E17; --badge-warn: #F0C67A; --rec: #A893EA; --rec-bg: #2A2540;
+    --input-bg: #222327; --net-bg: #18191B;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; padding: 24px; background: var(--win); color: var(--text);
+         font: 13px/1.4 "PingFang SC", -apple-system, "Segoe UI", "Microsoft YaHei UI", sans-serif; }
+  h1 { font-size: 18px; margin: 0 0 4px; }
+  .sub { color: var(--muted); margin: 0 0 18px; font-size: 12px; }
+
+  /* ---------- icons ---------- */
+  svg.ic { display: inline-block; vertical-align: middle; flex: none; overflow: visible; }
+  svg.ic.cur path, svg.ic.c path { fill: currentColor; fill-rule: evenodd; }
+  svg.ic.a *, svg.ic.b * { fill: none; stroke: currentColor; stroke-linecap: round; stroke-linejoin: round; }
+  svg.ic.a .f { display: none; }
+  svg.ic.b .f { fill: currentColor; fill-opacity: .22; stroke: none; }
+  svg.ic.b .s { stroke-opacity: .55; }
+  svg.ic .solid { fill: currentColor !important; stroke: none !important; }
+
+  /* ---------- sheet ---------- */
+  table.sheet { border-collapse: collapse; }
+  table.sheet th { font-weight: 600; font-size: 11px; color: var(--muted); padding: 4px 10px; text-align: center; border-bottom: 1px solid var(--divider); }
+  table.sheet th.grp { font-size: 12px; color: var(--text); border-bottom: none; padding-top: 0; }
+  table.sheet td { padding: 5px 10px; text-align: center; border-bottom: 1px solid var(--divider); color: var(--text); }
+  table.sheet td.name { text-align: left; font: 12px ui-monospace, Menlo, monospace; color: var(--text); white-space: nowrap; }
+  table.sheet td.use { text-align: left; font-size: 11px; color: var(--muted); max-width: 300px; }
+  table.sheet td.sep, table.sheet th.sep { border-left: 1px solid var(--divider); }
+  table.sheet tr.inline-start td { border-top: 2px solid var(--outline); }
+  .sheet-wrap { display: flex; gap: 40px; align-items: flex-start; }
+
+  /* ---------- grid (construction view) ---------- */
+  .grid { display: grid; grid-template-columns: repeat(8, 92px); gap: 14px 12px; }
+  .cell { text-align: center; font: 10px ui-monospace, Menlo, monospace; color: var(--muted); }
+  .cell .box { position: relative; width: 80px; height: 80px; margin: 0 auto 4px; border-radius: 6px;
+               background-image: linear-gradient(var(--divider) 1px, transparent 1px), linear-gradient(90deg, var(--divider) 1px, transparent 1px);
+               background-size: 5px 5px; background-position: 0 0; outline: 1px solid var(--outline); }
+  .cell .box svg { position: absolute; left: 0; top: 0; color: var(--text); }
+  .cell .box .live { position: absolute; left: 7.5px; top: 7.5px; width: 65px; height: 65px; border: 1px dashed rgba(75,107,251,.45); border-radius: 3px; }
+
+  /* ---------- mocks ---------- */
+  .mockrow { display: flex; gap: 0; border: 1px solid var(--divider); margin-bottom: 18px; background: var(--win);
+             --r-btn: 6px; --r-card: 8px; --r-comp: 12px; --r-chip: 9px; --r-row: 6px; --r-input: 6px; }
+  .mockrow.soft { --r-btn: 8px; --r-card: 12px; --r-comp: 16px; --r-chip: 999px; --r-row: 8px; --r-input: 8px; }
+  .mockrow { border-radius: 10px; overflow: hidden; }
+  .tag { writing-mode: vertical-rl; transform: rotate(180deg); padding: 10px 6px; font-weight: 600; font-size: 12px;
+         background: var(--side); color: var(--muted); border-right: 1px solid var(--divider); text-align: center; }
+  .tag b { color: var(--text); }
+  aside.sb { width: 232px; flex: none; background: var(--side); border-right: 1px solid var(--divider); padding: 10px 8px; display: flex; flex-direction: column; }
+  .sb-head { display: flex; gap: 6px; align-items: center; margin-bottom: 10px; }
+  .switcher { flex: 1; height: 32px; display: flex; align-items: center; gap: 6px; padding: 0 10px; border-radius: var(--r-btn);
+              background: var(--win); border: 1px solid var(--divider); font-weight: 600; }
+  .switcher span { flex: 1; }
+  .switcher svg { color: var(--muted); }
+  .iconbtn { width: 32px; height: 32px; display: grid; place-items: center; border-radius: var(--r-btn); color: var(--quiet); }
+  .iconbtn.bordered { border: 1px solid var(--outline); background: var(--win); }
+  .nav { display: flex; align-items: center; gap: 9px; height: 32px; padding: 0 9px; border-radius: var(--r-row); color: var(--text); }
+  .nav svg { color: var(--nav-icon); }
+  .nav.sel { background: var(--selected); font-weight: 600; }
+  .nav.sel svg { color: var(--accent); }
+  .sb-sec { display: flex; align-items: center; justify-content: space-between; margin: 12px 6px 4px 9px; color: var(--muted); font-size: 12px; }
+  .sb-sec svg { color: var(--muted); }
+  .row { display: flex; align-items: center; gap: 6px; height: 30px; padding: 0 9px; border-radius: var(--r-row); }
+  .row.hover { background: var(--hover); }
+  .row.child { padding-left: 14px; }
+  .row.child svg { color: var(--tree); }
+  .dot { width: 6px; height: 6px; border-radius: 3px; background: var(--accent); margin-left: auto; }
+  .sb-foot { margin-top: auto; }
+
+  main.mn { flex: 1; padding: 14px 18px; display: flex; flex-direction: column; gap: 12px; min-width: 0; }
+  .toolbar { display: flex; align-items: center; gap: 2px; flex-wrap: nowrap; }
+  .q { display: inline-flex; align-items: center; gap: 6px; height: 30px; padding: 0 9px; border-radius: var(--r-btn); color: var(--quiet); white-space: nowrap; }
+  .q.hover { background: var(--hover); }
+  .q.danger { color: var(--danger); }
+  .q.icon { padding: 0 8px; }
+  .primary { display: inline-flex; align-items: center; gap: 6px; height: 30px; padding: 0 12px; border-radius: var(--r-btn);
+             background: var(--accent); color: var(--on-accent); font-weight: 600; white-space: nowrap; }
+  .vsep { width: 1px; height: 18px; background: var(--divider); margin: 0 6px; }
+  .find { height: 28px; width: 112px; border: 1px solid var(--outline); border-radius: var(--r-input); background: var(--input-bg);
+          color: var(--muted); padding: 0 8px; display: flex; align-items: center; margin-right: 6px; font-size: 12px; }
+  .card { border: 1px solid var(--card-border); background: var(--card); border-radius: var(--r-card); padding: 9px 12px;
+          display: flex; align-items: center; gap: 10px; }
+  .card svg.lead { color: var(--accent); }
+  .card .quote { flex: 1; color: var(--text); }
+  .card svg.trail { color: var(--muted); }
+  .chip { display: inline-flex; align-items: center; height: 20px; padding: 0 8px; border-radius: var(--r-chip); font-size: 11px; font-weight: 600;
+          background: var(--badge-bg); color: var(--badge); }
+  .chip.acc { background: var(--badge-acc-bg); color: var(--badge-acc); }
+  .chip.warn { background: var(--badge-warn-bg); color: var(--badge-warn); }
+  .chip.rec { background: var(--rec-bg); color: var(--rec); }
+  .chips { display: flex; gap: 6px; align-items: center; }
+  .comps { display: flex; gap: 12px; }
+  .composer { flex: 1; display: flex; align-items: center; gap: 8px; border: 1px solid var(--outline); background: var(--input-bg);
+              border-radius: var(--r-comp); padding: 8px 8px 8px 14px; min-height: 48px; }
+  .composer .ph { flex: 1; color: var(--muted); }
+  .composer .ph.typed { color: var(--text); }
+  .stop { width: 34px; height: 34px; border-radius: 17px; border: 1.5px solid var(--outline); display: grid; place-items: center; color: var(--text); }
+  .netbar { border: 1px solid var(--divider); border-radius: var(--r-card); background: var(--net-bg); padding: 6px 8px; }
+  .muted { color: var(--muted); }
+</style>
+</head>
+<body>
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <!-- Direction C preview: blur, then threshold alpha at 50 %. Convex corners round, concave corners get a fillet,
+       straight edges stay where they were. Radius ≈ 1.5 × stdDeviation in 16-grid units. -->
+  <filter id="round" x="-20%" y="-20%" width="140%" height="140%" color-interpolation-filters="sRGB">
+    <feGaussianBlur stdDeviation="0.5"/>
+    <feComponentTransfer><feFuncA type="linear" slope="7" intercept="-3"/></feComponentTransfer>
+  </filter>
+</svg>
+<div id="app"></div>
+<script src="icons.js"></script>
+<script>
+const P = new URLSearchParams(location.search);
+const VIEW = P.get('view') || 'sheet';
+const THEME = P.get('theme') || 'light';
+const STROKE_W = parseFloat(P.get('stroke') || '1.5');
+if (THEME === 'dark') document.body.classList.add('dark');
+
+const DIRS = {
+  cur: { label: 'Current', note: 'filled, square corners and miter joins (S7)' },
+  a:   { label: 'A · Rounded outline', note: 'centre-line strokes, round caps and joins' },
+  b:   { label: 'B · Soft duotone', note: 'A + a 22 % tint of the main shape, secondary strokes at 55 %' },
+  c:   { label: 'C · Current, rounded', note: 'today’s shapes with corners and joins rounded only' },
+};
+
+function icon(name, dir, size, stroke = STROKE_W, cls = '') {
+  const s = `width="${size}" height="${size}" viewBox="0 0 16 16"`;
+  if (dir === 'cur') return `<svg class="ic cur ${cls}" ${s}><path d="${CURRENT[name]}"/></svg>`;
+  if (dir === 'c') return `<svg class="ic c ${cls}" ${s}><path filter="url(#round)" d="${CURRENT[name]}"/></svg>`;
+  return `<svg class="ic ${dir} ${cls}" ${s} style="stroke-width:${stroke}">${STROKE[name]}</svg>`;
+}
+
+function sheet() {
+  const cols = [['cur', STROKE_W], ['a', 1.5], ['a', 1.75], ['b', 1.5], ['c', STROKE_W]];
+  const heads = ['Current', 'A · 1.5', 'A · 1.75', 'B · 1.5', 'C'];
+  let h = `<h1>Icon directions · ${THEME}</h1><p class="sub">Every glyph at 13, 16 and 20 px (13 is the size most toolbars use today). 16 × 16 grid; A/B stroke widths are in grid units, so 1.5 renders as 1.22 px at 13 px and 1.88 px at 20 px.</p>`;
+  h += `<table class="sheet"><tr><th></th>${heads.map(x => `<th class="grp sep" colspan="3">${x}</th>`).join('')}<th></th></tr>`;
+  h += `<tr><th style="text-align:left">name</th>${heads.map(() => `<th class="sep">13</th><th>16</th><th>20</th>`).join('')}<th style="text-align:left">used for</th></tr>`;
+  ORDER.forEach((n, i) => {
+    const inl = n === 'SaveLayout' ? ' class="inline-start"' : '';
+    h += `<tr${inl}><td class="name">${n}</td>`;
+    cols.forEach(([d, sw]) => { h += [13, 16, 20].map((z, k) => `<td${k === 0 ? ' class="sep"' : ''}>${icon(n, d, z, sw)}</td>`).join(''); });
+    h += `<td class="use">${USES[n] || ''}</td></tr>`;
+  });
+  return h + `</table>`;
+}
+
+function grid() {
+  const dir = P.get('dir') || 'a';
+  let h = `<h1>${DIRS[dir].label} · construction · ${THEME}</h1><p class="sub">80 px = 16 grid units (5 px per unit). Dashed square: the 1.5-unit safe margin (live area 1.5–14.5). Stroke ${STROKE_W}.</p><div class="grid">`;
+  ORDER.forEach(n => { h += `<div class="cell"><div class="box"><div class="live"></div>${icon(n, dir, 80)}</div>${n}</div>`; });
+  return h + `</div>`;
+}
+
+function mockRow(dir) {
+  const soft = dir === 'a' || dir === 'b';
+  const I = (n, z = 14, cls = '') => icon(n, dir, z, STROKE_W, cls);
+  return `<div class="mockrow ${soft ? 'soft' : ''}">
+  <div class="tag"><b>${DIRS[dir].label}</b> · radii ${soft ? 'proposed' : 'current'}</div>
+  <aside class="sb">
+    <div class="sb-head">
+      <div class="switcher"><span>我的工作区</span>${I('ChevronDown', 12)}</div>
+      <div class="iconbtn bordered">${I('Plus', 14)}</div>
+      <div class="iconbtn">${I('Sidebar', 16)}</div>
+    </div>
+    <div class="nav">${I('Plus', 15)}新会话</div>
+    <div class="nav sel">${I('Explore', 15)}探索</div>
+    <div class="nav">${I('SummaryNetwork', 15)}总结网络</div>
+    <div class="sb-sec">会话 ${I('Select', 14)}</div>
+    <div class="row hover">蒸汽机的历史<span class="dot"></span></div>
+    <div class="row child">${I('TreeBranch', 13)}多管锅炉</div>
+    <div class="row child">${I('TreeBranch', 13)}热效率</div>
+    <div class="row">摄影入门</div>
+    <div class="sb-foot"><div class="nav">${I('Settings', 15)}设置</div></div>
+  </aside>
+  <main class="mn">
+    <div class="toolbar">
+      <span class="q">${I('Rename', 13)}改名</span>
+      <span class="q hover">${I('Summarize', 13)}总结此会话</span>
+      <span class="q">${I('Archive', 13)}归档</span>
+      <span class="q danger">${I('Delete', 13)}删除</span>
+      <span style="flex:1"></span>
+      <span class="q icon">${I('Copy', 13)}</span>
+      <span class="q icon">${I('Regenerate', 13)}</span>
+    </div>
+    <div class="card">${I('Branch', 14, 'lead')}<span class="quote">“多管锅炉为什么热效率更高”</span><span class="chip">来源已归档</span>${I('Chevron', 12, 'trail')}</div>
+    <div class="comps">
+      <div class="composer"><span class="ph">提问…</span><span class="primary" style="opacity:.55">发送</span></div>
+      <div class="composer"><span class="ph typed">那瓦特改进了什么？</span><span class="stop">${I('Stop', 14)}</span></div>
+    </div>
+    <div class="netbar"><div class="toolbar">
+      <span class="primary">${I('SaveLayout', 14)}保存布局</span><span class="vsep"></span>
+      <span class="find">查找标题</span>
+      <span class="q">${I('ShowAll', 13)}显示全部</span>
+      <span class="q icon">${I('ZoomOut', 12)}</span><span class="q icon">${I('ZoomIn', 12)}</span>
+      <span class="q">${I('Arrange', 13)}整理布局</span>
+      <span class="q hover">${I('ListView', 13)}列表</span><span class="vsep"></span>
+      <span class="q">${I('Regenerate', 13)}换一批推荐</span>
+      <span class="q">${I('Eye', 14)}隐藏推荐</span>
+      <span class="q">${I('Link', 14)}关联${I('ChevronDown', 9, 'muted')}</span>
+    </div></div>
+    <div class="chips"><span class="chip acc">未读</span><span class="chip">已读</span><span class="chip warn">有候选更新</span><span class="chip rec">推荐</span>
+      <span class="muted" style="margin-left:10px;font-size:12px">${I('Sparkle', 13)} 建议名称 · ${I('Check', 12)} 已复制 · ${I('Link', 13)} 关联到…</span></div>
+  </main>
+</div>`;
+}
+
+function mocks() {
+  const only = P.get('dirs');
+  const ds = only ? only.split(',') : ['cur', 'a', 'b', 'c'];
+  return `<h1>In context · ${THEME}</h1><p class="sub">Sidebar, conversation toolbar, a branch card, the composer (idle and streaming) and the network toolbar, at the app's own icon sizes (12–16 px). A and B also show the proposed softer radii; Current and C keep today's radii.</p>` + ds.map(mockRow).join('');
+}
+
+function closeup() {
+  const ds = ['cur', 'a', 'b', 'c'];
+  const I = (d, n, z) => icon(n, d, z);
+  let h = `<h1>Close-up · ${THEME}</h1><p class="sub">The same controls at 2× zoom (so 4× device pixels in the screenshot), one row per direction. A and B use the proposed radii.</p>`;
+  h += `<div style="zoom:2">`;
+  ds.forEach(d => {
+    const soft = d === 'a' || d === 'b';
+    h += `<div class="mockrow ${soft ? 'soft' : ''}" style="margin-bottom:8px;border-radius:8px"><div class="tag" style="font-size:9px"><b>${d === 'cur' ? 'Now' : d.toUpperCase()}</b></div>
+      <aside class="sb" style="width:150px;padding:6px">
+        <div class="nav">${I(d, 'Plus', 15)}新会话</div><div class="nav sel">${I(d, 'Explore', 15)}探索</div>
+        <div class="nav">${I(d, 'SummaryNetwork', 15)}总结网络</div><div class="nav">${I(d, 'Settings', 15)}设置</div></aside>
+      <main class="mn" style="padding:8px 10px;gap:8px">
+        <div class="toolbar"><span class="q">${I(d, 'Rename', 13)}改名</span><span class="q">${I(d, 'Summarize', 13)}总结此会话</span><span class="q">${I(d, 'Archive', 13)}归档</span><span class="q danger">${I(d, 'Delete', 13)}删除</span>
+          <span class="q icon">${I(d, 'Copy', 13)}</span><span class="q icon">${I(d, 'Regenerate', 13)}</span><span class="stop" style="margin-left:6px">${I(d, 'Stop', 14)}</span></div>
+        <div class="toolbar"><span class="q">${I(d, 'ShowAll', 13)}显示全部</span><span class="q icon">${I(d, 'ZoomOut', 12)}</span><span class="q icon">${I(d, 'ZoomIn', 12)}</span>
+          <span class="q">${I(d, 'Arrange', 13)}整理布局</span><span class="q">${I(d, 'ListView', 13)}列表</span><span class="q">${I(d, 'Eye', 14)}隐藏推荐</span><span class="q">${I(d, 'Link', 14)}关联</span>
+          <span class="chip acc" style="margin-left:6px">未读</span></div>
+      </main></div>`;
+  });
+  return h + `</div>`;
+}
+
+document.getElementById('app').innerHTML = VIEW === 'mocks' ? mocks() : VIEW === 'grid' ? grid() : VIEW === 'closeup' ? closeup() : sheet();
+</script>
+</body>
+</html>
