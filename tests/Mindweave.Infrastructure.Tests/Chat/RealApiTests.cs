@@ -109,31 +109,52 @@ public class RealApiTests
     }
 
     [Fact]
-    public async Task A_compressed_long_conversation_keeps_corrections_and_references()
+    public async Task A_compressed_long_conversation_keeps_corrections_references_and_scoped_rules()
     {
-        // A small declared capacity (budget 7,500 − 4,096 − 1,000 = 2,404 billed tokens) forces compression after a few turns.
+        // A declared window of 20,000 gives answers 20,000 − 4,096 − 2,000 = 13,904 billed tokens, so the long answers below force
+        // compression after about a dozen turns, while a summary request still gets over 12,000 output tokens. A much smaller
+        // window (7,500 until 2026-11-16) left summaries only 2,048, which a reasoning model can spend on reasoning alone, so runs
+        // failed on truncation rather than on what the summary kept.
+        const int window = 20_000;
         var recorder = new RecordingClient();
-        await using var h = await StartAsync(contextWindow: 7_500, recorder);
+        await using var h = await StartAsync(contextWindow: window, recorder);
         var (conversation, _) = await AskAsync(h, null, "我在研究早期蒸汽机车。请记住：之后我说“那台车”，都指斯蒂芬森父子造的“火箭号”。只回答“好的”。");
         await AskAsync(h, conversation, "我研究的年份是 1825 年的斯托克顿—达灵顿铁路。只回答“好的”。");
         await AskAsync(h, conversation, "我刚才说错了，我研究的不是 1825 年，而是 1829 年的雨山试验。只回答“已更正”。");
-        foreach (var topic in new[] { "英国早期铁路的轨距之争", "蒸汽机车锅炉的改进", "早期铁路对煤炭运输的影响", "铁路时刻表与标准时间的出现", "早期铁路的信号系统", "铁路对城市发展的影响" })
+        // A prohibition that holds for one object only, next to a permission for another (a summary once kept the object but
+        // dropped its prohibition: Codex track, real DeepSeek run, 2026-10), and a decision still open.
+        await AskAsync(h, conversation, "我要去博物馆看那台车的复制品。馆方规定：复制品不得触摸，但旁边的说明牌可以拍照。只回答“好的”。");
+        await AskAsync(h, conversation, "我还没决定周六还是周日去，先记着，之后再定。只回答“好的”。");
+        foreach (var topic in new[]
         {
-            await AskAsync(h, conversation, $"请用大约 400 字介绍{topic}。");
+            "英国早期铁路的轨距之争", "蒸汽机车锅炉的改进", "早期铁路对煤炭运输的影响", "铁路时刻表与标准时间的出现", "早期铁路的信号系统",
+            "铁路对城市发展的影响", "早期铁路的筑路工程", "铁路公司的融资与投机", "早期铁路的安全事故与立法", "蒸汽机车的燃料变化",
+            "铁路对邮政的影响", "早期铁路车厢的演变", "铁路工人的劳动与生活", "铁路技术向欧洲大陆的传播",
+        })
+        {
+            await AskAsync(h, conversation, $"请用大约 1200 字介绍{topic}。");
         }
 
-        var (_, final) = await AskAsync(h, conversation, "那台车是谁造的？我研究的是哪一年的什么试验？请用一句话回答。");
+        var (_, final) = await AskAsync(h, conversation, "那台车是谁造的？我研究的是哪一年的什么试验？博物馆里那台车的复制品能摸吗，说明牌能拍照吗？我定好哪天去了吗？请简短回答。");
 
-        Assert.Contains(final.Id, await h.Summaries.CompressedAnswersAsync(conversation, Ct));
-        Assert.Contains("斯蒂芬森", final.Text, StringComparison.Ordinal);
-        Assert.Contains("1829", final.Text, StringComparison.Ordinal);
-        Assert.Contains("雨山", final.Text, StringComparison.Ordinal);
         var summaries = await h.Summaries.ListAsync([conversation], Ct);
         TestContext.Current.SendDiagnosticMessage($"final: {final.Text}");
         foreach (var summary in summaries)
         {
             TestContext.Current.SendDiagnosticMessage($"summary {summary.Key.FromSeq}-{summary.Key.ToSeq}: {summary.Text}");
         }
+
+        Assert.Contains(final.Id, await h.Summaries.CompressedAnswersAsync(conversation, Ct));
+        Assert.Contains("斯蒂芬森", final.Text, StringComparison.Ordinal);
+        Assert.Contains("1829", final.Text, StringComparison.Ordinal);
+        Assert.Contains("雨山", final.Text, StringComparison.Ordinal);
+        // The rule turn and the open decision were compressed: the summaries must carry them, with the prohibition attached.
+        var summarized = string.Join("\n", summaries.Select(s => s.Text));
+        Assert.True(summarized.Contains('摸', StringComparison.Ordinal) || summarized.Contains("触碰", StringComparison.Ordinal), "the summaries lost the museum rule");
+        Assert.True(new[] { "不得", "不能", "禁止", "不可" }.Any(w => summarized.Contains(w, StringComparison.Ordinal)), "the summaries lost the prohibition");
+        Assert.True(summarized.Contains("周六", StringComparison.Ordinal) || summarized.Contains("周日", StringComparison.Ordinal), "the summaries lost the open decision");
+        Assert.True(new[] { "不能", "不得", "禁止", "不可", "不允许" }.Any(w => final.Text.Contains(w, StringComparison.Ordinal)), "the answer lost the prohibition");
+        Assert.True(new[] { "没", "未", "还" }.Any(w => final.Text.Contains(w, StringComparison.Ordinal)), "the answer did not say the day is still open");
 
         // The estimate must not undercount what the service bills as prompt tokens.
         var traces = await h.Database.ReadAsync(
@@ -169,12 +190,11 @@ public class RealApiTests
         var table = string.Join("; ", compared.Select(c => $"{c.Estimate}/{c.Reported}"));
         var samples = await h.Requests.RecentTokenSamplesAsync(Url!, Model!, TokenCalibration.SampleSize, Ct);
         TestContext.Current.TestOutputHelper?.WriteLine($"estimate/reported: {table}; learned: {TokenCalibration.Fit([.. samples.Select(s => (s.Estimate, s.Reported))])}");
-        // Only the answer requests are planned against the budget. Compression's own summary requests carry a fixed chunk of
-        // about 4,000 estimated tokens and reserve 16,384 for output, so they assume a window of roughly 24k or more; this
-        // test's small window exists only to force compression early (TRACK findings, 2026-11-05).
+        // Only the answer requests are planned against the budget. Compression's own summary requests carry a chunk of about
+        // 4,000 estimated tokens and ask for up to 16,384 output tokens, so they are not held to the answers' input space.
         var answers = pairs.Where(p => Mindweave.Testing.FakeChatClient.IsAnswer(p.First)).Select(p => (Estimate: TokenEstimator.Request(p.First.Turns.Select(t => t.Content)), Reported: p.Second!.Value)).ToList();
         Assert.True(answers.Count >= 2, table);
-        Assert.True(answers.All(c => c.Reported <= 7_500 - 4_096), $"An answer request overran the input space (estimate/reported): {string.Join("; ", answers.Select(c => $"{c.Estimate}/{c.Reported}"))}");
+        Assert.True(answers.All(c => c.Reported <= window - 4_096), $"An answer request overran the input space (estimate/reported): {string.Join("; ", answers.Select(c => $"{c.Estimate}/{c.Reported}"))}");
     }
 
     [Fact]
