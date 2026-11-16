@@ -12,11 +12,15 @@ public readonly record struct SummaryLinkId(Guid Value)
     public override string ToString() => Value.ToString("D");
 }
 
-/// <summary>How a link came to be (requirements §10.3.3–10.3.4): made by the user, or suggested by AI and confirmed.</summary>
+/// <summary>
+/// How a link came to be: made by the user (requirements §10.3.3), suggested by AI and confirmed (§10.3.4), or made when a
+/// conversation started from a recommendation was first summarized (§10.3.5; shown like a user's link, its note says so).
+/// </summary>
 public enum SummaryLinkOrigin
 {
     User,
     Confirmed,
+    Recommended,
 }
 
 /// <summary>
@@ -67,6 +71,9 @@ public static class SummaryLinkNote
     public static int Length(string? note) => Normalize(note) is { } text ? text.EnumerateRunes().Count() : 0;
 
     public static bool IsTooLong(string? note) => Length(note) > MaxLength;
+
+    /// <summary>The note of a link made from a recommendation (requirements §10.3.5); editable like any other.</summary>
+    public const string FromRecommendation = "来自推荐";
 }
 
 /// <summary>Why a link was not made or changed.</summary>

@@ -517,5 +517,44 @@ internal static class SchemaMigrations
             ) STRICT;
             CREATE INDEX link_suggestion_by_b ON link_suggestion (workspace_id, node_b);
             """),
+
+        Migration.Sql(14, "starting recommendations and links from them", """
+            -- A conversation started from a recommended question or node remembers it (requirements §10.3.5, architecture
+            -- "StartingRecommendation", owner's decision 2026-11-17): the recommendation's identity and kind, and its basis
+            -- summary when it had one. The row is written with the conversation and goes with it (its workspace included).
+            -- The recommendation is only named, not referenced: it may be replaced or deleted meanwhile. Deleting the basis
+            -- summary only clears basis_node_id. applied_at is set when the conversation's first summary node was made; that
+            -- same transaction links the new summary to the basis (origin 'recommended'), and later summaries never do.
+            CREATE TABLE starting_recommendation (
+                conversation_id   TEXT    NOT NULL PRIMARY KEY REFERENCES conversation (id) ON DELETE CASCADE,
+                recommendation_id TEXT    NOT NULL,
+                kind              TEXT    NOT NULL CHECK (kind IN ('question', 'node')),
+                basis_node_id     TEXT    REFERENCES summary_node (id) ON DELETE SET NULL,
+                applied_at        INTEGER,
+                created_at        INTEGER NOT NULL
+            ) STRICT;
+            CREATE INDEX starting_recommendation_by_basis ON starting_recommendation (basis_node_id) WHERE basis_node_id IS NOT NULL;
+
+            -- A link made that way is an ordinary content link with its own origin. SQLite cannot change a CHECK, so the
+            -- table is rebuilt with every row kept as it was (nothing references summary_link).
+            CREATE TABLE summary_link_v14 (
+                id           TEXT    NOT NULL PRIMARY KEY,
+                workspace_id TEXT    NOT NULL REFERENCES workspace (id) ON DELETE CASCADE,
+                node_a       TEXT    NOT NULL,
+                node_b       TEXT    NOT NULL,
+                note         TEXT    CHECK (note IS NULL OR length(note) <= 16),
+                origin       TEXT    NOT NULL CHECK (origin IN ('user', 'confirmed', 'recommended')),
+                created_at   INTEGER NOT NULL,
+                CHECK (node_a < node_b),
+                UNIQUE (workspace_id, node_a, node_b),
+                FOREIGN KEY (workspace_id, node_a) REFERENCES summary_node (workspace_id, id) ON DELETE CASCADE,
+                FOREIGN KEY (workspace_id, node_b) REFERENCES summary_node (workspace_id, id) ON DELETE CASCADE
+            ) STRICT;
+            INSERT INTO summary_link_v14 (id, workspace_id, node_a, node_b, note, origin, created_at)
+            SELECT id, workspace_id, node_a, node_b, note, origin, created_at FROM summary_link;
+            DROP TABLE summary_link;
+            ALTER TABLE summary_link_v14 RENAME TO summary_link;
+            CREATE INDEX summary_link_by_b ON summary_link (workspace_id, node_b);
+            """),
     ];
 }

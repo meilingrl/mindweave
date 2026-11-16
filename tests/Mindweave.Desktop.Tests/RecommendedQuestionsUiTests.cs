@@ -126,13 +126,41 @@ public class RecommendedQuestionsUiTests
         await UiWait.UntilAsync(() => app.Workbench.CurrentPage is ConversationViewModel);
         await page.Marking;
         var rows = await Store(app).ListAsync(app.Workbench.CurrentWorkspace!.Id, RecommendationKind.Question, CancellationToken.None);
-        Assert.Equal(RecommendationState.Used, rows.Single(r => r.Question == Third).State);
+        var used = rows.Single(r => r.Question == Third);
+        Assert.Equal(RecommendationState.Used, used.State);
         Assert.Contains(app.Client.Requests, r => FakeChatClient.IsAnswer(r) && r.Turns[^1].Content == Third + "吗");
+
+        // Edited or not, the conversation remembers the recommendation and its basis (requirements §10.3.5).
+        var made = Assert.IsType<ConversationViewModel>(app.Workbench.CurrentPage).Id;
+        Assert.Equal((used.Id.ToString(), "question", used.Basis?.ToString()), await StartingAsync(app, made));
 
         // Next time: the two left, the first the placeholder.
         var (again, againView) = await OpenAsync(app, window);
         Assert.Equal([First, Second], again.Recommendations.Select(r => r.Question));
         Assert.Equal(First, Input(againView).Offered);
+        window.Close();
+    }
+
+    [AvaloniaFact]
+    public async Task A_question_typed_after_the_filled_one_was_cleared_starts_a_conversation_that_remembers_no_recommendation()
+    {
+        await using var app = DesktopHarness.Create();
+        var window = app.ShowWindow(1100, 720);
+        await SeedAsync(app);
+        var (page, view) = await OpenAsync(app, window);
+
+        UiInput.Click(window, QuestionButtons(view)[0]);
+        Assert.Equal(First, page.Composer.Text);
+        page.Composer.Text = string.Empty;
+        window.KeyTextInput("铁路信号是怎么发明的？");
+        window.KeyPress(Key.Enter, RawInputModifiers.None, PhysicalKey.Enter, null);
+        await UiWait.UntilAsync(() => app.Workbench.CurrentPage is ConversationViewModel);
+        await page.Marking;
+
+        var made = Assert.IsType<ConversationViewModel>(app.Workbench.CurrentPage).Id;
+        Assert.Equal(((string?)null, (string?)null, (string?)null), await StartingAsync(app, made));
+        var rows = await Store(app).ListAsync(app.Workbench.CurrentWorkspace!.Id, RecommendationKind.Question, CancellationToken.None);
+        Assert.Equal(RecommendationState.Pending, rows.Single(r => r.Question == First).State);
         window.Close();
     }
 
@@ -518,6 +546,19 @@ public class RecommendedQuestionsUiTests
         [.. view.GetVisualDescendants().OfType<Button>().Where(b => b.Name == "IgnoreRecommendationButton")];
 
     private static IRecommendationStore Store(DesktopHarness app) => app.Services.GetRequiredService<IRecommendationStore>();
+
+    /// <summary>What the conversation remembers of the recommendation it was started from (requirements §10.3.5), or nulls.</summary>
+    internal static Task<(string? Recommendation, string? Kind, string? Basis)> StartingAsync(DesktopHarness app, Core.Conversations.ConversationId conversation) =>
+        app.Services.GetRequiredService<Infrastructure.Sqlite.SqliteDatabase>().ReadAsync(
+            c =>
+            {
+                using var command = c.Command(null, "SELECT recommendation_id, kind, basis_node_id FROM starting_recommendation WHERE conversation_id = $id;", ("$id", conversation.ToString()));
+                using var reader = command.ExecuteReader();
+                return reader.Read()
+                    ? (reader.GetString(0), reader.GetString(1), reader.IsDBNull(2) ? null : reader.GetString(2))
+                    : ((string?)null, (string?)null, (string?)null);
+            },
+            CancellationToken.None);
 
     private static void Tab(Window window) => window.KeyPress(Key.Tab, RawInputModifiers.None, PhysicalKey.Tab, null);
 }

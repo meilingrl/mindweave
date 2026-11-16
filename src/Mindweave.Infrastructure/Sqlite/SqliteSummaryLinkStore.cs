@@ -214,6 +214,7 @@ internal sealed class SqliteSummaryLinkStore(SqliteDatabase database) : ISummary
     {
         SummaryLinkOrigin.User => "user",
         SummaryLinkOrigin.Confirmed => "confirmed",
+        SummaryLinkOrigin.Recommended => "recommended",
         _ => throw new ArgumentOutOfRangeException(nameof(origin), origin, null),
     };
 
@@ -221,6 +222,7 @@ internal sealed class SqliteSummaryLinkStore(SqliteDatabase database) : ISummary
     {
         "user" => SummaryLinkOrigin.User,
         "confirmed" => SummaryLinkOrigin.Confirmed,
+        "recommended" => SummaryLinkOrigin.Recommended,
         _ => throw new InvalidDataException($"Unknown summary link origin '{origin}'."),
     };
 }

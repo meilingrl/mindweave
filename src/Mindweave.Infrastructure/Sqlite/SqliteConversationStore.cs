@@ -1,5 +1,6 @@
 using System.Text.Json;
 using Microsoft.Data.Sqlite;
+using Mindweave.Application.Recommendations;
 using Mindweave.Application.Storage;
 using Mindweave.Core.Conversations;
 using Mindweave.Core.Workspaces;
@@ -53,7 +54,7 @@ internal sealed class SqliteConversationStore(SqliteDatabase database) : IConver
     public Task<IReadOnlyList<Message>> GetMessagesAsync(ConversationId id, CancellationToken cancellationToken) =>
         database.ReadAsync<IReadOnlyList<Message>>(connection => GetMessages(connection, null, id), cancellationToken);
 
-    public Task CreateAsync(Conversation conversation, Message question, Message answer, GenerationTaskRecord task, CancellationToken cancellationToken)
+    public Task CreateAsync(Conversation conversation, Message question, Message answer, GenerationTaskRecord task, StartingRecommendation? from, CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(conversation);
         return database.WriteAsync(
@@ -72,6 +73,21 @@ internal sealed class SqliteConversationStore(SqliteDatabase database) : IConver
                 InsertMessage(connection, transaction, question with { Seq = 0 });
                 InsertMessage(connection, transaction, answer with { Seq = 1 });
                 InsertTask(connection, transaction, task);
+                if (from is not null)
+                {
+                    // Requirements §10.3.5: a basis deleted since the page showed it is not remembered.
+                    connection.Execute(transaction, """
+                        INSERT INTO starting_recommendation (conversation_id, recommendation_id, kind, basis_node_id, applied_at, created_at)
+                        VALUES ($id, $rec, $kind, (SELECT id FROM summary_node WHERE id = $basis AND workspace_id = $ws), NULL, $created);
+                        """,
+                        ("$id", conversation.Id.ToString()),
+                        ("$ws", conversation.WorkspaceId.ToString()),
+                        ("$rec", from.Recommendation.ToString()),
+                        ("$kind", from.Kind == RecommendationKind.Node ? "node" : "question"),
+                        ("$basis", from.Basis?.ToString()),
+                        ("$created", conversation.CreatedAt.Ms()));
+                }
+
                 return 0;
             },
             cancellationToken);

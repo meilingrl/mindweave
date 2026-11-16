@@ -24,7 +24,7 @@ public sealed partial class NewConversationViewModel : PageViewModel, IDisposabl
     private readonly IUiDispatcher? _dispatcher;
     private readonly Application.Preferences.IRecommendationSettings? _settings;
     private RecommendedQuestionViewModel? _source;
-    private RecommendationId? _node;
+    private StartingRecommendation? _node;
     private int _loads;
 
     // Questions removed by 不感兴趣 whose ignoring is not stored yet: a load that read them before it was stays without them.
@@ -55,7 +55,10 @@ public sealed partial class NewConversationViewModel : PageViewModel, IDisposabl
         {
             var source = _source;
             var node = _node;
-            var outcome = await conversations.StartAsync(workspace, text, CancellationToken.None);
+
+            // Remembered by the conversation (requirements §10.3.5): its first summary is linked to the basis summary.
+            var from = source is not null ? StartingRecommendation.From(source.Recommendation) : node;
+            var outcome = await conversations.StartAsync(workspace, text, from, CancellationToken.None);
             if (outcome.Accepted)
             {
                 // Sent: the question is in the new conversation now (the page is replaced before its box is cleared).
@@ -65,10 +68,10 @@ public sealed partial class NewConversationViewModel : PageViewModel, IDisposabl
                 {
                     Marking = MarkUsedAsync(source.Recommendation);
                 }
-                else if (node is { } id)
+                else if (node is not null)
                 {
                     // Explored from a recommended node: it leaves the network now (§10.3.2); no branch source is made.
-                    Marking = MarkNodeUsedAsync(id);
+                    Marking = MarkNodeUsedAsync(node.Recommendation);
                 }
 
                 content.Replace(new ConversationRoute(outcome.Conversation));
@@ -79,7 +82,7 @@ public sealed partial class NewConversationViewModel : PageViewModel, IDisposabl
         // From a recommended node: its question waits in the input, unsent; no conversation exists until it is sent.
         if (route is { From: { } from, Question: { } question })
         {
-            _node = from;
+            _node = new StartingRecommendation(from, RecommendationKind.Node, route.Basis);
             Composer.Text = question;
         }
 
