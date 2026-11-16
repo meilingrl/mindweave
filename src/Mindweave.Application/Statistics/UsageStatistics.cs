@@ -111,8 +111,12 @@ public sealed record ActivityFacts(
     DateOnly? FirstActiveDay,
     IReadOnlyList<Milestone> Milestones);
 
-/// <summary>Everything the statistics page shows for one scope and period, as of <see cref="Today"/> (local).</summary>
-public sealed record StatisticsReport(UsageReport Usage, ActivityFacts Activity, bool HasModel, DateOnly Today);
+/// <summary>
+/// Everything the statistics page shows for one scope and period, as of <see cref="Today"/> (local). <see cref="Days"/>
+/// is every local day of the usage calendar (2026-11-17), from <see cref="UsageStatisticsService.CalendarStart"/> to
+/// today, empty days included, whichever period is chosen.
+/// </summary>
+public sealed record StatisticsReport(UsageReport Usage, ActivityFacts Activity, bool HasModel, DateOnly Today, IReadOnlyList<UsageBucket> Days);
 
 /// <summary>The statistics page's figures (2026-11-12), read with aggregate queries off the UI thread.</summary>
 public interface IUsageStatistics
@@ -148,6 +152,9 @@ public sealed class UsageStatisticsService(IStatisticsStore store, IModelSetting
     /// <summary>Months in the monthly chart.</summary>
     public const int RecentMonths = 12;
 
+    /// <summary>Whole weeks the usage calendar shows before the current one (which it shows up to today).</summary>
+    public const int CalendarWeeks = 52;
+
     public async Task<StatisticsReport> LoadAsync(WorkspaceId? workspace, UsagePeriod period, CancellationToken cancellationToken)
     {
         var clock = options.Time ?? time;
@@ -155,14 +162,23 @@ public sealed class UsageStatisticsService(IStatisticsStore store, IModelSetting
         var today = LocalCalendar.DayOf(clock.GetUtcNow(), zone);
         var (from, to) = Window(period, today);
         var recentFrom = today.AddDays(1 - RecentDays);
+        var calendarFrom = CalendarStart(today);
+        var readFrom = calendarFrom < from ? calendarFrom : from;
 
-        var rows = await store.UsageByDayAsync(workspace, LocalCalendar.StartOf(from, zone), LocalCalendar.StartOf(to.AddDays(1), zone), zone, cancellationToken).ConfigureAwait(false);
+        var rows = await store.UsageByDayAsync(workspace, LocalCalendar.StartOf(readFrom, zone), LocalCalendar.StartOf(to.AddDays(1), zone), zone, cancellationToken).ConfigureAwait(false);
         var activity = await store.ActivityAsync(
             new ActivityQuery(workspace, zone, LocalCalendar.StartOf(recentFrom, zone), QuestionThresholds, SummaryThresholds),
             cancellationToken).ConfigureAwait(false);
         var hasModel = await models.GetActiveAsync(cancellationToken).ConfigureAwait(false) is not null;
-        return new StatisticsReport(Summarize(period, from, to, rows), activity, hasModel, today);
+        return new StatisticsReport(Summarize(period, from, to, rows), activity, hasModel, today, Buckets(UsagePeriod.Daily, calendarFrom, today, rows));
     }
+
+    /// <summary>
+    /// The first day of the usage calendar: the Monday <see cref="CalendarWeeks"/> weeks before the Monday of
+    /// <paramref name="today"/>'s week, so the calendar has whole week columns and ends with the current one.
+    /// </summary>
+    public static DateOnly CalendarStart(DateOnly today) =>
+        today.AddDays(-((((int)today.DayOfWeek) + 6) % 7) - (7 * CalendarWeeks));
 
     /// <summary>The first and last day the period covers, both included: 30 days, or 12 whole months, ending today.</summary>
     public static (DateOnly From, DateOnly To) Window(UsagePeriod period, DateOnly today) => period switch
@@ -176,21 +192,7 @@ public sealed class UsageStatisticsService(IStatisticsStore store, IModelSetting
     {
         ArgumentNullException.ThrowIfNull(rows);
         var inWindow = rows.Rows.Where(r => r.Day >= from && r.Day <= to).ToList();
-        var buckets = new List<UsageBucket>();
-        var byStart = new Dictionary<DateOnly, TokenCounts>();
-        foreach (var row in inWindow)
-        {
-            var start = period == UsagePeriod.Daily ? row.Day : LocalCalendar.MonthOf(row.Day);
-            byStart[start] = byStart.GetValueOrDefault(start) + row.Counts;
-        }
-
-        for (var start = period == UsagePeriod.Daily ? from : LocalCalendar.MonthOf(from);
-             start <= to;
-             start = period == UsagePeriod.Daily ? start.AddDays(1) : start.AddMonths(1))
-        {
-            buckets.Add(new UsageBucket(start, byStart.GetValueOrDefault(start)));
-        }
-
+        var buckets = Buckets(period, from, to, rows);
         var totals = inWindow.Aggregate(default(TokenCounts), (sum, row) => sum + row.Counts);
         var byModel = inWindow
             .GroupBy(r => ModelKey.From(r.Model, r.BaseUrl))
@@ -206,6 +208,28 @@ public sealed class UsageStatisticsService(IStatisticsStore store, IModelSetting
             .Select(p => new PurposeUsage(p, purposes.GetValueOrDefault(p)))
             .ToList();
         return new UsageReport(period, from, to, buckets, totals, byModel, byPurpose, rows.RequestsEver);
+    }
+
+    /// <summary>Every day (or month) from <paramref name="from"/> to <paramref name="to"/>, empty ones included, with the rows' sums.</summary>
+    public static IReadOnlyList<UsageBucket> Buckets(UsagePeriod period, DateOnly from, DateOnly to, UsageRows rows)
+    {
+        ArgumentNullException.ThrowIfNull(rows);
+        var byStart = new Dictionary<DateOnly, TokenCounts>();
+        foreach (var row in rows.Rows.Where(r => r.Day >= from && r.Day <= to))
+        {
+            var start = period == UsagePeriod.Daily ? row.Day : LocalCalendar.MonthOf(row.Day);
+            byStart[start] = byStart.GetValueOrDefault(start) + row.Counts;
+        }
+
+        var buckets = new List<UsageBucket>();
+        for (var start = period == UsagePeriod.Daily ? from : LocalCalendar.MonthOf(from);
+             start <= to;
+             start = period == UsagePeriod.Daily ? start.AddDays(1) : start.AddMonths(1))
+        {
+            buckets.Add(new UsageBucket(start, byStart.GetValueOrDefault(start)));
+        }
+
+        return buckets;
     }
 
     /// <summary>The stored kind of a request: a task's kind, or the kind a request without a task was recorded for.</summary>

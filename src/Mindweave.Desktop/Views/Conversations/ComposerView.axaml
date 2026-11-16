@@ -3,6 +3,7 @@
              xmlns:vm="using:Mindweave.Desktop.ViewModels.Conversations"
              xmlns:t="using:Mindweave.Desktop.Text"
              xmlns:views="using:Mindweave.Desktop.Views"
+             xmlns:c="using:Mindweave.Desktop.Views.Conversations"
              x:Class="Mindweave.Desktop.Views.Conversations.ComposerView"
              x:DataType="vm:Composer">
   <StackPanel Spacing="8">
@@ -31,6 +32,9 @@
             <PathIcon Data="{StaticResource IconStop}" />
           </Button>
         </Panel>
+        <!-- The context ring (2026-11-17): how full the model's context is, the full sentence on hover. -->
+        <c:ContextRing Name="ContextRing" DockPanel.Dock="Right" Width="18" Height="18" VerticalAlignment="Bottom" Margin="10,0,0,8"
+                       Usage="{Binding ContextUsage}" IsVisible="{Binding ShowsContextRing}" />
         <!-- On 新探索 the first recommended question shows in the empty input as a dim placeholder (requirements §10.3.1):
              Tab puts it in once, typing hides it; elsewhere nothing is offered and this is a plain text box. -->
         <views:GhostTextBox Name="Input" Text="{Binding Text}" AcceptsReturn="True" TextWrapping="Wrap" MaxHeight="220" MinHeight="34"

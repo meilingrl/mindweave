@@ -151,6 +151,17 @@ public sealed partial class UsageStatisticsViewModel : PageViewModel, IShowsWork
     [ObservableProperty]
     public partial string ChartSummary { get; private set; } = string.Empty;
 
+    /// <summary>The last year of daily use, a square a day (2026-11-17); follows the scope, not the period.</summary>
+    [ObservableProperty]
+    public partial UsageCalendarViewModel Calendar { get; private set; } = UsageCalendarViewModel.Empty;
+
+    [ObservableProperty]
+    public partial string CalendarRangeText { get; private set; } = string.Empty;
+
+    /// <summary>The calendar shows once the scope has had any request; before that the empty-usage words say enough.</summary>
+    [ObservableProperty]
+    public partial bool HasCalendar { get; private set; }
+
     public string TableHeader => Period == UsagePeriod.Daily ? UiText.TableDayHeader : UiText.TableMonthHeader;
 
     /// <summary>Some request in the period: the totals, chart and splits are shown; otherwise <see cref="EmptyUsageText"/>.</summary>
@@ -361,6 +372,9 @@ public sealed partial class UsageStatisticsViewModel : PageViewModel, IShowsWork
         UnreportedText = usage.Totals.Unreported > 0 ? UiText.UnreportedRequests(usage.Totals.Unreported) : null;
         Bars = UsageBarViewModel.From(usage);
         ChartSummary = UiText.ChartSummary(usage.Period, usage.Buckets);
+        Calendar = UsageCalendarViewModel.From(report.Days);
+        CalendarRangeText = report.Days.Count > 0 ? UiText.CalendarRange(report.Days[0].Start, report.Days[^1].Start) : string.Empty;
+        HasCalendar = usage.RequestsEver > 0 && report.Days.Count > 0;
 
         var inPeriod = usage.Totals.Requests + usage.Totals.Unreported;
         HasUsage = inPeriod > 0;

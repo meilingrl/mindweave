@@ -37,6 +37,16 @@ public sealed partial class Composer : ViewModelBase
     [ObservableProperty]
     public partial IReadOnlyList<string>? GhostSuggestions { get; set; }
 
+    /// <summary>
+    /// How much of the model's context the conversation takes, for the ring beside send (2026-11-17); the conversation
+    /// page keeps it current, a new conversation leaves it null and shows no ring.
+    /// </summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(ShowsContextRing))]
+    public partial ContextUsage? ContextUsage { get; set; }
+
+    public bool ShowsContextRing => ContextUsage is not null;
+
     /// <summary>The view puts the focus in the input, the caret at the end (after <see cref="Fill"/>).</summary>
     public event EventHandler? FillRequested;
 

@@ -77,6 +77,9 @@ public static partial class UiText
         return usage.Fraction >= 0.8 ? line + " · 接近上限，之后较早的对话会先压缩成摘要" : line;
     }
 
+    /// <summary>The context ring's name for a screen reader when there is no figure yet.</summary>
+    public const string ContextRingName = "上下文用量";
+
     public static string Quoted(string quote) => "「" + ConversationRules.Shorten(quote, ConversationRules.FallbackTitleLength) + "」";
 
     public static string SourceNotLocated(string quote) => $"无法精确定位原句（回答的排版或内容与创建分支时不同），已回到来源回答。原句：{Quoted(quote)}";

@@ -139,8 +139,16 @@ public sealed partial class ConversationViewModel : PageViewModel, IDisposable
 
     /// <summary>How much of the model's context this conversation takes (null when no model is configured).</summary>
     [ObservableProperty]
-    [NotifyPropertyChangedFor(nameof(ContextUsageText), nameof(ContextIsTight))]
+    [NotifyPropertyChangedFor(nameof(ContextUsageText), nameof(ContextIsTight), nameof(ShowsContextLine))]
     public partial ContextUsage? ContextUsage { get; private set; }
+
+    /// <summary>
+    /// The context sentence stays as a line under the input only when the conversation no longer fits, since it says what
+    /// to do; otherwise the ring beside send carries it on hover (2026-11-17).
+    /// </summary>
+    public bool ShowsContextLine => ContextUsage is { TooLong: true };
+
+    partial void OnContextUsageChanged(ContextUsage? value) => Composer.ContextUsage = value;
 
     public string? ContextUsageText => ContextUsage is { } usage ? UiText.ContextUsage(usage) : null;
 

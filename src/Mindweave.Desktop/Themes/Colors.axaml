@@ -155,6 +155,18 @@
       <SolidColorBrush x:Key="UsageChartEmpty">#CFCBC7</SolidColorBrush>
       <SolidColorBrush x:Key="UsageChartActive">#F3F2F0</SolidColorBrush>
       <SolidColorBrush x:Key="UsageShareTrack">#EEEDEB</SolidColorBrush>
+      <!-- Usage calendar (2026-11-17): an empty day a quiet square, then four steps from a pale tint to the accent -->
+      <SolidColorBrush x:Key="UsageCalendarEmpty">#ECEAE7</SolidColorBrush>
+      <SolidColorBrush x:Key="UsageCalendarLevel1">#D3DBFE</SolidColorBrush>
+      <SolidColorBrush x:Key="UsageCalendarLevel2">#A3B3FC</SolidColorBrush>
+      <SolidColorBrush x:Key="UsageCalendarLevel3">#7189FA</SolidColorBrush>
+      <SolidColorBrush x:Key="UsageCalendarLevel4">#3F5CE0</SolidColorBrush>
+      <SolidColorBrush x:Key="UsageCalendarActive">#44403C</SolidColorBrush>
+      <!-- Context ring (2026-11-17): a quiet grey arc on a faint track; amber near the limit, red when it no longer fits -->
+      <SolidColorBrush x:Key="ContextRingTrack">#E7E5E4</SolidColorBrush>
+      <SolidColorBrush x:Key="ContextRingNormal">#8A847F</SolidColorBrush>
+      <SolidColorBrush x:Key="ContextRingNear">#D97706</SolidColorBrush>
+      <SolidColorBrush x:Key="ContextRingTooLong">#B91C1C</SolidColorBrush>
     </ResourceDictionary>
     <ResourceDictionary x:Key="Dark">
       <SolidColorBrush x:Key="WindowBackground">#18191B</SolidColorBrush>
@@ -294,6 +306,17 @@
       <SolidColorBrush x:Key="UsageChartEmpty">#4A4E57</SolidColorBrush>
       <SolidColorBrush x:Key="UsageChartActive">#202227</SolidColorBrush>
       <SolidColorBrush x:Key="UsageShareTrack">#2A2C31</SolidColorBrush>
+      <!-- Usage calendar: the empty square just off the card, the steps rising from a deep blue to the light accent -->
+      <SolidColorBrush x:Key="UsageCalendarEmpty">#2A2C31</SolidColorBrush>
+      <SolidColorBrush x:Key="UsageCalendarLevel1">#2B3768</SolidColorBrush>
+      <SolidColorBrush x:Key="UsageCalendarLevel2">#3D51A8</SolidColorBrush>
+      <SolidColorBrush x:Key="UsageCalendarLevel3">#5A72E6</SolidColorBrush>
+      <SolidColorBrush x:Key="UsageCalendarLevel4">#94A8F7</SolidColorBrush>
+      <SolidColorBrush x:Key="UsageCalendarActive">#E7E5E4</SolidColorBrush>
+      <SolidColorBrush x:Key="ContextRingTrack">#33363D</SolidColorBrush>
+      <SolidColorBrush x:Key="ContextRingNormal">#9299A6</SolidColorBrush>
+      <SolidColorBrush x:Key="ContextRingNear">#E8A94F</SolidColorBrush>
+      <SolidColorBrush x:Key="ContextRingTooLong">#F2A0A0</SolidColorBrush>
     </ResourceDictionary>
   </ResourceDictionary.ThemeDictionaries>
 </ResourceDictionary>

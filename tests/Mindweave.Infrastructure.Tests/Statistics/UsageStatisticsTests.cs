@@ -319,6 +319,34 @@ public class UsageStatisticsTests
     }
 
     [Fact]
+    public async Task The_usage_calendar_has_every_local_day_of_the_last_52_weeks_whichever_the_period()
+    {
+        await using var h = await ChatHarness.StartAsync(configure: false);
+        var seed = new UsageSeed(h.Database);
+        var c = await seed.ConversationAsync(h.Workspace, Local(2025, 11, 1, 9));
+
+        // The calendar starts on Monday 2025-11-17 (52 weeks before the week of Tuesday 2026-11-17): the Sunday before
+        // is outside it, the first Monday inside, and both are outside the 30-day and 12-month windows.
+        await seed.RequestAsync(c, "answer", "m", Local(2025, 11, 16, 23, 59), 1, 1);
+        await seed.RequestAsync(c, "answer", "m", Local(2025, 11, 17, 0, 0), 300, 30);
+        await seed.RequestAsync(c, "answer", "m", Local(2026, 11, 17, 8), 50, 5);
+
+        foreach (var period in new[] { UsagePeriod.Daily, UsagePeriod.Monthly })
+        {
+            var report = await Service(h, Local(2026, 11, 17, 12)).LoadAsync(null, period, Ct);
+            Assert.Equal(366, report.Days.Count);
+            Assert.Equal((new DateOnly(2025, 11, 17), new DateOnly(2026, 11, 17)), (report.Days[0].Start, report.Days[^1].Start));
+            Assert.Equal(new TokenCounts(300, 30, 1, 0), report.Days[0].Counts);
+            Assert.Equal(new TokenCounts(50, 5, 1, 0), report.Days[^1].Counts);
+            Assert.Equal(364, report.Days.Count(d => d.Counts == default));
+
+            // The period's own figures are unchanged by the wider read.
+            Assert.Equal(new TokenCounts(50, 5, 1, 0), report.Usage.Totals);
+            Assert.Equal(3, report.Usage.RequestsEver);
+        }
+    }
+
+    [Fact]
     public async Task Nothing_yet_is_an_empty_report_with_every_bucket()
     {
         await using var h = await ChatHarness.StartAsync(configure: false);
