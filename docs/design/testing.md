@@ -7,12 +7,23 @@
 | 命令 | 跑什么 | 何时用 |
 | --- | --- | --- |
 | `scripts/test.sh quick [名称…]` | Core、Architecture、Infrastructure（不含故障注入），外加全名含任一名称的桌面测试 | 改代码时的循环，约 15–30 秒 |
-| `scripts/test.sh full` | CI 跑的全部；隔离中的测试随后单独跑、只报告 | 合并回轨道分支前，必须通过 |
+| `scripts/test.sh suite [目录]` | CI 阻塞的那些测试，桌面测试分片并行（见下）；给目录则写 TRX | 本机全量 |
+| `scripts/test.sh full` | `suite`，之后隔离中的测试单独跑、只报告 | 合并回轨道分支前，必须通过 |
 | `scripts/test.sh repeat N 过滤式 [项目] [--load]` | 同一过滤式连跑 N 次并计失败次数；`--load` 同时占满所有核 | 查偶发失败 |
-| `scripts/test.sh timings [目录]` | 全量并记录 TRX，列出最慢的项目、类与测试和超出预算的测试 | 觉得变慢时 |
+| `scripts/test.sh timings [目录]` | 全量并记录 TRX，列出最慢的项目、类与测试和超出预算的测试；同时刷新分片用的类耗时 | 觉得变慢时；桌面测试类有明显增减后 |
 | `scripts/test.sh quarantined` | 列出隔离中的测试 | 修复批次开始时 |
 
 已有分类（`Category` 特性）：`FaultInjection`、`Performance`、`Gallery`、`RealApi`、`Trial`、`Quarantine`。后四类按环境变量或特性默认不跑或不阻塞。
+
+## 桌面测试分片
+
+Avalonia 无头测试每个进程只有一个界面线程，同一进程里的桌面测试只能一个接一个跑；Infrastructure 等项目在进程内并行。所以 `suite` 把桌面测试程序集按类分成几份、同时跑几个进程（`scripts/test-shards.py`）。2026-11-16 本机（10 核）：桌面测试从约 100 秒降到约 33 秒，连跑 4、6、8 片各无失败；超过 4 片收益很小，下限是最慢的类加进程启动。
+
+- 片数默认取核数的一半、2 到 4；`MINDWEAVE_TEST_SHARDS` 可改。
+- **CI 不分片**，仍是 `dotnet test Mindweave.slnx`。2026-11-16 在 CI 上试过 2 片（同为 522 个桌面测试）：Linux 桌面 4 分 10 秒 → 3 分 30 秒、Windows 7 分 44 秒 → 6 分 48 秒，但原命令本来就让 Infrastructure 与桌面同时跑，分片后两者先后跑，整步时间几乎不变；Windows 还多出一例双击时序失败。私有仓库的标准运行器核数少，分片的收益要换更大的运行器才有。
+- 类在运行时列出，新加的类不会漏跑；`tests/Mindweave.Desktop.Tests/shard-timings.json` 只用来平衡各片（无记录的类按中位数算）。记录过时只会让各片不均，不会漏测；由 `timings` 刷新。
+- 分片要求测试之间不共享进程外的资源：每个测试用自己的数据目录、单实例锁也按数据目录区分。新测试若用固定的文件路径、管道名或端口，分片时就会互相干扰，要改成按测试区分。
+- 只在本机调试某个桌面测试时仍用 `quick 名称` 或 `dotnet test --filter`，不经过分片。
 
 ## 时间预算
 
