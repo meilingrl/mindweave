@@ -5,8 +5,14 @@
 #   scripts/daily.sh trial [REF|current]               run a build on a copy of the daily data; the real data is untouched
 #   scripts/daily.sh run                               start the current daily build
 #   scripts/daily.sh rollback                          switch back to the previous daily build
+#   scripts/daily.sh app                               (re)install ~/Applications/Mindweave.app from the current build
 #   scripts/daily.sh backup                            copy the daily database to the backup folder
 #   scripts/daily.sh status                            builds, data schema, latest backups
+#
+# Launch it from ~/Applications/Mindweave.app (Dock, Launchpad, Spotlight). That bundle stays at one path for good:
+# publish and rollback replace only its Contents folder, so a Dock icon pinned to it keeps working across updates.
+# Never pin anything inside Mindweave-daily/: the Dock resolves symlinks when you pin, so an icon dragged from
+# current/ stays tied to one dated release, which a later publish deletes.
 #
 # The daily data is ~/Library/Application Support/Mindweave/claude-auto (channel "claude-auto", keychain service
 # "Mindweave.claude-auto"). Every other build defaults to channel "dev", or "release" for Release builds
@@ -18,6 +24,7 @@
 # publish refuses it unless --accept-upgrade is given, which you should only pass after `trial` looked right.
 #
 # Environment: MINDWEAVE_DAILY_HOME (builds; default ~/Applications/Mindweave-daily),
+# MINDWEAVE_DAILY_APP (the launcher bundle; default ~/Applications/Mindweave.app),
 # MINDWEAVE_DAILY_BACKUP_DIR (database copies; default ~/Documents/Mindweave-daily-backups; best on another drive),
 # MINDWEAVE_DAILY_DATA (daily data directory; for testing this script only).
 set -euo pipefail
@@ -26,6 +33,10 @@ CHANNEL="claude-auto"
 MAINLINE="main"
 ROOT="$(git -C "$(dirname "$0")" rev-parse --show-toplevel)"
 APP_HOME="${MINDWEAVE_DAILY_HOME:-$HOME/Applications/Mindweave-daily}"
+APP_BUNDLE="${MINDWEAVE_DAILY_APP:-$HOME/Applications/Mindweave.app}"
+# Stable identity for Launch Services and the Dock; never change it, or pinned icons and settings tied to it go stale.
+BUNDLE_ID="local.mindweave.daily"
+LSREGISTER="/System/Library/Frameworks/CoreServices.framework/Frameworks/LaunchServices.framework/Support/lsregister"
 BACKUP_DIR="${MINDWEAVE_DAILY_BACKUP_DIR:-$HOME/Documents/Mindweave-daily-backups}"
 DATA="${MINDWEAVE_DAILY_DATA:-$HOME/Library/Application Support/Mindweave/$CHANNEL}"
 DB="$DATA/mindweave.db"
@@ -117,6 +128,60 @@ build_release() {
   } >"$out/release.txt"
 }
 
+# Installs a release into the launcher bundle. The bundle folder itself is never replaced (the Dock's bookmark
+# points at it); only Contents is swapped, by rename, so the bundle is never half old and half new. The copy is an
+# APFS clone where possible, so it costs no extra disk space next to the release folder.
+install_bundle() {
+  local rel="$1" contents staging old
+  [[ -x "$rel/Mindweave" && -f "$rel/release.txt" ]] || die "not a daily release: $rel"
+  contents="$APP_BUNDLE/Contents"
+  staging="$APP_BUNDLE/Contents.new"
+  old="$APP_BUNDLE/Contents.old"
+  mkdir -p "$APP_BUNDLE"
+  # Finish or undo a swap an earlier run left half done.
+  if [[ ! -d "$contents" && -d "$old" ]]; then mv "$old" "$contents"; fi
+  rm -rf "$staging" "$old"
+
+  mkdir -p "$staging/MacOS" "$staging/Resources"
+  cp -cR "$rel/." "$staging/MacOS/" 2>/dev/null || cp -R "$rel/." "$staging/MacOS/"
+  local commit version
+  commit="$(release_field "$rel" commit)"
+  version="$(sed -nE 's:.*<Version>([^<]+)</Version>.*:\1:p' "$ROOT/Directory.Build.props" | head -1)"
+  cat >"$staging/Info.plist" <<PLIST
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>CFBundleName</key><string>Mindweave</string>
+  <key>CFBundleDisplayName</key><string>Mindweave</string>
+  <key>CFBundleIdentifier</key><string>$BUNDLE_ID</string>
+  <key>CFBundleExecutable</key><string>Mindweave</string>
+  <key>CFBundlePackageType</key><string>APPL</string>
+  <key>CFBundleInfoDictionaryVersion</key><string>6.0</string>
+  <key>CFBundleShortVersionString</key><string>${version:-0.0.0}</string>
+  <key>CFBundleVersion</key><string>$(basename "$rel")</string>
+  <key>MindweaveCommit</key><string>$commit</string>
+  <key>LSMinimumSystemVersion</key><string>12.0</string>
+  <key>LSApplicationCategoryType</key><string>public.app-category.productivity</string>
+  <key>NSHighResolutionCapable</key><true/>
+  <key>NSPrincipalClass</key><string>NSApplication</string>
+</dict>
+</plist>
+PLIST
+  plutil -lint -s "$staging/Info.plist" || die "generated Info.plist is invalid"
+  echo "$(basename "$rel")" >"$staging/Resources/release-name"
+
+  if [[ -d "$contents" ]]; then mv "$contents" "$old"; fi
+  mv "$staging" "$contents"
+  rm -rf "$old"
+  # Tell Launch Services the bundle changed so the Dock, Spotlight and Finder show the new version at once.
+  touch "$APP_BUNDLE"
+  [[ -x "$LSREGISTER" ]] && "$LSREGISTER" -f "$APP_BUNDLE" >/dev/null 2>&1 || true
+  note "launcher: $APP_BUNDLE -> $(basename "$rel")"
+}
+
+bundle_release() { cat "$APP_BUNDLE/Contents/Resources/release-name" 2>/dev/null || true; }
+
 resolve_commit() {
   git -C "$ROOT" rev-parse --verify --quiet "$1^{commit}" || die "unknown ref: $1"
 }
@@ -159,6 +224,7 @@ cmd_publish() {
   previous="$(readlink "$APP_HOME/current" 2>/dev/null || true)"
   if [[ -n "$previous" ]]; then ln -sfn "$previous" "$APP_HOME/previous"; fi
   ln -sfn "releases/$name" "$APP_HOME/current"
+  install_bundle "$rel"
 
   # Keep current, previous and the newest few; release folders are self-contained (~100 MB each).
   local keep_cur keep_prev
@@ -173,15 +239,15 @@ cmd_publish() {
   else
     note "daily build is now $short (schema v$s_new)"
   fi
-  note "start it with: scripts/daily.sh run"
+  note "start it from the Dock or with: scripts/daily.sh run"
 }
 
 cmd_trial() {
   local ref="${1:-$MAINLINE}" app sha trial
   trial="$(cd "$(mktemp -d "${TMPDIR:-/tmp}/mindweave-trial.XXXXXX")" && pwd -P)"
   if [[ "$ref" == "current" ]]; then
-    app="$APP_HOME/current"
-    [[ -x "$app/Mindweave" ]] || die "no current daily build"
+    app="$APP_BUNDLE/Contents/MacOS"
+    [[ -x "$app/Mindweave" ]] || die "no current daily build; run: scripts/daily.sh app"
   else
     sha="$(resolve_commit "$ref")"
     app="$trial/app"
@@ -197,9 +263,22 @@ cmd_trial() {
 }
 
 cmd_run() {
-  [[ -x "$APP_HOME/current/Mindweave" ]] || die "no daily build yet; run: scripts/daily.sh publish"
-  nohup "$APP_HOME/current/Mindweave" >/dev/null 2>&1 &
-  note "started $(release_field "$APP_HOME/current" commit | cut -c1-9)"
+  [[ -x "$APP_BUNDLE/Contents/MacOS/Mindweave" ]] || die "no launcher yet; run: scripts/daily.sh publish (or app)"
+  open "$APP_BUNDLE"
+  note "started $(bundle_release)"
+}
+
+# Rebuilds the launcher from the current release without building anything (first install, or after a mishap).
+cmd_app() {
+  local cur
+  cur="$(readlink "$APP_HOME/current" 2>/dev/null || true)"
+  [[ -n "$cur" && -d "$APP_HOME/$cur" ]] || die "no current daily build; run: scripts/daily.sh publish"
+  require_closed
+  local s_cur s_data
+  s_cur="$(release_field "$APP_HOME/$cur" schema)"
+  s_data="$(data_schema)"
+  (( s_cur >= s_data )) || die "the current build writes schema v$s_cur but the data is v$s_data; publish a newer build"
+  install_bundle "$APP_HOME/$cur"
 }
 
 cmd_rollback() {
@@ -217,6 +296,7 @@ cmd_rollback() {
   fi
   ln -sfn "$prev" "$APP_HOME/current"
   ln -sfn "$cur" "$APP_HOME/previous"
+  install_bundle "$APP_HOME/$prev"
   note "daily build is now $(basename "$prev"); $(basename "$cur") kept as previous"
 }
 
@@ -229,6 +309,15 @@ cmd_status() {
       echo "$which: none"
     fi
   done
+  local installed
+  installed="$(bundle_release)"
+  if [[ -z "$installed" ]]; then
+    echo "launcher: $APP_BUNDLE  not installed; run: scripts/daily.sh app"
+  elif [[ "$installed" != "$(basename "$(readlink "$APP_HOME/current" 2>/dev/null)")" ]]; then
+    echo "launcher: $APP_BUNDLE  runs $installed, NOT the current build; run: scripts/daily.sh app"
+  else
+    echo "launcher: $APP_BUNDLE  (current build)"
+  fi
   echo "data:     $DATA  (schema v$(data_schema))$(app_running && echo ', open now')"
   echo "main:     $MAINLINE at $(git -C "$ROOT" rev-parse --short "$MAINLINE")  schema v$(schema_of_ref "$MAINLINE")"
   echo "backups:  $BACKUP_DIR"
@@ -241,7 +330,8 @@ case "${1:-}" in
   trial) shift; cmd_trial "$@" ;;
   run) cmd_run ;;
   rollback) cmd_rollback ;;
+  app) cmd_app ;;
   backup) backup_db manual ;;
   status) cmd_status ;;
-  *) sed -n '2,9p' "$0"; exit 64 ;;
+  *) sed -n '2,10p' "$0"; exit 64 ;;
 esac
