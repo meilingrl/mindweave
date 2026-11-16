@@ -7,7 +7,7 @@
 - **开发线合并为一条。** Claude 轨道并入 `main`，Codex 轨道停在标签 `archive/codex-steady-final`；两条轨道分支与工作目录已删除（本地与 GitHub），只剩 `main`。Codex 工作目录里不在 git 中的过程记录（`.superpowers/`，802 MB）移到 `../mindweave-archive/codex-steady-superpowers`，构建产物按你的决定删除；约定见 [AGENTS.md](AGENTS.md)。课程技术要求经用户 2026-11-16 认定已满足（三层导航按功能、ViewModel 按依赖边界判断，不要求与参照项目同名或同工程），本版本作为课程提交版本。
 - **功能。** 首版 S0–S7 与需求 v0.13 的首版后增量（推荐问题与推荐节点、用户建立与 AI 建议的内容关联）已合并。数据库 v13。
 - **发布与通道。** Release 构建默认用通道 `release`，界面不显示通道名；其余构建用 `dev`；日常版本仍用 `claude-auto`。源码包只含产品，并检查不出现开发线名称。见 [运行说明](docs/design/run-guide.md) 与 AGENTS.md“发布与通道”。
-- **测试。** macOS 全量通过（Core 99、Architecture 9、Infrastructure 549＋22 跳过、Desktop 四个分片 468 通过、76 跳过；2026-11-16）。`main` 上的 CI（Linux＋Windows）与 stress 通过（08ead83）。Windows 实机全量与发布版本检查已经信箱发出（2026-11-16，08ead83），结果待收。
+- **测试。** macOS 全量通过（Core 99、Architecture 9、Infrastructure 549＋22 跳过、Desktop 四个分片 468 通过、76 跳过；2026-11-16）。`main` 上的 CI（Linux＋Windows）与 stress 通过（08ead83）。Windows 11 实机（08ead83，2026-11-16）：全量 1,126 通过、0 失败、97 跳过；Release 发布版本首次启动正常，设置页底部只显示“Mindweave 0.1.0”，数据在 `%LOCALAPPDATA%\Mindweave\release`，正常关闭。
 
 ## 下一步
 
@@ -22,7 +22,7 @@
 
 ## 待决定
 
-- **上下文压缩会丢掉附带对象与条件的禁令**（2026-11-16，Codex 轨道的真实 DeepSeek 记录：摘要保留了“它是备用电池”，漏了“不得整夜充电”，最终回答也漏了）。本仓库的压缩提示词 `ContextCompressor.cs:57-65` 没有要求把要求或禁令与其对象、条件一起保留，真实服务测试也没有覆盖。修法：提示词加一条，真实测试加一条限定对象的禁令与一个未决事项；验证需几次付费调用。
+- （已修 2026-11-16）上下文压缩可能丢掉附带对象与条件的禁令（Codex 轨道的真实 DeepSeek 记录）：压缩提示词要求每条要求或禁止连同对象与条件一起写、未决的决定算未解决问题；真实服务测试加了限定对象的禁令与未决事项，窗口从 7,500 提到 20,000（过小的窗口只给摘要 2,048 输出，推理模型会被截断）；DeepSeek 连续 3 次通过。
 - **未解决问题与待办的明细**仍在历史记录的“未解决问题”与“待决定”两节；分拣表 [low-triage.md](docs/reviews/claude-auto-health-20261112/low-triage.md) 是待办的唯一清单，修了一条就在它的状态格写提交。
 - 回答的输出上限能否在设置里改（2026-11-13）。
 - 统计图表“输出”颜色对比度低于 3:1：暂缓，不阻塞（你 2026-11-16）。
