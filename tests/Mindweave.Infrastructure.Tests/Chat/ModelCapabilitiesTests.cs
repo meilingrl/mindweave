@@ -59,4 +59,43 @@ public class ModelCapabilitiesTests
             Ct);
         Assert.Equal(Declared, SqlNames.ParseCapabilities(stored, ChatProtocol.ChatCompletions));
     }
+
+    [Fact]
+    public async Task Capabilities_the_form_declares_are_saved_with_the_context_capacity_the_form_says()
+    {
+        await using var h = await ChatHarness.StartAsync();
+        var settings = (await h.Settings.GetActiveAsync(Ct))!;
+        await h.Settings.SaveActiveAsync(settings with { Capabilities = Declared }, DateTimeOffset.UtcNow, Ct);
+
+        // Turning image input on and tool calls off for the same model.
+        var form = Declared with { ToolCalls = false, ImageInput = true, ContextWindowTokens = 999 };
+        await h.Models.SaveAsync(new ModelSettingsInput("fake", "https://fake.example/v1", settings.Model, null, 64_000, form), Ct);
+        Assert.Equal(form with { ContextWindowTokens = 64_000 }, (await h.Settings.GetActiveAsync(Ct))!.Capabilities);
+
+        // A different model takes what the form declares, not the protocol defaults.
+        await h.Models.SaveAsync(new ModelSettingsInput("fake", "https://fake.example/v1", "vision-model", null, null, form), Ct);
+        Assert.Equal(form with { ContextWindowTokens = null }, (await h.Settings.GetActiveAsync(Ct))!.Capabilities);
+    }
+
+    [Fact]
+    public async Task Features_ask_the_active_model_and_unknown_means_no()
+    {
+        await using (var none = await ChatHarness.StartAsync(configure: false))
+        {
+            foreach (var capability in Enum.GetValues<ModelCapability>())
+            {
+                Assert.False(await none.Models.ActiveModelHasAsync(capability, Ct));
+            }
+        }
+
+        await using var h = await ChatHarness.StartAsync();
+        Assert.False(await h.Models.ActiveModelHasAsync(ModelCapability.ToolCalls, Ct));
+        Assert.False(await h.Models.ActiveModelHasAsync(ModelCapability.ImageInput, Ct));
+        Assert.True(await h.Models.ActiveModelHasAsync(ModelCapability.Streaming, Ct));
+
+        var settings = (await h.Settings.GetActiveAsync(Ct))!;
+        await h.Models.SaveAsync(new ModelSettingsInput("fake", "https://fake.example/v1", settings.Model, null, null, settings.Capabilities with { ImageInput = true }), Ct);
+        Assert.True(await h.Models.ActiveModelHasAsync(ModelCapability.ImageInput, Ct));
+        Assert.False(await h.Models.ActiveModelHasAsync(ModelCapability.ToolCalls, Ct));
+    }
 }
