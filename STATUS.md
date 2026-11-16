@@ -18,7 +18,7 @@
 | 事项 | 原因 | 阻塞什么 |
 | --- | --- | --- |
 | 看第 7、8 项（推荐、内容关联）的截图或实机 | 界面观感只能由你判断 | 不阻塞 |
-| 日常版本升到 v13 前先 `scripts/daily.sh trial`，再 `publish --accept-upgrade` | 会升级你的真实数据 | 日常版本更新 |
+| 把程序坞上旧的 Mindweave 图标移除，改钉 `~/Applications/Mindweave.app`（一次） | 旧图标被固定在 11-13 的 v11 版本，打不开已是 v13 的数据；新的应用位置不变，以后更新不用再钉 | 从程序坞打开日常版本 |
 
 ## 待决定
 
@@ -31,7 +31,7 @@
 
 ## 运行时资源
 
-- 本机：日常数据 `~/Library/Application Support/Mindweave/claude-auto`，只经 `scripts/daily.sh`；见 [日常版本](docs/design/daily-build.md)。任务工作树运行应用时设 `MINDWEAVE_DATA_DIR`。
+- 本机：日常数据 `~/Library/Application Support/Mindweave/claude-auto`，只经 `scripts/daily.sh`；日常版本从 `~/Applications/Mindweave.app` 打开（`publish`／`rollback` 只换其中内容，程序坞图标不失效）；见 [日常版本](docs/design/daily-build.md)。任务工作树运行应用时设 `MINDWEAVE_DATA_DIR`。
 - Windows 实机：`scripts/windows.sh test|publish|sync|exec`（主机 `win-home`，经本机用户态 Tailscale 实例的 SOCKS `127.0.0.1:7898`，密钥登录）；目录 `E:\mindweave-claude-auto`（历史名称，可用 `MINDWEAVE_WIN_DIR` 另指）。`publish` 默认用通道 `dev`（`MINDWEAVE_WIN_CHANNEL=release` 构建演示用的发布版本）；2026-11-16 前的试用数据在通道 `claude-auto-dev`，要接着用就设 `MINDWEAVE_WIN_CHANNEL=claude-auto-dev`。
 - 与 Windows 上的 Claude 用信箱传递任务与报告：`E:\mindweave-mailbox\`，协议见 [docs/mailbox.md](docs/mailbox.md)。
 - 已授权：推送 `origin`；CI 可用（私有仓库只跑 Linux＋Windows）。
