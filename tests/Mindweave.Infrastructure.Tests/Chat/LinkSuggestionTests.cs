@@ -314,7 +314,8 @@ public class LinkSuggestionTests
     {
         await using var h = await ChatHarness.StartAsync(slots: 1);
         await FourAsync(h);
-        var steam = (await h.Conversations.ListAsync(h.Workspace, Ct))[0].Conversation.Id;
+        var listed = await h.Conversations.ListAsync(h.Workspace, Ct);
+        var (steam, rails) = (listed[0].Conversation.Id, listed[1].Conversation.Id);
 
         // The only slot answers: the suggestion waits.
         var held = h.Client.Hold("一");
@@ -324,8 +325,16 @@ public class LinkSuggestionTests
         await ChatHarness.UntilAsync(() => h.Generation.UnfinishedCount == 2);
         Assert.True((await h.LinkSuggestions.GetAsync(h.Workspace, Ct)).IsRunning);
         Assert.Equal(0, Requests(h));
-        var gate = h.Client.LinkSuggestions.Hold();
+
+        // A question asked after it, while it waits, still goes first: the user's work comes before it.
+        var later = h.Client.Hold("后");
+        await h.Conversations.AskAsync(rails, "后来的问题", Ct);
+        await ChatHarness.UntilAsync(() => h.Generation.UnfinishedCount == 3);
         held.Finish("完");
+        await later.Started.Task.WaitAsync(TimeSpan.FromSeconds(5), Ct);
+        Assert.Equal(0, Requests(h));
+        var gate = h.Client.LinkSuggestions.Hold();
+        later.Finish("完");
 
         // Once it runs, a new question waits for it instead of taking its slot.
         await ChatHarness.UntilAsync(() => Requests(h) == 1);

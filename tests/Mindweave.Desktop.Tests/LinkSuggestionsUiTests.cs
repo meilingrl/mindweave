@@ -466,7 +466,7 @@ public class LinkSuggestionsUiTests
         Assert.True(settings.IsEffectivelyVisible);
         Assert.False(retry.IsEffectivelyVisible);
 
-        // Reopened, the page says the same (the request was the user's own).
+        // Back on the network after another section, the page says the same (the request was the user's own).
         app.ShellPage.ShowSectionCommand.Execute(MainSection.Explore);
         network = await SummaryNetworkScenario.OpenSummaryNetworkAsync(app, window);
         await SettledAsync(network);
