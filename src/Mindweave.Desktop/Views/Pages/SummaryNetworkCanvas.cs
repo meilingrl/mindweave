@@ -360,12 +360,12 @@ public sealed class SummaryNetworkCanvas : Control
         })];
     }
 
-    /// <summary>Where along a suggestion's line its words may go, the middle first: away from a link's note or another suggestion's words.</summary>
+    /// <summary>Where along a suggestion's line its words may go, the middle first: away from a summary, a link's note or another suggestion's words.</summary>
     private static readonly double[] SuggestionLabelStops = [0.5, 0.4, 0.6, 0.32, 0.68, 0.25, 0.75];
 
     /// <summary>
     /// Each pending link suggestion between the two summaries as drawn (following a drag and the pull), with "建议" and its
-    /// note on the line, at the middle unless a link's note or another suggestion's words are there (requirements §10.3.4:
+    /// note on the line, at the middle unless a summary, a link's note or another suggestion's words are there (requirements §10.3.4:
     /// never colour or line style alone). The words hide with the other labels when zoomed far out, unless an end is selected
     /// or hovered or the suggestion is highlighted.
     /// </summary>
@@ -380,7 +380,10 @@ public sealed class SummaryNetworkCanvas : Control
         var zoom = Current.Zoom;
         var selected = _page.Session.Selected;
         var highlighted = _page.HighlightedSuggestion;
-        var taken = PaintLinks().Where(l => l.Note is not null).Select(l => l.NoteBounds).ToList();
+        // A summary lying on the line (its ring and its name) is never covered: the words would hide it and take its clicks.
+        var taken = PaintLinks().Where(l => l.Note is not null).Select(l => l.NoteBounds)
+            .Concat(_page.Nodes.Select(n => SummaryNetworkGeometry.HitBox(ScreenOf(n) + _offsets.GetValueOrDefault(n.Id), n, zoom, IsLabelVisible(n, zoom))))
+            .ToList();
         return [.. _page.SuggestionEdges.Select(edge =>
         {
             var (ax, ay) = PositionOf(edge.A, edge.AX, edge.AY);
@@ -696,9 +699,9 @@ public sealed class SummaryNetworkCanvas : Control
             }
         }
 
-        if (_page is { IsPicking: false } && HitTestSuggestion(point) is { } suggestion)
+        if (_page is { IsPicking: false } && HitTest(point) is null && HitTestSuggestion(point) is { } suggestion)
         {
-            // The suggestion's words, drawn over everything else: its row in the details stands out with 接受 and 忽略.
+            // The suggestion's words (a summary under them wins): its row in the details stands out with 接受 and 忽略.
             _page.SelectSuggestion(suggestion.Id);
             e.Handled = true;
             return;
@@ -920,8 +923,8 @@ public sealed class SummaryNetworkCanvas : Control
     internal void SetPointer(Point? point)
     {
         _pointer = point;
-        var suggestion = Dragging is null && _page is { IsPicking: false } && point is { } s ? HitTestSuggestion(s)?.Id : null;
-        var hovered = suggestion is null && point is { } p ? HitTest(p)?.Id : null;
+        var hovered = point is { } p ? HitTest(p)?.Id : null;
+        var suggestion = hovered is null && Dragging is null && _page is { IsPicking: false } && point is { } s ? HitTestSuggestion(s)?.Id : null;
         var recommended = hovered is null && suggestion is null && Dragging is null && point is { } q ? HitTestRecommendation(q)?.Id : null;
         if (hovered != Hovered || recommended != HoveredRecommendation || suggestion != HoveredSuggestion)
         {

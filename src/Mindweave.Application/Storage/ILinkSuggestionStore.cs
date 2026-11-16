@@ -43,6 +43,9 @@ public interface ILinkSuggestionStore
     /// <summary>A pending suggestion becomes ignored, kept without its reason; false when it was not pending (or is gone).</summary>
     Task<bool> IgnoreAsync(LinkSuggestionId suggestion, DateTimeOffset at, CancellationToken cancellationToken);
 
-    /// <summary>Every pending suggestion of the workspace becomes ignored (全部忽略); returns how many.</summary>
-    Task<int> IgnoreAllAsync(WorkspaceId workspace, DateTimeOffset at, CancellationToken cancellationToken);
+    /// <summary>
+    /// 全部忽略: those of <paramref name="suggestions"/> still pending in the workspace become ignored; returns how many. Only
+    /// the ones the user was asked about: a suggestion stored after the question stays pending.
+    /// </summary>
+    Task<int> IgnoreAllAsync(WorkspaceId workspace, IReadOnlyCollection<LinkSuggestionId> suggestions, DateTimeOffset at, CancellationToken cancellationToken);
 }

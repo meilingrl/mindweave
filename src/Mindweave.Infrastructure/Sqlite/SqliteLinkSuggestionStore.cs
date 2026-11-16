@@ -166,10 +166,27 @@ internal sealed class SqliteLinkSuggestionStore(SqliteDatabase database) : ILink
             (connection, transaction) => Ignore(connection, transaction, "id = $key", ("$key", suggestion.ToString()), at) == 1,
             cancellationToken);
 
-    public Task<int> IgnoreAllAsync(WorkspaceId workspace, DateTimeOffset at, CancellationToken cancellationToken) =>
-        database.WriteAsync(
-            (connection, transaction) => Ignore(connection, transaction, "workspace_id = $key", ("$key", workspace.ToString()), at),
+    public Task<int> IgnoreAllAsync(WorkspaceId workspace, IReadOnlyCollection<LinkSuggestionId> suggestions, DateTimeOffset at, CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(suggestions);
+        return database.WriteAsync(
+            (connection, transaction) =>
+            {
+                var ignored = 0;
+                foreach (var id in suggestions.Distinct())
+                {
+                    ignored += connection.Execute(
+                        transaction,
+                        "UPDATE link_suggestion SET state = 'ignored', reason = NULL, updated_at = $at WHERE id = $id AND workspace_id = $ws AND state = 'pending';",
+                        ("$id", id.ToString()),
+                        ("$ws", workspace.ToString()),
+                        ("$at", at.Ms()));
+                }
+
+                return ignored;
+            },
             cancellationToken);
+    }
 
     /// <summary>Pending rows matching <paramref name="where"/> become ignored; the reason goes (the note and generation stay).</summary>
     private static int Ignore(SqliteConnection connection, SqliteTransaction transaction, string where, (string, object?) key, DateTimeOffset at) =>

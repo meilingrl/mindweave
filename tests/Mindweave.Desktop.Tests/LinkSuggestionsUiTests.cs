@@ -189,6 +189,34 @@ public class LinkSuggestionsUiTests
     }
 
     [AvaloniaFact]
+    public async Task A_suggestions_words_never_cover_a_summary_lying_on_its_line_and_a_click_there_selects_the_summary()
+    {
+        await using var app = DesktopHarness.Create();
+        var window = app.ShowWindow(1100, 720);
+        await SummaryNetworkScenario.SeedSeenAsync(app);
+        var network = await SummaryNetworkScenario.OpenSummaryNetworkAsync(app, window);
+        await SuggestAsync(app, window, network, (Root, Leaf, "对比", "一"));
+
+        // The sibling dragged to the middle of the suggested pair: the words move off it, and it stays clickable.
+        var root = network.Nodes.Single(n => n.ShortTitle == Root);
+        var leaf = network.Nodes.Single(n => n.ShortTitle == Leaf);
+        var sibling = NodeOf(network, Sibling);
+        network.MoveNode(sibling, (root.X + leaf.X) / 2, (root.Y + leaf.Y) / 2);
+        window.UpdateLayout();
+        var canvas = CanvasOf(window);
+        var paint = Assert.Single(canvas.PaintSuggestions());
+        var node = canvas.PaintNodes().Single(n => n.Node.Id == sibling);
+        Assert.False(paint.LabelBounds.Contains(node.Center), $"The words {paint.LabelBounds} cover the summary at {node.Center}");
+        Assert.True(OnLine(paint.LabelBounds.Center, paint.From, paint.To));
+
+        UiInput.Click(window, canvas, at: node.Center);
+        window.UpdateLayout();
+        Assert.Equal(sibling, network.Selected?.Id);
+        Assert.Null(network.HighlightedSuggestion);
+        window.Close();
+    }
+
+    [AvaloniaFact]
     public async Task Hiding_links_hides_the_suggestion_lines_and_legend_but_the_review_list_stays()
     {
         await using var app = DesktopHarness.Create();
@@ -313,6 +341,34 @@ public class LinkSuggestionsUiTests
         window.UpdateLayout();
         Assert.Equal(UiText.LinkSuggestionsNoneNew, Find<TextBlock>(window, "LinkSuggestionsNote").Text);
         Assert.False(Find<Button>(window, "RetryLinkSuggestionsButton").IsEffectivelyVisible);
+        window.Close();
+    }
+
+    [AvaloniaFact]
+    public async Task Ignore_all_ignores_only_the_suggestions_it_asked_about_never_ones_that_arrived_after()
+    {
+        await using var app = DesktopHarness.Create();
+        var window = app.ShowWindow(1100, 720);
+        await SummaryNetworkScenario.SeedSeenAsync(app);
+        var network = await SummaryNetworkScenario.OpenSummaryNetworkAsync(app, window);
+        await SuggestAsync(app, window, network, (Root, Sibling, "对比", "一"));
+        var panel = network.Suggestions!;
+
+        // 全部忽略 asked about one suggestion; meanwhile a request (started before) stores two new ones in its place.
+        UiInput.Click(window, Find<Button>(window, "IgnoreAllSuggestionsButton"));
+        window.UpdateLayout();
+        Assert.True(panel.IsConfirmingIgnoreAll);
+        app.Client.LinkSuggestionAnswer = r => FakeChatClient.PairsByName(r, (NameOf(network, Leaf), NameOf(network, Sibling), "原因", "二"), (NameOf(network, Root), NameOf(network, Leaf), null, "三"));
+        Assert.Equal(new Application.Recommendations.RecommendationOutcome(2), await app.Services.GetRequiredService<ILinkSuggestions>().SuggestAsync(network.Workspace.Id, CancellationToken.None));
+        await UiWait.UntilAsync(() => panel.Items.Count == 2 && panel.Items.All(i => i.Suggestion.Touches(NodeOf(network, Leaf))));
+
+        // The question no longer matches what is shown, so it closes; confirming what was asked ignores none of the new ones.
+        Assert.False(panel.IsConfirmingIgnoreAll);
+        await panel.ConfirmIgnoreAllCommand.ExecuteAsync(null);
+        await panel.Loaded;
+        Assert.Equal(2, panel.Items.Count);
+        Assert.Equal(0, await CountAsync(app, "state = 'ignored'"));
+        Assert.Equal(2, await CountAsync(app, "state = 'pending'"));
         window.Close();
     }
 

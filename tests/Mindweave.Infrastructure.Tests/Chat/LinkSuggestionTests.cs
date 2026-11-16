@@ -266,7 +266,7 @@ public class LinkSuggestionTests
         Assert.Equal(2, items.Count);
 
         h.Health.Report(new StorageWriteException(StorageFailureKind.Full, "disk full", null));
-        await Assert.ThrowsAsync<StorageWriteException>(() => h.LinkSuggestions.IgnoreAllAsync(h.Workspace, Ct));
+        await Assert.ThrowsAsync<StorageWriteException>(() => h.LinkSuggestions.IgnoreAllAsync(h.Workspace, [.. items.Select(i => i.Id)], Ct));
         await Assert.ThrowsAsync<StorageWriteException>(() => h.LinkSuggestions.AcceptAsync(items[0], null, Ct));
         await Assert.ThrowsAsync<StorageWriteException>(() => h.LinkSuggestions.IgnoreAsync(items[0], Ct));
         Assert.Equal(RecommendationProblem.StoragePaused, (await h.LinkSuggestions.SuggestAsync(h.Workspace, Ct)).Problem);
@@ -279,12 +279,37 @@ public class LinkSuggestionTests
         await using var h = await ChatHarness.StartAsync();
         await FourAsync(h);
         await h.LinkSuggestions.SuggestAsync(h.Workspace, Ct);
+        var asked = (await h.LinkSuggestions.GetAsync(h.Workspace, Ct)).Items.Select(i => i.Id).ToList();
 
-        Assert.Equal(2, await h.LinkSuggestions.IgnoreAllAsync(h.Workspace, Ct));
+        Assert.Equal(2, await h.LinkSuggestions.IgnoreAllAsync(h.Workspace, asked, Ct));
 
         Assert.Empty((await h.LinkSuggestions.GetAsync(h.Workspace, Ct)).Items);
         Assert.Equal(2, await IgnoredAsync(h));
-        Assert.Equal(0, await h.LinkSuggestions.IgnoreAllAsync(h.Workspace, Ct));
+        Assert.Equal(0, await h.LinkSuggestions.IgnoreAllAsync(h.Workspace, asked, Ct));
+    }
+
+    [Fact]
+    public async Task Ignore_all_ignores_only_the_suggestions_asked_about_not_ones_stored_after_or_of_another_workspace()
+    {
+        await using var h = await ChatHarness.StartAsync();
+        var (steam, rails, rocket, gauge) = await FourAsync(h);
+        h.Client.LinkSuggestionAnswer = r => FakeChatClient.PairsByName(r, (Steam, Rails, "对比", "一"));
+        await h.LinkSuggestions.SuggestAsync(h.Workspace, Ct);
+        var asked = (await h.LinkSuggestions.GetAsync(h.Workspace, Ct)).Items.Select(i => i.Id).ToList();
+
+        // A request ending before the confirmation replaces the asked one with two new ones: none of them is ignored.
+        h.Client.LinkSuggestionAnswer = r => FakeChatClient.PairsByName(r, (Rocket, Gauge, "例子", "二"), (Rails, Gauge, "前提", "三"));
+        Assert.Equal(new RecommendationOutcome(2), await h.LinkSuggestions.SuggestAsync(h.Workspace, Ct));
+        Assert.Equal(0, await h.LinkSuggestions.IgnoreAllAsync(h.Workspace, asked, Ct));
+        var pending = (await h.LinkSuggestions.GetAsync(h.Workspace, Ct)).Items;
+        Assert.Equal(2, pending.Count);
+        Assert.Equal(0, await IgnoredAsync(h));
+
+        // Ids of this workspace named for another one change nothing.
+        Assert.Equal(0, await h.LinkSuggestions.IgnoreAllAsync(new Core.Workspaces.WorkspaceId(Guid.NewGuid()), [.. pending.Select(i => i.Id)], Ct));
+        Assert.Equal(2, await h.LinkSuggestions.IgnoreAllAsync(h.Workspace, [.. pending.Select(i => i.Id)], Ct));
+        Assert.Equal(2, await IgnoredAsync(h));
+        Assert.True(pending.All(i => !i.Touches(steam)));
     }
 
     [Fact]

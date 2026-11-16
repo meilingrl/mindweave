@@ -26,6 +26,9 @@ public sealed partial class LinkSuggestionsPanel : ObservableObject
     private readonly SerialRefresh _load;
     private int _summaryCount;
 
+    /// <summary>The suggestions 全部忽略 asked about (only these are ignored on confirming).</summary>
+    private IReadOnlyCollection<LinkSuggestionId> _ignoreAllAsked = [];
+
     /// <param name="jump">Shows a summary of a suggestion: selects and centres it on the network.</param>
     /// <param name="openSettings">Opens 设置, when the last request needs a model or a key.</param>
     public LinkSuggestionsPanel(ILinkSuggestions suggestions, WorkspaceId workspace, Action<SummaryNodeId> jump, Action openSettings)
@@ -90,7 +93,7 @@ public sealed partial class LinkSuggestionsPanel : ObservableObject
     [NotifyPropertyChangedFor(nameof(IgnoreAllConfirmText))]
     public partial bool IsConfirmingIgnoreAll { get; private set; }
 
-    public string IgnoreAllConfirmText => UiText.IgnoreAllLinkSuggestionsConfirm(Items.Count);
+    public string IgnoreAllConfirmText => UiText.IgnoreAllLinkSuggestionsConfirm(IsConfirmingIgnoreAll ? _ignoreAllAsked.Count : Items.Count);
 
     /// <summary>The number of saved summaries changed (the network reloaded).</summary>
     internal void SetSummaryCount(int count)
@@ -159,6 +162,7 @@ public sealed partial class LinkSuggestionsPanel : ObservableObject
     private void AskIgnoreAll()
     {
         Notice = null;
+        _ignoreAllAsked = [.. Items.Select(i => i.Id)];
         IsConfirmingIgnoreAll = HasItems;
     }
 
@@ -171,7 +175,7 @@ public sealed partial class LinkSuggestionsPanel : ObservableObject
         IsConfirmingIgnoreAll = false;
         try
         {
-            await _suggestions.IgnoreAllAsync(_workspace, CancellationToken.None);
+            await _suggestions.IgnoreAllAsync(_workspace, _ignoreAllAsked, CancellationToken.None);
         }
         catch (StorageWriteException)
         {
@@ -294,7 +298,9 @@ public sealed partial class LinkSuggestionsPanel : ObservableObject
             Items.RemoveAt(Items.Count - 1);
         }
 
-        if (Items.Count == 0)
+        // The question was about the suggestions shown then: when none is left, or one arrived since (a request that ended
+        // meanwhile), it no longer says what confirming would do, so it closes.
+        if (Items.Count == 0 || Items.Any(i => !_ignoreAllAsked.Contains(i.Id)))
         {
             IsConfirmingIgnoreAll = false;
         }

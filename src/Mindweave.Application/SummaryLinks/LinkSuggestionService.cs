@@ -36,8 +36,11 @@ public interface ILinkSuggestions
     /// <summary>忽略: kept as ignored, so the pair is never suggested again. False when it was no longer pending.</summary>
     Task<bool> IgnoreAsync(LinkSuggestion suggestion, CancellationToken cancellationToken);
 
-    /// <summary>全部忽略: every pending suggestion of the workspace is ignored; returns how many.</summary>
-    Task<int> IgnoreAllAsync(WorkspaceId workspace, CancellationToken cancellationToken);
+    /// <summary>
+    /// 全部忽略: the suggestions the user was asked about (<paramref name="suggestions"/>), those still pending, are ignored;
+    /// one stored after the question (a request that ended meanwhile) stays pending. Returns how many.
+    /// </summary>
+    Task<int> IgnoreAllAsync(WorkspaceId workspace, IReadOnlyCollection<LinkSuggestionId> suggestions, CancellationToken cancellationToken);
 }
 
 /// <summary>
@@ -177,9 +180,10 @@ public sealed partial class LinkSuggestionService : ILinkSuggestions, IDisposabl
         return ignored;
     }
 
-    public async Task<int> IgnoreAllAsync(WorkspaceId workspace, CancellationToken cancellationToken)
+    public async Task<int> IgnoreAllAsync(WorkspaceId workspace, IReadOnlyCollection<LinkSuggestionId> suggestions, CancellationToken cancellationToken)
     {
-        var count = await CommitAsync(() => _store.IgnoreAllAsync(workspace, _clock.UtcNow, cancellationToken)).ConfigureAwait(false);
+        ArgumentNullException.ThrowIfNull(suggestions);
+        var count = await CommitAsync(() => _store.IgnoreAllAsync(workspace, suggestions, _clock.UtcNow, cancellationToken)).ConfigureAwait(false);
         Changed?.Invoke(this, workspace);
         return count;
     }
