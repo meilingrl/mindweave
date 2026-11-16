@@ -601,6 +601,33 @@ public class GalleryTests
         window.Close();
     }
 
+    /// <summary>设置 › 模型连接 with 高级设置 open: 工具调用 and 图片输入 as the preset fills them for a vision model.</summary>
+    [AvaloniaFact]
+    public async Task G26a_settings_model_capabilities()
+    {
+        await using var scene = Scene.Create("g26a");
+        var window = scene.App.ShowWindow(1100, 720, Theme);
+        await SeedAsync(scene.App);
+        await scene.App.Services.GetRequiredService<Application.Models.IModelSettings>().SaveAsync(
+            new Application.Models.ModelSettingsInput(UiText.ProviderZhipu, "https://open.bigmodel.cn/api/paas/v4", "glm-4.6v", "sk-gallery", 128_000), CancellationToken.None);
+        scene.App.ShellPage.ShowSectionCommand.Execute(MainSection.Settings);
+        var settings = Assert.IsType<SettingsHomeViewModel>(scene.App.Workbench.CurrentPage);
+        await settings.Model.Loaded;
+        await SettleAsync(window);
+        var toggle = Find<Avalonia.Controls.Primitives.ToggleButton>(window, "AdvancedToggle");
+        var scroller = window.GetVisualDescendants().OfType<ScrollViewer>().First(s => s.GetVisualDescendants().Contains(toggle));
+        scroller.Offset = new Avalonia.Vector(0, Math.Max(0, scroller.Offset.Y + toggle.TranslatePoint(default, scroller)!.Value.Y - 360));
+        await SettleAsync(window);
+        Capture(window, "g26a-settings-model-capabilities-closed");
+        settings.Model.IsAdvancedOpen = true;
+        await SettleAsync(window);
+        var section = Find<StackPanel>(window, "ModelCapabilities");
+        scroller.Offset = new Avalonia.Vector(0, Math.Max(0, scroller.Offset.Y + section.TranslatePoint(default, scroller)!.Value.Y - 360));
+        await SettleAsync(window);
+        Capture(window, "g26a-settings-model-capabilities");
+        window.Close();
+    }
+
     [AvaloniaFact]
     public async Task G27_storage_details_with_backups()
     {

@@ -34,6 +34,7 @@
 - `ModelCapabilities(Streaming, ToolCalls, ImageInput, ReasoningOutput, PromptCaching, ContextWindowTokens)`，`DefaultsFor(protocol)` 给出协议默认值（Chat Completions：仅流式）。
 - 存于 `model_config.capabilities`（JSON，snake_case）；`NULL` 读作协议默认值，因此旧行无需回填。任务接受时随快照冻结到 `generation_task.capabilities`。
 - 保存设置时：模型不变则保留已声明能力，换模型则回到协议默认值。首版界面不暴露能力编辑。
+- 2026-11-17：设置 › 模型连接 › 高级设置可声明“工具调用”“图片输入”，预设按服务与模型预填；功能用 `IModelSettings.ActiveModelHasAsync` 查询。见[模型能力](model-capabilities.md)。
 - 架构测试禁止 Core 与 Application 源码出现供应商或模型名，功能只能按能力判断。
 
 ## E5 版本化交换格式（规格，首版之后实现）

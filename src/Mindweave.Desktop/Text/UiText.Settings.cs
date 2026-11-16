@@ -69,6 +69,14 @@ public static partial class UiText
     public const string ContextWindowPlaceholder = "留空按 32000 计";
     public const string ContextWindowHint = "对话超出时，较早的内容先压缩成摘要再发送，会多几次请求、多些等待与费用；原始记录完整保留。";
 
+    public const string AdvancedSettings = "高级设置";
+    public const string ModelCapabilitiesLabel = "模型能力";
+    public const string ToolCallsSetting = "工具调用";
+    public const string ToolCallsHint = "模型回答时可以请 Mindweave 执行它提供的工具（例如查找资料），拿到结果后再接着回答。";
+    public const string ImageInputSetting = "图片输入";
+    public const string ImageInputHint = "提问时可以附上图片，由模型看图回答。只有能识图的模型支持。";
+    public const string ModelCapabilitiesHint = "按所选服务与模型预先填好，拿不准的保持关闭；换了服务或模型会重新填。模型其实不支持时打开，相关请求会失败。";
+
     public const string ModelLabel = "模型";
     public const string FetchModels = "获取列表";
     public const string TestConnection = "测试连接";

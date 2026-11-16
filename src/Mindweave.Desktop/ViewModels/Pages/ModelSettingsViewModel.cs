@@ -5,6 +5,7 @@ using Mindweave.Application.Ai;
 using Mindweave.Application.Credentials;
 using Mindweave.Application.Models;
 using Mindweave.Application.Storage;
+using Mindweave.Core.Models;
 
 namespace Mindweave.Desktop.ViewModels.Pages;
 
@@ -20,7 +21,15 @@ public sealed partial class ModelSettingsViewModel : ViewModelBase
     private readonly IModelSettings _settings;
     private bool _applyingPreset;
     private bool _settingModel;
+    private bool _loading;
     private ModelSettings? _saved;
+
+    /// <summary>
+    /// The capabilities the form declares for the model as typed: the saved ones for the saved model, otherwise the
+    /// preset's suggestion. The two flags shown (<see cref="DeclaresToolCalls"/>, <see cref="DeclaresImageInput"/>) are
+    /// laid over it on save; the flags not shown ride along unchanged.
+    /// </summary>
+    private ModelCapabilities _capabilities = ModelCapabilities.DefaultsFor(ChatProtocol.ChatCompletions);
 
     /// <summary>The address the fetched models came from; a different host drops them.</summary>
     private string? _modelsFrom;
@@ -39,7 +48,7 @@ public sealed partial class ModelSettingsViewModel : ViewModelBase
     /// </summary>
     public void ReloadIfUnchanged()
     {
-        if (IsBusy || ApiKey.Length > 0 || (Name, BaseUrl, Model, ContextWindow) != _shownValues)
+        if (IsBusy || ApiKey.Length > 0 || (Name, BaseUrl, Model, ContextWindow, DeclaresToolCalls, DeclaresImageInput) != _shownValues)
         {
             return;
         }
@@ -48,7 +57,7 @@ public sealed partial class ModelSettingsViewModel : ViewModelBase
     }
 
     /// <summary>The values the form was filled with by the last read; changed fields mean the reader is editing.</summary>
-    private (string Name, string BaseUrl, string Model, string ContextWindow) _shownValues = (string.Empty, string.Empty, string.Empty, string.Empty);
+    private (string Name, string BaseUrl, string Model, string ContextWindow, bool ToolCalls, bool ImageInput) _shownValues = (string.Empty, string.Empty, string.Empty, string.Empty, false, false);
 
     [ObservableProperty]
     public partial string Name { get; set; } = string.Empty;
@@ -80,6 +89,21 @@ public sealed partial class ModelSettingsViewModel : ViewModelBase
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(KeyPlaceholder), nameof(SavedKeyApplies))]
     public partial bool HasSavedKey { get; private set; }
+
+    /// <summary>The advanced part of the form (the model's capabilities) is open; closed on every visit.</summary>
+    [ObservableProperty]
+    public partial bool IsAdvancedOpen { get; set; }
+
+    /// <summary>
+    /// 工具调用: the model may be offered tools. Filled from the preset for the service and model, and filled again
+    /// whenever either changes; the user may override it for the model shown.
+    /// </summary>
+    [ObservableProperty]
+    public partial bool DeclaresToolCalls { get; set; }
+
+    /// <summary>图片输入: images may be sent to the model. Filled and overridden like <see cref="DeclaresToolCalls"/>.</summary>
+    [ObservableProperty]
+    public partial bool DeclaresImageInput { get; set; }
 
     /// <summary>A key is saved and the address is still the service it was saved for, so an empty key field keeps it.</summary>
     public bool SavedKeyApplies => HasSavedKey && ServiceAddress.SameService(_saved?.BaseUrl, BaseUrl);
@@ -114,7 +138,10 @@ public sealed partial class ModelSettingsViewModel : ViewModelBase
     [RelayCommand(CanExecute = nameof(IsIdle))]
     private Task SaveAsync() => RunAsync(async () =>
     {
-        await _settings.SaveAsync(new ModelSettingsInput(Name, BaseUrl, Model, ApiKey, ParseContextWindow(ContextWindow)), CancellationToken.None);
+        var declared = _capabilities
+            .With(ModelCapability.ToolCalls, DeclaresToolCalls)
+            .With(ModelCapability.ImageInput, DeclaresImageInput);
+        await _settings.SaveAsync(new ModelSettingsInput(Name, BaseUrl, Model, ApiKey, ParseContextWindow(ContextWindow), declared), CancellationToken.None);
         ApiKey = string.Empty;
         await LoadAsync();
         Report(UiText.SettingsSaved, isError: false);
@@ -160,6 +187,7 @@ public sealed partial class ModelSettingsViewModel : ViewModelBase
 
     partial void OnModelChanged(string value)
     {
+        FillCapabilities();
         if (_settingModel || AvailableModels.Count == 0)
         {
             return;
@@ -183,7 +211,37 @@ public sealed partial class ModelSettingsViewModel : ViewModelBase
         {
             SelectedProvider = value.Trim().Length == 0 ? null : ProviderPresets.Match(value) ?? ProviderPresets.Custom;
         }
+
+        FillCapabilities();
     }
+
+    /// <summary>
+    /// Shows what the model as now typed can do: what was saved for it when it is the saved model on the saved service and
+    /// was ever declared, otherwise the preset's suggestion for the service and model. Unknown is off. Any override the
+    /// user made belonged to the model shown before and is dropped.
+    /// </summary>
+    private void FillCapabilities()
+    {
+        if (_loading)
+        {
+            return;
+        }
+
+        var model = Model.Trim();
+        _capabilities = _saved is not null && _saved.Model == model && ServiceAddress.SameService(_saved.BaseUrl, BaseUrl)
+                                            && WasDeclared(_saved.Capabilities)
+            ? _saved.Capabilities
+            : ModelCapabilityPresets.Suggest(BaseUrl, model);
+        DeclaresToolCalls = _capabilities.ToolCalls;
+        DeclaresImageInput = _capabilities.ImageInput;
+    }
+
+    /// <summary>
+    /// Settings saved before capabilities could be declared hold the bare protocol defaults; those are not a statement
+    /// about the model, so the preset's suggestion is shown instead (and saved with the next save).
+    /// </summary>
+    private static bool WasDeclared(ModelCapabilities saved) =>
+        saved with { ContextWindowTokens = null } != ModelCapabilities.DefaultsFor(ChatProtocol.ChatCompletions);
 
     private void DropModels()
     {
@@ -261,13 +319,16 @@ public sealed partial class ModelSettingsViewModel : ViewModelBase
         }
 
         _saved = saved;
+        _loading = true;
         Name = saved.ConnectionName;
         BaseUrl = saved.BaseUrl;
         _settingModel = true;
         Model = saved.Model;
         _settingModel = false;
+        _loading = false;
+        FillCapabilities();
         ContextWindow = saved.Capabilities.ContextWindowTokens?.ToString(System.Globalization.CultureInfo.InvariantCulture) ?? string.Empty;
-        _shownValues = (Name, BaseUrl, Model, ContextWindow);
+        _shownValues = (Name, BaseUrl, Model, ContextWindow, DeclaresToolCalls, DeclaresImageInput);
         HasSavedKey = await _settings.SavedKeyExistsAsync(CancellationToken.None);
         if (!HasSavedKey)
         {

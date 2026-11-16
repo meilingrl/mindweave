@@ -97,7 +97,7 @@
     <TextBlock Classes="caption" Margin="2,0,0,10" TextWrapping="Wrap" Text="{x:Static t:UiText.PrivacyHint}" />
     <StackPanel DataContext="{Binding Model}" x:DataType="vm:ModelSettingsViewModel" Spacing="12">
       <Border Classes="card settings">
-        <Grid ColumnDefinitions="96,*" RowDefinitions="Auto,Auto,Auto,Auto,Auto,Auto" RowSpacing="12">
+        <Grid ColumnDefinitions="96,*" RowDefinitions="Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto" RowSpacing="12">
           <TextBlock Classes="field-label" Text="{x:Static t:UiText.ProviderLabel}" />
           <ComboBox Grid.Column="1" Name="ProviderPicker" Classes="settings" MinWidth="240" HorizontalAlignment="Left"
                     ItemsSource="{Binding Providers}" SelectedItem="{Binding SelectedProvider}"
@@ -156,6 +156,27 @@
               <TextBlock Classes="caption" VerticalAlignment="Center" Text="{x:Static t:UiText.TokensUnit}" />
             </StackPanel>
             <TextBlock Classes="caption" TextWrapping="Wrap" Text="{x:Static t:UiText.ContextWindowHint}" />
+          </StackPanel>
+
+          <!-- 高级设置 (2026-11-17): what the model can do, filled from the preset and overridable; closed on every visit. -->
+          <ToggleButton Grid.Row="6" Grid.Column="1" Name="AdvancedToggle" Classes="quiet small disclosure" HorizontalAlignment="Left" Margin="-8,0,0,0"
+                        IsChecked="{Binding IsAdvancedOpen}" AutomationProperties.Name="{x:Static t:UiText.AdvancedSettings}">
+            <StackPanel Orientation="Horizontal" Spacing="4">
+              <PathIcon Data="{StaticResource IconChevron}" IsVisible="{Binding !IsAdvancedOpen}" />
+              <PathIcon Data="{StaticResource IconChevronDown}" IsVisible="{Binding IsAdvancedOpen}" />
+              <TextBlock VerticalAlignment="Center" Text="{x:Static t:UiText.AdvancedSettings}" />
+            </StackPanel>
+          </ToggleButton>
+          <TextBlock Grid.Row="7" Classes="field-label" VerticalAlignment="Top" Margin="0,2,0,0" Text="{x:Static t:UiText.ModelCapabilitiesLabel}"
+                     IsVisible="{Binding IsAdvancedOpen}" />
+          <StackPanel Grid.Row="7" Grid.Column="1" Name="ModelCapabilities" Spacing="4" IsVisible="{Binding IsAdvancedOpen}">
+            <CheckBox Name="ToolCallsToggle" IsChecked="{Binding DeclaresToolCalls}" Content="{x:Static t:UiText.ToolCallsSetting}"
+                      AutomationProperties.Name="{x:Static t:UiText.ToolCallsSetting}" AutomationProperties.HelpText="{x:Static t:UiText.ToolCallsHint}" />
+            <TextBlock Classes="caption" TextWrapping="Wrap" Margin="0,0,0,6" Text="{x:Static t:UiText.ToolCallsHint}" />
+            <CheckBox Name="ImageInputToggle" IsChecked="{Binding DeclaresImageInput}" Content="{x:Static t:UiText.ImageInputSetting}"
+                      AutomationProperties.Name="{x:Static t:UiText.ImageInputSetting}" AutomationProperties.HelpText="{x:Static t:UiText.ImageInputHint}" />
+            <TextBlock Classes="caption" TextWrapping="Wrap" Margin="0,0,0,6" Text="{x:Static t:UiText.ImageInputHint}" />
+            <TextBlock Classes="caption" TextWrapping="Wrap" Text="{x:Static t:UiText.ModelCapabilitiesHint}" />
           </StackPanel>
         </Grid>
       </Border>
