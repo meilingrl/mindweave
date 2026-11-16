@@ -3,15 +3,21 @@
 #
 #   scripts/test.sh quick [NAME...]       Core, Architecture and Infrastructure without fault injection (~15 s), plus
 #                                         the desktop tests whose full name contains any NAME (none without NAME)
-#   scripts/test.sh full                  everything CI runs; quarantined tests run after it and only report
+#   scripts/test.sh suite [DIR]           everything CI blocks on, with TRX results in DIR if given; the desktop tests
+#                                         run as several processes at once (scripts/test-shards.py)
+#   scripts/test.sh full                  suite, then the quarantined tests, which only report
 #   scripts/test.sh repeat N FILTER [PROJECT] [--load]
 #                                         runs a dotnet test filter N times and counts failed runs; --load keeps all
 #                                         cores busy meanwhile, the way a slow CI runner or a full parallel run does
 #   scripts/test.sh timings [DIR]         full run with TRX results in DIR (default a temporary one), then the slowest
-#                                         projects, classes and tests and those over the 3 s budget
+#                                         projects, classes and tests and those over the 3 s budget; also refreshes
+#                                         the desktop class timings the shards are balanced by
 #   scripts/test.sh quarantined           lists quarantined tests with their reason and date
 #
 # Before merging into track/claude-auto, `full` must pass; `quick` is for the edit-run loop only.
+#
+# MINDWEAVE_TEST_CONFIGURATION (default Debug) picks the build; MINDWEAVE_TEST_NO_BUILD=1 skips the build step;
+# MINDWEAVE_TEST_SHARDS sets the number of desktop shards (default half the cores, 1 to 4).
 set -euo pipefail
 
 ROOT="$(git -C "$(dirname "$0")" rev-parse --show-toplevel)"
@@ -21,6 +27,9 @@ ARCH="$ROOT/tests/Mindweave.Architecture.Tests"
 INFRA="$ROOT/tests/Mindweave.Infrastructure.Tests"
 DESKTOP="$ROOT/tests/Mindweave.Desktop.Tests"
 NOT_QUARANTINED="Category!=Quarantine"
+CONFIG="${MINDWEAVE_TEST_CONFIGURATION:-Debug}"
+SHARD_TIMINGS="$DESKTOP/shard-timings.json"
+PY="$(command -v python3 || command -v python)"
 
 LOAD_PIDS=()
 
@@ -28,29 +37,57 @@ die() { echo "test: $*" >&2; exit 1; }
 
 stop_load() { ((${#LOAD_PIDS[@]})) && kill "${LOAD_PIDS[@]}" 2>/dev/null; LOAD_PIDS=(); }
 
-build() { dotnet build "$SLN" -v q -nologo; }
+build() { [[ "${MINDWEAVE_TEST_NO_BUILD:-}" == 1 ]] || dotnet build "$SLN" -c "$CONFIG" -v q -nologo; }
+
+shard_count() {
+  local n="${MINDWEAVE_TEST_SHARDS:-}"
+  if [[ -z "$n" ]]; then
+    n=$(( $(getconf _NPROCESSORS_ONLN 2>/dev/null || echo 2) / 2 ))
+    ((n < 1)) && n=1
+    ((n > 4)) && n=4
+  fi
+  echo "$n"
+}
 
 quick() {
   build
-  dotnet test "$CORE" --no-build --nologo
-  dotnet test "$ARCH" --no-build --nologo
-  dotnet test "$INFRA" --no-build --nologo --filter "Category!=FaultInjection&$NOT_QUARANTINED"
+  dotnet test "$CORE" --no-build -c "$CONFIG" --nologo
+  dotnet test "$ARCH" --no-build -c "$CONFIG" --nologo
+  dotnet test "$INFRA" --no-build -c "$CONFIG" --nologo --filter "Category!=FaultInjection&$NOT_QUARANTINED"
   if (($#)); then
     local filter=""
     for name in "$@"; do filter+="${filter:+|}FullyQualifiedName~$name"; done
-    dotnet test "$DESKTOP" --no-build --nologo --filter "($filter)&$NOT_QUARANTINED"
+    dotnet test "$DESKTOP" --no-build -c "$CONFIG" --nologo --filter "($filter)&$NOT_QUARANTINED"
   fi
 }
 
-full() {
+# The projects other than Desktop run one after another (each is parallel inside); then the desktop shards.
+suite() {
+  local dir="${1:-}" trx=() results=() failed=0
+  if [[ -n "$dir" ]]; then
+    mkdir -p "$dir"
+    trx=(--logger trx --results-directory "$dir")
+    results=(--results "$dir")
+  fi
   build
-  dotnet test "$SLN" --no-build --nologo --filter "$NOT_QUARANTINED"
+  for project in "$CORE" "$ARCH" "$INFRA"; do
+    dotnet test "$project" --no-build -c "$CONFIG" --nologo --filter "$NOT_QUARANTINED" ${trx[@]+"${trx[@]}"} || failed=1
+  done
+  "$PY" -I "$ROOT/scripts/test-shards.py" run "$DESKTOP/bin/$CONFIG/net10.0/Mindweave.Desktop.Tests.dll" \
+    --shards "$(shard_count)" --timings "$SHARD_TIMINGS" ${results[@]+"${results[@]}"} -- -trait- Category=Quarantine || failed=1
+  ((failed == 0))
+}
+
+full() {
+  local failed=0
+  suite || failed=1
   quarantined_run
+  ((failed == 0))
 }
 
 quarantined_run() {
   echo "test: quarantined tests (reported, never blocking):"
-  dotnet test "$SLN" --no-build --nologo --filter "Category=Quarantine" || echo "test: a quarantined test failed (see above)"
+  dotnet test "$SLN" --no-build -c "$CONFIG" --nologo --filter "Category=Quarantine" || echo "test: a quarantined test failed (see above)"
 }
 
 repeat() {
@@ -78,7 +115,7 @@ repeat() {
   local failed=0 log
   log="$(mktemp)"
   for ((i = 1; i <= n; i++)); do
-    if dotnet test "$project" --no-build --nologo --filter "$filter" >"$log" 2>&1; then
+    if dotnet test "$project" --no-build -c "$CONFIG" --nologo --filter "$filter" >"$log" 2>&1; then
       echo "run $i: passed"
     else
       failed=$((failed + 1))
@@ -93,9 +130,9 @@ repeat() {
 
 timings() {
   local dir="${1:-$(mktemp -d)}"
-  build
-  dotnet test "$SLN" --no-build --nologo --filter "$NOT_QUARANTINED" --logger trx --results-directory "$dir" | grep -E "^(Passed|Failed)!" || true
-  python3 -I "$ROOT/scripts/test-timings.py" "$dir"
+  suite "$dir" | grep -E "^(Passed|Failed)!|^shard |^test-shards" || true
+  "$PY" -I "$ROOT/scripts/test-timings.py" "$dir"
+  "$PY" -I "$ROOT/scripts/test-shards.py" record "$dir" --assembly Mindweave.Desktop.Tests --out "$SHARD_TIMINGS"
   echo "test: TRX files in $dir"
 }
 
@@ -107,9 +144,10 @@ cmd="${1:-}"
 shift || true
 case "$cmd" in
   quick) quick "$@" ;;
+  suite) suite "$@" ;;
   full) full ;;
   repeat) repeat "$@" ;;
   timings) timings "$@" ;;
   quarantined) quarantined ;;
-  *) sed -n '2,15p' "$0"; exit 2 ;;
+  *) sed -n '2,20p' "$0"; exit 2 ;;
 esac
