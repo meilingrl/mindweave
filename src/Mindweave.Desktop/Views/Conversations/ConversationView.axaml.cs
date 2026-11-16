@@ -14,7 +14,8 @@ namespace Mindweave.Desktop.Views.Conversations;
 /// <summary>
 /// Conversation page view. Converts geometry to reading positions and back (architecture §2.2: the view only does
 /// geometry and anchor conversion; the view model's service owns the values). On open it shows, in order of
-/// precedence: the source passage of a branch (return to source), the slot's reading position, or the end.
+/// precedence: the source passage of a branch (return to source), the slot's reading position, or the start of the latest
+/// answer.
 /// </summary>
 public sealed partial class ConversationView : UserControl
 {
@@ -42,8 +43,8 @@ public sealed partial class ConversationView : UserControl
         InitializeComponent();
         _capture = new DispatcherTimer(TimeSpan.FromMilliseconds(200), DispatcherPriority.Background, (_, _) => CapturePosition());
 
-        // Follow the newest text only while the reader is already at the bottom; never yank them back from
-        // something they scrolled up to read.
+        // Follow the newest text only while the reader is already at the bottom, and only until the start of the answer
+        // being written reaches the top (FollowNewText); never yank them back from something they scrolled to read.
         Scroller.ScrollChanged += (_, e) =>
         {
             if (_restoring)
@@ -53,7 +54,7 @@ public sealed partial class ConversationView : UserControl
 
             if (e.ExtentDelta.Y != 0 && _followBottom)
             {
-                Scroller.ScrollToEnd();
+                FollowNewText();
             }
             else if (e.OffsetDelta.Y != 0)
             {
@@ -372,9 +373,19 @@ public sealed partial class ConversationView : UserControl
         }
     }
 
-    /// <summary>Restores a reading position: same character of the same source block, else the message, else the end.</summary>
+    /// <summary>
+    /// Restores a reading position: same character of the same source block, else the message, else the end. With no
+    /// position (a conversation never read here, such as one opened from its new-answer hint), the latest answer is read
+    /// from its start (<see cref="StartOf"/>), not from its end.
+    /// </summary>
     private void ApplyPosition(ConversationViewModel page, ReadingPosition? position)
     {
+        if (position is null && StartOf(page, LatestAnswer(page)) is { } start && TopOf(start) is { } startTop)
+        {
+            ScrollBy(startTop - ReadingLine);
+            return;
+        }
+
         var (container, answer) = position is null ? (null, null) : Find(page, position.Message);
         if (container is null)
         {
@@ -388,6 +399,59 @@ public sealed partial class ConversationView : UserControl
         var line = locator is { IsMessageTop: false } && answer is not null ? SourceAnchors.ReadingLineOf(locator, answer.Renderer, Scroller) : null;
         line ??= TopOf(container) + (locator is { IsMessageTop: true } ? locator.Within : 0);
         ScrollBy((line ?? 0) - ReadingLine);
+    }
+
+    /// <summary>
+    /// The page follows the answer being written to its end until that would carry the answer's start (<see cref="StartOf"/>)
+    /// above the reading line; there it stops, so the first sentence stays in view and the reader reads on at their own
+    /// pace (direction 1, item 1). A start already above the top means the reader went to the end themselves: the end is
+    /// followed, as before.
+    /// </summary>
+    private void FollowNewText()
+    {
+        if (_page is { } page && page.RunningAnswer is { } running && StartOf(page, page.Messages.IndexOf(running)) is { } start
+            && TopOf(start) is { } top && top >= ReadingLine - 1)
+        {
+            var toEnd = Math.Max(0, Scroller.Extent.Height - Scroller.Viewport.Height) - Scroller.Offset.Y;
+            if (top - toEnd < ReadingLine)
+            {
+                _followBottom = false;
+                Scroller.Offset = new Vector(0, Scroller.Offset.Y + top - ReadingLine);
+                return;
+            }
+        }
+
+        Scroller.ScrollToEnd();
+    }
+
+    private static int LatestAnswer(ConversationViewModel page)
+    {
+        for (var i = page.Messages.Count - 1; i >= 0; i--)
+        {
+            if (page.Messages[i].IsAnswer)
+            {
+                return i;
+            }
+        }
+
+        return -1;
+    }
+
+    /// <summary>
+    /// Where new content in row <paramref name="answer"/> is read from: its question when that is short (a third of the
+    /// page at most), so the reader sees what was asked with the first sentence of the answer below it; else the answer.
+    /// </summary>
+    private Control? StartOf(ConversationViewModel page, int answer)
+    {
+        if (answer < 0 || MessageList.ContainerFromIndex(answer) is not { } container)
+        {
+            return null;
+        }
+
+        return answer > 0 && page.Messages[answer - 1].IsUser && MessageList.ContainerFromIndex(answer - 1) is { } question
+            && question.Bounds.Height <= Scroller.Viewport.Height / 3
+            ? question
+            : container;
     }
 
     private void CapturePosition()
