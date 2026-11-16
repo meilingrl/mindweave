@@ -76,6 +76,16 @@ public sealed partial class SettingsHomeViewModel : PageViewModel, IDisposable
 
     public AppEnvironment Environment { get; }
 
+    /// <summary>The version line under the settings: product and version, plus the data channel except in a release.</summary>
+    public string VersionText => VersionTextFor(Environment);
+
+    public static string VersionTextFor(AppEnvironment environment)
+    {
+        ArgumentNullException.ThrowIfNull(environment);
+        var version = $"{UiText.AppName} {environment.Version}";
+        return environment.ShowsChannel ? $"{version} · {UiText.ChannelLabel} {environment.Channel}" : version;
+    }
+
     public ModelSettingsViewModel Model { get; }
 
     /// <summary>The 工作区 section's entry to 设置 › 工作区 is offered (the page is built with the workbench's list).</summary>

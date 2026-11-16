@@ -210,13 +210,7 @@
         </Button>
       </Border>
     </StackPanel>
-    <TextBlock Name="AppVersion" Classes="caption" Margin="2,14,0,0">
-      <Run Text="{x:Static t:UiText.AppName}" />
-      <Run Text="{Binding Environment.Version}" />
-      <Run Text=" · " />
-      <Run Text="{x:Static t:UiText.ChannelLabel}" />
-      <Run Text="{Binding Environment.Channel}" />
-    </TextBlock>
+    <TextBlock Name="AppVersion" Classes="caption" Margin="2,14,0,0" Text="{Binding VersionText}" />
   </StackPanel>
   </Grid>
   </ScrollViewer>

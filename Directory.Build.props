@@ -12,10 +12,12 @@
     <Deterministic>true</Deterministic>
     <InvariantGlobalization>false</InvariantGlobalization>
     <ManagePackageVersionsCentrally>true</ManagePackageVersionsCentrally>
-    <!-- Separates data directory, single-instance identity and credential namespace per track.
-         Every build defaults to the dev channel; only scripts/daily.sh builds the daily channel "claude-auto",
-         so a dev run, test or agent preview can never open or migrate the daily data. -->
-    <MindweaveChannel Condition="'$(MindweaveChannel)' == ''">claude-auto-dev</MindweaveChannel>
+    <!-- The channel separates data directory, single-instance identity and credential namespace.
+         Without an explicit channel, Release builds (dotnet publish) use "release", the channel of published builds,
+         which the interface does not name; every other build uses "dev", so a dev run, test or agent preview never
+         opens or migrates a published build's data. scripts/daily.sh stamps the owner's daily channel explicitly. -->
+    <MindweaveChannel Condition="'$(MindweaveChannel)' == '' and '$(Configuration)' == 'Release'">release</MindweaveChannel>
+    <MindweaveChannel Condition="'$(MindweaveChannel)' == ''">dev</MindweaveChannel>
     <Version>0.1.0</Version>
   </PropertyGroup>
   <ItemGroup>
