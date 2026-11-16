@@ -439,9 +439,15 @@ public class UsageStatisticsUiTests
         await seed.WorkspaceRequestAsync(workspace.Id, "m", Now.AddDays(-1), 150, 50, kind: "recommend-questions");
         await seed.WorkspaceRequestAsync(workspace.Id, "m", Now.AddDays(-1), 40, 10, kind: "workspace-name");
 
+        // Link suggestions (2026-11-16, §10.3.4) are a row of their own after 推荐.
+        await seed.WorkspaceRequestAsync(workspace.Id, "m", Now.AddDays(-1), 700, 90, kind: "suggest-links");
+
         var (window, page, view) = await OpenAsync(app);
 
-        Assert.Equal(["回答", "标题", "总结", "命名", "工作区名称", "推荐"], page.Purposes.Select(p => p.Name));
+        Assert.Equal(["回答", "标题", "总结", "命名", "工作区名称", "推荐", "关联建议"], page.Purposes.Select(p => p.Name));
+        var links = page.Purposes.Single(p => p.Purpose == UsagePurpose.LinkSuggestion);
+        Assert.Equal((790, UiText.PurposeHint(UsagePurpose.LinkSuggestion)), (links.Counts.Total, links.Hint));
+        Assert.StartsWith("关联建议：", links.AutomationName, StringComparison.Ordinal);
         var row = page.Purposes.Single(p => p.Purpose == UsagePurpose.Recommendation);
         Assert.Equal(200, row.Counts.Total);
         Assert.Equal(UiText.PurposeHint(UsagePurpose.Recommendation), row.Hint);
