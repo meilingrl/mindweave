@@ -14,7 +14,7 @@
 #                                         the desktop class timings the shards are balanced by
 #   scripts/test.sh quarantined           lists quarantined tests with their reason and date
 #
-# Before merging into track/claude-auto, `full` must pass; `quick` is for the edit-run loop only.
+# Before merging into the main line, `full` must pass; `quick` is for the edit-run loop only.
 #
 # MINDWEAVE_TEST_CONFIGURATION (default Debug) picks the build; MINDWEAVE_TEST_NO_BUILD=1 skips the build step;
 # MINDWEAVE_TEST_SHARDS sets the number of desktop shards (default half the cores, 2 to 4).

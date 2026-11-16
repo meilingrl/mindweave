@@ -1,3 +1,25 @@
 # Check out text files with LF everywhere. Raw string literals in tests and SQL migrations embed line
 # breaks verbatim, so a CRLF checkout on Windows changes what the code means, not just how it looks.
 * text=auto eol=lf
+
+# The source package (scripts/package-source.sh, git archive) carries the product: source, tests, build files and
+# the documents a reader needs. Development process records and the owner's personal tooling stay out of it.
+TRACK.md export-ignore
+STATUS.md export-ignore
+AGENTS.md export-ignore
+CLAUDE.md export-ignore
+.keep export-ignore
+.github/ export-ignore
+prototypes/ export-ignore
+docs/reviews/ export-ignore
+docs/history/ export-ignore
+docs/development-routes.md export-ignore
+docs/evolution.md export-ignore
+docs/mailbox.md export-ignore
+docs/design/** export-ignore
+docs/design/run-guide.md -export-ignore
+scripts/daily.sh export-ignore
+scripts/windows.sh export-ignore
+scripts/real-api.sh export-ignore
+scripts/mailbox.sh export-ignore
+scripts/mailbox.ps1 export-ignore

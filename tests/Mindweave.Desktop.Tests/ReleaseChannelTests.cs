@@ -16,7 +16,7 @@ public class ReleaseChannelTests
 
     [Theory]
     [InlineData("dev")]
-    [InlineData("claude-auto")]
+    [InlineData("daily")]
     public void Other_channels_are_named_in_settings(string channel)
     {
         Assert.Equal($"Mindweave 0.1.0 · 数据通道 {channel}", SettingsHomeViewModel.VersionTextFor(Env(channel)));
