@@ -87,8 +87,13 @@ def run(args):
         print(f"shard {i} ({len(shard['classes'])} classes, ~{shard['seconds']:.0f} s): {state} - {summary}")
         if code != 0:
             failed += 1
-            for line in [l for l in lines if "[FAIL]" in l][:12]:
-                print("    " + line.strip())
+            # The failure and the first lines of its message and stack: on CI the log file is gone after the job.
+            shown = 0
+            for n, line in enumerate(lines):
+                if "[FAIL]" in line and shown < 5:
+                    shown += 1
+                    for detail in lines[n:n + 16]:
+                        print("    " + detail.rstrip())
             print(f"    log: {log.name}")
     print(f"test-shards: {len(shards)} shards in {time.monotonic() - started:.0f} s, {failed} failed")
     sys.exit(1 if failed else 0)

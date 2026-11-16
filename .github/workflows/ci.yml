@@ -67,13 +67,8 @@ jobs:
       - name: Build (warnings are errors)
         run: dotnet build Mindweave.slnx --no-restore -c Release
       # Quarantined tests (intermittent, fix pending; docs/design/testing.md) run in the next step and never block.
-      # The same suite as `scripts/test.sh full` locally; the desktop tests run as parallel shards (half the cores).
       - name: Test
-        shell: bash
-        env:
-          MINDWEAVE_TEST_CONFIGURATION: Release
-          MINDWEAVE_TEST_NO_BUILD: "1"
-        run: bash scripts/test.sh suite test-results
+        run: dotnet test Mindweave.slnx --no-build -c Release --filter "Category!=Quarantine" --logger trx --results-directory test-results
       - name: Quarantined tests (do not block)
         if: always()
         continue-on-error: true
