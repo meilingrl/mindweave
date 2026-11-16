@@ -104,7 +104,9 @@ internal sealed partial class ConversationTitler
         var question = messages.First(m => m.Role == MessageRole.User);
         var source = await _branches.GetSourceAsync(e.ConversationId, CancellationToken.None).ConfigureAwait(false);
         // A title needs the gist, not a pasted document (low finding gap-unprompted-4): the question is cut like the answer.
-        var asked = ConversationRules.FirstTextElements(source is null ? question.Text : BranchContext.QuotedQuestion(source.Quote, question.Text), TitleQuestionExcerpt);
+        // Attachments are named, never included (docs/design/resources.md).
+        var brief = ContentBlocks.BriefOf(question.Blocks);
+        var asked = ConversationRules.FirstTextElements(source is null ? brief : BranchContext.QuotedQuestion(source.Quote, brief), TitleQuestionExcerpt);
         var excerpt = ConversationRules.FirstTextElements(e.Text, TitleAnswerExcerpt);
         var now = _clock.UtcNow;
         var task = new GenerationTaskRecord(GenerationTaskId.New(), GenerationTaskKind.Title, e.ConversationId, null, model, [question.Id, e.MessageId], now);

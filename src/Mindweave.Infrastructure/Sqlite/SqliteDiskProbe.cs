@@ -45,7 +45,7 @@ internal static class SqliteDiskProbe
     }
 
     /// <summary>ERROR_DISK_FULL or ERROR_HANDLE_DISK_FULL on Windows, ENOSPC elsewhere.</summary>
-    private static bool IsDiskFull(IOException ex) => (ex.HResult & 0xFFFF) is 0x70 or 0x27 || ex.HResult == 28;
+    internal static bool IsDiskFull(IOException ex) => (ex.HResult & 0xFFFF) is 0x70 or 0x27 || ex.HResult == 28;
 
     /// <summary>How much the probe writes: more than a typical question or summary, so recovery is not declared early.</summary>
     internal const int ProbeBytes = 64 * 1024;

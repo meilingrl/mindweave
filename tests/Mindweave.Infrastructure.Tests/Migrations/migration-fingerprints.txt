@@ -13,3 +13,5 @@
 11 387b9d18045d00cb
 12 a98c1c875d38e47a
 13 a76b437ed246b768
+# 14: resources (provisional number; becomes 15 after the recommendation-association v14 merges, docs/design/resources.md)
+14 d60aec14f4844369

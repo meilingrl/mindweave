@@ -43,8 +43,8 @@ public sealed class SchemaV13MigrationTests : IDisposable
 
         using (var raw = _dir.Raw())
         {
-            Assert.Equal(13, MigrationCatalog.Default.LatestVersion);
-            Assert.Equal(13, SqliteConnections.Scalar<long>(raw, "PRAGMA user_version;"));
+            Assert.True(MigrationCatalog.Default.LatestVersion >= 13);
+            Assert.Equal(MigrationCatalog.Default.LatestVersion, SqliteConnections.Scalar<long>(raw, "PRAGMA user_version;"));
             Assert.Equal(0, SqliteConnections.Scalar<long>(raw, "SELECT count(*) FROM pragma_foreign_key_check;"));
             Assert.Equal(0, SqliteConnections.Scalar<long>(raw, "SELECT count(*) FROM summary_link;"));
             Assert.Equal(0, SqliteConnections.Scalar<long>(raw, "SELECT count(*) FROM link_suggestion;"));

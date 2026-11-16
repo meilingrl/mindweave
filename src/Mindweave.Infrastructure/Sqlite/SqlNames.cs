@@ -3,6 +3,7 @@ using Mindweave.Application.Diagnostics;
 using Mindweave.Application.Storage;
 using Mindweave.Core.Conversations;
 using Mindweave.Core.Models;
+using Mindweave.Core.Resources;
 using Mindweave.Core.Summaries;
 
 namespace Mindweave.Infrastructure.Sqlite;
@@ -202,6 +203,34 @@ internal static class SqlNames
     };
 
     public const string TextBlockKind = "text";
+
+    public const string AttachmentBlockKind = "attachment";
+
+    public static string Of(ResourceOrigin origin) => origin switch
+    {
+        ResourceOrigin.Paste => "paste",
+        ResourceOrigin.File => "file",
+        _ => throw new ArgumentOutOfRangeException(nameof(origin)),
+    };
+
+    public static ResourceOrigin ParseResourceOrigin(string value) => value switch
+    {
+        "paste" => ResourceOrigin.Paste,
+        "file" => ResourceOrigin.File,
+        _ => throw new InvalidDataException($"Unknown resource origin '{value}'."),
+    };
+
+    public static string Of(DerivativeKind kind) => kind switch
+    {
+        DerivativeKind.Text => "text",
+        _ => throw new ArgumentOutOfRangeException(nameof(kind)),
+    };
+
+    public static DerivativeKind ParseDerivativeKind(string value) => value switch
+    {
+        "text" => DerivativeKind.Text,
+        _ => throw new InvalidDataException($"Unknown derivative kind '{value}'."),
+    };
 
     public static string Of(AiRequestOutcome outcome) => outcome switch
     {

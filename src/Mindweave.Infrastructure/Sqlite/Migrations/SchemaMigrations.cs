@@ -517,5 +517,53 @@ internal static class SchemaMigrations
             ) STRICT;
             CREATE INDEX link_suggestion_by_b ON link_suggestion (workspace_id, node_b);
             """),
+
+        Migration.Sql(14, "resources, derivatives, attachment blocks", """
+            -- Resources (evolution D5 phase 1, docs/design/resources.md): stored material such as a paste, a file or an image.
+            -- The original is a file under resources/ named by its SHA-256 (sha256); only what it is and where it came from is
+            -- here. A resource belongs to a workspace and, once a message refers to it, to that message's conversation; the
+            -- pair is one key, so SQLite itself refuses a conversation of another workspace, and deleting either takes the
+            -- resource along. name is the file name (NULL for a paste), never a path. origin and derivative kinds are checked
+            -- by the application, as message block kinds are, so later origins (web, tool) and kinds (summary, caption) need
+            -- no rebuild.
+            CREATE UNIQUE INDEX conversation_by_workspace_id ON conversation (workspace_id, id);
+
+            CREATE TABLE resource (
+                id              TEXT    NOT NULL PRIMARY KEY,
+                workspace_id    TEXT    NOT NULL REFERENCES workspace (id) ON DELETE CASCADE,
+                conversation_id TEXT,
+                origin          TEXT    NOT NULL CHECK (length(origin) > 0),
+                name            TEXT    CHECK (name IS NULL OR length(name) > 0),
+                media_type      TEXT    NOT NULL CHECK (length(media_type) > 0),
+                byte_size       INTEGER NOT NULL CHECK (byte_size >= 0),
+                sha256          TEXT    NOT NULL CHECK (length(sha256) = 64 AND sha256 NOT GLOB '*[^0-9a-f]*'),
+                trusted         INTEGER NOT NULL CHECK (trusted IN (0, 1)),
+                source_url      TEXT    CHECK (source_url IS NULL OR length(source_url) > 0),
+                created_at      INTEGER NOT NULL,
+                FOREIGN KEY (workspace_id, conversation_id) REFERENCES conversation (workspace_id, id) ON DELETE CASCADE
+            ) STRICT;
+            CREATE INDEX resource_by_conversation ON resource (workspace_id, conversation_id);
+            CREATE INDEX resource_by_sha256 ON resource (sha256);
+
+            -- What is made from an original, one row per kind: today the whole extracted text (kind 'text'). producer names
+            -- the extractor and its version (or a model), so rows made by an older one can be found and made again;
+            -- prompt_version and estimated_tokens are for model-made kinds and the context budget later.
+            CREATE TABLE resource_derivative (
+                id               INTEGER NOT NULL PRIMARY KEY,
+                resource_id      TEXT    NOT NULL REFERENCES resource (id) ON DELETE CASCADE,
+                kind             TEXT    NOT NULL CHECK (length(kind) > 0),
+                producer         TEXT    NOT NULL CHECK (length(producer) > 0),
+                prompt_version   TEXT,
+                text             TEXT    NOT NULL,
+                estimated_tokens INTEGER CHECK (estimated_tokens >= 0),
+                created_at       INTEGER NOT NULL,
+                UNIQUE (resource_id, kind)
+            ) STRICT;
+
+            -- An attachment block (kind 'attachment', text = the resource's display name) names its resource here; a resource
+            -- a message refers to cannot be deleted on its own. Existing blocks are text and keep NULL.
+            ALTER TABLE message_block ADD COLUMN resource_id TEXT REFERENCES resource (id) ON DELETE RESTRICT;
+            CREATE INDEX message_block_by_resource ON message_block (resource_id);
+            """),
     ];
 }

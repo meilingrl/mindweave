@@ -20,6 +20,9 @@ public sealed record AppPaths(string Channel, string DataDirectory)
 
     public string LogDirectory => Path.Combine(DataDirectory, "logs");
 
+    /// <summary>Resource originals and their temporary files (docs/design/resources.md).</summary>
+    public string ResourceDirectory => Path.Combine(DataDirectory, "resources");
+
     /// <summary>Short stable identity of this data directory, used for the activation pipe name.</summary>
     public string InstanceKey
     {
