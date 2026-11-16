@@ -42,7 +42,7 @@ done
 
 # The package presents the product as Mindweave alone: no development process records (kept out by export-ignore
 # in .gitattributes) and no development-line or channel names in any packaged file.
-process="$(printf '%s\n' "$names" | grep -E '^mindweave/(TRACK\.md|STATUS\.md|AGENTS\.md|CLAUDE\.md|\.github/|docs/reviews/)' || true)"
+process="$(printf '%s\n' "$names" | grep -E '^mindweave/(TRACK\.md|STATUS\.md|AGENTS\.md|CLAUDE\.md|\.github/|docs/history/(development-routes|track-)|docs/reviews/(README\.md|claude[-]auto-))' || true)"
 if [[ -n "$process" ]]; then
   echo "FAIL development records in the package:" >&2
   printf '  %s\n' $process >&2
@@ -56,6 +56,19 @@ if [[ -n "$marked" ]]; then
   echo "FAIL development-line names in packaged files:" >&2
   printf '  %s\n' $marked >&2
   fail=1
+fi
+
+# Relative links in packaged Markdown that point at files the package leaves out (reported, not failed). Review
+# batches are frozen copies that keep the paths of their time, so they are not checked.
+dead="$(cd "$scratch/mindweave" && find . -name '*.md' -not -path './docs/reviews/*' -print0 | xargs -0 perl -ne '
+  while (/\]\(([^)#\s]+)(#[^)]*)?\)/g) {
+    my $t = $1; next if $t =~ m{^[a-z]+:|^/};
+    (my $dir = $ARGV) =~ s{[^/]*$}{};
+    print "$ARGV -> $t\n" unless -e "$dir$t";
+  }' | sed 's|^\./||' || true)"
+if [[ -n "$dead" ]]; then
+  echo "note: links to files outside the package:"
+  printf '%s\n' "$dead" | sed 's/^/  /'
 fi
 
 files="$(printf '%s\n' "$names" | grep -vc '/$')"

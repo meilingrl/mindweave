@@ -4,20 +4,22 @@
 
 # The source package (scripts/package-source.sh, git archive) carries the product: source, tests, build files and
 # the documents a reader needs. Development process records and the owner's personal tooling stay out of it.
+.gitattributes export-ignore
 TRACK.md export-ignore
 STATUS.md export-ignore
 AGENTS.md export-ignore
 CLAUDE.md export-ignore
 .keep export-ignore
 .github/ export-ignore
-prototypes/ export-ignore
-docs/reviews/ export-ignore
-docs/history/ export-ignore
+docs/reviews/README.md export-ignore
+docs/reviews/claude-auto-*/ export-ignore
+docs/history/development-routes.md export-ignore
+docs/history/track-claude-auto.md export-ignore
 docs/development-routes.md export-ignore
-docs/evolution.md export-ignore
 docs/mailbox.md export-ignore
 docs/design/** export-ignore
 docs/design/run-guide.md -export-ignore
+docs/design/evolution-seams.md -export-ignore
 scripts/daily.sh export-ignore
 scripts/windows.sh export-ignore
 scripts/real-api.sh export-ignore

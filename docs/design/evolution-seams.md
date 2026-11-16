@@ -4,7 +4,7 @@
 
 | 接缝 | 状态 | 落点 |
 | --- | --- | --- |
-| E1 视图槽位化导航状态 | **已落地**（S2，迁移 v4） | Desktop `ViewerSlot`、`PageContext`、`NavigationRequest.Slot`；表 `reading_position`、`draft` 以槽位键为主键之一；见 [S2 设计](s2-branching.md#e1-视图槽位) |
+| E1 视图槽位化导航状态 | **已落地**（S2，迁移 v4） | Desktop `ViewerSlot`、`PageContext`、`NavigationRequest.Slot`；表 `reading_position`、`draft` 以槽位键为主键之一；见 S2 设计（仓库内 `docs/design/s2-branching.md`“E1 视图槽位”） |
 | E2 分块消息内容 | **已落地**（迁移 v3） | Core `ContentBlock`；表 `message_block` |
 | E3 请求追踪与源头脱敏 | **已落地**（迁移 v3） | Application `Diagnostics/`；表 `ai_request`；客户端与文件日志脱敏 |
 | E4 模型能力描述 | **已落地**（迁移 v3） | Core `ModelCapabilities`；`model_config` 与 `generation_task` 的 `capabilities` 列 |
@@ -60,7 +60,7 @@ mindweave-export/
 
 - **数据生成器** `PerfSeed`：通过真实存储接口写入，数据经过与生产相同的守卫与表结构；内容只由序号决定，可重复。形态 `PerfShape(会话数, 长会话轮数, 回答字数)`；回答是含标题、列表、表格与代码块的 Markdown。分支树在 S2 引入分支后加入。
 - **基准**：侧栏列表（预算 200 ms）与打开长会话（预算 300 ms），各取预热后 5 次运行的中位数。完整规模（1,000 个会话、200 轮、每条回答 20,000 字）需显式运行 `scripts/perf.sh`；常规测试跑小规模冒烟版，只验证生成器与读取路径可用，不检查耗时。
-- **渲染基准**（2026-11-06）：超长回答（约 3 万与 10 万字 Markdown）的显示、从侧栏打开与生成中每次更新的代价，同样由 `scripts/perf.sh` 运行；方法、数字与结论见 [S2](s2-branching.md)“超长回答的渲染”。
+- **渲染基准**（2026-11-06）：超长回答（约 3 万与 10 万字 Markdown）的显示、从侧栏打开与生成中每次更新的代价，同样由 `scripts/perf.sh` 运行；方法、数字与结论见 S2（仓库内 `docs/design/s2-branching.md`）“超长回答的渲染”。
 - **架构测试（`SeamTests`）**：只有请求路径（生成协调器、模型设置服务）与凭据存储实现可以引用 `ICredentialStore`；Core 与 Application 不得出现供应商名。
 - 首次完整运行（2026-10-27，macOS Release）：生成 598 ms，列表 29.7 ms，打开长会话 25.8 ms（约 4 MB 正文）。存储读取远在预算内；预算保持不变，用来发现数量级退化。主要风险仍在渲染层（超长 Markdown 的排版与虚拟化），需要在 S2 引入 LiveMarkdown 后加界面基准。
 

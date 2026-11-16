@@ -9,8 +9,8 @@
 #   scripts/daily.sh status                            builds, data schema, latest backups
 #
 # The daily data is ~/Library/Application Support/Mindweave/claude-auto (channel "claude-auto", keychain service
-# "Mindweave.claude-auto"). Every other build defaults to channel "claude-auto-dev" (Directory.Build.props), so dev
-# runs, tests and agent previews never open or migrate it. Only this script stamps the daily channel.
+# "Mindweave.claude-auto"). Every other build defaults to channel "dev", or "release" for Release builds
+# (Directory.Build.props), so dev runs, tests and agent previews never open or migrate it. Only this script stamps the daily channel.
 #
 # publish only takes commits already merged into main, refuses while the daily app is open, copies the
 # database to the backup folder first, keeps the previous build for rollback and records commit and schema version.

@@ -21,7 +21,7 @@ dotnet test Mindweave.slnx -c Release
 dotnet run --project src/Mindweave.Desktop -c Release
 ```
 
-- **数据目录**：发布的版本（`dotnet publish`，以及 `-c Release` 运行）用通道 `release`：macOS `~/Library/Application Support/Mindweave/release/`，Windows `%LOCALAPPDATA%\Mindweave\release\`。其余构建（默认的 Debug 运行、测试、预览）用通道 `dev`，数据在同级的 `dev/` 目录，所以开发运行不会打开或升级发布版本的数据。通道同时决定单实例标识与系统凭据条目（`Mindweave.release`／`Mindweave.dev`），两者的 API 密钥各填一次。设置页底部在发布版本只显示名称与版本号，其他通道另外写明通道。试用时也可以另指目录：
+- **数据目录**：发布的版本（`dotnet publish`，以及 `-c Release` 运行）用通道 `release`：macOS `~/Library/Application Support/Mindweave/release/`，Windows `%LOCALAPPDATA%\Mindweave\release\`。其余构建（默认的 Debug 运行与预览）用通道 `dev`；测试各用自己的临时数据目录，不受通道影响，数据在同级的 `dev/` 目录，所以开发运行不会打开或升级发布版本的数据。通道同时决定单实例标识与系统凭据条目（`Mindweave.release`／`Mindweave.dev`），两者的 API 密钥各填一次。设置页底部在发布版本只显示名称与版本号，其他通道另外写明通道。试用时也可以另指目录：
 
   ```bash
   MINDWEAVE_DATA_DIR=/tmp/mw-try dotnet run --project src/Mindweave.Desktop -c Release
@@ -33,7 +33,7 @@ dotnet run --project src/Mindweave.Desktop -c Release
 
 ## Windows 发布
 
-在 Windows 上（或用 `scripts/windows.sh publish` 从 Mac 远程）：
+在 Windows 上：
 
 ```bash
 dotnet publish src/Mindweave.Desktop -c Release -r win-x64 --self-contained -o publish/win-x64

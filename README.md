@@ -18,7 +18,7 @@
 | [详细设计就绪审查](docs/reviews/claude-design-readiness-20261024-172436/README.md) | 2026-10-24 独立审查：问题分级、v1–v4 版本、用户决定记录及[详细设计交接](docs/reviews/claude-design-readiness-20261024-172436/detailed-design-handoff.md)；v4 已写回现行需求与架构，交接不是开发授权 |
 | [独立设计复审](docs/reviews/review-20261023-023314-sgt/README.md) | 继续分层导航：冻结的五轮报告、版本与D1–D8讨论来源；后续已确认调整以现行需求和架构为准 |
 
-审查材料的迁移说明与旧路径解释见 [审查入口](docs/reviews/README.md)。产品代码在 `src/`，测试在 `tests/`，构建与打包脚本在 `scripts/`；原型独立保留。
+审查材料的迁移说明与旧路径解释见仓库内的 `docs/reviews/README.md`。产品代码在 `src/`，测试在 `tests/`，构建与打包脚本在 `scripts/`；原型独立保留。
 
 需求与架构按职责维护，避免各自复制完整细则；历史记录保留当时结论，不以旧“待定”覆盖后续决定。发现冲突时回查明确决定，不自行扩大范围。
 
