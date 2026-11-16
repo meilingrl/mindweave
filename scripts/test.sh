@@ -17,7 +17,7 @@
 # Before merging into track/claude-auto, `full` must pass; `quick` is for the edit-run loop only.
 #
 # MINDWEAVE_TEST_CONFIGURATION (default Debug) picks the build; MINDWEAVE_TEST_NO_BUILD=1 skips the build step;
-# MINDWEAVE_TEST_SHARDS sets the number of desktop shards (default half the cores, 1 to 4).
+# MINDWEAVE_TEST_SHARDS sets the number of desktop shards (default half the cores, 2 to 4).
 set -euo pipefail
 
 ROOT="$(git -C "$(dirname "$0")" rev-parse --show-toplevel)"
@@ -29,11 +29,17 @@ DESKTOP="$ROOT/tests/Mindweave.Desktop.Tests"
 NOT_QUARANTINED="Category!=Quarantine"
 CONFIG="${MINDWEAVE_TEST_CONFIGURATION:-Debug}"
 SHARD_TIMINGS="$DESKTOP/shard-timings.json"
-PY="$(command -v python3 || command -v python)"
 
 LOAD_PIDS=()
 
 die() { echo "test: $*" >&2; exit 1; }
+
+# Looked up only when needed: `quick` and `repeat` need no Python.
+py() {
+  local exe
+  exe="$(command -v python3 || command -v python)" || die "python3 (or python) is needed for this command"
+  "$exe" -I "$@"
+}
 
 stop_load() { ((${#LOAD_PIDS[@]})) && kill "${LOAD_PIDS[@]}" 2>/dev/null; LOAD_PIDS=(); }
 
@@ -43,7 +49,8 @@ shard_count() {
   local n="${MINDWEAVE_TEST_SHARDS:-}"
   if [[ -z "$n" ]]; then
     n=$(( $(getconf _NPROCESSORS_ONLN 2>/dev/null || echo 2) / 2 ))
-    ((n < 1)) && n=1
+    # At least 2: the desktop tests spend much of their time waiting, so two shards help even on two cores.
+    ((n < 2)) && n=2
     ((n > 4)) && n=4
   fi
   echo "$n"
@@ -69,11 +76,12 @@ suite() {
     trx=(--logger trx --results-directory "$dir")
     results=(--results "$dir")
   fi
-  build
+  # Explicit: callers run `suite || ...`, and bash ignores `set -e` inside a function called that way.
+  build || return 1
   for project in "$CORE" "$ARCH" "$INFRA"; do
     dotnet test "$project" --no-build -c "$CONFIG" --nologo --filter "$NOT_QUARANTINED" ${trx[@]+"${trx[@]}"} || failed=1
   done
-  "$PY" -I "$ROOT/scripts/test-shards.py" run "$DESKTOP/bin/$CONFIG/net10.0/Mindweave.Desktop.Tests.dll" \
+  py "$ROOT/scripts/test-shards.py" run "$DESKTOP/bin/$CONFIG/net10.0/Mindweave.Desktop.Tests.dll" \
     --shards "$(shard_count)" --timings "$SHARD_TIMINGS" ${results[@]+"${results[@]}"} -- -trait- Category=Quarantine || failed=1
   ((failed == 0))
 }
@@ -129,10 +137,17 @@ repeat() {
 }
 
 timings() {
-  local dir="${1:-$(mktemp -d)}"
-  suite "$dir" | grep -E "^(Passed|Failed)!|^shard |^test-shards" || true
-  "$PY" -I "$ROOT/scripts/test-timings.py" "$dir"
-  "$PY" -I "$ROOT/scripts/test-shards.py" record "$dir" --assembly Mindweave.Desktop.Tests --out "$SHARD_TIMINGS"
+  local dir="${1:-$(mktemp -d)}" passed=1
+  mkdir -p "$dir"
+  suite "$dir" >"$dir/suite.log" 2>&1 || passed=0
+  grep -E "^(Passed|Failed)!|^shard |^test-shards|error" "$dir/suite.log" || true
+  if ! grep -q "^test-shards: " "$dir/suite.log"; then
+    die "the suite did not reach the desktop tests (build failed?); see $dir/suite.log"
+  fi
+  py "$ROOT/scripts/test-timings.py" "$dir"
+  # Timings from a failed run still balance the shards, but a build failure never gets here.
+  py "$ROOT/scripts/test-shards.py" record "$dir" --assembly Mindweave.Desktop.Tests --out "$SHARD_TIMINGS"
+  ((passed)) || echo "test: the suite failed; see $dir/suite.log"
   echo "test: TRX files in $dir"
 }
 

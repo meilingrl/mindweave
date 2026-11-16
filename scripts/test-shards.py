@@ -18,12 +18,14 @@ import argparse
 import glob
 import json
 import os
+import re
 import statistics
 import subprocess
 import sys
 import time
 import xml.etree.ElementTree as ET
 
+CLASS_NAME = re.compile(r"[A-Za-z_][\w`]*(\.[A-Za-z_][\w`+]*)+")
 NS = {"t": "http://microsoft.com/schemas/VisualStudio/TeamTest/2010"}
 
 
@@ -32,8 +34,10 @@ def runner(dll):
 
 
 def list_classes(dll, extra):
-    out = subprocess.run(runner(dll) + ["-list", "classes", *extra], capture_output=True, text=True, check=True).stdout
-    return sorted({line.strip() for line in out.splitlines() if line.strip() and not line.startswith(" ")})
+    cmd = runner(dll) + ["-list", "classes", "-noLogo", "-noColor", *extra]
+    out = subprocess.run(cmd, capture_output=True, text=True, check=True).stdout
+    # Only full type names: a banner or escape code taken as a class would match nothing and hide an empty assembly.
+    return sorted({line.strip() for line in out.splitlines() if CLASS_NAME.fullmatch(line.strip())})
 
 
 def assign(classes, timings, n):
