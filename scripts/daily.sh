@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # The daily-use build of Mindweave on this Mac, kept apart from development (macOS only).
 #
-#   scripts/daily.sh publish [REF] [--accept-upgrade]  build REF (default track/claude-auto) as the new daily build
+#   scripts/daily.sh publish [REF] [--accept-upgrade]  build REF (default main) as the new daily build
 #   scripts/daily.sh trial [REF|current]               run a build on a copy of the daily data; the real data is untouched
 #   scripts/daily.sh run                               start the current daily build
 #   scripts/daily.sh rollback                          switch back to the previous daily build
@@ -12,7 +12,7 @@
 # "Mindweave.claude-auto"). Every other build defaults to channel "claude-auto-dev" (Directory.Build.props), so dev
 # runs, tests and agent previews never open or migrate it. Only this script stamps the daily channel.
 #
-# publish only takes commits already merged into track/claude-auto, refuses while the daily app is open, copies the
+# publish only takes commits already merged into main, refuses while the daily app is open, copies the
 # database to the backup folder first, keeps the previous build for rollback and records commit and schema version.
 # A build with a newer schema upgrades the data on first launch (the app makes a verified backup before migrating);
 # publish refuses it unless --accept-upgrade is given, which you should only pass after `trial` looked right.
@@ -23,7 +23,7 @@
 set -euo pipefail
 
 CHANNEL="claude-auto"
-TRACK="track/claude-auto"
+MAINLINE="main"
 ROOT="$(git -C "$(dirname "$0")" rev-parse --show-toplevel)"
 APP_HOME="${MINDWEAVE_DAILY_HOME:-$HOME/Applications/Mindweave-daily}"
 BACKUP_DIR="${MINDWEAVE_DAILY_BACKUP_DIR:-$HOME/Documents/Mindweave-daily-backups}"
@@ -122,7 +122,7 @@ resolve_commit() {
 }
 
 cmd_publish() {
-  local ref="$TRACK" accept=0 arg sha short s_new s_data name rel previous
+  local ref="$MAINLINE" accept=0 arg sha short s_new s_data name rel previous
   for arg in "$@"; do
     case "$arg" in
       --accept-upgrade) accept=1 ;;
@@ -132,7 +132,7 @@ cmd_publish() {
   done
   sha="$(resolve_commit "$ref")"
   short="$(git -C "$ROOT" rev-parse --short "$sha")"
-  git -C "$ROOT" merge-base --is-ancestor "$sha" "$TRACK" || die "$short is not merged into $TRACK; the daily build only takes merged commits"
+  git -C "$ROOT" merge-base --is-ancestor "$sha" "$MAINLINE" || die "$short is not merged into $MAINLINE; the daily build only takes merged commits"
   require_closed
 
   s_new="$(schema_of_ref "$sha")"
@@ -177,7 +177,7 @@ cmd_publish() {
 }
 
 cmd_trial() {
-  local ref="${1:-$TRACK}" app sha trial
+  local ref="${1:-$MAINLINE}" app sha trial
   trial="$(cd "$(mktemp -d "${TMPDIR:-/tmp}/mindweave-trial.XXXXXX")" && pwd -P)"
   if [[ "$ref" == "current" ]]; then
     app="$APP_HOME/current"
@@ -230,7 +230,7 @@ cmd_status() {
     fi
   done
   echo "data:     $DATA  (schema v$(data_schema))$(app_running && echo ', open now')"
-  echo "track:    $TRACK at $(git -C "$ROOT" rev-parse --short "$TRACK")  schema v$(schema_of_ref "$TRACK")"
+  echo "main:     $MAINLINE at $(git -C "$ROOT" rev-parse --short "$MAINLINE")  schema v$(schema_of_ref "$MAINLINE")"
   echo "backups:  $BACKUP_DIR"
   ls -1t "$BACKUP_DIR"/mindweave-v*.db 2>/dev/null | head -3 | sed 's/^/  /' || true
   same_volume_warning

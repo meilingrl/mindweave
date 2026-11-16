@@ -2,9 +2,9 @@ name: ci
 
 on:
   push:
-    branches: [track/claude-auto]
+    branches: [main]
   pull_request:
-    branches: [track/claude-auto]
+    branches: [main]
   workflow_dispatch:
     inputs:
       macos:

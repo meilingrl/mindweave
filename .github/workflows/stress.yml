@@ -1,11 +1,11 @@
 name: stress
 
 # Repeats a test filter in parallel to reproduce intermittent failures on a hosted runner, whose speed differs
-# from the local machines (TRACK.md findings). A dispatch-only workflow cannot be started from a non-default
-# branch, so it also runs when this file changes on the track branch, using the defaults below.
+# from the local machines. It also runs when this file changes on main, using the defaults below, so a change
+# to the workflow is tried at once.
 on:
   push:
-    branches: [track/claude-auto]
+    branches: [main]
     paths: [.github/workflows/stress.yml]
   workflow_dispatch:
     inputs:
