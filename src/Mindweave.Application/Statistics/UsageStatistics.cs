@@ -22,6 +22,9 @@ public enum UsagePurpose
     /// <summary>Recommended questions and nodes (requirements §10.3), asked for or prepared in the background.</summary>
     Recommendation,
 
+    /// <summary>AI-suggested links between summaries (requirements §10.3.4), asked for only with 建议关联.</summary>
+    LinkSuggestion,
+
     /// <summary>A kind this build does not know (written by a newer one); counted, never hidden.</summary>
     Other,
 }
@@ -214,6 +217,7 @@ public sealed class UsageStatisticsService(IStatisticsStore store, IModelSetting
         "naming" => UsagePurpose.Naming,
         Conversations.RequestAttribution.WorkspaceNames => UsagePurpose.WorkspaceName,
         Conversations.RequestAttribution.RecommendQuestions or Conversations.RequestAttribution.RecommendNodes => UsagePurpose.Recommendation,
+        Conversations.RequestAttribution.SuggestLinks => UsagePurpose.LinkSuggestion,
         _ => UsagePurpose.Other,
     };
 }

@@ -346,7 +346,10 @@ public sealed partial class SummaryLinkItem : ObservableObject
 
     public bool HasNote => Note is not null;
 
-    public string AutomationName => UiText.LinkItemName(OtherName, Note);
+    /// <summary>Suggested by AI and accepted (requirements §10.3.4): listed with "AI 建议，经你确认".</summary>
+    public bool IsConfirmed => Entry.Link.Origin == SummaryLinkOrigin.Confirmed;
+
+    public string AutomationName => UiText.LinkItemName(OtherName, Note, IsConfirmed);
 
     public string JumpName => _owner.Opens ? UiText.OpenLinkedName(OtherName) : UiText.JumpToLinkedName(OtherName);
 
@@ -392,6 +395,7 @@ public sealed partial class SummaryLinkItem : ObservableObject
         OnPropertyChanged(nameof(OtherName));
         OnPropertyChanged(nameof(Note));
         OnPropertyChanged(nameof(HasNote));
+        OnPropertyChanged(nameof(IsConfirmed));
         OnPropertyChanged(nameof(AutomationName));
         OnPropertyChanged(nameof(JumpName));
         OnPropertyChanged(nameof(EditName));

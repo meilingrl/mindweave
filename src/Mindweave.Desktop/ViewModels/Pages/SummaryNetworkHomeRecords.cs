@@ -36,6 +36,16 @@ public sealed record GroupCaption(string Text, SummaryNodeId Anchor, IReadOnlyLi
 /// </summary>
 public sealed record LinkEdgeView(Mindweave.Application.SummaryLinks.SummaryLinkId Id, SummaryNodeId A, SummaryNodeId B, double AX, double AY, double BX, double BY, string? Note);
 
+/// <summary>
+/// A pending link suggestion as the canvas draws it (requirements §10.3.4): between two summaries at their positions in
+/// memory, light and dash-dotted, with "建议" (and the note, when there is one) at the middle. Never part of the layout.
+/// </summary>
+public sealed record SuggestionEdgeView(Mindweave.Application.SummaryLinks.LinkSuggestionId Id, SummaryNodeId A, SummaryNodeId B, double AX, double AY, double BX, double BY, string? Note)
+{
+    /// <summary>The words on the line: "建议", or "建议 · 对比".</summary>
+    public string Label => UiText.LinkSuggestionLabel(Note);
+}
+
 /// <summary>A source edge as the canvas draws it; dashed with a label when it passes unsummarized conversations.</summary>
 public sealed record EdgeView(SummaryNodeId From, SummaryNodeId To, double FromX, double FromY, double ToX, double ToY, bool IsDirect, string? Label);
 

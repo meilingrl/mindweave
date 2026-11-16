@@ -52,7 +52,8 @@ public sealed partial class SummaryNetworkHomeViewModel : PageViewModel, IDispos
         IUiDispatcher dispatcher,
         IRecommendations? recommendations = null,
         Application.Preferences.IRecommendationSettings? recommendationSettings = null,
-        ISummaryLinks? links = null)
+        ISummaryLinks? links = null,
+        ILinkSuggestions? suggestions = null)
         : base(SummaryNetworkHomeRoute.Instance)
     {
         Workspace = workspace;
@@ -78,6 +79,7 @@ public sealed partial class SummaryNetworkHomeViewModel : PageViewModel, IDispos
             _links.Changed += OnLinksChanged;
         }
 
+        AttachSuggestions(suggestions);
         _reload = new UiThrottle(dispatcher, TimeSpan.FromMilliseconds(30), () => _ = _load.Request());
         _summaries.Changed += OnChanged;
         _conversations.VisibilityChanged += OnVisibilityChanged;
@@ -257,6 +259,8 @@ public sealed partial class SummaryNetworkHomeViewModel : PageViewModel, IDispos
         PickRefusal = null;
         _selectedRecommendation = null;
         SelectedRecommendation = null;
+        HighlightedSuggestion = null;
+        Suggestions?.Highlight(null);
         Session.Selected = node;
         Selected = node is { } id ? Detail(id) : null;
         Trail = TrailOf(node);
@@ -351,6 +355,7 @@ public sealed partial class SummaryNetworkHomeViewModel : PageViewModel, IDispos
 
         _linksHidden = !_linksHidden;
         BuildLinkViews();
+        BuildSuggestionViews();
         RaiseLinkState();
         ViewChanged?.Invoke(this, false);
         try
@@ -441,6 +446,7 @@ public sealed partial class SummaryNetworkHomeViewModel : PageViewModel, IDispos
         }
 
         BuildLinkViews();
+        BuildSuggestionViews();
         RefreshListLinks();
         RaiseLinkState();
         if (Links is not null)
@@ -474,7 +480,7 @@ public sealed partial class SummaryNetworkHomeViewModel : PageViewModel, IDispos
     /// <summary>The list view's "关联：…" line of a summary; empty without links.</summary>
     private string LinksLineOf(SummaryNodeId node, IReadOnlyDictionary<SummaryNodeId, string> names)
     {
-        var links = _workspaceLinks.Where(l => l.Touches(node)).Select(l => (names.GetValueOrDefault(l.Other(node)) ?? string.Empty, l.Note)).ToList();
+        var links = _workspaceLinks.Where(l => l.Touches(node)).Select(l => (names.GetValueOrDefault(l.Other(node)) ?? string.Empty, l.Note, l.Origin == SummaryLinkOrigin.Confirmed)).ToList();
         return links.Count == 0 ? string.Empty : UiText.LinksLine(links);
     }
 
@@ -722,6 +728,8 @@ public sealed partial class SummaryNetworkHomeViewModel : PageViewModel, IDispos
 
         OnPropertyChanged(nameof(ShowsRecommendationLegend));
         OnPropertyChanged(nameof(ShowsLinkLegend));
+        OnPropertyChanged(nameof(ShowsSuggestionLegend));
+        OnPropertyChanged(nameof(ShowsSuggestionsInDetails));
     }
 
     partial void OnSearchTextChanged(string value)
@@ -777,6 +785,8 @@ public sealed partial class SummaryNetworkHomeViewModel : PageViewModel, IDispos
         {
             Links.PropertyChanged -= OnLinksPanelChanged;
         }
+
+        DetachSuggestions();
     }
 
     /// <summary>网络推荐节点 or 自动准备推荐 changed in 设置 › 提示 while this page stays open: shown or hidden now, prepared if due.</summary>
@@ -989,6 +999,13 @@ public sealed partial class SummaryNetworkHomeViewModel : PageViewModel, IDispos
             return;
         }
 
+        Suggestions?.SetSummaryCount(Session.Projection.Nodes.Count);
+        await (Suggestions?.ReloadAsync() ?? Task.CompletedTask);
+        if (_disposed)
+        {
+            return;
+        }
+
         BuildViews();
         RaiseRecommendationState();
         RaiseLinkState();
@@ -1029,6 +1046,7 @@ public sealed partial class SummaryNetworkHomeViewModel : PageViewModel, IDispos
         })];
         Trail = TrailOf(Session.Selected);
         BuildLinkViews();
+        BuildSuggestionViews();
         BuildRecommendationViews();
     }
 

@@ -1794,6 +1794,111 @@ public class GalleryTests
 
     private static SummaryNodeId NodeNamed(SummaryNetworkHomeViewModel network, string name) => network.Nodes.Single(n => n.ShortTitle == name).Id;
 
+    // ── AI-suggested links the user confirms (2026-11-16, requirements §10.3.4) ─────────
+
+    [AvaloniaFact]
+    public async Task G54_network_with_two_pending_suggestions_one_confirmed_link_and_the_legend()
+    {
+        await using var scene = Scene.Create("g54");
+        var window = scene.App.ShowWindow(1100, 720, Theme);
+        var network = await OpenSuggestedNetworkAsync(scene.App, window);
+        Assert.Equal((1, 2), (network.LinkEdges.Count, network.SuggestionEdges.Count));
+        Assert.False(network.IsDirty);
+        await SettleAsync(window);
+        Capture(window, "g54-network-link-suggestions");
+        window.Close();
+    }
+
+    [AvaloniaFact]
+    public async Task G54a_the_suggestion_review_list_with_a_note_being_edited()
+    {
+        await using var scene = Scene.Create("g54a");
+        var window = scene.App.ShowWindow(1100, 720, Theme);
+        var network = await OpenSuggestedNetworkAsync(scene.App, window);
+        var item = network.Suggestions!.Items[0];
+        item.BeginEditCommand.Execute(null);
+        item.EditText = "轨道结构的演变";
+        await SettleAsync(window);
+        Capture(window, "g54a-network-link-suggestions-review");
+        window.Close();
+    }
+
+    [AvaloniaFact]
+    public async Task G54b_a_failed_request_said_quietly_with_retry()
+    {
+        await using var scene = Scene.Create("g54b");
+        var window = scene.App.ShowWindow(1100, 720, Theme);
+        await SeedAsync(scene.App, summaries: true);
+        var network = await SummaryNetworkScenario.OpenSummaryNetworkAsync(scene.App, window);
+        await network.Suggestions!.Loaded;
+        scene.App.Client.LinkSuggestions.FailNext(GenerationErrorKind.ServerError);
+        await network.Suggestions.SuggestCommand.ExecuteAsync(null);
+        Assert.True(network.Suggestions.NoteCanRetry);
+        await SettleAsync(window);
+        Capture(window, "g54b-network-link-suggestions-failed");
+        window.Close();
+    }
+
+    [AvaloniaFact]
+    public async Task G54b2_no_new_suggestion_said_quietly()
+    {
+        await using var scene = Scene.Create("g54b2");
+        var window = scene.App.ShowWindow(1100, 720, Theme);
+        await SeedAsync(scene.App, summaries: true);
+        var network = await SummaryNetworkScenario.OpenSummaryNetworkAsync(scene.App, window);
+        await network.Suggestions!.Loaded;
+        scene.App.Client.LinkSuggestions.Replies.Enqueue("[]");
+        await network.Suggestions.SuggestCommand.ExecuteAsync(null);
+        Assert.Equal(UiText.LinkSuggestionsNoneNew, network.Suggestions.Note);
+        await SettleAsync(window);
+        Capture(window, "g54b2-network-link-suggestions-none");
+        window.Close();
+    }
+
+    [AvaloniaFact]
+    public async Task G54c_the_summary_page_with_a_confirmed_link_and_its_marker()
+    {
+        await using var scene = Scene.Create("g54c");
+        var window = scene.App.ShowWindow(1100, 720, Theme);
+        var network = await OpenSuggestedNetworkAsync(scene.App, window);
+        var summary = await OpenSummaryAsync(scene.App, window, NodeNamed(network, "高铁速度"));
+        await summary.Links!.Loaded;
+        Assert.Contains(summary.Links.Items, i => i.IsConfirmed);
+        await SettleAsync(window);
+        Capture(window, "g54c-summary-confirmed-link");
+        window.Close();
+    }
+
+    [AvaloniaFact]
+    public async Task G54d_the_links_menu_open_on_the_toolbar()
+    {
+        await using var scene = Scene.Create("g54d");
+        var window = scene.App.ShowWindow(1100, 720, Theme);
+        await OpenLinkedNetworkAsync(scene.App, window);
+        LinksMenu.Open(window);
+        await SettleAsync(window);
+        Capture(window, "g54d-network-links-menu");
+        window.Close();
+    }
+
+    /// <summary>
+    /// The summarized train workspace on the network with three suggestions asked for through 关联 › 建议关联, the first
+    /// (动轮与速度–高铁速度) accepted with its note: one confirmed link and two pending suggestions.
+    /// </summary>
+    private static async Task<SummaryNetworkHomeViewModel> OpenSuggestedNetworkAsync(DesktopHarness app, MainWindow window)
+    {
+        await SeedAsync(app, summaries: true);
+        var network = await SummaryNetworkScenario.OpenSummaryNetworkAsync(app, window);
+        await LinkSuggestionsUiTests.SuggestAsync(app, window, network,
+            ("动轮与速度", "高铁速度", "对比", "蒸汽机车和高铁都在追求更高的速度"),
+            ("标准轨距", "无砟轨道", "轨道", "两者都关乎列车跑在什么样的轨道上"),
+            ("缆索牵引", "动力分散", "动力方式", "固定动力与分散动力是两种牵引思路"));
+        await network.Suggestions!.Items[0].AcceptCommand.ExecuteAsync(null);
+        await UiWait.UntilAsync(() => network.LinkEdges.Count == 1 && network.SuggestionEdges.Count == 2);
+        await network.SuggestionsReloaded;
+        return network;
+    }
+
     /// <summary>
     /// The summarized train workspace with three questions made the way 换一批 makes them (two extend a summary), and 新探索
     /// open with the input empty and focused.

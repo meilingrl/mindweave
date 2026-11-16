@@ -4,6 +4,7 @@ using Mindweave.Application.Conversations;
 using Mindweave.Core.Context;
 using Mindweave.Core.Conversations;
 using Mindweave.Infrastructure.Ai;
+using Mindweave.Infrastructure.Sqlite;
 
 namespace Mindweave.Infrastructure.Tests.Chat;
 
@@ -325,6 +326,70 @@ public class RealApiTests
         Assert.InRange(node.Question.Length, Application.Recommendations.RecommendationPrompt.MinQuestionLength, Application.Recommendations.RecommendationPrompt.MaxQuestionLength);
         var recorded = Assert.Single(await h.Requests.ForWorkspaceAsync(h.Workspace, Ct));
         Assert.Equal(RequestAttribution.RecommendNodes, recorded.Attribution!.Kind);
+    }
+
+    [Fact]
+    public async Task Link_suggestions_from_real_looking_summaries_are_valid_pairs_with_short_notes_and_reasons()
+    {
+        // Requirements §10.3.4 (2026-11-16): one request, made only for this. The summaries are written straight into the
+        // schema (titles and bodies like real ones), so the run asks for nothing but the suggestions.
+        await using var h = await StartAsync();
+        var seed = new Mindweave.Testing.Usage.UsageSeed(h.Database);
+        var at = DateTimeOffset.UtcNow.AddHours(-1);
+        var summaries = new (string Title, string Body)[]
+        {
+            ("斯蒂芬森与火箭号", "1829 年雨山试验中，斯蒂芬森父子的火箭号凭多管锅炉和鼓风管胜出，证明蒸汽机车可以稳定快速地牵引列车。"),
+            ("标准轨距的由来", "1435 毫米的轨距沿用了英国矿山马车的轮距，随斯蒂芬森修建的铁路推广，后来成为世界通行标准。"),
+            ("高铁为什么快", "高铁依靠无砟轨道、动力分散的动车组、受电弓供电和流线型车头，把运营速度提高到每小时 300 公里以上。"),
+            ("无砟轨道", "无砟轨道用混凝土整体道床代替碎石道砟，轨道几何更稳定、维护更少，是高速运行的基础。"),
+            ("蒸汽机车的锅炉", "火管锅炉让高温烟气穿过浸在水中的管子，受热面积越大，产生蒸汽越快，机车的牵引力就越强。"),
+        };
+        var nodes = new List<Core.Summaries.SummaryNodeId>();
+        for (var i = 0; i < summaries.Length; i++)
+        {
+            var conversation = await seed.ConversationAsync(h.Workspace, at.AddMinutes(i));
+            var (title, body) = summaries[i];
+            var node = Core.Summaries.SummaryNodeId.New();
+            var version = Guid.NewGuid().ToString("D");
+            await h.Database.WriteAsync(
+                (c, t) =>
+                {
+                    c.Execute(t, """
+                        INSERT INTO summary_node (id, workspace_id, conversation_id, current_version_id, base_title, display_name, name_source, created_at, updated_at)
+                        VALUES ($id, $ws, $conv, $version, $title, $title, 'base', $at, $at);
+                        """, ("$id", node.ToString()), ("$ws", h.Workspace.ToString()), ("$conv", conversation.ToString()), ("$version", version), ("$title", title), ("$at", at.AddMinutes(i).ToUnixTimeMilliseconds()));
+                    return c.Execute(t, """
+                        INSERT INTO summary_version (id, node_id, seq, title, body, to_seq, origin, created_at)
+                        VALUES ($id, $node, 1, $title, $body, 0, 'generated', $at);
+                        """, ("$id", version), ("$node", node.ToString()), ("$title", title), ("$body", body), ("$at", at.AddMinutes(i).ToUnixTimeMilliseconds()));
+                },
+                Ct);
+            nodes.Add(node);
+        }
+
+        var outcome = await h.LinkSuggestions.SuggestAsync(h.Workspace, Ct);
+        var items = (await h.LinkSuggestions.GetAsync(h.Workspace, Ct)).Items;
+        var said = $"problem: {outcome.Problem} {outcome.Error}; pairs: {string.Join(" | ", items.Select(i => $"{i.NameA} ↔ {i.NameB} [{i.Note}] ({i.Reason})"))}";
+        TestContext.Current.SendDiagnosticMessage(said);
+        if (Environment.GetEnvironmentVariable("MINDWEAVE_REAL_API_REPORT") is { Length: > 0 } report)
+        {
+            await File.AppendAllTextAsync(report, said + Environment.NewLine, Ct);
+        }
+
+        Assert.Null(outcome.Problem);
+        Assert.InRange(items.Count, 1, Application.SummaryLinks.LinkSuggestionPrompt.MaxPairs);
+        Assert.Equal(items.Count, items.Select(i => (i.NodeA, i.NodeB)).Distinct().Count());
+        Assert.All(items, i =>
+        {
+            Assert.Contains(i.NodeA, nodes);
+            Assert.Contains(i.NodeB, nodes);
+            Assert.NotEqual(i.NodeA, i.NodeB);
+            Assert.True(i.Note is null || !Application.SummaryLinks.SummaryLinkNote.IsTooLong(i.Note), i.Note);
+            Assert.False(string.IsNullOrWhiteSpace(i.Reason));
+        });
+        Assert.Contains(items, i => i.Note is not null);
+        var recorded = Assert.Single(await h.Requests.ForWorkspaceAsync(h.Workspace, Ct));
+        Assert.Equal(RequestAttribution.SuggestLinks, recorded.Attribution!.Kind);
     }
 
     private static async Task<(ConversationId Conversation, Message Answer)> AskAsync(ChatHarness h, ConversationId? conversation, string question)

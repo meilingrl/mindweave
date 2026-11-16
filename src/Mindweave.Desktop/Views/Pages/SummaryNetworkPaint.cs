@@ -77,6 +77,22 @@ internal sealed record LinkPaint(LinkEdgeView Link, Point From, Point To, bool A
     public Rect NoteBounds { get; init; }
 }
 
+/// <summary>
+/// A pending link suggestion as drawn (requirements §10.3.4): a light dash-dot line between the two summaries as drawn,
+/// stronger while either end or the suggestion itself is active, and "建议" (with the note) in a dashed frame at the middle
+/// (null when hidden at this zoom). The frame is what a click selects.
+/// </summary>
+internal sealed record SuggestionPaint(SuggestionEdgeView Suggestion, Point From, Point To, bool Active)
+{
+    public FormattedText? Text { get; init; }
+
+    /// <summary>The words of <see cref="Text"/>; null when nothing is written at this zoom.</summary>
+    public string? Label { get; init; }
+
+    /// <summary>The frame around <see cref="Text"/>, centred on the line's middle.</summary>
+    public Rect LabelBounds { get; init; }
+}
+
 /// <summary>An exploration's caption, above the bounding box of its nodes.</summary>
 internal sealed record CaptionPaint(GroupCaption Caption, FormattedText Text, Point Origin)
 {

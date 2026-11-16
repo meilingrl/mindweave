@@ -56,7 +56,8 @@ public sealed partial class WorkspaceDeletionService(
     ILogger<WorkspaceDeletionService> logger,
     IWorkspaceNameCache? names = null,
     Recommendations.RecommendationService? recommendations = null,
-    SummaryLinks.SummaryLinkService? links = null) : IWorkspaceDeletion
+    SummaryLinks.SummaryLinkService? links = null,
+    SummaryLinks.LinkSuggestionService? suggestions = null) : IWorkspaceDeletion
 {
     public Task<WorkspaceContents> InspectAsync(WorkspaceId workspace, CancellationToken cancellationToken) =>
         store.InspectAsync(workspace, cancellationToken);
@@ -139,6 +140,12 @@ public sealed partial class WorkspaceDeletionService(
         if (links is not null)
         {
             await links.ForgetAsync(workspace).ConfigureAwait(false);
+        }
+
+        // A 建议关联 request still running for it is stopped; its late result finds no workspace (§10.3.4, architecture §6).
+        if (suggestions is not null)
+        {
+            await suggestions.ForgetAsync(workspace).ConfigureAwait(false);
         }
 
         LogDeleted(logger, workspace, result.Deleted.Count, path);

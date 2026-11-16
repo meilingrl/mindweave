@@ -112,6 +112,9 @@
            solid and a little thicker than source edges, the note in the same colour (about 4.6:1 on the fill and the panel) -->
       <SolidColorBrush x:Key="SummaryNetworkLink">#0E7C70</SolidColorBrush>
       <SolidColorBrush x:Key="SummaryNetworkLinkFill">#EBF6F3</SolidColorBrush>
+      <!-- Summary network: pending link suggestions (§10.3.4), a lighter tone of the link teal, drawn dash-dotted with the
+           word "建议"; the words themselves are in the link colour, which stays readable -->
+      <SolidColorBrush x:Key="SummaryNetworkLinkSuggestion">#7CBDB3</SolidColorBrush>
       <!-- Text fields (Fluent's own keys), so inputs match the page in both themes -->
       <SolidColorBrush x:Key="TextControlBackground">#FFFFFF</SolidColorBrush>
       <SolidColorBrush x:Key="TextControlBackgroundPointerOver">#FAFAF9</SolidColorBrush>
@@ -252,6 +255,8 @@
       <!-- Summary network: content links (§10.3.3) -->
       <SolidColorBrush x:Key="SummaryNetworkLink">#4FBFB1</SolidColorBrush>
       <SolidColorBrush x:Key="SummaryNetworkLinkFill">#16302C</SolidColorBrush>
+      <!-- Summary network: pending link suggestions (§10.3.4), a dimmer teal than the links -->
+      <SolidColorBrush x:Key="SummaryNetworkLinkSuggestion">#3F857C</SolidColorBrush>
       <SolidColorBrush x:Key="TextControlBackground">#222327</SolidColorBrush>
       <SolidColorBrush x:Key="TextControlBackgroundPointerOver">#26282D</SolidColorBrush>
       <SolidColorBrush x:Key="TextControlBackgroundFocused">#1D1E22</SolidColorBrush>

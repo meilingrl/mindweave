@@ -39,6 +39,25 @@ internal static class SummaryNetworkScenario
         }
     }
 
+    /// <summary>
+    /// <see cref="SeedAsync"/> with every answer seen: the hints its answers popped up are gone, so none covers the details
+    /// panel a test clicks in (they come up a moment after the answers, so a click may or may not race them otherwise).
+    /// </summary>
+    internal static async Task SeedSeenAsync(DesktopHarness app)
+    {
+        await SeedAsync(app);
+        var marks = app.Services.GetRequiredService<ConversationMarksService>();
+        var all = (await app.Services.GetRequiredService<ConversationService>().ListAsync(app.Workbench.CurrentWorkspace!.Id, CancellationToken.None))
+            .Select(c => c.Conversation.Id).ToList();
+        await UiWait.UntilAsync(() => all.All(marks.IsUnread));
+        foreach (var id in all)
+        {
+            marks.MarkSeen(id);
+        }
+
+        await UiWait.UntilAsync(() => app.ShellPage.WorkspaceNews!.Toasts.Count == 0);
+    }
+
     internal static async Task<ConversationId> AskAsync(DesktopHarness app, ConversationService conversations, ConversationId? existing, WorkspaceId workspace, string question)
     {
         var sent = existing is { } id ? await conversations.AskAsync(id, question, CancellationToken.None) : await conversations.StartAsync(workspace, question, CancellationToken.None);

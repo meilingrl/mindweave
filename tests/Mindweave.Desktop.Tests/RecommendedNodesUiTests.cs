@@ -40,7 +40,7 @@ public class RecommendedNodesUiTests
     {
         await using var app = DesktopHarness.Create();
         var window = app.ShowWindow(1100, 720);
-        await SummaryNetworkScenario.SeedAsync(app);
+        await SummaryNetworkScenario.SeedSeenAsync(app);
         var network = await SummaryNetworkScenario.OpenSummaryNetworkAsync(app, window);
         var layoutRows = await LayoutRowsAsync(app);
         var revision = network.Session.Revision;
@@ -111,7 +111,7 @@ public class RecommendedNodesUiTests
     {
         await using var app = DesktopHarness.Create();
         var window = app.ShowWindow(1100, 720);
-        await SummaryNetworkScenario.SeedAsync(app);
+        await SummaryNetworkScenario.SeedSeenAsync(app);
         var network = await SummaryNetworkScenario.OpenSummaryNetworkAsync(app, window);
         await PrepareAsync(app, network, window);
         var unread = network.Nodes.ToDictionary(n => n.Id, n => n.Unread);
@@ -150,7 +150,7 @@ public class RecommendedNodesUiTests
     {
         await using var app = DesktopHarness.Create();
         var window = app.ShowWindow(1100, 720);
-        await SummaryNetworkScenario.SeedAsync(app);
+        await SummaryNetworkScenario.SeedSeenAsync(app);
         var network = await SummaryNetworkScenario.OpenSummaryNetworkAsync(app, window);
         await PrepareAsync(app, network, window);
         var workspace = app.Workbench.CurrentWorkspace!.Id;
@@ -204,7 +204,7 @@ public class RecommendedNodesUiTests
     {
         await using var app = DesktopHarness.Create();
         var window = app.ShowWindow(1100, 720);
-        await SummaryNetworkScenario.SeedAsync(app);
+        await SummaryNetworkScenario.SeedSeenAsync(app);
         var network = await SummaryNetworkScenario.OpenSummaryNetworkAsync(app, window);
         await PrepareAsync(app, network, window);
         network.SelectRecommendation(network.RecommendedNodes[0]);
@@ -235,7 +235,7 @@ public class RecommendedNodesUiTests
     {
         await using var app = DesktopHarness.Create();
         var window = app.ShowWindow(1100, 720);
-        await SummaryNetworkScenario.SeedAsync(app);
+        await SummaryNetworkScenario.SeedSeenAsync(app);
         var network = await SummaryNetworkScenario.OpenSummaryNetworkAsync(app, window);
         await PrepareAsync(app, network, window);
         network.SelectRecommendation(network.RecommendedNodes[0]);
@@ -285,7 +285,7 @@ public class RecommendedNodesUiTests
     {
         await using var app = DesktopHarness.Create();
         var window = app.ShowWindow(1100, 720);
-        await SummaryNetworkScenario.SeedAsync(app);
+        await SummaryNetworkScenario.SeedSeenAsync(app);
         var network = await SummaryNetworkScenario.OpenSummaryNetworkAsync(app, window);
         await PrepareAsync(app, network, window);
         network.ToggleViewCommand.Execute(null);
@@ -318,7 +318,7 @@ public class RecommendedNodesUiTests
     {
         await using var app = DesktopHarness.Create();
         var window = app.ShowWindow(1100, 720);
-        await SummaryNetworkScenario.SeedAsync(app);
+        await SummaryNetworkScenario.SeedSeenAsync(app);
         app.Client.NodeRecommendations.FailNext(GenerationErrorKind.Network);
         var network = await SummaryNetworkScenario.OpenSummaryNetworkAsync(app, window);
         var service = app.Services.GetRequiredService<RecommendationService>();

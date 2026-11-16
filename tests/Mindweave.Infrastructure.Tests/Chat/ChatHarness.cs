@@ -129,6 +129,9 @@ internal sealed class ChatHarness : IAsyncDisposable
     /// <summary>User-made content links between summaries (2026-11-16).</summary>
     public Application.SummaryLinks.SummaryLinkService Links => _services.GetRequiredService<Application.SummaryLinks.SummaryLinkService>();
 
+    /// <summary>AI-suggested links the user confirms (2026-11-16).</summary>
+    public Application.SummaryLinks.LinkSuggestionService LinkSuggestions => _services.GetRequiredService<Application.SummaryLinks.LinkSuggestionService>();
+
     public SqliteRecommendationStore RecommendationStore => (SqliteRecommendationStore)_services.GetRequiredService<IRecommendationStore>();
 
     /// <summary>The recommendation choices.</summary>

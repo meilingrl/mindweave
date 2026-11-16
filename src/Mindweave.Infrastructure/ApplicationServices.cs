@@ -63,6 +63,7 @@ public static class ApplicationServices
         services.TryAddSingleton(new RecommendationOptions()); // Tests stand its clock still.
         services.AddSingleton<RecommendationService>();
         services.AddSingleton<SummaryLinkService>();
+        services.AddSingleton<LinkSuggestionService>();
 
         // View models depend on these interfaces, not the concrete services (course requirement C3); each resolves to the
         // one singleton above, so a page and the rest of the application share state.
@@ -90,6 +91,7 @@ public static class ApplicationServices
         // A test may hold the recommendations (to see the page while they load), as for the conversations interface.
         services.TryAddSingleton<IRecommendations>(sp => sp.GetRequiredService<RecommendationService>());
         services.AddSingleton<ISummaryLinks>(sp => sp.GetRequiredService<SummaryLinkService>());
+        services.AddSingleton<ILinkSuggestions>(sp => sp.GetRequiredService<LinkSuggestionService>());
         return services;
     }
 }

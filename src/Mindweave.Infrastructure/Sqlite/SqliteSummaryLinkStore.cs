@@ -99,19 +99,35 @@ internal sealed class SqliteSummaryLinkStore(SqliteDatabase database) : ISummary
                 }
 
                 var (a, b) = SummaryLinkPair.Normalize(first, second);
-                var pair = new (string, object?)[] { ("$ws", workspaceA), ("$a", a.ToString()), ("$b", b.ToString()) };
-                if (connection.Scalar<long>(transaction, "SELECT EXISTS (SELECT 1 FROM summary_link WHERE workspace_id = $ws AND node_a = $a AND node_b = $b);", pair) != 0)
+                var workspace = WorkspaceId.Parse(workspaceA);
+                if (IsLinked(connection, transaction, workspace, a, b))
                 {
                     throw new SummaryLinkRefusedException(SummaryLinkRefusal.Duplicate);
                 }
 
-                var link = new SummaryLink(SummaryLinkId.New(), WorkspaceId.Parse(workspaceA), a, b, note, origin, at);
-                connection.Execute(transaction, """
-                    INSERT INTO summary_link (id, workspace_id, node_a, node_b, note, origin, created_at) VALUES ($id, $ws, $a, $b, $note, $origin, $at);
-                    """, [.. pair, ("$id", link.Id.ToString()), ("$note", note), ("$origin", OriginName(origin)), ("$at", at.Ms())]);
-                return link;
+                return Insert(connection, transaction, workspace, a, b, note, origin, at);
             },
             cancellationToken);
+
+    /// <summary>Whether the pair (in the links' order) is linked in the workspace.</summary>
+    internal static bool IsLinked(SqliteConnection connection, SqliteTransaction transaction, WorkspaceId workspace, SummaryNodeId a, SummaryNodeId b) =>
+        connection.Scalar<long>(transaction, "SELECT EXISTS (SELECT 1 FROM summary_link WHERE workspace_id = $ws AND node_a = $a AND node_b = $b);",
+            ("$ws", workspace.ToString()), ("$a", a.ToString()), ("$b", b.ToString())) != 0;
+
+    /// <summary>
+    /// Stores a link of a checked pair (in the links' order, both in <paramref name="workspace"/>, not linked yet). A pending
+    /// suggestion of the same pair goes in the same transaction: the pair is linked now, so there is nothing left to accept.
+    /// </summary>
+    internal static SummaryLink Insert(SqliteConnection connection, SqliteTransaction transaction, WorkspaceId workspace, SummaryNodeId a, SummaryNodeId b, string? note, SummaryLinkOrigin origin, DateTimeOffset at)
+    {
+        var pair = new (string, object?)[] { ("$ws", workspace.ToString()), ("$a", a.ToString()), ("$b", b.ToString()) };
+        var link = new SummaryLink(SummaryLinkId.New(), workspace, a, b, note, origin, at);
+        connection.Execute(transaction, """
+            INSERT INTO summary_link (id, workspace_id, node_a, node_b, note, origin, created_at) VALUES ($id, $ws, $a, $b, $note, $origin, $at);
+            """, [.. pair, ("$id", link.Id.ToString()), ("$note", note), ("$origin", OriginName(origin)), ("$at", at.Ms())]);
+        connection.Execute(transaction, "DELETE FROM link_suggestion WHERE workspace_id = $ws AND node_a = $a AND node_b = $b AND state = 'pending';", pair);
+        return link;
+    }
 
     public Task<SummaryLink> SetNoteAsync(SummaryLinkId link, string? note, CancellationToken cancellationToken) =>
         database.WriteAsync(

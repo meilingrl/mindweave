@@ -154,6 +154,9 @@ public sealed class SummaryLinkService(ISummaryLinkStore store, IPreferenceStore
         }
     }
 
+    /// <summary>A link of the workspace was made elsewhere (a suggestion accepted, <see cref="LinkSuggestionService"/>).</summary>
+    internal void RaiseChanged(WorkspaceId workspace) => Changed?.Invoke(this, workspace);
+
     /// <summary>The workspace was deleted: its links went with the commit (v13 cascade); its remembered 显示关联 goes too.</summary>
     public async Task ForgetAsync(WorkspaceId workspace)
     {
