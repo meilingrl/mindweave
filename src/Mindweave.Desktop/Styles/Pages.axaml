@@ -5,7 +5,7 @@
   <!-- Archived page rows: the whole row lights up on hover; the name opens, the actions sit at the right. -->
   <Style Selector="Border.archived-row">
     <Setter Property="Background" Value="Transparent" />
-    <Setter Property="CornerRadius" Value="6" />
+    <Setter Property="CornerRadius" Value="{StaticResource RadiusControl}" />
     <Setter Property="Padding" Value="6,3" />
     <Setter Property="MinHeight" Value="36" />
   </Style>
@@ -27,8 +27,8 @@
     <Setter Property="Background" Value="{DynamicResource BadgeAccentBackground}" />
   </Style>
   <Style Selector="Border.home-mark > PathIcon">
-    <Setter Property="Width" Value="22" />
-    <Setter Property="Height" Value="22" />
+    <Setter Property="Width" Value="26" />
+    <Setter Property="Height" Value="26" />
     <Setter Property="Foreground" Value="{DynamicResource BadgeAccentText}" />
   </Style>
   <!-- Recovery page: backups as rows in a card, the date first. -->
@@ -52,7 +52,7 @@
     <Setter Property="Background" Value="{DynamicResource WindowBackground}" />
     <Setter Property="BorderBrush" Value="{DynamicResource CardBorder}" />
     <Setter Property="BorderThickness" Value="1" />
-    <Setter Property="CornerRadius" Value="8" />
+    <Setter Property="CornerRadius" Value="{StaticResource RadiusCard}" />
     <Setter Property="Padding" Value="12" />
     <Setter Property="Margin" Value="0,4,0,0" />
   </Style>

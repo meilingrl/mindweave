@@ -8,7 +8,7 @@
   <Grid RowDefinitions="2*,Auto,3*">
     <StackPanel Grid.Row="1" Spacing="18" HorizontalAlignment="Center">
       <Border Classes="home-mark" HorizontalAlignment="Center">
-        <PathIcon Data="{StaticResource IconExplore}" />
+        <PathIcon Data="{StaticResource IconExploreLarge}" />
       </Border>
       <Button Name="StartConversation" Classes="primary" Command="{Binding NewConversationCommand}" HorizontalAlignment="Center"
               Padding="18,8" AutomationProperties.Name="{x:Static t:UiText.NewConversation}">

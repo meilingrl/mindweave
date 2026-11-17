@@ -40,7 +40,7 @@
     <Setter Property="Background" Value="Transparent" />
     <Setter Property="BorderThickness" Value="0" />
     <Setter Property="Foreground" Value="{DynamicResource PrimaryText}" />
-    <Setter Property="CornerRadius" Value="6" />
+    <Setter Property="CornerRadius" Value="{StaticResource RadiusControl}" />
     <Setter Property="Padding" Value="10,6" />
   </Style>
   <Style Selector="Button.nav:pointerover /template/ ContentPresenter#PART_ContentPresenter">
@@ -92,7 +92,7 @@
     <Setter Property="BorderThickness" Value="0" />
     <Setter Property="Padding" Value="14,6" />
     <Setter Property="FontWeight" Value="SemiBold" />
-    <Setter Property="CornerRadius" Value="6" />
+    <Setter Property="CornerRadius" Value="{StaticResource RadiusControl}" />
   </Style>
   <Style Selector="Button.primary:pointerover /template/ ContentPresenter#PART_ContentPresenter">
     <Setter Property="Background" Value="{DynamicResource AccentHoverBrush}" />
@@ -108,7 +108,7 @@
     <Setter Property="BorderThickness" Value="1" />
     <Setter Property="Foreground" Value="{DynamicResource PrimaryText}" />
     <Setter Property="Padding" Value="13,5" />
-    <Setter Property="CornerRadius" Value="6" />
+    <Setter Property="CornerRadius" Value="{StaticResource RadiusControl}" />
   </Style>
   <Style Selector="Button.secondary:pointerover /template/ ContentPresenter#PART_ContentPresenter">
     <Setter Property="Background" Value="{DynamicResource HoverRow}" />
@@ -121,7 +121,7 @@
     <Setter Property="Foreground" Value="{DynamicResource PrimaryText}" />
     <Setter Property="Padding" Value="8,5" />
     <Setter Property="VerticalAlignment" Value="Center" />
-    <Setter Property="CornerRadius" Value="6" />
+    <Setter Property="CornerRadius" Value="{StaticResource RadiusControl}" />
   </Style>
   <Style Selector=":is(Button).quiet:pointerover /template/ ContentPresenter#PART_ContentPresenter">
     <Setter Property="Background" Value="{DynamicResource HoverRow}" />
@@ -146,7 +146,7 @@
   <!-- A notice that comes up (a refusal, a confirmation, a failure) fades in dropping 4 px (Views/Motion.cs). -->
   <Style Selector="Border.notice">
     <Setter Property="v:Motion.Appear" Value="Drop" />
-    <Setter Property="CornerRadius" Value="6" />
+    <Setter Property="CornerRadius" Value="{StaticResource RadiusCard}" />
     <Setter Property="BorderThickness" Value="1" />
     <Setter Property="Padding" Value="10,7" />
   </Style>
@@ -185,7 +185,7 @@
 
   <!-- Badges: small rounded tags (未读 accent, 已读 neutral, 候选 warning …). -->
   <Style Selector="Border.badge">
-    <Setter Property="CornerRadius" Value="9" />
+    <Setter Property="CornerRadius" Value="{StaticResource RadiusPill}" />
     <Setter Property="Padding" Value="7,1,7,2" />
     <Setter Property="VerticalAlignment" Value="Center" />
     <Setter Property="Background" Value="{DynamicResource BadgeNeutralBackground}" />
@@ -280,6 +280,29 @@
     <Setter Property="Foreground" Value="{DynamicResource LinkText}" />
   </Style>
 
+  <!--
+    Icons (direction A, 2026-11-17): the glyph's 16 × 16 grid fills the icon's box, so a glyph keeps the margin and the
+    stroke weight it was drawn with. Fluent's own template stretches each geometry to its bounds instead, which made a
+    narrow glyph (a chevron, a dash) larger and its strokes thicker than its neighbours'.
+  -->
+  <Style Selector="PathIcon">
+    <Setter Property="Template">
+      <ControlTemplate>
+        <Border Background="{TemplateBinding Background}">
+          <Viewbox Width="{TemplateBinding Width}" Height="{TemplateBinding Height}">
+            <Canvas Width="16" Height="16">
+              <Path Fill="{TemplateBinding Foreground}" Data="{TemplateBinding Data}" />
+            </Canvas>
+          </Viewbox>
+        </Border>
+      </ControlTemplate>
+    </Setter>
+  </Style>
+  <!-- Text fields and drop-downs take the controls' corner everywhere (Fluent's own is 3 px); areas may refine it. -->
+  <Style Selector="TextBox, ComboBox">
+    <Setter Property="CornerRadius" Value="{StaticResource RadiusControl}" />
+  </Style>
+
   <!-- Breadcrumb links: muted, the accent only on hover. -->
   <Style Selector="Button.crumb">
     <Setter Property="Background" Value="Transparent" />
@@ -320,14 +343,14 @@
   <Style Selector="Button.nav, :is(Button).quiet, Button.entry, Button.crumb, Button.list-name, Button.link, Button.toast-body">
     <Setter Property="FocusAdorner">
       <FocusAdornerTemplate>
-        <Border BorderThickness="2" BorderBrush="{DynamicResource FocusRing}" CornerRadius="6" />
+        <Border BorderThickness="2" BorderBrush="{DynamicResource FocusRing}" CornerRadius="{StaticResource RadiusControl}" />
       </FocusAdornerTemplate>
     </Setter>
   </Style>
   <Style Selector="Button.primary, Button.secondary">
     <Setter Property="FocusAdorner">
       <FocusAdornerTemplate>
-        <Border BorderThickness="2" BorderBrush="{DynamicResource FocusRing}" CornerRadius="9" Margin="-3" AdornerLayer.IsClipEnabled="False" />
+        <Border BorderThickness="2" BorderBrush="{DynamicResource FocusRing}" CornerRadius="{StaticResource RadiusFocusOutset}" Margin="-3" AdornerLayer.IsClipEnabled="False" />
       </FocusAdornerTemplate>
     </Setter>
   </Style>
@@ -338,14 +361,14 @@
   -->
   <Style Selector="ContextMenu, MenuFlyoutPresenter">
     <Setter Property="Padding" Value="5" />
-    <Setter Property="CornerRadius" Value="10" />
+    <Setter Property="CornerRadius" Value="{StaticResource RadiusCard}" />
   </Style>
   <Style Selector="ContextMenu MenuItem, MenuFlyoutPresenter MenuItem">
-    <Setter Property="CornerRadius" Value="6" />
+    <Setter Property="CornerRadius" Value="{StaticResource RadiusControl}" />
     <Setter Property="Padding" Value="10,6" />
   </Style>
   <Style Selector="ContextMenu MenuItem /template/ Border#PART_LayoutRoot, MenuFlyoutPresenter MenuItem /template/ Border#PART_LayoutRoot">
-    <Setter Property="CornerRadius" Value="6" />
+    <Setter Property="CornerRadius" Value="{StaticResource RadiusControl}" />
   </Style>
   <Style Selector="ContextMenu Separator, MenuFlyoutPresenter Separator">
     <Setter Property="Margin" Value="8,4" />

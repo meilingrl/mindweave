@@ -14,7 +14,7 @@
     <Setter Property="Background" Value="{DynamicResource DialogBackground}" />
     <Setter Property="BorderBrush" Value="{DynamicResource DividerBrush}" />
     <Setter Property="BorderThickness" Value="1" />
-    <Setter Property="CornerRadius" Value="12" />
+    <Setter Property="CornerRadius" Value="{StaticResource RadiusDialog}" />
     <Setter Property="Padding" Value="24,22,24,20" />
     <Setter Property="Width" Value="420" />
     <Setter Property="HorizontalAlignment" Value="Center" />
@@ -42,9 +42,9 @@
     <Setter Property="LineHeight" Value="21" />
     <Setter Property="Foreground" Value="{DynamicResource MutedText}" />
   </Style>
-  <!-- A field in a prompt has the controls' 6 px corner, like the buttons under it (2026-11-10). -->
+  <!-- A field in a prompt has the controls' corner, like the buttons under it (2026-11-10). -->
   <Style Selector="Border.dialog TextBox">
-    <Setter Property="CornerRadius" Value="6" />
+    <Setter Property="CornerRadius" Value="{StaticResource RadiusControl}" />
   </Style>
   <Style Selector="Border.dialog StackPanel.dialog-buttons">
     <Setter Property="Orientation" Value="Horizontal" />

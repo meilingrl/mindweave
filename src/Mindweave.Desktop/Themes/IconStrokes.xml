@@ -1,0 +1,203 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  The source of the app's icons (direction A, rounded outline; chosen 2026-11-17, prototypes/icon-style/README.md).
+
+  Each icon is drawn as centre-line strokes on a 16 × 16 grid with SVG elements (path, rect, circle). Avalonia's
+  PathIcon only fills, so scripts/icons/outline-icons.cs strokes them with round caps and round joins and writes the
+  filled outlines into src/Mindweave.Desktop/Themes/Icons.axaml. After changing this file, run
+
+      dotnet run scripts/icons/outline-icons.cs
+
+  and commit both files; IconResourceTests fails while Icons.axaml is older than this file.
+
+  Rules (prototypes/icon-style/README.md, "选定方向的规则（A）"):
+  - stroke 1.75 grid units for icons shown at 14 px or smaller (the default here), 1.5 at 16 px and up
+    (stroke="1.5"; a glyph used at both sizes gets a second key with like="…" and its own stroke);
+  - content inside 1.5–14.5, coordinates on multiples of 0.25, parallel lines at least 2.5 apart;
+  - class="solid" elements are filled instead of stroked: only things that are blocks (the stop square, list bullets,
+    the unread dot).
+  The icon keys are stable names used by the views; keep them when redrawing a glyph.
+-->
+<icons stroke="1.75">
+  <!-- 建议名称 (2026-11-11): a four-pointed spark, "the model suggests". -->
+  <icon key="IconSparkle">
+    <path d="M7 2.25C7.45 5.35 8.65 6.55 11.75 7 8.65 7.45 7.45 8.65 7 11.75 6.55 8.65 5.35 7.45 2.25 7 5.35 6.55 6.55 5.35 7 2.25Z"/>
+    <path d="M12.5 10.75V14.25M10.75 12.5H14.25"/>
+  </icon>
+  <icon key="IconRename">
+    <path d="M2.5 13.5 3 10.75 10.75 3a1.6 1.6 0 0 1 2.25 2.25L5.25 13Z"/>
+    <path d="M9.25 4.5 11.5 6.75"/>
+  </icon>
+  <icon key="IconSummary">
+    <rect x="3" y="1.75" width="10" height="12.5" rx="2"/>
+    <path d="M5.75 5.5H10.25M5.75 8H10.25M5.75 10.5H8.25"/>
+  </icon>
+  <icon key="IconSummarize">
+    <path d="M2.5 3.5H13.5M2.5 7.5H10.5"/>
+    <path d="M2.5 11.5H8M11.5 9.5 13.75 11.75 11.5 14"/>
+  </icon>
+  <icon key="IconArchive">
+    <rect x="1.75" y="2.25" width="12.5" height="3.5" rx="1.25"/>
+    <path d="M3 5.75V12a2 2 0 0 0 2 2h6a2 2 0 0 0 2-2V5.75"/>
+    <path d="M6.5 8.75H9.5"/>
+  </icon>
+  <icon key="IconDelete">
+    <path d="M2.25 4.25H13.75M6 4.25V3a1 1 0 0 1 1-1h2a1 1 0 0 1 1 1v1.25M3.5 4.25 4.4 12.6A1.6 1.6 0 0 0 6 14h4a1.6 1.6 0 0 0 1.6-1.4l.9-8.35"/>
+    <path d="M6.75 7V11M9.25 7V11"/>
+  </icon>
+  <icon key="IconRegenerate">
+    <path d="M13.25 8A5.25 5.25 0 1 1 12.02 4.63"/>
+    <path d="M12.02 1.9V4.63H9.3"/>
+  </icon>
+  <icon key="IconStop">
+    <rect class="solid" x="3.5" y="3.5" width="9" height="9" rx="2.25"/>
+  </icon>
+  <icon key="IconReturn">
+    <path d="M5.5 2.75 2.25 6 5.5 9.25"/>
+    <path d="M2.5 6H10a3.5 3.5 0 0 1 0 7H8"/>
+  </icon>
+  <icon key="IconBranch">
+    <path d="M4.25 1.75V7a4.5 4.5 0 0 0 4.5 4.5h4.75"/>
+    <path d="M11 9 13.5 11.5 11 14"/>
+  </icon>
+  <icon key="IconChevron">
+    <path d="M6 3.5 10.5 8 6 12.5"/>
+  </icon>
+  <icon key="IconPlus">
+    <path d="M8 3V13M3 8H13"/>
+  </icon>
+  <icon key="IconBack">
+    <path d="M7 3.5 2.5 8 7 12.5M2.75 8H13.5"/>
+  </icon>
+  <icon key="IconExplore">
+    <path d="M3.75 2.5h8.5a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2H7.5l-3 2.5v-2.5h-.75a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2Z"/>
+  </icon>
+  <icon key="IconSummaryNetwork">
+    <circle cx="3.75" cy="8" r="2"/>
+    <circle cx="12.25" cy="3.5" r="1.75"/>
+    <circle cx="12.25" cy="12.5" r="1.75"/>
+    <path d="M5.55 7.05 10.7 4.32M5.55 8.95 10.7 11.68"/>
+  </icon>
+  <icon key="IconSettings">
+    <path d="M1.75 4.5H3.75M7.25 4.5H14.25M1.75 11.5H8.75M12.25 11.5H14.25"/>
+    <circle cx="5.5" cy="4.5" r="1.75"/>
+    <circle cx="10.5" cy="11.5" r="1.75"/>
+  </icon>
+  <!-- The tree connector runs from the top edge (the parent's column) and turns towards the row's title. -->
+  <icon key="IconTreeBranch">
+    <path d="M3.5 0.75V8.25a3 3 0 0 0 3 3H14"/>
+  </icon>
+  <!-- The sidebar toggle glyph: a window with its left pane. Shown at 16 px, so it takes the 16 px stroke. -->
+  <icon key="IconSidebar" stroke="1.5">
+    <rect x="1.75" y="2.5" width="12.5" height="11" rx="2.25"/>
+    <path d="M6 2.5V13.5"/>
+  </icon>
+  <!-- Settings: appearance choices, the model list arrow, folders and storage. -->
+  <icon key="IconSun">
+    <circle cx="8" cy="8" r="2.75"/>
+    <path d="M8 1.5V2.75M8 13.25V14.5M1.5 8H2.75M13.25 8H14.5M3.4 3.4 4.28 4.28M11.72 11.72 12.6 12.6M3.4 12.6 4.28 11.72M11.72 4.28 12.6 3.4"/>
+  </icon>
+  <icon key="IconMoon">
+    <path d="M13.75 9.6A5.9 5.9 0 1 1 6.4 2.25 4.6 4.6 0 0 0 13.75 9.6Z"/>
+  </icon>
+  <icon key="IconMonitor">
+    <rect x="1.75" y="2.25" width="12.5" height="9" rx="2"/>
+    <path d="M8 11.25V13.75M5.25 13.75H10.75"/>
+  </icon>
+  <icon key="IconChevronDown">
+    <path d="M3.5 6 8 10.5 12.5 6"/>
+  </icon>
+  <icon key="IconFolder">
+    <path d="M1.75 4.25a2 2 0 0 1 2-2H6l1.75 1.75h4.5a2 2 0 0 1 2 2v5.75a2 2 0 0 1-2 2h-8.5a2 2 0 0 1-2-2Z"/>
+  </icon>
+  <icon key="IconStorage">
+    <rect x="1.75" y="2" width="12.5" height="5" rx="1.75"/>
+    <rect x="1.75" y="9" width="12.5" height="5" rx="1.75"/>
+    <path d="M11 4.5H11.01M11 11.5H11.01"/>
+  </icon>
+  <icon key="IconChart">
+    <path d="M1.75 14.25H14.25"/>
+    <path d="M4 11.75V8.5M8 11.75V3.75M12 11.75V6.5"/>
+  </icon>
+  <!-- Copy (two offset sheets) and its confirmation check. -->
+  <icon key="IconCopy">
+    <rect x="5.25" y="1.75" width="9" height="9" rx="2"/>
+    <path d="M2.25 5.5V12.25a2 2 0 0 0 2 2H10.5"/>
+  </icon>
+  <!-- Multi-select: a ticked box (the 选择 entry) and a cross (clear the selection). -->
+  <icon key="IconSelect">
+    <rect x="2" y="2" width="12" height="12" rx="2.5"/>
+    <path d="M5.25 8.25 7.25 10.25 10.75 6"/>
+  </icon>
+  <icon key="IconClose">
+    <path d="M4 4 12 12M12 4 4 12"/>
+  </icon>
+  <!-- An eye: 隐藏推荐 / 显示推荐 on the network toolbar (2026-11-12). -->
+  <icon key="IconEye">
+    <path d="M1.5 8C3 5 5.3 3.5 8 3.5S13 5 14.5 8C13 11 10.7 12.5 8 12.5S3 11 1.5 8Z"/>
+    <circle cx="8" cy="8" r="2"/>
+  </icon>
+  <!-- Two chain links: 关联到… and the links in the details (2026-11-16). -->
+  <icon key="IconLink">
+    <path d="M7 5 8.6 3.4A2.83 2.83 0 0 1 12.6 7.4L11 9M9 11 7.4 12.6A2.83 2.83 0 0 1 3.4 8.6L5 7"/>
+    <path d="M6.25 9.75 9.75 6.25"/>
+  </icon>
+  <icon key="IconCheck">
+    <path d="M3 8.5 6.5 12 13 4.5"/>
+  </icon>
+  <!-- Workspaces (2026-11-10): four tiles, for 管理工作区 in the switcher's menu and on the settings page. -->
+  <icon key="IconWorkspaces">
+    <rect x="1.75" y="1.75" width="5" height="5" rx="1.5"/>
+    <rect x="9.25" y="1.75" width="5" height="5" rx="1.5"/>
+    <rect x="1.75" y="9.25" width="5" height="5" rx="1.5"/>
+    <rect x="9.25" y="9.25" width="5" height="5" rx="1.5"/>
+  </icon>
+  <!-- The summary network toolbar (moved out of SummaryNetworkHomeView, 2026-11-17): 保存布局, 显示全部, 缩小, 放大, 整理布局, 列表. -->
+  <icon key="IconSaveLayout">
+    <path d="M3.75 1.75H10.5l3.75 3.75v6.75a2 2 0 0 1-2 2h-8.5a2 2 0 0 1-2-2v-8.5a2 2 0 0 1 2-2Z"/>
+    <path d="M5 1.75V4.5H9.5V1.75M4.75 14.25V10.25H11.25V14.25"/>
+  </icon>
+  <icon key="IconShowAll">
+    <path d="M1.75 5.5V3.75a2 2 0 0 1 2-2H5.5M10.5 1.75h1.75a2 2 0 0 1 2 2V5.5M14.25 10.5v1.75a2 2 0 0 1-2 2H10.5M5.5 14.25H3.75a2 2 0 0 1-2-2V10.5"/>
+  </icon>
+  <icon key="IconZoomOut">
+    <path d="M3 8H13"/>
+  </icon>
+  <icon key="IconZoomIn">
+    <path d="M8 3V13M3 8H13"/>
+  </icon>
+  <icon key="IconArrange">
+    <rect x="1.75" y="6" width="4" height="4" rx="1.25"/>
+    <rect x="10.25" y="1.75" width="4" height="4" rx="1.25"/>
+    <rect x="10.25" y="10.25" width="4" height="4" rx="1.25"/>
+    <path d="M5.75 8H8M10.25 3.75H9.5A1.5 1.5 0 0 0 8 5.25v5.5a1.5 1.5 0 0 0 1.5 1.5h.75"/>
+  </icon>
+  <icon key="IconListView">
+    <circle class="solid" cx="2.5" cy="3.5" r="1"/>
+    <circle class="solid" cx="2.5" cy="8" r="1"/>
+    <circle class="solid" cx="2.5" cy="12.5" r="1"/>
+    <path d="M5.75 3.5H14M5.75 8H14M5.75 12.5H14"/>
+  </icon>
+  <!-- The summary page (moved out of SummaryView, 2026-11-17): 查看当前, 编辑 (a pencil on a line, so it differs from 改名, which uses IconRename), and the export arrow. -->
+  <icon key="IconChevronLeft">
+    <path d="M10 3.5 5.5 8 10 12.5"/>
+  </icon>
+  <icon key="IconEdit">
+    <path d="M2.5 13.5 3 10.75 9.75 4a1.6 1.6 0 0 1 2.25 2.25L5.25 13Z"/>
+    <path d="M8.5 13.5H13.75"/>
+  </icon>
+  <icon key="IconDownload">
+    <path d="M8 1.75V9.75M4.75 6.5 8 9.75 11.25 6.5"/>
+    <path d="M2 10.75v1.5a2 2 0 0 0 2 2h8a2 2 0 0 0 2-2v-1.5"/>
+  </icon>
+  <!-- 标为已读 / 标为未读 on the summary page: the icon is the state the button sets, a hollow ring for read and a filled dot for unread (as on the network). -->
+  <icon key="IconRead">
+    <circle cx="8" cy="8" r="5.25"/>
+  </icon>
+  <icon key="IconUnread">
+    <circle class="solid" cx="8" cy="8" r="5.5"/>
+  </icon>
+  <!-- The same glyphs drawn for 20 px and up (the onboarding mark, the 探索 home mark), with the thinner large-size stroke. -->
+  <icon key="IconExploreLarge" like="IconExplore" stroke="1.5"/>
+  <icon key="IconSummaryNetworkLarge" like="IconSummaryNetwork" stroke="1.5"/>
+</icons>

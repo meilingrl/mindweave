@@ -51,7 +51,7 @@
 
       <!-- 1 · What Mindweave is for: branch from an answer, return to the source, gather summaries into a network. -->
       <StackPanel Name="WelcomeStep" IsVisible="{Binding IsWelcomeStep}" v:Motion.Appear="Fade">
-        <Border Name="Illustration" CornerRadius="12" Padding="20,18,20,12" Background="{DynamicResource SummaryNetworkBackground}"
+        <Border Name="Illustration" CornerRadius="{StaticResource RadiusCard}" Padding="20,18,20,12" Background="{DynamicResource SummaryNetworkBackground}"
                 BorderBrush="{DynamicResource CardBorder}" BorderThickness="1"
                 AutomationProperties.Name="{x:Static t:UiText.OnboardingIllustrationName}">
           <StackPanel Spacing="8">
@@ -134,7 +134,7 @@
       <StackPanel Name="WorkspaceStep" IsVisible="{Binding IsWorkspaceStep}" v:Motion.Appear="Fade">
         <Border Width="44" Height="44" CornerRadius="12" HorizontalAlignment="Left" Margin="0,0,0,18" Background="{DynamicResource BadgeAccentBackground}"
                 IsVisible="{Binding !IsGuided}">
-          <PathIcon Width="20" Height="20" Data="{StaticResource IconSummaryNetwork}" Foreground="{DynamicResource AccentBrush}" />
+          <PathIcon Width="22" Height="22" Data="{StaticResource IconSummaryNetworkLarge}" Foreground="{DynamicResource AccentBrush}" />
         </Border>
         <TextBlock Classes="h1" Margin="0,0,0,8" Text="{x:Static t:UiText.OnboardingWorkspaceHeading}" />
         <TextBlock Classes="muted" TextWrapping="Wrap" Margin="0,0,0,20" Text="{x:Static t:UiText.OnboardingWorkspaceBody}" />

@@ -23,7 +23,7 @@
     <Setter Property="Cursor" Value="Hand" />
     <Setter Property="Template">
       <ControlTemplate>
-        <Border Background="{TemplateBinding Background}" Padding="{TemplateBinding Padding}" CornerRadius="5">
+        <Border Background="{TemplateBinding Background}" Padding="{TemplateBinding Padding}" CornerRadius="{StaticResource RadiusControl}">
           <Border Name="PART_Box" Classes="row-check" Margin="0">
             <PathIcon Name="PART_Check" Data="{StaticResource IconCheck}" IsVisible="False" />
           </Border>
@@ -32,7 +32,7 @@
     </Setter>
     <Setter Property="FocusAdorner">
       <FocusAdornerTemplate>
-        <Border BorderThickness="2" BorderBrush="{DynamicResource FocusRing}" CornerRadius="6" />
+        <Border BorderThickness="2" BorderBrush="{DynamicResource FocusRing}" CornerRadius="{StaticResource RadiusControl}" />
       </FocusAdornerTemplate>
     </Setter>
   </Style>
@@ -58,7 +58,7 @@
     <Setter Property="Background" Value="{DynamicResource SegmentedTrack}" />
     <Setter Property="BorderBrush" Value="{DynamicResource CardBorder}" />
     <Setter Property="BorderThickness" Value="1" />
-    <Setter Property="CornerRadius" Value="8" />
+    <Setter Property="CornerRadius" Value="{StaticResource RadiusCard}" />
     <Setter Property="Padding" Value="2" />
     <Setter Property="HorizontalAlignment" Value="Left" />
   </Style>
@@ -71,7 +71,7 @@
     <Setter Property="Template">
       <ControlTemplate>
         <Border Name="PART_Segment" Background="{TemplateBinding Background}" BorderBrush="Transparent" BorderThickness="1"
-                CornerRadius="6" Padding="{TemplateBinding Padding}">
+                CornerRadius="{StaticResource RadiusControl}" Padding="{TemplateBinding Padding}">
           <ContentPresenter Name="PART_ContentPresenter" Content="{TemplateBinding Content}" ContentTemplate="{TemplateBinding ContentTemplate}"
                             Foreground="{TemplateBinding Foreground}" HorizontalAlignment="Center" VerticalAlignment="Center" />
         </Border>
@@ -120,8 +120,8 @@
     <Setter Property="Foreground" Value="{DynamicResource PrimaryText}" />
   </Style>
   <Style Selector="Button.field-toggle PathIcon">
-    <Setter Property="Width" Value="10" />
-    <Setter Property="Height" Value="10" />
+    <Setter Property="Width" Value="12" />
+    <Setter Property="Height" Value="12" />
   </Style>
   <!-- Suggestions under a field: a floating card of plain rows; the highlighted row is a neutral band, not accent. -->
   <Style Selector="Border.suggestions">
@@ -129,7 +129,7 @@
     <Setter Property="Background" Value="{DynamicResource DialogBackground}" />
     <Setter Property="BorderBrush" Value="{DynamicResource OutlineBrush}" />
     <Setter Property="BorderThickness" Value="1" />
-    <Setter Property="CornerRadius" Value="8" />
+    <Setter Property="CornerRadius" Value="{StaticResource RadiusCard}" />
     <Setter Property="Padding" Value="4" />
     <Setter Property="Margin" Value="0,4,0,12" />
     <Setter Property="BoxShadow" Value="{DynamicResource PopupShadow}" />
@@ -142,7 +142,7 @@
   <Style Selector="Border.suggestions ListBoxItem">
     <Setter Property="Padding" Value="10,6" />
     <Setter Property="MinHeight" Value="0" />
-    <Setter Property="CornerRadius" Value="5" />
+    <Setter Property="CornerRadius" Value="{StaticResource RadiusControl}" />
     <Setter Property="Focusable" Value="False" />
     <Setter Property="Foreground" Value="{DynamicResource PrimaryText}" />
     <Setter Property="Cursor" Value="Hand" />
@@ -155,9 +155,9 @@
     <Setter Property="Background" Value="{DynamicResource SelectedRow}" />
     <Setter Property="Foreground" Value="{DynamicResource PrimaryText}" />
   </Style>
-  <!-- Fields in a settings card share the controls' 6 px corner (2026-11-10; Fluent's own is 3 px, next to 8 px cards). -->
+  <!-- Fields in a settings card share the controls' corner (2026-11-10; Fluent's own is 3 px, next to the cards' 12 px). -->
   <Style Selector="Border.card.settings TextBox, Border.card.settings ComboBox">
-    <Setter Property="CornerRadius" Value="6" />
+    <Setter Property="CornerRadius" Value="{StaticResource RadiusControl}" />
   </Style>
   <!-- The provider picker is framed like the text fields in the same card, at rest and under the pointer. -->
   <Style Selector="ComboBox.settings">

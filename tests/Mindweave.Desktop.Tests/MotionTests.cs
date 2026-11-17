@@ -210,7 +210,7 @@ public class MotionTests
         Assert.Equal(ring, Assert.IsAssignableFrom<ISolidColorBrush>(inside.BorderBrush).Color);
         Assert.Equal(new Thickness(2), inside.BorderThickness);
         Assert.Equal(default, inside.Margin);
-        Assert.Equal(new CornerRadius(6), inside.CornerRadius);
+        Assert.Equal(new CornerRadius(8), inside.CornerRadius);
 
         app.ShellPage.ShowSectionCommand.Execute(MainSection.Explore);
         window.UpdateLayout();
@@ -220,6 +220,8 @@ public class MotionTests
         var outside = FocusAdorner(primary);
         Assert.Equal(ring, Assert.IsAssignableFrom<ISolidColorBrush>(outside.BorderBrush).Color);
         Assert.Equal(new Thickness(-3), outside.Margin);
+        // Direction A (2026-11-17): the button's 8 plus the 3 px it is drawn outside.
+        Assert.Equal(new CornerRadius(11), outside.CornerRadius);
         // Drawn past the button's own edge, so not clipped to it.
         Assert.False(AdornerLayer.GetIsClipEnabled(outside));
 
@@ -242,12 +244,12 @@ public class MotionTests
         app.ShellPage.ShowSectionCommand.Execute(MainSection.Settings);
         window.UpdateLayout();
 
-        Assert.Equal(new CornerRadius(6), Find<Button>(window, "SaveModel").CornerRadius);
-        Assert.Equal(new CornerRadius(6), Find<Button>(window, "TestModel").CornerRadius);
-        Assert.Equal(new CornerRadius(6), Find<TextBox>(window, "BaseUrl").CornerRadius);
-        Assert.Equal(new CornerRadius(6), Find<ComboBox>(window, "ProviderPicker").CornerRadius);
+        Assert.Equal(new CornerRadius(8), Find<Button>(window, "SaveModel").CornerRadius);
+        Assert.Equal(new CornerRadius(8), Find<Button>(window, "TestModel").CornerRadius);
+        Assert.Equal(new CornerRadius(8), Find<TextBox>(window, "BaseUrl").CornerRadius);
+        Assert.Equal(new CornerRadius(8), Find<ComboBox>(window, "ProviderPicker").CornerRadius);
         var toggle = Find<Button>(window, "CollapseSidebar");
-        Assert.Equal(new CornerRadius(6), toggle.CornerRadius);
+        Assert.Equal(new CornerRadius(8), toggle.CornerRadius);
 
         // Pressed is one step stronger than hover, on the quiet and the outlined level alike.
         var hover = Colour(window, "HoverRow");

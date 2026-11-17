@@ -17,7 +17,7 @@
     <Setter Property="Background" Value="Transparent" />
     <Setter Property="BorderBrush" Value="Transparent" />
     <Setter Property="BorderThickness" Value="1" />
-    <Setter Property="CornerRadius" Value="8" />
+    <Setter Property="CornerRadius" Value="{StaticResource RadiusControl}" />
     <Setter Property="Foreground" Value="{DynamicResource PrimaryText}" />
     <Setter Property="FocusAdorner" Value="{x:Null}" />
   </Style>
@@ -39,8 +39,8 @@
   </Style>
   <!-- The chevron turns over while the menu is open. -->
   <Style Selector="PathIcon.switcher-chevron">
-    <Setter Property="Width" Value="10" />
-    <Setter Property="Height" Value="10" />
+    <Setter Property="Width" Value="12" />
+    <Setter Property="Height" Value="12" />
     <Setter Property="VerticalAlignment" Value="Center" />
     <Setter Property="Foreground" Value="{DynamicResource NavIcon}" />
     <Setter Property="RenderTransform" Value="rotate(0deg)" />
@@ -62,7 +62,7 @@
     <Setter Property="Background" Value="{DynamicResource DialogBackground}" />
     <Setter Property="BorderBrush" Value="{DynamicResource OutlineBrush}" />
     <Setter Property="BorderThickness" Value="1" />
-    <Setter Property="CornerRadius" Value="10" />
+    <Setter Property="CornerRadius" Value="{StaticResource RadiusCard}" />
     <Setter Property="Padding" Value="4" />
     <Setter Property="Margin" Value="0,0,0,18" />
     <Setter Property="BoxShadow" Value="{DynamicResource MenuShadow}" />
@@ -88,7 +88,7 @@
     <Setter Property="Background" Value="Transparent" />
     <Setter Property="BorderBrush" Value="Transparent" />
     <Setter Property="BorderThickness" Value="1" />
-    <Setter Property="CornerRadius" Value="6" />
+    <Setter Property="CornerRadius" Value="{StaticResource RadiusControl}" />
     <Setter Property="Foreground" Value="{DynamicResource PrimaryText}" />
     <Setter Property="FontWeight" Value="Normal" />
     <Setter Property="FocusAdorner" Value="{x:Null}" />
@@ -114,8 +114,8 @@
     <Setter Property="VerticalAlignment" Value="Center" />
   </Style>
   <Style Selector="Panel.switcher-check PathIcon">
-    <Setter Property="Width" Value="11" />
-    <Setter Property="Height" Value="11" />
+    <Setter Property="Width" Value="13" />
+    <Setter Property="Height" Value="13" />
     <Setter Property="Foreground" Value="{DynamicResource AccentBrush}" />
   </Style>
   <Style Selector="Button.switcher-row.footer">
@@ -135,7 +135,7 @@
   <Style Selector="Border.new-workspace-form">
     <Setter Property="Margin" Value="0,2,0,6" />
     <Setter Property="Padding" Value="8" />
-    <Setter Property="CornerRadius" Value="8" />
+    <Setter Property="CornerRadius" Value="{StaticResource RadiusCard}" />
     <Setter Property="Background" Value="{DynamicResource WindowBackground}" />
     <Setter Property="BorderBrush" Value="{DynamicResource OutlineBrush}" />
     <Setter Property="BorderThickness" Value="1" />
@@ -148,7 +148,7 @@
   <!-- 设置 › 工作区: one card of rows; the open one tagged 当前; actions are quiet and right-aligned. -->
   <Style Selector="Border.workspace-row">
     <Setter Property="Padding" Value="14,10,8,10" />
-    <Setter Property="CornerRadius" Value="6" />
+    <Setter Property="CornerRadius" Value="{StaticResource RadiusControl}" />
     <Setter Property="Background" Value="Transparent" />
   </Style>
   <Style Selector="Border.workspace-row:pointerover">
@@ -172,7 +172,7 @@
     <Setter Property="Height" Value="28" />
     <Setter Property="MinHeight" Value="0" />
     <Setter Property="Padding" Value="8,4" />
-    <Setter Property="CornerRadius" Value="6" />
+    <Setter Property="CornerRadius" Value="{StaticResource RadiusControl}" />
     <Setter Property="VerticalContentAlignment" Value="Center" />
   </Style>
   <!--
@@ -182,14 +182,14 @@
   <Style Selector="Button.suggestion-chip">
     <Setter Property="Padding" Value="10,3" />
     <Setter Property="FontSize" Value="12.5" />
-    <Setter Property="CornerRadius" Value="12" />
+    <Setter Property="CornerRadius" Value="{StaticResource RadiusPill}" />
     <Setter Property="BorderThickness" Value="1" />
     <Setter Property="BorderBrush" Value="{DynamicResource OutlineBrush}" />
     <Setter Property="Background" Value="{DynamicResource WindowBackground}" />
     <Setter Property="Foreground" Value="{DynamicResource PrimaryText}" />
     <Setter Property="FocusAdorner">
       <FocusAdornerTemplate>
-        <Border BorderThickness="2" BorderBrush="{DynamicResource FocusRing}" CornerRadius="14" Margin="-3" AdornerLayer.IsClipEnabled="False" />
+        <Border BorderThickness="2" BorderBrush="{DynamicResource FocusRing}" CornerRadius="{StaticResource RadiusPill}" Margin="-3" AdornerLayer.IsClipEnabled="False" />
       </FocusAdornerTemplate>
     </Setter>
   </Style>

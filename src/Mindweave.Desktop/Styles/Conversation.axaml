@@ -42,7 +42,7 @@
     <Setter Property="Background" Value="{DynamicResource CardBackground}" />
     <Setter Property="BorderBrush" Value="{DynamicResource CardBorder}" />
     <Setter Property="BorderThickness" Value="1" />
-    <Setter Property="CornerRadius" Value="8" />
+    <Setter Property="CornerRadius" Value="{StaticResource RadiusCard}" />
   </Style>
   <Style Selector="Border.quote">
     <Setter Property="BorderBrush" Value="{DynamicResource QuoteBar}" />
@@ -56,7 +56,7 @@
   <Style Selector="Button.entry">
     <Setter Property="Background" Value="Transparent" />
     <Setter Property="BorderThickness" Value="0" />
-    <Setter Property="CornerRadius" Value="6" />
+    <Setter Property="CornerRadius" Value="{StaticResource RadiusControl}" />
     <Setter Property="Padding" Value="8,4" />
     <Setter Property="HorizontalAlignment" Value="Stretch" />
     <Setter Property="HorizontalContentAlignment" Value="Stretch" />
@@ -74,8 +74,8 @@
     <Setter Property="Margin" Value="0,3,10,0" />
   </Style>
   <Style Selector="Button.entry PathIcon.entry-chevron">
-    <Setter Property="Width" Value="10" />
-    <Setter Property="Height" Value="10" />
+    <Setter Property="Width" Value="12" />
+    <Setter Property="Height" Value="12" />
     <Setter Property="Foreground" Value="{DynamicResource MutedText}" />
     <Setter Property="VerticalAlignment" Value="Center" />
     <Setter Property="Margin" Value="10,0,0,0" />
@@ -94,7 +94,7 @@
     <Setter Property="Background" Value="{DynamicResource TextControlBackground}" />
     <Setter Property="BorderBrush" Value="{DynamicResource TextControlBorderBrush}" />
     <Setter Property="BorderThickness" Value="1" />
-    <Setter Property="CornerRadius" Value="12" />
+    <Setter Property="CornerRadius" Value="{StaticResource RadiusComposer}" />
     <Setter Property="Padding" Value="6" />
   </Style>
   <Style Selector="Border.composer:focus-within">
@@ -130,8 +130,8 @@
     <Setter Property="VerticalContentAlignment" Value="Center" />
   </Style>
   <Style Selector="Button.stop PathIcon">
-    <Setter Property="Width" Value="11" />
-    <Setter Property="Height" Value="11" />
+    <Setter Property="Width" Value="14" />
+    <Setter Property="Height" Value="14" />
   </Style>
   <Style Selector="Button.stop:pointerover /template/ ContentPresenter#PART_ContentPresenter">
     <Setter Property="CornerRadius" Value="17" />
@@ -139,10 +139,10 @@
   <!-- Icon-only quiet buttons (copy): a square hit area around the glyph. -->
   <Style Selector=":is(Button).quiet.icon">
     <Setter Property="Padding" Value="6" />
-    <Setter Property="CornerRadius" Value="6" />
+    <Setter Property="CornerRadius" Value="{StaticResource RadiusControl}" />
   </Style>
   <Style Selector=":is(Button).quiet.icon:pointerover /template/ ContentPresenter#PART_ContentPresenter">
-    <Setter Property="CornerRadius" Value="6" />
+    <Setter Property="CornerRadius" Value="{StaticResource RadiusControl}" />
   </Style>
   <!-- When a message was sent or answered: smaller and fainter than captions, never competing with the text. -->
   <Style Selector="TextBlock.timestamp">
@@ -154,17 +154,17 @@
     <Setter Property="Background" Value="{DynamicResource FloatingBackground}" />
     <Setter Property="BorderBrush" Value="{DynamicResource FloatingBorder}" />
     <Setter Property="BorderThickness" Value="1" />
-    <Setter Property="CornerRadius" Value="8" />
+    <Setter Property="CornerRadius" Value="{StaticResource RadiusCard}" />
     <Setter Property="Padding" Value="2" />
     <Setter Property="BoxShadow" Value="{DynamicResource FloatingShadow}" />
   </Style>
   <Style Selector="Border.selection-actions Button.quiet">
     <Setter Property="Padding" Value="9,4" />
     <Setter Property="FontSize" Value="13" />
-    <Setter Property="CornerRadius" Value="6" />
+    <Setter Property="CornerRadius" Value="{StaticResource RadiusControl}" />
   </Style>
   <Style Selector="Border.selection-actions Button.quiet:pointerover /template/ ContentPresenter#PART_ContentPresenter">
-    <Setter Property="CornerRadius" Value="6" />
+    <Setter Property="CornerRadius" Value="{StaticResource RadiusControl}" />
   </Style>
   <Style Selector="Border.selection-actions Button.quiet PathIcon">
     <Setter Property="Foreground" Value="{DynamicResource AccentBrush}" />
@@ -215,8 +215,8 @@
     <Setter Property="Foreground" Value="{DynamicResource PrimaryText}" />
   </Style>
   <Style Selector="Button.recommendation-ignore PathIcon">
-    <Setter Property="Width" Value="10" />
-    <Setter Property="Height" Value="10" />
+    <Setter Property="Width" Value="12" />
+    <Setter Property="Height" Value="12" />
     <Setter Property="Foreground" Value="{DynamicResource MutedText}" />
   </Style>
 </Styles>
