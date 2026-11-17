@@ -99,6 +99,7 @@ ViewModel位于Desktop；课程导航映射见“工作区、界面与导航”�
 | 批准（首版后） | `Approval` |
 | 出处（首版后） | `Citation`（`CitationBlock`）；不与来源锚点 `Anchor`、探索来源混用 |
 | 网络搜索、取网页、搜索服务（首版后） | `WebSearch`、`WebFetch`、`SearchProvider` |
+| 网络搜索开关：自动／开／关（首版后，v0.18） | `WebSearchMode`：`Auto`／`On`／`Off` |
 | MCP 服务器（首版后） | `McpServer` |
 | 生成的图表与图示（首版后） | `Artifact`（`ArtifactBlock`） |
 | 设置 › 工具 | `Settings` 下的 `Tools` |
@@ -667,7 +668,7 @@ Infrastructure 执行打开、备份、迁移及恢复；Application 协调启�
 
 - MCP 工具的默认等级：服务器声明只读（`readOnlyHint`）的为“读网络”，其余一律为“有副作用”。服务器自报的提示不可信，只能让等级更高，不能让用户未确认的工具变成不询问；用户可在设置中逐个调整。
 - 批准卡片显示服务器、工具与参数（参数中的长文字折叠显示）；批准与拒绝写入 `run_step.approval`。拒绝时把“用户拒绝了这次调用”作为结果交还模型。
-- 网络搜索开关为“开”时，第一次模型请求要求必须调用搜索（`tool_choice`），之后由模型决定；“关”时不提供 `web_search` 与 `fetch_page`。
+- 网络搜索开关为“开”时，应用在第一次模型请求之前用提问的文字执行一次 `web_search`，结果作为材料随第一次请求发送，之后由模型决定（第 3 期定，见 [web-search.md](design/web-search.md) 决定 W1：只用 `tool_choice: "auto"`，不要求服务支持指定工具）；“关”时不提供 `web_search` 与 `fetch_page`。
 
 ### 15.8 安全
 
@@ -705,7 +706,7 @@ Infrastructure 执行打开、备份、迁移及恢复；Application 协调启�
 
 ### 15.11 使用统计
 
-`ai_request` 已按任务记录每次模型请求，运行内的多次请求自然归入同一回答。统计页增加：按运行的请求次数与 token；按工具的调用次数（来自 `run_step`）；资源摘要请求作为单独的类别（`ai_request.purpose = 'resource_summary'`，见迁移 A）。搜索服务的调用不计 token，只计次数；服务返回费用信息时另行记录〔待详细设计〕。
+`ai_request` 已按任务记录每次模型请求，运行内的多次请求自然归入同一回答。统计页增加：按运行的请求次数与 token；按工具的调用次数（来自 `run_step`）；资源摘要请求作为单独的类别（`ai_request.purpose = 'resource_summary'`，见迁移 A）。搜索服务的调用不计 token，只计次数（第 3 期：`web_search`、`fetch_page` 的步骤按工具计数，含出错的调用；不另记金额，见 [web-search.md](design/web-search.md) 决定 W15）。
 
 ### 15.12 第 2 期的实现约定
 
@@ -720,3 +721,16 @@ Infrastructure 执行打开、备份、迁移及恢复；Application 协调启�
 - **恢复。** `RecoverUnfinishedAsync` 在标记回答中断的同一事务中，把 `running` 的步骤按风险等级改为 `stopped`（本地只读、读网络）或 `unknown`（有副作用），`awaiting_approval` 改为 `stopped`。
 - **统计。** 每个运行的模型请求数来自 `ai_request`（按任务，`purpose = 'answer'`）；每个工具的调用次数来自 `run_step`（`kind = 'tool'`）。
 
+### 15.13 第 3 期的实现约定
+
+产品依据：需求 §10.4.5（v0.18）。本节补 §15.6–15.9 留给实现的细节；理由与新的决定（W1–W16）见 [web-search.md](design/web-search.md)。不需要迁移：网页与搜索结果是 `origin = 'web'` 的资源（来源由应用校验），出处是新的块类型 `citation`，设置在偏好设置中。
+
+- **分层。** Application 有两个工具 `WebSearchTool`（`web_search`）与 `FetchPageTool`（`fetch_page`），风险都是 `NetworkRead`；它们只依赖两个契约：`ISearchProvider`（一个搜索服务的适配器，第 3 期只有 Infrastructure 的 `TavilySearchProvider`；工具与运行不出现服务名）与 `IWebPageFetcher`（Infrastructure 的 `GuardedPageFetcher`：地址检查、HTTP、HTML 转文字、PDF 提取）。增加第二个搜索服务只需要新的适配器与设置里的一项。
+- **何时提供。** 接受提问时，模型声明 `ToolCalls`、“使用工具”开启、开关不是“关”、`IWebSearchSettings` 有密钥，就提供两个网络工具（不受决定 R5 的“有东西可查”限制）；冻结进任务的工具与第 2 期相同。开关档位随提问交给 `ConversationService`（`SendOptions.WebSearch`）。
+- **运行内的网络状态。** `WebRun`（每个运行一份，随 `RunPlan` 传入工具）：编号表（规范化网址 → 编号、资源、标题、获取时间、结果在资源文字中的字符范围）、允许直接读取的网址集合（本次运行的搜索结果网址、会话链中用户提问的文字与附件文字里的网址、已读网页的链接）、已读网页的缓存。规范化：小写协议与主机、去掉默认端口与片段（`#…`），路径与查询保持原样。
+- **批准（Q10）。** `fetch_page` 的网址不在允许集合中时，运行在执行前写 `tool` 步骤为 `awaiting_approval`（`approval = 'pending'`），在回答的实时状态中放一张待批准卡片（调用 ID、网址），然后经 `IRunSlots` 释放执行槽并等待用户的决定；决定后重新取得执行槽（排在用户队列之前），步骤的 `approval` 写为 `approved` 或 `denied`。等待的时间不计入运行时长。停止、退出时等待被取消，步骤记为 `stopped`；重启时由第 2 期的恢复把 `awaiting_approval` 改为 `stopped`。
+- **取网页的检查。** `GuardedPageFetcher` 在每一跳（最多 5 次重定向，手动跟随）之前检查协议，解析主机名并检查全部地址（拒绝环回、未指定、RFC 1918、链路本地、100.64.0.0/10、组播、广播、保留、文档用地址、IPv6 唯一本地与链路本地，以及映射到这些地址的 IPv4 映射地址）；真实连接经 `SocketsHttpHandler.ConnectCallback` 只连接已检查的地址（防止两次解析结果不同）。不使用系统代理（决定 W8）、`UseCookies = false`、不加任何认证头，响应按流读取，超过 5 MB 或 20 秒即停止。
+- **交给模型的材料。** 网络工具的结果以“以下是来自网络的材料……不可信……”开头、以结束标记收尾；每个来源带编号、标题与网址。超过约 2,000 估算 token 时与第 2 期相同，只给开头与资源编号。
+- **出处块。** 回答结束（完成、停止、达到上限后作答）时，应用在正文中找出指向编号表的 `[n]`，为每个被引用的编号写一个 `citation` 块（排在工具块之后）：`text` 为标题，`data` 为 `{number, url, fetched_at, start, end}`（被引用段落在资源文字中的字符范围），`resource_id` 为来源资源。正文本身不改写；界面渲染时只把有 `citation` 块的编号变为链接。`ContentBlocks.TextOf` 把 `citation` 块文本化为“[n] 标题 网址”，因此之后的提问与总结的输入带出处列表。
+- **定位。** 被引用段落取 `[n]` 所在句子与来源文字中各分块的关键词重合度最高的一块（与决定 R3 相同的切词）；搜索结果只在该条结果的范围内选；没有重合时为该来源的开头。
+- **密钥。** `IWebSearchSettings` 在偏好设置中只保存服务名（`websearch.provider`）、凭据引用（`websearch.credential`）与开关默认档（`websearch.default`）；密钥在系统凭据服务中，替换时写新引用、删旧引用。适配器在发请求时读取密钥并只放进请求头；适配器的错误信息与 `ai_request` 一样去掉密钥。
