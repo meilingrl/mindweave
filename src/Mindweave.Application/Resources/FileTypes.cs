@@ -3,8 +3,9 @@ using Mindweave.Core.Resources;
 namespace Mindweave.Application.Resources;
 
 /// <summary>
-/// Which files become resources, by extension: text and source code (read as text) and common images (stored as
-/// originals, checked against their file signature). PDF and Office files wait for their extractors.
+/// Which files become resources, by extension: text and source code (read as text), documents whose text an extractor
+/// reads (PDF and Word .docx) and common images (stored as originals, checked against their file signature). Other
+/// Office formats and the old binary .doc are not supported.
 /// </summary>
 public static class FileTypes
 {
@@ -65,6 +66,12 @@ public static class FileTypes
         [".props"] = "application/xml",
     };
 
+    private static readonly Dictionary<string, string> DocumentExtensions = new(StringComparer.OrdinalIgnoreCase)
+    {
+        [".pdf"] = MediaTypes.Pdf,
+        [".docx"] = MediaTypes.Docx,
+    };
+
     private static readonly Dictionary<string, string> ImageExtensions = new(StringComparer.OrdinalIgnoreCase)
     {
         [".png"] = MediaTypes.Png,
@@ -80,6 +87,7 @@ public static class FileTypes
         ArgumentNullException.ThrowIfNull(fileName);
         var extension = Path.GetExtension(fileName);
         return TextExtensions.TryGetValue(extension, out var text) ? text
+            : DocumentExtensions.TryGetValue(extension, out var document) ? document
             : ImageExtensions.TryGetValue(extension, out var image) ? image
             : null;
     }
@@ -88,6 +96,13 @@ public static class FileTypes
     {
         ArgumentNullException.ThrowIfNull(mediaType);
         return mediaType.StartsWith("text/", StringComparison.Ordinal) || TextExtensions.ContainsValue(mediaType);
+    }
+
+    /// <summary>Whether the type is a document (PDF, .docx) whose text an extractor reads from the original.</summary>
+    public static bool IsDocumentMediaType(string mediaType)
+    {
+        ArgumentNullException.ThrowIfNull(mediaType);
+        return DocumentExtensions.ContainsValue(mediaType);
     }
 
     /// <summary>The image type the bytes themselves say they are, or null when they are no image this layer knows.</summary>

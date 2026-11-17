@@ -4732,6 +4732,13 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
 ====================================================================================================
 
+PdfPig 0.1.16
+Licence: Apache-2.0
+Project: https://github.com/UglyToad/PdfPig
+(No licence text in the package; see the licence or URL above.)
+
+====================================================================================================
+
 RaTeX 1.0.0
 Licence URL: https://aka.ms/deprecateLicenseUrl
 Project: https://github.com/Sylinko/RaTeX.Net

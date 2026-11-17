@@ -101,8 +101,9 @@ public sealed class ResourceStoreTests
         Assert.Equal(MediaTypes.Png, (await FileAsync("misnamed.jpg", [.. PngBytes, 9])).Resource!.Resource.MediaType);
         Assert.Equal(ResourceCreateStatus.NotReadable, (await FileAsync("fake.png", Encoding.UTF8.GetBytes("not an image"))).Status);
 
-        Assert.Equal(ResourceCreateStatus.Unsupported, (await FileAsync("paper.pdf", Encoding.ASCII.GetBytes("%PDF-1.7"))).Status);
-        Assert.Equal(ResourceCreateStatus.Unsupported, (await FileAsync("notes.docx", [0x50, 0x4B, 3, 4])).Status);
+        Assert.Equal(ResourceCreateStatus.NotReadable, (await FileAsync("paper.pdf", Encoding.ASCII.GetBytes("%PDF-1.7"))).Status);
+        Assert.Equal(ResourceCreateStatus.NotReadable, (await FileAsync("notes.docx", [0x50, 0x4B, 3, 4])).Status);
+        Assert.Equal(ResourceCreateStatus.Unsupported, (await FileAsync("slides.pptx", [0x50, 0x4B, 3, 4])).Status);
         Assert.Equal(ResourceCreateStatus.NotReadable, (await FileAsync("binary.txt", [0x41, 0x00, 0x42])).Status);
         Assert.Equal(ResourceCreateStatus.Empty, (await FileAsync("empty.txt", [])).Status);
         Assert.Equal(ResourceCreateStatus.FileUnavailable, (await h.ResourceService.CreateFromFileAsync(h.Workspace, null, Path.Combine(h.DataDirectory, "gone.txt"), Ct)).Status);
