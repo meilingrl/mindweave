@@ -109,6 +109,50 @@ public static partial class UiText
 
     public static string ChartMaxLabel(long max) => "最高 " + Tokens(max);
 
+    // Usage calendar (2026-11-17): the last year of daily token use, one square a day.
+    public const string CalendarSection = "每日 token 用量";
+    public const string CalendarName = "每日 token 用量日历";
+    public const string CalendarLess = "少";
+    public const string CalendarMore = "多";
+
+    /// <summary>The weekday labels beside the rows, Monday on top; only every other row is labelled, as on a wall calendar's margin.</summary>
+    public static IReadOnlyList<string> CalendarWeekdayLabels { get; } = ["一", "", "三", "", "五", "", ""];
+
+    /// <summary>"11月", over the column a month starts in.</summary>
+    public static string CalendarMonthLabel(DateOnly month) => month.ToString("M'月'", CultureInfo.InvariantCulture);
+
+    /// <summary>"最近一年（2025年11月17日–2026年11月17日），每格一天，颜色越深用量越多"</summary>
+    public static string CalendarRange(DateOnly from, DateOnly to) =>
+        string.Format(CultureInfo.CurrentCulture, "最近一年（{0}–{1}），每格一天，颜色越深用量越多", FullDay(from), FullDay(to));
+
+    /// <summary>One square in words: "2026年11月3日：输入 12,345，输出 2,345，3 次请求".</summary>
+    public static string CalendarDayDetail(DateOnly day, TokenCounts counts)
+    {
+        var text = counts.Requests == 0 && counts.Unreported == 0
+            ? string.Format(CultureInfo.CurrentCulture, "{0}：{1}", FullDay(day), NoRequests)
+            : string.Format(CultureInfo.CurrentCulture, "{0}：输入 {1}，输出 {2}，{3} 次请求", FullDay(day), Tokens(counts.Input), Tokens(counts.Output), counts.Requests);
+        return counts.Unreported > 0 ? text + string.Format(CultureInfo.CurrentCulture, "，另有 {0} 次未返回用量", counts.Unreported) : text;
+    }
+
+    /// <summary>The calendar as a screen reader hears it, with the way to every day.</summary>
+    public static string CalendarSummary(IReadOnlyList<UsageBucket> days)
+    {
+        ArgumentNullException.ThrowIfNull(days);
+        var busiest = days.MaxBy(b => b.Counts.Total);
+        if (busiest is null || busiest.Counts.Total == 0)
+        {
+            return string.Format(CultureInfo.CurrentCulture, "最近 {0} 天都没有用量。", days.Count);
+        }
+
+        return string.Format(
+            CultureInfo.CurrentCulture,
+            "最近 {0} 天每天的 token 用量，每列一周，从周一到周日，颜色越深用量越多。{1} 天有用量，最多的是 {2}（{3}）。用方向键逐日查看：左右换一周，上下换一天。",
+            days.Count,
+            days.Count(b => b.Counts.Total > 0),
+            FullDay(busiest.Start),
+            Tokens(busiest.Counts.Total));
+    }
+
     /// <summary>A day, month or purpose without any request.</summary>
     public const string NoRequests = "没有请求";
 

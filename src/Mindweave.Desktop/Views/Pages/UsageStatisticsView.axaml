@@ -142,6 +142,27 @@
           </StackPanel>
         </Border>
 
+        <!-- 每日 token 用量 (2026-11-17): the last year, a square a day, whichever period is chosen above. -->
+        <StackPanel Name="CalendarSection" IsVisible="{Binding HasCalendar}">
+          <TextBlock Classes="section-heading" Margin="2,28,0,8" Text="{x:Static t:UiText.CalendarSection}" />
+          <Border Classes="card settings">
+            <StackPanel Spacing="10">
+              <TextBlock Name="CalendarRange" Classes="caption" TextWrapping="Wrap" Text="{Binding CalendarRangeText}" />
+              <p:UsageCalendar Name="UsageCalendar" Calendar="{Binding Calendar}"
+                               AutomationProperties.Name="{x:Static t:UiText.CalendarName}" AutomationProperties.HelpText="{Binding Calendar.Summary}" />
+              <StackPanel Name="CalendarLegend" Orientation="Horizontal" Spacing="3" HorizontalAlignment="Right">
+                <TextBlock Classes="caption" Text="{x:Static t:UiText.CalendarLess}" VerticalAlignment="Center" Margin="0,0,4,0" />
+                <Border Width="10" Height="10" CornerRadius="2" Background="{DynamicResource UsageCalendarEmpty}" VerticalAlignment="Center" />
+                <Border Width="10" Height="10" CornerRadius="2" Background="{DynamicResource UsageCalendarLevel1}" VerticalAlignment="Center" />
+                <Border Width="10" Height="10" CornerRadius="2" Background="{DynamicResource UsageCalendarLevel2}" VerticalAlignment="Center" />
+                <Border Width="10" Height="10" CornerRadius="2" Background="{DynamicResource UsageCalendarLevel3}" VerticalAlignment="Center" />
+                <Border Width="10" Height="10" CornerRadius="2" Background="{DynamicResource UsageCalendarLevel4}" VerticalAlignment="Center" />
+                <TextBlock Classes="caption" Text="{x:Static t:UiText.CalendarMore}" VerticalAlignment="Center" Margin="4,0,0,0" />
+              </StackPanel>
+            </StackPanel>
+          </Border>
+        </StackPanel>
+
         <!-- 按模型: one row per model and service host, with the user's own unit price and the cost it gives. -->
         <StackPanel IsVisible="{Binding HasUsage}">
           <TextBlock Classes="section-heading" Margin="2,28,0,8" Text="{x:Static t:UiText.ByModelSection}" />

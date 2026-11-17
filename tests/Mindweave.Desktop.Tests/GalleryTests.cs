@@ -172,6 +172,36 @@ public class GalleryTests
         window.Close();
     }
 
+    /// <summary>
+    /// The context ring beside send (2026-11-17): the conversation's own figure, then near the limit with its sentence
+    /// open as on hover, then too long (g04a, g04b, g04c; the states are set on the composer, the page's line is not).
+    /// </summary>
+    [AvaloniaFact]
+    public async Task G04a_context_ring_states()
+    {
+        await using var scene = Scene.Create("g04a");
+        var window = scene.App.ShowWindow(1100, 720, Theme);
+        var seed = await SeedAsync(scene.App);
+        var page = await OpenConversationAsync(scene.App, window, seed.Root);
+        await UiWait.UntilAsync(() => page.ContextUsage is not null);
+        await SettleAsync(window);
+        Capture(window, "g04a-context-ring");
+
+        var ring = Find<ContextRing>(window, "ContextRing");
+        page.Composer.ContextUsage = new ContextUsage(52_400, 52_400, 61_000, false, false);
+        ToolTip.SetIsOpen(ring, true);
+        await SettleAsync(window);
+        Capture(window, "g04b-context-ring-near");
+
+        ToolTip.SetIsOpen(ring, false);
+        page.Composer.ContextUsage = new ContextUsage(82_000, 82_000, 61_000, true, true);
+        ToolTip.SetIsOpen(ring, true);
+        await SettleAsync(window);
+        Capture(window, "g04c-context-ring-too-long");
+        ToolTip.SetIsOpen(ring, false);
+        window.Close();
+    }
+
     [AvaloniaFact]
     public async Task G05_second_level_branch_with_its_quote_and_breadcrumb()
     {
@@ -1521,7 +1551,7 @@ public class GalleryTests
     public async Task G50_usage_statistics()
     {
         await using var scene = Scene.Create("g50", FixedStatistics);
-        var window = scene.App.ShowWindow(1100, 2010, Theme);
+        var window = scene.App.ShowWindow(1100, 2290, Theme);
         await SeedStatisticsAsync(scene.App);
         var (page, view) = await OpenStatisticsAsync(scene.App, window);
         var chart = Find<UsageChart>(view, "UsageChart");
@@ -1598,6 +1628,30 @@ public class GalleryTests
         Assert.False(page.HasUsage);
         await SettleAsync(window);
         Capture(window, "g50c-usage-statistics-empty");
+        window.Close();
+    }
+
+    /// <summary>
+    /// 每日 token 用量 (2026-11-17): the last year a square a day, a day hovered with its numbers, the legend (g50d,
+    /// scrolled to the calendar).
+    /// </summary>
+    [AvaloniaFact]
+    public async Task G50d_usage_calendar()
+    {
+        await using var scene = Scene.Create("g50d", FixedStatistics);
+        var window = scene.App.ShowWindow(1100, 720, Theme);
+        await SeedStatisticsAsync(scene.App);
+        var (page, view) = await OpenStatisticsAsync(scene.App, window);
+        Assert.True(page.HasCalendar);
+        var calendar = Find<UsageCalendar>(view, "UsageCalendar");
+        Find<StackPanel>(view, "CalendarSection").BringIntoView();
+        await SettleAsync(window);
+        var day = page.Calendar.Days.Where(d => d.Week > 40).MaxBy(d => d.Counts.Total)!;
+        var origin = calendar.CellOrigin(day.Week, day.Weekday);
+        window.MouseMove(calendar.TranslatePoint(origin + new Point(3, 3), window)!.Value);
+        await SettleAsync(window);
+        Assert.Equal(day, calendar.Active);
+        Capture(window, "g50d-usage-calendar");
         window.Close();
     }
 

@@ -185,7 +185,7 @@
       </Border>
       <TextBlock Name="ContextUsageLine" FontSize="11.5" TextWrapping="Wrap" Text="{Binding ContextUsageText}" Margin="4,0,0,0"
                  Classes.muted="{Binding !ContextIsTight}" Classes.warning="{Binding ContextIsTight}"
-                 IsVisible="{Binding ContextUsageText, Converter={x:Static ObjectConverters.IsNotNull}}" />
+                 IsVisible="{Binding ShowsContextLine}" />
     </StackPanel>
 
     <!-- Round 4: marks in the margin for answers with branches sit in a layer over the page, left of the scroll bar. -->

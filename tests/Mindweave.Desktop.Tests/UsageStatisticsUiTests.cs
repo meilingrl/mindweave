@@ -283,6 +283,8 @@ public class UsageStatisticsUiTests
         // Hovering shows a bar too; leaving the chart (without focus) clears it.
         Find<Button>(view, "SetPriceButton").Focus();
         Assert.Equal(-1, chart.ActiveIndex);
+        chart.BringIntoView();   // focusing the price button scrolled down past the usage calendar
+        window.UpdateLayout();
         var point = chart.TranslatePoint(chart.SlotCentre(28), window)!.Value;
         window.MouseMove(point);
         Assert.Equal(28, chart.ActiveIndex);
@@ -505,7 +507,8 @@ public class UsageStatisticsUiTests
             var today = new DateOnly(2026, 11, 12);
             var (from, to) = UsageStatisticsService.Window(period, today);
             var usage = UsageStatisticsService.Summarize(period, from, to, new Application.Storage.UsageRows([], 0));
-            return new StatisticsReport(usage, new ActivityFacts(0, 0, 0, 0, 0, 0, 0, 0, 0, null, []), HasModel: true, today);
+            var days = UsageStatisticsService.Buckets(UsagePeriod.Daily, UsageStatisticsService.CalendarStart(today), today, new Application.Storage.UsageRows([], 0));
+            return new StatisticsReport(usage, new ActivityFacts(0, 0, 0, 0, 0, 0, 0, 0, 0, null, []), HasModel: true, today, days);
         }
     }
 
