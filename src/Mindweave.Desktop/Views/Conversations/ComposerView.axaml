@@ -63,15 +63,13 @@
             </MenuFlyout>
           </Button.Flyout>
         </Button>
-        <!-- The web search switch (requirements §10.4.5): 自动／开／关, greyed out with the reason when it cannot be used. -->
+        <!-- The web search switch (requirements §10.4.5): only the globe, its colour telling 关 (muted), 自动 (normal) and 开
+             (accent on a soft accent ground); the tooltip and accessible name say the state in words, or why it is greyed out. -->
         <Button Name="WebSearchSwitchButton" DockPanel.Dock="Left" Classes="attach web-search" VerticalAlignment="Bottom" Margin="0,0,4,1"
                 DataContext="{Binding WebSearch}" x:DataType="vm:WebSearchSwitch" IsVisible="{Binding $self.DataContext, Converter={x:Static ObjectConverters.IsNotNull}}"
-                IsEnabled="{Binding IsAvailable, FallbackValue=False}" Classes.on="{Binding IsOn}"
+                IsEnabled="{Binding IsAvailable, FallbackValue=False}" Classes.on="{Binding IsOn}" Classes.off="{Binding ShowsOff}"
                 ToolTip.Tip="{Binding Tip}" ToolTip.ShowOnDisabled="True" AutomationProperties.Name="{Binding Tip}">
-          <StackPanel Orientation="Horizontal" Spacing="4">
-            <PathIcon Data="{StaticResource IconGlobe}" />
-            <TextBlock Name="WebSearchSwitchLabel" Text="{Binding Label}" FontSize="12" VerticalAlignment="Center" />
-          </StackPanel>
+          <PathIcon Data="{StaticResource IconGlobe}" />
           <Button.Flyout>
             <MenuFlyout Placement="TopEdgeAlignedLeft">
               <MenuItem Name="WebSearchAutoItem" Header="{x:Static t:UiText.WebSearchAuto}" Command="{Binding ChooseCommand}"

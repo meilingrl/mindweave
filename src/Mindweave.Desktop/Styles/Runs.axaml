@@ -92,19 +92,19 @@
     <Setter Property="FontSize" Value="12" />
     <Setter Property="Foreground" Value="{DynamicResource LinkText}" />
   </Style>
-  <!-- The web search switch beside "+": as quiet as it, a little wider for its word; 开 in the link colour. -->
-  <Style Selector="Button.attach.web-search">
-    <Setter Property="Width" Value="NaN" />
-    <Setter Property="Padding" Value="8,0" />
+  <!-- The web search switch beside "+": the same size and hit area, the globe alone. 自动 draws it in the text colour,
+       关 muted, 开 in the accent colour on a soft accent ground (the pill corners come from the shared "+" style). -->
+  <Style Selector="Button.attach.web-search PathIcon">
+    <Setter Property="Foreground" Value="{DynamicResource PrimaryText}" />
   </Style>
-  <Style Selector="Button.attach.web-search TextBlock">
+  <Style Selector="Button.attach.web-search.off PathIcon">
     <Setter Property="Foreground" Value="{DynamicResource MutedText}" />
   </Style>
   <Style Selector="Button.attach.web-search.on PathIcon">
-    <Setter Property="Foreground" Value="{DynamicResource LinkText}" />
+    <Setter Property="Foreground" Value="{DynamicResource BadgeAccentText}" />
   </Style>
-  <Style Selector="Button.attach.web-search.on TextBlock">
-    <Setter Property="Foreground" Value="{DynamicResource LinkText}" />
+  <Style Selector="Button.attach.web-search.on /template/ ContentPresenter#PART_ContentPresenter">
+    <Setter Property="Background" Value="{DynamicResource BadgeAccentBackground}" />
   </Style>
   <Style Selector="Button.attach.web-search:disabled">
     <Setter Property="Opacity" Value="0.5" />

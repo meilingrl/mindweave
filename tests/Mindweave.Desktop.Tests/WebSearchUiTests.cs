@@ -48,20 +48,36 @@ public class WebSearchUiTests
 
         Assert.False(web.IsAvailable);
         Assert.Equal(UiText.WebSearchNoKey, web.Tip);
-        Assert.Equal(UiText.WebSearchOff, web.Label);
+        Assert.True(web.ShowsOff);
         window.UpdateLayout();
         var button = Find<Button>(window, "WebSearchSwitchButton");
         Assert.True(button.IsEffectivelyVisible);
         Assert.False(button.IsEffectivelyEnabled);
+        Assert.Equal(UiText.WebSearchNoKey, Avalonia.Automation.AutomationProperties.GetName(button));
+        Assert.Equal(UiText.WebSearchNoKey, ToolTip.GetTip(button));
+
+        // Only the globe, the size of "+".
+        Assert.Empty(button.GetVisualDescendants().OfType<TextBlock>());
+        Assert.Equal(Find<Button>(window, "AttachButton").Bounds.Size, button.Bounds.Size);
         Screenshots.Capture(window, $"web-01-switch-no-key-{theme.ToLowerInvariant()}");
 
         await app.Services.GetRequiredService<IWebSearchSettings>().SetKeyAsync(Key, CancellationToken.None);
         await UiWait.UntilAsync(() => web.IsAvailable);
-        Assert.Equal(UiText.WebSearchAuto, web.Label);
+        window.UpdateLayout();
+        Assert.Equal("网络搜索：自动（由模型决定是否搜索）", Avalonia.Automation.AutomationProperties.GetName(button));
+        Assert.DoesNotContain("on", button.Classes);
+        Assert.DoesNotContain("off", button.Classes);
+        Screenshots.Capture(window, $"web-02a-switch-auto-{theme.ToLowerInvariant()}");
+        web.ChooseCommand.Execute(WebSearchMode.Off);
+        window.UpdateLayout();
+        Assert.Contains("off", button.Classes);
+        Assert.Equal(UiText.WebSearchModeTip(WebSearchMode.Off), ToolTip.GetTip(button));
+        Screenshots.Capture(window, $"web-02b-switch-off-{theme.ToLowerInvariant()}");
         web.ChooseCommand.Execute(WebSearchMode.On);
         window.UpdateLayout();
         Assert.True(button.IsEffectivelyEnabled);
         Assert.Contains("on", button.Classes);
+        Assert.Equal(UiText.WebSearchModeTip(WebSearchMode.On), ToolTip.GetTip(button));
         Assert.Equal(new Application.Conversations.SendOptions(WebSearchMode.On), page.Composer.Options);
         Screenshots.Capture(window, $"web-02-switch-on-{theme.ToLowerInvariant()}");
         window.Close();

@@ -35,11 +35,11 @@ public sealed partial class WebSearchSwitch : ViewModelBase, IDisposable
     public Task Loaded { get; }
 
     [ObservableProperty]
-    [NotifyPropertyChangedFor(nameof(Label), nameof(Tip), nameof(IsOn), nameof(IsAuto), nameof(IsOff))]
+    [NotifyPropertyChangedFor(nameof(Tip), nameof(IsOn), nameof(IsAuto), nameof(IsOff), nameof(ShowsOff))]
     public partial WebSearchMode Mode { get; private set; } = WebSearchMode.Auto;
 
     [ObservableProperty]
-    [NotifyPropertyChangedFor(nameof(Label), nameof(Tip), nameof(IsOn))]
+    [NotifyPropertyChangedFor(nameof(Tip), nameof(IsOn), nameof(ShowsOff))]
     public partial bool IsAvailable { get; private set; }
 
     /// <summary>Why the switch is greyed out; null while it can be used.</summary>
@@ -47,12 +47,13 @@ public sealed partial class WebSearchSwitch : ViewModelBase, IDisposable
     [NotifyPropertyChangedFor(nameof(Tip))]
     public partial string? UnavailableReason { get; private set; }
 
-    public string Label => UiText.WebSearchModeName(IsAvailable ? Mode : WebSearchMode.Off);
-
     public string Tip => UnavailableReason ?? UiText.WebSearchModeTip(Mode);
 
     /// <summary>On (开) and usable: the button is drawn as active.</summary>
     public bool IsOn => IsAvailable && Mode == WebSearchMode.On;
+
+    /// <summary>关, or not usable: the globe is drawn muted.</summary>
+    public bool ShowsOff => !IsAvailable || Mode == WebSearchMode.Off;
 
     public bool IsAuto => Mode == WebSearchMode.Auto;
 
