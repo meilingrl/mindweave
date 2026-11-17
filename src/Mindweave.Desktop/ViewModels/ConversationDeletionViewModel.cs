@@ -341,7 +341,7 @@ public sealed partial class ConversationDeletionViewModel : ViewModelBase
         Title = picked.Count == 1
             ? UiText.ConversationDeleteTitle(titles.GetValueOrDefault(picked[0], UiText.NewConversation))
             : UiText.ConversationDeleteTitle(picked.Count);
-        Contents = UiText.ConversationDeleteContents(scope.Conversations.Count, scope.Branches, scope.Summaries.Count, scope.Links);
+        Contents = UiText.ConversationDeleteContents(scope.Conversations.Count, scope.Branches, scope.Summaries.Count, scope.Links, scope.Attachments);
         if (scope.Busy.Count > 0)
         {
             Problem = UiText.DeleteWorkspaceBusy([.. scope.Busy.Select(b => (titles.GetValueOrDefault(b.Conversation, UiText.NewConversation), b.Answer, b.Summary))]);

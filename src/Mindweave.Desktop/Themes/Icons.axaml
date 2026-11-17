@@ -41,4 +41,9 @@
   <StreamGeometry x:Key="IconCheck">M13.4,3.6 L14.6,4.8 L6.4,13 L1.6,8.2 L2.8,7 L6.4,10.6 Z</StreamGeometry>
   <!-- Workspaces (2026-11-10): four tiles, for 管理工作区 in the switcher's menu and on the settings page. -->
   <StreamGeometry x:Key="IconWorkspaces">F1 M1.5,1.5 H7 V7 H1.5 Z M3,3 V5.5 H5.5 V3 Z M9,1.5 H14.5 V7 H9 Z M10.5,3 V5.5 H13 V3 Z M1.5,9 H7 V14.5 H1.5 Z M3,10.5 V13 H5.5 V10.5 Z M9,9 H14.5 V14.5 H9 Z M10.5,10.5 V13 H13 V10.5 Z</StreamGeometry>
+  <!-- Attachments (agent platform phase 1, 2026-11-17; added by the attachments work, kept apart from the icon redraw):
+       a file with a folded corner, a picture, and pasted text. Same 16×16 outline-as-fill style as the rest. -->
+  <StreamGeometry x:Key="IconAttachmentFile">F1 M3,1 H9.6 L13,4.4 V15 H3 Z M4.5,2.5 V13.5 H11.5 V5.4 H8.6 V2.5 Z M10.1,3.1 V3.9 H10.9 Z M5.8,7.6 H10.2 V8.9 H5.8 Z M5.8,10.2 H10.2 V11.5 H5.8 Z</StreamGeometry>
+  <StreamGeometry x:Key="IconAttachmentImage">F1 M1.5,2.5 H14.5 V13.5 H1.5 Z M3,4 V10.4 L5.8,7.6 L8.4,10.2 L10.2,8.4 L13,11.2 V4 Z M3,12 H12.2 L10.2,10 L8.4,11.8 L5.8,9.2 L3,12 Z M10.5,5 A1.25,1.25 0 1 1 10.5,7.5 A1.25,1.25 0 1 1 10.5,5 Z</StreamGeometry>
+  <StreamGeometry x:Key="IconAttachmentText">F1 M2,2.5 H14 V4 H2 Z M2,5.75 H14 V7.25 H2 Z M2,9 H14 V10.5 H2 Z M2,12.25 H9.5 V13.75 H2 Z</StreamGeometry>
 </ResourceDictionary>

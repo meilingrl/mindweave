@@ -25,7 +25,7 @@ public sealed partial class MessageItemViewModel : ViewModelBase, IDisposable
     private readonly UiThrottle? _throttle;
     private readonly TimeProvider _time;
 
-    public MessageItemViewModel(Message message, LiveAnswer? live, IUiDispatcher dispatcher, TimeProvider? time = null)
+    public MessageItemViewModel(Message message, LiveAnswer? live, IUiDispatcher dispatcher, TimeProvider? time = null, Action<AttachmentChip>? openAttachment = null)
     {
         ArgumentNullException.ThrowIfNull(message);
         _time = time ?? TimeProvider.System;
@@ -35,7 +35,10 @@ public sealed partial class MessageItemViewModel : ViewModelBase, IDisposable
         StartedAt = message.CreatedAt;
         CompletedAt = message.CompletedAt;
         IsRetryAttempt = message.Supersedes is not null;
-        Body = message.Text;
+
+        // A question shows its attachments as chips above the text it was typed with (requirements §10.4.3).
+        Attachments = [.. ContentBlocks.AttachmentsOf(message.Blocks).Select(a => AttachmentChip.ForBlock(a, openAttachment))];
+        Body = message.Role == MessageRole.User ? ContentBlocks.TypedTextOf(message.Blocks) : message.Text;
         State = message.State;
         ErrorKind = message.ErrorKind;
         ErrorDetail = message.ErrorDetail;
@@ -59,8 +62,35 @@ public sealed partial class MessageItemViewModel : ViewModelBase, IDisposable
 
     public bool IsRetryAttempt { get; }
 
+    /// <summary>A question's attachments, shown above its text; empty for an answer.</summary>
+    public IReadOnlyList<AttachmentChip> Attachments { get; }
+
+    public bool HasAttachments => Attachments.Count > 0;
+
+    /// <summary>How this answer's request sent attachments it did not send whole (the reconciler sets it); null when all went whole.</summary>
     [ObservableProperty]
-    [NotifyPropertyChangedFor(nameof(HasBody), nameof(CanBranch), nameof(IsWaiting), nameof(IsStreaming), nameof(CanCopy))]
+    [NotifyPropertyChangedFor(nameof(HasAttachmentNote), nameof(AttachmentNote), nameof(AttachmentNoteDetails))]
+    public partial IReadOnlyList<Application.Storage.ResourceInput>? AttachmentInputs { get; set; }
+
+    public bool HasAttachmentNote => AttachmentInputs is { Count: > 0 };
+
+    /// <summary>The light note under the answer: only parts, or only a summary, of an attachment went out.</summary>
+    public string? AttachmentNote => AttachmentInputs is { Count: > 0 } inputs ? UiText.AttachmentNoteOf(inputs) : null;
+
+    /// <summary>What went out of each attachment, one line each, shown when the note is expanded.</summary>
+    public string? AttachmentNoteDetails => AttachmentInputs is { Count: > 0 } inputs ? string.Join("\n", inputs.Select(UiText.AttachmentInputLine)) : null;
+
+    [ObservableProperty]
+    public partial bool IsAttachmentNoteExpanded { get; set; }
+
+    [CommunityToolkit.Mvvm.Input.RelayCommand]
+    private void ToggleAttachmentNote() => IsAttachmentNoteExpanded = !IsAttachmentNoteExpanded;
+
+    /// <summary>A question's bubble shows when it has typed text; a question of attachments only shows just its chips.</summary>
+    public bool ShowsQuestionBubble => IsUser && !string.IsNullOrEmpty(Body);
+
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(HasBody), nameof(ShowsQuestionBubble), nameof(CanBranch), nameof(IsWaiting), nameof(IsStreaming), nameof(CanCopy))]
     public partial string Body { get; private set; }
 
     [ObservableProperty]

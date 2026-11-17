@@ -233,7 +233,7 @@ public sealed partial class WorkspaceDeletionViewModel : ViewModelBase
             return;
         }
 
-        Contents = UiText.DeleteWorkspaceContents(contents.Conversations, contents.Summaries, contents.Links);
+        Contents = UiText.DeleteWorkspaceContents(contents.Conversations, contents.Summaries, contents.Links, contents.Attachments);
         if (contents.Busy.Count > 0)
         {
             var text = await BusyTextAsync(workspace, contents.Busy);

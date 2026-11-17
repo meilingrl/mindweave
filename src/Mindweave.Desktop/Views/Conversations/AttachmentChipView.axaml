@@ -1,0 +1,40 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:Mindweave.Desktop.ViewModels.Conversations"
+             xmlns:v="using:Mindweave.Desktop.Views.Conversations"
+             xmlns:t="using:Mindweave.Desktop.Text"
+             x:Class="Mindweave.Desktop.Views.Conversations.AttachmentChipView"
+             x:DataType="vm:AttachmentChip">
+  <!-- One attachment (requirements §10.4.3): icon or thumbnail, name, type and size (or why it failed); click to view; ✕ removes. -->
+  <Border Classes="attachment-chip" Classes.failed="{Binding IsFailed}">
+    <DockPanel>
+      <Button DockPanel.Dock="Right" Name="RemoveButton" Classes="chip-remove" Command="{Binding RemoveCommand}" IsVisible="{Binding CanRemove}"
+              ToolTip.Tip="{x:Static t:UiText.RemoveAttachment}" AutomationProperties.Name="{x:Static t:UiText.RemoveAttachment}">
+        <PathIcon Data="{StaticResource IconClose}" />
+      </Button>
+      <Button DockPanel.Dock="Right" Name="ConvertButton" Classes="chip-action" Content="{x:Static t:UiText.ConvertToText}"
+              Command="{Binding ConvertToTextCommand}" IsVisible="{Binding CanConvert}" />
+      <Button DockPanel.Dock="Right" Name="RetryButton" Classes="chip-action" Content="{x:Static t:UiText.RetryAttachment}"
+              Command="{Binding RetryCommand}" IsVisible="{Binding CanRetry}" />
+      <Button Name="ChipBody" Classes="chip-body" Command="{Binding OpenCommand}" IsEnabled="{Binding IsReady}"
+              AutomationProperties.Name="{Binding AccessibleName}" ToolTip.Tip="{Binding Name}">
+        <DockPanel>
+          <Border Classes="chip-icon">
+            <Panel>
+              <PathIcon Data="{StaticResource IconAttachmentText}" IsVisible="{Binding IsPaste}" />
+              <PathIcon Data="{StaticResource IconAttachmentFile}" IsVisible="{Binding IsFile}" />
+              <PathIcon Data="{StaticResource IconAttachmentImage}" IsVisible="{Binding IsImage}" />
+              <Image Source="{Binding Thumbnail, Converter={x:Static v:AttachmentImages.Thumbnail}}" Stretch="UniformToFill"
+                     IsVisible="{Binding Thumbnail, Converter={x:Static ObjectConverters.IsNotNull}}" />
+              <ProgressBar IsIndeterminate="True" IsVisible="{Binding IsWorking}" MinWidth="0" Width="24" Height="3" VerticalAlignment="Bottom" Margin="0,0,0,4" />
+            </Panel>
+          </Border>
+          <StackPanel VerticalAlignment="Center" Spacing="1">
+            <TextBlock Name="ChipName" Classes="chip-name" Text="{Binding Name}" />
+            <TextBlock Name="ChipDetail" Classes="chip-detail" Text="{Binding Detail}" />
+          </StackPanel>
+        </DockPanel>
+      </Button>
+    </DockPanel>
+  </Border>
+</UserControl>

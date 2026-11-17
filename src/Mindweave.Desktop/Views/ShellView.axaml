@@ -7,6 +7,7 @@
              xmlns:d="using:Mindweave.Desktop"
              xmlns:t="using:Mindweave.Desktop.Text"
              xmlns:v="using:Mindweave.Desktop.Views"
+             xmlns:c="using:Mindweave.Desktop.Views.Conversations"
              x:Class="Mindweave.Desktop.Views.ShellView"
              x:DataType="vm:ShellViewModel">
   <Grid ColumnDefinitions="Auto,*">
@@ -263,5 +264,8 @@
         </DataTemplate>
       </ItemsControl.ItemTemplate>
     </ItemsControl>
+    <!-- The current page's attachment viewer (requirements §10.4.3), over the whole window like a dialog. -->
+    <c:AttachmentViewerView Grid.Column="0" Grid.ColumnSpan="2" ZIndex="10" Name="AttachmentViewer"
+                            DataContext="{Binding CurrentPage, Converter={x:Static c:AttachmentViewerView.ViewerOf}}" />
   </Grid>
 </UserControl>

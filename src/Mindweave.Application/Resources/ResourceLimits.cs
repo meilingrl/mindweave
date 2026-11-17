@@ -6,6 +6,15 @@ namespace Mindweave.Application.Resources;
 /// </summary>
 public static class ResourceLimits
 {
+    /// <summary>
+    /// A paste or a dropped text this long (estimated tokens) becomes a 粘贴的文字 attachment instead of input text (owner's
+    /// Q1 decision 2026-11-17: about 2,000 Chinese characters or 6,000 English ones; a constant, not a setting).
+    /// </summary>
+    public const int LongPasteTokens = 2_000;
+
+    /// <summary>Whether a pasted or dropped text becomes an attachment (<see cref="LongPasteTokens"/>); typed text never does.</summary>
+    public static bool IsLongPaste(string text) => text is not null && Core.Context.TokenEstimator.Estimate(text) >= LongPasteTokens;
+
     /// <summary>The largest file attached (50 MB).</summary>
     public const long MaxOriginalBytes = 50L * 1000 * 1000;
 

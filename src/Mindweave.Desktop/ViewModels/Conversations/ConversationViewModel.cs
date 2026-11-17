@@ -26,7 +26,7 @@ public sealed record LineageItem(ConversationId Id, string Title, bool IsFirst =
 /// An archived conversation (or one below an archived ancestor) opens read-only and offers "restore and continue"
 /// (D-021); archiving and deleting start here too.
 /// </summary>
-public sealed partial class ConversationViewModel : PageViewModel, IDisposable
+public sealed partial class ConversationViewModel : PageViewModel, IDisposable, IAttachmentViewerHost
 {
     private readonly IConversations _conversations;
     private readonly IReadingState _reading;
@@ -56,7 +56,9 @@ public sealed partial class ConversationViewModel : PageViewModel, IDisposable
         ISummaries? summaries = null,
         TimeProvider? time = null,
         IConversationDeletion? deletion = null,
-        IConversationDeletionPrompt? deletionPrompt = null)
+        IConversationDeletionPrompt? deletionPrompt = null,
+        Application.Resources.IResources? resources = null,
+        Application.Models.IModelSettings? models = null)
         : base(route)
     {
         ArgumentNullException.ThrowIfNull(route);
@@ -72,7 +74,11 @@ public sealed partial class ConversationViewModel : PageViewModel, IDisposable
         _load = new SerialRefresh(LoadAsync);
         _reload = new UiThrottle(dispatcher, TimeSpan.FromMilliseconds(30), () => _ = _load.Request());
         // Stop sits where send is while an answer runs; the page shows the storage pause once, at the top.
-        Composer = new Composer(text => _conversations.AskAsync(Id, text, CancellationToken.None)) { StopCommand = StopCommand, HostShowsStoragePause = true };
+        // Attachments belong to this conversation's draft in this viewer slot (architecture §15.2), known once the workspace is.
+        var attachments = resources is null || models is null
+            ? null
+            : new ComposerAttachmentServices(resources, models, () => _workspace == default ? null : new DraftSlot(_workspace, Id, _slot.Value));
+        Composer = new Composer((text, ids) => _conversations.AskAsync(Id, text, ids, CancellationToken.None), attachments) { StopCommand = StopCommand, HostShowsStoragePause = true };
         _conversations.ConversationChanged += OnConversationChanged;
         _conversations.ModelChanged += OnModelChanged;
         // Before the first storage state is taken: a page opened while storage is paused tells the summary part at once.
@@ -93,6 +99,8 @@ public sealed partial class ConversationViewModel : PageViewModel, IDisposable
     public ConversationId Id { get; }
 
     public Composer Composer { get; }
+
+    public AttachmentViewer AttachmentViewer => Composer.Viewer;
 
     /// <summary>The entry to this conversation's summary, and summarizing it.</summary>
     public ConversationSummaryPanel Summary { get; }
@@ -397,7 +405,15 @@ public sealed partial class ConversationViewModel : PageViewModel, IDisposable
         if (!_disposed)
         {
             _reload.Request();
+            _dispatcher.Post(() => _ = RefreshAttachmentCapabilitiesAsync());
         }
+    }
+
+    /// <summary>Whether 图片 is offered, and whether images already in the conversation go as a line of text instead.</summary>
+    private async Task RefreshAttachmentCapabilitiesAsync()
+    {
+        await Composer.RefreshCapabilitiesAsync();
+        Composer.HistoryImagesUnseen = Composer.CanAttach && !Composer.CanAttachImages && Messages.Any(m => m.Attachments.Any(a => a.IsImage));
     }
 
     private void OnConversationChanged(object? sender, ConversationId changed)
@@ -435,6 +451,7 @@ public sealed partial class ConversationViewModel : PageViewModel, IDisposable
             return;
         }
 
+        var firstLoad = _workspace == default;
         _workspace = content.Conversation.WorkspaceId;
         var lineage = await _conversations.GetLineageAsync(Id, CancellationToken.None);
         var branches = await _conversations.ListBranchesAsync(Id, CancellationToken.None);
@@ -463,12 +480,19 @@ public sealed partial class ConversationViewModel : PageViewModel, IDisposable
         Volatile.Write(ref _related, lineage.Select(l => l.Conversation.Id).Concat(branches.Select(b => b.Child)).ToHashSet());
         UpdateRunning();
         ContextUsage = await _conversations.GetContextUsageAsync(Id, CancellationToken.None);
+        if (firstLoad)
+        {
+            // The draft's attachments come back with the draft (they survive a restart, §10.4.3).
+            await Composer.LoadDraftAttachmentsAsync();
+        }
+
+        await RefreshAttachmentCapabilitiesAsync();
         await Summary.LoadAsync();
     }
 
     private MessageItemViewModel NewItem(Message message)
     {
-        var item = new MessageItemViewModel(message, _conversations.Observe(message.Id), _dispatcher, _time) { IsBranchPaused = IsStorageBlocked };
+        var item = new MessageItemViewModel(message, _conversations.Observe(message.Id), _dispatcher, _time, Composer.Open) { IsBranchPaused = IsStorageBlocked };
         item.PropertyChanged += (_, e) =>
         {
             if (e.PropertyName == nameof(MessageItemViewModel.State))

@@ -16,8 +16,52 @@
         <TextBlock Name="Notice" Text="{Binding Notice}" />
       </DockPanel>
     </Border>
-    <Border Classes="composer">
+    <!-- An attach attempt refused (an image the model cannot see, too many attachments), and images of the conversation
+         that go as text because the model cannot see them (requirements §10.4.3). -->
+    <Border Name="AttachmentNoticePanel" Classes="notice warning" HorizontalAlignment="Left" IsVisible="{Binding HasAttachmentNotice}">
       <DockPanel>
+        <TextBlock Classes="notice-icon" Text="!" VerticalAlignment="Center" />
+        <TextBlock Name="AttachmentNotice" Text="{Binding AttachmentNotice}" TextWrapping="Wrap" />
+      </DockPanel>
+    </Border>
+    <TextBlock Name="HistoryImagesLine" Classes="caption" Margin="4,0,0,0" Text="{x:Static t:UiText.HistoryImagesUnseen}" IsVisible="{Binding HistoryImagesUnseen}" />
+    <Border Name="ComposerBox" Classes="composer" DragDrop.AllowDrop="{Binding CanAttach}">
+      <DockPanel>
+        <!-- Attachments wait above the input as chips (requirements §10.4.3). -->
+        <ItemsControl DockPanel.Dock="Top" Name="AttachmentChips" ItemsSource="{Binding Attachments}" IsVisible="{Binding HasAttachments}" Margin="2,2,2,2">
+          <ItemsControl.ItemsPanel>
+            <ItemsPanelTemplate>
+              <WrapPanel />
+            </ItemsPanelTemplate>
+          </ItemsControl.ItemsPanel>
+          <ItemsControl.ItemTemplate>
+            <DataTemplate x:DataType="vm:AttachmentChip">
+              <c:AttachmentChipView />
+            </DataTemplate>
+          </ItemsControl.ItemTemplate>
+        </ItemsControl>
+        <!-- "+": files, and images when the model can see them (greyed out with the reason otherwise). -->
+        <Button Name="AttachButton" DockPanel.Dock="Left" Classes="attach" VerticalAlignment="Bottom" Margin="0,0,4,1"
+                IsVisible="{Binding CanAttach}" ToolTip.Tip="{x:Static t:UiText.AttachMenu}" AutomationProperties.Name="{x:Static t:UiText.AttachMenu}">
+          <PathIcon Data="{StaticResource IconPlus}" />
+          <Button.Flyout>
+            <MenuFlyout Placement="TopEdgeAlignedLeft">
+              <MenuItem Name="AttachFileItem" Header="{x:Static t:UiText.AttachFile}">
+                <MenuItem.Icon>
+                  <PathIcon Data="{StaticResource IconAttachmentFile}" Width="13" Height="13" />
+                </MenuItem.Icon>
+              </MenuItem>
+              <MenuItem Name="AttachImageItem" Header="{x:Static t:UiText.AttachImage}" IsEnabled="{Binding CanAttachImages}"
+                        ToolTip.Tip="{Binding ImageUnavailableReason}" ToolTip.ShowOnDisabled="True">
+                <MenuItem.Icon>
+                  <PathIcon Data="{StaticResource IconAttachmentImage}" Width="13" Height="13" />
+                </MenuItem.Icon>
+              </MenuItem>
+              <MenuItem Name="ImageReasonItem" Header="{Binding ImageUnavailableReason}" IsEnabled="False" FontSize="12"
+                        IsVisible="{Binding !CanAttachImages}" />
+            </MenuFlyout>
+          </Button.Flyout>
+        </Button>
         <!-- Send is the page's one primary button; while an answer runs, stop takes its place. The slot keeps send's
              width while stop shows (an unseen copy of its label holds it), so the input does not widen and rewrap when
              an answer starts or ends (2026-11-10). -->

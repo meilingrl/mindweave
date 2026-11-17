@@ -1,0 +1,125 @@
+<Styles xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+  <!-- Attachments (requirements §10.4.3, 2026-11-17): chips in the composer and above a sent question, the drop target and
+       the viewer. Their own file, so the composer and dialog styles stay as they are. -->
+  <Style Selector="Border.attachment-chip">
+    <Setter Property="Background" Value="{DynamicResource CardBackground}" />
+    <Setter Property="BorderBrush" Value="{DynamicResource CardBorder}" />
+    <Setter Property="BorderThickness" Value="1" />
+    <Setter Property="CornerRadius" Value="8" />
+    <Setter Property="Padding" Value="4,4,4,4" />
+    <Setter Property="Margin" Value="0,0,6,6" />
+    <Setter Property="MaxWidth" Value="260" />
+  </Style>
+  <Style Selector="Border.attachment-chip.failed">
+    <Setter Property="BorderBrush" Value="{DynamicResource DangerText}" />
+  </Style>
+  <Style Selector="Border.attachment-chip Button.chip-body">
+    <Setter Property="Background" Value="Transparent" />
+    <Setter Property="BorderThickness" Value="0" />
+    <Setter Property="Padding" Value="4,2" />
+    <Setter Property="CornerRadius" Value="6" />
+    <Setter Property="HorizontalContentAlignment" Value="Left" />
+    <Setter Property="Cursor" Value="Hand" />
+  </Style>
+  <Style Selector="Border.attachment-chip Button.chip-body:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+    <Setter Property="Background" Value="{DynamicResource CardHover}" />
+  </Style>
+  <!-- A chip still being read or one that failed cannot be opened, but it is not drawn as a disabled button. -->
+  <Style Selector="Border.attachment-chip Button.chip-body:disabled /template/ ContentPresenter#PART_ContentPresenter">
+    <Setter Property="Background" Value="Transparent" />
+  </Style>
+  <Style Selector="Border.attachment-chip Button.chip-body:disabled TextBlock.chip-name">
+    <Setter Property="Foreground" Value="{DynamicResource PrimaryText}" />
+  </Style>
+  <!-- The square on the left: an icon for text and files, the picture itself for an image. -->
+  <Style Selector="Border.attachment-chip Border.chip-icon">
+    <Setter Property="Width" Value="32" />
+    <Setter Property="Height" Value="32" />
+    <Setter Property="CornerRadius" Value="6" />
+    <Setter Property="Background" Value="{DynamicResource QuestionBubbleBackground}" />
+    <Setter Property="ClipToBounds" Value="True" />
+    <Setter Property="Margin" Value="0,0,8,0" />
+  </Style>
+  <Style Selector="Border.attachment-chip Border.chip-icon PathIcon">
+    <Setter Property="Width" Value="15" />
+    <Setter Property="Height" Value="15" />
+    <Setter Property="Foreground" Value="{DynamicResource MutedText}" />
+  </Style>
+  <Style Selector="Border.attachment-chip TextBlock.chip-name">
+    <Setter Property="FontSize" Value="13" />
+    <Setter Property="FontWeight" Value="Medium" />
+    <Setter Property="Foreground" Value="{DynamicResource PrimaryText}" />
+    <Setter Property="TextTrimming" Value="CharacterEllipsis" />
+  </Style>
+  <Style Selector="Border.attachment-chip TextBlock.chip-detail">
+    <Setter Property="FontSize" Value="11.5" />
+    <Setter Property="Foreground" Value="{DynamicResource MutedText}" />
+    <Setter Property="TextTrimming" Value="CharacterEllipsis" />
+  </Style>
+  <Style Selector="Border.attachment-chip.failed TextBlock.chip-detail">
+    <Setter Property="Foreground" Value="{DynamicResource DangerText}" />
+  </Style>
+  <Style Selector="Border.attachment-chip Button.chip-action">
+    <Setter Property="Background" Value="Transparent" />
+    <Setter Property="BorderThickness" Value="0" />
+    <Setter Property="Padding" Value="6,3" />
+    <Setter Property="CornerRadius" Value="6" />
+    <Setter Property="FontSize" Value="12" />
+    <Setter Property="Foreground" Value="{DynamicResource LinkText}" />
+    <Setter Property="VerticalAlignment" Value="Center" />
+  </Style>
+  <Style Selector="Border.attachment-chip Button.chip-remove">
+    <Setter Property="Background" Value="Transparent" />
+    <Setter Property="BorderThickness" Value="0" />
+    <Setter Property="Padding" Value="5" />
+    <Setter Property="CornerRadius" Value="6" />
+    <Setter Property="VerticalAlignment" Value="Center" />
+  </Style>
+  <Style Selector="Border.attachment-chip Button.chip-action:pointerover /template/ ContentPresenter#PART_ContentPresenter, Border.attachment-chip Button.chip-remove:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+    <Setter Property="Background" Value="{DynamicResource HoverRow}" />
+  </Style>
+  <Style Selector="Border.attachment-chip Button.chip-remove PathIcon">
+    <Setter Property="Width" Value="9" />
+    <Setter Property="Height" Value="9" />
+    <Setter Property="Foreground" Value="{DynamicResource MutedText}" />
+  </Style>
+  <!-- The composer's "+" (quiet, round like stop) and the drop target's ring. -->
+  <Style Selector="Button.attach">
+    <Setter Property="Background" Value="Transparent" />
+    <Setter Property="BorderThickness" Value="0" />
+    <Setter Property="Width" Value="32" />
+    <Setter Property="Height" Value="32" />
+    <Setter Property="Padding" Value="0" />
+    <Setter Property="CornerRadius" Value="16" />
+    <Setter Property="HorizontalContentAlignment" Value="Center" />
+    <Setter Property="VerticalContentAlignment" Value="Center" />
+  </Style>
+  <Style Selector="Button.attach:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+    <Setter Property="Background" Value="{DynamicResource HoverRow}" />
+  </Style>
+  <Style Selector="Button.attach PathIcon">
+    <Setter Property="Width" Value="14" />
+    <Setter Property="Height" Value="14" />
+    <Setter Property="Foreground" Value="{DynamicResource MutedText}" />
+  </Style>
+  <Style Selector="Border.composer.drop-target">
+    <Setter Property="BorderBrush" Value="{DynamicResource AccentBrush}" />
+    <Setter Property="BorderThickness" Value="1.5" />
+  </Style>
+  <!-- The viewer: a wide dialog whose text scrolls. -->
+  <Style Selector="Border.dialog.attachment-viewer">
+    <Setter Property="Width" Value="720" />
+    <Setter Property="MaxHeight" Value="640" />
+    <Setter Property="Margin" Value="32" />
+  </Style>
+  <Style Selector="Border.attachment-viewer SelectableTextBlock.viewer-text">
+    <Setter Property="TextWrapping" Value="Wrap" />
+    <Setter Property="LineHeight" Value="22" />
+    <Setter Property="Foreground" Value="{DynamicResource PrimaryText}" />
+  </Style>
+  <!-- Attachments above a sent question line up with its bubble, on the right. -->
+  <Style Selector="ItemsControl.question-attachments">
+    <Setter Property="HorizontalAlignment" Value="Right" />
+  </Style>
+</Styles>

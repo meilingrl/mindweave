@@ -64,12 +64,14 @@ public static partial class UiText
     public static string DeleteWorkspaceTitle(string name) => $"删除工作区“{name}”？";
 
     /// <summary>What goes with a workspace; its content links (requirements §10.3.3, §8.2) are named only when there are any.</summary>
-    public static string DeleteWorkspaceContents(int conversations, int summaries, int links = 0) => string.Format(
+    public static string DeleteWorkspaceContents(int conversations, int summaries, int links = 0, int attachments = 0) => string.Format(
         CultureInfo.CurrentCulture,
-        "{0} 个会话（含分支与已归档）、{1} 个总结{2}将被永久删除，应用内无法撤销。删除前的备份会列在“数据与存储”中。",
+        "{0} 个会话（含分支与已归档）、{1} 个总结{2}{3}将被永久删除，应用内无法撤销。删除前的备份会列在“数据与存储”中{4}。",
         conversations,
         summaries,
-        links > 0 ? string.Format(CultureInfo.CurrentCulture, "、{0} 条内容关联", links) : string.Empty);
+        links > 0 ? string.Format(CultureInfo.CurrentCulture, "、{0} 条内容关联", links) : string.Empty,
+        attachments > 0 ? string.Format(CultureInfo.CurrentCulture, "、{0} 个附件", attachments) : string.Empty,
+        attachments > 0 ? "，附件原件也在其中" : string.Empty);
 
     public static string DeleteWorkspaceTypeName(string name) => $"输入工作区名称“{name}”以确认";
 
@@ -103,9 +105,9 @@ public static partial class UiText
     /// app, and where the backup made first is listed. Without: no count, the title already names what goes. The content
     /// links of those summaries (requirements §8.2, §10.3.3) are named when there are any.
     /// </summary>
-    public static string ConversationDeleteContents(int conversations, int branches, int summaries, int links = 0)
+    public static string ConversationDeleteContents(int conversations, int branches, int summaries, int links = 0, int attachments = 0)
     {
-        if (branches == 0 && summaries == 0)
+        if (branches == 0 && summaries == 0 && attachments == 0)
         {
             return "全部消息和未发送的草稿将被永久删除，无法撤销。";
         }
@@ -121,7 +123,14 @@ public static partial class UiText
             parts.Add(string.Format(CultureInfo.CurrentCulture, "{0} 个总结", summaries));
         }
 
+        if (attachments > 0)
+        {
+            // Requirements §10.4.3: the confirmation counts the attachments; the backup keeps their originals (Q4).
+            parts.Add(string.Format(CultureInfo.CurrentCulture, "{0} 个附件", attachments));
+        }
+
         var along = links > 0 ? string.Format(CultureInfo.CurrentCulture, "，{0} 条内容关联随之移除", links) : string.Empty;
-        return string.Join("、", parts) + "将被永久删除" + along + "，应用内无法撤销。删除前的备份会列在“数据与存储”中。";
+        var originals = attachments > 0 ? "，附件原件也在其中" : string.Empty;
+        return string.Join("、", parts) + "将被永久删除" + along + "，应用内无法撤销。删除前的备份会列在“数据与存储”中" + originals + "。";
     }
 }

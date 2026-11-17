@@ -16,7 +16,7 @@ namespace Mindweave.Desktop.ViewModels.Conversations;
 /// the first also as a placeholder in the empty input; clicking one, or Tab on the placeholder, only fills the input.
 /// A question sent after being filled in from one (edited or not) uses it up. Branch conversations never come here.
 /// </summary>
-public sealed partial class NewConversationViewModel : PageViewModel, IDisposable
+public sealed partial class NewConversationViewModel : PageViewModel, IDisposable, IAttachmentViewerHost
 {
     private readonly WorkspaceId _workspace;
     private readonly IMenuNavigator _menu;
@@ -44,7 +44,8 @@ public sealed partial class NewConversationViewModel : PageViewModel, IDisposabl
         NewConversationRoute? route = null,
         Application.Preferences.IRecommendationSettings? settings = null,
         Application.Reading.IReadingState? reading = null,
-        Application.Models.IModelSettings? models = null)
+        Application.Models.IModelSettings? models = null,
+        Application.Resources.IResources? resources = null)
         : base(route ?? NewConversationRoute.Instance)
     {
         ModelNote = models is null ? null : new ModelConnectionNote(models, conversations, dispatcher);
@@ -53,14 +54,19 @@ public sealed partial class NewConversationViewModel : PageViewModel, IDisposabl
         _menu = menu;
         _recommendations = recommendations;
         _dispatcher = dispatcher;
-        Composer = new Composer(async text =>
+        // The page's attachments are kept with its own draft, per workspace (architecture §15.2).
+        var attachments = resources is null || models is null
+            ? null
+            : new ComposerAttachmentServices(resources, models, () => Application.Storage.DraftSlot.NewExploration(workspace));
+        Composer = new Composer(
+            async (text, attached) =>
         {
             var source = _source;
             var node = _node;
 
             // Remembered by the conversation (requirements §10.3.5): its first summary is linked to the basis summary.
             var from = source is not null ? StartingRecommendation.From(source.Recommendation) : node;
-            var outcome = await conversations.StartAsync(workspace, text, from, CancellationToken.None);
+            var outcome = await conversations.StartAsync(workspace, text, attached, from, CancellationToken.None);
             if (outcome.Accepted)
             {
                 // Sent: the question is in the new conversation now (the page is replaced before its box is cleared).
@@ -80,7 +86,15 @@ public sealed partial class NewConversationViewModel : PageViewModel, IDisposabl
             }
 
             return outcome;
-        });
+        },
+            attachments);
+        if (attachments is not null)
+        {
+            _ = PrepareAttachmentsAsync();
+            _conversationsForModel = conversations;
+            conversations.ModelChanged += OnModelChanged;
+        }
+
         // From a recommended node: its question waits in the input, unsent; no conversation exists until it is sent.
         if (route is { From: { } from, Question: { } question })
         {
@@ -110,6 +124,8 @@ public sealed partial class NewConversationViewModel : PageViewModel, IDisposabl
     }
 
     public Composer Composer { get; }
+
+    public AttachmentViewer AttachmentViewer => Composer.Viewer;
 
     /// <summary>Shown while no model is connected (2026-11-17); its action is <see cref="OpenSettingsCommand"/>.</summary>
     public ModelConnectionNote? ModelNote { get; }
@@ -264,6 +280,11 @@ public sealed partial class NewConversationViewModel : PageViewModel, IDisposabl
     public void Dispose()
     {
         _disposed = true;
+        if (_conversationsForModel is not null)
+        {
+            _conversationsForModel.ModelChanged -= OnModelChanged;
+        }
+
         ModelNote?.Dispose();
         Composer.PropertyChanged -= OnComposerChanged;
         if (_recommendations is not null)
@@ -328,6 +349,28 @@ public sealed partial class NewConversationViewModel : PageViewModel, IDisposabl
     /// The input says which recommendation a question would come from: one put there (or typed exactly), kept while it
     /// is edited, and forgotten once the input is empty again.
     /// </summary>
+    private readonly IConversations? _conversationsForModel;
+
+    /// <summary>A changed model may see images or not: 图片 follows it. Raised on any thread.</summary>
+    private void OnModelChanged(object? sender, EventArgs e)
+    {
+        if (_dispatcher is null)
+        {
+            _ = Composer.RefreshCapabilitiesAsync();
+        }
+        else
+        {
+            _dispatcher.Post(() => _ = Composer.RefreshCapabilitiesAsync());
+        }
+    }
+
+    /// <summary>Whether 图片 is offered, and the attachments of the page's draft (they survive a restart).</summary>
+    private async Task PrepareAttachmentsAsync()
+    {
+        await Composer.RefreshCapabilitiesAsync();
+        await Composer.LoadDraftAttachmentsAsync();
+    }
+
     private async Task LoadDraftAsync(bool fromNode)
     {
         if (fromNode)

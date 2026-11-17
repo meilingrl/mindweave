@@ -35,5 +35,6 @@
     <StyleInclude Source="/Styles/Pages.axaml" />
     <StyleInclude Source="/Styles/Settings.axaml" />
     <StyleInclude Source="/Styles/WorkspaceSwitcher.axaml" />
+    <StyleInclude Source="/Styles/Attachments.axaml" />
   </Application.Styles>
 </Application>
