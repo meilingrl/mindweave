@@ -22,13 +22,13 @@
         <Button Name="SaveLayoutButton" Classes="primary" Command="{Binding SaveLayoutCommand}" IsVisible="{Binding IsDirty}"
                 ToolTip.Tip="{x:Static t:UiText.SaveLayout}" AutomationProperties.Name="{Binding SaveLayoutLabel}">
           <StackPanel Orientation="Horizontal" Spacing="6">
-            <PathIcon Width="14" Height="14" Data="M2,1 H12 L15,4 V15 H1 V1 Z M4,1 V5 H11 V1 Z M3,9 H13 V14 H3 Z" />
+            <PathIcon Width="14" Height="14" Data="{StaticResource IconSaveLayout}" />
             <TextBlock Name="SaveLayoutText" Text="{x:Static t:UiText.SaveLayout}" VerticalAlignment="Center" />
           </StackPanel>
         </Button>
         <StackPanel Name="LayoutSavedStatus" Orientation="Horizontal" Spacing="5" Margin="0,0,4,0" VerticalAlignment="Center" IsVisible="{Binding !IsDirty}"
                     AutomationProperties.Name="{Binding SaveLayoutLabel}">
-          <PathIcon Width="12" Height="12" Foreground="{DynamicResource MutedText}" Data="M1.5,8.5 L3,7 L6,10 L13,3 L14.5,4.5 L6,13 Z" />
+          <PathIcon Width="12" Height="12" Foreground="{DynamicResource MutedText}" Data="{StaticResource IconCheck}" />
           <TextBlock Classes="muted" FontSize="12" Text="{Binding SaveLayoutLabel}" VerticalAlignment="Center" />
         </StackPanel>
       </StackPanel>
@@ -40,26 +40,26 @@
         </TextBox>
         <Button Name="ShowAllButton" Classes="quiet" Command="{Binding ShowAllCommand}">
           <StackPanel Orientation="Horizontal" Spacing="6">
-            <PathIcon Width="13" Height="13" Data="M1,1 H6 V3 H3 V6 H1 Z M10,1 H15 V6 H13 V3 H10 Z M1,10 H3 V13 H6 V15 H1 Z M13,10 H15 V15 H10 V13 H13 Z" />
+            <PathIcon Width="13" Height="13" Data="{StaticResource IconShowAll}" />
             <TextBlock Text="{x:Static t:UiText.ShowAll}" VerticalAlignment="Center" />
           </StackPanel>
         </Button>
         <!-- The same drawn glyph for both, so − and ＋ match in weight and width on every font. -->
         <Button Name="ZoomOutButton" Classes="quiet" Command="{Binding ZoomOutCommand}" ToolTip.Tip="{x:Static t:UiText.ZoomOut}" AutomationProperties.Name="{x:Static t:UiText.ZoomOut}" MinWidth="30">
-          <PathIcon Width="12" Height="12" Data="M1,7 H15 V9 H1 Z" />
+          <PathIcon Width="12" Height="12" Data="{StaticResource IconZoomOut}" />
         </Button>
         <Button Name="ZoomInButton" Classes="quiet" Command="{Binding ZoomInCommand}" ToolTip.Tip="{x:Static t:UiText.ZoomIn}" AutomationProperties.Name="{x:Static t:UiText.ZoomIn}" MinWidth="30">
-          <PathIcon Width="12" Height="12" Data="M7,1 H9 V7 H15 V9 H9 V15 H7 V9 H1 V7 H7 Z" />
+          <PathIcon Width="12" Height="12" Data="{StaticResource IconZoomIn}" />
         </Button>
         <Button Name="ArrangeButton" Classes="quiet" Command="{Binding ArrangeCommand}">
           <StackPanel Orientation="Horizontal" Spacing="6">
-            <PathIcon Width="13" Height="13" Data="M1,6 H5 V10 H1 Z M11,1 H15 V5 H11 Z M11,11 H15 V15 H11 Z M5,7.25 H10 V8.75 H5 Z M9,2.25 H11 V3.75 H9 Z M9,12.25 H11 V13.75 H9 Z M8.25,2.25 H9.75 V13.75 H8.25 Z" />
+            <PathIcon Width="13" Height="13" Data="{StaticResource IconArrange}" />
             <TextBlock Text="{x:Static t:UiText.ArrangeLayout}" VerticalAlignment="Center" />
           </StackPanel>
         </Button>
         <ToggleButton Name="ListViewToggle" Classes="quiet" IsChecked="{Binding IsListView}">
           <StackPanel Orientation="Horizontal" Spacing="6">
-            <PathIcon Width="13" Height="13" Data="M1,2 H3 V4 H1 Z M5,2 H15 V4 H5 Z M1,7 H3 V9 H1 Z M5,7 H15 V9 H5 Z M1,12 H3 V14 H1 Z M5,12 H15 V14 H5 Z" />
+            <PathIcon Width="13" Height="13" Data="{StaticResource IconListView}" />
             <TextBlock Text="{x:Static t:UiText.ListView}" VerticalAlignment="Center" />
           </StackPanel>
         </ToggleButton>
@@ -89,7 +89,7 @@
           <StackPanel Orientation="Horizontal" Spacing="6">
             <PathIcon Width="14" Height="14" Data="{StaticResource IconLink}" />
             <TextBlock Name="LinksMenuText" Text="{x:Static t:UiText.LinksMenu}" VerticalAlignment="Center" />
-            <PathIcon Width="9" Height="9" Margin="-1,1,0,0" Data="{StaticResource IconChevronDown}" Foreground="{DynamicResource MutedText}" />
+            <PathIcon Width="11" Height="11" Margin="-2,1,0,0" Data="{StaticResource IconChevronDown}" Foreground="{DynamicResource MutedText}" />
           </StackPanel>
           <Button.Flyout>
             <MenuFlyout Placement="BottomEdgeAlignedLeft">
@@ -151,7 +151,7 @@
     <TextBlock DockPanel.Dock="Top" Classes="muted" TextWrapping="Wrap" Text="{x:Static t:UiText.SummaryNetworkEmpty}" IsVisible="{Binding IsEmpty}" />
 
     <!-- Details of the selected node: never the body, never counted as reading. -->
-    <Border DockPanel.Dock="Right" Width="260" Margin="10,0,0,0" Padding="16" Background="{DynamicResource PanelBackground}" CornerRadius="8"
+    <Border DockPanel.Dock="Right" Width="260" Margin="10,0,0,0" Padding="16" Background="{DynamicResource PanelBackground}" CornerRadius="{StaticResource RadiusCard}"
             IsVisible="{Binding !IsEmpty}">
       <Panel>
         <ScrollViewer Classes="autohide" Name="OverviewScroller" HorizontalScrollBarVisibility="Disabled" IsVisible="{Binding !HasSelection}">
@@ -314,7 +314,7 @@
 
     <Panel>
       <!-- Frameless in dark, as in the sample; a faint edge in light, where the canvas is close to the page colour. -->
-      <Border Name="CanvasFrame" BorderBrush="{DynamicResource SummaryNetworkFrame}" BorderThickness="1" CornerRadius="8" ClipToBounds="True" IsVisible="{Binding !IsListView}">
+      <Border Name="CanvasFrame" BorderBrush="{DynamicResource SummaryNetworkFrame}" BorderThickness="1" CornerRadius="{StaticResource RadiusCard}" ClipToBounds="True" IsVisible="{Binding !IsListView}">
         <v:SummaryNetworkCanvas Name="Canvas" />
       </Border>
       <!-- "关联到…" waiting for a click on another summary: what to do (or why the last click did not link), the keyboard way, 取消.

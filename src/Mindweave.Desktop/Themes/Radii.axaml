@@ -1,0 +1,23 @@
+<ResourceDictionary xmlns="https://github.com/avaloniaui"
+                    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+  <!--
+    Corner radii (direction A, 2026-11-17; prototypes/icon-style/README.md "控件圆角"). The styles take every corner
+    from here, so the whole app changes together and the light and dark themes share one set of shapes.
+    Values: 4, 8, 12, 14, 16, a pill and the outset focus ring; circles (the stop button, round badges) keep their own
+    half-size radius next to their size.
+  -->
+  <!-- Check boxes and small tags inside a row. -->
+  <CornerRadius x:Key="RadiusSmall">4</CornerRadius>
+  <!-- Buttons (primary, secondary, quiet, nav, entry), sidebar and list rows, menu items, text fields, segments. -->
+  <CornerRadius x:Key="RadiusControl">8</CornerRadius>
+  <!-- The keyboard focus ring drawn 3 px outside a filled or outlined button: the control's radius plus 3. -->
+  <CornerRadius x:Key="RadiusFocusOutset">11</CornerRadius>
+  <!-- Cards, bars (selection actions, sidebar selection), notices, segmented tracks, menus, pop-ups and toasts. -->
+  <CornerRadius x:Key="RadiusCard">12</CornerRadius>
+  <!-- Dialogs over the window. -->
+  <CornerRadius x:Key="RadiusDialog">14</CornerRadius>
+  <!-- The composer at the bottom of a conversation. -->
+  <CornerRadius x:Key="RadiusComposer">16</CornerRadius>
+  <!-- Chips and badges: fully rounded ends whatever their height (Avalonia scales a radius down to half the height). -->
+  <CornerRadius x:Key="RadiusPill">999</CornerRadius>
+</ResourceDictionary>

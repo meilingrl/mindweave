@@ -61,13 +61,13 @@ public class RowMenuUiTests
         // The entries sit inside the rounded card with a margin all round, and their hover band is rounded too
         // (2026-11-10: they used to run edge to edge).
         window.UpdateLayout();
-        Assert.Equal(10, menu.CornerRadius.TopLeft);
+        Assert.Equal(12, menu.CornerRadius.TopLeft);
         foreach (var item in items)
         {
             var at = item.TranslatePoint(default, menu)!.Value;
             Assert.True(at.X >= 5 && menu.Bounds.Width - (at.X + item.Bounds.Width) >= 5, $"{item.Name} at {at.X}, {item.Bounds.Width} of {menu.Bounds.Width}");
             var band = item.GetVisualDescendants().OfType<Border>().First(b => b.Name == "PART_LayoutRoot");
-            Assert.Equal(6, band.CornerRadius.TopLeft);
+            Assert.Equal(8, band.CornerRadius.TopLeft);
         }
 
         UiInput.Click(window, MenuEntry(window, "RowMenuOpen"));

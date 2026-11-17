@@ -53,7 +53,7 @@
           <TextBlock Classes="caption" Text="{x:Static t:UiText.SummaryGenerating}" VerticalAlignment="Center" />
           <Button Name="StopSummaryButton" Classes="quiet" Command="{Binding Summary.StopSummaryCommand}">
             <StackPanel Orientation="Horizontal" Spacing="6">
-              <PathIcon Width="10" Height="10" Data="{StaticResource IconStop}" />
+              <PathIcon Width="13" Height="13" Data="{StaticResource IconStop}" />
               <TextBlock Text="{x:Static t:UiText.SummaryStop}" VerticalAlignment="Center" />
             </StackPanel>
           </Button>

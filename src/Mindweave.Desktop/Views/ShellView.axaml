@@ -152,7 +152,7 @@
                   </Button.ContextMenu>
                   <DockPanel>
                     <!-- A branch: a small corner glyph from its parent's column, so the hierarchy reads at a glance. -->
-                    <PathIcon Width="9" Height="9" Margin="-4,0,5,3" Foreground="{DynamicResource TreeGuide}" Data="{StaticResource IconTreeBranch}"
+                    <PathIcon Width="11" Height="11" Margin="-5,0,4,2" Foreground="{DynamicResource TreeGuide}" Data="{StaticResource IconTreeBranch}"
                               IsVisible="{Binding IsBranch}" VerticalAlignment="Center" />
                     <!-- Only in the 选择 mode: a drawn box at the right edge, so the boxes of every depth line up in one column
                          (the row itself takes the click, so it holds no second button). -->

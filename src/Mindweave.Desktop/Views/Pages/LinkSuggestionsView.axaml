@@ -27,7 +27,7 @@
     <Style Selector="Border.suggestion">
       <Setter Property="BorderThickness" Value="1" />
       <Setter Property="BorderBrush" Value="{DynamicResource DividerBrush}" />
-      <Setter Property="CornerRadius" Value="6" />
+      <Setter Property="CornerRadius" Value="{StaticResource RadiusControl}" />
       <Setter Property="Padding" Value="8,6,8,8" />
     </Style>
     <Style Selector="Border.suggestion.highlighted">
@@ -36,7 +36,7 @@
       <Setter Property="Background" Value="{DynamicResource SummaryNetworkLinkFill}" />
     </Style>
     <Style Selector="Border.suggestion-tag">
-      <Setter Property="CornerRadius" Value="4" />
+      <Setter Property="CornerRadius" Value="{StaticResource RadiusSmall}" />
       <Setter Property="Padding" Value="5,0,5,1" />
       <Setter Property="BorderThickness" Value="1" />
       <Setter Property="BorderBrush" Value="{DynamicResource SummaryNetworkLinkSuggestion}" />

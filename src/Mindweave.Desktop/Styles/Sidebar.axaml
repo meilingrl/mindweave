@@ -6,7 +6,7 @@
   <Style Selector="Border.attention-badge">
     <Setter Property="Width" Value="15" />
     <Setter Property="Height" Value="15" />
-    <Setter Property="CornerRadius" Value="7.5" />
+    <Setter Property="CornerRadius" Value="{StaticResource RadiusPill}" />
     <Setter Property="Background" Value="{DynamicResource NoticeErrorBackground}" />
     <Setter Property="BorderBrush" Value="{DynamicResource NoticeErrorBorder}" />
     <Setter Property="BorderThickness" Value="1" />
@@ -94,7 +94,7 @@
     <Setter Property="Height" Value="15" />
     <Setter Property="Margin" Value="8,0,-2,0" />
     <Setter Property="VerticalAlignment" Value="Center" />
-    <Setter Property="CornerRadius" Value="4" />
+    <Setter Property="CornerRadius" Value="{StaticResource RadiusSmall}" />
     <Setter Property="BorderThickness" Value="1.5" />
     <Setter Property="BorderBrush" Value="{DynamicResource OutlineBrush}" />
     <Setter Property="Background" Value="Transparent" />
@@ -107,8 +107,8 @@
     <Setter Property="Background" Value="{DynamicResource AccentBrush}" />
   </Style>
   <Style Selector="Border.row-check PathIcon">
-    <Setter Property="Width" Value="9" />
-    <Setter Property="Height" Value="9" />
+    <Setter Property="Width" Value="12" />
+    <Setter Property="Height" Value="12" />
     <Setter Property="Foreground" Value="{DynamicResource OnAccentText}" />
   </Style>
   <Style Selector="ToggleButton.select-toggle">
@@ -120,11 +120,11 @@
     <Setter Property="VerticalContentAlignment" Value="Center" />
     <Setter Property="Background" Value="Transparent" />
     <Setter Property="BorderThickness" Value="0" />
-    <Setter Property="CornerRadius" Value="5" />
+    <Setter Property="CornerRadius" Value="{StaticResource RadiusControl}" />
   </Style>
   <Style Selector="ToggleButton.select-toggle PathIcon">
-    <Setter Property="Width" Value="12" />
-    <Setter Property="Height" Value="12" />
+    <Setter Property="Width" Value="14" />
+    <Setter Property="Height" Value="14" />
     <Setter Property="Foreground" Value="{DynamicResource NavIcon}" />
   </Style>
   <Style Selector="ToggleButton.select-toggle:pointerover /template/ ContentPresenter#PART_ContentPresenter">
@@ -141,7 +141,7 @@
     <Setter Property="Background" Value="{DynamicResource WindowBackground}" />
     <Setter Property="BorderBrush" Value="{DynamicResource OutlineBrush}" />
     <Setter Property="BorderThickness" Value="1" />
-    <Setter Property="CornerRadius" Value="8" />
+    <Setter Property="CornerRadius" Value="{StaticResource RadiusCard}" />
     <Setter Property="Padding" Value="10,4,4,4" />
     <Setter Property="BoxShadow" Value="0 1 3 0 #14000000" />
   </Style>
@@ -177,8 +177,8 @@
     <Setter Property="VerticalContentAlignment" Value="Center" />
   </Style>
   <Style Selector="Button.bar-icon PathIcon">
-    <Setter Property="Width" Value="10" />
-    <Setter Property="Height" Value="10" />
+    <Setter Property="Width" Value="12" />
+    <Setter Property="Height" Value="12" />
     <Setter Property="Foreground" Value="{DynamicResource MutedText}" />
   </Style>
   <!-- A row's context menu (2026-11-10): the inline rename box keeps the row's height, padding and corners, so the
@@ -189,7 +189,7 @@
   <Style Selector="TextBox.row-rename">
     <Setter Property="MinHeight" Value="0" />
     <Setter Property="Padding" Value="9,4" />
-    <Setter Property="CornerRadius" Value="6" />
+    <Setter Property="CornerRadius" Value="{StaticResource RadiusControl}" />
     <Setter Property="VerticalContentAlignment" Value="Center" />
   </Style>
   <Style Selector="Border.row-notice">
@@ -197,7 +197,7 @@
     <Setter Property="Background" Value="{DynamicResource WindowBackground}" />
     <Setter Property="BorderBrush" Value="{DynamicResource OutlineBrush}" />
     <Setter Property="BorderThickness" Value="1" />
-    <Setter Property="CornerRadius" Value="8" />
+    <Setter Property="CornerRadius" Value="{StaticResource RadiusCard}" />
     <Setter Property="Padding" Value="10,6,4,6" />
   </Style>
   <Style Selector="Border.row-notice TextBlock">
@@ -209,7 +209,7 @@
     <Setter Property="MinWidth" Value="17" />
     <Setter Property="Height" Value="17" />
     <Setter Property="Padding" Value="5,0" />
-    <Setter Property="CornerRadius" Value="8.5" />
+    <Setter Property="CornerRadius" Value="{StaticResource RadiusPill}" />
     <Setter Property="Background" Value="{DynamicResource AccentBrush}" />
   </Style>
   <!-- Once, about 600 ms, never looping: swells a little and dims, then settles (2026-11-10). -->
@@ -249,14 +249,14 @@
     <Setter Property="Background" Value="{DynamicResource FloatingBackground}" />
     <Setter Property="BorderBrush" Value="{DynamicResource FloatingBorder}" />
     <Setter Property="BorderThickness" Value="1" />
-    <Setter Property="CornerRadius" Value="10" />
+    <Setter Property="CornerRadius" Value="{StaticResource RadiusCard}" />
     <Setter Property="Padding" Value="4" />
     <Setter Property="BoxShadow" Value="{DynamicResource FloatingShadow}" />
   </Style>
   <Style Selector="Button.toast-body">
     <Setter Property="Background" Value="Transparent" />
     <Setter Property="BorderThickness" Value="0" />
-    <Setter Property="CornerRadius" Value="7" />
+    <Setter Property="CornerRadius" Value="{StaticResource RadiusControl}" />
     <Setter Property="Padding" Value="10,9" />
     <Setter Property="HorizontalAlignment" Value="Stretch" />
     <Setter Property="HorizontalContentAlignment" Value="Stretch" />
@@ -284,13 +284,13 @@
     <Setter Property="Height" Value="26" />
     <Setter Property="Padding" Value="0" />
     <Setter Property="Margin" Value="2,0,2,0" />
-    <Setter Property="CornerRadius" Value="6" />
+    <Setter Property="CornerRadius" Value="{StaticResource RadiusControl}" />
     <Setter Property="HorizontalContentAlignment" Value="Center" />
     <Setter Property="VerticalContentAlignment" Value="Center" />
   </Style>
   <Style Selector="Button.quiet.toast-close PathIcon">
-    <Setter Property="Width" Value="10" />
-    <Setter Property="Height" Value="10" />
+    <Setter Property="Width" Value="12" />
+    <Setter Property="Height" Value="12" />
     <Setter Property="Foreground" Value="{DynamicResource MutedText}" />
   </Style>
 </Styles>

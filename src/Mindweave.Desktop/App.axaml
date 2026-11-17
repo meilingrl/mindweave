@@ -11,8 +11,9 @@
     <ResourceDictionary>
       <ResourceDictionary.MergedDictionaries>
         <ResourceInclude Source="avares://LiveMarkdown.Avalonia/Defaults.axaml" />
-        <!-- Colours and shadows per theme (Light and Dark side by side), then the shared icon geometries. -->
+        <!-- Colours and shadows per theme (Light and Dark side by side), then the shared corner radii and icon geometries. -->
         <MergeResourceInclude Source="/Themes/Colors.axaml" />
+        <MergeResourceInclude Source="/Themes/Radii.axaml" />
         <MergeResourceInclude Source="/Themes/Icons.axaml" />
       </ResourceDictionary.MergedDictionaries>
       <FontFamily x:Key="AnswerFontFamily">PingFang SC, Microsoft YaHei UI, Microsoft YaHei, Noto Sans CJK SC, Noto Sans SC, Source Han Sans SC, $Default</FontFamily>

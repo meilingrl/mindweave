@@ -31,12 +31,12 @@
       <Setter Property="Background" Value="{DynamicResource DialogBackground}" />
       <Setter Property="BorderBrush" Value="{DynamicResource OutlineBrush}" />
       <Setter Property="BorderThickness" Value="1" />
-      <Setter Property="CornerRadius" Value="8" />
+      <Setter Property="CornerRadius" Value="{StaticResource RadiusCard}" />
       <Setter Property="Padding" Value="16,14" />
     </Style>
     <!-- Version history rows: aligned columns, hover, and the version on screen highlighted. -->
     <Style Selector="Border.history-row">
-      <Setter Property="CornerRadius" Value="6" />
+      <Setter Property="CornerRadius" Value="{StaticResource RadiusControl}" />
       <Setter Property="Padding" Value="6,4" />
       <Setter Property="Background" Value="Transparent" />
     </Style>
@@ -126,7 +126,7 @@
             </MultiBinding>
           </Button.IsVisible>
           <StackPanel Orientation="Horizontal" Spacing="6">
-            <PathIcon Width="12" Height="12" Data="M10,2 L4,8 L10,14 L11.5,12.5 L7,8 L11.5,3.5 Z" />
+            <PathIcon Width="12" Height="12" Data="{StaticResource IconChevronLeft}" />
             <TextBlock Text="{x:Static t:UiText.ViewCurrent}" VerticalAlignment="Center" />
           </StackPanel>
         </Button>
@@ -134,20 +134,20 @@
                 AutomationProperties.Name="{Binding ShownIsRead, Converter={x:Static d:Converters.ReadToggleLabel}}">
           <StackPanel Orientation="Horizontal" Spacing="6">
             <!-- The icon is the state the button sets: a hollow ring for read, a filled dot for unread (as on the network). -->
-            <PathIcon Width="12" Height="12" IsVisible="{Binding !ShownIsRead}" Data="M8,1 A7,7 0 1 1 7.99,1 Z M8,3.2 A4.8,4.8 0 1 0 8.01,3.2 Z" />
-            <PathIcon Width="12" Height="12" IsVisible="{Binding ShownIsRead}" Data="M8,2 A6,6 0 1 1 7.99,2 Z" />
+            <PathIcon Width="12" Height="12" IsVisible="{Binding !ShownIsRead}" Data="{StaticResource IconRead}" />
+            <PathIcon Width="12" Height="12" IsVisible="{Binding ShownIsRead}" Data="{StaticResource IconUnread}" />
             <TextBlock Text="{Binding ShownIsRead, Converter={x:Static d:Converters.ReadToggleLabel}}" VerticalAlignment="Center" />
           </StackPanel>
         </Button>
         <Button Name="EditButton" Classes="quiet" Command="{Binding BeginEditCommand}" IsVisible="{Binding ShownIsCurrent}" IsEnabled="{Binding !IsEditing}">
           <StackPanel Orientation="Horizontal" Spacing="6">
-            <PathIcon Width="13" Height="13" Data="M11,1 L15,5 L5.5,14.5 H1.5 V10.5 Z M11,3.1 L3,11.1 V13 H4.9 L12.9,5 Z" />
+            <PathIcon Width="13" Height="13" Data="{StaticResource IconEdit}" />
             <TextBlock Text="{x:Static t:UiText.Edit}" VerticalAlignment="Center" />
           </StackPanel>
         </Button>
         <Button Name="RenameButton" Classes="quiet" Command="{Binding BeginRenameCommand}">
           <StackPanel Orientation="Horizontal" Spacing="6">
-            <PathIcon Width="13" Height="13" Data="M1,2 H10 V4 H6.5 V13 H4.5 V4 H1 Z M9,9 H15 V11 H9 Z M9,12.5 H13 V14.5 H9 Z" />
+            <PathIcon Width="13" Height="13" Data="{StaticResource IconRename}" />
             <TextBlock Text="{x:Static t:UiText.Rename}" VerticalAlignment="Center" />
           </StackPanel>
         </Button>
@@ -166,7 +166,7 @@
           <Button.ContentTemplate>
             <DataTemplate x:DataType="x:String">
               <StackPanel Orientation="Horizontal" Spacing="6">
-                <PathIcon Width="13" Height="13" Data="M7,1 H9 V8 L11.5,5.5 L12.9,6.9 L8,11.8 L3.1,6.9 L4.5,5.5 L7,8 Z M1,10 H3 V13 H13 V10 H15 V15 H1 Z" />
+                <PathIcon Width="13" Height="13" Data="{StaticResource IconDownload}" />
                 <TextBlock Text="{Binding}" VerticalAlignment="Center" />
               </StackPanel>
             </DataTemplate>
@@ -190,7 +190,7 @@
       </WrapPanel>
 
       <!-- "关联到…": the searchable list of this workspace's other summaries, until one is picked or it is closed. -->
-      <Border Name="LinkPickerPanel" Background="{DynamicResource PanelBackground}" CornerRadius="8" Padding="14,12" MaxWidth="420" HorizontalAlignment="Left"
+      <Border Name="LinkPickerPanel" Background="{DynamicResource PanelBackground}" CornerRadius="{StaticResource RadiusCard}" Padding="14,12" MaxWidth="420" HorizontalAlignment="Left"
               IsVisible="{Binding Links.IsPickerOpen, FallbackValue=False}">
         <v:SummaryLinkPickerView Name="LinkPicker" DataContext="{Binding Links}" />
       </Border>
