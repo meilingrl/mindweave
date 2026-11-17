@@ -6,7 +6,7 @@
     <Setter Property="Background" Value="{DynamicResource CardBackground}" />
     <Setter Property="BorderBrush" Value="{DynamicResource CardBorder}" />
     <Setter Property="BorderThickness" Value="1" />
-    <Setter Property="CornerRadius" Value="8" />
+    <Setter Property="CornerRadius" Value="{StaticResource RadiusControl}" />
     <Setter Property="Padding" Value="4,4,4,4" />
     <Setter Property="Margin" Value="0,0,6,6" />
     <Setter Property="MaxWidth" Value="260" />
@@ -18,7 +18,7 @@
     <Setter Property="Background" Value="Transparent" />
     <Setter Property="BorderThickness" Value="0" />
     <Setter Property="Padding" Value="4,2" />
-    <Setter Property="CornerRadius" Value="6" />
+    <Setter Property="CornerRadius" Value="{StaticResource RadiusSmall}" />
     <Setter Property="HorizontalContentAlignment" Value="Left" />
     <Setter Property="Cursor" Value="Hand" />
   </Style>
@@ -36,7 +36,7 @@
   <Style Selector="Border.attachment-chip Border.chip-icon">
     <Setter Property="Width" Value="32" />
     <Setter Property="Height" Value="32" />
-    <Setter Property="CornerRadius" Value="6" />
+    <Setter Property="CornerRadius" Value="{StaticResource RadiusSmall}" />
     <Setter Property="Background" Value="{DynamicResource QuestionBubbleBackground}" />
     <Setter Property="ClipToBounds" Value="True" />
     <Setter Property="Margin" Value="0,0,8,0" />
@@ -64,7 +64,7 @@
     <Setter Property="Background" Value="Transparent" />
     <Setter Property="BorderThickness" Value="0" />
     <Setter Property="Padding" Value="6,3" />
-    <Setter Property="CornerRadius" Value="6" />
+    <Setter Property="CornerRadius" Value="{StaticResource RadiusSmall}" />
     <Setter Property="FontSize" Value="12" />
     <Setter Property="Foreground" Value="{DynamicResource LinkText}" />
     <Setter Property="VerticalAlignment" Value="Center" />
@@ -73,7 +73,7 @@
     <Setter Property="Background" Value="Transparent" />
     <Setter Property="BorderThickness" Value="0" />
     <Setter Property="Padding" Value="5" />
-    <Setter Property="CornerRadius" Value="6" />
+    <Setter Property="CornerRadius" Value="{StaticResource RadiusSmall}" />
     <Setter Property="VerticalAlignment" Value="Center" />
   </Style>
   <Style Selector="Border.attachment-chip Button.chip-action:pointerover /template/ ContentPresenter#PART_ContentPresenter, Border.attachment-chip Button.chip-remove:pointerover /template/ ContentPresenter#PART_ContentPresenter">
@@ -91,7 +91,7 @@
     <Setter Property="Width" Value="32" />
     <Setter Property="Height" Value="32" />
     <Setter Property="Padding" Value="0" />
-    <Setter Property="CornerRadius" Value="16" />
+    <Setter Property="CornerRadius" Value="{StaticResource RadiusPill}" />
     <Setter Property="HorizontalContentAlignment" Value="Center" />
     <Setter Property="VerticalContentAlignment" Value="Center" />
   </Style>
