@@ -41,8 +41,23 @@ public interface IResourceBlobStore
     bool Exists(ContentHash hash);
 
     /// <summary>
-    /// Deletes originals that neither the database nor any kept backup refers to, and temporary files left by an
-    /// interrupted write. Conservative: when the database is closed or a backup cannot be read, nothing is deleted.
+    /// Puts back an original missing from the store from the copy a backup keeps (a database restored from the backup made
+    /// before a delete names it again). Only asked for originals a stored resource names. Returns whether it is there now.
+    /// </summary>
+    bool TryRecover(ContentHash hash);
+
+    /// <summary>
+    /// Copies the originals named by <paramref name="hashes"/> beside the backup at <paramref name="backupPath"/> (owner's Q4
+    /// decision 2026-11-17: the backup made before a delete includes the attachment files being deleted). Hashes not in the
+    /// store are skipped. A storage condition is a <see cref="StorageWriteException"/>; the copy is then incomplete and the
+    /// caller drops the backup.
+    /// </summary>
+    Task CopyToBackupAsync(string backupPath, IReadOnlyCollection<ContentHash> hashes, CancellationToken cancellationToken);
+
+    /// <summary>
+    /// Deletes originals the database no longer refers to (nor a database a restore kept aside), and temporary files left by
+    /// an interrupted write (architecture §15.2). A backup made before a delete keeps its own copies of what that delete
+    /// removed. Conservative: when the database is closed or a kept database cannot be read, nothing is deleted.
     /// </summary>
     Task<BlobSweepResult> SweepAsync(CancellationToken cancellationToken);
 }

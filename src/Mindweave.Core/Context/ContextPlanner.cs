@@ -27,14 +27,25 @@ public sealed record RawPart(ContextItem Item) : ContextPart;
 
 public sealed record SummaryPart(ContextChunk Chunk) : ContextPart;
 
-/// <summary>What one request sends, in order: raw messages and summaries standing in for older runs.</summary>
+/// <summary>
+/// What one request sends, in order: raw messages and summaries standing in for older runs; and, planned apart from them
+/// (architecture §15.4), how each attachment of those messages is sent.
+/// </summary>
 public sealed record ContextPlan(IReadOnlyList<ContextPart> Parts, int EstimatedTokens)
 {
+    public ContextPlan(IReadOnlyList<ContextPart> parts, int estimatedTokens, IReadOnlyList<ResourcePlacement> resources)
+        : this(parts, estimatedTokens) => Resources = resources;
+
     public IEnumerable<ContextChunk> Summaries => Parts.OfType<SummaryPart>().Select(p => p.Chunk);
 
     public IEnumerable<ContextItem> RawItems => Parts.OfType<RawPart>().Select(p => p.Item);
 
     public bool IsCompressed => Parts.Any(p => p is SummaryPart);
+
+    public IReadOnlyList<ResourcePlacement> Resources { get; init; } = [];
+
+    /// <summary>Some attachment is not sent whole: as its summary, summary and parts, or an older image left out.</summary>
+    public bool IsResourceReduced => Resources.Any(r => r.IsReduced);
 }
 
 public enum ContextRejection
@@ -63,25 +74,44 @@ public static class ContextPlanner
     public const int UnknownSummaryTokens = 800;
 
     /// <param name="knownSummaryTokens">Size of an already stored summary for a key, or null if there is none.</param>
-    public static PlanOutcome Plan(IReadOnlyList<ContextSegment> ancestors, ContextSegment own, int budget, Func<SummaryKey, int?> knownSummaryTokens)
+    public static PlanOutcome Plan(IReadOnlyList<ContextSegment> ancestors, ContextSegment own, int budget, Func<SummaryKey, int?> knownSummaryTokens) =>
+        Plan(ancestors, own, budget, knownSummaryTokens, []);
+
+    /// <summary>
+    /// The plan with the attachments of the planned messages as a separate layer (architecture §15.4). Everything is sent
+    /// whole when it fits. Otherwise, in this order, each step taken only while the request still does not fit: older
+    /// questions' attachments switch to their summaries (older images are left out); older conversation is summarized as
+    /// before; the current question's attachments are sent as their summary and the chunks most relevant to the question.
+    /// When even that does not fit, the question is refused (<see cref="ContextRejection.QuestionTooLarge"/>): nothing is cut
+    /// silently.
+    /// </summary>
+    /// <param name="resources">Every attachment of the conversation chain, each naming the message that carries it.</param>
+    public static PlanOutcome Plan(
+        IReadOnlyList<ContextSegment> ancestors, ContextSegment own, int budget, Func<SummaryKey, int?> knownSummaryTokens, IReadOnlyList<ResourceCandidate> resources)
     {
         ArgumentNullException.ThrowIfNull(ancestors);
         ArgumentNullException.ThrowIfNull(own);
         ArgumentNullException.ThrowIfNull(knownSummaryTokens);
+        ArgumentNullException.ThrowIfNull(resources);
         var items = BranchContext.Assemble(ancestors, own);
         var cost = items.ToDictionary(i => i, i => TokenEstimator.Message(i.Text));
-        var total = TokenEstimator.PerRequest + cost.Values.Sum();
+        var layer = new ResourceLayer(items, resources);
+        var total = TokenEstimator.PerRequest + cost.Values.Sum() + layer.Tokens;
         if (total <= budget)
         {
-            return new PlanOutcome(new ContextPlan([.. items.Select(i => (ContextPart)new RawPart(i))], total), null);
+            return new PlanOutcome(new ContextPlan([.. items.Select(i => (ContextPart)new RawPart(i))], total, layer.Placements()), null);
         }
 
         var required = Required(items, ancestors, own);
-        if (TokenEstimator.PerRequest + required.Sum(i => cost[i]) > budget)
+        if (TokenEstimator.PerRequest + required.Sum(i => cost[i]) + layer.MinimalTokens > budget)
         {
             return new PlanOutcome(null, ContextRejection.QuestionTooLarge);
         }
 
+        // 1. Older questions' attachments as summaries, oldest first.
+        total = layer.ReduceOlder(total, budget);
+
+        // 2. Older conversation as summaries, as before.
         var chunks = Chunks(items, required, [.. ancestors.Select(a => a.Conversation), own.Conversation], cost);
         var summarized = new List<ContextChunk>();
         foreach (var chunk in chunks.Where(c => c.Closed).Concat(chunks.Where(c => !c.Closed)))
@@ -96,9 +126,15 @@ public static class ContextPlanner
             summarized.Add(chunk);
         }
 
+        // 3. The current question's attachments as summary and relevant parts, in the room left.
         if (total > budget)
         {
-            return new PlanOutcome(null, ContextRejection.HistoryTooLong);
+            total = layer.ReduceCurrent(total, budget);
+        }
+
+        if (total > budget)
+        {
+            return new PlanOutcome(null, layer.Count > 0 ? ContextRejection.QuestionTooLarge : ContextRejection.HistoryTooLong);
         }
 
         var owner = summarized.SelectMany(c => c.Items.Select(i => (Item: i, Chunk: c))).ToDictionary(x => x.Item, x => x.Chunk);
@@ -115,7 +151,7 @@ public static class ContextPlanner
             }
         }
 
-        return new PlanOutcome(new ContextPlan(parts, total), null);
+        return new PlanOutcome(new ContextPlan(parts, total, layer.Placements()), null);
     }
 
     /// <summary>The text a summary is sent as, including its framing; its length is what the budget counts.</summary>

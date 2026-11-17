@@ -68,6 +68,7 @@ public static class ApplicationServices
         services.AddSingleton<LinkSuggestionService>();
         services.AddSingleton<ITextExtractor, PlainTextExtractor>(); // PDF and Office extractors are registered beside it later.
         services.AddSingleton<ResourceService>();
+        services.AddSingleton<ResourceContext>();
         services.AddSingleton<IResources>(sp => sp.GetRequiredService<ResourceService>());
 
         // View models depend on these interfaces, not the concrete services (course requirement C3); each resolves to the

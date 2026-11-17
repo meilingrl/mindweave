@@ -10,7 +10,27 @@ public enum ChatRole
     Assistant,
 }
 
-public sealed record ChatTurn(ChatRole Role, string Content);
+/// <summary>An image sent as a part of a user turn (architecture §15.4): its media type and bytes, sent as a data URL.</summary>
+public sealed record ChatImage(string MediaType, byte[] Data);
+
+/// <summary>
+/// One turn. <paramref name="Images"/> go with a user turn only, and only to a model that declares
+/// <see cref="ModelCapability.ImageInput"/>; an adapter sends them as image parts after <paramref name="Content"/>.
+/// </summary>
+public sealed record ChatTurn(ChatRole Role, string Content, IReadOnlyList<ChatImage>? Images = null)
+{
+    public bool HasImages => Images is { Count: > 0 };
+}
+
+public static class ChatTurns
+{
+    /// <summary>The estimate of a request as sent: its texts plus a fixed cost per image (architecture §15.4).</summary>
+    public static int Estimate(IReadOnlyList<ChatTurn> turns)
+    {
+        ArgumentNullException.ThrowIfNull(turns);
+        return Core.Context.TokenEstimator.Request(turns.Select(t => t.Content)) + (turns.Sum(t => t.Images?.Count ?? 0) * Core.Context.ResourceMaterial.ImageTokens);
+    }
+}
 
 /// <summary>Provider-neutral request. Adapters translate it; no SDK types cross this boundary.</summary>
 public sealed record ChatRequest(ModelSnapshot Model, IReadOnlyList<ChatTurn> Turns);

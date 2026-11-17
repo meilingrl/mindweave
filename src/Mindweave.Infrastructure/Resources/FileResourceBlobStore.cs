@@ -11,8 +11,10 @@ namespace Mindweave.Infrastructure.Resources;
 /// <summary>
 /// Resource originals as files under <c>resources/&lt;first two hex digits&gt;/&lt;hash&gt;</c> (docs/design/resources.md).
 /// A file is written to <c>resources/tmp</c>, flushed to the disk and renamed into place, so a name always holds the
-/// whole content; it never changes afterwards. A sweep deletes a file only when neither the database nor any kept backup
-/// (nor a database kept by a restore) names its hash: a backup made before a delete can then always be restored whole.
+/// whole content; it never changes afterwards. A sweep deletes a file once the database (or a database kept by a restore)
+/// no longer names its hash, as a resource or as a binary derivative (architecture §15.2). The backup made before a delete
+/// holds copies of the originals that delete removes (<c>&lt;backup&gt;.resources/</c>, owner's Q4 decision); a restored
+/// database finds them there and puts them back when they are first asked for.
 /// </summary>
 internal sealed partial class FileResourceBlobStore(AppPaths paths, SqliteDatabase database, TimeProvider time, ILogger<FileResourceBlobStore> logger)
     : IResourceBlobStore, IDisposable
@@ -100,6 +102,79 @@ internal sealed partial class FileResourceBlobStore(AppPaths paths, SqliteDataba
 
     public bool Exists(ContentHash hash) => File.Exists(PathOf(hash));
 
+    public bool TryRecover(ContentHash hash) => RecoverFromBackups(hash);
+
+    public async Task CopyToBackupAsync(string backupPath, IReadOnlyCollection<ContentHash> hashes, CancellationToken cancellationToken)
+    {
+        ArgumentException.ThrowIfNullOrEmpty(backupPath);
+        ArgumentNullException.ThrowIfNull(hashes);
+        var folder = BackupResources.DirectoryOf(backupPath);
+        try
+        {
+            Directory.CreateDirectory(folder);
+            foreach (var hash in hashes.Distinct())
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+                var source = PathOf(hash);
+                if (!File.Exists(source))
+                {
+                    continue;
+                }
+
+                var target = Path.Combine(folder, hash.Hex);
+                var temp = target + ".tmp";
+                await Task.Run(() => File.Copy(source, temp, overwrite: true), cancellationToken).ConfigureAwait(false);
+                File.Move(temp, target, overwrite: true);
+            }
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            var kind = ex is UnauthorizedAccessException ? StorageFailureKind.ReadOnly
+                : SqliteDiskProbe.IsDiskFull((IOException)ex) ? StorageFailureKind.Full
+                : StorageFailureKind.IoError;
+            throw new StorageWriteException(kind, $"Copying attachment originals into a backup failed: {ex.Message}", ex);
+        }
+    }
+
+    /// <summary>
+    /// Puts an original back from the copy a backup keeps (a restored database refers to it, a later delete had removed it).
+    /// Returns whether it is in the store now.
+    /// </summary>
+    private bool RecoverFromBackups(ContentHash hash)
+    {
+        var target = PathOf(hash);
+        if (File.Exists(target) || !Directory.Exists(paths.BackupDirectory))
+        {
+            return File.Exists(target);
+        }
+
+        try
+        {
+            foreach (var folder in Directory.EnumerateDirectories(paths.BackupDirectory, "*" + BackupResources.Suffix))
+            {
+                var copy = Path.Combine(folder, hash.Hex);
+                if (!File.Exists(copy))
+                {
+                    continue;
+                }
+
+                Directory.CreateDirectory(Path.GetDirectoryName(target)!);
+                Directory.CreateDirectory(TemporaryDirectory);
+                var temp = Path.Combine(TemporaryDirectory, Guid.NewGuid().ToString("N"));
+                File.Copy(copy, temp);
+                File.Move(temp, target, overwrite: true);
+                LogRecovered(logger, hash.Hex);
+                return true;
+            }
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            LogDeleteFailed(logger, ex, target);
+        }
+
+        return false;
+    }
+
     public void Dispose() => _sweepGate.Dispose();
 
     public async Task<BlobSweepResult> SweepAsync(CancellationToken cancellationToken)
@@ -144,9 +219,9 @@ internal sealed partial class FileResourceBlobStore(AppPaths paths, SqliteDataba
 
     private BlobSweepResult SweepFiles(HashSet<string> referenced)
     {
-        // Every kept copy of the database counts: backups (any reason) and databases a restore kept under a "replaced" name.
-        var copies = database.ListBackups().Select(b => b.Path)
-            .Concat(database.ListLeftovers().SelectMany(l => l.Files).Where(f => !f.EndsWith("-wal", StringComparison.Ordinal) && !f.EndsWith("-shm", StringComparison.Ordinal)));
+        // Databases a restore kept under a "replaced" name count as live: putting one back must find its originals. Backups
+        // do not: the one made before a delete keeps its own copies of what the delete removed (owner's Q4 decision).
+        var copies = database.ListLeftovers().SelectMany(l => l.Files).Where(f => !f.EndsWith("-wal", StringComparison.Ordinal) && !f.EndsWith("-shm", StringComparison.Ordinal));
         foreach (var copy in copies)
         {
             try
@@ -218,11 +293,24 @@ internal sealed partial class FileResourceBlobStore(AppPaths paths, SqliteDataba
             return hashes;
         }
 
-        using var command = connection.Command(null, "SELECT DISTINCT sha256 FROM resource;");
-        using var reader = command.ExecuteReader();
-        while (reader.Read())
+        using (var command = connection.Command(null, "SELECT DISTINCT sha256 FROM resource;"))
+        using (var reader = command.ExecuteReader())
         {
-            hashes.Add(reader.GetString(0));
+            while (reader.Read())
+            {
+                hashes.Add(reader.GetString(0));
+            }
+        }
+
+        // Binary derivatives (a scaled image, v16) are blobs too.
+        if (connection.Scalar<long>(null, "SELECT EXISTS (SELECT 1 FROM pragma_table_info('resource_derivative') WHERE name = 'blob_sha256');") != 0)
+        {
+            using var derived = connection.Command(null, "SELECT DISTINCT blob_sha256 FROM resource_derivative WHERE blob_sha256 IS NOT NULL;");
+            using var reader = derived.ExecuteReader();
+            while (reader.Read())
+            {
+                hashes.Add(reader.GetString(0));
+            }
         }
 
         return hashes;
@@ -303,7 +391,10 @@ internal sealed partial class FileResourceBlobStore(AppPaths paths, SqliteDataba
         }
     }
 
-    [LoggerMessage(Level = LogLevel.Information, Message = "Removed {Deleted} resource originals no database or backup refers to; {Kept} kept")]
+    [LoggerMessage(Level = LogLevel.Information, Message = "Put resource original {Hash} back from a backup")]
+    private static partial void LogRecovered(ILogger logger, string hash);
+
+    [LoggerMessage(Level = LogLevel.Information, Message = "Removed {Deleted} resource originals the database no longer refers to; {Kept} kept")]
     private static partial void LogSwept(ILogger logger, int deleted, int kept);
 
     [LoggerMessage(Level = LogLevel.Warning, Message = "A kept database copy {Path} could not be read; no resource original was removed")]

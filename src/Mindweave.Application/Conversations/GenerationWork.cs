@@ -33,8 +33,12 @@ public abstract record GenerationWork(GenerationTaskRecord Task, ChatRequest Req
 /// When the plan summarizes older context, the summaries are produced in this task's slot before the answer
 /// request, and <paramref name="Request"/>'s turns are replaced by the prepared ones.
 /// </param>
-public sealed record AnswerWork(GenerationTaskRecord Task, ChatRequest Request, LiveAnswer Live, ContextPlan? Plan = null, ContextBudget? Budget = null)
+/// <param name="Inputs">What the plan was made from, so the runner can plan again once attachment summaries exist.</param>
+public sealed record AnswerWork(GenerationTaskRecord Task, ChatRequest Request, LiveAnswer Live, ContextPlan? Plan = null, ContextBudget? Budget = null, ContextInputs? Inputs = null)
     : GenerationWork(Task, Request, GenerationPriority.User);
+
+/// <summary>The inputs of a context plan: the frozen ancestor chain, the conversation itself, and its attachments' candidates.</summary>
+public sealed record ContextInputs(IReadOnlyList<Core.Branches.ContextSegment> Ancestors, Core.Branches.ContextSegment Own, IReadOnlyList<ResourceCandidate> Resources);
 
 public sealed record TitleWork(GenerationTaskRecord Task, ChatRequest Request)
     : GenerationWork(Task, Request, GenerationPriority.Background);

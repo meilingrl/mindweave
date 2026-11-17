@@ -22,11 +22,14 @@ internal sealed class RequestTrace
     private int? _completionTokens;
 
     /// <summary>A request made for a task (its model is the task's snapshot).</summary>
-    public RequestTrace(GenerationTaskId task, IClock clock, ChatRequest request)
+    public RequestTrace(GenerationTaskId task, IClock clock, ChatRequest request, string? purpose = null)
         : this(clock, request)
     {
         _task = task;
+        _purpose = purpose;
     }
+
+    private readonly string? _purpose;
 
     /// <summary>A request without a task row, counted for a workspace and a kind (2026-11-11); its model is recorded with it.</summary>
     public RequestTrace(Conversations.RequestAttribution attribution, IClock clock, ChatRequest request)
@@ -39,7 +42,7 @@ internal sealed class RequestTrace
     {
         _clock = clock;
         _request = request;
-        _estimate = Mindweave.Core.Context.TokenEstimator.Request(request.Turns.Select(t => t.Content));
+        _estimate = ChatTurns.Estimate(request.Turns);
         _started = clock.UtcNow;
     }
 
@@ -93,5 +96,6 @@ internal sealed class RequestTrace
             _estimate,
             _attribution,
             _attribution is null ? null : _request.Model.Model,
-            _attribution is null ? null : _request.Model.BaseUrl);
+            _attribution is null ? null : _request.Model.BaseUrl,
+            _purpose);
 }

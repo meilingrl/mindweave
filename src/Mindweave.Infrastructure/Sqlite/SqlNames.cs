@@ -210,6 +210,7 @@ internal static class SqlNames
     {
         ResourceOrigin.Paste => "paste",
         ResourceOrigin.File => "file",
+        ResourceOrigin.Image => "image",
         _ => throw new ArgumentOutOfRangeException(nameof(origin)),
     };
 
@@ -217,18 +218,63 @@ internal static class SqlNames
     {
         "paste" => ResourceOrigin.Paste,
         "file" => ResourceOrigin.File,
+        "image" => ResourceOrigin.Image,
         _ => throw new InvalidDataException($"Unknown resource origin '{value}'."),
+    };
+
+    public static string Of(ResourceProvenance provenance) => provenance switch
+    {
+        ResourceProvenance.User => "user",
+        ResourceProvenance.Workspace => "workspace",
+        ResourceProvenance.External => "external",
+        _ => throw new ArgumentOutOfRangeException(nameof(provenance)),
+    };
+
+    public static ResourceProvenance ParseProvenance(string value) => value switch
+    {
+        "user" => ResourceProvenance.User,
+        "workspace" => ResourceProvenance.Workspace,
+        "external" => ResourceProvenance.External,
+        _ => throw new InvalidDataException($"Unknown resource provenance '{value}'."),
+    };
+
+    public static string Of(Core.Context.ResourceForm form) => form switch
+    {
+        Core.Context.ResourceForm.Whole => "whole",
+        Core.Context.ResourceForm.Summary => "summary",
+        Core.Context.ResourceForm.Parts => "parts",
+        Core.Context.ResourceForm.Image => "image",
+        Core.Context.ResourceForm.ImageOmitted => "image_omitted",
+        Core.Context.ResourceForm.ImageUnsupported => "image_unsupported",
+        Core.Context.ResourceForm.ImageMissing => "image_missing",
+        _ => throw new ArgumentOutOfRangeException(nameof(form)),
+    };
+
+    public static Core.Context.ResourceForm ParseResourceForm(string value) => value switch
+    {
+        "whole" => Core.Context.ResourceForm.Whole,
+        "summary" => Core.Context.ResourceForm.Summary,
+        "parts" => Core.Context.ResourceForm.Parts,
+        "image" => Core.Context.ResourceForm.Image,
+        "image_omitted" => Core.Context.ResourceForm.ImageOmitted,
+        "image_unsupported" => Core.Context.ResourceForm.ImageUnsupported,
+        "image_missing" => Core.Context.ResourceForm.ImageMissing,
+        _ => throw new InvalidDataException($"Unknown resource form '{value}'."),
     };
 
     public static string Of(DerivativeKind kind) => kind switch
     {
         DerivativeKind.Text => "text",
+        DerivativeKind.Summary => "summary",
+        DerivativeKind.ImageScaled => "image_scaled",
         _ => throw new ArgumentOutOfRangeException(nameof(kind)),
     };
 
     public static DerivativeKind ParseDerivativeKind(string value) => value switch
     {
         "text" => DerivativeKind.Text,
+        "summary" => DerivativeKind.Summary,
+        "image_scaled" => DerivativeKind.ImageScaled,
         _ => throw new InvalidDataException($"Unknown derivative kind '{value}'."),
     };
 

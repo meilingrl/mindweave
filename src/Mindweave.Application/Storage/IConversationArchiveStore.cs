@@ -33,7 +33,13 @@ public sealed record ConversationDeleteScope(
     /// The delete takes branches or summaries along: it is confirmed with counts and backed up first. A selection of
     /// conversations with neither is the plain, dependency-free delete.
     /// </summary>
-    public bool IsCascade => Branches > 0 || Summaries.Count > 0;
+    public bool IsCascade => Branches > 0 || Summaries.Count > 0 || Attachments > 0;
+
+    /// <summary>Attachments sent in the scope's conversations (requirements §10.4.3: counted in the confirmation, backed up first).</summary>
+    public int Attachments { get; init; }
+
+    /// <summary>Originals the delete removes: copied into the backup made first (owner's Q4 decision 2026-11-17).</summary>
+    public IReadOnlyList<Core.Resources.ContentHash> ResourceHashes { get; init; } = [];
 
     /// <summary>
     /// How many content links (requirements §10.3.3) go with <see cref="Summaries"/>: each link touching one of them, once.

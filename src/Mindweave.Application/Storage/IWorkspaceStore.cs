@@ -41,6 +41,12 @@ public sealed record WorkspaceContents(bool Exists, int Conversations, int Summa
 
     /// <summary>How many content links between its summaries go with it (requirements §10.3.3, stated in the confirmation).</summary>
     public int Links { get; init; }
+
+    /// <summary>Attachments sent in its conversations (requirements §10.4.3, stated in the confirmation).</summary>
+    public int Attachments { get; init; }
+
+    /// <summary>Originals of all its resources: copied into the backup made before the delete (owner's Q4 decision).</summary>
+    public IReadOnlyList<Core.Resources.ContentHash> ResourceHashes { get; init; } = [];
 }
 
 /// <summary>

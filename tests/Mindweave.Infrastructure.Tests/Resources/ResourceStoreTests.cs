@@ -22,7 +22,8 @@ public sealed class ResourceStoreTests
     private static readonly ModelSnapshot Model =
         new("m", "https://fake.example/v1", ChatProtocol.ChatCompletions, "fake-model", "ref", null, ModelCapabilities.DefaultsFor(ChatProtocol.ChatCompletions));
 
-    private static readonly byte[] PngBytes = [0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A, 0, 0, 0, 13, 1, 2, 3];
+    /// <summary>A real 1×1 PNG: images are decoded to check them (v16).</summary>
+    private static readonly byte[] PngBytes = Convert.FromBase64String("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==");
 
     private static CancellationToken Ct => TestContext.Current.CancellationToken;
 
@@ -37,8 +38,8 @@ public sealed class ResourceStoreTests
         var resource = created.Resource!.Resource;
         var bytes = Encoding.UTF8.GetBytes("第一行\r\n第二行");
         Assert.Equal(Convert.ToHexStringLower(System.Security.Cryptography.SHA256.HashData(bytes)), resource.Hash.Hex);
-        Assert.Equal((MediaTypes.PlainText, (long)bytes.Length, ResourceOrigin.Paste, (string?)null, true, (ConversationId?)null),
-            (resource.MediaType, resource.Size, resource.Origin, resource.Name, resource.Trusted, resource.ConversationId));
+        Assert.Equal((MediaTypes.PlainText, (long)bytes.Length, ResourceOrigin.Paste, (string?)null, ResourceProvenance.User, (ConversationId?)null),
+            (resource.MediaType, resource.Size, resource.Origin, resource.Name, resource.Provenance, resource.ConversationId));
         Assert.Equal("第一行\n第二行", created.Resource.Text);
 
         // The original keeps its bytes exactly, in the fan-out folder; nothing is left in the temporary folder.
@@ -134,7 +135,7 @@ public sealed class ResourceStoreTests
         Assert.Equal((doc, (string?)null, MediaTypes.PlainText, 12L, "文档内容"), (a.Resource, a.Name, a.MediaType, a.Size, a.Text));
         var i = Assert.IsType<AttachmentBlock>(message.Blocks[2]);
         Assert.Equal(("图.png", MediaTypes.Png, (string?)null), (i.Name, i.MediaType, i.Text));
-        Assert.Equal("看看这些\n\n<attachment name=\"粘贴的文字\" type=\"text/plain\">\n文档内容\n</attachment>\n\n<attachment name=\"图.png\" type=\"image/png\" omitted=\"image\" />", message.Text);
+        Assert.Equal("看看这些\n\n[附件：粘贴的文字]\n\n[附件：图.png]", message.Text); // architecture §15.3: content goes in the resource layer
         Assert.Equal("看看这些\n\n[附件：粘贴的文字]\n\n[附件：图.png]", ContentBlocks.BriefOf(message.Blocks));
 
         // The block row's text is the display name, so the sidebar excerpt of a question that starts with one reads as a name.
@@ -175,18 +176,20 @@ public sealed class ResourceStoreTests
         var (first, second) = await h.Database.ReadAsync(
             c =>
             {
-                var first = SqliteConversationStore.GetMessages(c, null, conversation)[0].Text;
+                var first = Describe(SqliteConversationStore.GetMessages(c, null, conversation)[0]);
                 h.Database.WriteAsync((w, t) => w.Execute(t, "UPDATE resource_derivative SET text = '新文字'; UPDATE resource SET name = 'x.txt';"), Ct).GetAwaiter().GetResult();
-                return (first, SqliteConversationStore.GetMessages(c, null, conversation)[0].Text);
+                return (first, Describe(SqliteConversationStore.GetMessages(c, null, conversation)[0]));
             },
             Ct);
 
         Assert.Equal(first, second);
         Assert.Contains("旧文字", first, StringComparison.Ordinal);
-        var after = (await h.Store.GetMessagesAsync(conversation, Ct))[0].Text;
-        Assert.Contains("name=\"x.txt\"", after, StringComparison.Ordinal);
+        var after = Describe((await h.Store.GetMessagesAsync(conversation, Ct))[0]);
+        Assert.Contains("x.txt", after, StringComparison.Ordinal);
         Assert.Contains("新文字", after, StringComparison.Ordinal);
     }
+
+    private static string Describe(Message message) => string.Join('|', message.Blocks.OfType<AttachmentBlock>().Select(a => a.DisplayName + ":" + a.Text));
 
     [Fact]
     public async Task Deleting_a_conversation_takes_its_resources_and_removes_originals_nothing_else_refers_to()
@@ -203,7 +206,11 @@ public sealed class ResourceStoreTests
         var outcome = await h.DeleteAsync(a);
 
         Assert.True(outcome.IsDeleted);
-        Assert.Null(outcome.BackupPath); // A plain delete makes no backup, so nothing else can refer to its originals.
+
+        // Attachments make it a delete that is backed up first; the backup keeps copies of the originals it removes (Q4).
+        Assert.Equal(2, outcome.Scope.Attachments);
+        Assert.NotNull(outcome.BackupPath);
+        Assert.True(File.Exists(Path.Combine(outcome.BackupPath + ".resources", imageHash.Hex)));
         Assert.Null(await h.ResourceService.GetAsync(sharedA, Ct));
         Assert.Null(await h.ResourceService.GetAsync(image, Ct));
         Assert.Equal(1, await CountAsync(h, "resource_derivative")); // B's
@@ -228,7 +235,8 @@ public sealed class ResourceStoreTests
 
         Assert.Equal(Application.Workspaces.WorkspaceDeleteStatus.Deleted, outcome.Status);
         Assert.Equal(0, await CountAsync(h, "resource"));
-        Assert.All(hashes, hash => Assert.True(h.Blobs.Exists(hash))); // the backup refers to them
+        Assert.All(hashes, hash => Assert.False(h.Blobs.Exists(hash))); // gone from the data's originals…
+        Assert.All(hashes, hash => Assert.True(File.Exists(Path.Combine(outcome.BackupPath + ".resources", hash.Hex)))); // …kept with the backup
 
         var restored = await h.Database.RestoreAsync(h.Database.ListBackups().Single(b => b.Path == outcome.BackupPath), Ct);
         Assert.True(restored.IsReady, restored.Status.ToString());
@@ -242,21 +250,20 @@ public sealed class ResourceStoreTests
     }
 
     [Fact]
-    public async Task Deleting_the_last_backup_that_refers_to_an_original_lets_the_next_sweep_remove_it()
+    public async Task Deleting_a_backup_removes_the_originals_it_kept()
     {
         await using var h = await ChatHarness.StartAsync(configure: false);
         var doc = await PasteAsync(h, h.Workspace, "只在备份里");
         await AskAsync(h, h.Workspace, new AttachmentBlock(doc, null, "", 0, null));
         var hash = (await h.ResourceService.GetAsync(doc, Ct))!.Resource.Hash;
         var outcome = await h.WorkspaceDeletion.DeleteAsync(h.Workspace, Ct);
-        Assert.True(h.Blobs.Exists(hash));
-
-        // The backup made before the delete still refers to it.
-        Assert.Equal(new BlobSweepResult(0, 1), await h.Blobs.SweepAsync(Ct));
+        Assert.False(h.Blobs.Exists(hash));
+        var kept = Path.Combine(outcome.BackupPath! + ".resources", hash.Hex);
+        Assert.True(File.Exists(kept));
+        Assert.True(h.Database.ListBackups().Single(b => b.Path == outcome.BackupPath).SizeBytes > new FileInfo(outcome.BackupPath!).Length);
 
         h.Database.Delete(h.Database.ListBackups().Single(b => b.Path == outcome.BackupPath));
-        Assert.Equal(new BlobSweepResult(1, 0), await h.Blobs.SweepAsync(Ct));
-        Assert.False(h.Blobs.Exists(hash));
+        Assert.False(Directory.Exists(outcome.BackupPath + ".resources"));
     }
 
     [Fact]
@@ -297,7 +304,7 @@ public sealed class ResourceStoreTests
     }
 
     [Fact]
-    public async Task A_sweep_removes_stale_temporary_files_and_deletes_nothing_while_a_backup_cannot_be_read()
+    public async Task A_sweep_removes_stale_temporary_files_and_deletes_nothing_while_a_kept_database_cannot_be_read()
     {
         await using var h = await ChatHarness.StartAsync(configure: false);
         var lease = await h.Blobs.WriteAsync(Encoding.UTF8.GetBytes("orphan"), Ct);
@@ -311,9 +318,8 @@ public sealed class ResourceStoreTests
         var stranger = Path.Combine(h.Paths.ResourceDirectory, "README");
         await File.WriteAllTextAsync(stranger, "not ours", Ct);
 
-        // A damaged file under a backup's name: unsure what it refers to, so nothing at all is removed.
-        Directory.CreateDirectory(h.BackupDirectory);
-        var damaged = Path.Combine(h.BackupDirectory, "mindweave-v14-20261117T000000000Z.db");
+        // A damaged database a restore kept aside: unsure what it refers to, so nothing at all is removed.
+        var damaged = h.Paths.DatabasePath + ".replaced-20261117T000000000Z";
         await File.WriteAllTextAsync(damaged, "not a database", Ct);
         Assert.True((await h.Blobs.SweepAsync(Ct)).Skipped);
         Assert.True(h.Blobs.Exists(lease.Hash));

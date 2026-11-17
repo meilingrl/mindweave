@@ -82,16 +82,26 @@ internal sealed partial class AnswerRunner(
         }
 
         var request = work.Request;
-        if (work.Plan is { IsCompressed: true } plan)
+        if (work.Plan is { } plan && (plan.IsCompressed || plan.Resources.Count > 0))
         {
-            // Summaries are a prerequisite run in this slot, so the answer never waits for a slot of its own making.
-            live.SetPhase(AnswerPhase.Compressing);
+            // Summaries (of older context, of attachments) are a prerequisite run in this slot, so the answer never waits for
+            // a slot of its own making.
+            if (plan.IsCompressed || plan.Resources.Any(r => r.NeedsSummary))
+            {
+                live.SetPhase(AnswerPhase.Compressing);
+            }
+
             try
             {
-                var prepared = await _requests.PrepareCompressedAsync(task, plan, work.Budget, key.Secret!, stop).ConfigureAwait(false);
+                var (prepared, sent) = await _requests.PrepareContextAsync(task, plan, work.Budget, work.Inputs, key.Secret!, stop).ConfigureAwait(false);
                 request = request with { Turns = prepared.Turns };
                 live.SetPhase(AnswerPhase.Waiting);
-                await _requests.RecordCompressedInputAsync(task.Id, prepared.SummaryIds).ConfigureAwait(false);
+                if (sent.IsCompressed)
+                {
+                    await _requests.RecordCompressedInputAsync(task.Id, prepared.SummaryIds).ConfigureAwait(false);
+                }
+
+                await _requests.RecordResourceInputAsync(task.Id, sent).ConfigureAwait(false);
             }
             catch (OperationCanceledException) when (stop.IsCancellationRequested)
             {
@@ -123,7 +133,7 @@ internal sealed partial class AnswerRunner(
         MessageState final;
         GenerationErrorKind? error = null;
         string? detail = null;
-        var trace = new RequestTrace(task.Id, _clock, request);
+        var trace = new RequestTrace(task.Id, _clock, request, Diagnostics.RequestPurpose.Answer);
         try
         {
             ChatStreamEvent.Completed? end = null;

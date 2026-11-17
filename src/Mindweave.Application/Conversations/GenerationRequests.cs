@@ -23,6 +23,7 @@ public sealed partial class GenerationRequests
     private readonly IClock _clock;
     private readonly ILogger<GenerationRequests> _logger;
     private readonly ContextCompressor? _compressor;
+    private readonly ResourceContext? _resources;
 
     public GenerationRequests(
         IConversationStore store,
@@ -33,8 +34,10 @@ public sealed partial class GenerationRequests
         StorageHealth health,
         IClock clock,
         ILogger<GenerationRequests> logger,
-        ContextCompressor? compressor = null)
+        ContextCompressor? compressor = null,
+        ResourceContext? resources = null)
     {
+        _resources = resources;
         _store = store;
         _client = client;
         _credentials = credentials;
@@ -59,6 +62,55 @@ public sealed partial class GenerationRequests
         return await compressor.PrepareAsync(task, plan, budget ?? await _budgets.BudgetForAsync(task.Model, CancellationToken.None).ConfigureAwait(false), apiKey, RecordAsync, stop, _health.TryAdmit).ConfigureAwait(false);
     }
 
+    /// <summary>
+    /// The answer's context (architecture §15.4) in the task's own slot: the attachment summaries the plan needs are written
+    /// first (each once, recorded as resource_summary requests of this task), the plan is made again with their real sizes,
+    /// then older conversation is summarized as before and every message gets its attachments' material. Returns the
+    /// prepared turns and the plan they follow. A plan that no longer fits fails like a compression that does not fit.
+    /// </summary>
+    internal async Task<(PreparedContext Prepared, ContextPlan Plan)> PrepareContextAsync(
+        GenerationTaskRecord task, ContextPlan plan, ContextBudget? budget, ContextInputs? inputs, string apiKey, CancellationToken stop)
+    {
+        var compressor = _compressor ?? throw new ContextCompressionException("No context compressor is configured.");
+        budget ??= await _budgets.BudgetForAsync(task.Model, CancellationToken.None).ConfigureAwait(false);
+        IReadOnlyDictionary<MessageId, TurnMaterials>? materials = null;
+        if (_resources is not null && plan.Resources.Count > 0)
+        {
+            if (inputs is not null)
+            {
+                var candidates = inputs.Resources.ToList();
+                for (var round = 0; round < 3 && plan.Resources.Any(r => r.NeedsSummary); round++)
+                {
+                    foreach (var placement in plan.Resources.Where(r => r.NeedsSummary).DistinctBy(r => r.Resource))
+                    {
+                        if (!_health.TryAdmit())
+                        {
+                            throw new StorageAdmissionRefusedException();
+                        }
+
+                        var tokens = await _resources.SummarizeAsync(
+                                task.Model, placement.Attachment, r => RequestCompleteTextAsync(task, r, apiKey, stop, purpose: RequestPurpose.ResourceSummary), stop)
+                            .ConfigureAwait(false);
+                        candidates = [.. candidates.Select(c => c.Attachment.Resource == placement.Resource ? c with { SummaryTokens = tokens } : c)];
+                    }
+
+                    var known = await compressor.KnownSummaryTokensAsync([.. inputs.Ancestors.Select(a => a.Conversation), inputs.Own.Conversation]).ConfigureAwait(false);
+                    plan = ContextPlanner.Plan(inputs.Ancestors, inputs.Own, budget.Available, known, candidates).Plan
+                        ?? throw new ContextCompressionException("附件的摘要比预计的长，问题和附件放不进模型的可用容量。");
+                }
+            }
+
+            materials = await _resources.MaterialsAsync(plan, CancellationToken.None).ConfigureAwait(false);
+        }
+
+        var prepared = await compressor.PrepareAsync(task, plan, budget, apiKey, RecordAsync, stop, _health.TryAdmit, materials).ConfigureAwait(false);
+        return (prepared, plan);
+    }
+
+    /// <summary>Records how the task sent its attachments (for the answer's note); only after the context was prepared.</summary>
+    internal Task RecordResourceInputAsync(GenerationTaskId task, ContextPlan plan) =>
+        _resources is null || plan.Resources.Count == 0 ? Task.CompletedTask : _resources.RecordAsync(task, plan);
+
     /// <summary>Records which summaries a task sent; only called after <see cref="PrepareCompressedAsync"/> succeeded.</summary>
     internal Task RecordCompressedInputAsync(GenerationTaskId task, IReadOnlyList<Guid> ids) => _compressor!.RecordTaskInputAsync(task, ids);
 
@@ -69,14 +121,14 @@ public sealed partial class GenerationRequests
     /// <paramref name="record"/> false, nothing is recorded.
     /// </summary>
     internal async Task<(string? Text, string? Problem)> RequestCompleteTextAsync(
-        GenerationTaskRecord task, ChatRequest request, string apiKey, CancellationToken stop, bool record = true, RequestAttribution? attribution = null)
+        GenerationTaskRecord task, ChatRequest request, string apiKey, CancellationToken stop, bool record = true, RequestAttribution? attribution = null, string? purpose = null)
     {
         if (!_health.TryAdmit())
         {
             throw new StorageAdmissionRefusedException();
         }
 
-        var trace = attribution is null ? new RequestTrace(task.Id, _clock, request) : new RequestTrace(attribution, _clock, request);
+        var trace = attribution is null ? new RequestTrace(task.Id, _clock, request, purpose) : new RequestTrace(attribution, _clock, request);
         record = record || attribution is not null;
         var text = new System.Text.StringBuilder();
         ChatStreamEvent.Completed? completed = null;

@@ -33,7 +33,8 @@ public sealed class SchemaV15MigrationTests : IDisposable
     {
         await SeedPreviousAsync();
 
-        await using var database = _dir.Database();
+        // Opened at this step's version: later steps change these tables (v16 replaces trusted with provenance).
+        await using var database = _dir.Database(new MigrationCatalog(MigrationCatalog.Default.Migrations.Where(m => m.Version <= Version)));
         var result = await database.OpenAsync(Ct);
         Assert.True(result.IsReady, $"{result.Status}: {result.ErrorDetail}");
         Assert.Equal(Version - 1, Assert.Single(database.ListBackups()).SchemaVersion);
@@ -41,7 +42,7 @@ public sealed class SchemaV15MigrationTests : IDisposable
 
         using var raw = _dir.Raw();
         Assert.True(MigrationCatalog.Default.LatestVersion >= Version);
-        Assert.Equal(MigrationCatalog.Default.LatestVersion, Scalar<long>(raw, "PRAGMA user_version;"));
+        Assert.Equal(Version, Scalar<long>(raw, "PRAGMA user_version;"));
         Assert.Equal(0, Scalar<long>(raw, "SELECT count(*) FROM pragma_foreign_key_check;"));
         Assert.Equal(0, Scalar<long>(raw, "SELECT count(*) FROM resource;") + Scalar<long>(raw, "SELECT count(*) FROM resource_derivative;"));
         Assert.Equal(("text", "问题", 0L), (Scalar<string>(raw, "SELECT kind FROM message_block;"), Scalar<string>(raw, "SELECT text FROM message_block;"), Scalar<long>(raw, "SELECT count(*) FROM message_block WHERE resource_id IS NOT NULL;")));

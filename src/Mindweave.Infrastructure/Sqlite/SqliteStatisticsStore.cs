@@ -26,7 +26,8 @@ internal sealed class SqliteStatisticsStore(SqliteDatabase database) : IStatisti
                 var day = LocalDay("r.started_at", zone, from, until, "u", parameters);
                 var scope = RequestScope(workspace, parameters);
                 using var command = connection.Command(null, $"""
-                    SELECT coalesce(t.model, r.model), coalesce(t.base_url, r.base_url), coalesce(t.kind, r.kind), {day} AS day,
+                    SELECT coalesce(t.model, r.model), coalesce(t.base_url, r.base_url),
+                           CASE WHEN r.purpose = 'resource_summary' THEN r.purpose ELSE coalesce(t.kind, r.kind) END, {day} AS day,
                            sum(CASE WHEN {Reported} THEN coalesce(r.prompt_tokens, 0) ELSE 0 END),
                            sum(CASE WHEN {Reported} THEN coalesce(r.completion_tokens, 0) ELSE 0 END),
                            sum(CASE WHEN {Reported} THEN 1 ELSE 0 END),

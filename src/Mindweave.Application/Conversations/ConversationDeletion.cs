@@ -73,6 +73,10 @@ public sealed partial class ConversationDeletionService(
             try
             {
                 path = await backup.BackupAsync(BackupReason.BeforeConversationDelete, cancellationToken).ConfigureAwait(false);
+                if (blobs is not null && scope.ResourceHashes.Count > 0)
+                {
+                    await CopyOriginalsAsync(path, scope.ResourceHashes, cancellationToken).ConfigureAwait(false);
+                }
             }
             catch (OperationCanceledException)
             {
@@ -127,6 +131,20 @@ public sealed partial class ConversationDeletionService(
         if (path is not null)
         {
             backup.Discard(path);
+        }
+    }
+
+    /// <summary>The backup also keeps the originals the delete removes (owner's Q4 decision); a backup without them is dropped.</summary>
+    private async Task CopyOriginalsAsync(string path, IReadOnlyList<Core.Resources.ContentHash> hashes, CancellationToken cancellationToken)
+    {
+        try
+        {
+            await blobs!.CopyToBackupAsync(path, hashes, cancellationToken).ConfigureAwait(false);
+        }
+        catch
+        {
+            backup.Discard(path);
+            throw;
         }
     }
 

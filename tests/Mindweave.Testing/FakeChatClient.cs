@@ -21,6 +21,7 @@ public sealed class FakeChatClient : IChatClient
     {
         Titles = new RequestScript("title", _ => $"“{DefaultTitle}”");
         ContextSummaries = new RequestScript("summary", SummaryOf, TruncatedSummaryText);
+        ResourceSummaries = new RequestScript("resource summary", r => "附件摘要：" + r.Turns[^1].Content.Length + " 字", TruncatedSummaryText);
         Knowledge = new RequestScript("knowledge summary", KnowledgeOf);
         Naming = new RequestScript("naming", NamesOf);
         WorkspaceNames = new RequestScript("workspace names", _ => DefaultWorkspaceNames);
@@ -38,6 +39,12 @@ public sealed class FakeChatClient : IChatClient
 
     /// <summary>Context summaries (S3): background standing in for older turns. A truncated one sends <see cref="TruncatedSummaryText"/>.</summary>
     public RequestScript ContextSummaries { get; }
+
+    /// <summary>Summaries of an attachment (architecture §15.4): "附件摘要：n 字" of the material it was given.</summary>
+    public RequestScript ResourceSummaries { get; }
+
+    /// <summary>A summary of an attachment, or the merge of its segments' summaries.</summary>
+    public static bool IsResourceSummary(ChatRequest request) => SystemSays(request, "材料写摘要") || SystemSays(request, "合成一份完整的摘要");
 
     /// <summary>Knowledge summaries of a conversation (S4); the default is <see cref="KnowledgeOf"/>.</summary>
     public RequestScript Knowledge { get; }
@@ -132,7 +139,7 @@ public sealed class FakeChatClient : IChatClient
     public static bool IsNaming(ChatRequest request) => SystemSays(request, "区分词");
 
     public static bool IsAnswer(ChatRequest request) =>
-        !IsTitle(request) && !IsSummary(request) && !IsKnowledgeSummary(request) && !IsNaming(request) && !IsWorkspaceNaming(request) && !IsRecommendation(request) && !IsLinkSuggestion(request);
+        !IsTitle(request) && !IsSummary(request) && !IsResourceSummary(request) && !IsKnowledgeSummary(request) && !IsNaming(request) && !IsWorkspaceNaming(request) && !IsRecommendation(request) && !IsLinkSuggestion(request);
 
     public const string DefaultSummaryTitle = "蒸汽机车";
 
@@ -299,6 +306,7 @@ public sealed class FakeChatClient : IChatClient
     /// <summary>The script for an internal request, or null for an answer.</summary>
     private RequestScript? ScriptFor(ChatRequest request) =>
         IsSummary(request) ? ContextSummaries
+        : IsResourceSummary(request) ? ResourceSummaries
         : IsKnowledgeSummary(request) ? Knowledge
         : IsNaming(request) ? Naming
         : IsTitle(request) ? Titles
