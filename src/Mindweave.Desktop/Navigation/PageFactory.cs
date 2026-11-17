@@ -43,18 +43,19 @@ internal sealed class PageFactory(
     Application.SummaryLinks.ISummaryLinks links,
     Application.SummaryLinks.ILinkSuggestions suggestions,
     Application.Resources.IResources? resources = null,
-    Application.Preferences.IToolSettings? toolSettings = null) : IPageFactory
+    Application.Preferences.IToolSettings? toolSettings = null,
+    Application.Preferences.IWebSearchSettings? webSearch = null) : IPageFactory
 {
     public PageViewModel Create(ContentRoute route, PageContext context) => route switch
     {
         ExploreHomeRoute => new ExploreHomeViewModel(context.Workspace, context.Navigator),
         SummaryNetworkHomeRoute => new SummaryNetworkHomeViewModel(context.Workspace, summaryNetworks.Get(context.Workspace.Id), summaries, conversations, context.Navigator, dispatcher, recommendations, recommendationSettings, links, suggestions),
         SummaryRoute summary => new SummaryViewModel(summary, context, summaries, dispatcher, time, exports, shell, links),
-        ConversationRoute conversation => new ConversationViewModel(conversation, context, conversations, reading, dispatcher, storage, summaries, time, conversationDeletion, conversationDeletionPrompt, resources, models),
-        NewConversationRoute fresh => new NewConversationViewModel(context.Workspace.Id, conversations, context.Navigator, context.Navigator, recommendations, dispatcher, fresh, recommendationSettings, reading, models, resources),
+        ConversationRoute conversation => new ConversationViewModel(conversation, context, conversations, reading, dispatcher, storage, summaries, time, conversationDeletion, conversationDeletionPrompt, resources, models, Switch()),
+        NewConversationRoute fresh => new NewConversationViewModel(context.Workspace.Id, conversations, context.Navigator, context.Navigator, recommendations, dispatcher, fresh, recommendationSettings, reading, models, resources, Switch()),
         ArchivedRoute => new ArchivedViewModel(context.Workspace, conversations, context.Navigator, dispatcher, conversationDeletion, conversationDeletionPrompt),
         SettingsHomeRoute => new SettingsHomeViewModel(environment, new ModelSettingsViewModel(models), context.Navigator, appearance, theme, context.Workspaces, newsAlerts, recommendationSettings,
-            toolSettings is null ? null : new ToolSettingsPanel(toolSettings, models)),
+            toolSettings is null ? null : new ToolSettingsPanel(toolSettings, models, webSearch is null ? null : new WebSearchSettingsPanel(webSearch))),
         StorageDetailsRoute => new StorageDetailsViewModel(environment, backupFiles, shell, backupPrompts),
         UsageStatisticsRoute => new UsageStatisticsViewModel(context.Workspace, statistics, prices, context.Navigator),
         WorkspacesRoute => new WorkspacesViewModel(
@@ -68,4 +69,7 @@ internal sealed class PageFactory(
             nameCache),
         _ => throw new ArgumentOutOfRangeException(nameof(route), route, "No page is registered for this route."),
     };
+
+    /// <summary>A composer page's web search switch (requirements §10.4.5); none without the settings.</summary>
+    private WebSearchSwitch? Switch() => webSearch is null ? null : new WebSearchSwitch(webSearch, toolSettings, models, dispatcher);
 }

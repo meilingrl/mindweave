@@ -74,6 +74,14 @@ public sealed partial class Composer : ViewModelBase
         FillRequested?.Invoke(this, EventArgs.Empty);
     }
 
+    /// <summary>The web search switch (requirements §10.4.5); null when the page offers none.</summary>
+    public WebSearchSwitch? WebSearch { get; init; }
+
+    public bool HasWebSearch => WebSearch is not null;
+
+    /// <summary>What goes with the next question beside its text (the switch's position); null without a switch.</summary>
+    public SendOptions? Options => WebSearch?.Options;
+
     /// <summary>Stops the running answer; null on a page that never runs one (a new conversation).</summary>
     public ICommand? StopCommand { get; init; }
 

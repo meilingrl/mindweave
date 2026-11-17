@@ -210,6 +210,26 @@ internal static class SqlNames
 
     public const string ToolResultBlockKind = "tool_result";
 
+    public const string CitationBlockKind = "citation";
+
+    public static string Of(Core.Runs.Approval approval) => approval switch
+    {
+        Core.Runs.Approval.NotNeeded => "not_needed",
+        Core.Runs.Approval.Pending => "pending",
+        Core.Runs.Approval.Approved => "approved",
+        Core.Runs.Approval.Denied => "denied",
+        _ => throw new ArgumentOutOfRangeException(nameof(approval)),
+    };
+
+    public static Core.Runs.Approval? ParseApproval(string? value) => value switch
+    {
+        "not_needed" => Core.Runs.Approval.NotNeeded,
+        "pending" => Core.Runs.Approval.Pending,
+        "approved" => Core.Runs.Approval.Approved,
+        "denied" => Core.Runs.Approval.Denied,
+        _ => null,
+    };
+
     public static string Of(Core.Runs.RunStepKind kind) => kind == Core.Runs.RunStepKind.Model ? "model" : "tool";
 
     public static Core.Runs.RunStepKind ParseStepKind(string value) => value switch
@@ -300,6 +320,7 @@ internal static class SqlNames
         ResourceOrigin.File => "file",
         ResourceOrigin.Image => "image",
         ResourceOrigin.Tool => "tool",
+        ResourceOrigin.Web => "web",
         _ => throw new ArgumentOutOfRangeException(nameof(origin)),
     };
 
@@ -309,6 +330,7 @@ internal static class SqlNames
         "file" => ResourceOrigin.File,
         "image" => ResourceOrigin.Image,
         "tool" => ResourceOrigin.Tool,
+        "web" => ResourceOrigin.Web,
         _ => throw new InvalidDataException($"Unknown resource origin '{value}'."),
     };
 

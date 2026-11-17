@@ -56,6 +56,22 @@ public interface IConversations
 
     Task<SendOutcome> RetryAsync(ConversationId id, MessageId answerToReplace, CancellationToken cancellationToken);
 
+    /// <summary>Asks with the composer's choices for this question (requirements §10.4.5: the web search switch).</summary>
+    Task<SendOutcome> AskAsync(ConversationId id, string question, IReadOnlyList<Core.Resources.ResourceId> attachments, SendOptions? options, CancellationToken cancellationToken) =>
+        AskAsync(id, question, attachments, cancellationToken);
+
+    /// <summary>Starts a conversation with the composer's choices for its first question.</summary>
+    Task<SendOutcome> StartAsync(
+        WorkspaceId workspace, string question, IReadOnlyList<Core.Resources.ResourceId> attachments, Recommendations.StartingRecommendation? from, SendOptions? options, CancellationToken cancellationToken) =>
+        StartAsync(workspace, question, attachments, from, cancellationToken);
+
+    /// <summary>Retries with the composer's choices at that moment (decision W3).</summary>
+    Task<SendOutcome> RetryAsync(ConversationId id, MessageId answerToReplace, SendOptions? options, CancellationToken cancellationToken) =>
+        RetryAsync(id, answerToReplace, cancellationToken);
+
+    /// <summary>Allows or refuses the call an answer's approval card waits for (Q10). False when it no longer waits.</summary>
+    bool DecideApproval(MessageId answer, string callId, bool allow) => false;
+
     Task<BranchOutcome> CreateBranchAsync(ConversationId parent, BranchSelection selection, CancellationToken cancellationToken);
 
     Task<BranchSource?> GetSourceAsync(ConversationId child, CancellationToken cancellationToken);
@@ -88,3 +104,6 @@ public interface IGenerationExit
 
     void Reopen();
 }
+
+/// <summary>The composer's choices that go with a question: the web search switch (requirements §10.4.5).</summary>
+public sealed record SendOptions(Core.Runs.WebSearchMode WebSearch);

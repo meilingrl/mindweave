@@ -49,4 +49,64 @@
     <Setter Property="FontSize" Value="12" />
     <Setter Property="Foreground" Value="{DynamicResource LinkText}" />
   </Style>
+  <!-- Phase 3 (requirements §10.4.5): the approval card in an answer, and the 出处 list under it. -->
+  <Style Selector="Border.approval">
+    <Setter Property="Padding" Value="14,12" />
+    <Setter Property="MaxWidth" Value="560" />
+    <Setter Property="BorderBrush" Value="{DynamicResource NoticeWarningBorder}" />
+    <Setter Property="BorderThickness" Value="1" />
+  </Style>
+  <Style Selector="TextBlock.approval-title">
+    <Setter Property="FontSize" Value="13" />
+    <Setter Property="FontWeight" Value="SemiBold" />
+  </Style>
+  <Style Selector="SelectableTextBlock.address">
+    <Setter Property="FontFamily" Value="Menlo, Consolas, monospace" />
+    <Setter Property="FontSize" Value="12" />
+  </Style>
+  <Style Selector="StackPanel.citations">
+    <Setter Property="Margin" Value="0,6,0,0" />
+    <Setter Property="MaxWidth" Value="680" />
+    <Setter Property="HorizontalAlignment" Value="Left" />
+  </Style>
+  <Style Selector="TextBlock.citations-heading">
+    <Setter Property="FontSize" Value="12" />
+    <Setter Property="FontWeight" Value="SemiBold" />
+    <Setter Property="Foreground" Value="{DynamicResource MutedText}" />
+    <Setter Property="Margin" Value="0,0,0,2" />
+  </Style>
+  <Style Selector="Button.citation">
+    <Setter Property="Padding" Value="6,4" />
+    <Setter Property="Margin" Value="-6,0,0,0" />
+    <Setter Property="CornerRadius" Value="{StaticResource RadiusSmall}" />
+  </Style>
+  <Style Selector="TextBlock.citation-number">
+    <Setter Property="FontSize" Value="12" />
+    <Setter Property="Foreground" Value="{DynamicResource LinkText}" />
+    <Setter Property="MinWidth" Value="28" />
+  </Style>
+  <Style Selector="TextBlock.citation-title">
+    <Setter Property="FontSize" Value="13" />
+  </Style>
+  <Style Selector="TextBlock.citation-address">
+    <Setter Property="FontSize" Value="12" />
+    <Setter Property="Foreground" Value="{DynamicResource LinkText}" />
+  </Style>
+  <!-- The web search switch beside "+": the same size and hit area, the globe alone. 自动 draws it in the text colour,
+       关 muted, 开 in the accent colour on a soft accent ground (the pill corners come from the shared "+" style). -->
+  <Style Selector="Button.attach.web-search PathIcon">
+    <Setter Property="Foreground" Value="{DynamicResource PrimaryText}" />
+  </Style>
+  <Style Selector="Button.attach.web-search.off PathIcon">
+    <Setter Property="Foreground" Value="{DynamicResource MutedText}" />
+  </Style>
+  <Style Selector="Button.attach.web-search.on PathIcon">
+    <Setter Property="Foreground" Value="{DynamicResource BadgeAccentText}" />
+  </Style>
+  <Style Selector="Button.attach.web-search.on /template/ ContentPresenter#PART_ContentPresenter">
+    <Setter Property="Background" Value="{DynamicResource BadgeAccentBackground}" />
+  </Style>
+  <Style Selector="Button.attach.web-search:disabled">
+    <Setter Property="Opacity" Value="0.5" />
+  </Style>
 </Styles>

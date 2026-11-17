@@ -34,6 +34,8 @@ public sealed class DesktopHarness : IAsyncDisposable
             // No network and no real keychain in UI tests; fast checkpoints.
             services.AddSingleton<IChatClient>(Client);
             services.AddSingleton<ICredentialStore>(Credentials);
+            services.AddSingleton<Application.Tools.ISearchProvider>(Search);
+            services.AddSingleton<Application.Tools.IWebPageFetcher>(Pages);
             services.AddSingleton(new GenerationOptions { CheckpointInterval = TimeSpan.FromMilliseconds(50) });
             services.AddSingleton(new Application.Storage.StorageHealthOptions { RetryInterval = TimeSpan.FromMilliseconds(50) });
 
@@ -60,6 +62,12 @@ public sealed class DesktopHarness : IAsyncDisposable
     public ManualTime PreparationTime { get; } = new();
 
     public MemoryCredentialStore Credentials { get; } = new();
+
+    /// <summary>The search service (phase 3): scripted, no network.</summary>
+    public FakeSearchProvider Search { get; } = new();
+
+    /// <summary>The page reader (phase 3): a table of pages, no network.</summary>
+    public FakePageFetcher Pages { get; } = new();
 
     public RecordingThemeApplier Theme { get; } = new();
 

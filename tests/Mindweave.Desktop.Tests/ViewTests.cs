@@ -27,6 +27,7 @@ public class ViewTests
             typeof(ViewModels.Conversations.RecommendedQuestionViewModel), typeof(ViewModels.Conversations.ModelConnectionNote),
             typeof(ViewModels.Pages.ModelSettingsViewModel), typeof(ViewModels.Pages.ToolSettingsPanel), typeof(ViewModels.Pages.ArchivedItemViewModel),
             typeof(ViewModels.Conversations.AttachmentChip), typeof(ViewModels.Conversations.AttachmentViewer),
+            typeof(ViewModels.Conversations.WebSearchSwitch), typeof(ViewModels.Pages.WebSearchSettingsPanel),
         };
         var hosted = typeof(ViewModelBase).Assembly.GetTypes()
             .Where(t => t is { IsAbstract: false, IsClass: true } && typeof(ViewModelBase).IsAssignableFrom(t))

@@ -29,6 +29,9 @@ internal sealed partial class AnswerRunner(
     private readonly IGenerationEvents _events = events;
     private readonly ILogger _logger = logger;
 
+    /// <summary>Where a run gives its slot up while it waits for approval; without it, a run waits in its slot.</summary>
+    internal IRunSlots? Slots { get; init; }
+
     public async Task RunAsync(AnswerWork work, CancellationToken stop)
     {
         try
@@ -133,6 +136,12 @@ internal sealed partial class AnswerRunner(
         if (work.Run is { } run && _requests.Runs is { } services)
         {
             var ending = await RunAsync(work, run, services, request, key.Secret!, stop).ConfigureAwait(false);
+            if (run.Scope.Web is { } web && ending.State is MessageState.Complete or MessageState.Stopped && web.Sources.Count > 0)
+            {
+                // 出处 (requirements §10.4.5): the numbers the text cites that name a source of this run, located in it.
+                live.SetCitations(web.CitationsFor(live.Snapshot().Text));
+            }
+
             await checkpointStop.CancelAsync().ConfigureAwait(false);
             await checkpoints.ConfigureAwait(false);
             await FinishAsync(work, ending.State, ending.Error, ending.Detail).ConfigureAwait(false);

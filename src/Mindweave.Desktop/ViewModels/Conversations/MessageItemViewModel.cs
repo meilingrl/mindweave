@@ -19,6 +19,18 @@ public sealed record BranchEntry(ConversationId Child, string Quote, bool Archiv
 /// One message in a conversation page. A finished message shows its stored text; an unfinished answer is
 /// bound to the coordinator's live answer, so it never shows text older than what has already arrived.
 /// </summary>
+/// <summary>One row of the 出处 list under an answer (requirements §10.4.5): number, title, real address, when fetched.</summary>
+public sealed record CitationItem(CitationBlock Block, CommunityToolkit.Mvvm.Input.IRelayCommand Open)
+{
+    public string Number => $"[{Block.Number}]";
+
+    public string Title => Block.Title;
+
+    public string Address => Block.Url.AbsoluteUri;
+
+    public string Meta => UiText.CitationMeta(Block.Url, Block.FetchedAt);
+}
+
 public sealed partial class MessageItemViewModel : ViewModelBase, IDisposable
 {
     private readonly LiveAnswer? _live;
@@ -26,6 +38,8 @@ public sealed partial class MessageItemViewModel : ViewModelBase, IDisposable
     private readonly TimeProvider _time;
     private readonly Action<Core.Resources.ResourceId, string>? _openToolResult;
     private readonly Action<Core.Summaries.SummaryNodeId>? _openSummary;
+    private readonly Action<CitationBlock>? _openCitation;
+    private readonly Func<MessageId, string, bool, bool>? _decide;
 
     public MessageItemViewModel(
         Message message,
@@ -34,8 +48,13 @@ public sealed partial class MessageItemViewModel : ViewModelBase, IDisposable
         TimeProvider? time = null,
         Action<AttachmentChip>? openAttachment = null,
         Action<Core.Resources.ResourceId, string>? openToolResult = null,
-        Action<Core.Summaries.SummaryNodeId>? openSummary = null)
+        Action<Core.Summaries.SummaryNodeId>? openSummary = null,
+        Action<CitationBlock>? openCitation = null,
+        Func<MessageId, string, bool, bool>? decide = null)
     {
+        _openCitation = openCitation;
+        _decide = decide;
+        CitationBlocks = ContentBlocks.CitationsOf(message.Blocks);
         _openToolResult = openToolResult;
         _openSummary = openSummary;
         ToolBlocks = [.. ContentBlocks.ToolBlocksOf(message.Blocks)];
@@ -119,7 +138,58 @@ public sealed partial class MessageItemViewModel : ViewModelBase, IDisposable
     public bool HasActivity => IsAnswer && (ToolBlocks.Count > 0 || ActiveTool is not null);
 
     /// <summary>"正在检索附件…" while a tool runs; "检索了 2 次附件 · 检索了 1 次总结网络" otherwise.</summary>
-    public string ActivityText => ActiveTool is { } running ? UiText.ToolRunning(running) : UiText.RunActivity(ToolBlocks.OfType<ToolCallBlock>().Select(c => c.Tool));
+    public string ActivityText => PendingApproval is not null ? UiText.ApprovalWaiting
+        : ActiveTool is { } running ? UiText.ToolRunning(running)
+        : UiText.RunActivity(ToolBlocks.OfType<ToolCallBlock>().Select(c => c.Tool));
+
+    /// <summary>A call waiting for the user's approval (requirements §10.4.5, Q10): the card in the answer.</summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(HasApproval), nameof(ActivityText))]
+    [NotifyCanExecuteChangedFor(nameof(AllowCommand), nameof(DenyCommand))]
+    public partial PendingApproval? PendingApproval { get; private set; }
+
+    public bool HasApproval => PendingApproval is not null;
+
+    [CommunityToolkit.Mvvm.Input.RelayCommand(CanExecute = nameof(HasApproval))]
+    private void Allow() => Decide(true);
+
+    [CommunityToolkit.Mvvm.Input.RelayCommand(CanExecute = nameof(HasApproval))]
+    private void Deny() => Decide(false);
+
+    private void Decide(bool allow)
+    {
+        if (PendingApproval is { } waiting)
+        {
+            _decide?.Invoke(Id, waiting.CallId, allow);
+            PendingApproval = null;
+        }
+    }
+
+    /// <summary>The answer's 出处 (stored, or live once it ended), in number order.</summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(HasCitations), nameof(Citations), nameof(CitationNumbers))]
+    public partial IReadOnlyList<CitationBlock> CitationBlocks { get; private set; }
+
+    public bool HasCitations => IsAnswer && CitationBlocks.Count > 0;
+
+    /// <summary>The 出处 list under the answer.</summary>
+    public IReadOnlyList<CitationItem> Citations => [.. CitationBlocks.Select(c => new CitationItem(c, new CommunityToolkit.Mvvm.Input.RelayCommand(() => _openCitation?.Invoke(c))))];
+
+    /// <summary>The numbers the text may show as links: only those with a 出处 (a number naming nothing stays text).</summary>
+    public IReadOnlySet<int> CitationNumbers => CitationBlocks.Select(c => c.Number).ToHashSet();
+
+    /// <summary>Opens the viewer at 出处 <paramref name="number"/>; false when the answer has none of that number.</summary>
+    public bool OpenCitation(int number)
+    {
+        var citation = CitationBlocks.FirstOrDefault(c => c.Number == number);
+        if (citation is null || _openCitation is null)
+        {
+            return false;
+        }
+
+        _openCitation(citation);
+        return true;
+    }
 
     public IReadOnlyList<RunStepItem> ActivitySteps => RunStepItem.From(ToolBlocks, Run, ActiveTool, _openToolResult, _openSummary);
 
@@ -302,5 +372,10 @@ public sealed partial class MessageItemViewModel : ViewModelBase, IDisposable
 
         ActiveTool = snapshot.ActiveTool;
         LiveLimit = snapshot.LimitReached;
+        PendingApproval = snapshot.PendingApproval;
+        if (!CitationBlocks.SequenceEqual(snapshot.Citations))
+        {
+            CitationBlocks = snapshot.Citations;
+        }
     }
 }

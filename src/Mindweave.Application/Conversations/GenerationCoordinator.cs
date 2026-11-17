@@ -13,7 +13,7 @@ namespace Mindweave.Application.Conversations;
 /// writes. A late chunk or checkpoint can never overwrite a terminal answer, and nothing is ever re-sent
 /// automatically.
 /// </summary>
-public sealed partial class GenerationCoordinator : IGenerationExit, IGenerationEvents, IAsyncDisposable
+public sealed partial class GenerationCoordinator : IGenerationExit, IGenerationEvents, IRunSlots, IAsyncDisposable
 {
     private readonly GenerationRequests _requests;
     private readonly GenerationOptions _options;
@@ -24,6 +24,9 @@ public sealed partial class GenerationCoordinator : IGenerationExit, IGeneration
     private readonly LinkedList<GenerationWork> _backgroundQueue = new();
     private readonly LinkedList<GenerationWork> _idleQueue = new();
     private readonly Dictionary<GenerationTaskId, Running> _running = [];
+
+    /// <summary>Runs whose approval was decided, waiting for a slot again: served before any queue (architecture §15.5).</summary>
+    private readonly LinkedList<(Running Run, TaskCompletionSource Slot)> _resuming = new();
     private readonly ConcurrentDictionary<MessageId, LiveAnswer> _live = new();
     private readonly StorageHealth _health;
     private readonly TerminalWrites _writes;
@@ -49,7 +52,7 @@ public sealed partial class GenerationCoordinator : IGenerationExit, IGeneration
         _logger = logger;
         _clock = clock;
         _writes = new TerminalWrites(health, logger);
-        _answers = new AnswerRunner(store, requests, _writes, health, clock, options, this, logger);
+        _answers = new AnswerRunner(store, requests, _writes, health, clock, options, this, logger) { Slots = this };
         _tasks = new TaskRunners(store, requests, _writes, health, clock, this, logger);
         health.Changed += (_, _) =>
         {
@@ -506,7 +509,15 @@ public sealed partial class GenerationCoordinator : IGenerationExit, IGeneration
         Running? yielding = null;
         lock (_gate)
         {
-            while (!_closed && _running.Count < _options.Slots && _health.TryAdmit())
+            // A run that waited for approval takes the first free slot (architecture §15.5: back at the head, at user priority).
+            while (_resuming.First is { } resume && Occupied() < _options.Slots)
+            {
+                _resuming.RemoveFirst();
+                resume.Value.Run.Parked = false;
+                resume.Value.Slot.TrySetResult();
+            }
+
+            while (!_closed && Occupied() < _options.Slots && _resuming.Count == 0 && _health.TryAdmit())
             {
                 var queue = _userQueue.Count > 0 ? _userQueue : _backgroundQueue.Count > 0 ? _backgroundQueue : _idleQueue.Count > 0 ? _idleQueue : null;
                 if (queue is null)
@@ -526,7 +537,7 @@ public sealed partial class GenerationCoordinator : IGenerationExit, IGeneration
             // Idle work never makes other work wait (2026-11-11): with every slot taken and user or background work
             // queued, a running idle request gives its slot up. It is told so, and may be asked again later. Idle work
             // that does not yield (recommendations, architecture §6) is left running.
-            if (!_closed && _userQueue.Count + _backgroundQueue.Count > 0 && _running.Count >= _options.Slots)
+            if (!_closed && _userQueue.Count + _backgroundQueue.Count + _resuming.Count > 0 && Occupied() >= _options.Slots)
             {
                 yielding = _running.Values.FirstOrDefault(r => r.Work.Priority == GenerationPriority.Idle && r.Work is not TransientWork { Yields: false } && !r.Yielding);
                 yielding?.Yield();
@@ -538,6 +549,70 @@ public sealed partial class GenerationCoordinator : IGenerationExit, IGeneration
         {
             (yielding.Work as TransientWork)?.Output.TrySetException(new GenerationPreemptedException());
             yielding.Cancellation.Cancel();
+        }
+    }
+
+    /// <summary>Slots in use: running work, except runs parked while they wait for the user's approval. Called under the lock.</summary>
+    private int Occupied() => _running.Values.Count(r => !r.Parked);
+
+    /// <inheritdoc />
+    void IRunSlots.Release(GenerationTaskId task)
+    {
+        lock (_gate)
+        {
+            if (_running.TryGetValue(task, out var running))
+            {
+                running.Parked = true;
+            }
+        }
+
+        Pump();
+        RaiseChanged();
+    }
+
+    /// <inheritdoc />
+    async Task IRunSlots.ReacquireAsync(GenerationTaskId task, CancellationToken cancellationToken)
+    {
+        TaskCompletionSource slot;
+        LinkedListNode<(Running, TaskCompletionSource)>? node = null;
+        lock (_gate)
+        {
+            if (!_running.TryGetValue(task, out var running) || !running.Parked)
+            {
+                return;
+            }
+
+            slot = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+            if (Occupied() < _options.Slots && _resuming.Count == 0)
+            {
+                running.Parked = false;
+                slot.TrySetResult();
+            }
+            else
+            {
+                node = _resuming.AddLast((running, slot));
+            }
+        }
+
+        try
+        {
+            await slot.Task.WaitAsync(cancellationToken).ConfigureAwait(false);
+        }
+        catch (OperationCanceledException)
+        {
+            lock (_gate)
+            {
+                if (node?.List is not null)
+                {
+                    _resuming.Remove(node);
+                }
+            }
+
+            throw;
+        }
+        finally
+        {
+            RaiseChanged();
         }
     }
 
@@ -611,6 +686,9 @@ public sealed partial class GenerationCoordinator : IGenerationExit, IGeneration
         public bool Yielding { get; private set; }
 
         public void Yield() => Yielding = true;
+
+        /// <summary>A run waiting for the user's approval: it keeps its place but not its slot (set under the coordinator's lock).</summary>
+        public bool Parked { get; set; }
     }
 
     [LoggerMessage(Level = LogLevel.Warning, Message = "{Count} stopped tasks did not finish within the exit wait; their last checkpoints stand")]

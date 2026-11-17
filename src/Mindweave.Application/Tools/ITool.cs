@@ -22,6 +22,9 @@ public sealed class ToolScope(WorkspaceId workspace, ConversationId conversation
 
     public ConversationId Conversation { get; } = conversation;
 
+    /// <summary>The run's web state when web search is on for it (phase 3); null otherwise, and the web tools are not offered.</summary>
+    public WebRun? Web { get; init; }
+
     public IReadOnlyCollection<ResourceId> Resources
     {
         get
@@ -55,7 +58,41 @@ public sealed class ToolScope(WorkspaceId workspace, ConversationId conversation
 /// short enough), <paramref name="Detail"/> a short account for step details ("找到 3 段"), the provenance of the material it
 /// carries, and what it found.
 /// </summary>
-public sealed record ToolOutput(string Text, string Detail, ResourceProvenance Provenance, IReadOnlyList<ToolFinding> Findings);
+public sealed record ToolOutput(string Text, string Detail, ResourceProvenance Provenance, IReadOnlyList<ToolFinding> Findings)
+{
+    /// <summary>What the stored result is (phase 3: <see cref="ResourceOrigin.Web"/> for search results and pages).</summary>
+    public ResourceOrigin Origin { get; init; } = ResourceOrigin.Tool;
+
+    /// <summary>The stored result's name; null names it after the tool and its input.</summary>
+    public string? Name { get; init; }
+
+    /// <summary>Where the material came from (a page's final address).</summary>
+    public Uri? SourceUrl { get; init; }
+
+    /// <summary>Called with the stored result's ID (a web tool numbers its sources by it).</summary>
+    public Action<ResourceId>? Stored { get; init; }
+}
+
+/// <summary>
+/// The tool ran but could not do what was asked (a page refused, the search service failed); the message says why in words
+/// and goes back to the model as the call's result. Not logged as an unexpected failure.
+/// </summary>
+public sealed class ToolFailureException : Exception
+{
+    public ToolFailureException()
+    {
+    }
+
+    public ToolFailureException(string message)
+        : base(message)
+    {
+    }
+
+    public ToolFailureException(string message, Exception innerException)
+        : base(message, innerException)
+    {
+    }
+}
 
 /// <summary>The arguments do not fit the tool's input; the message goes back to the model as the call's result.</summary>
 public sealed class ToolInputException : Exception
@@ -104,6 +141,15 @@ public interface ITool
 
     /// <summary>Runs the tool. Throws <see cref="ToolInputException"/> when the arguments do not fit its input.</summary>
     Task<ToolOutput> ExecuteAsync(ToolScope scope, JsonElement arguments, CancellationToken cancellationToken);
+
+    /// <summary>
+    /// What the user must approve before this call runs (shown on the card: for 取网页, the full address), or null when it runs
+    /// without asking (phase 3, Q10: an address that appeared nowhere the run may read freely).
+    /// </summary>
+    string? ApprovalFor(ToolScope scope, JsonElement arguments) => null;
+
+    /// <summary>The host an outside request of this call goes to, for step details and statistics; null for a local tool.</summary>
+    string? TargetOf(JsonElement arguments) => null;
 }
 
 /// <summary>Helpers for tools' arguments and definitions.</summary>

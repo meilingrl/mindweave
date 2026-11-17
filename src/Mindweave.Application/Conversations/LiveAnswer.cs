@@ -35,6 +35,9 @@ public sealed class LiveAnswer
     private string? _activeTool;
     private RunLimit? _limitReached;
     private bool _newTurn;
+    private PendingApproval? _approval;
+    private TaskCompletionSource<bool>? _decision;
+    private IReadOnlyList<CitationBlock> _citations = [];
 
     public LiveAnswer(MessageId messageId, ConversationId conversationId, string initialText = "", long initialRevision = 0)
     {
@@ -60,6 +63,8 @@ public sealed class LiveAnswer
                 ToolBlocks = [.. _toolBlocks],
                 ActiveTool = _activeTool,
                 LimitReached = _limitReached,
+                PendingApproval = _approval,
+                Citations = _citations,
             };
         }
     }
@@ -141,6 +146,57 @@ public sealed class LiveAnswer
 
     internal void SetLimitReached(RunLimit limit) => Update(() => _limitReached ??= limit);
 
+    /// <summary>
+    /// Shows an approval card for the call (phase 3, Q10) and returns the user's decision: true to allow. Only one card at a
+    /// time; the run waits for it.
+    /// </summary>
+    internal Task<bool> RequestApproval(PendingApproval approval)
+    {
+        var decision = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
+        Update(() =>
+        {
+            _approval = approval;
+            _decision = decision;
+            _revision++;
+        });
+        return decision.Task;
+    }
+
+    /// <summary>The user allowed or refused the waiting call. False when no card waits for <paramref name="callId"/> (already decided, or gone).</summary>
+    public bool Decide(string callId, bool allow)
+    {
+        TaskCompletionSource<bool>? decision = null;
+        lock (_gate)
+        {
+            if (_approval is { } waiting && waiting.CallId == callId && _state is MessageState.Pending or MessageState.Streaming)
+            {
+                decision = _decision;
+                _approval = null;
+                _decision = null;
+                _revision++;
+            }
+        }
+
+        if (decision is null)
+        {
+            return false;
+        }
+
+        Changed?.Invoke(this, EventArgs.Empty);
+        decision.TrySetResult(allow);
+        return true;
+    }
+
+    /// <summary>The card is gone without a decision (the run was stopped while it waited).</summary>
+    internal void WithdrawApproval() => Update(() =>
+    {
+        _approval = null;
+        _decision = null;
+    });
+
+    /// <summary>The answer's 出处, set when it ends (requirements §10.4.5); stored after its tool blocks.</summary>
+    internal void SetCitations(IReadOnlyList<CitationBlock> citations) => Mutate(() => _citations = citations);
+
     private long Mutate(Action change)
     {
         long revision = 0;
@@ -193,6 +249,17 @@ public sealed record LiveAnswerSnapshot(string Text, long Revision, MessageState
     /// <summary>The limit that ended the run's use of tools, if one did.</summary>
     public RunLimit? LimitReached { get; init; }
 
-    /// <summary>The content as stored: the text block first (decision R1), then the run's tool blocks.</summary>
-    public IReadOnlyList<ContentBlock> Blocks => ToolBlocks.Count == 0 ? ContentBlocks.FromText(Text) : [new TextBlock(Text), .. ToolBlocks];
+    /// <summary>A tool call waiting for the user's approval (phase 3: reading an address the model wrote), shown as a card.</summary>
+    public PendingApproval? PendingApproval { get; init; }
+
+    /// <summary>The answer's 出处 once it ended (requirements §10.4.5).</summary>
+    public IReadOnlyList<CitationBlock> Citations { get; init; } = [];
+
+    /// <summary>The content as stored: the text block first (decision R1), then the run's tool blocks, then its 出处.</summary>
+    public IReadOnlyList<ContentBlock> Blocks => ToolBlocks.Count == 0 && Citations.Count == 0
+        ? ContentBlocks.FromText(Text)
+        : [new TextBlock(Text), .. ToolBlocks, .. Citations];
 }
+
+/// <summary>A tool call waiting for approval: the call, the tool, and what is asked (for 取网页, the full address).</summary>
+public sealed record PendingApproval(string CallId, string Tool, string Target);

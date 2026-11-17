@@ -13,8 +13,8 @@ internal sealed class SqliteRunStore(SqliteDatabase database) : IRunStore
         ArgumentNullException.ThrowIfNull(record);
         return database.WriteAsync(
             (connection, transaction) => connection.Execute(transaction, """
-                INSERT INTO run_step (task_id, ordinal, kind, state, ai_request_id, call_id, tool, risk, approval, input, started_at)
-                VALUES ($task, $ord, $kind, $state, $request, $call, $tool, $risk, $approval, $input, $started)
+                INSERT INTO run_step (task_id, ordinal, kind, state, ai_request_id, call_id, tool, risk, approval, target, input, started_at)
+                VALUES ($task, $ord, $kind, $state, $request, $call, $tool, $risk, $approval, $target, $input, $started)
                 ON CONFLICT (task_id, ordinal) DO NOTHING;
                 """,
                 ("$task", record.Task.ToString()),
@@ -25,7 +25,8 @@ internal sealed class SqliteRunStore(SqliteDatabase database) : IRunStore
                 ("$call", record.CallId),
                 ("$tool", record.Tool),
                 ("$risk", record.Risk is { } risk ? SqlNames.Of(risk) : null),
-                ("$approval", record.Tool is null ? null : "not_needed"),
+                ("$approval", record.Tool is null ? null : SqlNames.Of(record.Approval ?? Core.Runs.Approval.NotNeeded)),
+                ("$target", Bounded(record.Target)),
                 ("$input", Bounded(record.Input)),
                 ("$started", record.StartedAt.Ms())),
             cancellationToken);
@@ -40,7 +41,8 @@ internal sealed class SqliteRunStore(SqliteDatabase database) : IRunStore
                 connection.Execute(transaction, """
                     UPDATE run_step
                     SET state = $state, finished_at = $finished, ai_request_id = coalesce($request, ai_request_id),
-                        result_resource_id = $result, error_kind = $kind, error_detail = $detail
+                        result_resource_id = $result, error_kind = $kind, error_detail = $detail,
+                        approval = coalesce($approval, approval), target = coalesce($target, target)
                     WHERE task_id = $task AND ordinal = $ord;
                     """,
                     ("$task", record.Task.ToString()),
@@ -50,7 +52,9 @@ internal sealed class SqliteRunStore(SqliteDatabase database) : IRunStore
                     ("$request", record.AiRequestId?.ToString("D")),
                     ("$result", record.Result?.ToString()),
                     ("$kind", record.ErrorKind is { } k ? SqlNames.Of(k) : null),
-                    ("$detail", Bounded(record.ErrorDetail)));
+                    ("$detail", Bounded(record.ErrorDetail)),
+                    ("$approval", record.Approval is { } approval ? SqlNames.Of(approval) : null),
+                    ("$target", Bounded(record.Target)));
                 if (record.Result is { } result)
                 {
                     connection.Execute(transaction,
@@ -90,7 +94,7 @@ internal sealed class SqliteRunStore(SqliteDatabase database) : IRunStore
                 var steps = tasks.Keys.ToDictionary(k => k, _ => new List<RunStepRecord>(), StringComparer.Ordinal);
                 using (var command = connection.Command(null, """
                     SELECT s.task_id, s.ordinal, s.kind, s.state, s.ai_request_id, s.call_id, s.tool, s.risk, s.input,
-                           s.result_resource_id, s.started_at, s.finished_at, s.error_kind, s.error_detail
+                           s.result_resource_id, s.started_at, s.finished_at, s.error_kind, s.error_detail, s.approval, s.target
                     FROM run_step s JOIN generation_task t ON t.id = s.task_id
                     WHERE t.conversation_id = $c
                     ORDER BY s.task_id, s.ordinal;
@@ -130,8 +134,19 @@ internal sealed class SqliteRunStore(SqliteDatabase database) : IRunStore
             reader.NullableString(8),
             result is null ? null : ResourceId.Parse(result),
             error is null ? null : SqlNames.ParseErrorKind(error),
-            reader.NullableString(13));
+            reader.NullableString(13))
+        {
+            Approval = SqlNames.ParseApproval(reader.NullableString(14)) is { } a && a != Core.Runs.Approval.NotNeeded ? a : null,
+            Target = reader.NullableString(15),
+        };
     }
+
+    public Task SetApprovalAsync(GenerationTaskId task, int ordinal, Core.Runs.RunStepState state, Core.Runs.Approval approval, CancellationToken cancellationToken) =>
+        database.WriteAsync(
+            (connection, transaction) => connection.Execute(transaction,
+                "UPDATE run_step SET state = $state, approval = $approval WHERE task_id = $task AND ordinal = $ord;",
+                ("$task", task.ToString()), ("$ord", ordinal), ("$state", SqlNames.Of(state)), ("$approval", SqlNames.Of(approval))),
+            cancellationToken);
 
     private static string? Bounded(string? text) => text is { Length: > 500 } ? text[..500] : text;
 }

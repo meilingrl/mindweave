@@ -50,6 +50,9 @@ public sealed partial class AttachmentViewer(IResources? resources) : ViewModelB
     {
         ArgumentNullException.ThrowIfNull(chip);
         var ticket = Interlocked.Increment(ref _opening);
+        Highlight = null;
+        SourceUrl = null;
+        IsConfirmingOpen = false;
         Title = chip.Name;
         Info = $"{chip.TypeLabel} · {chip.SizeLabel}";
         Text = chip.Stored?.Text ?? chip.Block?.Text;
@@ -94,6 +97,72 @@ public sealed partial class AttachmentViewer(IResources? resources) : ViewModelB
         }
     }
 
+    /// <summary>The cited passage as a range of <see cref="Text"/>, highlighted and scrolled to; null when none.</summary>
+    [ObservableProperty]
+    public partial (int Start, int End)? Highlight { get; private set; }
+
+    /// <summary>A 出处's real address (requirements §10.4.5); null for an attachment or tool result.</summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(HasSourceUrl), nameof(SourceAddress))]
+    public partial Uri? SourceUrl { get; private set; }
+
+    public bool HasSourceUrl => SourceUrl is not null;
+
+    public string? SourceAddress => SourceUrl?.AbsoluteUri;
+
+    /// <summary>在浏览器中打开 was pressed: the full address is shown and must be confirmed before the browser opens it.</summary>
+    [ObservableProperty]
+    public partial bool IsConfirmingOpen { get; private set; }
+
+    /// <summary>The view opens the confirmed address in the system browser (the launcher belongs to the window).</summary>
+    public event EventHandler<Uri>? OpenRequested;
+
+    /// <summary>
+    /// Opens a 出处 (requirements §10.4.5): the stored page or search results, the cited passage highlighted, the real address
+    /// with 在浏览器中打开 (shown in full before anything opens).
+    /// </summary>
+    public async Task OpenCitationAsync(Core.Conversations.CitationBlock citation)
+    {
+        ArgumentNullException.ThrowIfNull(citation);
+        var ticket = Interlocked.Increment(ref _opening);
+        Title = citation.Title;
+        Info = UiText.CitationInfo(citation.Number, citation.FetchedAt);
+        Text = null;
+        Image = null;
+        Note = UiText.WebSourceUntrusted;
+        Highlight = null;
+        SourceUrl = citation.Url;
+        IsConfirmingOpen = false;
+        IsOpen = true;
+        if (resources is null || await resources.GetAsync(citation.Resource, CancellationToken.None) is not { } stored || ticket != _opening)
+        {
+            return;
+        }
+
+        Text = stored.Text;
+        if (stored.Text is { } text && citation.Start >= 0 && citation.End <= text.Length && citation.Start < citation.End)
+        {
+            Highlight = (citation.Start, citation.End);
+        }
+    }
+
+    [RelayCommand]
+    private void AskToOpen() => IsConfirmingOpen = SourceUrl is not null;
+
+    [RelayCommand]
+    private void CancelOpen() => IsConfirmingOpen = false;
+
+    [RelayCommand]
+    private void ConfirmOpen()
+    {
+        if (IsConfirmingOpen && SourceUrl is { } url && (url.Scheme == Uri.UriSchemeHttp || url.Scheme == Uri.UriSchemeHttps))
+        {
+            OpenRequested?.Invoke(this, url);
+        }
+
+        IsConfirmingOpen = false;
+    }
+
     [RelayCommand]
     public void Close()
     {
@@ -102,5 +171,8 @@ public sealed partial class AttachmentViewer(IResources? resources) : ViewModelB
         Text = null;
         Image = null;
         Note = null;
+        Highlight = null;
+        SourceUrl = null;
+        IsConfirmingOpen = false;
     }
 }

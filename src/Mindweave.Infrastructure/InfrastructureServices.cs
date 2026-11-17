@@ -8,6 +8,7 @@ using Mindweave.Application.Credentials;
 using Mindweave.Application.Diagnostics;
 using Mindweave.Application.Export;
 using Mindweave.Application.Resources;
+using Mindweave.Application.Tools;
 using Mindweave.Infrastructure.Ai;
 using Mindweave.Infrastructure.Credentials;
 using Mindweave.Infrastructure.Export;
@@ -15,6 +16,7 @@ using Mindweave.Infrastructure.Hosting;
 using Mindweave.Infrastructure.Resources;
 using Mindweave.Infrastructure.Sqlite;
 using Mindweave.Infrastructure.Sqlite.Migrations;
+using Mindweave.Infrastructure.Tools;
 
 namespace Mindweave.Infrastructure;
 
@@ -60,6 +62,13 @@ public static class InfrastructureServices
         services.TryAddSingleton<IChatClient>(sp => new ChatCompletionsClient(
             new HttpClient(ChatCompletionsClient.CreateHandler()) { Timeout = Timeout.InfiniteTimeSpan },
             sp.GetRequiredService<ChatClientOptions>()));
+
+        // Web search and page reading (phase 3, architecture §15.13): each with its own client, per-request limits inside.
+        services.TryAddSingleton<ISearchProvider>(_ => new TavilySearchProvider(
+            new HttpClient(TavilySearchProvider.CreateHandler()) { Timeout = Timeout.InfiniteTimeSpan }));
+        services.TryAddSingleton<IWebPageFetcher>(sp => GuardedPageFetcher.Create(
+            sp.GetServices<ITextExtractor>(),
+            sp.GetRequiredService<TimeProvider>()));
         return services;
     }
 }

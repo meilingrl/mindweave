@@ -20,6 +20,9 @@ public partial class SeamTests
             "WindowsCredentialStore.cs",
             "GenerationRequests.cs",
             "ModelSettingsService.cs",
+
+            // The search service's key (phase 3, decision W14): read only for a search request or 测试.
+            "WebSearchSettings.cs",
         };
 
         Assert.Empty(SourceFiles("src").Where(f => !allowed.Contains(Path.GetFileName(f)) && File.ReadAllText(f).Contains("ICredentialStore", StringComparison.Ordinal)).Select(Path.GetFileName));

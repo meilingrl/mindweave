@@ -23,16 +23,18 @@ public sealed class RunServices(IRunStore store, IResourceStore resources, IReso
         ArgumentNullException.ThrowIfNull(output);
         health.ThrowIfBlocked();
         var text = output.Text;
+        name = output.Name ?? name;
         var derived = new ResourceDerivative(DerivativeKind.Text, text, "tool/1", EstimatedTokens: Core.Context.TokenEstimator.Estimate(text));
         try
         {
             using var blob = await blobs.WriteAsync(System.Text.Encoding.UTF8.GetBytes(text), cancellationToken).ConfigureAwait(false);
             var at = DateTimeOffset.FromUnixTimeMilliseconds(clock.UtcNow.ToUnixTimeMilliseconds());
             var resource = new Resource(
-                ResourceId.New(), scope.Workspace, scope.Conversation, blob.Hash, MediaTypes.Markdown, blob.Size, ResourceOrigin.Tool,
-                name.Length > MaxName ? name[..MaxName] : name, null, output.Provenance, at);
+                ResourceId.New(), scope.Workspace, scope.Conversation, blob.Hash, MediaTypes.Markdown, blob.Size, output.Origin,
+                name.Length > MaxName ? name[..MaxName] : name, output.SourceUrl, output.Provenance, at);
             await resources.InsertAsync(resource, [derived], ResourceChunker.Split(text), null, cancellationToken).ConfigureAwait(false);
             scope.Add(resource.Id);
+            output.Stored?.Invoke(resource.Id);
             return resource.Id;
         }
         catch (StorageWriteException ex)
