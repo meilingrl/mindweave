@@ -30,12 +30,46 @@
 
 ## 3. 运行循环
 
-（实现完成后补：类、事件、检查点、停止与恢复的具体做法。）
+| 位置 | 内容 |
+| --- | --- |
+| `ConversationService.RunPlanAsync` | 接受提问时决定是否为运行：快照声明 `ToolCalls`、`IToolSettings` 开启、`ToolRegistry.OfferAsync` 给出至少一个工具（R5）。工具可达的范围 `ToolScope`：冻结链（祖先的冻结范围与本会话）中带文字的附件与工具结果。工具与上限冻结进任务（`generation_task.tools`、`run_limits`）与 `AnswerWork.Run` |
+| `AnswerRunner.Run.cs` | 在任务自己的执行槽里循环；每个模型请求与工具执行都是一步：开始时写 `running` 行，结束时与回答的块一起写（`IRunStore.FinishStepAsync`，与检查点同样的守卫） |
+| `LiveAnswer` | 正文仍是一个字符串（R1）；新增工具块、正在运行的工具与达到的上限，`Blocks` 为“正文块＋工具块” |
+| `RunServices` | 步骤存储与工具结果资源的写入（原件先写、行后写，期间钉住哈希） |
+| 恢复 | `RecoverUnfinishedAsync` 在同一事务里把 `running` 的步骤改为 `stopped`（有副作用的为 `unknown`），`awaiting_approval` 改为 `stopped` |
 
-## 4. 协议适配
+- **上限**（每次请求前判断）：已发请求数到“上限 − 1”、工具调用数到上限、时长到、累计估算 token 到上限，任一成立，这次请求就是最后一次：不带工具、系统轮次末尾加上 R8 的说明、`run_limit_reached` 记下原因。可用容量放不下下一轮时，先把最早的工具结果缩成一行，仍放不下也按上限处理。
+- **停止**：取消正在进行的模型请求或工具；进行中的步骤记为 `stopped`，已完成的步骤与正文保留。模型请求的流没有正常结束（没有 `Completed`）时，其中的工具调用不执行（参数可能被截断）。
+- **出错**：不存在的工具、参数不是 JSON 对象、参数不符（`ToolInputException`）、超时、工具抛出的异常，都作为“出错：……”交还模型并计入工具调用；同一工具连续 3 次出错后本次运行不再提供。保存工具结果失败（存储不可用）时回答失败，与其他存储失败相同。
+- **交给模型的结果**：不超过约 2,000 估算 token 时整体发送，否则发送开头并附“完整结果是资源 r，可用 search_attachments 的 resource 与 part 读取”。
 
-（实现完成后补。）
+## 4. 协议适配（Chat Completions）
 
-## 5. 待真实服务核实
+`ChatCompletionsClient`（子任务实现，提交 aadca49）：
 
-（实现完成后补。）
+- 带工具时请求体加 `tools` 与 `tool_choice: "auto"`；OpenRouter 地址另加 `provider.require_parameters: true`，智谱（`bigmodel.cn`、`z.ai`）另加 `tool_stream: true`。不带工具时请求体与以前完全相同。
+- 助手回合的工具调用按 `tool_calls` 发送（文字为空时 `content` 为 null，无效参数发 `"{}"`），有推理内容时加 `reasoning_content`；工具结果按 `role: "tool"` 与 `tool_call_id` 发送。
+- 流式解析：按 `index` 拼接 `delta.tool_calls` 的片段（第一个非空 ID 为准，名称与参数片段依次相接，重复发送整名的中转不会重复拼接），在 `finish_reason` 或 `[DONE]` 时发出一个 `ToolCalls` 事件（在 `Completed` 之前）；没有 ID 时生成 `call_<n>`，重复的 ID 加后缀；参数为空视为 `{}`，不是 JSON 对象的标为无效。`finish_reason` 为 `length` 或 `content_filter` 时不发工具调用。非流式的整段 JSON 回答同样读取 `message.tool_calls`。
+- 推理内容的文字只在 `ToolCalls` 事件里交给运行，`ReasoningDelta` 仍只报长度。
+
+## 5. 界面
+
+- 回答正文上方一行“检索了 2 次附件 · 检索了 1 次总结网络”（运行中为“正在检索附件…”），点击展开步骤：工具与输入、结果（“找到 3 段”或错误）、耗时与状态、“查看结果”（在附件查看页打开工具结果资源）与找到的总结（点击打开）。达到上限时回答下方一行说明。新图标 `IconToolSearch`，样式在 `Styles/Runs.axaml`。
+- 设置 › 工具：使用工具开关与四个上限（`NumericUpDown`，范围见 R9），改动立即保存、对之后的提问生效，“恢复默认”；模型未声明工具调用时整节变灰并说明原因与设置位置。
+- 使用统计：新的“工具”一节，所选时段内使用了工具的回答数、平均每次运行的模型请求数、每个工具的调用次数（来自 `run_step`）。
+
+## 6. 测试
+
+`SchemaV17MigrationTests`（v16 数据升级、约束、级联、失败回滚）；`ChatCompletionsClientTests` 的工具调用部分（请求体、流式片段拼接、ID 生成、无效参数、截断、非流式）；`RunFlowTests`（第 2 期验收中服务层可达的每一行：检索附件与按编号读取、检索总结网络、未声明能力或关闭开关、没有可查的内容、请求次数上限、工具调用次数上限、不合法参数与不存在的工具、连续出错后不再提供、超时、模型请求中停止、工具执行中停止、运行中重启、重试、之后的提问不含工具调用、两个运行同时进行而第三个排队、上限按接受时冻结、统计）；`RunUiTests`（活动说明与步骤、查看结果、上限说明、设置 › 工具变灰与可用、保存与恢复默认、统计页；设 `MINDWEAVE_SCREENSHOT_DIR` 时输出浅色与深色截图）。
+
+未覆盖：时长上限与 token 上限只有单元级的判定代码，没有集成测试（最小时长 1 分钟，测试不宜等待）；真实服务的工具调用（见下）。
+
+## 7. 待真实服务核实（付费，由你决定）
+
+1. DeepSeek：工具循环里回传 `reasoning_content` 是否被接受（文档说缺少时 400）；最后一次不带工具、但历史里有工具调用的请求是否被接受。
+2. Kimi K3：同样的推理内容回传；并行调用是否带 `index`。
+3. 智谱 GLM：`tool_stream: true` 是否被接受并给出增量片段；`api.z.ai` 与 `open.bigmodel.cn` 是否一致。
+4. 阿里云百炼：`stream=true` 时的工具调用（旧文档说不能），片段里是否重复 ID 或名称、是否省略 `index`。
+5. OpenRouter：`require_parameters` 是否让不支持工具的模型明确报错；Claude 经 OpenRouter 的推理内容走 `reasoning` 字段，目前未回传。
+6. OpenAI（gpt-4.1／gpt-5 系列）：助手回合 `content: null` 与并行工具调用；最后一次不带 `tools` 但带工具历史的请求（R8）。
+7. 任一服务：模型是否会用“检索附件”的 `resource`／`part` 读取较长结果，以及 2,000 token 的结果上限是否合适。
