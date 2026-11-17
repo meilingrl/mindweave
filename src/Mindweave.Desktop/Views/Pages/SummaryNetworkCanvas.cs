@@ -323,10 +323,12 @@ public sealed class SummaryNetworkCanvas : Control
     }
 
     /// <summary>
-    /// Each content link between the two summaries as drawn (following a drag and the pull), with its note at the middle,
-    /// or the word "关联" when it has none: every link carries a word on the line, so it reads apart from a solid source edge
-    /// without its colour (requirements §10.3). The words hide with the other labels when zoomed far out, unless an end is
-    /// selected or hovered.
+    /// Each content link between the two summaries as drawn (following a drag and the pull), with its note on the line, or
+    /// the word "关联" when it has none: every link carries a word on the line, so it reads apart from a solid source edge
+    /// without its colour (requirements §10.3). The words go at the middle unless a summary (its ring and its name) or an
+    /// earlier link's words are there, then further along the line; where every place is taken they are left out (the
+    /// details and the legend still say it), never drawn over a summary's name (review 2026-11-17, g55b). They hide with the
+    /// other labels when zoomed far out, unless an end is selected or hovered.
     /// </summary>
     internal IReadOnlyList<LinkPaint> PaintLinks()
     {
@@ -338,6 +340,7 @@ public sealed class SummaryNetworkCanvas : Control
         var palette = _palette ??= SummaryNetworkPalette.From(this);
         var zoom = Current.Zoom;
         var selected = _page.Session.Selected;
+        var taken = _page.Nodes.Select(n => SummaryNetworkGeometry.HitBox(ScreenOf(n) + _offsets.GetValueOrDefault(n.Id), n, zoom, IsLabelVisible(n, zoom))).ToList();
         return [.. _page.LinkEdges.Select(link =>
         {
             var (ax, ay) = PositionOf(link.A, link.AX, link.AY);
@@ -350,18 +353,23 @@ public sealed class SummaryNetworkCanvas : Control
             var bounds = default(Rect);
             if (zoom > LabelHideScale || active)
             {
-                label = link.Note ?? UiText.LinkTag;
-                note = Text(label, active ? EdgeLabelEmphasizedSize : EdgeLabelSize, palette.Link, active ? FontWeight.SemiBold : FontWeight.Normal);
-                var middle = new Point((from.X + to.X) / 2, (from.Y + to.Y) / 2);
-                bounds = new Rect(middle.X - (note.Width / 2) - 4, middle.Y - (note.Height / 2) - 1, note.Width + 8, note.Height + 2);
+                var words = link.Note ?? UiText.LinkTag;
+                var text = Text(words, active ? EdgeLabelEmphasizedSize : EdgeLabelSize, palette.Link, active ? FontWeight.SemiBold : FontWeight.Normal);
+                var size = new Size(text.Width + 8, text.Height + 2);
+                Rect At(double t) => new(from.X + ((to.X - from.X) * t) - (size.Width / 2), from.Y + ((to.Y - from.Y) * t) - (size.Height / 2), size.Width, size.Height);
+                if (LabelStops.Select(At).FirstOrDefault(r => !taken.Any(o => o.Intersects(r))) is { Width: > 0 } free)
+                {
+                    (label, note, bounds) = (words, text, free);
+                    taken.Add(free);
+                }
             }
 
             return new LinkPaint(link, from, to, active) { Note = note, Label = label, NoteBounds = bounds };
         })];
     }
 
-    /// <summary>Where along a suggestion's line its words may go, the middle first: away from a summary, a link's note or another suggestion's words.</summary>
-    private static readonly double[] SuggestionLabelStops = [0.5, 0.4, 0.6, 0.32, 0.68, 0.25, 0.75];
+    /// <summary>Where along a link's or suggestion's line its words may go, the middle first: away from a summary, a link's note or another suggestion's words.</summary>
+    private static readonly double[] LabelStops = [0.5, 0.4, 0.6, 0.32, 0.68, 0.25, 0.75];
 
     /// <summary>
     /// Each pending link suggestion between the two summaries as drawn (following a drag and the pull), with "建议" and its
@@ -400,7 +408,7 @@ public sealed class SummaryNetworkCanvas : Control
                 text = Text(label, active ? EdgeLabelEmphasizedSize : EdgeLabelSize, palette.Link, active ? FontWeight.SemiBold : FontWeight.Normal);
                 var size = new Size(text.Width + 8, text.Height + 2);
                 Rect At(double t) => new(from.X + ((to.X - from.X) * t) - (size.Width / 2), from.Y + ((to.Y - from.Y) * t) - (size.Height / 2), size.Width, size.Height);
-                bounds = SuggestionLabelStops.Select(At).FirstOrDefault(r => !taken.Any(o => o.Intersects(r)), At(0.5));
+                bounds = LabelStops.Select(At).FirstOrDefault(r => !taken.Any(o => o.Intersects(r)), At(0.5));
                 taken.Add(bounds);
             }
 
