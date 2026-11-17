@@ -104,12 +104,24 @@ public sealed class ChatCompletionsClient(HttpClient http, ChatClientOptions opt
         // Any line, a keep-alive comment included, shows the service is alive (health check 2026-11-12, ai-client-4).
         reader.LineRead = () => idle.CancelAfter(options.IdleTimeout);
         var completed = false;
+
+        // Tool calls arrive as fragments across many chunks (phase 2); they and the reasoning text are kept until the reply
+        // finishes and then handed on whole, once.
+        var calls = new ToolCallAccumulator();
+        var reasoning = new System.Text.StringBuilder();
         while (true)
         {
             idle.CancelAfter(options.IdleTimeout);
             var data = await ReadAsync(reader, completed, idle.Token, cancellationToken).ConfigureAwait(false);
             if (data is null || data == "[DONE]")
             {
+                if (!completed && calls.Any)
+                {
+                    // Calls the service made without saying why it stopped: handed on, as at a clean finish. A stream that
+                    // ended without [DONE] still yields no completion, so callers keep treating it as unfinished.
+                    yield return calls.Build(reasoning);
+                }
+
                 if (data == "[DONE]" && !completed)
                 {
                     // Some compatible services end with [DONE] and no finish_reason; that is still a clean finish.
@@ -120,9 +132,14 @@ public sealed class ChatCompletionsClient(HttpClient http, ChatClientOptions opt
             }
 
             var chunk = Parse(data);
-            if (chunk.Reasoning > 0)
+            if (chunk.Reasoning is { Length: > 0 } thought)
             {
-                yield return new ChatStreamEvent.ReasoningDelta(chunk.Reasoning);
+                if (!completed)
+                {
+                    reasoning.Append(thought);
+                }
+
+                yield return new ChatStreamEvent.ReasoningDelta(thought.Length);
             }
 
             if (chunk.Text is { Length: > 0 } text)
@@ -130,11 +147,18 @@ public sealed class ChatCompletionsClient(HttpClient http, ChatClientOptions opt
                 yield return new ChatStreamEvent.TextDelta(text);
             }
 
+            if (chunk.ToolCalls is { } fragments && !completed)
+            {
+                calls.Add(fragments);
+            }
+
             if (chunk.FinishReason is { } reason && !completed)
             {
                 completed = true;
-                // A filtered answer is cut off too: internal requests reject it like one cut at the limit.
-                yield return new ChatStreamEvent.Completed(Truncated: reason is "length" or "content_filter", Filtered: reason == "content_filter");
+                foreach (var item in Finish(reason, calls, reasoning))
+                {
+                    yield return item;
+                }
             }
 
             if (chunk.Usage is { } usage)
@@ -142,6 +166,22 @@ public sealed class ChatCompletionsClient(HttpClient http, ChatClientOptions opt
                 yield return usage;
             }
         }
+    }
+
+    /// <summary>
+    /// The events of a finish: the tool calls made, if any, then the completion. A filtered answer is cut off too: internal
+    /// requests reject it like one cut at the limit. Calls cut off at the limit (or by the filter) are not handed on: their
+    /// arguments are not whole.
+    /// </summary>
+    private static IEnumerable<ChatStreamEvent> Finish(string reason, ToolCallAccumulator calls, System.Text.StringBuilder reasoning)
+    {
+        var cut = reason is "length" or "content_filter";
+        if (calls.Any && !cut)
+        {
+            yield return calls.Build(reasoning);
+        }
+
+        yield return new ChatStreamEvent.Completed(Truncated: cut, Filtered: reason == "content_filter");
     }
 
     public async Task<IReadOnlyList<string>> ListModelsAsync(string baseUrl, string apiKey, CancellationToken cancellationToken)
@@ -253,17 +293,13 @@ public sealed class ChatCompletionsClient(HttpClient http, ChatClientOptions opt
         {
             ["model"] = request.Model.Model,
             ["stream"] = true,
-            ["messages"] = new JsonArray(request.Turns.Select(t => (JsonNode)new JsonObject
-            {
-                ["role"] = t.Role switch
-                {
-                    ChatRole.System => "system",
-                    ChatRole.User => "user",
-                    _ => "assistant",
-                },
-                ["content"] = ContentOf(t),
-            }).ToArray()),
+            ["messages"] = new JsonArray(request.Turns.Select(MessageOf).ToArray()),
         };
+        if (request.HasTools)
+        {
+            AddTools(body, request);
+        }
+
         if (maxOutputTokens is { } max)
         {
             body["max_tokens"] = max;
@@ -304,6 +340,108 @@ public sealed class ChatCompletionsClient(HttpClient http, ChatClientOptions opt
         {
             response?.Dispose();
             throw;
+        }
+    }
+
+    private static JsonNode MessageOf(ChatTurn turn)
+    {
+        var message = new JsonObject
+        {
+            ["role"] = turn.Role switch
+            {
+                ChatRole.System => "system",
+                ChatRole.User => "user",
+                ChatRole.Tool => "tool",
+                _ => "assistant",
+            },
+        };
+        if (turn.Role == ChatRole.Tool)
+        {
+            message["tool_call_id"] = turn.ToolCallId ?? string.Empty;
+            message["content"] = turn.Content;
+            return message;
+        }
+
+        if (turn.Role == ChatRole.Assistant && turn.ToolCalls is { Count: > 0 } calls)
+        {
+            // An assistant turn that only called tools has no text; services expect null rather than "" there.
+            message["content"] = turn.Content.Length > 0 ? turn.Content : null;
+            message["tool_calls"] = new JsonArray(calls.Select(c => (JsonNode)new JsonObject
+            {
+                ["id"] = c.Id,
+                ["type"] = "function",
+                ["function"] = new JsonObject
+                {
+                    ["name"] = c.Name,
+
+                    // Services reject history whose arguments are not JSON; the run already handed the error back.
+                    ["arguments"] = c.ArgumentsValid ? c.Arguments : "{}",
+                },
+            }).ToArray());
+        }
+        else
+        {
+            message["content"] = ContentOf(turn);
+        }
+
+        // DeepSeek and Kimi refuse a tool loop whose earlier replies come back without their reasoning; OpenAI never
+        // returns any, so it never gets this field.
+        if (turn.Role == ChatRole.Assistant && turn.Reasoning is { Length: > 0 } reasoning)
+        {
+            message["reasoning_content"] = reasoning;
+        }
+
+        return message;
+    }
+
+    /// <summary>
+    /// The tools offered, always with the service choosing (several services reject any other <c>tool_choice</c>), and what
+    /// some services need besides: OpenRouter silently drops the tools when it routes to a provider without them unless
+    /// told to require them; GLM streams tool calls only when asked to (model-capabilities §3.3).
+    /// </summary>
+    private static void AddTools(JsonObject body, ChatRequest request)
+    {
+        body["tools"] = new JsonArray(request.Tools!.Select(t => (JsonNode)new JsonObject
+        {
+            ["type"] = "function",
+            ["function"] = new JsonObject
+            {
+                ["name"] = t.Name,
+                ["description"] = t.Description,
+                ["parameters"] = SchemaOf(t),
+            },
+        }).ToArray());
+        body["tool_choice"] = "auto";
+        var host = Uri.TryCreate(request.Model.BaseUrl, UriKind.Absolute, out var uri) ? uri.Host : string.Empty;
+        if (IsHost(host, "openrouter.ai"))
+        {
+            body["provider"] = new JsonObject { ["require_parameters"] = true };
+        }
+
+        if (IsHost(host, "bigmodel.cn") || IsHost(host, "z.ai"))
+        {
+            body["tool_stream"] = true;
+        }
+
+        static bool IsHost(string host, string domain) =>
+            host.Equals(domain, StringComparison.OrdinalIgnoreCase) || host.EndsWith("." + domain, StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static JsonNode SchemaOf(ChatTool tool)
+    {
+        if (string.IsNullOrWhiteSpace(tool.ParametersSchema))
+        {
+            return new JsonObject { ["type"] = "object", ["properties"] = new JsonObject() };
+        }
+
+        try
+        {
+            return JsonNode.Parse(tool.ParametersSchema) as JsonObject
+                ?? throw new ChatClientException(GenerationErrorKind.InvalidResponse, $"The input schema of tool {tool.Name} is not a JSON object.");
+        }
+        catch (JsonException ex)
+        {
+            throw new ChatClientException(GenerationErrorKind.InvalidResponse, $"The input schema of tool {tool.Name} is not valid JSON.", ex);
         }
     }
 
@@ -380,8 +518,10 @@ public sealed class ChatCompletionsClient(HttpClient http, ChatClientOptions opt
         }
 
         var events = new List<ChatStreamEvent>();
+        var reasoning = new System.Text.StringBuilder();
         if (message["reasoning_content"] is JsonValue thought && thought.TryGetValue<string>(out var t) && t.Length > 0)
         {
+            reasoning.Append(t);
             events.Add(new ChatStreamEvent.ReasoningDelta(t.Length));
         }
 
@@ -390,8 +530,15 @@ public sealed class ChatCompletionsClient(HttpClient http, ChatClientOptions opt
             events.Add(new ChatStreamEvent.TextDelta(text));
         }
 
+        var calls = new ToolCallAccumulator();
+        if (ToolCallFragments(message["tool_calls"]) is { } fragments)
+        {
+            // A whole answer lists each call once; its position stands in for a missing index.
+            calls.Add(fragments.Select((c, i) => c.Index is null ? c with { Index = i } : c).ToList());
+        }
+
         var reason = choice["finish_reason"] is JsonValue r && r.TryGetValue<string>(out var f) ? f : "stop";
-        events.Add(new ChatStreamEvent.Completed(Truncated: reason is "length" or "content_filter", Filtered: reason == "content_filter"));
+        events.AddRange(Finish(reason, calls, reasoning));
         if (obj["usage"] is JsonObject counts)
         {
             events.Add(new ChatStreamEvent.Usage(Count(counts["prompt_tokens"]), Count(counts["completion_tokens"])));
@@ -402,7 +549,7 @@ public sealed class ChatCompletionsClient(HttpClient http, ChatClientOptions opt
         static int? Count(JsonNode? value) => value is JsonValue number && number.TryGetValue<int>(out var n) && n >= 0 ? n : null;
     }
 
-    private static (string? Text, int Reasoning, string? FinishReason, ChatStreamEvent.Usage? Usage) Parse(string data)
+    private static Chunk Parse(string data)
     {
         JsonNode? node;
         try
@@ -437,8 +584,10 @@ public sealed class ChatCompletionsClient(HttpClient http, ChatClientOptions opt
         var delta = choice?["delta"] as JsonObject;
         var text = delta?["content"] is JsonValue content && content.TryGetValue<string>(out var s) ? s : null;
 
-        // Reasoning models (Kimi, GLM; 2026-11-05) stream reasoning_content long before any content. Only its length is kept.
-        var reasoning = delta?["reasoning_content"] is JsonValue thought && thought.TryGetValue<string>(out var t) ? t.Length : 0;
+        // Reasoning models (Kimi, GLM; 2026-11-05) stream reasoning_content long before any content. Only its length is passed
+        // on as it arrives; the text is kept for the tool calls of the reply, which some services need it back with.
+        var reasoning = delta?["reasoning_content"] is JsonValue thought && thought.TryGetValue<string>(out var t) ? t : null;
+        var tools = ToolCallFragments(delta?["tool_calls"]);
         var finish = choice?["finish_reason"] is JsonValue reason && reason.TryGetValue<string>(out var r) ? r : null;
 
         // Usage comes on the last chunk (or a final chunk without choices); it is requested with stream_options.
@@ -446,9 +595,151 @@ public sealed class ChatCompletionsClient(HttpClient http, ChatClientOptions opt
         ChatStreamEvent.Usage? usage = (obj["usage"] as JsonObject ?? choice?["usage"] as JsonObject) is { } counts
             ? new ChatStreamEvent.Usage(Count(counts["prompt_tokens"]), Count(counts["completion_tokens"]))
             : null;
-        return (text, reasoning, finish, usage);
+        return new Chunk(text, reasoning, finish, usage, tools);
 
         static int? Count(JsonNode? value) => value is JsonValue number && number.TryGetValue<int>(out var n) && n >= 0 ? n : null;
+    }
+
+    /// <summary>
+    /// The tool call fragments of a delta, or the calls of a whole message: <c>{index, id, type, function: {name, arguments}}</c>.
+    /// Null when there are none; a list of any other shape is a failed response.
+    /// </summary>
+    private static List<ToolCallFragment>? ToolCallFragments(JsonNode? node)
+    {
+        if (node is null)
+        {
+            return null;
+        }
+
+        if (node is not JsonArray list)
+        {
+            throw new ChatClientException(GenerationErrorKind.InvalidResponse, "The service sent tool calls of an unexpected shape.");
+        }
+
+        var fragments = new List<ToolCallFragment>(list.Count);
+        foreach (var item in list)
+        {
+            if (item is not JsonObject call || call["function"] is not (null or JsonObject))
+            {
+                throw new ChatClientException(GenerationErrorKind.InvalidResponse, "The service sent a tool call of an unexpected shape.");
+            }
+
+            var function = call["function"] as JsonObject;
+            int? index = call["index"] is JsonValue i && i.TryGetValue<int>(out var n) && n >= 0 ? n : null;
+            var arguments = function?["arguments"] switch
+            {
+                null => null,
+                JsonValue v when v.TryGetValue<string>(out var a) => a,
+
+                // Some relays send the arguments as an object rather than as JSON text.
+                JsonObject o => o.ToJsonString(),
+                _ => throw new ChatClientException(GenerationErrorKind.InvalidResponse, "The service sent tool call arguments of an unexpected shape."),
+            };
+            fragments.Add(new ToolCallFragment(index, Text(call["id"]), Text(function?["name"]), arguments));
+        }
+
+        return fragments;
+
+        static string? Text(JsonNode? value) => value is JsonValue v && v.TryGetValue<string>(out var s) ? s : null;
+    }
+
+    /// <summary>What one stream event carries.</summary>
+    private readonly record struct Chunk(string? Text, string? Reasoning, string? FinishReason, ChatStreamEvent.Usage? Usage, IReadOnlyList<ToolCallFragment>? ToolCalls);
+
+    /// <summary>One piece of a tool call; <paramref name="Index"/> is null when the service gave none.</summary>
+    private sealed record ToolCallFragment(int? Index, string? Id, string? Name, string? Arguments);
+
+    /// <summary>
+    /// Joins tool call fragments per index into whole calls. The first non-empty ID wins (some services repeat it in every
+    /// fragment), names and arguments are joined in order. A fragment without an index continues the last call unless it
+    /// brings an ID of its own, which starts a new one.
+    /// </summary>
+    private sealed class ToolCallAccumulator
+    {
+        private readonly SortedDictionary<int, (string? Id, System.Text.StringBuilder Name, System.Text.StringBuilder Arguments)> _calls = [];
+        private int? _last;
+
+        public bool Any => _calls.Count > 0;
+
+        public void Add(IReadOnlyList<ToolCallFragment> fragments)
+        {
+            foreach (var fragment in fragments)
+            {
+                Add(fragment);
+            }
+        }
+
+        public ChatStreamEvent.ToolCalls Build(System.Text.StringBuilder reasoning)
+        {
+            var used = new HashSet<string>(StringComparer.Ordinal);
+            var calls = new List<ChatToolCall>(_calls.Count);
+            foreach (var (index, call) in _calls)
+            {
+                // IDs the service did not give are generated; every ID is unique within the reply, as results name them.
+                var id = call.Id is { Length: > 0 } given ? given : $"call_{index + 1}";
+                var unique = id;
+                for (var n = 2; !used.Add(unique); n++)
+                {
+                    unique = $"{id}_{n}";
+                }
+
+                var arguments = call.Arguments.ToString();
+                calls.Add(string.IsNullOrWhiteSpace(arguments)
+                    ? new ChatToolCall(unique, call.Name.ToString(), "{}")
+                    : new ChatToolCall(unique, call.Name.ToString(), arguments, IsObject(arguments)));
+            }
+
+            return new ChatStreamEvent.ToolCalls(calls, reasoning.Length > 0 ? reasoning.ToString() : null);
+        }
+
+        private void Add(ToolCallFragment fragment)
+        {
+            int index;
+            if (fragment.Index is { } given)
+            {
+                index = given;
+            }
+            else if (_last is { } last && !(fragment.Id is { Length: > 0 } id && _calls[last].Id is { Length: > 0 } have && have != id))
+            {
+                index = last;
+            }
+            else
+            {
+                index = _calls.Count == 0 ? 0 : _calls.Keys.Max() + 1;
+            }
+
+            if (!_calls.TryGetValue(index, out var call))
+            {
+                call = (null, new System.Text.StringBuilder(), new System.Text.StringBuilder());
+            }
+
+            if (call.Id is not { Length: > 0 } && fragment.Id is { Length: > 0 })
+            {
+                call.Id = fragment.Id;
+            }
+
+            // Some services send the whole name in every fragment instead of pieces of it.
+            if (fragment.Name is { Length: > 0 } name && !(name.Length > 1 && call.Name.Equals(name.AsSpan())))
+            {
+                call.Name.Append(name);
+            }
+
+            call.Arguments.Append(fragment.Arguments);
+            _calls[index] = call;
+            _last = index;
+        }
+
+        private static bool IsObject(string arguments)
+        {
+            try
+            {
+                return JsonNode.Parse(arguments) is JsonObject;
+            }
+            catch (JsonException)
+            {
+                return false;
+            }
+        }
     }
 
     private static async Task ThrowIfFailedAsync(HttpResponseMessage response, CancellationToken cancellationToken)

@@ -508,6 +508,239 @@ public class ChatCompletionsClientTests
         Assert.False(handler.AllowAutoRedirect);
     }
 
+    private static readonly ChatTool[] Tools = [new("search_notes", "Searches the notes.", "{\"type\":\"object\",\"properties\":{\"query\":{\"type\":\"string\"}},\"required\":[\"query\"]}")];
+
+    [Fact]
+    public async Task Tools_are_offered_with_the_service_choosing()
+    {
+        var handler = new StubHandler(_ => Sse("data: [DONE]\n\n"));
+        var client = new ChatCompletionsClient(new HttpClient(handler), new ChatClientOptions());
+
+        await CollectRequest(client, new ChatRequest(Model, [new ChatTurn(ChatRole.User, "hi")]) { Tools = Tools });
+        await CollectRequest(client, new ChatRequest(Model, [new ChatTurn(ChatRole.User, "hi")]));
+
+        var body = JsonNode.Parse(handler.Requests[0].Body)!;
+        var tool = Assert.Single(body["tools"]!.AsArray())!;
+        Assert.Equal("function", tool["type"]!.GetValue<string>());
+        Assert.Equal("search_notes", tool["function"]!["name"]!.GetValue<string>());
+        Assert.Equal("Searches the notes.", tool["function"]!["description"]!.GetValue<string>());
+        Assert.Equal("string", tool["function"]!["parameters"]!["properties"]!["query"]!["type"]!.GetValue<string>());
+        Assert.Equal("auto", body["tool_choice"]!.GetValue<string>());
+        Assert.Null(body["provider"]);
+        Assert.Null(body["tool_stream"]);
+        var plain = JsonNode.Parse(handler.Requests[1].Body)!.AsObject();
+        Assert.False(plain.ContainsKey("tools"));
+        Assert.False(plain.ContainsKey("tool_choice"));
+    }
+
+    [Theory]
+    [InlineData("https://openrouter.ai/api/v1", true, false)]
+    [InlineData("https://open.bigmodel.cn/api/paas/v4", false, true)]
+    [InlineData("https://api.z.ai/api/paas/v4", false, true)]
+    [InlineData("https://notopenrouter.ai/v1", false, false)]
+    public async Task Services_that_need_more_to_use_tools_are_told(string baseUrl, bool requireParameters, bool toolStream)
+    {
+        var handler = new StubHandler(_ => Sse("data: [DONE]\n\n"));
+        var client = new ChatCompletionsClient(new HttpClient(handler), new ChatClientOptions());
+        var model = Model with { BaseUrl = baseUrl };
+
+        await CollectRequest(client, new ChatRequest(model, [new ChatTurn(ChatRole.User, "hi")]) { Tools = Tools });
+        await CollectRequest(client, new ChatRequest(model, [new ChatTurn(ChatRole.User, "hi")]));
+
+        var body = JsonNode.Parse(handler.Requests[0].Body)!;
+        Assert.Equal(requireParameters, body["provider"]?["require_parameters"]?.GetValue<bool>() ?? false);
+        Assert.Equal(toolStream, body["tool_stream"]?.GetValue<bool>() ?? false);
+        var plain = JsonNode.Parse(handler.Requests[1].Body)!.AsObject();
+        Assert.False(plain.ContainsKey("provider"));
+        Assert.False(plain.ContainsKey("tool_stream"));
+    }
+
+    [Fact]
+    public async Task Tool_calls_and_their_results_are_sent_back_with_the_reasoning()
+    {
+        var handler = new StubHandler(_ => Sse("data: [DONE]\n\n"));
+        var client = new ChatCompletionsClient(new HttpClient(handler), new ChatClientOptions());
+        ChatTurn[] turns =
+        [
+            new(ChatRole.User, "找笔记"),
+            new(ChatRole.Assistant, string.Empty)
+            {
+                ToolCalls = [new ChatToolCall("call_a", "search_notes", "{\"query\":\"火车\"}"), new ChatToolCall("call_b", "search_notes", "{bad", ArgumentsValid: false)],
+                Reasoning = "先搜索。",
+            },
+            new(ChatRole.Tool, "两条结果") { ToolCallId = "call_a" },
+            new(ChatRole.Tool, "参数不是 JSON") { ToolCallId = "call_b" },
+            new(ChatRole.Assistant, "我再查一次") { ToolCalls = [new ChatToolCall("call_c", "search_notes", "{}")] },
+            new(ChatRole.Tool, "无") { ToolCallId = "call_c" },
+        ];
+
+        await CollectRequest(client, new ChatRequest(Model, turns) { Tools = Tools });
+
+        var messages = JsonNode.Parse(handler.Requests.Single().Body)!["messages"]!.AsArray();
+        var first = messages[1]!.AsObject();
+        Assert.Equal("assistant", first["role"]!.GetValue<string>());
+        Assert.True(first.ContainsKey("content"));
+        Assert.Null(first["content"]);
+        Assert.Equal("先搜索。", first["reasoning_content"]!.GetValue<string>());
+        var calls = first["tool_calls"]!.AsArray();
+        Assert.Equal(["call_a", "call_b"], calls.Select(c => c!["id"]!.GetValue<string>()));
+        Assert.All(calls, c => Assert.Equal("function", c!["type"]!.GetValue<string>()));
+        Assert.Equal("search_notes", calls[0]!["function"]!["name"]!.GetValue<string>());
+        Assert.Equal("{\"query\":\"火车\"}", calls[0]!["function"]!["arguments"]!.GetValue<string>());
+        Assert.Equal("{}", calls[1]!["function"]!["arguments"]!.GetValue<string>());
+        Assert.Equal("tool", messages[2]!["role"]!.GetValue<string>());
+        Assert.Equal("call_a", messages[2]!["tool_call_id"]!.GetValue<string>());
+        Assert.Equal("两条结果", messages[2]!["content"]!.GetValue<string>());
+        Assert.Equal("call_b", messages[3]!["tool_call_id"]!.GetValue<string>());
+        var second = messages[4]!.AsObject();
+        Assert.Equal("我再查一次", second["content"]!.GetValue<string>());
+        Assert.False(second.ContainsKey("reasoning_content"));
+        Assert.False(messages[0]!.AsObject().ContainsKey("tool_calls"));
+    }
+
+    [Fact]
+    public async Task Streamed_fragments_of_parallel_calls_are_joined_per_index()
+    {
+        var sse = Chunk("{\"role\":\"assistant\",\"content\":\"我查一下\"}")
+            + Chunk("{\"tool_calls\":[{\"index\":0,\"id\":\"call_x\",\"type\":\"function\",\"function\":{\"name\":\"search_\",\"arguments\":\"\"}}]}")
+            + Chunk("{\"tool_calls\":[{\"index\":1,\"id\":\"call_y\",\"type\":\"function\",\"function\":{\"name\":\"open_note\",\"arguments\":\"{\\\"id\\\"\"}}]}")
+            + Chunk("{\"tool_calls\":[{\"index\":0,\"function\":{\"name\":\"notes\",\"arguments\":\"{\\\"query\\\":\"}}]}")
+            + Chunk("{\"tool_calls\":[{\"index\":1,\"function\":{\"arguments\":\":7}\"}}]}")
+            + Chunk("{\"tool_calls\":[{\"index\":0,\"function\":{\"arguments\":\"\\\"火车\\\"}\"}}]}")
+            + "data: {\"choices\":[{\"delta\":{},\"finish_reason\":\"tool_calls\"}]}\n\n"
+            + "data: {\"choices\":[],\"usage\":{\"prompt_tokens\":10,\"completion_tokens\":5}}\n\n"
+            + "data: [DONE]\n\n";
+
+        var events = await Collect(Client(_ => Sse(sse)));
+
+        var calls = Assert.Single(events.OfType<ChatStreamEvent.ToolCalls>());
+        Assert.Equal(
+            [new ChatToolCall("call_x", "search_notes", "{\"query\":\"火车\"}"), new ChatToolCall("call_y", "open_note", "{\"id\":7}")],
+            calls.Calls);
+        Assert.Null(calls.Reasoning);
+        Assert.Equal("我查一下", Assert.Single(events.OfType<ChatStreamEvent.TextDelta>()).Text);
+        var at = events.IndexOf(calls);
+        Assert.Equal(new ChatStreamEvent.Completed(false), events[at + 1]);
+        Assert.IsType<ChatStreamEvent.Usage>(events[at + 2]);
+    }
+
+    [Fact]
+    public async Task Calls_without_ids_or_with_repeated_ids_get_unique_ones()
+    {
+        var sse = Chunk("{\"tool_calls\":[{\"index\":0,\"function\":{\"name\":\"a\",\"arguments\":\"{}\"}},{\"index\":1,\"id\":\"\",\"function\":{\"name\":\"b\"}}]}")
+            + Chunk("{\"tool_calls\":[{\"index\":2,\"id\":\"call_1\",\"function\":{\"name\":\"c\"}},{\"index\":3,\"id\":\"dup\",\"function\":{\"name\":\"d\"}},{\"index\":4,\"id\":\"dup\",\"function\":{\"name\":\"e\"}}]}")
+            + "data: {\"choices\":[{\"delta\":{},\"finish_reason\":\"tool_calls\"}]}\n\n";
+
+        var calls = Assert.Single((await Collect(Client(_ => Sse(sse)))).OfType<ChatStreamEvent.ToolCalls>()).Calls;
+
+        Assert.Equal(["a", "b", "c", "d", "e"], calls.Select(c => c.Name));
+        Assert.Equal(5, calls.Select(c => c.Id).Distinct(StringComparer.Ordinal).Count());
+        Assert.Equal(["call_1", "call_2"], calls.Take(2).Select(c => c.Id));
+        Assert.All(calls, c => Assert.False(string.IsNullOrEmpty(c.Id)));
+    }
+
+    [Fact]
+    public async Task Fragments_without_an_index_continue_the_last_call_unless_they_bring_a_new_id()
+    {
+        // A whole name sent again with each fragment is not doubled.
+        var sse = Chunk("{\"tool_calls\":[{\"id\":\"c1\",\"function\":{\"name\":\"search_notes\",\"arguments\":\"{\\\"q\\\":\"}}]}")
+            + Chunk("{\"tool_calls\":[{\"id\":\"c1\",\"function\":{\"name\":\"search_notes\",\"arguments\":\"1}\"}}]}")
+            + Chunk("{\"tool_calls\":[{\"id\":\"c2\",\"function\":{\"name\":\"open_note\",\"arguments\":\"{}\"}}]}")
+            + "data: [DONE]\n\n";
+
+        var events = await Collect(Client(_ => Sse(sse)));
+
+        Assert.Equal(
+            [new ChatToolCall("c1", "search_notes", "{\"q\":1}"), new ChatToolCall("c2", "open_note", "{}")],
+            Assert.Single(events.OfType<ChatStreamEvent.ToolCalls>()).Calls);
+        Assert.Equal(new ChatStreamEvent.Completed(false), events[^1]);
+    }
+
+    [Theory]
+    [InlineData("", "{}", true)]
+    [InlineData("  ", "{}", true)]
+    [InlineData("{\\\"q\\\":", "{\"q\":", false)]
+    [InlineData("[1,2]", "[1,2]", false)]
+    [InlineData("\\\"text\\\"", "\"text\"", false)]
+    public async Task Arguments_must_be_a_json_object(string sent, string arguments, bool valid)
+    {
+        var sse = Chunk($"{{\"tool_calls\":[{{\"index\":0,\"id\":\"c\",\"function\":{{\"name\":\"f\",\"arguments\":\"{sent}\"}}}}]}}")
+            + "data: {\"choices\":[{\"delta\":{},\"finish_reason\":\"tool_calls\"}]}\n\n";
+
+        var call = Assert.Single(Assert.Single((await Collect(Client(_ => Sse(sse)))).OfType<ChatStreamEvent.ToolCalls>()).Calls);
+
+        Assert.Equal(new ChatToolCall("c", "f", arguments, valid), call);
+    }
+
+    [Fact]
+    public async Task Calls_cut_off_at_the_output_limit_are_not_handed_on()
+    {
+        var sse = Chunk("{\"tool_calls\":[{\"index\":0,\"id\":\"c\",\"function\":{\"name\":\"f\",\"arguments\":\"{\\\"q\\\":\\\"火\"}}]}")
+            + "data: {\"choices\":[{\"delta\":{},\"finish_reason\":\"length\"}]}\n\ndata: [DONE]\n\n";
+
+        var events = await Collect(Client(_ => Sse(sse)));
+
+        Assert.DoesNotContain(events, e => e is ChatStreamEvent.ToolCalls);
+        Assert.Equal(new ChatStreamEvent.Completed(true), Assert.Single(events.OfType<ChatStreamEvent.Completed>()));
+    }
+
+    [Fact]
+    public async Task Reasoning_text_goes_with_the_calls_while_deltas_still_carry_only_its_length()
+    {
+        var sse = Chunk("{\"reasoning_content\":\"要查\"}")
+            + Chunk("{\"reasoning_content\":\"笔记。\"}")
+            + Chunk("{\"tool_calls\":[{\"index\":0,\"id\":\"c\",\"function\":{\"name\":\"f\",\"arguments\":\"{}\"}}]}")
+            + "data: {\"choices\":[{\"delta\":{},\"finish_reason\":\"tool_calls\"}]}\n\n";
+
+        var events = await Collect(Client(_ => Sse(sse)));
+
+        Assert.Equal([2, 3], events.OfType<ChatStreamEvent.ReasoningDelta>().Select(e => e.Characters));
+        Assert.Equal("要查笔记。", Assert.Single(events.OfType<ChatStreamEvent.ToolCalls>()).Reasoning);
+    }
+
+    [Fact]
+    public async Task A_whole_answer_with_tool_calls_is_read_like_a_stream()
+    {
+        const string body = "{\"choices\":[{\"message\":{\"role\":\"assistant\",\"content\":null,\"reasoning_content\":\"想想\",\"tool_calls\":["
+            + "{\"id\":\"c1\",\"type\":\"function\",\"function\":{\"name\":\"f\",\"arguments\":\"{\\\"a\\\":1}\"}},"
+            + "{\"type\":\"function\",\"function\":{\"name\":\"g\",\"arguments\":{\"b\":2}}}]},\"finish_reason\":\"tool_calls\"}],"
+            + "\"usage\":{\"prompt_tokens\":3,\"completion_tokens\":4}}";
+
+        var events = await Collect(Client(_ => new HttpResponseMessage(HttpStatusCode.OK) { Content = new StringContent(body, Encoding.UTF8, "application/json") }));
+
+        var calls = Assert.Single(events.OfType<ChatStreamEvent.ToolCalls>());
+        Assert.Equal([new ChatToolCall("c1", "f", "{\"a\":1}"), new ChatToolCall("call_2", "g", "{\"b\":2}")], calls.Calls);
+        Assert.Equal("想想", calls.Reasoning);
+        Assert.Equal(new ChatStreamEvent.Completed(false), events[events.IndexOf(calls) + 1]);
+        Assert.Equal(new ChatStreamEvent.ReasoningDelta(2), Assert.Single(events.OfType<ChatStreamEvent.ReasoningDelta>()));
+        Assert.Empty(events.OfType<ChatStreamEvent.TextDelta>());
+    }
+
+    [Theory]
+    [InlineData("{\"tool_calls\":{\"index\":0}}")]
+    [InlineData("{\"tool_calls\":[\"x\"]}")]
+    [InlineData("{\"tool_calls\":[{\"index\":0,\"function\":\"f\"}]}")]
+    [InlineData("{\"tool_calls\":[{\"index\":0,\"function\":{\"arguments\":[1]}}]}")]
+    public async Task Tool_calls_of_unexpected_shape_are_client_failures(string delta)
+    {
+        var error = await Assert.ThrowsAsync<ChatClientException>(() => Collect(Client(_ => Sse(Chunk(delta)))));
+
+        Assert.Equal(GenerationErrorKind.InvalidResponse, error.Kind);
+    }
+
+    private static string Chunk(string delta) => $"data: {{\"choices\":[{{\"delta\":{delta}}}]}}\n\n";
+
+    private static async Task<List<ChatStreamEvent>> CollectRequest(ChatCompletionsClient client, ChatRequest request)
+    {
+        var list = new List<ChatStreamEvent>();
+        await foreach (var e in client.StreamAsync(request, Key, Ct))
+        {
+            list.Add(e);
+        }
+
+        return list;
+    }
+
     private static ChatCompletionsClient Client(Func<HttpRequestMessage, HttpResponseMessage> respond) =>
         new(new HttpClient(new StubHandler(respond)), new ChatClientOptions());
 
