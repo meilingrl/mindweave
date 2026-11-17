@@ -19,7 +19,12 @@ public enum ModelSettingsProblem
 }
 
 /// <param name="ContextWindowTokens">The model's context capacity as the user declared it; null when unknown (a default applies).</param>
-public sealed record ModelSettingsInput(string Name, string BaseUrl, string Model, string? NewApiKey, int? ContextWindowTokens = null)
+/// <param name="Capabilities">
+/// What the model can do as the form declares it (a preset's suggestion or the user's override); its context capacity is
+/// ignored in favour of <paramref name="ContextWindowTokens"/>. Null keeps what is saved for the same model and starts a
+/// different model from the protocol defaults.
+/// </param>
+public sealed record ModelSettingsInput(string Name, string BaseUrl, string Model, string? NewApiKey, int? ContextWindowTokens = null, ModelCapabilities? Capabilities = null)
 {
     public const int MinContextWindow = 2_000;
     public const int MaxContextWindow = 10_000_000;
@@ -60,6 +65,9 @@ public sealed partial class ModelSettingsService(
     public event EventHandler? Changed;
 
     public Task<ModelSettings?> GetAsync(CancellationToken cancellationToken) => store.GetActiveAsync(cancellationToken);
+
+    public async Task<bool> ActiveModelHasAsync(ModelCapability capability, CancellationToken cancellationToken) =>
+        ((await store.GetActiveAsync(cancellationToken).ConfigureAwait(false))?.Capabilities ?? ModelCapabilities.None).Has(capability);
 
     public async Task<bool> SavedKeyExistsAsync(CancellationToken cancellationToken)
     {
@@ -136,9 +144,10 @@ public sealed partial class ModelSettingsService(
                     existing?.ModelConfigId ?? Guid.CreateVersion7().ToString("D"),
                     model,
                     existing?.MaxOutputTokens,
-                    // Declared capabilities belong to a model; a different model starts from the protocol defaults. The
-                    // context capacity is what the form says now.
-                    (existing is not null && existing.Model == model ? existing.Capabilities : ModelCapabilities.DefaultsFor(ChatProtocol.ChatCompletions))
+                    // What the form declares wins. Otherwise declared capabilities belong to a model, and a different model
+                    // starts from the protocol defaults. The context capacity is what the form says now.
+                    (input.Capabilities
+                     ?? (existing is not null && existing.Model == model ? existing.Capabilities : ModelCapabilities.DefaultsFor(ChatProtocol.ChatCompletions)))
                         with { ContextWindowTokens = input.ContextWindowTokens }),
                 clock.UtcNow,
                 cancellationToken)

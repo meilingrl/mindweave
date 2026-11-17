@@ -1,4 +1,5 @@
 using Mindweave.Application.Storage;
+using Mindweave.Core.Models;
 
 namespace Mindweave.Application.Models;
 
@@ -6,6 +7,14 @@ namespace Mindweave.Application.Models;
 public interface IModelSettings
 {
     Task<ModelSettings?> GetAsync(CancellationToken cancellationToken);
+
+    /// <summary>
+    /// Whether the active model can do <paramref name="capability"/> (take images, call tools, …): the one question a
+    /// feature asks before offering something that needs it, instead of looking at the service or model name (E4).
+    /// False while no model is configured and for anything the model is not declared to have. A request already
+    /// accepted asks its own frozen snapshot (<c>ModelSnapshot.Capabilities.Has</c>) instead.
+    /// </summary>
+    Task<bool> ActiveModelHasAsync(ModelCapability capability, CancellationToken cancellationToken);
 
     /// <summary>
     /// Whether the saved settings' key is still in the system's credential store. A restored backup can point at a key
