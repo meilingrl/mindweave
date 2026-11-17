@@ -51,6 +51,7 @@ public static class ApplicationServices
         services.AddSingleton<AppearanceService>();
         services.AddSingleton<SidebarLayoutService>();
         services.AddSingleton<NewsAlertsService>();
+        services.AddSingleton<OnboardingProgressService>();
         services.AddSingleton<WorkspaceNameSuggester>();
         services.AddSingleton<WorkspaceNameCache>();
         services.TryAddSingleton<IWorkspaceNameCache>(sp => sp.GetRequiredService<WorkspaceNameCache>());
@@ -83,6 +84,7 @@ public static class ApplicationServices
         services.AddSingleton<IAppearance>(sp => sp.GetRequiredService<AppearanceService>());
         services.AddSingleton<ISidebarLayout>(sp => sp.GetRequiredService<SidebarLayoutService>());
         services.AddSingleton<INewsAlerts>(sp => sp.GetRequiredService<NewsAlertsService>());
+        services.AddSingleton<IOnboardingProgress>(sp => sp.GetRequiredService<OnboardingProgressService>());
         services.AddSingleton<ISummaryNetworkLayout>(sp => sp.GetRequiredService<SummaryNetworkService>());
         // A test may hold the statistics (to see the page while they load), as for the conversations interface.
         services.TryAddSingleton<IUsageStatistics>(sp => sp.GetRequiredService<UsageStatisticsService>());

@@ -33,6 +33,9 @@ public sealed partial class ModelSettingsViewModel : ViewModelBase
 
     internal Task Loaded { get; private set; }
 
+    /// <summary>The settings were saved (first-run onboarding moves on to its next step).</summary>
+    public event EventHandler? Saved;
+
     /// <summary>
     /// Shown again (health check 2026-11-12, ui-vm-3): the settings are the application's, and another workspace's
     /// settings page may have saved new ones. The form is read again unless the reader has changed it since it was read.
@@ -118,6 +121,7 @@ public sealed partial class ModelSettingsViewModel : ViewModelBase
         ApiKey = string.Empty;
         await LoadAsync();
         Report(UiText.SettingsSaved, isError: false);
+        Saved?.Invoke(this, EventArgs.Empty);
     });
 
     [RelayCommand(CanExecute = nameof(IsIdle))]

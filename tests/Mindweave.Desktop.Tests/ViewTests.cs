@@ -24,7 +24,7 @@ public class ViewTests
             typeof(ViewModels.Conversations.Composer), typeof(ViewModels.Conversations.MessageItemViewModel),
             typeof(ViewModels.Conversations.ConversationItemViewModel), typeof(ViewModels.Conversations.ConversationListViewModel),
             typeof(ViewModels.Conversations.ConversationSummaryPanel), typeof(ViewModels.Conversations.ConversationLifecycleActions),
-            typeof(ViewModels.Conversations.RecommendedQuestionViewModel),
+            typeof(ViewModels.Conversations.RecommendedQuestionViewModel), typeof(ViewModels.Conversations.ModelConnectionNote),
             typeof(ViewModels.Pages.ModelSettingsViewModel), typeof(ViewModels.Pages.ArchivedItemViewModel),
         };
         var hosted = typeof(ViewModelBase).Assembly.GetTypes()
@@ -43,6 +43,9 @@ public class ViewTests
         await app.StartAsync();
         window.UpdateLayout();
 
+        // The guide (2026-11-17) is walked in OnboardingTests; here it is skipped to the workspace step.
+        Invoke(window, "SkipButton");
+        window.UpdateLayout();
         var name = Find<TextBox>(window, "NameBox");
         name.Focus();
         window.KeyTextInput("火车历史");
@@ -52,8 +55,8 @@ public class ViewTests
         window.UpdateLayout();
 
         Assert.IsType<ShellView>(window.GetVisualDescendants().OfType<ShellView>().Single());
-        Assert.IsType<ExploreHomeView>(Find<ContentControl>(window, "PageHost").GetVisualDescendants().OfType<ExploreHomeView>().Single());
-        Screenshots.Capture(window, "01-explore-home");
+        Assert.IsType<Views.Conversations.NewConversationView>(Find<ContentControl>(window, "PageHost").GetVisualDescendants().OfType<Views.Conversations.NewConversationView>().Single());
+        Screenshots.Capture(window, "01-new-exploration");
         window.Close();
     }
 

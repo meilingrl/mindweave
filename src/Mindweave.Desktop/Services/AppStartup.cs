@@ -7,6 +7,7 @@ using Mindweave.Application.Workspaces;
 using Mindweave.Core.Workspaces;
 using Mindweave.Desktop.Navigation;
 using Mindweave.Desktop.ViewModels;
+using Mindweave.Desktop.ViewModels.Pages;
 
 namespace Mindweave.Desktop.Services;
 
@@ -25,6 +26,8 @@ public sealed partial class AppStartup : IRecoveryActions
     private readonly StorageHealth _health;
     private readonly ConversationMarksService _marks;
     private readonly Infrastructure.Hosting.AppPaths _paths;
+    private readonly IOnboardingProgress _onboarding;
+    private readonly Application.Models.IModelSettings _models;
     private readonly ILogger<AppStartup> _logger;
 
     public AppStartup(
@@ -42,9 +45,13 @@ public sealed partial class AppStartup : IRecoveryActions
         ConversationMarksService marks,
         Application.Workspaces.WorkspaceNamePreparer namePreparer,
         Infrastructure.Hosting.AppPaths paths,
+        IOnboardingProgress onboarding,
+        Application.Models.IModelSettings models,
         ILogger<AppStartup> logger)
     {
         _paths = paths;
+        _onboarding = onboarding;
+        _models = models;
         _logger = logger;
         // Composed here so it listens for titles from the start (2026-11-11); it acts on its own from then on.
         ArgumentNullException.ThrowIfNull(namePreparer);
@@ -62,7 +69,8 @@ public sealed partial class AppStartup : IRecoveryActions
         _marks = marks;
 
         ArgumentNullException.ThrowIfNull(workspaceDeletion);
-        // The last workspace was deleted: back to the first-run flow, as on a fresh start.
+        // The last workspace was deleted: a new one is asked for, as on a fresh start. A workspace existed, so the guide
+        // was finished (or predates it) and is not shown again.
         workspaceDeletion.NoWorkspaceLeft += (_, _) => _root.Show(new OnboardingViewModel(CreateFirstWorkspaceAsync));
     }
 
@@ -76,7 +84,7 @@ public sealed partial class AppStartup : IRecoveryActions
         {
             var outcome = await _coordinator.StartAsync(CancellationToken.None);
             await ApplyPreferencesAsync(outcome);
-            Apply(outcome);
+            await ApplyAsync(outcome);
         });
     }
 
@@ -128,7 +136,7 @@ public sealed partial class AppStartup : IRecoveryActions
         {
             var outcome = await _coordinator.RestoreAsync(backup, CancellationToken.None);
             await ApplyPreferencesAsync(outcome);
-            Apply(outcome);
+            await ApplyAsync(outcome);
         });
     }
 
@@ -146,7 +154,7 @@ public sealed partial class AppStartup : IRecoveryActions
         {
             var restore = await _coordinator.RestoreInPlaceAsync(backup, keptCopy, CancellationToken.None);
             await ApplyPreferencesAsync(restore.Outcome);
-            Apply(restore.Outcome);
+            await ApplyAsync(restore.Outcome);
             if (restore.Result.Restored)
             {
                 _shell.ShowRestoreNotice(UiText.RestoredNotice(backup.CreatedAt), isError: false);
@@ -185,7 +193,7 @@ public sealed partial class AppStartup : IRecoveryActions
         }
     }
 
-    private void Apply(StartupOutcome outcome)
+    private async Task ApplyAsync(StartupOutcome outcome)
     {
         switch (outcome)
         {
@@ -193,21 +201,67 @@ public sealed partial class AppStartup : IRecoveryActions
                 _root.Show(new RecoveryViewModel(recovery.Result, recovery.Backups, this, _system));
                 break;
             case StartupOutcome.NeedsFirstWorkspace:
-                _root.Show(new OnboardingViewModel(CreateFirstWorkspaceAsync));
+                _root.Show(new OnboardingViewModel(CreateFirstWorkspaceAsync, await ReadOnboardingAsync(), _onboarding, new ModelSettingsViewModel(_models)));
                 break;
             case StartupOutcome.ReadyToWork ready:
                 _workbench.Initialize(ready.Workspaces, ready.LastLocation);
                 _root.Show(_shell);
+
+                // A workspace exists, so the guide is behind the user (or predates it): never shown again, even once
+                // the last workspace is deleted. Written in the background: a slow store never holds up the workbench.
+                OnboardingFinished = FinishOnboardingAsync();
                 break;
             default:
                 throw new InvalidOperationException($"Unhandled startup outcome {outcome}.");
         }
     }
 
+    /// <summary>The step the guide reached; when it cannot be read the guide starts from its beginning.</summary>
+    private async Task<OnboardingStep> ReadOnboardingAsync()
+    {
+        try
+        {
+            return await _onboarding.GetAsync(CancellationToken.None);
+        }
+#pragma warning disable CA1031 // The guide's progress is a convenience: starting it again loses nothing.
+        catch (Exception swallowed)
+#pragma warning restore CA1031
+        {
+            DesktopLog.Swallowed(swallowed);
+            return OnboardingStep.Welcome;
+        }
+    }
+
+    /// <summary>The latest write of the guide's end (tests).</summary>
+    internal Task OnboardingFinished { get; private set; } = Task.CompletedTask;
+
+    private async Task FinishOnboardingAsync()
+    {
+        try
+        {
+            if (await _onboarding.GetAsync(CancellationToken.None) != OnboardingStep.Done)
+            {
+                await _onboarding.SetAsync(OnboardingStep.Done, CancellationToken.None);
+            }
+        }
+#pragma warning disable CA1031 // Held in memory for this run; the next start with a workspace tries again.
+        catch (Exception swallowed)
+#pragma warning restore CA1031
+        {
+            DesktopLog.Swallowed(swallowed);
+        }
+    }
+
+    /// <summary>
+    /// The guide's last step (2026-11-17): the workbench opens on 新探索 of the new workspace, its input focused, ready
+    /// for the first question; back leads to the workspace's home.
+    /// </summary>
     private async Task CreateFirstWorkspaceAsync(WorkspaceName name)
     {
         var workspace = await _workspaces.CreateAsync(name, CancellationToken.None);
         _workbench.Initialize([workspace], last: null);
+        _workbench.Navigate(new NavigationRequest(MainSection.Explore, NewConversationRoute.Instance));
         _root.Show(_shell);
+        OnboardingFinished = FinishOnboardingAsync();
     }
 }

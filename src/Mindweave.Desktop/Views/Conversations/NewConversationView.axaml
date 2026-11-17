@@ -8,6 +8,18 @@
              x:Class="Mindweave.Desktop.Views.Conversations.NewConversationView"
              x:DataType="vm:NewConversationViewModel">
   <Grid RowDefinitions="2*,Auto,3*">
+    <!-- No model connected yet (2026-11-17): said before anything is typed, with the way to 设置; gone once one is saved. -->
+    <Border Grid.Row="0" Name="ModelNote" Classes="notice info" MaxWidth="720" Margin="0,0,0,14" VerticalAlignment="Bottom"
+            IsVisible="{Binding ModelNote.IsShown, FallbackValue=False}">
+      <DockPanel>
+        <TextBlock Classes="notice-icon" Text="i" />
+        <WrapPanel>
+          <TextBlock Text="{x:Static t:UiText.ModelNotConnectedNote}" />
+          <Button Name="ModelNoteSettingsButton" Classes="quiet" Margin="4,0,0,0" Content="{x:Static t:UiText.OpenSettingsLink}"
+                  Command="{Binding OpenSettingsCommand}" />
+        </WrapPanel>
+      </DockPanel>
+    </Border>
     <v:ComposerView Grid.Row="1" Name="ComposerHost" DataContext="{Binding Composer}" MaxWidth="720" />
 
     <!-- Recommended questions under the input (requirements §10.3.1, 2026-11-12): at most three, each with its basis

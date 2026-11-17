@@ -43,9 +43,11 @@ public sealed partial class NewConversationViewModel : PageViewModel, IDisposabl
         IUiDispatcher? dispatcher = null,
         NewConversationRoute? route = null,
         Application.Preferences.IRecommendationSettings? settings = null,
-        Application.Reading.IReadingState? reading = null)
+        Application.Reading.IReadingState? reading = null,
+        Application.Models.IModelSettings? models = null)
         : base(route ?? NewConversationRoute.Instance)
     {
+        ModelNote = models is null ? null : new ModelConnectionNote(models, conversations, dispatcher);
         _reading = reading;
         _workspace = workspace;
         _menu = menu;
@@ -105,6 +107,9 @@ public sealed partial class NewConversationViewModel : PageViewModel, IDisposabl
     }
 
     public Composer Composer { get; }
+
+    /// <summary>Shown while no model is connected (2026-11-17); its action is <see cref="OpenSettingsCommand"/>.</summary>
+    public ModelConnectionNote? ModelNote { get; }
 
     public override string Title => UiText.NewConversation;
 
@@ -256,6 +261,7 @@ public sealed partial class NewConversationViewModel : PageViewModel, IDisposabl
     public void Dispose()
     {
         _disposed = true;
+        ModelNote?.Dispose();
         Composer.PropertyChanged -= OnComposerChanged;
         if (_recommendations is not null)
         {

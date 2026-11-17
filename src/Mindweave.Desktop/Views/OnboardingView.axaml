@@ -2,18 +2,169 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:vm="using:Mindweave.Desktop.ViewModels"
              xmlns:t="using:Mindweave.Desktop.Text"
+             xmlns:v="using:Mindweave.Desktop.Views"
+             xmlns:p="using:Mindweave.Desktop.Views.Pages"
              x:Class="Mindweave.Desktop.Views.OnboardingView"
              x:DataType="vm:OnboardingViewModel">
-  <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center" Width="380" Margin="0,0,0,40">
-    <Border Width="44" Height="44" CornerRadius="12" HorizontalAlignment="Left" Background="{DynamicResource BadgeAccentBackground}">
-      <PathIcon Width="20" Height="20" Data="{StaticResource IconSummaryNetwork}" Foreground="{DynamicResource AccentBrush}" />
-    </Border>
-    <TextBlock Classes="h1" Margin="0,18,0,6" Text="{x:Static t:UiText.OnboardingHeading}" />
-    <TextBlock Classes="muted" TextWrapping="Wrap" Margin="0,0,0,22" Text="{x:Static t:UiText.OnboardingBody}" />
-    <TextBox Name="NameBox" Text="{Binding Form.Name}" PlaceholderText="{x:Static t:UiText.WorkspaceNameWatermark}"
-             AutomationProperties.Name="{x:Static t:UiText.WorkspaceNameLabel}" />
-    <TextBlock Classes="error" Margin="0,8,0,0" Text="{Binding Form.Error}" IsVisible="{Binding Form.Error, Converter={x:Static ObjectConverters.IsNotNull}}" TextWrapping="Wrap" />
-    <Button Name="CreateButton" Classes="primary" Margin="0,14,0,0" Padding="14,8" HorizontalAlignment="Stretch" HorizontalContentAlignment="Center"
-            Content="{x:Static t:UiText.CreateWorkspace}" Command="{Binding Form.SubmitCommand}" IsDefault="True" />
-  </StackPanel>
+  <UserControl.Styles>
+    <!-- The step indicator: three dots, the current one drawn as a short accent bar. -->
+    <Style Selector="Border.step-dot">
+      <Setter Property="Width" Value="6" />
+      <Setter Property="Height" Value="6" />
+      <Setter Property="CornerRadius" Value="3" />
+      <Setter Property="Background" Value="{DynamicResource OutlineBrush}" />
+    </Style>
+    <Style Selector="Border.step-dot.current">
+      <Setter Property="Width" Value="18" />
+      <Setter Property="Background" Value="{DynamicResource AccentBrush}" />
+    </Style>
+    <Style Selector="TextBlock.illustration-caption">
+      <Setter Property="FontSize" Value="12" />
+      <Setter Property="Foreground" Value="{DynamicResource MutedText}" />
+      <Setter Property="TextAlignment" Value="Center" />
+      <Setter Property="TextWrapping" Value="Wrap" />
+    </Style>
+    <Style Selector="Rectangle.text-line">
+      <Setter Property="Height" Value="5" />
+      <Setter Property="RadiusX" Value="2.5" />
+      <Setter Property="RadiusY" Value="2.5" />
+      <Setter Property="Fill" Value="{DynamicResource OutlineBrush}" />
+    </Style>
+  </UserControl.Styles>
+
+  <ScrollViewer Classes="autohide" HorizontalScrollBarVisibility="Disabled">
+    <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center" Width="480" Margin="0,32,0,48">
+
+      <!-- Where the guide stands, and the way out of it. Only while the guide is showing. -->
+      <DockPanel Name="StepBar" Margin="0,0,0,22" IsVisible="{Binding IsGuided}">
+        <Button DockPanel.Dock="Right" Name="SkipButton" Classes="quiet small" Content="{x:Static t:UiText.SkipOnboarding}"
+                Command="{Binding SkipCommand}" IsVisible="{Binding CanSkip}" ToolTip.Tip="{x:Static t:UiText.SkipOnboardingTip}" />
+        <StackPanel Orientation="Horizontal" Spacing="10" VerticalAlignment="Center">
+          <StackPanel Orientation="Horizontal" Spacing="5" VerticalAlignment="Center">
+            <Border Classes="step-dot" Classes.current="{Binding IsWelcomeStep}" />
+            <Border Classes="step-dot" Classes.current="{Binding IsModelStep}" />
+            <Border Classes="step-dot" Classes.current="{Binding IsWorkspaceStep}" />
+          </StackPanel>
+          <TextBlock Name="StepText" Classes="caption" VerticalAlignment="Center" Text="{Binding StepText}" />
+        </StackPanel>
+      </DockPanel>
+
+      <!-- 1 · What Mindweave is for: branch from an answer, return to the source, gather summaries into a network. -->
+      <StackPanel Name="WelcomeStep" IsVisible="{Binding IsWelcomeStep}" v:Motion.Appear="Fade">
+        <Border Name="Illustration" CornerRadius="12" Padding="20,18,20,12" Background="{DynamicResource SummaryNetworkBackground}"
+                BorderBrush="{DynamicResource CardBorder}" BorderThickness="1"
+                AutomationProperties.Name="{x:Static t:UiText.OnboardingIllustrationName}">
+          <StackPanel Spacing="8">
+            <Canvas Width="420" Height="112" HorizontalAlignment="Center">
+              <!-- A conversation: an answer with one passage selected. -->
+              <Border Canvas.Left="0" Canvas.Top="10" Width="128" Height="90" CornerRadius="8"
+                      Background="{DynamicResource CardBackground}" BorderBrush="{DynamicResource CardBorder}" BorderThickness="1" />
+              <Rectangle Classes="text-line" Canvas.Left="12" Canvas.Top="24" Width="96" />
+              <Rectangle Classes="text-line" Canvas.Left="12" Canvas.Top="37" Width="24" />
+              <Rectangle Canvas.Left="39" Canvas.Top="34" Width="48" Height="11" RadiusX="3" RadiusY="3" Fill="{DynamicResource SourceHighlight}" />
+              <Rectangle Classes="text-line" Canvas.Left="42" Canvas.Top="37" Width="42" Fill="{DynamicResource SourceHighlightMark}" />
+              <Rectangle Classes="text-line" Canvas.Left="90" Canvas.Top="37" Width="20" />
+              <Rectangle Classes="text-line" Canvas.Left="12" Canvas.Top="50" Width="88" />
+              <Rectangle Classes="text-line" Canvas.Left="12" Canvas.Top="63" Width="100" />
+              <Rectangle Classes="text-line" Canvas.Left="12" Canvas.Top="76" Width="60" />
+
+              <!-- Branch: from the selection into a child conversation. -->
+              <Path Data="M 89,40 C 122,40 128,24 158,24" Stroke="{DynamicResource AccentBrush}" StrokeThickness="1.5" />
+              <Path Data="M 152,20 L 159,24 L 152,28" Stroke="{DynamicResource AccentBrush}" StrokeThickness="1.5"
+                    StrokeLineCap="Round" StrokeJoin="Round" />
+              <Border Canvas.Left="162" Canvas.Top="0" Width="104" Height="62" CornerRadius="8"
+                      Background="{DynamicResource CardBackground}" BorderBrush="{DynamicResource AccentBrush}" BorderThickness="1" />
+              <Rectangle Canvas.Left="206" Canvas.Top="10" Width="50" Height="12" RadiusX="6" RadiusY="6" Fill="{DynamicResource QuestionBubbleBackground}" />
+              <Rectangle Classes="text-line" Canvas.Left="172" Canvas.Top="30" Width="80" />
+              <Rectangle Classes="text-line" Canvas.Left="172" Canvas.Top="42" Width="62" />
+
+              <!-- Return: back to the source passage. -->
+              <Path Data="M 214,66 C 214,98 170,102 134,90" Stroke="{DynamicResource MutedText}" StrokeThickness="1.5" StrokeDashArray="3,3" />
+              <Path Data="M 141,85 L 133,90 L 141,95" Stroke="{DynamicResource MutedText}" StrokeThickness="1.5"
+                    StrokeLineCap="Round" StrokeJoin="Round" />
+
+              <!-- Summarize: gathered into the summary network. -->
+              <Path Data="M 270,31 L 300,42" Stroke="{DynamicResource AccentBrush}" StrokeThickness="1.5" />
+              <Path Data="M 293,44 L 301,42 L 296,36" Stroke="{DynamicResource AccentBrush}" StrokeThickness="1.5"
+                    StrokeLineCap="Round" StrokeJoin="Round" />
+              <Path Data="M 322,50 L 366,28 M 322,50 L 352,86 M 366,28 L 404,58 M 352,86 L 404,58 M 404,58 L 410,96"
+                    Stroke="{DynamicResource SummaryNetworkEdge}" StrokeThickness="1.5" />
+              <Ellipse Canvas.Left="314" Canvas.Top="42" Width="16" Height="16" Fill="{DynamicResource SummaryNetworkNode}" />
+              <Ellipse Canvas.Left="356" Canvas.Top="18" Width="20" Height="20" Fill="{DynamicResource AccentBrush}" />
+              <Ellipse Canvas.Left="396" Canvas.Top="50" Width="16" Height="16" Fill="{DynamicResource SummaryNetworkNode}" />
+              <Ellipse Canvas.Left="344" Canvas.Top="78" Width="16" Height="16" Fill="{DynamicResource SummaryNetworkNode}" />
+              <Ellipse Canvas.Left="404" Canvas.Top="90" Width="12" Height="12" Fill="{DynamicResource SummaryNetworkNodeRead}" />
+            </Canvas>
+            <Grid ColumnDefinitions="*,*,*" ColumnSpacing="8">
+              <TextBlock Classes="illustration-caption" Text="{x:Static t:UiText.OnboardingIllustrationBranch}" />
+              <TextBlock Grid.Column="1" Classes="illustration-caption" Text="{x:Static t:UiText.OnboardingIllustrationReturn}" />
+              <TextBlock Grid.Column="2" Classes="illustration-caption" Text="{x:Static t:UiText.OnboardingIllustrationNetwork}" />
+            </Grid>
+          </StackPanel>
+        </Border>
+        <TextBlock Classes="h1" Margin="0,24,0,8" Text="{x:Static t:UiText.OnboardingHeading}" />
+        <TextBlock Classes="muted" TextWrapping="Wrap" LineHeight="22" Text="{x:Static t:UiText.OnboardingWelcomeBody}" />
+        <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,24,0,0">
+          <Button Name="NextButton" Classes="primary" Padding="18,8" Content="{x:Static t:UiText.OnboardingNext}"
+                  Command="{Binding NextCommand}" IsDefault="{Binding IsWelcomeStep}" v:FocusRequest.When="{Binding IsWelcomeStep}" />
+        </StackPanel>
+      </StackPanel>
+
+      <!-- 2 · Connect a model: the settings page's own form and service, or leave it for later. -->
+      <StackPanel Name="ModelStep" IsVisible="{Binding IsModelStep}" v:Motion.Appear="Fade">
+        <TextBlock Classes="h1" Margin="0,0,0,8" Text="{x:Static t:UiText.OnboardingModelHeading}" />
+        <TextBlock Classes="muted" TextWrapping="Wrap" Text="{x:Static t:UiText.OnboardingModelBody}" />
+        <TextBlock Classes="caption" TextWrapping="Wrap" Margin="0,6,0,16" Text="{x:Static t:UiText.PrivacyHint}" />
+        <p:ModelSettingsForm Name="ModelForm" DataContext="{Binding Model}" ShowsDetails="False" />
+        <TextBlock Name="ModelStatus" v:Motion.Appear="Fade" Margin="2,10,0,0" Text="{Binding Model.Status}" TextWrapping="Wrap" FontSize="13"
+                   Classes.muted="{Binding !Model.StatusIsError}" Classes.error="{Binding Model.StatusIsError}"
+                   IsVisible="{Binding Model.Status, Converter={x:Static ObjectConverters.IsNotNull}}" />
+        <DockPanel Margin="0,20,0,0">
+          <Button DockPanel.Dock="Left" Name="ModelBackButton" Classes="quiet" Content="{x:Static t:UiText.OnboardingBack}" Command="{Binding BackCommand}" />
+          <StackPanel Orientation="Horizontal" Spacing="8" HorizontalAlignment="Right">
+            <Button Name="LaterButton" Classes="secondary" Content="{x:Static t:UiText.ConnectModelLater}" Command="{Binding LaterCommand}"
+                    ToolTip.Tip="{x:Static t:UiText.ConnectModelLaterTip}" />
+            <Button Name="SaveModelButton" Classes="primary" Padding="18,8" Content="{x:Static t:UiText.SaveAndContinue}"
+                    Command="{Binding SaveModelCommand}" IsDefault="{Binding IsModelStep}" IsEnabled="{Binding !Model.IsBusy}" />
+          </StackPanel>
+        </DockPanel>
+      </StackPanel>
+
+      <!-- 3 · The first workspace: what it is in one sentence, example names to start from. -->
+      <StackPanel Name="WorkspaceStep" IsVisible="{Binding IsWorkspaceStep}" v:Motion.Appear="Fade">
+        <Border Width="44" Height="44" CornerRadius="12" HorizontalAlignment="Left" Margin="0,0,0,18" Background="{DynamicResource BadgeAccentBackground}"
+                IsVisible="{Binding !IsGuided}">
+          <PathIcon Width="20" Height="20" Data="{StaticResource IconSummaryNetwork}" Foreground="{DynamicResource AccentBrush}" />
+        </Border>
+        <TextBlock Classes="h1" Margin="0,0,0,8" Text="{x:Static t:UiText.OnboardingWorkspaceHeading}" />
+        <TextBlock Classes="muted" TextWrapping="Wrap" Margin="0,0,0,20" Text="{x:Static t:UiText.OnboardingWorkspaceBody}" />
+        <TextBox Name="NameBox" Text="{Binding Form.Name}" PlaceholderText="{x:Static t:UiText.WorkspaceNameWatermark}"
+                 AutomationProperties.Name="{x:Static t:UiText.WorkspaceNameLabel}" v:FocusRequest.When="{Binding IsWorkspaceStep}" />
+        <WrapPanel Name="ExampleNames" Margin="0,10,0,0" ItemSpacing="6" LineSpacing="6">
+          <TextBlock Classes="caption" VerticalAlignment="Center" Margin="0,0,2,0" Text="{x:Static t:UiText.WorkspaceExamplesLabel}" />
+          <ItemsControl ItemsSource="{x:Static t:UiText.WorkspaceExamples}">
+            <ItemsControl.ItemsPanel>
+              <ItemsPanelTemplate>
+                <WrapPanel ItemSpacing="6" LineSpacing="6" />
+              </ItemsPanelTemplate>
+            </ItemsControl.ItemsPanel>
+            <ItemsControl.ItemTemplate>
+              <DataTemplate x:DataType="x:String">
+                <Button Name="ExampleNameChip" Classes="suggestion-chip" Content="{Binding}"
+                        Command="{Binding $parent[ItemsControl].((vm:OnboardingViewModel)DataContext).UseExampleCommand}" CommandParameter="{Binding}"
+                        AutomationProperties.Name="{Binding Converter={x:Static v:OnboardingView.ExampleName}}" />
+              </DataTemplate>
+            </ItemsControl.ItemTemplate>
+          </ItemsControl>
+        </WrapPanel>
+        <TextBlock Classes="error" Margin="0,8,0,0" Text="{Binding Form.Error}" IsVisible="{Binding Form.Error, Converter={x:Static ObjectConverters.IsNotNull}}" TextWrapping="Wrap" />
+        <DockPanel Margin="0,20,0,0">
+          <Button DockPanel.Dock="Left" Name="WorkspaceBackButton" Classes="quiet" Content="{x:Static t:UiText.OnboardingBack}" Command="{Binding BackCommand}"
+                  IsVisible="{Binding CanGoBack}" />
+          <Button Name="CreateButton" Classes="primary" Padding="18,8" HorizontalAlignment="Right"
+                  Content="{x:Static t:UiText.CreateWorkspace}" Command="{Binding Form.SubmitCommand}" IsDefault="{Binding IsWorkspaceStep}" />
+        </DockPanel>
+      </StackPanel>
+    </StackPanel>
+  </ScrollViewer>
 </UserControl>

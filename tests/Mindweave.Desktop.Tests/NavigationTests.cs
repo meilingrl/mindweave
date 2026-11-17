@@ -10,7 +10,7 @@ namespace Mindweave.Desktop.Tests;
 public class NavigationTests
 {
     [AvaloniaFact]
-    public async Task First_run_asks_for_a_workspace_then_opens_its_explore_home()
+    public async Task First_run_asks_for_a_workspace_then_opens_new_exploration_over_its_home()
     {
         await using var app = DesktopHarness.Create();
         await app.StartAsync();
@@ -22,7 +22,10 @@ public class NavigationTests
         onboarding.Form.Name = "  火车   历史 ";
         await onboarding.Form.SubmitCommand.ExecuteAsync(null);
 
+        // The guide's last step (2026-11-17): 新探索, ready to ask; back is the workspace's home.
         Assert.Same(app.ShellPage, app.Root.Current);
+        Assert.IsType<ViewModels.Conversations.NewConversationViewModel>(app.ShellPage.CurrentPage);
+        app.ShellPage.GoBackCommand.Execute(null);
         var home = Assert.IsType<ExploreHomeViewModel>(app.ShellPage.CurrentPage);
         Assert.Equal("火车 历史", home.Title);
         Assert.False(app.ShellPage.GoBackCommand.CanExecute(null));

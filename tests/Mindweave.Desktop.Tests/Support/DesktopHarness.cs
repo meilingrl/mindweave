@@ -105,7 +105,10 @@ public sealed class DesktopHarness : IAsyncDisposable
         return window;
     }
 
-    /// <summary>Starts, creates a first workspace through onboarding, and lands in the workbench.</summary>
+    /// <summary>
+    /// Starts, creates a first workspace through onboarding, and lands in the workbench on the workspace's home. The guide
+    /// itself lands in 新探索 (2026-11-17, covered by OnboardingTests); most tests start from the home, so this steps back.
+    /// </summary>
     public async Task<Workspace> StartWithWorkspaceAsync(string name)
     {
         await StartAsync();
@@ -113,6 +116,9 @@ public sealed class DesktopHarness : IAsyncDisposable
         onboarding.Form.Name = name;
         await onboarding.Form.SubmitCommand.ExecuteAsync(null);
         Assert.IsType<ShellViewModel>(Root.Current);
+        Assert.IsType<ViewModels.Conversations.NewConversationViewModel>(Workbench.CurrentPage);
+        ShellPage.GoBackCommand.Execute(null);
+        Assert.IsType<ViewModels.Pages.ExploreHomeViewModel>(Workbench.CurrentPage);
         return Workbench.CurrentWorkspace!;
     }
 

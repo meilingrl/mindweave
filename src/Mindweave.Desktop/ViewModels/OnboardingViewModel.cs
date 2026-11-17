@@ -1,6 +1,9 @@
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
+using Mindweave.Application.Preferences;
 using Mindweave.Core.Workspaces;
+using Mindweave.Desktop.Services;
+using Mindweave.Desktop.ViewModels.Pages;
 
 namespace Mindweave.Desktop.ViewModels;
 
@@ -51,8 +54,129 @@ public sealed partial class WorkspaceNameForm : ViewModelBase
     }
 }
 
-/// <summary>First run: no workspace exists yet, so ask for one before opening the workbench.</summary>
-public sealed class OnboardingViewModel(Func<WorkspaceName, Task> create) : ViewModelBase
+/// <summary>
+/// No workspace exists yet. The first time (首次引导, requirements §6.1 item 1, 2026-11-17) a short guide leads there:
+/// what Mindweave is for, connecting a model (or leaving it for later), then the first workspace; it can be skipped at
+/// any step, and the step reached is kept so a restart resumes there. Once finished or skipped the guide is never shown
+/// again: a later start without a workspace (the last one was deleted) only asks for one. <see cref="Form"/> creates
+/// the workspace from whichever step is showing.
+/// </summary>
+public sealed partial class OnboardingViewModel : ViewModelBase
 {
-    public WorkspaceNameForm Form { get; } = new(create);
+    private readonly IOnboardingProgress? _progress;
+
+    /// <summary>Only the workspace step, as after the guide has been finished.</summary>
+    public OnboardingViewModel(Func<WorkspaceName, Task> create)
+        : this(create, OnboardingStep.Done, progress: null, model: null)
+    {
+    }
+
+    /// <param name="start">The step stored by the last run; <see cref="OnboardingStep.Done"/> shows only the workspace step.</param>
+    /// <param name="model">The settings page's own model form; without it there is no model step and so no guide.</param>
+    public OnboardingViewModel(Func<WorkspaceName, Task> create, OnboardingStep start, IOnboardingProgress? progress, ModelSettingsViewModel? model)
+    {
+        Form = new WorkspaceNameForm(create);
+        _progress = progress;
+        Model = model;
+        IsGuided = start != OnboardingStep.Done && model is not null;
+        Step = IsGuided ? start : OnboardingStep.Workspace;
+        if (model is not null)
+        {
+            model.Saved += OnModelSaved;
+        }
+    }
+
+    public WorkspaceNameForm Form { get; }
+
+    /// <summary>The model connection, the same form and service as 设置 › 模型连接.</summary>
+    public ModelSettingsViewModel? Model { get; }
+
+    /// <summary>The guide is showing (first run); otherwise only the workspace step.</summary>
+    public bool IsGuided { get; }
+
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(IsWelcomeStep), nameof(IsModelStep), nameof(IsWorkspaceStep), nameof(StepNumber), nameof(StepText), nameof(CanSkip), nameof(CanGoBack))]
+    public partial OnboardingStep Step { get; private set; }
+
+    public bool IsWelcomeStep => Step == OnboardingStep.Welcome;
+
+    public bool IsModelStep => Step == OnboardingStep.Model;
+
+    public bool IsWorkspaceStep => Step == OnboardingStep.Workspace;
+
+    /// <summary>1, 2 or 3.</summary>
+    public int StepNumber => (int)Step + 1;
+
+    public string StepText => UiText.OnboardingStepOf(StepNumber);
+
+    public bool CanSkip => IsGuided && Step < OnboardingStep.Workspace;
+
+    public bool CanGoBack => IsGuided && Step > OnboardingStep.Welcome;
+
+    /// <summary>The latest write of the step reached (tests).</summary>
+    internal Task Saving { get; private set; } = Task.CompletedTask;
+
+    [RelayCommand]
+    private void Next() => GoTo(Step + 1);
+
+    [RelayCommand]
+    private void Back() => GoTo(Step - 1);
+
+    /// <summary>Straight to the workspace, the one thing the application cannot work without.</summary>
+    [RelayCommand]
+    private void Skip() => GoTo(OnboardingStep.Workspace);
+
+    [RelayCommand]
+    private void Later() => GoTo(OnboardingStep.Workspace);
+
+    /// <summary>The settings page's own save; a successful save moves on (<see cref="OnModelSaved"/>), a refusal stays and says why.</summary>
+    [RelayCommand]
+    private Task SaveModelAsync() =>
+        Model is { } model && model.SaveCommand.CanExecute(null) ? model.SaveCommand.ExecuteAsync(null) : Task.CompletedTask;
+
+    [RelayCommand]
+    private void UseExample(string? name)
+    {
+        if (!string.IsNullOrWhiteSpace(name))
+        {
+            Form.Name = name;
+        }
+    }
+
+    private void OnModelSaved(object? sender, EventArgs e)
+    {
+        if (IsModelStep)
+        {
+            GoTo(OnboardingStep.Workspace);
+        }
+    }
+
+    private void GoTo(OnboardingStep step)
+    {
+        if (!IsGuided || step is < OnboardingStep.Welcome or > OnboardingStep.Workspace || step == Step)
+        {
+            return;
+        }
+
+        Step = step;
+        if (_progress is not null)
+        {
+            Saving = SaveAsync(_progress, step, Saving);
+        }
+    }
+
+    private static async Task SaveAsync(IOnboardingProgress progress, OnboardingStep step, Task previous)
+    {
+        await previous;
+        try
+        {
+            await progress.SetAsync(step, CancellationToken.None);
+        }
+#pragma warning disable CA1031 // The step holds for this run; a restart then resumes at an earlier step, nothing is lost.
+        catch (Exception ex)
+#pragma warning restore CA1031
+        {
+            DesktopLog.Swallowed(ex);
+        }
+    }
 }

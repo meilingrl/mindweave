@@ -5,14 +5,13 @@ namespace Mindweave.Desktop.Text;
 
 /// <summary>
 /// All user-facing text in one class, so wording stays consistent and can be localized later. The class is split by
-/// area across UiText.*.cs; this file holds the shell, onboarding and exit wording.
+/// area across UiText.*.cs; this file holds the shell and exit wording
+/// (onboarding has its own, UiText.Onboarding.cs).
 /// </summary>
 public static partial class UiText
 {
     public const string AppName = "Mindweave";
     public const string StartupOpening = "正在打开数据…";
-    public const string OnboardingHeading = "欢迎使用 Mindweave";
-    public const string OnboardingBody = "先建一个主题工作区，这个主题下的会话与总结都放在这里。";
     public const string CreateWorkspace = "创建工作区";
     public const string WorkspaceNameWatermark = "例如：火车历史";
     public const string WorkspaceNameLabel = "工作区名称";
