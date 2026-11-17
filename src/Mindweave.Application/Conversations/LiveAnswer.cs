@@ -1,5 +1,6 @@
 using System.Text;
 using Mindweave.Core.Conversations;
+using Mindweave.Core.Runs;
 
 namespace Mindweave.Application.Conversations;
 
@@ -30,6 +31,10 @@ public sealed class LiveAnswer
     private long _revision;
     private GenerationErrorKind? _errorKind;
     private string? _errorDetail;
+    private readonly List<ContentBlock> _toolBlocks = [];
+    private string? _activeTool;
+    private RunLimit? _limitReached;
+    private bool _newTurn;
 
     public LiveAnswer(MessageId messageId, ConversationId conversationId, string initialText = "", long initialRevision = 0)
     {
@@ -50,7 +55,12 @@ public sealed class LiveAnswer
     {
         lock (_gate)
         {
-            return new LiveAnswerSnapshot(_text.ToString(), _revision, _state, _errorKind, _errorDetail, _phase);
+            return new LiveAnswerSnapshot(_text.ToString(), _revision, _state, _errorKind, _errorDetail, _phase)
+            {
+                ToolBlocks = [.. _toolBlocks],
+                ActiveTool = _activeTool,
+                LimitReached = _limitReached,
+            };
         }
     }
 
@@ -89,10 +99,62 @@ public sealed class LiveAnswer
         {
             if (_state is MessageState.Pending or MessageState.Streaming)
             {
+                // A later model reply of a run continues the text after a blank line (decision R1: one text block).
+                if (_newTurn && _text.Length > 0)
+                {
+                    _text.Append("\n\n");
+                }
+
+                _newTurn = false;
                 _text.Append(delta);
                 _revision++;
             }
         });
+    }
+
+    /// <summary>A run's next model reply begins: its text is separated from what came before.</summary>
+    internal void BeginTurn() => Update(() => _newTurn = true);
+
+    /// <summary>A tool call is being run (<paramref name="tool"/>: its name), shown as the activity line says.</summary>
+    internal void StartTool(ToolCallBlock call, string tool) => Update(() =>
+    {
+        if (_state is MessageState.Pending or MessageState.Streaming)
+        {
+            _toolBlocks.Add(call);
+            _activeTool = tool;
+            _revision++;
+        }
+    });
+
+    /// <summary>A tool call was not run (a limit) or could not be (an error before running): its call and its result together.</summary>
+    internal long AddToolCall(ToolCallBlock call) => Mutate(() => _toolBlocks.Add(call));
+
+    /// <summary>The result of the tool call last started (or added). Returns the revision the blocks then have.</summary>
+    internal long AddToolResult(ToolResultBlock result) => Mutate(() =>
+    {
+        _toolBlocks.Add(result);
+        _activeTool = null;
+    });
+
+    /// <summary>No tool is running any more (stopped while it ran).</summary>
+    internal void EndTool() => Update(() => _activeTool = null);
+
+    internal void SetLimitReached(RunLimit limit) => Update(() => _limitReached ??= limit);
+
+    private long Mutate(Action change)
+    {
+        long revision = 0;
+        Update(() =>
+        {
+            if (_state is MessageState.Pending or MessageState.Streaming)
+            {
+                change();
+                _revision++;
+            }
+
+            revision = _revision;
+        });
+        return revision;
     }
 
     /// <summary>Terminal: later deltas are ignored. Returns the final revision to persist.</summary>
@@ -122,6 +184,15 @@ public sealed class LiveAnswer
 
 public sealed record LiveAnswerSnapshot(string Text, long Revision, MessageState State, GenerationErrorKind? ErrorKind, string? ErrorDetail, AnswerPhase Phase = AnswerPhase.Waiting)
 {
-    /// <summary>The content as stored. A streamed answer is one text block until generation produces other kinds.</summary>
-    public IReadOnlyList<ContentBlock> Blocks => ContentBlocks.FromText(Text);
+    /// <summary>A run's tool calls and results so far, in step order.</summary>
+    public IReadOnlyList<ContentBlock> ToolBlocks { get; init; } = [];
+
+    /// <summary>The tool running now, by name; null when none is.</summary>
+    public string? ActiveTool { get; init; }
+
+    /// <summary>The limit that ended the run's use of tools, if one did.</summary>
+    public RunLimit? LimitReached { get; init; }
+
+    /// <summary>The content as stored: the text block first (decision R1), then the run's tool blocks.</summary>
+    public IReadOnlyList<ContentBlock> Blocks => ToolBlocks.Count == 0 ? ContentBlocks.FromText(Text) : [new TextBlock(Text), .. ToolBlocks];
 }

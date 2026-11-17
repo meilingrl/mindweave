@@ -69,6 +69,12 @@ public static class ApplicationServices
         services.AddSingleton<ITextExtractor, PlainTextExtractor>(); // PDF and Office extractors are registered beside it later.
         services.AddSingleton<ResourceService>();
         services.AddSingleton<ResourceContext>();
+        services.AddSingleton<Application.Runs.RunServices>();
+        services.AddSingleton<Application.Tools.ITool, Application.Tools.SearchAttachmentsTool>();
+        services.AddSingleton<Application.Tools.ITool, Application.Tools.SearchSummariesTool>();
+        services.AddSingleton<Application.Tools.ToolRegistry>();
+        services.AddSingleton<ToolSettingsService>();
+        services.AddSingleton<IToolSettings>(sp => sp.GetRequiredService<ToolSettingsService>());
         services.AddSingleton<IResources>(sp => sp.GetRequiredService<ResourceService>());
 
         // View models depend on these interfaces, not the concrete services (course requirement C3); each resolves to the

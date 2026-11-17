@@ -200,6 +200,35 @@ public sealed class FakeChatClient : IChatClient
 
     public void Reply(params string[] chunks) => _scripts.Enqueue(new Script(null, chunks));
 
+    /// <summary>
+    /// The next answer request (a run's model step) streams <paramref name="text"/> and then asks for <paramref name="calls"/>,
+    /// as a service with native tool calling does (phase 2); <paramref name="reasoning"/> comes with them when given.
+    /// </summary>
+    public void CallTools(string text, IReadOnlyList<ChatToolCall> calls, string? reasoning = null) =>
+        _scripts.Enqueue(new Script(null, text.Length == 0 ? [] : [text], Calls: calls, Reasoning: reasoning));
+
+    /// <summary>The next answer request asks for one call of <paramref name="tool"/> with <paramref name="arguments"/> (JSON).</summary>
+    public void CallTool(string tool, string arguments, string text = "") =>
+        CallTools(text, [new ChatToolCall("call_" + Interlocked.Increment(ref _callIds), tool, arguments, IsJsonObject(arguments))]);
+
+    /// <summary>Every answer request without a script asks for this call again (a model that keeps calling tools); null: answer as usual.</summary>
+    public (string Tool, string Arguments)? KeepCalling { get; set; }
+
+    private int _callIds;
+
+    private static bool IsJsonObject(string arguments)
+    {
+        try
+        {
+            using var document = System.Text.Json.JsonDocument.Parse(arguments);
+            return document.RootElement.ValueKind == System.Text.Json.JsonValueKind.Object;
+        }
+        catch (System.Text.Json.JsonException)
+        {
+            return false;
+        }
+    }
+
     /// <summary>Prompt tokens the service reports for a request, as a real one does at the end of its stream; null reports none.</summary>
     public Func<ChatRequest, int?>? PromptTokens { get; set; }
 
@@ -237,7 +266,12 @@ public sealed class FakeChatClient : IChatClient
             yield break;
         }
 
-        if (!_scripts.TryDequeue(out var script))
+        if (!_scripts.TryDequeue(out var script) && KeepCalling is { } keep && request.HasTools)
+        {
+            script = new Script(null, [], Calls: [new ChatToolCall("call_" + Interlocked.Increment(ref _callIds), keep.Tool, keep.Arguments, IsJsonObject(keep.Arguments))]);
+        }
+
+        if (script is null)
         {
             yield return new ChatStreamEvent.TextDelta("答：");
             yield return new ChatStreamEvent.TextDelta(request.Turns[^1].Content);
@@ -293,6 +327,11 @@ public sealed class FakeChatClient : IChatClient
         if (script.FailWith is { } kind)
         {
             throw new ChatClientException(kind, script.Detail!);
+        }
+
+        if (script.Calls is { } calls)
+        {
+            yield return new ChatStreamEvent.ToolCalls(calls, script.Reasoning);
         }
 
         if (script.NoEnd)
@@ -357,5 +396,5 @@ public sealed class FakeChatClient : IChatClient
         }
     }
 
-    private sealed record Script(HeldReply? Held, string[]? Chunks = null, GenerationErrorKind? FailWith = null, string? Detail = null, Exception? Crash = null, ChatStreamEvent.Completed? End = null, bool NoEnd = false);
+    private sealed record Script(HeldReply? Held, string[]? Chunks = null, GenerationErrorKind? FailWith = null, string? Detail = null, Exception? Crash = null, ChatStreamEvent.Completed? End = null, bool NoEnd = false, IReadOnlyList<ChatToolCall>? Calls = null, string? Reasoning = null);
 }

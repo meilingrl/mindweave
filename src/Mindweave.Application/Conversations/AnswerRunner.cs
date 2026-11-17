@@ -130,6 +130,15 @@ internal sealed partial class AnswerRunner(
         using var checkpointStop = new CancellationTokenSource();
         var checkpoints = CheckpointLoopAsync(live, checkpointStop.Token);
 
+        if (work.Run is { } run && _requests.Runs is { } services)
+        {
+            var ending = await RunAsync(work, run, services, request, key.Secret!, stop).ConfigureAwait(false);
+            await checkpointStop.CancelAsync().ConfigureAwait(false);
+            await checkpoints.ConfigureAwait(false);
+            await FinishAsync(work, ending.State, ending.Error, ending.Detail).ConfigureAwait(false);
+            return;
+        }
+
         MessageState final;
         GenerationErrorKind? error = null;
         string? detail = null;

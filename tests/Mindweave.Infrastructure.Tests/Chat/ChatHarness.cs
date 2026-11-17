@@ -28,12 +28,12 @@ internal sealed class ChatHarness : IAsyncDisposable
     // Not disposed itself: DisposeAsync tears the services down in the order the stores need (flushes before the database).
     private readonly ServiceProvider _services;
 
-    private ChatHarness(TempDataDirectory dir, bool ownsDirectory, Func<IConversationStore, IConversationStore>? wrapStore, IChatClient? client, SqliteDatabaseOptions? databaseOptions, int? slots, TimeSpan? storageRetry)
+    private ChatHarness(TempDataDirectory dir, bool ownsDirectory, Func<IConversationStore, IConversationStore>? wrapStore, IChatClient? client, SqliteDatabaseOptions? databaseOptions, int? slots, TimeSpan? storageRetry, IReadOnlyList<Application.Tools.ITool>? tools = null)
     {
         ActiveClient = client ?? Client;
         _dir = dir;
         _ownsDirectory = ownsDirectory;
-        _services = BuildServices(dir.Paths, ActiveClient, Credentials, wrapStore, databaseOptions, slots, storageRetry);
+        _services = BuildServices(dir.Paths, ActiveClient, Credentials, wrapStore, databaseOptions, slots, storageRetry, tools);
         Database = _services.GetRequiredService<SqliteDatabase>();
         Store = _services.GetRequiredService<SqliteConversationStore>();
         Settings = (SqliteModelSettingsStore)_services.GetRequiredService<IModelSettingsStore>();
@@ -143,6 +143,12 @@ internal sealed class ChatHarness : IAsyncDisposable
     /// <summary>Creating and reading resources (docs/design/resources.md).</summary>
     public Application.Resources.ResourceService ResourceService => _services.GetRequiredService<Application.Resources.ResourceService>();
 
+    /// <summary>Runs and their steps (phase 2).</summary>
+    public IRunStore Runs => _services.GetRequiredService<IRunStore>();
+
+    /// <summary>设置 › 工具.</summary>
+    public Application.Preferences.IToolSettings ToolSettings => _services.GetRequiredService<Application.Preferences.IToolSettings>();
+
     public global::Mindweave.Infrastructure.Resources.FileResourceBlobStore Blobs => _services.GetRequiredService<global::Mindweave.Infrastructure.Resources.FileResourceBlobStore>();
 
     public AppPaths Paths => _dir.Paths;
@@ -161,10 +167,11 @@ internal sealed class ChatHarness : IAsyncDisposable
         ModelSettingsInput? model = null,
         SqliteDatabaseOptions? databaseOptions = null,
         int? slots = null,
-        TimeSpan? storageRetry = null)
+        TimeSpan? storageRetry = null,
+        IReadOnlyList<Application.Tools.ITool>? tools = null)
     {
         var dir = directory ?? new TempDataDirectory();
-        var harness = new ChatHarness(dir, directory is null, wrapStore, client, databaseOptions, slots, storageRetry);
+        var harness = new ChatHarness(dir, directory is null, wrapStore, client, databaseOptions, slots, storageRetry, tools);
         Assert.True((await harness.Database.OpenAsync(CancellationToken.None)).IsReady);
         var workspace = new Workspace(WorkspaceId.New(), WorkspaceName.FromStored("测试"), DateTimeOffset.UtcNow);
         await new SqliteWorkspaceStore(harness.Database).AddAsync(workspace, CancellationToken.None);
@@ -360,7 +367,8 @@ internal sealed class ChatHarness : IAsyncDisposable
         Func<IConversationStore, IConversationStore>? wrapStore,
         SqliteDatabaseOptions? databaseOptions,
         int? slots,
-        TimeSpan? storageRetry)
+        TimeSpan? storageRetry,
+        IReadOnlyList<Application.Tools.ITool>? tools)
     {
         var services = new ServiceCollection();
         services.AddSingleton(typeof(ILogger<>), typeof(NullLogger<>));
@@ -383,6 +391,12 @@ internal sealed class ChatHarness : IAsyncDisposable
 
         services.AddMindweaveInfrastructure(paths);
         services.AddMindweaveApplication();
+
+        // Tools a test adds beside the built-in ones (a slow one, one that throws).
+        foreach (var tool in tools ?? [])
+        {
+            services.AddSingleton(tool);
+        }
 
         // Replaced after: the services write through the (possibly wrapped) store, while Store stays the real one; reading
         // positions and summary drafts save after a short delay.

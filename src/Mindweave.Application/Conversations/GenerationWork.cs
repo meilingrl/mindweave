@@ -7,7 +7,10 @@ namespace Mindweave.Application.Conversations;
 
 public sealed class GenerationOptions
 {
-    /// <summary>Global limit on concurrent AI requests (architecture §6).</summary>
+    /// <summary>
+    /// Global limit on work running at once (architecture §6, §15.5): two execution slots. A run holds one slot from start to
+    /// end and makes its model requests one after another, so no more than two AI requests are ever in flight.
+    /// </summary>
     public int Slots { get; init; } = 2;
 
     /// <summary>Minimum gap between partial-answer writes; only the newest text is written.</summary>
@@ -34,8 +37,12 @@ public abstract record GenerationWork(GenerationTaskRecord Task, ChatRequest Req
 /// request, and <paramref name="Request"/>'s turns are replaced by the prepared ones.
 /// </param>
 /// <param name="Inputs">What the plan was made from, so the runner can plan again once attachment summaries exist.</param>
-public sealed record AnswerWork(GenerationTaskRecord Task, ChatRequest Request, LiveAnswer Live, ContextPlan? Plan = null, ContextBudget? Budget = null, ContextInputs? Inputs = null)
+/// <param name="Run">When the answer is a run (requirements §10.4.4): the tools offered, its limits and what its tools may reach.</param>
+public sealed record AnswerWork(GenerationTaskRecord Task, ChatRequest Request, LiveAnswer Live, ContextPlan? Plan = null, ContextBudget? Budget = null, ContextInputs? Inputs = null, RunPlan? Run = null)
     : GenerationWork(Task, Request, GenerationPriority.User);
+
+/// <summary>A run's frozen tools and limits, and the scope its tools work in.</summary>
+public sealed record RunPlan(IReadOnlyList<Tools.ITool> Tools, Core.Runs.RunLimits Limits, Tools.ToolScope Scope);
 
 /// <summary>The inputs of a context plan: the frozen ancestor chain, the conversation itself, and its attachments' candidates.</summary>
 public sealed record ContextInputs(IReadOnlyList<Core.Branches.ContextSegment> Ancestors, Core.Branches.ContextSegment Own, IReadOnlyList<ResourceCandidate> Resources);

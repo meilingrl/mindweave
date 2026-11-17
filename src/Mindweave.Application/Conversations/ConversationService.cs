@@ -102,6 +102,8 @@ public sealed partial class ConversationService : IConversations
     private readonly ConversationTitler _titler;
     private readonly ResourceContext? _resources;
     private readonly IResourceStore? _resourceStore;
+    private readonly Tools.ToolRegistry? _tools;
+    private readonly Preferences.IToolSettings? _toolSettings;
 
     public ConversationService(
         IConversationStore store,
@@ -115,8 +117,12 @@ public sealed partial class ConversationService : IConversations
         IContextSummaryStore? summaries = null,
         IConversationArchiveStore? archive = null,
         ResourceContext? resources = null,
-        IResourceStore? resourceStore = null)
+        IResourceStore? resourceStore = null,
+        Tools.ToolRegistry? tools = null,
+        Preferences.IToolSettings? toolSettings = null)
     {
+        _tools = tools;
+        _toolSettings = toolSettings;
         _resources = resources;
         _resourceStore = resourceStore;
         _store = store;
@@ -270,7 +276,8 @@ public sealed partial class ConversationService : IConversations
             return SendOutcome.Reject(Rejection(planned.Rejection!.Value), id);
         }
 
-        var task = NewTask(GenerationTaskKind.Answer, id, answer.Id, model, [user.Id], now);
+        var run = await RunPlanAsync(workspace, id, inputs, model, cancellationToken).ConfigureAwait(false);
+        var task = NewTask(GenerationTaskKind.Answer, id, answer.Id, model, [user.Id], now, run);
         try
         {
             await _store.CreateAsync(conversation, user, answer, task, from, cancellationToken).ConfigureAwait(false);
@@ -280,7 +287,7 @@ public sealed partial class ConversationService : IConversations
             return StorageRefused(ex, id);
         }
 
-        await EnqueueAsync(task, model, plan, budget, answer, inputs);
+        await EnqueueAsync(task, model, plan, budget, answer, inputs, run);
         ConversationChanged?.Invoke(this, id);
         return new SendOutcome(null, id, answer.Id);
     }
@@ -319,7 +326,8 @@ public sealed partial class ConversationService : IConversations
             return SendOutcome.Reject(Rejection(planned.Rejection!.Value), id);
         }
 
-        var task = NewTask(GenerationTaskKind.Answer, id, answer.Id, model, [.. plan.RawItems.Select(c => c.Message.Id)], now);
+        var run = await RunPlanAsync(null, id, inputs, model, cancellationToken).ConfigureAwait(false);
+        var task = NewTask(GenerationTaskKind.Answer, id, answer.Id, model, [.. plan.RawItems.Select(c => c.Message.Id)], now, run);
 
         Message storedAnswer;
         try
@@ -343,7 +351,7 @@ public sealed partial class ConversationService : IConversations
             return SendOutcome.Reject(SendRejection.ConversationMissing, id);
         }
 
-        await EnqueueAsync(task, model, plan, budget, storedAnswer, inputs);
+        await EnqueueAsync(task, model, plan, budget, storedAnswer, inputs, run);
         ConversationChanged?.Invoke(this, id);
         return new SendOutcome(null, id, storedAnswer.Id);
     }
@@ -374,7 +382,8 @@ public sealed partial class ConversationService : IConversations
 
         var now = _clock.UtcNow;
         var answer = NewMessage(id, 0, MessageRole.Assistant, string.Empty, MessageState.Pending, answerToReplace, now);
-        var task = NewTask(GenerationTaskKind.Answer, id, answer.Id, model, [.. plan.RawItems.Select(c => c.Message.Id)], now);
+        var run = await RunPlanAsync(null, id, inputs, model, cancellationToken).ConfigureAwait(false);
+        var task = NewTask(GenerationTaskKind.Answer, id, answer.Id, model, [.. plan.RawItems.Select(c => c.Message.Id)], now, run);
 
         Message stored;
         try
@@ -398,7 +407,7 @@ public sealed partial class ConversationService : IConversations
             return SendOutcome.Reject(SendRejection.ConversationMissing, id);
         }
 
-        await EnqueueAsync(task, model, plan, budget, stored, inputs);
+        await EnqueueAsync(task, model, plan, budget, stored, inputs, run);
         ConversationChanged?.Invoke(this, id);
         return new SendOutcome(null, id, stored.Id);
     }
@@ -714,10 +723,44 @@ public sealed partial class ConversationService : IConversations
         _ => SendRejection.HistoryTooLongForModel,
     };
 
-    private Task<bool> EnqueueAsync(GenerationTaskRecord task, ModelSnapshot model, ContextPlan plan, ContextBudget budget, Message answer, ContextInputs inputs)
+    private Task<bool> EnqueueAsync(GenerationTaskRecord task, ModelSnapshot model, ContextPlan plan, ContextBudget budget, Message answer, ContextInputs inputs, RunPlan? run)
     {
         var request = new ChatRequest(model, ContextCompressor.Unsummarized(plan).Turns);
-        return _generation.EnqueueOrCancelAsync(new AnswerWork(task, request, new LiveAnswer(answer.Id, answer.ConversationId), plan, budget, inputs));
+        return _generation.EnqueueOrCancelAsync(new AnswerWork(task, request, new LiveAnswer(answer.Id, answer.ConversationId), plan, budget, inputs, run));
+    }
+
+    /// <summary>
+    /// Whether this answer is a run (requirements §10.4.4): the model declares tool calls, 使用工具 is on, and some tool has
+    /// something to find (decision R5). The tools may reach the resources the frozen chain refers to: attachments with text
+    /// and earlier tool results. Null: a single request, exactly as before.
+    /// </summary>
+    private async Task<RunPlan?> RunPlanAsync(WorkspaceId? workspace, ConversationId id, ContextInputs inputs, ModelSnapshot model, CancellationToken cancellationToken)
+    {
+        if (_tools is null || _toolSettings is null || !model.Capabilities.Has(ModelCapability.ToolCalls)
+            || !await _toolSettings.GetEnabledAsync(cancellationToken).ConfigureAwait(false))
+        {
+            return null;
+        }
+
+        var space = workspace ?? (await _store.GetAsync(id, cancellationToken).ConfigureAwait(false))?.WorkspaceId;
+        if (space is not { } ws)
+        {
+            return null;
+        }
+
+        var resources = inputs.Ancestors.Append(inputs.Own)
+            .SelectMany(segment => segment.Messages)
+            .SelectMany(m => m.Blocks)
+            .Select(b => b switch
+            {
+                AttachmentBlock { Text: not null } a => a.Resource,
+                ToolResultBlock { Resource: { } r } => r,
+                _ => (ResourceId?)null,
+            })
+            .OfType<ResourceId>();
+        var scope = new Tools.ToolScope(ws, id, resources);
+        var offered = await _tools.OfferAsync(scope, cancellationToken).ConfigureAwait(false);
+        return offered.Count == 0 ? null : new RunPlan(offered, await _toolSettings.GetLimitsAsync(cancellationToken).ConfigureAwait(false), scope);
     }
 
     private readonly ILogger<ConversationService> _logger;
@@ -757,6 +800,6 @@ public sealed partial class ConversationService : IConversations
     private static Message NewMessage(ConversationId conversation, int seq, MessageRole role, string body, MessageState state, MessageId? supersedes, DateTimeOffset at) =>
         new(MessageId.New(), conversation, seq, role, ContentBlocks.FromText(body), state, 0, supersedes, null, null, at, state == MessageState.Complete ? at : null);
 
-    private static GenerationTaskRecord NewTask(GenerationTaskKind kind, ConversationId conversation, MessageId? target, ModelSnapshot model, IReadOnlyList<MessageId> input, DateTimeOffset at) =>
-        new(GenerationTaskId.New(), kind, conversation, target, model, input, at);
+    private static GenerationTaskRecord NewTask(GenerationTaskKind kind, ConversationId conversation, MessageId? target, ModelSnapshot model, IReadOnlyList<MessageId> input, DateTimeOffset at, RunPlan? run = null) =>
+        new(GenerationTaskId.New(), kind, conversation, target, model, input, at, Tools: run?.Tools.Select(Tools.ToolRegistry.Frozen).ToList(), Limits: run?.Limits);
 }
