@@ -36,6 +36,12 @@ public interface IConversations
 
     Task<SendOutcome> StartAsync(WorkspaceId workspace, string question, CancellationToken cancellationToken);
 
+    /// <summary>
+    /// The same, for a question sent after it was filled in from a recommendation (edited or not): the conversation
+    /// remembers it, so its first summary is linked to the recommendation's basis summary (requirements §10.3.5).
+    /// </summary>
+    Task<SendOutcome> StartAsync(WorkspaceId workspace, string question, Recommendations.StartingRecommendation? from, CancellationToken cancellationToken);
+
     Task<SendOutcome> AskAsync(ConversationId id, string question, CancellationToken cancellationToken);
 
     Task<SendOutcome> RetryAsync(ConversationId id, MessageId answerToReplace, CancellationToken cancellationToken);

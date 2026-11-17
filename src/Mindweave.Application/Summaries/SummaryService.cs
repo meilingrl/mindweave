@@ -69,6 +69,7 @@ public sealed class SummaryService : ISummaries
     private readonly IConversationStore _conversations;
     private readonly IBranchStore _branches;
     private readonly IContextSummaryStore? _contextSummaries;
+    private readonly SummaryLinks.SummaryLinkService? _links;
     private readonly GenerationCoordinator _generation;
     private readonly ContextBudgets _budgets;
     private readonly StorageHealth _health;
@@ -88,8 +89,10 @@ public sealed class SummaryService : ISummaries
         ModelSettingsService models,
         IClock clock,
         ILogger<SummaryService> logger,
-        IContextSummaryStore? contextSummaries = null)
+        IContextSummaryStore? contextSummaries = null,
+        SummaryLinks.SummaryLinkService? links = null)
     {
+        _links = links;
         _summaries = summaries;
         _conversations = conversations;
         _branches = branches;
@@ -387,6 +390,12 @@ public sealed class SummaryService : ISummaries
         if (saved is null)
         {
             return SummarySaveResult.NotRunning;
+        }
+
+        if (saved.RecommendedLink is { } link)
+        {
+            // Linked to the recommendation's basis in the same commit (requirements §10.3.5): the network and details show it.
+            _links?.RaiseChanged(link.Workspace);
         }
 
         if (!saved.IsCandidate)

@@ -1,5 +1,6 @@
 using Microsoft.Data.Sqlite;
 using Mindweave.Application.Storage;
+using Mindweave.Application.SummaryLinks;
 using Mindweave.Core.Conversations;
 using Mindweave.Core.Summaries;
 using Mindweave.Core.Workspaces;
@@ -100,7 +101,10 @@ internal sealed class SqliteSummaryStore(SqliteDatabase database) : ISummaryStor
                     VALUES ($id, $ws, $conv, $v, NULL, $title, $title, 'base', $at, $at);
                     """, ("$id", id.ToString()), ("$ws", workspace), ("$conv", conversation.ToString()), ("$v", version.ToString()), ("$title", summary.Title), ("$at", at.Ms()));
                 InsertVersion(connection, transaction, new(version, id, 1, summary.Title, summary.Body, toSeq, SummaryOrigin.Generated, null, task, model, at, summary.ShortTitle));
-                return new SummarySaved(id, version, IsCandidate: false);
+                return new SummarySaved(id, version, IsCandidate: false)
+                {
+                    RecommendedLink = LinkToRecommendationBasis(connection, transaction, WorkspaceId.Parse(workspace), conversation, id, at),
+                };
             },
             cancellationToken);
 
@@ -412,6 +416,30 @@ internal sealed class SqliteSummaryStore(SqliteDatabase database) : ISummaryStor
 
     private static int? LastFinishedSeq(SqliteConnection connection, SqliteTransaction? transaction, ConversationId conversation) =>
         connection.Scalar<int?>(transaction, $"SELECT max(seq) FROM message WHERE conversation_id = $conv AND {Finished};", ("$conv", conversation.ToString()));
+
+    /// <summary>
+    /// The conversation's first summary node was just made: when it was started from a recommendation whose basis summary
+    /// is still in the workspace, the two are linked (origin recommended, note "来自推荐"; requirements §10.3.5). Either
+    /// way the starting recommendation is applied now, so no later node of the conversation is linked again.
+    /// </summary>
+    private static SummaryLink? LinkToRecommendationBasis(SqliteConnection connection, SqliteTransaction transaction, WorkspaceId workspace, ConversationId conversation, SummaryNodeId node, DateTimeOffset at)
+    {
+        var basis = connection.Scalar<string>(transaction, """
+            SELECT s.basis_node_id FROM starting_recommendation s
+            JOIN summary_node n ON n.id = s.basis_node_id AND n.workspace_id = $ws
+            WHERE s.conversation_id = $conv AND s.applied_at IS NULL;
+            """, ("$conv", conversation.ToString()), ("$ws", workspace.ToString()));
+        if (connection.Execute(transaction, "UPDATE starting_recommendation SET applied_at = $at WHERE conversation_id = $conv AND applied_at IS NULL;",
+                ("$conv", conversation.ToString()), ("$at", at.Ms())) == 0 || basis is null)
+        {
+            return null;
+        }
+
+        var (a, b) = SummaryLinkPair.Normalize(node, SummaryNodeId.Parse(basis));
+        return a == b || SqliteSummaryLinkStore.IsLinked(connection, transaction, workspace, a, b)
+            ? null
+            : SqliteSummaryLinkStore.Insert(connection, transaction, workspace, a, b, SummaryLinkNote.FromRecommendation, SummaryLinkOrigin.Recommended, at);
+    }
 
     private static List<SummaryNode> Nodes(SqliteConnection connection, SqliteTransaction? transaction, string where, params (string, object?)[] parameters)
     {

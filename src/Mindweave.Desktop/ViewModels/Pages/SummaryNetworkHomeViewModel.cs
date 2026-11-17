@@ -515,14 +515,15 @@ public sealed partial class SummaryNetworkHomeViewModel : PageViewModel, IDispos
 
     /// <summary>
     /// 开始探索: 新探索 opens with the question in the input, not sent. The root conversation is made only by the first send,
-    /// which also uses this recommendation up; no branch source is recorded (a recommendation is not a selection).
+    /// which also uses this recommendation up; no branch source is recorded (a recommendation is not a selection). The
+    /// conversation remembers the recommendation, so its first summary is linked to the basis (requirements §10.3.5).
     /// </summary>
     [RelayCommand]
     private void StartExploration()
     {
         if (SelectedRecommendation is { } node)
         {
-            _navigator.Navigate(new NavigationRequest(MainSection.Explore, new NewConversationRoute(node.Id, node.Question)));
+            _navigator.Navigate(new NavigationRequest(MainSection.Explore, new NewConversationRoute(node.Id, node.Question, node.Basis)));
         }
     }
 

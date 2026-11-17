@@ -81,8 +81,15 @@ public class SummaryLinksUiTests
         var bare = Assert.Single(paints, p => p.Link.Note is null);
         Assert.Equal(UiText.LinkTag, bare.Label);
         Assert.NotNull(bare.Note);
-        var middle = new Avalonia.Point((noted.From.X + noted.To.X) / 2, (noted.From.Y + noted.To.Y) / 2);
-        Assert.True(noted.NoteBounds.Contains(middle));
+        // On its line, near the middle; here the root summary lies on the middle, so the note sits beside it, not over it.
+        var centre = noted.NoteBounds.Center;
+        var along = ((centre.X - noted.From.X) * (noted.To.X - noted.From.X)) + ((centre.Y - noted.From.Y) * (noted.To.Y - noted.From.Y));
+        var length = Math.Pow(noted.To.X - noted.From.X, 2) + Math.Pow(noted.To.Y - noted.From.Y, 2);
+        Assert.InRange(along / length, 0.25, 0.75);
+        var onLine = noted.From + ((noted.To - noted.From) * (along / length));
+        Assert.True(Math.Abs(onLine.X - centre.X) < 0.5 && Math.Abs(onLine.Y - centre.Y) < 0.5);
+        var rootRing = canvas.PaintNodes().Single(n => n.Node.ShortTitle == Root);
+        Assert.False(noted.NoteBounds.Intersects(new Avalonia.Rect(rootRing.Center.X - rootRing.Radius, rootRing.Center.Y - rootRing.Radius, rootRing.Radius * 2, rootRing.Radius * 2)));
         var leafPaint = canvas.PaintNodes().Single(n => n.Node.ShortTitle == Leaf);
         Assert.Contains(paints, p => p.From == leafPaint.Center || p.To == leafPaint.Center);
 
@@ -666,6 +673,41 @@ public class SummaryLinksUiTests
     /// The scenario's three summaries, every answer seen: the hints its answers popped up are gone, so none covers the
     /// details panel a test clicks in.
     /// </summary>
+    [AvaloniaFact]
+    public async Task A_link_note_moves_along_its_line_off_a_summary_name_lying_at_the_middle()
+    {
+        // Review 2026-11-17 (gallery g55b): the note at the middle was drawn over another summary's name, hiding both.
+        await using var app = DesktopHarness.Create();
+        var window = app.ShowWindow(1100, 720);
+        await SeedAsync(app);
+        var network = await SummaryNetworkScenario.OpenSummaryNetworkAsync(app, window);
+        await LinkAsync(app, network, NodeOf(network, Leaf), NodeOf(network, Sibling), "来自推荐");
+        window.UpdateLayout();
+        var canvas = CanvasOf(window);
+
+        // The root summary's name put across the middle of the link's line.
+        var link = Assert.Single(network.LinkEdges);
+        var root = network.Nodes.Single(n => n.ShortTitle == Root);
+        network.MoveNode(root.Id, ((link.AX + link.BX) / 2) - 20, (link.AY + link.BY) / 2);
+        window.UpdateLayout();
+        var painted = Assert.Single(canvas.PaintLinks());
+        var rootPaint = canvas.PaintNodes().Single(n => n.Node.Id == root.Id);
+        var middle = new Avalonia.Point((painted.From.X + painted.To.X) / 2, (painted.From.Y + painted.To.Y) / 2);
+        Assert.True(rootPaint.LabelBounds.Inflate(6).Contains(middle), "the root's name should lie on the middle of the line");
+
+        // The note is still written, further along the line, clear of every summary's ring and name.
+        Assert.Equal("来自推荐", painted.Label);
+        Assert.False(painted.NoteBounds.Contains(middle));
+        foreach (var node in canvas.PaintNodes())
+        {
+            var ring = new Avalonia.Rect(node.Center.X - node.Radius, node.Center.Y - node.Radius, node.Radius * 2, node.Radius * 2);
+            Assert.False(painted.NoteBounds.Intersects(ring), $"note over the ring of {node.Node.ShortTitle}");
+            Assert.False(node.LabelVisible && painted.NoteBounds.Intersects(node.LabelBounds), $"note over the name of {node.Node.ShortTitle}");
+        }
+
+        window.Close();
+    }
+
     private static Task SeedAsync(DesktopHarness app) => SummaryNetworkScenario.SeedSeenAsync(app);
 
     private static SummaryNodeId NodeOf(SummaryNetworkHomeViewModel network, string shortTitle) => network.Nodes.Single(n => n.ShortTitle == shortTitle).Id;

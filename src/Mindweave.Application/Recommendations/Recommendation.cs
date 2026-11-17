@@ -51,6 +51,20 @@ public sealed record Recommendation(
     public DateTimeOffset UpdatedAt { get; init; }
 }
 
+/// <summary>
+/// The recommendation a new root conversation was started from (requirements §10.3.5, architecture
+/// "StartingRecommendation"): its identity, kind and basis summary as the page knew them when the question was sent (the
+/// question may have been edited). Not a branch source: it only lets the first summary be linked to the basis.
+/// </summary>
+public sealed record StartingRecommendation(RecommendationId Recommendation, RecommendationKind Kind, SummaryNodeId? Basis)
+{
+    public static StartingRecommendation From(Recommendation recommendation)
+    {
+        ArgumentNullException.ThrowIfNull(recommendation);
+        return new(recommendation.Id, recommendation.Kind, recommendation.Basis);
+    }
+}
+
 /// <summary>One item of a new batch, already cleaned and validated.</summary>
 public sealed record NewRecommendation(string Question, string? Reason, SummaryNodeId? Basis);
 

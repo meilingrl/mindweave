@@ -160,7 +160,8 @@ public class RecommendedNodesUiTests
         // The sidebar loads on its own; under load it may not have listed the seeded conversations yet.
         await UiWait.UntilAsync(() => app.ShellPage.Conversations.Items.Count == before);
         var sidebar = before;
-        network.SelectRecommendation(network.RecommendedNodes[0]);
+        var recommended = network.RecommendedNodes[0];
+        network.SelectRecommendation(recommended);
         window.UpdateLayout();
 
         UiInput.Click(window, Find<Button>(window, "StartExplorationButton"));
@@ -188,6 +189,9 @@ public class RecommendedNodesUiTests
             c => c.Scalar<long>(null, "SELECT count(*) FROM branch_source WHERE child_id = $id;", ("$id", made.ToString())), CancellationToken.None));
         var row = Assert.Single(await app.Services.GetRequiredService<IRecommendationStore>().ListAsync(workspace, RecommendationKind.Node, CancellationToken.None));
         Assert.Equal(RecommendationState.Used, row.State);
+
+        // The conversation remembers the node and its basis (requirements §10.3.5).
+        Assert.Equal((recommended.Id.ToString(), "node", recommended.Basis.ToString()), await RecommendedQuestionsUiTests.StartingAsync(app, made));
 
         // Gone from the network, and its slot is not filled by itself.
         await UiWait.UntilAsync(() => network.RecommendedNodes.Count == 0);

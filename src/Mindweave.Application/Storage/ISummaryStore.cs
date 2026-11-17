@@ -37,8 +37,15 @@ public sealed record SummaryDetail(
     public SummaryMarkers Markers => SummaryRules.Markers(Node, Current, ReadStates.GetValueOrDefault(Node.Current), LastFinishedSeq);
 }
 
-/// <summary>Where a successful summary went: a new node (first version) or a candidate of an existing node.</summary>
-public sealed record SummarySaved(SummaryNodeId Node, SummaryVersionId Version, bool IsCandidate);
+/// <summary>
+/// Where a successful summary went: a new node (first version) or a candidate of an existing node. A new node of a
+/// conversation started from a recommendation may come with <see cref="RecommendedLink"/>, its link to the basis summary
+/// (requirements §10.3.5), made in the same transaction.
+/// </summary>
+public sealed record SummarySaved(SummaryNodeId Node, SummaryVersionId Version, bool IsCandidate)
+{
+    public SummaryLinks.SummaryLink? RecommendedLink { get; init; }
+}
 
 /// <summary>Why a version operation was refused; nothing was changed.</summary>
 public enum SummaryRefusal
@@ -93,7 +100,9 @@ public interface ISummaryStore
 
     /// <summary>
     /// Saves a successful summary and completes its task together (MW-C06): the first version of a new node, or a
-    /// candidate of the existing one. Null when the task is no longer running (stopped or interrupted meanwhile).
+    /// candidate of the existing one. Null when the task is no longer running (stopped or interrupted meanwhile). A new
+    /// node of a conversation started from a recommendation is linked to its basis summary when that still exists, once
+    /// (requirements §10.3.5).
     /// </summary>
     Task<SummarySaved?> SaveGeneratedAsync(GenerationTaskId task, ConversationId conversation, GeneratedSummary summary, int toSeq, SummaryVersionId? baseline, string model, DateTimeOffset at, CancellationToken cancellationToken);
 

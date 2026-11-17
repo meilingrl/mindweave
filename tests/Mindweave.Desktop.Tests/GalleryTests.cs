@@ -1794,6 +1794,56 @@ public class GalleryTests
 
     private static SummaryNodeId NodeNamed(SummaryNetworkHomeViewModel network, string name) => network.Nodes.Single(n => n.ShortTitle == name).Id;
 
+    // ── A conversation started from a recommendation, linked once summarized (2026-11-17, requirements §10.3.5) ─────────
+
+    [AvaloniaFact]
+    public async Task G55_a_recommended_node_explored_then_summarized_links_to_its_basis()
+    {
+        await using var scene = Scene.Create("g55");
+        var app = scene.App;
+        var window = app.ShowWindow(1100, 720, Theme);
+        await SeedAsync(app, summaries: true);
+        var network = await SummaryNetworkScenario.OpenSummaryNetworkAsync(app, window);
+        await RecommendedNodesUiTests.PrepareAsync(app, network, window);
+        var recommended = network.RecommendedNodes[0];
+        network.SelectRecommendation(recommended);
+        await SettleAsync(window);
+        Capture(window, "g55-network-before-recommended-node");
+
+        // 开始探索, sent as it is: the conversation exists, unsummarized, so the network has no node for it yet.
+        network.StartExplorationCommand.Execute(null);
+        var page = Assert.IsType<NewConversationViewModel>(app.Workbench.CurrentPage);
+        app.Client.Reply("锅炉爆炸多因水位过低、安全阀失灵或钢板疲劳：水位一低，炉顶钢板干烧变软，内部高压蒸汽便会撕开它。");
+        await page.Composer.SendCommand.ExecuteAsync(null);
+        await UiWait.UntilAsync(() => app.Workbench.CurrentPage is ConversationViewModel);
+        await page.Marking;
+        var conversation = ((ConversationViewModel)app.Workbench.CurrentPage!).Id;
+        await UiWait.UntilAsync(() => !app.Services.GetRequiredService<IConversations>().HasUnfinishedAnswer(conversation));
+        app.ShellPage.ShowSectionCommand.Execute(MainSection.SummaryNetwork);
+        await UiWait.UntilAsync(() => network.RecommendedNodes.Count == 0);
+        await SettleAsync(window);
+        Capture(window, "g55a-network-sent-not-summarized");
+
+        // Summarized: the new summary is linked to the basis with the note 来自推荐, drawn and listed like any link.
+        var service = app.Services.GetRequiredService<SummaryService>();
+        app.Client.Knowledge.Replies.Enqueue("标题：蒸汽机车锅炉为什么会爆炸\n短名：锅炉爆炸\n\n- 水位过低：炉顶钢板干烧变软。\n- 安全阀失灵：压力无处释放。\n- 钢板疲劳与水垢。");
+        await SummarizeAsync(service, conversation);
+        var made = (await service.ForConversationAsync(conversation, CancellationToken.None))!.Node.Id;
+        await UiWait.UntilAsync(() => network.LinkEdges.Count == 1 && network.Nodes.Any(n => n.Id == made));
+        network.Select(made);
+        await network.LinksReloaded;
+        var item = Assert.Single(network.Links!.Items);
+        Assert.Equal("来自推荐", item.Entry.Link.Note);
+        Assert.Equal(recommended.Basis, item.Entry.Other);
+        Assert.False(network.IsDirty);
+
+        // A new summary is placed beside the others, off the view kept from before; 显示全部 brings it in, as a reader would.
+        network.ShowAllCommand.Execute(null);
+        await SettleAsync(window);
+        Capture(window, "g55b-network-after-summary-linked");
+        window.Close();
+    }
+
     // ── AI-suggested links the user confirms (2026-11-16, requirements §10.3.4) ─────────
 
     [AvaloniaFact]

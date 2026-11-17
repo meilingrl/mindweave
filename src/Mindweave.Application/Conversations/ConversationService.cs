@@ -214,7 +214,10 @@ public sealed partial class ConversationService : IConversations
     }
 
     /// <summary>Creates a conversation from its first question and starts answering it.</summary>
-    public async Task<SendOutcome> StartAsync(WorkspaceId workspace, string question, CancellationToken cancellationToken)
+    public Task<SendOutcome> StartAsync(WorkspaceId workspace, string question, CancellationToken cancellationToken) =>
+        StartAsync(workspace, question, null, cancellationToken);
+
+    public async Task<SendOutcome> StartAsync(WorkspaceId workspace, string question, Recommendations.StartingRecommendation? from, CancellationToken cancellationToken)
     {
         var id = ConversationId.New();
         if (await CheckAsync(question, id, cancellationToken).ConfigureAwait(false) is { } rejection)
@@ -237,7 +240,7 @@ public sealed partial class ConversationService : IConversations
         var task = NewTask(GenerationTaskKind.Answer, id, answer.Id, model, [user.Id], now);
         try
         {
-            await _store.CreateAsync(conversation, user, answer, task, cancellationToken).ConfigureAwait(false);
+            await _store.CreateAsync(conversation, user, answer, task, from, cancellationToken).ConfigureAwait(false);
         }
         catch (StorageWriteException ex)
         {

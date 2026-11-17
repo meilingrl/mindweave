@@ -76,8 +76,11 @@ public interface IConversationStore
 
     Task<IReadOnlyList<Message>> GetMessagesAsync(ConversationId id, CancellationToken cancellationToken);
 
-    /// <summary>Creates the conversation, the question, the pending answer and its task together.</summary>
-    Task CreateAsync(Conversation conversation, Message question, Message answer, GenerationTaskRecord task, CancellationToken cancellationToken);
+    /// <summary>
+    /// Creates the conversation, the question, the pending answer and its task together, with the recommendation it was
+    /// started from when there is one (its basis kept only while that summary is still in the workspace).
+    /// </summary>
+    Task CreateAsync(Conversation conversation, Message question, Message answer, GenerationTaskRecord task, Recommendations.StartingRecommendation? from, CancellationToken cancellationToken);
 
     /// <summary>
     /// Appends question + pending answer + task. Sequence numbers are assigned inside the transaction.

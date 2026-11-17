@@ -85,7 +85,7 @@ internal static class PerfSeed
         var q = NewMessage(conversation.Id, MessageRole.User, question, MessageState.Complete, at);
         var a = NewMessage(conversation.Id, MessageRole.Assistant, string.Empty, MessageState.Pending, at);
         var task = NewTask(conversation.Id, a.Id, at);
-        await store.CreateAsync(conversation, q, a, task, cancellationToken).ConfigureAwait(false);
+        await store.CreateAsync(conversation, q, a, task, null, cancellationToken).ConfigureAwait(false);
         await CompleteAsync(store, task, a.Id, answer, at, cancellationToken);
         return conversation.Id;
     }
