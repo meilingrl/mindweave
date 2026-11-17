@@ -318,7 +318,9 @@ public class MotionTests
         await draft.Composer.SendCommand.ExecuteAsync(null);
         await held.Started.Task.WaitAsync(TimeSpan.FromSeconds(5));
         var page = Assert.IsType<ConversationViewModel>(app.Workbench.CurrentPage);
-        await UiWait.UntilAsync(() => page.Composer.IsAnswerRunning);
+        // The context ring arrives with the page's context usage, read in the background: measured once it is there, so
+        // only stop and send differ between the two measurements.
+        await UiWait.UntilAsync(() => page.Composer.IsAnswerRunning && page.Composer.ShowsContextRing);
         window.UpdateLayout();
         var stop = Find<Button>(window, "StopButton");
         Assert.True(stop.IsEffectivelyVisible);
