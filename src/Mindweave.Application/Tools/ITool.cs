@@ -1,0 +1,184 @@
+using System.Security.Cryptography;
+using System.Text;
+using System.Text.Json;
+using Mindweave.Core.Conversations;
+using Mindweave.Core.Resources;
+using Mindweave.Core.Runs;
+using Mindweave.Core.Workspaces;
+
+namespace Mindweave.Application.Tools;
+
+/// <summary>
+/// What a run's tools may reach (requirements §10.4.4): the conversation's workspace, the conversation, and the resources
+/// its frozen chain refers to (attachments and earlier tool results, in its own messages and its ancestors' frozen ranges).
+/// Tool results made during the run join <see cref="Resources"/> as they are stored.
+/// </summary>
+public sealed class ToolScope(WorkspaceId workspace, ConversationId conversation, IEnumerable<ResourceId> resources)
+{
+    private readonly HashSet<ResourceId> _resources = [.. resources];
+    private readonly Lock _gate = new();
+
+    public WorkspaceId Workspace { get; } = workspace;
+
+    public ConversationId Conversation { get; } = conversation;
+
+    public IReadOnlyCollection<ResourceId> Resources
+    {
+        get
+        {
+            lock (_gate)
+            {
+                return [.. _resources];
+            }
+        }
+    }
+
+    public bool Contains(ResourceId resource)
+    {
+        lock (_gate)
+        {
+            return _resources.Contains(resource);
+        }
+    }
+
+    internal void Add(ResourceId resource)
+    {
+        lock (_gate)
+        {
+            _resources.Add(resource);
+        }
+    }
+}
+
+/// <summary>
+/// What a tool returned: <paramref name="Text"/> the whole result (stored as a resource, and sent to the model when it is
+/// short enough), <paramref name="Detail"/> a short account for step details ("找到 3 段"), the provenance of the material it
+/// carries, and what it found.
+/// </summary>
+public sealed record ToolOutput(string Text, string Detail, ResourceProvenance Provenance, IReadOnlyList<ToolFinding> Findings);
+
+/// <summary>The arguments do not fit the tool's input; the message goes back to the model as the call's result.</summary>
+public sealed class ToolInputException : Exception
+{
+    public ToolInputException()
+    {
+    }
+
+    public ToolInputException(string message)
+        : base(message)
+    {
+    }
+
+    public ToolInputException(string message, Exception innerException)
+        : base(message, innerException)
+    {
+    }
+}
+
+/// <summary>
+/// A tool a run can offer (architecture §15.6): its name (letters, digits, '_' and '-', at most 64), what it does, the JSON
+/// Schema of its input, its risk, a time limit and an output limit. Tools read their own stores; they never see the
+/// conversation, secrets or other tools' results beyond their scope.
+/// </summary>
+public interface ITool
+{
+    string Name { get; }
+
+    /// <summary>The name a person sees (需求术语), for example 检索附件.</summary>
+    string DisplayName { get; }
+
+    string Description { get; }
+
+    /// <summary>The JSON Schema of the arguments, as JSON text.</summary>
+    string ParametersSchema { get; }
+
+    ToolRisk Risk { get; }
+
+    TimeSpan Timeout { get; }
+
+    /// <summary>Whether the tool has anything to search in this scope (decision R5: a tool with nothing to find is not offered).</summary>
+    Task<bool> IsAvailableAsync(ToolScope scope, CancellationToken cancellationToken);
+
+    /// <summary>One readable line for the arguments, for step details (the search terms, the part read).</summary>
+    string Describe(JsonElement arguments);
+
+    /// <summary>Runs the tool. Throws <see cref="ToolInputException"/> when the arguments do not fit its input.</summary>
+    Task<ToolOutput> ExecuteAsync(ToolScope scope, JsonElement arguments, CancellationToken cancellationToken);
+}
+
+/// <summary>Helpers for tools' arguments and definitions.</summary>
+public static class ToolArguments
+{
+    /// <summary>A string property, trimmed; null when absent or blank. A value of another type is a <see cref="ToolInputException"/>.</summary>
+    public static string? Text(JsonElement arguments, string name)
+    {
+        if (!arguments.TryGetProperty(name, out var value) || value.ValueKind == JsonValueKind.Null)
+        {
+            return null;
+        }
+
+        return value.ValueKind == JsonValueKind.String
+            ? value.GetString()!.Trim() is { Length: > 0 } text ? text : null
+            : throw new ToolInputException($"参数 {name} 应是文字。");
+    }
+
+    /// <summary>An integer property (a whole number given as a number or as digits); null when absent.</summary>
+    public static int? WholeNumber(JsonElement arguments, string name)
+    {
+        if (!arguments.TryGetProperty(name, out var value) || value.ValueKind == JsonValueKind.Null)
+        {
+            return null;
+        }
+
+        if (value.ValueKind == JsonValueKind.Number && value.TryGetInt32(out var n))
+        {
+            return n;
+        }
+
+        if (value.ValueKind == JsonValueKind.String && int.TryParse(value.GetString(), System.Globalization.NumberStyles.Integer, System.Globalization.CultureInfo.InvariantCulture, out var parsed))
+        {
+            return parsed;
+        }
+
+        throw new ToolInputException($"参数 {name} 应是整数。");
+    }
+
+    /// <summary>The hash a run freezes for a tool's definition (architecture §15.3: <c>generation_task.tools</c>).</summary>
+    public static string DefinitionHash(ITool tool)
+    {
+        ArgumentNullException.ThrowIfNull(tool);
+        var bytes = Encoding.UTF8.GetBytes(tool.Name + "\n" + tool.Description + "\n" + tool.ParametersSchema);
+        return Convert.ToHexString(SHA256.HashData(bytes))[..16].ToLowerInvariant();
+    }
+
+    /// <summary>At most <paramref name="max"/> characters of <paramref name="text"/> around its first match of <paramref name="terms"/>.</summary>
+    public static string Snippet(string text, IReadOnlyList<string> terms, int max)
+    {
+        ArgumentNullException.ThrowIfNull(text);
+        ArgumentNullException.ThrowIfNull(terms);
+        var flat = text.ReplaceLineEndings(" ");
+        if (flat.Length <= max)
+        {
+            return flat.Trim();
+        }
+
+        var hit = terms.Select(t => flat.IndexOf(t, StringComparison.OrdinalIgnoreCase)).Where(i => i >= 0).DefaultIfEmpty(0).Min();
+        var start = Math.Clamp(hit - (max / 3), 0, flat.Length - max);
+        if (start > 0 && char.IsLowSurrogate(flat[start]))
+        {
+            start--;
+        }
+
+        var end = Math.Min(flat.Length, start + max);
+        if (end < flat.Length && char.IsHighSurrogate(flat[end - 1]))
+        {
+            end--;
+        }
+
+        return (start > 0 ? "…" : string.Empty) + flat[start..end].Trim() + (end < flat.Length ? "…" : string.Empty);
+    }
+
+    /// <summary>The distinct plain terms of a query as a person reads them: words and CJK pairs (see <see cref="SearchTerms"/>).</summary>
+    public static IReadOnlyList<string> Terms(string query) =>
+        [.. SearchTerms.Of(query).Split(' ', StringSplitOptions.RemoveEmptyEntries).Distinct(StringComparer.Ordinal)];
+}
