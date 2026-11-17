@@ -333,6 +333,13 @@ public sealed partial class ConversationViewModel : PageViewModel, IDisposable, 
     [RelayCommand]
     private void CancelRename() => IsRenaming = false;
 
+    /// <summary>A tool's stored result, in the attachment viewer (requirements §10.4.4: 可以打开工具结果查看).</summary>
+    private void OpenToolResult(Core.Resources.ResourceId result, string title) => Composer.Open(AttachmentChip.ForToolResult(result, title, Composer.Open));
+
+    /// <summary>A summary a tool found: navigation, like opening it from the network.</summary>
+    private void OpenSummary(Core.Summaries.SummaryNodeId node) =>
+        _navigator.Navigate(new NavigationRequest(MainSection.SummaryNetwork, new SummaryRoute(node)));
+
     [RelayCommand]
     private void OpenSettings() => _navigator.Navigate(new NavigationRequest(MainSection.Settings));
 
@@ -513,7 +520,7 @@ public sealed partial class ConversationViewModel : PageViewModel, IDisposable, 
 
     private MessageItemViewModel NewItem(Message message)
     {
-        var item = new MessageItemViewModel(message, _conversations.Observe(message.Id), _dispatcher, _time, Composer.Open) { IsBranchPaused = IsStorageBlocked };
+        var item = new MessageItemViewModel(message, _conversations.Observe(message.Id), _dispatcher, _time, Composer.Open, OpenToolResult, OpenSummary) { IsBranchPaused = IsStorageBlocked };
         item.PropertyChanged += (_, e) =>
         {
             if (e.PropertyName == nameof(MessageItemViewModel.State))

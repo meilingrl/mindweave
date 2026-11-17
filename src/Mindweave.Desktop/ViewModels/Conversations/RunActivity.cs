@@ -1,0 +1,69 @@
+using CommunityToolkit.Mvvm.Input;
+using Mindweave.Application.Storage;
+using Mindweave.Core.Conversations;
+using Mindweave.Core.Resources;
+using Mindweave.Core.Runs;
+using Mindweave.Core.Summaries;
+
+namespace Mindweave.Desktop.ViewModels.Conversations;
+
+/// <summary>Something a step found that can be opened: a summary, or (for a tool result) the stored result.</summary>
+public sealed record RunStepLink(string Label, IRelayCommand Open);
+
+/// <summary>
+/// One tool step as the expanded activity line shows it (requirements §10.4.4): the tool and its input, the result (or the
+/// error), its time and state, and links to what it found. Not a branch source (architecture §15.9).
+/// </summary>
+public sealed record RunStepItem(string Title, string Outcome, string Meta, bool IsProblem, IReadOnlyList<RunStepLink> Links)
+{
+    public bool HasLinks => Links.Count > 0;
+
+    /// <summary>
+    /// The steps of an answer from its blocks (calls paired with their results by call ID) and, when known, its stored
+    /// steps for times and states. <paramref name="openResult"/> opens a stored result; <paramref name="openSummary"/> a summary.
+    /// </summary>
+    internal static IReadOnlyList<RunStepItem> From(
+        IReadOnlyList<ContentBlock> toolBlocks, RunRecord? run, string? activeTool, Action<ResourceId, string>? openResult, Action<SummaryNodeId>? openSummary)
+    {
+        var results = toolBlocks.OfType<ToolResultBlock>().GroupBy(r => r.CallId, StringComparer.Ordinal).ToDictionary(g => g.Key, g => g.Last(), StringComparer.Ordinal);
+        var steps = run?.Steps.Where(s => s.Kind == RunStepKind.Tool && s.CallId is not null).GroupBy(s => s.CallId!, StringComparer.Ordinal).ToDictionary(g => g.Key, g => g.Last(), StringComparer.Ordinal);
+        var calls = toolBlocks.OfType<ToolCallBlock>().ToList();
+        var items = new List<RunStepItem>();
+        for (var i = 0; i < calls.Count; i++)
+        {
+            var call = calls[i];
+            var result = results.GetValueOrDefault(call.CallId);
+            var step = steps?.GetValueOrDefault(call.CallId);
+            var running = result is null && activeTool is not null && i == calls.Count - 1;
+            var state = result?.Status switch
+            {
+                ToolResultStatus.Succeeded => UiText.RunStepDone,
+                ToolResultStatus.Skipped => UiText.RunStepSkipped,
+                ToolResultStatus.Failed or ToolResultStatus.Denied => UiText.RunStepFailed,
+                _ when running => UiText.RunStepRunning,
+                _ => step?.State == RunStepState.Unknown ? UiText.RunStepUnknown : UiText.RunStepStopped,
+            };
+            var outcome = result is null ? string.Empty
+                : result.Status == ToolResultStatus.Succeeded ? result.Detail ?? string.Empty
+                : result.Preview;
+            var meta = step?.Duration is { } took ? $"{UiText.StepDuration(took)} · {state}" : state;
+            var links = new List<RunStepLink>();
+            if (result?.Resource is { } stored && openResult is not null)
+            {
+                links.Add(new RunStepLink(UiText.OpenToolResult, new RelayCommand(() => openResult(stored, call.Summary))));
+            }
+
+            foreach (var finding in result?.Findings ?? [])
+            {
+                if (finding.Kind == ToolFindingKind.Summary && openSummary is not null && Guid.TryParse(finding.Id, out var node))
+                {
+                    links.Add(new RunStepLink(finding.Title, new RelayCommand(() => openSummary(new SummaryNodeId(node)))));
+                }
+            }
+
+            items.Add(new RunStepItem(call.Summary, outcome, meta, result?.Status is ToolResultStatus.Failed or ToolResultStatus.Denied, links));
+        }
+
+        return items;
+    }
+}

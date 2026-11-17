@@ -392,6 +392,23 @@ public class RunFlowTests
         Assert.Equal(3, h.Client.Requests.Count(FakeChatClient.IsAnswer));
     }
 
+    [Fact]
+    public async Task Statistics_count_runs_their_model_requests_and_each_tools_calls()
+    {
+        await using var h = await ChatHarness.StartAsync(model: ToolModel);
+        h.Client.CallTool(SearchAttachmentsTool.ToolName, Query("蒸汽机"));
+        h.Client.CallTool(SearchAttachmentsTool.ToolName, Query("信号灯"));
+        h.Client.Reply("好。");
+        await AskWithAttachmentAsync(h, "问");
+        var plain = await h.Conversations.StartAsync(h.Workspace, "不带附件的问题", Ct);
+        await h.WaitForAnswerAsync(plain.Answer!.Value);
+
+        var usage = await h.StatisticsStore.ToolUsageAsync(h.Workspace, DateTimeOffset.UtcNow.AddDays(-1), DateTimeOffset.UtcNow.AddDays(1), Ct);
+        Assert.Equal((1, 3), (usage.Runs, usage.ModelRequests));
+        Assert.Equal([new ToolCallCount(SearchAttachmentsTool.ToolName, 2)], usage.Calls);
+        Assert.Equal(ToolUsage.None.Runs, (await h.StatisticsStore.ToolUsageAsync(Core.Workspaces.WorkspaceId.New(), DateTimeOffset.UtcNow.AddDays(-1), DateTimeOffset.UtcNow.AddDays(1), Ct)).Runs);
+    }
+
     private static string AnswerRunnerFinalInstruction => "【本次运行已达到上限】";
 
     private static async Task<ResourceId> PasteAsync(ChatHarness h, string text) =>

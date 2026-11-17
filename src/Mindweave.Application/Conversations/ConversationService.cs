@@ -51,11 +51,13 @@ public sealed record SendOutcome(SendRejection? Rejection, ConversationId Conver
 
 /// <param name="CompressedAnswers">Answers whose request sent older context as a summary (shown with a light note).</param>
 /// <param name="ReducedAttachments">Answers whose request sent some attachment as only its summary or parts, and how (requirements §10.4.3).</param>
+/// <param name="Runs">Answers that were runs (requirements §10.4.4): their steps and the limit reached, for the activity line.</param>
 public sealed record ConversationContent(
     Conversation Conversation,
     IReadOnlyList<Message> Messages,
     IReadOnlySet<MessageId>? CompressedAnswers = null,
-    IReadOnlyDictionary<MessageId, IReadOnlyList<ResourceInput>>? ReducedAttachments = null);
+    IReadOnlyDictionary<MessageId, IReadOnlyList<ResourceInput>>? ReducedAttachments = null,
+    IReadOnlyDictionary<MessageId, RunRecord>? Runs = null);
 
 /// <summary>
 /// How much of the model's context the conversation takes now, as estimated by the planner that decides what is sent.
@@ -103,6 +105,7 @@ public sealed partial class ConversationService : IConversations
     private readonly ResourceContext? _resources;
     private readonly IResourceStore? _resourceStore;
     private readonly Tools.ToolRegistry? _tools;
+    private readonly IRunStore? _runs;
     private readonly Preferences.IToolSettings? _toolSettings;
 
     public ConversationService(
@@ -119,8 +122,10 @@ public sealed partial class ConversationService : IConversations
         ResourceContext? resources = null,
         IResourceStore? resourceStore = null,
         Tools.ToolRegistry? tools = null,
-        Preferences.IToolSettings? toolSettings = null)
+        Preferences.IToolSettings? toolSettings = null,
+        IRunStore? runs = null)
     {
+        _runs = runs;
         _tools = tools;
         _toolSettings = toolSettings;
         _resources = resources;
@@ -199,7 +204,8 @@ public sealed partial class ConversationService : IConversations
         var messages = await _store.GetMessagesAsync(id, cancellationToken).ConfigureAwait(false);
         var compressed = _summaries is null ? null : await _summaries.CompressedAnswersAsync(id, cancellationToken).ConfigureAwait(false);
         var reduced = _resourceStore is null ? null : await _resourceStore.ReducedInputsAsync(id, cancellationToken).ConfigureAwait(false);
-        return new ConversationContent(conversation, messages, compressed, reduced);
+        var runs = _runs is null ? null : await _runs.RunsAsync(id, cancellationToken).ConfigureAwait(false);
+        return new ConversationContent(conversation, messages, compressed, reduced, runs);
     }
 
     public LiveAnswer? Observe(MessageId answer) => _generation.Observe(answer);

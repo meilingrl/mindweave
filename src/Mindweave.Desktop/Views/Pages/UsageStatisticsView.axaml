@@ -268,6 +268,31 @@
           </Border>
         </StackPanel>
 
+        <!-- 工具 (requirements §10.4.4): answers that were runs, requests per run, and each tool's calls in the period. -->
+        <StackPanel Name="ToolUsageSection" IsVisible="{Binding HasToolUsage}">
+          <TextBlock Classes="section-heading" Margin="2,28,0,8" Text="{x:Static t:UiText.ToolUsageSection}" />
+          <Border Classes="card settings">
+            <StackPanel Spacing="10">
+              <TextBlock Name="ToolRunsText" Text="{Binding ToolRunsText}" TextWrapping="Wrap" />
+              <ItemsControl Name="ToolCallRows" ItemsSource="{Binding ToolCalls}">
+                <ItemsControl.ItemsPanel>
+                  <ItemsPanelTemplate>
+                    <StackPanel Spacing="6" />
+                  </ItemsPanelTemplate>
+                </ItemsControl.ItemsPanel>
+                <ItemsControl.ItemTemplate>
+                  <DataTemplate x:DataType="vm:ToolCallRowViewModel">
+                    <DockPanel>
+                      <TextBlock DockPanel.Dock="Right" Classes="caption" Text="{Binding CallsText}" VerticalAlignment="Center" />
+                      <TextBlock FontWeight="SemiBold" Text="{Binding Name}" />
+                    </DockPanel>
+                  </DataTemplate>
+                </ItemsControl.ItemTemplate>
+              </ItemsControl>
+            </StackPanel>
+          </Border>
+        </StackPanel>
+
         <!-- 活动: plain counts of what is there now, active days and the first one; facts only. -->
         <TextBlock Classes="section-heading" Margin="2,28,0,8" Text="{x:Static t:UiText.ActivitySection}" />
         <Border Classes="card settings">

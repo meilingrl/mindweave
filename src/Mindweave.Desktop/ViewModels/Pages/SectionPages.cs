@@ -55,9 +55,17 @@ public sealed partial class SettingsHomeViewModel : PageViewModel, IDisposable
         IThemeApplier theme,
         IWorkspaceDirectory? workspaces = null,
         INewsAlerts? newsAlerts = null,
-        IRecommendationSettings? recommendationSettings = null)
+        IRecommendationSettings? recommendationSettings = null,
+        ToolSettingsPanel? tools = null)
         : base(SettingsHomeRoute.Instance)
     {
+        Tools = tools;
+        if (tools is not null)
+        {
+            // Declaring or undeclaring tool calls for the model changes whether 设置 › 工具 can be used.
+            model.Saved += (_, _) => _ = tools.RefreshAvailabilityAsync();
+        }
+
         _newsAlerts = newsAlerts;
         _recommendationSettings = recommendationSettings;
         _workspaces = workspaces;
@@ -87,6 +95,11 @@ public sealed partial class SettingsHomeViewModel : PageViewModel, IDisposable
     }
 
     public ModelSettingsViewModel Model { get; }
+
+    /// <summary>设置 › 工具 (requirements §10.4.4); null where tool settings are not wired.</summary>
+    public ToolSettingsPanel? Tools { get; }
+
+    public bool HasTools => Tools is not null;
 
     /// <summary>The 工作区 section's entry to 设置 › 工作区 is offered (the page is built with the workbench's list).</summary>
     public bool CanManageWorkspaces => _workspaces is not null;

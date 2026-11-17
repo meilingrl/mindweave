@@ -66,6 +66,16 @@ public sealed partial class AttachmentChip : ViewModelBase
         return chip;
     }
 
+    /// <summary>A tool's stored result, opened from an answer's steps in the same viewer (never shown as a chip).</summary>
+    internal static AttachmentChip ForToolResult(ResourceId result, string title, Action<AttachmentChip>? open) =>
+        new(title, UiText.ToolResultType, false, false, null, open)
+        {
+            Resource = result,
+            MediaType = MediaTypes.Markdown,
+            SizeLabel = string.Empty,
+            State = AttachmentChipState.Ready,
+        };
+
     /// <summary>A chip for an attachment block of a sent question.</summary>
     internal static AttachmentChip ForBlock(AttachmentBlock block, Action<AttachmentChip>? open)
     {

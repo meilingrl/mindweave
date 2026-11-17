@@ -42,7 +42,8 @@ internal sealed class PageFactory(
     Application.Preferences.IRecommendationSettings recommendationSettings,
     Application.SummaryLinks.ISummaryLinks links,
     Application.SummaryLinks.ILinkSuggestions suggestions,
-    Application.Resources.IResources? resources = null) : IPageFactory
+    Application.Resources.IResources? resources = null,
+    Application.Preferences.IToolSettings? toolSettings = null) : IPageFactory
 {
     public PageViewModel Create(ContentRoute route, PageContext context) => route switch
     {
@@ -52,7 +53,8 @@ internal sealed class PageFactory(
         ConversationRoute conversation => new ConversationViewModel(conversation, context, conversations, reading, dispatcher, storage, summaries, time, conversationDeletion, conversationDeletionPrompt, resources, models),
         NewConversationRoute fresh => new NewConversationViewModel(context.Workspace.Id, conversations, context.Navigator, context.Navigator, recommendations, dispatcher, fresh, recommendationSettings, reading, models, resources),
         ArchivedRoute => new ArchivedViewModel(context.Workspace, conversations, context.Navigator, dispatcher, conversationDeletion, conversationDeletionPrompt),
-        SettingsHomeRoute => new SettingsHomeViewModel(environment, new ModelSettingsViewModel(models), context.Navigator, appearance, theme, context.Workspaces, newsAlerts, recommendationSettings),
+        SettingsHomeRoute => new SettingsHomeViewModel(environment, new ModelSettingsViewModel(models), context.Navigator, appearance, theme, context.Workspaces, newsAlerts, recommendationSettings,
+            toolSettings is null ? null : new ToolSettingsPanel(toolSettings, models)),
         StorageDetailsRoute => new StorageDetailsViewModel(environment, backupFiles, shell, backupPrompts),
         UsageStatisticsRoute => new UsageStatisticsViewModel(context.Workspace, statistics, prices, context.Navigator),
         WorkspacesRoute => new WorkspacesViewModel(

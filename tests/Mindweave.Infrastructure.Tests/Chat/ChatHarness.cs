@@ -146,6 +146,8 @@ internal sealed class ChatHarness : IAsyncDisposable
     /// <summary>Runs and their steps (phase 2).</summary>
     public IRunStore Runs => _services.GetRequiredService<IRunStore>();
 
+    public IStatisticsStore StatisticsStore => _services.GetRequiredService<IStatisticsStore>();
+
     /// <summary>设置 › 工具.</summary>
     public Application.Preferences.IToolSettings ToolSettings => _services.GetRequiredService<Application.Preferences.IToolSettings>();
 
