@@ -37,12 +37,11 @@ internal sealed partial class AnswerRunner
 
     internal const string SkippedResult = "未执行：本次运行已达到工具调用次数上限。";
 
-    /// <summary>The call ID of the search the app makes itself when the switch is 开 (decision W1).</summary>
-    internal const string PreSearchCallId = "presearch";
+    internal const string PreSearchCallId = WebMaterial.PreSearchCallId;
 
-    internal const string PreSearchLead = "（应用已按用户的设置先用这个问题搜索了网络，结果如下；需要时可以再搜索或读取网页。）";
+    internal const string PreSearchLead = WebMaterial.PreSearchLead;
 
-    internal const string DeniedResult = "用户拒绝读取这个网址。请不要再尝试读取它，根据已有的材料回答，或说明还缺什么。";
+    internal const string DeniedResult = WebMaterial.DeniedResult;
 
     private readonly record struct RunEnding(MessageState State, GenerationErrorKind? Error, string? Detail);
 

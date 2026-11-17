@@ -80,6 +80,15 @@ internal sealed class ChatHarness : IAsyncDisposable
 
     public FakeChatClient Client { get; } = new();
 
+    /// <summary>The search service (phase 3): scripted hits, no network.</summary>
+    public FakeSearchProvider Search { get; } = new();
+
+    /// <summary>The page reader (phase 3): a table of pages, no network.</summary>
+    public FakePageFetcher Pages { get; } = new();
+
+    /// <summary>设置 › 工具 › 网络搜索.</summary>
+    public Application.Preferences.IWebSearchSettings WebSearch => _services.GetRequiredService<Application.Preferences.IWebSearchSettings>();
+
     /// <summary>The client the coordinator uses: the fake unless a real one was supplied.</summary>
     public IChatClient ActiveClient { get; }
 
@@ -378,6 +387,8 @@ internal sealed class ChatHarness : IAsyncDisposable
         // Added first: the app's defaults for these are only registered where nothing is yet.
         services.AddSingleton(client);
         services.AddSingleton(credentials);
+        services.AddSingleton<Application.Tools.ISearchProvider>(Search);
+        services.AddSingleton<Application.Tools.IWebPageFetcher>(Pages);
         services.AddSingleton(new StorageHealthOptions { RetryInterval = storageRetry ?? TimeSpan.FromMilliseconds(50) });
 
         // The background's 30 s wait runs on a clock that stands still unless a test moves it.

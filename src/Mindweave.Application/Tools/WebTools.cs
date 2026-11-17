@@ -15,6 +15,15 @@ public static class WebMaterial
 
     public const string Closing = "【网络材料结束】";
 
+    /// <summary>The call ID of the search the app makes itself when the switch is 开 (decision W1).</summary>
+    public const string PreSearchCallId = "presearch";
+
+    /// <summary>What precedes the 开 search's results in the question sent.</summary>
+    public const string PreSearchLead = "（应用已按用户的设置先用这个问题搜索了网络，结果如下；需要时可以再搜索或读取网页。）";
+
+    /// <summary>The result of a call the user refused (Q10).</summary>
+    public const string DeniedResult = "用户拒绝读取这个网址。请不要再尝试读取它，根据已有的材料回答，或说明还缺什么。";
+
     /// <summary>The content as sent to the model.</summary>
     public static string Wrap(string content) => Opening + "\n" + (content ?? string.Empty).TrimEnd() + "\n" + Closing;
 }
@@ -270,7 +279,13 @@ public sealed class FetchPageTool(IWebPageFetcher fetcher, TimeProvider? time = 
             return null;
         }
 
-        return Uri.TryCreate(text, UriKind.Absolute, out var url) ? url : throw new ToolInputException("url 不是完整的网址，应以 http:// 或 https:// 开头。");
+        if (!Uri.TryCreate(text, UriKind.Absolute, out var url))
+        {
+            throw new ToolInputException("url 不是完整的网址，应以 http:// 或 https:// 开头。");
+        }
+
+        // A fragment is never sent: it names a place in the page, not another page.
+        return url.Fragment.Length > 0 && url.IsAbsoluteUri ? new UriBuilder(url) { Fragment = string.Empty }.Uri : url;
     }
 
     /// <summary>"约 3,200 字 · 网页" for step details.</summary>
