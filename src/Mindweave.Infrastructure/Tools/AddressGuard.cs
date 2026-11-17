@@ -150,6 +150,27 @@ internal static class AddressGuard
         return false;
     }
 
+    /// <summary>
+    /// True for 198.18.0.0/15, the range proxies such as Clash and Surge hand out as "fake IP" DNS answers: the name is resolved
+    /// again by the proxy, so the address says nothing about where the page really is (2026-11-17, decision W8 revised). Only
+    /// a resolver's answer is read this way; the same address written in a URL stays blocked.
+    /// </summary>
+    public static bool IsProxyFakeAddress(IPAddress address)
+    {
+        ArgumentNullException.ThrowIfNull(address);
+        var v4 = address.IsIPv4MappedToIPv6 ? address.MapToIPv4() : address;
+        if (v4.AddressFamily != AddressFamily.InterNetwork)
+        {
+            return false;
+        }
+
+        var b = v4.GetAddressBytes();
+        return b[0] == 198 && (b[1] & 0xfe) == 18;
+    }
+
+    /// <summary>True when a resolved address must not be reached: blocked, and not a proxy's fake-IP answer.</summary>
+    public static bool IsBlockedAnswer(IPAddress address) => IsBlocked(address) && !IsProxyFakeAddress(address);
+
     public static PageFetchException Blocked(string host) =>
         new(FetchFailureKind.BlockedAddress, $"拒绝读取：{host} 指向本机或局域网地址。");
 

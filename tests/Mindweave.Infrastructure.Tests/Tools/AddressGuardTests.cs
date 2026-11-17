@@ -122,4 +122,17 @@ public class AddressGuardTests
     [InlineData("https://zh.wikipedia.org/wiki/蒸汽机")]
     [InlineData("https://localhost.example.com/")]
     public void Lets_public_addresses_through(string address) => AddressGuard.CheckUrl(new Uri(address));
+
+    [Theory]
+    [InlineData("198.18.0.73", true)]
+    [InlineData("198.19.255.1", true)]
+    [InlineData("::ffff:198.18.0.1", true)]
+    [InlineData("198.20.0.1", false)]
+    [InlineData("192.168.1.1", false)]
+    public void Fake_ip_answers_are_recognised_and_not_counted_as_blocked(string address, bool fake)
+    {
+        var ip = IPAddress.Parse(address);
+        Assert.Equal(fake, AddressGuard.IsProxyFakeAddress(ip));
+        Assert.Equal(!fake && AddressGuard.IsBlocked(ip), AddressGuard.IsBlockedAnswer(ip));
+    }
 }

@@ -29,7 +29,10 @@ public sealed record PageFetchLimits
 /// five) the address is checked: http(s) only, no user name or password, and the host, and every address it resolves to,
 /// outside this computer and private networks. The production handler connects only to addresses it has resolved and checked
 /// itself (<see cref="CheckedAddressesAsync"/>), so a name that resolves differently the second time cannot reach the
-/// network; it does not use the system proxy (decision W8), sends no cookies and no credentials. The body is read as a
+/// network. When the system proxy applies to an address (decision W8, revised 2026-11-17 after the owner's Clash Verge setup
+/// refused every page), the request goes through the proxy instead: the URL, the name and redirects are still checked, a
+/// resolved private address is still refused, and a proxy's fake-IP answer (198.18.0.0/15) or a name only the proxy can
+/// resolve is let through. It sends no cookies and no credentials. The body is read as a
 /// stream within a size and a time limit, and becomes text: HTML through <see cref="HtmlText"/>, PDF through the PDF
 /// <see cref="ITextExtractor"/>, other text as it is.
 /// </summary>
@@ -44,6 +47,8 @@ public sealed partial class GuardedPageFetcher : IWebPageFetcher
     private static readonly Encoding StrictUtf8 = new UTF8Encoding(encoderShouldEmitUTF8Identifier: false, throwOnInvalidBytes: true);
 
     private readonly HttpClient _http;
+    private readonly HttpClient? _proxied;
+    private readonly IWebProxy? _proxy;
     private readonly Func<string, CancellationToken, Task<IPAddress[]>> _resolve;
     private readonly ITextExtractor? _pdf;
     private readonly TimeProvider _time;
@@ -54,7 +59,9 @@ public sealed partial class GuardedPageFetcher : IWebPageFetcher
         Func<string, CancellationToken, Task<IPAddress[]>> resolve,
         IEnumerable<ITextExtractor> extractors,
         TimeProvider? time = null,
-        PageFetchLimits? limits = null)
+        PageFetchLimits? limits = null,
+        IWebProxy? proxy = null,
+        HttpClient? proxied = null)
     {
         ArgumentNullException.ThrowIfNull(http);
         ArgumentNullException.ThrowIfNull(resolve);
@@ -64,13 +71,63 @@ public sealed partial class GuardedPageFetcher : IWebPageFetcher
         _pdf = extractors.FirstOrDefault(e => e.CanExtract(MediaTypes.Pdf));
         _time = time ?? TimeProvider.System;
         _limits = limits ?? PageFetchLimits.Default;
+        _proxy = proxied is null ? null : proxy;
+        _proxied = proxy is null ? null : proxied;
     }
 
     /// <summary>The production reader: its own guarded handler and the system resolver.</summary>
     public static GuardedPageFetcher Create(IEnumerable<ITextExtractor> extractors, TimeProvider? time = null)
     {
         var http = new HttpClient(CreateHandler(ResolveAsync)) { Timeout = Timeout.InfiniteTimeSpan };
-        return new GuardedPageFetcher(http, ResolveAsync, extractors, time);
+        // The same proxy model requests and Tavily use: HTTP(S)_PROXY and NO_PROXY when set, else the system's settings.
+        var proxy = HttpClient.DefaultProxy;
+        var proxied = new HttpClient(CreateProxiedHandler(proxy)) { Timeout = Timeout.InfiniteTimeSpan };
+        return new GuardedPageFetcher(http, ResolveAsync, extractors, time, proxy: proxy, proxied: proxied);
+    }
+
+    /// <summary>Through the proxy: no redirects (each hop is checked by the reader), no cookies, no credentials.</summary>
+    public static SocketsHttpHandler CreateProxiedHandler(IWebProxy proxy)
+    {
+        ArgumentNullException.ThrowIfNull(proxy);
+        return new SocketsHttpHandler
+        {
+            AllowAutoRedirect = false,
+            UseCookies = false,
+            UseProxy = true,
+            Proxy = proxy,
+            PreAuthenticate = false,
+            Credentials = null,
+            DefaultProxyCredentials = null,
+            AutomaticDecompression = DecompressionMethods.All,
+            ConnectTimeout = TimeSpan.FromSeconds(10),
+            PooledConnectionLifetime = TimeSpan.FromMinutes(2),
+        };
+    }
+
+    /// <summary>True when the system proxy applies to <paramref name="url"/> (set, and not bypassed by NO_PROXY or the system's list).</summary>
+    internal bool GoesThroughProxy(Uri url)
+    {
+        if (_proxy is null || _proxied is null)
+        {
+            return false;
+        }
+
+        try
+        {
+            if (_proxy.IsBypassed(url))
+            {
+                return false;
+            }
+
+            var through = _proxy.GetProxy(url);
+            return through is not null && through != url;
+        }
+#pragma warning disable CA1031 // A proxy setting that cannot be read means a direct, fully checked connection.
+        catch (Exception)
+#pragma warning restore CA1031
+        {
+            return false;
+        }
     }
 
     /// <summary>
@@ -112,7 +169,7 @@ public sealed partial class GuardedPageFetcher : IWebPageFetcher
     /// The addresses a connection to <paramref name="host"/> may use: an IP literal as it is, a name resolved once. Throws
     /// <see cref="PageFetchException"/> when the name or any resolved address is blocked, or nothing resolves.
     /// </summary>
-    public static async Task<IPAddress[]> CheckedAddressesAsync(string host, Func<string, CancellationToken, Task<IPAddress[]>> resolve, CancellationToken cancellationToken)
+    public static async Task<IPAddress[]> CheckedAddressesAsync(string host, Func<string, CancellationToken, Task<IPAddress[]>> resolve, CancellationToken cancellationToken, bool viaProxy = false)
     {
         ArgumentNullException.ThrowIfNull(host);
         ArgumentNullException.ThrowIfNull(resolve);
@@ -134,15 +191,18 @@ public sealed partial class GuardedPageFetcher : IWebPageFetcher
         }
         catch (SocketException ex)
         {
-            throw new PageFetchException(FetchFailureKind.Network, $"找不到网站 {host}。", ex);
+            // Through a proxy the proxy resolves the name; a name this computer cannot resolve is not a reason to stop.
+            return viaProxy ? [] : throw new PageFetchException(FetchFailureKind.Network, $"找不到网站 {host}。", ex);
         }
 
         if (addresses is not { Length: > 0 })
         {
-            throw new PageFetchException(FetchFailureKind.Network, $"找不到网站 {host}。");
+            return viaProxy ? [] : throw new PageFetchException(FetchFailureKind.Network, $"找不到网站 {host}。");
         }
 
-        return addresses.Any(AddressGuard.IsBlocked) ? throw AddressGuard.Blocked(host) : addresses;
+        // A proxy's fake-IP answer is not where the page is (AddressGuard.IsProxyFakeAddress): with a TUN-mode proxy a direct
+        // connection to it goes into the proxy, without one it simply fails. Real private addresses are refused either way.
+        return addresses.Any(AddressGuard.IsBlockedAnswer) ? throw AddressGuard.Blocked(host) : addresses;
     }
 
     private static Task<IPAddress[]> ResolveAsync(string host, CancellationToken cancellationToken) =>
@@ -186,12 +246,13 @@ public sealed partial class GuardedPageFetcher : IWebPageFetcher
         for (var redirects = 0; ; redirects++)
         {
             AddressGuard.CheckUrl(current);
-            await CheckedAddressesAsync(AddressGuard.HostOf(current), _resolve, cancellationToken).ConfigureAwait(false);
+            var viaProxy = GoesThroughProxy(current);
+            await CheckedAddressesAsync(AddressGuard.HostOf(current), _resolve, cancellationToken, viaProxy).ConfigureAwait(false);
             using var request = new HttpRequestMessage(HttpMethod.Get, current);
             request.Headers.TryAddWithoutValidation("User-Agent", UserAgent);
             request.Headers.TryAddWithoutValidation("Accept", AcceptTypes);
             request.Headers.TryAddWithoutValidation("Accept-Language", AcceptLanguages);
-            using var response = await _http.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, cancellationToken).ConfigureAwait(false);
+            using var response = await (viaProxy ? _proxied! : _http).SendAsync(request, HttpCompletionOption.ResponseHeadersRead, cancellationToken).ConfigureAwait(false);
             var status = (int)response.StatusCode;
             if (status is 301 or 302 or 303 or 307 or 308 && response.Headers.Location is { } location)
             {

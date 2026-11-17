@@ -450,4 +450,95 @@ public class GuardedPageFetcherTests
 
         return builder.Build();
     }
+
+    // Decision W8, revised 2026-11-17: the owner's Clash Verge (system proxy 127.0.0.1:7897, fake-IP DNS answering 198.18.x.x)
+    // made every page read fail as "local". Through the system proxy the checks that can still be made are made.
+
+    private static readonly IPAddress FakeIp = IPAddress.Parse("198.18.0.73");
+
+    private sealed class StubProxy(params string[] bypassed) : IWebProxy
+    {
+        public ICredentials? Credentials { get; set; }
+
+        public Uri GetProxy(Uri destination) => new("http://127.0.0.1:7897");
+
+        public bool IsBypassed(Uri host) => bypassed.Contains(host.Host, StringComparer.OrdinalIgnoreCase);
+    }
+
+    private static GuardedPageFetcher ProxiedFetcher(FakeHandler direct, FakeHandler proxied, Func<string, CancellationToken, Task<IPAddress[]>> resolve, IWebProxy? proxy = null) =>
+        new(new HttpClient(direct), resolve, [], proxy: proxy ?? new StubProxy(), proxied: new HttpClient(proxied));
+
+    private static Task<IPAddress[]> FakeIpResolver(string host, CancellationToken ct) => Task.FromResult(new[] { FakeIp });
+
+    [Fact]
+    public async Task Through_the_proxy_a_fake_ip_answer_is_read_through_the_proxy()
+    {
+        var proxied = new FakeHandler(_ => Responses.Text("<p>百科</p>"));
+
+        var page = await ProxiedFetcher(NeverCalled(), proxied, FakeIpResolver).FetchAsync(new Uri("https://baike.baidu.com/item/x"), Ct);
+
+        Assert.Contains("百科", page.Text, StringComparison.Ordinal);
+        Assert.Single(proxied.Requests);
+    }
+
+    [Fact]
+    public async Task Through_the_proxy_a_name_only_the_proxy_can_resolve_is_read()
+    {
+        var proxied = new FakeHandler(_ => Responses.Text("<p>arXiv</p>"));
+
+        var page = await ProxiedFetcher(NeverCalled(), proxied, (_, _) => throw new System.Net.Sockets.SocketException(11001)).FetchAsync(new Uri("https://arxiv.org/abs/1706.03762"), Ct);
+
+        Assert.Contains("arXiv", page.Text, StringComparison.Ordinal);
+    }
+
+    [Theory]
+    [InlineData("192.168.1.1")]
+    [InlineData("127.0.0.1")]
+    [InlineData("100.100.1.1")]
+    public async Task Through_the_proxy_a_name_resolving_to_a_real_private_address_is_still_refused(string address)
+    {
+        var fetcher = ProxiedFetcher(NeverCalled(), NeverCalled(), (_, _) => Task.FromResult(new[] { IPAddress.Parse(address) }));
+
+        Assert.Equal(FetchFailureKind.BlockedAddress, (await Fails(fetcher, "https://intranet.example/")).Kind);
+    }
+
+    [Theory]
+    [InlineData("http://198.18.0.5/")]
+    [InlineData("http://192.168.1.1/")]
+    [InlineData("http://localhost:8080/")]
+    [InlineData("http://router.local/")]
+    public async Task Through_the_proxy_local_and_written_in_addresses_are_still_refused(string url)
+    {
+        var fetcher = ProxiedFetcher(NeverCalled(), NeverCalled(), FakeIpResolver);
+
+        Assert.Equal(FetchFailureKind.BlockedAddress, (await Fails(fetcher, url)).Kind);
+    }
+
+    [Fact]
+    public async Task Through_the_proxy_a_redirect_to_a_local_address_is_refused()
+    {
+        var proxied = new FakeHandler(_ => new HttpResponseMessage(HttpStatusCode.Found) { Headers = { Location = new Uri("http://127.0.0.1/admin") } });
+
+        Assert.Equal(FetchFailureKind.BlockedAddress, (await Fails(ProxiedFetcher(NeverCalled(), proxied, FakeIpResolver), "http://github.com/")).Kind);
+        Assert.Single(proxied.Requests);
+    }
+
+    [Fact]
+    public async Task An_address_the_proxy_bypasses_is_read_directly()
+    {
+        var direct = new FakeHandler(_ => Responses.Text("<p>直连</p>"));
+
+        var page = await ProxiedFetcher(direct, NeverCalled(), PublicResolver, new StubProxy("intranet-free.example")).FetchAsync(new Uri("https://intranet-free.example/"), Ct);
+
+        Assert.Contains("直连", page.Text, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task Without_a_proxy_a_fake_ip_answer_is_allowed_and_a_failed_lookup_is_not()
+    {
+        var direct = new FakeHandler(_ => Responses.Text("<p>TUN</p>"));
+
+        Assert.Contains("TUN", (await Fetcher(direct, FakeIpResolver).FetchAsync(new Uri("https://github.com/"), Ct)).Text, StringComparison.Ordinal);
+        Assert.Equal(FetchFailureKind.Network, (await Fails(Fetcher(NeverCalled(), (_, _) => throw new System.Net.Sockets.SocketException(11001)), "https://arxiv.org/")).Kind);
+    }
 }
