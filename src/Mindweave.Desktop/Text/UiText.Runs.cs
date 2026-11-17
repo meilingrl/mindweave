@@ -21,7 +21,7 @@ public static partial class UiText
     public const string RunStepUnknown = "结果未知，请自行核对";
 
     public const string SettingsTools = "工具";
-    public const string ToolsIntro = "模型可以在回答时检索本会话的附件与本工作区的总结网络，只读本机数据，不需要新的密钥。";
+    public const string ToolsIntro = "模型可以在回答时检索本会话的附件与本工作区的总结网络（只读本机数据）；设置下面的网络搜索后，还可以搜索网络、读取网页。";
     public const string UseTools = "使用工具";
     public const string UseToolsHint = "关闭后，回答只发送一次请求，不调用工具。";
     public const string ToolsUnavailable = "当前模型不能调用工具，可在设置 › 模型连接 › 高级设置中声明";
