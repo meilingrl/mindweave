@@ -206,6 +206,94 @@ internal static class SqlNames
 
     public const string AttachmentBlockKind = "attachment";
 
+    public const string ToolCallBlockKind = "tool_call";
+
+    public const string ToolResultBlockKind = "tool_result";
+
+    public static string Of(Core.Runs.RunStepKind kind) => kind == Core.Runs.RunStepKind.Model ? "model" : "tool";
+
+    public static Core.Runs.RunStepKind ParseStepKind(string value) => value switch
+    {
+        "model" => Core.Runs.RunStepKind.Model,
+        "tool" => Core.Runs.RunStepKind.Tool,
+        _ => throw new InvalidDataException($"Unknown run step kind '{value}'."),
+    };
+
+    public static string Of(Core.Runs.RunStepState state) => state switch
+    {
+        Core.Runs.RunStepState.Running => "running",
+        Core.Runs.RunStepState.Completed => "completed",
+        Core.Runs.RunStepState.Failed => "failed",
+        Core.Runs.RunStepState.Stopped => "stopped",
+        Core.Runs.RunStepState.Denied => "denied",
+        Core.Runs.RunStepState.AwaitingApproval => "awaiting_approval",
+        Core.Runs.RunStepState.Unknown => "unknown",
+        _ => throw new ArgumentOutOfRangeException(nameof(state)),
+    };
+
+    public static Core.Runs.RunStepState ParseStepState(string value) => value switch
+    {
+        "running" => Core.Runs.RunStepState.Running,
+        "completed" => Core.Runs.RunStepState.Completed,
+        "failed" => Core.Runs.RunStepState.Failed,
+        "stopped" => Core.Runs.RunStepState.Stopped,
+        "denied" => Core.Runs.RunStepState.Denied,
+        "awaiting_approval" => Core.Runs.RunStepState.AwaitingApproval,
+        "unknown" => Core.Runs.RunStepState.Unknown,
+        _ => throw new InvalidDataException($"Unknown run step state '{value}'."),
+    };
+
+    public static string Of(Core.Runs.ToolRisk risk) => risk switch
+    {
+        Core.Runs.ToolRisk.LocalRead => "local_read",
+        Core.Runs.ToolRisk.NetworkRead => "network_read",
+        Core.Runs.ToolRisk.SideEffect => "side_effect",
+        _ => throw new ArgumentOutOfRangeException(nameof(risk)),
+    };
+
+    /// <summary>An unknown risk reads as a side effect: the more careful reading.</summary>
+    public static Core.Runs.ToolRisk ParseRisk(string? value) => value switch
+    {
+        "local_read" => Core.Runs.ToolRisk.LocalRead,
+        "network_read" => Core.Runs.ToolRisk.NetworkRead,
+        _ => Core.Runs.ToolRisk.SideEffect,
+    };
+
+    public static string Of(Core.Runs.ToolResultStatus status) => status switch
+    {
+        Core.Runs.ToolResultStatus.Succeeded => "succeeded",
+        Core.Runs.ToolResultStatus.Failed => "failed",
+        Core.Runs.ToolResultStatus.Denied => "denied",
+        Core.Runs.ToolResultStatus.Skipped => "skipped",
+        _ => throw new ArgumentOutOfRangeException(nameof(status)),
+    };
+
+    public static Core.Runs.ToolResultStatus ParseResultStatus(string? value) => value switch
+    {
+        "succeeded" => Core.Runs.ToolResultStatus.Succeeded,
+        "denied" => Core.Runs.ToolResultStatus.Denied,
+        "skipped" => Core.Runs.ToolResultStatus.Skipped,
+        _ => Core.Runs.ToolResultStatus.Failed,
+    };
+
+    public static string Of(Core.Runs.RunLimit limit) => limit switch
+    {
+        Core.Runs.RunLimit.ModelRequests => "model_requests",
+        Core.Runs.RunLimit.ToolCalls => "tool_calls",
+        Core.Runs.RunLimit.Duration => "duration",
+        Core.Runs.RunLimit.Tokens => "tokens",
+        _ => throw new ArgumentOutOfRangeException(nameof(limit)),
+    };
+
+    public static Core.Runs.RunLimit? ParseRunLimit(string? value) => value switch
+    {
+        "model_requests" => Core.Runs.RunLimit.ModelRequests,
+        "tool_calls" => Core.Runs.RunLimit.ToolCalls,
+        "duration" => Core.Runs.RunLimit.Duration,
+        "tokens" => Core.Runs.RunLimit.Tokens,
+        _ => null,
+    };
+
     public static string Of(ResourceOrigin origin) => origin switch
     {
         ResourceOrigin.Paste => "paste",

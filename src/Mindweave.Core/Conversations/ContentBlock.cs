@@ -40,9 +40,10 @@ public sealed record ToolCallBlock(string CallId, string Tool, string Arguments,
 
 /// <summary>
 /// The result of one tool call: <paramref name="Preview"/> is a short preview (or the error), <paramref name="Resource"/> the
-/// stored full result (null when the call failed), <paramref name="Detail"/> a short readable account ("找到 3 段").
+/// stored full result (null when the call failed), <paramref name="Detail"/> a short readable account ("找到 3 段"), and
+/// <paramref name="Findings"/> what the result points at (summaries found, attachment parts read), for step details.
 /// </summary>
-public sealed record ToolResultBlock(string CallId, ToolResultStatus Status, string Preview, ResourceId? Resource, string? Detail) : ContentBlock;
+public sealed record ToolResultBlock(string CallId, ToolResultStatus Status, string Preview, ResourceId? Resource, string? Detail, IReadOnlyList<ToolFinding>? Findings = null) : ContentBlock;
 
 public static class ContentBlocks
 {

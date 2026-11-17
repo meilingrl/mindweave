@@ -7,5 +7,13 @@ public readonly record struct ResourceId(Guid Value)
 
     public static ResourceId Parse(string text) => new(Guid.ParseExact(text, "D"));
 
+    /// <summary>Parses text that may come from elsewhere (a model's tool call): any usual GUID form, surrounding spaces ignored.</summary>
+    public static bool TryParse(string? text, out ResourceId id)
+    {
+        var ok = Guid.TryParse(text?.Trim(), out var value);
+        id = new ResourceId(value);
+        return ok;
+    }
+
     public override string ToString() => Value.ToString("D");
 }

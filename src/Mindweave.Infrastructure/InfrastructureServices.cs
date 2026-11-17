@@ -43,6 +43,7 @@ public static class InfrastructureServices
         services.AddSingleton<ILinkSuggestionStore, SqliteLinkSuggestionStore>();
         services.AddSingleton<IBranchStore, SqliteBranchStore>();
         services.AddSingleton<IResourceStore, SqliteResourceStore>();
+        services.AddSingleton<IRunStore, SqliteRunStore>();
         services.AddSingleton<FileResourceBlobStore>();
         services.AddSingleton<IResourceBlobStore>(sp => sp.GetRequiredService<FileResourceBlobStore>());
         services.AddSingleton<ITextExtractor, PdfTextExtractor>();

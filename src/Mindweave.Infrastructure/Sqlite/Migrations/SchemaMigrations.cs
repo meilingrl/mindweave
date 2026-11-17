@@ -679,5 +679,46 @@ internal static class SchemaMigrations
             -- so statistics can count resource summaries apart. NULL for requests recorded before.
             ALTER TABLE ai_request ADD COLUMN purpose TEXT CHECK (purpose IS NULL OR length(purpose) > 0);
             """),
+
+        Migration.Sql(17, "run steps, a task's tools and run limits, tool result resources", """
+            -- Phase 2 of the agent platform (requirements §10.4.4, architecture §15.3 and §15.12, docs/design/runs-and-tools.md):
+            -- an answer that may call tools is a run. Its steps are recorded here, what the reader sees stays in message_block
+            -- (tool_call and tool_result blocks). A step is a model request (kind 'model', ai_request_id names its request) or
+            -- one tool execution (kind 'tool': call_id, tool, risk, the arguments' short form in input, the stored result).
+            -- States, risks and approvals are checked by the application, as block kinds are. Steps go with their task.
+            CREATE TABLE run_step (
+                task_id            TEXT    NOT NULL REFERENCES generation_task (id) ON DELETE CASCADE,
+                ordinal            INTEGER NOT NULL CHECK (ordinal >= 0),
+                kind               TEXT    NOT NULL CHECK (kind IN ('model', 'tool')),
+                state              TEXT    NOT NULL CHECK (length(state) > 0),
+                ai_request_id      TEXT,
+                call_id            TEXT,
+                tool               TEXT,
+                risk               TEXT,
+                approval           TEXT,
+                target             TEXT,
+                input              TEXT,
+                result_resource_id TEXT    REFERENCES resource (id) ON DELETE SET NULL,
+                started_at         INTEGER NOT NULL,
+                finished_at        INTEGER,
+                error_kind         TEXT,
+                error_detail       TEXT,
+                PRIMARY KEY (task_id, ordinal),
+                CHECK ((kind = 'tool') = (tool IS NOT NULL))
+            ) STRICT;
+            CREATE INDEX run_step_by_tool ON run_step (tool) WHERE tool IS NOT NULL;
+            CREATE INDEX run_step_by_result ON run_step (result_resource_id) WHERE result_resource_id IS NOT NULL;
+
+            -- What the run was accepted with: the tools offered (JSON, names and definition hashes; NULL: none, the answer is a
+            -- single request as before), the limits (JSON), and which limit ended its use of tools, if one did.
+            ALTER TABLE generation_task ADD COLUMN tools TEXT;
+            ALTER TABLE generation_task ADD COLUMN run_limits TEXT;
+            ALTER TABLE generation_task ADD COLUMN run_limit_reached TEXT CHECK (run_limit_reached IS NULL OR run_limit_reached IN ('model_requests', 'tool_calls', 'duration', 'tokens'));
+
+            -- A tool's full result is a resource (origin 'tool') of the answer's conversation; these name the step that made it.
+            -- Identities only: the resource goes with its conversation, and so does the task.
+            ALTER TABLE resource ADD COLUMN produced_by_task TEXT;
+            ALTER TABLE resource ADD COLUMN produced_by_step INTEGER CHECK (produced_by_step IS NULL OR produced_by_step >= 0);
+            """),
     ];
 }

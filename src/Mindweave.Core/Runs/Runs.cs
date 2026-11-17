@@ -88,3 +88,16 @@ public sealed record RunLimits(int ModelRequests, int ToolCalls, TimeSpan Durati
         TimeSpan.FromMinutes(Math.Clamp(Math.Round(Duration.TotalMinutes), MinMinutes, MaxMinutes)),
         Math.Clamp(Tokens, MinTokens, MaxTokens));
 }
+
+/// <summary>What a tool result points at, for step details: a summary node, or a part of a resource.</summary>
+public enum ToolFindingKind
+{
+    Summary,
+    ResourcePart,
+}
+
+/// <summary>
+/// One thing a tool result found: its kind, the identity of what it names (a summary node ID, or a resource ID), the part
+/// (1-based, for a resource part), and a title to show.
+/// </summary>
+public sealed record ToolFinding(ToolFindingKind Kind, string Id, string Title, int? Part = null);

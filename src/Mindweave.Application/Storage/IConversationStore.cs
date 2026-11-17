@@ -37,6 +37,8 @@ public enum GenerationTaskState
 /// <summary>A generation task as accepted: frozen model snapshot and the message IDs it was given.</summary>
 /// <param name="SummaryToSeq">For a summary task, the frozen coverage: the conversation up to this sequence number.</param>
 /// <param name="SummaryBaseline">For a summary task, the summary version that was current when it was accepted, if any.</param>
+/// <param name="Tools">For an answer that is a run (phase 2), the tools offered, frozen; null: no tools, a single request.</param>
+/// <param name="Limits">For a run, its limits, frozen.</param>
 public sealed record GenerationTaskRecord(
     GenerationTaskId Id,
     GenerationTaskKind Kind,
@@ -46,7 +48,12 @@ public sealed record GenerationTaskRecord(
     IReadOnlyList<MessageId> InputMessageIds,
     DateTimeOffset CreatedAt,
     int? SummaryToSeq = null,
-    Guid? SummaryBaseline = null);
+    Guid? SummaryBaseline = null,
+    IReadOnlyList<OfferedTool>? Tools = null,
+    Core.Runs.RunLimits? Limits = null);
+
+/// <summary>A tool frozen into a run: its name and a hash of its definition (architecture §15.6).</summary>
+public sealed record OfferedTool(string Name, string DefinitionHash);
 
 /// <summary>
 /// Sidebar row: the conversation plus what is needed to label and place it without loading all messages.
