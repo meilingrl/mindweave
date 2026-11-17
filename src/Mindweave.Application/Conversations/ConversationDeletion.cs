@@ -39,7 +39,8 @@ public sealed partial class ConversationDeletionService(
     StorageHealth health,
     GenerationCoordinator generation,
     ConversationService conversations,
-    ILogger<ConversationDeletionService> logger) : IConversationDeletion
+    ILogger<ConversationDeletionService> logger,
+    IResourceBlobStore? blobs = null) : IConversationDeletion
 {
     public Task<ConversationDeleteScope> InspectAsync(IReadOnlyCollection<ConversationId> selected, CancellationToken cancellationToken) =>
         store.InspectDeleteAsync(selected, cancellationToken);
@@ -114,6 +115,9 @@ public sealed partial class ConversationDeletionService(
         // A title queued between the cancel and the commit lost its row with the commit; its late write finds nothing.
         await generation.CancelBackgroundAsync(result.Scope.Conversations.ToHashSet()).ConfigureAwait(false);
         conversations.NotifyDeleted(result.Scope);
+
+        // Their resources went with them; originals no backup refers to are removed (docs/design/resources.md).
+        await Resources.ResourceService.SweepQuietlyAsync(blobs, logger).ConfigureAwait(false);
         LogDeleted(logger, result.Scope.Roots.Count, result.Scope.Branches, result.Scope.Summaries.Count, path);
         return new ConversationDeleteOutcome(ConversationDeleteStatus.Deleted, result.Scope, path);
     }

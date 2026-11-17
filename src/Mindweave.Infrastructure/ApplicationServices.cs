@@ -7,6 +7,7 @@ using Mindweave.Application.SummaryNetwork;
 using Mindweave.Application.Preferences;
 using Mindweave.Application.Reading;
 using Mindweave.Application.Recommendations;
+using Mindweave.Application.Resources;
 using Mindweave.Application.Startup;
 using Mindweave.Application.Statistics;
 using Mindweave.Application.Storage;
@@ -65,6 +66,9 @@ public static class ApplicationServices
         services.AddSingleton<RecommendationService>();
         services.AddSingleton<SummaryLinkService>();
         services.AddSingleton<LinkSuggestionService>();
+        services.AddSingleton<ITextExtractor, PlainTextExtractor>(); // PDF and Office extractors are registered beside it later.
+        services.AddSingleton<ResourceService>();
+        services.AddSingleton<IResources>(sp => sp.GetRequiredService<ResourceService>());
 
         // View models depend on these interfaces, not the concrete services (course requirement C3); each resolves to the
         // one singleton above, so a page and the rest of the application share state.

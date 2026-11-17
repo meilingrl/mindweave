@@ -140,6 +140,13 @@ internal sealed class ChatHarness : IAsyncDisposable
     /// <summary>The preference store the services remember small choices in (app_state).</summary>
     public IPreferenceStore Preferences => _services.GetRequiredService<IPreferenceStore>();
 
+    /// <summary>Creating and reading resources (docs/design/resources.md).</summary>
+    public Application.Resources.ResourceService ResourceService => _services.GetRequiredService<Application.Resources.ResourceService>();
+
+    public global::Mindweave.Infrastructure.Resources.FileResourceBlobStore Blobs => _services.GetRequiredService<global::Mindweave.Infrastructure.Resources.FileResourceBlobStore>();
+
+    public AppPaths Paths => _dir.Paths;
+
     public string BackupDirectory => _dir.Paths.BackupDirectory;
 
     public string DataDirectory => _dir.Paths.DataDirectory;

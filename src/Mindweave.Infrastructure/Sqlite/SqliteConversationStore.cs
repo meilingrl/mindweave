@@ -3,6 +3,7 @@ using Microsoft.Data.Sqlite;
 using Mindweave.Application.Recommendations;
 using Mindweave.Application.Storage;
 using Mindweave.Core.Conversations;
+using Mindweave.Core.Resources;
 using Mindweave.Core.Workspaces;
 
 namespace Mindweave.Infrastructure.Sqlite;
@@ -331,24 +332,49 @@ internal sealed class SqliteConversationStore(SqliteDatabase database) : IConver
         connection.Execute(transaction, "DELETE FROM message_block WHERE message_id = $id;", ("$id", message.ToString()));
         for (var i = 0; i < blocks.Count; i++)
         {
-            var text = blocks[i] switch
+            switch (blocks[i])
             {
-                TextBlock t => t.Markdown,
-                var other => throw new NotSupportedException($"No storage mapping for {other.GetType().Name}."),
-            };
-            connection.Execute(transaction,
-                "INSERT INTO message_block (message_id, ordinal, kind, text) VALUES ($id, $ord, $kind, $text);",
-                ("$id", message.ToString()), ("$ord", i), ("$kind", SqlNames.TextBlockKind), ("$text", text));
+                case TextBlock t:
+                    connection.Execute(transaction,
+                        "INSERT INTO message_block (message_id, ordinal, kind, text) VALUES ($id, $ord, $kind, $text);",
+                        ("$id", message.ToString()), ("$ord", i), ("$kind", SqlNames.TextBlockKind), ("$text", t.Markdown));
+                    break;
+                case AttachmentBlock a:
+                    // The reference is what counts; type, size and text are read from the resource (docs/design/resources.md). The
+                    // block's text is the resource's display name, so a reader of block text alone (the sidebar excerpt) sees a name.
+                    var conversation = connection.Scalar<string>(transaction, "SELECT conversation_id FROM message WHERE id = $id;", ("$id", message.ToString()))
+                        ?? throw new InvalidOperationException($"Message {message} must be stored before its blocks.");
+                    var name = SqliteResourceStore.Adopt(connection, transaction, ConversationId.Parse(conversation), a.Resource);
+                    connection.Execute(transaction,
+                        "INSERT INTO message_block (message_id, ordinal, kind, text, resource_id) VALUES ($id, $ord, $kind, $text, $resource);",
+                        ("$id", message.ToString()), ("$ord", i), ("$kind", SqlNames.AttachmentBlockKind), ("$text", name), ("$resource", a.Resource.ToString()));
+                    break;
+                case var other:
+                    throw new NotSupportedException($"No storage mapping for {other.GetType().Name}.");
+            }
         }
     }
 
-#pragma warning disable CA1859 // The mapping grows with each block kind; only text exists today.
-    private static ContentBlock ReadBlock(string kind, string text) => kind switch
+    /// <summary>
+    /// One block row as read by <see cref="GetMessages"/>: an attachment carries its resource's columns and text, read by the
+    /// same statement, so a block and what it shows are always from one snapshot.
+    /// </summary>
+    private static ContentBlock ReadBlock(SqliteDataReader reader)
     {
-        SqlNames.TextBlockKind => new TextBlock(text),
-        _ => throw new InvalidDataException($"Unknown message block kind '{kind}'."),
-    };
-#pragma warning restore CA1859
+        var kind = reader.GetString(1);
+        return kind switch
+        {
+            SqlNames.TextBlockKind => new TextBlock(reader.GetString(2)),
+            SqlNames.AttachmentBlockKind when !reader.IsDBNull(3) => new AttachmentBlock(
+                ResourceId.Parse(reader.GetString(3)),
+                reader.NullableString(4),
+                reader.GetString(5),
+                reader.GetInt64(6),
+                reader.NullableString(7)),
+            SqlNames.AttachmentBlockKind => throw new InvalidDataException("An attachment block names no resource."),
+            _ => throw new InvalidDataException($"Unknown message block kind '{kind}'."),
+        };
+    }
 
     private static int InsertTask(SqliteConnection connection, SqliteTransaction transaction, GenerationTaskRecord t) =>
         connection.Execute(transaction, """
@@ -388,8 +414,10 @@ internal sealed class SqliteConversationStore(SqliteDatabase database) : IConver
     {
         var blocks = new Dictionary<string, List<ContentBlock>>(StringComparer.Ordinal);
         using (var command = connection.Command(transaction, """
-            SELECT b.message_id, b.kind, b.text
+            SELECT b.message_id, b.kind, b.text, r.id, r.name, r.media_type, r.byte_size, d.text
             FROM message_block b JOIN message m ON m.id = b.message_id
+            LEFT JOIN resource r ON r.id = b.resource_id
+            LEFT JOIN resource_derivative d ON d.resource_id = r.id AND d.kind = 'text'
             WHERE m.conversation_id = $id AND m.seq <= $max
             ORDER BY b.message_id, b.ordinal;
             """, ("$id", id.ToString()), ("$max", maxSeq)))
@@ -403,7 +431,7 @@ internal sealed class SqliteConversationStore(SqliteDatabase database) : IConver
                     blocks[messageId] = list = [];
                 }
 
-                list.Add(ReadBlock(reader.GetString(1), reader.GetString(2)));
+                list.Add(ReadBlock(reader));
             }
         }
 

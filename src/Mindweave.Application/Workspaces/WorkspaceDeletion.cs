@@ -57,7 +57,8 @@ public sealed partial class WorkspaceDeletionService(
     IWorkspaceNameCache? names = null,
     Recommendations.RecommendationService? recommendations = null,
     SummaryLinks.SummaryLinkService? links = null,
-    SummaryLinks.LinkSuggestionService? suggestions = null) : IWorkspaceDeletion
+    SummaryLinks.LinkSuggestionService? suggestions = null,
+    IResourceBlobStore? blobs = null) : IWorkspaceDeletion
 {
     public Task<WorkspaceContents> InspectAsync(WorkspaceId workspace, CancellationToken cancellationToken) =>
         store.InspectAsync(workspace, cancellationToken);
@@ -147,6 +148,9 @@ public sealed partial class WorkspaceDeletionService(
         {
             await suggestions.ForgetAsync(workspace).ConfigureAwait(false);
         }
+
+        // Its resources went with it; their originals stay while the backup just made refers to them (docs/design/resources.md).
+        await Resources.ResourceService.SweepQuietlyAsync(blobs, logger).ConfigureAwait(false);
 
         LogDeleted(logger, workspace, result.Deleted.Count, path);
         return new WorkspaceDeleteOutcome(WorkspaceDeleteStatus.Deleted, [], result.Next, path);

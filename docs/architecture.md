@@ -90,6 +90,7 @@ ViewModel位于Desktop；课程导航映射见“工作区、界面与导航”�
 | 主区：探索、总结网络、设置 | `Explore`、`SummaryNetwork`、`Settings` |
 | 内容关联、关联建议（首版后） | `SummaryLink`（用户建立或经确认的关联，说明为 `Note`）、`LinkSuggestion`（AI 建议、待确认） |
 | 会话所来自的推荐（v0.14，需求 §10.3.5） | `StartingRecommendation`；由它建立的关联来源为 `Recommended` |
+| 资源、附件、派生内容（D5 第一期，内部存储） | `Resource`、`AttachmentBlock`（消息中引用资源的内容块）、`ResourceDerivative`；见 [resources.md](design/resources.md) |
 
 保留词只用于下列含义：`Network` 指网络连接（如连接失败），`Graph` 指布局算法里的通用图结构。
 

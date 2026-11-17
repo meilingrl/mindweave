@@ -11,6 +11,7 @@ using Mindweave.Infrastructure.Ai;
 using Mindweave.Infrastructure.Credentials;
 using Mindweave.Infrastructure.Export;
 using Mindweave.Infrastructure.Hosting;
+using Mindweave.Infrastructure.Resources;
 using Mindweave.Infrastructure.Sqlite;
 using Mindweave.Infrastructure.Sqlite.Migrations;
 
@@ -40,6 +41,9 @@ public static class InfrastructureServices
         services.AddSingleton<ISummaryLinkStore, SqliteSummaryLinkStore>();
         services.AddSingleton<ILinkSuggestionStore, SqliteLinkSuggestionStore>();
         services.AddSingleton<IBranchStore, SqliteBranchStore>();
+        services.AddSingleton<IResourceStore, SqliteResourceStore>();
+        services.AddSingleton<FileResourceBlobStore>();
+        services.AddSingleton<IResourceBlobStore>(sp => sp.GetRequiredService<FileResourceBlobStore>());
         services.TryAddSingleton<IConversationArchiveStore, SqliteArchiveStore>();
         services.TryAddSingleton<IReadingStateStore, SqliteReadingStateStore>();
         services.AddSingleton<IContextSummaryStore, SqliteContextSummaryStore>();
