@@ -163,6 +163,12 @@ public sealed partial class AttachmentChip : ViewModelBase
         State = AttachmentChipState.Ready;
     }
 
+    /// <summary>Whether the original is still in the data folder (checked after the chip is shown).</summary>
+    internal void MarkOriginal(bool there) => IsOriginalMissing = !there;
+
+    /// <summary>The chip's original was looked for already.</summary>
+    internal bool OriginalChecked { get; set; }
+
     internal void Fail(string problem, bool retryable)
     {
         Problem = problem;

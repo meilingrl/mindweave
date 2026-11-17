@@ -189,6 +189,39 @@ public class AttachmentUiTests
     }
 
     [AvaloniaFact]
+    public async Task A_failed_save_shows_on_the_chip_with_retry_and_the_typed_text_stays()
+    {
+        if (OperatingSystem.IsWindows())
+        {
+            return; // A read-only folder is a POSIX permission here; the storage failure itself is covered on every platform.
+        }
+
+        await using var app = DesktopHarness.Create();
+        await OpenNewExplorationAsync(app, "Light", images: false);
+        var composer = Composer(app);
+        composer.Text = "我写的问题";
+        var folder = app.Paths.ResourceDirectory;
+        Directory.CreateDirectory(folder);
+        File.SetUnixFileMode(folder, UnixFileMode.UserRead | UnixFileMode.UserExecute);
+        try
+        {
+            Assert.True(composer.TryTakePaste(LongArticle, 0));
+            await UiWait.UntilAsync(() => composer.Attachments is [{ IsFailed: true }]);
+            Assert.Equal((UiText.AttachmentSaveFailed, true), (composer.Attachments[0].Problem, composer.Attachments[0].CanRetry));
+            Assert.Equal("我写的问题", composer.Text);
+            Assert.False(composer.SendCommand.CanExecute(null));
+        }
+        finally
+        {
+            File.SetUnixFileMode(folder, UnixFileMode.UserRead | UnixFileMode.UserWrite | UnixFileMode.UserExecute);
+        }
+
+        // Removing it leaves the question to be sent without it (once storage is back).
+        composer.Attachments[0].RemoveCommand.Execute(null);
+        Assert.Empty(composer.Attachments);
+    }
+
+    [AvaloniaFact]
     public async Task Draft_attachments_come_back_after_a_restart()
     {
         await using var app = DesktopHarness.Create();

@@ -220,6 +220,23 @@ public class AttachmentFlowTests
     }
 
     [Fact]
+    public async Task A_knowledge_summary_sees_an_attachment_as_its_name_and_opening_not_its_whole_text()
+    {
+        await using var h = await ChatHarness.StartAsync();
+        var paste = (await h.ResourceService.AttachPasteAsync(DraftSlot.NewExploration(h.Workspace), "开头的话。" + new string('长', 2_000), Ct)).Resource!;
+        var sent = await h.Conversations.StartAsync(h.Workspace, "讲讲", [paste.Resource.Id], null, Ct);
+        await h.WaitForAnswerAsync(sent.Answer!.Value);
+
+        Assert.True((await h.SummaryService.SummarizeAsync(sent.Conversation, Ct)).Accepted);
+        await ChatHarness.UntilAsync(() => h.Client.Requests.Any(FakeChatClient.IsKnowledgeSummary));
+
+        // The question's turn (the fake's answer echoes what it was sent, so only the question is looked at).
+        var question = h.Client.Requests.First(FakeChatClient.IsKnowledgeSummary).Turns.Single(t => t.Role == ChatRole.User && t.Content.Contains("[附件：", StringComparison.Ordinal)).Content;
+        Assert.StartsWith("[附件：粘贴的文字]（开头）\n开头的话。", question, StringComparison.Ordinal);
+        Assert.DoesNotContain(new string('长', 400), question, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public async Task Too_many_attachments_are_refused()
     {
         await using var h = await ChatHarness.StartAsync();

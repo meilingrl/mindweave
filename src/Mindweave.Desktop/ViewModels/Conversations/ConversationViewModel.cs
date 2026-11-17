@@ -29,6 +29,7 @@ public sealed record LineageItem(ConversationId Id, string Title, bool IsFirst =
 public sealed partial class ConversationViewModel : PageViewModel, IDisposable, IAttachmentViewerHost
 {
     private readonly IConversations _conversations;
+    private readonly Application.Resources.IResources? _resources;
     private readonly IReadingState _reading;
     private readonly IStorageStatus _storage;
     private readonly ISummaries? _summaries;
@@ -66,6 +67,7 @@ public sealed partial class ConversationViewModel : PageViewModel, IDisposable, 
         Id = route.Id;
         _slot = context.Slot;
         _conversations = conversations;
+        _resources = resources;
         _reading = reading;
         _storage = storage;
         _navigator = context.Navigator;
@@ -409,6 +411,24 @@ public sealed partial class ConversationViewModel : PageViewModel, IDisposable, 
         }
     }
 
+    /// <summary>A sent attachment whose original file is gone shows 原件缺失 (requirements §10.4.3); its text still opens.</summary>
+    private async Task MarkMissingOriginalsAsync()
+    {
+        if (_resources is null)
+        {
+            return;
+        }
+
+        foreach (var chip in Messages.SelectMany(m => m.Attachments).Where(c => !c.OriginalChecked && c.Resource is not null).ToList())
+        {
+            chip.OriginalChecked = true;
+            if (await _resources.GetAsync(chip.Resource!.Value, CancellationToken.None) is { } stored)
+            {
+                chip.MarkOriginal(_resources.HasOriginal(stored.Resource));
+            }
+        }
+    }
+
     /// <summary>Whether 图片 is offered, and whether images already in the conversation go as a line of text instead.</summary>
     private async Task RefreshAttachmentCapabilitiesAsync()
     {
@@ -487,6 +507,7 @@ public sealed partial class ConversationViewModel : PageViewModel, IDisposable, 
         }
 
         await RefreshAttachmentCapabilitiesAsync();
+        await MarkMissingOriginalsAsync();
         await Summary.LoadAsync();
     }
 

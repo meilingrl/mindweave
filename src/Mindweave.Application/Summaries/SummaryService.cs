@@ -90,8 +90,10 @@ public sealed class SummaryService : ISummaries
         IClock clock,
         ILogger<SummaryService> logger,
         IContextSummaryStore? contextSummaries = null,
-        SummaryLinks.SummaryLinkService? links = null)
+        SummaryLinks.SummaryLinkService? links = null,
+        IResourceStore? resources = null)
     {
+        _resources = resources;
         _links = links;
         _summaries = summaries;
         _conversations = conversations;
@@ -427,8 +429,37 @@ public sealed class SummaryService : ISummaries
             """;
     }
 
+    private readonly IResourceStore? _resources;
+
+    /// <summary>Characters of an attachment's text that stand for it in a summary's input when it has no summary yet.</summary>
+    internal const int AttachmentExcerpt = 300;
+
+    /// <summary>
+    /// A summary's input names each attachment with its summary, or the opening of its text when it has none (requirements
+    /// §10.4.3): never the whole attachment, which would turn the conversation's summary into one of the material.
+    /// </summary>
+    private async Task<IReadOnlyList<Message>> WithAttachmentNotesAsync(IReadOnlyList<Message> own, CancellationToken cancellationToken)
+    {
+        var attached = own.SelectMany(m => ContentBlocks.AttachmentsOf(m.Blocks)).Where(a => a.Text is not null).Select(a => a.Resource).Distinct().ToList();
+        if (_resources is null || attached.Count == 0)
+        {
+            return own;
+        }
+
+        var summaries = await _resources.GetDerivativesAsync(attached, Core.Resources.DerivativeKind.Summary, Conversations.ResourceContext.SummaryPromptVersion, cancellationToken).ConfigureAwait(false);
+        return [.. own.Select(m => m with
+        {
+            Blocks = [.. m.Blocks.Select(b => b is AttachmentBlock { Text: { } text } a
+                ? new TextBlock(summaries.TryGetValue(a.Resource, out var summary)
+                    ? $"{ContentBlocks.BriefOf(a)}（摘要）\n{summary.Derivative.Text}"
+                    : $"{ContentBlocks.BriefOf(a)}（开头）\n{(text.Length > AttachmentExcerpt ? text[..AttachmentExcerpt] + "…" : text)}")
+                : b)],
+        })];
+    }
+
     private async Task<PlanOutcome> PlanAsync(ConversationId conversation, IReadOnlyList<Message> own, int budget, CancellationToken cancellationToken)
     {
+        own = await WithAttachmentNotesAsync(own, cancellationToken).ConfigureAwait(false);
         // Only this conversation is summarized; its branch background travels as a separate note, not as turns.
         var stored = _contextSummaries is null ? [] : await _contextSummaries.ListAsync([conversation], cancellationToken).ConfigureAwait(false);
         var known = stored.ToDictionary(s => s.Key, s => ContextPlanner.SummaryTokens(s.Key, s.Text));
