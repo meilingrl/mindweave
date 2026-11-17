@@ -59,7 +59,8 @@ public sealed partial class ConversationViewModel : PageViewModel, IDisposable, 
         IConversationDeletion? deletion = null,
         IConversationDeletionPrompt? deletionPrompt = null,
         Application.Resources.IResources? resources = null,
-        Application.Models.IModelSettings? models = null)
+        Application.Models.IModelSettings? models = null,
+        WebSearchSwitch? webSearch = null)
         : base(route)
     {
         ArgumentNullException.ThrowIfNull(route);
@@ -80,7 +81,12 @@ public sealed partial class ConversationViewModel : PageViewModel, IDisposable, 
         var attachments = resources is null || models is null
             ? null
             : new ComposerAttachmentServices(resources, models, () => _workspace == default ? null : new DraftSlot(_workspace, Id, _slot.Value));
-        Composer = new Composer((text, ids) => _conversations.AskAsync(Id, text, ids, CancellationToken.None), attachments) { StopCommand = StopCommand, HostShowsStoragePause = true };
+        Composer = new Composer((text, ids) => _conversations.AskAsync(Id, text, ids, Composer?.Options, CancellationToken.None), attachments)
+        {
+            StopCommand = StopCommand,
+            HostShowsStoragePause = true,
+            WebSearch = webSearch,
+        };
         _conversations.ConversationChanged += OnConversationChanged;
         _conversations.ModelChanged += OnModelChanged;
         // Before the first storage state is taken: a page opened while storage is paused tells the summary part at once.
@@ -289,7 +295,7 @@ public sealed partial class ConversationViewModel : PageViewModel, IDisposable, 
     [RelayCommand(CanExecute = nameof(CanRetryNow))]
     private async Task RetryAsync(MessageItemViewModel answer)
     {
-        var outcome = await _conversations.RetryAsync(Id, answer.Id, CancellationToken.None);
+        var outcome = await _conversations.RetryAsync(Id, answer.Id, Composer.Options, CancellationToken.None);
         Composer.Show(outcome.Rejection);
     }
 
@@ -337,6 +343,9 @@ public sealed partial class ConversationViewModel : PageViewModel, IDisposable, 
     private void OpenToolResult(Core.Resources.ResourceId result, string title) => Composer.Open(AttachmentChip.ForToolResult(result, title, Composer.Open));
 
     /// <summary>A summary a tool found: navigation, like opening it from the network.</summary>
+    /// <summary>A 出处 opens the viewer at its passage (requirements §10.4.5).</summary>
+    private void OpenCitation(Core.Conversations.CitationBlock citation) => _ = Composer.Viewer.OpenCitationAsync(citation);
+
     private void OpenSummary(Core.Summaries.SummaryNodeId node) =>
         _navigator.Navigate(new NavigationRequest(MainSection.SummaryNetwork, new SummaryRoute(node)));
 
@@ -352,6 +361,7 @@ public sealed partial class ConversationViewModel : PageViewModel, IDisposable, 
         UpdateTicking();
         _conversations.ConversationChanged -= OnConversationChanged;
         _conversations.ModelChanged -= OnModelChanged;
+        Composer.WebSearch?.Dispose();
         _storage.Changed -= OnStorageStateChanged;
         if (_summaries is not null)
         {
@@ -520,7 +530,10 @@ public sealed partial class ConversationViewModel : PageViewModel, IDisposable, 
 
     private MessageItemViewModel NewItem(Message message)
     {
-        var item = new MessageItemViewModel(message, _conversations.Observe(message.Id), _dispatcher, _time, Composer.Open, OpenToolResult, OpenSummary) { IsBranchPaused = IsStorageBlocked };
+        var item = new MessageItemViewModel(message, _conversations.Observe(message.Id), _dispatcher, _time, Composer.Open, OpenToolResult, OpenSummary, OpenCitation, _conversations.DecideApproval)
+        {
+            IsBranchPaused = IsStorageBlocked,
+        };
         item.PropertyChanged += (_, e) =>
         {
             if (e.PropertyName == nameof(MessageItemViewModel.State))

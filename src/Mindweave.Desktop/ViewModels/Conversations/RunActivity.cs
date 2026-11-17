@@ -39,9 +39,12 @@ public sealed record RunStepItem(string Title, string Outcome, string Meta, bool
             {
                 ToolResultStatus.Succeeded => UiText.RunStepDone,
                 ToolResultStatus.Skipped => UiText.RunStepSkipped,
-                ToolResultStatus.Failed or ToolResultStatus.Denied => UiText.RunStepFailed,
+                ToolResultStatus.Failed => UiText.RunStepFailed,
+                ToolResultStatus.Denied => UiText.RunStepDenied,
                 _ when running => UiText.RunStepRunning,
-                _ => step?.State == RunStepState.Unknown ? UiText.RunStepUnknown : UiText.RunStepStopped,
+                _ => step?.State == RunStepState.Unknown ? UiText.RunStepUnknown
+                    : step?.Approval == Approval.Pending ? UiText.ApprovalExpired
+                    : UiText.RunStepStopped,
             };
             var outcome = result is null ? string.Empty
                 : result.Status == ToolResultStatus.Succeeded ? result.Detail ?? string.Empty
@@ -58,6 +61,11 @@ public sealed record RunStepItem(string Title, string Outcome, string Meta, bool
                 if (finding.Kind == ToolFindingKind.Summary && openSummary is not null && Guid.TryParse(finding.Id, out var node))
                 {
                     links.Add(new RunStepLink(finding.Title, new RelayCommand(() => openSummary(new SummaryNodeId(node)))));
+                }
+                else if (finding.Kind == ToolFindingKind.WebSource && result?.Resource is { } source && openResult is not null)
+                {
+                    // A search result or page: its number and title open the stored result.
+                    links.Add(new RunStepLink($"[{finding.Part}] {finding.Title}", new RelayCommand(() => openResult(source, call.Summary))));
                 }
             }
 

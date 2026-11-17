@@ -272,6 +272,17 @@
                   </ItemsControl>
                 </StackPanel>
                 <v:AnswerView IsVisible="{Binding IsAnswer}" />
+                <!-- An address the model wrote itself waits for the reader (requirements §10.4.5, Q10): a small card in the answer. -->
+                <Border Name="ApprovalCard" Classes="card approval" HorizontalAlignment="Left" IsVisible="{Binding HasApproval}">
+                  <StackPanel Spacing="8">
+                    <TextBlock Classes="approval-title" Text="{x:Static t:UiText.ApprovalTitle}" TextWrapping="Wrap" />
+                    <SelectableTextBlock Name="ApprovalAddress" Classes="address" Text="{Binding PendingApproval.Target}" TextWrapping="Wrap" />
+                    <StackPanel Orientation="Horizontal" Spacing="8">
+                      <Button Name="ApprovalAllow" Classes="primary" Content="{x:Static t:UiText.ApprovalAllow}" Command="{Binding AllowCommand}" />
+                      <Button Name="ApprovalDeny" Classes="secondary" Content="{x:Static t:UiText.ApprovalDeny}" Command="{Binding DenyCommand}" />
+                    </StackPanel>
+                  </StackPanel>
+                </Border>
                 <StackPanel Orientation="Horizontal" Spacing="8" IsVisible="{Binding IsWaiting}">
                   <ProgressBar Name="WaitingBar" IsIndeterminate="True" Width="60" MinWidth="60" VerticalAlignment="Center" />
                   <TextBlock Classes="caption" Text="{Binding WaitingLabel}" VerticalAlignment="Center" />
@@ -300,6 +311,27 @@
                 </StackPanel>
                 <!-- A run that reached a limit answered from what it had (requirements §10.4.4). -->
                 <TextBlock Name="RunLimitNote" Classes="caption" Text="{Binding LimitNote}" IsVisible="{Binding HasLimitNote}" TextWrapping="Wrap" />
+                <!-- 出处 (requirements §10.4.5): the sources the answer cites, by number; a row opens the viewer at the passage. -->
+                <StackPanel Name="CitationsPanel" Classes="citations" Spacing="2" IsVisible="{Binding HasCitations}">
+                  <TextBlock Classes="citations-heading" Text="{x:Static t:UiText.CitationsHeading}" />
+                  <ItemsControl Name="CitationList" ItemsSource="{Binding Citations}">
+                    <ItemsControl.ItemTemplate>
+                      <DataTemplate x:DataType="vm:CitationItem">
+                        <Button Classes="quiet citation" Command="{Binding Open}" HorizontalAlignment="Left" HorizontalContentAlignment="Left"
+                                AutomationProperties.Name="{Binding Title}" ToolTip.Tip="{Binding Address}">
+                          <Grid ColumnDefinitions="Auto,*">
+                            <TextBlock Classes="citation-number" Text="{Binding Number}" />
+                            <StackPanel Grid.Column="1" Spacing="1">
+                              <TextBlock Classes="citation-title" Text="{Binding Title}" TextTrimming="CharacterEllipsis" />
+                              <TextBlock Classes="citation-address" Text="{Binding Address}" TextTrimming="CharacterEllipsis" />
+                              <TextBlock Classes="timestamp" Text="{Binding Meta}" />
+                            </StackPanel>
+                          </Grid>
+                        </Button>
+                      </DataTemplate>
+                    </ItemsControl.ItemTemplate>
+                  </ItemsControl>
+                </StackPanel>
                 <!-- A failure: the error and its retry together, in one notice under the answer. -->
                 <Border Name="ErrorNotice" Classes="notice error" HorizontalAlignment="Left" IsVisible="{Binding IsProblem}" Margin="0,2,0,0">
                   <DockPanel>

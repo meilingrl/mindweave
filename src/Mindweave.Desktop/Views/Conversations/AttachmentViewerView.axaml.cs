@@ -50,12 +50,14 @@ public sealed partial class AttachmentViewerView : UserControl
         if (_viewer is not null)
         {
             _viewer.PropertyChanged -= OnViewerChanged;
+            _viewer.OpenRequested -= OnOpenRequested;
         }
 
         _viewer = DataContext as AttachmentViewer;
         if (_viewer is not null)
         {
             _viewer.PropertyChanged += OnViewerChanged;
+            _viewer.OpenRequested += OnOpenRequested;
         }
 
         IsVisible = _viewer?.IsOpen == true;
@@ -67,6 +69,34 @@ public sealed partial class AttachmentViewerView : UserControl
         if (e.PropertyName == nameof(AttachmentViewer.IsOpen))
         {
             IsVisible = _viewer?.IsOpen == true;
+        }
+        else if (e.PropertyName is nameof(AttachmentViewer.Highlight) or nameof(AttachmentViewer.Text))
+        {
+            // After the text is laid out: select the cited passage and bring it into view.
+            Avalonia.Threading.Dispatcher.UIThread.Post(ShowHighlight, Avalonia.Threading.DispatcherPriority.Loaded);
+        }
+    }
+
+    /// <summary>The cited passage selected and scrolled to, a few lines below the top.</summary>
+    private void ShowHighlight()
+    {
+        if (_viewer is not { Highlight: { } range, Text: { } text } || range.End > text.Length)
+        {
+            return;
+        }
+
+        ViewerText.SelectionStart = range.Start;
+        ViewerText.SelectionEnd = range.End;
+        var top = ViewerText.TextLayout.HitTestTextPosition(range.Start).Top;
+        ViewerScroller.Offset = new Avalonia.Vector(0, Math.Max(0, top - 48));
+    }
+
+    /// <summary>The confirmed address goes to the system browser; nothing else is ever handed to it.</summary>
+    private async void OnOpenRequested(object? sender, Uri url)
+    {
+        if (TopLevel.GetTopLevel(this)?.Launcher is { } launcher)
+        {
+            await launcher.LaunchUriAsync(url);
         }
     }
 

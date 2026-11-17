@@ -17,12 +17,18 @@ public sealed partial class ToolSettingsPanel : ViewModelBase
     private readonly IModelSettings _models;
     private bool _loading = true;
 
-    public ToolSettingsPanel(IToolSettings settings, IModelSettings models)
+    public ToolSettingsPanel(IToolSettings settings, IModelSettings models, WebSearchSettingsPanel? web = null)
     {
         _settings = settings;
         _models = models;
+        Web = web;
         Loaded = LoadAsync();
     }
+
+    /// <summary>设置 › 工具 › 网络搜索 (requirements §10.4.5); null when the app has no search settings.</summary>
+    public WebSearchSettingsPanel? Web { get; }
+
+    public bool HasWeb => Web is not null;
 
     /// <summary>Completes when the stored values are shown.</summary>
     public Task Loaded { get; private set; }
@@ -76,8 +82,14 @@ public sealed partial class ToolSettingsPanel : ViewModelBase
     public static decimal MaxTokens => RunLimits.MaxTokens;
 
     /// <summary>Reads the model's capability again (after the model settings were saved).</summary>
-    public async Task RefreshAvailabilityAsync() =>
+    public async Task RefreshAvailabilityAsync()
+    {
         IsAvailable = await _models.ActiveModelHasAsync(ModelCapability.ToolCalls, CancellationToken.None);
+        if (Web is not null)
+        {
+            Web.IsAvailable = IsAvailable && UsesTools;
+        }
+    }
 
     [RelayCommand]
     private Task RestoreDefaultsAsync()
@@ -112,6 +124,11 @@ public sealed partial class ToolSettingsPanel : ViewModelBase
 
     partial void OnUsesToolsChanged(bool value)
     {
+        if (Web is not null)
+        {
+            Web.IsAvailable = IsAvailable && value;
+        }
+
         if (!_loading)
         {
             _ = SaveAsync(() => _settings.SetEnabledAsync(value, CancellationToken.None));

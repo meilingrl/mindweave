@@ -45,7 +45,8 @@ public sealed partial class NewConversationViewModel : PageViewModel, IDisposabl
         Application.Preferences.IRecommendationSettings? settings = null,
         Application.Reading.IReadingState? reading = null,
         Application.Models.IModelSettings? models = null,
-        Application.Resources.IResources? resources = null)
+        Application.Resources.IResources? resources = null,
+        WebSearchSwitch? webSearch = null)
         : base(route ?? NewConversationRoute.Instance)
     {
         ModelNote = models is null ? null : new ModelConnectionNote(models, conversations, dispatcher);
@@ -66,7 +67,7 @@ public sealed partial class NewConversationViewModel : PageViewModel, IDisposabl
 
             // Remembered by the conversation (requirements §10.3.5): its first summary is linked to the basis summary.
             var from = source is not null ? StartingRecommendation.From(source.Recommendation) : node;
-            var outcome = await conversations.StartAsync(workspace, text, attached, from, CancellationToken.None);
+            var outcome = await conversations.StartAsync(workspace, text, attached, from, webSearch?.Options, CancellationToken.None);
             if (outcome.Accepted)
             {
                 // Sent: the question is in the new conversation now (the page is replaced before its box is cleared).
@@ -87,7 +88,10 @@ public sealed partial class NewConversationViewModel : PageViewModel, IDisposabl
 
             return outcome;
         },
-            attachments);
+            attachments)
+        {
+            WebSearch = webSearch,
+        };
         if (attachments is not null)
         {
             _ = PrepareAttachmentsAsync();
@@ -286,6 +290,7 @@ public sealed partial class NewConversationViewModel : PageViewModel, IDisposabl
         }
 
         ModelNote?.Dispose();
+        Composer.WebSearch?.Dispose();
         Composer.PropertyChanged -= OnComposerChanged;
         if (_recommendations is not null)
         {

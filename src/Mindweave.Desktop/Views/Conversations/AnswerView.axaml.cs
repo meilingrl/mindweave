@@ -52,7 +52,15 @@ public sealed partial class AnswerView : UserControl
     {
         InitializeComponent();
         BodyHost.Content = _renderer;
-        _renderer.LinkClick += (_, e) => e.Handled = true;
+        // Links in answers are never followed; a 出处 opens the viewer at its passage (requirements §10.4.5).
+        _renderer.LinkClick += (_, e) =>
+        {
+            e.Handled = true;
+            if (CitationLinks.NumberOf(e.HRef) is { } number)
+            {
+                _item?.OpenCitation(number);
+            }
+        };
         // A new press or key starts a new selection gesture: the chosen text is set again when it ends.
         _renderer.AddHandler(PointerPressedEvent, (_, _) => _chosen = null, RoutingStrategies.Tunnel | RoutingStrategies.Bubble, handledEventsToo: true);
         _renderer.AddHandler(KeyDownEvent, (_, _) => _chosen = null, RoutingStrategies.Tunnel | RoutingStrategies.Bubble, handledEventsToo: true);
@@ -118,7 +126,7 @@ public sealed partial class AnswerView : UserControl
         }
 
         _pending = null;
-        _renderer.DocumentUpdate = new MarkdownDocumentUpdate.Full(Markdig.Markdown.Parse(markdown, MarkdownUpdateProducer.DefaultPipeline));
+        _renderer.DocumentUpdate = new MarkdownDocumentUpdate.Full(Parse(markdown));
         _shown = markdown;
         BodyHost.Content = _renderer;
         TakeOverSelection();
@@ -343,10 +351,22 @@ public sealed partial class AnswerView : UserControl
         else
         {
             _live = null;
-            _renderer.DocumentUpdate = new MarkdownDocumentUpdate.Full(Markdig.Markdown.Parse(markdown, MarkdownUpdateProducer.DefaultPipeline));
+            _renderer.DocumentUpdate = new MarkdownDocumentUpdate.Full(Parse(markdown));
         }
 
         _shown = markdown;
+    }
+
+    /// <summary>A finished answer's document: its cited [n] made clickable when it has 出处.</summary>
+    private Markdig.Syntax.MarkdownDocument Parse(string markdown)
+    {
+        var document = Markdig.Markdown.Parse(markdown, MarkdownUpdateProducer.DefaultPipeline);
+        if (_item is { HasCitations: true } item)
+        {
+            CitationLinks.Apply(document, item.CitationNumbers);
+        }
+
+        return document;
     }
 
     /// <summary>

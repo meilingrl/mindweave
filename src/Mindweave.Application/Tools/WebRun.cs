@@ -240,7 +240,24 @@ public sealed partial class WebRun
             }
         }
 
-        return (best.Start, best.End);
+        // Within the chunk, the paragraph that shares the most terms (a chunk holds several paragraphs of a page).
+        var narrowed = best;
+        var at = best.Start;
+        while (at < best.End && best.Score > 0)
+        {
+            var next = text.IndexOf("\n\n", at, best.End - at, StringComparison.Ordinal);
+            var stop = next < 0 ? best.End : next;
+            var paragraph = text[at..stop];
+            var score = terms.Count(t => paragraph.Contains(t, StringComparison.OrdinalIgnoreCase));
+            if (score > 0 && (score > narrowed.Score || narrowed == best) && paragraph.Trim().Length > 0)
+            {
+                narrowed = (score, at, stop);
+            }
+
+            at = stop + 2;
+        }
+
+        return (narrowed.Start, narrowed.End);
     }
 
     [GeneratedRegex(@"https?://[^\s<>""'`）】」』，。、；！？]+", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant, matchTimeoutMilliseconds: 1000)]

@@ -49,6 +49,8 @@ public static partial class UiText
     {
         "search_attachments" => SearchAttachmentsName,
         "search_summaries" => SearchSummariesName,
+        "web_search" => WebSearchName,
+        "fetch_page" => FetchPageName,
         _ => tool,
     };
 
@@ -60,12 +62,19 @@ public static partial class UiText
         {
             "search_attachments" => string.Format(CultureInfo.InvariantCulture, "检索了 {0} 次附件", g.Count()),
             "search_summaries" => string.Format(CultureInfo.InvariantCulture, "检索了 {0} 次总结网络", g.Count()),
+            "web_search" => string.Format(CultureInfo.InvariantCulture, "搜索了 {0} 次", g.Count()),
+            "fetch_page" => string.Format(CultureInfo.InvariantCulture, "读了 {0} 个网页", g.Count()),
             _ => string.Format(CultureInfo.InvariantCulture, "调用了 {0} 次 {1}", g.Count(), g.Key),
         }));
     }
 
     /// <summary>While a tool runs: "正在检索附件…".</summary>
-    public static string ToolRunning(string tool) => "正在" + ToolName(tool) + "…";
+    public static string ToolRunning(string tool) => tool switch
+    {
+        "web_search" => "正在搜索…",
+        "fetch_page" => "正在读取网页…",
+        _ => "正在" + ToolName(tool) + "…",
+    };
 
     /// <summary>The note under an answer whose run reached a limit.</summary>
     public static string RunLimitNote(RunLimit limit) => "达到了本次回答的" + limit switch
