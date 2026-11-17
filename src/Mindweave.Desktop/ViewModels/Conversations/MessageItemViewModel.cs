@@ -24,9 +24,21 @@ public sealed partial class MessageItemViewModel : ViewModelBase, IDisposable
     private readonly LiveAnswer? _live;
     private readonly UiThrottle? _throttle;
     private readonly TimeProvider _time;
+    private readonly Action<Core.Resources.ResourceId, string>? _openToolResult;
+    private readonly Action<Core.Summaries.SummaryNodeId>? _openSummary;
 
-    public MessageItemViewModel(Message message, LiveAnswer? live, IUiDispatcher dispatcher, TimeProvider? time = null, Action<AttachmentChip>? openAttachment = null)
+    public MessageItemViewModel(
+        Message message,
+        LiveAnswer? live,
+        IUiDispatcher dispatcher,
+        TimeProvider? time = null,
+        Action<AttachmentChip>? openAttachment = null,
+        Action<Core.Resources.ResourceId, string>? openToolResult = null,
+        Action<Core.Summaries.SummaryNodeId>? openSummary = null)
     {
+        _openToolResult = openToolResult;
+        _openSummary = openSummary;
+        ToolBlocks = [.. ContentBlocks.ToolBlocksOf(message.Blocks)];
         ArgumentNullException.ThrowIfNull(message);
         _time = time ?? TimeProvider.System;
         Id = message.Id;
@@ -82,6 +94,48 @@ public sealed partial class MessageItemViewModel : ViewModelBase, IDisposable
 
     [ObservableProperty]
     public partial bool IsAttachmentNoteExpanded { get; set; }
+
+    /// <summary>The run's tool calls and results (stored, or live while it runs), in step order.</summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(HasActivity), nameof(ActivityText), nameof(ActivitySteps))]
+    public partial IReadOnlyList<ContentBlock> ToolBlocks { get; private set; }
+
+    /// <summary>The tool running now, while the run is under way.</summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(ActivityText), nameof(ActivitySteps), nameof(HasActivity))]
+    public partial string? ActiveTool { get; private set; }
+
+    /// <summary>The stored run of this answer (the reconciler sets it): step times and states, the limit reached.</summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(ActivitySteps), nameof(LimitNote), nameof(HasLimitNote))]
+    public partial Application.Storage.RunRecord? Run { get; set; }
+
+    /// <summary>The limit the live run reached (before the run is read back from storage).</summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(LimitNote), nameof(HasLimitNote))]
+    public partial Core.Runs.RunLimit? LiveLimit { get; private set; }
+
+    /// <summary>The answer called tools (or is calling one): the quiet activity line shows above its text.</summary>
+    public bool HasActivity => IsAnswer && (ToolBlocks.Count > 0 || ActiveTool is not null);
+
+    /// <summary>"正在检索附件…" while a tool runs; "检索了 2 次附件 · 检索了 1 次总结网络" otherwise.</summary>
+    public string ActivityText => ActiveTool is { } running ? UiText.ToolRunning(running) : UiText.RunActivity(ToolBlocks.OfType<ToolCallBlock>().Select(c => c.Tool));
+
+    public IReadOnlyList<RunStepItem> ActivitySteps => RunStepItem.From(ToolBlocks, Run, ActiveTool, _openToolResult, _openSummary);
+
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(ActivityToggleLabel))]
+    public partial bool IsActivityExpanded { get; set; }
+
+    public string ActivityToggleLabel => IsActivityExpanded ? UiText.RunStepsCollapse : UiText.RunStepsExpand;
+
+    [CommunityToolkit.Mvvm.Input.RelayCommand]
+    private void ToggleActivity() => IsActivityExpanded = !IsActivityExpanded;
+
+    public bool HasLimitNote => LimitNote is not null;
+
+    /// <summary>The note under an answer whose run reached a limit and answered from what it had.</summary>
+    public string? LimitNote => (Run?.LimitReached ?? LiveLimit) is { } limit ? UiText.RunLimitNote(limit) : null;
 
     [CommunityToolkit.Mvvm.Input.RelayCommand]
     private void ToggleAttachmentNote() => IsAttachmentNoteExpanded = !IsAttachmentNoteExpanded;
@@ -241,5 +295,12 @@ public sealed partial class MessageItemViewModel : ViewModelBase, IDisposable
         State = snapshot.State;
         ErrorKind = snapshot.ErrorKind;
         ErrorDetail = snapshot.ErrorDetail;
+        if (!ToolBlocks.SequenceEqual(snapshot.ToolBlocks))
+        {
+            ToolBlocks = snapshot.ToolBlocks;
+        }
+
+        ActiveTool = snapshot.ActiveTool;
+        LiveLimit = snapshot.LimitReached;
     }
 }

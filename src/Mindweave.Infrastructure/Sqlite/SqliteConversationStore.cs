@@ -181,20 +181,26 @@ internal sealed class SqliteConversationStore(SqliteDatabase database) : IConver
 
     public Task<bool> CheckpointAsync(MessageId answer, IReadOnlyList<ContentBlock> blocks, long revision, CancellationToken cancellationToken) =>
         database.WriteAsync(
-            (connection, transaction) =>
-            {
-                var applied = connection.Execute(transaction, """
-                    UPDATE message SET revision = $rev
-                    WHERE id = $id AND state = 'streaming' AND revision < $rev;
-                    """, ("$id", answer.ToString()), ("$rev", revision)) == 1;
-                if (applied)
-                {
-                    ReplaceBlocks(connection, transaction, answer, blocks);
-                }
-
-                return applied;
-            },
+            (connection, transaction) => CheckpointBlocks(connection, transaction, answer, blocks, revision),
             cancellationToken);
+
+    /// <summary>
+    /// A checkpoint: the answer's blocks, only while it is streaming and only when <paramref name="revision"/> is newer than
+    /// what is stored. Run steps write theirs the same way, in the step's transaction (architecture §15.3).
+    /// </summary>
+    internal static bool CheckpointBlocks(SqliteConnection connection, SqliteTransaction transaction, MessageId answer, IReadOnlyList<ContentBlock> blocks, long revision)
+    {
+        var applied = connection.Execute(transaction, """
+            UPDATE message SET revision = $rev
+            WHERE id = $id AND state = 'streaming' AND revision < $rev;
+            """, ("$id", answer.ToString()), ("$rev", revision)) == 1;
+        if (applied)
+        {
+            ReplaceBlocks(connection, transaction, answer, blocks);
+        }
+
+        return applied;
+    }
 
     public Task<bool> FinishAnswerAsync(
         GenerationTaskId task,
@@ -256,6 +262,13 @@ internal sealed class SqliteConversationStore(SqliteDatabase database) : IConver
                 var answers = connection.Execute(transaction,
                     "UPDATE message SET state = 'interrupted', completed_at = $at, revision = revision + 1 WHERE state IN ('pending', 'streaming');",
                     ("$at", at.Ms()));
+                // Steps of runs that were under way end with them (architecture §15.10): a read is stopped; a side effect that
+                // may have happened is unknown, never repeated; an approval nobody gave is stopped. Nothing is resumed.
+                connection.Execute(transaction, """
+                    UPDATE run_step SET state = CASE WHEN state = 'running' AND risk = 'side_effect' THEN 'unknown' ELSE 'stopped' END,
+                                        finished_at = coalesce(finished_at, $at)
+                    WHERE state IN ('running', 'awaiting_approval');
+                    """, ("$at", at.Ms()));
                 var tasks = connection.Execute(transaction,
                     "UPDATE generation_task SET state = 'interrupted', finished_at = $at WHERE state IN ('queued', 'running');",
                     ("$at", at.Ms()));
@@ -349,6 +362,19 @@ internal sealed class SqliteConversationStore(SqliteDatabase database) : IConver
                         "INSERT INTO message_block (message_id, ordinal, kind, text, resource_id) VALUES ($id, $ord, $kind, $text, $resource);",
                         ("$id", message.ToString()), ("$ord", i), ("$kind", SqlNames.AttachmentBlockKind), ("$text", name), ("$resource", a.Resource.ToString()));
                     break;
+                case ToolCallBlock call:
+                    connection.Execute(transaction,
+                        "INSERT INTO message_block (message_id, ordinal, kind, text, data) VALUES ($id, $ord, $kind, $text, $data);",
+                        ("$id", message.ToString()), ("$ord", i), ("$kind", SqlNames.ToolCallBlockKind), ("$text", call.Summary),
+                        ("$data", JsonSerializer.Serialize(new ToolCallData(call.CallId, call.Tool, call.Arguments, SqlNames.Of(call.Risk)), BlockJson)));
+                    break;
+                case ToolResultBlock result:
+                    connection.Execute(transaction,
+                        "INSERT INTO message_block (message_id, ordinal, kind, text, data, resource_id) VALUES ($id, $ord, $kind, $text, $data, $resource);",
+                        ("$id", message.ToString()), ("$ord", i), ("$kind", SqlNames.ToolResultBlockKind), ("$text", result.Preview),
+                        ("$data", JsonSerializer.Serialize(new ToolResultData(result.CallId, SqlNames.Of(result.Status), result.Detail, result.Findings?.Select(FindingData.Of).ToList()), BlockJson)),
+                        ("$resource", result.Resource?.ToString()));
+                    break;
                 case var other:
                     throw new NotSupportedException($"No storage mapping for {other.GetType().Name}.");
             }
@@ -372,18 +398,52 @@ internal sealed class SqliteConversationStore(SqliteDatabase database) : IConver
                 reader.GetInt64(6),
                 reader.NullableString(7)),
             SqlNames.AttachmentBlockKind => throw new InvalidDataException("An attachment block names no resource."),
+            SqlNames.ToolCallBlockKind => ReadToolCall(reader.GetString(2), reader.NullableString(8)),
+            SqlNames.ToolResultBlockKind => ReadToolResult(reader.GetString(2), reader.NullableString(8), reader.NullableString(3)),
             _ => throw new InvalidDataException($"Unknown message block kind '{kind}'."),
         };
     }
+
+    private static readonly JsonSerializerOptions BlockJson = new() { PropertyNamingPolicy = JsonNamingPolicy.SnakeCaseLower };
+
+    private sealed record ToolCallData(string CallId, string Tool, string Arguments, string Risk);
+
+    private sealed record FindingData(string Kind, string Id, string Title, int? Part)
+    {
+        public static FindingData Of(Core.Runs.ToolFinding f) => new(f.Kind == Core.Runs.ToolFindingKind.Summary ? "summary" : "resource_part", f.Id, f.Title, f.Part);
+
+        public Core.Runs.ToolFinding ToFinding() => new(Kind == "summary" ? Core.Runs.ToolFindingKind.Summary : Core.Runs.ToolFindingKind.ResourcePart, Id, Title, Part);
+    }
+
+    private sealed record ToolResultData(string CallId, string Status, string? Detail, List<FindingData>? Findings);
+
+    private static ToolCallBlock ReadToolCall(string text, string? data)
+    {
+        var d = (data is null ? null : JsonSerializer.Deserialize<ToolCallData>(data, BlockJson)) ?? throw new InvalidDataException("A tool call block has no data.");
+        return new ToolCallBlock(d.CallId, d.Tool, d.Arguments, SqlNames.ParseRisk(d.Risk), text);
+    }
+
+    private static ToolResultBlock ReadToolResult(string text, string? data, string? resource)
+    {
+        var d = (data is null ? null : JsonSerializer.Deserialize<ToolResultData>(data, BlockJson)) ?? throw new InvalidDataException("A tool result block has no data.");
+        return new ToolResultBlock(d.CallId, SqlNames.ParseResultStatus(d.Status), text, resource is null ? null : ResourceId.Parse(resource), d.Detail, d.Findings?.Select(f => f.ToFinding()).ToList());
+    }
+
+    /// <summary>A run's frozen tools, as stored in <c>generation_task.tools</c>.</summary>
+    private sealed record OfferedToolData(string Name, string Hash);
+
+    private sealed record LimitsData(int ModelRequests, int ToolCalls, int Minutes, int Tokens);
 
     private static int InsertTask(SqliteConnection connection, SqliteTransaction transaction, GenerationTaskRecord t) =>
         connection.Execute(transaction, """
             INSERT INTO generation_task (id, kind, conversation_id, target_message_id, state, model_config_id, base_url, protocol,
                                          model, credential_ref, max_output_tokens, capabilities, input_message_ids, created_at,
-                                         summary_to_seq, summary_baseline)
+                                         summary_to_seq, summary_baseline, tools, run_limits)
             VALUES ($id, $kind, $conv, $target, 'queued', $config, $url, $protocol, $model, $cred, $max, $caps, $input, $created,
-                    $toSeq, $baseline);
+                    $toSeq, $baseline, $tools, $limits);
             """,
+            ("$tools", t.Tools is null ? null : JsonSerializer.Serialize(t.Tools.Select(o => new OfferedToolData(o.Name, o.DefinitionHash)), BlockJson)),
+            ("$limits", t.Limits is not { } l ? null : JsonSerializer.Serialize(new LimitsData(l.ModelRequests, l.ToolCalls, (int)Math.Round(l.Duration.TotalMinutes), l.Tokens), BlockJson)),
             ("$id", t.Id.ToString()),
             ("$kind", SqlNames.Of(t.Kind)),
             ("$conv", t.ConversationId.ToString()),
@@ -414,7 +474,7 @@ internal sealed class SqliteConversationStore(SqliteDatabase database) : IConver
     {
         var blocks = new Dictionary<string, List<ContentBlock>>(StringComparer.Ordinal);
         using (var command = connection.Command(transaction, """
-            SELECT b.message_id, b.kind, b.text, r.id, r.name, r.media_type, r.byte_size, d.text
+            SELECT b.message_id, b.kind, b.text, r.id, r.name, r.media_type, r.byte_size, d.text, b.data
             FROM message_block b JOIN message m ON m.id = b.message_id
             LEFT JOIN resource r ON r.id = b.resource_id
             LEFT JOIN resource_derivative d ON d.resource_id = r.id AND d.kind = 'text'

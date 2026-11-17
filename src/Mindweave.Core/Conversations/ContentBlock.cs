@@ -1,5 +1,6 @@
 using System.Text;
 using Mindweave.Core.Resources;
+using Mindweave.Core.Runs;
 
 namespace Mindweave.Core.Conversations;
 
@@ -29,6 +30,20 @@ public sealed record AttachmentBlock(ResourceId Resource, string? Name, string M
     /// <summary>The name a person sees: the file name, or the paste placeholder.</summary>
     public string DisplayName => string.IsNullOrWhiteSpace(Name) ? ContentBlocks.PastedTextName : Name;
 }
+
+/// <summary>
+/// A tool call the model made during a run (architecture §15.3): its call ID, the tool's name, the arguments as the model
+/// sent them (JSON text, possibly invalid), the tool's risk, and <paramref name="Summary"/>, one readable line for step
+/// details. Never part of the text sent as context later (<see cref="ContentBlocks.TextOf"/>).
+/// </summary>
+public sealed record ToolCallBlock(string CallId, string Tool, string Arguments, ToolRisk Risk, string Summary) : ContentBlock;
+
+/// <summary>
+/// The result of one tool call: <paramref name="Preview"/> is a short preview (or the error), <paramref name="Resource"/> the
+/// stored full result (null when the call failed), <paramref name="Detail"/> a short readable account ("找到 3 段"), and
+/// <paramref name="Findings"/> what the result points at (summaries found, attachment parts read), for step details.
+/// </summary>
+public sealed record ToolResultBlock(string CallId, ToolResultStatus Status, string Preview, ResourceId? Resource, string? Detail, IReadOnlyList<ToolFinding>? Findings = null) : ContentBlock;
 
 public static class ContentBlocks
 {
@@ -66,6 +81,13 @@ public static class ContentBlocks
     {
         ArgumentNullException.ThrowIfNull(blocks);
         return string.Join("\n\n", blocks.OfType<TextBlock>().Select(t => t.Markdown));
+    }
+
+    /// <summary>The run's tool calls and results in step order (an answer's blocks after its text).</summary>
+    public static IEnumerable<ContentBlock> ToolBlocksOf(IReadOnlyList<ContentBlock> blocks)
+    {
+        ArgumentNullException.ThrowIfNull(blocks);
+        return blocks.Where(b => b is ToolCallBlock or ToolResultBlock);
     }
 
     public static IEnumerable<AttachmentBlock> AttachmentsOf(IReadOnlyList<ContentBlock> blocks)

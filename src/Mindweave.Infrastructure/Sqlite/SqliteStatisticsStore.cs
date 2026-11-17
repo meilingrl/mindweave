@@ -65,6 +65,40 @@ internal sealed class SqliteStatisticsStore(SqliteDatabase database) : IStatisti
             cancellationToken);
     }
 
+    public Task<ToolUsage> ToolUsageAsync(WorkspaceId? workspace, DateTimeOffset from, DateTimeOffset until, CancellationToken cancellationToken) =>
+        database.ReadAsync(
+            connection =>
+            {
+                var ws = workspace?.ToString();
+                var parameters = new List<(string, object?)> { ("$from", from.Ms()), ("$until", until.Ms()) };
+                if (ws is not null)
+                {
+                    parameters.Add(("$ws", ws));
+                }
+
+                // Runs: answer tasks that offered tools, by when they were asked; their requests are the model steps' requests.
+                var runs = $"""
+                    SELECT t.id FROM generation_task t JOIN conversation c ON c.id = t.conversation_id
+                    WHERE t.kind = 'answer' AND t.tools IS NOT NULL AND t.created_at >= $from AND t.created_at < $until
+                    {(ws is null ? string.Empty : "AND c.workspace_id = $ws")}
+                    """;
+                var count = (int)connection.Scalar<long>(null, $"SELECT count(*) FROM ({runs});", [.. parameters]);
+                var requests = (int)connection.Scalar<long>(null, $"SELECT count(*) FROM ai_request WHERE task_id IN ({runs});", [.. parameters]);
+                var calls = new List<ToolCallCount>();
+                using var command = connection.Command(null, $"""
+                    SELECT tool, count(*) FROM run_step WHERE kind = 'tool' AND task_id IN ({runs})
+                    GROUP BY tool ORDER BY count(*) DESC, tool;
+                    """, [.. parameters]);
+                using var reader = command.ExecuteReader();
+                while (reader.Read())
+                {
+                    calls.Add(new ToolCallCount(reader.GetString(0), reader.GetInt32(1)));
+                }
+
+                return new ToolUsage(count, requests, calls);
+            },
+            cancellationToken);
+
     public Task<ActivityFacts> ActivityAsync(ActivityQuery query, CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(query);

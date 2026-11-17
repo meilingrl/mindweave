@@ -35,8 +35,10 @@ public sealed partial class GenerationRequests
         IClock clock,
         ILogger<GenerationRequests> logger,
         ContextCompressor? compressor = null,
-        ResourceContext? resources = null)
+        ResourceContext? resources = null,
+        Runs.RunServices? runs = null)
     {
+        Runs = runs;
         _resources = resources;
         _store = store;
         _client = client;
@@ -48,6 +50,13 @@ public sealed partial class GenerationRequests
         _logger = logger;
         _compressor = compressor;
     }
+
+    /// <summary>Run steps and tool results (phase 2); null where runs are not wired (an answer then never has tools).</summary>
+    internal Runs.RunServices? Runs { get; }
+
+    internal IClock Clock => _clock;
+
+    internal ContextBudgets Budgets => _budgets;
 
     internal IAsyncEnumerable<ChatStreamEvent> StreamAsync(ChatRequest request, string apiKey, CancellationToken stop) =>
         _client.StreamAsync(request, apiKey, stop);

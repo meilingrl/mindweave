@@ -1,0 +1,52 @@
+<Styles xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+  <!-- Runs (requirements §10.4.4, agent platform phase 2): the quiet activity line above an answer's text and its steps.
+       Their own file, so the conversation styles stay as they are. -->
+  <Style Selector="StackPanel.run-activity">
+    <Setter Property="Margin" Value="0,0,0,6" />
+  </Style>
+  <Style Selector="Button.run-activity">
+    <Setter Property="Padding" Value="4,2" />
+    <Setter Property="Margin" Value="-4,0,0,0" />
+    <Setter Property="CornerRadius" Value="{StaticResource RadiusSmall}" />
+  </Style>
+  <Style Selector="PathIcon.run-activity">
+    <Setter Property="Width" Value="12" />
+    <Setter Property="Height" Value="12" />
+    <Setter Property="Foreground" Value="{DynamicResource MutedText}" />
+    <Setter Property="VerticalAlignment" Value="Center" />
+  </Style>
+  <Style Selector="PathIcon.run-activity.chevron">
+    <Setter Property="Width" Value="10" />
+    <Setter Property="Height" Value="10" />
+    <Setter Property="Opacity" Value="0.7" />
+    <Setter Property="RenderTransform" Value="rotate(-90deg)" />
+  </Style>
+  <Style Selector="PathIcon.run-activity.chevron.expanded">
+    <Setter Property="RenderTransform" Value="none" />
+  </Style>
+  <!-- A step: a thin line on the left, like a quotation, so the steps read as notes about the answer, not as its text. -->
+  <Style Selector="Border.run-step">
+    <Setter Property="BorderBrush" Value="{DynamicResource DividerBrush}" />
+    <Setter Property="BorderThickness" Value="2,0,0,0" />
+    <Setter Property="Padding" Value="10,4,0,4" />
+    <Setter Property="MaxWidth" Value="680" />
+    <Setter Property="HorizontalAlignment" Value="Left" />
+  </Style>
+  <Style Selector="SelectableTextBlock.run-step-title">
+    <Setter Property="FontSize" Value="13" />
+  </Style>
+  <Style Selector="SelectableTextBlock.run-step-outcome">
+    <Setter Property="FontSize" Value="12" />
+    <Setter Property="Foreground" Value="{DynamicResource MutedText}" />
+  </Style>
+  <Style Selector="SelectableTextBlock.run-step-outcome.problem">
+    <Setter Property="Foreground" Value="{DynamicResource DangerText}" />
+  </Style>
+  <Style Selector="Button.run-step-link">
+    <Setter Property="Padding" Value="6,1" />
+    <Setter Property="Margin" Value="-6,0,8,0" />
+    <Setter Property="FontSize" Value="12" />
+    <Setter Property="Foreground" Value="{DynamicResource LinkText}" />
+  </Style>
+</Styles>

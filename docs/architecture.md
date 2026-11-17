@@ -533,7 +533,7 @@ Infrastructure 执行打开、备份、迁移及恢复；Application 协调启�
 
 ## 15. 智能体平台：资源、运行与工具（首版后）
 
-产品依据：[需求](requirements.md) §10.4（v0.16）。本节说明五期共用的数据模型与机制，第 1 期写到可以实施的程度，后几期写到不必推翻第 1 期的程度。建立在已落地的接缝上：E2 内容块（`message_block`）、E3 请求追踪（`ai_request`）、E4 模型能力（`ModelCapabilities`），见[演进接缝](design/evolution-seams.md)。迁移编号按合并顺序占用；写作时 v14 由内容关联的后续工作占用，下文的“迁移 A”（第 1 期）的资源部分已作为 v15 落地（2026-11-17，见 [resources.md](design/resources.md)），其余表随第 1 期界面顺延，“迁移 B”（第 2 期）顺延。
+产品依据：[需求](requirements.md) §10.4（v0.16）。本节说明五期共用的数据模型与机制，第 1 期写到可以实施的程度，后几期写到不必推翻第 1 期的程度。建立在已落地的接缝上：E2 内容块（`message_block`）、E3 请求追踪（`ai_request`）、E4 模型能力（`ModelCapabilities`），见[演进接缝](design/evolution-seams.md)。迁移编号按合并顺序占用；写作时 v14 由内容关联的后续工作占用，下文的“迁移 A”（第 1 期）的资源部分已作为 v15 落地（2026-11-17，见 [resources.md](design/resources.md)），其余表随第 1 期界面作为 v16 落地，“迁移 B”（第 2 期）作为 v17 落地（见 [runs-and-tools.md](design/runs-and-tools.md)）。
 
 ### 15.1 分层与依赖
 
@@ -578,7 +578,7 @@ Infrastructure 执行打开、备份、迁移及恢复；Application 协调启�
 | `citation` | 3 | 回答 | 出处标题 | 编号、定位（分块序号或字符范围）、网址 | 被引用的资源 |
 | `artifact` | 5 | 回答 | 渲染失败时显示的原文 | 格式与规格 | — |
 
-- 一次运行只产生**一条**回答消息，块按发生顺序排列：模型的中间文字、`tool_call`、`tool_result`……最终回答文字，最后是 `citation` 列表。重试、取代与“只限最后一条回答”的规则因此不变。
+- 一次运行只产生**一条**回答消息。块的顺序（第 2 期定，见 [runs-and-tools.md](design/runs-and-tools.md) 决定 R1）：正文是序号 0 的一个 `text` 块，运行中模型在各次回复里写的文字依次接在其中（各次之间空一行）；其后是 `tool_call`、`tool_result` 按步骤顺序成对排列；第 3 期的 `citation` 列表在最后。正文始终在序号 0，因此来源锚点、摘录与流式检查点不随工具步骤移动；活动说明由界面显示在正文之上。重试、取代与“只限最后一条回答”的规则因此不变。
 - `ContentBlocks.TextOf` 的文本化：`attachment` 变为“[附件：名称]”，`tool_call`／`tool_result` 不进入文本（标题、总结输入与之后的上下文只看回答正文），`citation` 变为“[n] 标题”。
 - **检查点。** 运行中的回答仍按现行节奏写检查点；每个步骤结束时，已完成的块与步骤记录在同一事务中提交，守卫更新规则不变。
 
@@ -597,7 +597,7 @@ Infrastructure 执行打开、备份、迁移及恢复；Application 协调启�
 
 `generation_task` 增加 `run_limits`（步数、时间、token 上限的快照）与 `tools`（接受任务时提供给模型的工具名称及其定义哈希）两列：设置的修改与 MCP 服务器的变化不影响已接受的运行。
 
-**迁移小结：** 迁移 A（第 1 期）建 `resource`、`resource_derivative`、`resource_chunk`、`resource_chunk_fts`、`draft_attachment`，给 `message_block` 加 `resource_id`；不改写已有消息。迁移 A 另给 `ai_request` 加可空列 `purpose`（`answer`／`compression`／`resource_summary`，由应用校验），使统计能区分同一回答任务下不同用途的请求。迁移 B（第 2 期）建 `run_step`，给 `generation_task` 加 `run_limits`、`tools`；运行仍是 `kind = 'answer'` 的任务，不增加任务类型。第 3 期的网页与搜索结果只是新的 `origin`，不需要迁移；第 4 期建 `mcp_server`（名称、类型、命令或地址、凭据引用、启用状态）与 `mcp_tool_setting`（每个工具的启用与风险覆盖）；第 5 期的音频资源与 `artifact` 块不需要新表。
+**迁移小结：** 迁移 A（第 1 期）建 `resource`、`resource_derivative`、`resource_chunk`、`resource_chunk_fts`、`draft_attachment`，给 `message_block` 加 `resource_id`；不改写已有消息。迁移 A 另给 `ai_request` 加可空列 `purpose`（`answer`／`compression`／`resource_summary`，由应用校验），使统计能区分同一回答任务下不同用途的请求。迁移 B（第 2 期，落地为 v17）建 `run_step`，给 `generation_task` 加 `run_limits`、`tools` 与 `run_limit_reached`，给 `resource` 加 `produced_by_task`、`produced_by_step`；运行仍是 `kind = 'answer'` 的任务，不增加任务类型。第 3 期的网页与搜索结果只是新的 `origin`，不需要迁移；第 4 期建 `mcp_server`（名称、类型、命令或地址、凭据引用、启用状态）与 `mcp_tool_setting`（每个工具的启用与风险覆盖）；第 5 期的音频资源与 `artifact` 块不需要新表。
 
 ### 15.4 上下文预算中的资源
 
@@ -620,7 +620,7 @@ Infrastructure 执行打开、备份、迁移及恢复；Application 协调启�
 
 **已有的超长消息。** 第 1 期之前已经发送的超长文字消息不改写（已发送消息不可改写），仍按现行规则处理（另见待决定问题）。
 
-**第 2 期起。** 模型可以调用工具时，超过可用空间四分之一的附件默认只发送摘要和一个句柄（资源编号与分块数），由模型用“检索附件”按需读取；较小的附件仍整体发送。运行内的工具结果超过 2,000 估算 token 时只给模型预览加句柄，完整内容保存为资源。同一运行中较早的工具结果在空间不足时先缩为一行说明（工具、输入、结果资源编号），模型需要时可再读取。之后的提问只发送较早回答的正文与出处列表，不重发较早运行的工具调用。
+**第 2 期起。** 附件的规划与第 1 期相同（决定 R7：“超过可用空间四分之一的附件只发送摘要和句柄”推迟到有真实使用数据后再定，第 1 期已验收的发送方式不变）；模型可以用“检索附件”读取未整体发送的部分。运行内的工具结果超过 2,000 估算 token 时只给模型预览加句柄，完整内容保存为资源。同一运行中较早的工具结果在空间不足时先缩为一行说明（工具、输入、结果资源编号），模型需要时可再读取。之后的提问只发送较早回答的正文与出处列表，不重发较早运行的工具调用。
 
 ### 15.5 运行循环与调度（第 2 期）
 
@@ -652,7 +652,7 @@ Infrastructure 执行打开、备份、迁移及恢复；Application 协调启�
 | 工具 | 期 | 风险 | 说明 |
 | --- | --- | --- | --- |
 | `search_attachments` | 2 | 本地只读 | 在本会话可用的资源（附件、工具结果，含冻结范围内祖先会话的资源）中检索分块，或按编号与范围读取 |
-| `search_summaries` | 2 | 本地只读 | 在本工作区已保存总结的当前版本中检索（FTS5，含已归档会话的总结），返回标题、片段与节点编号，结果资源的来源为 `workspace` |
+| `search_summaries` | 2 | 本地只读 | 在本工作区已保存总结的当前版本中检索（含已归档会话的总结），返回标题、片段与节点编号，结果资源的来源为 `workspace`；第 2 期在内存中按检索词打分，不建索引（决定 R3） |
 | `web_search` | 3 | 读网络 | 经用户配置的搜索服务搜索，结果保存为外部资源 |
 | `fetch_page` | 3 | 读网络 | 取一个网页，转为文字保存为外部资源 |
 | MCP 工具 | 4 | 按服务器声明与用户设置 | 见 §15.7 |
@@ -706,3 +706,17 @@ Infrastructure 执行打开、备份、迁移及恢复；Application 协调启�
 ### 15.11 使用统计
 
 `ai_request` 已按任务记录每次模型请求，运行内的多次请求自然归入同一回答。统计页增加：按运行的请求次数与 token；按工具的调用次数（来自 `run_step`）；资源摘要请求作为单独的类别（`ai_request.purpose = 'resource_summary'`，见迁移 A）。搜索服务的调用不计 token，只计次数；服务返回费用信息时另行记录〔待详细设计〕。
+
+### 15.12 第 2 期的实现约定
+
+产品依据：需求 §10.4.4（v0.17）。本节补 §15.3–15.7 留给实现的细节；理由与新的决定见 [runs-and-tools.md](design/runs-and-tools.md)。
+
+- **何时提供工具。** 接受回答任务时（`ConversationService`），快照声明 `ToolCalls`、“使用工具”开启，且工具有内容可查（`search_attachments`：本会话祖先链中有带文字的资源；`search_summaries`：本工作区有已保存的总结）时，把这些工具与上限（`RunLimits`）冻结进任务（`generation_task.tools`、`run_limits`）；否则任务不带工具，执行路径与第 1 期相同，不写 `run_step`。
+- **执行。** `AnswerRunner` 在任务自己的执行槽里运行 `RunLoop`：每次模型请求是一个 `model` 步骤（`ai_request.purpose = 'answer'`，`run_step.ai_request_id` 指向它），每次工具执行是一个 `tool` 步骤。步骤开始时写 `running` 行，结束时在同一事务中更新步骤与回答的块（守卫同检查点：只在回答仍在生成时写块）。只读工具的多个调用依次执行（本地工具很快，依次执行使步骤顺序与块顺序一致）。
+- **上限的判定**（每次模型请求之前）：已发请求数 = 上限 − 1、工具调用数已到上限、时长已到、累计估算 token（每次请求的估算输入加收到的输出）已到上限，任一成立即为最后一次请求：不带工具、加一条系统说明请模型据已有结果作答，原因写入 `generation_task.run_limit_reached`（`model_requests`／`tool_calls`／`duration`／`tokens`）。最后一次请求的时长另给 1 分钟。一次回复中超出工具次数上限的调用不执行，以“未执行：达到工具调用上限”作为结果交还（协议要求每个调用都有结果）。
+- **协议。** `ChatRequest` 增加 `Tools`（名称、说明、JSON Schema）；`ChatTurn` 增加角色 `Tool` 与助手回合的 `ToolCalls`、`ToolCallId`、`Reasoning`。适配器只发 `tool_choice: "auto"`（[model-capabilities.md](design/model-capabilities.md) §5）；按 `index` 拼接流式的 `tool_calls` 增量，结束时（`finish_reason` 为 `tool_calls`，或流结束时已有调用）发出一个 `ToolCalls` 事件；没有 `id` 时生成 `call_<n>`；参数不是合法 JSON 时标为无效，由运行把错误交还模型。推理内容只在同一运行内存于内存、随后续请求的助手回合以 `reasoning_content` 回传，从不保存。OpenRouter 地址在带工具时加 `provider.require_parameters: true`。
+- **工具结果资源。** 每个成功的结果写为资源：`origin = 'tool'`、媒体类型 `text/markdown`、`conversation_id` 为回答所在会话、`produced_by_task`／`produced_by_step` 指向步骤；`search_attachments` 的结果 `provenance = 'user'`，`search_summaries` 的为 `workspace`。资源在步骤结束的事务之前写入；崩溃留下的无引用结果资源由启动清理删除（§15.2）。
+- **运行内的上下文。** 交给模型的工具结果最多约 2,000 估算 token（超过时为预览加资源编号）；每次请求前若估算超过可用容量，从最早的工具结果开始缩为一行说明；仍超过时按上限处理（最后一次请求）。
+- **恢复。** `RecoverUnfinishedAsync` 在标记回答中断的同一事务中，把 `running` 的步骤按风险等级改为 `stopped`（本地只读、读网络）或 `unknown`（有副作用），`awaiting_approval` 改为 `stopped`。
+- **统计。** 每个运行的模型请求数来自 `ai_request`（按任务，`purpose = 'answer'`）；每个工具的调用次数来自 `run_step`（`kind = 'tool'`）。
+

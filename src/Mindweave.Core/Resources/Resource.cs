@@ -11,6 +11,9 @@ public enum ResourceOrigin
 
     /// <summary>An image, chosen, dropped or pasted.</summary>
     Image,
+
+    /// <summary>The full result of a tool call in a run (phase 2, architecture §15.12); belongs to the answer's conversation.</summary>
+    Tool,
 }
 
 /// <summary>

@@ -179,6 +179,16 @@ public sealed partial class UsageStatisticsViewModel : PageViewModel, IShowsWork
 
     public ObservableCollection<PurposeRowViewModel> Purposes { get; } = [];
 
+    /// <summary>工具 (requirements §10.4.4): answers that used tools in the period, and each tool's calls.</summary>
+    [ObservableProperty]
+    public partial bool HasToolUsage { get; private set; }
+
+    /// <summary>"使用了工具的回答 3 次 · 平均每次 2.7 次模型请求".</summary>
+    [ObservableProperty]
+    public partial string? ToolRunsText { get; private set; }
+
+    public ObservableCollection<ToolCallRowViewModel> ToolCalls { get; } = [];
+
     // ── Prices ──────────────────────────────────────────────────────────────
 
     /// <summary>The symbol costs are written with (stored, or the default).</summary>
@@ -403,6 +413,14 @@ public sealed partial class UsageStatisticsViewModel : PageViewModel, IShowsWork
             Purposes.Add(new PurposeRowViewModel(purpose, usage.Totals.Total));
         }
 
+        HasToolUsage = report.Tools.Runs > 0;
+        ToolRunsText = HasToolUsage ? UiText.ToolRuns(report.Tools.Runs, report.Tools.RequestsPerRun) : null;
+        ToolCalls.Clear();
+        foreach (var call in report.Tools.Calls)
+        {
+            ToolCalls.Add(new ToolCallRowViewModel(UiText.ToolName(call.Tool), UiText.ToolCallCount(call.Calls)));
+        }
+
         UpdateTotalCost();
 
         var activity = report.Activity;
@@ -610,6 +628,9 @@ public sealed partial class ModelUsageRowViewModel : ObservableObject
 }
 
 /// <summary>One purpose (回答, 标题, …) of the period.</summary>
+/// <summary>One tool's calls in the period, on the statistics page.</summary>
+public sealed record ToolCallRowViewModel(string Name, string CallsText);
+
 public sealed class PurposeRowViewModel(PurposeUsage usage, long periodTotal)
 {
     public UsagePurpose Purpose { get; } = usage?.Purpose ?? throw new ArgumentNullException(nameof(usage));

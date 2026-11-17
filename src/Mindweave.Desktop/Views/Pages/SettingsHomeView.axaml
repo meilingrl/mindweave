@@ -109,6 +109,51 @@
                  IsVisible="{Binding Status, Converter={x:Static ObjectConverters.IsNotNull}}" />
     </StackPanel>
 
+    <!-- 工具 (requirements §10.4.4, agent platform phase 2): 使用工具 and a run's limits; greyed out with the reason while the
+         model does not declare tool calls. -->
+    <StackPanel Name="ToolsSection" IsVisible="{Binding HasTools}">
+      <TextBlock Classes="section-heading" Margin="2,28,0,2" Text="{x:Static t:UiText.SettingsTools}" />
+      <TextBlock Classes="caption" Margin="2,0,0,10" TextWrapping="Wrap" Text="{x:Static t:UiText.ToolsIntro}" />
+      <Border Classes="card settings" DataContext="{Binding Tools}" x:DataType="vm:ToolSettingsPanel">
+        <StackPanel Spacing="0">
+          <TextBlock Name="ToolsUnavailable" Classes="caption" TextWrapping="Wrap" Margin="0,0,0,12" Text="{x:Static t:UiText.ToolsUnavailable}"
+                     IsVisible="{Binding IsUnavailable}" />
+          <Grid ColumnDefinitions="96,*" RowDefinitions="Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto" IsEnabled="{Binding IsAvailable}">
+            <TextBlock Classes="field-label" Text="{x:Static t:UiText.SettingsTools}" />
+            <CheckBox Grid.Column="1" Name="UseToolsToggle" IsChecked="{Binding UsesTools}" Content="{x:Static t:UiText.UseTools}"
+                      AutomationProperties.Name="{x:Static t:UiText.UseTools}" AutomationProperties.HelpText="{x:Static t:UiText.UseToolsHint}" />
+            <TextBlock Grid.Row="1" Grid.Column="1" Classes="caption" TextWrapping="Wrap" Margin="0,4,0,0" Text="{x:Static t:UiText.UseToolsHint}" />
+            <TextBlock Grid.Row="2" Classes="field-label" Margin="0,18,0,0" VerticalAlignment="Top" Text="{x:Static t:UiText.RunLimitsTitle}" TextWrapping="Wrap" />
+            <Grid Grid.Row="2" Grid.Column="1" Name="RunLimits" Margin="0,16,0,0" ColumnDefinitions="Auto,Auto" RowDefinitions="Auto,Auto,Auto,Auto"
+                  IsEnabled="{Binding UsesTools}" HorizontalAlignment="Left">
+              <TextBlock Classes="caption" VerticalAlignment="Center" Margin="0,0,12,6" Text="{x:Static t:UiText.LimitModelRequests}" />
+              <NumericUpDown Grid.Column="1" Name="LimitModelRequests" Width="150" Margin="0,0,0,6" FormatString="0" Increment="1"
+                             Minimum="{x:Static vm:ToolSettingsPanel.MinModelRequests}" Maximum="{x:Static vm:ToolSettingsPanel.MaxModelRequests}"
+                             Value="{Binding ModelRequests}" AutomationProperties.Name="{x:Static t:UiText.LimitModelRequests}" />
+              <TextBlock Grid.Row="1" Classes="caption" VerticalAlignment="Center" Margin="0,0,12,6" Text="{x:Static t:UiText.LimitToolCalls}" />
+              <NumericUpDown Grid.Row="1" Grid.Column="1" Name="LimitToolCalls" Width="150" Margin="0,0,0,6" FormatString="0" Increment="1"
+                             Minimum="{x:Static vm:ToolSettingsPanel.MinToolCalls}" Maximum="{x:Static vm:ToolSettingsPanel.MaxToolCalls}"
+                             Value="{Binding ToolCalls}" AutomationProperties.Name="{x:Static t:UiText.LimitToolCalls}" />
+              <TextBlock Grid.Row="2" Classes="caption" VerticalAlignment="Center" Margin="0,0,12,6" Text="{x:Static t:UiText.LimitMinutes}" />
+              <NumericUpDown Grid.Row="2" Grid.Column="1" Name="LimitMinutes" Width="150" Margin="0,0,0,6" FormatString="0" Increment="1"
+                             Minimum="{x:Static vm:ToolSettingsPanel.MinMinutes}" Maximum="{x:Static vm:ToolSettingsPanel.MaxMinutes}"
+                             Value="{Binding Minutes}" AutomationProperties.Name="{x:Static t:UiText.LimitMinutes}" />
+              <TextBlock Grid.Row="3" Classes="caption" VerticalAlignment="Center" Margin="0,0,12,0" Text="{x:Static t:UiText.LimitTokens}" />
+              <NumericUpDown Grid.Row="3" Grid.Column="1" Name="LimitTokens" Width="150" FormatString="N0" Increment="10000"
+                             Minimum="{x:Static vm:ToolSettingsPanel.MinTokens}" Maximum="{x:Static vm:ToolSettingsPanel.MaxTokens}"
+                             Value="{Binding Tokens}" AutomationProperties.Name="{x:Static t:UiText.LimitTokens}" />
+            </Grid>
+            <TextBlock Grid.Row="3" Grid.Column="1" Classes="caption" TextWrapping="Wrap" Margin="0,4,0,0" Text="{x:Static t:UiText.RunLimitsHint}" />
+            <Button Grid.Row="4" Grid.Column="1" Name="RestoreLimits" Classes="quiet small" HorizontalAlignment="Left" Margin="-6,6,0,0"
+                    Content="{x:Static t:UiText.RestoreDefaultLimits}" Command="{Binding RestoreDefaultsCommand}" IsEnabled="{Binding UsesTools}" />
+            <TextBlock Grid.Row="5" Grid.Column="1" Name="ToolSettingsStatus" v:Motion.Appear="Fade" FontSize="12" TextWrapping="Wrap" Margin="0,8,0,0"
+                       Classes.muted="{Binding !StatusIsError}" Classes.error="{Binding StatusIsError}"
+                       Text="{Binding Status}" IsVisible="{Binding Status, Converter={x:Static ObjectConverters.IsNotNull}}" />
+          </Grid>
+        </StackPanel>
+      </Border>
+    </StackPanel>
+
     <!-- 数据 -->
     <TextBlock Classes="section-heading" Margin="2,28,0,8" Text="{x:Static t:UiText.DataSection}" />
     <!-- 2026-11-12: 使用统计 sits under 数据与存储 in the same card, the same drill-in with back navigation. -->

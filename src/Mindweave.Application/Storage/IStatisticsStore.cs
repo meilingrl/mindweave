@@ -24,6 +24,21 @@ public sealed record ActivityQuery(
     IReadOnlyList<int> SummaryThresholds);
 
 /// <summary>
+/// How a window's answers used tools (requirements §10.4.4, architecture §15.11): answers that were runs, the model requests
+/// those runs made, and each tool's calls.
+/// </summary>
+public sealed record ToolUsage(int Runs, int ModelRequests, IReadOnlyList<ToolCallCount> Calls)
+{
+    public static ToolUsage None { get; } = new(0, 0, []);
+
+    /// <summary>Model requests per run, on average; 0 without runs.</summary>
+    public double RequestsPerRun => Runs == 0 ? 0 : (double)ModelRequests / Runs;
+}
+
+/// <summary>One tool's calls in a window, by its name.</summary>
+public sealed record ToolCallCount(string Tool, int Calls);
+
+/// <summary>
 /// Aggregate reads for the statistics page (2026-11-12): sums and counts computed by the database, never whole tables
 /// loaded into memory. Deleted content is simply not there, so it is not counted.
 /// </summary>
@@ -37,4 +52,7 @@ public interface IStatisticsStore
     Task<UsageRows> UsageByDayAsync(WorkspaceId? workspace, DateTimeOffset from, DateTimeOffset until, TimeZoneInfo zone, CancellationToken cancellationToken);
 
     Task<ActivityFacts> ActivityAsync(ActivityQuery query, CancellationToken cancellationToken);
+
+    /// <summary>Runs whose answers were asked in [<paramref name="from"/>, <paramref name="until"/>), their requests and tool calls.</summary>
+    Task<ToolUsage> ToolUsageAsync(WorkspaceId? workspace, DateTimeOffset from, DateTimeOffset until, CancellationToken cancellationToken);
 }

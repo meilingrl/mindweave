@@ -42,7 +42,7 @@ internal sealed class RequestTrace
     {
         _clock = clock;
         _request = request;
-        _estimate = ChatTurns.Estimate(request.Turns);
+        _estimate = ChatTurns.Estimate(request);
         _started = clock.UtcNow;
     }
 

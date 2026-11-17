@@ -119,7 +119,11 @@ public sealed record ActivityFacts(
 /// is every local day of the usage calendar (2026-11-17), from <see cref="UsageStatisticsService.CalendarStart"/> to
 /// today, empty days included, whichever period is chosen.
 /// </summary>
-public sealed record StatisticsReport(UsageReport Usage, ActivityFacts Activity, bool HasModel, DateOnly Today, IReadOnlyList<UsageBucket> Days);
+public sealed record StatisticsReport(UsageReport Usage, ActivityFacts Activity, bool HasModel, DateOnly Today, IReadOnlyList<UsageBucket> Days)
+{
+    /// <summary>How the period's answers used tools (requirements §10.4.4).</summary>
+    public ToolUsage Tools { get; init; } = ToolUsage.None;
+}
 
 /// <summary>The statistics page's figures (2026-11-12), read with aggregate queries off the UI thread.</summary>
 public interface IUsageStatistics
@@ -173,7 +177,8 @@ public sealed class UsageStatisticsService(IStatisticsStore store, IModelSetting
             new ActivityQuery(workspace, zone, LocalCalendar.StartOf(recentFrom, zone), QuestionThresholds, SummaryThresholds),
             cancellationToken).ConfigureAwait(false);
         var hasModel = await models.GetActiveAsync(cancellationToken).ConfigureAwait(false) is not null;
-        return new StatisticsReport(Summarize(period, from, to, rows), activity, hasModel, today, Buckets(UsagePeriod.Daily, calendarFrom, today, rows));
+        var tools = await store.ToolUsageAsync(workspace, LocalCalendar.StartOf(from, zone), LocalCalendar.StartOf(to.AddDays(1), zone), cancellationToken).ConfigureAwait(false);
+        return new StatisticsReport(Summarize(period, from, to, rows), activity, hasModel, today, Buckets(UsagePeriod.Daily, calendarFrom, today, rows)) { Tools = tools };
     }
 
     /// <summary>

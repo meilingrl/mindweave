@@ -381,7 +381,7 @@ internal static class SqliteResourceScope
     public static int Attachments(SqliteConnection connection, SqliteTransaction? transaction, string scopeSql, params (string Name, object? Value)[] parameters) =>
         (int)connection.Scalar<long>(transaction, $"""
             SELECT count(*) FROM message_block b JOIN message m ON m.id = b.message_id
-            WHERE b.resource_id IS NOT NULL AND m.conversation_id IN ({scopeSql});
+            WHERE b.resource_id IS NOT NULL AND b.kind = 'attachment' AND m.conversation_id IN ({scopeSql});
             """, parameters);
 
     /// <summary>Hashes of the originals and binary derivatives of resources whose conversation is in the scope.</summary>

@@ -66,6 +66,7 @@ internal static class MessageListReconciler
             item.IsSuperseded = superseded.Contains(message.Id);
             item.WasCompressed = content.CompressedAnswers?.Contains(message.Id) == true;
             item.AttachmentInputs = content.ReducedAttachments?.GetValueOrDefault(message.Id);
+            item.Run = content.Runs?.GetValueOrDefault(message.Id);
             item.IsArchived = isArchived;
             item.CanRetry = !isArchived && last?.Id == message.Id && message.IsFinished;
             var entries = branches.Where(b => b.SourceMessage == message.Id).Select(b => new BranchEntry(b.Child, b.Quote, archivedBranches.Contains(b.Child))).ToList();
