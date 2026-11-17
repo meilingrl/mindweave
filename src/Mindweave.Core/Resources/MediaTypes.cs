@@ -9,6 +9,8 @@ public static class MediaTypes
     public const string Jpeg = "image/jpeg";
     public const string Gif = "image/gif";
     public const string WebP = "image/webp";
+    public const string Pdf = "application/pdf";
+    public const string Docx = "application/vnd.openxmlformats-officedocument.wordprocessingml.document";
 
     public static bool IsImage(string mediaType)
     {

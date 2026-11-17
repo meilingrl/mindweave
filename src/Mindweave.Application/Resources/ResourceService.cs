@@ -32,12 +32,6 @@ public sealed record ResourceCreateResult(ResourceCreateStatus Status, StoredRes
     public bool IsCreated => Status == ResourceCreateStatus.Created;
 }
 
-public static class ResourceLimits
-{
-    /// <summary>The largest original stored (32 MiB). Text this long is far beyond any context window; it is kept for chunked retrieval later.</summary>
-    public const long MaxOriginalBytes = 32L * 1024 * 1024;
-}
-
 /// <summary>Creating and reading resources (docs/design/resources.md). No user interface uses this yet.</summary>
 public interface IResources
 {
@@ -134,7 +128,7 @@ public sealed partial class ResourceService(
             return new ResourceCreateResult(ResourceCreateStatus.Unsupported, Detail: mediaType);
         }
 
-        if (extractor.Extract(bytes, mediaType) is not { } text)
+        if (extractor.Extract(bytes, mediaType) is not { Text: { } text })
         {
             return new ResourceCreateResult(ResourceCreateStatus.NotReadable);
         }

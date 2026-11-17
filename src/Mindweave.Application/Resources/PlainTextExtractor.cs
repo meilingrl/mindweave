@@ -15,10 +15,11 @@ public sealed class PlainTextExtractor : ITextExtractor
 
     public bool CanExtract(string mediaType) => FileTypes.IsTextMediaType(mediaType);
 
-    public string? Extract(ReadOnlySpan<byte> original, string mediaType)
+    public TextExtraction Extract(byte[] original, string mediaType)
     {
+        ArgumentNullException.ThrowIfNull(original);
         var text = Decode(original);
-        return text is null || LooksBinary(text) ? null : NormalizeLineEndings(text);
+        return text is null || LooksBinary(text) ? TextExtraction.Failed(ExtractionFailure.NotReadable) : ResourceLimits.Bounded(NormalizeLineEndings(text));
     }
 
     public static string NormalizeLineEndings(string text)
