@@ -69,9 +69,13 @@ internal sealed class BranchMarks : Canvas
         _list = list;
 
         // Whatever moves an answer's branch list relative to the whole conversation (text streaming in, a branch list
-        // appearing, a resize, a theme with other metrics) changes the extent or the viewport, which raises this after
-        // the layout pass. Nothing is touched when the places are the same.
+        // appearing, a resize, a theme with other metrics) changes the extent or the viewport. ScrollChanged is raised
+        // while the rows are still being arranged, so the places are taken again once the layout pass has finished:
+        // without that, a branch list appearing above a reader who is not at the end left the marks where they were
+        // (the page used to hide this by following to the end, which scrolled and refreshed once more). Nothing is
+        // touched when the places are the same.
         scroller.ScrollChanged += (_, _) => Refresh();
+        list.LayoutUpdated += (_, _) => Refresh();
         scroller.TemplateApplied += (_, e) => _bar = e.NameScope.Find<ScrollBar>("PART_VerticalScrollBar");
     }
 
