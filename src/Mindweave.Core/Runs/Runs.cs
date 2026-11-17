@@ -94,6 +94,9 @@ public enum ToolFindingKind
 {
     Summary,
     ResourcePart,
+
+    /// <summary>A web source (phase 3): <see cref="ToolFinding.Id"/> is its address, <see cref="ToolFinding.Part"/> its number.</summary>
+    WebSource,
 }
 
 /// <summary>
@@ -111,4 +114,16 @@ public enum WebSearchMode
     Auto,
     On,
     Off,
+}
+
+/// <summary>
+/// Whether a tool call needed the user's approval and what they decided (architecture §15.7, <c>run_step.approval</c>). Phase
+/// 3: reading an address the model wrote itself (Q10); phase 4: side effects.
+/// </summary>
+public enum Approval
+{
+    NotNeeded,
+    Pending,
+    Approved,
+    Denied,
 }

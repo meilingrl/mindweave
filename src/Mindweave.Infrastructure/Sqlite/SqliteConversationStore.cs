@@ -375,6 +375,13 @@ internal sealed class SqliteConversationStore(SqliteDatabase database) : IConver
                         ("$data", JsonSerializer.Serialize(new ToolResultData(result.CallId, SqlNames.Of(result.Status), result.Detail, result.Findings?.Select(FindingData.Of).ToList()), BlockJson)),
                         ("$resource", result.Resource?.ToString()));
                     break;
+                case CitationBlock citation:
+                    connection.Execute(transaction,
+                        "INSERT INTO message_block (message_id, ordinal, kind, text, data, resource_id) VALUES ($id, $ord, $kind, $text, $data, $resource);",
+                        ("$id", message.ToString()), ("$ord", i), ("$kind", SqlNames.CitationBlockKind), ("$text", citation.Title),
+                        ("$data", JsonSerializer.Serialize(new CitationData(citation.Number, citation.Url.AbsoluteUri, citation.FetchedAt.ToUnixTimeMilliseconds(), citation.Start, citation.End), BlockJson)),
+                        ("$resource", citation.Resource.ToString()));
+                    break;
                 case var other:
                     throw new NotSupportedException($"No storage mapping for {other.GetType().Name}.");
             }
@@ -400,6 +407,7 @@ internal sealed class SqliteConversationStore(SqliteDatabase database) : IConver
             SqlNames.AttachmentBlockKind => throw new InvalidDataException("An attachment block names no resource."),
             SqlNames.ToolCallBlockKind => ReadToolCall(reader.GetString(2), reader.NullableString(8)),
             SqlNames.ToolResultBlockKind => ReadToolResult(reader.GetString(2), reader.NullableString(8), reader.NullableString(3)),
+            SqlNames.CitationBlockKind => ReadCitation(reader.GetString(2), reader.NullableString(8), reader.NullableString(3)),
             _ => throw new InvalidDataException($"Unknown message block kind '{kind}'."),
         };
     }
@@ -410,9 +418,11 @@ internal sealed class SqliteConversationStore(SqliteDatabase database) : IConver
 
     private sealed record FindingData(string Kind, string Id, string Title, int? Part)
     {
-        public static FindingData Of(Core.Runs.ToolFinding f) => new(f.Kind == Core.Runs.ToolFindingKind.Summary ? "summary" : "resource_part", f.Id, f.Title, f.Part);
+        public static FindingData Of(Core.Runs.ToolFinding f) => new(
+            f.Kind switch { Core.Runs.ToolFindingKind.Summary => "summary", Core.Runs.ToolFindingKind.WebSource => "web_source", _ => "resource_part" }, f.Id, f.Title, f.Part);
 
-        public Core.Runs.ToolFinding ToFinding() => new(Kind == "summary" ? Core.Runs.ToolFindingKind.Summary : Core.Runs.ToolFindingKind.ResourcePart, Id, Title, Part);
+        public Core.Runs.ToolFinding ToFinding() => new(
+            Kind switch { "summary" => Core.Runs.ToolFindingKind.Summary, "web_source" => Core.Runs.ToolFindingKind.WebSource, _ => Core.Runs.ToolFindingKind.ResourcePart }, Id, Title, Part);
     }
 
     private sealed record ToolResultData(string CallId, string Status, string? Detail, List<FindingData>? Findings);
@@ -427,6 +437,16 @@ internal sealed class SqliteConversationStore(SqliteDatabase database) : IConver
     {
         var d = (data is null ? null : JsonSerializer.Deserialize<ToolResultData>(data, BlockJson)) ?? throw new InvalidDataException("A tool result block has no data.");
         return new ToolResultBlock(d.CallId, SqlNames.ParseResultStatus(d.Status), text, resource is null ? null : ResourceId.Parse(resource), d.Detail, d.Findings?.Select(f => f.ToFinding()).ToList());
+    }
+
+    private sealed record CitationData(int Number, string Url, long FetchedAt, int Start, int End);
+
+    private static CitationBlock ReadCitation(string text, string? data, string? resource)
+    {
+        var d = (data is null ? null : JsonSerializer.Deserialize<CitationData>(data, BlockJson)) ?? throw new InvalidDataException("A citation block has no data.");
+        return new CitationBlock(
+            d.Number, text, new Uri(d.Url, UriKind.Absolute), DateTimeOffset.FromUnixTimeMilliseconds(d.FetchedAt),
+            ResourceId.Parse(resource ?? throw new InvalidDataException("A citation block names no resource.")), d.Start, d.End);
     }
 
     /// <summary>A run's frozen tools, as stored in <c>generation_task.tools</c>.</summary>

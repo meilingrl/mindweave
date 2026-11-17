@@ -25,6 +25,12 @@ public sealed record RunStepRecord(
     GenerationErrorKind? ErrorKind = null,
     string? ErrorDetail = null)
 {
+    /// <summary>A tool step's approval (null: not needed); phase 3 asks before reading an address the model wrote (Q10).</summary>
+    public Approval? Approval { get; init; }
+
+    /// <summary>The host an outside request went to (a search service, a web site), never its query.</summary>
+    public string? Target { get; init; }
+
     public TimeSpan? Duration => FinishedAt is { } end ? end - StartedAt : null;
 }
 
@@ -43,6 +49,9 @@ public interface IRunStore
     /// result resource is marked as made by it. Returns whether the blocks were written.
     /// </summary>
     Task<bool> FinishStepAsync(RunStepRecord record, MessageId answer, IReadOnlyList<ContentBlock>? blocks, long revision, CancellationToken cancellationToken);
+
+    /// <summary>A tool step waits for the user's approval, or was decided: its state and approval only.</summary>
+    Task SetApprovalAsync(GenerationTaskId task, int ordinal, RunStepState state, Approval approval, CancellationToken cancellationToken);
 
     /// <summary>Records which limit ended the run's use of tools.</summary>
     Task SetLimitReachedAsync(GenerationTaskId task, RunLimit limit, CancellationToken cancellationToken);

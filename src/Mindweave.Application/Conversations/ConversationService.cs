@@ -7,6 +7,7 @@ using Mindweave.Core.Context;
 using Mindweave.Core.Conversations;
 using Mindweave.Core.Models;
 using Mindweave.Core.Resources;
+using Mindweave.Core.Runs;
 using Mindweave.Core.Workspaces;
 
 namespace Mindweave.Application.Conversations;
@@ -107,6 +108,7 @@ public sealed partial class ConversationService : IConversations
     private readonly Tools.ToolRegistry? _tools;
     private readonly IRunStore? _runs;
     private readonly Preferences.IToolSettings? _toolSettings;
+    private readonly Preferences.IWebSearchSettings? _webSearch;
 
     public ConversationService(
         IConversationStore store,
@@ -123,8 +125,10 @@ public sealed partial class ConversationService : IConversations
         IResourceStore? resourceStore = null,
         Tools.ToolRegistry? tools = null,
         Preferences.IToolSettings? toolSettings = null,
-        IRunStore? runs = null)
+        IRunStore? runs = null,
+        Preferences.IWebSearchSettings? webSearch = null)
     {
+        _webSearch = webSearch;
         _runs = runs;
         _tools = tools;
         _toolSettings = toolSettings;
@@ -254,8 +258,13 @@ public sealed partial class ConversationService : IConversations
     public Task<SendOutcome> StartAsync(WorkspaceId workspace, string question, Recommendations.StartingRecommendation? from, CancellationToken cancellationToken) =>
         StartAsync(workspace, question, [], from, cancellationToken);
 
+    public Task<SendOutcome> StartAsync(
+        WorkspaceId workspace, string question, IReadOnlyList<ResourceId> attachments, Recommendations.StartingRecommendation? from, CancellationToken cancellationToken) =>
+        StartAsync(workspace, question, attachments, from, null, cancellationToken);
+
+    /// <summary>The same, with the composer's choices for this question (the web search switch, requirements §10.4.5).</summary>
     public async Task<SendOutcome> StartAsync(
-        WorkspaceId workspace, string question, IReadOnlyList<ResourceId> attachments, Recommendations.StartingRecommendation? from, CancellationToken cancellationToken)
+        WorkspaceId workspace, string question, IReadOnlyList<ResourceId> attachments, Recommendations.StartingRecommendation? from, SendOptions? options, CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(attachments);
         var id = ConversationId.New();
@@ -282,7 +291,7 @@ public sealed partial class ConversationService : IConversations
             return SendOutcome.Reject(Rejection(planned.Rejection!.Value), id);
         }
 
-        var run = await RunPlanAsync(workspace, id, inputs, model, cancellationToken).ConfigureAwait(false);
+        var run = await RunPlanAsync(workspace, id, inputs, model, options, question, cancellationToken).ConfigureAwait(false);
         var task = NewTask(GenerationTaskKind.Answer, id, answer.Id, model, [user.Id], now, run);
         try
         {
@@ -301,7 +310,11 @@ public sealed partial class ConversationService : IConversations
     public Task<SendOutcome> AskAsync(ConversationId id, string question, CancellationToken cancellationToken) =>
         AskAsync(id, question, [], cancellationToken);
 
-    public async Task<SendOutcome> AskAsync(ConversationId id, string question, IReadOnlyList<ResourceId> attachments, CancellationToken cancellationToken)
+    public Task<SendOutcome> AskAsync(ConversationId id, string question, IReadOnlyList<ResourceId> attachments, CancellationToken cancellationToken) =>
+        AskAsync(id, question, attachments, null, cancellationToken);
+
+    /// <summary>The same, with the composer's choices for this question (the web search switch, requirements §10.4.5).</summary>
+    public async Task<SendOutcome> AskAsync(ConversationId id, string question, IReadOnlyList<ResourceId> attachments, SendOptions? options, CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(attachments);
         if (await CheckAsync(question, attachments, id, cancellationToken).ConfigureAwait(false) is { } rejection)
@@ -332,7 +345,7 @@ public sealed partial class ConversationService : IConversations
             return SendOutcome.Reject(Rejection(planned.Rejection!.Value), id);
         }
 
-        var run = await RunPlanAsync(null, id, inputs, model, cancellationToken).ConfigureAwait(false);
+        var run = await RunPlanAsync(null, id, inputs, model, options, question, cancellationToken).ConfigureAwait(false);
         var task = NewTask(GenerationTaskKind.Answer, id, answer.Id, model, [.. plan.RawItems.Select(c => c.Message.Id)], now, run);
 
         Message storedAnswer;
@@ -363,7 +376,11 @@ public sealed partial class ConversationService : IConversations
     }
 
     /// <summary>Retry (failed/stopped/interrupted) or regenerate (complete) — only the last answer (U1, U4).</summary>
-    public async Task<SendOutcome> RetryAsync(ConversationId id, MessageId answerToReplace, CancellationToken cancellationToken)
+    public Task<SendOutcome> RetryAsync(ConversationId id, MessageId answerToReplace, CancellationToken cancellationToken) =>
+        RetryAsync(id, answerToReplace, null, cancellationToken);
+
+    /// <summary>The same, with the composer's choices at the moment of the retry (decision W3).</summary>
+    public async Task<SendOutcome> RetryAsync(ConversationId id, MessageId answerToReplace, SendOptions? options, CancellationToken cancellationToken)
     {
         if (await CheckReadyAsync(id, cancellationToken).ConfigureAwait(false) is { } rejection)
         {
@@ -388,7 +405,7 @@ public sealed partial class ConversationService : IConversations
 
         var now = _clock.UtcNow;
         var answer = NewMessage(id, 0, MessageRole.Assistant, string.Empty, MessageState.Pending, answerToReplace, now);
-        var run = await RunPlanAsync(null, id, inputs, model, cancellationToken).ConfigureAwait(false);
+        var run = await RunPlanAsync(null, id, inputs, model, options, ContentBlocks.TypedTextOf(question.Blocks), cancellationToken).ConfigureAwait(false);
         var task = NewTask(GenerationTaskKind.Answer, id, answer.Id, model, [.. plan.RawItems.Select(c => c.Message.Id)], now, run);
 
         Message stored;
@@ -740,7 +757,8 @@ public sealed partial class ConversationService : IConversations
     /// something to find (decision R5). The tools may reach the resources the frozen chain refers to: attachments with text
     /// and earlier tool results. Null: a single request, exactly as before.
     /// </summary>
-    private async Task<RunPlan?> RunPlanAsync(WorkspaceId? workspace, ConversationId id, ContextInputs inputs, ModelSnapshot model, CancellationToken cancellationToken)
+    private async Task<RunPlan?> RunPlanAsync(
+        WorkspaceId? workspace, ConversationId id, ContextInputs inputs, ModelSnapshot model, SendOptions? options, string question, CancellationToken cancellationToken)
     {
         if (_tools is null || _toolSettings is null || !model.Capabilities.Has(ModelCapability.ToolCalls)
             || !await _toolSettings.GetEnabledAsync(cancellationToken).ConfigureAwait(false))
@@ -764,10 +782,45 @@ public sealed partial class ConversationService : IConversations
                 _ => (ResourceId?)null,
             })
             .OfType<ResourceId>();
-        var scope = new Tools.ToolScope(ws, id, resources);
+        var scope = new Tools.ToolScope(ws, id, resources) { Web = await WebRunAsync(inputs, options, question, cancellationToken).ConfigureAwait(false) };
         var offered = await _tools.OfferAsync(scope, cancellationToken).ConfigureAwait(false);
         return offered.Count == 0 ? null : new RunPlan(offered, await _toolSettings.GetLimitsAsync(cancellationToken).ConfigureAwait(false), scope);
     }
+
+    /// <summary>
+    /// The run's web state when web search applies to this question (requirements §10.4.5): the switch is not 关 (the page's
+    /// choice, or the default when a caller gives none) and a search key is set. The addresses in the user's questions and
+    /// attachments along the frozen chain may be read without asking (Q10, decision W9). Null: no web tools.
+    /// </summary>
+    private async Task<Tools.WebRun?> WebRunAsync(ContextInputs inputs, SendOptions? options, string question, CancellationToken cancellationToken)
+    {
+        if (_webSearch is null)
+        {
+            return null;
+        }
+
+        var mode = options?.WebSearch ?? await _webSearch.GetDefaultModeAsync(cancellationToken).ConfigureAwait(false);
+        if (mode == WebSearchMode.Off || !await _webSearch.HasKeyAsync(cancellationToken).ConfigureAwait(false))
+        {
+            return null;
+        }
+
+        var texts = inputs.Ancestors.Append(inputs.Own)
+            .SelectMany(segment => segment.Messages)
+            .Where(m => m.Role == MessageRole.User)
+            .SelectMany(m => m.Blocks.Select(b => b switch
+            {
+                TextBlock t => t.Markdown,
+                AttachmentBlock a => a.Text,
+                _ => null,
+            }))
+            .Append(question);
+        return new Tools.WebRun(mode, question ?? string.Empty, texts);
+    }
+
+    /// <summary>The user allowed or refused a call waiting for approval in a running answer (Q10). False when it no longer waits.</summary>
+    public bool DecideApproval(MessageId answer, string callId, bool allow) =>
+        _generation.Observe(answer)?.Decide(callId, allow) ?? false;
 
     private readonly ILogger<ConversationService> _logger;
 

@@ -37,6 +37,13 @@ internal sealed partial class AnswerRunner
 
     internal const string SkippedResult = "未执行：本次运行已达到工具调用次数上限。";
 
+    /// <summary>The call ID of the search the app makes itself when the switch is 开 (decision W1).</summary>
+    internal const string PreSearchCallId = "presearch";
+
+    internal const string PreSearchLead = "（应用已按用户的设置先用这个问题搜索了网络，结果如下；需要时可以再搜索或读取网页。）";
+
+    internal const string DeniedResult = "用户拒绝读取这个网址。请不要再尝试读取它，根据已有的材料回答，或说明还缺什么。";
+
     private readonly record struct RunEnding(MessageState State, GenerationErrorKind? Error, string? Detail);
 
     /// <summary>One tool turn as sent, and the line that stands for it once room runs short.</summary>
@@ -56,6 +63,23 @@ internal sealed partial class AnswerRunner
         var elapsed = Stopwatch.StartNew();
         int requests = 0, calls = 0, tokens = 0, ordinal = 0;
         RunLimit? reached = null;
+
+        if (run.Scope.Web is { Mode: WebSearchMode.On } web && run.Tools.FirstOrDefault(t => t.Name == WebSearchTool.ToolName) is not null
+            && turns.FindLastIndex(t => t.Role == ChatRole.User) is var question and >= 0)
+        {
+            // 开 (decision W1): the app searches the question once before the first request; the results go with the question as
+            // material, and the model decides from there.
+            var query = string.IsNullOrWhiteSpace(web.Question) ? turns[question].Content : web.Question;
+            var arguments = System.Text.Json.JsonSerializer.Serialize(new Dictionary<string, string> { ["query"] = query.Length > WebSearchTool.MaxQuery ? query[..WebSearchTool.MaxQuery] : query });
+            calls++;
+            var first = await RunToolAsync(work, run, services, new ChatToolCall(PreSearchCallId, WebSearchTool.ToolName, arguments), ordinal++, failures, withdrawn, elapsed, stop).ConfigureAwait(false);
+            if (first.Ending is { } ending)
+            {
+                return ending;
+            }
+
+            turns[question] = turns[question] with { Content = PreSearchLead + "\n" + first.Content + "\n\n" + turns[question].Content };
+        }
 
         while (true)
         {
@@ -215,7 +239,7 @@ internal sealed partial class AnswerRunner
                 }
 
                 calls++;
-                var outcome = await RunToolAsync(work, run, services, call, ordinal++, failures, withdrawn, stop).ConfigureAwait(false);
+                var outcome = await RunToolAsync(work, run, services, call, ordinal++, failures, withdrawn, elapsed, stop).ConfigureAwait(false);
                 if (outcome.Ending is { } ending)
                 {
                     return ending;
@@ -263,7 +287,7 @@ internal sealed partial class AnswerRunner
     /// error handed back to the model; a result is stored as a resource and sent whole or as its start and handle.
     /// </summary>
     private async Task<ToolOutcome> RunToolAsync(
-        AnswerWork work, RunPlan run, RunServices services, ChatToolCall call, int ordinal, Dictionary<string, int> failures, HashSet<string> withdrawn, CancellationToken stop)
+        AnswerWork work, RunPlan run, RunServices services, ChatToolCall call, int ordinal, Dictionary<string, int> failures, HashSet<string> withdrawn, Stopwatch elapsed, CancellationToken stop)
     {
         var live = work.Live;
         var tool = run.Tools.FirstOrDefault(t => string.Equals(t.Name, call.Name, StringComparison.Ordinal));
@@ -287,9 +311,34 @@ internal sealed partial class AnswerRunner
         var callBlock = new ToolCallBlock(call.Id, call.Name, call.Arguments, tool?.Risk ?? ToolRisk.LocalRead, Summary(tool, call, input));
         var step = new RunStepRecord(
             work.Task.Id, ordinal, RunStepKind.Tool, RunStepState.Running, _clock.UtcNow,
-            CallId: call.Id, Tool: call.Name.Length > 0 ? call.Name : "?", Risk: tool?.Risk ?? ToolRisk.LocalRead, Input: input);
+            CallId: call.Id, Tool: call.Name.Length > 0 ? call.Name : "?", Risk: tool?.Risk ?? ToolRisk.LocalRead, Input: input)
+        {
+            Target = tool is not null && parsed ? tool.TargetOf(arguments) : null,
+        };
         await _writes.SaveAsync(() => Done(services.Store.AddStepAsync(step, CancellationToken.None))).ConfigureAwait(false);
         live.StartTool(callBlock, call.Name);
+
+        // Q10 (decision W10): a call the user must allow waits for the card, without its slot and without counting time.
+        var asks = tool is not null && parsed && !withdrawn.Contains(tool.Name) ? tool.ApprovalFor(run.Scope, arguments) : null;
+        if (asks is not null)
+        {
+            var decided = await AwaitApprovalAsync(work, services, step, call, asks, elapsed, stop).ConfigureAwait(false);
+            if (decided is null)
+            {
+                return new ToolOutcome(string.Empty, string.Empty, new RunEnding(MessageState.Stopped, null, null));
+            }
+
+            step = step with { Approval = decided.Value ? Approval.Approved : Approval.Denied };
+            if (!decided.Value)
+            {
+                var refused = new ToolResultBlock(call.Id, ToolResultStatus.Denied, DeniedResult, null, "你拒绝了读取");
+                live.AddToolResult(refused);
+                var shot = live.Snapshot();
+                var deniedStep = step with { State = RunStepState.Denied, FinishedAt = _clock.UtcNow };
+                await _writes.SaveAsync(() => services.Store.FinishStepAsync(deniedStep, live.MessageId, shot.Blocks, shot.Revision, CancellationToken.None)).ConfigureAwait(false);
+                return new ToolOutcome(DeniedResult, $"（较早的工具调用：{call.Name} {input}，用户拒绝。）", null);
+            }
+        }
 
         string? failure = null;
         var failureKind = GenerationErrorKind.InvalidResponse;
@@ -330,6 +379,10 @@ internal sealed partial class AnswerRunner
             {
                 failure = ex.Message;
             }
+            catch (ToolFailureException ex)
+            {
+                failure = ex.Message;
+            }
             catch (StorageWriteException ex)
             {
                 failure = "读取本地数据失败：" + ex.Message;
@@ -367,6 +420,11 @@ internal sealed partial class AnswerRunner
             content = TokenEstimator.Estimate(output.Text) <= ToolResultTokens
                 ? output.Text
                 : Start(output.Text, ToolResultTokens) + $"\n\n（结果较长，以上只是开头。完整结果是资源 {id}，可用 {SearchAttachmentsTool.ToolName} 的 resource 与 part 读取。）";
+            if (output.Provenance == ResourceProvenance.External)
+            {
+                // Outside material is never an instruction (architecture §15.8, decision W11).
+                content = WebMaterial.Wrap(content);
+            }
             block = new ToolResultBlock(call.Id, ToolResultStatus.Succeeded, Preview(output.Text), id, output.Detail, output.Findings);
         }
         else
@@ -395,6 +453,44 @@ internal sealed partial class AnswerRunner
         await _writes.SaveAsync(() => services.Store.FinishStepAsync(finished, live.MessageId, snapshot.Blocks, snapshot.Revision, CancellationToken.None)).ConfigureAwait(false);
         var line = $"（较早的工具结果已省略：{call.Name} {input}{(stored is { } r ? $"，完整结果是资源 {r}" : string.Empty)}；需要时可再读取。）";
         return new ToolOutcome(content, line, null);
+    }
+
+    /// <summary>
+    /// Shows the approval card and waits for the user (decision W10): the step is recorded as awaiting approval, the run gives
+    /// its slot up, and the wait does not count towards its duration. Returns the decision, or null when the run was stopped
+    /// meanwhile (the step is then recorded as stopped and the card withdrawn).
+    /// </summary>
+    private async Task<bool?> AwaitApprovalAsync(AnswerWork work, RunServices services, RunStepRecord step, ChatToolCall call, string asks, Stopwatch elapsed, CancellationToken stop)
+    {
+        var live = work.Live;
+        await _writes.SaveAsync(() => Done(services.Store.SetApprovalAsync(step.Task, step.Ordinal, RunStepState.AwaitingApproval, Approval.Pending, CancellationToken.None))).ConfigureAwait(false);
+        var decision = live.RequestApproval(new PendingApproval(call.Id, call.Name, asks));
+        elapsed.Stop();
+        Slots?.Release(work.Task.Id);
+        try
+        {
+            var allowed = await decision.WaitAsync(stop).ConfigureAwait(false);
+            if (Slots is { } slots)
+            {
+                await slots.ReacquireAsync(work.Task.Id, stop).ConfigureAwait(false);
+            }
+
+            await _writes.SaveAsync(() => Done(services.Store.SetApprovalAsync(
+                step.Task, step.Ordinal, allowed ? RunStepState.Running : RunStepState.Denied, allowed ? Approval.Approved : Approval.Denied, CancellationToken.None))).ConfigureAwait(false);
+            return allowed;
+        }
+        catch (OperationCanceledException) when (stop.IsCancellationRequested)
+        {
+            live.WithdrawApproval();
+            live.EndTool();
+            var stopped = step with { State = RunStepState.Stopped, FinishedAt = _clock.UtcNow };
+            await _writes.SaveAsync(() => services.Store.FinishStepAsync(stopped, live.MessageId, null, 0, CancellationToken.None)).ConfigureAwait(false);
+            return null;
+        }
+        finally
+        {
+            elapsed.Start();
+        }
     }
 
     private static string Summary(ITool? tool, ChatToolCall call, string? input = null) =>

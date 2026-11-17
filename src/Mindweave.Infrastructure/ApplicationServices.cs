@@ -72,6 +72,10 @@ public static class ApplicationServices
         services.AddSingleton<Application.Runs.RunServices>();
         services.AddSingleton<Application.Tools.ITool, Application.Tools.SearchAttachmentsTool>();
         services.AddSingleton<Application.Tools.ITool, Application.Tools.SearchSummariesTool>();
+        services.AddSingleton<Application.Tools.ITool, Application.Tools.WebSearchTool>(sp => new Application.Tools.WebSearchTool(sp.GetRequiredService<IWebSearchSettings>()));
+        services.AddSingleton<Application.Tools.ITool, Application.Tools.FetchPageTool>(sp => new Application.Tools.FetchPageTool(sp.GetRequiredService<Application.Tools.IWebPageFetcher>()));
+        services.AddSingleton<WebSearchSettingsService>();
+        services.AddSingleton<IWebSearchSettings>(sp => sp.GetRequiredService<WebSearchSettingsService>());
         services.AddSingleton<Application.Tools.ToolRegistry>();
         services.AddSingleton<ToolSettingsService>();
         services.AddSingleton<IToolSettings>(sp => sp.GetRequiredService<ToolSettingsService>());
