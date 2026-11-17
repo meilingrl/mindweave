@@ -360,7 +360,7 @@ public sealed class ResourceStoreTests
         var question = new Message(MessageId.New(), conversation.Id, 0, MessageRole.User, blocks, MessageState.Complete, 0, null, null, null, now, now);
         var answer = new Message(MessageId.New(), conversation.Id, 1, MessageRole.Assistant, ContentBlocks.FromText(string.Empty), MessageState.Pending, 0, null, null, null, now, null);
         var task = new GenerationTaskRecord(GenerationTaskId.New(), GenerationTaskKind.Answer, conversation.Id, answer.Id, Model, [question.Id], now);
-        await h.Store.CreateAsync(conversation, question, answer, task, Ct);
+        await h.Store.CreateAsync(conversation, question, answer, task, null, Ct);
         Assert.True(await h.Store.FinishAnswerAsync(task.Id, answer.Id, ContentBlocks.FromText("答"), 1, MessageState.Complete, null, null, now, Ct));
         return (conversation.Id, question.Id);
     }

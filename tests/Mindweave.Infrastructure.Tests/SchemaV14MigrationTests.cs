@@ -38,8 +38,8 @@ public sealed class SchemaV14MigrationTests : IDisposable
         Assert.Equal(13, Assert.Single(database.ListBackups()).SchemaVersion);
 
         using var raw = _dir.Raw();
-        Assert.Equal(14, MigrationCatalog.Default.LatestVersion);
-        Assert.Equal(14, SqliteConnections.Scalar<long>(raw, "PRAGMA user_version;"));
+        Assert.True(MigrationCatalog.Default.LatestVersion >= 14);
+        Assert.Equal(MigrationCatalog.Default.LatestVersion, SqliteConnections.Scalar<long>(raw, "PRAGMA user_version;"));
         Assert.Equal(0, SqliteConnections.Scalar<long>(raw, "SELECT count(*) FROM pragma_foreign_key_check;"));
         Assert.Equal(
             "l1|a|b|对比|user|7;l2|b|c||confirmed|8",
