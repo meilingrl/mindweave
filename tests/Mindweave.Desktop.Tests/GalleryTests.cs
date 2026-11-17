@@ -122,9 +122,44 @@ public class GalleryTests
         var window = scene.App.ShowWindow(1100, 720, Theme);
         await scene.App.StartAsync();
         var onboarding = Assert.IsType<OnboardingViewModel>(scene.App.Root.Current);
-        onboarding.Form.Name = "火车历史";
+
+        // The guide (2026-11-17): what Mindweave is for, a model, the first workspace, then 新探索.
         await SettleAsync(window);
         Capture(window, "g01-onboarding");
+        onboarding.NextCommand.Execute(null);
+        await onboarding.Model!.Loaded;
+        await SettleAsync(window);
+        Capture(window, "g01a-onboarding-model");
+        onboarding.Model.SelectedProvider = ViewModels.Pages.ProviderPresets.DeepSeek;
+        await onboarding.SaveModelCommand.ExecuteAsync(null);
+        await SettleAsync(window);
+        Capture(window, "g01b-onboarding-model-refused");
+        onboarding.LaterCommand.Execute(null);
+        onboarding.Form.Name = "火车历史";
+        await SettleAsync(window);
+        Capture(window, "g01c-onboarding-workspace");
+        await onboarding.Form.SubmitCommand.ExecuteAsync(null);
+        await Assert.IsType<NewConversationViewModel>(scene.App.Workbench.CurrentPage).ModelNote!.Checked;
+        await SettleAsync(window);
+        Capture(window, "g01d-new-exploration-no-model");
+        window.Close();
+    }
+
+    [AvaloniaFact]
+    public async Task G01e_workspace_prompt_after_the_guide()
+    {
+        // The last workspace deleted: only a workspace is asked for, without the guide.
+        await using var scene = Scene.Create("g01e");
+        var window = scene.App.ShowWindow(1100, 720, Theme);
+        await scene.App.StartWithWorkspaceAsync("唯一");
+        scene.App.ShellPage.DeleteWorkspaceCommand.Execute(null);
+        var dialog = scene.App.Root.WorkspaceDeletion;
+        await dialog.Loading;
+        dialog.TypedName = "唯一";
+        await dialog.DeleteCommand.ExecuteAsync(null);
+        Assert.False(Assert.IsType<OnboardingViewModel>(scene.App.Root.Current).IsGuided);
+        await SettleAsync(window);
+        Capture(window, "g01e-workspace-prompt");
         window.Close();
     }
 

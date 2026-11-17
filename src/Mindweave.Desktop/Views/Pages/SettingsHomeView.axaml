@@ -4,6 +4,7 @@
              xmlns:d="using:Mindweave.Desktop"
              xmlns:t="using:Mindweave.Desktop.Text"
              xmlns:v="using:Mindweave.Desktop.Views"
+             xmlns:p="using:Mindweave.Desktop.Views.Pages"
              x:Class="Mindweave.Desktop.Views.Pages.SettingsHomeView"
              x:DataType="vm:SettingsHomeViewModel">
   <ScrollViewer Classes="autohide" HorizontalScrollBarVisibility="Disabled">
@@ -96,90 +97,7 @@
     <TextBlock Classes="section-heading" Margin="2,28,0,2" Text="{x:Static t:UiText.ModelSection}" />
     <TextBlock Classes="caption" Margin="2,0,0,10" TextWrapping="Wrap" Text="{x:Static t:UiText.PrivacyHint}" />
     <StackPanel DataContext="{Binding Model}" x:DataType="vm:ModelSettingsViewModel" Spacing="12">
-      <Border Classes="card settings">
-        <Grid ColumnDefinitions="96,*" RowDefinitions="Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto" RowSpacing="12">
-          <TextBlock Classes="field-label" Text="{x:Static t:UiText.ProviderLabel}" />
-          <ComboBox Grid.Column="1" Name="ProviderPicker" Classes="settings" MinWidth="240" HorizontalAlignment="Left"
-                    ItemsSource="{Binding Providers}" SelectedItem="{Binding SelectedProvider}"
-                    PlaceholderText="{x:Static t:UiText.ProviderPlaceholder}" AutomationProperties.Name="{x:Static t:UiText.ProviderLabel}">
-            <ComboBox.ItemTemplate>
-              <DataTemplate x:DataType="vm:ProviderPreset">
-                <TextBlock Text="{Binding Name}" />
-              </DataTemplate>
-            </ComboBox.ItemTemplate>
-          </ComboBox>
-
-          <TextBlock Grid.Row="1" Classes="field-label" Text="{x:Static t:UiText.BaseUrlLabel}" />
-          <TextBox Grid.Row="1" Grid.Column="1" Name="BaseUrl" Text="{Binding BaseUrl}" PlaceholderText="{x:Static t:UiText.BaseUrlPlaceholder}"
-                   AutomationProperties.Name="{x:Static t:UiText.BaseUrlLabel}" />
-
-          <TextBlock Grid.Row="2" Classes="field-label" Text="{x:Static t:UiText.ApiKeyLabel}" />
-          <TextBox Grid.Row="2" Grid.Column="1" Name="ApiKey" Text="{Binding ApiKey}" PasswordChar="•" RevealPassword="False"
-                   PlaceholderText="{Binding KeyPlaceholder}" AutomationProperties.Name="{x:Static t:UiText.ApiKeyLabel}" />
-
-          <TextBlock Grid.Row="3" Classes="field-label" Text="{x:Static t:UiText.ModelLabel}" />
-          <Grid Grid.Row="3" Grid.Column="1" ColumnDefinitions="*,Auto" ColumnSpacing="8">
-            <TextBox Name="ModelBox" Text="{Binding Model}" PlaceholderText="{x:Static t:UiText.ModelPlaceholder}"
-                     AutomationProperties.Name="{x:Static t:UiText.ModelLabel}">
-              <TextBox.InnerRightContent>
-                <Button Name="ModelListToggle" Classes="field-toggle" Click="OnModelListToggle" Focusable="False"
-                        ToolTip.Tip="{x:Static t:UiText.ShowModels}" AutomationProperties.Name="{x:Static t:UiText.ShowModels}"
-                        IsVisible="{Binding AvailableModels.Count, Converter={x:Static d:Converters.IsPositive}}">
-                  <PathIcon Data="{StaticResource IconChevronDown}" />
-                </Button>
-              </TextBox.InnerRightContent>
-            </TextBox>
-            <Popup Name="ModelPopup" PlacementTarget="{Binding #ModelBox}" Placement="BottomEdgeAlignedLeft"
-                   IsOpen="{Binding IsModelListOpen, Mode=TwoWay}" IsLightDismissEnabled="True" OverlayDismissEventPassThrough="True"
-                   MinWidth="{Binding #ModelBox.Bounds.Width}">
-              <Border Classes="suggestions">
-                <ListBox Name="ModelList" ItemsSource="{Binding ModelSuggestions}" MaxHeight="248" SelectionMode="Single" Focusable="False" />
-              </Border>
-            </Popup>
-            <Button Grid.Column="1" Name="FetchModels" Classes="secondary" Command="{Binding DiscoverCommand}">
-              <StackPanel Orientation="Horizontal" Spacing="6">
-                <PathIcon Data="{StaticResource IconRegenerate}" />
-                <TextBlock Text="{x:Static t:UiText.FetchModels}" />
-              </StackPanel>
-            </Button>
-          </Grid>
-
-          <TextBlock Grid.Row="4" Classes="field-label" Text="{x:Static t:UiText.ConnectionNameLabel}" />
-          <TextBox Grid.Row="4" Grid.Column="1" Name="ConnectionName" Text="{Binding Name}" PlaceholderText="{x:Static t:UiText.ConnectionNamePlaceholder}"
-                   AutomationProperties.Name="{x:Static t:UiText.ConnectionNameLabel}" />
-
-          <TextBlock Grid.Row="5" Classes="field-label" VerticalAlignment="Top" Margin="0,6,0,0" Text="{x:Static t:UiText.ContextWindowLabel}" />
-          <StackPanel Grid.Row="5" Grid.Column="1" Spacing="6">
-            <StackPanel Orientation="Horizontal" Spacing="8">
-              <TextBox Name="ContextWindow" Text="{Binding ContextWindow}" PlaceholderText="{x:Static t:UiText.ContextWindowPlaceholder}" Width="180"
-                       AutomationProperties.Name="{x:Static t:UiText.ContextWindowLabel}" />
-              <TextBlock Classes="caption" VerticalAlignment="Center" Text="{x:Static t:UiText.TokensUnit}" />
-            </StackPanel>
-            <TextBlock Classes="caption" TextWrapping="Wrap" Text="{x:Static t:UiText.ContextWindowHint}" />
-          </StackPanel>
-
-          <!-- 高级设置 (2026-11-17): what the model can do, filled from the preset and overridable; closed on every visit. -->
-          <ToggleButton Grid.Row="6" Grid.Column="1" Name="AdvancedToggle" Classes="quiet small disclosure" HorizontalAlignment="Left" Margin="-8,0,0,0"
-                        IsChecked="{Binding IsAdvancedOpen}" AutomationProperties.Name="{x:Static t:UiText.AdvancedSettings}">
-            <StackPanel Orientation="Horizontal" Spacing="4">
-              <PathIcon Data="{StaticResource IconChevron}" IsVisible="{Binding !IsAdvancedOpen}" />
-              <PathIcon Data="{StaticResource IconChevronDown}" IsVisible="{Binding IsAdvancedOpen}" />
-              <TextBlock VerticalAlignment="Center" Text="{x:Static t:UiText.AdvancedSettings}" />
-            </StackPanel>
-          </ToggleButton>
-          <TextBlock Grid.Row="7" Classes="field-label" VerticalAlignment="Top" Margin="0,2,0,0" Text="{x:Static t:UiText.ModelCapabilitiesLabel}"
-                     IsVisible="{Binding IsAdvancedOpen}" />
-          <StackPanel Grid.Row="7" Grid.Column="1" Name="ModelCapabilities" Spacing="4" IsVisible="{Binding IsAdvancedOpen}">
-            <CheckBox Name="ToolCallsToggle" IsChecked="{Binding DeclaresToolCalls}" Content="{x:Static t:UiText.ToolCallsSetting}"
-                      AutomationProperties.Name="{x:Static t:UiText.ToolCallsSetting}" AutomationProperties.HelpText="{x:Static t:UiText.ToolCallsHint}" />
-            <TextBlock Classes="caption" TextWrapping="Wrap" Margin="0,0,0,6" Text="{x:Static t:UiText.ToolCallsHint}" />
-            <CheckBox Name="ImageInputToggle" IsChecked="{Binding DeclaresImageInput}" Content="{x:Static t:UiText.ImageInputSetting}"
-                      AutomationProperties.Name="{x:Static t:UiText.ImageInputSetting}" AutomationProperties.HelpText="{x:Static t:UiText.ImageInputHint}" />
-            <TextBlock Classes="caption" TextWrapping="Wrap" Margin="0,0,0,6" Text="{x:Static t:UiText.ImageInputHint}" />
-            <TextBlock Classes="caption" TextWrapping="Wrap" Text="{x:Static t:UiText.ModelCapabilitiesHint}" />
-          </StackPanel>
-        </Grid>
-      </Border>
+      <p:ModelSettingsForm Name="ModelForm" />
       <StackPanel Orientation="Horizontal" Spacing="8" Margin="2,0,0,0">
         <Button Name="SaveModel" Classes="primary" Content="{x:Static t:UiText.Save}" Command="{Binding SaveCommand}" />
         <Button Name="TestModel" Classes="secondary" Content="{x:Static t:UiText.TestConnection}" Command="{Binding TestCommand}"

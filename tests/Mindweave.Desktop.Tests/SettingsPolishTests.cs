@@ -381,8 +381,9 @@ public class SettingsPolishTests
         var window = app.ShowWindow(1100, 720);
         await app.StartAsync();
         window.UpdateLayout();
+        // The guide's first step (2026-11-17); every step's own primary is checked in OnboardingTests.
         var onboarding = window.GetVisualDescendants().OfType<OnboardingView>().Single();
-        Assert.Equal(["CreateButton"], VisiblePrimaries(onboarding));
+        Assert.Equal(["NextButton"], VisiblePrimaries(onboarding));
 
         var onboardingModel = Assert.IsType<ViewModels.OnboardingViewModel>(app.Root.Current);
         onboardingModel.Form.Name = "火车";
