@@ -54,7 +54,7 @@ public static class BranchContext
         var firstQuestion = segment.Quote is null ? null : selected.FirstOrDefault(m => m.Role == MessageRole.User);
         foreach (var message in selected)
         {
-            items.Add(new ContextItem(message, message == firstQuestion ? QuotedQuestion(segment.Quote!, message.Text) : message.Text));
+            items.Add(new ContextItem(message, message == firstQuestion ? QuotedQuestion(segment.Quote!, message.Text) : ContentBlocks.ContextTextOf(message.Blocks)));
         }
     }
 }

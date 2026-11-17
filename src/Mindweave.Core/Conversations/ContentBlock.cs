@@ -45,6 +45,18 @@ public sealed record ToolCallBlock(string CallId, string Tool, string Arguments,
 /// </summary>
 public sealed record ToolResultBlock(string CallId, ToolResultStatus Status, string Preview, ResourceId? Resource, string? Detail, IReadOnlyList<ToolFinding>? Findings = null) : ContentBlock;
 
+/// <summary>
+/// One 出处 of an answer (requirements §10.4.5, architecture §15.13): the number the answer cites as [n], the source's title
+/// and real address, when it was fetched, the stored resource, and the cited passage as a character range of the resource's
+/// text (<paramref name="Start"/> inclusive, <paramref name="End"/> exclusive). Written when the answer ends, after its tool
+/// blocks; only numbers the text cites and the run really fetched have one.
+/// </summary>
+public sealed record CitationBlock(int Number, string Title, Uri Url, DateTimeOffset FetchedAt, ResourceId Resource, int Start, int End) : ContentBlock
+{
+    /// <summary>The line it is as text (context and summaries): "[1] 标题 https://…".</summary>
+    public string Line => $"[{Number}] {Title} {Url.AbsoluteUri}";
+}
+
 public static class ContentBlocks
 {
     /// <summary>What an unnamed paste is called where a name is shown.</summary>
@@ -63,6 +75,18 @@ public static class ContentBlocks
     /// blank line, so a message of text blocks only reads exactly as before attachments existed.
     /// </summary>
     public static string TextOf(IReadOnlyList<ContentBlock> blocks) => BriefOf(blocks);
+
+    /// <summary>
+    /// The message as conversation context and summary input (architecture §15.4, §15.9): <see cref="TextOf"/>, then an
+    /// answer's 出处 as one list ("[n] 标题 网址"), so what it relied on goes along without the pages themselves. The
+    /// answer's own text (anchors, display) never includes the list.
+    /// </summary>
+    public static string ContextTextOf(IReadOnlyList<ContentBlock> blocks)
+    {
+        var text = TextOf(blocks);
+        var citations = CitationsOf(blocks);
+        return citations.Count == 0 ? text : text + "\n\n出处：\n" + string.Join("\n", citations.Select(c => c.Line));
+    }
 
     /// <summary>
     /// The message for titles, excerpts and display: text blocks as they are, each attachment as a one-line
@@ -88,6 +112,13 @@ public static class ContentBlocks
     {
         ArgumentNullException.ThrowIfNull(blocks);
         return blocks.Where(b => b is ToolCallBlock or ToolResultBlock);
+    }
+
+    /// <summary>An answer's 出处, in number order.</summary>
+    public static IReadOnlyList<CitationBlock> CitationsOf(IReadOnlyList<ContentBlock> blocks)
+    {
+        ArgumentNullException.ThrowIfNull(blocks);
+        return [.. blocks.OfType<CitationBlock>().OrderBy(c => c.Number)];
     }
 
     public static IEnumerable<AttachmentBlock> AttachmentsOf(IReadOnlyList<ContentBlock> blocks)

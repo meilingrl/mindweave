@@ -101,3 +101,14 @@ public enum ToolFindingKind
 /// (1-based, for a resource part), and a title to show.
 /// </summary>
 public sealed record ToolFinding(ToolFindingKind Kind, string Id, string Title, int? Part = null);
+
+/// <summary>
+/// The web search switch beside the composer (requirements §10.4.5): the model decides (<see cref="Auto"/>), at least one
+/// search for this question (<see cref="On"/>), or no web tools (<see cref="Off"/>).
+/// </summary>
+public enum WebSearchMode
+{
+    Auto,
+    On,
+    Off,
+}

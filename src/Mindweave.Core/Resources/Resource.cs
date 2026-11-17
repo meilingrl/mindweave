@@ -14,6 +14,12 @@ public enum ResourceOrigin
 
     /// <summary>The full result of a tool call in a run (phase 2, architecture §15.12); belongs to the answer's conversation.</summary>
     Tool,
+
+    /// <summary>
+    /// Material from the web (phase 3, docs/design/web-search.md W16): one search's results, or one page read; always
+    /// <see cref="ResourceProvenance.External"/>, a page with its final address as <see cref="Resource.SourceUrl"/>.
+    /// </summary>
+    Web,
 }
 
 /// <summary>
