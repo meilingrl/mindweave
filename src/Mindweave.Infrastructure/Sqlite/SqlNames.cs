@@ -211,6 +211,7 @@ internal static class SqlNames
         ResourceOrigin.Paste => "paste",
         ResourceOrigin.File => "file",
         ResourceOrigin.Image => "image",
+        ResourceOrigin.Tool => "tool",
         _ => throw new ArgumentOutOfRangeException(nameof(origin)),
     };
 
@@ -219,6 +220,7 @@ internal static class SqlNames
         "paste" => ResourceOrigin.Paste,
         "file" => ResourceOrigin.File,
         "image" => ResourceOrigin.Image,
+        "tool" => ResourceOrigin.Tool,
         _ => throw new InvalidDataException($"Unknown resource origin '{value}'."),
     };
 
