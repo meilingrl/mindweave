@@ -11,7 +11,7 @@
 
 ## 下一步
 
-方向 2 第 2 期（运行循环与工具调用，先做“检索附件”和“检索本工作区总结网络”两个本地工具），开始前看 [agent-platform-questions.md](docs/design/agent-platform-questions.md) 的 Q8–Q11；第 1 期在真实窗口与 Windows 上试用（文件选择框、从 Finder 拖入、从别的应用粘贴尚未手动试过）。其他候选：Windows 11 实机全量与发布版本试用（课程演示平台）；课程报告材料；[低／信息级待办](docs/reviews/claude-auto-health-20261112/low-triage.md)；中英双语准备；“显示思考内容”。
+方向 2 第 2 期（运行循环与工具调用，先做“检索附件”和“检索本工作区总结网络”两个本地工具），开始前看 [agent-platform-questions.md](docs/design/agent-platform-questions.md) 的 Q8–Q11；第 1 期已由你在 macOS 试用版本（367bcca）上逐项试过并通过（2026-11-17：“+”菜单、文件与图片、长粘贴与撤回、拖入、从 Finder 粘贴、发送与查看页）；Windows 上尚未试用。其他候选：Windows 11 实机全量与发布版本试用（课程演示平台）；课程报告材料；[低／信息级待办](docs/reviews/claude-auto-health-20261112/low-triage.md)；中英双语准备；“显示思考内容”。
 
 ## 需要你
 
