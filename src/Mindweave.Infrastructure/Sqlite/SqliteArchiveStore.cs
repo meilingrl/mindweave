@@ -229,9 +229,13 @@ internal sealed class SqliteArchiveStore(SqliteDatabase database) : IConversatio
         }
 
         var visible = roots.Where(r => !SqliteArchive.IsHidden(connection, transaction, r)).ToList();
+        var memberList = string.Join(", ", ordered.Select((_, i) => "$m" + i));
+        var memberParameters = ordered.Select((m, i) => ("$m" + i, (object?)m.ToString())).ToArray();
         return new ConversationDeleteScope(selected, roots, ordered, nodes, busy, rootOf, parentOf, visible)
         {
             Links = SqliteSummaryLinkStore.CountTouching(connection, transaction, nodes),
+            Attachments = SqliteResourceScope.Attachments(connection, transaction, memberList, memberParameters),
+            ResourceHashes = SqliteResourceScope.Hashes(connection, transaction, $"r.conversation_id IN ({memberList})", memberParameters),
         };
     }
 

@@ -42,17 +42,12 @@ public static class ContentBlocks
     }
 
     /// <summary>
-    /// The message as sent in context: text blocks as they are; an attachment with text as a marked section holding that
-    /// text; an attachment without text (an image) as a marked placeholder. Parts are joined by a blank line, so a
-    /// message of text blocks only reads exactly as before attachments existed.
+    /// The message as its conversation layer sends it (architecture §15.3): text blocks as they are, each attachment as a
+    /// one-line <c>[附件：name]</c>. An attachment's content is sent by the resource layer (<see cref="Context.ResourceMaterial"/>),
+    /// planned apart from the conversation, so no single message can outgrow the context window. Parts are joined by a
+    /// blank line, so a message of text blocks only reads exactly as before attachments existed.
     /// </summary>
-    public static string TextOf(IReadOnlyList<ContentBlock> blocks)
-    {
-        ArgumentNullException.ThrowIfNull(blocks);
-        return blocks.Count == 1 && blocks[0] is TextBlock only
-            ? only.Markdown
-            : string.Join("\n\n", blocks.Select(ContextTextOf).Where(t => t is not null));
-    }
+    public static string TextOf(IReadOnlyList<ContentBlock> blocks) => BriefOf(blocks);
 
     /// <summary>
     /// The message for titles, excerpts and display: text blocks as they are, each attachment as a one-line
@@ -66,36 +61,48 @@ public static class ContentBlocks
             : string.Join("\n\n", blocks.Select(BriefTextOf).Where(t => t is not null));
     }
 
-    /// <summary>The attachment as a marked section of context (see <see cref="TextOf"/>).</summary>
-    public static string ContextSection(AttachmentBlock attachment)
+    /// <summary>The text the user typed, without attachments.</summary>
+    public static string TypedTextOf(IReadOnlyList<ContentBlock> blocks)
+    {
+        ArgumentNullException.ThrowIfNull(blocks);
+        return string.Join("\n\n", blocks.OfType<TextBlock>().Select(t => t.Markdown));
+    }
+
+    public static IEnumerable<AttachmentBlock> AttachmentsOf(IReadOnlyList<ContentBlock> blocks)
+    {
+        ArgumentNullException.ThrowIfNull(blocks);
+        return blocks.OfType<AttachmentBlock>();
+    }
+
+    /// <summary>One attachment as its brief line.</summary>
+    public static string BriefOf(AttachmentBlock attachment)
     {
         ArgumentNullException.ThrowIfNull(attachment);
+        return $"[附件：{attachment.DisplayName}]";
+    }
+
+    /// <summary>A material section: an opening tag naming the attachment, <paramref name="body"/>, and the closing tag.</summary>
+    public static string Section(AttachmentBlock attachment, string form, string body)
+    {
+        ArgumentNullException.ThrowIfNull(attachment);
+        ArgumentNullException.ThrowIfNull(body);
         var head = new StringBuilder("<attachment name=\"")
             .Append(Attribute(attachment.DisplayName))
             .Append("\" type=\"")
             .Append(Attribute(attachment.MediaType))
-            .Append('"');
-        if (attachment.Text is null)
-        {
-            return head.Append(" omitted=\"").Append(MediaTypes.IsImage(attachment.MediaType) ? "image" : "content").Append("\" />").ToString();
-        }
+            .Append("\" form=\"")
+            .Append(form)
+            .Append("\">\n");
 
         // The content cannot end its own section early: a closing tag inside it is written escaped.
-        var body = attachment.Text.Replace("</attachment", "<\\/attachment", StringComparison.OrdinalIgnoreCase);
-        return head.Append(">\n").Append(body).Append(body.EndsWith('\n') ? "" : "\n").Append("</attachment>").ToString();
+        var escaped = body.Replace("</attachment", "<\\/attachment", StringComparison.OrdinalIgnoreCase);
+        return head.Append(escaped).Append(escaped.EndsWith('\n') ? "" : "\n").Append("</attachment>").ToString();
     }
-
-    private static string? ContextTextOf(ContentBlock block) => block switch
-    {
-        TextBlock t => t.Markdown,
-        AttachmentBlock a => ContextSection(a),
-        _ => null,
-    };
 
     private static string? BriefTextOf(ContentBlock block) => block switch
     {
         TextBlock t => t.Markdown,
-        AttachmentBlock a => $"[附件：{a.DisplayName}]",
+        AttachmentBlock a => BriefOf(a),
         _ => null,
     };
 

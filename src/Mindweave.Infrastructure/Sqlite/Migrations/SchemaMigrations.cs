@@ -604,5 +604,80 @@ internal static class SchemaMigrations
             ALTER TABLE message_block ADD COLUMN resource_id TEXT REFERENCES resource (id) ON DELETE RESTRICT;
             CREATE INDEX message_block_by_resource ON message_block (resource_id);
             """),
+
+        Migration.Sql(16, "resource provenance, chunks and keyword index, draft attachments, request purpose", """
+            -- Phase 1 of the agent platform (requirements §10.4.3, architecture §15.2, docs/design/attachments.md), aligning the
+            -- v15 foundation with the approved architecture. Existing rows keep their meaning.
+
+            -- Where material came from: 'user' (pasted or attached by the user), 'workspace' (this workspace's own content),
+            -- 'external' (web, third-party tools). It replaces the trusted flag: a trusted row was the user's, any other was
+            -- external. An image is its own origin, as §15.2 lists it.
+            ALTER TABLE resource ADD COLUMN provenance TEXT NOT NULL DEFAULT 'user' CHECK (provenance IN ('user', 'workspace', 'external'));
+            UPDATE resource SET provenance = CASE trusted WHEN 1 THEN 'user' ELSE 'external' END;
+            ALTER TABLE resource DROP COLUMN trusted;
+            UPDATE resource SET origin = 'image' WHERE origin = 'file' AND media_type GLOB 'image/*';
+
+            -- Derivatives: one per resource, kind, producer and prompt version (a summary is redone only for a new prompt);
+            -- blob_sha256 names a binary derivative's file (a scaled image), truncated marks text cut at the storage bound.
+            -- Nothing references the table, so it is rebuilt with every row kept.
+            CREATE TABLE resource_derivative_v16 (
+                id               INTEGER NOT NULL PRIMARY KEY,
+                resource_id      TEXT    NOT NULL REFERENCES resource (id) ON DELETE CASCADE,
+                kind             TEXT    NOT NULL CHECK (length(kind) > 0),
+                producer         TEXT    NOT NULL CHECK (length(producer) > 0),
+                prompt_version   TEXT,
+                text             TEXT    NOT NULL,
+                blob_sha256      TEXT    CHECK (blob_sha256 IS NULL OR (length(blob_sha256) = 64 AND blob_sha256 NOT GLOB '*[^0-9a-f]*')),
+                estimated_tokens INTEGER CHECK (estimated_tokens >= 0),
+                truncated        INTEGER NOT NULL DEFAULT 0 CHECK (truncated IN (0, 1)),
+                created_at       INTEGER NOT NULL
+            ) STRICT;
+            INSERT INTO resource_derivative_v16 (id, resource_id, kind, producer, prompt_version, text, estimated_tokens, created_at)
+            SELECT id, resource_id, kind, producer, prompt_version, text, estimated_tokens, created_at FROM resource_derivative;
+            DROP TABLE resource_derivative;
+            ALTER TABLE resource_derivative_v16 RENAME TO resource_derivative;
+            CREATE UNIQUE INDEX resource_derivative_identity ON resource_derivative (resource_id, kind, producer, ifnull(prompt_version, ''));
+            CREATE INDEX resource_derivative_by_blob ON resource_derivative (blob_sha256) WHERE blob_sha256 IS NOT NULL;
+
+            -- Chunks of the extracted text, about 800 estimated tokens each, cut at paragraph or sentence boundaries; offsets
+            -- are characters of the 'text' derivative. The keyword index holds each chunk's search terms (words, and CJK runs as
+            -- overlapping character pairs, made by the application) under the chunk's rowid; a trigger keeps it in step when
+            -- chunks go with their resource.
+            CREATE TABLE resource_chunk (
+                resource_id      TEXT    NOT NULL REFERENCES resource (id) ON DELETE CASCADE,
+                ordinal          INTEGER NOT NULL CHECK (ordinal >= 0),
+                start_char       INTEGER NOT NULL CHECK (start_char >= 0),
+                end_char         INTEGER NOT NULL,
+                estimated_tokens INTEGER NOT NULL CHECK (estimated_tokens >= 0),
+                PRIMARY KEY (resource_id, ordinal),
+                CHECK (end_char > start_char)
+            ) STRICT;
+            CREATE VIRTUAL TABLE resource_chunk_fts USING fts5 (terms, tokenize = 'unicode61 remove_diacritics 2');
+            CREATE TRIGGER resource_chunk_deleted AFTER DELETE ON resource_chunk BEGIN
+                DELETE FROM resource_chunk_fts WHERE rowid = old.rowid;
+            END;
+
+            -- Attachments on an unsent draft, in order: a conversation's draft (by slot) or a workspace's 新探索 page
+            -- (conversation NULL, slot 'new-exploration'). A resource is in at most one draft; the row goes with the resource
+            -- (removed from the draft), the conversation or the workspace. Sending moves it into a message in one transaction.
+            CREATE TABLE draft_attachment (
+                resource_id     TEXT    NOT NULL PRIMARY KEY REFERENCES resource (id) ON DELETE CASCADE,
+                workspace_id    TEXT    NOT NULL REFERENCES workspace (id) ON DELETE CASCADE,
+                conversation_id TEXT    REFERENCES conversation (id) ON DELETE CASCADE,
+                slot_key        TEXT    NOT NULL CHECK (length(slot_key) > 0),
+                ordinal         INTEGER NOT NULL CHECK (ordinal >= 0),
+                created_at      INTEGER NOT NULL
+            ) STRICT;
+            CREATE INDEX draft_attachment_by_owner ON draft_attachment (workspace_id, conversation_id, slot_key, ordinal);
+            CREATE INDEX draft_attachment_by_conversation ON draft_attachment (conversation_id) WHERE conversation_id IS NOT NULL;
+
+            -- How an answer task sent each resource (whole, summary, summary with chunks, a placeholder), as JSON, beside the
+            -- summaries it used: the answer's note says when only parts or a summary went out.
+            ALTER TABLE generation_task ADD COLUMN input_resources TEXT NOT NULL DEFAULT '[]';
+
+            -- What a request was for within its task ('answer', 'compression', 'resource_summary'; checked by the application),
+            -- so statistics can count resource summaries apart. NULL for requests recorded before.
+            ALTER TABLE ai_request ADD COLUMN purpose TEXT CHECK (purpose IS NULL OR length(purpose) > 0);
+            """),
     ];
 }

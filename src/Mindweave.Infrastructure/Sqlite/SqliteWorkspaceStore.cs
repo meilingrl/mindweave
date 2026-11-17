@@ -81,6 +81,8 @@ internal sealed class SqliteWorkspaceStore(SqliteDatabase database) : IWorkspace
                 {
                     Archived = conversations.Count(id => SqliteArchive.IsHidden(connection, null, id)),
                     Links = (int)connection.Scalar<long>(null, "SELECT count(*) FROM summary_link WHERE workspace_id = $ws;", ws),
+                    Attachments = SqliteResourceScope.Attachments(connection, null, "SELECT id FROM conversation WHERE workspace_id = $ws", ws),
+                    ResourceHashes = SqliteResourceScope.Hashes(connection, null, "r.workspace_id = $ws", ws),
                 };
             },
             cancellationToken);

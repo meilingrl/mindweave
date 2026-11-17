@@ -27,6 +27,11 @@ packages = sorted({(p["id"], p["resolvedVersion"])
                    for kind in ("topLevelPackages", "transitivePackages") for p in fw.get(kind, [])},
                   key=lambda p: p[0].lower())
 
+# Standard texts for packages that name an SPDX licence but ship no text of it (2026-11-17: Apache-2.0 and MIT require the
+# licence text to go along with the software, so a name alone is not enough). Printed once at the end of the file.
+STANDARD = {name: os.path.join(ROOT, "scripts", "licences", f"{name}.txt") for name in ("Apache-2.0", "MIT")}
+standard_used = []
+
 sections = []
 seen = {}  # licence text -> the package it was first printed under; later packages refer to it
 for name, version in packages:
@@ -66,7 +71,15 @@ for name, version in packages:
     head = f"{name} {version}\n" + "".join(f"{k}: {v}\n" for k, v in (
         ("Licence", licence), ("Licence URL", field("licenseUrl") if not licence else None),
         ("Project", field("projectUrl")), ("Copyright", field("copyright"))) if v)
+    if not texts and licence in STANDARD:
+        if licence not in standard_used:
+            standard_used.append(licence)
+        texts.append(f"(No licence text in the package; the standard {licence} text is at the end of this file.)")
     sections.append(head + ("\n" + "\n\n".join(texts) if texts else "(No licence text in the package; see the licence or URL above.)"))
+
+for licence in standard_used:
+    text = open(STANDARD[licence], encoding="utf-8").read().strip("\n")
+    sections.append(f"Standard licence text: {licence}\n\n{text}")
 
 rule = "\n\n" + "=" * 100 + "\n\n"
 with open(OUT, "w", encoding="utf-8") as out:

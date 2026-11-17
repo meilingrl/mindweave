@@ -552,11 +552,11 @@ Infrastructure 执行打开、备份、迁移及恢复；Application 协调启�
 
 | 表 | 内容与约束 |
 | --- | --- |
-| `resource` | `id`；`workspace_id`（`RESTRICT`，随工作区删除）；`conversation_id`（只在草稿中时为 `NULL`，发送时在同一事务中填入；随会话删除）；`origin`（`paste`／`file`／`image`，以后 `tool`、`web`、`mcp`、`audio`，由应用校验）；`name`（粘贴为 `NULL`，界面显示“粘贴的文字”）；`media_type`；`byte_size`；`sha256`；`provenance`（`user`／`workspace`／`external`）；`source_url`（外部资源）；`produced_by_task`、`produced_by_step`（工具产生的资源，第 2 期）；`created_at`。不保存文件在电脑上的完整路径 |
+| `resource` | `id`；`workspace_id`（`CASCADE`，随工作区删除；用户 2026-11-17 认可实现）；`conversation_id`（只在草稿中时为 `NULL`，发送时在同一事务中填入；随会话删除）；`origin`（`paste`／`file`／`image`，以后 `tool`、`web`、`mcp`、`audio`，由应用校验）；`name`（粘贴为 `NULL`，界面显示“粘贴的文字”）；`media_type`；`byte_size`；`sha256`；`provenance`（`user`／`workspace`／`external`）；`source_url`（外部资源）；`produced_by_task`、`produced_by_step`（工具产生的资源，第 2 期）；`created_at`。不保存文件在电脑上的完整路径 |
 | `resource_derivative` | `resource_id`（`CASCADE`，纯从属行）；`kind`（`text` 提取的文字、`summary` 摘要、`image_scaled` 缩放后的发送用图片；以后 `caption`、`ocr`、`transcript`；由应用校验）；`producer`（提取器名称与版本，或生成摘要的模型）；`prompt_version`；`text`；`blob_sha256`（派生形式本身是二进制时，例如缩放图片）；`estimated_tokens`；`created_at`。同一资源、类型、生产者与提示词版本唯一 |
 | `resource_chunk` | 主键（`resource_id`，`ordinal`）；`start_char`、`end_char` 是 `text` 派生形式中的字符偏移；`estimated_tokens`。另建 FTS5 表 `resource_chunk_fts`（分块文字，供本地关键词检索） |
 | `message_block` 增列 | `resource_id`（可空，`REFERENCES resource (id) ON DELETE RESTRICT`）。附件、工具结果、出处块通过它引用资源，使删除检查能看到引用 |
-| `draft_attachment` | 主键（`conversation_id`，`slot_key`，`ordinal`）；`resource_id`；随草稿（`CASCADE`）。新探索页的附件随它自己的草稿保存，方式与其文字草稿相同 |
+| `draft_attachment` | 主键 `resource_id`（每个资源至多在一个草稿里），带 `workspace_id`、可空 `conversation_id` 与 `slot_key`；新探索页为会话空、槽位 `new-exploration`。随资源、会话、工作区删除；发送时在写入消息块的同一事务中移出（用户 2026-11-17 认可：新探索页没有会话，草稿文字为空时也没有草稿行可引用；见 [attachments.md](design/attachments.md)） |
 
 - **分块。** 提取文字后立即分块：在段落或句子边界处切分，每块约 800 估算 token，块边界只由文字本身决定，因此分块与摘要可以复用。FTS5 使用适合中日韩文字的分词（unicode61 加字符二元组，或 trigram），具体在实现时用中英文样本核实。
 - **来源与可信。** `provenance` 只有三种：`user`（用户粘贴或附加）、`workspace`（本工作区已有内容，例如检索总结网络的结果）、`external`（网页、搜索结果、第三方工具）。它决定显示标记与取网页的放行规则（§15.8），不决定是否把内容当作指令：**只有用户亲自输入的提问正文是指令**，所有资源都作为材料发送（§15.4）。

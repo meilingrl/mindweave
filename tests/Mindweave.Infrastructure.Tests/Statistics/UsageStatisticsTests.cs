@@ -127,12 +127,16 @@ public class UsageStatisticsTests
         // Link suggestions (2026-11-16, §10.3.4) are a row of their own, 关联建议; the other rows are unchanged.
         await seed.WorkspaceRequestAsync(h.Workspace, "glm-5", now.AddHours(-1), 900, 120, "https://open.bigmodel.cn/api/paas/v4", "suggest-links");
 
+        // An attachment summary made inside an answer task (2026-11-17, §10.4.3) is a row of its own, 附件摘要.
+        await seed.RequestAsync(c, "answer", "deepseek-flash", now.AddHours(-4), 600, 90, "https://api.deepseek.com");
+        await h.Database.WriteAsync((w, t) => w.Execute(t, "UPDATE ai_request SET purpose = 'resource_summary' WHERE prompt_tokens = 600;"), Ct);
+
         var report = (await Service(h, now).LoadAsync(null, UsagePeriod.Daily, Ct)).Usage;
 
         Assert.Equal(
             [
                 (new ModelKey("glm-5", "open.bigmodel.cn"), new TokenCounts(4700, 1040, 5, 0)),
-                (new ModelKey("deepseek-flash", "api.deepseek.com"), new TokenCounts(1580, 530, 3, 0)),
+                (new ModelKey("deepseek-flash", "api.deepseek.com"), new TokenCounts(2180, 620, 4, 0)),
                 (new ModelKey("deepseek-flash", "relay.example.org:8443"), new TokenCounts(50, 10, 1, 0)),
             ],
             report.ByModel.Select(m => (m.Key, m.Counts)));
@@ -145,6 +149,7 @@ public class UsageStatisticsTests
                 (UsagePurpose.WorkspaceName, new TokenCounts(80, 30, 1, 0)),
                 (UsagePurpose.Recommendation, new TokenCounts(700, 100, 2, 0)),
                 (UsagePurpose.LinkSuggestion, new TokenCounts(900, 120, 1, 0)),
+                (UsagePurpose.AttachmentSummary, new TokenCounts(600, 90, 1, 0)),
             ],
             report.ByPurpose.Select(p => (p.Purpose, p.Counts)));
     }

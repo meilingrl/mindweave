@@ -83,6 +83,10 @@ public sealed partial class WorkspaceDeletionService(
         try
         {
             path = await backup.BackupAsync(BackupReason.BeforeWorkspaceDelete, cancellationToken).ConfigureAwait(false);
+            if (blobs is not null && contents.ResourceHashes.Count > 0)
+            {
+                await CopyOriginalsAsync(path, contents.ResourceHashes, cancellationToken).ConfigureAwait(false);
+            }
         }
         catch (OperationCanceledException)
         {
@@ -154,6 +158,20 @@ public sealed partial class WorkspaceDeletionService(
 
         LogDeleted(logger, workspace, result.Deleted.Count, path);
         return new WorkspaceDeleteOutcome(WorkspaceDeleteStatus.Deleted, [], result.Next, path);
+    }
+
+    /// <summary>The backup also keeps the originals the delete removes (owner's Q4 decision); a backup without them is dropped.</summary>
+    private async Task CopyOriginalsAsync(string path, IReadOnlyList<Core.Resources.ContentHash> hashes, CancellationToken cancellationToken)
+    {
+        try
+        {
+            await blobs!.CopyToBackupAsync(path, hashes, cancellationToken).ConfigureAwait(false);
+        }
+        catch
+        {
+            backup.Discard(path);
+            throw;
+        }
     }
 
     [LoggerMessage(Level = LogLevel.Warning, Message = "Deleted workspace {WorkspaceId} with {Conversations} conversations; backup {BackupPath}")]

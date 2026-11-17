@@ -78,6 +78,8 @@ conversation         + 唯一索引 (workspace_id, id)，供 resource 的组合�
 
 撰写框的“+”、长粘贴自动变附件与“转为文字”、草稿里的附件（架构草稿写 `draft_attachment` 表）；发图片给模型；分块与检索（`resource_chunk`、FTS5）；网页与工具资源；导出包（E5）里的资源；存储页显示原件占用；启动时清理；未发送资源的过期清理（随撰写框一起定）。
 
+> **2026-11-17 起由迁移 v16 与[附件](attachments.md)取代的部分：** 来源标记（`provenance` 取代 `trusted`）、图片的 `origin = image`、50 MB／20 MB 上限、分块与检索、草稿附件、启动时清理；清理不再因备份引用而保留原件，改为删除前把原件复制进备份（Q4）。下表是 v15 当时的对照，留作历史。
+
 ## 与架构草稿的差别（2026-11-17，供合并时对照）
 
 agent-docs 草稿见共享笔记 `agent-docs-fixed-details.md`。已对齐：表名 `resource`、`resource_derivative`，列名 `name`、`byte_size`、`sha256`、`source_url`、`producer`、`prompt_version`、`estimated_tokens`，`message_block.resource_id`（RESTRICT），块类型 `attachment` 且 `text` 为显示名称，原件目录布局，粘贴显示为“粘贴的文字”，GB18030 回退。仍不同：

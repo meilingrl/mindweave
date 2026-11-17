@@ -446,7 +446,7 @@ public class UsageStatisticsUiTests
 
         var (window, page, view) = await OpenAsync(app);
 
-        Assert.Equal(["回答", "标题", "总结", "命名", "工作区名称", "推荐", "关联建议"], page.Purposes.Select(p => p.Name));
+        Assert.Equal(["回答", "标题", "总结", "命名", "工作区名称", "推荐", "关联建议", "附件摘要"], page.Purposes.Select(p => p.Name));
         var links = page.Purposes.Single(p => p.Purpose == UsagePurpose.LinkSuggestion);
         Assert.Equal((790, UiText.PurposeHint(UsagePurpose.LinkSuggestion)), (links.Counts.Total, links.Hint));
         Assert.StartsWith("关联建议：", links.AutomationName, StringComparison.Ordinal);

@@ -399,7 +399,7 @@ public sealed class SqliteDatabaseTests : IDisposable
                 foreach (var table in Strings(c, "SELECT name FROM sqlite_schema WHERE type = 'table' AND name NOT LIKE 'sqlite_%';"))
                 {
                     var indexes = Strings(c, $"SELECT name FROM pragma_index_list('{table}');")
-                        .Select(index => Strings(c, $"SELECT name FROM pragma_index_info('{index}') ORDER BY seqno;"))
+                        .Select(index => Strings(c, $"SELECT name FROM pragma_index_info('{index}') WHERE name IS NOT NULL ORDER BY seqno;"))
                         .ToList();
                     foreach (var key in Strings(c, $"SELECT group_concat(\"from\", ',') FROM (SELECT id, \"from\" FROM pragma_foreign_key_list('{table}') ORDER BY id, seq) GROUP BY id;"))
                     {

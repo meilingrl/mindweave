@@ -250,6 +250,7 @@ public static partial class UiText
         UsagePurpose.WorkspaceName => "工作区名称",
         UsagePurpose.Recommendation => "推荐",
         UsagePurpose.LinkSuggestion => "关联建议",
+        UsagePurpose.AttachmentSummary => "附件摘要",
         _ => "其他",
     };
 
@@ -262,6 +263,7 @@ public static partial class UiText
         UsagePurpose.WorkspaceName => "建议工作区名称，含后台准备",
         UsagePurpose.Recommendation => "推荐问题与推荐节点，含后台准备",
         UsagePurpose.LinkSuggestion => "AI 建议关联，只在点“建议关联”时请求",
+        UsagePurpose.AttachmentSummary => "较长附件的摘要，每个附件只生成一次",
         _ => "新版本记录的其他用途",
     };
 

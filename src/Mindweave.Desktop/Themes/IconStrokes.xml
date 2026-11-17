@@ -200,4 +200,18 @@
   <!-- The same glyphs drawn for 20 px and up (the onboarding mark, the 探索 home mark), with the thinner large-size stroke. -->
   <icon key="IconExploreLarge" like="IconExplore" stroke="1.5"/>
   <icon key="IconSummaryNetworkLarge" like="IconSummaryNetwork" stroke="1.5"/>
+  <!-- Attachments (agent platform phase 1, 2026-11-17): a file with a folded corner, a picture, and pasted text. -->
+  <icon key="IconAttachmentFile">
+    <path d="M9.25 1.75H4.75A1.75 1.75 0 0 0 3 3.5V12.5A1.75 1.75 0 0 0 4.75 14.25H11.25A1.75 1.75 0 0 0 13 12.5V5.5Z"/>
+    <path d="M9.25 1.75V5.5H13"/>
+    <path d="M5.75 8.5H10.25M5.75 11H10.25"/>
+  </icon>
+  <icon key="IconAttachmentImage">
+    <rect x="1.75" y="2.75" width="12.5" height="10.5" rx="2"/>
+    <circle cx="10.5" cy="6" r="1.25"/>
+    <path d="M2.25 11.75 5.5 8.5 9.25 12.25M8.25 11.25 10.5 9 13.75 12.25"/>
+  </icon>
+  <icon key="IconAttachmentText">
+    <path d="M2.5 3.5H13.5M2.5 6.5H13.5M2.5 9.5H13.5M2.5 12.5H9.5"/>
+  </icon>
 </icons>

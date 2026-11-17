@@ -31,7 +31,8 @@ public sealed partial class StartupCoordinator(
     IConversationStore conversations,
     IClock clock,
     ILocationStore locations,
-    ILogger<StartupCoordinator> logger)
+    ILogger<StartupCoordinator> logger,
+    Resources.IResources? resources = null)
 {
     public async Task<StartupOutcome> StartAsync(CancellationToken cancellationToken)
     {
@@ -94,6 +95,13 @@ public sealed partial class StartupCoordinator(
         if (recovered.InterruptedAnswers + recovered.InterruptedTasks > 0)
         {
             LogRecovered(logger, recovered.InterruptedAnswers, recovered.InterruptedTasks);
+        }
+
+        // Unsent attachments no draft holds and originals nothing names go, as do leftover temporary files (architecture
+        // §15.2). In the background: it never delays the window and its failure is only logged.
+        if (resources is not null)
+        {
+            _ = Task.Run(() => resources.CleanUpAsync(CancellationToken.None), CancellationToken.None);
         }
 
         var all = await workspaces.ListAsync(cancellationToken).ConfigureAwait(false);

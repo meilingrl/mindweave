@@ -1,0 +1,44 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:Mindweave.Desktop.ViewModels.Conversations"
+             xmlns:v="using:Mindweave.Desktop.Views.Conversations"
+             xmlns:t="using:Mindweave.Desktop.Text"
+             x:Class="Mindweave.Desktop.Views.Conversations.AttachmentViewerView"
+             x:DataType="vm:AttachmentViewer">
+  <!-- The read-only viewer (requirements §10.4.3): the extracted text to read, select and copy, or the picture. -->
+  <Border Name="ViewerScrim" Classes="dialog-scrim" IsVisible="{Binding IsOpen}">
+    <Border Name="ViewerDialog" Classes="dialog attachment-viewer">
+      <DockPanel>
+        <DockPanel DockPanel.Dock="Top" Margin="0,0,0,10">
+          <Button DockPanel.Dock="Right" Name="ViewerCloseButton" Classes="quiet" Command="{Binding CloseCommand}"
+                  ToolTip.Tip="{x:Static t:UiText.ViewerClose}" AutomationProperties.Name="{x:Static t:UiText.ViewerClose}">
+            <PathIcon Data="{StaticResource IconClose}" Width="11" Height="11" />
+          </Button>
+          <Button DockPanel.Dock="Right" Name="ViewerCopyButton" Classes="quiet" Margin="0,0,4,0" IsVisible="{Binding HasText}">
+            <StackPanel Orientation="Horizontal" Spacing="6">
+              <PathIcon Data="{StaticResource IconCopy}" Width="13" Height="13" />
+              <TextBlock Text="{x:Static t:UiText.ViewerCopyAll}" VerticalAlignment="Center" />
+            </StackPanel>
+          </Button>
+          <StackPanel Spacing="2">
+            <TextBlock Name="ViewerTitle" Classes="dialog-title" Text="{Binding Title}" TextTrimming="CharacterEllipsis" />
+            <TextBlock Classes="caption" Text="{Binding Info}" />
+          </StackPanel>
+        </DockPanel>
+        <Border DockPanel.Dock="Top" Classes="notice warning" HorizontalAlignment="Left" Margin="0,0,0,10" IsVisible="{Binding HasNote}">
+          <DockPanel>
+            <TextBlock Classes="notice-icon" Text="!" />
+            <TextBlock Name="ViewerNote" Text="{Binding Note}" TextWrapping="Wrap" />
+          </DockPanel>
+        </Border>
+        <ScrollViewer Name="ViewerScroller" HorizontalScrollBarVisibility="Disabled">
+          <Panel>
+            <SelectableTextBlock Name="ViewerText" Classes="viewer-text" Text="{Binding Text}" IsVisible="{Binding HasText}" />
+            <Image Name="ViewerImage" Source="{Binding Image, Converter={x:Static v:AttachmentImages.Full}}" Stretch="Uniform"
+                   StretchDirection="DownOnly" IsVisible="{Binding HasImage}" HorizontalAlignment="Center" />
+          </Panel>
+        </ScrollViewer>
+      </DockPanel>
+    </Border>
+  </Border>
+</UserControl>

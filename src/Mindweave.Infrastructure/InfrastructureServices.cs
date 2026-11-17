@@ -7,6 +7,7 @@ using Mindweave.Application.Ai;
 using Mindweave.Application.Credentials;
 using Mindweave.Application.Diagnostics;
 using Mindweave.Application.Export;
+using Mindweave.Application.Resources;
 using Mindweave.Infrastructure.Ai;
 using Mindweave.Infrastructure.Credentials;
 using Mindweave.Infrastructure.Export;
@@ -44,6 +45,9 @@ public static class InfrastructureServices
         services.AddSingleton<IResourceStore, SqliteResourceStore>();
         services.AddSingleton<FileResourceBlobStore>();
         services.AddSingleton<IResourceBlobStore>(sp => sp.GetRequiredService<FileResourceBlobStore>());
+        services.AddSingleton<ITextExtractor, PdfTextExtractor>();
+        services.AddSingleton<ITextExtractor, DocxTextExtractor>();
+        services.AddSingleton<IImageProcessor, SkiaImageProcessor>();
         services.TryAddSingleton<IConversationArchiveStore, SqliteArchiveStore>();
         services.TryAddSingleton<IReadingStateStore, SqliteReadingStateStore>();
         services.AddSingleton<IContextSummaryStore, SqliteContextSummaryStore>();

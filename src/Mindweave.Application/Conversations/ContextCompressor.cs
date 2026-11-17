@@ -71,9 +71,18 @@ public sealed partial class ContextCompressor(IContextSummaryStore summaries, IC
     }
 
     /// <param name="admit">Asked before each summarizing request; when it refuses, nothing more is sent.</param>
+    /// <param name="materials">The attachments' material per message (architecture §15.4), put before that message's text.</param>
     internal async Task<PreparedContext> PrepareAsync(
-        GenerationTaskRecord task, ContextPlan plan, ContextBudget budget, string apiKey, Func<AiRequestRecord, Task> record, CancellationToken stop, Func<bool>? admit = null)
+        GenerationTaskRecord task,
+        ContextPlan plan,
+        ContextBudget budget,
+        string apiKey,
+        Func<AiRequestRecord, Task> record,
+        CancellationToken stop,
+        Func<bool>? admit = null,
+        IReadOnlyDictionary<MessageId, TurnMaterials>? materials = null)
     {
+        materials ??= new Dictionary<MessageId, TurnMaterials>();
         var known = (await summaries.ListAsync([.. plan.Summaries.Select(c => c.Key.Conversation)], CancellationToken.None).ConfigureAwait(false))
             .ToDictionary(s => s.Key);
         var used = new Dictionary<SummaryKey, ContextSummary>();
@@ -95,20 +104,28 @@ public sealed partial class ContextCompressor(IContextSummaryStore summaries, IC
 
         var turns = plan.Parts.Select(part => part switch
         {
-            RawPart raw => Turn(raw.Item),
-            SummaryPart s => new ChatTurn(ChatRole.System, ContextPlanner.SummaryMessage(s.Chunk.Key, used[s.Chunk.Key].Text)),
+            RawPart raw => Turn(raw.Item, materials),
+            SummaryPart s => new ChatTurn(ChatRole.System, WithMaterials(ContextPlanner.SummaryMessage(s.Chunk.Key, used[s.Chunk.Key].Text), s.Chunk.Items, materials)),
             _ => throw new InvalidOperationException("Unknown context part."),
         }).ToArray();
 
         // Summaries were budgeted at an assumed size; a much longer one may still not fit. The margin absorbs small
         // overruns, but the output reserve is never given up.
-        var estimate = TokenEstimator.Request(turns.Select(t => t.Content));
+        var estimate = ChatTurns.Estimate(turns);
         if (!budget.Fits(estimate))
         {
             throw new ContextCompressionException($"压缩后的上下文约 {budget.Predict(estimate)} token，仍超出模型可用容量。");
         }
 
         return new PreparedContext(turns, [.. used.Values.Select(s => s.Id).Distinct()]);
+    }
+
+    /// <summary>The sizes of the stored summaries of these conversations, for planning again.</summary>
+    internal async Task<Func<SummaryKey, int?>> KnownSummaryTokensAsync(IReadOnlyList<ConversationId> conversations)
+    {
+        var stored = await summaries.ListAsync(conversations, CancellationToken.None).ConfigureAwait(false);
+        var known = stored.ToDictionary(s => s.Key, s => ContextPlanner.SummaryTokens(s.Key, s.Text));
+        return key => known.TryGetValue(key, out var tokens) ? tokens : null;
     }
 
     /// <summary>Records which summaries the task sent. Diagnostic and for the "compressed" notice: a failed write is only logged.</summary>
@@ -131,6 +148,19 @@ public sealed partial class ContextCompressor(IContextSummaryStore summaries, IC
 
     private static ChatTurn Turn(ContextItem item) =>
         new(item.Message.Role == MessageRole.User ? ChatRole.User : ChatRole.Assistant, item.Text);
+
+    /// <summary>A question with attachments: their material first, then the question; images as parts of the same turn.</summary>
+    private static ChatTurn Turn(ContextItem item, IReadOnlyDictionary<MessageId, TurnMaterials> materials) =>
+        item.Message.Role == MessageRole.User && materials.TryGetValue(item.Message.Id, out var m)
+            ? new ChatTurn(ChatRole.User, m.Text + "\n\n" + item.Text, m.Images.Count > 0 ? m.Images : null)
+            : Turn(item);
+
+    /// <summary>Attachments of messages a summary stands in for still go out (as text; their images only as their names).</summary>
+    private static string WithMaterials(string summary, IReadOnlyList<ContextItem> items, IReadOnlyDictionary<MessageId, TurnMaterials> materials)
+    {
+        var texts = items.Select(i => materials.TryGetValue(i.Message.Id, out var m) ? m.Text : null).OfType<string>().ToList();
+        return texts.Count == 0 ? summary : summary + "\n\n" + string.Join("\n\n", texts);
+    }
 
     private async Task<string> SummarizeAsync(GenerationTaskRecord task, ContextChunk chunk, string apiKey, Func<AiRequestRecord, Task> record, CancellationToken stop)
     {
@@ -184,7 +214,7 @@ public sealed partial class ContextCompressor(IContextSummaryStore summaries, IC
     private async Task<(string? Summary, string Problem)> RequestSummaryAsync(
         GenerationTaskRecord task, ChatRequest request, string apiKey, Func<AiRequestRecord, Task> record, CancellationToken stop)
     {
-        var trace = new RequestTrace(task.Id, clock, request);
+        var trace = new RequestTrace(task.Id, clock, request, RequestPurpose.Compression);
         var text = new StringBuilder();
         ChatStreamEvent.Completed? completed = null;
         try

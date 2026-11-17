@@ -44,6 +44,16 @@ public interface IConversations
 
     Task<SendOutcome> AskAsync(ConversationId id, string question, CancellationToken cancellationToken);
 
+    /// <summary>
+    /// Asks with attachments of the composer's draft (requirements §10.4.3): they leave the draft and become part of the
+    /// question in the same transaction. The text may be empty when there are attachments.
+    /// </summary>
+    Task<SendOutcome> AskAsync(ConversationId id, string question, IReadOnlyList<Core.Resources.ResourceId> attachments, CancellationToken cancellationToken);
+
+    /// <summary>Starts a conversation whose first question carries attachments of the 新探索 draft.</summary>
+    Task<SendOutcome> StartAsync(
+        WorkspaceId workspace, string question, IReadOnlyList<Core.Resources.ResourceId> attachments, Recommendations.StartingRecommendation? from, CancellationToken cancellationToken);
+
     Task<SendOutcome> RetryAsync(ConversationId id, MessageId answerToReplace, CancellationToken cancellationToken);
 
     Task<BranchOutcome> CreateBranchAsync(ConversationId parent, BranchSelection selection, CancellationToken cancellationToken);

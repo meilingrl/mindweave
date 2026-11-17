@@ -261,7 +261,7 @@ public sealed class ChatCompletionsClient(HttpClient http, ChatClientOptions opt
                     ChatRole.User => "user",
                     _ => "assistant",
                 },
-                ["content"] = t.Content,
+                ["content"] = ContentOf(t),
             }).ToArray()),
         };
         if (maxOutputTokens is { } max)
@@ -533,6 +533,30 @@ public sealed class ChatCompletionsClient(HttpClient http, ChatClientOptions opt
     private const int MaxWholeBodyBytes = 16 * 1024 * 1024;
 
     /// <summary>Reads at most <paramref name="maxBytes"/> of the body as UTF-8; <paramref name="cut"/> says whether more was there.</summary>
+    /// <summary>
+    /// A turn's content: its text, or, with images (a model declaring image input, architecture §15.4), the text part followed
+    /// by one <c>image_url</c> part per image as a base64 data URL (public URLs are refused by some services).
+    /// </summary>
+    private static JsonNode ContentOf(ChatTurn turn)
+    {
+        if (!turn.HasImages)
+        {
+            return JsonValue.Create(turn.Content);
+        }
+
+        var parts = new JsonArray { new JsonObject { ["type"] = "text", ["text"] = turn.Content } };
+        foreach (var image in turn.Images!)
+        {
+            parts.Add(new JsonObject
+            {
+                ["type"] = "image_url",
+                ["image_url"] = new JsonObject { ["url"] = $"data:{image.MediaType};base64,{Convert.ToBase64String(image.Data)}" },
+            });
+        }
+
+        return parts;
+    }
+
     private static async Task<(string Text, bool Cut)> ReadAtMostAsync(HttpContent content, int maxBytes, CancellationToken cancellationToken)
     {
         await using var stream = await content.ReadAsStreamAsync(cancellationToken).ConfigureAwait(false);

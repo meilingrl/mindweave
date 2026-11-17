@@ -6,6 +6,7 @@ using Mindweave.Core.Branches;
 using Mindweave.Core.Context;
 using Mindweave.Core.Conversations;
 using Mindweave.Core.Models;
+using Mindweave.Core.Resources;
 using Mindweave.Core.Workspaces;
 
 namespace Mindweave.Application.Conversations;
@@ -30,6 +31,15 @@ public enum SendRejection
 
     /// <summary>The conversation was deleted meanwhile.</summary>
     ConversationMissing,
+
+    /// <summary>More than <see cref="Resources.ResourceLimits.MaxAttachmentsPerMessage"/> attachments.</summary>
+    TooManyAttachments,
+
+    /// <summary>An image is attached and the active model does not declare image input (requirements §10.4.3).</summary>
+    ImagesNotSupported,
+
+    /// <summary>An attachment is no longer there (removed meanwhile); the composer reloads its draft.</summary>
+    AttachmentMissing,
 }
 
 public sealed record SendOutcome(SendRejection? Rejection, ConversationId Conversation, MessageId? Answer)
@@ -40,7 +50,12 @@ public sealed record SendOutcome(SendRejection? Rejection, ConversationId Conver
 }
 
 /// <param name="CompressedAnswers">Answers whose request sent older context as a summary (shown with a light note).</param>
-public sealed record ConversationContent(Conversation Conversation, IReadOnlyList<Message> Messages, IReadOnlySet<MessageId>? CompressedAnswers = null);
+/// <param name="ReducedAttachments">Answers whose request sent some attachment as only its summary or parts, and how (requirements §10.4.3).</param>
+public sealed record ConversationContent(
+    Conversation Conversation,
+    IReadOnlyList<Message> Messages,
+    IReadOnlySet<MessageId>? CompressedAnswers = null,
+    IReadOnlyDictionary<MessageId, IReadOnlyList<ResourceInput>>? ReducedAttachments = null);
 
 /// <summary>
 /// How much of the model's context the conversation takes now, as estimated by the planner that decides what is sent.
@@ -85,6 +100,8 @@ public sealed partial class ConversationService : IConversations
     private readonly ModelSettingsService _models;
     private readonly IClock _clock;
     private readonly ConversationTitler _titler;
+    private readonly ResourceContext? _resources;
+    private readonly IResourceStore? _resourceStore;
 
     public ConversationService(
         IConversationStore store,
@@ -96,8 +113,12 @@ public sealed partial class ConversationService : IConversations
         IClock clock,
         ILogger<ConversationService> logger,
         IContextSummaryStore? summaries = null,
-        IConversationArchiveStore? archive = null)
+        IConversationArchiveStore? archive = null,
+        ResourceContext? resources = null,
+        IResourceStore? resourceStore = null)
     {
+        _resources = resources;
+        _resourceStore = resourceStore;
         _store = store;
         _branches = branches;
         _summaries = summaries;
@@ -171,7 +192,8 @@ public sealed partial class ConversationService : IConversations
 
         var messages = await _store.GetMessagesAsync(id, cancellationToken).ConfigureAwait(false);
         var compressed = _summaries is null ? null : await _summaries.CompressedAnswersAsync(id, cancellationToken).ConfigureAwait(false);
-        return new ConversationContent(conversation, messages, compressed);
+        var reduced = _resourceStore is null ? null : await _resourceStore.ReducedInputsAsync(id, cancellationToken).ConfigureAwait(false);
+        return new ConversationContent(conversation, messages, compressed, reduced);
     }
 
     public LiveAnswer? Observe(MessageId answer) => _generation.Observe(answer);
@@ -200,16 +222,16 @@ public sealed partial class ConversationService : IConversations
         var ancestors = await _branches.GetAncestorContextAsync(id, cancellationToken).ConfigureAwait(false);
         var source = ancestors.Count == 0 ? null : await _branches.GetSourceAsync(id, cancellationToken).ConfigureAwait(false);
         var own = new ContextSegment(id, source?.Quote, [.. history.Where(m => m.IsFinished)]);
-        var full = TokenEstimator.PerRequest + BranchContext.Assemble(ancestors, own).Sum(i => TokenEstimator.Message(i.Text));
         if (own.Messages.Count == 0 && ancestors.Count == 0)
         {
             return new ContextUsage(0, 0, budget.AvailableTokens, false, false);
         }
 
         // Shown in billed tokens: the estimate through what this model was seen to bill.
-        var planned = await PlanAsync(id, own.Messages, budget, cancellationToken).ConfigureAwait(false);
+        var (planned, inputs) = await PlanAsync(id, own.Messages, budget, model, cancellationToken).ConfigureAwait(false);
+        var full = TokenEstimator.PerRequest + BranchContext.Assemble(ancestors, own).Sum(i => TokenEstimator.Message(i.Text)) + inputs.Resources.Sum(r => r.WholeTokens);
         return planned.Plan is { } plan
-            ? new ContextUsage(budget.Predict(plan.EstimatedTokens), budget.Predict(full), budget.AvailableTokens, plan.IsCompressed, false)
+            ? new ContextUsage(budget.Predict(plan.EstimatedTokens), budget.Predict(full), budget.AvailableTokens, plan.IsCompressed || plan.IsResourceReduced, false)
             : new ContextUsage(budget.Predict(full), budget.Predict(full), budget.AvailableTokens, true, true);
     }
 
@@ -217,21 +239,32 @@ public sealed partial class ConversationService : IConversations
     public Task<SendOutcome> StartAsync(WorkspaceId workspace, string question, CancellationToken cancellationToken) =>
         StartAsync(workspace, question, null, cancellationToken);
 
-    public async Task<SendOutcome> StartAsync(WorkspaceId workspace, string question, Recommendations.StartingRecommendation? from, CancellationToken cancellationToken)
+    public Task<SendOutcome> StartAsync(WorkspaceId workspace, string question, Recommendations.StartingRecommendation? from, CancellationToken cancellationToken) =>
+        StartAsync(workspace, question, [], from, cancellationToken);
+
+    public async Task<SendOutcome> StartAsync(
+        WorkspaceId workspace, string question, IReadOnlyList<ResourceId> attachments, Recommendations.StartingRecommendation? from, CancellationToken cancellationToken)
     {
+        ArgumentNullException.ThrowIfNull(attachments);
         var id = ConversationId.New();
-        if (await CheckAsync(question, id, cancellationToken).ConfigureAwait(false) is { } rejection)
+        if (await CheckAsync(question, attachments, id, cancellationToken).ConfigureAwait(false) is { } rejection)
         {
             return rejection;
         }
 
         var model = (await _models.GetActiveSnapshotAsync(cancellationToken).ConfigureAwait(false))!;
+        var (blocks, refused) = await AttachmentBlocksAsync(attachments, model, cancellationToken).ConfigureAwait(false);
+        if (refused is { } attachmentRejection)
+        {
+            return SendOutcome.Reject(attachmentRejection, id);
+        }
+
         var now = _clock.UtcNow;
         var conversation = new Conversation(id, workspace, null, TitleSource.None, now, now);
-        var user = NewMessage(id, 0, MessageRole.User, question.Trim(), MessageState.Complete, null, now);
+        var user = QuestionMessage(id, question, blocks, now);
         var answer = NewMessage(id, 1, MessageRole.Assistant, string.Empty, MessageState.Pending, null, now);
         var budget = await _budgets.BudgetForAsync(model, cancellationToken).ConfigureAwait(false);
-        var planned = await PlanAsync(id, [user], budget, cancellationToken).ConfigureAwait(false);
+        var (planned, inputs) = await PlanAsync(id, [user], budget, model, cancellationToken).ConfigureAwait(false);
         if (planned.Plan is not { } plan)
         {
             return SendOutcome.Reject(Rejection(planned.Rejection!.Value), id);
@@ -247,14 +280,18 @@ public sealed partial class ConversationService : IConversations
             return StorageRefused(ex, id);
         }
 
-        await EnqueueAsync(task, model, plan, budget, answer);
+        await EnqueueAsync(task, model, plan, budget, answer, inputs);
         ConversationChanged?.Invoke(this, id);
         return new SendOutcome(null, id, answer.Id);
     }
 
-    public async Task<SendOutcome> AskAsync(ConversationId id, string question, CancellationToken cancellationToken)
+    public Task<SendOutcome> AskAsync(ConversationId id, string question, CancellationToken cancellationToken) =>
+        AskAsync(id, question, [], cancellationToken);
+
+    public async Task<SendOutcome> AskAsync(ConversationId id, string question, IReadOnlyList<ResourceId> attachments, CancellationToken cancellationToken)
     {
-        if (await CheckAsync(question, id, cancellationToken).ConfigureAwait(false) is { } rejection)
+        ArgumentNullException.ThrowIfNull(attachments);
+        if (await CheckAsync(question, attachments, id, cancellationToken).ConfigureAwait(false) is { } rejection)
         {
             return rejection;
         }
@@ -266,11 +303,17 @@ public sealed partial class ConversationService : IConversations
         }
 
         var model = (await _models.GetActiveSnapshotAsync(cancellationToken).ConfigureAwait(false))!;
+        var (blocks, refused) = await AttachmentBlocksAsync(attachments, model, cancellationToken).ConfigureAwait(false);
+        if (refused is { } attachmentRejection)
+        {
+            return SendOutcome.Reject(attachmentRejection, id);
+        }
+
         var now = _clock.UtcNow;
-        var user = NewMessage(id, 0, MessageRole.User, question.Trim(), MessageState.Complete, null, now);
+        var user = QuestionMessage(id, question, blocks, now);
         var answer = NewMessage(id, 0, MessageRole.Assistant, string.Empty, MessageState.Pending, null, now);
         var budget = await _budgets.BudgetForAsync(model, cancellationToken).ConfigureAwait(false);
-        var planned = await PlanAsync(id, [.. history, user], budget, cancellationToken).ConfigureAwait(false);
+        var (planned, inputs) = await PlanAsync(id, [.. history, user], budget, model, cancellationToken).ConfigureAwait(false);
         if (planned.Plan is not { } plan)
         {
             return SendOutcome.Reject(Rejection(planned.Rejection!.Value), id);
@@ -300,7 +343,7 @@ public sealed partial class ConversationService : IConversations
             return SendOutcome.Reject(SendRejection.ConversationMissing, id);
         }
 
-        await EnqueueAsync(task, model, plan, budget, storedAnswer);
+        await EnqueueAsync(task, model, plan, budget, storedAnswer, inputs);
         ConversationChanged?.Invoke(this, id);
         return new SendOutcome(null, id, storedAnswer.Id);
     }
@@ -323,7 +366,7 @@ public sealed partial class ConversationService : IConversations
         var question = history.Last(m => m.Role == MessageRole.User);
         var model = (await _models.GetActiveSnapshotAsync(cancellationToken).ConfigureAwait(false))!;
         var budget = await _budgets.BudgetForAsync(model, cancellationToken).ConfigureAwait(false);
-        var planned = await PlanAsync(id, [.. history.Where(m => m.Seq <= question.Seq)], budget, cancellationToken).ConfigureAwait(false);
+        var (planned, inputs) = await PlanAsync(id, [.. history.Where(m => m.Seq <= question.Seq)], budget, model, cancellationToken).ConfigureAwait(false);
         if (planned.Plan is not { } plan)
         {
             return SendOutcome.Reject(Rejection(planned.Rejection!.Value), id);
@@ -355,7 +398,7 @@ public sealed partial class ConversationService : IConversations
             return SendOutcome.Reject(SendRejection.ConversationMissing, id);
         }
 
-        await EnqueueAsync(task, model, plan, budget, stored);
+        await EnqueueAsync(task, model, plan, budget, stored, inputs);
         ConversationChanged?.Invoke(this, id);
         return new SendOutcome(null, id, stored.Id);
     }
@@ -548,12 +591,19 @@ public sealed partial class ConversationService : IConversations
         return SendOutcome.Reject(SendRejection.StorageUnavailable, id);
     }
 
-    private async Task<SendOutcome?> CheckAsync(string question, ConversationId id, CancellationToken cancellationToken)
+    private async Task<SendOutcome?> CheckAsync(string question, IReadOnlyList<ResourceId> attachments, ConversationId id, CancellationToken cancellationToken)
     {
         var trimmed = (question ?? string.Empty).Trim();
-        if (trimmed.Length == 0)
+
+        // A question may be its attachments alone (requirements §10.4.3).
+        if (trimmed.Length == 0 && attachments.Count == 0)
         {
             return SendOutcome.Reject(SendRejection.EmptyQuestion, id);
+        }
+
+        if (attachments.Count > Resources.ResourceLimits.MaxAttachmentsPerMessage)
+        {
+            return SendOutcome.Reject(SendRejection.TooManyAttachments, id);
         }
 
         if (trimmed.Length > MaxQuestionLength)
@@ -603,7 +653,8 @@ public sealed partial class ConversationService : IConversations
     /// the model's budget (S3). Stored summaries count with their real size; missing ones are written later, in the
     /// answer task's own slot.
     /// </summary>
-    private async Task<PlanOutcome> PlanAsync(ConversationId id, IReadOnlyList<Message> own, ContextBudget budget, CancellationToken cancellationToken)
+    private async Task<(PlanOutcome Outcome, ContextInputs Inputs)> PlanAsync(
+        ConversationId id, IReadOnlyList<Message> own, ContextBudget budget, ModelSnapshot model, CancellationToken cancellationToken)
     {
         var ancestors = await _branches.GetAncestorContextAsync(id, cancellationToken).ConfigureAwait(false);
         var source = ancestors.Count == 0 ? null : await _branches.GetSourceAsync(id, cancellationToken).ConfigureAwait(false);
@@ -611,7 +662,50 @@ public sealed partial class ConversationService : IConversations
             ? []
             : await _summaries.ListAsync([.. ancestors.Select(a => a.Conversation), id], cancellationToken).ConfigureAwait(false);
         var known = stored.ToDictionary(s => s.Key, s => ContextPlanner.SummaryTokens(s.Key, s.Text));
-        return ContextPlanner.Plan(ancestors, new ContextSegment(id, source?.Quote, own), budget.Available, key => known.TryGetValue(key, out var tokens) ? tokens : null);
+        var segment = new ContextSegment(id, source?.Quote, own);
+
+        // The attachments of every message in the chain, planned as their own layer (architecture §15.4); their chunks are
+        // ranked by the question the user typed.
+        var question = own.LastOrDefault(m => m.Role == MessageRole.User) is { } last ? ContentBlocks.TypedTextOf(last.Blocks) : string.Empty;
+        var candidates = _resources is null
+            ? []
+            : await _resources.CandidatesAsync(BranchContext.Assemble(ancestors, segment), question, model, cancellationToken).ConfigureAwait(false);
+        var outcome = ContextPlanner.Plan(ancestors, segment, budget.Available, key => known.TryGetValue(key, out var tokens) ? tokens : null, candidates);
+        return (outcome, new ContextInputs(ancestors, segment, candidates));
+    }
+
+    /// <summary>
+    /// The blocks of the attachments, in order, or why they cannot be sent: one is gone, or is an image the model cannot see.
+    /// Each must be in the conversation's workspace; the store checks that when it is sent.
+    /// </summary>
+    private async Task<(IReadOnlyList<ContentBlock> Blocks, SendRejection? Rejection)> AttachmentBlocksAsync(
+        IReadOnlyList<ResourceId> attachments, ModelSnapshot model, CancellationToken cancellationToken)
+    {
+        var blocks = new List<ContentBlock>();
+        foreach (var resource in attachments.Distinct())
+        {
+            if (_resourceStore is null || await _resourceStore.GetAsync(resource, cancellationToken).ConfigureAwait(false) is not { } stored)
+            {
+                return ([], SendRejection.AttachmentMissing);
+            }
+
+            if (stored.Resource.IsImage && !model.Capabilities.Has(ModelCapability.ImageInput))
+            {
+                return ([], SendRejection.ImagesNotSupported);
+            }
+
+            blocks.Add(Resources.ResourceService.BlockFor(stored));
+        }
+
+        return (blocks, null);
+    }
+
+    /// <summary>A question: its attachments first (shown above its text), then the text the user typed, if any.</summary>
+    private static Message QuestionMessage(ConversationId conversation, string question, IReadOnlyList<ContentBlock> attachments, DateTimeOffset at)
+    {
+        var text = (question ?? string.Empty).Trim();
+        IReadOnlyList<ContentBlock> blocks = text.Length == 0 ? attachments : [.. attachments, new TextBlock(text)];
+        return new(MessageId.New(), conversation, 0, MessageRole.User, blocks, MessageState.Complete, 0, null, null, null, at, at);
     }
 
     private static SendRejection Rejection(ContextRejection rejection) => rejection switch
@@ -620,10 +714,10 @@ public sealed partial class ConversationService : IConversations
         _ => SendRejection.HistoryTooLongForModel,
     };
 
-    private Task<bool> EnqueueAsync(GenerationTaskRecord task, ModelSnapshot model, ContextPlan plan, ContextBudget budget, Message answer)
+    private Task<bool> EnqueueAsync(GenerationTaskRecord task, ModelSnapshot model, ContextPlan plan, ContextBudget budget, Message answer, ContextInputs inputs)
     {
         var request = new ChatRequest(model, ContextCompressor.Unsummarized(plan).Turns);
-        return _generation.EnqueueOrCancelAsync(new AnswerWork(task, request, new LiveAnswer(answer.Id, answer.ConversationId), plan, budget));
+        return _generation.EnqueueOrCancelAsync(new AnswerWork(task, request, new LiveAnswer(answer.Id, answer.ConversationId), plan, budget, inputs));
     }
 
     private readonly ILogger<ConversationService> _logger;

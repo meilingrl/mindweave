@@ -37,7 +37,19 @@ public sealed record AiRequestRecord(
     int? EstimatedTokens = null,
     Conversations.RequestAttribution? Attribution = null,
     string? Model = null,
-    string? BaseUrl = null);
+    string? BaseUrl = null,
+    string? Purpose = null);
+
+/// <summary>
+/// What a request within a task was for (architecture §15.11, migration v16): statistics count resource summaries apart from
+/// the answer and the compression made in the same answer task. Null for other tasks and for requests recorded before.
+/// </summary>
+public static class RequestPurpose
+{
+    public const string Answer = "answer";
+    public const string Compression = "compression";
+    public const string ResourceSummary = "resource_summary";
+}
 
 /// <summary>One request's own estimate next to the prompt tokens the service billed for it.</summary>
 public readonly record struct TokenSample(int Estimate, int Reported);

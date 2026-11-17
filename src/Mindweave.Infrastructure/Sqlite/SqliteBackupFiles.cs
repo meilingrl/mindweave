@@ -52,7 +52,7 @@ internal sealed partial class SqliteBackupFiles(AppPaths paths, TimeProvider tim
             }
 
             var reason = ReasonOf(match.Groups["reason"].Value);
-            backups.Add(new BackupInfo(file, version, created, size, reason));
+            backups.Add(new BackupInfo(file, version, created, size + Resources.BackupResources.SizeFor(file), reason));
         }
 
         return backups.OrderByDescending(b => b.CreatedAt).ToArray();
@@ -65,6 +65,7 @@ internal sealed partial class SqliteBackupFiles(AppPaths paths, TimeProvider tim
         try
         {
             File.Delete(full);
+            Resources.BackupResources.DeleteFor(full);
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
         {
@@ -77,6 +78,7 @@ internal sealed partial class SqliteBackupFiles(AppPaths paths, TimeProvider tim
     {
         var full = BackupPathOf(path);
         File.Delete(full);
+        Resources.BackupResources.DeleteFor(full);
         LogDeleted(logger, full);
     }
 

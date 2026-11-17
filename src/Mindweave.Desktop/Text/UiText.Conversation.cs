@@ -134,10 +134,13 @@ public static partial class UiText
         SendRejection.AnswerInProgress => "当前回答尚未结束，请等待或先停止。",
         SendRejection.StorageUnavailable => "本地数据暂时无法保存，已暂停新的提问；已有内容仍可阅读和复制。",
         SendRejection.NotRetryable => "只能重试会话中最后一条回答。",
-        SendRejection.QuestionTooLargeForModel => "问题连同必需的来源内容已超出模型的上下文容量。请缩短问题或缩小分支选区，或在设置中换用容量更大的模型并填写上下文容量。",
+        SendRejection.QuestionTooLargeForModel => "问题连同附件与必需的来源内容，即使只发送附件的摘要和相关部分，也超出了模型的上下文容量。请缩短问题、减少附件或缩小分支选区，或在设置中换用容量更大的模型并填写上下文容量。",
         SendRejection.HistoryTooLongForModel => "这段对话即使压缩较早内容也放不进模型的上下文容量。可以从需要的回答处创建分支继续，或在设置中换用容量更大的模型。",
         SendRejection.ConversationArchived => "这个会话已归档，请先恢复。",
         SendRejection.ConversationMissing => ConversationDeleted,
+        SendRejection.TooManyAttachments => "一条提问最多带 10 个附件。",
+        SendRejection.ImagesNotSupported => "当前模型不能查看图片，请移除图片附件，或在设置 › 模型连接 › 高级设置中声明。",
+        SendRejection.AttachmentMissing => "有附件已不在，请重新附加。",
         _ => "无法发送。",
     };
 }

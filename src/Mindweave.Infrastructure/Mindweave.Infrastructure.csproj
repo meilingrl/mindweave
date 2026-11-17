@@ -10,6 +10,10 @@
     <PackageReference Include="Microsoft.Data.Sqlite" />
     <PackageReference Include="Microsoft.Extensions.Logging" />
     <PackageReference Include="Microsoft.Extensions.DependencyInjection" />
+    <!-- Text of PDF files (resources, architecture §15.1). -->
+    <PackageReference Include="PdfPig" />
+    <!-- Image probing and scaling; the same version Avalonia.Skia brings to the desktop app. -->
+    <PackageReference Include="SkiaSharp" />
   </ItemGroup>
   <ItemGroup>
     <InternalsVisibleTo Include="Mindweave.Infrastructure.Tests" />

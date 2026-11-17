@@ -2,15 +2,32 @@ using System.Windows.Input;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Mindweave.Application.Conversations;
+using Mindweave.Core.Resources;
 
 namespace Mindweave.Desktop.ViewModels.Conversations;
 
 /// <summary>Question input shared by the new-conversation and conversation pages.</summary>
 public sealed partial class Composer : ViewModelBase
 {
-    private readonly Func<string, Task<SendOutcome>> _send;
+    private readonly Func<string, IReadOnlyList<ResourceId>, Task<SendOutcome>> _send;
 
-    public Composer(Func<string, Task<SendOutcome>> send) => _send = send;
+    public Composer(Func<string, Task<SendOutcome>> send)
+        : this((text, _) => send(text), null)
+    {
+    }
+
+    /// <param name="attachments">Where attachments are stored and which draft they belong to; null offers none.</param>
+    public Composer(Func<string, IReadOnlyList<ResourceId>, Task<SendOutcome>> send, ComposerAttachmentServices? attachments)
+    {
+        _send = send;
+        _attachments = attachments;
+        Viewer = new AttachmentViewer(attachments?.Resources);
+        Attachments.CollectionChanged += (_, _) =>
+        {
+            OnPropertyChanged(nameof(HasAttachments));
+            SendCommand.NotifyCanExecuteChanged();
+        };
+    }
 
     [ObservableProperty]
     [NotifyCanExecuteChangedFor(nameof(SendCommand))]
@@ -83,7 +100,8 @@ public sealed partial class Composer : ViewModelBase
     private async Task SendAsync()
     {
         var sent = Text;
-        var outcome = await _send(sent);
+        var chips = Attachments.ToList();
+        var outcome = await _send(sent, [.. chips.Select(c => c.Resource!.Value)]);
         Rejection = outcome.Rejection;
         OnPropertyChanged(nameof(Notice));
         OnPropertyChanged(nameof(ShowNotice));
@@ -95,6 +113,14 @@ public sealed partial class Composer : ViewModelBase
             {
                 Text = string.Empty;
             }
+
+            // The attachments left the draft with the question (they are part of it now).
+            foreach (var chip in chips)
+            {
+                Attachments.Remove(chip);
+            }
+
+            _lastConversion = null;
         }
     }
 
@@ -106,7 +132,12 @@ public sealed partial class Composer : ViewModelBase
         OnPropertyChanged(nameof(ShowNotice));
     }
 
-    private bool CanSend() => !IsBlocked && !IsStoragePaused && !string.IsNullOrWhiteSpace(Text);
+    /// <summary>
+    /// Text, attachments or both; every attachment ready (one still being read, or one that could not be added, keeps the
+    /// question from being sent until it is removed, requirements §10.4.3).
+    /// </summary>
+    private bool CanSend() =>
+        !IsBlocked && !IsStoragePaused && (!string.IsNullOrWhiteSpace(Text) || Attachments.Count > 0) && Attachments.All(c => c.IsReady);
 
     partial void OnIsStoragePausedChanged(bool value)
     {

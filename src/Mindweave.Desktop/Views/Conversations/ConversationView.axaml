@@ -199,7 +199,21 @@
           <DataTemplate x:DataType="vm:MessageItemViewModel">
             <StackPanel Margin="0,6" Spacing="6">
               <!-- Question: right-aligned bubble; its time and copy always sit quietly under it. -->
-              <Border Classes="question" IsVisible="{Binding IsUser}" HorizontalAlignment="Right" MaxWidth="560">
+              <!-- A question's attachments, above its text (requirements §10.4.3): click to view. -->
+              <ItemsControl Name="QuestionAttachments" Classes="question-attachments" ItemsSource="{Binding Attachments}" IsVisible="{Binding HasAttachments}"
+                            MaxWidth="560" Margin="0,0,-6,-6">
+                <ItemsControl.ItemsPanel>
+                  <ItemsPanelTemplate>
+                    <WrapPanel HorizontalAlignment="Right" />
+                  </ItemsPanelTemplate>
+                </ItemsControl.ItemsPanel>
+                <ItemsControl.ItemTemplate>
+                  <DataTemplate x:DataType="vm:AttachmentChip">
+                    <v:AttachmentChipView />
+                  </DataTemplate>
+                </ItemsControl.ItemTemplate>
+              </ItemsControl>
+              <Border Classes="question" IsVisible="{Binding ShowsQuestionBubble}" HorizontalAlignment="Right" MaxWidth="560">
                 <SelectableTextBlock Text="{Binding Body}" TextWrapping="Wrap" />
               </Border>
               <StackPanel Name="QuestionMeta" Orientation="Horizontal" Spacing="2" HorizontalAlignment="Right" Margin="0,-3,2,0"
@@ -229,6 +243,16 @@
                   <TextBlock Name="StreamingElapsed" Classes="timestamp" Text="{Binding ElapsedText}" VerticalAlignment="Center" Margin="4,0,0,0" />
                 </StackPanel>
                 <TextBlock Classes="caption" Text="{x:Static t:UiText.ContextCompressedNote}" IsVisible="{Binding WasCompressed}" />
+                <!-- Only parts or a summary of an attachment went out (requirements §10.4.3): a quiet line, expandable. -->
+                <StackPanel Name="AttachmentNotePanel" Spacing="2" IsVisible="{Binding HasAttachmentNote}">
+                  <StackPanel Orientation="Horizontal" Spacing="2">
+                    <TextBlock Name="AttachmentNoteText" Classes="caption" Text="{Binding AttachmentNote}" VerticalAlignment="Center" />
+                    <Button Name="AttachmentNoteToggle" Classes="quiet small" Command="{Binding ToggleAttachmentNoteCommand}" Padding="6,1" FontSize="12"
+                            Content="{x:Static t:UiText.AttachmentReducedDetails}" />
+                  </StackPanel>
+                  <SelectableTextBlock Name="AttachmentNoteDetails" Classes="caption" FontSize="12" Foreground="{DynamicResource MutedText}" TextWrapping="Wrap"
+                                       Text="{Binding AttachmentNoteDetails}" IsVisible="{Binding IsAttachmentNoteExpanded}" />
+                </StackPanel>
                 <!-- A failure: the error and its retry together, in one notice under the answer. -->
                 <Border Name="ErrorNotice" Classes="notice error" HorizontalAlignment="Left" IsVisible="{Binding IsProblem}" Margin="0,2,0,0">
                   <DockPanel>
