@@ -47,21 +47,22 @@
 | --- | --- |
 | Core | `ResourceOrigin.Mcp` |
 | Application `Tools/Mcp` | 契约 `IMcpConnector`、`IMcpConnection`、数据类型 `McpServerConfig`、`McpToolInfo`、`McpCallResult`；`McpServerSettings`（`IMcpServers`：偏好设置＋凭据）；`McpServerManager`（状态、按需连接、退避、关闭）；`McpTool`、`McpToolSource`；`McpNames`（简称与工具名）；`McpMaterial`（结果转文字、不可信标记） |
-| Application 其他 | `ToolRegistry` 接受动态的工具来源；`ITool` 增加 `DeniedResult`、`DeniedDetail`、`Origin`；`PendingApproval` 增加服务器与参数；`ToolScope.NetworkAllowed`（网络搜索开关不是“关”）；`ToolOutcomeUnknownException`；`ToolOutput.Images` |
+| Application 其他 | `ToolRegistry` 接受动态的工具来源（`IToolSource`）；`ITool` 增加 `PrepareAsync`、`DescribeApproval`、`DeniedResult`、`DeniedDetail`；`IMcpConnections`（设置页用的接口）；`PendingApproval` 增加服务器与参数；`ToolScope.NetworkAllowed`（网络搜索开关不是“关”）；`ToolOutcomeUnknownException`；`ToolOutput.Images` |
 | Infrastructure | `SdkMcpConnector`（stdio 与 HTTP 两种传输、环境、工作目录、标准错误）；`resource.origin` 的 `mcp` |
 | Desktop | 设置 › 工具 › MCP 服务器（`McpServersPanel`：添加与确认、服务器列表与状态、工具的启用与风险）；批准卡片的第三方工具样式；活动说明与步骤写出服务器与工具；统计页的服务器分组 |
 
 ## 4. 测试
 
-测试用的假服务器在 `tests/Mindweave.FakeMcpServer`（手写 JSON-RPC，不用 SDK 的服务器部分），以参数选择行为：正常、启动即退出、不握手、调用中退出、不返回、返回超大结果、自称只读、启用后改名或改说明、在输出里写指令、返回图片与资源链接；同一份代码也可以在测试进程内作为 `HttpListener` 上的网址服务器（只监听 127.0.0.1）。
+测试用的假服务器在 `tests/Mindweave.FakeMcpServer`（手写 JSON-RPC，不用 SDK 的服务器部分），以参数与工具选择行为：启动即退出、不握手、调用中退出（`crash`、`crash_read`）、不返回（`hang`、`hang_write`）、返回超大结果、某次列出之后自称只读、改名或改说明（`--lie-after`、`--rename-after`、`--describe-after`）、在输出里写指令、返回图片、资源链接、嵌入资源与音频、返回出错的结果、把进程号写进工作目录；同一份代码也可以在测试进程内作为 `HttpListener` 上的网址服务器（只监听 127.0.0.1）。
 
 | 测试 | 覆盖的验收行与决定 |
 | --- | --- |
-| `Mcp/McpServerSettingsTests` | 添加、确认内容、密钥只在凭据服务、移除删除凭据与工作目录、启用与快照、风险、简称与名称冲突（M2–M6、M9） |
-| `Mcp/SdkMcpConnectorTests` | 真实的假服务器进程：列出工具、调用、环境变量只含基本集合与用户变量（M12）、工作目录、标准错误去掉密钥（M13）、不存在的命令、不握手、调用中退出、不返回；HTTP：请求头、错误 |
-| `Mcp/McpServerManagerTests` | 按需启动、同时只启动一次、退避与“反复退出”、停止与退出应用时进程结束（M11） |
-| `Chat/McpRunFlowTests` | 第 4 期验收中服务层可达的每一行：默认关闭不提供、启用后调用、批准允许、拒绝、等待时让出执行槽、等待中停止与重启、风险调整、网络搜索开关为“关”、定义变化后停用、超大结果与图片、输出中的指令、同名工具、结果未知、统计 |
-| `McpUiTests` | 设置页（添加与确认、状态、工具、风险）、批准卡片、活动说明；浅色与深色截图 |
+| `Tools/SdkMcpConnectorTests` | 真实的假服务器进程：列出工具、调用、工作目录（M12）、环境变量只含基本集合与用户变量（不含 `MINDWEAVE_*`、`OPENAI_API_KEY`）、标准错误、不存在的命令、启动即退出、调用中退出；HTTP：带请求头连接与调用，缺请求头时 401 |
+| `Tools/McpServerTests` | 确认显示完整命令行、工作目录与环境变量名称；不合法的草稿（无名称、无命令、非 http、带用户名密码、请求头名称或值）；网址的请求头值只在凭据服务；简称与名称冲突、64 字符上限；启用时的默认风险与用户选择；同时启动只启动一个进程；5 次启动失败后停止自动重启、手动启动再试；不握手 2 秒超时并结束进程；停止与退出应用时进程结束（M2–M6、M9、M11） |
+| `Chat/McpRunFlowTests` | 第 4 期验收中服务层可达的每一行：工具默认关闭、不提供；启用的只读工具不询问、结果为外部不可信材料、步骤写服务器；有副作用的调用出卡片、让出执行槽、允许后执行、下一次再问、拒绝后模型得到“用户拒绝”；等待中停止与重启；风险调整；网络搜索开关为“关”；声明只读且有破坏性；启用后改称只读、改名、改说明都停用并拒绝调用（卡片之前）；启动失败；调用中退出与重启；有副作用的调用中退出为“结果未知”；挂起超时后服务器仍可用；超大结果；图片与资源链接；输出中的指令；出错的结果；两个服务器同名工具与统计；接受后停用；密钥不在偏好设置与标准错误中、移除删除密钥与工作目录 |
+| `McpUiTests` | 设置页：添加、确认的内容（不显示环境变量的值）、启动后列出工具且都关闭、启用与风险、移除先确认；草稿缺命令的原因；启动失败的错误与最近输出；第三方调用的批准卡片（服务器、工具、参数）、活动说明与步骤写服务器与工具、已批准的步骤；统计页的“服务器 › 工具”；浅色与深色截图 |
+
+实现中另定的细节（不另编号）：有副作用的调用在出卡片之前先启动服务器并比对定义（`ITool.PrepareAsync`），定义已变化或启动失败时直接出错、不请用户批准；没有搜索密钥时输入框仍把开关档位（设置中的默认档）交给提问，使 M8 生效（其他不可用的原因仍按“关”）。
 
 ## 5. 未覆盖与待核实
 
