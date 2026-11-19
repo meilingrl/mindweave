@@ -156,6 +156,43 @@ public class RunLoopTests
         Assert.Single((await h.Runs.RunsAsync(conversation, Ct))[first.Id].Steps);
     }
 
+    // L6: a cut-off middle round.
+
+    [Fact]
+    public async Task A_middle_round_cut_off_while_calling_a_tool_goes_to_the_last_request_without_running_the_call()
+    {
+        await using var h = await ChatHarness.StartAsync(model: ToolModel);
+        h.Client.CallTool(SearchAttachmentsTool.ToolName, Query("蒸汽机"));
+        h.Client.CutOffCalling(SearchAttachmentsTool.ToolName, Query("信号"));
+        h.Client.Reply("瓦特改良了蒸汽机。");
+
+        var (conversation, answer) = await AskWithAttachmentAsync(h, "蒸汽机是谁改良的？");
+
+        Assert.Equal((MessageState.Complete, "瓦特改良了蒸汽机。"), (answer.State, answer.Text));
+        var run = (await h.Runs.RunsAsync(conversation, Ct))[answer.Id];
+        Assert.Equal([RunStepKind.Model, RunStepKind.Tool, RunStepKind.Model, RunStepKind.Model], run.Steps.Select(s => s.Kind));
+        Assert.Single(answer.Blocks.OfType<ToolCallBlock>());
+        Assert.Null(run.LimitReached);
+        var last = h.Client.Requests.Where(FakeChatClient.IsAnswer).Last();
+        Assert.False(last.HasTools);
+        Assert.Contains("【上一轮回复因输出长度上限被截断，其中的工具调用没有执行】", last.Turns[0].Content, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task A_round_cut_off_while_writing_its_answer_or_by_the_filter_ends_the_run_as_before()
+    {
+        await using var h = await ChatHarness.StartAsync(model: ToolModel);
+        h.Client.CallTool(SearchAttachmentsTool.ToolName, Query("蒸汽机"));
+        h.Client.CutOff("瓦特改良了");
+        var (_, cut) = await AskWithAttachmentAsync(h, "一");
+        Assert.Equal((MessageState.Stopped, GenerationErrorKind.OutputLimit, "瓦特改良了"), (cut.State, cut.ErrorKind, cut.Text));
+
+        h.Client.CallTool(SearchAttachmentsTool.ToolName, Query("蒸汽机"));
+        h.Client.Filtered();
+        var (_, filtered) = await AskWithAttachmentAsync(h, "二");
+        Assert.Equal((MessageState.Failed, GenerationErrorKind.ContentFiltered), (filtered.State, filtered.ErrorKind));
+    }
+
     // L8: room for the run.
 
     [Fact]

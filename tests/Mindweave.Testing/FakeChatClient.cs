@@ -190,6 +190,10 @@ public sealed class FakeChatClient : IChatClient
     public void FailWithStatus(GenerationErrorKind kind, int? httpStatus, TimeSpan? retryAfter = null) =>
         _scripts.Enqueue(new Script(null, [], kind, "simulated", HttpStatus: httpStatus, RetryAfter: retryAfter));
 
+    /// <summary>The next answer asks for one call of <paramref name="tool"/> and is then cut off at its output limit.</summary>
+    public void CutOffCalling(string tool, string arguments) =>
+        _scripts.Enqueue(new Script(null, [], Calls: [new ChatToolCall("call_" + Interlocked.Increment(ref _callIds), tool, arguments, IsJsonObject(arguments))], End: new ChatStreamEvent.Completed(Truncated: true)));
+
     /// <summary>The next answer streams <paramref name="before"/> and then throws <paramref name="crash"/> (not a client failure).</summary>
     public void Crash(Exception crash, params string[] before) => _scripts.Enqueue(new Script(null, before, Crash: crash));
 

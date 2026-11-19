@@ -35,6 +35,12 @@ internal sealed partial class AnswerRunner
     /// <summary>What the last request of a run that reached a limit asks of the model (decision R8), added to the system turn.</summary>
     internal const string FinalInstruction = "【本次运行已达到上限】请根据已经取得的工具结果直接回答用户的问题，不要再调用工具；信息不足时说明还缺什么。";
 
+    /// <summary>
+    /// What the last request asks when a middle round was cut off at its length limit (L6): its calls were not run, and the
+    /// run goes straight to its last request.
+    /// </summary>
+    internal const string CutOffInstruction = "【上一轮回复因输出长度上限被截断，其中的工具调用没有执行】请不要再调用工具，根据已经取得的工具结果直接、简洁地回答用户的问题；信息不足时说明还缺什么。";
+
     /// <summary>The longest a retry waits for a service that asked to slow down (L5).</summary>
     internal static readonly TimeSpan MaxRetryAfter = TimeSpan.FromSeconds(20);
 
@@ -65,6 +71,7 @@ internal sealed partial class AnswerRunner
         var elapsed = Stopwatch.StartNew();
         int requests = 0, calls = 0, tokens = 0, ordinal = 0;
         RunLimit? reached = null;
+        var cutOff = false;
         var retried = false;
         var instructions = RunPrompt.For(run.Tools);
 
@@ -98,10 +105,10 @@ internal sealed partial class AnswerRunner
                 await _writes.SaveAsync(() => Done(services.Store.SetLimitReachedAsync(task.Id, limit, CancellationToken.None))).ConfigureAwait(false);
             }
 
-            var final = reached is not null;
+            var final = reached is not null || cutOff;
             var offered = final ? [] : run.Tools.Where(t => !withdrawn.Contains(t.Name)).ToList();
-            // The run instructions (L1) end with the budget line (L2), or for the last request with the instruction to answer (R8).
-            var system = instructions + "\n\n" + (final ? FinalInstruction : RunPrompt.BudgetLine(limits, requests, calls));
+            // The run instructions (L1) end with the budget line (L2), or for the last request with the instruction to answer (R8, L6).
+            var system = instructions + "\n\n" + (reached is not null ? FinalInstruction : cutOff ? CutOffInstruction : RunPrompt.BudgetLine(limits, requests, calls));
             var next = Compose(request, turns, results, shortened, offered, system);
             while (ChatTurns.Estimate(next) > budget.Available && Shorten(results, shortened))
             {
@@ -236,6 +243,16 @@ internal sealed partial class AnswerRunner
             {
                 // Tool calls of a reply that never finished may be cut off: they are not run.
                 return new RunEnding(MessageState.Failed, GenerationErrorKind.InvalidResponse, "The service closed the stream without finishing the answer.");
+            }
+
+            if (end.Truncated && !end.Filtered && !final && (asked is { Calls.Count: > 0 } || string.IsNullOrWhiteSpace(text.ToString())))
+            {
+                // L6: a middle round cut off at its length limit while calling tools or before writing anything (a reasoning
+                // model spends its output on thinking) does not end the run: its calls may be cut off and are not run, what it
+                // wrote stays in the answer (not sent again: a request never ends with the model's own turn), and the last
+                // request answers. A round cut off while writing its answer ends the run as before.
+                cutOff = true;
+                continue;
             }
 
             if (end.Truncated)
