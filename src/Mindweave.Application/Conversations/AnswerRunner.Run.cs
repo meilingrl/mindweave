@@ -55,7 +55,18 @@ internal sealed partial class AnswerRunner
     private readonly record struct RunEnding(MessageState State, GenerationErrorKind? Error, string? Detail);
 
     /// <summary>One tool turn as sent, and the line that stands for it once room runs short.</summary>
-    private sealed record SentResult(int TurnIndex, string Line);
+    private sealed record SentResult(int TurnIndex, string Line)
+    {
+        public string Tool { get; init; } = string.Empty;
+
+        /// <summary>Failed or refused: nothing in it to answer from.</summary>
+        public bool Failed { get; init; }
+
+        public IReadOnlyList<ToolFinding> Findings { get; init; } = [];
+    }
+
+    private static SentResult Sent(int turnIndex, ToolOutcome outcome, string tool) =>
+        new(turnIndex, outcome.Line) { Tool = tool, Failed = outcome.Failed, Findings = outcome.Findings ?? [] };
 
     private async Task<RunEnding> RunAsync(AnswerWork work, RunPlan run, RunServices services, ChatRequest request, string key, CancellationToken stop)
     {
@@ -116,7 +127,7 @@ internal sealed partial class AnswerRunner
             // The run instructions (L1) end with the budget line (L2), or for the last request with the instruction to answer (R8, L6).
             var system = instructions + "\n\n" + (reached is not null ? FinalInstruction : cutOff ? CutOffInstruction : RunPrompt.BudgetLine(limits, requests, calls));
             var next = Compose(request, turns, results, shortened, offered, system);
-            while (ChatTurns.Estimate(next) > budget.Available && Shorten(results, shortened))
+            while (ChatTurns.Estimate(next) > budget.Available && Shorten(results, shortened, live.Snapshot().Text))
             {
                 next = Compose(request, turns, results, shortened, offered, system);
             }
@@ -321,7 +332,7 @@ internal sealed partial class AnswerRunner
                     seen.TryAdd(made, new EarlierCall(outcomes[i].Content, turns.Count, resource, tool.Name, tool.Describe(document.RootElement)));
                 }
 
-                results.Add(new SentResult(turns.Count, outcomes[i].Line));
+                results.Add(Sent(turns.Count, outcomes[i], batch[i].Call.Name));
                 turns.Add(new ChatTurn(ChatRole.Tool, outcomes[i].Content) { ToolCallId = batch[i].Call.Id });
             }
 
@@ -330,7 +341,7 @@ internal sealed partial class AnswerRunner
                 if (seen.TryGetValue(same, out var earlier))
                 {
                     var repeated = await RepeatAsync(work, run, services, call, at, earlier, shortened.Contains(earlier.TurnIndex)).ConfigureAwait(false);
-                    results.Add(new SentResult(turns.Count, repeated.Line));
+                    results.Add(Sent(turns.Count, repeated, call.Name));
                     turns.Add(new ChatTurn(ChatRole.Tool, repeated.Content) { ToolCallId = call.Id });
                 }
                 else
@@ -342,7 +353,7 @@ internal sealed partial class AnswerRunner
                         return ending;
                     }
 
-                    results.Add(new SentResult(turns.Count, outcome.Line));
+                    results.Add(Sent(turns.Count, outcome, call.Name));
                     turns.Add(new ChatTurn(ChatRole.Tool, outcome.Content) { ToolCallId = call.Id });
                 }
             }
@@ -382,14 +393,33 @@ internal sealed partial class AnswerRunner
         return request with { Turns = sent, Tools = offered.Count == 0 ? null : [.. offered.Select(ToolRegistry.Definition)] };
     }
 
-    /// <summary>Shortens the oldest result still sent whole to its one line. False when none is left.</summary>
-    private static bool Shorten(List<SentResult> results, HashSet<int> shortened)
+    /// <summary>
+    /// Shortens one result still sent whole to its one line (L7), the least useful first: failed and refused results; search
+    /// results the answer does not cite and whose pages were not read; local and other results, and search results whose
+    /// pages were read; pages; last, results with a source the answer so far cites ([n]). Oldest first within each. False
+    /// when none is left.
+    /// </summary>
+    private static bool Shorten(List<SentResult> results, HashSet<int> shortened, string answer)
     {
-        var oldest = results.FirstOrDefault(r => !shortened.Contains(r.TurnIndex));
-        return oldest is not null && shortened.Add(oldest.TurnIndex);
+        var cited = CitationMarkers.Find(answer).Select(m => m.Number).ToHashSet();
+        var read = results.Where(r => r.Tool == FetchPageTool.ToolName).SelectMany(r => r.Findings).Select(f => Address(f.Id)).ToHashSet(StringComparer.Ordinal);
+        var next = results.Where(r => !shortened.Contains(r.TurnIndex)).OrderBy(r => Rank(r, cited, read)).ThenBy(r => r.TurnIndex).FirstOrDefault();
+        return next is not null && shortened.Add(next.TurnIndex);
     }
 
-    private readonly record struct ToolOutcome(string Content, string Line, RunEnding? Ending, ResourceId? Resource = null);
+    private static int Rank(SentResult result, HashSet<int> cited, HashSet<string> read)
+    {
+        var sources = result.Findings.Where(f => f.Kind == ToolFindingKind.WebSource).ToList();
+        return result.Failed ? 0
+            : sources.Any(f => f.Part is { } n && cited.Contains(n)) ? 4
+            : result.Tool == FetchPageTool.ToolName ? 3
+            : result.Tool == WebSearchTool.ToolName && !sources.Any(f => read.Contains(Address(f.Id))) ? 1
+            : 2;
+    }
+
+    private static string Address(string url) => Uri.TryCreate(url, UriKind.Absolute, out var u) && WebRun.Normalize(u) is { } key ? key : url;
+
+    private readonly record struct ToolOutcome(string Content, string Line, RunEnding? Ending, ResourceId? Resource = null, bool Failed = false, IReadOnlyList<ToolFinding>? Findings = null);
 
     /// <summary>A read-only call that succeeded earlier in the run (L4): what was sent for it and where.</summary>
     private sealed record EarlierCall(string Content, int TurnIndex, ResourceId Resource, string Name, string? Input);
@@ -645,7 +675,7 @@ internal sealed partial class AnswerRunner
                 var shot = live.Snapshot();
                 var deniedStep = step with { State = RunStepState.Denied, FinishedAt = _clock.UtcNow };
                 await _writes.SaveAsync(() => services.Store.FinishStepAsync(deniedStep, live.MessageId, shot.Blocks, shot.Revision, CancellationToken.None)).ConfigureAwait(false);
-                pending.Settled = new ToolOutcome(tool.DeniedResult, $"（较早的工具调用：{call.Name} {input}，用户拒绝。）", null);
+                pending.Settled = new ToolOutcome(tool.DeniedResult, $"（较早的工具调用：{call.Name} {input}，用户拒绝。）", null, Failed: true);
                 return pending;
             }
         }
@@ -802,7 +832,7 @@ internal sealed partial class AnswerRunner
         };
         await _writes.SaveAsync(() => services.Store.FinishStepAsync(finished, live.MessageId, snapshot.Blocks, snapshot.Revision, CancellationToken.None)).ConfigureAwait(false);
         var line = $"（较早的工具结果已省略：{call.Name} {input}{(stored is { } r ? $"，完整结果是资源 {r}" : string.Empty)}；需要时可再读取。）";
-        return new ToolOutcome(content, line, null, stored);
+        return new ToolOutcome(content, line, null, stored, Failed: stored is null, Findings: output?.Findings);
     }
 
     /// <summary>

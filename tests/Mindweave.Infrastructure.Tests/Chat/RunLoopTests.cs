@@ -375,6 +375,36 @@ public class RunLoopTests
         Assert.Equal(BigTool.Text(1), requests[4].Turns.Single(t => t.ToolCallId == "again").Content);
     }
 
+    // L7: eviction by citation.
+
+    [Fact]
+    public async Task When_room_runs_short_a_result_the_answer_cites_is_kept_longest_and_a_failed_one_goes_first()
+    {
+        var big = new BigTool();
+        await using var h = await ChatHarness.StartAsync(model: ToolModel with { ContextWindowTokens = 11_000 }, tools: [big]);
+        await h.WebSearch.SetKeyAsync("tvly-test-0000000000000000", Ct);
+        h.Client.CallTool(WebSearchTool.ToolName, Query("蒸汽机"));
+        h.Client.CallTool("no_such_tool", "{}", "瓦特改良了蒸汽机[1]。");
+        h.Client.CallTool("big_tool", "{\"n\":1}");
+        h.Client.CallTool("big_tool", "{\"n\":2}");
+        h.Client.CallTool("big_tool", "{\"n\":3}");
+        h.Client.Reply("好。");
+
+        var sent = await h.Conversations.StartAsync(h.Workspace, "蒸汽机是谁改良的？", [], null, new SendOptions(WebSearchMode.Auto), Ct);
+        var answer = await h.WaitForAnswerAsync(sent.Answer!.Value);
+
+        Assert.Equal(MessageState.Complete, answer.State);
+        var last = h.Client.Requests.Where(FakeChatClient.IsAnswer).Last();
+        var tools = last.Turns.Where(t => t.Role == ChatRole.Tool).ToList();
+        Assert.Equal(5, tools.Count);
+
+        // Oldest first would shorten the search first; it is cited, so the failed call and the oldest local result go instead.
+        Assert.Contains("瓦特在 1769 年改良了蒸汽机", tools[0].Content, StringComparison.Ordinal);
+        Assert.StartsWith("（较早的工具结果已省略：no_such_tool", tools[1].Content, StringComparison.Ordinal);
+        Assert.StartsWith("（较早的工具结果已省略：big_tool 1", tools[2].Content, StringComparison.Ordinal);
+        Assert.Equal(BigTool.Text(3), tools[4].Content);
+    }
+
     /// <summary>A local tool whose result is about 2,000 estimated tokens: three fill a small window.</summary>
     private sealed class BigTool : ITool
     {
