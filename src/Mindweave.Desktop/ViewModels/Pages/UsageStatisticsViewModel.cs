@@ -418,7 +418,7 @@ public sealed partial class UsageStatisticsViewModel : PageViewModel, IShowsWork
         ToolCalls.Clear();
         foreach (var call in report.Tools.Calls)
         {
-            ToolCalls.Add(new ToolCallRowViewModel(UiText.ToolName(call.Tool), UiText.ToolCallCount(call.Calls)));
+            ToolCalls.Add(new ToolCallRowViewModel(UiText.ToolName(call.Tool, call.Server), UiText.ToolCallCount(call.Calls)));
         }
 
         UpdateTotalCost();
