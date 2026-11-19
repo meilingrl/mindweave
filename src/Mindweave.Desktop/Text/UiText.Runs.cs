@@ -21,7 +21,7 @@ public static partial class UiText
     public const string RunStepUnknown = "结果未知，请自行核对";
 
     public const string SettingsTools = "工具";
-    public const string ToolsIntro = "模型可以在回答时检索本会话的附件与本工作区的总结网络（只读本机数据）；设置下面的网络搜索后，还可以搜索网络、读取网页。";
+    public const string ToolsIntro = "模型可以在回答时检索本会话的附件与本工作区的总结网络（只读本机数据）；设置下面的网络搜索后，还可以搜索网络、读取网页；添加 MCP 服务器并启用它的工具后，还可以使用第三方工具。";
     public const string UseTools = "使用工具";
     public const string UseToolsHint = "关闭后，回答只发送一次请求，不调用工具。";
     public const string ToolsUnavailable = "当前模型不能调用工具，可在设置 › 模型连接 › 高级设置中声明";
@@ -58,7 +58,14 @@ public static partial class UiText
     public static string RunActivity(IEnumerable<string> calledTools)
     {
         ArgumentNullException.ThrowIfNull(calledTools);
-        return string.Join(" · ", calledTools.GroupBy(t => t, StringComparer.Ordinal).Select(g => g.Key switch
+        return RunActivity(calledTools.Select(t => (t, (string?)null)));
+    }
+
+    /// <summary>The activity line from each call's tool and its step summary (a third-party tool is named "server › tool").</summary>
+    public static string RunActivity(IEnumerable<(string Tool, string? Summary)> calls)
+    {
+        ArgumentNullException.ThrowIfNull(calls);
+        return string.Join(" · ", calls.Select(c => (c.Tool, Label: ToolLabel(c.Tool, c.Summary))).GroupBy(c => c.Label, StringComparer.Ordinal).Select(g => g.First().Tool switch
         {
             "search_attachments" => string.Format(CultureInfo.InvariantCulture, "检索了 {0} 次附件", g.Count()),
             "search_summaries" => string.Format(CultureInfo.InvariantCulture, "检索了 {0} 次总结网络", g.Count()),
@@ -68,11 +75,12 @@ public static partial class UiText
         }));
     }
 
-    /// <summary>While a tool runs: "正在检索附件…".</summary>
-    public static string ToolRunning(string tool) => tool switch
+    /// <summary>While a tool runs: "正在检索附件…"; a third-party one: "正在调用 files › echo…".</summary>
+    public static string ToolRunning(string tool, string? summary = null) => tool switch
     {
         "web_search" => "正在搜索…",
         "fetch_page" => "正在读取网页…",
+        _ when tool.Contains("__", StringComparison.Ordinal) => "正在调用 " + ToolLabel(tool, summary) + "…",
         _ => "正在" + ToolName(tool) + "…",
     };
 

@@ -59,8 +59,12 @@ public sealed partial class WebSearchSwitch : ViewModelBase, IDisposable
 
     public bool IsOff => Mode == WebSearchMode.Off;
 
-    /// <summary>What goes with the next question: the chosen position, or 关 while the switch cannot be used.</summary>
-    public SendOptions Options => new(IsAvailable ? Mode : WebSearchMode.Off);
+    /// <summary>
+    /// What goes with the next question: the chosen position, or 关 while tools cannot be used at all. Without a search key
+    /// the position (the settings' default) still goes along: no web tool is offered without a key, and third-party tools
+    /// that read the network follow it (decision M8).
+    /// </summary>
+    public SendOptions Options => new(IsAvailable || UnavailableReason == UiText.WebSearchNoKey ? Mode : WebSearchMode.Off);
 
     [RelayCommand]
     private void Choose(WebSearchMode mode)

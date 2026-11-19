@@ -12,6 +12,23 @@
   <Style Selector="Border.card.settings">
     <Setter Property="Padding" Value="18,16" />
   </Style>
+  <!-- 设置 › 工具 › MCP 服务器 (requirements §10.4.6): one server per block, a hairline between servers. -->
+  <Style Selector="Border.mcp-server">
+    <Setter Property="BorderBrush" Value="{DynamicResource CardBorder}" />
+    <Setter Property="BorderThickness" Value="0,0,0,1" />
+    <Setter Property="Padding" Value="0,0,0,12" />
+    <Setter Property="Margin" Value="0,0,0,12" />
+  </Style>
+  <Style Selector="SelectableTextBlock.muted">
+    <Setter Property="Foreground" Value="{DynamicResource MutedText}" />
+  </Style>
+  <Style Selector="SelectableTextBlock.error">
+    <Setter Property="Foreground" Value="{DynamicResource ErrorText}" />
+  </Style>
+  <Style Selector="TextBox.mono">
+    <Setter Property="FontFamily" Value="Menlo, Consolas, monospace" />
+    <Setter Property="FontSize" Value="12" />
+  </Style>
   <!--
     A list row's check box (the backups, 2026-11-12): the sidebar's drawn box (Border.row-check), as a toggle so it takes
     the keyboard (Space) and is announced as a check box; the ring shows only for keyboard focus.

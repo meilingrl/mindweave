@@ -138,17 +138,23 @@ public sealed partial class MessageItemViewModel : ViewModelBase, IDisposable
     public bool HasActivity => IsAnswer && (ToolBlocks.Count > 0 || ActiveTool is not null);
 
     /// <summary>"正在检索附件…" while a tool runs; "检索了 2 次附件 · 检索了 1 次总结网络" otherwise.</summary>
-    public string ActivityText => PendingApproval is not null ? UiText.ApprovalWaiting
-        : ActiveTool is { } running ? UiText.ToolRunning(running)
-        : UiText.RunActivity(ToolBlocks.OfType<ToolCallBlock>().Select(c => c.Tool));
+    public string ActivityText => PendingApproval is { IsThirdParty: true } card ? UiText.McpApprovalWaiting(card.Server!, card.ToolTitle ?? card.Tool)
+        : PendingApproval is not null ? UiText.ApprovalWaiting
+        : ActiveTool is { } running ? UiText.ToolRunning(running, ToolBlocks.OfType<ToolCallBlock>().LastOrDefault(c => c.Tool == running)?.Summary)
+        : UiText.RunActivity(ToolBlocks.OfType<ToolCallBlock>().Select(c => (c.Tool, (string?)c.Summary)));
 
     /// <summary>A call waiting for the user's approval (requirements §10.4.5, Q10): the card in the answer.</summary>
     [ObservableProperty]
-    [NotifyPropertyChangedFor(nameof(HasApproval), nameof(ActivityText))]
+    [NotifyPropertyChangedFor(nameof(HasApproval), nameof(ActivityText), nameof(IsThirdPartyApproval), nameof(ApprovalTitle))]
     [NotifyCanExecuteChangedFor(nameof(AllowCommand), nameof(DenyCommand))]
     public partial PendingApproval? PendingApproval { get; private set; }
 
     public bool HasApproval => PendingApproval is not null;
+
+    /// <summary>The card asks about a third-party tool (phase 4): it shows the server, the tool and the arguments.</summary>
+    public bool IsThirdPartyApproval => PendingApproval?.IsThirdParty == true;
+
+    public string ApprovalTitle => IsThirdPartyApproval ? UiText.McpApprovalTitle : UiText.ApprovalTitle;
 
     [CommunityToolkit.Mvvm.Input.RelayCommand(CanExecute = nameof(HasApproval))]
     private void Allow() => Decide(true);

@@ -44,7 +44,9 @@ internal sealed class PageFactory(
     Application.SummaryLinks.ILinkSuggestions suggestions,
     Application.Resources.IResources? resources = null,
     Application.Preferences.IToolSettings? toolSettings = null,
-    Application.Preferences.IWebSearchSettings? webSearch = null) : IPageFactory
+    Application.Preferences.IWebSearchSettings? webSearch = null,
+    Application.Tools.Mcp.IMcpServers? mcpServers = null,
+    Application.Tools.Mcp.IMcpConnections? mcpConnections = null) : IPageFactory
 {
     public PageViewModel Create(ContentRoute route, PageContext context) => route switch
     {
@@ -55,7 +57,9 @@ internal sealed class PageFactory(
         NewConversationRoute fresh => new NewConversationViewModel(context.Workspace.Id, conversations, context.Navigator, context.Navigator, recommendations, dispatcher, fresh, recommendationSettings, reading, models, resources, Switch()),
         ArchivedRoute => new ArchivedViewModel(context.Workspace, conversations, context.Navigator, dispatcher, conversationDeletion, conversationDeletionPrompt),
         SettingsHomeRoute => new SettingsHomeViewModel(environment, new ModelSettingsViewModel(models), context.Navigator, appearance, theme, context.Workspaces, newsAlerts, recommendationSettings,
-            toolSettings is null ? null : new ToolSettingsPanel(toolSettings, models, webSearch is null ? null : new WebSearchSettingsPanel(webSearch))),
+            toolSettings is null ? null : new ToolSettingsPanel(
+                toolSettings, models, webSearch is null ? null : new WebSearchSettingsPanel(webSearch),
+                mcpServers is null || mcpConnections is null ? null : new McpServersPanel(mcpServers, mcpConnections, dispatcher))),
         StorageDetailsRoute => new StorageDetailsViewModel(environment, backupFiles, shell, backupPrompts),
         UsageStatisticsRoute => new UsageStatisticsViewModel(context.Workspace, statistics, prices, context.Navigator),
         WorkspacesRoute => new WorkspacesViewModel(

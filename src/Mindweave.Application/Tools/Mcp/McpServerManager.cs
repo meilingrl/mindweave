@@ -48,13 +48,29 @@ public sealed record McpServerStatus(McpServerState State, string? Error, IReadO
     public static McpServerStatus NotStarted { get; } = new(McpServerState.NotStarted, null, [], null);
 }
 
+/// <summary>What 设置 › 工具 › MCP 服务器 does with servers (requirements §10.4.6): their state, 启动／连接, 停止 and 移除.</summary>
+public interface IMcpConnections
+{
+    McpServerStatus StatusOf(string serverId);
+
+    /// <summary>Connects (a halted server is allowed again) and lists its tools; throws <see cref="McpServerException"/> with the reason.</summary>
+    Task<IReadOnlyList<McpToolInfo>> StartAsync(string serverId, CancellationToken cancellationToken);
+
+    Task StopAsync(string serverId);
+
+    Task RemoveAsync(string serverId, CancellationToken cancellationToken);
+
+    /// <summary>A server's status changed (raised on any thread), with its ID.</summary>
+    event EventHandler<string>? StatusChanged;
+}
+
 /// <summary>
 /// Keeps the connections to third-party servers (architecture §15.14, decision M11): a server is started (or connected to) on
 /// demand, once at a time; when it exits, the next connection waits 1, 2, 4… up to 60 seconds; after five exits within ten
 /// minutes it is not restarted until the user starts it. Every connection is closed when the app quits (the host disposes
 /// this). Its standard error goes to the log without secrets (decision M13).
 /// </summary>
-public sealed partial class McpServerManager : IAsyncDisposable
+public sealed partial class McpServerManager : IMcpConnections, IAsyncDisposable
 {
     private readonly IMcpConnector _connector;
     private readonly IMcpServers _servers;

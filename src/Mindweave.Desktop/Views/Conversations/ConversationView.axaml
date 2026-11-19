@@ -275,8 +275,22 @@
                 <!-- An address the model wrote itself waits for the reader (requirements §10.4.5, Q10): a small card in the answer. -->
                 <Border Name="ApprovalCard" Classes="card approval" HorizontalAlignment="Left" IsVisible="{Binding HasApproval}">
                   <StackPanel Spacing="8">
-                    <TextBlock Classes="approval-title" Text="{x:Static t:UiText.ApprovalTitle}" TextWrapping="Wrap" />
-                    <SelectableTextBlock Name="ApprovalAddress" Classes="address" Text="{Binding PendingApproval.Target}" TextWrapping="Wrap" />
+                    <TextBlock Name="ApprovalTitle" Classes="approval-title" Text="{Binding ApprovalTitle}" TextWrapping="Wrap" />
+                    <SelectableTextBlock Name="ApprovalAddress" Classes="address" Text="{Binding PendingApproval.Target}" TextWrapping="Wrap"
+                                         IsVisible="{Binding !IsThirdPartyApproval}" />
+                    <!-- A third-party call (requirements §10.4.6, decision M16): the server, the tool and the arguments it would get. -->
+                    <Grid Name="McpApprovalDetails" ColumnDefinitions="Auto,*" RowDefinitions="Auto,Auto,Auto" IsVisible="{Binding IsThirdPartyApproval}">
+                      <TextBlock Classes="caption" Margin="0,0,12,4" Text="{x:Static t:UiText.McpApprovalServer}" />
+                      <SelectableTextBlock Grid.Column="1" Name="McpApprovalServer" Margin="0,0,0,4" Text="{Binding PendingApproval.Server}" TextWrapping="Wrap" />
+                      <TextBlock Grid.Row="1" Classes="caption" Margin="0,0,12,4" Text="{x:Static t:UiText.McpApprovalTool}" />
+                      <SelectableTextBlock Grid.Row="1" Grid.Column="1" Name="McpApprovalTool" Margin="0,0,0,4" Text="{Binding PendingApproval.ToolTitle}" TextWrapping="Wrap" />
+                      <TextBlock Grid.Row="2" Classes="caption" Margin="0,0,12,0" VerticalAlignment="Top" Text="{x:Static t:UiText.McpApprovalArguments}" />
+                      <Border Grid.Row="2" Grid.Column="1" Classes="arguments">
+                        <ScrollViewer MaxHeight="200" HorizontalScrollBarVisibility="Disabled">
+                          <SelectableTextBlock Name="McpApprovalArguments" Classes="arguments" Text="{Binding PendingApproval.Target}" TextWrapping="Wrap" />
+                        </ScrollViewer>
+                      </Border>
+                    </Grid>
                     <StackPanel Orientation="Horizontal" Spacing="8">
                       <Button Name="ApprovalAllow" Classes="primary" Content="{x:Static t:UiText.ApprovalAllow}" Command="{Binding AllowCommand}" />
                       <Button Name="ApprovalDeny" Classes="secondary" Content="{x:Static t:UiText.ApprovalDeny}" Command="{Binding DenyCommand}" />
