@@ -100,7 +100,7 @@ ViewModel位于Desktop；课程导航映射见“工作区、界面与导航”�
 | 出处（首版后） | `Citation`（`CitationBlock`）；不与来源锚点 `Anchor`、探索来源混用 |
 | 网络搜索、取网页、搜索服务（首版后） | `WebSearch`、`WebFetch`、`SearchProvider` |
 | 网络搜索开关：自动／开／关（首版后，v0.18） | `WebSearchMode`：`Auto`／`On`／`Off` |
-| MCP 服务器（首版后） | `McpServer` |
+| MCP 服务器、第三方工具（首版后） | `McpServer`；工具 `McpTool`；连接 `McpConnection`（契约 `IMcpConnector`） |
 | 生成的图表与图示（首版后） | `Artifact`（`ArtifactBlock`） |
 | 设置 › 工具 | `Settings` 下的 `Tools` |
 
@@ -598,7 +598,7 @@ Infrastructure 执行打开、备份、迁移及恢复；Application 协调启�
 
 `generation_task` 增加 `run_limits`（步数、时间、token 上限的快照）与 `tools`（接受任务时提供给模型的工具名称及其定义哈希）两列：设置的修改与 MCP 服务器的变化不影响已接受的运行。
 
-**迁移小结：** 迁移 A（第 1 期）建 `resource`、`resource_derivative`、`resource_chunk`、`resource_chunk_fts`、`draft_attachment`，给 `message_block` 加 `resource_id`；不改写已有消息。迁移 A 另给 `ai_request` 加可空列 `purpose`（`answer`／`compression`／`resource_summary`，由应用校验），使统计能区分同一回答任务下不同用途的请求。迁移 B（第 2 期，落地为 v17）建 `run_step`，给 `generation_task` 加 `run_limits`、`tools` 与 `run_limit_reached`，给 `resource` 加 `produced_by_task`、`produced_by_step`；运行仍是 `kind = 'answer'` 的任务，不增加任务类型。第 3 期的网页与搜索结果只是新的 `origin`，不需要迁移；第 4 期建 `mcp_server`（名称、类型、命令或地址、凭据引用、启用状态）与 `mcp_tool_setting`（每个工具的启用与风险覆盖）；第 5 期的音频资源与 `artifact` 块不需要新表。
+**迁移小结：** 迁移 A（第 1 期）建 `resource`、`resource_derivative`、`resource_chunk`、`resource_chunk_fts`、`draft_attachment`，给 `message_block` 加 `resource_id`；不改写已有消息。迁移 A 另给 `ai_request` 加可空列 `purpose`（`answer`／`compression`／`resource_summary`，由应用校验），使统计能区分同一回答任务下不同用途的请求。迁移 B（第 2 期，落地为 v17）建 `run_step`，给 `generation_task` 加 `run_limits`、`tools` 与 `run_limit_reached`，给 `resource` 加 `produced_by_task`、`produced_by_step`；运行仍是 `kind = 'answer'` 的任务，不增加任务类型。第 3 期的网页与搜索结果只是新的 `origin`，不需要迁移；第 4 期原计划建 `mcp_server` 与 `mcp_tool_setting` 两张表，实施时改为保存在偏好设置中、不需要迁移（§15.14，[mcp.md](design/mcp.md) 决定 M2）；第 5 期的音频资源与 `artifact` 块不需要新表。
 
 ### 15.4 上下文预算中的资源
 
@@ -666,7 +666,7 @@ Infrastructure 执行打开、备份、迁移及恢复；Application 协调启�
 | `NetworkRead` 读网络 | 向外部服务发出请求，但不改变外部状态 | 内置的搜索与取网页由网络搜索开关决定（关时不提供），不逐次询问；每次请求出现在步骤详情中 |
 | `SideEffect` 有副作用 | 可能改变外部状态（写文件、发消息、修改远端数据等） | 每次调用执行前询问，批准只对这一次调用有效 |
 
-- MCP 工具的默认等级：服务器声明只读（`readOnlyHint`）的为“读网络”，其余一律为“有副作用”。服务器自报的提示不可信，只能让等级更高，不能让用户未确认的工具变成不询问；用户可在设置中逐个调整。
+- MCP 工具的默认等级：服务器声明只读（`readOnlyHint`，且没有声明 `destructiveHint`）的为“读网络”，其余一律为“有副作用”。服务器自报的提示不可信，只能让等级更高，不能让用户未确认的工具变成不询问：等级在用户启用工具时随定义一起记下，之后服务器改变定义（含提示）时工具自动停用、须重新启用（第 4 期，§15.14）；用户可在设置中逐个调整。读网络的 MCP 工具跟随网络搜索开关，“关”时不提供。
 - 批准卡片显示服务器、工具与参数（参数中的长文字折叠显示）；批准与拒绝写入 `run_step.approval`。拒绝时把“用户拒绝了这次调用”作为结果交还模型。
 - 网络搜索开关为“开”时，应用在第一次模型请求之前用提问的文字执行一次 `web_search`，结果作为材料随第一次请求发送，之后由模型决定（第 3 期定，见 [web-search.md](design/web-search.md) 决定 W1：只用 `tool_choice: "auto"`，不要求服务支持指定工具）；“关”时不提供 `web_search` 与 `fetch_page`。
 
@@ -676,7 +676,7 @@ Infrastructure 执行打开、备份、迁移及恢复；Application 协调启�
 - **取网页。** 只允许 `http`／`https`；解析域名后拒绝环回、私有（RFC 1918）、链路本地、运营商级 NAT（100.64.0.0/10，包括 Tailscale 地址）、组播与 IPv6 的唯一本地及链路本地地址，每次重定向（最多 5 次）重新检查；不带 Cookie、不带认证头；响应最多 5 MB，只接受文本、HTML 与 PDF；超时 20 秒。
 - **防止经网址外传。** 模型可以把对话内容编进网址再取网页。`fetch_page` 只直接放行在本次运行的搜索结果、用户消息或附件、以及已取得网页的链接中出现过的网址；其他网址按有副作用处理，须用户批准（另见待决定问题）。
 - **密钥。** 搜索服务与 MCP 服务器的密钥按现行凭据规则保存在系统凭据服务，由 Infrastructure 中的工具实现在发请求时加入；工具的输入格式里没有密钥字段，工具参数、结果与步骤记录照 E3 的规则脱敏。
-- **MCP。** 本地服务器是用户添加的本地进程，添加时显示完整命令；不接受来自对话内容的添加或修改。服务器只获得工具调用的参数，不获得对话、密钥或其他工具的结果。第 4 期只支持工具，不支持服务器发起的模型调用（sampling）。
+- **MCP。** 本地服务器是用户添加的本地进程，添加时显示完整命令；不接受来自对话内容的添加或修改。服务器只获得工具调用的参数，不获得对话、密钥或其他工具的结果；本地进程只得到基本环境变量与用户为它填写的变量。第 4 期只支持工具，不支持服务器发起的模型调用（sampling）、提问（elicitation）、文件夹（roots），服务器的使用说明（instructions）不交给模型；工具说明作为不可信的文字、注明来源后交给模型。
 - **文件与图片。** 原件只读保存、不执行；提取与解码在 Infrastructure 中进行并设大小、页数与像素上限，解析失败只影响该附件。
 - **渲染。** 工具结果、网页文字与出处按现行规则渲染：不加载远程图片与资源，链接打开前显示真实地址。
 
@@ -734,3 +734,13 @@ Infrastructure 执行打开、备份、迁移及恢复；Application 协调启�
 - **出处块。** 回答结束（完成、停止、达到上限后作答）时，应用在正文中找出指向编号表的 `[n]`，为每个被引用的编号写一个 `citation` 块（排在工具块之后）：`text` 为标题，`data` 为 `{number, url, fetched_at, start, end}`（被引用段落在资源文字中的字符范围），`resource_id` 为来源资源。正文本身不改写；界面渲染时只把有 `citation` 块的编号变为链接。`ContentBlocks.TextOf` 把 `citation` 块文本化为“[n] 标题 网址”，因此之后的提问与总结的输入带出处列表。
 - **定位。** 被引用段落取 `[n]` 所在句子与来源文字中各分块的关键词重合度最高的一块（与决定 R3 相同的切词）；搜索结果只在该条结果的范围内选；没有重合时为该来源的开头。
 - **密钥。** `IWebSearchSettings` 在偏好设置中只保存服务名（`websearch.provider`）、凭据引用（`websearch.credential`）与开关默认档（`websearch.default`）；密钥在系统凭据服务中，替换时写新引用、删旧引用。适配器在发请求时读取密钥并只放进请求头；适配器的错误信息与 `ai_request` 一样去掉密钥。
+
+### 15.14 第 4 期的实现约定
+
+产品依据：需求 §10.4.6（v0.19）。本节补 §15.6–15.8 留给实现的细节；理由与新的决定（M1–M18）见 [mcp.md](design/mcp.md)。不需要迁移：服务器与工具设置在偏好设置中，第三方工具的结果是 `origin = 'mcp'` 的资源。
+
+- **分层。** 协议客户端只在 Infrastructure：官方 C# SDK 的 `ModelContextProtocol.Core`（只含客户端与协议，Apache-2.0，版本固定）。Application 只依赖契约 `IMcpConnector`（按服务器配置连接，返回 `IMcpConnection`：列出工具、调用工具、连接结束的通知）与自己的数据类型（`McpToolInfo`、`McpCallResult` 与其内容项），不出现 SDK 的类型；`SeamTests` 检查 Core 与 Application 不引用 SDK。
+- **设置。** `IMcpServers`（Application 的 `McpServerSettings`）把服务器列表存在偏好设置 `mcp.servers`（JSON：编号、名称、类型、命令、参数、环境变量名称、地址、请求头名称、凭据引用、简称、每个启用工具的定义快照与风险覆盖）；环境变量与请求头的值合为一个 JSON 存在系统凭据服务（引用 `mcp/<编号>/<随机>`），读写规则与搜索服务的密钥相同。
+- **进程与连接。** `McpServerManager`（Application，单例）按服务器保管连接与状态：按需连接（30 秒内完成启动、握手与列出工具），同一服务器同时只连接一次；连接结束（进程退出、网址断开）时状态变为出错并记下退出时间，按退避决定下一次何时可以重连；10 分钟内 5 次后停止自动重连。应用退出时由宿主释放它，逐个关闭连接。Infrastructure 的 `SdkMcpConnector`：本地命令用 `StdioClientTransport`（不继承环境，只用 SDK 的基本变量集合去掉 `MINDWEAVE_*`，加用户填写的变量；工作目录 `<数据目录>/mcp/<编号>/`；标准错误逐行去掉密钥后写日志并保留最近 20 行），网址用 `HttpClientTransport`（Streamable HTTP，不支持时退回 SSE；不跟随重定向、不用 Cookie、不配置 OAuth；地址是环回时不经代理）。客户端不声明任何能力（无 sampling、elicitation、roots）。
+- **工具。** `McpToolSource` 在接受提问时给出启用的工具（`McpTool : ITool`，用启用时的定义快照，不为此启动服务器），注册表把它们排在内置工具之后；名称冲突在启用时解决（§需求 10.4.6）。`McpTool.ExecuteAsync` 经管理器连接（按需启动），先比对服务器当前给出的定义与快照，不同则停用并报错，再调用；结果的内容项转为 Markdown 文字（文字、图片占位、资源链接、嵌入的文字资源），图片另存为资源（`origin = 'mcp'`、`provenance = 'external'`）。风险为“有副作用”的调用经 `ITool.ApprovalFor` 返回批准卡片的内容（服务器、工具、格式化参数），批准与等待沿用第 3 期的机制（`IRunSlots`、`run_step.approval`）；拒绝的结果文字由工具给出（`ITool.DeniedResult`）。`run_step.target` 为服务器名称，统计按它与工具名分组。
+- **结果未知。** 有副作用的调用超时或服务器在调用中退出时，工具抛出 `ToolOutcomeUnknownException`，步骤记为 `unknown`、结果块为出错并写“结果未知，请自行核对”，错误交还模型，运行继续。
