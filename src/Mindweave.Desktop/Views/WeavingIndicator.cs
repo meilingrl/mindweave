@@ -62,6 +62,23 @@ public sealed class WeavingIndicator : Control
     /// <summary>The frame last drawn.</summary>
     internal WeavingFrame? Drawn => _drawn;
 
+    /// <summary>
+    /// Draws this moment instead of following the animation frames, glides included: the gallery steps through it frame
+    /// by frame to show the motion for review.
+    /// </summary>
+    internal double? PinnedSeconds
+    {
+        get;
+        set
+        {
+            field = value;
+            InvalidateVisual();
+        }
+    }
+
+    /// <summary>The motion's clock: pinned, following the frames, or a still moment when not animating.</summary>
+    private double Now => PinnedSeconds ?? (Animates ? _seconds : StillSeconds(Motion));
+
     public override void Render(DrawingContext context)
     {
         ArgumentNullException.ThrowIfNull(context);
@@ -109,9 +126,9 @@ public sealed class WeavingIndicator : Control
     protected override void OnPropertyChanged(AvaloniaPropertyChangedEventArgs change)
     {
         base.OnPropertyChanged(change);
-        if (change.Property == MotionProperty && Animates && _drawn is not null)
+        if (change.Property == MotionProperty && (Animates || PinnedSeconds is not null) && _drawn is not null)
         {
-            // From wherever the dots are now, mid-glide included; the glide's clock starts with the next frame.
+            // From wherever the dots are now, mid-glide included; the glide's clock starts with the next drawing.
             _glideFrom = _drawn;
             _glideStart = null;
         }
@@ -139,23 +156,20 @@ public sealed class WeavingIndicator : Control
     private void OnFrame(TimeSpan time)
     {
         _seconds = time.TotalSeconds;
-        if (_glideFrom is not null)
-        {
-            _glideStart ??= _seconds;
-        }
-
         InvalidateVisual();
     }
 
     private WeavingFrame CurrentFrame()
     {
-        var target = WeavingPaths.At(Motion, Animates ? _seconds : StillSeconds(Motion));
+        var now = Now;
+        var target = WeavingPaths.At(Motion, now);
         if (_glideFrom is not { } from)
         {
             return target;
         }
 
-        var progress = _glideStart is { } start ? (_seconds - start) / WeavingPaths.GlideDuration.TotalSeconds : 0;
+        _glideStart ??= now;
+        var progress = (now - _glideStart.Value) / WeavingPaths.GlideDuration.TotalSeconds;
         if (progress >= 1)
         {
             _glideFrom = null;
