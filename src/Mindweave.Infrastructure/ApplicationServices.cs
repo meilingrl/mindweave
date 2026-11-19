@@ -76,6 +76,12 @@ public static class ApplicationServices
         services.AddSingleton<Application.Tools.ITool, Application.Tools.FetchPageTool>(sp => new Application.Tools.FetchPageTool(sp.GetRequiredService<Application.Tools.IWebPageFetcher>()));
         services.AddSingleton<WebSearchSettingsService>();
         services.AddSingleton<IWebSearchSettings>(sp => sp.GetRequiredService<WebSearchSettingsService>());
+        services.TryAddSingleton(new Application.Tools.Mcp.McpOptions()); // Tests shorten the timings.
+        services.AddSingleton<Application.Tools.Mcp.McpServerSettings>();
+        services.AddSingleton<Application.Tools.Mcp.IMcpServers>(sp => sp.GetRequiredService<Application.Tools.Mcp.McpServerSettings>());
+        services.AddSingleton<Application.Tools.Mcp.McpServerManager>();
+        services.AddSingleton<Application.Tools.Mcp.IMcpConnections>(sp => sp.GetRequiredService<Application.Tools.Mcp.McpServerManager>());
+        services.AddSingleton<Application.Tools.IToolSource, Application.Tools.Mcp.McpToolSource>();
         services.AddSingleton<Application.Tools.ToolRegistry>();
         services.AddSingleton<ToolSettingsService>();
         services.AddSingleton<IToolSettings>(sp => sp.GetRequiredService<ToolSettingsService>());

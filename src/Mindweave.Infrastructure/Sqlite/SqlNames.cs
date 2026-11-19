@@ -321,6 +321,7 @@ internal static class SqlNames
         ResourceOrigin.Image => "image",
         ResourceOrigin.Tool => "tool",
         ResourceOrigin.Web => "web",
+        ResourceOrigin.Mcp => "mcp",
         _ => throw new ArgumentOutOfRangeException(nameof(origin)),
     };
 
@@ -331,6 +332,7 @@ internal static class SqlNames
         "image" => ResourceOrigin.Image,
         "tool" => ResourceOrigin.Tool,
         "web" => ResourceOrigin.Web,
+        "mcp" => ResourceOrigin.Mcp,
         _ => throw new InvalidDataException($"Unknown resource origin '{value}'."),
     };
 

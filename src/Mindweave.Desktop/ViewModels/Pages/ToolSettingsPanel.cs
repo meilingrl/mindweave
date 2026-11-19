@@ -17,11 +17,12 @@ public sealed partial class ToolSettingsPanel : ViewModelBase
     private readonly IModelSettings _models;
     private bool _loading = true;
 
-    public ToolSettingsPanel(IToolSettings settings, IModelSettings models, WebSearchSettingsPanel? web = null)
+    public ToolSettingsPanel(IToolSettings settings, IModelSettings models, WebSearchSettingsPanel? web = null, McpServersPanel? mcp = null)
     {
         _settings = settings;
         _models = models;
         Web = web;
+        Mcp = mcp;
         Loaded = LoadAsync();
     }
 
@@ -29,6 +30,11 @@ public sealed partial class ToolSettingsPanel : ViewModelBase
     public WebSearchSettingsPanel? Web { get; }
 
     public bool HasWeb => Web is not null;
+
+    /// <summary>设置 › 工具 › MCP 服务器 (requirements §10.4.6); null when the app has no third-party tools.</summary>
+    public McpServersPanel? Mcp { get; }
+
+    public bool HasMcp => Mcp is not null;
 
     /// <summary>Completes when the stored values are shown.</summary>
     public Task Loaded { get; private set; }
@@ -89,6 +95,11 @@ public sealed partial class ToolSettingsPanel : ViewModelBase
         {
             Web.IsAvailable = IsAvailable && UsesTools;
         }
+
+        if (Mcp is not null)
+        {
+            Mcp.IsAvailable = IsAvailable && UsesTools;
+        }
     }
 
     [RelayCommand]
@@ -127,6 +138,11 @@ public sealed partial class ToolSettingsPanel : ViewModelBase
         if (Web is not null)
         {
             Web.IsAvailable = IsAvailable && value;
+        }
+
+        if (Mcp is not null)
+        {
+            Mcp.IsAvailable = IsAvailable && value;
         }
 
         if (!_loading)

@@ -25,6 +25,12 @@ public sealed class ToolScope(WorkspaceId workspace, ConversationId conversation
     /// <summary>The run's web state when web search is on for it (phase 3); null otherwise, and the web tools are not offered.</summary>
     public WebRun? Web { get; init; }
 
+    /// <summary>
+    /// Whether the web search switch is not 关 for this question (phase 4, decision M8): third-party tools that read the
+    /// network are offered only then. True unless a caller says otherwise.
+    /// </summary>
+    public bool NetworkAllowed { get; init; } = true;
+
     public IReadOnlyCollection<ResourceId> Resources
     {
         get
@@ -71,6 +77,46 @@ public sealed record ToolOutput(string Text, string Detail, ResourceProvenance P
 
     /// <summary>Called with the stored result's ID (a web tool numbers its sources by it).</summary>
     public Action<ResourceId>? Stored { get; init; }
+
+    /// <summary>
+    /// Images that come with the result (phase 4, decision M15): each is stored as its own resource, and the marker
+    /// <c>[图片 n]</c> (1-based) in <see cref="Text"/> is replaced by its resource ID. They are not sent to the model.
+    /// </summary>
+    public IReadOnlyList<ToolImage> Images { get; init; } = [];
+
+    /// <summary>How the result is marked as material when sent to the model; null uses the web marking for external results.</summary>
+    public Func<string, string>? Wrap { get; init; }
+}
+
+/// <summary>An image a tool returned (phase 4), with its media type.</summary>
+public sealed record ToolImage(ReadOnlyMemory<byte> Data, string MediaType);
+
+/// <summary>
+/// A call that may have changed something outside failed in a way that leaves its outcome unknown (a side effect that timed
+/// out, or whose server went away while it ran; docs/design/mcp.md M17). The step is recorded as <c>unknown</c>; the message
+/// goes back to the model.
+/// </summary>
+public sealed class ToolOutcomeUnknownException : Exception
+{
+    public ToolOutcomeUnknownException()
+    {
+    }
+
+    public ToolOutcomeUnknownException(string message)
+        : base(message)
+    {
+    }
+
+    public ToolOutcomeUnknownException(string message, Exception innerException)
+        : base(message, innerException)
+    {
+    }
+}
+
+/// <summary>Tools that come and go with the user's settings (phase 4: third-party tools); asked each time a question is accepted.</summary>
+public interface IToolSource
+{
+    Task<IReadOnlyList<ITool>> ToolsAsync(CancellationToken cancellationToken);
 }
 
 /// <summary>
@@ -150,6 +196,22 @@ public interface ITool
 
     /// <summary>The host an outside request of this call goes to, for step details and statistics; null for a local tool.</summary>
     string? TargetOf(JsonElement arguments) => null;
+
+    /// <summary>
+    /// Checks, before the user is asked to approve a call, that it can run at all (phase 4: the server starts and still
+    /// offers the tool as it was enabled, decision M6). Throws <see cref="ToolFailureException"/> with the reason; the call
+    /// then fails without a card.
+    /// </summary>
+    Task PrepareAsync(ToolScope scope, CancellationToken cancellationToken) => Task.CompletedTask;
+
+    /// <summary>The card for a call that needs approval; <paramref name="asks"/> is what <see cref="ApprovalFor"/> gave.</summary>
+    Conversations.PendingApproval DescribeApproval(string callId, string asks) => new(callId, Name, asks);
+
+    /// <summary>What the model is told when the user refused a call.</summary>
+    string DeniedResult => WebMaterial.DeniedResult;
+
+    /// <summary>The step's account of a refused call.</summary>
+    string DeniedDetail => "你拒绝了读取";
 }
 
 /// <summary>Helpers for tools' arguments and definitions.</summary>

@@ -20,6 +20,12 @@ public enum ResourceOrigin
     /// <see cref="ResourceProvenance.External"/>, a page with its final address as <see cref="Resource.SourceUrl"/>.
     /// </summary>
     Web,
+
+    /// <summary>
+    /// Output of a third-party (MCP) tool (phase 4, docs/design/mcp.md M15): its text, or an image it returned; always
+    /// <see cref="ResourceProvenance.External"/>.
+    /// </summary>
+    Mcp,
 }
 
 /// <summary>

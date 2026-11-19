@@ -14,5 +14,7 @@
     <ProjectReference Include="..\..\src\Mindweave.Infrastructure\Mindweave.Infrastructure.csproj" />
     <ProjectReference Include="..\Mindweave.TestHost\Mindweave.TestHost.csproj" />
     <ProjectReference Include="..\Mindweave.Testing\Mindweave.Testing.csproj" />
+    <!-- The fake MCP server (phase 4): run as a process from the output folder, or hosted over HTTP in the test. -->
+    <ProjectReference Include="..\Mindweave.FakeMcpServer\Mindweave.FakeMcpServer.csproj" />
   </ItemGroup>
 </Project>

@@ -35,8 +35,11 @@ public sealed record ToolUsage(int Runs, int ModelRequests, IReadOnlyList<ToolCa
     public double RequestsPerRun => Runs == 0 ? 0 : (double)ModelRequests / Runs;
 }
 
-/// <summary>One tool's calls in a window, by its name.</summary>
-public sealed record ToolCallCount(string Tool, int Calls);
+/// <summary>
+/// One tool's calls in a window, by its name; for a third-party tool also its server's name (phase 4, decision M18: the
+/// steps' <c>target</c>), so the same tool of two servers counts apart.
+/// </summary>
+public sealed record ToolCallCount(string Tool, int Calls, string? Server = null);
 
 /// <summary>
 /// Aggregate reads for the statistics page (2026-11-12): sums and counts computed by the database, never whole tables

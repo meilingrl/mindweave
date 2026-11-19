@@ -186,6 +186,179 @@
           </Grid>
         </Border>
       </StackPanel>
+      <!-- 设置 › 工具 › MCP 服务器 (requirements §10.4.6): add with a confirmation of what runs, each server's state, its tools
+           off until enabled, each enabled tool's risk. -->
+      <StackPanel Name="McpSection" DataContext="{Binding Tools.Mcp}" x:DataType="vm:McpServersPanel"
+                  IsVisible="{Binding $parent[StackPanel].((vm:SettingsHomeViewModel)DataContext).Tools.HasMcp, FallbackValue=False}">
+        <TextBlock Name="McpHeading" FontWeight="SemiBold" FontSize="14" Margin="2,18,0,2" Text="{x:Static t:UiText.McpSettingsTitle}" />
+        <TextBlock Classes="caption" Margin="2,0,0,10" TextWrapping="Wrap" Text="{x:Static t:UiText.McpSettingsIntro}" />
+        <Border Classes="card settings">
+          <StackPanel Spacing="12" IsEnabled="{Binding IsAvailable}">
+            <TextBlock Name="McpNoServers" Classes="caption" Text="{x:Static t:UiText.McpNoServers}" IsVisible="{Binding !HasServers}" />
+            <ItemsControl Name="McpServerList" ItemsSource="{Binding Servers}">
+              <ItemsControl.ItemTemplate>
+                <DataTemplate x:DataType="vm:McpServerItem">
+                  <Border Classes="mcp-server">
+                    <StackPanel Spacing="6">
+                      <DockPanel>
+                        <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" Spacing="4" VerticalAlignment="Top">
+                          <Button Name="McpStart" Classes="secondary small" Content="{Binding StartLabel}" Command="{Binding StartCommand}" />
+                          <Button Name="McpStop" Classes="quiet small" Content="{x:Static t:UiText.McpStop}" Command="{Binding StopCommand}" />
+                          <Button Name="McpRemove" Classes="quiet small" Content="{x:Static t:UiText.McpRemove}" Command="{Binding AskRemoveCommand}" />
+                        </StackPanel>
+                        <StackPanel Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
+                          <TextBlock Name="McpServerName" FontWeight="SemiBold" Text="{Binding Name}" VerticalAlignment="Center" />
+                          <Border Classes="badge"><TextBlock Text="{Binding Kind}" /></Border>
+                          <TextBlock Name="McpServerState" Classes="caption" Classes.error="{Binding IsProblem}" Text="{Binding StateText}" VerticalAlignment="Center" />
+                        </StackPanel>
+                      </DockPanel>
+                      <SelectableTextBlock Name="McpServerTarget" Classes="address muted" Text="{Binding Target}" TextWrapping="Wrap" />
+                      <SelectableTextBlock Name="McpServerError" Classes="error" FontSize="12" Text="{Binding Error}" TextWrapping="Wrap" IsVisible="{Binding HasError}" />
+                      <StackPanel Spacing="2" IsVisible="{Binding HasStandardError}">
+                        <TextBlock Classes="caption" Text="{x:Static t:UiText.McpStandardError}" />
+                        <Border Classes="arguments">
+                          <SelectableTextBlock Name="McpServerOutput" Classes="arguments" Text="{Binding StandardError}" TextWrapping="Wrap" MaxHeight="120" />
+                        </Border>
+                      </StackPanel>
+                      <Border Classes="notice warning" IsVisible="{Binding IsConfirmingRemove}">
+                        <StackPanel Spacing="6">
+                          <TextBlock TextWrapping="Wrap" Text="{x:Static t:UiText.McpRemoveHint}" />
+                          <StackPanel Orientation="Horizontal" Spacing="8">
+                            <Button Name="McpRemoveConfirm" Classes="danger small" Content="{x:Static t:UiText.McpRemoveConfirm}" Command="{Binding RemoveCommand}" />
+                            <Button Classes="quiet small" Content="{x:Static t:UiText.McpCancel}" Command="{Binding CancelRemoveCommand}" />
+                          </StackPanel>
+                        </StackPanel>
+                      </Border>
+                      <!-- A server's tools (2026-11-19): expanded in a scroll area with a filter, or only the enabled ones. -->
+                      <DockPanel Margin="0,4,0,0">
+                        <Button DockPanel.Dock="Right" Name="McpToolsToggle" Classes="quiet small" Command="{Binding ToggleToolsCommand}"
+                                IsVisible="{Binding HasToggle}">
+                          <StackPanel Orientation="Horizontal" Spacing="4">
+                            <TextBlock Text="{Binding ToggleLabel}" VerticalAlignment="Center" />
+                            <PathIcon Classes="mcp-tools-chevron" Classes.expanded="{Binding IsExpanded}" Data="{StaticResource IconChevronDown}" />
+                          </StackPanel>
+                        </Button>
+                        <StackPanel Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
+                          <TextBlock Classes="caption" FontWeight="SemiBold" Text="{x:Static t:UiText.McpToolsHeading}" />
+                          <TextBlock Name="McpToolCount" Classes="caption" Text="{Binding ToolCount}" />
+                        </StackPanel>
+                      </DockPanel>
+                      <TextBox Name="McpToolFilter" Width="240" HorizontalAlignment="Left" Text="{Binding Filter}"
+                               PlaceholderText="{x:Static t:UiText.McpToolsFilterPlaceholder}" IsVisible="{Binding ShowsFilter}"
+                               AutomationProperties.Name="{x:Static t:UiText.McpToolsFilterPlaceholder}" />
+                      <TextBlock Classes="caption" Text="{x:Static t:UiText.McpToolsNotListed}" IsVisible="{Binding HasNoListing}" />
+                      <TextBlock Name="McpToolsEmpty" Classes="caption" Text="{Binding EmptyNote}" IsVisible="{Binding HasEmptyNote}" />
+                      <ScrollViewer Name="McpToolScroll" MaxHeight="360" HorizontalScrollBarVisibility="Disabled" VerticalScrollBarVisibility="Auto">
+                      <ItemsControl Name="McpToolList" ItemsSource="{Binding VisibleTools}">
+                        <ItemsControl.ItemTemplate>
+                          <DataTemplate x:DataType="vm:McpToolItem">
+                            <Grid ColumnDefinitions="Auto,*,Auto" Margin="0,4">
+                              <CheckBox Name="McpToolToggle" VerticalAlignment="Top" IsChecked="{Binding IsOn}" AutomationProperties.Name="{Binding Name}"
+                                        ToolTip.Tip="{x:Static t:UiText.McpEnableTool}" />
+                              <StackPanel Grid.Column="1" Spacing="2" Margin="2,4,12,0">
+                                <StackPanel Orientation="Horizontal" Spacing="6">
+                                  <TextBlock Name="McpToolName" Classes="address" Text="{Binding Name}" VerticalAlignment="Center" />
+                                  <Border Classes="badge" IsVisible="{Binding DeclaresReadOnly}"><TextBlock Text="{x:Static t:UiText.McpDeclaresReadOnly}" /></Border>
+                                </StackPanel>
+                                <TextBlock Classes="caption" Text="{Binding Description}" TextWrapping="Wrap" MaxLines="2" TextTrimming="CharacterEllipsis"
+                                           IsVisible="{Binding HasDescription}" ToolTip.Tip="{Binding Description}" />
+                                <TextBlock Name="McpToolDisabledReason" Classes="caption warning" FontSize="12" Text="{Binding DisabledReason}" TextWrapping="Wrap"
+                                           IsVisible="{Binding HasDisabledReason}" />
+                              </StackPanel>
+                              <ComboBox Grid.Column="2" Name="McpToolRisk" Classes="settings" Width="200" VerticalAlignment="Top"
+                                        ItemsSource="{x:Static vm:McpToolItem.Risks}" SelectedIndex="{Binding RiskIndex}" IsVisible="{Binding IsOn}"
+                                        AutomationProperties.Name="{x:Static t:UiText.McpRiskLabel}" />
+                            </Grid>
+                          </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                      </ItemsControl>
+                      </ScrollViewer>
+                    </StackPanel>
+                  </Border>
+                </DataTemplate>
+              </ItemsControl.ItemTemplate>
+            </ItemsControl>
+
+            <Button Name="McpAdd" Classes="secondary" HorizontalAlignment="Left" Content="{x:Static t:UiText.McpAdd}" Command="{Binding StartAddCommand}"
+                    IsVisible="{Binding IsIdle}" />
+
+            <!-- 添加: the form. -->
+            <Grid Name="McpAddForm" ColumnDefinitions="96,*" RowDefinitions="Auto,Auto,Auto,Auto,Auto,Auto,Auto" IsVisible="{Binding IsAdding}">
+              <StackPanel Grid.ColumnSpan="2" Orientation="Horizontal" Spacing="16" Margin="0,0,0,10">
+                <RadioButton Name="McpKindCommand" GroupName="McpKind" Content="{x:Static t:UiText.McpKindCommand}" IsChecked="{Binding IsCommand}" />
+                <RadioButton Name="McpKindHttp" GroupName="McpKind" Content="{x:Static t:UiText.McpKindHttp}" IsChecked="{Binding IsHttp}" />
+              </StackPanel>
+              <TextBlock Grid.Row="1" Classes="field-label" Text="{x:Static t:UiText.McpName}" />
+              <TextBox Grid.Row="1" Grid.Column="1" Name="McpNewName" Text="{Binding NewName}" PlaceholderText="{x:Static t:UiText.McpNamePlaceholder}"
+                       AutomationProperties.Name="{x:Static t:UiText.McpName}" />
+              <TextBlock Grid.Row="2" Classes="field-label" Margin="0,10,0,0" Text="{x:Static t:UiText.McpCommand}" IsVisible="{Binding IsCommand}" />
+              <TextBox Grid.Row="2" Grid.Column="1" Name="McpNewCommand" Margin="0,10,0,0" Classes="mono" Text="{Binding NewCommand}"
+                       PlaceholderText="{x:Static t:UiText.McpCommandPlaceholder}" IsVisible="{Binding IsCommand}" AutomationProperties.Name="{x:Static t:UiText.McpCommand}" />
+              <TextBlock Grid.Row="3" Classes="field-label" Margin="0,10,0,0" VerticalAlignment="Top" Text="{x:Static t:UiText.McpArguments}" IsVisible="{Binding IsCommand}" />
+              <StackPanel Grid.Row="3" Grid.Column="1" Margin="0,10,0,0" Spacing="4" IsVisible="{Binding IsCommand}">
+                <TextBox Name="McpNewArguments" Classes="mono" AcceptsReturn="True" TextWrapping="Wrap" MinHeight="64" Text="{Binding NewArguments}"
+                         AutomationProperties.Name="{x:Static t:UiText.McpArguments}" />
+                <TextBlock Classes="caption" TextWrapping="Wrap" Text="{x:Static t:UiText.McpArgumentsHint}" />
+              </StackPanel>
+              <TextBlock Grid.Row="4" Classes="field-label" Margin="0,10,0,0" VerticalAlignment="Top" Text="{x:Static t:UiText.McpEnvironment}" IsVisible="{Binding IsCommand}" />
+              <StackPanel Grid.Row="4" Grid.Column="1" Margin="0,10,0,0" Spacing="4" IsVisible="{Binding IsCommand}">
+                <TextBox Name="McpNewEnvironment" Classes="mono" AcceptsReturn="True" TextWrapping="Wrap" MinHeight="48" Text="{Binding NewEnvironment}"
+                         AutomationProperties.Name="{x:Static t:UiText.McpEnvironment}" />
+                <TextBlock Classes="caption" TextWrapping="Wrap" Text="{x:Static t:UiText.McpEnvironmentHint}" />
+              </StackPanel>
+              <TextBlock Grid.Row="2" Classes="field-label" Margin="0,10,0,0" Text="{x:Static t:UiText.McpUrl}" IsVisible="{Binding IsHttp}" />
+              <TextBox Grid.Row="2" Grid.Column="1" Name="McpNewUrl" Margin="0,10,0,0" Classes="mono" Text="{Binding NewUrl}"
+                       PlaceholderText="{x:Static t:UiText.McpUrlPlaceholder}" IsVisible="{Binding IsHttp}" AutomationProperties.Name="{x:Static t:UiText.McpUrl}" />
+              <TextBlock Grid.Row="3" Classes="field-label" Margin="0,10,0,0" VerticalAlignment="Top" Text="{x:Static t:UiText.McpHeaderName}" IsVisible="{Binding IsHttp}" />
+              <StackPanel Grid.Row="3" Grid.Column="1" Margin="0,10,0,0" Spacing="6" IsVisible="{Binding IsHttp}">
+                <StackPanel Orientation="Horizontal" Spacing="8">
+                  <TextBox Name="McpNewHeaderName" Width="200" Text="{Binding NewHeaderName}" PlaceholderText="{x:Static t:UiText.McpHeaderNamePlaceholder}"
+                           AutomationProperties.Name="{x:Static t:UiText.McpHeaderName}" />
+                  <TextBox Name="McpNewHeaderValue" Width="240" PasswordChar="•" Text="{Binding NewHeaderValue}" PlaceholderText="{x:Static t:UiText.McpHeaderValuePlaceholder}" />
+                </StackPanel>
+                <TextBlock Classes="caption" TextWrapping="Wrap" Text="{x:Static t:UiText.McpOAuthNote}" />
+              </StackPanel>
+              <StackPanel Grid.Row="6" Grid.Column="1" Orientation="Horizontal" Spacing="8" Margin="0,14,0,0">
+                <Button Name="McpReview" Classes="primary" Content="{x:Static t:UiText.McpReview}" Command="{Binding ReviewCommand}" />
+                <Button Classes="quiet" Content="{x:Static t:UiText.McpCancel}" Command="{Binding CancelAddCommand}" />
+              </StackPanel>
+            </Grid>
+
+            <!-- 确认: exactly what will run, or which address (requirements §10.4.6). -->
+            <Border Name="McpConfirm" Classes="notice warning" IsVisible="{Binding IsConfirming}">
+              <StackPanel Spacing="8">
+                <TextBlock FontWeight="SemiBold" Text="{x:Static t:UiText.McpConfirmTitle}" />
+                <StackPanel Spacing="8" IsVisible="{Binding PreviewIsCommand}">
+                  <TextBlock Classes="caption" Text="{x:Static t:UiText.McpConfirmCommand}" />
+                  <Border Classes="arguments">
+                    <SelectableTextBlock Name="McpConfirmCommandLine" Classes="arguments" Text="{Binding PreviewCommandLines}" TextWrapping="Wrap" />
+                  </Border>
+                  <TextBlock Classes="caption" Text="{x:Static t:UiText.McpConfirmFolder}" />
+                  <SelectableTextBlock Name="McpConfirmFolder" Classes="address" Text="{Binding Preview.WorkingDirectory}" TextWrapping="Wrap" />
+                  <TextBlock Classes="caption" Text="{x:Static t:UiText.McpConfirmEnvironment}" />
+                  <SelectableTextBlock Name="McpConfirmEnvironment" Classes="address" Text="{Binding PreviewEnvironment}" TextWrapping="Wrap" />
+                </StackPanel>
+                <StackPanel Spacing="8" IsVisible="{Binding !PreviewIsCommand}">
+                  <TextBlock Classes="caption" Text="{x:Static t:UiText.McpConfirmUrl}" />
+                  <SelectableTextBlock Name="McpConfirmUrl" Classes="address" Text="{Binding Preview.Url}" TextWrapping="Wrap" />
+                  <TextBlock Classes="caption" Text="{x:Static t:UiText.McpConfirmHeader}" />
+                  <SelectableTextBlock Name="McpConfirmHeader" Classes="address" Text="{Binding PreviewHeader}" TextWrapping="Wrap" />
+                </StackPanel>
+                <TextBlock Classes="caption" TextWrapping="Wrap" Text="{x:Static t:UiText.McpConfirmNote}" />
+                <StackPanel Orientation="Horizontal" Spacing="8">
+                  <Button Name="McpConfirmAdd" Classes="primary" Content="{x:Static t:UiText.McpConfirm}" Command="{Binding ConfirmCommand}" />
+                  <Button Classes="secondary" Content="{x:Static t:UiText.McpBack}" Command="{Binding BackToFormCommand}" />
+                  <Button Classes="quiet" Content="{x:Static t:UiText.McpCancel}" Command="{Binding CancelAddCommand}" />
+                </StackPanel>
+              </StackPanel>
+            </Border>
+
+            <TextBlock Name="McpStatus" v:Motion.Appear="Fade" FontSize="12" TextWrapping="Wrap"
+                       Classes.muted="{Binding !StatusIsError}" Classes.error="{Binding StatusIsError}"
+                       Text="{Binding Status}" IsVisible="{Binding Status, Converter={x:Static ObjectConverters.IsNotNull}}" />
+          </StackPanel>
+        </Border>
+      </StackPanel>
     </StackPanel>
 
     <!-- 数据 -->

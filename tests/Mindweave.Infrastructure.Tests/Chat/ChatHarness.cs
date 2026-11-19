@@ -160,6 +160,20 @@ internal sealed class ChatHarness : IAsyncDisposable
     /// <summary>设置 › 工具.</summary>
     public Application.Preferences.IToolSettings ToolSettings => _services.GetRequiredService<Application.Preferences.IToolSettings>();
 
+    /// <summary>设置 › 工具 › MCP 服务器 (phase 4).</summary>
+    public Application.Tools.Mcp.IMcpServers Mcp => _services.GetRequiredService<Application.Tools.Mcp.IMcpServers>();
+
+    /// <summary>The third-party servers' connections (phase 4); closed when the harness is.</summary>
+    public Application.Tools.Mcp.McpServerManager McpServers => _services.GetRequiredService<Application.Tools.Mcp.McpServerManager>();
+
+    /// <summary>Short timings for third-party servers: a call times out after 3 s, an exit is retried at once.</summary>
+    public static Application.Tools.Mcp.McpOptions TestMcpOptions { get; } = new()
+    {
+        StartTimeout = TimeSpan.FromSeconds(20),
+        CallTimeout = TimeSpan.FromSeconds(3),
+        Backoff = [TimeSpan.Zero],
+    };
+
     public global::Mindweave.Infrastructure.Resources.FileResourceBlobStore Blobs => _services.GetRequiredService<global::Mindweave.Infrastructure.Resources.FileResourceBlobStore>();
 
     public AppPaths Paths => _dir.Paths;
@@ -390,6 +404,7 @@ internal sealed class ChatHarness : IAsyncDisposable
         services.AddSingleton<Application.Tools.ISearchProvider>(Search);
         services.AddSingleton<Application.Tools.IWebPageFetcher>(Pages);
         services.AddSingleton(new StorageHealthOptions { RetryInterval = storageRetry ?? TimeSpan.FromMilliseconds(50) });
+        services.AddSingleton(TestMcpOptions);
 
         // The background's 30 s wait runs on a clock that stands still unless a test moves it.
         services.AddSingleton(new Application.Workspaces.WorkspaceNamePreparationOptions { Time = PreparationTime });
@@ -438,6 +453,7 @@ internal sealed class ChatHarness : IAsyncDisposable
     public async ValueTask DisposeAsync()
     {
         await Generation.DisposeAsync();
+        await McpServers.DisposeAsync();
         await Health.StopAsync();
         await Reading.FlushAsync();
         Reading.Dispose();

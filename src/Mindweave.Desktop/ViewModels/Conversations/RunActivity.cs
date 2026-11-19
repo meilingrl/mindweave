@@ -39,7 +39,7 @@ public sealed record RunStepItem(string Title, string Outcome, string Meta, bool
             {
                 ToolResultStatus.Succeeded => UiText.RunStepDone,
                 ToolResultStatus.Skipped => UiText.RunStepSkipped,
-                ToolResultStatus.Failed => UiText.RunStepFailed,
+                ToolResultStatus.Failed => step?.State == RunStepState.Unknown ? UiText.RunStepUnknown : UiText.RunStepFailed,
                 ToolResultStatus.Denied => UiText.RunStepDenied,
                 _ when running => UiText.RunStepRunning,
                 _ => step?.State == RunStepState.Unknown ? UiText.RunStepUnknown
@@ -49,6 +49,12 @@ public sealed record RunStepItem(string Title, string Outcome, string Meta, bool
             var outcome = result is null ? string.Empty
                 : result.Status == ToolResultStatus.Succeeded ? result.Detail ?? string.Empty
                 : result.Preview;
+            if (step?.Approval == Approval.Approved)
+            {
+                // A call the user allowed says so (requirements §10.4.6).
+                state += " · " + UiText.RunStepApproved;
+            }
+
             var meta = step?.Duration is { } took ? $"{UiText.StepDuration(took)} · {state}" : state;
             var links = new List<RunStepLink>();
             if (result?.Resource is { } stored && openResult is not null)

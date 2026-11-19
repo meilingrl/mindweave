@@ -319,9 +319,48 @@ internal sealed partial class AnswerRunner
 
         // Q10 (decision W10): a call the user must allow waits for the card, without its slot and without counting time.
         var asks = tool is not null && parsed && !withdrawn.Contains(tool.Name) ? tool.ApprovalFor(run.Scope, arguments) : null;
+        string? unprepared = null;
         if (asks is not null)
         {
-            var decided = await AwaitApprovalAsync(work, services, step, call, asks, elapsed, stop).ConfigureAwait(false);
+            // Nobody is asked to approve a call that cannot run (decision M6: a changed tool, a server that does not start).
+            using var preparing = new CancellationTokenSource(tool!.Timeout);
+            using var either = CancellationTokenSource.CreateLinkedTokenSource(stop, preparing.Token);
+            try
+            {
+                await tool.PrepareAsync(run.Scope, either.Token).ConfigureAwait(false);
+            }
+            catch (OperationCanceledException) when (stop.IsCancellationRequested)
+            {
+                live.EndTool();
+                var stoppedStep = step with { State = RunStepState.Stopped, FinishedAt = _clock.UtcNow };
+                await _writes.SaveAsync(() => services.Store.FinishStepAsync(stoppedStep, live.MessageId, null, 0, CancellationToken.None)).ConfigureAwait(false);
+                return new ToolOutcome(string.Empty, string.Empty, new RunEnding(MessageState.Stopped, null, null));
+            }
+            catch (OperationCanceledException) when (preparing.IsCancellationRequested)
+            {
+                unprepared = string.Create(CultureInfo.InvariantCulture, $"超时（{tool.Timeout.TotalSeconds:0} 秒内没有准备好）。");
+            }
+            catch (ToolFailureException ex)
+            {
+                unprepared = ex.Message;
+            }
+#pragma warning disable CA1031 // As for execution: a tool's failure is handed back to the model.
+            catch (Exception ex)
+#pragma warning restore CA1031
+            {
+                LogToolFailed(_logger, ex, call.Name);
+                unprepared = "工具出错：" + ex.Message;
+            }
+
+            if (unprepared is not null)
+            {
+                asks = null;
+            }
+        }
+
+        if (asks is not null)
+        {
+            var decided = await AwaitApprovalAsync(work, services, step, tool!.DescribeApproval(call.Id, asks), elapsed, stop).ConfigureAwait(false);
             if (decided is null)
             {
                 return new ToolOutcome(string.Empty, string.Empty, new RunEnding(MessageState.Stopped, null, null));
@@ -330,16 +369,17 @@ internal sealed partial class AnswerRunner
             step = step with { Approval = decided.Value ? Approval.Approved : Approval.Denied };
             if (!decided.Value)
             {
-                var refused = new ToolResultBlock(call.Id, ToolResultStatus.Denied, DeniedResult, null, "你拒绝了读取");
+                var refused = new ToolResultBlock(call.Id, ToolResultStatus.Denied, tool.DeniedResult, null, tool.DeniedDetail);
                 live.AddToolResult(refused);
                 var shot = live.Snapshot();
                 var deniedStep = step with { State = RunStepState.Denied, FinishedAt = _clock.UtcNow };
                 await _writes.SaveAsync(() => services.Store.FinishStepAsync(deniedStep, live.MessageId, shot.Blocks, shot.Revision, CancellationToken.None)).ConfigureAwait(false);
-                return new ToolOutcome(DeniedResult, $"（较早的工具调用：{call.Name} {input}，用户拒绝。）", null);
+                return new ToolOutcome(tool.DeniedResult, $"（较早的工具调用：{call.Name} {input}，用户拒绝。）", null);
             }
         }
 
         string? failure = null;
+        var unknown = false;
         var failureKind = GenerationErrorKind.InvalidResponse;
         ToolOutput? output = null;
         if (tool is null)
@@ -353,6 +393,10 @@ internal sealed partial class AnswerRunner
         else if (!parsed)
         {
             failure = "参数不是合法的 JSON 对象，请按工具的输入格式重新给出。";
+        }
+        else if (unprepared is not null)
+        {
+            failure = unprepared;
         }
         else
         {
@@ -382,6 +426,12 @@ internal sealed partial class AnswerRunner
             {
                 failure = ex.Message;
             }
+            catch (ToolOutcomeUnknownException ex)
+            {
+                // A side effect whose outcome is not known (decision M17): never pretended not to have run.
+                failure = ex.Message;
+                unknown = true;
+            }
             catch (StorageWriteException ex)
             {
                 failure = "读取本地数据失败：" + ex.Message;
@@ -396,11 +446,12 @@ internal sealed partial class AnswerRunner
         }
 
         ResourceId? stored = null;
+        var resultText = output?.Text ?? string.Empty;
         if (output is not null)
         {
             try
             {
-                stored = await services.StoreResultAsync(run.Scope, $"{tool!.DisplayName}：{input}".TrimEnd('：'), output, CancellationToken.None).ConfigureAwait(false);
+                (stored, resultText) = await services.StoreResultAsync(run.Scope, $"{tool!.DisplayName}：{input}".TrimEnd('：'), output, CancellationToken.None).ConfigureAwait(false);
             }
             catch (StorageWriteException ex)
             {
@@ -416,15 +467,20 @@ internal sealed partial class AnswerRunner
         if (output is not null && stored is { } id)
         {
             failures[call.Name] = 0;
-            content = TokenEstimator.Estimate(output.Text) <= ToolResultTokens
-                ? output.Text
-                : Start(output.Text, ToolResultTokens) + $"\n\n（结果较长，以上只是开头。完整结果是资源 {id}，可用 {SearchAttachmentsTool.ToolName} 的 resource 与 part 读取。）";
-            if (output.Provenance == ResourceProvenance.External)
+            content = TokenEstimator.Estimate(resultText) <= ToolResultTokens
+                ? resultText
+                : Start(resultText, ToolResultTokens) + $"\n\n（结果较长，以上只是开头。完整结果是资源 {id}，可用 {SearchAttachmentsTool.ToolName} 的 resource 与 part 读取。）";
+            if (output.Wrap is { } wrap)
+            {
+                // A third-party tool's output is material, never an instruction (decision M15).
+                content = wrap(content);
+            }
+            else if (output.Provenance == ResourceProvenance.External)
             {
                 // Outside material is never an instruction (architecture §15.8, decision W11).
                 content = WebMaterial.Wrap(content);
             }
-            block = new ToolResultBlock(call.Id, ToolResultStatus.Succeeded, Preview(output.Text), id, output.Detail, output.Findings);
+            block = new ToolResultBlock(call.Id, ToolResultStatus.Succeeded, Preview(resultText), id, output.Detail, output.Findings);
         }
         else
         {
@@ -436,14 +492,14 @@ internal sealed partial class AnswerRunner
             }
 
             content = "出错：" + failure;
-            block = new ToolResultBlock(call.Id, ToolResultStatus.Failed, failure, null, failureKind == GenerationErrorKind.Timeout ? "超时" : "出错");
+            block = new ToolResultBlock(call.Id, ToolResultStatus.Failed, failure, null, unknown ? "结果未知" : failureKind == GenerationErrorKind.Timeout ? "超时" : "出错");
         }
 
         live.AddToolResult(block);
         var snapshot = live.Snapshot();
         var finished = step with
         {
-            State = output is not null ? RunStepState.Completed : RunStepState.Failed,
+            State = output is not null ? RunStepState.Completed : unknown ? RunStepState.Unknown : RunStepState.Failed,
             FinishedAt = _clock.UtcNow,
             Result = stored,
             ErrorKind = output is not null ? null : failureKind,
@@ -459,11 +515,11 @@ internal sealed partial class AnswerRunner
     /// its slot up, and the wait does not count towards its duration. Returns the decision, or null when the run was stopped
     /// meanwhile (the step is then recorded as stopped and the card withdrawn).
     /// </summary>
-    private async Task<bool?> AwaitApprovalAsync(AnswerWork work, RunServices services, RunStepRecord step, ChatToolCall call, string asks, Stopwatch elapsed, CancellationToken stop)
+    private async Task<bool?> AwaitApprovalAsync(AnswerWork work, RunServices services, RunStepRecord step, PendingApproval card, Stopwatch elapsed, CancellationToken stop)
     {
         var live = work.Live;
         await _writes.SaveAsync(() => Done(services.Store.SetApprovalAsync(step.Task, step.Ordinal, RunStepState.AwaitingApproval, Approval.Pending, CancellationToken.None))).ConfigureAwait(false);
-        var decision = live.RequestApproval(new PendingApproval(call.Id, call.Name, asks));
+        var decision = live.RequestApproval(card);
         elapsed.Stop();
         Slots?.Release(work.Task.Id);
         try

@@ -261,5 +261,17 @@ public sealed record LiveAnswerSnapshot(string Text, long Revision, MessageState
         : [new TextBlock(Text), .. ToolBlocks, .. Citations];
 }
 
-/// <summary>A tool call waiting for approval: the call, the tool, and what is asked (for 取网页, the full address).</summary>
-public sealed record PendingApproval(string CallId, string Tool, string Target);
+/// <summary>
+/// A tool call waiting for approval: the call, the tool, and what is asked (for 取网页, the full address; for a third-party
+/// tool, its arguments as formatted JSON, with <see cref="Server"/> and the tool's own name in <see cref="ToolTitle"/>).
+/// </summary>
+public sealed record PendingApproval(string CallId, string Tool, string Target)
+{
+    /// <summary>The third-party server the call goes to (phase 4); null for a built-in tool.</summary>
+    public string? Server { get; init; }
+
+    /// <summary>The tool's name at its server (phase 4).</summary>
+    public string? ToolTitle { get; init; }
+
+    public bool IsThirdParty => Server is not null;
+}

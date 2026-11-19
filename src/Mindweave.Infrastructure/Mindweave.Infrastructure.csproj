@@ -14,6 +14,8 @@
     <PackageReference Include="PdfPig" />
     <!-- Image probing and scaling; the same version Avalonia.Skia brings to the desktop app. -->
     <PackageReference Include="SkiaSharp" />
+    <!-- The MCP client (architecture §15.14); only here, behind IMcpConnector. -->
+    <PackageReference Include="ModelContextProtocol.Core" />
   </ItemGroup>
   <ItemGroup>
     <InternalsVisibleTo Include="Mindweave.Infrastructure.Tests" />
