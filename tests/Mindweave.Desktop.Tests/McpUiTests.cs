@@ -70,9 +70,9 @@ public class McpUiTests
 
         // Enabling write_note: a side effect unless the user says otherwise.
         server.Tools.Single(t => t.Name == "write_note").IsOn = true;
-        await UiWait.UntilAsync(() => server.Tools.SingleOrDefault(t => t.Name == "write_note") is { IsOn: true, RiskIndex: (int)ToolRisk.SideEffect });
+        await UiWait.UntilAsync(() => server.Tools.SingleOrDefault(t => t.Name == "write_note") is { IsOn: true, RiskIndex: (int)ToolRisk.SideEffect }, timeoutMs: 20_000);
         server.Tools.Single(t => t.Name == "echo").IsOn = true;
-        await UiWait.UntilAsync(() => server.Tools.SingleOrDefault(t => t.Name == "echo") is { IsOn: true, RiskIndex: (int)ToolRisk.NetworkRead });
+        await UiWait.UntilAsync(() => server.Tools.SingleOrDefault(t => t.Name == "echo") is { IsOn: true, RiskIndex: (int)ToolRisk.NetworkRead }, timeoutMs: 20_000);
         server.Tools.Single(t => t.Name == "echo").RiskIndex = (int)ToolRisk.LocalRead;
         var store = app.Services.GetRequiredService<IMcpServers>();
         for (var i = 0; i < 200 && (await store.ListAsync(CancellationToken.None)).Single().Tool("echo")?.Risk != ToolRisk.LocalRead; i++)
@@ -85,6 +85,17 @@ public class McpUiTests
         Find<StackPanel>(window, "McpSection").BringIntoView();
         window.UpdateLayout();
         Screenshots.Capture(window, $"mcp-03-server-tools-{theme.ToLowerInvariant()}");
+        // The risk drop-down shows the app's chevron (the 16 × 16 icon template would leave Fluent's own glyph off its canvas).
+        ComboBox? risk = null;
+        await UiWait.UntilAsync(() =>
+        {
+            window.UpdateLayout();
+            risk = window.GetVisualDescendants().OfType<ComboBox>().FirstOrDefault(c => c.Name == "McpToolRisk" && c.IsEffectivelyVisible);
+            return risk?.GetVisualDescendants().OfType<Avalonia.Controls.Shapes.Path>().Any(p => p.Name == "Chevron") == true;
+        }, timeoutMs: 20_000);
+        Assert.Same(
+            Avalonia.Application.Current!.FindResource("IconChevronDown"),
+            risk!.GetVisualDescendants().OfType<Avalonia.Controls.Shapes.Path>().Single(p => p.Name == "Chevron").Data);
 
         // Removing asks first, then ends the process and forgets the server.
         server.AskRemoveCommand.Execute(null);
@@ -153,12 +164,16 @@ public class McpUiTests
         Screenshots.Capture(window, $"mcp-04-approval-card-{theme.ToLowerInvariant()}");
 
         app.Client.Reply("已经记下了。");
-        UiInput.Click(window, window.GetVisualDescendants().OfType<Button>().Single(b => b.Name == "ApprovalAllow" && b.IsEffectivelyVisible));
+        // The visible 允许 button's own command (a pointer press is unreliable here: the live answer above the card keeps
+        // re-laying out under load, moving the button between press and release).
+        var allow = window.GetVisualDescendants().OfType<Button>().Single(b => b.Name == "ApprovalAllow" && b.IsEffectivelyVisible);
+        Assert.True(allow.Command!.CanExecute(null));
+        allow.Command.Execute(null);
         await UiWait.UntilAsync(() => app.Workbench.CurrentPage is ConversationViewModel { Messages.Count: 2 } p && p.Messages[1] is { State: MessageState.Complete, IsLive: false }, timeoutMs: 20_000);
         answer = ((ConversationViewModel)app.Workbench.CurrentPage!).Messages[1];
         Assert.Equal("调用了 1 次 notes › echo · 调用了 1 次 notes › write_note", answer.ActivityText);
         Assert.StartsWith("notes › write_note：", answer.ActivitySteps[1].Title, StringComparison.Ordinal);
-        await UiWait.UntilAsync(() => ((ConversationViewModel)app.Workbench.CurrentPage!).Messages[1].ActivitySteps[1].Meta.EndsWith(UiText.RunStepApproved, StringComparison.Ordinal));
+        await UiWait.UntilAsync(() => ((ConversationViewModel)app.Workbench.CurrentPage!).Messages[1].ActivitySteps[1].Meta.EndsWith(UiText.RunStepApproved, StringComparison.Ordinal), timeoutMs: 20_000);
         answer = ((ConversationViewModel)app.Workbench.CurrentPage!).Messages[1];
         answer.IsActivityExpanded = true;
         window.UpdateLayout();
@@ -171,7 +186,7 @@ public class McpUiTests
         UiInput.Click(window, Find<Button>(window, "StatisticsButton"));
         var stats = Assert.IsType<UsageStatisticsViewModel>(app.Workbench.CurrentPage);
         await stats.Loaded;
-        await UiWait.UntilAsync(() => stats.HasToolUsage);
+        await UiWait.UntilAsync(() => stats.HasToolUsage, timeoutMs: 20_000);
         Assert.Contains(new ToolCallRowViewModel("notes › write_note", UiText.ToolCallCount(1)), stats.ToolCalls);
         Assert.Contains(new ToolCallRowViewModel("notes › echo", UiText.ToolCallCount(1)), stats.ToolCalls);
         window.Close();

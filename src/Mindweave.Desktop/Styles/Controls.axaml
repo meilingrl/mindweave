@@ -298,6 +298,25 @@
       </ControlTemplate>
     </Setter>
   </Style>
+  <!--
+    A drop-down's arrow is the app's own chevron (2026-11-19): Fluent's glyph is drawn in ~2,000-unit coordinates, which the
+    16 × 16 icon template above leaves off its canvas, so every drop-down had lost its arrow. Fluent sets the glyph's Data
+    in its own template (above any style), so this glyph gets a template that draws the chevron instead; colour, size and
+    hover still come from Fluent.
+  -->
+  <Style Selector="ComboBox /template/ PathIcon#DropDownGlyph">
+    <Setter Property="Template">
+      <ControlTemplate>
+        <Border Background="{TemplateBinding Background}">
+          <Viewbox Width="{TemplateBinding Width}" Height="{TemplateBinding Height}">
+            <Canvas Width="16" Height="16">
+              <Path Name="Chevron" Fill="{TemplateBinding Foreground}" Data="{StaticResource IconChevronDown}" />
+            </Canvas>
+          </Viewbox>
+        </Border>
+      </ControlTemplate>
+    </Setter>
+  </Style>
   <!-- Text fields and drop-downs take the controls' corner everywhere (Fluent's own is 3 px); areas may refine it. -->
   <Style Selector="TextBox, ComboBox">
     <Setter Property="CornerRadius" Value="{StaticResource RadiusControl}" />
