@@ -86,6 +86,12 @@ internal sealed partial class AnswerRunner
         var seen = new Dictionary<string, EarlierCall>(StringComparer.Ordinal);
         var retried = false;
         var instructions = RunPrompt.For(run.Tools);
+        if (run.Tools.Any(t => t.Name == SearchAttachmentsTool.ToolName)
+            && await services.EarlierMaterialAsync(run.Scope, CancellationToken.None).ConfigureAwait(false) is { } index)
+        {
+            // L10: what earlier runs found, before anything of this run joins the scope.
+            instructions += "\n\n" + index;
+        }
 
         if (run.Scope.Web is { Mode: WebSearchMode.On } web && run.Tools.FirstOrDefault(t => t.Name == WebSearchTool.ToolName) is not null
             && turns.FindLastIndex(t => t.Role == ChatRole.User) is var question and >= 0)

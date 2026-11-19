@@ -439,6 +439,34 @@ public class RunLoopTests
         Assert.Equal(FakeChatClient.DefaultTitle + " 那第二个呢？", Assert.Single(h.Search.Searches).Query);
     }
 
+    // L10: the index of earlier material.
+
+    [Fact]
+    public async Task A_follow_up_run_is_told_what_earlier_runs_found_newest_first()
+    {
+        await using var h = await ChatHarness.StartAsync(model: ToolModel);
+        await h.WebSearch.SetKeyAsync("tvly-test-0000000000000000", Ct);
+        h.Pages.Page("https://example.org/steam", "蒸汽机的历史", "瓦特在 1769 年改良了蒸汽机。");
+        h.Client.CallTool(WebSearchTool.ToolName, Query("蒸汽机"));
+        h.Client.CallTool(FetchPageTool.ToolName, JsonSerializer.Serialize(new { url = "https://example.org/steam" }));
+        h.Client.Reply("瓦特改良了蒸汽机[1]。");
+        var first = await h.Conversations.StartAsync(h.Workspace, "蒸汽机是谁改良的？", [], null, new SendOptions(WebSearchMode.Auto), Ct);
+        var answer = await h.WaitForAnswerAsync(first.Answer!.Value);
+        Assert.DoesNotContain("本会话较早取得的材料", h.Client.Requests.First(FakeChatClient.IsAnswer).Turns[0].Content, StringComparison.Ordinal);
+        var (search, page) = (answer.Blocks.OfType<ToolResultBlock>().First().Resource, answer.Blocks.OfType<ToolResultBlock>().Last().Resource);
+
+        h.Client.Reply("是 1769 年。");
+        var sent = await h.Conversations.AskAsync(first.Conversation, "那是哪一年？", [], new SendOptions(WebSearchMode.Auto), Ct);
+        await h.WaitForAnswerAsync(sent.Answer!.Value);
+
+        var system = h.Client.Requests.Where(FakeChatClient.IsAnswer).Last().Turns[0].Content;
+        Assert.Contains("本会话较早取得的材料（最近的在前）", system, StringComparison.Ordinal);
+        var pageLine = system.IndexOf($"- 资源 {page}：网页《蒸汽机的历史》（example.org）", StringComparison.Ordinal);
+        var searchLine = system.IndexOf($"- 资源 {search}：网络搜索：蒸汽机", StringComparison.Ordinal);
+        Assert.InRange(pageLine, 0, searchLine - 1);
+        Assert.True(system.IndexOf("【额度】", StringComparison.Ordinal) > searchLine);
+    }
+
     /// <summary>A local tool whose result is about 2,000 estimated tokens: three fill a small window.</summary>
     private sealed class BigTool : ITool
     {

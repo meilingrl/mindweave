@@ -57,5 +57,51 @@ public sealed class RunServices(IRunStore store, IResourceStore resources, IReso
         }
     }
 
+    /// <summary>Most entries in the index of earlier material (L10).</summary>
+    public const int MaxEarlier = 10;
+
+    /// <summary>Most estimated tokens of that index; beyond it only the most recent entries are listed.</summary>
+    public const int EarlierTokens = 300;
+
+    /// <summary>
+    /// The index of material earlier runs of the conversation's frozen chain found (docs/design/agent-loop.md L10, architecture
+    /// §15.4): the most recent tool results in scope, each with its name, where it came from and its resource number, so a
+    /// follow-up reads what was found instead of searching again. Null when there is none.
+    /// </summary>
+    public async Task<string?> EarlierMaterialAsync(ToolScope scope, CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(scope);
+        var found = new List<Resource>();
+        foreach (var id in scope.Resources)
+        {
+            if (await resources.GetAsync(id, cancellationToken).ConfigureAwait(false) is { Resource: { Origin: ResourceOrigin.Tool or ResourceOrigin.Web or ResourceOrigin.Mcp, IsImage: false } resource })
+            {
+                found.Add(resource);
+            }
+        }
+
+        if (found.Count == 0)
+        {
+            return null;
+        }
+
+        var lines = new List<string>();
+        var tokens = 0;
+        foreach (var resource in found.OrderByDescending(r => r.CreatedAt).ThenByDescending(r => r.Id.ToString(), StringComparer.Ordinal).Take(MaxEarlier))
+        {
+            var name = resource.Name ?? "工具结果";
+            var line = resource.SourceUrl is { } url ? $"- 资源 {resource.Id}：网页《{name}》（{url.Host}）" : $"- 资源 {resource.Id}：{name}";
+            tokens += Core.Context.TokenEstimator.Estimate(line);
+            if (tokens > EarlierTokens && lines.Count > 0)
+            {
+                break;
+            }
+
+            lines.Add(line);
+        }
+
+        return "本会话较早取得的材料（最近的在前）：需要时用 search_attachments 检索，或给出 resource 与 part 读取，不必重新搜索网络。\n" + string.Join('\n', lines);
+    }
+
     private static string Shorten(string name) => name.Length > MaxName ? name[..MaxName] : name;
 }
