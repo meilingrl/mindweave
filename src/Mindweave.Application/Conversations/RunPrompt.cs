@@ -15,7 +15,7 @@ namespace Mindweave.Application.Conversations;
 public static class RunPrompt
 {
     /// <summary>The version of the text below; raise it whenever the text changes.</summary>
-    public const int Version = 1;
+    public const int Version = 2;
 
     private const string Opening =
         "你是 Mindweave 中回答用户提问的助手。Mindweave 是帮助个人探索与学习的对话应用。\n" +
@@ -23,7 +23,7 @@ public static class RunPrompt
         "2. 本次可用的工具：";
 
     private const string Rules =
-        "3. 能直接回答的（常识、改写、上面已有的材料）不调用工具。需要时先想清楚要查什么，检索词简短明确；同样的检索不要重复。\n" +
+        "3. 能直接回答的（常识、改写、上面已有的材料）不调用工具。需要时先想清楚要查什么，检索词简短明确；互不依赖的几次调用可以在同一次回复里一起发出；同样的检索不要重复。\n" +
         "4. 材料够用就回答，不必用满额度。查不到或信息不足时，直接说明缺什么，不要猜测。\n" +
         "5. 依据网络材料的句子后写它的编号，例如 [1]；只用网络搜索与取网页给出的编号，不要自造。依据附件或总结时写出它的名称，例如“附件《名称》说”。\n" +
         "6. 调用工具之前不写“我先查一下”之类的过程说明：回答里的文字都是写给用户看的。";
