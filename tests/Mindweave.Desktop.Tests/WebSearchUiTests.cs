@@ -207,8 +207,9 @@ public class WebSearchUiTests
         Assert.Equal((string.Empty, UiText.WebSearchKeySet), (web.NewKey, web.KeyState));
         Assert.Equal(Key, await app.Services.GetRequiredService<IWebSearchSettings>().ReadKeyAsync(CancellationToken.None));
 
+        // The choice saves in the background and says so when stored; the test's earlier status is already set, so wait for this one.
         web.IsOn = true;
-        await UiWait.UntilAsync(() => web.Status is not null && web.DefaultMode == WebSearchMode.On);
+        await UiWait.UntilAsync(() => web.Status == UiText.LimitsSaved && web.DefaultMode == WebSearchMode.On);
         Assert.Equal(WebSearchMode.On, await app.Services.GetRequiredService<IWebSearchSettings>().GetDefaultModeAsync(CancellationToken.None));
         app.Search.Fails(SearchFailureKind.QuotaExhausted, "搜索服务的额度已用完。");
         await web.TestCommand.ExecuteAsync(null);
