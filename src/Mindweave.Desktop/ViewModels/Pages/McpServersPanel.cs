@@ -319,6 +319,75 @@ public sealed partial class McpServerItem : ViewModelBase
 
     public ObservableCollection<McpToolItem> Tools { get; } = [];
 
+    /// <summary>More tools than this and the expanded list gets a filter box.</summary>
+    public const int FilterFrom = 8;
+
+    /// <summary>
+    /// The rows shown (2026-11-19, owner: a server with many tools made the page very long): expanded, every tool matching
+    /// the filter, in a scroll area; collapsed, only the enabled ones. A server opens expanded while none of its tools is
+    /// enabled, collapsed otherwise; after that it stays as the user leaves it. The rows shown change only when the user
+    /// expands, collapses or filters, or the server's tools change: unticking a row never makes it vanish under the pointer.
+    /// </summary>
+    public ObservableCollection<McpToolItem> VisibleTools { get; } = [];
+
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(ToggleLabel), nameof(ShowsFilter))]
+    public partial bool IsExpanded { get; private set; }
+
+    /// <summary>Filters the expanded list by name or description.</summary>
+    [ObservableProperty]
+    public partial string Filter { get; set; } = string.Empty;
+
+    private bool _expansionSet;
+
+    public bool HasToggle => Tools.Count > 0;
+
+    public string ToggleLabel => IsExpanded ? UiText.McpToolsCollapse : UiText.McpToolsExpand(Tools.Count);
+
+    public bool ShowsFilter => IsExpanded && Tools.Count > FilterFrom;
+
+    /// <summary>Collapsed with nothing enabled, or expanded with nothing matching: a line says so.</summary>
+    public string? EmptyNote => Tools.Count == 0 || VisibleTools.Count > 0 ? null
+        : IsExpanded ? UiText.McpToolsNoMatch
+        : UiText.McpToolsNoneEnabled;
+
+    public bool HasEmptyNote => EmptyNote is not null;
+
+    [RelayCommand]
+    private void ToggleTools()
+    {
+        _expansionSet = true;
+        IsExpanded = !IsExpanded;
+    }
+
+    partial void OnIsExpandedChanged(bool value) => UpdateVisible();
+
+    partial void OnFilterChanged(string value) => UpdateVisible();
+
+    private void UpdateVisible()
+    {
+        var filter = Filter.Trim();
+        var wanted = IsExpanded
+            ? Tools.Where(t => filter.Length == 0
+                || t.Name.Contains(filter, StringComparison.CurrentCultureIgnoreCase)
+                || t.Description.Contains(filter, StringComparison.CurrentCultureIgnoreCase)).ToList()
+            : Tools.Where(t => t.IsOn).ToList();
+        if (!VisibleTools.SequenceEqual(wanted))
+        {
+            VisibleTools.Clear();
+            foreach (var tool in wanted)
+            {
+                VisibleTools.Add(tool);
+            }
+        }
+
+        OnPropertyChanged(nameof(EmptyNote));
+        OnPropertyChanged(nameof(HasEmptyNote));
+        OnPropertyChanged(nameof(HasToggle));
+        OnPropertyChanged(nameof(ToggleLabel));
+        OnPropertyChanged(nameof(ShowsFilter));
+    }
+
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(HasNoListing))]
     public partial bool IsListed { get; private set; }
@@ -462,6 +531,15 @@ public sealed partial class McpServerItem : ViewModelBase
                 {
                     Tools.Add(new McpToolItem(info, setting, this));
                 }
+
+                if (!_expansionSet && Tools.Count > 0)
+                {
+                    // First sight of its tools: open while nothing is enabled, so the user can choose.
+                    _expansionSet = true;
+                    IsExpanded = !Tools.Any(t => t.IsOn);
+                }
+
+                UpdateVisible();
             }
 
             IsListed = listed is not null;

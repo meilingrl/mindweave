@@ -51,6 +51,10 @@ public static partial class UiText
     public const string McpStandardError = "最近的输出";
     public const string McpToolsHeading = "工具";
     public const string McpToolsNotListed = "启动后列出它的工具。";
+    public const string McpToolsCollapse = "只看已启用";
+    public const string McpToolsFilterPlaceholder = "筛选工具";
+    public const string McpToolsNoneEnabled = "还没有启用的工具，展开后选择。";
+    public const string McpToolsNoMatch = "没有名称或说明匹配的工具。";
     public const string McpDeclaresReadOnly = "服务器声明只读";
     public const string McpEnableTool = "启用";
     public const string McpRiskLabel = "风险";
@@ -80,6 +84,9 @@ public static partial class UiText
     public static string McpToolCount(int enabled, int listed) => listed > 0
         ? string.Format(CultureInfo.InvariantCulture, "已启用 {0} 个，共 {1} 个", enabled, listed)
         : string.Format(CultureInfo.InvariantCulture, "已启用 {0} 个", enabled);
+
+    /// <summary>The button that shows every tool of a server: "展开全部 13 个".</summary>
+    public static string McpToolsExpand(int count) => string.Format(CultureInfo.InvariantCulture, "展开全部 {0} 个", count);
 
     /// <summary>While a third-party call waits for the card: "等待你批准调用 files › write_note…".</summary>
     public static string McpApprovalWaiting(string server, string tool) => $"等待你批准调用 {server} › {tool}…";

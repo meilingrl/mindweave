@@ -229,12 +229,27 @@
                           </StackPanel>
                         </StackPanel>
                       </Border>
-                      <StackPanel Orientation="Horizontal" Spacing="6" Margin="0,4,0,0">
-                        <TextBlock Classes="caption" FontWeight="SemiBold" Text="{x:Static t:UiText.McpToolsHeading}" />
-                        <TextBlock Name="McpToolCount" Classes="caption" Text="{Binding ToolCount}" />
-                      </StackPanel>
+                      <!-- A server's tools (2026-11-19): expanded in a scroll area with a filter, or only the enabled ones. -->
+                      <DockPanel Margin="0,4,0,0">
+                        <Button DockPanel.Dock="Right" Name="McpToolsToggle" Classes="quiet small" Command="{Binding ToggleToolsCommand}"
+                                IsVisible="{Binding HasToggle}">
+                          <StackPanel Orientation="Horizontal" Spacing="4">
+                            <TextBlock Text="{Binding ToggleLabel}" VerticalAlignment="Center" />
+                            <PathIcon Classes="mcp-tools-chevron" Classes.expanded="{Binding IsExpanded}" Data="{StaticResource IconChevronDown}" />
+                          </StackPanel>
+                        </Button>
+                        <StackPanel Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
+                          <TextBlock Classes="caption" FontWeight="SemiBold" Text="{x:Static t:UiText.McpToolsHeading}" />
+                          <TextBlock Name="McpToolCount" Classes="caption" Text="{Binding ToolCount}" />
+                        </StackPanel>
+                      </DockPanel>
+                      <TextBox Name="McpToolFilter" Width="240" HorizontalAlignment="Left" Text="{Binding Filter}"
+                               PlaceholderText="{x:Static t:UiText.McpToolsFilterPlaceholder}" IsVisible="{Binding ShowsFilter}"
+                               AutomationProperties.Name="{x:Static t:UiText.McpToolsFilterPlaceholder}" />
                       <TextBlock Classes="caption" Text="{x:Static t:UiText.McpToolsNotListed}" IsVisible="{Binding HasNoListing}" />
-                      <ItemsControl Name="McpToolList" ItemsSource="{Binding Tools}">
+                      <TextBlock Name="McpToolsEmpty" Classes="caption" Text="{Binding EmptyNote}" IsVisible="{Binding HasEmptyNote}" />
+                      <ScrollViewer Name="McpToolScroll" MaxHeight="360" HorizontalScrollBarVisibility="Disabled" VerticalScrollBarVisibility="Auto">
+                      <ItemsControl Name="McpToolList" ItemsSource="{Binding VisibleTools}">
                         <ItemsControl.ItemTemplate>
                           <DataTemplate x:DataType="vm:McpToolItem">
                             <Grid ColumnDefinitions="Auto,*,Auto" Margin="0,4">
@@ -257,6 +272,7 @@
                           </DataTemplate>
                         </ItemsControl.ItemTemplate>
                       </ItemsControl>
+                      </ScrollViewer>
                     </StackPanel>
                   </Border>
                 </DataTemplate>

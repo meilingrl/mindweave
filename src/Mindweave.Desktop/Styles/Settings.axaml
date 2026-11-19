@@ -25,6 +25,15 @@
   <Style Selector="SelectableTextBlock.error">
     <Setter Property="Foreground" Value="{DynamicResource ErrorText}" />
   </Style>
+  <!-- The chevron of a server's tool list: down to expand, up once expanded. -->
+  <Style Selector="PathIcon.mcp-tools-chevron">
+    <Setter Property="Width" Value="12" />
+    <Setter Property="Height" Value="12" />
+    <Setter Property="RenderTransform" Value="rotate(0deg)" />
+  </Style>
+  <Style Selector="PathIcon.mcp-tools-chevron.expanded">
+    <Setter Property="RenderTransform" Value="rotate(180deg)" />
+  </Style>
   <Style Selector="TextBox.mono">
     <Setter Property="FontFamily" Value="Menlo, Consolas, monospace" />
     <Setter Property="FontSize" Value="12" />

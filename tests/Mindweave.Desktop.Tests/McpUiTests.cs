@@ -250,6 +250,60 @@ public class McpUiTests
         window.Close();
     }
 
+    [AvaloniaTheory]
+    [MemberData(nameof(Themes))]
+    public async Task A_long_tool_list_scrolls_filters_and_collapses_to_the_enabled_tools(string theme)
+    {
+        await using var app = DesktopHarness.Create();
+        var window = await StartAsync(app, theme);
+        var servers = app.Services.GetRequiredService<IMcpServers>();
+        var added = await servers.AddAsync(FakeMcp.Command("notes"), CancellationToken.None);
+        var (_, mcp) = await OpenSettingsAsync(app, window);
+        var server = Assert.Single(mcp.Servers);
+        await server.StartCommand.ExecuteAsync(null);
+        await UiWait.UntilAsync(() => server.State == McpServerState.Connected && server.Tools.Count == 13, timeoutMs: 20_000);
+
+        // Nothing enabled yet: open, every tool shown in a scroll area of bounded height, with a filter.
+        Assert.True(server.IsExpanded);
+        Assert.Equal(13, server.VisibleTools.Count);
+        Assert.True(server.ShowsFilter);
+        window.UpdateLayout();
+        var scroll = window.GetVisualDescendants().OfType<ScrollViewer>().Single(v => v.Name == "McpToolScroll");
+        Assert.True(scroll.Bounds.Height <= 360.5, scroll.Bounds.Height.ToString(System.Globalization.CultureInfo.InvariantCulture));
+        Assert.True(scroll.Extent.Height > scroll.Viewport.Height);
+
+        server.Filter = "write";
+        Assert.Equal(["hang_write", "write_note"], server.VisibleTools.Select(t => t.Name));
+        server.Tools.Single(t => t.Name == "write_note").IsOn = true;
+        server.Filter = "回声";
+        Assert.Equal(UiText.McpToolsNoMatch, server.EmptyNote);
+        server.Filter = string.Empty;
+        server.Tools.Single(t => t.Name == "echo").IsOn = true;
+        await UiWait.UntilAsync(() => server.Tools.Count(t => t.IsOn) == 2 && server.ToolCount.StartsWith("已启用 2 个", StringComparison.Ordinal), timeoutMs: 20_000);
+        window.UpdateLayout();
+        Find<StackPanel>(window, "McpSection").BringIntoView();
+        window.UpdateLayout();
+        Screenshots.Capture(window, $"mcp-06-tools-expanded-{theme.ToLowerInvariant()}");
+
+        // Collapsed: only the enabled tools, still with their risk.
+        server.ToggleToolsCommand.Execute(null);
+        Assert.False(server.IsExpanded);
+        Assert.Equal(["echo", "write_note"], server.VisibleTools.Select(t => t.Name));
+        Assert.Equal(UiText.McpToolsExpand(13), server.ToggleLabel);
+        window.UpdateLayout();
+        Find<StackPanel>(window, "McpSection").BringIntoView();
+        window.UpdateLayout();
+        Screenshots.Capture(window, $"mcp-07-tools-collapsed-{theme.ToLowerInvariant()}");
+
+        // Reopened with tools enabled: collapsed from the start.
+        await mcp.ReloadAsync();
+        var again = Assert.Single(mcp.Servers);
+        await UiWait.UntilAsync(() => again.Tools.Count == 13, timeoutMs: 20_000);
+        Assert.False(again.IsExpanded);
+        Assert.Equal(2, again.VisibleTools.Count);
+        window.Close();
+    }
+
     private static async Task<MainWindow> StartAsync(DesktopHarness app, string theme)
     {
         var window = app.ShowWindow(1000, 760, theme == "Dark" ? ThemeVariant.Dark : ThemeVariant.Light);
