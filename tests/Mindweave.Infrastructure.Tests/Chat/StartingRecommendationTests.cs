@@ -33,6 +33,8 @@ public class StartingRecommendationTests
 
         var link = Assert.Single(await h.Links.ListAsync(h.Workspace, Ct));
         Assert.Equal((SummaryLinkPair.Normalize(node, basis), "来自推荐", SummaryLinkOrigin.Recommended), ((link.NodeA, link.NodeB), link.Note, link.Origin));
+        // The notice may arrive just after the summary task reports done (2026-11-19: failed 1 in 20 runs under load).
+        await ChatHarness.UntilAsync(() => changed.Count > 0);
         Assert.Equal([h.Workspace], changed);
         Assert.Equal(node, Assert.Single(await h.Links.ListForNodeAsync(basis, Ct)).Other);
         Assert.Null(await h.Conversations.GetSourceAsync(started, Ct));
