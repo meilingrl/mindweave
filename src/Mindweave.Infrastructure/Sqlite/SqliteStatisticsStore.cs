@@ -85,14 +85,17 @@ internal sealed class SqliteStatisticsStore(SqliteDatabase database) : IStatisti
                 var count = (int)connection.Scalar<long>(null, $"SELECT count(*) FROM ({runs});", [.. parameters]);
                 var requests = (int)connection.Scalar<long>(null, $"SELECT count(*) FROM ai_request WHERE task_id IN ({runs});", [.. parameters]);
                 var calls = new List<ToolCallCount>();
+                // A third-party tool's name has the server's short name and "__" (decision M9); its steps' target is the
+                // server's name (decision M18). Built-in tools' targets are hosts, which are not counted apart.
                 using var command = connection.Command(null, $"""
-                    SELECT tool, count(*) FROM run_step WHERE kind = 'tool' AND task_id IN ({runs})
-                    GROUP BY tool ORDER BY count(*) DESC, tool;
+                    SELECT tool, count(*), CASE WHEN instr(tool, '__') > 0 THEN target END AS server
+                    FROM run_step WHERE kind = 'tool' AND task_id IN ({runs})
+                    GROUP BY tool, server ORDER BY count(*) DESC, tool, server;
                     """, [.. parameters]);
                 using var reader = command.ExecuteReader();
                 while (reader.Read())
                 {
-                    calls.Add(new ToolCallCount(reader.GetString(0), reader.GetInt32(1)));
+                    calls.Add(new ToolCallCount(reader.GetString(0), reader.GetInt32(1), reader.IsDBNull(2) ? null : reader.GetString(2)));
                 }
 
                 return new ToolUsage(count, requests, calls);

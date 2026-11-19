@@ -80,6 +80,7 @@ public static class ApplicationServices
         services.AddSingleton<Application.Tools.Mcp.McpServerSettings>();
         services.AddSingleton<Application.Tools.Mcp.IMcpServers>(sp => sp.GetRequiredService<Application.Tools.Mcp.McpServerSettings>());
         services.AddSingleton<Application.Tools.Mcp.McpServerManager>();
+        services.AddSingleton<Application.Tools.IToolSource, Application.Tools.Mcp.McpToolSource>();
         services.AddSingleton<Application.Tools.ToolRegistry>();
         services.AddSingleton<ToolSettingsService>();
         services.AddSingleton<IToolSettings>(sp => sp.GetRequiredService<ToolSettingsService>());
