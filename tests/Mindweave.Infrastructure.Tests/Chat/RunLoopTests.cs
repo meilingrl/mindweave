@@ -224,6 +224,154 @@ public class RunLoopTests
 
     private const int ConversationServiceRunRoom = 25;
 
+    // L3: read-only calls in parallel.
+
+    [Fact]
+    public async Task Read_only_calls_of_one_reply_run_at_once_and_their_results_come_in_call_order()
+    {
+        var tool = new CountingTool("count_tool", ToolRisk.LocalRead);
+        await using var h = await ChatHarness.StartAsync(model: ToolModel, tools: [tool]);
+        h.Client.CallTools("", [.. Enumerable.Range(1, 3).Select(i => new ChatToolCall($"c{i}", "count_tool", $"{{\"n\":{i}}}"))]);
+        h.Client.Reply("好。");
+
+        var sent = await h.Conversations.StartAsync(h.Workspace, "问", Ct);
+        await ChatHarness.UntilAsync(() => tool.Running == 3);
+        tool.Open();
+        var answer = await h.WaitForAnswerAsync(sent.Answer!.Value);
+
+        Assert.Equal((MessageState.Complete, 3), (answer.State, tool.Max));
+        Assert.Equal(["c1", "c2", "c3"], answer.Blocks.OfType<ToolResultBlock>().Select(b => b.CallId));
+        Assert.Equal(["完成 1", "完成 2", "完成 3"], answer.Blocks.OfType<ToolResultBlock>().Select(b => b.Preview));
+        var steps = (await h.Runs.RunsAsync(sent.Conversation, Ct))[answer.Id].Steps.Where(s => s.Kind == RunStepKind.Tool).ToList();
+        Assert.Equal(["c1", "c2", "c3"], steps.OrderBy(s => s.Ordinal).Select(s => s.CallId));
+        Assert.All(steps, s => Assert.Equal(RunStepState.Completed, s.State));
+        var next = h.Client.Requests.Where(FakeChatClient.IsAnswer).Last().Turns.Where(t => t.Role == ChatRole.Tool).ToList();
+        Assert.Equal(["c1", "c2", "c3"], next.Select(t => t.ToolCallId));
+        Assert.Equal(["完成 1", "完成 2", "完成 3"], next.Select(t => t.Content));
+    }
+
+    [Fact]
+    public async Task Stopping_while_calls_run_at_once_stops_them_all()
+    {
+        var tool = new CountingTool("count_tool", ToolRisk.LocalRead);
+        await using var h = await ChatHarness.StartAsync(model: ToolModel, tools: [tool]);
+        h.Client.CallTools("等一下。", [.. Enumerable.Range(1, 3).Select(i => new ChatToolCall($"c{i}", "count_tool", $"{{\"n\":{i}}}"))]);
+
+        var sent = await h.Conversations.StartAsync(h.Workspace, "问", Ct);
+        await ChatHarness.UntilAsync(() => tool.Running == 3);
+        await h.Conversations.StopAsync(sent.Answer!.Value);
+        var answer = await h.WaitForAnswerAsync(sent.Answer!.Value);
+
+        Assert.Equal((MessageState.Stopped, "等一下。"), (answer.State, answer.Text));
+        Assert.Empty(answer.Blocks.OfType<ToolResultBlock>());
+        var steps = (await h.Runs.RunsAsync(sent.Conversation, Ct))[answer.Id].Steps.Where(s => s.Kind == RunStepKind.Tool).ToList();
+        Assert.Equal(3, steps.Count);
+        Assert.All(steps, s => Assert.Equal(RunStepState.Stopped, s.State));
+        Assert.Single(h.Client.Requests, FakeChatClient.IsAnswer);
+    }
+
+    [Fact]
+    public async Task At_most_four_calls_run_at_once()
+    {
+        var tool = new CountingTool("count_tool", ToolRisk.LocalRead);
+        await using var h = await ChatHarness.StartAsync(model: ToolModel, tools: [tool]);
+        h.Client.CallTools("", [.. Enumerable.Range(1, 6).Select(i => new ChatToolCall($"c{i}", "count_tool", $"{{\"n\":{i}}}"))]);
+        h.Client.Reply("好。");
+
+        var sent = await h.Conversations.StartAsync(h.Workspace, "问", Ct);
+        await ChatHarness.UntilAsync(() => tool.Running == 4);
+        await Task.Delay(100, Ct);
+        Assert.Equal(4, tool.Running);
+        tool.Open();
+        var answer = await h.WaitForAnswerAsync(sent.Answer!.Value);
+
+        Assert.Equal((MessageState.Complete, 4), (answer.State, tool.Max));
+        Assert.Equal(6, answer.Blocks.OfType<ToolResultBlock>().Count(b => b.Status == ToolResultStatus.Succeeded));
+    }
+
+    [Fact]
+    public async Task A_reply_with_a_call_that_may_have_a_side_effect_runs_all_its_calls_one_after_another()
+    {
+        var read = new CountingTool("read_tool", ToolRisk.NetworkRead, opened: true);
+        var write = new CountingTool("write_tool", ToolRisk.SideEffect, opened: true, shared: read);
+        await using var h = await ChatHarness.StartAsync(model: ToolModel, tools: [read, write]);
+        h.Client.CallTools("", [new ChatToolCall("c1", "read_tool", "{\"n\":1}"), new ChatToolCall("c2", "write_tool", "{\"n\":2}"), new ChatToolCall("c3", "read_tool", "{\"n\":3}")]);
+        h.Client.Reply("好。");
+
+        var sent = await h.Conversations.StartAsync(h.Workspace, "问", Ct);
+        var answer = await h.WaitForAnswerAsync(sent.Answer!.Value);
+
+        Assert.Equal((MessageState.Complete, 1), (answer.State, read.Max));
+        Assert.Equal(["c1", "c2", "c3"], answer.Blocks.OfType<ToolResultBlock>().Select(b => b.CallId));
+    }
+
+    /// <summary>
+    /// A tool that counts the calls running at once (shared with another when given) and waits until opened; when opened from
+    /// the start, each call still takes a moment, so calls that could overlap do.
+    /// </summary>
+    private sealed class CountingTool(string name, ToolRisk risk, bool opened = false, CountingTool? shared = null) : ITool
+    {
+        private readonly TaskCompletionSource _open = NewOpen(opened);
+        private int _running;
+        private int _max;
+
+        private CountingTool Counter => shared ?? this;
+
+        public int Running => Volatile.Read(ref Counter._running);
+
+        public int Max => Volatile.Read(ref Counter._max);
+
+        public string Name => name;
+
+        public string DisplayName => name;
+
+        public string Description => "测试用的工具";
+
+        public string ParametersSchema => "{\"type\":\"object\"}";
+
+        public ToolRisk Risk => risk;
+
+        public TimeSpan Timeout => TimeSpan.FromSeconds(20);
+
+        public void Open() => _open.TrySetResult();
+
+        public Task<bool> IsAvailableAsync(ToolScope scope, CancellationToken cancellationToken) => Task.FromResult(true);
+
+        public string Describe(JsonElement arguments) => arguments.TryGetProperty("n", out var n) ? n.ToString() : string.Empty;
+
+        public async Task<ToolOutput> ExecuteAsync(ToolScope scope, JsonElement arguments, CancellationToken cancellationToken)
+        {
+            var counter = Counter;
+            var now = Interlocked.Increment(ref counter._running);
+            int seen;
+            while ((seen = Volatile.Read(ref counter._max)) < now && Interlocked.CompareExchange(ref counter._max, now, seen) != seen)
+            {
+            }
+
+            try
+            {
+                await _open.Task.WaitAsync(cancellationToken);
+                await Task.Delay(30, cancellationToken);
+                return new ToolOutput("完成 " + Describe(arguments), "完成", ResourceProvenance.Workspace, []);
+            }
+            finally
+            {
+                Interlocked.Decrement(ref counter._running);
+            }
+        }
+
+        private static TaskCompletionSource NewOpen(bool opened)
+        {
+            var open = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+            if (opened)
+            {
+                open.TrySetResult();
+            }
+
+            return open;
+        }
+    }
+
     private static ModelSnapshot Snapshot(ModelSettingsInput input) =>
         new("fake", input.BaseUrl, ChatProtocol.ChatCompletions, input.Model, "ref", null, input.Capabilities! with { ContextWindowTokens = input.ContextWindowTokens });
 

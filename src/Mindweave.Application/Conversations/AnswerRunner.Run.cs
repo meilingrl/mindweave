@@ -269,28 +269,40 @@ internal sealed partial class AnswerRunner
             }
 
             turns.Add(new ChatTurn(ChatRole.Assistant, text.ToString()) { ToolCalls = asked.Calls, Reasoning = asked.Reasoning });
+            var batch = new List<(ChatToolCall Call, int Ordinal)>();
+            var skipped = new List<ChatToolCall>();
             foreach (var call in asked.Calls)
             {
                 if (calls >= limits.ToolCalls)
                 {
                     // Every call needs a result in the protocol; one beyond the limit is not run (decision R6).
-                    var tool = run.Tools.FirstOrDefault(t => t.Name == call.Name);
-                    live.AddToolCall(new ToolCallBlock(call.Id, call.Name, call.Arguments, tool?.Risk ?? ToolRisk.LocalRead, Summary(tool, call)));
-                    live.AddToolResult(new ToolResultBlock(call.Id, ToolResultStatus.Skipped, SkippedResult, null, "未执行"));
-                    turns.Add(new ChatTurn(ChatRole.Tool, SkippedResult) { ToolCallId = call.Id });
+                    skipped.Add(call);
                     reached ??= RunLimit.ToolCalls;
                     continue;
                 }
 
                 calls++;
-                var outcome = await RunToolAsync(work, run, services, call, ordinal++, failures, withdrawn, elapsed, stop).ConfigureAwait(false);
-                if (outcome.Ending is { } ending)
+                batch.Add((call, ordinal++));
+            }
+
+            var outcomes = await RunToolsAsync(work, run, services, batch, failures, withdrawn, elapsed, stop).ConfigureAwait(false);
+            for (var i = 0; i < outcomes.Count; i++)
+            {
+                if (outcomes[i].Ending is { } ending)
                 {
                     return ending;
                 }
 
-                results.Add(new SentResult(turns.Count, outcome.Line));
-                turns.Add(new ChatTurn(ChatRole.Tool, outcome.Content) { ToolCallId = call.Id });
+                results.Add(new SentResult(turns.Count, outcomes[i].Line));
+                turns.Add(new ChatTurn(ChatRole.Tool, outcomes[i].Content) { ToolCallId = batch[i].Call.Id });
+            }
+
+            foreach (var call in skipped)
+            {
+                var tool = run.Tools.FirstOrDefault(t => t.Name == call.Name);
+                live.AddToolCall(new ToolCallBlock(call.Id, call.Name, call.Arguments, tool?.Risk ?? ToolRisk.LocalRead, Summary(tool, call)));
+                live.AddToolResult(new ToolResultBlock(call.Id, ToolResultStatus.Skipped, SkippedResult, null, "未执行"));
+                turns.Add(new ChatTurn(ChatRole.Tool, SkippedResult) { ToolCallId = call.Id });
             }
         }
     }
@@ -329,12 +341,123 @@ internal sealed partial class AnswerRunner
 
     private readonly record struct ToolOutcome(string Content, string Line, RunEnding? Ending);
 
+    /// <summary>At most this many calls of one reply run at once (L3).</summary>
+    internal const int MaxParallelCalls = 4;
+
+    /// <summary>One tool call between its start, its execution and its result.</summary>
+    private sealed class PendingCall(ChatToolCall call, ITool? tool, RunStepRecord step, string? input)
+    {
+        public ChatToolCall Call { get; } = call;
+
+        public ITool? Tool { get; } = tool;
+
+        public RunStepRecord Step { get; set; } = step;
+
+        public string? Input { get; } = input;
+
+        public JsonElement Arguments { get; init; }
+
+        public bool Parsed { get; init; }
+
+        /// <summary>Why it did not run (or failed), handed back to the model.</summary>
+        public string? Failure { get; set; }
+
+        public GenerationErrorKind FailureKind { get; set; } = GenerationErrorKind.InvalidResponse;
+
+        /// <summary>A side effect whose outcome is not known (decision M17).</summary>
+        public bool Unknown { get; set; }
+
+        public ToolOutput? Output { get; set; }
+
+        /// <summary>Settled before execution: refused by the user, or the run was stopped.</summary>
+        public ToolOutcome? Settled { get; set; }
+    }
+
     /// <summary>
     /// Runs one tool call as a step: an unknown tool, invalid arguments, a withdrawn tool, a timeout or a tool's failure become an
     /// error handed back to the model; a result is stored as a resource and sent whole or as its start and handle.
     /// </summary>
     private async Task<ToolOutcome> RunToolAsync(
         AnswerWork work, RunPlan run, RunServices services, ChatToolCall call, int ordinal, Dictionary<string, int> failures, HashSet<string> withdrawn, Stopwatch elapsed, CancellationToken stop)
+    {
+        var pending = await BeginToolAsync(work, run, services, call, ordinal, withdrawn, elapsed, stop).ConfigureAwait(false);
+        await ExecuteToolAsync(work, run, services, pending, stop).ConfigureAwait(false);
+        return await FinishToolAsync(work, run, services, pending, failures, withdrawn).ConfigureAwait(false);
+    }
+
+    /// <summary>
+    /// Runs the calls of one reply (L3): when none may have a side effect, they start in order (each asking for approval in
+    /// turn when it must), then run at once, at most <see cref="MaxParallelCalls"/>, and their results are taken in order;
+    /// otherwise one after another, as a side effect's order may matter. Returns the outcomes in call order; it stops at
+    /// the first that ends the run.
+    /// </summary>
+    private async Task<List<ToolOutcome>> RunToolsAsync(
+        AnswerWork work, RunPlan run, RunServices services, List<(ChatToolCall Call, int Ordinal)> batch, Dictionary<string, int> failures, HashSet<string> withdrawn, Stopwatch elapsed, CancellationToken stop)
+    {
+        var outcomes = new List<ToolOutcome>();
+        var readOnly = batch.Count > 1 && batch.All(b => run.Tools.FirstOrDefault(t => t.Name == b.Call.Name) is not { Risk: ToolRisk.SideEffect });
+        if (!readOnly)
+        {
+            foreach (var (call, ordinal) in batch)
+            {
+                var outcome = await RunToolAsync(work, run, services, call, ordinal, failures, withdrawn, elapsed, stop).ConfigureAwait(false);
+                outcomes.Add(outcome);
+                if (outcome.Ending is not null)
+                {
+                    break;
+                }
+            }
+
+            return outcomes;
+        }
+
+        var started = new List<PendingCall>();
+        foreach (var (call, ordinal) in batch)
+        {
+            var pending = await BeginToolAsync(work, run, services, call, ordinal, withdrawn, elapsed, stop).ConfigureAwait(false);
+            started.Add(pending);
+            if (pending.Settled is { Ending: not null })
+            {
+                break;
+            }
+        }
+
+        using (var gate = new SemaphoreSlim(MaxParallelCalls))
+        {
+            await Task.WhenAll(started.Select(async pending =>
+            {
+                // Not cancelled by a stop: every started call settles (a stopped one records its step as stopped).
+                await gate.WaitAsync(CancellationToken.None).ConfigureAwait(false);
+                try
+                {
+                    await ExecuteToolAsync(work, run, services, pending, stop).ConfigureAwait(false);
+                }
+                finally
+                {
+                    gate.Release();
+                }
+            })).ConfigureAwait(false);
+        }
+
+        foreach (var pending in started)
+        {
+            var outcome = await FinishToolAsync(work, run, services, pending, failures, withdrawn).ConfigureAwait(false);
+            if (outcome.Ending is not null && outcomes.Any(o => o.Ending is not null))
+            {
+                continue;
+            }
+
+            outcomes.Add(outcome);
+        }
+
+        // A stop ends the run however many calls had finished.
+        var ending = outcomes.FirstOrDefault(o => o.Ending is not null);
+        return ending.Ending is null ? outcomes : [.. outcomes.TakeWhile(o => o.Ending is null), ending];
+    }
+
+    /// <summary>A call's start: its step and block, its arguments read, and when it must, the user's approval.</summary>
+    private async Task<PendingCall> BeginToolAsync(
+        AnswerWork work, RunPlan run, RunServices services, ChatToolCall call, int ordinal, HashSet<string> withdrawn, Stopwatch elapsed, CancellationToken stop)
     {
         var live = work.Live;
         var tool = run.Tools.FirstOrDefault(t => string.Equals(t.Name, call.Name, StringComparison.Ordinal));
@@ -364,6 +487,7 @@ internal sealed partial class AnswerRunner
         };
         await _writes.SaveAsync(() => Done(services.Store.AddStepAsync(step, CancellationToken.None))).ConfigureAwait(false);
         live.StartTool(callBlock, call.Name);
+        var pending = new PendingCall(call, tool, step, input) { Arguments = arguments, Parsed = parsed };
 
         // Q10 (decision W10): a call the user must allow waits for the card, without its slot and without counting time.
         var asks = tool is not null && parsed && !withdrawn.Contains(tool.Name) ? tool.ApprovalFor(run.Scope, arguments) : null;
@@ -382,7 +506,8 @@ internal sealed partial class AnswerRunner
                 live.EndTool();
                 var stoppedStep = step with { State = RunStepState.Stopped, FinishedAt = _clock.UtcNow };
                 await _writes.SaveAsync(() => services.Store.FinishStepAsync(stoppedStep, live.MessageId, null, 0, CancellationToken.None)).ConfigureAwait(false);
-                return new ToolOutcome(string.Empty, string.Empty, new RunEnding(MessageState.Stopped, null, null));
+                pending.Settled = new ToolOutcome(string.Empty, string.Empty, new RunEnding(MessageState.Stopped, null, null));
+                return pending;
             }
             catch (OperationCanceledException) when (preparing.IsCancellationRequested)
             {
@@ -411,10 +536,11 @@ internal sealed partial class AnswerRunner
             var decided = await AwaitApprovalAsync(work, services, step, tool!.DescribeApproval(call.Id, asks), elapsed, stop).ConfigureAwait(false);
             if (decided is null)
             {
-                return new ToolOutcome(string.Empty, string.Empty, new RunEnding(MessageState.Stopped, null, null));
+                pending.Settled = new ToolOutcome(string.Empty, string.Empty, new RunEnding(MessageState.Stopped, null, null));
+                return pending;
             }
 
-            step = step with { Approval = decided.Value ? Approval.Approved : Approval.Denied };
+            step = pending.Step = step with { Approval = decided.Value ? Approval.Approved : Approval.Denied };
             if (!decided.Value)
             {
                 var refused = new ToolResultBlock(call.Id, ToolResultStatus.Denied, tool.DeniedResult, null, tool.DeniedDetail);
@@ -422,77 +548,100 @@ internal sealed partial class AnswerRunner
                 var shot = live.Snapshot();
                 var deniedStep = step with { State = RunStepState.Denied, FinishedAt = _clock.UtcNow };
                 await _writes.SaveAsync(() => services.Store.FinishStepAsync(deniedStep, live.MessageId, shot.Blocks, shot.Revision, CancellationToken.None)).ConfigureAwait(false);
-                return new ToolOutcome(tool.DeniedResult, $"（较早的工具调用：{call.Name} {input}，用户拒绝。）", null);
+                pending.Settled = new ToolOutcome(tool.DeniedResult, $"（较早的工具调用：{call.Name} {input}，用户拒绝。）", null);
+                return pending;
             }
         }
 
-        string? failure = null;
-        var unknown = false;
-        var failureKind = GenerationErrorKind.InvalidResponse;
-        ToolOutput? output = null;
         if (tool is null)
         {
-            failure = $"没有名为“{call.Name}”的工具。可用的工具：{string.Join("、", run.Tools.Where(t => !withdrawn.Contains(t.Name)).Select(t => t.Name))}。";
+            pending.Failure = $"没有名为“{call.Name}”的工具。可用的工具：{string.Join("、", run.Tools.Where(t => !withdrawn.Contains(t.Name)).Select(t => t.Name))}。";
         }
         else if (withdrawn.Contains(tool.Name))
         {
-            failure = "这个工具在本次运行中连续出错，已不再提供。";
+            pending.Failure = "这个工具在本次运行中连续出错，已不再提供。";
         }
         else if (!parsed)
         {
-            failure = "参数不是合法的 JSON 对象，请按工具的输入格式重新给出。";
+            pending.Failure = "参数不是合法的 JSON 对象，请按工具的输入格式重新给出。";
         }
         else if (unprepared is not null)
         {
-            failure = unprepared;
-        }
-        else
-        {
-            using var timeout = new CancellationTokenSource(tool.Timeout);
-            using var linked = CancellationTokenSource.CreateLinkedTokenSource(stop, timeout.Token);
-            try
-            {
-                output = await tool.ExecuteAsync(run.Scope, arguments, linked.Token).ConfigureAwait(false);
-            }
-            catch (OperationCanceledException) when (stop.IsCancellationRequested)
-            {
-                live.EndTool();
-                var stoppedStep = step with { State = RunStepState.Stopped, FinishedAt = _clock.UtcNow };
-                await _writes.SaveAsync(() => services.Store.FinishStepAsync(stoppedStep, live.MessageId, null, 0, CancellationToken.None)).ConfigureAwait(false);
-                return new ToolOutcome(string.Empty, string.Empty, new RunEnding(MessageState.Stopped, null, null));
-            }
-            catch (OperationCanceledException) when (timeout.IsCancellationRequested)
-            {
-                failure = string.Create(CultureInfo.InvariantCulture, $"超时（{tool.Timeout.TotalSeconds:0} 秒内没有完成）。");
-                failureKind = GenerationErrorKind.Timeout;
-            }
-            catch (ToolInputException ex)
-            {
-                failure = ex.Message;
-            }
-            catch (ToolFailureException ex)
-            {
-                failure = ex.Message;
-            }
-            catch (ToolOutcomeUnknownException ex)
-            {
-                // A side effect whose outcome is not known (decision M17): never pretended not to have run.
-                failure = ex.Message;
-                unknown = true;
-            }
-            catch (StorageWriteException ex)
-            {
-                failure = "读取本地数据失败：" + ex.Message;
-            }
-#pragma warning disable CA1031 // A tool's failure is handed back to the model; it never ends the run (architecture §15.10).
-            catch (Exception ex)
-#pragma warning restore CA1031
-            {
-                LogToolFailed(_logger, ex, call.Name);
-                failure = "工具出错：" + ex.Message;
-            }
+            pending.Failure = unprepared;
         }
 
+        return pending;
+    }
+
+    /// <summary>A started call's execution, within its time limit; a stop records its step as stopped and settles it.</summary>
+    private async Task ExecuteToolAsync(AnswerWork work, RunPlan run, RunServices services, PendingCall pending, CancellationToken stop)
+    {
+        if (pending.Settled is not null || pending.Failure is not null || pending.Tool is not { } tool)
+        {
+            return;
+        }
+
+        var live = work.Live;
+        using var timeout = new CancellationTokenSource(tool.Timeout);
+        using var linked = CancellationTokenSource.CreateLinkedTokenSource(stop, timeout.Token);
+        try
+        {
+            pending.Output = await tool.ExecuteAsync(run.Scope, pending.Arguments, linked.Token).ConfigureAwait(false);
+        }
+        catch (OperationCanceledException) when (stop.IsCancellationRequested)
+        {
+            live.EndTool();
+            var stoppedStep = pending.Step with { State = RunStepState.Stopped, FinishedAt = _clock.UtcNow };
+            await _writes.SaveAsync(() => services.Store.FinishStepAsync(stoppedStep, live.MessageId, null, 0, CancellationToken.None)).ConfigureAwait(false);
+            pending.Settled = new ToolOutcome(string.Empty, string.Empty, new RunEnding(MessageState.Stopped, null, null));
+        }
+        catch (OperationCanceledException) when (timeout.IsCancellationRequested)
+        {
+            pending.Failure = string.Create(CultureInfo.InvariantCulture, $"超时（{tool.Timeout.TotalSeconds:0} 秒内没有完成）。");
+            pending.FailureKind = GenerationErrorKind.Timeout;
+        }
+        catch (ToolInputException ex)
+        {
+            pending.Failure = ex.Message;
+        }
+        catch (ToolFailureException ex)
+        {
+            pending.Failure = ex.Message;
+        }
+        catch (ToolOutcomeUnknownException ex)
+        {
+            // A side effect whose outcome is not known (decision M17): never pretended not to have run.
+            pending.Failure = ex.Message;
+            pending.Unknown = true;
+        }
+        catch (StorageWriteException ex)
+        {
+            pending.Failure = "读取本地数据失败：" + ex.Message;
+        }
+#pragma warning disable CA1031 // A tool's failure is handed back to the model; it never ends the run (architecture §15.10).
+        catch (Exception ex)
+#pragma warning restore CA1031
+        {
+            LogToolFailed(_logger, ex, pending.Call.Name);
+            pending.Failure = "工具出错：" + ex.Message;
+        }
+    }
+
+    /// <summary>A call's result: stored as a resource, its block added and its step finished, in call order.</summary>
+    private async Task<ToolOutcome> FinishToolAsync(AnswerWork work, RunPlan run, RunServices services, PendingCall pending, Dictionary<string, int> failures, HashSet<string> withdrawn)
+    {
+        if (pending.Settled is { } settled)
+        {
+            return settled;
+        }
+
+        var live = work.Live;
+        var call = pending.Call;
+        var tool = pending.Tool;
+        var input = pending.Input;
+        var step = pending.Step;
+        var output = pending.Output;
+        var failure = pending.Failure;
         ResourceId? stored = null;
         var resultText = output?.Text ?? string.Empty;
         if (output is not null)
@@ -528,6 +677,7 @@ internal sealed partial class AnswerRunner
                 // Outside material is never an instruction (architecture §15.8, decision W11).
                 content = WebMaterial.Wrap(content);
             }
+
             block = new ToolResultBlock(call.Id, ToolResultStatus.Succeeded, Preview(resultText), id, output.Detail, output.Findings);
         }
         else
@@ -540,17 +690,17 @@ internal sealed partial class AnswerRunner
             }
 
             content = "出错：" + failure;
-            block = new ToolResultBlock(call.Id, ToolResultStatus.Failed, failure, null, unknown ? "结果未知" : failureKind == GenerationErrorKind.Timeout ? "超时" : "出错");
+            block = new ToolResultBlock(call.Id, ToolResultStatus.Failed, failure, null, pending.Unknown ? "结果未知" : pending.FailureKind == GenerationErrorKind.Timeout ? "超时" : "出错");
         }
 
         live.AddToolResult(block);
         var snapshot = live.Snapshot();
         var finished = step with
         {
-            State = output is not null ? RunStepState.Completed : unknown ? RunStepState.Unknown : RunStepState.Failed,
+            State = output is not null ? RunStepState.Completed : pending.Unknown ? RunStepState.Unknown : RunStepState.Failed,
             FinishedAt = _clock.UtcNow,
             Result = stored,
-            ErrorKind = output is not null ? null : failureKind,
+            ErrorKind = output is not null ? null : pending.FailureKind,
             ErrorDetail = output is not null ? null : failure,
         };
         await _writes.SaveAsync(() => services.Store.FinishStepAsync(finished, live.MessageId, snapshot.Blocks, snapshot.Revision, CancellationToken.None)).ConfigureAwait(false);
