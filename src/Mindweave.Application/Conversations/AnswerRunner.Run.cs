@@ -33,7 +33,7 @@ internal sealed partial class AnswerRunner
     private const int BlockPreview = 200;
 
     /// <summary>What the last request of a run that reached a limit asks of the model (decision R8), added to the system turn.</summary>
-    internal const string FinalInstruction = "【本次运行已达到上限】请根据上面已经取得的工具结果直接回答用户的问题，不要再调用工具；信息不足时说明还缺什么。";
+    internal const string FinalInstruction = "【本次运行已达到上限】请根据已经取得的工具结果直接回答用户的问题，不要再调用工具；信息不足时说明还缺什么。";
 
     internal const string SkippedResult = "未执行：本次运行已达到工具调用次数上限。";
 
@@ -62,6 +62,7 @@ internal sealed partial class AnswerRunner
         var elapsed = Stopwatch.StartNew();
         int requests = 0, calls = 0, tokens = 0, ordinal = 0;
         RunLimit? reached = null;
+        var instructions = RunPrompt.For(run.Tools);
 
         if (run.Scope.Web is { Mode: WebSearchMode.On } web && run.Tools.FirstOrDefault(t => t.Name == WebSearchTool.ToolName) is not null
             && turns.FindLastIndex(t => t.Role == ChatRole.User) is var question and >= 0)
@@ -95,10 +96,12 @@ internal sealed partial class AnswerRunner
 
             var final = reached is not null;
             var offered = final ? [] : run.Tools.Where(t => !withdrawn.Contains(t.Name)).ToList();
-            var next = Compose(request, turns, results, shortened, offered, final);
+            // The run instructions (L1), and for the last request the instruction to answer (R8).
+            var system = final ? instructions + "\n\n" + FinalInstruction : instructions;
+            var next = Compose(request, turns, results, shortened, offered, system);
             while (ChatTurns.Estimate(next) > budget.Available && Shorten(results, shortened))
             {
-                next = Compose(request, turns, results, shortened, offered, final);
+                next = Compose(request, turns, results, shortened, offered, system);
             }
 
             if (!final && ChatTurns.Estimate(next) > budget.Available)
@@ -250,8 +253,11 @@ internal sealed partial class AnswerRunner
         }
     }
 
-    /// <summary>The request for the next step: the turns so far (older results shortened as needed), the tools, and for the last one the instruction to answer.</summary>
-    private static ChatRequest Compose(ChatRequest request, List<ChatTurn> turns, List<SentResult> results, HashSet<int> shortened, List<ITool> offered, bool final)
+    /// <summary>
+    /// The request for the next step: the run's system turn first (its instructions and budget line, or the instruction to
+    /// answer), then the turns so far (older results shortened as needed), and the tools.
+    /// </summary>
+    private static ChatRequest Compose(ChatRequest request, List<ChatTurn> turns, List<SentResult> results, HashSet<int> shortened, List<ITool> offered, string system)
     {
         var sent = new List<ChatTurn>(turns);
         foreach (var result in results.Where(r => shortened.Contains(r.TurnIndex)))
@@ -259,14 +265,14 @@ internal sealed partial class AnswerRunner
             sent[result.TurnIndex] = sent[result.TurnIndex] with { Content = result.Line };
         }
 
-        if (final && sent.Count > 0 && sent[0].Role == ChatRole.System)
+        if (sent.Count > 0 && sent[0].Role == ChatRole.System)
         {
-            // In the system turn: some services refuse a system turn anywhere but first.
-            sent[0] = sent[0] with { Content = sent[0].Content + "\n\n" + FinalInstruction };
+            // One system turn at the start: some services refuse a system turn anywhere but first (an older summary may open the context).
+            sent[0] = sent[0] with { Content = system + "\n\n" + sent[0].Content };
         }
-        else if (final)
+        else
         {
-            sent.Insert(0, new ChatTurn(ChatRole.System, FinalInstruction));
+            sent.Insert(0, new ChatTurn(ChatRole.System, system));
         }
 
         return request with { Turns = sent, Tools = offered.Count == 0 ? null : [.. offered.Select(ToolRegistry.Definition)] };

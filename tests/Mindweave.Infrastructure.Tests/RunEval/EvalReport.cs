@@ -26,7 +26,7 @@ internal static class EvalReport
         var s = new StringBuilder();
         var ran = results.Where(r => r.Metrics is not null).ToList();
         var metrics = ran.Select(r => r.Metrics!).ToList();
-        s.Append(CultureInfo.InvariantCulture, $"# 运行评测报告\n\n- 时间：{at:yyyy-MM-dd HH:mm} UTC\n- 模型：{label}\n- 场景：{results.Count} 个（{ran.Count} 个运行完成）\n- 依据：docs/design/agent-loop.md §4\n\n");
+        s.Append(CultureInfo.InvariantCulture, $"# 运行评测报告\n\n- 时间：{at:yyyy-MM-dd HH:mm} UTC\n- 模型：{label}\n- 场景：{results.Count} 个（{ran.Count} 个运行完成）\n- 运行说明：版本 {Application.Conversations.RunPrompt.Version}\n- 依据：docs/design/agent-loop.md §4\n\n");
 
         s.Append("## 汇总\n\n| 指标 | 值 |\n| --- | --- |\n");
         Row(s, "检查通过", $"{results.Sum(r => r.Passed)} / {results.Sum(r => r.Checks.Count)}");
@@ -112,6 +112,7 @@ internal static class EvalReport
             {
                 at,
                 model = label,
+                runPrompt = Application.Conversations.RunPrompt.Version,
                 scenarios = results.Select(r => new
                 {
                     id = r.Scenario.Id,
