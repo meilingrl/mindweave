@@ -155,4 +155,47 @@ public class SdkMcpConnectorTests
         Assert.Equal(McpFailureKind.StartFailed, refused.Kind);
         Assert.Contains("401", refused.Message, StringComparison.Ordinal);
     }
+
+    [Fact]
+    public void Usual_tool_folders_join_a_short_path_once_and_only_when_they_exist()
+    {
+        var existing = new HashSet<string>(StringComparer.Ordinal) { "/opt/homebrew/bin", "/usr/local/bin", "/home/me/.local/bin" };
+
+        var path = SdkMcpConnector.WithUsualDirectories("/usr/bin:/bin:/usr/local/bin", "/home/me", existing.Contains);
+
+        Assert.Equal("/usr/bin:/bin:/usr/local/bin:/opt/homebrew/bin:/home/me/.local/bin", path);
+        Assert.Equal("/opt/homebrew/bin:/usr/local/bin:/home/me/.local/bin", SdkMcpConnector.WithUsualDirectories(null, "/home/me", existing.Contains));
+    }
+
+    [Fact]
+    public void A_bare_command_is_looked_up_along_the_servers_own_path()
+    {
+        Assert.SkipWhen(OperatingSystem.IsWindows(), "Unix only: Windows starts commands through its own search.");
+        var files = new HashSet<string>(StringComparer.Ordinal) { "/opt/homebrew/bin/npx" };
+
+        Assert.Equal("/opt/homebrew/bin/npx", SdkMcpConnector.ResolveCommand("npx", "/usr/bin:/opt/homebrew/bin", files.Contains));
+        Assert.Equal("npx", SdkMcpConnector.ResolveCommand("npx", "/usr/bin", files.Contains));
+        Assert.Equal("./run.sh", SdkMcpConnector.ResolveCommand("./run.sh", "/opt/homebrew/bin", _ => true));
+        Assert.Equal("/abs/tool", SdkMcpConnector.ResolveCommand("/abs/tool", "/opt/homebrew/bin", _ => true));
+    }
+
+    [Fact]
+    public async Task A_command_only_on_the_servers_path_starts_even_when_the_apps_path_lacks_it()
+    {
+        // As for an app started from the Dock: the folder is on the PATH the user gave the server, not on the app's own.
+        Assert.SkipWhen(OperatingSystem.IsWindows(), "Unix only.");
+        using var dir = new TempDataDirectory();
+        var folder = Path.Combine(dir.Paths.DataDirectory, "tools");
+        Directory.CreateDirectory(folder);
+        var dotnet = FakeMcp.Dotnet == "dotnet" ? "/usr/local/share/dotnet/dotnet" : FakeMcp.Dotnet;
+        File.CreateSymbolicLink(Path.Combine(folder, "mw-fake-host"), dotnet);
+        Assert.DoesNotContain(folder, Environment.GetEnvironmentVariable("PATH") ?? string.Empty, StringComparison.Ordinal);
+        var draft = new McpServerDraft(
+            "仅在服务器的 PATH", McpServerKind.Command, "mw-fake-host", [FakeMcp.ServerDll],
+            new Dictionary<string, string> { ["PATH"] = folder + ":" + Environment.GetEnvironmentVariable("PATH") });
+
+        await using var connection = await new SdkMcpConnector(dir.Paths).ConnectAsync(Launch(draft), Ct);
+
+        Assert.Contains(await connection.ListToolsAsync(Ct), t => t.Name == "echo");
+    }
 }

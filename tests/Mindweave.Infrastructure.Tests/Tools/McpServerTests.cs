@@ -35,6 +35,20 @@ public class McpServerTests
         Assert.False(Directory.Exists(preview.WorkingDirectory));
     }
 
+    [Fact]
+    public async Task Spaces_around_an_argument_line_are_dropped_and_blank_lines_ignored()
+    {
+        await using var h = await ChatHarness.StartAsync();
+        var draft = new McpServerDraft("文件", McpServerKind.Command, " npx ", ["-y ", "  @scope/server  ", "   ", "/Users/me/my notes"]);
+
+        var preview = h.Mcp.Preview(draft);
+        var added = await h.Mcp.AddAsync(draft, Ct);
+
+        Assert.Equal("npx", preview.Command);
+        Assert.Equal(["-y", "@scope/server", "/Users/me/my notes"], preview.Arguments);
+        Assert.Equal(["-y", "@scope/server", "/Users/me/my notes"], added.Arguments);
+    }
+
     [Theory]
     [InlineData("", McpServerKind.Command, "npx", null, null, null, "名称")]
     [InlineData("a", McpServerKind.Command, " ", null, null, null, "命令")]

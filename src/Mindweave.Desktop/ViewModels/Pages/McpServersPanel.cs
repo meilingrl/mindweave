@@ -23,6 +23,15 @@ public sealed partial class McpServersPanel : ViewModelBase
         _connections = connections;
         _dispatcher = dispatcher;
         _connections.StatusChanged += (_, id) => OnUi(() => Servers.FirstOrDefault(s => s.Id == id)?.Refresh());
+
+        // A run may turn a tool off by itself (decision M6); the page shows the reason without being reopened.
+        _servers.Changed += (_, _) => OnUi(() =>
+        {
+            foreach (var server in Servers)
+            {
+                server.Refresh();
+            }
+        });
         Loaded = ReloadAsync();
     }
 
@@ -359,13 +368,11 @@ public sealed partial class McpServerItem : ViewModelBase
                 await _servers.DisableToolAsync(Server.Id, tool.Name, CancellationToken.None);
             }
         }
-#pragma warning disable CA1031 // A setting that could not be saved shows as it was after the refresh.
+#pragma warning disable CA1031 // A setting that could not be saved shows as it was after the refresh (the row asks for it).
         catch (Exception)
 #pragma warning restore CA1031
         {
         }
-
-        _panel.OnUi(Refresh);
     }
 
     internal async Task SetRiskAsync(string tool, ToolRisk risk)
@@ -378,16 +385,26 @@ public sealed partial class McpServerItem : ViewModelBase
         catch (Exception)
 #pragma warning restore CA1031
         {
-            _panel.OnUi(Refresh);
         }
     }
 
-    /// <summary>The tools listed by the running server, joined with the stored settings (a tool turned off with a reason stays visible).</summary>
+    /// <summary>A row finished saving: show what is stored now.</summary>
+    internal void RefreshLater() => _panel.OnUi(Refresh);
+
+    private int _reloads;
+
+    /// <summary>
+    /// The tools listed by the running server, joined with the stored settings (a tool turned off with a reason stays
+    /// visible). Rows are updated in place when the same tools are shown, so a click on one row is never undone by the
+    /// refresh another row's change caused; only the latest of overlapping reloads is shown.
+    /// </summary>
     private async Task ReloadToolsAsync(IReadOnlyList<McpToolInfo>? listed)
     {
+        var reload = Interlocked.Increment(ref _reloads);
+        McpServerConfig? stored = null;
         try
         {
-            Server = await _servers.GetAsync(Server.Id, CancellationToken.None) ?? Server;
+            stored = await _servers.GetAsync(Server.Id, CancellationToken.None);
         }
 #pragma warning disable CA1031 // The last known settings are shown.
         catch (Exception)
@@ -397,12 +414,29 @@ public sealed partial class McpServerItem : ViewModelBase
 
         _panel.OnUi(() =>
         {
+            if (reload != Volatile.Read(ref _reloads))
+            {
+                return; // A newer reload shows the newer state.
+            }
+
+            Server = stored ?? Server;
             var tools = (listed ?? []).Select(t => (Info: t, Setting: Server.Tool(t.Name))).ToList();
             tools.AddRange(Server.Tools.Where(s => listed?.Any(t => t.Name == s.Name) != true).Select(s => (s.Definition, (McpToolSetting?)s)));
-            Tools.Clear();
-            foreach (var (info, setting) in tools.OrderBy(t => t.Info.Name, StringComparer.Ordinal))
+            tools = [.. tools.OrderBy(t => t.Info.Name, StringComparer.Ordinal)];
+            if (Tools.Select(t => t.Tool).SequenceEqual(tools.Select(t => t.Info)))
             {
-                Tools.Add(new McpToolItem(info, setting, this));
+                for (var i = 0; i < tools.Count; i++)
+                {
+                    Tools[i].Apply(tools[i].Setting);
+                }
+            }
+            else
+            {
+                Tools.Clear();
+                foreach (var (info, setting) in tools)
+                {
+                    Tools.Add(new McpToolItem(info, setting, this));
+                }
             }
 
             IsListed = listed is not null;
@@ -416,17 +450,48 @@ public sealed partial class McpServerItem : ViewModelBase
 public sealed partial class McpToolItem : ViewModelBase
 {
     private readonly McpServerItem _server;
-    private readonly bool _loading;
+    private bool _loading;
+
+    /// <summary>Changes of this row still being saved; a refresh meanwhile leaves the row as the user set it.</summary>
+    private int _saving;
 
     public McpToolItem(McpToolInfo tool, McpToolSetting? setting, McpServerItem server)
     {
         Tool = tool;
         _server = server;
+        Show(setting);
+    }
+
+    /// <summary>Shows the stored setting, unless a change of this row is still being saved (it refreshes again when saved).</summary>
+    internal void Apply(McpToolSetting? setting)
+    {
+        if (Volatile.Read(ref _saving) == 0)
+        {
+            Show(setting);
+        }
+    }
+
+    private void Show(McpToolSetting? setting)
+    {
         _loading = true;
         IsOn = setting?.Enabled == true;
-        RiskIndex = (int)(setting?.Risk ?? tool.DefaultRisk);
+        RiskIndex = (int)(setting?.Risk ?? Tool.DefaultRisk);
         DisabledReason = setting is { Enabled: false } ? setting.DisabledReason : null;
         _loading = false;
+    }
+
+    private async Task SaveAsync(Func<Task> save)
+    {
+        Interlocked.Increment(ref _saving);
+        try
+        {
+            await save();
+        }
+        finally
+        {
+            Interlocked.Decrement(ref _saving);
+            _server.RefreshLater();
+        }
     }
 
     public McpToolInfo Tool { get; }
@@ -459,7 +524,7 @@ public sealed partial class McpToolItem : ViewModelBase
         if (!_loading)
         {
             DisabledReason = null;
-            _ = _server.EnableAsync(Tool, value);
+            _ = SaveAsync(() => _server.EnableAsync(Tool, value));
         }
     }
 
@@ -467,7 +532,7 @@ public sealed partial class McpToolItem : ViewModelBase
     {
         if (!_loading && IsOn && value is >= 0 and <= 2)
         {
-            _ = _server.SetRiskAsync(Tool.Name, (ToolRisk)value);
+            _ = SaveAsync(() => _server.SetRiskAsync(Tool.Name, (ToolRisk)value));
         }
     }
 }

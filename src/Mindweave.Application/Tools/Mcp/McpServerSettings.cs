@@ -88,7 +88,8 @@ public sealed class McpServerSettings(IPreferenceStore store, ICredentialStore c
     {
         ArgumentNullException.ThrowIfNull(draft);
         var env = draft.Environment ?? new Dictionary<string, string>();
-        var arguments = draft.Arguments ?? [];
+        // Each argument without the spaces around it (a trailing space pasted into a line is never meant); blank ones dropped.
+        IReadOnlyList<string> arguments = [.. (draft.Arguments ?? []).Select(a => a.Trim()).Where(a => a.Length > 0)];
         string? problem = null;
         if (string.IsNullOrWhiteSpace(draft.Name))
         {

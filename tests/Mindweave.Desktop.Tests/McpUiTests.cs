@@ -192,6 +192,41 @@ public class McpUiTests
         window.Close();
     }
 
+    [AvaloniaFact]
+    public async Task Quick_toggles_all_stick_and_a_tool_turned_off_by_a_run_shows_its_reason_without_reopening()
+    {
+        await using var app = DesktopHarness.Create();
+        var window = await StartAsync(app, "Light");
+        var servers = app.Services.GetRequiredService<IMcpServers>();
+        var added = await servers.AddAsync(FakeMcp.Command("notes"), CancellationToken.None);
+        var (_, mcp) = await OpenSettingsAsync(app, window);
+        var server = Assert.Single(mcp.Servers);
+        await server.StartCommand.ExecuteAsync(null);
+        await UiWait.UntilAsync(() => server.State == McpServerState.Connected && server.Tools.Count == 13, timeoutMs: 20_000);
+
+        // Four ticks in a row, before any save finished: none is undone by the refreshes the others cause.
+        string[] picked = ["echo", "env", "cwd", "write_note"];
+        foreach (var name in picked)
+        {
+            server.Tools.Single(t => t.Name == name).IsOn = true;
+        }
+
+        for (var i = 0; i < 200 && (await servers.GetAsync(added.Id, CancellationToken.None))!.Tools.Count(t => t.Enabled) < picked.Length; i++)
+        {
+            await Task.Delay(20);
+        }
+
+        await UiWait.UntilAsync(() => picked.All(n => server.Tools.Single(t => t.Name == n).IsOn) && server.Tools.Count(t => t.IsOn) == picked.Length, timeoutMs: 20_000);
+        Assert.Equal(picked.Order(StringComparer.Ordinal), (await servers.GetAsync(added.Id, CancellationToken.None))!.Tools.Where(t => t.Enabled).Select(t => t.Name).Order(StringComparer.Ordinal));
+
+        // A run finds write_note changed at the server and turns it off (decision M6); the open page shows why.
+        var listed = server.Tools.Select(t => t.Tool).Select(t => t.Name == "write_note" ? t with { Description = "改过的说明" } : t).ToList();
+        await servers.ReconcileAsync(added.Id, listed, CancellationToken.None);
+        await UiWait.UntilAsync(() => server.Tools.Single(t => t.Name == "write_note") is { IsOn: false, HasDisabledReason: true }, timeoutMs: 20_000);
+        Assert.Equal(Application.Tools.Mcp.McpServerSettings.ChangedDefinition, server.Tools.Single(t => t.Name == "write_note").DisabledReason);
+        window.Close();
+    }
+
     private static async Task<MainWindow> StartAsync(DesktopHarness app, string theme)
     {
         var window = app.ShowWindow(1000, 760, theme == "Dark" ? ThemeVariant.Dark : ThemeVariant.Light);

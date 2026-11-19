@@ -56,12 +56,66 @@ public sealed class SdkMcpConnector(AppPaths paths, string? version = null) : IM
             }
         }
 
+        if (!OperatingSystem.IsWindows())
+        {
+            // An app started from the Dock or Finder gets PATH=/usr/bin:/bin:/usr/sbin:/sbin; npx, uvx and node live elsewhere.
+            environment.TryGetValue("PATH", out var path);
+            environment["PATH"] = WithUsualDirectories(path, Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), Directory.Exists);
+        }
+
         foreach (var (name, value) in user)
         {
             environment[name] = value;
         }
 
         return environment;
+    }
+
+    /// <summary>
+    /// <paramref name="path"/> with the folders command-line tools are usually installed in appended when they exist and are
+    /// missing (Homebrew, /usr/local, the user's ~/.local, ~/.cargo, ~/.volta, ~/.bun, ~/.deno). Unix only.
+    /// </summary>
+    internal static string WithUsualDirectories(string? path, string home, Func<string, bool> exists)
+    {
+        var parts = (path ?? string.Empty).Split(':', StringSplitOptions.RemoveEmptyEntries).ToList();
+        string[] usual =
+        [
+            "/opt/homebrew/bin", "/opt/homebrew/sbin", "/usr/local/bin",
+            Path.Combine(home, ".local", "bin"), Path.Combine(home, ".cargo", "bin"), Path.Combine(home, ".volta", "bin"),
+            Path.Combine(home, ".bun", "bin"), Path.Combine(home, ".deno", "bin"),
+        ];
+        foreach (var folder in usual)
+        {
+            if (!parts.Contains(folder, StringComparer.Ordinal) && exists(folder))
+            {
+                parts.Add(folder);
+            }
+        }
+
+        return string.Join(':', parts);
+    }
+
+    /// <summary>
+    /// A bare command name (no folder) looked up along the server's own <paramref name="path"/>: the process is started with
+    /// the app's PATH, which may not hold it (a Dock-started app). Anything else, or not found, is returned as given. Unix only.
+    /// </summary>
+    internal static string ResolveCommand(string command, string? path, Func<string, bool> isFile)
+    {
+        if (OperatingSystem.IsWindows() || command.Contains('/', StringComparison.Ordinal) || string.IsNullOrEmpty(path))
+        {
+            return command;
+        }
+
+        foreach (var folder in path.Split(':', StringSplitOptions.RemoveEmptyEntries))
+        {
+            var candidate = Path.Combine(folder, command);
+            if (isFile(candidate))
+            {
+                return candidate;
+            }
+        }
+
+        return command;
     }
 
     public async Task<IMcpConnection> ConnectAsync(McpLaunch launch, CancellationToken cancellationToken)
@@ -73,15 +127,17 @@ public sealed class SdkMcpConnector(AppPaths paths, string? version = null) : IM
         {
             var folder = WorkingDirectoryOf(server.Id);
             Directory.CreateDirectory(folder);
+            var environment = EnvironmentFor(launch.Environment);
+            var command = server.Command ?? throw new McpServerException(McpFailureKind.StartFailed, "没有填写命令。");
             transport = new StdioClientTransport(
                 new StdioClientTransportOptions
                 {
                     Name = server.Name,
-                    Command = server.Command ?? throw new McpServerException(McpFailureKind.StartFailed, "没有填写命令。"),
+                    Command = ResolveCommand(command, environment.GetValueOrDefault("PATH"), File.Exists),
                     Arguments = [.. server.Arguments],
                     WorkingDirectory = folder,
                     InheritEnvironmentVariables = false,
-                    EnvironmentVariables = EnvironmentFor(launch.Environment),
+                    EnvironmentVariables = environment,
                     ShutdownTimeout = TimeSpan.FromSeconds(5),
                     StandardErrorLines = launch.StandardError,
                 },
