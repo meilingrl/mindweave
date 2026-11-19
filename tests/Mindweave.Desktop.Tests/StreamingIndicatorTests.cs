@@ -11,7 +11,10 @@ using Mindweave.Testing;
 
 namespace Mindweave.Desktop.Tests;
 
-/// <summary>A running answer shows a waiting indicator only until its first text; growing text is its own progress.</summary>
+/// <summary>
+/// A running answer shows the weaving indicator (docs/design/generating-indicator.md): its motion says the stage, waiting,
+/// thinking or text streaming in, and no bar sits under the growing text.
+/// </summary>
 public class StreamingIndicatorTests
 {
     [AvaloniaFact]
@@ -24,7 +27,8 @@ public class StreamingIndicatorTests
         var held = app.Client.Hold();
         var page = await AskAsync(app, held);
 
-        await UiWait.UntilAsync(() => VisibleWaitingBars(window) == 1);
+        await UiWait.UntilAsync(() => VisibleIndicator(window) is not null);
+        Assert.Equal(WeavingMotion.Braid, VisibleIndicator(window)!.Motion);
         Assert.True(page.Messages[1].IsWaiting);
         Assert.Equal(UiText.WaitingForAnswer, page.Messages[1].WaitingLabel);
 
@@ -33,7 +37,7 @@ public class StreamingIndicatorTests
     }
 
     [AvaloniaFact]
-    public async Task Streaming_text_has_no_progress_bar_under_it()
+    public async Task Streaming_text_has_the_thread_beside_it_and_no_bar_under_it()
     {
         await using var app = DesktopHarness.Create();
         var window = app.ShowWindow();
@@ -45,11 +49,24 @@ public class StreamingIndicatorTests
         await UiWait.UntilAsync(() => page.Messages[1].Body.Length > 0);
         window.UpdateLayout();
         Assert.False(page.Messages[1].IsWaiting);
-        Assert.Equal(0, VisibleWaitingBars(window));
+        Assert.Equal(WeavingMotion.Thread, VisibleIndicator(window)!.Motion);
+        Assert.DoesNotContain(window.GetVisualDescendants().OfType<ConversationView>().Single().GetVisualDescendants().OfType<ProgressBar>(), b => b.IsEffectivelyVisible);
         Assert.True(page.Messages[1].IsInProgress);
 
         held.Release.TrySetResult();
         window.Close();
+    }
+
+    [Theory]
+    [InlineData(AnswerPhase.Waiting, false, WeavingMotion.Braid)]
+    [InlineData(AnswerPhase.Thinking, false, WeavingMotion.Joining)]
+    [InlineData(AnswerPhase.Compressing, false, WeavingMotion.Tightening)]
+    [InlineData(AnswerPhase.Thinking, true, WeavingMotion.Thread)]
+    [InlineData(AnswerPhase.Waiting, true, WeavingMotion.Thread)]
+    public void Each_stage_has_its_motion(AnswerPhase phase, bool hasText, WeavingMotion expected)
+    {
+        var motion = Converters.AnswerMotion.Convert([phase, hasText], typeof(WeavingMotion), null, System.Globalization.CultureInfo.InvariantCulture);
+        Assert.Equal(expected, motion);
     }
 
     [AvaloniaFact]
@@ -63,15 +80,15 @@ public class StreamingIndicatorTests
         var page = await AskAsync(app, held);
 
         await UiWait.UntilAsync(() => page.Messages[1].WaitingLabel == UiText.ModelThinking);
-        Assert.Equal(1, VisibleWaitingBars(window));
+        Assert.Equal(WeavingMotion.Joining, VisibleIndicator(window)!.Motion);
         Assert.Contains(VisibleTexts(window), t => t.Text == UiText.ModelThinking);
         Assert.Contains(VisibleTexts(window), t => t.Name == "WaitingElapsed" && !string.IsNullOrEmpty(t.Text));
 
         held.Finish("蒸汽机车");
         await UiWait.UntilAsync(() => page.Messages[1].Body == "蒸汽机车");
-        Assert.Equal(0, VisibleWaitingBars(window));
-        Assert.DoesNotContain(VisibleTexts(window), t => t.Text == UiText.ModelThinking);
         await UiWait.StoredAsync(page, 1, MessageState.Complete);
+        Assert.Null(VisibleIndicator(window));
+        Assert.DoesNotContain(VisibleTexts(window), t => t.Text == UiText.ModelThinking);
         window.Close();
     }
 
@@ -89,7 +106,7 @@ public class StreamingIndicatorTests
         await app.Services.GetRequiredService<ConversationService>().StopAsync(page.Messages[1].Id);
 
         await UiWait.StoredAsync(page, 1, MessageState.Stopped);
-        Assert.Equal(0, VisibleWaitingBars(window));
+        Assert.Null(VisibleIndicator(window));
         var texts = VisibleTexts(window);
         Assert.Contains(texts, t => t.Name == "StateText" && t.Text == "已停止");
         Assert.Contains(texts, t => t.Name == "AnswerDuration");
@@ -119,10 +136,10 @@ public class StreamingIndicatorTests
         return page;
     }
 
-    private static int VisibleWaitingBars(Window window)
+    private static WeavingIndicator? VisibleIndicator(Window window)
     {
         window.UpdateLayout();
-        return window.GetVisualDescendants().OfType<ConversationView>().Single().GetVisualDescendants().OfType<ProgressBar>()
-            .Count(b => b.Name == "WaitingBar" && b.IsEffectivelyVisible);
+        return window.GetVisualDescendants().OfType<ConversationView>().Single().GetVisualDescendants().OfType<WeavingIndicator>()
+            .SingleOrDefault(i => i.Name == "GeneratingIndicator" && i.IsEffectivelyVisible);
     }
 }

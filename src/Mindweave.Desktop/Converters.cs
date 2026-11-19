@@ -1,5 +1,7 @@
 using Avalonia.Data.Converters;
+using Mindweave.Application.Conversations;
 using Mindweave.Application.Startup;
+using Mindweave.Desktop.Views;
 
 namespace Mindweave.Desktop;
 
@@ -32,4 +34,24 @@ public static class Converters
 
     /// <summary>The database lives in the data directory shown just above it, so its row shows the file name (full path on hover).</summary>
     public static FuncValueConverter<string?, string> FileName { get; } = new(path => Path.GetFileName(path) ?? string.Empty);
+
+    /// <summary>
+    /// A running answer's weaving motion (docs/design/generating-indicator.md), from its phase and whether text has
+    /// arrived: the thread once text streams in; before that the braid, joining while thinking, tightening while compressing.
+    /// </summary>
+    public static FuncMultiValueConverter<object?, WeavingMotion> AnswerMotion { get; } = new(values =>
+    {
+        var list = values.ToList();
+        if (list is [_, true, ..])
+        {
+            return WeavingMotion.Thread;
+        }
+
+        return list.FirstOrDefault() switch
+        {
+            AnswerPhase.Thinking => WeavingMotion.Joining,
+            AnswerPhase.Compressing => WeavingMotion.Tightening,
+            _ => WeavingMotion.Braid,
+        };
+    });
 }
