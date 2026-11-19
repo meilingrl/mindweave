@@ -38,8 +38,39 @@ public sealed partial class WebRun
 
     public WebSearchMode Mode { get; }
 
-    /// <summary>The question as the user typed it (the 开 search's query).</summary>
+    /// <summary>The question as the user typed it.</summary>
     public string Question { get; }
+
+    /// <summary>The 开 search's query (decision W1, L9); null searches <see cref="Question"/>.</summary>
+    public string? PreSearch { get; init; }
+
+    /// <summary>A question shorter than this many characters searches with its context (L9).</summary>
+    public const int ShortQuestion = 30;
+
+    /// <summary>Characters of the title and of the quoted passage that go before the question (L9).</summary>
+    public const int ContextPart = 100;
+
+    /// <summary>
+    /// The 开 search's query (docs/design/agent-loop.md L9): the question as typed, or, when it is short or points back
+    /// (它、这个、第二个…), the conversation's title and the branch's quoted passage before it (each at most
+    /// <see cref="ContextPart"/> characters); without a title yet, the previous question stands in for it. No model call.
+    /// </summary>
+    public static string PreSearchQuery(string question, string? title, string? quote, string? previous)
+    {
+        question = (question ?? string.Empty).Trim();
+        if (question.Length >= ShortQuestion && !PointsBack().IsMatch(question))
+        {
+            return question;
+        }
+
+        var parts = new[] { title is { Length: > 0 } ? title : previous, quote }
+            .Select(p => WebSearchTool.OneLine(p ?? string.Empty))
+            .Where(p => p.Length > 0)
+            .Select(p => p.Length > ContextPart ? p[..ContextPart] : p)
+            .Distinct(StringComparer.Ordinal)
+            .Append(question);
+        return string.Join(' ', parts);
+    }
 
     /// <summary>The sources numbered so far, by number.</summary>
     public IReadOnlyList<WebSource> Sources
@@ -259,6 +290,9 @@ public sealed partial class WebRun
 
         return (narrowed.Start, narrowed.End);
     }
+
+    [GeneratedRegex(@"它|这个|那个|这些|那些|这种|那种|这里|那里|这件|那件|该|其中|上面|上述|前面|刚才|^[这那]|第[一二三四五六七八九十0-9]+[个条项点本种部位次篇]", RegexOptions.CultureInvariant, matchTimeoutMilliseconds: 1000)]
+    private static partial Regex PointsBack();
 
     [GeneratedRegex(@"https?://[^\s<>""'`）】」』，。、；！？]+", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant, matchTimeoutMilliseconds: 1000)]
     private static partial Regex Address();

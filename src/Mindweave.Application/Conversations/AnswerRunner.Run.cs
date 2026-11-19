@@ -92,7 +92,7 @@ internal sealed partial class AnswerRunner
         {
             // 开 (decision W1): the app searches the question once before the first request; the results go with the question as
             // material, and the model decides from there.
-            var query = string.IsNullOrWhiteSpace(web.Question) ? turns[question].Content : web.Question;
+            var query = web.PreSearch is { Length: > 0 } terms ? terms : string.IsNullOrWhiteSpace(web.Question) ? turns[question].Content : web.Question;
             var arguments = System.Text.Json.JsonSerializer.Serialize(new Dictionary<string, string> { ["query"] = query.Length > WebSearchTool.MaxQuery ? query[..WebSearchTool.MaxQuery] : query });
             calls++;
             var first = await RunToolAsync(work, run, services, new ChatToolCall(PreSearchCallId, WebSearchTool.ToolName, arguments), ordinal++, failures, withdrawn, elapsed, stop).ConfigureAwait(false);

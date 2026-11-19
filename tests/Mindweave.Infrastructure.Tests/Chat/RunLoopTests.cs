@@ -405,6 +405,40 @@ public class RunLoopTests
         Assert.Equal(BigTool.Text(3), tools[4].Content);
     }
 
+    // L9: the 开 search's terms.
+
+    [Theory]
+    [InlineData("星河-3 探测器是由哪个机构在哪一年发射的，主要任务目标又是什么呢", "标题", null, null, "星河-3 探测器是由哪个机构在哪一年发射的，主要任务目标又是什么呢")]
+    [InlineData("那第二个呢？", "火车历史", null, null, "火车历史 那第二个呢？")]
+    [InlineData("它有多重？", null, "蒸汽机车的锅炉", "火车是怎么发明的？", "火车是怎么发明的？ 蒸汽机车的锅炉 它有多重？")]
+    [InlineData("请详细说明一下这个设计在当时为什么能够大幅度提高效率并且被广泛采用", "瓦特与蒸汽机", null, null, "瓦特与蒸汽机 请详细说明一下这个设计在当时为什么能够大幅度提高效率并且被广泛采用")]
+    [InlineData("铁路", null, null, null, "铁路")]
+    public void The_on_search_adds_the_title_and_the_quoted_passage_to_a_short_or_pointing_question(string question, string? title, string? quote, string? previous, string expected) =>
+        Assert.Equal(expected, WebRun.PreSearchQuery(question, title, quote, previous));
+
+    [Fact]
+    public void The_context_before_the_question_is_cut_to_a_hundred_characters_each()
+    {
+        var query = WebRun.PreSearchQuery("为什么？", new string('题', 150), new string('引', 150), null);
+        Assert.Equal(new string('题', 100) + " " + new string('引', 100) + " 为什么？", query);
+    }
+
+    [Fact]
+    public async Task A_follow_up_with_the_switch_on_searches_with_the_conversation_title()
+    {
+        await using var h = await ChatHarness.StartAsync(model: ToolModel);
+        await h.WebSearch.SetKeyAsync("tvly-test-0000000000000000", Ct);
+        var first = await h.Conversations.StartAsync(h.Workspace, "火车是怎么发明的？", [], null, new SendOptions(WebSearchMode.Off), Ct);
+        await h.WaitForAnswerAsync(first.Answer!.Value);
+        await ChatHarness.UntilAsync(async () => (await h.Store.GetAsync(first.Conversation, Ct))?.Title is not null);
+
+        h.Client.Reply("好。");
+        var sent = await h.Conversations.AskAsync(first.Conversation, "那第二个呢？", [], new SendOptions(WebSearchMode.On), Ct);
+        await h.WaitForAnswerAsync(sent.Answer!.Value);
+
+        Assert.Equal(FakeChatClient.DefaultTitle + " 那第二个呢？", Assert.Single(h.Search.Searches).Query);
+    }
+
     /// <summary>A local tool whose result is about 2,000 estimated tokens: three fill a small window.</summary>
     private sealed class BigTool : ITool
     {
