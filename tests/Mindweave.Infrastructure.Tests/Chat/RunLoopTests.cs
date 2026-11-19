@@ -305,6 +305,108 @@ public class RunLoopTests
         Assert.Equal(["c1", "c2", "c3"], answer.Blocks.OfType<ToolResultBlock>().Select(b => b.CallId));
     }
 
+    // L4: repeated calls.
+
+    [Fact]
+    public async Task The_same_read_only_call_again_is_not_run_and_points_to_the_earlier_result()
+    {
+        var tool = new CountingTool("count_tool", ToolRisk.LocalRead, opened: true);
+        await using var h = await ChatHarness.StartAsync(model: ToolModel, tools: [tool]);
+        h.Client.CallTool("count_tool", "{\"n\":1,\"q\":\"甲\"}");
+        h.Client.CallTools("", [new ChatToolCall("again", "count_tool", "{ \"q\": \" 甲 \", \"n\": 1 }"), new ChatToolCall("other", "count_tool", "{\"n\":2}")]);
+        h.Client.Reply("好。");
+
+        var sent = await h.Conversations.StartAsync(h.Workspace, "问", Ct);
+        var answer = await h.WaitForAnswerAsync(sent.Answer!.Value);
+
+        Assert.Equal(MessageState.Complete, answer.State);
+        Assert.Equal(2, tool.Calls);
+        var results = answer.Blocks.OfType<ToolResultBlock>().ToList();
+        var repeated = results.Single(r => r.CallId == "again");
+        Assert.Equal((ToolResultStatus.Succeeded, "重复的调用，未再执行", results[0].Resource), (repeated.Status, repeated.Detail, repeated.Resource));
+        var run = (await h.Runs.RunsAsync(sent.Conversation, Ct))[answer.Id];
+        Assert.Equal(3, run.Steps.Count(s => s.Kind == RunStepKind.Tool));
+        Assert.Equal(results[0].Resource, run.Steps.Single(s => s.CallId == "again").Result);
+        var sentBack = h.Client.Requests.Where(FakeChatClient.IsAnswer).Last().Turns.Single(t => t.ToolCallId == "again").Content;
+        Assert.StartsWith("这次调用与本次运行中较早的一次相同", sentBack, StringComparison.Ordinal);
+        Assert.Contains($"资源 {results[0].Resource}", sentBack, StringComparison.Ordinal);
+
+        // It counts as a call: the budget line says so.
+        Assert.Contains("共 13 次", h.Client.Requests.Where(FakeChatClient.IsAnswer).Last().Turns[0].Content, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task Twins_in_one_reply_run_once_and_a_side_effect_always_runs()
+    {
+        var read = new CountingTool("count_tool", ToolRisk.LocalRead, opened: true);
+        var write = new CountingTool("write_tool", ToolRisk.SideEffect, opened: true);
+        await using var h = await ChatHarness.StartAsync(model: ToolModel, tools: [read, write]);
+        h.Client.CallTools("", [new ChatToolCall("a", "count_tool", "{\"n\":1}"), new ChatToolCall("b", "count_tool", "{\"n\":1}")]);
+        h.Client.CallTools("", [new ChatToolCall("w1", "write_tool", "{\"n\":1}")]);
+        h.Client.CallTools("", [new ChatToolCall("w2", "write_tool", "{\"n\":1}")]);
+        h.Client.Reply("好。");
+
+        var sent = await h.Conversations.StartAsync(h.Workspace, "问", Ct);
+        var answer = await h.WaitForAnswerAsync(sent.Answer!.Value);
+
+        Assert.Equal(MessageState.Complete, answer.State);
+        Assert.Equal((1, 2), (read.Calls, write.Calls));
+        Assert.Equal("重复的调用，未再执行", answer.Blocks.OfType<ToolResultBlock>().Single(r => r.CallId == "b").Detail);
+    }
+
+    [Fact]
+    public async Task A_repeated_call_whose_result_was_shortened_meanwhile_gets_the_whole_result_again()
+    {
+        var big = new BigTool();
+        await using var h = await ChatHarness.StartAsync(model: ToolModel with { ContextWindowTokens = 11_000 }, tools: [big]);
+        h.Client.CallTool("big_tool", "{\"n\":1}");
+        h.Client.CallTool("big_tool", "{\"n\":2}");
+        h.Client.CallTool("big_tool", "{\"n\":3}");
+        h.Client.CallTools("", [new ChatToolCall("again", "big_tool", "{\"n\":1}")]);
+        h.Client.Reply("好。");
+
+        var sent = await h.Conversations.StartAsync(h.Workspace, "问", Ct);
+        var answer = await h.WaitForAnswerAsync(sent.Answer!.Value);
+
+        Assert.Equal(MessageState.Complete, answer.State);
+        Assert.Equal(3, big.Calls);
+        var requests = h.Client.Requests.Where(FakeChatClient.IsAnswer).ToList();
+        Assert.Contains(requests[3].Turns, t => t.Role == ChatRole.Tool && t.Content.StartsWith("（较早的工具结果已省略：big_tool 1", StringComparison.Ordinal));
+        Assert.Equal(BigTool.Text(1), requests[4].Turns.Single(t => t.ToolCallId == "again").Content);
+    }
+
+    /// <summary>A local tool whose result is about 2,000 estimated tokens: three fill a small window.</summary>
+    private sealed class BigTool : ITool
+    {
+        private int _calls;
+
+        public int Calls => Volatile.Read(ref _calls);
+
+        public string Name => "big_tool";
+
+        public string DisplayName => "big_tool";
+
+        public string Description => "测试用的工具";
+
+        public string ParametersSchema => "{\"type\":\"object\"}";
+
+        public ToolRisk Risk => ToolRisk.LocalRead;
+
+        public TimeSpan Timeout => TimeSpan.FromSeconds(20);
+
+        public static string Text(int n) => $"第{n}份" + new string('河', 1_990);
+
+        public Task<bool> IsAvailableAsync(ToolScope scope, CancellationToken cancellationToken) => Task.FromResult(true);
+
+        public string Describe(JsonElement arguments) => arguments.TryGetProperty("n", out var n) ? n.ToString() : string.Empty;
+
+        public Task<ToolOutput> ExecuteAsync(ToolScope scope, JsonElement arguments, CancellationToken cancellationToken)
+        {
+            Interlocked.Increment(ref _calls);
+            return Task.FromResult(new ToolOutput(Text(arguments.GetProperty("n").GetInt32()), "完成", ResourceProvenance.Workspace, []));
+        }
+    }
+
     /// <summary>
     /// A tool that counts the calls running at once (shared with another when given) and waits until opened; when opened from
     /// the start, each call still takes a moment, so calls that could overlap do.
@@ -320,6 +422,10 @@ public class RunLoopTests
         public int Running => Volatile.Read(ref Counter._running);
 
         public int Max => Volatile.Read(ref Counter._max);
+
+        public int Calls => Volatile.Read(ref _calls);
+
+        private int _calls;
 
         public string Name => name;
 
@@ -341,6 +447,7 @@ public class RunLoopTests
 
         public async Task<ToolOutput> ExecuteAsync(ToolScope scope, JsonElement arguments, CancellationToken cancellationToken)
         {
+            Interlocked.Increment(ref _calls);
             var counter = Counter;
             var now = Interlocked.Increment(ref counter._running);
             int seen;

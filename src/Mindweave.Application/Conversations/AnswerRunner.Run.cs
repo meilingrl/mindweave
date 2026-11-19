@@ -72,6 +72,7 @@ internal sealed partial class AnswerRunner
         int requests = 0, calls = 0, tokens = 0, ordinal = 0;
         RunLimit? reached = null;
         var cutOff = false;
+        var seen = new Dictionary<string, EarlierCall>(StringComparer.Ordinal);
         var retried = false;
         var instructions = RunPrompt.For(run.Tools);
 
@@ -90,6 +91,11 @@ internal sealed partial class AnswerRunner
             }
 
             turns[question] = turns[question] with { Content = PreSearchLead + "\n" + first.Content + "\n\n" + turns[question].Content };
+            if (first.Resource is { } found && RepeatKey(run, new ChatToolCall(PreSearchCallId, WebSearchTool.ToolName, arguments)) is { } searched)
+            {
+                // Never shortened: it went with the question.
+                seen[searched] = new EarlierCall(first.Content, -1, found, WebSearchTool.ToolName, query.Length > WebSearchTool.MaxQuery ? query[..WebSearchTool.MaxQuery] : query);
+            }
         }
 
         while (true)
@@ -270,7 +276,9 @@ internal sealed partial class AnswerRunner
 
             turns.Add(new ChatTurn(ChatRole.Assistant, text.ToString()) { ToolCalls = asked.Calls, Reasoning = asked.Reasoning });
             var batch = new List<(ChatToolCall Call, int Ordinal)>();
+            var repeats = new List<(ChatToolCall Call, int Ordinal, string Key)>();
             var skipped = new List<ChatToolCall>();
+            var keys = new Dictionary<string, string>(StringComparer.Ordinal);
             foreach (var call in asked.Calls)
             {
                 if (calls >= limits.ToolCalls)
@@ -282,6 +290,19 @@ internal sealed partial class AnswerRunner
                 }
 
                 calls++;
+                var same = RepeatKey(run, call);
+                if (same is not null && (seen.ContainsKey(same) || keys.ContainsValue(same)))
+                {
+                    // L4: the same read-only call again is not run; it still counts as a call.
+                    repeats.Add((call, ordinal++, same));
+                    continue;
+                }
+
+                if (same is not null)
+                {
+                    keys[call.Id] = same;
+                }
+
                 batch.Add((call, ordinal++));
             }
 
@@ -293,8 +314,37 @@ internal sealed partial class AnswerRunner
                     return ending;
                 }
 
+                if (outcomes[i].Resource is { } resource && keys.TryGetValue(batch[i].Call.Id, out var made))
+                {
+                    var tool = run.Tools.First(t => t.Name == batch[i].Call.Name);
+                    using var document = JsonDocument.Parse(string.IsNullOrWhiteSpace(batch[i].Call.Arguments) ? "{}" : batch[i].Call.Arguments);
+                    seen.TryAdd(made, new EarlierCall(outcomes[i].Content, turns.Count, resource, tool.Name, tool.Describe(document.RootElement)));
+                }
+
                 results.Add(new SentResult(turns.Count, outcomes[i].Line));
                 turns.Add(new ChatTurn(ChatRole.Tool, outcomes[i].Content) { ToolCallId = batch[i].Call.Id });
+            }
+
+            foreach (var (call, at, same) in repeats)
+            {
+                if (seen.TryGetValue(same, out var earlier))
+                {
+                    var repeated = await RepeatAsync(work, run, services, call, at, earlier, shortened.Contains(earlier.TurnIndex)).ConfigureAwait(false);
+                    results.Add(new SentResult(turns.Count, repeated.Line));
+                    turns.Add(new ChatTurn(ChatRole.Tool, repeated.Content) { ToolCallId = call.Id });
+                }
+                else
+                {
+                    // Its twin in this reply failed: this one runs after all.
+                    var outcome = await RunToolAsync(work, run, services, call, at, failures, withdrawn, elapsed, stop).ConfigureAwait(false);
+                    if (outcome.Ending is { } ending)
+                    {
+                        return ending;
+                    }
+
+                    results.Add(new SentResult(turns.Count, outcome.Line));
+                    turns.Add(new ChatTurn(ChatRole.Tool, outcome.Content) { ToolCallId = call.Id });
+                }
             }
 
             foreach (var call in skipped)
@@ -339,7 +389,54 @@ internal sealed partial class AnswerRunner
         return oldest is not null && shortened.Add(oldest.TurnIndex);
     }
 
-    private readonly record struct ToolOutcome(string Content, string Line, RunEnding? Ending);
+    private readonly record struct ToolOutcome(string Content, string Line, RunEnding? Ending, ResourceId? Resource = null);
+
+    /// <summary>A read-only call that succeeded earlier in the run (L4): what was sent for it and where.</summary>
+    private sealed record EarlierCall(string Content, int TurnIndex, ResourceId Resource, string Name, string? Input);
+
+    /// <summary>What the model is told for a call that repeats an earlier one whose result it still has (L4).</summary>
+    internal static string RepeatedResult(string name, string? input, ResourceId resource) =>
+        $"这次调用与本次运行中较早的一次相同（{name} {input}），没有再执行；结果见上（资源 {resource}）。";
+
+    /// <summary>The key a read-only call is compared by (L4); null for a call that is always run.</summary>
+    private static string? RepeatKey(RunPlan run, ChatToolCall call)
+    {
+        if (run.Tools.FirstOrDefault(t => t.Name == call.Name) is not { } tool || tool.Risk == ToolRisk.SideEffect || !call.ArgumentsValid)
+        {
+            return null;
+        }
+
+        try
+        {
+            using var document = JsonDocument.Parse(string.IsNullOrWhiteSpace(call.Arguments) ? "{}" : call.Arguments);
+            return document.RootElement.ValueKind == JsonValueKind.Object ? call.Name + "\n" + ToolArguments.Canonical(document.RootElement) : null;
+        }
+        catch (JsonException)
+        {
+            return null;
+        }
+    }
+
+    /// <summary>
+    /// A repeated call (L4) as a step of its own that runs nothing: it counts as a call, its block points to the earlier
+    /// result, and the model gets that result again only when it was shortened meanwhile.
+    /// </summary>
+    private async Task<ToolOutcome> RepeatAsync(AnswerWork work, RunPlan run, RunServices services, ChatToolCall call, int ordinal, EarlierCall earlier, bool shortenedSince)
+    {
+        var live = work.Live;
+        var tool = run.Tools.First(t => t.Name == call.Name);
+        var step = new RunStepRecord(
+            work.Task.Id, ordinal, RunStepKind.Tool, RunStepState.Running, _clock.UtcNow,
+            CallId: call.Id, Tool: call.Name, Risk: tool.Risk, Input: earlier.Input);
+        await _writes.SaveAsync(() => Done(services.Store.AddStepAsync(step, CancellationToken.None))).ConfigureAwait(false);
+        live.StartTool(new ToolCallBlock(call.Id, call.Name, call.Arguments, tool.Risk, Summary(tool, call, earlier.Input)), call.Name);
+        live.AddToolResult(new ToolResultBlock(call.Id, ToolResultStatus.Succeeded, "与较早的一次调用相同，没有再执行。", earlier.Resource, "重复的调用，未再执行"));
+        var snapshot = live.Snapshot();
+        var finished = step with { State = RunStepState.Completed, FinishedAt = _clock.UtcNow, Result = earlier.Resource };
+        await _writes.SaveAsync(() => services.Store.FinishStepAsync(finished, live.MessageId, snapshot.Blocks, snapshot.Revision, CancellationToken.None)).ConfigureAwait(false);
+        var content = shortenedSince ? earlier.Content : RepeatedResult(earlier.Name, earlier.Input, earlier.Resource);
+        return new ToolOutcome(content, $"（较早的工具调用：{call.Name} {earlier.Input}，与之前的一次相同，没有再执行。）", null, earlier.Resource);
+    }
 
     /// <summary>At most this many calls of one reply run at once (L3).</summary>
     internal const int MaxParallelCalls = 4;
@@ -705,7 +802,7 @@ internal sealed partial class AnswerRunner
         };
         await _writes.SaveAsync(() => services.Store.FinishStepAsync(finished, live.MessageId, snapshot.Blocks, snapshot.Revision, CancellationToken.None)).ConfigureAwait(false);
         var line = $"（较早的工具结果已省略：{call.Name} {input}{(stored is { } r ? $"，完整结果是资源 {r}" : string.Empty)}；需要时可再读取。）";
-        return new ToolOutcome(content, line, null);
+        return new ToolOutcome(content, line, null, stored);
     }
 
     /// <summary>

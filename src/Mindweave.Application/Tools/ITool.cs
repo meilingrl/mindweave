@@ -251,6 +251,53 @@ public static class ToolArguments
         throw new ToolInputException($"参数 {name} 应是整数。");
     }
 
+    /// <summary>
+    /// The arguments as compared for repeated calls (docs/design/agent-loop.md L4): object keys in order, strings without
+    /// surrounding white space, numbers and other values as written.
+    /// </summary>
+    public static string Canonical(JsonElement arguments)
+    {
+        var s = new StringBuilder();
+        Write(arguments);
+        return s.ToString();
+
+        void Write(JsonElement e)
+        {
+            switch (e.ValueKind)
+            {
+                case JsonValueKind.Object:
+                    s.Append('{');
+                    var first = true;
+                    foreach (var property in e.EnumerateObject().OrderBy(p => p.Name, StringComparer.Ordinal))
+                    {
+                        s.Append(first ? string.Empty : ",").Append(JsonSerializer.Serialize(property.Name)).Append(':');
+                        first = false;
+                        Write(property.Value);
+                    }
+
+                    s.Append('}');
+                    break;
+                case JsonValueKind.Array:
+                    s.Append('[');
+                    var i = 0;
+                    foreach (var item in e.EnumerateArray())
+                    {
+                        s.Append(i++ == 0 ? string.Empty : ",");
+                        Write(item);
+                    }
+
+                    s.Append(']');
+                    break;
+                case JsonValueKind.String:
+                    s.Append(JsonSerializer.Serialize(e.GetString()!.Trim()));
+                    break;
+                default:
+                    s.Append(e.GetRawText());
+                    break;
+            }
+        }
+    }
+
     /// <summary>The hash a run freezes for a tool's definition (architecture §15.3: <c>generation_task.tools</c>).</summary>
     public static string DefinitionHash(ITool tool)
     {
