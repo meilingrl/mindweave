@@ -12,7 +12,7 @@
 
 ## 下一步
 
-用你的 Tavily 密钥与支持工具调用的模型试第 2、3 期（`scripts/daily.sh trial`；检查项见 [runs-and-tools.md](docs/design/runs-and-tools.md) §7 与 [web-search.md](docs/design/web-search.md) §5），之后是第 4 期 MCP（开始前定 Q15）。运行循环的改进按[提案](docs/design/agent-loop.md)（L1–L12，你 2026-11-19 通过）：先做评测 L12（可与第 4 期并行），改循环本身的 L1–L11 等第 4 期合并后开始；其中 L1、L5、L8、L10、L11 改架构 §15 的文字，实施时单独提交；L9 的做法、真实评测的额度与 L11 的出处样式在实施时再请你定。第 1 期已由你在 macOS 试用版本（367bcca）上逐项试过并通过（2026-11-17：“+”菜单、文件与图片、长粘贴与撤回、拖入、从 Finder 粘贴、发送与查看页）；Windows 上尚未试用。其他候选：Windows 11 实机全量与发布版本试用（课程演示平台）；课程报告材料；[低／信息级待办](docs/reviews/claude-auto-health-20261112/low-triage.md)；中英双语准备；“显示思考内容”。
+用你的 Tavily 密钥与支持工具调用的模型试第 2、3 期（`scripts/daily.sh trial`；检查项见 [runs-and-tools.md](docs/design/runs-and-tools.md) §7 与 [web-search.md](docs/design/web-search.md) §5），之后是第 4 期 MCP（开始前定 Q15）。运行循环的改进按[提案](docs/design/agent-loop.md)（L1–L12，你 2026-11-19 通过）：评测 L12 已合并（2026-11-19，12 个场景、虚构的网络，假模型下作为普通测试运行；`scripts/real-api.sh eval [配置]` 对真实模型跑一次约 12 个回答，等你给额度后跑基线），改循环本身的 L1–L11 等第 4 期合并后开始；其中 L1、L5、L8、L10、L11 改架构 §15 的文字，实施时单独提交；L9 的做法、真实评测的额度与 L11 的出处样式在实施时再请你定。第 1 期已由你在 macOS 试用版本（367bcca）上逐项试过并通过（2026-11-17：“+”菜单、文件与图片、长粘贴与撤回、拖入、从 Finder 粘贴、发送与查看页）；Windows 上尚未试用。其他候选：Windows 11 实机全量与发布版本试用（课程演示平台）；课程报告材料；[低／信息级待办](docs/reviews/claude-auto-health-20261112/low-triage.md)；中英双语准备；“显示思考内容”。
 
 ## 需要你
 
