@@ -4,6 +4,9 @@
 #   scripts/real-api.sh configure [profile]   enter address, model and key once (key goes to the login keychain)
 #   scripts/real-api.sh test [profile] [name] run the opt-in real-service tests against that profile; with a name,
 #                                             only the tests whose full name contains it (e.g. Workspace_names)
+#   scripts/real-api.sh eval [profile] [ids]  run the agent evaluation (docs/design/agent-loop.md §4): about 12 answers
+#                                             against a fake web; optional comma-separated scenario ids; writes a Markdown
+#                                             and a JSON report (MINDWEAVE_RUN_EVAL_REPORT names the file)
 #   scripts/real-api.sh list                  show configured profiles (never the key)
 #   scripts/real-api.sh remove [profile]      delete a profile and its key
 #
@@ -51,6 +54,11 @@ case "${1:-}" in
     MINDWEAVE_REAL_API_URL="$MINDWEAVE_REAL_API_URL" MINDWEAVE_REAL_API_MODEL="$MINDWEAVE_REAL_API_MODEL" MINDWEAVE_REAL_API_KEY="$key" \
       dotnet test "$ROOT/tests/Mindweave.Infrastructure.Tests" --filter "Category=RealApi${3:+&FullyQualifiedName~$3}" --logger "console;verbosity=normal"
     ;;
+  eval)
+    report="${MINDWEAVE_RUN_EVAL_REPORT:-${TMPDIR:-/tmp}/mindweave-run-eval-$(date +%Y%m%d-%H%M%S)-$PROFILE.md}"
+    MINDWEAVE_RUN_EVAL_REPORT="$report" MINDWEAVE_RUN_EVAL_ONLY="${3:-}" "$0" test "$PROFILE" RunEval
+    echo "Report: $report (and ${report%.md}.json)"
+    ;;
   list)
     ls "$CONFIG_DIR" 2>/dev/null | sed -n 's/\.env$//p' || true
     ;;
@@ -59,5 +67,5 @@ case "${1:-}" in
     rm -f "$CONFIG_DIR/$PROFILE.env"
     echo "Removed profile '$PROFILE'."
     ;;
-  *) sed -n '2,13p' "$0"; exit 64 ;;
+  *) sed -n '2,16p' "$0"; exit 64 ;;
 esac
