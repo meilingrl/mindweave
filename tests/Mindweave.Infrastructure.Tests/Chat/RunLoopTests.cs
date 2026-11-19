@@ -467,6 +467,83 @@ public class RunLoopTests
         Assert.True(system.IndexOf("【额度】", StringComparison.Ordinal) > searchLine);
     }
 
+    // L11: local results numbered with 出处.
+
+    [Fact]
+    public async Task A_cited_part_of_an_attachment_is_a_source_of_the_answer_and_opens_at_that_part()
+    {
+        await using var h = await ChatHarness.StartAsync(model: ToolModel);
+        h.Client.CallTool(SearchAttachmentsTool.ToolName, Query("蒸汽机"));
+        h.Client.Reply("瓦特改良了蒸汽机[1]。");
+
+        var resource = await PasteAsync(h, Material);
+        var sent = await h.Conversations.StartAsync(h.Workspace, "蒸汽机是谁改良的？", [resource], null, Ct);
+        var answer = await h.WaitForAnswerAsync(sent.Answer!.Value);
+
+        Assert.StartsWith("检索“蒸汽机”找到 1 段", h.Client.Requests.Where(FakeChatClient.IsAnswer).Last().Turns[^1].Content, StringComparison.Ordinal);
+        Assert.Contains($"[1] 《{ContentBlocks.PastedTextName}》 resource={resource}", h.Client.Requests.Where(FakeChatClient.IsAnswer).Last().Turns[^1].Content, StringComparison.Ordinal);
+        var citation = Assert.Single(ContentBlocks.CitationsOf(answer.Blocks));
+        Assert.Equal((1, CitationKind.Attachment, null, resource), (citation.Number, citation.Kind, citation.Url, citation.Resource));
+        Assert.Equal($"[1] 附件《{ContentBlocks.PastedTextName}》", citation.Line);
+        var text = (await h.ResourceService.GetAsync(resource, Ct))!.Text!;
+        Assert.Contains("瓦特改良了蒸汽机", text[citation.Start..citation.End], StringComparison.Ordinal);
+
+        // As stored and read back.
+        var stored = await h.GetMessageAsync(answer.Id);
+        Assert.Equal(citation, Assert.Single(ContentBlocks.CitationsOf(stored!.Blocks)));
+    }
+
+    [Fact]
+    public async Task A_cited_summary_is_a_source_that_names_its_node_and_web_and_local_numbers_do_not_collide()
+    {
+        await using var h = await ChatHarness.StartAsync(model: ToolModel);
+        await h.WebSearch.SetKeyAsync("tvly-test-0000000000000000", Ct);
+        var earlier = await h.Conversations.StartAsync(h.Workspace, "火车是怎么发明的？", [], null, new SendOptions(WebSearchMode.Off), Ct);
+        await h.WaitForAnswerAsync(earlier.Answer!.Value);
+        Assert.True((await h.SummaryService.SummarizeAsync(earlier.Conversation, Ct)).Accepted);
+        await ChatHarness.UntilAsync(async () => await h.SummaryService.ForConversationAsync(earlier.Conversation, Ct) is not null);
+        var node = (await h.SummaryService.ForConversationAsync(earlier.Conversation, Ct))!.Node;
+
+        h.Client.CallTool(WebSearchTool.ToolName, Query("蒸汽机"));
+        h.Client.CallTool(SearchSummariesTool.ToolName, Query(FakeChatClient.DefaultSummaryTitle));
+        h.Client.Reply("你以前探索过蒸汽机车[3]，瓦特改良了蒸汽机[1]。");
+        var sent = await h.Conversations.StartAsync(h.Workspace, "我以前看过什么？", [], null, new SendOptions(WebSearchMode.Auto), Ct);
+        var answer = await h.WaitForAnswerAsync(sent.Answer!.Value);
+
+        var citations = ContentBlocks.CitationsOf(answer.Blocks);
+        Assert.Equal([1, 3], citations.Select(c => c.Number));
+        Assert.Equal(CitationKind.Web, citations[0].Kind);
+        var summary = citations[1];
+        Assert.Equal((CitationKind.Summary, node.Id.Value.ToString("D"), node.DisplayName), (summary.Kind, summary.Target, summary.Title));
+        var result = answer.Blocks.OfType<ToolResultBlock>().Last();
+        Assert.Equal(result.Resource, summary.Resource);
+        var text = (await h.ResourceService.GetAsync(result.Resource!.Value, Ct))!.Text!;
+        Assert.StartsWith($"[3] {node.DisplayName}", text[summary.Start..summary.End], StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task A_page_an_earlier_run_read_cited_again_from_the_stored_material_keeps_its_address()
+    {
+        await using var h = await ChatHarness.StartAsync(model: ToolModel);
+        await h.WebSearch.SetKeyAsync("tvly-test-0000000000000000", Ct);
+        h.Pages.Page("https://example.org/steam", "蒸汽机的历史", "瓦特在 1769 年改良了蒸汽机，他的冷凝器让效率大增。");
+        h.Client.CallTool(FetchPageTool.ToolName, JsonSerializer.Serialize(new { url = "https://example.org/steam" }));
+        h.Client.Reply("瓦特改良了蒸汽机[1]。");
+        var first = await h.Conversations.StartAsync(h.Workspace, "蒸汽机是谁改良的？读 https://example.org/steam", [], null, new SendOptions(WebSearchMode.Auto), Ct);
+        await h.WaitForAnswerAsync(first.Answer!.Value);
+
+        h.Client.CallTool(SearchAttachmentsTool.ToolName, Query("冷凝器"));
+        h.Client.Reply("靠的是冷凝器[1]。");
+        var sent = await h.Conversations.AskAsync(first.Conversation, "他是怎么提高效率的？", [], new SendOptions(WebSearchMode.Auto), Ct);
+        var answer = await h.WaitForAnswerAsync(sent.Answer!.Value);
+
+        var sentBack = h.Client.Requests.Where(FakeChatClient.IsAnswer).Last().Turns[^1].Content;
+        Assert.Contains("[1] 《蒸汽机的历史》", sentBack, StringComparison.Ordinal);
+        Assert.DoesNotContain("\n[1] 蒸汽机的历史", sentBack, StringComparison.Ordinal);
+        var citation = Assert.Single(ContentBlocks.CitationsOf(answer.Blocks));
+        Assert.Equal((CitationKind.Web, new Uri("https://example.org/steam"), "蒸汽机的历史"), (citation.Kind, citation.Url, citation.Title));
+    }
+
     /// <summary>A local tool whose result is about 2,000 estimated tokens: three fill a small window.</summary>
     private sealed class BigTool : ITool
     {

@@ -19,16 +19,23 @@ public sealed record BranchEntry(ConversationId Child, string Quote, bool Archiv
 /// One message in a conversation page. A finished message shows its stored text; an unfinished answer is
 /// bound to the coordinator's live answer, so it never shows text older than what has already arrived.
 /// </summary>
-/// <summary>One row of the 出处 list under an answer (requirements §10.4.5): number, title, real address, when fetched.</summary>
+/// <summary>
+/// One row of the 出处 list under an answer (requirements §10.4.5): number, title, real address, when fetched; for the app's
+/// own material (L11) 附件《…》、材料《…》 or 总结《…》 and where it is, without an address or a time.
+/// </summary>
 public sealed record CitationItem(CitationBlock Block, CommunityToolkit.Mvvm.Input.IRelayCommand Open)
 {
     public string Number => $"[{Block.Number}]";
 
-    public string Title => Block.Title;
+    public string Title => Block.Label;
 
-    public string Address => Block.Url.AbsoluteUri;
+    /// <summary>The real address; for local material, where it is (the row's tooltip either way).</summary>
+    public string Address => Block.Url?.AbsoluteUri ?? UiText.CitationPlace(Block.Kind);
 
-    public string Meta => UiText.CitationMeta(Block.Url, Block.FetchedAt);
+    public string Meta => Block.Url is { } url ? UiText.CitationMeta(url, Block.FetchedAt) : UiText.CitationPlace(Block.Kind);
+
+    /// <summary>A web source: its address line and host with the time; local material shows only where it is.</summary>
+    public bool HasAddress => Block.Url is not null;
 }
 
 public sealed partial class MessageItemViewModel : ViewModelBase, IDisposable

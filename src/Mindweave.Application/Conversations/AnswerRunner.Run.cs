@@ -63,10 +63,13 @@ internal sealed partial class AnswerRunner
         public bool Failed { get; init; }
 
         public IReadOnlyList<ToolFinding> Findings { get; init; } = [];
+
+        /// <summary>The run's [n] of the sources in it.</summary>
+        public IReadOnlyList<int> Numbers { get; init; } = [];
     }
 
     private static SentResult Sent(int turnIndex, ToolOutcome outcome, string tool) =>
-        new(turnIndex, outcome.Line) { Tool = tool, Failed = outcome.Failed, Findings = outcome.Findings ?? [] };
+        new(turnIndex, outcome.Line) { Tool = tool, Failed = outcome.Failed, Findings = outcome.Findings ?? [], Numbers = outcome.Numbers ?? [] };
 
     private async Task<RunEnding> RunAsync(AnswerWork work, RunPlan run, RunServices services, ChatRequest request, string key, CancellationToken stop)
     {
@@ -417,7 +420,7 @@ internal sealed partial class AnswerRunner
     {
         var sources = result.Findings.Where(f => f.Kind == ToolFindingKind.WebSource).ToList();
         return result.Failed ? 0
-            : sources.Any(f => f.Part is { } n && cited.Contains(n)) ? 4
+            : result.Numbers.Any(cited.Contains) || sources.Any(f => f.Part is { } n && cited.Contains(n)) ? 4
             : result.Tool == FetchPageTool.ToolName ? 3
             : result.Tool == WebSearchTool.ToolName && !sources.Any(f => read.Contains(Address(f.Id))) ? 1
             : 2;
@@ -425,7 +428,7 @@ internal sealed partial class AnswerRunner
 
     private static string Address(string url) => Uri.TryCreate(url, UriKind.Absolute, out var u) && WebRun.Normalize(u) is { } key ? key : url;
 
-    private readonly record struct ToolOutcome(string Content, string Line, RunEnding? Ending, ResourceId? Resource = null, bool Failed = false, IReadOnlyList<ToolFinding>? Findings = null);
+    private readonly record struct ToolOutcome(string Content, string Line, RunEnding? Ending, ResourceId? Resource = null, bool Failed = false, IReadOnlyList<ToolFinding>? Findings = null, IReadOnlyList<int>? Numbers = null);
 
     /// <summary>A read-only call that succeeded earlier in the run (L4): what was sent for it and where.</summary>
     private sealed record EarlierCall(string Content, int TurnIndex, ResourceId Resource, string Name, string? Input);
@@ -838,7 +841,7 @@ internal sealed partial class AnswerRunner
         };
         await _writes.SaveAsync(() => services.Store.FinishStepAsync(finished, live.MessageId, snapshot.Blocks, snapshot.Revision, CancellationToken.None)).ConfigureAwait(false);
         var line = $"（较早的工具结果已省略：{call.Name} {input}{(stored is { } r ? $"，完整结果是资源 {r}" : string.Empty)}；需要时可再读取。）";
-        return new ToolOutcome(content, line, null, stored, Failed: stored is null, Findings: output?.Findings);
+        return new ToolOutcome(content, line, null, stored, Failed: stored is null, Findings: output?.Findings, Numbers: output?.Numbers);
     }
 
     /// <summary>

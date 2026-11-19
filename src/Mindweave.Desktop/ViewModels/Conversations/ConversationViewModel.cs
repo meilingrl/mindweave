@@ -343,8 +343,17 @@ public sealed partial class ConversationViewModel : PageViewModel, IDisposable, 
     private void OpenToolResult(Core.Resources.ResourceId result, string title) => Composer.Open(AttachmentChip.ForToolResult(result, title, Composer.Open));
 
     /// <summary>A summary a tool found: navigation, like opening it from the network.</summary>
-    /// <summary>A 出处 opens the viewer at its passage (requirements §10.4.5).</summary>
-    private void OpenCitation(Core.Conversations.CitationBlock citation) => _ = Composer.Viewer.OpenCitationAsync(citation);
+    /// <summary>A 出处 opens the viewer at its passage (requirements §10.4.5); a summary's opens the summary, as from the network (L11).</summary>
+    private void OpenCitation(Core.Conversations.CitationBlock citation)
+    {
+        if (citation.Kind == Core.Conversations.CitationKind.Summary && Guid.TryParseExact(citation.Target, "D", out var node))
+        {
+            OpenSummary(new Core.Summaries.SummaryNodeId(node));
+            return;
+        }
+
+        _ = Composer.Viewer.OpenCitationAsync(citation);
+    }
 
     private void OpenSummary(Core.Summaries.SummaryNodeId node) =>
         _navigator.Navigate(new NavigationRequest(MainSection.SummaryNetwork, new SummaryRoute(node)));

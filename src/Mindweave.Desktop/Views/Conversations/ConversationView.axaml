@@ -337,7 +337,7 @@
                             <TextBlock Classes="citation-number" Text="{Binding Number}" />
                             <StackPanel Grid.Column="1" Spacing="1">
                               <TextBlock Classes="citation-title" Text="{Binding Title}" TextTrimming="CharacterEllipsis" />
-                              <TextBlock Classes="citation-address" Text="{Binding Address}" TextTrimming="CharacterEllipsis" />
+                              <TextBlock Classes="citation-address" Text="{Binding Address}" TextTrimming="CharacterEllipsis" IsVisible="{Binding HasAddress}" />
                               <TextBlock Classes="timestamp" Text="{Binding Meta}" />
                             </StackPanel>
                           </Grid>

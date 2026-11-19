@@ -25,6 +25,11 @@ public sealed class ToolScope(WorkspaceId workspace, ConversationId conversation
     /// <summary>The run's web state when web search is on for it (phase 3); null otherwise, and the web tools are not offered.</summary>
     public WebRun? Web { get; init; }
 
+    private readonly RunSources _sources = new();
+
+    /// <summary>The numbering of the run's sources, web and local (L11): the web state's when there is one.</summary>
+    public RunSources Sources => Web?.Numbering ?? _sources;
+
     /// <summary>
     /// Whether the web search switch is not 关 for this question (phase 4, decision M8): third-party tools that read the
     /// network are offered only then. True unless a caller says otherwise.
@@ -86,6 +91,9 @@ public sealed record ToolOutput(string Text, string Detail, ResourceProvenance P
 
     /// <summary>How the result is marked as material when sent to the model; null uses the web marking for external results.</summary>
     public Func<string, string>? Wrap { get; init; }
+
+    /// <summary>The run's [n] numbers of the sources in the result (W4, L11), so a result the answer cites is kept longest (L7).</summary>
+    public IReadOnlyList<int> Numbers { get; init; } = [];
 }
 
 /// <summary>An image a tool returned (phase 4), with its media type.</summary>

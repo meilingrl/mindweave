@@ -2,6 +2,7 @@ using System.Globalization;
 using System.Text;
 using System.Text.Json;
 using Mindweave.Application.Storage;
+using Mindweave.Core.Conversations;
 using Mindweave.Core.Resources;
 using Mindweave.Core.Runs;
 
@@ -28,8 +29,8 @@ public sealed class SearchSummariesTool(ISummaryStore summaries) : ITool
     public string DisplayName => "检索总结网络";
 
     public string Description =>
-        "在本工作区已保存的知识总结（用户以前探索过的内容）中按关键词检索，返回总结标题、编号与相关片段。" +
-        "回答可以说明依据了哪些总结。";
+        "在本工作区已保存的知识总结（用户以前探索过的内容）中按关键词检索，返回编号、总结标题与相关片段。" +
+        "回答中依据某个总结时，在那句话后写它的编号，例如 [1]。";
 
     public string ParametersSchema => """
         {"type":"object","properties":{
@@ -91,18 +92,31 @@ public sealed class SearchSummariesTool(ISummaryStore summaries) : ITool
             return Nothing(query);
         }
 
-        var text = new StringBuilder().Append(CultureInfo.InvariantCulture, $"检索“{query}”找到 {scored.Count} 个总结：\n");
+        var text = new StringBuilder().Append(CultureInfo.InvariantCulture, $"检索“{query}”找到 {scored.Count} 个总结（依据某个总结时写它的编号）：\n");
         var findings = new List<ToolFinding>();
+        var sources = new List<RunSource>();
         for (var i = 0; i < scored.Count; i++)
         {
             var (entry, _, body, _) = scored[i];
-            text.Append(CultureInfo.InvariantCulture, $"\n[{i + 1}] {entry.Node.DisplayName}（总结 {entry.Node.Id.Value:D}）\n")
+            var node = entry.Node.Id.Value.ToString("D");
+            var number = scope.Sources.NumberFor(RunSources.SummaryKey(node));
+            text.Append('\n');
+            var start = text.Length;
+            text.Append(CultureInfo.InvariantCulture, $"[{number}] {entry.Node.DisplayName}（总结 {node}）\n")
                 .Append(ToolArguments.Snippet(body, terms, ExcerptLength))
                 .Append('\n');
-            findings.Add(new ToolFinding(ToolFindingKind.Summary, entry.Node.Id.Value.ToString("D"), entry.Node.DisplayName));
+
+            // The 出处 opens the summary itself (L11); the stored result keeps the passage that was found.
+            sources.Add(new RunSource(number, null, entry.Node.DisplayName, default, start, text.Length, entry.Node.UpdatedAt, IsPage: false) { Kind = CitationKind.Summary, Target = node });
+            findings.Add(new ToolFinding(ToolFindingKind.Summary, node, entry.Node.DisplayName));
         }
 
-        return new ToolOutput(text.ToString().TrimEnd(), $"找到 {scored.Count} 个总结", ResourceProvenance.Workspace, findings);
+        var result = text.ToString().TrimEnd();
+        return new ToolOutput(result, $"找到 {scored.Count} 个总结", ResourceProvenance.Workspace, findings)
+        {
+            Numbers = [.. sources.Select(s => s.Number)],
+            Stored = id => scope.Sources.Register(id, result, sources.Select(s => s with { Resource = id, End = Math.Min(s.End, result.Length) })),
+        };
     }
 
     private static ToolOutput Nothing(string query) => new($"检索“{query}”没有找到相关的总结。", "没有找到", ResourceProvenance.Workspace, []);
