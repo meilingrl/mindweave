@@ -19,6 +19,7 @@ public static class TestAppBuilder
     public static AppBuilder BuildAvaloniaApp()
     {
         Views.ActivitySpinner.Animates = false;
+        Views.WeavingIndicator.Animates = false;
         // Nothing fades or slides: every frame and every layout read shows a settled state.
         Views.Motion.Enabled = false;
         return AppBuilder.Configure<App>().UseSkia().WithInterFont().UseHeadless(new AvaloniaHeadlessPlatformOptions { UseHeadlessDrawing = false });
