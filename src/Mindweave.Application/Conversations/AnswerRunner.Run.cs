@@ -58,7 +58,7 @@ internal sealed partial class AnswerRunner
         var shortened = new HashSet<int>();
         var failures = new Dictionary<string, int>(StringComparer.Ordinal);
         var withdrawn = new HashSet<string>(StringComparer.Ordinal);
-        var budget = work.Budget ?? await _requests.Budgets.BudgetForAsync(task.Model, CancellationToken.None).ConfigureAwait(false);
+        var budget = work.RunBudget ?? work.Budget ?? await _requests.Budgets.BudgetForAsync(task.Model, CancellationToken.None).ConfigureAwait(false);
         var elapsed = Stopwatch.StartNew();
         int requests = 0, calls = 0, tokens = 0, ordinal = 0;
         RunLimit? reached = null;

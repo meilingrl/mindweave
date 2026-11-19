@@ -244,7 +244,7 @@ public sealed partial class ConversationService : IConversations
         }
 
         // Shown in billed tokens: the estimate through what this model was seen to bill.
-        var (planned, inputs) = await PlanAsync(id, own.Messages, budget, model, cancellationToken).ConfigureAwait(false);
+        var (planned, inputs, _) = await PlanAsync(id, own.Messages, budget, model, cancellationToken).ConfigureAwait(false);
         var full = TokenEstimator.PerRequest + BranchContext.Assemble(ancestors, own).Sum(i => TokenEstimator.Message(i.Text)) + inputs.Resources.Sum(r => r.WholeTokens);
         return planned.Plan is { } plan
             ? new ContextUsage(budget.Predict(plan.EstimatedTokens), budget.Predict(full), budget.AvailableTokens, plan.IsCompressed || plan.IsResourceReduced, false)
@@ -285,13 +285,15 @@ public sealed partial class ConversationService : IConversations
         var user = QuestionMessage(id, question, blocks, now);
         var answer = NewMessage(id, 1, MessageRole.Assistant, string.Empty, MessageState.Pending, null, now);
         var budget = await _budgets.BudgetForAsync(model, cancellationToken).ConfigureAwait(false);
-        var (planned, inputs) = await PlanAsync(id, [user], budget, model, cancellationToken).ConfigureAwait(false);
+        var (planned, inputs, known) = await PlanAsync(id, [user], budget, model, cancellationToken).ConfigureAwait(false);
         if (planned.Plan is not { } plan)
         {
             return SendOutcome.Reject(Rejection(planned.Rejection!.Value), id);
         }
 
         var run = await RunPlanAsync(workspace, id, inputs, model, options, question, cancellationToken).ConfigureAwait(false);
+        var whole = budget;
+        (plan, budget) = WithRoomForRun(plan, budget, inputs, known, run);
         var task = NewTask(GenerationTaskKind.Answer, id, answer.Id, model, [user.Id], now, run);
         try
         {
@@ -302,7 +304,7 @@ public sealed partial class ConversationService : IConversations
             return StorageRefused(ex, id);
         }
 
-        await EnqueueAsync(task, model, plan, budget, answer, inputs, run);
+        await EnqueueAsync(task, model, plan, budget, answer, inputs, run, whole);
         ConversationChanged?.Invoke(this, id);
         return new SendOutcome(null, id, answer.Id);
     }
@@ -339,13 +341,15 @@ public sealed partial class ConversationService : IConversations
         var user = QuestionMessage(id, question, blocks, now);
         var answer = NewMessage(id, 0, MessageRole.Assistant, string.Empty, MessageState.Pending, null, now);
         var budget = await _budgets.BudgetForAsync(model, cancellationToken).ConfigureAwait(false);
-        var (planned, inputs) = await PlanAsync(id, [.. history, user], budget, model, cancellationToken).ConfigureAwait(false);
+        var (planned, inputs, known) = await PlanAsync(id, [.. history, user], budget, model, cancellationToken).ConfigureAwait(false);
         if (planned.Plan is not { } plan)
         {
             return SendOutcome.Reject(Rejection(planned.Rejection!.Value), id);
         }
 
         var run = await RunPlanAsync(null, id, inputs, model, options, question, cancellationToken).ConfigureAwait(false);
+        var whole = budget;
+        (plan, budget) = WithRoomForRun(plan, budget, inputs, known, run);
         var task = NewTask(GenerationTaskKind.Answer, id, answer.Id, model, [.. plan.RawItems.Select(c => c.Message.Id)], now, run);
 
         Message storedAnswer;
@@ -370,7 +374,7 @@ public sealed partial class ConversationService : IConversations
             return SendOutcome.Reject(SendRejection.ConversationMissing, id);
         }
 
-        await EnqueueAsync(task, model, plan, budget, storedAnswer, inputs, run);
+        await EnqueueAsync(task, model, plan, budget, storedAnswer, inputs, run, whole);
         ConversationChanged?.Invoke(this, id);
         return new SendOutcome(null, id, storedAnswer.Id);
     }
@@ -397,7 +401,7 @@ public sealed partial class ConversationService : IConversations
         var question = history.Last(m => m.Role == MessageRole.User);
         var model = (await _models.GetActiveSnapshotAsync(cancellationToken).ConfigureAwait(false))!;
         var budget = await _budgets.BudgetForAsync(model, cancellationToken).ConfigureAwait(false);
-        var (planned, inputs) = await PlanAsync(id, [.. history.Where(m => m.Seq <= question.Seq)], budget, model, cancellationToken).ConfigureAwait(false);
+        var (planned, inputs, known) = await PlanAsync(id, [.. history.Where(m => m.Seq <= question.Seq)], budget, model, cancellationToken).ConfigureAwait(false);
         if (planned.Plan is not { } plan)
         {
             return SendOutcome.Reject(Rejection(planned.Rejection!.Value), id);
@@ -406,6 +410,8 @@ public sealed partial class ConversationService : IConversations
         var now = _clock.UtcNow;
         var answer = NewMessage(id, 0, MessageRole.Assistant, string.Empty, MessageState.Pending, answerToReplace, now);
         var run = await RunPlanAsync(null, id, inputs, model, options, ContentBlocks.TypedTextOf(question.Blocks), cancellationToken).ConfigureAwait(false);
+        var whole = budget;
+        (plan, budget) = WithRoomForRun(plan, budget, inputs, known, run);
         var task = NewTask(GenerationTaskKind.Answer, id, answer.Id, model, [.. plan.RawItems.Select(c => c.Message.Id)], now, run);
 
         Message stored;
@@ -430,7 +436,7 @@ public sealed partial class ConversationService : IConversations
             return SendOutcome.Reject(SendRejection.ConversationMissing, id);
         }
 
-        await EnqueueAsync(task, model, plan, budget, stored, inputs, run);
+        await EnqueueAsync(task, model, plan, budget, stored, inputs, run, whole);
         ConversationChanged?.Invoke(this, id);
         return new SendOutcome(null, id, stored.Id);
     }
@@ -685,7 +691,7 @@ public sealed partial class ConversationService : IConversations
     /// the model's budget (S3). Stored summaries count with their real size; missing ones are written later, in the
     /// answer task's own slot.
     /// </summary>
-    private async Task<(PlanOutcome Outcome, ContextInputs Inputs)> PlanAsync(
+    private async Task<(PlanOutcome Outcome, ContextInputs Inputs, IReadOnlyDictionary<SummaryKey, int> Known)> PlanAsync(
         ConversationId id, IReadOnlyList<Message> own, ContextBudget budget, ModelSnapshot model, CancellationToken cancellationToken)
     {
         var ancestors = await _branches.GetAncestorContextAsync(id, cancellationToken).ConfigureAwait(false);
@@ -703,7 +709,28 @@ public sealed partial class ConversationService : IConversations
             ? []
             : await _resources.CandidatesAsync(BranchContext.Assemble(ancestors, segment), question, model, cancellationToken).ConfigureAwait(false);
         var outcome = ContextPlanner.Plan(ancestors, segment, budget.Available, key => known.TryGetValue(key, out var tokens) ? tokens : null, candidates);
-        return (outcome, new ContextInputs(ancestors, segment, candidates));
+        return (outcome, new ContextInputs(ancestors, segment, candidates), known);
+    }
+
+    /// <summary>Share of the input space a run's context plan leaves for tool results and later rounds (L8).</summary>
+    internal const int RunRoomPercent = 25;
+
+    /// <summary>
+    /// The plan and budget of an answer (docs/design/agent-loop.md L8, architecture §15.4): a run's context is planned with
+    /// <see cref="RunRoomPercent"/> of the space left for the run, unless the required items alone do not fit that, when the
+    /// whole space is used as before; an answer without tools keeps <paramref name="plan"/>.
+    /// </summary>
+    private static (ContextPlan Plan, ContextBudget Budget) WithRoomForRun(ContextPlan plan, ContextBudget budget, ContextInputs inputs, IReadOnlyDictionary<SummaryKey, int> known, RunPlan? run)
+    {
+        if (run is null)
+        {
+            return (plan, budget);
+        }
+
+        var room = budget.LeavingRoom(RunRoomPercent);
+        return ContextPlanner.Plan(inputs.Ancestors, inputs.Own, room.Available, key => known.TryGetValue(key, out var tokens) ? tokens : null, inputs.Resources).Plan is { } reserved
+            ? (reserved, room)
+            : (plan, budget);
     }
 
     /// <summary>
@@ -746,10 +773,10 @@ public sealed partial class ConversationService : IConversations
         _ => SendRejection.HistoryTooLongForModel,
     };
 
-    private Task<bool> EnqueueAsync(GenerationTaskRecord task, ModelSnapshot model, ContextPlan plan, ContextBudget budget, Message answer, ContextInputs inputs, RunPlan? run)
+    private Task<bool> EnqueueAsync(GenerationTaskRecord task, ModelSnapshot model, ContextPlan plan, ContextBudget budget, Message answer, ContextInputs inputs, RunPlan? run, ContextBudget whole)
     {
         var request = new ChatRequest(model, ContextCompressor.Unsummarized(plan).Turns);
-        return _generation.EnqueueOrCancelAsync(new AnswerWork(task, request, new LiveAnswer(answer.Id, answer.ConversationId), plan, budget, inputs, run));
+        return _generation.EnqueueOrCancelAsync(new AnswerWork(task, request, new LiveAnswer(answer.Id, answer.ConversationId), plan, budget, inputs, run) { RunBudget = whole });
     }
 
     /// <summary>

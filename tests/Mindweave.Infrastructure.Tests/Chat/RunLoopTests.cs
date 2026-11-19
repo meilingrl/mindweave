@@ -104,6 +104,40 @@ public class RunLoopTests
         Assert.EndsWith(AnswerRunnerFinal, systems[2], StringComparison.Ordinal);
     }
 
+    // L8: room for the run.
+
+    [Fact]
+    public async Task A_run_plans_its_context_with_a_quarter_of_the_space_left_and_an_answer_without_tools_uses_all_of_it()
+    {
+        // About 9,000 estimated tokens of attachment in a window whose input space is about 10,300: whole without tools,
+        // reduced for a run, so the first request still has room for tools.
+        var material = string.Concat(Enumerable.Range(1, 60).Select(i => $"第 {i} 节：" + new string('河', 140) + "\n\n"));
+        var window = ToolModel with { ContextWindowTokens = 16_000 };
+
+        await using var plain = await ChatHarness.StartAsync(model: window with { Capabilities = ModelCapabilities.DefaultsFor(ChatProtocol.ChatCompletions) });
+        var (_, single) = await AskWithAttachmentAsync(plain, "这些节讲了什么？", material);
+        Assert.Equal(MessageState.Complete, single.State);
+        Assert.Contains("第 60 节", plain.Client.Requests.Single(FakeChatClient.IsAnswer).Turns[^1].Content, StringComparison.Ordinal);
+
+        await using var h = await ChatHarness.StartAsync(model: window);
+        h.Client.CallTool(SearchAttachmentsTool.ToolName, Query("第 30 节"));
+        h.Client.Reply("讲的是河。");
+        var (conversation, answer) = await AskWithAttachmentAsync(h, "这些节讲了什么？", material);
+
+        Assert.Equal(MessageState.Complete, answer.State);
+        var first = h.Client.Requests.First(FakeChatClient.IsAnswer);
+        Assert.True(first.HasTools);
+        var budget = Core.Context.ContextBudget.For(Snapshot(window));
+        Assert.InRange(ChatTurns.Estimate(first.Turns) - TokenEstimator.Estimate(first.Turns[0].Content), 0, budget.LeavingRoom(ConversationServiceRunRoom).Available + 20);
+        var run = (await h.Runs.RunsAsync(conversation, Ct))[answer.Id];
+        Assert.Null(run.LimitReached);
+    }
+
+    private const int ConversationServiceRunRoom = 25;
+
+    private static ModelSnapshot Snapshot(ModelSettingsInput input) =>
+        new("fake", input.BaseUrl, ChatProtocol.ChatCompletions, input.Model, "ref", null, input.Capabilities! with { ContextWindowTokens = input.ContextWindowTokens });
+
     private const string AnswerRunnerFinal = "【本次运行已达到上限】请根据已经取得的工具结果直接回答用户的问题，不要再调用工具；信息不足时说明还缺什么。";
 
     private static ModelSnapshot ModelSnapshot() =>

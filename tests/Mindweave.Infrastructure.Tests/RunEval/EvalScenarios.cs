@@ -44,7 +44,7 @@ internal static class EvalScenarios
         {
             ContextWindow = 16_000,
             Arrange = async h => new EvalSetup([await PasteAsync(h, VillageNotes)]),
-            // The attachment fills the context, so the run may offer no tools (P7); the relevant parts are sent either way.
+            // The relevant parts are sent as the attachment's reduced form; a run may also read more of it.
             Script = c => c.Reply("附件第 41 节说，白鹭村的石桥由工匠邓远山主持修建，共有九个桥孔。"),
         },
 
@@ -138,10 +138,13 @@ internal static class EvalScenarios
         {
             ContextWindow = 16_000,
             Arrange = async h => new EvalSetup([await PasteAsync(h, VillageNotes)]),
-            KnownGap = "P7／L8：附件占满上下文，运行在第一次请求前就判为放不下，不提供任何工具",
-
-            // What a good model can do without tools: answer the attachment part, say the rest could not be looked up.
-            Script = c => c.Reply("附件说白鹭村的石桥由邓远山主持修建；星河-3 的着陆点需要上网查询，这次没能查到。"),
+            // Room is left for the run (L8): the attachment goes as its summary and relevant parts, and the tools are offered.
+            Script = c =>
+            {
+                c.CallTool(Search, Query("星河-3 着陆点"));
+                c.CallTool(Fetch, Url(LandingUrl));
+                c.Reply("附件说白鹭村的石桥由邓远山主持修建；星河-3 的着陆点是月球背面的“玉衡-7”区域[1]。");
+            },
         },
     ];
 

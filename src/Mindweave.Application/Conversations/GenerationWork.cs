@@ -37,9 +37,14 @@ public abstract record GenerationWork(GenerationTaskRecord Task, ChatRequest Req
 /// request, and <paramref name="Request"/>'s turns are replaced by the prepared ones.
 /// </param>
 /// <param name="Inputs">What the plan was made from, so the runner can plan again once attachment summaries exist.</param>
+/// <param name="Budget">The budget the context was planned in (for a run, with room left for it, L8).</param>
 /// <param name="Run">When the answer is a run (requirements §10.4.4): the tools offered, its limits and what its tools may reach.</param>
 public sealed record AnswerWork(GenerationTaskRecord Task, ChatRequest Request, LiveAnswer Live, ContextPlan? Plan = null, ContextBudget? Budget = null, ContextInputs? Inputs = null, RunPlan? Run = null)
-    : GenerationWork(Task, Request, GenerationPriority.User);
+    : GenerationWork(Task, Request, GenerationPriority.User)
+{
+    /// <summary>The model's whole budget, which a run's requests may fill; null: <see cref="Budget"/>.</summary>
+    public ContextBudget? RunBudget { get; init; }
+}
 
 /// <summary>A run's frozen tools and limits, and the scope its tools work in.</summary>
 public sealed record RunPlan(IReadOnlyList<Tools.ITool> Tools, Core.Runs.RunLimits Limits, Tools.ToolScope Scope);

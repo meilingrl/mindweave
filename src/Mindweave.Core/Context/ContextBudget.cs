@@ -174,6 +174,14 @@ public sealed record ContextBudget(int Capacity, int OutputReserve, int Margin, 
     /// <summary>Whether a request of this estimate leaves the output reserve free (the margin may be used up).</summary>
     public bool Fits(int estimate) => Predict(estimate) <= Capacity - OutputReserve;
 
+    /// <summary>
+    /// The budget a run's context is planned in (docs/design/agent-loop.md L8, architecture §15.4): <paramref name="percent"/>
+    /// of the input space is left for tool results and later rounds, as a wider margin; the output reserve and
+    /// <see cref="Fits"/> are unchanged.
+    /// </summary>
+    public ContextBudget LeavingRoom(int percent) =>
+        percent is < 0 or >= 100 ? throw new ArgumentOutOfRangeException(nameof(percent)) : this with { Margin = Margin + (int)((long)AvailableTokens * percent / 100) };
+
     public static ContextBudget For(ModelSnapshot model, TokenCalibration? calibration = null)
     {
         ArgumentNullException.ThrowIfNull(model);
