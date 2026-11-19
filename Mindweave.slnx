@@ -9,6 +9,7 @@
     <Project Path="tests/Mindweave.Architecture.Tests/Mindweave.Architecture.Tests.csproj" />
     <Project Path="tests/Mindweave.Core.Tests/Mindweave.Core.Tests.csproj" />
     <Project Path="tests/Mindweave.Desktop.Tests/Mindweave.Desktop.Tests.csproj" />
+    <Project Path="tests/Mindweave.FakeMcpServer/Mindweave.FakeMcpServer.csproj" />
     <Project Path="tests/Mindweave.Infrastructure.Tests/Mindweave.Infrastructure.Tests.csproj" />
     <Project Path="tests/Mindweave.TestHost/Mindweave.TestHost.csproj" />
     <Project Path="tests/Mindweave.Testing/Mindweave.Testing.csproj" />

@@ -1,0 +1,7 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!-- A small MCP server for tests (docs/design/mcp.md §4): hand-written JSON-RPC over stdin/stdout, or over HTTP inside a
+       test process. Its arguments choose how it misbehaves. Never shipped. -->
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+  </PropertyGroup>
+</Project>

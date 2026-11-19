@@ -3168,6 +3168,15 @@ Copyright: © Microsoft Corporation. All rights reserved.
 
 ====================================================================================================
 
+Microsoft.Extensions.AI.Abstractions 10.11.0
+Licence: MIT
+Project: https://dot.net/
+Copyright: © Microsoft Corporation. All rights reserved.
+
+(No licence text in the package; the standard MIT text is at the end of this file.)
+
+====================================================================================================
+
 Microsoft.Extensions.DependencyInjection 10.0.13
 Licence: MIT
 Project: https://dot.net/
@@ -4636,6 +4645,15 @@ Project: https://dot.net/
 Copyright: © Microsoft Corporation. All rights reserved.
 
 [THIRD-PARTY-NOTICES.TXT] Same text as under Microsoft.Extensions.DependencyInjection 10.0.13.
+
+====================================================================================================
+
+ModelContextProtocol.Core 2.3.1
+Licence: Apache-2.0
+Project: https://csharp.sdk.modelcontextprotocol.io/
+Copyright: © Model Context Protocol a Series of LF Projects, LLC.
+
+(No licence text in the package; the standard Apache-2.0 text is at the end of this file.)
 
 ====================================================================================================
 

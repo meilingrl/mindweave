@@ -29,6 +29,18 @@ public class LayeringTests
     }
 
     [Fact]
+    public void The_mcp_library_is_used_only_in_infrastructure_behind_its_connector()
+    {
+        // Architecture §15.14, decision M1: Core and Application see only IMcpConnector and their own types.
+        Assert.DoesNotContain(References(Core).Concat(References(Application)), n => n.StartsWith("ModelContextProtocol", StringComparison.Ordinal));
+        Assert.Contains(References(Infrastructure), n => n == "ModelContextProtocol.Core");
+        var desktop = Path.Combine(RepositoryRoot(), "src", "Mindweave.Desktop");
+        Assert.DoesNotContain(
+            Directory.EnumerateFiles(desktop, "*.cs", SearchOption.AllDirectories).Where(f => !f.Contains($"{Path.DirectorySeparatorChar}obj{Path.DirectorySeparatorChar}", StringComparison.Ordinal)),
+            f => File.ReadAllText(f).Contains("using ModelContextProtocol", StringComparison.Ordinal));
+    }
+
+    [Fact]
     public void Desktop_mentions_infrastructure_only_in_the_composition_files()
     {
         var allowed = new HashSet<string>(StringComparer.Ordinal) { "Program.cs", "CompositionRoot.cs", "AppHost.cs" };

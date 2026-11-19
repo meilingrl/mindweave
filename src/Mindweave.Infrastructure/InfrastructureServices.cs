@@ -69,6 +69,9 @@ public static class InfrastructureServices
         services.TryAddSingleton<IWebPageFetcher>(sp => GuardedPageFetcher.Create(
             sp.GetServices<ITextExtractor>(),
             sp.GetRequiredService<TimeProvider>()));
+
+        // Third-party tools (phase 4, architecture §15.14): the MCP library is used only behind this.
+        services.TryAddSingleton<Application.Tools.Mcp.IMcpConnector>(_ => new Tools.Mcp.SdkMcpConnector(paths));
         return services;
     }
 }

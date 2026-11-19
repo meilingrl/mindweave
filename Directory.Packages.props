@@ -13,6 +13,8 @@
     <PackageVersion Include="Microsoft.Extensions.Logging" Version="10.0.13" />
     <PackageVersion Include="Microsoft.Extensions.Logging.Abstractions" Version="10.0.13" />
     <PackageVersion Include="Microsoft.NET.Test.Sdk" Version="18.11.0" />
+    <!-- MCP client (agent platform phase 4, decision M1); 2.3.1 needs the logging abstractions pinned above, 2.4.0 a newer one. -->
+    <PackageVersion Include="ModelContextProtocol.Core" Version="2.3.1" />
     <PackageVersion Include="PdfPig" Version="0.1.16" />
     <PackageVersion Include="SkiaSharp" Version="3.119.4" />
     <PackageVersion Include="SkiaSharp.NativeAssets.Linux" Version="3.119.4" />
