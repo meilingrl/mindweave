@@ -104,6 +104,58 @@ public class RunLoopTests
         Assert.EndsWith(AnswerRunnerFinal, systems[2], StringComparison.Ordinal);
     }
 
+    // L5: one retry of a transient error.
+
+    [Theory]
+    [InlineData(GenerationErrorKind.ServerError, 502)]
+    [InlineData(GenerationErrorKind.QuotaOrRateLimited, 429)]
+    [InlineData(GenerationErrorKind.Network, null)]
+    public async Task A_request_after_tool_results_that_fails_by_chance_is_tried_once_more_as_a_step_of_its_own(GenerationErrorKind kind, int? status)
+    {
+        await using var h = await ChatHarness.StartAsync(model: ToolModel);
+        h.Client.CallTool(SearchAttachmentsTool.ToolName, Query("蒸汽机"));
+        h.Client.FailWithStatus(kind, status, status == 429 ? TimeSpan.FromMilliseconds(30) : null);
+        h.Client.Reply("瓦特改良了蒸汽机。");
+
+        var (conversation, answer) = await AskWithAttachmentAsync(h, "蒸汽机是谁改良的？");
+
+        Assert.Equal((MessageState.Complete, "瓦特改良了蒸汽机。"), (answer.State, answer.Text));
+        var run = (await h.Runs.RunsAsync(conversation, Ct))[answer.Id];
+        Assert.Equal([RunStepKind.Model, RunStepKind.Tool, RunStepKind.Model, RunStepKind.Model], run.Steps.Select(s => s.Kind));
+        Assert.Equal((RunStepState.Failed, kind), (run.Steps[2].State, run.Steps[2].ErrorKind!.Value));
+        Assert.Equal(RunStepState.Completed, run.Steps[3].State);
+        Assert.Equal(3, h.Client.Requests.Count(FakeChatClient.IsAnswer));
+    }
+
+    [Fact]
+    public async Task A_second_failure_in_a_row_a_refused_key_or_a_failed_first_request_ends_the_answer_as_before()
+    {
+        await using var h = await ChatHarness.StartAsync(model: ToolModel);
+
+        // Two transient failures in a row: one retry only.
+        h.Client.CallTool(SearchAttachmentsTool.ToolName, Query("蒸汽机"));
+        h.Client.FailWithStatus(GenerationErrorKind.ServerError, 500);
+        h.Client.FailWithStatus(GenerationErrorKind.ServerError, 500);
+        var (_, twice) = await AskWithAttachmentAsync(h, "一");
+        Assert.Equal((MessageState.Failed, GenerationErrorKind.ServerError), (twice.State, twice.ErrorKind));
+
+        // Not by chance: a refused key, a used-up quota.
+        h.Client.CallTool(SearchAttachmentsTool.ToolName, Query("蒸汽机"));
+        h.Client.FailWithStatus(GenerationErrorKind.Unauthorized, 401);
+        var (_, refused) = await AskWithAttachmentAsync(h, "二");
+        Assert.Equal((MessageState.Failed, GenerationErrorKind.Unauthorized), (refused.State, refused.ErrorKind));
+        h.Client.CallTool(SearchAttachmentsTool.ToolName, Query("蒸汽机"));
+        h.Client.FailWithStatus(GenerationErrorKind.QuotaOrRateLimited, 402);
+        var (_, broke) = await AskWithAttachmentAsync(h, "三");
+        Assert.Equal((MessageState.Failed, GenerationErrorKind.QuotaOrRateLimited), (broke.State, broke.ErrorKind));
+
+        // The first request, before any tool result, fails as a single answer does.
+        h.Client.FailWithStatus(GenerationErrorKind.ServerError, 503);
+        var (conversation, first) = await AskWithAttachmentAsync(h, "四");
+        Assert.Equal((MessageState.Failed, GenerationErrorKind.ServerError), (first.State, first.ErrorKind));
+        Assert.Single((await h.Runs.RunsAsync(conversation, Ct))[first.Id].Steps);
+    }
+
     // L8: room for the run.
 
     [Fact]

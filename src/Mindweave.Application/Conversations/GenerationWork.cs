@@ -15,6 +15,9 @@ public sealed class GenerationOptions
 
     /// <summary>Minimum gap between partial-answer writes; only the newest text is written.</summary>
     public TimeSpan CheckpointInterval { get; init; } = TimeSpan.FromSeconds(1);
+
+    /// <summary>How long a run waits before retrying a request that failed by chance (docs/design/agent-loop.md L5).</summary>
+    public TimeSpan RetryPause { get; init; } = TimeSpan.FromSeconds(2);
 }
 
 public enum GenerationPriority

@@ -35,6 +35,9 @@ internal sealed partial class AnswerRunner
     /// <summary>What the last request of a run that reached a limit asks of the model (decision R8), added to the system turn.</summary>
     internal const string FinalInstruction = "【本次运行已达到上限】请根据已经取得的工具结果直接回答用户的问题，不要再调用工具；信息不足时说明还缺什么。";
 
+    /// <summary>The longest a retry waits for a service that asked to slow down (L5).</summary>
+    internal static readonly TimeSpan MaxRetryAfter = TimeSpan.FromSeconds(20);
+
     internal const string SkippedResult = "未执行：本次运行已达到工具调用次数上限。";
 
     internal const string PreSearchCallId = WebMaterial.PreSearchCallId;
@@ -62,6 +65,7 @@ internal sealed partial class AnswerRunner
         var elapsed = Stopwatch.StartNew();
         int requests = 0, calls = 0, tokens = 0, ordinal = 0;
         RunLimit? reached = null;
+        var retried = false;
         var instructions = RunPrompt.For(run.Tools);
 
         if (run.Scope.Web is { Mode: WebSearchMode.On } web && run.Tools.FirstOrDefault(t => t.Name == WebSearchTool.ToolName) is not null
@@ -132,6 +136,7 @@ internal sealed partial class AnswerRunner
             bool stopped = false, timedOut = false;
             GenerationErrorKind? error = null;
             string? detail = null;
+            ChatClientException? failure = null;
             try
             {
                 await foreach (var item in _requests.StreamAsync(next, key, linked.Token).ConfigureAwait(false))
@@ -167,6 +172,7 @@ internal sealed partial class AnswerRunner
             {
                 error = ex.Kind;
                 detail = ex.Message;
+                failure = ex;
                 trace.Fail(ex);
             }
 #pragma warning disable CA1031 // Anything else still ends the run and records its request (as for a single answer).
@@ -203,9 +209,28 @@ internal sealed partial class AnswerRunner
 
             if (error is not null)
             {
+                if (!retried && calls > 0 && text.Length == 0 && asked is null && failure is { IsTransient: true })
+                {
+                    // L5: a request after tool results that failed by chance is tried once more (a step of its own), so the
+                    // results so far are not lost; nothing of it had arrived. It counts as a request and towards the duration.
+                    retried = true;
+                    var pause = failure.RetryAfter is { } after ? (after < MaxRetryAfter ? after : MaxRetryAfter) : _options.RetryPause;
+                    try
+                    {
+                        await Task.Delay(pause, stop).ConfigureAwait(false);
+                    }
+                    catch (OperationCanceledException) when (stop.IsCancellationRequested)
+                    {
+                        return new RunEnding(MessageState.Stopped, null, null);
+                    }
+
+                    continue;
+                }
+
                 return new RunEnding(MessageState.Failed, error, detail);
             }
 
+            retried = false;
             var empty = string.IsNullOrWhiteSpace(live.Snapshot().Text);
             if (end is null)
             {

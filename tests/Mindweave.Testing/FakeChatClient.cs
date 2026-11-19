@@ -186,6 +186,10 @@ public sealed class FakeChatClient : IChatClient
     public void Fail(GenerationErrorKind kind, string detail = "simulated", params string[] before) =>
         _scripts.Enqueue(new Script(null, before, kind, detail));
 
+    /// <summary>The next answer fails as a service that answered with <paramref name="httpStatus"/> (and <c>Retry-After</c>) does.</summary>
+    public void FailWithStatus(GenerationErrorKind kind, int? httpStatus, TimeSpan? retryAfter = null) =>
+        _scripts.Enqueue(new Script(null, [], kind, "simulated", HttpStatus: httpStatus, RetryAfter: retryAfter));
+
     /// <summary>The next answer streams <paramref name="before"/> and then throws <paramref name="crash"/> (not a client failure).</summary>
     public void Crash(Exception crash, params string[] before) => _scripts.Enqueue(new Script(null, before, Crash: crash));
 
@@ -326,7 +330,7 @@ public sealed class FakeChatClient : IChatClient
 
         if (script.FailWith is { } kind)
         {
-            throw new ChatClientException(kind, script.Detail!);
+            throw new ChatClientException(kind, script.Detail!, httpStatus: script.HttpStatus) { RetryAfter = script.RetryAfter };
         }
 
         if (script.Calls is { } calls)
@@ -396,5 +400,5 @@ public sealed class FakeChatClient : IChatClient
         }
     }
 
-    private sealed record Script(HeldReply? Held, string[]? Chunks = null, GenerationErrorKind? FailWith = null, string? Detail = null, Exception? Crash = null, ChatStreamEvent.Completed? End = null, bool NoEnd = false, IReadOnlyList<ChatToolCall>? Calls = null, string? Reasoning = null);
+    private sealed record Script(HeldReply? Held, string[]? Chunks = null, GenerationErrorKind? FailWith = null, string? Detail = null, Exception? Crash = null, ChatStreamEvent.Completed? End = null, bool NoEnd = false, IReadOnlyList<ChatToolCall>? Calls = null, string? Reasoning = null, int? HttpStatus = null, TimeSpan? RetryAfter = null);
 }
