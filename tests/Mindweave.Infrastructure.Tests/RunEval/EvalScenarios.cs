@@ -74,12 +74,12 @@ internal static class EvalScenarios
         },
 
         new("web-on-detail", "网络", "“开”档：只在网页正文里的细节，要读网页", [new("星河-3 的着陆点叫什么名字？", WebSearchMode.On)],
-            new EvalExpectation { Contains = [["静海-7"]], UsesTools = [Fetch], Cites = true })
+            new EvalExpectation { Contains = [["玉衡-7"]], UsesTools = [Fetch], Cites = true })
         {
             Script = c =>
             {
                 c.CallTool(Fetch, Url(LandingUrl));
-                c.Reply("星河-3 的着陆点位于月球背面的“静海-7”区域[1]。");
+                c.Reply("星河-3 的着陆点位于月球背面的“玉衡-7”区域[1]。");
             },
         },
 
@@ -134,7 +134,7 @@ internal static class EvalScenarios
         },
 
         new("tight-context", "长上下文", "长附件占满上下文时还要上网", [new("附件里白鹭村的石桥是谁主持修建的？另外，网上说星河-3 的着陆点叫什么？", WithAttachments: true)],
-            new EvalExpectation { Contains = [["邓远山"], ["静海-7"]], UsesTools = [Search] })
+            new EvalExpectation { Contains = [["邓远山"], ["玉衡-7"]], UsesTools = [Search] })
         {
             ContextWindow = 16_000,
             Arrange = async h => new EvalSetup([await PasteAsync(h, VillageNotes)]),
