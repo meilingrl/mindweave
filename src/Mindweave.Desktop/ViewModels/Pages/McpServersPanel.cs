@@ -11,7 +11,7 @@ namespace Mindweave.Desktop.ViewModels.Pages;
 /// shows exactly what will run or which address is reached; then per server its state and error, 启动／连接, 停止 and 移除,
 /// and its tools, each off until enabled, with a risk the user may change. Greyed out with 工具.
 /// </summary>
-public sealed partial class McpServersPanel : ViewModelBase
+public sealed partial class McpServersPanel : ViewModelBase, IDisposable
 {
     private readonly IMcpServers _servers;
     private readonly IMcpConnections _connections;
@@ -22,16 +22,10 @@ public sealed partial class McpServersPanel : ViewModelBase
         _servers = servers;
         _connections = connections;
         _dispatcher = dispatcher;
-        _connections.StatusChanged += (_, id) => OnUi(() => Servers.FirstOrDefault(s => s.Id == id)?.Refresh());
+        _connections.StatusChanged += OnStatusChanged;
 
         // A run may turn a tool off by itself (decision M6); the page shows the reason without being reopened.
-        _servers.Changed += (_, _) => OnUi(() =>
-        {
-            foreach (var server in Servers)
-            {
-                server.Refresh();
-            }
-        });
+        _servers.Changed += OnSettingsChanged;
         Loaded = ReloadAsync();
     }
 
@@ -207,8 +201,39 @@ public sealed partial class McpServersPanel : ViewModelBase
         OnPropertyChanged(nameof(HasServers));
     }
 
+    /// <summary>
+    /// Leaves the application's events when the settings page closes (the services outlive every page): a closed page is not
+    /// refreshed again, and nothing keeps it alive.
+    /// </summary>
+    public void Dispose()
+    {
+        _disposed = true;
+        _connections.StatusChanged -= OnStatusChanged;
+        _servers.Changed -= OnSettingsChanged;
+    }
+
+    /// <summary>Whether the page has closed (tests check the events were left).</summary>
+    public bool IsDisposed => _disposed;
+
+    private bool _disposed;
+
+    private void OnStatusChanged(object? sender, string id) => OnUi(() => Servers.FirstOrDefault(s => s.Id == id)?.Refresh());
+
+    private void OnSettingsChanged(object? sender, EventArgs e) => OnUi(() =>
+    {
+        foreach (var server in Servers)
+        {
+            server.Refresh();
+        }
+    });
+
     internal void OnUi(Action action)
     {
+        if (_disposed)
+        {
+            return;
+        }
+
         if (_dispatcher is null)
         {
             action();

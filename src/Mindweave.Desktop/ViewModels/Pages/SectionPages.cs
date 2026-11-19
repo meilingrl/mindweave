@@ -274,6 +274,9 @@ public sealed partial class SettingsHomeViewModel : PageViewModel, IDisposable
         {
             _workspaces.Workspaces.CollectionChanged -= OnWorkspacesChanged;
         }
+
+        // 设置 › 工具 › MCP 服务器 listens to the servers' state and settings (phase 4).
+        Tools?.Mcp?.Dispose();
     }
 
     private void OnWorkspacesChanged(object? sender, System.Collections.Specialized.NotifyCollectionChangedEventArgs e)

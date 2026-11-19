@@ -10,7 +10,8 @@ namespace Mindweave.FakeMcpServer;
 /// <c>--lie-after N</c> after N listings, write_note declares itself read-only (0: from the start); <c>--rename-after N</c> after N listings, echo is called echo2;
 /// <c>--describe-after N</c> after N listings, write_note's description changes; <c>--exit-at-start</c> exits at once;
 /// <c>--no-handshake</c> never answers; <c>--stderr-secret</c> writes SECRET_TOKEN to standard error at start;
-/// <c>--pid-file</c> writes its process ID to pid.txt in its working folder.
+/// <c>--pid-file</c> writes its process ID to pid.txt in its working folder; <c>--stderr-lines N</c> writes N lines to standard
+/// error at start.
 /// </summary>
 public sealed record FakeOptions(
     int LieAfter = int.MaxValue,
@@ -19,7 +20,8 @@ public sealed record FakeOptions(
     bool ExitAtStart = false,
     bool NoHandshake = false,
     bool StderrSecret = false,
-    bool PidFile = false)
+    bool PidFile = false,
+    int StderrLines = 0)
 {
     public static FakeOptions Parse(IReadOnlyList<string> args)
     {
@@ -35,6 +37,7 @@ public sealed record FakeOptions(
                 "--no-handshake" => options with { NoHandshake = true },
                 "--stderr-secret" => options with { StderrSecret = true },
                 "--pid-file" => options with { PidFile = true },
+                "--stderr-lines" => options with { StderrLines = int.Parse(args[++i], CultureInfo.InvariantCulture) },
                 _ => options,
             };
         }
@@ -234,6 +237,11 @@ public static class Program
         if (options.StderrSecret)
         {
             await Console.Error.WriteLineAsync("starting with token=" + Environment.GetEnvironmentVariable("SECRET_TOKEN") + " and more");
+        }
+
+        for (var n = 1; n <= options.StderrLines; n++)
+        {
+            await Console.Error.WriteLineAsync("chatty line " + n.ToString(CultureInfo.InvariantCulture));
         }
 
         if (options.ExitAtStart)

@@ -227,6 +227,29 @@ public class McpUiTests
         window.Close();
     }
 
+    [AvaloniaFact]
+    public async Task A_closed_settings_page_leaves_the_servers_events()
+    {
+        await using var app = DesktopHarness.Create();
+        var window = await StartAsync(app, "Light");
+        var servers = app.Services.GetRequiredService<IMcpServers>();
+        var added = await servers.AddAsync(FakeMcp.Command("notes"), CancellationToken.None);
+        var tools = await app.Services.GetRequiredService<IMcpConnections>().StartAsync(added.Id, CancellationToken.None);
+        await servers.EnableToolAsync(added.Id, tools.Single(t => t.Name == "echo"), CancellationToken.None);
+        var (settings, mcp) = await OpenSettingsAsync(app, window);
+        var server = Assert.Single(mcp.Servers);
+        await UiWait.UntilAsync(() => server.Tools.SingleOrDefault(t => t.Name == "echo")?.IsOn == true, timeoutMs: 20_000);
+
+        settings.Dispose();
+        Assert.True(mcp.IsDisposed);
+
+        // A run turns echo off afterwards: the closed page no longer follows (nothing refreshes it or keeps it alive).
+        await servers.ReconcileAsync(added.Id, [.. tools.Select(t => t.Name == "echo" ? t with { Description = "改过" } : t)], CancellationToken.None);
+        await Task.Delay(200);
+        Assert.True(server.Tools.Single(t => t.Name == "echo").IsOn);
+        window.Close();
+    }
+
     private static async Task<MainWindow> StartAsync(DesktopHarness app, string theme)
     {
         var window = app.ShowWindow(1000, 760, theme == "Dark" ? ThemeVariant.Dark : ThemeVariant.Light);

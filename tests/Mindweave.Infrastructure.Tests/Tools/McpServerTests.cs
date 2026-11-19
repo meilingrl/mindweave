@@ -211,6 +211,55 @@ public class McpServerTests
         Assert.Equal(McpServerState.Connected, h.McpServers.StatusOf(server.Id).State);
     }
 
+    [Fact]
+    public async Task A_chatty_server_logs_at_most_the_cap_and_one_note_and_keeps_its_latest_lines()
+    {
+        await using var h = await ChatHarness.StartAsync();
+        var log = new ListLogger();
+        await using var manager = new McpServerManager(
+            new Infrastructure.Tools.Mcp.SdkMcpConnector(h.Paths), h.Mcp, new McpOptions(), new Application.SystemClock(), log);
+        var server = await h.Mcp.AddAsync(FakeMcp.Command("chatty", flags: ["--stderr-lines", "250"]), Ct);
+
+        await manager.StartAsync(server.Id, Ct);
+        await ChatHarness.UntilAsync(() => manager.StatusOf(server.Id).StandardError.Contains("chatty line 250"), 10_000);
+
+        var lines = log.Messages.Where(m => m.Contains("(stderr)", StringComparison.Ordinal)).ToList();
+        Assert.Equal(101, lines.Count);
+        Assert.EndsWith("chatty line 100", lines[99], StringComparison.Ordinal);
+        Assert.Contains("the rest is not logged", lines[100], StringComparison.Ordinal);
+        Assert.Equal(20, manager.StatusOf(server.Id).StandardError.Count);
+    }
+
+    /// <summary>Keeps the formatted messages a component logs.</summary>
+    private sealed class ListLogger : Microsoft.Extensions.Logging.ILogger<McpServerManager>
+    {
+        private readonly List<string> _messages = [];
+
+        public IReadOnlyList<string> Messages
+        {
+            get
+            {
+                lock (_messages)
+                {
+                    return [.. _messages];
+                }
+            }
+        }
+
+        public IDisposable? BeginScope<TState>(TState state)
+            where TState : notnull => null;
+
+        public bool IsEnabled(Microsoft.Extensions.Logging.LogLevel logLevel) => true;
+
+        public void Log<TState>(Microsoft.Extensions.Logging.LogLevel logLevel, Microsoft.Extensions.Logging.EventId eventId, TState state, Exception? exception, Func<TState, Exception?, string> formatter)
+        {
+            lock (_messages)
+            {
+                _messages.Add(formatter(state, exception));
+            }
+        }
+    }
+
     private static bool Running(string pidFile)
     {
         var id = int.Parse(File.ReadAllText(pidFile), CultureInfo.InvariantCulture);

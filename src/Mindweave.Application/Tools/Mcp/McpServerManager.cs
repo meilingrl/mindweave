@@ -30,6 +30,9 @@ public sealed class McpOptions
 
     /// <summary>Longest standard error line kept or logged.</summary>
     public int MaxLineLength { get; init; } = 500;
+
+    /// <summary>Standard error lines written to the app log per start; a chatty server does not fill the log (the latest lines are still kept).</summary>
+    public int MaxLoggedLines { get; init; } = 100;
 }
 
 /// <summary>Where a server is (requirements §10.4.6): 未启动, 正在启动, 已连接, 出错, 反复退出已停止.</summary>
@@ -279,6 +282,7 @@ public sealed partial class McpServerManager : IMcpConnections, IAsyncDisposable
                 var attempt = new object();
                 var pause = wait > TimeSpan.Zero ? wait : TimeSpan.Zero;
                 entry.Attempt = attempt;
+                entry.LoggedLines = 0;
                 entry.Starting = Task.Run(() => StartCoreAsync(server, entry, attempt, pause));
             }
 
@@ -446,6 +450,7 @@ public sealed partial class McpServerManager : IMcpConnections, IAsyncDisposable
             clean = clean[.._options.MaxLineLength] + "…";
         }
 
+        int logged;
         lock (_gate)
         {
             entry.StandardError.Enqueue(clean);
@@ -453,9 +458,18 @@ public sealed partial class McpServerManager : IMcpConnections, IAsyncDisposable
             {
                 entry.StandardError.Dequeue();
             }
+
+            logged = ++entry.LoggedLines;
         }
 
-        LogStandardError(_logger, server.Name, clean);
+        if (logged <= _options.MaxLoggedLines)
+        {
+            LogStandardError(_logger, server.Name, clean);
+        }
+        else if (logged == _options.MaxLoggedLines + 1)
+        {
+            LogStandardErrorCapped(_logger, server.Name, _options.MaxLoggedLines);
+        }
     }
 
     private static string Seconds(string format, TimeSpan span) =>
@@ -510,11 +524,17 @@ public sealed partial class McpServerManager : IMcpConnections, IAsyncDisposable
 
         public Queue<string> StandardError { get; } = new();
 
+        /// <summary>Standard error lines seen since the last start (only the first <see cref="McpOptions.MaxLoggedLines"/> are logged).</summary>
+        public int LoggedLines { get; set; }
+
         public McpServerStatus Status() => new(State, Error, [.. StandardError], Connection is null ? null : Tools);
     }
 
     [LoggerMessage(Level = LogLevel.Information, Message = "MCP server {Server} (stderr): {Line}")]
     private static partial void LogStandardError(ILogger logger, string server, string line);
+
+    [LoggerMessage(Level = LogLevel.Information, Message = "MCP server {Server} (stderr): more than {Lines} lines since it started; the rest is not logged")]
+    private static partial void LogStandardErrorCapped(ILogger logger, string server, int lines);
 
     [LoggerMessage(Level = LogLevel.Warning, Message = "MCP server {Server} could not start: {Reason}")]
     private static partial void LogStartFailed(ILogger logger, string server, string reason);
