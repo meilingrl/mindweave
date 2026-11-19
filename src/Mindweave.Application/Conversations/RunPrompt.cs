@@ -8,7 +8,8 @@ namespace Mindweave.Application.Conversations;
 /// <summary>
 /// The run instructions (docs/design/agent-loop.md L1, architecture §15.5): the system turn that opens every request of a run.
 /// What the app is, that only the user's question is an instruction, what each offered tool is for, when to stop, how to
-/// cite and what to say when something is missing, and for the last request the instruction to answer (R8). An answer without tools gets none of this. <see cref="Version"/> changes with the text, so evaluation reports
+/// cite and what to say when something is missing; then the budget line (L2) or, for the last request, the instruction to
+/// answer (R8). An answer without tools gets none of this. <see cref="Version"/> changes with the text, so evaluation reports
 /// can be compared by it.
 /// </summary>
 public static class RunPrompt
@@ -53,5 +54,16 @@ public static class RunPrompt
         }
 
         return s.Append('\n').Append(Rules).ToString();
+    }
+
+    /// <summary>
+    /// The budget line (L2) of a request that still offers tools: rounds with tools left including this one, and tool calls left.
+    /// </summary>
+    public static string BudgetLine(RunLimits limits, int requestsMade, int callsMade)
+    {
+        ArgumentNullException.ThrowIfNull(limits);
+        var rounds = Math.Max(1, limits.ModelRequests - 1 - requestsMade);
+        var calls = Math.Max(0, limits.ToolCalls - callsMade);
+        return string.Create(CultureInfo.InvariantCulture, $"【额度】包括这一轮，本次回答还可以调用工具 {rounds} 轮、共 {calls} 次；用完之后必须直接回答。");
     }
 }

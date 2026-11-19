@@ -96,8 +96,8 @@ internal sealed partial class AnswerRunner
 
             var final = reached is not null;
             var offered = final ? [] : run.Tools.Where(t => !withdrawn.Contains(t.Name)).ToList();
-            // The run instructions (L1), and for the last request the instruction to answer (R8).
-            var system = final ? instructions + "\n\n" + FinalInstruction : instructions;
+            // The run instructions (L1) end with the budget line (L2), or for the last request with the instruction to answer (R8).
+            var system = instructions + "\n\n" + (final ? FinalInstruction : RunPrompt.BudgetLine(limits, requests, calls));
             var next = Compose(request, turns, results, shortened, offered, system);
             while (ChatTurns.Estimate(next) > budget.Available && Shorten(results, shortened))
             {

@@ -84,6 +84,26 @@ public class RunLoopTests
         Assert.True(FakeChatClient.IsAnswer(request));
     }
 
+    // L2: budget line.
+
+    [Fact]
+    public async Task The_budget_line_counts_down_and_the_last_request_asks_for_the_answer_instead()
+    {
+        await using var h = await ChatHarness.StartAsync(model: ToolModel);
+        await h.ToolSettings.SetLimitsAsync(RunLimits.Default with { ModelRequests = 3, ToolCalls = 5 }, Ct);
+        h.Client.KeepCalling = (SearchAttachmentsTool.ToolName, Query("蒸汽机"));
+
+        var (_, answer) = await AskWithAttachmentAsync(h, "蒸汽机？");
+
+        Assert.Equal(MessageState.Complete, answer.State);
+        var systems = h.Client.Requests.Where(FakeChatClient.IsAnswer).Select(r => r.Turns[0].Content).ToList();
+        Assert.Equal(3, systems.Count);
+        Assert.EndsWith("【额度】包括这一轮，本次回答还可以调用工具 2 轮、共 5 次；用完之后必须直接回答。", systems[0], StringComparison.Ordinal);
+        Assert.EndsWith("【额度】包括这一轮，本次回答还可以调用工具 1 轮、共 4 次；用完之后必须直接回答。", systems[1], StringComparison.Ordinal);
+        Assert.DoesNotContain("【额度】", systems[2], StringComparison.Ordinal);
+        Assert.EndsWith(AnswerRunnerFinal, systems[2], StringComparison.Ordinal);
+    }
+
     private const string AnswerRunnerFinal = "【本次运行已达到上限】请根据已经取得的工具结果直接回答用户的问题，不要再调用工具；信息不足时说明还缺什么。";
 
     private static ModelSnapshot ModelSnapshot() =>
