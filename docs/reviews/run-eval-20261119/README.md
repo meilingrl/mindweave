@@ -6,6 +6,7 @@
 | --- | --- |
 | [deepseek-flash.md](deepseek-flash.md) | 报告：汇总、每个场景一行、每个场景的检查、工具调用与回答 |
 | [deepseek-flash.json](deepseek-flash.json) | 同一次运行的数字，供比较 |
+| [loop-steps.md](loop-steps.md) | 改进 L1–L11 分四步实施，每一步之后的评测（step1–step4 的报告与 JSON）与比较 |
 
 ## 结果
 
