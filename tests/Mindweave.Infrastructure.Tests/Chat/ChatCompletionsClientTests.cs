@@ -54,6 +54,7 @@ public class ChatCompletionsClientTests
         var events = await Collect(Client(_ => Sse(sse)));
 
         Assert.Equal([3, 6], events.OfType<ChatStreamEvent.ReasoningDelta>().Select(e => e.Characters));
+        Assert.Equal(["用户问", "火车的起源。"], events.OfType<ChatStreamEvent.ReasoningDelta>().Select(e => e.Text));
         Assert.Equal(["蒸汽", "机"], events.OfType<ChatStreamEvent.TextDelta>().Select(e => e.Text));
         Assert.IsType<ChatStreamEvent.ReasoningDelta>(events[1]);
         Assert.Equal(new ChatStreamEvent.Completed(false), Assert.Single(events.OfType<ChatStreamEvent.Completed>()));
@@ -733,7 +734,7 @@ public class ChatCompletionsClientTests
         Assert.Equal([new ChatToolCall("c1", "f", "{\"a\":1}"), new ChatToolCall("call_2", "g", "{\"b\":2}")], calls.Calls);
         Assert.Equal("想想", calls.Reasoning);
         Assert.Equal(new ChatStreamEvent.Completed(false), events[events.IndexOf(calls) + 1]);
-        Assert.Equal(new ChatStreamEvent.ReasoningDelta(2), Assert.Single(events.OfType<ChatStreamEvent.ReasoningDelta>()));
+        Assert.Equal(new ChatStreamEvent.ReasoningDelta("想想"), Assert.Single(events.OfType<ChatStreamEvent.ReasoningDelta>()));
         Assert.Empty(events.OfType<ChatStreamEvent.TextDelta>());
     }
 

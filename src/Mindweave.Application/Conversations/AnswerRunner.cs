@@ -163,9 +163,9 @@ internal sealed partial class AnswerRunner(
                     case ChatStreamEvent.TextDelta delta:
                         live.Append(delta.Text);
                         break;
-                    case ChatStreamEvent.ReasoningDelta:
-                        // Only says the model is working; the reasoning is not shown or stored.
-                        live.MarkThinking();
+                    case ChatStreamEvent.ReasoningDelta reasoning:
+                        // Shown live while the answer runs, never stored (requirements §10.4.4 v0.21).
+                        live.AppendReasoning(reasoning.Text);
                         break;
                     case ChatStreamEvent.Completed done:
                         end = done;

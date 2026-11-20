@@ -40,10 +40,19 @@ public static partial class UiText
     public static string BranchMark(int count, string firstQuote) =>
         string.Format(CultureInfo.InvariantCulture, "{0} 个分支 · {1}", count, Quoted(firstQuote));
 
+    // The status line of a running answer, one sentence per stage (docs/design/reasoning-and-status.md §2): "正在 + verb
+    // + object…", the object after a colon, plain enough to translate sentence by sentence.
     public const string WaitingForAnswer = "正在等待回答…";
-    public const string AnswerStreaming = "正在生成…";
+    public const string AnswerWriting = "正在写回答…";
     public const string CompressingContext = "正在压缩较早的对话…";
     public const string ModelThinking = "正在思考…";
+    public const string AnswerRetrying = "请求出错，正在重试…";
+    public const string AnswerFinishing = "正在根据已有结果作答…";
+
+    // The reasoning fold at the top of a running answer (requirements §10.4.4 v0.21).
+    public const string ReasoningTitle = "思考过程";
+    public const string ReasoningExpand = "展开思考过程";
+    public const string ReasoningCollapse = "收起思考过程";
     public const string ContextCompressedNote = "较早的对话已压缩为摘要发送，原记录完整保留";
 
     /// <summary>

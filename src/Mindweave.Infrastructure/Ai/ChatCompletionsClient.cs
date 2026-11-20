@@ -139,7 +139,7 @@ public sealed class ChatCompletionsClient(HttpClient http, ChatClientOptions opt
                     reasoning.Append(thought);
                 }
 
-                yield return new ChatStreamEvent.ReasoningDelta(thought.Length);
+                yield return new ChatStreamEvent.ReasoningDelta(thought);
             }
 
             if (chunk.Text is { Length: > 0 } text)
@@ -522,7 +522,7 @@ public sealed class ChatCompletionsClient(HttpClient http, ChatClientOptions opt
         if (message["reasoning_content"] is JsonValue thought && thought.TryGetValue<string>(out var t) && t.Length > 0)
         {
             reasoning.Append(t);
-            events.Add(new ChatStreamEvent.ReasoningDelta(t.Length));
+            events.Add(new ChatStreamEvent.ReasoningDelta(t));
         }
 
         if (message["content"] is JsonValue content && content.TryGetValue<string>(out var text) && text.Length > 0)

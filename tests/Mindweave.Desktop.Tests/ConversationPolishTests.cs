@@ -50,7 +50,7 @@ public class ConversationPolishTests
         Assert.True(stop.IsEffectivelyVisible);
         Assert.True(stop.IsEffectivelyEnabled);
         Assert.False(Find<Button>(composer, "SendButton").IsEffectivelyVisible);
-        Assert.True(view.GetVisualDescendants().OfType<StackPanel>().Single(p => p.Name == "StreamingIndicator" && p.IsVisible).IsEffectivelyVisible);
+        Assert.True(view.GetVisualDescendants().OfType<StackPanel>().Single(p => p.Name == "GeneratingRow" && p.IsVisible).IsEffectivelyVisible);
 
         UiInput.Click(window, stop);
 
@@ -60,7 +60,7 @@ public class ConversationPolishTests
         Assert.Equal("半句", page.Messages[1].Body);
         Assert.False(stop.IsEffectivelyVisible);
         Assert.True(Find<Button>(composer, "SendButton").IsEffectivelyVisible);
-        Assert.DoesNotContain(view.GetVisualDescendants().OfType<StackPanel>(), p => p.Name == "StreamingIndicator" && p.IsEffectivelyVisible);
+        Assert.DoesNotContain(view.GetVisualDescendants().OfType<StackPanel>(), p => p.Name == "GeneratingRow" && p.IsEffectivelyVisible);
 
         // A stopped answer is not a failure: its state and retry are in the quiet row under it.
         var retry = VisibleNamed<Button>(view, "RetryButton");

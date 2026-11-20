@@ -659,7 +659,7 @@ Infrastructure 执行打开、备份、迁移及恢复；Application 协调启�
 - 按调用序号拼接分片的参数，结束时校验为 JSON；
 - 服务没给调用 ID 时生成一个，并在回传结果时使用；
 - 把工具结果按协议放回（Chat Completions 的 `tool` 角色消息）；
-- 模型的推理内容在同一运行内需要回传的，由适配器按协议回传，不进入 Core；
+- 模型的推理内容在同一运行内需要回传的，由适配器按协议回传，不进入 Core；推理文字随流式事件交给进行中的回答，只在回答进行中显示（需求 §10.4.4 v0.21），从不保存；
 - 不支持工具调用的模型不提供工具，不用提示词模拟。
 
 参数不是合法 JSON、调用了不存在的工具、参数不符合输入格式时，把错误作为该调用的结果交还模型一次（计入步数）；同一工具连续失败 3 次后，本次运行不再提供该工具。各家（例如不同的 OpenAI 兼容服务）在流式工具调用上的差异，以真实服务测试按能力覆盖，在服务确认可用之前，模型的 `ToolCalls` 能力保持默认关闭，由用户在设置中声明。
@@ -731,7 +731,7 @@ Infrastructure 执行打开、备份、迁移及恢复；Application 协调启�
 - **何时提供工具。** 接受回答任务时（`ConversationService`），快照声明 `ToolCalls`、“使用工具”开启，且工具有内容可查（`search_attachments`：本会话祖先链中有带文字的资源；`search_summaries`：本工作区有已保存的总结）时，把这些工具与上限（`RunLimits`）冻结进任务（`generation_task.tools`、`run_limits`）；否则任务不带工具，执行路径与第 1 期相同，不写 `run_step`。
 - **执行。** `AnswerRunner` 在任务自己的执行槽里运行 `RunLoop`：每次模型请求是一个 `model` 步骤（`ai_request.purpose = 'answer'`，`run_step.ai_request_id` 指向它），每次工具执行是一个 `tool` 步骤。步骤开始时写 `running` 行，结束时在同一事务中更新步骤与回答的块（守卫同检查点：只在回答仍在生成时写块）。只读工具的多个调用依次执行（本地工具很快，依次执行使步骤顺序与块顺序一致）。
 - **上限的判定**（每次模型请求之前）：已发请求数 = 上限 − 1、工具调用数已到上限、时长已到、累计估算 token（每次请求的估算输入加收到的输出）已到上限，任一成立即为最后一次请求：不带工具、加一条系统说明请模型据已有结果作答，原因写入 `generation_task.run_limit_reached`（`model_requests`／`tool_calls`／`duration`／`tokens`）。最后一次请求的时长另给 1 分钟。一次回复中超出工具次数上限的调用不执行，以“未执行：达到工具调用上限”作为结果交还（协议要求每个调用都有结果）。
-- **协议。** `ChatRequest` 增加 `Tools`（名称、说明、JSON Schema）；`ChatTurn` 增加角色 `Tool` 与助手回合的 `ToolCalls`、`ToolCallId`、`Reasoning`。适配器只发 `tool_choice: "auto"`（[model-capabilities.md](design/model-capabilities.md) §5）；按 `index` 拼接流式的 `tool_calls` 增量，结束时（`finish_reason` 为 `tool_calls`，或流结束时已有调用）发出一个 `ToolCalls` 事件；没有 `id` 时生成 `call_<n>`；参数不是合法 JSON 时标为无效，由运行把错误交还模型。推理内容只在同一运行内存于内存、随后续请求的助手回合以 `reasoning_content` 回传，从不保存。OpenRouter 地址在带工具时加 `provider.require_parameters: true`。
+- **协议。** `ChatRequest` 增加 `Tools`（名称、说明、JSON Schema）；`ChatTurn` 增加角色 `Tool` 与助手回合的 `ToolCalls`、`ToolCallId`、`Reasoning`。适配器只发 `tool_choice: "auto"`（[model-capabilities.md](design/model-capabilities.md) §5）；按 `index` 拼接流式的 `tool_calls` 增量，结束时（`finish_reason` 为 `tool_calls`，或流结束时已有调用）发出一个 `ToolCalls` 事件；没有 `id` 时生成 `call_<n>`；参数不是合法 JSON 时标为无效，由运行把错误交还模型。推理内容只在同一运行内存于内存、随后续请求的助手回合以 `reasoning_content` 回传，从不保存；回答进行中可在“思考过程”里实时查看（v0.21）。OpenRouter 地址在带工具时加 `provider.require_parameters: true`。
 - **工具结果资源。** 每个成功的结果写为资源：`origin = 'tool'`、媒体类型 `text/markdown`、`conversation_id` 为回答所在会话、`produced_by_task`／`produced_by_step` 指向步骤；`search_attachments` 的结果 `provenance = 'user'`，`search_summaries` 的为 `workspace`。资源在步骤结束的事务之前写入；崩溃留下的无引用结果资源由启动清理删除（§15.2）。
 - **运行内的上下文。** 交给模型的工具结果最多约 2,000 估算 token（超过时为预览加资源编号）；每次请求前若估算超过可用容量，从最早的工具结果开始缩为一行说明；仍超过时按上限处理（最后一次请求）。
 - **恢复。** `RecoverUnfinishedAsync` 在标记回答中断的同一事务中，把 `running` 的步骤按风险等级改为 `stopped`（本地只读、读网络）或 `unknown`（有副作用），`awaiting_approval` 改为 `stopped`。

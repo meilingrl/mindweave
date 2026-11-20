@@ -16,6 +16,12 @@ public enum WeavingMotion
 
     /// <summary>Text streaming in: a ripple running along a faint thread through the three dots.</summary>
     Thread,
+
+    /// <summary>A tool fetching material (searching, reading a page, calling a tool): one dot reaches out along a thread and back.</summary>
+    Reaching,
+
+    /// <summary>Waiting for the user's approval: three dots in a row, still, breathing together.</summary>
+    Holding,
 }
 
 /// <summary>One dot: its centre in the indicator's box, its radius and how solid it is.</summary>
@@ -49,6 +55,8 @@ public static class WeavingPaths
     private static readonly TimeSpan TighteningPeriod = TimeSpan.FromSeconds(0.9);
     private static readonly TimeSpan ThreadPeriod = TimeSpan.FromSeconds(1.2);
     private static readonly TimeSpan JoiningTurn = TimeSpan.FromSeconds(6);
+    private static readonly TimeSpan ReachingPeriod = TimeSpan.FromSeconds(1.4);
+    private static readonly TimeSpan HoldingPeriod = TimeSpan.FromSeconds(2.4);
     private static readonly Point Centre = new(22, 10);
     private static readonly double[] ThreadXs = [12, 22, 32];
 
@@ -58,6 +66,8 @@ public static class WeavingPaths
         WeavingMotion.Joining => JoiningCycle,
         WeavingMotion.Tightening => TighteningPeriod,
         WeavingMotion.Thread => ThreadPeriod,
+        WeavingMotion.Reaching => ReachingPeriod,
+        WeavingMotion.Holding => HoldingPeriod,
         _ => BraidPeriod,
     };
 
@@ -67,6 +77,8 @@ public static class WeavingPaths
         WeavingMotion.Joining => Joining(seconds),
         WeavingMotion.Tightening => Braid(seconds, TighteningPeriod, 0.5),
         WeavingMotion.Thread => Thread(seconds),
+        WeavingMotion.Reaching => Reaching(seconds),
+        WeavingMotion.Holding => Holding(seconds),
         _ => Braid(seconds, BraidPeriod, 1),
     };
 
@@ -163,6 +175,38 @@ public static class WeavingPaths
         }
 
         return new WeavingFrame(dots, [], 0.35);
+    }
+
+    /// <summary>
+    /// Two dots rest on the left; the third reaches from beside them to the far right along a faint link and comes back,
+    /// eased at both ends, growing more solid the further out it is.
+    /// </summary>
+    private static WeavingFrame Reaching(double seconds)
+    {
+        var cycle = Fraction(seconds, ReachingPeriod);
+        var reach = Ease(cycle < 0.5 ? cycle * 2 : (1 - cycle) * 2);
+        var anchor = new Point(17, Centre.Y);
+        var tip = new Point(Lerp(24, 36, reach), Centre.Y);
+        WeavingDot[] dots =
+        [
+            new(new Point(9, Centre.Y), 2.2, 0.6),
+            new(anchor, 2.2, 0.75),
+            new(tip, 2.2 + (0.7 * reach), 0.55 + (0.45 * reach)),
+        ];
+        return new WeavingFrame(dots, [new WeavingLink(anchor, tip, 0.25 + (0.25 * reach))], 0);
+    }
+
+    /// <summary>Three dots in a row, not moving; they swell and fade together, slowly.</summary>
+    private static WeavingFrame Holding(double seconds)
+    {
+        var breath = (1 - Math.Cos(Fraction(seconds, HoldingPeriod) * 2 * Math.PI)) / 2;
+        var dots = new WeavingDot[3];
+        for (var i = 0; i < 3; i++)
+        {
+            dots[i] = new WeavingDot(new Point(ThreadXs[i], Centre.Y), 2.1 + (0.6 * breath), 0.5 + (0.4 * breath));
+        }
+
+        return new WeavingFrame(dots, [], 0);
     }
 
     private static double Fraction(double seconds, TimeSpan period)

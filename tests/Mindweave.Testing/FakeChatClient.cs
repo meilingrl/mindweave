@@ -171,6 +171,20 @@ public sealed class FakeChatClient : IChatClient
     /// Like <see cref="Hold"/>, as a reasoning model: the next answer sends reasoning first, then <paramref name="before"/>
     /// (usually nothing), and waits.
     /// </summary>
+    /// <summary>The reasoning a held thinking reply (<see cref="HoldThinking"/>) sends, in order.</summary>
+    public static readonly string[] ThinkingChunks = ["先想想火车从哪里来，", "再想想蒸汽机怎样推动车轮，", "然后作答。"];
+
+    /// <summary>
+    /// Like <see cref="Hold"/>, but once released the reply ends by calling <paramref name="calls"/> instead of finishing as
+    /// an answer: a run's middle round that can be held (reasoning and text pushed meanwhile).
+    /// </summary>
+    public HeldReply HoldCalling(IReadOnlyList<ChatToolCall> calls, params string[] before)
+    {
+        var held = new HeldReply(before);
+        _scripts.Enqueue(new Script(held, Calls: calls));
+        return held;
+    }
+
     public HeldReply HoldThinking(params string[] before)
     {
         var held = new HeldReply(before) { ReasoningChunks = 3 };
@@ -253,8 +267,8 @@ public sealed class FakeChatClient : IChatClient
         await Task.Yield();
         if (ReasonFirst)
         {
-            yield return new ChatStreamEvent.ReasoningDelta(12);
-            yield return new ChatStreamEvent.ReasoningDelta(30);
+            yield return new ChatStreamEvent.ReasoningDelta("先想一想。");
+            yield return new ChatStreamEvent.ReasoningDelta("再想一想。");
         }
 
         var billed = PromptTokens?.Invoke(request);
@@ -289,7 +303,13 @@ public sealed class FakeChatClient : IChatClient
 
         for (var i = 0; i < (script.Held?.ReasoningChunks ?? 0); i++)
         {
-            yield return new ChatStreamEvent.ReasoningDelta(20);
+            yield return new ChatStreamEvent.ReasoningDelta(ThinkingChunks[i % ThinkingChunks.Length]);
+        }
+
+        if (script.Reasoning is { Length: > 0 } reasoning)
+        {
+            // A reply calling tools with reasoning (CallTools): the reasoning streams first, as a reasoning model's does.
+            yield return new ChatStreamEvent.ReasoningDelta(reasoning);
         }
 
         foreach (var chunk in script.Held?.Before ?? script.Chunks ?? [])
@@ -309,7 +329,7 @@ public sealed class FakeChatClient : IChatClient
                 var released = held.Release.Task.IsCompleted;
                 while (held.Pushed.Reader.TryRead(out var pushed))
                 {
-                    yield return new ChatStreamEvent.TextDelta(pushed);
+                    yield return pushed;
                 }
 
                 if (released)
@@ -385,15 +405,24 @@ public sealed class FakeChatClient : IChatClient
 
         public TaskCompletionSource Release { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
 
-        /// <summary>Text the held reply sends now, before it is released.</summary>
-        internal Channel<string> Pushed { get; } = Channel.CreateUnbounded<string>();
+        /// <summary>Text and reasoning the held reply sends now, before it is released.</summary>
+        internal Channel<ChatStreamEvent> Pushed { get; } = Channel.CreateUnbounded<ChatStreamEvent>();
 
         /// <summary>Streams <paramref name="chunks"/> while the reply stays held, as a service still writing does.</summary>
         public void Push(params string[] chunks)
         {
             foreach (var chunk in chunks)
             {
-                Pushed.Writer.TryWrite(chunk);
+                Pushed.Writer.TryWrite(new ChatStreamEvent.TextDelta(chunk));
+            }
+        }
+
+        /// <summary>Streams reasoning while the reply stays held, as a reasoning model still thinking does.</summary>
+        public void Think(params string[] chunks)
+        {
+            foreach (var chunk in chunks)
+            {
+                Pushed.Writer.TryWrite(new ChatStreamEvent.ReasoningDelta(chunk));
             }
         }
 
