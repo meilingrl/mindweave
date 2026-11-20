@@ -157,12 +157,21 @@ public class SourceHighlightThemeTests
         var block = Highlighted(window);
         var line = Assert.Single(Mark(block).LineRects());
         var markColour = ThemeColour("SourceHighlightMark", ThemeVariant.Dark);
+        // The page must be able to scroll that far: with a Windows desktop's CJK font the text is shorter, so the window is
+        // made shorter until it can (the laptop run of 2026-11-20 was clamped short of it).
+        double Needed() => scroller.Offset.Y + block.TranslatePoint(line.TopLeft, scroller)!.Value.Y + 6;
+        while (scroller.Extent.Height - scroller.Viewport.Height < Needed() + 1 && window.Height > 220)
+        {
+            window.Height -= 20;
+            window.UpdateLayout();
+        }
+
         var visible = scroller.Offset;
 
         // The line's top 6 px above the list's top edge: outside the list, over the page behind it.
-        scroller.Offset = new Vector(0, scroller.Offset.Y + block.TranslatePoint(line.TopLeft, scroller)!.Value.Y + 6);
+        scroller.Offset = new Vector(0, Needed());
         window.UpdateLayout();
-        Assert.True(block.TranslatePoint(line.Center, scroller)!.Value.Y < 0);
+        Assert.True(block.TranslatePoint(line.Center, scroller)!.Value.Y < 0, $"offset {scroller.Offset}, extent {scroller.Extent}, viewport {scroller.Viewport}");
         using (var frame = window.CaptureRenderedFrame()!)
         {
             var outside = Pixel(frame, block, line.Center);
