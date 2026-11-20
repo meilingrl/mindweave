@@ -195,7 +195,7 @@ public sealed class SummaryNetworkCanvas : Control
         var zoom = Current.Zoom;
         foreach (var node in _page.Nodes.Reverse())
         {
-            if (SummaryNetworkGeometry.HitBox(ScreenOf(node), node, zoom, IsLabelVisible(node, zoom), Sessions).Contains(screen))
+            if (HitBoxOf(node, ScreenOf(node), zoom).Contains(screen))
             {
                 return node;
             }
@@ -253,6 +253,14 @@ public sealed class SummaryNetworkCanvas : Control
     private bool IsLabelVisible(NodeView node, double zoom) =>
         zoom > LabelHideScale || node.Id == Hovered || (_page is { } page && (node.Id == page.Session.Selected || page.Matches.Contains(node.Id)));
 
+    /// <summary>On the timeline, the room a resting label has before the next step's dot (screen px); null elsewhere.</summary>
+    private double? TimelineLabelRoom(NodeView node, double zoom) =>
+        _page is { IsTimeline: true } ? SummaryNetworkGeometry.TimelineLabelRoom(zoom, RadiusOf(node)) : null;
+
+    /// <summary>A node's hit box: its dot and, while shown, its label as far as it may reach at rest.</summary>
+    private Rect HitBoxOf(NodeView node, Point center, double zoom) =>
+        SummaryNetworkGeometry.HitBox(center, node, zoom, IsLabelVisible(node, zoom), Sessions, TimelineLabelRoom(node, zoom));
+
     /// <summary>What each node looks like now, in drawing order. The render pass and the tests read the same list.</summary>
     internal IReadOnlyList<NodePaint> PaintNodes()
     {
@@ -287,7 +295,16 @@ public sealed class SummaryNetworkCanvas : Control
             var visible = IsLabelVisible(node, zoom);
             var labelSize = zoom > LabelHideScale ? size : Math.Max(size, FocusedLabelMinSize);
             var brush = hovered || isSelected ? palette.LabelActive : !node.Unread ? palette.LabelRead : palette.Label;
-            var text = visible ? Text(label, labelSize, brush, node.Unread ? FontWeight.SemiBold : FontWeight.Normal) : null;
+            var weight = node.Unread ? FontWeight.SemiBold : FontWeight.Normal;
+            var text = visible ? Text(label, labelSize, brush, weight) : null;
+
+            // On the timeline a resting label is cut before the next step's dot; hovered or selected it is whole.
+            if (text is not null && !hovered && !isSelected && TimelineLabelRoom(node, zoom) is { } room && text.Width > room)
+            {
+                (text, label) = Shortened(label, room, s => Text(s, labelSize, brush, weight)) is { } cut ? cut : (null, label);
+                visible = text is not null;
+            }
+
             var origin = text is null ? default : SummaryNetworkGeometry.LabelOrigin(center, radius, new Size(text.Width, text.Height), incident[node.Id]);
             return new NodePaint(
                 node,
@@ -371,7 +388,7 @@ public sealed class SummaryNetworkCanvas : Control
         var palette = _palette ??= SummaryNetworkPalette.From(this);
         var zoom = Current.Zoom;
         var selected = _page.Session.Selected;
-        var taken = _page.Nodes.Select(n => SummaryNetworkGeometry.HitBox(ScreenOf(n) + _offsets.GetValueOrDefault(n.Id), n, zoom, IsLabelVisible(n, zoom), Sessions)).ToList();
+        var taken = _page.Nodes.Select(n => HitBoxOf(n, ScreenOf(n) + _offsets.GetValueOrDefault(n.Id), zoom)).ToList();
         return [.. _page.LinkEdges.Select(link =>
         {
             var (ax, ay) = PositionOf(link.A, link.AX, link.AY);
@@ -421,7 +438,7 @@ public sealed class SummaryNetworkCanvas : Control
         var highlighted = _page.HighlightedSuggestion;
         // A summary lying on the line (its ring and its name) is never covered: the words would hide it and take its clicks.
         var taken = PaintLinks().Where(l => l.Note is not null).Select(l => l.NoteBounds)
-            .Concat(_page.Nodes.Select(n => SummaryNetworkGeometry.HitBox(ScreenOf(n) + _offsets.GetValueOrDefault(n.Id), n, zoom, IsLabelVisible(n, zoom), Sessions)))
+            .Concat(_page.Nodes.Select(n => HitBoxOf(n, ScreenOf(n) + _offsets.GetValueOrDefault(n.Id), zoom)))
             .ToList();
         return [.. _page.SuggestionEdges.Select(edge =>
         {
@@ -1103,6 +1120,37 @@ public sealed class SummaryNetworkCanvas : Control
         var fitted = SummaryNetworkGeometry.FitTo(_page.Nodes, Bounds.Size, _page.RecommendedNodes);
         _page.Session.Viewport = fitted;
         return fitted;
+    }
+
+    /// <summary>
+    /// The longest start of <paramref name="label"/>, in whole text elements, that fits <paramref name="room"/> px with
+    /// "…" after it; null when not even one element does.
+    /// </summary>
+    private static (FormattedText Text, string Label)? Shortened(string label, double room, Func<string, FormattedText> make)
+    {
+        var starts = StringInfo.ParseCombiningCharacters(label);
+        string Cut(int count) => label[..starts[count]].TrimEnd() + "…";
+        (int lo, int hi) = (0, starts.Length - 1); // the largest fitting count lies in [lo, hi]; 0 means none fits
+        while (lo < hi)
+        {
+            var mid = (lo + hi + 1) / 2;
+            if (make(Cut(mid)).Width <= room)
+            {
+                lo = mid;
+            }
+            else
+            {
+                hi = mid - 1;
+            }
+        }
+
+        if (lo == 0)
+        {
+            return null;
+        }
+
+        var cut = Cut(lo);
+        return (make(cut), cut);
     }
 
     internal static FormattedText Text(string text, double size, IBrush brush, FontWeight weight = FontWeight.Normal) =>

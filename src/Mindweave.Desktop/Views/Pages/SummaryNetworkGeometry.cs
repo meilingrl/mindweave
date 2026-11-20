@@ -27,18 +27,41 @@ internal static class SummaryNetworkGeometry
     /// the label is hidden), clamped to the node's layout box widened by half the layout's spacing. Boxes of nodes the
     /// layout keeps apart therefore never overlap, at any zoom.
     /// </summary>
-    internal static Rect HitBox(Point center, NodeView node, double zoom, bool labelVisible, bool sessionNetwork = false)
+    /// <remarks>
+    /// On the timeline <paramref name="labelRoom"/> is the room a resting label has (<see cref="TimelineLabelRoom"/>): the
+    /// box ends there too, so it never reaches the next dot's box.
+    /// </remarks>
+    internal static Rect HitBox(Point center, NodeView node, double zoom, bool labelVisible, bool sessionNetwork = false, double? labelRoom = null)
     {
         ArgumentNullException.ThrowIfNull(node);
         var half = Math.Min(20, SummaryNetworkLayout.NodeHeight * zoom / 2);
         var left = Math.Min(16, (SummaryNetworkLayout.NodeRadius + (SummaryNetworkLayout.LabelPadding / 2)) * zoom);
+        var radius = RadiusOf(node, sessionNetwork);
+        var dotOnly = Math.Min(radius + 4, (SummaryNetworkLayout.NodeRadius + (SummaryNetworkLayout.LabelPadding / 2)) * zoom);
         var right = labelVisible
             ? Math.Min(
-                RadiusOf(node, sessionNetwork) + SummaryNetworkLayout.LabelGap + (node.LabelWidth * LabelSize(zoom) / SummaryNetworkLayout.LabelEm) + 12,
+                radius + SummaryNetworkLayout.LabelGap + (node.LabelWidth * LabelSize(zoom) / SummaryNetworkLayout.LabelEm) + 12,
                 (SummaryNetworkLayout.NodeRadius + SummaryNetworkLayout.LabelGap + node.LabelWidth + (SummaryNetworkLayout.LabelPadding / 2)) * zoom)
-            : Math.Min(RadiusOf(node, sessionNetwork) + 4, (SummaryNetworkLayout.NodeRadius + (SummaryNetworkLayout.LabelPadding / 2)) * zoom);
+            : dotOnly;
+        if (labelVisible && labelRoom is { } room)
+        {
+            right = Math.Max(dotOnly, Math.Min(right, radius + SummaryNetworkLayout.LabelGap + room));
+        }
+
         return new Rect(center.X - left, center.Y - half, left + right, 2 * half);
     }
+
+    /// <summary>Screen px kept free between a cut timeline label and the summary ring of the next step's widest dot.</summary>
+    internal const double TimelineLabelClearance = 4;
+
+    /// <summary>
+    /// How wide a resting label may be on the timeline, in screen px, for a dot of <paramref name="radius"/>: from the
+    /// label's start to just before the widest dot, summary ring included, one step on. Every timeline x is on the
+    /// <see cref="TimelineLayout.Step"/> grid, so no other dot in any lane is nearer to the right, and a label cut to this
+    /// never covers another dot (spec §4.2). Zero or less when not even that much room is left.
+    /// </summary>
+    internal static double TimelineLabelRoom(double zoom, double radius) =>
+        (TimelineLayout.Step * zoom) - radius - SummaryNetworkLayout.LabelGap - (DotRadius(int.MaxValue) + SummaryNetworkCanvas.SummaryRingGap + TimelineLabelClearance);
 
     /// <summary>A node's dot radius: by how much was asked in the session network, else larger for an exploration's root.</summary>
     internal static double RadiusOf(NodeView node, bool sessionNetwork = false)

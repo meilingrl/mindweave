@@ -48,6 +48,12 @@ public static class TimelineLayout
     public const double DayGap = Step;
 
     /// <summary>
+    /// The canvas room a resting label takes at most on the timeline: from the dot to the next step's dot. The canvas cuts
+    /// the drawn label shorter still, clear of that dot (spec §4.2); the details panel shows the whole title.
+    /// </summary>
+    public const double LabelRoom = Step - SummaryNetworkLayout.NodeRadius - SummaryNetworkLayout.LabelGap;
+
+    /// <summary>
     /// Arranges every node. A node whose parent is not in <paramref name="nodes"/> is placed as a root. Children are
     /// placed depth-first in rank order with an explicit stack, because chains can be deep. Nodes on a parent cycle
     /// (which the data cannot hold) are unreachable from a root and left out.

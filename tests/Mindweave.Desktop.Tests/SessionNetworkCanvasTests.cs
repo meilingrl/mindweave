@@ -2,6 +2,8 @@ using Avalonia;
 using Avalonia.Headless.XUnit;
 using Microsoft.Extensions.DependencyInjection;
 using Mindweave.Application.Conversations;
+using Mindweave.Application.Storage;
+using Mindweave.Application.Summaries;
 using Mindweave.Application.SummaryNetwork;
 using Mindweave.Core.Conversations;
 using Mindweave.Desktop.SummaryNetwork;
@@ -222,6 +224,91 @@ public class SessionNetworkCanvasTests
         Assert.EndsWith("· 11月20日 21:38", hovered.Label, StringComparison.Ordinal);
         canvas.SetPointer(null);
         window.Close();
+    }
+
+    [AvaloniaFact]
+    public async Task Timeline_labels_never_cover_another_dot()
+    {
+        // Spec §4.2: long titles on the timeline are cut short with an ellipsis before the next dot, at any zoom.
+        await using var app = Gated();
+        var window = app.ShowWindow(1100, 720);
+        await app.StartWithWorkspaceAsync("火车");
+        await app.ConfigureModelAsync();
+        var conversations = app.Services.GetRequiredService<ConversationService>();
+        var workspace = app.Workbench.CurrentWorkspace!.Id;
+        var all = new List<ConversationId>();
+        for (var i = 0; i < 6; i++)
+        {
+            all.Add(await SummaryNetworkScenario.AskAsync(app, conversations, null, workspace, $"第{i}个关于蒸汽机车发明历史的问题？"));
+        }
+
+        var branch = await SummaryNetworkScenario.BranchAsync(app, conversations, all[0], "谁造了第一台？");
+        all.Add(branch);
+        all.Add(await SummaryNetworkScenario.BranchAsync(app, conversations, branch, "它跑多快？"));
+        all.Add(await SummaryNetworkScenario.BranchAsync(app, conversations, branch, "铁轨用什么做？"));
+        all.Add(await SummaryNetworkScenario.BranchAsync(app, conversations, all[0], "煤从哪里来？"));
+        all.Add(await SummaryNetworkScenario.BranchAsync(app, conversations, all[2], "车厢怎么连接？"));
+        await AddQuestionsAsync(app, all[1], 60);
+        await AddQuestionsAsync(app, all[6], 30);
+        await AddQuestionsAsync(app, all[3], 12);
+        await SetTitlesAsync(app, all.Select((c, i) => (c, $"蒸汽机车与工业革命第{i}段很长的标题")));
+        var summaries = app.Services.GetRequiredService<SummaryService>();
+        app.Client.Knowledge.Replies.Enqueue("标题：铁路网络如何改变城市与乡村的生活\n短名：铁路网络如何改变城市与乡村\n\n正文");
+        Assert.True((await summaries.SummarizeAsync(all[4], CancellationToken.None)).Accepted);
+        await UiWait.UntilAsync(() => summaries.LatestTaskAsync(all[4], CancellationToken.None).Result is { State: GenerationTaskState.Completed });
+        var network = await SummaryNetworkScenario.OpenSummaryNetworkAsync(app, window);
+        await UiWait.UntilAsync(() => network.Nodes.Count == all.Count && network.Nodes.Any(n => n.HasSummary));
+        network.SetViewModeCommand.Execute(SummaryNetworkViewMode.Timeline);
+        window.UpdateLayout();
+        var canvas = CanvasOf(window);
+        Assert.Null(network.Session.Selected);
+
+        network.Session.Viewport = null;
+        var fit = canvas.Current;
+        Assert.True(fit.Zoom > SummaryNetworkCanvas.LabelHideScale, $"fit zoom {fit.Zoom} hides the labels");
+        AssertNoLabelCoversADot(canvas, "fit");
+        Assert.Contains(canvas.PaintNodes(), p => p.Label.EndsWith('…') && p.Label.Length < 10);
+        foreach (var zoom in new[] { 1.0, 0.6, 2.0 })
+        {
+            network.Session.Viewport = fit with { Zoom = zoom };
+            AssertNoLabelCoversADot(canvas, $"zoom {zoom}");
+        }
+
+        // Hovered, a label is whole again (the details panel shows it too).
+        network.Session.Viewport = fit with { Zoom = 1 };
+        var cut = canvas.PaintNodes().First(p => p.Label.EndsWith('…') && p.Label.Length < 10);
+        canvas.SetPointer(cut.Center + new Vector(1, 0));
+        Assert.Equal(cut.Node.Id, canvas.Hovered);
+        Assert.StartsWith(SummaryNetworkLayout.Label(cut.Node.ShortTitle, cut.Node.HasCandidate), canvas.PaintNodes().Single(p => p.Node.Id == cut.Node.Id).Label, StringComparison.Ordinal);
+        canvas.SetPointer(null);
+        window.Close();
+    }
+
+    /// <summary>No resting label rectangle touches another node's dot, its summary ring included.</summary>
+    private static void AssertNoLabelCoversADot(SummaryNetworkCanvas canvas, string when)
+    {
+        var paints = canvas.PaintNodes();
+        Assert.Contains(paints, p => p.Text is not null);
+        foreach (var label in paints.Where(p => p.Text is not null && !p.Hovered && p.Ring != NodeRing.Selected))
+        {
+            foreach (var dot in paints.Where(p => p.Node.Id != label.Node.Id))
+            {
+                var reach = dot.Radius + (dot.SummaryRing ? SummaryNetworkCanvas.SummaryRingGap + 0.75 : 0);
+                var bounds = label.LabelBounds;
+                var nearX = Math.Clamp(dot.Center.X, bounds.Left, bounds.Right);
+                var nearY = Math.Clamp(dot.Center.Y, bounds.Top, bounds.Bottom);
+                var distance = Math.Sqrt(Math.Pow(dot.Center.X - nearX, 2) + Math.Pow(dot.Center.Y - nearY, 2));
+                Assert.True(distance > reach, $"{when}: the label \"{label.Label}\" at {bounds} covers the dot at {dot.Center} (r {reach})");
+            }
+        }
+    }
+
+    private static async Task SetTitlesAsync(DesktopHarness app, IEnumerable<(ConversationId Conversation, string Title)> titles)
+    {
+        var list = titles.ToList();
+        await app.Services.GetRequiredService<SqliteDatabase>().WriteAsync(
+            (c, t) => list.Sum(x => c.Execute(t, "UPDATE conversation SET title = $title, title_source = 'manual' WHERE id = $id;", ("$title", x.Title), ("$id", x.Conversation.ToString()))),
+            CancellationToken.None);
     }
 
     /// <summary>
