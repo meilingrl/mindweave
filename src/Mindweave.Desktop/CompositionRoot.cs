@@ -64,6 +64,7 @@ public static class CompositionRoot
         services.TryAddSingleton<IInAppRestore, UnavailableInAppRestore>(); // The application session registers itself first.
         services.AddSingleton<BackupRestoreViewModel>();
         services.AddSingleton<BackupDeletionViewModel>();
+        services.TryAddSingleton(SummaryNetwork.SessionNetworkGate.FromEnvironment()); // Tests give their own.
         services.AddSingleton<SummaryNetwork.SummaryNetworkSessions>();
         services.AddSingleton<ConversationListViewModel>();
         services.AddSingleton<RootViewModel>();

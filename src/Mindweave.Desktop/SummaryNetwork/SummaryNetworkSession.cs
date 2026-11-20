@@ -31,10 +31,53 @@ public sealed partial class SummaryNetworkSession : ObservableObject
     private long _revision;
     private bool _loaded;
 
-    public SummaryNetworkSession(WorkspaceId workspace, ISummaryNetworkLayout network)
+    private readonly SessionNetworkGate _gate;
+    private IReadOnlyList<SummaryNodeId> _dayStarts = [];
+
+    public SummaryNetworkSession(WorkspaceId workspace, ISummaryNetworkLayout network, SessionNetworkGate gate)
     {
         Workspace = workspace;
         _summarySummaryNetwork = network;
+        _gate = gate;
+    }
+
+    /// <summary>The session network (every conversation a dot, layouts computed and never saved) is switched on.</summary>
+    public bool IsSessionNetwork => _gate.Enabled;
+
+    /// <summary>The view of the session network; remembered for the life of the process. Not used without the gate.</summary>
+    public SummaryNetworkViewMode ViewMode { get; private set; } = SummaryNetworkViewMode.Spatial;
+
+    /// <summary>The roots that start a new local day, in timeline order; empty without the gate.</summary>
+    public IReadOnlyList<SummaryNodeId> DayStarts => _dayStarts;
+
+    /// <summary>Switches the view and recomputes every position from the current projection. Nothing is saved.</summary>
+    public void SetViewMode(SummaryNetworkViewMode mode)
+    {
+        ViewMode = mode;
+        if (!_gate.Enabled)
+        {
+            return;
+        }
+
+        ComputeSessionPositions(Projection);
+        Viewport = null;
+        LayoutChanged?.Invoke(this, EventArgs.Empty);
+    }
+
+    /// <summary>The local calendar day a conversation was created on (the timeline groups roots by it).</summary>
+    internal static DateOnly LocalDay(DateTimeOffset createdAt) => DateOnly.FromDateTime(createdAt.ToLocalTime().DateTime);
+
+    private void ComputeSessionPositions(SummaryNetworkProjection projection)
+    {
+        var nodes = LayoutNodes(projection);
+        var timeline = projection.Nodes.Select((n, i) => (n, i)).ToList();
+        var branchParents = projection.Edges.Where(e => e.Kind == SummaryNetworkEdgeKind.Branch).ToDictionary(e => e.To, e => e.From);
+        var arrangement = TimelineLayout.Arrange([.. timeline.Select(t => new TimelineNode(
+            t.n.Id, branchParents.TryGetValue(t.n.Id, out var parent) ? parent : null, LocalDay(t.n.CreatedAt), t.i))]);
+        _dayStarts = arrangement.DayStarts;
+        _positions = ViewMode == SummaryNetworkViewMode.Timeline
+            ? new Dictionary<SummaryNodeId, NodePosition>(arrangement.Positions)
+            : SummaryNetworkLayout.Arrange(nodes).ToDictionary(p => p.Key, p => p.Value);
     }
 
     public WorkspaceId Workspace { get; }
@@ -74,6 +117,16 @@ public sealed partial class SummaryNetworkSession : ObservableObject
     /// </summary>
     public async Task LoadAsync(CancellationToken cancellationToken)
     {
+        if (_gate.Enabled)
+        {
+            var sessions = await _summarySummaryNetwork.ProjectSessionsAsync(Workspace, cancellationToken);
+            ComputeSessionPositions(sessions);
+            Projection = sessions;
+            _loaded = true;
+            LayoutChanged?.Invoke(this, EventArgs.Empty);
+            return;
+        }
+
         var projection = await _summarySummaryNetwork.ProjectAsync(Workspace, cancellationToken);
         var saved = await _summarySummaryNetwork.GetLayoutAsync(Workspace, cancellationToken);
         var nodes = LayoutNodes(projection);
@@ -118,6 +171,11 @@ public sealed partial class SummaryNetworkSession : ObservableObject
     /// <summary>Explicit "arrange": a full new layout, kept in memory until saved.</summary>
     public void Arrange()
     {
+        if (_gate.Enabled)
+        {
+            return;
+        }
+
         _positions = SummaryNetworkLayout.Arrange(LayoutNodes(Projection)).ToDictionary(p => p.Key, p => p.Value);
         _revision++;
         OnPropertyChanged(nameof(IsDirty));
@@ -133,6 +191,11 @@ public sealed partial class SummaryNetworkSession : ObservableObject
     /// </summary>
     public bool Move(SummaryNodeId node, NodePosition position)
     {
+        if (_gate.Enabled)
+        {
+            return false;
+        }
+
         if (!_positions.TryGetValue(node, out var current) || current == position)
         {
             return false;
@@ -193,16 +256,17 @@ public sealed partial class SummaryNetworkSession : ObservableObject
     /// <summary>Unsaved changes were dropped; what is shown must be read again.</summary>
     public event EventHandler? Discarded;
 
-    private static List<LayoutNode> LayoutNodes(SummaryNetworkProjection projection)
+    private List<LayoutNode> LayoutNodes(SummaryNetworkProjection projection)
     {
-        var parents = projection.Edges.ToDictionary(e => e.To, e => e.From);
+        // Only branches are tree parents; the time thread between roots is not.
+        var parents = projection.Edges.Where(e => !_gate.Enabled || e.Kind == SummaryNetworkEdgeKind.Branch).ToDictionary(e => e.To, e => e.From);
         return [.. projection.Nodes.Select((n, i) => new LayoutNode(
             n.Id, parents.TryGetValue(n.Id, out var parent) ? parent : null, n.Root.Value, i, SummaryNetworkLayout.LabelWidth(SummaryNetworkLayout.Label(n.ShortTitle, n.Markers.HasCandidate))))];
     }
 }
 
 /// <summary>The network sessions of all workspaces opened in this process.</summary>
-public sealed class SummaryNetworkSessions(ISummaryNetworkLayout network)
+public sealed class SummaryNetworkSessions(ISummaryNetworkLayout network, SessionNetworkGate gate)
 {
     private readonly Dictionary<WorkspaceId, SummaryNetworkSession> _sessions = [];
 
@@ -210,7 +274,7 @@ public sealed class SummaryNetworkSessions(ISummaryNetworkLayout network)
     {
         if (!_sessions.TryGetValue(workspace, out var session))
         {
-            session = new SummaryNetworkSession(workspace, network);
+            session = new SummaryNetworkSession(workspace, network, gate);
             _sessions[workspace] = session;
         }
 
