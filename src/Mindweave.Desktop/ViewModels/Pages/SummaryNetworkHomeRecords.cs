@@ -12,6 +12,13 @@ public sealed record SummaryListItem(SummaryNodeId Node, string DisplayName, str
 {
     public bool HasOther => Other.Length > 0;
 
+    /// <summary>The row is a summary; a session network dot without one has no reading state (no 未读 / 已读 tag).</summary>
+    public bool HasSummary { get; init; } = true;
+
+    public bool ShowsUnread => HasSummary && Unread;
+
+    public bool ShowsRead => HasSummary && !Unread;
+
     /// <summary>Its content links in words ("关联：铁轨（对比）"), so the list view reaches them too (D-018); empty without links.</summary>
     public string Links { get; init; } = string.Empty;
 
@@ -71,9 +78,15 @@ public sealed record PathStep(string Name, bool Summarized, bool IsFirst)
 /// <summary>
 /// What the side panel says about the selected node; never the summary body, never marks it read.
 /// <paramref name="Steps"/> is the source path step by step, root first; <paramref name="Path"/> the same in one line.
+/// <paramref name="HasSummary"/> is false for a session network dot without a summary: no 打开总结, 关联到… or reading state.
 /// </summary>
 public sealed record NodeDetail(SummaryNodeId Id, ConversationId Conversation, string DisplayName, string ShortTitle, string Markers, string Source, string Created, string? Via,
-    bool Unread, bool HasCandidate, bool SourceArchived, string Path, IReadOnlyList<PathStep> Steps);
+    bool Unread, bool HasCandidate, bool SourceArchived, string Path, IReadOnlyList<PathStep> Steps, bool HasSummary = true)
+{
+    public bool ShowsUnread => HasSummary && Unread;
+
+    public bool ShowsRead => HasSummary && !Unread;
+}
 
 /// <summary>
 /// A recommended node as the canvas, the list view and the details draw it (requirements §10.3.2): its question,

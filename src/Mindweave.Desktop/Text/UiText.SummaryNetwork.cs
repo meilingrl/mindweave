@@ -65,6 +65,12 @@ public static partial class UiText
 
     // The session network (behind its gate): every conversation a dot.
     public const string SessionNetworkTitle = "Mindweave";
+    public const string ViewSpatial = "空间";
+    public const string ViewTimeline = "时间线";
+    public const string LegendDotSize = "圆点大小：问了多少，不代表掌握程度";
+    public const string LegendSummaryRing = "外圈：有总结";
+    public const string LegendTime = "虚线箭头：时间先后";
+    public const string LegendBranch = "实线：分支";
 
     /// <summary>The label over the first exploration of a local day: "11月20日", with the year ("2025年11月20日") when not this year.</summary>
     public static string DayLabel(DateOnly day, DateOnly today) =>

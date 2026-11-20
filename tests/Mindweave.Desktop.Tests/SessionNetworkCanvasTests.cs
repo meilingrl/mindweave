@@ -160,11 +160,10 @@ public class SessionNetworkCanvasTests
             Assert.False(e.Curved);
         });
 
-        // The timeline: the view switches, the page reads the network again. The branches leave the main line in curves;
-        // the grandchild continues its parent's lane in a straight line.
-        network.Session.SetViewMode(SummaryNetworkViewMode.Timeline);
-        network.Session.DiscardChanges();
-        await UiWait.UntilAsync(() => network.Nodes.All(n => network.Session.Positions.TryGetValue(n.Id, out var p) && p.X == n.X && p.Y == n.Y));
+        // The timeline, switched as the page's 时间线 button does: the page rebuilds what it draws at once. The branches leave
+        // the main line in curves; the grandchild continues its parent's lane in a straight line.
+        network.SetViewModeCommand.Execute(SummaryNetworkViewMode.Timeline);
+        Assert.All(network.Nodes, n => Assert.Equal(network.Session.Positions[n.Id], new Application.Storage.NodePosition(n.X, n.Y)));
         window.UpdateLayout();
 
         Screenshots.Capture(window, "session-network-canvas-timeline");

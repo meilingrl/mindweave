@@ -32,11 +32,11 @@
               <TextBlock Text="{x:Static t:UiText.SectionExplore}" VerticalAlignment="Center" />
             </StackPanel>
           </Button>
-          <Button Name="NavSummaryNetwork" Classes="nav" Classes.selected="{Binding IsSummaryNetwork}" AutomationProperties.Name="{x:Static t:UiText.SectionSummaryNetwork}"
+          <Button Name="NavSummaryNetwork" Classes="nav" Classes.selected="{Binding IsSummaryNetwork}" AutomationProperties.Name="{Binding SummaryNetworkLabel}"
                   Command="{Binding ShowSectionCommand}" CommandParameter="{x:Static nav:MainSection.SummaryNetwork}">
             <StackPanel Orientation="Horizontal" Spacing="10">
               <PathIcon Classes="nav-icon" Data="{StaticResource IconSummaryNetwork}" />
-              <TextBlock Text="{x:Static t:UiText.SectionSummaryNetwork}" VerticalAlignment="Center" />
+              <TextBlock Text="{Binding SummaryNetworkLabel}" VerticalAlignment="Center" />
             </StackPanel>
           </Button>
           <!-- The 会话 caption carries the 选择 entry (multi-select for touch and discoverability; Ctrl/Cmd and Shift click work without it). -->

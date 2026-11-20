@@ -5,6 +5,7 @@
              xmlns:d="using:Mindweave.Desktop"
              xmlns:t="using:Mindweave.Desktop.Text"
              xmlns:views="using:Mindweave.Desktop.Views"
+             xmlns:sn="using:Mindweave.Desktop.SummaryNetwork"
              x:Class="Mindweave.Desktop.Views.Pages.SummaryNetworkHomeView"
              x:DataType="vm:SummaryNetworkHomeViewModel">
   <UserControl.KeyBindings>
@@ -14,9 +15,10 @@
     <KeyBinding Gesture="Escape" Command="{Binding CancelPickCommand}" />
   </UserControl.KeyBindings>
   <DockPanel>
-    <!-- Toolbar: one quiet style throughout (S7), find, show all, zoom, arrange; save on the right, accented while unsaved. -->
+    <!-- Toolbar: one quiet style throughout (S7), find, show all, zoom, arrange; save on the right, accented while unsaved.
+         Behind the session network's gate: the 空间 | 时间线 switch first, and nothing to arrange or save (layouts are computed). -->
     <DockPanel DockPanel.Dock="Top" Margin="0,0,0,10" IsVisible="{Binding !IsEmpty}">
-      <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
+      <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" Spacing="6" VerticalAlignment="Center" IsVisible="{Binding !IsSessionNetwork}">
         <ProgressBar IsIndeterminate="True" Width="40" VerticalAlignment="Center" IsVisible="{Binding IsSaving}" />
         <!-- Unsaved: the accent button itself says so (its accessible name adds "未保存"). Saved: a quiet status, not a button. -->
         <Button Name="SaveLayoutButton" Classes="primary" Command="{Binding SaveLayoutCommand}" IsVisible="{Binding IsDirty}"
@@ -33,6 +35,17 @@
         </StackPanel>
       </StackPanel>
       <WrapPanel Orientation="Horizontal" VerticalAlignment="Center">
+        <!-- Each view is its own tab stop, so the keyboard reaches both (Space or Enter switches). -->
+        <Border Name="ViewModePicker" Classes="segmented" Margin="0,0,8,0" VerticalAlignment="Center" IsVisible="{Binding IsSessionNetwork}">
+          <StackPanel Orientation="Horizontal" Spacing="2">
+            <RadioButton Name="SpatialViewButton" Classes="segment" GroupName="SessionNetworkView" Padding="12,3" IsChecked="{Binding !IsTimeline, Mode=OneWay}"
+                         Content="{x:Static t:UiText.ViewSpatial}" AutomationProperties.Name="{x:Static t:UiText.ViewSpatial}"
+                         Command="{Binding SetViewModeCommand}" CommandParameter="{x:Static sn:SummaryNetworkViewMode.Spatial}" />
+            <RadioButton Name="TimelineViewButton" Classes="segment" GroupName="SessionNetworkView" Padding="12,3" IsChecked="{Binding IsTimeline, Mode=OneWay}"
+                         Content="{x:Static t:UiText.ViewTimeline}" AutomationProperties.Name="{x:Static t:UiText.ViewTimeline}"
+                         Command="{Binding SetViewModeCommand}" CommandParameter="{x:Static sn:SummaryNetworkViewMode.Timeline}" />
+          </StackPanel>
+        </Border>
         <TextBox Name="FindBox" Text="{Binding SearchText}" PlaceholderText="{x:Static t:UiText.FindWatermark}" Width="120" Margin="0,0,6,0" VerticalAlignment="Center">
           <TextBox.KeyBindings>
             <KeyBinding Gesture="Enter" Command="{Binding FindCommand}" />
@@ -51,7 +64,7 @@
         <Button Name="ZoomInButton" Classes="quiet" Command="{Binding ZoomInCommand}" ToolTip.Tip="{x:Static t:UiText.ZoomIn}" AutomationProperties.Name="{x:Static t:UiText.ZoomIn}" MinWidth="30">
           <PathIcon Width="12" Height="12" Data="{StaticResource IconZoomIn}" />
         </Button>
-        <Button Name="ArrangeButton" Classes="quiet" Command="{Binding ArrangeCommand}">
+        <Button Name="ArrangeButton" Classes="quiet" Command="{Binding ArrangeCommand}" IsVisible="{Binding !IsSessionNetwork}">
           <StackPanel Orientation="Horizontal" Spacing="6">
             <PathIcon Width="13" Height="13" Data="{StaticResource IconArrange}" />
             <TextBlock Text="{x:Static t:UiText.ArrangeLayout}" VerticalAlignment="Center" />
@@ -156,7 +169,7 @@
       <Panel>
         <ScrollViewer Classes="autohide" Name="OverviewScroller" HorizontalScrollBarVisibility="Disabled" IsVisible="{Binding !HasSelection}">
           <StackPanel Spacing="8" Margin="0,0,6,0">
-            <TextBlock FontWeight="SemiBold" FontSize="18" Text="{x:Static t:UiText.SummaryNetworkTitle}" />
+            <TextBlock FontWeight="SemiBold" FontSize="18" Text="{Binding Title}" />
             <TextBlock Classes="muted" FontSize="12" TextWrapping="Wrap" Text="{x:Static t:UiText.SummaryNetworkSelectHint}" />
             <!-- Pending link suggestions (§10.3.4) while nothing is selected: 接受, 忽略, the note, 全部忽略. -->
             <StackPanel Name="SuggestionsSection" Spacing="6" Margin="0,4,0,0" IsVisible="{Binding ShowsSuggestionsInDetails}">
@@ -174,10 +187,10 @@
           <TextBlock Name="DetailTitle" FontWeight="SemiBold" FontSize="18" TextWrapping="Wrap" Text="{Binding Selected.DisplayName, FallbackValue=''}" />
           <!-- The same tags as the list and the summary page; words, not only colour (MW-C07). -->
           <WrapPanel Name="DetailMarkers" Orientation="Horizontal" AutomationProperties.Name="{Binding Selected.Markers, FallbackValue=''}">
-            <Border Name="UnreadBadge" Classes="badge accent" Margin="0,0,6,4" IsVisible="{Binding Selected.Unread, FallbackValue=False}">
+            <Border Name="UnreadBadge" Classes="badge accent" Margin="0,0,6,4" IsVisible="{Binding Selected.ShowsUnread, FallbackValue=False}">
               <TextBlock Text="{x:Static t:UiText.MarkerUnread}" />
             </Border>
-            <Border Name="ReadBadge" Classes="badge" Margin="0,0,6,4" IsVisible="{Binding !Selected.Unread, FallbackValue=False}">
+            <Border Name="ReadBadge" Classes="badge" Margin="0,0,6,4" IsVisible="{Binding Selected.ShowsRead, FallbackValue=False}">
               <TextBlock Text="{x:Static t:UiText.MarkerRead}" />
             </Border>
             <Border Classes="badge warning" Margin="0,0,6,4" IsVisible="{Binding Selected.HasCandidate, FallbackValue=False}">
@@ -215,14 +228,16 @@
             <TextBlock Classes="muted" FontSize="12" TextWrapping="Wrap" Text="{Binding Selected.Created, FallbackValue=''}" />
           </StackPanel>
           <StackPanel Spacing="8">
-            <!-- One primary per view: while the layout is unsaved, the accent save button is it and this steps back. -->
+            <!-- One primary per view: while the layout is unsaved, the accent save button is it and this steps back.
+                 A session network dot without a summary has none to open; it only leads back to its conversation. -->
             <Button Name="OpenSelectedButton" Classes.primary="{Binding !IsDirty}" Classes.secondary="{Binding IsDirty}" HorizontalAlignment="Stretch" HorizontalContentAlignment="Center"
+                    IsVisible="{Binding Selected.HasSummary, FallbackValue=True}"
                     Content="{x:Static t:UiText.OpenSummary}" Command="{Binding OpenSelectedCommand}" />
             <Button Name="ReturnSelectedButton" Classes="secondary" HorizontalAlignment="Stretch" HorizontalContentAlignment="Center"
                     Content="{x:Static t:UiText.ReturnToConversation}" Command="{Binding ReturnToConversationCommand}" />
           </StackPanel>
           <!-- Content links (§10.3.3): each with jump, 改说明 and 删除关联; then 关联到…. Quiet when there are none. -->
-          <StackPanel Name="LinksSection" Spacing="4" IsVisible="{Binding Links, Converter={x:Static ObjectConverters.IsNotNull}}">
+          <StackPanel Name="LinksSection" Spacing="4" IsVisible="{Binding ShowsLinksSection}">
             <Rectangle Height="1" Fill="{DynamicResource DividerBrush}" Margin="0,0,0,6" />
             <TextBlock Classes="muted" FontSize="12" Text="{x:Static t:UiText.LinksHeading}" IsVisible="{Binding Links.HasItems, FallbackValue=False}" />
             <v:SummaryLinksView Name="DetailLinks" DataContext="{Binding Links}" />
@@ -281,13 +296,41 @@
             <Setter Property="Margin" Value="0,0,16,0" />
           </Style>
         </WrapPanel.Styles>
-        <Ellipse Width="10" Height="10" Fill="{DynamicResource SummaryNetworkNode}" VerticalAlignment="Center" Margin="0,0,6,0" />
+        <!-- The session network's marks, drawn as on the canvas: dot size, the summary ring, the arrowed dotted time thread, a
+             branch. Each mark keeps its words beside it, and the legend wraps between marks. -->
+        <StackPanel Name="LegendDotSize" Orientation="Horizontal" IsVisible="{Binding IsSessionNetwork}">
+          <Ellipse Width="6" Height="6" Fill="{DynamicResource SummaryNetworkNode}" VerticalAlignment="Center" Margin="0,0,3,0" />
+          <Ellipse Width="12" Height="12" Fill="{DynamicResource SummaryNetworkNode}" VerticalAlignment="Center" Margin="0,0,6,0" />
+          <TextBlock Text="{x:Static t:UiText.LegendDotSize}" />
+        </StackPanel>
+        <StackPanel Name="LegendSummaryRing" Orientation="Horizontal" IsVisible="{Binding IsSessionNetwork}">
+          <Panel Width="15" Height="15" VerticalAlignment="Center" Margin="0,0,6,0">
+            <Ellipse Width="15" Height="15" Stroke="{DynamicResource SummaryNetworkNode}" StrokeThickness="1.5" />
+            <Ellipse Width="7" Height="7" Fill="{DynamicResource SummaryNetworkNode}" />
+          </Panel>
+          <TextBlock Text="{x:Static t:UiText.LegendSummaryRing}" />
+        </StackPanel>
+        <StackPanel Name="LegendTime" Orientation="Horizontal" IsVisible="{Binding IsSessionNetwork}">
+          <Canvas Width="24" Height="8" VerticalAlignment="Center" Margin="0,0,6,0">
+            <Line StartPoint="0,4" EndPoint="22,4" Stroke="{DynamicResource SummaryNetworkEdge}" StrokeThickness="1.4" StrokeDashArray="0,2.4" StrokeLineCap="Round" />
+            <Path Data="M18,1 L22.5,4 L18,7" Stroke="{DynamicResource SummaryNetworkEdge}" StrokeThickness="1.2" StrokeLineCap="Round" StrokeJoin="Round" />
+          </Canvas>
+          <TextBlock Text="{x:Static t:UiText.LegendTime}" />
+        </StackPanel>
+        <StackPanel Name="LegendBranch" Orientation="Horizontal" IsVisible="{Binding IsSessionNetwork}">
+          <Line StartPoint="0,0" EndPoint="20,0" Stroke="{DynamicResource SummaryNetworkEdge}" StrokeThickness="1.4" VerticalAlignment="Center" Margin="0,0,6,0" />
+          <TextBlock Text="{x:Static t:UiText.LegendBranch}" />
+        </StackPanel>
+        <Ellipse Width="10" Height="10" Fill="{DynamicResource SummaryNetworkNode}" VerticalAlignment="Center" Margin="0,0,6,0" IsVisible="{Binding !IsSessionNetwork}" />
+        <!-- Behind the gate an unread summary wears the small badge beside its dot, as drawn. -->
+        <Ellipse Width="6" Height="6" Fill="{DynamicResource SummaryNetworkUnreadDot}" VerticalAlignment="Center" Margin="0,0,6,0" IsVisible="{Binding IsSessionNetwork}" />
         <TextBlock Text="{x:Static t:UiText.LegendUnread}" FontWeight="SemiBold" />
-        <Ellipse Width="10" Height="10" Stroke="{DynamicResource SummaryNetworkNodeRead}" StrokeThickness="2" VerticalAlignment="Center" Margin="0,0,6,0" />
-        <TextBlock Text="{x:Static t:UiText.LegendRead}" />
+        <Ellipse Width="10" Height="10" Stroke="{DynamicResource SummaryNetworkNodeRead}" StrokeThickness="2" VerticalAlignment="Center" Margin="0,0,6,0" IsVisible="{Binding !IsSessionNetwork}" />
+        <TextBlock Text="{x:Static t:UiText.LegendRead}" IsVisible="{Binding !IsSessionNetwork}" />
         <TextBlock Text="{x:Static t:UiText.LegendCandidate}" />
-        <Line StartPoint="0,0" EndPoint="20,0" Stroke="{DynamicResource SummaryNetworkEdgeIndirect}" StrokeThickness="1.4" StrokeDashArray="3,2" VerticalAlignment="Center" Margin="0,0,6,0" />
-        <TextBlock Text="{x:Static t:UiText.LegendIndirect}" />
+        <Line StartPoint="0,0" EndPoint="20,0" Stroke="{DynamicResource SummaryNetworkEdgeIndirect}" StrokeThickness="1.4" StrokeDashArray="3,2" VerticalAlignment="Center" Margin="0,0,6,0"
+              IsVisible="{Binding !IsSessionNetwork}" />
+        <TextBlock Text="{x:Static t:UiText.LegendIndirect}" IsVisible="{Binding !IsSessionNetwork}" />
         <!-- Content links (§10.3.3): the same solid coloured line as drawn, with words. -->
         <StackPanel Name="LinkLegend" Orientation="Horizontal" IsVisible="{Binding ShowsLinkLegend}">
           <Line StartPoint="0,0" EndPoint="20,0" Stroke="{DynamicResource SummaryNetworkLink}" StrokeThickness="1.8" StrokeLineCap="Round" VerticalAlignment="Center" Margin="0,0,6,0" />
@@ -342,10 +385,10 @@
                   <Button Classes="list-name" Classes.read="{Binding !Unread}" Content="{Binding DisplayName}" FontWeight="{Binding Unread, Converter={x:Static d:Converters.BoldWhen}}"
                           AutomationProperties.HelpText="{Binding Links}"
                           Command="{Binding $parent[v:SummaryNetworkHomeView].((vm:SummaryNetworkHomeViewModel)DataContext).OpenCommand}" CommandParameter="{Binding Node}" />
-                  <Border Classes="badge accent" IsVisible="{Binding Unread}">
+                  <Border Classes="badge accent" IsVisible="{Binding ShowsUnread}">
                     <TextBlock Text="{x:Static t:UiText.MarkerUnread}" />
                   </Border>
-                  <Border Classes="badge" IsVisible="{Binding !Unread}">
+                  <Border Classes="badge" IsVisible="{Binding ShowsRead}">
                     <TextBlock Text="{x:Static t:UiText.MarkerRead}" />
                   </Border>
                   <Border Classes="badge warning" IsVisible="{Binding HasCandidate}">
