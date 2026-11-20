@@ -3,6 +3,7 @@ using Avalonia.Controls;
 using Avalonia.VisualTree;
 using Avalonia.Threading;
 using Mindweave.Core.Conversations;
+using Mindweave.Testing;
 using Mindweave.Desktop.ViewModels.Conversations;
 using Mindweave.Desktop.Views.Conversations;
 
@@ -18,6 +19,7 @@ internal static class UiWait
         [CallerFilePath] string? file = null,
         [CallerLineNumber] int line = 0)
     {
+        timeoutMs = TestWaits.Ms(timeoutMs);
         var deadline = DateTime.UtcNow.AddMilliseconds(timeoutMs);
         while (!condition())
         {
