@@ -27,20 +27,31 @@ internal static class SummaryNetworkGeometry
     /// the label is hidden), clamped to the node's layout box widened by half the layout's spacing. Boxes of nodes the
     /// layout keeps apart therefore never overlap, at any zoom.
     /// </summary>
-    internal static Rect HitBox(Point center, NodeView node, double zoom, bool labelVisible)
+    internal static Rect HitBox(Point center, NodeView node, double zoom, bool labelVisible, bool sessionNetwork = false)
     {
         ArgumentNullException.ThrowIfNull(node);
         var half = Math.Min(20, SummaryNetworkLayout.NodeHeight * zoom / 2);
         var left = Math.Min(16, (SummaryNetworkLayout.NodeRadius + (SummaryNetworkLayout.LabelPadding / 2)) * zoom);
         var right = labelVisible
             ? Math.Min(
-                RadiusOf(node) + SummaryNetworkLayout.LabelGap + (node.LabelWidth * LabelSize(zoom) / SummaryNetworkLayout.LabelEm) + 12,
+                RadiusOf(node, sessionNetwork) + SummaryNetworkLayout.LabelGap + (node.LabelWidth * LabelSize(zoom) / SummaryNetworkLayout.LabelEm) + 12,
                 (SummaryNetworkLayout.NodeRadius + SummaryNetworkLayout.LabelGap + node.LabelWidth + (SummaryNetworkLayout.LabelPadding / 2)) * zoom)
-            : Math.Min(RadiusOf(node) + 4, (SummaryNetworkLayout.NodeRadius + (SummaryNetworkLayout.LabelPadding / 2)) * zoom);
+            : Math.Min(RadiusOf(node, sessionNetwork) + 4, (SummaryNetworkLayout.NodeRadius + (SummaryNetworkLayout.LabelPadding / 2)) * zoom);
         return new Rect(center.X - left, center.Y - half, left + right, 2 * half);
     }
 
-    internal static double RadiusOf(NodeView node) => node.IsRoot ? SummaryNetworkCanvas.RootRadius : SummaryNetworkCanvas.ChildRadius;
+    /// <summary>A node's dot radius: by how much was asked in the session network, else larger for an exploration's root.</summary>
+    internal static double RadiusOf(NodeView node, bool sessionNetwork = false)
+    {
+        ArgumentNullException.ThrowIfNull(node);
+        return sessionNetwork ? DotRadius(node.Weight) : node.IsRoot ? SummaryNetworkCanvas.RootRadius : SummaryNetworkCanvas.ChildRadius;
+    }
+
+    /// <summary>
+    /// A session's dot radius from its weight (the questions asked in it and all its branches):
+    /// clamp(5 + 1.3765·√(w − 1), 5, 14), so one question is 5 px, twenty about 11 px and 500 or more 14 px.
+    /// </summary>
+    internal static double DotRadius(int weight) => Math.Clamp(5 + (1.3765 * Math.Sqrt(Math.Max(0, weight - 1))), 5, 14);
 
     /// <summary>
     /// Where a label goes: to the right of the dot, level with it; lifted above (or dropped below) the dot when one of

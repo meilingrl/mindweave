@@ -62,4 +62,15 @@ public static partial class UiText
         "来源会话：" + conversationTitle + (archived ? "（" + SourceArchived + "）" : string.Empty);
 
     public static string NodeCreated(DateTimeOffset at) => "生成于 " + FormatTime(at);
+
+    // The session network (behind its gate): every conversation a dot.
+    public const string SessionNetworkTitle = "Mindweave";
+
+    /// <summary>The label over the first exploration of a local day: "11月20日", with the year ("2025年11月20日") when not this year.</summary>
+    public static string DayLabel(DateOnly day, DateOnly today) =>
+        day.ToString(day.Year == today.Year ? "M'月'd'日'" : "yyyy'年'M'月'd'日'", CultureInfo.InvariantCulture);
+
+    /// <summary>A hovered dot's label with when its conversation started, in local time: "蒸汽机 · 11月20日 21:38".</summary>
+    public static string DotHoverLabel(string label, DateTimeOffset at) =>
+        label + " · " + at.ToLocalTime().ToString("M'月'd'日' HH:mm", CultureInfo.InvariantCulture);
 }

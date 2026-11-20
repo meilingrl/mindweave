@@ -9,6 +9,7 @@ internal sealed class SummaryNetworkPalette
 {
     private readonly Dictionary<(EdgeState, bool), IPen> _edges = [];
     private readonly Dictionary<IBrush, IPen> _rings = [];
+    private readonly Dictionary<IBrush, IPen> _summaryRings = [];
     private IPen? _glowRim;
     private IPen? _recommendationRing;
     private IPen? _recommendationRingActive;
@@ -21,6 +22,11 @@ internal sealed class SummaryNetworkPalette
     private IPen? _suggestion;
     private IPen? _suggestionActive;
     private IPen? _suggestionFrame;
+    private IPen? _timeThread;
+    private IPen? _timeThreadNear;
+    private IPen? _timeArrow;
+    private IPen? _timeArrowNear;
+    private IPen? _mainLine;
 
     public required IBrush Background { get; init; }
 
@@ -198,6 +204,34 @@ internal sealed class SummaryNetworkPalette
             };
             pen = new Pen(brush, width, dashed ? DashStyle.Dash : null);
             _edges[(state, dashed)] = pen;
+        }
+
+        return pen;
+    }
+
+    /// <summary>
+    /// The session network's time thread (spatial view): round dots in the caption colour, fainter than a branch line,
+    /// unlike the round-dotted recommendation line in its own colour.
+    /// </summary>
+    public IPen TimeThreadPen(bool near) => near
+        ? _timeThreadNear ??= new Pen(EdgeNear, 1.8, new DashStyle([0, 3], 0), PenLineCap.Round)
+        : _timeThread ??= new Pen(Caption, 1.5, new DashStyle([0, 3.2], 0), PenLineCap.Round);
+
+    /// <summary>The time thread's small open arrowhead, solid in the thread's colour.</summary>
+    public IPen TimeArrowPen(bool near) => near
+        ? _timeArrowNear ??= new Pen(EdgeNear, 1.5, null, PenLineCap.Round, PenLineJoin.Round)
+        : _timeArrow ??= new Pen(Caption, 1.2, null, PenLineCap.Round, PenLineJoin.Round);
+
+    /// <summary>The timeline's main line between explorations: solid, 1.5 px, a little stronger than a branch.</summary>
+    public IPen MainLinePen => _mainLine ??= new Pen(Edge, 1.5);
+
+    /// <summary>The thin ring around a session dot that has a summary.</summary>
+    public IPen SummaryRingPen(IBrush brush)
+    {
+        if (!_summaryRings.TryGetValue(brush, out var pen))
+        {
+            pen = new Pen(brush, 1.5);
+            _summaryRings[brush] = pen;
         }
 
         return pen;

@@ -1,3 +1,4 @@
+using Mindweave.Application.SummaryNetwork;
 using Mindweave.Core.Conversations;
 using Mindweave.Core.Summaries;
 
@@ -20,8 +21,12 @@ public sealed record SummaryListItem(SummaryNodeId Node, string DisplayName, str
 /// <summary>
 /// A node as the canvas draws it, in canvas coordinates. <paramref name="Parent"/> is its nearest summarized source
 /// (the edge it hangs from); <paramref name="IsRoot"/> marks the summary of an exploration's root conversation.
+/// In the session network <paramref name="HasSummary"/> says whether the conversation has a summary (drawn as a ring),
+/// <paramref name="Weight"/> how many questions were asked in it and its branches (the dot's size), and
+/// <paramref name="CreatedAt"/> when the conversation started (day labels and the hover date).
 /// </summary>
-public sealed record NodeView(SummaryNodeId Id, string ShortTitle, string DisplayName, double X, double Y, bool Unread, bool HasCandidate, double LabelWidth, SummaryNodeId? Parent = null, bool IsRoot = false);
+public sealed record NodeView(SummaryNodeId Id, string ShortTitle, string DisplayName, double X, double Y, bool Unread, bool HasCandidate, double LabelWidth, SummaryNodeId? Parent = null, bool IsRoot = false,
+    bool HasSummary = true, int Weight = 1, DateTimeOffset CreatedAt = default);
 
 /// <summary>
 /// "探索 · root conversation" for an exploration. <paramref name="Anchor"/> is its root's node, or its top-left node
@@ -46,8 +51,13 @@ public sealed record SuggestionEdgeView(Mindweave.Application.SummaryLinks.LinkS
     public string Label => UiText.LinkSuggestionLabel(Note);
 }
 
-/// <summary>A source edge as the canvas draws it; dashed with a label when it passes unsummarized conversations.</summary>
-public sealed record EdgeView(SummaryNodeId From, SummaryNodeId To, double FromX, double FromY, double ToX, double ToY, bool IsDirect, string? Label);
+/// <summary>
+/// A source edge as the canvas draws it; dashed with a label when it passes unsummarized conversations. In the session
+/// network <paramref name="Kind"/> tells a branch from the time thread between explorations, and <paramref name="Curved"/>
+/// marks a timeline branch that leaves its parent's lane (its ends differ in Y).
+/// </summary>
+public sealed record EdgeView(SummaryNodeId From, SummaryNodeId To, double FromX, double FromY, double ToX, double ToY, bool IsDirect, string? Label,
+    SummaryNetworkEdgeKind Kind = SummaryNetworkEdgeKind.Branch, bool Curved = false);
 
 /// <summary>
 /// One conversation on a node's source path: a summarized one by its short name, an unsummarized one by its title,

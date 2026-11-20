@@ -48,6 +48,9 @@ internal sealed record NodePaint(
 
     public Rect LabelBounds { get; init; }
 
+    /// <summary>The session network: the conversation has a summary, drawn as a thin ring around the dot.</summary>
+    public bool SummaryRing { get; init; }
+
     /// <summary>The faint backdrop under the label: resting edges pass behind it, highlighted ones above it.</summary>
     public Rect Backdrop => LabelBounds.Inflate(new Thickness(2, 0));
 }
@@ -59,6 +62,15 @@ internal sealed record NodePaint(
 internal sealed record EdgePaint(EdgeView Edge, Point From, Point To, EdgeState State, bool Dashed, string? Label, bool LabelEmphasized)
 {
     public bool Highlighted => State is EdgeState.Trail or EdgeState.Near;
+
+    /// <summary>The time thread in the spatial view: dotted, with a small open arrowhead at the later exploration's dot.</summary>
+    public bool Arrow { get; init; }
+
+    /// <summary>How far short of <see cref="To"/> the arrow's tip stops: the target dot's edge (its ring included).</summary>
+    public double ArrowInset { get; init; }
+
+    /// <summary>A timeline branch to another lane: a cubic curve leaving and arriving horizontally.</summary>
+    public bool Curved { get; init; }
 }
 
 /// <summary>

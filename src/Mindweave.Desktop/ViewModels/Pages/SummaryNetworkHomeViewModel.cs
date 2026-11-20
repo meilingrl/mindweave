@@ -1033,13 +1033,17 @@ public sealed partial class SummaryNetworkHomeViewModel : PageViewModel, IDispos
     private void BuildViews()
     {
         var positions = Session.Positions;
-        var parents = Session.Projection.Edges.ToDictionary(e => e.To, e => e.From);
+
+        // A node hangs from its branch parent; the time thread between explorations is not a source.
+        var parents = Session.Projection.Edges.Where(e => e.Kind == SummaryNetworkEdgeKind.Branch).ToDictionary(e => e.To, e => e.From);
         Nodes = [.. Session.Projection.Nodes.Where(n => positions.ContainsKey(n.Id)).Select(n => new NodeView(
             n.Id, n.ShortTitle, n.DisplayName, positions[n.Id].X, positions[n.Id].Y, n.Markers.Unread, n.Markers.HasCandidate, SummaryNetworkLayout.LabelWidth(SummaryNetworkLayout.Label(n.ShortTitle, n.Markers.HasCandidate)),
-            parents.TryGetValue(n.Id, out var parent) && positions.ContainsKey(parent) ? parent : null, n.Conversation == n.Root))];
+            parents.TryGetValue(n.Id, out var parent) && positions.ContainsKey(parent) ? parent : null, n.Conversation == n.Root, n.HasSummary, n.Weight, n.CreatedAt))];
+        var timeline = Session.IsSessionNetwork && Session.ViewMode == SummaryNetworkViewMode.Timeline;
         Edges = [.. Session.Projection.Edges.Where(e => positions.ContainsKey(e.From) && positions.ContainsKey(e.To)).Select(e => new EdgeView(
-            e.From, e.To, positions[e.From].X, positions[e.From].Y, positions[e.To].X, positions[e.To].Y, e.IsDirect, e.IsDirect ? null : UiText.ViaCount(e.Via.Count)))];
-        Captions = [.. Session.Projection.Nodes.Where(n => positions.ContainsKey(n.Id)).GroupBy(n => n.Root).Select(g =>
+            e.From, e.To, positions[e.From].X, positions[e.From].Y, positions[e.To].X, positions[e.To].Y, e.IsDirect, e.IsDirect ? null : UiText.ViaCount(e.Via.Count),
+            e.Kind, timeline && e.Kind == SummaryNetworkEdgeKind.Branch && positions[e.From].Y != positions[e.To].Y))];
+        Captions = Session.IsSessionNetwork ? DayCaptions() : [.. Session.Projection.Nodes.Where(n => positions.ContainsKey(n.Id)).GroupBy(n => n.Root).Select(g =>
         {
             // Over the root's own summary; when the root conversation has none, over the group's top-left node.
             var anchor = g.FirstOrDefault(n => n.Conversation == g.Key) ?? g.OrderBy(n => positions[n.Id].Y).ThenBy(n => positions[n.Id].X).First();
@@ -1049,6 +1053,15 @@ public sealed partial class SummaryNetworkHomeViewModel : PageViewModel, IDispos
         BuildLinkViews();
         BuildSuggestionViews();
         BuildRecommendationViews();
+    }
+
+    /// <summary>The session network's captions: the local day over the first exploration of each day ("11月20日").</summary>
+    private List<GroupCaption> DayCaptions()
+    {
+        var today = SummaryNetworkSession.LocalDay(DateTimeOffset.Now);
+        var nodes = Session.Projection.Nodes.ToDictionary(n => n.Id);
+        return [.. Session.DayStarts.Where(id => Session.Positions.ContainsKey(id) && nodes.ContainsKey(id)).Select(id =>
+            new GroupCaption(UiText.DayLabel(SummaryNetworkSession.LocalDay(nodes[id].CreatedAt), today), id, [id]))];
     }
 
     private NodeDetail? Detail(SummaryNodeId id)
