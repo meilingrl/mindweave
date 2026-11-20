@@ -712,11 +712,14 @@ public sealed partial class SummaryNetworkHomeViewModel : PageViewModel, IDispos
     [RelayCommand]
     private void ZoomOut() => ZoomRequested?.Invoke(this, 0.8);
 
-    /// <summary>空间 | 时间线: the session recomputes every position, the page rebuilds what it draws and fits it into view.</summary>
+    /// <summary>
+    /// 空间 | 时间线: the session recomputes every position, the page rebuilds what it draws and fits it into view. The view
+    /// already shown is left alone, so clicking its segment again keeps the reader's pan and zoom.
+    /// </summary>
     [RelayCommand]
     private void SetViewMode(SummaryNetworkViewMode mode)
     {
-        if (!IsSessionNetwork)
+        if (!IsSessionNetwork || mode == Session.ViewMode)
         {
             return;
         }

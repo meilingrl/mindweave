@@ -76,6 +76,36 @@ public class SessionNetworkUiTests
         window.Close();
     }
 
+    [AvaloniaFact]
+    public async Task Clicking_the_shown_view_again_keeps_pan_and_zoom()
+    {
+        await using var app = Gated();
+        var window = app.ShowWindow(1100, 720);
+        await SeedAsync(app);
+        var network = await OpenAsync(app, window);
+        var view = PageView(window);
+        UiInput.Click(window, Find<RadioButton>(view, "TimelineViewButton"));
+        window.UpdateLayout();
+        Assert.True(network.IsTimeline);
+        var panned = new Viewport(123, -45, 1.7);
+        network.Session.Viewport = panned;
+        var refits = 0;
+        network.ViewChanged += (_, _) => refits++;
+
+        UiInput.Click(window, Find<RadioButton>(view, "TimelineViewButton"));
+        window.UpdateLayout();
+
+        Assert.True(network.IsTimeline);
+        Assert.Equal(panned, network.Session.Viewport);
+        Assert.Equal(0, refits);
+
+        // The other view still switches and fits.
+        UiInput.Click(window, Find<RadioButton>(view, "SpatialViewButton"));
+        Assert.False(network.IsTimeline);
+        Assert.NotEqual(panned, CanvasOf(window).Current);
+        window.Close();
+    }
+
     [AvaloniaTheory]
     [MemberData(nameof(Themes))]
     public async Task Layout_controls_are_hidden_and_the_legend_explains_the_marks(string theme)
