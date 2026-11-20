@@ -12,7 +12,9 @@
 
 ## 下一步
 
-第 2–4 期与运行循环的改进（L1–L11）在日常使用中验证；以后可另开任务继续优化智能体，起点是 [agent-loop.md](docs/design/agent-loop.md) 第 8 节的待办（附件摘要在推理模型上被截断、随提问发送的附件的出处写法）与 `scripts/real-api.sh eval`。第 1 期已由你在 macOS 试用版本（367bcca）上逐项试过并通过（2026-11-17：“+”菜单、文件与图片、长粘贴与撤回、拖入、从 Finder 粘贴、发送与查看页）；Windows 上尚未试用。其他候选：Windows 11 实机全量与发布版本试用（课程演示平台）；课程报告材料；[低／信息级待办](docs/reviews/claude-auto-health-20261112/low-triage.md)；中英双语准备；“显示思考内容”。
+第 2–4 期与运行循环的改进（L1–L11）在日常使用中验证；以后可另开任务继续优化智能体，起点是 [agent-loop.md](docs/design/agent-loop.md) 第 8 节的待办（附件摘要在推理模型上被截断、随提问发送的附件的出处写法）与 `scripts/real-api.sh eval`。第 1 期已由你在 macOS 试用版本（367bcca）上逐项试过并通过（2026-11-17：“+”菜单、文件与图片、长粘贴与撤回、拖入、从 Finder 粘贴、发送与查看页）；Windows 上尚未试用。其他候选：Windows 11 实机全量与发布版本试用（课程演示平台）；课程报告材料；[低／信息级待办](docs/reviews/claude-auto-health-20261112/low-triage.md)；产品双语（待讨论）；“显示思考内容”。
+
+**文档改用英文（2026-11-20 你批准的语言方案，规则见 AGENTS.md“Language and writing”）。** 已完成：AGENTS.md、README 与 17 份现行设计文档。待 `task/reasoning-and-status` 合并后再译：需求、架构、`runs-and-tools.md`、`generating-indicator.md`、`reasoning-and-status.md` 与本文件；译完之前这些文件仍用中文改。
 
 ## 需要你
 
