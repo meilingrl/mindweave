@@ -43,8 +43,10 @@ public sealed class SummaryNetworkCanvas : Control
 
     private const double GridSpacing = 28;
 
-    /// <summary>The session network: how far outside a dot its summary ring is drawn, and the time thread's arrowhead.</summary>
-    private const double SummaryRingGap = 3.5;
+    /// <summary>The session network: how far outside a dot its summary ring is drawn.</summary>
+    internal const double SummaryRingGap = 3.5;
+
+    /// <summary>The time thread's arrowhead.</summary>
     private const double ArrowLength = 6;
     private const double ArrowAngle = Math.PI / 6;
 
@@ -756,7 +758,7 @@ public sealed class SummaryNetworkCanvas : Control
 
         if (node.UnreadDot)
         {
-            context.DrawEllipse(palette.UnreadDot, null, new Point(p.X + r + 3, p.Y - r - 3), 2.5, 2.5);
+            context.DrawEllipse(palette.UnreadDot, null, node.UnreadDotCenter, NodePaint.UnreadDotRadius, NodePaint.UnreadDotRadius);
         }
     }
 

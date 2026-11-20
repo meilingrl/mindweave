@@ -49,7 +49,7 @@ internal static class SummaryNetworkGeometry
 
     /// <summary>
     /// A session's dot radius from its weight (the questions asked in it and all its branches):
-    /// clamp(5 + 1.3765·√(w − 1), 5, 14), so one question is 5 px, twenty about 11 px and 500 or more 14 px.
+    /// clamp(5 + 1.3765·√(w − 1), 5, 14), so one question is 5 px, twenty about 11 px, and from about 44 on 14 px.
     /// </summary>
     internal static double DotRadius(int weight) => Math.Clamp(5 + (1.3765 * Math.Sqrt(Math.Max(0, weight - 1))), 5, 14);
 

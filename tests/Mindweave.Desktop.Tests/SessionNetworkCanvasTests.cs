@@ -84,6 +84,42 @@ public class SessionNetworkCanvasTests
             Assert.Equal(p.Node.HasSummary, p.SummaryRing);
             Assert.False(p.Hollow);
         });
+
+        // The unread badge stays clear of the ring (its outer edge: the gap plus half the 1.5 px pen).
+        var badged = paints.Where(p => p.SummaryRing && p.UnreadDot).ToList();
+        Assert.NotEmpty(badged);
+        Assert.All(badged, p =>
+        {
+            var offset = p.UnreadDotCenter - p.Center;
+            var distance = Math.Sqrt((offset.X * offset.X) + (offset.Y * offset.Y));
+            Assert.True(distance - NodePaint.UnreadDotRadius > p.Radius + SummaryNetworkCanvas.SummaryRingGap + 0.75, $"badge at {distance} touches the ring of a {p.Radius} px dot");
+        });
+        window.Close();
+    }
+
+    [AvaloniaFact]
+    public async Task The_time_thread_is_fainter_than_a_branch_in_both_themes()
+    {
+        await using var app = Gated();
+        var window = app.ShowWindow(1100, 720);
+        await app.StartWithWorkspaceAsync("火车");
+        app.ShellPage.ShowSectionCommand.Execute(Navigation.MainSection.SummaryNetwork);
+        window.UpdateLayout();
+        var canvas = CanvasOf(window);
+
+        foreach (var theme in new[] { Avalonia.Styling.ThemeVariant.Light, Avalonia.Styling.ThemeVariant.Dark })
+        {
+            window.RequestedThemeVariant = theme;
+            window.UpdateLayout();
+            var palette = SummaryNetworkPalette.From(canvas);
+            var branch = palette.EdgePen(EdgeState.Normal, false);
+            foreach (var thread in new[] { palette.TimeThreadPen(false), palette.TimeArrowPen(false) })
+            {
+                Assert.True(thread.Thickness < branch.Thickness, $"{theme}: {thread.Thickness} px is not thinner than a {branch.Thickness} px branch");
+                Assert.Same(branch.Brush, thread.Brush);
+            }
+        }
+
         window.Close();
     }
 
@@ -105,7 +141,14 @@ public class SessionNetworkCanvasTests
         await UiWait.UntilAsync(() => network.Nodes.Count == 5);
         var canvas = CanvasOf(window);
 
-        Screenshots.Capture(window, "session-network-canvas-spatial");
+        foreach (var theme in new[] { Avalonia.Styling.ThemeVariant.Light, Avalonia.Styling.ThemeVariant.Dark })
+        {
+            window.RequestedThemeVariant = theme;
+            window.UpdateLayout();
+            Screenshots.Capture(window, $"session-network-canvas-spatial-{theme.ToString().ToLowerInvariant()}");
+        }
+
+        window.RequestedThemeVariant = Avalonia.Styling.ThemeVariant.Light;
         var spatial = canvas.PaintEdges();
         Assert.Single(spatial, e => e.Edge.Kind == SummaryNetworkEdgeKind.TimeThread);
         Assert.Equal(3, spatial.Count(e => e.Edge.Kind == SummaryNetworkEdgeKind.Branch));

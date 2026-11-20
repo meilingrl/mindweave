@@ -210,17 +210,18 @@ internal sealed class SummaryNetworkPalette
     }
 
     /// <summary>
-    /// The session network's time thread (spatial view): round dots in the caption colour, fainter than a branch line,
-    /// unlike the round-dotted recommendation line in its own colour.
+    /// The session network's time thread (spatial view): round dots in the branch line's colour and thinner than it
+    /// (1.0 px against 1.2), so it reads fainter than a branch in both themes (design §4.1), unlike the round-dotted
+    /// recommendation line in its own colour. While an end is hovered it brightens like a branch does.
     /// </summary>
     public IPen TimeThreadPen(bool near) => near
-        ? _timeThreadNear ??= new Pen(EdgeNear, 1.8, new DashStyle([0, 3], 0), PenLineCap.Round)
-        : _timeThread ??= new Pen(Caption, 1.5, new DashStyle([0, 3.2], 0), PenLineCap.Round);
+        ? _timeThreadNear ??= new Pen(EdgeNear, 1.5, new DashStyle([0, 3], 0), PenLineCap.Round)
+        : _timeThread ??= new Pen(Edge, 1, new DashStyle([0, 3], 0), PenLineCap.Round);
 
-    /// <summary>The time thread's small open arrowhead, solid in the thread's colour.</summary>
+    /// <summary>The time thread's small open arrowhead, solid in the thread's colour and width.</summary>
     public IPen TimeArrowPen(bool near) => near
         ? _timeArrowNear ??= new Pen(EdgeNear, 1.5, null, PenLineCap.Round, PenLineJoin.Round)
-        : _timeArrow ??= new Pen(Caption, 1.2, null, PenLineCap.Round, PenLineJoin.Round);
+        : _timeArrow ??= new Pen(Edge, 1, null, PenLineCap.Round, PenLineJoin.Round);
 
     /// <summary>The timeline's main line between explorations: solid, 1.5 px, a little stronger than a branch.</summary>
     public IPen MainLinePen => _mainLine ??= new Pen(Edge, 1.5);
