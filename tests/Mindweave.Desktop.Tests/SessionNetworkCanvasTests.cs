@@ -250,15 +250,22 @@ public class SessionNetworkCanvasTests
         Assert.Null(canvas.Dragging);
         var drawn = canvas.PaintNodes().Single(p => p.Node.Id == dot.Id);
         Assert.False(drawn.Lifted);
-        Assert.Equal(start, drawn.Center);
+        AssertAtRest(start, drawn.Center);
 
         window.MouseUp(InWindow(start + new Vector(60, 40)), MouseButton.Left);
 
         Assert.Equal((dot.X, dot.Y), (network.Nodes.Single(n => n.Id == dot.Id).X, network.Nodes.Single(n => n.Id == dot.Id).Y));
-        Assert.Equal(start, canvas.PaintNodes().Single(p => p.Node.Id == dot.Id).Center);
+        AssertAtRest(start, canvas.PaintNodes().Single(p => p.Node.Id == dot.Id).Center);
         Assert.False(network.IsDirty);
         Assert.Equal(dot.Id, network.Selected?.Id);
         window.Close();
+
+        // Where it is drawn, give or take the decorative pull towards the pointer (at most 1.5 px); a drag would be 72 px off.
+        static void AssertAtRest(Point expected, Point actual)
+        {
+            var offset = actual - expected;
+            Assert.True(Math.Sqrt((offset.X * offset.X) + (offset.Y * offset.Y)) <= (5 * SummaryNetworkGeometry.AttractionStrength) + 0.01, $"the dot is drawn at {actual}, not {expected}");
+        }
     }
 
     [AvaloniaFact]
