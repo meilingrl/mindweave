@@ -426,7 +426,14 @@ public class WebRunFlowTests
         Assert.DoesNotContain(h.Client.Requests, r => r.Turns.Any(t => t.Content.Contains(Key, StringComparison.Ordinal)));
         foreach (var file in Directory.EnumerateFiles(h.DataDirectory, "*", SearchOption.AllDirectories))
         {
-            var bytes = await File.ReadAllBytesAsync(file, Ct);
+            // The database is still open: Windows only lets it be read when the read shares it.
+            using var copy = new MemoryStream();
+            await using (var stream = new FileStream(file, FileMode.Open, FileAccess.Read, FileShare.ReadWrite | FileShare.Delete))
+            {
+                await stream.CopyToAsync(copy, Ct);
+            }
+
+            var bytes = copy.ToArray();
             Assert.False(bytes.AsSpan().IndexOf(Encoding.UTF8.GetBytes(Key)) >= 0, file);
         }
 

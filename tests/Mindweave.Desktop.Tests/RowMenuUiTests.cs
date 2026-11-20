@@ -279,7 +279,11 @@ public class RowMenuUiTests
         window.UpdateLayout();
 
         // The selection's dialog for one row: its title, every conversation and summary that goes, 改为归档, 取消 focused.
-        Assert.True(Find<Control>(window, "ConversationDeleteDialog").IsEffectivelyVisible);
+        await UiWait.UntilAsync(() =>
+        {
+            window.UpdateLayout();
+            return Find<Control>(window, "ConversationDeleteDialog").IsEffectivelyVisible;
+        });
         Assert.Equal(UiText.ConversationDeleteTitle(rootTitle), dialog.Title);
         Assert.Equal(UiText.ConversationDeleteContents(4, 3, 3), dialog.Contents);
         Assert.True(Find<Button>(window, "ConversationDeleteCancel").IsFocused);
