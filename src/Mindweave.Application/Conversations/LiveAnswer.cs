@@ -69,7 +69,8 @@ public sealed class LiveAnswer
     private GenerationErrorKind? _errorKind;
     private string? _errorDetail;
     private readonly List<ContentBlock> _toolBlocks = [];
-    private string? _activeTool;
+    // The calls running now, in the order they started (read-only calls of one reply run at once, L3).
+    private readonly List<ToolCallBlock> _running = [];
     private RunLimit? _limitReached;
     private bool _newTurn;
     private PendingApproval? _approval;
@@ -105,7 +106,8 @@ public sealed class LiveAnswer
                 Stage = StageNow(),
                 Reasoning = _reasoning.ToString(),
                 ToolBlocks = [.. _toolBlocks],
-                ActiveTool = _activeTool,
+                ActiveTool = _running.Count > 0 ? _running[^1].Tool : null,
+                ActiveCallId = _running.Count > 0 ? _running[^1].CallId : null,
                 LimitReached = _limitReached,
                 PendingApproval = _approval,
                 Citations = _citations,
@@ -204,13 +206,13 @@ public sealed class LiveAnswer
         }
     });
 
-    /// <summary>A tool call is being run (<paramref name="tool"/>: its name), shown as the activity line says.</summary>
+    /// <summary>A tool call is being run (<paramref name="tool"/>: its name); the status line names the latest still running.</summary>
     internal void StartTool(ToolCallBlock call, string tool) => Update(() =>
     {
         if (_state is MessageState.Pending or MessageState.Streaming)
         {
             _toolBlocks.Add(call);
-            _activeTool = tool;
+            _running.Add(call with { Tool = tool });
             _phase = AnswerPhase.Waiting;
             _revision++;
         }
@@ -219,15 +221,27 @@ public sealed class LiveAnswer
     /// <summary>A tool call was not run (a limit) or could not be (an error before running): its call and its result together.</summary>
     internal long AddToolCall(ToolCallBlock call) => Mutate(() => _toolBlocks.Add(call));
 
-    /// <summary>The result of the tool call last started (or added). Returns the revision the blocks then have.</summary>
+    /// <summary>The result of a tool call: that call is no longer running. Returns the revision the blocks then have.</summary>
     internal long AddToolResult(ToolResultBlock result) => Mutate(() =>
     {
         _toolBlocks.Add(result);
-        _activeTool = null;
+        _running.RemoveAll(c => c.CallId == result.CallId);
     });
 
-    /// <summary>No tool is running any more (stopped while it ran).</summary>
-    internal void EndTool() => Update(() => _activeTool = null);
+    /// <summary>
+    /// A call of several running at once has finished executing; its result is written later, with the others in call order
+    /// (L3). The status then names one still running; the last one stays named until the results are written.
+    /// </summary>
+    internal void ToolExecuted(string callId) => Update(() =>
+    {
+        if (_running.Count > 1)
+        {
+            _running.RemoveAll(c => c.CallId == callId);
+        }
+    });
+
+    /// <summary>No tool is running any more (stopped, or the run failed while they ran).</summary>
+    internal void EndTool() => Update(_running.Clear);
 
     internal void SetLimitReached(RunLimit limit) => Update(() => _limitReached ??= limit);
 
@@ -308,7 +322,7 @@ public sealed class LiveAnswer
             _errorKind = errorKind;
             _errorDetail = errorDetail;
             _reasoning.Clear();
-            _activeTool = null;
+            _running.Clear();
             revision = ++_revision;
         });
         return revision;
@@ -317,7 +331,7 @@ public sealed class LiveAnswer
     private AnswerStage StageNow() =>
         _state is not (MessageState.Pending or MessageState.Streaming) ? AnswerStage.Done
         : _approval is not null ? AnswerStage.Approval
-        : _activeTool is not null ? AnswerStage.Tool
+        : _running.Count > 0 ? AnswerStage.Tool
         : _phase == AnswerPhase.Compressing ? AnswerStage.Compressing
         : _turnText ? AnswerStage.Writing
         : _phase == AnswerPhase.Thinking ? AnswerStage.Thinking
@@ -347,8 +361,11 @@ public sealed record LiveAnswerSnapshot(string Text, long Revision, MessageState
     /// <summary>A run's tool calls and results so far, in step order.</summary>
     public IReadOnlyList<ContentBlock> ToolBlocks { get; init; } = [];
 
-    /// <summary>The tool running now, by name; null when none is.</summary>
+    /// <summary>The tool running now, by name (the latest started of those running at once); null when none is.</summary>
     public string? ActiveTool { get; init; }
+
+    /// <summary>The call of <see cref="ActiveTool"/>; null when none runs.</summary>
+    public string? ActiveCallId { get; init; }
 
     /// <summary>The limit that ended the run's use of tools, if one did.</summary>
     public RunLimit? LimitReached { get; init; }

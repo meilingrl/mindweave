@@ -131,6 +131,11 @@ public sealed partial class MessageItemViewModel : ViewModelBase, IDisposable
     [NotifyPropertyChangedFor(nameof(ActivitySteps), nameof(HasActivity), nameof(StatusText))]
     public partial string? ActiveTool { get; private set; }
 
+    /// <summary>The call of <see cref="ActiveTool"/>: the status line names its search terms or page.</summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(StatusText))]
+    public partial string? ActiveCallId { get; private set; }
+
     /// <summary>The stored run of this answer (the reconciler sets it): step times and states, the limit reached.</summary>
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(ActivitySteps), nameof(LimitNote), nameof(HasLimitNote))]
@@ -312,7 +317,7 @@ public sealed partial class MessageItemViewModel : ViewModelBase, IDisposable
 
     /// <summary>One sentence for the current stage beside the weaving dots, from sending until the answer ends.</summary>
     public string StatusText => UiText.AnswerStatus(
-        Stage, ActiveTool, ActiveTool is { } running ? ToolBlocks.OfType<ToolCallBlock>().LastOrDefault(c => c.Tool == running)?.Summary : null, PendingApproval);
+        Stage, ActiveTool, ActiveCallId is { } running ? ToolBlocks.OfType<ToolCallBlock>().LastOrDefault(c => c.CallId == running)?.Summary : null, PendingApproval);
 
     public bool IsProblem => State is MessageState.Failed or MessageState.Interrupted;
 
@@ -401,6 +406,7 @@ public sealed partial class MessageItemViewModel : ViewModelBase, IDisposable
         }
 
         ActiveTool = snapshot.ActiveTool;
+        ActiveCallId = snapshot.ActiveCallId;
         LiveLimit = snapshot.LimitReached;
         PendingApproval = snapshot.PendingApproval;
         if (!CitationBlocks.SequenceEqual(snapshot.Citations))

@@ -34,7 +34,7 @@
 | `Tool` 第三方 | MCP 工具执行中 | 正在调用 {服务器} › {工具}… | Calling {server} › {tool}… | 取线 `Reaching` |
 | `Approval` 等待批准 | 批准卡片出现时 | 等待你批准读取网址… ／ 等待你批准调用 {服务器} › {工具}… | Waiting for your approval to read an address… / to call {server} › {tool}… | 停候 `Holding`（新） |
 | `Retrying` 重试 | L5：请求偶然出错，等待后重试，直到新请求有内容 | 请求出错，正在重试… | The request failed; retrying… | 编辫 `Braid` |
-| `Finishing` 收尾 | 达到上限或中间一轮被截断后的最后一次请求，还没有内容 | 已达上限，正在根据已有结果作答… | Limit reached; answering from what was found… | 编辫 `Braid` |
+| `Finishing` 收尾 | 达到上限或中间一轮被截断后的最后一次请求，还没有内容 | 正在根据已有结果作答…（上限说明已在下方，不重复） | Answering from what was found… | 编辫 `Braid` |
 | `Writing` 写回答 | 这一轮的正文正在流入 | 正在写回答… | Writing the answer… | 引线 `Thread` |
 | 结束 | 达到上限时回答下方的说明不变（“达到了本次回答的……上限，根据已经取得的结果作答。”） | — | — | — |
 

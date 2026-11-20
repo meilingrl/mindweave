@@ -47,7 +47,7 @@ public static partial class UiText
     public const string CompressingContext = "正在压缩较早的对话…";
     public const string ModelThinking = "正在思考…";
     public const string AnswerRetrying = "请求出错，正在重试…";
-    public const string AnswerFinishing = "已达上限，正在根据已有结果作答…";
+    public const string AnswerFinishing = "正在根据已有结果作答…";
 
     // The reasoning fold at the top of a running answer (requirements §10.4.4 v0.21).
     public const string ReasoningTitle = "思考过程";

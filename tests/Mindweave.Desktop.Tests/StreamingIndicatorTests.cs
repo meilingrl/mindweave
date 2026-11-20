@@ -83,7 +83,7 @@ public class StreamingIndicatorTests
         Assert.Equal("正在思考…", UiText.AnswerStatus(AnswerStage.Thinking));
         Assert.Equal("正在写回答…", UiText.AnswerStatus(AnswerStage.Writing));
         Assert.Equal("请求出错，正在重试…", UiText.AnswerStatus(AnswerStage.Retrying));
-        Assert.Equal("已达上限，正在根据已有结果作答…", UiText.AnswerStatus(AnswerStage.Finishing));
+        Assert.Equal("正在根据已有结果作答…", UiText.AnswerStatus(AnswerStage.Finishing));
         Assert.Equal("正在搜索：蒸汽机 发明…", UiText.AnswerStatus(AnswerStage.Tool, "web_search", "网络搜索：蒸汽机 发明"));
         Assert.Equal("正在读取网页：zh.wikipedia.org…", UiText.AnswerStatus(AnswerStage.Tool, "fetch_page", "取网页：https://zh.wikipedia.org/wiki/蒸汽机"));
         Assert.Equal("正在检索附件：瓦特…", UiText.AnswerStatus(AnswerStage.Tool, "search_attachments", "检索附件：瓦特"));

@@ -573,6 +573,9 @@ internal sealed partial class AnswerRunner
                 {
                     gate.Release();
                 }
+
+                // Its result is written with the others, in call order; meanwhile the status names a call still running.
+                work.Live.ToolExecuted(pending.Call.Id);
             })).ConfigureAwait(false);
         }
 

@@ -119,6 +119,29 @@ public class ReasoningAndStatusTests
     }
 
     [Fact]
+    public async Task While_calls_run_at_once_the_status_names_one_still_running_until_all_have_ended()
+    {
+        var slow = new HeldTool("slow_tool");
+        var quick = new HeldTool("quick_tool");
+        await using var h = await ChatHarness.StartAsync(model: ToolModel, tools: [slow, quick]);
+        h.Client.CallTools(string.Empty, [new ChatToolCall("c1", "slow_tool", "{\"q\":\"慢\"}"), new ChatToolCall("c2", "quick_tool", "{\"q\":\"快\"}")]);
+        h.Client.Reply("好。");
+
+        var sent = await h.Conversations.StartAsync(h.Workspace, "问", Ct);
+        await Task.WhenAll(slow.Entered.Task, quick.Entered.Task).WaitAsync(TimeSpan.FromSeconds(5), Ct);
+        var live = h.Conversations.Observe(sent.Answer!.Value)!;
+        Assert.Equal((AnswerStage.Tool, "quick_tool", "c2"), (live.Snapshot().Stage, live.Snapshot().ActiveTool, live.Snapshot().ActiveCallId));
+
+        // The later call is done (its result is written with the other's, in call order): the status names the one still running.
+        quick.Open.TrySetResult();
+        await ChatHarness.UntilAsync(() => live.Snapshot().ActiveCallId == "c1");
+        Assert.Equal((AnswerStage.Tool, "slow_tool"), (live.Snapshot().Stage, live.Snapshot().ActiveTool));
+        Assert.Empty(live.Snapshot().ToolBlocks.OfType<ToolResultBlock>());
+        slow.Open.TrySetResult();
+        Assert.Equal(MessageState.Complete, (await h.WaitForAnswerAsync(sent.Answer!.Value)).State);
+    }
+
+    [Fact]
     public async Task The_last_request_after_a_limit_says_it_answers_from_what_was_found_until_its_text_arrives()
     {
         var tool = new HeldTool();
@@ -197,7 +220,7 @@ public class ReasoningAndStatusTests
             Ct);
 
     /// <summary>A read-only tool that waits for <see cref="Open"/> once it is running.</summary>
-    private sealed class HeldTool : ITool
+    private sealed class HeldTool(string name = HeldTool.ToolName) : ITool
     {
         public const string ToolName = "held_tool";
 
@@ -205,7 +228,7 @@ public class ReasoningAndStatusTests
 
         public TaskCompletionSource Open { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
 
-        public string Name => ToolName;
+        public string Name => name;
 
         public string DisplayName => "测试工具";
 
