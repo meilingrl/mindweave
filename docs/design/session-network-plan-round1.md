@@ -260,8 +260,8 @@ Behaviour when gated:
 **Files:**
 - Create: `tests/Mindweave.Desktop.Tests/SessionNetworkShots.cs`, ported from `SpikeSessionNetworkShots` on branch `task/session-network-spike` (commit `bd793e3`) with `[Trait("Category", "Trial")]`. It renders each workspace in both modes, gated through the harness override instead of the environment.
 
-- [ ] **Step 1: Port the shot test.** It returns early unless `MINDWEAVE_SPIKE_DATA` is set.
-- [ ] **Step 2: Render.** Copy the daily database with `sqlite3 "$HOME/Library/Application Support/Mindweave/claude-auto/mindweave.db" ".backup '<scratch>/data/mindweave.db'"`. Then run the shot test with `MINDWEAVE_SPIKE_DATA=<scratch>/data MINDWEAVE_SCREENSHOT_DIR=<scratch>/shots`. Expected: two PNGs per workspace. Look at each one: no overlaps, readable labels, and the Steins;Gate workspace is no longer empty.
+- [ ] **Step 1: Port the shot test.** It returns early unless `MINDWEAVE_TRIAL_DATA` is set.
+- [ ] **Step 2: Render.** Copy the daily database with `sqlite3 "$HOME/Library/Application Support/Mindweave/claude-auto/mindweave.db" ".backup '<scratch>/data/mindweave.db'"`. Then run the shot test with `MINDWEAVE_TRIAL_DATA=<scratch>/data MINDWEAVE_SCREENSHOT_DIR=<scratch>/shots`. Expected: two PNGs per workspace. Look at each one: no overlaps, readable labels, and the Steins;Gate workspace is no longer empty.
 - [ ] **Step 3: Run the full suite** `scripts/test.sh full`. Expected: all pass, with today's skip counts.
 - [ ] **Step 4: Commit** `Session network: trial screenshots from a data copy`. Then remove the spike: `git worktree remove ../mindweave.worktrees/session-network-spike && git branch -D task/session-network-spike`.
 - [ ] **Step 5: Hand to the owner** (AGENTS.md, "Human in the loop"):

@@ -10,7 +10,7 @@ namespace Mindweave.Desktop.Tests;
 
 /// <summary>
 /// Trial helper: renders every workspace of a COPY of real data in both views of the session network. Returns at once
-/// unless <c>MINDWEAVE_SPIKE_DATA</c> names the copy's folder; shots go to <c>MINDWEAVE_SCREENSHOT_DIR</c>.
+/// unless <c>MINDWEAVE_TRIAL_DATA</c> names the copy's folder; shots go to <c>MINDWEAVE_SCREENSHOT_DIR</c>.
 /// </summary>
 [Trait("Category", "Trial")]
 public class SessionNetworkShots
@@ -18,14 +18,14 @@ public class SessionNetworkShots
     [AvaloniaFact]
     public async Task Render_each_workspace_in_both_views()
     {
-        var data = Environment.GetEnvironmentVariable("MINDWEAVE_SPIKE_DATA");
+        var data = Environment.GetEnvironmentVariable("MINDWEAVE_TRIAL_DATA");
         if (string.IsNullOrEmpty(data))
         {
             return;
         }
 
         var shots = Environment.GetEnvironmentVariable("MINDWEAVE_SCREENSHOT_DIR");
-        Assert.False(string.IsNullOrEmpty(shots), "MINDWEAVE_SPIKE_DATA is set, so MINDWEAVE_SCREENSHOT_DIR must name the folder for the shots.");
+        Assert.False(string.IsNullOrEmpty(shots), "MINDWEAVE_TRIAL_DATA is set, so MINDWEAVE_SCREENSHOT_DIR must name the folder for the shots.");
         RefuseRealData(data);
 
         await using var app = DesktopHarness.Create(s => s.AddSingleton(new SessionNetworkGate(true)), directory: data);
