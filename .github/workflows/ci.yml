@@ -40,20 +40,40 @@ jobs:
           dotnet-version: 10.0.x
       # Formulas are drawn by RaTeX with system fonts; without a CJK font a formula containing Chinese falls back
       # to its LaTeX source. Desktop macOS and Windows ship such fonts; the Ubuntu runner does not.
+      # The package (61 MB) comes from the runner's Ubuntu mirror, which has stalled or failed for whole runs (health
+      # check 2026-11-12, item 7; runs 44782569061 and 44804477512 on 2026-11-20/21). Once downloaded it is kept in the
+      # Actions cache, so later runs do not depend on the mirror; a download is still retried and time-limited.
+      - name: CJK fonts cache (Linux)
+        if: runner.os == 'Linux'
+        id: fonts-cache
+        uses: actions/cache/restore@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
+        with:
+          path: ~/fonts-deb
+          key: fonts-noto-cjk-${{ runner.os }}-v1
       - name: CJK fonts (Linux)
         if: runner.os == 'Linux'
-        # Retried: two runs failed at this step on a mirror hiccup (health check 2026-11-12, item 7). Each attempt is
-        # also time-limited: on 2026-11-20 the 61 MB download stalled without failing until the job's 20-minute limit,
-        # twice in a row (run 44782569061). apt's own timeout makes a stalled transfer fail so the next attempt runs.
-        timeout-minutes: 8
+        timeout-minutes: 12
         run: |
-          apt_opts="-o Acquire::http::Timeout=30 -o Acquire::Retries=2"
-          for attempt in 1 2 3; do
-            sudo timeout 150 apt-get update -q $apt_opts \
-              && sudo timeout 150 apt-get install -y -q --no-install-recommends $apt_opts fonts-noto-cjk && exit 0
-            echo "attempt $attempt failed; retrying"; sleep 10
-          done
-          exit 1
+          mkdir -p ~/fonts-deb
+          if ! ls ~/fonts-deb/fonts-noto-cjk_*.deb >/dev/null 2>&1; then
+            apt_opts="-o Acquire::http::Timeout=30 -o Acquire::Retries=2"
+            got=
+            for attempt in 1 2 3; do
+              if sudo timeout 150 apt-get update -q $apt_opts \
+                && (cd ~/fonts-deb && timeout 240 apt-get download -q $apt_opts fonts-noto-cjk); then
+                got=1; break
+              fi
+              echo "attempt $attempt failed; retrying"; rm -f ~/fonts-deb/*.deb; sleep 10
+            done
+            [ -n "$got" ] || exit 1
+          fi
+          sudo dpkg -i ~/fonts-deb/fonts-noto-cjk_*.deb
+      - name: Save CJK fonts cache (Linux)
+        if: runner.os == 'Linux' && steps.fonts-cache.outputs.cache-hit != 'true'
+        uses: actions/cache/save@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
+        with:
+          path: ~/fonts-deb
+          key: fonts-noto-cjk-${{ runner.os }}-v1
       - name: Restore
         run: dotnet restore Mindweave.slnx
       # Any package, direct or pulled in by another, with a published security advisory fails the run, on every push
