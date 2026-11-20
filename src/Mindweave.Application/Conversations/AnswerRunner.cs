@@ -136,10 +136,10 @@ internal sealed partial class AnswerRunner(
         if (work.Run is { } run && _requests.Runs is { } services)
         {
             var ending = await RunAsync(work, run, services, request, key.Secret!, stop).ConfigureAwait(false);
-            if (run.Scope.Web is { } web && ending.State is MessageState.Complete or MessageState.Stopped && web.Sources.Count > 0)
+            if (ending.State is MessageState.Complete or MessageState.Stopped && run.Scope.Sources.All.Count > 0)
             {
-                // 出处 (requirements §10.4.5): the numbers the text cites that name a source of this run, located in it.
-                live.SetCitations(web.CitationsFor(live.Snapshot().Text));
+                // 出处 (requirements §10.4.5, L11): the numbers the text cites that name a source of this run, web or local, located in it.
+                live.SetCitations(run.Scope.Sources.CitationsFor(live.Snapshot().Text));
             }
 
             await checkpointStop.CancelAsync().ConfigureAwait(false);

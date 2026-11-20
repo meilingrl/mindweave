@@ -137,6 +137,21 @@ public sealed class ChatClientException : Exception
 
     /// <summary>The service's HTTP status when it answered with an error; null for transport failures.</summary>
     public int? HttpStatus { get; }
+
+    /// <summary>How long the service asked to wait before trying again (<c>Retry-After</c>), when it said.</summary>
+    public TimeSpan? RetryAfter { get; init; }
+
+    /// <summary>
+    /// Whether trying the same request again may well succeed (docs/design/agent-loop.md L5): the connection failed or stalled,
+    /// the service failed (5xx) or asked to slow down (429). Never a refused key, a used-up quota (402), a refused request or
+    /// a content filter.
+    /// </summary>
+    public bool IsTransient => Kind switch
+    {
+        GenerationErrorKind.Network or GenerationErrorKind.Timeout or GenerationErrorKind.ServerError => true,
+        GenerationErrorKind.QuotaOrRateLimited => HttpStatus == 429,
+        _ => false,
+    };
 }
 
 /// <summary>

@@ -410,8 +410,8 @@ internal sealed class ChatHarness : IAsyncDisposable
         services.AddSingleton(new Application.Workspaces.WorkspaceNamePreparationOptions { Time = PreparationTime });
         services.AddSingleton(new Application.Recommendations.RecommendationOptions { Time = PreparationTime });
         services.AddSingleton(slots is { } count
-            ? new GenerationOptions { CheckpointInterval = TimeSpan.FromMilliseconds(50), Slots = count }
-            : new GenerationOptions { CheckpointInterval = TimeSpan.FromMilliseconds(50) });
+            ? new GenerationOptions { CheckpointInterval = TimeSpan.FromMilliseconds(50), Slots = count, RetryPause = TimeSpan.FromMilliseconds(20) }
+            : new GenerationOptions { CheckpointInterval = TimeSpan.FromMilliseconds(50), RetryPause = TimeSpan.FromMilliseconds(20) });
         if (databaseOptions is not null)
         {
             services.AddSingleton(databaseOptions);

@@ -140,7 +140,8 @@ public sealed class WebSearchTool(IWebSearchSettings settings, TimeProvider? tim
         {
             Origin = ResourceOrigin.Web,
             Name = "网络搜索：" + query,
-            Stored = id => web.Register(id, body, sources.Select(s => new WebSource(s.Number, s.Hit.Url, OneLine(s.Hit.Title), id, s.Start, s.End, at, IsPage: false))),
+            Numbers = [.. sources.Select(s => s.Number)],
+            Stored = id => web.Register(id, body, sources.Select(s => new RunSource(s.Number, s.Hit.Url, OneLine(s.Hit.Title), id, s.Start, s.End, at, IsPage: false))),
         };
     }
 
@@ -264,7 +265,8 @@ public sealed class FetchPageTool(IWebPageFetcher fetcher, TimeProvider? time = 
             Origin = ResourceOrigin.Web,
             Name = title,
             SourceUrl = page.Url,
-            Stored = id => web.Register(id, body, [new WebSource(number, page.Url, title, id, 0, body.Length, at, IsPage: true)]),
+            Numbers = [number],
+            Stored = id => web.Register(id, body, [new RunSource(number, page.Url, title, id, 0, body.Length, at, IsPage: true)]),
         };
         web.RememberPage(url, output with { Stored = null });
         web.RememberPage(page.Url, output with { Stored = null });

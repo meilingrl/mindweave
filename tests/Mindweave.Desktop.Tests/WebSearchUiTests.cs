@@ -153,6 +153,47 @@ public class WebSearchUiTests
 
     [AvaloniaTheory]
     [MemberData(nameof(Themes))]
+    public async Task A_cited_attachment_is_in_the_list_with_the_web_sources_and_opens_at_its_part(string theme)
+    {
+        // docs/design/agent-loop.md L11: local results share the run's numbers; their rows name the material, without an address.
+        await using var app = DesktopHarness.Create();
+        var window = await StartAsync(app, theme, key: true);
+        app.Client.CallTool(WebSearchTool.ToolName, Query("瓦特 蒸汽机"));
+        app.Client.CallTool(SearchAttachmentsTool.ToolName, Query("蒸汽机"));
+        app.Client.Reply("1769 年，瓦特改良了蒸汽机[3]。第一条公共铁路在 1825 年通车[2]。");
+
+        app.ShellPage.Conversations.NewCommand.Execute(null);
+        await UiWait.UntilAsync(() => app.Workbench.CurrentPage is NewConversationViewModel { Composer.CanAttach: true });
+        var composer = ((NewConversationViewModel)app.Workbench.CurrentPage!).Composer;
+        await composer.WebSearch!.Loaded;
+        Assert.True(composer.TryTakePaste("第一段讲铁路的修建。\n\n第二段讲蒸汽机的发明：1769 年，瓦特改良了蒸汽机，使它能带动机器。\n\n第三段讲信号灯。" + new string('史', 3_000), 0));
+        await UiWait.UntilAsync(() => composer.Attachments is [{ IsReady: true }]);
+        composer.Text = "瓦特和铁路各在哪一年？";
+        await composer.SendCommand.ExecuteAsync(null);
+        await UiWait.UntilAsync(() => app.Workbench.CurrentPage is ConversationViewModel { Messages.Count: 2 } p && p.Messages[1] is { State: MessageState.Complete, IsLive: false }, timeoutMs: 10_000);
+        var page = (ConversationViewModel)app.Workbench.CurrentPage!;
+        await Task.Delay(150);
+        var answer = page.Messages[1];
+
+        Assert.Equal([2, 3], answer.Citations.Select(c => c.Block.Number));
+        var local = answer.Citations[1];
+        Assert.Equal(("[3]", $"附件《{ContentBlocks.PastedTextName}》", "本会话的附件", "本会话的附件", false), (local.Number, local.Title, local.Address, local.Meta, local.HasAddress));
+        Assert.True(answer.Citations[0].HasAddress);
+        window.UpdateLayout();
+        Screenshots.Capture(window, $"loop-l11-citations-{theme.ToLowerInvariant()}");
+
+        Assert.True(answer.OpenCitation(3));
+        var viewer = page.AttachmentViewer;
+        await UiWait.UntilAsync(() => viewer.IsOpen && viewer.Highlight is not null);
+        Assert.Equal(($"附件《{ContentBlocks.PastedTextName}》", "出处 [3]", null), (viewer.Title, viewer.Info, viewer.SourceAddress));
+        Assert.Contains("瓦特改良了蒸汽机", viewer.Text![viewer.Highlight!.Value.Start..viewer.Highlight.Value.End], StringComparison.Ordinal);
+        window.UpdateLayout();
+        Screenshots.Capture(window, $"loop-l11-viewer-{theme.ToLowerInvariant()}");
+        window.Close();
+    }
+
+    [AvaloniaTheory]
+    [MemberData(nameof(Themes))]
     public async Task An_invented_address_shows_an_approval_card_and_allowing_reads_it(string theme)
     {
         await using var app = DesktopHarness.Create();

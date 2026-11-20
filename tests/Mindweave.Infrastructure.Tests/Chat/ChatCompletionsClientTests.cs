@@ -144,6 +144,25 @@ public class ChatCompletionsClientTests
     }
 
     [Fact]
+    public async Task A_rate_limit_carries_the_wait_the_service_asked_for_and_reads_as_transient()
+    {
+        var limited = await Assert.ThrowsAsync<ChatClientException>(() => Collect(Client(_ =>
+        {
+            var response = new HttpResponseMessage(HttpStatusCode.TooManyRequests) { Content = new StringContent("{\"error\":{\"message\":\"slow down\"}}") };
+            response.Headers.RetryAfter = new System.Net.Http.Headers.RetryConditionHeaderValue(TimeSpan.FromSeconds(7));
+            return response;
+        })));
+        var broke = await Assert.ThrowsAsync<ChatClientException>(() => Collect(Client(_ => new HttpResponseMessage(HttpStatusCode.PaymentRequired) { Content = new StringContent("insufficient balance") })));
+        var refused = await Assert.ThrowsAsync<ChatClientException>(() => Collect(Client(_ => new HttpResponseMessage(HttpStatusCode.Unauthorized) { Content = new StringContent("bad key") })));
+        var failed = await Assert.ThrowsAsync<ChatClientException>(() => Collect(Client(_ => new HttpResponseMessage(HttpStatusCode.BadGateway) { Content = new StringContent("") })));
+
+        Assert.Equal((TimeSpan.FromSeconds(7), true), (limited.RetryAfter, limited.IsTransient));
+        Assert.Equal((null, false), (broke.RetryAfter, broke.IsTransient));
+        Assert.False(refused.IsTransient);
+        Assert.True(failed.IsTransient);
+    }
+
+    [Fact]
     public async Task The_response_status_and_provider_request_id_come_first()
     {
         var events = await Collect(Client(_ =>

@@ -25,6 +25,11 @@ public sealed class ToolScope(WorkspaceId workspace, ConversationId conversation
     /// <summary>The run's web state when web search is on for it (phase 3); null otherwise, and the web tools are not offered.</summary>
     public WebRun? Web { get; init; }
 
+    private readonly RunSources _sources = new();
+
+    /// <summary>The numbering of the run's sources, web and local (L11): the web state's when there is one.</summary>
+    public RunSources Sources => Web?.Numbering ?? _sources;
+
     /// <summary>
     /// Whether the web search switch is not 关 for this question (phase 4, decision M8): third-party tools that read the
     /// network are offered only then. True unless a caller says otherwise.
@@ -86,6 +91,9 @@ public sealed record ToolOutput(string Text, string Detail, ResourceProvenance P
 
     /// <summary>How the result is marked as material when sent to the model; null uses the web marking for external results.</summary>
     public Func<string, string>? Wrap { get; init; }
+
+    /// <summary>The run's [n] numbers of the sources in the result (W4, L11), so a result the answer cites is kept longest (L7).</summary>
+    public IReadOnlyList<int> Numbers { get; init; } = [];
 }
 
 /// <summary>An image a tool returned (phase 4), with its media type.</summary>
@@ -249,6 +257,53 @@ public static class ToolArguments
         }
 
         throw new ToolInputException($"参数 {name} 应是整数。");
+    }
+
+    /// <summary>
+    /// The arguments as compared for repeated calls (docs/design/agent-loop.md L4): object keys in order, strings without
+    /// surrounding white space, numbers and other values as written.
+    /// </summary>
+    public static string Canonical(JsonElement arguments)
+    {
+        var s = new StringBuilder();
+        Write(arguments);
+        return s.ToString();
+
+        void Write(JsonElement e)
+        {
+            switch (e.ValueKind)
+            {
+                case JsonValueKind.Object:
+                    s.Append('{');
+                    var first = true;
+                    foreach (var property in e.EnumerateObject().OrderBy(p => p.Name, StringComparer.Ordinal))
+                    {
+                        s.Append(first ? string.Empty : ",").Append(JsonSerializer.Serialize(property.Name)).Append(':');
+                        first = false;
+                        Write(property.Value);
+                    }
+
+                    s.Append('}');
+                    break;
+                case JsonValueKind.Array:
+                    s.Append('[');
+                    var i = 0;
+                    foreach (var item in e.EnumerateArray())
+                    {
+                        s.Append(i++ == 0 ? string.Empty : ",");
+                        Write(item);
+                    }
+
+                    s.Append(']');
+                    break;
+                case JsonValueKind.String:
+                    s.Append(JsonSerializer.Serialize(e.GetString()!.Trim()));
+                    break;
+                default:
+                    s.Append(e.GetRawText());
+                    break;
+            }
+        }
     }
 
     /// <summary>The hash a run freezes for a tool's definition (architecture §15.3: <c>generation_task.tools</c>).</summary>

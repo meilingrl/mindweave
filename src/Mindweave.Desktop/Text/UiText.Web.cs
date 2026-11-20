@@ -52,6 +52,18 @@ public static partial class UiText
     public static string CitationInfo(int number, DateTimeOffset fetchedAt) =>
         string.Format(CultureInfo.InvariantCulture, "出处 [{0}] · 获取于 {1}", number, fetchedAt.ToLocalTime().ToString("yyyy-MM-dd HH:mm", CultureInfo.InvariantCulture));
 
+    /// <summary>The viewer's info line for a 出处 in this app's own material (L11).</summary>
+    public static string LocalCitationInfo(int number) => string.Format(CultureInfo.InvariantCulture, "出处 [{0}]", number);
+
+    /// <summary>A local 出处 row's second line (L11): where the material is.</summary>
+    public static string CitationPlace(Core.Conversations.CitationKind kind) => kind switch
+    {
+        Core.Conversations.CitationKind.Attachment => "本会话的附件",
+        Core.Conversations.CitationKind.Material => "本会话较早取得的材料",
+        Core.Conversations.CitationKind.Summary => "总结网络",
+        _ => string.Empty,
+    };
+
     public const string OpenInBrowser = "在浏览器中打开";
     public const string OpenInBrowserConfirm = "将在系统浏览器中打开这个地址：";
     public const string OpenInBrowserGo = "打开";

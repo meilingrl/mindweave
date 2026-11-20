@@ -45,16 +45,48 @@ public sealed record ToolCallBlock(string CallId, string Tool, string Arguments,
 /// </summary>
 public sealed record ToolResultBlock(string CallId, ToolResultStatus Status, string Preview, ResourceId? Resource, string? Detail, IReadOnlyList<ToolFinding>? Findings = null) : ContentBlock;
 
-/// <summary>
-/// One 出处 of an answer (requirements §10.4.5, architecture §15.13): the number the answer cites as [n], the source's title
-/// and real address, when it was fetched, the stored resource, and the cited passage as a character range of the resource's
-/// text (<paramref name="Start"/> inclusive, <paramref name="End"/> exclusive). Written when the answer ends, after its tool
-/// blocks; only numbers the text cites and the run really fetched have one.
-/// </summary>
-public sealed record CitationBlock(int Number, string Title, Uri Url, DateTimeOffset FetchedAt, ResourceId Resource, int Start, int End) : ContentBlock
+/// <summary>What a 出处 is (docs/design/agent-loop.md L11): a web page or search result, or material of this app.</summary>
+public enum CitationKind
 {
-    /// <summary>The line it is as text (context and summaries): "[1] 标题 https://…".</summary>
-    public string Line => $"[{Number}] {Title} {Url.AbsoluteUri}";
+    /// <summary>A search result or a page read from the web; it has a real address.</summary>
+    Web,
+
+    /// <summary>A part of a file or text the user attached.</summary>
+    Attachment,
+
+    /// <summary>A part of material an earlier run found (its tool results), read again.</summary>
+    Material,
+
+    /// <summary>A saved summary of the workspace (检索总结网络).</summary>
+    Summary,
+}
+
+/// <summary>
+/// One 出处 of an answer (requirements §10.4.5, architecture §15.9 and §15.13): the number the answer cites as [n], the
+/// source's title and, for the web, its real address and when it was fetched; the stored resource and the cited passage as a
+/// character range of the resource's text (<paramref name="Start"/> inclusive, <paramref name="End"/> exclusive). Since L11
+/// a run's local results are numbered too: <see cref="Kind"/> says what the source is, and a summary's node is
+/// <see cref="Target"/>. Written when the answer ends, after its tool blocks; only numbers the text cites and the run really
+/// found have one.
+/// </summary>
+public sealed record CitationBlock(int Number, string Title, Uri? Url, DateTimeOffset FetchedAt, ResourceId Resource, int Start, int End) : ContentBlock
+{
+    public CitationKind Kind { get; init; } = CitationKind.Web;
+
+    /// <summary>For a summary: its node's ID (<c>D</c> format).</summary>
+    public string? Target { get; init; }
+
+    /// <summary>The name as a person reads it in the 出处 list: the page's title, or 附件《…》、材料《…》、总结《…》.</summary>
+    public string Label => Kind switch
+    {
+        CitationKind.Attachment => $"附件《{Title}》",
+        CitationKind.Material => $"材料《{Title}》",
+        CitationKind.Summary => $"总结《{Title}》",
+        _ => Title,
+    };
+
+    /// <summary>The line it is as text (context and summaries): "[1] 标题 https://…", or "[2] 附件《名称》".</summary>
+    public string Line => Url is { } url ? $"[{Number}] {Label} {url.AbsoluteUri}" : $"[{Number}] {Label}";
 }
 
 public static class ContentBlocks

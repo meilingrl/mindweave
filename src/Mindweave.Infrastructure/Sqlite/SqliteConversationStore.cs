@@ -379,7 +379,11 @@ internal sealed class SqliteConversationStore(SqliteDatabase database) : IConver
                     connection.Execute(transaction,
                         "INSERT INTO message_block (message_id, ordinal, kind, text, data, resource_id) VALUES ($id, $ord, $kind, $text, $data, $resource);",
                         ("$id", message.ToString()), ("$ord", i), ("$kind", SqlNames.CitationBlockKind), ("$text", citation.Title),
-                        ("$data", JsonSerializer.Serialize(new CitationData(citation.Number, citation.Url.AbsoluteUri, citation.FetchedAt.ToUnixTimeMilliseconds(), citation.Start, citation.End), BlockJson)),
+                        ("$data", JsonSerializer.Serialize(new CitationData(citation.Number, citation.Url?.AbsoluteUri, citation.FetchedAt.ToUnixTimeMilliseconds(), citation.Start, citation.End)
+                        {
+                            Kind = citation.Kind == CitationKind.Web ? null : citation.Kind.ToString().ToLowerInvariant(),
+                            Target = citation.Target,
+                        }, BlockJson)),
                         ("$resource", citation.Resource.ToString()));
                     break;
                 case var other:
@@ -439,14 +443,27 @@ internal sealed class SqliteConversationStore(SqliteDatabase database) : IConver
         return new ToolResultBlock(d.CallId, SqlNames.ParseResultStatus(d.Status), text, resource is null ? null : ResourceId.Parse(resource), d.Detail, d.Findings?.Select(f => f.ToFinding()).ToList());
     }
 
-    private sealed record CitationData(int Number, string Url, long FetchedAt, int Start, int End);
+    /// <summary>A citation's data; <see cref="Kind"/> and <see cref="Target"/> only for local sources (L11), absent for the web.</summary>
+    private sealed record CitationData(int Number, string? Url, long FetchedAt, int Start, int End)
+    {
+        [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
+        public string? Kind { get; init; }
+
+        [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
+        public string? Target { get; init; }
+    }
 
     private static CitationBlock ReadCitation(string text, string? data, string? resource)
     {
         var d = (data is null ? null : JsonSerializer.Deserialize<CitationData>(data, BlockJson)) ?? throw new InvalidDataException("A citation block has no data.");
+        var kind = d.Kind is null ? CitationKind.Web : Enum.Parse<CitationKind>(d.Kind, ignoreCase: true);
         return new CitationBlock(
-            d.Number, text, new Uri(d.Url, UriKind.Absolute), DateTimeOffset.FromUnixTimeMilliseconds(d.FetchedAt),
-            ResourceId.Parse(resource ?? throw new InvalidDataException("A citation block names no resource.")), d.Start, d.End);
+            d.Number, text, d.Url is null ? null : new Uri(d.Url, UriKind.Absolute), DateTimeOffset.FromUnixTimeMilliseconds(d.FetchedAt),
+            ResourceId.Parse(resource ?? throw new InvalidDataException("A citation block names no resource.")), d.Start, d.End)
+        {
+            Kind = kind,
+            Target = d.Target,
+        };
     }
 
     /// <summary>A run's frozen tools, as stored in <c>generation_task.tools</c>.</summary>

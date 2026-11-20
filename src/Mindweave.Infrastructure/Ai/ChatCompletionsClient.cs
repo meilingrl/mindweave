@@ -775,7 +775,10 @@ public sealed class ChatCompletionsClient(HttpClient http, ChatClientOptions opt
             >= 500 => GenerationErrorKind.ServerError,
             _ => GenerationErrorKind.InvalidResponse,
         };
-        throw new ChatClientException(kind, detail, httpStatus: status);
+        var wait = response.Headers.RetryAfter is { } retry
+            ? retry.Delta ?? (retry.Date is { } date ? date - DateTimeOffset.UtcNow : null)
+            : null;
+        throw new ChatClientException(kind, detail, httpStatus: status) { RetryAfter = wait is { } w && w > TimeSpan.Zero ? w : null };
     }
 
     /// <summary>The message of an error node: OpenAI's <c>{"message": …}</c> object, or whatever else a relay sent, as text.</summary>
@@ -792,7 +795,7 @@ public sealed class ChatCompletionsClient(HttpClient http, ChatClientOptions opt
 
     /// <summary>Every failure leaving this client is scrubbed of the key it was called with (services echo keys).</summary>
     private static ChatClientException Redacted(ChatClientException ex, string apiKey) =>
-        new(ex.Kind, ScrubbedAndShort(ex.Message, apiKey), ex.InnerException, ex.HttpStatus);
+        new(ex.Kind, ScrubbedAndShort(ex.Message, apiKey), ex.InnerException, ex.HttpStatus) { RetryAfter = ex.RetryAfter };
 
     private static string? ProviderRequestId(HttpResponseMessage response) =>
         response.Headers.TryGetValues("x-request-id", out var values) || response.Headers.TryGetValues("request-id", out values)
