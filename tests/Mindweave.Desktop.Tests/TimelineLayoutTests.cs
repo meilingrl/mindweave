@@ -31,7 +31,7 @@ public class TimelineLayoutTests
 
         var arrangement = TimelineLayout.Arrange(nodes);
 
-        Assert.Equal([0.0, 110.0, 276.0], [arrangement.Positions[Id(1)].X, arrangement.Positions[Id(2)].X, arrangement.Positions[Id(3)].X]);
+        Assert.Equal([0.0, 110.0, 330.0], [arrangement.Positions[Id(1)].X, arrangement.Positions[Id(2)].X, arrangement.Positions[Id(3)].X]);
         Assert.Equal([Id(1), Id(3)], arrangement.DayStarts);
     }
 
@@ -115,10 +115,10 @@ public class TimelineLayoutTests
     }
 
     [Fact]
-    public void A_root_hemmed_in_off_the_step_grid_falls_back_to_the_lane_above_past_its_last_dot()
+    public void A_new_day_root_between_two_long_chains_branches_across_a_chain()
     {
-        // Root 2 starts a new day, so its branch's x falls between the dots of root 1's chains on both sides: no lane
-        // can be reached without passing a dot, so the branch takes lane −1 after that chain ends.
+        // Root 2 starts a new day. The day gap is a whole step, so its branch's x stays on the grid of root 1's chains
+        // and the branch crosses lane −1 between two of its dots, one step from root 2 (ruling R7).
         var nodes = new List<TimelineNode> { Root(1, Day1, 0), Root(2, Day2, 1) };
         nodes.AddRange(Chain(10, parent: 1, length: 4, firstOrder: 2));
         nodes.AddRange(Chain(20, parent: 1, length: 4, firstOrder: 6));
@@ -126,15 +126,15 @@ public class TimelineLayoutTests
 
         var positions = TimelineLayout.Arrange(nodes).Positions;
 
-        Assert.Equal(new NodePosition(166, 0), positions[Id(2)]);
-        Assert.Equal(new NodePosition(550, -64), positions[Id(30)]);
+        Assert.Equal(new NodePosition(220, 0), positions[Id(2)]);
+        Assert.Equal(new NodePosition(330, -128), positions[Id(30)]);
         AssertRules(nodes, positions);
     }
 
     [Fact]
     public void Dots_never_overlap_and_connectors_never_pass_through_a_dot()
     {
-        // Twenty fixed seeds: seed 9 is the first where a later dot would land where an earlier connector crossed its lane.
+        // Twenty fixed seeds of chains, fans, late branches and new days.
         for (var seed = 1; seed <= 20; seed++)
         {
             var nodes = RandomForest(300, seed);
@@ -169,12 +169,12 @@ public class TimelineLayoutTests
     public void A_deep_chain_stays_in_one_lane()
     {
         var nodes = new List<TimelineNode> { Root(1, Day1, 0) };
-        nodes.AddRange(Chain(1000, parent: 1, length: 60, firstOrder: 1));
+        nodes.AddRange(Chain(1000, parent: 1, length: 100_000, firstOrder: 1)); // far deeper than a call stack allows
 
         var positions = TimelineLayout.Arrange(nodes).Positions;
 
         Assert.Single(nodes.Skip(1).Select(n => positions[n.Id].Y).Distinct());
-        Assert.Equal(60 * 110, positions[Id(1059)].X);
+        Assert.Equal(100_000 * 110, positions[Id(1000 + 99_999)].X);
     }
 
     [Fact]
@@ -196,7 +196,8 @@ public class TimelineLayoutTests
 
     /// <summary>
     /// Every node placed; no two dots on one Y closer than a step; no connector passes a dot: for each branch, no dot
-    /// at an X strictly between the parent's and the child's with a Y strictly between theirs.
+    /// at an X strictly between the parent's and the child's with a Y strictly between theirs, nor in the parent's or
+    /// the child's lane (so every connector spans exactly one step).
     /// </summary>
     private static void AssertRules(List<TimelineNode> nodes, IReadOnlyDictionary<SummaryNodeId, NodePosition> positions)
     {
@@ -221,7 +222,7 @@ public class TimelineLayoutTests
             foreach (var (id, dot) in dots)
             {
                 Assert.False(
-                    dot.X > parent.X && dot.X < child.X && dot.Y > low && dot.Y < high,
+                    dot.X > parent.X && dot.X < child.X && dot.Y >= low && dot.Y <= high,
                     $"The connector {parent} → {child} passes the dot of {id} at {dot}.");
             }
         }

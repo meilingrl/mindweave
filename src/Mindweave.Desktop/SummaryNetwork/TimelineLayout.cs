@@ -40,8 +40,12 @@ public static class TimelineLayout
     /// <summary>Vertical distance between lanes.</summary>
     public const double LaneGap = 64;
 
-    /// <summary>Extra room between two roots started on different days.</summary>
-    public const double DayGap = 56;
+    /// <summary>
+    /// Extra room between two roots started on different days. A whole step, so every x is a multiple of
+    /// <see cref="Step"/>: no dot can then sit strictly between two neighbouring x values, and opening a lane always
+    /// succeeds (ruling R7).
+    /// </summary>
+    public const double DayGap = Step;
 
     /// <summary>
     /// Arranges every node. A node whose parent is not in <paramref name="nodes"/> is placed as a root. Children are
@@ -88,6 +92,7 @@ public static class TimelineLayout
                 var parentId = item.Node.Parent!.Value;
                 var parent = positions[parentId];
                 var parentLane = laneOf[parentId];
+                // A continuation is always exactly one step: the parent was the last thing placed in its lane.
                 var (lane, x) = item.ContinuesLane
                     ? (parentLane, Math.Max(parent.X + Step, lanes.End(parentLane) + Step))
                     : lanes.Open(parentLane, parent.X);
@@ -149,8 +154,8 @@ public static class TimelineLayout
         /// already in its own lane there; this lets siblings fan out from one parent.</item>
         /// </list>
         /// The search stops one lane beyond the outermost lane in use on each side; lanes further out would fail for
-        /// the same reason. If no lane fits, the child goes in the lane next to the parent's on the outer side
-        /// (above for a root), a step past that lane's last dot. No lane lies between, so this always succeeds.
+        /// the same reason. Because every x is on the <see cref="Step"/> grid, no lane ever has a dot in the open
+        /// interval, so the empty lane one past the outermost always fits; finding none means the grid was broken.
         /// </summary>
         public (int Lane, double X) Open(int parentLane, double parentX)
         {
@@ -191,8 +196,7 @@ public static class TimelineLayout
                 }
             }
 
-            var outer = parentLane > 0 ? parentLane + 1 : parentLane - 1;
-            return (outer, Math.Max(x0, End(outer) + Step));
+            throw new InvalidOperationException("Unreachable: every x is on the Step grid, so a lane always fits.");
         }
 
         /// <summary>Whether the lane has a dot strictly between the two x values.</summary>
