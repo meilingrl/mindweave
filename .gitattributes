@@ -9,7 +9,6 @@ TRACK.md export-ignore
 STATUS.md export-ignore
 AGENTS.md export-ignore
 CLAUDE.md export-ignore
-.keep export-ignore
 .github/ export-ignore
 docs/reviews/README.md export-ignore
 docs/reviews/claude-auto-*/ export-ignore
