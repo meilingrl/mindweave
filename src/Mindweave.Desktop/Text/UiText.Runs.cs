@@ -1,4 +1,5 @@
 using System.Globalization;
+using Mindweave.Application.Conversations;
 using Mindweave.Core.Runs;
 
 namespace Mindweave.Desktop.Text;
@@ -75,14 +76,47 @@ public static partial class UiText
         }));
     }
 
-    /// <summary>While a tool runs: "正在检索附件…"; a third-party one: "正在调用 files › echo…".</summary>
-    public static string ToolRunning(string tool, string? summary = null) => tool switch
+    /// <summary>
+    /// The status line of a running answer (docs/design/reasoning-and-status.md §2). <paramref name="tool"/> and its step
+    /// <paramref name="summary"/> name the running tool; <paramref name="approval"/> the call waiting for the user.
+    /// </summary>
+    public static string AnswerStatus(AnswerStage stage, string? tool = null, string? summary = null, PendingApproval? approval = null) => stage switch
     {
-        "web_search" => "正在搜索…",
-        "fetch_page" => "正在读取网页…",
-        _ when tool.Contains("__", StringComparison.Ordinal) => "正在调用 " + ToolLabel(tool, summary) + "…",
-        _ => "正在" + ToolName(tool) + "…",
+        AnswerStage.Approval when approval is { IsThirdParty: true } card => McpApprovalWaiting(card.Server!, card.ToolTitle ?? card.Tool),
+        AnswerStage.Approval => ApprovalWaiting,
+        AnswerStage.Tool when tool is not null => ToolStatus(tool, summary),
+        AnswerStage.Compressing => CompressingContext,
+        AnswerStage.Thinking => ModelThinking,
+        AnswerStage.Writing => AnswerWriting,
+        AnswerStage.Retrying => AnswerRetrying,
+        AnswerStage.Finishing => AnswerFinishing,
+        _ => WaitingForAnswer,
     };
+
+    /// <summary>The longest object (search terms, a host) a status names before it is cut.</summary>
+    private const int StatusObjectLength = 40;
+
+    /// <summary>"正在搜索：蒸汽机…", "正在读取网页：zh.wikipedia.org…", "正在调用 files › echo…".</summary>
+    private static string ToolStatus(string tool, string? summary)
+    {
+        var cut = summary?.IndexOf('：', StringComparison.Ordinal) ?? -1;
+        var subject = cut >= 0 ? summary![(cut + 1)..].Trim() : string.Empty;
+        if (tool == "fetch_page" && Uri.TryCreate(subject, UriKind.Absolute, out var page))
+        {
+            subject = page.Host;
+        }
+
+        var named = subject.Length == 0 ? string.Empty
+            : "：" + (subject.Length > StatusObjectLength ? subject[..StatusObjectLength] + "…" : subject);
+        return tool switch
+        {
+            "web_search" => "正在搜索" + named + "…",
+            "fetch_page" => "正在读取网页" + named + "…",
+            "search_attachments" => "正在检索附件" + named + "…",
+            "search_summaries" => "正在检索总结网络" + named + "…",
+            _ => "正在调用 " + ToolLabel(tool, summary) + "…",
+        };
+    }
 
     /// <summary>The note under an answer whose run reached a limit.</summary>
     public static string RunLimitNote(RunLimit limit) => "达到了本次回答的" + limit switch

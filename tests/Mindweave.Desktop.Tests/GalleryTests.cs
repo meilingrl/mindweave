@@ -948,7 +948,7 @@ public class GalleryTests
         await UiWait.UntilAsync(() => page.Messages.Count == 4 && page.Messages[3].IsStreaming);
         Time(scene.App).Advance(TimeSpan.FromSeconds(12) - (Time(scene.App).GetUtcNow() - page.Messages[3].StartedAt));
         // The page's one-second tick shows the moved clock.
-        await UiWait.UntilAsync(() => window.GetVisualDescendants().OfType<Avalonia.Controls.TextBlock>().Any(t => t is { Name: "StreamingElapsed", IsEffectivelyVisible: true, Text: "12 秒" or "13 秒" }), timeoutMs: 3000);
+        await UiWait.UntilAsync(() => window.GetVisualDescendants().OfType<Avalonia.Controls.TextBlock>().Any(t => t is { Name: "StatusElapsed", IsEffectivelyVisible: true, Text: "12 秒" or "13 秒" }), timeoutMs: 3000);
         Scroller(window).ScrollToEnd();
         await SettleAsync(window);
         Capture(window, "g35-answer-generating-timer");
@@ -973,9 +973,9 @@ public class GalleryTests
         page.Composer.Text = "它为什么很快就被拆除了？";
         await page.Composer.SendCommand.ExecuteAsync(null);
         await held.Started.Task.WaitAsync(TimeSpan.FromSeconds(5));
-        await UiWait.UntilAsync(() => page.Messages.Count == 4 && page.Messages[3].WaitingLabel == UiText.ModelThinking);
+        await UiWait.UntilAsync(() => page.Messages.Count == 4 && page.Messages[3].StatusText == UiText.ModelThinking);
         Time(scene.App).Advance(TimeSpan.FromSeconds(48) - (Time(scene.App).GetUtcNow() - page.Messages[3].StartedAt));
-        await UiWait.UntilAsync(() => window.GetVisualDescendants().OfType<Avalonia.Controls.TextBlock>().Any(t => t is { Name: "WaitingElapsed", IsEffectivelyVisible: true, Text: "48 秒" or "49 秒" }), timeoutMs: 3000);
+        await UiWait.UntilAsync(() => window.GetVisualDescendants().OfType<Avalonia.Controls.TextBlock>().Any(t => t is { Name: "StatusElapsed", IsEffectivelyVisible: true, Text: "48 秒" or "49 秒" }), timeoutMs: 3000);
         Scroller(window).ScrollToEnd();
         await SettleAsync(window);
         Capture(window, "g38-answer-thinking");

@@ -45,12 +45,12 @@ public class AnswerTimerTests
         var page = await AskAsync(app, held);
         var view = CurrentView(window);
 
-        // Waiting for the first text: the counter sits next to the waiting mark.
-        await UiWait.UntilAsync(() => Visible(view, "WaitingElapsed")?.Text == "0 秒");
+        // Waiting for the first text: the counter sits in the status line.
+        await UiWait.UntilAsync(() => Visible(view, "StatusElapsed")?.Text == "0 秒");
         Assert.True(page.IsTicking);
         clock.Advance(TimeSpan.FromSeconds(12));
-        await UiWait.UntilAsync(() => Visible(view, "WaitingElapsed")?.Text == "12 秒");
-        Assert.Contains("timestamp", Visible(view, "WaitingElapsed")!.Classes);
+        await UiWait.UntilAsync(() => Visible(view, "StatusElapsed")?.Text == "12 秒");
+        Assert.Contains("timestamp", Visible(view, "StatusElapsed")!.Classes);
 
         held.Finish("答。");
         await UiWait.UntilAsync(() => page.Messages.Count == 2 && page.Messages[1] is { State: MessageState.Complete, IsLive: false });
@@ -71,10 +71,10 @@ public class AnswerTimerTests
         var view = CurrentView(window);
 
         await UiWait.UntilAsync(() => page.Messages[1].IsStreaming);
-        await UiWait.UntilAsync(() => Visible(view, "StreamingElapsed")?.Text == "0 秒");
-        Assert.Same(Visible(view, "StreamingElapsed")!.GetVisualParent(), view.GetVisualDescendants().OfType<StackPanel>().Single(p => p.Name == "StreamingIndicator" && p.IsEffectivelyVisible));
+        await UiWait.UntilAsync(() => Visible(view, "StatusElapsed")?.Text == "0 秒");
+        Assert.Same(Visible(view, "StatusElapsed")!.GetVisualParent(), view.GetVisualDescendants().OfType<StackPanel>().Single(p => p.Name == "GeneratingRow" && p.IsEffectivelyVisible));
         clock.Advance(TimeSpan.FromSeconds(65));
-        await UiWait.UntilAsync(() => Visible(view, "StreamingElapsed")?.Text == "1 分 05 秒");
+        await UiWait.UntilAsync(() => Visible(view, "StatusElapsed")?.Text == "1 分 05 秒");
         Assert.Null(Visible(view, "AnswerDuration"));
 
         // Finished: no counter, no timer; the total stays in the quiet row beside the time.
@@ -83,7 +83,7 @@ public class AnswerTimerTests
         window.UpdateLayout();
         Assert.False(page.IsTicking);
         Assert.Equal(0, clock.ActiveTimers);
-        Assert.Null(Visible(view, "StreamingElapsed"));
+        Assert.Null(Visible(view, "StatusElapsed"));
         var stored = (await app.Services.GetRequiredService<IConversations>().LoadAsync(page.Id, CancellationToken.None))!.Messages[1];
         Assert.Equal(UiText.AnswerDuration(stored.CompletedAt!.Value - stored.CreatedAt), page.Messages[1].DurationText);
         Assert.Equal("用时 1 分 05 秒", page.Messages[1].DurationText);

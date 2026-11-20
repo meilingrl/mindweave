@@ -154,7 +154,7 @@ public class McpUiTests
 
         Assert.True(answer.IsThirdPartyApproval);
         Assert.Equal(UiText.McpApprovalTitle, answer.ApprovalTitle);
-        Assert.Equal(UiText.McpApprovalWaiting("notes", "write_note"), answer.ActivityText);
+        Assert.Equal(UiText.McpApprovalWaiting("notes", "write_note"), answer.StatusText);
         Assert.Equal(("notes", "write_note"), (answer.PendingApproval!.Server, answer.PendingApproval.ToolTitle));
         window.UpdateLayout();
         Assert.Contains(window.GetVisualDescendants().OfType<Grid>(), g => g.Name == "McpApprovalDetails" && g.IsEffectivelyVisible);

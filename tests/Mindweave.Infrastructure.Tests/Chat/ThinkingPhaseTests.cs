@@ -10,7 +10,8 @@ namespace Mindweave.Infrastructure.Tests.Chat;
 
 /// <summary>
 /// Reasoning models send their reasoning long before any answer text (2026-11-05). The answer says it is thinking; the
-/// reasoning itself is neither shown nor stored, and requests whose output the program uses ignore it.
+/// reasoning is shown only while the answer runs and never stored (2026-11-20), and requests whose output the program uses
+/// ignore it.
 /// </summary>
 public class ThinkingPhaseTests
 {
@@ -93,7 +94,7 @@ public class ThinkingPhaseTests
     }
 
     [Fact]
-    public async Task Hundreds_of_reasoning_chunks_notify_the_answer_once()
+    public async Task Hundreds_of_reasoning_chunks_are_kept_in_order_and_think_once()
     {
         var client = new GatedReasoningClient(chunks: 200);
         await using var h = await ChatHarness.StartAsync(client: client);
@@ -101,14 +102,24 @@ public class ThinkingPhaseTests
         var sent = await h.Conversations.StartAsync(h.Workspace, "火车", Ct);
         await client.Entered.Task.WaitAsync(TimeSpan.FromSeconds(5), Ct);
         var live = h.Conversations.Observe(sent.Answer!.Value)!;
-        var changes = 0;
-        live.Changed += (_, _) => Interlocked.Increment(ref changes);
+        var phases = new List<AnswerPhase>();
+        live.Changed += (_, _) =>
+        {
+            lock (phases)
+            {
+                phases.Add(live.Snapshot().Phase);
+            }
+        };
         client.Go.TrySetResult();
         await client.Reasoned.Task.WaitAsync(TimeSpan.FromSeconds(5), Ct);
 
-        // The view re-reads the answer on every change; reasoning only needs to say once that the model is thinking.
+        // The view re-reads the answer on every change (throttled there); the phase moves to thinking once.
         Assert.Equal(AnswerPhase.Thinking, live.Snapshot().Phase);
-        Assert.Equal(1, Volatile.Read(ref changes));
+        Assert.Equal(string.Concat(Enumerable.Range(0, 200).Select(i => $"{i % 10}想")), live.Snapshot().Reasoning);
+        lock (phases)
+        {
+            Assert.All(phases, p => Assert.Equal(AnswerPhase.Thinking, p));
+        }
         client.Release.TrySetResult();
         Assert.Equal("答", (await h.WaitForAnswerAsync(sent.Answer!.Value)).Text);
     }
@@ -156,7 +167,7 @@ public class ThinkingPhaseTests
             await Go.Task.WaitAsync(cancellationToken);
             for (var i = 0; i < chunks; i++)
             {
-                yield return new ChatStreamEvent.ReasoningDelta(4);
+                yield return new ChatStreamEvent.ReasoningDelta($"{i % 10}想");
             }
 
             // The coordinator has handled the last reasoning chunk once the next event is asked for.
@@ -188,7 +199,7 @@ public class ThinkingPhaseTests
             }
 
             yield return new ChatStreamEvent.TextDelta("部分");
-            yield return new ChatStreamEvent.ReasoningDelta(10);
+            yield return new ChatStreamEvent.ReasoningDelta("再想一下");
 
             // The coordinator has handled the reasoning once the next event is asked for.
             Reasoned.TrySetResult();

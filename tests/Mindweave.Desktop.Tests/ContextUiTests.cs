@@ -86,7 +86,7 @@ public class ContextUiTests
         page.Composer.Text = "最后的问题" + new string('补', 800);
         await page.Composer.SendCommand.ExecuteAsync(null);
 
-        await UiWait.UntilAsync(() => page.Messages.Count == 14 && page.Messages[^1].WaitingLabel == UiText.CompressingContext && WaitingCaption(window) == UiText.CompressingContext);
+        await UiWait.UntilAsync(() => page.Messages.Count == 14 && page.Messages[^1].StatusText == UiText.CompressingContext && WaitingCaption(window) == UiText.CompressingContext);
         Assert.True(page.Messages[^1].IsWaiting);
         Assert.Equal(Views.WeavingMotion.Tightening, IndicatorMotion(window));
 
@@ -102,13 +102,13 @@ public class ContextUiTests
         window.Close();
     }
 
-    /// <summary>The caption beside the visible waiting bar, or null when no answer is waiting.</summary>
+    /// <summary>The status beside the weaving indicator while the answer has no text yet, or null otherwise.</summary>
     private static string? WaitingCaption(Window window)
     {
         window.UpdateLayout();
-        return window.GetVisualDescendants().OfType<StackPanel>()
-            .Where(p => p.Name == "WaitingText" && p.IsEffectivelyVisible)
-            .Select(p => p.Children.OfType<Avalonia.Controls.TextBlock>().First().Text)
+        return window.GetVisualDescendants().OfType<Avalonia.Controls.TextBlock>()
+            .Where(t => t.Name == "StatusText" && t.IsEffectivelyVisible && t.DataContext is ViewModels.Conversations.MessageItemViewModel { IsWaiting: true })
+            .Select(t => t.Text)
             .SingleOrDefault();
     }
 

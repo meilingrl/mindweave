@@ -171,6 +171,9 @@ public sealed class FakeChatClient : IChatClient
     /// Like <see cref="Hold"/>, as a reasoning model: the next answer sends reasoning first, then <paramref name="before"/>
     /// (usually nothing), and waits.
     /// </summary>
+    /// <summary>The reasoning a held thinking reply (<see cref="HoldThinking"/>) sends, in order.</summary>
+    public static readonly string[] ThinkingChunks = ["先想想火车从哪里来，", "再想想蒸汽机怎样推动车轮，", "然后作答。"];
+
     public HeldReply HoldThinking(params string[] before)
     {
         var held = new HeldReply(before) { ReasoningChunks = 3 };
@@ -253,8 +256,8 @@ public sealed class FakeChatClient : IChatClient
         await Task.Yield();
         if (ReasonFirst)
         {
-            yield return new ChatStreamEvent.ReasoningDelta(12);
-            yield return new ChatStreamEvent.ReasoningDelta(30);
+            yield return new ChatStreamEvent.ReasoningDelta("先想一想。");
+            yield return new ChatStreamEvent.ReasoningDelta("再想一想。");
         }
 
         var billed = PromptTokens?.Invoke(request);
@@ -289,7 +292,13 @@ public sealed class FakeChatClient : IChatClient
 
         for (var i = 0; i < (script.Held?.ReasoningChunks ?? 0); i++)
         {
-            yield return new ChatStreamEvent.ReasoningDelta(20);
+            yield return new ChatStreamEvent.ReasoningDelta(ThinkingChunks[i % ThinkingChunks.Length]);
+        }
+
+        if (script.Reasoning is { Length: > 0 } reasoning)
+        {
+            // A reply calling tools with reasoning (CallTools): the reasoning streams first, as a reasoning model's does.
+            yield return new ChatStreamEvent.ReasoningDelta(reasoning);
         }
 
         foreach (var chunk in script.Held?.Before ?? script.Chunks ?? [])
