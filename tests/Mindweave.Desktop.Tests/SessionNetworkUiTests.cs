@@ -153,6 +153,32 @@ public class SessionNetworkUiTests
         window.Close();
     }
 
+    [AvaloniaFact]
+    public async Task New_conversations_and_questions_appear_without_reopening()
+    {
+        await using var app = Gated();
+        var window = app.ShowWindow(1100, 720);
+        var (_, _, plain) = await SeedAsync(app);
+        var network = await OpenAsync(app, window);
+        var conversations = app.Services.GetRequiredService<ConversationService>();
+        var workspace = app.Workbench.CurrentWorkspace!.Id;
+        int WeightOf(ConversationId conversation) => network.Nodes.Single(n => network.Session.Projection.Nodes.Single(p => p.Id == n.Id).Conversation == conversation).Weight;
+        Assert.Equal(1, WeightOf(plain));
+
+        // Away in the conversation: one more question there, and a new exploration.
+        network.OpenCommand.Execute(network.Session.Projection.Nodes.Single(n => n.Conversation == plain).Id);
+        Assert.IsType<ConversationViewModel>(app.Workbench.CurrentPage);
+        await SummaryNetworkScenario.AskAsync(app, conversations, plain, workspace, "用什么相机好？");
+        var started = await SummaryNetworkScenario.AskAsync(app, conversations, null, workspace, "蒸汽机怎么工作？");
+
+        // Back on the same page, without a summary changing: the new dot is there and the asked one has grown.
+        app.ShellPage.ShowSectionCommand.Execute(MainSection.SummaryNetwork);
+        Assert.Same(network, app.Workbench.CurrentPage);
+        await UiWait.UntilAsync(() => network.Nodes.Count == 4 && WeightOf(plain) == 2);
+        Assert.Contains(network.Session.Projection.Nodes, n => n.Conversation == started);
+        window.Close();
+    }
+
     [AvaloniaTheory]
     [MemberData(nameof(Themes))]
     public async Task An_empty_workspace_shows_the_empty_state_in_both_views(string theme)

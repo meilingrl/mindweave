@@ -83,6 +83,13 @@ public sealed partial class SummaryNetworkHomeViewModel : PageViewModel, IDispos
         _reload = new UiThrottle(dispatcher, TimeSpan.FromMilliseconds(30), () => _ = _load.Request());
         _summaries.Changed += OnChanged;
         _conversations.VisibilityChanged += OnVisibilityChanged;
+
+        // Every conversation is a dot in the session network: a new one, a new question (its weight) or a new title shows.
+        if (IsSessionNetwork)
+        {
+            _conversations.ConversationChanged += OnChanged;
+        }
+
         Session.PropertyChanged += OnSessionChanged;
         Session.Discarded += OnDiscarded;
         if (_recommendations is not null)
@@ -799,6 +806,7 @@ public sealed partial class SummaryNetworkHomeViewModel : PageViewModel, IDispos
         _disposed = true;
         _summaries.Changed -= OnChanged;
         _conversations.VisibilityChanged -= OnVisibilityChanged;
+        _conversations.ConversationChanged -= OnChanged;
         Session.PropertyChanged -= OnSessionChanged;
         Session.Discarded -= OnDiscarded;
         if (_recommendations is not null)
