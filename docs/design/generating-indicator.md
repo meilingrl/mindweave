@@ -1,39 +1,39 @@
-# 生成中的指示
+# Generating indicator
 
-回答与总结生成时的指示，由三个点的“编织”动作组成，取代原来的不定进度条与静止的三个点。用户 2026-11-19 选定并通过本设计。
+The indicator shown while answers and summaries are being generated. It is a "weaving" motion of three dots, and it replaces the former indeterminate progress bar and the static three dots. The user chose and approved this design on 2026-11-19.
 
-## 目的与范围
+## Purpose and scope
 
-- 动作本身说明当前在做什么，文字与计时器只是补充；外观贴合 Mindweave 的“编织”意象。
-- 不改：等待文字、计时器、指示出现与消失的时机。
-- 不换：启动、附件小块、总结网络保存时的进度条。它们表示“忙”，不是“正在生成”。
+- The motion itself says what is happening now; the text and the timer only add to it. The look fits Mindweave's "weaving" image.
+- Not changed: the waiting text, the timer, and when the indicator appears and disappears.
+- Not replaced: the progress bars at startup, on small attachment chips, and while the summary network is saved. They mean "busy", not "generating".
 
-## 一族动作
+## A family of motions
 
-始终三个点，强调色 `AccentBrush`（随明暗主题），约 44×20 px。阶段变化时，点在约 0.3 秒内从旧路径滑到新路径，不跳变。
+Always three dots, in the accent color `AccentBrush` (it follows the light or dark theme), about 44×20 px. When the stage changes, the dots slide from the old path to the new one in about 0.3 seconds, without jumping.
 
-| 阶段 | 动作（代码名） | 描述 |
+| Stage | Motion (code name) | Description |
 | --- | --- | --- |
-| 等待回答 | 编辫 `Braid` | 三点沿横向 8 字形循环，周期 1.4 秒，相位各差三分之一；靠前的点稍大、更实 |
-| 思考 | 连结 `Joining` | 等边三角形每 6 秒转一圈；每 2.4 秒连线逐条画出，轮到的点随之变大，然后连线淡出 |
-| 压缩上下文 | 收紧 `Tightening` | 编辫收到约一半大小，循环更快 |
-| 正文流入 | 引线 `Thread` | 一条淡线穿过三点，波纹每 1.2 秒沿线走过 |
-| 生成总结 | 编辫 `Braid` | 与等待相同 |
-| 工具执行中（2026-11-20） | 取线 `Reaching` | 两点停在左侧，第三点沿一条淡线伸出再收回，周期 1.4 秒 |
-| 等待批准（2026-11-20） | 停候 `Holding` | 三点排成一行不动，一起缓慢呼吸，周期 2.4 秒 |
+| Waiting for the answer | braiding `Braid` | The three dots loop along a horizontal figure 8, period 1.4 seconds, each a third of a period apart in phase; the dot in front is slightly larger and more solid |
+| Thinking | joining `Joining` | An equilateral triangle turns once every 6 seconds; every 2.4 seconds its lines are drawn one by one, the dot whose turn it is grows, and then the lines fade out |
+| Compressing the context | tightening `Tightening` | The braid shrinks to about half size and loops faster |
+| Body streaming in | threading `Thread` | A faint line runs through the three dots, and a ripple travels along it every 1.2 seconds |
+| Generating a summary | braiding `Braid` | Same as waiting |
+| Tool executing (2026-11-20) | reaching `Reaching` | Two dots stay on the left; the third reaches out along a faint line and back, period 1.4 seconds |
+| Waiting for approval (2026-11-20) | holding `Holding` | The three dots sit still in a row and breathe slowly together, period 2.4 seconds |
 
-2026-11-20 起，每个阶段的说明文字与动作的对应见[推理过程与运行状态](reasoning-and-status.md)第 2 节；回答末尾只有一行状态（动作、说明、计时），取代原来分开的等待文字与“正在生成…”。
+Since 2026-11-20, how each stage's text matches its motion is in section 2 of [Reasoning and run status](reasoning-and-status.md). At the end of the answer there is only one status line (motion, text, timer), replacing the former separate waiting text and “正在生成…” (generating…).
 
-## 做法
+## Approach
 
-考虑过三种：
+Three were considered:
 
-1. **自绘控件**（选用）。沿用侧栏 `ActivitySpinner` 的做法：只在真正可见时请求动画帧（隐藏、滚出视口、窗口最小化、脱离可视树时都停），测试中可固定在同一帧。两者共用“可见时才取帧”的部分。
-2. XAML 关键帧动画驱动三个椭圆：较简单，但画不出 8 字形与连线，也不能在看不见时停下。
-3. 动画图片：小尺寸发虚，也不能随主题变色。
+1. **A custom-drawn control** (chosen). It follows the approach of the sidebar's `ActivitySpinner`: it requests animation frames only when it is really visible (it stops when hidden, scrolled out of the viewport, when the window is minimized, or when detached from the visual tree), and in tests it can be fixed at one frame. The two share the "take frames only when visible" part.
+2. XAML keyframe animations driving three ellipses: simpler, but they cannot draw the figure 8 or the lines, and cannot stop when not seen.
+3. An animated image: blurry at small sizes, and it cannot change color with the theme.
 
-控件 `WeavingIndicator` 有属性 `Motion`（`WeavingMotion`）；回答的 `Phase` 与是否已有正文决定动作。
+The control `WeavingIndicator` has the property `Motion` (`WeavingMotion`); the answer's `Phase`, and whether it has body text yet, decide the motion.
 
-## 由实现者决定、可调
+## Left to the implementer, adjustable
 
-速度、尺寸与收紧动作的具体样子是实现时的取值，用户看截图后可调。
+Speeds, sizes and the exact look of the tightening motion are values chosen during implementation; the user can adjust them after seeing screenshots.
