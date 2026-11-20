@@ -834,9 +834,10 @@ public sealed class SummaryNetworkCanvas : Control
             {
                 _page?.OpenCommand.Execute(node.Id);
             }
-            else if (e.GetCurrentPoint(this).Properties.IsLeftButtonPressed)
+            else if (!Sessions && e.GetCurrentPoint(this).Properties.IsLeftButtonPressed)
             {
-                // Maybe the start of a drag: it becomes one once the pointer has moved past the threshold.
+                // Maybe the start of a drag: it becomes one once the pointer has moved past the threshold. The session
+                // network's places are computed, never moved by hand, so its dots are not dragged.
                 _pressed = node.Id;
                 _pressedAt = point;
                 var (x, y) = ToCanvas(point);

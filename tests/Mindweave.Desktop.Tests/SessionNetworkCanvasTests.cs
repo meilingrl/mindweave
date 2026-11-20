@@ -1,5 +1,7 @@
 using Avalonia;
+using Avalonia.Headless;
 using Avalonia.Headless.XUnit;
+using Avalonia.Input;
 using Microsoft.Extensions.DependencyInjection;
 using Mindweave.Application.Conversations;
 using Mindweave.Application.Storage;
@@ -223,6 +225,39 @@ public class SessionNetworkCanvasTests
         Assert.Equal(UiText.DotHoverLabel(label, dot.CreatedAt), hovered.Label);
         Assert.EndsWith("· 11月20日 21:38", hovered.Label, StringComparison.Ordinal);
         canvas.SetPointer(null);
+        window.Close();
+    }
+
+    [AvaloniaFact]
+    public async Task A_dot_is_not_dragged()
+    {
+        // Gated positions are computed, never saved: pressing a dot and moving leaves it where it is drawn.
+        await using var app = Gated();
+        var window = app.ShowWindow(1100, 720);
+        await SummaryNetworkScenario.SeedAsync(app);
+        var network = await SummaryNetworkScenario.OpenSummaryNetworkAsync(app, window);
+        await UiWait.UntilAsync(() => network.Nodes.Count == 4);
+        var canvas = CanvasOf(window);
+        var dot = network.Nodes.Single(n => n.ShortTitle == "铁轨");
+        var start = canvas.ToScreen(dot.X, dot.Y);
+        Point InWindow(Point p) => canvas.TranslatePoint(p, window)!.Value;
+
+        window.MouseMove(InWindow(start));
+        window.MouseDown(InWindow(start), MouseButton.Left);
+        window.MouseMove(InWindow(start + new Vector(30, 20)));
+        window.MouseMove(InWindow(start + new Vector(60, 40)));
+
+        Assert.Null(canvas.Dragging);
+        var drawn = canvas.PaintNodes().Single(p => p.Node.Id == dot.Id);
+        Assert.False(drawn.Lifted);
+        Assert.Equal(start, drawn.Center);
+
+        window.MouseUp(InWindow(start + new Vector(60, 40)), MouseButton.Left);
+
+        Assert.Equal((dot.X, dot.Y), (network.Nodes.Single(n => n.Id == dot.Id).X, network.Nodes.Single(n => n.Id == dot.Id).Y));
+        Assert.Equal(start, canvas.PaintNodes().Single(p => p.Node.Id == dot.Id).Center);
+        Assert.False(network.IsDirty);
+        Assert.Equal(dot.Id, network.Selected?.Id);
         window.Close();
     }
 
