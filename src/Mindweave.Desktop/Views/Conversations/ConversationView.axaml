@@ -232,7 +232,6 @@
                           HorizontalAlignment="Left" ToolTip.Tip="{Binding ReasoningToggleLabel}"
                           AutomationProperties.Name="{x:Static t:UiText.ReasoningTitle}">
                     <StackPanel Orientation="Horizontal" Spacing="6">
-                      <PathIcon Data="{StaticResource IconReasoning}" Classes="run-activity" />
                       <TextBlock Classes="caption" Text="{x:Static t:UiText.ReasoningTitle}" VerticalAlignment="Center" />
                       <PathIcon Data="{StaticResource IconChevronDown}" Classes="run-activity chevron" Classes.expanded="{Binding IsReasoningExpanded}" />
                     </StackPanel>
