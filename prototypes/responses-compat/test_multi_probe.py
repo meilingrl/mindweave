@@ -4,7 +4,7 @@ from multi_probe import choose, parse_stream, parse_plain, BASES, open_request
 
 class ProtocolTests(unittest.TestCase):
     def test_separate_endpoints(self):
-        for family, expected in [('gpt','https://api.pinaic.com/v1/models'), ('claude','https://api.pinaic.com/v1/models'), ('deepseek','https://api.deepseek.com/models')]:
+        for family, expected in [('gpt','https://relay.example.com/v1/models'), ('claude','https://relay.example.com/v1/models'), ('deepseek','https://api.deepseek.com/models')]:
             opener=MagicMock()
             with patch('urllib.request.build_opener', return_value=opener):
                 open_request(BASES[family], family+'-test-only', '/models')

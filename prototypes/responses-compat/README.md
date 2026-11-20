@@ -5,10 +5,10 @@
 ## 本地运行
 
 ```sh
-python3 /Users/meilingluo/Developer/Projects/mindweave/prototypes/responses-compat/probe.py
+python3 prototypes/responses-compat/probe.py
 ```
 
-在本地终端提示处粘贴密钥并回车，输入不会显示。不要把密钥放进命令、聊天、脚本或结果文件。脚本仅在进程内使用凭据，不读取已有 Codex 凭据。固定目标 `https://api.pinaic.com/v1/responses`，模型 `gpt-6.1-sol`，`store=false`；不允许重定向、不使用环境代理。`store=false` 不证明第三方实际留存政策。
+在本地终端提示处粘贴密钥并回车，输入不会显示。不要把密钥放进命令、聊天、脚本或结果文件。脚本仅在进程内使用凭据，不读取已有 Codex 凭据。固定目标 `https://relay.example.com/v1/responses`（2026-11-20 起为占位地址：原始运行用的第三方中转地址已从脚本、测试与 `results/` 中去掉，`results/` 里记录的脚本哈希因此对不上现在的脚本；重跑前先在 `probe.py`、`multi_probe.py` 里填入实际地址），模型 `gpt-6.1-sol`，`store=false`；不允许重定向、不使用环境代理。`store=false` 不证明第三方实际留存政策。
 
 最多一次无效密钥请求及三次真实模型请求（普通、HTTP SSE、收到首段文字后主动关闭），每次输出上限 1024 tokens；可能计费，不自动重试，不调用模型发现、WebSocket 或原生压缩。30 秒套接字超时，事件间检查总时长，Ctrl+C 可中断；这不是严格独立看门狗截止时间。基础请求未通过则不再发后两次真实请求。
 
@@ -19,7 +19,7 @@ python3 /Users/meilingluo/Developer/Projects/mindweave/prototypes/responses-comp
 ## 本地检查
 
 ```sh
-python3 /Users/meilingluo/Developer/Projects/mindweave/prototypes/responses-compat/probe.py --self-test
+python3 prototypes/responses-compat/probe.py --self-test
 ```
 
 仅覆盖多行 SSE、CRLF、结束标记、EOF 与拒绝重定向的局部行为。通过不等于供应商兼容或应用验收。真实调用结果与这些局部检查分别记录。
@@ -38,17 +38,17 @@ python3 /Users/meilingluo/Developer/Projects/mindweave/prototypes/responses-comp
 新增独立 `multi_probe.py`，保留原 Responses 脚本和实测报告。状态：6 项本地单元检查通过，真实调用待用户运行；测试先观察到模块尚不存在的失败，再实现解析及候选选择。检查涵盖目录候选、Chat 完成／截断、Messages 完成／无终态、普通回复需要有效文本。
 
 ```sh
-python3 /Users/meilingluo/Developer/Projects/mindweave/prototypes/responses-compat/multi_probe.py
+python3 prototypes/responses-compat/multi_probe.py
 ```
 
 分别隐藏输入 GPT、Claude、DeepSeek 专用密钥（可回车跳过），各自读取 `/v1/models`，每类自动选一个对应目录实际返回的候选，不要求用户填模型 ID。优先已验证 GPT、常规 Claude 和 DeepSeek 标识，否则按名称稳定选择该类一个候选；不是最佳／最便宜模型排名。目录不包含该类则跳过；发现失败则停止，手动模型输入可在正式产品中保留，但本探针不猜 ID。
 
-独立验证四组：GPT Chat Completions、Claude Messages、同一个 Claude Chat Completions、DeepSeek Chat Completions。每组普通成功才测 SSE，最多 8 次生成、各上限 1024 输出 tokens，不自动重试或换模型。Claude 的两种协议是明确的独立探测，不是正式产品静默回退。Messages 使用 x-api-key 与 anthropic-version；Chat 使用 Bearer。GPT／Claude 固定访问 Pinaic `https://api.pinaic.com/v1`，DeepSeek 固定访问官方 `https://api.deepseek.com`；每组输入前显示地址。若地址不符，应先跳过，不把密钥提交到错误服务。每组发现和生成只使用本组密钥，Claude 的两种协议共享 Claude 密钥。最多 3 次目录读取。第三方若要求其他头或路径，本次失败不足以证明不支持。
+独立验证四组：GPT Chat Completions、Claude Messages、同一个 Claude Chat Completions、DeepSeek Chat Completions。每组普通成功才测 SSE，最多 8 次生成、各上限 1024 输出 tokens，不自动重试或换模型。Claude 的两种协议是明确的独立探测，不是正式产品静默回退。Messages 使用 x-api-key 与 anthropic-version；Chat 使用 Bearer。GPT／Claude 固定访问 Pinaic `https://relay.example.com/v1`，DeepSeek 固定访问官方 `https://api.deepseek.com`；每组输入前显示地址。若地址不符，应先跳过，不把密钥提交到错误服务。每组发现和生成只使用本组密钥，Claude 的两种协议共享 Claude 密钥。最多 3 次目录读取。第三方若要求其他头或路径，本次失败不足以证明不支持。
 
 保留隐藏输入、不读既有凭据、不持久化密钥、不保存回复和错误正文、不使用环境代理及拒绝重定向。报告 `results/multi-*.json` 增加经过字符检查的模型 ID 和选中项，记录协议／状态／耗时／脚本哈希，不记录其他目录元数据。输出限额可能让推理模型尚未输出文字即截断，记录为未验证而不是可用；响应模型名不是上游身份认证。
 
 ```sh
-python3 -m unittest discover -s /Users/meilingluo/Developer/Projects/mindweave/prototypes/responses-compat -p test_multi_probe.py
+python3 -m unittest discover -s prototypes/responses-compat -p test_multi_probe.py
 ```
 
 协议参考：[Claude SSE](https://platform.claude.com/docs/en/build-with-claude/streaming)、[DeepSeek Chat Completions](https://api-docs.deepseek.com/api/create-chat-completion/)。使用协议格式不证明 Pinaic 已支持；真实结果后续单独记录。

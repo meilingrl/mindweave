@@ -8,7 +8,7 @@ public class ModelSettingsTests
 
     [Theory]
     [InlineData("https://api.deepseek.com/", "https://api.deepseek.com")]
-    [InlineData(" https://api.pinaic.com/v1 ", "https://api.pinaic.com/v1")]
+    [InlineData(" https://relay.example.com/v1 ", "https://relay.example.com/v1")]
     [InlineData("http://localhost:8080/v1/", "http://localhost:8080/v1")]
     public void Base_urls_are_normalized(string raw, string expected) =>
         Assert.Equal(expected, ModelSettingsService.NormalizeBaseUrl(raw));

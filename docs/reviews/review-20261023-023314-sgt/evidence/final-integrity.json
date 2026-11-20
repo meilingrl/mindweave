@@ -5,283 +5,283 @@
   "changed_original_files": [],
   "original_file_checks": [
     {
-      "path": "/Users/meilingluo/Developer/Projects/mindweave/README.md",
+      "path": "~/Developer/Projects/mindweave/README.md",
       "baseline_sha256": "f2f258aa5faf485bde96d080612e579ff33677c287878a9a81e57df044f66407",
       "final_sha256": "f2f258aa5faf485bde96d080612e579ff33677c287878a9a81e57df044f66407",
       "unchanged": true
     },
     {
-      "path": "/Users/meilingluo/Developer/Projects/mindweave/architecture-discussion.md",
+      "path": "~/Developer/Projects/mindweave/architecture-discussion.md",
       "baseline_sha256": "2fda62dfcf2de93a36c64f58f648a029f6d8e2743f1f2402da887b70d1bbf91b",
       "final_sha256": "2fda62dfcf2de93a36c64f58f648a029f6d8e2743f1f2402da887b70d1bbf91b",
       "unchanged": true
     },
     {
-      "path": "/Users/meilingluo/Developer/Projects/mindweave/initial-requirements.md",
+      "path": "~/Developer/Projects/mindweave/initial-requirements.md",
       "baseline_sha256": "097f16fa8286cddea911309b72e360b52aaa274ec68b82032f97f638855b572d",
       "final_sha256": "097f16fa8286cddea911309b72e360b52aaa274ec68b82032f97f638855b572d",
       "unchanged": true
     },
     {
-      "path": "/Users/meilingluo/Developer/Projects/mindweave/prototypes/avalonia-chat/.gitignore",
+      "path": "prototypes/avalonia-chat/.gitignore",
       "baseline_sha256": "0360956435dd4ccc9333ca27ef57e230fded4b9be2e029c8ab65411e86b91ee5",
       "final_sha256": "0360956435dd4ccc9333ca27ef57e230fded4b9be2e029c8ab65411e86b91ee5",
       "unchanged": true
     },
     {
-      "path": "/Users/meilingluo/Developer/Projects/mindweave/prototypes/avalonia-chat/Mindweave.Prototype.sln",
+      "path": "prototypes/avalonia-chat/Mindweave.Prototype.sln",
       "baseline_sha256": "4ba83c1dffc8087d30ee94b58bb968d7e721dba958bd112d5bd1f96c533b246a",
       "final_sha256": "4ba83c1dffc8087d30ee94b58bb968d7e721dba958bd112d5bd1f96c533b246a",
       "unchanged": true
     },
     {
-      "path": "/Users/meilingluo/Developer/Projects/mindweave/prototypes/avalonia-chat/README.md",
+      "path": "prototypes/avalonia-chat/README.md",
       "baseline_sha256": "7622ef6f7bcc977dacb1f2d20fc6ce737201ae96bb1e2fc0248c56275aca2350",
       "final_sha256": "7622ef6f7bcc977dacb1f2d20fc6ce737201ae96bb1e2fc0248c56275aca2350",
       "unchanged": true
     },
     {
-      "path": "/Users/meilingluo/Developer/Projects/mindweave/prototypes/avalonia-chat/global.json",
+      "path": "prototypes/avalonia-chat/global.json",
       "baseline_sha256": "017782aa3c102a9e164acb36385998285a5a0dbd65a128ca8a0ac8fbdec9694a",
       "final_sha256": "017782aa3c102a9e164acb36385998285a5a0dbd65a128ca8a0ac8fbdec9694a",
       "unchanged": true
     },
     {
-      "path": "/Users/meilingluo/Developer/Projects/mindweave/prototypes/avalonia-chat/scripts/package-macos.sh",
+      "path": "prototypes/avalonia-chat/scripts/package-macos.sh",
       "baseline_sha256": "652d4cbd4846f1b43e86a4e1c2e2b794f456c4a3bce06b31a3e9b14b1b12a5f0",
       "final_sha256": "652d4cbd4846f1b43e86a4e1c2e2b794f456c4a3bce06b31a3e9b14b1b12a5f0",
       "unchanged": true
     },
     {
-      "path": "/Users/meilingluo/Developer/Projects/mindweave/prototypes/avalonia-chat/src/Mindweave.Core/DemoContent.cs",
+      "path": "prototypes/avalonia-chat/src/Mindweave.Core/DemoContent.cs",
       "baseline_sha256": "1d005bcbe75820dc874e7ce63b82b31e2461cda215ec1bf3df5d1bfb788bed43",
       "final_sha256": "1d005bcbe75820dc874e7ce63b82b31e2461cda215ec1bf3df5d1bfb788bed43",
       "unchanged": true
     },
     {
-      "path": "/Users/meilingluo/Developer/Projects/mindweave/prototypes/avalonia-chat/src/Mindweave.Core/ExplorationState.cs",
+      "path": "prototypes/avalonia-chat/src/Mindweave.Core/ExplorationState.cs",
       "baseline_sha256": "9dcaaa2393b506feac7bc431d9c5ca55d9ff83b4d875889498b232815be302c1",
       "final_sha256": "9dcaaa2393b506feac7bc431d9c5ca55d9ff83b4d875889498b232815be302c1",
       "unchanged": true
     },
     {
-      "path": "/Users/meilingluo/Developer/Projects/mindweave/prototypes/avalonia-chat/src/Mindweave.Core/GenerationCoordinator.cs",
+      "path": "prototypes/avalonia-chat/src/Mindweave.Core/GenerationCoordinator.cs",
       "baseline_sha256": "a129cec967f2a683d99ccae407df88f27290b922ff46dc0a2d6013b054d890af",
       "final_sha256": "a129cec967f2a683d99ccae407df88f27290b922ff46dc0a2d6013b054d890af",
       "unchanged": true
     },
     {
-      "path": "/Users/meilingluo/Developer/Projects/mindweave/prototypes/avalonia-chat/src/Mindweave.Core/JsonWorkspaceStore.cs",
+      "path": "prototypes/avalonia-chat/src/Mindweave.Core/JsonWorkspaceStore.cs",
       "baseline_sha256": "a78e7531be030faa2ee1bf1f0f2e1cf44196548deaca3ffe0e197e2b888188cf",
       "final_sha256": "a78e7531be030faa2ee1bf1f0f2e1cf44196548deaca3ffe0e197e2b888188cf",
       "unchanged": true
     },
     {
-      "path": "/Users/meilingluo/Developer/Projects/mindweave/prototypes/avalonia-chat/src/Mindweave.Core/MarkdownDocument.cs",
+      "path": "prototypes/avalonia-chat/src/Mindweave.Core/MarkdownDocument.cs",
       "baseline_sha256": "c3f1969c18bdd9c6deb1b4cda38295f7ed6ada4461650f6f3dee7fa787c35c83",
       "final_sha256": "c3f1969c18bdd9c6deb1b4cda38295f7ed6ada4461650f6f3dee7fa787c35c83",
       "unchanged": true
     },
     {
-      "path": "/Users/meilingluo/Developer/Projects/mindweave/prototypes/avalonia-chat/src/Mindweave.Core/Mindweave.Core.csproj",
+      "path": "prototypes/avalonia-chat/src/Mindweave.Core/Mindweave.Core.csproj",
       "baseline_sha256": "b74e2ed65b0ed73188135dd3ff266ab11d29d0d4b990a473f6e467ec097aa497",
       "final_sha256": "b74e2ed65b0ed73188135dd3ff266ab11d29d0d4b990a473f6e467ec097aa497",
       "unchanged": true
     },
     {
-      "path": "/Users/meilingluo/Developer/Projects/mindweave/prototypes/avalonia-chat/src/Mindweave.Desktop/App.axaml",
+      "path": "prototypes/avalonia-chat/src/Mindweave.Desktop/App.axaml",
       "baseline_sha256": "43b1af88b75784659a5c47fb2f8f0c2494b842e473ba6f8ca94eb83074c22c82",
       "final_sha256": "43b1af88b75784659a5c47fb2f8f0c2494b842e473ba6f8ca94eb83074c22c82",
       "unchanged": true
     },
     {
-      "path": "/Users/meilingluo/Developer/Projects/mindweave/prototypes/avalonia-chat/src/Mindweave.Desktop/App.axaml.cs",
+      "path": "prototypes/avalonia-chat/src/Mindweave.Desktop/App.axaml.cs",
       "baseline_sha256": "c381e9cd30c8c3f418e77957a8a60a91fa20e1b6b5401e1513554c8e6ded6b86",
       "final_sha256": "c381e9cd30c8c3f418e77957a8a60a91fa20e1b6b5401e1513554c8e6ded6b86",
       "unchanged": true
     },
     {
-      "path": "/Users/meilingluo/Developer/Projects/mindweave/prototypes/avalonia-chat/src/Mindweave.Desktop/Icons.cs",
+      "path": "prototypes/avalonia-chat/src/Mindweave.Desktop/Icons.cs",
       "baseline_sha256": "784e3cb8002729fa31c8950c1724d4bbfc4d86f647e058f33b8dafeacce755ce",
       "final_sha256": "784e3cb8002729fa31c8950c1724d4bbfc4d86f647e058f33b8dafeacce755ce",
       "unchanged": true
     },
     {
-      "path": "/Users/meilingluo/Developer/Projects/mindweave/prototypes/avalonia-chat/src/Mindweave.Desktop/MainWindow.axaml",
+      "path": "prototypes/avalonia-chat/src/Mindweave.Desktop/MainWindow.axaml",
       "baseline_sha256": "e6a901fdb5af59ff3d82968d000189de5b34706dfdd06772436da1b9156dc1eb",
       "final_sha256": "e6a901fdb5af59ff3d82968d000189de5b34706dfdd06772436da1b9156dc1eb",
       "unchanged": true
     },
     {
-      "path": "/Users/meilingluo/Developer/Projects/mindweave/prototypes/avalonia-chat/src/Mindweave.Desktop/MainWindow.axaml.cs",
+      "path": "prototypes/avalonia-chat/src/Mindweave.Desktop/MainWindow.axaml.cs",
       "baseline_sha256": "13e97b8449bfa8cea512e675042373b53f6df57efdab72611a13ca8b64330cc5",
       "final_sha256": "13e97b8449bfa8cea512e675042373b53f6df57efdab72611a13ca8b64330cc5",
       "unchanged": true
     },
     {
-      "path": "/Users/meilingluo/Developer/Projects/mindweave/prototypes/avalonia-chat/src/Mindweave.Desktop/Mindweave.Desktop.csproj",
+      "path": "prototypes/avalonia-chat/src/Mindweave.Desktop/Mindweave.Desktop.csproj",
       "baseline_sha256": "f0a1af365f3f23b1dee93b33896bb4e0143a0375e540fdb70a6ab62e94b3d2e2",
       "final_sha256": "f0a1af365f3f23b1dee93b33896bb4e0143a0375e540fdb70a6ab62e94b3d2e2",
       "unchanged": true
     },
     {
-      "path": "/Users/meilingluo/Developer/Projects/mindweave/prototypes/avalonia-chat/src/Mindweave.Desktop/Program.cs",
+      "path": "prototypes/avalonia-chat/src/Mindweave.Desktop/Program.cs",
       "baseline_sha256": "3b02c70019ed30da4c14f056faaea41a2a23f87c979e523ff185f404553fb35d",
       "final_sha256": "3b02c70019ed30da4c14f056faaea41a2a23f87c979e523ff185f404553fb35d",
       "unchanged": true
     },
     {
-      "path": "/Users/meilingluo/Developer/Projects/mindweave/prototypes/avalonia-chat/src/Mindweave.Desktop/WorkspaceViewModel.cs",
+      "path": "prototypes/avalonia-chat/src/Mindweave.Desktop/WorkspaceViewModel.cs",
       "baseline_sha256": "5311d9c7b04930ad842fc12588f3a67aede442e2c24998f27d9f5baab12f7325",
       "final_sha256": "5311d9c7b04930ad842fc12588f3a67aede442e2c24998f27d9f5baab12f7325",
       "unchanged": true
     },
     {
-      "path": "/Users/meilingluo/Developer/Projects/mindweave/prototypes/avalonia-chat/tests/Mindweave.Core.Tests/ExplorationTests.cs",
+      "path": "prototypes/avalonia-chat/tests/Mindweave.Core.Tests/ExplorationTests.cs",
       "baseline_sha256": "8f2434f92b0b43fb6a9d8ebba433214c82109b91c447aaaa21bec2e7a72cf452",
       "final_sha256": "8f2434f92b0b43fb6a9d8ebba433214c82109b91c447aaaa21bec2e7a72cf452",
       "unchanged": true
     },
     {
-      "path": "/Users/meilingluo/Developer/Projects/mindweave/prototypes/avalonia-chat/tests/Mindweave.Core.Tests/Mindweave.Core.Tests.csproj",
+      "path": "prototypes/avalonia-chat/tests/Mindweave.Core.Tests/Mindweave.Core.Tests.csproj",
       "baseline_sha256": "78c812a4713aa03ad28787cfb042cc5a3a126ee82ea2215d4400f75930bd2bb3",
       "final_sha256": "78c812a4713aa03ad28787cfb042cc5a3a126ee82ea2215d4400f75930bd2bb3",
       "unchanged": true
     },
     {
-      "path": "/Users/meilingluo/Developer/Projects/mindweave/prototypes/avalonia-chat/tests/Mindweave.Core.Tests/NativeViewTests.cs",
+      "path": "prototypes/avalonia-chat/tests/Mindweave.Core.Tests/NativeViewTests.cs",
       "baseline_sha256": "8d6a8021a42a57db246bdd2070f18f5c88b577b9cda98760e3a9c26be69975f5",
       "final_sha256": "8d6a8021a42a57db246bdd2070f18f5c88b577b9cda98760e3a9c26be69975f5",
       "unchanged": true
     },
     {
-      "path": "/Users/meilingluo/Developer/Projects/mindweave/prototypes/avalonia-chat/tests/Mindweave.Core.Tests/PersistenceTests.cs",
+      "path": "prototypes/avalonia-chat/tests/Mindweave.Core.Tests/PersistenceTests.cs",
       "baseline_sha256": "dd2f15de998027ef2a5baf48615d74d338b1fdbe8c908377a64e558105739515",
       "final_sha256": "dd2f15de998027ef2a5baf48615d74d338b1fdbe8c908377a64e558105739515",
       "unchanged": true
     },
     {
-      "path": "/Users/meilingluo/Developer/Projects/mindweave/prototypes/avalonia-chat/tests/Mindweave.Core.Tests/PrototypeBehaviorTests.cs",
+      "path": "prototypes/avalonia-chat/tests/Mindweave.Core.Tests/PrototypeBehaviorTests.cs",
       "baseline_sha256": "36904bf066b4ab1738848a10fa660d4628620590b8698d389e208b260362ffb4",
       "final_sha256": "36904bf066b4ab1738848a10fa660d4628620590b8698d389e208b260362ffb4",
       "unchanged": true
     },
     {
-      "path": "/Users/meilingluo/Developer/Projects/mindweave/prototypes/avalonia-chat/tests/Mindweave.Core.Tests/RestartProcessTests.cs",
+      "path": "prototypes/avalonia-chat/tests/Mindweave.Core.Tests/RestartProcessTests.cs",
       "baseline_sha256": "7aa2edbc6ceddc3e6910ac3e10d09f1d35c89cbbb9dcb864ea07646392cb1a36",
       "final_sha256": "7aa2edbc6ceddc3e6910ac3e10d09f1d35c89cbbb9dcb864ea07646392cb1a36",
       "unchanged": true
     },
     {
-      "path": "/Users/meilingluo/Developer/Projects/mindweave/prototypes/avalonia-chat/tests/Mindweave.Core.Tests/StreamingTests.cs",
+      "path": "prototypes/avalonia-chat/tests/Mindweave.Core.Tests/StreamingTests.cs",
       "baseline_sha256": "8c8e59cf6e85bbc28103fe155cc4825a800f350aafffec3dc7f0b00c4c97f783",
       "final_sha256": "8c8e59cf6e85bbc28103fe155cc4825a800f350aafffec3dc7f0b00c4c97f783",
       "unchanged": true
     },
     {
-      "path": "/Users/meilingluo/Developer/Projects/mindweave/prototypes/avalonia-chat/tests/Mindweave.Core.Tests/StreamingViewTests.cs",
+      "path": "prototypes/avalonia-chat/tests/Mindweave.Core.Tests/StreamingViewTests.cs",
       "baseline_sha256": "82f0716a332ae4aa588a419fff1b2b3dd344edf98f7d544d29c6de41c779612c",
       "final_sha256": "82f0716a332ae4aa588a419fff1b2b3dd344edf98f7d544d29c6de41c779612c",
       "unchanged": true
     },
     {
-      "path": "/Users/meilingluo/Developer/Projects/mindweave/prototypes/avalonia-chat/tests/Mindweave.Core.Tests/WindowLifecycleTests.cs",
+      "path": "prototypes/avalonia-chat/tests/Mindweave.Core.Tests/WindowLifecycleTests.cs",
       "baseline_sha256": "34578810a61591ed6f405ce6d5cca6c29080a823d8db4ba09d6b3312ede4c85d",
       "final_sha256": "34578810a61591ed6f405ce6d5cca6c29080a823d8db4ba09d6b3312ede4c85d",
       "unchanged": true
     },
     {
-      "path": "/Users/meilingluo/Developer/Projects/mindweave/prototypes/avalonia-chat/tools/Mindweave.RestartProbe/Mindweave.RestartProbe.csproj",
+      "path": "prototypes/avalonia-chat/tools/Mindweave.RestartProbe/Mindweave.RestartProbe.csproj",
       "baseline_sha256": "cba62f4057c095a54cfc74e662167bdb75a979268a362fa80851c9bffc08f9ab",
       "final_sha256": "cba62f4057c095a54cfc74e662167bdb75a979268a362fa80851c9bffc08f9ab",
       "unchanged": true
     },
     {
-      "path": "/Users/meilingluo/Developer/Projects/mindweave/prototypes/avalonia-chat/tools/Mindweave.RestartProbe/Program.cs",
+      "path": "prototypes/avalonia-chat/tools/Mindweave.RestartProbe/Program.cs",
       "baseline_sha256": "7fb6f11ba8b20fc9eb8bbec84f590fb7c904c5fd0474bcba50de478f83d5db9b",
       "final_sha256": "7fb6f11ba8b20fc9eb8bbec84f590fb7c904c5fd0474bcba50de478f83d5db9b",
       "unchanged": true
     },
     {
-      "path": "/Users/meilingluo/Developer/Projects/mindweave/prototypes/livemarkdown-chat/.gitignore",
+      "path": "prototypes/livemarkdown-chat/.gitignore",
       "baseline_sha256": "0360956435dd4ccc9333ca27ef57e230fded4b9be2e029c8ab65411e86b91ee5",
       "final_sha256": "0360956435dd4ccc9333ca27ef57e230fded4b9be2e029c8ab65411e86b91ee5",
       "unchanged": true
     },
     {
-      "path": "/Users/meilingluo/Developer/Projects/mindweave/prototypes/livemarkdown-chat/README.md",
+      "path": "prototypes/livemarkdown-chat/README.md",
       "baseline_sha256": "b05f1395e1c4e0bb7eb3b0839a4da90fdd952b6b9936ee76c0a86991ac47a1ed",
       "final_sha256": "b05f1395e1c4e0bb7eb3b0839a4da90fdd952b6b9936ee76c0a86991ac47a1ed",
       "unchanged": true
     },
     {
-      "path": "/Users/meilingluo/Developer/Projects/mindweave/prototypes/livemarkdown-chat/global.json",
+      "path": "prototypes/livemarkdown-chat/global.json",
       "baseline_sha256": "8abaad26584f555d7581405cc5e45e5bf4866a2c8b1fa64b937a42cf0c81d0ad",
       "final_sha256": "8abaad26584f555d7581405cc5e45e5bf4866a2c8b1fa64b937a42cf0c81d0ad",
       "unchanged": true
     },
     {
-      "path": "/Users/meilingluo/Developer/Projects/mindweave/prototypes/livemarkdown-chat/scripts/package-macos.sh",
+      "path": "prototypes/livemarkdown-chat/scripts/package-macos.sh",
       "baseline_sha256": "530bc5689d45ec2c7b8ec6ec879271067ae4e2e5c636e00818195070245d5d59",
       "final_sha256": "530bc5689d45ec2c7b8ec6ec879271067ae4e2e5c636e00818195070245d5d59",
       "unchanged": true
     },
     {
-      "path": "/Users/meilingluo/Developer/Projects/mindweave/prototypes/livemarkdown-chat/src/LiveMarkdownSpike/App.axaml",
+      "path": "prototypes/livemarkdown-chat/src/LiveMarkdownSpike/App.axaml",
       "baseline_sha256": "dedac60151cc86c1a861f49908efa02f100957be73ce0e5d33017e02e5cf1ab9",
       "final_sha256": "dedac60151cc86c1a861f49908efa02f100957be73ce0e5d33017e02e5cf1ab9",
       "unchanged": true
     },
     {
-      "path": "/Users/meilingluo/Developer/Projects/mindweave/prototypes/livemarkdown-chat/src/LiveMarkdownSpike/App.axaml.cs",
+      "path": "prototypes/livemarkdown-chat/src/LiveMarkdownSpike/App.axaml.cs",
       "baseline_sha256": "3631f804e9186f21e86f05382d3658bf1ef8e700237a8306e041e8bf036769fd",
       "final_sha256": "3631f804e9186f21e86f05382d3658bf1ef8e700237a8306e041e8bf036769fd",
       "unchanged": true
     },
     {
-      "path": "/Users/meilingluo/Developer/Projects/mindweave/prototypes/livemarkdown-chat/src/LiveMarkdownSpike/LiveMarkdownSpike.csproj",
+      "path": "prototypes/livemarkdown-chat/src/LiveMarkdownSpike/LiveMarkdownSpike.csproj",
       "baseline_sha256": "1bf7603398d379e386f6c3531bc279057dc03fd63e8bff14347db0fbaf75b475",
       "final_sha256": "1bf7603398d379e386f6c3531bc279057dc03fd63e8bff14347db0fbaf75b475",
       "unchanged": true
     },
     {
-      "path": "/Users/meilingluo/Developer/Projects/mindweave/prototypes/livemarkdown-chat/src/LiveMarkdownSpike/Program.cs",
+      "path": "prototypes/livemarkdown-chat/src/LiveMarkdownSpike/Program.cs",
       "baseline_sha256": "4a993255ebfea06350375218160b3a4d708c723176bbff29f3a8322c51de7378",
       "final_sha256": "4a993255ebfea06350375218160b3a4d708c723176bbff29f3a8322c51de7378",
       "unchanged": true
     },
     {
-      "path": "/Users/meilingluo/Developer/Projects/mindweave/prototypes/livemarkdown-chat/src/LiveMarkdownSpike/Samples.cs",
+      "path": "prototypes/livemarkdown-chat/src/LiveMarkdownSpike/Samples.cs",
       "baseline_sha256": "1bfc124cce17b8e41484fc9d85df5b617af1a859cddb31dcb32d914a5af4d850",
       "final_sha256": "1bfc124cce17b8e41484fc9d85df5b617af1a859cddb31dcb32d914a5af4d850",
       "unchanged": true
     },
     {
-      "path": "/Users/meilingluo/Developer/Projects/mindweave/prototypes/livemarkdown-chat/src/LiveMarkdownSpike/SelectionAnchor.cs",
+      "path": "prototypes/livemarkdown-chat/src/LiveMarkdownSpike/SelectionAnchor.cs",
       "baseline_sha256": "6ea444186f5d6f17eddbe4ce0e3427a786f72a17d68c7108bc60a7342733b7bd",
       "final_sha256": "6ea444186f5d6f17eddbe4ce0e3427a786f72a17d68c7108bc60a7342733b7bd",
       "unchanged": true
     },
     {
-      "path": "/Users/meilingluo/Developer/Projects/mindweave/prototypes/livemarkdown-chat/src/LiveMarkdownSpike/SpikeWindow.cs",
+      "path": "prototypes/livemarkdown-chat/src/LiveMarkdownSpike/SpikeWindow.cs",
       "baseline_sha256": "779b194d77531fea8d8ac8c5cb85475ee8a55ecfe741e722b0bb87946504ad0d",
       "final_sha256": "779b194d77531fea8d8ac8c5cb85475ee8a55ecfe741e722b0bb87946504ad0d",
       "unchanged": true
     },
     {
-      "path": "/Users/meilingluo/Developer/Projects/mindweave/prototypes/livemarkdown-chat/tests/LiveMarkdownSpike.Tests/AnchorTests.cs",
+      "path": "prototypes/livemarkdown-chat/tests/LiveMarkdownSpike.Tests/AnchorTests.cs",
       "baseline_sha256": "ad9a662ed493f202756171e81401e3f52c0fffbf8594153c299efe2e38279713",
       "final_sha256": "ad9a662ed493f202756171e81401e3f52c0fffbf8594153c299efe2e38279713",
       "unchanged": true
     },
     {
-      "path": "/Users/meilingluo/Developer/Projects/mindweave/prototypes/livemarkdown-chat/tests/LiveMarkdownSpike.Tests/LiveMarkdownSpike.Tests.csproj",
+      "path": "prototypes/livemarkdown-chat/tests/LiveMarkdownSpike.Tests/LiveMarkdownSpike.Tests.csproj",
       "baseline_sha256": "fd90243b6f8b23cdb98cdd2af6cec0fd2b9f200d72d434e8039fa33432a1dd81",
       "final_sha256": "fd90243b6f8b23cdb98cdd2af6cec0fd2b9f200d72d434e8039fa33432a1dd81",
       "unchanged": true
     },
     {
-      "path": "/Users/meilingluo/Developer/Projects/mindweave/prototypes/livemarkdown-chat/tests/LiveMarkdownSpike.Tests/StreamingAndFileTests.cs",
+      "path": "prototypes/livemarkdown-chat/tests/LiveMarkdownSpike.Tests/StreamingAndFileTests.cs",
       "baseline_sha256": "05cef75f3cc347cf00556105384f119330089915775b3b13121b78920f169d51",
       "final_sha256": "05cef75f3cc347cf00556105384f119330089915775b3b13121b78920f169d51",
       "unchanged": true
@@ -315,7 +315,7 @@
     }
   ],
   "external_course_source": {
-    "path": "/Users/meilingluo/School/Courses/2026-Fall/全栈开发技术/Worklog/docs/期末项目与报告要求.docx",
+    "path": "~/School/Courses/2026-Fall/全栈开发技术/Worklog/docs/期末项目与报告要求.docx",
     "baseline_sha256": "0682dae8d95f77aab6627b82f9258219d437fe1a934b05932577f3d7da06c094",
     "final_sha256": "0682dae8d95f77aab6627b82f9258219d437fe1a934b05932577f3d7da06c094",
     "unchanged": true

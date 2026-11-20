@@ -71,7 +71,7 @@ It remains a genuine zero-click outbound channel in a local-first app, accepts p
 
 Re-ran the auditor's existing prebuilt probe; no rebuild, loopback listener only, nothing written to the worktree.
 
-Command: dotnet bin/Release/net10.0/probe.dll (run from /private/tmp/claude-501/-Users-meilingluo-Developer-Projects-mindweave-worktrees-claude-auto/741bda69-6233-404f-b4a0-8bc89d0ed5bc/scratchpad/sec-img-probe)
+Command: dotnet bin/Release/net10.0/probe.dll (run from /private/tmp/claude-501/-Users-USER-Developer-Projects-mindweave-worktrees-claude-auto/741bda69-6233-404f-b4a0-8bc89d0ed5bc/scratchpad/sec-img-probe)
 
 The probe builds a default MarkdownRenderer with LinkClick handled, the same math pipeline setup as MarkdownSetup, and renders once via MarkdownDocumentUpdate.Full and once via ObservableStringBuilder.
 

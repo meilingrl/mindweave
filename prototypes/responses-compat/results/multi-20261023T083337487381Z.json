@@ -1,8 +1,8 @@
 {
   "started_utc": "2026-10-23T08:33:37.486920+00:00",
   "base_urls": {
-    "gpt": "https://api.pinaic.com/v1",
-    "claude": "https://api.pinaic.com/v1",
+    "gpt": "https://relay.example.com/v1",
+    "claude": "https://relay.example.com/v1",
     "deepseek": "https://api.deepseek.com"
   },
   "script_hashes": {
@@ -62,7 +62,7 @@
   },
   "results": [
     {
-      "base_url": "https://api.pinaic.com/v1",
+      "base_url": "https://relay.example.com/v1",
       "model": "gpt-6.1-sol",
       "protocol": "chat",
       "stream": false,
@@ -76,7 +76,7 @@
       "family": "gpt"
     },
     {
-      "base_url": "https://api.pinaic.com/v1",
+      "base_url": "https://relay.example.com/v1",
       "model": "gpt-6.1-sol",
       "protocol": "chat",
       "stream": true,
@@ -91,7 +91,7 @@
       "family": "gpt"
     },
     {
-      "base_url": "https://api.pinaic.com/v1",
+      "base_url": "https://relay.example.com/v1",
       "model": "claude-sonnet-4-6",
       "protocol": "messages",
       "stream": false,
@@ -101,7 +101,7 @@
       "family": "claude"
     },
     {
-      "base_url": "https://api.pinaic.com/v1",
+      "base_url": "https://relay.example.com/v1",
       "model": "claude-sonnet-4-6",
       "protocol": "chat",
       "stream": false,

@@ -78,7 +78,7 @@ $ find out -type f | sed 's/.*\.//' | sort | uniq -c
    2 exe
 Third-party binaries present in out/: Avalonia.Fonts.Inter.dll, Avalonia.HarfBuzz.dll, Avalonia.Skia.dll, HarfBuzzSharp.dll, LiveMarkdown.Avalonia.dll, LiveMarkdown.Avalonia.Math.dll, Markdig.dll, Microsoft.Data.Sqlite.dll, Onigwrap.dll, RaTeX.dll, RaTeX.Avalonia.dll, SQLitePCLRaw.{batteries_v2,core,provider.e_sqlite3}.dll, SkiaSharp.dll, TextMateSharp(.Grammars).dll, av_libglesv2.dll, e_sqlite3.dll, libHarfBuzzSharp.dll, libSkiaSharp.dll, libonigwrap.dll, ratex_ffi.dll.
 
-Cleanup: scratch export and tarball deleted; worktree /Users/meilingluo/Developer/Projects/mindweave/.claude/worktrees/wf_5c3b45e2-023-71 untouched (git status clean, nothing committed).
+Cleanup: scratch export and tarball deleted; worktree ~/Developer/Projects/mindweave/.claude/worktrees/wf_5c3b45e2-023-71 untouched (git status clean, nothing committed).
 
 </details>
 

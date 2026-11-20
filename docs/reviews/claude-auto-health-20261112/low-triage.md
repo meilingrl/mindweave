@@ -120,7 +120,7 @@
 | security-2 | No remove-key action; orphaned OS-store keys | New feature + store enumeration. | security | 待决定 |
 | dependencies-2 | No lock file / source mapping | Restore policy. | security | 待决定 |
 | dependencies-3 | Self-contained build bundles publisher's runtime patch | Release pipeline deferred. | security | 待决定 |
-| repo-scripts-9 | Personal paths/email committed | History rewrite is owner's decision before going public. | security | 待决定 |
+| repo-scripts-9 | Personal paths/email committed | History rewrite is owner's decision before going public. | security | 已修 ed4b68a（现有文件）；历史不改写（D-025） |
 | errors-9 | Exit-save failure offers only retry/return | "Quit anyway" changes architecture §12.3. | UX | 待决定 |
 | observability-7 | No diagnostics surface | D2 deferral. | UX | 待决定 |
 | gap-lifecycle-4 | SummaryDrafts not told of deleted node | Cross-service delete signal. | UX | 已解决 2026-11-15（0097623、8585c98）：没有另加删除通知，改为写入或退出保存时发现总结已删除就丢弃它的草稿，效果相同。 |

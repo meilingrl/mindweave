@@ -9,7 +9,7 @@ It is not an A because of a mutation-style check on 12 invariants: 4 survive out
 - There is no coverage measurement and no per-test timeout.
 - CI does not run macOS by default, although it is a shipping platform.
 
-The partial baseline at /private/tmp/claude-501/-Users-meilingluo-Developer-Projects-mindweave-worktrees-claude-auto/741bda69-6233-404f-b4a0-8bc89d0ed5bc/scratchpad/test.txt shows only the Desktop project: 381 passed, 58 skipped, 0 failed, in 1 m 56 s under concurrent load.
+The partial baseline at /private/tmp/claude-501/-Users-USER-Developer-Projects-mindweave-worktrees-claude-auto/741bda69-6233-404f-b4a0-8bc89d0ed5bc/scratchpad/test.txt shows only the Desktop project: 381 passed, 58 skipped, 0 failed, in 1 m 56 s under concurrent load.
 
 **Strengths**
 

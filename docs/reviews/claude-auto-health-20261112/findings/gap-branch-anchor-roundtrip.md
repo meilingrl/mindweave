@@ -24,7 +24,7 @@ It is not an A because of one verified silent corruption of the stored quote (th
 - Measured UI-thread timings for selection handling on 100k-character answers; the cost assessment is from reading the code, not from a benchmark.
 - ConversationMarksService (unread marks) was read in full but not probed; BranchMarksTests, SourceHighlightThemeTests and BranchFlowTests were not read line by line.
 - Context assembly beyond the quote prefix (planner, compression) and the reading-position store.
-- Probe files are in /private/tmp/claude-501/-Users-meilingluo-Developer-Projects-mindweave-worktrees-claude-auto/741bda69-6233-404f-b4a0-8bc89d0ed5bc/scratchpad/anchor-probe (tests/Mindweave.Desktop.Tests/AnchorProbe.cs, AnchorProbe2.cs; output probe.txt and probe.txt.2).
+- Probe files are in /private/tmp/claude-501/-Users-USER-Developer-Projects-mindweave-worktrees-claude-auto/741bda69-6233-404f-b4a0-8bc89d0ed5bc/scratchpad/anchor-probe (tests/Mindweave.Desktop.Tests/AnchorProbe.cs, AnchorProbe2.cs; output probe.txt and probe.txt.2).
 
 ### gap-branch-anchor-roundtrip-1. Branch quote substitutes the wrong text for a formula when the paragraph has any other '$' or embedded object
 
@@ -58,7 +58,7 @@ It is not an A because of one verified silent corruption of the stored quote (th
 
 <details><summary>Reproduction</summary>
 
-Not re-run (read-only audit; no builds in the worktree). Existing probe output read from /private/tmp/claude-501/-Users-meilingluo-Developer-Projects-mindweave-worktrees-claude-auto/741bda69-6233-404f-b4a0-8bc89d0ed5bc/scratchpad/anchor-probe/probe.txt and /private/tmp/claude-501/-Users-meilingluo-Developer-Projects-mindweave-worktrees-claude-auto/741bda69-6233-404f-b4a0-8bc89d0ed5bc/scratchpad/anchor-probe/probe.txt.2; key lines quoted in evidence.
+Not re-run (read-only audit; no builds in the worktree). Existing probe output read from /private/tmp/claude-501/-Users-USER-Developer-Projects-mindweave-worktrees-claude-auto/741bda69-6233-404f-b4a0-8bc89d0ed5bc/scratchpad/anchor-probe/probe.txt and /private/tmp/claude-501/-Users-USER-Developer-Projects-mindweave-worktrees-claude-auto/741bda69-6233-404f-b4a0-8bc89d0ed5bc/scratchpad/anchor-probe/probe.txt.2; key lines quoted in evidence.
 
 </details>
 

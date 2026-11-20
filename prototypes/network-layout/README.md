@@ -5,7 +5,7 @@
 ## 运行
 
 ```sh
-cd /Users/meilingluo/Developer/Projects/mindweave/prototypes/network-layout
+cd prototypes/network-layout
 dotnet run -c Release
 ```
 

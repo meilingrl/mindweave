@@ -13,7 +13,7 @@ from datetime import datetime, timezone
 import urllib.error
 import urllib.request
 
-URL = 'https://api.pinaic.com/v1/responses'
+URL = 'https://relay.example.com/v1/responses'
 MODEL = 'gpt-6.1-sol'
 
 class NoRedirect(urllib.request.HTTPRedirectHandler):

@@ -15,9 +15,9 @@ Joint review by Claude and Codex of the `track/claude-auto` implementation. It c
 | Track branch | `track/claude-auto` |
 | Reviewed commit | `684314393c81a2eff2026f21c221a0371b8de9a7` (`6843143`, "Track: S7 round 2 merged; awaiting before/after approval") |
 | Commits since the first review's baseline | None. On 2026-11-01 the branch head was still the baseline, so every finding applies to this commit unchanged |
-| Documentation worktree | `/Users/meilingluo/Developer/Projects/mindweave.worktrees/claude-auto-arch-review`, branch `track/claude-auto-arch-review`, cut from the reviewed commit. Its changes are uncommitted, as instructed |
-| Course source | `/Users/meilingluo/School/Courses/2026-Fall/全栈开发技术/Worklog/docs/期末项目与报告要求.docx` (read as text) |
-| DailyPoetryA reference | `/Users/meilingluo/School/Courses/2026-Fall/全栈开发技术/course/daily-poetry-a` (git `9479829`); the copy under `对比/daily-poetry-a` matches it apart from a GitKraken config file |
+| Documentation worktree | `~/Developer/Projects/mindweave.worktrees/claude-auto-arch-review`, branch `track/claude-auto-arch-review`, cut from the reviewed commit. Its changes are uncommitted, as instructed |
+| Course source | `~/School/Courses/2026-Fall/全栈开发技术/Worklog/docs/期末项目与报告要求.docx` (read as text) |
+| DailyPoetryA reference | `~/School/Courses/2026-Fall/全栈开发技术/course/daily-poetry-a` (git `9479829`); the copy under `对比/daily-poetry-a` matches it apart from a GitKraken config file |
 
 ## Documents
 
