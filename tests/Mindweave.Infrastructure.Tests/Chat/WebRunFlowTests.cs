@@ -424,9 +424,19 @@ public class WebRunFlowTests
         Assert.NotEqual(Key, reference);
         Assert.DoesNotContain(Key, JsonSerializer.Serialize(answer.Blocks.Select(b => b.ToString())), StringComparison.Ordinal);
         Assert.DoesNotContain(h.Client.Requests, r => r.Turns.Any(t => t.Content.Contains(Key, StringComparison.Ordinal)));
-        foreach (var file in Directory.EnumerateFiles(h.DataDirectory, "*", SearchOption.AllDirectories))
+        // The -shm file is SQLite's WAL index (page numbers and checksums, never row content), and SQLite's locks on it
+        // refuse a read on macOS; the database and its -wal hold everything written.
+        foreach (var file in Directory.EnumerateFiles(h.DataDirectory, "*", SearchOption.AllDirectories)
+            .Where(f => !f.EndsWith("-shm", StringComparison.Ordinal)))
         {
-            var bytes = await File.ReadAllBytesAsync(file, Ct);
+            // The database is still open: Windows only lets it be read when the read shares it.
+            using var copy = new MemoryStream();
+            await using (var stream = new FileStream(file, FileMode.Open, FileAccess.Read, FileShare.ReadWrite | FileShare.Delete))
+            {
+                await stream.CopyToAsync(copy, Ct);
+            }
+
+            var bytes = copy.ToArray();
             Assert.False(bytes.AsSpan().IndexOf(Encoding.UTF8.GetBytes(Key)) >= 0, file);
         }
 

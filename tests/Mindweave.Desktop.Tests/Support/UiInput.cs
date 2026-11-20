@@ -75,11 +75,11 @@ internal static class UiInput
     /// one. Two presses there within that time count as a double click, which selects a whole word (in CJK text, the
     /// whole run) and anchors a drag at its start.
     /// </summary>
-    public static Task PastDoubleClickAsync()
-    {
-        var time = Avalonia.Application.Current?.PlatformSettings?.GetDoubleTapTime(PointerType.Mouse) ?? TimeSpan.FromMilliseconds(500);
-        return Task.Delay(time + TimeSpan.FromMilliseconds(50));
-    }
+    public static Task PastDoubleClickAsync() => Task.Delay(DoubleClickTime + TimeSpan.FromMilliseconds(50));
+
+    /// <summary>The platform's double-click time: two presses at one point within it make a double click.</summary>
+    public static TimeSpan DoubleClickTime =>
+        Avalonia.Application.Current?.PlatformSettings?.GetDoubleTapTime(PointerType.Mouse) ?? TimeSpan.FromMilliseconds(500);
 
     /// <summary>What the headless press does before it delivers the input: run queued jobs and render, a few rounds.</summary>
     private static void Settle()

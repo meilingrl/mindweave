@@ -40,24 +40,30 @@ public class SdkMcpConnectorTests
         var connector = new SdkMcpConnector(dir.Paths);
         var draft = FakeMcp.Command();
 
-        await using var connection = await connector.ConnectAsync(Launch(draft), Ct);
-        var tools = await connection.ListToolsAsync(Ct);
-
-        Assert.Contains(tools, t => t.Name == "echo" && t.ReadOnlyHint == true && t.Description == "原样返回 text。");
-        Assert.Contains(tools, t => t.Name == "write_note" && t.ReadOnlyHint is null);
-        Assert.Contains("\"text\"", tools.Single(t => t.Name == "echo").InputSchema, StringComparison.Ordinal);
-
-        var echo = await connection.CallToolAsync("echo", Args(new { text = "你好" }), Ct);
-        Assert.False(echo.IsError);
-        Assert.Equal("echo: 你好", Assert.IsType<McpContent.Text>(Assert.Single(echo.Content)).Value);
-
-        var cwd = await connection.CallToolAsync("cwd", Args(new { }), Ct);
         var folder = connector.WorkingDirectoryOf(draft.Id);
-        Assert.EndsWith(Path.Combine("mcp", draft.Id), ((McpContent.Text)cwd.Content[0]).Value.TrimEnd(Path.DirectorySeparatorChar), StringComparison.Ordinal);
-        Assert.StartsWith(Path.Combine(dir.Paths.DataDirectory, "mcp"), folder, StringComparison.Ordinal);
+        await using (var connection = await connector.ConnectAsync(Launch(draft), Ct))
+        {
+            var tools = await connection.ListToolsAsync(Ct);
 
-        connector.DeleteWorkingDirectory(draft.Id);
-        Assert.False(Directory.Exists(folder));
+            Assert.Contains(tools, t => t.Name == "echo" && t.ReadOnlyHint == true && t.Description == "原样返回 text。");
+            Assert.Contains(tools, t => t.Name == "write_note" && t.ReadOnlyHint is null);
+            Assert.Contains("\"text\"", tools.Single(t => t.Name == "echo").InputSchema, StringComparison.Ordinal);
+
+            var echo = await connection.CallToolAsync("echo", Args(new { text = "你好" }), Ct);
+            Assert.False(echo.IsError);
+            Assert.Equal("echo: 你好", Assert.IsType<McpContent.Text>(Assert.Single(echo.Content)).Value);
+
+            var cwd = await connection.CallToolAsync("cwd", Args(new { }), Ct);
+            Assert.EndsWith(Path.Combine("mcp", draft.Id), ((McpContent.Text)cwd.Content[0]).Value.TrimEnd(Path.DirectorySeparatorChar), StringComparison.Ordinal);
+            Assert.StartsWith(Path.Combine(dir.Paths.DataDirectory, "mcp"), folder, StringComparison.Ordinal);
+        }
+
+        // Windows keeps a running process's working folder in use, so the folder goes once the server has exited.
+        await Chat.ChatHarness.UntilAsync(() =>
+        {
+            connector.DeleteWorkingDirectory(draft.Id);
+            return !Directory.Exists(folder);
+        }, 10_000);
     }
 
     [Fact]

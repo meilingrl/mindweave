@@ -54,8 +54,10 @@ public partial class ConversationActionsTests
     [AvaloniaFact]
     public async Task Selecting_text_floats_the_branch_action_next_to_it_and_clearing_the_selection_hides_it()
     {
+        // A shorter window than usual, so the page can scroll the selection out of view: with Windows' CJK fallback font the
+        // answer is shorter, and at 700 the page could scroll only to 4 px short of that.
         await using var app = DesktopHarness.Create();
-        var window = app.ShowWindow();
+        var window = app.ShowWindow(1000, 600);
         var page = await ConversationAsync(app, window);
         await AskAgainAsync(app, window, page, Answer);
         var answer = Answers(window)[0];
@@ -79,7 +81,8 @@ public partial class ConversationActionsTests
         var line = SourceAnchors.SelectionRects(answer.Renderer, scroller)[0];
         scroller.Offset = new Vector(0, scroller.Offset.Y + line.Bottom + 50);
         window.UpdateLayout();
-        Assert.True(SourceAnchors.SelectionRects(answer.Renderer, scroller)[^1].Bottom < 0);
+        var after = SourceAnchors.SelectionRects(answer.Renderer, scroller);
+        Assert.True(after[^1].Bottom < 0, $"line {line}, after {after[^1]}, rects {after.Count}, offset {scroller.Offset}, extent {scroller.Extent}, viewport {scroller.Viewport}");
         Assert.False(actions.IsEffectivelyVisible);
         Assert.True(SourceAnchors.HasSelection(answer.Renderer));
         scroller.Offset = kept;

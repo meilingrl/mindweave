@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using Avalonia.Automation;
 using Avalonia.Controls;
 using Avalonia.Headless;
@@ -213,15 +214,31 @@ public class SummaryLinksUiTests
 
         // A double click whose second press comes once the link is made: it stays one pick; the summary is not opened and
         // the new link's note editor stays open.
-        network.BeginLinkCommand.Execute(null);
-        await UiInput.PastDoubleClickAsync();
-        window.UpdateLayout();
-        var origin = PointIn(window, canvas, default);
-        var leafAt = PointIn(window, canvas, canvas.PaintNodes().Single(n => n.Node.Id == leaf).Center);
-        Press(window, leafAt);
-        await UiWait.UntilAsync(() => !network.IsPicking && network.Links!.Items.Any(i => i.IsEditing));
-        await SettledAsync(network);
-        window.UpdateLayout();
+        // The second press must come within the double-click time. A slow machine (a CI runner) can take longer to write the
+        // link, and then the second press is rightly a click of its own; such an attempt is undone and made again.
+        Avalonia.Point origin, leafAt;
+        for (var attempt = 1; ; attempt++)
+        {
+            network.BeginLinkCommand.Execute(null);
+            await UiInput.PastDoubleClickAsync();
+            window.UpdateLayout();
+            origin = PointIn(window, canvas, default);
+            leafAt = PointIn(window, canvas, canvas.PaintNodes().Single(n => n.Node.Id == leaf).Center);
+            var sinceFirstPress = Stopwatch.StartNew();
+            Press(window, leafAt);
+            await UiWait.UntilAsync(() => !network.IsPicking && network.Links!.Items.Any(i => i.IsEditing));
+            await SettledAsync(network);
+            window.UpdateLayout();
+            if (sinceFirstPress.Elapsed < UiInput.DoubleClickTime - TimeSpan.FromMilliseconds(100))
+            {
+                break;
+            }
+
+            Assert.True(attempt < 5, "Writing a link never took less than the double-click time.");
+            network.Links!.Items.Single(i => i.IsEditing).CancelEditCommand.Execute(null);
+            await links.DeleteAsync(network.Links.Items.Single().Id, CancellationToken.None);
+            await UiWait.UntilAsync(() => network.Links.Items.Count == 0 && network.LinkEdges.Count == 0);
+        }
 
         // The canvas did not move under the pointer: the hint lies over it, and the toolbar's 隐藏关联 came with 关联到….
         Assert.Equal(origin, PointIn(window, canvas, default));
