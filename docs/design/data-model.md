@@ -1,38 +1,38 @@
-# 数据关系梳理
+# Data relationships
 
-依据架构 §4.1、§4.2。按开发路线，只先确定会影响后续表结构的身份与边界，具体字段随所在阶段的迁移落表；不提前冻结全部字段与索引。
+Based on architecture §4.1 and §4.2. Following the development route, only the identities and boundaries that affect later table structure are settled first; specific fields become tables in the migration of the stage that needs them. Not all fields and indexes are frozen in advance.
 
-## 稳定身份
+## Stable identity
 
-- 所有实体主键为 UUIDv7（时间有序），库中存小写连字符文本。可读、跨表一致，插入局部性优于随机 UUID。
-- 来源、祖先范围、任务输入只引用稳定 ID，不引用会话内序号或屏幕位置。会话内顺序另用 `(conversation_id, seq)` 唯一约束保证。
-- 时间统一存 UTC Unix 毫秒整数。
+- Every entity's primary key is a UUIDv7 (time-ordered), stored in the database as lowercase hyphenated text. It is readable and consistent across tables, and its insert locality is better than random UUIDs.
+- Branch sources, ancestor ranges and task inputs reference only stable IDs, never sequence numbers within a conversation or screen positions. Order within a conversation is guaranteed separately by a `(conversation_id, seq)` unique constraint.
+- All times are stored as UTC Unix milliseconds, as integers.
 
-## 来源依赖与祖先冻结范围
+## Branch source dependencies and frozen ancestor ranges
 
-- `branch_source`：子会话唯一（主键即子会话 ID），外键指向父会话与来源消息；来源消息必须属于父会话且已终态——外键无法表达，由创建分支事务内检查。
-- `branch_context_range`：一行一个祖先会话，记录允许使用的消息范围上界（按 `seq`）。创建 C 时复制 B 的全部行再加 B 自身的一行，因此后续祖先追加不改变背景，且查询无需递归。
-- 引用只能指向祖先链（§4.2 不变量），因此“无子会话”即“无他人引用本会话消息”，删除检查只看本会话自身关系。
+- `branch_source`: one per child conversation (the primary key is the child conversation's ID), with foreign keys to the parent conversation and the source message. The source message must belong to the parent conversation and be in a final state. A foreign key cannot express this, so it is checked inside the transaction that creates the branch.
+- `branch_context_range`: one row per ancestor conversation, recording the upper bound (by `seq`) of the message range that may be used. When C is created, all of B's rows are copied and a row for B itself is added. So later appends to an ancestor do not change the background, and queries need no recursion.
+- References may only point along the ancestor chain (the §4.2 invariant). So "has no child conversation" means "no one else references this conversation's messages", and the deletion check only looks at this conversation's own relationships.
 
-## 版本归属
+## Version ownership
 
-- 回答重试／重新生成：新消息记录 `supersedes_message_id`，仅限会话最后一条回答；上下文按“每个提问取最新尝试”。
-- 总结：`summary_node` 以来源会话唯一，持有 `current_version_id`／`pending_version_id`；版本行属于节点。删除最后版本即删除节点（再次总结为新节点）。
-- 上下文摘要归属被覆盖消息所在会话，不归属请求方。
+- Answer retry/regenerate: the new message records `supersedes_message_id`, only for the last answer in the conversation; the context takes "the latest attempt for each question".
+- Summaries: `summary_node` is unique per source conversation and holds `current_version_id`/`pending_version_id`; version rows belong to the node. Deleting the last version deletes the node (summarizing again creates a new node).
+- A context summary belongs to the conversation of the messages it covers, not to the requester.
 
-## 事务边界（各阶段实现时逐条加测试）
+## Transaction boundaries (tests are added one by one as each stage implements them)
 
-| 事务 | 阶段 |
+| Transaction | Stage |
 | --- | --- |
-| 迁移：结构变化＋数据转换＋`user_version` 一起提交，外键检查失败回滚 | S0 |
-| 新建工作区；记录最后页面 | S0 |
-| 发送：用户消息＋回答占位＋生成任务 | S1 |
-| 消息终态（正文、状态、修订号） | S1 |
-| 创建分支：子会话＋来源＋祖先范围 | S2 |
-| 版本采用／丢弃／设为当前／删除；节点随最后版本删除且同删布局 | S4 |
-| 无依赖会话删除；归档与恢复 | S6 |
-| 布局保存（修订号防回退） | S5 |
+| Migration: structure change + data conversion + `user_version` commit together; roll back if the foreign key check fails | S0 |
+| Create a workspace; record the last page | S0 |
+| Send: user message + answer placeholder + generation task | S1 |
+| Message final state (text, status, revision number) | S1 |
+| Create a branch: child conversation + branch source + ancestor ranges | S2 |
+| Adopt/discard/set as current/delete a version; the node is deleted with its last version, and its layout with it | S4 |
+| Delete a conversation with no dependents; archive and restore | S6 |
+| Save layout (revision number prevents rollback) | S5 |
 
-## 删除边界
+## Deletion boundaries
 
-消息不单独删除；会话删除只在无子会话、无总结节点、无用户任务时允许，其余从属行同事务删除。外键在写连接上始终开启，`ON DELETE` 只用于纯从属行（阅读位置、草稿、布局），跨实体引用一律 `RESTRICT`，让遗漏的检查在数据库层失败而不是悄悄级联。
+Messages are never deleted on their own. Deleting a conversation is allowed only when it has no child conversations, no summary node and no user task; its other dependent rows are deleted in the same transaction. Foreign keys are always on for the write connection. `ON DELETE` is used only for purely dependent rows (reading position, drafts, layout); references across entities are always `RESTRICT`, so a missed check fails at the database layer instead of silently cascading.

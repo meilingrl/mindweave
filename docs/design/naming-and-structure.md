@@ -4,7 +4,7 @@
 
 Rules over checks: short rules that agents load every session, plus one fix to an existing test.
 Status (2026-11-15): the code changes in C are done on `track/claude-auto`. A and B are adopted on `main` (79d46cb):
-the binding wording is `AGENTS.md` "命名与结构" and `docs/architecture.md` §2.3. Two glossary rows were corrected
+the binding wording is `AGENTS.md` "Naming and structure" and `docs/architecture.md` §2.3. Two glossary rows were corrected
 against requirements §4 there (上下文摘要, 模型配置). The rules govern new code; the steady track keeps `Network` until
 it decides otherwise. The A and B text below is the original proposal, kept for reference.
 
