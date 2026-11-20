@@ -2,8 +2,6 @@ using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Layout;
 using Avalonia.Media;
-using Avalonia.Threading;
-using Avalonia.VisualTree;
 
 namespace Mindweave.Desktop.Views;
 
@@ -29,11 +27,7 @@ public sealed class ActivitySpinner : Control
     private const double SweepDegrees = 100;
 
     private readonly RotateTransform _rotation = new();
-    private readonly List<IDisposable> _visibilityWatches = [];
-    private TopLevel? _topLevel;
-    private Window? _window;
-    private Rect? _viewport;
-    private bool _framePending;
+    private readonly InSightFrames _frames;
 
     static ActivitySpinner()
     {
@@ -45,6 +39,7 @@ public sealed class ActivitySpinner : Control
         RenderTransform = _rotation;
         RenderTransformOrigin = RelativePoint.Center;
         IsHitTestVisible = false;
+        _frames = new InSightFrames(this, () => Animates, OnFrame);
     }
 
     /// <summary>Off in tests and screenshots, so every frame shows the arc at the same angle.</summary>
@@ -66,14 +61,10 @@ public sealed class ActivitySpinner : Control
     /// In a window that is not minimised, effectively visible and at least partly inside the viewport its scrolling
     /// ancestors leave it: the spinner turns now (when <see cref="Animates"/> is on).
     /// </summary>
-    public bool IsTurning =>
-        _topLevel is not null && IsEffectivelyVisible && IsInViewport && _window?.WindowState != WindowState.Minimized;
+    public bool IsTurning => _frames.IsInSight;
 
     /// <summary>Animation frames delivered to this spinner, turning or not; tests check that none arrive while it is out of sight.</summary>
-    internal int FramesReceived { get; private set; }
-
-    /// <summary>Not yet told otherwise, or some of it lies inside the effective viewport.</summary>
-    private bool IsInViewport => _viewport is not { } viewport || viewport.Intersects(new Rect(Bounds.Size));
+    internal int FramesReceived => _frames.Received;
 
     /// <summary>The current rotation in degrees.</summary>
     public double Angle => _rotation.Angle;
@@ -113,91 +104,23 @@ public sealed class ActivitySpinner : Control
     protected override void OnAttachedToVisualTree(VisualTreeAttachmentEventArgs e)
     {
         base.OnAttachedToVisualTree(e);
-        _topLevel = TopLevel.GetTopLevel(this);
-
-        // Effective visibility changes when this or any ancestor is shown or hidden (the sidebar collapsing, the row's
-        // marker changing): each of them is watched while attached, so frames resume as soon as it shows again.
-        foreach (var visual in this.GetSelfAndVisualAncestors())
-        {
-            _visibilityWatches.Add(visual.GetPropertyChangedObservable(IsVisibleProperty).Subscribe(new Watch(this)));
-        }
-
-        // Scrolled out of the sidebar's viewport, or the window minimised: out of sight as well.
-        EffectiveViewportChanged += OnEffectiveViewportChanged;
-        _window = _topLevel as Window;
-        if (_window is not null)
-        {
-            _visibilityWatches.Add(_window.GetPropertyChangedObservable(Window.WindowStateProperty).Subscribe(new Watch(this)));
-        }
-
-        RequestFrame();
+        _frames.Attached();
     }
 
     protected override void OnDetachedFromVisualTree(VisualTreeAttachmentEventArgs e)
     {
-        foreach (var watch in _visibilityWatches)
-        {
-            watch.Dispose();
-        }
-
-        _visibilityWatches.Clear();
-        EffectiveViewportChanged -= OnEffectiveViewportChanged;
-        _viewport = null;
-        _window = null;
-        _topLevel = null;
+        _frames.Detached();
         base.OnDetachedFromVisualTree(e);
     }
 
     protected override void OnSizeChanged(SizeChangedEventArgs e)
     {
         base.OnSizeChanged(e);
-        RequestFrame();
+        _frames.Request();
     }
 
-    private void OnEffectiveViewportChanged(object? sender, EffectiveViewportChangedEventArgs e)
-    {
-        _viewport = e.EffectiveViewport;
-        RequestFrame();
-    }
-
-    private void RequestFrame()
-    {
-        if (_framePending || !Animates || !IsTurning)
-        {
-            return;
-        }
-
-        _framePending = true;
-        _topLevel!.RequestAnimationFrame(OnFrame);
-    }
-
-    private void OnFrame(TimeSpan time)
-    {
-        _framePending = false;
-        FramesReceived++;
-        if (!Animates || !IsTurning)
-        {
-            // Hidden or gone: no further frames until it is shown again.
-            return;
-        }
-
+    private void OnFrame(TimeSpan time) =>
         _rotation.Angle = time.TotalMilliseconds % Period.TotalMilliseconds / Period.TotalMilliseconds * 360;
-        RequestFrame();
-    }
-
-    private sealed class Watch(ActivitySpinner spinner) : IObserver<AvaloniaPropertyChangedEventArgs>
-    {
-        // Posted: effective visibility is worked out after the change is announced.
-        public void OnNext(AvaloniaPropertyChangedEventArgs value) => Dispatcher.UIThread.Post(spinner.RequestFrame);
-
-        public void OnCompleted()
-        {
-        }
-
-        public void OnError(Exception error)
-        {
-        }
-    }
 
     private static Point Polar(Point center, double radius, double degrees)
     {

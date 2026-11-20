@@ -88,14 +88,17 @@ public class ContextUiTests
 
         await UiWait.UntilAsync(() => page.Messages.Count == 14 && page.Messages[^1].WaitingLabel == UiText.CompressingContext && WaitingCaption(window) == UiText.CompressingContext);
         Assert.True(page.Messages[^1].IsWaiting);
+        Assert.Equal(Views.WeavingMotion.Tightening, IndicatorMotion(window));
 
         app.Client.ContextSummaries.Gate.TrySetResult();
         await held.Started.Task.WaitAsync(TimeSpan.FromSeconds(5));
         await UiWait.UntilAsync(() => WaitingCaption(window) == UiText.ModelThinking);
+        Assert.Equal(Views.WeavingMotion.Joining, IndicatorMotion(window));
 
         held.Finish("回答");
         await UiWait.UntilAsync(() => page.Messages[^1].Body == "回答" && WaitingCaption(window) is null);
         await UiWait.StoredAsync(page, 13, MessageState.Complete);
+        Assert.Null(IndicatorMotion(window));
         window.Close();
     }
 
@@ -103,9 +106,19 @@ public class ContextUiTests
     private static string? WaitingCaption(Window window)
     {
         window.UpdateLayout();
-        return window.GetVisualDescendants().OfType<ProgressBar>()
-            .Where(b => b.Name == "WaitingBar" && b.IsEffectivelyVisible)
-            .Select(b => ((Panel)b.GetVisualParent()!).Children.OfType<Avalonia.Controls.TextBlock>().First().Text)
+        return window.GetVisualDescendants().OfType<StackPanel>()
+            .Where(p => p.Name == "WaitingText" && p.IsEffectivelyVisible)
+            .Select(p => p.Children.OfType<Avalonia.Controls.TextBlock>().First().Text)
+            .SingleOrDefault();
+    }
+
+    /// <summary>The weaving indicator's motion beside the answer being generated (docs/design/generating-indicator.md).</summary>
+    private static Views.WeavingMotion? IndicatorMotion(Window window)
+    {
+        window.UpdateLayout();
+        return window.GetVisualDescendants().OfType<Views.WeavingIndicator>()
+            .Where(i => i.Name == "GeneratingIndicator" && i.IsEffectivelyVisible)
+            .Select(i => (Views.WeavingMotion?)i.Motion)
             .SingleOrDefault();
     }
 
