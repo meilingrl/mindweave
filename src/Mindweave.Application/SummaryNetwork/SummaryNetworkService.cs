@@ -126,7 +126,7 @@ public sealed class SummaryNetworkService(ISummaryStore summaries, ISummaryNetwo
             {
                 nodes.Add(new SummaryNetworkNode(
                     entry.Node.Id, id, root, SummaryRules.ShortTitleOf(entry.Current.Title, entry.Current.ShortTitle),
-                    entry.Node.DisplayName, entry.Markers, entry.Node.CreatedAt, ancestors, archived,
+                    entry.Node.DisplayName, entry.Markers, item.Conversation.CreatedAt, ancestors, archived,
                     true, weights[id], item.FirstQuestion));
                 continue;
             }
@@ -140,11 +140,12 @@ public sealed class SummaryNetworkService(ISummaryStore summaries, ISummaryNetwo
 
         var edges = new List<SummaryNetworkEdge>();
         var idOf = nodes.ToDictionary(n => n.Conversation, n => n.Id);
-        foreach (var item in listed)
+        var parentOf = listed.ToDictionary(c => c.Conversation.Id, c => c.Parent);
+        foreach (var node in nodes)
         {
-            if (item.Parent is { } parent && idOf.TryGetValue(parent, out var from))
+            if (parentOf[node.Conversation] is { } parent && idOf.TryGetValue(parent, out var from))
             {
-                edges.Add(new SummaryNetworkEdge(from, idOf[item.Conversation.Id], []));
+                edges.Add(new SummaryNetworkEdge(from, node.Id, []));
             }
         }
 

@@ -62,7 +62,28 @@ public class SessionProjectionTests
         };
         Assert.Equal(4, projection.Edges.Count);
         Assert.True(expected.SetEquals(actual));
+
+        // Edges follow node order (created_at, then id): branch edges by child, then the thread by its later end.
+        var position = projection.Nodes.Select((n, i) => (n.Id, i)).ToDictionary(x => x.Id, x => x.i);
+        var branchTargets = projection.Edges.Where(e => e.Kind == SummaryNetworkEdgeKind.Branch).Select(e => position[e.To]).ToList();
+        Assert.Equal(branchTargets.Order().ToList(), branchTargets);
+        var threadTargets = projection.Edges.Where(e => e.Kind == SummaryNetworkEdgeKind.TimeThread).Select(e => position[e.To]).ToList();
+        Assert.Equal(threadTargets.Order().ToList(), threadTargets);
         Assert.All(projection.Edges, e => Assert.True(e.IsDirect));
+    }
+
+    [Fact]
+    public async Task A_summarized_node_carries_its_conversations_creation_time()
+    {
+        await using var h = await ChatHarness.StartAsync();
+        var root = await ConversationAsync(h, "火车是怎么发明的？");
+        await Task.Delay(20, Ct);
+        await h.SummarizeAsync(root);
+
+        var node = Assert.Single((await h.SummaryNetwork.ProjectSessionsAsync(h.Workspace, Ct)).Nodes);
+
+        Assert.True(node.HasSummary);
+        Assert.Equal((await h.Store.GetAsync(root, Ct))!.CreatedAt, node.CreatedAt);
     }
 
     [Fact]
