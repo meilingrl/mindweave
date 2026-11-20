@@ -1,197 +1,196 @@
-# Mindweave 演进方向与工程指引
+# Mindweave evolution directions and engineering guidance
 
-2026-10-26 记录。用户提出六个后续演进方向，经与 Claude 讨论后整理为本文，作为首版之后扩展的工程指引。2026-11-05 补入 D7 多处引用提问，2026-11-20 补入 D8 分享思考路径（初始愿景）。
+Recorded 2026-10-26. The user proposed six later evolution directions; after discussion with Claude they were organized into this document, as engineering guidance for extensions after the first release. D7, asking with multiple quotes, was added on 2026-11-05, and D8, sharing thinking paths (initial vision), on 2026-11-20.
 
-## 定位与效力
+## Standing and force
 
-- 本文是**方向性指引**，不是现行需求。首版范围、行为与验收仍以 [需求](requirements.md) v0.11 和 [架构](architecture.md) 为准，本文不修改二者。
-- 某方向转为正式需求时，须经用户决定后写入需求与架构；本文相应条目改为引用。
-- 各轨道是否采纳、采纳到什么程度，见文末“轨道采纳状态”。未采纳的轨道不受本文约束。
+- This document is **directional guidance**, not current requirements. The first-release scope, behavior and acceptance still follow [requirements](requirements.md) v0.11 and [architecture](architecture.md); this document does not change either of them.
+- When a direction becomes formal requirements, it must be written into requirements and architecture after the user decides; the matching entry here then changes to a reference.
+- Whether each track adopts this guidance, and how far, is in "Track adoption status" at the end. A track that has not adopted it is not bound by this document.
 
-## 1. 总体原则
+## 1. Overall principles
 
-**产品定位不变。** Mindweave 仍是以知识探索为中心的学习应用：分支、返回、总结与回顾是核心流程，工具与智能体能力服务于探索，不改变产品性质。
+**The product's positioning does not change.** Mindweave is still a learning application centered on knowledge exploration: branching, returning, summarizing and reviewing are the core flows. Tool and agent capabilities serve exploration and do not change the nature of the product.
 
-**以接缝控制扩展成本。** 范围失控的主要原因不是功能增加，而是新增功能落在没有预留边界的位置，迫使已有模型和流程被动改写。扩展应落在已知接缝上，使每次增加的成本可预估。现有架构已具备主要接缝：四工程依赖方向、生成协调与 View 解耦（§6）、连接／模型／协议适配器分离（§7.2）、知识内容与布局保存分离（§11）。
+**Control extension cost with seams.** The main cause of scope getting out of control is not adding features. It is new features landing where no boundary was reserved, which forces existing models and flows to be rewritten. Extensions should land on known seams, so that the cost of each addition can be estimated. The current architecture already has the main seams: the dependency direction of the four projects, generation coordination decoupled from the View (§6), separate adapters for connection, model and protocol (§7.2), and knowledge content saved separately from layout (§11).
 
-**先接缝，后功能。** 每个方向拆为两类工作：
+**Seams first, features after.** Each direction splits into two kinds of work:
 
-- **前置接缝（enabler）**：数据模型或边界上的小改动，用户不可见，早做成本低、晚做需要迁移和重写（见第 2 节）。
-- **功能（feature）**：建立在接缝之上，可以按价值任意排序，按主题版本交付。
+- **Enabling seams (enabler)**: small changes to the data model or to boundaries. The user does not see them. Done early they are cheap; done late they need migration and rewriting (see Section 2).
+- **Features (feature)**: built on top of the seams. They may be ordered freely by value and are delivered as themed versions.
 
-**架构规则可执行化。** 依赖方向、日志脱敏、性能预算等以自动化测试固定，防止接缝随功能累积而逐渐失效。
+**Make architecture rules executable.** Dependency direction, log redaction, performance budgets and the like are fixed by automated tests, so that the seams do not gradually stop working as features pile up.
 
-## 2. 前置接缝
+## 2. Enabling seams
 
-| 编号 | 接缝 | 内容 | 服务方向 | 不提前预留的代价 |
+| ID | Seam | Content | Serves | Cost of not reserving it early |
 | --- | --- | --- | --- | --- |
-| E1 | 视图槽位化的导航状态 | 当前位置、导航栈、阅读位置、草稿与返回来源归属于“视图槽位”（viewer slot）；工作台持有槽位集合，首版只有一个 | D1 | 阅读位置与返回来源按单视图实现后，并排阅读需重写导航与持久化 |
-| E2 | 分块消息内容 | 消息内容为有序内容块（文本、工具调用、工具结果、引用、表格／图表／图示等）；首版仅文本块。选区锚点以“块 + 块内位置”定位 | D3, D5 | 来源锚点、总结、导出与上下文组装都建立在单一正文字符串上，引入工具后需全面迁移 |
-| E3 | 请求追踪与源头脱敏 | 每次 AI 请求记录请求 ID、配置快照身份、时序、协议状态、截断并脱敏的错误摘要；密钥与用户内容以类型区分，日志层拒绝原样输出 | D2, D3, D4 | 兼容性与性能问题缺少可复现依据；事后文本过滤无法可靠防止泄漏 |
-| E4 | 模型能力描述 | 每个模型配置声明能力（流式、工具调用、图像输入、上下文容量、推理输出、提示缓存等）；功能按能力判断，不按供应商或模型名判断 | D3, D5 | 新协议与新功能散布供应商特判 |
-| E5 | 版本化交换格式 | 导入导出使用独立、带版本、有文档的格式（JSON 结构 + Markdown 正文），与 SQLite 表结构解耦 | D3 | 数据库结构每次变化都会破坏导出兼容性 |
-| E6 | 性能基线与架构测试 | 可重复生成的大规模测试数据（大量会话、深分支树、超长回答）及基准；依赖方向与脱敏规则的自动化测试 | D4，全部 | 性能问题只能凭感觉判断；接缝在迭代中被无意绕过 |
+| E1 | Navigation state held per viewer slot | The current location, navigation stack, reading position, drafts and returning to the branch source belong to a "viewer slot"; the workbench holds a set of slots, and the first release has only one | D1 | Once the reading position and returning to the branch source are built for a single view, side-by-side reading needs navigation and persistence rewritten |
+| E2 | Block-based message content | Message content is an ordered sequence of content blocks (text, tool call, tool result, citation, table / chart / diagram, and so on); the first release has only text blocks. A selection anchor is located by "block + position within the block" | D3, D5 | Anchors, summaries, export and context assembly are all built on a single body string; introducing tools then needs a full migration |
+| E3 | Request tracing and redaction at the source | Each AI request records a request ID, the identity of the settings snapshot, timing, protocol status, and a truncated, redacted error excerpt; keys and user content are told apart by type, and the logging layer refuses to output them as they are | D2, D3, D4 | Compatibility and performance problems lack a reproducible basis; filtering text after the fact cannot reliably prevent leaks |
+| E4 | Model capability description | Each model configuration declares its capabilities (streaming, tool calling, image input, context capacity, reasoning output, prompt caching, and so on); features decide by capability, not by provider or model name | D3, D5 | Provider special cases spread through new protocols and new features |
+| E5 | Versioned exchange format | Import and export use a separate, versioned, documented format (JSON structure + Markdown body), decoupled from the SQLite table structure | D3 | Every change to the database structure breaks export compatibility |
+| E6 | Performance baseline and architecture tests | Reproducibly generated large-scale test data (many conversations, deep branch trees, very long answers) and benchmarks; automated tests for dependency direction and redaction rules | D4, all | Performance problems can only be judged by feel; seams are bypassed unintentionally during iteration |
 
-E1、E2 与需求中的阅读位置、选区来源、迁移 v3 在同一时期设计，提前预留的边际成本最低。
+E1 and E2 are designed in the same period as the reading position, selection anchors and migration v3 in the requirements, so reserving them early has the lowest marginal cost.
 
-## 3. 方向说明
+## 3. The directions
 
-### D1 界面与交互
+### D1 Interface and interaction
 
-**目标：** 视觉精修与交互改进，包括可调宽度的双栏会话界面，支持并排阅读（例如在分支中提问时对照父回答）。
+**Goal:** Visual refinement and interaction improvements, including a two-pane conversation interface with adjustable width that supports side-by-side reading (for example, comparing with the parent answer while asking in a branch).
 
-**架构落点：** Desktop 层视图与导航。生成已独立于 View（§6），可同时服务多个可见会话。
+**Where it lands in the architecture:** Views and navigation in the Desktop layer. Generation is already independent of the View (§6) and can serve several visible conversations at once.
 
-**前置：** E1。双栏的难点不在分隔控件，而在“当前会话”、阅读位置、返回来源和草稿是否按视图槽位隔离。
+**Prerequisite:** E1. The hard part of two panes is not the splitter control. It is whether the "current conversation", the reading position, returning to the branch source and the drafts are isolated per viewer slot.
 
-**关键问题：** 两栏显示同一会话时的阅读位置与草稿归属；返回来源在哪一栏打开；窗口宽度不足时的降级布局；槽位布局是否随会话恢复。
+**Key questions:** Who owns the reading position and the draft when both panes show the same conversation; in which pane the branch source opens when returning to it; the fallback layout when the window is too narrow; whether the slot layout is restored with the conversation.
 
-### D2 安全与诊断
+### D2 Security and diagnostics
 
-**目标：** 防止 API 密钥及用户收发内容泄漏，抵御注入攻击；提供可供用户查看的详细日志与错误信息。
+**Goal:** Prevent leaks of API keys and of the content the user sends and receives, and defend against injection attacks; provide detailed logs and error information the user can view.
 
-**架构落点：** Infrastructure 的日志、凭据与协议适配；Desktop 的诊断视图；内容渲染层。
+**Where it lands in the architecture:** Logging, credentials and protocol adaptation in Infrastructure; the diagnostics view in Desktop; the content rendering layer.
 
-**前置：** E3。
+**Prerequisite:** E3.
 
-**要点：**
+**Key points:**
 
-- **密钥：** 系统凭据存储已按 §7.3 实现。剩余泄漏面是日志、错误详情、诊断导出与项目导出，脱敏须在数据产生处按类型完成。
-- **渲染面：** 模型输出经 Markdown 渲染时，远程图片、自动加载资源和链接可能把对话内容编码进 URL 外传。默认不加载远程资源，链接打开前显示真实目标。
-- **注入：** 在只输出文本的阶段，影响主要限于渲染面；引入工具（D5）后，网页、搜索结果与工具输出都是不可信输入，权限模型须与工具同时交付。
-- **诊断：** 用户可查看的请求详情（状态、耗时、错误分类与脱敏摘要），以及可导出的脱敏诊断包。
+- **Keys:** System credential storage is already implemented per §7.3. The remaining leak surfaces are logs, error details, diagnostic export and project export; redaction must be done by type where the data is produced.
+- **Rendering surface:** When model output is rendered as Markdown, remote images, automatically loaded resources and links may encode conversation content into a URL and send it out. By default, remote resources are not loaded, and a link shows its real target before it opens.
+- **Injection:** While output is text only, the impact is mainly limited to the rendering surface. Once tools are introduced (D5), web pages, search results and tool output are all untrusted input, and the permission model must be delivered together with the tools.
+- **Diagnostics:** Request details the user can view (status, duration, error category and a redacted excerpt), and a redacted diagnostic package that can be exported.
 
-### D3 兼容性
+### D3 Compatibility
 
-**目标：** 适配更多 AI 模型与协议，支持内容导入导出，覆盖更多设备与平台。
+**Goal:** Support more AI models and protocols, support importing and exporting content, and cover more devices and platforms.
 
-**架构落点与前置：**
+**Where it lands in the architecture, and prerequisites:**
 
-- **模型与协议：** 沿用协议适配器边界（§7.2），以 E4 声明能力。Responses、Messages 等适配器作为新增实现接入，不改变业务模型。
-- **导入导出：** 以 E5 为唯一外部格式；外部工具的导入实现为到该格式的映射。
-- **平台：** Linux 依托 Avalonia，成本主要在验证与打包。移动端是不同的交互设计，复用 Core 与 Application，属独立产品决定，不按兼容性条目处理。
+- **Models and protocols:** Keep the protocol adapter boundary (§7.2) and declare capabilities with E4. Adapters such as Responses and Messages are added as new implementations without changing the business model.
+- **Import and export:** E5 is the only external format; import from external tools is implemented as a mapping to that format.
+- **Platforms:** Linux relies on Avalonia; the cost is mainly verification and packaging. Mobile is a different interaction design that reuses Core and Application; it is a separate product decision and is not handled as a compatibility item.
 
-### D4 性能
+### D4 Performance
 
-**目标：** 改进消息传输、令牌缓存、上下文管理、内存与磁盘占用、页面加载与数据库读写。
+**Goal:** Improve message transfer, token caching, context management, memory and disk use, page loading, and database reads and writes.
 
-**方法：** 以 E6 先测量后优化，基准进入 CI 并设预算。预计主要成本依次为：超长 Markdown 的渲染与重排（需虚拟化）、深分支树的上下文组装、数据库访问（WAL 与合适索引通常足够）。
+**Method:** Measure first with E6, then optimize; benchmarks go into CI with budgets. The main costs are expected to be, in order: rendering and re-layout of very long Markdown (needs virtualization), context assembly for deep branch trees, and database access (WAL and suitable indexes are usually enough).
 
-**与既有设计的耦合：** 供应商提示缓存依赖**稳定前缀**。上下文组装应先放冻结材料（祖先冻结范围、可复用摘要），再放近期问答与当前问题；这与 §6 的压缩与摘要复用规则相互影响，应一并设计，不作为后期调参。
+**Coupling with existing design:** Provider prompt caching depends on a **stable prefix**. Context assembly should put frozen material first (the ancestors' frozen ranges, reusable context summaries), then recent questions and answers and the current question. This interacts with the compression and context-summary reuse rules of §6 and should be designed together with them, not treated as later tuning.
 
-### D5 智能体能力
+### D5 Agent capabilities
 
-**目标：** 通过大模型引入工具与技能调用、网络搜索，以及创建图示、图表和表格。
+**Goal:** Through the large model, introduce tool and skill calls and web search, and the creation of diagrams, charts and tables.
 
-**架构落点：** Application 的生成协调、Core 的消息模型、Infrastructure 的工具实现与协议适配。
+**Where it lands in the architecture:** Generation coordination in Application, the message model in Core, tool implementations and protocol adaptation in Infrastructure.
 
-**前置：** E2、E3、E4。
+**Prerequisites:** E2, E3, E4.
 
-**结构性变化：**
+**Structural changes:**
 
-- **消息由字符串变为内容块序列**（E2）。
-- **生成由单次请求变为循环：** 一次回答可包含多轮模型调用与工具执行。“全局最多两个 AI 请求”、取消、迟到结果与中断恢复须在循环层面重新定义。
-- **来源锚点：** 须规定选区落在工具结果、表格或图表上时的锚定与降级行为。
-- **权限与透明度：** 每次工具调用向谁发送了什么须可见；外部获取的内容按不可信输入处理（见 D2）。
+- **A message changes from a string into a sequence of content blocks** (E2).
+- **Generation changes from a single request into a loop:** one answer may include several rounds of model calls and tool execution. "At most two AI requests globally", cancellation, late results and interruption recovery must be redefined at the loop level.
+- **Anchors:** The anchoring and fallback behavior must be specified for a selection that falls on a tool result, a table or a chart.
+- **Permissions and transparency:** What each tool call sent, and to whom, must be visible; content fetched from outside is treated as untrusted input (see D2).
 
-**低成本起点：** 图示、图表与表格可先作为受控代码块（如 Mermaid、图表规格、Markdown 表格）渲染，不依赖工具调用；网络搜索附带可点击引用，与“来源可验证”原则一致。
+**Low-cost starting point:** Diagrams, charts and tables can first be rendered as controlled code blocks (such as Mermaid, chart specifications, Markdown tables) without depending on tool calls; web search comes with clickable citations, consistent with the principle "sources are verifiable".
 
-#### 2026-11-13 讨论形成的方向（用户认可，尚未写入需求）
+#### Direction formed in the 2026-11-13 discussion (accepted by the user, not yet written into requirements)
 
-起因是长文本粘贴：用户提出参照 DeepSeek 把长文本自动变成 `.txt` 附件，并与文件、网络搜索、多模态和智能体能力一并设计。讨论把 D5 扩展为下面的方向，用户认为与其设想一致，要求另行起草需求与架构。原始讨论（英文原文与当时准备的起草提示）保存在开发记录 `docs/history/agent-platform-discussion-20261113.md`，不随源码包发布。
+It started with long text pastes: the user proposed following DeepSeek and automatically turning long text into a `.txt` attachment, designed together with files, web search, multimodality and agent capabilities. The discussion extended D5 into the direction below. The user found it consistent with their idea and asked for requirements and architecture to be drafted separately. The original discussion (the English original and the drafting prompt prepared at the time) is kept in the development record `docs/history/agent-platform-discussion-20261113.md`, which is not shipped in the source package.
 
-- **资源（resource）：** 进入或产生于对话的材料都是资源——粘贴、文件、图片、音频、网页、工具输出。保存原件（大文件放磁盘，不进 SQLite）、媒体类型、来源（谁或什么产生、何时、URL）、是否可信，以及派生形式（提取的文字、分块、摘要、图片描述／OCR、音频转写）。发送什么按模型能力（E4，例如 `ImageInput`）决定。长粘贴就是一个没有名字的 `.txt` 资源。
-- **内容块：** 资源说明“是什么”，内容块（E2）说明“何时、在哪里进入对话”：文本、附件引用、工具调用、工具结果（指向资源）、引用标注，以后加生成的图表。
-- **上下文：** 资源放得下就整体发送并标明是资源；放不下就分块，取相关块或用摘要（按语义取块需要嵌入服务，没有时退回本地关键词检索）。资源与对话轮次分开，压缩不再遇到单条超过窗口的消息；每个资源的摘要只做一次、反复使用。
-- **运行循环：** 一次回答变成一次运行：模型 → 工具调用 → 工具结果 → 模型……直到给出最终回答或达到步数、时间、token 上限。每步保存；中断的运行不自动恢复或重发；有副作用的步骤不重复；“最多两个 AI 请求”改按运行计。各家原生的工具调用格式由协议适配器统一，只给支持工具调用的模型提供工具，不用提示词模拟。
-- **工具：** 注册表记录名称、说明、输入格式、风险等级（本地只读／读网络／有副作用）、超时与输出上限。先做“检索附件”与“检索本工作区总结网络”（Mindweave 独有），再做网络搜索与取网页（带引用）；第三方工具接 MCP。
-- **安全：** 工具结果按不可信输入处理（见 D2）；取网页拒绝本地与私有地址和 `file://`；密钥不出现在工具参数里；每个对外请求可见；有副作用的操作须用户批准。
-- **界面：** 一个输入框加“+”（文件、图片）；长粘贴和图片自动成为附件，可撤回为普通文字；网络搜索开关（自动／开／关）；当前模型不能用的选项变灰并说明原因。回答里一行安静的活动说明（如“搜索了 3 次 · 读了 2 个网页”），可展开看每一步；编号引用支持“回到来源”；批准以回答内的小卡片出现，不用模态对话框；高级设置放在“设置 › 工具”；按工具和按运行的费用进使用统计。
-- **分期（每期单独可用）：** ① 资源与附件：粘贴、文件、图片（仅限能看图的模型），不含工具；② 运行循环与工具调用，只有两个本地工具；③ 网络搜索与取网页，带引用，加搜索服务设置；④ MCP 客户端；⑤ 生成图表与音频。暂不做：代码执行沙箱、长时间后台运行的智能体。
-- **待定：** 写入需求与架构时，每期的验收场景、数据模型与迁移、选区分支与回到来源在工具结果和引用上的行为，以及须由用户决定的问题。
-- **2026-11-17 起草：** 写成[需求](requirements.md) §10.4（v0.16）与[架构](architecture.md) §15，待决定的问题见[智能体平台：待决定的问题](design/agent-platform-questions.md)；经你确认合并后，本节改为引用。
+- **Resource:** Any material that enters a conversation or is produced in one is a resource: pastes, files, images, audio, web pages, tool output. It stores the original (large files on disk, not in SQLite), the media type, the provenance (who or what produced it, when, the URL), whether it is trusted, and derived forms (extracted text, chunks, digest, image description / OCR, audio transcript). What gets sent is decided by model capability (E4, for example `ImageInput`). A long paste is just a `.txt` resource without a name.
+- **Content blocks:** A resource says "what it is"; a content block (E2) says "when and where it entered the conversation": text, attachment reference, tool call, tool result (pointing to a resource), citation marks, and later generated charts.
+- **Context:** If a resource fits, it is sent whole and marked as a resource; if it does not fit, it is chunked, and the relevant chunks or the digest are taken (taking chunks by meaning needs an embedding service; without one, it falls back to local keyword retrieval). Resources are kept apart from conversation turns, so compression no longer meets a single message larger than the window; each resource's digest is made only once and reused.
+- **Run loop:** One answer becomes one run: model → tool call → tool result → model … until a final answer is given or the step, time or token limit is reached. Every step is saved; an interrupted run is not automatically resumed or resent; steps with side effects are not repeated; "at most two AI requests" is counted per run instead. Each provider's native tool-call format is unified by the protocol adapter; tools are given only to models that support tool calling, and are not simulated with prompts.
+- **Tools:** The registry records name, description, input format, risk level (local read-only / web read / has side effects), timeout and output limit. First "search attachments" and "search this workspace's summary network" (unique to Mindweave), then web search and web fetch (with citations); third-party tools connect through MCP.
+- **Safety:** Tool results are treated as untrusted input (see D2); web fetch refuses local and private addresses and `file://`; keys never appear in tool arguments; every outgoing request is visible; operations with side effects must be approved by the user.
+- **Interface:** One input box plus "+" (files, images); long pastes and images automatically become attachments and can be reverted to plain text; a web search switch (auto / on / off); options the current model cannot use are grayed out with the reason. A quiet one-line activity note in the answer (such as “搜索了 3 次 · 读了 2 个网页” ("searched 3 times · read 2 web pages")) that can be expanded to show each step; numbered citations support “回到来源” (back to source); approvals appear as small cards inside the answer, not as modal dialogs; advanced settings go in “设置 › 工具” (Settings › Tools); costs per tool and per run go into usage statistics.
+- **Phases (each usable on its own):** ① resources and attachments: pastes, files, images (only for models that can see images), no tools; ② the run loop and tool calls, with only two local tools; ③ web search and web fetch, with citations, plus search service settings; ④ MCP client; ⑤ generated charts and audio. Not doing for now: a code execution sandbox, and agents that run in the background for a long time.
+- **To be decided:** When writing requirements and architecture: each phase's acceptance scenarios, data model and migration, the behavior of selection branching and “回到来源” (back to source) on tool results and citations, and the questions the user must decide.
+- **Drafted 2026-11-17:** Written as [requirements](requirements.md) §10.4 (v0.16) and [architecture](architecture.md) §15; the questions to decide are in [Agent platform: questions to decide](design/agent-platform-questions.md). Once the user confirms and it is merged, this section changes to a reference.
 
-### D6 长期愿景：地图化探索
+### D6 Long-term vision: map-based exploration
 
-**目标：** 将世界地图与软件结合，以城市等地点为节点，用户可进入某地开展知识探索与问答。
+**Goal:** Combine a world map with the software, with places such as cities as nodes; the user can enter a place and carry out knowledge exploration and questions there.
 
-**架构落点：** 与总结网络（§11）同类，是知识内容的另一种空间投影，布局与内容分别保存。
+**Where it lands in the architecture:** Of the same kind as the summary network (§11): another spatial projection of knowledge content, with layout and content saved separately.
 
-**核心模型改动：** 为工作区或会话增加可选的通用**地点锚点**（坐标与地点标识），不在 Core 中硬编码“城市”；地点信息可作为提问的初始上下文。
+**Core model change:** Add an optional, general **place anchor** (coordinates and a place identifier) to a workspace or conversation, without hard-coding "city" in Core; the place information can serve as the initial context for questions.
 
-**验证方式：** 主要不确定性在学习价值而非工程可行性。先在 `prototypes/` 中做独立原型（Avalonia 地图控件，如 Mapsui），同时核实地图瓦片许可与离线行为，再决定是否进入正式范围。
+**How to verify:** The main uncertainty is in learning value rather than engineering feasibility. First build an independent prototype in `prototypes/` (an Avalonia map control such as Mapsui), and at the same time check map tile licensing and offline behavior, before deciding whether it enters the formal scope.
 
-### D7 多处引用提问
+### D7 Asking with multiple quotes
 
-2026-11-05 用户提出，经与 Claude 讨论后补入。
+Proposed by the user on 2026-11-05 and added after discussion with Claude.
 
-**目标：** 用户可在原文中逐处选取多段文字，每段成为编号引用（[1]、[2]、[3]…），再自己写一条提示词指代这些引用。解决三件事：一次就多个要点提问、准确指明“哪一处”、不必选中一大段无关文字或在分支里手动粘贴其余原文（需求 §2.2 第 1 条负担）。
+**Goal:** The user can select several passages in the original text one by one; each passage becomes a numbered quote ([1], [2], [3] …), and the user then writes one prompt that refers to these quotes. It solves three things: asking about several points at once, pointing exactly at "which place", and not having to select a large block of unrelated text or paste the rest of the original text by hand in a branch (the burden in requirements §2.2 item 1).
 
-**同一个编写器，两种用途：**
+**One composer, two uses:**
 
-| | 创建分支 | 修订总结 |
+| | Create a branch | Revise a summary |
 | --- | --- | --- |
-| 引用来源 | 父会话中的消息 | 总结的当前版本 |
-| 结果 | 带多个来源锚点的新分支 | 一个**候选版本**，由用户采用或丢弃 |
-| 复用 | 分支创建、阅读位置与返回 | 候选／采用机制、“只在成功后写版本”（MW-C06） |
+| Where quotes come from | Messages in the parent conversation | The summary's current version |
+| Result | A new branch with several anchors | A **candidate version**, which the user adopts or discards |
+| Reuses | Branch creation, reading position and return | The candidate / adopt mechanism, "write a version only after success" (MW-C06) |
 
-在当前会话内直接带多处引用提问（不开分支）可作为第三种用途，复用同一编写器。
+Asking with multiple quotes directly inside the current conversation (without opening a branch) can be a third use that reuses the same composer.
 
-**架构落点：** Desktop 的选区与编写器；Application 的分支创建、总结生成与上下文组装；Core 的来源锚点模型；Infrastructure 的存储。
+**Where it lands in the architecture:** Selection and the composer in Desktop; branch creation, summary generation and context assembly in Application; the anchor model in Core; storage in Infrastructure.
 
-**前置：** E2（块 + 块内位置的锚点）。
+**Prerequisite:** E2 (anchors of block + position within the block).
 
-**约束：**
+**Constraints:**
 
-- **分支的引用只取自同一父会话。** 父会话仍唯一，会话树和总结网络的形状不变；跨会话引用会把树变成图，须另行决定。
-- **存储：** `branch_source` 保留父会话和一个主锚点，现有读取不变；新增子表按顺序保存引用列表，每条有自己的引文、锚点与版本。迁移编号按合并顺序占用。
-- **返回位置：** 返回到打开编写器时的阅读位置，而不是引用 [1]；每处被引用的段落旁都显示分支入口标记。
-- **显示：** 已发送消息以引用标记指回原文，不把引文伪装成用户自己写的内容（与需求 §6.5 对总结内容的同类要求一致）。
-- **上下文容量：** 引用与提示词合计超出容量时，按现行规则提示删减或缩短引用，不静默截断。
-- **总结：** 引用指向用户正在看的版本；修订只生成新的候选版本，锚点不需要在原地编辑中存活。
+- **A branch's quotes come only from the same parent conversation.** The parent conversation is still unique, and the shape of the conversation tree and the summary network does not change; quoting across conversations would turn the tree into a graph and must be decided separately.
+- **Storage:** `branch_source` keeps the parent conversation and one main anchor, and existing reads do not change; a new child table stores the list of quotes in order, each with its own quoted text, anchor and version. The migration number is taken by merge order.
+- **Return location:** Return to the reading position at the time the composer was opened, not to quote [1]; a branch entry mark is shown next to every quoted passage.
+- **Display:** A sent message points back to the original text with quote marks, and does not disguise quoted text as content the user wrote (consistent with the similar requirement in requirements §6.5 for summary content).
+- **Context capacity:** When the quotes and the prompt together exceed the capacity, the current rules prompt the user to remove or shorten quotes; nothing is silently truncated.
+- **Summaries:** A quote points to the version the user is looking at; a revision only produces a new candidate version, so anchors do not need to survive in-place editing.
 
-**与现行需求的关系：** 把“选中文字创建分支”从单一选区扩展为多处；修订总结用到总结正文选区，触及 MW-C04（首版不从总结正文选区创建分支），但用途是修订而非建分支。转为正式需求须经用户决定写入需求与架构。
+**Relation to the current requirements:** It extends "create a branch from selected text" from a single selection to several. Revising a summary uses a selection in the summary body, which touches MW-C04 (the first release does not create branches from a selection in the summary body), but the use is revision, not creating a branch. Turning it into formal requirements must be decided by the user and written into requirements and architecture.
 
-**关键问题：** 跨多条消息逐处添加选区时，已选引用如何保持可见、可删除、可重新排序；引用很多时编写器的布局；分支在总结网络中的来源显示用主锚点还是全部引用。
+**Key questions:** When selections are added one by one across several messages, how the selected quotes stay visible, removable and reorderable; the composer's layout when there are many quotes; whether the branch source shown in the summary network uses the main anchor or all quotes.
 
-**不采纳的部分：** 2026-11-05 同时讨论了面向协作文档的“上下文批注”（作者、回复线程、解决／重新打开、筛选、差异审阅）。Mindweave 是单用户与 AI 的探索，选区→专注对话→返回已由分支承担，线程与生命周期管理违背“不要求用户管理内容”的定位，故不采纳；其中可取的部分即本节。
+**Parts not adopted:** On 2026-11-05, "context annotations" for collaborative documents (author, reply threads, resolve / reopen, filters, diff review) were discussed at the same time. Mindweave is a single user's exploration with AI; selection → focused conversation → return is already handled by branches, and managing threads and lifecycles goes against the positioning of "not requiring the user to manage content", so it is not adopted. The worthwhile parts are this section.
 
-### D8 分享思考路径（初始愿景）
+### D8 Sharing thinking paths (initial vision)
 
-2026-11-19 至 11-20 用户提出，经与 Claude 讨论后补入。**这是初始愿景**：记录设想、场景与讨论中已定的原则，供日后查阅；不是开发规格，转为需求须经用户决定写入需求与架构。
+Proposed by the user from 2026-11-19 to 11-20 and added after discussion with Claude. **This is an initial vision**: it records the idea, the scenarios and the principles settled in the discussion, for later reference. It is not a development specification; turning it into requirements must be decided by the user and written into requirements and architecture.
 
-**起因。** 讨论 Mindweave 与通用 AI 应用相比独特在哪里时，用户谈到自己的实际使用：分支完全满足日常需要；总结网络的回顾价值不明显，一部分因为网络本身还没设计好，一部分因为日常提问多是浅尝辄止。用户认为网络的意义可能更多在于成就感、激发好奇心，以及**分享给还没有问过这些问题的人**。
+**How it started.** While discussing what makes Mindweave unique compared with general AI applications, the user talked about their own actual use: branching fully meets daily needs; the review value of the summary network is not obvious, partly because the summary network itself is not yet well designed, and partly because daily questions are mostly brief dips into a topic. The user thinks the meaning of the summary network may lie more in a sense of accomplishment, in sparking curiosity, and in **sharing with people who have not yet asked these questions**.
 
-**核心判断（用户）：** 在答案多到泛滥、变得廉价的时代，真正有意义的是思考过程——问了什么、怎样一步步问下去、在哪里豁然开朗。
+**Core judgment (the user's):** In an era when answers are so plentiful that they have become cheap, what is truly meaningful is the thinking process: what was asked, how the questions went on step by step, and where things suddenly became clear.
 
-**五个场景（用户原意）：**
+**Five scenarios (the user's original meaning):**
 
-1. **复习备考 → 同学。** 备考时大家问的问题往往相近。分享给同学，交流复习方向，同时各自分支探索课外的内容；同学也用 Mindweave 时，也想看看他们分享的路径，看他们都在问什么。
-2. **随兴好奇 → 同行的伙伴。** 和朋友出游，在动物园、植物园看到有趣的动物或植物，记下遇到的物种并了解它们，再把这条路径分享给同行的伙伴，大家一起长点新知识。
-3. **当小老师 → 学生或家人。** 传授自己研究领域的东西，分享给“学生”或家人，帮他们抓住基本概念，更容易入门并建立有结构的理解。
-4. **闲谈与思索 → 伴侣。** 和 AI 漫谈人生或钻研哲学时，分享给伴侣，让对方明白自己在困扰什么，也见证自己想通的时刻。
-5. **进展汇报 → 导师或汇报材料。** 准备进展汇报时分享给导师，或做成汇报材料。导师能清楚看到这几天在研究什么、每天问了多少、学到了什么，而不只是一句“我问了 AI 一些问题”。
+1. **Exam review → classmates.** When preparing for exams, everyone tends to ask similar questions. Share with classmates to exchange directions for review, while each person explores topics beyond the course in their own branches; when classmates also use Mindweave, the user also wants to see the paths they share and what they are all asking.
+2. **Casual curiosity → companions on the trip.** On an outing with friends, seeing interesting animals or plants at a zoo or botanical garden, note the species met and learn about them, then share this path with the companions on the trip, so everyone learns something new together.
+3. **Being a little teacher → students or family.** To pass on things from one's own field of study, share with "students" or family, to help them grasp the basic concepts, get started more easily and build a structured understanding.
+4. **Casual talk and reflection → partner.** When chatting with AI about life or digging into philosophy, share with one's partner, so they understand what is troubling the user and also witness the moment the user figures it out.
+5. **Progress report → advisor or report material.** When preparing a progress report, share with the advisor, or turn it into report material. The advisor can clearly see what has been researched in these days, how much was asked each day and what was learned, rather than just "I asked AI some questions".
 
-**讨论中已定的原则（用户 2026-11-20）：**
+**Principles settled in the discussion (the user, 2026-11-20):**
 
-- **不按场景拆分功能。** 场景说明分享的价值，不各自对应一个视图或模块；功能保持少而统一，避免复杂和碎片化。
-- **挑选要分享的路径或节点**是分享时的一个轻量选择，不是独立视图，也不是主要模块。
-- **不做两人网络的并排比较。** 不同人的网络差异很大、几乎不会重叠；若两人共用同一个网络，并排比较又没有必要。
-- **时间线是常备的标准视图**，随时可用，不是按场景临时生成的东西。（时间线视图尚未写入需求与架构。）
-- **本阶段的分享形式是单向发布：** 用户选定要分享的内容后，生成任何人都能打开的页面或文件，接收方不需要安装 Mindweave，不需要账户与服务端。Mindweave 用户之间互相导入、托管的社区，以后视单向分享的实际反响再议。
+- **Do not split features by scenario.** The scenarios explain the value of sharing; they do not each correspond to a view or module. Features stay few and unified, avoiding complexity and fragmentation.
+- **Choosing the paths or nodes to share** is a light choice made when sharing, not a separate view and not a main module.
+- **No side-by-side comparison of two people's summary networks.** Different people's summary networks differ greatly and almost never overlap; if two people share the same summary network, side-by-side comparison is unnecessary.
+- **The timeline is a standard view that is always available**, usable at any time, not something generated temporarily per scenario. (The timeline view is not yet written into requirements and architecture.)
+- **The form of sharing at this stage is one-way publishing:** after the user chooses the content to share, a page or file that anyone can open is generated; the recipient does not need to install Mindweave and needs no account and no server. Importing between Mindweave users and a hosted community will be discussed later, depending on the actual response to one-way sharing.
 
-**与同期讨论的其他方向的关系。** 同一次讨论还提出三个相互关联的方向：网络与分支本身（例如从分支返回时带回一两句要点、回答引用用户自己已有的总结、把未解决问题显示为探索的边界、隔几天回来时的简短回顾）；呈现形式（时间线，以及地图，见 D6）；网络的观感（让网络体现思路如何流动、节点之间的差异与时间先后）。分享把三者连起来：网络与分支决定一条路径里有什么，呈现形式与观感决定不在场的读者能否读懂它。
+**Relation to other directions from the same discussion.** The same discussion raised three related directions: the summary network and branches themselves (for example, bringing back one or two key points when returning from a branch, answers citing the user's own existing summaries, showing unresolved questions as the edge of the exploration, a short recap when coming back after a few days); presentation forms (the timeline, and the map, see D6); and the look of the summary network (letting the summary network show how thinking flows, the differences between nodes and their order in time). Sharing connects the three: the summary network and branches decide what is in a path, and the presentation form and look decide whether a reader who was not there can understand it.
 
-**待定：** 分享包含哪些内容、怎样保护隐私（场景 4 尤其敏感）；分享页面的形态；地图何时纳入（场景 2，见 D6）。
+**To be decided:** What sharing includes, and how to protect privacy (scenario 4 is especially sensitive); the form of the shared page; when the map is brought in (scenario 2, see D6).
 
-## 4. 推进机制
+## 4. How work moves forward
 
-1. **一方向一设计说明：** 实施前写简短设计说明（问题、使用的接缝、数据模型变化、完成判据），只覆盖下一个增量。
-2. **主题版本：** 按主题交付，例如“阅读与诊断”“富内容”“工具”；未完成功能以开关隔离。
-3. **转为需求：** 某方向进入正式范围时，经用户决定写入需求与架构，并在本文标注。
-4. **记录发现：** 采纳的接缝记录实际成本与发现，见[演进接缝](design/evolution-seams.md)。
+1. **One design note per direction:** Before implementation, write a short design note (the problem, the seams used, data model changes, completion criteria) that covers only the next increment.
+2. **Themed versions:** Deliver by theme, for example "reading and diagnostics", "rich content", "tools"; unfinished features are isolated behind switches.
+3. **Turning into requirements:** When a direction enters the formal scope, it is written into requirements and architecture after the user decides, and marked in this document.
+4. **Record findings:** For adopted seams, record the actual cost and findings; see [evolution seams](design/evolution-seams.md).
 
-## 5. 采纳状态
+## 5. Adoption status
 
-2026-10-26 用户决定：在 S2 起的实现中引入前置接缝 E1–E6 作为实验，并记录实际成本与发现；不提前实现 D1–D6 的功能本身。E1–E4、E6 已落地，E5 只有规格，见[演进接缝](design/evolution-seams.md)。（当时并行的另一条开发线未采纳；2026-11-16 起只有一条开发线，见仓库根目录 `AGENTS.md`“分支”。）
-
+The user decided on 2026-10-26: introduce the enabling seams E1–E6 as an experiment in the implementation from S2 onward, and record the actual cost and findings; do not implement the features of D1–D6 themselves ahead of time. E1–E4 and E6 have landed; E5 has only a specification; see [evolution seams](design/evolution-seams.md). (The other development line running in parallel at the time did not adopt it; since 2026-11-16 there is only one development line; see "Branches" in `AGENTS.md` at the repository root.)

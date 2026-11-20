@@ -47,8 +47,14 @@ public sealed partial class WorkspaceNewsViewModel : ObservableObject
     private readonly SerialRefresh _load;
     private readonly UiThrottle _reload;
 
-    /// <summary>Conversations whose answer just ended off screen, with the workspace open then; taken by the next refresh.</summary>
-    private readonly List<(ConversationId Conversation, WorkspaceId? OpenThen)> _justMarked = [];
+    /// <summary>
+    /// Conversations whose answer just ended off screen, with the workspace open then and whether that answer made the
+    /// conversation unread; taken by the next refresh.
+    /// </summary>
+    private readonly List<(ConversationId Conversation, WorkspaceId? OpenThen, bool NewlyUnread)> _justMarked = [];
+
+    /// <summary>Marked just now and not yet announced as answered (any thread, under its own lock).</summary>
+    private readonly HashSet<ConversationId> _newlyUnread = [];
 
     /// <summary>A refresh is running (UI thread only).</summary>
     private bool _refreshing;
@@ -80,6 +86,7 @@ public sealed partial class WorkspaceNewsViewModel : ObservableObject
         _open = workbench.CurrentWorkspace;
         _load = new SerialRefresh(RefreshAsync);
         _reload = new UiThrottle(dispatcher, TimeSpan.FromMilliseconds(100), () => Loaded = _load.Request());
+        _marks.Marked += OnMarked;
         _marks.Answered += OnAnswered;
         _marks.Changed += (_, _) => _reload.Request();
         if (conversations is not null)
@@ -153,15 +160,30 @@ public sealed partial class WorkspaceNewsViewModel : ObservableObject
         Toasts.Remove(toast);
     }
 
+    /// <summary>Any thread: raised just before <see cref="OnAnswered"/> when the answer made the conversation unread.</summary>
+    private void OnMarked(object? sender, ConversationId conversation)
+    {
+        lock (_newlyUnread)
+        {
+            _newlyUnread.Add(conversation);
+        }
+    }
+
     private void OnAnswered(object? sender, ConversationId conversation)
     {
         // Any thread, as the answer ends: what is open is taken now, not when the UI thread gets to it (the user may have
         // switched meanwhile, and then saw that workspace when the answer ended). Counted on the UI thread.
         var openThen = _open?.Id;
+        bool newlyUnread;
+        lock (_newlyUnread)
+        {
+            newlyUnread = _newlyUnread.Remove(conversation);
+        }
+
         Interlocked.Increment(ref _marksNoted);
         _dispatcher.Post(() =>
         {
-            _justMarked.Add((conversation, openThen));
+            _justMarked.Add((conversation, openThen, newlyUnread));
             _reload.Request();
         });
     }
@@ -221,7 +243,7 @@ public sealed partial class WorkspaceNewsViewModel : ObservableObject
     private async Task RefreshCoreAsync()
     {
         // Taken before the marks are read, so every conversation noted here is among them unless it was seen since.
-        List<(ConversationId Conversation, WorkspaceId? OpenThen)> justMarked = [.. _justMarked];
+        List<(ConversationId Conversation, WorkspaceId? OpenThen, bool NewlyUnread)> justMarked = [.. _justMarked];
         _justMarked.Clear();
         var current = _workbench.CurrentWorkspace?.Id;
         WorkspaceId[] others = [.. _workbench.Workspaces.Select(w => w.Id).Where(id => id != current)];
@@ -263,18 +285,19 @@ public sealed partial class WorkspaceNewsViewModel : ObservableObject
             OnPropertyChanged(nameof(Hint));
         }
 
-        var count = shown.Values.Sum(c => c.Count);
-        var grew = count > Count;
-        Count = count;
+        Count = shown.Values.Sum(c => c.Count);
         UpdateToasts(shown, titles);
 
         // A workspace's hint pops up only for an answer that ended here, in a workspace that was not open then and is not now.
-        var alerted = justMarked
-            .Select(m => (m.OpenThen, Workspace: shown.Where(p => p.Value.Contains(m.Conversation)).Select(p => (WorkspaceId?)p.Key).FirstOrDefault()))
+        var alertedMarks = justMarked
+            .Select(m => (m.OpenThen, m.NewlyUnread, Workspace: shown.Where(p => p.Value.Contains(m.Conversation)).Select(p => (WorkspaceId?)p.Key).FirstOrDefault()))
             .Where(m => m.Workspace is not null && m.Workspace != m.OpenThen)
-            .Select(m => m.Workspace!.Value)
-            .Distinct()
             .ToList();
+        var alerted = alertedMarks.Select(m => m.Workspace!.Value).Distinct().ToList();
+
+        // The count rose because of these answers when one of them made its conversation unread. Not judged by comparing
+        // counts: another refresh may already have counted the conversation, between its mark and this answer's notice.
+        var rose = alertedMarks.Any(m => m.NewlyUnread);
         foreach (var workspace in alerted)
         {
             ShowToast(workspace, shown[workspace]);
@@ -300,7 +323,7 @@ public sealed partial class WorkspaceNewsViewModel : ObservableObject
         {
             // One sound for everything that popped up together.
             Alerting = PlaySoundAsync();
-            if (alerted.Count > 0 && grew)
+            if (alerted.Count > 0 && rose)
             {
                 CountRose?.Invoke(this, EventArgs.Empty);
             }

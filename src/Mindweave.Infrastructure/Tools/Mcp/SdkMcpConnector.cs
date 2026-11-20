@@ -81,8 +81,7 @@ public sealed class SdkMcpConnector(AppPaths paths, string? version = null) : IM
         string[] usual =
         [
             "/opt/homebrew/bin", "/opt/homebrew/sbin", "/usr/local/bin",
-            Path.Combine(home, ".local", "bin"), Path.Combine(home, ".cargo", "bin"), Path.Combine(home, ".volta", "bin"),
-            Path.Combine(home, ".bun", "bin"), Path.Combine(home, ".deno", "bin"),
+            home + "/.local/bin", home + "/.cargo/bin", home + "/.volta/bin", home + "/.bun/bin", home + "/.deno/bin",
         ];
         foreach (var folder in usual)
         {
@@ -214,7 +213,9 @@ public sealed class SdkMcpConnector(AppPaths paths, string? version = null) : IM
             }
 
             var inner = ex.InnerException is { } cause && cause.Message != ex.Message ? "（" + cause.Message + "）" : string.Empty;
-            throw new McpServerException(McpFailureKind.StartFailed, "服务器没有完成启动与握手：" + ex.Message + inner, ex);
+            // On Windows a command is started through cmd.exe, so a missing one starts and exits instead of failing: name it.
+            var which = server.Kind == McpServerKind.Command ? $"（命令“{server.Command}”）" : string.Empty;
+            throw new McpServerException(McpFailureKind.StartFailed, "服务器没有完成启动与握手" + which + "：" + ex.Message + inner, ex);
         }
     }
 

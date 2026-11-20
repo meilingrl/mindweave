@@ -256,11 +256,13 @@ public class ChatCompletionsClientTests
     [Fact]
     public async Task Keep_alive_comments_keep_a_silent_stream_alive()
     {
-        var events = Enumerable.Repeat(": keep-alive\n\n", 8)
+        // Silent for 3.2 s in all, longer than the idle limit, with a comment every 200 ms: ten times the margin a loaded
+        // CI runner needs (a 250 ms pace against 1 s failed there once).
+        var events = Enumerable.Repeat(": keep-alive\n\n", 16)
             .Append("data: {\"choices\":[{\"delta\":{\"content\":\"答\"},\"finish_reason\":\"stop\"}]}\n\n")
             .ToArray();
-        var options = new ChatClientOptions { IdleTimeout = TimeSpan.FromSeconds(1) };
-        var paced = new StubHandler(_ => new HttpResponseMessage(HttpStatusCode.OK) { Content = new StreamContent(new PacedStream(events, TimeSpan.FromMilliseconds(250))) });
+        var options = new ChatClientOptions { IdleTimeout = TimeSpan.FromSeconds(2) };
+        var paced = new StubHandler(_ => new HttpResponseMessage(HttpStatusCode.OK) { Content = new StreamContent(new PacedStream(events, TimeSpan.FromMilliseconds(200))) });
 
         var received = await Collect(new ChatCompletionsClient(new HttpClient(paced), options));
 
