@@ -70,7 +70,7 @@ public class RowMenuUiTests
             Assert.Equal(8, band.CornerRadius.TopLeft);
         }
 
-        UiInput.Click(window, MenuEntry(window, "RowMenuOpen"));
+        await ClickEntryAsync(window, "RowMenuOpen");
         Dispatcher.UIThread.RunJobs();
         Assert.False(menu.IsOpen);
         Assert.DoesNotContain("menu-open", Row(window, middle).Classes);
@@ -123,7 +123,7 @@ public class RowMenuUiTests
         // The title turns into a box holding it, all selected, with the focus; the row keeps its place and width.
         var rowBounds = Row(window, middle).Bounds;
         OpenMenu(window, middle);
-        UiInput.Click(window, MenuEntry(window, "RowMenuRename"));
+        await ClickEntryAsync(window, "RowMenuRename");
         await UiWait.UntilAsync(() => RenameBox(window, middle) is { IsFocused: true, IsEffectivelyVisible: true });
         var box = RenameBox(window, middle);
         Assert.False(Row(window, middle).IsVisible);
@@ -157,7 +157,7 @@ public class RowMenuUiTests
         // Esc leaves the title as it was.
         var rootTitle = list.Items.Single(i => i.Id == root).Title;
         OpenMenu(window, root);
-        UiInput.Click(window, MenuEntry(window, "RowMenuRename"));
+        await ClickEntryAsync(window, "RowMenuRename");
         await UiWait.UntilAsync(() => RenameBox(window, root).IsFocused);
         window.KeyTextInput("不要了");
         window.KeyPress(Key.Escape, RawInputModifiers.None, PhysicalKey.Escape, null);
@@ -173,7 +173,7 @@ public class RowMenuUiTests
 
         // Leaving the box (a click on another row) saves, as file lists do.
         OpenMenu(window, sibling);
-        UiInput.Click(window, MenuEntry(window, "RowMenuRename"));
+        await ClickEntryAsync(window, "RowMenuRename");
         await UiWait.UntilAsync(() => RenameBox(window, sibling).IsFocused);
         window.KeyTextInput("铁轨的材料");
         Find<TextBox>(CurrentView(window), "Input").Focus();
@@ -197,7 +197,7 @@ public class RowMenuUiTests
         var gate = app.Client.Knowledge.Hold();
         app.Client.Knowledge.Replies.Enqueue("标题：第一台机车的制造者\n短名：第一台机车\n\n正文");
         OpenMenu(window, middle);
-        UiInput.Click(window, MenuEntry(window, "RowMenuSummarize"));
+        await ClickEntryAsync(window, "RowMenuSummarize");
         await list.RowAction;
         Assert.Null(list.RowNotice);
         Assert.Equal(sibling, Assert.IsType<ConversationViewModel>(app.Workbench.CurrentPage).Id);
@@ -219,7 +219,7 @@ public class RowMenuUiTests
         await UiWait.UntilAsync(() => list.Items.SingleOrDefault(i => i.Id == failed) is { NeedsAttention: true });
         var title = list.Items.Single(i => i.Id == failed).Title;
         OpenMenu(window, failed);
-        UiInput.Click(window, MenuEntry(window, "RowMenuSummarize"));
+        await ClickEntryAsync(window, "RowMenuSummarize");
         await list.RowAction;
         window.UpdateLayout();
         Assert.Equal(UiText.RowNotice(title, UiText.SummarizeRejected(SummarizeRejection.NothingToSummarize)), list.RowNotice);
@@ -248,7 +248,7 @@ public class RowMenuUiTests
         var conversations = app.Services.GetRequiredService<ConversationService>();
 
         OpenMenu(window, middle);
-        UiInput.Click(window, MenuEntry(window, "RowMenuArchive"));
+        await ClickEntryAsync(window, "RowMenuArchive");
         await list.RowAction;
         Assert.Null(list.RowNotice);
         await UiWait.UntilAsync(() => list.Items.Select(i => i.Id).SequenceEqual([root, sibling]) && list.ArchivedCount == 1);
@@ -272,7 +272,7 @@ public class RowMenuUiTests
         var rootTitle = list.Items.Single(i => i.Id == root).Title;
 
         OpenMenu(window, root);
-        UiInput.Click(window, MenuEntry(window, "RowMenuDelete"));
+        await ClickEntryAsync(window, "RowMenuDelete");
         var dialog = app.Root.ConversationDeletion;
         await dialog.Loading;
         Dispatcher.UIThread.RunJobs();
@@ -480,7 +480,7 @@ public class RowMenuUiTests
         var row = list.Items.Single(i => i.Id == middle);
 
         OpenMenu(window, middle);
-        UiInput.Click(window, MenuEntry(window, "RowMenuRename"));
+        await ClickEntryAsync(window, "RowMenuRename");
         await UiWait.UntilAsync(() => RenameBox(window, middle) is { IsFocused: true, IsEffectivelyVisible: true });
         var box = RenameBox(window, middle);
         window.KeyTextInput("蒸汽");
@@ -504,7 +504,7 @@ public class RowMenuUiTests
         // Opened again and dismissed by a click elsewhere: that click only closes the menu, as menus do; the next one
         // leaves the box and saves.
         OpenMenu(window, sibling);
-        UiInput.Click(window, MenuEntry(window, "RowMenuRename"));
+        await ClickEntryAsync(window, "RowMenuRename");
         await UiWait.UntilAsync(() => RenameBox(window, sibling) is { IsFocused: true, IsEffectivelyVisible: true });
         var siblingBox = RenameBox(window, sibling);
         window.KeyTextInput("铁轨");
@@ -548,6 +548,20 @@ public class RowMenuUiTests
         [.. window.GetVisualDescendants().OfType<MenuItem>().Where(m => m.Name?.StartsWith("RowMenu", StringComparison.Ordinal) == true && m.IsEffectivelyVisible)];
 
     private static MenuItem MenuEntry(Window window, string name) => Entries(window).Single(m => m.Name == name);
+
+    /// <summary>
+    /// Clicks an entry of the open menu once it is enabled. Work the seeding started (a summary, a title) can disable a
+    /// writing entry for a moment, and a click then does nothing (a Linux CI runner was slow enough for that, 2026-11-21).
+    /// </summary>
+    private static async Task ClickEntryAsync(Window window, string name)
+    {
+        await UiWait.UntilAsync(() =>
+        {
+            window.UpdateLayout();
+            return MenuEntry(window, name).IsEffectivelyEnabled;
+        });
+        UiInput.Click(window, MenuEntry(window, name));
+    }
 
     private static void AssertDisabled(Window window, string name, string reason)
     {
