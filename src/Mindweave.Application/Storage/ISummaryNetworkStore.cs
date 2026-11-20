@@ -26,4 +26,7 @@ public interface ISummaryNetworkStore
 
     /// <summary>Every branch conversation of the workspace with its ancestors, root first.</summary>
     Task<IReadOnlyDictionary<ConversationId, IReadOnlyList<ConversationId>>> AncestorChainsAsync(WorkspaceId workspace, CancellationToken cancellationToken);
+
+    /// <summary>Number of questions (user messages) per conversation of the workspace; conversations without any are absent.</summary>
+    Task<IReadOnlyDictionary<ConversationId, int>> QuestionCountsAsync(WorkspaceId workspace, CancellationToken cancellationToken);
 }
