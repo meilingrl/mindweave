@@ -1,9 +1,9 @@
 # Mindweave product requirements
 
 **Document status:** The current consolidated version of the confirmed requirements. It adopts independent review R4 of 2026-10-24 and the user's answers. Formal development has not started yet, and this does not mean the product's value has been verified  
-**Version:** v0.21  
+**Version:** v0.22  
 **Created:** 2026-09-08  
-**Updated:** 2026-11-20  
+**Updated:** 2026-11-21  
 **Project name:** Mindweave
 
 This document describes the problem the product solves, the first-release scope, usage behavior and acceptance goals. Engineering responsibilities, data contracts and implementation mechanisms are in [Architecture and technical design](architecture.md); prototypes and review evidence are reached from the [project entry](../README.md). Historical revision records keep the facts of their time and are not current to-dos.
@@ -124,7 +124,7 @@ Use a pure Avalonia desktop route, four lightweight projects, a single local SQL
 
 ### 5.4 Non-goals
 
-Not in scope: project or task management, AI execution reports and decisions, professional research management, a standalone knowledge base of files and videos (after the first release, files, images and the like enter only as attachments and tool results in conversations; there is no library page, folder management or cross-workspace search; see §10.4), a team permission system, a knowledge ontology editor, automatically generating complete courses, or assessing learning results. Users may discuss professional topics, but the product does not promise professional correctness or teaching results on that basis.
+Not in scope: project or task management, professional research management, a standalone knowledge base of files and videos (after the first release, files, images and the like enter only as attachments and tool results in conversations; there is no library page, folder management or cross-workspace search; see §10.4), a team permission system, a knowledge ontology editor, automatically generating complete courses, or assessing learning results. Users may discuss professional topics, but the product does not promise professional correctness or teaching results on that basis.
 
 The first release has no 3D, and does not introduce 3D fields, camera configuration or rendering dependencies for it in advance.
 
@@ -770,3 +770,4 @@ The per-module inputs, required outputs and order of work for detailed design fr
 - **v0.19 · 2026-11-19:** Wrote phase 4 of §10.4.6 in enough detail for acceptance (Q11: side-effect calls are approved one by one, passed by the user on 2026-11-17; Q15 as recommended: remote servers that need sign-in are not supported, accepted by the user on 2026-11-19): adding a server shows what will be run or connected to, keys are kept in the system credential service, all tools are off by default and are enabled one by one, default risk levels and adjusting them, automatic disabling after a definition changes, starting local processes, timeouts, restart after a crash and quitting, results as external untrusted resources, approval cards, activity text and statistics; §11 adds the phase 4 acceptance. New decisions (the ModelContextProtocol package, storage in preferences with no migration needed, tool name prefixes, third-party web-read tools following the web search switch, and so on) are listed in [mcp.md](design/mcp.md), accepted by the user on 2026-11-19. Does not change the first-release scope and acceptance.
 - **v0.20 · 2026-11-20:** Citations in §10.4.5 extended to local results (run loop improvement L11, see [agent-loop.md](design/agent-loop.md); the user agreed to the merge on 2026-11-20): the results of “检索附件” (search attachments) and “检索总结网络” (search summary network) share numbering with web results, and the citation list and the viewer page show them by the kind of result. Does not change the first-release scope and acceptance.
 - **v0.21 · 2026-11-20:** Following the user's decision of 2026-11-20 (plan step 1): while an answer is in progress, reasoning is shown live in a “思考过程” (thinking process) section that is collapsed by default; it disappears when the answer ends and is still never saved (this replaces "reasoning is not shown" from 2026-11-06 and the "not shown" part of runs and tools R10). The status line at the end of the answer gives, for each stage of a run, a one-sentence description and one weaving animation; the activity text above the body records only the steps already done. Changed §10.4.4. Does not change the first-release scope and acceptance; no migration.
+- **v0.22 · 2026-11-21:** Following the user's decision of 2026-11-21, removed "AI execution reports and decisions" from the §5.4 non-goals: it came from exploration before the project began and does not describe this product. No other change.
