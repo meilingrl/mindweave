@@ -1,47 +1,47 @@
-# 智能体平台：待你决定的问题
+# Agent platform: questions for the user to decide
 
-依据：[需求](../requirements.md) §10.4（v0.16）与[架构](../architecture.md) §15。草稿按下列每条的“建议”写成；你选了别的，相应段落随之修改。按 AGENTS.md，需求与架构的改动在你确认后才合并。
+Basis: [requirements](../requirements.md) §10.4 (v0.16) and [architecture](../architecture.md) §15. The drafts are written according to the “recommendation” of each item below. If the user chooses otherwise, the corresponding paragraphs change to match. Under AGENTS.md, changes to the requirements and architecture are merged only after the user confirms them.
 
-前四条影响第 1 期的实施，请先看；其余到对应一期开始前决定即可。
+The first four items affect the implementation of phase 1; please look at them first. The rest only need a decision before the corresponding phase starts.
 
-**已决定：** Q1–Q7 按建议（用户 2026-11-17，第 1 期据此实施）；Q8–Q11 按建议（用户 2026-11-17，第 2 期开始前）。Q12：第一个搜索服务用 **Tavily**（用户 2026-11-17）。Q14 在第 3 期按建议实施（总结中的出处只作文字），**待你确认**；第 3 期另有新的决定 W1–W16，见 [web-search.md](web-search.md)。Q15 在第 4 期按建议实施（不支持需要登录的远程服务器），用户 2026-11-19 接受；第 4 期另有新的决定 M1–M18（用户 2026-11-19 接受），见 [mcp.md](mcp.md)。Q11 已在第 4 期按“只管一次”实施。Q13、Q16 到对应一期开始前再定。
+**Decided:** Q1–Q7 as recommended (user 2026-11-17; phase 1 is implemented on this basis); Q8–Q11 as recommended (user 2026-11-17, before phase 2 started). Q12: the first search service is **Tavily** (user 2026-11-17). Q14 is implemented in phase 3 as recommended (citations in summaries are text only), **waiting for the user's confirmation**; phase 3 also has new decisions W1–W16, see [web-search.md](web-search.md). Q15 is implemented in phase 4 as recommended (remote servers that require sign-in are not supported), accepted by the user 2026-11-19; phase 4 also has new decisions M1–M18 (accepted by the user 2026-11-19), see [mcp.md](mcp.md). Q11 has been implemented in phase 4 as “one call only”. Q13 and Q16 are decided before the corresponding phase starts.
 
-## 第 1 期之前
+## Before phase 1
 
-| # | 问题 | 选项 | 建议 |
+| # | Question | Options | Recommendation |
 | --- | --- | --- | --- |
-| Q1 | 长粘贴多长变成附件？ | 按字数；按估算 token；做成设置项 | **约 2,000 估算 token**（约 2,000 汉字或 6,000 英文字符），固定常量、不进设置。估算 token 对中英文一视同仁；短于这个长度的粘贴放在输入框里也不妨碍阅读。试用后再调 |
-| Q2 | 第 1 期支持哪些文件？ | 只要纯文本；加 PDF；再加 DOCX | **纯文本类＋带文字层的 PDF＋DOCX**。PDF 与 DOCX 需要一个开源的提取库（例如 PdfPig，Apache-2.0 许可），只在 Infrastructure 引用；不做扫描件识别 |
-| Q3 | 已经存在的超长文字消息（第 1 期之前粘贴的）怎么办？ | 不处理；迁移时改成附件；规划时临时当作资源 | **不处理**。已发送消息不可改写，迁移改写它们与这条规则冲突；这些消息仍按现行规则（过长时提示从中分支），新的粘贴不会再产生这种消息 |
-| Q4 | 删除会话前的备份是否包含附件原件？ | 包含将被删除的原件；不包含；原件永不自动删除 | **包含将被删除的原件**。否则从备份恢复后，附件只剩元数据；只复制这次删除范围内的原件，备份不会因此变得很大 |
+| Q1 | How long must a long paste be to become an attachment? | By character count; by estimated tokens; make it a setting | **About 2,000 estimated tokens** (about 2,000 Chinese characters or 6,000 English characters), a fixed constant, not a setting. Estimated tokens treat Chinese and English alike; a paste shorter than this does not hurt reading when it stays in the input box. Adjust after trial use |
+| Q2 | Which files does phase 1 support? | Plain text only; add PDF; also add DOCX | **Plain-text types + PDFs with a text layer + DOCX**. PDF and DOCX need an open-source extraction library (for example PdfPig, Apache-2.0 license), referenced only in Infrastructure; no recognition of scanned documents |
+| Q3 | What about existing very long text messages (pasted before phase 1)? | Leave them; turn them into attachments during migration; treat them as resources temporarily during planning | **Leave them**. Sent messages cannot be rewritten, and a migration that rewrites them would conflict with this rule. These messages still follow the current rules (when too long, the app suggests branching from them); new pastes no longer produce such messages |
+| Q4 | Does the backup before deleting a conversation include attachment originals? | Include the originals that will be deleted; do not include them; never delete originals automatically | **Include the originals that will be deleted**. Otherwise, after restoring from the backup, attachments would have only metadata left. Only the originals inside this deletion's scope are copied, so the backup does not become very large |
 
-## 第 1 期中可以再定
+## Can be decided during phase 1
 
-| # | 问题 | 选项 | 建议 |
+| # | Question | Options | Recommendation |
 | --- | --- | --- | --- |
-| Q5 | 能否从附件查看页选文字创建分支？ | 第 1 期就可以；第 2 期再加；不做 | **第 1 期不做，第 2 期与工具结果一起考虑**。需求 §6.2 的分支来源是 AI 回答；从用户自己附上的材料分支是新的来源类型，需要“资源锚点”。第 1 期先提供选择与复制 |
-| Q6 | 附件与草稿的大小上限（单个文件 50 MB、图片 20 MB、每条提问 10 个附件）是否合适？ | 采用；更大；更小 | **采用**，均为可调常量。数据目录随附件增大，统计页可以以后显示附件占用的空间 |
-| Q7 | 不能看图的模型是否为图片生成描述（用另一个能看图的模型）？ | 不做；可选的“图片描述模型” | **第 1 期不做**。这需要第二套模型配置，与“首版一套活动配置”相关的设置界面要另行设计 |
+| Q5 | Can the user select text in the attachment viewer to create a branch? | Already in phase 1; add in phase 2; not at all | **Not in phase 1; consider it in phase 2 together with tool results**. In requirements §6.2 the branch source is an AI answer; branching from material the user attached is a new kind of source and needs a “resource anchor”. Phase 1 first provides selection and copying |
+| Q6 | Are the size limits for attachments and drafts (50 MB per file, 20 MB per image, 10 attachments per question) appropriate? | Adopt; larger; smaller | **Adopt**, all as adjustable constants. The data directory grows with attachments; the statistics page may later show the space attachments use |
+| Q7 | Should the app generate descriptions of images for models that cannot see images (using another model that can)? | No; an optional “image description model” | **Not in phase 1**. This needs a second model configuration, and the settings UI tied to “one active configuration in the first release” would need a separate design |
 
-## 第 2–5 期
+## Phases 2–5
 
-| # | 问题 | 选项 | 建议 |
+| # | Question | Options | Recommendation |
 | --- | --- | --- | --- |
-| Q8 | 回答中编号标注叫什么？ | 引用；来源；出处 | **出处**。“来源”已用于来源锚点、探索来源与“返回来源”，“引用”预留给 D7 多处引用提问；出处只指回答依据的材料 |
-| Q9 | 运行上限的默认值（模型请求 8 次、工具调用 16 次、5 分钟、累计 20 万估算 token）？ | 采用；更保守；更宽 | **采用**，在设置 › 工具中可改。达到上限时请模型据已有结果作答，而不是直接失败 |
-| Q10 | 不在搜索结果、用户消息或已取网页中出现过的网址，取网页前是否要批准？ | 要批准；直接放行；不允许 | **要批准**。这是防止模型把对话内容编进网址外传的主要手段；正常搜索与阅读不受影响 |
-| Q11 | 有副作用的工具批准一次只管一次调用，还是允许“本次运行内都允许”？ | 只管一次；可选本次运行；可选总是允许 | **第 4 期先只管一次**，用后看是否太烦，再加“本次运行内允许这个工具”；不提供“总是允许” |
-| Q12 | 第一个搜索服务接哪家？ | 由你选定一家；做成可选多家 | **先接一家**、只做一个适配器，选择取决于你手上有哪家的密钥与额度；多家可选在有第二个需求时再做 |
-| Q13 | 是否引入嵌入服务做按语义检索？ | 不引入；第 2 期引入；做成可选 | **不引入**，用本地 FTS5 关键词检索。嵌入需要额外的服务与费用，并不是每家都提供；检索质量不够时再评估 |
-| Q14 | 总结里的出处是否保留为可点击的链接？ | 保留；只作文字 | **只作文字**（第 3 期）。总结版本可编辑、可再生成，维护链接要另设规则；以后需要再加 |
-| Q15 | MCP 的远程服务器需要登录（OAuth）时是否支持？ | 第 4 期支持；以后 | **以后**。第 4 期支持本地命令与不需登录或用固定密钥的网址 |
-| Q16 | 第 5 期的图表格式？ | Mermaid＋表格；再加一种图表描述格式 | **先做 Markdown 表格与 Mermaid**，图表描述格式在实施前另行比较（需要能在本地 Avalonia 中渲染、不执行代码） |
+| Q8 | What are the numbered markers in answers called? | 引用 (quote); 来源 (source); 出处 (citation) | **出处** (citation). “来源” is already used for anchors, lineage and “返回来源” (Back to source); “引用” is reserved for D7, questions that quote several places; 出处 refers only to the material an answer is based on |
+| Q9 | Are the default run limits (8 model requests, 16 tool calls, 5 minutes, 200,000 estimated tokens in total) right? | Adopt; more conservative; wider | **Adopt**, changeable in 设置 › 工具 (Settings › Tools). When a limit is reached, ask the model to answer from the results it already has, instead of failing outright |
+| Q10 | Does fetching a URL that has not appeared in search results, user messages or already fetched pages need approval first? | Needs approval; allow directly; not allowed | **Needs approval**. This is the main defense against the model encoding conversation content into a URL to send it out; normal searching and reading are not affected |
+| Q11 | Does one approval of a tool with side effects cover only one call, or can it allow “all calls in this run”? | One call only; optionally this run; optionally always allow | **Phase 4 starts with one call only**. After use, see whether it is too annoying, then add “本次运行内允许这个工具” (Allow this tool for this run); no “always allow” |
+| Q12 | Which search service is connected first? | The user picks one; make several selectable | **Connect one first**, with only one adapter; the choice depends on which service the user has a key and quota for. Several selectable services wait until there is a second need |
+| Q13 | Should an embedding service be introduced for semantic retrieval? | No; introduce it in phase 2; make it optional | **No**; use local FTS5 keyword retrieval. Embeddings need an extra service and cost, and not every provider offers them; evaluate again when retrieval quality is not good enough |
+| Q14 | Do citations in summaries stay clickable links? | Keep them; text only | **Text only** (phase 3). Summary versions can be edited and regenerated, so maintaining links needs separate rules; add them later if needed |
+| Q15 | Are MCP remote servers that require sign-in (OAuth) supported? | Supported in phase 4; later | **Later**. Phase 4 supports local commands and URLs that need no sign-in or use a fixed key |
+| Q16 | Chart format for phase 5? | Mermaid + tables; add a chart description format | **Do Markdown tables and Mermaid first**; compare chart description formats separately before implementation (they must render locally in Avalonia without running code) |
 
-## 与并行会话的对齐
+## Alignment with parallel sessions
 
-以下细节在草稿里写死，供正在实现第 1 期存储的会话与暴露模型能力的会话对照；冲突时以合并顺序和你的决定为准：
+The following details are fixed in the drafts, for the session implementing phase 1 storage and the session exposing model capabilities to check against; in a conflict, merge order and the user's decision win:
 
-- 表 `resource`、`resource_derivative`、`resource_chunk`、`resource_chunk_fts`、`draft_attachment`；`message_block.resource_id`；`ai_request.purpose`。原件路径 `resources/<sha256 前 2 位>/<sha256>`，临时目录 `resources/tmp/`。
-- 内容块类型字符串：`attachment`（第 1 期）、`tool_call`、`tool_result`（第 2 期）、`citation`（第 3 期）、`artifact`（第 5 期）。
-- 长粘贴阈值 2,000 估算 token；每张图片按 1,600 估算 token 计，发送前缩放到长边不超过 2,048 像素。
-- 第 1 期用到的能力只有已有的 `ImageInput`；第 2 期用 `ToolCalls`；第 5 期新增 `AudioInput`。
+- Tables `resource`, `resource_derivative`, `resource_chunk`, `resource_chunk_fts`, `draft_attachment`; `message_block.resource_id`; `ai_request.purpose`. Original file path `resources/<sha256 前 2 位>/<sha256>` (the first 2 characters of the sha256), temporary directory `resources/tmp/`.
+- Content block type strings: `attachment` (phase 1), `tool_call`, `tool_result` (phase 2), `citation` (phase 3), `artifact` (phase 5).
+- Long-paste threshold 2,000 estimated tokens; each image counts as 1,600 estimated tokens and is scaled before sending so its long side is at most 2,048 pixels.
+- The only capability phase 1 uses is the existing `ImageInput`; phase 2 uses `ToolCalls`; phase 5 adds `AudioInput`.

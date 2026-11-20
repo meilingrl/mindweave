@@ -1,54 +1,54 @@
-# 附件（智能体平台第 1 期）
+# Attachments (agent platform phase 1)
 
-依据：[需求](../requirements.md) §10.4.3 与 §11 第 1 期验收，[架构](../architecture.md) §15.2–15.4、§15.9–15.11，[待决定的问题](agent-platform-questions.md)（用户 2026-11-17 按建议通过 Q1–Q7）。在[资源存储地基](resources.md)（迁移 v15）之上实现。本文记实现层的选择与和架构文字的差别；产品行为以需求与架构为准。
+Basis: [requirements](../requirements.md) §10.4.3 and the phase 1 acceptance in §11, [architecture](../architecture.md) §15.2–15.4 and §15.9–15.11, and [questions to decide](agent-platform-questions.md) (the user passed Q1–Q7 as recommended on 2026-11-17). Implemented on top of the [resource storage foundation](resources.md) (migration v15). This document records implementation-level choices and the differences from the architecture text; product behavior follows requirements and architecture.
 
-## 存储（迁移 v16）
+## Storage (migration v16)
 
-| 变化 | 说明 |
+| Change | Notes |
 | --- | --- |
-| `resource.provenance` | `user`／`workspace`／`external`，取代 `trusted`（原 1 → `user`，0 → `external`）；图片的 `origin` 改为 `image` |
-| `resource_derivative` 重建 | 唯一性改为（资源、类型、生产者、提示词版本），以便摘要按提示词版本复用；加 `blob_sha256`（缩放图片）与 `truncated`（提取文字超过 200 万字被截断，查看页说明） |
-| `resource_chunk`＋`resource_chunk_fts` | 分块约 800 估算 token，在段落或句子处切；FTS5 用 `unicode61`，CJK 由应用切成相邻字符对（“机器学习”→“机器 器学 学习”），问题同样切分后以 OR 检索、按 bm25 排序；删除分块时触发器同步删索引行 |
-| `draft_attachment` | 每个资源至多在一个草稿里（主键 `resource_id`）；会话的草稿按（会话、视图槽位），新探索页为会话空、槽位 `new-exploration`；随资源、会话、工作区删除。发送时在写入消息块的同一事务中移出草稿 |
-| `generation_task.input_resources` | JSON：每个附件的发送形式与所取分块，回答下方的说明由此而来（与 `input_summary_ids` 同样做法） |
-| `ai_request.purpose` | `answer`／`compression`／`resource_summary`；统计页把附件摘要单列为“附件摘要” |
+| `resource.provenance` | `user` / `workspace` / `external`, replacing `trusted` (old 1 → `user`, 0 → `external`); the `origin` of images changes to `image` |
+| `resource_derivative` rebuilt | Uniqueness changes to (resource, kind, producer, prompt version), so that digests can be reused per prompt version; adds `blob_sha256` (scaled image) and `truncated` (extracted text over 2 million characters was truncated; the viewer page says so) |
+| `resource_chunk` + `resource_chunk_fts` | Chunks of about 800 estimated tokens, cut at paragraph or sentence boundaries; FTS5 uses `unicode61`, and the application splits CJK into adjacent character pairs (“机器学习” → “机器 器学 学习”); the question is split the same way, searched with OR and ranked by bm25; when chunks are deleted, a trigger deletes the index rows with them |
+| `draft_attachment` | Each resource is in at most one draft (primary key `resource_id`); a conversation's draft is keyed by (conversation, viewer slot), and on the new exploration page the conversation is empty and the slot is `new-exploration`; deleted with the resource, conversation or workspace. On send, it is moved out of the draft in the same transaction that writes the message blocks |
+| `generation_task.input_resources` | JSON: each attachment's sending form and the chunks taken; the note under the answer comes from this (the same approach as `input_summary_ids`) |
+| `ai_request.purpose` | `answer` / `compression` / `resource_summary`; the statistics page lists attachment digests separately as “附件摘要” (attachment digests) |
 
-会话草稿里的附件在创建时就带上会话（`resource.conversation_id`），删除会话时随之级联；新探索的附件在发送前没有会话。启动时（后台）删除既不在消息里也不在草稿里的资源，再清理原件。
+An attachment in a conversation's draft carries the conversation (`resource.conversation_id`) from the moment it is created, and is cascaded when the conversation is deleted; an attachment on the new exploration page has no conversation before it is sent. At startup (in the background), resources that are in neither a message nor a draft are deleted, and then the originals are cleaned up.
 
-**与架构 §15.2 文字的差别**（用户 2026-11-17 认可第 1–3 条，架构文字已随合并改为与实现一致；第 4 条留到第 2 期）：
+**Differences from the text of architecture §15.2** (the user accepted items 1–3 on 2026-11-17, and the architecture text was changed with the merge to match the implementation; item 4 is left to phase 2):
 
-1. `draft_attachment` 的主键是 `resource_id` 并带 `workspace_id`，而不是（`conversation_id`，`slot_key`，`ordinal`）：新探索页没有会话，且草稿文字为空时没有 `draft` 行可引用。
-2. 任务的资源输入记在 `generation_task.input_resources`（JSON 列），没有单独的表。
-3. `resource.workspace_id` 仍是 v15 的 `CASCADE`（行为与“随工作区删除”相同）。
-4. `produced_by_task`、`produced_by_step` 留到第 2 期。
+1. The primary key of `draft_attachment` is `resource_id` and it carries `workspace_id`, rather than (`conversation_id`, `slot_key`, `ordinal`): the new exploration page has no conversation, and when the draft text is empty there is no `draft` row to reference.
+2. A task's resource inputs are recorded in `generation_task.input_resources` (a JSON column); there is no separate table.
+3. `resource.workspace_id` is still the `CASCADE` of v15 (the behavior is the same as "deleted with the workspace").
+4. `produced_by_task` and `produced_by_step` are left to phase 2.
 
-## 文字提取
+## Text extraction
 
-`ITextExtractor` 返回 `TextExtraction`（文字或原因：读不了、没有文字层、有密码、过大）。纯文本在 Application；PDF（PdfPig 0.1.16，**Apache-2.0**，任务说明里写的 MIT 不对）、DOCX（只用 System.IO.Compression 与 XmlReader，无新依赖）与图片（SkiaSharp 3.119.4，Avalonia 已带）在 Infrastructure。扫描件判定：平均每页少于 4 个非空白字符即“没有可提取的文字”。上限：文件 50 MB、图片 20 MB 且不超过 5,000 万像素、每条提问 10 个附件、PDF 最多 2,000 页、提取文字最多 200 万字（`ResourceLimits`）。
+`ITextExtractor` returns `TextExtraction` (text, or a reason: unreadable, no text layer, password-protected, too large). Plain text is in Application; PDF (PdfPig 0.1.16, **Apache-2.0**; the MIT written in the task description is wrong), DOCX (only System.IO.Compression and XmlReader, no new dependency) and images (SkiaSharp 3.119.4, already brought in by Avalonia) are in Infrastructure. Scanned-document rule: fewer than 4 non-whitespace characters per page on average means "no extractable text". Limits: files 50 MB, images 20 MB and no more than 50 million pixels, 10 attachments per question, PDFs at most 2,000 pages, extracted text at most 2 million characters (`ResourceLimits`).
 
-## 发送什么（§15.4）
+## What gets sent (§15.4)
 
-- **消息文字只含附件名。** `ContentBlocks.TextOf` 把附件写成“[附件：名称]”，附件内容由资源层单独规划，所以压缩切块时单条消息不再超过窗口（取代 2026-11-16 的“超窗单条消息”问题）。第 1 期之前的超长文字消息不改写（Q3）。
-- **规划**（`ContextPlanner.Plan` 的资源层，`ResourceLayer`）：全部整体发送放得下就整体发送；否则依次：较早提问的附件改用摘要（较早的图片不再发送，留一行说明）；较早对话照旧压缩；当前提问的附件中，较小的在平均份额内仍整体发送，其余按大小分配空间，发送“摘要＋按关键词相关度选出的分块”（至少一块，按原文顺序、标明“第 n 部分”）。仍放不下就拒绝（“问题与必需来源本身超限”），不静默截断。
-- **材料格式**（`ResourceMaterial`）：`<attachment name type form>` 段落，开头一行说明“用户附上的材料《名称》的全文／摘要／摘要与相关部分”。材料放在它所属提问的轮次里、问题文字之前；其消息被压缩成摘要时，材料附在那段摘要之后。
-- **附件摘要**在回答任务自己的执行槽中生成（`ResourceContext.SummarizeAsync`），提示词版本 1、不按模型区分、只生成一次；比模型一次能读的长时，先按连续的分块分段摘要再合并（不对摘要再摘要）。生成后用真实大小重新规划一次。失败同压缩失败：回答失败、提问保留、可重试。
-- **图片**只发给声明了 `ImageInput` 的模型，作为 `image_url` 数据 URL；长边超过 2,048 像素或不是 PNG／JPEG 的先缩放／转码一次并存为派生形式；每张按 1,600 估算 token 计。不能看图时以“[图片：名称，当前模型不能查看]”发送，原件缺失时“[图片：名称，原件缺失]”；Q7：不为不能看图的模型生成描述。
-- **知识总结**的输入中，附件以名称加摘要（还没有摘要时用开头 300 字）出现。
+- **Message text contains only the attachment name.** `ContentBlocks.TextOf` writes an attachment as “[附件：名称]” ("[Attachment: name]"), and the attachment content is planned separately by the resource layer, so when compression cuts chunks, no single message exceeds the window any more (replacing the "single message over the window" problem of 2026-11-16). Over-long text messages from before phase 1 are not rewritten (Q3).
+- **Planning** (the resource layer of `ContextPlanner.Plan`, `ResourceLayer`): if sending everything whole fits, everything is sent whole. Otherwise, in order: attachments of earlier questions switch to their digests (earlier images are no longer sent, and a one-line note is left); earlier conversation is compressed as before; among the attachments of the current question, the smaller ones are still sent whole within the average share, and the rest are given space by size and send "digest + chunks selected by keyword relevance" (at least one chunk, in original order, marked “第 n 部分” ("part n")). If it still does not fit, it is refused (“问题与必需来源本身超限” (the question and its required sources by themselves exceed the limit)), with no silent truncation.
+- **Material format** (`ResourceMaterial`): an `<attachment name type form>` section, whose first line states “用户附上的材料《名称》的全文／摘要／摘要与相关部分” ("the full text / digest / digest and relevant parts of the material 《name》 attached by the user"). The material is placed in the turn of the question it belongs to, before the question text; when that message is compressed into a context summary, the material is attached after that context summary.
+- **Attachment digests** are generated in the answer task's own execution slot (`ResourceContext.SummarizeAsync`), prompt version 1, not distinguished by model, generated only once. When a resource is longer than the model can read at once, digests are first made section by section from consecutive chunks and then merged (no digest is made of digests). After generation, planning runs once more with the real sizes. Failure is the same as a compression failure: the answer fails, the question is kept, and it can be retried.
+- **Images** are sent only to models that declare `ImageInput`, as an `image_url` data URL. An image whose long side exceeds 2,048 pixels, or that is not PNG / JPEG, is first scaled / transcoded once and stored as a derived form; each image counts as 1,600 estimated tokens. When the model cannot see images, it is sent as “[图片：名称，当前模型不能查看]” ("[Image: name, the current model cannot view it]"), and when the original is missing as “[图片：名称，原件缺失]” ("[Image: name, original missing]"); Q7: no descriptions are generated for models that cannot see images.
+- In the input of **knowledge summaries**, an attachment appears as its name plus its digest (the first 300 characters when there is no digest yet).
 
-## 删除与备份（Q4）
+## Deletion and backup (Q4)
 
-带附件的会话删除也先备份（`IsCascade` 计入附件），确认框写明附件数。备份旁的 `<备份>.resources/` 保存这次删除会移除的原件；清理只看当前数据库（和恢复时留下的旧库），不再因为备份引用而保留原件，所以删除后数据目录的 `resources/` 里不再有它们。从备份恢复后，第一次用到某个原件时从各备份的 `.resources/` 放回。删除备份时连同它的原件目录；存储页的备份大小包含原件。迁移前备份不复制原件（迁移不删除原件）。
+Deleting a conversation with attachments also makes a backup first (`IsCascade` counts attachments), and the confirmation dialog states the number of attachments. `<backup>.resources/` next to the backup stores the originals that this deletion removes. Cleanup looks only at the current database (and the old database left behind by a restore), and no longer keeps originals because a backup references them, so after deletion they are no longer in the data directory's `resources/`. After restoring from a backup, the first time an original is used it is put back from the backups' `.resources/`. Deleting a backup also deletes its originals directory; the backup size on the storage page includes the originals. Pre-migration backups do not copy originals (migration does not delete originals).
 
-## 界面
+## Interface
 
-- 输入框左侧“+”：文件…、图片…（当前模型不能看图时变灰，菜单里写明原因与设置位置 设置 › 模型连接 › 高级设置）；拖入文件或文字；粘贴文件、图片或文字。
-- 粘贴的文字估算 ≥ 2,000 token（Q1，常量 `ResourceLimits.LongPasteTokens`）时成为“粘贴的文字”附件；附件条上的“转为文字”或紧接着按 ⌘Z／Ctrl+Z 把它放回原光标处。手动输入从不转换。
-- 附件条：图标或缩略图、名称、类型与大小（文字显示约多少字）；读取中有进度，失败写明原因（不支持、超过 50 MB、扫描件、有密码、保存失败可重试）；有未就绪或失败的附件时不能发送。
-- 发送后附件条显示在提问正文上方；只有附件的提问不显示空气泡。点击打开查看页（覆盖整个窗口的对话框，文字可选择、可“复制全部”，图片按原比例显示，原件缺失或文字被截断时说明）。第 1 期不从查看页创建分支（Q5）。
-- 回答下方：“附件较长，只发送了与问题相关的部分”或“较早的附件只发送了摘要”，点“发送了哪些”展开每个附件发送了哪几部分。
-- 会话里有图片而当前模型不能看图时，输入框上方一行说明它们以文字代替发送。
-- 新样式在 `Styles/Attachments.axaml`，新图标在 `Icons.axaml` 末尾的标记块（与图标改造并行，未改已有控件样式）。
+- “+” at the left of the input box: “文件…” (File…), “图片…” (Image…) (grayed out when the current model cannot see images, with the menu stating the reason and the settings location 设置 › 模型连接 › 高级设置 (Settings › Model connection › Advanced settings)); drag in files or text; paste files, images or text.
+- Pasted text estimated at ≥ 2,000 tokens (Q1, constant `ResourceLimits.LongPasteTokens`) becomes a “粘贴的文字” (pasted text) attachment; “转为文字” (convert to text) on the attachment bar, or ⌘Z / Ctrl+Z right after, puts it back at the original cursor position. Manual typing is never converted.
+- Attachment bar: icon or thumbnail, name, type and size (text shows about how many characters); progress while reading, and the reason on failure (unsupported, over 50 MB, scanned document, password-protected, save failed and can be retried); sending is not possible while an attachment is not ready or has failed.
+- After sending, the attachment bar is shown above the question body; a question with only attachments shows no empty bubble. Clicking opens the viewer page (a dialog covering the whole window; text can be selected and “复制全部” (copy all), images are shown at their original proportions, and it says so when the original is missing or the text was truncated). Phase 1 does not create branches from the viewer page (Q5).
+- Under the answer: “附件较长，只发送了与问题相关的部分” (the attachment is long; only the parts relevant to the question were sent) or “较早的附件只发送了摘要” (only digests of earlier attachments were sent); clicking “发送了哪些” (what was sent) expands which parts of each attachment were sent.
+- When the conversation has images and the current model cannot see images, a line above the input box says they are sent as text instead.
+- New styles are in `Styles/Attachments.axaml`, and new icons are in a marked block at the end of `Icons.axaml` (done in parallel with the icon rework; existing control styles were not changed).
 
-## 测试
+## Tests
 
-`SchemaV16MigrationTests`（v15 数据升级、约束、级联、触发器、失败回滚）、`ResourceLayerTests`（规划顺序、拒绝、图片、分块、检索词）、`AttachmentFlowTests`（§11 第 1 期验收的服务端场景：整体发送、超容量只发相关部分并记录、摘要只生成一次且统计不增、拒绝、图片按能力、草稿跨重启、分支只见祖先的附件、原件缺失、上限、知识总结的输入）、`ResourceStoreTests`（删除前备份带原件、恢复后取回、删除备份）、`DocumentExtractionTests`／`ImageProcessorTests`（PDF、DOCX、图片）、`AttachmentUiTests`（附件条、长粘贴与撤销、不能看图、查看页、发送后的附件与说明、草稿跨重启；设 `MINDWEAVE_SCREENSHOT_DIR` 时输出浅色与深色截图）。
+`SchemaV16MigrationTests` (upgrading v15 data, constraints, cascades, triggers, rollback on failure), `ResourceLayerTests` (planning order, refusal, images, chunks, search terms), `AttachmentFlowTests` (the service-side scenarios of the phase 1 acceptance in §11: sent whole, only relevant parts sent and recorded when over capacity, digest generated only once without increasing the statistics, refusal, images by capability, drafts across restarts, a branch sees only its ancestors' attachments, missing originals, limits, knowledge summary input), `ResourceStoreTests` (backup before deletion carries originals, retrieval after restore, deleting a backup), `DocumentExtractionTests` / `ImageProcessorTests` (PDF, DOCX, images), `AttachmentUiTests` (attachment bar, long paste and undo, cannot see images, viewer page, attachments and notes after sending, drafts across restarts; outputs light and dark screenshots when `MINDWEAVE_SCREENSHOT_DIR` is set).

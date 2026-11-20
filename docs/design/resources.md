@@ -1,99 +1,99 @@
-# 资源存储（D5 第一期地基）
+# Resource storage (D5 phase 1 foundation)
 
-依据[演进方向](../evolution.md) D5“2026-11-13 讨论形成的方向”与开发记录 `docs/history/agent-platform-discussion-20261113.md`。本文只覆盖内部存储地基：没有界面，用户看到的行为不变。需求与架构的正式文字由另一会话（agent-docs）起草；表名、列名与磁盘布局已按它的草稿对齐，仍不同的几处列在文末“与架构草稿的差别”，合并时以用户确认的架构为准，再改本文与代码。
+Basis: [evolution directions](../evolution.md) D5 "Direction formed in the 2026-11-13 discussion" and the development record `docs/history/agent-platform-discussion-20261113.md`. This document covers only the internal storage foundation: there is no interface, and the behavior the user sees does not change. The formal requirements and architecture text is drafted by another session (agent-docs); table names, column names and disk layout are already aligned with its draft. The places that still differ are listed in "Differences from the architecture draft" at the end; at merge time, the architecture confirmed by the user wins, and then this document and the code are changed.
 
-## 概念
+## Concepts
 
-- **资源（`Resource`）**：一份保存下来的材料——粘贴、文件、图片，以后还有网页、工具输出。资源说明“它是什么”。
-- **附件（`AttachmentBlock`）**：消息里引用资源的一个内容块（E2 封闭层次新增的一种）。附件说明“它何时、在哪里进入对话”。
-- **派生内容（`ResourceDerivative`）**：由原件得到的内容，每种一行。本期只有 `text`（提取的全文）；摘要、图片描述、转写以后按同一张表加入，分块另有表。
+- **Resource (`Resource`)**: a saved piece of material: a paste, a file, an image, and later web pages and tool output. A resource says "what it is".
+- **Attachment (`AttachmentBlock`)**: a content block in a message that references a resource (a new kind added to the closed hierarchy of E2). An attachment says "when and where it entered the conversation".
+- **Derived content (`ResourceDerivative`)**: content obtained from the original, one row per kind. This phase has only `text` (the extracted full text); digests, image descriptions and transcripts are added later in the same table, and chunks have a table of their own.
 
-## 数据（迁移 v15）
+## Data (migration v15)
 
-开发时暂用 v14；推荐与关联会话（rec-association）先合并并占用 v14，本迁移合并时（2026-11-17）顺延为 **v15**，迁移内容不变，测试改为 `SchemaV15MigrationTests`。
+During development it temporarily used v14; the recommendation and summary link session (rec-association) merged first and took v14, so when this migration merged (2026-11-17) it moved to **v15**. The migration content is unchanged, and the test was renamed `SchemaV15MigrationTests`.
 
 ```text
 resource             id, workspace_id, conversation_id?, origin, name?, media_type, byte_size, sha256,
                      trusted, source_url?, created_at
 resource_derivative  id, resource_id, kind, producer, prompt_version?, text, estimated_tokens?, created_at
                      UNIQUE (resource_id, kind)
-message_block        + resource_id?（REFERENCES resource ON DELETE RESTRICT）
-conversation         + 唯一索引 (workspace_id, id)，供 resource 的组合外键使用
+message_block        + resource_id? (REFERENCES resource ON DELETE RESTRICT)
+conversation         + unique index (workspace_id, id), used by the composite foreign key of resource
 ```
 
-- **归属。** 资源属于一个工作区（`workspace_id`，CASCADE），附在会话里后也属于那个会话（`conversation_id`，CASCADE）。组合外键 `(workspace_id, conversation_id) → conversation(workspace_id, id)` 让 SQLite 自己拒绝跨工作区的归属。`conversation_id` 为空表示还没发送（新探索的草稿也能先建资源）。
-- **一个资源只属于一个会话。** 写入引用资源的消息时：资源必须在消息所在工作区；没有会话的资源随之归入该会话；已属于别的会话则拒绝写入（`InvalidOperationException`，整笔回滚）。同一份内容附到别处时新建一行资源，原件按哈希共用，不另占磁盘。这样删除会话或工作区只需级联，不必跨会话查引用。
-- **删除。** 会话删除先删消息（块随之级联，`RESTRICT` 不再拦），再删会话，资源与派生内容随会话级联；工作区删除同理，未发送的资源随工作区级联。删除 SQL 本身没有改动。单独删除一个资源（以后“转为文字”用）只在没有块引用它时进行。
-- **`origin`、`kind` 不用 CHECK 枚举**，与消息块类型一样由应用校验，以后加 `web`、`tool`、`summary`、`caption` 不必重建表。现有值：`origin ∈ {paste, file}`，`kind ∈ {text}`。
-- **`name`** 只存文件名，不存路径；粘贴为 NULL，显示为“粘贴的文字”。
-- **派生文字放在 SQLite**（以后要做检索与分块，且块读取要在同一快照里拿到它）；原件不放。`producer` 记录提取器及其版本（如 `plain-text/1`、`paste/1`）。`prompt_version`、`estimated_tokens` 留给模型生成的派生内容与上下文预算，本期为 NULL。
-- **`trusted`**：用户自己粘贴或选择的文件为 1；以后网页与工具输出为 0，按 D2 处理。
-- **块行。** 附件块的 `kind = 'attachment'`、`text` = 资源的显示名称（只读块文字的地方，如侧栏摘录，也看到名称）、`resource_id` 指向资源；`data` 不用。写入时只认 `resource_id`，块里其余字段读取时从资源取。
+- **Ownership.** A resource belongs to one workspace (`workspace_id`, CASCADE), and once attached in a conversation it also belongs to that conversation (`conversation_id`, CASCADE). The composite foreign key `(workspace_id, conversation_id) → conversation(workspace_id, id)` lets SQLite itself refuse ownership across workspaces. An empty `conversation_id` means not yet sent (a draft on the new exploration page can also create a resource first).
+- **A resource belongs to only one conversation.** When writing a message that references a resource: the resource must be in the message's workspace; a resource without a conversation is assigned to that conversation; one that already belongs to another conversation is refused (`InvalidOperationException`, the whole write rolls back). When the same content is attached elsewhere, a new resource row is created, and the original is shared by hash and takes no extra disk space. This way, deleting a conversation or a workspace needs only cascades, with no need to look up references across conversations.
+- **Deletion.** Deleting a conversation deletes the messages first (the blocks cascade with them, so `RESTRICT` no longer blocks), then the conversation; resources and derived content cascade with the conversation. Deleting a workspace works the same way, and unsent resources cascade with the workspace. The deletion SQL itself is unchanged. Deleting a single resource (used later by “转为文字” (convert to text)) is done only when no block references it.
+- **`origin` and `kind` do not use CHECK enums.** Like message block kinds, they are validated by the application, so adding `web`, `tool`, `summary` or `caption` later does not require rebuilding the table. Current values: `origin ∈ {paste, file}`, `kind ∈ {text}`.
+- **`name`** stores only the file name, not the path; it is NULL for a paste, which is displayed as “粘贴的文字” (pasted text).
+- **Derived text is stored in SQLite** (retrieval and chunking come later, and block reads need to get it in the same snapshot); originals are not. `producer` records the extractor and its version (such as `plain-text/1`, `paste/1`). `prompt_version` and `estimated_tokens` are kept for model-generated derived content and the context budget; in this phase they are NULL.
+- **`trusted`**: 1 for a paste or file the user chose themselves; later, web pages and tool output are 0 and are handled per D2.
+- **Block rows.** An attachment block has `kind = 'attachment'`, `text` = the resource's display name (places that read only block text, such as sidebar excerpts, also see the name), and `resource_id` pointing to the resource; `data` is not used. On write only `resource_id` counts; the block's other fields are taken from the resource on read.
 
-## 原件（blob）
+## Originals (blob)
 
 ```text
-<数据目录>/resources/<哈希前两位>/<完整哈希>     原件，无扩展名，写入后不再修改
-<数据目录>/resources/tmp/<随机名>                写入中的临时文件（tmp 不是两位十六进制，不会与分组目录混淆）
+<data directory>/resources/<first two hash characters>/<full hash>     original, no extension, never changed after it is written
+<data directory>/resources/tmp/<random name>                temporary file being written (tmp is not two hexadecimal digits, so it cannot be confused with a group directory)
 ```
 
-- **按内容寻址。** 哈希为原件字节的 SHA-256，64 位小写十六进制；`ContentHash` 类型与表上的 CHECK 只接受这种形式，路径由它拼出，不会越出目录。
-- **原子写入。** 写临时文件、`Flush(true)` 落盘后改名到最终位置；同名且大小相同的文件已在，就是重复内容，沿用已有文件（去重）。写入失败（磁盘满、无权限）是 `StorageWriteException`，与数据库写入失败同样处理。
-- **先写原件，再提交数据库行。** 行提交失败只留下一个无人引用的原件，由清理删除。
-- **清理（sweep）。** 原件被删除的条件：当前数据库**和**每一份保留的数据库副本——备份目录里的备份、恢复时留下的 `mindweave.db.replaced-*`——都不再引用它的哈希。理由：删除工作区或级联删除会话前会先做整库备份，若原件随删除立即消失，备份就恢复不出附件。
-  - 删除会话、删除工作区、删除未发送资源成功后各做一次清理（尽力而为，失败只记日志，不影响删除结果）；
-  - 备份被删除或轮换后，它独占的原件在下一次清理时删除；启动时的清理**未接入**（见“不在本期”）；
-  - 数据库未打开、或有一份副本读不了时，这一轮什么都不删；
-  - 每次清理也删除一小时以前的临时文件；目录里不是本存储写的文件不动。
-- **与创建并发。** 创建在写原件前“钉住”哈希，提交后放开；清理开始后被钉住或放开过的哈希这一轮都不删，判断与删除在同一把锁内。单实例锁保证只有一个进程。
+- **Content-addressed.** The hash is the SHA-256 of the original's bytes, 64 lowercase hexadecimal characters; the `ContentHash` type and the CHECK on the table accept only this form, and the path is built from it, so it cannot leave the directory.
+- **Atomic writes.** Write a temporary file, `Flush(true)` it to disk, then rename it to the final location; if a file with the same name and the same size is already there, it is duplicate content and the existing file is used (deduplication). A write failure (disk full, no permission) is a `StorageWriteException`, handled the same way as a database write failure.
+- **Write the original first, then commit the database row.** If the row commit fails, it leaves only an unreferenced original, which cleanup deletes.
+- **Cleanup (sweep).** An original is deleted when the current database **and** every kept database copy (backups in the backup directory, and `mindweave.db.replaced-*` left behind by a restore) no longer reference its hash. Reason: a full database backup is made before deleting a workspace or cascade-deleting a conversation; if the original disappeared right with the deletion, the backup could not restore the attachment.
+  - A cleanup runs once after each successful deletion of a conversation, a workspace or an unsent resource (best effort; a failure is only logged and does not affect the deletion result);
+  - After a backup is deleted or rotated, the originals only it referenced are deleted at the next cleanup; cleanup at startup is **not wired in** (see "Not in this phase");
+  - When the database is not open, or one copy cannot be read, nothing is deleted in that round;
+  - Each cleanup also deletes temporary files older than one hour; files in the directory that this store did not write are not touched.
+- **Concurrency with creation.** Creation "pins" the hash before writing the original and releases it after commit; any hash pinned or released after a cleanup starts is not deleted in that round, and the check and the deletion happen under the same lock. The single-instance lock ensures there is only one process.
 
-## 备份与恢复
+## Backup and restore
 
-备份仍只是 `VACUUM INTO` 的数据库副本，不复制原件：原件不可变、按哈希共用，只要有副本引用就保留，所以恢复任何一份备份后它引用的原件都在，恢复流程不需要改动。代价是被备份引用的原件在备份删除前一直占空间——与“删除前的整库备份从不自动清理”这一现状一致；存储页以后可以显示这部分占用。
+A backup is still only a `VACUUM INTO` copy of the database and does not copy originals: originals are immutable and shared by hash, and are kept as long as any copy references them, so after restoring any backup the originals it references are there, and the restore flow needs no change. The cost is that originals referenced by a backup take up space until the backup is deleted, which is consistent with the current state that "full database backups before deletion are never cleaned up automatically"; the storage page may show this usage later.
 
-## 内容块的文字化
+## Turning content blocks into text
 
-`ContentBlocks` 有两种文字化，消息只有文字块时两者都与原来相同：
+`ContentBlocks` has two ways of turning blocks into text; when a message has only text blocks, both are the same as before:
 
-| 用途 | 方法 | 文字资源 | 图片 |
+| Use | Method | Text resource | Image |
 | --- | --- | --- | --- |
-| 上下文组装（`Message.Text`） | `TextOf` | `<attachment name="…" type="…">` 全文 `</attachment>` | `<attachment name="…" type="image/png" omitted="image" />` |
-| 标题、摘录、界面显示 | `BriefOf` | `[附件：名称]` | `[附件：名称]` |
+| Context assembly (`Message.Text`) | `TextOf` | `<attachment name="…" type="…">` full text `</attachment>` | `<attachment name="…" type="image/png" omitted="image" />` |
+| Titles, excerpts, interface display | `BriefOf` | `[附件：名称]` | `[附件：名称]` |
 
-- 名称属性转义 `& " < >`；正文里的 `</attachment`（不分大小写）写成 `<\/attachment`，资源内容不能提前结束自己的段落。
-- 生成标题已改用 `BriefOf`，不把整份文档送去起标题。
-- 是否把图片原件发给模型按模型能力 `ImageInput`（E4）决定，属于撰写框那一步；本期上下文里只有占位。
+- The name attribute escapes `& " < >`; `</attachment` in the body (case-insensitive) is written as `<\/attachment`, so resource content cannot end its own section early.
+- Title generation now uses `BriefOf`, so a whole document is not sent off to make a title.
+- Whether to send image originals to the model is decided by the model capability `ImageInput` (E4), which belongs to the composer step; in this phase the context has only a placeholder.
 
-## 应用层
+## Application layer
 
-`ResourceService`（`IResources`）：
+`ResourceService` (`IResources`):
 
-- `CreateFromPasteAsync(工作区, 会话?, 文字)`：原件为 UTF-8 字节，`text/plain`，派生 `text` 为原文（换行统一为 `\n`）。
-- `CreateFromFileAsync(工作区, 会话?, 路径)`：按扩展名判定。文本类（`.txt`、`.md`、常见源代码与配置格式）解码为文字：带 BOM 的 UTF-8／UTF-16，否则严格 UTF-8，再否则 GB18030；含 NUL、解码失败或控制字符过多即 `NotReadable`。图片（PNG、JPEG、GIF、WebP）只存原件，类型以文件头为准（扩展名不对也按真实类型存，不是图片则拒绝）。
-- 其他类型返回 `Unsupported`。**接缝：** `ITextExtractor`（`Producer`、`CanExtract(媒体类型)`、`Extract(字节, 媒体类型)`）。PDF 与 Office 以后各加一个实现、在 `ApplicationServices` 注册即可，存储与块不变（PDF、DOCX 的扩展名也要加进 `FileTypes`）。
-- 上限：原件 32 MiB（`ResourceLimits`，草稿写 50 MB，见差别）；空内容 `Empty`；打不开的文件 `FileUnavailable`。
-- `GetAsync`、`OpenOriginalAsync`、`DeleteUnattachedAsync`；`ResourceService.BlockFor` 给出引用某资源的块。
+- `CreateFromPasteAsync(workspace, conversation?, text)`: the original is UTF-8 bytes, `text/plain`, and the derived `text` is the original text (line breaks normalized to `\n`).
+- `CreateFromFileAsync(workspace, conversation?, path)`: decided by extension. Text types (`.txt`, `.md`, common source code and configuration formats) are decoded to text: UTF-8 / UTF-16 with a BOM, otherwise strict UTF-8, otherwise GB18030; containing NUL, failing to decode or having too many control characters means `NotReadable`. Images (PNG, JPEG, GIF, WebP) store only the original, and the type is taken from the file header (with a wrong extension it is still stored as its real type; if it is not an image it is refused).
+- Other types return `Unsupported`. **Seam:** `ITextExtractor` (`Producer`, `CanExtract(media type)`, `Extract(bytes, media type)`). PDF and Office each add one implementation later and register it in `ApplicationServices`; storage and blocks do not change (the PDF and DOCX extensions must also be added to `FileTypes`).
+- Limits: originals 32 MiB (`ResourceLimits`; the draft says 50 MB, see the differences); empty content is `Empty`; a file that cannot be opened is `FileUnavailable`.
+- `GetAsync`, `OpenOriginalAsync`, `DeleteUnattachedAsync`; `ResourceService.BlockFor` gives the block that references a resource.
 
-## 不在本期
+## Not in this phase
 
-撰写框的“+”、长粘贴自动变附件与“转为文字”、草稿里的附件（架构草稿写 `draft_attachment` 表）；发图片给模型；分块与检索（`resource_chunk`、FTS5）；网页与工具资源；导出包（E5）里的资源；存储页显示原件占用；启动时清理；未发送资源的过期清理（随撰写框一起定）。
+The composer's "+", long pastes automatically becoming attachments and “转为文字” (convert to text), attachments in drafts (the architecture draft has a `draft_attachment` table); sending images to the model; chunking and retrieval (`resource_chunk`, FTS5); web and tool resources; resources in the export package (E5); showing the originals' usage on the storage page; cleanup at startup; expiry cleanup of unsent resources (to be decided together with the composer).
 
-> **2026-11-17 起由迁移 v16 与[附件](attachments.md)取代的部分：** 来源标记（`provenance` 取代 `trusted`）、图片的 `origin = image`、50 MB／20 MB 上限、分块与检索、草稿附件、启动时清理；清理不再因备份引用而保留原件，改为删除前把原件复制进备份（Q4）。下表是 v15 当时的对照，留作历史。
+> **Parts replaced from 2026-11-17 by migration v16 and [attachments](attachments.md):** the provenance mark (`provenance` replaces `trusted`), `origin = image` for images, the 50 MB / 20 MB limits, chunking and retrieval, draft attachments, cleanup at startup; cleanup no longer keeps originals because a backup references them, and instead copies the originals into the backup before deletion (Q4). The table below is the comparison as it stood for v15, kept as history.
 
-## 与架构草稿的差别（2026-11-17，供合并时对照）
+## Differences from the architecture draft (2026-11-17, for comparison at merge time)
 
-agent-docs 草稿见共享笔记 `agent-docs-fixed-details.md`。已对齐：表名 `resource`、`resource_derivative`，列名 `name`、`byte_size`、`sha256`、`source_url`、`producer`、`prompt_version`、`estimated_tokens`，`message_block.resource_id`（RESTRICT），块类型 `attachment` 且 `text` 为显示名称，原件目录布局，粘贴显示为“粘贴的文字”，GB18030 回退。仍不同：
+The agent-docs draft is in the shared note `agent-docs-fixed-details.md`. Already aligned: table names `resource`, `resource_derivative`; column names `name`, `byte_size`, `sha256`, `source_url`, `producer`, `prompt_version`, `estimated_tokens`; `message_block.resource_id` (RESTRICT); block kind `attachment` with `text` as the display name; the originals directory layout; pastes displayed as “粘贴的文字”; the GB18030 fallback. Still different:
 
-| 项 | 本分支 | 草稿 | 理由 |
+| Item | This branch | Draft | Reason |
 | --- | --- | --- | --- |
-| 可信 | `trusted` 0/1 | `provenance`（user／workspace／external） | 任务说明要求可信标记；三值来源需要时可加列，`trusted` 由它推出 |
-| `origin` 取值 | `paste`、`file` | 另有 `image` | 图片是媒体类型，不是来源；图片文件的 origin 为 `file` |
-| `workspace_id` | CASCADE | RESTRICT，删除工作区时显式删 | CASCADE 不用改删除代码；行为相同 |
-| 块的 `data` | 不用 | `{resource_id}` | 已有外键列，JSON 重复 |
-| `resource_derivative` 的分块 | 无（另表） | 同 | — |
-| 原件上限 | 32 MiB | 文件 50 MB、图片 20 MB | 改常量即可，待需求定 |
-| 清理时机 | 删除之后 | 删除之后与启动时 | 启动时清理未接入 |
+| Trust | `trusted` 0/1 | `provenance` (user / workspace / external) | The task description asked for a trust mark; a three-value provenance can be added as a column when needed, and `trusted` derived from it |
+| `origin` values | `paste`, `file` | Also `image` | An image is a media type, not an origin; the origin of an image file is `file` |
+| `workspace_id` | CASCADE | RESTRICT, deleted explicitly when deleting a workspace | CASCADE needs no change to the deletion code; the behavior is the same |
+| Block `data` | Not used | `{resource_id}` | There is already a foreign key column; the JSON would duplicate it |
+| Chunks in `resource_derivative` | None (separate table) | Same | — |
+| Original size limit | 32 MiB | Files 50 MB, images 20 MB | Only a constant to change; waiting for requirements to decide |
+| When cleanup runs | After deletion | After deletion and at startup | Cleanup at startup is not wired in |
 
-## 测试
+## Tests
 
-`ResourceStoreTests`（存储、去重、按类型读文件与编码、块读写与归属规则、同一快照读取、会话删除级联与原件清理、工作区删除前备份的恢复往返、删除备份后清理、清理与创建并发、临时文件与读不了的副本、数据库关闭时不清理）、`SchemaV15MigrationTests`（v14 数据升级、约束与级联、失败回滚）、`ContentBlockTests`（文字化、转义、哈希格式）。
+`ResourceStoreTests` (storage, deduplication, reading files by type and encoding, block reads and writes and ownership rules, reading in the same snapshot, cascade and original cleanup on conversation deletion, the restore round trip of the backup made before workspace deletion, cleanup after deleting a backup, cleanup concurrent with creation, temporary files and unreadable copies, no cleanup while the database is closed), `SchemaV15MigrationTests` (upgrading v14 data, constraints and cascades, rollback on failure), `ContentBlockTests` (turning into text, escaping, hash format).

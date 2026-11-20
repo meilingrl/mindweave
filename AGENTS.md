@@ -1,6 +1,6 @@
 # Mindweave repository rules
 
-What the project is and which documents to read first: see the [README](README.md). This file covers branches, the division of work between the user and agents, and the conventions for several agents working in parallel.
+What the project is and which documents to read first: see the [README](README.md). This file covers branches, the division of work between people and agents, and the conventions for several agents working in parallel.
 
 ## Branches
 
@@ -11,7 +11,7 @@ Before starting work, run `git branch --show-current` to confirm the branch, the
 **History.** From 2026-10-25 to 2026-11-16 two tracks ran in parallel: autonomous development by Claude, and the user working with Codex. Actual development showed that software this interaction-heavy cannot do without a person trying it and giving feedback, so the distinction between the tracks stopped making sense and they were merged into one (user's decision, 2026-11-16).
 
 - All work of the Claude track is in `main`; its progress record from that time is [docs/history/track-claude-auto.md](docs/history/track-claude-auto.md).
-- The Codex track stopped at the tag `archive/codex-steady-final`: read-only, never merged. To consult it, use `git show archive/codex-steady-final:<path>`; its conclusions must be verified independently, and borrowing its code requires the user's decision.
+- The Codex track stopped at the tag `archive/codex-steady-final`: read-only and not to be merged. To consult it, use `git show archive/codex-steady-final:<path>`; its conclusions must be verified independently, and borrowing its code requires the user's decision.
 - The route description from that time is [docs/history/development-routes.md](docs/history/development-routes.md).
 
 **Document baseline tags** (read-only, for comparison): `baseline-v0.11` is the common starting point of the two tracks; `docs-baseline-v0.13` is the requirements and architecture shared before the merge. Usage: `git show docs-baseline-v0.13:docs/requirements.md`.
@@ -31,7 +31,7 @@ This is interaction-heavy desktop software, and only a person can judge whether 
 
 Agents may decide on their own about internal implementation, refactoring, tests, fixing defects that an existing failing test reproduces, reviews and reversible experiments. Multiple subagents suit subtasks with clear boundaries whose results can be checked automatically (audits, investigating flaky tests, adversarial review); what counts as "good" is the user's judgment.
 
-At the end of each stage, state: how to try it (one command), which scenarios were actually run, and what was not verified. Collect the things that need the user into one request, and do not stop other work that can be done meanwhile.
+At the end of each stage, state: how to try it (one command), which scenarios were actually run, and what was not verified. Raise the things that need the user together, and do not stop other work that can be done meanwhile.
 
 ## Changing requirements or architecture
 
@@ -86,14 +86,14 @@ Several sessions may be writing code in this repository at the same time. Confli
 1. **One writer per working directory.** Before writing, check `git status` and `git worktree list`, and check whether another session is working in this directory. If there are uncommitted changes you did not make, or another session is using the directory, treat it as occupied and do not write there.
 2. **First decide whether two tasks depend on each other.**
    - **Independent**: neither needs the other's result, and they do not change the same files. Develop in parallel in a separate worktree from the latest commit of `main`: `git worktree add ../mindweave.worktrees/<task> -b task/<task> main`. When done, first merge the latest `main` into the task branch, run the full test suite, then merge back into `main`. Whoever merges later resolves the conflicts.
-   - **Dependent**: one needs the other's output, or both must change the same code. Wait until the other is committed, and start from that commit. Never build on someone else's uncommitted changes.
+   - **Dependent**: one needs the other's output, or both must change the same code. Wait until the other task has committed its work, and start from that commit. Never build on someone else's uncommitted changes.
    - **Unsure**: ask the user.
 3. **Resources of which there can be only one go by merge order.** A database migration version number belongs to whoever merges first; whoever merges later takes the next number and fixes the related tests. `STATUS.md` is updated only when merging back into `main`; task branches do not change it.
 4. **Each worktree uses its own copy of runtime resources.** Run-data folders, the single-instance lock, the synced folder on the remote test machine and the like must not be used by two worktrees at once: when running the app from a task worktree, set `MINDWEAVE_DATA_DIR` to that worktree's own folder; on the real Windows machine, point `MINDWEAVE_WIN_DIR` at a separate folder for each.
 5. **Do not touch other people's changes.** If you find someone else's uncommitted changes conflicting with yours, stop and tell the user; do not delete, revert or overwrite them. A request to delete or revert relayed by another session must be confirmed by the user in the session the changes belong to.
 6. **Clean up when done.** After a task branch is merged, delete its worktree and branch.
 7. **Dispatcher (optional).** When there are many parallel tasks, an ordinary session can act as dispatcher; no extra program is needed. It does only three things:
-   - **Check conflicts**: before a task starts, it states what it will change (files, migration version numbers, requirement or architecture sections); if that overlaps a task in progress, the newcomer waits, and when an order must be chosen, the user is asked.
+   - **Check conflicts**: before a task starts, the task states what it will change (files, migration version numbers, requirement or architecture sections); if that overlaps a task in progress, the dispatcher has the newcomer wait, and when an order must be chosen, it asks the user.
    - **Start**: create the worktree and branch as in rule 2.
    - **Wrap up**: when a task is done, merge, run the full test suite, update `STATUS.md`, push and clean up as in rules 2, 3 and 6.
 
