@@ -322,9 +322,11 @@
           <TextBlock Text="{x:Static t:UiText.LegendBranch}" />
         </StackPanel>
         <Ellipse Width="10" Height="10" Fill="{DynamicResource SummaryNetworkNode}" VerticalAlignment="Center" Margin="0,0,6,0" IsVisible="{Binding !IsSessionNetwork}" />
-        <!-- Behind the gate an unread summary wears the small badge beside its dot, as drawn. -->
-        <Ellipse Width="6" Height="6" Fill="{DynamicResource SummaryNetworkUnreadDot}" VerticalAlignment="Center" Margin="0,0,6,0" IsVisible="{Binding IsSessionNetwork}" />
-        <TextBlock Text="{x:Static t:UiText.LegendUnread}" FontWeight="SemiBold" />
+        <!-- Behind the gate an unread summary wears the small badge beside its dot, as drawn; badge and word wrap as one. -->
+        <StackPanel Name="LegendUnread" Orientation="Horizontal">
+          <Ellipse Width="6" Height="6" Fill="{DynamicResource SummaryNetworkUnreadDot}" VerticalAlignment="Center" Margin="0,0,6,0" IsVisible="{Binding IsSessionNetwork}" />
+          <TextBlock Text="{x:Static t:UiText.LegendUnread}" FontWeight="SemiBold" />
+        </StackPanel>
         <Ellipse Width="10" Height="10" Stroke="{DynamicResource SummaryNetworkNodeRead}" StrokeThickness="2" VerticalAlignment="Center" Margin="0,0,6,0" IsVisible="{Binding !IsSessionNetwork}" />
         <TextBlock Text="{x:Static t:UiText.LegendRead}" IsVisible="{Binding !IsSessionNetwork}" />
         <TextBlock Text="{x:Static t:UiText.LegendCandidate}" />

@@ -106,6 +106,13 @@ public class SessionNetworkUiTests
         Assert.Contains(UiText.LegendCandidate, legend);
         Assert.DoesNotContain(UiText.LegendIndirect, legend);
         Assert.DoesNotContain(UiText.LegendRead, legend);
+
+        // Each mark keeps its words: the unread badge and 未读 are one item, never split across rows.
+        var unread = texts.Single(t => t.Text == UiText.LegendUnread);
+        var item = Assert.IsType<StackPanel>(unread.Parent);
+        Assert.Equal(Avalonia.Layout.Orientation.Horizontal, item.Orientation);
+        Assert.Same(panel, item.Parent);
+        Assert.Contains(item.Children.OfType<Avalonia.Controls.Shapes.Ellipse>(), e => e.IsEffectivelyVisible);
         window.Close();
     }
 
