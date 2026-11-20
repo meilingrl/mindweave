@@ -30,7 +30,7 @@ public class SourceHighlightThemeTests
     private static readonly string LongAnswer = string.Join("\n\n",
         Enumerable.Range(1, 8).Select(i => $"第{i}段：{Pad}")
             .Append("蒸汽机车由**斯蒂芬森**改良，铁路随后在英国普及。")
-            .Concat(Enumerable.Range(9, 8).Select(i => $"第{i}段：{Pad}")));
+            .Concat(Enumerable.Range(9, 16).Select(i => $"第{i}段：{Pad}")));
 
     [AvaloniaFact]
     public async Task In_a_dark_window_the_source_highlight_uses_the_dark_colour_and_the_text_on_it_is_readable()
@@ -157,19 +157,13 @@ public class SourceHighlightThemeTests
         var block = Highlighted(window);
         var line = Assert.Single(Mark(block).LineRects());
         var markColour = ThemeColour("SourceHighlightMark", ThemeVariant.Dark);
-        // The page must be able to scroll that far: with a Windows desktop's CJK font the text is shorter, so the window is
-        // made shorter until it can (the laptop run of 2026-11-20 was clamped short of it).
-        double Needed() => scroller.Offset.Y + block.TranslatePoint(line.TopLeft, scroller)!.Value.Y + 6;
-        while (scroller.Extent.Height - scroller.Viewport.Height < Needed() + 1 && window.Height > 220)
-        {
-            window.Height -= 20;
-            window.UpdateLayout();
-        }
-
         var visible = scroller.Offset;
 
-        // The line's top 6 px above the list's top edge: outside the list, over the page behind it.
-        scroller.Offset = new Vector(0, Needed());
+        // The line's top 6 px above the list's top edge: outside the list, over the page behind it. The page must be able to
+        // scroll that far (the answer has text enough below the highlight even in a Windows desktop's denser CJK font).
+        var needed = scroller.Offset.Y + block.TranslatePoint(line.TopLeft, scroller)!.Value.Y + 6;
+        Assert.True(scroller.Extent.Height - scroller.Viewport.Height >= needed, $"can scroll {scroller.Extent.Height - scroller.Viewport.Height}, needs {needed}");
+        scroller.Offset = new Vector(0, needed);
         window.UpdateLayout();
         Assert.True(block.TranslatePoint(line.Center, scroller)!.Value.Y < 0, $"offset {scroller.Offset}, extent {scroller.Extent}, viewport {scroller.Viewport}");
         using (var frame = window.CaptureRenderedFrame()!)
