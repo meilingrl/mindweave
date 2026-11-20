@@ -1,4 +1,4 @@
-# 运行循环的改进（方向与顺序你已通过；L1–L11 已实施，待合并）
+# 运行循环的改进（L1–L12 已实施并合并，2026-11-20）
 
 依据：[需求](../requirements.md) §10.4.4–10.4.5，[架构](../architecture.md) §15.4–15.8，[运行与工具](runs-and-tools.md)（R1–R10），[网络搜索与出处](web-search.md)（W1–W16）。第 4 期 MCP 的决定 M1–M18 在分支 `claude/mcp-p4-8434f8` 上起草（`docs/design/mcp.md`），本文与之对照，不与之冲突。
 
@@ -162,7 +162,7 @@ scripts/real-api.sh eval [配置] [场景编号,…]
 
 ## 8. 实施记录（2026-11-19，分支 `claude/run-loop-l1-l11-7076b0`）
 
-按第 5 节的顺序分四步，每条一个提交，改架构文字的五条（L1、L5、L8、L10、L11）各另有一个文档提交，合并时一起请你确认。每一步之后跑全部测试与一次真实评测，比较见 [loop-steps.md](../reviews/run-eval-20261119/loop-steps.md)：基线 46／49 → 47 → 49 → 48 → 45（第 4 步的四项都是 `tight-context` 在运行之前的附件摘要被截断，不是运行循环的结果；其余 11 个场景全部通过）。测试在 `tests/Mindweave.Infrastructure.Tests/Chat/RunLoopTests.cs`，L11 的界面在 `WebSearchUiTests`。
+按第 5 节的顺序分四步，每条一个提交，改架构文字的五条（L1、L5、L8、L10、L11）各另有一个文档提交；L11 另改需求 §10.4.5（v0.20）。用户 2026-11-20 同意不再单独审阅文档与出处样式、直接合并，问题在日常使用中发现，或以后另开任务继续优化。每一步之后跑全部测试与一次真实评测，比较见 [loop-steps.md](../reviews/run-eval-20261119/loop-steps.md)：基线 46／49 → 47 → 49 → 48 → 45（第 4 步的四项都是 `tight-context` 在运行之前的附件摘要被截断，不是运行循环的结果；其余 11 个场景全部通过）。测试在 `tests/Mindweave.Infrastructure.Tests/Chat/RunLoopTests.cs`，L11 的界面在 `WebSearchUiTests`。
 
 | # | 做法 | 与提案的差别 |
 | --- | --- | --- |
