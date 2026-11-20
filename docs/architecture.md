@@ -103,8 +103,22 @@ ViewModel位于Desktop；课程导航映射见“工作区、界面与导航”�
 | MCP 服务器、第三方工具（首版后） | `McpServer`；工具 `McpTool`；连接 `McpConnection`（契约 `IMcpConnector`） |
 | 生成的图表与图示（首版后） | `Artifact`（`ArtifactBlock`） |
 | 设置 › 工具 | `Settings` 下的 `Tools` |
+| 新探索 | `NewExploration`（现有的 `ExploreHome*` 不强制改名） |
+| 推理内容；回答阶段“思考” | `Reasoning`（模型返回的推理内容）；`AnswerStage.Thinking` 只指已收到推理、还没有正文的阶段 |
+| 时间线（演进 D8 设想，尚未写入需求） | `Timeline` |
+| 分享（演进 D8 设想，尚未写入需求） | `Share` |
 
 保留词只用于下列含义：`Network` 指网络连接（如连接失败、`NetworkRead`），`Graph` 指布局算法里的通用图结构。`Web` 只用于网络搜索与网页；`Source` 已用于分支来源（`BranchSource`），出处一律用 `Citation`，资源的来源类别用 `Provenance`。
+
+**英文文档用词（2026-11-20）。** 文档改用英文后，以下几组中文分得开、英文容易混成一个词，统一这样写：
+
+- 总结 = summary（单说 summary 只指它）；上下文摘要 = context summary；资源的摘要（`DerivativeKind.Summary`）= digest。
+- 来源锚点 = anchor；出处 = citation；探索来源 = lineage；资源的来源类别 = provenance。source 不单用，分支来源写 branch source。
+- 内容关联 = summary link（link 不单用）；网址 = URL；连接 = connection（模型连接、MCP 连接）。
+- 总结网络 = summary network（不写 the network）；联网的一律用 web。
+- “主题”在中文里既指主题工作区（workspace），也指外观主题（theme），翻译时按上下文区分。
+
+正文用小写的英文词（summary node），只在指类型本身时用代码格式（`SummaryNode`）。术语表只收可能混淆或英文不明显的词；归档、备份这类直译无歧义的词不加行。
 
 已有代码不强制改名，新代码按此表。现有代码已统一用 `SummaryNetwork` 指总结网络（2026-11-15）。
 
