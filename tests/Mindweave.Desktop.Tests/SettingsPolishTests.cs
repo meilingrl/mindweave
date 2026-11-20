@@ -318,6 +318,9 @@ public class SettingsPolishTests
         UiInput.Click(window, toggle);
         Assert.False(popup.IsOpen);
         Assert.False(model.IsModelListOpen);
+
+        // Long enough for the arrow's tooltip to open under the resting pointer (as on a slow CI runner): still a click.
+        await Task.Delay(1500);
         UiInput.Click(window, toggle);
         Assert.True(popup.IsOpen);
         window.Close();

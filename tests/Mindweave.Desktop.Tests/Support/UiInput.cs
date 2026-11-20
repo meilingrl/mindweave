@@ -4,6 +4,7 @@ using Avalonia.Headless;
 using Avalonia.Input;
 using Avalonia.Interactivity;
 using Avalonia.Threading;
+using Avalonia.VisualTree;
 
 namespace Mindweave.Desktop.Tests;
 
@@ -23,6 +24,17 @@ internal static class UiInput
     public static void Click(Window window, Control target, RawInputModifiers modifiers = RawInputModifiers.None, Point? at = null, bool hover = false)
     {
         Settle();
+
+        // A tooltip that opened while the pointer rested here (its delay ran out on a slow runner) lies in the headless
+        // overlay right over the point and takes the press; in the app it is its own window beside the pointer.
+        for (Visual? v = target; v is not null; v = v.GetVisualParent())
+        {
+            if (v is Control c && ToolTip.GetIsOpen(c))
+            {
+                ToolTip.SetIsOpen(c, false);
+            }
+        }
+
         target.BringIntoView();
         window.UpdateLayout();
         var point = target.TranslatePoint(at ?? new Point(target.Bounds.Width / 2, target.Bounds.Height / 2), window)
