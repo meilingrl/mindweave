@@ -68,6 +68,9 @@ public class TimelineLayoutTests
 
         Assert.Equal(new NodePosition(positions[Id(2)].X + 110, positions[Id(2)].Y), positions[Id(3)]);
         Assert.NotEqual(positions[Id(2)].Y, positions[Id(4)].Y);
+
+        // The second child rises again from the branch above the main line, never across it (ruling R9).
+        Assert.Equal(new NodePosition(220, -128), positions[Id(4)]);
         AssertRules(nodes, positions);
     }
 
@@ -195,7 +198,8 @@ public class TimelineLayoutTests
     }
 
     /// <summary>
-    /// Every node placed; no two dots on one Y closer than a step; no connector passes a dot: for each branch, no dot
+    /// Every node placed; no two dots on one Y closer than a step; no sub-branch connector spans the main line; no
+    /// connector passes a dot: for each branch, no dot
     /// at an X strictly between the parent's and the child's with a Y strictly between theirs, nor in the parent's or
     /// the child's lane (so every connector spans exactly one step).
     /// </summary>
@@ -217,6 +221,12 @@ public class TimelineLayoutTests
             var parent = positions[node.Parent!.Value];
             var child = positions[node.Id];
             Assert.True(child.X > parent.X, $"{node.Id} is not right of its parent.");
+            // A sub-branch stays on its parent's side of the main line (ruling R9): only a root's connectors leave y = 0.
+            if (parent.Y != 0)
+            {
+                Assert.True(Math.Sign(parent.Y) == Math.Sign(child.Y), $"The connector {parent} → {child} crosses the main line.");
+            }
+
             var low = Math.Min(parent.Y, child.Y);
             var high = Math.Max(parent.Y, child.Y);
             foreach (var (id, dot) in dots)

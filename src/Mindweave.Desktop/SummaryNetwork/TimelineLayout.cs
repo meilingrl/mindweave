@@ -146,7 +146,8 @@ public static class TimelineLayout
 
         /// <summary>
         /// A new lane for a child of the dot at (<paramref name="parentX"/>, <paramref name="parentLane"/>), at
-        /// x0 = parentX + Step. Lanes are tried nearest the main line first, above before below.
+        /// x0 = parentX + Step. Lanes are tried nearest the main line first. A root's child may go either side, above
+        /// before below; a branch's child stays on its parent's side, so no sub-branch crosses the main line (ruling R9).
         /// <list type="bullet">
         /// <item>The target lane must have no dot past x0 − Step.</item>
         /// <item>Every lane strictly between the parent's lane and the target, including the main line, must have no
@@ -155,7 +156,8 @@ public static class TimelineLayout
         /// </list>
         /// The search stops one lane beyond the outermost lane in use on each side; lanes further out would fail for
         /// the same reason. Because every x is on the <see cref="Step"/> grid, no lane ever has a dot in the open
-        /// interval, so the empty lane one past the outermost always fits; finding none means the grid was broken.
+        /// interval, so the empty lane one past the outermost on either side always fits; finding none means the grid was
+        /// broken.
         /// </summary>
         public (int Lane, double X) Open(int parentLane, double parentX)
         {
@@ -168,9 +170,10 @@ public static class TimelineLayout
                 blocked[lane - top + 1] = blocked[lane - top] + (HasDotBetween(lane, parentX, x0) ? 1 : 0);
             }
 
+            var side = Math.Sign(parentLane);
             for (var k = 1; -k >= top || k <= bottom; k++)
             {
-                foreach (var target in (ReadOnlySpan<int>)[-k, k])
+                foreach (var target in side == 0 ? (ReadOnlySpan<int>)[-k, k] : [side * k])
                 {
                     if (target < top || target > bottom || target == parentLane || End(target) > x0 - Step)
                     {
