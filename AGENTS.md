@@ -43,6 +43,21 @@ Current requirements and architecture are in `docs/`, implementation-level desig
 
 `STATUS.md` records only the current state, next steps, what needs the user, and pending decisions, and stays short; the course of each stage goes into the [stage reports](docs/design/stage-reports.md), and decisions go into [decisions.md](docs/design/decisions.md).
 
+## Language and writing
+
+| What | Language |
+| --- | --- |
+| Living documents: this file, `README.md`, `STATUS.md`, requirements, architecture, current designs in `docs/design/`, `docs/evolution.md`, `docs/mailbox.md` | English, one language per file |
+| Frozen records: `docs/history/`, `docs/reviews/`, `prototypes/`, finished-stage designs (`docs/design/s0-…` to `s7-…`, `s6-wrapup.md`, `s6-windows-checklist.md`), stage-report entries before 2026-11-20 | Kept as written (mostly Chinese); not translated |
+| Code, comments, commit messages | English |
+
+1. **Terms come from the glossary** in [architecture §2.3](docs/architecture.md), including its notes on English wording. Prose uses plain lowercase words ("summary node"); code formatting only when the text means the type itself.
+2. **Chinese only when quoting**: UI text, or the user's own words.
+3. **Section numbers and IDs never change** through translation or rewording (§10.4.3, D-025, R1, W8, …); code and documents cite them.
+4. **A translation is a commit of its own**, with no content change. Before it merges, an independent reviewer compares every rule-setting sentence (must, only, never, …) with the original.
+5. **A living document not yet translated is edited in its current language**, so no file mixes the two.
+6. **Write short, plain sentences.** A Chinese version of an outward-facing document (`README.zh-CN.md`) may be added later; once one exists, it changes in the same commit as its English source.
+
 ## Releases and channels
 
 Run data, the single-instance identity and system credentials are isolated per channel (build property `MindweaveChannel`):
