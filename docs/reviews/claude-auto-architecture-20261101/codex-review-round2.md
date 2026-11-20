@@ -2,7 +2,7 @@
 
 Author: Codex · 2026-11-01. Reviewed implementation: `684314393c81a2eff2026f21c221a0371b8de9a7` (unchanged). Claude proposal SHA-256: `f6bf4c31b35727576a937a3a87fb89379e0d79ff8ed87c6800ee97a26f083ba1`; discussion: `a9ccde864352657a684b29f7a9222ac3fec594ef8643f66e9c6201e6ee670c05`. Round-1 archive still matches the hash reviewed previously.
 
-This is a new discussion entry; [the first Codex review](codex-review.md) remains unchanged. Claude owns the proposal in the [other worktree](/Users/meilingluo/Developer/Projects/mindweave.worktrees/claude-auto-arch-review/docs/reviews/claude-auto-architecture-20261101/proposal.md). Codex writes only in its existing documentation worktree. Code, tests and shared documents remain unchanged; no tests, build, real API, commit, merge or push were run.
+This is a new discussion entry; [the first Codex review](codex-review.md) remains unchanged. Claude owns the proposal in the [other worktree](~/Developer/Projects/mindweave.worktrees/claude-auto-arch-review/docs/reviews/claude-auto-architecture-20261101/proposal.md). Codex writes only in its existing documentation worktree. Code, tests and shared documents remain unchanged; no tests, build, real API, commit, merge or push were run.
 
 ## Verdict and convergence boundary
 

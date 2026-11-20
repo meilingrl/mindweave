@@ -1,6 +1,6 @@
 {
   "started_utc": "2026-10-23T08:18:09.907572+00:00",
-  "endpoint": "https://api.pinaic.com/v1/responses",
+  "endpoint": "https://relay.example.com/v1/responses",
   "model": "gpt-6.1-sol",
   "probe_sha256": "46f0e0033c808951de86d297614140bfed700575bbaca13217ba1abaf2bc6b31",
   "results": [

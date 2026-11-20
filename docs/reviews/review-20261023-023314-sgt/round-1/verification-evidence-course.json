@@ -1,22 +1,22 @@
 {
-  "source_path": "/Users/meilingluo/School/Courses/2026-Fall/全栈开发技术/Worklog/docs/期末项目与报告要求.docx",
+  "source_path": "~/School/Courses/2026-Fall/全栈开发技术/Worklog/docs/期末项目与报告要求.docx",
   "sha256": "0682dae8d95f77aab6627b82f9258219d437fe1a934b05932577f3d7da06c094",
   "method": "Read-only OOXML word/document.xml direct body paragraph extraction, P is 1-based w:body/w:p order; no rendering, application launch, build, or tests.",
   "rules_read": [
-    "/Users/meilingluo/AGENTS.md"
+    "~/AGENTS.md"
   ],
   "ancestor_rules_checked_absent": [
-    "/Users/meilingluo/Developer/AGENTS.md",
-    "/Users/meilingluo/Developer/Projects/AGENTS.md",
-    "/Users/meilingluo/Developer/Projects/mindweave/AGENTS.md",
-    "/Users/meilingluo/School/AGENTS.md",
-    "/Users/meilingluo/School/Courses/AGENTS.md",
-    "/Users/meilingluo/School/Courses/2026-Fall/AGENTS.md",
-    "/Users/meilingluo/School/Courses/2026-Fall/全栈开发技术/AGENTS.md",
-    "/Users/meilingluo/School/Courses/2026-Fall/全栈开发技术/Worklog/AGENTS.md",
-    "/Users/meilingluo/School/Courses/2026-Fall/全栈开发技术/Worklog/docs/AGENTS.md",
-    "/Users/meilingluo/School/Courses/2026-Fall/全栈开发技术/course/AGENTS.md",
-    "/Users/meilingluo/School/Courses/2026-Fall/全栈开发技术/course/daily-poetry-a/AGENTS.md"
+    "~/Developer/AGENTS.md",
+    "~/Developer/Projects/AGENTS.md",
+    "~/Developer/Projects/mindweave/AGENTS.md",
+    "~/School/AGENTS.md",
+    "~/School/Courses/AGENTS.md",
+    "~/School/Courses/2026-Fall/AGENTS.md",
+    "~/School/Courses/2026-Fall/全栈开发技术/AGENTS.md",
+    "~/School/Courses/2026-Fall/全栈开发技术/Worklog/AGENTS.md",
+    "~/School/Courses/2026-Fall/全栈开发技术/Worklog/docs/AGENTS.md",
+    "~/School/Courses/2026-Fall/全栈开发技术/course/AGENTS.md",
+    "~/School/Courses/2026-Fall/全栈开发技术/course/daily-poetry-a/AGENTS.md"
   ],
   "paragraphs": {
     "5": "功能有实际意义，逻辑需要自洽，不得出现类似“本地通讯录支持用户注册登录”这类逻辑不自洽的功能设计。",
@@ -80,7 +80,7 @@
       "Whether Root startup state transition within one window satisfies P20 window-switch language; must demonstrate equivalent lifecycle or ask teacher."
     ]
   },
-  "candidate_reference_directory": "/Users/meilingluo/School/Courses/2026-Fall/全栈开发技术/course/daily-poetry-a",
+  "candidate_reference_directory": "~/School/Courses/2026-Fall/全栈开发技术/course/daily-poetry-a",
   "candidate_reference_note": "Directory exists and Views, service interfaces, MainViewModel and navigation implementation inspected read-only. It has not been adopted as the teacher-approved numerical baseline. No course pass inferred.",
   "reference_source_lines": {
     "DailyPoetryA.Library/ViewModels/MainViewModel.cs": "54-65 PushContent and menu reset; 87-99 ContentStack and GoBack",

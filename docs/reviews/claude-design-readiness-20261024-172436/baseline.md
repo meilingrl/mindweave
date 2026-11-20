@@ -33,7 +33,7 @@ v1 副本哈希与上表一致（复制后立即核对）。
 | `prototypes/network-layout/README.md` | 网络样例证据边界 | `9f0a86189b806d19c2f461de5be17b2c188047702d8904306ea3a6f943cf0208` |
 | `prototypes/responses-compat/README.md` | 协议探针实测边界 | `da2ae1a9598161eda37e75fc08b61137c8c12902554afbeebc6a0661d6cce9a3` |
 
-适用规则：已读 `/Users/meilingluo/AGENTS.md`（v0.6）。项目路径 `Developer/`、`Developer/Projects/`、`mindweave/` 各层未发现 `AGENTS.md`；`Developer/README.md`、`Developer/Projects/README.md` 已读作导航。
+适用规则：已读 `~/AGENTS.md`（v0.6）。项目路径 `Developer/`、`Developer/Projects/`、`mindweave/` 各层未发现 `AGENTS.md`；`Developer/README.md`、`Developer/Projects/README.md` 已读作导航。
 
 ## 4. 全量完整性清单
 

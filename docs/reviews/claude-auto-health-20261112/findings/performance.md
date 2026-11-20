@@ -1,6 +1,6 @@
 # Performance and resource use — grade C
 
-Repo root: /Users/meilingluo/Developer/Projects/mindweave.worktrees/claude-auto (all `file` values are relative to it). The storage read paths are well built and measured: one serialized writer, reads off the UI thread, throttled UI updates, and SQL-side aggregation for statistics. I timed the main queries with the sqlite3 CLI on a synthetic database (200k messages, 100k tasks, 100k requests, 577 MB) and the read side held up: each statistics query under 80 ms, quick_check 0.2 s warm, startup recovery 8 ms.
+Repo root: ~/Developer/Projects/mindweave.worktrees/claude-auto (all `file` values are relative to it). The storage read paths are well built and measured: one serialized writer, reads off the UI thread, throttled UI updates, and SQL-side aggregation for statistics. I timed the main queries with the sqlite3 CLI on a synthetic database (200k messages, 100k tasks, 100k requests, 577 MB) and the read side held up: each statistics query under 80 ms, quick_check 0.2 s warm, startup recovery 8 ms.
 
 The grade is C because two problems hit at exactly the "heavy year of use" scale the project sets for itself (PerfShape.Full):
 

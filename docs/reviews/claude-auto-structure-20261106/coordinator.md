@@ -145,4 +145,4 @@ Using `partial` class files instead of real types would shorten the file but kee
 | Type move + stale doc reference (step 1) | medium | S |
 | Splitting the scheduler core | do not | — |
 
-All paths are under `/Users/meilingluo/Developer/Projects/mindweave.worktrees/claude-auto/`. Main files: `src/Mindweave.Application/Conversations/GenerationCoordinator.cs`, `tests/Mindweave.Infrastructure.Tests/Chat/ChatHarness.cs`, `tests/Mindweave.TestHost/Program.cs`, `tests/Mindweave.Architecture.Tests/SeamTests.cs`, `src/Mindweave.Desktop/CompositionRoot.cs`.
+All paths are under `~/Developer/Projects/mindweave.worktrees/claude-auto/`. Main files: `src/Mindweave.Application/Conversations/GenerationCoordinator.cs`, `tests/Mindweave.Infrastructure.Tests/Chat/ChatHarness.cs`, `tests/Mindweave.TestHost/Program.cs`, `tests/Mindweave.Architecture.Tests/SeamTests.cs`, `src/Mindweave.Desktop/CompositionRoot.cs`.

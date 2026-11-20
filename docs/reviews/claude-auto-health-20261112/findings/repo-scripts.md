@@ -38,7 +38,7 @@ What I checked:
 - `track/codex-steady` (07baf94) is `[origin/track/codex-steady: ahead 112]`. The unpushed commits are dated 2026-10-26 (38), 10-27 (45) and 10-28 (29). The remote-tracking ref was last moved by a push on 2026-10-25 22:50.
 - The unpushed delta is large: 292 files changed, 33,584 insertions against the remote tip.
 - AGENTS.md line 10 does name this branch as the course submission version.
-- There is one remote only (GitHub origin), and every worktree's gitdir points into `/Users/meilingluo/Developer/Projects/mindweave/.git`, so there is no second local object store.
+- There is one remote only (GitHub origin), and every worktree's gitdir points into `~/Developer/Projects/mindweave/.git`, so there is no second local object store.
 - `tmutil destinationinfo` reports no Time Machine destination, so I found no machine-level backup either.
 - I found no decision that makes this intended. TRACK.md line 48 authorizes pushing only `origin/track/claude-auto`. The codex-steady TRACK.md has no push or backup statement.
 - The Windows clones described in TRACK.md line 94 are tester clones by SHA; I found no sign they hold codex-steady, and I did not SSH to check.
@@ -54,7 +54,7 @@ Severity stays high. Probability is low, but the impact is irreversible loss of 
 Not verified: I did not query GitHub directly (no `git ls-remote`), so the remote state is inferred from the local tracking ref. The last fetch (2026-11-13 01:36) recorded only `main` in FETCH_HEAD.
 
 *Corrections to the finding.* 1. "Over two weeks of the graded track's work" is overstated: the 112 commits span three days (2026-10-26 to 10-28). They have been unpushed for about 16 days.
-2. A mistaken `git branch -D` is recoverable through the reflog until gc. The unrecoverable scenarios are disk failure, loss of the machine, or deleting /Users/meilingluo/Developer/Projects/mindweave/.git.
+2. A mistaken `git branch -D` is recoverable through the reflog until gc. The unrecoverable scenarios are disk failure, loss of the machine, or deleting ~/Developer/Projects/mindweave/.git.
 3. `main` ahead by 3 is a recorded user decision (TRACK.md line 31), and its content is already on `origin/track/claude-auto`. It should not count as part of the defect.
 4. The two worktree-branch commits are day-old in-progress work and should be dropped from the finding or listed as informational.
 5. Worth adding to the finding: no Time Machine destination is configured, which strengthens the "no second copy" claim.
@@ -68,7 +68,7 @@ Confirmed facts:
 - AGENTS.md line 10 does name track/codex-steady as the course submission version.
 - main is 3 ahead of origin/main (bf4b549 v0.12, 1021b69 D7, 1086f87 v0.13), but `git rev-list --count main --not --remotes` = 0, so that content is safe via the pushed track/claude-auto — as the finding says.
 - worktree-wf_e0cb2e5e-84d-1 (3558693) has 2 commits on no remote ref — as claimed.
-- All worktrees (git worktree list shows 9) share the single repository at /Users/meilingluo/Developer/Projects/mindweave, so there is no second local object store.
+- All worktrees (git worktree list shows 9) share the single repository at ~/Developer/Projects/mindweave, so there is no second local object store.
 
 The failure scenario is real for disk loss or loss of the machine: the graded track's implementation exists in one place. Severity high is appropriate given that this is the course-submission branch and the fix is a single push (needing the user's authorization). I did not check for out-of-band backups (Time Machine, cloud sync of the folder, a copy on the Windows test machine), which would reduce the practical risk but are not visible from git.
 
@@ -171,7 +171,7 @@ Not verified: the claim that TreatWarningsAsErrors and AnalysisMode=Recommended 
 
 <details><summary>Reproduction</summary>
 
-Scratch copy outside any worktree, at /private/tmp/claude-501/-Users-meilingluo-Developer-Projects-mindweave-worktrees-claude-auto/741bda69-6233-404f-b4a0-8bc89d0ed5bc/scratchpad/verify-nu1008: root Directory.Build.props and Directory.Packages.props, plus prototypes/network-layout/{Network.csproj,Program.cs,LocalMotion.cs,global.json}.
+Scratch copy outside any worktree, at /private/tmp/claude-501/-Users-USER-Developer-Projects-mindweave-worktrees-claude-auto/741bda69-6233-404f-b4a0-8bc89d0ed5bc/scratchpad/verify-nu1008: root Directory.Build.props and Directory.Packages.props, plus prototypes/network-layout/{Network.csproj,Program.cs,LocalMotion.cs,global.json}.
 
 Ran `dotnet restore` in prototypes/network-layout. Output:
 

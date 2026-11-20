@@ -5,9 +5,9 @@
 | 入口 | 用途与相对链接语境 |
 | --- | --- |
 | [基线清单](baseline-manifest.json) | 本轮实际涉及的47个原始文档/源码/配置/脚本的绝对路径、时间与SHA-256；不含生成二进制或用户应用数据 |
-| [项目 README 原样快照](project-README.md) | 相对链接按[原项目目录](/Users/meilingluo/Developer/Projects/mindweave/)解释 |
-| [聊天原型 README 原样快照](avalonia-chat-README.md) | 相对链接按[原型目录](/Users/meilingluo/Developer/Projects/mindweave/prototypes/avalonia-chat/)解释 |
-| [组件小样 README 原样快照](livemarkdown-chat-README.md) | 相对链接按[小样目录](/Users/meilingluo/Developer/Projects/mindweave/prototypes/livemarkdown-chat/)解释 |
+| [项目 README 原样快照](project-README.md) | 相对链接按[原项目目录](~/Developer/Projects/mindweave/)解释 |
+| [聊天原型 README 原样快照](avalonia-chat-README.md) | 相对链接按[原型目录](prototypes/avalonia-chat/)解释 |
+| [组件小样 README 原样快照](livemarkdown-chat-README.md) | 相对链接按[小样目录](prototypes/livemarkdown-chat/)解释 |
 | [五类验证边界](verification-boundaries.md) | 历史原型技术记录、用户操作确认、正式实现、课程与产品价值分别处理 |
 | [固定库版本核对](official-library-check.md) | 官方元数据与固定提交资料，未以main/latest倒推 |
 | [课程原件取证](../round-1/verification-evidence-course.json) | 只读OOXML段落、原始路径与SHA、解释边界；不是课程通过证明 |

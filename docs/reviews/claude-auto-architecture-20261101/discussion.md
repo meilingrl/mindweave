@@ -117,11 +117,11 @@ None substantive on F1–F4 after this revision. Where I expect Codex may disagr
 
 - Reviewed commit: `684314393c81a2eff2026f21c221a0371b8de9a7` on `track/claude-auto`.
 - Documents (uncommitted, branch `track/claude-auto-arch-review`):
-  - `/Users/meilingluo/Developer/Projects/mindweave.worktrees/claude-auto-arch-review/docs/reviews/claude-auto-architecture-20261101/README.md`
-  - `/Users/meilingluo/Developer/Projects/mindweave.worktrees/claude-auto-arch-review/docs/reviews/claude-auto-architecture-20261101/proposal.md`
-  - `/Users/meilingluo/Developer/Projects/mindweave.worktrees/claude-auto-arch-review/docs/reviews/claude-auto-architecture-20261101/discussion.md`
-- Course source: `/Users/meilingluo/School/Courses/2026-Fall/全栈开发技术/Worklog/docs/期末项目与报告要求.docx`
-- DailyPoetryA reference: `/Users/meilingluo/School/Courses/2026-Fall/全栈开发技术/course/daily-poetry-a`
+  - `~/Developer/Projects/mindweave.worktrees/claude-auto-arch-review/docs/reviews/claude-auto-architecture-20261101/README.md`
+  - `~/Developer/Projects/mindweave.worktrees/claude-auto-arch-review/docs/reviews/claude-auto-architecture-20261101/proposal.md`
+  - `~/Developer/Projects/mindweave.worktrees/claude-auto-arch-review/docs/reviews/claude-auto-architecture-20261101/discussion.md`
+- Course source: `~/School/Courses/2026-Fall/全栈开发技术/Worklog/docs/期末项目与报告要求.docx`
+- DailyPoetryA reference: `~/School/Courses/2026-Fall/全栈开发技术/course/daily-poetry-a`
 
 Joint approval is **not** declared. Agreement here is not authorization to implement.
 
@@ -170,7 +170,7 @@ No reviewer agreement here authorizes implementation.
    - **(g)** Whether S1's reproduction tests can be merged at all when they fail today, or must be held in the task branch until their fix.
 3. **Paths and commit:**
    - Reviewed commit: `684314393c81a2eff2026f21c221a0371b8de9a7`.
-   - Proposal round 2: `/Users/meilingluo/Developer/Projects/mindweave.worktrees/claude-auto-arch-review/docs/reviews/claude-auto-architecture-20261101/proposal.md`.
+   - Proposal round 2: `~/Developer/Projects/mindweave.worktrees/claude-auto-arch-review/docs/reviews/claude-auto-architecture-20261101/proposal.md`.
    - Round 1 (frozen): `.../proposal-round1.md`, same folder.
    - This log: `.../discussion.md`, same folder.
    - Codex review: [codex-review.md](codex-review.md) (copied here 2026-11-15).
@@ -188,7 +188,7 @@ The user answered in chat and authorized starting the remediation without waitin
 - **D4:** add the narrow, consumer-mapped VM-facing interfaces (proposal §8.2) as the last slice. The §36 interpretation is recorded in `TRACK.md`; `main` is unchanged.
 - **Order:** this remediation goes before S7 round 3. The S7 session was told by cross-session message, with the list of files that overlap.
 - **Naming:** the plan's slices are renamed **A0–A6** (were S0–S6) in `proposal.md` and `README.md`, to avoid confusion with the track's product stages S0–S7. Entries 3–5 above keep their original S-names.
-- **Implementation worktree:** `/Users/meilingluo/Developer/Projects/mindweave.worktrees/claude-auto-arch-fix`, branch `track/claude-auto-arch-fix`, cut from `6843143`.
+- **Implementation worktree:** `~/Developer/Projects/mindweave.worktrees/claude-auto-arch-fix`, branch `track/claude-auto-arch-fix`, cut from `6843143`.
 
 ---
 

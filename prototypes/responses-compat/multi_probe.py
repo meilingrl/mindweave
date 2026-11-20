@@ -12,7 +12,7 @@ from pathlib import Path
 from datetime import datetime, timezone
 from probe import NoRedirect, events
 
-BASES = {'gpt': 'https://api.pinaic.com/v1', 'claude': 'https://api.pinaic.com/v1',
+BASES = {'gpt': 'https://relay.example.com/v1', 'claude': 'https://relay.example.com/v1',
          'deepseek': 'https://api.deepseek.com'}
 
 def choose(ids):

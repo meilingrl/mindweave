@@ -64,7 +64,7 @@ Medium fits: a silent, permanent departure from a documented storage invariant w
 
 <details><summary>Reproduction</summary>
 
-Run in the scratchpad directory /private/tmp/claude-501/-Users-meilingluo-Developer-Projects-mindweave-worktrees-claude-auto/741bda69-6233-404f-b4a0-8bc89d0ed5bc/scratchpad/walv (system sqlite3 3.54.0, not the app's bundled SQLite):
+Run in the scratchpad directory /private/tmp/claude-501/-Users-USER-Developer-Projects-mindweave-worktrees-claude-auto/741bda69-6233-404f-b4a0-8bc89d0ed5bc/scratchpad/walv (system sqlite3 3.54.0, not the app's bundled SQLite):
 
 sqlite3 a.db "PRAGMA journal_mode=WAL; create table t(x); insert into t values(1);"
 sqlite3 a.db "VACUUM INTO 'b.db';"
