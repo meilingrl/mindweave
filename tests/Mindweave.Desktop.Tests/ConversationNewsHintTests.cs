@@ -141,7 +141,13 @@ public class ConversationNewsHintTests
         var first = await scene.AnswerAsync(scene.HighSpeed, "高铁有多快？");
         var second = await scene.AnswerAsync(scene.HighSpeed, "复兴号有几节车厢？");
         Assert.Equal([first, second], news.Toasts.Select(t => t.Conversation));
-        await SidebarItemAsync(app, first);
+
+        // Both rows are in with their titles and the sidebar's last reload has landed: a reload that lands during the click
+        // (input runs pending jobs) moves the row from under the pointer (a Windows CI failure, 2026-11-20).
+        var rows = new[] { await SidebarItemAsync(app, first), await SidebarItemAsync(app, second) };
+        await UiWait.UntilAsync(() => rows.All(r => r.Title == Testing.FakeChatClient.DefaultTitle));
+        await scene.SettledAsync();
+        await app.ShellPage.Conversations.Loaded;
 
         // Gone as the conversation shows, not only once the marks are counted again.
         UiInput.Click(window, Row(window, first));

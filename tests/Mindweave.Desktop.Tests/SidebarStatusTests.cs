@@ -158,9 +158,7 @@ public class SidebarStatusTests
         var held = app.Client.Hold("斯蒂芬森");
         await app.Services.GetRequiredService<ConversationService>().AskAsync(first, "再讲讲斯蒂芬森。", CancellationToken.None);
         await held.Started.Task.WaitAsync(TimeSpan.FromSeconds(5));
-        await UiWait.UntilAsync(() => Item(app, first).IsGenerating);
-        window.UpdateLayout();
-        var spinner = Row(window, first).GetVisualDescendants().OfType<ActivitySpinner>().Single();
+        var spinner = await RunningSpinnerAsync(app, window, first);
         Assert.True(spinner.IsEffectivelyVisible);
         Assert.True(spinner.IsTurning);
         Assert.Equal(UiText.MarkerGenerating, Item(app, first).MarkerHint);
@@ -191,9 +189,7 @@ public class SidebarStatusTests
         var held = app.Client.Hold("斯蒂芬森");
         await app.Services.GetRequiredService<ConversationService>().AskAsync(first, "再讲讲斯蒂芬森。", CancellationToken.None);
         await held.Started.Task.WaitAsync(TimeSpan.FromSeconds(5));
-        await UiWait.UntilAsync(() => Item(app, first).IsGenerating);
-        window.UpdateLayout();
-        var spinner = Row(window, first).GetVisualDescendants().OfType<ActivitySpinner>().Single();
+        var spinner = await RunningSpinnerAsync(app, window, first);
         ActivitySpinner.Animates = true;
         try
         {
@@ -307,9 +303,7 @@ public class SidebarStatusTests
         var held = app.Client.Hold("斯蒂芬森");
         await app.Services.GetRequiredService<ConversationService>().AskAsync(first, "再讲讲斯蒂芬森。", CancellationToken.None);
         await held.Started.Task.WaitAsync(TimeSpan.FromSeconds(5));
-        await UiWait.UntilAsync(() => Item(app, first).IsGenerating);
-        window.UpdateLayout();
-        var spinner = Row(window, first).GetVisualDescendants().OfType<ActivitySpinner>().Single();
+        var spinner = await RunningSpinnerAsync(app, window, first);
         ActivitySpinner.Animates = true;
         try
         {
@@ -606,6 +600,18 @@ public class SidebarStatusTests
         var page = Assert.IsType<ConversationViewModel>(app.Workbench.CurrentPage);
         await page.Loaded;
         return page;
+    }
+
+    /// <summary>
+    /// The spinner of a row whose answer is running, read once the sidebar has moved that row to the top. Asking moves the
+    /// row up when the list reloads, and the list recycles a moved row's container. A spinner read before the reload lands
+    /// is then out of the tree with no data context, so its IsVisible falls back to true (a Windows CI failure, 2026-11-20).
+    /// </summary>
+    private static async Task<ActivitySpinner> RunningSpinnerAsync(DesktopHarness app, Window window, ConversationId id)
+    {
+        await UiWait.UntilAsync(() => Item(app, id).IsGenerating && app.ShellPage.Conversations.Items[0].Id == id);
+        window.UpdateLayout();
+        return Row(window, id).GetVisualDescendants().OfType<ActivitySpinner>().Single();
     }
 
     private static ConversationItemViewModel Item(DesktopHarness app, ConversationId id) =>
