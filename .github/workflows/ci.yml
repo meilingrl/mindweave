@@ -42,11 +42,16 @@ jobs:
       # to its LaTeX source. Desktop macOS and Windows ship such fonts; the Ubuntu runner does not.
       - name: CJK fonts (Linux)
         if: runner.os == 'Linux'
-        # Retried: two runs failed at this step on a mirror hiccup (health check 2026-11-12, item 7).
+        # Retried: two runs failed at this step on a mirror hiccup (health check 2026-11-12, item 7). Each attempt is
+        # also time-limited: on 2026-11-20 the 61 MB download stalled without failing until the job's 20-minute limit,
+        # twice in a row (run 44782569061). apt's own timeout makes a stalled transfer fail so the next attempt runs.
+        timeout-minutes: 8
         run: |
+          apt_opts="-o Acquire::http::Timeout=30 -o Acquire::Retries=2"
           for attempt in 1 2 3; do
-            sudo apt-get update -q && sudo apt-get install -y -q --no-install-recommends fonts-noto-cjk && exit 0
-            echo "attempt $attempt failed; retrying"; sleep 20
+            sudo timeout 150 apt-get update -q $apt_opts \
+              && sudo timeout 150 apt-get install -y -q --no-install-recommends $apt_opts fonts-noto-cjk && exit 0
+            echo "attempt $attempt failed; retrying"; sleep 10
           done
           exit 1
       - name: Restore
