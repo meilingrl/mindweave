@@ -159,6 +159,52 @@ public class SessionProjectionTests
         Assert.Equal(question, node.FirstQuestion);
     }
 
+    [Fact]
+    public async Task A_conversation_with_neither_title_nor_question_is_a_new_exploration()
+    {
+        await using var h = await ChatHarness.StartAsync();
+        var bare = ConversationId.New();
+        await h.Database.WriteAsync(
+            (c, t) => c.Execute(
+                t,
+                "INSERT INTO conversation (id, workspace_id, title, title_source, created_at, updated_at) VALUES ($id, $ws, NULL, 'none', 1, 1);",
+                ("$id", bare.ToString()), ("$ws", h.Workspace.ToString())),
+            Ct);
+
+        var node = Assert.Single((await h.SummaryNetwork.ProjectSessionsAsync(h.Workspace, Ct)).Nodes);
+
+        Assert.Equal(bare, node.Conversation);
+        Assert.Null(node.FirstQuestion);
+        Assert.Equal("新探索", node.ShortTitle);
+        Assert.Equal("新探索", node.DisplayName);
+    }
+
+    [Fact]
+    public async Task Conversations_started_at_the_same_moment_are_ordered_by_id_on_every_load()
+    {
+        await using var h = await ChatHarness.StartAsync();
+        List<ConversationId> started = [await ConversationAsync(h, "火车？"), await ConversationAsync(h, "摄影？"), await ConversationAsync(h, "咖啡？")];
+        var byId = started.OrderBy(c => c.Value).ToList();
+
+        // One created_at for all; the store lists by updated_at, first in id order, then reversed.
+        foreach (var listing in new[] { byId, Enumerable.Reverse(byId).ToList() })
+        {
+            await h.Database.WriteAsync(
+                (c, t) => listing.Select((id, i) => c.Execute(
+                    t,
+                    "UPDATE conversation SET created_at = 1000, updated_at = $updated WHERE id = $id;",
+                    ("$updated", 2000 + i), ("$id", id.ToString()))).Sum(),
+                Ct);
+            Assert.Equal(Enumerable.Reverse(listing), (await h.Conversations.ListAsync(h.Workspace, Ct)).Select(c => c.Conversation.Id));
+
+            var projection = await h.SummaryNetwork.ProjectSessionsAsync(h.Workspace, Ct);
+
+            Assert.Equal(byId, projection.Nodes.Select(n => n.Conversation));
+            var thread = projection.Edges.Where(e => e.Kind == SummaryNetworkEdgeKind.TimeThread).Select(e => (e.From.Value, e.To.Value));
+            Assert.Equal([(byId[0].Value, byId[1].Value), (byId[1].Value, byId[2].Value)], thread);
+        }
+    }
+
     private static async Task<ConversationId> ConversationAsync(ChatHarness h, string question)
     {
         var sent = await h.Conversations.StartAsync(h.Workspace, question, Ct);
