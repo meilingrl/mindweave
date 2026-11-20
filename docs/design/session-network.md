@@ -1,6 +1,6 @@
-# Session network and timeline (design, draft for the owner)
+# Session network and timeline (design)
 
-Status: draft, 2026-11-20. Written from the owner's brainstorming of 2026-11-19 and 11-20 and a throwaway preview (branch `task/session-network-spike`, commit `bd793e3`). Nothing here changes the requirements or the architecture by itself: §11 lists the text that must change, and that goes to the owner as its own proposal (AGENTS.md, "Changing requirements or architecture").
+Status: approved by the owner 2026-11-20 (with the decisions in §12). Written from the owner's brainstorming of 2026-11-19 and 11-20 and a throwaway preview (branch `task/session-network-spike`, commit `bd793e3`). Nothing here changes the requirements or the architecture by itself: §11 lists the text that must change, and that goes to the owner as its own proposal (AGENTS.md, "Changing requirements or architecture").
 
 Related: [evolution D8](../evolution.md) (sharing the thinking path), [S5 summary network](s5-network.md) (today's network), [requirements](../requirements.md) §4.2, §7, §10.3; [architecture](../architecture.md) §11.
 
@@ -149,7 +149,7 @@ Positions are keyed by conversation, not by summary node:
 
 - New table: `conversation_layout` (`conversation_id` primary key referencing `conversation` with cascade delete, `workspace_id`, `x`, `y`, `updated_at`).
 - **First load after the migration** counts as the workspace's first appearance (U3): the full §6.1 layout runs and is saved directly. Old summary positions are not carried over. Keeping a few of them would freeze today's row-of-trees picture with new dots stuck around it, which is the look the owner rejected.
-- `node_layout` is left untouched. Today's view keeps using it while the new views are behind the gate (§9). Whether it is dropped after acceptance is the owner's call (§12): stored names are not changed without consent.
+- `node_layout` is left untouched. Today's view keeps using it while the new views are behind the gate (§9). It is kept for one release after acceptance, for rollback, and dropped in the release after that (owner, §12).
 - This is a migration of real data, so it is tried on a copy before publishing.
 
 ### 6.4 Acceptance checks (automatic, on the E6 data and a copy of the owner's data)
@@ -166,7 +166,7 @@ The final judge is the owner, on screenshots and on `scripts/daily.sh trial` (AG
 
 ## 7. Shared view rules
 
-- Both views live on the same page, switched by one control. The current view is remembered per workspace. The page's name is open (§12).
+- Both views live on the same page, switched by one control. The current view is remembered per workspace. The page is called **Mindweave** (owner, §12); the switch's two labels are 空间 (spatial) and 时间线 (timeline).
 - Selection, details, search, double-click, "return to conversation", the list view and recommendations work identically in both views.
 - Summary-only actions (open summary, link, reading-state switch) appear only for dots that have a summary.
 - Today's legend line about unsummarized dashed paths goes. The legend explains: dot size = how much was asked here (not how well it is understood); ring = has a summary; dotted arrow = time; solid line = branch.
@@ -222,16 +222,18 @@ The spike branch is deleted when round 1 starts.
 | §7.1 | Markers on a session dot with a summary |
 | §7.3 | Layout rules for both views; size = amount asked; time shown on demand |
 | §7.4 | Saving applies to the spatial view only; the timeline is never saved |
-| §10.3.2 | Recommendation count still based on the number of summaries (or sessions — owner's call, §12) |
+| §10.3.2 | Recommendation count based on the number of sessions, same tiers (owner, §12); a basis summary is still needed, so no summary means no recommendation |
 | §10.3.3–10.3.4 | Quieter link display; suggestions only across explorations |
 | Architecture §11 | Projection, both layouts, `conversation_layout` |
 | Architecture §2.3 | Glossary rows: time thread, the spatial view's name, lane |
 
-## 12. Open questions for the owner
+## 12. Owner's decisions (2026-11-20)
 
-1. **Names.** What the page and the two views are called in the interface. Today's name is 总结网络 (summary network), which no longer fits a map of sessions.
-2. **`node_layout`.** Drop it after the migration copies it, or keep it for rollback for one release?
-3. **Recommendation count** (§10.3.2): keep basing it on summaries, or on sessions?
+1. **Names.** The page is called **Mindweave** in the interface (today: 总结网络 (summary network)). The switch labels 空间 (spatial) and 时间线 (timeline) are the writer's call (§13).
+2. **`node_layout`** is kept for one release after acceptance, for rollback, then dropped.
+3. **Recommendation count** (§10.3.2) is based on the number of sessions. Writer's calls (§13): the same tiers (1–10 → 1, 11–30 → 2, over 30 → 3), and a recommendation still needs a basis summary.
+
+"The rest is fine": the calls in §13 are accepted.
 
 ## 13. Calls made while writing (check these)
 
@@ -245,6 +247,8 @@ The writer settled these without the owner; each is easy to change.
 6. **Dot size:** questions asked, not tokens (§4.3).
 7. **Layout budgets:** 300 ms for arrange and 100 ms for the timeline, at 1,000 dots (§6.4).
 8. **Order inside a cluster:** creation order, clockwise (§6.1).
+9. **Switch labels:** 空间 and 时间线; the code names go to the glossary proposal (§11).
+10. **Recommendation tiers:** unchanged numbers, now counted in sessions, and still no recommendation without a basis summary.
 
 ## 14. Approaches considered
 
