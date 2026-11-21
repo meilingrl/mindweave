@@ -46,7 +46,8 @@ internal sealed class PageFactory(
     Application.Preferences.IToolSettings? toolSettings = null,
     Application.Preferences.IWebSearchSettings? webSearch = null,
     Application.Tools.Mcp.IMcpServers? mcpServers = null,
-    Application.Tools.Mcp.IMcpConnections? mcpConnections = null) : IPageFactory
+    Application.Tools.Mcp.IMcpConnections? mcpConnections = null,
+    LanguageSwitch? language = null) : IPageFactory
 {
     public PageViewModel Create(ContentRoute route, PageContext context) => route switch
     {
@@ -59,7 +60,8 @@ internal sealed class PageFactory(
         SettingsHomeRoute => new SettingsHomeViewModel(environment, new ModelSettingsViewModel(models), context.Navigator, appearance, theme, context.Workspaces, newsAlerts, recommendationSettings,
             toolSettings is null ? null : new ToolSettingsPanel(
                 toolSettings, models, webSearch is null ? null : new WebSearchSettingsPanel(webSearch),
-                mcpServers is null || mcpConnections is null ? null : new McpServersPanel(mcpServers, mcpConnections, dispatcher))),
+                mcpServers is null || mcpConnections is null ? null : new McpServersPanel(mcpServers, mcpConnections, dispatcher)),
+            language),
         StorageDetailsRoute => new StorageDetailsViewModel(environment, backupFiles, shell, backupPrompts),
         UsageStatisticsRoute => new UsageStatisticsViewModel(context.Workspace, statistics, prices, context.Navigator),
         WorkspacesRoute => new WorkspacesViewModel(

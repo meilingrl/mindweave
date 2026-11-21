@@ -8,6 +8,9 @@ namespace Mindweave.Desktop;
 
 internal static class Program
 {
+    /// <summary>The language the user chose for this channel's data; without a choice (a first start), English (§7).</summary>
+    internal static void UseStoredLanguage(AppPaths paths) => CurrentLanguage.Set(new FileLanguageChoice(paths.DataDirectory).Read());
+
     [STAThread]
     public static int Main(string[] args)
     {
@@ -19,7 +22,7 @@ internal static class Program
             paths = AppPaths.Resolve(AppPaths.ChannelOf(typeof(Program).Assembly));
 
             // The interface language comes before any text, the startup failure window included (requirements §10.5).
-            CurrentLanguage.Set(new FileLanguageChoice(paths.DataDirectory).Read());
+            UseStoredLanguage(paths);
 
             // One writer per data directory: take the lock before touching the database at all.
             instance = SingleInstance.TryAcquire(paths);

@@ -18,7 +18,7 @@
     <!-- 外观 -->
     <TextBlock Classes="section-heading" Text="{x:Static t:UiText.AppearanceSection}" />
     <Border Classes="card settings">
-      <Grid ColumnDefinitions="96,*" RowDefinitions="Auto,Auto">
+      <Grid ColumnDefinitions="96,*" RowDefinitions="Auto,Auto,Auto,Auto">
         <TextBlock Classes="field-label" Text="{x:Static t:UiText.ThemeLabel}" />
         <Border Grid.Column="1" Name="AppearancePicker" Classes="segmented">
           <StackPanel Orientation="Horizontal" Spacing="2" KeyboardNavigation.TabNavigation="Once">
@@ -47,6 +47,18 @@
         </Border>
         <TextBlock Grid.Row="1" Grid.Column="1" Name="AppearanceStatus" v:Motion.Appear="Fade" Classes="error" FontSize="12" TextWrapping="Wrap" Margin="0,8,0,0"
                    Text="{Binding AppearanceStatus}" IsVisible="{Binding AppearanceStatus, Converter={x:Static ObjectConverters.IsNotNull}}" />
+        <!-- The interface language (bilingual-ui.md §7): each language by its own name; choosing switches in place. -->
+        <TextBlock Grid.Row="2" Classes="field-label" Margin="0,16,0,0" Text="{x:Static t:UiText.LanguageLabel}" IsVisible="{Binding CanChooseLanguage}" />
+        <Border Grid.Row="2" Grid.Column="1" Name="LanguagePicker" Classes="segmented" Margin="0,16,0,0" IsVisible="{Binding CanChooseLanguage}">
+          <StackPanel Orientation="Horizontal" Spacing="2" KeyboardNavigation.TabNavigation="Once">
+            <RadioButton Name="LanguageEnglish" Classes="segment" GroupName="Language" IsChecked="{Binding IsEnglish}"
+                         Content="{x:Static t:UiText.LanguageEnglish}" AutomationProperties.Name="{x:Static t:UiText.LanguageEnglish}" />
+            <RadioButton Name="LanguageChinese" Classes="segment" GroupName="Language" IsChecked="{Binding IsChinese}"
+                         Content="{x:Static t:UiText.LanguageChinese}" AutomationProperties.Name="{x:Static t:UiText.LanguageChinese}" />
+          </StackPanel>
+        </Border>
+        <TextBlock Grid.Row="3" Grid.Column="1" Name="LanguageStatus" v:Motion.Appear="Fade" Classes="error" FontSize="12" TextWrapping="Wrap" Margin="0,8,0,0"
+                   Text="{Binding LanguageStatus}" IsVisible="{Binding LanguageStatus, Converter={x:Static ObjectConverters.IsNotNull}}" />
       </Grid>
     </Border>
 

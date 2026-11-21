@@ -1,5 +1,6 @@
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
+using Mindweave.Application.Languages;
 using Mindweave.Application.Preferences;
 using Mindweave.Core.Workspaces;
 using Mindweave.Desktop.Services;
@@ -64,6 +65,7 @@ public sealed partial class WorkspaceNameForm : ViewModelBase
 public sealed partial class OnboardingViewModel : ViewModelBase
 {
     private readonly IOnboardingProgress? _progress;
+    private readonly LanguageSwitch? _language;
 
     /// <summary>Only the workspace step, as after the guide has been finished.</summary>
     public OnboardingViewModel(Func<WorkspaceName, Task> create)
@@ -73,8 +75,10 @@ public sealed partial class OnboardingViewModel : ViewModelBase
 
     /// <param name="start">The step stored by the last run; <see cref="OnboardingStep.Done"/> shows only the workspace step.</param>
     /// <param name="model">The settings page's own model form; without it there is no model step and so no guide.</param>
-    public OnboardingViewModel(Func<WorkspaceName, Task> create, OnboardingStep start, IOnboardingProgress? progress, ModelSettingsViewModel? model)
+    /// <param name="language">The language switch; the guide's first step offers the choice (§7).</param>
+    public OnboardingViewModel(Func<WorkspaceName, Task> create, OnboardingStep start, IOnboardingProgress? progress, ModelSettingsViewModel? model, LanguageSwitch? language = null)
     {
+        _language = language;
         Form = new WorkspaceNameForm(create);
         _progress = progress;
         Model = model;
@@ -112,6 +116,35 @@ public sealed partial class OnboardingViewModel : ViewModelBase
     public bool CanSkip => IsGuided && Step < OnboardingStep.Workspace;
 
     public bool CanGoBack => IsGuided && Step > OnboardingStep.Welcome;
+
+    /// <summary>
+    /// The guide's first step offers the interface language (user, 2026-11-21), before anything is filled in. Choosing
+    /// saves it and rebuilds the step in the new language; later steps have no choice.
+    /// </summary>
+    public bool CanChooseLanguage => IsGuided && _language is not null;
+
+    public bool IsEnglish
+    {
+        get => CurrentLanguage.Value == UiLanguage.English;
+        set => ChooseLanguage(value, UiLanguage.English);
+    }
+
+    public bool IsChinese
+    {
+        get => CurrentLanguage.Value == UiLanguage.Chinese;
+        set => ChooseLanguage(value, UiLanguage.Chinese);
+    }
+
+    /// <summary>Shown only when saving the language failed; it still applies until the application closes.</summary>
+    public string? LanguageStatus => _language?.SaveFailed == true ? UiText.LanguageSaveFailed : null;
+
+    private void ChooseLanguage(bool chosen, UiLanguage language)
+    {
+        if (chosen && _language is not null)
+        {
+            _ = _language.SwitchAsync(language);
+        }
+    }
 
     /// <summary>The latest write of the step reached (tests).</summary>
     internal Task Saving { get; private set; } = Task.CompletedTask;

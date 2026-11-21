@@ -10,5 +10,11 @@ public sealed partial class OnboardingView : UserControl
     public static readonly IValueConverter ExampleName =
         new FuncValueConverter<string?, string>(name => UiText.UseWorkspaceExampleName(name ?? string.Empty));
 
-    public OnboardingView() => InitializeComponent();
+    public OnboardingView()
+    {
+        InitializeComponent();
+
+        // The arrow keys move between the two languages, as along the settings' segments.
+        SegmentKeys.Attach(OnboardingLanguage);
+    }
 }

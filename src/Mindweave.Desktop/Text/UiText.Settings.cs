@@ -15,6 +15,11 @@ public static partial class UiText
     public static string AppearanceDark => T("Dark", "深色");
     public static string ThemeLabel => T("Theme", "主题");
 
+    // Interface language (bilingual-ui.md §7). A language's name is the same in both languages: it is never translated.
+    public static string LanguageLabel => T("Language", "语言");
+    public static string LanguageEnglish => "English";
+    public static string LanguageChinese => "简体中文";
+
     // Settings pages: presets fill the address; hints only where the page cannot show it otherwise.
     public static string ProviderLabel => T("Provider", "服务商");
     public static string ProviderPlaceholder => T("Choose a provider", "选择服务商");
@@ -47,6 +52,9 @@ public static partial class UiText
     public static string AppearanceSaveFailed => T(
         "The appearance setting couldn’t be saved. It still applies until you quit.",
         "外观设置未能保存，本次运行中仍然有效。");
+    public static string LanguageSaveFailed => T(
+        "The language setting couldn’t be saved. It still applies until you quit.",
+        "语言设置未能保存，本次运行中仍然有效。");
 
     // Hints (2026-11-10): whether the open workspace's conversations pop up a hint too (on unless turned off), and the
     // sound for a hint (off unless chosen).

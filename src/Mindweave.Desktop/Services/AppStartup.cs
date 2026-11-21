@@ -29,6 +29,7 @@ public sealed partial class AppStartup : IRecoveryActions, IDisposable
     private readonly Infrastructure.Hosting.AppPaths _paths;
     private readonly IOnboardingProgress _onboarding;
     private readonly Application.Models.IModelSettings _models;
+    private readonly LanguageSwitch _language;
     private readonly ILogger<AppStartup> _logger;
 
     public AppStartup(
@@ -48,8 +49,10 @@ public sealed partial class AppStartup : IRecoveryActions, IDisposable
         Infrastructure.Hosting.AppPaths paths,
         IOnboardingProgress onboarding,
         Application.Models.IModelSettings models,
+        LanguageSwitch language,
         ILogger<AppStartup> logger)
     {
+        _language = language;
         _paths = paths;
         _onboarding = onboarding;
         _models = models;
@@ -84,10 +87,11 @@ public sealed partial class AppStartup : IRecoveryActions, IDisposable
     private void OnNoWorkspaceLeft(object? sender, EventArgs e) => _root.Show(new OnboardingViewModel(CreateFirstWorkspaceAsync));
 
     /// <summary>
-    /// The guide from <paramref name="step"/>, or with <see cref="OnboardingStep.Done"/> only the workspace step.
+    /// The guide from <paramref name="step"/>, or with <see cref="OnboardingStep.Done"/> only the workspace step. The
+    /// guide's first step offers the language choice.
     /// </summary>
     private OnboardingViewModel Onboarding(OnboardingStep step) =>
-        new(CreateFirstWorkspaceAsync, step, _onboarding, new ModelSettingsViewModel(_models));
+        new(CreateFirstWorkspaceAsync, step, _onboarding, new ModelSettingsViewModel(_models), _language);
 
     /// <summary>
     /// Where the user is, for a language switch (bilingual-ui.md §6.4): what the window shows, the workbench's pages
