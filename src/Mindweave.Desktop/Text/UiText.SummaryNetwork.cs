@@ -91,7 +91,16 @@ public static partial class UiText
         "No conversations yet. Ask a question in “New exploration” and it appears here.",
         "还没有会话。在“新探索”提一个问题就会出现在这里。");
 
-    public static string SessionStarted(DateTimeOffset at) => T("Started " + FormatTime(at), "开始于 " + FormatTime(at));
+    /// <summary>
+    /// When a conversation started, in local time, dated as <see cref="DayLabel"/> dates a day: the year only when it is
+    /// not this year ("Started Nov 22 01:07", "Started Nov 22, 2025 01:07"). <paramref name="today"/> defaults to the local day.
+    /// </summary>
+    public static string SessionStarted(DateTimeOffset at, DateOnly? today = null)
+    {
+        var local = at.ToLocalTime();
+        var when = DayLabel(DateOnly.FromDateTime(local.DateTime), today ?? DateOnly.FromDateTime(DateTime.Now)) + " " + local.ToString("HH:mm", CultureInfo.InvariantCulture);
+        return T("Started " + when, "开始于 " + when);
+    }
 
     // The session network (behind its gate): every conversation a dot.
     public static string SessionNetworkTitle => AppName;
@@ -99,7 +108,7 @@ public static partial class UiText
     public static string ViewTimeline => T("Timeline", "时间线");
     public static string LegendDotSize => T("Dot size: how much was asked, not how well it is known", "圆点大小：问了多少，不代表掌握程度");
     public static string LegendSummaryRing => T("Outer ring: has a summary", "外圈：有总结");
-    public static string LegendTime => T("Dashed arrow: order in time", "虚线箭头：时间先后");
+    public static string LegendTime => T("Dotted arrow: order in time", "虚线箭头：时间先后");
     public static string LegendBranch => T("Solid line: branch", "实线：分支");
 
     /// <summary>

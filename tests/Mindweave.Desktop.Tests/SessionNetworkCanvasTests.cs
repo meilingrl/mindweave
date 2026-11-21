@@ -46,6 +46,17 @@ public class SessionNetworkCanvasTests
         Assert.Equal("Mindweave", UiText.SessionNetworkTitle);
     }
 
+    [Fact]
+    public void The_started_line_shows_the_year_only_when_it_is_not_this_year_in_chinese()
+    {
+        static DateTimeOffset Local(int year, int month, int day) => new(new DateTime(year, month, day, 1, 7, 0, DateTimeKind.Unspecified), TimeZoneInfo.Local.GetUtcOffset(new DateTime(year, month, day, 1, 7, 0)));
+        var today = new DateOnly(2026, 11, 22);
+
+        Assert.Equal("开始于 11月22日 01:07", UiText.SessionStarted(Local(2026, 11, 22), today));
+        Assert.Equal("开始于 2025年11月22日 01:07", UiText.SessionStarted(Local(2025, 11, 22), today));
+        Assert.Equal("虚线箭头：时间先后", UiText.LegendTime);
+    }
+
     [AvaloniaFact]
     public async Task Dot_size_follows_weight()
     {

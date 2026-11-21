@@ -29,4 +29,23 @@ public class SessionNetworkTextTests
             CurrentLanguage.Set(UiLanguage.Chinese);
         }
     }
+
+    [Fact]
+    public void The_started_line_shows_the_year_only_when_it_is_not_this_year_and_the_legend_says_dotted()
+    {
+        try
+        {
+            CurrentLanguage.Set(UiLanguage.English);
+            static DateTimeOffset Local(int year, int month, int day) => new(new DateTime(year, month, day, 1, 7, 0, DateTimeKind.Unspecified), TimeZoneInfo.Local.GetUtcOffset(new DateTime(year, month, day, 1, 7, 0)));
+            var today = new DateOnly(2026, 11, 22);
+
+            Assert.Equal("Started Nov 22 01:07", UiText.SessionStarted(Local(2026, 11, 22), today));
+            Assert.Equal("Started Nov 22, 2025 01:07", UiText.SessionStarted(Local(2025, 11, 22), today));
+            Assert.Equal("Dotted arrow: order in time", UiText.LegendTime);
+        }
+        finally
+        {
+            CurrentLanguage.Set(UiLanguage.Chinese);
+        }
+    }
 }
