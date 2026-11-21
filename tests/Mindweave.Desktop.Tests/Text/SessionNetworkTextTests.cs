@@ -50,6 +50,24 @@ public class SessionNetworkTextTests
     }
 
     [Fact]
+    public void The_question_toggle_reads_unlike_the_toolbars_show_all_in_english()
+    {
+        // Final review M9: two controls on one page must not read alike, for a screen reader above all.
+        try
+        {
+            CurrentLanguage.Set(UiLanguage.English);
+
+            Assert.Equal("Show the whole question", UiText.ShowWholeQuestion);
+            Assert.Equal("Show less", UiText.HideWholeQuestion);
+            Assert.NotEqual(UiText.ShowAll, UiText.ShowWholeQuestion);
+        }
+        finally
+        {
+            CurrentLanguage.Set(UiLanguage.Chinese);
+        }
+    }
+
+    [Fact]
     public void The_started_line_shows_the_year_only_when_it_is_not_this_year__in_chinese()
     {
         CurrentLanguage.Set(UiLanguage.Chinese);

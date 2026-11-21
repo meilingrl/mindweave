@@ -292,10 +292,16 @@ public sealed partial class SummaryNetworkSession : ObservableObject
 
     /// <summary>
     /// Saves the current revision's positions in one transaction. Changes made while saving stay unsaved: success
-    /// only records the revision that was captured. A failure keeps everything in memory and the unsaved mark.
+    /// only records the revision that was captured. A failure keeps everything in memory and the unsaved mark. The
+    /// session network's layouts are computed and never saved (spec §9), whatever the revision says.
     /// </summary>
     public async Task<bool> SaveAsync(CancellationToken cancellationToken)
     {
+        if (_gate.Enabled)
+        {
+            return true;
+        }
+
         if (IsSaving || !IsDirty)
         {
             return !IsDirty;

@@ -82,7 +82,7 @@ public static partial class UiText
 
     // The session network's details (gated).
     public static string DetailQuestion => T("Question", "问题");
-    public static string ShowWholeQuestion => T("Show all", "展开");
+    public static string ShowWholeQuestion => T("Show the whole question", "展开");
     public static string HideWholeQuestion => T("Show less", "收起");
     public static string SessionNetworkHint => T(
         "Click for details; double-click to open the conversation or summary.",

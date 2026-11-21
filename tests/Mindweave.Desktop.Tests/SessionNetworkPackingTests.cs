@@ -86,6 +86,7 @@ public class SessionNetworkPackingTests
         Assert.Equal(projection.Nodes.Count, session.Positions.Count);
         Assert.Equal(projection.Nodes.Count, session.Positions.Values.Distinct().Count());
         Assert.False(session.IsDirty);
+        Assert.True(await session.SaveAsync(CancellationToken.None));
         Assert.Equal(0, network.Writes);
         Assert.Equal((await LoadedAsync(projection)).Positions, session.Positions);
     }
