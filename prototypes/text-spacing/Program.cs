@@ -29,7 +29,7 @@ internal static class Knobs
     public static readonly Knob Width = new("Column", ["Fill (now)", "640", "720"]);
 
     public static readonly Knob BoldWeight = new("Bold weight", ["Semibold (now)", "Medium"]);
-    public static readonly Knob BoldColour = new("Bold colour", ["Same as text (now)", "Softer light / brighter dark", "Amber", "Teal", "Violet", "Indigo"]);
+    public static readonly Knob BoldColour = new("Bold colour", ["Same as text (now)", "Softer light / brighter dark", "Brown", "Slate", "Sage", "Plum"]);
     public static readonly Knob BoldMark = new("Bold background", ["None (now)", "Subtle"]);
 
     public static readonly Knob[] All = [LineHeight, Gap, Size, Colour, Letter, Width, BoldWeight, BoldColour, BoldMark];
@@ -38,15 +38,16 @@ internal static class Knobs
     public static Color? BoldColourOf(int i, bool dark) => (i, dark) switch
     {
         (1, false) => Color.Parse("#3B3632"),
-        (2, false) => Color.Parse("#9A4A0B"),
-        (3, false) => Color.Parse("#0F766E"),
-        (4, false) => Color.Parse("#6D28D9"),
-        (5, false) => Color.Parse("#4338CA"),
+        // Muted: low saturation, close to the body text, so bold reads as a tint rather than a highlight.
+        (2, false) => Color.Parse("#6B4A33"),
+        (3, false) => Color.Parse("#3D4F6B"),
+        (4, false) => Color.Parse("#3F5E55"),
+        (5, false) => Color.Parse("#5E4560"),
         (1, true) => Color.Parse("#FFFFFF"),
-        (2, true) => Color.Parse("#F2C98A"),
-        (3, true) => Color.Parse("#7DD3C0"),
-        (4, true) => Color.Parse("#C4B5FD"),
-        (5, true) => Color.Parse("#A5B4FC"),
+        (2, true) => Color.Parse("#E6D2BC"),
+        (3, true) => Color.Parse("#C3CEE3"),
+        (4, true) => Color.Parse("#BFD6CC"),
+        (5, true) => Color.Parse("#DCC8DC"),
         _ => null,
     };
 

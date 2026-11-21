@@ -28,7 +28,7 @@ Each pane has its own settings; option one is always today's value:
 | Letter spacing | 0 (now), 0.2, 0.4 |
 | Column | fill (now), 640, 720 px |
 | Bold weight | Semibold (now; `**…**` asks for Bold, PingFang's heaviest face is Semibold), Medium |
-| Bold colour | same as the text (now), softer in light / pure white in dark, amber, teal, violet, indigo (each tuned for light and dark) |
+| Bold colour | same as the text (now), softer in light / pure white in dark, brown, slate, sage, plum (muted; each tuned for light and dark) |
 | Bold background | none (now), a subtle tint behind bold text |
 
 A line under each pane's settings shows what the first paragraph really got: size, line pitch, gap and colour.
@@ -45,7 +45,7 @@ Font findings from the first round (kept because they explain the choice): Inter
 
 Bold (2026-11-22). The user found bold too black and heavy in the light theme and not distinct enough in the dark one, where weight alone is not enough. LiveMarkdown draws `**…**` as a `Span` with the classes `Emphasis` and `Bold`; its weight is set on the element itself, so a style can change the colour and the background of bold text but not its weight. A lighter weight needs a few lines of code that set the weight after each render. Screenshots: `bold-light.png` (now · Medium · Medium with a background) and `bold-dark.png` (now · softer body with pure white Semibold bold · the same with Medium and a background).
 
-Bold, second round (2026-11-22). The user chose a lighter weight plus a colour, and asked whether the colour can be a setting. Screenshots `colour-light.png` and `colour-dark.png`: Medium weight with amber, teal, violet and indigo. Indigo is close to the link colour.
+Bold, second round (2026-11-22). The user chose a lighter weight plus a colour, and asked whether the colour can be a setting. Screenshots `colour-light.png` and `colour-dark.png`: Medium weight with amber, teal, violet and indigo. Indigo is close to the link colour. The user found them too vivid; they were replaced by muted brown, slate, sage and plum (`muted-light.png`, `muted-dark.png`).
 
 Found on the way: `的**“火箭号”**在` is not bold. By CommonMark's rules, `**` between a Chinese character and a Chinese quotation mark neither opens nor closes emphasis, so the asterisks show. The app has the same behaviour.
 
