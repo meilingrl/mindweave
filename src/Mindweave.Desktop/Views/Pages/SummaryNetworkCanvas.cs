@@ -301,14 +301,38 @@ public sealed class SummaryNetworkCanvas : Control
             var center = drawn[node.Id];
             var ring = isSelected ? NodeRing.Selected : matched ? NodeRing.Match : NodeRing.None;
             var label = SummaryNetworkLayout.Label(node.ShortTitle, node.HasCandidate);
-
-            // A hovered session dot also says when its conversation started.
-            label = sessions && hovered ? UiText.DotHoverLabel(label, node.CreatedAt) : label;
             var visible = IsLabelVisible(node, zoom);
             var labelSize = zoom > LabelHideScale ? size : Math.Max(size, FocusedLabelMinSize);
             var brush = hovered || isSelected ? palette.LabelActive : !node.Unread ? palette.LabelRead : palette.Label;
-            var text = visible ? Text(label, labelSize, brush, node.Unread ? FontWeight.SemiBold : FontWeight.Normal) : null;
+            var weight = node.Unread ? FontWeight.SemiBold : FontWeight.Normal;
+            var text = visible ? Text(label, labelSize, brush, weight) : null;
             var origin = text is null ? default : SummaryNetworkGeometry.LabelOrigin(center, radius, new Size(text.Width, text.Height), incident[node.Id]);
+            FormattedText? date = null;
+            Rect dateBounds = default;
+            if (text is not null && sessions && hovered)
+            {
+                // A hovered session dot also says when its conversation started (final review M6): after the title when that
+                // covers no other dot, else on a line of its own under the title or over it, else not at all (the details
+                // still give it).
+                var oneLine = Text(UiText.DotHoverLabel(label, node.CreatedAt), labelSize, brush, weight);
+                var oneLineOrigin = SummaryNetworkGeometry.LabelOrigin(center, radius, new Size(oneLine.Width, oneLine.Height), incident[node.Id]);
+                if (ClearOfOtherDots(node.Id, new Rect(oneLineOrigin, new Size(oneLine.Width, oneLine.Height)), drawn))
+                {
+                    (label, text, origin) = (UiText.DotHoverLabel(label, node.CreatedAt), oneLine, oneLineOrigin);
+                }
+                else
+                {
+                    // Its own line is as quiet as a day caption, and keeps clear of the captions too.
+                    date = Text(UiText.DotHoverDate(node.CreatedAt), Math.Min(labelSize, CaptionSize), brush);
+                    var title = new Rect(origin, new Size(text.Width, text.Height));
+                    var line = new Size(date.Width, date.Height);
+                    var captions = PaintCaptions().Select(c => c.Bounds).ToList();
+                    var place = new[] { new Rect(new Point(title.Left, title.Bottom), line), new Rect(new Point(title.Left, title.Top - date.Height), line) }
+                        .FirstOrDefault(r => ClearOfOtherDots(node.Id, r, drawn) && !captions.Any(r.Intersects));
+                    (date, dateBounds) = place == default ? (null, default) : (date, place);
+                }
+            }
+
             return new NodePaint(
                 node,
                 center,
@@ -326,11 +350,24 @@ public sealed class SummaryNetworkCanvas : Control
             {
                 Text = text,
                 LabelBounds = text is null ? default : new Rect(origin, new Size(text.Width, text.Height)),
+                DateText = date,
+                DateBounds = dateBounds,
                 Lifted = lifted,
                 SummaryRing = sessions && node.HasSummary,
             };
         })];
     }
+
+    /// <summary>A label rectangle touches no other node's dot or summary ring as drawn.</summary>
+    private bool ClearOfOtherDots(SummaryNodeId self, Rect label, Dictionary<SummaryNodeId, Point> drawn) =>
+        _page!.Nodes.Where(n => n.Id != self).All(n =>
+        {
+            var center = drawn[n.Id];
+            var reach = SummaryNetworkLayout.DotFootprintRadius(n.Weight, n.HasSummary);
+            var x = Math.Clamp(center.X, label.Left, label.Right) - center.X;
+            var y = Math.Clamp(center.Y, label.Top, label.Bottom) - center.Y;
+            return (x * x) + (y * y) > reach * reach;
+        });
 
     /// <summary>Each edge from the parent's drawn position to the child's, with its state.</summary>
     internal IReadOnlyList<EdgePaint> PaintEdges()
@@ -579,6 +616,10 @@ public sealed class SummaryNetworkCanvas : Control
             foreach (var node in nodes.Where(n => n.Text is not null))
             {
                 context.FillRectangle(palette.Background, node.Backdrop, 3);
+                if (node.DateText is not null)
+                {
+                    context.FillRectangle(palette.Background, node.DateBounds.Inflate(new Thickness(2, 0)), 3);
+                }
             }
         }
 
@@ -597,6 +638,11 @@ public sealed class SummaryNetworkCanvas : Control
             if (node.Text is { } text)
             {
                 context.DrawText(text, node.LabelBounds.TopLeft);
+            }
+
+            if (node.DateText is { } date)
+            {
+                context.DrawText(date, node.DateBounds.TopLeft);
             }
         }
 

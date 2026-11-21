@@ -48,6 +48,14 @@ internal sealed record NodePaint(
 
     public Rect LabelBounds { get; init; }
 
+    /// <summary>
+    /// A hovered session dot's date on a line of its own, under (or over) its title, when after the title it would cover
+    /// another dot; null otherwise.
+    /// </summary>
+    public FormattedText? DateText { get; init; }
+
+    public Rect DateBounds { get; init; }
+
     /// <summary>The session network: the conversation has a summary, drawn as a thin ring around the dot.</summary>
     public bool SummaryRing { get; init; }
 

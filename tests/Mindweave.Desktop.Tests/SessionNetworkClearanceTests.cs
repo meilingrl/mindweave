@@ -1,6 +1,9 @@
 using Avalonia;
 using Avalonia.Headless.XUnit;
+using Microsoft.Extensions.DependencyInjection;
+using Mindweave.Application.Conversations;
 using Mindweave.Application.SummaryNetwork;
+using Mindweave.Core.Conversations;
 using Mindweave.Desktop.SummaryNetwork;
 using Mindweave.Desktop.ViewModels.Pages;
 using Mindweave.Desktop.Views;
@@ -12,7 +15,8 @@ namespace Mindweave.Desktop.Tests;
 /// <summary>
 /// What keeps clear of what in the session network, measured against what the canvas draws: recommended nodes avoid big
 /// dots, their rings and the dates (final review M4), and a big dot
-/// with its ring is clickable at every zoom (M5).
+/// with its ring is clickable at every zoom (M5), and
+/// a hovered label with its date covers no other dot (M6).
 /// </summary>
 public class SessionNetworkClearanceTests
 {
@@ -75,6 +79,67 @@ public class SessionNetworkClearanceTests
             }
         }
 
+        window.Close();
+    }
+
+    [AvaloniaTheory]
+    [InlineData(SummaryNetworkViewMode.Timeline)]
+    [InlineData(SummaryNetworkViewMode.Spatial)]
+    public async Task A_hovered_label_with_its_date_never_covers_another_dot(SummaryNetworkViewMode mode)
+    {
+        // Final review M6: one-character titles get the narrowest timeline columns, so " · 11月20日 21:38" after a hovered
+        // title ran over the next column's dot. At zoom 1 and above a hovered label, date included, covers no other dot.
+        await using var app = SessionNetworkUiTests.Gated();
+        var window = app.ShowWindow(1100, 720);
+        await app.StartWithWorkspaceAsync("火车");
+        await app.ConfigureModelAsync();
+        var conversations = app.Services.GetRequiredService<ConversationService>();
+        var workspace = app.Workbench.CurrentWorkspace!.Id;
+        var roots = new List<ConversationId>();
+        foreach (var title in new[] { "甲", "乙", "丙", "丁" })
+        {
+            var root = await SummaryNetworkScenario.AskAsync(app, conversations, null, workspace, title + "是什么？");
+            await conversations.RenameAsync(root, title, CancellationToken.None);
+            roots.Add(root);
+        }
+
+        roots.Add(await SummaryNetworkScenario.BranchAsync(app, conversations, roots[1], "乙的分支？"));
+        await conversations.RenameAsync(roots[^1], "戊", CancellationToken.None);
+        var network = await SummaryNetworkScenario.OpenSummaryNetworkAsync(app, window);
+        await UiWait.UntilAsync(() => network.Nodes.Count == 5 && network.Nodes.All(n => n.ShortTitle.Length == 1));
+        network.SetViewModeCommand.Execute(mode);
+        await UiWait.UntilAsync(() => network.IsTimeline == (mode == SummaryNetworkViewMode.Timeline));
+        window.UpdateLayout();
+        var canvas = CanvasOf(window);
+
+        foreach (var zoom in new[] { 1.0, 1.6, Viewport.MaxZoom })
+        {
+            network.Session.Viewport = canvas.Current with { Zoom = zoom };
+            foreach (var node in network.Nodes)
+            {
+                canvas.SetPointer(canvas.ToScreen(node.X, node.Y));
+                Assert.Equal(node.Id, canvas.Hovered);
+                var paints = canvas.PaintNodes();
+                var hovered = paints.Single(p => p.Node.Id == node.Id);
+                if (zoom == 1 && node == network.Nodes[0])
+                {
+                    Screenshots.Capture(window, $"session-network-hover-date-{mode.ToString().ToLowerInvariant()}");
+                }
+
+                // The date is shown: after the title, or on a line of its own.
+                var dated = hovered.Label.Contains(UiText.DotHoverDate(node.CreatedAt), StringComparison.Ordinal);
+                Assert.True(dated || hovered.DateText is not null, $"zoom {zoom}: \"{hovered.Label}\" shows no date");
+                var rects = hovered.DateText is null ? new[] { hovered.LabelBounds } : [hovered.LabelBounds, hovered.DateBounds];
+                foreach (var (dot, rect) in paints.Where(p => p.Node.Id != node.Id).SelectMany(dot => rects.Select(rect => (dot, rect))))
+                {
+                    var reach = dot.Radius + (dot.SummaryRing ? SummaryNetworkCanvas.SummaryRingGap + 1 : 0);
+                    var nearest = new Point(Math.Clamp(dot.Center.X, rect.Left, rect.Right), Math.Clamp(dot.Center.Y, rect.Top, rect.Bottom));
+                    Assert.True(Distance(nearest, dot.Center) > reach, $"zoom {zoom}: the hovered label \"{hovered.Label}\" at {rect} covers the dot of \"{dot.Label}\" at {dot.Center}");
+                }
+            }
+        }
+
+        canvas.SetPointer(null);
         window.Close();
     }
 

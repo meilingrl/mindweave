@@ -120,9 +120,12 @@ public static partial class UiText
         : T(day.ToString("MMM d, yyyy", EnglishCulture), day.ToString("yyyy'年'M'月'd'日'", CultureInfo.InvariantCulture));
 
     /// <summary>A hovered dot's label with when its conversation started, in local time: "蒸汽机 · Nov 20 21:38" / "蒸汽机 · 11月20日 21:38".</summary>
-    public static string DotHoverLabel(string label, DateTimeOffset at)
+    public static string DotHoverLabel(string label, DateTimeOffset at) => label + " · " + DotHoverDate(at);
+
+    /// <summary>When a session started, as a hovered dot says it, in local time: "Nov 20 21:38" / "11月20日 21:38".</summary>
+    public static string DotHoverDate(DateTimeOffset at)
     {
         var local = at.ToLocalTime();
-        return label + " · " + T(local.ToString("MMM d HH:mm", EnglishCulture), local.ToString("M'月'd'日' HH:mm", CultureInfo.InvariantCulture));
+        return T(local.ToString("MMM d HH:mm", EnglishCulture), local.ToString("M'月'd'日' HH:mm", CultureInfo.InvariantCulture));
     }
 }
