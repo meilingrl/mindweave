@@ -120,7 +120,7 @@ public class ViewRebuildTests
     /// The handlers on every event (and every other delegate) each root service holds, by its type and field. Events that
     /// forward to another service (<c>ConversationService.ActivityChanged</c>) are counted on that service.
     /// </summary>
-    private static Dictionary<string, int> HandlerCounts(IServiceProvider root)
+    internal static Dictionary<string, int> HandlerCounts(IServiceProvider root)
     {
         var registrations = root.GetRequiredService<CompositionRoot.RootRegistrations>();
         var services = registrations.Descriptors
@@ -149,7 +149,7 @@ public class ViewRebuildTests
         return counts;
     }
 
-    private static void AssertSame(Dictionary<string, int> expected, Dictionary<string, int> actual)
+    internal static void AssertSame(Dictionary<string, int> expected, Dictionary<string, int> actual)
     {
         var differences = expected.Keys.Union(actual.Keys)
             .Where(k => expected.GetValueOrDefault(k) != actual.GetValueOrDefault(k))

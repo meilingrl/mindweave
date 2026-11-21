@@ -101,8 +101,8 @@ public sealed partial class AppStartup : IRecoveryActions, IDisposable
     {
         RootPage root = _root.Current switch
         {
-            ShellViewModel => new RootPage.Workbench(),
-            OnboardingViewModel guide => new RootPage.Onboarding(guide.IsGuided ? guide.Step : OnboardingStep.Done, guide.Form.Name, guide.Model?.CaptureViewState()),
+            ShellViewModel => new RootPage.Shell(),
+            OnboardingViewModel guide => new RootPage.Onboarding(guide.IsGuided ? guide.Step : OnboardingStep.Done, guide.Form.Name, guide.Model?.CaptureViewState(), guide.LanguageChosen),
             RecoveryViewModel recovery => new RootPage.Recovery(recovery.Result, [.. recovery.Backups]),
             _ => new RootPage.Starting(),
         };
@@ -124,7 +124,7 @@ public sealed partial class AppStartup : IRecoveryActions, IDisposable
 
         switch (snapshot.Root)
         {
-            case RootPage.Workbench when snapshot.Workspaces.Count > 0:
+            case RootPage.Shell when snapshot.Workspaces.Count > 0:
                 _workbench.Restore(snapshot);
                 _root.Show(_shell);
                 break;
@@ -136,6 +136,7 @@ public sealed partial class AppStartup : IRecoveryActions, IDisposable
                 }
 
                 page.Form.Name = guide.WorkspaceName;
+                page.FocusesLanguage = guide.LanguageChosen && page.CanChooseLanguage && page.IsWelcomeStep;
                 _root.Show(page);
                 break;
             case RootPage.Recovery recovery:

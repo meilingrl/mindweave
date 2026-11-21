@@ -63,6 +63,11 @@ public sealed partial class SettingsHomeViewModel : PageViewModel, IDisposable, 
         : base(SettingsHomeRoute.Instance)
     {
         _language = language;
+        if (language is not null)
+        {
+            language.Changed += OnLanguageSwitchChanged;
+        }
+
         Tools = tools;
         if (tools is not null)
         {
@@ -189,8 +194,14 @@ public sealed partial class SettingsHomeViewModel : PageViewModel, IDisposable, 
         set => ChooseLanguage(value, UiLanguage.Chinese);
     }
 
-    /// <summary>Shown only when saving the language failed; the language still applies until the application closes.</summary>
-    public string? LanguageStatus => _language?.SaveFailed == true ? UiText.LanguageSaveFailed : null;
+    /// <summary>
+    /// Beside the choice: the switch waits for something to finish, it could not be made, or saving the choice failed
+    /// (the language still applies until the application closes); otherwise nothing.
+    /// </summary>
+    public string? LanguageStatus => _language?.Notice;
+
+    /// <summary>The status says the switch waits: shown as progress, not as a problem.</summary>
+    public bool IsLanguageWaiting => _language?.IsWaiting == true;
 
     /// <summary>The language was chosen on this page: the page built in its place shows the language row and focuses it.</summary>
     public bool FocusesLanguage { get; set; }
@@ -202,8 +213,19 @@ public sealed partial class SettingsHomeViewModel : PageViewModel, IDisposable, 
         if (chosen && _language is not null)
         {
             _languageChosen = true;
-            _ = _language.SwitchAsync(language);
+
+            // The switch never faults: what went wrong is in its notice. Leaving this page while it waits drops it.
+            _ = _language.SwitchAsync(language, this);
         }
+    }
+
+    /// <summary>The switch began or stopped waiting, or ended: the status and, if it did not happen, the choice shown follow.</summary>
+    private void OnLanguageSwitchChanged(object? sender, EventArgs e)
+    {
+        OnPropertyChanged(nameof(LanguageStatus));
+        OnPropertyChanged(nameof(IsLanguageWaiting));
+        OnPropertyChanged(nameof(IsEnglish));
+        OnPropertyChanged(nameof(IsChinese));
     }
 
     /// <summary>The settings page can offer the sound (it is built with the preference).</summary>
@@ -356,6 +378,10 @@ public sealed partial class SettingsHomeViewModel : PageViewModel, IDisposable, 
 
         // 设置 › 工具 › MCP 服务器 listens to the servers' state and settings (phase 4).
         Tools?.Mcp?.Dispose();
+        if (_language is not null)
+        {
+            _language.Changed -= OnLanguageSwitchChanged;
+        }
     }
 
     private void OnWorkspacesChanged(object? sender, System.Collections.Specialized.NotifyCollectionChangedEventArgs e)

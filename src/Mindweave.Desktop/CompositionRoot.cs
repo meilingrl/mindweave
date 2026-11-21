@@ -112,7 +112,7 @@ public static class CompositionRoot
 
     private static void AddView(IServiceCollection services)
     {
-        services.AddSingleton<IPageFactory, PageFactory>();
+        services.TryAddSingleton<IPageFactory, PageFactory>(); // Tests wrap it.
         services.AddSingleton<Workbench>();
         services.AddSingleton<IMenuNavigator>(sp => sp.GetRequiredService<Workbench>());
         services.AddSingleton<IContentNavigator>(sp => sp.GetRequiredService<Workbench>());

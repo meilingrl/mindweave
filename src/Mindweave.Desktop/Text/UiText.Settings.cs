@@ -56,6 +56,13 @@ public static partial class UiText
         "The language setting couldn’t be saved. It still applies until you quit.",
         "语言设置未能保存，本次运行中仍然有效。");
 
+    // A language switch waits while something is under way that a rebuild would cut short (bilingual-ui.md §6.6).
+    public static string LanguageSwitchWaiting => T("Switches when the current task finishes…", "当前任务完成后切换…");
+    public static string LanguageSwitchFailed => T("Couldn’t switch the language. Try again.", "未能切换语言，请重试。");
+    public static string LanguageSwitchNotNow => T(
+        "Couldn’t switch the language now. Try again when the current task finishes.",
+        "现在无法切换语言，请在当前任务完成后重试。");
+
     // Hints (2026-11-10): whether the open workspace's conversations pop up a hint too (on unless turned off), and the
     // sound for a hint (off unless chosen).
     public static string HintsSection => T("Notifications and suggestions", "提示");

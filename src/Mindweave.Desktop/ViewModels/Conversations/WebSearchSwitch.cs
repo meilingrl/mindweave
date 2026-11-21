@@ -73,6 +73,12 @@ public sealed partial class WebSearchSwitch : ViewModelBase, IDisposable
         Mode = mode;
     }
 
+    /// <summary>The position chosen on this page, if one was; a language switch carries it to the page built in its place.</summary>
+    internal WebSearchMode? Chosen => _chosen ? Mode : null;
+
+    /// <summary>Takes the position chosen on the page this one replaces; the settings' default no longer applies to it.</summary>
+    internal void Restore(WebSearchMode mode) => Choose(mode);
+
     /// <summary>Reads the model, the tool switch and the key again (after settings changed).</summary>
     public async Task RefreshAsync()
     {

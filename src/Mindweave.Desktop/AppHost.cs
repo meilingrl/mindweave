@@ -119,26 +119,49 @@ public sealed class AppSession : IInAppRestore, IViewSession
     /// <summary>
     /// Builds a new view provider on the same root, lets <paramref name="prepare"/> fill it (a language switch replays
     /// where the user was), makes it current and raises <see cref="ViewReplaced"/>. Returns the old one: the caller
-    /// disposes it once the new one is shown. If building or <paramref name="prepare"/> throws, the new provider is
-    /// disposed and the current one stays.
+    /// disposes it once the new one is shown. If <paramref name="prepare"/> or showing throws, the current one stays
+    /// and the new one is discarded: the pages it already made are released (they listen to services and run timers),
+    /// then it is disposed.
     /// </summary>
     internal ServiceProvider ReplaceView(Action<ServiceProvider>? prepare = null)
     {
         var next = _buildView(Root);
+        var old = View;
         try
         {
             prepare?.Invoke(next);
+            View = next;
+            ViewReplaced?.Invoke(this, EventArgs.Empty);
+            return old;
         }
         catch
         {
-            next.DisposeAsync().AsTask().GetAwaiter().GetResult();
+            View = old;
+            Discard(next);
             throw;
         }
+    }
 
-        var old = View;
-        View = next;
-        ViewReplaced?.Invoke(this, EventArgs.Empty);
-        return old;
+    /// <summary>A view that never became current goes, with every page its workbench made; a failure on the way is logged.</summary>
+    private void Discard(ServiceProvider view)
+    {
+        try
+        {
+            try
+            {
+                view.GetService<Workbench>()?.ReleaseAll();
+            }
+            finally
+            {
+                view.DisposeAsync().AsTask().GetAwaiter().GetResult();
+            }
+        }
+#pragma warning disable CA1031 // The failure that led here is the one the caller reports; this one is only logged.
+        catch (Exception ex)
+#pragma warning restore CA1031
+        {
+            Logger("Mindweave.Desktop").LogDiscardViewFailed(ex);
+        }
     }
 
     void IViewSession.DetachView() => DetachView();
@@ -275,4 +298,7 @@ internal static partial class AppHostLog
 {
     [LoggerMessage(Level = LogLevel.Error, Message = "Ending the previous session before a restore failed; the restore goes on")]
     public static partial void LogOldSessionEndFailed(this ILogger logger, Exception exception);
+
+    [LoggerMessage(Level = LogLevel.Warning, Message = "Discarding a view that could not be shown failed")]
+    public static partial void LogDiscardViewFailed(this ILogger logger, Exception exception);
 }

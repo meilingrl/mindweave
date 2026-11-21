@@ -62,8 +62,8 @@
                          Content="{x:Static t:UiText.LanguageChinese}" AutomationProperties.Name="{x:Static t:UiText.LanguageChinese}" />
           </StackPanel>
         </Border>
-        <TextBlock Grid.Row="3" Grid.Column="1" Name="LanguageStatus" v:Motion.Appear="Fade" Classes="error" FontSize="12" TextWrapping="Wrap" Margin="0,8,0,0"
-                   Text="{Binding LanguageStatus}" IsVisible="{Binding LanguageStatus, Converter={x:Static ObjectConverters.IsNotNull}}" />
+        <TextBlock Grid.Row="3" Grid.Column="1" Name="LanguageStatus" v:Motion.Appear="Fade" Classes.error="{Binding !IsLanguageWaiting}" Classes.muted="{Binding IsLanguageWaiting}"
+                   FontSize="12" TextWrapping="Wrap" Margin="0,8,0,0" Text="{Binding LanguageStatus}" IsVisible="{Binding LanguageStatus, Converter={x:Static ObjectConverters.IsNotNull}}" />
       </Grid>
     </Border>
 

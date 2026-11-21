@@ -40,14 +40,15 @@ public abstract record RootPage
     /// <summary>The startup page: opening is still under way.</summary>
     public sealed record Starting : RootPage;
 
-    /// <summary>The workbench.</summary>
-    public sealed record Workbench : RootPage;
+    /// <summary>The workbench (the shell with its workspaces and pages).</summary>
+    public sealed record Shell : RootPage;
 
     /// <summary>
     /// The guide or the first-workspace step. <paramref name="Step"/> <see cref="OnboardingStep.Done"/> means the
-    /// workspace step alone, without the guide.
+    /// workspace step alone, without the guide. <paramref name="LanguageChosen"/>: the language was chosen there, so the
+    /// rebuilt step puts the keyboard back on the choice.
     /// </summary>
-    public sealed record Onboarding(OnboardingStep Step, string WorkspaceName, object? Model) : RootPage;
+    public sealed record Onboarding(OnboardingStep Step, string WorkspaceName, object? Model, bool LanguageChosen = false) : RootPage;
 
     /// <summary>The recovery page, with what it explains.</summary>
     public sealed record Recovery(DatabaseOpenResult Result, IReadOnlyList<BackupInfo> Backups) : RootPage;

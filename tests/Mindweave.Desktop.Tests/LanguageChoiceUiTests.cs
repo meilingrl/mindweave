@@ -159,6 +159,108 @@ public class LanguageChoiceUiTests
         }
     }
 
+    /// <summary>Review M5: after the first step is rebuilt, the keyboard is where it was, on the language chosen.</summary>
+    [AvaloniaFact]
+    public async Task Onboarding_choice_keeps_the_keyboard_focus()
+    {
+        try
+        {
+            await using var app = DesktopHarness.Create();
+            var window = app.ShowWindow(1000, 720);
+            await app.StartAsync();
+            window.UpdateLayout();
+            UiInput.Click(window, Find<RadioButton>(window, "OnboardingEnglish"));
+            await Switch(app).Running;
+
+            Assert.Equal(UiLanguage.English, CurrentLanguage.Value);
+            Assert.IsType<OnboardingViewModel>(app.Root.Current);
+            await UiWait.UntilAsync(() =>
+            {
+                window.UpdateLayout();
+                return Find<RadioButton>(window, "OnboardingEnglish").IsFocused;
+            });
+            Assert.True(Find<RadioButton>(window, "OnboardingEnglish").IsChecked);
+            Assert.False(Find<Button>(window, "NextButton").IsFocused);
+            window.Close();
+        }
+        finally
+        {
+            CurrentLanguage.Set(UiLanguage.Chinese);
+        }
+    }
+
+    /// <summary>
+    /// Review M6 (2): a choice that changes while the last one is being written is written too, and only the last one is
+    /// applied: English (held), Chinese (held), English again ends in English with one rebuild.
+    /// </summary>
+    [AvaloniaFact]
+    public async Task A_choice_made_during_a_write_is_written_after_it()
+    {
+        try
+        {
+            var choice = new ScriptedChoice { Gate = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously) };
+            await using var app = DesktopHarness.Create(s => s.AddSingleton<ILanguageChoice>(choice));
+            var window = app.ShowWindow(1000, 720);
+            await app.StartWithWorkspaceAsync("火车");
+            var settings = await OpenSettingsAsync(app, window);
+
+            settings.IsEnglish = true;
+            await UiWait.UntilAsync(() => choice.Writes.Count == 1);
+            settings.IsChinese = true;
+            var first = choice.Gate;
+            choice.Gate = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+            first.TrySetResult();
+            await UiWait.UntilAsync(() => choice.Writes.Count == 2);
+            Assert.Equal(UiLanguage.Chinese, CurrentLanguage.Value);
+            settings.IsEnglish = true;
+            choice.Gate.TrySetResult();
+            await Switch(app).Running;
+
+            Assert.Equal([UiLanguage.English, UiLanguage.Chinese, UiLanguage.English], choice.Writes);
+            Assert.Equal((UiLanguage.English, UiLanguage.English), (CurrentLanguage.Value, choice.Stored));
+            Assert.Equal(1, Switch(app).Rebuilds);
+            Assert.Equal(1, choice.MostAtOnce);
+            window.Close();
+        }
+        finally
+        {
+            CurrentLanguage.Set(UiLanguage.Chinese);
+        }
+    }
+
+    /// <summary>Review M6 (2): English, then back to Chinese while English is written: the language in use, no rebuild.</summary>
+    [AvaloniaFact]
+    public async Task Back_to_the_language_in_use_during_a_write_rebuilds_nothing()
+    {
+        try
+        {
+            var choice = new ScriptedChoice { Gate = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously) };
+            await using var app = DesktopHarness.Create(s => s.AddSingleton<ILanguageChoice>(choice));
+            var window = app.ShowWindow(1000, 720);
+            await app.StartWithWorkspaceAsync("火车");
+            var settings = await OpenSettingsAsync(app, window);
+            var detached = 0;
+            app.Session.ViewDetaching += (_, _) => detached++;
+
+            settings.IsEnglish = true;
+            await UiWait.UntilAsync(() => choice.Writes.Count == 1);
+            settings.IsChinese = true;
+            choice.Gate.TrySetResult();
+            await Switch(app).Running;
+
+            Assert.Equal([UiLanguage.English, UiLanguage.Chinese], choice.Writes);
+            Assert.Equal((UiLanguage.Chinese, UiLanguage.Chinese), (CurrentLanguage.Value, choice.Stored));
+            Assert.Equal(0, Switch(app).Rebuilds);
+            Assert.Equal(0, detached);
+            Assert.Same(settings, app.Workbench.CurrentPage);
+            window.Close();
+        }
+        finally
+        {
+            CurrentLanguage.Set(UiLanguage.Chinese);
+        }
+    }
+
     /// <summary>Review Focus 4: the choice cannot be written; it still applies for this run, and the row says so.</summary>
     [AvaloniaFact]
     public async Task Write_failure_switches_with_a_notice()
@@ -251,7 +353,7 @@ public class LanguageChoiceUiTests
     }
 
     /// <summary>A stored choice whose writes are recorded, can be held, and can fail.</summary>
-    private sealed class ScriptedChoice : ILanguageChoice
+    internal sealed class ScriptedChoice : ILanguageChoice
     {
         public TaskCompletionSource? Gate { get; set; }
 

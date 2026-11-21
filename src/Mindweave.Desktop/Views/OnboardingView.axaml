@@ -139,7 +139,7 @@
           <RadioButton Name="OnboardingChinese" Classes="language-choice" GroupName="OnboardingLanguage" IsChecked="{Binding IsChinese}"
                        Content="{x:Static t:UiText.LanguageChinese}" AutomationProperties.Name="{x:Static t:UiText.LanguageChinese}" />
         </StackPanel>
-        <TextBlock Name="OnboardingLanguageStatus" Classes="error" FontSize="12" TextWrapping="Wrap" Margin="0,6,0,0"
+        <TextBlock Name="OnboardingLanguageStatus" Classes.error="{Binding !IsLanguageWaiting}" Classes.muted="{Binding IsLanguageWaiting}" FontSize="12" TextWrapping="Wrap" Margin="0,6,0,0"
                    Text="{Binding LanguageStatus}" IsVisible="{Binding LanguageStatus, Converter={x:Static ObjectConverters.IsNotNull}}" />
         <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,24,0,0">
           <Button Name="NextButton" Classes="primary" Padding="18,8" Content="{x:Static t:UiText.OnboardingNext}"

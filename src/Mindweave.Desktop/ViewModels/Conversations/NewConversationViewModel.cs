@@ -46,7 +46,8 @@ public sealed partial class NewConversationViewModel : PageViewModel, IDisposabl
         Application.Reading.IReadingState? reading = null,
         Application.Models.IModelSettings? models = null,
         Application.Resources.IResources? resources = null,
-        WebSearchSwitch? webSearch = null)
+        WebSearchSwitch? webSearch = null,
+        bool replayed = false)
         : base(route ?? NewConversationRoute.Instance)
     {
         ModelNote = models is null ? null : new ModelConnectionNote(models, conversations, dispatcher);
@@ -123,7 +124,13 @@ public sealed partial class NewConversationViewModel : PageViewModel, IDisposabl
             }
 
             Loaded = LoadAsync();
-            recommendations.NewExplorationOpened(workspace);
+
+            // Opening 新探索 may prepare questions (a paid request). A page built in place of one a language switch
+            // replaced was not opened again (review of merge 2, M4).
+            if (!replayed)
+            {
+                recommendations.NewExplorationOpened(workspace);
+            }
         }
     }
 
@@ -144,17 +151,35 @@ public sealed partial class NewConversationViewModel : PageViewModel, IDisposabl
 
     /// <summary>
     /// Opened from a recommended node, the page puts the node's question in the input when it is built, over the draft;
-    /// what the reader made of it since is carried over a language switch. Otherwise the draft is with its service.
+    /// what the reader made of it since is carried over a language switch. Otherwise the draft is with its service. The
+    /// web search position chosen beside the composer is carried too (review of merge 2, M3).
     /// </summary>
-    public object? CaptureViewState() => Route is NewConversationRoute { Question: not null } ? Composer.Text : null;
+    public object? CaptureViewState()
+    {
+        var text = Route is NewConversationRoute { Question: not null } ? Composer.Text : null;
+        var webSearch = Composer.WebSearch?.Chosen;
+        return text is null && webSearch is null ? null : new CarriedState(text, webSearch);
+    }
 
     public void RestoreViewState(object state)
     {
-        if (state is string text)
+        if (state is not CarriedState carried)
+        {
+            return;
+        }
+
+        if (carried.Text is { } text)
         {
             Composer.Text = text;
         }
+
+        if (carried.WebSearch is { } mode)
+        {
+            Composer.WebSearch?.Restore(mode);
+        }
     }
+
+    private sealed record CarriedState(string? Text, Mindweave.Core.Runs.WebSearchMode? WebSearch);
 
     /// <summary>The first load of the recommendations (tests).</summary>
     public Task Loaded { get; } = Task.CompletedTask;

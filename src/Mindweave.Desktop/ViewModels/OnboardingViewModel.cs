@@ -135,15 +135,59 @@ public sealed partial class OnboardingViewModel : ViewModelBase
         set => ChooseLanguage(value, UiLanguage.Chinese);
     }
 
-    /// <summary>Shown only when saving the language failed; it still applies until the application closes.</summary>
-    public string? LanguageStatus => _language?.SaveFailed == true ? UiText.LanguageSaveFailed : null;
+    /// <summary>
+    /// Beside the choice: the switch waits for something to finish, it could not be made, or saving the choice failed
+    /// (the language still applies until the application closes); otherwise nothing.
+    /// </summary>
+    public string? LanguageStatus => _language?.Notice;
+
+    /// <summary>The status says the switch waits: shown as progress, not as a problem.</summary>
+    public bool IsLanguageWaiting => _language?.IsWaiting == true;
+
+    /// <summary>The language was chosen on this step: the step built in its place focuses the choice (review of merge 2, M5).</summary>
+    public bool LanguageChosen { get; private set; }
+
+    /// <summary>The step replaces one the language was chosen on: its view puts the keyboard on the choice once, then clears this.</summary>
+    public bool FocusesLanguage { get; set; }
+
+    private bool _listening;
 
     private void ChooseLanguage(bool chosen, UiLanguage language)
     {
         if (chosen && _language is not null)
         {
-            _ = _language.SwitchAsync(language);
+            LanguageChosen = true;
+
+            // This page is not disposed when the guide ends, so it listens only while its own switch runs.
+            if (!_listening)
+            {
+                _listening = true;
+                _language.Changed += OnLanguageSwitchChanged;
+            }
+
+            _ = FollowAsync(_language, _language.SwitchAsync(language, this));
         }
+    }
+
+    /// <summary>Stops listening once the switch has ended; it never faults (what went wrong is in its notice).</summary>
+    private async Task FollowAsync(LanguageSwitch language, Task switching)
+    {
+        await switching;
+        if (_listening)
+        {
+            _listening = false;
+            language.Changed -= OnLanguageSwitchChanged;
+        }
+
+        OnLanguageSwitchChanged(language, EventArgs.Empty);
+    }
+
+    private void OnLanguageSwitchChanged(object? sender, EventArgs e)
+    {
+        OnPropertyChanged(nameof(LanguageStatus));
+        OnPropertyChanged(nameof(IsLanguageWaiting));
+        OnPropertyChanged(nameof(IsEnglish));
+        OnPropertyChanged(nameof(IsChinese));
     }
 
     /// <summary>The latest write of the step reached (tests).</summary>
