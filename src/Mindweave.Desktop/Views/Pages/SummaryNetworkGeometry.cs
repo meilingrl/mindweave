@@ -1,5 +1,6 @@
 using Avalonia;
 using Avalonia.Media;
+using Mindweave.Core.Summaries;
 using Mindweave.Desktop.SummaryNetwork;
 using Mindweave.Desktop.ViewModels.Pages;
 
@@ -142,40 +143,107 @@ internal static class SummaryNetworkGeometry
     }
 
     /// <summary>
-    /// The timeline's opening view (spec §5.3): zoom 1 with the main line across the middle. When everything fits at zoom 1
-    /// it is centred, as <see cref="FitTo"/> would centre it. Otherwise the newest root (the rightmost on the main line) is
-    /// shown with its whole title, the latest history to its left (ruling R-T1a): the title ends at
-    /// <see cref="TimelineLabelEndAt"/> of the width, or, when the title alone takes more than
-    /// <see cref="TimelineWideLabel"/> of the width, the dot sits at <see cref="TimelineNarrowDotAt"/>. "显示全部" still fits all.
+    /// The timeline's opening view (spec §5.3, ruling R-F1). When the whole timeline fits at <see cref="ReadableZoom"/> or
+    /// above, it is fitted, at most at zoom 1, as the spatial view opens. Otherwise zoom 1 with the newest root (the
+    /// rightmost on the main line) and its whole subtree in view, the latest history to its left: the rightmost label end
+    /// of the subtree sits at <see cref="TimelineLabelEndAt"/> of the width, or, when the subtree is wider than that
+    /// leaves room for, the root's dot at <see cref="TimelineNarrowDotAt"/>. Label ends are the drawn ones:
+    /// <paramref name="drawnWidth"/> is a label's width in px as drawn at <see cref="SummaryNetworkCanvas.LabelMaxSize"/>.
+    /// "显示全部" still fits all.
     /// </summary>
-    internal static Viewport TimelineOpening(IReadOnlyList<NodeView> nodes, Size size)
+    internal static Viewport TimelineOpening(IReadOnlyList<NodeView> nodes, Size size, Func<NodeView, double> drawnWidth)
     {
         ArgumentNullException.ThrowIfNull(nodes);
-        const double left = SummaryNetworkCanvas.RootRadius + SummaryNetworkCanvas.HoverGrowth;
-        var minX = nodes.Min(n => n.X);
-        var maxX = nodes.Max(n => n.X + n.LabelWidth);
-        if (maxX - minX + left + TimelineLabelReach <= size.Width - (2 * Viewport.FitMargin))
+        ArgumentNullException.ThrowIfNull(drawnWidth);
+        var widths = nodes.ToDictionary(n => n.Id, drawnWidth);
+        if (TimelineFit(nodes, widths, size) is { } fitted)
         {
-            return new Viewport(((minX + maxX) / 2) + ((TimelineLabelReach - left) / 2), 0, 1);
+            return fitted;
         }
 
         var newest = nodes.Where(n => n.IsRoot).DefaultIfEmpty(nodes[0]).MaxBy(n => n.X)!;
-        var title = TimelineLabelReach + newest.LabelWidth;
-        var dotAt = title > size.Width * TimelineWideLabel ? size.Width * TimelineNarrowDotAt : (size.Width * TimelineLabelEndAt) - title;
-        return new Viewport(newest.X + (size.Width / 2) - dotAt, 0, 1);
+        var subtree = Subtree(nodes, newest.Id);
+        var reach = subtree.Max(n => n.X + TimelineLabelEnd(n, widths[n.Id], 1)) - newest.X;
+        var dotAt = Math.Max(size.Width * TimelineNarrowDotAt, (size.Width * TimelineLabelEndAt) - reach);
+        return new Viewport(newest.X + (size.Width / 2) - dotAt, (subtree.Min(n => n.Y) + subtree.Max(n => n.Y)) / 2, 1);
     }
 
-    /// <summary>From a dot's centre to the start of its label at zoom 1, the largest dot grown on hover included.</summary>
-    internal const double TimelineLabelReach = SummaryNetworkCanvas.RootRadius + SummaryNetworkCanvas.HoverGrowth + SummaryNetworkLayout.LabelGap;
-
-    /// <summary>Where the newest root's title ends when the timeline opens, as a fraction of the canvas width.</summary>
+    /// <summary>Where the newest subtree's last label ends when the timeline opens, as a fraction of the canvas width.</summary>
     internal const double TimelineLabelEndAt = 0.92;
 
-    /// <summary>A title wider than this fraction of the canvas opens with its dot at <see cref="TimelineNarrowDotAt"/>.</summary>
-    internal const double TimelineWideLabel = 0.6;
+    /// <summary>Where the newest root's dot sits when its subtree is too wide to end at <see cref="TimelineLabelEndAt"/>.</summary>
+    internal const double TimelineNarrowDotAt = 0.08;
 
-    /// <summary>Where the newest root's dot sits when its title is too wide to end at <see cref="TimelineLabelEndAt"/>.</summary>
-    internal const double TimelineNarrowDotAt = 0.2;
+    /// <summary>Room above the topmost dot for a day caption, and below the lowest for a dot, its hover and a dropped label.</summary>
+    private const double TimelineTop = SummaryNetworkCanvas.CaptionGap + 16;
+    private const double TimelineBottom = 24;
+
+    /// <summary>From a dot's centre to the end of its drawn label at <paramref name="zoom"/>, in screen px.</summary>
+    private static double TimelineLabelEnd(NodeView node, double drawnWidth, double zoom) =>
+        RadiusOf(node, sessionNetwork: true) + SummaryNetworkLayout.LabelGap + (drawnWidth * LabelSize(zoom) / SummaryNetworkCanvas.LabelMaxSize);
+
+    /// <summary>
+    /// The largest zoom from <see cref="ReadableZoom"/> to 1 at which every dot, label and date fits with the margin, the
+    /// picture centred; null when it does not fit even at <see cref="ReadableZoom"/>. Wider zooms need more room, so the
+    /// zoom is found by halving.
+    /// </summary>
+    private static Viewport? TimelineFit(IReadOnlyList<NodeView> nodes, Dictionary<SummaryNodeId, double> widths, Size size)
+    {
+        (double Left, double Right, double Top, double Bottom) Extent(double zoom) => (
+            nodes.Min(n => (n.X * zoom) - RadiusOf(n, sessionNetwork: true) - SummaryNetworkCanvas.HoverGrowth),
+            nodes.Max(n => (n.X * zoom) + TimelineLabelEnd(n, widths[n.Id], zoom)),
+            (nodes.Min(n => n.Y) * zoom) - TimelineTop,
+            (nodes.Max(n => n.Y) * zoom) + TimelineBottom);
+
+        bool Fits(double zoom)
+        {
+            var e = Extent(zoom);
+            return e.Right - e.Left <= size.Width - (2 * Viewport.FitMargin) && e.Bottom - e.Top <= size.Height - (2 * Viewport.FitMargin);
+        }
+
+        double zoom;
+        if (Fits(1))
+        {
+            zoom = 1;
+        }
+        else if (!Fits(ReadableZoom))
+        {
+            return null;
+        }
+        else
+        {
+            var (low, high) = (ReadableZoom, 1.0);
+            for (var i = 0; i < 30; i++)
+            {
+                var middle = (low + high) / 2;
+                (low, high) = Fits(middle) ? (middle, high) : (low, middle);
+            }
+
+            zoom = low;
+        }
+
+        var fit = Extent(zoom);
+        return new Viewport((fit.Left + fit.Right) / (2 * zoom), (fit.Top + fit.Bottom) / (2 * zoom), zoom);
+    }
+
+    /// <summary>A node and every node below it by branch parents.</summary>
+    private static List<NodeView> Subtree(IReadOnlyList<NodeView> nodes, SummaryNodeId root)
+    {
+        var children = nodes.Where(n => n.Parent is not null).ToLookup(n => n.Parent!.Value);
+        var result = new List<NodeView>();
+        var queue = new Queue<NodeView>(nodes.Where(n => n.Id == root));
+        while (queue.Count > 0)
+        {
+            var node = queue.Dequeue();
+            result.Add(node);
+            foreach (var child in children[node.Id])
+            {
+                queue.Enqueue(child);
+            }
+        }
+
+        return result;
+    }
 
     /// <summary>
     /// The viewport that shows every node, its label and its group's caption. Positions and label widths are canvas

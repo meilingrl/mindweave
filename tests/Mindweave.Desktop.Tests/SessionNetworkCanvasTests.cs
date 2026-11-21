@@ -427,13 +427,11 @@ public class SessionNetworkCanvasTests
         Assert.Equal(2, network.Session.DayStarts.Count);
         Assert.Equal(1, canvas.Current.Zoom);
 
-        // A canvas too narrow for a long title beside the right edge: the newest root's dot opens at 20% of the width and
-        // its whole title is still in view (ruling R-T1a).
+        // Too wide to fit: zoom 1 with the newest root's whole title in view, ending at about 92% of the width (ruling R-F1).
         var bounds = new Rect(canvas.Bounds.Size);
-        var newest = network.Nodes.Where(n => n.IsRoot).MaxBy(n => n.X)!;
-        Assert.True(newest.LabelWidth > bounds.Width * 0.6, $"canvas {bounds.Width} is wide enough for the end anchor");
-        Assert.Equal(bounds.Width * SummaryNetworkGeometry.TimelineNarrowDotAt, canvas.ToScreen(newest.X, newest.Y).X, 3);
-        Assert.True(bounds.Contains(canvas.PaintNodes().Single(p => p.Node.Id == newest.Id).LabelBounds), "the newest root's title is cut by the edge");
+        var newest = canvas.PaintNodes().Where(p => p.Node.IsRoot).MaxBy(p => p.Node.X)!;
+        Assert.True(bounds.Contains(newest.LabelBounds), "the newest root's title is cut by the edge");
+        Assert.Equal(bounds.Width * SummaryNetworkGeometry.TimelineLabelEndAt, newest.LabelBounds.Right, 1);
         Screenshots.Capture(window, "session-network-timeline-whole-titles");
 
         foreach (var zoom in new[] { 1.0, 1.6, Viewport.MaxZoom })
@@ -484,7 +482,7 @@ public class SessionNetworkCanvasTests
         Assert.True(bounds.Contains(only.LabelBounds), $"the label at {only.LabelBounds} is outside {bounds}");
 
         // Several sessions with long titles, wider than the canvas: zoom 1, the main line across the middle, and the newest
-        // root's whole title in view, ending at about 92% of the width (ruling R-T1a).
+        // root's whole title in view, ending at about 92% of the width (ruling R-F1).
         var roots = new List<ConversationId> { first };
         for (var i = 1; i < 6; i++)
         {
@@ -502,9 +500,9 @@ public class SessionNetworkCanvasTests
         var newest = network.Nodes.Where(n => n.IsRoot).MaxBy(n => n.X)!;
         var at = canvas.ToScreen(newest.X, newest.Y);
         Assert.Equal(1, opening.Zoom);
-        Assert.True(newest.LabelWidth < bounds.Width * 0.6);
-        Assert.Equal(bounds.Width * SummaryNetworkGeometry.TimelineLabelEndAt, at.X + SummaryNetworkGeometry.TimelineLabelReach + newest.LabelWidth, 3);
-        Assert.True(bounds.Contains(canvas.PaintNodes().Single(p => p.Node.Id == newest.Id).LabelBounds), "the newest root's title is cut by the edge");
+        var title = canvas.PaintNodes().Single(p => p.Node.Id == newest.Id).LabelBounds;
+        Assert.Equal(bounds.Width * SummaryNetworkGeometry.TimelineLabelEndAt, title.Right, 1);
+        Assert.True(bounds.Contains(title), "the newest root's title is cut by the edge");
         Assert.True(at.X > bounds.Width * SummaryNetworkGeometry.TimelineNarrowDotAt);
         Assert.Equal(bounds.Height / 2, at.Y, 3);
         Assert.Contains(network.Nodes, n => !bounds.Contains(canvas.ToScreen(n.X, n.Y)));

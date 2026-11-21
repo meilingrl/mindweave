@@ -1154,7 +1154,7 @@ public sealed class SummaryNetworkCanvas : Control
 
         var opening = !_page.Session.FitAllRequested;
         var fitted = opening && _page.IsTimeline
-            ? SummaryNetworkGeometry.TimelineOpening(_page.Nodes, Bounds.Size)
+            ? SummaryNetworkGeometry.TimelineOpening(_page.Nodes, Bounds.Size, DrawnLabelWidth)
             : opening && Sessions
                 ? SummaryNetworkGeometry.SpatialOpening(_page.Nodes, Bounds.Size, _page.RecommendedNodes)
                 : SummaryNetworkGeometry.FitTo(_page.Nodes, Bounds.Size, _page.RecommendedNodes);
@@ -1170,6 +1170,10 @@ public sealed class SummaryNetworkCanvas : Control
         _page.Session.FitAllRequested = false;
         return fitted;
     }
+
+    /// <summary>A node's label as drawn at <see cref="LabelMaxSize"/> (zoom 1 and a little below): its width in px.</summary>
+    private static double DrawnLabelWidth(NodeView node) =>
+        Text(SummaryNetworkLayout.Label(node.ShortTitle, node.HasCandidate), LabelMaxSize, Brushes.Black, node.Unread ? FontWeight.SemiBold : FontWeight.Normal).Width;
 
     internal static FormattedText Text(string text, double size, IBrush brush, FontWeight weight = FontWeight.Normal) =>
         new(text, CultureInfo.CurrentUICulture, FlowDirection.LeftToRight, new Typeface(Face.FontFamily, FontStyle.Normal, weight), size, brush);
