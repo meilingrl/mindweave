@@ -95,6 +95,25 @@ public class SessionNetworkCanvasTests
     }
 
     [AvaloniaFact]
+    public async Task A_show_all_request_does_not_outlive_an_empty_picture()
+    {
+        await using var app = Gated();
+        var window = app.ShowWindow(1100, 720);
+        await app.StartWithWorkspaceAsync("火车");
+        app.ShellPage.ShowSectionCommand.Execute(Navigation.MainSection.SummaryNetwork);
+        var network = Assert.IsType<SummaryNetworkHomeViewModel>(app.Workbench.CurrentPage);
+        await network.Loaded;
+        window.UpdateLayout();
+        Assert.Empty(network.Nodes);
+
+        network.ShowAllCommand.Execute(null);
+        _ = CanvasOf(window).Current;
+
+        Assert.False(network.Session.FitAllRequested);
+        window.Close();
+    }
+
+    [AvaloniaFact]
     public async Task Summaries_wear_a_ring_and_every_dot_is_filled()
     {
         await using var app = Gated();

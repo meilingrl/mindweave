@@ -1106,7 +1106,18 @@ public sealed class SummaryNetworkCanvas : Control
     /// </summary>
     private Viewport Fit()
     {
-        if (_page is null || _page.Nodes.Count == 0 || Bounds.Width <= 0 || Bounds.Height <= 0)
+        if (_page is null || _page.Nodes.Count == 0)
+        {
+            // Nothing to fit: a request for "显示全部" must not outlive the empty picture and fit the next one.
+            if (_page is not null)
+            {
+                _page.Session.FitAllRequested = false;
+            }
+
+            return new Viewport(0, 0, 1);
+        }
+
+        if (Bounds.Width <= 0 || Bounds.Height <= 0)
         {
             return new Viewport(0, 0, 1);
         }
