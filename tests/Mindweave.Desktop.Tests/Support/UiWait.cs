@@ -60,15 +60,26 @@ internal static class UiWait
     /// that is still placing itself first shows a placeholder of about its height and is rendered a moment later
     /// (health check 2026-11-12, performance-2); the controls under it move when it is. A button under an answer is
     /// clicked only after this: rendered between the press and the release, the answer moves the button away from the
-    /// pointer and the click is lost.
+    /// pointer and the click is lost. The same holds for a streaming answer: its text is parsed in the background and
+    /// lands a moment after the message has it.
     /// </summary>
+    /// <remarks>
+    /// Each round lays the window out first: until then a new answer's row, or the text it was just given, is not in the
+    /// visual tree, and "every answer laid out" would hold for answers not there yet. An answer counts only once it shows
+    /// its message's current text.
+    /// </remarks>
     public static Task AnswersRenderedAsync(
         Window window,
         int timeoutMs = 5000,
         [CallerFilePath] string? file = null,
         [CallerLineNumber] int line = 0) =>
         UntilAsync(
-            () => window.GetVisualDescendants().OfType<AnswerView>().All(a => a.IsLayoutCurrent),
+            () =>
+            {
+                window.UpdateLayout();
+                return window.GetVisualDescendants().OfType<AnswerView>().All(a =>
+                    a.DataContext is not MessageItemViewModel { IsAnswer: true } item || (a.IsLayoutCurrent && a.Markdown == item.Body));
+            },
             timeoutMs,
             "every answer rendered",
             file,
