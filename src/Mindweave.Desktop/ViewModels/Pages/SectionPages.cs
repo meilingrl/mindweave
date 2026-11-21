@@ -48,6 +48,7 @@ public sealed partial class SettingsHomeViewModel : PageViewModel, IDisposable, 
     private bool _soundChosen;
     private bool _inWorkspaceChosen;
     private bool _prepareNamesChosen;
+    private bool _boldColourChosen;
 
     public SettingsHomeViewModel(
         AppEnvironment environment,
@@ -139,7 +140,7 @@ public sealed partial class SettingsHomeViewModel : PageViewModel, IDisposable, 
             return;
         }
 
-        _chosen = _soundChosen = _inWorkspaceChosen = _prepareNamesChosen = false;
+        _chosen = _soundChosen = _inWorkspaceChosen = _prepareNamesChosen = _boldColourChosen = false;
         _recommendationChosen.Clear();
         Loaded = LoadAsync();
         Model.ReloadIfUnchanged();
@@ -170,6 +171,84 @@ public sealed partial class SettingsHomeViewModel : PageViewModel, IDisposable, 
     {
         get => Appearance == Appearance.Dark;
         set => Choose(value, Appearance.Dark);
+    }
+
+    /// <summary>The colour of bold text in answers (D-027); changing it applies at once and is saved in the background.</summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(IsBoldBrown), nameof(IsBoldSlate), nameof(IsBoldSage), nameof(IsBoldPlum), nameof(IsBoldSameAsText))]
+    public partial BoldColour BoldColour { get; set; }
+
+    /// <summary>Shown only when saving the bold colour failed; the choice still applies until the application closes.</summary>
+    [ObservableProperty]
+    public partial string? BoldColourStatus { get; private set; }
+
+    public bool IsBoldBrown
+    {
+        get => BoldColour == BoldColour.Brown;
+        set => ChooseBoldColour(value, BoldColour.Brown);
+    }
+
+    public bool IsBoldSlate
+    {
+        get => BoldColour == BoldColour.Slate;
+        set => ChooseBoldColour(value, BoldColour.Slate);
+    }
+
+    public bool IsBoldSage
+    {
+        get => BoldColour == BoldColour.Sage;
+        set => ChooseBoldColour(value, BoldColour.Sage);
+    }
+
+    public bool IsBoldPlum
+    {
+        get => BoldColour == BoldColour.Plum;
+        set => ChooseBoldColour(value, BoldColour.Plum);
+    }
+
+    public bool IsBoldSameAsText
+    {
+        get => BoldColour == BoldColour.SameAsText;
+        set => ChooseBoldColour(value, BoldColour.SameAsText);
+    }
+
+    private void ChooseBoldColour(bool chosen, BoldColour colour)
+    {
+        if (chosen)
+        {
+            _boldColourChosen = true;
+            BoldColour = colour;
+        }
+    }
+
+    partial void OnBoldColourChanged(BoldColour value)
+    {
+        if (_loading)
+        {
+            return;
+        }
+
+        _boldColourChosen = true;
+        _theme.ApplyBoldColour(value);
+        Saving = SaveBoldColourAsync(value, Saving);
+    }
+
+    private async Task SaveBoldColourAsync(BoldColour value, Task previous)
+    {
+        // One write after another, so the last choice made is the one that stays.
+        await previous;
+        try
+        {
+            await _appearanceService.SetBoldColourAsync(value, CancellationToken.None);
+            BoldColourStatus = null;
+        }
+#pragma warning disable CA1031 // As for the appearance: reported beside the setting, still applies for this run.
+        catch (Exception swallowed)
+#pragma warning restore CA1031
+        {
+            DesktopLog.Swallowed(swallowed);
+            BoldColourStatus = UiText.BoldColourSaveFailed;
+        }
     }
 
     /// <summary>Completes when the last choice made on this page has been written (or failed).</summary>
@@ -546,6 +625,19 @@ public sealed partial class SettingsHomeViewModel : PageViewModel, IDisposable, 
             stored = Appearance.FollowSystem;
         }
 
+        BoldColour boldColour;
+        try
+        {
+            boldColour = await _appearanceService.GetBoldColourAsync(CancellationToken.None);
+        }
+#pragma warning disable CA1031 // Unreadable means the default, as at startup.
+        catch (Exception swallowed)
+#pragma warning restore CA1031
+        {
+            DesktopLog.Swallowed(swallowed);
+            boldColour = BoldColour.Brown;
+        }
+
         var sound = false;
         var inWorkspace = true;
         var prepareNames = true;
@@ -613,6 +705,11 @@ public sealed partial class SettingsHomeViewModel : PageViewModel, IDisposable, 
         if (!_chosen)
         {
             Appearance = stored;
+        }
+
+        if (!_boldColourChosen)
+        {
+            BoldColour = boldColour;
         }
 
         if (!_soundChosen)

@@ -31,11 +31,68 @@ public class MarkdownRenderingTests
     /// Bold must cover exactly the emphasised characters. The parse was always right (CommonMark: the closing
     /// <c>**</c> before <c>：</c> is right-flanking); the defect was in drawing, where CJK glyphs come from a fallback
     /// font and Avalonia 12.1.4 reused the previous run's fallback typeface, weight included, for the next run.
+    /// Checked with the bold weight ("same as text", D-027), which every answer font has a face for.
     /// </summary>
     [AvaloniaTheory]
     [InlineData(Feed.Full)]
     [InlineData(Feed.Live)]
     public async Task Bold_covers_exactly_the_emphasised_text_in_cjk_paragraphs_and_list_items(Feed feed)
+    {
+        await WithBoldWeightAsync(() => AssertBoldCoversExactlyAsync(feed));
+    }
+
+    /// <summary>
+    /// Runs a check that tells bold from plain by the drawn weight with the bold weight ("same as text", D-027), which
+    /// every answer font has a face for; Medium, the default with a bold colour, has none in some fonts.
+    /// </summary>
+    private static async Task WithBoldWeightAsync(Func<Task> check)
+    {
+        BoldWeight.Use(BoldWeight.For(Application.Preferences.BoldColour.SameAsText));
+        try
+        {
+            await check();
+        }
+        finally
+        {
+            BoldWeight.Use(BoldWeight.For(Application.Preferences.BoldColour.Brown));
+        }
+    }
+
+    /// <summary>
+    /// With a bold colour (the default, D-027), bold is asked for in Medium weight and drawn in the bold colour, exactly
+    /// over the emphasised text; plain text stays in the normal weight and the text colour.
+    /// </summary>
+    [AvaloniaTheory]
+    [InlineData(Feed.Full)]
+    [InlineData(Feed.Live)]
+    public async Task Bold_is_medium_weight_in_the_bold_colour(Feed feed)
+    {
+        var (window, renderer) = await RenderAsync(Emphasis, feed);
+        Assert.True(window.TryFindResource("BoldText", window.ActualThemeVariant, out var resource));
+        var boldColour = Assert.IsAssignableFrom<ISolidColorBrush>(resource).Color;
+
+        var runs = SourceAnchors.Blocks(renderer)
+            .SelectMany(b => b.TextLayout.TextLines.SelectMany(l => l.TextRuns).OfType<ShapedTextRun>())
+            .Select(r => (Text: r.Text.ToString(), r.Properties.Typeface.Weight, Colour: (r.Properties.ForegroundBrush as ISolidColorBrush)?.Color))
+            .ToList();
+        foreach (var part in new[] { "蒸汽动力", "轨道运输", "多管锅炉", "鼓风管", "bold", "中文" })
+        {
+            var run = Assert.Single(runs, r => r.Text == part);
+            Assert.Equal(FontWeight.Medium, run.Weight);
+            Assert.Equal(boldColour, run.Colour);
+        }
+
+        foreach (var part in new[] { "与", "：增加受热面积，使蒸汽产生得更快；", " and plain, ", "以及" })
+        {
+            var run = Assert.Single(runs, r => r.Text == part);
+            Assert.Equal(FontWeight.Normal, run.Weight);
+            Assert.NotEqual(boldColour, run.Colour);
+        }
+
+        window.Close();
+    }
+
+    private static async Task AssertBoldCoversExactlyAsync(Feed feed)
     {
         var (window, renderer) = await RenderAsync(Emphasis, feed);
 
@@ -72,7 +129,10 @@ public class MarkdownRenderingTests
     [AvaloniaTheory]
     [InlineData(Feed.Full)]
     [InlineData(Feed.Live)]
-    public async Task Bold_opens_and_closes_beside_cjk_punctuation(Feed feed)
+    public async Task Bold_opens_and_closes_beside_cjk_punctuation(Feed feed) =>
+        await WithBoldWeightAsync(() => AssertBoldBesideCjkPunctuationAsync(feed));
+
+    private static async Task AssertBoldBesideCjkPunctuationAsync(Feed feed)
     {
         var (window, renderer) = await RenderAsync(CjkPunctuationEmphasis, feed);
 
@@ -184,6 +244,45 @@ public class MarkdownRenderingTests
         Assert.All(texts, t => Assert.Equal(answerFont, t.FontFamily));
         window.Close();
     }
+
+    /// <summary>
+    /// Body text (paragraphs, list items, quotes) is set at the answer line height, wider than the font's own; headings
+    /// and code keep their own spacing. List markers share it, so each sits on the first line of its item.
+    /// </summary>
+    [AvaloniaTheory]
+    [InlineData(Feed.Full)]
+    [InlineData(Feed.Live)]
+    public async Task Body_text_and_list_markers_use_the_answer_line_height(Feed feed)
+    {
+        // Two one-item lists, so each marker has exactly one item beside it.
+        var (window, renderer) = await RenderAsync("## 标题\n\n正文第一段。\n\n1. 第一项\n\n- 无序项\n\n> 引用\n\n```\ncode 1\ncode 2\n```", feed);
+        var lineHeight = Assert.IsType<double>(Avalonia.Application.Current!.FindResource("AnswerLineHeight"));
+        var blocks = renderer.GetVisualDescendants().OfType<MarkdownTextBlock>().Where(b => b.IsVisible).ToList();
+
+        var body = blocks.Where(b => b.Classes.Contains("ParagraphBlock")).ToList();
+        Assert.Equal(4, body.Count);
+        Assert.All(body, b => Assert.Equal(lineHeight, b.TextLayout.TextLines[0].Height, 0.5));
+
+        Assert.True(double.IsNaN(Assert.Single(blocks, b => b.Classes.Contains("Heading2")).LineHeight));
+        var code = blocks.Where(b => b.GetVisualAncestors().OfType<CodeBlock>().Any()).ToList();
+        Assert.NotEmpty(code);
+        Assert.All(code, b => Assert.True(double.IsNaN(b.LineHeight)));
+
+        var markers = renderer.GetVisualDescendants().OfType<TextBlock>()
+            .Where(t => t.IsVisible && (t.Classes.Contains("ListBlockNumber") || t.Classes.Contains("ListBlockBullet"))).ToList();
+        Assert.Equal(2, markers.Count);
+        foreach (var marker in markers)
+        {
+            var list = marker.GetVisualAncestors().OfType<MarkdownListGrid>().First();
+            var item = Assert.Single(body, b => b.GetVisualAncestors().Contains(list));
+            Assert.Equal(Baseline(item, window), Baseline(marker, window), 1.0);
+        }
+
+        window.Close();
+    }
+
+    private static double Baseline(TextBlock block, Visual relativeTo) =>
+        block.TranslatePoint(new Point(0, block.TextLayout.TextLines[0].Baseline), relativeTo)!.Value.Y;
 
     /// <summary>
     /// A display formula block between the first and last selected text blocks is part of what the reader selected,
