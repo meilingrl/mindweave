@@ -31,7 +31,7 @@ public class SessionNetworkUiTests
 {
     public static TheoryData<string> Themes => new() { "Light", "Dark" };
 
-    private static DesktopHarness Gated() => DesktopHarness.Create(s => s.AddSingleton(new SessionNetworkGate(true)));
+    internal static DesktopHarness Gated() => DesktopHarness.Create(s => s.AddSingleton(new SessionNetworkGate(true)));
 
     [AvaloniaTheory]
     [MemberData(nameof(Themes))]
@@ -439,7 +439,7 @@ public class SessionNetworkUiTests
     }
 
     /// <summary>Two roots on the same day: the first with a branch and a summary, the second with neither.</summary>
-    private static async Task<(ConversationId Summarized, ConversationId Branch, ConversationId Plain)> SeedAsync(DesktopHarness app)
+    internal static async Task<(ConversationId Summarized, ConversationId Branch, ConversationId Plain)> SeedAsync(DesktopHarness app)
     {
         await app.StartWithWorkspaceAsync("火车");
         await app.ConfigureModelAsync();
