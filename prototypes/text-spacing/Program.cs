@@ -200,6 +200,17 @@ internal sealed class PaneView : DockPanel
         "PingFang SC, Microsoft YaHei UI, Microsoft YaHei, Noto Sans CJK SC, Noto Sans SC, Source Han Sans SC, $Default";
 
     private const string Sample = """
+        # 一级标题，一级标题会不会因为行高太小而折行重叠呢，再长一点
+        
+        ```csharp
+        var x = 1;
+        var y = 2;
+        ```
+
+        | 列 A | 列 B |
+        | --- | --- |
+        | 表格内容 | 2,480 |
+
         ## 结论
 
         小字号下，**真正影响清晰度的是字重和渲染方式**，而不只是字体本身。行距稍大一些，笔画之间就有了呼吸的空间，整段文字看起来会更轻。Inter was designed for screens, so its Latin letters stay open even at small sizes.
@@ -260,6 +271,21 @@ internal sealed class PaneView : DockPanel
         Styles.AddRange(AnswerStyles());
         Children.Add(new ScrollViewer { Content = Page() });
         LayoutUpdated += (_, _) => Measure();
+        if (App.Args.Contains("--dump"))
+        {
+            AttachedToVisualTree += (_, _) => DispatcherTimer.RunOnce(Dump, TimeSpan.FromMilliseconds(500));
+        }
+    }
+
+    /// <summary>Lists every text block of the answer: its classes, size, weight and the chain of its parents.</summary>
+    private void Dump()
+    {
+        foreach (var block in this.GetVisualDescendants().OfType<TextBlock>())
+        {
+            var parents = string.Join(" < ", block.GetVisualAncestors().Take(4).Select(v => v.GetType().Name + (v is StyledElement e && e.Classes.Count > 0 ? "." + string.Join(".", e.Classes) : "")));
+            string text = (block is MarkdownTextBlock m ? m.ActualText : block.Text) ?? "";
+            Console.WriteLine($"{block.GetType().Name}.{string.Join(".", block.Classes)} size={block.FontSize} weight={block.FontWeight} lh={block.LineHeight} family={block.FontFamily.Name[..Math.Min(12, block.FontFamily.Name.Length)]} '{text[..Math.Min(14, text.Length)]}'  < {parents}");
+        }
     }
 
     private IEnumerable<IStyle> AnswerStyles()
