@@ -52,6 +52,15 @@ public sealed record PackingReport(double EnclosingRadius, double IdealRadius, d
 /// §6.1: discs nested rigidly leave empty space at every level (3.2 × the ideal radius on deep trees, 3.45 on a
 /// 1,023-node binary tree), and moving whole discs toward the centroid was blocked by their neighbours.
 /// </para>
+/// <para>
+/// A lone tree (every new workspace starts as one) is also filled in wedges round its root (<c>FillWedges</c>,
+/// Ruling R-P5): each sub-branch keeps a share of the turn in proportion to its area, clockwise in creation order,
+/// so sub-branches cannot mix and together fill a round whole. Nested packing makes every sub-branch round but can
+/// leave a lone tree lopsided and crossed; wedges fill it round with lines apart but stretch the sub-branches of a
+/// bushy tree. So a lone tree is arranged both ways, the wedges from several starting directions, and several
+/// roots are settled with two stiffnesses; the arrangement that does best on the acceptance checks is kept
+/// (<c>Choose</c>).
+/// </para>
 /// </remarks>
 public static partial class SpatialPacking
 {
@@ -99,13 +108,8 @@ public static partial class SpatialPacking
     {
         ArgumentNullException.ThrowIfNull(nodes);
         var forest = Forest.Of(nodes);
-        var groups = BuildGroups(forest);
-        var (members, body, x, y) = PlaceRoots(forest, groups);
-        var stiffness = forest.Roots.Count > 1 ? RootStiffness : 0;
-        Settle(forest, members, body, x, y, new Settling(CompactionSteps, Thread: true, Anchor: -1, Wedges: null, stiffness));
+        var (members, x, y) = forest.Roots.Count == 1 ? LoneTree(forest) : SeveralTrees(forest);
         var r = members.Select(i => forest.Radius[i]).ToArray();
-        TurnToBalance(forest, members, r, x, y);
-
         var centre = Enclose(r, x, y);
         var positions = new Dictionary<SummaryNodeId, NodePosition>(members.Length);
         for (var k = 0; k < members.Length; k++)
@@ -115,6 +119,21 @@ public static partial class SpatialPacking
         }
 
         return positions;
+    }
+
+    /// <summary>
+    /// Nested packing: every sub-branch packed round its head, bottom-up; the trees packed heaviest first, settled
+    /// together and turned to balance. Returns every footprint centre.
+    /// </summary>
+    /// <param name="groups">Every tree's packed sub-branches (<see cref="BuildGroups"/>); only read.</param>
+    /// <param name="rootStiffness">With several roots, how strongly each tree keeps its shape while they settle.</param>
+    private static (int[] Members, double[] X, double[] Y) Nest(Forest forest, Dictionary<int, Group> groups, double rootStiffness = RootStiffness)
+    {
+        var (members, body, x, y) = PlaceRoots(forest, groups);
+        var stiffness = forest.Roots.Count > 1 ? rootStiffness : 0;
+        Settle(forest, members, body, x, y, new Settling(CompactionSteps, Thread: true, Anchor: -1, Wedges: null, stiffness));
+        TurnToBalance(forest, members, members.Select(i => forest.Radius[i]).ToArray(), x, y);
+        return (members, x, y);
     }
 
     /// <summary>

@@ -129,40 +129,58 @@ public class SpatialPackingTests
     }
 
     [Fact]
-    public void Single_trees_report()
+    public void Single_trees_are_round_centred_and_uncrossed()
     {
-        // Ruling R-P3 asks for enclosing / ideal ≤ 1.6, centroid ≤ 0.15 and crossings ≤ 0.05 per line on single trees.
-        // Fix round 2 did not reach them (task 4 report, fix round 2): this test reports the distribution and holds
-        // only what every tree meets (no overlap, creation order). The gates stay open with the coordinator.
+        // Every new workspace starts as one tree (Ruling R-P3): each of these is held to the whole-graph bounds.
         var lines = new List<string>();
-        var (passRatio, passCentroid, passCrossings, passAll) = (0, 0, 0, 0);
+        var failures = new List<string>();
         foreach (var nodes in SingleTrees)
         {
-            var dots = SpatialPacking.Arrange(nodes);
-            var report = SpatialPacking.Measure(nodes, dots);
+            var report = SpatialPacking.Measure(nodes, SpatialPacking.Arrange(nodes));
             var (ratio, perEdge) = (report.EnclosingRadius / report.IdealRadius, (double)report.BranchCrossings / report.BranchEdges);
-            (passRatio, passCentroid, passCrossings) = (passRatio + (ratio <= 1.6 ? 1 : 0), passCentroid + (report.CentroidOffset <= 0.15 ? 1 : 0), passCrossings + (perEdge <= 0.05 ? 1 : 0));
-            passAll += ratio <= 1.6 && report.CentroidOffset <= 0.15 && perEdge <= 0.05 ? 1 : 0;
-            lines.Add($"{nodes.Count} nodes: enclosing / ideal {ratio:F2}, centroid {report.CentroidOffset:F3}, crossings {perEdge:F3}");
+            var line = $"{nodes.Count} nodes: enclosing / ideal {ratio:F3}, centroid {report.CentroidOffset:F3}, crossings {perEdge:F3}";
+            lines.Add(line);
             Assert.Equal(0, report.Overlaps);
+            if (ratio > 1.6 || report.CentroidOffset > 0.15 || perEdge > 0.05)
+            {
+                failures.Add(line);
+            }
         }
 
         lines.ForEach(Output);
-        Output($"single trees: {SingleTrees.Count}; within enclosing 1.6: {passRatio}, centroid 0.15: {passCentroid}, crossings 0.05: {passCrossings}, all three: {passAll}");
+        Assert.True(failures.Count == 0, $"Single trees beyond enclosing / ideal 1.6, centroid 0.15 or crossings 0.05 per line: {string.Join("; ", failures)}.");
+    }
+
+    [Fact]
+    public void Small_single_trees_are_round_and_uncrossed()
+    {
+        // Workspaces as real users have them: one tree of 8 to 12 sessions.
+        var trees = Enumerable.Range(0, 400)
+            .SelectMany(seed => new[] { 3, 4, 5 }.Select(depth => Workspace(seed, roots: 1, maxDepth: depth)))
+            .Where(nodes => nodes.Count is >= 8 and <= 12)
+            .Take(60)
+            .ToList();
+        var reports = trees.Select(nodes => SpatialPacking.Measure(nodes, SpatialPacking.Arrange(nodes))).ToList();
+
+        Output($"{trees.Count} small trees: enclosing / ideal worst {reports.Max(r => r.EnclosingRadius / r.IdealRadius):F3}, centroid mean {reports.Average(r => r.CentroidOffset):F3} worst {reports.Max(r => r.CentroidOffset):F3}, crossings {reports.Sum(r => r.BranchCrossings)}");
+        Assert.All(reports, r => Assert.Equal(0, r.Overlaps));
+        Assert.All(reports, r => Assert.Equal(0, r.BranchCrossings));
+        Assert.All(reports, r => Assert.True(r.EnclosingRadius / r.IdealRadius <= 1.6, $"A small tree's circle is {r.EnclosingRadius / r.IdealRadius:F2} × its ideal radius (at most 1.6)."));
     }
 
     [Fact]
     public void Branch_lines_rarely_cross_on_unseen_workspaces()
     {
-        // Held-out seeds 20–79 with the shape rule of the fixed set. Reported: fix round 2 measured 0.023 (task 4
-        // report); the gate of 0.02 holds on the fixed set only.
+        // Held-out seeds 20–79 with the shape rule of the fixed set (Ruling R-P3).
         var reports = Enumerable.Range(20, 60)
             .Select(s => Workspace(seed: s, roots: 1 + ((s % 20) * 39 / 19), maxDepth: s % 20 % 7))
             .Select(nodes => SpatialPacking.Measure(nodes, SpatialPacking.Arrange(nodes)))
             .ToList();
+        var perEdge = (double)reports.Sum(r => r.BranchCrossings) / reports.Sum(r => r.BranchEdges);
 
-        Output($"seeds 20–79: {(double)reports.Sum(r => r.BranchCrossings) / reports.Sum(r => r.BranchEdges):F3} crossings per line");
+        Output($"seeds 20–79: {perEdge:F4} crossings per line");
         Assert.All(reports, r => Assert.Equal(0, r.Overlaps));
+        Assert.True(perEdge <= 0.02, $"Branch lines cross {perEdge:F4} times per line on unseen workspaces (at most 0.02).");
     }
 
     [Fact]
@@ -172,10 +190,7 @@ public class SpatialPackingTests
 
         Output($"subtrees of 8 or more nodes: {ratios.Count}, enclosing / ideal mean {ratios.Average():F3}, worst {ratios.Max():F3}");
 
-        // The worst is held at 2.1, not the 2.0 asked for: the measured worst is 2.05, a 9-node sub-branch of the
-        // 40-root workspace (a node with five leaf children) squeezed between its neighbours. The variants tried left
-        // it between 1.98 and 2.2; the one below 2.0 broke the single deep tree's crossing gate (task 4 fix report).
-        Assert.True(ratios.Max() <= 2.1, $"A sub-branch's enclosing circle is {ratios.Max():F2} × its ideal radius (at most 2.1).");
+        Assert.True(ratios.Max() <= 2.0, $"A sub-branch's enclosing circle is {ratios.Max():F2} × its ideal radius (at most 2.0).");
         Assert.True(ratios.Average() <= 1.6, $"Sub-branches' enclosing circles average {ratios.Average():F2} × their ideal radius (at most 1.6).");
     }
 
@@ -184,7 +199,7 @@ public class SpatialPackingTests
     {
         var violations = 0;
         var fans = 0;
-        foreach (var nodes in Workspaces)
+        foreach (var nodes in Workspaces.Concat(SingleTrees))
         {
             var dots = SpatialPacking.Arrange(nodes);
             foreach (var parent in nodes)
