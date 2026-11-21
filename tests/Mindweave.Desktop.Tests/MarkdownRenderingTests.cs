@@ -136,6 +136,45 @@ public class MarkdownRenderingTests
     }
 
     /// <summary>
+    /// Body text (paragraphs, list items, quotes) is set at the answer line height, wider than the font's own; headings
+    /// and code keep their own spacing. List markers share it, so each sits on the first line of its item.
+    /// </summary>
+    [AvaloniaTheory]
+    [InlineData(Feed.Full)]
+    [InlineData(Feed.Live)]
+    public async Task Body_text_and_list_markers_use_the_answer_line_height(Feed feed)
+    {
+        // Two one-item lists, so each marker has exactly one item beside it.
+        var (window, renderer) = await RenderAsync("## 标题\n\n正文第一段。\n\n1. 第一项\n\n- 无序项\n\n> 引用\n\n```\ncode 1\ncode 2\n```", feed);
+        var lineHeight = Assert.IsType<double>(Avalonia.Application.Current!.FindResource("AnswerLineHeight"));
+        var blocks = renderer.GetVisualDescendants().OfType<MarkdownTextBlock>().Where(b => b.IsVisible).ToList();
+
+        var body = blocks.Where(b => b.Classes.Contains("ParagraphBlock")).ToList();
+        Assert.Equal(4, body.Count);
+        Assert.All(body, b => Assert.Equal(lineHeight, b.TextLayout.TextLines[0].Height, 0.5));
+
+        Assert.True(double.IsNaN(Assert.Single(blocks, b => b.Classes.Contains("Heading2")).LineHeight));
+        var code = blocks.Where(b => b.GetVisualAncestors().OfType<CodeBlock>().Any()).ToList();
+        Assert.NotEmpty(code);
+        Assert.All(code, b => Assert.True(double.IsNaN(b.LineHeight)));
+
+        var markers = renderer.GetVisualDescendants().OfType<TextBlock>()
+            .Where(t => t.IsVisible && (t.Classes.Contains("ListBlockNumber") || t.Classes.Contains("ListBlockBullet"))).ToList();
+        Assert.Equal(2, markers.Count);
+        foreach (var marker in markers)
+        {
+            var list = marker.GetVisualAncestors().OfType<MarkdownListGrid>().First();
+            var item = Assert.Single(body, b => b.GetVisualAncestors().Contains(list));
+            Assert.Equal(Baseline(item, window), Baseline(marker, window), 1.0);
+        }
+
+        window.Close();
+    }
+
+    private static double Baseline(TextBlock block, Visual relativeTo) =>
+        block.TranslatePoint(new Point(0, block.TextLayout.TextLines[0].Baseline), relativeTo)!.Value.Y;
+
+    /// <summary>
     /// A display formula block between the first and last selected text blocks is part of what the reader selected,
     /// so the branch quote carries its LaTeX source, delimiters included, in reading order (as inline formulas do).
     /// </summary>

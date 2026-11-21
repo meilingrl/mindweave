@@ -9,7 +9,15 @@
     <Setter Property="Background" Value="{DynamicResource SidebarBackground}" />
   </Style>
   <Style Selector="StackPanel.MarkdownDocument">
-    <Setter Property="Spacing" Value="8" />
+    <Setter Property="Spacing" Value="10" />
+  </Style>
+  <!--
+    Body text (paragraphs, list items, quotes, table cells: all ParagraphBlock) gets a looser line height. Headings and
+    code blocks keep their own spacing: a fixed 24 would crowd a wrapped 24 px heading and spread code out.
+    List numbers and bullets get the same line height, or they sit above the first line of their item.
+  -->
+  <Style Selector="lm|MarkdownTextBlock.ParagraphBlock, TextBlock.ListBlockNumber, TextBlock.ListBlockBullet">
+    <Setter Property="LineHeight" Value="{StaticResource AnswerLineHeight}" />
   </Style>
   <!--
     Answer text puts a font with CJK glyphs first. With LiveMarkdown's Latin-only default, CJK characters come from
