@@ -482,13 +482,15 @@ public sealed class SummaryNetworkCanvas : Control
                 continue;
             }
 
-            var text = Text(caption.Text, CaptionSize, palette.Caption);
             if (Sessions && !_page.IsTimeline)
             {
-                result.Add(new CaptionPaint(caption, text, SpatialDateOrigin(members[0].Node, members[0].At, text, incident, size)));
+                // Like the titles, a date shrinks below zoom 1 so it keeps clear of the dots round it.
+                var date = Text(caption.Text, CaptionSize * Math.Clamp(Current.Zoom, 0.6, 1), palette.Caption);
+                result.Add(new CaptionPaint(caption, date, SpatialDateOrigin(members[0].Node, members[0].At, date, incident, size)));
                 continue;
             }
 
+            var text = Text(caption.Text, CaptionSize, palette.Caption);
             var left = members.Min(m => m.At.X - RadiusOf(m.Node));
             var top = members.Min(m => m.At.Y);
             result.Add(new CaptionPaint(caption, text, new Point(left, top - CaptionGap - text.Height)));
