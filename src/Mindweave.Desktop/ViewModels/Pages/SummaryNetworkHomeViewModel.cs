@@ -190,6 +190,9 @@ public sealed partial class SummaryNetworkHomeViewModel : PageViewModel, IDispos
 
     public string ToggleRecommendationsLabel => _offer.Hidden ? UiText.ShowRecommendedNodes : UiText.HideRecommendedNodes;
 
+    /// <summary>The toolbar button's shorter words for <see cref="ToggleRecommendationsLabel"/> (its accessible name).</summary>
+    public string ToggleRecommendationsText => _offer.Hidden ? UiText.ShowRecommendedNodesButton : UiText.HideRecommendedNodesButton;
+
     /// <summary>The legend explains the dashed ring and the dotted line only while some are drawn.</summary>
     public bool ShowsRecommendationLegend => RecommendedNodes.Count > 0 && !IsListView;
 
@@ -877,6 +880,7 @@ public sealed partial class SummaryNetworkHomeViewModel : PageViewModel, IDispos
         OnPropertyChanged(nameof(ShowsRecommendationTools));
         OnPropertyChanged(nameof(RecommendationsHidden));
         OnPropertyChanged(nameof(ToggleRecommendationsLabel));
+        OnPropertyChanged(nameof(ToggleRecommendationsText));
         OnPropertyChanged(nameof(ShowsRecommendationLegend));
         OnPropertyChanged(nameof(ShowsRecommendationBusy));
         OnPropertyChanged(nameof(RecommendationBusyText));

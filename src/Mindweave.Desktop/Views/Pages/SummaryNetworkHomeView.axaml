@@ -51,10 +51,10 @@
         <Button Name="ZoomInButton" Classes="quiet" Command="{Binding ZoomInCommand}" ToolTip.Tip="{x:Static t:UiText.ZoomIn}" AutomationProperties.Name="{x:Static t:UiText.ZoomIn}" MinWidth="30">
           <PathIcon Width="12" Height="12" Data="{StaticResource IconZoomIn}" />
         </Button>
-        <Button Name="ArrangeButton" Classes="quiet" Command="{Binding ArrangeCommand}">
+        <Button Name="ArrangeButton" Classes="quiet" Command="{Binding ArrangeCommand}" AutomationProperties.Name="{x:Static t:UiText.ArrangeLayout}">
           <StackPanel Orientation="Horizontal" Spacing="6">
             <PathIcon Width="13" Height="13" Data="{StaticResource IconArrange}" />
-            <TextBlock Text="{x:Static t:UiText.ArrangeLayout}" VerticalAlignment="Center" />
+            <TextBlock Text="{x:Static t:UiText.ArrangeLayoutButton}" VerticalAlignment="Center" />
           </StackPanel>
         </Button>
         <ToggleButton Name="ListViewToggle" Classes="quiet" IsChecked="{Binding IsListView}">
@@ -70,7 +70,7 @@
                   AutomationProperties.Name="{x:Static t:UiText.RefreshRecommendedNodes}" AutomationProperties.HelpText="{x:Static t:UiText.RefreshRecommendedNodesTip}">
             <StackPanel Orientation="Horizontal" Spacing="6">
               <PathIcon Width="13" Height="13" Data="{StaticResource IconRegenerate}" />
-              <TextBlock Text="{x:Static t:UiText.RefreshRecommendedNodes}" VerticalAlignment="Center" />
+              <TextBlock Text="{x:Static t:UiText.RefreshRecommendedNodesButton}" VerticalAlignment="Center" />
             </StackPanel>
           </Button>
           <Button Name="ToggleRecommendedNodesButton" Classes="quiet" Command="{Binding ToggleRecommendationsCommand}"
@@ -78,7 +78,7 @@
                   AutomationProperties.Name="{Binding ToggleRecommendationsLabel}" AutomationProperties.HelpText="{x:Static t:UiText.HideRecommendedNodesTip}">
             <StackPanel Orientation="Horizontal" Spacing="6">
               <PathIcon Width="14" Height="14" Data="{StaticResource IconEye}" />
-              <TextBlock Name="ToggleRecommendedNodesText" Text="{Binding ToggleRecommendationsLabel}" VerticalAlignment="Center" />
+              <TextBlock Name="ToggleRecommendedNodesText" Text="{Binding ToggleRecommendationsText}" VerticalAlignment="Center" />
             </StackPanel>
           </Button>
         </StackPanel>
@@ -219,7 +219,8 @@
             <Button Name="OpenSelectedButton" Classes.primary="{Binding !IsDirty}" Classes.secondary="{Binding IsDirty}" HorizontalAlignment="Stretch" HorizontalContentAlignment="Center"
                     Content="{x:Static t:UiText.OpenSummary}" Command="{Binding OpenSelectedCommand}" />
             <Button Name="ReturnSelectedButton" Classes="secondary" HorizontalAlignment="Stretch" HorizontalContentAlignment="Center"
-                    Content="{x:Static t:UiText.ReturnToConversation}" Command="{Binding ReturnToConversationCommand}" />
+                    Content="{x:Static t:UiText.ReturnToConversationButton}" Command="{Binding ReturnToConversationCommand}"
+                    AutomationProperties.Name="{x:Static t:UiText.ReturnToConversation}" />
           </StackPanel>
           <!-- Content links (§10.3.3): each with jump, 改说明 and 删除关联; then 关联到…. Quiet when there are none. -->
           <StackPanel Name="LinksSection" Spacing="4" IsVisible="{Binding Links, Converter={x:Static ObjectConverters.IsNotNull}}">
@@ -281,13 +282,20 @@
             <Setter Property="Margin" Value="0,0,16,0" />
           </Style>
         </WrapPanel.Styles>
-        <Ellipse Width="10" Height="10" Fill="{DynamicResource SummaryNetworkNode}" VerticalAlignment="Center" Margin="0,0,6,0" />
-        <TextBlock Text="{x:Static t:UiText.LegendUnread}" FontWeight="SemiBold" />
-        <Ellipse Width="10" Height="10" Stroke="{DynamicResource SummaryNetworkNodeRead}" StrokeThickness="2" VerticalAlignment="Center" Margin="0,0,6,0" />
-        <TextBlock Text="{x:Static t:UiText.LegendRead}" />
+        <!-- Each sample stays with its words when the legend wraps. -->
+        <StackPanel Orientation="Horizontal">
+          <Ellipse Width="10" Height="10" Fill="{DynamicResource SummaryNetworkNode}" VerticalAlignment="Center" Margin="0,0,6,0" />
+          <TextBlock Text="{x:Static t:UiText.LegendUnread}" FontWeight="SemiBold" />
+        </StackPanel>
+        <StackPanel Orientation="Horizontal">
+          <Ellipse Width="10" Height="10" Stroke="{DynamicResource SummaryNetworkNodeRead}" StrokeThickness="2" VerticalAlignment="Center" Margin="0,0,6,0" />
+          <TextBlock Text="{x:Static t:UiText.LegendRead}" />
+        </StackPanel>
         <TextBlock Text="{x:Static t:UiText.LegendCandidate}" />
-        <Line StartPoint="0,0" EndPoint="20,0" Stroke="{DynamicResource SummaryNetworkEdgeIndirect}" StrokeThickness="1.4" StrokeDashArray="3,2" VerticalAlignment="Center" Margin="0,0,6,0" />
-        <TextBlock Text="{x:Static t:UiText.LegendIndirect}" />
+        <StackPanel Orientation="Horizontal">
+          <Line StartPoint="0,0" EndPoint="20,0" Stroke="{DynamicResource SummaryNetworkEdgeIndirect}" StrokeThickness="1.4" StrokeDashArray="3,2" VerticalAlignment="Center" Margin="0,0,6,0" />
+          <TextBlock Text="{x:Static t:UiText.LegendIndirect}" />
+        </StackPanel>
         <!-- Content links (§10.3.3): the same solid coloured line as drawn, with words. -->
         <StackPanel Name="LinkLegend" Orientation="Horizontal" IsVisible="{Binding ShowsLinkLegend}">
           <Line StartPoint="0,0" EndPoint="20,0" Stroke="{DynamicResource SummaryNetworkLink}" StrokeThickness="1.8" StrokeLineCap="Round" VerticalAlignment="Center" Margin="0,0,6,0" />

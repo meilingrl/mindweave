@@ -115,7 +115,8 @@
             <Binding Path="!IsRenaming" />
           </MultiBinding>
         </WrapPanel.IsVisible>
-        <Button Name="ReturnButton" Content="{x:Static t:UiText.ReturnToConversation}" Command="{Binding ReturnToConversationCommand}"
+        <Button Name="ReturnButton" Content="{x:Static t:UiText.ReturnToConversationButton}" Command="{Binding ReturnToConversationCommand}"
+                AutomationProperties.Name="{x:Static t:UiText.ReturnToConversation}"
                 Classes.primary="{Binding !ShownIsCandidate}" Classes.secondary="{Binding ShownIsCandidate}" VerticalAlignment="Center" />
         <Rectangle Classes="bar-divider" />
         <Button Name="ShowCurrentButton" Classes="quiet" Command="{Binding ShowCurrentCommand}">
@@ -162,7 +163,7 @@
           </StackPanel>
         </Button>
         <!-- Export opens its options (§8.3): the source-note choice and what is exported sit with the action itself. -->
-        <Button Name="ExportButton" Classes="quiet" Content="{x:Static t:UiText.ExportMarkdown}">
+        <Button Name="ExportButton" Classes="quiet" Content="{x:Static t:UiText.ExportMarkdownButton}" AutomationProperties.Name="{x:Static t:UiText.ExportMarkdown}">
           <Button.ContentTemplate>
             <DataTemplate x:DataType="x:String">
               <StackPanel Orientation="Horizontal" Spacing="6">
@@ -317,7 +318,7 @@
                   </Panel>
                   <Border Grid.Column="4" Classes="badge" IsVisible="{Binding IsEdited}"><TextBlock Text="{Binding Origin}" /></Border>
                   <Border Grid.Column="3" Classes="badge" IsVisible="{Binding IsRead}"><TextBlock Text="{x:Static t:UiText.MarkerRead}" /></Border>
-                  <TextBlock Grid.Column="5" Classes="meta" Margin="4,0,8,0" Text="{Binding Coverage}" TextTrimming="CharacterEllipsis" />
+                  <TextBlock Grid.Column="5" Classes="meta" Margin="4,0,8,0" Text="{Binding Coverage}" TextWrapping="Wrap" TextTrimming="CharacterEllipsis" />
                   <StackPanel Grid.Column="6" Orientation="Horizontal" Spacing="2" HorizontalAlignment="Right">
                     <Button Classes="quiet" Padding="8,3" Content="{x:Static t:UiText.View}" IsVisible="{Binding !IsShown}"
                             Command="{Binding $parent[v:SummaryView].((vm:SummaryViewModel)DataContext).ShowVersionCommand}" CommandParameter="{Binding Id}" />

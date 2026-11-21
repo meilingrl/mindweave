@@ -250,7 +250,7 @@ public class RecommendedNodesUiTests
         Assert.Empty(network.RecommendedNodes);
         Assert.Null(network.SelectedRecommendation);
         Assert.Empty(CanvasOf(window).PaintRecommendations());
-        Assert.Equal(UiText.ShowRecommendedNodes, Find<TextBlock>(window, "ToggleRecommendedNodesText").Text);
+        Assert.Equal(UiText.ShowRecommendedNodesButton, Find<TextBlock>(window, "ToggleRecommendedNodesText").Text);
         Assert.Equal(UiText.ShowRecommendedNodes, AutomationProperties.GetName(Find<Button>(window, "ToggleRecommendedNodesButton")));
         Assert.False(Find<Button>(window, "RefreshRecommendedNodesButton").IsEffectivelyEnabled);
         var workspace = app.Workbench.CurrentWorkspace!.Id;
