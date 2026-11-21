@@ -129,6 +129,11 @@ public class SessionNetworkCanvasTests
         Assert.Equal(network.Nodes[0].X, opening.CenterX, 6);
         Assert.Equal(network.Nodes[0].Y, opening.CenterY, 6);
 
+        // Selecting a dot ends the following too: the dot the reader is looking at does not move away on a reload.
+        network.Select(network.Nodes[0].Id);
+        await RetitleAsync("选中之后再改标题");
+        Assert.Equal(opening, canvas.Current);
+
         // A pan (what dragging sets) ends the following: the view stays where the reader put it.
         var panned = new Viewport(opening.CenterX + 120, opening.CenterY - 40, 1);
         network.Session.Viewport = panned;

@@ -145,9 +145,9 @@ public sealed partial class SummaryNetworkSession : ObservableObject
     private bool _viewportIsOpening;
 
     /// <summary>
-    /// The canvas chose the opening view. Until anything else sets <see cref="Viewport"/> (pan, zoom, show all, a jump),
+    /// The canvas chose the opening view. Until the reader moves the view (pan, zoom, show all, a jump) or selects a dot,
     /// a reload that moves the dots (a title arriving, a conversation changing) opens the view again from the new
-    /// positions in the session network. Selecting a dot does not set the viewport.
+    /// positions in the session network.
     /// </summary>
     public void SetOpeningViewport(Viewport opening)
     {
@@ -176,7 +176,18 @@ public sealed partial class SummaryNetworkSession : ObservableObject
     /// </summary>
     public bool FitAllRequested { get; set; }
 
-    public SummaryNodeId? Selected { get; set; }
+    /// <summary>The selected node. Selecting (or clearing the selection) ends the opening view's following of the dots.</summary>
+    public SummaryNodeId? Selected
+    {
+        get => _selected;
+        set
+        {
+            _selected = value;
+            _viewportIsOpening = false;
+        }
+    }
+
+    private SummaryNodeId? _selected;
 
     /// <summary>Raised after positions or the projection changed; any thread that changed them.</summary>
     public event EventHandler? LayoutChanged;
