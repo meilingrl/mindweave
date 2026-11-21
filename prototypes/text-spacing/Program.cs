@@ -28,7 +28,23 @@ internal static class Knobs
     public static readonly Knob Letter = new("Letter spacing", ["0 (now)", "0.2", "0.4"]);
     public static readonly Knob Width = new("Column", ["Fill (now)", "640", "720"]);
 
-    public static readonly Knob[] All = [LineHeight, Gap, Size, Colour, Letter, Width];
+    public static readonly Knob BoldWeight = new("Bold weight", ["Semibold (now)", "Medium"]);
+    public static readonly Knob BoldColour = new("Bold colour", ["Same as text (now)", "Softer light / brighter dark", "Warm"]);
+    public static readonly Knob BoldMark = new("Bold background", ["None (now)", "Subtle"]);
+
+    public static readonly Knob[] All = [LineHeight, Gap, Size, Colour, Letter, Width, BoldWeight, BoldColour, BoldMark];
+
+    /// <summary>Bold text colour per option, light and dark; null keeps the paragraph's colour.</summary>
+    public static Color? BoldColourOf(int i, bool dark) => (i, dark) switch
+    {
+        (1, false) => Color.Parse("#3B3632"),
+        (2, false) => Color.Parse("#6B3A12"),
+        (1, true) => Color.Parse("#FFFFFF"),
+        (2, true) => Color.Parse("#F2D7A6"),
+        _ => null,
+    };
+
+    public static Color? BoldMarkOf(int i, bool dark) => i == 1 ? Color.Parse(dark ? "#2C2F38" : "#F1EEEA") : null;
 
     public static double? LineFactor(int i) => i switch { 1 => 1.5, 2 => 1.6, 3 => 1.7, 4 => 1.8, _ => null };
     public static double GapOf(int i) => i switch { 1 => 10, 2 => 12, 3 => 14, 4 => 16, _ => 8 };
@@ -102,7 +118,8 @@ internal sealed class MainWindow : Window
 {
     private bool dark;
     private int paneCount = 2;
-    private readonly List<int[]> settings = [new int[6], [3, 0, 0, 0, 0, 0], [3, 2, 0, 1, 0, 0]];
+    // Every pane starts from the spacing chosen on 2026-11-21 (1.7×, 10 px gap), now in the app.
+    private readonly List<int[]> settings = [[3, 1, 0, 0, 0, 0, 0, 0, 0], [3, 1, 0, 0, 0, 0, 1, 0, 0], [3, 1, 0, 0, 0, 0, 1, 1, 0]];
     private readonly Grid panes = new();
 
     public MainWindow(string[] args)
@@ -119,7 +136,8 @@ internal sealed class MainWindow : Window
         {
             if (Option(args, $"--pane{i + 1}") is { } list)
             {
-                settings[i] = list.Split(',').Select(int.Parse).ToArray();
+                var values = list.Split(',').Select(int.Parse).ToArray();
+                settings[i] = [.. values, .. new int[Math.Max(0, Knobs.All.Length - values.Length)]];
             }
         }
 
@@ -199,9 +217,10 @@ internal sealed class PaneView : DockPanel
     private const string AnswerFamily =
         "PingFang SC, Microsoft YaHei UI, Microsoft YaHei, Noto Sans CJK SC, Noto Sans SC, Source Han Sans SC, $Default";
 
-    private const string Sample = """
+    // Shown only with --dump, to list how headings, code and tables are built.
+    private const string DumpExtras = """
         # 一级标题，一级标题会不会因为行高太小而折行重叠呢，再长一点
-        
+
         ```csharp
         var x = 1;
         var y = 2;
@@ -210,6 +229,16 @@ internal sealed class PaneView : DockPanel
         | 列 A | 列 B |
         | --- | --- |
         | 表格内容 | 2,480 |
+
+        """;
+
+    private const string Sample = """
+        火车的诞生不是一次发明，而是**蒸汽动力**与**轨道运输**两条技术线索在十九世纪初的汇合。真正让铁路走向实用的是乔治·斯蒂芬森，1829 年他和儿子设计的“**火箭号**”在雨山试验中胜出。此后几十年间的关键改进包括：
+
+        1. **多管锅炉**：增加受热面积，使蒸汽产生得更快；
+        2. **鼓风管**：用排出的废汽抽风，让炉火更旺；
+        3. **熟铁轨道**：取代易碎的铸铁轨，能承受更重的机车；
+        4. **标准轨距**：1435 毫米的轨距逐渐成为通行标准。
 
         ## 结论
 
@@ -285,6 +314,24 @@ internal sealed class PaneView : DockPanel
             var parents = string.Join(" < ", block.GetVisualAncestors().Take(4).Select(v => v.GetType().Name + (v is StyledElement e && e.Classes.Count > 0 ? "." + string.Join(".", e.Classes) : "")));
             string text = (block is MarkdownTextBlock m ? m.ActualText : block.Text) ?? "";
             Console.WriteLine($"{block.GetType().Name}.{string.Join(".", block.Classes)} size={block.FontSize} weight={block.FontWeight} lh={block.LineHeight} family={block.FontFamily.Name[..Math.Min(12, block.FontFamily.Name.Length)]} '{text[..Math.Min(14, text.Length)]}'  < {parents}");
+            if (block.Inlines is { } inlines)
+            {
+                DumpInlines(inlines, "    ");
+            }
+        }
+    }
+
+    private static void DumpInlines(Avalonia.Controls.Documents.InlineCollection inlines, string indent)
+    {
+        foreach (var inline in inlines)
+        {
+            string text = inline is Avalonia.Controls.Documents.Run run ? run.Text ?? "" : "";
+            string colour = inline.Foreground is ISolidColorBrush b ? b.Color.ToString() : inline.Foreground?.ToString() ?? "-";
+            Console.WriteLine($"{indent}{inline.GetType().FullName} classes=[{string.Join(",", inline.Classes)}] weight={inline.FontWeight} local={inline.IsSet(Avalonia.Controls.Documents.TextElement.FontWeightProperty)} fg={colour} '{text[..Math.Min(10, text.Length)]}'");
+            if (inline is Avalonia.Controls.Documents.Span span)
+            {
+                DumpInlines(span.Inlines, indent + "  ");
+            }
         }
     }
 
@@ -330,6 +377,21 @@ internal sealed class PaneView : DockPanel
         quote.Setters.Add(new Setter(Border.BackgroundProperty, new SolidColorBrush(Color.Parse(dark ? "#1D1E22" : "#F5F5F4"))));
         yield return quote;
 
+        // Bold is a Span with the classes Emphasis and Bold. Its weight is set on the element itself, so a style cannot
+        // change it (see ApplyBoldWeight); its colour and background can be styled.
+        var bold = new Style(x => x.OfType<Avalonia.Controls.Documents.Span>().Class("Bold"));
+        if (Knobs.BoldColourOf(knobs[7], dark) is { } boldColour)
+        {
+            bold.Setters.Add(new Setter(Avalonia.Controls.Documents.TextElement.ForegroundProperty, new SolidColorBrush(boldColour)));
+        }
+
+        if (Knobs.BoldMarkOf(knobs[8], dark) is { } mark)
+        {
+            bold.Setters.Add(new Setter(Avalonia.Controls.Documents.TextElement.BackgroundProperty, new SolidColorBrush(mark)));
+        }
+
+        yield return bold;
+
         var blocks = new Style(x => x.OfType<StackPanel>().Class("MarkdownDocument"));
         blocks.Setters.Add(new Setter(StackPanel.SpacingProperty, Knobs.GapOf(knobs[1])));
         yield return blocks;
@@ -338,7 +400,8 @@ internal sealed class PaneView : DockPanel
     private Control Page()
     {
         var renderer = new MarkdownRenderer();
-        renderer.DocumentUpdate = new MarkdownDocumentUpdate.Full(Markdig.Markdown.Parse(Sample, MarkdownUpdateProducer.DefaultPipeline));
+        string markdown = App.Args.Contains("--dump") ? DumpExtras + Sample : Sample;
+        renderer.DocumentUpdate = new MarkdownDocumentUpdate.Full(Markdig.Markdown.Parse(markdown, MarkdownUpdateProducer.DefaultPipeline));
 
         var question = new Border
         {
@@ -365,11 +428,38 @@ internal sealed class PaneView : DockPanel
         };
     }
 
+    /// <summary>Sets the weight of every bold span; in the app this would run after each render.</summary>
+    private void ApplyBoldWeight()
+    {
+        var weight = knobs[6] == 1 ? FontWeight.Medium : FontWeight.Bold;
+        foreach (var block in this.GetVisualDescendants().OfType<MarkdownTextBlock>())
+        {
+            if (block.Inlines is { } inlines)
+            {
+                SetBold(inlines, weight);
+            }
+        }
+    }
+
+    private static void SetBold(Avalonia.Controls.Documents.InlineCollection inlines, FontWeight weight)
+    {
+        foreach (var span in inlines.OfType<Avalonia.Controls.Documents.Span>())
+        {
+            if (span.Classes.Contains("Bold") && span.FontWeight != weight)
+            {
+                span.FontWeight = weight;
+            }
+
+            SetBold(span.Inlines, weight);
+        }
+    }
+
     /// <summary>Shows what the first paragraph really got: size, line pitch, gap and colour.</summary>
     private void Measure()
     {
+        ApplyBoldWeight();
         var paragraph = this.GetVisualDescendants().OfType<MarkdownTextBlock>()
-            .FirstOrDefault(b => b.TextLayout.TextLines.Count > 1);
+            .FirstOrDefault(b => b.Classes.Contains("ParagraphBlock") && b.TextLayout.TextLines.Count > 1);
         if (paragraph == null)
         {
             return;
