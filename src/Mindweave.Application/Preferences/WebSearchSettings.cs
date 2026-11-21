@@ -150,8 +150,8 @@ public sealed class WebSearchSettingsService : IWebSearchSettings
         }
         catch (SearchProviderException ex)
         {
-            // The search service's words are not translated yet: they read as when the test ran.
-            return new WebSearchTestResult(false, new BilingualText(ex.Message, ex.Message), ex.Kind);
+            // Held for the settings page: it reads in the language of the moment it is shown.
+            return new WebSearchTestResult(false, ex.Text, ex.Kind);
         }
     }
 

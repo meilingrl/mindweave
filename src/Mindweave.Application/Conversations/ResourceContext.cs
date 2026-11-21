@@ -246,7 +246,9 @@ public sealed partial class ResourceContext(IResourceStore store, ResourceServic
     private static string SummaryOf(IReadOnlyDictionary<ResourceId, StoredDerivative> summaries, AttachmentBlock attachment, IModelPhrases phrases) =>
         summaries.TryGetValue(attachment.Resource, out var s)
             ? s.Derivative.Text
-            : throw new ContextCompressionException($"附件《{attachment.NameIn(phrases)}》的摘要不在了，请重试。");
+            : throw new ContextCompressionException(T(
+                $"The digest of the attachment \"{attachment.NameIn(phrases)}\" is gone. Try again.",
+                $"附件《{attachment.NameIn(phrases)}》的摘要不在了，请重试。"));
 
     /// <summary>Consecutive runs of the text's chunks, each within <paramref name="room"/> estimated tokens.</summary>
     private static List<string> Segments(string text, int room)
@@ -283,11 +285,15 @@ public sealed partial class ResourceContext(IResourceStore store, ResourceServic
         }
         catch (ChatClientException ex)
         {
-            throw new ContextCompressionException($"为附件《{attachment.NameIn(ModelPhrases.Current)}》生成摘要时请求失败：{ex.Message}", ex);
+            throw new ContextCompressionException(T(
+                $"The request failed while making a digest of the attachment \"{attachment.NameIn(ModelPhrases.Current)}\": {ex.Message}",
+                $"为附件《{attachment.NameIn(ModelPhrases.Current)}》生成摘要时请求失败：{ex.Message}"), ex);
         }
 
         stop.ThrowIfCancellationRequested();
-        return result.Text ?? throw new ContextCompressionException($"为附件《{attachment.NameIn(ModelPhrases.Current)}》生成摘要时服务没有返回完整内容（{result.Problem}）。");
+        return result.Text ?? throw new ContextCompressionException(T(
+            $"While making a digest of the attachment \"{attachment.NameIn(ModelPhrases.Current)}\", the service did not return complete content ({result.Problem}).",
+            $"为附件《{attachment.NameIn(ModelPhrases.Current)}》生成摘要时服务没有返回完整内容（{result.Problem}）。"));
     }
 
     [LoggerMessage(Level = LogLevel.Information, Message = "Summarized resource {Resource} ({Tokens} estimated tokens)")]

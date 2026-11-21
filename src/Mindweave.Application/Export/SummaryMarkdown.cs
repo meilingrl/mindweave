@@ -1,6 +1,7 @@
 using System.Globalization;
 using System.Text;
 using Mindweave.Core.Summaries;
+using static Mindweave.Application.Languages.Bilingual;
 
 namespace Mindweave.Application.Export;
 
@@ -48,14 +49,24 @@ public static class SummaryMarkdown
         return text.ToString();
     }
 
-    private static string SourceLine(ExportSource source) => string.Format(
-        CultureInfo.InvariantCulture,
-        "来源会话：{0} · 覆盖到第 {1} 条消息 · 第 {2} 版（{3}） · 创建于 {4:yyyy-MM-dd HH:mm} · 导出自 Mindweave",
-        OneLine(source.ConversationName),
-        source.CoveredMessages,
-        source.VersionSeq,
-        source.Origin == SummaryOrigin.Edited ? "手改" : "生成",
-        source.CreatedAt);
+    /// <summary>The source note, in the interface language at the time of the export.</summary>
+    private static string SourceLine(ExportSource source)
+    {
+        var name = OneLine(source.ConversationName);
+        var edited = source.Origin == SummaryOrigin.Edited;
+        return T(
+            string.Create(
+                CultureInfo.InvariantCulture,
+                $"Source conversation: {name} · covers up to message {source.CoveredMessages} · version {source.VersionSeq} ({(edited ? "edited" : "generated")}) · created {source.CreatedAt:yyyy-MM-dd HH:mm} · exported from Mindweave"),
+            string.Format(
+                CultureInfo.InvariantCulture,
+                "来源会话：{0} · 覆盖到第 {1} 条消息 · 第 {2} 版（{3}） · 创建于 {4:yyyy-MM-dd HH:mm} · 导出自 Mindweave",
+                name,
+                source.CoveredMessages,
+                source.VersionSeq,
+                edited ? "手改" : "生成",
+                source.CreatedAt));
+    }
 
     /// <summary>A heading or a quote line must stay one line, or the rest would fall out of it.</summary>
     private static string OneLine(string text) => Lf(text).Replace('\n', ' ').Trim();

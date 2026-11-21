@@ -5,6 +5,7 @@ using Mindweave.Core.Conversations;
 using Mindweave.Core.Resources;
 using Mindweave.Core.Runs;
 using Mindweave.Core.Workspaces;
+using static Mindweave.Application.Languages.Bilingual;
 
 namespace Mindweave.Application.Tools;
 
@@ -84,10 +85,27 @@ public sealed record ToolOutput(string Text, string Detail, ResourceProvenance P
     public Action<ResourceId>? Stored { get; init; }
 
     /// <summary>
-    /// Images that come with the result (phase 4, decision M15): each is stored as its own resource, and the marker
-    /// <c>[图片 n]</c> (1-based) in <see cref="Text"/> is replaced by its resource ID. They are not sent to the model.
+    /// Images that come with the result (phase 4, decision M15): each is stored as its own resource, and its placeholder
+    /// <see cref="ImagePlaceholder"/> (1-based) in <see cref="Text"/> is replaced by <see cref="ImageMarker"/>. They are not
+    /// sent to the model.
     /// </summary>
     public IReadOnlyList<ToolImage> Images { get; init; } = [];
+
+    /// <summary>Where a tool's <paramref name="number"/>th image stands in its text until it is stored: "[Image 1]", "[图片 1]".</summary>
+    public static string ImagePlaceholder(int number) => T(EnglishPlaceholder(number), ChinesePlaceholder(number));
+
+    /// <summary>
+    /// Both languages' placeholders for one image: the language may switch between the call and storing its result, so
+    /// whichever the tool wrote is replaced.
+    /// </summary>
+    public static IReadOnlyList<string> ImagePlaceholders(int number) => [EnglishPlaceholder(number), ChinesePlaceholder(number)];
+
+    /// <summary>What the stored text keeps in an image's place, in the language of the moment it is stored.</summary>
+    public static string ImageMarker(ResourceId image) => T($"[Image: resource {image}]", $"[图片：资源 {image}]");
+
+    private static string EnglishPlaceholder(int number) => string.Create(System.Globalization.CultureInfo.InvariantCulture, $"[Image {number}]");
+
+    private static string ChinesePlaceholder(int number) => string.Create(System.Globalization.CultureInfo.InvariantCulture, $"[图片 {number}]");
 
     /// <summary>How the result is marked as material when sent to the model; null uses the web marking for external results.</summary>
     public Func<string, string>? Wrap { get; init; }
@@ -219,7 +237,7 @@ public interface ITool
     string DeniedResult => WebMaterial.DeniedResult;
 
     /// <summary>The step's account of a refused call.</summary>
-    string DeniedDetail => "你拒绝了读取";
+    string DeniedDetail => T("You denied reading this", "你拒绝了读取");
 }
 
 /// <summary>Helpers for tools' arguments and definitions.</summary>
@@ -235,7 +253,7 @@ public static class ToolArguments
 
         return value.ValueKind == JsonValueKind.String
             ? value.GetString()!.Trim() is { Length: > 0 } text ? text : null
-            : throw new ToolInputException($"参数 {name} 应是文字。");
+            : throw new ToolInputException(T($"The argument {name} should be text.", $"参数 {name} 应是文字。"));
     }
 
     /// <summary>An integer property (a whole number given as a number or as digits); null when absent.</summary>
@@ -256,7 +274,7 @@ public static class ToolArguments
             return parsed;
         }
 
-        throw new ToolInputException($"参数 {name} 应是整数。");
+        throw new ToolInputException(T($"The argument {name} should be a whole number.", $"参数 {name} 应是整数。"));
     }
 
     /// <summary>

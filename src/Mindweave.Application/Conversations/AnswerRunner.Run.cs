@@ -49,13 +49,13 @@ internal sealed partial class AnswerRunner
     /// <summary>The longest a retry waits for a service that asked to slow down (L5).</summary>
     internal static readonly TimeSpan MaxRetryAfter = TimeSpan.FromSeconds(20);
 
-    internal const string SkippedResult = "未执行：本次运行已达到工具调用次数上限。";
+    internal static string SkippedResult => T("Not run: this run has reached its limit on tool calls.", "未执行：本次运行已达到工具调用次数上限。");
 
     internal const string PreSearchCallId = WebMaterial.PreSearchCallId;
 
-    internal const string PreSearchLead = WebMaterial.PreSearchLead;
+    internal static string PreSearchLead => WebMaterial.PreSearchLead;
 
-    internal const string DeniedResult = WebMaterial.DeniedResult;
+    internal static string DeniedResult => WebMaterial.DeniedResult;
 
     private readonly record struct RunEnding(MessageState State, GenerationErrorKind? Error, string? Detail);
 
@@ -242,7 +242,7 @@ internal sealed partial class AnswerRunner
                     continue;
                 }
 
-                return new RunEnding(MessageState.Stopped, GenerationErrorKind.Timeout, "达到运行的时长上限，最后一次回答没有完成。");
+                return new RunEnding(MessageState.Stopped, GenerationErrorKind.Timeout, T("The run reached its time limit, and the last answer was not finished.", "达到运行的时长上限，最后一次回答没有完成。"));
             }
 
             if (error is not null)
@@ -296,7 +296,7 @@ internal sealed partial class AnswerRunner
             {
                 // The answer: a reply that calls no tool, or the last one (any calls it still made are not run).
                 return !empty ? new RunEnding(MessageState.Complete, null, null)
-                    : final ? new RunEnding(MessageState.Stopped, GenerationErrorKind.InvalidResponse, "达到运行的上限后，模型没有给出回答。")
+                    : final ? new RunEnding(MessageState.Stopped, GenerationErrorKind.InvalidResponse, T("After the run reached its limit, the model gave no answer.", "达到运行的上限后，模型没有给出回答。"))
                     : new RunEnding(MessageState.Failed, GenerationErrorKind.InvalidResponse, "The service finished without any text.");
             }
 
@@ -377,7 +377,7 @@ internal sealed partial class AnswerRunner
             {
                 var tool = run.Tools.FirstOrDefault(t => t.Name == call.Name);
                 live.AddToolCall(new ToolCallBlock(call.Id, call.Name, call.Arguments, tool?.Risk ?? ToolRisk.LocalRead, Summary(tool, call)));
-                live.AddToolResult(new ToolResultBlock(call.Id, ToolResultStatus.Skipped, SkippedResult, null, "未执行"));
+                live.AddToolResult(new ToolResultBlock(call.Id, ToolResultStatus.Skipped, SkippedResult, null, T("Not run", "未执行")));
                 turns.Add(new ChatTurn(ChatRole.Tool, SkippedResult) { ToolCallId = call.Id });
             }
         }
@@ -441,7 +441,8 @@ internal sealed partial class AnswerRunner
 
     /// <summary>What the model is told for a call that repeats an earlier one whose result it still has (L4).</summary>
     internal static string RepeatedResult(string name, string? input, ResourceId resource) =>
-        $"这次调用与本次运行中较早的一次相同（{name} {input}），没有再执行；结果见上（资源 {resource}）。";
+        T($"This call is the same as an earlier one in this run ({name} {input}), so it was not run again; see the result above (resource {resource}).",
+            $"这次调用与本次运行中较早的一次相同（{name} {input}），没有再执行；结果见上（资源 {resource}）。");
 
     /// <summary>The key a read-only call is compared by (L4); null for a call that is always run.</summary>
     private static string? RepeatKey(RunPlan run, ChatToolCall call)
@@ -475,12 +476,12 @@ internal sealed partial class AnswerRunner
             CallId: call.Id, Tool: call.Name, Risk: tool.Risk, Input: earlier.Input);
         await _writes.SaveAsync(() => Done(services.Store.AddStepAsync(step, CancellationToken.None))).ConfigureAwait(false);
         live.StartTool(new ToolCallBlock(call.Id, call.Name, call.Arguments, tool.Risk, Summary(tool, call, earlier.Input)), call.Name);
-        live.AddToolResult(new ToolResultBlock(call.Id, ToolResultStatus.Succeeded, "与较早的一次调用相同，没有再执行。", earlier.Resource, "重复的调用，未再执行"));
+        live.AddToolResult(new ToolResultBlock(call.Id, ToolResultStatus.Succeeded, T("The same as an earlier call, so it was not run again.", "与较早的一次调用相同，没有再执行。"), earlier.Resource, T("Repeated call, not run again", "重复的调用，未再执行")));
         var snapshot = live.Snapshot();
         var finished = step with { State = RunStepState.Completed, FinishedAt = _clock.UtcNow, Result = earlier.Resource };
         await _writes.SaveAsync(() => services.Store.FinishStepAsync(finished, live.MessageId, snapshot.Blocks, snapshot.Revision, CancellationToken.None)).ConfigureAwait(false);
         var content = shortenedSince ? earlier.Content : RepeatedResult(earlier.Name, earlier.Input, earlier.Resource);
-        return new ToolOutcome(content, $"（较早的工具调用：{call.Name} {earlier.Input}，与之前的一次相同，没有再执行。）", null, earlier.Resource);
+        return new ToolOutcome(content, T($"(Earlier tool call: {call.Name} {earlier.Input}, the same as a call before it, not run again.)", $"（较早的工具调用：{call.Name} {earlier.Input}，与之前的一次相同，没有再执行。）"), null, earlier.Resource);
     }
 
     /// <summary>At most this many calls of one reply run at once (L3).</summary>
@@ -656,7 +657,9 @@ internal sealed partial class AnswerRunner
             }
             catch (OperationCanceledException) when (preparing.IsCancellationRequested)
             {
-                unprepared = string.Create(CultureInfo.InvariantCulture, $"超时（{tool.Timeout.TotalSeconds:0} 秒内没有准备好）。");
+                unprepared = T(
+                    string.Create(CultureInfo.InvariantCulture, $"Timed out (not ready within {tool.Timeout.TotalSeconds:0} seconds)."),
+                    string.Create(CultureInfo.InvariantCulture, $"超时（{tool.Timeout.TotalSeconds:0} 秒内没有准备好）。"));
             }
             catch (ToolFailureException ex)
             {
@@ -667,7 +670,7 @@ internal sealed partial class AnswerRunner
 #pragma warning restore CA1031
             {
                 LogToolFailed(_logger, ex, call.Name);
-                unprepared = "工具出错：" + ex.Message;
+                unprepared = T("The tool failed: ", "工具出错：") + ex.Message;
             }
 
             if (unprepared is not null)
@@ -693,22 +696,25 @@ internal sealed partial class AnswerRunner
                 var shot = live.Snapshot();
                 var deniedStep = step with { State = RunStepState.Denied, FinishedAt = _clock.UtcNow };
                 await _writes.SaveAsync(() => services.Store.FinishStepAsync(deniedStep, live.MessageId, shot.Blocks, shot.Revision, CancellationToken.None)).ConfigureAwait(false);
-                pending.Settled = new ToolOutcome(tool.DeniedResult, $"（较早的工具调用：{call.Name} {input}，用户拒绝。）", null, Failed: true);
+                pending.Settled = new ToolOutcome(tool.DeniedResult, T($"(Earlier tool call: {call.Name} {input}, refused by the user.)", $"（较早的工具调用：{call.Name} {input}，用户拒绝。）"), null, Failed: true);
                 return pending;
             }
         }
 
         if (tool is null)
         {
-            pending.Failure = $"没有名为“{call.Name}”的工具。可用的工具：{string.Join("、", run.Tools.Where(t => !withdrawn.Contains(t.Name)).Select(t => t.Name))}。";
+            var available = run.Tools.Where(t => !withdrawn.Contains(t.Name)).Select(t => t.Name).ToList();
+            pending.Failure = T(
+                $"There is no tool named \"{call.Name}\". Available tools: {string.Join(", ", available)}.",
+                $"没有名为“{call.Name}”的工具。可用的工具：{string.Join("、", available)}。");
         }
         else if (withdrawn.Contains(tool.Name))
         {
-            pending.Failure = "这个工具在本次运行中连续出错，已不再提供。";
+            pending.Failure = T("This tool failed several times in a row in this run and is no longer offered.", "这个工具在本次运行中连续出错，已不再提供。");
         }
         else if (!parsed)
         {
-            pending.Failure = "参数不是合法的 JSON 对象，请按工具的输入格式重新给出。";
+            pending.Failure = T("The arguments are not a valid JSON object. Give them again in the tool's input format.", "参数不是合法的 JSON 对象，请按工具的输入格式重新给出。");
         }
         else if (unprepared is not null)
         {
@@ -742,7 +748,9 @@ internal sealed partial class AnswerRunner
         }
         catch (OperationCanceledException) when (timeout.IsCancellationRequested)
         {
-            pending.Failure = string.Create(CultureInfo.InvariantCulture, $"超时（{tool.Timeout.TotalSeconds:0} 秒内没有完成）。");
+            pending.Failure = T(
+                string.Create(CultureInfo.InvariantCulture, $"Timed out (not finished within {tool.Timeout.TotalSeconds:0} seconds)."),
+                string.Create(CultureInfo.InvariantCulture, $"超时（{tool.Timeout.TotalSeconds:0} 秒内没有完成）。"));
             pending.FailureKind = GenerationErrorKind.Timeout;
         }
         catch (ToolInputException ex)
@@ -761,14 +769,14 @@ internal sealed partial class AnswerRunner
         }
         catch (StorageWriteException ex)
         {
-            pending.Failure = "读取本地数据失败：" + ex.Message;
+            pending.Failure = T("Could not read local data: ", "读取本地数据失败：") + ex.Message;
         }
 #pragma warning disable CA1031 // A tool's failure is handed back to the model; it never ends the run (architecture §15.10).
         catch (Exception ex)
 #pragma warning restore CA1031
         {
             LogToolFailed(_logger, ex, pending.Call.Name);
-            pending.Failure = "工具出错：" + ex.Message;
+            pending.Failure = T("The tool failed: ", "工具出错：") + ex.Message;
         }
     }
 
@@ -793,7 +801,7 @@ internal sealed partial class AnswerRunner
         {
             try
             {
-                (stored, resultText) = await services.StoreResultAsync(run.Scope, $"{tool!.DisplayName}：{input}".TrimEnd('：'), output, CancellationToken.None).ConfigureAwait(false);
+                (stored, resultText) = await services.StoreResultAsync(run.Scope, T($"{tool!.DisplayName}: {input}".TrimEnd(' ', ':'), $"{tool.DisplayName}：{input}".TrimEnd('：')), output, CancellationToken.None).ConfigureAwait(false);
             }
             catch (StorageWriteException ex)
             {
@@ -811,7 +819,9 @@ internal sealed partial class AnswerRunner
             failures[call.Name] = 0;
             content = TokenEstimator.Estimate(resultText) <= ToolResultTokens
                 ? resultText
-                : Start(resultText, ToolResultTokens) + $"\n\n（结果较长，以上只是开头。完整结果是资源 {id}，可用 {SearchAttachmentsTool.ToolName} 的 resource 与 part 读取。）";
+                : Start(resultText, ToolResultTokens) + T(
+                    $"\n\n(The result is long; the above is only its start. The full result is resource {id}; read it with {SearchAttachmentsTool.ToolName}'s resource and part.)",
+                    $"\n\n（结果较长，以上只是开头。完整结果是资源 {id}，可用 {SearchAttachmentsTool.ToolName} 的 resource 与 part 读取。）");
             if (output.Wrap is { } wrap)
             {
                 // A third-party tool's output is material, never an instruction (decision M15).
@@ -827,15 +837,15 @@ internal sealed partial class AnswerRunner
         }
         else
         {
-            failure ??= "工具没有返回结果。";
+            failure ??= T("The tool returned no result.", "工具没有返回结果。");
             var count = failures[call.Name] = failures.GetValueOrDefault(call.Name) + 1;
             if (tool is not null && count >= MaxConsecutiveFailures)
             {
                 withdrawn.Add(tool.Name);
             }
 
-            content = "出错：" + failure;
-            block = new ToolResultBlock(call.Id, ToolResultStatus.Failed, failure, null, pending.Unknown ? "结果未知" : pending.FailureKind == GenerationErrorKind.Timeout ? "超时" : "出错");
+            content = T("Failed: ", "出错：") + failure;
+            block = new ToolResultBlock(call.Id, ToolResultStatus.Failed, failure, null, pending.Unknown ? T("Outcome unknown", "结果未知") : pending.FailureKind == GenerationErrorKind.Timeout ? T("Timed out", "超时") : T("Failed", "出错"));
         }
 
         live.AddToolResult(block);
@@ -849,7 +859,9 @@ internal sealed partial class AnswerRunner
             ErrorDetail = output is not null ? null : failure,
         };
         await _writes.SaveAsync(() => services.Store.FinishStepAsync(finished, live.MessageId, snapshot.Blocks, snapshot.Revision, CancellationToken.None)).ConfigureAwait(false);
-        var line = $"（较早的工具结果已省略：{call.Name} {input}{(stored is { } r ? $"，完整结果是资源 {r}" : string.Empty)}；需要时可再读取。）";
+        var line = T(
+            $"(Earlier tool result left out: {call.Name} {input}{(stored is { } s ? $"; the full result is resource {s}" : string.Empty)}. Read it again when needed.)",
+            $"（较早的工具结果已省略：{call.Name} {input}{(stored is { } r ? $"，完整结果是资源 {r}" : string.Empty)}；需要时可再读取。）");
         return new ToolOutcome(content, line, null, stored, Failed: stored is null, Findings: output?.Findings, Numbers: output?.Numbers);
     }
 
@@ -892,9 +904,9 @@ internal sealed partial class AnswerRunner
     }
 
     private static string Summary(ITool? tool, ChatToolCall call, string? input = null) =>
-        tool is null ? $"{(call.Name.Length > 0 ? call.Name : "?")}（不存在的工具）"
+        tool is null ? (call.Name.Length > 0 ? call.Name : "?") + T(" (no such tool)", "（不存在的工具）")
         : string.IsNullOrEmpty(input) ? tool.DisplayName
-        : $"{tool.DisplayName}：{input}";
+        : tool.DisplayName + T(": ", "：") + input;
 
     private static string Preview(string text)
     {

@@ -5,6 +5,7 @@ using Mindweave.Application.Storage;
 using Mindweave.Core.Conversations;
 using Mindweave.Core.Resources;
 using Mindweave.Core.Runs;
+using static Mindweave.Application.Languages.Bilingual;
 
 namespace Mindweave.Application.Tools;
 
@@ -26,17 +27,25 @@ public sealed class SearchSummariesTool(ISummaryStore summaries) : ITool
 
     public string Name => ToolName;
 
-    public string DisplayName => "检索总结网络";
+    public string DisplayName => T("Search summary network", "检索总结网络");
 
-    public string Description =>
+    public string Description => T(
+        "Searches by keyword in the summaries saved in this workspace (what the user explored before), and returns each one's number, title and relevant excerpts. " +
+        "When the answer relies on a summary, write its number after that sentence, for example [1].",
         "在本工作区已保存的知识总结（用户以前探索过的内容）中按关键词检索，返回编号、总结标题与相关片段。" +
-        "回答中依据某个总结时，在那句话后写它的编号，例如 [1]。";
+        "回答中依据某个总结时，在那句话后写它的编号，例如 [1]。");
 
-    public string ParametersSchema => """
+    public string ParametersSchema => T(
+        """
+        {"type":"object","properties":{
+          "query":{"type":"string","description":"Search terms; a few keywords are fine"}
+        },"required":["query"],"additionalProperties":false}
+        """,
+        """
         {"type":"object","properties":{
           "query":{"type":"string","description":"检索词，可以是几个关键词"}
         },"required":["query"],"additionalProperties":false}
-        """;
+        """);
 
     public ToolRisk Risk => ToolRisk.LocalRead;
 
@@ -63,7 +72,7 @@ public sealed class SearchSummariesTool(ISummaryStore summaries) : ITool
     public async Task<ToolOutput> ExecuteAsync(ToolScope scope, JsonElement arguments, CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(scope);
-        var query = ToolArguments.Text(arguments, "query") ?? throw new ToolInputException("请给出检索词 query。");
+        var query = ToolArguments.Text(arguments, "query") ?? throw new ToolInputException(T("Give search terms in query.", "请给出检索词 query。"));
         var terms = ToolArguments.Terms(query);
         if (terms.Count == 0)
         {
@@ -92,7 +101,9 @@ public sealed class SearchSummariesTool(ISummaryStore summaries) : ITool
             return Nothing(query);
         }
 
-        var text = new StringBuilder().Append(CultureInfo.InvariantCulture, $"检索“{query}”找到 {scored.Count} 个总结（依据某个总结时写它的编号）：\n");
+        var text = new StringBuilder().Append(T(
+            $"Searching for \"{query}\" found {Plural(scored.Count, "summary", "summaries")} (when relying on a summary, write its number):\n",
+            string.Create(CultureInfo.InvariantCulture, $"检索“{query}”找到 {scored.Count} 个总结（依据某个总结时写它的编号）：\n")));
         var findings = new List<ToolFinding>();
         var sources = new List<RunSource>();
         for (var i = 0; i < scored.Count; i++)
@@ -102,7 +113,9 @@ public sealed class SearchSummariesTool(ISummaryStore summaries) : ITool
             var number = scope.Sources.NumberFor(RunSources.SummaryKey(node));
             text.Append('\n');
             var start = text.Length;
-            text.Append(CultureInfo.InvariantCulture, $"[{number}] {entry.Node.DisplayName}（总结 {node}）\n")
+            text.Append(T(
+                    $"[{number}] {entry.Node.DisplayName} (summary {node})\n",
+                    $"[{number}] {entry.Node.DisplayName}（总结 {node}）\n"))
                 .Append(ToolArguments.Snippet(body, terms, ExcerptLength))
                 .Append('\n');
 
@@ -112,14 +125,15 @@ public sealed class SearchSummariesTool(ISummaryStore summaries) : ITool
         }
 
         var result = text.ToString().TrimEnd();
-        return new ToolOutput(result, $"找到 {scored.Count} 个总结", ResourceProvenance.Workspace, findings)
+        return new ToolOutput(result, T("Found " + Plural(scored.Count, "summary", "summaries"), $"找到 {scored.Count} 个总结"), ResourceProvenance.Workspace, findings)
         {
             Numbers = [.. sources.Select(s => s.Number)],
             Stored = id => scope.Sources.Register(id, result, sources.Select(s => s with { Resource = id, End = Math.Min(s.End, result.Length) })),
         };
     }
 
-    private static ToolOutput Nothing(string query) => new($"检索“{query}”没有找到相关的总结。", "没有找到", ResourceProvenance.Workspace, []);
+    private static ToolOutput Nothing(string query) => new(
+        T($"Searching for \"{query}\" found no relevant summaries.", $"检索“{query}”没有找到相关的总结。"), T("Nothing found", "没有找到"), ResourceProvenance.Workspace, []);
 
     private static bool Has(string text, string term) => text.Contains(term, StringComparison.OrdinalIgnoreCase);
 

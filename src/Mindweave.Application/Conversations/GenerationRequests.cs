@@ -6,6 +6,7 @@ using Mindweave.Application.Languages;
 using Mindweave.Application.Storage;
 using Mindweave.Core.Context;
 using Mindweave.Core.Conversations;
+using static Mindweave.Application.Languages.Bilingual;
 
 namespace Mindweave.Application.Conversations;
 
@@ -106,7 +107,9 @@ public sealed partial class GenerationRequests
 
                     var known = await compressor.KnownSummaryTokensAsync([.. inputs.Ancestors.Select(a => a.Conversation), inputs.Own.Conversation]).ConfigureAwait(false);
                     plan = ContextPlanner.Plan(inputs.Ancestors, inputs.Own, budget.Available, known, candidates, ModelPhrases.Current).Plan
-                        ?? throw new ContextCompressionException("附件的摘要比预计的长，问题和附件放不进模型的可用容量。");
+                        ?? throw new ContextCompressionException(T(
+                            "The attachments' digests are longer than expected; the question and its attachments do not fit in what the model can take.",
+                            "附件的摘要比预计的长，问题和附件放不进模型的可用容量。"));
                 }
             }
 
@@ -178,10 +181,10 @@ public sealed partial class GenerationRequests
         }
 
         var output = ConversationRules.WithoutInlineReasoning(text.ToString());
-        var problem = completed is null ? "回答流未正常结束。"
-            : completed.Filtered ? "服务的内容审核中止了输出，未保存。"
-            : completed.Truncated ? "输出达到上限被截断，未保存。"
-            : output.Length == 0 ? "服务返回了空内容。"
+        var problem = completed is null ? T("The answer stream did not end normally.", "回答流未正常结束。")
+            : completed.Filtered ? T("The service's content moderation stopped the output; nothing was saved.", "服务的内容审核中止了输出，未保存。")
+            : completed.Truncated ? T("The output was cut off at its limit; nothing was saved.", "输出达到上限被截断，未保存。")
+            : output.Length == 0 ? T("The service returned empty content.", "服务返回了空内容。")
             : null;
         if (record)
         {

@@ -55,7 +55,7 @@ public sealed partial class ContextCompressor(IContextSummaryStore summaries, IC
     /// <summary>A summary that comes back cut off or empty is requested again once, within the same answer task.</summary>
     public const int SummaryAttempts = 2;
 
-    private const string FilteredProblem = "被服务的内容审核中止";
+    private static string FilteredProblem => T("stopped by the service's content moderation", "被服务的内容审核中止");
 
     public static PreparedContext Unsummarized(ContextPlan plan)
     {
@@ -108,7 +108,9 @@ public sealed partial class ContextCompressor(IContextSummaryStore summaries, IC
         var estimate = ChatTurns.Estimate(turns);
         if (!budget.Fits(estimate))
         {
-            throw new ContextCompressionException($"压缩后的上下文约 {budget.Predict(estimate)} token，仍超出模型可用容量。");
+            throw new ContextCompressionException(T(
+                $"After compression the context is about {budget.Predict(estimate)} tokens, still more than the model can take.",
+                $"压缩后的上下文约 {budget.Predict(estimate)} token，仍超出模型可用容量。"));
         }
 
         return new PreparedContext(turns, [.. used.Values.Select(s => s.Id).Distinct()]);
@@ -188,8 +190,10 @@ public sealed partial class ContextCompressor(IContextSummaryStore summaries, IC
         }
 
         throw new ContextCompressionException(problem == FilteredProblem
-            ? $"压缩较早的对话时服务没有返回完整摘要（{problem}）。"
-            : $"压缩较早的对话时服务没有返回完整摘要（{problem}），已尝试 {SummaryAttempts} 次。");
+            ? T($"While compressing the earlier conversation, the service did not return a complete summary ({problem}).", $"压缩较早的对话时服务没有返回完整摘要（{problem}）。")
+            : T(
+                $"While compressing the earlier conversation, the service did not return a complete summary ({problem}), after {Plural(SummaryAttempts, "attempt", "attempts")}.",
+                $"压缩较早的对话时服务没有返回完整摘要（{problem}），已尝试 {SummaryAttempts} 次。"));
     }
 
     /// <summary>
@@ -235,14 +239,14 @@ public sealed partial class ContextCompressor(IContextSummaryStore summaries, IC
         {
             trace.Fail(ex);
             await record(trace.Finish(stopped: false, ex.Kind, ex.Message)).ConfigureAwait(false);
-            throw new ContextCompressionException($"压缩较早的对话时请求失败：{ex.Message}", ex);
+            throw new ContextCompressionException(T($"While compressing the earlier conversation, the request failed: {ex.Message}", $"压缩较早的对话时请求失败：{ex.Message}"), ex);
         }
 
         var summary = ConversationRules.WithoutInlineReasoning(text.ToString());
-        var problem = completed is null ? "回答流未正常结束"
+        var problem = completed is null ? T("the answer stream did not end normally", "回答流未正常结束")
             : completed.Filtered ? FilteredProblem
-            : completed.Truncated ? "达到输出上限被截断"
-            : summary.Length == 0 ? "内容为空"
+            : completed.Truncated ? T("cut off at the output limit", "达到输出上限被截断")
+            : summary.Length == 0 ? T("it was empty", "内容为空")
             : null;
         await record(trace.Finish(stopped: false, problem is null ? null : GenerationErrorKind.InvalidResponse, problem is null ? null : $"Summary unusable: {problem}."))
             .ConfigureAwait(false);

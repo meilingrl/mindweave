@@ -411,7 +411,7 @@ public class McpRunFlowTests
         Assert.Contains("[资源链接：秘密文件 <https://example.org/secret.txt>（应用没有读取）]", stored.Text, StringComparison.Ordinal);
         Assert.Contains("嵌入的笔记", stored.Text, StringComparison.Ordinal);
         Assert.Contains("[未保存的内容：audio]", stored.Text, StringComparison.Ordinal);
-        var images = System.Text.RegularExpressions.Regex.Matches(stored.Text!, @"\[图片：资源 ([^\]]+)\]");
+        var images = System.Text.RegularExpressions.Regex.Matches(stored.Text!, @"\[(?:图片：资源|Image: resource) ([^\]]+)\]");
         Assert.Equal(2, images.Count);
         foreach (System.Text.RegularExpressions.Match match in images)
         {
