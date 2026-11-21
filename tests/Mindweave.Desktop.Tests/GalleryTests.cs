@@ -15,6 +15,7 @@ using Mindweave.Application.Startup;
 using Mindweave.Application.Statistics;
 using Mindweave.Application.Storage;
 using Mindweave.Application.Summaries;
+using Mindweave.Application.SummaryLinks;
 using Mindweave.Application.Workspaces;
 using Mindweave.Core.Branches;
 using Mindweave.Core.Conversations;
@@ -1952,7 +1953,7 @@ public class GalleryTests
         await SettleAsync(window);
         Capture(window, "g55a-network-sent-not-summarized");
 
-        // Summarized: the new summary is linked to the basis with the note 来自推荐, drawn and listed like any link.
+        // Summarized: the new summary is linked to the basis with the note 来自推荐 (in English, "Recommendation"), drawn and listed like any link.
         var service = app.Services.GetRequiredService<SummaryService>();
         app.Client.Knowledge.Replies.Enqueue("标题：蒸汽机车锅炉为什么会爆炸\n短名：锅炉爆炸\n\n- 水位过低：炉顶钢板干烧变软。\n- 安全阀失灵：压力无处释放。\n- 钢板疲劳与水垢。");
         await SummarizeAsync(service, conversation);
@@ -1961,7 +1962,7 @@ public class GalleryTests
         network.Select(made);
         await network.LinksReloaded;
         var item = Assert.Single(network.Links!.Items);
-        Assert.Equal("来自推荐", item.Entry.Link.Note);
+        Assert.Equal(SummaryLinkNote.FromRecommendation, item.Entry.Link.Note);
         Assert.Equal(recommended.Basis, item.Entry.Other);
         Assert.False(network.IsDirty);
 

@@ -1,3 +1,4 @@
+using Mindweave.Application.Languages;
 using Mindweave.Core.Summaries;
 using Mindweave.Core.Workspaces;
 
@@ -72,8 +73,12 @@ public static class SummaryLinkNote
 
     public static bool IsTooLong(string? note) => Length(note) > MaxLength;
 
-    /// <summary>The note of a link made from a recommendation (requirements §10.3.5); editable like any other.</summary>
-    public const string FromRecommendation = "来自推荐";
+    /// <summary>
+    /// The note of a link made from a recommendation (requirements §10.3.5); editable like any other. It is written in
+    /// the interface language of the moment the link is made, within <see cref="MaxLength"/>; a stored note is the
+    /// user's text from then on and is never rewritten.
+    /// </summary>
+    public static string FromRecommendation => Bilingual.T("Recommendation", "来自推荐");
 }
 
 /// <summary>Why a link was not made or changed.</summary>

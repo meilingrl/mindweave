@@ -1,8 +1,10 @@
+using Mindweave.Application.Languages;
 using Mindweave.Application.Recommendations;
 using Mindweave.Application.SummaryLinks;
 using Mindweave.Core.Conversations;
 using Mindweave.Core.Summaries;
 using Mindweave.Infrastructure.Sqlite;
+using Mindweave.Infrastructure.Tests.Languages;
 
 namespace Mindweave.Infrastructure.Tests.Chat;
 
@@ -10,8 +12,10 @@ namespace Mindweave.Infrastructure.Tests.Chat;
 /// A conversation started from a recommendation (requirements §10.3.5, owner's decision 2026-11-17) through the real
 /// services and SQLite: it remembers the recommendation and its basis summary; its first summary is linked to the basis
 /// once, as an ordinary content link (note "来自推荐", editable, deletable) and never as a branch source; a basis deleted
-/// before, a question without a basis, a summary node made again, and deleting the conversation or workspace.
+/// before, a question without a basis, a summary node made again, and deleting the conversation or workspace. The note
+/// is written in the interface language when the link is made, so these tests run with the language tests.
 /// </summary>
+[Collection(LanguageTests.Name)]
 public class StartingRecommendationTests
 {
     private static CancellationToken Ct => TestContext.Current.CancellationToken;
@@ -55,6 +59,53 @@ public class StartingRecommendationTests
         await h.SettleAsync(started);
         await SummarizeAsync(h, started, "现代锅炉");
         Assert.Empty(await h.Links.ListAsync(h.Workspace, Ct));
+    }
+
+    [Fact]
+    public async Task The_note_is_written_in_the_interface_language_of_the_moment_and_kept_after_a_switch()
+    {
+        try
+        {
+            await using var h = await ChatHarness.StartAsync();
+            var (_, basis) = await SummaryLinkFlowTests.SummarizedRootAsync(h, "蒸汽机是怎么工作的？");
+            var english = await StartAsync(h, "锅炉为什么会爆炸？", new(RecommendationId.New(), RecommendationKind.Node, basis));
+            var chinese = await StartAsync(h, "蒸汽机车怎么刹车？", new(RecommendationId.New(), RecommendationKind.Question, basis));
+
+            CurrentLanguage.Set(UiLanguage.English);
+            var englishNode = await SummarizeAsync(h, english, "锅炉爆炸");
+            CurrentLanguage.Set(UiLanguage.Chinese);
+            var chineseNode = await SummarizeAsync(h, chinese, "机车制动");
+
+            var notes = (await h.Links.ListAsync(h.Workspace, Ct)).ToDictionary(l => l.NodeA == basis ? l.NodeB : l.NodeA, l => l.Note);
+            Assert.Equal("Recommendation", notes[englishNode]);
+            Assert.Equal("来自推荐", notes[chineseNode]);
+
+            // Stored notes are the user's text: a later switch leaves both as they were written.
+            CurrentLanguage.Set(UiLanguage.English);
+            var after = (await h.Links.ListAsync(h.Workspace, Ct)).Select(l => l.Note).Order(StringComparer.Ordinal);
+            Assert.Equal(["Recommendation", "来自推荐"], after);
+        }
+        finally
+        {
+            CurrentLanguage.Set(UiLanguage.Chinese);
+        }
+    }
+
+    [Fact]
+    public void The_note_fits_the_note_limit_in_both_languages()
+    {
+        try
+        {
+            foreach (var language in new[] { UiLanguage.English, UiLanguage.Chinese })
+            {
+                CurrentLanguage.Set(language);
+                Assert.False(SummaryLinkNote.IsTooLong(SummaryLinkNote.FromRecommendation), SummaryLinkNote.FromRecommendation);
+            }
+        }
+        finally
+        {
+            CurrentLanguage.Set(UiLanguage.Chinese);
+        }
     }
 
     [Fact]
