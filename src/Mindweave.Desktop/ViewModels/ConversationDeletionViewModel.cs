@@ -37,7 +37,7 @@ public sealed class ConversationDeletionRequests : IConversationDeletionPrompt
 /// is (refused and shown again); a press right after such a change is ignored. A failed backup is said and nothing is
 /// deleted.
 /// </summary>
-public sealed partial class ConversationDeletionViewModel : ViewModelBase
+public sealed partial class ConversationDeletionViewModel : ViewModelBase, IDisposable
 {
     private readonly IConversationDeletion _deletion;
     private readonly IConversations _conversations;
@@ -67,14 +67,28 @@ public sealed partial class ConversationDeletionViewModel : ViewModelBase
         _conversations = conversations;
         _navigator = workbench;
         _requests = requests;
-        requests.Requested += (_, request) => Open(request.Workspace, request.Selected);
+        requests.Requested += OnRequested;
 
         // While open, work starting or ending and conversations changing (a new branch, a summary saved) re-count the scope.
         _rechecks = new SerialRefresh(RecheckAsync);
         _recheck = new UiThrottle(dispatcher, TimeSpan.FromMilliseconds(100), () => Loading = _rechecks.Request());
-        conversations.ActivityChanged += (_, _) => Watch();
-        conversations.ConversationChanged += (_, _) => Watch();
+        conversations.ActivityChanged += OnActivityChanged;
+        conversations.ConversationChanged += OnConversationChanged;
     }
+
+    /// <summary>Stops listening to the services; the view it belongs to is being replaced.</summary>
+    public void Dispose()
+    {
+        _requests.Requested -= OnRequested;
+        _conversations.ActivityChanged -= OnActivityChanged;
+        _conversations.ConversationChanged -= OnConversationChanged;
+    }
+
+    private void OnRequested(object? sender, (WorkspaceId Workspace, IReadOnlyList<ConversationId> Selected) request) => Open(request.Workspace, request.Selected);
+
+    private void OnActivityChanged(object? sender, EventArgs e) => Watch();
+
+    private void OnConversationChanged(object? sender, ConversationId e) => Watch();
 
     [ObservableProperty]
     public partial bool IsOpen { get; private set; }

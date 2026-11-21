@@ -12,7 +12,7 @@ using Mindweave.Desktop.ViewModels.Pages;
 namespace Mindweave.Desktop.Services;
 
 /// <summary>Drives root navigation from the startup outcome: recovery page, onboarding, or the workbench.</summary>
-public sealed partial class AppStartup : IRecoveryActions
+public sealed partial class AppStartup : IRecoveryActions, IDisposable
 {
     private readonly StartupCoordinator _coordinator;
     private readonly WorkspaceService _workspaces;
@@ -25,6 +25,7 @@ public sealed partial class AppStartup : IRecoveryActions
     private readonly IThemeApplier _theme;
     private readonly StorageHealth _health;
     private readonly ConversationMarksService _marks;
+    private readonly WorkspaceDeletionViewModel _workspaceDeletion;
     private readonly Infrastructure.Hosting.AppPaths _paths;
     private readonly IOnboardingProgress _onboarding;
     private readonly Application.Models.IModelSettings _models;
@@ -69,10 +70,18 @@ public sealed partial class AppStartup : IRecoveryActions
         _marks = marks;
 
         ArgumentNullException.ThrowIfNull(workspaceDeletion);
-        // The last workspace was deleted: a new one is asked for, as on a fresh start. A workspace existed, so the guide
-        // was finished (or predates it) and is not shown again.
-        workspaceDeletion.NoWorkspaceLeft += (_, _) => _root.Show(new OnboardingViewModel(CreateFirstWorkspaceAsync));
+        _workspaceDeletion = workspaceDeletion;
+        workspaceDeletion.NoWorkspaceLeft += OnNoWorkspaceLeft;
     }
+
+    /// <summary>Stops listening to the delete dialog; the view it belongs to is being replaced.</summary>
+    public void Dispose() => _workspaceDeletion.NoWorkspaceLeft -= OnNoWorkspaceLeft;
+
+    /// <summary>
+    /// The last workspace was deleted: a new one is asked for, as on a fresh start. A workspace existed, so the guide was
+    /// finished (or predates it) and is not shown again.
+    /// </summary>
+    private void OnNoWorkspaceLeft(object? sender, EventArgs e) => _root.Show(new OnboardingViewModel(CreateFirstWorkspaceAsync));
 
     public async Task RunAsync()
     {

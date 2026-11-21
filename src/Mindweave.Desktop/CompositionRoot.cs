@@ -183,8 +183,8 @@ public static class CompositionRoot
         }
     }
 
-    /// <summary>What a root provider registers, for the view providers built on it.</summary>
-    private sealed class RootRegistrations
+    /// <summary>What a root provider registers, for the view providers built on it (and for tests that look at every root service).</summary>
+    internal sealed class RootRegistrations
     {
         public IReadOnlyList<ServiceDescriptor> Descriptors { get; set; } = [];
     }

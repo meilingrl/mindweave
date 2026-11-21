@@ -31,12 +31,13 @@ public sealed class WorkspaceDeletionRequests : IWorkspaceDeletionPrompt
 /// "取消" is the default. Running work, a paused storage or a failed backup are said in the dialog and nothing is
 /// deleted. Afterwards the workbench moves to the most recently used workspace, or to the first-workspace flow.
 /// </summary>
-public sealed partial class WorkspaceDeletionViewModel : ViewModelBase
+public sealed partial class WorkspaceDeletionViewModel : ViewModelBase, IDisposable
 {
     private readonly IWorkspaceDeletion _deletion;
     private readonly IConversations _conversations;
     private readonly Workbench _workbench;
     private readonly SummaryNetworkSessions _summaryNetworks;
+    private readonly WorkspaceDeletionRequests _requests;
     private readonly UiThrottle _recheck;
     private readonly SerialRefresh _rechecks;
     private volatile bool _watching;
@@ -49,19 +50,32 @@ public sealed partial class WorkspaceDeletionViewModel : ViewModelBase
         _conversations = conversations;
         _workbench = workbench;
         _summaryNetworks = summaryNetworks;
-        requests.Requested += (_, workspace) => Open(workspace);
-
-        // While the dialog is open, an answer or summary starting or finishing re-checks what runs (round 4 review):
-        // the refusal goes as soon as the work is done, and comes up when work starts with the dialog open.
+        _requests = requests;
+        requests.Requested += OnRequested;
         _rechecks = new SerialRefresh(RecheckAsync);
         _recheck = new UiThrottle(dispatcher, TimeSpan.FromMilliseconds(100), () => Loading = _rechecks.Request());
-        conversations.ActivityChanged += (_, _) =>
+        conversations.ActivityChanged += OnActivityChanged;
+    }
+
+    /// <summary>Stops listening to the services; the view it belongs to is being replaced.</summary>
+    public void Dispose()
+    {
+        _requests.Requested -= OnRequested;
+        _conversations.ActivityChanged -= OnActivityChanged;
+    }
+
+    private void OnRequested(object? sender, Workspace workspace) => Open(workspace);
+
+    /// <summary>
+    /// While the dialog is open, an answer or summary starting or finishing re-checks what runs (round 4 review): the
+    /// refusal goes as soon as the work is done, and comes up when work starts with the dialog open.
+    /// </summary>
+    private void OnActivityChanged(object? sender, EventArgs e)
+    {
+        if (_watching)
         {
-            if (_watching)
-            {
-                _recheck.Request();
-            }
-        };
+            _recheck.Request();
+        }
     }
 
     /// <summary>No workspace is left after a delete: the first-workspace flow takes over.</summary>
