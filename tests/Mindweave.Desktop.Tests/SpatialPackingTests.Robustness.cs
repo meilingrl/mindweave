@@ -50,20 +50,46 @@ public partial class SpatialPackingTests
     }
 
     [Fact]
-    public void A_lone_tree_takes_an_uncrossed_arrangement_before_fan_order_or_stretch()
+    public void A_lone_tree_takes_an_arrangement_within_the_gates_else_the_least_beyond_them()
     {
-        // Ruling R-P7: crossings are the visible tangle; fan order and a stretched sub-branch are subtler.
-        var crossed = new SpatialPacking.Checks(Ratio: 1.3, CentroidOffset: 0.02, Overlaps: 0, Edges: 100, Crossings: 10, Stretch: 1.5, InOrder: true);
-        var uncrossed = crossed with { Ratio = 1.5, Crossings = 2, Stretch = 3.0, InOrder = false };
+        // Ruling R-P11: after no overlap and no spread beyond 2.5 × the ideal radius, the arrangements within all three
+        // §6.4 gates (enclosing circle 1.6, centre of gravity 0.15, crossings 0.05 per line) come first; fan order and
+        // stretch rank only among them.
+        var within = new SpatialPacking.Checks(Ratio: 1.5, CentroidOffset: 0.10, Overlaps: 0, Edges: 100, Crossings: 4, Stretch: 3.0, InOrder: false);
+        var offCentre = within with { CentroidOffset = 0.20, Crossings = 0, Stretch = 1.5, InOrder = true };
+        var crossed = within with { Ratio = 1.3, CentroidOffset = 0.02, Crossings = 10, Stretch = 1.5, InOrder = true };
 
-        Assert.Equal(1, SpatialPacking.Pick([crossed, uncrossed], lone: true));
+        Assert.Equal(0, SpatialPacking.Pick([within, offCentre, crossed], lone: true));
 
-        // Before crossings: no overlap, and no spread beyond 2.5 × the ideal radius (Ruling R-P6).
-        Assert.Equal(0, SpatialPacking.Pick([crossed, uncrossed with { Overlaps = 1 }], lone: true));
-        Assert.Equal(0, SpatialPacking.Pick([crossed, uncrossed with { Ratio = 2.6 }], lone: true));
+        // When none is within all three, the one least beyond its worst gate: a centre of gravity at 0.30 (2.0 × its
+        // bound) loses to 0.053 crossings per line (1.06 ×).
+        var farOffCentre = offCentre with { CentroidOffset = 0.30 };
+        var justCrossed = within with { Ratio = 1.595, CentroidOffset = 0.078, Crossings = 53, Edges = 1000, InOrder = true };
+        Assert.Equal(1, SpatialPacking.Pick([farOffCentre, justCrossed], lone: true));
 
-        // Among the uncrossed, fan order still comes first.
-        Assert.Equal(1, SpatialPacking.Pick([uncrossed, uncrossed with { InOrder = true, Ratio = 1.59 }], lone: true));
+        // Before the gates: no overlap, and no spread beyond 2.5 × the ideal radius (Ruling R-P6).
+        Assert.Equal(1, SpatialPacking.Pick([within with { Overlaps = 1 }, crossed], lone: true));
+        Assert.Equal(1, SpatialPacking.Pick([within with { Ratio = 2.6 }, crossed], lone: true));
+
+        // Among those within the gates, fan order still comes first.
+        Assert.Equal(1, SpatialPacking.Pick([within, within with { InOrder = true, Ratio = 1.59 }], lone: true));
+    }
+
+    [Fact]
+    public void An_off_centre_lone_tree_is_not_kept_for_fewer_crossings()
+    {
+        // Unseen seed 217, 12 levels (76 dots): the uncrossed nested packing has its centre of gravity at 0.30 of the
+        // radius, twice the bound; a wedge fill is within 1.6 and 0.15 with 0.053 crossings per line (Ruling R-P11).
+        var nodes = Workspace(seed: 217, roots: 1, maxDepth: 12);
+
+        var report = SpatialPacking.Measure(nodes, SpatialPacking.Arrange(nodes));
+        var (ratio, perEdge) = (report.EnclosingRadius / report.IdealRadius, (double)report.BranchCrossings / report.BranchEdges);
+        var worst = Math.Max(Math.Max(ratio / 1.6, report.CentroidOffset / 0.15), perEdge / 0.05);
+
+        Output($"seed 217, depth 12 ({nodes.Count} dots): enclosing / ideal {ratio:F3}, centroid {report.CentroidOffset:F3}, crossings {perEdge:F3} per line; worst over its bound {worst:F2}");
+        Assert.Equal(0, report.Overlaps);
+        Assert.True(report.CentroidOffset <= 0.15, $"The centre of gravity is {report.CentroidOffset:F3} of the radius off centre (at most 0.15).");
+        Assert.True(worst <= 1.1, $"The kept arrangement is {worst:F2} × its worst bound (at most 1.1).");
     }
 
     [Fact]

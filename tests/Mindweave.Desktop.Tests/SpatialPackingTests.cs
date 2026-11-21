@@ -345,22 +345,26 @@ public partial class SpatialPackingTests
         var nodes = Workspace(seed: 1000, roots: 220, maxDepth: 10, total: 1_000);
         SpatialPacking.Arrange(nodes); // warm-up
 
-        var watch = Stopwatch.StartNew();
-        var dots = SpatialPacking.Arrange(nodes);
-        var elapsed = watch.Elapsed;
+        var times = new List<TimeSpan>();
+        var dots = Timed(nodes, times).Dots;
+        Timed(nodes, times);
+        Timed(nodes, times);
+        var elapsed = times.Order().ElementAt(1);
 
         Assert.Equal(nodes.Count, dots.Count);
         var report = SpatialPacking.Measure(nodes, dots);
-        Output($"spatial packing of {nodes.Count:N0} dots: {elapsed.TotalMilliseconds.ToString("F1", CultureInfo.InvariantCulture)} ms; {report}");
+        Output($"spatial packing of {nodes.Count:N0} dots, median of three: {elapsed.TotalMilliseconds.ToString("F1", CultureInfo.InvariantCulture)} ms; {report}");
         Assert.Equal(0, report.Overlaps);
         Assert.True(elapsed < TimeSpan.FromMilliseconds(300), $"Packing 1,000 dots took {elapsed.TotalMilliseconds:F1} ms (budget 300 ms).");
 
         // A bushy tree of the same size: balanced binary, 9 levels (1,023 nodes).
         var bushy = Full(fan: 2, depth: 9);
         SpatialPacking.Arrange(bushy); // warm-up
-        watch.Restart();
-        var bushyDots = SpatialPacking.Arrange(bushy);
-        var bushyElapsed = watch.Elapsed;
+        times.Clear();
+        var bushyDots = Timed(bushy, times).Dots;
+        Timed(bushy, times);
+        Timed(bushy, times);
+        var bushyElapsed = times.Order().ElementAt(1);
         var bushyReport = SpatialPacking.Measure(bushy, bushyDots);
         Output($"spatial packing of a {bushy.Count:N0}-node binary tree: {bushyElapsed.TotalMilliseconds.ToString("F1", CultureInfo.InvariantCulture)} ms; enclosing / ideal {bushyReport.EnclosingRadius / bushyReport.IdealRadius:F3}; {bushyReport}");
         Assert.Equal(0, bushyReport.Overlaps);

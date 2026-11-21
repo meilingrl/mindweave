@@ -3,8 +3,8 @@ namespace Mindweave.Desktop.SummaryNetwork;
 /// <summary>
 /// Choosing between candidate arrangements (docs/design/session-network.md §6.1, §6.4). The acceptance checks are
 /// worked out with the same code as <see cref="Measure"/> and are also the order of preference: an arrangement is
-/// first sound (no overlap, not spread), then (a lone tree) uncrossed (Ruling R-P7: crossings are the visible tangle),
-/// then in creation order round every fan and not badly stretched, and last furthest inside its bounds.
+/// first (a lone tree) sound, then within the three §6.4 gates or least beyond them, then in creation order round every
+/// fan and not badly stretched, and last furthest inside its bounds.
 /// </summary>
 public static partial class SpatialPacking
 {
@@ -44,37 +44,41 @@ public static partial class SpatialPacking
     }
 
     /// <summary>
-    /// The candidate to keep, by its checks. Each step keeps the candidates that pass it, unless none does:
+    /// The candidate to keep, by its checks. Each step keeps the candidates that pass it, unless none does. For a lone
+    /// tree:
     /// <list type="number">
     /// <item>no overlapping footprints;</item>
-    /// <item>sound: the enclosing circle within <see cref="SpreadBound"/>;</item>
+    /// <item>sound: the enclosing circle within <see cref="SpreadBound"/> (Ruling R-P6);</item>
     /// <item>
-    /// for a lone tree, crossings within <see cref="CrossingBound"/>, whatever the fan order or the stretch (Ruling
-    /// R-P7). With several roots this step is left out for now: of the two settlings, the less crossed can stretch a
-    /// sub-branch past the fixed set's bound (generated workspace 12: 1 crossing over 95 lines but a sub-branch at 2.08
-    /// × its ideal radius, against 3 crossings and 1.92).
+    /// within all three §6.4 gates: the enclosing circle within <see cref="RatioBound"/>, the centre of gravity within
+    /// <see cref="CentroidBound"/>, crossings within <see cref="CrossingBound"/>; when none is, those least beyond
+    /// their worst gate (<see cref="Excess"/>), so that no one gate outweighs the others (Rulings R-P7, R-P11).
     /// </item>
+    /// </list>
+    /// Then, for a lone tree and for several roots alike (whose ranking starts here, Ruling R-P9):
+    /// <list type="number">
     /// <item>every fan in creation order;</item>
     /// <item>no badly stretched sub-branch (<see cref="SevereStretch"/>).</item>
     /// </list>
-    /// Then, among those within every bound, the one furthest inside them; else among those within the bounds for the
-    /// whole (enclosing circle, centre of gravity, crossings), the one furthest inside its bounds; else the one least
-    /// beyond any bound. Ties keep the earlier candidate.
+    /// Last, among those within every bound, the one furthest inside them; else among those within the bounds for
+    /// the whole (enclosing circle, centre of gravity, crossings), the one furthest inside its bounds; else the one
+    /// least beyond any bound. Ties keep the earlier candidate.
     /// </summary>
     internal static int Pick(IReadOnlyList<Checks> candidates, bool lone)
     {
         var pool = Enumerable.Range(0, candidates.Count).ToList();
-        Keep(c => c.Overlaps == 0);
-        Keep(c => c.Ratio <= SpreadBound);
         if (lone)
         {
-            Keep(c => c.CrossingsPerLine <= CrossingBound);
+            Keep(c => c.Overlaps == 0);
+            Keep(c => c.Ratio <= SpreadBound);
+            var least = pool.Min(k => Excess(candidates[k]));
+            Keep(c => Excess(c) <= Math.Max(1, least));
         }
 
         Keep(c => c.InOrder);
         Keep(c => c.Stretch / StretchBound <= SevereStretch);
 
-        var within = pool.Where(k => candidates[k] is var c && c.Ratio <= RatioBound && c.CentroidOffset <= CentroidBound && c.CrossingsPerLine <= CrossingBound).ToList();
+        var within = pool.Where(k => Excess(candidates[k]) <= 1).ToList();
         var all = within.Where(k => candidates[k].Stretch <= StretchBound).ToList();
         var finalists = all.Count > 0 ? all : within.Count > 0 ? within : pool;
         return finalists.MinBy(k => Worst(candidates[k]));
@@ -87,9 +91,16 @@ public static partial class SpatialPacking
             }
         }
 
-        static double Worst(Checks c) =>
-            Math.Max(Math.Max(c.Ratio / RatioBound, c.CentroidOffset / CentroidBound), Math.Max(c.CrossingsPerLine / CrossingBound, c.Stretch / StretchBound));
+        static double Worst(Checks c) => Math.Max(Excess(c), c.Stretch / StretchBound);
     }
+
+    /// <summary>
+    /// How far an arrangement is beyond its worst §6.4 gate, each measured over its bound: the enclosing circle over
+    /// <see cref="RatioBound"/>, the centre of gravity over <see cref="CentroidBound"/>, crossings per line over
+    /// <see cref="CrossingBound"/>. At most 1 when it is within all three.
+    /// </summary>
+    private static double Excess(Checks c) =>
+        Math.Max(Math.Max(c.Ratio / RatioBound, c.CentroidOffset / CentroidBound), c.CrossingsPerLine / CrossingBound);
 
     /// <summary>Whether an arrangement is sound: no overlapping footprints, and not spread beyond <see cref="SpreadBound"/>.</summary>
     private static bool Sound(Checks checks) => checks.Overlaps == 0 && checks.Ratio <= SpreadBound;
