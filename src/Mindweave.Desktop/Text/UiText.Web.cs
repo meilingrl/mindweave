@@ -93,4 +93,13 @@ public static partial class UiText
     public static string WebSearchKeySaved => T("Key saved", "密钥已保存");
     public static string WebSearchKeyRemoved => T("Key removed", "密钥已移除");
     public static string WebSearchSaveFailed => T("Couldn’t save. Check that the system credential store is available.", "未能保存，请检查系统凭据是否可用。");
+
+    /// <summary>The name of a 出处 as a person reads it: a page's title, or Attachment “…” / 附件《…》 and so on.</summary>
+    public static string CitationLabel(Core.Conversations.CitationKind kind, string title) => kind switch
+    {
+        Core.Conversations.CitationKind.Attachment => T($"Attachment “{title}”", $"附件《{title}》"),
+        Core.Conversations.CitationKind.Material => T($"Material “{title}”", $"材料《{title}》"),
+        Core.Conversations.CitationKind.Summary => T($"Summary “{title}”", $"总结《{title}》"),
+        _ => title,
+    };
 }

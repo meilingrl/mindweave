@@ -27,7 +27,7 @@ public sealed record CitationItem(CitationBlock Block, CommunityToolkit.Mvvm.Inp
 {
     public string Number => $"[{Block.Number}]";
 
-    public string Title => Block.Label;
+    public string Title => UiText.CitationLabel(Block.Kind, Block.Title);
 
     /// <summary>The real address; for local material, where it is (the row's tooltip either way).</summary>
     public string Address => Block.Url?.AbsoluteUri ?? UiText.CitationPlace(Block.Kind);

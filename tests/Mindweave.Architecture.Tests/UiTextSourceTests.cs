@@ -86,13 +86,52 @@ public partial class UiTextSourceTests
         Assert.True(problems.Count == 0, $"{problems.Count} members:\n" + string.Join('\n', problems.Take(60)));
     }
 
+    /// <summary>Interface text lives in UiText only: the rest of the Desktop project, code and XAML, has none.</summary>
+    [Fact]
+    public void Desktop_has_no_Chinese_outside_UiText()
+    {
+        var desktop = Path.Combine(LayeringTests.RepositoryRoot(), "src", "Mindweave.Desktop");
+        var text = Path.Combine(desktop, "Text") + Path.DirectorySeparatorChar;
+        var problems = new List<string>();
+        foreach (var path in Directory.EnumerateFiles(desktop, "*.cs", SearchOption.AllDirectories)
+                     .Where(p => !p.StartsWith(text, StringComparison.Ordinal) && IsSource(p)))
+        {
+            var root = CSharpSyntaxTree.ParseText(File.ReadAllText(path), new CSharpParseOptions(LanguageVersion.Preview), path, cancellationToken: TestContext.Current.CancellationToken).GetRoot(TestContext.Current.CancellationToken);
+            foreach (var token in root.DescendantTokens().Where(t => IsText(t) || t.IsKind(SyntaxKind.CharacterLiteralToken)).Where(t => Chinese().IsMatch(t.ValueText)))
+            {
+                problems.Add($"{Path.GetRelativePath(desktop, path)}:{token.GetLocation().GetLineSpan().StartLinePosition.Line + 1} {token.ValueText}");
+            }
+        }
+
+        foreach (var path in Directory.EnumerateFiles(desktop, "*.axaml", SearchOption.AllDirectories).Where(IsSource))
+        {
+            var lines = XmlComment().Replace(File.ReadAllText(path), m => new string('\n', m.Value.Count(c => c == '\n'))).Split('\n');
+            for (var i = 0; i < lines.Length; i++)
+            {
+                if (Chinese().IsMatch(lines[i]))
+                {
+                    problems.Add($"{Path.GetRelativePath(desktop, path)}:{i + 1} {lines[i].Trim()}");
+                }
+            }
+        }
+
+        Assert.True(problems.Count == 0, string.Join('\n', problems));
+    }
+
+    private static bool IsSource(string path) =>
+        !path.Contains($"{Path.DirectorySeparatorChar}bin{Path.DirectorySeparatorChar}", StringComparison.Ordinal)
+        && !path.Contains($"{Path.DirectorySeparatorChar}obj{Path.DirectorySeparatorChar}", StringComparison.Ordinal);
+
+    [GeneratedRegex("<!--.*?-->", RegexOptions.Singleline)]
+    private static partial Regex XmlComment();
+
     private static IEnumerable<(string File, SyntaxNode Root)> UiTextFiles()
     {
         var folder = Path.Combine(LayeringTests.RepositoryRoot(), "src", "Mindweave.Desktop", "Text");
         foreach (var path in Directory.EnumerateFiles(folder, "UiText*.cs").Order(StringComparer.Ordinal))
         {
-            var tree = CSharpSyntaxTree.ParseText(File.ReadAllText(path), new CSharpParseOptions(LanguageVersion.Preview), path);
-            yield return (Path.GetFileName(path), tree.GetRoot());
+            var tree = CSharpSyntaxTree.ParseText(File.ReadAllText(path), new CSharpParseOptions(LanguageVersion.Preview), path, cancellationToken: TestContext.Current.CancellationToken);
+            yield return (Path.GetFileName(path), tree.GetRoot(TestContext.Current.CancellationToken));
         }
     }
 

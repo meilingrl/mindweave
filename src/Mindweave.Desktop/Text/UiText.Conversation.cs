@@ -171,4 +171,17 @@ public static partial class UiText
         SendRejection.AttachmentMissing => T("An attachment is no longer there. Attach it again.", "有附件已不在，请重新附加。"),
         _ => T("Couldn’t send.", "无法发送。"),
     };
+
+    /// <summary>The input box's name for screen readers.</summary>
+    public static string AskAccessibleName => T("Ask a question", "提问");
+
+    /// <summary>Two sentences read one after the other, with the language's own full stop between them.</summary>
+    public static string Sentences(string first, string second) => T(first + ". " + second, first + "。" + second);
+
+    /// <summary>Names in a run, separated the language's way: "a, b" / "a、b".</summary>
+    public static string List(IEnumerable<string> names)
+    {
+        var all = names.ToList();
+        return T(string.Join(", ", all), string.Join("、", all));
+    }
 }

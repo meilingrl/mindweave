@@ -54,7 +54,7 @@ public sealed partial class AttachmentChip : ViewModelBase
         ArgumentNullException.ThrowIfNull(stored);
         var r = stored.Resource;
         var paste = r.Origin == ResourceOrigin.Paste;
-        var chip = new AttachmentChip(r.Name ?? ContentBlocks.PastedTextName, UiText.AttachmentType(r.MediaType, paste), r.IsImage, paste, remove, open, paste ? convert : null)
+        var chip = new AttachmentChip(r.Name ?? UiText.PastedTextName, UiText.AttachmentType(r.MediaType, paste), r.IsImage, paste, remove, open, paste ? convert : null)
         {
             Stored = stored,
             Resource = r.Id,
@@ -160,7 +160,7 @@ public sealed partial class AttachmentChip : ViewModelBase
     };
 
     /// <summary>The name a screen reader says, with the detail.</summary>
-    public string AccessibleName => $"附件：{Name}";
+    public string AccessibleName => UiText.AttachmentAccessibleName(Name);
 
     internal void Succeed(StoredResource stored, bool originalThere)
     {

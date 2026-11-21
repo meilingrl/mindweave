@@ -109,4 +109,13 @@ public static partial class UiText
             _ => T($"“{input.Name}”: original missing; a text description was sent instead", $"《{input.Name}》：原件缺失，以文字说明代替"),
         };
     }
+
+    /// <summary>The name of a pasted text that has none of its own (shown on its chip and in the viewer).</summary>
+    public static string PastedTextName => T("Pasted text", "粘贴的文字");
+
+    /// <summary>The name of a pasted image that came without a file name.</summary>
+    public static string PastedImageName => T("image.png", "图片.png");
+
+    /// <summary>What a screen reader says for an attachment chip.</summary>
+    public static string AttachmentAccessibleName(string name) => T($"Attachment: {name}", $"附件：{name}");
 }
