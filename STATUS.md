@@ -22,7 +22,6 @@ Phases 2–4 and the run loop improvements (L1–L11) are to be verified in dail
 
 | Item | Reason | Blocks |
 | --- | --- | --- |
-| Confirm a spec line: the note of the summary link created from a recommendation follows the interface language (“来自推荐”, in English “Recommendation”; the code already does this) | Requirement changes need your confirmation | Requirements §10.3.5 text matching the code |
 | Take a look at the icon size in a real window (direction A looks smaller than before, consistent with the sample; making it bigger only needs the size in the style changed) | Look and feel can only be judged by you | Not blocking |
 | Real service checks (paid, optional): DeepSeek images + tools, Kimi K3 base64 images, GPT-6 tool calls, DashScope streaming tools | Only within the budget you give | The capability presets of phases 1–2 |
 | Remove the old Mindweave icon from the Dock and pin `~/Applications/Mindweave.app` instead (once) | The old icon is pinned to the v11 version of 11-13, which cannot open data that is already v13; the new app location stays the same, so later updates need no re-pinning | Opening the daily build from the Dock |
