@@ -239,6 +239,10 @@ public static partial class SpatialPacking
         }
     }
 
+    /// <summary>
+    /// Finds footprints that overlap or nearly touch, with a uniform grid of cells as wide as the largest footprint
+    /// (hashed into buckets): two footprints that overlap always lie in the same or neighbouring cells.
+    /// </summary>
     private sealed class Contacts(int count, double cell)
     {
         /// <summary>Pairs closer than this beyond touching are kept as candidates for a whole step's passes.</summary>
