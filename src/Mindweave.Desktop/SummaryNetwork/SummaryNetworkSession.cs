@@ -48,6 +48,9 @@ public sealed partial class SummaryNetworkSession : ObservableObject
     /// <summary>The view of the session network; remembered for the life of the process. Not used without the gate.</summary>
     public SummaryNetworkViewMode ViewMode { get; private set; } = SummaryNetworkViewMode.Spatial;
 
+    /// <summary>The session network is shown as its timeline (the gate on and that view chosen).</summary>
+    public bool IsTimeline => _gate.Enabled && ViewMode == SummaryNetworkViewMode.Timeline;
+
     /// <summary>The roots that start a new local day, in timeline order; empty without the gate.</summary>
     public IReadOnlyList<SummaryNodeId> DayStarts => _dayStarts;
 
@@ -63,7 +66,6 @@ public sealed partial class SummaryNetworkSession : ObservableObject
         ComputeSessionPositions(Projection);
         Viewport = null;
         FitAllRequested = false;
-        LayoutChanged?.Invoke(this, EventArgs.Empty);
     }
 
     /// <summary>The local calendar day a conversation was created on (the timeline groups roots by it).</summary>
@@ -71,28 +73,32 @@ public sealed partial class SummaryNetworkSession : ObservableObject
 
     private void ComputeSessionPositions(SummaryNetworkProjection projection)
     {
-        var nodes = LayoutNodes(projection);
-        var timeline = projection.Nodes.Select((n, i) => (n, i)).ToList();
-        var branchParents = projection.Edges.Where(e => e.Kind == SummaryNetworkEdgeKind.Branch).ToDictionary(e => e.To, e => e.From);
-        var arrangement = TimelineLayout.Arrange([.. timeline.Select(t => new TimelineNode(
-            t.n.Id, branchParents.TryGetValue(t.n.Id, out var parent) ? parent : null, LocalDay(t.n.CreatedAt), t.i))]);
+        var parents = BranchParents(projection);
+        var arrangement = TimelineLayout.Arrange([.. projection.Nodes.Select((n, i) => new TimelineNode(
+            n.Id, parents.TryGetValue(n.Id, out var parent) ? parent : null, LocalDay(n.CreatedAt), i))]);
         _dayStarts = arrangement.DayStarts;
-        _positions = ViewMode == SummaryNetworkViewMode.Timeline
-            ? new Dictionary<SummaryNodeId, NodePosition>(TimelineColumns.Widen(arrangement.Positions, nodes.ToDictionary(n => n.Id, n => n.LabelWidth), TimelineColumns.MinColumn))
-            : new Dictionary<SummaryNodeId, NodePosition>(SpatialPacking.Arrange(PackNodes(projection, nodes, _dayStarts)));
+        _positions = IsTimeline
+            ? new Dictionary<SummaryNodeId, NodePosition>(TimelineColumns.Widen(arrangement.Positions, projection.Nodes.ToDictionary(n => n.Id, LabelWidthOf), TimelineColumns.MinColumn))
+            : new Dictionary<SummaryNodeId, NodePosition>(SpatialPacking.Arrange(PackNodes(projection, parents, _dayStarts)));
     }
+
+    /// <summary>Each branch's parent: only branches are tree parents; the time thread between roots is not.</summary>
+    internal static Dictionary<SummaryNodeId, SummaryNodeId> BranchParents(SummaryNetworkProjection projection) =>
+        projection.Edges.Where(e => e.Kind == SummaryNetworkEdgeKind.Branch).ToDictionary(e => e.To, e => e.From);
+
+    /// <summary>The room a node's label takes, as the layout and the canvas reserve it.</summary>
+    private static double LabelWidthOf(SummaryNetworkNode node) => SummaryNetworkLayout.LabelWidth(SummaryNetworkLayout.Label(node.ShortTitle, node.Markers.HasCandidate));
 
     /// <summary>
     /// The sessions as the spatial packing takes them (§6): branches are the parents, the projection's order is creation
     /// order, the weight is the mass, a dot is as large as drawn (its summary ring included) and a label as wide as the
-    /// canvas reserves; the time thread links each root to the next.
+    /// canvas reserves (or as its date, for a root that starts a new day); the time thread links each root to the next.
     /// </summary>
-    private static List<PackNode> PackNodes(SummaryNetworkProjection projection, List<LayoutNode> layout, IReadOnlyList<SummaryNodeId> dayStarts)
+    internal static List<PackNode> PackNodes(SummaryNetworkProjection projection, IReadOnlyDictionary<SummaryNodeId, SummaryNodeId> parents, IReadOnlyList<SummaryNodeId> dayStarts)
     {
         // A root that starts a new day carries a date beside it (spec §4.4): its label box is as wide as the date needs.
         var today = LocalDay(DateTimeOffset.Now);
         var dated = dayStarts.ToHashSet();
-        var parents = projection.Edges.Where(e => e.Kind == SummaryNetworkEdgeKind.Branch).ToDictionary(e => e.To, e => e.From);
         var next = projection.Edges.Where(e => e.Kind == SummaryNetworkEdgeKind.TimeThread).ToDictionary(e => e.From, e => e.To);
         return [.. projection.Nodes.Select((n, i) => new PackNode(
             n.Id,
@@ -100,7 +106,7 @@ public sealed partial class SummaryNetworkSession : ObservableObject
             i,
             n.Weight,
             SummaryNetworkLayout.DotFootprintRadius(n.Weight, n.HasSummary),
-            dated.Contains(n.Id) ? Math.Max(layout[i].LabelWidth, SummaryNetworkLayout.LabelWidth(UiText.DayLabel(LocalDay(n.CreatedAt), today))) : layout[i].LabelWidth,
+            dated.Contains(n.Id) ? Math.Max(LabelWidthOf(n), SummaryNetworkLayout.LabelWidth(UiText.DayLabel(LocalDay(n.CreatedAt), today))) : LabelWidthOf(n),
             next.TryGetValue(n.Id, out var following) ? following : null))];
     }
 
@@ -188,9 +194,6 @@ public sealed partial class SummaryNetworkSession : ObservableObject
 
     private SummaryNodeId? _selected;
 
-    /// <summary>Raised after positions or the projection changed; any thread that changed them.</summary>
-    public event EventHandler? LayoutChanged;
-
     /// <summary>
     /// Reads the projection and saved positions. Nodes without a position are placed beside their source and each
     /// such place is saved by itself. While unsaved changes exist, the positions in memory are kept as they are and
@@ -204,7 +207,6 @@ public sealed partial class SummaryNetworkSession : ObservableObject
             ComputeSessionPositions(sessions);
             Projection = sessions;
             _loaded = true;
-            LayoutChanged?.Invoke(this, EventArgs.Empty);
             return;
         }
 
@@ -246,7 +248,6 @@ public sealed partial class SummaryNetworkSession : ObservableObject
         Projection = projection;
         _positions = reference;
         _loaded = true;
-        LayoutChanged?.Invoke(this, EventArgs.Empty);
     }
 
     /// <summary>Explicit "arrange": a full new layout, kept in memory until saved.</summary>
@@ -262,7 +263,6 @@ public sealed partial class SummaryNetworkSession : ObservableObject
         OnPropertyChanged(nameof(IsDirty));
         OnPropertyChanged(nameof(Revision));
         Viewport = null;
-        LayoutChanged?.Invoke(this, EventArgs.Empty);
     }
 
     /// <summary>
@@ -286,7 +286,6 @@ public sealed partial class SummaryNetworkSession : ObservableObject
         _revision++;
         OnPropertyChanged(nameof(IsDirty));
         OnPropertyChanged(nameof(Revision));
-        LayoutChanged?.Invoke(this, EventArgs.Empty);
         return true;
     }
 

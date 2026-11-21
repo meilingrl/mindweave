@@ -13,10 +13,10 @@ namespace Mindweave.Desktop.SummaryNetwork;
 public static class TimelineColumns
 {
     /// <summary>
-    /// Room for the widest dot and its summary ring, in canvas units at zoom 1: 14 px
-    /// (<c>SummaryNetworkGeometry.DotRadius</c> at its clamp) plus the 3.5 px ring gap (<c>SummaryNetworkCanvas.SummaryRingGap</c>).
+    /// Room for the widest dot and its summary ring, pen included, in canvas units at zoom 1
+    /// (<see cref="SummaryNetworkLayout.DotFootprintRadius"/> at its clamp).
     /// </summary>
-    public const double DotRoom = 14 + 3.5;
+    public static readonly double DotRoom = SummaryNetworkLayout.DotFootprintRadius(int.MaxValue, hasSummary: true);
 
     /// <summary>Space between the end of a column's widest label and the next column's dots.</summary>
     public const double ColumnGap = 28;

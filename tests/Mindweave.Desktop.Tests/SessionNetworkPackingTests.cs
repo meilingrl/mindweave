@@ -54,19 +54,9 @@ public class SessionNetworkPackingTests
         return new SummaryNetworkProjection(nodes, edges);
     }
 
-    private static List<PackNode> PackNodes(SummaryNetworkProjection projection)
-    {
-        var parent = projection.Edges.Where(e => e.Kind == SummaryNetworkEdgeKind.Branch).ToDictionary(e => e.To, e => e.From);
-        var next = projection.Edges.Where(e => e.Kind == SummaryNetworkEdgeKind.TimeThread).ToDictionary(e => e.From, e => e.To);
-        return [.. projection.Nodes.Select((n, i) => new PackNode(
-            n.Id,
-            parent.TryGetValue(n.Id, out var p) ? p : null,
-            i,
-            n.Weight,
-            SummaryNetworkGeometry.DotFootprintRadius(n.Weight, n.HasSummary),
-            SummaryNetworkLayout.LabelWidth(SummaryNetworkLayout.Label(n.ShortTitle, n.Markers.HasCandidate)),
-            next.TryGetValue(n.Id, out var t) ? t : null))];
-    }
+    /// <summary>The sessions exactly as the session hands them to the packing, date widths included.</summary>
+    private static List<PackNode> PackNodes(SummaryNetworkSession session) =>
+        SummaryNetworkSession.PackNodes(session.Projection, SummaryNetworkSession.BranchParents(session.Projection), session.DayStarts);
 
     private static async Task<SummaryNetworkSession> LoadedAsync(SummaryNetworkProjection projection, FakeNetwork? network = null)
     {
@@ -130,7 +120,7 @@ public class SessionNetworkPackingTests
         var projection = Sessions(60);
         var session = await LoadedAsync(projection);
 
-        var report = SpatialPacking.Measure(PackNodes(projection), session.Positions);
+        var report = SpatialPacking.Measure(PackNodes(session), session.Positions);
 
         Assert.Equal(0, report.Overlaps);
     }
@@ -139,6 +129,7 @@ public class SessionNetworkPackingTests
     [Trait("Category", "Performance")]
     public async Task Thousand_sessions_load_within_300_ms_in_release()
     {
+        Assert.SkipUnless(Environment.GetEnvironmentVariable("MINDWEAVE_PERF") == "1", "Run through scripts/perf.sh.");
         var projection = Sessions(1_000);
         var session = new SummaryNetworkSession(Workspace, new FakeNetwork(projection), new SessionNetworkGate(true));
         await session.LoadAsync(CancellationToken.None); // warm-up
@@ -149,10 +140,7 @@ public class SessionNetworkPackingTests
 
         Assert.Equal(1_000, session.Positions.Count);
         TestContext.Current.TestOutputHelper?.WriteLine($"session network load of 1,000 sessions: {elapsed.TotalMilliseconds.ToString("F1", CultureInfo.InvariantCulture)} ms");
-        if (Environment.GetEnvironmentVariable("MINDWEAVE_PERF") == "1")
-        {
-            Assert.True(elapsed < TimeSpan.FromMilliseconds(300), $"Loading 1,000 sessions took {elapsed.TotalMilliseconds:F1} ms (budget 300 ms, spec §6.4).");
-        }
+        Assert.True(elapsed < TimeSpan.FromMilliseconds(300), $"Loading 1,000 sessions took {elapsed.TotalMilliseconds:F1} ms (budget 300 ms, spec §6.4).");
     }
 
     private static NodeView View(SummaryNetworkNode n, NodePosition at) =>

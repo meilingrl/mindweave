@@ -139,7 +139,7 @@ public class SessionNetworkShots
     private static string Describe(string tag, int index, string name, SummaryNetworkSession session)
     {
         var projection = session.Projection;
-        var nodes = PackNodes(projection, session.DayStarts);
+        var nodes = SummaryNetworkSession.PackNodes(projection, SummaryNetworkSession.BranchParents(projection), session.DayStarts);
         var positions = session.Positions;
         var whole = SpatialPacking.Measure(nodes, positions);
         var text = new System.Text.StringBuilder();
@@ -182,27 +182,6 @@ public class SessionNetworkShots
         }
 
         return text.ToString();
-    }
-
-    /// <summary>The sessions as <c>SummaryNetworkSession</c> hands them to the packing (the same inputs, so the same checks).</summary>
-    private static List<PackNode> PackNodes(SummaryNetworkProjection projection, IReadOnlyList<SummaryNodeId> dayStarts)
-    {
-        var today = SummaryNetworkSession.LocalDay(DateTimeOffset.Now);
-        var dated = dayStarts.ToHashSet();
-        var parents = projection.Edges.Where(e => e.Kind == SummaryNetworkEdgeKind.Branch).ToDictionary(e => e.To, e => e.From);
-        var next = projection.Edges.Where(e => e.Kind == SummaryNetworkEdgeKind.TimeThread).ToDictionary(e => e.From, e => e.To);
-        return [.. projection.Nodes.Select((n, i) =>
-        {
-            var label = SummaryNetworkLayout.LabelWidth(SummaryNetworkLayout.Label(n.ShortTitle, n.Markers.HasCandidate));
-            return new PackNode(
-                n.Id,
-                parents.TryGetValue(n.Id, out var parent) ? parent : null,
-                i,
-                n.Weight,
-                SummaryNetworkLayout.DotFootprintRadius(n.Weight, n.HasSummary),
-                dated.Contains(n.Id) ? Math.Max(label, SummaryNetworkLayout.LabelWidth(UiText.DayLabel(SummaryNetworkSession.LocalDay(n.CreatedAt), today))) : label,
-                next.TryGetValue(n.Id, out var following) ? following : null);
-        })];
     }
 
     /// <summary>

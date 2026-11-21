@@ -60,13 +60,11 @@ public class SessionNetworkSessionTests
         await using var app = Gated();
         var (session, a, b, _) = await OpenAsync(app);
         var projection = session.Projection;
-        var raised = 0;
-        session.LayoutChanged += (_, _) => raised++;
 
         session.SetViewMode(SummaryNetworkViewMode.Timeline);
 
-        Assert.Equal(1, raised);
         Assert.Equal(SummaryNetworkViewMode.Timeline, session.ViewMode);
+        Assert.True(session.IsTimeline);
         Assert.Same(projection, session.Projection);
         var roots = projection.Nodes.Where(n => n.Conversation == a || n.Conversation == b).Select(n => session.Positions[n.Id]).ToList();
         Assert.All(roots, p => Assert.Equal(0, p.Y));
@@ -77,13 +75,26 @@ public class SessionNetworkSessionTests
     [AvaloniaFact]
     public async Task Without_the_gate_nothing_changes()
     {
+        // Final review M11: two roots, a branch and one summary through the real store. Without the gate only the summary
+        // is a node, its place is saved, and nothing of the session network shows.
         await using var app = DesktopHarness.Create();
-        await app.StartWithWorkspaceAsync("火车");
-        var session = app.Services.GetRequiredService<SummaryNetworkSessions>().Get(app.Workbench.CurrentWorkspace!.Id);
+        var (summarized, _, _) = await SessionNetworkUiTests.SeedAsync(app);
+        var workspace = app.Workbench.CurrentWorkspace!.Id;
+        var session = app.Services.GetRequiredService<SummaryNetworkSessions>().Get(workspace);
 
         Assert.False(session.IsSessionNetwork);
         await session.LoadAsync(CancellationToken.None);
-        Assert.Empty(session.Projection.Nodes);
+        var node = Assert.Single(session.Projection.Nodes);
+        Assert.Equal(summarized, node.Conversation);
+        Assert.True(node.HasSummary);
+        Assert.Empty(session.Projection.Edges);
+        Assert.Empty(session.DayStarts);
+        Assert.False(session.IsTimeline);
+        session.SetViewMode(SummaryNetworkViewMode.Timeline);
+        Assert.False(session.IsTimeline);
+        var saved = await app.Services.GetRequiredService<ISummaryNetworkLayout>().GetLayoutAsync(workspace, CancellationToken.None);
+        Assert.Equal(session.Positions[node.Id], saved[node.Id]);
+        Assert.False(session.IsDirty);
     }
 
     [Fact]

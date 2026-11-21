@@ -8,12 +8,12 @@ namespace Mindweave.Desktop.Tests;
 /// <summary>The timeline's columns widened to their widest label: pure, x only, the grid's order kept.</summary>
 public class TimelineColumnsTests
 {
-    private const double Room = TimelineColumns.DotRoom + SummaryNetworkLayout.LabelGap + TimelineColumns.ColumnGap;
+    private static readonly double Room = TimelineColumns.DotRoom + SummaryNetworkLayout.LabelGap + TimelineColumns.ColumnGap;
 
     [Fact]
-    public void The_dot_room_is_the_widest_dot_and_its_summary_ring()
+    public void The_dot_room_is_the_widest_dot_and_its_summary_ring_with_its_pen()
     {
-        Assert.Equal(TimelineColumns.DotRoom, SummaryNetworkGeometry.DotRadius(int.MaxValue) + SummaryNetworkCanvas.SummaryRingGap);
+        Assert.Equal(TimelineColumns.DotRoom, SummaryNetworkGeometry.DotRadius(int.MaxValue) + SummaryNetworkCanvas.SummaryRingGap + 1);
         Assert.Equal(TimelineLayout.Step, TimelineColumns.MinColumn);
     }
 
@@ -40,7 +40,7 @@ public class TimelineColumnsTests
         Assert.Equal(new NodePosition(column0, -TimelineLayout.LaneGap), widened[Id(3)]);
         Assert.Equal(new NodePosition(column0 + column1 + TimelineColumns.MinColumn, 0), widened[Id(4)]);
         Assert.Equal(110, column0); // a short label keeps the grid's step
-        Assert.Equal(354.5, column1);
+        Assert.Equal(355.5, column1);
     }
 
     [Fact]

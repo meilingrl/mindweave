@@ -78,7 +78,6 @@ public class SessionProjectionTests
     {
         await using var h = await ChatHarness.StartAsync();
         var root = await ConversationAsync(h, "火车是怎么发明的？");
-        await Task.Delay(20, Ct);
         await h.SummarizeAsync(root);
 
         var node = Assert.Single((await h.SummaryNetwork.ProjectSessionsAsync(h.Workspace, Ct)).Nodes);

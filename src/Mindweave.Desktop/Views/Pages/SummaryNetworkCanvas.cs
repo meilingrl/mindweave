@@ -381,8 +381,8 @@ public sealed class SummaryNetworkCanvas : Control
         var zoom = Current.Zoom;
 
         // The session network's time thread: dotted with an arrowhead in the spatial view, the main line on the timeline.
-        var spatial = Sessions && _page.Session.ViewMode == SummaryNetworkViewMode.Spatial;
-        var timeline = _page.IsTimeline;
+        var timeline = _page.Session.IsTimeline;
+        var spatial = Sessions && !timeline;
         var nodes = Sessions ? _page.Nodes.ToDictionary(n => n.Id) : [];
         return [.. _page.Edges.Select(edge =>
         {
@@ -525,8 +525,13 @@ public sealed class SummaryNetworkCanvas : Control
         var nodes = _page.Nodes.ToDictionary(n => n.Id);
         var result = new List<CaptionPaint>();
         var size = SummaryNetworkGeometry.LabelSize(Current.Zoom);
-        var incident = _page.Edges.SelectMany(e => new[] { (Node: e.From, Other: e.To), (Node: e.To, Other: e.From) })
-            .Where(x => nodes.ContainsKey(x.Other)).ToLookup(x => x.Node, x => ScreenOf(nodes[x.Other]));
+
+        // Spatial dates sit by their root's title, which the root's edges may have moved; only they need the edges.
+        var spatial = Sessions && !_page.Session.IsTimeline;
+        var incident = spatial
+            ? _page.Edges.SelectMany(e => new[] { (Node: e.From, Other: e.To), (Node: e.To, Other: e.From) })
+                .Where(x => nodes.ContainsKey(x.Other)).ToLookup(x => x.Node, x => ScreenOf(nodes[x.Other]))
+            : null;
         foreach (var caption in _page.Captions)
         {
             var members = caption.Members.Where(nodes.ContainsKey).Select(id => (Node: nodes[id], At: ScreenOf(nodes[id]))).ToList();
@@ -535,7 +540,7 @@ public sealed class SummaryNetworkCanvas : Control
                 continue;
             }
 
-            if (Sessions && !_page.IsTimeline)
+            if (incident is not null)
             {
                 // Like the titles, a date shrinks below zoom 1 so it keeps clear of the dots round it.
                 var date = Text(caption.Text, CaptionSize * Math.Clamp(Current.Zoom, 0.6, 1), palette.Caption);
@@ -1215,7 +1220,7 @@ public sealed class SummaryNetworkCanvas : Control
         }
 
         var opening = !_page.Session.FitAllRequested;
-        var fitted = opening && _page.IsTimeline
+        var fitted = opening && _page.Session.IsTimeline
             ? SummaryNetworkGeometry.TimelineOpening(_page.Nodes, Bounds.Size, DrawnLabelWidth)
             : opening && Sessions
                 ? SummaryNetworkGeometry.SpatialOpening(_page.Nodes, Bounds.Size, _page.RecommendedNodes)

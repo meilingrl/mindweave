@@ -121,7 +121,7 @@ public sealed partial class SummaryNetworkHomeViewModel : PageViewModel, IDispos
     public bool IsSessionNetwork => Session.IsSessionNetwork;
 
     /// <summary>The session network shows the world-line timeline (时间线) rather than the spatial view (空间).</summary>
-    public bool IsTimeline => IsSessionNetwork && Session.ViewMode == SummaryNetworkViewMode.Timeline;
+    public bool IsTimeline => Session.IsTimeline;
 
     internal Task Loaded { get; }
 
@@ -1096,8 +1096,8 @@ public sealed partial class SummaryNetworkHomeViewModel : PageViewModel, IDispos
         var positions = Session.Positions;
 
         // A node hangs from its branch parent; the time thread between explorations is not a source.
-        var parents = Session.Projection.Edges.Where(e => e.Kind == SummaryNetworkEdgeKind.Branch).ToDictionary(e => e.To, e => e.From);
-        var timeline = Session.IsSessionNetwork && Session.ViewMode == SummaryNetworkViewMode.Timeline;
+        var parents = SummaryNetworkSession.BranchParents(Session.Projection);
+        var timeline = Session.IsTimeline;
 
         Nodes = [.. Session.Projection.Nodes.Where(n => positions.ContainsKey(n.Id)).Select(n => new NodeView(
             n.Id, n.ShortTitle, n.DisplayName, positions[n.Id].X, positions[n.Id].Y, n.Markers.Unread, n.Markers.HasCandidate, SummaryNetworkLayout.LabelWidth(SummaryNetworkLayout.Label(n.ShortTitle, n.Markers.HasCandidate)),
