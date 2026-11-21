@@ -9,7 +9,7 @@ namespace Mindweave.Desktop.Text;
 // The conversation page: asking, answers and their states, branches and the context line.
 public static partial class UiText
 {
-    public static string NewConversation => T("New conversation", "新会话");
+    public static string NewConversation => ConversationNames.NewConversation;
     public static string ConversationMissing => T("Conversation not found", "会话不存在");
     public static string AskPlaceholder => T("Ask a question…", "提问…");
     public static string Send => T("Send", "发送");
@@ -58,15 +58,14 @@ public static partial class UiText
     public static string ContextCompressedNote => T("Earlier conversation was sent as a context summary; the full record is kept.", "较早的对话已压缩为摘要发送，原记录完整保留");
 
     /// <summary>
-    /// The name shown for a conversation: its title, else (for a branch) the quoted passage it explores, else its
-    /// first question. Sidebar, page header and ancestor path all use this, so a conversation is named the same everywhere.
+    /// The name shown for a conversation (<see cref="ConversationNames.Of"/>): its title, else (for a branch) the quoted
+    /// passage it explores, else its first question. Sidebar, page header, ancestor path and the session network all use
+    /// this rule, so a conversation is named the same everywhere.
     /// </summary>
     public static string ConversationTitle(Conversation conversation, string? firstQuestion, string? quote)
     {
         ArgumentNullException.ThrowIfNull(conversation);
-        return conversation.Title
-            ?? (quote is not null ? Quoted(quote) : null)
-            ?? (firstQuestion is not null ? ConversationRules.FallbackTitle(firstQuestion) : NewConversation);
+        return ConversationNames.Of(conversation.Title, quote, firstQuestion);
     }
 
     /// <summary>The context line above the input: how much of the model's budget the conversation takes and what happens next.</summary>
@@ -100,9 +99,7 @@ public static partial class UiText
     /// <summary>The context ring's name for a screen reader when there is no figure yet.</summary>
     public static string ContextRingName => T("Context usage", "上下文用量");
 
-    public static string Quoted(string quote) => T(
-        "“" + ConversationRules.Shorten(quote, ConversationRules.FallbackTitleLength) + "”",
-        "「" + ConversationRules.Shorten(quote, ConversationRules.FallbackTitleLength) + "」");
+    public static string Quoted(string quote) => ConversationNames.Quoted(quote);
 
     public static string SourceNotLocated(string quote) => T(
         $"Couldn’t find the exact passage (the answer’s layout or content differs from when the branch was created), so you’re back at the source answer. Passage: {Quoted(quote)}",

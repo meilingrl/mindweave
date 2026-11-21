@@ -1055,7 +1055,8 @@ public sealed partial class SummaryNetworkHomeViewModel : PageViewModel, IDispos
             return;
         }
 
-        Suggestions?.SetSummaryCount(Session.Projection.Nodes.Count);
+        // Only summaries count: in the session network most dots are conversations without one.
+        Suggestions?.SetSummaryCount(Session.Projection.Nodes.Count(n => n.HasSummary));
         await (Suggestions?.ReloadAsync() ?? Task.CompletedTask);
         if (_disposed)
         {
@@ -1148,12 +1149,11 @@ public sealed partial class SummaryNetworkHomeViewModel : PageViewModel, IDispos
         var steps = PathOf(node);
         var gated = IsSessionNetwork;
 
-        // A session dot is headed by its title, never its question; a summary keeps its own display name.
-        var heading = gated && !node.HasSummary ? _titles.GetValueOrDefault(node.Conversation) ?? node.ShortTitle : node.DisplayName;
+        // A session dot is headed by its conversation's name (as in the sidebar), never its question; a summary keeps its own.
         return new NodeDetail(
             node.Id,
             node.Conversation,
-            heading,
+            node.DisplayName,
             node.ShortTitle,
             node.HasSummary ? UiText.Markers(node.Markers) : string.Empty,
             UiText.NodeSource(_titles.GetValueOrDefault(node.Conversation) ?? UiText.NewConversation, node.SourceArchived),

@@ -1,4 +1,4 @@
-using Mindweave.Application.Languages;
+using Mindweave.Application.Conversations;
 using Mindweave.Application.Storage;
 using Mindweave.Core.Conversations;
 using Mindweave.Core.Summaries;
@@ -132,15 +132,13 @@ public sealed class SummaryNetworkService(ISummaryStore summaries, ISummaryNetwo
                 continue;
             }
 
-            // The whole title, never cut: the timeline sizes each column to its widest label. Only while there is no title
-            // yet does the first question stand in, on one line and cut (ruling R-T1b). The label is read in the language
-            // of the moment; a language switch rebuilds the page, which projects again.
-            var shortTitle = item.Conversation.Title
-                ?? (item.FirstQuestion is { } question && ConversationRules.Shorten(question, QuestionLabelLength) is { Length: > 0 } line
-                    ? line
-                    : Bilingual.T("New exploration", "新探索"));
+            // Named as the sidebar names the conversation (title, quote, first question, 新会话): the whole title, never
+            // cut, since the timeline sizes each column to its widest label; the rest on one line and cut. The name is also
+            // the display name, so the list and links never show a whole question. It is read in the language of the
+            // moment; a language switch rebuilds the page, which projects again.
+            var shortTitle = ConversationNames.Of(item.Conversation.Title, item.Quote, item.FirstQuestion);
             nodes.Add(new SummaryNetworkNode(
-                new SummaryNodeId(id.Value), id, root, shortTitle, item.FirstQuestion ?? shortTitle,
+                new SummaryNodeId(id.Value), id, root, shortTitle, shortTitle,
                 new SummaryMarkers(false, false, false), item.Conversation.CreatedAt, ancestors, archived,
                 false, weights[id], item.FirstQuestion));
         }
@@ -164,9 +162,6 @@ public sealed class SummaryNetworkService(ISummaryStore summaries, ISummaryNetwo
 
         return new SummaryNetworkProjection(nodes, edges);
     }
-
-    /// <summary>How many text elements of the first question label an untitled session dot (then "…").</summary>
-    internal const int QuestionLabelLength = 24;
 
     public Task<IReadOnlyDictionary<SummaryNodeId, NodePosition>> GetLayoutAsync(WorkspaceId workspace, CancellationToken cancellationToken) =>
         network.GetLayoutAsync(workspace, cancellationToken);

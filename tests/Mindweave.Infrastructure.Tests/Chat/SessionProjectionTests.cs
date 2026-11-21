@@ -1,3 +1,4 @@
+using Mindweave.Application.Conversations;
 using Mindweave.Application.SummaryNetwork;
 using Mindweave.Core.Conversations;
 using Mindweave.Core.Summaries;
@@ -160,10 +161,10 @@ public class SessionProjectionTests
     }
 
     [Fact]
-    public async Task An_untitled_conversations_long_question_is_cut_to_one_line_of_24()
+    public async Task An_untitled_conversations_long_question_is_cut_as_the_sidebar_cuts_it()
     {
-        // Ruling R-T1b: only while there is no title yet does the label fall back to the first question, on one line and
-        // cut to 24 text elements plus "…". The details keep the whole question.
+        // Final review M3 and I2: while there is no title yet, a dot is named as the sidebar names the conversation, on
+        // one line and cut to the fallback title's length; its display name is the same. The details keep the whole question.
         await using var h = await ChatHarness.StartAsync();
         const string question = "火车是怎么发明的？\n谁造了第一台蒸汽机车呢？它最早在哪个国家的哪条线路上跑起来的";
         var conversation = await ConversationAsync(h, question);
@@ -174,8 +175,29 @@ public class SessionProjectionTests
 
         var node = Assert.Single((await h.SummaryNetwork.ProjectSessionsAsync(h.Workspace, Ct)).Nodes);
 
-        Assert.Equal("火车是怎么发明的？ 谁造了第一台蒸汽机车呢？它最…", node.ShortTitle);
+        Assert.Equal(ConversationRules.FallbackTitle(question), node.ShortTitle);
+        Assert.Equal("火车是怎么发明的？ 谁造了第一台蒸汽机车呢？它最早在哪个国家…", node.ShortTitle);
+        Assert.Equal(node.ShortTitle, node.DisplayName);
         Assert.Equal(question, node.FirstQuestion);
+    }
+
+    [Fact]
+    public async Task An_untitled_branch_is_named_by_its_quote()
+    {
+        await using var h = await ChatHarness.StartAsync();
+        var root = await ConversationAsync(h, "火车是怎么发明的？");
+        var branch = await BranchAsync(h, root, "谁造了第一台？");
+        await h.TitleEndedAsync(branch);
+        await h.Database.WriteAsync(
+            (c, t) => c.Execute(t, "UPDATE conversation SET title = NULL, title_source = 'none' WHERE id = $id;", ("$id", branch.ToString())),
+            Ct);
+        var quote = (await h.Conversations.ListAsync(h.Workspace, Ct)).Single(c => c.Conversation.Id == branch).Quote!;
+
+        var node = (await h.SummaryNetwork.ProjectSessionsAsync(h.Workspace, Ct)).Nodes.Single(n => n.Conversation == branch);
+
+        Assert.Equal("「" + quote + "」", node.ShortTitle);
+        Assert.Equal(ConversationNames.Quoted(quote), node.ShortTitle);
+        Assert.Equal(node.ShortTitle, node.DisplayName);
     }
 
     [Fact]
@@ -197,7 +219,7 @@ public class SessionProjectionTests
     }
 
     [Fact]
-    public async Task A_conversation_with_neither_title_nor_question_is_a_new_exploration()
+    public async Task A_conversation_with_neither_title_nor_question_is_a_new_conversation()
     {
         await using var h = await ChatHarness.StartAsync();
         var bare = ConversationId.New();
@@ -212,8 +234,8 @@ public class SessionProjectionTests
 
         Assert.Equal(bare, node.Conversation);
         Assert.Null(node.FirstQuestion);
-        Assert.Equal("新探索", node.ShortTitle);
-        Assert.Equal("新探索", node.DisplayName);
+        Assert.Equal("新会话", node.ShortTitle);
+        Assert.Equal("新会话", node.DisplayName);
     }
 
     [Fact]

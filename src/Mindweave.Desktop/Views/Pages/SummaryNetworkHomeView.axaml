@@ -411,8 +411,8 @@
             <ItemsControl.ItemTemplate>
               <DataTemplate x:DataType="vm:SummaryListItem">
                 <StackPanel Orientation="Horizontal" Spacing="6" Margin="0,2">
-                  <!-- Unread: bold, primary colour; read: regular, secondary colour (S7 已读／未读约定). -->
-                  <Button Classes="list-name" Classes.read="{Binding !Unread}" Content="{Binding DisplayName}" FontWeight="{Binding Unread, Converter={x:Static d:Converters.BoldWhen}}"
+                  <!-- Unread: bold, primary colour; read: regular, secondary colour (S7 已读／未读约定); a dot without a summary has neither. -->
+                  <Button Classes="list-name" Classes.read="{Binding ShowsRead}" Content="{Binding DisplayName}" FontWeight="{Binding Unread, Converter={x:Static d:Converters.BoldWhen}}"
                           AutomationProperties.HelpText="{Binding Links}"
                           Command="{Binding $parent[v:SummaryNetworkHomeView].((vm:SummaryNetworkHomeViewModel)DataContext).OpenCommand}" CommandParameter="{Binding Node}" />
                   <Border Classes="badge accent" IsVisible="{Binding ShowsUnread}">
