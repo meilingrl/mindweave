@@ -1114,7 +1114,8 @@ public sealed partial class SummaryNetworkHomeViewModel : PageViewModel, IDispos
         Edges = [.. Session.Projection.Edges.Where(e => positions.ContainsKey(e.From) && positions.ContainsKey(e.To)).Select(e => new EdgeView(
             e.From, e.To, positions[e.From].X, positions[e.From].Y, positions[e.To].X, positions[e.To].Y, e.IsDirect, e.IsDirect ? null : UiText.ViaCount(e.Via.Count),
             e.Kind, timeline && e.Kind == SummaryNetworkEdgeKind.Branch && positions[e.From].Y != positions[e.To].Y))];
-        Captions = Session.IsSessionNetwork ? DayCaptions() : [.. Session.Projection.Nodes.Where(n => positions.ContainsKey(n.Id)).GroupBy(n => n.Root).Select(g =>
+        // The session network dates its days on the timeline only; the spatial view shows time on hover and in the details.
+        Captions = Session.IsSessionNetwork ? (timeline ? DayCaptions() : []) : [.. Session.Projection.Nodes.Where(n => positions.ContainsKey(n.Id)).GroupBy(n => n.Root).Select(g =>
         {
             // Over the root's own summary; when the root conversation has none, over the group's top-left node.
             var anchor = g.FirstOrDefault(n => n.Conversation == g.Key) ?? g.OrderBy(n => positions[n.Id].Y).ThenBy(n => positions[n.Id].X).First();

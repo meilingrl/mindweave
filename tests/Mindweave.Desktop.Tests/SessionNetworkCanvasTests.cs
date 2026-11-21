@@ -93,15 +93,30 @@ public class SessionNetworkCanvasTests
         await SummaryNetworkScenario.AskAsync(app, conversations, null, app.Workbench.CurrentWorkspace!.Id, "火车是怎么发明的？");
         var network = await SummaryNetworkScenario.OpenSummaryNetworkAsync(app, window);
 
-        // The first drawing may precede the title that arrives a moment later: open again from what is there now.
-        await UiWait.UntilAsync(() => network.Session.Positions.Count == 1);
-        network.Session.Viewport = null;
         var opening = CanvasOf(window).Current;
 
         var only = Assert.Single(network.Nodes);
         Assert.Equal(1, opening.Zoom);
         Assert.Equal(only.X, opening.CenterX, 6);
         Assert.Equal(only.Y, opening.CenterY, 6);
+        window.Close();
+    }
+
+    [AvaloniaFact]
+    public async Task The_spatial_view_has_no_day_captions_and_the_timeline_keeps_them()
+    {
+        await using var app = Gated();
+        var window = app.ShowWindow(1100, 720);
+        await SummaryNetworkScenario.SeedAsync(app);
+        var network = await SummaryNetworkScenario.OpenSummaryNetworkAsync(app, window);
+        await UiWait.UntilAsync(() => network.Nodes.Count == 4);
+
+        Assert.Empty(CanvasOf(window).PaintCaptions());
+
+        network.SetViewModeCommand.Execute(SummaryNetworkViewMode.Timeline);
+        await UiWait.UntilAsync(() => network.IsTimeline);
+        window.UpdateLayout();
+        Assert.NotEmpty(CanvasOf(window).PaintCaptions());
         window.Close();
     }
 
@@ -251,6 +266,9 @@ public class SessionNetworkCanvasTests
         await using var app = Gated();
         var window = app.ShowWindow(1100, 720);
         var (_, _, network) = await TwoDaysAsync(app, window);
+        network.SetViewModeCommand.Execute(SummaryNetworkViewMode.Timeline);
+        await UiWait.UntilAsync(() => network.IsTimeline);
+        window.UpdateLayout();
         var canvas = CanvasOf(window);
         var today = SummaryNetworkSession.LocalDay(DateTimeOffset.Now);
         var expected = network.Session.DayStarts
@@ -423,7 +441,7 @@ public class SessionNetworkCanvasTests
         var workspace = app.Workbench.CurrentWorkspace!.Id;
         var first = await SummaryNetworkScenario.AskAsync(app, conversations, null, workspace, "火车是怎么发明的？");
         var network = await SummaryNetworkScenario.OpenSummaryNetworkAsync(app, window);
-        await UiWait.UntilAsync(() => network.Nodes.Count == 1);
+
         network.SetViewModeCommand.Execute(SummaryNetworkViewMode.Timeline);
         window.UpdateLayout();
         var canvas = CanvasOf(window);
