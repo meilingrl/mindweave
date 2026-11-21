@@ -29,7 +29,7 @@ internal static class Knobs
     public static readonly Knob Width = new("Column", ["Fill (now)", "640", "720"]);
 
     public static readonly Knob BoldWeight = new("Bold weight", ["Semibold (now)", "Medium"]);
-    public static readonly Knob BoldColour = new("Bold colour", ["Same as text (now)", "Softer light / brighter dark", "Warm"]);
+    public static readonly Knob BoldColour = new("Bold colour", ["Same as text (now)", "Softer light / brighter dark", "Amber", "Teal", "Violet", "Indigo"]);
     public static readonly Knob BoldMark = new("Bold background", ["None (now)", "Subtle"]);
 
     public static readonly Knob[] All = [LineHeight, Gap, Size, Colour, Letter, Width, BoldWeight, BoldColour, BoldMark];
@@ -38,9 +38,15 @@ internal static class Knobs
     public static Color? BoldColourOf(int i, bool dark) => (i, dark) switch
     {
         (1, false) => Color.Parse("#3B3632"),
-        (2, false) => Color.Parse("#6B3A12"),
+        (2, false) => Color.Parse("#9A4A0B"),
+        (3, false) => Color.Parse("#0F766E"),
+        (4, false) => Color.Parse("#6D28D9"),
+        (5, false) => Color.Parse("#4338CA"),
         (1, true) => Color.Parse("#FFFFFF"),
-        (2, true) => Color.Parse("#F2D7A6"),
+        (2, true) => Color.Parse("#F2C98A"),
+        (3, true) => Color.Parse("#7DD3C0"),
+        (4, true) => Color.Parse("#C4B5FD"),
+        (5, true) => Color.Parse("#A5B4FC"),
         _ => null,
     };
 
@@ -119,7 +125,7 @@ internal sealed class MainWindow : Window
     private bool dark;
     private int paneCount = 2;
     // Every pane starts from the spacing chosen on 2026-11-21 (1.7×, 10 px gap), now in the app.
-    private readonly List<int[]> settings = [[3, 1, 0, 0, 0, 0, 0, 0, 0], [3, 1, 0, 0, 0, 0, 1, 0, 0], [3, 1, 0, 0, 0, 0, 1, 1, 0]];
+    private readonly List<int[]> settings = [[3, 1, 0, 0, 0, 0, 1, 2, 0], [3, 1, 0, 0, 0, 0, 1, 3, 0], [3, 1, 0, 0, 0, 0, 1, 4, 0], [3, 1, 0, 0, 0, 0, 1, 5, 0]];
     private readonly Grid panes = new();
 
     public MainWindow(string[] args)
@@ -132,7 +138,8 @@ internal sealed class MainWindow : Window
         string? shot = Option(args, "--shot");
         dark = args.Contains("--dark");
         if (args.Contains("--three")) paneCount = 3;
-        for (int i = 0; i < 3; i++)
+        if (args.Contains("--four")) paneCount = 4;
+        for (int i = 0; i < 4; i++)
         {
             if (Option(args, $"--pane{i + 1}") is { } list)
             {
@@ -142,7 +149,7 @@ internal sealed class MainWindow : Window
         }
 
         var bar = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 18, Margin = new Thickness(14, 8) };
-        bar.Children.Add(Choice("Panes", ["2", "3"], paneCount == 3 ? 1 : 0, i => paneCount = i + 2));
+        bar.Children.Add(Choice("Panes", ["2", "3", "4"], paneCount - 2, i => paneCount = i + 2));
         bar.Children.Add(Choice("Theme", ["Light", "Dark"], dark ? 1 : 0, i => dark = i == 1));
         bar.Children.Add(new TextBlock
         {
