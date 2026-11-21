@@ -1,3 +1,4 @@
+using Mindweave.Application.Languages;
 using Mindweave.Application.Storage;
 using Mindweave.Core.Conversations;
 using Mindweave.Core.Summaries;
@@ -132,9 +133,12 @@ public sealed class SummaryNetworkService(ISummaryStore summaries, ISummaryNetwo
             }
 
             // The whole title, never cut: the timeline sizes each column to its widest label. Only while there is no title
-            // yet does the first question stand in, on one line and cut (ruling R-T1b).
+            // yet does the first question stand in, on one line and cut (ruling R-T1b). The label is read in the language
+            // of the moment; a language switch rebuilds the page, which projects again.
             var shortTitle = item.Conversation.Title
-                ?? (item.FirstQuestion is { } question && ConversationRules.Shorten(question, QuestionLabelLength) is { Length: > 0 } line ? line : "新探索");
+                ?? (item.FirstQuestion is { } question && ConversationRules.Shorten(question, QuestionLabelLength) is { Length: > 0 } line
+                    ? line
+                    : Bilingual.T("New exploration", "新探索"));
             nodes.Add(new SummaryNetworkNode(
                 new SummaryNodeId(id.Value), id, root, shortTitle, item.FirstQuestion ?? shortTitle,
                 new SummaryMarkers(false, false, false), item.Conversation.CreatedAt, ancestors, archived,

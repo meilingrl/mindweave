@@ -81,28 +81,39 @@ public static partial class UiText
     public static string NodeCreated(DateTimeOffset at) => T("Created " + FormatTime(at), "生成于 " + FormatTime(at));
 
     // The session network's details (gated).
-    public const string DetailQuestion = "问题";
-    public const string ShowWholeQuestion = "展开";
-    public const string HideWholeQuestion = "收起";
-    public const string SessionNetworkHint = "单击查看详情，双击打开会话或总结。";
-    public const string SessionNetworkEmpty = "还没有会话。在“新探索”提一个问题就会出现在这里。";
+    public static string DetailQuestion => T("Question", "问题");
+    public static string ShowWholeQuestion => T("Show all", "展开");
+    public static string HideWholeQuestion => T("Show less", "收起");
+    public static string SessionNetworkHint => T(
+        "Click for details; double-click to open the conversation or summary.",
+        "单击查看详情，双击打开会话或总结。");
+    public static string SessionNetworkEmpty => T(
+        "No conversations yet. Ask a question in “New exploration” and it appears here.",
+        "还没有会话。在“新探索”提一个问题就会出现在这里。");
 
-    public static string SessionStarted(DateTimeOffset at) => "开始于 " + FormatTime(at);
+    public static string SessionStarted(DateTimeOffset at) => T("Started " + FormatTime(at), "开始于 " + FormatTime(at));
 
     // The session network (behind its gate): every conversation a dot.
-    public const string SessionNetworkTitle = "Mindweave";
-    public const string ViewSpatial = "空间";
-    public const string ViewTimeline = "时间线";
-    public const string LegendDotSize = "圆点大小：问了多少，不代表掌握程度";
-    public const string LegendSummaryRing = "外圈：有总结";
-    public const string LegendTime = "虚线箭头：时间先后";
-    public const string LegendBranch = "实线：分支";
+    public static string SessionNetworkTitle => AppName;
+    public static string ViewSpatial => T("Spatial", "空间");
+    public static string ViewTimeline => T("Timeline", "时间线");
+    public static string LegendDotSize => T("Dot size: how much was asked, not how well it is known", "圆点大小：问了多少，不代表掌握程度");
+    public static string LegendSummaryRing => T("Outer ring: has a summary", "外圈：有总结");
+    public static string LegendTime => T("Dashed arrow: order in time", "虚线箭头：时间先后");
+    public static string LegendBranch => T("Solid line: branch", "实线：分支");
 
-    /// <summary>The label over the first exploration of a local day: "11月20日", with the year ("2025年11月20日") when not this year.</summary>
-    public static string DayLabel(DateOnly day, DateOnly today) =>
-        day.ToString(day.Year == today.Year ? "M'月'd'日'" : "yyyy'年'M'月'd'日'", CultureInfo.InvariantCulture);
+    /// <summary>
+    /// The label over the first exploration of a local day: "Nov 20" / "11月20日", with the year ("Nov 20, 2025" /
+    /// "2025年11月20日") when not this year. English month names whatever the system's culture.
+    /// </summary>
+    public static string DayLabel(DateOnly day, DateOnly today) => day.Year == today.Year
+        ? T(day.ToString("MMM d", EnglishCulture), day.ToString("M'月'd'日'", CultureInfo.InvariantCulture))
+        : T(day.ToString("MMM d, yyyy", EnglishCulture), day.ToString("yyyy'年'M'月'd'日'", CultureInfo.InvariantCulture));
 
-    /// <summary>A hovered dot's label with when its conversation started, in local time: "蒸汽机 · 11月20日 21:38".</summary>
-    public static string DotHoverLabel(string label, DateTimeOffset at) =>
-        label + " · " + at.ToLocalTime().ToString("M'月'd'日' HH:mm", CultureInfo.InvariantCulture);
+    /// <summary>A hovered dot's label with when its conversation started, in local time: "蒸汽机 · Nov 20 21:38" / "蒸汽机 · 11月20日 21:38".</summary>
+    public static string DotHoverLabel(string label, DateTimeOffset at)
+    {
+        var local = at.ToLocalTime();
+        return label + " · " + T(local.ToString("MMM d HH:mm", EnglishCulture), local.ToString("M'月'd'日' HH:mm", CultureInfo.InvariantCulture));
+    }
 }
