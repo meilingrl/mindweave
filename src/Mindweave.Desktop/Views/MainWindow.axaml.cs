@@ -130,13 +130,13 @@ public sealed partial class MainWindow : Window
     }
 
     /// <summary>
-    /// Shows whichever session is current: an in-app restore (2026-11-12) replaces the services, and with them the root
-    /// this window shows and closes through.
+    /// Shows whichever view is current: an in-app restore (2026-11-12) replaces the services, and with them the root
+    /// view model this window shows and closes through.
     /// </summary>
     internal void Follow(AppSession session)
     {
         ArgumentNullException.ThrowIfNull(session);
-        session.Replaced += (_, _) => DataContext = session.Root;
+        session.ViewReplaced += (_, _) => DataContext = session.RootViewModel;
     }
 
     /// <summary>The delete-a-workspace dialog puts the caret in its name box when it opens (Round 4 · topic-delete).</summary>

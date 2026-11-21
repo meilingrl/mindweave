@@ -1,5 +1,4 @@
 using Avalonia;
-using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Mindweave.Application.Languages;
 using Mindweave.Infrastructure.Hosting;
@@ -44,7 +43,7 @@ internal static class Program
             // One session of services per open database; restoring a backup in the app starts the next (AppSession).
             try
             {
-                session = new AppSession(extra => CompositionRoot.Build(paths, overrides: extra));
+                session = new AppSession(extra => CompositionRoot.BuildRoot(paths, overrides: extra), root => CompositionRoot.BuildView(root));
             }
             catch
             {
@@ -97,14 +96,8 @@ internal static class Program
 #pragma warning disable CA1848 // Crash path: a plain call is clearer than a source-generated delegate.
     private static void LogCrash(AppSession session, Exception? exception)
     {
-        try
-        {
-            session.Services.GetRequiredService<ILoggerFactory>().CreateLogger("Mindweave").LogCritical(exception, "Unhandled exception");
-        }
-        catch (ObjectDisposedException)
-        {
-            // Between two sessions, or after the last one: nothing is left to log to.
-        }
+        // Through the current root; between two sessions, or after the last one, nothing is left to log to.
+        session.Logger("Mindweave").LogCritical(exception, "Unhandled exception");
     }
 #pragma warning restore CA1848
 }
