@@ -97,7 +97,7 @@ public sealed partial class Composer
             return false;
         }
 
-        var chip = new AttachmentChip(Core.Conversations.ContentBlocks.PastedTextName, UiText.AttachmentType(Core.Resources.MediaTypes.PlainText, paste: true), false, true, RemoveChip, OpenChip, ConvertChip, RetryChipAsync)
+        var chip = new AttachmentChip(UiText.PastedTextName, UiText.AttachmentType(Core.Resources.MediaTypes.PlainText, paste: true), false, true, RemoveChip, OpenChip, ConvertChip, RetryChipAsync)
         {
             Source = text,
             InsertAt = Math.Clamp(caret, 0, Text.Length),
@@ -172,7 +172,7 @@ public sealed partial class Composer
             return;
         }
 
-        var chip = new AttachmentChip(name ?? "图片.png", UiText.AttachmentType(Core.Resources.MediaTypes.Png, paste: false), true, false, RemoveChip, OpenChip, null, RetryChipAsync)
+        var chip = new AttachmentChip(name ?? UiText.PastedImageName, UiText.AttachmentType(Core.Resources.MediaTypes.Png, paste: false), true, false, RemoveChip, OpenChip, null, RetryChipAsync)
         {
             Source = bytes,
         };

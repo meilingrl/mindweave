@@ -1,5 +1,6 @@
 using System.Security.Cryptography;
 using System.Text;
+using Mindweave.Application.Languages;
 using Mindweave.Core.Runs;
 
 namespace Mindweave.Application.Tools.Mcp;
@@ -64,10 +65,10 @@ public sealed record McpServerDraft(
 /// <summary>
 /// What the confirmation shows before a server is saved (requirements §10.4.6): the full command line with each argument,
 /// the working folder and the environment's names; or the address and the header's name. <see cref="Problem"/> is why the
-/// draft cannot be saved, in words.
+/// draft cannot be saved, in words, in both languages.
 /// </summary>
 public sealed record McpAddPreview(
-    string? Problem,
+    BilingualText? Problem,
     string? Command,
     IReadOnlyList<string> Arguments,
     string? WorkingDirectory,

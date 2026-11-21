@@ -1,60 +1,68 @@
 using System.Globalization;
 using Mindweave.Core.Workspaces;
+using static Mindweave.Application.Languages.Bilingual;
 
 namespace Mindweave.Desktop.Text;
 
 /// <summary>
-/// All user-facing text in one class, so wording stays consistent and can be localized later. The class is split by
+/// All user-facing text in one class, so wording stays consistent in both interface languages. The class is split by
 /// area across UiText.*.cs; this file holds the shell and exit wording
 /// (onboarding has its own, UiText.Onboarding.cs).
 /// </summary>
 public static partial class UiText
 {
-    public const string AppName = "Mindweave";
-    public const string StartupOpening = "正在打开数据…";
-    public const string CreateWorkspace = "创建工作区";
-    public const string WorkspaceNameWatermark = "例如：火车历史";
-    public const string WorkspaceNameLabel = "工作区名称";
-    public const string Create = "创建";
-    public const string Cancel = "取消";
-    public const string SectionExplore = "探索";
-    public const string SectionSummaryNetwork = "总结网络";
-    public const string SectionSettings = "设置";
-    public const string ConversationsHeading = "会话";
-    public const string Back = "后退";
+    public static string AppName => "Mindweave";
+    public static string StartupOpening => T("Opening data…", "正在打开数据…");
+    public static string CreateWorkspace => T("Create workspace", "创建工作区");
+    public static string WorkspaceNameWatermark => T("For example: History of trains", "例如：火车历史");
+    public static string WorkspaceNameLabel => T("Workspace name", "工作区名称");
+    public static string Create => T("Create", "创建");
+    public static string Cancel => T("Cancel", "取消");
+    public static string SectionExplore => T("Explore", "探索");
+    public static string SectionSummaryNetwork => T("Summary network", "总结网络");
+    public static string SectionSettings => T("Settings", "设置");
+    public static string ConversationsHeading => T("Conversations", "会话");
+    public static string Back => T("Back", "后退");
 
     // Sidebar collapse and resize
-    public const string CollapseSidebar = "收起侧栏";
-    public const string ExpandSidebar = "展开侧栏";
-    public const string SidebarSplitter = "侧栏宽度";
+    public static string CollapseSidebar => T("Collapse sidebar", "收起侧栏");
+    public static string ExpandSidebar => T("Expand sidebar", "展开侧栏");
+    public static string SidebarSplitter => T("Sidebar width", "侧栏宽度");
 
     /// <summary>The toggle's shortcut as the platform writes it (⌘ on macOS).</summary>
-    public static string SidebarShortcut { get; } = OperatingSystem.IsMacOS() ? "⌘B" : "Ctrl+B";
+    public static string SidebarShortcut => OperatingSystem.IsMacOS() ? "⌘B" : "Ctrl+B";
 
-    public static string CollapseSidebarTip { get; } = CollapseSidebar + "（" + SidebarShortcut + "）";
+    public static string CollapseSidebarTip =>
+        T(CollapseSidebar + " (" + SidebarShortcut + ")", CollapseSidebar + "（" + SidebarShortcut + "）");
 
-    public static string ExpandSidebarTip { get; } = ExpandSidebar + "（" + SidebarShortcut + "）";
+    public static string ExpandSidebarTip =>
+        T(ExpandSidebar + " (" + SidebarShortcut + ")", ExpandSidebar + "（" + SidebarShortcut + "）");
 
-    public const string SidebarNeedsAttention = "有会话需要处理";
+    public static string SidebarNeedsAttention => T("Some conversations need your attention", "有会话需要处理");
 
-    public static string ExpandSidebarAttention { get; } = ExpandSidebarTip + " · " + SidebarNeedsAttention;
+    public static string ExpandSidebarAttention => ExpandSidebarTip + " · " + SidebarNeedsAttention;
 
-    public static string ExpandSidebarUnread { get; } = ExpandSidebarTip + " · " + MarkerNewAnswer;
+    public static string ExpandSidebarUnread => ExpandSidebarTip + " · " + MarkerNewAnswer;
 
     /// <summary>The closed workspace picker's hint when other workspaces have a new answer (2026-11-10).</summary>
-    public static string OtherWorkspacesNews(IEnumerable<string> names) => "其他工作区有新回答：" + string.Join("、", names);
+    public static string OtherWorkspacesNews(IEnumerable<string> names)
+    {
+        var all = names.ToList();
+        return T("New answers in other workspaces: " + string.Join(", ", all), "其他工作区有新回答：" + string.Join("、", all));
+    }
 
     /// <summary>A workspace in the picker's list with a new answer, for screen readers.</summary>
-    public static string WorkspaceWithNews(string name) => name + "，" + MarkerNewAnswer;
+    public static string WorkspaceWithNews(string name) => T(name + ", " + MarkerNewAnswer, name + "，" + MarkerNewAnswer);
 
     /// <summary>The hint that pops up when an answer ends in a workspace that is not open (2026-11-10).</summary>
-    public static string WorkspaceNewsToast(string name, int conversations) =>
-        conversations > 1 ? $"{name}：{conversations} 个会话有新回答" : name + " 有新回答";
+    public static string WorkspaceNewsToast(string name, int conversations) => T(
+        conversations > 1 ? $"{name}: new answers in {Plural(conversations, "conversation", "conversations")}" : name + " has a new answer",
+        conversations > 1 ? $"{name}：{conversations} 个会话有新回答" : name + " 有新回答");
 
     /// <summary>What clicking the hint does, for its tooltip and screen readers.</summary>
-    public const string WorkspaceNewsToastAction = "点击切换到这个工作区";
+    public static string WorkspaceNewsToastAction => T("Click to switch to this workspace", "点击切换到这个工作区");
 
-    public const string CloseWorkspaceNewsToast = "关闭提示";
+    public static string CloseWorkspaceNewsToast => T("Dismiss", "关闭提示");
 
     /// <summary>The longest conversation title a hint shows whole, in characters as the reader sees them.</summary>
     public const int ConversationNewsTitleLength = 16;
@@ -63,13 +71,17 @@ public static partial class UiText
     /// The hint that pops up when an answer ends in a conversation of the open workspace that is not on screen
     /// (2026-11-10): its title as the sidebar shows it, cut with an ellipsis when long.
     /// </summary>
-    public static string ConversationNewsToast(string title) => "「" + Shortened(title, ConversationNewsTitleLength) + "」有新回答";
+    public static string ConversationNewsToast(string title) => T(
+        "“" + Shortened(title, ConversationNewsTitleLength) + "” has a new answer",
+        "「" + Shortened(title, ConversationNewsTitleLength) + "」有新回答");
 
     /// <summary>What a screen reader hears for that hint: the whole title, then what clicking does.</summary>
-    public static string ConversationNewsToastName(string title) => "「" + title + "」有新回答。" + ConversationNewsToastAction;
+    public static string ConversationNewsToastName(string title) => T(
+        "“" + title + "” has a new answer. " + ConversationNewsToastAction,
+        "「" + title + "」有新回答。" + ConversationNewsToastAction);
 
     /// <summary>What clicking a conversation's hint does.</summary>
-    public const string ConversationNewsToastAction = "点击打开这个会话";
+    public static string ConversationNewsToastAction => T("Click to open this conversation", "点击打开这个会话");
 
     /// <summary>
     /// At most <paramref name="length"/> characters as the reader sees them (an emoji or a combined mark counts once and is
@@ -85,48 +97,56 @@ public static partial class UiText
     /// <summary>The closed picker's badge: how many conversations in other workspaces have a new answer.</summary>
     public static string NewsBadge(int count) => count > 9 ? "9+" : count.ToString(CultureInfo.InvariantCulture);
 
-    public const string ExploreEmpty = "这个工作区还没有会话。";
+    public static string ExploreEmpty => T("This workspace has no conversations yet.", "这个工作区还没有会话。");
 
-    public const string ExitTitle = "仍有任务在生成";
-    public const string ExitConfirm = "停止并退出";
-    public const string ExitCancel = "继续生成";
-    public const string ExitSaving = "正在停止任务并保存……";
-    public const string ExitSaveFailedTitle = "部分内容未能保存";
+    public static string ExitTitle => T("Some tasks are still in progress", "仍有任务在生成");
+    public static string ExitConfirm => T("Stop and quit", "停止并退出");
+    public static string ExitCancel => T("Keep generating", "继续生成");
+    public static string ExitSaving => T("Stopping tasks and saving…", "正在停止任务并保存……");
+    public static string ExitSaveFailedTitle => T("Some content couldn’t be saved", "部分内容未能保存");
     /// <summary>Added to the save-failed message when summary edits can never be saved as they are (low finding gap-summary-3).</summary>
     public static string UnsaveableSummaryEdits(IReadOnlyList<string> names) => names is null || names.Count == 0
         ? string.Empty
-        : $"\n\n这些总结里的编辑是在旧版本上改的，无法保存：{string.Join("、", names.Select(n => $"《{n}》"))}。请返回打开它，复制需要的文字后点“{DiscardEdit}”。";
+        : T(
+            $"\n\nThe edits in these summaries were made on an older version and can’t be saved: {string.Join(", ", names.Select(n => $"“{n}”"))}. Go back and open each one, copy the text you need, then click “{DiscardEdit}”.",
+            $"\n\n这些总结里的编辑是在旧版本上改的，无法保存：{string.Join("、", names.Select(n => $"《{n}》"))}。请返回打开它，复制需要的文字后点“{DiscardEdit}”。");
 
-    public const string ExitSaveFailedBody = "草稿或回答的结束状态没能写入，内容仍保留在程序里，写入成功前不会退出。已停止的任务不会自动恢复。";
-    public const string ExitRetry = "重试退出";
-    public const string ExitReturn = "返回";
+    public static string ExitSaveFailedBody => T(
+        "A draft or an answer’s end state couldn’t be written. The content is still kept in the app, and Mindweave won’t quit until it is written. Stopped tasks won’t resume on their own.",
+        "草稿或回答的结束状态没能写入，内容仍保留在程序里，写入成功前不会退出。已停止的任务不会自动恢复。");
+    public static string ExitRetry => T("Try quitting again", "重试退出");
+    public static string ExitReturn => T("Go back", "返回");
 
-    /// <summary>The exit prompt's body, naming user answers and summaries separately ("1 个回答、1 个总结").</summary>
+    /// <summary>The exit prompt's body, naming user answers and summaries separately ("1 answer and 1 summary" / "1 个回答、1 个总结").</summary>
     public static string ExitWithUnfinished(int answers, int summaries)
     {
         var parts = new List<string>(2);
         if (answers > 0)
         {
-            parts.Add(string.Format(CultureInfo.CurrentCulture, "{0} 个回答", answers));
+            parts.Add(T(Plural(answers, "answer", "answers"), string.Format(CultureInfo.CurrentCulture, "{0} 个回答", answers)));
         }
 
         if (summaries > 0)
         {
-            parts.Add(string.Format(CultureInfo.CurrentCulture, "{0} 个总结", summaries));
+            parts.Add(T(Plural(summaries, "summary", "summaries"), string.Format(CultureInfo.CurrentCulture, "{0} 个总结", summaries)));
         }
 
-        return string.Format(
-            CultureInfo.CurrentCulture,
-            "{0}还没有完成。退出会停止它们：已收到的回答会保留并标为“已停止”，总结不留新版本，排队的任务会取消，下次启动也不会重发。",
-            string.Join('、', parts));
+        return T(
+            "Not finished yet: " + string.Join(" and ", parts) + ". Quitting stops them: answers received so far are kept and marked “Stopped”, summaries get no new version, queued tasks are cancelled, and nothing is resent at the next start.",
+            string.Format(
+                CultureInfo.CurrentCulture,
+                "{0}还没有完成。退出会停止它们：已收到的回答会保留并标为“已停止”，总结不留新版本，排队的任务会取消，下次启动也不会重发。",
+                string.Join('、', parts)));
     }
 
     public static string WorkspaceNameError(WorkspaceNameError error) => error switch
     {
-        Core.Workspaces.WorkspaceNameError.Empty => "名称不能为空。",
-        Core.Workspaces.WorkspaceNameError.TooLong => string.Format(CultureInfo.CurrentCulture, "名称最多 {0} 个字符。", WorkspaceName.MaxLength),
-        _ => "名称无效。",
+        Core.Workspaces.WorkspaceNameError.Empty => T("The name can’t be empty.", "名称不能为空。"),
+        Core.Workspaces.WorkspaceNameError.TooLong => T(
+            string.Format(CultureInfo.GetCultureInfo("en-US"), "The name can be at most {0} characters.", WorkspaceName.MaxLength),
+            string.Format(CultureInfo.CurrentCulture, "名称最多 {0} 个字符。", WorkspaceName.MaxLength)),
+        _ => T("The name isn’t valid.", "名称无效。"),
     };
 
-    public static string SaveFailed(string detail) => $"保存失败，输入内容已保留：{detail}";
+    public static string SaveFailed(string detail) => T($"Couldn’t save. Your input is kept: {detail}", $"保存失败，输入内容已保留：{detail}");
 }

@@ -92,7 +92,7 @@ public sealed partial class WebSearchSettingsPanel : ViewModelBase
         try
         {
             var result = await _settings.TestAsync(string.IsNullOrWhiteSpace(NewKey) ? null : NewKey, CancellationToken.None);
-            (Status, StatusIsError) = result.Succeeded ? (UiText.WebSearchTestOk, false) : (result.Problem, true);
+            (Status, StatusIsError) = result.Succeeded ? (UiText.WebSearchTestOk, false) : (result.Problem?.ToString(), true);
         }
         finally
         {

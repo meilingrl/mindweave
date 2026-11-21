@@ -94,7 +94,7 @@ public sealed partial class McpServersPanel : ViewModelBase, IDisposable
     /// <summary>The command and then each argument on its own line, exactly as they will be passed.</summary>
     public string PreviewCommandLines => Preview is { Command: { } command } p ? string.Join("\n", p.Arguments.Prepend(command)) : string.Empty;
 
-    public string PreviewEnvironment => Preview is { EnvironmentNames.Count: > 0 } p ? string.Join("、", p.EnvironmentNames) : UiText.McpNone;
+    public string PreviewEnvironment => Preview is { EnvironmentNames.Count: > 0 } p ? UiText.List(p.EnvironmentNames) : UiText.McpNone;
 
     public string PreviewHeader => Preview?.HeaderName ?? UiText.McpNone;
 
@@ -132,7 +132,7 @@ public sealed partial class McpServersPanel : ViewModelBase, IDisposable
         var preview = _servers.Preview(draft);
         if (!preview.CanAdd)
         {
-            (Status, StatusIsError) = (preview.Problem, true);
+            (Status, StatusIsError) = (preview.Problem?.ToString(), true);
             return;
         }
 
@@ -405,7 +405,7 @@ public sealed partial class McpServerItem : ViewModelBase
     {
         var status = _connections.StatusOf(Server.Id);
         State = status.State;
-        Error = status.Error;
+        Error = status.Error?.ToString();
         StandardError = string.Join("\n", status.StandardError);
         _ = ReloadToolsAsync(status.Tools);
     }

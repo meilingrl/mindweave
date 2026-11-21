@@ -223,7 +223,7 @@ public class McpUiTests
         var listed = server.Tools.Select(t => t.Tool).Select(t => t.Name == "write_note" ? t with { Description = "改过的说明" } : t).ToList();
         await servers.ReconcileAsync(added.Id, listed, CancellationToken.None);
         await UiWait.UntilAsync(() => server.Tools.Single(t => t.Name == "write_note") is { IsOn: false, HasDisabledReason: true }, timeoutMs: 20_000);
-        Assert.Equal(Application.Tools.Mcp.McpServerSettings.ChangedDefinition, server.Tools.Single(t => t.Name == "write_note").DisabledReason);
+        Assert.Equal(Application.Tools.Mcp.McpServerSettings.ChangedDefinition.ToString(), server.Tools.Single(t => t.Name == "write_note").DisabledReason);
         window.Close();
     }
 

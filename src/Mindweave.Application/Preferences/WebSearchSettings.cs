@@ -1,4 +1,5 @@
 using Mindweave.Application.Credentials;
+using Mindweave.Application.Languages;
 using Mindweave.Application.Storage;
 using Mindweave.Application.Tools;
 using Mindweave.Core.Runs;
@@ -8,8 +9,8 @@ namespace Mindweave.Application.Preferences;
 /// <summary>What 设置 › 工具 › 网络搜索 shows of the service: which one, whether a key is set, the switch's default.</summary>
 public sealed record WebSearchState(string ProviderId, string ProviderName, bool HasKey, WebSearchMode DefaultMode);
 
-/// <summary>The outcome of 测试: usable, or why not (in words).</summary>
-public sealed record WebSearchTestResult(bool Succeeded, string? Problem, SearchFailureKind? Kind = null);
+/// <summary>The outcome of 测试: usable, or why not (in words, in both languages).</summary>
+public sealed record WebSearchTestResult(bool Succeeded, BilingualText? Problem, SearchFailureKind? Kind = null);
 
 /// <summary>
 /// 设置 › 工具 › 网络搜索 (requirements §10.4.5, decision W14): the search service, its key and the default of the switch beside
@@ -134,12 +135,12 @@ public sealed class WebSearchSettingsService : IWebSearchSettings
         }
         catch (CredentialUnavailableException ex)
         {
-            return new WebSearchTestResult(false, ex.Message);
+            return new WebSearchTestResult(false, new BilingualText(ex.Message, ex.Message));
         }
 
         if (string.IsNullOrEmpty(secret))
         {
-            return new WebSearchTestResult(false, "还没有填写密钥。", SearchFailureKind.MissingKey);
+            return new WebSearchTestResult(false, new BilingualText("No key has been entered yet.", "还没有填写密钥。"), SearchFailureKind.MissingKey);
         }
 
         try
@@ -149,7 +150,8 @@ public sealed class WebSearchSettingsService : IWebSearchSettings
         }
         catch (SearchProviderException ex)
         {
-            return new WebSearchTestResult(false, ex.Message, ex.Kind);
+            // The search service's words are not translated yet: they read as when the test ran.
+            return new WebSearchTestResult(false, new BilingualText(ex.Message, ex.Message), ex.Kind);
         }
     }
 
