@@ -11,7 +11,8 @@ namespace Mindweave.Desktop.Tests;
 
 /// <summary>
 /// What keeps clear of what in the session network, measured against what the canvas draws: recommended nodes avoid big
-/// dots, their rings and the dates (final review M4).
+/// dots, their rings and the dates (final review M4), and a big dot
+/// with its ring is clickable at every zoom (M5).
 /// </summary>
 public class SessionNetworkClearanceTests
 {
@@ -41,6 +42,43 @@ public class SessionNetworkClearanceTests
 
         window.Close();
     }
+
+    [AvaloniaTheory]
+    [InlineData(SummaryNetworkViewMode.Spatial)]
+    [InlineData(SummaryNetworkViewMode.Timeline)]
+    public async Task A_big_dot_and_its_ring_are_clickable_at_every_zoom(SummaryNetworkViewMode mode)
+    {
+        // Final review M5: below zoom 0.64 the hit box shrank with the zoom while a heavy dot is still drawn 14 px wide
+        // with its ring at 18.5 px, so a click on the outer part of the dot or ring missed.
+        await using var app = SessionNetworkUiTests.Gated();
+        var window = app.ShowWindow(1100, 720);
+        var (network, canvas) = await HeavyTwoDaysAsync(app, window, mode);
+
+        foreach (var zoom in new[] { Viewport.MinZoom, SummaryNetworkCanvas.LabelHideScale, 0.6, SummaryNetworkGeometry.ReadableZoom, 1, Viewport.MaxZoom })
+        {
+            network.Session.Viewport = canvas.Current with { Zoom = zoom };
+            var paints = canvas.PaintNodes();
+            double Reach(NodePaint p) => p.Radius + (p.SummaryRing ? SummaryNetworkCanvas.SummaryRingGap + 1 : 0);
+            foreach (var dot in paints)
+            {
+                for (var step = 0; step < 8; step++)
+                {
+                    var angle = step * Math.PI / 4;
+                    var point = dot.Center + (new Vector(Math.Cos(angle), Math.Sin(angle)) * (Reach(dot) - 0.5));
+                    if (paints.Any(o => o.Node.Id != dot.Node.Id && Distance(point, o.Center) <= Reach(o)))
+                    {
+                        continue;
+                    }
+
+                    Assert.True(dot.Node.Id == canvas.HitTest(point)?.Id, $"zoom {zoom}: a click at {point} on the edge of \"{dot.Label}\" (r {Reach(dot)}) misses it");
+                }
+            }
+        }
+
+        window.Close();
+    }
+
+    private static double Distance(Point a, Point b) => Math.Sqrt(Math.Pow(a.X - b.X, 2) + Math.Pow(a.Y - b.Y, 2));
 
     /// <summary>A screen rectangle lies inside one obstacle box (canvas units).</summary>
     private static void AssertCovered(List<CanvasBox> boxes, SummaryNetworkCanvas canvas, Rect screen, string what)

@@ -183,13 +183,29 @@ public sealed class SummaryNetworkCanvas : Control
     }
 
     /// <summary>
-    /// The node under a control point: its hit box at its layout position. Hidden labels are not clickable.
+    /// The node under a control point: its hit box at its layout position. Hidden labels are not clickable. In the session
+    /// network a drawn dot (its summary ring included) comes first, the nearest when several are under the point, so a
+    /// neighbour's box never takes a click on a dot.
     /// </summary>
     internal NodeView? HitTest(Point screen)
     {
         if (_page is null)
         {
             return null;
+        }
+
+        if (Sessions)
+        {
+            var dot = _page.Nodes
+                .Select(n => (Node: n, Distance: Point.Distance(ScreenOf(n), screen)))
+                .Where(x => x.Distance <= SummaryNetworkLayout.DotFootprintRadius(x.Node.Weight, x.Node.HasSummary))
+                .OrderBy(x => x.Distance)
+                .Select(x => x.Node)
+                .FirstOrDefault();
+            if (dot is not null)
+            {
+                return dot;
+            }
         }
 
         var zoom = Current.Zoom;

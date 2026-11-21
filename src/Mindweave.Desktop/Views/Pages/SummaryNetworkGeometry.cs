@@ -26,7 +26,8 @@ internal static class SummaryNetworkGeometry
     /// <summary>
     /// A node's hit box around its screen centre: from just left of the dot to the end of its label (only the dot when
     /// the label is hidden), clamped to the node's layout box widened by half the layout's spacing. Boxes of nodes the
-    /// layout keeps apart therefore never overlap, at any zoom.
+    /// layout keeps apart therefore never overlap, at any zoom. In the session network a dot keeps its drawn size at every
+    /// zoom, so the box always covers the dot and its summary ring (final review M5).
     /// </summary>
     internal static Rect HitBox(Point center, NodeView node, double zoom, bool labelVisible, bool sessionNetwork = false)
     {
@@ -38,6 +39,12 @@ internal static class SummaryNetworkGeometry
                 RadiusOf(node, sessionNetwork) + SummaryNetworkLayout.LabelGap + (node.LabelWidth * LabelSize(zoom) / SummaryNetworkLayout.LabelEm) + 12,
                 (SummaryNetworkLayout.NodeRadius + SummaryNetworkLayout.LabelGap + node.LabelWidth + (SummaryNetworkLayout.LabelPadding / 2)) * zoom)
             : Math.Min(RadiusOf(node, sessionNetwork) + 4, (SummaryNetworkLayout.NodeRadius + (SummaryNetworkLayout.LabelPadding / 2)) * zoom);
+        if (sessionNetwork)
+        {
+            var reach = SummaryNetworkLayout.DotFootprintRadius(node.Weight, node.HasSummary);
+            (half, left, right) = (Math.Max(half, reach), Math.Max(left, reach), Math.Max(right, reach));
+        }
+
         return new Rect(center.X - left, center.Y - half, left + right, 2 * half);
     }
 
