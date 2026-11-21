@@ -5,9 +5,11 @@ using Microsoft.Extensions.Logging;
 using Mindweave.Application.Ai;
 using Mindweave.Application.Conversations;
 using Mindweave.Application.Models;
+using Mindweave.Application.Prompts;
 using Mindweave.Application.Storage;
 using Mindweave.Core.Conversations;
 using Mindweave.Core.Workspaces;
+using static Mindweave.Application.Languages.Bilingual;
 
 namespace Mindweave.Application.Workspaces;
 
@@ -185,10 +187,8 @@ public static partial class WorkspaceNamePrompt
     /// <summary>Output cap: reasoning models count their hidden reasoning against it (see ConversationTitler).</summary>
     public const int OutputTokens = 1024;
 
-    public const string SystemPrompt =
-        "下面是一个学习工作区里的会话标题和总结标题。请为这个工作区起 3 个候选名称，概括这些内容共同的主题。" +
-        "要求：每行一个名称；只输出名称本身，不加序号、引号、解释或句末标点；每个名称不超过 12 个字；与当前名称不同；" +
-        "使用这些标题主要使用的语言。";
+    /// <summary>The instructions, in the interface language as the request is built.</summary>
+    public static string SystemPrompt => PromptLibrary.Get("workspace-names");
 
     /// <summary>
     /// The titles worth sending: visible root conversations first (each starts a topic), then branches, then archived ones,
@@ -234,12 +234,13 @@ public static partial class WorkspaceNamePrompt
     {
         ArgumentNullException.ThrowIfNull(current);
         ArgumentNullException.ThrowIfNull(input);
-        var c = CultureInfo.InvariantCulture;
         var text = new StringBuilder();
-        text.Append(c, $"当前名称：{current.Value}\n");
+        text.Append(T($"Current name: {current.Value}\n", $"当前名称：{current.Value}\n"));
         if (input.Conversations.Count > 0)
         {
-            text.Append(c, $"\n会话标题（共 {input.ConversationCount} 个，列出 {input.Conversations.Count} 个）：\n");
+            text.Append(T(
+                $"\nConversation titles ({input.ConversationCount} in all, {input.Conversations.Count} listed):\n",
+                $"\n会话标题（共 {input.ConversationCount} 个，列出 {input.Conversations.Count} 个）：\n"));
             foreach (var title in input.Conversations)
             {
                 text.Append("- ").Append(title).Append('\n');
@@ -248,7 +249,9 @@ public static partial class WorkspaceNamePrompt
 
         if (input.Summaries.Count > 0)
         {
-            text.Append(c, $"\n总结标题（共 {input.SummaryCount} 个，列出 {input.Summaries.Count} 个）：\n");
+            text.Append(T(
+                $"\nSummary titles ({input.SummaryCount} in all, {input.Summaries.Count} listed):\n",
+                $"\n总结标题（共 {input.SummaryCount} 个，列出 {input.Summaries.Count} 个）：\n"));
             foreach (var title in input.Summaries)
             {
                 text.Append("- ").Append(title).Append('\n');

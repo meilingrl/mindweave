@@ -19,8 +19,9 @@ public static class SummaryRules
 
     /// <summary>
     /// Splits generated output into title, optional short title and body: the first non-empty line, with an optional
-    /// "标题：" or "Title:" prefix and Markdown heading marks removed, is the title; a following "短名：" line, if any,
-    /// is the network label; the rest is the body. Null when title or body is empty.
+    /// "标题：" or "Title:" prefix and Markdown heading marks removed, is the title; a following "短名：" or "Short name:" line,
+    /// if any, is the network label; the rest is the body. Null when title or body is empty. English markers are matched
+    /// in any case (docs/design/bilingual-ui.md §5: the output is read whichever language the prompt was in).
     /// </summary>
     public static GeneratedSummary? ParseGenerated(string output)
     {
@@ -32,11 +33,11 @@ public static class SummaryRules
             return null;
         }
 
-        var title = Clean(StripPrefix(lines[first].Trim().TrimStart('#').Trim(), "标题：", "标题:", "Title:", "title:"));
+        var title = Clean(StripPrefix(lines[first].Trim().TrimStart('#').Trim(), "标题：", "标题:", "Title:", "Title："));
         var rest = first + 1;
         string? shortTitle = null;
         var next = Array.FindIndex(lines, rest, l => l.Trim().Length > 0);
-        if (next >= 0 && StripPrefix(lines[next].Trim(), "短名：", "短名:", "Short:", "short:") is var candidate && candidate != lines[next].Trim())
+        if (next >= 0 && StripPrefix(lines[next].Trim(), "短名：", "短名:", "Short name:", "Short name：", "Short:") is var candidate && candidate != lines[next].Trim())
         {
             shortTitle = Clean(candidate) is { Length: > 0 } s ? Mindweave.Core.Conversations.ConversationRules.FirstTextElements(s, MaxShortTitleLength) : null;
             rest = next + 1;
@@ -54,7 +55,7 @@ public static class SummaryRules
         {
             foreach (var prefix in prefixes)
             {
-                if (line.StartsWith(prefix, StringComparison.Ordinal))
+                if (line.StartsWith(prefix, StringComparison.OrdinalIgnoreCase))
                 {
                     return line[prefix.Length..].Trim();
                 }

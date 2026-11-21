@@ -12,6 +12,7 @@ using Mindweave.Core.Context;
 using Mindweave.Core.Conversations;
 using Mindweave.Core.Resources;
 using Mindweave.Core.Runs;
+using static Mindweave.Application.Languages.Bilingual;
 
 namespace Mindweave.Application.Conversations;
 
@@ -33,13 +34,17 @@ internal sealed partial class AnswerRunner
     private const int BlockPreview = 200;
 
     /// <summary>What the last request of a run that reached a limit asks of the model (decision R8), added to the system turn.</summary>
-    internal const string FinalInstruction = "【本次运行已达到上限】请根据已经取得的工具结果直接回答用户的问题，不要再调用工具；信息不足时说明还缺什么。";
+    internal static string FinalInstruction => T(
+        "[This run has reached its limit] Answer the user's question directly from the tool results already obtained; do not call any more tools. If the information is not enough, say what is missing.",
+        "【本次运行已达到上限】请根据已经取得的工具结果直接回答用户的问题，不要再调用工具；信息不足时说明还缺什么。");
 
     /// <summary>
     /// What the last request asks when a middle round was cut off at its length limit (L6): its calls were not run, and the
     /// run goes straight to its last request.
     /// </summary>
-    internal const string CutOffInstruction = "【上一轮回复因输出长度上限被截断，其中的工具调用没有执行】请不要再调用工具，根据已经取得的工具结果直接、简洁地回答用户的问题；信息不足时说明还缺什么。";
+    internal static string CutOffInstruction => T(
+        "[The previous reply was cut off at the output length limit, and its tool calls were not run] Do not call any more tools; answer the user's question directly and briefly from the tool results already obtained. If the information is not enough, say what is missing.",
+        "【上一轮回复因输出长度上限被截断，其中的工具调用没有执行】请不要再调用工具，根据已经取得的工具结果直接、简洁地回答用户的问题；信息不足时说明还缺什么。");
 
     /// <summary>The longest a retry waits for a service that asked to slow down (L5).</summary>
     internal static readonly TimeSpan MaxRetryAfter = TimeSpan.FromSeconds(20);

@@ -2,11 +2,13 @@ using System.Text;
 using Microsoft.Extensions.Logging;
 using Mindweave.Application.Ai;
 using Mindweave.Application.Diagnostics;
+using Mindweave.Application.Prompts;
 using Mindweave.Application.Storage;
 using Mindweave.Core.Branches;
 using Mindweave.Core.Context;
 using Mindweave.Core.Conversations;
 using Mindweave.Core.Models;
+using static Mindweave.Application.Languages.Bilingual;
 
 namespace Mindweave.Application.Conversations;
 
@@ -53,16 +55,6 @@ public sealed partial class ContextCompressor(IContextSummaryStore summaries, IC
     public const int SummaryAttempts = 2;
 
     private const string FilteredProblem = "被服务的内容审核中止";
-
-    private const string Instructions = """
-        你在为一段较长的对话写背景摘要，供之后继续这段对话时使用。这不是给读者看的总结。
-        请用对话所用的语言，按下面四部分写，每部分几条要点，总共不超过 600 字：
-        1. 背景与已确认的事实（含具体名称、数字、年代）；
-        2. 用户提出的要求、偏好、规定与纠正——每条要求或禁止都连同它针对的对象和条件写在同一条里（如“甲不得……，乙可以……”），不要省掉否定，也不要推广到别的对象；有纠正时只写纠正后的内容，并注明“已更正”；
-        3. 尚未解决的问题与尚未做出的决定；
-        4. 指代：对话里“它”“这个”“那台车”等说法分别指什么。
-        只写对话中出现过的内容，不要补充、推测或评价。
-        """;
 
     public static PreparedContext Unsummarized(ContextPlan plan)
     {
@@ -167,10 +159,10 @@ public sealed partial class ContextCompressor(IContextSummaryStore summaries, IC
         var transcript = new StringBuilder();
         foreach (var item in chunk.Items)
         {
-            transcript.Append(item.Message.Role == MessageRole.User ? "用户：" : "助手：").Append(item.Text).Append("\n\n");
+            transcript.Append(item.Message.Role == MessageRole.User ? T("User: ", "用户：") : T("Assistant: ", "助手：")).Append(item.Text).Append("\n\n");
         }
 
-        var turns = new[] { new ChatTurn(ChatRole.System, Instructions), new ChatTurn(ChatRole.User, transcript.ToString()) };
+        var turns = new[] { new ChatTurn(ChatRole.System, PromptLibrary.Get("compression")), new ChatTurn(ChatRole.User, transcript.ToString()) };
         var request = new ChatRequest(task.Model with { MaxOutputTokens = SummaryOutputCap(task.Model, TokenEstimator.Request(turns.Select(t => t.Content))) }, turns);
 
         // A summary is used only when the service says it finished normally: a cut-off summary would silently stand in

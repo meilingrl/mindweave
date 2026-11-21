@@ -2,11 +2,13 @@ using System.Globalization;
 using System.Text;
 using System.Text.RegularExpressions;
 using Mindweave.Application.Ai;
+using Mindweave.Application.Prompts;
 using Mindweave.Application.Recommendations;
 using Mindweave.Application.Storage;
 using Mindweave.Core.Conversations;
 using Mindweave.Core.Summaries;
 using Mindweave.Core.Text;
+using static Mindweave.Application.Languages.Bilingual;
 
 namespace Mindweave.Application.SummaryLinks;
 
@@ -46,9 +48,6 @@ public static partial class LinkSuggestionPrompt
     /// <summary>Output cap: reasoning models count their hidden reasoning against it (see ConversationTitler).</summary>
     public const int OutputTokens = 2048;
 
-    /// <summary>The phrase every link-suggestion prompt starts its task with (tests tell the request apart by it).</summary>
-    public const string Marker = "可能相关的总结对";
-
     public static LinkSuggestionInput SelectInput(IReadOnlyList<RecommendationBasis> summaries, int summaryCount, IEnumerable<(SummaryNodeId A, SummaryNodeId B)> avoid)
     {
         ArgumentNullException.ThrowIfNull(summaries);
@@ -74,11 +73,7 @@ public static partial class LinkSuggestionPrompt
     public static string SystemPrompt()
     {
         var c = CultureInfo.InvariantCulture;
-        return "下面是一个学习工作区里的总结，每个有编号、标题和简短摘录。请从中找出最多 " + MaxPairs.ToString(c) + " 对" + Marker +
-            "：两个总结的内容有值得互相参照的联系（如对比、因果、例子、前提、同一主题的不同侧面）。" +
-            "要求：a 和 b 写两个不同总结的编号（如 S1、S3）；不要提出“不要再建议”里的总结对；没有把握的不要硬凑，可以少于 " + MaxPairs.ToString(c) + " 对，没有就输出 []；" +
-            "note 是不超过 " + SummaryLinkNote.MaxLength.ToString(c) + " 个字的简短说明（如“对比”“原因”“例子”）；reason 用一句话说明为什么相关，不超过 40 个字。" +
-            "使用这些标题主要使用的语言。只输出 JSON 数组，不加其他文字，格式：[{\"a\":\"S1\",\"b\":\"S3\",\"note\":\"对比\",\"reason\":\"…\"}]";
+        return PromptLibrary.Get("link-suggestions", ("pairs", MaxPairs.ToString(c)), ("note-length", SummaryLinkNote.MaxLength.ToString(c)));
     }
 
     public static ChatRequest Request(Core.Models.ModelSnapshot model, LinkSuggestionInput input)
@@ -97,28 +92,28 @@ public static partial class LinkSuggestionPrompt
         ArgumentNullException.ThrowIfNull(input);
         var c = CultureInfo.InvariantCulture;
         var text = new StringBuilder();
-        text.Append(c, $"总结（共 {input.SummaryCount} 个，列出 {input.Summaries.Count} 个）：\n");
+        text.Append(T($"Summaries ({input.SummaryCount} in all, {input.Summaries.Count} listed):\n", $"总结（共 {input.SummaryCount} 个，列出 {input.Summaries.Count} 个）：\n"));
         foreach (var s in input.Summaries)
         {
             text.Append(c, $"[{s.Label}] {s.Name}");
             if (RecommendationText.Normalize(s.Title) != RecommendationText.Normalize(s.Name))
             {
-                text.Append('：').Append(s.Title);
+                text.Append(T(": ", "：")).Append(s.Title);
             }
 
             text.Append('\n');
             if (s.Excerpt.Length > 0)
             {
-                text.Append("摘录：").Append(s.Excerpt).Append('\n');
+                text.Append(T("Excerpt: ", "摘录：")).Append(s.Excerpt).Append('\n');
             }
         }
 
         if (input.Avoid.Count > 0)
         {
-            text.Append("\n不要再建议（已经关联，或用户忽略过）：\n");
+            text.Append(T("\nDo not suggest again (already linked, or ignored by the user):\n", "\n不要再建议（已经关联，或用户忽略过）：\n"));
             foreach (var (a, b) in input.Avoid)
             {
-                text.Append("- ").Append(a).Append(" 与 ").Append(b).Append('\n');
+                text.Append("- ").Append(a).Append(T(" and ", " 与 ")).Append(b).Append('\n');
             }
         }
 
@@ -232,8 +227,8 @@ public static partial class LinkSuggestionPrompt
     [GeneratedRegex("\"(a|b|from|to|first|second|source|target|note|label|说明|reason|why|理由)\"\\s*:\\s*", RegexOptions.IgnoreCase)]
     private static partial Regex JsonKey();
 
-    /// <summary>A line naming a pair first: "1. S1 | S3 | 对比 | 理由", "S1 与 S3：…", "[S2]-[S5] …".</summary>
-    [GeneratedRegex(@"^(?:[-*+•·]\s*|\d{1,2}\s*[.、)）]\s*)?\[?[Ss](\d{1,3})\]?\s*(?:[|｜/、,，~–—-]|与|和|↔|\s)+\s*\[?[Ss](\d{1,3})\]?\s*[|｜:：]?\s*(.*)$")]
+    /// <summary>A line naming a pair first: "1. S1 | S3 | 对比 | 理由", "S1 与 S3：…", "S1 and S3: …", "[S2]-[S5] …".</summary>
+    [GeneratedRegex(@"^(?:[-*+•·]\s*|\d{1,2}\s*[.、)）]\s*)?\[?[Ss](\d{1,3})\]?\s*(?:[|｜/、,，~–—-]|与|和|and|&|↔|\s)+\s*\[?[Ss](\d{1,3})\]?\s*[|｜:：]?\s*(.*)$")]
     private static partial Regex LinePair();
 
     /// <summary>"理由：" before a reason.</summary>

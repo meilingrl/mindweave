@@ -6,10 +6,12 @@ using Microsoft.Extensions.Logging;
 using Mindweave.Application.Ai;
 using Mindweave.Application.Conversations;
 using Mindweave.Application.Models;
+using Mindweave.Application.Prompts;
 using Mindweave.Application.Storage;
 using Mindweave.Core.Conversations;
 using Mindweave.Core.Summaries;
 using Mindweave.Core.Workspaces;
+using static Mindweave.Application.Languages.Bilingual;
 
 namespace Mindweave.Application.Summaries;
 
@@ -22,12 +24,6 @@ internal sealed partial class SummaryNaming
 {
     private const int NamingOutputTokens = 4_096;
     private const int NamingBodyExcerpt = 600;
-
-    private const string NamingInstructions = """
-        下面是同一工作区里基础标题相同的几条知识总结。为每一条给出一个简短的区分词（2 到 8 个字），说明它与其他几条的区别，必须能在它的正文里找到依据。
-        现有名称里的区分词仍然准确时保留原词。确实无法区分时留空，不要编造区别。
-        每行输出一条，格式为“编号：区分词”，不要输出其他内容。
-        """;
 
     private static readonly Regex NamingLine = new(@"^\s*\[?(?<n>\d+)\]?\s*[：:.、]\s*(?<term>.*)$", RegexOptions.CultureInvariant);
 
@@ -105,7 +101,7 @@ internal sealed partial class SummaryNaming
         }
     }
 
-    /// <summary>"编号：区分词" lines; a missing or empty line leaves that node with its base name.</summary>
+    /// <summary>"编号：区分词" (or "number: term") lines; a missing or empty line leaves that node with its base name.</summary>
     internal static string?[] ParseNaming(string output, int count)
     {
         var terms = new string?[count];
@@ -153,10 +149,13 @@ internal sealed partial class SummaryNaming
             return;
         }
 
-        var prompt = new StringBuilder().Append("基础标题：").Append(detail.Node.BaseTitle).Append("\n\n");
+        var prompt = new StringBuilder().Append(T("Base title: ", "基础标题：")).Append(detail.Node.BaseTitle).Append("\n\n");
         for (var i = 0; i < group.Count; i++)
         {
-            prompt.Append(CultureInfo.InvariantCulture, $"[{i + 1}] 现有名称：{group[i].Node.DisplayName}\n标题：{group[i].Current.Title}\n正文开头：{excerpts[group[i].Current.Id]}\n\n");
+            var (name, title, excerpt) = (group[i].Node.DisplayName, group[i].Current.Title, excerpts[group[i].Current.Id]);
+            prompt.Append(T(
+                $"[{i + 1}] Current name: {name}\nTitle: {title}\nStart of the body: {excerpt}\n\n",
+                $"[{i + 1}] 现有名称：{name}\n标题：{title}\n正文开头：{excerpt}\n\n"));
         }
 
         var expectations = group.Select(e => new NamingExpectation(e.Node.Id, e.Node.Current, e.Node.DisplayName)).ToList();
@@ -167,7 +166,7 @@ internal sealed partial class SummaryNaming
         _namingTasks[task.Id] = (detail.Node.Workspace, key);
         _generation.Enqueue(new NamingWork(
             task,
-            new ChatRequest(task.Model, [new ChatTurn(ChatRole.System, NamingInstructions), new ChatTurn(ChatRole.User, prompt.ToString())]),
+            new ChatRequest(task.Model, [new ChatTurn(ChatRole.System, PromptLibrary.Get("summary-naming")), new ChatTurn(ChatRole.User, prompt.ToString())]),
             async output =>
             {
                 try
