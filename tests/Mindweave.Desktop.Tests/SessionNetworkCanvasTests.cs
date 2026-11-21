@@ -539,12 +539,17 @@ public class SessionNetworkCanvasTests
         }
     }
 
+    /// <summary>
+    /// Renames through the service, so the page hears ConversationChanged and reloads. Writing the table directly left the
+    /// page stale unless a later auto-title event happened to reload it (a race that failed on the slower Windows runner).
+    /// </summary>
     private static async Task SetTitlesAsync(DesktopHarness app, IEnumerable<(ConversationId Conversation, string Title)> titles)
     {
-        var list = titles.ToList();
-        await app.Services.GetRequiredService<SqliteDatabase>().WriteAsync(
-            (c, t) => list.Sum(x => c.Execute(t, "UPDATE conversation SET title = $title, title_source = 'manual' WHERE id = $id;", ("$title", x.Title), ("$id", x.Conversation.ToString()))),
-            CancellationToken.None);
+        var conversations = app.Services.GetRequiredService<ConversationService>();
+        foreach (var (conversation, title) in titles)
+        {
+            await conversations.RenameAsync(conversation, title, CancellationToken.None);
+        }
     }
 
     /// <summary>
