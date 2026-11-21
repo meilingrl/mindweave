@@ -146,7 +146,7 @@ Health check repo-scripts-9 pointed out that the repository contains personal pa
 - Reason: the worst case of the author email leaking is that, once public, it is collected by crawlers and receives spam or phishing email, and the GitHub identity can be linked to the accounts tied to that email; the risk is low. Rewriting history would change every commit ID, invalidating the commit IDs cited in the four tags, the documents and the Windows test records; the cost is higher than the benefit.
 - When to reconsider: if the repository is to be made public without exposing the old email, create a new public repository from the current files instead of rewriting this repository's history.
 
-## D-026 Answer typography: looser body text, lighter coloured bold, bold colour as a setting (2026-11-22)
+## D-027 Answer typography: looser body text, lighter coloured bold, bold colour as a setting (2026-11-22)
 
 The user found answer text heavy and not clean enough, and compared fonts, spacing and bold side by side in `prototypes/text-spacing` (its README has the screenshots and measurements). Decided (2026-11-21 and 2026-11-22):
 
