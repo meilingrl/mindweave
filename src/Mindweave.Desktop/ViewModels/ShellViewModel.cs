@@ -32,8 +32,10 @@ public sealed partial class ShellViewModel : ViewModelBase, IDisposable
         ISidebarLayout? sidebarLayout = null,
         IWorkspaceDeletionPrompt? workspaceDeletion = null,
         WorkspaceNewsViewModel? workspaceNews = null,
-        WorkspaceSwitchRequests? switches = null)
+        WorkspaceSwitchRequests? switches = null,
+        SummaryNetwork.SessionNetworkGate? sessionNetwork = null)
     {
+        SummaryNetworkLabel = sessionNetwork is { Enabled: true } ? UiText.SessionNetworkTitle : UiText.SectionSummaryNetwork;
         WorkspaceNews = workspaceNews;
         _workspaceDeletion = workspaceDeletion;
         _layoutPrompt = layoutPrompt;
@@ -99,6 +101,9 @@ public sealed partial class ShellViewModel : ViewModelBase, IDisposable
     public bool IsExplore => Workbench.CurrentSection == MainSection.Explore;
 
     public bool IsSummaryNetwork => Workbench.CurrentSection == MainSection.SummaryNetwork;
+
+    /// <summary>The sidebar entry of the network: "Mindweave" behind the session network's gate, "总结网络" without it.</summary>
+    public string SummaryNetworkLabel { get; }
 
     public bool IsSettings => Workbench.CurrentSection == MainSection.Settings;
 

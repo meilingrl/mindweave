@@ -48,6 +48,32 @@ internal sealed record NodePaint(
 
     public Rect LabelBounds { get; init; }
 
+    /// <summary>
+    /// A hovered session dot's date on a line of its own, under (or over) its title, when after the title it would cover
+    /// another dot; null otherwise.
+    /// </summary>
+    public FormattedText? DateText { get; init; }
+
+    public Rect DateBounds { get; init; }
+
+    /// <summary>The session network: the conversation has a summary, drawn as a thin ring around the dot.</summary>
+    public bool SummaryRing { get; init; }
+
+    public const double UnreadDotRadius = 2.5;
+
+    /// <summary>
+    /// Where the unread badge sits: at the dot's upper right, moved out by the ring's gap when the dot wears a summary
+    /// ring, so the badge never touches the ring.
+    /// </summary>
+    public Point UnreadDotCenter
+    {
+        get
+        {
+            var offset = Radius + 3 + (SummaryRing ? SummaryNetworkCanvas.SummaryRingGap : 0);
+            return new Point(Center.X + offset, Center.Y - offset);
+        }
+    }
+
     /// <summary>The faint backdrop under the label: resting edges pass behind it, highlighted ones above it.</summary>
     public Rect Backdrop => LabelBounds.Inflate(new Thickness(2, 0));
 }
@@ -59,6 +85,18 @@ internal sealed record NodePaint(
 internal sealed record EdgePaint(EdgeView Edge, Point From, Point To, EdgeState State, bool Dashed, string? Label, bool LabelEmphasized)
 {
     public bool Highlighted => State is EdgeState.Trail or EdgeState.Near;
+
+    /// <summary>The time thread in the spatial view: dotted, with a small open arrowhead at the later exploration's dot.</summary>
+    public bool Arrow { get; init; }
+
+    /// <summary>How far short of <see cref="To"/> the arrow's tip stops: the target dot's edge (its ring included).</summary>
+    public double ArrowInset { get; init; }
+
+    /// <summary>A timeline branch to another lane: a cubic curve leaving and arriving horizontally.</summary>
+    public bool Curved { get; init; }
+
+    /// <summary>Drawn on the timeline, in its bolder pens (<see cref="SummaryNetworkPalette.TimelinePen"/>).</summary>
+    public bool Timeline { get; init; }
 }
 
 /// <summary>

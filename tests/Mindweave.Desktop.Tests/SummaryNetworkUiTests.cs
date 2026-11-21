@@ -261,6 +261,9 @@ public class SummaryNetworkUiTests
 
             public Task<IReadOnlyDictionary<ConversationId, IReadOnlyList<ConversationId>>> AncestorChainsAsync(WorkspaceId workspace, CancellationToken cancellationToken) =>
                 inner.AncestorChainsAsync(workspace, cancellationToken);
+
+            public Task<IReadOnlyDictionary<ConversationId, int>> QuestionCountsAsync(WorkspaceId workspace, CancellationToken cancellationToken) =>
+                inner.QuestionCountsAsync(workspace, cancellationToken);
         }
     }
 }

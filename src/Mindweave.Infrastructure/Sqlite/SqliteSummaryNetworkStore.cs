@@ -77,4 +77,23 @@ internal sealed class SqliteSummaryNetworkStore(SqliteDatabase database) : ISumm
                 return chains.ToDictionary(c => c.Key, c => (IReadOnlyList<ConversationId>)c.Value);
             },
             cancellationToken);
+
+    public Task<IReadOnlyDictionary<ConversationId, int>> QuestionCountsAsync(WorkspaceId workspace, CancellationToken cancellationToken) =>
+        database.ReadAsync<IReadOnlyDictionary<ConversationId, int>>(
+            connection =>
+            {
+                using var command = connection.Command(null, """
+                    SELECT m.conversation_id, COUNT(*) FROM message m JOIN conversation c ON c.id = m.conversation_id
+                    WHERE c.workspace_id = $ws AND m.role = 'user' GROUP BY m.conversation_id;
+                    """, ("$ws", workspace.ToString()));
+                using var reader = command.ExecuteReader();
+                var counts = new Dictionary<ConversationId, int>();
+                while (reader.Read())
+                {
+                    counts[ConversationId.Parse(reader.GetString(0))] = reader.GetInt32(1);
+                }
+
+                return counts;
+            },
+            cancellationToken);
 }
