@@ -126,7 +126,7 @@ internal sealed partial class AnswerRunner(
         if (!_health.TryAdmit())
         {
             // Storage failed while this task waited for its key or its summaries: the answer is not asked for (D2).
-            await FinishAsync(work, MessageState.Failed, GenerationErrorKind.StorageUnavailable, StorageAdmissionRefusedException.Detail).ConfigureAwait(false);
+            await FinishAsync(work, MessageState.Failed, GenerationErrorKind.StorageUnavailable, StorageAdmissionRefusedException.Detail.ToString()).ConfigureAwait(false);
             return;
         }
 

@@ -1,5 +1,6 @@
 using Microsoft.Extensions.Logging;
 using Mindweave.Application.Ai;
+using Mindweave.Application.Languages;
 using Mindweave.Application.Storage;
 using Mindweave.Core.Conversations;
 
@@ -135,7 +136,7 @@ internal sealed partial class TaskRunners(
 
             if (saved == SummarySaveResult.Unusable)
             {
-                await _writes.SaveAsync(() => _requests.FinishTaskAsync(task.Id, GenerationTaskState.Failed, GenerationErrorKind.InvalidResponse, "总结缺少标题或正文。"), retryOnFailure: true).ConfigureAwait(false);
+                await _writes.SaveAsync(() => _requests.FinishTaskAsync(task.Id, GenerationTaskState.Failed, GenerationErrorKind.InvalidResponse, Bilingual.T("The summary has no title or body.", "总结缺少标题或正文。")), retryOnFailure: true).ConfigureAwait(false);
             }
         }
         catch (OperationCanceledException) when (stop.IsCancellationRequested)
@@ -236,7 +237,7 @@ internal sealed partial class TaskRunners(
             var (output, problem) = await _requests.RequestCompleteTextAsync(work.Task, work.Request, key.Secret!, stop, record: false, attribution: work.Attribution).ConfigureAwait(false);
             if (output is null)
             {
-                work.Output.TrySetException(new ChatClientException(GenerationErrorKind.InvalidResponse, problem ?? "服务返回了空内容。"));
+                work.Output.TrySetException(new ChatClientException(GenerationErrorKind.InvalidResponse, problem ?? Bilingual.T("The service returned nothing.", "服务返回了空内容。")));
             }
             else
             {

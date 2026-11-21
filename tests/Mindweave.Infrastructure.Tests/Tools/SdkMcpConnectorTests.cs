@@ -138,7 +138,7 @@ public class SdkMcpConnectorTests
 
         Assert.Equal(McpFailureKind.ConnectionLost, ex.Kind);
         var reason = await connection.Closed.WaitAsync(TimeSpan.FromSeconds(10), Ct);
-        Assert.Contains("7", reason ?? string.Empty, StringComparison.Ordinal);
+        Assert.Contains("7", reason?.ToString() ?? string.Empty, StringComparison.Ordinal);
     }
 
     [Fact]

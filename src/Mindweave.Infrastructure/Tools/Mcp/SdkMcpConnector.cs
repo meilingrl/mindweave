@@ -3,6 +3,7 @@ using System.Globalization;
 using System.Net;
 using System.Text.Json;
 using Microsoft.Extensions.Logging.Abstractions;
+using Mindweave.Application.Languages;
 using Mindweave.Application.Tools.Mcp;
 using Mindweave.Infrastructure.Hosting;
 using ModelContextProtocol;
@@ -127,7 +128,7 @@ public sealed class SdkMcpConnector(AppPaths paths, string? version = null) : IM
             var folder = WorkingDirectoryOf(server.Id);
             Directory.CreateDirectory(folder);
             var environment = EnvironmentFor(launch.Environment);
-            var command = server.Command ?? throw new McpServerException(McpFailureKind.StartFailed, "没有填写命令。");
+            var command = server.Command ?? throw new McpServerException(McpFailureKind.StartFailed, new BilingualText("No command was entered.", "没有填写命令。"));
             transport = new StdioClientTransport(
                 new StdioClientTransportOptions
                 {
@@ -144,7 +145,7 @@ public sealed class SdkMcpConnector(AppPaths paths, string? version = null) : IM
         }
         else
         {
-            var url = server.Url ?? throw new McpServerException(McpFailureKind.StartFailed, "没有填写地址。");
+            var url = server.Url ?? throw new McpServerException(McpFailureKind.StartFailed, new BilingualText("No address was entered.", "没有填写地址。"));
             var headers = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
             if (server.HeaderName is { } header && launch.HeaderValue is { } value)
             {
@@ -193,7 +194,7 @@ public sealed class SdkMcpConnector(AppPaths paths, string? version = null) : IM
         }
         catch (Exception ex) when (ex is Win32Exception or FileNotFoundException or DirectoryNotFoundException or UnauthorizedAccessException)
         {
-            throw new McpServerException(McpFailureKind.StartFailed, $"无法运行命令“{server.Command}”：{ex.Message}", ex);
+            throw new McpServerException(McpFailureKind.StartFailed, CannotRun(server.Command, ex.Message), ex);
         }
         catch (HttpRequestException ex)
         {
@@ -204,7 +205,7 @@ public sealed class SdkMcpConnector(AppPaths paths, string? version = null) : IM
             if (Inner<Win32Exception>(ex) is { } cannot)
             {
                 // The SDK wraps a process that could not start ("Failed to connect transport").
-                throw new McpServerException(McpFailureKind.StartFailed, $"无法运行命令“{server.Command}”：{cannot.Message}", ex);
+                throw new McpServerException(McpFailureKind.StartFailed, CannotRun(server.Command, cannot.Message), ex);
             }
 
             if (Inner<HttpRequestException>(ex) is { } http)
@@ -212,19 +213,30 @@ public sealed class SdkMcpConnector(AppPaths paths, string? version = null) : IM
                 throw new McpServerException(McpFailureKind.StartFailed, HttpProblem(http), ex);
             }
 
-            var inner = ex.InnerException is { } cause && cause.Message != ex.Message ? "（" + cause.Message + "）" : string.Empty;
+            var cause = ex.InnerException is { } inner && inner.Message != ex.Message ? inner.Message : null;
             // On Windows a command is started through cmd.exe, so a missing one starts and exits instead of failing: name it.
-            var which = server.Kind == McpServerKind.Command ? $"（命令“{server.Command}”）" : string.Empty;
-            throw new McpServerException(McpFailureKind.StartFailed, "服务器没有完成启动与握手" + which + "：" + ex.Message + inner, ex);
+            var command = server.Kind == McpServerKind.Command;
+            throw new McpServerException(
+                McpFailureKind.StartFailed,
+                new BilingualText(
+                    "The server didn’t finish starting and the handshake" + (command ? $" (command “{server.Command}”)" : string.Empty) + ": " + ex.Message + (cause is null ? string.Empty : " (" + cause + ")"),
+                    "服务器没有完成启动与握手" + (command ? $"（命令“{server.Command}”）" : string.Empty) + "：" + ex.Message + (cause is null ? string.Empty : "（" + cause + "）")),
+                ex);
         }
     }
 
-    private static string HttpProblem(HttpRequestException ex) => ex.StatusCode switch
+    private static BilingualText CannotRun(string? command, string detail) =>
+        new($"Can’t run the command “{command}”: {detail}", $"无法运行命令“{command}”：{detail}");
+
+    private static BilingualText HttpProblem(HttpRequestException ex) => ex.StatusCode switch
     {
-        HttpStatusCode.Unauthorized or HttpStatusCode.Forbidden =>
-            string.Format(CultureInfo.InvariantCulture, "服务器拒绝了连接（{0}）：请检查请求头；需要登录的服务器暂不支持。", (int)ex.StatusCode),
-        { } code => string.Format(CultureInfo.InvariantCulture, "服务器返回了 {0}：{1}", (int)code, ex.Message),
-        null => "无法连接服务器：" + ex.Message,
+        HttpStatusCode.Unauthorized or HttpStatusCode.Forbidden => new(
+            string.Format(CultureInfo.InvariantCulture, "The server refused the connection ({0}). Check the header; servers that need you to sign in aren’t supported yet.", (int)ex.StatusCode),
+            string.Format(CultureInfo.InvariantCulture, "服务器拒绝了连接（{0}）：请检查请求头；需要登录的服务器暂不支持。", (int)ex.StatusCode)),
+        { } code => new(
+            string.Format(CultureInfo.InvariantCulture, "The server returned {0}: {1}", (int)code, ex.Message),
+            string.Format(CultureInfo.InvariantCulture, "服务器返回了 {0}：{1}", (int)code, ex.Message)),
+        null => new("Can’t connect to the server: " + ex.Message, "无法连接服务器：" + ex.Message),
     };
 
     private static T? Inner<T>(Exception ex)
@@ -257,7 +269,7 @@ public sealed class SdkMcpConnector(AppPaths paths, string? version = null) : IM
             Closed = client.Completion.ContinueWith(t => Reason(t.Result), CancellationToken.None, TaskContinuationOptions.ExecuteSynchronously, TaskScheduler.Default);
         }
 
-        public Task<string?> Closed { get; }
+        public Task<BilingualText?> Closed { get; }
 
         public async Task<IReadOnlyList<McpToolInfo>> ListToolsAsync(CancellationToken cancellationToken)
         {
@@ -295,7 +307,7 @@ public sealed class SdkMcpConnector(AppPaths paths, string? version = null) : IM
             catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
             {
                 // The SDK cancels pending requests when the connection ends.
-                throw new McpServerException(McpFailureKind.ConnectionLost, "服务器在调用中断开或退出了。");
+                throw new McpServerException(McpFailureKind.ConnectionLost, Lost);
             }
 
             return new McpCallResult(result.IsError == true, [.. result.Content.Select(Content)]);
@@ -303,20 +315,28 @@ public sealed class SdkMcpConnector(AppPaths paths, string? version = null) : IM
 
         public async ValueTask DisposeAsync() => await _client.DisposeAsync().ConfigureAwait(false);
 
+        private static BilingualText Lost { get; } = new("The server disconnected or exited during the call.", "服务器在调用中断开或退出了。");
+
         private McpServerException Failure(Exception ex) => ex switch
         {
-            McpProtocolException protocol => new McpServerException(McpFailureKind.Protocol, "服务器返回了错误：" + protocol.Message, ex),
+            McpProtocolException protocol => new McpServerException(McpFailureKind.Protocol, ServerError(protocol.Message), ex),
             _ when _client.Completion.IsCompleted || ex is IOException or ObjectDisposedException or ClientTransportClosedException =>
-                new McpServerException(McpFailureKind.ConnectionLost, "服务器在调用中断开或退出了。", ex),
-            McpException other => new McpServerException(McpFailureKind.Protocol, "服务器返回了错误：" + other.Message, ex),
-            _ => new McpServerException(McpFailureKind.ConnectionLost, "与服务器的连接出错：" + ex.Message, ex),
+                new McpServerException(McpFailureKind.ConnectionLost, Lost, ex),
+            McpException other => new McpServerException(McpFailureKind.Protocol, ServerError(other.Message), ex),
+            _ => new McpServerException(McpFailureKind.ConnectionLost, new BilingualText("The connection to the server failed: " + ex.Message, "与服务器的连接出错：" + ex.Message), ex),
         };
 
-        private static string? Reason(ClientCompletionDetails details) => details switch
+        private static BilingualText ServerError(string detail) => new("The server returned an error: " + detail, "服务器返回了错误：" + detail);
+
+        private static BilingualText? Reason(ClientCompletionDetails details) => details switch
         {
-            StdioClientCompletionDetails { ExitCode: { } code } => string.Format(CultureInfo.InvariantCulture, "进程退出，退出码 {0}", code),
-            HttpClientCompletionDetails { HttpStatusCode: { } status } => string.Format(CultureInfo.InvariantCulture, "服务器结束了连接（HTTP {0}）", (int)status),
-            { Exception: { } ex } => ex.Message,
+            StdioClientCompletionDetails { ExitCode: { } code } => new(
+                string.Format(CultureInfo.InvariantCulture, "the process exited with code {0}", code),
+                string.Format(CultureInfo.InvariantCulture, "进程退出，退出码 {0}", code)),
+            HttpClientCompletionDetails { HttpStatusCode: { } status } => new(
+                string.Format(CultureInfo.InvariantCulture, "the server closed the connection (HTTP {0})", (int)status),
+                string.Format(CultureInfo.InvariantCulture, "服务器结束了连接（HTTP {0}）", (int)status)),
+            { Exception: { } ex } => new(ex.Message, ex.Message),
             _ => null,
         };
 

@@ -1,6 +1,7 @@
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using Mindweave.Application.Credentials;
+using Mindweave.Application.Languages;
 using Mindweave.Application.Storage;
 using Mindweave.Core.Runs;
 
@@ -35,7 +36,10 @@ public interface IMcpServers
     /// <summary>Removes a server, its secrets and its working folder (decision M4). The manager stops it first.</summary>
     Task RemoveAsync(string id, CancellationToken cancellationToken);
 
-    /// <summary>The secret values for a connection. Throws <see cref="CredentialUnavailableException"/>.</summary>
+    /// <summary>
+    /// The secret values for a connection. Throws <see cref="CredentialUnavailableException"/> when the store cannot be read,
+    /// and <see cref="McpServerException"/> with <see cref="McpServerSettings.SecretsMissing"/> when the secrets are gone.
+    /// </summary>
     Task<McpServerSecrets> ReadSecretsAsync(McpServerConfig server, CancellationToken cancellationToken);
 
     /// <summary>Turns a tool on with its current definition (decision M5); the name the model gets is fixed now (decision M9).</summary>
@@ -61,9 +65,23 @@ public sealed class McpServerSettings(IPreferenceStore store, ICredentialStore c
 {
     public const string Key = "mcp.servers";
 
-    public const string ChangedDefinition = "工具的定义已变化（说明、输入格式或只读声明），请重新查看后再启用。";
+    /// <summary>Why a tool was turned off (decision M6). Stored as a tool's disabled reason in the language of that moment.</summary>
+    public static BilingualText ChangedDefinition { get; } = new(
+        "The tool’s definition has changed (its description, input format or read-only declaration). Review it before turning it on again.",
+        "工具的定义已变化（说明、输入格式或只读声明），请重新查看后再启用。");
 
-    public const string Vanished = "服务器已不再提供这个工具（可能改了名字），请重新查看后再启用。";
+    /// <summary>Why a tool was turned off: the server no longer lists it (decision M6). Stored like <see cref="ChangedDefinition"/>.</summary>
+    public static BilingualText Vanished { get; } = new(
+        "The server no longer offers this tool (it may have been renamed). Review it before turning it on again.",
+        "服务器已不再提供这个工具（可能改了名字），请重新查看后再启用。");
+
+    /// <summary>The server is not in the settings any more.</summary>
+    public static BilingualText Removed { get; } = new("This server has been removed.", "这个服务器已被移除。");
+
+    /// <summary>The server has a credential reference, but the system credential store no longer has it.</summary>
+    public static BilingualText SecretsMissing { get; } = new(
+        "This server’s secrets can’t be found in the system credential store. Remove the server and add it again.",
+        "这个服务器的密钥在系统凭据服务中找不到了，请移除后重新添加。");
 
     private static readonly JsonSerializerOptions Json = new()
     {
@@ -90,23 +108,25 @@ public sealed class McpServerSettings(IPreferenceStore store, ICredentialStore c
         var env = draft.Environment ?? new Dictionary<string, string>();
         // Each argument without the spaces around it (a trailing space pasted into a line is never meant); blank ones dropped.
         IReadOnlyList<string> arguments = [.. (draft.Arguments ?? []).Select(a => a.Trim()).Where(a => a.Length > 0)];
-        string? problem = null;
+        BilingualText? problem = null;
         if (string.IsNullOrWhiteSpace(draft.Name))
         {
-            problem = "请填写服务器的名称。";
+            problem = new("Enter the server’s name.", "请填写服务器的名称。");
         }
 
         if (draft.Kind == McpServerKind.Command)
         {
             if (problem is null && string.IsNullOrWhiteSpace(draft.Command))
             {
-                problem = "请填写要运行的命令。";
+                problem = new("Enter the command to run.", "请填写要运行的命令。");
             }
 
             var bad = env.Keys.FirstOrDefault(k => !McpNames.IsEnvironmentName(k));
             if (problem is null && bad is not null)
             {
-                problem = $"环境变量名“{bad}”不合法：只能用字母、数字与下划线，不能以数字开头。";
+                problem = new(
+                    $"The environment variable name “{bad}” isn’t valid: use only letters, digits and underscores, and don’t start with a digit.",
+                    $"环境变量名“{bad}”不合法：只能用字母、数字与下划线，不能以数字开头。");
             }
 
             return new McpAddPreview(problem, draft.Command?.Trim(), arguments, connector.WorkingDirectoryOf(draft.Id), [.. env.Keys.Order(StringComparer.Ordinal)], null, null);
@@ -115,27 +135,29 @@ public sealed class McpServerSettings(IPreferenceStore store, ICredentialStore c
         Uri? url = null;
         if (problem is null && (!Uri.TryCreate(draft.Url?.Trim(), UriKind.Absolute, out url) || url.Scheme is not ("http" or "https")))
         {
-            problem = "请填写以 http:// 或 https:// 开头的完整地址。";
+            problem = new("Enter a full address that starts with http:// or https://.", "请填写以 http:// 或 https:// 开头的完整地址。");
         }
         else if (problem is null && url!.UserInfo.Length > 0)
         {
-            problem = "地址里不能带用户名或密码；需要密钥时请填写请求头。";
+            problem = new(
+                "The address can’t contain a user name or password. If a key is needed, enter it as a header.",
+                "地址里不能带用户名或密码；需要密钥时请填写请求头。");
         }
 
         var header = string.IsNullOrWhiteSpace(draft.HeaderName) ? null : draft.HeaderName.Trim();
         if (problem is null && header is not null && !McpNames.IsHeaderName(header))
         {
-            problem = $"请求头名称“{header}”不合法。";
+            problem = new($"The header name “{header}” isn’t valid.", $"请求头名称“{header}”不合法。");
         }
 
         if (problem is null && header is not null && string.IsNullOrEmpty(draft.HeaderValue))
         {
-            problem = "请填写请求头的值。";
+            problem = new("Enter the header’s value.", "请填写请求头的值。");
         }
 
         if (problem is null && header is null && !string.IsNullOrEmpty(draft.HeaderValue))
         {
-            problem = "请填写请求头的名称。";
+            problem = new("Enter the header’s name.", "请填写请求头的名称。");
         }
 
         return new McpAddPreview(problem, null, [], null, [], problem is null ? url : null, header);
@@ -147,7 +169,7 @@ public sealed class McpServerSettings(IPreferenceStore store, ICredentialStore c
         var preview = Preview(draft);
         if (!preview.CanAdd)
         {
-            throw new ArgumentException(preview.Problem, nameof(draft));
+            throw new ArgumentException(preview.Problem?.ToString(), nameof(draft));
         }
 
         await _gate.WaitAsync(cancellationToken).ConfigureAwait(false);
@@ -237,7 +259,7 @@ public sealed class McpServerSettings(IPreferenceStore store, ICredentialStore c
         var text = await credentials.ReadAsync(reference, cancellationToken).ConfigureAwait(false);
         if (string.IsNullOrEmpty(text))
         {
-            throw new CredentialUnavailableException("这个服务器的密钥在系统凭据服务中找不到了，请移除后重新添加。");
+            throw new McpServerException(McpFailureKind.StartFailed, SecretsMissing);
         }
 
         var dto = JsonSerializer.Deserialize<SecretsDto>(text, Json) ?? new SecretsDto();
@@ -290,8 +312,9 @@ public sealed class McpServerSettings(IPreferenceStore store, ICredentialStore c
                     return t;
                 }
 
-                var reason = !byName.TryGetValue(t.Name, out var now) ? Vanished
-                    : now.Hash() != t.Hash ? ChangedDefinition
+                // Stored data: the reason is written in the language of this moment and stays so.
+                var reason = !byName.TryGetValue(t.Name, out var now) ? Vanished.ToString()
+                    : now.Hash() != t.Hash ? ChangedDefinition.ToString()
                     : null;
                 if (reason is null)
                 {
@@ -324,7 +347,7 @@ public sealed class McpServerSettings(IPreferenceStore store, ICredentialStore c
             var index = all.FindIndex(s => s.Id == serverId);
             if (index < 0)
             {
-                throw new InvalidOperationException("这个服务器已被移除。");
+                throw new InvalidOperationException(Removed.ToString());
             }
 
             (var updated, result) = change(all, all[index]);

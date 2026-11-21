@@ -3,6 +3,7 @@ using System.Text.Json;
 using Microsoft.Extensions.Logging;
 using Mindweave.Application.Credentials;
 using Mindweave.Application.Diagnostics;
+using Mindweave.Application.Languages;
 
 namespace Mindweave.Application.Tools.Mcp;
 
@@ -45,8 +46,11 @@ public enum McpServerState
     Halted,
 }
 
-/// <summary>A server's state, its last error in words, its latest standard error lines (scrubbed), and its tools when connected.</summary>
-public sealed record McpServerStatus(McpServerState State, string? Error, IReadOnlyList<string> StandardError, IReadOnlyList<McpToolInfo>? Tools)
+/// <summary>
+/// A server's state, its last error in words (both languages: it is kept across a language switch), its latest standard
+/// error lines (scrubbed), and its tools when connected.
+/// </summary>
+public sealed record McpServerStatus(McpServerState State, BilingualText? Error, IReadOnlyList<string> StandardError, IReadOnlyList<McpToolInfo>? Tools)
 {
     public static McpServerStatus NotStarted { get; } = new(McpServerState.NotStarted, null, [], null);
 }
@@ -112,7 +116,7 @@ public sealed partial class McpServerManager : IMcpConnections, IAsyncDisposable
     public async Task<IReadOnlyList<McpToolInfo>> StartAsync(string serverId, CancellationToken cancellationToken)
     {
         var server = await _servers.GetAsync(serverId, cancellationToken).ConfigureAwait(false)
-            ?? throw new McpServerException(McpFailureKind.StartFailed, "这个服务器已被移除。");
+            ?? throw new McpServerException(McpFailureKind.StartFailed, McpServerSettings.Removed);
         var (_, tools) = await ConnectAsync(server, manual: true, cancellationToken).ConfigureAwait(false);
         return tools;
     }
@@ -175,7 +179,7 @@ public sealed partial class McpServerManager : IMcpConnections, IAsyncDisposable
         }
         catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
         {
-            throw new McpServerException(McpFailureKind.CallTimeout, Seconds("超时（{0} 秒内没有返回）。", _options.CallTimeout));
+            throw new McpServerException(McpFailureKind.CallTimeout, Seconds("Timed out (no result within {0}).", "超时（{0} 秒内没有返回）。", _options.CallTimeout));
         }
     }
 
@@ -199,12 +203,12 @@ public sealed partial class McpServerManager : IMcpConnections, IAsyncDisposable
             }
             catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
             {
-                throw new McpServerException(McpFailureKind.Timeout, Seconds("服务器在 {0} 秒内没有列出它的工具。", _options.StartTimeout));
+                throw new McpServerException(McpFailureKind.Timeout, Seconds("The server didn’t list its tools within {0}.", "服务器在 {0} 秒内没有列出它的工具。", _options.StartTimeout));
             }
             catch (McpServerException ex) when (ex.Kind == McpFailureKind.ConnectionLost)
             {
                 // Lost before the call went out: nothing was done.
-                throw new McpServerException(McpFailureKind.StartFailed, ex.Message, ex);
+                throw new McpServerException(McpFailureKind.StartFailed, ex.Text, ex);
             }
         }
 
@@ -214,7 +218,9 @@ public sealed partial class McpServerManager : IMcpConnections, IAsyncDisposable
         if (current is not { Enabled: true } || current.Hash != tool.Hash)
         {
             // Changed or gone at the server (decision M6), or turned off in settings since the question was accepted.
-            throw new ToolFailureException((current?.DisabledReason ?? "这个工具已在设置中停用。") + "这次调用没有执行。");
+            throw new ToolFailureException(
+                (current?.DisabledReason ?? Bilingual.T("This tool has been turned off in Settings.", "这个工具已在设置中停用。"))
+                + Bilingual.T(" This call was not made.", "这次调用没有执行。"));
         }
 
         return connection;
@@ -310,7 +316,8 @@ public sealed partial class McpServerManager : IMcpConnections, IAsyncDisposable
             }
             catch (CredentialUnavailableException ex)
             {
-                throw new McpServerException(McpFailureKind.StartFailed, ex.Message, ex);
+                // The store's own words (technical, not translated).
+                throw new McpServerException(McpFailureKind.StartFailed, new BilingualText(ex.Message, ex.Message), ex);
             }
 
             var known = secrets.Values.ToList();
@@ -325,7 +332,9 @@ public sealed partial class McpServerManager : IMcpConnections, IAsyncDisposable
             }
             catch (OperationCanceledException) when (!_shutdown.IsCancellationRequested)
             {
-                throw new McpServerException(McpFailureKind.Timeout, Seconds("服务器在 {0} 秒内没有完成启动与握手。", _options.StartTimeout));
+                throw new McpServerException(
+                    McpFailureKind.Timeout,
+                    Seconds("The server didn’t finish starting and the handshake within {0}.", "服务器在 {0} 秒内没有完成启动与握手。", _options.StartTimeout));
             }
 
             await _servers.ReconcileAsync(server.Id, tools, CancellationToken.None).ConfigureAwait(false);
@@ -334,7 +343,7 @@ public sealed partial class McpServerManager : IMcpConnections, IAsyncDisposable
                 if (_disposed || !ReferenceEquals(entry.Attempt, attempt))
                 {
                     // Stopped (or the app quit) while it started.
-                    throw new McpServerException(McpFailureKind.StartFailed, "服务器已停止。");
+                    throw new McpServerException(McpFailureKind.StartFailed, new BilingualText("The server was stopped.", "服务器已停止。"));
                 }
 
                 entry.Connection = connection;
@@ -357,9 +366,9 @@ public sealed partial class McpServerManager : IMcpConnections, IAsyncDisposable
         {
             var message = ex switch
             {
-                McpServerException known => known.Message,
-                OperationCanceledException => "应用正在退出。",
-                _ => "启动失败：" + ex.Message,
+                McpServerException known => known.Text,
+                OperationCanceledException => new BilingualText("The app is quitting.", "应用正在退出。"),
+                _ => new BilingualText("Couldn’t start: " + ex.Message, "启动失败：" + ex.Message),
             };
             lock (_gate)
             {
@@ -367,7 +376,7 @@ public sealed partial class McpServerManager : IMcpConnections, IAsyncDisposable
                 {
                     entry.Starting = null;
                     entry.Attempt = null;
-                    Exited(entry, Redaction.Scrub(message));
+                    Exited(entry, Scrub(message));
                 }
             }
 
@@ -377,7 +386,7 @@ public sealed partial class McpServerManager : IMcpConnections, IAsyncDisposable
             }
 
             Raise(server.Id);
-            LogStartFailed(_logger, server.Name, Redaction.Scrub(message));
+            LogStartFailed(_logger, server.Name, Redaction.Scrub(message.ToString()));
             throw ex is McpServerException ? ex : new McpServerException(McpFailureKind.StartFailed, message, ex);
         }
     }
@@ -393,21 +402,23 @@ public sealed partial class McpServerManager : IMcpConnections, IAsyncDisposable
             {
                 entry.Connection = null;
                 entry.Tools = null;
-                Exited(entry, "服务器已退出" + (string.IsNullOrWhiteSpace(reason) ? "。" : "：" + Redaction.Scrub(reason)));
+                Exited(entry, reason is null || string.IsNullOrWhiteSpace(reason.Chinese)
+                    ? new BilingualText("The server exited.", "服务器已退出。")
+                    : new BilingualText("The server exited: " + Redaction.Scrub(reason.English), "服务器已退出：" + Redaction.Scrub(reason.Chinese)));
                 counted = true;
             }
         }
 
         if (counted)
         {
-            LogExited(_logger, server.Name, reason ?? string.Empty);
+            LogExited(_logger, server.Name, reason?.ToString() ?? string.Empty);
             Raise(server.Id);
             await CloseAsync(connection).ConfigureAwait(false);
         }
     }
 
     /// <summary>Counts an exit (or a failed start) and decides whether the server may be started again automatically.</summary>
-    private void Exited(Entry entry, string error)
+    private void Exited(Entry entry, BilingualText error)
     {
         var now = _clock.UtcNow;
         entry.Exits.RemoveAll(t => now - t > _options.ExitWindow);
@@ -415,7 +426,8 @@ public sealed partial class McpServerManager : IMcpConnections, IAsyncDisposable
         if (entry.Exits.Count >= _options.MaxExits)
         {
             entry.State = McpServerState.Halted;
-            entry.Error = HaltedMessage() + "最后一次：" + error;
+            var halted = HaltedMessage();
+            entry.Error = new BilingualText(halted.English + " Last error: " + error.English, halted.Chinese + "最后一次：" + error.Chinese);
         }
         else
         {
@@ -424,11 +436,21 @@ public sealed partial class McpServerManager : IMcpConnections, IAsyncDisposable
         }
     }
 
-    private string HaltedMessage() => string.Format(
-        CultureInfo.InvariantCulture,
-        "服务器在 {0} 分钟内退出或启动失败了 {1} 次，已停止自动重启；请检查后在设置中点“启动”。",
-        Math.Round(_options.ExitWindow.TotalMinutes),
-        _options.MaxExits);
+    private BilingualText HaltedMessage()
+    {
+        var minutes = Math.Round(_options.ExitWindow.TotalMinutes);
+        return new BilingualText(
+            string.Format(
+                CultureInfo.InvariantCulture,
+                "The server exited or failed to start {0} times within {1}, so it is no longer restarted automatically. Check it, then click “Start” in Settings.",
+                _options.MaxExits,
+                minutes == 1 ? "1 minute" : string.Format(CultureInfo.InvariantCulture, "{0} minutes", minutes)),
+            string.Format(
+                CultureInfo.InvariantCulture,
+                "服务器在 {0} 分钟内退出或启动失败了 {1} 次，已停止自动重启；请检查后在设置中点“启动”。",
+                minutes,
+                _options.MaxExits));
+    }
 
     private void SetTools(string serverId, IReadOnlyList<McpToolInfo> tools)
     {
@@ -472,8 +494,17 @@ public sealed partial class McpServerManager : IMcpConnections, IAsyncDisposable
         }
     }
 
-    private static string Seconds(string format, TimeSpan span) =>
-        string.Format(CultureInfo.InvariantCulture, format, Math.Round(span.TotalSeconds, span < TimeSpan.FromSeconds(1) ? 1 : 0));
+    private static BilingualText Scrub(BilingualText text) => new(Redaction.Scrub(text.English), Redaction.Scrub(text.Chinese));
+
+    /// <summary>A message with a number of seconds: the English format gets "1 second" or "2 seconds", the Chinese one the number.</summary>
+    private static BilingualText Seconds(string english, string chinese, TimeSpan span)
+    {
+        var seconds = Math.Round(span.TotalSeconds, span < TimeSpan.FromSeconds(1) ? 1 : 0);
+        var count = string.Format(CultureInfo.InvariantCulture, seconds == 1 ? "{0} second" : "{0} seconds", seconds);
+        return new BilingualText(
+            string.Format(CultureInfo.InvariantCulture, english, count),
+            string.Format(CultureInfo.InvariantCulture, chinese, seconds));
+    }
 
     private void Raise(string serverId)
     {
@@ -516,7 +547,7 @@ public sealed partial class McpServerManager : IMcpConnections, IAsyncDisposable
 
         public McpServerState State { get; set; }
 
-        public string? Error { get; set; }
+        public BilingualText? Error { get; set; }
 
         public IReadOnlyList<McpToolInfo>? Tools { get; set; }
 

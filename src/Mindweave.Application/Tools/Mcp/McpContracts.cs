@@ -1,6 +1,7 @@
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
+using Mindweave.Application.Languages;
 
 namespace Mindweave.Application.Tools.Mcp;
 
@@ -122,7 +123,7 @@ public interface IMcpConnection : IAsyncDisposable
     Task<McpCallResult> CallToolAsync(string name, JsonElement arguments, CancellationToken cancellationToken);
 
     /// <summary>Completes when the connection ends (the process exited, the address closed it), with a reason in words.</summary>
-    Task<string?> Closed { get; }
+    Task<BilingualText?> Closed { get; }
 }
 
 /// <summary>Why talking to a server failed.</summary>
@@ -144,28 +145,41 @@ public enum McpFailureKind
     Protocol,
 }
 
-/// <summary>Talking to a server failed; the message says why in words.</summary>
+/// <summary>
+/// Talking to a server failed; <see cref="Text"/> says why in both languages, and <see cref="Message"/> reads it in the
+/// language current when it is read (a server's error is kept across a language switch, docs/design/bilingual-ui.md §4.3).
+/// </summary>
 public sealed class McpServerException : Exception
 {
     public McpServerException()
     {
+        Text = new BilingualText(base.Message, base.Message);
     }
 
     public McpServerException(string message)
         : base(message)
     {
+        Text = new BilingualText(message, message);
     }
 
     public McpServerException(string message, Exception innerException)
         : base(message, innerException)
     {
+        Text = new BilingualText(message, message);
     }
 
-    public McpServerException(McpFailureKind kind, string message, Exception? innerException = null)
-        : base(message, innerException)
+    public McpServerException(McpFailureKind kind, BilingualText text, Exception? innerException = null)
+        : base(text?.Chinese, innerException)
     {
+        ArgumentNullException.ThrowIfNull(text);
         Kind = kind;
+        Text = text;
     }
 
     public McpFailureKind Kind { get; } = McpFailureKind.StartFailed;
+
+    /// <summary>Why, in both languages.</summary>
+    public BilingualText Text { get; }
+
+    public override string Message => Text.ToString();
 }

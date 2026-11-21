@@ -132,7 +132,7 @@ public sealed partial class McpServersPanel : ViewModelBase, IDisposable
         var preview = _servers.Preview(draft);
         if (!preview.CanAdd)
         {
-            (Status, StatusIsError) = (preview.Problem, true);
+            (Status, StatusIsError) = (preview.Problem?.ToString(), true);
             return;
         }
 
@@ -405,7 +405,7 @@ public sealed partial class McpServerItem : ViewModelBase
     {
         var status = _connections.StatusOf(Server.Id);
         State = status.State;
-        Error = status.Error;
+        Error = status.Error?.ToString();
         StandardError = string.Join("\n", status.StandardError);
         _ = ReloadToolsAsync(status.Tools);
     }

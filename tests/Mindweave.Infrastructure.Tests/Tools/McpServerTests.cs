@@ -64,7 +64,7 @@ public class McpServerTests
         var preview = h.Mcp.Preview(draft);
 
         Assert.False(preview.CanAdd);
-        Assert.Contains(problem, preview.Problem, StringComparison.Ordinal);
+        Assert.Contains(problem, preview.Problem?.ToString(), StringComparison.Ordinal);
         await Assert.ThrowsAsync<ArgumentException>(() => h.Mcp.AddAsync(draft, Ct));
     }
 
@@ -150,7 +150,7 @@ public class McpServerTests
 
         var status = h.McpServers.StatusOf(server.Id);
         Assert.Equal(McpServerState.Halted, status.State);
-        Assert.Contains("已停止自动重启", status.Error, StringComparison.Ordinal);
+        Assert.Contains("已停止自动重启", status.Error?.ToString(), StringComparison.Ordinal);
         var refused = await Assert.ThrowsAsync<McpServerException>(() => h.McpServers.VerifyAsync(server, tool, Ct));
         Assert.Contains("已停止自动重启", refused.Message, StringComparison.Ordinal);
 
