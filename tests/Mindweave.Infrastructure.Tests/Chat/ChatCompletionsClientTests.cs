@@ -63,16 +63,18 @@ public class ChatCompletionsClientTests
     [Fact]
     public async Task Reasoning_keeps_a_long_thinking_stream_alive()
     {
-        // Eight reasoning events 250 ms apart: twice the idle limit in total, never silent for that long.
-        var events = Enumerable.Repeat("data: {\"choices\":[{\"delta\":{\"reasoning_content\":\"想\"}}]}\n\n", 8)
+        // Sixteen reasoning events 200 ms apart: 3.2 s in all, longer than the idle limit, never silent for that long. The
+        // margin is ten times the pace, as for the keep-alive test below; 250 ms against 1 s stalled on a Windows runner
+        // (2026-11-21).
+        var events = Enumerable.Repeat("data: {\"choices\":[{\"delta\":{\"reasoning_content\":\"想\"}}]}\n\n", 16)
             .Append("data: {\"choices\":[{\"delta\":{\"content\":\"答\"},\"finish_reason\":\"stop\"}]}\n\n")
             .ToArray();
-        var options = new ChatClientOptions { IdleTimeout = TimeSpan.FromSeconds(1) };
-        var paced = new StubHandler(_ => new HttpResponseMessage(HttpStatusCode.OK) { Content = new StreamContent(new PacedStream(events, TimeSpan.FromMilliseconds(250))) });
+        var options = new ChatClientOptions { IdleTimeout = TimeSpan.FromSeconds(2) };
+        var paced = new StubHandler(_ => new HttpResponseMessage(HttpStatusCode.OK) { Content = new StreamContent(new PacedStream(events, TimeSpan.FromMilliseconds(200))) });
 
         var received = await Collect(new ChatCompletionsClient(new HttpClient(paced), options));
 
-        Assert.Equal(8, received.OfType<ChatStreamEvent.ReasoningDelta>().Count());
+        Assert.Equal(16, received.OfType<ChatStreamEvent.ReasoningDelta>().Count());
         Assert.Equal("答", Assert.Single(received.OfType<ChatStreamEvent.TextDelta>()).Text);
         Assert.Equal(new ChatStreamEvent.Completed(false), received[^1]);
     }
