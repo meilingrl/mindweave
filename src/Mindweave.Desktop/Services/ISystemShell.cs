@@ -25,7 +25,8 @@ public interface ISystemShell
 
 internal sealed class SystemShell : ISystemShell
 {
-    private static readonly FilePickerFileType Markdown = new(UiText.MarkdownFileType)
+    /// <summary>Built when the dialog opens, so its label is in the current interface language.</summary>
+    private static FilePickerFileType Markdown() => new(UiText.MarkdownFileType)
     {
         Patterns = ["*.md"],
         MimeTypes = ["text/markdown"],
@@ -74,13 +75,14 @@ internal sealed class SystemShell : ISystemShell
             return null;
         }
 
+        var markdown = Markdown();
         var file = await window.StorageProvider.SaveFilePickerAsync(new FilePickerSaveOptions
         {
             Title = UiText.ExportMarkdown,
             SuggestedFileName = suggestedFileName,
             DefaultExtension = "md",
-            FileTypeChoices = [Markdown],
-            SuggestedFileType = Markdown,
+            FileTypeChoices = [markdown],
+            SuggestedFileType = markdown,
             ShowOverwritePrompt = true,
         });
         if (file is null)

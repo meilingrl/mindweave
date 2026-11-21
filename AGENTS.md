@@ -72,7 +72,7 @@ Builds and source packages meant for others present themselves only as Mindweave
 
 ## Naming and structure
 
-1. **One name per concept, taken from the requirements.** Namespaces, folders, types, resource keys and UI-text members use the code names from the glossary in [architecture §2.3](docs/architecture.md); Chinese UI text uses the requirement terms verbatim. Words in the glossary are not reused for other meanings; for example, `Network` refers only to a real network connection. A new concept gets a row in the glossary first, then a folder.
+1. **One name per concept, taken from the requirements.** Namespaces, folders, types, resource keys and UI-text members use the code names from the glossary in [architecture §2.3](docs/architecture.md); Chinese UI text uses the requirement terms verbatim, and English UI text uses the English wording in that glossary. Words in the glossary are not reused for other meanings; for example, `Network` refers only to a real network connection. A new concept gets a row in the glossary first, then a folder.
 2. **Stored names do not follow code renames.** Table names, column names, preference keys, and the keys of saved pages and main areas stay as they are; changing one is a migration and needs the user's consent.
 3. **Folders are namespaces.** The Desktop project's root folder holds only startup and composition code.
 4. Follow the existing folder and suffix patterns; ask the user before creating a new top-level folder.

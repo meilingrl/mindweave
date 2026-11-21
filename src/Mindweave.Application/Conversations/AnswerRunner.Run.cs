@@ -150,7 +150,7 @@ internal sealed partial class AnswerRunner
 
             if (!_health.TryAdmit())
             {
-                return new RunEnding(MessageState.Failed, GenerationErrorKind.StorageUnavailable, StorageAdmissionRefusedException.Detail);
+                return new RunEnding(MessageState.Failed, GenerationErrorKind.StorageUnavailable, StorageAdmissionRefusedException.Detail.ToString());
             }
 
             // One model request.

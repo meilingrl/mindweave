@@ -2,6 +2,7 @@ using System.Collections.ObjectModel;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Mindweave.Application;
+using Mindweave.Application.Languages;
 using Mindweave.Application.Preferences;
 using Mindweave.Application.Startup;
 using Mindweave.Application.Summaries;
@@ -32,7 +33,7 @@ public sealed partial class ExploreHomeViewModel(Workspace workspace, IContentNa
 }
 
 /// <summary>Settings: the model connection, the appearance (D-022) and where data lives.</summary>
-public sealed partial class SettingsHomeViewModel : PageViewModel, IDisposable
+public sealed partial class SettingsHomeViewModel : PageViewModel, IDisposable, ICarriesViewState
 {
     private readonly IContentNavigator _content;
     private readonly IAppearance _appearanceService;
@@ -40,6 +41,7 @@ public sealed partial class SettingsHomeViewModel : PageViewModel, IDisposable
     private readonly IWorkspaceDirectory? _workspaces;
     private readonly INewsAlerts? _newsAlerts;
     private readonly IRecommendationSettings? _recommendationSettings;
+    private readonly LanguageSwitch? _language;
     private readonly HashSet<string> _recommendationChosen = [];
     private bool _loading;
     private bool _chosen;
@@ -56,9 +58,16 @@ public sealed partial class SettingsHomeViewModel : PageViewModel, IDisposable
         IWorkspaceDirectory? workspaces = null,
         INewsAlerts? newsAlerts = null,
         IRecommendationSettings? recommendationSettings = null,
-        ToolSettingsPanel? tools = null)
+        ToolSettingsPanel? tools = null,
+        LanguageSwitch? language = null)
         : base(SettingsHomeRoute.Instance)
     {
+        _language = language;
+        if (language is not null)
+        {
+            language.Changed += OnLanguageSwitchChanged;
+        }
+
         Tools = tools;
         if (tools is not null)
         {
@@ -166,6 +175,59 @@ public sealed partial class SettingsHomeViewModel : PageViewModel, IDisposable
     /// <summary>Completes when the last choice made on this page has been written (or failed).</summary>
     internal Task Saving { get; private set; } = Task.CompletedTask;
 
+    /// <summary>The page can offer the interface language (it is built with the switch).</summary>
+    public bool CanChooseLanguage => _language is not null;
+
+    /// <summary>
+    /// The interface language (bilingual-ui.md §7). Choosing saves the choice and switches in place: this page is
+    /// rebuilt in the new language, on the same section, with the language row in view.
+    /// </summary>
+    public bool IsEnglish
+    {
+        get => CurrentLanguage.Value == UiLanguage.English;
+        set => ChooseLanguage(value, UiLanguage.English);
+    }
+
+    public bool IsChinese
+    {
+        get => CurrentLanguage.Value == UiLanguage.Chinese;
+        set => ChooseLanguage(value, UiLanguage.Chinese);
+    }
+
+    /// <summary>
+    /// Beside the choice: the switch waits for something to finish, it could not be made, or saving the choice failed
+    /// (the language still applies until the application closes); otherwise nothing.
+    /// </summary>
+    public string? LanguageStatus => _language?.Notice;
+
+    /// <summary>The status says the switch waits: shown as progress, not as a problem.</summary>
+    public bool IsLanguageWaiting => _language?.IsWaiting == true;
+
+    /// <summary>The language was chosen on this page: the page built in its place shows the language row and focuses it.</summary>
+    public bool FocusesLanguage { get; set; }
+
+    private bool _languageChosen;
+
+    private void ChooseLanguage(bool chosen, UiLanguage language)
+    {
+        if (chosen && _language is not null)
+        {
+            _languageChosen = true;
+
+            // The switch never faults: what went wrong is in its notice. Leaving this page while it waits drops it.
+            _ = _language.SwitchAsync(language, this);
+        }
+    }
+
+    /// <summary>The switch began or stopped waiting, or ended: the status and, if it did not happen, the choice shown follow.</summary>
+    private void OnLanguageSwitchChanged(object? sender, EventArgs e)
+    {
+        OnPropertyChanged(nameof(LanguageStatus));
+        OnPropertyChanged(nameof(IsLanguageWaiting));
+        OnPropertyChanged(nameof(IsEnglish));
+        OnPropertyChanged(nameof(IsChinese));
+    }
+
     /// <summary>The settings page can offer the sound (it is built with the preference).</summary>
     public bool CanChooseNewsSound => _newsAlerts is not null;
 
@@ -257,6 +319,45 @@ public sealed partial class SettingsHomeViewModel : PageViewModel, IDisposable
         }
     }
 
+    /// <summary>How far the page is scrolled; the view keeps it current, so a language switch can carry it over.</summary>
+    public double ScrollOffset { get; set; }
+
+    /// <summary>A carried scroll position the view applies once it can, then clears.</summary>
+    public double? PendingScroll { get; set; }
+
+    /// <summary>What lives only in this page, carried over a language switch (bilingual-ui.md §6.6).</summary>
+    private sealed record CarriedState(object? Model, object? WebSearch, object? Mcp, double Scroll, bool LanguageChosen);
+
+    public object? CaptureViewState() =>
+        new CarriedState(Model.CaptureViewState(), Tools?.Web?.CaptureViewState(), Tools?.Mcp?.CaptureViewState(), ScrollOffset, _languageChosen);
+
+    public void RestoreViewState(object state)
+    {
+        if (state is not CarriedState carried)
+        {
+            return;
+        }
+
+        if (carried.Model is { } model)
+        {
+            Model.RestoreViewState(model);
+        }
+
+        if (carried.WebSearch is { } key)
+        {
+            Tools?.Web?.RestoreViewState(key);
+        }
+
+        if (carried.Mcp is { } form)
+        {
+            Tools?.Mcp?.RestoreViewState(form);
+        }
+
+        ScrollOffset = carried.Scroll;
+        PendingScroll = carried.Scroll > 0 ? carried.Scroll : null;
+        FocusesLanguage = carried.LanguageChosen;
+    }
+
     [RelayCommand]
     private void ShowStorageDetails() => _content.Push(StorageDetailsRoute.Instance);
 
@@ -277,6 +378,10 @@ public sealed partial class SettingsHomeViewModel : PageViewModel, IDisposable
 
         // 设置 › 工具 › MCP 服务器 listens to the servers' state and settings (phase 4).
         Tools?.Mcp?.Dispose();
+        if (_language is not null)
+        {
+            _language.Changed -= OnLanguageSwitchChanged;
+        }
     }
 
     private void OnWorkspacesChanged(object? sender, System.Collections.Specialized.NotifyCollectionChangedEventArgs e)

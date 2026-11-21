@@ -24,6 +24,9 @@ public sealed partial class Composer
 
     public bool HasAttachments => Attachments.Count > 0;
 
+    /// <summary>An attachment is still being stored; a language switch waits for it (bilingual-ui.md §6.5).</summary>
+    public bool IsStoringAttachments => Attachments.Any(c => c.IsWorking);
+
     /// <summary>This composer takes attachments ("+", drop, paste).</summary>
     public bool CanAttach => _attachments is not null;
 
@@ -97,7 +100,7 @@ public sealed partial class Composer
             return false;
         }
 
-        var chip = new AttachmentChip(Core.Conversations.ContentBlocks.PastedTextName, UiText.AttachmentType(Core.Resources.MediaTypes.PlainText, paste: true), false, true, RemoveChip, OpenChip, ConvertChip, RetryChipAsync)
+        var chip = new AttachmentChip(UiText.PastedTextName, UiText.AttachmentType(Core.Resources.MediaTypes.PlainText, paste: true), false, true, RemoveChip, OpenChip, ConvertChip, RetryChipAsync)
         {
             Source = text,
             InsertAt = Math.Clamp(caret, 0, Text.Length),
@@ -172,7 +175,7 @@ public sealed partial class Composer
             return;
         }
 
-        var chip = new AttachmentChip(name ?? "图片.png", UiText.AttachmentType(Core.Resources.MediaTypes.Png, paste: false), true, false, RemoveChip, OpenChip, null, RetryChipAsync)
+        var chip = new AttachmentChip(name ?? UiText.PastedImageName, UiText.AttachmentType(Core.Resources.MediaTypes.Png, paste: false), true, false, RemoveChip, OpenChip, null, RetryChipAsync)
         {
             Source = bytes,
         };
@@ -235,6 +238,13 @@ public sealed partial class Composer
 
         if (result.Resource is { } stored)
         {
+            // The page's read of its draft (LoadDraftAttachmentsAsync) may have seen this attachment stored before this
+            // result came back, and shown it as a chip of its own: this chip stays, as it knows where a paste was.
+            foreach (var shown in Attachments.Where(c => c != chip && c.Resource == stored.Resource.Id).ToList())
+            {
+                Attachments.Remove(shown);
+            }
+
             chip.Succeed(stored, originalThere: true);
             await LoadThumbnailAsync(chip);
         }

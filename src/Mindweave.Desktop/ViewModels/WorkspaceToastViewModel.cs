@@ -56,7 +56,7 @@ public sealed partial class WorkspaceToastViewModel : ObservableObject
     public string ActionText => Conversation is null ? UiText.WorkspaceNewsToastAction : UiText.ConversationNewsToastAction;
 
     /// <summary>What a screen reader announces and reads for the hint: the news (a title in full), then what clicking does.</summary>
-    public string AutomationName => Conversation is null ? Text + "。" + ActionText : UiText.ConversationNewsToastName(Name);
+    public string AutomationName => Conversation is null ? UiText.Sentences(Text, ActionText) : UiText.ConversationNewsToastName(Name);
 
     /// <summary>The pointer is on the hint: it stays until the pointer leaves.</summary>
     internal bool IsHeld { get; set; }

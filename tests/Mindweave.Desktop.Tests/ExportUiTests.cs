@@ -31,7 +31,7 @@ public sealed class ExportUiTests : IDisposable
         window.UpdateLayout();
         var view = window.GetVisualDescendants().OfType<SummaryView>().Single();
         var button = view.GetVisualDescendants().OfType<Button>().Single(b => b.Name == "ExportButton");
-        Assert.Equal(UiText.ExportMarkdown, button.Content);
+        Assert.Equal(UiText.ExportMarkdownButton, button.Content);
         Assert.True(button.IsEffectivelyEnabled);
 
         // The button opens the export options: the source-note choice, what is exported, and the export itself (S7).

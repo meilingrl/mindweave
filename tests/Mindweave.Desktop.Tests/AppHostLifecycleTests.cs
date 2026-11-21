@@ -194,12 +194,15 @@ public class AppHostLifecycleTests
         var paths = new AppPaths("test", Path.Combine(Path.GetTempPath(), "mindweave-desktop-tests", Guid.NewGuid().ToString("N")));
         var instance = SingleInstance.TryAcquire(paths);
         Assert.NotNull(instance);
-        var services = CompositionRoot.Build(paths, new DesktopHarness.RecordingShell(), NullLoggerProvider.Instance, s =>
-        {
-            s.AddSingleton<IChatClient>(_ => new FailingDisposal());
-            s.AddSingleton<Application.Credentials.ICredentialStore>(new MemoryCredentialStore());
-        });
-        var host = new AppHost(instance, services);
+        var session = new AppSession(
+            extra => CompositionRoot.BuildRoot(paths, new DesktopHarness.RecordingShell(), NullLoggerProvider.Instance, s =>
+            {
+                s.AddSingleton<IChatClient>(_ => new FailingDisposal());
+                s.AddSingleton<Application.Credentials.ICredentialStore>(new MemoryCredentialStore());
+                extra(s);
+            }),
+            root => CompositionRoot.BuildView(root));
+        var host = new AppHost(instance, session);
 
         await Assert.ThrowsAsync<InvalidOperationException>(() => host.DisposeAsync().AsTask());
 

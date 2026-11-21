@@ -8,15 +8,42 @@ using Mindweave.Desktop.ViewModels.Pages;
 namespace Mindweave.Desktop.Views.Pages;
 
 /// <summary>
-/// Settings. The arrow keys move along the appearance segments (keyboard handling about the control, not the
-/// settings); the model field's own handling lives in <see cref="ModelSettingsForm"/>.
+/// Settings. The arrow keys move along the appearance and language segments (keyboard handling about the control, not
+/// the settings); the model field's own handling lives in <see cref="ModelSettingsForm"/>.
 /// </summary>
 public sealed partial class SettingsHomeView : UserControl
 {
     public SettingsHomeView()
     {
         InitializeComponent();
-        AppearancePicker.AddHandler(KeyDownEvent, OnAppearanceKeyDown, RoutingStrategies.Tunnel);
+        SegmentKeys.Attach(AppearancePicker);
+        SegmentKeys.Attach(LanguagePicker);
+        Scroller.ScrollChanged += OnScrollChanged;
+    }
+
+    /// <summary>
+    /// The page keeps how far it is scrolled, so a language switch can carry it over; a carried position is applied as
+    /// soon as the page is long enough for it (sections fill in as their settings are read), and kept no longer.
+    /// </summary>
+    private void OnScrollChanged(object? sender, ScrollChangedEventArgs e)
+    {
+        if (DataContext is not SettingsHomeViewModel page)
+        {
+            return;
+        }
+
+        if (page.PendingScroll is { } wanted)
+        {
+            if (Scroller.Extent.Height - Scroller.Viewport.Height >= wanted - 0.5)
+            {
+                page.PendingScroll = null;
+                Scroller.Offset = new Vector(Scroller.Offset.X, wanted);
+            }
+
+            return;
+        }
+
+        page.ScrollOffset = Scroller.Offset.Y;
     }
 
     /// <summary>
@@ -35,32 +62,42 @@ public sealed partial class SettingsHomeView : UserControl
     protected override void OnAttachedToVisualTree(VisualTreeAttachmentEventArgs e)
     {
         base.OnAttachedToVisualTree(e);
-        (DataContext as SettingsHomeViewModel)?.Refresh();
+        if (DataContext is SettingsHomeViewModel page)
+        {
+            page.Refresh();
+            if (page.PendingScroll is not null || page.FocusesLanguage)
+            {
+                _ = SettleAsync(page);
+            }
+        }
     }
 
-    private void OnAppearanceKeyDown(object? sender, KeyEventArgs e)
+    /// <summary>
+    /// Once the settings are read and laid out after a language switch: a carried position the page is too short for
+    /// goes as far as it can, and when the language was chosen here, its row is brought into view with its choice
+    /// focused (bilingual-ui.md §6.8).
+    /// </summary>
+    private async Task SettleAsync(SettingsHomeViewModel page)
     {
-        var step = e.Key switch
-        {
-            Key.Left or Key.Up => -1,
-            Key.Right or Key.Down => 1,
-            _ => 0,
-        };
-        if (step == 0)
+        await page.Loaded;
+        await Avalonia.Threading.Dispatcher.UIThread.InvokeAsync(() => { }, Avalonia.Threading.DispatcherPriority.Background);
+        if (!ReferenceEquals(DataContext, page) || !this.IsAttachedToVisualTree())
         {
             return;
         }
 
-        var segments = AppearancePicker.GetVisualDescendants().OfType<RadioButton>().ToList();
-        var current = segments.FindIndex(s => s.IsFocused);
-        if (current < 0)
+        if (page.PendingScroll is { } wanted)
         {
-            current = segments.FindIndex(s => s.IsChecked == true);
+            page.PendingScroll = null;
+            Scroller.Offset = new Vector(Scroller.Offset.X, wanted);
+            page.ScrollOffset = Scroller.Offset.Y;
         }
 
-        var next = Math.Clamp(current + step, 0, segments.Count - 1);
-        segments[next].IsChecked = true;
-        segments[next].Focus(NavigationMethod.Directional);
-        e.Handled = true;
+        if (page.FocusesLanguage)
+        {
+            page.FocusesLanguage = false;
+            LanguagePicker.BringIntoView();
+            (page.IsEnglish ? LanguageEnglish : LanguageChinese).Focus();
+        }
     }
 }

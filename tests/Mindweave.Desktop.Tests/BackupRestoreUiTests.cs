@@ -216,7 +216,7 @@ public class BackupRestoreUiTests
         await OpenStorageAsync(app, window);
 
         // The next session's database fails to move the files (on Windows, a file held open elsewhere).
-        app.Session.Replaced += (_, _) =>
+        app.Session.ViewReplaced += (_, _) =>
             app.Services.GetRequiredService<SqliteDatabase>().BeforeSwapForTests = () => throw new IOException("simulated: the file is in use");
         UiInput.Click(window, Find<Button>(window, "RestoreBackupButton"));
         UiInput.Click(window, Find<Button>(window, "BackupRestoreConfirm"));

@@ -103,6 +103,7 @@ Each concept in requirements §4 has only one name in code: namespaces, folders,
 | MCP server (MCP 服务器), third-party tools (第三方工具) (after the first release) | `McpServer`; tool `McpTool`; connection `McpConnection` (contract `IMcpConnector`) |
 | generated charts and diagrams (生成的图表与图示) (after the first release) | `Artifact` (`ArtifactBlock`) |
 | Settings › Tools (设置 › 工具) | `Tools` under `Settings` |
+| interface language (界面语言) | `UiLanguage`: `English`, `Chinese` (v0.24, requirements §10.5) |
 | new exploration (新探索) | `NewExploration` (the existing `ExploreHome*` does not have to be renamed) |
 | reasoning (推理内容); the answer stage “思考” (thinking) | `Reasoning` (the reasoning content the model returns); `AnswerStage.Thinking` refers only to the stage where reasoning has arrived but no body text yet |
 | timeline (时间线) (evolution D8 idea, not yet in the requirements) | `Timeline` |
@@ -166,6 +167,14 @@ The main ViewModel keeps the runtime history of every workspace / main area in o
 A jump across main areas (for example summary network → summary details → back to the conversation it came from) is expressed as one uniform navigation request of "target main area + target content + intent", and the main ViewModel decides which main area's runtime history it is written into; “返回来源” (Back to source) does not depend on whether history exists. Detailed design needs to give a table of the result of “后退” (Back) in each main area after a jump across main areas [review suggestion · MW-C10].
 
 Workspace management [review completion · MW-C11]: the first release supports at least creating and switching workspaces, and on first launch with no workspace it guides the user to create one. This guidance is the onboarding of requirements §6.1 (purpose, model connection, first workspace, then into new exploration). The model step reuses the model configuration form and use case of the settings page. Onboarding progress is saved as one preference (no migration needed), and after it is completed or skipped it does not appear again. Where the entry point goes is decided by the navigation detailed design, but no fourth navigation layer is added. Renaming a workspace is a suggested item. A whole workspace can be deleted (requirements "Conversation archiving and deletion"): first a database backup is made, then all its conversations, summaries, layouts and workspace state are deleted in one transaction (after the first release also recommendations, summary links, link suggestions and dismissal records); see "Conversation deletion and archiving".
+
+### 3.5 Interface language (v0.24)
+
+Requirements §10.5; the design is [Interface language](design/bilingual-ui.md).
+
+- **One current language.** `UiLanguage` lives in Application, because both the interface and the prompts follow it. It is stored in a small file in the channel's data folder, not in the database, so it is read before the first screen and a backup restore does not change it. Core holds no language state: text it builds for display moves to Desktop, and text it builds for the model takes a phrase set from its caller.
+- **Text is written once, both languages side by side.** Every member of `UiText` is a property or method that returns the current language, `T(english, chinese)`; there are no `const` strings, so a rebuilt view reads the new language. Long prompts are embedded files, one per language. Tests check that every string and prompt exists in both languages and that English text contains no Chinese.
+- **A switch rebuilds the view layer in place.** Composition has two providers: a root provider (Infrastructure, Application, platform services, the summary network sessions) that lives for the whole run, and a view provider (view models, dialogs, startup and exit coordination) that is disposed and rebuilt on a switch. View-layer singletons unsubscribe from services when disposed. Before the switch the app records where the user is (workspace, section and route stacks, settings subpage, summary edit mode) and replays it into the new view layer; the startup path is not rerun, so running answers, approvals and MCP servers carry on. The window itself is kept.
 
 ## 4. Local storage and relational model
 

@@ -1,7 +1,7 @@
 # Mindweave product requirements
 
 **Document status:** The current consolidated version of the confirmed requirements. It adopts independent review R4 of 2026-10-24 and the user's answers. Formal development has not started yet, and this does not mean the product's value has been verified  
-**Version:** v0.23  
+**Version:** v0.24  
 **Created:** 2026-09-08  
 **Updated:** 2026-11-21  
 **Project name:** Mindweave
@@ -589,6 +589,17 @@ v0.19 (2026-11-19) wrote this phase to the point where it can be accepted: each 
 - Tables, charts and diagrams in answers are rendered locally by the app in controlled formats (for example Markdown tables, Mermaid diagrams, chart descriptions). Code given by the model is not executed, and remote resources are not loaded. When rendering fails, the original text is shown. They can be copied or exported as images.
 - Audio attachments: when the model declares that it can hear audio, they are sent directly. Otherwise, when a transcription service is configured, they are first transcribed into text and then sent; when there is none, “+ › 音频” (+ › Audio) is grayed out with the reason stated. Reading answers aloud [for detailed design].
 
+### 10.5 Interface language (v0.24)
+
+The user's decisions of 2026-11-21 (plan step 2; design in [Interface language](design/bilingual-ui.md)):
+
+- **Two complete languages.** Everything the app shows exists in English and in Chinese. English is a complete version of the software, not a partial translation. No third language is planned.
+- **The default is English.** With no saved choice, including on first start and for existing data, the app is in English.
+- **Where to choose.** Settings › Appearance, and the first onboarding screen. Each language is named in its own language: "English", "简体中文".
+- **Switching is in place, without a restart.** After a choice, the window shows the same page in the new language within about a second. A running answer, a pending approval, an unsent draft and the reading position are kept.
+- **Prompts follow the interface language.** The model still writes answers, titles and summaries in the language of the conversation or material.
+- **Stored data is not converted.** Titles, messages, summaries and other saved text stay in the language they were written in. New text the app writes into data uses the interface language at that time.
+
 ## 11. First-release acceptance scenarios
 
 | Scenario | Observable expected result |
@@ -715,6 +726,18 @@ Agent platform phase 4 acceptance (v0.19, §10.4.6; not part of the first-releas
 | Quit the app | All server processes end; no background processes remain |
 | Open the statistics page | The “工具” section lists call counts by server and tool |
 
+Interface language acceptance (v0.24, §10.5; not part of the first-release bar):
+
+| Scenario | Observable expected result |
+| --- | --- |
+| Start with no saved language | The startup screen, onboarding and the main window are in English |
+| Choose “简体中文” on the first onboarding screen | That screen is shown in Chinese at once, and the rest of onboarding follows in Chinese |
+| Switch the language in Settings › Appearance while an answer is being written in another conversation | The window redraws in the new language on the same Settings section, without a restart; going back to the conversation, the answer is still being written; a pending approval card is still there |
+| Switch, then return to a conversation with an unsent draft | The draft and the reading position are unchanged |
+| Switch, then receive a new answer in another workspace | One notice and one sound, not two |
+| Look through every page in English | No Chinese text except user content, model output and the name “简体中文” |
+| Ask in Chinese with the English interface | Titles, summaries and answers are in Chinese |
+
 These scenarios verify functional behavior. Passing them still does not prove that the product is more useful than other approaches.
 
 ## 12. Validating usefulness
@@ -774,3 +797,4 @@ The per-module inputs, required outputs and order of work for detailed design fr
 - **v0.21 · 2026-11-20:** Following the user's decision of 2026-11-20 (plan step 1): while an answer is in progress, reasoning is shown live in a “思考过程” (thinking process) section that is collapsed by default; it disappears when the answer ends and is still never saved (this replaces "reasoning is not shown" from 2026-11-06 and the "not shown" part of runs and tools R10). The status line at the end of the answer gives, for each stage of a run, a one-sentence description and one weaving animation; the activity text above the body records only the steps already done. Changed §10.4.4. Does not change the first-release scope and acceptance; no migration.
 - **v0.22 · 2026-11-21:** Following the user's decision of 2026-11-21, removed "AI execution reports and decisions" from the §5.4 non-goals: it came from exploration before the project began and does not describe this product. No other change.
 - **v0.23 · 2026-11-21:** Following the user's decision of 2026-11-21, §9.6 adds the answer output limit as an optional advanced setting, with a short note and a hover explanation. Reasoning written inline in the answer as `<think>…</think>` stays in the answer and does not move into “思考过程” (thinking process) (no change to §10.4.4). Does not change the first-release scope and acceptance; no migration.
+- **v0.24 · 2026-11-21:** Following the user's decisions of 2026-11-21 (plan step 2), added §10.5 interface language: English and Chinese, English by default, chosen in Settings › Appearance or on the first onboarding screen, switched in place without a restart, prompts in the interface language, stored data not converted; §11 adds its acceptance.

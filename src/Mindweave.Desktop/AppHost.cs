@@ -1,4 +1,5 @@
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging;
 using Mindweave.Application.Startup;
 using Mindweave.Desktop.Navigation;
 using Mindweave.Desktop.Services;
@@ -11,17 +12,9 @@ namespace Mindweave.Desktop;
 /// <summary>Process-lifetime resources: the single-instance lock and the services of the current session.</summary>
 internal sealed class AppHost(SingleInstance instance, AppSession session) : IAsyncDisposable
 {
-    /// <summary>A host over services that are never replaced (no in-app restore); used where only the shutdown matters.</summary>
-    public AppHost(SingleInstance instance, ServiceProvider services)
-        : this(instance, AppSession.Fixed(services))
-    {
-    }
-
     public SingleInstance Instance { get; } = instance;
 
     public AppSession Session { get; } = session;
-
-    public ServiceProvider Services => Session.Services;
 
     /// <summary>
     /// Runs the desktop lifetime's loop (<paramref name="runUiLoop"/>), then releases everything. The database closes only
@@ -60,11 +53,11 @@ internal sealed class AppHost(SingleInstance instance, AppSession session) : IAs
     {
         try
         {
-            var services = Services;
-            var wait = services.GetRequiredService<ExitCoordinator>().Stage == ExitStage.Releasing
+            var (root, view) = (Session.Root, Session.View);
+            var wait = view.GetRequiredService<ExitCoordinator>().Stage == ExitStage.Releasing
                 ? TimeSpan.Zero
-                : services.GetRequiredService<ExitOptions>().StopWait;
-            await AppSession.EndAsync(services, wait).ConfigureAwait(false);
+                : root.GetRequiredService<ExitOptions>().StopWait;
+            await AppSession.EndAsync(root, view, wait).ConfigureAwait(false);
         }
         finally
         {
@@ -74,37 +67,108 @@ internal sealed class AppHost(SingleInstance instance, AppSession session) : IAs
 }
 
 /// <summary>
-/// The services of the open database, for as long as the window and the single-instance lock live. Restoring a backup
-/// from inside the application (2026-11-12) ends these services and starts new ones on the same window and lock: every
-/// service, page and cache then starts from the restored data exactly as after a fresh start, which resetting the
-/// state held by some twenty singletons one by one could not promise.
+/// The services of the open database, for as long as the window and the single-instance lock live. They are in two
+/// providers (bilingual-ui.md §6.2): the root with every service, and the view on it with the window's view models.
+/// <see cref="ReplaceView"/> replaces only the view, so running work goes on. Restoring a backup from inside the
+/// application (2026-11-12) ends both and starts new ones on the same window and lock: every service, page and cache
+/// then starts from the restored data exactly as after a fresh start, which resetting the state held by some twenty
+/// singletons one by one could not promise.
 /// </summary>
-public sealed class AppSession : IInAppRestore
+public sealed class AppSession : IInAppRestore, IViewSession
 {
-    private readonly Func<Action<IServiceCollection>, ServiceProvider>? _build;
+    private readonly Func<Action<IServiceCollection>, ServiceProvider> _buildRoot;
+    private readonly Func<IServiceProvider, ServiceProvider> _buildView;
 
-    /// <param name="build">Builds one session's services; the registrations it is given must be applied (they make this session reachable).</param>
-    public AppSession(Func<Action<IServiceCollection>, ServiceProvider> build)
+    /// <param name="buildRoot">Builds one session's root provider; the registrations it is given must be applied (they make this session reachable).</param>
+    /// <param name="buildView">Builds a view provider on a root provider.</param>
+    public AppSession(Func<Action<IServiceCollection>, ServiceProvider> buildRoot, Func<IServiceProvider, ServiceProvider> buildView)
     {
-        ArgumentNullException.ThrowIfNull(build);
-        _build = build;
-        Services = Build();
+        ArgumentNullException.ThrowIfNull(buildRoot);
+        ArgumentNullException.ThrowIfNull(buildView);
+        _buildRoot = buildRoot;
+        _buildView = buildView;
+        (Root, View) = Build();
     }
 
-    private AppSession(ServiceProvider services) => Services = services;
+    /// <summary>The root provider: every service. Replaced only by a restore.</summary>
+    public ServiceProvider Root { get; private set; }
 
-    public ServiceProvider Services { get; private set; }
+    /// <summary>The view provider the window shows. Replaced by <see cref="ReplaceView"/> and by a restore.</summary>
+    public ServiceProvider View { get; private set; }
 
-    public RootViewModel Root => Services.GetRequiredService<RootViewModel>();
+    public RootViewModel RootViewModel => View.GetRequiredService<RootViewModel>();
 
-    /// <summary>New services took over: the window shows <see cref="Root"/> from now on.</summary>
-    public event EventHandler? Replaced;
+    /// <summary>A new view provider took over (after a restore, on a new root too): the window shows <see cref="RootViewModel"/> from now on.</summary>
+    public event EventHandler? ViewReplaced;
 
     /// <summary>The last restore's hand-over and start, for tests; the UI never awaits it.</summary>
     internal Task LastRestore { get; private set; } = Task.CompletedTask;
 
-    /// <summary>A session over services that are never replaced; <see cref="RestoreAsync"/> is refused.</summary>
-    internal static AppSession Fixed(ServiceProvider services) => new(services);
+    /// <summary>A logger that writes through the current root each time, so it outlives a restore.</summary>
+    internal ILogger Logger(string category) => new SessionLogger(this, category);
+
+    /// <summary>The window is to let go of the current root view (a language switch, before the new view is built).</summary>
+    public event EventHandler? ViewDetaching;
+
+    /// <summary>Raises <see cref="ViewDetaching"/>: the window takes the current root view out.</summary>
+    internal void DetachView() => ViewDetaching?.Invoke(this, EventArgs.Empty);
+
+    /// <summary>Raises <see cref="ViewReplaced"/> for the current view: the window shows it in a new root view.</summary>
+    internal void ShowView() => ViewReplaced?.Invoke(this, EventArgs.Empty);
+
+    /// <summary>
+    /// Builds a new view provider on the same root, lets <paramref name="prepare"/> fill it (a language switch replays
+    /// where the user was), makes it current and raises <see cref="ViewReplaced"/>. Returns the old one: the caller
+    /// disposes it once the new one is shown. If <paramref name="prepare"/> or showing throws, the current one stays
+    /// and the new one is discarded: the pages it already made are released (they listen to services and run timers),
+    /// then it is disposed.
+    /// </summary>
+    internal ServiceProvider ReplaceView(Action<ServiceProvider>? prepare = null)
+    {
+        var next = _buildView(Root);
+        var old = View;
+        try
+        {
+            prepare?.Invoke(next);
+            View = next;
+            ViewReplaced?.Invoke(this, EventArgs.Empty);
+            return old;
+        }
+        catch
+        {
+            View = old;
+            Discard(next);
+            throw;
+        }
+    }
+
+    /// <summary>A view that never became current goes, with every page its workbench made; a failure on the way is logged.</summary>
+    private void Discard(ServiceProvider view)
+    {
+        try
+        {
+            try
+            {
+                view.GetService<Workbench>()?.ReleaseAll();
+            }
+            finally
+            {
+                view.DisposeAsync().AsTask().GetAwaiter().GetResult();
+            }
+        }
+#pragma warning disable CA1031 // The failure that led here is the one the caller reports; this one is only logged.
+        catch (Exception ex)
+#pragma warning restore CA1031
+        {
+            Logger("Mindweave.Desktop").LogDiscardViewFailed(ex);
+        }
+    }
+
+    void IViewSession.DetachView() => DetachView();
+
+    void IViewSession.ShowView() => ShowView();
+
+    ServiceProvider IViewSession.ReplaceView(Action<ServiceProvider> prepare) => ReplaceView(prepare);
 
     /// <summary>
     /// Called by the restore once the old session has stopped its work and saved everything, and the current data is in
@@ -114,75 +178,117 @@ public sealed class AppSession : IInAppRestore
     public Task RestoreAsync(BackupInfo backup, string keptCopy)
     {
         ArgumentNullException.ThrowIfNull(backup);
-        if (_build is null)
-        {
-            throw new InvalidOperationException("This session cannot be replaced.");
-        }
-
         LastRestore = RunAsync(backup, keptCopy);
         return LastRestore;
     }
 
     private async Task RunAsync(BackupInfo backup, string keptCopy)
     {
-        var old = Services;
-        var next = Build();
-        next.GetRequiredService<IRootNavigator>().Show(new StartupViewModel());
-        Services = next;
-        Replaced?.Invoke(this, EventArgs.Empty);
+        var (oldRoot, oldView) = (Root, View);
+        var (nextRoot, nextView) = Build();
+        nextView.GetRequiredService<IRootNavigator>().Show(new StartupViewModel());
+        (Root, View) = (nextRoot, nextView);
+        ViewReplaced?.Invoke(this, EventArgs.Empty);
 
         // The old pages leave with their session: disposed, so none of their timers or reloads reaches the closed database.
-        old.GetRequiredService<Workbench>().ReleaseAll();
+        oldView.GetRequiredService<Workbench>().ReleaseAll();
 
         // Its generation was stopped by the restore's exit steps; nothing waits for it again. A failure while it ends is
         // logged and the restore goes on (low finding architecture-3): the window already shows the new session, and the
         // restore itself checks the files and puts the previous data back if it cannot use the copy.
         try
         {
-            await EndAsync(old, TimeSpan.Zero);
+            await EndAsync(oldRoot, oldView, TimeSpan.Zero);
         }
 #pragma warning disable CA1031 // The old session is gone either way; the restore must not be left on a spinner.
         catch (Exception ex)
 #pragma warning restore CA1031
         {
-            next.GetRequiredService<Microsoft.Extensions.Logging.ILoggerFactory>().CreateLogger("Mindweave.Restore")
-                .LogOldSessionEndFailed(ex);
+            nextRoot.GetRequiredService<ILoggerFactory>().CreateLogger("Mindweave.Restore").LogOldSessionEndFailed(ex);
         }
 
-        await next.GetRequiredService<AppStartup>().RestoreInPlaceAsync(backup, keptCopy);
+        await nextView.GetRequiredService<AppStartup>().RestoreInPlaceAsync(backup, keptCopy);
     }
 
-    private ServiceProvider Build() => _build!(services => services.AddSingleton<IInAppRestore>(this));
+    private (ServiceProvider Root, ServiceProvider View) Build()
+    {
+        var root = _buildRoot(services =>
+        {
+            services.AddSingleton<IInAppRestore>(this);
+            services.AddSingleton<IViewSession>(this);
+        });
+        try
+        {
+            return (root, _buildView(root));
+        }
+        catch
+        {
+            root.DisposeAsync().AsTask().GetAwaiter().GetResult();
+            throw;
+        }
+    }
 
     /// <summary>
     /// Ends one session's services: stops generation (bounded by <paramref name="wait"/>), stops storage recovery, flushes
-    /// kept writes and page state (all idempotent, normally nothing is left), then closes the database and disposes them.
+    /// kept writes and page state (all idempotent, normally nothing is left), then closes the database and disposes the
+    /// view provider and the root provider.
     /// </summary>
-    internal static async Task EndAsync(ServiceProvider services, TimeSpan wait)
+    internal static async Task EndAsync(ServiceProvider root, ServiceProvider view, TimeSpan wait)
     {
         try
         {
             // Stop first, so terminal states are written before the database closes.
-            await services.GetRequiredService<Mindweave.Application.Conversations.GenerationCoordinator>()
+            await root.GetRequiredService<Mindweave.Application.Conversations.GenerationCoordinator>()
                 .ShutdownAsync(wait).ConfigureAwait(false);
 
             // Recovery stops (and a probe or retry in progress finishes) before the database closes; then every
             // owner tries what it kept once more, while the database is still open (architecture review R3).
-            var health = services.GetRequiredService<Mindweave.Application.Storage.StorageHealth>();
+            var health = root.GetRequiredService<Mindweave.Application.Storage.StorageHealth>();
             await health.StopAsync().ConfigureAwait(false);
             await health.RetryKeptAsync().ConfigureAwait(false);
-            await services.GetRequiredService<Mindweave.Application.Reading.ReadingStateService>().FlushAsync().ConfigureAwait(false);
-            await services.GetRequiredService<Mindweave.Application.Conversations.ConversationMarksService>().FlushAsync().ConfigureAwait(false);
+            await root.GetRequiredService<Mindweave.Application.Reading.ReadingStateService>().FlushAsync().ConfigureAwait(false);
+            await root.GetRequiredService<Mindweave.Application.Conversations.ConversationMarksService>().FlushAsync().ConfigureAwait(false);
         }
         finally
         {
             try
             {
-                await services.GetRequiredService<SqliteDatabase>().CloseAsync().ConfigureAwait(false);
+                await root.GetRequiredService<SqliteDatabase>().CloseAsync().ConfigureAwait(false);
             }
             finally
             {
-                await services.DisposeAsync().ConfigureAwait(false);
+                try
+                {
+                    await view.DisposeAsync().ConfigureAwait(false);
+                }
+                finally
+                {
+                    await root.DisposeAsync().ConfigureAwait(false);
+                }
+            }
+        }
+    }
+
+    /// <summary>Logs through whichever root is current; between two sessions, or after the last one, nothing is logged.</summary>
+    private sealed class SessionLogger(AppSession session, string category) : ILogger
+    {
+        public IDisposable? BeginScope<TState>(TState state)
+            where TState : notnull => Current()?.BeginScope(state);
+
+        public bool IsEnabled(LogLevel logLevel) => Current()?.IsEnabled(logLevel) ?? false;
+
+        public void Log<TState>(LogLevel logLevel, EventId eventId, TState state, Exception? exception, Func<TState, Exception?, string> formatter) =>
+            Current()?.Log(logLevel, eventId, state, exception, formatter);
+
+        private ILogger? Current()
+        {
+            try
+            {
+                return session.Root.GetRequiredService<ILoggerFactory>().CreateLogger(category);
+            }
+            catch (ObjectDisposedException)
+            {
+                return null;
             }
         }
     }
@@ -190,6 +296,9 @@ public sealed class AppSession : IInAppRestore
 
 internal static partial class AppHostLog
 {
-    [Microsoft.Extensions.Logging.LoggerMessage(Level = Microsoft.Extensions.Logging.LogLevel.Error, Message = "Ending the previous session before a restore failed; the restore goes on")]
-    public static partial void LogOldSessionEndFailed(this Microsoft.Extensions.Logging.ILogger logger, Exception exception);
+    [LoggerMessage(Level = LogLevel.Error, Message = "Ending the previous session before a restore failed; the restore goes on")]
+    public static partial void LogOldSessionEndFailed(this ILogger logger, Exception exception);
+
+    [LoggerMessage(Level = LogLevel.Warning, Message = "Discarding a view that could not be shown failed")]
+    public static partial void LogDiscardViewFailed(this ILogger logger, Exception exception);
 }

@@ -12,13 +12,14 @@ using Mindweave.Desktop.Services;
 namespace Mindweave.Desktop.ViewModels;
 
 /// <summary>The workbench: sidebar (workspaces, sections) and the content area. State lives in <see cref="Navigation.Workbench"/>.</summary>
-public sealed partial class ShellViewModel : ViewModelBase
+public sealed partial class ShellViewModel : ViewModelBase, IDisposable
 {
     private readonly IWorkspaces _workspaces;
     private readonly LayoutPromptViewModel? _layoutPrompt;
     private readonly SummaryNetwork.SummaryNetworkSessions? _summaryNetworks;
     private readonly ISidebarLayout? _sidebarLayout;
     private readonly IWorkspaceDeletionPrompt? _workspaceDeletion;
+    private readonly WorkspaceSwitchRequests? _switches;
     private PageViewModel? _observedPage;
     private double _sidebarWidth = SidebarLayout.DefaultWidth;
 
@@ -44,19 +45,43 @@ public sealed partial class ShellViewModel : ViewModelBase
         _workspaces = workspaces;
         NewWorkspace = new WorkspaceNameForm(CreateWorkspaceAsync);
         Workbench.PropertyChanged += OnWorkbenchChanged;
-        Workbench.Workspaces.CollectionChanged += (_, _) => RefreshChoices();
+        Workbench.Workspaces.CollectionChanged += OnWorkspacesChanged;
         Conversations.PropertyChanged += OnConversationsChanged;
         if (workspaceNews is not null)
         {
             workspaceNews.PropertyChanged += OnNewsChanged;
         }
 
+        _switches = switches;
         if (switches is not null)
         {
-            // 设置 › 工作区's 切换到此工作区 goes the switcher's way, so an unsaved layout is asked about first.
-            switches.Requested += (_, workspace) => SelectedWorkspace = workspace;
+            switches.Requested += OnSwitchRequested;
         }
     }
+
+    /// <summary>Stops listening to the workbench, the sidebar, the hints and the switch requests; the view is being replaced.</summary>
+    public void Dispose()
+    {
+        Workbench.PropertyChanged -= OnWorkbenchChanged;
+        Workbench.Workspaces.CollectionChanged -= OnWorkspacesChanged;
+        Conversations.PropertyChanged -= OnConversationsChanged;
+        if (WorkspaceNews is not null)
+        {
+            WorkspaceNews.PropertyChanged -= OnNewsChanged;
+        }
+
+        if (_switches is not null)
+        {
+            _switches.Requested -= OnSwitchRequested;
+        }
+
+        ObservePage(null);
+    }
+
+    private void OnWorkspacesChanged(object? sender, System.Collections.Specialized.NotifyCollectionChangedEventArgs e) => RefreshChoices();
+
+    /// <summary>设置 › 工作区's 切换到此工作区 goes the switcher's way, so an unsaved layout is asked about first.</summary>
+    private void OnSwitchRequested(object? sender, Workspace workspace) => SelectedWorkspace = workspace;
 
     public Workbench Workbench { get; }
 
@@ -181,9 +206,19 @@ public sealed partial class ShellViewModel : ViewModelBase
             stored = SidebarLayout.Default;
         }
 
-        SidebarWidth = stored.Width;
-        IsSidebarCollapsed = stored.IsCollapsed;
+        UseSidebar(stored);
     }
+
+    /// <summary>The sidebar as <paramref name="layout"/> says, without saving it (a stored layout, or the old view's after a switch).</summary>
+    public void UseSidebar(SidebarLayout layout)
+    {
+        ArgumentNullException.ThrowIfNull(layout);
+        SidebarWidth = layout.Width;
+        IsSidebarCollapsed = layout.IsCollapsed;
+    }
+
+    /// <summary>The sidebar as it is now.</summary>
+    public SidebarLayout Sidebar => new(SidebarWidth, IsSidebarCollapsed);
 
     private void SaveSidebar()
     {

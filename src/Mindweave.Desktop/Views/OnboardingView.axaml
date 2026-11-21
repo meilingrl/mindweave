@@ -24,6 +24,32 @@
       <Setter Property="TextAlignment" Value="Center" />
       <Setter Property="TextWrapping" Value="Wrap" />
     </Style>
+    <!-- The language choice under the welcome text: each language by its own name, quiet until chosen (§7). -->
+    <Style Selector="RadioButton.language-choice">
+      <Setter Property="Foreground" Value="{DynamicResource MutedText}" />
+      <Setter Property="Background" Value="Transparent" />
+      <Setter Property="FontSize" Value="13" />
+      <Setter Property="Padding" Value="4,2" />
+      <Setter Property="MinWidth" Value="0" />
+      <Setter Property="Cursor" Value="Hand" />
+      <Setter Property="Template">
+        <ControlTemplate>
+          <Border Name="PART_Choice" Background="{TemplateBinding Background}" BorderBrush="Transparent" BorderThickness="1"
+                  CornerRadius="{StaticResource RadiusControl}" Padding="{TemplateBinding Padding}">
+            <ContentPresenter Name="PART_ContentPresenter" Content="{TemplateBinding Content}" Foreground="{TemplateBinding Foreground}" />
+          </Border>
+        </ControlTemplate>
+      </Setter>
+    </Style>
+    <Style Selector="RadioButton.language-choice:pointerover, RadioButton.language-choice:checked">
+      <Setter Property="Foreground" Value="{DynamicResource PrimaryText}" />
+    </Style>
+    <Style Selector="RadioButton.language-choice:checked">
+      <Setter Property="FontWeight" Value="SemiBold" />
+    </Style>
+    <Style Selector="RadioButton.language-choice:focus-visible /template/ Border#PART_Choice">
+      <Setter Property="BorderBrush" Value="{DynamicResource AccentBrush}" />
+    </Style>
     <Style Selector="Rectangle.text-line">
       <Setter Property="Height" Value="5" />
       <Setter Property="RadiusX" Value="2.5" />
@@ -104,6 +130,17 @@
         </Border>
         <TextBlock Classes="h1" Margin="0,24,0,8" Text="{x:Static t:UiText.OnboardingHeading}" />
         <TextBlock Classes="muted" TextWrapping="Wrap" LineHeight="22" Text="{x:Static t:UiText.OnboardingWelcomeBody}" />
+        <!-- The interface language, before anything is filled in (user, 2026-11-21): choosing rebuilds this step in it. -->
+        <StackPanel Name="OnboardingLanguage" Orientation="Horizontal" Spacing="4" Margin="-4,12,0,0" IsVisible="{Binding CanChooseLanguage}"
+                    KeyboardNavigation.TabNavigation="Once" AutomationProperties.Name="{x:Static t:UiText.LanguageLabel}">
+          <RadioButton Name="OnboardingEnglish" Classes="language-choice" GroupName="OnboardingLanguage" IsChecked="{Binding IsEnglish}"
+                       Content="{x:Static t:UiText.LanguageEnglish}" AutomationProperties.Name="{x:Static t:UiText.LanguageEnglish}" />
+          <Border Width="1" Height="12" VerticalAlignment="Center" Background="{DynamicResource DividerBrush}" />
+          <RadioButton Name="OnboardingChinese" Classes="language-choice" GroupName="OnboardingLanguage" IsChecked="{Binding IsChinese}"
+                       Content="{x:Static t:UiText.LanguageChinese}" AutomationProperties.Name="{x:Static t:UiText.LanguageChinese}" />
+        </StackPanel>
+        <TextBlock Name="OnboardingLanguageStatus" Classes.error="{Binding !IsLanguageWaiting}" Classes.muted="{Binding IsLanguageWaiting}" FontSize="12" TextWrapping="Wrap" Margin="0,6,0,0"
+                   Text="{Binding LanguageStatus}" IsVisible="{Binding LanguageStatus, Converter={x:Static ObjectConverters.IsNotNull}}" />
         <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,24,0,0">
           <Button Name="NextButton" Classes="primary" Padding="18,8" Content="{x:Static t:UiText.OnboardingNext}"
                   Command="{Binding NextCommand}" IsDefault="{Binding IsWelcomeStep}" v:FocusRequest.When="{Binding IsWelcomeStep}" />

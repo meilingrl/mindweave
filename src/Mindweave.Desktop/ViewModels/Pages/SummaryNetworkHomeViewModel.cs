@@ -43,6 +43,9 @@ public sealed partial class SummaryNetworkHomeViewModel : PageViewModel, IDispos
     private bool _linkToolsShown;
     private bool _disposed;
 
+    // Built in place of a page a language switch replaced: its first load is not an opening (review of merge 2, M4).
+    private bool _replayed;
+
     public SummaryNetworkHomeViewModel(
         Workspace workspace,
         SummaryNetworkSession session,
@@ -53,9 +56,11 @@ public sealed partial class SummaryNetworkHomeViewModel : PageViewModel, IDispos
         IRecommendations? recommendations = null,
         Application.Preferences.IRecommendationSettings? recommendationSettings = null,
         ISummaryLinks? links = null,
-        ILinkSuggestions? suggestions = null)
+        ILinkSuggestions? suggestions = null,
+        bool replayed = false)
         : base(SummaryNetworkHomeRoute.Instance)
     {
+        _replayed = replayed;
         Workspace = workspace;
         Session = session;
         _summaries = summaries;
@@ -189,6 +194,9 @@ public sealed partial class SummaryNetworkHomeViewModel : PageViewModel, IDispos
     public bool RecommendationsHidden => _offer.Hidden;
 
     public string ToggleRecommendationsLabel => _offer.Hidden ? UiText.ShowRecommendedNodes : UiText.HideRecommendedNodes;
+
+    /// <summary>The toolbar button's shorter words for <see cref="ToggleRecommendationsLabel"/> (its accessible name).</summary>
+    public string ToggleRecommendationsText => _offer.Hidden ? UiText.ShowRecommendedNodesButton : UiText.HideRecommendedNodesButton;
 
     /// <summary>The legend explains the dashed ring and the dotted line only while some are drawn.</summary>
     public bool ShowsRecommendationLegend => RecommendedNodes.Count > 0 && !IsListView;
@@ -877,6 +885,7 @@ public sealed partial class SummaryNetworkHomeViewModel : PageViewModel, IDispos
         OnPropertyChanged(nameof(ShowsRecommendationTools));
         OnPropertyChanged(nameof(RecommendationsHidden));
         OnPropertyChanged(nameof(ToggleRecommendationsLabel));
+        OnPropertyChanged(nameof(ToggleRecommendationsText));
         OnPropertyChanged(nameof(ShowsRecommendationLegend));
         OnPropertyChanged(nameof(ShowsRecommendationBusy));
         OnPropertyChanged(nameof(RecommendationBusyText));
@@ -1026,7 +1035,14 @@ public sealed partial class SummaryNetworkHomeViewModel : PageViewModel, IDispos
         Matches = FindMatches();
         ViewChanged?.Invoke(this, Session.Viewport is null);
 
-        // Opened, or its summaries changed: the recommendations look whether §10.3.2 asks for new ones.
+        // Opened, or its summaries changed: the recommendations look whether §10.3.2 asks for new ones. A page that
+        // replaces one after a language switch was not opened; its first load tells nothing.
+        if (_replayed)
+        {
+            _replayed = false;
+            return;
+        }
+
         _recommendations?.SummaryNetworkOpened(Workspace.Id);
     }
 

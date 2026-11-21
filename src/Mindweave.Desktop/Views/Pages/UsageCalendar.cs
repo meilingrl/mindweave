@@ -29,12 +29,14 @@ public sealed class UsageCalendar : Control
         [.. LevelKeys, "UsageCalendarActive", "FloatingBackground", "FloatingBorder", "PrimaryText", "MutedText", "FocusRing"];
 
     private const double MonthRowHeight = 18;
-    private const double WeekdayColumnWidth = 20;
+    private const double MinWeekdayColumnWidth = 20;
+    private const double WeekdayLabelGap = 4;
     private const double Gap = 3;
     private const double MaxCell = 12;
     private const double LabelSize = 11;
 
     private UsageCalendarDay? _active;
+    private double? _weekdayColumnWidth;
     private bool _keyboardFocus;
 
     static UsageCalendar()
@@ -69,6 +71,14 @@ public sealed class UsageCalendar : Control
             InvalidateVisual();
         }
     }
+
+    /// <summary>
+    /// The weekday labels' column: 20 px, or wider when a label needs it ("Mon" in English), so no label runs under the
+    /// squares. The labels follow the interface language, which a switch changes by rebuilding the views.
+    /// </summary>
+    private double WeekdayColumnWidth => _weekdayColumnWidth ??= Math.Max(
+        MinWeekdayColumnWidth,
+        UiText.CalendarWeekdayLabels.Where(l => l.Length > 0).Select(l => Text(l, LabelSize, Brushes.Black).Width + WeekdayLabelGap).DefaultIfEmpty(0).Max());
 
     /// <summary>The side of a square and the distance from one square to the next, for the current width.</summary>
     public (double Cell, double Step) CellSize(double width)
@@ -254,7 +264,7 @@ public sealed class UsageCalendar : Control
         {
             lines.Add(Text(string.Format(CultureInfo.CurrentCulture, "{0}  {1}", UiText.ChartInput, UiText.Tokens(day.Counts.Input)), 12, primary));
             lines.Add(Text(string.Format(CultureInfo.CurrentCulture, "{0}  {1}", UiText.ChartOutput, UiText.Tokens(day.Counts.Output)), 12, primary));
-            lines.Add(Text(UiText.RequestCount(day.Counts.Requests) + UiText.RequestsLabel, 11, muted));
+            lines.Add(Text(UiText.ChartRequests(day.Counts.Requests), 11, muted));
             if (day.Counts.Unreported > 0)
             {
                 lines.Add(Text(UiText.BarUnreported(day.Counts.Unreported), 11, muted));

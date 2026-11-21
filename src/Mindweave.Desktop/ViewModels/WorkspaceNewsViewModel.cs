@@ -35,7 +35,7 @@ public sealed record WorkspaceNewsOptions
 /// already shows its marks. An answer that ends in a conversation of the open workspace that is not on screen pops up a
 /// hint for that conversation too, unless the user turned that off (accepted the same day).
 /// </summary>
-public sealed partial class WorkspaceNewsViewModel : ObservableObject
+public sealed partial class WorkspaceNewsViewModel : ObservableObject, IDisposable
 {
     private readonly Workbench _workbench;
     private readonly IConversationMarks _marks;
@@ -88,17 +88,34 @@ public sealed partial class WorkspaceNewsViewModel : ObservableObject
         _reload = new UiThrottle(dispatcher, TimeSpan.FromMilliseconds(100), () => Loaded = _load.Request());
         _marks.Marked += OnMarked;
         _marks.Answered += OnAnswered;
-        _marks.Changed += (_, _) => _reload.Request();
+        _marks.Changed += OnMarksChanged;
         if (conversations is not null)
         {
-            // A conversation's hint follows its title (renamed, or named automatically after its first answer), and goes
-            // when it is archived or deleted.
-            conversations.ConversationChanged += (_, id) => _dispatcher.Post(() => ReloadIfShown(id));
+            conversations.ConversationChanged += OnConversationChanged;
         }
 
         _workbench.Workspaces.CollectionChanged += OnWorkspacesChanged;
         _workbench.PropertyChanged += OnWorkbenchChanged;
         Loaded = _load.Request();
+    }
+
+    /// <summary>Stops listening and stops the hints' timers; the view it belongs to is being replaced.</summary>
+    public void Dispose()
+    {
+        _marks.Marked -= OnMarked;
+        _marks.Answered -= OnAnswered;
+        _marks.Changed -= OnMarksChanged;
+        if (_conversations is not null)
+        {
+            _conversations.ConversationChanged -= OnConversationChanged;
+        }
+
+        _workbench.Workspaces.CollectionChanged -= OnWorkspacesChanged;
+        _workbench.PropertyChanged -= OnWorkbenchChanged;
+        foreach (var toast in Toasts)
+        {
+            StopTimer(toast);
+        }
     }
 
     /// <summary>The workspaces other than the open one with a new answer; replaced, never changed in place, so bindings see it.</summary>
@@ -189,6 +206,14 @@ public sealed partial class WorkspaceNewsViewModel : ObservableObject
     }
 
     private void OnWorkspacesChanged(object? sender, NotifyCollectionChangedEventArgs e) => _reload.Request();
+
+    private void OnMarksChanged(object? sender, EventArgs e) => _reload.Request();
+
+    /// <summary>
+    /// A conversation's hint follows its title (renamed, or named automatically after its first answer), and goes when it
+    /// is archived or deleted.
+    /// </summary>
+    private void OnConversationChanged(object? sender, ConversationId changed) => _dispatcher.Post(() => ReloadIfShown(changed));
 
     /// <summary>
     /// On the UI thread: a conversation with a hint up changed (renamed, archived): the hint follows. During a refresh any

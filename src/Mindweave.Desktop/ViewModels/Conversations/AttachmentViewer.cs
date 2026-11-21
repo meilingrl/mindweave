@@ -125,7 +125,7 @@ public sealed partial class AttachmentViewer(IResources? resources) : ViewModelB
     {
         ArgumentNullException.ThrowIfNull(citation);
         var ticket = Interlocked.Increment(ref _opening);
-        Title = citation.Label;
+        Title = UiText.CitationLabel(citation.Kind, citation.Title);
         Info = citation.Url is null ? UiText.LocalCitationInfo(citation.Number) : UiText.CitationInfo(citation.Number, citation.FetchedAt);
         Text = null;
         Image = null;
