@@ -20,6 +20,13 @@
     <Setter Property="LineHeight" Value="{StaticResource AnswerLineHeight}" />
   </Style>
   <!--
+    Bold (**…**) is a LiveMarkdown span with the class Bold: drawn in the bold colour chosen in Settings › Appearance
+    (D-027). Its weight is set on the span itself, so Markdown/BoldWeight.cs lowers it to Medium in code.
+  -->
+  <Style Selector="Span.Bold">
+    <Setter Property="Foreground" Value="{DynamicResource BoldText}" />
+  </Style>
+  <!--
     Answer text puts a font with CJK glyphs first. With LiveMarkdown's Latin-only default, CJK characters come from
     a fallback font, and Avalonia 12.1.4 reuses the previous run's fallback typeface, weight included, for the next
     run: bold spread over the rest of a list item and never started in a paragraph that began plain.

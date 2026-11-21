@@ -200,9 +200,11 @@ public class SummaryUiTests
 
         var runs = SourceAnchors.Blocks(renderer).SelectMany(b => b.TextLayout.TextLines).SelectMany(l => l.TextRuns)
             .OfType<Avalonia.Media.TextFormatting.ShapedTextRun>().ToList();
-        Assert.All(runs.Where(r => r.Text.Span.ToString() is "适合陡坡"), r => Assert.Equal(Avalonia.Media.FontWeight.Bold, r.Properties.Typeface.Weight));
+        // Bold in the weight in use (Medium with a bold colour, D-027), plain text lighter.
+        var bold = Mindweave.Desktop.Markdown.BoldWeight.Weight;
+        Assert.All(runs.Where(r => r.Text.Span.ToString() is "适合陡坡"), r => Assert.Equal(bold, r.Properties.Typeface.Weight));
         Assert.Contains(runs, r => r.Text.Span.ToString() == "适合陡坡");
-        Assert.All(runs.Where(r => r.Text.Span.ToString().Contains("缆绳易磨损", StringComparison.Ordinal)), r => Assert.True(r.Properties.Typeface.Weight < Avalonia.Media.FontWeight.SemiBold));
+        Assert.All(runs.Where(r => r.Text.Span.ToString().Contains("缆绳易磨损", StringComparison.Ordinal)), r => Assert.True(r.Properties.Typeface.Weight < bold));
         window.Close();
     }
 

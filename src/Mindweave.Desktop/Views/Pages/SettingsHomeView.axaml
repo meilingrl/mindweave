@@ -19,7 +19,7 @@
     <!-- 外观 -->
     <TextBlock Classes="section-heading" Text="{x:Static t:UiText.AppearanceSection}" />
     <Border Classes="card settings">
-      <Grid Classes="labelled" RowDefinitions="Auto,Auto,Auto,Auto">
+      <Grid Classes="labelled" RowDefinitions="Auto,Auto,Auto,Auto,Auto,Auto">
         <Grid.ColumnDefinitions>
           <ColumnDefinition Width="Auto" MinWidth="96" SharedSizeGroup="SettingsLabel" />
           <ColumnDefinition Width="*" />
@@ -64,6 +64,49 @@
         </Border>
         <TextBlock Grid.Row="3" Grid.Column="1" Name="LanguageStatus" v:Motion.Appear="Fade" Classes.error="{Binding !IsLanguageWaiting}" Classes.muted="{Binding IsLanguageWaiting}"
                    FontSize="12" TextWrapping="Wrap" Margin="0,8,0,0" Text="{Binding LanguageStatus}" IsVisible="{Binding LanguageStatus, Converter={x:Static ObjectConverters.IsNotNull}}" />
+        <!-- The bold colour in answers (D-027): each choice shows its colour in the current theme. -->
+        <TextBlock Grid.Row="4" Classes="field-label" Margin="0,16,0,0" Text="{x:Static t:UiText.BoldColourLabel}" />
+        <Border Grid.Row="4" Grid.Column="1" Name="BoldColourPicker" Classes="segmented" Margin="0,16,0,0" HorizontalAlignment="Left">
+          <StackPanel Orientation="Horizontal" Spacing="2" KeyboardNavigation.TabNavigation="Once">
+            <RadioButton Name="BoldColourBrown" Classes="segment" GroupName="BoldColour" IsChecked="{Binding IsBoldBrown}"
+                         AutomationProperties.Name="{x:Static t:UiText.BoldColourBrown}">
+              <StackPanel Orientation="Horizontal" Spacing="6">
+                <Ellipse Width="10" Height="10" Fill="{DynamicResource BoldTextBrown}" VerticalAlignment="Center" />
+                <TextBlock Text="{x:Static t:UiText.BoldColourBrown}" VerticalAlignment="Center" />
+              </StackPanel>
+            </RadioButton>
+            <RadioButton Name="BoldColourSlate" Classes="segment" GroupName="BoldColour" IsChecked="{Binding IsBoldSlate}"
+                         AutomationProperties.Name="{x:Static t:UiText.BoldColourSlate}">
+              <StackPanel Orientation="Horizontal" Spacing="6">
+                <Ellipse Width="10" Height="10" Fill="{DynamicResource BoldTextSlate}" VerticalAlignment="Center" />
+                <TextBlock Text="{x:Static t:UiText.BoldColourSlate}" VerticalAlignment="Center" />
+              </StackPanel>
+            </RadioButton>
+            <RadioButton Name="BoldColourSage" Classes="segment" GroupName="BoldColour" IsChecked="{Binding IsBoldSage}"
+                         AutomationProperties.Name="{x:Static t:UiText.BoldColourSage}">
+              <StackPanel Orientation="Horizontal" Spacing="6">
+                <Ellipse Width="10" Height="10" Fill="{DynamicResource BoldTextSage}" VerticalAlignment="Center" />
+                <TextBlock Text="{x:Static t:UiText.BoldColourSage}" VerticalAlignment="Center" />
+              </StackPanel>
+            </RadioButton>
+            <RadioButton Name="BoldColourPlum" Classes="segment" GroupName="BoldColour" IsChecked="{Binding IsBoldPlum}"
+                         AutomationProperties.Name="{x:Static t:UiText.BoldColourPlum}">
+              <StackPanel Orientation="Horizontal" Spacing="6">
+                <Ellipse Width="10" Height="10" Fill="{DynamicResource BoldTextPlum}" VerticalAlignment="Center" />
+                <TextBlock Text="{x:Static t:UiText.BoldColourPlum}" VerticalAlignment="Center" />
+              </StackPanel>
+            </RadioButton>
+            <RadioButton Name="BoldColourSameAsText" Classes="segment" GroupName="BoldColour" IsChecked="{Binding IsBoldSameAsText}"
+                         AutomationProperties.Name="{x:Static t:UiText.BoldColourSameAsText}">
+              <StackPanel Orientation="Horizontal" Spacing="6">
+                <Ellipse Width="10" Height="10" Fill="{DynamicResource BoldTextSameAsText}" VerticalAlignment="Center" />
+                <TextBlock Text="{x:Static t:UiText.BoldColourSameAsText}" VerticalAlignment="Center" />
+              </StackPanel>
+            </RadioButton>
+          </StackPanel>
+        </Border>
+        <TextBlock Grid.Row="5" Grid.Column="1" Name="BoldColourStatus" v:Motion.Appear="Fade" Classes="error" FontSize="12" TextWrapping="Wrap" Margin="0,8,0,0"
+                   Text="{Binding BoldColourStatus}" IsVisible="{Binding BoldColourStatus, Converter={x:Static ObjectConverters.IsNotNull}}" />
       </Grid>
     </Border>
 

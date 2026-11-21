@@ -266,6 +266,18 @@ public sealed partial class AppStartup : IRecoveryActions, IDisposable
             DesktopLog.Swallowed(swallowed);
             _theme.Apply(Appearance.FollowSystem);
         }
+
+        try
+        {
+            _theme.ApplyBoldColour(await _appearance.GetBoldColourAsync(CancellationToken.None));
+        }
+#pragma warning disable CA1031 // As for the theme: a failed read keeps the default bold colour.
+        catch (Exception swallowed)
+#pragma warning restore CA1031
+        {
+            DesktopLog.Swallowed(swallowed);
+            _theme.ApplyBoldColour(BoldColour.Brown);
+        }
     }
 
     private async Task ApplyAsync(StartupOutcome outcome)
