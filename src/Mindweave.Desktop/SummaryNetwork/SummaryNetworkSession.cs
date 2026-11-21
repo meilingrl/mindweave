@@ -4,6 +4,7 @@ using Mindweave.Application.Storage;
 using Mindweave.Core.Summaries;
 using Mindweave.Core.Workspaces;
 using Mindweave.Desktop.Services;
+using Mindweave.Desktop.Views.Pages;
 
 namespace Mindweave.Desktop.SummaryNetwork;
 
@@ -78,7 +79,26 @@ public sealed partial class SummaryNetworkSession : ObservableObject
         _dayStarts = arrangement.DayStarts;
         _positions = ViewMode == SummaryNetworkViewMode.Timeline
             ? new Dictionary<SummaryNodeId, NodePosition>(TimelineColumns.Widen(arrangement.Positions, nodes.ToDictionary(n => n.Id, n => n.LabelWidth), TimelineColumns.MinColumn))
-            : SummaryNetworkLayout.Arrange(nodes).ToDictionary(p => p.Key, p => p.Value);
+            : new Dictionary<SummaryNodeId, NodePosition>(SpatialPacking.Arrange(PackNodes(projection, nodes)));
+    }
+
+    /// <summary>
+    /// The sessions as the spatial packing takes them (§6): branches are the parents, the projection's order is creation
+    /// order, the weight is the mass, a dot is as large as drawn (its summary ring included) and a label as wide as the
+    /// canvas reserves; the time thread links each root to the next.
+    /// </summary>
+    private static List<PackNode> PackNodes(SummaryNetworkProjection projection, List<LayoutNode> layout)
+    {
+        var parents = projection.Edges.Where(e => e.Kind == SummaryNetworkEdgeKind.Branch).ToDictionary(e => e.To, e => e.From);
+        var next = projection.Edges.Where(e => e.Kind == SummaryNetworkEdgeKind.TimeThread).ToDictionary(e => e.From, e => e.To);
+        return [.. projection.Nodes.Select((n, i) => new PackNode(
+            n.Id,
+            parents.TryGetValue(n.Id, out var parent) ? parent : null,
+            i,
+            n.Weight,
+            SummaryNetworkGeometry.DotRadius(n.Weight) + (n.HasSummary ? SummaryNetworkCanvas.SummaryRingGap + 1 : 0),
+            layout[i].LabelWidth,
+            next.TryGetValue(n.Id, out var following) ? following : null))];
     }
 
     public WorkspaceId Workspace { get; }

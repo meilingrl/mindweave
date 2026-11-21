@@ -72,6 +72,29 @@ public class SessionNetworkCanvasTests
     }
 
     [AvaloniaFact]
+    public async Task One_session_opens_centred_at_zoom_one_in_the_spatial_view()
+    {
+        await using var app = Gated();
+        var window = app.ShowWindow(1100, 720);
+        await app.StartWithWorkspaceAsync("火车");
+        await app.ConfigureModelAsync();
+        var conversations = app.Services.GetRequiredService<ConversationService>();
+        await SummaryNetworkScenario.AskAsync(app, conversations, null, app.Workbench.CurrentWorkspace!.Id, "火车是怎么发明的？");
+        var network = await SummaryNetworkScenario.OpenSummaryNetworkAsync(app, window);
+
+        // The first drawing may precede the title that arrives a moment later: open again from what is there now.
+        await UiWait.UntilAsync(() => network.Session.Positions.Count == 1);
+        network.Session.Viewport = null;
+        var opening = CanvasOf(window).Current;
+
+        var only = Assert.Single(network.Nodes);
+        Assert.Equal(1, opening.Zoom);
+        Assert.Equal(only.X, opening.CenterX, 6);
+        Assert.Equal(only.Y, opening.CenterY, 6);
+        window.Close();
+    }
+
+    [AvaloniaFact]
     public async Task Summaries_wear_a_ring_and_every_dot_is_filled()
     {
         await using var app = Gated();

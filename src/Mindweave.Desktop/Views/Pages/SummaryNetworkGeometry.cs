@@ -202,4 +202,33 @@ internal static class SummaryNetworkGeometry
             (size.Height - (2 * Viewport.FitMargin) - top - bottom) / height)));
         return new Viewport(((minX + maxX) / 2) + ((right - left) / (2 * zoom)), ((minY + maxY) / 2) + ((bottom - top) / (2 * zoom)), zoom);
     }
+
+    /// <summary>The smallest zoom at which fitting the whole spatial picture still reads (labels at 80% size).</summary>
+    internal const double ReadableZoom = 0.8;
+
+    /// <summary>
+    /// The spatial view's opening (spec §6.2): everything fitted when that stays at or above <see cref="ReadableZoom"/>;
+    /// otherwise zoom 1 on the mass-weighted centroid of the dots, so a large workspace opens readable and centred, not
+    /// as a speck. One session is that dot at the centre, zoom 1. "显示全部" still fits everything.
+    /// </summary>
+    internal static Viewport SpatialOpening(IReadOnlyList<NodeView> nodes, Size size, IReadOnlyList<RecommendedNodeView>? recommended = null)
+    {
+        ArgumentNullException.ThrowIfNull(nodes);
+        if (nodes.Count == 1)
+        {
+            return new Viewport(nodes[0].X, nodes[0].Y, 1);
+        }
+
+        var fitted = FitTo(nodes, size, recommended);
+        if (fitted.Zoom >= ReadableZoom)
+        {
+            return fitted;
+        }
+
+        var mass = nodes.Sum(n => (double)Math.Max(1, n.Weight));
+        return new Viewport(
+            nodes.Sum(n => n.X * Math.Max(1, n.Weight)) / mass,
+            nodes.Sum(n => n.Y * Math.Max(1, n.Weight)) / mass,
+            1);
+    }
 }

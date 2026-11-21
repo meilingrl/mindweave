@@ -1111,9 +1111,12 @@ public sealed class SummaryNetworkCanvas : Control
             return new Viewport(0, 0, 1);
         }
 
-        var fitted = _page.IsTimeline && !_page.Session.FitAllRequested
+        var opening = !_page.Session.FitAllRequested;
+        var fitted = opening && _page.IsTimeline
             ? SummaryNetworkGeometry.TimelineOpening(_page.Nodes, Bounds.Size)
-            : SummaryNetworkGeometry.FitTo(_page.Nodes, Bounds.Size, _page.RecommendedNodes);
+            : opening && Sessions
+                ? SummaryNetworkGeometry.SpatialOpening(_page.Nodes, Bounds.Size, _page.RecommendedNodes)
+                : SummaryNetworkGeometry.FitTo(_page.Nodes, Bounds.Size, _page.RecommendedNodes);
         _page.Session.Viewport = fitted;
         _page.Session.FitAllRequested = false;
         return fitted;
