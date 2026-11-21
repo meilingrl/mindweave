@@ -145,3 +145,14 @@ Health check repo-scripts-9 pointed out that the repository contains personal pa
 - In existing files, home directory paths become `~`, prototype commands become paths relative to the repository, the course .docx link in architecture §2.1 becomes a text description, and the relay URL in the responses-compat prototype becomes the placeholder `relay.example.com`.
 - Reason: the worst case of the author email leaking is that, once public, it is collected by crawlers and receives spam or phishing email, and the GitHub identity can be linked to the accounts tied to that email; the risk is low. Rewriting history would change every commit ID, invalidating the commit IDs cited in the four tags, the documents and the Windows test records; the cost is higher than the benefit.
 - When to reconsider: if the repository is to be made public without exposing the old email, create a new public repository from the current files instead of rewriting this repository's history.
+
+## D-026 Answer typography: looser body text, lighter coloured bold, bold colour as a setting (2026-11-22)
+
+The user found answer text heavy and not clean enough, and compared fonts, spacing and bold side by side in `prototypes/text-spacing` (its README has the screenshots and measurements). Decided (2026-11-21 and 2026-11-22):
+
+- **Fonts stay as they are**: Inter for the interface, PingFang SC first for answers. Other font sets either lost Chinese bold (any list with a Latin font first) or looked no better.
+- **Answer body text** (paragraphs, list items, quotes, table cells) has a 24 px line height, 1.7 times its 14 px size; the font's own spacing was 1.4. List numbers and bullets share it. Headings and code keep their own spacing. The gap between answer blocks is 10 px instead of 8.
+- **Bold** is lighter and coloured: Medium weight instead of Semibold, in a muted colour, so it stands out by colour and not by weight. In the light theme Semibold black was too heavy; in the dark theme weight alone did not stand out. Saturated colours were tried and rejected as too vivid.
+- **The bold colour is a setting**: Settings › Appearance › “加粗颜色” (Bold colour), with Brown (the default), Slate, Sage, Plum and “与正文相同” (Same as text). Each colour has a light and a dark value in the theme resources. The choice applies at once, like the theme, and is stored under the preference key `bold-colour`; a missing or unknown value means Brown. No migration.
+
+This does not change the requirements or the first-release scope.
