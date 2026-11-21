@@ -289,8 +289,7 @@ public class SessionNetworkUiTests
 
         var heading = Find<TextBlock>(view, "DetailTitle");
         Assert.Equal("摄影入门", heading.Text);
-        Assert.NotEqual(Avalonia.Media.FontWeight.SemiBold, heading.FontWeight);
-        Assert.NotEqual(Avalonia.Media.FontWeight.Bold, heading.FontWeight);
+        Assert.Equal(Avalonia.Media.FontWeight.Normal, heading.FontWeight);
         var block = Find<StackPanel>(view, "DetailQuestionBlock");
         Assert.True(block.IsEffectivelyVisible);
         Assert.Equal("摄影怎么入门？", Find<TextBlock>(view, "DetailQuestion").Text);
@@ -328,6 +327,7 @@ public class SessionNetworkUiTests
         Assert.True(text.TextLayout.TextLines.Count <= 4, $"{text.TextLayout.TextLines.Count} lines collapsed");
         Assert.True(text.Bounds.Height < 4 * text.FontSize * 2, "collapsed question is bounded");
         AssertInside(Find<Button>(view, "ReturnSelectedButton"), panel);
+        AssertInside(toggle, panel);
         Screenshots.Capture(window, $"session-network-details-long-collapsed-{theme.ToLowerInvariant()}");
 
         UiInput.Click(window, toggle);
@@ -336,6 +336,14 @@ public class SessionNetworkUiTests
         Assert.Equal(0, text.MaxLines);
         Assert.Equal(UiText.HideWholeQuestion, toggle.Content);
         Assert.True(text.TextLayout.TextLines.Count > 4);
+
+        // Expanded, the question scrolls in its own box of at most 60% of the panel: the buttons stay in view without scrolling the panel.
+        var box = Find<ScrollViewer>(view, "QuestionScroller");
+        Assert.True(box.Bounds.Height <= panel.Bounds.Height * 0.6 + 0.5, $"question box {box.Bounds.Height} of {panel.Bounds.Height}");
+        Assert.True(box.Bounds.Height > 4 * text.FontSize, "the expanded box shows more than the collapsed lines");
+        Assert.Equal(0, panel.Offset.Y);
+        AssertInside(Find<Button>(view, "ReturnSelectedButton"), panel);
+        AssertInside(toggle, panel);
         Screenshots.Capture(window, $"session-network-details-long-expanded-{theme.ToLowerInvariant()}");
 
         UiInput.Click(window, toggle);
@@ -354,7 +362,27 @@ public class SessionNetworkUiTests
     private static void AssertInside(Control control, Control container)
     {
         var origin = control.TranslatePoint(default, container)!.Value;
+        Assert.True(control.IsEffectivelyVisible, $"{control.Name} is hidden");
         Assert.True(origin.X >= -0.5 && origin.X + control.Bounds.Width <= container.Bounds.Width + 0.5, $"{control.Name} is outside the panel horizontally");
+        Assert.True(origin.Y >= -0.5 && origin.Y + control.Bounds.Height <= container.Bounds.Height + 0.5, $"{control.Name} is outside the panel vertically ({origin.Y}+{control.Bounds.Height} of {container.Bounds.Height})");
+    }
+
+    [AvaloniaFact]
+    public async Task A_summary_dot_keeps_its_summary_name_and_shows_the_question()
+    {
+        await using var app = Gated();
+        var window = app.ShowWindow(1100, 720);
+        var (summarized, _, _) = await SeedAsync(app);
+        var network = await OpenAsync(app, window);
+        var view = PageView(window);
+
+        network.Select(network.Session.Projection.Nodes.Single(n => n.Conversation == summarized).Id);
+        window.UpdateLayout();
+
+        Assert.Equal("火车起源的详细说明", Find<TextBlock>(view, "DetailTitle").Text);
+        Assert.True(Find<StackPanel>(view, "DetailQuestionBlock").IsEffectivelyVisible);
+        Assert.Equal("火车是怎么发明的？", Find<TextBlock>(view, "DetailQuestion").Text);
+        window.Close();
     }
 
     [AvaloniaTheory]

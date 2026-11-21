@@ -19,6 +19,7 @@
     <Style Selector="TextBlock#DetailTitle">
       <Setter Property="FontWeight" Value="SemiBold" />
     </Style>
+    <!-- "session" is the gate flag (IsSessionNetwork), set on the heading. -->
     <Style Selector="TextBlock#DetailTitle.session">
       <Setter Property="FontWeight" Value="Normal" />
     </Style>
@@ -201,7 +202,10 @@
           <!-- A session's first question: four lines at most, whole on 展开 (shown only when it is longer). -->
           <StackPanel Name="DetailQuestionBlock" Spacing="3" IsVisible="{Binding Selected.HasQuestion, FallbackValue=False}">
             <TextBlock Classes="muted" FontSize="12" Text="{x:Static t:UiText.DetailQuestion}" />
-            <TextBlock Name="DetailQuestion" TextWrapping="Wrap" MaxLines="4" TextTrimming="CharacterEllipsis" Text="{Binding Selected.Question, FallbackValue=''}" />
+            <!-- Expanded, the question scrolls in its own box (capped in code-behind) so the buttons below stay in view. -->
+            <ScrollViewer Name="QuestionScroller" Classes="autohide" HorizontalScrollBarVisibility="Disabled" VerticalScrollBarVisibility="Auto">
+              <TextBlock Name="DetailQuestion" TextWrapping="Wrap" MaxLines="4" TextTrimming="CharacterEllipsis" Margin="0,0,6,0" Text="{Binding Selected.Question, FallbackValue=''}" />
+            </ScrollViewer>
             <Button Name="ToggleQuestionButton" Classes="quiet small" HorizontalAlignment="Left" IsVisible="False" Content="{x:Static t:UiText.ShowWholeQuestion}" />
           </StackPanel>
           <!-- The same tags as the list and the summary page; words, not only colour (MW-C07). -->
