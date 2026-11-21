@@ -1,5 +1,7 @@
 using System.Diagnostics;
 using System.Globalization;
+using Mindweave.Application.Storage;
+using Mindweave.Core.Summaries;
 using Mindweave.Desktop.SummaryNetwork;
 
 namespace Mindweave.Desktop.Tests;
@@ -14,7 +16,7 @@ public partial class SpatialPackingTests
     public static TheoryData<string> LoneShapes =>
     [
         "comb 160×3", "comb 150×3", "comb 60×2", "comb 500×3", "chain 600", "chain 2000", "star 200", "star 600",
-        "star 1000", "binary 1023", "ternary 1093", "fan 6^4",
+        "star 1000", "broom 4×352", "binary 1023", "ternary 1093", "fan 6^4",
     ];
 
     [Theory]
@@ -31,20 +33,6 @@ public partial class SpatialPackingTests
         Assert.Equal(nodes.Count, dots.Count);
         Assert.Equal(0, report.Overlaps);
         Assert.True(ratio <= 2.5, $"A lone {shape} spreads to {ratio:F2} × its ideal radius (at most 2.5).");
-    }
-
-    [Fact]
-    public void A_comb_packs_round()
-    {
-        // A long main line where every session has three side questions (the review's caterpillar, 640 dots).
-        var nodes = Comb(spine: 160, legs: 3);
-
-        var report = SpatialPacking.Measure(nodes, SpatialPacking.Arrange(nodes));
-        var ratio = report.EnclosingRadius / report.IdealRadius;
-
-        Output($"comb 160×3: enclosing / ideal {ratio:F3}, centroid {report.CentroidOffset:F3}, {report.BranchCrossings} crossings over {report.BranchEdges} lines ({(double)report.BranchCrossings / report.BranchEdges:F3} per line)");
-        Assert.Equal(0, report.Overlaps);
-        Assert.True(ratio <= 2.5, $"The comb spreads to {ratio:F2} × its ideal radius (at most 2.5).");
     }
 
     [Fact]
@@ -112,31 +100,51 @@ public partial class SpatialPackingTests
     {
         Assert.SkipUnless(Environment.GetEnvironmentVariable("MINDWEAVE_PERF") == "1", "Run through scripts/perf.sh.");
 
-        // Each time covers every arrangement the shape is given (Ruling R-P6). The comb is too deep for nested packing
-        // within its budget, so it is wedged and spiralled, and only the spiral leaves its lines uncrossed; the chain
-        // is also nested, freely and stiffly; the binary tree is too large to nest, and wedges keep it uncrossed.
+        // Each time (the median of three runs) covers every arrangement the shape is given (Rulings R-P6, R-P10).
+        // - The comb 150×3 is too deep to nest within its budget; wedged and spiralled, the spiral alone is uncrossed.
+        // - The comb 55×3 sits just under the nesting budget (698,000 of 700,000 moves), so its time includes nesting.
+        // - The chain is nested, freely and stiffly, and wedged.
+        // - The binary tree and the broom are too large to nest; wedges keep them uncrossed.
+        // - The stars of 1,000 and 999 dots are nested and wedged twice each: their time covers the creation-order
+        //   check round a fan of a thousand.
+        Arrangement[] all = [Arrangement.Nested, Arrangement.StiffNested, Arrangement.Wedges, Arrangement.Spiral];
+        Arrangement[] unnested = [Arrangement.Wedges, Arrangement.Spiral];
         (string Shape, Arrangement[] Tried, Arrangement Kept)[] cases =
         [
-            ("comb 150×3", [Arrangement.Wedges, Arrangement.Spiral], Arrangement.Spiral),
-            ("chain 600", [Arrangement.Nested, Arrangement.StiffNested, Arrangement.Wedges, Arrangement.Spiral], Arrangement.Wedges),
-            ("binary 1023", [Arrangement.Wedges, Arrangement.Spiral], Arrangement.Wedges),
+            ("comb 150×3", unnested, Arrangement.Spiral),
+            ("comb 55×3", all, Arrangement.Spiral),
+            ("chain 600", all, Arrangement.Wedges),
+            ("binary 1023", unnested, Arrangement.Wedges),
+            ("broom 4×352", unnested, Arrangement.Wedges),
+            ("star 1000", all, Arrangement.Wedges),
+            ("star 999", all, Arrangement.Wedges),
         ];
         foreach (var (shape, tried, kept) in cases)
         {
             var nodes = LoneShape(shape);
             SpatialPacking.Arrange(nodes); // warm-up
 
-            var watch = Stopwatch.StartNew();
-            var (dots, trace) = SpatialPacking.Trace(nodes);
-            var elapsed = watch.Elapsed;
-
-            var report = SpatialPacking.Measure(nodes, dots);
-            Output($"{shape} ({nodes.Count} dots): {elapsed.TotalMilliseconds.ToString("F1", CultureInfo.InvariantCulture)} ms, tried {string.Join(", ", trace.Tried)}, kept {trace.Kept}; enclosing / ideal {report.EnclosingRadius / report.IdealRadius:F3}, {report.BranchCrossings} crossings over {report.BranchEdges} lines");
-            Assert.Equal(tried, trace.Tried);
-            Assert.Equal(kept, trace.Kept);
+            var times = new List<TimeSpan>();
+            var result = Timed(nodes, times);
+            Timed(nodes, times);
+            Timed(nodes, times);
+            var elapsed = times.Order().ElementAt(1);
+            var report = SpatialPacking.Measure(nodes, result.Dots);
+            Output($"{shape} ({nodes.Count} dots): median {elapsed.TotalMilliseconds.ToString("F1", CultureInfo.InvariantCulture)} ms, tried {string.Join(", ", result.Trace.Tried)}, kept {result.Trace.Kept}; enclosing / ideal {report.EnclosingRadius / report.IdealRadius:F3}, {report.BranchCrossings} crossings over {report.BranchEdges} lines");
+            Assert.Equal(tried, result.Trace.Tried);
+            Assert.Equal(kept, result.Trace.Kept);
             Assert.Equal(0, report.Overlaps);
             Assert.True(elapsed < TimeSpan.FromMilliseconds(300), $"Arranging a lone {shape} took {elapsed.TotalMilliseconds:F1} ms (budget 300 ms).");
         }
+    }
+
+    /// <summary>Arranges <paramref name="nodes"/> once and adds the time it took to <paramref name="times"/>.</summary>
+    private static (IReadOnlyDictionary<SummaryNodeId, NodePosition> Dots, ArrangeTrace Trace) Timed(List<PackNode> nodes, List<TimeSpan> times)
+    {
+        var watch = Stopwatch.StartNew();
+        var result = SpatialPacking.Trace(nodes);
+        times.Add(watch.Elapsed);
+        return result;
     }
 
     /// <summary>The lone tree a <see cref="LoneShapes"/> name stands for.</summary>
@@ -147,7 +155,8 @@ public partial class SpatialPackingTests
         {
             "comb" => Comb(Number(size.Split('×')[0]), Number(size.Split('×')[1])),
             "chain" => Full(fan: 1, depth: Number(size) - 1),
-            "star" => Full(fan: Number(size), depth: 1),
+            "star" => Full(fan: Number(size) - 1, depth: 1),
+            "broom" => Broom(Number(size.Split('×')[0]), Number(size.Split('×')[1])),
             "binary" => Full(fan: 2, depth: 9),
             "ternary" => Full(fan: 3, depth: 6),
             "fan" => Full(fan: 6, depth: 4),

@@ -17,16 +17,102 @@ public static partial class SpatialPacking
     private sealed partial class Placing
     {
         /// <summary>
-        /// The footprint centres of a node's children placed so far, with a candidate place for one more, for the
-        /// creation-order check (<see cref="ClockwiseInOrder"/>).
+        /// The creation-order check for one dot's places (<see cref="ClockwiseInOrder"/>, worked out once per dot and
+        /// then in constant time per place). The siblings placed so far already lie clockwise in creation order round
+        /// their parent (a place that breaks it is taken only as a last resort, and then the fan stays broken), so a
+        /// new child keeps the order exactly when it falls between its nearest placed siblings in creation order:
+        /// <list type="bullet">
+        /// <item>
+        /// after some placed sibling: its direction, turned clockwise from the first placed sibling's, lies beyond its
+        /// placed predecessor's and short of its placed successor's, if any (the same sums as the full check);
+        /// </item>
+        /// <item>
+        /// before every placed sibling: it becomes the first, and the others keep their order round it exactly when it
+        /// lies in the arc from the last placed sibling round to the first.
+        /// </item>
+        /// </list>
         /// </summary>
-        private readonly struct Siblings(Placing placing, double[] offset, int candidate, double x, double y) : ICentres
+        private readonly struct SiblingOrder
         {
-            public bool TryGet(int node, out double cx, out double cy)
+            private readonly bool _always;
+            private readonly bool _never;
+            private readonly bool _before;
+            private readonly double _px;
+            private readonly double _py;
+            private readonly double _first;
+            private readonly double _low;
+            private readonly double _high;
+
+            public SiblingOrder(Placing placing, Forest forest, int i)
             {
-                (cx, cy) = node == candidate ? (x, y) : (placing.X[node] + offset[node], placing.Y[node]);
-                return node == candidate || placing._done[node];
+                var p = forest.Parent[i];
+                var children = forest.Children[p];
+                (_always, _never, _before) = (children.Count < 3, placing._broken[p], false);
+                (_px, _py) = (placing.X[p] + forest.Offset[p], placing.Y[p]);
+                (_first, _low, _high) = (0, 0, double.PositiveInfinity);
+                if (_always || _never)
+                {
+                    return;
+                }
+
+                int first = -1, last = -1, before = -1, after = -1;
+                var seen = false;
+                foreach (var c in children)
+                {
+                    if (c == i)
+                    {
+                        seen = true;
+                        continue;
+                    }
+
+                    if (!placing._done[c])
+                    {
+                        continue;
+                    }
+
+                    first = first < 0 ? c : first;
+                    last = c;
+                    if (!seen)
+                    {
+                        before = c;
+                    }
+                    else if (after < 0)
+                    {
+                        after = c;
+                    }
+                }
+
+                if (first < 0)
+                {
+                    _always = true;
+                    return;
+                }
+
+                _first = Angle(placing, forest, first);
+                if (before >= 0)
+                {
+                    _low = Turned(Angle(placing, forest, before) - _first);
+                    _high = after >= 0 ? Turned(Angle(placing, forest, after) - _first) : double.PositiveInfinity;
+                }
+                else
+                {
+                    (_before, _low) = (true, Turned(Angle(placing, forest, last) - _first));
+                }
             }
+
+            /// <summary>Whether the child's footprint centred at (x, y) keeps its siblings in creation order.</summary>
+            public bool Allows(double x, double y)
+            {
+                if (_always || _never)
+                {
+                    return _always;
+                }
+
+                var turned = Turned(Math.Atan2(y - _py, x - _px) - _first);
+                return _before ? turned > _low : turned > _low && turned < _high;
+            }
+
+            private double Angle(Placing placing, Forest forest, int c) => Math.Atan2(placing.Y[c] - _py, placing.X[c] + forest.Offset[c] - _px);
         }
 
         /// <summary>How far a line to (x, y) would push the siblings still to come away from the root, in all.</summary>

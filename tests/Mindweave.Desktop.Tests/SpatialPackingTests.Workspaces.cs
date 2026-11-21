@@ -148,5 +148,25 @@ public partial class SpatialPackingTests
     }
 
 
+    /// <summary>A broom: a root with <paramref name="handles"/> children, each with <paramref name="bristles"/> one-question branches.</summary>
+    private static List<PackNode> Broom(int handles, int bristles)
+    {
+        var parent = new List<int> { -1 };
+        for (var h = 0; h < handles; h++)
+        {
+            parent.Add(0);
+            var handle = parent.Count - 1;
+            parent.AddRange(Enumerable.Repeat(handle, bristles));
+        }
+
+        var mass = Enumerable.Repeat(2.0, parent.Count).ToArray();
+        for (var i = parent.Count - 1; i > 0; i--)
+        {
+            mass[parent[i]] += mass[i];
+        }
+
+        return [.. Enumerable.Range(0, parent.Count).Select(i => Node(i + 1, parent[i] < 0 ? null : parent[i] + 1, i, mass[i], label: 64 + (16 * (i % 5))))];
+    }
+
     private static SummaryNodeId Id(int n) => new(new Guid(n, 0, 0, new byte[8]));
 }

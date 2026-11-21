@@ -52,16 +52,20 @@ public static partial class SpatialPacking
 
     /// <summary>
     /// The most work one wedge task may take, in pairs of dots: placing each dot of a fill looks at every dot and line
-    /// placed before it, so a fill of n dots costs about n². A task fills once and, within this, fills again aimed at
-    /// the centre of gravity. About 0.15 s on a current laptop.
+    /// placed before it, so a fill of n dots costs about n² (the creation-order check round a fan is constant per
+    /// place, so a big fan adds nothing). A task fills once and, within this, fills again aimed at the centre of
+    /// gravity. This is work for one core, not time: measured at 13 to 52 ns a pair (stars cheapest, brooms dearest),
+    /// so up to about 0.2 s for a task. The tasks run side by side, so the time to arrange a tree is about its
+    /// slowest task's where there are cores enough, and the sum of them on one core.
     /// </summary>
     internal const long WedgeWork = 4_000_000;
 
     /// <summary>
     /// The most work nested packing may take, in footprint moves: each group settles every footprint of its
     /// sub-branch <see cref="GroupCompactionSteps"/> times, and the whole is settled <see cref="CompactionSteps"/>
-    /// times (<see cref="NestingWork"/>). About 0.2 s on a current laptop. A deep tree costs far more than a bushy one
-    /// of the same size; beyond this a lone tree is arranged without it.
+    /// times (<see cref="NestingWork"/>). A deep tree costs far more than a bushy one of the same size; beyond this a
+    /// lone tree is arranged without it. This is work for one core, not time: measured at 160 to 410 ns a move, so
+    /// up to about 0.2 s, run beside the wedge tasks (see <see cref="WedgeWork"/>).
     /// </summary>
     internal const long NestingBudget = 700_000;
 
@@ -81,6 +85,7 @@ public static partial class SpatialPacking
         var tries = Math.Clamp(Math.Min(WedgeBudget / n, n), 1, WedgeTries);
         var nested = NestingWork(forest) <= NestingBudget ? 2 : 0;
         var fills = 2L * n * n <= WedgeWork ? 2 : 1;
+        var lean = LabelLean(forest);
         var groups = new Lazy<Dictionary<int, Group>>(() => BuildGroups(forest));
         var candidates = new Candidate[nested + (fills * tries) + 1];
         Parallel.For(0, nested + tries + 1, k =>
@@ -101,7 +106,6 @@ public static partial class SpatialPacking
 
             var at = nested + (fills * (k - nested));
             var turn = 2 * Math.PI * Spread(k - nested);
-            var lean = LabelLean(forest);
             candidates[at] = Finish(forest, Arrangement.Wedges, FillWedges(forest, area, turn, lean, 0));
             if (fills == 2)
             {

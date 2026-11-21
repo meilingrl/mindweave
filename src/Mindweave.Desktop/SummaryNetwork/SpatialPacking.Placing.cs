@@ -45,6 +45,9 @@ public static partial class SpatialPacking
         private readonly List<LineBox> _lines = [];
         private readonly List<PlacedDot> _dots = [];
         private readonly bool[] _done = new bool[forest.Nodes.Length];
+
+        /// <summary>Fans whose children are no longer in creation order (a last-resort place broke it).</summary>
+        private readonly bool[] _broken = new bool[forest.Nodes.Length];
         private readonly double[] _floor = new double[forest.Nodes.Length];
         private readonly List<(double Low, double High)> _blocked = [];
         private readonly List<Circle> _near = [];
@@ -174,6 +177,7 @@ public static partial class SpatialPacking
             }
 
             _candidates.Sort((a, b) => a.Base.CompareTo(b.Base));
+            var order = new SiblingOrder(this, forest, i);
             var best = (X: _candidates[0].X, Y: _candidates[0].Y, Score: double.PositiveInfinity);
             var fallback = best;
             foreach (var (score, x, y) in _candidates)
@@ -183,7 +187,7 @@ public static partial class SpatialPacking
                     break;
                 }
 
-                if (!ClockwiseInOrder(forest.Children[p], X[p] + forest.Offset[p], Y[p], new Siblings(this, forest.Offset, i, x + offset, y)))
+                if (!order.Allows(x + offset, y))
                 {
                     if (fallback.Score == double.PositiveInfinity)
                     {
@@ -207,7 +211,13 @@ public static partial class SpatialPacking
                 }
             }
 
-            return best.Score < double.PositiveInfinity ? (best.X, best.Y) : (fallback.X, fallback.Y);
+            if (best.Score < double.PositiveInfinity)
+            {
+                return (best.X, best.Y);
+            }
+
+            _broken[p] = true;
+            return (fallback.X, fallback.Y);
         }
 
         /// <summary>
