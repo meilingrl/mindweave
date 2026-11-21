@@ -126,9 +126,10 @@ public static partial class UiText
             return ToolName(tool);
         }
 
+        // A summary written in Chinese separates its input with "："; only one with none uses ": " (English). A server's
+        // name is free text and may itself contain ": ", so "：" wins whenever it is there.
         var fullWidth = summary.IndexOf(FullWidthColon, StringComparison.Ordinal);
-        var ascii = summary.IndexOf(": ", StringComparison.Ordinal);
-        var cut = fullWidth > 0 && (ascii <= 0 || fullWidth < ascii) ? fullWidth : ascii;
+        var cut = fullWidth >= 0 ? fullWidth : summary.IndexOf(": ", StringComparison.Ordinal);
         return cut > 0 ? summary[..cut] : summary;
     }
 

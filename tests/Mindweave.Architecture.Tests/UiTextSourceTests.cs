@@ -86,6 +86,58 @@ public partial class UiTextSourceTests
         Assert.True(problems.Count == 0, $"{problems.Count} members:\n" + string.Join('\n', problems.Take(60)));
     }
 
+    /// <summary>
+    /// Nothing static keeps interface text it read once, anywhere in the Desktop project: a language switch rebuilds the
+    /// views, but a static value would stay in the old language (docs/design/bilingual-ui.md §6). Inside UiText no static
+    /// initializer is allowed at all; elsewhere one may not read UiText or T(...) except inside a lambda.
+    /// </summary>
+    [Fact]
+    public void No_static_value_keeps_interface_text()
+    {
+        var desktop = Path.Combine(LayeringTests.RepositoryRoot(), "src", "Mindweave.Desktop");
+        var problems = new List<string>();
+        foreach (var path in Directory.EnumerateFiles(desktop, "*.cs", SearchOption.AllDirectories).Where(IsSource))
+        {
+            var inUiText = Path.GetFileName(path).StartsWith("UiText", StringComparison.Ordinal);
+            var root = CSharpSyntaxTree.ParseText(File.ReadAllText(path), new CSharpParseOptions(LanguageVersion.Preview), path, cancellationToken: TestContext.Current.CancellationToken).GetRoot(TestContext.Current.CancellationToken);
+            var initializers =
+                root.DescendantNodes().OfType<FieldDeclarationSyntax>()
+                    .Where(f => f.Modifiers.Any(SyntaxKind.StaticKeyword) || f.Modifiers.Any(SyntaxKind.ConstKeyword))
+                    .SelectMany(f => f.Declaration.Variables.Where(v => v.Initializer is not null).Select(v => (Name: v.Identifier.Text, Value: (SyntaxNode)v.Initializer!.Value)))
+                .Concat(root.DescendantNodes().OfType<PropertyDeclarationSyntax>()
+                    .Where(p => p.Modifiers.Any(SyntaxKind.StaticKeyword) && p.Initializer is not null)
+                    .Select(p => (Name: p.Identifier.Text, Value: (SyntaxNode)p.Initializer!.Value)));
+            foreach (var (name, value) in initializers)
+            {
+                if (inUiText ? !IsPlainValue(value) : ReadsText(value))
+                {
+                    problems.Add($"{Path.GetRelativePath(desktop, path)}:{Line(value)} {name}");
+                }
+            }
+        }
+
+        Assert.True(problems.Count == 0, string.Join('\n', problems));
+    }
+
+    /// <summary>A number, character or other constant that is not text (a length limit, say).</summary>
+    private static bool IsPlainValue(SyntaxNode value) =>
+        !value.DescendantNodesAndSelf().Any(n => n is InvocationExpressionSyntax or InterpolatedStringExpressionSyntax
+            or CollectionExpressionSyntax or ObjectCreationExpressionSyntax or ImplicitObjectCreationExpressionSyntax
+            || n.IsKind(SyntaxKind.StringLiteralExpression));
+
+    /// <summary>
+    /// Whether a static initializer reads UiText or T(...) outside a lambda. A UiText method passed as a method group
+    /// (a converter, say) is read at each call, so it does not count.
+    /// </summary>
+    private static bool ReadsText(SyntaxNode value) =>
+        value.DescendantNodesAndSelf(n => n is not LambdaExpressionSyntax and not AnonymousMethodExpressionSyntax)
+            .Any(n => n is MemberAccessExpressionSyntax { Expression: IdentifierNameSyntax { Identifier.Text: "UiText" } } member
+                      && (!UiTextMethods.Value.Contains(member.Name.Identifier.Text) || member.Parent is InvocationExpressionSyntax)
+                   || n is InvocationExpressionSyntax call && IsT(call));
+
+    private static readonly Lazy<HashSet<string>> UiTextMethods = new(() =>
+        UiTextFiles().SelectMany(f => f.Root.DescendantNodes().OfType<MethodDeclarationSyntax>().Select(m => m.Identifier.Text)).ToHashSet(StringComparer.Ordinal));
+
     /// <summary>Interface text lives in UiText only: the rest of the Desktop project, code and XAML, has none.</summary>
     [Fact]
     public void Desktop_has_no_Chinese_outside_UiText()

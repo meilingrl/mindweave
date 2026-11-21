@@ -117,11 +117,11 @@ public static partial class UiText
     /// <summary>"正在搜索：蒸汽机…", "正在读取网页：zh.wikipedia.org…", "正在调用 files › echo…".</summary>
     private static string ToolStatus(string tool, string? summary)
     {
-        // A step summary written in English separates its object with ": " instead of "："; the first separator wins,
-        // as in ToolLabel.
+        // A step summary written in English separates its object with ": " instead of "："; "：" wins whenever it is
+        // there, since a server's name may contain ": " (as in ToolLabel).
         var fullWidth = summary?.IndexOf('：', StringComparison.Ordinal) ?? -1;
         var ascii = summary?.IndexOf(": ", StringComparison.Ordinal) ?? -1;
-        var useAscii = ascii >= 0 && (fullWidth < 0 || ascii < fullWidth);
+        var useAscii = fullWidth < 0 && ascii >= 0;
         var cut = useAscii ? ascii : fullWidth;
         var width = useAscii ? 2 : 1;
 

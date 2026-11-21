@@ -4,9 +4,14 @@ namespace Mindweave.Desktop.ViewModels.Pages;
 /// A well-known OpenAI-compatible Chat Completions service the settings page can fill in. Only the base address
 /// (the part before <c>/chat/completions</c>) is filled: model names change too often to guess, and the fetched list
 /// shows them. <see cref="BaseUrl"/> is null for "custom", which keeps whatever address is typed.
+/// The name and key hint are read each time they are shown, so they follow the interface language after a switch.
 /// </summary>
-public sealed record ProviderPreset(string Name, string? BaseUrl, string? KeyPlaceholder = null, params string[] Aliases)
+public sealed record ProviderPreset(Func<string> NameOf, string? BaseUrl, Func<string>? KeyPlaceholderOf = null, params string[] Aliases)
 {
+    public string Name => NameOf();
+
+    public string? KeyPlaceholder => KeyPlaceholderOf?.Invoke();
+
     public bool IsCustom => BaseUrl is null;
 
     public override string ToString() => Name;
@@ -18,24 +23,24 @@ public sealed record ProviderPreset(string Name, string? BaseUrl, string? KeyPla
 /// </summary>
 public static class ProviderPresets
 {
-    public static ProviderPreset DeepSeek { get; } = new("DeepSeek", "https://api.deepseek.com", null, "https://api.deepseek.com/v1");
+    public static ProviderPreset DeepSeek { get; } = new(() => "DeepSeek", "https://api.deepseek.com", null, "https://api.deepseek.com/v1");
 
-    public static ProviderPreset OpenAI { get; } = new("OpenAI", "https://api.openai.com/v1");
+    public static ProviderPreset OpenAI { get; } = new(() => "OpenAI", "https://api.openai.com/v1");
 
-    public static ProviderPreset DashScope { get; } = new(UiText.ProviderDashScope, "https://dashscope.aliyuncs.com/compatible-mode/v1");
+    public static ProviderPreset DashScope { get; } = new(() => UiText.ProviderDashScope, "https://dashscope.aliyuncs.com/compatible-mode/v1");
 
-    public static ProviderPreset Moonshot { get; } = new(UiText.ProviderMoonshot, "https://api.moonshot.cn/v1");
+    public static ProviderPreset Moonshot { get; } = new(() => UiText.ProviderMoonshot, "https://api.moonshot.cn/v1");
 
-    public static ProviderPreset Zhipu { get; } = new(UiText.ProviderZhipu, "https://open.bigmodel.cn/api/paas/v4");
+    public static ProviderPreset Zhipu { get; } = new(() => UiText.ProviderZhipu, "https://open.bigmodel.cn/api/paas/v4");
 
-    public static ProviderPreset OpenRouter { get; } = new("OpenRouter", "https://openrouter.ai/api/v1");
+    public static ProviderPreset OpenRouter { get; } = new(() => "OpenRouter", "https://openrouter.ai/api/v1");
 
-    public static ProviderPreset SiliconFlow { get; } = new(UiText.ProviderSiliconFlow, "https://api.siliconflow.cn/v1");
+    public static ProviderPreset SiliconFlow { get; } = new(() => UiText.ProviderSiliconFlow, "https://api.siliconflow.cn/v1");
 
     /// <summary>Ollama on this machine does not check the key, but a key is still required to save (any text will do).</summary>
-    public static ProviderPreset Ollama { get; } = new(UiText.ProviderOllama, "http://localhost:11434/v1", UiText.OllamaKeyPlaceholder, "http://127.0.0.1:11434/v1");
+    public static ProviderPreset Ollama { get; } = new(() => UiText.ProviderOllama, "http://localhost:11434/v1", () => UiText.OllamaKeyPlaceholder, "http://127.0.0.1:11434/v1");
 
-    public static ProviderPreset Custom { get; } = new(UiText.ProviderCustom, null);
+    public static ProviderPreset Custom { get; } = new(() => UiText.ProviderCustom, null);
 
     public static IReadOnlyList<ProviderPreset> All { get; } =
         [DeepSeek, OpenAI, DashScope, Moonshot, Zhipu, OpenRouter, SiliconFlow, Ollama, Custom];
