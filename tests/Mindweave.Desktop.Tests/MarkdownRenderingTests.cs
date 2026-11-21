@@ -59,6 +59,56 @@ public class MarkdownRenderingTests
         window.Close();
     }
 
+    private const string CjkPunctuationEmphasis = "1829 年他和儿子设计的**“火箭号”**在雨山试验中胜出。\n\n" +
+        "他说**这很重要。**然后离开。\n\n" +
+        "- 斯蒂芬森的**（火箭号）**胜出\n\n" +
+        "a**b**c, **bold**, and snake_case_name.";
+
+    /// <summary>
+    /// Bold whose inner edge is CJK punctuation, next to a CJK letter outside. CommonMark's flanking rules do not let
+    /// <c>**</c> open between a letter and punctuation (or close between punctuation and a letter), so the asterisks
+    /// showed; models write this pattern often in Chinese. Latin emphasis keeps the CommonMark rules.
+    /// </summary>
+    [AvaloniaTheory]
+    [InlineData(Feed.Full)]
+    [InlineData(Feed.Live)]
+    public async Task Bold_opens_and_closes_beside_cjk_punctuation(Feed feed)
+    {
+        var (window, renderer) = await RenderAsync(CjkPunctuationEmphasis, feed);
+
+        var runs = DrawnWeights(renderer);
+        Assert.DoesNotContain("**", runs.Text, StringComparison.Ordinal);
+        Assert.True(IsBold(runs, "“火箭号”"));
+        Assert.False(IsBold(runs, "1829 年他和儿子设计的"));
+        Assert.False(IsBold(runs, "在雨山试验中胜出。"));
+        Assert.True(IsBold(runs, "这很重要。"));
+        Assert.False(IsBold(runs, "然后离开。"));
+        Assert.True(IsBold(runs, "（火箭号）"));
+        Assert.False(IsBold(runs, "胜出\n"));
+
+        // Latin emphasis is unchanged: intraword ** still bolds, and _ inside a word stays literal.
+        Assert.True(IsBold(runs, "b"));
+        Assert.True(IsBold(runs, "bold"));
+        Assert.Contains("abc, bold, and snake_case_name.", runs.Text, StringComparison.Ordinal);
+        window.Close();
+    }
+
+    /// <summary>Text without CJK characters parses exactly as plain CommonMark emphasis would.</summary>
+    [Theory]
+    [InlineData("a**b**c")]
+    [InlineData("**bold**,")]
+    [InlineData("foo**\"bar\"**baz")]
+    [InlineData("**\"quoted\"**word")]
+    [InlineData("snake_case_name and __init__ and _a_b_")]
+    [InlineData("2*3*4 and *a *b* c*")]
+    [InlineData("***strong emph*** and **unclosed")]
+    public void Latin_emphasis_follows_commonmark(string markdown)
+    {
+        MarkdownSetup.EnsureRegistered();
+        var commonMark = new MarkdownPipelineBuilder().UseExtendedMathematics().Use<DisplayMathExtension>().Use<NoImagesExtension>().Build();
+        Assert.Equal(Markdig.Markdown.ToHtml(markdown, commonMark), Markdig.Markdown.ToHtml(markdown, MarkdownUpdateProducer.DefaultPipeline));
+    }
+
     [AvaloniaTheory]
     [InlineData(Feed.Full, "$$F = \\frac{0.85\\,p\\,d^2 s}{D}$$")]
     [InlineData(Feed.Live, "$$F = \\frac{0.85\\,p\\,d^2 s}{D}$$")]
@@ -209,6 +259,39 @@ public class MarkdownRenderingTests
         var onFormula = SourceAnchors.Capture(markdown, old);
         Assert.Throws<InvalidDataException>(() => SourceAnchors.Restore(onFormula, markdown, current, Brushes.Yellow));
         Assert.Contains("livemarkdown-2.5.1/math-2", SourceAnchors.CompatibleProfiles);
+        oldWindow.Close();
+        newWindow.Close();
+    }
+
+    /// <summary>
+    /// Render profile cjk-emphasis-1 lets bold open and close beside CJK punctuation. Anchors captured under math-3 (the
+    /// same parse without that rule) restore in blocks whose displayed text is unchanged, and are refused, not guessed,
+    /// in a block that showed literal asterisks.
+    /// </summary>
+    [AvaloniaFact]
+    public void Math_3_anchors_restore_beside_cjk_emphasis_and_are_refused_where_it_changed_the_text()
+    {
+        const string markdown = "斯蒂芬森的**火箭号**胜出。\n\n他和儿子设计的**“火箭号”**在雨山试验中胜出。";
+        MarkdownSetup.EnsureRegistered();
+        var math3 = new MarkdownPipelineBuilder().UseExtendedMathematics().Use<DisplayMathExtension>().Use<NoImagesExtension>().Build();
+        var (oldWindow, old) = RenderFull(Markdig.Markdown.Parse(markdown, math3));
+        var (newWindow, current) = RenderFull(Markdig.Markdown.Parse(markdown, MarkdownUpdateProducer.DefaultPipeline));
+
+        var unchanged = SourceAnchors.Blocks(old)[0];
+        unchanged.SelectionStart = 0;
+        unchanged.SelectionEnd = unchanged.LayoutText.Length;
+        var restored = Assert.Single(SourceAnchors.Restore(SourceAnchors.Capture(markdown, old), markdown, current, Brushes.Yellow));
+        Assert.Equal("斯蒂芬森的火箭号胜出。", restored.Block.LayoutText);
+
+        unchanged.SelectionEnd = 0;
+        var changed = SourceAnchors.Blocks(old)[1];
+        changed.SelectionStart = 0;
+        changed.SelectionEnd = changed.LayoutText.Length;
+        var onChanged = SourceAnchors.Capture(markdown, old);
+        Assert.Throws<InvalidDataException>(() => SourceAnchors.Restore(onChanged, markdown, current, Brushes.Yellow));
+
+        Assert.Equal("livemarkdown-2.5.1/cjk-emphasis-1", SourceAnchors.RenderProfile);
+        Assert.Contains("livemarkdown-2.5.1/math-3", SourceAnchors.CompatibleProfiles);
         oldWindow.Close();
         newWindow.Close();
     }

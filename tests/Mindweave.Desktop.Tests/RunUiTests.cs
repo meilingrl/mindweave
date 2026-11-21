@@ -90,7 +90,6 @@ public class RunUiTests
     }
 
     [AvaloniaFact]
-    [Quarantined("2026-11-21", "Linux CI only, twice (runs 44795013988, 44797665196): the pasted attachment was not ready within 5 s, then 15 s (RunUiTests.cs:199, AskWithAttachmentAsync); passed on the next runs and 10 of 10 on macOS under --load.")]
     public async Task An_answer_without_tools_shows_no_activity_line()
     {
         await using var app = DesktopHarness.Create();

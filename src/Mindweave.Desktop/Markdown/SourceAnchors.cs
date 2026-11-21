@@ -61,7 +61,7 @@ public static class SourceAnchors
     public const int LocatorVersion = 1;
 
     /// <summary>Identity of the rendering setup anchors are valid for; a different profile may lay text out differently.</summary>
-    public const string RenderProfile = "livemarkdown-2.5.1/math-3";
+    public const string RenderProfile = "livemarkdown-2.5.1/cjk-emphasis-1";
 
     /// <summary>
     /// Profiles whose anchors are still worth trying. Before LaTeX rendering (and, in math-1, for backslash
@@ -69,10 +69,14 @@ public static class SourceAnchors
     /// fail the layout check and fall back. Since math-3 a paragraph holding only a one-line display formula is drawn
     /// as a formula block, not as a text block (<see cref="DisplayMathExtension"/>); every other text block keeps its
     /// source span, ordinal and displayed text, so math-2 anchors still restore unless they cover such a paragraph.
+    /// Since cjk-emphasis-1 bold may open and close beside CJK punctuation (<see cref="MarkdownSetup"/>); a block that
+    /// showed those asterisks as text now shows fewer characters and fails the layout check, every other block is
+    /// unchanged, so math-3 anchors still restore elsewhere.
     /// </summary>
     public static readonly IReadOnlySet<string> CompatibleProfiles = new HashSet<string>(StringComparer.Ordinal)
     {
         RenderProfile,
+        "livemarkdown-2.5.1/math-3",
         "livemarkdown-2.5.1/math-2",
         "livemarkdown-2.5.1/math-1",
         "livemarkdown-2.5.1/default-pipeline",
