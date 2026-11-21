@@ -207,7 +207,7 @@ public class SessionNetworkPackingTests
         var projection = Sessions(30);
         var session = await LoadedAsync(projection);
         var views = Views(session);
-        var obstacles = views.Select(v => CanvasBox.OfNode(v.X, v.Y, v.LabelWidth)).ToList();
+        var obstacles = SummaryNetworkObstacles.Of(views, [], sessionNetwork: true, timeline: false);
         var width = SummaryNetworkLayout.LabelWidth("一个推荐的问题会出现在这里");
 
         // Beside each session in turn: wherever the recommendation hangs, nothing of any session is under it.
@@ -215,7 +215,7 @@ public class SessionNetworkPackingTests
         {
             var place = RecommendationPlacement.Place(obstacles, [(basis.X, basis.Y, width)])[0];
             var box = CanvasBox.OfNode(place.X, place.Y, width);
-            Assert.DoesNotContain(views, v => box.Overlaps(CanvasBox.OfNode(v.X, v.Y, v.LabelWidth)));
+            Assert.DoesNotContain(obstacles, box.Overlaps);
         }
     }
 

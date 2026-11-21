@@ -953,18 +953,7 @@ public sealed partial class SummaryNetworkHomeViewModel : PageViewModel, IDispos
     {
         var nodes = Nodes.ToDictionary(n => n.Id);
         var items = _offer.Hidden ? [] : _offer.Items.Where(r => r.Basis is { } b && nodes.ContainsKey(b)).ToList();
-        var obstacles = new List<CanvasBox>(Nodes.Select(n => CanvasBox.OfNode(n.X, n.Y, n.LabelWidth)));
-        foreach (var caption in Captions)
-        {
-            var members = caption.Members.Where(nodes.ContainsKey).Select(id => nodes[id]).ToList();
-            if (members.Count > 0)
-            {
-                // The caption sits above the group's topmost node, from its leftmost one (SummaryNetworkCanvas.CaptionGap).
-                var top = members.Min(n => n.Y);
-                var left = members.Min(n => n.X) - SummaryNetworkLayout.NodeRadius;
-                obstacles.Add(new CanvasBox(left, top - SummaryNetworkLayout.CaptionHeadroom, left + SummaryNetworkLayout.LabelWidth(caption.Text), top - (SummaryNetworkLayout.NodeHeight / 2)));
-            }
-        }
+        var obstacles = SummaryNetworkObstacles.Of(Nodes, Captions, IsSessionNetwork, IsTimeline);
 
         var labels = items.Select(r => RecommendedLabel(r.Question)).ToList();
         var widths = labels.Select(RecommendedLabelWidth).ToList();

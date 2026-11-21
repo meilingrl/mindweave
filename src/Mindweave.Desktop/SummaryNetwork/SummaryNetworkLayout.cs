@@ -31,6 +31,15 @@ public static class SummaryNetworkLayout
     /// <summary>Room above each group for its caption ("探索 · …"), in canvas units (S7 round-1 fix).</summary>
     public const double CaptionHeadroom = 40;
 
+    /// <summary>Screen px between an exploration's caption (or a timeline date) and the centre of its topmost node.</summary>
+    public const double CaptionGap = 26;
+
+    /// <summary>The size of captions and dates, in px; a spatial date shrinks below zoom 1.</summary>
+    public const double CaptionSize = 11;
+
+    /// <summary>The most room a caption or date line takes up and down: 1.5 em of <see cref="CaptionSize"/>.</summary>
+    public const double CaptionLineHeight = CaptionSize * 1.5;
+
     public const double NodeHeight = 44;
     public const double LabelPadding = 24;
     public const int CollisionPasses = 40;

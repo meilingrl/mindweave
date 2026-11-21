@@ -35,9 +35,9 @@ public sealed class SummaryNetworkCanvas : Control
     public const double FocusedLabelMinSize = 10;
 
     /// <summary>Screen px between an exploration's caption and the centre of its topmost node.</summary>
-    public const double CaptionGap = 26;
+    public const double CaptionGap = SummaryNetworkLayout.CaptionGap;
 
-    private const double CaptionSize = 11;
+    private const double CaptionSize = SummaryNetworkLayout.CaptionSize;
     private const double EdgeLabelSize = 10;
     private const double EdgeLabelEmphasizedSize = 11;
 

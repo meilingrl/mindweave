@@ -567,7 +567,7 @@ public class SessionNetworkCanvasTests
         return (first, second, network);
     }
 
-    private static async Task SetCreatedAsync(DesktopHarness app, ConversationId conversation, DateTime local)
+    internal static async Task SetCreatedAsync(DesktopHarness app, ConversationId conversation, DateTime local)
     {
         var at = new DateTimeOffset(local, TimeZoneInfo.Local.GetUtcOffset(local)).ToUnixTimeMilliseconds();
         await app.Services.GetRequiredService<SqliteDatabase>().WriteAsync(
@@ -576,7 +576,7 @@ public class SessionNetworkCanvasTests
     }
 
     /// <summary>Adds answered-looking user questions to a conversation directly in storage, so its weight grows without asking the model.</summary>
-    private static async Task AddQuestionsAsync(DesktopHarness app, ConversationId conversation, int count) =>
+    internal static async Task AddQuestionsAsync(DesktopHarness app, ConversationId conversation, int count) =>
         await app.Services.GetRequiredService<SqliteDatabase>().WriteAsync(
             (c, t) => Enumerable.Range(0, count).Sum(i => c.Execute(
                 t,
