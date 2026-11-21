@@ -481,12 +481,24 @@ public class SummaryNetworkCanvasTests
     }
 
     [AvaloniaFact]
+    public async Task Wheel_zooms_by_default()
+    {
+        await using var app = DesktopHarness.Create();
+        var window = app.ShowWindow(1100, 720);
+        await SummaryNetworkScenario.SeedAsync(app);
+        var network = await SummaryNetworkScenario.OpenSummaryNetworkAsync(app, window);
+        Assert.True(network.WheelZooms);
+        window.Close();
+    }
+
+    [AvaloniaFact]
     public async Task Hover_follows_what_is_under_the_pointer_after_a_pan()
     {
         await using var app = DesktopHarness.Create();
         var window = app.ShowWindow(1100, 720);
         await SummaryNetworkScenario.SeedAsync(app);
         var network = await SummaryNetworkScenario.OpenSummaryNetworkAsync(app, window);
+        network.WheelZooms = false;
         var canvas = CanvasOf(window);
         var root = network.Nodes.Single(n => n.IsRoot);
         Point InWindow(Point p) => canvas.TranslatePoint(p, window)!.Value;

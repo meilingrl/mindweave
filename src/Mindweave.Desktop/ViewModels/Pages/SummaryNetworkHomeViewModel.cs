@@ -244,7 +244,7 @@ public sealed partial class SummaryNetworkHomeViewModel : PageViewModel, IDispos
     public partial bool IsListView { get; set; }
 
     [ObservableProperty]
-    public partial bool WheelZooms { get; set; }
+    public partial bool WheelZooms { get; set; } = true;
 
     [ObservableProperty]
     public partial string SearchText { get; set; } = string.Empty;
