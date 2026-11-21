@@ -55,7 +55,7 @@ public class TimelineLayoutTests
         var positions = TimelineLayout.Arrange(nodes).Positions;
 
         Assert.All(nodes.Where(n => n.Parent is not null), n => Assert.NotEqual(0, positions[n.Id].Y));
-        Assert.Equal(new NodePosition(110, -64), positions[Id(2)]);
+        Assert.Equal(new NodePosition(110, -72), positions[Id(2)]);
         AssertRules(nodes, positions);
     }
 
@@ -70,7 +70,7 @@ public class TimelineLayoutTests
         Assert.NotEqual(positions[Id(2)].Y, positions[Id(4)].Y);
 
         // The second child rises again from the branch above the main line, never across it (ruling R9).
-        Assert.Equal(new NodePosition(220, -128), positions[Id(4)]);
+        Assert.Equal(new NodePosition(220, -144), positions[Id(4)]);
         AssertRules(nodes, positions);
     }
 
@@ -94,9 +94,9 @@ public class TimelineLayoutTests
 
         var positions = TimelineLayout.Arrange(nodes).Positions;
 
-        Assert.Equal(new NodePosition(110, -64), positions[Id(2)]);
-        Assert.Equal(new NodePosition(110, 64), positions[Id(3)]);
-        Assert.Equal(new NodePosition(110, -128), positions[Id(4)]);
+        Assert.Equal(new NodePosition(110, -72), positions[Id(2)]);
+        Assert.Equal(new NodePosition(110, 72), positions[Id(3)]);
+        Assert.Equal(new NodePosition(110, -144), positions[Id(4)]);
         AssertRules(nodes, positions);
     }
 
@@ -111,9 +111,9 @@ public class TimelineLayoutTests
 
         var positions = TimelineLayout.Arrange(nodes).Positions;
 
-        Assert.Equal(-64, positions[Id(10)].Y);
-        Assert.Equal(64, positions[Id(20)].Y);
-        Assert.Equal(new NodePosition(220, -128), positions[Id(30)]);
+        Assert.Equal(-72, positions[Id(10)].Y);
+        Assert.Equal(72, positions[Id(20)].Y);
+        Assert.Equal(new NodePosition(220, -144), positions[Id(30)]);
         AssertRules(nodes, positions);
     }
 
@@ -130,7 +130,7 @@ public class TimelineLayoutTests
         var positions = TimelineLayout.Arrange(nodes).Positions;
 
         Assert.Equal(new NodePosition(220, 0), positions[Id(2)]);
-        Assert.Equal(new NodePosition(330, -128), positions[Id(30)]);
+        Assert.Equal(new NodePosition(330, -144), positions[Id(30)]);
         AssertRules(nodes, positions);
     }
 

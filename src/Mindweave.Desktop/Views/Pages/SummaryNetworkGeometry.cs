@@ -27,41 +27,18 @@ internal static class SummaryNetworkGeometry
     /// the label is hidden), clamped to the node's layout box widened by half the layout's spacing. Boxes of nodes the
     /// layout keeps apart therefore never overlap, at any zoom.
     /// </summary>
-    /// <remarks>
-    /// On the timeline <paramref name="labelRoom"/> is the room a resting label has (<see cref="TimelineLabelRoom"/>): the
-    /// box ends there too, so it never reaches the next dot's box.
-    /// </remarks>
-    internal static Rect HitBox(Point center, NodeView node, double zoom, bool labelVisible, bool sessionNetwork = false, double? labelRoom = null)
+    internal static Rect HitBox(Point center, NodeView node, double zoom, bool labelVisible, bool sessionNetwork = false)
     {
         ArgumentNullException.ThrowIfNull(node);
         var half = Math.Min(20, SummaryNetworkLayout.NodeHeight * zoom / 2);
         var left = Math.Min(16, (SummaryNetworkLayout.NodeRadius + (SummaryNetworkLayout.LabelPadding / 2)) * zoom);
-        var radius = RadiusOf(node, sessionNetwork);
-        var dotOnly = Math.Min(radius + 4, (SummaryNetworkLayout.NodeRadius + (SummaryNetworkLayout.LabelPadding / 2)) * zoom);
         var right = labelVisible
             ? Math.Min(
-                radius + SummaryNetworkLayout.LabelGap + (node.LabelWidth * LabelSize(zoom) / SummaryNetworkLayout.LabelEm) + 12,
+                RadiusOf(node, sessionNetwork) + SummaryNetworkLayout.LabelGap + (node.LabelWidth * LabelSize(zoom) / SummaryNetworkLayout.LabelEm) + 12,
                 (SummaryNetworkLayout.NodeRadius + SummaryNetworkLayout.LabelGap + node.LabelWidth + (SummaryNetworkLayout.LabelPadding / 2)) * zoom)
-            : dotOnly;
-        if (labelVisible && labelRoom is { } room)
-        {
-            right = Math.Max(dotOnly, Math.Min(right, radius + SummaryNetworkLayout.LabelGap + room));
-        }
-
+            : Math.Min(RadiusOf(node, sessionNetwork) + 4, (SummaryNetworkLayout.NodeRadius + (SummaryNetworkLayout.LabelPadding / 2)) * zoom);
         return new Rect(center.X - left, center.Y - half, left + right, 2 * half);
     }
-
-    /// <summary>Screen px kept free between a cut timeline label and the summary ring of the next step's widest dot.</summary>
-    internal const double TimelineLabelClearance = 4;
-
-    /// <summary>
-    /// How wide a resting label may be on the timeline, in screen px, for a dot of <paramref name="radius"/>: from the
-    /// label's start to just before the widest dot, summary ring included, one step on. Every timeline x is on the
-    /// <see cref="TimelineLayout.Step"/> grid, so no other dot in any lane is nearer to the right, and a label cut to this
-    /// never covers another dot (spec §4.2). Zero or less when not even that much room is left.
-    /// </summary>
-    internal static double TimelineLabelRoom(double zoom, double radius) =>
-        (TimelineLayout.Step * zoom) - radius - SummaryNetworkLayout.LabelGap - (DotRadius(int.MaxValue) + SummaryNetworkCanvas.SummaryRingGap + TimelineLabelClearance);
 
     /// <summary>A node's dot radius: by how much was asked in the session network, else larger for an exploration's root.</summary>
     internal static double RadiusOf(NodeView node, bool sessionNetwork = false)
@@ -163,6 +140,30 @@ internal static class SummaryNetworkGeometry
         var pull = 5 * AttractionStrength * Math.Sin(Math.PI * distance / AttractionReach);
         return delta / distance * pull;
     }
+
+    /// <summary>
+    /// The timeline's opening view (spec §5.3): zoom 1 with the main line across the middle. When everything fits at zoom 1
+    /// it is centred, as <see cref="FitTo"/> would centre it; otherwise the newest root (the rightmost on the main line)
+    /// sits at <see cref="TimelineNewestAt"/> of the width, with the latest history to its left. "显示全部" still fits all.
+    /// </summary>
+    internal static Viewport TimelineOpening(IReadOnlyList<NodeView> nodes, Size size)
+    {
+        ArgumentNullException.ThrowIfNull(nodes);
+        const double left = SummaryNetworkCanvas.RootRadius + SummaryNetworkCanvas.HoverGrowth;
+        const double right = SummaryNetworkCanvas.RootRadius + SummaryNetworkCanvas.HoverGrowth + SummaryNetworkLayout.LabelGap;
+        var minX = nodes.Min(n => n.X);
+        var maxX = nodes.Max(n => n.X + n.LabelWidth);
+        if (maxX - minX + left + right <= size.Width - (2 * Viewport.FitMargin))
+        {
+            return new Viewport(((minX + maxX) / 2) + ((right - left) / 2), 0, 1);
+        }
+
+        var newest = nodes.Where(n => n.IsRoot).Select(n => n.X).DefaultIfEmpty(nodes.Max(n => n.X)).Max();
+        return new Viewport(newest + (size.Width * (0.5 - TimelineNewestAt)), 0, 1);
+    }
+
+    /// <summary>Where the timeline opens with its newest root, as a fraction of the canvas width from the left.</summary>
+    internal const double TimelineNewestAt = 0.8;
 
     /// <summary>
     /// The viewport that shows every node, its label and its group's caption. Positions and label widths are canvas

@@ -131,7 +131,8 @@ public sealed class SummaryNetworkService(ISummaryStore summaries, ISummaryNetwo
                 continue;
             }
 
-            var shortTitle = Shortened(item.Conversation.Title ?? item.FirstQuestion ?? "新探索");
+            // Whole, never cut: the timeline sizes each column to its widest label.
+            var shortTitle = item.Conversation.Title ?? item.FirstQuestion ?? "新探索";
             nodes.Add(new SummaryNetworkNode(
                 new SummaryNodeId(id.Value), id, root, shortTitle, item.FirstQuestion ?? shortTitle,
                 new SummaryMarkers(false, false, false), item.Conversation.CreatedAt, ancestors, archived,
@@ -157,9 +158,6 @@ public sealed class SummaryNetworkService(ISummaryStore summaries, ISummaryNetwo
 
         return new SummaryNetworkProjection(nodes, edges);
     }
-
-    private static string Shortened(string text) =>
-        ConversationRules.FirstTextElements(text, 10) is var cut && cut.Length < text.Length ? cut + "…" : text;
 
     public Task<IReadOnlyDictionary<SummaryNodeId, NodePosition>> GetLayoutAsync(WorkspaceId workspace, CancellationToken cancellationToken) =>
         network.GetLayoutAsync(workspace, cancellationToken);

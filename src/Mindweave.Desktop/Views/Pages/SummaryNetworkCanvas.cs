@@ -253,13 +253,9 @@ public sealed class SummaryNetworkCanvas : Control
     private bool IsLabelVisible(NodeView node, double zoom) =>
         zoom > LabelHideScale || node.Id == Hovered || (_page is { } page && (node.Id == page.Session.Selected || page.Matches.Contains(node.Id)));
 
-    /// <summary>On the timeline, the room a resting label has before the next step's dot (screen px); null elsewhere.</summary>
-    private double? TimelineLabelRoom(NodeView node, double zoom) =>
-        _page is { IsTimeline: true } ? SummaryNetworkGeometry.TimelineLabelRoom(zoom, RadiusOf(node)) : null;
-
-    /// <summary>A node's hit box: its dot and, while shown, its label as far as it may reach at rest.</summary>
+    /// <summary>A node's hit box: its dot and, while shown, its label.</summary>
     private Rect HitBoxOf(NodeView node, Point center, double zoom) =>
-        SummaryNetworkGeometry.HitBox(center, node, zoom, IsLabelVisible(node, zoom), Sessions, TimelineLabelRoom(node, zoom));
+        SummaryNetworkGeometry.HitBox(center, node, zoom, IsLabelVisible(node, zoom), Sessions);
 
     /// <summary>What each node looks like now, in drawing order. The render pass and the tests read the same list.</summary>
     internal IReadOnlyList<NodePaint> PaintNodes()
@@ -295,16 +291,7 @@ public sealed class SummaryNetworkCanvas : Control
             var visible = IsLabelVisible(node, zoom);
             var labelSize = zoom > LabelHideScale ? size : Math.Max(size, FocusedLabelMinSize);
             var brush = hovered || isSelected ? palette.LabelActive : !node.Unread ? palette.LabelRead : palette.Label;
-            var weight = node.Unread ? FontWeight.SemiBold : FontWeight.Normal;
-            var text = visible ? Text(label, labelSize, brush, weight) : null;
-
-            // On the timeline a resting label is cut before the next step's dot; hovered or selected it is whole.
-            if (text is not null && !hovered && !isSelected && TimelineLabelRoom(node, zoom) is { } room && text.Width > room)
-            {
-                (text, label) = Shortened(label, room, s => Text(s, labelSize, brush, weight)) is { } cut ? cut : (null, label);
-                visible = text is not null;
-            }
-
+            var text = visible ? Text(label, labelSize, brush, node.Unread ? FontWeight.SemiBold : FontWeight.Normal) : null;
             var origin = text is null ? default : SummaryNetworkGeometry.LabelOrigin(center, radius, new Size(text.Width, text.Height), incident[node.Id]);
             return new NodePaint(
                 node,
@@ -342,6 +329,7 @@ public sealed class SummaryNetworkCanvas : Control
 
         // The session network's time thread: dotted with an arrowhead in the spatial view, the main line on the timeline.
         var spatial = Sessions && _page.Session.ViewMode == SummaryNetworkViewMode.Spatial;
+        var timeline = _page.IsTimeline;
         var nodes = Sessions ? _page.Nodes.ToDictionary(n => n.Id) : [];
         return [.. _page.Edges.Select(edge =>
         {
@@ -366,6 +354,7 @@ public sealed class SummaryNetworkCanvas : Control
                     ? RadiusOf(target) + (target.HasSummary ? SummaryRingGap + 1 : 0) + (target.Id == Hovered ? HoverGrowth : 0) + 2
                     : 0,
                 Curved = edge.Curved,
+                Timeline = timeline,
             };
         })];
     }
@@ -631,7 +620,8 @@ public sealed class SummaryNetworkCanvas : Control
             return;
         }
 
-        var pen = edge.Edge.Kind == SummaryNetworkEdgeKind.TimeThread && edge.State == EdgeState.Normal ? palette.MainLinePen : palette.EdgePen(edge.State, edge.Dashed);
+        var pen = edge.Timeline ? palette.TimelinePen(edge.State, mainLine: edge.Edge.Kind == SummaryNetworkEdgeKind.TimeThread)
+            : palette.EdgePen(edge.State, edge.Dashed);
         if (edge.Curved)
         {
             // A timeline branch to another lane: leaves the parent and reaches the child horizontally.
@@ -1110,7 +1100,10 @@ public sealed class SummaryNetworkCanvas : Control
 
     private void OnViewChanged(object? sender, bool reset) => InvalidateVisual();
 
-    /// <summary>Fits every node, label and caption into view with a margin; zoom limited to the allowed range.</summary>
+    /// <summary>
+    /// The opening view, kept on the session: the timeline at zoom 1 on its newest end (spec §5.3); otherwise, and after
+    /// "显示全部", every node, label and caption fitted into view with a margin, zoom limited to the allowed range.
+    /// </summary>
     private Viewport Fit()
     {
         if (_page is null || _page.Nodes.Count == 0 || Bounds.Width <= 0 || Bounds.Height <= 0)
@@ -1118,40 +1111,12 @@ public sealed class SummaryNetworkCanvas : Control
             return new Viewport(0, 0, 1);
         }
 
-        var fitted = SummaryNetworkGeometry.FitTo(_page.Nodes, Bounds.Size, _page.RecommendedNodes);
+        var fitted = _page.IsTimeline && !_page.Session.FitAllRequested
+            ? SummaryNetworkGeometry.TimelineOpening(_page.Nodes, Bounds.Size)
+            : SummaryNetworkGeometry.FitTo(_page.Nodes, Bounds.Size, _page.RecommendedNodes);
         _page.Session.Viewport = fitted;
+        _page.Session.FitAllRequested = false;
         return fitted;
-    }
-
-    /// <summary>
-    /// The longest start of <paramref name="label"/>, in whole text elements, that fits <paramref name="room"/> px with
-    /// "…" after it; null when not even one element does.
-    /// </summary>
-    private static (FormattedText Text, string Label)? Shortened(string label, double room, Func<string, FormattedText> make)
-    {
-        var starts = StringInfo.ParseCombiningCharacters(label);
-        string Cut(int count) => label[..starts[count]].TrimEnd() + "…";
-        (int lo, int hi) = (0, starts.Length - 1); // the largest fitting count lies in [lo, hi]; 0 means none fits
-        while (lo < hi)
-        {
-            var mid = (lo + hi + 1) / 2;
-            if (make(Cut(mid)).Width <= room)
-            {
-                lo = mid;
-            }
-            else
-            {
-                hi = mid - 1;
-            }
-        }
-
-        if (lo == 0)
-        {
-            return null;
-        }
-
-        var cut = Cut(lo);
-        return (make(cut), cut);
     }
 
     internal static FormattedText Text(string text, double size, IBrush brush, FontWeight weight = FontWeight.Normal) =>

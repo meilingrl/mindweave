@@ -162,6 +162,7 @@ public class SessionNetworkCanvasTests
             Assert.Equal(thread, e.Dashed);
             Assert.Equal(thread, e.Arrow);
             Assert.False(e.Curved);
+            Assert.False(e.Timeline);
         });
 
         // The timeline, switched as the page's 时间线 button does: the page rebuilds what it draws at once. The branches leave
@@ -177,7 +178,14 @@ public class SessionNetworkCanvasTests
             Assert.False(e.Dashed);
             Assert.False(e.Arrow);
             Assert.Equal(e.Edge.Kind == SummaryNetworkEdgeKind.Branch && e.Edge.FromY != e.Edge.ToY, e.Curved);
+            Assert.True(e.Timeline);
         });
+
+        // Bolder on the timeline (owner, 2026-11-21): the main line 2 px, branches 1.5 px, never thinner when hovered.
+        var palette = SummaryNetworkPalette.From(canvas);
+        Assert.Equal(2.0, palette.TimelinePen(EdgeState.Normal, mainLine: true).Thickness);
+        Assert.Equal(1.5, palette.TimelinePen(EdgeState.Normal, mainLine: false).Thickness);
+        Assert.All(Enum.GetValues<EdgeState>(), state => Assert.True(palette.TimelinePen(state, mainLine: true).Thickness >= 2.0));
         Assert.Contains(timeline, e => e.Curved);
         Assert.Contains(timeline, e => e.Edge.Kind == SummaryNetworkEdgeKind.Branch && !e.Curved);
         Assert.Single(timeline, e => e.Edge.Kind == SummaryNetworkEdgeKind.TimeThread);
@@ -269,9 +277,11 @@ public class SessionNetworkCanvasTests
     }
 
     [AvaloniaFact]
-    public async Task Timeline_labels_never_cover_another_dot()
+    public async Task Timeline_labels_are_whole_and_never_meet_at_zoom_one()
     {
-        // Spec §4.2: long titles on the timeline are cut short with an ellipsis before the next dot, at any zoom.
+        // Review Focus 1: thirty-character titles on a shape like the owner's 数据挖掘 workspace (roots on two days, a
+        // root with a fan and a chain, heavy dots, a summary ring). Every column is as wide as its widest label, so at
+        // zoom 1 and above each label is whole and touches neither another label nor another dot.
         await using var app = Gated();
         var window = app.ShowWindow(1100, 720);
         await app.StartWithWorkspaceAsync("火车");
@@ -293,7 +303,15 @@ public class SessionNetworkCanvasTests
         await AddQuestionsAsync(app, all[1], 60);
         await AddQuestionsAsync(app, all[6], 30);
         await AddQuestionsAsync(app, all[3], 12);
-        await SetTitlesAsync(app, all.Select((c, i) => (c, $"蒸汽机车与工业革命第{i}段很长的标题")));
+        var year = DateTime.Now.Year;
+        foreach (var (root, i) in all.Take(6).Select((c, i) => (c, i)))
+        {
+            await SetCreatedAsync(app, root, new DateTime(year, 11, i < 3 ? 19 : 20, 9 + i, 0, 0, DateTimeKind.Unspecified));
+        }
+
+        var titles = all.Select((c, i) => (c, $"第{i:00}段蒸汽机车与工业革命如何改变城市与乡村生活方式的长标题")).ToList();
+        Assert.All(titles, t => Assert.Equal(30, t.Item2.Length));
+        await SetTitlesAsync(app, titles);
         var summaries = app.Services.GetRequiredService<SummaryService>();
         app.Client.Knowledge.Replies.Enqueue("标题：铁路网络如何改变城市与乡村的生活\n短名：铁路网络如何改变城市与乡村\n\n正文");
         Assert.True((await summaries.SummarizeAsync(all[4], CancellationToken.None)).Accepted);
@@ -304,25 +322,91 @@ public class SessionNetworkCanvasTests
         window.UpdateLayout();
         var canvas = CanvasOf(window);
         Assert.Null(network.Session.Selected);
+        Assert.Contains(network.Nodes, n => n.Y < 0);
+        Assert.Equal(2, network.Session.DayStarts.Count);
+        Assert.Equal(1, canvas.Current.Zoom);
+        Screenshots.Capture(window, "session-network-timeline-whole-titles");
 
-        network.Session.Viewport = null;
-        var fit = canvas.Current;
-        Assert.True(fit.Zoom > SummaryNetworkCanvas.LabelHideScale, $"fit zoom {fit.Zoom} hides the labels");
-        AssertNoLabelCoversADot(canvas, "fit");
-        Assert.Contains(canvas.PaintNodes(), p => p.Label.EndsWith('…') && p.Label.Length < 10);
-        foreach (var zoom in new[] { 1.0, 0.6, 2.0 })
+        foreach (var zoom in new[] { 1.0, 1.6, Viewport.MaxZoom })
         {
-            network.Session.Viewport = fit with { Zoom = zoom };
+            network.Session.Viewport = canvas.Current with { Zoom = zoom };
+            var paints = canvas.PaintNodes();
+            Assert.All(paints, p =>
+            {
+                Assert.NotNull(p.Text);
+                Assert.DoesNotContain('…', p.Label);
+                Assert.Equal(SummaryNetworkLayout.Label(p.Node.ShortTitle, p.Node.HasCandidate), p.Label);
+            });
+            Assert.Contains(paints, p => p.Label.Length == 30);
             AssertNoLabelCoversADot(canvas, $"zoom {zoom}");
+            foreach (var (a, b) in paints.SelectMany((a, i) => paints.Skip(i + 1).Select(b => (a, b))))
+            {
+                Assert.False(a.LabelBounds.Intersects(b.LabelBounds), $"zoom {zoom}: \"{a.Label}\" at {a.LabelBounds} meets \"{b.Label}\" at {b.LabelBounds}");
+            }
         }
 
-        // Hovered, a label is whole again (the details panel shows it too).
-        network.Session.Viewport = fit with { Zoom = 1 };
-        var cut = canvas.PaintNodes().First(p => p.Label.EndsWith('…') && p.Label.Length < 10);
-        canvas.SetPointer(cut.Center + new Vector(1, 0));
-        Assert.Equal(cut.Node.Id, canvas.Hovered);
-        Assert.StartsWith(SummaryNetworkLayout.Label(cut.Node.ShortTitle, cut.Node.HasCandidate), canvas.PaintNodes().Single(p => p.Node.Id == cut.Node.Id).Label, StringComparison.Ordinal);
-        canvas.SetPointer(null);
+        window.Close();
+    }
+
+    [AvaloniaFact]
+    public async Task The_timeline_opens_at_zoom_one_on_the_newest_root()
+    {
+        // Review Focus 2 for the timeline (spec §5.3): a readable zoom on the newest end, not everything squeezed in.
+        await using var app = Gated();
+
+        // Wide enough that 显示全部 can fit six long-titled roots above the smallest zoom.
+        var window = app.ShowWindow(1600, 900);
+        await app.StartWithWorkspaceAsync("火车");
+        await app.ConfigureModelAsync();
+        var conversations = app.Services.GetRequiredService<ConversationService>();
+        var workspace = app.Workbench.CurrentWorkspace!.Id;
+        var first = await SummaryNetworkScenario.AskAsync(app, conversations, null, workspace, "火车是怎么发明的？");
+        var network = await SummaryNetworkScenario.OpenSummaryNetworkAsync(app, window);
+        await UiWait.UntilAsync(() => network.Nodes.Count == 1);
+        network.SetViewModeCommand.Execute(SummaryNetworkViewMode.Timeline);
+        window.UpdateLayout();
+        var canvas = CanvasOf(window);
+        var bounds = new Rect(canvas.Bounds.Size);
+
+        // One session: zoom 1, the dot and its whole label in view.
+        Assert.Equal(1, canvas.Current.Zoom);
+        var only = canvas.PaintNodes().Single();
+        Assert.True(bounds.Contains(only.Center), $"the dot at {only.Center} is outside {bounds}");
+        Assert.True(bounds.Contains(only.LabelBounds), $"the label at {only.LabelBounds} is outside {bounds}");
+
+        // Several sessions with long titles, wider than the canvas: zoom 1, the newest root in the right fifth and the
+        // main line across the middle.
+        var roots = new List<ConversationId> { first };
+        for (var i = 1; i < 6; i++)
+        {
+            roots.Add(await SummaryNetworkScenario.AskAsync(app, conversations, null, workspace, $"第{i}个问题？"));
+        }
+
+        await SetTitlesAsync(app, roots.Select((c, i) => (c, $"第{i:00}段蒸汽机车与工业革命如何改变城市与乡村生活方式的长标题")));
+        app.ShellPage.ShowSectionCommand.Execute(Navigation.MainSection.Explore);
+        network = await SummaryNetworkScenario.OpenSummaryNetworkAsync(app, window);
+        await UiWait.UntilAsync(() => network.Nodes.Count == roots.Count && network.Nodes.All(n => n.ShortTitle.Length == 30));
+        Assert.True(network.IsTimeline);
+        canvas = CanvasOf(window);
+        network.Session.Viewport = null;
+        var opening = canvas.Current;
+        var newest = network.Nodes.Where(n => n.IsRoot).MaxBy(n => n.X)!;
+        var at = canvas.ToScreen(newest.X, newest.Y);
+        Assert.Equal(1, opening.Zoom);
+        Assert.InRange(at.X, (bounds.Width * 0.8) - 0.5, bounds.Width);
+        Assert.Equal(bounds.Height / 2, at.Y, 3);
+        Assert.Contains(network.Nodes, n => !bounds.Contains(canvas.ToScreen(n.X, n.Y)));
+        Screenshots.Capture(window, "session-network-timeline-opening");
+
+        // 显示全部 still fits everything into view.
+        network.ShowAllCommand.Execute(null);
+        Assert.True(canvas.Current.Zoom < 1, $"show all at zoom {canvas.Current.Zoom}");
+        Assert.All(canvas.PaintNodes(), p => Assert.True(bounds.Contains(p.Center), $"{p.Label} at {p.Center} is outside {bounds}"));
+
+        // Leaving for the spatial view and coming back opens the timeline the same way again.
+        network.SetViewModeCommand.Execute(SummaryNetworkViewMode.Spatial);
+        network.SetViewModeCommand.Execute(SummaryNetworkViewMode.Timeline);
+        Assert.Equal(opening, canvas.Current);
         window.Close();
     }
 

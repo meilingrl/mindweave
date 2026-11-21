@@ -61,6 +61,7 @@ public sealed partial class SummaryNetworkSession : ObservableObject
 
         ComputeSessionPositions(Projection);
         Viewport = null;
+        FitAllRequested = false;
         LayoutChanged?.Invoke(this, EventArgs.Empty);
     }
 
@@ -76,7 +77,7 @@ public sealed partial class SummaryNetworkSession : ObservableObject
             t.n.Id, branchParents.TryGetValue(t.n.Id, out var parent) ? parent : null, LocalDay(t.n.CreatedAt), t.i))]);
         _dayStarts = arrangement.DayStarts;
         _positions = ViewMode == SummaryNetworkViewMode.Timeline
-            ? new Dictionary<SummaryNodeId, NodePosition>(arrangement.Positions)
+            ? new Dictionary<SummaryNodeId, NodePosition>(TimelineColumns.Widen(arrangement.Positions, nodes.ToDictionary(n => n.Id, n => n.LabelWidth), TimelineColumns.MinColumn))
             : SummaryNetworkLayout.Arrange(nodes).ToDictionary(p => p.Key, p => p.Value);
     }
 
@@ -102,8 +103,17 @@ public sealed partial class SummaryNetworkSession : ObservableObject
     [ObservableProperty]
     public partial bool SaveFailed { get; private set; }
 
-    /// <summary>Null until the canvas fits everything into view; kept while the workspace stays active.</summary>
+    /// <summary>
+    /// Null until the canvas chooses the opening view (the timeline: zoom 1 on its newest end; otherwise everything fitted);
+    /// kept while the workspace stays active.
+    /// </summary>
     public Viewport? Viewport { get; set; }
+
+    /// <summary>
+    /// "显示全部" asked for everything to be fitted into view: the canvas fits instead of choosing the opening view, the
+    /// next time it fills an empty <see cref="Viewport"/>.
+    /// </summary>
+    public bool FitAllRequested { get; set; }
 
     public SummaryNodeId? Selected { get; set; }
 

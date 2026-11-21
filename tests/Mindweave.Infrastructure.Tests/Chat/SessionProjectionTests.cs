@@ -154,9 +154,27 @@ public class SessionProjectionTests
 
         var node = Assert.Single((await h.SummaryNetwork.ProjectSessionsAsync(h.Workspace, Ct)).Nodes);
 
-        Assert.Equal(question[..10] + "…", node.ShortTitle);
+        Assert.Equal(question, node.ShortTitle);
         Assert.Equal(question, node.DisplayName);
         Assert.Equal(question, node.FirstQuestion);
+    }
+
+    [Fact]
+    public async Task A_session_dot_carries_its_whole_title()
+    {
+        // The timeline gives every label the room it needs, so a dot's short title is never cut.
+        await using var h = await ChatHarness.StartAsync();
+        const string title = "蒸汽机车与工业革命如何改变了城市与乡村生活方式的历史回顾展望";
+        Assert.Equal(30, title.Length);
+        var conversation = await ConversationAsync(h, "火车是怎么发明的？");
+        await h.TitleEndedAsync(conversation);
+        await h.Database.WriteAsync(
+            (c, t) => c.Execute(t, "UPDATE conversation SET title = $title, title_source = 'manual' WHERE id = $id;", ("$title", title), ("$id", conversation.ToString())),
+            Ct);
+
+        var node = Assert.Single((await h.SummaryNetwork.ProjectSessionsAsync(h.Workspace, Ct)).Nodes);
+
+        Assert.Equal(title, node.ShortTitle);
     }
 
     [Fact]

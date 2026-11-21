@@ -86,6 +86,9 @@ internal sealed record EdgePaint(EdgeView Edge, Point From, Point To, EdgeState 
 
     /// <summary>A timeline branch to another lane: a cubic curve leaving and arriving horizontally.</summary>
     public bool Curved { get; init; }
+
+    /// <summary>Drawn on the timeline, in its bolder pens (<see cref="SummaryNetworkPalette.TimelinePen"/>).</summary>
+    public bool Timeline { get; init; }
 }
 
 /// <summary>

@@ -15,7 +15,8 @@ public sealed record TimelineArrangement(IReadOnlyDictionary<SummaryNodeId, Node
 /// <summary>
 /// The world-line timeline (docs/design/session-network.md §5.1). Roots sit on the main line (lane 0) in creation order.
 /// Branches run in lanes parallel to it: lanes with negative numbers lie above the main line, lanes with positive
-/// numbers below. Pure and deterministic, and computed from the data alone, so nothing is saved.
+/// numbers below. Pure and deterministic, and computed from the data alone, so nothing is saved. The x values are grid
+/// columns; <see cref="TimelineColumns"/> then widens each column to its labels.
 /// </summary>
 /// <remarks>
 /// <para>
@@ -37,8 +38,8 @@ public static class TimelineLayout
     /// <summary>Distance between consecutive roots on one day, and from a dot to its child.</summary>
     public const double Step = 110;
 
-    /// <summary>Vertical distance between lanes.</summary>
-    public const double LaneGap = 64;
+    /// <summary>Vertical distance between lanes: labels lifted above and below their dots in neighbouring lanes never meet.</summary>
+    public const double LaneGap = 72;
 
     /// <summary>
     /// Extra room between two roots started on different days. A whole step, so every x is a multiple of
@@ -46,12 +47,6 @@ public static class TimelineLayout
     /// succeeds (ruling R7).
     /// </summary>
     public const double DayGap = Step;
-
-    /// <summary>
-    /// The canvas room a resting label takes at most on the timeline: from the dot to the next step's dot. The canvas cuts
-    /// the drawn label shorter still, clear of that dot (spec §4.2); the details panel shows the whole title.
-    /// </summary>
-    public const double LabelRoom = Step - SummaryNetworkLayout.NodeRadius - SummaryNetworkLayout.LabelGap;
 
     /// <summary>
     /// Arranges every node. A node whose parent is not in <paramref name="nodes"/> is placed as a root. Children are
