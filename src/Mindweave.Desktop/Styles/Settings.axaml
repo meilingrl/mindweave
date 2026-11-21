@@ -76,6 +76,10 @@
     <Setter Property="VerticalAlignment" Value="Center" />
     <Setter Property="Foreground" Value="{DynamicResource PrimaryText}" />
   </Style>
+  <!-- A label column sized to its longest label (at least 96 px): the gap after a label is its own padding. -->
+  <Style Selector="Grid.labelled > TextBlock.field-label">
+    <Setter Property="Padding" Value="0,0,12,0" />
+  </Style>
   <!--
     Segmented control: one rounded track, segments side by side, the chosen one raised and filled. The segments
     are radio buttons (one group), so they keep their accessibility role; the arrow keys are handled by the page.

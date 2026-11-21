@@ -10,7 +10,11 @@
        keep their defaults until changed in 设置; so do the model capabilities under 高级设置, filled from the preset. -->
   <Border Classes="card settings">
     <StackPanel Spacing="12">
-      <Grid ColumnDefinitions="96,*" RowDefinitions="Auto,Auto,Auto,Auto" RowSpacing="12">
+      <Grid Classes="labelled" RowDefinitions="Auto,Auto,Auto,Auto" RowSpacing="12">
+        <Grid.ColumnDefinitions>
+          <ColumnDefinition Width="Auto" MinWidth="96" SharedSizeGroup="SettingsLabel" />
+          <ColumnDefinition Width="*" />
+        </Grid.ColumnDefinitions>
         <TextBlock Classes="field-label" Text="{x:Static t:UiText.ProviderLabel}" />
         <ComboBox Grid.Column="1" Name="ProviderPicker" Classes="settings" MinWidth="240" HorizontalAlignment="Left"
                   ItemsSource="{Binding Providers}" SelectedItem="{Binding SelectedProvider}"
@@ -58,7 +62,11 @@
         </Grid>
       </Grid>
 
-      <Grid Name="DetailRows" ColumnDefinitions="96,*" RowDefinitions="Auto,Auto,Auto,Auto,Auto" RowSpacing="12">
+      <Grid Classes="labelled" Name="DetailRows" RowDefinitions="Auto,Auto,Auto,Auto,Auto" RowSpacing="12">
+        <Grid.ColumnDefinitions>
+          <ColumnDefinition Width="Auto" MinWidth="96" SharedSizeGroup="SettingsLabel" />
+          <ColumnDefinition Width="*" />
+        </Grid.ColumnDefinitions>
         <TextBlock Classes="field-label" Text="{x:Static t:UiText.ConnectionNameLabel}" />
         <TextBox Grid.Column="1" Name="ConnectionName" Text="{Binding Name}" PlaceholderText="{x:Static t:UiText.ConnectionNamePlaceholder}"
                  AutomationProperties.Name="{x:Static t:UiText.ConnectionNameLabel}" />

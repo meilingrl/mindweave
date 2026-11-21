@@ -129,8 +129,9 @@ public static partial class UiText
 
     public static string DataLocation => T("Data location", "数据位置");
 
+    /// <summary>A backup's data format version as a short badge beside its date: "Format 17", "结构版本 17".</summary>
     public static string SchemaVersionBadge(int version) => T(
-        string.Format(Culture, "Schema version {0}", version),
+        string.Format(Culture, "Format {0}", version),
         string.Format(CultureInfo.CurrentCulture, "结构版本 {0}", version));
 
     public static string FormatBackup(BackupInfo backup)

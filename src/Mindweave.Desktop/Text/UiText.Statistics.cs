@@ -70,6 +70,11 @@ public static partial class UiText
         string.Format(Culture, "{0:N0} {1}", count, count == 1 ? "request" : "requests"),
         string.Format(CultureInfo.CurrentCulture, "{0:N0} 次", count));
 
+    /// <summary>A bar's or a day's request count in the chart and calendar cards: "3 requests", "3 次请求".</summary>
+    public static string ChartRequests(int count) => T(
+        string.Format(Culture, "{0:N0} {1}", count, count == 1 ? "request" : "requests"),
+        string.Format(CultureInfo.CurrentCulture, "{0:N0} 次请求", count));
+
     public static string Tokens(long count) => count.ToString("N0", CultureInfo.InvariantCulture);
 
     /// <summary>"11月3日"</summary>
