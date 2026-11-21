@@ -238,6 +238,13 @@ public sealed partial class Composer
 
         if (result.Resource is { } stored)
         {
+            // The page's read of its draft (LoadDraftAttachmentsAsync) may have seen this attachment stored before this
+            // result came back, and shown it as a chip of its own: this chip stays, as it knows where a paste was.
+            foreach (var shown in Attachments.Where(c => c != chip && c.Resource == stored.Resource.Id).ToList())
+            {
+                Attachments.Remove(shown);
+            }
+
             chip.Succeed(stored, originalThere: true);
             await LoadThumbnailAsync(chip);
         }
