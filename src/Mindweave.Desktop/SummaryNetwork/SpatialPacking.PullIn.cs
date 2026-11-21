@@ -46,7 +46,7 @@ public static partial class SpatialPacking
             }
 
             blocked.Sort((a, b) => a.Low.CompareTo(b.Low));
-            var before = LineCrossings(forest, items, x, y, i);
+            var before = LineCrossings(forest, items, x, y, i, int.MaxValue);
             var (homeX, homeY) = (x[i], y[i]);
             var t = 0.0;
             var tried = 0;
@@ -65,7 +65,7 @@ public static partial class SpatialPacking
                     }
 
                     (x[i], y[i]) = (t * ux, t * uy);
-                    if (LineCrossings(forest, items, x, y, i) <= before && FansInOrder(forest, x, y, i))
+                    if (LineCrossings(forest, items, x, y, i, before) <= before && FansInOrder(forest, x, y, i))
                     {
                         break;
                     }
@@ -88,8 +88,11 @@ public static partial class SpatialPacking
     /// <summary>Free places tried along a dot's ray before it stays put.</summary>
     internal const int PullTries = 3;
 
-    /// <summary>Crossings between the lines at dot <paramref name="i"/> (to its parent and its children) and every other line.</summary>
-    private static int LineCrossings(Forest forest, List<int> items, double[] x, double[] y, int i)
+    /// <summary>
+    /// Crossings between the lines at dot <paramref name="i"/> (to its parent and its children) and every other line;
+    /// once they pass <paramref name="most"/>, the count stops there.
+    /// </summary>
+    private static int LineCrossings(Forest forest, List<int> items, double[] x, double[] y, int i, int most)
     {
         var count = 0;
         var ends = new List<int>(forest.Children[i]);
@@ -116,9 +119,9 @@ public static partial class SpatialPacking
                     continue;
                 }
 
-                if (Crosses(ax, ay, bx, by, cx, cy, dx, dy))
+                if (Crosses(ax, ay, bx, by, cx, cy, dx, dy) && ++count > most)
                 {
-                    count++;
+                    return count;
                 }
             }
         }
@@ -130,29 +133,16 @@ public static partial class SpatialPacking
     private static bool FansInOrder(Forest forest, double[] x, double[] y, int i) =>
         FanInOrder(forest, x, y, forest.Parent[i]) && FanInOrder(forest, x, y, i);
 
-    private static bool FanInOrder(Forest forest, double[] x, double[] y, int p)
+    private static bool FanInOrder(Forest forest, double[] x, double[] y, int p) =>
+        ClockwiseInOrder(forest.Children[p], x[p] + forest.Offset[p], y[p], new Footprints(x, y, forest.Offset));
+
+    /// <summary>Footprint centres from dot centres, every node placed.</summary>
+    private readonly struct Footprints(double[] x, double[] y, double[] offset) : ICentres
     {
-        var children = forest.Children[p];
-        if (children.Count < 3)
+        public bool TryGet(int node, out double cx, out double cy)
         {
+            (cx, cy) = (x[node] + offset[node], y[node]);
             return true;
         }
-
-        var (px, py) = (x[p] + forest.Offset[p], y[p]);
-        var first = Math.Atan2(y[children[0]] - py, x[children[0]] + forest.Offset[children[0]] - px);
-        var previous = 0.0;
-        for (var k = 1; k < children.Count; k++)
-        {
-            var c = children[k];
-            var turned = (((Math.Atan2(y[c] - py, x[c] + forest.Offset[c] - px) - first) % (2 * Math.PI)) + (2 * Math.PI)) % (2 * Math.PI);
-            if (turned <= previous)
-            {
-                return false;
-            }
-
-            previous = turned;
-        }
-
-        return true;
     }
 }

@@ -38,15 +38,16 @@ public static partial class SpatialPacking
     /// wedge round the root (<see cref="Low"/> to <see cref="High"/>, radians) and a floor: its dot may come no nearer
     /// the root than its parent's, nor than any line already drawn across its wedge.
     /// </summary>
-    private sealed class Placing(Forest forest)
+    private sealed partial class Placing(Forest forest)
     {
         private readonly double _maxDot = forest.Nodes.Length > 0 ? forest.Nodes.Max(m => m.DotRadius) : 0;
         private readonly List<Circle> _placed = [];
-        private readonly List<(int Parent, int Child)> _lines = [];
-        private readonly List<int> _nodes = [];
+        private readonly List<LineBox> _lines = [];
+        private readonly List<PlacedDot> _dots = [];
         private readonly bool[] _done = new bool[forest.Nodes.Length];
         private readonly double[] _floor = new double[forest.Nodes.Length];
         private readonly List<(double Low, double High)> _blocked = [];
+        private readonly List<Circle> _near = [];
         private readonly List<double> _angles = [];
         private readonly Dictionary<int, double> _raised = [];
         private readonly List<(double Base, double X, double Y)> _candidates = [];
@@ -65,7 +66,7 @@ public static partial class SpatialPacking
         {
             (X[i], Y[i]) = (x, y);
             _placed.Add(new Circle(x + forest.Offset[i], y, forest.Radius[i]));
-            _nodes.Add(i);
+            _dots.Add(new PlacedDot(x, y, forest.Nodes[i].DotRadius, i));
             _done[i] = true;
             var p = forest.Parent[i];
             if (p < 0)
@@ -73,7 +74,7 @@ public static partial class SpatialPacking
                 return;
             }
 
-            _lines.Add((p, i));
+            _lines.Add(new LineBox(Math.Min(X[p], x), Math.Max(X[p], x), Math.Min(Y[p], y), Math.Max(Y[p], y), p, i));
             for (var k = 0; k <= LineSamples; k++)
             {
                 var s = (double)k / LineSamples;
@@ -152,6 +153,7 @@ public static partial class SpatialPacking
                 }
             }
 
+            GatherNear(offset, radius, floor, (Low[i] + High[i]) / 2, (High[i] - Low[i]) / 2);
             _candidates.Clear();
             var middle = (Low[i] + High[i]) / 2;
             var siblings = forest.Children[p].Count > 1;
@@ -181,7 +183,7 @@ public static partial class SpatialPacking
                     break;
                 }
 
-                if (!KeepsOrder(i, x, y))
+                if (!ClockwiseInOrder(forest.Children[p], X[p] + forest.Offset[p], Y[p], new Siblings(this, forest.Offset, i, x + offset, y)))
                 {
                     if (fallback.Score == double.PositiveInfinity)
                     {
@@ -191,7 +193,14 @@ public static partial class SpatialPacking
                     continue;
                 }
 
-                var total = score + Penalty(i, x, y) + (LiftWeight * Lift(i, x, y));
+                // A place whose costs so far already reach the best cannot win: the rest only adds.
+                var total = score + Penalty(i, x, y, score, best.Score);
+                if (total >= best.Score)
+                {
+                    continue;
+                }
+
+                total += LiftWeight * Lift(i, x, y);
                 if (total < best.Score)
                 {
                     best = (x, y, total);
@@ -202,6 +211,33 @@ public static partial class SpatialPacking
         }
 
         /// <summary>
+        /// Gathers into <c>_near</c> the placed footprints that could block a dot's footprint
+        /// (<paramref name="offset"/> right of it, <paramref name="radius"/>) on some ray of its wedge (centred on
+        /// <paramref name="middle"/>, <paramref name="half"/> wide either side) at or beyond <paramref name="floor"/>:
+        /// those whose reach, seen from the root, overlaps the wedge and whose far edge lies beyond the floor. The rest
+        /// block no ray there, so <see cref="FreePlaces"/> need not look at them.
+        /// </summary>
+        private void GatherNear(double offset, double radius, double floor, double middle, double half)
+        {
+            _near.Clear();
+            foreach (var c in _placed)
+            {
+                var (cx, cy) = (c.X - offset, c.Y);
+                var (distance, reach) = (Math.Sqrt((cx * cx) + (cy * cy)), radius + c.R);
+                if (distance + reach <= floor)
+                {
+                    continue;
+                }
+
+                if (distance <= reach || half >= Math.PI
+                    || Math.Abs(Math.IEEERemainder(Math.Atan2(cy, cx) - middle, 2 * Math.PI)) <= half + Math.Asin(reach / distance) + AngleSlack)
+                {
+                    _near.Add(c);
+                }
+            }
+        }
+
+        /// <summary>
         /// Along the ray from the root in direction (<paramref name="ux"/>, <paramref name="uy"/>), the first
         /// <see cref="WedgeGaps"/> distances at or beyond <paramref name="floor"/> where a dot's footprint
         /// (<paramref name="offset"/> right of it, <paramref name="radius"/>) overlaps nothing placed.
@@ -209,7 +245,7 @@ public static partial class SpatialPacking
         private List<double> FreePlaces(double ux, double uy, double offset, double radius, double floor)
         {
             _blocked.Clear();
-            foreach (var c in _placed)
+            foreach (var c in _near)
             {
                 var (cx, cy) = (c.X - offset, c.Y);
                 var along = (ux * cx) + (uy * cy);
@@ -244,154 +280,6 @@ public static partial class SpatialPacking
 
             places.Add(t);
             return places;
-        }
-
-        /// <summary>How far a line to (x, y) would push the siblings still to come away from the root, in all.</summary>
-        private double Lift(int i, double x, double y)
-        {
-            var p = forest.Parent[i];
-            var reachP = Math.Sqrt(Square(X[p]) + Square(Y[p]));
-            _raised.Clear();
-            for (var k = 0; k <= LineSamples; k++)
-            {
-                var s = (double)k / LineSamples;
-                var (sx, sy) = (X[p] + (s * (x - X[p])), Y[p] + (s * (y - Y[p])));
-                var w = SiblingAt(p, Math.Atan2(sy, sx));
-                if (w < 0 || w == i || _done[w])
-                {
-                    continue;
-                }
-
-                var raised = Math.Sqrt((sx * sx) + (sy * sy)) + forest.Nodes[w].DotRadius + FloorGap;
-                _raised[w] = Math.Max(raised, _raised.GetValueOrDefault(w, double.NegativeInfinity));
-            }
-
-            var lift = 0.0;
-            foreach (var (w, raised) in _raised)
-            {
-                lift += Math.Max(0, raised - Math.Max(_floor[w], reachP));
-            }
-
-            return lift;
-        }
-
-        /// <summary>
-        /// Whether a dot at (x, y) keeps the siblings placed so far clockwise in creation order round their parent (by
-        /// footprint centres), for a parent of three or more children.
-        /// </summary>
-        private bool KeepsOrder(int i, double x, double y)
-        {
-            var p = forest.Parent[i];
-            if (forest.Children[p].Count < 3)
-            {
-                return true;
-            }
-
-            double? first = null;
-            var previous = -1.0;
-            foreach (var w in forest.Children[p])
-            {
-                if (w != i && !_done[w])
-                {
-                    continue;
-                }
-
-                var (wx, wy) = w == i ? (x + forest.Offset[i], y) : (X[w] + forest.Offset[w], Y[w]);
-                var angle = Math.Atan2(wy - Y[p], wx - X[p] - forest.Offset[p]);
-                first ??= angle;
-                var turned = Turned(angle - first.Value);
-                if (previous >= 0 && turned <= previous)
-                {
-                    return false;
-                }
-
-                previous = turned;
-            }
-
-            return true;
-        }
-
-        /// <summary>
-        /// The cost of the line from the parent's dot to a dot at (x, y): lines it crosses, dots it passes through or
-        /// lies on, and placed siblings with children still to come that it passes beyond, in their wedges.
-        /// </summary>
-        private double Penalty(int i, double x, double y)
-        {
-            var p = forest.Parent[i];
-            var (ax, ay) = (X[p], Y[p]);
-            var dot = forest.Nodes[i].DotRadius;
-            var (minX, maxX, minY, maxY) = (Math.Min(ax, x) - _maxDot, Math.Max(ax, x) + _maxDot, Math.Min(ay, y) - _maxDot, Math.Max(ay, y) + _maxDot);
-            var cost = 0.0;
-            foreach (var (from, to) in _lines)
-            {
-                var (cx, cy, dx, dy) = (X[from], Y[from], X[to], Y[to]);
-                if (from == p || to == p || Math.Max(cx, dx) < minX || Math.Min(cx, dx) > maxX || Math.Max(cy, dy) < minY || Math.Min(cy, dy) > maxY)
-                {
-                    continue;
-                }
-
-                if (Crosses(ax, ay, x, y, cx, cy, dx, dy))
-                {
-                    cost += CrossingCost;
-                }
-                else if (Near(x, y, cx, cy, dx, dy, dot))
-                {
-                    cost += ThroughCost;
-                }
-            }
-
-            foreach (var m in _nodes)
-            {
-                var (mx, my) = (X[m], Y[m]);
-                if (m != p && mx >= minX && mx <= maxX && my >= minY && my <= maxY && Near(mx, my, ax, ay, x, y, forest.Nodes[m].DotRadius))
-                {
-                    cost += ThroughCost;
-                }
-            }
-
-            foreach (var m in forest.Children[p])
-            {
-                if (!_done[m] || forest.Children[m].Count == 0)
-                {
-                    continue;
-                }
-
-                var reach = Math.Sqrt(Square(X[m]) + Square(Y[m]));
-                for (var k = 1; k < LineSamples; k++)
-                {
-                    var s = (double)k / LineSamples;
-                    var (sx, sy) = (ax + (s * (x - ax)), ay + (s * (y - ay)));
-                    if (Square(sx) + Square(sy) > reach * reach && Within(Math.Atan2(sy, sx), Low[m], High[m]))
-                    {
-                        cost += OcclusionCost;
-                        break;
-                    }
-                }
-            }
-
-            return cost;
-        }
-
-        private static double Turned(double a) => ((a % (2 * Math.PI)) + (2 * Math.PI)) % (2 * Math.PI);
-
-        /// <summary>Whether an angle lies in the wedge from <paramref name="low"/> to <paramref name="high"/>, round the circle.</summary>
-        private static bool Within(double angle, double low, double high)
-        {
-            while (angle < low)
-            {
-                angle += 2 * Math.PI;
-            }
-
-            return angle <= high;
-        }
-
-        /// <summary>Whether point p lies within <paramref name="reach"/> of the segment a–b.</summary>
-        private static bool Near(double px, double py, double ax, double ay, double bx, double by, double reach)
-        {
-            var (dx, dy) = (bx - ax, by - ay);
-            var length2 = (dx * dx) + (dy * dy);
-            var t = length2 > 0 ? Math.Clamp((((px - ax) * dx) + ((py - ay) * dy)) / length2, 0, 1) : 0;
-            return Square(px - (ax + (t * dx))) + Square(py - (ay + (t * dy))) < reach * reach;
         }
     }
 }

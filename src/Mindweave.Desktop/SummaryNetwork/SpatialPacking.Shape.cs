@@ -168,8 +168,8 @@ public static partial class SpatialPacking
                 var before = Angle(children[(i + k - 1) % k][0]);
                 var here = Angle(children[i][0]);
                 var after = Angle(children[(i + 1) % k][0]);
-                var arc = Turn(after - before);
-                var at = Turn(here - before);
+                var arc = Turned(after - before);
+                var at = Turned(here - before);
                 if (at > 0 && at < arc)
                 {
                     continue;
@@ -191,8 +191,6 @@ public static partial class SpatialPacking
         }
 
         return moved;
-
-        static double Turn(double a) => ((a % (2 * Math.PI)) + (2 * Math.PI)) % (2 * Math.PI);
     }
 
     /// <summary>

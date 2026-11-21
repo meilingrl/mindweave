@@ -135,42 +135,20 @@ public static partial class SpatialPacking
 
     /// <summary>
     /// The acceptance checks for an arrangement (footprint centres given), each over its bound: the enclosing circle
-    /// over the ideal radius, the centre of gravity's offset, crossings per branch line, and the most stretched
-    /// sub-branch of <see cref="StretchSize"/> dots or more.
+    /// over the ideal radius, the centre of gravity's offset and crossings per branch line, worked out with the same
+    /// code as <see cref="Measure"/> (<see cref="Check"/>), and the most stretched sub-branch of
+    /// <see cref="StretchSize"/> dots or more.
     /// </summary>
     private static Scores Score(Forest forest, int[] members, double[] x, double[] y)
     {
-        var n = members.Length;
-        var r = members.Select(i => forest.Radius[i]).ToArray();
-        var circle = Enclose(r, x, y);
-        var ratio = circle.R / Math.Sqrt(r.Sum(v => v * v));
-
-        var (dx, dy, _) = Imbalance(forest, members, x, y);
-        var offset = circle.R > 0 ? Math.Sqrt((dx * dx) + (dy * dy)) / circle.R : 0;
-
+        var drawing = DrawingOf(forest, members, x, y);
+        var whole = Check(drawing, throughDots: false);
+        var ratio = whole.Ideal > 0 ? whole.Enclosing.R / whole.Ideal : 0;
         var slot = new int[forest.Nodes.Length];
         var inside = new bool[forest.Nodes.Length];
-        var (px, py) = (new double[forest.Nodes.Length], new double[forest.Nodes.Length]);
-        for (var k = 0; k < n; k++)
+        for (var k = 0; k < members.Length; k++)
         {
-            var i = members[k];
-            (slot[i], inside[i]) = (k, true);
-            (px[i], py[i]) = (x[k] - forest.Offset[i], y[k]);
-        }
-
-        var lines = members.Where(i => forest.Parent[i] >= 0).ToArray();
-        var crossings = 0;
-        for (var a = 0; a < lines.Length; a++)
-        {
-            var (c, p) = (lines[a], forest.Parent[lines[a]]);
-            for (var b = a + 1; b < lines.Length; b++)
-            {
-                var (e, q) = (lines[b], forest.Parent[lines[b]]);
-                if (e != p && q != p && q != c && Crosses(px[p], py[p], px[c], py[c], px[q], py[q], px[e], py[e]))
-                {
-                    crossings++;
-                }
-            }
+            (slot[members[k]], inside[members[k]]) = (k, true);
         }
 
         // Sub-branches: in pre-order each is a contiguous run.
@@ -202,39 +180,20 @@ public static partial class SpatialPacking
             stretch = Math.Max(stretch, Enclose(sub).R / Math.Sqrt(area));
         }
 
-        var perLine = lines.Length > 0 ? (double)crossings / lines.Length : 0;
-        var inOrder = members.All(i => InOrder(forest, x, y, slot, i));
-        return new Scores(ratio / RatioBound, offset / CentroidBound, perLine / CrossingBound, stretch / StretchBound, inOrder);
+        var centres = new Slots(slot, x, y);
+        var inOrder = members.All(i => ClockwiseInOrder(forest.Children[i], x[slot[i]], y[slot[i]], centres));
+        var perLine = whole.Edges > 0 ? (double)whole.Crossings / whole.Edges : 0;
+        return new Scores(ratio / RatioBound, whole.CentroidOffset / CentroidBound, perLine / CrossingBound, stretch / StretchBound, inOrder);
     }
 
-    /// <summary>
-    /// Whether node <paramref name="p"/>'s children, if three or more, lie clockwise in creation order round it, by
-    /// footprint centres (given in <paramref name="x"/>, <paramref name="y"/> at each node's slot).
-    /// </summary>
-    private static bool InOrder(Forest forest, double[] x, double[] y, int[] slot, int p)
+    /// <summary>Footprint centres, by node.</summary>
+    private readonly struct Slots(int[] slot, double[] x, double[] y) : ICentres
     {
-        var children = forest.Children[p];
-        if (children.Count < 3)
+        public bool TryGet(int node, out double cx, out double cy)
         {
+            (cx, cy) = (x[slot[node]], y[slot[node]]);
             return true;
         }
-
-        var (px, py) = (x[slot[p]], y[slot[p]]);
-        var first = Math.Atan2(y[slot[children[0]]] - py, x[slot[children[0]]] - px);
-        var previous = 0.0;
-        for (var k = 1; k < children.Count; k++)
-        {
-            var c = slot[children[k]];
-            var turned = (((Math.Atan2(y[c] - py, x[c] - px) - first) % (2 * Math.PI)) + (2 * Math.PI)) % (2 * Math.PI);
-            if (turned <= previous)
-            {
-                return false;
-            }
-
-            previous = turned;
-        }
-
-        return true;
     }
 
     /// <summary>
@@ -244,25 +203,30 @@ public static partial class SpatialPacking
     private static (double Dx, double Dy, double Radius) Imbalance(Forest forest, int[] members, double[] x, double[] y)
     {
         var circle = Enclose(members.Select(i => forest.Radius[i]).ToArray(), x, y);
-        var mass = members.Select(i => Math.Max(0, forest.Nodes[i].Mass)).ToArray();
-        var total = mass.Sum();
-        var (gx, gy) = (0.0, 0.0);
-        for (var k = 0; k < members.Length; k++)
-        {
-            var weight = total > 0 ? mass[k] / total : 1.0 / members.Length;
-            gx += weight * (x[k] - forest.Offset[members[k]]);
-            gy += weight * y[k];
-        }
-
+        var (gx, gy) = Centroid(DrawingOf(forest, members, x, y));
         return (gx - circle.X, gy - circle.Y, Math.Max(circle.R, 1));
     }
 
-    /// <summary>Whether segments a–b and c–d cross (touching or sharing an end does not count).</summary>
-    private static bool Crosses(double ax, double ay, double bx, double by, double cx, double cy, double dx, double dy) =>
-        Math.Max(ax, bx) >= Math.Min(cx, dx) && Math.Max(cx, dx) >= Math.Min(ax, bx) && Math.Max(ay, by) >= Math.Min(cy, dy) && Math.Max(cy, dy) >= Math.Min(ay, by)
-        && Side(ax, ay, bx, by, cx, cy) * Side(ax, ay, bx, by, dx, dy) < 0
-        && Side(cx, cy, dx, dy, ax, ay) * Side(cx, cy, dx, dy, bx, by) < 0;
+    /// <summary>The drawing of an arrangement of <paramref name="members"/>, given its footprint centres.</summary>
+    private static Drawing DrawingOf(Forest forest, int[] members, double[] x, double[] y)
+    {
+        var n = members.Length;
+        var slot = new Dictionary<int, int>(n);
+        for (var k = 0; k < n; k++)
+        {
+            slot[members[k]] = k;
+        }
 
-    /// <summary>Which side of the line a → b the point c lies on (the sign), times twice the triangle's area.</summary>
-    private static double Side(double ax, double ay, double bx, double by, double cx, double cy) => ((bx - ax) * (cy - ay)) - ((by - ay) * (cx - ax));
+        var drawing = new Drawing(new double[n], y, new double[n], new double[n], new double[n], new double[n], new int[n]);
+        for (var k = 0; k < n; k++)
+        {
+            var i = members[k];
+            drawing.X[k] = x[k] - forest.Offset[i];
+            (drawing.Offset[k], drawing.Radius[k]) = (forest.Offset[i], forest.Radius[i]);
+            (drawing.Mass[k], drawing.DotRadius[k]) = (forest.Nodes[i].Mass, forest.Nodes[i].DotRadius);
+            drawing.Parent[k] = forest.Parent[i] >= 0 && slot.TryGetValue(forest.Parent[i], out var at) ? at : -1;
+        }
+
+        return drawing;
+    }
 }
