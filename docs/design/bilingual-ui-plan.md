@@ -92,7 +92,7 @@
   - Turn `const string X = "中文";` into `static string X => T("English", "中文");` and cached statics into `=>`.
   - Methods build both strings, with `Plural` and `Culture` on the English side.
   - Keep the Chinese byte for byte.
-  - English: glossary terms, sentence case, no full stop on labels and buttons, a full stop on full sentences, the menu path separator ` › ` as today, and ASCII quotes.
+  - English: glossary terms, sentence case, no full stop on labels and buttons, a full stop on full sentences, the menu path separator ` › ` as today, typographic quotes “ ” and ’.
   
   The reviewer compares meaning, glossary terms, placeholders and plurals, and fixes in place.
 - [ ] **Step 2:** Merge in the strings from `task/session-network` if it has merged by then: `UiText.SummaryNetwork.cs` (7 strings), `DayLabel(DateOnly, DateOnly)` → `"Nov 20"` / `"Nov 20, 2025"`, `DotHoverLabel(string, DateTimeOffset)` → `"Nov 20 21:38"`.
