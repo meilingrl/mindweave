@@ -107,7 +107,7 @@ public static partial class UiText
         "You can attach images to a question for the model to look at. Only models that can read images support this.",
         "提问时可以附上图片，由模型看图回答。只有能识图的模型支持。");
     public static string OutputLimitLabel => T("Output limit", "输出上限");
-    public static string OutputLimitPlaceholder => T("Blank: service decides", "留空由服务决定");
+    public static string OutputLimitPlaceholder => T("Service default", "留空由服务决定");
     public static string OutputLimitHint => T(
         "The most tokens each answer may generate. Raise it if answers are often cut off midway; lower it for shorter answers or to control cost.",
         "每次回答最多生成多少 token。回答常在中途被截断时调大；想要更短的回答或控制费用时调小。");

@@ -78,7 +78,7 @@ public static partial class UiText
         if (usage.TooLong)
         {
             return T(
-                string.Format(en, "Context is about {0:N0} tokens, more than the {1:N0} available, and doesn’t fit even with earlier parts compressed. You can create a branch from the answer you need and continue there, or switch to a model with a larger capacity in Settings.", usage.FullTokens, usage.Budget),
+                string.Format(en, "Context is about {0:N0} tokens, more than the {1:N0} available, and doesn’t fit even with earlier parts compressed. You can create a branch from the answer you need and continue there, or switch to a model with a larger context window in Settings.", usage.FullTokens, usage.Budget),
                 string.Format(c, "上下文约 {0:N0} token，超出可用的 {1:N0}：压缩较早内容后也放不下。可以从需要的回答处创建分支继续，或在设置中换用容量更大的模型。", usage.FullTokens, usage.Budget));
         }
 
@@ -162,7 +162,7 @@ public static partial class UiText
             "The question, with its attachments and the branch source content it needs, is too large for the model’s context window, even when only the attachments’ digests and relevant parts are sent. Shorten the question, remove attachments or narrow the branch selection, or switch to a model with a larger context window in Settings and fill in its context window.",
             "问题连同附件与必需的来源内容，即使只发送附件的摘要和相关部分，也超出了模型的上下文容量。请缩短问题、减少附件或缩小分支选区，或在设置中换用容量更大的模型并填写上下文容量。"),
         SendRejection.HistoryTooLongForModel => T(
-            "This conversation doesn’t fit in the model’s context window, even with earlier parts compressed. You can create a branch from the answer you need and continue there, or switch to a model with a larger capacity in Settings.",
+            "This conversation doesn’t fit in the model’s context window, even with earlier parts compressed. You can create a branch from the answer you need and continue there, or switch to a model with a larger context window in Settings.",
             "这段对话即使压缩较早内容也放不进模型的上下文容量。可以从需要的回答处创建分支继续，或在设置中换用容量更大的模型。"),
         SendRejection.ConversationArchived => T("This conversation is archived. Restore it first.", "这个会话已归档，请先恢复。"),
         SendRejection.ConversationMissing => ConversationDeleted,

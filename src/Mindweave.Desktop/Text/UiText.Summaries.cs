@@ -71,7 +71,7 @@ public static partial class UiText
         SummarizeRejection.AnswerInProgress => T("You can summarize once the answer finishes or is stopped.", "回答完成或停止后才能总结。"),
         SummarizeRejection.SummaryInProgress => T("A summary of this conversation is being generated.", "这个会话的总结正在生成。"),
         SummarizeRejection.HasCandidate => T("There’s already a candidate version. Adopt or discard it on the summary page first.", "已有一个候选版本，请先在总结页采用或丢弃。"),
-        SummarizeRejection.TooLongForModel => T("The conversation is too long: even after compressing earlier content it exceeds the model’s capacity. You can switch to a model with a larger capacity in Settings.", "会话太长，压缩较早内容后也超出模型容量；可以在设置中换用容量更大的模型。"),
+        SummarizeRejection.TooLongForModel => T("The conversation is too long: even after compressing earlier content it exceeds the model’s context window. You can switch to a model with a larger context window in Settings.", "会话太长，压缩较早内容后也超出模型容量；可以在设置中换用容量更大的模型。"),
         SummarizeRejection.ConversationArchived => T("This conversation is archived. Restore it before summarizing.", "这个会话已归档，请先恢复再总结。"),
         SummarizeRejection.ConversationMissing => ConversationDeleted,
         _ => T("Couldn’t generate the summary.", "无法生成总结。"),
