@@ -102,6 +102,22 @@ public class SummaryNetworkProjectionTests
         Assert.Empty(await h.SummaryNetwork.GetLayoutAsync(h.Workspace, Ct));
     }
 
+    [Fact]
+    public async Task Question_counts_count_user_messages_and_ignore_retries()
+    {
+        await using var h = await ChatHarness.StartAsync();
+        var root = await ConversationAsync(h, "火车是怎么发明的？");
+        var branch = await BranchAsync(h, root, "谁造了第一台？");
+        var asked = await h.Conversations.AskAsync(root, "它跑多快？", Ct);
+        await h.WaitForAnswerAsync(asked.Answer!.Value);
+        await h.RetryAsync(root, asked.Answer!.Value);
+
+        var counts = await new SqliteSummaryNetworkStore(h.Database).QuestionCountsAsync(h.Workspace, Ct);
+
+        Assert.Equal(2, counts[root]);
+        Assert.Equal(1, counts[branch]);
+    }
+
     private static async Task<ConversationId> ConversationAsync(ChatHarness h, string question)
     {
         var sent = await h.Conversations.StartAsync(h.Workspace, question, Ct);

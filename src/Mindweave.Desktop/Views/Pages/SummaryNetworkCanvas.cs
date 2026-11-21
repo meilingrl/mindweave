@@ -5,6 +5,7 @@ using Avalonia.Input;
 using Avalonia.Media;
 using Avalonia.Threading;
 using Mindweave.Application.Recommendations;
+using Mindweave.Application.SummaryNetwork;
 using Mindweave.Core.Summaries;
 using Mindweave.Desktop.SummaryNetwork;
 using Mindweave.Desktop.ViewModels.Pages;
@@ -34,13 +35,20 @@ public sealed class SummaryNetworkCanvas : Control
     public const double FocusedLabelMinSize = 10;
 
     /// <summary>Screen px between an exploration's caption and the centre of its topmost node.</summary>
-    public const double CaptionGap = 26;
+    public const double CaptionGap = SummaryNetworkLayout.CaptionGap;
 
-    private const double CaptionSize = 11;
+    private const double CaptionSize = SummaryNetworkLayout.CaptionSize;
     private const double EdgeLabelSize = 10;
     private const double EdgeLabelEmphasizedSize = 11;
 
     private const double GridSpacing = 28;
+
+    /// <summary>The session network: how far outside a dot its summary ring is drawn.</summary>
+    internal const double SummaryRingGap = SummaryNetworkLayout.SummaryRingGap;
+
+    /// <summary>The time thread's arrowhead.</summary>
+    private const double ArrowLength = 6;
+    private const double ArrowAngle = Math.PI / 6;
 
     private static readonly Typeface Face = new(FontFamily.Default);
     internal static readonly Cursor HandCursor = new(StandardCursorType.Hand);
@@ -160,6 +168,11 @@ public sealed class SummaryNetworkCanvas : Control
         return (((screen.X - (Bounds.Width / 2)) / v.Zoom) + v.CenterX, ((screen.Y - (Bounds.Height / 2)) / v.Zoom) + v.CenterY);
     }
 
+    /// <summary>The session network is drawn: dots by weight, summary rings, the time thread and day labels.</summary>
+    private bool Sessions => _page?.Session.IsSessionNetwork == true;
+
+    private double RadiusOf(NodeView node) => SummaryNetworkGeometry.RadiusOf(node, Sessions);
+
     /// <summary>Where a node is drawn, in canvas coordinates: at the pointer while dragged, else at its layout position.</summary>
     private (double X, double Y) PositionOf(SummaryNodeId id, double x, double y) => id == Dragging ? _dragAt : (x, y);
 
@@ -170,7 +183,9 @@ public sealed class SummaryNetworkCanvas : Control
     }
 
     /// <summary>
-    /// The node under a control point: its hit box at its layout position. Hidden labels are not clickable.
+    /// The node under a control point: its hit box at its layout position. Hidden labels are not clickable. In the session
+    /// network a drawn dot (its summary ring included) comes first, the nearest when several are under the point, so a
+    /// neighbour's box never takes a click on a dot.
     /// </summary>
     internal NodeView? HitTest(Point screen)
     {
@@ -179,10 +194,24 @@ public sealed class SummaryNetworkCanvas : Control
             return null;
         }
 
+        if (Sessions)
+        {
+            var dot = _page.Nodes
+                .Select(n => (Node: n, Distance: Point.Distance(ScreenOf(n), screen)))
+                .Where(x => x.Distance <= SummaryNetworkLayout.DotFootprintRadius(x.Node.Weight, x.Node.HasSummary))
+                .OrderBy(x => x.Distance)
+                .Select(x => x.Node)
+                .FirstOrDefault();
+            if (dot is not null)
+            {
+                return dot;
+            }
+        }
+
         var zoom = Current.Zoom;
         foreach (var node in _page.Nodes.Reverse())
         {
-            if (SummaryNetworkGeometry.HitBox(ScreenOf(node), node, zoom, IsLabelVisible(node, zoom)).Contains(screen))
+            if (HitBoxOf(node, ScreenOf(node), zoom).Contains(screen))
             {
                 return node;
             }
@@ -240,6 +269,10 @@ public sealed class SummaryNetworkCanvas : Control
     private bool IsLabelVisible(NodeView node, double zoom) =>
         zoom > LabelHideScale || node.Id == Hovered || (_page is { } page && (node.Id == page.Session.Selected || page.Matches.Contains(node.Id)));
 
+    /// <summary>A node's hit box: its dot and, while shown, its label.</summary>
+    private Rect HitBoxOf(NodeView node, Point center, double zoom) =>
+        SummaryNetworkGeometry.HitBox(center, node, zoom, IsLabelVisible(node, zoom), Sessions);
+
     /// <summary>What each node looks like now, in drawing order. The render pass and the tests read the same list.</summary>
     internal IReadOnlyList<NodePaint> PaintNodes()
     {
@@ -257,26 +290,54 @@ public sealed class SummaryNetworkCanvas : Control
         var selected = _page.Session.Selected;
         var trail = _page.Trail;
         var matches = _page.Matches;
+        var sessions = Sessions;
         return [.. _page.Nodes.Select(node =>
         {
             var hovered = node.Id == Hovered;
             var lifted = node.Id == Dragging;
             var isSelected = node.Id == selected;
             var matched = matches.Contains(node.Id);
-            var radius = SummaryNetworkGeometry.RadiusOf(node) + (hovered || lifted ? HoverGrowth : 0);
+            var radius = RadiusOf(node) + (hovered || lifted ? HoverGrowth : 0);
             var center = drawn[node.Id];
             var ring = isSelected ? NodeRing.Selected : matched ? NodeRing.Match : NodeRing.None;
             var label = SummaryNetworkLayout.Label(node.ShortTitle, node.HasCandidate);
             var visible = IsLabelVisible(node, zoom);
             var labelSize = zoom > LabelHideScale ? size : Math.Max(size, FocusedLabelMinSize);
             var brush = hovered || isSelected ? palette.LabelActive : !node.Unread ? palette.LabelRead : palette.Label;
-            var text = visible ? Text(label, labelSize, brush, node.Unread ? FontWeight.SemiBold : FontWeight.Normal) : null;
+            var weight = node.Unread ? FontWeight.SemiBold : FontWeight.Normal;
+            var text = visible ? Text(label, labelSize, brush, weight) : null;
             var origin = text is null ? default : SummaryNetworkGeometry.LabelOrigin(center, radius, new Size(text.Width, text.Height), incident[node.Id]);
+            FormattedText? date = null;
+            Rect dateBounds = default;
+            if (text is not null && sessions && hovered)
+            {
+                // A hovered session dot also says when its conversation started (final review M6): after the title when that
+                // covers no other dot, else on a line of its own under the title or over it, else not at all (the details
+                // still give it).
+                var oneLine = Text(UiText.DotHoverLabel(label, node.CreatedAt), labelSize, brush, weight);
+                var oneLineOrigin = SummaryNetworkGeometry.LabelOrigin(center, radius, new Size(oneLine.Width, oneLine.Height), incident[node.Id]);
+                if (ClearOfOtherDots(node.Id, new Rect(oneLineOrigin, new Size(oneLine.Width, oneLine.Height)), drawn))
+                {
+                    (label, text, origin) = (UiText.DotHoverLabel(label, node.CreatedAt), oneLine, oneLineOrigin);
+                }
+                else
+                {
+                    // Its own line is as quiet as a day caption, and keeps clear of the captions too.
+                    date = Text(UiText.DotHoverDate(node.CreatedAt), Math.Min(labelSize, CaptionSize), brush);
+                    var title = new Rect(origin, new Size(text.Width, text.Height));
+                    var line = new Size(date.Width, date.Height);
+                    var captions = PaintCaptions().Select(c => c.Bounds).ToList();
+                    var place = new[] { new Rect(new Point(title.Left, title.Bottom), line), new Rect(new Point(title.Left, title.Top - date.Height), line) }
+                        .FirstOrDefault(r => ClearOfOtherDots(node.Id, r, drawn) && !captions.Any(r.Intersects));
+                    (date, dateBounds) = place == default ? (null, default) : (date, place);
+                }
+            }
+
             return new NodePaint(
                 node,
                 center,
                 radius,
-                Hollow: !node.Unread,
+                Hollow: !sessions && !node.Unread,
                 UnreadDot: node.Unread,
                 hovered,
                 trail.Contains(node.Id),
@@ -289,10 +350,24 @@ public sealed class SummaryNetworkCanvas : Control
             {
                 Text = text,
                 LabelBounds = text is null ? default : new Rect(origin, new Size(text.Width, text.Height)),
+                DateText = date,
+                DateBounds = dateBounds,
                 Lifted = lifted,
+                SummaryRing = sessions && node.HasSummary,
             };
         })];
     }
+
+    /// <summary>A label rectangle touches no other node's dot or summary ring as drawn.</summary>
+    private bool ClearOfOtherDots(SummaryNodeId self, Rect label, Dictionary<SummaryNodeId, Point> drawn) =>
+        _page!.Nodes.Where(n => n.Id != self).All(n =>
+        {
+            var center = drawn[n.Id];
+            var reach = SummaryNetworkLayout.DotFootprintRadius(n.Weight, n.HasSummary);
+            var x = Math.Clamp(center.X, label.Left, label.Right) - center.X;
+            var y = Math.Clamp(center.Y, label.Top, label.Bottom) - center.Y;
+            return (x * x) + (y * y) > reach * reach;
+        });
 
     /// <summary>Each edge from the parent's drawn position to the child's, with its state.</summary>
     internal IReadOnlyList<EdgePaint> PaintEdges()
@@ -304,13 +379,19 @@ public sealed class SummaryNetworkCanvas : Control
 
         var trail = _page.Trail;
         var zoom = Current.Zoom;
+
+        // The session network's time thread: dotted with an arrowhead in the spatial view, the main line on the timeline.
+        var timeline = _page.Session.IsTimeline;
+        var spatial = Sessions && !timeline;
+        var nodes = Sessions ? _page.Nodes.ToDictionary(n => n.Id) : [];
         return [.. _page.Edges.Select(edge =>
         {
             var (fromX, fromY) = PositionOf(edge.From, edge.FromX, edge.FromY);
             var (toX, toY) = PositionOf(edge.To, edge.ToX, edge.ToY);
             var from = ToScreen(fromX, fromY) + _offsets.GetValueOrDefault(edge.From);
             var to = ToScreen(toX, toY) + _offsets.GetValueOrDefault(edge.To);
-            var state = trail.Contains(edge.To) ? EdgeState.Trail
+            var thread = edge.Kind == SummaryNetworkEdgeKind.TimeThread;
+            var state = !thread && trail.Contains(edge.To) ? EdgeState.Trail
                 : Hovered is { } h && (h == edge.To || h == edge.From) ? EdgeState.Near
                 : !edge.IsDirect ? EdgeState.Indirect
                 : EdgeState.Normal;
@@ -318,7 +399,16 @@ public sealed class SummaryNetworkCanvas : Control
 
             // "经 N 个未总结会话" stays readable at rest (quiet), hidden with the other labels when zoomed far out.
             var label = edge.Label is { } via && (highlighted || zoom > LabelHideScale) ? via : null;
-            return new EdgePaint(edge, from, to, state, !edge.IsDirect, label, highlighted);
+            var arrow = spatial && thread;
+            return new EdgePaint(edge, from, to, state, !edge.IsDirect || arrow, label, highlighted)
+            {
+                Arrow = arrow,
+                ArrowInset = arrow && nodes.TryGetValue(edge.To, out var target)
+                    ? SummaryNetworkGeometry.DotFootprintRadius(target.Weight, target.HasSummary) + (target.Id == Hovered ? HoverGrowth : 0) + 2
+                    : 0,
+                Curved = edge.Curved,
+                Timeline = timeline,
+            };
         })];
     }
 
@@ -340,7 +430,7 @@ public sealed class SummaryNetworkCanvas : Control
         var palette = _palette ??= SummaryNetworkPalette.From(this);
         var zoom = Current.Zoom;
         var selected = _page.Session.Selected;
-        var taken = _page.Nodes.Select(n => SummaryNetworkGeometry.HitBox(ScreenOf(n) + _offsets.GetValueOrDefault(n.Id), n, zoom, IsLabelVisible(n, zoom))).ToList();
+        var taken = _page.Nodes.Select(n => HitBoxOf(n, ScreenOf(n) + _offsets.GetValueOrDefault(n.Id), zoom)).ToList();
         return [.. _page.LinkEdges.Select(link =>
         {
             var (ax, ay) = PositionOf(link.A, link.AX, link.AY);
@@ -390,7 +480,7 @@ public sealed class SummaryNetworkCanvas : Control
         var highlighted = _page.HighlightedSuggestion;
         // A summary lying on the line (its ring and its name) is never covered: the words would hide it and take its clicks.
         var taken = PaintLinks().Where(l => l.Note is not null).Select(l => l.NoteBounds)
-            .Concat(_page.Nodes.Select(n => SummaryNetworkGeometry.HitBox(ScreenOf(n) + _offsets.GetValueOrDefault(n.Id), n, zoom, IsLabelVisible(n, zoom))))
+            .Concat(_page.Nodes.Select(n => HitBoxOf(n, ScreenOf(n) + _offsets.GetValueOrDefault(n.Id), zoom)))
             .ToList();
         return [.. _page.SuggestionEdges.Select(edge =>
         {
@@ -420,10 +510,13 @@ public sealed class SummaryNetworkCanvas : Control
     internal SuggestionEdgeView? HitTestSuggestion(Point screen) =>
         PaintSuggestions().LastOrDefault(s => s.Text is not null && s.LabelBounds.Inflate(2).Contains(screen))?.Suggestion;
 
-    /// <summary>Each exploration's caption, just above the topmost of its nodes and starting at the leftmost one.</summary>
+    /// <summary>
+    /// Each exploration's caption, just above the topmost of its nodes and starting at the leftmost one. In the session
+    /// network the captions are day labels, hidden with the other labels when zoomed far out.
+    /// </summary>
     internal IReadOnlyList<CaptionPaint> PaintCaptions()
     {
-        if (_page is null)
+        if (_page is null || (Sessions && Current.Zoom <= LabelHideScale))
         {
             return [];
         }
@@ -431,6 +524,14 @@ public sealed class SummaryNetworkCanvas : Control
         var palette = _palette ??= SummaryNetworkPalette.From(this);
         var nodes = _page.Nodes.ToDictionary(n => n.Id);
         var result = new List<CaptionPaint>();
+        var size = SummaryNetworkGeometry.LabelSize(Current.Zoom);
+
+        // Spatial dates sit by their root's title, which the root's edges may have moved; only they need the edges.
+        var spatial = Sessions && !_page.Session.IsTimeline;
+        var incident = spatial
+            ? _page.Edges.SelectMany(e => new[] { (Node: e.From, Other: e.To), (Node: e.To, Other: e.From) })
+                .Where(x => nodes.ContainsKey(x.Other)).ToLookup(x => x.Node, x => ScreenOf(nodes[x.Other]))
+            : null;
         foreach (var caption in _page.Captions)
         {
             var members = caption.Members.Where(nodes.ContainsKey).Select(id => (Node: nodes[id], At: ScreenOf(nodes[id]))).ToList();
@@ -439,13 +540,34 @@ public sealed class SummaryNetworkCanvas : Control
                 continue;
             }
 
+            if (incident is not null)
+            {
+                // Like the titles, a date shrinks below zoom 1 so it keeps clear of the dots round it.
+                var date = Text(caption.Text, CaptionSize * Math.Clamp(Current.Zoom, 0.6, 1), palette.Caption);
+                result.Add(new CaptionPaint(caption, date, SpatialDateOrigin(members[0].Node, members[0].At, date, incident, size)));
+                continue;
+            }
+
             var text = Text(caption.Text, CaptionSize, palette.Caption);
-            var left = members.Min(m => m.At.X - SummaryNetworkGeometry.RadiusOf(m.Node));
+            var left = members.Min(m => m.At.X - RadiusOf(m.Node));
             var top = members.Min(m => m.At.Y);
             result.Add(new CaptionPaint(caption, text, new Point(left, top - CaptionGap - text.Height)));
         }
 
         return result;
+    }
+
+    /// <summary>
+    /// Where a spatial date sits (spec §4.4): beside the root dot, on the title's line of text, above it, or below it when
+    /// an edge lifted the title up, so it stays inside the root's packing footprint (dot, title, and the room for a lifted title).
+    /// </summary>
+    private Point SpatialDateOrigin(NodeView node, Point center, FormattedText date, ILookup<SummaryNodeId, Point> incident, double labelSize)
+    {
+        var title = Text(SummaryNetworkLayout.Label(node.ShortTitle, node.HasCandidate), labelSize, Brushes.Black);
+        var radius = RadiusOf(node);
+        var at = SummaryNetworkGeometry.LabelOrigin(center, radius, new Size(title.Width, title.Height), incident[node.Id]);
+        var x = center.X + radius + SummaryNetworkLayout.LabelGap;
+        return at.Y < center.Y - 9 - 0.5 ? new Point(x, center.Y + 3) : new Point(x, center.Y - 9 - 2 - date.Height);
     }
 
     public override void Render(DrawingContext context)
@@ -499,6 +621,10 @@ public sealed class SummaryNetworkCanvas : Control
             foreach (var node in nodes.Where(n => n.Text is not null))
             {
                 context.FillRectangle(palette.Background, node.Backdrop, 3);
+                if (node.DateText is not null)
+                {
+                    context.FillRectangle(palette.Background, node.DateBounds.Inflate(new Thickness(2, 0)), 3);
+                }
             }
         }
 
@@ -518,11 +644,16 @@ public sealed class SummaryNetworkCanvas : Control
             {
                 context.DrawText(text, node.LabelBounds.TopLeft);
             }
+
+            if (node.DateText is { } date)
+            {
+                context.DrawText(date, node.DateBounds.TopLeft);
+            }
         }
 
         foreach (var caption in PaintCaptions())
         {
-            // Always drawn, even when labels are hidden: it names the exploration.
+            // Always drawn, even when labels are hidden: it names the exploration (a day label hides with the labels).
             context.DrawText(caption.Text, caption.Origin);
         }
 
@@ -574,7 +705,33 @@ public sealed class SummaryNetworkCanvas : Control
 
     private static void DrawEdge(DrawingContext context, SummaryNetworkPalette palette, EdgePaint edge)
     {
-        context.DrawLine(palette.EdgePen(edge.State, edge.Dashed), edge.From, edge.To);
+        if (edge.Arrow)
+        {
+            DrawTimeThread(context, palette, edge);
+            return;
+        }
+
+        var pen = edge.Timeline ? palette.TimelinePen(edge.State, mainLine: edge.Edge.Kind == SummaryNetworkEdgeKind.TimeThread)
+            : palette.EdgePen(edge.State, edge.Dashed);
+        if (edge.Curved)
+        {
+            // A timeline branch to another lane: leaves the parent and reaches the child horizontally.
+            var middle = (edge.From.X + edge.To.X) / 2;
+            var curve = new StreamGeometry();
+            using (var g = curve.Open())
+            {
+                g.BeginFigure(edge.From, false);
+                g.CubicBezierTo(new Point(middle, edge.From.Y), new Point(middle, edge.To.Y), edge.To);
+                g.EndFigure(false);
+            }
+
+            context.DrawGeometry(null, pen, curve);
+        }
+        else
+        {
+            context.DrawLine(pen, edge.From, edge.To);
+        }
+
         if (edge.Label is not { } via)
         {
             return;
@@ -583,6 +740,35 @@ public sealed class SummaryNetworkCanvas : Control
         var brush = !edge.LabelEmphasized ? palette.Caption : edge.State == EdgeState.Trail ? palette.EdgeTrail : palette.EdgeNear;
         var text = Text(via, edge.LabelEmphasized ? EdgeLabelEmphasizedSize : EdgeLabelSize, brush);
         context.DrawText(text, SummaryNetworkGeometry.EdgeLabelOrigin(edge, text));
+    }
+
+    /// <summary>The time thread: a dotted line up to the later dot's edge, ending in a small open arrowhead.</summary>
+    private static void DrawTimeThread(DrawingContext context, SummaryNetworkPalette palette, EdgePaint edge)
+    {
+        var delta = edge.To - edge.From;
+        var length = Math.Sqrt((delta.X * delta.X) + (delta.Y * delta.Y));
+        if (length <= edge.ArrowInset + ArrowLength)
+        {
+            return;
+        }
+
+        var near = edge.State == EdgeState.Near;
+        var direction = delta / length;
+        var tip = edge.To - (direction * edge.ArrowInset);
+        context.DrawLine(palette.TimeThreadPen(near), edge.From, tip);
+        Point Barb(double angle) => tip - (new Vector(
+            (direction.X * Math.Cos(angle)) - (direction.Y * Math.Sin(angle)),
+            (direction.X * Math.Sin(angle)) + (direction.Y * Math.Cos(angle))) * ArrowLength);
+        var head = new StreamGeometry();
+        using (var g = head.Open())
+        {
+            g.BeginFigure(Barb(ArrowAngle), false);
+            g.LineTo(tip);
+            g.LineTo(Barb(-ArrowAngle));
+            g.EndFigure(false);
+        }
+
+        context.DrawGeometry(null, palette.TimeArrowPen(near), head);
     }
 
     private void DrawGrid(DrawingContext context, SummaryNetworkPalette palette)
@@ -647,7 +833,9 @@ public sealed class SummaryNetworkCanvas : Control
 
         if (node.Ring != NodeRing.None)
         {
-            context.DrawEllipse(null, node.Ring == NodeRing.Selected ? palette.RingSelected : palette.RingMatch, p, r + 5, r + 5);
+            // Outside a summary ring, so the two never run together.
+            var gap = node.SummaryRing ? SummaryRingGap + 3.5 : 5;
+            context.DrawEllipse(null, node.Ring == NodeRing.Selected ? palette.RingSelected : palette.RingMatch, p, r + gap, r + gap);
         }
 
         var tone = node.Hovered ? palette.NodeHover : node.OnTrail ? palette.NodeTrail : node.Hollow ? palette.NodeRead : palette.Node;
@@ -661,9 +849,14 @@ public sealed class SummaryNetworkCanvas : Control
             context.DrawEllipse(tone, null, p, r, r);
         }
 
+        if (node.SummaryRing)
+        {
+            context.DrawEllipse(null, palette.SummaryRingPen(tone), p, r + SummaryRingGap, r + SummaryRingGap);
+        }
+
         if (node.UnreadDot)
         {
-            context.DrawEllipse(palette.UnreadDot, null, new Point(p.X + r + 3, p.Y - r - 3), 2.5, 2.5);
+            context.DrawEllipse(palette.UnreadDot, null, node.UnreadDotCenter, NodePaint.UnreadDotRadius, NodePaint.UnreadDotRadius);
         }
     }
 
@@ -722,9 +915,10 @@ public sealed class SummaryNetworkCanvas : Control
             {
                 _page?.OpenCommand.Execute(node.Id);
             }
-            else if (e.GetCurrentPoint(this).Properties.IsLeftButtonPressed)
+            else if (!Sessions && e.GetCurrentPoint(this).Properties.IsLeftButtonPressed)
             {
-                // Maybe the start of a drag: it becomes one once the pointer has moved past the threshold.
+                // Maybe the start of a drag: it becomes one once the pointer has moved past the threshold. The session
+                // network's places are computed, never moved by hand, so its dots are not dragged.
                 _pressed = node.Id;
                 _pressedAt = point;
                 var (x, y) = ToCanvas(point);
@@ -771,6 +965,12 @@ public sealed class SummaryNetworkCanvas : Control
         if (!_dragged && Math.Abs(point.X - from.X) + Math.Abs(point.Y - from.Y) < 3)
         {
             return;
+        }
+
+        if (!_dragged)
+        {
+            // The view as it is now: a reload since the press may have opened the view again.
+            _panStart = Current;
         }
 
         _dragged = true;
@@ -997,18 +1197,50 @@ public sealed class SummaryNetworkCanvas : Control
 
     private void OnViewChanged(object? sender, bool reset) => InvalidateVisual();
 
-    /// <summary>Fits every node, label and caption into view with a margin; zoom limited to the allowed range.</summary>
+    /// <summary>
+    /// The opening view, kept on the session: the timeline at zoom 1 on its newest end (spec §5.3); otherwise, and after
+    /// "显示全部", every node, label and caption fitted into view with a margin, zoom limited to the allowed range.
+    /// </summary>
     private Viewport Fit()
     {
-        if (_page is null || _page.Nodes.Count == 0 || Bounds.Width <= 0 || Bounds.Height <= 0)
+        if (_page is null || _page.Nodes.Count == 0)
+        {
+            // Nothing to fit: a request for "显示全部" must not outlive the empty picture and fit the next one.
+            if (_page is not null)
+            {
+                _page.Session.FitAllRequested = false;
+            }
+
+            return new Viewport(0, 0, 1);
+        }
+
+        if (Bounds.Width <= 0 || Bounds.Height <= 0)
         {
             return new Viewport(0, 0, 1);
         }
 
-        var fitted = SummaryNetworkGeometry.FitTo(_page.Nodes, Bounds.Size, _page.RecommendedNodes);
-        _page.Session.Viewport = fitted;
+        var opening = !_page.Session.FitAllRequested;
+        var fitted = opening && _page.Session.IsTimeline
+            ? SummaryNetworkGeometry.TimelineOpening(_page.Nodes, Bounds.Size, DrawnLabelWidth)
+            : opening && Sessions
+                ? SummaryNetworkGeometry.SpatialOpening(_page.Nodes, Bounds.Size, _page.RecommendedNodes)
+                : SummaryNetworkGeometry.FitTo(_page.Nodes, Bounds.Size, _page.RecommendedNodes);
+        if (opening)
+        {
+            _page.Session.SetOpeningViewport(fitted);
+        }
+        else
+        {
+            _page.Session.Viewport = fitted;
+        }
+
+        _page.Session.FitAllRequested = false;
         return fitted;
     }
+
+    /// <summary>A node's label as drawn at <see cref="LabelMaxSize"/> (zoom 1 and a little below): its width in px.</summary>
+    private static double DrawnLabelWidth(NodeView node) =>
+        Text(SummaryNetworkLayout.Label(node.ShortTitle, node.HasCandidate), LabelMaxSize, Brushes.Black, node.Unread ? FontWeight.SemiBold : FontWeight.Normal).Width;
 
     internal static FormattedText Text(string text, double size, IBrush brush, FontWeight weight = FontWeight.Normal) =>
         new(text, CultureInfo.CurrentUICulture, FlowDirection.LeftToRight, new Typeface(Face.FontFamily, FontStyle.Normal, weight), size, brush);

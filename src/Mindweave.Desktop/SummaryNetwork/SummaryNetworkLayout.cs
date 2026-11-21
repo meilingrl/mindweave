@@ -31,6 +31,15 @@ public static class SummaryNetworkLayout
     /// <summary>Room above each group for its caption ("探索 · …"), in canvas units (S7 round-1 fix).</summary>
     public const double CaptionHeadroom = 40;
 
+    /// <summary>Screen px between an exploration's caption (or a timeline date) and the centre of its topmost node.</summary>
+    public const double CaptionGap = 26;
+
+    /// <summary>The size of captions and dates, in px; a spatial date shrinks below zoom 1.</summary>
+    public const double CaptionSize = 11;
+
+    /// <summary>The most room a caption or date line takes up and down: 1.5 em of <see cref="CaptionSize"/>.</summary>
+    public const double CaptionLineHeight = CaptionSize * 1.5;
+
     public const double NodeHeight = 44;
     public const double LabelPadding = 24;
     public const int CollisionPasses = 40;
@@ -38,6 +47,18 @@ public static class SummaryNetworkLayout
     /// <summary>The largest dot (an exploration's root), and the gap between a dot and its label on the right (S7).</summary>
     public const double NodeRadius = 10;
     public const double LabelGap = 9;
+
+    /// <summary>The gap between a session dot and the thin ring a summary draws around it.</summary>
+    public const double SummaryRingGap = 3.5;
+
+    /// <summary>
+    /// A session's dot radius from its weight (the questions asked in it and all its branches):
+    /// clamp(5 + 1.3765·√(w − 1), 5, 14), so one question is 5 px, twenty about 11 px, and from about 44 on 14 px.
+    /// </summary>
+    public static double DotRadius(int weight) => Math.Clamp(5 + (1.3765 * Math.Sqrt(Math.Max(0, weight - 1))), 5, 14);
+
+    /// <summary>A session dot with the summary ring around it, pen included: what its footprint must cover and an arrow must stop short of.</summary>
+    public static double DotFootprintRadius(int weight, bool hasSummary) => DotRadius(weight) + (hasSummary ? SummaryRingGap + 1 : 0);
 
     /// <summary>Left edge of a node's box: the dot.</summary>
     public static double BoxLeft(double x) => x - NodeRadius;

@@ -79,4 +79,53 @@ public static partial class UiText
         "来源会话：" + conversationTitle + (archived ? "（" + SourceArchived + "）" : string.Empty));
 
     public static string NodeCreated(DateTimeOffset at) => T("Created " + FormatTime(at), "生成于 " + FormatTime(at));
+
+    // The session network's details (gated).
+    public static string DetailQuestion => T("Question", "问题");
+    public static string ShowWholeQuestion => T("Show the whole question", "展开");
+    public static string HideWholeQuestion => T("Show less", "收起");
+    public static string SessionNetworkHint => T(
+        "Click for details; double-click to open the conversation or summary.",
+        "单击查看详情，双击打开会话或总结。");
+    public static string SessionNetworkEmpty => T(
+        "No conversations yet. Ask a question in “New exploration” and it appears here.",
+        "还没有会话。在“新探索”提一个问题就会出现在这里。");
+
+    /// <summary>
+    /// When a conversation started, in local time, dated as <see cref="DayLabel"/> dates a day: the year only when it is
+    /// not this year ("Started Nov 22 01:07", "Started Nov 22, 2025 01:07"). <paramref name="today"/> defaults to the local day.
+    /// </summary>
+    public static string SessionStarted(DateTimeOffset at, DateOnly? today = null)
+    {
+        var local = at.ToLocalTime();
+        var when = DayLabel(DateOnly.FromDateTime(local.DateTime), today ?? DateOnly.FromDateTime(DateTime.Now)) + " " + local.ToString("HH:mm", CultureInfo.InvariantCulture);
+        return T("Started " + when, "开始于 " + when);
+    }
+
+    // The session network (behind its gate): every conversation a dot.
+    public static string SessionNetworkTitle => AppName;
+    public static string ViewSpatial => T("Spatial", "空间");
+    public static string ViewTimeline => T("Timeline", "时间线");
+    public static string LegendDotSize => T("Dot size: how much was asked, not how well it is known", "圆点大小：问了多少，不代表掌握程度");
+    public static string LegendSummaryRing => T("Outer ring: has a summary", "外圈：有总结");
+    public static string LegendTime => T("Dotted arrow: order in time", "虚线箭头：时间先后");
+    public static string LegendBranch => T("Solid line: branch", "实线：分支");
+
+    /// <summary>
+    /// The label over the first exploration of a local day: "Nov 20" / "11月20日", with the year ("Nov 20, 2025" /
+    /// "2025年11月20日") when not this year. English month names whatever the system's culture.
+    /// </summary>
+    public static string DayLabel(DateOnly day, DateOnly today) => day.Year == today.Year
+        ? T(day.ToString("MMM d", EnglishCulture), day.ToString("M'月'd'日'", CultureInfo.InvariantCulture))
+        : T(day.ToString("MMM d, yyyy", EnglishCulture), day.ToString("yyyy'年'M'月'd'日'", CultureInfo.InvariantCulture));
+
+    /// <summary>A hovered dot's label with when its conversation started, in local time: "蒸汽机 · Nov 20 21:38" / "蒸汽机 · 11月20日 21:38".</summary>
+    public static string DotHoverLabel(string label, DateTimeOffset at) => label + " · " + DotHoverDate(at);
+
+    /// <summary>When a session started, as a hovered dot says it, in local time: "Nov 20 21:38" / "11月20日 21:38".</summary>
+    public static string DotHoverDate(DateTimeOffset at)
+    {
+        var local = at.ToLocalTime();
+        return T(local.ToString("MMM d HH:mm", EnglishCulture), local.ToString("M'月'd'日' HH:mm", CultureInfo.InvariantCulture));
+    }
 }

@@ -82,6 +82,7 @@ public static class CompositionRoot
         services.AddSingleton<IBackupPrompts>(sp => sp.GetRequiredService<BackupRequests>());
 
         // Unsaved layouts and the viewport outlive a view.
+        services.TryAddSingleton(SummaryNetwork.SessionNetworkGate.FromEnvironment()); // Tests give their own.
         services.AddSingleton<SummaryNetwork.SummaryNetworkSessions>();
         services.TryAddSingleton(new ExitOptions());
         services.TryAddSingleton(new WorkspaceNewsOptions());

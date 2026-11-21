@@ -309,6 +309,7 @@ public class SummaryNetworkDragTests
         var window = app.ShowWindow(1100, 720);
         await SummaryNetworkScenario.SeedAsync(app);
         var network = await SummaryNetworkScenario.OpenSummaryNetworkAsync(app, window);
+        network.WheelZooms = false;
         var canvas = CanvasOf(window);
         var leaf = network.Nodes.Single(n => n.ShortTitle == "铁轨");
         var start = canvas.ToScreen(leaf.X, leaf.Y);

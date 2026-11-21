@@ -88,6 +88,13 @@ public sealed partial class SummaryNetworkHomeViewModel : PageViewModel, IDispos
         _reload = new UiThrottle(dispatcher, TimeSpan.FromMilliseconds(30), () => _ = _load.Request());
         _summaries.Changed += OnChanged;
         _conversations.VisibilityChanged += OnVisibilityChanged;
+
+        // Every conversation is a dot in the session network: a new one, a new question (its weight) or a new title shows.
+        if (IsSessionNetwork)
+        {
+            _conversations.ConversationChanged += OnChanged;
+        }
+
         Session.PropertyChanged += OnSessionChanged;
         Session.Discarded += OnDiscarded;
         if (_recommendations is not null)
@@ -107,7 +114,14 @@ public sealed partial class SummaryNetworkHomeViewModel : PageViewModel, IDispos
 
     public SummaryNetworkSession Session { get; }
 
-    public override string Title => UiText.SummaryNetworkTitle;
+    /// <summary>"Mindweave" behind the session network's gate, "总结网络" without it.</summary>
+    public override string Title => IsSessionNetwork ? UiText.SessionNetworkTitle : UiText.SummaryNetworkTitle;
+
+    /// <summary>The session network is on: every conversation a dot, a 空间 | 时间线 switch, and no layout to arrange or save.</summary>
+    public bool IsSessionNetwork => Session.IsSessionNetwork;
+
+    /// <summary>The session network shows the world-line timeline (时间线) rather than the spatial view (空间).</summary>
+    public bool IsTimeline => Session.IsTimeline;
 
     internal Task Loaded { get; }
 
@@ -238,14 +252,17 @@ public sealed partial class SummaryNetworkHomeViewModel : PageViewModel, IDispos
     public partial bool IsListView { get; set; }
 
     [ObservableProperty]
-    public partial bool WheelZooms { get; set; }
+    public partial bool WheelZooms { get; set; } = true;
 
     [ObservableProperty]
     public partial string SearchText { get; set; } = string.Empty;
 
     [ObservableProperty]
-    [NotifyPropertyChangedFor(nameof(HasSelection), nameof(ShowsDetail), nameof(ShowsLinkPicker), nameof(PickHint))]
+    [NotifyPropertyChangedFor(nameof(HasSelection), nameof(ShowsDetail), nameof(ShowsLinkPicker), nameof(PickHint), nameof(ShowsLinksSection))]
     public partial NodeDetail? Selected { get; private set; }
+
+    /// <summary>The details offer links and "关联到…": with the links service, and not for a dot without a summary.</summary>
+    public bool ShowsLinksSection => Links is not null && Selected is not { HasSummary: false };
 
     public bool IsDirty => Session.IsDirty;
 
@@ -638,9 +655,18 @@ public sealed partial class SummaryNetworkHomeViewModel : PageViewModel, IDispos
     [RelayCommand]
     private void OpenSettings() => _navigator.Navigate(new NavigationRequest(MainSection.Settings));
 
-    /// <summary>Double click or "open summary".</summary>
+    /// <summary>Double click or "open summary"; a session network dot without a summary opens its conversation.</summary>
     [RelayCommand]
-    private void Open(SummaryNodeId node) => _navigator.Navigate(new NavigationRequest(MainSection.SummaryNetwork, new SummaryRoute(node)));
+    private void Open(SummaryNodeId node)
+    {
+        if (Session.Projection.Nodes.FirstOrDefault(n => n.Id == node) is { HasSummary: false } dot)
+        {
+            _navigator.Navigate(new NavigationRequest(MainSection.Explore, new ConversationRoute(dot.Conversation)));
+            return;
+        }
+
+        _navigator.Navigate(new NavigationRequest(MainSection.SummaryNetwork, new SummaryRoute(node)));
+    }
 
     [RelayCommand]
     private void OpenSelected()
@@ -685,6 +711,7 @@ public sealed partial class SummaryNetworkHomeViewModel : PageViewModel, IDispos
     private void ShowAll()
     {
         Session.Viewport = null;
+        Session.FitAllRequested = true;
         ViewChanged?.Invoke(this, true);
     }
 
@@ -693,6 +720,24 @@ public sealed partial class SummaryNetworkHomeViewModel : PageViewModel, IDispos
 
     [RelayCommand]
     private void ZoomOut() => ZoomRequested?.Invoke(this, 0.8);
+
+    /// <summary>
+    /// 空间 | 时间线: the session recomputes every position, the page rebuilds what it draws and fits it into view. The view
+    /// already shown is left alone, so clicking its segment again keeps the reader's pan and zoom.
+    /// </summary>
+    [RelayCommand]
+    private void SetViewMode(SummaryNetworkViewMode mode)
+    {
+        if (!IsSessionNetwork || mode == Session.ViewMode)
+        {
+            return;
+        }
+
+        Session.SetViewMode(mode);
+        BuildViews();
+        OnPropertyChanged(nameof(IsTimeline));
+        ViewChanged?.Invoke(this, true);
+    }
 
     /// <summary>Explicit re-layout: kept in memory and marked unsaved until saved.</summary>
     [RelayCommand]
@@ -773,6 +818,7 @@ public sealed partial class SummaryNetworkHomeViewModel : PageViewModel, IDispos
         _disposed = true;
         _summaries.Changed -= OnChanged;
         _conversations.VisibilityChanged -= OnVisibilityChanged;
+        _conversations.ConversationChanged -= OnChanged;
         Session.PropertyChanged -= OnSessionChanged;
         Session.Discarded -= OnDiscarded;
         if (_recommendations is not null)
@@ -907,18 +953,7 @@ public sealed partial class SummaryNetworkHomeViewModel : PageViewModel, IDispos
     {
         var nodes = Nodes.ToDictionary(n => n.Id);
         var items = _offer.Hidden ? [] : _offer.Items.Where(r => r.Basis is { } b && nodes.ContainsKey(b)).ToList();
-        var obstacles = new List<CanvasBox>(Nodes.Select(n => CanvasBox.OfNode(n.X, n.Y, n.LabelWidth)));
-        foreach (var caption in Captions)
-        {
-            var members = caption.Members.Where(nodes.ContainsKey).Select(id => nodes[id]).ToList();
-            if (members.Count > 0)
-            {
-                // The caption sits above the group's topmost node, from its leftmost one (SummaryNetworkCanvas.CaptionGap).
-                var top = members.Min(n => n.Y);
-                var left = members.Min(n => n.X) - SummaryNetworkLayout.NodeRadius;
-                obstacles.Add(new CanvasBox(left, top - SummaryNetworkLayout.CaptionHeadroom, left + SummaryNetworkLayout.LabelWidth(caption.Text), top - (SummaryNetworkLayout.NodeHeight / 2)));
-            }
-        }
+        var obstacles = SummaryNetworkObstacles.Of(Nodes, Captions, IsSessionNetwork, IsTimeline);
 
         var labels = items.Select(r => RecommendedLabel(r.Question)).ToList();
         var widths = labels.Select(RecommendedLabelWidth).ToList();
@@ -1009,7 +1044,8 @@ public sealed partial class SummaryNetworkHomeViewModel : PageViewModel, IDispos
             return;
         }
 
-        Suggestions?.SetSummaryCount(Session.Projection.Nodes.Count);
+        // Only summaries count: in the session network most dots are conversations without one.
+        Suggestions?.SetSummaryCount(Session.Projection.Nodes.Count(n => n.HasSummary));
         await (Suggestions?.ReloadAsync() ?? Task.CompletedTask);
         if (_disposed)
         {
@@ -1017,18 +1053,27 @@ public sealed partial class SummaryNetworkHomeViewModel : PageViewModel, IDispos
         }
 
         BuildViews();
+        Session.ReopenIfStillOpening();
         RaiseRecommendationState();
         RaiseLinkState();
         Items.Clear();
         var names = Session.Projection.Nodes.ToDictionary(n => n.Id, n => n.DisplayName);
         foreach (var node in Session.Projection.Nodes)
         {
+            // A session network dot without a summary has no markers: it is a conversation, never read or unread.
+            if (!node.HasSummary)
+            {
+                Items.Add(new SummaryListItem(node.Id, node.DisplayName, string.Empty, false) { HasSummary = false, Links = LinksLineOf(node.Id, names) });
+                continue;
+            }
+
             var markers = string.Join(" · ", new[] { UiText.Markers(node.Markers), node.SourceArchived ? UiText.SourceArchived : string.Empty }.Where(m => m.Length > 0));
             var other = string.Join(" · ", new[] { node.Markers.HasLaterContent ? UiText.MarkerLater : string.Empty, node.SourceArchived ? UiText.SourceArchived : string.Empty }.Where(m => m.Length > 0));
             Items.Add(new SummaryListItem(node.Id, node.DisplayName, markers, markers.Length > 0, node.Markers.Unread, node.Markers.HasCandidate, other) { Links = LinksLineOf(node.Id, names) });
         }
 
         OnPropertyChanged(nameof(IsEmpty));
+        OnPropertyChanged(nameof(IsTimeline));
         Selected = Session.Selected is { } selected && Session.Projection.Nodes.Any(n => n.Id == selected) ? Detail(selected) : null;
         Trail = TrailOf(Selected?.Id);
         ShowLinksOfSelected();
@@ -1049,13 +1094,19 @@ public sealed partial class SummaryNetworkHomeViewModel : PageViewModel, IDispos
     private void BuildViews()
     {
         var positions = Session.Positions;
-        var parents = Session.Projection.Edges.ToDictionary(e => e.To, e => e.From);
+
+        // A node hangs from its branch parent; the time thread between explorations is not a source.
+        var parents = SummaryNetworkSession.BranchParents(Session.Projection);
+        var timeline = Session.IsTimeline;
+
         Nodes = [.. Session.Projection.Nodes.Where(n => positions.ContainsKey(n.Id)).Select(n => new NodeView(
             n.Id, n.ShortTitle, n.DisplayName, positions[n.Id].X, positions[n.Id].Y, n.Markers.Unread, n.Markers.HasCandidate, SummaryNetworkLayout.LabelWidth(SummaryNetworkLayout.Label(n.ShortTitle, n.Markers.HasCandidate)),
-            parents.TryGetValue(n.Id, out var parent) && positions.ContainsKey(parent) ? parent : null, n.Conversation == n.Root))];
+            parents.TryGetValue(n.Id, out var parent) && positions.ContainsKey(parent) ? parent : null, n.Conversation == n.Root, n.HasSummary, n.Weight, n.CreatedAt))];
         Edges = [.. Session.Projection.Edges.Where(e => positions.ContainsKey(e.From) && positions.ContainsKey(e.To)).Select(e => new EdgeView(
-            e.From, e.To, positions[e.From].X, positions[e.From].Y, positions[e.To].X, positions[e.To].Y, e.IsDirect, e.IsDirect ? null : UiText.ViaCount(e.Via.Count)))];
-        Captions = [.. Session.Projection.Nodes.Where(n => positions.ContainsKey(n.Id)).GroupBy(n => n.Root).Select(g =>
+            e.From, e.To, positions[e.From].X, positions[e.From].Y, positions[e.To].X, positions[e.To].Y, e.IsDirect, e.IsDirect ? null : UiText.ViaCount(e.Via.Count),
+            e.Kind, timeline && e.Kind == SummaryNetworkEdgeKind.Branch && positions[e.From].Y != positions[e.To].Y))];
+        // The session network dates the root that starts a new day, on the timeline above it and in the spatial view beside it.
+        Captions = Session.IsSessionNetwork ? DayCaptions() : [.. Session.Projection.Nodes.Where(n => positions.ContainsKey(n.Id)).GroupBy(n => n.Root).Select(g =>
         {
             // Over the root's own summary; when the root conversation has none, over the group's top-left node.
             var anchor = g.FirstOrDefault(n => n.Conversation == g.Key) ?? g.OrderBy(n => positions[n.Id].Y).ThenBy(n => positions[n.Id].X).First();
@@ -1067,6 +1118,15 @@ public sealed partial class SummaryNetworkHomeViewModel : PageViewModel, IDispos
         BuildRecommendationViews();
     }
 
+    /// <summary>The session network's captions: the local day over the first exploration of each day ("11月20日").</summary>
+    private List<GroupCaption> DayCaptions()
+    {
+        var today = SummaryNetworkSession.LocalDay(DateTimeOffset.Now);
+        var nodes = Session.Projection.Nodes.ToDictionary(n => n.Id);
+        return [.. Session.DayStarts.Where(id => Session.Positions.ContainsKey(id) && nodes.ContainsKey(id)).Select(id =>
+            new GroupCaption(UiText.DayLabel(SummaryNetworkSession.LocalDay(nodes[id].CreatedAt), today), id, [id]))];
+    }
+
     private NodeDetail? Detail(SummaryNodeId id)
     {
         if (Session.Projection.Nodes.FirstOrDefault(n => n.Id == id) is not { } node)
@@ -1076,20 +1136,25 @@ public sealed partial class SummaryNetworkHomeViewModel : PageViewModel, IDispos
 
         var edge = Session.Projection.Edges.FirstOrDefault(e => e.To == id && !e.IsDirect);
         var steps = PathOf(node);
+        var gated = IsSessionNetwork;
+
+        // A session dot is headed by its conversation's name (as in the sidebar), never its question; a summary keeps its own.
         return new NodeDetail(
             node.Id,
             node.Conversation,
             node.DisplayName,
             node.ShortTitle,
-            UiText.Markers(node.Markers),
+            node.HasSummary ? UiText.Markers(node.Markers) : string.Empty,
             UiText.NodeSource(_titles.GetValueOrDefault(node.Conversation) ?? UiText.NewConversation, node.SourceArchived),
-            UiText.NodeCreated(node.CreatedAt),
+            gated ? UiText.SessionStarted(node.CreatedAt) : UiText.NodeCreated(node.CreatedAt),
             edge is null ? null : UiText.ViaUnsummarized([.. edge.Via.Select(c => _titles.GetValueOrDefault(c) ?? UiText.NewConversation)]),
             node.Markers.Unread,
             node.Markers.HasCandidate,
             node.SourceArchived,
             UiText.SourcePath([.. steps.Select(step => step.Text)]),
-            steps);
+            steps,
+            node.HasSummary,
+            gated ? node.FirstQuestion : null);
     }
 
     /// <summary>
@@ -1098,7 +1163,8 @@ public sealed partial class SummaryNetworkHomeViewModel : PageViewModel, IDispos
     /// </summary>
     private List<PathStep> PathOf(SummaryNetworkNode node)
     {
-        var summarized = Session.Projection.Nodes.ToDictionary(n => n.Conversation, n => n.ShortTitle);
+        // In the session network every conversation is a dot; only those with a summary count as summarized here.
+        var summarized = Session.Projection.Nodes.Where(n => n.HasSummary).ToDictionary(n => n.Conversation, n => n.ShortTitle);
         var chain = node.Ancestors.Append(node.Conversation).ToList();
         return [.. chain.Select((conversation, i) => summarized.TryGetValue(conversation, out var shortTitle)
             ? new PathStep(shortTitle, true, i == 0)

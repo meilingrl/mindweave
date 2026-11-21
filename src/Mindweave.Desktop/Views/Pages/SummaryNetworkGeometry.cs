@@ -1,5 +1,6 @@
 using Avalonia;
 using Avalonia.Media;
+using Mindweave.Core.Summaries;
 using Mindweave.Desktop.SummaryNetwork;
 using Mindweave.Desktop.ViewModels.Pages;
 
@@ -25,22 +26,40 @@ internal static class SummaryNetworkGeometry
     /// <summary>
     /// A node's hit box around its screen centre: from just left of the dot to the end of its label (only the dot when
     /// the label is hidden), clamped to the node's layout box widened by half the layout's spacing. Boxes of nodes the
-    /// layout keeps apart therefore never overlap, at any zoom.
+    /// layout keeps apart therefore never overlap, at any zoom. In the session network a dot keeps its drawn size at every
+    /// zoom, so the box always covers the dot and its summary ring (final review M5).
     /// </summary>
-    internal static Rect HitBox(Point center, NodeView node, double zoom, bool labelVisible)
+    internal static Rect HitBox(Point center, NodeView node, double zoom, bool labelVisible, bool sessionNetwork = false)
     {
         ArgumentNullException.ThrowIfNull(node);
         var half = Math.Min(20, SummaryNetworkLayout.NodeHeight * zoom / 2);
         var left = Math.Min(16, (SummaryNetworkLayout.NodeRadius + (SummaryNetworkLayout.LabelPadding / 2)) * zoom);
         var right = labelVisible
             ? Math.Min(
-                RadiusOf(node) + SummaryNetworkLayout.LabelGap + (node.LabelWidth * LabelSize(zoom) / SummaryNetworkLayout.LabelEm) + 12,
+                RadiusOf(node, sessionNetwork) + SummaryNetworkLayout.LabelGap + (node.LabelWidth * LabelSize(zoom) / SummaryNetworkLayout.LabelEm) + 12,
                 (SummaryNetworkLayout.NodeRadius + SummaryNetworkLayout.LabelGap + node.LabelWidth + (SummaryNetworkLayout.LabelPadding / 2)) * zoom)
-            : Math.Min(RadiusOf(node) + 4, (SummaryNetworkLayout.NodeRadius + (SummaryNetworkLayout.LabelPadding / 2)) * zoom);
+            : Math.Min(RadiusOf(node, sessionNetwork) + 4, (SummaryNetworkLayout.NodeRadius + (SummaryNetworkLayout.LabelPadding / 2)) * zoom);
+        if (sessionNetwork)
+        {
+            var reach = SummaryNetworkLayout.DotFootprintRadius(node.Weight, node.HasSummary);
+            (half, left, right) = (Math.Max(half, reach), Math.Max(left, reach), Math.Max(right, reach));
+        }
+
         return new Rect(center.X - left, center.Y - half, left + right, 2 * half);
     }
 
-    internal static double RadiusOf(NodeView node) => node.IsRoot ? SummaryNetworkCanvas.RootRadius : SummaryNetworkCanvas.ChildRadius;
+    /// <summary>A node's dot radius: by how much was asked in the session network, else larger for an exploration's root.</summary>
+    internal static double RadiusOf(NodeView node, bool sessionNetwork = false)
+    {
+        ArgumentNullException.ThrowIfNull(node);
+        return sessionNetwork ? DotRadius(node.Weight) : node.IsRoot ? SummaryNetworkCanvas.RootRadius : SummaryNetworkCanvas.ChildRadius;
+    }
+
+    /// <summary>A session's dot radius from its weight (<see cref="SummaryNetworkLayout.DotRadius"/>).</summary>
+    internal static double DotRadius(int weight) => SummaryNetworkLayout.DotRadius(weight);
+
+    /// <summary>The dot with its summary ring (<see cref="SummaryNetworkLayout.DotFootprintRadius"/>): the radius the packing keeps clear.</summary>
+    internal static double DotFootprintRadius(int weight, bool hasSummary) => SummaryNetworkLayout.DotFootprintRadius(weight, hasSummary);
 
     /// <summary>
     /// Where a label goes: to the right of the dot, level with it; lifted above (or dropped below) the dot when one of
@@ -131,6 +150,109 @@ internal static class SummaryNetworkGeometry
     }
 
     /// <summary>
+    /// The timeline's opening view (spec §5.3, ruling R-F1). When the whole timeline fits at <see cref="ReadableZoom"/> or
+    /// above, it is fitted, at most at zoom 1, as the spatial view opens. Otherwise zoom 1 with the newest root (the
+    /// rightmost on the main line) and its whole subtree in view, the latest history to its left: the rightmost label end
+    /// of the subtree sits at <see cref="TimelineLabelEndAt"/> of the width, or, when the subtree is wider than that
+    /// leaves room for, the root's dot at <see cref="TimelineNarrowDotAt"/>. Label ends are the drawn ones:
+    /// <paramref name="drawnWidth"/> is a label's width in px as drawn at <see cref="SummaryNetworkCanvas.LabelMaxSize"/>.
+    /// "显示全部" still fits all.
+    /// </summary>
+    internal static Viewport TimelineOpening(IReadOnlyList<NodeView> nodes, Size size, Func<NodeView, double> drawnWidth)
+    {
+        ArgumentNullException.ThrowIfNull(nodes);
+        ArgumentNullException.ThrowIfNull(drawnWidth);
+        var widths = nodes.ToDictionary(n => n.Id, drawnWidth);
+        if (TimelineFit(nodes, widths, size) is { } fitted)
+        {
+            return fitted;
+        }
+
+        var newest = nodes.Where(n => n.IsRoot).DefaultIfEmpty(nodes[0]).MaxBy(n => n.X)!;
+        var subtree = Subtree(nodes, newest.Id);
+        var reach = subtree.Max(n => n.X + TimelineLabelEnd(n, widths[n.Id], 1)) - newest.X;
+        var dotAt = Math.Max(size.Width * TimelineNarrowDotAt, (size.Width * TimelineLabelEndAt) - reach);
+        return new Viewport(newest.X + (size.Width / 2) - dotAt, (subtree.Min(n => n.Y) + subtree.Max(n => n.Y)) / 2, 1);
+    }
+
+    /// <summary>Where the newest subtree's last label ends when the timeline opens, as a fraction of the canvas width.</summary>
+    internal const double TimelineLabelEndAt = 0.92;
+
+    /// <summary>Where the newest root's dot sits when its subtree is too wide to end at <see cref="TimelineLabelEndAt"/>.</summary>
+    internal const double TimelineNarrowDotAt = 0.08;
+
+    /// <summary>Room above the topmost dot for a day caption, and below the lowest for a dot, its hover and a dropped label.</summary>
+    private const double TimelineTop = SummaryNetworkCanvas.CaptionGap + 16;
+    private const double TimelineBottom = 24;
+
+    /// <summary>From a dot's centre to the end of its drawn label at <paramref name="zoom"/>, in screen px.</summary>
+    private static double TimelineLabelEnd(NodeView node, double drawnWidth, double zoom) =>
+        RadiusOf(node, sessionNetwork: true) + SummaryNetworkLayout.LabelGap + (drawnWidth * LabelSize(zoom) / SummaryNetworkCanvas.LabelMaxSize);
+
+    /// <summary>
+    /// The largest zoom from <see cref="ReadableZoom"/> to 1 at which every dot, label and date fits with the margin, the
+    /// picture centred; null when it does not fit even at <see cref="ReadableZoom"/>. Wider zooms need more room, so the
+    /// zoom is found by halving.
+    /// </summary>
+    private static Viewport? TimelineFit(IReadOnlyList<NodeView> nodes, Dictionary<SummaryNodeId, double> widths, Size size)
+    {
+        (double Left, double Right, double Top, double Bottom) Extent(double zoom) => (
+            nodes.Min(n => (n.X * zoom) - RadiusOf(n, sessionNetwork: true) - SummaryNetworkCanvas.HoverGrowth),
+            nodes.Max(n => (n.X * zoom) + TimelineLabelEnd(n, widths[n.Id], zoom)),
+            (nodes.Min(n => n.Y) * zoom) - TimelineTop,
+            (nodes.Max(n => n.Y) * zoom) + TimelineBottom);
+
+        bool Fits(double zoom)
+        {
+            var e = Extent(zoom);
+            return e.Right - e.Left <= size.Width - (2 * Viewport.FitMargin) && e.Bottom - e.Top <= size.Height - (2 * Viewport.FitMargin);
+        }
+
+        double zoom;
+        if (Fits(1))
+        {
+            zoom = 1;
+        }
+        else if (!Fits(ReadableZoom))
+        {
+            return null;
+        }
+        else
+        {
+            var (low, high) = (ReadableZoom, 1.0);
+            for (var i = 0; i < 30; i++)
+            {
+                var middle = (low + high) / 2;
+                (low, high) = Fits(middle) ? (middle, high) : (low, middle);
+            }
+
+            zoom = low;
+        }
+
+        var fit = Extent(zoom);
+        return new Viewport((fit.Left + fit.Right) / (2 * zoom), (fit.Top + fit.Bottom) / (2 * zoom), zoom);
+    }
+
+    /// <summary>A node and every node below it by branch parents.</summary>
+    private static List<NodeView> Subtree(IReadOnlyList<NodeView> nodes, SummaryNodeId root)
+    {
+        var children = nodes.Where(n => n.Parent is not null).ToLookup(n => n.Parent!.Value);
+        var result = new List<NodeView>();
+        var queue = new Queue<NodeView>(nodes.Where(n => n.Id == root));
+        while (queue.Count > 0)
+        {
+            var node = queue.Dequeue();
+            result.Add(node);
+            foreach (var child in children[node.Id])
+            {
+                queue.Enqueue(child);
+            }
+        }
+
+        return result;
+    }
+
+    /// <summary>
     /// The viewport that shows every node, its label and its group's caption. Positions and label widths are canvas
     /// units; dots, the label gap and captions are screen px, so the zoom is solved with both (§11.3: zoom clamped,
     /// at most 1.5 when fitting). Recommended nodes are included.
@@ -154,5 +276,34 @@ internal static class SummaryNetworkGeometry
             (size.Width - (2 * Viewport.FitMargin) - left - right) / width,
             (size.Height - (2 * Viewport.FitMargin) - top - bottom) / height)));
         return new Viewport(((minX + maxX) / 2) + ((right - left) / (2 * zoom)), ((minY + maxY) / 2) + ((bottom - top) / (2 * zoom)), zoom);
+    }
+
+    /// <summary>The smallest zoom at which fitting the whole spatial picture still reads (labels at 80% size).</summary>
+    internal const double ReadableZoom = 0.8;
+
+    /// <summary>
+    /// The spatial view's opening (spec §6.2): everything fitted when that stays at or above <see cref="ReadableZoom"/>;
+    /// otherwise zoom 1 on the mass-weighted centroid of the dots, so a large workspace opens readable and centred, not
+    /// as a speck. One session is that dot at the centre, zoom 1. "显示全部" still fits everything.
+    /// </summary>
+    internal static Viewport SpatialOpening(IReadOnlyList<NodeView> nodes, Size size, IReadOnlyList<RecommendedNodeView>? recommended = null)
+    {
+        ArgumentNullException.ThrowIfNull(nodes);
+        if (nodes.Count == 1)
+        {
+            return new Viewport(nodes[0].X, nodes[0].Y, 1);
+        }
+
+        var fitted = FitTo(nodes, size, recommended);
+        if (fitted.Zoom >= ReadableZoom)
+        {
+            return fitted;
+        }
+
+        var mass = nodes.Sum(n => (double)Math.Max(1, n.Weight));
+        return new Viewport(
+            nodes.Sum(n => n.X * Math.Max(1, n.Weight)) / mass,
+            nodes.Sum(n => n.Y * Math.Max(1, n.Weight)) / mass,
+            1);
     }
 }

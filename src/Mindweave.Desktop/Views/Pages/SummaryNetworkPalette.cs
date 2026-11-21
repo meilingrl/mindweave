@@ -9,6 +9,8 @@ internal sealed class SummaryNetworkPalette
 {
     private readonly Dictionary<(EdgeState, bool), IPen> _edges = [];
     private readonly Dictionary<IBrush, IPen> _rings = [];
+    private readonly Dictionary<IBrush, IPen> _summaryRings = [];
+    private readonly Dictionary<(EdgeState, bool), IPen> _timeline = [];
     private IPen? _glowRim;
     private IPen? _recommendationRing;
     private IPen? _recommendationRingActive;
@@ -21,6 +23,10 @@ internal sealed class SummaryNetworkPalette
     private IPen? _suggestion;
     private IPen? _suggestionActive;
     private IPen? _suggestionFrame;
+    private IPen? _timeThread;
+    private IPen? _timeThreadNear;
+    private IPen? _timeArrow;
+    private IPen? _timeArrowNear;
 
     public required IBrush Background { get; init; }
 
@@ -198,6 +204,55 @@ internal sealed class SummaryNetworkPalette
             };
             pen = new Pen(brush, width, dashed ? DashStyle.Dash : null);
             _edges[(state, dashed)] = pen;
+        }
+
+        return pen;
+    }
+
+    /// <summary>
+    /// The session network's time thread (spatial view): round dots in the branch line's colour and thinner than it
+    /// (1.0 px against 1.2), so it reads fainter than a branch in both themes (design §4.1), unlike the round-dotted
+    /// recommendation line in its own colour. While an end is hovered it brightens like a branch does.
+    /// </summary>
+    public IPen TimeThreadPen(bool near) => near
+        ? _timeThreadNear ??= new Pen(EdgeNear, 1.5, new DashStyle([0, 3], 0), PenLineCap.Round)
+        : _timeThread ??= new Pen(Edge, 1, new DashStyle([0, 3], 0), PenLineCap.Round);
+
+    /// <summary>The time thread's small open arrowhead, solid in the thread's colour and width.</summary>
+    public IPen TimeArrowPen(bool near) => near
+        ? _timeArrowNear ??= new Pen(EdgeNear, 1.5, null, PenLineCap.Round, PenLineJoin.Round)
+        : _timeArrow ??= new Pen(Edge, 1, null, PenLineCap.Round, PenLineJoin.Round);
+
+    /// <summary>
+    /// A line on the timeline, bolder than in the spatial view (owner, 2026-11-21): the main line between explorations
+    /// 2 px, a branch 1.5 px, both solid. Hovered or on the trail a line takes that state's colour, and is never thinner.
+    /// </summary>
+    public IPen TimelinePen(EdgeState state, bool mainLine)
+    {
+        if (!_timeline.TryGetValue((state, mainLine), out var pen))
+        {
+            var rest = mainLine ? 2.0 : 1.5;
+            var (brush, width) = state switch
+            {
+                EdgeState.Trail => (EdgeTrail, 2.3),
+                EdgeState.Near => (EdgeNear, 1.8),
+                EdgeState.Indirect => (EdgeIndirect, rest),
+                _ => (Edge, rest),
+            };
+            pen = new Pen(brush, Math.Max(rest, width));
+            _timeline[(state, mainLine)] = pen;
+        }
+
+        return pen;
+    }
+
+    /// <summary>The thin ring around a session dot that has a summary.</summary>
+    public IPen SummaryRingPen(IBrush brush)
+    {
+        if (!_summaryRings.TryGetValue(brush, out var pen))
+        {
+            pen = new Pen(brush, 1.5);
+            _summaryRings[brush] = pen;
         }
 
         return pen;
