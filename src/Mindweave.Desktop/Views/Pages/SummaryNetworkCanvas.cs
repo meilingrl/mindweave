@@ -44,7 +44,7 @@ public sealed class SummaryNetworkCanvas : Control
     private const double GridSpacing = 28;
 
     /// <summary>The session network: how far outside a dot its summary ring is drawn.</summary>
-    internal const double SummaryRingGap = 3.5;
+    internal const double SummaryRingGap = SummaryNetworkLayout.SummaryRingGap;
 
     /// <summary>The time thread's arrowhead.</summary>
     private const double ArrowLength = 6;
@@ -351,7 +351,7 @@ public sealed class SummaryNetworkCanvas : Control
             {
                 Arrow = arrow,
                 ArrowInset = arrow && nodes.TryGetValue(edge.To, out var target)
-                    ? RadiusOf(target) + (target.HasSummary ? SummaryRingGap + 1 : 0) + (target.Id == Hovered ? HoverGrowth : 0) + 2
+                    ? SummaryNetworkGeometry.DotFootprintRadius(target.Weight, target.HasSummary) + (target.Id == Hovered ? HoverGrowth : 0) + 2
                     : 0,
                 Curved = edge.Curved,
                 Timeline = timeline,
@@ -896,6 +896,12 @@ public sealed class SummaryNetworkCanvas : Control
         if (!_dragged && Math.Abs(point.X - from.X) + Math.Abs(point.Y - from.Y) < 3)
         {
             return;
+        }
+
+        if (!_dragged)
+        {
+            // The view as it is now: a reload since the press may have opened the view again.
+            _panStart = Current;
         }
 
         _dragged = true;

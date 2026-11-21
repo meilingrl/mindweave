@@ -63,7 +63,7 @@ public class SessionNetworkPackingTests
             parent.TryGetValue(n.Id, out var p) ? p : null,
             i,
             n.Weight,
-            SummaryNetworkGeometry.DotRadius(n.Weight) + (n.HasSummary ? SummaryNetworkCanvas.SummaryRingGap + 1 : 0),
+            SummaryNetworkGeometry.DotFootprintRadius(n.Weight, n.HasSummary),
             SummaryNetworkLayout.LabelWidth(SummaryNetworkLayout.Label(n.ShortTitle, n.Markers.HasCandidate)),
             next.TryGetValue(n.Id, out var t) ? t : null))];
     }
@@ -135,7 +135,8 @@ public class SessionNetworkPackingTests
     }
 
     [Fact]
-    public async Task Thousand_sessions_load_quickly()
+    [Trait("Category", "Performance")]
+    public async Task Thousand_sessions_load_within_300_ms_in_release()
     {
         var projection = Sessions(1_000);
         var session = new SummaryNetworkSession(Workspace, new FakeNetwork(projection), new SessionNetworkGate(true));
@@ -149,7 +150,7 @@ public class SessionNetworkPackingTests
         TestContext.Current.TestOutputHelper?.WriteLine($"session network load of 1,000 sessions: {elapsed.TotalMilliseconds.ToString("F1", CultureInfo.InvariantCulture)} ms");
         if (Environment.GetEnvironmentVariable("MINDWEAVE_PERF") == "1")
         {
-            Assert.True(elapsed < TimeSpan.FromSeconds(1), $"Loading 1,000 sessions took {elapsed.TotalMilliseconds:F1} ms (budget 1,000 ms).");
+            Assert.True(elapsed < TimeSpan.FromMilliseconds(300), $"Loading 1,000 sessions took {elapsed.TotalMilliseconds:F1} ms (budget 300 ms, spec §6.4).");
         }
     }
 

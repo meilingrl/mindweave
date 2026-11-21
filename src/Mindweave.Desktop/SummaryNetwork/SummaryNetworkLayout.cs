@@ -39,6 +39,18 @@ public static class SummaryNetworkLayout
     public const double NodeRadius = 10;
     public const double LabelGap = 9;
 
+    /// <summary>The gap between a session dot and the thin ring a summary draws around it.</summary>
+    public const double SummaryRingGap = 3.5;
+
+    /// <summary>
+    /// A session's dot radius from its weight (the questions asked in it and all its branches):
+    /// clamp(5 + 1.3765·√(w − 1), 5, 14), so one question is 5 px, twenty about 11 px, and from about 44 on 14 px.
+    /// </summary>
+    public static double DotRadius(int weight) => Math.Clamp(5 + (1.3765 * Math.Sqrt(Math.Max(0, weight - 1))), 5, 14);
+
+    /// <summary>A session dot with the summary ring around it, pen included: what its footprint must cover and an arrow must stop short of.</summary>
+    public static double DotFootprintRadius(int weight, bool hasSummary) => DotRadius(weight) + (hasSummary ? SummaryRingGap + 1 : 0);
+
     /// <summary>Left edge of a node's box: the dot.</summary>
     public static double BoxLeft(double x) => x - NodeRadius;
 

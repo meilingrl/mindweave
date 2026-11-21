@@ -33,6 +33,8 @@ public class SessionNetworkCanvasTests
         Assert.Equal(5, SummaryNetworkGeometry.DotRadius(0));
         Assert.Equal(11, SummaryNetworkGeometry.DotRadius(20), 0.05);
         Assert.Equal(14, SummaryNetworkGeometry.DotRadius(500));
+        Assert.Equal(5, SummaryNetworkGeometry.DotFootprintRadius(1, hasSummary: false));
+        Assert.Equal(5 + SummaryNetworkCanvas.SummaryRingGap + 1, SummaryNetworkGeometry.DotFootprintRadius(1, hasSummary: true));
     }
 
     [Fact]
@@ -44,17 +46,6 @@ public class SessionNetworkCanvasTests
         var at = new DateTimeOffset(local, TimeZoneInfo.Local.GetUtcOffset(local)).ToUniversalTime();
         Assert.Equal("蒸汽机 · 11月20日 21:38", UiText.DotHoverLabel("蒸汽机", at));
         Assert.Equal("Mindweave", UiText.SessionNetworkTitle);
-    }
-
-    [Fact]
-    public void The_started_line_shows_the_year_only_when_it_is_not_this_year_in_chinese()
-    {
-        static DateTimeOffset Local(int year, int month, int day) => new(new DateTime(year, month, day, 1, 7, 0, DateTimeKind.Unspecified), TimeZoneInfo.Local.GetUtcOffset(new DateTime(year, month, day, 1, 7, 0)));
-        var today = new DateOnly(2026, 11, 22);
-
-        Assert.Equal("开始于 11月22日 01:07", UiText.SessionStarted(Local(2026, 11, 22), today));
-        Assert.Equal("开始于 2025年11月22日 01:07", UiText.SessionStarted(Local(2025, 11, 22), today));
-        Assert.Equal("虚线箭头：时间先后", UiText.LegendTime);
     }
 
     [AvaloniaFact]

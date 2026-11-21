@@ -5,7 +5,6 @@ using Mindweave.Core.Summaries;
 using Mindweave.Core.Workspaces;
 using Mindweave.Desktop.Services;
 using Mindweave.Desktop.Text;
-using Mindweave.Desktop.Views.Pages;
 
 namespace Mindweave.Desktop.SummaryNetwork;
 
@@ -100,7 +99,7 @@ public sealed partial class SummaryNetworkSession : ObservableObject
             parents.TryGetValue(n.Id, out var parent) ? parent : null,
             i,
             n.Weight,
-            SummaryNetworkGeometry.DotRadius(n.Weight) + (n.HasSummary ? SummaryNetworkCanvas.SummaryRingGap + 1 : 0),
+            SummaryNetworkLayout.DotFootprintRadius(n.Weight, n.HasSummary),
             dated.Contains(n.Id) ? Math.Max(layout[i].LabelWidth, SummaryNetworkLayout.LabelWidth(UiText.DayLabel(LocalDay(n.CreatedAt), today))) : layout[i].LabelWidth,
             next.TryGetValue(n.Id, out var following) ? following : null))];
     }
