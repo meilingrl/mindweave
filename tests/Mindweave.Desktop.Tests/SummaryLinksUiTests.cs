@@ -198,7 +198,6 @@ public class SummaryLinksUiTests
     }
 
     [AvaloniaFact]
-    [Quarantined("2026-11-21", "Linux CI only, twice in a row (runs 44797665196, 44806763101): the two quick presses on the sibling never produced the second link within 15 s (line 258); 10 of 10 passed on macOS under --load.")]
     public async Task A_double_click_in_pick_mode_links_once_and_keeps_the_note_editor_instead_of_opening_the_summary()
     {
         await using var app = DesktopHarness.Create();
@@ -251,12 +250,37 @@ public class SummaryLinksUiTests
         Assert.Null(network.Links.Notice);
 
         // Both presses before the first link is written: still one link, and no "already linked" said about it.
+        // The two presses must make a double click. On a slow machine (a Linux CI runner, 2026-11-20) the headless press
+        // can spend longer than the double-click time running queued work; the second press is then rightly a click of its
+        // own, which selects the sibling once the link is written. Such an attempt is undone and made again.
         network.Links.Items[0].CancelEditCommand.Execute(null);
-        network.BeginLinkCommand.Execute(null);
-        await UiInput.PastDoubleClickAsync();
-        var siblingAt = PointIn(window, canvas, canvas.PaintNodes().Single(n => n.Node.Id == sibling).Center);
-        Press(window, siblingAt);
-        Press(window, siblingAt);
+        for (var attempt = 1; ; attempt++)
+        {
+            network.BeginLinkCommand.Execute(null);
+            await UiInput.PastDoubleClickAsync();
+            var siblingAt = PointIn(window, canvas, canvas.PaintNodes().Single(n => n.Node.Id == sibling).Center);
+            var sinceFirstPress = Stopwatch.StartNew();
+            Press(window, siblingAt);
+            Press(window, siblingAt);
+            if (sinceFirstPress.Elapsed < UiInput.DoubleClickTime - TimeSpan.FromMilliseconds(100))
+            {
+                break;
+            }
+
+            Assert.True(attempt < 5, "Two presses in a row never came within the double-click time.");
+            await UiWait.UntilAsync(() => !network.IsPicking);
+            network.Select(root);
+            await network.LinksReloaded;
+            await UiWait.UntilAsync(() => network.Links.Items.Count == 2);
+            if (network.Links.Items.SingleOrDefault(i => i.IsEditing) is { } editing)
+            {
+                editing.CancelEditCommand.Execute(null);
+            }
+
+            await links.DeleteAsync(network.Links.Items.Single(i => i.Other == sibling).Id, CancellationToken.None);
+            await UiWait.UntilAsync(() => network.Links.Items.Count == 1 && network.LinkEdges.Count == 1);
+        }
+
         await UiWait.UntilAsync(() => !network.IsPicking && network.Links.Items.Count == 2 && network.Links.Items.Any(i => i.IsEditing));
         await SettledAsync(network);
         Assert.Same(network, app.Workbench.CurrentPage);
