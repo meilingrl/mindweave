@@ -15,50 +15,60 @@ public sealed record PackNode(SummaryNodeId Id, SummaryNodeId? Parent, int Order
 /// The acceptance metrics of docs/design/session-network.md §6.4 for one arrangement: the radius of the smallest
 /// circle around every footprint; the ideal radius √(Σ footprint areas / π); the distance from the mass-weighted
 /// centroid of the dots to that circle's centre, as a fraction of its radius; the absolute rank correlation
-/// (Spearman) between the roots' creation order and their x; and the number of overlapping footprint pairs.
+/// (Spearman) between the roots' creation order and their x; the number of overlapping footprint pairs; the number
+/// of branch lines (dot to dot) and of pairs of them that cross; and the number of branch lines that pass through a
+/// dot other than their own two.
 /// </summary>
-public sealed record PackingReport(double EnclosingRadius, double IdealRadius, double CentroidOffset, double RootTimeRankCorrelation, int Overlaps);
+public sealed record PackingReport(double EnclosingRadius, double IdealRadius, double CentroidOffset, double RootTimeRankCorrelation, int Overlaps, int BranchEdges = 0, int BranchCrossings = 0, int EdgesThroughDots = 0);
 
 /// <summary>
 /// The spatial view (docs/design/session-network.md §6.1): hierarchical, weight-aware circle packing with internal
 /// tension. The whole graph settles into as small a circle as it can, centred on its mass-weighted centre of gravity,
-/// and the same rule holds inside every sub-branch. Pure and deterministic: inputs sorted by creation order, fixed
-/// step counts, no randomness.
+/// and the same holds inside every sub-branch: each reads as its own round cluster with its parent inside it. Pure
+/// and deterministic: inputs sorted by creation order, fixed step counts, no randomness.
 /// </summary>
 /// <remarks>
 /// <para>The steps of §6.1, as built:</para>
 /// <list type="number">
 /// <item>Footprints (<see cref="FootprintOf"/>): a circle around each dot and its label.</item>
 /// <item>
-/// Subtree discs, bottom-up: a node's children are packed clockwise in creation order around its footprint by
-/// front-chain packing, then every footprint of the subtree settles (<c>Compact</c>), each child's subtree pulled as
-/// one body, and the smallest circle around them is the node's disc. A run of single children (a chain) is packed
-/// as one spiral, each next to the one before, with the children of the node it ends at around it.
+/// Sub-branches, bottom-up. A node with two or more children is a fan: its children go clockwise in creation order
+/// around it, each in a share of the turn (<c>Sweep</c>), leaving a seam open where the line from its own parent
+/// will come in. A run of single children is a chain, packed as a spiral. Each nested sub-branch is turned so that
+/// its seam (or its head) faces the node it hangs from. Then the whole sub-branch settles about its head
+/// (<c>Compact</c>): everything closes in on the head while each child's subtree keeps its shape, its side and its
+/// order. The smallest circle around it is its disc.
 /// </item>
 /// <item>Top level: the root discs are packed heaviest first, each into the place nearest the centre of gravity so far.</item>
 /// <item>
-/// Centre of gravity: in the final settling every root's tree is pulled toward the mass-weighted centroid of all dots
-/// (the k-means idea), and the whole is then turned so that centroid meets the enclosing circle's centre.
+/// Centre of gravity: in the final settling every root's tree is pulled as one toward the mass-weighted centroid of
+/// all dots (the k-means idea; a lone tree is split one level down so the pull still acts), and the whole is then
+/// turned so that centroid meets the enclosing circle's centre.
 /// </item>
-/// <item>Tension: branch lines and time-thread segments are springs in that settling, which never lets footprints overlap.</item>
+/// <item>Tension: branch lines and time-thread segments are springs in the settling, which never lets footprints overlap.</item>
 /// </list>
 /// <para>
-/// Measured on the §6.4 metrics, two steps go further than the letter of §6.1. Discs nested rigidly leave empty space
-/// at every level, so the enclosing circle reached 3.2 times the ideal radius on deep trees; letting every subtree
-/// settle brings it to about 1.25. Moving whole discs toward the centroid was mostly blocked by their neighbours; the
-/// pull during settling and the final turn bring the offset from up to 0.37 of the radius to below 0.1.
+/// Measured on the §6.4 metrics and the structure checks of the tests, the settling goes further than the letter of
+/// §6.1: discs nested rigidly leave empty space at every level (3.2 × the ideal radius on deep trees, 3.45 on a
+/// 1,023-node binary tree), and moving whole discs toward the centroid was blocked by their neighbours.
 /// </para>
 /// </remarks>
 public static partial class SpatialPacking
 {
     /// <summary>Height reserved for a label line (the canvas draws it at 13 px, about 17 px tall).</summary>
-    public const double LabelHeight = 18;
+    internal const double LabelHeight = 18;
 
     /// <summary>How far above (or below) the dot the canvas lifts a label that an edge would cross.</summary>
-    public const double LabelLift = 3;
+    internal const double LabelLift = 3;
 
     /// <summary>Room around every footprint: the hover growth of the dot, ring pens, and air between neighbours.</summary>
-    public const double FootprintMargin = 6;
+    internal const double FootprintMargin = 6;
+
+    /// <summary>
+    /// How strongly each root's tree keeps its shape in the final settling, with several roots. Weak: trees close up
+    /// against each other without mixing. A lone tree is split one level down instead and settles without it.
+    /// </summary>
+    internal const double RootStiffness = 0.015;
 
     /// <summary>
     /// A node's footprint: the circle around the box of its dot and its label as the canvas draws them (the label to
@@ -91,7 +101,8 @@ public static partial class SpatialPacking
         var forest = Forest.Of(nodes);
         var groups = BuildGroups(forest);
         var (members, body, x, y) = PlaceRoots(forest, groups);
-        Settle(forest, members, body, x, y, CompactionSteps, thread: true);
+        var stiffness = forest.Roots.Count > 1 ? RootStiffness : 0;
+        Settle(forest, members, body, x, y, new Settling(CompactionSteps, Thread: true, Anchor: -1, Wedges: null, stiffness));
         var r = members.Select(i => forest.Radius[i]).ToArray();
         TurnToBalance(forest, members, r, x, y);
 
@@ -148,10 +159,10 @@ public static partial class SpatialPacking
 
     /// <summary>
     /// Lets the footprints of <paramref name="members"/> (a whole subtree, or everything) settle with
-    /// <see cref="Compact"/>: branch lines between members are springs, and with <paramref name="thread"/> so are the
-    /// time-thread segments between roots.
+    /// <see cref="Compact"/>: branch lines between members are springs, and with <see cref="Settling.Thread"/> so are
+    /// the time-thread segments between roots; every node with three or more children keeps their order.
     /// </summary>
-    private static void Settle(Forest forest, int[] members, int[] body, double[] x, double[] y, int steps, bool thread)
+    private static void Settle(Forest forest, int[] members, int[] body, double[] x, double[] y, Settling settling)
     {
         var n = members.Length;
         if (n < 2)
@@ -173,16 +184,58 @@ public static partial class SpatialPacking
             {
                 links.Add((parent, k, BranchSpring));
             }
-            else if (thread && forest.Nodes[i].ThreadNext is { } next && forest.Index.TryGetValue(next, out var j) && forest.Parent[j] < 0 && slot.TryGetValue(j, out var other) && other != k)
+            else if (settling.Thread && forest.Nodes[i].ThreadNext is { } next && forest.Index.TryGetValue(next, out var j) && forest.Parent[j] < 0 && slot.TryGetValue(j, out var other) && other != k)
             {
                 links.Add((k, other, ThreadSpring));
+            }
+        }
+
+        // Every node with three or more children here, with each child's subtree as slots, the child first.
+        var fans = new List<(int Parent, int[][] Children)>();
+        foreach (var i in members)
+        {
+            var children = forest.Children[i];
+            if (children.Count < 3 || !children.TrueForAll(slot.ContainsKey))
+            {
+                continue;
+            }
+
+            var subtrees = children.Select(c =>
+            {
+                var list = new List<int>();
+                var stack = new Stack<int>([c]);
+                while (stack.TryPop(out var q))
+                {
+                    list.Add(slot[q]);
+                    forest.Children[q].ForEach(stack.Push);
+                }
+
+                return list.ToArray();
+            }).ToArray();
+            fans.Add((slot[i], subtrees));
+        }
+
+        // The member each body hangs from: the parent of its first member, if that is in another body.
+        var hangsFrom = Enumerable.Repeat(-1, body.Max() + 1).ToArray();
+        var seen = new bool[hangsFrom.Length];
+        for (var k = 0; k < n; k++)
+        {
+            if (seen[body[k]])
+            {
+                continue;
+            }
+
+            seen[body[k]] = true;
+            if (forest.Parent[members[k]] >= 0 && slot.TryGetValue(forest.Parent[members[k]], out var from) && body[from] != body[k])
+            {
+                hangsFrom[body[k]] = from;
             }
         }
 
         var r = members.Select(i => forest.Radius[i]).ToArray();
         var mass = members.Select(i => forest.Nodes[i].Mass).ToArray();
         var offset = members.Select(i => forest.Offset[i]).ToArray();
-        Compact(x, y, r, mass, offset, body, links, steps);
+        Compact(x, y, r, mass, offset, body, links, settling, fans, hangsFrom);
     }
 
     /// <summary>The §6.4 metrics for <paramref name="dots"/>; nodes without a dot are left out.</summary>
@@ -227,7 +280,57 @@ public static partial class SpatialPacking
         var roots = placed.Where(n => n.Parent is not { } p || !known.Contains(p)).OrderBy(n => n.Order).ThenBy(n => n.Id.Value).ToList();
         var correlation = Math.Abs(Spearman(roots.Select((_, i) => (double)i).ToList(), roots.Select(n => dots[n.Id].X).ToList()));
 
-        return new PackingReport(enclosing.R, ideal, offset, correlation, overlaps);
+        var (edges, crossings, throughDots) = Lines(placed, dots, known);
+        return new PackingReport(enclosing.R, ideal, offset, correlation, overlaps, edges, crossings, throughDots);
+    }
+
+    /// <summary>
+    /// The branch lines as the canvas draws them, dot to dot: how many there are, how many pairs of them cross (lines
+    /// that share a dot do not count), and how many pass through a dot other than their own two.
+    /// </summary>
+    private static (int Edges, int Crossings, int ThroughDots) Lines(List<PackNode> placed, IReadOnlyDictionary<SummaryNodeId, NodePosition> dots, HashSet<SummaryNodeId> known)
+    {
+        var lines = placed.Where(n => n.Parent is { } p && known.Contains(p)).Select(n => (From: n.Parent!.Value, To: n.Id)).ToList();
+        var crossings = 0;
+        for (var i = 0; i < lines.Count; i++)
+        {
+            for (var j = i + 1; j < lines.Count; j++)
+            {
+                var (e, f) = (lines[i], lines[j]);
+                if (e.From == f.From || e.From == f.To || e.To == f.From || e.To == f.To)
+                {
+                    continue;
+                }
+
+                var (a, b, c, d) = (dots[e.From], dots[e.To], dots[f.From], dots[f.To]);
+                if (Side(a, b, c) * Side(a, b, d) < 0 && Side(c, d, a) * Side(c, d, b) < 0)
+                {
+                    crossings++;
+                }
+            }
+        }
+
+        var throughDots = 0;
+        foreach (var (from, to) in lines)
+        {
+            var (a, b) = (dots[from], dots[to]);
+            if (placed.Any(n => n.Id != from && n.Id != to && DistanceToSegment(dots[n.Id], a, b) < n.DotRadius))
+            {
+                throughDots++;
+            }
+        }
+
+        return (lines.Count, crossings, throughDots);
+
+        static double Side(NodePosition a, NodePosition b, NodePosition c) => ((b.X - a.X) * (c.Y - a.Y)) - ((b.Y - a.Y) * (c.X - a.X));
+    }
+
+    private static double DistanceToSegment(NodePosition p, NodePosition a, NodePosition b)
+    {
+        var (dx, dy) = (b.X - a.X, b.Y - a.Y);
+        var length2 = (dx * dx) + (dy * dy);
+        var t = length2 > 0 ? Math.Clamp((((p.X - a.X) * dx) + ((p.Y - a.Y) * dy)) / length2, 0, 1) : 0;
+        return Math.Sqrt(Square(p.X - (a.X + (t * dx))) + Square(p.Y - (a.Y + (t * dy))));
     }
 
     /// <summary>Spearman's rank correlation (average ranks for ties); 0 for fewer than two values or no spread.</summary>

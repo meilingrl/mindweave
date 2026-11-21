@@ -1,3 +1,5 @@
+using System.Diagnostics;
+
 namespace Mindweave.Desktop.SummaryNetwork;
 
 /// <summary>A circle: a footprint, or the disc of a whole subtree.</summary>
@@ -88,6 +90,10 @@ public static partial class SpatialPacking
             for (var attempt = 0; ; attempt++)
             {
                 (x[i], y[i]) = Tangent(r, x, y, a, b, r[i]);
+                // Each retry drops at least one circle from the chain, so this ends within the chain's length; the cap
+                // only guards against a numerical loop. Should it ever trip, the settling that follows pushes the
+                // overlap apart.
+                Debug.Assert(attempt <= 2 * n, "Front-chain placement did not converge.");
                 if (attempt > 2 * n || !FirstOverlapOnChain(r, x, y, next, previous, ref a, ref b, i))
                 {
                     break;
