@@ -16,7 +16,7 @@ namespace Mindweave.Desktop.ViewModels.Pages;
 /// model field, which still takes any typed name. The saved key belongs to the saved service: once the address points
 /// at another host the key field asks for that service's key (the service refuses to send the old one there too).
 /// </summary>
-public sealed partial class ModelSettingsViewModel : ViewModelBase
+public sealed partial class ModelSettingsViewModel : ViewModelBase, Navigation.ICarriesViewState
 {
     private readonly IModelSettings _settings;
     private bool _applyingPreset;
@@ -57,6 +57,63 @@ public sealed partial class ModelSettingsViewModel : ViewModelBase
         }
 
         Loaded = LoadAsync();
+    }
+
+    /// <summary>What the reader typed and has not saved, carried over a language switch (bilingual-ui.md §6.6).</summary>
+    private sealed record Input(
+        string Name,
+        string BaseUrl,
+        string Model,
+        string ApiKey,
+        string ContextWindow,
+        string OutputLimit,
+        bool ToolCalls,
+        bool ImageInput,
+        bool AdvancedOpen,
+        ModelCapabilities Capabilities,
+        string? ModelsFrom,
+        IReadOnlyList<string> Models);
+
+    /// <summary>The unsaved input, or null when the form shows what was last read and nothing more.</summary>
+    public object? CaptureViewState() =>
+        !IsAdvancedOpen && ApiKey.Length == 0 && AvailableModels.Count == 0
+            && (Name, BaseUrl, Model, ContextWindow, OutputLimit, DeclaresToolCalls, DeclaresImageInput) == _shownValues
+            ? null
+            : new Input(Name, BaseUrl, Model, ApiKey, ContextWindow, OutputLimit, DeclaresToolCalls, DeclaresImageInput, IsAdvancedOpen, _capabilities, _modelsFrom, [.. AvailableModels]);
+
+    /// <summary>Puts the carried input back once the stored settings have been read, so the read does not overwrite it.</summary>
+    public void RestoreViewState(object state)
+    {
+        if (state is Input input)
+        {
+            Loaded = RestoreAsync(Loaded, input);
+        }
+    }
+
+    private async Task RestoreAsync(Task loading, Input input)
+    {
+        await loading;
+        _loading = true;
+        _settingModel = true;
+        Name = input.Name;
+        BaseUrl = input.BaseUrl;
+        Model = input.Model;
+        _settingModel = false;
+        _loading = false;
+        ApiKey = input.ApiKey;
+        ContextWindow = input.ContextWindow;
+        OutputLimit = input.OutputLimit;
+        _capabilities = input.Capabilities;
+        DeclaresToolCalls = input.ToolCalls;
+        DeclaresImageInput = input.ImageInput;
+        IsAdvancedOpen = input.AdvancedOpen;
+        AvailableModels.Clear();
+        foreach (var model in input.Models)
+        {
+            AvailableModels.Add(model);
+        }
+
+        _modelsFrom = input.ModelsFrom;
     }
 
     /// <summary>The values the form was filled with by the last read; changed fields mean the reader is editing.</summary>

@@ -7,7 +7,7 @@
              xmlns:p="using:Mindweave.Desktop.Views.Pages"
              x:Class="Mindweave.Desktop.Views.Pages.SettingsHomeView"
              x:DataType="vm:SettingsHomeViewModel">
-  <ScrollViewer Classes="autohide" HorizontalScrollBarVisibility="Disabled">
+  <ScrollViewer Name="Scroller" Classes="autohide" HorizontalScrollBarVisibility="Disabled">
   <!-- One left-aligned column of at most 640 px (a star column with a maximum), as on the summary page. -->
   <Grid Margin="0,4,16,24">
   <Grid.ColumnDefinitions>

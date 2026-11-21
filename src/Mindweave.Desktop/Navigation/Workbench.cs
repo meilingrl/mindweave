@@ -297,6 +297,84 @@ public sealed class Workbench : ObservableObject, IWorkbenchNavigator, IWorkspac
         }
     }
 
+    /// <summary>The pages alive in this workbench, in every workspace, slot and section.</summary>
+    internal IEnumerable<PageViewModel> AllPages() => _runtimes.Values.SelectMany(r => r.AllPages());
+
+    /// <summary>
+    /// Where the user is, for a language switch (bilingual-ui.md §6.4): the workspace list, the active workspace, and
+    /// each visited workspace's section and stacks, with what each page carries. The root page and the sidebar are
+    /// left for the caller to fill in.
+    /// </summary>
+    public ViewSnapshot Snapshot()
+    {
+        var routes = new Dictionary<WorkspaceId, WorkspaceRoutes>();
+        foreach (var (id, runtime) in _runtimes)
+        {
+            var slot = runtime.Slot(CurrentSlot);
+            var stacks = Enum.GetValues<MainSection>()
+                .Select(section => (Section: section, Stack: slot.StackOf(section)))
+                .Where(s => s.Stack.Count > 0)
+                .ToDictionary(
+                    s => s.Section,
+                    s => (IReadOnlyList<PageSnapshot>)[.. s.Stack.Select(page => new PageSnapshot(
+                        page.Route is ConversationRoute conversation ? conversation with { SourceOf = null } : page.Route,
+                        (page as ICarriesViewState)?.CaptureViewState()))]);
+            routes[id] = new WorkspaceRoutes(slot.Section, stacks);
+        }
+
+        return new ViewSnapshot(new RootPage.Workbench(), [.. Workspaces], _active?.Workspace.Id, routes, Sidebar: null);
+    }
+
+    /// <summary>
+    /// Builds the pages of <paramref name="snapshot"/> in this (new, empty) workbench, each with what its old page
+    /// carried, and shows the workspace that was active. It is the first thing a new view's workbench does, in place of
+    /// <see cref="Initialize"/>.
+    /// </summary>
+    public void Restore(ViewSnapshot snapshot)
+    {
+        ArgumentNullException.ThrowIfNull(snapshot);
+        if (snapshot.Workspaces.Count == 0)
+        {
+            throw new ArgumentException("The workbench needs at least one workspace.", nameof(snapshot));
+        }
+
+        Workspaces.Clear();
+        foreach (var workspace in snapshot.Workspaces)
+        {
+            Workspaces.Add(workspace);
+        }
+
+        foreach (var (id, routes) in snapshot.Routes)
+        {
+            if (Workspaces.FirstOrDefault(w => w.Id == id) is not { } workspace)
+            {
+                continue;
+            }
+
+            var runtime = new WorkspaceRuntime(workspace);
+            _runtimes[id] = runtime;
+            var slot = runtime.Slot(CurrentSlot);
+            slot.Section = routes.Section;
+            foreach (var (section, pages) in routes.Stacks)
+            {
+                var stack = slot.StackOf(section);
+                foreach (var saved in pages)
+                {
+                    var page = _pages.Create(saved.Route, new PageContext(runtime.Workspace, slot.Key, this, this));
+                    if (saved.State is { } state && page is ICarriesViewState carrier)
+                    {
+                        carrier.RestoreViewState(state);
+                    }
+
+                    stack.Add(page);
+                }
+            }
+        }
+
+        var active = snapshot.Active is { } a && _runtimes.ContainsKey(a) ? a : Workspaces[0].Id;
+        Activate(active, section: null);
+    }
+
     /// <summary>A page leaves the stacks and is disposed; what the user typed is already with its owner.</summary>
     private static void Release(PageViewModel page) => (page as IDisposable)?.Dispose();
 

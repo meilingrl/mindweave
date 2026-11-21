@@ -74,7 +74,7 @@ internal sealed class AppHost(SingleInstance instance, AppSession session) : IAs
 /// then starts from the restored data exactly as after a fresh start, which resetting the state held by some twenty
 /// singletons one by one could not promise.
 /// </summary>
-public sealed class AppSession : IInAppRestore
+public sealed class AppSession : IInAppRestore, IViewSession
 {
     private readonly Func<Action<IServiceCollection>, ServiceProvider> _buildRoot;
     private readonly Func<IServiceProvider, ServiceProvider> _buildView;
@@ -107,17 +107,45 @@ public sealed class AppSession : IInAppRestore
     /// <summary>A logger that writes through the current root each time, so it outlives a restore.</summary>
     internal ILogger Logger(string category) => new SessionLogger(this, category);
 
+    /// <summary>The window is to let go of the current root view (a language switch, before the new view is built).</summary>
+    public event EventHandler? ViewDetaching;
+
+    /// <summary>Raises <see cref="ViewDetaching"/>: the window takes the current root view out.</summary>
+    internal void DetachView() => ViewDetaching?.Invoke(this, EventArgs.Empty);
+
+    /// <summary>Raises <see cref="ViewReplaced"/> for the current view: the window shows it in a new root view.</summary>
+    internal void ShowView() => ViewReplaced?.Invoke(this, EventArgs.Empty);
+
     /// <summary>
-    /// Builds a new view provider on the same root, makes it current and raises <see cref="ViewReplaced"/>. Returns the
-    /// old one: the caller disposes it once the new one is shown. Nothing of the old view is carried over.
+    /// Builds a new view provider on the same root, lets <paramref name="prepare"/> fill it (a language switch replays
+    /// where the user was), makes it current and raises <see cref="ViewReplaced"/>. Returns the old one: the caller
+    /// disposes it once the new one is shown. If building or <paramref name="prepare"/> throws, the new provider is
+    /// disposed and the current one stays.
     /// </summary>
-    internal ServiceProvider ReplaceView()
+    internal ServiceProvider ReplaceView(Action<ServiceProvider>? prepare = null)
     {
+        var next = _buildView(Root);
+        try
+        {
+            prepare?.Invoke(next);
+        }
+        catch
+        {
+            next.DisposeAsync().AsTask().GetAwaiter().GetResult();
+            throw;
+        }
+
         var old = View;
-        View = _buildView(Root);
+        View = next;
         ViewReplaced?.Invoke(this, EventArgs.Empty);
         return old;
     }
+
+    void IViewSession.DetachView() => DetachView();
+
+    void IViewSession.ShowView() => ShowView();
+
+    ServiceProvider IViewSession.ReplaceView(Action<ServiceProvider> prepare) => ReplaceView(prepare);
 
     /// <summary>
     /// Called by the restore once the old session has stopped its work and saved everything, and the current data is in
@@ -161,7 +189,11 @@ public sealed class AppSession : IInAppRestore
 
     private (ServiceProvider Root, ServiceProvider View) Build()
     {
-        var root = _buildRoot(services => services.AddSingleton<IInAppRestore>(this));
+        var root = _buildRoot(services =>
+        {
+            services.AddSingleton<IInAppRestore>(this);
+            services.AddSingleton<IViewSession>(this);
+        });
         try
         {
             return (root, _buildView(root));

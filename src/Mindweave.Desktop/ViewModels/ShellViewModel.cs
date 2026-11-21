@@ -206,9 +206,19 @@ public sealed partial class ShellViewModel : ViewModelBase, IDisposable
             stored = SidebarLayout.Default;
         }
 
-        SidebarWidth = stored.Width;
-        IsSidebarCollapsed = stored.IsCollapsed;
+        UseSidebar(stored);
     }
+
+    /// <summary>The sidebar as <paramref name="layout"/> says, without saving it (a stored layout, or the old view's after a switch).</summary>
+    public void UseSidebar(SidebarLayout layout)
+    {
+        ArgumentNullException.ThrowIfNull(layout);
+        SidebarWidth = layout.Width;
+        IsSidebarCollapsed = layout.IsCollapsed;
+    }
+
+    /// <summary>The sidebar as it is now.</summary>
+    public SidebarLayout Sidebar => new(SidebarWidth, IsSidebarCollapsed);
 
     private void SaveSidebar()
     {

@@ -21,6 +21,7 @@ public sealed partial class MainWindow : Window
     internal void Follow(AppSession session)
     {
         ArgumentNullException.ThrowIfNull(session);
+        session.ViewDetaching += (_, _) => Content = null;
         session.ViewReplaced += (_, _) => ShowView(session.RootViewModel);
     }
 

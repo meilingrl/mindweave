@@ -66,6 +66,10 @@ public static class CompositionRoot
         services.AddSingleton(shell ?? new SystemShell());
         services.TryAddSingleton(SystemAlertSound.ForPlatform()); // Tests count calls with their own.
         services.TryAddSingleton<IInAppRestore, UnavailableInAppRestore>(); // The application session registers itself first.
+        services.TryAddSingleton<IViewSession, UnavailableViewSession>(); // So does it here.
+
+        // A language switch replaces the view it is called from, so it lives here, with the services (§6).
+        services.AddSingleton<LanguageSwitch>();
 
         // The bridges between pages and the window's dialogs: a page a view made reaches the dialogs of the view shown.
         services.AddSingleton<WorkspaceDeletionRequests>();

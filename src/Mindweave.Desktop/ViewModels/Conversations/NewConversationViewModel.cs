@@ -16,7 +16,7 @@ namespace Mindweave.Desktop.ViewModels.Conversations;
 /// the first also as a placeholder in the empty input; clicking one, or Tab on the placeholder, only fills the input.
 /// A question sent after being filled in from one (edited or not) uses it up. Branch conversations never come here.
 /// </summary>
-public sealed partial class NewConversationViewModel : PageViewModel, IDisposable, IAttachmentViewerHost
+public sealed partial class NewConversationViewModel : PageViewModel, IDisposable, IAttachmentViewerHost, ICarriesViewState
 {
     private readonly WorkspaceId _workspace;
     private readonly IMenuNavigator _menu;
@@ -141,6 +141,20 @@ public sealed partial class NewConversationViewModel : PageViewModel, IDisposabl
 
     /// <summary>The stored draft is in the box (tests).</summary>
     public Task DraftLoaded { get; }
+
+    /// <summary>
+    /// Opened from a recommended node, the page puts the node's question in the input when it is built, over the draft;
+    /// what the reader made of it since is carried over a language switch. Otherwise the draft is with its service.
+    /// </summary>
+    public object? CaptureViewState() => Route is NewConversationRoute { Question: not null } ? Composer.Text : null;
+
+    public void RestoreViewState(object state)
+    {
+        if (state is string text)
+        {
+            Composer.Text = text;
+        }
+    }
 
     /// <summary>The first load of the recommendations (tests).</summary>
     public Task Loaded { get; } = Task.CompletedTask;

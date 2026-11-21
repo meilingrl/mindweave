@@ -83,6 +83,67 @@ public sealed partial class AppStartup : IRecoveryActions, IDisposable
     /// </summary>
     private void OnNoWorkspaceLeft(object? sender, EventArgs e) => _root.Show(new OnboardingViewModel(CreateFirstWorkspaceAsync));
 
+    /// <summary>
+    /// The guide from <paramref name="step"/>, or with <see cref="OnboardingStep.Done"/> only the workspace step.
+    /// </summary>
+    private OnboardingViewModel Onboarding(OnboardingStep step) =>
+        new(CreateFirstWorkspaceAsync, step, _onboarding, new ModelSettingsViewModel(_models));
+
+    /// <summary>
+    /// Where the user is, for a language switch (bilingual-ui.md §6.4): what the window shows, the workbench's pages
+    /// and the sidebar. <see cref="Resume"/> on the next view's startup replays it.
+    /// </summary>
+    public ViewSnapshot Snapshot()
+    {
+        RootPage root = _root.Current switch
+        {
+            ShellViewModel => new RootPage.Workbench(),
+            OnboardingViewModel guide => new RootPage.Onboarding(guide.IsGuided ? guide.Step : OnboardingStep.Done, guide.Form.Name, guide.Model?.CaptureViewState()),
+            RecoveryViewModel recovery => new RootPage.Recovery(recovery.Result, [.. recovery.Backups]),
+            _ => new RootPage.Starting(),
+        };
+        return _workbench.Snapshot() with { Root = root, Sidebar = _shell.Sidebar };
+    }
+
+    /// <summary>
+    /// The new view's start after a language switch: it shows what <paramref name="snapshot"/> showed, with the pages,
+    /// input and sidebar it holds. Nothing is read from storage, nothing is marked interrupted: the services, running
+    /// answers among them, are the ones that ran before, and the appearance, unread marks and storage health are theirs.
+    /// </summary>
+    public void Resume(ViewSnapshot snapshot)
+    {
+        ArgumentNullException.ThrowIfNull(snapshot);
+        if (snapshot.Sidebar is { } sidebar)
+        {
+            _shell.UseSidebar(sidebar);
+        }
+
+        switch (snapshot.Root)
+        {
+            case RootPage.Workbench when snapshot.Workspaces.Count > 0:
+                _workbench.Restore(snapshot);
+                _root.Show(_shell);
+                break;
+            case RootPage.Onboarding guide:
+                var page = Onboarding(guide.Step);
+                if (guide.Model is { } input)
+                {
+                    page.Model?.RestoreViewState(input);
+                }
+
+                page.Form.Name = guide.WorkspaceName;
+                _root.Show(page);
+                break;
+            case RootPage.Recovery recovery:
+                _root.Show(new RecoveryViewModel(recovery.Result, recovery.Backups, this, _system));
+                break;
+            default:
+                // Not reached: a switch waits until startup has shown its outcome.
+                _root.Show(new StartupViewModel());
+                break;
+        }
+    }
+
     public async Task RunAsync()
     {
         // Every owner of kept writes was composed with this class (through the exit coordinator and the shell's pages),
@@ -210,7 +271,7 @@ public sealed partial class AppStartup : IRecoveryActions, IDisposable
                 _root.Show(new RecoveryViewModel(recovery.Result, recovery.Backups, this, _system));
                 break;
             case StartupOutcome.NeedsFirstWorkspace:
-                _root.Show(new OnboardingViewModel(CreateFirstWorkspaceAsync, await ReadOnboardingAsync(), _onboarding, new ModelSettingsViewModel(_models)));
+                _root.Show(Onboarding(await ReadOnboardingAsync()));
                 break;
             case StartupOutcome.ReadyToWork ready:
                 _workbench.Initialize(ready.Workspaces, ready.LastLocation);

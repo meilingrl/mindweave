@@ -17,6 +17,32 @@ public sealed partial class SettingsHomeView : UserControl
     {
         InitializeComponent();
         AppearancePicker.AddHandler(KeyDownEvent, OnAppearanceKeyDown, RoutingStrategies.Tunnel);
+        Scroller.ScrollChanged += OnScrollChanged;
+    }
+
+    /// <summary>
+    /// The page keeps how far it is scrolled, so a language switch can carry it over; a carried position is applied as
+    /// soon as the page is long enough for it (sections fill in as their settings are read), and kept no longer.
+    /// </summary>
+    private void OnScrollChanged(object? sender, ScrollChangedEventArgs e)
+    {
+        if (DataContext is not SettingsHomeViewModel page)
+        {
+            return;
+        }
+
+        if (page.PendingScroll is { } wanted)
+        {
+            if (Scroller.Extent.Height - Scroller.Viewport.Height >= wanted - 0.5)
+            {
+                page.PendingScroll = null;
+                Scroller.Offset = new Vector(Scroller.Offset.X, wanted);
+            }
+
+            return;
+        }
+
+        page.ScrollOffset = Scroller.Offset.Y;
     }
 
     /// <summary>
@@ -35,7 +61,27 @@ public sealed partial class SettingsHomeView : UserControl
     protected override void OnAttachedToVisualTree(VisualTreeAttachmentEventArgs e)
     {
         base.OnAttachedToVisualTree(e);
-        (DataContext as SettingsHomeViewModel)?.Refresh();
+        if (DataContext is SettingsHomeViewModel page)
+        {
+            page.Refresh();
+            if (page.PendingScroll is not null)
+            {
+                _ = SettleScrollAsync(page);
+            }
+        }
+    }
+
+    /// <summary>Once the settings are read and laid out, a carried position the page is too short for goes as far as it can.</summary>
+    private async Task SettleScrollAsync(SettingsHomeViewModel page)
+    {
+        await page.Loaded;
+        await Avalonia.Threading.Dispatcher.UIThread.InvokeAsync(() => { }, Avalonia.Threading.DispatcherPriority.Background);
+        if (page.PendingScroll is { } wanted && ReferenceEquals(DataContext, page))
+        {
+            page.PendingScroll = null;
+            Scroller.Offset = new Vector(Scroller.Offset.X, wanted);
+            page.ScrollOffset = Scroller.Offset.Y;
+        }
     }
 
     private void OnAppearanceKeyDown(object? sender, KeyEventArgs e)

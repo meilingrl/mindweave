@@ -24,6 +24,9 @@ public sealed partial class Composer
 
     public bool HasAttachments => Attachments.Count > 0;
 
+    /// <summary>An attachment is still being stored; a language switch waits for it (bilingual-ui.md §6.5).</summary>
+    public bool IsStoringAttachments => Attachments.Any(c => c.IsWorking);
+
     /// <summary>This composer takes attachments ("+", drop, paste).</summary>
     public bool CanAttach => _attachments is not null;
 

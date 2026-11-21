@@ -32,7 +32,7 @@ public sealed partial class ExploreHomeViewModel(Workspace workspace, IContentNa
 }
 
 /// <summary>Settings: the model connection, the appearance (D-022) and where data lives.</summary>
-public sealed partial class SettingsHomeViewModel : PageViewModel, IDisposable
+public sealed partial class SettingsHomeViewModel : PageViewModel, IDisposable, ICarriesViewState
 {
     private readonly IContentNavigator _content;
     private readonly IAppearance _appearanceService;
@@ -255,6 +255,44 @@ public sealed partial class SettingsHomeViewModel : PageViewModel, IDisposable
             DesktopLog.Swallowed(swallowed);
             RecommendationsStatus = UiText.RecommendationsSaveFailed;
         }
+    }
+
+    /// <summary>How far the page is scrolled; the view keeps it current, so a language switch can carry it over.</summary>
+    public double ScrollOffset { get; set; }
+
+    /// <summary>A carried scroll position the view applies once it can, then clears.</summary>
+    public double? PendingScroll { get; set; }
+
+    /// <summary>What lives only in this page, carried over a language switch (bilingual-ui.md §6.6).</summary>
+    private sealed record CarriedState(object? Model, object? WebSearch, object? Mcp, double Scroll);
+
+    public object? CaptureViewState() =>
+        new CarriedState(Model.CaptureViewState(), Tools?.Web?.CaptureViewState(), Tools?.Mcp?.CaptureViewState(), ScrollOffset);
+
+    public void RestoreViewState(object state)
+    {
+        if (state is not CarriedState carried)
+        {
+            return;
+        }
+
+        if (carried.Model is { } model)
+        {
+            Model.RestoreViewState(model);
+        }
+
+        if (carried.WebSearch is { } key)
+        {
+            Tools?.Web?.RestoreViewState(key);
+        }
+
+        if (carried.Mcp is { } form)
+        {
+            Tools?.Mcp?.RestoreViewState(form);
+        }
+
+        ScrollOffset = carried.Scroll;
+        PendingScroll = carried.Scroll > 0 ? carried.Scroll : null;
     }
 
     [RelayCommand]
