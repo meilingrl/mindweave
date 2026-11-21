@@ -1,6 +1,7 @@
 using System.Text.Json;
 using Mindweave.Application.Ai;
 using Mindweave.Application.Conversations;
+using Mindweave.Application.Languages;
 using Mindweave.Application.Models;
 using Mindweave.Application.Storage;
 using Mindweave.Application.Tools;
@@ -86,7 +87,7 @@ public class RunFlowTests
 
         var result = answer.Blocks.OfType<ToolResultBlock>().Single();
         Assert.Equal(ToolResultStatus.Succeeded, result.Status);
-        Assert.Equal(new ToolFinding(ToolFindingKind.ResourcePart, resource.ToString(), ContentBlocks.PastedTextName, 1), Assert.Single(result.Findings!));
+        Assert.Equal(new ToolFinding(ToolFindingKind.ResourcePart, resource.ToString(), ModelPhrases.Current.PastedText, 1), Assert.Single(result.Findings!));
         Assert.Contains("瓦特改良了蒸汽机", h.Client.Requests.Where(FakeChatClient.IsAnswer).Last().Turns[^1].Content, StringComparison.Ordinal);
     }
 

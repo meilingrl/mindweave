@@ -1,4 +1,5 @@
 using System.Text;
+using Mindweave.Core.Context;
 using Mindweave.Core.Resources;
 using Mindweave.Core.Runs;
 
@@ -27,8 +28,12 @@ public sealed record TextBlock(string Markdown) : ContentBlock;
 /// </summary>
 public sealed record AttachmentBlock(ResourceId Resource, string? Name, string MediaType, long Size, string? Text) : ContentBlock
 {
-    /// <summary>The name a person sees: the file name, or the paste placeholder.</summary>
-    public string DisplayName => string.IsNullOrWhiteSpace(Name) ? ContentBlocks.PastedTextName : Name;
+    /// <summary>The name the model reads: the file name, or the paste placeholder in <paramref name="phrases"/>.</summary>
+    public string NameIn(IModelPhrases phrases)
+    {
+        ArgumentNullException.ThrowIfNull(phrases);
+        return string.IsNullOrWhiteSpace(Name) ? phrases.PastedText : Name;
+    }
 }
 
 /// <summary>
@@ -76,24 +81,19 @@ public sealed record CitationBlock(int Number, string Title, Uri? Url, DateTimeO
     /// <summary>For a summary: its node's ID (<c>D</c> format).</summary>
     public string? Target { get; init; }
 
-    /// <summary>The name as a person reads it in the 出处 list: the page's title, or 附件《…》、材料《…》、总结《…》.</summary>
-    public string Label => Kind switch
+    /// <summary>The name in a citation list sent to the model: the page's title, or the kind of material and its title.</summary>
+    public string Label(IModelPhrases phrases)
     {
-        CitationKind.Attachment => $"附件《{Title}》",
-        CitationKind.Material => $"材料《{Title}》",
-        CitationKind.Summary => $"总结《{Title}》",
-        _ => Title,
-    };
+        ArgumentNullException.ThrowIfNull(phrases);
+        return phrases.CitationLabel(Kind, Title);
+    }
 
-    /// <summary>The line it is as text (context and summaries): "[1] 标题 https://…", or "[2] 附件《名称》".</summary>
-    public string Line => Url is { } url ? $"[{Number}] {Label} {url.AbsoluteUri}" : $"[{Number}] {Label}";
+    /// <summary>The line it is as text (context and summaries): "[1] title https://…", or "[2]" and the attachment's label.</summary>
+    public string Line(IModelPhrases phrases) => Url is { } url ? $"[{Number}] {Label(phrases)} {url.AbsoluteUri}" : $"[{Number}] {Label(phrases)}";
 }
 
 public static class ContentBlocks
 {
-    /// <summary>What an unnamed paste is called where a name is shown.</summary>
-    public const string PastedTextName = "粘贴的文字";
-
     public static IReadOnlyList<ContentBlock> FromText(string markdown)
     {
         ArgumentNullException.ThrowIfNull(markdown);
@@ -102,34 +102,36 @@ public static class ContentBlocks
 
     /// <summary>
     /// The message as its conversation layer sends it (architecture §15.3): text blocks as they are, each attachment as a
-    /// one-line <c>[附件：name]</c>. An attachment's content is sent by the resource layer (<see cref="Context.ResourceMaterial"/>),
+    /// one-line marker (<see cref="IModelPhrases.AttachmentMarker"/>). An attachment's content is sent by the resource layer (<see cref="Context.ResourceMaterial"/>),
     /// planned apart from the conversation, so no single message can outgrow the context window. Parts are joined by a
     /// blank line, so a message of text blocks only reads exactly as before attachments existed.
     /// </summary>
-    public static string TextOf(IReadOnlyList<ContentBlock> blocks) => BriefOf(blocks);
+    public static string TextOf(IReadOnlyList<ContentBlock> blocks, IModelPhrases phrases) => BriefOf(blocks, phrases);
 
     /// <summary>
     /// The message as conversation context and summary input (architecture §15.4, §15.9): <see cref="TextOf"/>, then an
-    /// answer's 出处 as one list ("[n] 标题 网址"), so what it relied on goes along without the pages themselves. The
+    /// answer's 出处 as one list ("[n] title URL"), so what it relied on goes along without the pages themselves. The
     /// answer's own text (anchors, display) never includes the list.
     /// </summary>
-    public static string ContextTextOf(IReadOnlyList<ContentBlock> blocks)
+    public static string ContextTextOf(IReadOnlyList<ContentBlock> blocks, IModelPhrases phrases)
     {
-        var text = TextOf(blocks);
+        ArgumentNullException.ThrowIfNull(phrases);
+        var text = TextOf(blocks, phrases);
         var citations = CitationsOf(blocks);
-        return citations.Count == 0 ? text : text + "\n\n出处：\n" + string.Join("\n", citations.Select(c => c.Line));
+        return citations.Count == 0 ? text : text + "\n\n" + phrases.CitationsHeading + "\n" + string.Join("\n", citations.Select(c => c.Line(phrases)));
     }
 
     /// <summary>
-    /// The message for titles, excerpts and display: text blocks as they are, each attachment as a one-line
-    /// <c>[附件：name]</c>. Never includes an attachment's content.
+    /// The message for titles, excerpts and display: text blocks as they are, each attachment as a one-line marker
+    /// (<see cref="IModelPhrases.AttachmentMarker"/>). Never includes an attachment's content.
     /// </summary>
-    public static string BriefOf(IReadOnlyList<ContentBlock> blocks)
+    public static string BriefOf(IReadOnlyList<ContentBlock> blocks, IModelPhrases phrases)
     {
         ArgumentNullException.ThrowIfNull(blocks);
+        ArgumentNullException.ThrowIfNull(phrases);
         return blocks.Count == 1 && blocks[0] is TextBlock only
             ? only.Markdown
-            : string.Join("\n\n", blocks.Select(BriefTextOf).Where(t => t is not null));
+            : string.Join("\n\n", blocks.Select(b => BriefTextOf(b, phrases)).Where(t => t is not null));
     }
 
     /// <summary>The text the user typed, without attachments.</summary>
@@ -160,19 +162,20 @@ public static class ContentBlocks
     }
 
     /// <summary>One attachment as its brief line.</summary>
-    public static string BriefOf(AttachmentBlock attachment)
+    public static string BriefOf(AttachmentBlock attachment, IModelPhrases phrases)
     {
         ArgumentNullException.ThrowIfNull(attachment);
-        return $"[附件：{attachment.DisplayName}]";
+        ArgumentNullException.ThrowIfNull(phrases);
+        return phrases.AttachmentMarker(attachment.NameIn(phrases));
     }
 
     /// <summary>A material section: an opening tag naming the attachment, <paramref name="body"/>, and the closing tag.</summary>
-    public static string Section(AttachmentBlock attachment, string form, string body)
+    public static string Section(AttachmentBlock attachment, IModelPhrases phrases, string form, string body)
     {
         ArgumentNullException.ThrowIfNull(attachment);
         ArgumentNullException.ThrowIfNull(body);
         var head = new StringBuilder("<attachment name=\"")
-            .Append(Attribute(attachment.DisplayName))
+            .Append(Attribute(attachment.NameIn(phrases)))
             .Append("\" type=\"")
             .Append(Attribute(attachment.MediaType))
             .Append("\" form=\"")
@@ -184,10 +187,10 @@ public static class ContentBlocks
         return head.Append(escaped).Append(escaped.EndsWith('\n') ? "" : "\n").Append("</attachment>").ToString();
     }
 
-    private static string? BriefTextOf(ContentBlock block) => block switch
+    private static string? BriefTextOf(ContentBlock block, IModelPhrases phrases) => block switch
     {
         TextBlock t => t.Markdown,
-        AttachmentBlock a => BriefOf(a),
+        AttachmentBlock a => BriefOf(a, phrases),
         _ => null,
     };
 

@@ -1,4 +1,5 @@
 using Microsoft.Data.Sqlite;
+using Mindweave.Application.Languages;
 using Mindweave.Application.Storage;
 using Mindweave.Core.Conversations;
 using Mindweave.Core.Resources;
@@ -357,7 +358,8 @@ internal sealed class SqliteResourceStore(SqliteDatabase database) : IResourceSt
             }
 
             owner = reader.NullableString(0);
-            name = reader.NullableString(2) ?? ContentBlocks.PastedTextName;
+            // Written into the attachment block's text, so a paste's name is in the interface language of the moment.
+            name = reader.NullableString(2) ?? ModelPhrases.Current.PastedText;
         }
 
         if (owner is null)

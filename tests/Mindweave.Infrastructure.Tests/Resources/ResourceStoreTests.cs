@@ -1,4 +1,5 @@
 using System.Text;
+using Mindweave.Application.Languages;
 using Mindweave.Application.Resources;
 using Mindweave.Application.Startup;
 using Mindweave.Application.Storage;
@@ -135,8 +136,9 @@ public sealed class ResourceStoreTests
         Assert.Equal((doc, (string?)null, MediaTypes.PlainText, 12L, "文档内容"), (a.Resource, a.Name, a.MediaType, a.Size, a.Text));
         var i = Assert.IsType<AttachmentBlock>(message.Blocks[2]);
         Assert.Equal(("图.png", MediaTypes.Png, (string?)null), (i.Name, i.MediaType, i.Text));
-        Assert.Equal("看看这些\n\n[附件：粘贴的文字]\n\n[附件：图.png]", message.Text); // architecture §15.3: content goes in the resource layer
-        Assert.Equal("看看这些\n\n[附件：粘贴的文字]\n\n[附件：图.png]", ContentBlocks.BriefOf(message.Blocks));
+        Assert.Equal("看看这些\n\n[附件：粘贴的文字]\n\n[附件：图.png]", ContentBlocks.TextOf(message.Blocks, ModelPhrases.Current)); // architecture §15.3: content goes in the resource layer
+        Assert.Equal("看看这些", message.Text);
+        Assert.Equal("看看这些\n\n[附件：粘贴的文字]\n\n[附件：图.png]", ContentBlocks.BriefOf(message.Blocks, ModelPhrases.Current));
 
         // The block row's text is the display name, so the sidebar excerpt of a question that starts with one reads as a name.
         Assert.Equal("粘贴的文字,图.png", await h.Database.ReadAsync(c => c.Scalar<string>(null, "SELECT group_concat(text) FROM (SELECT text FROM message_block WHERE kind = 'attachment' ORDER BY ordinal);"), Ct));
@@ -189,7 +191,7 @@ public sealed class ResourceStoreTests
         Assert.Contains("新文字", after, StringComparison.Ordinal);
     }
 
-    private static string Describe(Message message) => string.Join('|', message.Blocks.OfType<AttachmentBlock>().Select(a => a.DisplayName + ":" + a.Text));
+    private static string Describe(Message message) => string.Join('|', message.Blocks.OfType<AttachmentBlock>().Select(a => a.NameIn(ModelPhrases.Current) + ":" + a.Text));
 
     [Fact]
     public async Task Deleting_a_conversation_takes_its_resources_and_removes_originals_nothing_else_refers_to()

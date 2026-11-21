@@ -1,6 +1,7 @@
 using System.Globalization;
 using System.Text;
 using System.Text.Json;
+using Mindweave.Application.Languages;
 using Mindweave.Application.Storage;
 using Mindweave.Core.Conversations;
 using Mindweave.Core.Resources;
@@ -227,7 +228,7 @@ public sealed partial class SearchAttachmentsTool(IResourceStore resources) : IT
 
     private static string NameOf(Resource resource) => resource.Origin == ResourceOrigin.Tool
         ? resource.Name ?? "工具结果"
-        : resource.Name ?? ContentBlocks.PastedTextName;
+        : resource.Name ?? ModelPhrases.Current.PastedText;
 
     /// <summary>The less trusted of two provenances (a result mixing user and external material is external).</summary>
     private static ResourceProvenance Lower(ResourceProvenance a, ResourceProvenance b) => (ResourceProvenance)Math.Max((int)a, (int)b);

@@ -1,6 +1,7 @@
 using Microsoft.Extensions.Logging;
 using Mindweave.Application.Ai;
 using Mindweave.Application.Conversations;
+using Mindweave.Application.Languages;
 using Mindweave.Application.Models;
 using Mindweave.Application.Prompts;
 using Mindweave.Application.Storage;
@@ -437,12 +438,13 @@ public sealed class SummaryService : ISummaries
         }
 
         var summaries = await _resources.GetDerivativesAsync(attached, Core.Resources.DerivativeKind.Summary, Conversations.ResourceContext.SummaryPromptVersion, cancellationToken).ConfigureAwait(false);
+        var phrases = ModelPhrases.Current;
         return [.. own.Select(m => m with
         {
             Blocks = [.. m.Blocks.Select(b => b is AttachmentBlock { Text: { } text } a
                 ? new TextBlock(summaries.TryGetValue(a.Resource, out var summary)
-                    ? ContentBlocks.BriefOf(a) + T(" (digest)\n", "（摘要）\n") + summary.Derivative.Text
-                    : ContentBlocks.BriefOf(a) + T(" (beginning)\n", "（开头）\n") + (text.Length > AttachmentExcerpt ? text[..AttachmentExcerpt] + "…" : text))
+                    ? ContentBlocks.BriefOf(a, phrases) + T(" (digest)\n", "（摘要）\n") + summary.Derivative.Text
+                    : ContentBlocks.BriefOf(a, phrases) + T(" (beginning)\n", "（开头）\n") + (text.Length > AttachmentExcerpt ? text[..AttachmentExcerpt] + "…" : text))
                 : b)],
         })];
     }
@@ -452,8 +454,9 @@ public sealed class SummaryService : ISummaries
         own = await WithAttachmentNotesAsync(own, cancellationToken).ConfigureAwait(false);
         // Only this conversation is summarized; its branch background travels as a separate note, not as turns.
         var stored = _contextSummaries is null ? [] : await _contextSummaries.ListAsync([conversation], cancellationToken).ConfigureAwait(false);
-        var known = stored.ToDictionary(s => s.Key, s => ContextPlanner.SummaryTokens(s.Key, s.Text));
-        return ContextPlanner.Plan([], new ContextSegment(conversation, null, own), budget, key => known.TryGetValue(key, out var tokens) ? tokens : null);
+        var phrases = ModelPhrases.Current;
+        var known = stored.ToDictionary(s => s.Key, s => ContextPlanner.SummaryTokens(s.Key, s.Text, phrases));
+        return ContextPlanner.Plan([], new ContextSegment(conversation, null, own), budget, key => known.TryGetValue(key, out var tokens) ? tokens : null, phrases);
     }
 
     private async Task NotifyAsync(SummaryNodeId node, Func<Task> operation, CancellationToken cancellationToken)

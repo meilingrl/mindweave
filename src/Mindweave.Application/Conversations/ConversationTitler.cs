@@ -1,6 +1,7 @@
 using System.Collections.Concurrent;
 using Microsoft.Extensions.Logging;
 using Mindweave.Application.Ai;
+using Mindweave.Application.Languages;
 using Mindweave.Application.Models;
 using Mindweave.Application.Prompts;
 using Mindweave.Application.Storage;
@@ -105,8 +106,9 @@ internal sealed partial class ConversationTitler
         var source = await _branches.GetSourceAsync(e.ConversationId, CancellationToken.None).ConfigureAwait(false);
         // A title needs the gist, not a pasted document (low finding gap-unprompted-4): the question is cut like the answer.
         // Attachments are named, never included (docs/design/resources.md).
-        var brief = ContentBlocks.BriefOf(question.Blocks);
-        var asked = ConversationRules.FirstTextElements(source is null ? brief : BranchContext.QuotedQuestion(source.Quote, brief), TitleQuestionExcerpt);
+        var phrases = ModelPhrases.Current;
+        var brief = ContentBlocks.BriefOf(question.Blocks, phrases);
+        var asked = ConversationRules.FirstTextElements(source is null ? brief : BranchContext.QuotedQuestion(source.Quote, brief, phrases), TitleQuestionExcerpt);
         var excerpt = ConversationRules.FirstTextElements(e.Text, TitleAnswerExcerpt);
         var now = _clock.UtcNow;
         var task = new GenerationTaskRecord(GenerationTaskId.New(), GenerationTaskKind.Title, e.ConversationId, null, model, [question.Id, e.MessageId], now);

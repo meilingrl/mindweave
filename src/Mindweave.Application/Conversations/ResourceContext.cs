@@ -1,6 +1,7 @@
 using System.Text;
 using Microsoft.Extensions.Logging;
 using Mindweave.Application.Ai;
+using Mindweave.Application.Languages;
 using Mindweave.Application.Prompts;
 using Mindweave.Application.Resources;
 using Mindweave.Application.Storage;
@@ -46,6 +47,7 @@ public sealed partial class ResourceContext(IResourceStore store, ResourceServic
             return [];
         }
 
+        var phrases = ModelPhrases.Current;
         var current = items[^1].Message.Id;
         var texts = attached.Where(a => a.Attachment.Text is not null).Select(a => a.Attachment.Resource).Distinct().ToList();
         var summaries = await store.GetDerivativesAsync(texts, DerivativeKind.Summary, SummaryPromptVersion, cancellationToken).ConfigureAwait(false);
@@ -66,8 +68,8 @@ public sealed partial class ResourceContext(IResourceStore store, ResourceServic
                     : stored is null || !resources.HasOriginal(stored.Resource) ? ResourceKind.ImageMissing
                     : ResourceKind.Image;
                 var tokens = kind == ResourceKind.Image
-                    ? ResourceMaterial.ImageTokens + TokenEstimator.Estimate(ResourceMaterial.ImageLabel(attachment))
-                    : TokenEstimator.Estimate(PlaceholderOf(attachment, kind));
+                    ? ResourceMaterial.ImageTokens + TokenEstimator.Estimate(ResourceMaterial.ImageLabel(attachment, phrases))
+                    : TokenEstimator.Estimate(PlaceholderOf(attachment, kind, phrases));
                 result.Add(new ResourceCandidate(attachment, item.Message.Id, kind, tokens, null, []));
                 continue;
             }
@@ -77,9 +79,9 @@ public sealed partial class ResourceContext(IResourceStore store, ResourceServic
             var byOrdinal = own.ToDictionary(x => x.Ordinal);
             IReadOnlyList<ResourceChunk> rankedChunks = [.. order.Where(byOrdinal.ContainsKey).Select(o => byOrdinal[o]), .. own.Where(x => !order.Contains(x.Ordinal))];
             int? summaryTokens = summaries.TryGetValue(attachment.Resource, out var summary)
-                ? TokenEstimator.Estimate(ResourceMaterial.Summary(attachment, summary.Derivative.Text))
+                ? TokenEstimator.Estimate(ResourceMaterial.Summary(attachment, summary.Derivative.Text, phrases))
                 : null;
-            result.Add(new ResourceCandidate(attachment, item.Message.Id, ResourceKind.Text, TokenEstimator.Estimate(ResourceMaterial.Whole(attachment)), summaryTokens, rankedChunks));
+            result.Add(new ResourceCandidate(attachment, item.Message.Id, ResourceKind.Text, TokenEstimator.Estimate(ResourceMaterial.Whole(attachment, phrases)), summaryTokens, rankedChunks));
         }
 
         return result;
@@ -100,6 +102,8 @@ public sealed partial class ResourceContext(IResourceStore store, ResourceServic
         ArgumentNullException.ThrowIfNull(attachment);
         ArgumentNullException.ThrowIfNull(request);
         var text = attachment.Text ?? throw new ArgumentException("Only a text attachment has a summary.", nameof(attachment));
+        var phrases = ModelPhrases.Current;
+        var name = attachment.NameIn(phrases);
         var instructions = PromptLibrary.Get("attachment-digest");
         var budget = ContextBudget.For(model);
         var room = Math.Max(2_000, budget.Available - TokenEstimator.Estimate(instructions) - 200);
@@ -107,7 +111,7 @@ public sealed partial class ResourceContext(IResourceStore store, ResourceServic
         string summary;
         if (TokenEstimator.Estimate(text) <= room)
         {
-            var material = T($"Material \"{attachment.DisplayName}\":\n\n{text}", $"材料《{attachment.DisplayName}》：\n\n{text}");
+            var material = T($"Material \"{name}\":\n\n{text}", $"材料《{name}》：\n\n{text}");
             summary = await OneAsync(model, instructions, material, attachment, request, stop).ConfigureAwait(false);
         }
         else
@@ -117,8 +121,8 @@ public sealed partial class ResourceContext(IResourceStore store, ResourceServic
             for (var i = 0; i < segments.Count; i++)
             {
                 var material = T(
-                    $"Material \"{attachment.DisplayName}\", part {i + 1}/{segments.Count}:\n\n{segments[i]}",
-                    $"材料《{attachment.DisplayName}》的第 {i + 1}/{segments.Count} 段：\n\n{segments[i]}");
+                    $"Material \"{name}\", part {i + 1}/{segments.Count}:\n\n{segments[i]}",
+                    $"材料《{name}》的第 {i + 1}/{segments.Count} 段：\n\n{segments[i]}");
                 parts.Add(await OneAsync(model, instructions, material, attachment, request, stop).ConfigureAwait(false));
             }
 
@@ -139,7 +143,7 @@ public sealed partial class ResourceContext(IResourceStore store, ResourceServic
                 CancellationToken.None)
             .ConfigureAwait(false);
         LogSummarized(logger, attachment.Resource, tokens);
-        return TokenEstimator.Estimate(ResourceMaterial.Summary(attachment, summary));
+        return TokenEstimator.Estimate(ResourceMaterial.Summary(attachment, summary, phrases));
     }
 
     /// <summary>The material each planned message carries, by message: sections in plan order, then its images.</summary>
@@ -152,6 +156,7 @@ public sealed partial class ResourceContext(IResourceStore store, ResourceServic
             return result;
         }
 
+        var phrases = ModelPhrases.Current;
         var ids = plan.Resources.Select(r => r.Resource).Distinct().ToList();
         var summaries = await store.GetDerivativesAsync(ids, DerivativeKind.Summary, SummaryPromptVersion, cancellationToken).ConfigureAwait(false);
         var chunks = await store.GetChunksAsync([.. plan.Resources.Where(r => r.Form == ResourceForm.Parts).Select(r => r.Resource)], cancellationToken).ConfigureAwait(false);
@@ -165,38 +170,38 @@ public sealed partial class ResourceContext(IResourceStore store, ResourceServic
                 switch (placement.Form)
                 {
                     case ResourceForm.Whole:
-                        sections.Add(ResourceMaterial.Whole(a));
+                        sections.Add(ResourceMaterial.Whole(a, phrases));
                         break;
                     case ResourceForm.Summary:
-                        sections.Add(ResourceMaterial.Summary(a, SummaryOf(summaries, a)));
+                        sections.Add(ResourceMaterial.Summary(a, SummaryOf(summaries, a, phrases), phrases));
                         break;
                     case ResourceForm.Parts:
                         var all = chunks.TryGetValue(a.Resource, out var c) ? c : [];
                         var chosen = all.Where(x => placement.Chunks.Contains(x.Ordinal)).Select(x => (x.Ordinal, a.Text![x.Start..x.End])).ToList();
-                        sections.Add(ResourceMaterial.Parts(a, SummaryOf(summaries, a), chosen, placement.ChunkCount));
+                        sections.Add(ResourceMaterial.Parts(a, SummaryOf(summaries, a, phrases), chosen, placement.ChunkCount, phrases));
                         break;
                     case ResourceForm.Image:
                         var stored = await store.GetAsync(a.Resource, cancellationToken).ConfigureAwait(false);
                         var image = stored is null ? null : await resources.ImageForSendingAsync(stored.Resource, cancellationToken).ConfigureAwait(false);
                         if (image is null)
                         {
-                            sections.Add(PlaceholderOf(a, ResourceKind.ImageMissing));
+                            sections.Add(PlaceholderOf(a, ResourceKind.ImageMissing, phrases));
                         }
                         else
                         {
-                            sections.Add(ResourceMaterial.ImageLabel(a));
+                            sections.Add(ResourceMaterial.ImageLabel(a, phrases));
                             images.Add(new ChatImage(image.MediaType, image.Bytes));
                         }
 
                         break;
                     case ResourceForm.ImageOmitted:
-                        sections.Add(ResourceMaterial.ImageOmitted(a));
+                        sections.Add(ResourceMaterial.ImageOmitted(a, phrases));
                         break;
                     case ResourceForm.ImageUnsupported:
-                        sections.Add(ResourceMaterial.ImageUnsupported(a));
+                        sections.Add(ResourceMaterial.ImageUnsupported(a, phrases));
                         break;
                     default:
-                        sections.Add(PlaceholderOf(a, ResourceKind.ImageMissing));
+                        sections.Add(PlaceholderOf(a, ResourceKind.ImageMissing, phrases));
                         break;
                 }
             }
@@ -207,11 +212,15 @@ public sealed partial class ResourceContext(IResourceStore store, ResourceServic
         return result;
     }
 
-    /// <summary>The record of how each attachment went out, for the task.</summary>
+    /// <summary>
+    /// The record of how each attachment went out, for the task. It is stored, so a paste's name is written in the interface
+    /// language of the moment (docs/design/bilingual-ui.md §5).
+    /// </summary>
     public static IReadOnlyList<ResourceInput> InputsOf(ContextPlan plan)
     {
         ArgumentNullException.ThrowIfNull(plan);
-        return [.. plan.Resources.Select(r => new ResourceInput(r.Resource, r.Attachment.DisplayName, r.Form, r.Chunks, r.ChunkCount))];
+        var phrases = ModelPhrases.Current;
+        return [.. plan.Resources.Select(r => new ResourceInput(r.Resource, r.Attachment.NameIn(phrases), r.Form, r.Chunks, r.ChunkCount))];
     }
 
     internal Task RecordAsync(GenerationTaskId task, ContextPlan plan) => RecordQuietlyAsync(task, InputsOf(plan));
@@ -230,14 +239,14 @@ public sealed partial class ResourceContext(IResourceStore store, ResourceServic
         }
     }
 
-    private static string PlaceholderOf(AttachmentBlock attachment, ResourceKind kind) => kind == ResourceKind.ImageUnsupported
-        ? ResourceMaterial.ImageUnsupported(attachment)
-        : $"[图片：{attachment.DisplayName}，原件缺失]";
+    private static string PlaceholderOf(AttachmentBlock attachment, ResourceKind kind, IModelPhrases phrases) => kind == ResourceKind.ImageUnsupported
+        ? ResourceMaterial.ImageUnsupported(attachment, phrases)
+        : T($"[Image: {attachment.NameIn(phrases)}; the original is missing]", $"[图片：{attachment.NameIn(phrases)}，原件缺失]");
 
-    private static string SummaryOf(IReadOnlyDictionary<ResourceId, StoredDerivative> summaries, AttachmentBlock attachment) =>
+    private static string SummaryOf(IReadOnlyDictionary<ResourceId, StoredDerivative> summaries, AttachmentBlock attachment, IModelPhrases phrases) =>
         summaries.TryGetValue(attachment.Resource, out var s)
             ? s.Derivative.Text
-            : throw new ContextCompressionException($"附件《{attachment.DisplayName}》的摘要不在了，请重试。");
+            : throw new ContextCompressionException($"附件《{attachment.NameIn(phrases)}》的摘要不在了，请重试。");
 
     /// <summary>Consecutive runs of the text's chunks, each within <paramref name="room"/> estimated tokens.</summary>
     private static List<string> Segments(string text, int room)
@@ -274,11 +283,11 @@ public sealed partial class ResourceContext(IResourceStore store, ResourceServic
         }
         catch (ChatClientException ex)
         {
-            throw new ContextCompressionException($"为附件《{attachment.DisplayName}》生成摘要时请求失败：{ex.Message}", ex);
+            throw new ContextCompressionException($"为附件《{attachment.NameIn(ModelPhrases.Current)}》生成摘要时请求失败：{ex.Message}", ex);
         }
 
         stop.ThrowIfCancellationRequested();
-        return result.Text ?? throw new ContextCompressionException($"为附件《{attachment.DisplayName}》生成摘要时服务没有返回完整内容（{result.Problem}）。");
+        return result.Text ?? throw new ContextCompressionException($"为附件《{attachment.NameIn(ModelPhrases.Current)}》生成摘要时服务没有返回完整内容（{result.Problem}）。");
     }
 
     [LoggerMessage(Level = LogLevel.Information, Message = "Summarized resource {Resource} ({Tokens} estimated tokens)")]

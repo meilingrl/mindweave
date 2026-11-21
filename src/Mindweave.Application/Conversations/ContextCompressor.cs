@@ -2,6 +2,7 @@ using System.Text;
 using Microsoft.Extensions.Logging;
 using Mindweave.Application.Ai;
 using Mindweave.Application.Diagnostics;
+using Mindweave.Application.Languages;
 using Mindweave.Application.Prompts;
 using Mindweave.Application.Storage;
 using Mindweave.Core.Branches;
@@ -94,10 +95,11 @@ public sealed partial class ContextCompressor(IContextSummaryStore summaries, IC
             used[chunk.Key] = summary;
         }
 
+        var phrases = ModelPhrases.Current;
         var turns = plan.Parts.Select(part => part switch
         {
             RawPart raw => Turn(raw.Item, materials),
-            SummaryPart s => new ChatTurn(ChatRole.System, WithMaterials(ContextPlanner.SummaryMessage(s.Chunk.Key, used[s.Chunk.Key].Text), s.Chunk.Items, materials)),
+            SummaryPart s => new ChatTurn(ChatRole.System, WithMaterials(ContextPlanner.SummaryMessage(s.Chunk.Key, used[s.Chunk.Key].Text, phrases), s.Chunk.Items, materials)),
             _ => throw new InvalidOperationException("Unknown context part."),
         }).ToArray();
 
@@ -116,7 +118,7 @@ public sealed partial class ContextCompressor(IContextSummaryStore summaries, IC
     internal async Task<Func<SummaryKey, int?>> KnownSummaryTokensAsync(IReadOnlyList<ConversationId> conversations)
     {
         var stored = await summaries.ListAsync(conversations, CancellationToken.None).ConfigureAwait(false);
-        var known = stored.ToDictionary(s => s.Key, s => ContextPlanner.SummaryTokens(s.Key, s.Text));
+        var known = stored.ToDictionary(s => s.Key, s => ContextPlanner.SummaryTokens(s.Key, s.Text, ModelPhrases.Current));
         return key => known.TryGetValue(key, out var tokens) ? tokens : null;
     }
 

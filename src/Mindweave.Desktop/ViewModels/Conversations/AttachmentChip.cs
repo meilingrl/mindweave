@@ -81,7 +81,7 @@ public sealed partial class AttachmentChip : ViewModelBase
     {
         ArgumentNullException.ThrowIfNull(block);
         var paste = block.Name is null && !MediaTypes.IsImage(block.MediaType);
-        return new AttachmentChip(block.DisplayName, UiText.AttachmentType(block.MediaType, paste), MediaTypes.IsImage(block.MediaType), paste, null, open)
+        return new AttachmentChip(string.IsNullOrWhiteSpace(block.Name) ? UiText.PastedTextName : block.Name, UiText.AttachmentType(block.MediaType, paste), MediaTypes.IsImage(block.MediaType), paste, null, open)
         {
             Block = block,
             Resource = block.Resource,

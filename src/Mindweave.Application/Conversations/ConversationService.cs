@@ -1,5 +1,6 @@
 using Microsoft.Extensions.Logging;
 using Mindweave.Application.Ai;
+using Mindweave.Application.Languages;
 using Mindweave.Application.Models;
 using Mindweave.Application.Storage;
 using Mindweave.Core.Branches;
@@ -245,7 +246,7 @@ public sealed partial class ConversationService : IConversations
 
         // Shown in billed tokens: the estimate through what this model was seen to bill.
         var (planned, inputs, _) = await PlanAsync(id, own.Messages, budget, model, cancellationToken).ConfigureAwait(false);
-        var full = TokenEstimator.PerRequest + BranchContext.Assemble(ancestors, own).Sum(i => TokenEstimator.Message(i.Text)) + inputs.Resources.Sum(r => r.WholeTokens);
+        var full = TokenEstimator.PerRequest + BranchContext.Assemble(ancestors, own, ModelPhrases.Current).Sum(i => TokenEstimator.Message(i.Text)) + inputs.Resources.Sum(r => r.WholeTokens);
         return planned.Plan is { } plan
             ? new ContextUsage(budget.Predict(plan.EstimatedTokens), budget.Predict(full), budget.AvailableTokens, plan.IsCompressed || plan.IsResourceReduced, false)
             : new ContextUsage(budget.Predict(full), budget.Predict(full), budget.AvailableTokens, true, true);
@@ -699,7 +700,8 @@ public sealed partial class ConversationService : IConversations
         var stored = _summaries is null
             ? []
             : await _summaries.ListAsync([.. ancestors.Select(a => a.Conversation), id], cancellationToken).ConfigureAwait(false);
-        var known = stored.ToDictionary(s => s.Key, s => ContextPlanner.SummaryTokens(s.Key, s.Text));
+        var phrases = ModelPhrases.Current;
+        var known = stored.ToDictionary(s => s.Key, s => ContextPlanner.SummaryTokens(s.Key, s.Text, phrases));
         var segment = new ContextSegment(id, source?.Quote, own);
 
         // The attachments of every message in the chain, planned as their own layer (architecture §15.4); their chunks are
@@ -707,8 +709,8 @@ public sealed partial class ConversationService : IConversations
         var question = own.LastOrDefault(m => m.Role == MessageRole.User) is { } last ? ContentBlocks.TypedTextOf(last.Blocks) : string.Empty;
         var candidates = _resources is null
             ? []
-            : await _resources.CandidatesAsync(BranchContext.Assemble(ancestors, segment), question, model, cancellationToken).ConfigureAwait(false);
-        var outcome = ContextPlanner.Plan(ancestors, segment, budget.Available, key => known.TryGetValue(key, out var tokens) ? tokens : null, candidates);
+            : await _resources.CandidatesAsync(BranchContext.Assemble(ancestors, segment, phrases), question, model, cancellationToken).ConfigureAwait(false);
+        var outcome = ContextPlanner.Plan(ancestors, segment, budget.Available, key => known.TryGetValue(key, out var tokens) ? tokens : null, candidates, phrases);
         return (outcome, new ContextInputs(ancestors, segment, candidates), known);
     }
 
@@ -728,7 +730,7 @@ public sealed partial class ConversationService : IConversations
         }
 
         var room = budget.LeavingRoom(RunRoomPercent);
-        return ContextPlanner.Plan(inputs.Ancestors, inputs.Own, room.Available, key => known.TryGetValue(key, out var tokens) ? tokens : null, inputs.Resources).Plan is { } reserved
+        return ContextPlanner.Plan(inputs.Ancestors, inputs.Own, room.Available, key => known.TryGetValue(key, out var tokens) ? tokens : null, inputs.Resources, ModelPhrases.Current).Plan is { } reserved
             ? (reserved, room)
             : (plan, budget);
     }

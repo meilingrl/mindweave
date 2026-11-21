@@ -2,6 +2,7 @@ using Microsoft.Extensions.Logging;
 using Mindweave.Application.Ai;
 using Mindweave.Application.Credentials;
 using Mindweave.Application.Diagnostics;
+using Mindweave.Application.Languages;
 using Mindweave.Application.Storage;
 using Mindweave.Core.Context;
 using Mindweave.Core.Conversations;
@@ -104,7 +105,7 @@ public sealed partial class GenerationRequests
                     }
 
                     var known = await compressor.KnownSummaryTokensAsync([.. inputs.Ancestors.Select(a => a.Conversation), inputs.Own.Conversation]).ConfigureAwait(false);
-                    plan = ContextPlanner.Plan(inputs.Ancestors, inputs.Own, budget.Available, known, candidates).Plan
+                    plan = ContextPlanner.Plan(inputs.Ancestors, inputs.Own, budget.Available, known, candidates, ModelPhrases.Current).Plan
                         ?? throw new ContextCompressionException("附件的摘要比预计的长，问题和附件放不进模型的可用容量。");
                 }
             }

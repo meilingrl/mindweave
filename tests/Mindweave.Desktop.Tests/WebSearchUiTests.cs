@@ -177,7 +177,7 @@ public class WebSearchUiTests
 
         Assert.Equal([2, 3], answer.Citations.Select(c => c.Block.Number));
         var local = answer.Citations[1];
-        Assert.Equal(("[3]", $"附件《{ContentBlocks.PastedTextName}》", "本会话的附件", "本会话的附件", false), (local.Number, local.Title, local.Address, local.Meta, local.HasAddress));
+        Assert.Equal(("[3]", $"附件《{UiText.PastedTextName}》", "本会话的附件", "本会话的附件", false), (local.Number, local.Title, local.Address, local.Meta, local.HasAddress));
         Assert.True(answer.Citations[0].HasAddress);
         window.UpdateLayout();
         Screenshots.Capture(window, $"loop-l11-citations-{theme.ToLowerInvariant()}");
@@ -185,7 +185,7 @@ public class WebSearchUiTests
         Assert.True(answer.OpenCitation(3));
         var viewer = page.AttachmentViewer;
         await UiWait.UntilAsync(() => viewer.IsOpen && viewer.Highlight is not null);
-        Assert.Equal(($"附件《{ContentBlocks.PastedTextName}》", "出处 [3]", null), (viewer.Title, viewer.Info, viewer.SourceAddress));
+        Assert.Equal(($"附件《{UiText.PastedTextName}》", "出处 [3]", null), (viewer.Title, viewer.Info, viewer.SourceAddress));
         Assert.Contains("瓦特改良了蒸汽机", viewer.Text![viewer.Highlight!.Value.Start..viewer.Highlight.Value.End], StringComparison.Ordinal);
         window.UpdateLayout();
         Screenshots.Capture(window, $"loop-l11-viewer-{theme.ToLowerInvariant()}");

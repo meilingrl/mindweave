@@ -1,3 +1,4 @@
+using Mindweave.Core.Context;
 using Mindweave.Core.Conversations;
 
 namespace Mindweave.Core.Branches;
@@ -20,29 +21,32 @@ public static class BranchContext
     /// partial failed or interrupted answer, because the branch is about it. The first question of every branch
     /// segment is prefixed with its quote, so the model knows which passage the follow-up refers to.
     /// </summary>
-    public static IReadOnlyList<ContextItem> Assemble(IReadOnlyList<ContextSegment> ancestors, ContextSegment own)
+    /// <param name="phrases">The model-facing phrases of the language the request is built in.</param>
+    public static IReadOnlyList<ContextItem> Assemble(IReadOnlyList<ContextSegment> ancestors, ContextSegment own, IModelPhrases phrases)
     {
         ArgumentNullException.ThrowIfNull(ancestors);
         ArgumentNullException.ThrowIfNull(own);
+        ArgumentNullException.ThrowIfNull(phrases);
         var items = new List<ContextItem>();
         foreach (var ancestor in ancestors)
         {
-            AddSegment(items, ancestor, keepSource: true);
+            AddSegment(items, ancestor, keepSource: true, phrases);
         }
 
-        AddSegment(items, own, keepSource: false);
+        AddSegment(items, own, keepSource: false, phrases);
         return items;
     }
 
     /// <summary>The text sent for a branch's first question: the quoted passage, then the question.</summary>
-    public static string QuotedQuestion(string quote, string question)
+    public static string QuotedQuestion(string quote, string question, IModelPhrases phrases)
     {
         ArgumentNullException.ThrowIfNull(quote);
+        ArgumentNullException.ThrowIfNull(phrases);
         var quoted = string.Join('\n', quote.Split('\n').Select(line => "> " + line.TrimEnd('\r')));
-        return $"关于上文中的这段内容：\n{quoted}\n\n{question}";
+        return phrases.QuotedQuestion(quoted, question);
     }
 
-    private static void AddSegment(List<ContextItem> items, ContextSegment segment, bool keepSource)
+    private static void AddSegment(List<ContextItem> items, ContextSegment segment, bool keepSource, IModelPhrases phrases)
     {
         var selected = ConversationRules.SelectContext(segment.Messages).ToList();
         if (keepSource && segment.Messages.Count > 0 && segment.Messages[^1] is { Role: MessageRole.Assistant } source
@@ -54,7 +58,7 @@ public static class BranchContext
         var firstQuestion = segment.Quote is null ? null : selected.FirstOrDefault(m => m.Role == MessageRole.User);
         foreach (var message in selected)
         {
-            items.Add(new ContextItem(message, message == firstQuestion ? QuotedQuestion(segment.Quote!, message.Text) : ContentBlocks.ContextTextOf(message.Blocks)));
+            items.Add(new ContextItem(message, message == firstQuestion ? QuotedQuestion(segment.Quote!, ContentBlocks.TextOf(message.Blocks, phrases), phrases) : ContentBlocks.ContextTextOf(message.Blocks, phrases)));
         }
     }
 }

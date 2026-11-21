@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using Mindweave.Application.Languages;
 using Mindweave.Core.Branches;
 using Mindweave.Infrastructure.Tests.Chat;
 
@@ -49,7 +50,7 @@ public class StoragePerformanceTests
         {
             var ancestors = await h.Branches.GetAncestorContextAsync(deepest, Ct);
             var own = await h.Store.GetMessagesAsync(deepest, Ct);
-            Assert.Equal(expectedContext + own.Count, BranchContext.Assemble(ancestors, new ContextSegment(deepest, "蒸汽机", own)).Count);
+            Assert.Equal(expectedContext + own.Count, BranchContext.Assemble(ancestors, new ContextSegment(deepest, "蒸汽机", own), ModelPhrases.Current).Count);
         });
 
         TestContext.Current.TestOutputHelper?.WriteLine(
