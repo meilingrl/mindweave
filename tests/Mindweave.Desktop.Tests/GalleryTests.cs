@@ -690,6 +690,18 @@ public class GalleryTests
         scroller.Offset = new Avalonia.Vector(0, Math.Max(0, scroller.Offset.Y + section.TranslatePoint(default, scroller)!.Value.Y - 360));
         await SettleAsync(window);
         Capture(window, "g26a-settings-model-capabilities");
+
+        // 输出上限 below the capabilities, then its "i" hovered.
+        var limit = Find<TextBox>(window, "OutputLimit");
+        settings.Model.OutputLimit = "8192";
+        scroller.Offset = new Avalonia.Vector(0, Math.Max(0, scroller.Offset.Y + limit.TranslatePoint(default, scroller)!.Value.Y - 360));
+        await SettleAsync(window);
+        Capture(window, "g26b-settings-output-limit");
+        var info = Find<Border>(window, "OutputLimitInfo");
+        ToolTip.SetIsOpen(info, true);
+        await SettleAsync(window);
+        Capture(window, "g26c-settings-output-limit-tip");
+        ToolTip.SetIsOpen(info, false);
         window.Close();
     }
 

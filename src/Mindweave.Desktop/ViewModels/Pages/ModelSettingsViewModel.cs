@@ -51,7 +51,7 @@ public sealed partial class ModelSettingsViewModel : ViewModelBase
     /// </summary>
     public void ReloadIfUnchanged()
     {
-        if (IsBusy || ApiKey.Length > 0 || (Name, BaseUrl, Model, ContextWindow, DeclaresToolCalls, DeclaresImageInput) != _shownValues)
+        if (IsBusy || ApiKey.Length > 0 || (Name, BaseUrl, Model, ContextWindow, OutputLimit, DeclaresToolCalls, DeclaresImageInput) != _shownValues)
         {
             return;
         }
@@ -60,7 +60,8 @@ public sealed partial class ModelSettingsViewModel : ViewModelBase
     }
 
     /// <summary>The values the form was filled with by the last read; changed fields mean the reader is editing.</summary>
-    private (string Name, string BaseUrl, string Model, string ContextWindow, bool ToolCalls, bool ImageInput) _shownValues = (string.Empty, string.Empty, string.Empty, string.Empty, false, false);
+    private (string Name, string BaseUrl, string Model, string ContextWindow, string OutputLimit, bool ToolCalls, bool ImageInput) _shownValues =
+        (string.Empty, string.Empty, string.Empty, string.Empty, string.Empty, false, false);
 
     [ObservableProperty]
     public partial string Name { get; set; } = string.Empty;
@@ -88,6 +89,10 @@ public sealed partial class ModelSettingsViewModel : ViewModelBase
     /// <summary>Declared context capacity in tokens; empty means unknown and the default applies.</summary>
     [ObservableProperty]
     public partial string ContextWindow { get; set; } = string.Empty;
+
+    /// <summary>The answer output limit in tokens (高级设置); empty sends none and the service decides.</summary>
+    [ObservableProperty]
+    public partial string OutputLimit { get; set; } = string.Empty;
 
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(KeyPlaceholder), nameof(SavedKeyApplies))]
@@ -144,7 +149,14 @@ public sealed partial class ModelSettingsViewModel : ViewModelBase
         var declared = _capabilities
             .With(ModelCapability.ToolCalls, DeclaresToolCalls)
             .With(ModelCapability.ImageInput, DeclaresImageInput);
-        await _settings.SaveAsync(new ModelSettingsInput(Name, BaseUrl, Model, ApiKey, ParseContextWindow(ContextWindow), declared), CancellationToken.None);
+        await _settings.SaveAsync(new ModelSettingsInput(
+                Name,
+                BaseUrl,
+                Model,
+                ApiKey,
+                ParseTokens(ContextWindow, ModelSettingsProblem.InvalidContextWindow),
+                declared,
+                ParseTokens(OutputLimit, ModelSettingsProblem.InvalidOutputLimit)), CancellationToken.None);
         ApiKey = string.Empty;
         await LoadAsync();
         Report(UiText.SettingsSaved, isError: false);
@@ -332,7 +344,8 @@ public sealed partial class ModelSettingsViewModel : ViewModelBase
         _loading = false;
         FillCapabilities();
         ContextWindow = saved.Capabilities.ContextWindowTokens?.ToString(System.Globalization.CultureInfo.InvariantCulture) ?? string.Empty;
-        _shownValues = (Name, BaseUrl, Model, ContextWindow, DeclaresToolCalls, DeclaresImageInput);
+        OutputLimit = saved.MaxOutputTokens?.ToString(System.Globalization.CultureInfo.InvariantCulture) ?? string.Empty;
+        _shownValues = (Name, BaseUrl, Model, ContextWindow, OutputLimit, DeclaresToolCalls, DeclaresImageInput);
         HasSavedKey = await _settings.SavedKeyExistsAsync(CancellationToken.None);
         if (!HasSavedKey)
         {
@@ -344,7 +357,7 @@ public sealed partial class ModelSettingsViewModel : ViewModelBase
         OnPropertyChanged(nameof(KeyPlaceholder));
     }
 
-    private static int? ParseContextWindow(string text)
+    private static int? ParseTokens(string text, ModelSettingsProblem invalid)
     {
         var digits = text.Replace(",", string.Empty, StringComparison.Ordinal).Replace("_", string.Empty, StringComparison.Ordinal).Trim();
         if (digits.Length == 0)
@@ -354,7 +367,7 @@ public sealed partial class ModelSettingsViewModel : ViewModelBase
 
         return int.TryParse(digits, System.Globalization.NumberStyles.None, System.Globalization.CultureInfo.InvariantCulture, out var tokens)
             ? tokens
-            : throw new ModelSettingsException(ModelSettingsProblem.InvalidContextWindow);
+            : throw new ModelSettingsException(invalid);
     }
 
     private async Task RunAsync(Func<Task> action)

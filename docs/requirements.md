@@ -1,7 +1,7 @@
 # Mindweave product requirements
 
 **Document status:** The current consolidated version of the confirmed requirements. It adopts independent review R4 of 2026-10-24 and the user's answers. Formal development has not started yet, and this does not mean the product's value has been verified  
-**Version:** v0.22  
+**Version:** v0.23  
 **Created:** 2026-09-08  
 **Updated:** 2026-11-21  
 **Project name:** Mindweave
@@ -285,6 +285,8 @@ In the first release, the app manages "key original text + recent complete quest
 The raw chat is saved completely in the database. A context summary records the range it covers and is used by the model to continue the chat. It is not a knowledge summary for the user, does not enter the summary network, and produces no candidates or read state. Context summaries that are still valid are reused; they can be made section by section and rebuilt from the original text, which avoids endless summaries of summaries.
 
 Capacity is estimated per model, with room reserved for output and a safety margin. A successful compression gives a light notice. When compression fails but the original text still fits, the original text is used; otherwise the question is kept and a retry is offered, with no silent truncation. When the question and the required original text by themselves exceed the limit, the user is told to narrow the selection or adjust the model. Compression may add call cost and waiting, and the configuration notes should say so; the provider is not switched behind the user's back.
+
+The answer output limit is optional and set by the user in 设置 › 模型连接 › 高级设置 › “输出上限” (Settings › Model connection › Advanced settings › Output limit). Left empty, no limit is sent, the service's own default applies, and the budget reserves 4,096 tokens for the answer. When set, it is sent with every answer request and the budget reserves the same room; it must be at least 256 tokens and at most half the context capacity. Internal requests (context summaries, knowledge summaries, names, recommendations) keep their own limits. The setting says in one line what it does and when to change it (raise it when answers are often cut off; lower it for shorter answers or lower cost), and an info icon beside it explains the details on hover.
 
 The first release does not rely on providers' native compression, and does not introduce vector search or a complex memory system. Later, native capabilities may be used in adapters for specific protocols.
 
@@ -771,3 +773,4 @@ The per-module inputs, required outputs and order of work for detailed design fr
 - **v0.20 · 2026-11-20:** Citations in §10.4.5 extended to local results (run loop improvement L11, see [agent-loop.md](design/agent-loop.md); the user agreed to the merge on 2026-11-20): the results of “检索附件” (search attachments) and “检索总结网络” (search summary network) share numbering with web results, and the citation list and the viewer page show them by the kind of result. Does not change the first-release scope and acceptance.
 - **v0.21 · 2026-11-20:** Following the user's decision of 2026-11-20 (plan step 1): while an answer is in progress, reasoning is shown live in a “思考过程” (thinking process) section that is collapsed by default; it disappears when the answer ends and is still never saved (this replaces "reasoning is not shown" from 2026-11-06 and the "not shown" part of runs and tools R10). The status line at the end of the answer gives, for each stage of a run, a one-sentence description and one weaving animation; the activity text above the body records only the steps already done. Changed §10.4.4. Does not change the first-release scope and acceptance; no migration.
 - **v0.22 · 2026-11-21:** Following the user's decision of 2026-11-21, removed "AI execution reports and decisions" from the §5.4 non-goals: it came from exploration before the project began and does not describe this product. No other change.
+- **v0.23 · 2026-11-21:** Following the user's decision of 2026-11-21, §9.6 adds the answer output limit as an optional advanced setting, with a short note and a hover explanation. Reasoning written inline in the answer as `<think>…</think>` stays in the answer and does not move into “思考过程” (thinking process) (no change to §10.4.4). Does not change the first-release scope and acceptance; no migration.

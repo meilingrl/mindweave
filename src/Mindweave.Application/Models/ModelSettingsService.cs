@@ -14,6 +14,9 @@ public enum ModelSettingsProblem
     MissingKey,
     InvalidContextWindow,
 
+    /// <summary>An answer output limit below <see cref="ModelSettingsInput.MinOutputLimit"/> or above half the context capacity.</summary>
+    InvalidOutputLimit,
+
     /// <summary>A user name or password in the address (low finding security-5): it would be stored and sent in plain text.</summary>
     CredentialsInUrl,
 }
@@ -24,10 +27,30 @@ public enum ModelSettingsProblem
 /// ignored in favour of <paramref name="ContextWindowTokens"/>. Null keeps what is saved for the same model and starts a
 /// different model from the protocol defaults.
 /// </param>
-public sealed record ModelSettingsInput(string Name, string BaseUrl, string Model, string? NewApiKey, int? ContextWindowTokens = null, ModelCapabilities? Capabilities = null)
+/// <param name="MaxOutputTokens">
+/// The answer output limit as the user set it (高级设置 › 输出上限, 2026-11-21); null sends none and the service's default
+/// applies. Internal requests (summaries, compression, names) keep their own limits.
+/// </param>
+public sealed record ModelSettingsInput(
+    string Name,
+    string BaseUrl,
+    string Model,
+    string? NewApiKey,
+    int? ContextWindowTokens = null,
+    ModelCapabilities? Capabilities = null,
+    int? MaxOutputTokens = null)
 {
     public const int MinContextWindow = 2_000;
     public const int MaxContextWindow = 10_000_000;
+
+    /// <summary>Below this an answer is cut off almost at once, and a reasoning model may never reach its answer.</summary>
+    public const int MinOutputLimit = 256;
+
+    /// <summary>
+    /// The largest output limit for this input: half the context capacity (declared, or the default), so the reserve
+    /// never leaves the question less room than the answer.
+    /// </summary>
+    public int MaxOutputLimit => (ContextWindowTokens ?? Mindweave.Core.Context.ContextBudget.DefaultCapacity) / 2;
 }
 
 public sealed class ModelSettingsException(ModelSettingsProblem problem) : Exception(problem.ToString())
@@ -110,6 +133,11 @@ public sealed partial class ModelSettingsService(
             throw new ModelSettingsException(ModelSettingsProblem.InvalidContextWindow);
         }
 
+        if (input.MaxOutputTokens is { } limit && (limit < ModelSettingsInput.MinOutputLimit || limit > input.MaxOutputLimit))
+        {
+            throw new ModelSettingsException(ModelSettingsProblem.InvalidOutputLimit);
+        }
+
         var existing = await store.GetActiveAsync(cancellationToken).ConfigureAwait(false);
         var connectionId = existing?.ConnectionId ?? Guid.CreateVersion7().ToString("D");
         // A saved key belongs to the service it was saved for: another host needs its own key.
@@ -143,7 +171,7 @@ public sealed partial class ModelSettingsService(
                     credentialRef,
                     existing?.ModelConfigId ?? Guid.CreateVersion7().ToString("D"),
                     model,
-                    existing?.MaxOutputTokens,
+                    input.MaxOutputTokens,
                     // What the form declares wins. Otherwise declared capabilities belong to a model, and a different model
                     // starts from the protocol defaults. The context capacity is what the form says now.
                     (input.Capabilities
