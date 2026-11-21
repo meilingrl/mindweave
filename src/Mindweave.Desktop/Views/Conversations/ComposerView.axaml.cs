@@ -4,6 +4,7 @@ using Avalonia.Input.Platform;
 using Avalonia.Interactivity;
 using Avalonia.Media.Imaging;
 using Avalonia.Platform.Storage;
+using Mindweave.Desktop.Services;
 using Mindweave.Desktop.ViewModels.Conversations;
 
 namespace Mindweave.Desktop.Views.Conversations;
@@ -140,9 +141,10 @@ public sealed partial class ComposerView : UserControl
             Input.CaretIndex = start + text.Length;
         }
 #pragma warning disable CA1031 // A clipboard that cannot be read pastes nothing; the input stays as it was.
-        catch (Exception)
+        catch (Exception ex)
 #pragma warning restore CA1031
         {
+            DesktopLog.Swallowed(ex);
         }
     }
 
