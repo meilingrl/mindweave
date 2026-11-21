@@ -1,6 +1,6 @@
 # Session network and timeline (design)
 
-Status: approved by the owner 2026-11-20 (with the decisions in §12). Written from the owner's brainstorming of 2026-11-19 and 11-20 and a throwaway preview (branch `task/session-network-spike`, commit `bd793e3`). Nothing here changes the requirements or the architecture by itself: §11 lists the text that must change, and that goes to the owner as its own proposal (AGENTS.md, "Changing requirements or architecture").
+Status: approved by the owner 2026-11-20 (with the decisions in §12). Rounds 1 and 2 merged into `main` on 2026-11-22 behind the switch `MINDWEAVE_SESSION_NETWORK=1`; the record, the spatial view as built and the next direction are in §15. Written from the owner's brainstorming of 2026-11-19 and 11-20 and a throwaway preview (branch `task/session-network-spike`, commit `bd793e3`). Nothing here changes the requirements or the architecture by itself: §11 lists the text that must change, and that goes to the owner as its own proposal (AGENTS.md, "Changing requirements or architecture").
 
 Related: [evolution D8](../evolution.md) (sharing the thinking path), [S5 summary network](s5-network.md) (today's network), [requirements](../requirements.md) §4.2, §7, §10.3; [architecture](../architecture.md) §11.
 
@@ -118,6 +118,8 @@ Positions are computed on every load from the data alone. There is no layout tab
 ## 6. Spatial view
 
 ### 6.1 Approach: hierarchical, weight-aware circle packing with internal tension
+
+As built in round 2, see §15.2. The owner judged the resulting arrangement unsatisfying (2026-11-22); the next phase replaces it with the layout in §15.4.
 
 This is the owner's proposal, made concrete. The goal: the whole graph sits in as small an enclosing circle as possible, and the circle's centre coincides as closely as possible with the network's mass-weighted centre of gravity. The same rule applies at every level, so every exploration and every sub-branch looks round, full and orderly.
 
@@ -259,3 +261,59 @@ The writer settled these without the owner; each is easy to change.
 | C. Arranged, with motion (the hierarchical packing of §6) | Deterministic packing plus internal tension and the existing hover and drag motion | Stable and round; risk in label footprints and line crossings, measured by §6.4 | **Chosen** (owner 2026-11-20, refined with the owner's packing idea) |
 
 For the timeline, a git-graph-style lane layout was the one sensible way: it is determined by the data, needs no storage and is tidy by construction.
+
+## 15. Rounds 1 and 2 (merged 2026-11-22)
+
+Built on `task/session-network` with subagent-driven development (plans: [round 1](session-network-plan-round1.md), [round 2](session-network-plan-round2.md)), behind `MINDWEAVE_SESSION_NETWORK=1`. Without the variable, every build shows today's summary network unchanged, except that mouse-wheel zoom is now on by default (the owner asked for it everywhere). No migration; with the switch on, nothing writes layout.
+
+**How to try:** `MINDWEAVE_SESSION_NETWORK=1 scripts/daily.sh trial` (a build of `main` on a copy of the daily data).
+
+**What was built:**
+
+- Every conversation is a dot (unsummarized ones too); dot size from the questions asked in it and its branches (§4.3); a ring marks a summary; the time thread links roots in start order.
+- Timeline: whole titles in label-sized columns; sub-branches never cross the main line; a faint date above each new day's first root. It opens fitted if the whole fits at zoom ≥ 0.8, otherwise at zoom 1 with the newest root's whole subtree in view.
+- Spatial view: the packing of §15.2, with a date beside each root that starts a new day. It opens fitted if the whole fits at zoom ≥ 0.8, otherwise at zoom 1 on the centre of gravity, and follows reloads until the reader pans, zooms or selects.
+- Details: the title as heading and the first question as a bounded block with “Show the whole question / Show less”.
+- All new text in English and Chinese; the page keeps its view, zoom and selection across a language switch.
+
+### 15.1 What was verified
+
+- Full test suite on macOS before the merge (counts in STATUS.md of the merge commit).
+- Trial screenshots of the owner's four workspaces on a `.backup` copy of the daily data (2026-11-22), both views, both languages, dark theme: 0 overlapping footprints, 0 branch crossings, 0 branch lines through dots; enclosing/ideal 1.26–1.48.
+- Reviews: a review per task, five review rounds on the packing, and a final review of the whole branch.
+- The owner tried the trial build (62083bf) on macOS on 2026-11-22: "isn't perfect, but it can pass"; not satisfied with how the spatial view arranges nodes (§15.4).
+
+### 15.2 The spatial view as built
+
+`SpatialPacking` (pure, deterministic): every dot's footprint is a circle around its dot and title; sub-branches are packed bottom-up as round clusters, children clockwise in creation order, each cluster turned to face its parent; root clusters are packed heaviest first nearest the centre; the centre of gravity is pulled to the circle's centre; branch lines and the time thread act as springs. A workspace with one root is also laid out in wedges (each sub-branch a share of the turn) from several starting angles, and the arrangement that does best on the §6.4 checks is kept. Work budgets and a spiral fallback keep any single tree of up to 2,000 dots within about 0.3 s. Rulings R-P1 to R-P12 shaped these steps.
+
+### 15.3 Not verified, and known issues
+
+- Not run on Windows; the performance tests last ran on a loaded machine.
+- A time-thread line can pass through a dot, and link lines can cross dates and titles (the checks count branch lines only).
+- The spatial view re-packs when a question, title or language changes, so dots can move after the reader has panned.
+- With the switch on, a conversation change reloads every visited workspace's network page; fix before the switch is lifted.
+- Workspaces with several roots have no work budget for packing.
+- The code says "session" where the glossary says conversation (`SessionNetworkGate`, `SessionWeights`); settle it with the §11 proposal.
+- §11 (requirements and architecture text) is still to be proposed to the owner; round 3 (quieter links, suggestions only across explorations) is not started.
+
+### 15.4 The owner's verdict on the spatial view, and the next direction (2026-11-22)
+
+The owner's points, as subjective impressions:
+
+1. Counting the title inside the circle works, but it is not an excellent approach.
+2. The finished layout shows hardly any regularity or sense of clusters: the area got smaller, but the meaning does not come through.
+3. Distance between branches is not considered; the minimal enclosing circle crowds everything into one lump.
+4. Lines do not repel each other like chemical bonds. They should spread to the widest angles; instead, paths that could run straight zigzag.
+
+Diagnosis: the algorithm puts smallest area first and structure second; the owner wants structure first and compactness second. The §6.4 metrics did not capture what the owner sees, and choosing arrangements by them optimized the numbers, not the look.
+
+Next direction, a molecule layout:
+
+- At every dot, its lines push apart to the widest angles (two lines run straight, three at 120°), so chains run straight.
+- Each sub-branch is a group, and groups keep a gap between them, wider between bigger branches.
+- Compactness is a gentle pull toward the centre, heaviest topics nearest it, not a hard smallest circle.
+- Titles are placed last, in each dot's widest free angle.
+- Deterministic: the same start and a fixed number of steps, computed once per load. It is not a live simulation, so it does not meet §14's objection to option B ("never holds still").
+
+It is built first as a prototype in `prototypes/`, rendered on copies of the owner's workspaces and larger synthetic ones, and judged by the owner from pictures before it replaces `SpatialPacking`. The §6.4 checks stay as guards (no overlaps, no crossings), not as the objective.
