@@ -127,7 +127,44 @@ public sealed partial class SummaryNetworkSession : ObservableObject
     /// Null until the canvas chooses the opening view (the timeline: zoom 1 on its newest end; otherwise everything fitted);
     /// kept while the workspace stays active.
     /// </summary>
-    public Viewport? Viewport { get; set; }
+    public Viewport? Viewport
+    {
+        get => _viewport;
+        set
+        {
+            _viewport = value;
+            _viewportIsOpening = false;
+        }
+    }
+
+    private Viewport? _viewport;
+    private bool _viewportIsOpening;
+
+    /// <summary>
+    /// The canvas chose the opening view. Until anything else sets <see cref="Viewport"/> (pan, zoom, show all, a jump),
+    /// a reload that moves the dots (a title arriving, a conversation changing) opens the view again from the new
+    /// positions in the session network. Selecting a dot does not set the viewport.
+    /// </summary>
+    public void SetOpeningViewport(Viewport opening)
+    {
+        _viewport = opening;
+        _viewportIsOpening = true;
+    }
+
+    /// <summary>
+    /// The dots the canvas shows changed (a reload rebuilt them): while the view is still the opening one, forget it so the
+    /// canvas opens again from the new positions. A view the reader moved is kept. Returns whether it was dropped.
+    /// </summary>
+    public bool ReopenIfStillOpening()
+    {
+        if (!_gate.Enabled || !_viewportIsOpening)
+        {
+            return false;
+        }
+
+        _viewport = null;
+        return true;
+    }
 
     /// <summary>
     /// "显示全部" asked for everything to be fitted into view: the canvas fits instead of choosing the opening view, the

@@ -1128,7 +1128,15 @@ public sealed class SummaryNetworkCanvas : Control
             : opening && Sessions
                 ? SummaryNetworkGeometry.SpatialOpening(_page.Nodes, Bounds.Size, _page.RecommendedNodes)
                 : SummaryNetworkGeometry.FitTo(_page.Nodes, Bounds.Size, _page.RecommendedNodes);
-        _page.Session.Viewport = fitted;
+        if (opening)
+        {
+            _page.Session.SetOpeningViewport(fitted);
+        }
+        else
+        {
+            _page.Session.Viewport = fitted;
+        }
+
         _page.Session.FitAllRequested = false;
         return fitted;
     }

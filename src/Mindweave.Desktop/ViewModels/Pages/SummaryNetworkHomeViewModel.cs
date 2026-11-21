@@ -1063,6 +1063,7 @@ public sealed partial class SummaryNetworkHomeViewModel : PageViewModel, IDispos
         }
 
         BuildViews();
+        Session.ReopenIfStillOpening();
         RaiseRecommendationState();
         RaiseLinkState();
         Items.Clear();

@@ -103,6 +103,41 @@ public class SessionNetworkCanvasTests
     }
 
     [AvaloniaFact]
+    public async Task The_opening_view_follows_the_dots_until_the_reader_moves_the_view()
+    {
+        await using var app = Gated();
+        var window = app.ShowWindow(1100, 720);
+        await app.StartWithWorkspaceAsync("火车");
+        await app.ConfigureModelAsync();
+        var conversations = app.Services.GetRequiredService<ConversationService>();
+        var conversation = await SummaryNetworkScenario.AskAsync(app, conversations, null, app.Workbench.CurrentWorkspace!.Id, "火车是怎么发明的？");
+        var network = await SummaryNetworkScenario.OpenSummaryNetworkAsync(app, window);
+        var canvas = CanvasOf(window);
+        _ = canvas.Current;
+
+        async Task RetitleAsync(string title)
+        {
+            var before = network.Nodes[0].LabelWidth;
+            await app.Services.GetRequiredService<ConversationService>().RenameAsync(conversation, title, CancellationToken.None);
+            await UiWait.UntilAsync(() => network.Nodes[0].LabelWidth != before);
+            window.UpdateLayout();
+        }
+
+        await RetitleAsync("一个比之前长得多的新标题用来改变标签宽度");
+        var opening = canvas.Current;
+        Assert.Equal(1, opening.Zoom);
+        Assert.Equal(network.Nodes[0].X, opening.CenterX, 6);
+        Assert.Equal(network.Nodes[0].Y, opening.CenterY, 6);
+
+        // A pan (what dragging sets) ends the following: the view stays where the reader put it.
+        var panned = new Viewport(opening.CenterX + 120, opening.CenterY - 40, 1);
+        network.Session.Viewport = panned;
+        await RetitleAsync("短");
+        Assert.Equal(panned, canvas.Current);
+        window.Close();
+    }
+
+    [AvaloniaFact]
     public async Task The_spatial_view_has_no_day_captions_and_the_timeline_keeps_them()
     {
         await using var app = Gated();
@@ -441,7 +476,7 @@ public class SessionNetworkCanvasTests
         var workspace = app.Workbench.CurrentWorkspace!.Id;
         var first = await SummaryNetworkScenario.AskAsync(app, conversations, null, workspace, "火车是怎么发明的？");
         var network = await SummaryNetworkScenario.OpenSummaryNetworkAsync(app, window);
-
+        await UiWait.UntilAsync(() => network.Nodes.Count == 1);
         network.SetViewModeCommand.Execute(SummaryNetworkViewMode.Timeline);
         window.UpdateLayout();
         var canvas = CanvasOf(window);
