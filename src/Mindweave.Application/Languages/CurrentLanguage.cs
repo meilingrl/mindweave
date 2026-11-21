@@ -6,7 +6,7 @@ namespace Mindweave.Application.Languages;
 /// </summary>
 public static class CurrentLanguage
 {
-    private static volatile UiLanguage _value = UiLanguage.Chinese;
+    private static volatile UiLanguage _value = UiLanguage.English;
 
     public static UiLanguage Value => _value;
 

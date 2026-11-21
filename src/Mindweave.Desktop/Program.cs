@@ -1,7 +1,9 @@
 using Avalonia;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
+using Mindweave.Application.Languages;
 using Mindweave.Infrastructure.Hosting;
+using Mindweave.Infrastructure.Languages;
 
 namespace Mindweave.Desktop;
 
@@ -16,6 +18,9 @@ internal static class Program
         try
         {
             paths = AppPaths.Resolve(AppPaths.ChannelOf(typeof(Program).Assembly));
+
+            // The interface language comes before any text, the startup failure window included (requirements §10.5).
+            CurrentLanguage.Set(new FileLanguageChoice(paths.DataDirectory).Read());
 
             // One writer per data directory: take the lock before touching the database at all.
             instance = SingleInstance.TryAcquire(paths);
