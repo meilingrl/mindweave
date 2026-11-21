@@ -242,7 +242,7 @@ public class SessionNetworkUiTests
             await network.Loaded;
             window.UpdateLayout();
             var view = PageView(window);
-            TextBlock EmptyText() => view.GetVisualDescendants().OfType<TextBlock>().Single(t => t.Text == UiText.SummaryNetworkEmpty);
+            TextBlock EmptyText() => view.GetVisualDescendants().OfType<TextBlock>().Single(t => t.Text == UiText.SessionNetworkEmpty);
 
             Assert.True(network.IsEmpty);
             Assert.True(EmptyText().IsEffectivelyVisible);
@@ -273,14 +273,139 @@ public class SessionNetworkUiTests
         Assert.Empty(failures);
     }
 
+    [AvaloniaTheory]
+    [MemberData(nameof(Themes))]
+    public async Task The_details_show_the_title_as_heading_and_the_question_below(string theme)
+    {
+        await using var app = Gated();
+        var window = app.ShowWindow(1100, 720, Theme(theme));
+        var (_, _, plain) = await SeedAsync(app);
+        await app.Services.GetRequiredService<ConversationService>().RenameAsync(plain, "摄影入门", CancellationToken.None);
+        var network = await OpenAsync(app, window);
+        var view = PageView(window);
+
+        network.Select(network.Session.Projection.Nodes.Single(n => n.Conversation == plain).Id);
+        window.UpdateLayout();
+
+        var heading = Find<TextBlock>(view, "DetailTitle");
+        Assert.Equal("摄影入门", heading.Text);
+        Assert.NotEqual(Avalonia.Media.FontWeight.SemiBold, heading.FontWeight);
+        Assert.NotEqual(Avalonia.Media.FontWeight.Bold, heading.FontWeight);
+        var block = Find<StackPanel>(view, "DetailQuestionBlock");
+        Assert.True(block.IsEffectivelyVisible);
+        Assert.Equal("摄影怎么入门？", Find<TextBlock>(view, "DetailQuestion").Text);
+        Assert.Contains(block.GetVisualDescendants().OfType<TextBlock>(), t => t.Text == UiText.DetailQuestion);
+        Assert.False(Find<Button>(view, "ToggleQuestionButton").IsEffectivelyVisible);
+        Screenshots.Capture(window, $"session-network-details-title-{theme.ToLowerInvariant()}");
+        window.Close();
+    }
+
+    [AvaloniaTheory]
+    [MemberData(nameof(Themes))]
+    public async Task A_very_long_question_stays_bounded_and_expands(string theme)
+    {
+        await using var app = Gated();
+        var window = app.ShowWindow(1100, 720, Theme(theme));
+        var (_, _, plain) = await SeedAsync(app);
+        var conversations = app.Services.GetRequiredService<ConversationService>();
+        var question = string.Concat(Enumerable.Range(0, 200).Select(i => $"第{i}个问题。"));
+        var longOne = await SummaryNetworkScenario.AskAsync(app, conversations, null, app.Workbench.CurrentWorkspace!.Id, question);
+        await conversations.RenameAsync(longOne, "一个很长的提问", CancellationToken.None);
+        var network = await OpenAsync(app, window, 4);
+        var view = PageView(window);
+
+        network.Select(network.Session.Projection.Nodes.Single(n => n.Conversation == longOne).Id);
+        window.UpdateLayout();
+        window.UpdateLayout();
+
+        var text = Find<TextBlock>(view, "DetailQuestion");
+        var toggle = Find<Button>(view, "ToggleQuestionButton");
+        var panel = Find<ScrollViewer>(view, "DetailScroller");
+        Assert.Equal(question, text.Text);
+        Assert.Equal(4, text.MaxLines);
+        Assert.True(toggle.IsEffectivelyVisible);
+        Assert.Equal(UiText.ShowWholeQuestion, toggle.Content);
+        Assert.True(text.TextLayout.TextLines.Count <= 4, $"{text.TextLayout.TextLines.Count} lines collapsed");
+        Assert.True(text.Bounds.Height < 4 * text.FontSize * 2, "collapsed question is bounded");
+        AssertInside(Find<Button>(view, "ReturnSelectedButton"), panel);
+        Screenshots.Capture(window, $"session-network-details-long-collapsed-{theme.ToLowerInvariant()}");
+
+        UiInput.Click(window, toggle);
+        window.UpdateLayout();
+        window.UpdateLayout();
+        Assert.Equal(0, text.MaxLines);
+        Assert.Equal(UiText.HideWholeQuestion, toggle.Content);
+        Assert.True(text.TextLayout.TextLines.Count > 4);
+        Screenshots.Capture(window, $"session-network-details-long-expanded-{theme.ToLowerInvariant()}");
+
+        UiInput.Click(window, toggle);
+        window.UpdateLayout();
+        Assert.Equal(4, text.MaxLines);
+        Assert.Equal(UiText.ShowWholeQuestion, toggle.Content);
+
+        // Another session's details start collapsed again, with no toggle for a short question.
+        network.Select(network.Session.Projection.Nodes.Single(n => n.Conversation == plain).Id);
+        window.UpdateLayout();
+        window.UpdateLayout();
+        Assert.False(toggle.IsEffectivelyVisible);
+        window.Close();
+    }
+
+    private static void AssertInside(Control control, Control container)
+    {
+        var origin = control.TranslatePoint(default, container)!.Value;
+        Assert.True(origin.X >= -0.5 && origin.X + control.Bounds.Width <= container.Bounds.Width + 0.5, $"{control.Name} is outside the panel horizontally");
+    }
+
+    [AvaloniaTheory]
+    [MemberData(nameof(Themes))]
+    public async Task Gated_texts_speak_of_sessions(string theme)
+    {
+        await using var app = Gated();
+        var window = app.ShowWindow(1100, 720, Theme(theme));
+        var (summarized, _, _) = await SeedAsync(app);
+        var network = await OpenAsync(app, window);
+        var view = PageView(window);
+        IEnumerable<string?> Visible() => view.GetVisualDescendants().OfType<TextBlock>().Where(t => t.IsEffectivelyVisible).Select(t => t.Text);
+
+        Assert.Contains(UiText.SessionNetworkHint, Visible());
+        Assert.DoesNotContain(UiText.SummaryNetworkSelectHint, Visible());
+
+        network.Select(network.Session.Projection.Nodes.Single(n => n.Conversation == summarized).Id);
+        window.UpdateLayout();
+        Assert.Contains(Visible(), t => t is not null && t.StartsWith("开始于 ", StringComparison.Ordinal));
+        Assert.DoesNotContain(Visible(), t => t is not null && t.StartsWith("生成于 ", StringComparison.Ordinal));
+        window.Close();
+    }
+
+    [AvaloniaFact]
+    public async Task A_plain_dot_has_a_primary_action()
+    {
+        await using var app = Gated();
+        var window = app.ShowWindow(1100, 720);
+        var (_, _, plain) = await SeedAsync(app);
+        var network = await OpenAsync(app, window);
+        var view = PageView(window);
+
+        network.Select(network.Session.Projection.Nodes.Single(n => n.Conversation == plain).Id);
+        window.UpdateLayout();
+
+        var back = Find<Button>(view, "ReturnSelectedButton");
+        Assert.True(back.IsEffectivelyVisible);
+        Assert.Equal(UiText.ReturnToConversation, back.Content);
+        Assert.Contains("primary", back.Classes);
+        Assert.DoesNotContain("secondary", back.Classes);
+        window.Close();
+    }
+
     private static ThemeVariant Theme(string theme) => theme == "Dark" ? ThemeVariant.Dark : ThemeVariant.Light;
 
     private static SummaryNetworkHomeView PageView(MainWindow window) => window.GetVisualDescendants().OfType<SummaryNetworkHomeView>().Single();
 
-    private static async Task<SummaryNetworkHomeViewModel> OpenAsync(DesktopHarness app, MainWindow window)
+    private static async Task<SummaryNetworkHomeViewModel> OpenAsync(DesktopHarness app, MainWindow window, int dots = 3)
     {
         var network = await SummaryNetworkScenario.OpenSummaryNetworkAsync(app, window);
-        await UiWait.UntilAsync(() => network.Nodes.Count == 3);
+        await UiWait.UntilAsync(() => network.Nodes.Count == dots);
         window.UpdateLayout();
         return network;
     }

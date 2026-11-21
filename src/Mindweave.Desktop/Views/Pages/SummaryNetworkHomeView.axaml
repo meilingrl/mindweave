@@ -14,6 +14,15 @@
     <!-- "关联到…" waiting for a click: Esc leaves it (only while it waits). -->
     <KeyBinding Gesture="Escape" Command="{Binding CancelPickCommand}" />
   </UserControl.KeyBindings>
+  <UserControl.Styles>
+    <!-- The details heading is semibold; a session network's is its title, in regular weight. -->
+    <Style Selector="TextBlock#DetailTitle">
+      <Setter Property="FontWeight" Value="SemiBold" />
+    </Style>
+    <Style Selector="TextBlock#DetailTitle.session">
+      <Setter Property="FontWeight" Value="Normal" />
+    </Style>
+  </UserControl.Styles>
   <DockPanel>
     <!-- Toolbar: one quiet style throughout (S7), find, show all, zoom, arrange; save on the right, accented while unsaved.
          Behind the session network's gate: the 空间 | 时间线 switch first, and nothing to arrange or save (layouts are computed). -->
@@ -161,7 +170,10 @@
         <TextBlock Text="{x:Static t:UiText.LayoutSaveFailed}" />
       </DockPanel>
     </Border>
-    <TextBlock DockPanel.Dock="Top" Classes="muted" TextWrapping="Wrap" Text="{x:Static t:UiText.SummaryNetworkEmpty}" IsVisible="{Binding IsEmpty}" />
+    <StackPanel DockPanel.Dock="Top" IsVisible="{Binding IsEmpty}">
+      <TextBlock Classes="muted" TextWrapping="Wrap" Text="{x:Static t:UiText.SummaryNetworkEmpty}" IsVisible="{Binding !IsSessionNetwork}" />
+      <TextBlock Classes="muted" TextWrapping="Wrap" Text="{x:Static t:UiText.SessionNetworkEmpty}" IsVisible="{Binding IsSessionNetwork}" />
+    </StackPanel>
 
     <!-- Details of the selected node: never the body, never counted as reading. -->
     <Border DockPanel.Dock="Right" Width="260" Margin="10,0,0,0" Padding="16" Background="{DynamicResource PanelBackground}" CornerRadius="{StaticResource RadiusCard}"
@@ -170,7 +182,8 @@
         <ScrollViewer Classes="autohide" Name="OverviewScroller" HorizontalScrollBarVisibility="Disabled" IsVisible="{Binding !HasSelection}">
           <StackPanel Spacing="8" Margin="0,0,6,0">
             <TextBlock FontWeight="SemiBold" FontSize="18" Text="{Binding Title}" />
-            <TextBlock Classes="muted" FontSize="12" TextWrapping="Wrap" Text="{x:Static t:UiText.SummaryNetworkSelectHint}" />
+            <TextBlock Classes="muted" FontSize="12" TextWrapping="Wrap" Text="{x:Static t:UiText.SummaryNetworkSelectHint}" IsVisible="{Binding !IsSessionNetwork}" />
+            <TextBlock Name="SessionNetworkHint" Classes="muted" FontSize="12" TextWrapping="Wrap" Text="{x:Static t:UiText.SessionNetworkHint}" IsVisible="{Binding IsSessionNetwork}" />
             <!-- Pending link suggestions (§10.3.4) while nothing is selected: 接受, 忽略, the note, 全部忽略. -->
             <StackPanel Name="SuggestionsSection" Spacing="6" Margin="0,4,0,0" IsVisible="{Binding ShowsSuggestionsInDetails}">
               <Rectangle Height="1" Fill="{DynamicResource DividerBrush}" Margin="0,0,0,6" />
@@ -184,7 +197,13 @@
         <v:SummaryLinkPickerView Name="LinkPicker" DataContext="{Binding Links}" IsVisible="{Binding $parent[v:SummaryNetworkHomeView].((vm:SummaryNetworkHomeViewModel)DataContext).ShowsLinkPicker, FallbackValue=False}" />
         <ScrollViewer Classes="autohide" Name="DetailScroller" HorizontalScrollBarVisibility="Disabled" IsVisible="{Binding ShowsDetail}">
         <StackPanel Name="DetailPanel" Spacing="12" Margin="0,0,6,0">
-          <TextBlock Name="DetailTitle" FontWeight="SemiBold" FontSize="18" TextWrapping="Wrap" Text="{Binding Selected.DisplayName, FallbackValue=''}" />
+          <TextBlock Name="DetailTitle" Classes.session="{Binding IsSessionNetwork}" FontSize="18" TextWrapping="Wrap" Text="{Binding Selected.DisplayName, FallbackValue=''}" />
+          <!-- A session's first question: four lines at most, whole on 展开 (shown only when it is longer). -->
+          <StackPanel Name="DetailQuestionBlock" Spacing="3" IsVisible="{Binding Selected.HasQuestion, FallbackValue=False}">
+            <TextBlock Classes="muted" FontSize="12" Text="{x:Static t:UiText.DetailQuestion}" />
+            <TextBlock Name="DetailQuestion" TextWrapping="Wrap" MaxLines="4" TextTrimming="CharacterEllipsis" Text="{Binding Selected.Question, FallbackValue=''}" />
+            <Button Name="ToggleQuestionButton" Classes="quiet small" HorizontalAlignment="Left" IsVisible="False" Content="{x:Static t:UiText.ShowWholeQuestion}" />
+          </StackPanel>
           <!-- The same tags as the list and the summary page; words, not only colour (MW-C07). -->
           <WrapPanel Name="DetailMarkers" Orientation="Horizontal" AutomationProperties.Name="{Binding Selected.Markers, FallbackValue=''}">
             <Border Name="UnreadBadge" Classes="badge accent" Margin="0,0,6,4" IsVisible="{Binding Selected.ShowsUnread, FallbackValue=False}">
@@ -229,11 +248,11 @@
           </StackPanel>
           <StackPanel Spacing="8">
             <!-- One primary per view: while the layout is unsaved, the accent save button is it and this steps back.
-                 A session network dot without a summary has none to open; it only leads back to its conversation. -->
+                 A session network dot without a summary has none to open; it only leads back to its conversation, as the primary. -->
             <Button Name="OpenSelectedButton" Classes.primary="{Binding !IsDirty}" Classes.secondary="{Binding IsDirty}" HorizontalAlignment="Stretch" HorizontalContentAlignment="Center"
                     IsVisible="{Binding Selected.HasSummary, FallbackValue=True}"
                     Content="{x:Static t:UiText.OpenSummary}" Command="{Binding OpenSelectedCommand}" />
-            <Button Name="ReturnSelectedButton" Classes="secondary" HorizontalAlignment="Stretch" HorizontalContentAlignment="Center"
+            <Button Name="ReturnSelectedButton" Classes.primary="{Binding !Selected.HasSummary, FallbackValue=False}" Classes.secondary="{Binding Selected.HasSummary, FallbackValue=True}" HorizontalAlignment="Stretch" HorizontalContentAlignment="Center"
                     Content="{x:Static t:UiText.ReturnToConversation}" Command="{Binding ReturnToConversationCommand}" />
           </StackPanel>
           <!-- Content links (§10.3.3): each with jump, 改说明 and 删除关联; then 关联到…. Quiet when there are none. -->

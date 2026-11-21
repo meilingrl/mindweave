@@ -79,10 +79,13 @@ public sealed record PathStep(string Name, bool Summarized, bool IsFirst)
 /// What the side panel says about the selected node; never the summary body, never marks it read.
 /// <paramref name="Steps"/> is the source path step by step, root first; <paramref name="Path"/> the same in one line.
 /// <paramref name="HasSummary"/> is false for a session network dot without a summary: no 打开总结, 关联到… or reading state.
+/// <paramref name="Question"/> is the session's first question, for session network dots only.
 /// </summary>
 public sealed record NodeDetail(SummaryNodeId Id, ConversationId Conversation, string DisplayName, string ShortTitle, string Markers, string Source, string Created, string? Via,
-    bool Unread, bool HasCandidate, bool SourceArchived, string Path, IReadOnlyList<PathStep> Steps, bool HasSummary = true)
+    bool Unread, bool HasCandidate, bool SourceArchived, string Path, IReadOnlyList<PathStep> Steps, bool HasSummary = true, string? Question = null)
 {
+    public bool HasQuestion => !string.IsNullOrWhiteSpace(Question);
+
     public bool ShowsUnread => HasSummary && Unread;
 
     public bool ShowsRead => HasSummary && !Unread;

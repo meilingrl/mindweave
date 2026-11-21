@@ -1128,21 +1128,26 @@ public sealed partial class SummaryNetworkHomeViewModel : PageViewModel, IDispos
 
         var edge = Session.Projection.Edges.FirstOrDefault(e => e.To == id && !e.IsDirect);
         var steps = PathOf(node);
+        var gated = IsSessionNetwork;
+
+        // A session dot is headed by its title, never its question; a summary keeps its own display name.
+        var heading = gated && !node.HasSummary ? _titles.GetValueOrDefault(node.Conversation) ?? node.ShortTitle : node.DisplayName;
         return new NodeDetail(
             node.Id,
             node.Conversation,
-            node.DisplayName,
+            heading,
             node.ShortTitle,
             node.HasSummary ? UiText.Markers(node.Markers) : string.Empty,
             UiText.NodeSource(_titles.GetValueOrDefault(node.Conversation) ?? UiText.NewConversation, node.SourceArchived),
-            UiText.NodeCreated(node.CreatedAt),
+            gated ? UiText.SessionStarted(node.CreatedAt) : UiText.NodeCreated(node.CreatedAt),
             edge is null ? null : UiText.ViaUnsummarized([.. edge.Via.Select(c => _titles.GetValueOrDefault(c) ?? UiText.NewConversation)]),
             node.Markers.Unread,
             node.Markers.HasCandidate,
             node.SourceArchived,
             UiText.SourcePath([.. steps.Select(step => step.Text)]),
             steps,
-            node.HasSummary);
+            node.HasSummary,
+            gated ? node.FirstQuestion : null);
     }
 
     /// <summary>

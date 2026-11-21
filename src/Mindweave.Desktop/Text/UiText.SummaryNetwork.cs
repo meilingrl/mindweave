@@ -63,6 +63,15 @@ public static partial class UiText
 
     public static string NodeCreated(DateTimeOffset at) => "生成于 " + FormatTime(at);
 
+    // The session network's details (gated).
+    public const string DetailQuestion = "问题";
+    public const string ShowWholeQuestion = "展开";
+    public const string HideWholeQuestion = "收起";
+    public const string SessionNetworkHint = "单击查看详情，双击打开会话或总结。";
+    public const string SessionNetworkEmpty = "还没有会话。在“新探索”提一个问题就会出现在这里。";
+
+    public static string SessionStarted(DateTimeOffset at) => "开始于 " + FormatTime(at);
+
     // The session network (behind its gate): every conversation a dot.
     public const string SessionNetworkTitle = "Mindweave";
     public const string ViewSpatial = "空间";
