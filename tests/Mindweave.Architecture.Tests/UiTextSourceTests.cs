@@ -121,12 +121,15 @@ public partial class UiTextSourceTests
         return false;
     }
 
-    /// <summary>The literal text in an expression: string literals and the text parts of interpolated strings.</summary>
+    /// <summary>
+    /// The literal text in an expression: string literals and the text parts of interpolated strings. Character
+    /// literals are left out: they are parsing (a full-width colon a summary may contain), not text shown.
+    /// </summary>
     private static IEnumerable<string> Texts(SyntaxNode node) => node.DescendantTokens().Where(IsText).Select(t => t.ValueText);
 
     private static bool IsText(SyntaxToken token) =>
         token.IsKind(SyntaxKind.StringLiteralToken) || token.IsKind(SyntaxKind.InterpolatedStringTextToken)
-        || token.IsKind(SyntaxKind.CharacterLiteralToken) || token.IsKind(SyntaxKind.SingleLineRawStringLiteralToken)
+        || token.IsKind(SyntaxKind.SingleLineRawStringLiteralToken)
         || token.IsKind(SyntaxKind.MultiLineRawStringLiteralToken);
 
     private static int Line(SyntaxNode node) => node.GetLocation().GetLineSpan().StartLinePosition.Line + 1;
