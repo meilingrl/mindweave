@@ -12,6 +12,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Mindweave.Application.Conversations;
 using Mindweave.Application.Models;
 using Mindweave.Application.Resources;
+using Mindweave.Application.Storage;
 using Mindweave.Core.Conversations;
 using Mindweave.Core.Models;
 using Mindweave.Desktop.ViewModels.Conversations;
@@ -235,7 +236,95 @@ public class AttachmentUiTests
         Assert.True(Composer(app).SendCommand.CanExecute(null));
     }
 
+    [AvaloniaFact]
+    public async Task A_paste_stored_while_the_page_reads_its_draft_is_shown_once()
+    {
+        // A page reads its draft's attachments as it opens, and a paste right away is stored meanwhile. Here the read sees
+        // the stored paste before the paste's own result reaches the composer (a Linux CI time-out, 2026-11-20, and a
+        // macOS one under load, 2026-11-22, both pasting as soon as the page opened): the paste is still one chip.
+        await using var app = DesktopHarness.Create();
+        var workspace = await app.StartWithWorkspaceAsync("火车历史");
+        var resources = new TimedDraftResources(app.Services.GetRequiredService<IResources>());
+        var composer = new Composer(
+            (_, _) => Task.FromResult(new SendOutcome(null, ConversationId.New(), MessageId.New())),
+            new ComposerAttachmentServices(resources, app.Services.GetRequiredService<IModelSettings>(), () => DraftSlot.NewExploration(workspace.Id)));
+
+        var loading = composer.LoadDraftAttachmentsAsync();
+        Assert.True(composer.TryTakePaste(LongArticle, 0));
+        await UiWait.UntilAsync(() => loading.IsCompleted && resources.PasteReturned.IsCompleted && !composer.IsStoringAttachments);
+        await Task.Delay(100);
+        Dispatcher.UIThread.RunJobs();
+
+        var chip = Assert.Single(composer.Attachments);
+        Assert.True(chip.IsReady);
+        Assert.True(composer.UndoConversion());
+        Assert.Empty(composer.Attachments);
+        Assert.Equal(LongArticle, composer.Text);
+    }
+
     private static Composer Composer(DesktopHarness app) => ((NewConversationViewModel)app.Workbench.CurrentPage!).Composer;
+
+    /// <summary>
+    /// The real resources with one ordering forced, once: the draft is read after a paste is stored, and the paste's
+    /// result is returned only after that read has returned.
+    /// </summary>
+    private sealed class TimedDraftResources(IResources inner) : IResources
+    {
+        private readonly TaskCompletionSource _pasteStored = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        private readonly TaskCompletionSource _draftRead = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        private readonly TaskCompletionSource _pasteReturned = new(TaskCreationOptions.RunContinuationsAsynchronously);
+
+        public Task PasteReturned => _pasteReturned.Task;
+
+        public async Task<ResourceCreateResult> AttachPasteAsync(DraftSlot draft, string text, CancellationToken cancellationToken)
+        {
+            var result = await inner.AttachPasteAsync(draft, text, cancellationToken);
+            if (!_pasteReturned.Task.IsCompleted)
+            {
+                _pasteStored.TrySetResult();
+                await _draftRead.Task;
+                await Task.Delay(100, cancellationToken);
+                _pasteReturned.TrySetResult();
+            }
+
+            return result;
+        }
+
+        public async Task<IReadOnlyList<StoredResource>> GetDraftAsync(DraftSlot draft, CancellationToken cancellationToken)
+        {
+            if (_draftRead.Task.IsCompleted)
+            {
+                return await inner.GetDraftAsync(draft, cancellationToken);
+            }
+
+            await _pasteStored.Task;
+            var stored = await inner.GetDraftAsync(draft, cancellationToken);
+            _draftRead.TrySetResult();
+            return stored;
+        }
+
+        public Task<ResourceCreateResult> CreateFromPasteAsync(Core.Workspaces.WorkspaceId workspace, ConversationId? conversation, string text, CancellationToken cancellationToken) =>
+            inner.CreateFromPasteAsync(workspace, conversation, text, cancellationToken);
+
+        public Task<ResourceCreateResult> CreateFromFileAsync(Core.Workspaces.WorkspaceId workspace, ConversationId? conversation, string path, CancellationToken cancellationToken) =>
+            inner.CreateFromFileAsync(workspace, conversation, path, cancellationToken);
+
+        public Task<ResourceCreateResult> AttachFileAsync(DraftSlot draft, string path, CancellationToken cancellationToken) =>
+            inner.AttachFileAsync(draft, path, cancellationToken);
+
+        public Task<ResourceCreateResult> AttachImageAsync(DraftSlot draft, byte[] bytes, string? name, CancellationToken cancellationToken) =>
+            inner.AttachImageAsync(draft, bytes, name, cancellationToken);
+
+        public Task<StoredResource?> GetAsync(Core.Resources.ResourceId id, CancellationToken cancellationToken) => inner.GetAsync(id, cancellationToken);
+
+        public Task<Stream?> OpenOriginalAsync(Core.Resources.ResourceId id, CancellationToken cancellationToken) => inner.OpenOriginalAsync(id, cancellationToken);
+
+        public bool HasOriginal(Core.Resources.Resource resource) => inner.HasOriginal(resource);
+
+        public Task<ResourceDeleteStatus> DeleteUnattachedAsync(Core.Resources.ResourceId id, CancellationToken cancellationToken) => inner.DeleteUnattachedAsync(id, cancellationToken);
+
+        public Task CleanUpAsync(CancellationToken cancellationToken) => inner.CleanUpAsync(cancellationToken);
+    }
 
     private static async Task<MainWindow> OpenNewExplorationAsync(DesktopHarness app, string theme, bool images, int? contextWindow = null)
     {
