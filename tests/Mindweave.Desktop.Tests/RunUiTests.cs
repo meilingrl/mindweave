@@ -90,6 +90,7 @@ public class RunUiTests
     }
 
     [AvaloniaFact]
+    [Quarantined("2026-11-21", "Linux CI only, twice (runs 44795013988, 44797665196): the pasted attachment was not ready within 5 s, then 15 s (RunUiTests.cs:199, AskWithAttachmentAsync); passed on the next runs and 10 of 10 on macOS under --load.")]
     public async Task An_answer_without_tools_shows_no_activity_line()
     {
         await using var app = DesktopHarness.Create();
@@ -196,7 +197,9 @@ public class RunUiTests
         await UiWait.UntilAsync(() => app.Workbench.CurrentPage is NewConversationViewModel { Composer.CanAttach: true });
         var composer = ((NewConversationViewModel)app.Workbench.CurrentPage!).Composer;
         Assert.True(composer.TryTakePaste(Material + new string('史', 3_000), 0));
-        await UiWait.UntilAsync(() => composer.Attachments is [{ IsReady: true }]);
+        // Stored or failed: a failed paste says why instead of waiting out the limit (a Linux CI time-out, 2026-11-20).
+        await UiWait.UntilAsync(() => composer.Attachments is [{ IsWorking: false }]);
+        Assert.True(composer.Attachments[0].IsReady, $"The pasted attachment failed: {composer.Attachments[0].Problem}");
         composer.Text = question;
         await composer.SendCommand.ExecuteAsync(null);
         await UiWait.UntilAsync(() => app.Workbench.CurrentPage is ConversationViewModel { Messages.Count: 2 } p && p.Messages[1].State == MessageState.Complete && !p.Messages[1].IsLive, timeoutMs: 10_000);

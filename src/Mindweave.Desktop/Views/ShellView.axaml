@@ -82,28 +82,31 @@
           <TextBlock Name="SelectionNotice" Classes="error" Text="{Binding Conversations.SelectionNotice}" TextWrapping="Wrap" Margin="4,0"
                      IsVisible="{Binding Conversations.SelectionNotice, Converter={x:Static ObjectConverters.IsNotNull}}" />
           <Border Name="SelectionBar" Classes="selection-bar">
-            <DockPanel>
-              <Button Name="ClearSelectionButton" DockPanel.Dock="Right" Classes="quiet bar-icon" Command="{Binding Conversations.ClearSelectionCommand}"
-                      ToolTip.Tip="{x:Static t:UiText.ClearSelection}" AutomationProperties.Name="{x:Static t:UiText.ClearSelection}">
-                <PathIcon Data="{StaticResource IconClose}" />
-              </Button>
-              <Border DockPanel.Dock="Right" Classes="bar-divider" />
-              <Button Name="DeleteSelectedButton" DockPanel.Dock="Right" Classes="quiet small danger" Command="{Binding Conversations.DeleteSelectedCommand}"
-                      AutomationProperties.Name="{x:Static t:UiText.Delete}">
-                <StackPanel Orientation="Horizontal" Spacing="4">
-                  <PathIcon Data="{StaticResource IconDelete}" />
-                  <TextBlock Text="{x:Static t:UiText.Delete}" VerticalAlignment="Center" />
-                </StackPanel>
-              </Button>
-              <Button Name="ArchiveSelectedButton" DockPanel.Dock="Right" Classes="quiet small" Command="{Binding Conversations.ArchiveSelectedCommand}"
-                      AutomationProperties.Name="{x:Static t:UiText.Archive}">
-                <StackPanel Orientation="Horizontal" Spacing="4">
-                  <PathIcon Data="{StaticResource IconArchive}" />
-                  <TextBlock Text="{x:Static t:UiText.Archive}" VerticalAlignment="Center" />
-                </StackPanel>
-              </Button>
+            <!-- The count beside the actions while it fits whole; otherwise on its own line above them. -->
+            <v:ReflowRow>
               <TextBlock Name="SelectionCount" Classes="selection-count" Text="{Binding Conversations.SelectionLabel}" />
-            </DockPanel>
+              <StackPanel Orientation="Horizontal">
+                <Button Name="ArchiveSelectedButton" Classes="quiet small" Command="{Binding Conversations.ArchiveSelectedCommand}"
+                        AutomationProperties.Name="{x:Static t:UiText.Archive}">
+                  <StackPanel Orientation="Horizontal" Spacing="4">
+                    <PathIcon Data="{StaticResource IconArchive}" />
+                    <TextBlock Text="{x:Static t:UiText.Archive}" VerticalAlignment="Center" />
+                  </StackPanel>
+                </Button>
+                <Button Name="DeleteSelectedButton" Classes="quiet small danger" Command="{Binding Conversations.DeleteSelectedCommand}"
+                        AutomationProperties.Name="{x:Static t:UiText.Delete}">
+                  <StackPanel Orientation="Horizontal" Spacing="4">
+                    <PathIcon Data="{StaticResource IconDelete}" />
+                    <TextBlock Text="{x:Static t:UiText.Delete}" VerticalAlignment="Center" />
+                  </StackPanel>
+                </Button>
+                <Border Classes="bar-divider" />
+                <Button Name="ClearSelectionButton" Classes="quiet bar-icon" Command="{Binding Conversations.ClearSelectionCommand}"
+                        ToolTip.Tip="{x:Static t:UiText.ClearSelection}" AutomationProperties.Name="{x:Static t:UiText.ClearSelection}">
+                  <PathIcon Data="{StaticResource IconClose}" />
+                </Button>
+              </StackPanel>
+            </v:ReflowRow>
           </Border>
         </StackPanel>
         <ScrollViewer Classes="autohide" Margin="0,0,0,4" HorizontalScrollBarVisibility="Disabled">

@@ -105,7 +105,7 @@
                             Suggestions="{Binding GhostSuggestions}" OffersOnlyWhenEmpty="True"
                             OfferHelpFormat="{x:Static t:UiText.RecommendedQuestionHelpFormat}"
                             GhostForeground="{DynamicResource SuggestionGhostText}" KeyHintBorderBrush="{DynamicResource OutlineBrush}"
-                            AutomationProperties.Name="提问" />
+                            AutomationProperties.Name="{x:Static t:UiText.AskAccessibleName}" />
       </DockPanel>
     </Border>
   </StackPanel>

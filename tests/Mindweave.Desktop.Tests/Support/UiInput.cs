@@ -4,6 +4,7 @@ using Avalonia.Headless;
 using Avalonia.Input;
 using Avalonia.Interactivity;
 using Avalonia.Threading;
+using Avalonia.VisualTree;
 
 namespace Mindweave.Desktop.Tests;
 
@@ -21,6 +22,36 @@ internal static class UiInput
     /// <param name="at">Where in <paramref name="target"/> to click, in its own coordinates; its centre when null.</param>
     /// <param name="hover">Moves the pointer there first, so the target is hovered when it is pressed, as with a real mouse.</param>
     public static void Click(Window window, Control target, RawInputModifiers modifiers = RawInputModifiers.None, Point? at = null, bool hover = false)
+    {
+        // A tooltip that opens while the pointer rests here (its delay runs out on a slow runner) lies in the headless overlay
+        // right over the point and takes the press; in the app it is its own window beside the pointer. Closing it is not
+        // enough: the press runs due timers first, and the tooltip's own can open it again. So tooltips are off during the
+        // click and come back after it.
+        var tipped = new List<(Control Control, bool Enabled)>();
+        for (Visual? v = target; v is not null; v = v.GetVisualParent())
+        {
+            if (v is Control c && ToolTip.GetTip(c) is not null)
+            {
+                tipped.Add((c, ToolTip.GetServiceEnabled(c)));
+                ToolTip.SetServiceEnabled(c, false);
+                ToolTip.SetIsOpen(c, false);
+            }
+        }
+
+        try
+        {
+            ClickCore(window, target, modifiers, at, hover);
+        }
+        finally
+        {
+            foreach (var (control, enabled) in tipped)
+            {
+                ToolTip.SetServiceEnabled(control, enabled);
+            }
+        }
+    }
+
+    private static void ClickCore(Window window, Control target, RawInputModifiers modifiers, Point? at, bool hover)
     {
         Settle();
         target.BringIntoView();

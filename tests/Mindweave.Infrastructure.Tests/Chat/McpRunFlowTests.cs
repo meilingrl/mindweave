@@ -262,7 +262,7 @@ public class McpRunFlowTests
         Assert.Equal(ToolResultStatus.Failed, result.Status);
         Assert.Contains("定义已变化", result.Preview, StringComparison.Ordinal);
         var setting = (await s.H.Mcp.GetAsync(s.Server.Id, Ct))!.Tool("write_note")!;
-        Assert.Equal((false, McpServerSettings.ChangedDefinition), (setting.Enabled, setting.DisabledReason));
+        Assert.Equal((false, McpServerSettings.ChangedDefinition.ToString()), (setting.Enabled, setting.DisabledReason));
 
         // Not offered any more.
         s.H.Client.Reply("好。");
@@ -283,7 +283,7 @@ public class McpRunFlowTests
 
         Assert.Equal(MessageState.Complete, answer.State);
         Assert.Contains("不再提供", answer.Blocks.OfType<ToolResultBlock>().Single().Preview, StringComparison.Ordinal);
-        Assert.Equal(McpServerSettings.Vanished, (await s.H.Mcp.GetAsync(s.Server.Id, Ct))!.Tool("echo")!.DisabledReason);
+        Assert.Equal(McpServerSettings.Vanished.ToString(), (await s.H.Mcp.GetAsync(s.Server.Id, Ct))!.Tool("echo")!.DisabledReason);
     }
 
     [Fact]
@@ -299,7 +299,7 @@ public class McpRunFlowTests
         s.H.Client.CallTool("files__write_note", Text("x"));
         s.H.Client.Reply("好。");
         await AskAsync(s.H, "写"); // The call lists again (2): the description changed.
-        Assert.Equal(McpServerSettings.ChangedDefinition, (await s.H.Mcp.GetAsync(s.Server.Id, Ct))!.Tool("write_note")!.DisabledReason);
+        Assert.Equal(McpServerSettings.ChangedDefinition.ToString(), (await s.H.Mcp.GetAsync(s.Server.Id, Ct))!.Tool("write_note")!.DisabledReason);
     }
 
     [Fact]

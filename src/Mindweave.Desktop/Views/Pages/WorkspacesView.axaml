@@ -101,14 +101,14 @@
                                     GhostForeground="{DynamicResource SuggestionGhostText}" KeyHintBorderBrush="{DynamicResource OutlineBrush}"
                                     AutomationProperties.Name="{x:Static t:UiText.WorkspaceNameLabel}" KeyDown="OnRenameBoxKeyDown" />
                     <TextBlock Name="WorkspaceRowCounts" Classes="caption" Text="{Binding CountsText}" IsVisible="{Binding ShowsCounts}" />
-                    <!-- While renaming, the same line says what 建议名称 sends, before anything is sent (the row keeps its height). -->
-                    <TextBlock Name="SuggestNamesHint" Classes="caption" Text="{x:Static t:UiText.SuggestNamesHint}" TextTrimming="CharacterEllipsis"
+                    <!-- While renaming, the same line says what 建议名称 sends, before anything is sent (wrapped when it does not fit). -->
+                    <TextBlock Name="SuggestNamesHint" Classes="caption" Text="{x:Static t:UiText.SuggestNamesHint}" TextWrapping="Wrap"
                                IsVisible="{Binding ShowsSuggestHint}" ToolTip.Tip="{x:Static t:UiText.SuggestNamesHint}" />
-                    <!-- Once names are offered: what Tab does, and 更多建议 to see them all as chips (the line keeps the row's height). -->
+                    <!-- Once names are offered: what Tab does, and 更多建议 to see them all as chips (one line while it fits, wrapped when not). -->
                     <DockPanel Name="GhostNamesHintLine" IsVisible="{Binding ShowsGhostHint}">
                       <Button Name="NameChipsToggle" DockPanel.Dock="Right" Classes="link caption-link" Margin="8,0,0,0" Content="{Binding ChipsToggleLabel}"
                               Command="{Binding ToggleChipsCommand}" AutomationProperties.Name="{Binding ChipsToggleName}" />
-                      <TextBlock Name="GhostNamesHint" Classes="caption" Text="{x:Static t:UiText.GhostNamesHint}" TextTrimming="CharacterEllipsis"
+                      <TextBlock Name="GhostNamesHint" Classes="caption" Text="{x:Static t:UiText.GhostNamesHint}" TextWrapping="Wrap"
                                  VerticalAlignment="Center" ToolTip.Tip="{x:Static t:UiText.GhostNamesHint}" />
                     </DockPanel>
                     <TextBlock Name="WorkspaceRenameError" Classes="error" FontSize="12" TextWrapping="Wrap" Text="{Binding RenameError}"
@@ -122,7 +122,7 @@
                         <Button Name="StopSuggestingButton" Classes="quiet small" Content="{x:Static t:UiText.StopSuggesting}"
                                 Command="{Binding StopSuggestingNamesCommand}" AutomationProperties.Name="{x:Static t:UiText.StopSuggestingName}" />
                       </StackPanel>
-                      <TextBlock Name="SuggestionsCaption" Classes="caption" Text="{x:Static t:UiText.SuggestionsCaption}" IsVisible="{Binding ShowsChipList}" />
+                      <TextBlock Name="SuggestionsCaption" Classes="caption" TextWrapping="Wrap" Text="{x:Static t:UiText.SuggestionsCaption}" IsVisible="{Binding ShowsChipList}" />
                       <ItemsControl Name="SuggestionChips" ItemsSource="{Binding Suggestions}" IsVisible="{Binding ShowsChipList}"
                                     AutomationProperties.Name="{x:Static t:UiText.SuggestionsListName}">
                         <ItemsControl.ItemsPanel>

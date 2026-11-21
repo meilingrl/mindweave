@@ -126,7 +126,7 @@ internal sealed partial class AnswerRunner(
         if (!_health.TryAdmit())
         {
             // Storage failed while this task waited for its key or its summaries: the answer is not asked for (D2).
-            await FinishAsync(work, MessageState.Failed, GenerationErrorKind.StorageUnavailable, StorageAdmissionRefusedException.Detail).ConfigureAwait(false);
+            await FinishAsync(work, MessageState.Failed, GenerationErrorKind.StorageUnavailable, StorageAdmissionRefusedException.Detail.ToString()).ConfigureAwait(false);
             return;
         }
 
@@ -163,9 +163,9 @@ internal sealed partial class AnswerRunner(
                     case ChatStreamEvent.TextDelta delta:
                         live.Append(delta.Text);
                         break;
-                    case ChatStreamEvent.ReasoningDelta:
-                        // Only says the model is working; the reasoning is not shown or stored.
-                        live.MarkThinking();
+                    case ChatStreamEvent.ReasoningDelta reasoning:
+                        // Shown live while the answer runs, never stored (requirements §10.4.4 v0.21).
+                        live.AppendReasoning(reasoning.Text);
                         break;
                     case ChatStreamEvent.Completed done:
                         end = done;

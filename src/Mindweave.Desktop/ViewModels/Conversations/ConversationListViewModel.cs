@@ -17,7 +17,7 @@ namespace Mindweave.Desktop.ViewModels.Conversations;
 /// anywhere in their tree counts), each branch under its parent in creation order. Archived conversations and
 /// everything below them are left out; an entry at the bottom leads to them. Kept in sync with storage and generation.
 /// </summary>
-public sealed partial class ConversationListViewModel : ViewModelBase
+public sealed partial class ConversationListViewModel : ViewModelBase, IDisposable
 {
     private readonly IConversations _conversations;
     private readonly IConversationMarks? _marks;
@@ -48,39 +48,74 @@ public sealed partial class ConversationListViewModel : ViewModelBase
         _dispatcher = dispatcher;
         if (storage is not null)
         {
-            // Raised on worker threads; the rows' menus follow the pause on the UI thread.
             IsStoragePaused = storage.IsBlocked;
-            storage.Changed += (_, _) => _dispatcher.Post(() => IsStoragePaused = storage.IsBlocked);
+            storage.Changed += OnStorageChanged;
         }
 
         _deletionPrompt = deletion;
         if (deletion is not null)
         {
-            // The dialog deleted or archived the selection (or chose 改为归档): nothing of it is left to act on. A dialog
-            // opened from a conversation page for something else leaves the selection alone.
-            deletion.Completed += (_, done) =>
-            {
-                if (HasSelection && Selection.Select(i => i.Id).ToHashSet().SetEquals(done))
-                {
-                    ClearSelection();
-                }
-            };
+            deletion.Completed += OnDeletionCompleted;
         }
 
         _marks = marks;
         _workbench = workbench;
         _load = new SerialRefresh(ReloadAsync);
         _reload = new UiThrottle(dispatcher, TimeSpan.FromMilliseconds(100), () => Loaded = _load.Request());
-        _conversations.ConversationChanged += (_, _) => _reload.Request();
-        _conversations.ActivityChanged += (_, _) => _reload.Request();
+        _conversations.ConversationChanged += OnConversationChanged;
+        _conversations.ActivityChanged += OnActivityChanged;
         if (_marks is not null)
         {
-            _marks.Changed += (_, _) => _reload.Request();
+            _marks.Changed += OnMarksChanged;
         }
 
         _workbench.PropertyChanged += OnWorkbenchChanged;
         _marks?.SetViewing(Shown());
     }
+
+    /// <summary>Stops listening to the services; the view it belongs to is being replaced.</summary>
+    public void Dispose()
+    {
+        if (_storage is not null)
+        {
+            _storage.Changed -= OnStorageChanged;
+        }
+
+        if (_deletionPrompt is not null)
+        {
+            _deletionPrompt.Completed -= OnDeletionCompleted;
+        }
+
+        _conversations.ConversationChanged -= OnConversationChanged;
+        _conversations.ActivityChanged -= OnActivityChanged;
+        if (_marks is not null)
+        {
+            _marks.Changed -= OnMarksChanged;
+        }
+
+        _workbench.PropertyChanged -= OnWorkbenchChanged;
+    }
+
+    /// <summary>Raised on worker threads; the rows' menus follow the pause on the UI thread.</summary>
+    private void OnStorageChanged(object? sender, EventArgs e) => _dispatcher.Post(() => IsStoragePaused = _storage!.IsBlocked);
+
+    /// <summary>
+    /// The dialog deleted or archived the selection (or chose 改为归档): nothing of it is left to act on. A dialog opened
+    /// from a conversation page for something else leaves the selection alone.
+    /// </summary>
+    private void OnDeletionCompleted(object? sender, IReadOnlyList<ConversationId> done)
+    {
+        if (HasSelection && Selection.Select(i => i.Id).ToHashSet().SetEquals(done))
+        {
+            ClearSelection();
+        }
+    }
+
+    private void OnConversationChanged(object? sender, ConversationId e) => _reload.Request();
+
+    private void OnActivityChanged(object? sender, EventArgs e) => _reload.Request();
+
+    private void OnMarksChanged(object? sender, EventArgs e) => _reload.Request();
 
     public ObservableCollection<ConversationItemViewModel> Items { get; } = [];
 

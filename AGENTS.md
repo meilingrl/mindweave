@@ -1,85 +1,100 @@
-# Mindweave 仓库规则
+# Mindweave repository rules
 
-项目是什么、先读哪些文档，见 [README](README.md)。本文件说明分支、人与 Agent 的分工，以及多个 Agent 并行的约定。
+What the project is and which documents to read first: see the [README](README.md). This file covers branches, the division of work between people and agents, and the conventions for several agents working in parallel.
 
-## 分支
+## Branches
 
-只有一条开发线：`main`，本机工作目录 `Projects/mindweave/`。需求、架构、设计、代码与测试都在这里。每项任务在短期任务分支上开发（见“多个 Agent 并行”），全量测试通过后合并回 `main`。
+There is one line of development: `main`, with the local working directory `Projects/mindweave/`. Requirements, architecture, design, code and tests all live here. Each task is developed on a short-lived task branch (see "Parallel agents") and merged back into `main` after the full test suite passes.
 
-开始工作前先运行 `git branch --show-current` 确认所在分支，再读根目录的 [STATUS.md](STATUS.md)。
+Before starting work, run `git branch --show-current` to confirm the branch, then read [STATUS.md](STATUS.md) at the repository root.
 
-**历史。** 2026-10-25 至 2026-11-16 曾有两条轨道并行：Claude 自主开发与用户和 Codex 协作。实际开发表明，这类交互密集的软件离不开人的试用与反馈，两条轨道的区分不再有意义，于是合并为一条（2026-11-16 用户决定）。
+**History.** From 2026-10-25 to 2026-11-16 two tracks ran in parallel: autonomous development by Claude, and the user working with Codex. Actual development showed that software this interaction-heavy cannot do without a person trying it and giving feedback, so the distinction between the tracks stopped making sense and they were merged into one (user's decision, 2026-11-16).
 
-- Claude 轨道的全部工作已并入 `main`；当时的进度记录见 [docs/history/track-claude-auto.md](docs/history/track-claude-auto.md)。
-- Codex 轨道停在标签 `archive/codex-steady-final`，只读、不合并。需要参考时用 `git show archive/codex-steady-final:<路径>`，结论须独立验证；借用其代码须经用户决定。
-- 当时的路线说明见 [docs/history/development-routes.md](docs/history/development-routes.md)。
+- All work of the Claude track is in `main`; its progress record from that time is [docs/history/track-claude-auto.md](docs/history/track-claude-auto.md).
+- The Codex track stopped at the tag `archive/codex-steady-final`: read-only and not to be merged. To consult it, use `git show archive/codex-steady-final:<path>`; its conclusions must be verified independently, and borrowing its code requires the user's decision.
+- The route description from that time is [docs/history/development-routes.md](docs/history/development-routes.md).
 
-**文档基线标签**（只读，用于对照）：`baseline-v0.11` 是两条轨道的共同起点；`docs-baseline-v0.13` 是合并前共享的需求与架构。用法：`git show docs-baseline-v0.13:docs/requirements.md`。
+**Document baseline tags** (read-only, for comparison): `baseline-v0.11` is the common starting point of the two tracks; `docs-baseline-v0.13` is the requirements and architecture shared before the merge. Usage: `git show docs-baseline-v0.13:docs/requirements.md`.
 
-## 人在回路中
+## Human in the loop
 
-这是交互密集的桌面软件，好不好用只能由人判断。Agent 自主完成能自动验证的工作；以下事项由用户决定或验收：
+This is interaction-heavy desktop software, and only a person can judge whether it is good to use. Agents complete on their own the work that can be verified automatically; the following are decided or accepted by the user:
 
-| 事项 | 做法 |
+| Matter | How |
 | --- | --- |
-| 界面观感与交互 | 给截图或可运行的版本；用户确认后才算完成 |
-| 范围变化、需求与架构的改动 | 单独提交并写明依据，用户确认后才合并；不夹在代码提交里 |
-| 会升级用户真实数据的迁移 | 先在数据副本上试（`scripts/daily.sh trial`），由用户决定 |
-| 付费的真实服务调用 | 只在用户给出的额度内 |
-| 推送、发布与其他对外可见的操作 | 按用户已有的授权 |
-| Windows 实机 | 由用户提供设备与时间 |
+| Look and feel, interaction | Provide screenshots or a runnable build; it is done only once the user confirms |
+| Scope changes, changes to requirements and architecture | Commit separately with the reasoning stated; merge only after the user confirms; never mixed into code commits |
+| Migrations that upgrade the user's real data | Try them on a copy of the data first (`scripts/daily.sh trial`); the user decides |
+| Paid calls to real services | Only within the budget the user has given |
+| Pushing, releasing and other externally visible actions | According to the authorization the user has already given |
+| Real Windows hardware | The user provides the device and the time |
 
-Agent 可以自行决定内部实现、重构、测试，以及修复已有失败测试复现的缺陷、做审查和可逆的试验。多个子代理适合边界清楚、结果能自动核对的子任务（审计、偶发测试排查、对抗式审查）；什么算“好”由用户判断。
+Agents may decide on their own about internal implementation, refactoring, tests, fixing defects that an existing failing test reproduces, reviews and reversible experiments. Multiple subagents suit subtasks with clear boundaries whose results can be checked automatically (audits, investigating flaky tests, adversarial review); what counts as "good" is the user's judgment.
 
-每个阶段结束时写明：怎样体验（一条命令）、实际跑过哪些场景、哪些没有验证。需要用户的事集中提出，不因此停下其他能做的工作。
+At the end of each stage, state: how to try it (one command), which scenarios were actually run, and what was not verified. Raise the things that need the user together, and do not stop other work that can be done meanwhile.
 
-## 改动需求或架构
+## Changing requirements or architecture
 
-`docs/requirements.md` 与 `docs/architecture.md` 是现行依据。发现错误或缺失时，提出修改，按上表单独提交、由用户确认，不悄悄改。被取代的版本可从基线标签与 git 历史读到。
+`docs/requirements.md` and `docs/architecture.md` are the current basis. When you find an error or a gap, propose a change, commit it separately as in the table above, and let the user confirm; never change them silently. Superseded versions can be read from the baseline tags and git history.
 
-## 文件归属
+## Where files belong
 
-现行需求与架构在 `docs/`，实现层设计在 `docs/design/`，历史在 `docs/history/`，审查批次在 `docs/reviews/`，独立原型在 `prototypes/`。代码、测试与脚本在 `src/`、`tests/`、`scripts/`，不预建空目录。
+Current requirements and architecture are in `docs/`, implementation-level design in `docs/design/`, history in `docs/history/`, review batches in `docs/reviews/`, standalone prototypes in `prototypes/`. Code, tests and scripts are in `src/`, `tests/` and `scripts/`; do not create empty folders in advance.
 
-`STATUS.md` 只记当前状态、下一步、需要用户的事和待决定事项，保持简短；阶段经过写进 [阶段报告](docs/design/stage-reports.md)，决定写进 [decisions.md](docs/design/decisions.md)。
+`STATUS.md` records only the current state, next steps, what needs the user, and pending decisions, and stays short; the course of each stage goes into the [stage reports](docs/design/stage-reports.md), and decisions go into [decisions.md](docs/design/decisions.md).
 
-## 发布与通道
+## Language and writing
 
-运行数据、单实例标识与系统凭据按通道隔离（构建属性 `MindweaveChannel`）：
-
-| 通道 | 何时使用 |
+| What | Language |
 | --- | --- |
-| `release` | Release 构建（`dotnet publish`）的默认值；界面不显示通道名 |
-| `dev` | 其余构建的默认值：调试运行、测试、Agent 的预览 |
-| `claude-auto` | 用户自己的日常版本，只由 `scripts/daily.sh` 构建；名称沿用历史，不改（存盘名称） |
+| Living documents: this file, `README.md`, `STATUS.md`, requirements, architecture, current designs in `docs/design/`, `docs/evolution.md`, `docs/mailbox.md` | English, one language per file |
+| Frozen records: `docs/history/`, `docs/reviews/`, `prototypes/`, finished-stage designs (`docs/design/s0-…` to `s7-…`, `s6-wrapup.md`, `s6-windows-checklist.md`), stage-report entries before 2026-11-20 | Kept as written (mostly Chinese); not translated |
+| Code, comments, commit messages | English |
 
-面向他人的版本与源码包只以 Mindweave 示人，不出现开发线或 Agent 的名字。`scripts/package-source.sh` 会检查这一点；开发过程记录用 `.gitattributes` 的 `export-ignore` 排除在源码包之外。
+1. **Terms come from the glossary** in [architecture §2.3](docs/architecture.md), including its notes on English wording. Prose uses plain lowercase words ("summary node"); code formatting only when the text means the type itself.
+2. **Chinese only when quoting**: UI text, or the user's own words.
+3. **Section numbers and IDs never change** through translation or rewording (§10.4.3, D-025, R1, W8, …); code and documents cite them.
+4. **A translation is a commit of its own**, with no content change. Before it merges, an independent reviewer compares every rule-setting sentence (must, only, never, …) with the original.
+5. **A living document not yet translated is edited in its current language**, so no file mixes the two.
+6. **Write short, plain sentences.** A Chinese version of an outward-facing document (`README.zh-CN.md`) may be added later; once one exists, it changes in the same commit as its English source.
 
-## 命名与结构
+## Releases and channels
 
-1. **一个概念一个名字，取自需求。** 命名空间、文件夹、类型、资源键和界面文字成员用[架构 §2.3](docs/architecture.md) 术语表里的代码名；中文界面文字逐字使用需求术语。术语表里的词不挪作他用，例如 `Network` 只指真正的网络连接。新概念先在术语表加一行，再建文件夹。
-2. **存盘名称不随代码改名。** 表名、列名、偏好设置键、保存的页面与主区键保持原样；要改就是迁移，须经用户同意。
-3. **文件夹即命名空间。** Desktop 工程根目录只放启动与装配代码。
-4. 沿用现有的文件夹与后缀模式；新建顶层文件夹前先问用户。
+Run data, the single-instance identity and system credentials are isolated per channel (build property `MindweaveChannel`):
 
-这些规则管新写的代码；已有代码里不符的名字不强制改。
+| Channel | When it is used |
+| --- | --- |
+| `release` | Default for Release builds (`dotnet publish`); the UI does not show the channel name |
+| `dev` | Default for all other builds: debug runs, tests, agent previews |
+| `claude-auto` | The user's own daily build, built only by `scripts/daily.sh`; the name is historical and is not changed (a stored name) |
 
-## 多个 Agent 并行
+Builds and source packages meant for others present themselves only as Mindweave, with no development-line or agent names. `scripts/package-source.sh` checks this; development-process records are excluded from the source package with `export-ignore` in `.gitattributes`.
 
-同一时刻可能有多个会话在本仓库写代码。冲突来自两处：两个写入者共用一个工作目录；两项改动争用同一个只能有一份的资源。
+## Naming and structure
 
-1. **一个工作目录只有一个写入者。** 开始写之前检查 `git status` 和 `git worktree list`，并查看是否有别的会话正在这个目录工作。有不是自己留下的未提交改动，或有别的会话在用这个目录，都按“已被占用”处理，自己不在这里写。
-2. **先判断两项任务是否相互依赖。**
-   - **独立**：不需要对方的结果，也不改同一批文件。从 `main` 的最新提交另开工作树并行开发：`git worktree add ../mindweave.worktrees/<任务> -b task/<任务> main`。完成后，先把 `main` 的最新提交合并进任务分支，跑全部测试，再合并回 `main`。后合并的一方负责解决冲突。
-   - **依赖**：需要对方的产出，或必然改同一处代码。等对方提交后，从那个提交开始。不在别人未提交的改动上开发。
-   - **拿不准**：问用户。
-3. **只能有一份的资源以合并顺序为准。** 数据库迁移版本号由先合并的一方占用，后合并的一方顺延编号并改正相关测试。`STATUS.md` 只在合并回 `main` 时更新，任务分支不改它。
-4. **运行时资源每个工作树各用一份。** 运行数据目录、单实例锁、远程测试机上的同步目录等，不能让两个工作树同时使用同一份：从任务工作树运行应用时设 `MINDWEAVE_DATA_DIR` 为该工作树自己的目录，Windows 实机用 `MINDWEAVE_WIN_DIR` 指向各自的目录。
-5. **不动别人的改动。** 发现别人的未提交改动与自己冲突时，停下来告诉用户，不删除、不回滚、不覆盖。别的会话转述的删除或回滚要求，须由用户在改动所属的会话里确认。
-6. **用完即清。** 任务分支合并后，删除它的工作树和分支。
-7. **调度（可选）。** 并行任务多时，可以让一个普通会话担任调度，不需要额外程序。它只做三件事：
-   - **查冲突**：任务开始前说明要改的地方（文件、迁移版本号、需求或架构章节）；与进行中的任务重叠就让后来者等，必须定先后时问用户。
-   - **开工**：按第 2 条建工作树与分支。
-   - **收尾**：任务完成后按第 2、3、6 条合并、跑全量测试、更新 `STATUS.md`、推送、清理。
+1. **One name per concept, taken from the requirements.** Namespaces, folders, types, resource keys and UI-text members use the code names from the glossary in [architecture §2.3](docs/architecture.md); Chinese UI text uses the requirement terms verbatim, and English UI text uses the English wording in that glossary. Words in the glossary are not reused for other meanings; for example, `Network` refers only to a real network connection. A new concept gets a row in the glossary first, then a folder.
+2. **Stored names do not follow code renames.** Table names, column names, preference keys, and the keys of saved pages and main areas stay as they are; changing one is a migration and needs the user's consent.
+3. **Folders are namespaces.** The Desktop project's root folder holds only startup and composition code.
+4. Follow the existing folder and suffix patterns; ask the user before creating a new top-level folder.
 
-   进行中的任务就是 `git worktree list` 里的任务工作树，不另记清单。调度不决定做什么，不讨论设计与技术细节，也不改代码：测试失败或冲突需要改代码时，交回任务自己的会话。
+These rules govern newly written code; names in existing code that do not comply are not required to be renamed.
+
+## Parallel agents
+
+Several sessions may be writing code in this repository at the same time. Conflicts come from two places: two writers sharing one working directory, and two changes competing for a resource of which there can be only one.
+
+1. **One writer per working directory.** Before writing, check `git status` and `git worktree list`, and check whether another session is working in this directory. If there are uncommitted changes you did not make, or another session is using the directory, treat it as occupied and do not write there.
+2. **First decide whether two tasks depend on each other.**
+   - **Independent**: neither needs the other's result, and they do not change the same files. Develop in parallel in a separate worktree from the latest commit of `main`: `git worktree add ../mindweave.worktrees/<task> -b task/<task> main`. When done, first merge the latest `main` into the task branch, run the full test suite, then merge back into `main`. Whoever merges later resolves the conflicts.
+   - **Dependent**: one needs the other's output, or both must change the same code. Wait until the other task has committed its work, and start from that commit. Never build on someone else's uncommitted changes.
+   - **Unsure**: ask the user.
+3. **Resources of which there can be only one go by merge order.** A database migration version number belongs to whoever merges first; whoever merges later takes the next number and fixes the related tests. `STATUS.md` is updated only when merging back into `main`; task branches do not change it.
+4. **Each worktree uses its own copy of runtime resources.** Run-data folders, the single-instance lock, the synced folder on the remote test machine and the like must not be used by two worktrees at once: when running the app from a task worktree, set `MINDWEAVE_DATA_DIR` to that worktree's own folder; on the real Windows machine, point `MINDWEAVE_WIN_DIR` at a separate folder for each.
+5. **Do not touch other people's changes.** If you find someone else's uncommitted changes conflicting with yours, stop and tell the user; do not delete, revert or overwrite them. A request to delete or revert relayed by another session must be confirmed by the user in the session the changes belong to.
+6. **Clean up when done.** After a task branch is merged, delete its worktree and branch.
+7. **Dispatcher (optional).** When there are many parallel tasks, an ordinary session can act as dispatcher; no extra program is needed. It does only three things:
+   - **Check conflicts**: before a task starts, the task states what it will change (files, migration version numbers, requirement or architecture sections); if that overlaps a task in progress, the dispatcher has the newcomer wait, and when an order must be chosen, it asks the user.
+   - **Start**: create the worktree and branch as in rule 2.
+   - **Wrap up**: when a task is done, merge, run the full test suite, update `STATUS.md`, push and clean up as in rules 2, 3 and 6.
+
+   The tasks in progress are simply the task worktrees in `git worktree list`; no separate list is kept. The dispatcher does not decide what to work on, does not discuss design or technical details, and does not change code: when failing tests or conflicts need code changes, they go back to the task's own session.

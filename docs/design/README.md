@@ -1,24 +1,24 @@
-# 详细设计
+# Detailed design
 
-本目录记录交接文档允许实现者自行细化的选择（2026-11-16 前写于 Claude 轨道，见 [AGENTS.md](../../AGENTS.md)“分支”）。产品行为以[需求](../requirements.md)与[架构](../architecture.md)为准；这里与它们冲突时以它们为准，并在 [STATUS.md](../../STATUS.md)“待决定”中记录。
+This directory records the choices that the handoff document lets implementers refine on their own (written on the Claude track before 2026-11-16; see “分支” (Branches) in [AGENTS.md](../../AGENTS.md)). Product behavior follows the [requirements](../requirements.md) and the [architecture](../architecture.md). Where this directory conflicts with them, they win, and the conflict is recorded under “待决定” (Pending decisions) in [STATUS.md](../../STATUS.md).
 
-| 文档 | 内容 |
+| Document | Content |
 | --- | --- |
-| [数据关系梳理](data-model.md) | 稳定身份、来源依赖、祖先冻结范围、版本归属、事务与删除边界；各阶段按迁移逐步落表 |
-| [S0 骨架与存储](s0-skeleton-storage.md) | 工程与依赖、数据目录与轨道隔离、单实例、SQLite 连接／迁移／备份／恢复、三层导航与 ViewLocator |
-| [S1 真实聊天](s1-chat.md) | 生成协调、消息状态机、Chat Completions 客户端、凭据 |
-| [S2 分支与返回](s2-branching.md) | 迁移 v4、创建分支事务、上下文组装、锚点与渲染、E1 视图槽位、返回与阅读位置 |
-| [S3 上下文预算与压缩](s3-context.md) | 预算与估算、必需项与分块、上下文摘要的复用与归属、在回答执行槽内压缩、失败与超限、迁移 v5 |
-| [S4 总结与版本](s4-summaries.md) | 迁移 v6、总结节点与版本、候选与采用基线、编辑草稿、版本删除与“上一保留版本”、阅读判定、节点标记、两层命名 |
-| [S5 总结网络](s5-network.md) | 节点短名、投影与经未总结会话的路径边、确定性布局、新节点直接保存、显式保存与修订号、离开提示、视口规则 |
-| [模型能力](model-capabilities.md) | 各服务的图片输入与工具调用调研（官方文档与来源）、预设规则、设置 › 高级设置、功能用的唯一查询 `ActiveModelHasAsync`、待真实调用核实的项 |
-| [演进接缝](evolution-seams.md) | E1–E6 在本轨道的落地形态、成本与发现；E5 交换格式规格；交给 S2 的约定 |
-| [命名与结构](naming-and-structure.md) | 一个概念一个名字（术语表与保留词）、存盘名称不随代码改名、文件夹即命名空间；给 `main` 的 AGENTS.md 段落与术语表提案；暂缓的完整版规则 |
-| [测试的组织与健康](testing.md) | 快速／全量命令、分类、时间预算、偶发失败的隔离规则与常见原因 |
-| [附件（智能体平台第 1 期）](attachments.md) | 迁移 v16（来源标记、分块与检索、草稿附件、请求用途）、PDF／DOCX 提取、资源层的上下文规划与附件摘要、删除前备份带原件、输入框附件界面；与架构文字的差别 |
-| [运行与工具（智能体平台第 2 期）](runs-and-tools.md) | 本期新的决定 R1–R10（用户 2026-11-17 确认）、迁移 v17（运行步骤、工具与上限快照）、运行循环、Chat Completions 的工具调用、两个本地工具、设置 › 工具与统计、待真实服务核实的项 |
-| [网络搜索与出处（智能体平台第 3 期）](web-search.md) | 本期新的决定 W1–W16（用户 2026-11-17 确认）、Tavily 适配器、取网页的地址检查、批准卡片、出处的编号与定位、设置 › 工具 › 网络搜索、待真实服务核实的项 |
-| [第三方工具（智能体平台第 4 期，MCP）](mcp.md) | 本期新的决定 M1–M18（用户 2026-11-19 接受）、MCP 客户端程序包、服务器设置与密钥、进程的启动与重启、工具的启用与定义快照、批准卡片、不可信结果、测试用的假服务器 |
-| [运行循环的改进（提案）](agent-loop.md) | 现行运行循环的梳理、发现的问题 P1–P10、改进 L1–L12（运行说明、额度行、只读并发、重试、留余地、按引用淘汰、材料索引、本地出处、评测）、顺序与第 4 期的依赖；待你确认 |
-| [智能体平台：待决定的问题](agent-platform-questions.md) | 需求 §10.4 与架构 §15 草稿中须由用户决定的问题，每条附建议；与并行会话对齐的固定细节 |
-| [决策记录](decisions.md) | 交接 §4 授权实现者决定的参数与库选择，一条一段 |
+| [Data relationships](data-model.md) | Stable identity, source dependencies, the frozen ancestor range, version ownership, transaction and deletion boundaries; each stage adds its tables step by step through migrations |
+| [S0 skeleton and storage](s0-skeleton-storage.md) | Projects and dependencies, data directory and track isolation, single instance, SQLite connection / migrations / backup / restore, three-layer navigation and ViewLocator |
+| [S1 real chat](s1-chat.md) | Generation coordination, message state machine, Chat Completions client, credentials |
+| [S2 branching and return](s2-branching.md) | Migration v4, the create-branch transaction, context assembly, anchors and rendering, E1 viewer slots, return and reading position |
+| [S3 context budget and compression](s3-context.md) | Budget and estimation, required items and chunking, reuse and ownership of context summaries, compression inside the answer's execution slot, failure and overflow, migration v5 |
+| [S4 summaries and versions](s4-summaries.md) | Migration v6, summary nodes and versions, candidates and the adoption baseline, edit drafts, version deletion and the “上一保留版本” (previous kept version), read detection, node markers, two-level naming |
+| [S5 summary network](s5-network.md) | Short node names, projection and path edges through unsummarized conversations, deterministic layout, saving new nodes directly, explicit save and revision numbers, leave prompts, viewport rules |
+| [Model capabilities](model-capabilities.md) | Research on image input and tool calling per service (official documents and sources), preset rules, 设置 › 高级设置 (Settings › Advanced settings), `ActiveModelHasAsync` as the only query features use, items waiting for verification with real calls |
+| [Evolution seams](evolution-seams.md) | The form E1–E6 took on this track, their cost and findings; the E5 exchange format specification; conventions handed to S2 |
+| [Naming and structure](naming-and-structure.md) | One concept, one name (glossary and reserved words); stored names do not change with code renames; folder equals namespace; the AGENTS.md section and glossary proposal for `main`; the deferred full version of the rules |
+| [Test organization and health](testing.md) | Fast / full commands, categories, time budgets, isolation rules for flaky failures and their common causes |
+| [Attachments (agent platform phase 1)](attachments.md) | Migration v16 (provenance markers, chunking and retrieval, draft attachments, request purpose), PDF / DOCX extraction, context planning at the resource layer and attachment digests, backups before deletion that include the originals, the input box attachment UI; differences from the architecture text |
+| [Runs and tools (agent platform phase 2)](runs-and-tools.md) | This phase's new decisions R1–R10 (confirmed by the user 2026-11-17), migration v17 (run steps, snapshots of tools and limits), the run loop, tool calling in Chat Completions, two local tools, 设置 › 工具 (Settings › Tools) and statistics, items waiting for verification with real services |
+| [Web search and citations (agent platform phase 3)](web-search.md) | This phase's new decisions W1–W16 (confirmed by the user 2026-11-17), the Tavily adapter, URL checks for page fetching, approval cards, citation numbering and locating, 设置 › 工具 › 网络搜索 (Settings › Tools › Web search), items waiting for verification with real services |
+| [Third-party tools (agent platform phase 4, MCP)](mcp.md) | This phase's new decisions M1–M18 (accepted by the user 2026-11-19), the MCP client package, server settings and keys, starting and restarting processes, enabling tools and definition snapshots, approval cards, untrusted results, the fake server for tests |
+| [Run loop improvements (proposal)](agent-loop.md) | A walkthrough of the current run loop, the problems found P1–P10, improvements L1–L12 (run prompt, budget line, concurrent read-only calls, retry, leaving room, eviction by citation, material index, local citations, evaluation), order and dependencies on phase 4; waiting for the user's confirmation |
+| [Agent platform: open questions](agent-platform-questions.md) | Questions in requirements §10.4 and the architecture §15 draft that the user must decide, each with a recommendation; fixed details for alignment with parallel sessions |
+| [Decision log](decisions.md) | Parameters and library choices that handoff §4 authorizes implementers to decide, one paragraph each |

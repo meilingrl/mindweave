@@ -212,6 +212,7 @@ internal sealed class ChatHarness : IAsyncDisposable
     public async Task<Message> WaitForAnswerAsync(MessageId answer, Func<Message, bool>? until = null, int timeoutMs = 5000)
     {
         until ??= m => m.IsFinished;
+        timeoutMs = TestWaits.Ms(timeoutMs);
         var deadline = DateTime.UtcNow.AddMilliseconds(timeoutMs);
         while (true)
         {
@@ -307,6 +308,7 @@ internal sealed class ChatHarness : IAsyncDisposable
         [CallerFilePath] string? file = null,
         [CallerLineNumber] int line = 0)
     {
+        timeoutMs = TestWaits.Ms(timeoutMs);
         var deadline = DateTime.UtcNow.AddMilliseconds(timeoutMs);
         while (!condition())
         {
@@ -327,6 +329,7 @@ internal sealed class ChatHarness : IAsyncDisposable
         [CallerFilePath] string? file = null,
         [CallerLineNumber] int line = 0)
     {
+        timeoutMs = TestWaits.Ms(timeoutMs);
         var deadline = DateTime.UtcNow.AddMilliseconds(timeoutMs);
         while (!await condition())
         {

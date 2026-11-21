@@ -36,22 +36,17 @@ public static class Converters
     public static FuncValueConverter<string?, string> FileName { get; } = new(path => Path.GetFileName(path) ?? string.Empty);
 
     /// <summary>
-    /// A running answer's weaving motion (docs/design/generating-indicator.md), from its phase and whether text has
-    /// arrived: the thread once text streams in; before that the braid, joining while thinking, tightening while compressing.
+    /// A running answer's weaving motion from its stage (docs/design/reasoning-and-status.md §2): the braid while waiting,
+    /// retrying or finishing; joining while thinking; tightening while compressing; reaching while a tool fetches; holding
+    /// while an approval waits; the thread once text streams in.
     /// </summary>
-    public static FuncMultiValueConverter<object?, WeavingMotion> AnswerMotion { get; } = new(values =>
+    public static FuncValueConverter<AnswerStage, WeavingMotion> AnswerMotion { get; } = new(stage => stage switch
     {
-        var list = values.ToList();
-        if (list is [_, true, ..])
-        {
-            return WeavingMotion.Thread;
-        }
-
-        return list.FirstOrDefault() switch
-        {
-            AnswerPhase.Thinking => WeavingMotion.Joining,
-            AnswerPhase.Compressing => WeavingMotion.Tightening,
-            _ => WeavingMotion.Braid,
-        };
+        AnswerStage.Thinking => WeavingMotion.Joining,
+        AnswerStage.Compressing => WeavingMotion.Tightening,
+        AnswerStage.Tool => WeavingMotion.Reaching,
+        AnswerStage.Approval => WeavingMotion.Holding,
+        AnswerStage.Writing or AnswerStage.Done => WeavingMotion.Thread,
+        _ => WeavingMotion.Braid,
     });
 }

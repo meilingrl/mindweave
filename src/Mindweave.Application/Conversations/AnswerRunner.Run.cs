@@ -150,14 +150,14 @@ internal sealed partial class AnswerRunner
 
             if (!_health.TryAdmit())
             {
-                return new RunEnding(MessageState.Failed, GenerationErrorKind.StorageUnavailable, StorageAdmissionRefusedException.Detail);
+                return new RunEnding(MessageState.Failed, GenerationErrorKind.StorageUnavailable, StorageAdmissionRefusedException.Detail.ToString());
             }
 
             // One model request.
             requests++;
             var step = new RunStepRecord(task.Id, ordinal++, RunStepKind.Model, RunStepState.Running, _clock.UtcNow);
             await _writes.SaveAsync(() => Done(services.Store.AddStepAsync(step, CancellationToken.None))).ConfigureAwait(false);
-            live.BeginTurn();
+            live.BeginTurn(final);
 
             var allowed = (final ? limits.Duration + RunLimits.FinalRequestGrace : limits.Duration) - elapsed.Elapsed;
             using var deadline = new CancellationTokenSource(allowed > TimeSpan.Zero ? allowed : TimeSpan.FromMilliseconds(1));
@@ -181,8 +181,8 @@ internal sealed partial class AnswerRunner
                             live.Append(delta.Text);
                             text.Append(delta.Text);
                             break;
-                        case ChatStreamEvent.ReasoningDelta:
-                            live.MarkThinking();
+                        case ChatStreamEvent.ReasoningDelta reasoning:
+                            live.AppendReasoning(reasoning.Text);
                             break;
                         case ChatStreamEvent.ToolCalls toolCalls:
                             asked = toolCalls;
@@ -247,6 +247,7 @@ internal sealed partial class AnswerRunner
                     // L5: a request after tool results that failed by chance is tried once more (a step of its own), so the
                     // results so far are not lost; nothing of it had arrived. It counts as a request and towards the duration.
                     retried = true;
+                    live.SetPhase(AnswerPhase.Retrying);
                     var pause = failure.RetryAfter is { } after ? (after < MaxRetryAfter ? after : MaxRetryAfter) : _options.RetryPause;
                     try
                     {
@@ -572,6 +573,9 @@ internal sealed partial class AnswerRunner
                 {
                     gate.Release();
                 }
+
+                // Its result is written with the others, in call order; meanwhile the status names a call still running.
+                work.Live.ToolExecuted(pending.Call.Id);
             })).ConfigureAwait(false);
         }
 

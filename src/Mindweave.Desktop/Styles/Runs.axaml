@@ -25,6 +25,24 @@
   <Style Selector="PathIcon.run-activity.chevron.expanded">
     <Setter Property="RenderTransform" Value="none" />
   </Style>
+  <!-- The reasoning fold (requirements §10.4.4 v0.21): quieter than the answer, the same thin line as a step, and short,
+       following the newest reasoning. -->
+  <Style Selector="Border.reasoning">
+    <Setter Property="BorderBrush" Value="{DynamicResource DividerBrush}" />
+    <Setter Property="BorderThickness" Value="2,0,0,0" />
+    <Setter Property="Padding" Value="10,2,0,2" />
+    <Setter Property="MaxWidth" Value="680" />
+    <Setter Property="HorizontalAlignment" Value="Left" />
+  </Style>
+  <Style Selector="ScrollViewer.reasoning">
+    <Setter Property="MaxHeight" Value="200" />
+  </Style>
+  <Style Selector="SelectableTextBlock.reasoning">
+    <Setter Property="FontSize" Value="13" />
+    <Setter Property="LineHeight" Value="20" />
+    <Setter Property="Foreground" Value="{DynamicResource MutedText}" />
+    <Setter Property="Margin" Value="0,0,12,0" />
+  </Style>
   <!-- A step: a thin line on the left, like a quotation, so the steps read as notes about the answer, not as its text. -->
   <Style Selector="Border.run-step">
     <Setter Property="BorderBrush" Value="{DynamicResource DividerBrush}" />

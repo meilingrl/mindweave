@@ -250,16 +250,19 @@
               <ItemsControl.ItemTemplate>
                 <DataTemplate x:DataType="vm:PurposeRowViewModel">
                   <Grid ColumnSpacing="12" AutomationProperties.Name="{Binding AutomationName}" Classes.empty="{Binding IsEmpty}" Classes="purpose-row">
+                    <!-- The name and its hint take what the usage leaves; the usage keeps one line up to 320 px, then
+                         wraps, so neither squeezes the other into a narrow column. -->
                     <Grid.ColumnDefinitions>
-                      <ColumnDefinition Width="Auto" SharedSizeGroup="PurposeName" />
                       <ColumnDefinition Width="*" />
+                      <ColumnDefinition Width="Auto" />
                       <ColumnDefinition Width="Auto" SharedSizeGroup="PurposeShare" />
                     </Grid.ColumnDefinitions>
                     <StackPanel Spacing="1">
-                      <TextBlock FontWeight="SemiBold" Text="{Binding Name}" />
-                      <TextBlock Classes="caption" Text="{Binding Hint}" />
+                      <TextBlock FontWeight="SemiBold" Text="{Binding Name}" TextWrapping="Wrap" />
+                      <TextBlock Classes="caption" Text="{Binding Hint}" TextWrapping="Wrap" />
                     </StackPanel>
-                    <TextBlock Grid.Column="1" Classes="caption" VerticalAlignment="Center" HorizontalAlignment="Right" TextWrapping="Wrap" Text="{Binding UsageText}" />
+                    <TextBlock Grid.Column="1" Classes="caption" VerticalAlignment="Center" HorizontalAlignment="Right" TextAlignment="Right" MaxWidth="320"
+                               TextWrapping="Wrap" Text="{Binding UsageText}" />
                     <TextBlock Grid.Column="2" VerticalAlignment="Center" HorizontalAlignment="Right" MinWidth="36" TextAlignment="Right" Text="{Binding ShareText}" />
                   </Grid>
                 </DataTemplate>

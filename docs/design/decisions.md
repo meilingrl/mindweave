@@ -1,147 +1,147 @@
-# 决策记录
+# Decision log
 
-交接 §4 授权实现者自行决定、需保持可调的选择。每条写明选择、理由与何时重新考虑。
+Handover §4 lets the implementer decide certain choices, which must stay adjustable. Each entry states the choice, the reason, and when to reconsider it.
 
-## D-001 运行时与依赖版本（2026-10-25）
+## D-001 Runtime and dependency versions (2026-10-25)
 
-.NET 10（LTS）、Avalonia 12.1.4、LiveMarkdown.Avalonia 2.5.1（S2 引入）、CommunityToolkit.Mvvm 8.4.2、Microsoft.Extensions.DependencyInjection／Logging 10.0.13、Microsoft.Data.Sqlite 10.0.13、xunit.v3 3.2.2 + Avalonia.Headless.XUnit 12.1.4。LiveMarkdown 2.5.1 要求 Avalonia 12，小样已在该组合上验证；测试组合与小样相同。全部版本集中在 `Directory.Packages.props`。
+.NET 10 (LTS), Avalonia 12.1.4, LiveMarkdown.Avalonia 2.5.1 (introduced in S2), CommunityToolkit.Mvvm 8.4.2, Microsoft.Extensions.DependencyInjection/Logging 10.0.13, Microsoft.Data.Sqlite 10.0.13, xunit.v3 3.2.2 + Avalonia.Headless.XUnit 12.1.4. LiveMarkdown 2.5.1 requires Avalonia 12; the sample app has been verified on this combination, and the test combination is the same as the sample's. All versions are kept in one place, `Directory.Packages.props`.
 
-## D-002 主键与时间（2026-10-25）
+## D-002 Primary keys and time (2026-10-25)
 
-UUIDv7 文本主键，UTC Unix 毫秒时间。见[数据关系梳理](data-model.md)。
+UUIDv7 text primary keys; time as UTC Unix milliseconds. See [data relationships](data-model.md).
 
-## D-003 同步级别（2026-10-25）
+## D-003 Synchronous level (2026-10-25)
 
-WAL + `synchronous=FULL`。NORMAL 在进程崩溃时同样不丢已提交事务，只在断电时可能丢最后几笔；本应用写入稀疏，FULL 的代价可以忽略，换取“保存成功即落盘”的简单承诺。若 S1 检查点频率导致可感知卡顿再评估。
+WAL + `synchronous=FULL`. With NORMAL, a process crash also loses no committed transaction; only a power loss may lose the last few. This app writes sparsely, so the cost of FULL is negligible, and in return we get the simple promise "saved means on disk". Re-evaluate if the S1 checkpoint frequency causes noticeable stalls.
 
-## D-004 迁移整体单事务（2026-10-25）
+## D-004 All migrations in a single transaction (2026-10-25)
 
-所有待执行迁移在一个事务中提交，避免停在中间版本；代价是迁移步骤只能使用可在事务内执行的语句（架构 §12.2 已如此限定）。
+All pending migrations commit in one transaction, so the database never stops at an intermediate version. The cost is that migration steps may only use statements that can run inside a transaction (architecture §12.2 already restricts them this way).
 
-## D-005 迁移备份保留 5 份（2026-10-25）
+## D-005 Keep 5 migration backups (2026-10-25)
 
-只针对迁移前备份；日常备份不在首版范围。
+This applies only to backups made before a migration; routine backups are not in the scope of the first release.
 
-## D-006 读取在单一快照内执行（2026-10-27）
+## D-006 Reads run inside a single snapshot (2026-10-27)
 
-`SqliteDatabase.ReadAsync` 在一个读事务中执行全部工作。消息内容分为消息行与内容块两张表后，多语句读取必须一致；放在数据库层而不是各个查询里，后续新增的多表读取（分支、总结）自动得到保证。WAL 下读事务不阻塞写入，代价只是读取期间保留一个快照。
+`SqliteDatabase.ReadAsync` does all its work in one read transaction. Once message content is split into two tables, message rows and content blocks, multi-statement reads must be consistent. Putting this in the database layer instead of in each query means that later multi-table reads (branches, summaries) get the guarantee automatically. Under WAL a read transaction does not block writes; the only cost is that a snapshot is kept for the duration of the read.
 
-## D-007 追踪写入尽力而为（2026-10-27）
+## D-007 Trace writes are best-effort (2026-10-27)
 
-`ai_request` 写入失败只记日志，不影响回答终态，也不进入存储健康状态。诊断记录丢失可以接受，因诊断而让回答保存失败不可接受。若 D2 的诊断界面需要“记录一定存在”，再评估。
+A failed `ai_request` write is only logged. It does not affect the answer's final state and does not enter the storage health state. Losing a diagnostic record is acceptable; failing to save an answer because of diagnostics is not. Re-evaluate if the D2 diagnostics UI needs "the record always exists".
 
-## D-008 已结束回答整段解析，生成中回答走增量构建（2026-10-27）
+## D-008 Finished answers are parsed whole; answers being generated are built incrementally (2026-10-27)
 
-LiveMarkdown 有两种输入：整段 `MarkdownDocumentUpdate.Full` 与增量 `ObservableStringBuilder`（后台解析后增量更新控件）。已结束回答一律整段解析：版面只取决于正文与渲染配置，重启后来源锚点按同一版面恢复；生成中回答只追加，用增量构建避免每次全量重建控件。回答写入终态后页面换成新的消息项，视图随之从增量切到整段。
+LiveMarkdown takes two kinds of input: the whole text, `MarkdownDocumentUpdate.Full`, and the incremental `ObservableStringBuilder` (parsed in the background, then the control is updated incrementally). Finished answers are always parsed whole: the layout depends only on the text and the rendering configuration, so after a restart anchors are restored against the same layout. An answer being generated only grows by appending, so it is built incrementally, which avoids rebuilding the whole control each time. When an answer is written in its final state, the page swaps in a new message item, and the view switches from incremental to whole with it.
 
-## D-009 子会话提问在发送材料中前置引用（2026-10-27）
+## D-009 Questions in child conversations put the quotation first in what is sent (2026-10-27)
 
-链上每个分支会话的第一个提问，发送时前置“关于上文中的这段内容：”加按行引用的选中文字；存储中的提问保持用户原话。只前置第一个提问：之后的提问已在同一上下文中，重复引用浪费预算。标题请求同样带上引用，使分支标题指向所探索的那段内容。
+For the first question of each branch conversation on the chain, the material sent starts with “关于上文中的这段内容：” ("About this passage above:") followed by the selected text, quoted line by line. The stored question stays in the user's own words. Only the first question gets the prefix: later questions are already in the same context, and repeating the quotation wastes budget. The title request carries the quotation too, so the branch title points at the passage being explored.
 
-## D-010 阅读位置记录到“阅读线”所在字符并含行内偏移（2026-10-27）
+## D-010 The reading position is recorded at the character on the "reading line", with an in-line offset (2026-10-27)
 
-阅读线为视口顶部下方 8 px。记录该处的消息 ID、源文区块（同锚点的区块范围＋序号）、字符位置，以及阅读线距该字符顶部的距离；提问或无文字处只记消息顶部偏移。只记字符时恢复会吸附到行首，最多差一行（实测 10 px），加上偏移后同一版面下恢复无误差。版面变化时字符仍在则回到该字符，区块不在则回到消息顶部，消息不在则回到末尾。
+The reading line is 8 px below the top of the viewport. The record holds the message ID at that point, the source text block (the block range, as for anchors, plus an index), the character position, and the distance from the reading line to the top of that character. For a question, or a place without text, only the offset from the top of the message is recorded. Recording only the character makes a restore snap to the start of the line, off by up to one line (10 px measured); with the offset, a restore under the same layout is exact. When the layout changes, the position returns to the character if it still exists, to the top of the message if the block does not, and to the end if the message does not.
 
-## D-011 token 估算：按字符计、故意偏高，按实测校准（2026-10-27）
+## D-011 Token estimates: counted by character, deliberately high, calibrated by measurement (2026-10-27)
 
-不引入各模型的分词器（体积大、随模型变）。中日韩及其他非 ASCII 字符各 1 token，ASCII 每 3 字符 1 token，每条消息加 4，每个请求加 16。用 DeepSeek 官方返回的 `prompt_tokens` 校准：12 个真实请求中，较大的请求估算约为实际的 1.4–1.5 倍；最初每个请求只加 3 时，最小的请求被低估（估 56、实 62），改为 16 后全部不低于实际。偏高的代价是稍早压缩，偏低的代价是服务端拒绝。真实服务测试持续检查“估算不低于计费”。
+We do not bring in each model's tokenizer (large, and it changes with the model). Each CJK or other non-ASCII character counts as 1 token, every 3 ASCII characters as 1 token, plus 4 per message and 16 per request. Calibration uses the `prompt_tokens` returned by DeepSeek's official service: across 12 real requests, the estimate for the larger requests was about 1.4–1.5 times the actual count. When each request first added only 3, the smallest request was underestimated (estimate 56, actual 62); after changing it to 16, no estimate was below the actual count. Estimating high costs a slightly earlier compression; estimating low gets the request rejected by the service. The real-service tests keep checking that "the estimate is not below the billed count".
 
-## D-012 压缩在回答任务自己的执行槽里完成（2026-10-27）
+## D-012 Compression runs in the answer task's own execution slot (2026-10-27)
 
-摘要请求不作为独立任务排队，而是回答任务的前置步骤，在同一个执行槽里先摘要、再回答。这样不会出现“回答占着槽等自己的摘要任务”的死锁，全局两路并发的限制不变，停止回答也同时停止摘要；摘要请求记在回答任务名下的 `ai_request` 里，`generation_task.kind` 不需要新类型（它有 CHECK 约束，增加类型要重建表）。
+The context summary request is not queued as a separate task. It is a preliminary step of the answer task: in the same execution slot, first the context summary, then the answer. This way there is no deadlock where "the answer holds the slot while waiting for its own context summary task", the global limit of two concurrent tasks is unchanged, and stopping the answer also stops the context summary. The context summary request is recorded in `ai_request` under the answer task, so `generation_task.kind` needs no new type (it has a CHECK constraint; adding a type means rebuilding the table).
 
-## D-013 只解析服务主动返回的 usage，不请求（2026-10-27）
+## D-013 Only parse usage the service returns on its own; do not request it (2026-10-27)
 
-Chat Completions 的 `stream_options.include_usage` 不是所有兼容服务都接受，发送未知字段可能导致整个请求被拒。只在服务主动返回 `usage` 时记录到 `ai_request`，用于核对估算与诊断。
+Not every compatible service accepts the Chat Completions `stream_options.include_usage`, and sending an unknown field may get the whole request rejected. `usage` is recorded in `ai_request` only when the service returns it on its own, to check the estimates and for diagnostics.
 
-（2026-11-13 改为请求，健康检查 gap-unprompted-1）统计页（第 6 项）与按模型 token 校准都依赖 usage，而遵循 OpenAI 语义的服务只在请求了 `stream_options.include_usage` 时才返回。现在默认请求；服务因不认识该字段而以 400 拒绝（错误信息提到 `stream_options`）时，同一请求去掉它再发一次。官方 OpenAI 接口仍未直接实测。
+(Changed to requesting it on 2026-11-13, health check gap-unprompted-1.) The statistics page (item 6) and the per-model token calibration both depend on usage, and services that follow OpenAI's semantics return it only when `stream_options.include_usage` is requested. It is now requested by default. When a service rejects it with a 400 because it does not recognize the field (the error message mentions `stream_options`), the same request is sent again without it. The official OpenAI API has still not been tested directly.
 
-## D-014 公式用 LiveMarkdown.Avalonia.Math 2.5.1（RaTeX）（2026-10-27）
+## D-014 Formulas use LiveMarkdown.Avalonia.Math 2.5.1 (RaTeX) (2026-10-27)
 
-S3 试用中你指出 LaTeX 不渲染。LiveMarkdown 本身没有公式支持，同一作者的配套包 `LiveMarkdown.Avalonia.Math` 用 RaTeX 渲染行内 `$…$` 与块级 `$$…$$`。RaTeX 带原生库，覆盖 macOS arm64／x64、Windows x64 与 Linux（CI）；许可为 Apache-2.0、MIT 与 KaTeX 字体的 SIL OFL。版面中公式是一个对象占位字符，来源锚点照常工作；引用文字在捕获时按顺序把占位字符还原为该块里的 LaTeX 原文，发给模型的引用不会丢失公式。渲染配置身份改为 `livemarkdown-2.5.1/math-1`，旧身份的锚点仍然尝试恢复：校验以内容与版面哈希为准，没有公式的回答版面不变，有公式的回答校验失败后按 MW-C13 降级。
+During the S3 trial the user pointed out that LaTeX was not rendered. LiveMarkdown itself has no formula support; the companion package by the same author, `LiveMarkdown.Avalonia.Math`, uses RaTeX to render inline `$…$` and block `$$…$$`. RaTeX ships a native library covering macOS arm64/x64, Windows x64 and Linux (CI); the licenses are Apache-2.0, MIT, and SIL OFL for the KaTeX fonts. In the layout a formula is a single object placeholder character, so anchors work as usual. When quoted text is captured, the placeholder characters are restored in order to that block's LaTeX source, so quotations sent to the model do not lose formulas. The rendering configuration identity changes to `livemarkdown-2.5.1/math-1`. Anchors with the old identity are still restored where possible: validation is based on the content and layout hashes, so answers without formulas keep the same layout, and answers with formulas that fail validation degrade according to MW-C13.
 
-## D-015 摘要的输出上限与一次内部重试（2026-10-27）
+## D-015 Output limit for context summaries and one internal retry (2026-10-27)
 
-试用中一次压缩失败。用试用数据库里同一请求重放 8 次（`deepseek-flash`，上限 4,096）：推理用掉 718–4,096 token，2 次达到上限，其中 1 次没有正文、1 次只有 179 字的截断摘要（旧代码会把它当成功使用）。处理：上限改为 16,384（同一请求 3 次实测推理 533–2,677）；只有服务正常结束（非 `length`）且非空的摘要才使用；截断或为空时在同一回答任务内再请求一次。重试的是任务内部的前置步骤，不是重发用户的提问，与“重启后不自动重发”不冲突。
+One compression failed during a trial. The same request from the trial database was replayed 8 times (`deepseek-flash`, limit 4,096): reasoning used 718–4,096 tokens, and 2 runs hit the limit, one with no text at all and one with only a truncated context summary of 179 characters (the old code would have used it as a success). The fix: the limit becomes 16,384 (3 measured runs of the same request used 533–2,677 for reasoning); a context summary is used only when the service finished normally (not `length`) and it is not empty; when it is truncated or empty, it is requested once more inside the same answer task. What is retried is a preliminary step inside the task, not a resend of the user's question, so it does not conflict with "no automatic resend after a restart".
 
-## D-016 公式也识别反斜杠定界符（2026-10-27）
+## D-016 Formulas also recognize backslash delimiters (2026-10-27)
 
-复试 S3 时，模型把块级公式写成 `\[ … \]`，界面显示成“[”加 LaTeX 原文：Markdown 把 `\[` 读作转义的方括号。很多模型默认用 `\(…\)`、`\[…\]`，所以在共享解析管线里启用公式包自带的 `UseExtendedMathematics`，四种定界符都按公式渲染（流式和完成后用的是同一管线）。不改写回答原文，来源锚点的偏移不受影响；引用还原 LaTeX 时也识别这两种定界符。代价是正文里真要写 `\[` 字面方括号时会被当成公式，聊天回答里这种写法极少。渲染配置身份改为 `livemarkdown-2.5.1/math-2`，`math-1` 的锚点仍尝试恢复，含反斜杠公式的回答按 MW-C13 降级。
+When S3 was retested, the model wrote a block formula as `\[ … \]`, and the UI showed "[" followed by the LaTeX source: Markdown reads `\[` as an escaped square bracket. Many models use `\(…\)` and `\[…\]` by default, so the shared parsing pipeline enables the formula package's own `UseExtendedMathematics`, and all four kinds of delimiters render as formulas (streaming and finished answers use the same pipeline). The answer text is not rewritten, so anchor offsets are not affected; when quotations restore LaTeX, they recognize these two delimiters too. The cost is that a literal `\[` square bracket in the text will be taken as a formula, which is very rare in chat answers. The rendering configuration identity changes to `livemarkdown-2.5.1/math-2`; anchors with `math-1` are still restored where possible, and answers containing backslash formulas degrade according to MW-C13.
 
-## D-017 总结的阅读判定、阅读位置与输入方式（2026-10-28）
+## D-017 Read status, reading position and input for summaries (2026-10-28)
 
-- **已读：**正文已进入视口的最大比例达到 90%，且该版本在本次打开中显示满 8 秒（交接 §4 授权的“阈值与短正文的停留时长”）。两条同时要求，所以一屏放得下的短正文也不会“打开即已读”，长正文正常读完时远超 8 秒。手动开关随时可改；手改保存的版本记为已读。
-- **阅读位置：**总结按版本保存滚动位置，而不是会话那样的锚点定位器。总结没有“从选区分支”（MW-C04 首版不提供），不需要可校验的锚点；版本正文不会被改写，滚动位置足够。
-- **输入：**只发本会话的覆盖范围；分支的来源引用与来源回答作为一条单独的系统说明，标明“只用于理解背景，不要总结”，不作为对话轮次发送，免得模型把祖先内容写进总结。超出预算时复用 S3 的规划与上下文摘要，在总结任务自己的执行槽里完成。
-- **输出：**上限 16,384（D-015 的理由）；第一行“标题：…”，其余为正文；只接受正常结束且标题、正文都非空的结果，否则任务失败、不留版本。
-- **同名规范化：**NFKC、去首尾空白和标点、空白合一、不区分大小写；不合并同义词。命名请求给每个节点的当前标题、正文前 600 字和现有名称，结果写为“基础名－区分词”。
+- **Read:** the largest share of the text that has entered the viewport reaches 90%, and the version has been shown for a full 8 seconds during this opening (the "threshold, and dwell time for short text" that handover §4 delegated). Both are required, so a short text that fits on one screen is not "read as soon as it opens", while reading a long text normally takes well over 8 seconds. The manual toggle can be changed at any time; a version saved after a manual edit is marked as read.
+- **Reading position:** summaries store a scroll position per version, not an anchor locator as conversations do. Summaries have no "branch from selection" (MW-C04 does not offer it in the first release), so they need no verifiable anchor; version text is never rewritten, so a scroll position is enough.
+- **Input:** only this conversation's covered range is sent. The branch's source quotation and source answer are sent as one separate system note, labelled “只用于理解背景，不要总结” ("only for understanding the background; do not summarize"), not as conversation turns, so that the model does not write ancestor content into the summary. When the budget is exceeded, the S3 planning and context summary are reused, inside the summary task's own execution slot.
+- **Output:** limit 16,384 (for the reasons in D-015); the first line is “标题：…” ("Title: …"), and the rest is the body. Only a result that finished normally with a non-empty title and body is accepted; otherwise the task fails and leaves no version.
+- **Same-name normalization:** NFKC, trim leading and trailing whitespace and punctuation, collapse whitespace, case-insensitive; synonyms are not merged. The naming request gets each node's current title, the first 600 characters of its body and the existing names, and the result is written as "base name－distinguishing word".
 
-## D-018 网络画布自绘，键盘与朗读走列表视图（2026-10-28）
+## D-018 The summary network canvas is custom-drawn; keyboard and screen-reader access go through the list view (2026-10-28)
 
-架构 §11.1 写的是“背景／连线自绘、节点使用轻量普通控件”。首版把节点也自绘：节点数少时差别不大，但统一的坐标变换、命中与绘制更简单，缩放时文字与连线不会错位。代价是画布上的节点没有逐个的辅助功能语义。为此保留 S4 的列表视图（工具栏“列表”切换）：每个总结是普通按钮，可键盘操作、可朗读，标记写成文字。状态在画布上也不只靠颜色：未读节点有实心小圆标，候选更新在短名后加“↻”，选中加深色描边，详情面板写出完整文字。以后若交付拖动或需要画布内的键盘导航，再把节点换成控件。
+Architecture §11.1 says "background and edges custom-drawn, nodes as lightweight ordinary controls". The first release draws the nodes too: with few nodes the difference is small, but one shared coordinate transform, hit testing and drawing are simpler, and text and edges do not drift apart when zooming. The cost is that nodes on the canvas have no per-node accessibility semantics. For this reason the S4 list view stays (toggled with “列表” ("List") in the toolbar): each summary is an ordinary button that can be used from the keyboard and read aloud, with its markers written as text. On the canvas, too, state does not rely on color alone: unread nodes have a small solid dot, candidate updates add "↻" after the short name, selection adds a dark outline, and the details panel spells everything out in full. If dragging is delivered later, or keyboard navigation inside the canvas is needed, nodes will be replaced with controls.
 
-## D-019 网络节点短名与新节点的参照布局（2026-10-28）
+## D-019 Short names for summary network nodes, and the reference layout for new nodes (2026-10-28)
 
-- **短名**（你试用 S4 后的意见）：每个版本另存 2–8 字的短名，随总结一起生成（“短名：…”一行），节点显示当前版本的短名，完整名称在详情里；旧版本或没有这一行时取标题前 8 字加“…”。短名不参与同名命名。迁移 v7。
-- **新节点参照内存布局**（MW-C12 要求写明）：网络已打开且有未保存的整理时，新节点放在你眼前看到的来源节点旁边，并把这一行直接保存。若之后对那次整理选“不保存”，新节点保存的位置靠近整理后的父节点位置，重开时可能离父节点稍远；位置仍有效，可以再整理。没有未保存改动时，内存布局就是已保存布局，两者没有区别。
-- **布局参数**：层间距 170、群组留白 160、碰撞修正 40 轮、缩放 0.25–2.5（适配时不超过 1.5）、适配边距 48。标签宽度按字符估算（中日韩字符 14、ASCII 8），不测量字体，保证不同机器上同样输入得到同样坐标。
+- **Short names** (the user's feedback after trying S4): each version also stores a short name of 2–8 characters, generated together with the summary (a line “短名：…” ("Short name: …")). Nodes show the current version's short name; the full name is in the details. For older versions, or when this line is missing, the first 8 characters of the title plus "…" are used. Short names take no part in same-name naming. Migration v7.
+- **New nodes use the in-memory layout as reference** (MW-C12 requires this to be written down): when the summary network is open and has an unsaved arrangement, a new node is placed next to the source node the user sees, and that row is saved directly. If the user later chooses “不保存” ("Don't save") for that arrangement, the new node's saved position is near the parent's arranged position, so after reopening it may be a little farther from its parent; the position is still valid and can be arranged again. When there are no unsaved changes, the in-memory layout is the saved layout, and there is no difference between the two.
+- **Layout parameters:** layer spacing 170, group padding 160, 40 rounds of collision correction, zoom 0.25–2.5 (no more than 1.5 when fitting), fit margin 48. Label widths are estimated by character (CJK characters 14, ASCII 8) rather than measured from the font, so the same input gives the same coordinates on different machines.
 
-## D-020 界面打磨放在 S6 之后单独成段（2026-10-28）
+## D-020 UI polish is a separate stage after S6 (2026-10-28)
 
-你试用 S5 后指出：网络页比开发前确认过的样例（`prototypes/network-layout`）笨拙；已读／未读在视觉语义上不清楚；开启分支会话、总结等页面的布局与细节也不够好。没有功能问题。你决定：S6 完成后做一个集中的界面打磨阶段（记为 S7），S6 期间不做界面改造，新页面按现有风格实现、只求可用。
+After trying S5, the user pointed out that the summary network page is clumsier than the sample confirmed before development (`prototypes/network-layout`); that read and unread are not visually clear; and that the layout and details of pages such as starting a branch conversation and summaries are not good enough. There were no functional problems. The user decided: after S6 is finished, do one focused UI polish stage (recorded as S7); during S6, do no UI rework, and implement new pages in the existing style, aiming only for usable.
 
-S7 的范围（每页先给前后截图，你确认观感后才继续）：
+Scope of S7 (each page first gets before and after screenshots; work continues only after the user confirms the look):
 
-- **网络页按样例的视觉语言重做：**深色画布与连线配色、悬停放大并提亮相邻连线、选中时高亮回溯到根的来源路径、标签放在圆点旁、远景时隐藏次要标签、查找匹配加环。只改显示，布局、保存、视口与离开提示的已测行为不变。拖动节点（含邻居弹簧）要另定“手动位置”规则后再做。
-- **已读／未读：**未读为实心亮色圆点＋粗体标签＋强调色角标，已读为空心圆、灰色标签；页面上给一行图例；总结列表与详情面板用同一套约定。
-- **分支会话、总结页、会话页及其他 S1–S6 页面：**统一间距、层级与按钮位置，逐页对照截图调整。
+- **Redo the summary network page in the sample's visual language:** dark canvas and edge colors, enlarging on hover and brightening adjacent edges, highlighting the source path back to the root on selection, labels beside the dots, hiding secondary labels when zoomed out, rings around search matches. Only the display changes; the tested behavior of layout, saving, viewport and the leave prompt stays the same. Dragging nodes (including neighbor springs) comes only after separate "manual position" rules are set.
+- **Read/unread:** unread is a solid bright dot + bold label + accent-color badge; read is a hollow circle with a gray label. The page gets a one-line legend; the summary list and the details panel use the same convention.
+- **Branch conversations, the summary page, the conversation page and other S1–S6 pages:** unify spacing, hierarchy and button positions, adjusting page by page against screenshots.
 
-今后每份阶段报告都写明哪些界面只是可用的第一版、是否已排入打磨。
+From now on, every stage report states which screens are only a usable first version, and whether they are scheduled for polish.
 
-## D-021 深层恢复恢复整条路径；E5 不在首版（2026-10-28）
+## D-021 Deep restore restores the whole path; E5 is not in the first release (2026-10-28)
 
-你在 S6 设计时确认（MW-C18 要求的交互评审）：
+The user confirmed during the S6 design (the interaction review MW-C18 requires):
 
-- **已归档会话不能直接生成总结**，改为“恢复并总结”；已有总结照常阅读、编辑、采用、删除版本。提问、分支、重试同样走“恢复并继续”。
-- **恢复一个因祖先被归档而隐藏的会话时，恢复整条路径**：同时清除路径上被归档祖先的标记，确认框先列出这些祖先与因此重新出现的其他分支数。路径外的单独归档不受影响。没有采用“只恢复它本身、祖先灰显”的方案（可见性与再次归档的语义更复杂）。
-- **E5 交换包不在 S6 实现**，留到首版之后；导出用独立格式化器，不直接序列化存储记录，以后加 E5 不必返工。需求 §8.3、架构 §8.1 规定首版没有项目包。
+- **An archived conversation cannot generate a summary directly**; instead it offers “恢复并总结” ("Restore and summarize"). Existing summaries can still be read, edited, adopted, and have versions deleted as usual. Asking, branching and retrying likewise go through “恢复并继续” ("Restore and continue").
+- **Restoring a conversation that is hidden because an ancestor was archived restores the whole path**: it also clears the mark on the archived ancestors along the path, and the confirmation dialog first lists those ancestors and the number of other branches that reappear as a result. Separate archives outside the path are not affected. The option "restore only the conversation itself, with ancestors grayed out" was not adopted (its visibility and re-archiving semantics are more complex).
+- **The E5 exchange package is not implemented in S6**; it is left until after the first release. Export uses a separate formatter and does not serialize stored records directly, so adding E5 later needs no rework. Requirements §8.3 and architecture §8.1 state that the first release has no project package.
 
-## D-022 浅色与深色都做，可以切换（2026-10-29）
+## D-022 Both light and dark, switchable (2026-10-29)
 
-S7 开始时给你三个方案：只把网络页做成样例的深色、整个应用深色、全部浅色。你选择“都要，可以切换”。实现：设置页“外观：跟随系统／浅色／深色”，默认跟随系统，即时生效；深色下整个应用用样例配色，网络页与样例一致；浅色下网络页沿用样例的行为（悬停、选中路径、搜索环、标签在右、远景隐藏标签），颜色换成浅色版本。所有颜色只通过同名的浅色／深色主题资源引用，自绘画布也不写死颜色。已读／未读在两种主题下用同样的形状区分（实心＝未读，空心＝已读），不只靠颜色。
+At the start of S7 the user was given three options: make only the summary network page dark like the sample, make the whole app dark, or make everything light. The user chose "both, switchable". Implementation: on the settings page, “外观：跟随系统／浅色／深色” ("Appearance: system / light / dark"), defaulting to following the system and taking effect immediately. In dark mode the whole app uses the sample's colors, and the summary network page matches the sample. In light mode the summary network page keeps the sample's behavior (hover, selected path, search rings, labels on the right, labels hidden when zoomed out), with light colors. All colors are referenced only through light/dark theme resources of the same name; the custom-drawn canvas does not hard-code colors either. Read and unread are distinguished by the same shapes in both themes (solid = unread, hollow = read), not by color alone.
 
-## D-023 第 2 轮验收意见：手动拖动节点提前交付，界面少用说明文字（2026-11-02）
+## D-023 Round 2 acceptance feedback: manual node dragging delivered early; less explanatory text in the UI (2026-11-02)
 
-你验收 S7 第 2 轮后提出 8 条意见，并同意 S7 第 3 轮与之一起做：
+After the round 2 acceptance of S7, the user gave 8 points of feedback and agreed to do them together with round 3 of S7:
 
-1. 左侧栏可调宽度、可折叠（宽度与折叠状态记住）。
-2. 外观设置的说明文字（“立即生效……”“跟随系统……”）删去；三选一的圆点按钮改为紧凑的分段控件。
-3. 模型服务提供预设地址，不必全部手填。
-4. 拉取模型列表后，候选应直接显示，不用先输入正确的前缀。
-5. 发送后的停止按钮只用图标，不写“停止”。
-6. 选中文字创建分支的按钮固定在页面底部，改为出现在选区旁边。
-7. 网络里的节点可以拖动。
-8. 提问与回答都显示时间，并能一键复制。
+1. The left sidebar can be resized and collapsed (its width and collapsed state are remembered).
+2. Remove the explanatory text in the appearance settings (“立即生效……” ("Takes effect immediately…"), “跟随系统……” ("Follows the system…")); the three radio buttons become a compact segmented control.
+3. Model services offer preset URLs, so not everything has to be typed by hand.
+4. After the model list is fetched, the candidates should show directly, without first typing a correct prefix.
+5. The stop button after sending shows only an icon, without the text “停止” ("Stop").
+6. The button for creating a branch from selected text is fixed at the bottom of the page; it should appear next to the selection instead.
+7. Nodes in the summary network can be dragged.
+8. Both questions and answers show their time and can be copied with one click.
 
-由此确定两条：
+Two things were settled from this:
 
-- **手动拖动节点在 S7 交付**（需求 §3 原列为首版之后的项目，现由你排入）。行为按架构“布局”一节已写好的规则：拖动结束产生待保存布局，与“整理布局”同一份坐标与保存路径、同样的离开提示；平移、缩放、显示全部不产生待保存状态。不做邻居弹簧等物理效果。
-- **界面少用说明文字，让控件本身引导**：删掉复述控件作用的提示句；只保留用户看不到就会误解的信息（错误、不可撤销操作的后果、需求明文要求的说明）。通用交互（停止、复制、折叠）用图标加悬停提示。此后各页都按这条检查。
+- **Manual node dragging is delivered in S7** (requirements §3 originally listed it as after the first release; the user has now scheduled it). The behavior follows the rules already written in the architecture's "Layout" section: the end of a drag produces a layout waiting to be saved, using the same coordinates and save path as “整理布局” ("Arrange layout"), with the same leave prompt; panning, zooming and showing everything produce no pending-save state. No physics effects such as neighbor springs.
+- **Less explanatory text in the UI; let the controls guide the user**: remove hint sentences that restate what a control does. Keep only information the user would misunderstand without seeing it (errors, the consequences of irreversible operations, explanations the requirements explicitly demand). Common interactions (stop, copy, collapse) use icons with hover tooltips. Every page is checked against this rule from now on.
 
-## D-024 第 4 轮验收意见：可以删除整个工作区，回答计时，侧栏状态，分支标记（2026-11-03）
+## D-024 Round 4 acceptance feedback: deleting a whole workspace, answer timing, sidebar state, branch markers (2026-11-03)
 
-你在 Windows 上按清单验收 S7 后提出 5 条意见（2026-11-02），并对其中三处做了选择：
+After the S7 acceptance on Windows by the checklist, the user gave 5 points of feedback (2026-11-02) and made choices on three of them:
 
-1. **工作区（主题）可以删除，整个删除**：连同其中所有会话（含分支与已归档）、总结、布局一起删除；先自动备份，备份失败就不删；要输入工作区名称确认；有回答或总结在生成或排队时拒绝。**这与需求 §6.1 第 1 条（另见 §8.2、§9.5） 不一致**（首版不提供删除整个工作区），需由你决定是否更正 `main` 的需求，见 TRACK“待决定”。删除前的备份不参与升级备份的轮换，一直保留；应用打开时没有从备份恢复的入口（新功能，未做）。
-2. **回答计时**：生成时显示实时秒数，完成后在时间旁保留总用时（“用时 14 秒”）；失败或停止的回答不显示用时。数据来自已有的 `created_at`／`completed_at`，不需要迁移。
-3. **侧栏会话状态**：生成中显示转圈；在别的会话期间完成的回答显示“有新回答”圆点（重启后保留，打开会话即清除）；需要处理（失败、中断）优先于新回答。侧栏收起时展开按钮同样提示。
-4. **深色下返回来源的高亮看不清**：缺陷。高亮颜色按控件实际所处主题取，并在主题切换时重设；两种主题下正文与高亮的对比度都不低于 4.5:1。
-5. **长会话里分支入口被埋没**：在滚动条旁按位置标出有分支的回答，点击滚到那条回答的分支列表；没有分支的页面不占这条边。
+1. **A workspace (主题) can be deleted, as a whole**: together with all its conversations (including branches and archived ones), summaries and layouts. A backup is made automatically first, and if the backup fails, nothing is deleted; the user must type the workspace name to confirm; the deletion is refused while an answer or summary is being generated or is queued. **This is inconsistent with requirements §6.1 item 1 (see also §8.2, §9.5)** (the first release does not offer deleting a whole workspace); the user must decide whether to correct the requirements on `main`, see "Pending decisions" in TRACK. The backup before deletion takes no part in the rotation of upgrade backups and is kept indefinitely; when the app opens, there is no way to restore from such a backup (a new feature, not done).
+2. **Answer timing**: while generating, a live seconds count is shown; when finished, the total time stays next to the timestamp (“用时 14 秒” ("took 14 s")); failed or stopped answers do not show a time. The data comes from the existing `created_at`/`completed_at`, so no migration is needed.
+3. **Sidebar conversation state**: a spinner while generating; an answer that finished while another conversation was open shows a “有新回答” ("new answer") dot (kept after a restart, cleared when the conversation is opened); needing attention (failed, interrupted) takes priority over a new answer. When the sidebar is collapsed, the expand button gives the same indication.
+4. **In dark mode, the highlight when returning to the source is hard to see**: a defect. The highlight color is taken from the theme the control is actually in, and is reset when the theme changes; in both themes the contrast between text and highlight is at least 4.5:1.
+5. **In long conversations, branch entry points get buried**: next to the scroll bar, answers that have branches are marked by position; clicking a mark scrolls to that answer's branch list. Pages without branches do not take up this strip.
 
-## D-025 个人信息：清理现有文件，不改写 git 历史（2026-11-20）
+## D-025 Personal information: clean up existing files, do not rewrite git history (2026-11-20)
 
-健康检查 repo-scripts-9 指出仓库里有个人路径、课程目录、API 中转地址，且全部提交的作者邮箱是个人邮箱。你决定（2026-11-20）：**不改写历史**，以后的提交改用 GitHub noreply 邮箱（由你设置）。
+Health check repo-scripts-9 pointed out that the repository contains personal paths, a course directory and an API relay URL, and that the author email on every commit is a personal email. The user decided (2026-11-20): **do not rewrite history**; future commits use a GitHub noreply email instead (set up by the user).
 
-- 现有文件中的主目录路径改为 `~`，原型命令改为仓库相对路径，架构 §2.1 的课程 .docx 链接改为文字说明，原型 responses-compat 的中转地址改为占位的 `relay.example.com`。
-- 理由：作者邮箱泄露的最坏情况是公开后被爬虫收集、收到垃圾邮件或钓鱼邮件，并能把 GitHub 身份与该邮箱对应的账号联系起来；风险低。改写历史会改变全部提交号，使四个标签、文档与 Windows 测试记录里引用的提交号全部失效，代价高于收益。
-- 何时重新考虑：若要公开且不愿暴露旧邮箱，从当前文件新建一个公开仓库，而不是改写这个仓库的历史。
+- In existing files, home directory paths become `~`, prototype commands become paths relative to the repository, the course .docx link in architecture §2.1 becomes a text description, and the relay URL in the responses-compat prototype becomes the placeholder `relay.example.com`.
+- Reason: the worst case of the author email leaking is that, once public, it is collected by crawlers and receives spam or phishing email, and the GitHub identity can be linked to the accounts tied to that email; the risk is low. Rewriting history would change every commit ID, invalidating the commit IDs cited in the four tags, the documents and the Windows test records; the cost is higher than the benefit.
+- When to reconsider: if the repository is to be made public without exposing the old email, create a new public repository from the current files instead of rewriting this repository's history.

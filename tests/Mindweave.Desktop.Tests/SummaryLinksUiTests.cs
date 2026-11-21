@@ -14,6 +14,7 @@ using Mindweave.Desktop.Navigation;
 using Mindweave.Desktop.ViewModels.Pages;
 using Mindweave.Desktop.Views.Pages;
 using Mindweave.Infrastructure.Sqlite;
+using Mindweave.Testing;
 using static Mindweave.Desktop.Tests.UiTree;
 using TextBlock = Avalonia.Controls.TextBlock;
 
@@ -197,6 +198,7 @@ public class SummaryLinksUiTests
     }
 
     [AvaloniaFact]
+    [Quarantined("2026-11-21", "Linux CI only, twice in a row (runs 44797665196, 44806763101): the two quick presses on the sibling never produced the second link within 15 s (line 258); 10 of 10 passed on macOS under --load.")]
     public async Task A_double_click_in_pick_mode_links_once_and_keeps_the_note_editor_instead_of_opening_the_summary()
     {
         await using var app = DesktopHarness.Create();

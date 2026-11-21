@@ -93,9 +93,16 @@ public class AttachmentFlowTests
         Assert.Equal(ResourceForm.Parts, input.Form);
         Assert.True(input.ChunkCount > input.Chunks.Count);
 
-        // The summary request is counted for the answer's task under its own purpose.
-        var purposes = await h.Database.ReadAsync(c => c.Scalar<string>(null, "SELECT group_concat(purpose, ',') FROM (SELECT purpose FROM ai_request WHERE purpose IS NOT NULL ORDER BY started_at, rowid);"), Ct);
-        Assert.Equal(string.Join(',', Enumerable.Repeat("resource_summary", summaryRequests).Append("answer")), purposes);
+        // The summary request is counted for the answer's task under its own purpose. The answer's own row is written just
+        // after the answer completes, so it is waited for (a slow CI runner read before it).
+        var expected = string.Join(',', Enumerable.Repeat("resource_summary", summaryRequests).Append("answer"));
+        string? purposes = null;
+        await ChatHarness.UntilAsync(async () =>
+        {
+            purposes = await h.Database.ReadAsync(c => c.Scalar<string>(null, "SELECT group_concat(purpose, ',') FROM (SELECT purpose FROM ai_request WHERE purpose IS NOT NULL ORDER BY started_at, rowid);"), Ct);
+            return purposes?.EndsWith(",answer", StringComparison.Ordinal) == true;
+        });
+        Assert.Equal(expected, purposes);
     }
 
     [Fact]

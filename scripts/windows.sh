@@ -1,17 +1,19 @@
 #!/usr/bin/env bash
-# Drives the Windows 11 test machine over SSH (Tailscale). Key-based login only; never prompts for a password.
+# Drives the Windows 11 test machine over SSH: the home network when it answers, else Tailscale. Key-based login only;
+# never prompts for a password.
 #
 #   scripts/windows.sh sync      copy the current working tree (tracked + untracked, not ignored) to the machine
 #   scripts/windows.sh test      sync, then run the full test suite there
 #   scripts/windows.sh publish   sync, then publish a self-contained Mindweave.exe for interactive use
 #   scripts/windows.sh exec CMD  run a PowerShell command inside the remote checkout
 #
-# Environment: MINDWEAVE_WIN_HOST (default win-home), MINDWEAVE_WIN_DIR (default E:/mindweave-claude-auto),
+# Environment: MINDWEAVE_WIN_LAN_HOST (SSH alias for the direct home-network path, default win-lan; tried first,
+# set it empty to skip), MINDWEAVE_WIN_HOST (default win-home), MINDWEAVE_WIN_DIR (default E:/mindweave-claude-auto),
 # MINDWEAVE_WIN_SOCKS (default 127.0.0.1:7898), MINDWEAVE_WIN_APP (publish folder under that dir, default app),
 # MINDWEAVE_WIN_CHANNEL (channel stamped by publish, default dev: a test build never opens a release build's data;
 # set it to release for a build to demonstrate, or claude-auto-dev to reach test data made before 2026-11-16).
-# This Mac reaches the tailnet through a userspace Tailscale
-# instance that exposes only a loopback SOCKS proxy, so SSH goes through it; set it empty to connect directly.
+# Away from home, this Mac reaches the tailnet through a userspace Tailscale instance that exposes only a loopback
+# SOCKS proxy, so SSH goes through it; set MINDWEAVE_WIN_SOCKS empty to connect directly.
 set -euo pipefail
 
 HOST="${MINDWEAVE_WIN_HOST:-win-home}"
@@ -21,12 +23,18 @@ APP="${MINDWEAVE_WIN_APP:-app}"
 CHANNEL="${MINDWEAVE_WIN_CHANNEL:-dev}"
 ROOT="$(git -C "$(dirname "$0")" rev-parse --show-toplevel)"
 SOCKS="${MINDWEAVE_WIN_SOCKS-127.0.0.1:7898}"
+LAN_HOST="${MINDWEAVE_WIN_LAN_HOST-win-lan}"
 SSH_OPTS=(-o BatchMode=yes -o ConnectTimeout=20 -o ServerAliveInterval=15 -o ServerAliveCountMax=4)
-if [[ -n "$SOCKS" ]]; then
+# The direct home-network path is fast and does not drop long sessions; the relayed tailnet path does.
+# The alias (in ~/.ssh/config, so no home address lives in the repo) is used whenever it answers quickly.
+if [[ -n "$LAN_HOST" ]] && ssh -o BatchMode=yes -o ConnectTimeout=3 "$LAN_HOST" exit >/dev/null 2>&1; then
+  HOST="$LAN_HOST"
+  echo "using $HOST (home network)" >&2
+elif [[ -n "$SOCKS" ]]; then
   SSH_OPTS+=(-o "ProxyCommand=nc -X 5 -x $SOCKS %h %p")
 fi
 
-# The tailnet path is relayed and occasionally drops new connections; retry only connection-level
+# The tailnet path is relayed and occasionally drops connections; retry only connection-level
 # failures (ssh exit 255; keep-alives turn a stalled link into one), never a command that ran and failed.
 retry_ssh() {
   local attempt status
@@ -88,5 +96,5 @@ case "${1:-}" in
     echo "run on Windows: $DIR/$APP/Mindweave.exe (channel $CHANNEL)"
     ;;
   exec) shift; remote "Set-Location '$SRC'; $*" ;;
-  *) sed -n '2,10p' "$0"; exit 64 ;;
+  *) sed -n '2,14p' "$0"; exit 64 ;;
 esac

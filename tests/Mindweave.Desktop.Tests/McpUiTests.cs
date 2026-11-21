@@ -154,7 +154,7 @@ public class McpUiTests
 
         Assert.True(answer.IsThirdPartyApproval);
         Assert.Equal(UiText.McpApprovalTitle, answer.ApprovalTitle);
-        Assert.Equal(UiText.McpApprovalWaiting("notes", "write_note"), answer.ActivityText);
+        Assert.Equal(UiText.McpApprovalWaiting("notes", "write_note"), answer.StatusText);
         Assert.Equal(("notes", "write_note"), (answer.PendingApproval!.Server, answer.PendingApproval.ToolTitle));
         window.UpdateLayout();
         Assert.Contains(window.GetVisualDescendants().OfType<Grid>(), g => g.Name == "McpApprovalDetails" && g.IsEffectivelyVisible);
@@ -223,7 +223,7 @@ public class McpUiTests
         var listed = server.Tools.Select(t => t.Tool).Select(t => t.Name == "write_note" ? t with { Description = "改过的说明" } : t).ToList();
         await servers.ReconcileAsync(added.Id, listed, CancellationToken.None);
         await UiWait.UntilAsync(() => server.Tools.Single(t => t.Name == "write_note") is { IsOn: false, HasDisabledReason: true }, timeoutMs: 20_000);
-        Assert.Equal(Application.Tools.Mcp.McpServerSettings.ChangedDefinition, server.Tools.Single(t => t.Name == "write_note").DisabledReason);
+        Assert.Equal(Application.Tools.Mcp.McpServerSettings.ChangedDefinition.ToString(), server.Tools.Single(t => t.Name == "write_note").DisabledReason);
         window.Close();
     }
 

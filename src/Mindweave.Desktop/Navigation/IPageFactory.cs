@@ -7,9 +7,11 @@ namespace Mindweave.Desktop.Navigation;
 
 /// <summary>
 /// Where a page lives: its workspace, the viewer slot showing it, and the navigator it may use. <paramref name="Workspaces"/>
-/// is the workbench's list of workspaces, for the pages that show or change it (设置 › 工作区).
+/// is the workbench's list of workspaces, for the pages that show or change it (设置 › 工作区). <paramref name="Replayed"/>:
+/// the page takes the place of one a language switch replaced (bilingual-ui.md §6.4). The reader did not open it, so it
+/// does nothing that opening a page does, such as telling the recommendations, which may then start a paid request.
 /// </summary>
-public sealed record PageContext(Workspace Workspace, ViewerSlotKey Slot, IWorkbenchNavigator Navigator, IWorkspaceDirectory? Workspaces = null);
+public sealed record PageContext(Workspace Workspace, ViewerSlotKey Slot, IWorkbenchNavigator Navigator, IWorkspaceDirectory? Workspaces = null, bool Replayed = false);
 
 public interface IPageFactory
 {

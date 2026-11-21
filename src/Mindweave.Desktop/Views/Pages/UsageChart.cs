@@ -258,7 +258,7 @@ public sealed class UsageChart : Control
             Text(bar.Name, 12, primary, FontWeight.SemiBold),
             Text(string.Format(CultureInfo.CurrentCulture, "{0}  {1}", UiText.ChartInput, bar.InputText), 12, primary),
             Text(string.Format(CultureInfo.CurrentCulture, "{0}  {1}", UiText.ChartOutput, bar.OutputText), 12, primary),
-            Text(UiText.RequestCount(bar.Requests) + UiText.RequestsLabel, 11, muted),
+            Text(UiText.ChartRequests(bar.Requests), 11, muted),
         };
         if (bar.Unreported > 0)
         {

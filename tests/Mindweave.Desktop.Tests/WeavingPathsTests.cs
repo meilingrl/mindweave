@@ -95,12 +95,40 @@ public class WeavingPathsTests
     }
 
     [Fact]
-    public void Only_joining_has_links_and_only_the_thread_has_a_thread()
+    public void Reaching_sends_one_dot_out_along_a_link_and_back_while_two_rest()
+    {
+        var period = WeavingPaths.Period(WeavingMotion.Reaching).TotalSeconds;
+        var home = WeavingPaths.At(WeavingMotion.Reaching, 0);
+        var out_ = WeavingPaths.At(WeavingMotion.Reaching, period / 2);
+
+        Assert.Equal(home.Dots[0], out_.Dots[0]);
+        Assert.Equal(home.Dots[1], out_.Dots[1]);
+        Assert.True(out_.Dots[2].Centre.X - home.Dots[2].Centre.X > 10);
+        Assert.True(out_.Dots[2].Radius > home.Dots[2].Radius && out_.Dots[2].Opacity > home.Dots[2].Opacity);
+        var link = Assert.Single(out_.Links);
+        Assert.Equal((home.Dots[1].Centre, out_.Dots[2].Centre), (link.From, link.To));
+    }
+
+    [Fact]
+    public void Holding_keeps_the_dots_in_place_and_breathes_them_together()
+    {
+        var period = WeavingPaths.Period(WeavingMotion.Holding).TotalSeconds;
+        var rest = WeavingPaths.At(WeavingMotion.Holding, 0);
+        var full = WeavingPaths.At(WeavingMotion.Holding, period / 2);
+
+        Assert.Equal(rest.Dots.Select(d => d.Centre), full.Dots.Select(d => d.Centre));
+        Assert.All(full.Dots, d => Assert.Equal(full.Dots[0].Radius, d.Radius, 6));
+        Assert.True(full.Dots[0].Radius > rest.Dots[0].Radius && full.Dots[0].Opacity > rest.Dots[0].Opacity);
+        Assert.Empty(full.Links);
+    }
+
+    [Fact]
+    public void Only_joining_and_reaching_have_links_and_only_the_thread_has_a_thread()
     {
         foreach (var motion in AllMotions)
         {
             var frame = WeavingPaths.At(motion, WeavingPaths.JoiningCycle.TotalSeconds * 0.6);
-            Assert.Equal(motion == WeavingMotion.Joining, frame.Links.Count > 0);
+            Assert.Equal(motion is WeavingMotion.Joining or WeavingMotion.Reaching, frame.Links.Count > 0);
             Assert.Equal(motion == WeavingMotion.Thread, frame.ThreadOpacity > 0);
         }
     }

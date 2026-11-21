@@ -10,7 +10,7 @@ namespace Mindweave.Desktop.ViewModels.Pages;
 /// again), replacing, removing and testing it, and the default of the composer's switch. Greyed out with 工具 when the model
 /// cannot call tools or tools are off; a saved key is kept.
 /// </summary>
-public sealed partial class WebSearchSettingsPanel : ViewModelBase
+public sealed partial class WebSearchSettingsPanel : ViewModelBase, Navigation.ICarriesViewState
 {
     private readonly IWebSearchSettings _settings;
     private bool _loading = true;
@@ -23,6 +23,17 @@ public sealed partial class WebSearchSettingsPanel : ViewModelBase
     }
 
     public Task Loaded { get; }
+
+    /// <summary>A key typed and not yet saved, carried over a language switch (bilingual-ui.md §6.6).</summary>
+    public object? CaptureViewState() => NewKey.Length > 0 ? NewKey : null;
+
+    public void RestoreViewState(object state)
+    {
+        if (state is string key)
+        {
+            NewKey = key;
+        }
+    }
 
     public string ServiceName { get; }
 
@@ -92,7 +103,7 @@ public sealed partial class WebSearchSettingsPanel : ViewModelBase
         try
         {
             var result = await _settings.TestAsync(string.IsNullOrWhiteSpace(NewKey) ? null : NewKey, CancellationToken.None);
-            (Status, StatusIsError) = result.Succeeded ? (UiText.WebSearchTestOk, false) : (result.Problem, true);
+            (Status, StatusIsError) = result.Succeeded ? (UiText.WebSearchTestOk, false) : (result.Problem?.ToString(), true);
         }
         finally
         {

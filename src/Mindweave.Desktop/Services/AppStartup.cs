@@ -12,7 +12,7 @@ using Mindweave.Desktop.ViewModels.Pages;
 namespace Mindweave.Desktop.Services;
 
 /// <summary>Drives root navigation from the startup outcome: recovery page, onboarding, or the workbench.</summary>
-public sealed partial class AppStartup : IRecoveryActions
+public sealed partial class AppStartup : IRecoveryActions, IDisposable
 {
     private readonly StartupCoordinator _coordinator;
     private readonly WorkspaceService _workspaces;
@@ -25,9 +25,11 @@ public sealed partial class AppStartup : IRecoveryActions
     private readonly IThemeApplier _theme;
     private readonly StorageHealth _health;
     private readonly ConversationMarksService _marks;
+    private readonly WorkspaceDeletionViewModel _workspaceDeletion;
     private readonly Infrastructure.Hosting.AppPaths _paths;
     private readonly IOnboardingProgress _onboarding;
     private readonly Application.Models.IModelSettings _models;
+    private readonly LanguageSwitch _language;
     private readonly ILogger<AppStartup> _logger;
 
     public AppStartup(
@@ -47,8 +49,10 @@ public sealed partial class AppStartup : IRecoveryActions
         Infrastructure.Hosting.AppPaths paths,
         IOnboardingProgress onboarding,
         Application.Models.IModelSettings models,
+        LanguageSwitch language,
         ILogger<AppStartup> logger)
     {
+        _language = language;
         _paths = paths;
         _onboarding = onboarding;
         _models = models;
@@ -69,9 +73,80 @@ public sealed partial class AppStartup : IRecoveryActions
         _marks = marks;
 
         ArgumentNullException.ThrowIfNull(workspaceDeletion);
-        // The last workspace was deleted: a new one is asked for, as on a fresh start. A workspace existed, so the guide
-        // was finished (or predates it) and is not shown again.
-        workspaceDeletion.NoWorkspaceLeft += (_, _) => _root.Show(new OnboardingViewModel(CreateFirstWorkspaceAsync));
+        _workspaceDeletion = workspaceDeletion;
+        workspaceDeletion.NoWorkspaceLeft += OnNoWorkspaceLeft;
+    }
+
+    /// <summary>Stops listening to the delete dialog; the view it belongs to is being replaced.</summary>
+    public void Dispose() => _workspaceDeletion.NoWorkspaceLeft -= OnNoWorkspaceLeft;
+
+    /// <summary>
+    /// The last workspace was deleted: a new one is asked for, as on a fresh start. A workspace existed, so the guide was
+    /// finished (or predates it) and is not shown again.
+    /// </summary>
+    private void OnNoWorkspaceLeft(object? sender, EventArgs e) => _root.Show(new OnboardingViewModel(CreateFirstWorkspaceAsync));
+
+    /// <summary>
+    /// The guide from <paramref name="step"/>, or with <see cref="OnboardingStep.Done"/> only the workspace step. The
+    /// guide's first step offers the language choice.
+    /// </summary>
+    private OnboardingViewModel Onboarding(OnboardingStep step) =>
+        new(CreateFirstWorkspaceAsync, step, _onboarding, new ModelSettingsViewModel(_models), _language);
+
+    /// <summary>
+    /// Where the user is, for a language switch (bilingual-ui.md §6.4): what the window shows, the workbench's pages
+    /// and the sidebar. <see cref="Resume"/> on the next view's startup replays it.
+    /// </summary>
+    public ViewSnapshot Snapshot()
+    {
+        RootPage root = _root.Current switch
+        {
+            ShellViewModel => new RootPage.Shell(),
+            OnboardingViewModel guide => new RootPage.Onboarding(guide.IsGuided ? guide.Step : OnboardingStep.Done, guide.Form.Name, guide.Model?.CaptureViewState(), guide.LanguageChosen),
+            RecoveryViewModel recovery => new RootPage.Recovery(recovery.Result, [.. recovery.Backups]),
+            _ => new RootPage.Starting(),
+        };
+        return _workbench.Snapshot() with { Root = root, Sidebar = _shell.Sidebar };
+    }
+
+    /// <summary>
+    /// The new view's start after a language switch: it shows what <paramref name="snapshot"/> showed, with the pages,
+    /// input and sidebar it holds. Nothing is read from storage, nothing is marked interrupted: the services, running
+    /// answers among them, are the ones that ran before, and the appearance, unread marks and storage health are theirs.
+    /// </summary>
+    public void Resume(ViewSnapshot snapshot)
+    {
+        ArgumentNullException.ThrowIfNull(snapshot);
+        if (snapshot.Sidebar is { } sidebar)
+        {
+            _shell.UseSidebar(sidebar);
+        }
+
+        switch (snapshot.Root)
+        {
+            case RootPage.Shell when snapshot.Workspaces.Count > 0:
+                _workbench.Restore(snapshot);
+                _root.Show(_shell);
+                break;
+            case RootPage.Onboarding guide:
+                var page = Onboarding(guide.Step);
+                if (guide.Model is { } input)
+                {
+                    page.Model?.RestoreViewState(input);
+                }
+
+                page.Form.Name = guide.WorkspaceName;
+                page.FocusesLanguage = guide.LanguageChosen && page.CanChooseLanguage && page.IsWelcomeStep;
+                _root.Show(page);
+                break;
+            case RootPage.Recovery recovery:
+                _root.Show(new RecoveryViewModel(recovery.Result, recovery.Backups, this, _system));
+                break;
+            default:
+                // Not reached: a switch waits until startup has shown its outcome.
+                _root.Show(new StartupViewModel());
+                break;
+        }
     }
 
     public async Task RunAsync()
@@ -201,7 +276,7 @@ public sealed partial class AppStartup : IRecoveryActions
                 _root.Show(new RecoveryViewModel(recovery.Result, recovery.Backups, this, _system));
                 break;
             case StartupOutcome.NeedsFirstWorkspace:
-                _root.Show(new OnboardingViewModel(CreateFirstWorkspaceAsync, await ReadOnboardingAsync(), _onboarding, new ModelSettingsViewModel(_models)));
+                _root.Show(Onboarding(await ReadOnboardingAsync()));
                 break;
             case StartupOutcome.ReadyToWork ready:
                 _workbench.Initialize(ready.Workspaces, ready.LastLocation);

@@ -1,42 +1,42 @@
-# 测试的组织与健康
+# Test organization and health
 
-2026-11-15 测试健康检查后定下（当时 1,157 个测试，本机全量约 106 秒）。本文件只管本轨道的测试怎么跑、慢了或不稳了怎么办；各阶段测什么见各阶段设计。
+Settled after the test health check on 2026-11-15 (at the time 1,157 tests, about 106 seconds for the full suite locally). This file covers only how this track's tests are run and what to do when they get slow or unstable; what each stage tests is in that stage's design.
 
-## 怎么跑
+## How to run
 
-| 命令 | 跑什么 | 何时用 |
+| Command | What it runs | When to use it |
 | --- | --- | --- |
-| `scripts/test.sh quick [名称…]` | Core、Architecture、Infrastructure（不含故障注入），外加全名含任一名称的桌面测试 | 改代码时的循环，约 15–30 秒 |
-| `scripts/test.sh suite [目录]` | CI 阻塞的那些测试，桌面测试分片并行（见下）；给目录则写 TRX | 本机全量 |
-| `scripts/test.sh full` | `suite`，之后隔离中的测试单独跑、只报告 | 合并回轨道分支前，必须通过 |
-| `scripts/test.sh repeat N 过滤式 [项目] [--load]` | 同一过滤式连跑 N 次并计失败次数；`--load` 同时占满所有核 | 查偶发失败 |
-| `scripts/test.sh timings [目录]` | 全量并记录 TRX，列出最慢的项目、类与测试和超出预算的测试；同时刷新分片用的类耗时 | 觉得变慢时；桌面测试类有明显增减后 |
-| `scripts/test.sh quarantined` | 列出隔离中的测试 | 修复批次开始时 |
+| `scripts/test.sh quick [NAME…]` | Core, Architecture, Infrastructure (without fault injection), plus the desktop tests whose full name contains any of the names | The loop while changing code, about 15–30 seconds |
+| `scripts/test.sh suite [DIR]` | The tests that block CI, with desktop tests run in parallel shards (see below); writes TRX when given a directory | Full suite locally |
+| `scripts/test.sh full` | `suite`, then the quarantined tests run separately, report only | Before merging back into the track branch; must pass |
+| `scripts/test.sh repeat N FILTER [PROJECT] [--load]` | Runs the same filter N times in a row and counts failures; `--load` also keeps all cores busy | Hunting intermittent failures |
+| `scripts/test.sh timings [DIR]` | Full suite with TRX recorded; lists the slowest projects, classes and tests, and the tests over budget; also refreshes the per-class timings used for sharding | When things feel slower; after desktop test classes are noticeably added or removed |
+| `scripts/test.sh quarantined` | Lists the quarantined tests | At the start of a fix batch |
 
-已有分类（`Category` 特性）：`FaultInjection`、`Performance`、`Gallery`、`RealApi`、`Trial`、`Quarantine`。后四类按环境变量或特性默认不跑或不阻塞。
+Existing categories (the `Category` attribute): `FaultInjection`, `Performance`, `Gallery`, `RealApi`, `Trial`, `Quarantine`. By default, depending on environment variables or attributes, the last four do not run or do not block.
 
-## 桌面测试分片
+## Desktop test shards
 
-Avalonia 无头测试每个进程只有一个界面线程，同一进程里的桌面测试只能一个接一个跑；Infrastructure 等项目在进程内并行。所以 `suite` 把桌面测试程序集按类分成几份、同时跑几个进程（`scripts/test-shards.py`）。2026-11-16 本机（10 核）：桌面测试从约 100 秒降到约 33 秒，连跑 4、6、8 片各无失败；超过 4 片收益很小，下限是最慢的类加进程启动。
+Avalonia headless tests have only one UI thread per process, so desktop tests in the same process can only run one after another; projects such as Infrastructure run in parallel within the process. So `suite` splits the desktop test assembly into several shards by class and runs several processes at once (`scripts/test-shards.py`). On 2026-11-16 locally (10 cores): desktop tests went from about 100 seconds to about 33 seconds, with no failures in consecutive runs with 4, 6 and 8 shards; beyond 4 shards the gain is small, and the floor is the slowest class plus process startup.
 
-- 片数默认取核数的一半、2 到 4；`MINDWEAVE_TEST_SHARDS` 可改。
-- **CI 不分片**，仍是 `dotnet test Mindweave.slnx`。2026-11-16 在 CI 上试过 2 片（同为 522 个桌面测试）：Linux 桌面 4 分 10 秒 → 3 分 30 秒、Windows 7 分 44 秒 → 6 分 48 秒，但原命令本来就让 Infrastructure 与桌面同时跑，分片后两者先后跑，整步时间几乎不变；Windows 还多出一例双击时序失败。私有仓库的标准运行器核数少，分片的收益要换更大的运行器才有。
-- 类在运行时列出，新加的类不会漏跑；`tests/Mindweave.Desktop.Tests/shard-timings.json` 只用来平衡各片（无记录的类按中位数算）。记录过时只会让各片不均，不会漏测；由 `timings` 刷新。
-- 分片要求测试之间不共享进程外的资源：每个测试用自己的数据目录、单实例锁也按数据目录区分。新测试若用固定的文件路径、管道名或端口，分片时就会互相干扰，要改成按测试区分。
-- 只在本机调试某个桌面测试时仍用 `quick 名称` 或 `dotnet test --filter`，不经过分片。
+- The number of shards defaults to half the number of cores, between 2 and 4; `MINDWEAVE_TEST_SHARDS` can change it.
+- **CI does not shard**; it is still `dotnet test Mindweave.slnx`. On 2026-11-16, 2 shards were tried on CI (the same 522 desktop tests): Linux desktop 4 min 10 s → 3 min 30 s, Windows 7 min 44 s → 6 min 48 s. But the original command already ran Infrastructure and desktop at the same time; with sharding the two run one after the other, so the whole step's time barely changed, and Windows had one extra double-click timing failure. The standard runners for private repositories have few cores; sharding only pays off on larger runners.
+- Classes are listed at run time, so newly added classes are never skipped; `tests/Mindweave.Desktop.Tests/shard-timings.json` is used only to balance the shards (classes without a record count as the median). Outdated records only make the shards uneven; they never cause tests to be missed. `timings` refreshes them.
+- Sharding requires that tests share no resources outside the process: each test uses its own data directory, and the single-instance lock is also keyed by data directory. A new test that uses a fixed file path, pipe name or port will interfere with others when sharded, and must be changed to be per test.
+- When debugging a single desktop test locally, still use `quick NAME` or `dotnet test --filter`, which do not go through sharding.
 
-## 时间预算
+## Time budget
 
-- 单个测试超过 3 秒（`Faults`、`Performance` 命名空间除外）在 CI 上记为警告，不判失败：运行器之间速度差太多，按时间判失败本身就会偶发。
-- 新测试超过预算要有理由（真实子进程、真实锁等待等）；能用 `ManualTime` 推进时间的不用真实等待。
-- 数据规则放在 Infrastructure 测试里（快、可并行）；桌面测试只验证界面上看到什么、怎么接线，不再重复验证存储行为。
+- A single test over 3 seconds (except in the `Faults` and `Performance` namespaces) is recorded as a warning on CI, not a failure: runner speeds vary too much, and failing on time would itself be intermittent.
+- A new test over budget must have a reason (a real child process, a real lock wait, and so on); where `ManualTime` can advance time, do not use real waits.
+- Data rules go in Infrastructure tests (fast, can run in parallel); desktop tests only verify what is seen in the UI and how it is wired, and do not verify storage behavior again.
 
-## 偶发失败
+## Intermittent failures
 
-- 不加自动重试：重试只会把问题藏起来。
-- 偶发失败一经发现（CI 或本机），记入 `STATUS.md`，能当场查明就修；查不明的加 `[Quarantined("日期", "原因")]`（`Mindweave.Testing`）。隔离中的测试仍在 CI 上跑，但在单独一步、不阻塞，所以 CI 变红只说明真有问题。
-- 隔离是暂时的：下一个修复批次先修它们，修好后去掉特性。修好的标准是 `scripts/test.sh repeat 30 … --load` 无失败。
-- 常见原因与对应改法：
-  - 等待按真实时钟设死线（`UiWait` 默认 5 秒）而慢机器来不及 → 等真正的事件或状态，必要时放宽死线；
-  - 真实计时器（脉动、提示自动关闭）在检查前就结束 → 改用 `ManualTime`，或数启动次数而不是看瞬时状态；
-  - 布局量值依赖字体（运行器的回退字体更宽）→ 断言关系（不重叠、在轨道内）而不是像素值，或留出字体差异的余量。
+- No automatic retries: retries only hide the problem.
+- As soon as an intermittent failure is found (on CI or locally), record it in `STATUS.md`. If the cause can be found on the spot, fix it; if not, add `[Quarantined("date", "reason")]` (`Mindweave.Testing`). Quarantined tests still run on CI, but in a separate step that does not block, so a red CI only means a real problem.
+- Quarantine is temporary: the next fix batch fixes these tests first, and the attribute is removed once they are fixed. The standard for fixed is `scripts/test.sh repeat 30 … --load` with no failures.
+- Common causes and the matching fixes:
+  - A wait sets a deadline on the real clock (`UiWait` defaults to 5 seconds) and a slow machine cannot make it → wait for the actual event or state, and widen the deadline if needed;
+  - A real timer (pulse, toast auto-dismiss) ends before the check → use `ManualTime` instead, or count starts instead of looking at the momentary state;
+  - Layout measurements depend on the font (the runner's fallback font is wider) → assert relationships (no overlap, inside the track) instead of pixel values, or leave a margin for font differences.

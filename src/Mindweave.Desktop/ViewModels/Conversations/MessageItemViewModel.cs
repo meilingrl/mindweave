@@ -27,7 +27,7 @@ public sealed record CitationItem(CitationBlock Block, CommunityToolkit.Mvvm.Inp
 {
     public string Number => $"[{Block.Number}]";
 
-    public string Title => Block.Label;
+    public string Title => UiText.CitationLabel(Block.Kind, Block.Title);
 
     /// <summary>The real address; for local material, where it is (the row's tooltip either way).</summary>
     public string Address => Block.Url?.AbsoluteUri ?? UiText.CitationPlace(Block.Kind);
@@ -123,13 +123,18 @@ public sealed partial class MessageItemViewModel : ViewModelBase, IDisposable
 
     /// <summary>The run's tool calls and results (stored, or live while it runs), in step order.</summary>
     [ObservableProperty]
-    [NotifyPropertyChangedFor(nameof(HasActivity), nameof(ActivityText), nameof(ActivitySteps))]
+    [NotifyPropertyChangedFor(nameof(HasActivity), nameof(ActivityText), nameof(ActivitySteps), nameof(StatusText))]
     public partial IReadOnlyList<ContentBlock> ToolBlocks { get; private set; }
 
     /// <summary>The tool running now, while the run is under way.</summary>
     [ObservableProperty]
-    [NotifyPropertyChangedFor(nameof(ActivityText), nameof(ActivitySteps), nameof(HasActivity))]
+    [NotifyPropertyChangedFor(nameof(ActivitySteps), nameof(HasActivity), nameof(StatusText))]
     public partial string? ActiveTool { get; private set; }
+
+    /// <summary>The call of <see cref="ActiveTool"/>: the status line names its search terms or page.</summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(StatusText))]
+    public partial string? ActiveCallId { get; private set; }
 
     /// <summary>The stored run of this answer (the reconciler sets it): step times and states, the limit reached.</summary>
     [ObservableProperty]
@@ -144,15 +149,15 @@ public sealed partial class MessageItemViewModel : ViewModelBase, IDisposable
     /// <summary>The answer called tools (or is calling one): the quiet activity line shows above its text.</summary>
     public bool HasActivity => IsAnswer && (ToolBlocks.Count > 0 || ActiveTool is not null);
 
-    /// <summary>"正在检索附件…" while a tool runs; "检索了 2 次附件 · 检索了 1 次总结网络" otherwise.</summary>
-    public string ActivityText => PendingApproval is { IsThirdParty: true } card ? UiText.McpApprovalWaiting(card.Server!, card.ToolTitle ?? card.Tool)
-        : PendingApproval is not null ? UiText.ApprovalWaiting
-        : ActiveTool is { } running ? UiText.ToolRunning(running, ToolBlocks.OfType<ToolCallBlock>().LastOrDefault(c => c.Tool == running)?.Summary)
-        : UiText.RunActivity(ToolBlocks.OfType<ToolCallBlock>().Select(c => (c.Tool, (string?)c.Summary)));
+    /// <summary>
+    /// The steps taken, "检索了 2 次附件 · 检索了 1 次总结网络", the running one included; what the run is doing now is said only
+    /// in the status line (<see cref="StatusText"/>, requirements §10.4.4 v0.21).
+    /// </summary>
+    public string ActivityText => UiText.RunActivity(ToolBlocks.OfType<ToolCallBlock>().Select(c => (c.Tool, (string?)c.Summary)));
 
     /// <summary>A call waiting for the user's approval (requirements §10.4.5, Q10): the card in the answer.</summary>
     [ObservableProperty]
-    [NotifyPropertyChangedFor(nameof(HasApproval), nameof(ActivityText), nameof(IsThirdPartyApproval), nameof(ApprovalTitle))]
+    [NotifyPropertyChangedFor(nameof(HasApproval), nameof(StatusText), nameof(IsThirdPartyApproval), nameof(ApprovalTitle))]
     [NotifyCanExecuteChangedFor(nameof(AllowCommand), nameof(DenyCommand))]
     public partial PendingApproval? PendingApproval { get; private set; }
 
@@ -230,12 +235,31 @@ public sealed partial class MessageItemViewModel : ViewModelBase, IDisposable
     [NotifyPropertyChangedFor(nameof(HasBody), nameof(ShowsQuestionBubble), nameof(CanBranch), nameof(IsWaiting), nameof(IsStreaming), nameof(CanCopy))]
     public partial string Body { get; private set; }
 
+    /// <summary>The stage the status line says (docs/design/reasoning-and-status.md); its motion follows from it.</summary>
     [ObservableProperty]
-    [NotifyPropertyChangedFor(nameof(WaitingLabel))]
-    public partial AnswerPhase Phase { get; private set; }
+    [NotifyPropertyChangedFor(nameof(StatusText))]
+    public partial AnswerStage Stage { get; private set; }
+
+    /// <summary>The reasoning received so far while the answer runs (requirements §10.4.4 v0.21); empty otherwise. Never stored.</summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(HasReasoning))]
+    public partial string Reasoning { get; private set; } = string.Empty;
+
+    /// <summary>The fold at the top of a running answer shows once reasoning has arrived; it goes when the answer ends.</summary>
+    public bool HasReasoning => IsAnswer && IsInProgress && Reasoning.Length > 0;
+
+    /// <summary>Closed at first; opened only for as long as this answer runs.</summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(ReasoningToggleLabel))]
+    public partial bool IsReasoningExpanded { get; set; }
+
+    public string ReasoningToggleLabel => IsReasoningExpanded ? UiText.ReasoningCollapse : UiText.ReasoningExpand;
+
+    [CommunityToolkit.Mvvm.Input.RelayCommand]
+    private void ToggleReasoning() => IsReasoningExpanded = !IsReasoningExpanded;
 
     [ObservableProperty]
-    [NotifyPropertyChangedFor(nameof(StateLabel), nameof(IsInProgress), nameof(IsProblem), nameof(CanBranch), nameof(IsWaiting), nameof(IsStreaming))]
+    [NotifyPropertyChangedFor(nameof(StateLabel), nameof(IsInProgress), nameof(IsProblem), nameof(CanBranch), nameof(IsWaiting), nameof(IsStreaming), nameof(HasReasoning))]
     [NotifyPropertyChangedFor(nameof(ShowsQuietState), nameof(CanRetryQuietly), nameof(CanRetryInNotice), nameof(HasActions), nameof(TimestampText))]
     [NotifyPropertyChangedFor(nameof(ElapsedText), nameof(DurationText))]
     public partial MessageState State { get; private set; }
@@ -291,12 +315,9 @@ public sealed partial class MessageItemViewModel : ViewModelBase, IDisposable
     /// </summary>
     public bool IsWaiting => IsInProgress && !HasBody;
 
-    public string WaitingLabel => Phase switch
-    {
-        AnswerPhase.Compressing => UiText.CompressingContext,
-        AnswerPhase.Thinking => UiText.ModelThinking,
-        _ => UiText.WaitingForAnswer,
-    };
+    /// <summary>One sentence for the current stage beside the weaving dots, from sending until the answer ends.</summary>
+    public string StatusText => UiText.AnswerStatus(
+        Stage, ActiveTool, ActiveCallId is { } running ? ToolBlocks.OfType<ToolCallBlock>().LastOrDefault(c => c.CallId == running)?.Summary : null, PendingApproval);
 
     public bool IsProblem => State is MessageState.Failed or MessageState.Interrupted;
 
@@ -374,7 +395,8 @@ public sealed partial class MessageItemViewModel : ViewModelBase, IDisposable
     {
         var snapshot = _live!.Snapshot();
         Body = snapshot.Text;
-        Phase = snapshot.Phase;
+        Stage = snapshot.Stage;
+        Reasoning = snapshot.Reasoning;
         State = snapshot.State;
         ErrorKind = snapshot.ErrorKind;
         ErrorDetail = snapshot.ErrorDetail;
@@ -384,6 +406,7 @@ public sealed partial class MessageItemViewModel : ViewModelBase, IDisposable
         }
 
         ActiveTool = snapshot.ActiveTool;
+        ActiveCallId = snapshot.ActiveCallId;
         LiveLimit = snapshot.LimitReached;
         PendingApproval = snapshot.PendingApproval;
         if (!CitationBlocks.SequenceEqual(snapshot.Citations))

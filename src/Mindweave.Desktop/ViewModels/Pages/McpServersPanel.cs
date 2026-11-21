@@ -11,7 +11,7 @@ namespace Mindweave.Desktop.ViewModels.Pages;
 /// shows exactly what will run or which address is reached; then per server its state and error, 启动／连接, 停止 and 移除,
 /// and its tools, each off until enabled, with a risk the user may change. Greyed out with 工具.
 /// </summary>
-public sealed partial class McpServersPanel : ViewModelBase, IDisposable
+public sealed partial class McpServersPanel : ViewModelBase, IDisposable, Navigation.ICarriesViewState
 {
     private readonly IMcpServers _servers;
     private readonly IMcpConnections _connections;
@@ -94,7 +94,7 @@ public sealed partial class McpServersPanel : ViewModelBase, IDisposable
     /// <summary>The command and then each argument on its own line, exactly as they will be passed.</summary>
     public string PreviewCommandLines => Preview is { Command: { } command } p ? string.Join("\n", p.Arguments.Prepend(command)) : string.Empty;
 
-    public string PreviewEnvironment => Preview is { EnvironmentNames.Count: > 0 } p ? string.Join("、", p.EnvironmentNames) : UiText.McpNone;
+    public string PreviewEnvironment => Preview is { EnvironmentNames.Count: > 0 } p ? UiText.List(p.EnvironmentNames) : UiText.McpNone;
 
     public string PreviewHeader => Preview?.HeaderName ?? UiText.McpNone;
 
@@ -105,6 +105,32 @@ public sealed partial class McpServersPanel : ViewModelBase, IDisposable
     public partial bool StatusIsError { get; private set; }
 
     private McpServerDraft? _draft;
+
+    /// <summary>The add form's input and step, carried over a language switch (bilingual-ui.md §6.6).</summary>
+    private sealed record AddInput(bool Confirming, bool IsCommand, string Name, string Command, string Arguments, string Environment, string Url, string HeaderName, string HeaderValue);
+
+    /// <summary>The add form as it is, or null when it is closed.</summary>
+    public object? CaptureViewState() =>
+        IsAdding || IsConfirming
+            ? new AddInput(IsConfirming, IsCommand, NewName, NewCommand, NewArguments, NewEnvironment, NewUrl, NewHeaderName, NewHeaderValue)
+            : null;
+
+    /// <summary>Opens the add form with the carried input, at the confirmation if that is where it was.</summary>
+    public void RestoreViewState(object state)
+    {
+        if (state is not AddInput input)
+        {
+            return;
+        }
+
+        (IsCommand, NewName, NewCommand, NewArguments, NewEnvironment, NewUrl, NewHeaderName, NewHeaderValue) =
+            (input.IsCommand, input.Name, input.Command, input.Arguments, input.Environment, input.Url, input.HeaderName, input.HeaderValue);
+        IsAdding = true;
+        if (input.Confirming)
+        {
+            Review();
+        }
+    }
 
     [RelayCommand]
     private void StartAdd()
@@ -132,7 +158,7 @@ public sealed partial class McpServersPanel : ViewModelBase, IDisposable
         var preview = _servers.Preview(draft);
         if (!preview.CanAdd)
         {
-            (Status, StatusIsError) = (preview.Problem, true);
+            (Status, StatusIsError) = (preview.Problem?.ToString(), true);
             return;
         }
 
@@ -405,7 +431,7 @@ public sealed partial class McpServerItem : ViewModelBase
     {
         var status = _connections.StatusOf(Server.Id);
         State = status.State;
-        Error = status.Error;
+        Error = status.Error?.ToString();
         StandardError = string.Join("\n", status.StandardError);
         _ = ReloadToolsAsync(status.Tools);
     }

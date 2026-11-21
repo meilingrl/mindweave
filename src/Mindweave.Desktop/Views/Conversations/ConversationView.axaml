@@ -226,6 +226,22 @@
                 <Border Classes="badge" HorizontalAlignment="Left" IsVisible="{Binding IsSuperseded}">
                   <TextBlock Text="{x:Static t:UiText.EarlierAttempt}" />
                 </Border>
+                <!-- Reasoning (requirements §10.4.4 v0.21): live only, closed at first, gone with everything in it when the answer ends. -->
+                <StackPanel Name="ReasoningPanel" Classes="run-activity" Spacing="4" IsVisible="{Binding HasReasoning}">
+                  <Button Name="ReasoningToggle" Classes="quiet small run-activity" Command="{Binding ToggleReasoningCommand}"
+                          HorizontalAlignment="Left" ToolTip.Tip="{Binding ReasoningToggleLabel}"
+                          AutomationProperties.Name="{x:Static t:UiText.ReasoningTitle}">
+                    <StackPanel Orientation="Horizontal" Spacing="6">
+                      <TextBlock Classes="caption" Text="{x:Static t:UiText.ReasoningTitle}" VerticalAlignment="Center" />
+                      <PathIcon Data="{StaticResource IconChevronDown}" Classes="run-activity chevron" Classes.expanded="{Binding IsReasoningExpanded}" />
+                    </StackPanel>
+                  </Button>
+                  <Border Name="ReasoningBox" Classes="reasoning" IsVisible="{Binding IsReasoningExpanded}">
+                    <ScrollViewer Name="ReasoningScroll" Classes="reasoning" HorizontalScrollBarVisibility="Disabled" vv:FollowEnd.IsEnabled="True">
+                      <SelectableTextBlock Name="ReasoningText" Classes="reasoning" Text="{Binding Reasoning}" TextWrapping="Wrap" />
+                    </ScrollViewer>
+                  </Border>
+                </StackPanel>
                 <!-- A run (requirements §10.4.4): one quiet line above the text, "检索了 2 次附件", that expands into its steps. -->
                 <StackPanel Name="RunActivityPanel" Classes="run-activity" Spacing="4" IsVisible="{Binding HasActivity}">
                   <Button Name="RunActivityToggle" Classes="quiet small run-activity" Command="{Binding ToggleActivityCommand}"
@@ -298,29 +314,15 @@
                   </StackPanel>
                 </Border>
                 <!--
-                  Generating (docs/design/generating-indicator.md): one row from sending until the answer ends. The same
-                  dots carry on from waiting into streaming, gliding from one motion into the next; only the words beside them change.
+                  Generating (docs/design/generating-indicator.md, reasoning-and-status.md): one status line from sending until
+                  the answer ends. The same dots glide from one motion into the next; the sentence beside them names the stage.
                 -->
-                <StackPanel Name="GeneratingRow" Orientation="Horizontal" Spacing="8" IsVisible="{Binding IsInProgress}">
-                  <vv:WeavingIndicator Name="GeneratingIndicator" Classes="generating">
-                    <vv:WeavingIndicator.Motion>
-                      <MultiBinding Converter="{x:Static d:Converters.AnswerMotion}">
-                        <Binding Path="Phase" />
-                        <Binding Path="HasBody" />
-                      </MultiBinding>
-                    </vv:WeavingIndicator.Motion>
-                  </vv:WeavingIndicator>
-                  <StackPanel Name="WaitingText" Orientation="Horizontal" Spacing="8" IsVisible="{Binding IsWaiting}">
-                    <TextBlock Classes="caption" Text="{Binding WaitingLabel}" VerticalAlignment="Center" />
-                    <TextBlock Name="WaitingElapsed" Classes="timestamp" Text="{Binding ElapsedText}" VerticalAlignment="Center" />
-                  </StackPanel>
-                  <!-- Still being written: the thread at the end of the text, not a bar under every paragraph. -->
-                  <StackPanel Name="StreamingIndicator" Orientation="Horizontal" Spacing="8" IsVisible="{Binding IsStreaming}"
-                              AutomationProperties.Name="{x:Static t:UiText.AnswerStreaming}">
-                    <TextBlock Classes="caption" Text="{x:Static t:UiText.AnswerStreaming}" VerticalAlignment="Center" />
-                    <!-- Round 4: a quiet live counter from the moment the question was sent. -->
-                    <TextBlock Name="StreamingElapsed" Classes="timestamp" Text="{Binding ElapsedText}" VerticalAlignment="Center" />
-                  </StackPanel>
+                <StackPanel Name="GeneratingRow" Orientation="Horizontal" Spacing="8" IsVisible="{Binding IsInProgress}"
+                            AutomationProperties.Name="{Binding StatusText}">
+                  <vv:WeavingIndicator Name="GeneratingIndicator" Classes="generating" Motion="{Binding Stage, Converter={x:Static d:Converters.AnswerMotion}}" />
+                  <TextBlock Name="StatusText" Classes="caption" Text="{Binding StatusText}" VerticalAlignment="Center" TextTrimming="CharacterEllipsis" MaxWidth="520" />
+                  <!-- Round 4: a quiet live counter from the moment the question was sent. -->
+                  <TextBlock Name="StatusElapsed" Classes="timestamp" Text="{Binding ElapsedText}" VerticalAlignment="Center" />
                 </StackPanel>
                 <TextBlock Classes="caption" Text="{x:Static t:UiText.ContextCompressedNote}" IsVisible="{Binding WasCompressed}" />
                 <!-- Only parts or a summary of an attachment went out (requirements §10.4.3): a quiet line, expandable. -->

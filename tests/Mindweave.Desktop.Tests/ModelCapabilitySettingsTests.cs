@@ -5,6 +5,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Mindweave.Application.Models;
 using Mindweave.Core.Models;
 using Mindweave.Desktop.Navigation;
+using Mindweave.Desktop.Text;
 using Mindweave.Desktop.ViewModels.Pages;
 using Mindweave.Desktop.Views;
 using static Mindweave.Desktop.Tests.UiTree;
@@ -139,6 +140,51 @@ public class ModelCapabilitySettingsTests
         // Saving the form stores what it shows.
         await form.SaveCommand.ExecuteAsync(null);
         Assert.True(await service.ActiveModelHasAsync(ModelCapability.ImageInput, CancellationToken.None));
+    }
+
+    [AvaloniaFact]
+    public async Task The_output_limit_is_in_the_advanced_section_explained_on_hover_saved_and_checked()
+    {
+        await using var app = DesktopHarness.Create();
+        var (window, settings) = await OpenSettingsAsync(app);
+        var model = settings.Model;
+        var service = app.Services.GetRequiredService<IModelSettings>();
+        var field = Find<TextBox>(window, "OutputLimit");
+        Assert.False(field.IsEffectivelyVisible);
+
+        Find<ToggleButton>(window, "AdvancedToggle").IsChecked = true;
+        window.UpdateLayout();
+        Assert.True(field.IsEffectivelyVisible);
+        Assert.Equal(string.Empty, field.Text);
+        Assert.Equal(UiText.OutputLimitPlaceholder, field.PlaceholderText);
+        var info = Find<Border>(window, "OutputLimitInfo");
+        Assert.True(info.IsEffectivelyVisible);
+        Assert.Equal(UiText.OutputLimitTip, ToolTip.GetTip(info));
+
+        model.BaseUrl = "https://api.deepseek.com";
+        model.ApiKey = "sk-output-limit-test";
+        model.Model = "deepseek-v4-pro";
+        model.OutputLimit = "8,000";
+        await model.SaveCommand.ExecuteAsync(null);
+        Assert.False(model.StatusIsError, model.Status);
+        Assert.Equal(8_000, (await service.GetAsync(CancellationToken.None))!.MaxOutputTokens);
+        var again = new ModelSettingsViewModel(service);
+        await again.Loaded;
+        Assert.Equal("8000", again.OutputLimit);
+
+        // Above half the default capacity: refused, and what was saved stays.
+        model.OutputLimit = "20000";
+        await model.SaveCommand.ExecuteAsync(null);
+        Assert.True(model.StatusIsError);
+        Assert.Equal(UiText.SettingsProblem(ModelSettingsProblem.InvalidOutputLimit), model.Status);
+        Assert.Equal(8_000, (await service.GetAsync(CancellationToken.None))!.MaxOutputTokens);
+
+        // Empty clears it: no limit is sent.
+        model.OutputLimit = string.Empty;
+        await model.SaveCommand.ExecuteAsync(null);
+        Assert.False(model.StatusIsError, model.Status);
+        Assert.Null((await service.GetAsync(CancellationToken.None))!.MaxOutputTokens);
+        window.Close();
     }
 
     private static async Task<(MainWindow Window, SettingsHomeViewModel Settings)> OpenSettingsAsync(DesktopHarness app)

@@ -6,7 +6,7 @@ namespace Mindweave.Testing;
 /// <summary>A search service that answers from a script: hits per query (or for any), or a failure; records every query and key.</summary>
 public sealed class FakeSearchProvider : ISearchProvider
 {
-    private readonly ConcurrentQueue<Func<string, IReadOnlyList<SearchHit>>> _next = new();
+    private readonly ConcurrentQueue<Func<string, CancellationToken, Task<IReadOnlyList<SearchHit>>>> _next = new();
 
     public string Id => "tavily";
 
@@ -24,15 +24,21 @@ public sealed class FakeSearchProvider : ISearchProvider
         new SearchHit("铁路的历史", new Uri("https://example.com/rail?a=1"), "第一条公共铁路 1825 年通车。"),
     ];
 
-    public void Returns(params SearchHit[] hits) => _next.Enqueue(_ => hits);
+    public void Returns(params SearchHit[] hits) => _next.Enqueue((_, _) => Task.FromResult<IReadOnlyList<SearchHit>>(hits));
 
-    public void Fails(SearchFailureKind kind, string message) => _next.Enqueue(_ => throw new SearchProviderException(kind, message));
+    public void Fails(SearchFailureKind kind, string message) => _next.Enqueue((_, _) => throw new SearchProviderException(kind, message));
+
+    /// <summary>The next search answers (with <see cref="Default"/>) only when <paramref name="release"/> completes.</summary>
+    public void Slow(Task release) => _next.Enqueue(async (query, ct) =>
+    {
+        await release.WaitAsync(ct).ConfigureAwait(false);
+        return Default(query);
+    });
 
     public Task<IReadOnlyList<SearchHit>> SearchAsync(string query, int maxResults, string apiKey, CancellationToken cancellationToken)
     {
         Searches.Enqueue((query, apiKey, maxResults));
-        var answer = _next.TryDequeue(out var scripted) ? scripted : Default;
-        return Task.FromResult(answer(query));
+        return _next.TryDequeue(out var scripted) ? scripted(query, cancellationToken) : Task.FromResult(Default(query));
     }
 }
 

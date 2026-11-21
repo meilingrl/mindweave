@@ -12,8 +12,9 @@ using Mindweave.Testing;
 namespace Mindweave.Desktop.Tests;
 
 /// <summary>
-/// A running answer shows the weaving indicator (docs/design/generating-indicator.md): its motion says the stage, waiting,
-/// thinking or text streaming in, and no bar sits under the growing text.
+/// A running answer shows the weaving indicator (docs/design/generating-indicator.md) in one status line: its motion and its
+/// words say the stage (docs/design/reasoning-and-status.md), and no bar sits under the growing text. A reasoning model's
+/// reasoning is in a fold at the top of the answer, closed at first, gone when the answer ends.
 /// </summary>
 public class StreamingIndicatorTests
 {
@@ -30,7 +31,8 @@ public class StreamingIndicatorTests
         await UiWait.UntilAsync(() => VisibleIndicator(window) is not null);
         Assert.Equal(WeavingMotion.Braid, VisibleIndicator(window)!.Motion);
         Assert.True(page.Messages[1].IsWaiting);
-        Assert.Equal(UiText.WaitingForAnswer, page.Messages[1].WaitingLabel);
+        Assert.Equal(UiText.WaitingForAnswer, page.Messages[1].StatusText);
+        Assert.Contains(VisibleTexts(window), t => t.Name == "StatusText" && t.Text == UiText.WaitingForAnswer);
 
         held.Release.TrySetResult();
         window.Close();
@@ -50,6 +52,7 @@ public class StreamingIndicatorTests
         window.UpdateLayout();
         Assert.False(page.Messages[1].IsWaiting);
         Assert.Equal(WeavingMotion.Thread, VisibleIndicator(window)!.Motion);
+        Assert.Contains(VisibleTexts(window), t => t.Name == "StatusText" && t.Text == UiText.AnswerWriting);
         Assert.DoesNotContain(window.GetVisualDescendants().OfType<ConversationView>().Single().GetVisualDescendants().OfType<ProgressBar>(), b => b.IsEffectivelyVisible);
         Assert.True(page.Messages[1].IsInProgress);
 
@@ -58,19 +61,43 @@ public class StreamingIndicatorTests
     }
 
     [Theory]
-    [InlineData(AnswerPhase.Waiting, false, WeavingMotion.Braid)]
-    [InlineData(AnswerPhase.Thinking, false, WeavingMotion.Joining)]
-    [InlineData(AnswerPhase.Compressing, false, WeavingMotion.Tightening)]
-    [InlineData(AnswerPhase.Thinking, true, WeavingMotion.Thread)]
-    [InlineData(AnswerPhase.Waiting, true, WeavingMotion.Thread)]
-    public void Each_stage_has_its_motion(AnswerPhase phase, bool hasText, WeavingMotion expected)
+    [InlineData(AnswerStage.Waiting, WeavingMotion.Braid)]
+    [InlineData(AnswerStage.Compressing, WeavingMotion.Tightening)]
+    [InlineData(AnswerStage.Thinking, WeavingMotion.Joining)]
+    [InlineData(AnswerStage.Tool, WeavingMotion.Reaching)]
+    [InlineData(AnswerStage.Approval, WeavingMotion.Holding)]
+    [InlineData(AnswerStage.Retrying, WeavingMotion.Braid)]
+    [InlineData(AnswerStage.Finishing, WeavingMotion.Braid)]
+    [InlineData(AnswerStage.Writing, WeavingMotion.Thread)]
+    public void Each_stage_has_its_motion(AnswerStage stage, WeavingMotion expected)
     {
-        var motion = Converters.AnswerMotion.Convert([phase, hasText], typeof(WeavingMotion), null, System.Globalization.CultureInfo.InvariantCulture);
+        var motion = Converters.AnswerMotion.Convert(stage, typeof(WeavingMotion), null, System.Globalization.CultureInfo.InvariantCulture);
         Assert.Equal(expected, motion);
     }
 
+    [Fact]
+    public void Each_stage_has_one_plain_sentence()
+    {
+        Assert.Equal("正在等待回答…", UiText.AnswerStatus(AnswerStage.Waiting));
+        Assert.Equal("正在压缩较早的对话…", UiText.AnswerStatus(AnswerStage.Compressing));
+        Assert.Equal("正在思考…", UiText.AnswerStatus(AnswerStage.Thinking));
+        Assert.Equal("正在写回答…", UiText.AnswerStatus(AnswerStage.Writing));
+        Assert.Equal("请求出错，正在重试…", UiText.AnswerStatus(AnswerStage.Retrying));
+        Assert.Equal("正在根据已有结果作答…", UiText.AnswerStatus(AnswerStage.Finishing));
+        Assert.Equal("正在搜索：蒸汽机 发明…", UiText.AnswerStatus(AnswerStage.Tool, "web_search", "网络搜索：蒸汽机 发明"));
+        Assert.Equal("正在读取网页：zh.wikipedia.org…", UiText.AnswerStatus(AnswerStage.Tool, "fetch_page", "取网页：https://zh.wikipedia.org/wiki/蒸汽机"));
+        Assert.Equal("正在检索附件：瓦特…", UiText.AnswerStatus(AnswerStage.Tool, "search_attachments", "检索附件：瓦特"));
+        Assert.Equal("正在检索总结网络…", UiText.AnswerStatus(AnswerStage.Tool, "search_summaries", "检索总结网络"));
+        Assert.Equal("正在调用 notes › echo…", UiText.AnswerStatus(AnswerStage.Tool, "mcp_notes__echo", "notes › echo：你好"));
+        Assert.Equal("等待你批准读取网址…", UiText.AnswerStatus(AnswerStage.Approval, approval: new PendingApproval("c1", "fetch_page", "https://a.example/")));
+        Assert.Equal("等待你批准调用 notes › write_note…",
+            UiText.AnswerStatus(AnswerStage.Approval, approval: new PendingApproval("c1", "mcp_notes__write_note", "{}") { Server = "notes", ToolTitle = "write_note" }));
+        var longQuery = new string('词', 60);
+        Assert.Equal("正在搜索：" + new string('词', 40) + "……", UiText.AnswerStatus(AnswerStage.Tool, "web_search", "网络搜索：" + longQuery));
+    }
+
     [AvaloniaFact]
-    public async Task A_reasoning_model_shows_thinking_with_its_timer_until_the_text_arrives()
+    public async Task A_reasoning_model_shows_thinking_and_its_reasoning_in_a_closed_fold_until_the_answer_ends()
     {
         await using var app = DesktopHarness.Create();
         var window = app.ShowWindow();
@@ -79,16 +106,26 @@ public class StreamingIndicatorTests
         var held = app.Client.HoldThinking();
         var page = await AskAsync(app, held);
 
-        await UiWait.UntilAsync(() => page.Messages[1].WaitingLabel == UiText.ModelThinking);
+        await UiWait.UntilAsync(() => page.Messages[1].StatusText == UiText.ModelThinking && page.Messages[1].Reasoning == string.Concat(FakeChatClient.ThinkingChunks));
         Assert.Equal(WeavingMotion.Joining, VisibleIndicator(window)!.Motion);
-        Assert.Contains(VisibleTexts(window), t => t.Text == UiText.ModelThinking);
-        Assert.Contains(VisibleTexts(window), t => t.Name == "WaitingElapsed" && !string.IsNullOrEmpty(t.Text));
+        Assert.Contains(VisibleTexts(window), t => t.Name == "StatusText" && t.Text == UiText.ModelThinking);
+        Assert.Contains(VisibleTexts(window), t => t.Name == "StatusElapsed" && !string.IsNullOrEmpty(t.Text));
+
+        // Closed at first: only its header shows.
+        Assert.NotNull(Visible<Button>(window, "ReasoningToggle"));
+        Assert.Null(Visible<SelectableTextBlock>(window, "ReasoningText"));
+        Visible<Button>(window, "ReasoningToggle")!.Command!.Execute(null);
+        Assert.Equal(string.Concat(FakeChatClient.ThinkingChunks), Visible<SelectableTextBlock>(window, "ReasoningText")!.Text);
 
         held.Finish("蒸汽机车");
         await UiWait.UntilAsync(() => page.Messages[1].Body == "蒸汽机车");
         await UiWait.StoredAsync(page, 1, MessageState.Complete);
         Assert.Null(VisibleIndicator(window));
+        Assert.Null(Visible<Button>(window, "ReasoningToggle"));
+        Assert.Null(Visible<SelectableTextBlock>(window, "ReasoningText"));
         Assert.DoesNotContain(VisibleTexts(window), t => t.Text == UiText.ModelThinking);
+        Assert.DoesNotContain(window.GetVisualDescendants().OfType<ConversationView>().Single().GetVisualDescendants().OfType<TextBlock>(),
+            t => t.Text?.Contains(FakeChatClient.ThinkingChunks[0], StringComparison.Ordinal) == true);
         window.Close();
     }
 
@@ -101,7 +138,7 @@ public class StreamingIndicatorTests
         await app.ConfigureModelAsync();
         var held = app.Client.HoldThinking();
         var page = await AskAsync(app, held);
-        await UiWait.UntilAsync(() => page.Messages[1].WaitingLabel == UiText.ModelThinking);
+        await UiWait.UntilAsync(() => page.Messages[1].StatusText == UiText.ModelThinking);
 
         await app.Services.GetRequiredService<ConversationService>().StopAsync(page.Messages[1].Id);
 
@@ -134,6 +171,14 @@ public class StreamingIndicatorTests
         var page = Assert.IsType<ConversationViewModel>(app.Workbench.CurrentPage);
         await UiWait.UntilAsync(() => page.Messages.Count == 2);
         return page;
+    }
+
+    private static T? Visible<T>(Window window, string name)
+        where T : Control
+    {
+        window.UpdateLayout();
+        return window.GetVisualDescendants().OfType<ConversationView>().Single().GetVisualDescendants().OfType<T>()
+            .SingleOrDefault(c => c.Name == name && c.IsEffectivelyVisible);
     }
 
     private static WeavingIndicator? VisibleIndicator(Window window)

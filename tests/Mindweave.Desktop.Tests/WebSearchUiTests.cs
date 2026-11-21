@@ -207,7 +207,9 @@ public class WebSearchUiTests
         await UiWait.UntilAsync(() => app.Workbench.CurrentPage is ConversationViewModel { Messages.Count: 2 } p && p.Messages[1].HasApproval, timeoutMs: 10_000);
         var page = (ConversationViewModel)app.Workbench.CurrentPage!;
         var answer = page.Messages[1];
-        Assert.Equal(UiText.ApprovalWaiting, answer.ActivityText);
+        Assert.Equal(UiText.ApprovalWaiting, answer.StatusText);
+        Assert.Equal(Views.WeavingMotion.Holding, Converters.AnswerMotion.Convert(answer.Stage, typeof(Views.WeavingMotion), null, System.Globalization.CultureInfo.InvariantCulture));
+        Assert.DoesNotContain("等待", answer.ActivityText, StringComparison.Ordinal);
         Assert.Equal("https://unknown.example/report?id=42", answer.PendingApproval!.Target);
         window.UpdateLayout();
         Assert.True(AnyVisible<Border>(window, "ApprovalCard"));

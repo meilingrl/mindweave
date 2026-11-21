@@ -419,7 +419,7 @@ internal sealed class SqliteSummaryStore(SqliteDatabase database) : ISummaryStor
 
     /// <summary>
     /// The conversation's first summary node was just made: when it was started from a recommendation whose basis summary
-    /// is still in the workspace, the two are linked (origin recommended, note "来自推荐"; requirements §10.3.5). Either
+    /// is still in the workspace, the two are linked (origin recommended, note "来自推荐" or, in English, "Recommendation"; requirements §10.3.5). Either
     /// way the starting recommendation is applied now, so no later node of the conversation is linked again.
     /// </summary>
     private static SummaryLink? LinkToRecommendationBasis(SqliteConnection connection, SqliteTransaction transaction, WorkspaceId workspace, ConversationId conversation, SummaryNodeId node, DateTimeOffset at)

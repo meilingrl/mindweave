@@ -54,6 +54,7 @@ public class ChatCompletionsClientTests
         var events = await Collect(Client(_ => Sse(sse)));
 
         Assert.Equal([3, 6], events.OfType<ChatStreamEvent.ReasoningDelta>().Select(e => e.Characters));
+        Assert.Equal(["用户问", "火车的起源。"], events.OfType<ChatStreamEvent.ReasoningDelta>().Select(e => e.Text));
         Assert.Equal(["蒸汽", "机"], events.OfType<ChatStreamEvent.TextDelta>().Select(e => e.Text));
         Assert.IsType<ChatStreamEvent.ReasoningDelta>(events[1]);
         Assert.Equal(new ChatStreamEvent.Completed(false), Assert.Single(events.OfType<ChatStreamEvent.Completed>()));
@@ -62,16 +63,18 @@ public class ChatCompletionsClientTests
     [Fact]
     public async Task Reasoning_keeps_a_long_thinking_stream_alive()
     {
-        // Eight reasoning events 250 ms apart: twice the idle limit in total, never silent for that long.
-        var events = Enumerable.Repeat("data: {\"choices\":[{\"delta\":{\"reasoning_content\":\"想\"}}]}\n\n", 8)
+        // Sixteen reasoning events 200 ms apart: 3.2 s in all, longer than the idle limit, never silent for that long. The
+        // margin is ten times the pace, as for the keep-alive test below; 250 ms against 1 s stalled on a Windows runner
+        // (2026-11-21).
+        var events = Enumerable.Repeat("data: {\"choices\":[{\"delta\":{\"reasoning_content\":\"想\"}}]}\n\n", 16)
             .Append("data: {\"choices\":[{\"delta\":{\"content\":\"答\"},\"finish_reason\":\"stop\"}]}\n\n")
             .ToArray();
-        var options = new ChatClientOptions { IdleTimeout = TimeSpan.FromSeconds(1) };
-        var paced = new StubHandler(_ => new HttpResponseMessage(HttpStatusCode.OK) { Content = new StreamContent(new PacedStream(events, TimeSpan.FromMilliseconds(250))) });
+        var options = new ChatClientOptions { IdleTimeout = TimeSpan.FromSeconds(2) };
+        var paced = new StubHandler(_ => new HttpResponseMessage(HttpStatusCode.OK) { Content = new StreamContent(new PacedStream(events, TimeSpan.FromMilliseconds(200))) });
 
         var received = await Collect(new ChatCompletionsClient(new HttpClient(paced), options));
 
-        Assert.Equal(8, received.OfType<ChatStreamEvent.ReasoningDelta>().Count());
+        Assert.Equal(16, received.OfType<ChatStreamEvent.ReasoningDelta>().Count());
         Assert.Equal("答", Assert.Single(received.OfType<ChatStreamEvent.TextDelta>()).Text);
         Assert.Equal(new ChatStreamEvent.Completed(false), received[^1]);
     }
@@ -733,7 +736,7 @@ public class ChatCompletionsClientTests
         Assert.Equal([new ChatToolCall("c1", "f", "{\"a\":1}"), new ChatToolCall("call_2", "g", "{\"b\":2}")], calls.Calls);
         Assert.Equal("想想", calls.Reasoning);
         Assert.Equal(new ChatStreamEvent.Completed(false), events[events.IndexOf(calls) + 1]);
-        Assert.Equal(new ChatStreamEvent.ReasoningDelta(2), Assert.Single(events.OfType<ChatStreamEvent.ReasoningDelta>()));
+        Assert.Equal(new ChatStreamEvent.ReasoningDelta("想想"), Assert.Single(events.OfType<ChatStreamEvent.ReasoningDelta>()));
         Assert.Empty(events.OfType<ChatStreamEvent.TextDelta>());
     }
 
