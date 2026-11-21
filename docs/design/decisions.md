@@ -149,3 +149,14 @@ Health check repo-scripts-9 pointed out that the repository contains personal pa
 ## D-026 Bold opens and closes beside CJK punctuation (2026-11-22)
 
 Answers such as `的**“火箭号”**在` showed their asterisks. Under CommonMark's flanking rules, `**` between a letter and punctuation cannot open emphasis, and `**` between punctuation and a letter cannot close it. Models write this often in Chinese. The shared parsing pipeline therefore enables Markdig's own `UseCjkFriendlyEmphasis` (the markdown-cjk-friendly rule), so finished answers, streaming answers and summaries all get it. Text without CJK characters still parses as plain CommonMark; a test compares the two. The answer text is not rewritten. The rendering configuration identity changes to `livemarkdown-2.5.1/cjk-emphasis-1`; `math-3` anchors still restore, except in a block that used to show those asterisks, which fails the layout check and degrades according to MW-C13.
+
+## D-027 Answer typography: looser body text, lighter coloured bold, bold colour as a setting (2026-11-22)
+
+The user found answer text heavy and not clean enough, and compared fonts, spacing and bold side by side in `prototypes/text-spacing` (its README has the screenshots and measurements). Decided (2026-11-21 and 2026-11-22):
+
+- **Fonts stay as they are**: Inter for the interface, PingFang SC first for answers. Other font sets either lost Chinese bold (any list with a Latin font first) or looked no better.
+- **Answer body text** (paragraphs, list items, quotes, table cells) has a 24 px line height, 1.7 times its 14 px size; the font's own spacing was 1.4. List numbers and bullets share it. Headings and code keep their own spacing. The gap between answer blocks is 10 px instead of 8.
+- **Bold** is lighter and coloured: Medium weight instead of Semibold, in a muted colour, so it stands out by colour and not by weight. In the light theme Semibold black was too heavy; in the dark theme weight alone did not stand out. Saturated colours were tried and rejected as too vivid.
+- **The bold colour is a setting**: Settings › Appearance › “加粗颜色” (Bold colour), with Brown (the default), Slate, Sage, Plum and “与正文相同” (Same as text). Each colour has a light and a dark value in the theme resources. The choice applies at once, like the theme, and is stored under the preference key `bold-colour`; a missing or unknown value means Brown. No migration.
+
+This does not change the requirements or the first-release scope.

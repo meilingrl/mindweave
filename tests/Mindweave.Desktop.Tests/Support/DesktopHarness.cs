@@ -209,6 +209,11 @@ public sealed class DesktopHarness : IAsyncDisposable
         public List<Application.Preferences.Appearance> Applied { get; } = [];
 
         public void Apply(Application.Preferences.Appearance appearance) => Applied.Add(appearance);
+
+        /// <summary>The bold colours the application asked for, in order.</summary>
+        public List<Application.Preferences.BoldColour> BoldColours { get; } = [];
+
+        public void ApplyBoldColour(Application.Preferences.BoldColour colour) => BoldColours.Add(colour);
     }
 
     public sealed class RecordingShell : ISystemShell

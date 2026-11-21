@@ -13,6 +13,17 @@ public static partial class UiText
     public static string AppearanceFollowSystem => T("Follow system", "跟随系统");
     public static string AppearanceLight => T("Light", "浅色");
     public static string AppearanceDark => T("Dark", "深色");
+
+    // The bold colour in answers (D-027).
+    public static string BoldColourLabel => T("Bold colour", "加粗颜色");
+    public static string BoldColourBrown => T("Brown", "棕色");
+    public static string BoldColourSlate => T("Slate", "青灰");
+    public static string BoldColourSage => T("Sage", "灰绿");
+    public static string BoldColourPlum => T("Plum", "梅紫");
+    public static string BoldColourSameAsText => T("Same as text", "与正文相同");
+    public static string BoldColourSaveFailed => T(
+        "The bold colour could not be saved. It still applies until Mindweave closes.",
+        "加粗颜色未能保存，本次运行中仍然有效。");
     public static string ThemeLabel => T("Theme", "主题");
 
     // Interface language (bilingual-ui.md §7). A language's name is the same in both languages: it is never translated.

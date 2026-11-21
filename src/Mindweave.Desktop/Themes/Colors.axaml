@@ -9,6 +9,14 @@
     <ResourceDictionary x:Key="Light">
       <!-- Pages -->
       <SolidColorBrush x:Key="WindowBackground">#FFFFFF</SolidColorBrush>
+      <!-- Bold in answers (D-027): Medium weight in a muted colour chosen in Settings › Appearance. BoldText is the one in
+           use (Brown until the setting is read); SameAsText is the answer text colour, the theme's window foreground. -->
+      <SolidColorBrush x:Key="BoldText">#6B4A33</SolidColorBrush>
+      <SolidColorBrush x:Key="BoldTextBrown">#6B4A33</SolidColorBrush>
+      <SolidColorBrush x:Key="BoldTextSlate">#3D4F6B</SolidColorBrush>
+      <SolidColorBrush x:Key="BoldTextSage">#3F5E55</SolidColorBrush>
+      <SolidColorBrush x:Key="BoldTextPlum">#5E4560</SolidColorBrush>
+      <SolidColorBrush x:Key="BoldTextSameAsText">#000000</SolidColorBrush>
       <SolidColorBrush x:Key="SidebarBackground">#F5F5F4</SolidColorBrush>
       <SolidColorBrush x:Key="PanelBackground">#F5F5F4</SolidColorBrush>
       <SolidColorBrush x:Key="DialogBackground">#FFFFFF</SolidColorBrush>
@@ -170,6 +178,12 @@
     </ResourceDictionary>
     <ResourceDictionary x:Key="Dark">
       <SolidColorBrush x:Key="WindowBackground">#18191B</SolidColorBrush>
+      <SolidColorBrush x:Key="BoldText">#E6D2BC</SolidColorBrush>
+      <SolidColorBrush x:Key="BoldTextBrown">#E6D2BC</SolidColorBrush>
+      <SolidColorBrush x:Key="BoldTextSlate">#C3CEE3</SolidColorBrush>
+      <SolidColorBrush x:Key="BoldTextSage">#BFD6CC</SolidColorBrush>
+      <SolidColorBrush x:Key="BoldTextPlum">#DCC8DC</SolidColorBrush>
+      <SolidColorBrush x:Key="BoldTextSameAsText">#FFFFFF</SolidColorBrush>
       <SolidColorBrush x:Key="SidebarBackground">#1D1E22</SolidColorBrush>
       <SolidColorBrush x:Key="PanelBackground">#1D1E22</SolidColorBrush>
       <SolidColorBrush x:Key="DialogBackground">#222327</SolidColorBrush>

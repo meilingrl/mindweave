@@ -18,6 +18,8 @@
       </ResourceDictionary.MergedDictionaries>
       <FontFamily x:Key="AnswerFontFamily">PingFang SC, Microsoft YaHei UI, Microsoft YaHei, Noto Sans CJK SC, Noto Sans SC, Source Han Sans SC, $Default</FontFamily>
       <x:Double x:Key="DisplayFormulaFontSize">17</x:Double>
+      <!-- Answer body text: 1.7 times its 14 px size (the font's own spacing is 1.4, tight for Chinese; chosen 2026-11-21). -->
+      <x:Double x:Key="AnswerLineHeight">24</x:Double>
     </ResourceDictionary>
   </Application.Resources>
   <Application.Styles>
