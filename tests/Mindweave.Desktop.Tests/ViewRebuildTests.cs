@@ -74,6 +74,38 @@ public class ViewRebuildTests
         scene.Window.Close();
     }
 
+    /// <summary>
+    /// The window keeps only window-level things (bilingual-ui.md §6.7): a replaced view gets a new root view in the same
+    /// window, at the same size, and the old root view leaves the window.
+    /// </summary>
+    [AvaloniaFact]
+    public async Task RootView_is_replaced_and_window_is_kept()
+    {
+        await using var app = DesktopHarness.Create();
+        var window = app.ShowWindow(1000, 700);
+        await app.StartWithWorkspaceAsync("火车");
+        window.UpdateLayout();
+        var before = Assert.IsType<Views.RootView>(window.Content);
+        Assert.Same(app.Root, before.DataContext);
+        var bounds = window.Bounds;
+
+        var old = app.Session.ReplaceView();
+        old.GetRequiredService<Workbench>().ReleaseAll();
+        await old.DisposeAsync();
+        window.UpdateLayout();
+
+        var after = Assert.IsType<Views.RootView>(window.Content);
+        Assert.NotSame(before, after);
+        Assert.Same(app.Root, after.DataContext);
+        Assert.Same(app.Root, window.DataContext);
+        Assert.Null(before.Parent);
+        Assert.True(window.IsVisible);
+        Assert.Equal(bounds, window.Bounds);
+        Assert.Equal(1000, window.Width);
+        Assert.Equal(700, window.Height);
+        window.Close();
+    }
+
     /// <summary>Makes every view-layer singleton, as showing the window and starting would.</summary>
     private static void Compose(IServiceProvider view)
     {
