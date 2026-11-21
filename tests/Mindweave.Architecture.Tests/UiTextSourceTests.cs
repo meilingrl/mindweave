@@ -63,6 +63,73 @@ public partial class UiTextSourceTests
         Assert.True(problems.Count == 0, $"{problems.Count} places:\n" + string.Join('\n', problems.Take(60)));
     }
 
+    /// <summary>
+    /// English words written outside T(...) in UiText would show in English under Chinese too. Format strings, URLs and
+    /// other machine text have no run of two lowercase words; anything that does is text and belongs inside T.
+    /// </summary>
+    [Fact]
+    public void English_words_appear_only_inside_T()
+    {
+        var problems = new List<string>();
+        foreach (var (file, root) in UiTextFiles())
+        {
+            foreach (var token in root.DescendantTokens().Where(IsText))
+            {
+                if (EnglishWords().IsMatch(token.ValueText) && !token.Parent!.AncestorsAndSelf().OfType<InvocationExpressionSyntax>().Any(IsT))
+                {
+                    problems.Add($"{file}:{token.GetLocation().GetLineSpan().StartLinePosition.Line + 1} English outside T: {token.ValueText}");
+                }
+            }
+        }
+
+        Assert.True(problems.Count == 0, string.Join('\n', problems));
+    }
+
+    /// <summary>The language a T(...) call returns depends on the order of its arguments: English first, everywhere.</summary>
+    [Fact]
+    public void T_and_BilingualText_take_English_first_across_src()
+    {
+        var src = Path.Combine(LayeringTests.RepositoryRoot(), "src");
+        var problems = new List<string>();
+        foreach (var path in Directory.EnumerateFiles(src, "*.cs", SearchOption.AllDirectories).Where(IsSource))
+        {
+            var root = CSharpSyntaxTree.ParseText(File.ReadAllText(path), new CSharpParseOptions(LanguageVersion.Preview), path, cancellationToken: TestContext.Current.CancellationToken).GetRoot(TestContext.Current.CancellationToken);
+            var pairs = root.DescendantNodes().OfType<InvocationExpressionSyntax>().Where(IsT).Select(c => c.ArgumentList.Arguments)
+                .Concat(root.DescendantNodes().OfType<BaseObjectCreationExpressionSyntax>()
+                    .Where(c => c is ObjectCreationExpressionSyntax { Type: var t } ? t.ToString().EndsWith("BilingualText", StringComparison.Ordinal) : c.Parent is not null && IsBilingualTarget(c))
+                    .Where(c => c.ArgumentList is not null).Select(c => c.ArgumentList!.Arguments));
+            foreach (var args in pairs.Where(a => a.Count == 2))
+            {
+                if (Texts(args[0].Expression).Any(t => Chinese().IsMatch(t) && !SameInBoth.Contains(t)))
+                {
+                    problems.Add($"{Path.GetRelativePath(src, path)}:{Line(args[0])} Chinese in the English argument");
+                }
+
+                if (Texts(args[1].Expression).Any(EnglishWords().IsMatch) && !Texts(args[1].Expression).Any(t => Chinese().IsMatch(t)))
+                {
+                    problems.Add($"{Path.GetRelativePath(src, path)}:{Line(args[1])} English in the Chinese argument");
+                }
+            }
+        }
+
+        Assert.True(problems.Count == 0, string.Join('\n', problems));
+    }
+
+    /// <summary>A target-typed <c>new("…", "…")</c> assigned to something declared as <c>BilingualText</c>.</summary>
+    private static bool IsBilingualTarget(BaseObjectCreationExpressionSyntax creation) =>
+        creation is ImplicitObjectCreationExpressionSyntax
+        && creation.Ancestors().FirstOrDefault(a => a is PropertyDeclarationSyntax or FieldDeclarationSyntax or VariableDeclarationSyntax or MethodDeclarationSyntax) switch
+        {
+            PropertyDeclarationSyntax p => p.Type.ToString().TrimEnd('?').EndsWith("BilingualText", StringComparison.Ordinal),
+            FieldDeclarationSyntax f => f.Declaration.Type.ToString().TrimEnd('?').EndsWith("BilingualText", StringComparison.Ordinal),
+            VariableDeclarationSyntax v => v.Type.ToString().TrimEnd('?').EndsWith("BilingualText", StringComparison.Ordinal),
+            MethodDeclarationSyntax m => m.ReturnType.ToString().TrimEnd('?').EndsWith("BilingualText", StringComparison.Ordinal) && creation.Parent is ArrowExpressionClauseSyntax or ReturnStatementSyntax,
+            _ => false,
+        };
+
+    [GeneratedRegex(@"\b[a-z]{2,}\s+[a-z]{2,}\b")]
+    private static partial Regex EnglishWords();
+
     [Fact]
     public void No_text_is_fixed_when_first_read()
     {

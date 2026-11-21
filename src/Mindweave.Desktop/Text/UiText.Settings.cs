@@ -45,25 +45,25 @@ public static partial class UiText
         "None yet. A backup is made automatically before a data upgrade, before a delete that removes other content with it, and before restoring a backup.",
         "暂无。数据升级前、连带删除前和恢复备份前会自动备份。");
     public static string AppearanceSaveFailed => T(
-        "The appearance setting could not be saved. It still applies until you quit.",
+        "The appearance setting couldn’t be saved. It still applies until you quit.",
         "外观设置未能保存，本次运行中仍然有效。");
 
     // Hints (2026-11-10): whether the open workspace's conversations pop up a hint too (on unless turned off), and the
     // sound for a hint (off unless chosen).
-    public static string HintsSection => T("Notifications", "提示");
+    public static string HintsSection => T("Notifications and suggestions", "提示");
     public static string NewsInWorkspaceLabel => T("Pop-up notifications", "弹出提示");
     public static string NewsInWorkspace => T("Also notify in the current workspace", "当前工作区内也弹出提示");
     public static string NewsInWorkspaceHint => T(
         "Also pops up when a conversation you aren’t viewing gets a new answer. When off, notifications pop up only for other workspaces; the dots in the sidebar show as usual.",
         "没在看的会话有新回答时也弹出；关闭后只为其他工作区弹出，侧栏的圆点照常显示。");
     public static string NewsInWorkspaceSaveFailed => T(
-        "The pop-up notification setting could not be saved. It still applies until you quit.",
+        "The pop-up notification setting couldn’t be saved. It still applies until you quit.",
         "弹出提示设置未能保存，本次运行中仍然有效。");
     public static string NewsSoundLabel => T("Notification sound", "提示音");
     public static string NewsSound => T("Play a sound for new answers", "新回答提示音");
     public static string NewsSoundHint => T("Plays only once when several new answers arrive", "有多个新回答时只响一次");
     public static string NewsSoundSaveFailed => T(
-        "The notification sound setting could not be saved. It still applies until you quit.",
+        "The notification sound setting couldn’t be saved. It still applies until you quit.",
         "提示音设置未能保存，本次运行中仍然有效。");
 
     // Names prepared in the background (2026-11-11): on unless turned off.
@@ -73,7 +73,7 @@ public static partial class UiText
         "When a new conversation gets its title, name suggestions for the workspace are prepared in the background and shown right away when you rename it. This sends the title to the model and may cost a little.",
         "新会话有了标题后，在后台为工作区想好名称，改名时直接显示；会把标题发给模型，可能产生少量费用。");
     public static string PrepareNamesSaveFailed => T(
-        "The name suggestion setting could not be saved. It still applies until you quit.",
+        "The name suggestion setting couldn’t be saved. It still applies until you quit.",
         "名称建议设置未能保存，本次运行中仍然有效。");
 
     public static string SettingsTitle => T("Settings", "设置");

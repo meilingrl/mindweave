@@ -50,7 +50,7 @@ public static partial class UiText
 
     // Export (S6, §8.3)
     public static string ExportMarkdown => T("Export as Markdown…", "导出为 Markdown…");
-    public static string ExportOmitSource => T("Leave out the source conversation", "不附来源说明");
+    public static string ExportOmitSource => T("Leave out the source note", "不附来源说明");
     public static string ExportDraftNote => T("This exports the saved version shown on the page; unsaved edit drafts aren’t included.", "导出的是页面上显示的已保存版本；未保存的编辑草稿不包含在内。");
     public static string ExportCandidateHint => T("A candidate version can’t be exported. Adopt it first.", "候选版本不能导出，请先采用。");
     public static string ExportOptionsHeading => T("Export as Markdown", "导出为 Markdown");

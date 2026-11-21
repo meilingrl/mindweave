@@ -68,7 +68,7 @@ public static partial class UiText
 
     public static string LinkNoteTooLong(int length) =>
         T(
-            "A note can have at most " + Plural(SummaryLinkNote.MaxLength, "character", "characters") + "; this one has " + length.ToString(CultureInfo.GetCultureInfo("en-US")) + ".",
+            "A note can have at most " + Plural(SummaryLinkNote.MaxLength, "character", "characters") + "; this one has " + length.ToString(EnglishCulture) + ".",
             string.Format(CultureInfo.CurrentCulture, "说明最多 {0} 字，现在是 {1} 字。", SummaryLinkNote.MaxLength, length));
 
     public static string LinkNoteCount(int length) => string.Format(CultureInfo.CurrentCulture, "{0}/{1}", length, SummaryLinkNote.MaxLength);

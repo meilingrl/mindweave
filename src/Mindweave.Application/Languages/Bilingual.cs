@@ -19,6 +19,9 @@ public static class Bilingual
     public static string Plural(int count, string one, string many) =>
         count.ToString(English) + " " + (count == 1 ? one : many);
 
+    /// <summary>How numbers and dates are written in English text, whatever the current language.</summary>
+    public static CultureInfo EnglishCulture => English;
+
     /// <summary>How numbers and dates are written in the current language.</summary>
     public static CultureInfo Culture => CurrentLanguage.Value == UiLanguage.English ? English : Chinese;
 }

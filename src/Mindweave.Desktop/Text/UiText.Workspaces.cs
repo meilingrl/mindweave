@@ -132,7 +132,7 @@ public static partial class UiText
         "本地数据暂时无法保存，已暂停 AI 请求；恢复保存后可以重试。");
 
     public static string SuggestionsUnavailable => T(
-        "The app is quitting, so suggestions can’t be requested right now.",
+        "Mindweave is quitting, so suggestions can’t be requested right now.",
         "正在退出，暂时不能请求建议。");
 
     // ── Ghost names in the rename box (2026-11-11, user decision) ─────────────
