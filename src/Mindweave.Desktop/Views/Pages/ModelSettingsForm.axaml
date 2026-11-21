@@ -58,7 +58,7 @@
         </Grid>
       </Grid>
 
-      <Grid Name="DetailRows" ColumnDefinitions="96,*" RowDefinitions="Auto,Auto,Auto,Auto" RowSpacing="12">
+      <Grid Name="DetailRows" ColumnDefinitions="96,*" RowDefinitions="Auto,Auto,Auto,Auto,Auto" RowSpacing="12">
         <TextBlock Classes="field-label" Text="{x:Static t:UiText.ConnectionNameLabel}" />
         <TextBox Grid.Column="1" Name="ConnectionName" Text="{Binding Name}" PlaceholderText="{x:Static t:UiText.ConnectionNamePlaceholder}"
                  AutomationProperties.Name="{x:Static t:UiText.ConnectionNameLabel}" />
@@ -92,6 +92,22 @@
                     AutomationProperties.Name="{x:Static t:UiText.ImageInputSetting}" AutomationProperties.HelpText="{x:Static t:UiText.ImageInputHint}" />
           <TextBlock Classes="caption" TextWrapping="Wrap" Margin="0,0,0,6" Text="{x:Static t:UiText.ImageInputHint}" />
           <TextBlock Classes="caption" TextWrapping="Wrap" Text="{x:Static t:UiText.ModelCapabilitiesHint}" />
+        </StackPanel>
+
+        <!-- 输出上限 (2026-11-21): the answer's max_tokens; empty sends none. The "i" explains it on hover. -->
+        <TextBlock Grid.Row="4" Classes="field-label" VerticalAlignment="Top" Margin="0,6,0,0" Text="{x:Static t:UiText.OutputLimitLabel}"
+                   IsVisible="{Binding IsAdvancedOpen}" />
+        <StackPanel Grid.Row="4" Grid.Column="1" Spacing="6" IsVisible="{Binding IsAdvancedOpen}">
+          <StackPanel Orientation="Horizontal" Spacing="8">
+            <TextBox Name="OutputLimit" Text="{Binding OutputLimit}" PlaceholderText="{x:Static t:UiText.OutputLimitPlaceholder}" Width="180"
+                     AutomationProperties.Name="{x:Static t:UiText.OutputLimitLabel}" AutomationProperties.HelpText="{x:Static t:UiText.OutputLimitTip}" />
+            <TextBlock Classes="caption" VerticalAlignment="Center" Text="{x:Static t:UiText.TokensUnit}" />
+            <Border Name="OutputLimitInfo" Background="Transparent" VerticalAlignment="Center" Padding="2"
+                    ToolTip.Tip="{x:Static t:UiText.OutputLimitTip}" ToolTip.ShowDelay="200" ToolTip.Placement="BottomEdgeAlignedLeft" ToolTip.VerticalOffset="4">
+              <PathIcon Data="{StaticResource IconInfo}" Width="14" Height="14" Foreground="{DynamicResource MutedText}" />
+            </Border>
+          </StackPanel>
+          <TextBlock Classes="caption" TextWrapping="Wrap" Text="{x:Static t:UiText.OutputLimitHint}" />
         </StackPanel>
       </Grid>
     </StackPanel>

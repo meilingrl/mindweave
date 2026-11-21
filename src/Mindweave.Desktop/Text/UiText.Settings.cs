@@ -75,6 +75,14 @@ public static partial class UiText
     public const string ToolCallsHint = "模型回答时可以请 Mindweave 执行它提供的工具（例如查找资料），拿到结果后再接着回答。";
     public const string ImageInputSetting = "图片输入";
     public const string ImageInputHint = "提问时可以附上图片，由模型看图回答。只有能识图的模型支持。";
+    public const string OutputLimitLabel = "输出上限";
+    public const string OutputLimitPlaceholder = "留空由服务决定";
+    public const string OutputLimitHint = "每次回答最多生成多少 token。回答常在中途被截断时调大；想要更短的回答或控制费用时调小。";
+    public const string OutputLimitTip =
+        "每次提问都会把这个上限发给模型服务；留空则不发送，由服务按它自己的默认值处理。\n" +
+        "推理模型的思考过程通常也计入上限，设得太小，可能想完了却来不及作答。\n" +
+        "上下文容量里会为回答留出同样多的空间，所以最多只能设为上下文容量的一半。\n" +
+        "生成总结、压缩上下文等内部请求有各自的上限，不受这一项影响。";
     public const string ModelCapabilitiesHint = "按所选服务与模型预先填好，拿不准的保持关闭；换了服务或模型会重新填。模型其实不支持时打开，相关请求会失败。";
 
     public const string ModelLabel = "模型";
@@ -99,6 +107,8 @@ public static partial class UiText
         ModelSettingsProblem.MissingModel => "请填写模型名称。",
         ModelSettingsProblem.MissingKey => "请填写 API 密钥。",
         ModelSettingsProblem.CredentialsInUrl => "服务地址里不能包含用户名或密码；密钥请填在“API 密钥”一栏，它会存进系统的密钥存储。",
+        ModelSettingsProblem.InvalidOutputLimit =>
+            $"输出上限应不少于 {ModelSettingsInput.MinOutputLimit:N0} token，且不超过上下文容量的一半，不清楚可留空。",
         ModelSettingsProblem.InvalidContextWindow => $"上下文容量应在 {ModelSettingsInput.MinContextWindow:N0} 到 {ModelSettingsInput.MaxContextWindow:N0} token 之间，不清楚可留空。",
         _ => "设置无效。",
     };
