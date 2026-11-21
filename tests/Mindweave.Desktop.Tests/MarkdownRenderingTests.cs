@@ -38,10 +38,19 @@ public class MarkdownRenderingTests
     [InlineData(Feed.Live)]
     public async Task Bold_covers_exactly_the_emphasised_text_in_cjk_paragraphs_and_list_items(Feed feed)
     {
+        await WithBoldWeightAsync(() => AssertBoldCoversExactlyAsync(feed));
+    }
+
+    /// <summary>
+    /// Runs a check that tells bold from plain by the drawn weight with the bold weight ("same as text", D-027), which
+    /// every answer font has a face for; Medium, the default with a bold colour, has none in some fonts.
+    /// </summary>
+    private static async Task WithBoldWeightAsync(Func<Task> check)
+    {
         BoldWeight.Use(BoldWeight.For(Application.Preferences.BoldColour.SameAsText));
         try
         {
-            await AssertBoldCoversExactlyAsync(feed);
+            await check();
         }
         finally
         {
@@ -120,7 +129,10 @@ public class MarkdownRenderingTests
     [AvaloniaTheory]
     [InlineData(Feed.Full)]
     [InlineData(Feed.Live)]
-    public async Task Bold_opens_and_closes_beside_cjk_punctuation(Feed feed)
+    public async Task Bold_opens_and_closes_beside_cjk_punctuation(Feed feed) =>
+        await WithBoldWeightAsync(() => AssertBoldBesideCjkPunctuationAsync(feed));
+
+    private static async Task AssertBoldBesideCjkPunctuationAsync(Feed feed)
     {
         var (window, renderer) = await RenderAsync(CjkPunctuationEmphasis, feed);
 
