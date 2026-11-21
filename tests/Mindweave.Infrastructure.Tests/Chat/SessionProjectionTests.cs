@@ -160,6 +160,25 @@ public class SessionProjectionTests
     }
 
     [Fact]
+    public async Task An_untitled_conversations_long_question_is_cut_to_one_line_of_24()
+    {
+        // Ruling R-T1b: only while there is no title yet does the label fall back to the first question, on one line and
+        // cut to 24 text elements plus "…". The details keep the whole question.
+        await using var h = await ChatHarness.StartAsync();
+        const string question = "火车是怎么发明的？\n谁造了第一台蒸汽机车呢？它最早在哪个国家的哪条线路上跑起来的";
+        var conversation = await ConversationAsync(h, question);
+        await h.TitleEndedAsync(conversation);
+        await h.Database.WriteAsync(
+            (c, t) => c.Execute(t, "UPDATE conversation SET title = NULL, title_source = 'none' WHERE id = $id;", ("$id", conversation.ToString())),
+            Ct);
+
+        var node = Assert.Single((await h.SummaryNetwork.ProjectSessionsAsync(h.Workspace, Ct)).Nodes);
+
+        Assert.Equal("火车是怎么发明的？ 谁造了第一台蒸汽机车呢？它最…", node.ShortTitle);
+        Assert.Equal(question, node.FirstQuestion);
+    }
+
+    [Fact]
     public async Task A_session_dot_carries_its_whole_title()
     {
         // The timeline gives every label the room it needs, so a dot's short title is never cut.

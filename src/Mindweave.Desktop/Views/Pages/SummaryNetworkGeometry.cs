@@ -143,27 +143,39 @@ internal static class SummaryNetworkGeometry
 
     /// <summary>
     /// The timeline's opening view (spec §5.3): zoom 1 with the main line across the middle. When everything fits at zoom 1
-    /// it is centred, as <see cref="FitTo"/> would centre it; otherwise the newest root (the rightmost on the main line)
-    /// sits at <see cref="TimelineNewestAt"/> of the width, with the latest history to its left. "显示全部" still fits all.
+    /// it is centred, as <see cref="FitTo"/> would centre it. Otherwise the newest root (the rightmost on the main line) is
+    /// shown with its whole title, the latest history to its left (ruling R-T1a): the title ends at
+    /// <see cref="TimelineLabelEndAt"/> of the width, or, when the title alone takes more than
+    /// <see cref="TimelineWideLabel"/> of the width, the dot sits at <see cref="TimelineNarrowDotAt"/>. "显示全部" still fits all.
     /// </summary>
     internal static Viewport TimelineOpening(IReadOnlyList<NodeView> nodes, Size size)
     {
         ArgumentNullException.ThrowIfNull(nodes);
         const double left = SummaryNetworkCanvas.RootRadius + SummaryNetworkCanvas.HoverGrowth;
-        const double right = SummaryNetworkCanvas.RootRadius + SummaryNetworkCanvas.HoverGrowth + SummaryNetworkLayout.LabelGap;
         var minX = nodes.Min(n => n.X);
         var maxX = nodes.Max(n => n.X + n.LabelWidth);
-        if (maxX - minX + left + right <= size.Width - (2 * Viewport.FitMargin))
+        if (maxX - minX + left + TimelineLabelReach <= size.Width - (2 * Viewport.FitMargin))
         {
-            return new Viewport(((minX + maxX) / 2) + ((right - left) / 2), 0, 1);
+            return new Viewport(((minX + maxX) / 2) + ((TimelineLabelReach - left) / 2), 0, 1);
         }
 
-        var newest = nodes.Where(n => n.IsRoot).Select(n => n.X).DefaultIfEmpty(nodes.Max(n => n.X)).Max();
-        return new Viewport(newest + (size.Width * (0.5 - TimelineNewestAt)), 0, 1);
+        var newest = nodes.Where(n => n.IsRoot).DefaultIfEmpty(nodes[0]).MaxBy(n => n.X)!;
+        var title = TimelineLabelReach + newest.LabelWidth;
+        var dotAt = title > size.Width * TimelineWideLabel ? size.Width * TimelineNarrowDotAt : (size.Width * TimelineLabelEndAt) - title;
+        return new Viewport(newest.X + (size.Width / 2) - dotAt, 0, 1);
     }
 
-    /// <summary>Where the timeline opens with its newest root, as a fraction of the canvas width from the left.</summary>
-    internal const double TimelineNewestAt = 0.8;
+    /// <summary>From a dot's centre to the start of its label at zoom 1, the largest dot grown on hover included.</summary>
+    internal const double TimelineLabelReach = SummaryNetworkCanvas.RootRadius + SummaryNetworkCanvas.HoverGrowth + SummaryNetworkLayout.LabelGap;
+
+    /// <summary>Where the newest root's title ends when the timeline opens, as a fraction of the canvas width.</summary>
+    internal const double TimelineLabelEndAt = 0.92;
+
+    /// <summary>A title wider than this fraction of the canvas opens with its dot at <see cref="TimelineNarrowDotAt"/>.</summary>
+    internal const double TimelineWideLabel = 0.6;
+
+    /// <summary>Where the newest root's dot sits when its title is too wide to end at <see cref="TimelineLabelEndAt"/>.</summary>
+    internal const double TimelineNarrowDotAt = 0.2;
 
     /// <summary>
     /// The viewport that shows every node, its label and its group's caption. Positions and label widths are canvas

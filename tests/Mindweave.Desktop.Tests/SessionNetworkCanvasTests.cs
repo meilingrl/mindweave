@@ -325,6 +325,14 @@ public class SessionNetworkCanvasTests
         Assert.Contains(network.Nodes, n => n.Y < 0);
         Assert.Equal(2, network.Session.DayStarts.Count);
         Assert.Equal(1, canvas.Current.Zoom);
+
+        // A canvas too narrow for a long title beside the right edge: the newest root's dot opens at 20% of the width and
+        // its whole title is still in view (ruling R-T1a).
+        var bounds = new Rect(canvas.Bounds.Size);
+        var newest = network.Nodes.Where(n => n.IsRoot).MaxBy(n => n.X)!;
+        Assert.True(newest.LabelWidth > bounds.Width * 0.6, $"canvas {bounds.Width} is wide enough for the end anchor");
+        Assert.Equal(bounds.Width * SummaryNetworkGeometry.TimelineNarrowDotAt, canvas.ToScreen(newest.X, newest.Y).X, 3);
+        Assert.True(bounds.Contains(canvas.PaintNodes().Single(p => p.Node.Id == newest.Id).LabelBounds), "the newest root's title is cut by the edge");
         Screenshots.Capture(window, "session-network-timeline-whole-titles");
 
         foreach (var zoom in new[] { 1.0, 1.6, Viewport.MaxZoom })
@@ -374,8 +382,8 @@ public class SessionNetworkCanvasTests
         Assert.True(bounds.Contains(only.Center), $"the dot at {only.Center} is outside {bounds}");
         Assert.True(bounds.Contains(only.LabelBounds), $"the label at {only.LabelBounds} is outside {bounds}");
 
-        // Several sessions with long titles, wider than the canvas: zoom 1, the newest root in the right fifth and the
-        // main line across the middle.
+        // Several sessions with long titles, wider than the canvas: zoom 1, the main line across the middle, and the newest
+        // root's whole title in view, ending at about 92% of the width (ruling R-T1a).
         var roots = new List<ConversationId> { first };
         for (var i = 1; i < 6; i++)
         {
@@ -393,7 +401,10 @@ public class SessionNetworkCanvasTests
         var newest = network.Nodes.Where(n => n.IsRoot).MaxBy(n => n.X)!;
         var at = canvas.ToScreen(newest.X, newest.Y);
         Assert.Equal(1, opening.Zoom);
-        Assert.InRange(at.X, (bounds.Width * 0.8) - 0.5, bounds.Width);
+        Assert.True(newest.LabelWidth < bounds.Width * 0.6);
+        Assert.Equal(bounds.Width * SummaryNetworkGeometry.TimelineLabelEndAt, at.X + SummaryNetworkGeometry.TimelineLabelReach + newest.LabelWidth, 3);
+        Assert.True(bounds.Contains(canvas.PaintNodes().Single(p => p.Node.Id == newest.Id).LabelBounds), "the newest root's title is cut by the edge");
+        Assert.True(at.X > bounds.Width * SummaryNetworkGeometry.TimelineNarrowDotAt);
         Assert.Equal(bounds.Height / 2, at.Y, 3);
         Assert.Contains(network.Nodes, n => !bounds.Contains(canvas.ToScreen(n.X, n.Y)));
         Screenshots.Capture(window, "session-network-timeline-opening");
