@@ -9,10 +9,10 @@ public static partial class UiText
     /// <summary>A file size for reading: KB below one megabyte, MB with one decimal above.</summary>
     public static string FormatSize(long bytes) => bytes < 1024 * 1024
         ? T(
-            string.Format(CultureInfo.GetCultureInfo("en-US"), "{0:N0} KB", Math.Max(1, (bytes + 1023) / 1024)),
+            string.Format(EnglishCulture, "{0:N0} KB", Math.Max(1, (bytes + 1023) / 1024)),
             string.Format(CultureInfo.CurrentCulture, "{0:N0} KB", Math.Max(1, (bytes + 1023) / 1024)))
         : T(
-            string.Format(CultureInfo.GetCultureInfo("en-US"), "{0:N1} MB", bytes / (1024.0 * 1024.0)),
+            string.Format(EnglishCulture, "{0:N1} MB", bytes / (1024.0 * 1024.0)),
             string.Format(CultureInfo.CurrentCulture, "{0:N1} MB", bytes / (1024.0 * 1024.0)));
 
     /// <summary>
@@ -20,7 +20,7 @@ public static partial class UiText
     /// AM/PM, for example "Mar 14, 2026 09:30" or "2026年3月14日 09:30", the same whatever the machine's regional format.
     /// </summary>
     public static string FormatTime(DateTimeOffset at) => T(
-        at.ToLocalTime().ToString("MMM d, yyyy HH:mm", CultureInfo.GetCultureInfo("en-US")),
+        at.ToLocalTime().ToString("MMM d, yyyy HH:mm", EnglishCulture),
         at.ToLocalTime().ToString("yyyy'年'M'月'd'日' HH:mm", CultureInfo.InvariantCulture));
 
     /// <summary>

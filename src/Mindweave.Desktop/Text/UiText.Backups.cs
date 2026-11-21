@@ -145,7 +145,7 @@ public static partial class UiText
             string.Format(CultureInfo.CurrentCulture, " {0} 的备份（{1}，{2}）", FormatTime(at), badge, FormatSize(bytes)));
 
     public static string LeftoverRowName(DateTimeOffset at, long bytes) => T(
-        string.Format(Culture, " {1} on {0} ({2})", FormatTime(at), LeftoverDatabase, FormatSize(bytes)),
+        string.Format(Culture, " old data replaced by a restore on {0} ({1})", FormatTime(at), FormatSize(bytes)),
         string.Format(CultureInfo.CurrentCulture, " {0} {1}（{2}）", FormatTime(at), LeftoverDatabase, FormatSize(bytes)));
 
     public static string DeleteBackupsTitle(int count) => count == 1

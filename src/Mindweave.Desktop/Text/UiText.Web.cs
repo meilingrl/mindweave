@@ -48,13 +48,13 @@ public static partial class UiText
     /// <summary>A 出处 row's meta line: the host and when it was fetched.</summary>
     public static string CitationMeta(Uri url, DateTimeOffset fetchedAt) =>
         T(
-            url.Host + " · fetched " + fetchedAt.ToLocalTime().ToString("MMM d, yyyy HH:mm", CultureInfo.GetCultureInfo("en-US")),
+            url.Host + " · fetched " + fetchedAt.ToLocalTime().ToString("MMM d, yyyy HH:mm", EnglishCulture),
             url.Host + " · 获取于 " + fetchedAt.ToLocalTime().ToString("yyyy-MM-dd HH:mm", CultureInfo.InvariantCulture));
 
     /// <summary>The viewer's info line for a 出处.</summary>
     public static string CitationInfo(int number, DateTimeOffset fetchedAt) =>
         T(
-            string.Format(CultureInfo.InvariantCulture, "Citation [{0}] · fetched {1}", number, fetchedAt.ToLocalTime().ToString("MMM d, yyyy HH:mm", CultureInfo.GetCultureInfo("en-US"))),
+            string.Format(CultureInfo.InvariantCulture, "Citation [{0}] · fetched {1}", number, fetchedAt.ToLocalTime().ToString("MMM d, yyyy HH:mm", EnglishCulture)),
             string.Format(CultureInfo.InvariantCulture, "出处 [{0}] · 获取于 {1}", number, fetchedAt.ToLocalTime().ToString("yyyy-MM-dd HH:mm", CultureInfo.InvariantCulture)));
 
     /// <summary>The viewer's info line for a 出处 in this app's own material (L11).</summary>

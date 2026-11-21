@@ -19,6 +19,7 @@ public sealed class Workbench : ObservableObject, IWorkbenchNavigator, IWorkspac
     private readonly IPageFactory _pages;
     private readonly IWorkspaces _workspaces;
     private WorkspaceRuntime? _active;
+    private bool _released;
 
     public Workbench(IPageFactory pages, IWorkspaces workspaces)
     {
@@ -84,6 +85,11 @@ public sealed class Workbench : ObservableObject, IWorkbenchNavigator, IWorkspac
     public void AddWorkspace(Workspace workspace)
     {
         ArgumentNullException.ThrowIfNull(workspace);
+        if (_released)
+        {
+            return;
+        }
+
         Workspaces.Add(workspace);
         Activate(workspace.Id, MainSection.Explore);
     }
@@ -91,7 +97,7 @@ public sealed class Workbench : ObservableObject, IWorkbenchNavigator, IWorkspac
     /// <summary>Switches workspace and restores where that workspace was left in this session.</summary>
     public void SwitchWorkspace(WorkspaceId id)
     {
-        if (_active?.Workspace.Id == id)
+        if (_released || _active?.Workspace.Id == id)
         {
             return;
         }
@@ -106,6 +112,11 @@ public sealed class Workbench : ObservableObject, IWorkbenchNavigator, IWorkspac
     public void Navigate(NavigationRequest request)
     {
         ArgumentNullException.ThrowIfNull(request);
+        if (_released)
+        {
+            return;
+        }
+
         var (runtime, slot) = RequireActive(request.Slot);
         slot.Section = request.Section;
         EnsureHome(runtime, slot);
@@ -120,6 +131,11 @@ public sealed class Workbench : ObservableObject, IWorkbenchNavigator, IWorkspac
     public void Push(ContentRoute route)
     {
         ArgumentNullException.ThrowIfNull(route);
+        if (_released)
+        {
+            return;
+        }
+
         var (runtime, slot) = RequireActive(null);
         PushCore(runtime, slot, route);
         Changed();
@@ -128,6 +144,11 @@ public sealed class Workbench : ObservableObject, IWorkbenchNavigator, IWorkspac
     public void Replace(ContentRoute route)
     {
         ArgumentNullException.ThrowIfNull(route);
+        if (_released)
+        {
+            return;
+        }
+
         var (runtime, slot) = RequireActive(null);
         var stack = slot.StackOf(slot.Section);
         if (stack.Count > 1)
@@ -147,6 +168,11 @@ public sealed class Workbench : ObservableObject, IWorkbenchNavigator, IWorkspac
     {
         ArgumentNullException.ThrowIfNull(match);
         ArgumentNullException.ThrowIfNull(fallbackFor);
+        if (_released)
+        {
+            return;
+        }
+
         var shown = CurrentPage;
         var fallback = shown is not null && match(shown.Route) ? fallbackFor(shown.Route) : null;
         var shownForgotten = false;
@@ -193,6 +219,11 @@ public sealed class Workbench : ObservableObject, IWorkbenchNavigator, IWorkspac
     /// </summary>
     public void RemoveWorkspace(WorkspaceId removed, WorkspaceId? next)
     {
+        if (_released)
+        {
+            return;
+        }
+
         if (_runtimes.Remove(removed, out var runtime))
         {
             foreach (var page in runtime.AllPages().ToList())
@@ -255,6 +286,11 @@ public sealed class Workbench : ObservableObject, IWorkbenchNavigator, IWorkspac
     /// <summary>Back within the current section's history. The section home is never popped.</summary>
     public void GoBack()
     {
+        if (_released)
+        {
+            return;
+        }
+
         var (_, slot) = RequireActive(null);
         var stack = slot.StackOf(slot.Section);
         if (stack.Count <= 1)
@@ -283,18 +319,123 @@ public sealed class Workbench : ObservableObject, IWorkbenchNavigator, IWorkspac
     }
 
     /// <summary>
-    /// The session ends for an in-app restore (2026-11-12): every page of every workspace leaves the stacks and is
-    /// disposed. The window already shows the next session, so nothing is navigated to.
+    /// The view ends (an in-app restore, 2026-11-12, or a language switch): every page of every workspace leaves the
+    /// stacks and is disposed. The window already shows the next view, so nothing is navigated to; navigation that comes
+    /// later, from work an old page started (a send that finishes), is ignored (review of merge 2, M2). Every page is
+    /// released even if one fails to let go; the first failure is thrown afterwards.
     /// </summary>
     public void ReleaseAll()
     {
+        _released = true;
         var pages = _runtimes.Values.SelectMany(r => r.AllPages()).ToList();
         _runtimes.Clear();
         _active = null;
+        List<Exception>? failures = null;
         foreach (var page in pages)
         {
-            Release(page);
+            try
+            {
+                Release(page);
+            }
+#pragma warning disable CA1031 // The others still go; the failures are thrown together below.
+            catch (Exception ex)
+#pragma warning restore CA1031
+            {
+                (failures ??= []).Add(ex);
+            }
         }
+
+        if (failures is not null)
+        {
+            throw new AggregateException("Some pages failed to let go of their view.", failures);
+        }
+    }
+
+    /// <summary>The pages alive in this workbench, in every workspace, slot and section.</summary>
+    internal IEnumerable<PageViewModel> AllPages() => _runtimes.Values.SelectMany(r => r.AllPages());
+
+    /// <summary>
+    /// Where the user is, for a language switch (bilingual-ui.md §6.4): the workspace list, the active workspace, and
+    /// each visited workspace's section and stacks, with what each page carries. The root page and the sidebar are
+    /// left for the caller to fill in.
+    /// </summary>
+    public ViewSnapshot Snapshot()
+    {
+        var routes = new Dictionary<WorkspaceId, WorkspaceRoutes>();
+        foreach (var (id, runtime) in _runtimes)
+        {
+            var slot = runtime.Slot(CurrentSlot);
+            var stacks = Enum.GetValues<MainSection>()
+                .Select(section => (Section: section, Stack: slot.StackOf(section)))
+                .Where(s => s.Stack.Count > 0)
+                .ToDictionary(
+                    s => s.Section,
+                    s => (IReadOnlyList<PageSnapshot>)[.. s.Stack.Select(page => new PageSnapshot(
+                        page.Route is ConversationRoute conversation ? conversation with { SourceOf = null } : page.Route,
+                        (page as ICarriesViewState)?.CaptureViewState()))]);
+            routes[id] = new WorkspaceRoutes(slot.Section, stacks);
+        }
+
+        return new ViewSnapshot(new RootPage.Shell(), [.. Workspaces], _active?.Workspace.Id, routes, Sidebar: null);
+    }
+
+    /// <summary>
+    /// Builds the pages of <paramref name="snapshot"/> in this (new, empty) workbench, each with what its old page
+    /// carried, and shows the workspace that was active. It is the first thing a new view's workbench does, in place of
+    /// <see cref="Initialize"/>.
+    /// </summary>
+    public void Restore(ViewSnapshot snapshot)
+    {
+        ArgumentNullException.ThrowIfNull(snapshot);
+        if (snapshot.Workspaces.Count == 0)
+        {
+            throw new ArgumentException("The workbench needs at least one workspace.", nameof(snapshot));
+        }
+
+        Workspaces.Clear();
+        foreach (var workspace in snapshot.Workspaces)
+        {
+            Workspaces.Add(workspace);
+        }
+
+        foreach (var (id, routes) in snapshot.Routes)
+        {
+            if (Workspaces.FirstOrDefault(w => w.Id == id) is not { } workspace)
+            {
+                continue;
+            }
+
+            var runtime = new WorkspaceRuntime(workspace);
+            _runtimes[id] = runtime;
+            var slot = runtime.Slot(CurrentSlot);
+            slot.Section = routes.Section;
+            foreach (var (section, pages) in routes.Stacks)
+            {
+                var stack = slot.StackOf(section);
+                foreach (var saved in pages)
+                {
+                    // Replayed, not opened: the page starts nothing that opening it would (review of merge 2, M4).
+                    var page = _pages.Create(saved.Route, new PageContext(runtime.Workspace, slot.Key, this, this, Replayed: true));
+                    try
+                    {
+                        if (saved.State is { } state && page is ICarriesViewState carrier)
+                        {
+                            carrier.RestoreViewState(state);
+                        }
+                    }
+                    catch
+                    {
+                        Release(page);
+                        throw;
+                    }
+
+                    stack.Add(page);
+                }
+            }
+        }
+
+        var active = snapshot.Active is { } a && _runtimes.ContainsKey(a) ? a : Workspaces[0].Id;
+        Activate(active, section: null);
     }
 
     /// <summary>A page leaves the stacks and is disposed; what the user typed is already with its owner.</summary>

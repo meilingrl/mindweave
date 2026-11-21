@@ -21,7 +21,7 @@ public static partial class UiText
 
     /// <summary>A page could not read what it shows (health check 2026-11-12); what it showed stays.</summary>
     public static string LoadFailed => T(
-        "Some content could not be read, so the page may not be up to date. You can leave the page and come back to try again; the details are in the log.",
+        "Some content couldn’t be read, so the page may not be up to date. You can leave the page and come back to try again; the details are in the log.",
         "有内容没有读取成功，页面显示的可能不是最新的。可以离开页面再回来重试；详情已记入日志。");
 
     public static string UnexpectedError => T(
@@ -41,7 +41,7 @@ public static partial class UiText
     public static string StorageDetailsLink => T("Data and storage", "数据与存储");
     public static string DataDirectoryLabel => T("Data folder", "数据目录");
     public static string DatabaseLabel => T("Database", "数据库");
-    public static string SchemaVersionLabel => T("Data schema version", "数据结构版本");
+    public static string SchemaVersionLabel => T("Data format version", "数据结构版本");
     public static string BackupsLabel => T("Backups", "备份");
     public static string ChannelLabel => T("Data channel", "数据通道");
     public static string OpenDataFolder => T("Open data location", "打开数据位置");
@@ -77,7 +77,7 @@ public static partial class UiText
             DatabaseOpenStatus.TooNew => T(
                 string.Format(
                     Culture,
-                    "The data schema version is {0}, but this app supports only up to {1}. To avoid damaging the data, this app will not write to it. Open it with a newer Mindweave.",
+                    "The data format version is {0}, but this app supports only up to {1}. To avoid damaging the data, this app will not write to it. Open it with a newer Mindweave.",
                     result.FoundVersion,
                     result.SupportedVersion),
                 string.Format(
@@ -107,7 +107,7 @@ public static partial class UiText
         return T(
             string.Format(
                 Culture,
-                "The current database will be replaced with the backup from {0} (schema version {1}). The current file is renamed and kept in the data folder, not deleted; changes made after the backup are not in it.",
+                "The current database will be replaced with the backup from {0} (data format version {1}). The current file is renamed and kept in the data folder, not deleted; changes made after the backup are not in it.",
                 FormatTime(backup.CreatedAt),
                 backup.SchemaVersion),
             string.Format(
@@ -129,8 +129,9 @@ public static partial class UiText
 
     public static string DataLocation => T("Data location", "数据位置");
 
+    /// <summary>A backup's data format version as a short badge beside its date: "Format 17", "结构版本 17".</summary>
     public static string SchemaVersionBadge(int version) => T(
-        string.Format(Culture, "Schema version {0}", version),
+        string.Format(Culture, "Format {0}", version),
         string.Format(CultureInfo.CurrentCulture, "结构版本 {0}", version));
 
     public static string FormatBackup(BackupInfo backup)

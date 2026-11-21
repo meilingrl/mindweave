@@ -11,7 +11,7 @@ public static partial class UiText
 
     /// <summary>"Step 1 of 3" / "第 1 步，共 3 步".</summary>
     public static string OnboardingStepOf(int step) => T(
-        string.Format(CultureInfo.GetCultureInfo("en-US"), "Step {0} of {1}", step, OnboardingStepCount),
+        string.Format(EnglishCulture, "Step {0} of {1}", step, OnboardingStepCount),
         string.Format(CultureInfo.CurrentCulture, "第 {0} 步，共 {1} 步", step, OnboardingStepCount));
 
     public static string SkipOnboarding => T("Skip introduction", "跳过引导");

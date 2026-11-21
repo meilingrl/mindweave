@@ -3,7 +3,6 @@ using Avalonia.Controls.ApplicationLifetimes;
 using Avalonia.Markup.Xaml;
 using Avalonia.Threading;
 using Microsoft.Extensions.DependencyInjection;
-using Microsoft.Extensions.Logging;
 using Mindweave.Desktop.Services;
 using Mindweave.Desktop.ViewModels;
 using Mindweave.Desktop.Views;
@@ -49,24 +48,23 @@ public sealed partial class App : Avalonia.Application
 
         if (_host is not null && ApplicationLifetime is IClassicDesktopStyleApplicationLifetime desktop)
         {
+            // The session's providers are looked up each time: switching the language replaces the view, and a restore in
+            // the app (2026-11-12) replaces both; quitting goes through the current view.
             var session = _host.Session;
-            var window = new MainWindow { DataContext = session.Root };
+            var window = new MainWindow { DataContext = session.RootViewModel };
             window.Follow(session);
             desktop.MainWindow = window;
 
             // Before anything runs on the dispatcher: an exception a command does not handle is reported, not fatal.
-            // The session is looked up each time, since an in-app restore replaces it.
-            DesktopLog.Use(_host.Session.Services.GetRequiredService<ILoggerFactory>().CreateLogger("Mindweave.Desktop"));
+            DesktopLog.Use(session.Logger("Mindweave.Desktop"));
             var guard = new UiExceptionGuard(
                 Dispatcher.UIThread,
-                () => _host.Session.Services.GetService<ShellViewModel>(),
-                _host.Session.Services.GetRequiredService<ILoggerFactory>().CreateLogger("Mindweave.UI"));
+                () => session.View.GetService<ShellViewModel>(),
+                session.Logger("Mindweave.UI"));
             desktop.Exit += (_, _) => guard.Dispose();
-
-            // The session's root: a restore in the app (2026-11-12) replaces it, and quitting goes through the current one.
-            desktop.ShutdownRequested += (_, e) => OnShutdownRequested(session.Root, e);
+            desktop.ShutdownRequested += (_, e) => OnShutdownRequested(session.RootViewModel, e);
             _host.Instance.StartListening(() => Dispatcher.UIThread.Post(window.BringToFront));
-            Dispatcher.UIThread.Post(async () => await session.Services.GetRequiredService<AppStartup>().RunAsync());
+            Dispatcher.UIThread.Post(async () => await session.View.GetRequiredService<AppStartup>().RunAsync());
         }
 
         base.OnFrameworkInitializationCompleted();

@@ -69,7 +69,7 @@ public sealed class BackupRequests : IBackupPrompts
 /// tasks) and its stop-and-save steps run, then the current data is backed up and verified, and only then does the
 /// session hand over to the next one, which puts the backup in place. 取消 is the default.
 /// </summary>
-public sealed partial class BackupRestoreViewModel : ViewModelBase
+public sealed partial class BackupRestoreViewModel : ViewModelBase, IDisposable
 {
     private readonly IBackupFiles _files;
     private readonly IDatabaseBackup _backups;
@@ -88,8 +88,13 @@ public sealed partial class BackupRestoreViewModel : ViewModelBase
         _restore = restore;
         _requests = requests;
         _schemaVersion = environment.SchemaVersion;
-        requests.RestoreRequested += (_, backup) => Open(backup);
+        requests.RestoreRequested += OnRestoreRequested;
     }
+
+    /// <summary>Stops listening to the storage page's requests; the view it belongs to is being replaced.</summary>
+    public void Dispose() => _requests.RestoreRequested -= OnRestoreRequested;
+
+    private void OnRestoreRequested(object? sender, BackupInfo backup) => Open(backup);
 
     [ObservableProperty]
     public partial bool IsOpen { get; private set; }
@@ -228,7 +233,7 @@ public sealed partial class BackupRestoreViewModel : ViewModelBase
 /// backup is the way back to the data before the last restore. Files are removed one by one; any that cannot be (in use,
 /// no permission) are said and stay selected for another try. 取消 is the default.
 /// </summary>
-public sealed partial class BackupDeletionViewModel : ViewModelBase
+public sealed partial class BackupDeletionViewModel : ViewModelBase, IDisposable
 {
     private readonly IBackupFiles _files;
     private readonly BackupRequests _requests;
@@ -238,8 +243,13 @@ public sealed partial class BackupDeletionViewModel : ViewModelBase
         ArgumentNullException.ThrowIfNull(requests);
         _files = files;
         _requests = requests;
-        requests.DeleteRequested += (_, entries) => Open(entries);
+        requests.DeleteRequested += OnDeleteRequested;
     }
+
+    /// <summary>Stops listening to the storage page's requests; the view it belongs to is being replaced.</summary>
+    public void Dispose() => _requests.DeleteRequested -= OnDeleteRequested;
+
+    private void OnDeleteRequested(object? sender, IReadOnlyList<BackupEntry> entries) => Open(entries);
 
     [ObservableProperty]
     public partial bool IsOpen { get; private set; }

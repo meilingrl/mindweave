@@ -15,6 +15,11 @@ public static partial class UiText
     public static string AppearanceDark => T("Dark", "深色");
     public static string ThemeLabel => T("Theme", "主题");
 
+    // Interface language (bilingual-ui.md §7). A language's name is the same in both languages: it is never translated.
+    public static string LanguageLabel => T("Language", "语言");
+    public static string LanguageEnglish => "English";
+    public static string LanguageChinese => "简体中文";
+
     // Settings pages: presets fill the address; hints only where the page cannot show it otherwise.
     public static string ProviderLabel => T("Provider", "服务商");
     public static string ProviderPlaceholder => T("Choose a provider", "选择服务商");
@@ -45,25 +50,35 @@ public static partial class UiText
         "None yet. A backup is made automatically before a data upgrade, before a delete that removes other content with it, and before restoring a backup.",
         "暂无。数据升级前、连带删除前和恢复备份前会自动备份。");
     public static string AppearanceSaveFailed => T(
-        "The appearance setting could not be saved. It still applies until you quit.",
+        "The appearance setting couldn’t be saved. It still applies until you quit.",
         "外观设置未能保存，本次运行中仍然有效。");
+    public static string LanguageSaveFailed => T(
+        "The language setting couldn’t be saved. It still applies until you quit.",
+        "语言设置未能保存，本次运行中仍然有效。");
+
+    // A language switch waits while something is under way that a rebuild would cut short (bilingual-ui.md §6.6).
+    public static string LanguageSwitchWaiting => T("Switches when the current task finishes…", "当前任务完成后切换…");
+    public static string LanguageSwitchFailed => T("Couldn’t switch the language. Try again.", "未能切换语言，请重试。");
+    public static string LanguageSwitchNotNow => T(
+        "Couldn’t switch the language now. Try again when the current task finishes.",
+        "现在无法切换语言，请在当前任务完成后重试。");
 
     // Hints (2026-11-10): whether the open workspace's conversations pop up a hint too (on unless turned off), and the
     // sound for a hint (off unless chosen).
-    public static string HintsSection => T("Notifications", "提示");
+    public static string HintsSection => T("Notifications and suggestions", "提示");
     public static string NewsInWorkspaceLabel => T("Pop-up notifications", "弹出提示");
     public static string NewsInWorkspace => T("Also notify in the current workspace", "当前工作区内也弹出提示");
     public static string NewsInWorkspaceHint => T(
         "Also pops up when a conversation you aren’t viewing gets a new answer. When off, notifications pop up only for other workspaces; the dots in the sidebar show as usual.",
         "没在看的会话有新回答时也弹出；关闭后只为其他工作区弹出，侧栏的圆点照常显示。");
     public static string NewsInWorkspaceSaveFailed => T(
-        "The pop-up notification setting could not be saved. It still applies until you quit.",
+        "The pop-up notification setting couldn’t be saved. It still applies until you quit.",
         "弹出提示设置未能保存，本次运行中仍然有效。");
     public static string NewsSoundLabel => T("Notification sound", "提示音");
     public static string NewsSound => T("Play a sound for new answers", "新回答提示音");
     public static string NewsSoundHint => T("Plays only once when several new answers arrive", "有多个新回答时只响一次");
     public static string NewsSoundSaveFailed => T(
-        "The notification sound setting could not be saved. It still applies until you quit.",
+        "The notification sound setting couldn’t be saved. It still applies until you quit.",
         "提示音设置未能保存，本次运行中仍然有效。");
 
     // Names prepared in the background (2026-11-11): on unless turned off.
@@ -73,7 +88,7 @@ public static partial class UiText
         "When a new conversation gets its title, name suggestions for the workspace are prepared in the background and shown right away when you rename it. This sends the title to the model and may cost a little.",
         "新会话有了标题后，在后台为工作区想好名称，改名时直接显示；会把标题发给模型，可能产生少量费用。");
     public static string PrepareNamesSaveFailed => T(
-        "The name suggestion setting could not be saved. It still applies until you quit.",
+        "The name suggestion setting couldn’t be saved. It still applies until you quit.",
         "名称建议设置未能保存，本次运行中仍然有效。");
 
     public static string SettingsTitle => T("Settings", "设置");
@@ -99,7 +114,7 @@ public static partial class UiText
         "You can attach images to a question for the model to look at. Only models that can read images support this.",
         "提问时可以附上图片，由模型看图回答。只有能识图的模型支持。");
     public static string OutputLimitLabel => T("Output limit", "输出上限");
-    public static string OutputLimitPlaceholder => T("Leave blank to let the service decide", "留空由服务决定");
+    public static string OutputLimitPlaceholder => T("Service default", "留空由服务决定");
     public static string OutputLimitHint => T(
         "The most tokens each answer may generate. Raise it if answers are often cut off midway; lower it for shorter answers or to control cost.",
         "每次回答最多生成多少 token。回答常在中途被截断时调大；想要更短的回答或控制费用时调小。");

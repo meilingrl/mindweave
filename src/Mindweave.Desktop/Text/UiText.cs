@@ -143,7 +143,7 @@ public static partial class UiText
     {
         Core.Workspaces.WorkspaceNameError.Empty => T("The name can’t be empty.", "名称不能为空。"),
         Core.Workspaces.WorkspaceNameError.TooLong => T(
-            string.Format(CultureInfo.GetCultureInfo("en-US"), "The name can be at most {0} characters.", WorkspaceName.MaxLength),
+            string.Format(EnglishCulture, "The name can be at most {0} characters.", WorkspaceName.MaxLength),
             string.Format(CultureInfo.CurrentCulture, "名称最多 {0} 个字符。", WorkspaceName.MaxLength)),
         _ => T("The name isn’t valid.", "名称无效。"),
     };

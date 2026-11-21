@@ -21,6 +21,9 @@ public static partial class UiText
     public static string SummaryStop => T("Stop", "停止");
     public static string SummaryRetry => T("Retry", "重试");
     public static string ReturnToConversation => T("Continue in the source conversation", "回到来源会话继续");
+
+    /// <summary>The button's own words; it keeps <see cref="ReturnToConversation"/> as its accessible name.</summary>
+    public static string ReturnToConversationButton => T("Continue the conversation", "回到来源会话继续");
     public static string MarkRead => T("Mark as read", "标记为已读");
     public static string MarkUnread => T("Mark as unread", "标记为未读");
     public static string MarkerUnread => T("Unread", "未读");
@@ -50,7 +53,10 @@ public static partial class UiText
 
     // Export (S6, §8.3)
     public static string ExportMarkdown => T("Export as Markdown…", "导出为 Markdown…");
-    public static string ExportOmitSource => T("Leave out the source conversation", "不附来源说明");
+
+    /// <summary>The summary page's button; its accessible name and its options' heading say <see cref="ExportMarkdown"/>.</summary>
+    public static string ExportMarkdownButton => T("Export…", "导出为 Markdown…");
+    public static string ExportOmitSource => T("Leave out the source note", "不附来源说明");
     public static string ExportDraftNote => T("This exports the saved version shown on the page; unsaved edit drafts aren’t included.", "导出的是页面上显示的已保存版本；未保存的编辑草稿不包含在内。");
     public static string ExportCandidateHint => T("A candidate version can’t be exported. Adopt it first.", "候选版本不能导出，请先采用。");
     public static string ExportOptionsHeading => T("Export as Markdown", "导出为 Markdown");
@@ -65,7 +71,7 @@ public static partial class UiText
         SummarizeRejection.AnswerInProgress => T("You can summarize once the answer finishes or is stopped.", "回答完成或停止后才能总结。"),
         SummarizeRejection.SummaryInProgress => T("A summary of this conversation is being generated.", "这个会话的总结正在生成。"),
         SummarizeRejection.HasCandidate => T("There’s already a candidate version. Adopt or discard it on the summary page first.", "已有一个候选版本，请先在总结页采用或丢弃。"),
-        SummarizeRejection.TooLongForModel => T("The conversation is too long: even after compressing earlier content it exceeds the model’s capacity. You can switch to a model with a larger capacity in Settings.", "会话太长，压缩较早内容后也超出模型容量；可以在设置中换用容量更大的模型。"),
+        SummarizeRejection.TooLongForModel => T("The conversation is too long: even after compressing earlier content it exceeds the model’s context window. You can switch to a model with a larger context window in Settings.", "会话太长，压缩较早内容后也超出模型容量；可以在设置中换用容量更大的模型。"),
         SummarizeRejection.ConversationArchived => T("This conversation is archived. Restore it before summarizing.", "这个会话已归档，请先恢复再总结。"),
         SummarizeRejection.ConversationMissing => ConversationDeleted,
         _ => T("Couldn’t generate the summary.", "无法生成总结。"),

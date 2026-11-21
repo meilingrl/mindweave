@@ -9,6 +9,7 @@ using Mindweave.Application.Summaries;
 using Mindweave.Core.Branches;
 using Mindweave.Core.Conversations;
 using Mindweave.Core.Reading;
+using Mindweave.Core.Runs;
 using Mindweave.Core.Summaries;
 using Mindweave.Desktop.Navigation;
 using Mindweave.Desktop.Services;
@@ -26,7 +27,7 @@ public sealed record LineageItem(ConversationId Id, string Title, bool IsFirst =
 /// An archived conversation (or one below an archived ancestor) opens read-only and offers "restore and continue"
 /// (D-021); archiving and deleting start here too.
 /// </summary>
-public sealed partial class ConversationViewModel : PageViewModel, IDisposable, IAttachmentViewerHost
+public sealed partial class ConversationViewModel : PageViewModel, IDisposable, IAttachmentViewerHost, ICarriesViewState
 {
     private readonly IConversations _conversations;
     private readonly Application.Resources.IResources? _resources;
@@ -363,6 +364,20 @@ public sealed partial class ConversationViewModel : PageViewModel, IDisposable, 
 
     /// <summary>The page left every stack; tests check pages of deleted content were released.</summary>
     internal bool IsDisposed => _disposed;
+
+    /// <summary>
+    /// What lives only in this page and is carried over a language switch: the web search position chosen beside the
+    /// composer (review of merge 2, M3). The draft and the reading position are with their service.
+    /// </summary>
+    public object? CaptureViewState() => Composer.WebSearch?.Chosen;
+
+    public void RestoreViewState(object state)
+    {
+        if (state is WebSearchMode mode)
+        {
+            Composer.WebSearch?.Restore(mode);
+        }
+    }
 
     public void Dispose()
     {

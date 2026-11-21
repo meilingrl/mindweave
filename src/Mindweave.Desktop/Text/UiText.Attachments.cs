@@ -56,8 +56,8 @@ public static partial class UiText
     public static string AttachmentSize(int characters) =>
         T(
             characters >= 9_500
-                ? $"about {((characters + 500) / 1_000 * 1_000).ToString("N0", CultureInfo.GetCultureInfo("en-US"))} characters"
-                : characters >= 1_000 ? $"about {((characters + 50) / 100 * 100).ToString("N0", CultureInfo.GetCultureInfo("en-US"))} characters" : Plural(characters, "character", "characters"),
+                ? $"about {((characters + 500) / 1_000 * 1_000).ToString("N0", EnglishCulture)} characters"
+                : characters >= 1_000 ? $"about {((characters + 50) / 100 * 100).ToString("N0", EnglishCulture)} characters" : Plural(characters, "character", "characters"),
             characters >= 9_500
                 ? $"约 {(characters / 10_000.0).ToString("0.#", CultureInfo.InvariantCulture)} 万字"
                 : characters >= 1_000 ? $"约 {((characters + 50) / 100 * 100).ToString("N0", CultureInfo.InvariantCulture)} 字" : $"{characters} 字");

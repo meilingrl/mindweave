@@ -103,7 +103,7 @@ public static partial class UiText
             : T("The API key can’t be used. Check it in Settings.", "API 密钥无法使用，请在设置中检查。"),
         RecommendationProblem.NoContent => T(SuggestLinksNeedsSummaries + ".", SuggestLinksNeedsSummaries + "。"),
         RecommendationProblem.StoragePaused => SuggestionsStoragePaused,
-        RecommendationProblem.Unavailable => T("The app is quitting, so links can’t be suggested now.","正在退出，暂时不能建议关联。"),
+        RecommendationProblem.Unavailable => T("Mindweave is quitting, so links can’t be suggested right now.","正在退出，暂时不能建议关联。"),
         RecommendationProblem.Empty => LinkSuggestionsNoneNew,
         RecommendationProblem.Failed => error is { } kind
             ? T($"Couldn’t suggest links: {ErrorKind(kind)}.", $"没能建议关联：{ErrorKind(kind)}。")

@@ -1,5 +1,6 @@
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
+using Mindweave.Application.Languages;
 using Mindweave.Application.Preferences;
 using Mindweave.Core.Workspaces;
 using Mindweave.Desktop.Services;
@@ -64,6 +65,7 @@ public sealed partial class WorkspaceNameForm : ViewModelBase
 public sealed partial class OnboardingViewModel : ViewModelBase
 {
     private readonly IOnboardingProgress? _progress;
+    private readonly LanguageSwitch? _language;
 
     /// <summary>Only the workspace step, as after the guide has been finished.</summary>
     public OnboardingViewModel(Func<WorkspaceName, Task> create)
@@ -73,8 +75,10 @@ public sealed partial class OnboardingViewModel : ViewModelBase
 
     /// <param name="start">The step stored by the last run; <see cref="OnboardingStep.Done"/> shows only the workspace step.</param>
     /// <param name="model">The settings page's own model form; without it there is no model step and so no guide.</param>
-    public OnboardingViewModel(Func<WorkspaceName, Task> create, OnboardingStep start, IOnboardingProgress? progress, ModelSettingsViewModel? model)
+    /// <param name="language">The language switch; the guide's first step offers the choice (§7).</param>
+    public OnboardingViewModel(Func<WorkspaceName, Task> create, OnboardingStep start, IOnboardingProgress? progress, ModelSettingsViewModel? model, LanguageSwitch? language = null)
     {
+        _language = language;
         Form = new WorkspaceNameForm(create);
         _progress = progress;
         Model = model;
@@ -112,6 +116,79 @@ public sealed partial class OnboardingViewModel : ViewModelBase
     public bool CanSkip => IsGuided && Step < OnboardingStep.Workspace;
 
     public bool CanGoBack => IsGuided && Step > OnboardingStep.Welcome;
+
+    /// <summary>
+    /// The guide's first step offers the interface language (user, 2026-11-21), before anything is filled in. Choosing
+    /// saves it and rebuilds the step in the new language; later steps have no choice.
+    /// </summary>
+    public bool CanChooseLanguage => IsGuided && _language is not null;
+
+    public bool IsEnglish
+    {
+        get => CurrentLanguage.Value == UiLanguage.English;
+        set => ChooseLanguage(value, UiLanguage.English);
+    }
+
+    public bool IsChinese
+    {
+        get => CurrentLanguage.Value == UiLanguage.Chinese;
+        set => ChooseLanguage(value, UiLanguage.Chinese);
+    }
+
+    /// <summary>
+    /// Beside the choice: the switch waits for something to finish, it could not be made, or saving the choice failed
+    /// (the language still applies until the application closes); otherwise nothing.
+    /// </summary>
+    public string? LanguageStatus => _language?.Notice;
+
+    /// <summary>The status says the switch waits: shown as progress, not as a problem.</summary>
+    public bool IsLanguageWaiting => _language?.IsWaiting == true;
+
+    /// <summary>The language was chosen on this step: the step built in its place focuses the choice (review of merge 2, M5).</summary>
+    public bool LanguageChosen { get; private set; }
+
+    /// <summary>The step replaces one the language was chosen on: its view puts the keyboard on the choice once, then clears this.</summary>
+    public bool FocusesLanguage { get; set; }
+
+    private bool _listening;
+
+    private void ChooseLanguage(bool chosen, UiLanguage language)
+    {
+        if (chosen && _language is not null)
+        {
+            LanguageChosen = true;
+
+            // This page is not disposed when the guide ends, so it listens only while its own switch runs.
+            if (!_listening)
+            {
+                _listening = true;
+                _language.Changed += OnLanguageSwitchChanged;
+            }
+
+            _ = FollowAsync(_language, _language.SwitchAsync(language, this));
+        }
+    }
+
+    /// <summary>Stops listening once the switch has ended; it never faults (what went wrong is in its notice).</summary>
+    private async Task FollowAsync(LanguageSwitch language, Task switching)
+    {
+        await switching;
+        if (_listening)
+        {
+            _listening = false;
+            language.Changed -= OnLanguageSwitchChanged;
+        }
+
+        OnLanguageSwitchChanged(language, EventArgs.Empty);
+    }
+
+    private void OnLanguageSwitchChanged(object? sender, EventArgs e)
+    {
+        OnPropertyChanged(nameof(LanguageStatus));
+        OnPropertyChanged(nameof(IsLanguageWaiting));
+        OnPropertyChanged(nameof(IsEnglish));
+        OnPropertyChanged(nameof(IsChinese));
+    }
 
     /// <summary>The latest write of the step reached (tests).</summary>
     internal Task Saving { get; private set; } = Task.CompletedTask;

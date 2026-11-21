@@ -22,6 +22,9 @@ public static partial class UiText
 
     public static string SaveLayout => T("Save layout", "保存布局");
     public static string ArrangeLayout => T("Arrange layout", "整理布局");
+
+    /// <summary>The toolbar button's own words; its name stays <see cref="ArrangeLayout"/>.</summary>
+    public static string ArrangeLayoutButton => T("Arrange", "整理布局");
     public static string ShowAll => T("Show all", "显示全部");
     public static string ZoomIn => T("Zoom in", "放大");
     public static string ZoomOut => T("Zoom out", "缩小");

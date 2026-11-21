@@ -19,6 +19,9 @@ public static partial class UiText
 
     public static string RefreshRecommendedNodes => T("Refresh recommendations", "换一批推荐");
 
+    /// <summary>The toolbar button's own words; it keeps <see cref="RefreshRecommendedNodes"/> as its name and its tip.</summary>
+    public static string RefreshRecommendedNodesButton => T("Refresh", "换一批推荐");
+
     public static string RefreshRecommendedNodesTip => T(
         "Recommend new directions from this workspace’s conversation titles and summary excerpts; sends one request",
         "按本工作区的会话标题与总结摘录重新推荐探索方向，会发一次请求");
@@ -26,6 +29,12 @@ public static partial class UiText
     public static string HideRecommendedNodes => T("Hide recommendations", "隐藏推荐");
 
     public static string ShowRecommendedNodes => T("Show recommendations", "显示推荐");
+
+    /// <summary>The toolbar button's own words; its name stays <see cref="HideRecommendedNodes"/>.</summary>
+    public static string HideRecommendedNodesButton => T("Hide", "隐藏推荐");
+
+    /// <summary>The toolbar button's own words; its name stays <see cref="ShowRecommendedNodes"/>.</summary>
+    public static string ShowRecommendedNodesButton => T("Show", "显示推荐");
 
     public static string HideRecommendedNodesTip => T(
         "Only hides them and deletes nothing; while hidden, no new recommendations are prepared automatically",

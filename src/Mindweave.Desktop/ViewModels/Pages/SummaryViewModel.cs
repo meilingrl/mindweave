@@ -18,7 +18,7 @@ namespace Mindweave.Desktop.ViewModels.Pages;
 /// deletion, renaming, exporting the shown saved version as Markdown, and the way back to the source conversation. Reading progress comes from the view; a version
 /// becomes read past the threshold after enough visible time in this opening (U2, MW-C30).
 /// </summary>
-public sealed partial class SummaryViewModel : PageViewModel, IDisposable
+public sealed partial class SummaryViewModel : PageViewModel, IDisposable, ICarriesViewState
 {
     private readonly ISummaries _summaries;
     private readonly ISummaryExport _exports;
@@ -487,6 +487,38 @@ public sealed partial class SummaryViewModel : PageViewModel, IDisposable
     private void CancelRename() => IsRenaming = false;
 
     partial void OnNoticeChanged(string? value) => NoticeIsError = true;
+
+    /// <summary>Edit mode and a rename in progress, carried over a language switch (bilingual-ui.md §6.4).</summary>
+    private sealed record CarriedState(bool Editing, string? Renaming);
+
+    /// <summary>
+    /// Whether the page is in edit mode, and a rename's text. The edited text itself is not carried: it is with the
+    /// summary drafts, and the new page's edit mode opens on it.
+    /// </summary>
+    public object? CaptureViewState() =>
+        IsEditing || IsRenaming ? new CarriedState(IsEditing, IsRenaming ? RenameText : null) : null;
+
+    public void RestoreViewState(object state)
+    {
+        if (state is not CarriedState carried)
+        {
+            return;
+        }
+
+        if (carried.Renaming is { } text)
+        {
+            RenameText = text;
+            IsRenaming = true;
+        }
+
+        if (carried.Editing)
+        {
+            Resumed = BeginEditAsync();
+        }
+    }
+
+    /// <summary>Edit mode coming back after a language switch (tests).</summary>
+    internal Task Resumed { get; private set; } = Task.CompletedTask;
 
     partial void OnEditTitleChanged(string value) => RequestDraftSave();
 

@@ -83,7 +83,8 @@ public sealed class DesktopHarness : IAsyncDisposable
     /// <summary>The application session: an in-app restore (2026-11-12) replaces its services, and with them <see cref="Root"/>.</summary>
     internal AppSession Session { get; private set; }
 
-    public ServiceProvider Services => Session.Services;
+    /// <summary>The current view provider; it holds every root service too, as the root's own instance.</summary>
+    public ServiceProvider Services => Session.View;
 
     public RootViewModel Root => Services.GetRequiredService<RootViewModel>();
 
@@ -139,7 +140,7 @@ public sealed class DesktopHarness : IAsyncDisposable
         await Services.GetRequiredService<ReadingStateService>().FlushAsync();
         await Services.GetRequiredService<ConversationMarksService>().FlushAsync();
         await Services.GetRequiredService<SqliteDatabase>().CloseAsync();
-        await Services.DisposeAsync();
+        await DisposeProvidersAsync();
         Session = NewSession();
         await StartAsync();
     }
@@ -152,11 +153,19 @@ public sealed class DesktopHarness : IAsyncDisposable
     }
 
     private AppSession NewSession() =>
-        new(extra => CompositionRoot.Build(Paths, Shell, NullLoggerProvider.Instance, services =>
-        {
-            _overrides!(services);
-            extra(services);
-        }));
+        new(
+            extra => CompositionRoot.BuildRoot(Paths, Shell, NullLoggerProvider.Instance, services =>
+            {
+                _overrides!(services);
+                extra(services);
+            }),
+            root => CompositionRoot.BuildView(root, _overrides));
+
+    private async Task DisposeProvidersAsync()
+    {
+        await Session.View.DisposeAsync();
+        await Session.Root.DisposeAsync();
+    }
 
     public async ValueTask DisposeAsync()
     {
@@ -168,7 +177,7 @@ public sealed class DesktopHarness : IAsyncDisposable
             await Services.GetRequiredService<ReadingStateService>().FlushAsync();
             await Services.GetRequiredService<ConversationMarksService>().FlushAsync();
             await Services.GetRequiredService<SqliteDatabase>().CloseAsync();
-            await Services.DisposeAsync();
+            await DisposeProvidersAsync();
         }
 
         SqliteConnection.ClearAllPools();
