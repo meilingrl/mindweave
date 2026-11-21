@@ -59,7 +59,13 @@ public sealed record PackingReport(double EnclosingRadius, double IdealRadius, d
 /// leave a lone tree lopsided and crossed; wedges fill it round with lines apart but stretch the sub-branches of a
 /// bushy tree. So a lone tree is arranged both ways, the wedges from several starting directions, and several
 /// roots are settled with two stiffnesses; the arrangement that does best on the acceptance checks is kept
-/// (<c>Choose</c>).
+/// (<c>Pick</c>).
+/// </para>
+/// <para>
+/// Every lone tree up to 2,000 dots is arranged within about 0.3 s whatever its shape (Ruling R-P6): nested packing
+/// is tried only within a budget of work, since its cost grows with depth (a comb, a long chain with side questions,
+/// costs the square of its length); wedge fills are budgeted by size; and a spiral of every footprint, quick and round
+/// whatever the shape, is the last resort when every other arrangement is crossed, spread or overlapping.
 /// </para>
 /// </remarks>
 public static partial class SpatialPacking
@@ -104,21 +110,45 @@ public static partial class SpatialPacking
     /// root; nodes on a parent cycle (which the data cannot hold) are unreachable and left out. The enclosing circle is
     /// centred on the origin.
     /// </summary>
-    public static IReadOnlyDictionary<SummaryNodeId, NodePosition> Arrange(IReadOnlyList<PackNode> nodes)
+    public static IReadOnlyDictionary<SummaryNodeId, NodePosition> Arrange(IReadOnlyList<PackNode> nodes) => Trace(nodes).Dots;
+
+    /// <summary>
+    /// <see cref="Arrange"/>, and what it did: the kinds of arrangement it worked out, and the one it kept with its
+    /// acceptance checks.
+    /// </summary>
+    internal static (IReadOnlyDictionary<SummaryNodeId, NodePosition> Dots, ArrangeTrace Trace) Trace(IReadOnlyList<PackNode> nodes)
     {
         ArgumentNullException.ThrowIfNull(nodes);
         var forest = Forest.Of(nodes);
-        var (members, x, y) = forest.Roots.Count == 1 ? LoneTree(forest) : SeveralTrees(forest);
-        var r = members.Select(i => forest.Radius[i]).ToArray();
-        var centre = Enclose(r, x, y);
-        var positions = new Dictionary<SummaryNodeId, NodePosition>(members.Length);
-        for (var k = 0; k < members.Length; k++)
+        List<Candidate> candidates = forest.PreOrder.Count switch
         {
-            var i = members[k];
-            positions[forest.Nodes[i].Id] = new NodePosition(x[k] - centre.X - forest.Offset[i], y[k] - centre.Y);
+            0 => [],
+            1 => [Finish(forest, Arrangement.Single, [forest.PreOrder[0]], [0], [0])],
+            _ => forest.Roots.Count == 1 ? LoneTree(forest) : SeveralTrees(forest),
+        };
+
+        if (candidates.Count == 0)
+        {
+            return (new Dictionary<SummaryNodeId, NodePosition>(), new ArrangeTrace([], Arrangement.Single, default));
         }
 
-        return positions;
+        // The spiral keeps no sub-branch together: it is taken only when every other arrangement is crossed, spread
+        // or overlapping (Rulings R-P6, R-P7) and it does better.
+        var lone = forest.Roots.Count == 1;
+        var others = candidates.FindAll(c => c.Kind != Arrangement.Spiral);
+        var kept = others[Pick([.. others.Select(c => c.Checks)], lone)];
+        if (lone && others.Count < candidates.Count && (!Sound(kept.Checks) || kept.Checks.CrossingsPerLine > CrossingBound))
+        {
+            kept = candidates[Pick([.. candidates.Select(c => c.Checks)], lone)];
+        }
+
+        var positions = new Dictionary<SummaryNodeId, NodePosition>(kept.Members.Length);
+        for (var k = 0; k < kept.Members.Length; k++)
+        {
+            positions[forest.Nodes[kept.Members[k]].Id] = new NodePosition(kept.X[k], kept.Y[k]);
+        }
+
+        return (positions, new ArrangeTrace([.. candidates.Select(c => c.Kind).Distinct()], kept.Kind, kept.Checks));
     }
 
     /// <summary>
@@ -126,12 +156,12 @@ public static partial class SpatialPacking
     /// together and turned to balance. Returns every footprint centre.
     /// </summary>
     /// <param name="groups">Every tree's packed sub-branches (<see cref="BuildGroups"/>); only read.</param>
-    /// <param name="rootStiffness">With several roots, how strongly each tree keeps its shape while they settle.</param>
-    private static (int[] Members, double[] X, double[] Y) Nest(Forest forest, Dictionary<int, Group> groups, double rootStiffness = RootStiffness)
+    /// <param name="stiffness">How strongly each tree (a lone tree: each sub-branch below the first fan) keeps its shape while they settle.</param>
+    /// <param name="steps">How many steps the settling takes.</param>
+    private static (int[] Members, double[] X, double[] Y) Nest(Forest forest, Dictionary<int, Group> groups, double stiffness, int steps)
     {
         var (members, body, x, y) = PlaceRoots(forest, groups);
-        var stiffness = forest.Roots.Count > 1 ? rootStiffness : 0;
-        Settle(forest, members, body, x, y, new Settling(CompactionSteps, Thread: true, Anchor: -1, Wedges: null, stiffness));
+        Settle(forest, members, body, x, y, new Settling(steps, Thread: true, Anchor: -1, Wedges: null, stiffness));
         TurnToBalance(forest, members, members.Select(i => forest.Radius[i]).ToArray(), x, y);
         return (members, x, y);
     }

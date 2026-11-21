@@ -121,5 +121,32 @@ public partial class SpatialPackingTests
     private static PackNode Node(int id, int? parent, int order, double mass, double label, int? next = null) =>
         new(Id(id), parent is { } p ? Id(p) : null, order, mass, Math.Clamp(5 + (1.3765 * Math.Sqrt(mass - 1)), 5, 14), label, next is { } n ? Id(n) : null);
 
+    /// <summary>
+    /// A comb: a chain of <paramref name="spine"/> sessions, each with <paramref name="legs"/> one-question branches
+    /// (a long main line with side questions). Created in order down the chain, each node before its legs.
+    /// </summary>
+    private static List<PackNode> Comb(int spine, int legs)
+    {
+        var nodes = new List<PackNode>();
+        var id = 0;
+        int? previous = null;
+        for (var s = 0; s < spine; s++)
+        {
+            var me = ++id;
+            var mass = (spine - s) * (1 + legs) * 2.0;
+            nodes.Add(Node(me, previous, me, mass, label: 70));
+            for (var l = 0; l < legs; l++)
+            {
+                ++id;
+                nodes.Add(Node(id, me, id, 1, label: 50));
+            }
+
+            previous = me;
+        }
+
+        return nodes;
+    }
+
+
     private static SummaryNodeId Id(int n) => new(new Guid(n, 0, 0, new byte[8]));
 }

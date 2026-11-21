@@ -1,10 +1,10 @@
 namespace Mindweave.Desktop.SummaryNetwork;
 
 /// <summary>
-/// Choosing between candidate arrangements (docs/design/session-network.md §6.1, §6.4). No one way of packing does
-/// best on every tree: nested packing keeps every sub-branch round but can leave a lone tree lopsided and crossed,
-/// wedges fill a lone tree round and keep its lines apart but stretch the sub-branches of a bushy tree. So the view
-/// arranges a workspace a few deterministic ways and keeps the one that does best on the acceptance checks.
+/// Choosing between candidate arrangements (docs/design/session-network.md §6.1, §6.4). The acceptance checks are
+/// worked out with the same code as <see cref="Measure"/> and are also the order of preference: an arrangement is
+/// first sound (no overlap, not spread), then (a lone tree) uncrossed (Ruling R-P7: crossings are the visible tangle),
+/// then in creation order round every fan and not badly stretched, and last furthest inside its bounds.
 /// </summary>
 public static partial class SpatialPacking
 {
@@ -14,8 +14,14 @@ public static partial class SpatialPacking
     /// <summary>The bound on the distance from the centre of gravity to the circle's centre, as a fraction of its radius (§6.4).</summary>
     internal const double CentroidBound = 0.15;
 
-    /// <summary>The bound on crossings per branch line.</summary>
+    /// <summary>The bound on crossings per branch line of a lone tree (Ruling R-P3), and the scale crossings are ranked on.</summary>
     internal const double CrossingBound = 0.05;
+
+    /// <summary>
+    /// The spread no arrangement may pass while another stays within it (Ruling R-P6): the enclosing circle at most
+    /// this multiple of the ideal radius.
+    /// </summary>
+    internal const double SpreadBound = 2.5;
 
     /// <summary>The bound on a sub-branch's enclosing circle (8 dots or more), as a multiple of its ideal radius.</summary>
     internal const double StretchBound = 2.1;
@@ -26,124 +32,75 @@ public static partial class SpatialPacking
     /// <summary>Sub-branches of at least this many dots count toward the stretch.</summary>
     internal const int StretchSize = 8;
 
-    /// <summary>With several roots, the stiffer alternative to <see cref="RootStiffness"/>: trees keep their shape and cross less.</summary>
-    internal const double StiffRoots = 0.1;
-
-    /// <summary>The most wedge fills tried for a lone tree, each from another starting direction.</summary>
-    internal const int WedgeTries = 12;
-
-    /// <summary>Wedge fills tried, times dots: a lone tree of n dots gets <c>WedgeBudget / n</c> tries (at least one).</summary>
-    internal const int WedgeBudget = 2000;
-
-    /// <summary>Above this many dots a lone tree is filled in wedges only: nested packing would not fit the time budget.</summary>
-    internal const int NestedLimit = 600;
-
     /// <summary>
-    /// A lone tree: nested packing, and wedge fills from a few starting directions, each also filled again with
-    /// the wedges aimed at a disc moved toward its centre of gravity. Returns the chosen candidate's footprint centres.
-    /// The candidates are independent, so they are worked out in parallel; the choice depends only on their order.
-    /// </summary>
-    private static (int[] Members, double[] X, double[] Y) LoneTree(Forest forest)
-    {
-        var area = Areas(forest);
-        var tries = Math.Clamp(WedgeBudget / Math.Max(1, forest.Nodes.Length), 1, WedgeTries);
-        var nested = forest.Nodes.Length <= NestedLimit ? 1 : 0;
-        var candidates = new (int[] Members, double[] X, double[] Y)[nested + (2 * tries)];
-        Parallel.For(0, nested + tries, k =>
-        {
-            if (k < nested)
-            {
-                candidates[0] = Nest(forest, BuildGroups(forest));
-                return;
-            }
-
-            var turn = 2 * Math.PI * Spread(k - nested);
-            var first = FillWedges(forest, area, turn, LabelLean(forest), 0);
-            var (dx, dy, _) = Imbalance(forest, first.Members, first.X, first.Y);
-            candidates[nested + (2 * (k - nested))] = first;
-            candidates[nested + (2 * (k - nested)) + 1] = FillWedges(forest, area, turn, LabelLean(forest) + dx, dy);
-        });
-
-        return Choose(forest, [.. candidates]);
-    }
-
-    /// <summary>Several roots: nested packing, settled with the usual and with stiffer trees.</summary>
-    private static (int[] Members, double[] X, double[] Y) SeveralTrees(Forest forest)
-    {
-        if (forest.Roots.Count == 0)
-        {
-            return ([], [], []);
-        }
-
-        var groups = BuildGroups(forest);
-        var stiffness = new[] { RootStiffness, StiffRoots };
-        var candidates = new (int[] Members, double[] X, double[] Y)[stiffness.Length];
-        Parallel.For(0, stiffness.Length, k => candidates[k] = Nest(forest, groups, stiffness[k]));
-        return Choose(forest, [.. candidates]);
-    }
-
-    /// <summary>The k-th of a sequence spread evenly over [0, 1): 0, 1/2, 1/4, 3/4, 1/8, … (van der Corput, base 2).</summary>
-    private static double Spread(int k)
-    {
-        var (value, unit) = (0.0, 0.5);
-        for (; k > 0; k >>= 1, unit /= 2)
-        {
-            value += (k & 1) * unit;
-        }
-
-        return value;
-    }
-
-    /// <summary>
-    /// The candidate to keep. Candidates that break creation order round a fan go first, and then badly stretched
-    /// ones (<see cref="SevereStretch"/>), unless all are.
-    /// Then: among those within every bound, the one furthest inside them; else among those within the bounds for
-    /// the whole (enclosing circle, centre of gravity, crossings), the one furthest inside its bounds; else the one
-    /// least beyond any bound.
-    /// </summary>
-    private static (int[] Members, double[] X, double[] Y) Choose(Forest forest, List<(int[] Members, double[] X, double[] Y)> candidates)
-    {
-        if (candidates.Count == 1)
-        {
-            return candidates[0];
-        }
-
-        var scored = candidates.Select(c => (Candidate: c, Score: Score(forest, c.Members, c.X, c.Y))).ToList();
-        if (scored.Any(c => c.Score.InOrder))
-        {
-            scored = [.. scored.Where(c => c.Score.InOrder)];
-        }
-
-        if (scored.Any(c => c.Score.Stretch <= SevereStretch))
-        {
-            scored = [.. scored.Where(c => c.Score.Stretch <= SevereStretch)];
-        }
-
-        var within = scored.Where(c => c.Score.Ratio <= 1 && c.Score.Offset <= 1 && c.Score.Crossings <= 1).ToList();
-        var all = within.Where(c => c.Score.Stretch <= 1).ToList();
-        var pool = all.Count > 0 ? all : within.Count > 0 ? within : scored;
-        return pool.MinBy(c => Worst(c.Score)).Candidate;
-
-        static double Worst(Scores s) => Math.Max(Math.Max(s.Ratio, s.Offset), Math.Max(s.Crossings, s.Stretch));
-    }
-
-    /// <summary>
-    /// An arrangement's acceptance checks, each as a fraction of its bound (1 is on the bound), and whether every
+    /// An arrangement's acceptance checks: the enclosing circle over the ideal radius, the centre of gravity's offset
+    /// as a fraction of the radius, overlapping footprints, branch lines and their crossings, the most stretched
+    /// sub-branch of <see cref="StretchSize"/> dots or more (its circle over its ideal radius), and whether every
     /// node with three or more children has them clockwise in creation order.
     /// </summary>
-    private readonly record struct Scores(double Ratio, double Offset, double Crossings, double Stretch, bool InOrder);
+    internal readonly record struct Checks(double Ratio, double CentroidOffset, int Overlaps, int Edges, int Crossings, double Stretch, bool InOrder)
+    {
+        public double CrossingsPerLine => Edges > 0 ? (double)Crossings / Edges : 0;
+    }
 
     /// <summary>
-    /// The acceptance checks for an arrangement (footprint centres given), each over its bound: the enclosing circle
-    /// over the ideal radius, the centre of gravity's offset and crossings per branch line, worked out with the same
-    /// code as <see cref="Measure"/> (<see cref="Check"/>), and the most stretched sub-branch of
-    /// <see cref="StretchSize"/> dots or more.
+    /// The candidate to keep, by its checks. Each step keeps the candidates that pass it, unless none does:
+    /// <list type="number">
+    /// <item>no overlapping footprints;</item>
+    /// <item>sound: the enclosing circle within <see cref="SpreadBound"/>;</item>
+    /// <item>
+    /// for a lone tree, crossings within <see cref="CrossingBound"/>, whatever the fan order or the stretch (Ruling
+    /// R-P7). With several roots this step is left out for now: of the two settlings, the less crossed can stretch a
+    /// sub-branch past the fixed set's bound (generated workspace 12: 1 crossing over 95 lines but a sub-branch at 2.08
+    /// × its ideal radius, against 3 crossings and 1.92).
+    /// </item>
+    /// <item>every fan in creation order;</item>
+    /// <item>no badly stretched sub-branch (<see cref="SevereStretch"/>).</item>
+    /// </list>
+    /// Then, among those within every bound, the one furthest inside them; else among those within the bounds for the
+    /// whole (enclosing circle, centre of gravity, crossings), the one furthest inside its bounds; else the one least
+    /// beyond any bound. Ties keep the earlier candidate.
     /// </summary>
-    private static Scores Score(Forest forest, int[] members, double[] x, double[] y)
+    internal static int Pick(IReadOnlyList<Checks> candidates, bool lone)
     {
-        var drawing = DrawingOf(forest, members, x, y);
+        var pool = Enumerable.Range(0, candidates.Count).ToList();
+        Keep(c => c.Overlaps == 0);
+        Keep(c => c.Ratio <= SpreadBound);
+        if (lone)
+        {
+            Keep(c => c.CrossingsPerLine <= CrossingBound);
+        }
+
+        Keep(c => c.InOrder);
+        Keep(c => c.Stretch / StretchBound <= SevereStretch);
+
+        var within = pool.Where(k => candidates[k] is var c && c.Ratio <= RatioBound && c.CentroidOffset <= CentroidBound && c.CrossingsPerLine <= CrossingBound).ToList();
+        var all = within.Where(k => candidates[k].Stretch <= StretchBound).ToList();
+        var finalists = all.Count > 0 ? all : within.Count > 0 ? within : pool;
+        return finalists.MinBy(k => Worst(candidates[k]));
+
+        void Keep(Func<Checks, bool> passes)
+        {
+            if (pool.Exists(k => passes(candidates[k])))
+            {
+                pool = pool.FindAll(k => passes(candidates[k]));
+            }
+        }
+
+        static double Worst(Checks c) =>
+            Math.Max(Math.Max(c.Ratio / RatioBound, c.CentroidOffset / CentroidBound), Math.Max(c.CrossingsPerLine / CrossingBound, c.Stretch / StretchBound));
+    }
+
+    /// <summary>Whether an arrangement is sound: no overlapping footprints, and not spread beyond <see cref="SpreadBound"/>.</summary>
+    private static bool Sound(Checks checks) => checks.Overlaps == 0 && checks.Ratio <= SpreadBound;
+
+    /// <summary>
+    /// The checks for an arrangement of <paramref name="members"/>: the whole-graph ones with <see cref="Measure"/>'s
+    /// code (<see cref="Check"/>), then the stretch of every sub-branch and the creation order round every fan.
+    /// </summary>
+    private static Checks Score(Forest forest, int[] members, Drawing drawing)
+    {
         var whole = Check(drawing, throughDots: false);
-        var ratio = whole.Ideal > 0 ? whole.Enclosing.R / whole.Ideal : 0;
         var slot = new int[forest.Nodes.Length];
         var inside = new bool[forest.Nodes.Length];
         for (var k = 0; k < members.Length; k++)
@@ -172,43 +129,33 @@ public static partial class SpatialPacking
             var area = 0.0;
             for (var m = 0; m < size[i]; m++)
             {
-                var j = forest.PreOrder[k + m];
-                sub[m] = new Circle(x[slot[j]], y[slot[j]], forest.Radius[j]);
-                area += Square(forest.Radius[j]);
+                var j = slot[forest.PreOrder[k + m]];
+                sub[m] = new Circle(drawing.X[j] + drawing.Offset[j], drawing.Y[j], drawing.Radius[j]);
+                area += Square(drawing.Radius[j]);
             }
 
             stretch = Math.Max(stretch, Enclose(sub).R / Math.Sqrt(area));
         }
 
-        var centres = new Slots(slot, x, y);
-        var inOrder = members.All(i => ClockwiseInOrder(forest.Children[i], x[slot[i]], y[slot[i]], centres));
-        var perLine = whole.Edges > 0 ? (double)whole.Crossings / whole.Edges : 0;
-        return new Scores(ratio / RatioBound, whole.CentroidOffset / CentroidBound, perLine / CrossingBound, stretch / StretchBound, inOrder);
+        var centres = new Slots(slot, drawing);
+        var inOrder = members.All(i => ClockwiseInOrder(forest.Children[i], drawing.X[slot[i]] + drawing.Offset[slot[i]], drawing.Y[slot[i]], centres));
+        var ratio = whole.Ideal > 0 ? whole.Enclosing.R / whole.Ideal : 0;
+        return new Checks(ratio, whole.CentroidOffset, whole.Overlaps, whole.Edges, whole.Crossings, stretch, inOrder);
     }
 
-    /// <summary>Footprint centres, by node.</summary>
-    private readonly struct Slots(int[] slot, double[] x, double[] y) : ICentres
+    /// <summary>Footprint centres of an arrangement's drawing, by node.</summary>
+    private readonly struct Slots(int[] slot, Drawing drawing) : ICentres
     {
-        public bool TryGet(int node, out double cx, out double cy)
+        public bool TryGet(int node, out double x, out double y)
         {
-            (cx, cy) = (x[slot[node]], y[slot[node]]);
+            var k = slot[node];
+            (x, y) = (drawing.X[k] + drawing.Offset[k], drawing.Y[k]);
             return true;
         }
     }
 
-    /// <summary>
-    /// How far the mass-weighted centroid of the dots lies from the centre of the circle around the footprints
-    /// (footprint centres given), and that circle's radius.
-    /// </summary>
-    private static (double Dx, double Dy, double Radius) Imbalance(Forest forest, int[] members, double[] x, double[] y)
-    {
-        var circle = Enclose(members.Select(i => forest.Radius[i]).ToArray(), x, y);
-        var (gx, gy) = Centroid(DrawingOf(forest, members, x, y));
-        return (gx - circle.X, gy - circle.Y, Math.Max(circle.R, 1));
-    }
-
-    /// <summary>The drawing of an arrangement of <paramref name="members"/>, given its footprint centres.</summary>
-    private static Drawing DrawingOf(Forest forest, int[] members, double[] x, double[] y)
+    /// <summary>The drawing of an arrangement of <paramref name="members"/>, given its dot centres.</summary>
+    private static Drawing DrawingOf(Forest forest, int[] members, double[] dotX, double[] dotY)
     {
         var n = members.Length;
         var slot = new Dictionary<int, int>(n);
@@ -217,11 +164,10 @@ public static partial class SpatialPacking
             slot[members[k]] = k;
         }
 
-        var drawing = new Drawing(new double[n], y, new double[n], new double[n], new double[n], new double[n], new int[n]);
+        var drawing = new Drawing(dotX, dotY, new double[n], new double[n], new double[n], new double[n], new int[n]);
         for (var k = 0; k < n; k++)
         {
             var i = members[k];
-            drawing.X[k] = x[k] - forest.Offset[i];
             (drawing.Offset[k], drawing.Radius[k]) = (forest.Offset[i], forest.Radius[i]);
             (drawing.Mass[k], drawing.DotRadius[k]) = (forest.Nodes[i].Mass, forest.Nodes[i].DotRadius);
             drawing.Parent[k] = forest.Parent[i] >= 0 && slot.TryGetValue(forest.Parent[i], out var at) ? at : -1;
