@@ -211,6 +211,11 @@ public class WebSearchUiTests
         Assert.Equal(Views.WeavingMotion.Holding, Converters.AnswerMotion.Convert(answer.Stage, typeof(Views.WeavingMotion), null, System.Globalization.CultureInfo.InvariantCulture));
         Assert.DoesNotContain("等待", answer.ActivityText, StringComparison.Ordinal);
         Assert.Equal("https://unknown.example/report?id=42", answer.PendingApproval!.Target);
+
+        // The card is bound to the answer's state and shows at once; the streamed text above it (我想读一下这份报告。) is
+        // parsed in the background and lands a moment later, a line higher up. Landing between the press and the release
+        // below, it moved the card down and the click was lost.
+        await UiWait.AnswersRenderedAsync(window);
         window.UpdateLayout();
         Assert.True(AnyVisible<Border>(window, "ApprovalCard"));
         Assert.Empty(app.Pages.Fetched);
