@@ -138,7 +138,7 @@ public class SessionNetworkCanvasTests
     }
 
     [AvaloniaFact]
-    public async Task The_spatial_view_has_no_day_captions_and_the_timeline_keeps_them()
+    public async Task The_timeline_keeps_its_day_captions()
     {
         await using var app = Gated();
         var window = app.ShowWindow(1100, 720);
@@ -146,11 +146,10 @@ public class SessionNetworkCanvasTests
         var network = await SummaryNetworkScenario.OpenSummaryNetworkAsync(app, window);
         await UiWait.UntilAsync(() => network.Nodes.Count == 4);
 
-        Assert.Empty(CanvasOf(window).PaintCaptions());
-
         network.SetViewModeCommand.Execute(SummaryNetworkViewMode.Timeline);
         await UiWait.UntilAsync(() => network.IsTimeline);
         window.UpdateLayout();
+
         Assert.NotEmpty(CanvasOf(window).PaintCaptions());
         window.Close();
     }

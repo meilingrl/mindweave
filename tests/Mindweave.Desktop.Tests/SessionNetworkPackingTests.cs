@@ -76,18 +76,37 @@ public class SessionNetworkPackingTests
     }
 
     [Fact]
-    public async Task Gated_spatial_uses_the_packing()
+    public async Task Gated_spatial_packs_every_session_and_writes_nothing()
     {
         var projection = Sessions(23);
         var network = new FakeNetwork(projection);
 
         var session = await LoadedAsync(projection, network);
 
-        var expected = SpatialPacking.Arrange(PackNodes(projection));
         Assert.Equal(projection.Nodes.Count, session.Positions.Count);
-        Assert.All(expected, p => Assert.Equal(p.Value, session.Positions[p.Key]));
+        Assert.Equal(projection.Nodes.Count, session.Positions.Values.Distinct().Count());
         Assert.False(session.IsDirty);
         Assert.Equal(0, network.Writes);
+        Assert.Equal((await LoadedAsync(projection)).Positions, session.Positions);
+    }
+
+    [Fact]
+    public async Task What_the_packing_is_given_changes_where_the_dots_go()
+    {
+        var projection = Sessions(23);
+        var baseline = (await LoadedAsync(projection)).Positions;
+
+        // A summary ring makes one dot's footprint larger.
+        var ringed = projection with { Nodes = [.. projection.Nodes.Select((n, i) => i == 7 ? n with { HasSummary = !n.HasSummary } : n)] };
+        Assert.NotEqual(baseline, (await LoadedAsync(ringed)).Positions);
+
+        // The time thread between roots is a spring; without it the roots settle elsewhere.
+        var unthreaded = projection with { Edges = [.. projection.Edges.Where(e => e.Kind != SummaryNetworkEdgeKind.TimeThread)] };
+        Assert.NotEqual(baseline, (await LoadedAsync(unthreaded)).Positions);
+
+        // The weight is the mass and sizes the dot.
+        var heavier = projection with { Nodes = [.. projection.Nodes.Select((n, i) => i == 3 ? n with { Weight = n.Weight + 40 } : n)] };
+        Assert.NotEqual(baseline, (await LoadedAsync(heavier)).Positions);
     }
 
     [Fact]

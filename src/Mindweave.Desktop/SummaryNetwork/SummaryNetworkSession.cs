@@ -4,6 +4,7 @@ using Mindweave.Application.Storage;
 using Mindweave.Core.Summaries;
 using Mindweave.Core.Workspaces;
 using Mindweave.Desktop.Services;
+using Mindweave.Desktop.Text;
 using Mindweave.Desktop.Views.Pages;
 
 namespace Mindweave.Desktop.SummaryNetwork;
@@ -79,7 +80,7 @@ public sealed partial class SummaryNetworkSession : ObservableObject
         _dayStarts = arrangement.DayStarts;
         _positions = ViewMode == SummaryNetworkViewMode.Timeline
             ? new Dictionary<SummaryNodeId, NodePosition>(TimelineColumns.Widen(arrangement.Positions, nodes.ToDictionary(n => n.Id, n => n.LabelWidth), TimelineColumns.MinColumn))
-            : new Dictionary<SummaryNodeId, NodePosition>(SpatialPacking.Arrange(PackNodes(projection, nodes)));
+            : new Dictionary<SummaryNodeId, NodePosition>(SpatialPacking.Arrange(PackNodes(projection, nodes, _dayStarts)));
     }
 
     /// <summary>
@@ -87,8 +88,11 @@ public sealed partial class SummaryNetworkSession : ObservableObject
     /// order, the weight is the mass, a dot is as large as drawn (its summary ring included) and a label as wide as the
     /// canvas reserves; the time thread links each root to the next.
     /// </summary>
-    private static List<PackNode> PackNodes(SummaryNetworkProjection projection, List<LayoutNode> layout)
+    private static List<PackNode> PackNodes(SummaryNetworkProjection projection, List<LayoutNode> layout, IReadOnlyList<SummaryNodeId> dayStarts)
     {
+        // A root that starts a new day carries a date beside it (spec §4.4): its label box is as wide as the date needs.
+        var today = LocalDay(DateTimeOffset.Now);
+        var dated = dayStarts.ToHashSet();
         var parents = projection.Edges.Where(e => e.Kind == SummaryNetworkEdgeKind.Branch).ToDictionary(e => e.To, e => e.From);
         var next = projection.Edges.Where(e => e.Kind == SummaryNetworkEdgeKind.TimeThread).ToDictionary(e => e.From, e => e.To);
         return [.. projection.Nodes.Select((n, i) => new PackNode(
@@ -97,7 +101,7 @@ public sealed partial class SummaryNetworkSession : ObservableObject
             i,
             n.Weight,
             SummaryNetworkGeometry.DotRadius(n.Weight) + (n.HasSummary ? SummaryNetworkCanvas.SummaryRingGap + 1 : 0),
-            layout[i].LabelWidth,
+            dated.Contains(n.Id) ? Math.Max(layout[i].LabelWidth, SummaryNetworkLayout.LabelWidth(UiText.DayLabel(LocalDay(n.CreatedAt), today))) : layout[i].LabelWidth,
             next.TryGetValue(n.Id, out var following) ? following : null))];
     }
 

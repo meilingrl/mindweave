@@ -471,6 +471,9 @@ public sealed class SummaryNetworkCanvas : Control
         var palette = _palette ??= SummaryNetworkPalette.From(this);
         var nodes = _page.Nodes.ToDictionary(n => n.Id);
         var result = new List<CaptionPaint>();
+        var size = SummaryNetworkGeometry.LabelSize(Current.Zoom);
+        var incident = _page.Edges.SelectMany(e => new[] { (Node: e.From, Other: e.To), (Node: e.To, Other: e.From) })
+            .Where(x => nodes.ContainsKey(x.Other)).ToLookup(x => x.Node, x => ScreenOf(nodes[x.Other]));
         foreach (var caption in _page.Captions)
         {
             var members = caption.Members.Where(nodes.ContainsKey).Select(id => (Node: nodes[id], At: ScreenOf(nodes[id]))).ToList();
@@ -480,12 +483,31 @@ public sealed class SummaryNetworkCanvas : Control
             }
 
             var text = Text(caption.Text, CaptionSize, palette.Caption);
+            if (Sessions && !_page.IsTimeline)
+            {
+                result.Add(new CaptionPaint(caption, text, SpatialDateOrigin(members[0].Node, members[0].At, text, incident, size)));
+                continue;
+            }
+
             var left = members.Min(m => m.At.X - RadiusOf(m.Node));
             var top = members.Min(m => m.At.Y);
             result.Add(new CaptionPaint(caption, text, new Point(left, top - CaptionGap - text.Height)));
         }
 
         return result;
+    }
+
+    /// <summary>
+    /// Where a spatial date sits (spec §4.4): beside the root dot, on the title's line of text, above it, or below it when
+    /// an edge lifted the title up, so it stays inside the root's packing footprint (dot, title, and the room for a lifted title).
+    /// </summary>
+    private Point SpatialDateOrigin(NodeView node, Point center, FormattedText date, ILookup<SummaryNodeId, Point> incident, double labelSize)
+    {
+        var title = Text(SummaryNetworkLayout.Label(node.ShortTitle, node.HasCandidate), labelSize, Brushes.Black);
+        var radius = RadiusOf(node);
+        var at = SummaryNetworkGeometry.LabelOrigin(center, radius, new Size(title.Width, title.Height), incident[node.Id]);
+        var x = center.X + radius + SummaryNetworkLayout.LabelGap;
+        return at.Y < center.Y - 9 - 0.5 ? new Point(x, center.Y + 3) : new Point(x, center.Y - 9 - 2 - date.Height);
     }
 
     public override void Render(DrawingContext context)
