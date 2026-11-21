@@ -111,7 +111,7 @@
 
 | 编号 | 问题 | 处理 | 影响 | 状态 |
 |---|---|---|---|---|
-| storage-7 | Cascade-delete backups never rotated | Retention policy; owner chose manual cleanup page. | data | 待决定 |
+| storage-7 | Cascade-delete backups never rotated | Retention policy; owner chose manual cleanup page. | data | 已决定（2026-11-21）：不自动清理，用户可在 设置 › 数据与存储 › 备份 自行删除 |
 | gap-schema-3 | No-DDL format changes lack a version gate | Data-format version policy. | data | 待决定 |
 | gap-schema-5 | Restore from TooNew page strands newer data | Documented trade-off. | data | 待决定 |
 | gap-schema-6 | Restoring old backup duplicates upgrade backups | Backup policy. | data | 待决定 |
