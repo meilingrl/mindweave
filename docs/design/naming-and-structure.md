@@ -117,7 +117,7 @@ and the existing folders. Before adoption, check each one against the requiremen
 **Banned suffixes and names** for new types: `Manager`, `Helper`, `Utils`, `Misc`, `Common`, `Data`, `Info`.
 They hide what a type does. Name the job instead (`...Formatter`, `...Placement`, `...Reconciler`).
 
-**Adding a term.** Add the row here and record it in `STATUS.md`; if requirements lack the term, propose a
+**Adding a term.** Add the row here and record it in `docs/changes.md` at merge; if requirements lack the term, propose a
 requirements change on `main`. The Chinese UI text uses the requirements term word for word (lesson of F7).
 
 ---
@@ -264,7 +264,7 @@ needs it → `UiText.<Area>.cs` → resource-key prefix. All of these use the sa
 3. Do it in one dedicated commit, separate from other work, when no other session edits the files involved.
 4. Build and run all tests. Then open every affected page on the dev channel (runtime-only failures) and use
    `scripts/daily.sh trial` for anything reading saved state.
-5. Record the change in `STATUS.md`. Changes to the requirements or architecture are the user's decision.
+5. Record the change in `docs/changes.md` at merge. Changes to the requirements or architecture are the user's decision.
 
 **Review checklist for any new file or type:**
 1. Is every concept word in the glossary, and used in that sense?

@@ -15,7 +15,7 @@
 
 重新生成截图（macOS，需本机 Chrome）：`prototypes/icon-style/scripts/render.sh`。
 
-截图在 `screenshots/`：
+截图在 `screenshots/`：自 2026-11-22 起不再纳入 git（用户决定），用上面的脚本重画；当时评审用的原图可从历史取回，例如 `git show e602f4c:prototypes/icon-style/screenshots/closeup-light.png > closeup-light.png`。
 
 | 文件 | 内容 |
 | --- | --- |

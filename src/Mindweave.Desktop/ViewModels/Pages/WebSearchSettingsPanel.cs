@@ -2,6 +2,7 @@ using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Mindweave.Application.Preferences;
 using Mindweave.Core.Runs;
+using Mindweave.Desktop.Services;
 
 namespace Mindweave.Desktop.ViewModels.Pages;
 
@@ -138,9 +139,10 @@ public sealed partial class WebSearchSettingsPanel : ViewModelBase, Navigation.I
             DefaultMode = state.DefaultMode;
         }
 #pragma warning disable CA1031 // A store that cannot be read shows no key; saving says why if it fails too.
-        catch (Exception)
+        catch (Exception ex)
 #pragma warning restore CA1031
         {
+            DesktopLog.Swallowed(ex);
         }
         finally
         {
@@ -155,9 +157,10 @@ public sealed partial class WebSearchSettingsPanel : ViewModelBase, Navigation.I
             (Status, StatusIsError) = await action();
         }
 #pragma warning disable CA1031 // A credential store or preference that fails is said so on the page.
-        catch (Exception)
+        catch (Exception ex)
 #pragma warning restore CA1031
         {
+            DesktopLog.Swallowed(ex);
             (Status, StatusIsError) = (UiText.WebSearchSaveFailed, true);
         }
     }

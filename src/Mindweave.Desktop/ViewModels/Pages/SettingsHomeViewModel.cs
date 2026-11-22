@@ -1,4 +1,5 @@
 using System.Collections.ObjectModel;
+using System.Runtime.CompilerServices;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Mindweave.Application;
@@ -13,25 +14,6 @@ using Mindweave.Desktop.Services;
 
 namespace Mindweave.Desktop.ViewModels.Pages;
 
-/// <summary>Workspace entry page: start a conversation or pick one from the sidebar. Its title is the workspace's name.</summary>
-public sealed partial class ExploreHomeViewModel(Workspace workspace, IContentNavigator content) : PageViewModel(ExploreHomeRoute.Instance), IShowsWorkspaceName
-{
-    public Workspace Workspace { get; private set; } = workspace;
-
-    public override string Title => Workspace.Name.Value;
-
-    public void WorkspaceRenamed(Workspace renamed)
-    {
-        ArgumentNullException.ThrowIfNull(renamed);
-        Workspace = renamed;
-        OnPropertyChanged(nameof(Workspace));
-        OnPropertyChanged(nameof(Title));
-    }
-
-    [RelayCommand]
-    private void NewConversation() => content.Push(NewConversationRoute.Instance);
-}
-
 /// <summary>Settings: the model connection, the appearance (D-022) and where data lives.</summary>
 public sealed partial class SettingsHomeViewModel : PageViewModel, IDisposable, ICarriesViewState
 {
@@ -42,13 +24,13 @@ public sealed partial class SettingsHomeViewModel : PageViewModel, IDisposable, 
     private readonly INewsAlerts? _newsAlerts;
     private readonly IRecommendationSettings? _recommendationSettings;
     private readonly LanguageSwitch? _language;
-    private readonly HashSet<string> _recommendationChosen = [];
+
+    /// <summary>
+    /// The choices the reader made since the page last loaded, by property name: a load still under way never
+    /// overwrites them with what it read.
+    /// </summary>
+    private readonly HashSet<string> _chosen = [];
     private bool _loading;
-    private bool _chosen;
-    private bool _soundChosen;
-    private bool _inWorkspaceChosen;
-    private bool _prepareNamesChosen;
-    private bool _boldColourChosen;
 
     public SettingsHomeViewModel(
         AppEnvironment environment,
@@ -140,8 +122,7 @@ public sealed partial class SettingsHomeViewModel : PageViewModel, IDisposable, 
             return;
         }
 
-        _chosen = _soundChosen = _inWorkspaceChosen = _prepareNamesChosen = _boldColourChosen = false;
-        _recommendationChosen.Clear();
+        _chosen.Clear();
         Loaded = LoadAsync();
         Model.ReloadIfUnchanged();
     }
@@ -216,7 +197,7 @@ public sealed partial class SettingsHomeViewModel : PageViewModel, IDisposable, 
     {
         if (chosen)
         {
-            _boldColourChosen = true;
+            _chosen.Add(nameof(BoldColour));
             BoldColour = colour;
         }
     }
@@ -228,27 +209,9 @@ public sealed partial class SettingsHomeViewModel : PageViewModel, IDisposable, 
             return;
         }
 
-        _boldColourChosen = true;
+        _chosen.Add(nameof(BoldColour));
         _theme.ApplyBoldColour(value);
-        Saving = SaveBoldColourAsync(value, Saving);
-    }
-
-    private async Task SaveBoldColourAsync(BoldColour value, Task previous)
-    {
-        // One write after another, so the last choice made is the one that stays.
-        await previous;
-        try
-        {
-            await _appearanceService.SetBoldColourAsync(value, CancellationToken.None);
-            BoldColourStatus = null;
-        }
-#pragma warning disable CA1031 // As for the appearance: reported beside the setting, still applies for this run.
-        catch (Exception swallowed)
-#pragma warning restore CA1031
-        {
-            DesktopLog.Swallowed(swallowed);
-            BoldColourStatus = UiText.BoldColourSaveFailed;
-        }
+        SaveInBackground(() => _appearanceService.SetBoldColourAsync(value, CancellationToken.None), failed => BoldColourStatus = failed ? UiText.BoldColourSaveFailed : null);
     }
 
     /// <summary>Completes when the last choice made on this page has been written (or failed).</summary>
@@ -376,26 +339,8 @@ public sealed partial class SettingsHomeViewModel : PageViewModel, IDisposable, 
             return;
         }
 
-        _recommendationChosen.Add(choice);
-        Saving = SaveRecommendationAsync(settings, value, save, Saving);
-    }
-
-    private async Task SaveRecommendationAsync(IRecommendationSettings settings, bool on, Func<IRecommendationSettings, bool, Task> save, Task previous)
-    {
-        // One write after another, so the last choice made is the one that stays.
-        await previous;
-        try
-        {
-            await save(settings, on);
-            RecommendationsStatus = null;
-        }
-#pragma warning disable CA1031 // As for the other hints: reported beside the settings, still applies for this run.
-        catch (Exception swallowed)
-#pragma warning restore CA1031
-        {
-            DesktopLog.Swallowed(swallowed);
-            RecommendationsStatus = UiText.RecommendationsSaveFailed;
-        }
+        _chosen.Add(choice);
+        SaveInBackground(() => save(settings, value), failed => RecommendationsStatus = failed ? UiText.RecommendationsSaveFailed : null);
     }
 
     /// <summary>How far the page is scrolled; the view keeps it current, so a language switch can carry it over.</summary>
@@ -477,111 +422,81 @@ public sealed partial class SettingsHomeViewModel : PageViewModel, IDisposable, 
             return;
         }
 
-        _chosen = true;
+        _chosen.Add(nameof(Appearance));
         _theme.Apply(value);
-        Saving = SaveAsync(value);
+        SaveInBackground(() => _appearanceService.SetAsync(value, CancellationToken.None), failed => AppearanceStatus = failed ? UiText.AppearanceSaveFailed : null);
     }
 
     partial void OnPlaysNewsSoundChanged(bool value)
     {
-        if (_loading || _newsAlerts is null)
+        if (_loading || _newsAlerts is not { } alerts)
         {
             return;
         }
 
-        _soundChosen = true;
-        Saving = SaveSoundAsync(_newsAlerts, value, Saving);
+        _chosen.Add(nameof(PlaysNewsSound));
+        SaveInBackground(() => alerts.SetSoundAsync(value, CancellationToken.None), failed => NewsSoundStatus = failed ? UiText.NewsSoundSaveFailed : null);
     }
 
     partial void OnShowsInWorkspaceNewsChanged(bool value)
     {
-        if (_loading || _newsAlerts is null)
+        if (_loading || _newsAlerts is not { } alerts)
         {
             return;
         }
 
-        _inWorkspaceChosen = true;
-        Saving = SaveInWorkspaceAsync(_newsAlerts, value, Saving);
+        _chosen.Add(nameof(ShowsInWorkspaceNews));
+        SaveInBackground(() => alerts.SetInWorkspaceAsync(value, CancellationToken.None), failed => InWorkspaceNewsStatus = failed ? UiText.NewsInWorkspaceSaveFailed : null);
     }
 
     partial void OnPreparesNamesChanged(bool value)
     {
-        if (_loading || _newsAlerts is null)
+        if (_loading || _newsAlerts is not { } alerts)
         {
             return;
         }
 
-        _prepareNamesChosen = true;
-        Saving = SavePrepareNamesAsync(_newsAlerts, value, Saving);
+        _chosen.Add(nameof(PreparesNames));
+        SaveInBackground(() => alerts.SetPrepareNamesAsync(value, CancellationToken.None), failed => PrepareNamesStatus = failed ? UiText.PrepareNamesSaveFailed : null);
     }
 
-    private async Task SavePrepareNamesAsync(INewsAlerts alerts, bool on, Task previous)
+    /// <summary>
+    /// Saves a choice in the background, one write after another, so the last choice made is the one that stays. A
+    /// failed write is logged and reported beside the setting; the choice still applies until the application closes.
+    /// </summary>
+    private void SaveInBackground(Func<Task> write, Action<bool> reportFailed, [CallerMemberName] string choice = "") =>
+        Saving = SaveAfterAsync(Saving, write, reportFailed, choice);
+
+    private static async Task SaveAfterAsync(Task previous, Func<Task> write, Action<bool> reportFailed, string choice)
     {
-        // One write after another, so the last choice made is the one that stays.
         await previous;
         try
         {
-            await alerts.SetPrepareNamesAsync(on, CancellationToken.None);
-            PrepareNamesStatus = null;
+            await write();
+            reportFailed(false);
         }
-#pragma warning disable CA1031 // As for the other hints: reported beside the setting, still applies for this run.
+#pragma warning disable CA1031 // A choice that could not be saved is reported beside the setting; it still applies for this run.
         catch (Exception swallowed)
 #pragma warning restore CA1031
         {
-            DesktopLog.Swallowed(swallowed);
-            PrepareNamesStatus = UiText.PrepareNamesSaveFailed;
+            DesktopLog.Swallowed(swallowed, choice);
+            reportFailed(true);
         }
     }
 
-    private async Task SaveInWorkspaceAsync(INewsAlerts alerts, bool on, Task previous)
-    {
-        // One write after another, so the last choice made is the one that stays.
-        await previous;
-        try
-        {
-            await alerts.SetInWorkspaceAsync(on, CancellationToken.None);
-            InWorkspaceNewsStatus = null;
-        }
-#pragma warning disable CA1031 // As for the sound: reported beside the setting, still applies for this run.
-        catch (Exception swallowed)
-#pragma warning restore CA1031
-        {
-            DesktopLog.Swallowed(swallowed);
-            InWorkspaceNewsStatus = UiText.NewsInWorkspaceSaveFailed;
-        }
-    }
-
-    private async Task SaveSoundAsync(INewsAlerts alerts, bool on, Task previous)
-    {
-        // One write after another, so the last choice made is the one that stays.
-        await previous;
-        try
-        {
-            await alerts.SetSoundAsync(on, CancellationToken.None);
-            NewsSoundStatus = null;
-        }
-#pragma warning disable CA1031 // As for the appearance: reported beside the setting, still applies for this run.
-        catch (Exception swallowed)
-#pragma warning restore CA1031
-        {
-            DesktopLog.Swallowed(swallowed);
-            NewsSoundStatus = UiText.NewsSoundSaveFailed;
-        }
-    }
-
-    /// <summary>A stored choice; unreadable means its default (on), as at startup.</summary>
-    private static async Task<bool> ReadChoiceAsync(Func<Task<bool>> read)
+    /// <summary>A stored choice; unreadable means its default, as at startup.</summary>
+    private static async Task<T> ReadAsync<T>(Func<Task<T>> read, T fallback, string choice)
     {
         try
         {
             return await read();
         }
-#pragma warning disable CA1031 // Unreadable means on, the default.
+#pragma warning disable CA1031 // Unreadable means the default, as at startup.
         catch (Exception swallowed)
 #pragma warning restore CA1031
         {
-            DesktopLog.Swallowed(swallowed);
-            return true;
+            DesktopLog.Swallowed(swallowed, "Load" + choice);
+            return fallback;
         }
     }
 
@@ -589,145 +504,80 @@ public sealed partial class SettingsHomeViewModel : PageViewModel, IDisposable, 
     {
         if (chosen)
         {
-            _chosen = true;
+            _chosen.Add(nameof(Appearance));
             Appearance = appearance;
-        }
-    }
-
-    private async Task SaveAsync(Appearance value)
-    {
-        try
-        {
-            await _appearanceService.SetAsync(value, CancellationToken.None);
-            AppearanceStatus = null;
-        }
-#pragma warning disable CA1031 // A lost appearance choice is reported beside the setting; it still applies for this run.
-        catch (Exception swallowed)
-#pragma warning restore CA1031
-        {
-            DesktopLog.Swallowed(swallowed);
-            AppearanceStatus = UiText.AppearanceSaveFailed;
         }
     }
 
     private async Task LoadAsync()
     {
-        Appearance stored;
-        try
-        {
-            stored = await _appearanceService.GetAsync(CancellationToken.None);
-        }
-#pragma warning disable CA1031 // Unreadable means the default, as at startup.
-        catch (Exception swallowed)
-#pragma warning restore CA1031
-        {
-            DesktopLog.Swallowed(swallowed);
-            stored = Appearance.FollowSystem;
-        }
+        var stored = await ReadAsync(() => _appearanceService.GetAsync(CancellationToken.None), Appearance.FollowSystem, nameof(Appearance));
+        var boldColour = await ReadAsync(() => _appearanceService.GetBoldColourAsync(CancellationToken.None), BoldColour.Brown, nameof(BoldColour));
 
-        BoldColour boldColour;
-        try
-        {
-            boldColour = await _appearanceService.GetBoldColourAsync(CancellationToken.None);
-        }
-#pragma warning disable CA1031 // Unreadable means the default, as at startup.
-        catch (Exception swallowed)
-#pragma warning restore CA1031
-        {
-            DesktopLog.Swallowed(swallowed);
-            boldColour = BoldColour.Brown;
-        }
-
+        // Unreadable means the defaults: the sound off, the other two on.
         var sound = false;
         var inWorkspace = true;
         var prepareNames = true;
-        if (_newsAlerts is not null)
+        if (_newsAlerts is { } alerts)
         {
-            try
-            {
-                sound = await _newsAlerts.GetSoundAsync(CancellationToken.None);
-            }
-#pragma warning disable CA1031 // Unreadable means off, the default.
-            catch (Exception swallowed)
-#pragma warning restore CA1031
-            {
-                DesktopLog.Swallowed(swallowed);
-            }
-
-            try
-            {
-                inWorkspace = await _newsAlerts.GetInWorkspaceAsync(CancellationToken.None);
-            }
-#pragma warning disable CA1031 // Unreadable means on, the default.
-            catch (Exception swallowed)
-#pragma warning restore CA1031
-            {
-                DesktopLog.Swallowed(swallowed);
-            }
-
-            try
-            {
-                prepareNames = await _newsAlerts.GetPrepareNamesAsync(CancellationToken.None);
-            }
-#pragma warning disable CA1031 // Unreadable means on, the default.
-            catch (Exception swallowed)
-#pragma warning restore CA1031
-            {
-                DesktopLog.Swallowed(swallowed);
-            }
+            sound = await ReadAsync(() => alerts.GetSoundAsync(CancellationToken.None), false, nameof(PlaysNewsSound));
+            inWorkspace = await ReadAsync(() => alerts.GetInWorkspaceAsync(CancellationToken.None), true, nameof(ShowsInWorkspaceNews));
+            prepareNames = await ReadAsync(() => alerts.GetPrepareNamesAsync(CancellationToken.None), true, nameof(PreparesNames));
         }
 
         bool? questions = null, nodes = null, auto = null;
         if (_recommendationSettings is { } recommendations)
         {
-            questions = await ReadChoiceAsync(() => recommendations.GetQuestionsAsync(CancellationToken.None));
-            nodes = await ReadChoiceAsync(() => recommendations.GetNodesAsync(CancellationToken.None));
-            auto = await ReadChoiceAsync(() => recommendations.GetAutoPrepareAsync(CancellationToken.None));
+            questions = await ReadAsync(() => recommendations.GetQuestionsAsync(CancellationToken.None), true, nameof(RecommendsQuestions));
+            nodes = await ReadAsync(() => recommendations.GetNodesAsync(CancellationToken.None), true, nameof(RecommendsNodes));
+            auto = await ReadAsync(() => recommendations.GetAutoPrepareAsync(CancellationToken.None), true, nameof(AutoPreparesRecommendations));
         }
 
         // A choice the reader made while this was loading wins over the stored one it would otherwise overwrite.
         _loading = true;
-        if (questions is { } q && !_recommendationChosen.Contains(nameof(RecommendsQuestions)))
+        if (questions is { } q && Unchosen(nameof(RecommendsQuestions)))
         {
             RecommendsQuestions = q;
         }
 
-        if (nodes is { } n && !_recommendationChosen.Contains(nameof(RecommendsNodes)))
+        if (nodes is { } n && Unchosen(nameof(RecommendsNodes)))
         {
             RecommendsNodes = n;
         }
 
-        if (auto is { } a && !_recommendationChosen.Contains(nameof(AutoPreparesRecommendations)))
+        if (auto is { } a && Unchosen(nameof(AutoPreparesRecommendations)))
         {
             AutoPreparesRecommendations = a;
         }
 
-        if (!_chosen)
+        if (Unchosen(nameof(Appearance)))
         {
             Appearance = stored;
         }
 
-        if (!_boldColourChosen)
+        if (Unchosen(nameof(BoldColour)))
         {
             BoldColour = boldColour;
         }
 
-        if (!_soundChosen)
+        if (Unchosen(nameof(PlaysNewsSound)))
         {
             PlaysNewsSound = sound;
         }
 
-        if (!_inWorkspaceChosen)
+        if (Unchosen(nameof(ShowsInWorkspaceNews)))
         {
             ShowsInWorkspaceNews = inWorkspace;
         }
 
-        if (!_prepareNamesChosen)
+        if (Unchosen(nameof(PreparesNames)))
         {
             PreparesNames = prepareNames;
         }
 
         _loading = false;
     }
+
+    private bool Unchosen(string choice) => !_chosen.Contains(choice);
 }
 

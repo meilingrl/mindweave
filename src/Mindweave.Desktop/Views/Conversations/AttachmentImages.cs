@@ -1,5 +1,6 @@
 using Avalonia.Data.Converters;
 using Avalonia.Media.Imaging;
+using Mindweave.Desktop.Services;
 
 namespace Mindweave.Desktop.Views.Conversations;
 
@@ -25,9 +26,10 @@ public static class AttachmentImages
             return Bitmap.DecodeToWidth(stream, width, BitmapInterpolationMode.HighQuality);
         }
 #pragma warning disable CA1031 // A picture that does not decode shows the icon instead.
-        catch (Exception)
+        catch (Exception ex)
 #pragma warning restore CA1031
         {
+            DesktopLog.Swallowed(ex);
             return null;
         }
     }

@@ -5,6 +5,7 @@ using Mindweave.Application.Models;
 using Mindweave.Application.Preferences;
 using Mindweave.Core.Models;
 using Mindweave.Core.Runs;
+using Mindweave.Desktop.Services;
 
 namespace Mindweave.Desktop.ViewModels.Conversations;
 
@@ -96,9 +97,10 @@ public sealed partial class WebSearchSwitch : ViewModelBase, IDisposable
             IsAvailable = UnavailableReason is null;
         }
 #pragma warning disable CA1031 // A settings read that fails leaves the switch off; asking still works.
-        catch (Exception)
+        catch (Exception ex)
 #pragma warning restore CA1031
         {
+            DesktopLog.Swallowed(ex);
             IsAvailable = false;
         }
     }

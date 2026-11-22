@@ -33,7 +33,7 @@ Each pane has its own settings; option one is always today's value:
 
 A line under each pane's settings shows what the first paragraph really got: size, line pitch, gap and colour.
 
-`--dump` lists every text block of the answer with its classes, size, weight and line height. `--shot <file.png>` writes a screenshot (rendered at 2x) and exits; `--three`, `--dark` and `--pane1 0,0,0,0,0,0` (option indexes in table order; also `--pane2`, `--pane3`) set the starting state. Screenshots in `screenshots/`: now · 1.7× with the app's primary colour · the same with a 12 px gap.
+`--dump` lists every text block of the answer with its classes, size, weight and line height. `--shot <file.png>` writes a screenshot (rendered at 2x) and exits; `--three`, `--dark` and `--pane1 0,0,0,0,0,0` (option indexes in table order; also `--pane2`, `--pane3`) set the starting state. Screenshots in `screenshots/`: now · 1.7× with the app's primary colour · the same with a 12 px gap. Since 2026-11-22 screenshots are not kept in git (the owner's decision): redraw them with `dotnet run -- --three --shot screenshots/three-light.png` and the options above. The images the rounds below were judged on are in git history, for example `git show e602f4c:prototypes/text-spacing/screenshots/muted-light.png > muted-light.png`.
 
 ## Findings · 2026-11-21
 

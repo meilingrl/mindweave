@@ -34,7 +34,9 @@ fi
 
 # The things a reader needs to build and run it.
 for required in mindweave/Mindweave.slnx mindweave/global.json mindweave/src/Mindweave.Desktop/Mindweave.Desktop.csproj mindweave/docs/design/run-guide.md; do
-  if ! printf '%s\n' "$names" | grep -qx "$required"; then
+  # A here-string, not a pipe: grep -q stops at the first match, and under pipefail the writer's SIGPIPE would count as
+  # "missing" once the list is longer than the pipe buffer.
+  if ! grep -qx "$required" <<< "$names"; then
     echo "FAIL missing: $required" >&2
     fail=1
   fi

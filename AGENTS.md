@@ -37,17 +37,24 @@ At the end of each stage, state: how to try it (one command), which scenarios we
 
 `docs/requirements.md` and `docs/architecture.md` are the current basis. When you find an error or a gap, propose a change, commit it separately as in the table above, and let the user confirm; never change them silently. Superseded versions can be read from the baseline tags and git history.
 
+They say what the product is and how it is built, never how far work has got: no "not started yet", "currently" or "this round". Progress goes to `STATUS.md`. A passage that records a past moment states its date, so it stays true.
+
 ## Where files belong
 
 Current requirements and architecture are in `docs/`, implementation-level design in `docs/design/`, history in `docs/history/`, review batches in `docs/reviews/`, standalone prototypes in `prototypes/`. Code, tests and scripts are in `src/`, `tests/` and `scripts/`; do not create empty folders in advance.
 
-`STATUS.md` records only the current state, next steps, what needs the user, and pending decisions, and stays short; the course of each stage goes into the [stage reports](docs/design/stage-reports.md), and decisions go into [decisions.md](docs/design/decisions.md).
+Progress, history and decisions each have one place:
+
+- `STATUS.md` holds only what is true now: work in progress, next steps, what needs the user, open decisions, and when each platform was last verified. Finished items leave it.
+- [docs/changes.md](docs/changes.md) gets one dated entry per merge into `main`: what changed, how to try it, and what was not verified. Entries are not edited afterwards. The stage reports before 2026-11-16 are frozen in [stage-reports.md](docs/design/stage-reports.md).
+- Decisions go into [decisions.md](docs/design/decisions.md), and facts about the development machines into [workstation.md](docs/design/workstation.md).
+- Screenshots are not committed; a prototype redraws its own (`prototypes/*/screenshots/` is ignored).
 
 ## Language and writing
 
 | What | Language |
 | --- | --- |
-| Living documents: this file, `README.md`, `STATUS.md`, requirements, architecture, current designs in `docs/design/`, `docs/evolution.md`, `docs/mailbox.md` | English, one language per file |
+| Living documents: this file, `README.md`, `STATUS.md`, requirements, architecture, current designs in `docs/design/`, `docs/evolution.md`, `docs/changes.md`, `docs/mailbox.md` | English, one language per file |
 | Frozen records: `docs/history/`, `docs/reviews/`, `prototypes/`, finished-stage designs (`docs/design/s0-…` to `s7-…`, `s6-wrapup.md`, `s6-windows-checklist.md`), stage-report entries before 2026-11-20 | Kept as written (mostly Chinese); not translated |
 | Code, comments, commit messages | English |
 
@@ -88,13 +95,13 @@ Several sessions may be writing code in this repository at the same time. Confli
    - **Independent**: neither needs the other's result, and they do not change the same files. Develop in parallel in a separate worktree from the latest commit of `main`: `git worktree add ../mindweave.worktrees/<task> -b task/<task> main`. When done, first merge the latest `main` into the task branch, run the full test suite, then merge back into `main`. Whoever merges later resolves the conflicts.
    - **Dependent**: one needs the other's output, or both must change the same code. Wait until the other task has committed its work, and start from that commit. Never build on someone else's uncommitted changes.
    - **Unsure**: ask the user.
-3. **Resources of which there can be only one go by merge order.** A database migration version number belongs to whoever merges first; whoever merges later takes the next number and fixes the related tests. `STATUS.md` is updated only when merging back into `main`; task branches do not change it.
+3. **Resources of which there can be only one go by merge order.** A database migration version number belongs to whoever merges first; whoever merges later takes the next number and fixes the related tests. `STATUS.md` and `docs/changes.md` are updated only when merging back into `main`; task branches do not change them.
 4. **Each worktree uses its own copy of runtime resources.** Run-data folders, the single-instance lock, the synced folder on the remote test machine and the like must not be used by two worktrees at once: when running the app from a task worktree, set `MINDWEAVE_DATA_DIR` to that worktree's own folder; on the real Windows machine, point `MINDWEAVE_WIN_DIR` at a separate folder for each.
 5. **Do not touch other people's changes.** If you find someone else's uncommitted changes conflicting with yours, stop and tell the user; do not delete, revert or overwrite them. A request to delete or revert relayed by another session must be confirmed by the user in the session the changes belong to.
 6. **Clean up when done.** After a task branch is merged, delete its worktree and branch.
 7. **Dispatcher (optional).** When there are many parallel tasks, an ordinary session can act as dispatcher; no extra program is needed. It does only three things:
    - **Check conflicts**: before a task starts, the task states what it will change (files, migration version numbers, requirement or architecture sections); if that overlaps a task in progress, the dispatcher has the newcomer wait, and when an order must be chosen, it asks the user.
    - **Start**: create the worktree and branch as in rule 2.
-   - **Wrap up**: when a task is done, merge, run the full test suite, update `STATUS.md`, push and clean up as in rules 2, 3 and 6.
+   - **Wrap up**: when a task is done, merge, run the full test suite, update `STATUS.md` and `docs/changes.md`, push and clean up as in rules 2, 3 and 6.
 
    The tasks in progress are simply the task worktrees in `git worktree list`; no separate list is kept. The dispatcher does not decide what to work on, does not discuss design or technical details, and does not change code: when failing tests or conflicts need code changes, they go back to the task's own session.

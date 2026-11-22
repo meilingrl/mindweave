@@ -5,6 +5,8 @@
 | [独立设计复审](review-20261023-023314-sgt/README.md) | 五轮报告、v1–v6 冻结副本、证据与 D1–D8 决策来源；继续分层导航 |
 | [详细设计就绪审查](claude-design-readiness-20261024-172436/README.md) | v1–v4、用户答复、详细设计交接；继续分层导航 |
 | [claude-auto 架构整改与课程合规审查](claude-auto-architecture-20261101/README.md) | 激进轨（`6843143`）的 Claude／Codex 联合审查：整改提案、课程架构符合性矩阵、往复讨论；仅本轨道 |
+| [结构审查：过长文件与职责混杂](claude-auto-structure-20261106/README.md) | 2026-11-06 三路只读分析：生成协调器的拆分步骤、其他大文件的排序与拆分方案、测试代码的重复辅助方法 |
+| [工程健康检查 2026-11-12](claude-auto-health-20261112/README.md) | 18 个维度的分级与 225 条发现（英文）；[low-triage.md](claude-auto-health-20261112/low-triage.md) 是低／信息级待办的分诊表 |
 | [运行评测基线 2026-11-19](run-eval-20261119/README.md) | 评测 L12 对 deepseek-flash 的第一份基线（改进 L1–L11 之前）：报告、数字与未通过检查的原因 |
 
 现行行为以 [需求](../requirements.md) 和 [架构](../architecture.md) 为准。

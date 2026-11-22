@@ -1,3 +1,4 @@
+using Mindweave.Desktop.Services;
 using System.Collections.ObjectModel;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
@@ -196,9 +197,10 @@ public sealed partial class McpServersPanel : ViewModelBase, IDisposable, Naviga
             (Status, StatusIsError) = (ex.Message, true);
         }
 #pragma warning disable CA1031 // A store that cannot be written is said so on the page.
-        catch (Exception)
+        catch (Exception ex)
 #pragma warning restore CA1031
         {
+            DesktopLog.Swallowed(ex);
             (Status, StatusIsError) = (UiText.McpSaveFailed, true);
         }
     }
@@ -212,9 +214,10 @@ public sealed partial class McpServersPanel : ViewModelBase, IDisposable, Naviga
             servers = await _servers.ListAsync(CancellationToken.None);
         }
 #pragma warning disable CA1031 // Unreadable settings show no servers.
-        catch (Exception)
+        catch (Exception ex)
 #pragma warning restore CA1031
         {
+            DesktopLog.Swallowed(ex);
             servers = [];
         }
 
@@ -489,9 +492,10 @@ public sealed partial class McpServerItem : ViewModelBase
             }
         }
 #pragma warning disable CA1031 // A setting that could not be saved shows as it was after the refresh (the row asks for it).
-        catch (Exception)
+        catch (Exception ex)
 #pragma warning restore CA1031
         {
+            DesktopLog.Swallowed(ex);
         }
     }
 
@@ -502,9 +506,10 @@ public sealed partial class McpServerItem : ViewModelBase
             await _servers.SetRiskAsync(Server.Id, tool, risk, CancellationToken.None);
         }
 #pragma warning disable CA1031 // As above.
-        catch (Exception)
+        catch (Exception ex)
 #pragma warning restore CA1031
         {
+            DesktopLog.Swallowed(ex);
         }
     }
 
@@ -527,9 +532,10 @@ public sealed partial class McpServerItem : ViewModelBase
             stored = await _servers.GetAsync(Server.Id, CancellationToken.None);
         }
 #pragma warning disable CA1031 // The last known settings are shown.
-        catch (Exception)
+        catch (Exception ex)
 #pragma warning restore CA1031
         {
+            DesktopLog.Swallowed(ex);
         }
 
         _panel.OnUi(() =>

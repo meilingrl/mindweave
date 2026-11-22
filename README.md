@@ -2,7 +2,7 @@
 
 An AI conversation and exploration tool for everyday personal curiosity and for non-specialist study of a topic.
 
-**Current status · 2026-11-16:** The first-release scope (S0–S7) and the post-first-release increments of requirements v0.13 (recommended questions and recommended nodes, summary links) are implemented. macOS is the main platform for development and use. Windows 11 x64 is the secondary platform, for support and demos.
+macOS is the main platform for development and use. Windows 11 x64 is the secondary platform, for support and demos. What the product does is in the [requirements](docs/requirements.md).
 
 **Repository:** [private GitHub repository](https://github.com/meilingrl/mindweave). For how to build, run and test, see the [run guide](docs/design/run-guide.md).
 

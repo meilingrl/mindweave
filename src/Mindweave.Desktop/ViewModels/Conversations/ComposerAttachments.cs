@@ -1,3 +1,4 @@
+using Mindweave.Desktop.Services;
 using System.Collections.ObjectModel;
 using CommunityToolkit.Mvvm.ComponentModel;
 using Mindweave.Application.Models;
@@ -332,9 +333,10 @@ public sealed partial class Composer
             await _attachments!.Resources.DeleteUnattachedAsync(id, CancellationToken.None);
         }
 #pragma warning disable CA1031 // A leftover unsent resource is removed by the startup clean-up.
-        catch (Exception)
+        catch (Exception ex)
 #pragma warning restore CA1031
         {
+            DesktopLog.Swallowed(ex);
         }
     }
 }

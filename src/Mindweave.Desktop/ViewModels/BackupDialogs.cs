@@ -1,3 +1,4 @@
+using Mindweave.Desktop.Services;
 using System.Collections.ObjectModel;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
@@ -214,7 +215,8 @@ public sealed partial class BackupRestoreViewModel : ViewModelBase, IDisposable
         catch (Exception ex)
 #pragma warning restore CA1031
         {
-            Problem = UiText.RestoreKeptCopyFailed(ex.Message);
+            DesktopLog.Swallowed(ex);
+            Problem = UiText.RestoreKeptCopyFailed;
             return false;
         }
 

@@ -4,6 +4,7 @@ using Mindweave.Application.Models;
 using Mindweave.Application.Preferences;
 using Mindweave.Core.Models;
 using Mindweave.Core.Runs;
+using Mindweave.Desktop.Services;
 
 namespace Mindweave.Desktop.ViewModels.Pages;
 
@@ -181,9 +182,10 @@ public sealed partial class ToolSettingsPanel : ViewModelBase
             (Status, StatusIsError) = (UiText.LimitsSaved, false);
         }
 #pragma warning disable CA1031 // A preference that could not be written is said so on the page; the app goes on.
-        catch (Exception)
+        catch (Exception ex)
 #pragma warning restore CA1031
         {
+            DesktopLog.Swallowed(ex);
             (Status, StatusIsError) = (UiText.ToolSettingsSaveFailed, true);
         }
     }

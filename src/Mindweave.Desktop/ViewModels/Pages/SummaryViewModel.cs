@@ -391,7 +391,8 @@ public sealed partial class SummaryViewModel : PageViewModel, IDisposable, ICarr
         catch (Exception ex) when (ex is not OperationCanceledException)
 #pragma warning restore CA1031
         {
-            Notice = UiText.ExportFailed(ExportFailure.Failed, ex.Message);
+            DesktopLog.Swallowed(ex);
+            Notice = UiText.ExportFailedUnexpectedly;
         }
     }
 
