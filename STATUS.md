@@ -48,17 +48,16 @@ What is true now: work in progress, next steps, what needs you, open decisions, 
 
 ## Open decisions
 
-- The daily build is not updated for now. You will look at the result together once the most important core features are merged (you, 2026-11-21).
 - The contrast of the “输出” (Output) colour in the statistics chart is below 3:1: deferred, not blocking (you, 2026-11-16).
 
 ## Last verified
 
 | What | Commit | Date | Result |
 | --- | --- | --- | --- |
-| macOS full run | the maintainability merge | 2026-11-22 | passed: Core 137, Architecture 26, Infrastructure 1011 + 23 skipped, Desktop 4 shards 0 failed |
+| macOS full run | the version 0.2.0 merge | 2026-11-22 | passed: Core 137, Architecture 26, Infrastructure 1011 + 23 skipped, Desktop 4 shards 0 failed |
 | CI on `main` (Linux + Windows) | see the latest run on GitHub | | |
 | Windows 11 hardware, full run | daabd5b | 2026-11-21 | passed |
 | Windows 11 hardware, stress and Release start | 08ead83 | 2026-11-16 | passed |
-| Daily build | c806fbd (schema v16) | 2026-11-17 | published; the current schema is v17 |
+| Daily build | 138bd17 (schema v17) | 2026-11-22 | published by you, no data upgrade; Settings names the build (D-033); the previous build 5f50734 is kept for rollback |
 
 First command: `scripts/test.sh full`.

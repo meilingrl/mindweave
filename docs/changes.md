@@ -6,6 +6,11 @@ This file starts on 2026-11-22. The entries from 2026-11-16 to 2026-11-22 were m
 
 ## 2026-11-22
 
+- **Version 0.2.0; the build is named in settings** (no migration; D-033).
+  - The line at the bottom of Settings now reads like "Mindweave 0.2.0 · 5f50734 · 2026-11-22 · 数据通道 claude-auto" in daily and dev builds; a release shows only "Mindweave 0.2.0".
+  - The version is raised at each finished plan step.
+  - Try: `scripts/daily.sh publish`, then look at the bottom of Settings.
+  - Not verified: on Windows (the commit date there goes through a batch file; a test checks it on CI).
 - **Maintainability.**
   - Failure handling has written rules ([failure-handling.md](design/failure-handling.md)), and `CatchPolicyTests` checks them in the source.
   - 16 desktop catches that left no trace now log through `DesktopLog`.
