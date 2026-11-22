@@ -182,3 +182,9 @@ Bilingual merge 3 sends English prompts when the interface is English. They are 
 - `STATUS.md` holds only what is true now. Each merge adds a dated entry to [docs/changes.md](../changes.md). Decisions go into this log, and facts about the machines go into [workstation.md](workstation.md). STATUS.md had grown to about 2,700 words because finished work never left it.
 - Requirements and architecture state no progress (AGENTS.md, "Changing requirements or architecture").
 - Prototype screenshots are not kept in git (`prototypes/*/screenshots/` is ignored). Each prototype can redraw them, and the images earlier rounds were judged on stay in history. They had pushed the source package over its 10 MB limit. History is not rewritten (D-025).
+
+## D-033 The version is raised at each finished plan step; non-release builds name their commit (you, 2026-11-22)
+
+- Every build said "Mindweave 0.1.0", and daily builds carried no commit, so you could not tell which build was running. The version is now 0.2.0 and is raised (minor number) at each finished plan step.
+- Outside a release, the line under the settings names the build: version, short commit and the commit's date, then the data channel, e.g. "Mindweave 0.2.0 · 5f50734 · 2026-11-22 · 数据通道 claude-auto". A release still shows only "Mindweave 0.2.0".
+- Dev builds take the commit and date from git; `scripts/daily.sh` passes them, because it builds from a `git archive` export. A build from the source package has no git and shows only the version.
