@@ -1,10 +1,10 @@
 namespace MoleculeLayout;
 
 /// <summary>
-/// Places whole explorations (each already a finished molecule) next to each other: heaviest first at the centre, each
-/// next one turned and moved to the place nearest the centre where it keeps its gap from everything placed; among
-/// nearly-as-near places, the one closest to its neighbours in time, so the time thread stays short. Shapes are
-/// compared as they are drawn (dots, lines, titles) on a grid, not as enclosing circles.
+/// Places whole explorations (each already a finished molecule) next to each other: the heaviest in the middle, then
+/// the others outward from it in time order, each turned and moved as close to its neighbour in time as it fits while
+/// keeping its gap from everything placed, with a gentle pull toward the middle. Things close in time end up close in
+/// space, so the time thread has no long jumps. Shapes are compared as drawn (dots, lines, titles) on a grid.
 /// </summary>
 public sealed class Packing(Molecule m, Workspace ws, Settings s)
 {
@@ -29,14 +29,34 @@ public sealed class Packing(Molecule m, Workspace ws, Settings s)
     public void Pack()
     {
         var d = ws.Dots;
-        var order = ws.Roots.OrderByDescending(r => d[r].Weight).ThenBy(r => d[r].Created).ToList();
-        var placed = new HashSet<int>();
-        half = (int)(ws.Roots.Sum(r => Math.Sqrt(m.TreeDots(r).Count) * 60) / Cell) + 80;
+        var roots = ws.Roots;
+
+        // The heaviest exploration first, in the middle; then outward from it in time, later and earlier in turn, so each
+        // next one has its neighbour in time already placed and can sit right beside it.
+        var heaviest = roots.OrderByDescending(r => d[r].Weight).ThenBy(r => d[r].Created).First();
+        var middle = roots.IndexOf(heaviest);
+        var order = new List<(int Root, int Neighbour)> { (heaviest, -1) };
+        for (int later = middle + 1, earlier = middle - 1; later < roots.Count || earlier >= 0;)
+        {
+            if (later < roots.Count)
+            {
+                order.Add((roots[later], roots[later - 1]));
+                later++;
+            }
+
+            if (earlier >= 0)
+            {
+                order.Add((roots[earlier], roots[earlier + 1]));
+                earlier--;
+            }
+        }
+
+        half = (int)(roots.Sum(r => Math.Sqrt(m.TreeDots(r).Count) * 60) / Cell) + 80;
         side = (2 * half) + 1;
         occupied = new bool[side * side];
         distance = new int[side * side];
         Array.Fill(distance, int.MaxValue / 2);
-        foreach (var root in order)
+        foreach (var (root, neighbour) in order)
         {
             var dots = m.TreeDots(root);
             var (cx, cy) = m.Centroid(dots);
@@ -54,38 +74,37 @@ public sealed class Packing(Molecule m, Workspace ws, Settings s)
                 shapes.Add(Capture(root, gap));
             }
 
-            // Time neighbours already placed: the roots just before and after this one.
-            var index = ws.Roots.IndexOf(root);
-            var neighbours = new[] { index - 1, index + 1 }
-                .Where(k => k >= 0 && k < ws.Roots.Count && placed.Contains(ws.Roots[k]))
-                .Select(k => (d[ws.Roots[k]].X, d[ws.Roots[k]].Y))
-                .ToList();
-
             Shape best = shapes[0];
             int bestX = 0, bestY = 0;
-            if (placed.Count > 0)
+            if (neighbour >= 0)
             {
+                // For each turn, search outward from the place that would put this root on its neighbour's root; keep the
+                // nearest fits, scored by the length of the time thread plus a gentle pull toward the middle.
+                var (px, py) = (d[neighbour].X, d[neighbour].Y);
                 var bestScore = double.MaxValue;
-                var firstRing = -1;
-                for (var rho = 0; firstRing < 0 || rho <= firstRing + s.SearchBand; rho++)
+                foreach (var shape in shapes)
                 {
-                    var samples = rho == 0 ? 1 : (int)Math.Ceiling(2 * Math.PI * rho);
-                    for (var a = 0; a < samples; a++)
+                    var tx = (int)Math.Round((px - shape.RootX) / Cell);
+                    var ty = (int)Math.Round((py - shape.RootY) / Cell);
+                    var firstRing = -1;
+                    for (var rho = 0; firstRing < 0 || rho <= firstRing + s.SearchBand; rho++)
                     {
-                        var angle = 2 * Math.PI * a / samples;
-                        var ox = (int)Math.Round(rho * Math.Cos(angle));
-                        var oy = (int)Math.Round(rho * Math.Sin(angle));
-                        foreach (var shape in shapes)
+                        var samples = rho == 0 ? 1 : (int)Math.Ceiling(2 * Math.PI * rho);
+                        for (var a = 0; a < samples; a++)
                         {
+                            var angle = 2 * Math.PI * a / samples;
+                            var ox = tx + (int)Math.Round(rho * Math.Cos(angle));
+                            var oy = ty + (int)Math.Round(rho * Math.Sin(angle));
                             if (!Fits(shape, ox, oy))
                             {
                                 continue;
                             }
 
                             firstRing = firstRing < 0 ? rho : firstRing;
-                            var rx = shape.RootX + (ox * Cell);
-                            var ry = shape.RootY + (oy * Cell);
-                            var score = (rho * Cell) + (s.ThreadPreference * neighbours.Sum(q => Math.Sqrt(((q.X - rx) * (q.X - rx)) + ((q.Y - ry) * (q.Y - ry)))));
+                            var rx = shape.RootX + (ox * Cell) - px;
+                            var ry = shape.RootY + (oy * Cell) - py;
+                            var score = Math.Sqrt((rx * rx) + (ry * ry)) + (s.CentrePull * Cell * Math.Sqrt((ox * ox) + (oy * oy)))
+                                + (s.ThreadOverShape * ThreadHits(px, py, shape.RootX + (ox * Cell), shape.RootY + (oy * Cell)));
                             if (score < bestScore)
                             {
                                 bestScore = score;
@@ -120,8 +139,26 @@ public sealed class Packing(Molecule m, Workspace ws, Settings s)
             }
 
             UpdateDistances();
-            placed.Add(root);
         }
+    }
+
+    /// <summary>How many grid cells the time thread from a placed root to a candidate root would cross on placed shapes.</summary>
+    private int ThreadHits(double x1, double y1, double x2, double y2)
+    {
+        var len = Math.Sqrt(((x2 - x1) * (x2 - x1)) + ((y2 - y1) * (y2 - y1)));
+        var steps = (int)(len / Cell);
+        var hits = 0;
+        for (var k = 2; k < steps - 1; k++)
+        {
+            var gx = (int)Math.Floor((x1 + ((x2 - x1) * k / steps)) / Cell) + half;
+            var gy = (int)Math.Floor((y1 + ((y2 - y1) * k / steps)) / Cell) + half;
+            if (gx >= 0 && gy >= 0 && gx < side && gy < side && occupied[(gy * side) + gx])
+            {
+                hits++;
+            }
+        }
+
+        return hits;
     }
 
     private bool Fits(Shape shape, int ox, int oy)

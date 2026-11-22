@@ -31,10 +31,13 @@ public sealed record Settings
     public double BondStiffness { get; init; } = 0.25;
     public double Repulsion { get; init; } = 0.5;
 
-    /// <summary>Packing explorations: turns tried, how many grid rings past the first fit are still considered, and how much a short time thread counts.</summary>
+    /// <summary>Packing explorations: turns tried, how many grid rings past the first fit are still considered, and how much nearness to the middle counts against nearness to the neighbour in time.</summary>
     public int Rotations { get; init; } = 8;
-    public int SearchBand { get; init; } = 6;
-    public double ThreadPreference { get; init; } = 0.3;
+    public int SearchBand { get; init; } = 25;
+    public double CentrePull { get; init; } = 1;
+
+    /// <summary>Cost per grid cell where the time thread to a placed exploration would run over a drawn molecule.</summary>
+    public double ThreadOverShape { get; init; } = 12;
 }
 
 /// <summary>

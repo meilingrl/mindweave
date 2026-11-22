@@ -21,7 +21,7 @@ dotnet run -c Release -- "$D/data" screenshots
 open screenshots/index.html
 ```
 
-An optional third argument is a folder of "now" pictures named after the workspaces (shown side by side), or `-`; after it, `Name=value` pairs override the knobs in `Settings` (for example `ThreadPreference=1.2`). Five made-up workspaces (`Synthetic.cs`) are always added. `screenshots/` is not kept in git.
+An optional third argument is a folder of "now" pictures named after the workspaces (shown side by side), or `-`; after it, `Name=value` pairs override the knobs in `Settings` (for example `CentrePull=1.5`). Five made-up workspaces (`Synthetic.cs`) are always added. `screenshots/` is not kept in git.
 
 ## How it lays out
 
@@ -31,7 +31,13 @@ An optional third argument is a folder of "now" pictures named after the workspa
    - **Bonds** have a rest length that grows a little with the branch behind them. Around a busy dot (6 lines or more), bonds lengthen until all the titles fit round it, and its leaves alternate between two lengths.
    - **Gaps.** Dots that are not bonded keep apart; between two sibling branches, the gap grows with the smaller branch, so groups read as groups.
    - **Titles** are whole, wrapped to a column about nine Chinese characters wide. Each is put in one of 16 places round its dot: away from the dot's own lines (its widest free angle), off other dots, titles and lines. Titles push other dots away, and a line through a title pushes the title's dot off the line.
-2. **Molecules are packed** (`Packing.cs`): heaviest first in the middle, each next one tried at 8 turns and placed nearest the middle where it keeps its gap from everything already placed. The gap grows with its size. Shapes are compared as drawn (dots, lines, titles) on an 8-pixel grid, not as circles. Among nearly-as-near places, the one nearer its neighbours in time wins, a little.
+2. **Molecules are packed** (`Packing.cs`) so that things close in time are close in space:
+   - The heaviest exploration goes in the middle.
+   - The others follow outward from it in time order, later and earlier in turn, so each one's neighbour in time is already placed.
+   - Each is tried at 8 turns and searched outward from its neighbour, keeping its gap from everything already placed. The gap grows with its size.
+   - Among the places that fit, the score is the time thread's length, plus the distance to the middle, plus a cost for every grid cell where the thread would run over a drawn molecule.
+
+   Shapes are compared as drawn (dots, lines, titles) on an 8-pixel grid, not as circles. A first version packed heaviest-first around the middle; its time threads crossed the whole picture.
 3. Deterministic: fixed start, fixed number of steps, no randomness.
 
 The checks under each picture (`Picture.Measure`) are guards: overlaps, crossings, lines through dots or titles. They are not what the layout aims for. "Mean angle error" is the distance from equal angles, which is not zero by design wherever branches differ in size.
@@ -41,13 +47,15 @@ The checks under each picture (`Picture.Measure`) are guards: overlaps, crossing
 Run on copies of the owner's four workspaces (5 to 12 dots) and five made-up ones (30 to 169 dots), and checked by eye on the rendered pictures:
 - No overlaps or line crossings anywhere.
 - No line through a title in the owner's workspaces. The made-up ones still have a few, 7 of them in the 12-line fan.
-- 169 dots take about 0.35 s on the development Mac, including the packing.
+- 169 dots take about 0.7 s on the development Mac, most of it the packing search. That is too slow for the app as it stands.
 
 Not done:
 - No interaction (pan, zoom, select) and no "keep positions when a dot is added".
 - Text widths are estimated, not measured with the app's font.
 - Not tried on Windows.
 
-Open questions for the owner:
-- With many explorations, the dotted time thread crosses other molecules. Packing by weight (heaviest in the middle) and keeping the thread short pull in different directions.
-- Wrapping titles to two lines is new; round 2 drew one line.
+- The time thread can still pass over a molecule, mostly where it leaves its own root.
+
+Owner's view, 2026-11-22: the look is fine as it is, perhaps too regular; a messy time thread is not a big problem, but things close in time should be close in space, which led to the time-ordered packing above.
+
+Open question: wrapping titles to two lines is new; round 2 drew one line.

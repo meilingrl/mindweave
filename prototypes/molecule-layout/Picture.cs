@@ -186,7 +186,9 @@ public static class Picture
             }
         }
 
-        return $"dots {n}; overlaps: dots {dotOverlaps}, label on dot {labelOnDot}, labels {labelOverlaps}; lines: crossings {crossings}, through dots {lineThroughDot}, through labels {lineThroughLabel}; mean angle error {(counted == 0 ? 0 : angleError / counted):0.0}°";
+        var threads = m.ThreadPairs().Select(p => Math.Sqrt(Sq(d[p.A].X - d[p.B].X) + Sq(d[p.A].Y - d[p.B].Y))).ToList();
+        var threadText = threads.Count == 0 ? "" : $"; time thread mean {threads.Average():0} px, longest {threads.Max():0} px";
+        return $"dots {n}; overlaps: dots {dotOverlaps}, label on dot {labelOnDot}, labels {labelOverlaps}; lines: crossings {crossings}, through dots {lineThroughDot}, through labels {lineThroughLabel}; mean angle error {(counted == 0 ? 0 : angleError / counted):0.0}°{threadText}";
     }
 
     private static double Sq(double v) => v * v;
