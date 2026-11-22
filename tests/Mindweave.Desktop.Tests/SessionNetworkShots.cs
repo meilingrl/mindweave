@@ -219,11 +219,11 @@ public class SessionNetworkShots
     [Fact]
     public void The_guard_refuses_the_real_data_folder()
     {
-        var real = Path.GetFullPath(Directory.GetParent(AppPaths.Resolve("claude-auto", n => null).DataDirectory)!.FullName);
+        var real = Path.GetFullPath(Directory.GetParent(AppPaths.Resolve("release", n => null).DataDirectory)!.FullName);
         Assert.Contains(real, RealDataRoots().Select(r => r.TrimEnd(Path.DirectorySeparatorChar)));
         Assert.Contains(RealDataRoots(), r => Path.GetFullPath(r).Equals(real, StringComparison.OrdinalIgnoreCase));
         Assert.Throws<InvalidOperationException>(() => RefuseRealData(real));
-        Assert.Throws<InvalidOperationException>(() => RefuseRealData(Path.Combine(real, "claude-auto")));
+        Assert.Throws<InvalidOperationException>(() => RefuseRealData(Path.Combine(real, "release")));
         RefuseRealData(Path.Combine(Path.GetTempPath(), "mindweave-copy"));
     }
 }
