@@ -42,7 +42,7 @@ public sealed partial class WorkspaceNameForm : ViewModelBase
 #pragma warning restore CA1031
         {
             DesktopLog.Swallowed(ex);
-            Error = UiText.SaveFailed(ex.Message);
+            Error = UiText.SaveFailed;
         }
     }
 

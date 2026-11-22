@@ -216,7 +216,7 @@ public sealed partial class BackupRestoreViewModel : ViewModelBase, IDisposable
 #pragma warning restore CA1031
         {
             DesktopLog.Swallowed(ex);
-            Problem = UiText.RestoreKeptCopyFailed(ex.Message);
+            Problem = UiText.RestoreKeptCopyFailed;
             return false;
         }
 

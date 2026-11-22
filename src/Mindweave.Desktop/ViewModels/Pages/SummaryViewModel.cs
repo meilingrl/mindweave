@@ -392,7 +392,7 @@ public sealed partial class SummaryViewModel : PageViewModel, IDisposable, ICarr
 #pragma warning restore CA1031
         {
             DesktopLog.Swallowed(ex);
-            Notice = UiText.ExportFailed(ExportFailure.Failed, ex.Message);
+            Notice = UiText.ExportFailedUnexpectedly;
         }
     }
 

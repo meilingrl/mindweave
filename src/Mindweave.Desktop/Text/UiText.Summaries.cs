@@ -212,6 +212,9 @@ public static partial class UiText
         _ => T("Couldn’t export this version.", "无法导出这个版本。"),
     };
 
+    /// <summary>Exporting stopped for a reason other than writing the file (the save dialog, data closed by exit).</summary>
+    public static string ExportFailedUnexpectedly => T("Couldn’t export; the original file is unchanged. Try again.", "导出失败，原文件未改动。请重试。");
+
     public static string ExportFailed(ExportFailure failure, string detail) => failure switch
     {
         ExportFailure.InUse => T("The file is in use by another program and wasn’t exported. Close the program using it and try again; the original file is unchanged.", "文件正被其他程序使用，没有导出。请关闭占用它的程序后重试；原文件未改动。"),

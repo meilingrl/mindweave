@@ -236,7 +236,7 @@ public sealed partial class WorkspacesViewModel : PageViewModel, IDisposable
 #pragma warning restore CA1031
         {
             DesktopLog.Swallowed(ex);
-            row.RenameError = UiText.SaveFailed(ex.Message);
+            row.RenameError = UiText.SaveFailed;
             return;
         }
         finally

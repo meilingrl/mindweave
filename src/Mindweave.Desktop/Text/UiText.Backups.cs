@@ -84,9 +84,9 @@ public static partial class UiText
         string.Format(Culture, "From a newer version of Mindweave (data format version {0}); this version supports up to {1} and can’t restore it", version, supported),
         string.Format(CultureInfo.CurrentCulture, "来自更新版本的 Mindweave（结构版本 {0}），本程序只支持到 {1}，不能恢复", version, supported));
 
-    public static string RestoreKeptCopyFailed(string detail) => T(
-        string.Format(Culture, "Your current data couldn’t be saved as a backup ({0}), so nothing was restored and your data is unchanged. Check the disk space and permissions, then try again.", detail),
-        string.Format(CultureInfo.CurrentCulture, "当前数据没能另存为备份（{0}），因此没有恢复，数据未改动。请检查磁盘空间与权限后重试。", detail));
+    public static string RestoreKeptCopyFailed => T(
+        "Your current data couldn’t be saved as a backup, so nothing was restored and your data is unchanged. Check the disk space and permissions, then try again.",
+        "当前数据没能另存为备份，因此没有恢复，数据未改动。请检查磁盘空间与权限后重试。");
 
     /// <summary>The non-modal notice once the restored data is open.</summary>
     public static string RestoredNotice(DateTimeOffset at) => T(

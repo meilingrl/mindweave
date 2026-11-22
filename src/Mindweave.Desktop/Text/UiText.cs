@@ -148,5 +148,6 @@ public static partial class UiText
         _ => T("The name isn’t valid.", "名称无效。"),
     };
 
-    public static string SaveFailed(string detail) => T($"Couldn’t save. Your input is kept: {detail}", $"保存失败，输入内容已保留：{detail}");
+    /// <summary>An unexpected failure while saving a typed name; the details go to the log, not the page.</summary>
+    public static string SaveFailed => T("Couldn’t save, so nothing changed. Your input is kept; try again.", "保存失败，没有改动。输入内容已保留，请重试。");
 }
