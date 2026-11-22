@@ -5,4 +5,9 @@
   <ItemGroup>
     <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" />
   </ItemGroup>
+  <ItemGroup>
+    <!-- The long prompts, one file per language (docs/design/bilingual-ui.md §5), read by PromptLibrary. -->
+    <EmbeddedResource Include="Prompts\en\*.md" LogicalName="Prompts.en.%(Filename)%(Extension)" />
+    <EmbeddedResource Include="Prompts\zh\*.md" LogicalName="Prompts.zh.%(Filename)%(Extension)" />
+  </ItemGroup>
 </Project>

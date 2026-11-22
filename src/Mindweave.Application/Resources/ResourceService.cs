@@ -3,6 +3,7 @@ using Mindweave.Application.Storage;
 using Mindweave.Core.Conversations;
 using Mindweave.Core.Resources;
 using Mindweave.Core.Workspaces;
+using static Mindweave.Application.Languages.Bilingual;
 
 namespace Mindweave.Application.Resources;
 
@@ -128,7 +129,7 @@ public sealed partial class ResourceService(
             return new ResourceCreateResult(ResourceCreateStatus.Empty);
         }
 
-        return await ImageAsync(draft.Workspace, draft.Conversation, bytes, name ?? "图片", draft, cancellationToken).ConfigureAwait(false);
+        return await ImageAsync(draft.Workspace, draft.Conversation, bytes, name ?? T("Image", "图片"), draft, cancellationToken).ConfigureAwait(false);
     }
 
     public Task<IReadOnlyList<StoredResource>> GetDraftAsync(DraftSlot draft, CancellationToken cancellationToken) => store.GetDraftAsync(draft, cancellationToken);

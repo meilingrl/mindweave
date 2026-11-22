@@ -2,10 +2,12 @@ using System.Globalization;
 using System.Text;
 using System.Text.RegularExpressions;
 using Mindweave.Application.Ai;
+using Mindweave.Application.Prompts;
 using Mindweave.Application.Storage;
 using Mindweave.Core.Conversations;
 using Mindweave.Core.Summaries;
 using Mindweave.Core.Text;
+using static Mindweave.Application.Languages.Bilingual;
 
 namespace Mindweave.Application.Recommendations;
 
@@ -67,11 +69,17 @@ public static partial class RecommendationPrompt
     /// <summary>A longer reason is dropped (the question stays).</summary>
     public const int MaxReasonLength = 40;
 
+    /// <summary>
+    /// A question's limit: <see cref="MaxQuestionLength"/> characters for CJK text, 30 words for other text (the English
+    /// prompt asks for at most 15; review finding 2026-11-22).
+    /// </summary>
+    public static readonly TextLimit QuestionLimit = new(MaxQuestionLength, 30);
+
+    /// <summary>A reason's limit: <see cref="MaxReasonLength"/> characters for CJK text, 20 words for other text (the English prompt asks for at most 10).</summary>
+    public static readonly TextLimit ReasonLimit = new(MaxReasonLength, 20);
+
     /// <summary>Output cap: reasoning models count their hidden reasoning against it (see ConversationTitler).</summary>
     public const int OutputTokens = 1536;
-
-    /// <summary>The phrase every recommendation prompt starts its task with (tests tell the request apart by it).</summary>
-    public const string Marker = "值得接着探索的新问题";
 
     public static RecommendationInput SelectInput(
         IReadOnlyList<ConversationSummary> conversations,
@@ -109,7 +117,7 @@ public static partial class RecommendationPrompt
         var sources = summaries.Take(MaxSummaries)
             .Select((s, i) => new RecommendationSource($"S{i + 1}", s.Node, ConversationRules.Shorten(s.DisplayName, TitleLength), ConversationRules.Shorten(s.Title, TitleLength), Excerpt(s.BodyStart, s.Title)))
             .ToList();
-        var avoided = avoid.Where(a => !string.IsNullOrWhiteSpace(a)).Select(a => ConversationRules.Shorten(a, MaxQuestionLength))
+        var avoided = avoid.Where(a => !string.IsNullOrWhiteSpace(a)).Select(a => ConversationRules.Shorten(a, QuestionLimit))
             .Distinct(StringComparer.Ordinal).Take(MaxAvoid).ToList();
         return new RecommendationInput(titles, titled.Count, sources, Math.Max(summaryCount, sources.Count), avoided);
     }
@@ -143,14 +151,12 @@ public static partial class RecommendationPrompt
     public static string SystemPrompt(RecommendationAsk ask)
     {
         ArgumentNullException.ThrowIfNull(ask);
-        var c = CultureInfo.InvariantCulture;
         var basis = ask.Kind == RecommendationKind.Node
-            ? "每个问题必须延伸自上面列出的某一个总结，basis 写出它的编号（如 S2），不能留空。"
-            : "若问题主要延伸自某个总结，basis 写出它的编号（如 S2），否则留空。";
-        return "下面是一个学习工作区里已有的会话标题，以及总结的标题和简短摘录。请推荐 " + ask.Count.ToString(c) + " 个" + Marker +
-            "：从这些内容出发，偏向相邻但还没有问过的方向；不要重复已有会话的问题，也不要与“不再推荐”里的问题相同或只是换个说法。" +
-            "要求：每个问题是一句完整、具体的提问，不超过 30 个字；附一句不超过 20 个字的推荐理由；" + basis +
-            "使用这些标题主要使用的语言。只输出 JSON 数组，不加其他文字，格式：[{\"question\":\"…\",\"reason\":\"…\",\"basis\":\"S2\"}]";
+            ? T("Each question must extend one of the summaries listed above: give its label in basis (such as S2); it must not be empty. ",
+                "每个问题必须延伸自上面列出的某一个总结，basis 写出它的编号（如 S2），不能留空。")
+            : T("If a question mainly extends one summary, give its label in basis (such as S2); otherwise leave it empty. ",
+                "若问题主要延伸自某个总结，basis 写出它的编号（如 S2），否则留空。");
+        return PromptLibrary.Get("recommendations", ("count", ask.Count.ToString(CultureInfo.InvariantCulture)), ("basis", basis));
     }
 
     public static ChatRequest Request(Core.Models.ModelSnapshot model, RecommendationInput input, RecommendationAsk ask)
@@ -171,7 +177,9 @@ public static partial class RecommendationPrompt
         var text = new StringBuilder();
         if (input.Conversations.Count > 0)
         {
-            text.Append(c, $"会话标题（共 {input.ConversationCount} 个，列出 {input.Conversations.Count} 个）：\n");
+            text.Append(T(
+                $"Conversation titles ({input.ConversationCount} in all, {input.Conversations.Count} listed):\n",
+                $"会话标题（共 {input.ConversationCount} 个，列出 {input.Conversations.Count} 个）：\n"));
             foreach (var title in input.Conversations)
             {
                 text.Append("- ").Append(title).Append('\n');
@@ -180,26 +188,28 @@ public static partial class RecommendationPrompt
 
         if (input.Summaries.Count > 0)
         {
-            text.Append(c, $"\n总结（共 {input.SummaryCount} 个，列出 {input.Summaries.Count} 个）：\n");
+            text.Append(T(
+                $"\nSummaries ({input.SummaryCount} in all, {input.Summaries.Count} listed):\n",
+                $"\n总结（共 {input.SummaryCount} 个，列出 {input.Summaries.Count} 个）：\n"));
             foreach (var s in input.Summaries)
             {
                 text.Append(c, $"[{s.Label}] {s.Name}");
                 if (RecommendationText.Normalize(s.Title) != RecommendationText.Normalize(s.Name))
                 {
-                    text.Append('：').Append(s.Title);
+                    text.Append(T(": ", "：")).Append(s.Title);
                 }
 
                 text.Append('\n');
                 if (s.Excerpt.Length > 0)
                 {
-                    text.Append("摘录：").Append(s.Excerpt).Append('\n');
+                    text.Append(T("Excerpt: ", "摘录：")).Append(s.Excerpt).Append('\n');
                 }
             }
         }
 
         if (input.Avoid.Count > 0)
         {
-            text.Append("\n不再推荐：\n");
+            text.Append(T("\nDo not recommend again:\n", "\n不再推荐：\n"));
             foreach (var question in input.Avoid)
             {
                 text.Append("- ").Append(question).Append('\n');
@@ -238,8 +248,8 @@ public static partial class RecommendationPrompt
                 continue;
             }
 
-            var reason = rawReason is null ? null : EnclosingMarks.Strip(ConversationRules.Shorten(ReasonLead().Replace(rawReason.Trim(), string.Empty), MaxReasonLength + 1));
-            if (reason is { Length: 0 } || (reason is not null && new StringInfo(reason).LengthInTextElements > MaxReasonLength))
+            var reason = rawReason is null ? null : EnclosingMarks.Strip(ConversationRules.Shorten(ReasonLead().Replace(rawReason.Trim(), string.Empty), ReasonLimit.Plus(1)));
+            if (reason is { Length: 0 } || (reason is not null && !ReasonLimit.Fits(reason)))
             {
                 reason = null;
             }
@@ -262,8 +272,7 @@ public static partial class RecommendationPrompt
         }
 
         var question = EnclosingMarks.Strip(ListMarker().Replace(raw.Trim(), string.Empty)).Trim();
-        var length = new StringInfo(question).LengthInTextElements;
-        return length < MinQuestionLength || length > MaxQuestionLength ? null : question;
+        return new StringInfo(question).LengthInTextElements < MinQuestionLength || !QuestionLimit.Fits(question) ? null : question;
     }
 
     /// <summary>A field name the answer is asked for (or a near variant) as the item field it fills; null for any other.</summary>
@@ -332,8 +341,8 @@ public static partial class RecommendationPrompt
     [GeneratedRegex("\"(question|q|问题|reason|理由|basis|依据|source)\"\\s*:\\s*", RegexOptions.IgnoreCase)]
     private static partial Regex JsonKey();
 
-    /// <summary>"S2", "延伸自：S2", "[S2]" as a basis label.</summary>
-    [GeneratedRegex(@"^\s*(?:延伸自|依据|basis)?\s*[:：]?\s*\[?\s*[Ss]\s*(\d{1,2})\s*\]?\s*$")]
+    /// <summary>"S2", "延伸自：S2", "Basis: S2", "extends S2", "[S2]" as a basis label.</summary>
+    [GeneratedRegex(@"^\s*(?:延伸自|依据|basis|extends(?:\s+from)?)?\s*[:：]?\s*\[?\s*[Ss]\s*(\d{1,2})\s*\]?\s*$", RegexOptions.IgnoreCase)]
     private static partial Regex BasisLabel();
 
     /// <summary>"理由：" before a reason.</summary>

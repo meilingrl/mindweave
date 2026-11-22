@@ -96,6 +96,7 @@ public static string Conversations(int n) => T(Plural(n, "conversation", "conver
 - **Short model-facing text** (tool descriptions, material headers, "[Attachment: name]" markers, citation labels sent to the model) uses `T(en, zh)` in code.
 - The prompt language is the interface language at the moment the request is built. Every prompt keeps the instruction to write in the language of the conversation or material, so a Chinese conversation in an English interface still gets Chinese titles and summaries.
 - Parsing of model output accepts both languages' markers (the summary parser already accepts "标题：" and "Title:"; short-name and other markers get the same treatment).
+- **Lengths** (user, 2026-11-22: "Yes, use words"): English prompts state length limits in words, sized to carry about what the Chinese limit in characters carries (one English word for about 1.5 to 2 Chinese characters). The link note stays at 16 characters in both languages (requirements §10.3.3). Parsers measure a model's text by its own script, never by the interface language (`TextLimit` in Core): text with any CJK character in characters, exactly as before; other text in words, with a backstop of 12 characters a word.
 - Tool names (`web_search`, `fetch_page`, …) and stored keys do not change.
 - The web fetch `Accept-Language` header follows the interface language.
 - New text written into data (attachment markers in message text, step notes) is written in the interface language at that time.

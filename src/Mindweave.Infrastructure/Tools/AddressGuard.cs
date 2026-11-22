@@ -1,6 +1,7 @@
 using System.Net;
 using System.Net.Sockets;
 using Mindweave.Application.Tools;
+using static Mindweave.Application.Languages.Bilingual;
 
 namespace Mindweave.Infrastructure.Tools;
 
@@ -86,19 +87,20 @@ internal static class AddressGuard
         ArgumentNullException.ThrowIfNull(url);
         if (!url.IsAbsoluteUri || (url.Scheme != Uri.UriSchemeHttp && url.Scheme != Uri.UriSchemeHttps))
         {
-            var scheme = url.IsAbsoluteUri ? url.Scheme : "相对";
-            throw new PageFetchException(FetchFailureKind.UnsupportedScheme, $"只能读取 http 或 https 网址，没有读取这个 {scheme} 网址。");
+            throw new PageFetchException(FetchFailureKind.UnsupportedScheme, url.IsAbsoluteUri
+                ? T($"Only http and https URLs can be read; this {url.Scheme} URL was not read.", $"只能读取 http 或 https 网址，没有读取这个 {url.Scheme} 网址。")
+                : T("Only http and https URLs can be read; this relative URL was not read.", "只能读取 http 或 https 网址，没有读取这个 相对 网址。"));
         }
 
         if (url.UserInfo.Length > 0)
         {
-            throw new PageFetchException(FetchFailureKind.UnsupportedScheme, "网址里带有用户名或密码，没有读取。");
+            throw new PageFetchException(FetchFailureKind.UnsupportedScheme, T("The URL contains a user name or password, so it was not read.", "网址里带有用户名或密码，没有读取。"));
         }
 
         var host = HostOf(url);
         if (host.Length == 0)
         {
-            throw new PageFetchException(FetchFailureKind.UnsupportedScheme, "网址里没有主机名，没有读取。");
+            throw new PageFetchException(FetchFailureKind.UnsupportedScheme, T("The URL has no host name, so it was not read.", "网址里没有主机名，没有读取。"));
         }
 
         if (LiteralAddress(host) is { } literal ? IsBlocked(literal) : IsBlockedName(host))
@@ -172,7 +174,7 @@ internal static class AddressGuard
     public static bool IsBlockedAnswer(IPAddress address) => IsBlocked(address) && !IsProxyFakeAddress(address);
 
     public static PageFetchException Blocked(string host) =>
-        new(FetchFailureKind.BlockedAddress, $"拒绝读取：{host} 指向本机或局域网地址。");
+        new(FetchFailureKind.BlockedAddress, T($"Refused to read: {host} points to this computer or a local network address.", $"拒绝读取：{host} 指向本机或局域网地址。"));
 
     private static bool IsBlockedV4(ReadOnlySpan<byte> a) => a[0] switch
     {

@@ -22,6 +22,17 @@ public class WorkspaceNameSuggestionTests
         return name!;
     }
 
+    /// <summary>An English name is measured in words (review finding 2026-11-22); a Chinese one in characters as before.</summary>
+    [Fact]
+    public void English_names_are_measured_in_words()
+    {
+        var names = WorkspaceNamePrompt.ParseCandidates(
+            "Industrial Revolution Transport Technology\nThis line is an explanation of the names rather than a name\n" + new string('长', 21) + "\n" + new string('长', 20),
+            Name("测试"));
+
+        Assert.Equal(["Industrial Revolution Transport Technology", new string('长', 20)], names.Select(n => n.Value));
+    }
+
     [Fact]
     public async Task The_request_sends_the_conversation_and_summary_titles_and_the_current_name_and_leaves_no_task()
     {

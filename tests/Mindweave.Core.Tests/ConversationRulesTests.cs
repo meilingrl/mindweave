@@ -76,6 +76,20 @@ public class ConversationRulesTests
     public void Marks_that_belong_to_the_title_are_kept(string raw, string expected) =>
         Assert.Equal(expected, ConversationRules.CleanGeneratedTitle(raw));
 
+    /// <summary>An English title is measured in words (review finding 2026-11-22); a Chinese one is cut at 60 characters as before.</summary>
+    [Fact]
+    public void A_generated_English_title_is_cut_between_words()
+    {
+        const string eleven = "Why the thermal efficiency of early steam engines stayed so very low";
+        Assert.True(eleven.Length > ConversationRules.MaxTitleLength);
+        Assert.Equal(eleven, ConversationRules.CleanGeneratedTitle(eleven));
+
+        var fifteen = string.Join(' ', Enumerable.Range(1, 15).Select(i => "word" + i));
+        Assert.Equal(string.Join(' ', Enumerable.Range(1, 12).Select(i => "word" + i)) + "…", ConversationRules.CleanGeneratedTitle(fifteen));
+
+        Assert.Equal(new string('长', 60) + "…", ConversationRules.CleanGeneratedTitle(new string('长', 70)));
+    }
+
     [Fact]
     public void Fallback_titles_are_one_line_and_bounded()
     {

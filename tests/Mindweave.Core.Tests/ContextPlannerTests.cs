@@ -39,7 +39,7 @@ public class ContextPlannerTests
     {
         var own = Segment(Root, null, Turns(Root, 3, "短"), "现在的问题");
 
-        var plan = ContextPlanner.Plan([], own, budget: 10_000, _ => null).Plan!;
+        var plan = ContextPlanner.Plan([], own, budget: 10_000, _ => null, TestPhrases.Chinese).Plan!;
 
         Assert.False(plan.IsCompressed);
         Assert.Equal(7, plan.RawItems.Count());
@@ -51,7 +51,7 @@ public class ContextPlannerTests
         // Twelve long turns: chunks close every four turns (about 4,000 tokens).
         var own = Segment(Root, null, Turns(Root, 12, Long), "现在的问题");
 
-        var plan = ContextPlanner.Plan([], own, budget: 7_000, _ => null).Plan!;
+        var plan = ContextPlanner.Plan([], own, budget: 7_000, _ => null, TestPhrases.Chinese).Plan!;
 
         var summaries = plan.Summaries.ToList();
         Assert.Equal(2, summaries.Count);
@@ -68,8 +68,8 @@ public class ContextPlannerTests
     public void Closed_chunk_boundaries_do_not_move_as_the_conversation_grows()
     {
         var turns = Turns(Root, 13, Long);
-        var shorter = ContextPlanner.Plan([], Segment(Root, null, turns[..24], "问"), 9_000, _ => null).Plan!;
-        var longer = ContextPlanner.Plan([], Segment(Root, null, turns, "问"), 9_000, _ => null).Plan!;
+        var shorter = ContextPlanner.Plan([], Segment(Root, null, turns[..24], "问"), 9_000, _ => null, TestPhrases.Chinese).Plan!;
+        var longer = ContextPlanner.Plan([], Segment(Root, null, turns, "问"), 9_000, _ => null, TestPhrases.Chinese).Plan!;
 
         Assert.Equal(shorter.Summaries.First().Key, longer.Summaries.First().Key);
     }
@@ -78,10 +78,10 @@ public class ContextPlannerTests
     public void A_stored_summary_counts_with_its_real_size()
     {
         var own = Segment(Root, null, Turns(Root, 12, Long), "问");
-        var first = ContextPlanner.Plan([], own, 9_000, _ => null).Plan!.Summaries.First().Key;
+        var first = ContextPlanner.Plan([], own, 9_000, _ => null, TestPhrases.Chinese).Plan!.Summaries.First().Key;
 
         // With a tiny stored summary for the first chunk, compressing it alone is enough.
-        var plan = ContextPlanner.Plan([], own, 9_000, key => key == first ? 50 : null).Plan!;
+        var plan = ContextPlanner.Plan([], own, 9_000, key => key == first ? 50 : null, TestPhrases.Chinese).Plan!;
 
         Assert.Equal([first], plan.Summaries.Select(s => s.Key));
     }
@@ -92,7 +92,7 @@ public class ContextPlannerTests
         var parent = Segment(Root, null, Turns(Root, 12, Long), null);
         var own = Segment(Child, "蒸汽机", [], "问");
 
-        var plan = ContextPlanner.Plan([parent], own, 4_000, _ => null).Plan!;
+        var plan = ContextPlanner.Plan([parent], own, 4_000, _ => null, TestPhrases.Chinese).Plan!;
 
         var raw = plan.RawItems.ToList();
         Assert.Equal("关于上文中的这段内容：\n> 蒸汽机\n\n问", raw[^1].Text);
@@ -108,7 +108,7 @@ public class ContextPlannerTests
     {
         var own = Segment(Root, null, [], new string('问', 5_000));
 
-        Assert.Equal(ContextRejection.QuestionTooLarge, ContextPlanner.Plan([], own, 4_000, _ => null).Rejection);
+        Assert.Equal(ContextRejection.QuestionTooLarge, ContextPlanner.Plan([], own, 4_000, _ => null, TestPhrases.Chinese).Rejection);
     }
 
     [Fact]
@@ -116,18 +116,18 @@ public class ContextPlannerTests
     {
         var own = Segment(Root, null, Turns(Root, 40, Long), "问");
 
-        Assert.Equal(ContextRejection.HistoryTooLong, ContextPlanner.Plan([], own, 2_000, _ => null).Rejection);
+        Assert.Equal(ContextRejection.HistoryTooLong, ContextPlanner.Plan([], own, 2_000, _ => null, TestPhrases.Chinese).Rejection);
     }
 
     [Fact]
     public void A_retried_answer_inside_a_range_changes_the_summary_identity()
     {
         var turns = Turns(Root, 12, Long);
-        var before = ContextPlanner.Plan([], Segment(Root, null, turns, "问"), 9_000, _ => null).Plan!.Summaries.First().Key;
+        var before = ContextPlanner.Plan([], Segment(Root, null, turns, "问"), 9_000, _ => null, TestPhrases.Chinese).Plan!.Summaries.First().Key;
 
         // Same range, but the fourth answer has a newer attempt that replaces it in the selection.
         var retried = turns.Take(8).Append(Item(Message(Root, 7, MessageRole.Assistant, Long) with { Supersedes = turns[7].Message.Id })).ToList();
-        var after = ContextPlanner.Plan([], Segment(Root, null, [.. retried, .. turns.Skip(8)], "问"), 9_000, _ => null).Plan!.Summaries.First().Key;
+        var after = ContextPlanner.Plan([], Segment(Root, null, [.. retried, .. turns.Skip(8)], "问"), 9_000, _ => null, TestPhrases.Chinese).Plan!.Summaries.First().Key;
 
         Assert.Equal(before.FromSeq, after.FromSeq);
         Assert.NotEqual(before.InputHash, after.InputHash);

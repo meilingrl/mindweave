@@ -1,6 +1,7 @@
 using Mindweave.Application.Storage;
 using Mindweave.Application.Tools;
 using Mindweave.Core.Resources;
+using static Mindweave.Application.Languages.Bilingual;
 
 namespace Mindweave.Application.Runs;
 
@@ -34,10 +35,13 @@ public sealed class RunServices(IRunStore store, IResourceStore resources, IReso
                 using var picture = await blobs.WriteAsync(image.Data.ToArray(), cancellationToken).ConfigureAwait(false);
                 var kept = new Resource(
                     ResourceId.New(), scope.Workspace, scope.Conversation, picture.Hash, image.MediaType, picture.Size, output.Origin,
-                    Shorten($"{name}（图片 {i + 1}）"), output.SourceUrl, output.Provenance, at);
+                    Shorten(T($"{name} (image {i + 1})", $"{name}（图片 {i + 1}）")), output.SourceUrl, output.Provenance, at);
                 await resources.InsertAsync(kept, [], [], null, cancellationToken).ConfigureAwait(false);
                 scope.Add(kept.Id);
-                text = text.Replace($"[图片 {i + 1}]", $"[图片：资源 {kept.Id}]", StringComparison.Ordinal);
+                foreach (var placeholder in ToolOutput.ImagePlaceholders(i + 1))
+                {
+                    text = text.Replace(placeholder, ToolOutput.ImageMarker(kept.Id), StringComparison.Ordinal);
+                }
             }
 
             var derived = new ResourceDerivative(DerivativeKind.Text, text, "tool/1", EstimatedTokens: Core.Context.TokenEstimator.Estimate(text));
@@ -89,8 +93,10 @@ public sealed class RunServices(IRunStore store, IResourceStore resources, IReso
         var tokens = 0;
         foreach (var resource in found.OrderByDescending(r => r.CreatedAt).ThenByDescending(r => r.Id.ToString(), StringComparer.Ordinal).Take(MaxEarlier))
         {
-            var name = resource.Name ?? "工具结果";
-            var line = resource.SourceUrl is { } url ? $"- 资源 {resource.Id}：网页《{name}》（{url.Host}）" : $"- 资源 {resource.Id}：{name}";
+            var name = resource.Name ?? SearchAttachmentsTool.ToolResult;
+            var line = resource.SourceUrl is { } url
+                ? T($"- Resource {resource.Id}: web page \"{name}\" ({url.Host})", $"- 资源 {resource.Id}：网页《{name}》（{url.Host}）")
+                : T($"- Resource {resource.Id}: {name}", $"- 资源 {resource.Id}：{name}");
             tokens += Core.Context.TokenEstimator.Estimate(line);
             if (tokens > EarlierTokens && lines.Count > 0)
             {
@@ -100,7 +106,9 @@ public sealed class RunServices(IRunStore store, IResourceStore resources, IReso
             lines.Add(line);
         }
 
-        return "本会话较早取得的材料（最近的在前）：需要时用 search_attachments 检索，或给出 resource 与 part 读取，不必重新搜索网络。\n" + string.Join('\n', lines);
+        return T(
+            "Material found earlier in this conversation (most recent first). When needed, search it with search_attachments, or read it by giving resource and part; there is no need to search the web again.\n",
+            "本会话较早取得的材料（最近的在前）：需要时用 search_attachments 检索，或给出 resource 与 part 读取，不必重新搜索网络。\n") + string.Join('\n', lines);
     }
 
     private static string Shorten(string name) => name.Length > MaxName ? name[..MaxName] : name;

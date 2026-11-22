@@ -1,6 +1,7 @@
 using Microsoft.Data.Sqlite;
 using Mindweave.Application.Ai;
 using Mindweave.Application.Conversations;
+using Mindweave.Application.Languages;
 using Mindweave.Application.Models;
 using Mindweave.Application.Resources;
 using Mindweave.Application.Storage;
@@ -62,7 +63,7 @@ public class AttachmentFlowTests
         Assert.Equal(SendRejection.EmptyQuestion, (await h.Conversations.StartAsync(h.Workspace, " ", [], null, Ct)).Rejection);
         var sent = await h.Conversations.StartAsync(h.Workspace, "", [paste.Resource.Id], null, Ct);
         Assert.True(sent.Accepted);
-        Assert.Equal("[附件：粘贴的文字]", (await h.Store.GetMessagesAsync(sent.Conversation, Ct))[0].Text);
+        Assert.Equal("[附件：粘贴的文字]", ContentBlocks.TextOf((await h.Store.GetMessagesAsync(sent.Conversation, Ct))[0].Blocks, ModelPhrases.Current));
     }
 
     [Fact]

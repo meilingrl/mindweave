@@ -58,8 +58,12 @@ public sealed record Message(
     DateTimeOffset CreatedAt,
     DateTimeOffset? CompletedAt)
 {
-    /// <summary>The text blocks as one Markdown string (see <see cref="ContentBlocks.TextOf"/>).</summary>
-    public string Text => ContentBlocks.TextOf(Blocks);
+    /// <summary>
+    /// The text blocks as one Markdown string, without attachments (<see cref="ContentBlocks.TypedTextOf"/>). An answer is
+    /// only text; a question's text as it is sent, with a marker per attachment, is <see cref="ContentBlocks.TextOf"/>,
+    /// which takes the phrases of the language the request is built in.
+    /// </summary>
+    public string Text => ContentBlocks.TypedTextOf(Blocks);
 
     public bool IsFinished => State is not (MessageState.Pending or MessageState.Streaming);
 

@@ -18,7 +18,7 @@ public class ResourceLayerTests
     {
         var (own, candidates) = Conversation1(older: 0, currentText: new string('文', 3_000));
 
-        var plan = ContextPlanner.Plan([], own, budget: 10_000, _ => null, candidates).Plan!;
+        var plan = ContextPlanner.Plan([], own, budget: 10_000, _ => null, candidates, TestPhrases.Chinese).Plan!;
 
         var placement = Assert.Single(plan.Resources);
         Assert.Equal(ResourceForm.Whole, placement.Form);
@@ -33,7 +33,7 @@ public class ResourceLayerTests
         var text = string.Concat(Enumerable.Range(0, 20).Select(i => new string('文', 790) + "。\n\n"));
         var (own, candidates) = Conversation1(older: 0, currentText: text, ranking: [7, 3, 12]);
 
-        var plan = ContextPlanner.Plan([], own, budget: 3_000, _ => null, candidates).Plan!;
+        var plan = ContextPlanner.Plan([], own, budget: 3_000, _ => null, candidates, TestPhrases.Chinese).Plan!;
 
         var placement = Assert.Single(plan.Resources);
         Assert.Equal(ResourceForm.Parts, placement.Form);
@@ -48,7 +48,7 @@ public class ResourceLayerTests
     {
         var (own, candidates) = Conversation1(older: 2, currentText: "短的", olderText: new string('旧', 3_000));
 
-        var plan = ContextPlanner.Plan([], own, budget: 5_000, _ => null, candidates).Plan!;
+        var plan = ContextPlanner.Plan([], own, budget: 5_000, _ => null, candidates, TestPhrases.Chinese).Plan!;
 
         // Oldest first, and only as many as needed.
         Assert.Equal([ResourceForm.Summary, ResourceForm.Whole, ResourceForm.Whole], plan.Resources.Select(r => r.Form));
@@ -60,7 +60,7 @@ public class ResourceLayerTests
     {
         var (own, candidates) = Conversation1(older: 1, currentText: "短的", olderText: new string('旧', 3_000), olderSummaryTokens: 120);
 
-        var plan = ContextPlanner.Plan([], own, budget: 1_500, _ => null, candidates).Plan!;
+        var plan = ContextPlanner.Plan([], own, budget: 1_500, _ => null, candidates, TestPhrases.Chinese).Plan!;
 
         var older = plan.Resources[0];
         Assert.Equal((ResourceForm.Summary, false), (older.Form, older.NeedsSummary));
@@ -71,7 +71,7 @@ public class ResourceLayerTests
     {
         var (own, candidates) = Conversation1(older: 0, currentText: new string('文', 9_000));
 
-        var outcome = ContextPlanner.Plan([], own, budget: 900, _ => null, candidates);
+        var outcome = ContextPlanner.Plan([], own, budget: 900, _ => null, candidates, TestPhrases.Chinese);
 
         Assert.Null(outcome.Plan);
         Assert.Equal(ContextRejection.QuestionTooLarge, outcome.Rejection);
@@ -86,7 +86,7 @@ public class ResourceLayerTests
         var own = new ContextSegment(Conversation, null, [question, answer, current]);
         ResourceCandidate Image(Message m) => new(Attachment(m)!, m.Id, ResourceKind.Image, ResourceMaterial.ImageTokens + 10, null, []);
 
-        var plan = ContextPlanner.Plan([], own, budget: 4_200, _ => null, [Image(question), Image(current)]).Plan!;
+        var plan = ContextPlanner.Plan([], own, budget: 4_200, _ => null, [Image(question), Image(current)], TestPhrases.Chinese).Plan!;
 
         Assert.Equal([ResourceForm.ImageOmitted, ResourceForm.Image], plan.Resources.Select(r => r.Form));
         Assert.True(plan.IsResourceReduced);
@@ -143,7 +143,7 @@ public class ResourceLayerTests
         var chunks = ResourceChunker.Split(attachment.Text!);
         var order = ranking ?? [];
         IReadOnlyList<ResourceChunk> ranked = [.. order.Select(o => chunks[o]), .. chunks.Where(c => !order.Contains(c.Ordinal))];
-        return new ResourceCandidate(attachment, message.Id, ResourceKind.Text, TokenEstimator.Estimate(ResourceMaterial.Whole(attachment)), summaryTokens, ranked);
+        return new ResourceCandidate(attachment, message.Id, ResourceKind.Text, TokenEstimator.Estimate(ResourceMaterial.Whole(attachment, TestPhrases.Chinese)), summaryTokens, ranked);
     }
 
     private static AttachmentBlock? Attachment(Message message) => message.Blocks.OfType<AttachmentBlock>().FirstOrDefault();

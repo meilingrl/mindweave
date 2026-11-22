@@ -74,8 +74,9 @@ public static class ContextPlanner
     public const int UnknownSummaryTokens = 800;
 
     /// <param name="knownSummaryTokens">Size of an already stored summary for a key, or null if there is none.</param>
-    public static PlanOutcome Plan(IReadOnlyList<ContextSegment> ancestors, ContextSegment own, int budget, Func<SummaryKey, int?> knownSummaryTokens) =>
-        Plan(ancestors, own, budget, knownSummaryTokens, []);
+    /// <param name="phrases">The model-facing phrases of the language the request is built in.</param>
+    public static PlanOutcome Plan(IReadOnlyList<ContextSegment> ancestors, ContextSegment own, int budget, Func<SummaryKey, int?> knownSummaryTokens, IModelPhrases phrases) =>
+        Plan(ancestors, own, budget, knownSummaryTokens, [], phrases);
 
     /// <summary>
     /// The plan with the attachments of the planned messages as a separate layer (architecture §15.4). Everything is sent
@@ -86,16 +87,19 @@ public static class ContextPlanner
     /// silently.
     /// </summary>
     /// <param name="resources">Every attachment of the conversation chain, each naming the message that carries it.</param>
+    /// <param name="phrases">The model-facing phrases of the language the request is built in.</param>
     public static PlanOutcome Plan(
-        IReadOnlyList<ContextSegment> ancestors, ContextSegment own, int budget, Func<SummaryKey, int?> knownSummaryTokens, IReadOnlyList<ResourceCandidate> resources)
+        IReadOnlyList<ContextSegment> ancestors, ContextSegment own, int budget, Func<SummaryKey, int?> knownSummaryTokens, IReadOnlyList<ResourceCandidate> resources,
+        IModelPhrases phrases)
     {
         ArgumentNullException.ThrowIfNull(ancestors);
         ArgumentNullException.ThrowIfNull(own);
         ArgumentNullException.ThrowIfNull(knownSummaryTokens);
         ArgumentNullException.ThrowIfNull(resources);
-        var items = BranchContext.Assemble(ancestors, own);
+        ArgumentNullException.ThrowIfNull(phrases);
+        var items = BranchContext.Assemble(ancestors, own, phrases);
         var cost = items.ToDictionary(i => i, i => TokenEstimator.Message(i.Text));
-        var layer = new ResourceLayer(items, resources);
+        var layer = new ResourceLayer(items, resources, phrases);
         var total = TokenEstimator.PerRequest + cost.Values.Sum() + layer.Tokens;
         if (total <= budget)
         {
@@ -122,7 +126,7 @@ public static class ContextPlanner
             }
 
             total -= chunk.Items.Sum(i => cost[i]);
-            total += SummaryTokens(chunk, knownSummaryTokens);
+            total += SummaryTokens(chunk, knownSummaryTokens, phrases);
             summarized.Add(chunk);
         }
 
@@ -155,17 +159,18 @@ public static class ContextPlanner
     }
 
     /// <summary>The text a summary is sent as, including its framing; its length is what the budget counts.</summary>
-    public static string SummaryMessage(SummaryKey key, string summary)
+    public static string SummaryMessage(SummaryKey key, string summary, IModelPhrases phrases)
     {
         ArgumentNullException.ThrowIfNull(key);
-        return $"以下是较早一段对话（第 {key.FromSeq + 1}–{key.ToSeq + 1} 条消息）的摘要，原文保存在本地：\n\n{summary}";
+        ArgumentNullException.ThrowIfNull(phrases);
+        return $"{phrases.EarlierSummarized(key.FromSeq + 1, key.ToSeq + 1)}\n\n{summary}";
     }
 
     /// <summary>What a stored summary costs when sent.</summary>
-    public static int SummaryTokens(SummaryKey key, string summary) => TokenEstimator.Message(SummaryMessage(key, summary));
+    public static int SummaryTokens(SummaryKey key, string summary, IModelPhrases phrases) => TokenEstimator.Message(SummaryMessage(key, summary, phrases));
 
-    private static int SummaryTokens(ContextChunk chunk, Func<SummaryKey, int?> known) =>
-        known(chunk.Key) ?? SummaryTokens(chunk.Key, string.Empty) + UnknownSummaryTokens;
+    private static int SummaryTokens(ContextChunk chunk, Func<SummaryKey, int?> known, IModelPhrases phrases) =>
+        known(chunk.Key) ?? SummaryTokens(chunk.Key, string.Empty, phrases) + UnknownSummaryTokens;
 
     private static HashSet<ContextItem> Required(IReadOnlyList<ContextItem> items, IReadOnlyList<ContextSegment> ancestors, ContextSegment own)
     {

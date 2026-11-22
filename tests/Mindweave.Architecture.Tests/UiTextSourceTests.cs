@@ -237,7 +237,7 @@ public partial class UiTextSourceTests
         Assert.True(problems.Count == 0, string.Join('\n', problems));
     }
 
-    private static bool IsSource(string path) =>
+    internal static bool IsSource(string path) =>
         !path.Contains($"{Path.DirectorySeparatorChar}bin{Path.DirectorySeparatorChar}", StringComparison.Ordinal)
         && !path.Contains($"{Path.DirectorySeparatorChar}obj{Path.DirectorySeparatorChar}", StringComparison.Ordinal);
 
@@ -285,7 +285,7 @@ public partial class UiTextSourceTests
     /// </summary>
     private static IEnumerable<string> Texts(SyntaxNode node) => node.DescendantTokens().Where(IsText).Select(t => t.ValueText);
 
-    private static bool IsText(SyntaxToken token) =>
+    internal static bool IsText(SyntaxToken token) =>
         token.IsKind(SyntaxKind.StringLiteralToken) || token.IsKind(SyntaxKind.InterpolatedStringTextToken)
         || token.IsKind(SyntaxKind.SingleLineRawStringLiteralToken)
         || token.IsKind(SyntaxKind.MultiLineRawStringLiteralToken);
@@ -294,5 +294,5 @@ public partial class UiTextSourceTests
 
     /// <summary>Chinese characters and full-width punctuation.</summary>
     [GeneratedRegex(@"[　-〿㐀-䶿一-鿿＀-￯]")]
-    private static partial Regex Chinese();
+    internal static partial Regex Chinese();
 }

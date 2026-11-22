@@ -1,10 +1,13 @@
 using System.Collections.Concurrent;
 using Microsoft.Extensions.Logging;
 using Mindweave.Application.Ai;
+using Mindweave.Application.Languages;
 using Mindweave.Application.Models;
+using Mindweave.Application.Prompts;
 using Mindweave.Application.Storage;
 using Mindweave.Core.Branches;
 using Mindweave.Core.Conversations;
+using static Mindweave.Application.Languages.Bilingual;
 
 namespace Mindweave.Application.Conversations;
 
@@ -27,8 +30,6 @@ internal sealed partial class ConversationTitler
     /// The title itself is still cut to <see cref="ConversationRules.MaxTitleLength"/>.
     /// </summary>
     private const int TitleOutputTokens = 1024;
-
-    private const string TitlePrompt = "为下面的对话起一个简短标题，概括提问的主题。只输出标题本身，不加引号、序号或句末标点；不超过 20 个字；使用提问所用的语言。";
 
     private readonly IConversationStore _store;
     private readonly IBranchStore _branches;
@@ -105,8 +106,9 @@ internal sealed partial class ConversationTitler
         var source = await _branches.GetSourceAsync(e.ConversationId, CancellationToken.None).ConfigureAwait(false);
         // A title needs the gist, not a pasted document (low finding gap-unprompted-4): the question is cut like the answer.
         // Attachments are named, never included (docs/design/resources.md).
-        var brief = ContentBlocks.BriefOf(question.Blocks);
-        var asked = ConversationRules.FirstTextElements(source is null ? brief : BranchContext.QuotedQuestion(source.Quote, brief), TitleQuestionExcerpt);
+        var phrases = ModelPhrases.Current;
+        var brief = ContentBlocks.BriefOf(question.Blocks, phrases);
+        var asked = ConversationRules.FirstTextElements(source is null ? brief : BranchContext.QuotedQuestion(source.Quote, brief, phrases), TitleQuestionExcerpt);
         var excerpt = ConversationRules.FirstTextElements(e.Text, TitleAnswerExcerpt);
         var now = _clock.UtcNow;
         var task = new GenerationTaskRecord(GenerationTaskId.New(), GenerationTaskKind.Title, e.ConversationId, null, model, [question.Id, e.MessageId], now);
@@ -132,8 +134,8 @@ internal sealed partial class ConversationTitler
         {
             _generation.Enqueue(new TitleWork(task, new ChatRequest(model with { MaxOutputTokens = TitleOutputTokens },
             [
-                new ChatTurn(ChatRole.System, TitlePrompt),
-                new ChatTurn(ChatRole.User, $"提问：{asked}\n\n回答开头：{excerpt}"),
+                new ChatTurn(ChatRole.System, PromptLibrary.Get("title")),
+                new ChatTurn(ChatRole.User, T($"Question: {asked}\n\nStart of the answer: {excerpt}", $"提问：{asked}\n\n回答开头：{excerpt}")),
             ])));
         }
         catch (InvalidOperationException)
