@@ -145,13 +145,18 @@ public static partial class SpatialLayout
             var known = roots.Where(saved.ContainsKey).OrderBy(r => saved[r].Size == size[r] ? 0 : 1).ThenBy(r => roots.IndexOf(r)).ToList();
             foreach (var root in known)
             {
+                // Turn and move only by real amounts, so an unchanged exploration comes back to the very same coordinates.
                 var place = saved[root];
-                if (children[root].Length > 0)
+                var turn = WrapAngle(place.Angle - Heading(root));
+                if (children[root].Length > 0 && Math.Abs(turn) > 1e-9)
                 {
-                    Rotate(root, x[root], y[root], WrapAngle(place.Angle - Heading(root)));
+                    Rotate(root, x[root], y[root], turn);
                 }
 
-                Translate(root, place.X - x[root], place.Y - y[root]);
+                if (Math.Abs(place.X - x[root]) > 1e-9 || Math.Abs(place.Y - y[root]) > 1e-9)
+                {
+                    Translate(root, place.X - x[root], place.Y - y[root]);
+                }
                 ChooseLabels(start[root], end[root], threads: false);
                 var shape = Capture(root);
 

@@ -110,7 +110,41 @@ public class SessionNetworkPackingTests
         Assert.NotEqual(packed, session.Positions);
         session.SetViewMode(SummaryNetworkViewMode.Spatial);
 
-        Assert.Equal(packed, session.Positions.ToDictionary(p => p.Key, p => p.Value));
+        // Back in the spatial view every exploration returns to its place: the same picture, to rounding.
+        Assert.Equal(packed.Keys.OrderBy(k => k.Value), session.Positions.Keys.OrderBy(k => k.Value));
+        Assert.All(packed, p => Assert.True(Math.Abs(p.Value.X - session.Positions[p.Key].X) < 1e-6 && Math.Abs(p.Value.Y - session.Positions[p.Key].Y) < 1e-6, $"{p.Key} moved."));
+    }
+
+    [Fact]
+    public async Task Exploration_places_are_saved_once_and_a_new_conversation_leaves_the_others_where_they_were()
+    {
+        // Design §16, option C: the first load saves every exploration's place; a load with nothing new saves nothing; a new
+        // exploration is placed and saved without moving any other.
+        var projection = Sessions(30);
+        var network = new FakeNetwork(projection);
+        var first = await LoadedAsync(projection, network);
+        var parents = SummaryNetworkSession.BranchParents(projection);
+        var roots = projection.Nodes.Where(n => !parents.ContainsKey(n.Id)).ToList();
+        Assert.Equal(roots.Count, network.PlaceWrites);
+        Assert.Equal(roots.Select(r => r.Conversation.Value).Order(), network.Places.Keys.Select(k => k.Value).Order());
+
+        await LoadedAsync(projection, network);
+        Assert.Equal(roots.Count, network.PlaceWrites);
+
+        var conversation = ConversationId.New();
+        var added = new SummaryNetworkNode(Id(999), conversation, conversation, "新的探索", "新的探索", new SummaryMarkers(false, false, false),
+            projection.Nodes[^1].CreatedAt.AddMinutes(5), []);
+        network.Current = projection with { Nodes = [.. projection.Nodes, added] };
+        var later = await LoadedAsync(network.Current, network);
+
+        foreach (var root in roots)
+        {
+            Assert.Equal(first.Positions[root.Id], later.Positions[root.Id]);
+        }
+
+        Assert.Equal(roots.Count + 1, network.PlaceWrites);
+        Assert.True(network.Places.ContainsKey(conversation));
+        Assert.Equal(0, network.Writes);
     }
 
     [Fact]
@@ -222,11 +256,34 @@ public class SessionNetworkPackingTests
 
     private sealed class FakeNetwork(SummaryNetworkProjection projection) : ISummaryNetworkLayout
     {
+        /// <summary>Writes of node positions (the old summary network's layout); exploration places are counted apart.</summary>
         public int Writes { get; private set; }
+
+        /// <summary>What the next load projects (a test adds a conversation by swapping it).</summary>
+        public SummaryNetworkProjection Current { get; set; } = projection;
+
+        /// <summary>Exploration places as saved, and how many were written in all.</summary>
+        public Dictionary<ConversationId, ExplorationPlace> Places { get; } = [];
+
+        public int PlaceWrites { get; private set; }
+
+        public Task<IReadOnlyDictionary<ConversationId, ExplorationPlace>> GetExplorationPlacesAsync(WorkspaceId workspace, CancellationToken cancellationToken) =>
+            Task.FromResult<IReadOnlyDictionary<ConversationId, ExplorationPlace>>(new Dictionary<ConversationId, ExplorationPlace>(Places));
+
+        public Task<int> SaveExplorationPlacesAsync(WorkspaceId workspace, IReadOnlyDictionary<ConversationId, ExplorationPlace> places, CancellationToken cancellationToken)
+        {
+            foreach (var (root, place) in places)
+            {
+                Places[root] = place;
+            }
+
+            PlaceWrites += places.Count;
+            return Task.FromResult(places.Count);
+        }
 
         public Task<SummaryNetworkProjection> ProjectAsync(WorkspaceId workspace, CancellationToken cancellationToken) => throw new NotSupportedException();
 
-        public Task<SummaryNetworkProjection> ProjectSessionsAsync(WorkspaceId workspace, CancellationToken cancellationToken) => Task.FromResult(projection);
+        public Task<SummaryNetworkProjection> ProjectSessionsAsync(WorkspaceId workspace, CancellationToken cancellationToken) => Task.FromResult(Current);
 
         public Task<IReadOnlyDictionary<SummaryNodeId, NodePosition>> GetLayoutAsync(WorkspaceId workspace, CancellationToken cancellationToken) => throw new NotSupportedException();
 

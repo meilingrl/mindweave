@@ -264,6 +264,12 @@ public class SummaryNetworkUiTests
 
             public Task<IReadOnlyDictionary<ConversationId, int>> QuestionCountsAsync(WorkspaceId workspace, CancellationToken cancellationToken) =>
                 inner.QuestionCountsAsync(workspace, cancellationToken);
+
+            public Task<IReadOnlyDictionary<ConversationId, ExplorationPlace>> GetExplorationPlacesAsync(WorkspaceId workspace, CancellationToken cancellationToken) =>
+                inner.GetExplorationPlacesAsync(workspace, cancellationToken);
+
+            public Task<int> SaveExplorationPlacesAsync(WorkspaceId workspace, IReadOnlyDictionary<ConversationId, ExplorationPlace> places, DateTimeOffset at, CancellationToken cancellationToken) =>
+                inner.SaveExplorationPlacesAsync(workspace, places, at, cancellationToken);
         }
     }
 }

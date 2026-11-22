@@ -12,11 +12,6 @@ namespace Mindweave.Desktop.SummaryNetwork;
 /// <remarks><paramref name="Conversation"/> names a root's exploration across loads (its dot's id changes when it gets a summary); the dot's id when not given.</remarks>
 public sealed record SpatialNode(SummaryNodeId Id, SummaryNodeId? Parent, int Order, int Weight, double DotRadius, string Label, bool Dated = false, Guid? Conversation = null);
 
-/// <summary>
-/// Where an exploration sits (design session-network §16, option C): its root dot, the direction of its oldest branch from
-/// the root (radians), and how many dots it had, so a changed exploration can be told from an unchanged one.
-/// </summary>
-public sealed record ExplorationPlace(double X, double Y, double Angle, int Size);
 
 /// <summary>Where a label sits round its dot (an index into <see cref="SpatialLayout.Sides"/>) and its wrapped lines.</summary>
 public sealed record SpatialLabel(int Side, IReadOnlyList<string> Lines);
