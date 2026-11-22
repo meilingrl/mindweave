@@ -148,6 +148,25 @@ public class SessionNetworkPackingTests
     }
 
     [Fact]
+    public async Task Places_first_shown_after_the_timeline_are_saved_too()
+    {
+        // Review 2026-11-23: a load in the timeline saves nothing; switching to the spatial view places the explorations,
+        // and those places must be saved, or the next load would place them again.
+        var projection = Sessions(20);
+        var network = new FakeNetwork(projection);
+        var session = new SummaryNetworkSession(Workspace, network, new SessionNetworkGate(true));
+        session.SetViewMode(SummaryNetworkViewMode.Timeline);
+        await session.LoadAsync(CancellationToken.None);
+        Assert.Equal(0, network.PlaceWrites);
+
+        session.SetViewMode(SummaryNetworkViewMode.Spatial);
+
+        await UiWait.UntilAsync(() => network.PlaceWrites > 0);
+        var parents = SummaryNetworkSession.BranchParents(projection);
+        Assert.Equal(projection.Nodes.Count(n => !parents.ContainsKey(n.Id)), network.Places.Count);
+    }
+
+    [Fact]
     public async Task Dots_and_labels_do_not_overlap_in_a_busy_workspace()
     {
         var projection = Sessions(60);

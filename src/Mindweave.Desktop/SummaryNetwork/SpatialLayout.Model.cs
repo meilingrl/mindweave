@@ -478,6 +478,23 @@ public static partial class SpatialLayout
             }
         }
 
+        /// <summary>A short settling run of one exploration as it now lies: titles placed, then overlaps, angles and bonds.</summary>
+        private void Settle(int root)
+        {
+            var (from, to) = (start[root], end[root]);
+            for (var t = 0; t < s.SettleIterations; t++)
+            {
+                if (t % 10 == 0 && t < s.SettleIterations - 10)
+                {
+                    ChooseLabels(from, to, threads: false);
+                }
+
+                Repel(from, to, labels: true);
+                Angles(from, to);
+                Bonds(from, to);
+            }
+        }
+
         /// <summary>The extra room kept between two dots of one exploration beyond their reach; -1 for a bonded pair.</summary>
         private double Gap(int u, int v)
         {

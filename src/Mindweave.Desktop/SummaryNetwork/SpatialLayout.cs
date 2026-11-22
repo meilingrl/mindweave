@@ -289,4 +289,7 @@ public sealed record SpatialLayoutSettings
 
     /// <summary>How much of its gap an exploration back in its saved place must keep before it is moved (design §16).</summary>
     public double KeptGapShare { get; init; } = 0.4;
+
+    /// <summary>Room to grow, in canvas units, that a newly placed exploration keeps beyond its gap (design §16).</summary>
+    public double GrowRoom { get; init; } = 120;
 }

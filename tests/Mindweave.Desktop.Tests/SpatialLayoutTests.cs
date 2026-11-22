@@ -200,6 +200,32 @@ public partial class SpatialLayoutTests
     }
 
     [Fact]
+    public void Growing_one_conversation_at_a_time_never_overlaps_and_leaves_unchanged_explorations_in_place()
+    {
+        // Review 2026-11-23: a turned exploration once put a title on its own new dot. A workspace grows by one conversation
+        // per load; at every step nothing overlaps, and no exploration that did not change moves.
+        var full = Workspace(seed: 2, roots: 40, maxDepth: 5, total: 160).OrderBy(n => n.Order).ToList();
+        SpatialArrangement? previous = null;
+        for (var count = 120; count <= full.Count; count++)
+        {
+            var nodes = full.Take(count).ToList();
+            var arrangement = SpatialLayout.Arrange(nodes, places: previous?.Places);
+            var report = SpatialLayout.Measure(nodes, arrangement);
+            Assert.True(report.DotOverlaps + report.LabelsOnDots + report.LabelOverlaps == 0, $"At {count} conversations: {report}.");
+            if (previous is not null)
+            {
+                foreach (var (root, place) in previous.Places.Where(p => arrangement.Places.TryGetValue(p.Key, out var now) && now.Size == p.Value.Size))
+                {
+                    var now = arrangement.Places[root];
+                    Assert.True(Math.Abs(now.X - place.X) < 0.01 && Math.Abs(now.Y - place.Y) < 0.01, $"At {count} conversations an unchanged exploration moved.");
+                }
+            }
+
+            previous = arrangement;
+        }
+    }
+
+    [Fact]
     public void Same_input_same_output()
     {
         var nodes = Generated[^1];

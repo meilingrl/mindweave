@@ -97,7 +97,8 @@ public static partial class SpatialLayout
 
             // A single dot looks the same at every turn; two or three dots need fewer turns than a big molecule.
             var turns = size[root] == 1 ? 1 : size[root] <= 3 ? Math.Min(4, s.Rotations) : s.Rotations;
-            var shapes = new Shape[turns];
+            // Titles were settled in the unturned shape; a turn whose titles then cover a dot of their own is not offered.
+            var options = new List<Shape>(turns);
             for (var k = 0; k < turns; k++)
             {
                 if (k > 0)
@@ -106,8 +107,13 @@ public static partial class SpatialLayout
                     ChooseLabels(start[root], end[root], threads: false);
                 }
 
-                shapes[k] = Capture(root);
+                if (k == 0 || LabelsClear(start[root], end[root]))
+                {
+                    options.Add(Capture(root));
+                }
             }
+
+            var shapes = options.ToArray();
 
             if (occupied.Length == 0)
             {
@@ -135,13 +141,15 @@ public static partial class SpatialLayout
 
         /// <summary>
         /// Puts explorations back where they were (design session-network §16, option C). Each saved exploration returns to
-        /// its place: its root dot where it was, its oldest branch pointing the same way, its molecule laid out again. Those
-        /// whose size is unchanged go first, so they keep their places; one that changed and now runs into another moves to
-        /// the nearest place where it keeps its gap. New explorations go beside their neighbour in time.
+        /// its place: its root dot where it was, its oldest branch pointing the same way, its molecule laid out again.
+        /// Changed ones go first and redraw in place; an unchanged one they grew into steps aside to the nearest place where
+        /// it keeps part of its gap. New explorations go beside their neighbour in time.
         /// </summary>
         private void PlaceStable()
         {
             SetUpGrid();
+            // Unchanged explorations first, so what the reader has seen stays put; a changed one that no longer keeps part of
+            // its gap where it was steps aside to the nearest place that does (no large shifts of the rest, owner 2026-11-23).
             var known = roots.Where(saved.ContainsKey).OrderBy(r => saved[r].Size == size[r] ? 0 : 1).ThenBy(r => roots.IndexOf(r)).ToList();
             foreach (var root in known)
             {
@@ -158,11 +166,21 @@ public static partial class SpatialLayout
                     Translate(root, place.X - x[root], place.Y - y[root]);
                 }
                 ChooseLabels(start[root], end[root], threads: false);
+                if (!LabelsClear(start[root], end[root]))
+                {
+                    // Turned, a title may now lie on a dot of its own exploration: settle briefly, then back to the place.
+                    Settle(root);
+                    Translate(root, place.X - x[root], place.Y - y[root]);
+                }
+
                 var shape = Capture(root);
 
                 // Back in its place, an exploration may come closer to its neighbours than a new one would (no large
-                // shifts, owner 2026-11-23): only when even the squeezed gap is not kept does it move.
-                shape.GapCells = Math.Max(2, (int)Math.Ceiling(shape.GapCells * s.KeptGapShare));
+                // shifts, owner 2026-11-23): only when even part of its gap is not kept does it step aside.
+                // The kept gap is rounded down for an unchanged exploration, so a coarser grid on a later load does not move it.
+                var unchanged = saved[root].Size == size[root];
+                var kept = BaseGap(root) * s.KeptGapShare / Cell;
+                shape.GapCells = unchanged ? (int)Math.Floor(kept) : Math.Max(1, (int)Math.Ceiling(kept));
                 if (occupied.Length == 0)
                 {
                     StartGrid(shape);
@@ -191,7 +209,14 @@ public static partial class SpatialLayout
         /// <summary>The direction of an exploration's oldest branch from its root: what keeps its turn from one layout to the next.</summary>
         private double Heading(int root) => children[root].Length == 0 ? 0 : Math.Atan2(y[children[root][0]] - y[root], x[children[root][0]] - x[root]);
 
-        private int GapCells(int root) => (int)Math.Ceiling((s.GapTree + (s.GapTreeGrow * Math.Log2(1 + size[root]))) / Cell);
+        /// <summary>The gap an exploration keeps round it, in canvas units, growing with its size.</summary>
+        private double BaseGap(int root) => s.GapTree + (s.GapTreeGrow * Math.Log2(1 + size[root]));
+
+        /// <summary>
+        /// The gap, in cells, an exploration keeps when it is placed anew: its own gap plus room to grow
+        /// (<see cref="SpatialLayoutSettings.GrowRoom"/>), so that later branches usually fit where it is (design §16).
+        /// </summary>
+        private int GapCells(int root) => (int)Math.Ceiling((BaseGap(root) + s.GrowRoom) / Cell);
 
         /// <summary>
         /// The best place for an exploration. Places are its centre's grid cell, in rings outward from its neighbour's root

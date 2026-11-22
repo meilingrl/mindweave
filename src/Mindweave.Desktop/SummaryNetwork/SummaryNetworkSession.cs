@@ -65,9 +65,13 @@ public sealed partial class SummaryNetworkSession : ObservableObject
             return;
         }
 
+        var before = new Dictionary<ConversationId, ExplorationPlace>(_places);
         ComputeSessionPositions(Projection);
         Viewport = null;
         FitAllRequested = false;
+
+        // Explorations first placed in this view (say, after a load in the timeline) keep their place on the next load.
+        _ = SavePlacesAsync(before, CancellationToken.None);
     }
 
     /// <summary>The local calendar day a conversation was created on (the timeline groups roots by it).</summary>
@@ -113,7 +117,7 @@ public sealed partial class SummaryNetworkSession : ObservableObject
             return;
         }
 
-        var changed = _places.Where(p => !saved.TryGetValue(p.Key, out var before) || before != p.Value).ToDictionary(p => p.Key, p => p.Value);
+        var changed = _places.Where(p => !saved.TryGetValue(p.Key, out var before) || !Same(before, p.Value)).ToDictionary(p => p.Key, p => p.Value);
         if (changed.Count == 0)
         {
             return;
@@ -130,6 +134,10 @@ public sealed partial class SummaryNetworkSession : ObservableObject
             DesktopLog.Swallowed(swallowed);
         }
     }
+
+    /// <summary>Two places alike to well under a pixel (turning and moving back leaves rounding behind).</summary>
+    private static bool Same(ExplorationPlace a, ExplorationPlace b) =>
+        a.Size == b.Size && Math.Abs(a.X - b.X) < 1e-6 && Math.Abs(a.Y - b.Y) < 1e-6 && Math.Abs(a.Angle - b.Angle) < 1e-9;
 
     /// <summary>Each branch's parent: only branches are tree parents; the time thread between roots is not.</summary>
     internal static Dictionary<SummaryNodeId, SummaryNodeId> BranchParents(SummaryNetworkProjection projection) =>

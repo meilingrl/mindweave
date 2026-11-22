@@ -230,6 +230,35 @@ public static partial class SpatialLayout
             }
         }
 
+        /// <summary>Whether no title of the range covers a dot of the range (titles placed as they are now).</summary>
+        private bool LabelsClear(int from, int to)
+        {
+            BuildGrids(from, to, labels: false);
+            for (var k = from; k < to; k++)
+            {
+                var u = preorder[k];
+                var (l, t, r, b) = LabelRect(u, side[u]);
+                var mark = NextStamp();
+                dotGrid.Query(l - maxReach, t - maxReach, r + maxReach, b + maxReach, near, seen, mark);
+                foreach (var v in near)
+                {
+                    if (v == u)
+                    {
+                        continue;
+                    }
+
+                    var qx = Math.Clamp(x[v], l, r) - x[v];
+                    var qy = Math.Clamp(y[v], t, b) - y[v];
+                    if ((qx * qx) + (qy * qy) < reach[v] * reach[v])
+                    {
+                        return false;
+                    }
+                }
+            }
+
+            return true;
+        }
+
         /// <summary>
         /// Puts each title where it is clearest, heaviest dots first: away from its own lines (its widest free angle), off
         /// other dots, titles and lines, and, across the workspace, off the time thread.
