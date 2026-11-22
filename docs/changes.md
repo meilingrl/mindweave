@@ -15,7 +15,9 @@ This file starts on 2026-11-22. The entries from 2026-11-16 to 2026-11-22 were m
   - The requirements and architecture state no progress.
   - Prototype screenshots are no longer in git (D-032).
   - STATUS.md is split into this file, the decision log and [workstation.md](design/workstation.md) (D-032).
+  - The source package passes its check again at 2.8 MB (it was 12.8 MB). Two older faults in the check were fixed: since merge 3 a long file list made it report files as missing, and a test named the daily channel.
   - Try: `scripts/test.sh full`. Nothing on screen changed except the four failure messages.
+  - Not verified: the four new messages in a real window.
 - **Bilingual product, merge 3** (no migration; [bilingual-ui.md](design/bilingual-ui.md)).
   - Model prompts, tool descriptions and model-facing phrases are sent in the interface language. Prompts are one file per language under `Prompts/en` and `Prompts/zh`.
   - The Chinese prompts are unchanged and pinned by captured-prompt tests.
