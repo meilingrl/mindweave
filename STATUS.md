@@ -4,13 +4,13 @@ What is true now: work in progress, next steps, what needs you, open decisions, 
 
 ## In progress
 
-- **Session network, step 3.** Rounds 1 and 2 are merged behind `MINDWEAVE_SESSION_NETWORK=1`. The spatial view is being redone as a molecule layout: lines spread to the widest angles, gaps between branches, compactness only a gentle pull. It starts as a prototype in `prototypes/` that you judge from pictures (§15.4 of [session-network.md](docs/design/session-network.md)).
+- Nothing in progress.
 
 ## Next steps
 
 - Next-phase ideas: refine the first drafts in [docs/ideas](docs/ideas/README.md) one by one with you. Nothing in them is agreed.
 - Free trial (evolution D9): adopted, done later, no schedule. The design is [free-trial.md](docs/design/free-trial.md).
-- Session network: after the molecule layout, round 3 (quieter links) and the requirements and architecture proposal in §11 of the design.
+- Session network (behind `MINDWEAVE_SESSION_NETWORK=1`, spatial view now a molecule layout): round 3 (quieter links), the requirements and architecture proposal in §11 of [session-network.md](docs/design/session-network.md), and the reload of every visited workspace (§15.3) before the switch is lifted.
 - Verify in daily use:
   - agent platform phases 2–4;
   - the run loop (L1–L11);
@@ -39,6 +39,7 @@ What is true now: work in progress, next steps, what needs you, open decisions, 
   - the answer output limit;
   - the English prompts.
 - In a real window: the language switch, and English short names on the summary network canvas.
+- The session network's molecule layout: on Windows, and an exploration with hundreds of direct branches in two or more explorations (about 4.5 s for two of 500).
 
 ## Needs you
 
@@ -56,7 +57,7 @@ What is true now: work in progress, next steps, what needs you, open decisions, 
 
 | What | Commit | Date | Result |
 | --- | --- | --- | --- |
-| macOS full run | the design-documents merge | 2026-11-22 | passed: Core 137, Architecture 26, Infrastructure 1011 + 23 skipped, Desktop 4 shards 0 failed |
+| macOS full run | the molecule-layout merge | 2026-11-23 | passed: Core 137, Architecture 26, Infrastructure 1011 + 23 skipped, Desktop 4 shards 0 failed; layout budgets in Release: 1,000 dots in 25–190 ms by shape |
 | CI on `main` (Linux + Windows) | see the latest run on GitHub | | |
 | Windows 11 hardware, full run | daabd5b | 2026-11-21 | passed |
 | Windows 11 hardware, stress and Release start | 08ead83 | 2026-11-16 | passed |

@@ -4,6 +4,16 @@ One entry per merge into `main`, newest first: what changed, how to try it, and 
 
 This file starts on 2026-11-22. The entries from 2026-11-16 to 2026-11-22 were moved here from STATUS.md, grouped by day.
 
+## 2026-11-23
+
+- **Session network: the spatial view is a molecule layout** (behind `MINDWEAVE_SESSION_NETWORK=1`; no migration; [session-network.md](design/session-network.md) §6.1, §15.5).
+  - Each exploration is a molecule. Lines spread round each dot by the size of the branch behind them, so two lines run straight and three sit at 120°. Turns alternate so chains never curl. Each line is long enough for its branch to fit its wedge, so lines do not cross.
+  - Explorations keep gaps. The heaviest sits in the middle; the others follow outward in time order, each beside its neighbour in time.
+  - Titles are whole, wrapped to about nine wide characters a line, and placed in each dot's widest free angle. A root's date sits under its title. Hit areas, "Show all" and recommended nodes follow the placed titles.
+  - `SpatialLayout` replaces `SpatialPacking`. The owner judged the prototype in [prototypes/molecule-layout](../prototypes/molecule-layout/README.md) from pictures first.
+  - Try: `MINDWEAVE_SESSION_NETWORK=1 scripts/daily.sh trial`.
+  - Not verified: Windows; two or more explorations with hundreds of direct branches each are slow (about 4.5 s for two of 500).
+
 ## 2026-11-22
 
 - **Free trial adopted as evolution D9, with no schedule** (documents only; no change on screen; D-034).
