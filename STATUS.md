@@ -9,6 +9,7 @@ What is true now: work in progress, next steps, what needs you, open decisions, 
 ## Next steps
 
 - Next-phase ideas: refine the first drafts in [docs/ideas](docs/ideas/README.md) one by one with you. Nothing in them is agreed.
+- Free trial (evolution D9): adopted, done later, no schedule. The design is [free-trial.md](docs/design/free-trial.md).
 - Session network: after the molecule layout, round 3 (quieter links) and the requirements and architecture proposal in §11 of the design.
 - Verify in daily use:
   - agent platform phases 2–4;

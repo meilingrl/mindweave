@@ -1,6 +1,6 @@
 # Mindweave evolution directions and engineering guidance
 
-Recorded 2026-10-26. The user proposed six later evolution directions; after discussion with Claude they were organized into this document, as engineering guidance for extensions after the first release. D7, asking with multiple quotes, was added on 2026-11-05, and D8, sharing thinking paths (initial vision), on 2026-11-20.
+Recorded 2026-10-26. The user proposed six later evolution directions; after discussion with Claude they were organized into this document, as engineering guidance for extensions after the first release. D7, asking with multiple quotes, was added on 2026-11-05, D8, sharing thinking paths (initial vision), on 2026-11-20, and D9, the free trial, on 2026-11-22.
 
 ## Standing and force
 
@@ -183,6 +183,20 @@ Proposed by the user from 2026-11-19 to 11-20 and added after discussion with Cl
 **Relation to other directions from the same discussion.** The same discussion raised three related directions: the summary network and branches themselves (for example, bringing back one or two key points when returning from a branch, answers citing the user's own existing summaries, showing unresolved questions as the edge of the exploration, a short recap when coming back after a few days); presentation forms (the timeline, and the map, see D6); and the look of the summary network (letting the summary network show how thinking flows, the differences between nodes and their order in time). Sharing connects the three: the summary network and branches decide what is in a path, and the presentation form and look decide whether a reader who was not there can understand it.
 
 **To be decided:** What sharing includes, and how to protect privacy (scenario 4 is especially sensitive); the form of the shared page; when the map is brought in (scenario 2, see D6).
+
+### D9 Free trial
+
+Adopted by the user on 2026-11-22 (D-034). The work comes later; no schedule is set.
+
+**Goal:** A new user installs Mindweave and asks a first question without getting or entering an API key, wherever they are.
+
+**Where it lands in the architecture:** The "built-in experience service" access method of architecture §7.4. It keeps the three rules there: the server key is not in the installer, an exhausted quota does not delete local content, and the app never switches to the user's paid configuration by itself.
+
+**Core approach:** A small relay on the owner's server holds the provider key and forwards Chat Completions to one cheap model. The app enrolls once for an anonymous install token, stored like an API key. To the app the relay is an ordinary service connection, so the protocol adapter does not change. The relay counts use per install and in total and stops at a fixed daily cap; the prepaid provider balance is the hard ceiling.
+
+**How to verify:** First the smallest step: the relay with enroll, forward and the two counters, and a trial connection in the app behind a switch, tried with a small prepaid balance. Then reachability from mainland China and the provider's terms.
+
+**Design:** [free-trial.md](design/free-trial.md). When the work starts, requirements §9.4 and architecture §7.4 are changed after the user decides.
 
 ## 4. How work moves forward
 

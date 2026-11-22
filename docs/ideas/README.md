@@ -14,10 +14,11 @@ Each file starts with its status and the date of its last discussion.
 
 | Draft | About | Status |
 | --- | --- | --- |
-| [Free trial](free-trial.md) | New users can ask their first questions with no setup, through a small relay with a fixed cost cap | First draft, 2026-11-22 |
 | [More platforms](platforms.md) | Linux, Android, iPhone, Web and HarmonyOS on the current code | First draft, 2026-11-22 |
 | [Reply quality](reply-quality.md) | What open-source projects do to make answers and summaries better, and what fits Mindweave | First draft, 2026-11-22 |
 | [More directions](more-directions.md) | Seven further directions, and the technical pieces worth publishing | First draft, 2026-11-22 |
+
+Adopted so far: the [free trial](../design/free-trial.md) (2026-11-22, evolution D9).
 
 ## Where these came from
 

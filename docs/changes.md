@@ -6,6 +6,11 @@ This file starts on 2026-11-22. The entries from 2026-11-16 to 2026-11-22 were m
 
 ## 2026-11-22
 
+- **Free trial adopted as evolution D9, with no schedule** (documents only; no change on screen; D-034).
+  - The draft moved from `docs/ideas/` to [docs/design/free-trial.md](design/free-trial.md), updated from the owner's technical discussion: the request flow, why the installer needs no secret, conservative starting limits, hosting on the owner's Singapore VPS with a C# relay and SQLite counters, server size, provider terms to check, development cost and open decisions with defaults.
+  - [evolution.md](evolution.md) has D9; the design index has a Model access group.
+  - Try: open [docs/design/free-trial.md](design/free-trial.md).
+  - Not verified: nothing is built. Prices, DeepSeek's terms, turning thinking off, and reachability from mainland China are still to check.
 - **Design documents by standing; first drafts of next-phase ideas** (documents only; no change on screen).
   - `docs/ideas/` is new: thinking that is not agreed. It holds four first drafts: a free trial, more platforms, reply quality, and more directions. None is requirements or design.
   - 14 finished-stage designs, executed plans and the stage reports moved from `docs/design/` to [docs/history/design/](history/design/README.md). `docs/design/` keeps 22 current files, and its index is in six groups.
