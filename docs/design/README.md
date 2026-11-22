@@ -1,6 +1,6 @@
 # Detailed design
 
-This directory records the choices that the handoff document lets implementers refine on their own (written on the Claude track before 2026-11-16; see “分支” (Branches) in [AGENTS.md](../../AGENTS.md)). Product behavior follows the [requirements](../requirements.md) and the [architecture](../architecture.md). Where this directory conflicts with them, they win, and the conflict is recorded under “待决定” (Pending decisions) in [STATUS.md](../../STATUS.md).
+This directory records the choices that the handoff document lets implementers refine on their own (written on the Claude track before 2026-11-16; see “分支” (Branches) in [AGENTS.md](../../AGENTS.md)). Product behavior follows the [requirements](../requirements.md) and the [architecture](../architecture.md). Where this directory conflicts with them, they win, and the conflict is recorded under “Open decisions” in [STATUS.md](../../STATUS.md).
 
 | Document | Content |
 | --- | --- |
@@ -24,7 +24,8 @@ This directory records the choices that the handoff document lets implementers r
 | [Third-party tools (agent platform phase 4, MCP)](mcp.md) | This phase's new decisions M1–M18 (accepted by the user 2026-11-19), the MCP client package, server settings and keys, starting and restarting processes, enabling tools and definition snapshots, approval cards, untrusted results, the fake server for tests |
 | [Run loop improvements](agent-loop.md) | A walkthrough of the run loop, the problems found P1–P10, improvements L1–L12 (run prompt, budget line, concurrent read-only calls, retry, leaving room, eviction by citation, material index, local citations, evaluation); implemented and merged 2026-11-20; §8 lists what is left |
 | [Agent platform: open questions](agent-platform-questions.md) | Questions in requirements §10.4 and the architecture §15 draft that the user must decide, each with a recommendation; fixed details for alignment with parallel sessions |
-| [Decision log](decisions.md) | Parameters and library choices that handoff §4 authorizes implementers to decide, one paragraph each |
+| [Decision log](decisions.md) | Parameters and library choices that handoff §4 authorizes implementers to decide, and the owner's decisions, one paragraph each |
+| [Development machines](workstation.md) | The owner's Mac and Windows hardware: data folders, how to reach them, the mailbox, what agents may do |
 | [Resource storage](resources.md) | The internal storage foundation for resources (evolution D5 phase 1): concepts, tables and blobs, with no interface of its own |
 | [Generating indicator](generating-indicator.md) | The three-dot "weaving" motion shown while answers and summaries are generated |
 | [Reasoning and run status](reasoning-and-status.md) | The collapsed “思考过程” (thinking process) section while an answer runs, and the one-line run status at its end |
@@ -40,7 +41,7 @@ Execution plans are kept for traceability once their work has merged; they are n
 | [Interface language: implementation plan](bilingual-ui-plan.md) | Task-by-task plan for the bilingual product, merges 1 to 3 |
 | [Session network round 1 plan](session-network-plan-round1.md) | Task-by-task plan for sessions as dots and the timeline |
 | [Session network round 2 plan](session-network-plan-round2.md) | Task-by-task plan for the readable timeline, session details and circle packing |
-| [Stage reports](stage-reports.md) | How to try each stage, what was verified and what was not; newest first, in Chinese (entries before 2026-11-20 are frozen) |
+| [Stage reports](stage-reports.md) | How to try each stage, what was verified and what was not, up to 2026-11-16; frozen, in Chinese. Later merges are in [docs/changes.md](../changes.md) |
 | [S6 wrap-up](s6-wrapup.md) | Archiving, deletion, export, exit order, fault injection and the course delivery checks (frozen record, in Chinese) |
 | [S6 Windows checklist](s6-windows-checklist.md) | The real-hardware acceptance list for Windows, one row per requirements §11 scenario (frozen record, in Chinese) |
 | [S7 prototype visual language](s7-prototype-visual-language.md) | The visual rules of the approved network prototype, taken value by value from its code (frozen record) |

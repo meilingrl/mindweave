@@ -160,3 +160,25 @@ The user found answer text heavy and not clean enough, and compared fonts, spaci
 - **The bold colour is a setting**: Settings › Appearance › “加粗颜色” (Bold colour), with Brown (the default), Slate, Sage, Plum and “与正文相同” (Same as text). Each colour has a light and a dark value in the theme resources. The choice applies at once, like the theme, and is stored under the preference key `bold-colour`; a missing or unknown value means Brown. No migration.
 
 This does not change the requirements or the first-release scope.
+
+## D-028 Usage goes with deleted content; no special case for one over-long message (you, 2026-11-16)
+
+When a conversation or workspace is deleted, its usage disappears with it. During compression, a single message longer than the window is not handled separately; long text and files go through the long text / file import design (requirements v0.16 §10.4). Local models with a window of about 8k are not supported. Reconsider if small local models become a target.
+
+## D-029 Inline reasoning stays in the answer; the output limit is a setting (you, 2026-11-21)
+
+Reasoning that a model writes inline as `<think>…</think>` stays in the answer and does not move into “思考过程” (thinking process). The answer output limit is a setting under 高级设置 (Advanced settings), with an icon, a short explanation and a tooltip (requirements v0.23 §9.6).
+
+## D-030 The backup taken before a deletion is not cleaned up automatically (you, 2026-11-21)
+
+Health check storage-7. You can delete backups yourself in 设置 › 数据与存储 › 备份 (Settings › Data and storage › Backups), so automatic clean-up is not needed.
+
+## D-031 English prompts are checked in daily use, not with a paid run (you, 2026-11-22)
+
+Bilingual merge 3 sends English prompts when the interface is English. They are tried in daily use instead of a paid evaluation run. Reconsider if daily use shows worse answers in English.
+
+## D-032 Progress, history and screenshots each have one place (you, 2026-11-22)
+
+- `STATUS.md` holds only what is true now. Each merge adds a dated entry to [docs/changes.md](../changes.md). Decisions go into this log, and facts about the machines go into [workstation.md](workstation.md). STATUS.md had grown to about 2,700 words because finished work never left it.
+- Requirements and architecture state no progress (AGENTS.md, "Changing requirements or architecture").
+- Prototype screenshots are not kept in git (`prototypes/*/screenshots/` is ignored). Each prototype can redraw them, and the images earlier rounds were judged on stay in history. They had pushed the source package over its 10 MB limit. History is not rewritten (D-025).
