@@ -42,10 +42,32 @@ internal static class SummaryNetworkGeometry
         if (sessionNetwork)
         {
             var reach = SummaryNetworkLayout.DotFootprintRadius(node.Weight, node.HasSummary);
+            if (node.Placed is { } placed)
+            {
+                // A placed label: the dot and the label's block, drawn at most as large as the layout reserved it.
+                var dot = new Rect(center.X - reach, center.Y - reach, 2 * reach, 2 * reach);
+                return labelVisible ? dot.Union(PlacedBlock(center, node, placed, zoom)) : dot;
+            }
+
             (half, left, right) = (Math.Max(half, reach), Math.Max(left, reach), Math.Max(right, reach));
         }
 
         return new Rect(center.X - left, center.Y - half, left + right, 2 * half);
+    }
+
+    /// <summary>
+    /// A placed label's block on screen: the reserved block scaled to the label size at this zoom, beside the dot as drawn.
+    /// The drawn text, no larger and anchored the same way, lies inside it.
+    /// </summary>
+    internal static Rect PlacedBlock(Point center, NodeView node, SpatialLabel placed, double zoom)
+    {
+        ArgumentNullException.ThrowIfNull(node);
+        ArgumentNullException.ThrowIfNull(placed);
+        var scale = LabelSize(zoom) / SummaryNetworkLayout.LabelEm;
+        var (w, h) = SpatialLayout.BlockSize(placed.Lines, node.Dated);
+        var reach = SummaryNetworkLayout.DotFootprintRadius(node.Weight, node.HasSummary);
+        var (l, t) = SpatialLayout.LabelOffset(placed.Side, reach, w * scale, h * scale);
+        return new Rect(center.X + l, center.Y + t, w * scale, h * scale);
     }
 
     /// <summary>A node's dot radius: by how much was asked in the session network, else larger for an exploration's root.</summary>
@@ -266,10 +288,14 @@ internal static class SummaryNetworkGeometry
         const double top = SummaryNetworkCanvas.CaptionGap + 16;
         const double bottom = SummaryNetworkCanvas.RootRadius + SummaryNetworkCanvas.HoverGrowth + 4;
         // Recommended nodes count too (§10.3.2: 显示全部 shows them), each with its tag and label.
-        var minX = nodes.Select(n => n.X).Concat(recommended.Select(r => r.X)).Min();
-        var maxX = nodes.Select(n => n.X + n.LabelWidth).Concat(recommended.Select(r => r.X + r.LabelWidth)).Max();
-        var minY = nodes.Select(n => n.Y).Concat(recommended.Select(r => r.Y)).Min();
-        var maxY = nodes.Select(n => n.Y).Concat(recommended.Select(r => r.Y)).Max();
+        // A label the spatial layout placed may lie on any side of its dot: its reserved block counts, in canvas units.
+        var blocks = nodes.Select(n => n.Placed is { } p
+            ? SpatialLayout.BlockAround(p, SummaryNetworkLayout.DotFootprintRadius(n.Weight, n.HasSummary), n.Dated)
+            : (Left: 0, Top: 0, Right: n.LabelWidth, Bottom: 0)).ToList();
+        var minX = nodes.Select((n, i) => n.X + blocks[i].Left).Concat(recommended.Select(r => r.X)).Min();
+        var maxX = nodes.Select((n, i) => n.X + blocks[i].Right).Concat(recommended.Select(r => r.X + r.LabelWidth)).Max();
+        var minY = nodes.Select((n, i) => n.Y + blocks[i].Top).Concat(recommended.Select(r => r.Y)).Min();
+        var maxY = nodes.Select((n, i) => n.Y + blocks[i].Bottom).Concat(recommended.Select(r => r.Y)).Max();
         var width = Math.Max(1, maxX - minX);
         var height = Math.Max(1, maxY - minY);
         var zoom = Math.Min(1.5, Viewport.Clamp(Math.Min(

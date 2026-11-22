@@ -191,6 +191,15 @@ public static partial class SpatialLayout
         return units;
     }
 
+    /// <summary>A placed label's reserved block round its dot, as offsets from the dot's centre in canvas units.</summary>
+    public static (double Left, double Top, double Right, double Bottom) BlockAround(SpatialLabel label, double reach, bool dated)
+    {
+        ArgumentNullException.ThrowIfNull(label);
+        var (w, h) = BlockSize(label.Lines, dated);
+        var (l, t) = LabelOffset(label.Side, reach, w, h);
+        return (l, t, l + w, t + h);
+    }
+
     /// <summary>The widest a date line under a label may be ("Nov 16, 2025" at caption size), in canvas units.</summary>
     public const double DateLineWidth = 84;
 

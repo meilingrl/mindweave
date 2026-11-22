@@ -1,6 +1,6 @@
 # Session network and timeline (design)
 
-Status: approved by the owner 2026-11-20 (with the decisions in §12). Rounds 1 and 2 merged into `main` on 2026-11-22 behind the switch `MINDWEAVE_SESSION_NETWORK=1`; the record, the spatial view as built and the next direction are in §15. Written from the owner's brainstorming of 2026-11-19 and 11-20 and a throwaway preview (branch `task/session-network-spike`, commit `bd793e3`). Nothing here changes the requirements or the architecture by itself: §11 lists the text that must change, and that goes to the owner as its own proposal (AGENTS.md, "Changing requirements or architecture").
+Status: approved by the owner 2026-11-20 (with the decisions in §12). Rounds 1 and 2 merged into `main` on 2026-11-22 behind the switch `MINDWEAVE_SESSION_NETWORK=1`; the record is in §15. The spatial view was then redone as a molecule layout (§6.1, §15.5). Written from the owner's brainstorming of 2026-11-19 and 11-20 and a throwaway preview (branch `task/session-network-spike`, commit `bd793e3`). Nothing here changes the requirements or the architecture by itself: §11 lists the text that must change, and that goes to the owner as its own proposal (AGENTS.md, "Changing requirements or architecture").
 
 Related: [evolution D8](../evolution.md) (sharing the thinking path), [S5 summary network](../history/design/s5-network.md) (today's network), [requirements](../requirements.md) §4.2, §7, §10.3; [architecture](../architecture.md) §11.
 
@@ -117,23 +117,20 @@ Positions are computed on every load from the data alone. There is no layout tab
 
 ## 6. Spatial view
 
-### 6.1 Approach: hierarchical, weight-aware circle packing with internal tension
+### 6.1 Approach: a molecule layout
 
-As built in round 2, see §15.2. The owner judged the resulting arrangement unsatisfying (2026-11-22); the next phase replaces it with the layout in §15.4.
+Structure first, compactness second (owner, 2026-11-22, §15.4). The first approach, circle packing, is recorded in §15.2; it gave the smallest area but hid the structure.
 
-This is the owner's proposal, made concrete. The goal: the whole graph sits in as small an enclosing circle as possible, and the circle's centre coincides as closely as possible with the network's mass-weighted centre of gravity. The same rule applies at every level, so every exploration and every sub-branch looks round, full and orderly.
+1. **One exploration is one molecule.** At every dot, its lines spread round it. Each line takes room by the square root of how many dots lie behind it (at most 8), so equal branches sit at equal angles (two lines straight, three at 120°), and a big branch pushes a single dot aside, like a bulky group in a molecule. Children follow their parent in creation order.
+2. **No curling.** Each dot turns its heaviest branch the other way from the turn that led to it, so a chain with side branches zigzags gently instead of curling into a ring.
+3. **No crossings by construction.** A branch's line is at least long enough for the whole branch (its outline, with room for titles) to fit inside its wedge round the parent, as in a radial tree. A busy dot (6 lines or more) gets lines long enough for all its titles to fit round it, and its single-dot leaves alternate between two lengths.
+4. **Groups keep gaps.** Dots that are not bonded keep apart; between two sibling branches the gap grows with the smaller branch.
+5. **Titles last.** A title is whole, wrapped to about nine wide characters a line, and put in one of 16 places round its dot: away from the dot's own lines (its widest free angle), never on another dot, off other titles and lines. A root that starts a new day carries its date under its title (§4.4).
+6. **Settling.** A fixed number of steps (150, then 30 more with titles fixed) of bond angles, bond lengths and the gaps above, branches turning and moving as wholes.
+7. **Packing explorations, close in time close in space.** The heaviest exploration goes in the middle. The others follow outward from it in time order, later and earlier in turn. Each is tried at up to 8 turns and placed as close to its neighbour in time as it fits, keeping a gap (growing with its size) from everything already placed, with a gentle pull to the middle and a cost for a time thread over a drawn molecule. Shapes are compared as drawn, on an 8-pixel grid.
+8. **Determinism.** Inputs sorted by creation order then id, fixed step counts, no randomness.
 
-1. **Footprints (bottom-up).** Every dot gets a footprint circle covering its dot and its label. The label sits radially outward, so the footprint is not just the dot.
-2. **Subtree discs (bottom-up, recursive).** For a conversation `v`, its children's discs are packed around `v`'s footprint, as close to it as possible without overlap. Then `v`'s disc is the smallest circle enclosing the result.
-   - Order around the centre: children go clockwise in `created_at` order from a fixed starting angle. This gives a subtle time cue inside a cluster without drawing a line.
-   - Heaviest-first is not used inside a cluster, because the order must stay stable as children are added.
-   - Use a front-chain packing (as in d3's `packSiblings`, after Wang et al. 2006) with the parent fixed at the centre, or any equivalent the builder chooses.
-3. **Top level.** The root discs are packed into a minimal enclosing circle. Heavier discs settle nearer the centre: pack them in descending mass order. The order is by mass, not time, so the spatial view is not a timeline.
-4. **Centre of gravity.** A few iterations in the spirit of k-means (owner): compute the mass-weighted centroid (mass = `w`), then shift discs so the centroid moves toward the enclosing circle's centre, without overlap and without growing the circle by more than a small tolerance. Repeat until it stops improving. The same is done inside each subtree disc.
-5. **Internal tension.** A short, deterministic, overlap-constrained relaxation in which branch lines are stronger springs and time-thread segments weaker ones. It shortens long lines, especially the thread between consecutive roots, so the thread reads as a flow and not as long jumps across the circle. It must not pull the roots into a line.
-6. **Determinism.** Fixed iteration counts, inputs sorted by `created_at` then id, no randomness.
-
-The builder may replace any step with something that measurably does better on the acceptance checks (§6.4). The owner explicitly invited better ideas.
+The prototype the owner judged is in `prototypes/molecule-layout/`; the app's version is `SpatialLayout`.
 
 ### 6.2 Between arranges
 
@@ -154,15 +151,15 @@ Positions are keyed by conversation, not by summary node:
 - `node_layout` is left untouched. Today's view keeps using it while the new views are behind the gate (§9). It is kept for one release after acceptance, for rollback, and dropped in the release after that (owner, §12).
 - This is a migration of real data, so it is tried on a copy before publishing.
 
-### 6.4 Acceptance checks (automatic, on the E6 data and a copy of the owner's data)
+### 6.4 Guards (automatic, on generated workspaces and a copy of the owner's data)
 
-- No two footprints overlap. Lines may cross dots only where unavoidable, and the count is reported.
-- Enclosing-circle radius stays within a small factor of the ideal, √(sum of footprint areas / π). The factor is reported per run.
-- The distance between the mass-weighted centroid and the circle's centre, as a fraction of the radius, stays below a threshold (start at 0.15).
-- Not a timeline: with 5 or more roots, root x-coordinates sorted by time must not be monotone, and the rank correlation between time and x must stay below a threshold (start at 0.6).
-- Same input, same coordinates.
-- Adding one session moves no saved dot.
-- Layout budgets (new; E6 has none for layout yet): arrange of 1,000 dots within 300 ms, and the timeline for 1,000 dots within 100 ms, on the development Mac in Release. Both are added to the E6 baseline.
+These are things that must not happen, not what the layout aims for: arrangements are judged by the owner from pictures (2026-11-22). The enclosing-circle, centroid and "not a timeline" checks of the first approach are dropped.
+
+- No two dots (summary rings included) overlap. No title covers another dot or another title.
+- No two branch lines cross, and no branch line runs through a dot other than its own two.
+- Same input, same coordinates, whatever the input order.
+- Adding one session moves no saved dot (once positions are saved, §6.3).
+- Layout budgets: arrange of 1,000 dots within 300 ms, and the timeline for 1,000 dots within 100 ms, on the development Mac in Release.
 
 The final judge is the owner, on screenshots and on `scripts/daily.sh trial` (AGENTS.md, "Human in the loop").
 
@@ -285,7 +282,7 @@ Built on `task/session-network` with subagent-driven development (plans: [round 
 
 ### 15.2 The spatial view as built
 
-`SpatialPacking` (pure, deterministic): every dot's footprint is a circle around its dot and title; sub-branches are packed bottom-up as round clusters, children clockwise in creation order, each cluster turned to face its parent; root clusters are packed heaviest first nearest the centre; the centre of gravity is pulled to the circle's centre; branch lines and the time thread act as springs. A workspace with one root is also laid out in wedges (each sub-branch a share of the turn) from several starting angles, and the arrangement that does best on the §6.4 checks is kept. Work budgets and a spiral fallback keep any single tree of up to 2,000 dots within about 0.3 s. Rulings R-P1 to R-P12 shaped these steps.
+`SpatialPacking` (pure, deterministic): every dot's footprint is a circle around its dot and title; sub-branches are packed bottom-up as round clusters, children clockwise in creation order, each cluster turned to face its parent; root clusters are packed heaviest first nearest the centre; the centre of gravity is pulled to the circle's centre; branch lines and the time thread act as springs. A workspace with one root is also laid out in wedges (each sub-branch a share of the turn) from several starting angles, and the arrangement that does best on the §6.4 checks of that time (enclosing circle, centroid, crossings) is kept. Work budgets and a spiral fallback keep any single tree of up to 2,000 dots within about 0.3 s. Rulings R-P1 to R-P12 shaped these steps.
 
 ### 15.3 Not verified, and known issues
 
@@ -306,7 +303,7 @@ The owner's points, as subjective impressions:
 3. Distance between branches is not considered; the minimal enclosing circle crowds everything into one lump.
 4. Lines do not repel each other like chemical bonds. They should spread to the widest angles; instead, paths that could run straight zigzag.
 
-Diagnosis: the algorithm puts smallest area first and structure second; the owner wants structure first and compactness second. The §6.4 metrics did not capture what the owner sees, and choosing arrangements by them optimized the numbers, not the look.
+Diagnosis: the algorithm puts smallest area first and structure second; the owner wants structure first and compactness second. The §6.4 metrics of that time did not capture what the owner sees, and choosing arrangements by them optimized the numbers, not the look.
 
 Next direction, a molecule layout:
 
@@ -317,3 +314,14 @@ Next direction, a molecule layout:
 - Deterministic: the same start and a fixed number of steps, computed once per load. It is not a live simulation, so it does not meet §14's objection to option B ("never holds still").
 
 It is built first as a prototype in `prototypes/`, rendered on copies of the owner's workspaces and larger synthetic ones, and judged by the owner from pictures before it replaces `SpatialPacking`. The §6.4 checks stay as guards (no overlaps, no crossings), not as the objective.
+
+### 15.5 The molecule layout (2026-11-22)
+
+The owner judged the prototype (`prototypes/molecule-layout/`) from pictures of copies of their workspaces and larger made-up ones: "fine as it is", perhaps too regular; a messy time thread is not a big problem, but things close in time should be close in space, which led to the time-ordered packing in §6.1. `SpatialLayout` replaced `SpatialPacking` in the app, behind the same switch.
+
+Two changes from the prototype came from the larger test workspaces: a line is long enough for its branch's outline to fit its wedge, which removed every crossing in balanced trees of up to 1,023 dots; and the packing search walks each ring of places once for all turns, which brought 1,000 dots in 220 explorations from 1.6 s to about 0.23 s.
+
+Verified: the §6.4 guards on 25 generated workspaces (1 to 302 dots, 1 to 40 explorations, balanced trees, a comb, a broom) and on a copy of the owner's four workspaces; 1,000 dots in about 0.23 s (220 explorations) and 0.1 s (one binary tree) in Release; the app's spatial view rendered on that copy.
+
+Not verified: Windows; the feel on screen beyond screenshots; long titles in English wrapping on real data.
+
