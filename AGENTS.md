@@ -46,7 +46,7 @@ Current requirements and architecture are in `docs/`, implementation-level desig
 Progress, history and decisions each have one place:
 
 - `STATUS.md` holds only what is true now: work in progress, next steps, what needs the user, open decisions, and when each platform was last verified. Finished items leave it.
-- [docs/changes.md](docs/changes.md) gets one dated entry per merge into `main`: what changed, how to try it, and what was not verified. Entries are not edited afterwards. The stage reports before 2026-11-16 are frozen in [stage-reports.md](docs/design/stage-reports.md).
+- [docs/changes.md](docs/changes.md) gets one dated entry per merge into `main`: what changed, how to try it, and what was not verified. Entries are not edited afterwards. The stage reports before 2026-11-16 are frozen in [stage-reports.md](docs/history/design/stage-reports.md).
 - Decisions go into [decisions.md](docs/design/decisions.md), and facts about the development machines into [workstation.md](docs/design/workstation.md).
 - Screenshots are not committed; a prototype redraws its own (`prototypes/*/screenshots/` is ignored).
 

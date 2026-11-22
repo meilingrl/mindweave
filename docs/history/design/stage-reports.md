@@ -4,7 +4,7 @@
 
 ## 运行循环的改进 L1–L11 · 2026-11-20 合并
 
-依据 [agent-loop.md](agent-loop.md)（提案你 2026-11-19 通过；实施记录与偏差见其第 8 节）。四步各跑一次全量测试与一次 deepseek-flash 真实评测，比较见 [loop-steps.md](../reviews/run-eval-20261119/loop-steps.md)。无迁移；需求 v0.20（§10.4.5 出处扩展到本地结果），架构 §15.4、§15.5、§15.9、§15.10。你 2026-11-20 决定不再单独审阅文档与出处样式，直接合并，问题在日常使用中发现。
+依据 [agent-loop.md](../../design/agent-loop.md)（提案你 2026-11-19 通过；实施记录与偏差见其第 8 节）。四步各跑一次全量测试与一次 deepseek-flash 真实评测，比较见 [loop-steps.md](../../reviews/run-eval-20261119/loop-steps.md)。无迁移；需求 v0.20（§10.4.5 出处扩展到本地结果），架构 §15.4、§15.5、§15.9、§15.10。你 2026-11-20 决定不再单独审阅文档与出处样式，直接合并，问题在日常使用中发现。
 
 **怎样体验**：`scripts/daily.sh` 发布后，用能调用工具的模型提问；带附件或在追问里引用上一问的网页，看回答下的出处列表（本地来源显示“附件《》／材料《》／总结《》”）。
 
@@ -347,7 +347,7 @@
 
 ## 结构重构 · 2026-11-10 完成
 
-依据你 2026-11-06 的要求：先查 `GenerationCoordinator.cs`，再查其他文件和测试代码是否过长、职责过杂；你同意后开始拆分。审查与计划见 [docs/reviews/claude-auto-structure-20261106](../reviews/claude-auto-structure-20261106/README.md)。
+依据你 2026-11-06 的要求：先查 `GenerationCoordinator.cs`，再查其他文件和测试代码是否过长、职责过杂；你同意后开始拆分。审查与计划见 [docs/reviews/claude-auto-structure-20261106](../../reviews/claude-auto-structure-20261106/README.md)。
 
 **怎样体验**：功能不变。代码上：`src/Mindweave.Application/Conversations/` 下生成协调器只剩调度核心，执行各类请求、保存终态写入、上下文预算各在自己的文件；`src/Mindweave.Desktop/Themes`、`Styles` 与 `UiText.*.cs` 按区域分文件；测试辅助在 `tests/Mindweave.Desktop.Tests/Support/` 与 `tests/Mindweave.Testing/`。
 

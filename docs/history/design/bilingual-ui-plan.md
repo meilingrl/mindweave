@@ -8,7 +8,7 @@
 
 **Tech Stack:** .NET 10, Avalonia 11 (headless tests), xUnit, Microsoft.Extensions.DependencyInjection, SQLite.
 
-**Spec:** [bilingual-ui.md](bilingual-ui.md); requirements §10.5 and architecture §3.5 (v0.24).
+**Spec:** [bilingual-ui.md](../../design/bilingual-ui.md); requirements §10.5 and architecture §3.5 (v0.24).
 
 ## Global Constraints
 

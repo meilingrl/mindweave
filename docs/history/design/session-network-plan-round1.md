@@ -11,7 +11,7 @@
 
 **Tech Stack:** .NET 10, Avalonia 12, CommunityToolkit.Mvvm, SQLite (Microsoft.Data.Sqlite), xUnit v3 with Avalonia.Headless.
 
-**Spec:** [session-network.md](session-network.md) (approved 2026-11-20). Rounds 2 (spatial packing, `conversation_layout`) and 3 (links and suggestions) get their own plans.
+**Spec:** [session-network.md](../../design/session-network.md) (approved 2026-11-20). Rounds 2 (spatial packing, `conversation_layout`) and 3 (links and suggestions) get their own plans.
 
 ## Global Constraints
 

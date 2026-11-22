@@ -1,6 +1,6 @@
 # Changes
 
-One entry per merge into `main`, newest first: what changed, how to try it, and what was not verified. Entries are added when merging and are not edited afterwards, so they stay true. What is in progress now is in [STATUS.md](../STATUS.md); the reasons behind choices are in the [decision log](design/decisions.md). The stages before 2026-11-16 are in the [stage reports](design/stage-reports.md) and [track-claude-auto.md](history/track-claude-auto.md) (both frozen, in Chinese).
+One entry per merge into `main`, newest first: what changed, how to try it, and what was not verified. Entries are added when merging and are not edited afterwards, so they stay true. What is in progress now is in [STATUS.md](../STATUS.md); the reasons behind choices are in the [decision log](design/decisions.md). The stages before 2026-11-16 are in the [stage reports](history/design/stage-reports.md) and [track-claude-auto.md](history/track-claude-auto.md) (both frozen, in Chinese).
 
 This file starts on 2026-11-22. The entries from 2026-11-16 to 2026-11-22 were moved here from STATUS.md, grouped by day.
 
