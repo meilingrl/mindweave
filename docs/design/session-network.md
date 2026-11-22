@@ -329,7 +329,7 @@ Not verified: Windows; the feel on screen beyond screenshots; long titles in Eng
 
 The owner chose to finish the network (D-035). The remaining work: round 3 (§8), the reload fix (§15.3), stable positions, the §11 proposal, and lifting the switch.
 
-1. **Positions (option C).** The spatial view saves each exploration's place and turn, not each dot. The molecule inside an exploration is always laid out again (§6.1). A changed exploration redraws in place; the others keep their place and move only a little when one grows into them. This replaces the per-dot `conversation_layout` of §6.2–§6.3. It is a migration, tried on a copy of the owner's data before it merges.
+1. **Positions (option C).** The spatial view saves each exploration's place and turn, not each dot. The molecule inside an exploration is always laid out again (§6.1). A changed exploration redraws in place; the others keep their place. Only an exploration that has outgrown its place moves, to the nearest free place. This replaces the per-dot `conversation_layout` of §6.2–§6.3. It is a migration, tried on a copy of the owner's data before it merges.
 2. **No summary-only view.** The old summary network view goes when the switch is lifted. Summaries are kept; only that drawing goes.
 3. **"Stable" means no large sudden shifts.** Small local changes are allowed; large movements of what the reader has already seen are avoided. The §11 proposal states this for requirements §7.3 and §7.4.
 4. **Names.** "Conversation" everywhere, as in the glossary; the code's "session" names change with the gate's removal.
