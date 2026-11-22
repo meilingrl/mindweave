@@ -34,6 +34,7 @@ public sealed partial class SummaryNetworkSession : ObservableObject
 
     private readonly SessionNetworkGate _gate;
     private IReadOnlyList<SummaryNodeId> _dayStarts = [];
+    private IReadOnlyDictionary<SummaryNodeId, SpatialLabel> _labels = SpatialArrangement.Empty.Labels;
 
     public SummaryNetworkSession(WorkspaceId workspace, ISummaryNetworkLayout network, SessionNetworkGate gate)
     {
@@ -77,10 +78,23 @@ public sealed partial class SummaryNetworkSession : ObservableObject
         var arrangement = TimelineLayout.Arrange([.. projection.Nodes.Select((n, i) => new TimelineNode(
             n.Id, parents.TryGetValue(n.Id, out var parent) ? parent : null, LocalDay(n.CreatedAt), i))]);
         _dayStarts = arrangement.DayStarts;
-        _positions = IsTimeline
-            ? new Dictionary<SummaryNodeId, NodePosition>(TimelineColumns.Widen(arrangement.Positions, projection.Nodes.ToDictionary(n => n.Id, LabelWidthOf), TimelineColumns.MinColumn))
-            : new Dictionary<SummaryNodeId, NodePosition>(SpatialPacking.Arrange(PackNodes(projection, parents, _dayStarts)));
+        if (IsTimeline)
+        {
+            _positions = new Dictionary<SummaryNodeId, NodePosition>(TimelineColumns.Widen(arrangement.Positions, projection.Nodes.ToDictionary(n => n.Id, LabelWidthOf), TimelineColumns.MinColumn));
+            _labels = SpatialArrangement.Empty.Labels;
+            return;
+        }
+
+        var spatial = SpatialLayout.Arrange(SpatialNodes(projection, parents, _dayStarts));
+        _positions = new Dictionary<SummaryNodeId, NodePosition>(spatial.Positions);
+        _labels = spatial.Labels;
     }
+
+    /// <summary>
+    /// Where each label sits round its dot in the spatial view of the session network, and its wrapped lines, as the
+    /// layout placed them; empty on the timeline and without the gate (labels then go to the right of their dots).
+    /// </summary>
+    public IReadOnlyDictionary<SummaryNodeId, SpatialLabel> SpatialLabels => _gate.Enabled && !IsTimeline ? _labels : SpatialArrangement.Empty.Labels;
 
     /// <summary>Each branch's parent: only branches are tree parents; the time thread between roots is not.</summary>
     internal static Dictionary<SummaryNodeId, SummaryNodeId> BranchParents(SummaryNetworkProjection projection) =>
@@ -90,24 +104,21 @@ public sealed partial class SummaryNetworkSession : ObservableObject
     private static double LabelWidthOf(SummaryNetworkNode node) => SummaryNetworkLayout.LabelWidth(SummaryNetworkLayout.Label(node.ShortTitle, node.Markers.HasCandidate));
 
     /// <summary>
-    /// The sessions as the spatial packing takes them (§6): branches are the parents, the projection's order is creation
-    /// order, the weight is the mass, a dot is as large as drawn (its summary ring included) and a label as wide as the
-    /// canvas reserves (or as its date, for a root that starts a new day); the time thread links each root to the next.
+    /// The sessions as the spatial layout takes them (§6): branches are the parents, the projection's order is creation
+    /// order, the weight is the mass, a dot is as large as drawn (its summary ring included), the label is the one the
+    /// canvas shows, and a root that starts a new day carries its date under the label (spec §4.4).
     /// </summary>
-    internal static List<PackNode> PackNodes(SummaryNetworkProjection projection, IReadOnlyDictionary<SummaryNodeId, SummaryNodeId> parents, IReadOnlyList<SummaryNodeId> dayStarts)
+    internal static List<SpatialNode> SpatialNodes(SummaryNetworkProjection projection, IReadOnlyDictionary<SummaryNodeId, SummaryNodeId> parents, IReadOnlyList<SummaryNodeId> dayStarts)
     {
-        // A root that starts a new day carries a date beside it (spec §4.4): its label box is as wide as the date needs.
-        var today = LocalDay(DateTimeOffset.Now);
         var dated = dayStarts.ToHashSet();
-        var next = projection.Edges.Where(e => e.Kind == SummaryNetworkEdgeKind.TimeThread).ToDictionary(e => e.From, e => e.To);
-        return [.. projection.Nodes.Select((n, i) => new PackNode(
+        return [.. projection.Nodes.Select((n, i) => new SpatialNode(
             n.Id,
             parents.TryGetValue(n.Id, out var parent) ? parent : null,
             i,
             n.Weight,
             SummaryNetworkLayout.DotFootprintRadius(n.Weight, n.HasSummary),
-            dated.Contains(n.Id) ? Math.Max(LabelWidthOf(n), SummaryNetworkLayout.LabelWidth(UiText.DayLabel(LocalDay(n.CreatedAt), today))) : LabelWidthOf(n),
-            next.TryGetValue(n.Id, out var following) ? following : null))];
+            SummaryNetworkLayout.Label(n.ShortTitle, n.Markers.HasCandidate),
+            dated.Contains(n.Id)))];
     }
 
     public WorkspaceId Workspace { get; }

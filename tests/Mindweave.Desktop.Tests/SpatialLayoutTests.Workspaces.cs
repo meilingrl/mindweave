@@ -4,11 +4,11 @@ using Mindweave.Desktop.SummaryNetwork;
 
 namespace Mindweave.Desktop.Tests;
 
-/// <summary>The workspaces the packing tests arrange: generated forests, balanced trees and other lone-tree shapes.</summary>
-public partial class SpatialPackingTests
+/// <summary>The workspaces the spatial layout tests arrange: generated forests, balanced trees and other lone-tree shapes.</summary>
+public partial class SpatialLayoutTests
 {
     /// <summary>A balanced tree: every node down to <paramref name="depth"/> levels has <paramref name="fan"/> children.</summary>
-    private static List<PackNode> Full(int fan, int depth)
+    private static List<SpatialNode> Full(int fan, int depth)
     {
         var parent = new List<int> { -1 };
         var level = new List<int> { 0 };
@@ -21,13 +21,13 @@ public partial class SpatialPackingTests
             }
         }
 
-        var mass = Enumerable.Repeat(2.0, parent.Count).ToArray();
+        var mass = Enumerable.Repeat(2, parent.Count).ToArray();
         for (var i = parent.Count - 1; i > 0; i--)
         {
             mass[parent[i]] += mass[i];
         }
 
-        return [.. Enumerable.Range(0, parent.Count).Select(i => Node(i + 1, parent[i] < 0 ? null : parent[i] + 1, i, mass[i], label: 64 + (16 * (i % 5))))];
+        return [.. Enumerable.Range(0, parent.Count).Select(i => Node(i + 1, parent[i] < 0 ? null : parent[i] + 1, i, mass[i], Title(i, 4 + (i % 5))))];
     }
 
     /// <summary>
@@ -36,7 +36,7 @@ public partial class SpatialPackingTests
     /// roots and branches; a node's mass is its own questions plus all its branches' (the weight w), and its dot
     /// grows with it as on the canvas. With <paramref name="total"/>, trees keep growing until that many nodes exist.
     /// </summary>
-    private static List<PackNode> Workspace(int seed, int roots, int maxDepth, int total = 0)
+    private static List<SpatialNode> Workspace(int seed, int roots, int maxDepth, int total = 0)
     {
         var random = new Random(seed);
         var parent = new List<int>();
@@ -77,8 +77,8 @@ public partial class SpatialPackingTests
         }
 
         var n = parent.Count;
-        var own = Enumerable.Range(0, n).Select(_ => 1.0 + random.Next(12)).ToArray();
-        var mass = (double[])own.Clone();
+        var own = Enumerable.Range(0, n).Select(_ => 1 + random.Next(12)).ToArray();
+        var mass = (int[])own.Clone();
         for (var i = n - 1; i >= 0; i--)
         {
             if (parent[i] >= 0)
@@ -94,17 +94,14 @@ public partial class SpatialPackingTests
             rank[order[k]] = k;
         }
 
-        var rootsInTime = order.Where(i => parent[i] < 0).ToList();
-        var nodes = new List<PackNode>(n);
+        var nodes = new List<SpatialNode>(n);
         for (var i = 0; i < n; i++)
         {
             var chars = 2 + random.Next(11);
-            var label = Enumerable.Range(0, chars).Sum(_ => random.NextDouble() < 0.3 ? SummaryNetworkLayout.AsciiWidth : SummaryNetworkLayout.LabelEm);
+            var label = string.Concat(Enumerable.Range(0, chars).Select(_ => random.NextDouble() < 0.3 ? "a" : "测"));
             var ring = random.NextDouble() < 0.3 ? 4.5 : 0; // the summary ring around the dot
-            var radius = Math.Clamp(5 + (1.3765 * Math.Sqrt(mass[i] - 1)), 5, 14) + ring;
-            var at = rootsInTime.IndexOf(i);
-            var next = at >= 0 && at + 1 < rootsInTime.Count ? Id(rootsInTime[at + 1] + 1) : (SummaryNodeId?)null;
-            nodes.Add(new PackNode(Id(i + 1), parent[i] < 0 ? null : Id(parent[i] + 1), rank[i], mass[i], radius, label, next));
+            var radius = SummaryNetworkLayout.DotRadius(mass[i]) + ring;
+            nodes.Add(new SpatialNode(Id(i + 1), parent[i] < 0 ? null : Id(parent[i] + 1), rank[i], mass[i], radius, label));
         }
 
         return nodes;
@@ -118,27 +115,30 @@ public partial class SpatialPackingTests
         }
     }
 
-    private static PackNode Node(int id, int? parent, int order, double mass, double label, int? next = null) =>
-        new(Id(id), parent is { } p ? Id(p) : null, order, mass, Math.Clamp(5 + (1.3765 * Math.Sqrt(mass - 1)), 5, 14), label, next is { } n ? Id(n) : null);
+    private static SpatialNode Node(int id, int? parent, int order, int mass, string label) =>
+        new(Id(id), parent is { } p ? Id(p) : null, order, mass, SummaryNetworkLayout.DotRadius(mass), label);
+
+    /// <summary>A made-up title of so many wide characters, different per node.</summary>
+    private static string Title(int seed, int chars) => string.Concat(Enumerable.Range(0, chars).Select(k => "数据采集技术演进与层次关系"[(seed + k) % 13]));
 
     /// <summary>
     /// A comb: a chain of <paramref name="spine"/> sessions, each with <paramref name="legs"/> one-question branches
     /// (a long main line with side questions). Created in order down the chain, each node before its legs.
     /// </summary>
-    private static List<PackNode> Comb(int spine, int legs)
+    private static List<SpatialNode> Comb(int spine, int legs)
     {
-        var nodes = new List<PackNode>();
+        var nodes = new List<SpatialNode>();
         var id = 0;
         int? previous = null;
         for (var s = 0; s < spine; s++)
         {
             var me = ++id;
-            var mass = (spine - s) * (1 + legs) * 2.0;
-            nodes.Add(Node(me, previous, me, mass, label: 70));
+            var mass = (spine - s) * (1 + legs) * 2;
+            nodes.Add(Node(me, previous, me, mass, Title(me, 5)));
             for (var l = 0; l < legs; l++)
             {
                 ++id;
-                nodes.Add(Node(id, me, id, 1, label: 50));
+                nodes.Add(Node(id, me, id, 1, Title(id, 3)));
             }
 
             previous = me;
@@ -147,9 +147,8 @@ public partial class SpatialPackingTests
         return nodes;
     }
 
-
     /// <summary>A broom: a root with <paramref name="handles"/> children, each with <paramref name="bristles"/> one-question branches.</summary>
-    private static List<PackNode> Broom(int handles, int bristles)
+    private static List<SpatialNode> Broom(int handles, int bristles)
     {
         var parent = new List<int> { -1 };
         for (var h = 0; h < handles; h++)
@@ -159,13 +158,13 @@ public partial class SpatialPackingTests
             parent.AddRange(Enumerable.Repeat(handle, bristles));
         }
 
-        var mass = Enumerable.Repeat(2.0, parent.Count).ToArray();
+        var mass = Enumerable.Repeat(2, parent.Count).ToArray();
         for (var i = parent.Count - 1; i > 0; i--)
         {
             mass[parent[i]] += mass[i];
         }
 
-        return [.. Enumerable.Range(0, parent.Count).Select(i => Node(i + 1, parent[i] < 0 ? null : parent[i] + 1, i, mass[i], label: 64 + (16 * (i % 5))))];
+        return [.. Enumerable.Range(0, parent.Count).Select(i => Node(i + 1, parent[i] < 0 ? null : parent[i] + 1, i, mass[i], Title(i, 4 + (i % 5))))];
     }
 
     private static SummaryNodeId Id(int n) => new(new Guid(n, 0, 0, new byte[8]));
