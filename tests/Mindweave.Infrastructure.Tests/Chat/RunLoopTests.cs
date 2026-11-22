@@ -1,6 +1,7 @@
 using System.Text.Json;
 using Mindweave.Application.Ai;
 using Mindweave.Application.Conversations;
+using Mindweave.Application.Languages;
 using Mindweave.Application.Models;
 using Mindweave.Application.Storage;
 using Mindweave.Application.Tools;
@@ -481,10 +482,10 @@ public class RunLoopTests
         var answer = await h.WaitForAnswerAsync(sent.Answer!.Value);
 
         Assert.StartsWith("检索“蒸汽机”找到 1 段", h.Client.Requests.Where(FakeChatClient.IsAnswer).Last().Turns[^1].Content, StringComparison.Ordinal);
-        Assert.Contains($"[1] 《{ContentBlocks.PastedTextName}》 resource={resource}", h.Client.Requests.Where(FakeChatClient.IsAnswer).Last().Turns[^1].Content, StringComparison.Ordinal);
+        Assert.Contains($"[1] 《{ModelPhrases.Current.PastedText}》 resource={resource}", h.Client.Requests.Where(FakeChatClient.IsAnswer).Last().Turns[^1].Content, StringComparison.Ordinal);
         var citation = Assert.Single(ContentBlocks.CitationsOf(answer.Blocks));
         Assert.Equal((1, CitationKind.Attachment, null, resource), (citation.Number, citation.Kind, citation.Url, citation.Resource));
-        Assert.Equal($"[1] 附件《{ContentBlocks.PastedTextName}》", citation.Line);
+        Assert.Equal($"[1] 附件《{ModelPhrases.Current.PastedText}》", citation.Line(ModelPhrases.Current));
         var text = (await h.ResourceService.GetAsync(resource, Ct))!.Text!;
         Assert.Contains("瓦特改良了蒸汽机", text[citation.Start..citation.End], StringComparison.Ordinal);
 

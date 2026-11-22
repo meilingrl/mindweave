@@ -76,7 +76,7 @@ internal sealed class ResourceLayer
 {
     private readonly List<Entry> _entries;
 
-    public ResourceLayer(IReadOnlyList<ContextItem> items, IReadOnlyList<ResourceCandidate> candidates)
+    public ResourceLayer(IReadOnlyList<ContextItem> items, IReadOnlyList<ResourceCandidate> candidates, IModelPhrases phrases)
     {
         var order = items.Select((item, index) => (item.Message.Id, index)).GroupBy(x => x.Id).ToDictionary(g => g.Key, g => g.First().index);
         var current = items.Count > 0 ? items[^1].Message.Id : default;
@@ -84,7 +84,7 @@ internal sealed class ResourceLayer
             .Where(c => order.ContainsKey(c.Message))
             .Select((c, i) => (c, i))
             .OrderBy(x => order[x.c.Message]).ThenBy(x => x.i)
-            .Select(x => new Entry(x.c, x.c.Message == current))];
+            .Select(x => new Entry(x.c, x.c.Message == current, phrases))];
     }
 
     public int Count => _entries.Count;
@@ -162,7 +162,7 @@ internal sealed class ResourceLayer
 
     public IReadOnlyList<ResourcePlacement> Placements() => [.. _entries.Select(e => e.Placement())];
 
-    private sealed class Entry(ResourceCandidate candidate, bool current)
+    private sealed class Entry(ResourceCandidate candidate, bool current, IModelPhrases phrases)
     {
         private readonly List<ResourceChunk> _chunks = [];
 
@@ -196,13 +196,13 @@ internal sealed class ResourceLayer
 
                 return Candidate.RankedChunks.Count == 0
                     ? Candidate.WholeTokens
-                    : Math.Min(Candidate.WholeTokens, PartsBase + ResourceMaterial.ChunkTokens(Candidate.RankedChunks[0]));
+                    : Math.Min(Candidate.WholeTokens, PartsBase + ResourceMaterial.ChunkTokens(Candidate.RankedChunks[0], phrases));
             }
         }
 
         private int PartsBase => Candidate.SummaryOrAssumed + ResourceMaterial.PartsOverheadTokens;
 
-        private int OmittedTokens => TokenEstimator.Estimate(ResourceMaterial.ImageOmitted(Candidate.Attachment));
+        private int OmittedTokens => TokenEstimator.Estimate(ResourceMaterial.ImageOmitted(Candidate.Attachment, phrases));
 
         public void ReduceOlder()
         {
@@ -223,7 +223,7 @@ internal sealed class ResourceLayer
             var size = PartsBase;
             foreach (var chunk in Candidate.RankedChunks)
             {
-                var cost = ResourceMaterial.ChunkTokens(chunk);
+                var cost = ResourceMaterial.ChunkTokens(chunk, phrases);
                 if (_chunks.Count > 0 && size + cost > share)
                 {
                     continue;
@@ -248,7 +248,7 @@ internal sealed class ResourceLayer
             var before = Tokens;
             foreach (var chunk in Candidate.RankedChunks.Except(_chunks).ToList())
             {
-                var cost = ResourceMaterial.ChunkTokens(chunk);
+                var cost = ResourceMaterial.ChunkTokens(chunk, phrases);
                 if (Tokens - before + cost <= room)
                 {
                     _chunks.Add(chunk);
@@ -283,7 +283,7 @@ internal sealed class ResourceLayer
         private int TokensOf(ResourceForm form) => form switch
         {
             ResourceForm.Summary => Candidate.SummaryOrAssumed,
-            ResourceForm.Parts => PartsBase + _chunks.Sum(ResourceMaterial.ChunkTokens),
+            ResourceForm.Parts => PartsBase + _chunks.Sum(c => ResourceMaterial.ChunkTokens(c, phrases)),
             ResourceForm.ImageOmitted => OmittedTokens,
             _ => Candidate.WholeTokens,
         };

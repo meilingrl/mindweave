@@ -6,6 +6,7 @@ using System.Text.RegularExpressions;
 using Mindweave.Application.Resources;
 using Mindweave.Application.Tools;
 using Mindweave.Core.Resources;
+using static Mindweave.Application.Languages.Bilingual;
 
 namespace Mindweave.Infrastructure.Tools;
 
@@ -42,7 +43,8 @@ public sealed partial class GuardedPageFetcher : IWebPageFetcher
 
     internal const string AcceptTypes = "text/html,application/xhtml+xml,text/plain;q=0.9,application/pdf;q=0.8,*/*;q=0.1";
 
-    internal const string AcceptLanguages = "zh-CN,zh;q=0.9,en;q=0.8";
+    /// <summary>The languages a page is asked for: the interface language first (docs/design/bilingual-ui.md §5), read per request.</summary>
+    internal static string AcceptLanguages => T("en-US,en;q=0.9,zh-CN;q=0.8", "zh-CN,zh;q=0.9,en;q=0.8");
 
     private static readonly Encoding StrictUtf8 = new UTF8Encoding(encoderShouldEmitUTF8Identifier: false, throwOnInvalidBytes: true);
 
@@ -192,12 +194,12 @@ public sealed partial class GuardedPageFetcher : IWebPageFetcher
         catch (SocketException ex)
         {
             // Through a proxy the proxy resolves the name; a name this computer cannot resolve is not a reason to stop.
-            return viaProxy ? [] : throw new PageFetchException(FetchFailureKind.Network, $"找不到网站 {host}。", ex);
+            return viaProxy ? [] : throw new PageFetchException(FetchFailureKind.Network, NotFound(host), ex);
         }
 
         if (addresses is not { Length: > 0 })
         {
-            return viaProxy ? [] : throw new PageFetchException(FetchFailureKind.Network, $"找不到网站 {host}。");
+            return viaProxy ? [] : throw new PageFetchException(FetchFailureKind.Network, NotFound(host));
         }
 
         // A proxy's fake-IP answer is not where the page is (AddressGuard.IsProxyFakeAddress): with a TUN-mode proxy a direct
@@ -219,7 +221,9 @@ public sealed partial class GuardedPageFetcher : IWebPageFetcher
         }
         catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
         {
-            throw new PageFetchException(FetchFailureKind.Timeout, string.Create(CultureInfo.InvariantCulture, $"{_limits.TotalTime.TotalSeconds:0.#} 秒内没有读完网页。"));
+            throw new PageFetchException(FetchFailureKind.Timeout, T(
+                string.Create(CultureInfo.InvariantCulture, $"The page was not read within {_limits.TotalTime.TotalSeconds:0.#} seconds."),
+                string.Create(CultureInfo.InvariantCulture, $"{_limits.TotalTime.TotalSeconds:0.#} 秒内没有读完网页。")));
         }
         catch (HttpRequestException ex)
         {
@@ -232,11 +236,11 @@ public sealed partial class GuardedPageFetcher : IWebPageFetcher
                 }
             }
 
-            throw new PageFetchException(FetchFailureKind.Network, $"连不上 {AddressGuard.HostOf(url)}：{ex.Message}", ex);
+            throw new PageFetchException(FetchFailureKind.Network, T($"Could not connect to {AddressGuard.HostOf(url)}: {ex.Message}", $"连不上 {AddressGuard.HostOf(url)}：{ex.Message}"), ex);
         }
         catch (IOException ex)
         {
-            throw new PageFetchException(FetchFailureKind.Network, $"读取 {AddressGuard.HostOf(url)} 时连接中断：{ex.Message}", ex);
+            throw new PageFetchException(FetchFailureKind.Network, T($"The connection broke while reading {AddressGuard.HostOf(url)}: {ex.Message}", $"读取 {AddressGuard.HostOf(url)} 时连接中断：{ex.Message}"), ex);
         }
     }
 
@@ -258,7 +262,9 @@ public sealed partial class GuardedPageFetcher : IWebPageFetcher
             {
                 if (redirects >= _limits.MaxRedirects)
                 {
-                    throw new PageFetchException(FetchFailureKind.TooManyRedirects, string.Create(CultureInfo.InvariantCulture, $"网址重定向超过 {_limits.MaxRedirects} 次，没有读取。"));
+                    throw new PageFetchException(FetchFailureKind.TooManyRedirects, T(
+                        string.Create(CultureInfo.InvariantCulture, $"The URL redirected more than {_limits.MaxRedirects} times, so it was not read."),
+                        string.Create(CultureInfo.InvariantCulture, $"网址重定向超过 {_limits.MaxRedirects} 次，没有读取。")));
                 }
 
                 current = location.IsAbsoluteUri ? location : new Uri(current, location);
@@ -267,7 +273,9 @@ public sealed partial class GuardedPageFetcher : IWebPageFetcher
 
             if (status is < 200 or >= 300)
             {
-                throw new PageFetchException(FetchFailureKind.HttpStatus, string.Create(CultureInfo.InvariantCulture, $"网站返回了 {status}。"));
+                throw new PageFetchException(FetchFailureKind.HttpStatus, T(
+                    string.Create(CultureInfo.InvariantCulture, $"The website returned {status}."),
+                    string.Create(CultureInfo.InvariantCulture, $"网站返回了 {status}。")));
             }
 
             return await ReadPageAsync(current, response, cancellationToken).ConfigureAwait(false);
@@ -317,7 +325,7 @@ public sealed partial class GuardedPageFetcher : IWebPageFetcher
 
         if (string.IsNullOrWhiteSpace(text))
         {
-            throw new PageFetchException(FetchFailureKind.NoText, "网页里没有可读的文字（可能需要脚本才能显示）。");
+            throw new PageFetchException(FetchFailureKind.NoText, T("The page has no readable text (it may need scripts to show).", "网页里没有可读的文字（可能需要脚本才能显示）。"));
         }
 
         if (text.Length > _limits.MaxTextCharacters)
@@ -367,10 +375,10 @@ public sealed partial class GuardedPageFetcher : IWebPageFetcher
         return extraction switch
         {
             { Text: { } text } => text,
-            { Failure: ExtractionFailure.Encrypted } => throw new PageFetchException(FetchFailureKind.NoText, "这个 PDF 需要密码，没有读取。"),
-            { Failure: ExtractionFailure.NoText } => throw new PageFetchException(FetchFailureKind.NoText, "这个 PDF 里没有可读的文字（可能是扫描件）。"),
-            null => throw new PageFetchException(FetchFailureKind.UnsupportedType, "无法读取 PDF。"),
-            _ => throw new PageFetchException(FetchFailureKind.NoText, "这个 PDF 无法读取。"),
+            { Failure: ExtractionFailure.Encrypted } => throw new PageFetchException(FetchFailureKind.NoText, T("This PDF needs a password, so it was not read.", "这个 PDF 需要密码，没有读取。")),
+            { Failure: ExtractionFailure.NoText } => throw new PageFetchException(FetchFailureKind.NoText, T("This PDF has no readable text (it may be a scan).", "这个 PDF 里没有可读的文字（可能是扫描件）。")),
+            null => throw new PageFetchException(FetchFailureKind.UnsupportedType, T("PDFs cannot be read.", "无法读取 PDF。")),
+            _ => throw new PageFetchException(FetchFailureKind.NoText, T("This PDF cannot be read.", "这个 PDF 无法读取。")),
         };
     }
 
@@ -405,11 +413,17 @@ public sealed partial class GuardedPageFetcher : IWebPageFetcher
     }
 
     private PageFetchException TooLarge() =>
-        new(FetchFailureKind.TooLarge, string.Create(CultureInfo.InvariantCulture, $"网页超过 {_limits.MaxBytes / (1024.0 * 1024):0.#} MB，没有读取。"));
+        new(FetchFailureKind.TooLarge, T(
+            string.Create(CultureInfo.InvariantCulture, $"The page is larger than {_limits.MaxBytes / (1024.0 * 1024):0.#} MB, so it was not read."),
+            string.Create(CultureInfo.InvariantCulture, $"网页超过 {_limits.MaxBytes / (1024.0 * 1024):0.#} MB，没有读取。")));
 
     private static PageFetchException Unsupported(string? mediaType) => new(
         FetchFailureKind.UnsupportedType,
-        mediaType is null ? "这个网址不是网页、文字或 PDF，没有读取。" : $"这个网址是 {mediaType}，不是网页、文字或 PDF，没有读取。");
+        mediaType is null
+            ? T("This URL is not a web page, text or a PDF, so it was not read.", "这个网址不是网页、文字或 PDF，没有读取。")
+            : T($"This URL is {mediaType}, not a web page, text or a PDF, so it was not read.", $"这个网址是 {mediaType}，不是网页、文字或 PDF，没有读取。"));
+
+    private static string NotFound(string host) => T($"Could not find the website {host}.", $"找不到网站 {host}。");
 
     /// <summary>
     /// The text of the body: a byte order mark first, then the declared charset, then (HTML) a <c>meta</c> charset in the

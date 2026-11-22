@@ -1,3 +1,5 @@
+using Mindweave.Application.Languages;
+
 namespace Mindweave.Application.Tools;
 
 /// <summary>One search result: its title, its address and the service's short excerpt of it.</summary>
@@ -31,30 +33,50 @@ public enum SearchFailureKind
     Network,
 }
 
-/// <summary>A search failed; <see cref="Exception.Message"/> says why in words for step details and the model. Never contains the key.</summary>
+/// <summary>
+/// A search failed; <see cref="Exception.Message"/> says why in words for step details and the model, in the language of
+/// the moment it is read (a key test's result is shown later, possibly after a language switch). Never contains the key.
+/// </summary>
 public sealed class SearchProviderException : Exception
 {
     public SearchProviderException()
     {
+        Text = new BilingualText(base.Message, base.Message);
     }
 
     public SearchProviderException(string message)
         : base(message)
     {
+        Text = new BilingualText(message, message);
     }
 
     public SearchProviderException(string message, Exception innerException)
         : base(message, innerException)
     {
+        Text = new BilingualText(message, message);
     }
 
     public SearchProviderException(SearchFailureKind kind, string message, Exception? innerException = null)
         : base(message, innerException)
     {
         Kind = kind;
+        Text = new BilingualText(message, message);
+    }
+
+    public SearchProviderException(SearchFailureKind kind, BilingualText text, Exception? innerException = null)
+        : base(text?.Chinese, innerException)
+    {
+        ArgumentNullException.ThrowIfNull(text);
+        Kind = kind;
+        Text = text;
     }
 
     public SearchFailureKind Kind { get; } = SearchFailureKind.ServiceError;
+
+    /// <summary>Why, in both languages.</summary>
+    public BilingualText Text { get; }
+
+    public override string Message => Text.ToString();
 }
 
 /// <summary>

@@ -3,6 +3,7 @@ using System.ComponentModel;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Mindweave.Application.Conversations;
+using Mindweave.Application.Languages;
 using Mindweave.Application.Reading;
 using Mindweave.Application.Storage;
 using Mindweave.Application.Summaries;
@@ -525,7 +526,7 @@ public sealed partial class ConversationViewModel : PageViewModel, IDisposable, 
 
         _source = lineage.Count > 0 ? lineage[^1].Source : null;
         SourceQuote = _source?.Quote;
-        DisplayTitle = UiText.ConversationTitle(content.Conversation, content.Messages.FirstOrDefault(m => m.Role == MessageRole.User)?.Text, _source?.Quote);
+        DisplayTitle = UiText.ConversationTitle(content.Conversation, content.Messages.FirstOrDefault(m => m.Role == MessageRole.User) is { } first ? ContentBlocks.BriefOf(first.Blocks, ModelPhrases.Current) : null, _source?.Quote);
         Lineage.Clear();
         foreach (var ancestor in lineage.Take(Math.Max(0, lineage.Count - 1)))
         {

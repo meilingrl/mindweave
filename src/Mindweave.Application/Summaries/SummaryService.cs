@@ -1,7 +1,9 @@
 using Microsoft.Extensions.Logging;
 using Mindweave.Application.Ai;
 using Mindweave.Application.Conversations;
+using Mindweave.Application.Languages;
 using Mindweave.Application.Models;
+using Mindweave.Application.Prompts;
 using Mindweave.Application.Storage;
 using Mindweave.Core.Branches;
 using Mindweave.Core.Context;
@@ -9,6 +11,7 @@ using Mindweave.Core.Conversations;
 using Mindweave.Core.Models;
 using Mindweave.Core.Summaries;
 using Mindweave.Core.Workspaces;
+using static Mindweave.Application.Languages.Bilingual;
 
 namespace Mindweave.Application.Summaries;
 
@@ -57,13 +60,8 @@ public sealed class SummaryService : ISummaries
 
     private const int SourceExcerpt = 3_000;
 
-    private const string Instructions = """
-        你为用户整理一次探索对话的知识总结。只依据对话内容，不补充对话里没有的事实。
-        保留：问题背景、主要解释、仍未解决的问题，以及原回答中的不确定之处（照实标明，不要改成确定的说法）。用户在对话中纠正过的内容，以纠正后的为准。
-        输出格式：第一行写“标题：”加一个标题（不超过 20 个字，表达知识点或话题，而不是复述提问）；第二行写“短名：”加一个 2 到 8 个字的短名，用作知识网络中节点的名字，只保留最核心的知识点；空一行后用 Markdown 写正文，可以用小标题和列表。使用对话所用的语言。
-        """;
-
-    private const string Request = "请按要求总结以上对话。";
+    /// <summary>The last "question" of a summary request; never stored.</summary>
+    private static string Request => T("Summarize the conversation above as instructed.", "请按要求总结以上对话。");
 
     private readonly ISummaryStore _summaries;
     private readonly IConversationStore _conversations;
@@ -171,7 +169,7 @@ public sealed class SummaryService : ISummaries
         var model = active with { MaxOutputTokens = SummaryOutputTokens };
         var toSeq = messages.Where(m => m.IsFinished).Max(m => m.Seq);
         var covered = messages.Where(m => m.Seq <= toSeq).ToList();
-        var system = new List<ChatTurn> { new(ChatRole.System, Instructions) };
+        var system = new List<ChatTurn> { new(ChatRole.System, PromptLibrary.Get("summary")) };
         if (await BackgroundAsync(conversation, cancellationToken).ConfigureAwait(false) is { } background)
         {
             system.Add(new ChatTurn(ChatRole.System, background));
@@ -419,14 +417,7 @@ public sealed class SummaryService : ISummaries
         var parent = await _conversations.GetMessagesAsync(source.Parent, cancellationToken).ConfigureAwait(false);
         var answer = parent.FirstOrDefault(m => m.Id == source.SourceMessage)?.Text ?? string.Empty;
         var excerpt = answer.Length > SourceExcerpt ? answer[..SourceExcerpt] + "…" : answer;
-        return $"""
-            本会话是从另一段回答中分支出来的。以下内容只用于理解背景，不要总结它们。
-            用户引用的段落：
-            {source.Quote}
-
-            来源回答（节选）：
-            {excerpt}
-            """;
+        return PromptLibrary.Get("summary-branch-background", ("quote", source.Quote), ("excerpt", excerpt));
     }
 
     private readonly IResourceStore? _resources;
@@ -447,12 +438,13 @@ public sealed class SummaryService : ISummaries
         }
 
         var summaries = await _resources.GetDerivativesAsync(attached, Core.Resources.DerivativeKind.Summary, Conversations.ResourceContext.SummaryPromptVersion, cancellationToken).ConfigureAwait(false);
+        var phrases = ModelPhrases.Current;
         return [.. own.Select(m => m with
         {
             Blocks = [.. m.Blocks.Select(b => b is AttachmentBlock { Text: { } text } a
                 ? new TextBlock(summaries.TryGetValue(a.Resource, out var summary)
-                    ? $"{ContentBlocks.BriefOf(a)}（摘要）\n{summary.Derivative.Text}"
-                    : $"{ContentBlocks.BriefOf(a)}（开头）\n{(text.Length > AttachmentExcerpt ? text[..AttachmentExcerpt] + "…" : text)}")
+                    ? ContentBlocks.BriefOf(a, phrases) + T(" (digest)\n", "（摘要）\n") + summary.Derivative.Text
+                    : ContentBlocks.BriefOf(a, phrases) + T(" (beginning)\n", "（开头）\n") + (text.Length > AttachmentExcerpt ? text[..AttachmentExcerpt] + "…" : text))
                 : b)],
         })];
     }
@@ -462,8 +454,9 @@ public sealed class SummaryService : ISummaries
         own = await WithAttachmentNotesAsync(own, cancellationToken).ConfigureAwait(false);
         // Only this conversation is summarized; its branch background travels as a separate note, not as turns.
         var stored = _contextSummaries is null ? [] : await _contextSummaries.ListAsync([conversation], cancellationToken).ConfigureAwait(false);
-        var known = stored.ToDictionary(s => s.Key, s => ContextPlanner.SummaryTokens(s.Key, s.Text));
-        return ContextPlanner.Plan([], new ContextSegment(conversation, null, own), budget, key => known.TryGetValue(key, out var tokens) ? tokens : null);
+        var phrases = ModelPhrases.Current;
+        var known = stored.ToDictionary(s => s.Key, s => ContextPlanner.SummaryTokens(s.Key, s.Text, phrases));
+        return ContextPlanner.Plan([], new ContextSegment(conversation, null, own), budget, key => known.TryGetValue(key, out var tokens) ? tokens : null, phrases);
     }
 
     private async Task NotifyAsync(SummaryNodeId node, Func<Task> operation, CancellationToken cancellationToken)

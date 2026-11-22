@@ -5,6 +5,7 @@ using System.Text;
 using System.Text.Json;
 using System.Text.Json.Nodes;
 using Mindweave.Application.Diagnostics;
+using Mindweave.Application.Languages;
 using Mindweave.Application.Tools;
 
 namespace Mindweave.Infrastructure.Tools;
@@ -54,12 +55,14 @@ public sealed class TavilySearchProvider : ISearchProvider
     {
         if (string.IsNullOrWhiteSpace(apiKey))
         {
-            throw new SearchProviderException(SearchFailureKind.MissingKey, "还没有设置搜索服务的密钥，可在设置 › 工具 › 网络搜索中设置。");
+            throw new SearchProviderException(SearchFailureKind.MissingKey, new BilingualText(
+                "The search service's key is not set yet. Set it in Settings › Tools › Web search.",
+                "还没有设置搜索服务的密钥，可在设置 › 工具 › 网络搜索中设置。"));
         }
 
         if (string.IsNullOrWhiteSpace(query))
         {
-            throw new SearchProviderException(SearchFailureKind.BadQuery, "检索词是空的。");
+            throw new SearchProviderException(SearchFailureKind.BadQuery, new BilingualText("The search terms are empty.", "检索词是空的。"));
         }
 
         try
@@ -68,7 +71,8 @@ public sealed class TavilySearchProvider : ISearchProvider
         }
         catch (SearchProviderException ex)
         {
-            throw new SearchProviderException(ex.Kind, Redaction.Scrub(ex.Message, apiKey), ex.InnerException);
+            throw new SearchProviderException(
+                ex.Kind, new BilingualText(Redaction.Scrub(ex.Text.English, apiKey), Redaction.Scrub(ex.Text.Chinese, apiKey)), ex.InnerException);
         }
     }
 
@@ -103,30 +107,45 @@ public sealed class TavilySearchProvider : ISearchProvider
         }
         catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
         {
-            throw new SearchProviderException(SearchFailureKind.Timeout, string.Create(CultureInfo.InvariantCulture, $"搜索服务 {_timeout.TotalSeconds:0} 秒内没有回应，请稍后再试。"));
+            throw new SearchProviderException(SearchFailureKind.Timeout, new BilingualText(
+                string.Create(CultureInfo.InvariantCulture, $"The search service did not answer within {_timeout.TotalSeconds:0} seconds. Try again later."),
+                string.Create(CultureInfo.InvariantCulture, $"搜索服务 {_timeout.TotalSeconds:0} 秒内没有回应，请稍后再试。")));
         }
         catch (HttpRequestException ex)
         {
-            throw new SearchProviderException(SearchFailureKind.Network, $"连不上搜索服务（{Endpoint.Host}）：{Short(Redaction.Scrub(ex.Message, apiKey))}", ex);
+            var reason = Short(Redaction.Scrub(ex.Message, apiKey));
+            throw new SearchProviderException(
+                SearchFailureKind.Network,
+                new BilingualText($"Could not connect to the search service ({Endpoint.Host}): {reason}", $"连不上搜索服务（{Endpoint.Host}）：{reason}"),
+                ex);
         }
         catch (JsonException ex)
         {
-            throw new SearchProviderException(SearchFailureKind.ServiceError, "搜索服务的回答无法读取。", ex);
+            throw new SearchProviderException(SearchFailureKind.ServiceError, Unreadable, ex);
         }
     }
+
+    private static BilingualText Unreadable => new("The search service's answer could not be read.", "搜索服务的回答无法读取。");
 
     private static SearchProviderException Failure(int status, string? detail)
     {
         var (kind, message) = status switch
         {
-            401 or 403 => (SearchFailureKind.KeyRejected, "搜索服务拒绝了密钥，请在设置 › 工具 › 网络搜索中检查。"),
-            429 => (SearchFailureKind.RateLimited, "搜索过于频繁，请稍后再试。"),
-            432 or 433 => (SearchFailureKind.QuotaExhausted, "搜索服务的额度已用完。"),
-            400 or 422 => (SearchFailureKind.BadQuery, "搜索服务没有接受这个检索词。"),
-            >= 500 => (SearchFailureKind.ServiceError, string.Create(CultureInfo.InvariantCulture, $"搜索服务出错了（HTTP {status}），请稍后再试。")),
-            _ => (SearchFailureKind.ServiceError, string.Create(CultureInfo.InvariantCulture, $"搜索服务返回了 HTTP {status}。")),
+            401 or 403 => (SearchFailureKind.KeyRejected, new BilingualText(
+                "The search service refused the key. Check it in Settings › Tools › Web search.", "搜索服务拒绝了密钥，请在设置 › 工具 › 网络搜索中检查。")),
+            429 => (SearchFailureKind.RateLimited, new BilingualText("Too many searches. Try again later.", "搜索过于频繁，请稍后再试。")),
+            432 or 433 => (SearchFailureKind.QuotaExhausted, new BilingualText("The search service's credits are used up.", "搜索服务的额度已用完。")),
+            400 or 422 => (SearchFailureKind.BadQuery, new BilingualText("The search service did not accept these search terms.", "搜索服务没有接受这个检索词。")),
+            >= 500 => (SearchFailureKind.ServiceError, new BilingualText(
+                string.Create(CultureInfo.InvariantCulture, $"The search service failed (HTTP {status}). Try again later."),
+                string.Create(CultureInfo.InvariantCulture, $"搜索服务出错了（HTTP {status}），请稍后再试。"))),
+            _ => (SearchFailureKind.ServiceError, new BilingualText(
+                string.Create(CultureInfo.InvariantCulture, $"The search service returned HTTP {status}."),
+                string.Create(CultureInfo.InvariantCulture, $"搜索服务返回了 HTTP {status}。"))),
         };
-        return new SearchProviderException(kind, detail is { Length: > 0 } ? $"{message}（服务说明：{detail}）" : message);
+        return new SearchProviderException(kind, detail is { Length: > 0 }
+            ? new BilingualText($"{message.English} (The service says: {detail})", $"{message.Chinese}（服务说明：{detail}）")
+            : message);
     }
 
     /// <summary>The service's own short explanation (<c>detail.error</c>, <c>detail</c> or <c>error</c>), scrubbed, then cut.</summary>
@@ -162,7 +181,7 @@ public sealed class TavilySearchProvider : ISearchProvider
     {
         if (JsonNode.Parse(body) is not JsonObject root || root["results"] is not JsonArray results)
         {
-            throw new SearchProviderException(SearchFailureKind.ServiceError, "搜索服务的回答无法读取。");
+            throw new SearchProviderException(SearchFailureKind.ServiceError, Unreadable);
         }
 
         var hits = new List<SearchHit>();

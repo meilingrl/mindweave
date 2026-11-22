@@ -2,11 +2,14 @@ using System.Text;
 using Microsoft.Extensions.Logging;
 using Mindweave.Application.Ai;
 using Mindweave.Application.Diagnostics;
+using Mindweave.Application.Languages;
+using Mindweave.Application.Prompts;
 using Mindweave.Application.Storage;
 using Mindweave.Core.Branches;
 using Mindweave.Core.Context;
 using Mindweave.Core.Conversations;
 using Mindweave.Core.Models;
+using static Mindweave.Application.Languages.Bilingual;
 
 namespace Mindweave.Application.Conversations;
 
@@ -46,23 +49,13 @@ public sealed partial class ContextCompressor(IContextSummaryStore summaries, IC
     /// </summary>
     public const int SummaryOutputTokens = 16_384;
 
-    /// <summary>The least output a chunk summary asks for, however full the window already is (600 characters of summary and some reasoning).</summary>
+    /// <summary>The least output a chunk summary asks for, however full the window already is (600 characters or 400 words of summary, and some reasoning).</summary>
     public const int MinimumSummaryOutputTokens = 2_048;
 
     /// <summary>A summary that comes back cut off or empty is requested again once, within the same answer task.</summary>
     public const int SummaryAttempts = 2;
 
-    private const string FilteredProblem = "被服务的内容审核中止";
-
-    private const string Instructions = """
-        你在为一段较长的对话写背景摘要，供之后继续这段对话时使用。这不是给读者看的总结。
-        请用对话所用的语言，按下面四部分写，每部分几条要点，总共不超过 600 字：
-        1. 背景与已确认的事实（含具体名称、数字、年代）；
-        2. 用户提出的要求、偏好、规定与纠正——每条要求或禁止都连同它针对的对象和条件写在同一条里（如“甲不得……，乙可以……”），不要省掉否定，也不要推广到别的对象；有纠正时只写纠正后的内容，并注明“已更正”；
-        3. 尚未解决的问题与尚未做出的决定；
-        4. 指代：对话里“它”“这个”“那台车”等说法分别指什么。
-        只写对话中出现过的内容，不要补充、推测或评价。
-        """;
+    private static string FilteredProblem => T("stopped by the service's content moderation", "被服务的内容审核中止");
 
     public static PreparedContext Unsummarized(ContextPlan plan)
     {
@@ -102,10 +95,11 @@ public sealed partial class ContextCompressor(IContextSummaryStore summaries, IC
             used[chunk.Key] = summary;
         }
 
+        var phrases = ModelPhrases.Current;
         var turns = plan.Parts.Select(part => part switch
         {
             RawPart raw => Turn(raw.Item, materials),
-            SummaryPart s => new ChatTurn(ChatRole.System, WithMaterials(ContextPlanner.SummaryMessage(s.Chunk.Key, used[s.Chunk.Key].Text), s.Chunk.Items, materials)),
+            SummaryPart s => new ChatTurn(ChatRole.System, WithMaterials(ContextPlanner.SummaryMessage(s.Chunk.Key, used[s.Chunk.Key].Text, phrases), s.Chunk.Items, materials)),
             _ => throw new InvalidOperationException("Unknown context part."),
         }).ToArray();
 
@@ -114,7 +108,9 @@ public sealed partial class ContextCompressor(IContextSummaryStore summaries, IC
         var estimate = ChatTurns.Estimate(turns);
         if (!budget.Fits(estimate))
         {
-            throw new ContextCompressionException($"压缩后的上下文约 {budget.Predict(estimate)} token，仍超出模型可用容量。");
+            throw new ContextCompressionException(T(
+                $"After compression the context is about {budget.Predict(estimate)} tokens, still more than the model can take.",
+                $"压缩后的上下文约 {budget.Predict(estimate)} token，仍超出模型可用容量。"));
         }
 
         return new PreparedContext(turns, [.. used.Values.Select(s => s.Id).Distinct()]);
@@ -124,7 +120,7 @@ public sealed partial class ContextCompressor(IContextSummaryStore summaries, IC
     internal async Task<Func<SummaryKey, int?>> KnownSummaryTokensAsync(IReadOnlyList<ConversationId> conversations)
     {
         var stored = await summaries.ListAsync(conversations, CancellationToken.None).ConfigureAwait(false);
-        var known = stored.ToDictionary(s => s.Key, s => ContextPlanner.SummaryTokens(s.Key, s.Text));
+        var known = stored.ToDictionary(s => s.Key, s => ContextPlanner.SummaryTokens(s.Key, s.Text, ModelPhrases.Current));
         return key => known.TryGetValue(key, out var tokens) ? tokens : null;
     }
 
@@ -167,10 +163,10 @@ public sealed partial class ContextCompressor(IContextSummaryStore summaries, IC
         var transcript = new StringBuilder();
         foreach (var item in chunk.Items)
         {
-            transcript.Append(item.Message.Role == MessageRole.User ? "用户：" : "助手：").Append(item.Text).Append("\n\n");
+            transcript.Append(item.Message.Role == MessageRole.User ? T("User: ", "用户：") : T("Assistant: ", "助手：")).Append(item.Text).Append("\n\n");
         }
 
-        var turns = new[] { new ChatTurn(ChatRole.System, Instructions), new ChatTurn(ChatRole.User, transcript.ToString()) };
+        var turns = new[] { new ChatTurn(ChatRole.System, PromptLibrary.Get("compression")), new ChatTurn(ChatRole.User, transcript.ToString()) };
         var request = new ChatRequest(task.Model with { MaxOutputTokens = SummaryOutputCap(task.Model, TokenEstimator.Request(turns.Select(t => t.Content))) }, turns);
 
         // A summary is used only when the service says it finished normally: a cut-off summary would silently stand in
@@ -194,8 +190,10 @@ public sealed partial class ContextCompressor(IContextSummaryStore summaries, IC
         }
 
         throw new ContextCompressionException(problem == FilteredProblem
-            ? $"压缩较早的对话时服务没有返回完整摘要（{problem}）。"
-            : $"压缩较早的对话时服务没有返回完整摘要（{problem}），已尝试 {SummaryAttempts} 次。");
+            ? T($"While compressing the earlier conversation, the service did not return a complete summary ({problem}).", $"压缩较早的对话时服务没有返回完整摘要（{problem}）。")
+            : T(
+                $"While compressing the earlier conversation, the service did not return a complete summary ({problem}), after {Plural(SummaryAttempts, "attempt", "attempts")}.",
+                $"压缩较早的对话时服务没有返回完整摘要（{problem}），已尝试 {SummaryAttempts} 次。"));
     }
 
     /// <summary>
@@ -241,14 +239,14 @@ public sealed partial class ContextCompressor(IContextSummaryStore summaries, IC
         {
             trace.Fail(ex);
             await record(trace.Finish(stopped: false, ex.Kind, ex.Message)).ConfigureAwait(false);
-            throw new ContextCompressionException($"压缩较早的对话时请求失败：{ex.Message}", ex);
+            throw new ContextCompressionException(T($"While compressing the earlier conversation, the request failed: {ex.Message}", $"压缩较早的对话时请求失败：{ex.Message}"), ex);
         }
 
         var summary = ConversationRules.WithoutInlineReasoning(text.ToString());
-        var problem = completed is null ? "回答流未正常结束"
+        var problem = completed is null ? T("the answer stream did not end normally", "回答流未正常结束")
             : completed.Filtered ? FilteredProblem
-            : completed.Truncated ? "达到输出上限被截断"
-            : summary.Length == 0 ? "内容为空"
+            : completed.Truncated ? T("cut off at the output limit", "达到输出上限被截断")
+            : summary.Length == 0 ? T("it was empty", "内容为空")
             : null;
         await record(trace.Finish(stopped: false, problem is null ? null : GenerationErrorKind.InvalidResponse, problem is null ? null : $"Summary unusable: {problem}."))
             .ConfigureAwait(false);

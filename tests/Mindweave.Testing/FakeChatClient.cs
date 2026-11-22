@@ -44,7 +44,7 @@ public sealed class FakeChatClient : IChatClient
     public RequestScript ResourceSummaries { get; }
 
     /// <summary>A summary of an attachment, or the merge of its segments' summaries.</summary>
-    public static bool IsResourceSummary(ChatRequest request) => SystemSays(request, "材料写摘要") || SystemSays(request, "合成一份完整的摘要");
+    public static bool IsResourceSummary(ChatRequest request) => SystemSays(request, "材料写摘要", "digest of a piece of material") || SystemSays(request, "合成一份完整的摘要", "Combine them into one complete digest");
 
     /// <summary>Knowledge summaries of a conversation (S4); the default is <see cref="KnowledgeOf"/>.</summary>
     public RequestScript Knowledge { get; }
@@ -114,29 +114,29 @@ public sealed class FakeChatClient : IChatClient
     private static readonly System.Text.Json.JsonSerializerOptions PairJson = new() { Encoder = System.Text.Encodings.Web.JavaScriptEncoder.UnsafeRelaxedJsonEscaping };
 
     /// <summary>A request for link suggestions.</summary>
-    public static bool IsLinkSuggestion(ChatRequest request) => SystemSays(request, "可能相关的总结对");
+    public static bool IsLinkSuggestion(ChatRequest request) => SystemSays(request, "可能相关的总结对", "pairs of summaries that may be related");
 
     /// <summary>A request for recommended nodes (its prompt requires a basis for each).</summary>
-    public static bool IsNodeRecommendation(ChatRequest request) => IsRecommendation(request) && SystemSays(request, "必须延伸自");
+    public static bool IsNodeRecommendation(ChatRequest request) => IsRecommendation(request) && SystemSays(request, "必须延伸自", "must extend one of the summaries");
 
     /// <summary>A request for recommended questions or nodes.</summary>
-    public static bool IsRecommendation(ChatRequest request) => SystemSays(request, "值得接着探索的新问题");
+    public static bool IsRecommendation(ChatRequest request) => SystemSays(request, "值得接着探索的新问题", "new questions worth exploring next");
 
     /// <summary>A request for a workspace's suggested names.</summary>
-    public static bool IsWorkspaceNaming(ChatRequest request) => SystemSays(request, "为这个工作区起");
+    public static bool IsWorkspaceNaming(ChatRequest request) => SystemSays(request, "为这个工作区起", "candidate names for this workspace");
 
     /// <summary>What a context summary cut off at the output limit says.</summary>
     public const string TruncatedSummaryText = "摘要：背景是";
 
-    public static bool IsTitle(ChatRequest request) => SystemSays(request, "起一个简短标题");
+    public static bool IsTitle(ChatRequest request) => SystemSays(request, "起一个简短标题", "Give the conversation below a short title");
 
     /// <summary>A context summary (S3): background standing in for older turns.</summary>
-    public static bool IsSummary(ChatRequest request) => SystemSays(request, "背景摘要");
+    public static bool IsSummary(ChatRequest request) => SystemSays(request, "背景摘要", "background summary of a long conversation");
 
     /// <summary>A knowledge summary of a conversation (S4).</summary>
-    public static bool IsKnowledgeSummary(ChatRequest request) => SystemSays(request, "知识总结") && !IsNaming(request);
+    public static bool IsKnowledgeSummary(ChatRequest request) => SystemSays(request, "知识总结", "summary of an exploration conversation") && !IsNaming(request);
 
-    public static bool IsNaming(ChatRequest request) => SystemSays(request, "区分词");
+    public static bool IsNaming(ChatRequest request) => SystemSays(request, "区分词", "distinguishing term");
 
     public static bool IsAnswer(ChatRequest request) =>
         !IsTitle(request) && !IsSummary(request) && !IsResourceSummary(request) && !IsKnowledgeSummary(request) && !IsNaming(request) && !IsWorkspaceNaming(request) && !IsRecommendation(request) && !IsLinkSuggestion(request);
@@ -147,8 +147,10 @@ public sealed class FakeChatClient : IChatClient
     public static string KnowledgeOf(ChatRequest request) =>
         $"标题：{DefaultSummaryTitle}\n\n总结了 {request.Turns.Count(t => t.Role != ChatRole.System) - 1} 条消息。";
 
-    private static bool SystemSays(ChatRequest request, string phrase) =>
-        request.Turns[0] is { Role: ChatRole.System } first && first.Content.Contains(phrase, StringComparison.Ordinal);
+    /// <summary>Whether the request's system turn says the prompt's Chinese or English phrase (the prompts follow the interface language).</summary>
+    private static bool SystemSays(ChatRequest request, string chinese, string english) =>
+        request.Turns[0] is { Role: ChatRole.System } first
+        && (first.Content.Contains(chinese, StringComparison.Ordinal) || first.Content.Contains(english, StringComparison.Ordinal));
 
     /// <summary>The summary the fake writes for a request: derived from its input, so tests can see what was covered.</summary>
     public static string SummaryOf(ChatRequest request) => "摘要：" + request.Turns[^1].Content.Length + " 字";

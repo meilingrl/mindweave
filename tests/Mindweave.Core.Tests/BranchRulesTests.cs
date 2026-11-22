@@ -54,7 +54,7 @@ public class BranchRulesTests
         var child = new ContextSegment(Child, "蒸汽机", [User(Child, 0, "谁发明的"), Answer(Child, 1, "瓦特改良了它", MessageState.Complete)]);
         var own = new ContextSegment(Grandchild, "瓦特", [User(Grandchild, 0, "他还做了什么")]);
 
-        var items = BranchContext.Assemble([root, child], own);
+        var items = BranchContext.Assemble([root, child], own, TestPhrases.Chinese);
 
         Assert.Equal(
         [
@@ -80,7 +80,7 @@ public class BranchRulesTests
         ]);
         var own = new ContextSegment(Child, "半截", []);
 
-        Assert.Equal(["q0", "q2", "半截回答"], BranchContext.Assemble([root], own).Select(i => i.Text));
+        Assert.Equal(["q0", "q2", "半截回答"], BranchContext.Assemble([root], own, TestPhrases.Chinese).Select(i => i.Text));
     }
 
     [Fact]
@@ -89,14 +89,14 @@ public class BranchRulesTests
         var question = User(Root, 0, "q");
         var first = Answer(Root, 1, "第一次", MessageState.Complete);
         // The range ends at the source (seq 1); the retry at seq 2 was never passed in.
-        var items = BranchContext.Assemble([new ContextSegment(Root, null, [question, first])], new ContextSegment(Child, "第一", []));
+        var items = BranchContext.Assemble([new ContextSegment(Root, null, [question, first])], new ContextSegment(Child, "第一", []), TestPhrases.Chinese);
 
         Assert.Equal(["q", "第一次"], items.Select(i => i.Text));
     }
 
     [Fact]
     public void A_multi_line_quote_is_quoted_line_by_line() =>
-        Assert.Equal("关于上文中的这段内容：\n> 第一行\n> 第二行\n\n问", BranchContext.QuotedQuestion("第一行\r\n第二行", "问"));
+        Assert.Equal("关于上文中的这段内容：\n> 第一行\n> 第二行\n\n问", BranchContext.QuotedQuestion("第一行\r\n第二行", "问", TestPhrases.Chinese));
 
     private static Message User(ConversationId conversation, int seq, string body) =>
         new(MessageId.New(), conversation, seq, MessageRole.User, ContentBlocks.FromText(body), MessageState.Complete, 0, null, null, null, DateTimeOffset.UnixEpoch, DateTimeOffset.UnixEpoch);
