@@ -105,6 +105,32 @@ public class LinkSuggestionTests
     }
 
     [Fact]
+    public async Task A_pending_suggestion_on_one_line_of_descent_stored_before_the_rule_is_not_offered()
+    {
+        await using var h = await ChatHarness.StartAsync();
+        var (root, _) = await h.RootWithAnswerAsync("蒸汽机是怎么工作的？");
+        await h.SettleAsync(root);
+        h.Client.Knowledge.Replies.Enqueue($"标题：{Steam}\n短名：{Steam}\n\n正文");
+        var parent = await h.SummarizeAsync(root);
+        var answer = (await h.Store.GetMessagesAsync(root, Ct)).Last(m => m.Role == MessageRole.Assistant);
+        var child = (await h.Conversations.CreateBranchAsync(root, BranchFlowTests.Selection(answer, "q"), Ct)).Child;
+        await h.Conversations.AskAsync(child, "效率呢？", Ct);
+        await h.SettleAsync(child);
+        h.Client.Knowledge.Replies.Enqueue("标题：效率\n短名：效率\n\n正文");
+        var branch = await h.SummarizeAsync(child);
+        var rails = await SummarizedAsync(h, "铁轨为什么是工字形？", Rails, "工字形截面省材料又抗弯。");
+
+        // Stored as a build before the rule could have: a summary with its own branch, and a pair across explorations.
+        var (a1, b1) = SummaryLinkPair.Normalize(parent, branch);
+        var (a2, b2) = SummaryLinkPair.Normalize(branch, rails);
+        await new SqliteLinkSuggestionStore(h.Database).AddBatchAsync(
+            h.Workspace, new LinkSuggestionBatch(Guid.CreateVersion7(), DateTimeOffset.UtcNow, [new(a1, b1, null, null), new(a2, b2, null, null)]), Ct);
+
+        var offered = Assert.Single((await h.LinkSuggestions.GetAsync(h.Workspace, Ct)).Items);
+        Assert.True(offered.Touches(rails) && offered.Touches(branch));
+    }
+
+    [Fact]
     public void JSON_that_does_not_parse_is_read_by_its_fields_plain_lines_are_read_and_anything_else_is_nothing()
     {
         var input = Input(4);

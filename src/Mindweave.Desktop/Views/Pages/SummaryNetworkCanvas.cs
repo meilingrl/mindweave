@@ -298,7 +298,7 @@ public sealed class SummaryNetworkCanvas : Control
         var trail = _page.Trail;
         var matches = _page.Matches;
         var sessions = Sessions;
-        var focus = Focus();
+        var focus = LinkFocus();
         var linkEnds = HoveredLinkEnds();
         return [.. _page.Nodes.Select(node =>
         {
@@ -401,7 +401,7 @@ public sealed class SummaryNetworkCanvas : Control
                 DateBounds = dateBounds,
                 Lifted = lifted,
                 SummaryRing = sessions && node.HasSummary,
-                Dimmed = focus.Count > 0 && !focus.Contains(node.Id),
+                Dimmed = focus.Count > 0 && !focus.Contains(node.Id) && !linkEnds.Contains(node.Id),
             };
         })];
     }
@@ -432,7 +432,7 @@ public sealed class SummaryNetworkCanvas : Control
         var timeline = _page.Session.IsTimeline;
         var spatial = Sessions && !timeline;
         var nodes = Sessions ? _page.Nodes.ToDictionary(n => n.Id) : [];
-        var focus = Focus();
+        var focus = LinkFocus();
         return [.. _page.Edges.Select(edge =>
         {
             var (fromX, fromY) = PositionOf(edge.From, edge.FromX, edge.FromY);
@@ -481,7 +481,7 @@ public sealed class SummaryNetworkCanvas : Control
         var zoom = Current.Zoom;
         var selected = _page.Session.Selected;
         var quiet = Sessions;
-        var focused = quiet && Focus().Count > 0;
+        var focused = quiet && LinkFocus().Count > 0;
         var taken = _page.Nodes.Select(n => HitBoxOf(n, ScreenOf(n) + _offsets.GetValueOrDefault(n.Id), zoom)).ToList();
         return [.. _page.LinkEdges.Select(link =>
         {
@@ -510,7 +510,7 @@ public sealed class SummaryNetworkCanvas : Control
                 }
             }
 
-            return new LinkPaint(link, from, to, active) { Note = note, Label = label, NoteBounds = bounds, Quiet = quiet, Dimmed = focused && !touchesSelected };
+            return new LinkPaint(link, from, to, active) { Note = note, Label = label, NoteBounds = bounds, Quiet = quiet, Dimmed = focused && !touchesSelected && link.Id != HoveredLink };
         })];
     }
 
@@ -593,7 +593,7 @@ public sealed class SummaryNetworkCanvas : Control
     /// The nodes brought out while a dot with links is selected in the session network: it, its link partners and its
     /// path to the root. Empty otherwise, so nothing fades (design §8).
     /// </summary>
-    private HashSet<SummaryNodeId> Focus()
+    private HashSet<SummaryNodeId> LinkFocus()
     {
         if (!Sessions || _page?.Session.Selected is not { } selected)
         {
@@ -785,25 +785,32 @@ public sealed class SummaryNetworkCanvas : Control
             Faded(link.Dimmed, () => context.DrawLine(link.Quiet ? palette.QuietLinkPen(link.Active) : palette.LinkPen(link.Active), link.From, link.To));
         }
 
+        // While a dot with links is selected, suggestions, recommended nodes and dates fade too, unless they involve it.
+        var focusSet = LinkFocus();
+        var fading = focusSet.Count > 0;
+        var selectedNow = _page.Session.Selected;
+
         // Pending link suggestions: light and dash-dotted beside the links; their words come last with the notes.
         foreach (var suggestion in suggestions)
         {
-            context.DrawLine(palette.LinkSuggestionPen(suggestion.Active), suggestion.From, suggestion.To);
+            Faded(fading && suggestion.Suggestion.A != selectedNow && suggestion.Suggestion.B != selectedNow,
+                () => context.DrawLine(palette.LinkSuggestionPen(suggestion.Active), suggestion.From, suggestion.To));
         }
 
         // Recommended nodes: their dotted lines rest with the edges, their rings below the summaries (never covering one).
         foreach (var item in recommended)
         {
-            context.DrawLine(palette.RecommendationLink(item.Selected || item.Hovered), item.Basis, item.Center);
+            Faded(fading, () => context.DrawLine(palette.RecommendationLink(item.Selected || item.Hovered), item.Basis, item.Center));
         }
 
         foreach (var item in recommended)
         {
-            DrawRecommendation(context, palette, item);
+            Faded(fading, () => DrawRecommendation(context, palette, item));
         }
 
         using (context.PushOpacity(0.85))
         {
+            // A faded label keeps a faded backdrop, so lines still pass behind its text.
             foreach (var node in nodes.Where(n => n.Text is not null && !n.Dimmed))
             {
                 context.FillRectangle(palette.Background, node.Backdrop, 3);
@@ -811,6 +818,14 @@ public sealed class SummaryNetworkCanvas : Control
                 {
                     context.FillRectangle(palette.Background, node.DateBounds.Inflate(new Thickness(2, 0)), 3);
                 }
+            }
+        }
+
+        using (context.PushOpacity(0.85 * DimOpacity))
+        {
+            foreach (var node in nodes.Where(n => n.Text is not null && n.Dimmed))
+            {
+                context.FillRectangle(palette.Background, node.Backdrop, 3);
             }
         }
 
@@ -843,18 +858,21 @@ public sealed class SummaryNetworkCanvas : Control
         foreach (var caption in PaintCaptions())
         {
             // Always drawn, even when labels are hidden: it names the exploration (a day label hides with the labels).
-            context.DrawText(caption.Text, caption.Origin);
+            Faded(fading && caption.Caption.Members.Count > 0 && !focusSet.Contains(caption.Caption.Members[0]), () => context.DrawText(caption.Text, caption.Origin));
         }
 
         foreach (var link in links.Where(l => l.Note is not null))
         {
             // The note in a small framed pill over the line's middle, readable over edges and labels alike.
-            context.DrawRectangle(palette.Background, null, link.NoteBounds, 4, 4);
-            context.DrawRectangle(palette.LinkFill, palette.LinkNoteFrame, link.NoteBounds, 4, 4);
-            context.DrawText(link.Note!, link.NoteBounds.TopLeft + new Vector(4, 1));
+            Faded(link.Dimmed, () =>
+            {
+                context.DrawRectangle(palette.Background, null, link.NoteBounds, 4, 4);
+                context.DrawRectangle(palette.LinkFill, palette.LinkNoteFrame, link.NoteBounds, 4, 4);
+                context.DrawText(link.Note!, link.NoteBounds.TopLeft + new Vector(4, 1));
+            });
         }
 
-        foreach (var suggestion in suggestions.Where(s => s.Text is not null))
+        foreach (var suggestion in suggestions.Where(s => s.Text is not null && !(fading && s.Suggestion.A != selectedNow && s.Suggestion.B != selectedNow)))
         {
             // "建议 · note" in a dashed frame (a link's note has a solid one), so the two never read alike.
             context.DrawRectangle(palette.Background, null, suggestion.LabelBounds, 4, 4);

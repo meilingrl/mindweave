@@ -437,7 +437,8 @@ public class SessionNetworkCanvasTests
         var stars = (SummaryNetworkHomeViewModel)app.Workbench.CurrentPage!;
         await stars.Loaded;
         Assert.NotSame(trains, stars);
-        var (trainLoads, starLoads) = (trains.Loads, stars.Loads);
+        var trainLoads = trains.Loads;
+        var starLoads = stars.Loads;
 
         // A question in the other workspace: its page reloads; the train workspace's page only learns it is not its own.
         var conversations = app.Services.GetRequiredService<ConversationService>();
@@ -445,10 +446,35 @@ public class SessionNetworkCanvasTests
         await UiWait.UntilAsync(() => stars.Loads > starLoads && stars.Nodes.Count == 1 && trains.Knows(asked));
         Assert.Equal(trainLoads, trains.Loads);
 
+        // Archiving it (a visibility change) reloads its own page only.
+        starLoads = stars.Loads;
+        Assert.True((await conversations.ArchiveAsync(asked, CancellationToken.None)).Archived);
+        await UiWait.UntilAsync(() => stars.Loads > starLoads);
+        Assert.Equal(trainLoads, trains.Loads);
+
         // A question in the train workspace still reloads its page.
         var root = trains.Session.Projection.Nodes.Single(n => n.ShortTitle == "火车起源").Conversation;
         await SummaryNetworkScenario.AskAsync(app, conversations, root, default, "再说说蒸汽机？");
         await UiWait.UntilAsync(() => trains.Loads > trainLoads);
+        window.Close();
+    }
+
+    [AvaloniaFact]
+    public async Task A_click_on_the_canvas_gives_it_the_keyboard()
+    {
+        // A click gives the canvas the keyboard, so Ctrl+S and Escape reach the page (review 2026-11-23: a helper named Focus()
+        // had hidden the control's own; the press handler's call now reaches InputElement.Focus again).
+        await using var app = Gated();
+        var window = app.ShowWindow(1100, 720);
+        await SummaryNetworkScenario.SeedAsync(app);
+        await SummaryNetworkScenario.OpenSummaryNetworkAsync(app, window);
+        var canvas = CanvasOf(window);
+        var corner = canvas.TranslatePoint(new Point(6, 6), window)!.Value;
+
+        window.MouseDown(corner, MouseButton.Left);
+        window.MouseUp(corner, MouseButton.Left);
+
+        Assert.True(canvas.IsFocused);
         window.Close();
     }
 
