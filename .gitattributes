@@ -14,6 +14,8 @@ docs/reviews/claude-auto-*/ export-ignore
 docs/history/development-routes.md export-ignore
 docs/history/track-claude-auto.md export-ignore
 docs/history/agent-platform-discussion-20261113.md export-ignore
+docs/history/design/ export-ignore
+docs/ideas/ export-ignore
 docs/mailbox.md export-ignore
 docs/changes.md export-ignore
 docs/design/** export-ignore

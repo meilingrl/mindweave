@@ -15,7 +15,7 @@
 
 **Tech Stack:** .NET 10, Avalonia 12, CommunityToolkit.Mvvm, xUnit v3 with Avalonia.Headless.
 
-**Spec:** [session-network.md](session-network.md) (§4.2, §4.3, §5, §6.1, §6.4, §7). Round 1 plan and rulings: [session-network-plan-round1.md](session-network-plan-round1.md).
+**Spec:** [session-network.md](../../design/session-network.md) (§4.2, §4.3, §5, §6.1, §6.4, §7). Round 1 plan and rulings: [session-network-plan-round1.md](session-network-plan-round1.md).
 
 ## Owner feedback this plan answers (2026-11-21, verbatim intent)
 

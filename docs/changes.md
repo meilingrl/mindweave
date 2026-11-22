@@ -1,11 +1,24 @@
 # Changes
 
-One entry per merge into `main`, newest first: what changed, how to try it, and what was not verified. Entries are added when merging and are not edited afterwards, so they stay true. What is in progress now is in [STATUS.md](../STATUS.md); the reasons behind choices are in the [decision log](design/decisions.md). The stages before 2026-11-16 are in the [stage reports](design/stage-reports.md) and [track-claude-auto.md](history/track-claude-auto.md) (both frozen, in Chinese).
+One entry per merge into `main`, newest first: what changed, how to try it, and what was not verified. Entries are added when merging and are not edited afterwards, so they stay true. What is in progress now is in [STATUS.md](../STATUS.md); the reasons behind choices are in the [decision log](design/decisions.md). The stages before 2026-11-16 are in the [stage reports](history/design/stage-reports.md) and [track-claude-auto.md](history/track-claude-auto.md) (both frozen, in Chinese).
 
 This file starts on 2026-11-22. The entries from 2026-11-16 to 2026-11-22 were moved here from STATUS.md, grouped by day.
 
 ## 2026-11-22
 
+- **Design documents by standing; first drafts of next-phase ideas** (documents only; no change on screen).
+  - `docs/ideas/` is new: thinking that is not agreed. It holds four first drafts: a free trial, more platforms, reply quality, and more directions. None is requirements or design.
+  - 14 finished-stage designs, executed plans and the stage reports moved from `docs/design/` to [docs/history/design/](history/design/README.md). `docs/design/` keeps 22 current files, and its index is in six groups.
+  - AGENTS.md says what each folder means; a design or plan moves to history in the merge that finishes its work.
+  - Older review batches and the track record keep the old `docs/design/` paths.
+  - `DocsRulesTests` checks links in `docs/ideas/` too. The source package leaves out both new folders.
+  - Try: open [docs/ideas/README.md](ideas/README.md) and [docs/design/README.md](design/README.md).
+  - Not verified: the ideas themselves. Nothing in them has been built or run.
+- **Version 0.2.0; the build is named in settings** (no migration; D-033).
+  - The line at the bottom of Settings now reads like "Mindweave 0.2.0 · 5f50734 · 2026-11-22 · 数据通道 claude-auto" in daily and dev builds; a release shows only "Mindweave 0.2.0".
+  - The version is raised at each finished plan step.
+  - Try: `scripts/daily.sh publish`, then look at the bottom of Settings.
+  - Not verified: on Windows (the commit date there goes through a batch file; a test checks it on CI).
 - **Maintainability.**
   - Failure handling has written rules ([failure-handling.md](design/failure-handling.md)), and `CatchPolicyTests` checks them in the source.
   - 16 desktop catches that left no trace now log through `DesktopLog`.

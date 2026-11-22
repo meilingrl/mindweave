@@ -18,7 +18,7 @@ using Mindweave.Desktop.Views.Conversations;
 namespace Mindweave.Desktop.Tests.Performance;
 
 /// <summary>
-/// Rendering budgets for very long answers (docs/design/s2-branching.md “性能”). Real Skia text layout in the
+/// Rendering budgets for very long answers (docs/history/design/s2-branching.md “性能”). Real Skia text layout in the
 /// headless window. The full-size run is opt-in (MINDWEAVE_PERF=1, see scripts/perf.sh) because it takes tens of
 /// seconds; the smoke run keeps the generator and every measured path working on each pass and asserts no times.
 /// </summary>

@@ -51,14 +51,17 @@ public static class CompositionRoot
         });
         AddOverrides(services, overrides, view: false);
         services.AddMindweaveInfrastructure(paths);
+        var stamp = BuildStamp.Read(typeof(CompositionRoot).Assembly);
         services.AddSingleton(sp => new AppEnvironment(
             paths.Channel,
-            typeof(CompositionRoot).Assembly.GetCustomAttribute<AssemblyInformationalVersionAttribute>()?.InformationalVersion.Split('+')[0] ?? "0.0.0",
+            stamp.Version,
             paths.DataDirectory,
             paths.DatabasePath,
             paths.BackupDirectory,
             paths.LogDirectory,
-            sp.GetRequiredService<MigrationCatalog>().LatestVersion));
+            sp.GetRequiredService<MigrationCatalog>().LatestVersion,
+            stamp.Commit,
+            stamp.CommitDate));
 
         services.AddMindweaveApplication();
         services.TryAddSingleton<IThemeApplier, AvaloniaThemeApplier>();

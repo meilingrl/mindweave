@@ -8,7 +8,9 @@ public sealed record AppEnvironment(
     string DatabasePath,
     string BackupDirectory,
     string LogDirectory,
-    int SchemaVersion)
+    int SchemaVersion,
+    string? Commit = null,
+    string? CommitDate = null)
 {
     /// <summary>
     /// The channel of published builds (Release configuration with no explicit channel; see Directory.Build.props).

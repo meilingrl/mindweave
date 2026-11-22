@@ -5,17 +5,11 @@ namespace Mindweave.Architecture.Tests;
 /// <summary>
 /// The cheap, mechanical part of the document rules (AGENTS.md "Where files belong"): living documents link only to
 /// files that exist, every design document and review batch can be found from its folder's index, and the source
-/// package's exclusions name files that exist. Frozen records are not checked: they keep the paths of their time.
+/// package's exclusions name files that exist. Frozen records (docs/history, docs/reviews) are not checked: they keep the
+/// paths of their time.
 /// </summary>
 public partial class DocsRulesTests
 {
-    /// <summary>Finished-stage designs and the stage reports: frozen records, kept as written.</summary>
-    private static readonly HashSet<string> FrozenDesigns = new(StringComparer.Ordinal)
-    {
-        "s0-skeleton-storage.md", "s1-chat.md", "s2-branching.md", "s3-context.md", "s4-summaries.md", "s5-network.md",
-        "s6-wrapup.md", "s6-windows-checklist.md", "s7-prototype-visual-language.md", "s7-ui-polish.md", "stage-reports.md",
-    };
-
     [Fact]
     public void Living_documents_link_only_to_files_that_exist()
     {
@@ -80,7 +74,7 @@ public partial class DocsRulesTests
         Assert.True(stale.Count == 0, ".gitattributes excludes paths that no longer exist (remove the lines):\n" + string.Join('\n', stale));
     }
 
-    /// <summary>The root documents, docs/*.md and the current design documents.</summary>
+    /// <summary>The root documents, docs/*.md, the design documents and the idea drafts.</summary>
     private static IEnumerable<string> LivingDocuments(string root)
     {
         foreach (var name in new[] { "AGENTS.md", "CLAUDE.md", "README.md", "STATUS.md" })
@@ -93,9 +87,9 @@ public partial class DocsRulesTests
             yield return path;
         }
 
-        foreach (var path in Directory.EnumerateFiles(Path.Combine(root, "docs", "design"), "*.md").Order(StringComparer.Ordinal))
+        foreach (var folder in new[] { "design", "ideas" })
         {
-            if (!FrozenDesigns.Contains(Path.GetFileName(path)))
+            foreach (var path in Directory.EnumerateFiles(Path.Combine(root, "docs", folder), "*.md").Order(StringComparer.Ordinal))
             {
                 yield return path;
             }

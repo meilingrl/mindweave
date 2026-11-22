@@ -23,6 +23,29 @@
   <ItemGroup>
     <InternalsVisibleTo Include="Mindweave.Desktop.Tests" />
   </ItemGroup>
+  <!-- Which build this is, for the version line in settings: the SDK appends the commit (SourceRevisionId, from git
+       or passed by scripts/daily.sh, which builds from an export without .git) to the informational version, and the
+       commit's date is stamped here. A build from the source package has neither and shows only the version. -->
+  <Target Name="MindweaveCommitDate" BeforeTargets="GetAssemblyAttributes" Condition="'$(MindweaveCommitDate)' == ''">
+    <!-- %25 is a literal '%' in MSBuild; Exec runs a batch file on Windows, where it must be doubled. -->
+    <PropertyGroup>
+      <_MindweaveDateFormat Condition="'$(OS)' == 'Windows_NT'">%25%25cs</_MindweaveDateFormat>
+      <_MindweaveDateFormat Condition="'$(OS)' != 'Windows_NT'">%25cs</_MindweaveDateFormat>
+    </PropertyGroup>
+    <Exec Command="git log -1 --format=$(_MindweaveDateFormat)" WorkingDirectory="$(MSBuildProjectDirectory)" ConsoleToMSBuild="true"
+          IgnoreExitCode="true" StandardOutputImportance="low" StandardErrorImportance="low" EchoOff="true">
+      <Output TaskParameter="ConsoleOutput" PropertyName="_MindweaveGitDate" />
+      <Output TaskParameter="ExitCode" PropertyName="_MindweaveGitExit" />
+    </Exec>
+    <PropertyGroup>
+      <MindweaveCommitDate Condition="'$(_MindweaveGitExit)' == '0'">$(_MindweaveGitDate)</MindweaveCommitDate>
+    </PropertyGroup>
+  </Target>
+  <Target Name="MindweaveCommitDateAttribute" AfterTargets="MindweaveCommitDate" BeforeTargets="GetAssemblyAttributes">
+    <ItemGroup Condition="'$(MindweaveCommitDate)' != ''">
+      <AssemblyMetadata Include="MindweaveCommitDate" Value="$(MindweaveCommitDate)" />
+    </ItemGroup>
+  </Target>
   <ItemGroup>
     <!-- Licences of the third-party packages the application ships, next to the executable in every build and publish
          (health check 2026-11-12, dependencies-1). Regenerate with scripts/third-party-notices.py after changing packages. -->
