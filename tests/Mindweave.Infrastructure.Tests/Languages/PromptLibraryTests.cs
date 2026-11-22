@@ -159,6 +159,41 @@ public class PromptLibraryTests
         }
     }
 
+    /// <summary>
+    /// The English prompts limit length in words, sized to carry about what the Chinese limit in characters carries
+    /// (review finding 2026-11-22: the same number of "characters" is a third as much English). The one limit in
+    /// characters left is the link note's, which requirements §10.3.3 fixes.
+    /// </summary>
+    [Fact]
+    public void English_prompts_limit_length_in_words()
+    {
+        var limits = new Dictionary<string, string[]>(StringComparer.Ordinal)
+        {
+            ["summary"] = ["at most 8 words", "of 1 to 3 words"],
+            ["summary-naming"] = ["(1 to 3 words)"],
+            ["compression"] = ["at most 400 words in all"],
+            ["title"] = ["at most 8 words"],
+            ["attachment-digest"] = ["at most 350 words"],
+            ["attachment-digest-merge"] = ["at most 350 words"],
+            ["recommendations"] = ["of at most 15 words", "of at most 10 words"],
+            ["link-suggestions"] = ["in at most 20 words"],
+            ["workspace-names"] = ["each name 1 to 4 words"],
+        };
+        foreach (var name in PromptLibrary.Names)
+        {
+            var en = PromptLibrary.Get(name, UiLanguage.English);
+            foreach (var limit in limits.GetValueOrDefault(name, []))
+            {
+                Assert.Contains(limit, en, StringComparison.Ordinal);
+            }
+
+            var rest = en.Replace("at most {note-length} characters", string.Empty, StringComparison.Ordinal);
+            Assert.False(System.Text.RegularExpressions.Regex.IsMatch(rest, @"\bcharacters?\b"), $"{name} still limits length in characters:\n{en}");
+        }
+
+        Assert.Contains("at most {note-length} characters", PromptLibrary.Get("link-suggestions", UiLanguage.English), StringComparison.Ordinal);
+    }
+
     [Fact]
     public void Fill_refuses_a_missing_or_unknown_placeholder()
     {

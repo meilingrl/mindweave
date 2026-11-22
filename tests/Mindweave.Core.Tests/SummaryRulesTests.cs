@@ -131,4 +131,38 @@ public class SummaryRulesTests
 
         Assert.Equal(new string('火', 39) + "🚂", parsed.Title);
     }
+
+    /// <summary>
+    /// An English short name is measured in words, not cut at the eight characters a Chinese one gets (review finding
+    /// 2026-11-22): "Steam en" was what an English network showed.
+    /// </summary>
+    [Theory]
+    [InlineData("Steam engine", "Steam engine")]
+    [InlineData("Watt's separate condenser", "Watt's separate condenser")]
+    [InlineData("Thermodynamic efficiency", "Thermodynamic efficiency")]
+    [InlineData("Early steam locomotives on British railways", "Early steam locomotives on")]
+    [InlineData("早期蒸汽机车在铁路运输中", "早期蒸汽机车在铁")]
+    [InlineData("蒸汽机 engine efficiency", "蒸汽机 engi")]
+    public void A_short_name_is_cut_at_eight_Chinese_characters_or_four_English_words(string written, string kept) =>
+        Assert.Equal(kept, SummaryRules.ParseGenerated("Title: How the steam engine works\nShort name: " + written + "\n\nbody")!.ShortTitle);
+
+    [Fact]
+    public void An_English_title_is_cut_between_words_and_a_Chinese_one_at_forty_characters()
+    {
+        const string eleven = "Why the thermal efficiency of early steam engines stayed so low";
+        Assert.Equal(eleven, SummaryRules.ParseGenerated("Title: " + eleven + "\n\nbody")!.Title);
+
+        var twenty = string.Join(' ', Enumerable.Range(1, 20).Select(i => "word" + i));
+        Assert.Equal(string.Join(' ', Enumerable.Range(1, 16).Select(i => "word" + i)), SummaryRules.ParseGenerated("Title: " + twenty + "\n\nbody")!.Title);
+
+        Assert.Equal(new string('火', 40), SummaryRules.ParseGenerated("标题：" + new string('火', 45) + "\n\n正文")!.Title);
+    }
+
+    [Fact]
+    public void Without_a_short_title_an_English_label_is_the_first_words_of_the_title()
+    {
+        Assert.Equal("Why the thermal efficiency…", SummaryRules.ShortTitleOf("Why the thermal efficiency of early steam engines stayed so low", null));
+        Assert.Equal("Steam engines", SummaryRules.ShortTitleOf("Steam engines", null));
+        Assert.Equal("早期蒸汽机车在铁…", SummaryRules.ShortTitleOf("早期蒸汽机车在铁路运输中的作用", null));
+    }
 }

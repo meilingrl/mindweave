@@ -8,6 +8,7 @@ using Mindweave.Application.Models;
 using Mindweave.Application.Prompts;
 using Mindweave.Application.Storage;
 using Mindweave.Core.Conversations;
+using Mindweave.Core.Text;
 using Mindweave.Core.Workspaces;
 using static Mindweave.Application.Languages.Bilingual;
 
@@ -184,6 +185,9 @@ public static partial class WorkspaceNamePrompt
     /// <summary>A line longer than this is an explanation, not a name, and is dropped.</summary>
     public const int MaxCandidateLength = 20;
 
+    /// <summary>A name's limit: <see cref="MaxCandidateLength"/> characters for CJK text, 6 words for other text (the English prompt asks for 1 to 4).</summary>
+    public static readonly TextLimit CandidateLimit = new(MaxCandidateLength, 6);
+
     /// <summary>Output cap: reasoning models count their hidden reasoning against it (see ConversationTitler).</summary>
     public const int OutputTokens = 1024;
 
@@ -284,7 +288,7 @@ public static partial class WorkspaceNamePrompt
             var cleaned = ConversationRules.CleanGeneratedTitle(ListMarker().Replace(line, string.Empty));
             cleaned = cleaned is null ? null : ConversationRules.CleanGeneratedTitle(ListMarker().Replace(cleaned, string.Empty));
             if (cleaned is null
-                || new StringInfo(cleaned).LengthInTextElements > MaxCandidateLength
+                || !CandidateLimit.Fits(cleaned)
                 || !WorkspaceName.TryCreate(cleaned, out var name, out _)
                 || !seen.Add(name!.Value))
             {

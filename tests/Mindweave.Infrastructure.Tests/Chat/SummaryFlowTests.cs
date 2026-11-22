@@ -235,6 +235,23 @@ public class SummaryFlowTests
         Assert.Equal("蒸汽机车－市场", (await h.SummaryService.ForConversationAsync(c, Ct))!.Node.DisplayName);
     }
 
+    /// <summary>An English distinguishing term is measured in words (review finding 2026-11-22), not dropped past 16 characters.</summary>
+    [Fact]
+    public async Task English_distinguishing_terms_are_kept()
+    {
+        await using var h = await ChatHarness.StartAsync();
+        var a = await ConversationAsync(h, "蒸汽机原理？");
+        var b = await ConversationAsync(h, "蒸汽机局限？");
+        await SummarizeAsync(h, a);
+
+        h.Client.Naming.Replies.Enqueue("1: Thermodynamic efficiency\n2: Practical limits of early designs");
+        await SummarizeAsync(h, b);
+
+        await ChatHarness.UntilAsync(async () => (await h.SummaryService.ListAsync(h.Workspace, Ct)).All(e => e.Node.NameSource == NameSource.Auto));
+        var names = (await h.SummaryService.ListAsync(h.Workspace, Ct)).Select(e => e.Node.DisplayName).ToList();
+        Assert.Equal(["蒸汽机车－Thermodynamic efficiency", "蒸汽机车－Practical limits of early designs"], names);
+    }
+
     [Fact]
     public async Task A_late_naming_result_is_dropped_for_a_node_that_changed_meanwhile()
     {

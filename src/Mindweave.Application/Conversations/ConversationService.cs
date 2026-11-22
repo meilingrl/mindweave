@@ -590,7 +590,7 @@ public sealed partial class ConversationService : IConversations
     /// <summary>Manual title; protected from automatic titling from now on. Blank input is ignored.</summary>
     public async Task RenameAsync(ConversationId id, string title, CancellationToken cancellationToken)
     {
-        var clean = ConversationRules.Shorten(title ?? string.Empty, ConversationRules.MaxTitleLength);
+        var clean = ConversationRules.Shorten(title ?? string.Empty, ConversationRules.TitleLimit);
         if (clean.Length == 0)
         {
             return;

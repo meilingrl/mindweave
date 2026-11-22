@@ -49,7 +49,7 @@ public sealed partial class ContextCompressor(IContextSummaryStore summaries, IC
     /// </summary>
     public const int SummaryOutputTokens = 16_384;
 
-    /// <summary>The least output a chunk summary asks for, however full the window already is (600 characters of summary and some reasoning).</summary>
+    /// <summary>The least output a chunk summary asks for, however full the window already is (600 characters or 400 words of summary, and some reasoning).</summary>
     public const int MinimumSummaryOutputTokens = 2_048;
 
     /// <summary>A summary that comes back cut off or empty is requested again once, within the same answer task.</summary>

@@ -25,6 +25,9 @@ internal sealed partial class SummaryNaming
     private const int NamingOutputTokens = 4_096;
     private const int NamingBodyExcerpt = 600;
 
+    /// <summary>A term's limit: 16 characters for CJK text, 6 words for other text (the prompts ask for 2 to 8 characters, or 1 to 3 words).</summary>
+    private static readonly Core.Text.TextLimit TermLimit = new(16, 6);
+
     private static readonly Regex NamingLine = new(@"^\s*\[?(?<n>\d+)\]?\s*[：:.、]\s*(?<term>.*)$", RegexOptions.CultureInvariant);
 
     private readonly ISummaryStore _summaries;
@@ -111,7 +114,7 @@ internal sealed partial class SummaryNaming
             if (match.Success && int.TryParse(match.Groups["n"].Value, CultureInfo.InvariantCulture, out var n) && n >= 1 && n <= count)
             {
                 var term = Core.Text.EnclosingMarks.Strip(match.Groups["term"].Value);
-                terms[n - 1] = term.Length is > 0 and <= 16 ? term : null;
+                terms[n - 1] = term.Length > 0 && TermLimit.Fits(term) ? term : null;
             }
         }
 

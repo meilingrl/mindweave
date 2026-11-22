@@ -69,6 +69,15 @@ public static partial class RecommendationPrompt
     /// <summary>A longer reason is dropped (the question stays).</summary>
     public const int MaxReasonLength = 40;
 
+    /// <summary>
+    /// A question's limit: <see cref="MaxQuestionLength"/> characters for CJK text, 30 words for other text (the English
+    /// prompt asks for at most 15; review finding 2026-11-22).
+    /// </summary>
+    public static readonly TextLimit QuestionLimit = new(MaxQuestionLength, 30);
+
+    /// <summary>A reason's limit: <see cref="MaxReasonLength"/> characters for CJK text, 20 words for other text (the English prompt asks for at most 10).</summary>
+    public static readonly TextLimit ReasonLimit = new(MaxReasonLength, 20);
+
     /// <summary>Output cap: reasoning models count their hidden reasoning against it (see ConversationTitler).</summary>
     public const int OutputTokens = 1536;
 
@@ -108,7 +117,7 @@ public static partial class RecommendationPrompt
         var sources = summaries.Take(MaxSummaries)
             .Select((s, i) => new RecommendationSource($"S{i + 1}", s.Node, ConversationRules.Shorten(s.DisplayName, TitleLength), ConversationRules.Shorten(s.Title, TitleLength), Excerpt(s.BodyStart, s.Title)))
             .ToList();
-        var avoided = avoid.Where(a => !string.IsNullOrWhiteSpace(a)).Select(a => ConversationRules.Shorten(a, MaxQuestionLength))
+        var avoided = avoid.Where(a => !string.IsNullOrWhiteSpace(a)).Select(a => ConversationRules.Shorten(a, QuestionLimit))
             .Distinct(StringComparer.Ordinal).Take(MaxAvoid).ToList();
         return new RecommendationInput(titles, titled.Count, sources, Math.Max(summaryCount, sources.Count), avoided);
     }
@@ -239,8 +248,8 @@ public static partial class RecommendationPrompt
                 continue;
             }
 
-            var reason = rawReason is null ? null : EnclosingMarks.Strip(ConversationRules.Shorten(ReasonLead().Replace(rawReason.Trim(), string.Empty), MaxReasonLength + 1));
-            if (reason is { Length: 0 } || (reason is not null && new StringInfo(reason).LengthInTextElements > MaxReasonLength))
+            var reason = rawReason is null ? null : EnclosingMarks.Strip(ConversationRules.Shorten(ReasonLead().Replace(rawReason.Trim(), string.Empty), ReasonLimit.Plus(1)));
+            if (reason is { Length: 0 } || (reason is not null && !ReasonLimit.Fits(reason)))
             {
                 reason = null;
             }
@@ -263,8 +272,7 @@ public static partial class RecommendationPrompt
         }
 
         var question = EnclosingMarks.Strip(ListMarker().Replace(raw.Trim(), string.Empty)).Trim();
-        var length = new StringInfo(question).LengthInTextElements;
-        return length < MinQuestionLength || length > MaxQuestionLength ? null : question;
+        return new StringInfo(question).LengthInTextElements < MinQuestionLength || !QuestionLimit.Fits(question) ? null : question;
     }
 
     /// <summary>A field name the answer is asked for (or a near variant) as the item field it fills; null for any other.</summary>

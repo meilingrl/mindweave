@@ -1,5 +1,6 @@
 using System.Globalization;
 using System.Text;
+using Mindweave.Core.Text;
 
 namespace Mindweave.Core.Summaries;
 
@@ -16,6 +17,15 @@ public static class SummaryRules
 
     /// <summary>Longest network label kept from generated output, and the cut for falling back to the title.</summary>
     public const int MaxShortTitleLength = 8;
+
+    /// <summary>A generated title's limit: 40 characters for CJK text, 16 words for other text (the prompts ask for half).</summary>
+    public static readonly TextLimit TitleLimit = new(MaxTitleLength, 16);
+
+    /// <summary>
+    /// The network label's limit: <see cref="MaxShortTitleLength"/> characters for CJK text, 4 words for other text (the
+    /// English prompt asks for 1 to 3; review finding 2026-11-22: an English label cut at 8 characters read "Steam en").
+    /// </summary>
+    public static readonly TextLimit ShortTitleLimit = new(MaxShortTitleLength, 4);
 
     /// <summary>
     /// Splits generated output into title, optional short title and body: the first non-empty line, with an optional
@@ -39,7 +49,7 @@ public static class SummaryRules
         var next = Array.FindIndex(lines, rest, l => l.Trim().Length > 0);
         if (next >= 0 && StripPrefix(lines[next].Trim(), "短名：", "短名:", "Short name:", "Short name：", "Short:") is var candidate && candidate != lines[next].Trim())
         {
-            shortTitle = Clean(candidate) is { Length: > 0 } s ? Mindweave.Core.Conversations.ConversationRules.FirstTextElements(s, MaxShortTitleLength) : null;
+            shortTitle = Clean(candidate) is { Length: > 0 } s ? ShortTitleLimit.Cut(s) : null;
             rest = next + 1;
         }
 
@@ -49,7 +59,7 @@ public static class SummaryRules
             return null;
         }
 
-        return new GeneratedSummary(Mindweave.Core.Conversations.ConversationRules.FirstTextElements(title, MaxTitleLength), shortTitle, body);
+        return new GeneratedSummary(TitleLimit.Cut(title), shortTitle, body);
 
         static string StripPrefix(string line, params string[] prefixes)
         {
@@ -87,8 +97,8 @@ public static class SummaryRules
             return shortTitle;
         }
 
-        var runes = title.EnumerateRunes().Take(MaxShortTitleLength + 1).ToList();
-        return runes.Count > MaxShortTitleLength ? string.Concat(runes.Take(MaxShortTitleLength)) + "…" : title;
+        var cut = ShortTitleLimit.Cut(title);
+        return cut.Length == title.Length ? title : cut + "…";
     }
 
     /// <summary>

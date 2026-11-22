@@ -45,6 +45,9 @@ public static partial class LinkSuggestionPrompt
     /// <summary>A longer reason is shortened (with "…"): the reason is what the user judges a suggestion by, so it is kept.</summary>
     public const int MaxReasonLength = 60;
 
+    /// <summary>A reason's limit: <see cref="MaxReasonLength"/> characters for CJK text, 30 words for other text (the English prompt asks for at most 20).</summary>
+    public static readonly TextLimit ReasonLimit = new(MaxReasonLength, 30);
+
     /// <summary>Output cap: reasoning models count their hidden reasoning against it (see ConversationTitler).</summary>
     public const int OutputTokens = 2048;
 
@@ -178,7 +181,7 @@ public static partial class LinkSuggestionPrompt
         }
 
         var reason = EnclosingMarks.Strip(ReasonLead().Replace(ConversationRules.Shorten(raw, 1000), string.Empty)).Trim();
-        return reason.Length == 0 ? null : ConversationRules.Shorten(reason, MaxReasonLength);
+        return reason.Length == 0 ? null : ConversationRules.Shorten(reason, ReasonLimit);
     }
 
     private static SummaryNodeId? NodeOf(string? raw, Dictionary<string, SummaryNodeId> labels) =>

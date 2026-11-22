@@ -9,6 +9,12 @@ public static partial class ConversationRules
     public const int FallbackTitleLength = 30;
     public const int MaxTitleLength = 60;
 
+    /// <summary>
+    /// A conversation title's limit: <see cref="MaxTitleLength"/> characters for CJK text, 12 words for other text (the
+    /// English prompt asks for about 8; review finding 2026-11-22).
+    /// </summary>
+    public static readonly Text.TextLimit TitleLimit = new(MaxTitleLength, 12);
+
     private static readonly string[] TitlePrefixes = ["标题：", "标题:", "Title:", "Title："];
     private static readonly char[] TitleTrailing = ['。', '.', '！', '!', '？', '?', '：', ':', '；', ';', '，', ','];
 
@@ -108,7 +114,7 @@ public static partial class ConversationRules
         }
         while (line != previous);
 
-        line = Shorten(line, MaxTitleLength);
+        line = Shorten(line, TitleLimit);
         return line.Length == 0 ? null : line;
     }
 
@@ -127,6 +133,22 @@ public static partial class ConversationRules
     }
 
     public static string Shorten(string text, int maxTextElements)
+    {
+        var value = Collapse(text);
+        var info = new StringInfo(value);
+        return info.LengthInTextElements <= maxTextElements ? value : info.SubstringByTextElements(0, maxTextElements) + "…";
+    }
+
+    /// <summary>One line within <paramref name="limit"/> (in characters or words by the text's script), with "…" when cut.</summary>
+    public static string Shorten(string text, Text.TextLimit limit)
+    {
+        var value = Collapse(text);
+        var cut = limit.Cut(value);
+        return cut.Length == value.Length ? value : cut + "…";
+    }
+
+    /// <summary>One line: white space runs collapsed to one space, invisible control characters removed.</summary>
+    private static string Collapse(string text)
     {
         ArgumentNullException.ThrowIfNull(text);
         var collapsed = new StringBuilder(text.Length);
@@ -155,8 +177,6 @@ public static partial class ConversationRules
             collapsed.Append(ch);
         }
 
-        var value = collapsed.ToString();
-        var info = new StringInfo(value);
-        return info.LengthInTextElements <= maxTextElements ? value : info.SubstringByTextElements(0, maxTextElements) + "…";
+        return collapsed.ToString();
     }
 }

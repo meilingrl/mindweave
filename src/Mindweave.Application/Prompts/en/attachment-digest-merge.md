@@ -1,2 +1,2 @@
 Below are the digests of the parts of one piece of material, split in order into several parts. Combine them into one complete digest, to serve as an overview when answering questions about this material later.
-In the language of the material, at most 500 characters: first say in one or two sentences what the material is and what it is about, then list its main points following the material's structure, keeping the key names, numbers and conclusions. Write only what appears in the digests.
+In the language of the material, at most 350 words: first say in one or two sentences what the material is and what it is about, then list its main points following the material's structure, keeping the key names, numbers and conclusions. Write only what appears in the digests.

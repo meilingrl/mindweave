@@ -50,6 +50,36 @@ public class RecommendationTests
         Assert.Equal([Node(1), null, Node(2)], items.Select(i => i.Basis));
     }
 
+    /// <summary>
+    /// An English question or reason is measured in words (review finding 2026-11-22): the Chinese limits in characters
+    /// dropped ordinary English questions and blanked their reasons. Chinese is measured as before.
+    /// </summary>
+    [Fact]
+    public void English_questions_and_reasons_are_measured_in_words_and_Chinese_ones_in_characters()
+    {
+        var input = Input(("S1", "蒸汽机"));
+        const string question = "Why did early steam engines waste most of the heat they burned?";
+        const string reason = "It follows the summary on thermal efficiency and asks what came next";
+        Assert.True(question.Length > RecommendationPrompt.MaxQuestionLength);
+        Assert.True(reason.Length > RecommendationPrompt.MaxReasonLength);
+        var wordy = string.Join(' ', Enumerable.Range(1, 31).Select(i => "word" + i)) + "?";
+        var tooLongReason = string.Join(' ', Enumerable.Range(1, 21).Select(i => "reason" + i));
+        var chinese = new string('长', 61) + "？";
+        var output = $$"""
+            [
+              {"question": "{{question}}", "reason": "{{reason}}", "basis": "S1"},
+              {"question": "{{wordy}}", "reason": "too many words", "basis": "S1"},
+              {"question": "{{chinese}}", "reason": "太长", "basis": "S1"},
+              {"question": "How did the condenser change that?", "reason": "{{tooLongReason}}", "basis": "S1"}
+            ]
+            """;
+
+        var items = RecommendationPrompt.Parse(output, input, new RecommendationAsk(RecommendationKind.Question, 4), new HashSet<string>());
+
+        Assert.Equal([question, "How did the condenser change that?"], items.Select(i => i.Question));
+        Assert.Equal([reason, null], items.Select(i => i.Reason));
+    }
+
     [Fact]
     public void A_JSON_answer_with_unescaped_quotes_is_read_by_its_fields_and_never_as_lines_of_JSON()
     {
