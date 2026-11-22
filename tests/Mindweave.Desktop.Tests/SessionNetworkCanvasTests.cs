@@ -17,6 +17,9 @@ using static Mindweave.Desktop.Tests.UiTree;
 
 using Mindweave.Application.SummaryLinks;
 
+using Mindweave.Application.Workspaces;
+using Mindweave.Core.Workspaces;
+using Mindweave.Desktop.Navigation;
 namespace Mindweave.Desktop.Tests;
 
 /// <summary>
@@ -414,6 +417,38 @@ public class SessionNetworkCanvasTests
         Assert.True(hovered[speed.Id].Halo && hovered[rails.Id].Halo);
         Assert.DoesNotContain(hovered.Values, p => p.Dimmed);
         canvas.SetPointer(null);
+        window.Close();
+    }
+
+    [AvaloniaFact]
+    public async Task A_change_in_one_workspace_reloads_only_that_workspaces_network()
+    {
+        // Design §15.3: with the switch on, every conversation change used to reload every visited workspace's network page.
+        await using var app = Gated();
+        var window = app.ShowWindow(1100, 720);
+        await SummaryNetworkScenario.SeedAsync(app);
+        var trains = await SummaryNetworkScenario.OpenSummaryNetworkAsync(app, window);
+        await UiWait.UntilAsync(() => trains.Nodes.Count == 4);
+
+        var other = await app.Services.GetRequiredService<WorkspaceService>().CreateAsync(WorkspaceName.FromStored("天文"), CancellationToken.None);
+        app.Workbench.AddWorkspace(other);
+        app.Workbench.Navigate(new NavigationRequest(MainSection.SummaryNetwork));
+        await UiWait.UntilAsync(() => app.Workbench.CurrentPage is SummaryNetworkHomeViewModel { } page && page != trains);
+        var stars = (SummaryNetworkHomeViewModel)app.Workbench.CurrentPage!;
+        await stars.Loaded;
+        Assert.NotSame(trains, stars);
+        var (trainLoads, starLoads) = (trains.Loads, stars.Loads);
+
+        // A question in the other workspace: its page reloads; the train workspace's page only learns it is not its own.
+        var conversations = app.Services.GetRequiredService<ConversationService>();
+        var asked = await SummaryNetworkScenario.AskAsync(app, conversations, null, other.Id, "月亮为什么有阴晴圆缺？");
+        await UiWait.UntilAsync(() => stars.Loads > starLoads && stars.Nodes.Count == 1 && trains.Knows(asked));
+        Assert.Equal(trainLoads, trains.Loads);
+
+        // A question in the train workspace still reloads its page.
+        var root = trains.Session.Projection.Nodes.Single(n => n.ShortTitle == "火车起源").Conversation;
+        await SummaryNetworkScenario.AskAsync(app, conversations, root, default, "再说说蒸汽机？");
+        await UiWait.UntilAsync(() => trains.Loads > trainLoads);
         window.Close();
     }
 

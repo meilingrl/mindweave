@@ -334,3 +334,4 @@ The owner chose to finish the network (D-035). The remaining work: round 3 (§8)
 3. **"Stable" means no large sudden shifts.** Small local changes are allowed; large movements of what the reader has already seen are avoided. The §11 proposal states this for requirements §7.3 and §7.4.
 4. **Names.** "Conversation" everywhere, as in the glossary; the code's "session" names change with the gate's removal.
 
+Built on 2026-11-23, behind the switch: round 3 (§8: the quiet link, its note while active, a linked dot bringing out its partners, suggestions never on one line of descent) and the reload fix (a conversation change reloads only its own workspace's network page).
