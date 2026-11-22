@@ -76,14 +76,25 @@ public sealed partial class SettingsHomeViewModel : PageViewModel, IDisposable, 
 
     public AppEnvironment Environment { get; }
 
-    /// <summary>The version line under the settings: product and version, plus the data channel except in a release.</summary>
+    /// <summary>
+    /// The version line under the settings: product and version; except in a release, also the build's commit and its
+    /// date (when the build knows them) and the data channel, so a daily or dev build says which build it is.
+    /// </summary>
     public string VersionText => VersionTextFor(Environment);
 
     public static string VersionTextFor(AppEnvironment environment)
     {
         ArgumentNullException.ThrowIfNull(environment);
         var version = $"{UiText.AppName} {environment.Version}";
-        return environment.ShowsChannel ? $"{version} · {UiText.ChannelLabel} {environment.Channel}" : version;
+        if (!environment.ShowsChannel)
+            return version;
+        var parts = new List<string> { version };
+        if (!string.IsNullOrEmpty(environment.Commit))
+            parts.Add(environment.Commit);
+        if (!string.IsNullOrEmpty(environment.CommitDate))
+            parts.Add(environment.CommitDate);
+        parts.Add($"{UiText.ChannelLabel} {environment.Channel}");
+        return string.Join(" · ", parts);
     }
 
     public ModelSettingsViewModel Model { get; }

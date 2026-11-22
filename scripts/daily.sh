@@ -110,7 +110,8 @@ build_release() {
   git -C "$ROOT" archive "$sha" | tar -x -C "$src"
   note "building $(git -C "$ROOT" log -1 --format='%h %s' "$sha") for $RID ..."
   if ! dotnet publish "$src/src/Mindweave.Desktop" -c Release -r "$RID" --self-contained \
-      -p:MindweaveChannel="$CHANNEL" -o "$out" -nologo -v quiet >"$src/publish.log" 2>&1; then
+      -p:MindweaveChannel="$CHANNEL" -p:SourceRevisionId="$(git -C "$ROOT" rev-parse "$sha")" \
+      -p:MindweaveCommitDate="$(git -C "$ROOT" log -1 --format=%cs "$sha")" -o "$out" -nologo -v quiet >"$src/publish.log" 2>&1; then
     tail -30 "$src/publish.log" >&2
     die "build failed (log: $src/publish.log)"
   fi
