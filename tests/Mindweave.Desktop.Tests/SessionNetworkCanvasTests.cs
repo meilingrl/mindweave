@@ -338,6 +338,37 @@ public class SessionNetworkCanvasTests
     }
 
     [AvaloniaFact]
+    public async Task Placed_labels_lie_inside_their_hit_boxes_at_every_zoom()
+    {
+        // The spatial layout places each label round its dot and wraps it; the hit box must cover the label as drawn, at
+        // zoom 1, zoomed in, and zoomed far out where only a hovered or selected label shows (review 2026-11-22).
+        await using var app = Gated();
+        var window = app.ShowWindow(1100, 720);
+        await SummaryNetworkScenario.SeedAsync(app);
+        var network = await SummaryNetworkScenario.OpenSummaryNetworkAsync(app, window);
+        await UiWait.UntilAsync(() => network.Nodes.Count == 4);
+        var canvas = CanvasOf(window);
+        Assert.All(network.Nodes, n => Assert.NotNull(n.Placed));
+
+        foreach (var zoom in new[] { 1.0, 1.8, 0.6, SummaryNetworkCanvas.LabelHideScale })
+        {
+            network.Session.Viewport = new Viewport(network.Nodes.Average(n => n.X), network.Nodes.Average(n => n.Y), zoom);
+            if (zoom <= SummaryNetworkCanvas.LabelHideScale)
+            {
+                network.Session.Selected = network.Nodes[0].Id;
+            }
+
+            foreach (var paint in canvas.PaintNodes().Where(p => p.Text is not null))
+            {
+                var box = SummaryNetworkGeometry.HitBox(paint.Center, paint.Node, zoom, labelVisible: true, sessionNetwork: true);
+                Assert.True(box.Inflate(0.5).Contains(paint.LabelBounds), $"At zoom {zoom}, '{paint.Label}' drawn at {paint.LabelBounds} leaves its hit box {box}.");
+            }
+        }
+
+        window.Close();
+    }
+
+    [AvaloniaFact]
     public async Task A_dot_is_not_dragged()
     {
         // Gated positions are computed, never saved: pressing a dot and moving leaves it where it is drawn.

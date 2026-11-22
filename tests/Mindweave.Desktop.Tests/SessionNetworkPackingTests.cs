@@ -145,11 +145,13 @@ public class SessionNetworkPackingTests
         Assert.True(elapsed < TimeSpan.FromMilliseconds(300), $"Loading 1,000 sessions took {elapsed.TotalMilliseconds:F1} ms (budget 300 ms, spec §6.4).");
     }
 
-    private static NodeView View(SummaryNetworkNode n, NodePosition at) =>
-        new(n.Id, n.ShortTitle, n.DisplayName, at.X, at.Y, false, false, SummaryNetworkLayout.LabelWidth(SummaryNetworkLayout.Label(n.ShortTitle, false)), IsRoot: true, HasSummary: n.HasSummary, Weight: n.Weight);
+    private static NodeView View(SummaryNetworkNode n, NodePosition at, SpatialLabel? placed = null, bool dated = false) =>
+        new(n.Id, n.ShortTitle, n.DisplayName, at.X, at.Y, false, false, SummaryNetworkLayout.LabelWidth(SummaryNetworkLayout.Label(n.ShortTitle, false)), IsRoot: true, HasSummary: n.HasSummary, Weight: n.Weight,
+            Placed: placed, Dated: dated);
 
+    /// <summary>The nodes as the page shows them: with the labels the spatial layout placed, and roots dated as the session dates them.</summary>
     private static List<NodeView> Views(SummaryNetworkSession session) =>
-        [.. session.Projection.Nodes.Select(n => View(n, session.Positions[n.Id]))];
+        [.. session.Projection.Nodes.Select(n => View(n, session.Positions[n.Id], session.SpatialLabels.GetValueOrDefault(n.Id), session.DayStarts.Contains(n.Id)))];
 
     [Fact]
     public async Task One_session_opens_centred_at_zoom_one()
@@ -200,6 +202,14 @@ public class SessionNetworkPackingTests
         var views = Views(session);
         var obstacles = SummaryNetworkObstacles.Of(views, [], sessionNetwork: true, timeline: false);
         var width = SummaryNetworkLayout.LabelWidth("一个推荐的问题会出现在这里");
+
+        // The obstacles hold the placed labels: wherever a label lies round its dot, its block is covered (review 2026-11-22).
+        foreach (var view in views)
+        {
+            var block = SpatialLayout.BlockAround(view.Placed!, SummaryNetworkLayout.DotFootprintRadius(view.Weight, view.HasSummary), view.Dated);
+            var inside = new CanvasBox(view.X + block.Left + 1, view.Y + block.Top + 1, view.X + block.Right - 1, view.Y + block.Bottom - 1);
+            Assert.Contains(obstacles, o => o.Left <= inside.Left && o.Top <= inside.Top && o.Right >= inside.Right && o.Bottom >= inside.Bottom);
+        }
 
         // Beside each session in turn: wherever the recommendation hangs, nothing of any session is under it.
         foreach (var basis in views)

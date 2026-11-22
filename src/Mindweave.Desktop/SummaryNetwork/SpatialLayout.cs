@@ -145,12 +145,22 @@ public static partial class SpatialLayout
             lines.Add(line.ToString().TrimEnd());
         }
 
-        // No lonely last character or two: move a few from the line before.
-        if (lines.Count >= 2 && lines[^1].Length <= 2 && lines[^2].Length > 4)
+        // No lonely last wide character or two: move a few wide characters from the end of the line before. Only wide
+        // characters move, whole runes at a time, so words and characters outside the basic plane are never split.
+        if (lines.Count >= 2)
         {
-            var take = (lines[^2].Length - lines[^1].Length) / 2;
-            lines[^1] = lines[^2][^take..] + lines[^1];
-            lines[^2] = lines[^2][..^take];
+            var last = lines[^1].EnumerateRunes().ToList();
+            var before = lines[^2].EnumerateRunes().ToList();
+            var wideTail = before.AsEnumerable().Reverse().TakeWhile(r => !r.IsAscii).Count();
+            if (last.Count <= 2 && last.All(r => !r.IsAscii) && before.Count > 4)
+            {
+                var take = Math.Min(wideTail, (before.Count - last.Count) / 2);
+                if (take > 0)
+                {
+                    lines[^1] = string.Concat(before.Skip(before.Count - take).Select(r => r.ToString())) + lines[^1];
+                    lines[^2] = string.Concat(before.Take(before.Count - take).Select(r => r.ToString()));
+                }
+            }
         }
 
         return lines;

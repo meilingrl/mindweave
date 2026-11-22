@@ -46,7 +46,7 @@ internal static class SummaryNetworkGeometry
             {
                 // A placed label: the dot and the label's block, drawn at most as large as the layout reserved it.
                 var dot = new Rect(center.X - reach, center.Y - reach, 2 * reach, 2 * reach);
-                return labelVisible ? dot.Union(PlacedBlock(center, node, placed, zoom)) : dot;
+                return labelVisible ? dot.Union(PlacedBlock(center, node, placed, zoom, SummaryNetworkCanvas.HoverGrowth)) : dot;
             }
 
             (half, left, right) = (Math.Max(half, reach), Math.Max(left, reach), Math.Max(right, reach));
@@ -56,18 +56,22 @@ internal static class SummaryNetworkGeometry
     }
 
     /// <summary>
-    /// A placed label's block on screen: the reserved block scaled to the label size at this zoom, beside the dot as drawn.
-    /// The drawn text, no larger and anchored the same way, lies inside it.
+    /// A placed label's block on screen: the reserved block scaled to the label's drawn size, beside the dot as drawn. The
+    /// layout reserves widths at <see cref="SummaryNetworkLayout.LabelEm"/> a wide character and line heights for
+    /// <see cref="SummaryNetworkCanvas.LabelMaxSize"/> text, so each scales by its own ratio; when zoomed far out a label
+    /// shows only when focused, at least <see cref="SummaryNetworkCanvas.FocusedLabelMinSize"/>. The drawn text, no larger
+    /// and anchored the same way, lies inside it.
     /// </summary>
-    internal static Rect PlacedBlock(Point center, NodeView node, SpatialLabel placed, double zoom)
+    internal static Rect PlacedBlock(Point center, NodeView node, SpatialLabel placed, double zoom, double grow = 0)
     {
         ArgumentNullException.ThrowIfNull(node);
         ArgumentNullException.ThrowIfNull(placed);
-        var scale = LabelSize(zoom) / SummaryNetworkLayout.LabelEm;
+        var size = zoom > SummaryNetworkCanvas.LabelHideScale ? LabelSize(zoom) : Math.Max(LabelSize(zoom), SummaryNetworkCanvas.FocusedLabelMinSize);
         var (w, h) = SpatialLayout.BlockSize(placed.Lines, node.Dated);
-        var reach = SummaryNetworkLayout.DotFootprintRadius(node.Weight, node.HasSummary);
-        var (l, t) = SpatialLayout.LabelOffset(placed.Side, reach, w * scale, h * scale);
-        return new Rect(center.X + l, center.Y + t, w * scale, h * scale);
+        var (width, height) = (w * size / SummaryNetworkLayout.LabelEm, h * size / SummaryNetworkCanvas.LabelMaxSize);
+        var reach = SummaryNetworkLayout.DotFootprintRadius(node.Weight, node.HasSummary) + grow;
+        var (l, t) = SpatialLayout.LabelOffset(placed.Side, reach, width, height);
+        return new Rect(center.X + l, center.Y + t, width, height);
     }
 
     /// <summary>A node's dot radius: by how much was asked in the session network, else larger for an exploration's root.</summary>

@@ -37,6 +37,11 @@ public static partial class SpatialLayout
         private readonly double[][] offsets;
         private readonly int[] hand;
         private readonly double[] fit;
+        private readonly double[] rest;
+        private readonly double[] crowd;
+        private readonly int[] place;
+        private readonly double[] incoming;
+        private readonly int[] lastTurn;
         private readonly double maxReach;
 
         public Model(IReadOnlyList<SpatialNode> input, SpatialLayoutSettings settings)
@@ -115,6 +120,26 @@ public static partial class SpatialLayout
             }
 
             fit = new double[n];
+            rest = new double[n];
+            incoming = new double[n];
+            lastTurn = new int[n];
+
+            // A child's place among its siblings, and how far round a busy dot all its lines and titles need.
+            place = new int[n];
+            crowd = new double[n];
+            for (var i = 0; i < n; i++)
+            {
+                for (var c = 0; c < children[i].Length; c++)
+                {
+                    place[children[i][c]] = c;
+                }
+
+                if (children[i].Length + (parent[i] >= 0 ? 1 : 0) >= s.CrowdFrom)
+                {
+                    crowd[i] = children[i].Sum(k => (2 * reach[k]) + (0.5 * (labelW[k] + labelH[k])) + s.CrowdSpacing) / (2 * Math.PI);
+                }
+            }
+
             FitBranches();
         }
 
@@ -162,9 +187,10 @@ public static partial class SpatialLayout
                     }
 
                     // The child's outline, turned to its line's direction and moved out along it.
+                    rest[child] = BondLength(i, child);
                     var angle = hasParent ? Math.PI + off[c] : off[c];
                     var (cos, sin) = (Math.Cos(angle), Math.Sin(angle));
-                    var length = BondLength(i, child);
+                    var length = rest[child];
                     foreach (var (px, py) in outline[child])
                     {
                         points.Add((length * cos + (px * cos) - (py * sin), length * sin + (px * sin) + (py * cos)));
@@ -326,18 +352,17 @@ public static partial class SpatialLayout
         }
 
         /// <summary>
-        /// A bond's rest length: the two dots, the base length, more for a bigger branch; round a busy dot, long enough for
-        /// all its lines and titles to fit round it, its single-dot leaves alternating between two lengths.
+        /// A bond's rest length, worked out once (<see cref="rest"/>): the two dots, the base length, more for a bigger
+        /// branch, at least what the branch needs to fit its wedge; round a busy dot, long enough for all its lines and
+        /// titles to fit round it, its single-dot leaves alternating between two lengths.
         /// </summary>
         private double BondLength(int p, int c)
         {
             var length = Math.Max(reach[p] + reach[c] + s.Bond + (s.BondGrow * Math.Log2(size[c])), fit[c]);
-            var degree = children[p].Length + (parent[p] >= 0 ? 1 : 0);
-            if (degree >= s.CrowdFrom)
+            if (crowd[p] > 0)
             {
-                var round = children[p].Sum(k => (2 * reach[k]) + (0.5 * (labelW[k] + labelH[k])) + s.CrowdSpacing);
-                length = Math.Max(length, round / (2 * Math.PI));
-                if (children[c].Length == 0 && Array.IndexOf(children[p], c) % 2 == 1)
+                length = Math.Max(length, crowd[p]);
+                if (children[c].Length == 0 && place[c] % 2 == 1)
                 {
                     length *= s.CrowdStagger;
                 }
@@ -352,8 +377,6 @@ public static partial class SpatialLayout
         /// </summary>
         private void Construct(int root)
         {
-            var incoming = new double[n];
-            var lastTurn = new int[n];
             x[root] = 0;
             y[root] = 0;
             for (var k = start[root]; k < end[root]; k++)
@@ -394,7 +417,7 @@ public static partial class SpatialLayout
                 for (var c = 0; c < kids.Length; c++)
                 {
                     var child = kids[c];
-                    var length = BondLength(i, child);
+                    var length = rest[child];
                     x[child] = x[i] + (length * Math.Cos(angles[c]));
                     y[child] = y[i] + (length * Math.Sin(angles[c]));
                     incoming[child] = angles[c];
@@ -527,7 +550,7 @@ public static partial class SpatialLayout
                 var ex = x[c] - x[p];
                 var ey = y[c] - y[p];
                 var dist = Math.Max(1e-6, Math.Sqrt((ex * ex) + (ey * ey)));
-                var move = (BondLength(p, c) - dist) * s.BondStiffness / dist;
+                var move = (rest[c] - dist) * s.BondStiffness / dist;
                 Translate(c, ex * move, ey * move);
             }
         }

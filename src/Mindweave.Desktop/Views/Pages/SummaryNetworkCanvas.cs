@@ -586,9 +586,12 @@ public sealed class SummaryNetworkCanvas : Control
                 if (root.Placed is { } placed)
                 {
                     // Under the root's placed title, aligned like it, inside the block the layout reserved for both.
+                    // As drawn: the pointer's pull moves the dot, and hovering or lifting it grows it, so the title moves too.
                     var title = PlacedText(placed, size, Brushes.Black, root.Unread ? FontWeight.SemiBold : FontWeight.Normal);
-                    var reach = RadiusOf(root) + (root.HasSummary ? SummaryNetworkLayout.SummaryRingGap + 1 : 0);
-                    result.Add(new CaptionPaint(caption, date, PlaceBlock(placed.Side, reach, members[0].At, Size(title), Size(date)).Date));
+                    var grow = root.Id == Hovered || root.Id == Dragging ? HoverGrowth : 0;
+                    var reach = RadiusOf(root) + grow + (root.HasSummary ? SummaryNetworkLayout.SummaryRingGap + 1 : 0);
+                    var at = members[0].At + _offsets.GetValueOrDefault(root.Id);
+                    result.Add(new CaptionPaint(caption, date, PlaceBlock(placed.Side, reach, at, Size(title), Size(date)).Date));
                     continue;
                 }
 

@@ -175,9 +175,20 @@ public partial class SpatialLayoutTests
         Assert.Equal(long_, string.Concat(lines));
         Assert.All(lines, line => Assert.True(SummaryNetworkLayout.LabelWidth(line) <= SpatialLayout.MaxLineWidth));
 
-        var english = SpatialLayout.Wrap("Why does stochastic gradient descent generalize");
-        Assert.All(english, line => Assert.DoesNotContain("  ", line, StringComparison.Ordinal));
-        Assert.Equal("Why does stochastic gradient descent generalize", string.Join(' ', english));
+        // English breaks only at spaces, and a short last word is never glued to a piece of the one before (review 2026-11-22).
+        foreach (var title in new[] { "Why does stochastic gradient descent generalize", "Why does the steam engine matter so much ok" })
+        {
+            var english = SpatialLayout.Wrap(title);
+            Assert.All(english, line => Assert.DoesNotContain("  ", line, StringComparison.Ordinal));
+            Assert.Equal(title, string.Join(' ', english));
+        }
+
+        // A lonely last wide character takes a few from the line before; a character outside the basic plane stays whole.
+        var cjk = SpatialLayout.Wrap("数据采集技术演进与层次关系的通俗讲解啊");
+        Assert.True(cjk[^1].Length > 1);
+        var emoji = SpatialLayout.Wrap("数据采集技术演进与层次关系🦀的讲解");
+        Assert.Equal("数据采集技术演进与层次关系🦀的讲解", string.Concat(emoji));
+        Assert.All(emoji, line => Assert.False(char.IsHighSurrogate(line[^1]), $"'{line}' ends inside a character."));
     }
 
     [Fact]
@@ -200,7 +211,14 @@ public partial class SpatialLayoutTests
     public void Thousand_dots_within_300_ms()
     {
         Assert.SkipUnless(Environment.GetEnvironmentVariable("MINDWEAVE_PERF") == "1", "Run through scripts/perf.sh.");
-        foreach (var (name, nodes) in new[] { ("220 roots", Workspace(seed: 1000, roots: 220, maxDepth: 10, total: 1_000)), ("one binary tree", Full(fan: 2, depth: 9)) })
+        var shapes = new[]
+        {
+            ("220 roots", Workspace(seed: 1000, roots: 220, maxDepth: 10, total: 1_000)),
+            ("one binary tree", Full(fan: 2, depth: 9)),
+            ("1,000 sessions without branches", Workspace(seed: 3, roots: 1_000, maxDepth: 0)),
+            ("one session with 1,000 branches", Broom(handles: 999, bristles: 0)),
+        };
+        foreach (var (name, nodes) in shapes)
         {
             SpatialLayout.Arrange(nodes); // warm-up
             var times = new List<TimeSpan>();

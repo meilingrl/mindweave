@@ -4,8 +4,13 @@ public static partial class SpatialLayout
 {
     private sealed partial class Model
     {
-        /// <summary>The packing grid's cell, in canvas units.</summary>
-        private const double Cell = 8;
+        /// <summary>
+        /// The packing grid's cell, in canvas units: 8, or coarser for a huge exploration, so its shape spans at most about
+        /// <see cref="MaxShapeCells"/> cells and the grid stays small.
+        /// </summary>
+        private double Cell = 8;
+
+        private const double MaxShapeCells = 256;
 
         // The placed molecules on a square grid of cells, with each cell's chamfer distance (3 per step, 4 per diagonal) to
         // the nearest occupied cell: a molecule fits where every one of its cells is farther than its gap from all placed.
@@ -55,6 +60,19 @@ public static partial class SpatialLayout
                 }
             }
 
+            var largest = roots.Max(r =>
+            {
+                double l = double.MaxValue, t = double.MaxValue, rr = double.MinValue, b = double.MinValue;
+                for (var k = start[r]; k < end[r]; k++)
+                {
+                    var i = preorder[k];
+                    var extra = reach[i] + LabelGap + Math.Max(labelW[i], labelH[i]);
+                    (l, t, rr, b) = (Math.Min(l, x[i] - extra), Math.Min(t, y[i] - extra), Math.Max(rr, x[i] + extra), Math.Max(b, y[i] + extra));
+                }
+
+                return Math.Max(rr - l, b - t);
+            });
+            Cell = Math.Max(8, Math.Ceiling(largest / MaxShapeCells));
             maxGapCells = roots.Max(r => GapCells(r));
             foreach (var (root, neighbour) in order)
             {
@@ -303,7 +321,7 @@ public static partial class SpatialLayout
             };
         }
 
-        private static (int, int) ToCell(double px, double py) => ((int)Math.Floor(px / Cell), (int)Math.Floor(py / Cell));
+        private (int, int) ToCell(double px, double py) => ((int)Math.Floor(px / Cell), (int)Math.Floor(py / Cell));
 
         private void Mark(double l, double t, double r, double b)
         {

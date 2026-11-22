@@ -7,6 +7,7 @@ public static partial class SpatialLayout
         private readonly Grid dotGrid = new();
         private readonly Grid labelGrid = new();
         private readonly Grid bondGrid = new();
+        private readonly Grid threadGrid = new();
         private readonly List<int> near = [];
         private int[] seen = [];
         private int stamp;
@@ -24,12 +25,6 @@ public static partial class SpatialLayout
             var w = reach[i] + LabelGap + labelW[i] + 4;
             var h = reach[i] + LabelGap + labelH[i] + 4;
             return (x[i] - w, y[i] - h, x[i] + w, y[i] + h);
-        }
-
-        private (double L, double T, double R, double B) BondBox(int child)
-        {
-            var p = parent[child];
-            return (Math.Min(x[p], x[child]), Math.Min(y[p], y[child]), Math.Max(x[p], x[child]), Math.Max(y[p], y[child]));
         }
 
         private int NextStamp()
@@ -50,7 +45,7 @@ public static partial class SpatialLayout
             if (labels)
             {
                 labelGrid.Build(span, LabelReach, 96);
-                bondGrid.Build(span, i => parent[i] >= 0 ? BondBox(i) : (double.NaN, 0d, 0d, 0d), 96);
+                bondGrid.BuildSegments(span, i => parent[i] >= 0 ? (x[parent[i]], y[parent[i]], x[i], y[i]) : (double.NaN, 0d, 0d, 0d), 96);
             }
         }
 
@@ -247,6 +242,13 @@ public static partial class SpatialLayout
             }
 
             BuildGrids(from, to, labels: true);
+            if (threads)
+            {
+                // The time thread's steps, filed by the cells they pass through; step k runs from root k to root k + 1.
+                var steps = Enumerable.Range(0, Math.Max(0, roots.Count - 1)).ToArray();
+                threadGrid.BuildSegments(steps, k => (x[roots[k]], y[roots[k]], x[roots[k + 1]], y[roots[k + 1]]), 96);
+            }
+
             var order = preorder[from..to].OrderByDescending(i => weight[i]).ThenBy(i => i).ToArray();
             var directions = new List<double>();
             foreach (var i in order)
@@ -337,7 +339,9 @@ public static partial class SpatialLayout
 
             if (threads)
             {
-                for (var k = 0; k + 1 < roots.Count; k++)
+                mark = NextStamp();
+                threadGrid.Query(rect.L, rect.T, rect.R, rect.B, near, seen, mark);
+                foreach (var k in near)
                 {
                     var (a, b) = (roots[k], roots[k + 1]);
                     if (SegmentHitsRect(x[a], y[a], x[b], y[b], rect))
@@ -394,6 +398,7 @@ public static partial class SpatialLayout
     /// </summary>
     private sealed class Grid
     {
+        private const double MaxCellsAcross = 128;
         private double cell;
         private double minX;
         private double minY;
@@ -437,6 +442,8 @@ public static partial class SpatialLayout
                 return;
             }
 
+            // At most about MaxCellsAcross cells a side: a sparse spread (a huge fan) gets larger cells, not a sea of empty ones.
+            cell = Math.Max(cell, Math.Max(maxX - minX, maxY - minY) / MaxCellsAcross);
             nx = Math.Max(1, (int)((maxX - minX) / cell) + 1);
             ny = Math.Max(1, (int)((maxY - minY) / cell) + 1);
             var cells = nx * ny;
@@ -500,6 +507,148 @@ public static partial class SpatialLayout
                     }
                 }
             }
+        }
+
+        /// <summary>
+        /// Files each segment (one with a NaN start is left out) under the cells it passes through, so a long line costs its
+        /// length in cells, not the area of its bounding box.
+        /// </summary>
+        public void BuildSegments(ReadOnlySpan<int> ids, Func<int, (double X1, double Y1, double X2, double Y2)> segment, double size)
+        {
+            cell = size;
+            if (segments.Length < ids.Length)
+            {
+                segments = new (double, double, double, double)[ids.Length];
+                walkStart = new int[ids.Length];
+            }
+
+            (minX, minY) = (double.MaxValue, double.MaxValue);
+            var (maxX, maxY) = (double.MinValue, double.MinValue);
+            for (var k = 0; k < ids.Length; k++)
+            {
+                segments[k] = segment(ids[k]);
+                var (x1, y1, x2, y2) = segments[k];
+                if (double.IsNaN(x1))
+                {
+                    continue;
+                }
+
+                (minX, minY) = (Math.Min(minX, Math.Min(x1, x2)), Math.Min(minY, Math.Min(y1, y2)));
+                (maxX, maxY) = (Math.Max(maxX, Math.Max(x1, x2)), Math.Max(maxY, Math.Max(y1, y2)));
+            }
+
+            if (minX > maxX)
+            {
+                (nx, ny, minX, minY) = (1, 1, 0, 0);
+                cellStart = [0, 0];
+                return;
+            }
+
+            // At most about MaxCellsAcross cells a side: a sparse spread (a huge fan) gets larger cells, not a sea of empty ones.
+            cell = Math.Max(cell, Math.Max(maxX - minX, maxY - minY) / MaxCellsAcross);
+            nx = Math.Max(1, (int)((maxX - minX) / cell) + 1);
+            ny = Math.Max(1, (int)((maxY - minY) / cell) + 1);
+            var cells = nx * ny;
+            if (cellStart.Length < cells + 1)
+            {
+                cellStart = new int[cells + 1];
+            }
+            else
+            {
+                Array.Clear(cellStart, 0, cells + 1);
+            }
+
+            // Walk each segment once: its cells go into one flat list, counted per cell, then filed from that list.
+            walked.Clear();
+            for (var k = 0; k < ids.Length; k++)
+            {
+                walkStart[k] = walked.Count;
+                foreach (var c in Crossed(k))
+                {
+                    walked.Add(c);
+                    cellStart[c + 1]++;
+                }
+            }
+
+            for (var c = 0; c < cells; c++)
+            {
+                cellStart[c + 1] += cellStart[c];
+            }
+
+            if (items.Length < walked.Count)
+            {
+                items = new int[walked.Count];
+            }
+
+            if (fill.Length < cells)
+            {
+                fill = new int[cells];
+            }
+            else
+            {
+                Array.Clear(fill, 0, cells);
+            }
+
+            for (var k = 0; k < ids.Length; k++)
+            {
+                var stop = k + 1 < ids.Length ? walkStart[k + 1] : walked.Count;
+                for (var w = walkStart[k]; w < stop; w++)
+                {
+                    var c = walked[w];
+                    items[cellStart[c] + fill[c]++] = ids[k];
+                }
+            }
+        }
+
+        private readonly List<int> walked = [];
+        private int[] walkStart = [];
+
+        private (double X1, double Y1, double X2, double Y2)[] segments = [];
+        private readonly List<int> crossed = [];
+
+        /// <summary>
+        /// The cells segment <paramref name="k"/> passes through, each once, walked cell by cell (Amanatides and Woo): a
+        /// segment through a query area passes through a cell the area touches, so it is always found.
+        /// </summary>
+        private List<int> Crossed(int k)
+        {
+            crossed.Clear();
+            var (x1, y1, x2, y2) = segments[k];
+            if (double.IsNaN(x1))
+            {
+                return crossed;
+            }
+
+            var (cx, cy) = (Cx(x1), Cy(y1));
+            var (ex, ey) = (Cx(x2), Cy(y2));
+            var (dx, dy) = (x2 - x1, y2 - y1);
+            var stepX = Math.Sign(ex - cx);
+            var stepY = Math.Sign(ey - cy);
+
+            // Parameter along the segment at the next vertical and horizontal cell borders, and per whole cell.
+            var nextX = stepX == 0 ? double.PositiveInfinity : ((minX + ((cx + (stepX > 0 ? 1 : 0)) * cell)) - x1) / dx;
+            var nextY = stepY == 0 ? double.PositiveInfinity : ((minY + ((cy + (stepY > 0 ? 1 : 0)) * cell)) - y1) / dy;
+            var perX = stepX == 0 ? double.PositiveInfinity : Math.Abs(cell / dx);
+            var perY = stepY == 0 ? double.PositiveInfinity : Math.Abs(cell / dy);
+            crossed.Add((cy * nx) + cx);
+            for (var guard = Math.Abs(ex - cx) + Math.Abs(ey - cy); guard > 0; guard--)
+            {
+                // Rounding may favour an axis that has no cells left to cross: the walk always ends on the end cell.
+                if (cy == ey || (cx != ex && nextX < nextY))
+                {
+                    cx += stepX;
+                    nextX += perX;
+                }
+                else
+                {
+                    cy += stepY;
+                    nextY += perY;
+                }
+
+                crossed.Add((cy * nx) + cx);
+            }
+
+            return crossed;
         }
 
         private int Cx(double v) => Math.Clamp((int)Math.Floor((v - minX) / cell), 0, nx - 1);
