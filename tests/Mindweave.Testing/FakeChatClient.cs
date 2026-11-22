@@ -100,7 +100,8 @@ public sealed class FakeChatClient : IChatClient
         var labels = new Dictionary<string, string>(StringComparer.Ordinal);
         foreach (var line in request.Turns[^1].Content.Split('\n'))
         {
-            var match = System.Text.RegularExpressions.Regex.Match(line, @"^\[(S\d+)\] ([^：]+)");
+            // The name runs up to the title (after "：") or the exploration note ("（探索 E1…）" / " (exploration E1…)").
+            var match = System.Text.RegularExpressions.Regex.Match(line, @"^\[(S\d+)\] (.+?)(?:：|（探索 | \(exploration |$)");
             if (match.Success)
             {
                 labels.TryAdd(match.Groups[2].Value.Trim(), match.Groups[1].Value);

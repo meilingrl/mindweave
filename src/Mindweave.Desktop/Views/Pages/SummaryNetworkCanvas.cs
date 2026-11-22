@@ -115,6 +115,12 @@ public sealed class SummaryNetworkCanvas : Control
     /// <summary>The link suggestion whose words are under the pointer, if any (its line drawn stronger).</summary>
     internal Mindweave.Application.SummaryLinks.LinkSuggestionId? HoveredSuggestion { get; private set; }
 
+    /// <summary>The session network's link line under the pointer, if any (its note shows and its ends come out).</summary>
+    internal Mindweave.Application.SummaryLinks.SummaryLinkId? HoveredLink { get; private set; }
+
+    /// <summary>How faded the rest of the picture is while a dot with links is selected (design §8).</summary>
+    internal const double DimOpacity = 0.3;
+
     /// <summary>Where the pointer is for hover and the pull; null when it is off the canvas.</summary>
     internal Point? Pointer => _pointer;
 
@@ -142,6 +148,7 @@ public sealed class SummaryNetworkCanvas : Control
         Hovered = null;
         HoveredRecommendation = null;
         HoveredSuggestion = null;
+        HoveredLink = null;
         _pressed = null;
         Dragging = null;
         _offsets.Clear();
@@ -291,6 +298,8 @@ public sealed class SummaryNetworkCanvas : Control
         var trail = _page.Trail;
         var matches = _page.Matches;
         var sessions = Sessions;
+        var focus = Focus();
+        var linkEnds = HoveredLinkEnds();
         return [.. _page.Nodes.Select(node =>
         {
             var hovered = node.Id == Hovered;
@@ -380,7 +389,7 @@ public sealed class SummaryNetworkCanvas : Control
                 hovered,
                 trail.Contains(node.Id),
                 ring,
-                Halo: hovered || isSelected,
+                Halo: hovered || isSelected || linkEnds.Contains(node.Id) || (focus.Contains(node.Id) && !trail.Contains(node.Id)),
                 LabelVisible: visible,
                 LabelBold: node.Unread,
                 labelSize,
@@ -392,6 +401,7 @@ public sealed class SummaryNetworkCanvas : Control
                 DateBounds = dateBounds,
                 Lifted = lifted,
                 SummaryRing = sessions && node.HasSummary,
+                Dimmed = focus.Count > 0 && !focus.Contains(node.Id),
             };
         })];
     }
@@ -422,6 +432,7 @@ public sealed class SummaryNetworkCanvas : Control
         var timeline = _page.Session.IsTimeline;
         var spatial = Sessions && !timeline;
         var nodes = Sessions ? _page.Nodes.ToDictionary(n => n.Id) : [];
+        var focus = Focus();
         return [.. _page.Edges.Select(edge =>
         {
             var (fromX, fromY) = PositionOf(edge.From, edge.FromX, edge.FromY);
@@ -446,6 +457,7 @@ public sealed class SummaryNetworkCanvas : Control
                     : 0,
                 Curved = edge.Curved,
                 Timeline = timeline,
+                Dimmed = focus.Count > 0 && !(focus.Contains(edge.From) && focus.Contains(edge.To)),
             };
         })];
     }
@@ -468,6 +480,8 @@ public sealed class SummaryNetworkCanvas : Control
         var palette = _palette ??= SummaryNetworkPalette.From(this);
         var zoom = Current.Zoom;
         var selected = _page.Session.Selected;
+        var quiet = Sessions;
+        var focused = quiet && Focus().Count > 0;
         var taken = _page.Nodes.Select(n => HitBoxOf(n, ScreenOf(n) + _offsets.GetValueOrDefault(n.Id), zoom)).ToList();
         return [.. _page.LinkEdges.Select(link =>
         {
@@ -475,11 +489,15 @@ public sealed class SummaryNetworkCanvas : Control
             var (bx, by) = PositionOf(link.B, link.BX, link.BY);
             var from = ToScreen(ax, ay) + _offsets.GetValueOrDefault(link.A);
             var to = ToScreen(bx, by) + _offsets.GetValueOrDefault(link.B);
-            var active = link.A == selected || link.B == selected || link.A == Hovered || link.B == Hovered;
+            var touchesSelected = link.A == selected || link.B == selected;
+            var active = touchesSelected || link.A == Hovered || link.B == Hovered || link.Id == HoveredLink;
             FormattedText? note = null;
             string? label = null;
             var bounds = default(Rect);
-            if (zoom > LabelHideScale || active)
+
+            // The session network's link carries no word at rest: its note shows only while it is active (design §8).
+            var writes = quiet ? active && link.Note is not null : zoom > LabelHideScale || active;
+            if (writes)
             {
                 var words = link.Note ?? UiText.LinkTag;
                 var text = Text(words, active ? EdgeLabelEmphasizedSize : EdgeLabelSize, palette.Link, active ? FontWeight.SemiBold : FontWeight.Normal);
@@ -492,7 +510,7 @@ public sealed class SummaryNetworkCanvas : Control
                 }
             }
 
-            return new LinkPaint(link, from, to, active) { Note = note, Label = label, NoteBounds = bounds };
+            return new LinkPaint(link, from, to, active) { Note = note, Label = label, NoteBounds = bounds, Quiet = quiet, Dimmed = focused && !touchesSelected };
         })];
     }
 
@@ -543,6 +561,59 @@ public sealed class SummaryNetworkCanvas : Control
             return new SuggestionPaint(edge, from, to, active) { Text = text, Label = label, LabelBounds = bounds };
         })];
     }
+
+    /// <summary>The link whose line passes within a few px of a control point, the nearest first; ends are left to the dots.</summary>
+    internal LinkEdgeView? HitTestLink(Point screen)
+    {
+        const double reach = 5;
+        LinkEdgeView? best = null;
+        var bestDistance = reach;
+        foreach (var link in PaintLinks())
+        {
+            var d = link.To - link.From;
+            var length = Math.Sqrt((d.X * d.X) + (d.Y * d.Y));
+            if (length < 1)
+            {
+                continue;
+            }
+
+            var t = Math.Clamp((((screen.X - link.From.X) * d.X) + ((screen.Y - link.From.Y) * d.Y)) / (length * length), 0, 1);
+            var near = link.From + (d * t) - screen;
+            var distance = Math.Sqrt((near.X * near.X) + (near.Y * near.Y));
+            if (distance <= bestDistance && t * length > 12 && (1 - t) * length > 12)
+            {
+                (best, bestDistance) = (link.Link, distance);
+            }
+        }
+
+        return best;
+    }
+
+    /// <summary>
+    /// The nodes brought out while a dot with links is selected in the session network: it, its link partners and its
+    /// path to the root. Empty otherwise, so nothing fades (design §8).
+    /// </summary>
+    private HashSet<SummaryNodeId> Focus()
+    {
+        if (!Sessions || _page?.Session.Selected is not { } selected)
+        {
+            return [];
+        }
+
+        var partners = _page.LinkEdges.Where(l => l.A == selected || l.B == selected).Select(l => l.A == selected ? l.B : l.A).ToList();
+        if (partners.Count == 0)
+        {
+            return [];
+        }
+
+        var focus = new HashSet<SummaryNodeId>(_page.Trail) { selected };
+        focus.UnionWith(partners);
+        return focus;
+    }
+
+    /// <summary>The two ends of the hovered link, if any: they come out like a hovered dot.</summary>
+    private HashSet<SummaryNodeId> HoveredLinkEnds() =>
+        HoveredLink is { } hovered && _page?.LinkEdges.FirstOrDefault(l => l.Id == hovered) is { } link ? [link.A, link.B] : [];
 
     /// <summary>The suggestion whose words are under a control point (drawn last, so above summaries and their labels).</summary>
     internal SuggestionEdgeView? HitTestSuggestion(Point screen) =>
@@ -687,15 +758,31 @@ public sealed class SummaryNetworkCanvas : Control
         var recommended = PaintRecommendations();
         var links = PaintLinks();
         var suggestions = PaintSuggestions();
-        foreach (var edge in edges.Where(e => !e.Highlighted))
+        // While a dot with links is selected, everything else fades (design §8).
+        void Faded(bool dimmed, Action draw)
         {
-            DrawEdge(context, palette, edge);
+            if (!dimmed)
+            {
+                draw();
+                return;
+            }
+
+            using (context.PushOpacity(DimOpacity))
+            {
+                draw();
+            }
         }
 
-        // Content links over the resting source edges (solid, their own colour), under the nodes; their notes come last.
+        foreach (var edge in edges.Where(e => !e.Highlighted))
+        {
+            Faded(edge.Dimmed, () => DrawEdge(context, palette, edge));
+        }
+
+        // Content links over the resting source edges, under the nodes; their notes come last. In the session network a
+        // link is a quiet neutral dash; elsewhere a solid line in its own colour.
         foreach (var link in links)
         {
-            context.DrawLine(palette.LinkPen(link.Active), link.From, link.To);
+            Faded(link.Dimmed, () => context.DrawLine(link.Quiet ? palette.QuietLinkPen(link.Active) : palette.LinkPen(link.Active), link.From, link.To));
         }
 
         // Pending link suggestions: light and dash-dotted beside the links; their words come last with the notes.
@@ -717,7 +804,7 @@ public sealed class SummaryNetworkCanvas : Control
 
         using (context.PushOpacity(0.85))
         {
-            foreach (var node in nodes.Where(n => n.Text is not null))
+            foreach (var node in nodes.Where(n => n.Text is not null && !n.Dimmed))
             {
                 context.FillRectangle(palette.Background, node.Backdrop, 3);
                 if (node.DateText is not null)
@@ -729,25 +816,28 @@ public sealed class SummaryNetworkCanvas : Control
 
         foreach (var edge in edges.Where(e => e.Highlighted))
         {
-            DrawEdge(context, palette, edge);
+            Faded(edge.Dimmed, () => DrawEdge(context, palette, edge));
         }
 
         foreach (var node in nodes)
         {
-            DrawNode(context, palette, node);
+            Faded(node.Dimmed, () => DrawNode(context, palette, node));
         }
 
         foreach (var node in nodes)
         {
-            if (node.Text is { } text)
+            Faded(node.Dimmed, () =>
             {
-                context.DrawText(text, node.LabelBounds.TopLeft);
-            }
+                if (node.Text is { } text)
+                {
+                    context.DrawText(text, node.LabelBounds.TopLeft);
+                }
 
-            if (node.DateText is { } date)
-            {
-                context.DrawText(date, node.DateBounds.TopLeft);
-            }
+                if (node.DateText is { } date)
+                {
+                    context.DrawText(date, node.DateBounds.TopLeft);
+                }
+            });
         }
 
         foreach (var caption in PaintCaptions())
@@ -1233,11 +1323,13 @@ public sealed class SummaryNetworkCanvas : Control
         var hovered = point is { } p ? HitTest(p)?.Id : null;
         var suggestion = hovered is null && Dragging is null && _page is { IsPicking: false } && point is { } s ? HitTestSuggestion(s)?.Id : null;
         var recommended = hovered is null && suggestion is null && Dragging is null && point is { } q ? HitTestRecommendation(q)?.Id : null;
-        if (hovered != Hovered || recommended != HoveredRecommendation || suggestion != HoveredSuggestion)
+        var link = hovered is null && suggestion is null && recommended is null && Dragging is null && Sessions && point is { } l ? HitTestLink(l)?.Id : null;
+        if (hovered != Hovered || recommended != HoveredRecommendation || suggestion != HoveredSuggestion || link != HoveredLink)
         {
             Hovered = hovered;
             HoveredRecommendation = recommended;
             HoveredSuggestion = suggestion;
+            HoveredLink = link;
             InvalidateVisual();
         }
 

@@ -7,6 +7,8 @@ using Mindweave.Application.Storage;
 using Mindweave.Core.Conversations;
 using Mindweave.Core.Workspaces;
 
+using Mindweave.Application.SummaryNetwork;
+
 namespace Mindweave.Application.SummaryLinks;
 
 /// <summary>AI-suggested links the user confirms (requirements §10.3.4), as the summary network uses them.</summary>
@@ -61,6 +63,7 @@ public sealed partial class LinkSuggestionService : ILinkSuggestions, IDisposabl
     private readonly GenerationCoordinator _generation;
     private readonly IClock _clock;
     private readonly ILogger<LinkSuggestionService> _logger;
+    private readonly ISummaryNetworkLayout? _network;
     private readonly CancellationTokenSource _stop = new();
     private readonly Lock _gate = new();
     private readonly Dictionary<WorkspaceId, Run> _running = [];
@@ -77,8 +80,10 @@ public sealed partial class LinkSuggestionService : ILinkSuggestions, IDisposabl
         StorageHealth health,
         GenerationCoordinator generation,
         IClock clock,
-        ILogger<LinkSuggestionService> logger)
+        ILogger<LinkSuggestionService> logger,
+        ISummaryNetworkLayout? network = null)
     {
+        _network = network;
         _store = store;
         _summaries = summaries;
         _links = links;
@@ -274,7 +279,13 @@ public sealed partial class LinkSuggestionService : ILinkSuggestions, IDisposabl
         }
 
         var avoid = await _store.ListAvoidedAsync(workspace, stop).ConfigureAwait(false);
-        var input = LinkSuggestionPrompt.SelectInput(bases.Listed, bases.Count, avoid);
+
+        // Where each summary sits in its exploration, so a summary is never paired with one on its own line of descent.
+        var lineage = _network is null
+            ? null
+            : (await _network.ProjectAsync(workspace, stop).ConfigureAwait(false)).Nodes
+                .ToDictionary(n => n.Id, n => new SummaryLineage(n.Conversation, n.Root, n.Ancestors));
+        var input = LinkSuggestionPrompt.SelectInput(bases.Listed, bases.Count, avoid, lineage);
         string output;
         try
         {

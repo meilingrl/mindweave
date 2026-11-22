@@ -15,6 +15,8 @@ using Mindweave.Desktop.Views.Pages;
 using Mindweave.Infrastructure.Sqlite;
 using static Mindweave.Desktop.Tests.UiTree;
 
+using Mindweave.Application.SummaryLinks;
+
 namespace Mindweave.Desktop.Tests;
 
 /// <summary>
@@ -365,6 +367,53 @@ public class SessionNetworkCanvasTests
             }
         }
 
+        window.Close();
+    }
+
+    [AvaloniaFact]
+    public async Task A_link_is_quiet_until_active_and_a_linked_dot_brings_out_its_partner()
+    {
+        // Design §8: a thin neutral dash with no word on it at rest; its note shows while it is active (an end selected or
+        // hovered, or the line hovered); selecting a dot with links brings out its partner and path and fades the rest.
+        await using var app = Gated();
+        var window = app.ShowWindow(1100, 720);
+        await SummaryNetworkScenario.SeedAsync(app);
+        var network = await SummaryNetworkScenario.OpenSummaryNetworkAsync(app, window);
+        await UiWait.UntilAsync(() => network.Nodes.Count == 4);
+        var speed = network.Nodes.Single(n => n.ShortTitle == "火箭号速度");
+        var rails = network.Nodes.Single(n => n.ShortTitle == "铁轨");
+        var middle = network.Nodes.Single(n => !n.HasSummary);
+        await app.Services.GetRequiredService<SummaryLinkService>().CreateAsync(speed.Id, rails.Id, "对比", CancellationToken.None);
+        await UiWait.UntilAsync(() => network.LinkEdges.Count == 1);
+        var canvas = CanvasOf(window);
+
+        var resting = Assert.Single(canvas.PaintLinks());
+        Assert.True(resting.Quiet);
+        Assert.False(resting.Active);
+        Assert.Null(resting.Label);
+        Assert.DoesNotContain(canvas.PaintNodes(), p => p.Dimmed);
+
+        // Selecting 铁轨: its partner and its path (the root) come out; the middle conversation, on neither, fades.
+        network.Select(rails.Id);
+        var linked = Assert.Single(canvas.PaintLinks());
+        Assert.Equal("对比", linked.Label);
+        Assert.False(linked.Dimmed);
+        var nodes = canvas.PaintNodes().ToDictionary(p => p.Node.Id);
+        Assert.False(nodes[speed.Id].Dimmed);
+        Assert.True(nodes[speed.Id].Halo);
+        Assert.True(nodes[middle.Id].Dimmed);
+        Assert.Contains(canvas.PaintEdges(), e => e.Dimmed);
+
+        // Hovering the line: its note shows and both ends come out; nothing fades without a selection.
+        network.Select(null);
+        var line = canvas.PaintLinks()[0];
+        canvas.SetPointer(line.From + ((line.To - line.From) * 0.5));
+        Assert.Equal(network.LinkEdges[0].Id, canvas.HoveredLink);
+        Assert.Equal("对比", canvas.PaintLinks()[0].Label);
+        var hovered = canvas.PaintNodes().ToDictionary(p => p.Node.Id);
+        Assert.True(hovered[speed.Id].Halo && hovered[rails.Id].Halo);
+        Assert.DoesNotContain(hovered.Values, p => p.Dimmed);
+        canvas.SetPointer(null);
         window.Close();
     }
 

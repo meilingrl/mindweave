@@ -59,6 +59,12 @@ internal sealed record NodePaint(
     /// <summary>The session network: the conversation has a summary, drawn as a thin ring around the dot.</summary>
     public bool SummaryRing { get; init; }
 
+    /// <summary>
+    /// Faded: a dot with links is selected and this node is neither it, its link partners nor on its path to the root
+    /// (design §8: selecting a dot with links brings out both ends and dims the rest).
+    /// </summary>
+    public bool Dimmed { get; init; }
+
     public const double UnreadDotRadius = 2.5;
 
     /// <summary>
@@ -89,6 +95,9 @@ internal sealed record EdgePaint(EdgeView Edge, Point From, Point To, EdgeState 
     /// <summary>The time thread in the spatial view: dotted, with a small open arrowhead at the later exploration's dot.</summary>
     public bool Arrow { get; init; }
 
+    /// <summary>Faded while a dot with links is selected and this edge joins none of the nodes brought out.</summary>
+    public bool Dimmed { get; init; }
+
     /// <summary>How far short of <see cref="To"/> the arrow's tip stops: the target dot's edge (its ring included).</summary>
     public double ArrowInset { get; init; }
 
@@ -106,6 +115,12 @@ internal sealed record EdgePaint(EdgeView Edge, Point From, Point To, EdgeState 
 /// </summary>
 internal sealed record LinkPaint(LinkEdgeView Link, Point From, Point To, bool Active)
 {
+    /// <summary>The session network's quiet link: a thin neutral dashed line, with its note only while active (design §8).</summary>
+    public bool Quiet { get; init; }
+
+    /// <summary>Faded while a dot with links is selected and this link does not touch it.</summary>
+    public bool Dimmed { get; init; }
+
     public FormattedText? Note { get; init; }
 
     /// <summary>The words of <see cref="Note"/>: the note, or "关联"; null when nothing is written at this zoom.</summary>

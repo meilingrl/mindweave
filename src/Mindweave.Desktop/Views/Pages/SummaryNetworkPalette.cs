@@ -115,6 +115,18 @@ internal sealed class SummaryNetworkPalette
     /// <summary>The thin frame around a link's note.</summary>
     public IPen LinkNoteFrame => _linkNoteFrame ??= new Pen(Link, 1);
 
+    private IPen? _quietLink;
+    private IPen? _quietLinkActive;
+
+    /// <summary>
+    /// The session network's link (design §8): at rest a thin dashed line in the edges' neutral colour, apart from the solid
+    /// branch line and the dotted time thread by its long dashes; active (an end selected or hovered, or the link hovered)
+    /// it takes the link colour and grows a little.
+    /// </summary>
+    public IPen QuietLinkPen(bool active) => active
+        ? _quietLinkActive ??= new Pen(Link, 1.8, new DashStyle([5, 2.5], 0), PenLineCap.Flat)
+        : _quietLink ??= new Pen(Edge, 1.2, new DashStyle([6, 3.5], 0), PenLineCap.Flat);
+
     /// <summary>A pending link suggestion's line (requirements §10.3.4): a lighter tone of the link colour.</summary>
     public required IBrush LinkSuggestion { get; init; }
 
