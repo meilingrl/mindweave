@@ -1,7 +1,6 @@
 # Mindweave architecture and technical plan
 
-**Updated:** 2026-11-20  
-**Status:** A topic-by-topic arrangement of the confirmed plan; it adopts independent review R4 of 2026-10-24 and the user's answers. Formal development has not started; this is not an implementation plan.  
+**Status:** The confirmed plan, arranged by topic. Implementation-level designs are in [docs/design](design/README.md); progress is not recorded here but in [STATUS.md](../STATUS.md).  
 **Product basis:** [Product requirements and first-release scope](requirements.md)
 
 This document answers "how to implement it"; product behavior and scope follow the requirements document, and verification results support only the scenarios they actually cover. For historical comparisons and old stopping points, see [design history](history/design-history.md); the original re-review materials stay frozen. When an inconsistency is found, check the later explicit decisions; a historical draft does not override current conclusions.
@@ -14,11 +13,11 @@ Reading order: architecture boundaries and projects → navigation and data → 
 
 The technology is C#, pure Avalonia, four lightweight projects, a single local SQLite database, and LiveMarkdown plus an anchor adaptation layer. The first release configures one OpenAI-compatible Chat Completions service, which the desktop app calls directly; no account or free-quota backend is built. The core of the product is branching, returning, summarizing and reviewing in personal, subject-focused exploration.
 
-macOS is the main development and usage environment. Windows is the secondary platform of the first release and the course demo environment; Windows 11 x64 on an ASUS ROG Zephyrus G16 has been set as the verification device, but Windows acceptance is not finished yet. Linux is a later target. The UI follows the clean layout of Codex; following its look does not mean copying its internal implementation.
+macOS is the main development and usage environment. Windows is the secondary platform of the first release and the course demo environment; Windows 11 x64 on an ASUS ROG Zephyrus G16 is the verification device. Linux is a later target. The UI follows the clean layout of Codex; following its look does not mean copying its internal implementation.
 
 Key principles: where a branch came from can be verified, and positions are never guessed; knowledge content is saved independently of layout; generation does not depend on the current View; business models are not bound to the UI or to a vendor; late results never revive deleted content or overwrite a final state; old checkpoints never roll back newer content, and automatic titles never overwrite manual names. Specific tests belong to the matching implementation stage; exhaustively listing further details is not a precondition for starting development.
 
-This round only organizes the documents. A passing sample does not mean the formal product is implemented, and it does not automatically add dragging, decorative animation or 3D to the first release; formal development must be scheduled separately by the user. The reuse inventory of Worklog is not finished, and no reuse ratio is promised.
+A passing prototype does not add dragging, decorative animation or 3D to the first release by itself. No reuse of Worklog is promised.
 
 ## 2. Four projects and course structure
 
@@ -33,7 +32,7 @@ Dependency direction: Application → Core; Infrastructure → Application, Core
 
 The Desktop startup entry composes the infrastructure, and ViewModels work through use cases and service interfaces. Selection hit-testing, text geometry, highlighting and scrolling belong to the View / adaptation layer; they are not forced into ViewModels just to look like MVVM.
 
-Abstractions exist only at real replacement boundaries such as storage, AI and navigation; no general command bus, per-class interfaces or complex repository framework is introduced. Prototypes are not extended directly into the formal product; formal development is not yet authorized.
+Abstractions exist only at real replacement boundaries such as storage, AI and navigation; no general command bus, per-class interfaces or complex repository framework is introduced. Prototypes are not extended directly into the formal product.
 
 ### 2.1 Course requirements
 
@@ -491,7 +490,7 @@ The user message and the request record are committed before sending. The text, 
 - A failed migration does not automatically overwrite the original database with a backup, and does not automatically create an empty database to fake success. It offers the error, retry, opening the data location, and quit. When a usable backup exists, the user explicitly chooses whether to restore it.
 - Before restoring, stop tasks, close connections and keep the current file; then restore the backup and check again. Explain clearly the point in time restored to and the possible losses. A migration backup is not the same as a routine backup.
 
-Infrastructure performs opening, backup, migration and restore; Application coordinates the startup result; Desktop shows the workbench or the recovery page through Root; Core does not handle SQL upgrades. Transaction failure, process interruption, backup failure, incompatibility between old and new versions, and relationship integrity after restore all need verification on a temporary database; this round did not run it.
+Infrastructure performs opening, backup, migration and restore; Application coordinates the startup result; Desktop shows the workbench or the recovery page through Root; Core does not handle SQL upgrades. Transaction failure, process interruption, backup failure, incompatibility between old and new versions, and relationship integrity after restore all need verification on a temporary database.
 
 ### 12.3 Exit and leave order [review suggestion · MW-C09]
 
@@ -506,7 +505,7 @@ Infrastructure performs opening, backup, migration and restore; Application coor
 
 ## 13. Verification status and asset entry points
 
-The following verification has already happened. The documentation cleanup of 2026-10-24 did not rerun tests or call AI, and historical test counts are not treated as results of this round.
+A record of the prototype evidence gathered before formal development (October 2026). Current verification is the test suite and the results in [STATUS.md](../STATUS.md).
 
 | Asset | Existing evidence | Not covered |
 | --- | --- | --- |
@@ -515,13 +514,13 @@ The following verification has already happened. The documentation cleanup of 20
 | [API probe](../prototypes/responses-compat/README.md) | Short plain/SSE samples of Pinaic GPT and DeepSeek's official Chat Completions; separate Responses samples | Formal C# integration, long text and multiple turns, compression, server-side cancellation billing; Claude blocked (the user reported the upstream quota was exhausted), compatibility undecided |
 | [Summary network sample](../prototypes/network-layout/README.md) | User confirmed layout browsing, drag pull, adjustable strength, hover attraction; build and numeric boundary checks | Formal implementation of hybrid node controls, persistence, large-scale performance, Windows, and delayed-review value |
 
-Verification of the summary network sample ended in this round; it is kept for reference and not extended further. The exact versions, reports and limits of each asset are as stated in its README. Earlier route comparisons, stage stopping points and where D1–D8 came from are in [Design history](history/design-history.md) and [Decisions after re-review](reviews/review-20261023-023314-sgt/discussion-decisions.md).
+Verification of the summary network sample ended then; it is kept for reference and not extended further. The exact versions, reports and limits of each asset are as stated in its README. Earlier route comparisons, stage stopping points and where D1–D8 came from are in [Design history](history/design-history.md) and [Decisions after re-review](reviews/review-20261023-023314-sgt/discussion-decisions.md).
 
 Later acceptance is handled separately: course structure and delivery criteria, real technical integration, target platforms, failure recovery, and the user's delayed-review value. Passing one category cannot replace the others.
 
 ## 14. Implementation to-dos and decision boundaries
 
-The main architecture is enough to support the later development plan; finishing discussion of every parameter is no longer a precondition. The user currently asks to organize the documents first, and formal development has not started. The following are items assigned to future development tasks, not a list waiting for item-by-item approval.
+A record written before formal development (2026-10-25) of what was left to implementation and how it would be verified. The results are in the design documents and the code; this section is not a list of open items.
 
 ### 14.1 Refined with implementation
 
@@ -549,11 +548,9 @@ Specific interactions for request timeouts, retries and answer attempts were onc
 
 The design of the agent platform (requirements §10.4) is in §15, and it is implemented on schedule; a code execution sandbox and long-running background agents are not planned. Full project import/export, a full multi-provider management UI, cross-workspace semantic associations and automatic classification, free-quota services, Linux and 3D are not current prerequisites. The first batch of recommendations and summary links is written into requirements §10.3 as increments after the first release, not as first-release gates. Manual dragging and decorative animation keep their recorded phasing; explicit saving of automatic layout coordinates is already the current plan and is not postponed as a whole.
 
-After this cleanup is done, a phased development plan can be made separately; documentation cleanup or technical verification does not automatically grant development authorization.
-
 ### 14.4 Notes on adopting the review
 
-On 2026-10-25 the independent review R4 was adopted. All changes relative to the 2026-10-24 version are recorded by issue number in the [change log](reviews/claude-design-readiness-20261024-172436/change-log.md). U1–U4 have all been answered (see [user decisions after the review](reviews/claude-design-readiness-20261024-172436/user-decisions.md)), and there are currently no product matters waiting for the user's decision.
+On 2026-10-25 the independent review R4 was adopted. All changes relative to the 2026-10-24 version are recorded by issue number in the [change log](reviews/claude-design-readiness-20261024-172436/change-log.md). U1–U4 have all been answered (see [user decisions after the review](reviews/claude-design-readiness-20261024-172436/user-decisions.md)).
 
 ## 15. Agent platform: resources, runs and tools (after the first release)
 

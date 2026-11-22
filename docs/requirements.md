@@ -1,14 +1,13 @@
 # Mindweave product requirements
 
-**Document status:** The current consolidated version of the confirmed requirements. It adopts independent review R4 of 2026-10-24 and the user's answers. Formal development has not started yet, and this does not mean the product's value has been verified  
+**Document status:** The confirmed requirements. Changes are listed in the revision history (§14); progress is not recorded here but in [STATUS.md](../STATUS.md). Confirmed requirements do not mean the product's value is verified (§12).  
 **Version:** v0.24  
 **Created:** 2026-09-08  
-**Updated:** 2026-11-21  
 **Project name:** Mindweave
 
 This document describes the problem the product solves, the first-release scope, usage behavior and acceptance goals. Engineering responsibilities, data contracts and implementation mechanisms are in [Architecture and technical design](architecture.md); prototypes and review evidence are reached from the [project entry](../README.md). Historical revision records keep the facts of their time and are not current to-dos.
 
-Reading order: product positioning and scenarios → core concepts → first-release scope → user flows and rules → later vision → acceptance and value validation. Adjustable details such as timeouts and save intervals are handled in the corresponding implementation stage; they do not require full discussion one by one before development. This round only organizes the documents and does not start development.
+Reading order: product positioning and scenarios → core concepts → first-release scope → user flows and rules → later vision → acceptance and value validation. Adjustable details such as timeouts and save intervals are handled in the corresponding implementation stage; they do not require full discussion one by one before development.
 
 **Review markers:** This version adopts the revisions of the [detailed-design readiness review](reviews/claude-design-readiness-20261024-172436/README.md). The markers are kept for traceability. [user confirmed] and [review completion] are both current content (the completion items MW-C01–C04 were confirmed by the user one by one on 2026-10-24; the rest were adopted with the write-back of 2026-10-25). [review suggestion] marks technical suggestions; detailed design may replace them with equivalent solutions. [for detailed design] is left for the design of the corresponding module to propose a solution. For the numbering and the basis, see the [review report](reviews/claude-design-readiness-20261024-172436/review-report.md); for the user's own words, see [user decisions after the review](reviews/claude-design-readiness-20261024-172436/user-decisions.md).
 
@@ -93,7 +92,7 @@ In the summary network, "lineage" and "related content" should be distinguishabl
 
 ## 5. First-release scope and delivery boundaries
 
-The first release is the complete flow of "smooth exploration + leaving a reviewable record". The two stages below are the implementation order of the same first release; completing only the first stage cannot be called a complete first release. The stage descriptions are not an authorization for this round of development.
+The first release is the complete flow of "smooth exploration + leaving a reviewable record". The two stages below are the implementation order of the same first release; completing only the first stage cannot be called a complete first release.
 
 ### 5.1 Smooth exploration
 
@@ -120,7 +119,7 @@ The first release also includes summary version management, lightweight Markdown
 
 ### 5.3 Platform and course constraints
 
-Use a pure Avalonia desktop route, four lightweight projects, a single local SQLite database, and LiveMarkdown plus an adapter layer for original-text positions. macOS is the main development and use environment. Windows 11 x64 is the secondary support and course demo environment, and the user already has an ROG Zephyrus G16 test device. Final dependency versions and actual platform compatibility must still be verified. Keep meeting the requirements of the same course: MVVM, service-based three-layer Root/Menu/Content navigation, ViewLocator or an equivalent mechanism, service abstractions, and Library/UI separation. Also follow the teacher's restriction "do not build for the web", and do not treat web-based desktop packaging as compliant by default. Do not inherit Worklog's task model and state transitions, and do not promise to reuse its implementation.
+Use a pure Avalonia desktop route, four lightweight projects, a single local SQLite database, and LiveMarkdown plus an adapter layer for original-text positions. macOS is the main development and use environment. Windows 11 x64 is the secondary support and course demo environment, and the user already has an ROG Zephyrus G16 test device. Keep meeting the requirements of the same course: MVVM, service-based three-layer Root/Menu/Content navigation, ViewLocator or an equivalent mechanism, service abstractions, and Library/UI separation. Also follow the teacher's restriction "do not build for the web", and do not treat web-based desktop packaging as compliant by default. Do not inherit Worklog's task model and state transitions, and do not promise to reuse its implementation.
 
 ### 5.4 Non-goals
 
@@ -756,7 +755,7 @@ Testing the same content repeatedly with the same user may be affected by memory
 
 ## 13. Later implementation and verification plan
 
-The current product scope and main architecture are enough as the basis for preparing later development. The items below are implementation and acceptance items for the corresponding stages; they do not require listing every detail before development starts. Formal implementation still needs separate authorization. New scope, behavior that costs money, or clear changes to how the product is used are discussed when they come up.
+The items below are checks for the stages that implement the matching scope. New scope, behavior that costs money, or clear changes to how the product is used are discussed when they come up.
 
 - First make sure that anchors in the original text and reading positions are restored correctly under long answers, streamed content and layout changes.
 - Implement the confirmed context strategy, verify the model budget and the compression threshold, and check with real long conversations whether corrections, where content came from, and references are kept.
@@ -764,7 +763,7 @@ The current product scope and main architecture are enough as the basis for prep
 - Distinguish the definite relationships of lineage from the semantic relationships guessed by AI, and do not use the latter to rewrite the former.
 - The first release first proves that branch return and delayed review work, and only then adds automatic summary links and recommendations, so that new features do not take the place of value validation. The scope of the first batch of recommendations and summary links is in §10.3.
 
-The per-module inputs, required outputs and order of work for detailed design from the 2026-10-24 independent review are in the [detailed design handoff](reviews/claude-design-readiness-20261024-172436/detailed-design-handoff.md). That handoff is not an authorization to develop.
+The per-module inputs, required outputs and order of work for detailed design from the 2026-10-24 independent review are in the [detailed design handoff](reviews/claude-design-readiness-20261024-172436/detailed-design-handoff.md). It is kept as the record of that time.
 
 ## 14. Revision history
 

@@ -37,6 +37,8 @@ At the end of each stage, state: how to try it (one command), which scenarios we
 
 `docs/requirements.md` and `docs/architecture.md` are the current basis. When you find an error or a gap, propose a change, commit it separately as in the table above, and let the user confirm; never change them silently. Superseded versions can be read from the baseline tags and git history.
 
+They say what the product is and how it is built, never how far work has got: no "not started yet", "currently" or "this round". Progress goes to `STATUS.md`. A passage that records a past moment states its date, so it stays true.
+
 ## Where files belong
 
 Current requirements and architecture are in `docs/`, implementation-level design in `docs/design/`, history in `docs/history/`, review batches in `docs/reviews/`, standalone prototypes in `prototypes/`. Code, tests and scripts are in `src/`, `tests/` and `scripts/`; do not create empty folders in advance.
