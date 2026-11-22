@@ -34,7 +34,7 @@ Checked in the code and the package cache on 2026-11-22:
 - **Narrow screens.** One column at a time: sidebar, then conversation, then network. The viewer-slot seam (E1) already separates navigation state from the view.
 - **Generation in the background.** Android: a foreground service while an answer runs. iPhone: about 30 seconds, then the answer is cut; it is marked interrupted and the user runs it again. The existing checkpoints and final states support this.
 - **Data between devices.** Each device keeps its own SQLite database. Sync goes through a log of changes, keyed by the stable IDs already in use, into a folder the user owns (iCloud Drive, WebDAV, Syncthing). There is no Mindweave server. The exchange format (E5) is the basis.
-- **The relay again.** The Web target needs a relay for cross-origin calls. It can be the same relay as in the [free trial](free-trial.md) draft.
+- **The relay again.** The Web target needs a relay for cross-origin calls. It can be the same relay as in the [free trial](../design/free-trial.md) design.
 
 ## Not verified
 

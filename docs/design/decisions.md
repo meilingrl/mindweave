@@ -188,3 +188,10 @@ Bilingual merge 3 sends English prompts when the interface is English. They are 
 - Every build said "Mindweave 0.1.0", and daily builds carried no commit, so you could not tell which build was running. The version is now 0.2.0 and is raised (minor number) at each finished plan step.
 - Outside a release, the line under the settings names the build: version, short commit and the commit's date, then the data channel, e.g. "Mindweave 0.2.0 · 5f50734 · 2026-11-22 · 数据通道 claude-auto". A release still shows only "Mindweave 0.2.0".
 - Dev builds take the commit and date from git; `scripts/daily.sh` passes them, because it builds from a `git archive` export. A build from the source package has no git and shows only the version.
+
+## D-034 The free trial is adopted, with no schedule (you, 2026-11-22)
+
+- After a technical discussion, you judged the plan feasible and adopted it as evolution D9. The design is [free-trial.md](free-trial.md).
+- The work comes later. No schedule is written down.
+- The defaults in the design's open decisions stand until you change them: $3 a day global cap, about $0.30 per install with no renewal, tools and web search off at first, the relay address only in Release builds.
+- Requirements §9.4 and architecture §7.4 change when the work starts, in a separate commit you confirm.

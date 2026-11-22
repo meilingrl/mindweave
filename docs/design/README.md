@@ -32,6 +32,12 @@ This directory records the choices that the handoff document lets implementers r
 | --- | --- |
 | [Session network and timeline](session-network.md) | Sessions as dots, the timeline and the spatial view, behind `MINDWEAVE_SESSION_NETWORK=1`; rounds 1 and 2 merged 2026-11-22 |
 
+## Model access
+
+| Document | Content |
+| --- | --- |
+| [Free trial](free-trial.md) | Adopted 2026-11-22 (evolution D9), not built: a relay on the owner's VPS, anonymous install tokens with proof-of-work, per-install and global caps, the request flow, starting limits, hosting, the app changes, cost and open decisions |
+
 ## Interface
 
 | Document | Content |

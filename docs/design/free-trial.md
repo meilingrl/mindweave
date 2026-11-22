@@ -1,6 +1,6 @@
 # Free trial
 
-**Status:** discussed with the owner, 2026-11-22. The owner judges the plan feasible. Not yet adopted: there is no entry in [evolution.md](../evolution.md) and no design note. The open decisions are listed near the end, each with a proposed default.
+**Status:** adopted by the owner on 2026-11-22 as [evolution D9](../evolution.md) (D-034). The work comes later; no schedule is set. The requirements and architecture are changed as part of that work, in a separate commit the owner confirms. The open decisions are listed near the end, each with a proposed default.
 
 **Related:** [architecture §7.4](../architecture.md) records a built-in free experience as a long-term vision and sets three rules that this draft keeps: the server key is not in the installer, an exhausted quota does not delete local content, and the app does not switch to the user's paid configuration by itself.
 
@@ -134,7 +134,7 @@ Estimates in agent working days.
 | Documents | Requirements §9.4 and architecture §7.4, a separate commit the owner confirms | 0.5 |
 | End-to-end check | Real relay and real provider on a small budget, on macOS and Windows | 1 |
 
-About 7 to 10 days in all, or 2 to 3 weeks with the owner's review rounds. The owner's own part: the provider account and top-up, the domain, server setup on the VPS, and two or three rounds of UI review. Running work afterwards is a few hours a month: watching spend, rotating the key, following model renames.
+About 7 to 10 days of work in all, plus the owner's review rounds. The owner's own part: the provider account and top-up, the domain, server setup on the VPS, and two or three rounds of UI review. Running work afterwards is a few hours a month: watching spend, rotating the key, following model renames.
 
 ## Alternatives
 
@@ -156,7 +156,6 @@ Each has a proposed default; none blocks the next step.
 
 | Decision | Proposed default |
 | --- | --- |
-| Adopt the direction and schedule it | Owner's call; adoption moves this into evolution.md and a design note |
 | Budget | $3 a day global cap, $20 first top-up |
 | Trial size and renewal | About $0.30 per install, no renewal |
 | Tools and web search in the trial | Off at first |
