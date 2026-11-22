@@ -43,6 +43,12 @@ They say what the product is and how it is built, never how far work has got: no
 
 Current requirements and architecture are in `docs/`, implementation-level design in `docs/design/`, history in `docs/history/`, review batches in `docs/reviews/`, standalone prototypes in `prototypes/`. Code, tests and scripts are in `src/`, `tests/` and `scripts/`; do not create empty folders in advance.
 
+A document's folder says what standing it has:
+
+- `docs/ideas/` holds thinking that is not agreed. It binds nobody. The user decides whether a draft is adopted or dropped; either way it then leaves the folder.
+- `docs/design/` holds only what is built or approved to be built, and the engineering rules in force. Every file has a row in a group of its index.
+- `docs/history/design/` holds finished-stage designs and execution plans whose work has merged. A design or plan moves there in the merge that finishes its work.
+
 Progress, history and decisions each have one place:
 
 - `STATUS.md` holds only what is true now: work in progress, next steps, what needs the user, open decisions, and when each platform was last verified. Finished items leave it.
@@ -54,8 +60,8 @@ Progress, history and decisions each have one place:
 
 | What | Language |
 | --- | --- |
-| Living documents: this file, `README.md`, `STATUS.md`, requirements, architecture, current designs in `docs/design/`, `docs/evolution.md`, `docs/changes.md`, `docs/mailbox.md` | English, one language per file |
-| Frozen records: `docs/history/`, `docs/reviews/`, `prototypes/`, finished-stage designs (`docs/design/s0-…` to `s7-…`, `s6-wrapup.md`, `s6-windows-checklist.md`), stage-report entries before 2026-11-20 | Kept as written (mostly Chinese); not translated |
+| Living documents: this file, `README.md`, `STATUS.md`, requirements, architecture, the designs in `docs/design/`, the drafts in `docs/ideas/`, `docs/evolution.md`, `docs/changes.md`, `docs/mailbox.md` | English, one language per file |
+| Frozen records: `docs/history/` (including the finished-stage designs, plans and stage reports in `docs/history/design/`), `docs/reviews/`, `prototypes/` | Kept as written (mostly Chinese); not translated |
 | Code, comments, commit messages | English |
 
 1. **Terms come from the glossary** in [architecture §2.3](docs/architecture.md), including its notes on English wording. Prose uses plain lowercase words ("summary node"); code formatting only when the text means the type itself.
