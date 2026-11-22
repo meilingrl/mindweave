@@ -144,6 +144,8 @@ Positions are saved per dot, as today (§7.4, U3):
 
 ### 6.3 Storage
 
+Replaced on 2026-11-23 by exploration places (§16, D-035): one saved row per exploration, not per dot. The text below is the earlier per-dot plan.
+
 Positions are keyed by conversation, not by summary node:
 
 - New table: `conversation_layout` (`conversation_id` primary key referencing `conversation` with cascade delete, `workspace_id`, `x`, `y`, `updated_at`).
@@ -324,4 +326,6 @@ Two changes from the prototype came from the larger test workspaces: a line is l
 Verified: the §6.4 guards on 25 generated workspaces (1 to 302 dots, 1 to 40 explorations, balanced trees, a comb, a broom) and on a copy of the owner's four workspaces; 1,000 dots in about 0.23 s (220 explorations) and 0.1 s (one binary tree) in Release; the app's spatial view rendered on that copy.
 
 Not verified: Windows; the feel on screen beyond screenshots; long titles in English wrapping on real data.
+
+Built on 2026-11-23 (task/network-stable), behind the switch: exploration places. `SpatialLayout.Arrange` takes each exploration's saved place (its root conversation's dot, the direction of its oldest branch, its size) and returns the places it used. Unchanged explorations go back first, to the very same coordinates; one that changed and now runs into another moves to the nearest place where it keeps at least 40% of its gap (the "no large shifts" rule); new explorations go beside their neighbour in time. Migration v18 adds `exploration_place` (rows go with their root conversation or workspace). The session saves new or changed places directly on load, like a new node's place (U3); a failed save is worked out again next time. With places, 1,000 dots in 220 explorations lay out in about 60 ms.
 
