@@ -612,6 +612,12 @@ public class GalleryTests
         Assert.IsType<SettingsHomeViewModel>(scene.App.Workbench.CurrentPage);
         await SettleAsync(window);
         Capture(window, "g22-settings");
+        // The bottom of the page: the version line names the build (version, commit, its date) and the channel.
+        window.GetVisualDescendants().OfType<ScrollViewer>()
+            .First(s => s.GetVisualDescendants().OfType<Avalonia.Controls.TextBlock>().Any(t => t.Text?.StartsWith(UiText.AppName, StringComparison.Ordinal) == true))
+            .ScrollToEnd();
+        await SettleAsync(window);
+        Capture(window, "g22-settings-bottom");
         window.Close();
     }
 
