@@ -164,5 +164,15 @@ Conflicts: `task/session-network` adds strings to `UiText.SummaryNetwork.cs`. Wh
 ## 12. Not verified yet
 
 - How much longer English labels are, and where layouts need room: checked with the screenshots in merge 2.
-- The English prompts with real models (paid; merge 3).
+- The English prompts with real models (paid; merge 3). The owner decided on 2026-11-22 to check them in daily use.
 - Real Windows hardware.
+- English short names on the summary network canvas: nothing is clipped, but no screenshot has been taken.
+
+## 13. Known minor issues (deferred from the merge 3 review)
+
+- A language switch in the middle of a tool run mixes languages, because `RunPrompt.For` is built once per run.
+- The source guard against Chinese text ignores character literals.
+- English names are joined with a full-width "－".
+- `WebRun.PointsBack` recognizes only Chinese words.
+- "The service finished without any text." shows in English in both languages.
+- An English resource name loses its own trailing colon.
