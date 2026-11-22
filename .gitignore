@@ -3,6 +3,7 @@ bin/
 obj/
 artifacts/
 __pycache__/
+prototypes/*/screenshots/
 *.pyc
 .DS_Store
 
