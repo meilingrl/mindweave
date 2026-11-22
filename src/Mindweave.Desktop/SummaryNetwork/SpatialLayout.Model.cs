@@ -44,7 +44,11 @@ public static partial class SpatialLayout
         private readonly int[] lastTurn;
         private readonly double maxReach;
 
-        public Model(IReadOnlyList<SpatialNode> input, SpatialLayoutSettings settings)
+        /// <summary>Each root's exploration key (its conversation, else its dot's id), and the saved places of those that have one.</summary>
+        private readonly Guid[] key;
+        private readonly Dictionary<int, ExplorationPlace> saved = [];
+
+        public Model(IReadOnlyList<SpatialNode> input, SpatialLayoutSettings settings, IReadOnlyDictionary<Guid, ExplorationPlace>? places = null)
         {
             s = settings;
 
@@ -109,6 +113,18 @@ public static partial class SpatialLayout
                 dated[i] = node.Dated;
                 (labelW[i], labelH[i]) = BlockSize(lines[i], dated[i]);
                 hand[i] = 1;
+            }
+
+            key = [.. kept.Select(node => node.Conversation ?? node.Id.Value)];
+            if (places is not null)
+            {
+                foreach (var r in roots)
+                {
+                    if (places.TryGetValue(key[r], out var place))
+                    {
+                        saved[r] = place;
+                    }
+                }
             }
 
             maxReach = n == 0 ? 0 : reach.Max();
@@ -289,7 +305,11 @@ public static partial class SpatialLayout
                 Relax(r);
             }
 
-            if (roots.Count > 1)
+            if (saved.Count > 0)
+            {
+                PlaceStable();
+            }
+            else if (roots.Count > 1)
             {
                 Pack();
             }
@@ -308,7 +328,10 @@ public static partial class SpatialLayout
                 labels[ids[i]] = new SpatialLabel(side[i], lines[i]);
             }
 
-            return new SpatialArrangement(positions, labels);
+            return new SpatialArrangement(positions, labels)
+            {
+                Places = roots.ToDictionary(r => key[r], r => new ExplorationPlace(x[r], y[r], Heading(r), size[r])),
+            };
         }
 
         private bool IsAncestor(int a, int b) => start[a] <= start[b] && start[b] < end[a];
