@@ -1,0 +1,3 @@
+<Project>
+  <!-- A standalone prototype: stop the repository's build settings (warnings as errors, analyzers, channels) from applying. -->
+</Project>
