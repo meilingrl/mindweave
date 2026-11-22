@@ -1,6 +1,7 @@
 using Mindweave.Application.SummaryNetwork;
 using Mindweave.Core.Conversations;
 using Mindweave.Core.Summaries;
+using Mindweave.Desktop.SummaryNetwork;
 
 namespace Mindweave.Desktop.ViewModels.Pages;
 
@@ -30,10 +31,13 @@ public sealed record SummaryListItem(SummaryNodeId Node, string DisplayName, str
 /// (the edge it hangs from); <paramref name="IsRoot"/> marks the summary of an exploration's root conversation.
 /// In the session network <paramref name="HasSummary"/> says whether the conversation has a summary (drawn as a ring),
 /// <paramref name="Weight"/> how many questions were asked in it and its branches (the dot's size), and
-/// <paramref name="CreatedAt"/> when the conversation started (day labels and the hover date).
+/// <paramref name="CreatedAt"/> when the conversation started (day labels and the hover date). In its spatial view
+/// <paramref name="Placed"/> is where the layout put the label round the dot and its wrapped lines, and
+/// <paramref name="Dated"/> says a date line goes under it (a root that starts a new day); elsewhere the label goes to
+/// the right of the dot on one line.
 /// </summary>
 public sealed record NodeView(SummaryNodeId Id, string ShortTitle, string DisplayName, double X, double Y, bool Unread, bool HasCandidate, double LabelWidth, SummaryNodeId? Parent = null, bool IsRoot = false,
-    bool HasSummary = true, int Weight = 1, DateTimeOffset CreatedAt = default);
+    bool HasSummary = true, int Weight = 1, DateTimeOffset CreatedAt = default, SpatialLabel? Placed = null, bool Dated = false);
 
 /// <summary>
 /// "探索 · root conversation" for an exploration. <paramref name="Anchor"/> is its root's node, or its top-left node

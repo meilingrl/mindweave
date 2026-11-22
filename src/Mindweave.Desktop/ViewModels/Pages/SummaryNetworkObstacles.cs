@@ -5,7 +5,7 @@ namespace Mindweave.Desktop.ViewModels.Pages;
 /// <summary>
 /// What a recommended node must not cover (requirements §10.3.2): every node with its label, and every caption, as the
 /// canvas draws them at zoom 1. In the session network a dot is as large as its weight and summary ring make it, and a
-/// date sits above a timeline root or beside a spatial one (spec §4.4).
+/// date sits above a timeline root or under a spatial root's placed label (spec §4.4).
 /// </summary>
 internal static class SummaryNetworkObstacles
 {
@@ -28,8 +28,14 @@ internal static class SummaryNetworkObstacles
             var width = SummaryNetworkLayout.LabelWidth(caption.Text);
             if (sessionNetwork && !timeline)
             {
-                // Beside the root, on its label's side: above its title, or below it when an edge lifted the title.
+                // A placed label's block already holds its root's date line (OfDot).
                 var root = members[0];
+                if (root.Placed is not null)
+                {
+                    continue;
+                }
+
+                // Beside the root, on its label's side: above its title, or below it when an edge lifted the title.
                 var left = root.X + SummaryNetworkLayout.DotRadius(root.Weight) + SummaryNetworkLayout.LabelGap;
                 obstacles.Add(new CanvasBox(
                     left,
@@ -58,6 +64,19 @@ internal static class SummaryNetworkObstacles
     private static CanvasBox OfDot(NodeView node)
     {
         var footprint = SummaryNetworkLayout.DotFootprintRadius(node.Weight, node.HasSummary);
+        if (node.Placed is { } placed)
+        {
+            // The spatial layout placed the label on any side and wrapped it: the dot and the label's reserved block,
+            // its date line included, with half the layout's padding round both.
+            var pad = SummaryNetworkLayout.LabelPadding / 2;
+            var (l, t, r, b) = SpatialLayout.BlockAround(placed, footprint, node.Dated);
+            return new CanvasBox(
+                node.X + Math.Min(-footprint, l) - pad,
+                node.Y + Math.Min(-footprint, t) - pad,
+                node.X + Math.Max(footprint, r) + pad,
+                node.Y + Math.Max(footprint, b) + pad);
+        }
+
         var half = Math.Max(SummaryNetworkLayout.NodeHeight / 2, footprint + (SummaryNetworkLayout.LabelPadding / 2));
         return new CanvasBox(
             node.X - footprint - (SummaryNetworkLayout.LabelPadding / 2),

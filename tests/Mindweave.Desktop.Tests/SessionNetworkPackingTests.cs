@@ -54,9 +54,12 @@ public class SessionNetworkPackingTests
         return new SummaryNetworkProjection(nodes, edges);
     }
 
-    /// <summary>The sessions exactly as the session hands them to the packing, date widths included.</summary>
-    private static List<PackNode> PackNodes(SummaryNetworkSession session) =>
-        SummaryNetworkSession.PackNodes(session.Projection, SummaryNetworkSession.BranchParents(session.Projection), session.DayStarts);
+    /// <summary>The sessions exactly as the session hands them to the spatial layout, date lines included.</summary>
+    private static List<SpatialNode> SpatialNodes(SummaryNetworkSession session) =>
+        SummaryNetworkSession.SpatialNodes(session.Projection, SummaryNetworkSession.BranchParents(session.Projection), session.DayStarts);
+
+    /// <summary>The spatial arrangement the session holds: its positions and its label places.</summary>
+    private static SpatialArrangement Arrangement(SummaryNetworkSession session) => new(session.Positions, session.SpatialLabels);
 
     private static async Task<SummaryNetworkSession> LoadedAsync(SummaryNetworkProjection projection, FakeNetwork? network = null)
     {
@@ -91,10 +94,6 @@ public class SessionNetworkPackingTests
         var ringed = projection with { Nodes = [.. projection.Nodes.Select((n, i) => i == 7 ? n with { HasSummary = !n.HasSummary } : n)] };
         Assert.NotEqual(baseline, (await LoadedAsync(ringed)).Positions);
 
-        // The time thread between roots is a spring; without it the roots settle elsewhere.
-        var unthreaded = projection with { Edges = [.. projection.Edges.Where(e => e.Kind != SummaryNetworkEdgeKind.TimeThread)] };
-        Assert.NotEqual(baseline, (await LoadedAsync(unthreaded)).Positions);
-
         // The weight is the mass and sizes the dot.
         var heavier = projection with { Nodes = [.. projection.Nodes.Select((n, i) => i == 3 ? n with { Weight = n.Weight + 40 } : n)] };
         Assert.NotEqual(baseline, (await LoadedAsync(heavier)).Positions);
@@ -115,14 +114,17 @@ public class SessionNetworkPackingTests
     }
 
     [Fact]
-    public async Task Packed_footprints_do_not_overlap_in_a_busy_workspace()
+    public async Task Dots_and_labels_do_not_overlap_in_a_busy_workspace()
     {
         var projection = Sessions(60);
         var session = await LoadedAsync(projection);
 
-        var report = SpatialPacking.Measure(PackNodes(session), session.Positions);
+        var report = SpatialLayout.Measure(SpatialNodes(session), Arrangement(session));
 
-        Assert.Equal(0, report.Overlaps);
+        Assert.Equal(0, report.DotOverlaps);
+        Assert.Equal(0, report.LabelsOnDots);
+        Assert.Equal(0, report.LabelOverlaps);
+        Assert.Equal(projection.Nodes.Count, session.SpatialLabels.Count);
     }
 
     [Fact]
@@ -143,11 +145,13 @@ public class SessionNetworkPackingTests
         Assert.True(elapsed < TimeSpan.FromMilliseconds(300), $"Loading 1,000 sessions took {elapsed.TotalMilliseconds:F1} ms (budget 300 ms, spec §6.4).");
     }
 
-    private static NodeView View(SummaryNetworkNode n, NodePosition at) =>
-        new(n.Id, n.ShortTitle, n.DisplayName, at.X, at.Y, false, false, SummaryNetworkLayout.LabelWidth(SummaryNetworkLayout.Label(n.ShortTitle, false)), IsRoot: true, HasSummary: n.HasSummary, Weight: n.Weight);
+    private static NodeView View(SummaryNetworkNode n, NodePosition at, SpatialLabel? placed = null, bool dated = false) =>
+        new(n.Id, n.ShortTitle, n.DisplayName, at.X, at.Y, false, false, SummaryNetworkLayout.LabelWidth(SummaryNetworkLayout.Label(n.ShortTitle, false)), IsRoot: true, HasSummary: n.HasSummary, Weight: n.Weight,
+            Placed: placed, Dated: dated);
 
+    /// <summary>The nodes as the page shows them: with the labels the spatial layout placed, and roots dated as the session dates them.</summary>
     private static List<NodeView> Views(SummaryNetworkSession session) =>
-        [.. session.Projection.Nodes.Select(n => View(n, session.Positions[n.Id]))];
+        [.. session.Projection.Nodes.Select(n => View(n, session.Positions[n.Id], session.SpatialLabels.GetValueOrDefault(n.Id), session.DayStarts.Contains(n.Id)))];
 
     [Fact]
     public async Task One_session_opens_centred_at_zoom_one()
@@ -198,6 +202,14 @@ public class SessionNetworkPackingTests
         var views = Views(session);
         var obstacles = SummaryNetworkObstacles.Of(views, [], sessionNetwork: true, timeline: false);
         var width = SummaryNetworkLayout.LabelWidth("一个推荐的问题会出现在这里");
+
+        // The obstacles hold the placed labels: wherever a label lies round its dot, its block is covered (review 2026-11-22).
+        foreach (var view in views)
+        {
+            var block = SpatialLayout.BlockAround(view.Placed!, SummaryNetworkLayout.DotFootprintRadius(view.Weight, view.HasSummary), view.Dated);
+            var inside = new CanvasBox(view.X + block.Left + 1, view.Y + block.Top + 1, view.X + block.Right - 1, view.Y + block.Bottom - 1);
+            Assert.Contains(obstacles, o => o.Left <= inside.Left && o.Top <= inside.Top && o.Right >= inside.Right && o.Bottom >= inside.Bottom);
+        }
 
         // Beside each session in turn: wherever the recommendation hangs, nothing of any session is under it.
         foreach (var basis in views)

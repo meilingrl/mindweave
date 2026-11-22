@@ -305,11 +305,49 @@ public sealed class SummaryNetworkCanvas : Control
             var labelSize = zoom > LabelHideScale ? size : Math.Max(size, FocusedLabelMinSize);
             var brush = hovered || isSelected ? palette.LabelActive : !node.Unread ? palette.LabelRead : palette.Label;
             var weight = node.Unread ? FontWeight.SemiBold : FontWeight.Normal;
-            var text = visible ? Text(label, labelSize, brush, weight) : null;
-            var origin = text is null ? default : SummaryNetworkGeometry.LabelOrigin(center, radius, new Size(text.Width, text.Height), incident[node.Id]);
+            FormattedText? text;
+            Point origin;
+            if (sessions && node.Placed is { } placed)
+            {
+                // The spatial layout placed this label round its dot and wrapped it; its date line, if any, goes under it.
+                text = visible ? PlacedText(placed, labelSize, brush, weight) : null;
+                var day = text is not null && node.Dated ? DayText(node, palette) : null;
+                origin = text is null ? default : PlaceBlock(placed.Side, radius + (node.HasSummary ? SummaryNetworkLayout.SummaryRingGap + 1 : 0), center, Size(text), day is null ? null : Size(day)).Title;
+            }
+            else
+            {
+                text = visible ? Text(label, labelSize, brush, weight) : null;
+                origin = text is null ? default : SummaryNetworkGeometry.LabelOrigin(center, radius, new Size(text.Width, text.Height), incident[node.Id]);
+            }
+
             FormattedText? date = null;
             Rect dateBounds = default;
-            if (text is not null && sessions && hovered)
+            if (text is not null && sessions && hovered && node.Placed is { } hoveredPlaced)
+            {
+                // A placed label's hover date follows the same rule (final review M6): after the title's last line when
+                // that covers no other dot, else on its own line under the block or over it, else not at all.
+                var reach = radius + (node.HasSummary ? SummaryNetworkLayout.SummaryRingGap + 1 : 0);
+                var day = node.Dated ? DayText(node, palette) : null;
+                var lines = hoveredPlaced.Lines;
+                var longer = new SpatialLabel(hoveredPlaced.Side, [.. lines.Take(lines.Count - 1), UiText.DotHoverLabel(lines[^1], node.CreatedAt)]);
+                var oneLine = PlacedText(longer, labelSize, brush, weight);
+                var (at, _, _) = PlaceBlock(hoveredPlaced.Side, reach, center, Size(oneLine), day is null ? null : Size(day));
+                if (ClearOfOtherDots(node.Id, new Rect(at, Size(oneLine)), drawn))
+                {
+                    (label, text, origin) = (UiText.DotHoverLabel(label, node.CreatedAt), oneLine, at);
+                }
+                else
+                {
+                    date = Text(UiText.DotHoverDate(node.CreatedAt), Math.Min(labelSize, CaptionSize), brush);
+                    var (_, _, block) = PlaceBlock(hoveredPlaced.Side, reach, center, Size(text), day is null ? null : Size(day));
+                    var x = Aligned(hoveredPlaced.Side, block, date.Width);
+                    var line = new Size(date.Width, date.Height);
+                    var place = new[] { new Rect(new Point(x, block.Bottom), line), new Rect(new Point(x, block.Top - date.Height), line) }
+                        .FirstOrDefault(r => ClearOfOtherDots(node.Id, r, drawn));
+                    (date, dateBounds) = place == default ? (null, default) : (date, place);
+                }
+            }
+            else if (text is not null && sessions && hovered)
             {
                 // A hovered session dot also says when its conversation started (final review M6): after the title when that
                 // covers no other dot, else on a line of its own under the title or over it, else not at all (the details
@@ -544,7 +582,20 @@ public sealed class SummaryNetworkCanvas : Control
             {
                 // Like the titles, a date shrinks below zoom 1 so it keeps clear of the dots round it.
                 var date = Text(caption.Text, CaptionSize * Math.Clamp(Current.Zoom, 0.6, 1), palette.Caption);
-                result.Add(new CaptionPaint(caption, date, SpatialDateOrigin(members[0].Node, members[0].At, date, incident, size)));
+                var root = members[0].Node;
+                if (root.Placed is { } placed)
+                {
+                    // Under the root's placed title, aligned like it, inside the block the layout reserved for both.
+                    // As drawn: the pointer's pull moves the dot, and hovering or lifting it grows it, so the title moves too.
+                    var title = PlacedText(placed, size, Brushes.Black, root.Unread ? FontWeight.SemiBold : FontWeight.Normal);
+                    var grow = root.Id == Hovered || root.Id == Dragging ? HoverGrowth : 0;
+                    var reach = RadiusOf(root) + grow + (root.HasSummary ? SummaryNetworkLayout.SummaryRingGap + 1 : 0);
+                    var at = members[0].At + _offsets.GetValueOrDefault(root.Id);
+                    result.Add(new CaptionPaint(caption, date, PlaceBlock(placed.Side, reach, at, Size(title), Size(date)).Date));
+                    continue;
+                }
+
+                result.Add(new CaptionPaint(caption, date, SpatialDateOrigin(root, members[0].At, date, incident, size)));
                 continue;
             }
 
@@ -569,6 +620,54 @@ public sealed class SummaryNetworkCanvas : Control
         var x = center.X + radius + SummaryNetworkLayout.LabelGap;
         return at.Y < center.Y - 9 - 0.5 ? new Point(x, center.Y + 3) : new Point(x, center.Y - 9 - 2 - date.Height);
     }
+
+    /// <summary>A placed label's wrapped lines as one block of text, each line aligned toward the dot.</summary>
+    private static FormattedText PlacedText(SpatialLabel placed, double size, IBrush brush, FontWeight weight)
+    {
+        var text = Text(string.Join('\n', placed.Lines), size, brush, weight);
+        text.MaxTextWidth = text.Width + 0.5;
+        text.TextAlignment = SpatialLayout.Sides[placed.Side].Anchor switch
+        {
+            LabelAnchor.Start => TextAlignment.Left,
+            LabelAnchor.End => TextAlignment.Right,
+            _ => TextAlignment.Center,
+        };
+        return text;
+    }
+
+    /// <summary>The day caption of a root that starts a new day, as the spatial view draws it under the root's label.</summary>
+    private FormattedText? DayText(NodeView node, SummaryNetworkPalette palette)
+    {
+        if (Current.Zoom <= LabelHideScale || _page?.Captions.FirstOrDefault(c => c.Members.Count > 0 && c.Members[0] == node.Id) is not { } caption)
+        {
+            return null;
+        }
+
+        return Text(caption.Text, CaptionSize * Math.Clamp(Current.Zoom, 0.6, 1), palette.Caption);
+    }
+
+    private static Size Size(FormattedText text) => new(text.Width, text.Height);
+
+    /// <summary>
+    /// Where a placed label goes as drawn: the block of its title and date line (if any) beside the dot on the layout's
+    /// side (<see cref="SpatialLayout.LabelOffset"/>), the title on top and the date under it, both aligned toward the dot.
+    /// </summary>
+    internal static (Point Title, Point Date, Rect Block) PlaceBlock(int side, double reach, Point center, Size title, Size? date)
+    {
+        var width = Math.Max(title.Width, date?.Width ?? 0);
+        var height = title.Height + (date?.Height ?? 0);
+        var (left, top) = SpatialLayout.LabelOffset(side, reach, width, height);
+        var block = new Rect(center.X + left, center.Y + top, width, height);
+        return (new Point(Aligned(side, block, title.Width), block.Top), new Point(Aligned(side, block, date?.Width ?? 0), block.Top + title.Height), block);
+    }
+
+    /// <summary>The left edge of a line of the given width inside a placed block, aligned toward the dot.</summary>
+    private static double Aligned(int side, Rect block, double width) => SpatialLayout.Sides[side].Anchor switch
+    {
+        LabelAnchor.Start => block.Left,
+        LabelAnchor.End => block.Right - width,
+        _ => block.Center.X - (width / 2),
+    };
 
     public override void Render(DrawingContext context)
     {

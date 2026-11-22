@@ -1099,9 +1099,13 @@ public sealed partial class SummaryNetworkHomeViewModel : PageViewModel, IDispos
         var parents = SummaryNetworkSession.BranchParents(Session.Projection);
         var timeline = Session.IsTimeline;
 
+        // In the spatial view of the session network the layout also placed each label and wrapped it.
+        var placed = Session.SpatialLabels;
+        var dated = placed.Count > 0 ? Session.DayStarts.ToHashSet() : [];
         Nodes = [.. Session.Projection.Nodes.Where(n => positions.ContainsKey(n.Id)).Select(n => new NodeView(
             n.Id, n.ShortTitle, n.DisplayName, positions[n.Id].X, positions[n.Id].Y, n.Markers.Unread, n.Markers.HasCandidate, SummaryNetworkLayout.LabelWidth(SummaryNetworkLayout.Label(n.ShortTitle, n.Markers.HasCandidate)),
-            parents.TryGetValue(n.Id, out var parent) && positions.ContainsKey(parent) ? parent : null, n.Conversation == n.Root, n.HasSummary, n.Weight, n.CreatedAt))];
+            parents.TryGetValue(n.Id, out var parent) && positions.ContainsKey(parent) ? parent : null, n.Conversation == n.Root, n.HasSummary, n.Weight, n.CreatedAt,
+            placed.GetValueOrDefault(n.Id), dated.Contains(n.Id)))];
         Edges = [.. Session.Projection.Edges.Where(e => positions.ContainsKey(e.From) && positions.ContainsKey(e.To)).Select(e => new EdgeView(
             e.From, e.To, positions[e.From].X, positions[e.From].Y, positions[e.To].X, positions[e.To].Y, e.IsDirect, e.IsDirect ? null : UiText.ViaCount(e.Via.Count),
             e.Kind, timeline && e.Kind == SummaryNetworkEdgeKind.Branch && positions[e.From].Y != positions[e.To].Y))];

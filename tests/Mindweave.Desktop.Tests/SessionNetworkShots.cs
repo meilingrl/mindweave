@@ -135,52 +135,18 @@ public class SessionNetworkShots
         Assert.True(File.Exists(Path.Combine(shots, name + ".png")), $"{name}.png was not written");
     }
 
-    /// <summary>The §6.4 checks of the spatial arrangement of one workspace, whole and per sub-branch.</summary>
+    /// <summary>The §6.4 guards on the spatial arrangement of one workspace.</summary>
     private static string Describe(string tag, int index, string name, SummaryNetworkSession session)
     {
         var projection = session.Projection;
-        var nodes = SummaryNetworkSession.PackNodes(projection, SummaryNetworkSession.BranchParents(projection), session.DayStarts);
-        var positions = session.Positions;
-        var whole = SpatialPacking.Measure(nodes, positions);
+        var nodes = SummaryNetworkSession.SpatialNodes(projection, SummaryNetworkSession.BranchParents(projection), session.DayStarts);
+        var report = SpatialLayout.Measure(nodes, new SpatialArrangement(session.Positions, session.SpatialLabels));
         var text = new System.Text.StringBuilder();
         text.AppendLine(CultureInfo.InvariantCulture, $"[{tag}] workspace {index} '{name}': {nodes.Count} dots");
         text.AppendLine(CultureInfo.InvariantCulture,
-            $"  enclosing {whole.EnclosingRadius:F0} / ideal {whole.IdealRadius:F0} = {(whole.IdealRadius > 0 ? whole.EnclosingRadius / whole.IdealRadius : 0):F3}; " +
-            $"centroid offset {whole.CentroidOffset:F3}; root time-rank correlation {whole.RootTimeRankCorrelation:F3}; overlaps {whole.Overlaps}");
-        text.AppendLine(CultureInfo.InvariantCulture,
-            $"  branch lines {whole.BranchEdges}, crossings {whole.BranchCrossings} ({(whole.BranchEdges > 0 ? (double)whole.BranchCrossings / whole.BranchEdges : 0):F3} per line), lines through dots {whole.EdgesThroughDots}");
-        var children = nodes.Where(n => n.Parent is not null).GroupBy(n => n.Parent!.Value).ToDictionary(g => g.Key, g => g.Select(n => n.Id).ToList());
-        var ratios = new List<(string Name, int Size, double Ratio, double Offset)>();
-        foreach (var node in nodes.Where(n => children.ContainsKey(n.Id)))
-        {
-            var members = new HashSet<SummaryNodeId>();
-            var queue = new Queue<SummaryNodeId>([node.Id]);
-            while (queue.Count > 0)
-            {
-                var id = queue.Dequeue();
-                if (members.Add(id) && children.TryGetValue(id, out var below))
-                {
-                    below.ForEach(queue.Enqueue);
-                }
-            }
-
-            if (members.Count < 3)
-            {
-                continue;
-            }
-
-            var report = SpatialPacking.Measure([.. nodes.Where(n => members.Contains(n.Id))], positions);
-            var title = projection.Nodes.First(n => n.Id == node.Id).ShortTitle;
-            ratios.Add((title, members.Count, report.IdealRadius > 0 ? report.EnclosingRadius / report.IdealRadius : 0, report.CentroidOffset));
-        }
-
-        if (ratios.Count > 0)
-        {
-            var worst = ratios.MaxBy(r => r.Ratio);
-            text.AppendLine(CultureInfo.InvariantCulture,
-                $"  sub-branches (>= 3 dots): {ratios.Count}; enclosing/ideal worst {worst.Ratio:F3} ('{worst.Name}', {worst.Size} dots), mean {ratios.Average(r => r.Ratio):F3}; worst centroid offset {ratios.Max(r => r.Offset):F3}");
-        }
-
+            $"  overlaps: dots {report.DotOverlaps}, labels on dots {report.LabelsOnDots}, labels {report.LabelOverlaps}; " +
+            $"branch lines: crossings {report.BranchCrossings}, through dots {report.LinesThroughDots}, through labels {report.LinesThroughLabels}; " +
+            $"time thread mean {report.ThreadMean:F0}, longest {report.ThreadLongest:F0}");
         return text.ToString();
     }
 
