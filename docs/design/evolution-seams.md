@@ -4,7 +4,7 @@ Based on the [evolution directions and engineering guidance](../evolution.md) on
 
 | Seam | Status | Where |
 | --- | --- | --- |
-| E1 Viewer-slot navigation state | **Built** (S2, migration v4) | Desktop `ViewerSlot`, `PageContext`, `NavigationRequest.Slot`; tables `reading_position` and `draft` have the slot key as part of the primary key; see the S2 design (`docs/design/s2-branching.md` in the repository, “E1 视图槽位” (E1 viewer slots)) |
+| E1 Viewer-slot navigation state | **Built** (S2, migration v4) | Desktop `ViewerSlot`, `PageContext`, `NavigationRequest.Slot`; tables `reading_position` and `draft` have the slot key as part of the primary key; see the S2 design (`docs/history/design/s2-branching.md` in the repository, “E1 视图槽位” (E1 viewer slots)) |
 | E2 Block-based message content | **Built** (migration v3) | Core `ContentBlock`; table `message_block` |
 | E3 Request tracing and redaction at the source | **Built** (migration v3) | Application `Diagnostics/`; table `ai_request`; redaction in the client and the file log |
 | E4 Model capability description | **Built** (migration v3) | Core `ModelCapabilities`; the `capabilities` column of `model_config` and `generation_task` |
@@ -61,7 +61,7 @@ mindweave-export/
 
 - **Data generator** `PerfSeed`: writes through the real storage interfaces, so the data passes the same guards and table structure as production; content is determined only by sequence numbers and is repeatable. Shape `PerfShape(conversation count, rounds in the long conversation, answer length in characters)`; answers are Markdown with headings, lists, tables and code blocks. Branch trees are added after S2 introduces branching.
 - **Benchmarks**: the sidebar list (budget 200 ms) and opening a long conversation (budget 300 ms), each the median of 5 runs after warm-up. The full scale (1,000 conversations, 200 rounds, 20,000 characters per answer) requires running `scripts/perf.sh` explicitly; regular tests run a small-scale smoke version that only checks that the generator and the read path work, without checking times.
-- **Rendering benchmarks** (2026-11-06): displaying very long answers (about 30,000 and 100,000 characters of Markdown), opening them from the sidebar, and the cost of each update during generation, also run by `scripts/perf.sh`. Method, numbers and conclusions are in S2 (`docs/design/s2-branching.md` in the repository), “超长回答的渲染” (Rendering very long answers).
+- **Rendering benchmarks** (2026-11-06): displaying very long answers (about 30,000 and 100,000 characters of Markdown), opening them from the sidebar, and the cost of each update during generation, also run by `scripts/perf.sh`. Method, numbers and conclusions are in S2 (`docs/history/design/s2-branching.md` in the repository), “超长回答的渲染” (Rendering very long answers).
 - **Architecture tests (`SeamTests`)**: only the request path (the generation coordinator, the model settings service) and the credential store implementation may reference `ICredentialStore`; provider names must not appear in Core and Application.
 - First full run (2026-10-27, macOS Release): generation 598 ms, list 29.7 ms, opening a long conversation 25.8 ms (about 4 MB of body text). Storage reads are far within budget; the budgets stay unchanged and serve to catch order-of-magnitude regressions. The main risk is still in the rendering layer (layout and virtualization of very long Markdown); a UI benchmark needs to be added after S2 introduces LiveMarkdown.
 

@@ -2,7 +2,7 @@
 
 Status: approved by the owner 2026-11-20 (with the decisions in §12). Rounds 1 and 2 merged into `main` on 2026-11-22 behind the switch `MINDWEAVE_SESSION_NETWORK=1`; the record, the spatial view as built and the next direction are in §15. Written from the owner's brainstorming of 2026-11-19 and 11-20 and a throwaway preview (branch `task/session-network-spike`, commit `bd793e3`). Nothing here changes the requirements or the architecture by itself: §11 lists the text that must change, and that goes to the owner as its own proposal (AGENTS.md, "Changing requirements or architecture").
 
-Related: [evolution D8](../evolution.md) (sharing the thinking path), [S5 summary network](s5-network.md) (today's network), [requirements](../requirements.md) §4.2, §7, §10.3; [architecture](../architecture.md) §11.
+Related: [evolution D8](../evolution.md) (sharing the thinking path), [S5 summary network](../history/design/s5-network.md) (today's network), [requirements](../requirements.md) §4.2, §7, §10.3; [architecture](../architecture.md) §11.
 
 ## 1. Intent
 
@@ -264,7 +264,7 @@ For the timeline, a git-graph-style lane layout was the one sensible way: it is 
 
 ## 15. Rounds 1 and 2 (merged 2026-11-22)
 
-Built on `task/session-network` with subagent-driven development (plans: [round 1](session-network-plan-round1.md), [round 2](session-network-plan-round2.md)), behind `MINDWEAVE_SESSION_NETWORK=1`. Without the variable, every build shows today's summary network unchanged, except that mouse-wheel zoom is now on by default (the owner asked for it everywhere). No migration; with the switch on, nothing writes layout.
+Built on `task/session-network` with subagent-driven development (plans: [round 1](../history/design/session-network-plan-round1.md), [round 2](../history/design/session-network-plan-round2.md)), behind `MINDWEAVE_SESSION_NETWORK=1`. Without the variable, every build shows today's summary network unchanged, except that mouse-wheel zoom is now on by default (the owner asked for it everywhere). No migration; with the switch on, nothing writes layout.
 
 **How to try:** `MINDWEAVE_SESSION_NETWORK=1 scripts/daily.sh trial` (a build of `main` on a copy of the daily data).
 

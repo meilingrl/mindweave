@@ -8,6 +8,7 @@ What is true now: work in progress, next steps, what needs you, open decisions, 
 
 ## Next steps
 
+- Next-phase ideas: refine the first drafts in [docs/ideas](docs/ideas/README.md) one by one with you. Nothing in them is agreed.
 - Session network: after the molecule layout, round 3 (quieter links) and the requirements and architecture proposal in §11 of the design.
 - Verify in daily use:
   - agent platform phases 2–4;
@@ -54,7 +55,7 @@ What is true now: work in progress, next steps, what needs you, open decisions, 
 
 | What | Commit | Date | Result |
 | --- | --- | --- | --- |
-| macOS full run | the version 0.2.0 merge | 2026-11-22 | passed: Core 137, Architecture 26, Infrastructure 1011 + 23 skipped, Desktop 4 shards 0 failed |
+| macOS full run | the design-documents merge | 2026-11-22 | passed: Core 137, Architecture 26, Infrastructure 1011 + 23 skipped, Desktop 4 shards 0 failed |
 | CI on `main` (Linux + Windows) | see the latest run on GitHub | | |
 | Windows 11 hardware, full run | daabd5b | 2026-11-21 | passed |
 | Windows 11 hardware, stress and Release start | 08ead83 | 2026-11-16 | passed |
