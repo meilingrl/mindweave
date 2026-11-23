@@ -425,7 +425,7 @@ public class SessionNetworkUiTests
 
         var back = Find<Button>(view, "ReturnSelectedButton");
         Assert.True(back.IsEffectivelyVisible);
-        Assert.Equal(UiText.ReturnToConversation, back.Content);
+        Assert.Equal(UiText.ReturnToConversation, Assert.IsType<TextBlock>(back.Content).Text);
         Assert.Contains("primary", back.Classes);
         Assert.DoesNotContain("secondary", back.Classes);
         window.Close();

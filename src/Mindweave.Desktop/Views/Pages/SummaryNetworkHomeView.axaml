@@ -262,10 +262,15 @@
                  A session network dot without a summary has none to open; it only leads back to its conversation, as the primary. -->
             <Button Name="OpenSelectedButton" Classes.primary="{Binding !IsDirty}" Classes.secondary="{Binding IsDirty}" HorizontalAlignment="Stretch" HorizontalContentAlignment="Center"
                     IsVisible="{Binding Selected.HasSummary, FallbackValue=True}"
-                    Content="{x:Static t:UiText.OpenSummary}" Command="{Binding OpenSelectedCommand}" />
+                    Command="{Binding OpenSelectedCommand}"
+                    AutomationProperties.Name="{x:Static t:UiText.OpenSummary}">
+              <TextBlock TextWrapping="Wrap" TextAlignment="Center" Text="{x:Static t:UiText.OpenSummary}" />
+            </Button>
             <Button Name="ReturnSelectedButton" Classes.primary="{Binding !Selected.HasSummary, FallbackValue=False}" Classes.secondary="{Binding Selected.HasSummary, FallbackValue=True}" HorizontalAlignment="Stretch" HorizontalContentAlignment="Center"
-                    Content="{x:Static t:UiText.ReturnToConversationButton}" Command="{Binding ReturnToConversationCommand}"
-                    AutomationProperties.Name="{x:Static t:UiText.ReturnToConversation}" />
+                    Command="{Binding ReturnToConversationCommand}"
+                    AutomationProperties.Name="{x:Static t:UiText.ReturnToConversation}">
+              <TextBlock TextWrapping="Wrap" TextAlignment="Center" Text="{x:Static t:UiText.ReturnToConversationButton}" />
+            </Button>
           </StackPanel>
           <!-- Content links (§10.3.3): each with jump, 改说明 and 删除关联; then 关联到…. Quiet when there are none. -->
           <StackPanel Name="LinksSection" Spacing="4" IsVisible="{Binding ShowsLinksSection}">
@@ -305,10 +310,15 @@
           <TextBlock Classes="muted" FontSize="12" TextWrapping="Wrap" Text="{x:Static t:UiText.RecommendedNodeNote}" />
           <StackPanel Spacing="8">
             <Button Name="StartExplorationButton" Classes.primary="{Binding !IsDirty}" Classes.secondary="{Binding IsDirty}" HorizontalAlignment="Stretch" HorizontalContentAlignment="Center"
-                    Content="{x:Static t:UiText.StartExploration}" Command="{Binding StartExplorationCommand}" />
+                    Command="{Binding StartExplorationCommand}"
+                    AutomationProperties.Name="{x:Static t:UiText.StartExploration}">
+              <TextBlock TextWrapping="Wrap" TextAlignment="Center" Text="{x:Static t:UiText.StartExploration}" />
+            </Button>
             <Button Name="IgnoreRecommendedNodeButton" Classes="secondary" HorizontalAlignment="Stretch" HorizontalContentAlignment="Center"
-                    Content="{x:Static t:UiText.IgnoreRecommendedNode}" Command="{Binding IgnoreRecommendationCommand}"
-                    AutomationProperties.Name="{Binding SelectedRecommendation.IgnoreName, FallbackValue=''}" />
+                    Command="{Binding IgnoreRecommendationCommand}"
+                    AutomationProperties.Name="{Binding SelectedRecommendation.IgnoreName, FallbackValue=''}">
+              <TextBlock TextWrapping="Wrap" TextAlignment="Center" Text="{x:Static t:UiText.IgnoreRecommendedNode}" />
+            </Button>
           </StackPanel>
         </StackPanel>
       </Panel>
