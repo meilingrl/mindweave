@@ -6,6 +6,13 @@ This file starts on 2026-11-22. The entries from 2026-11-16 to 2026-11-22 were m
 
 ## 2026-11-23
 
+- **Session network: explorations keep their place** (behind `MINDWEAVE_SESSION_NETWORK=1`; **migration v18**; D-035 option C; [session-network.md](design/session-network.md) §16).
+  - The spatial view saves each exploration's place and turn in `exploration_place`; nothing needs saving by hand. The molecule inside an exploration is laid out again on every load.
+  - An untouched exploration stays where it was. A changed one is redrawn in its place and moves to the nearest free place only when it has outgrown it. A new one goes beside its neighbour in time, with 120 units of room to grow.
+  - Measured on 1,367 simulated single-branch additions: the changed exploration moved more than 100 units in 3.8%, at most about 600; no other exploration moved; nothing overlapped. 1,000 dots in 220 explorations with saved places lay out in about 60 ms.
+  - The migration runs without the switch: a build from here moves the data to v18 when it first opens it, after a v17 backup. Older builds cannot open v18 data.
+  - Try: `MINDWEAVE_SESSION_NETWORK=1 scripts/daily.sh trial`.
+  - Not verified: Windows; an extremely spread-out workspace, where a coarse packing grid can still push an untouched exploration.
 - **Requirements v0.25 and architecture §11: the network of every conversation** (documents only; no change on screen; D-035).
   - Every conversation is a dot; a summary is a ring on it and opens from it. Lines are real lineage; the time thread joins explorations. There is a spatial view and a timeline view.
   - "Stable layout" means no large sudden shifts: each exploration keeps its place, saved automatically, and only one that has outgrown its place moves. Explicit saving, arranging and dragging go.
