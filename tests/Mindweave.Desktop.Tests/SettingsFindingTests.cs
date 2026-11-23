@@ -204,6 +204,11 @@ public class SettingsFindingTests
             Assert.Equal(plain.TranslatePoint(default, window)!.Value.X, words.TranslatePoint(default, window)!.Value.X, 1);
         }
 
+        // Pressed last: the press shrinks the row a little while it is held.
+        window.MouseDown(last.TranslatePoint(new Point(40, 10), window)!.Value, MouseButton.Left);
+        Assert.True(last.IsPressed);
+        Screenshots.Capture(window, $"settings-entry-pressed-{width}-{theme.ToLowerInvariant()}");
+        window.MouseUp(new Point(5, 5), MouseButton.Left);
         window.Close();
     }
 
