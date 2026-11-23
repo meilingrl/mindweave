@@ -268,7 +268,7 @@ public class MotionTests
         }
 
         // Settings and the other long pages hide their scroll bar until pointed at, as the answers and the sidebar do.
-        var scroller = window.GetVisualDescendants().OfType<ScrollViewer>().First(s => s.FindAncestorOfType<Views.Pages.SettingsHomeView>() is not null);
+        var scroller = window.GetVisualDescendants().OfType<ScrollViewer>().Single(s => s.Name == "Scroller" && s.FindAncestorOfType<Views.Pages.SettingsHomeView>() is not null);
         Assert.Contains("autohide", scroller.Classes);
         window.Close();
     }

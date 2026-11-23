@@ -15,6 +15,12 @@ public static partial class UiText
     public static string AppearanceDark => T("Dark", "深色");
 
     // The bold colour in answers (D-027).
+    public static string FindSettings => T("Find a setting", "查找设置");
+    public static string NoSettingFound(string text) => T($"No setting matches “{text}”.", $"没有找到与“{text}”有关的设置。");
+    public static string DataAndWorkspaceSection => T("Data and workspaces", "数据与工作区");
+    public static string SettingInfo(string? label) => T($"About: {label}", $"说明：{label}");
+    public static string PrepareNamesCost => T("Sends the title to the model; may cost a little.", "会把标题发给模型，可能产生少量费用。");
+    public static string RecommendationsCost => T("Sends only titles and short excerpts; may cost a little.", "只发送标题和简短摘录，可能产生少量费用。");
     public static string TextWidthLabel => T("Text width", "正文宽度");
     public static string TextWidthWhole => T("Whole page", "整页");
     public static string TextWidthWide => T("Wide", "宽");

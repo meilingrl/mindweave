@@ -304,7 +304,7 @@ public class ConversationNewsHintTests
         Assert.True(settings.ShowsInWorkspaceNews);
         window.UpdateLayout();
         var toggle = Find<CheckBox>(window, "NewsInWorkspaceToggle");
-        Assert.Equal(UiText.NewsInWorkspace, toggle.Content);
+        Assert.Equal(UiText.NewsInWorkspace, AutomationProperties.GetName(toggle));
         Assert.True(toggle.IsChecked);
         UiInput.Click(window, toggle);
         Assert.False(settings.ShowsInWorkspaceNews);

@@ -19,6 +19,7 @@ public sealed partial class SettingsHomeView : UserControl
         SegmentKeys.Attach(AppearancePicker);
         SegmentKeys.Attach(LanguagePicker);
         Scroller.ScrollChanged += OnScrollChanged;
+        AttachFinding();
     }
 
     /// <summary>
