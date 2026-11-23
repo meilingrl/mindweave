@@ -19,8 +19,8 @@
     <Setter Property="Template">
       <ControlTemplate>
         <Border Name="PART_Root" IsVisible="{TemplateBinding IsFound}" BorderBrush="{DynamicResource DividerBrush}" BorderThickness="0,0,0,1" Padding="0,11">
-          <Grid ColumnDefinitions="*,Auto" RowDefinitions="Auto,Auto">
-            <StackPanel VerticalAlignment="Center" Margin="0,0,20,0" Spacing="2">
+          <Grid ColumnDefinitions="*,Auto" RowDefinitions="Auto,Auto,Auto">
+            <StackPanel Name="PART_Words" VerticalAlignment="Center" Margin="0,0,20,0" Spacing="2">
               <DockPanel HorizontalAlignment="Left">
                 <Button Name="PART_Info" DockPanel.Dock="Right" Classes="quiet small icon setting-info" VerticalAlignment="Center"
                         IsVisible="{TemplateBinding Info, Converter={x:Static StringConverters.IsNotNullOrEmpty}}"
@@ -37,12 +37,27 @@
               <TextBlock Classes="caption" TextWrapping="Wrap" Text="{TemplateBinding Caption}"
                          IsVisible="{TemplateBinding Caption, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
             </StackPanel>
-            <ContentPresenter Name="PART_ContentPresenter" Grid.Column="1" VerticalAlignment="Center" HorizontalAlignment="Right" Content="{TemplateBinding Content}" />
-            <ContentPresenter Grid.Row="1" Grid.ColumnSpan="2" Content="{TemplateBinding Below}" />
+            <ContentPresenter Name="PART_ContentPresenter" VerticalAlignment="Center" Content="{TemplateBinding Content}" />
+            <ContentPresenter Grid.Row="2" Grid.ColumnSpan="2" Content="{TemplateBinding Below}" />
           </Grid>
         </Border>
       </ControlTemplate>
     </Setter>
+  </Style>
+  <Style Selector="p|SettingRow /template/ ContentPresenter#PART_ContentPresenter">
+    <Setter Property="Grid.Column" Value="1" />
+    <Setter Property="HorizontalAlignment" Value="Right" />
+  </Style>
+  <!-- Too narrow for both: the control goes under the words, which never give way to it. -->
+  <Style Selector="p|SettingRow.stacked /template/ ContentPresenter#PART_ContentPresenter">
+    <Setter Property="Grid.Row" Value="1" />
+    <Setter Property="Grid.Column" Value="0" />
+    <Setter Property="Grid.ColumnSpan" Value="2" />
+    <Setter Property="HorizontalAlignment" Value="Left" />
+    <Setter Property="Margin" Value="0,8,0,0" />
+  </Style>
+  <Style Selector="p|SettingRow.stacked /template/ StackPanel#PART_Words">
+    <Setter Property="Grid.ColumnSpan" Value="2" />
   </Style>
   <Style Selector="p|SettingRow CheckBox">
     <Setter Property="MinWidth" Value="0" />
