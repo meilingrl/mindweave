@@ -65,7 +65,6 @@
   </Style>
   <Style Selector="v|EdgeGrip.edge-grip > Border.edge-grip-line">
     <Setter Property="Width" Value="2" />
-    <Setter Property="CornerRadius" Value="1" />
     <Setter Property="Background" Value="Transparent" />
   </Style>
   <Style Selector="v|EdgeGrip.edge-grip:pointerover > Border.edge-grip-line, v|EdgeGrip.edge-grip.dragging > Border.edge-grip-line, v|EdgeGrip.edge-grip:focus-visible > Border.edge-grip-line">
