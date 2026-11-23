@@ -1,6 +1,6 @@
 # Version numbers and the change log
 
-Approved in outline by the owner on 2026-11-23; this document is the written form, for the owner's approval before anything is built. It replaces the version rule in D-033 and changes the change-log rule in [AGENTS.md](../../AGENTS.md).
+Approved by the owner on 2026-11-23 (D-036). It replaces the version rule in D-033, and the change-log rule in [AGENTS.md](../../AGENTS.md) follows it.
 
 ## 1. Why
 

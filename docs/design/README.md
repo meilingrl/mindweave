@@ -52,7 +52,7 @@ This directory records the choices that the handoff document lets implementers r
 | --- | --- |
 | [Run guide](run-guide.md) | Building, running and testing; the data directory and releases |
 | [Daily build](daily-build.md) | The developer's everyday macOS build and its separate data |
-| [Version numbers and the change log](versioning.md) | Written for the owner's approval 2026-11-23, not built: the third number rises with every merge into `main` and the second at a milestone the owner calls; tags for the five finished phases 0.1–0.5; one change-log section per version with one line per change |
+| [Version numbers and the change log](versioning.md) | In force since 2026-11-23 (D-036): the third number rises with every merge into `main` and the second at a milestone the owner calls; tags for the five finished phases 0.1–0.5; one change-log section per version with one line per change |
 | [Version numbers and the change log: implementation plan](versioning-plan.md) | Task-by-task plan: the rule in AGENTS.md, the decision, the changeover of the change log with its tests, then merge and tags |
 | [Test organization and health](testing.md) | Fast / full commands, categories, time budgets, isolation rules for flaky failures and their common causes |
 | [Failure handling](failure-handling.md) | Where catches belong, that a handled failure always leaves a trace, cancellation, no programmer-error types as signals, `async void` only in view handlers; checked by `CatchPolicyTests` |

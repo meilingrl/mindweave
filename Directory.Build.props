@@ -21,7 +21,8 @@
     <!-- Release builds record source paths as /_/… instead of the folder they were built in, so neither the binaries
          nor stack traces carry the build machine's paths. -->
     <ContinuousIntegrationBuild Condition="'$(Configuration)' == 'Release'">true</ContinuousIntegrationBuild>
-    <!-- Raised at each finished plan step (owner, 2026-11-22); the commit tells daily and dev builds apart. -->
+    <!-- The third number rises with every merge into main; the owner calls the second (docs/design/versioning.md).
+         The commit tells daily and dev builds apart. -->
     <Version>0.2.0</Version>
   </PropertyGroup>
   <ItemGroup>
