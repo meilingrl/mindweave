@@ -292,12 +292,14 @@
           <Binding Path="!IsEditing" />
         </MultiBinding>
       </Expander.IsVisible>
+      <!-- Scrolls when the page has no room for all of it. -->
+      <ScrollViewer Classes="autohide" HorizontalScrollBarVisibility="Disabled">
       <StackPanel Spacing="8">
         <ItemsControl Name="HistoryList" ItemsSource="{Binding History}" Grid.IsSharedSizeScope="True">
           <ItemsControl.ItemTemplate>
             <DataTemplate x:DataType="vm:SummaryVersionItem">
               <Border Classes="history-row" Classes.shown="{Binding IsShown}" AutomationProperties.Name="{Binding Label}">
-                <Grid>
+                <Grid Classes="history-line" views:Narrow.Below="520" RowDefinitions="Auto,Auto,Auto">
                   <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="Auto" SharedSizeGroup="Tick" />
                     <ColumnDefinition Width="Auto" SharedSizeGroup="Number" />
@@ -318,8 +320,9 @@
                   </Panel>
                   <Border Grid.Column="4" Classes="badge" IsVisible="{Binding IsEdited}"><TextBlock Text="{Binding Origin}" /></Border>
                   <Border Grid.Column="3" Classes="badge" IsVisible="{Binding IsRead}"><TextBlock Text="{x:Static t:UiText.MarkerRead}" /></Border>
-                  <TextBlock Grid.Column="5" Classes="meta" Margin="4,0,8,0" Text="{Binding Coverage}" TextWrapping="Wrap" TextTrimming="CharacterEllipsis" />
-                  <StackPanel Grid.Column="6" Orientation="Horizontal" Spacing="2" HorizontalAlignment="Right">
+                  <!-- On a narrow page under the rest (Styles/Pages.axaml). -->
+                  <TextBlock Classes="meta history-coverage" Text="{Binding Coverage}" TextWrapping="Wrap" TextTrimming="CharacterEllipsis" />
+                  <StackPanel Classes="history-actions" Orientation="Horizontal" Spacing="2">
                     <Button Classes="quiet" Padding="8,3" Content="{x:Static t:UiText.View}" IsVisible="{Binding !IsShown}"
                             Command="{Binding $parent[v:SummaryView].((vm:SummaryViewModel)DataContext).ShowVersionCommand}" CommandParameter="{Binding Id}" />
                     <Button Classes="quiet" Padding="8,3" Content="{x:Static t:UiText.SetCurrent}" IsVisible="{Binding CanSetCurrent}"
@@ -336,6 +339,7 @@
           <TextBlock Classes="meta" Margin="12,0,0,0" Text="{x:Static t:UiText.ReadIsNotMastery}" TextWrapping="Wrap" />
         </DockPanel>
       </StackPanel>
+      </ScrollViewer>
     </Expander>
     </Grid>
 
@@ -347,14 +351,14 @@
       <!-- Edit mode: title, Markdown source filling the page, and the save/discard row. -->
       <DockPanel Name="Editor" IsVisible="{Binding IsEditing}">
         <TextBox DockPanel.Dock="Top" Name="EditTitleBox" Classes="edit-title" Text="{Binding EditTitle}" PlaceholderText="{x:Static t:UiText.EditTitleWatermark}" Margin="0,0,0,8" />
-        <DockPanel DockPanel.Dock="Bottom" Margin="0,10,0,0">
-          <StackPanel DockPanel.Dock="Left" Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
+        <WrapPanel DockPanel.Dock="Bottom" Margin="0,10,0,0" ItemSpacing="14" LineSpacing="6">
+          <StackPanel Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
             <Button Name="SaveEditButton" Classes="primary" Content="{x:Static t:UiText.SaveEdit}" Command="{Binding SaveEditCommand}" />
             <Button Name="DiscardEditButton" Classes="secondary" Content="{x:Static t:UiText.DiscardEdit}" Command="{Binding DiscardEditCommand}" />
           </StackPanel>
-          <TextBlock Name="EditDraftNote" Classes="meta" Margin="14,0,0,0" Text="{x:Static t:UiText.EditDraftSaved}" TextWrapping="Wrap" />
-        </DockPanel>
-        <TextBox Name="EditBodyBox" Classes="edit-body" Text="{Binding EditBody}" AcceptsReturn="True" TextWrapping="Wrap" MinHeight="240"
+          <TextBlock Name="EditDraftNote" Classes="meta" VerticalAlignment="Center" Text="{x:Static t:UiText.EditDraftSaved}" TextWrapping="Wrap" />
+        </WrapPanel>
+        <TextBox Name="EditBodyBox" Classes="edit-body" Text="{Binding EditBody}" AcceptsReturn="True" TextWrapping="Wrap" MinHeight="80"
                  VerticalContentAlignment="Top" />
       </DockPanel>
       <!-- Reading: the answer typography in a constrained column, so lines stay a comfortable length. -->

@@ -25,19 +25,20 @@
               <TextBlock Text="{x:Static t:UiText.NewConversation}" VerticalAlignment="Center" />
             </StackPanel>
           </Button>
-          <Button Name="NavExplore" Classes="nav" Classes.selected="{Binding IsExplore}" AutomationProperties.Name="{x:Static t:UiText.SectionExplore}"
+          <!-- The text takes the rest of the line, so a chosen entry's bold text always has room. -->
+          <Button Name="NavExplore" HorizontalContentAlignment="Stretch" Classes="nav" Classes.selected="{Binding IsExplore}" AutomationProperties.Name="{x:Static t:UiText.SectionExplore}"
                   Command="{Binding ShowSectionCommand}" CommandParameter="{x:Static nav:MainSection.Explore}">
-            <StackPanel Orientation="Horizontal" Spacing="10">
+            <Grid ColumnDefinitions="Auto,*" ColumnSpacing="10">
               <PathIcon Classes="nav-icon" Data="{StaticResource IconExplore}" />
-              <TextBlock Text="{x:Static t:UiText.SectionExplore}" VerticalAlignment="Center" />
-            </StackPanel>
+              <TextBlock Grid.Column="1" Text="{x:Static t:UiText.SectionExplore}" VerticalAlignment="Center" />
+            </Grid>
           </Button>
-          <Button Name="NavSummaryNetwork" Classes="nav" Classes.selected="{Binding IsSummaryNetwork}" AutomationProperties.Name="{Binding SummaryNetworkLabel}"
+          <Button Name="NavSummaryNetwork" HorizontalContentAlignment="Stretch" Classes="nav" Classes.selected="{Binding IsSummaryNetwork}" AutomationProperties.Name="{Binding SummaryNetworkLabel}"
                   Command="{Binding ShowSectionCommand}" CommandParameter="{x:Static nav:MainSection.SummaryNetwork}">
-            <StackPanel Orientation="Horizontal" Spacing="10">
+            <Grid ColumnDefinitions="Auto,*" ColumnSpacing="10">
               <PathIcon Classes="nav-icon" Data="{StaticResource IconSummaryNetwork}" />
-              <TextBlock Text="{Binding SummaryNetworkLabel}" VerticalAlignment="Center" />
-            </StackPanel>
+              <TextBlock Grid.Column="1" Text="{Binding SummaryNetworkLabel}" VerticalAlignment="Center" />
+            </Grid>
           </Button>
           <!-- The 会话 caption carries the 选择 entry (multi-select for touch and discoverability; Ctrl/Cmd and Shift click work without it). -->
           <DockPanel Margin="10,14,0,2" IsVisible="{Binding Conversations.Items.Count, Converter={x:Static d:Converters.IsPositive}}">
@@ -49,12 +50,12 @@
             <TextBlock Classes="caption" Text="{x:Static t:UiText.ConversationsHeading}" VerticalAlignment="Center" />
           </DockPanel>
         </StackPanel>
-        <Button Name="NavSettings" DockPanel.Dock="Bottom" Classes="nav" Classes.selected="{Binding IsSettings}" AutomationProperties.Name="{x:Static t:UiText.SectionSettings}"
+        <Button Name="NavSettings" HorizontalContentAlignment="Stretch" DockPanel.Dock="Bottom" Classes="nav" Classes.selected="{Binding IsSettings}" AutomationProperties.Name="{x:Static t:UiText.SectionSettings}"
                 Command="{Binding ShowSectionCommand}" CommandParameter="{x:Static nav:MainSection.Settings}" VerticalAlignment="Bottom">
-          <StackPanel Orientation="Horizontal" Spacing="10">
+          <Grid ColumnDefinitions="Auto,*" ColumnSpacing="10">
             <PathIcon Classes="nav-icon" Data="{StaticResource IconSettings}" />
-            <TextBlock Text="{x:Static t:UiText.SectionSettings}" VerticalAlignment="Center" />
-          </StackPanel>
+            <TextBlock Grid.Column="1" Text="{x:Static t:UiText.SectionSettings}" VerticalAlignment="Center" />
+          </Grid>
         </Button>
         <Border DockPanel.Dock="Bottom" Height="1" Background="{DynamicResource DividerBrush}" Margin="0,6,0,6" />
         <!-- Archived conversations are out of the tree; this quieter entry at its bottom leads to them (S6). -->

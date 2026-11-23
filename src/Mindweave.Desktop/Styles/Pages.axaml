@@ -53,6 +53,66 @@
   </Style>
   <!-- 设置 › 使用统计 (2026-11-12): large figures, the inline price editor, empty purposes dimmed; the chart draws its own
        focus ring around the bar it is on, so the control-wide adorner is off. -->
+  <!-- A backup's size and actions: at the end of its line, on a narrow page a second line. -->
+  <Style Selector="Grid.backup-end">
+    <Setter Property="Grid.Column" Value="4" />
+  </Style>
+  <Style Selector="Grid.backup-line.narrow > Grid.backup-end">
+    <Setter Property="Grid.Row" Value="1" />
+    <Setter Property="Grid.Column" Value="1" />
+    <Setter Property="Grid.ColumnSpan" Value="4" />
+    <Setter Property="HorizontalAlignment" Value="Left" />
+  </Style>
+  <!-- What a summary's version covers: between the marks and the actions, on a narrow page under them. -->
+  <Style Selector="TextBlock.history-coverage">
+    <Setter Property="Grid.Column" Value="5" />
+    <Setter Property="Margin" Value="4,0,8,0" />
+  </Style>
+  <Style Selector="Grid.history-line.narrow > TextBlock.history-coverage">
+    <Setter Property="Grid.Row" Value="1" />
+    <Setter Property="Grid.Column" Value="1" />
+    <Setter Property="Grid.ColumnSpan" Value="6" />
+    <Setter Property="Margin" Value="0,2,8,0" />
+  </Style>
+  <Style Selector="StackPanel.history-actions">
+    <Setter Property="Grid.Column" Value="6" />
+    <Setter Property="HorizontalAlignment" Value="Right" />
+  </Style>
+  <Style Selector="Grid.history-line.narrow > StackPanel.history-actions">
+    <Setter Property="Grid.Row" Value="2" />
+    <Setter Property="Grid.Column" Value="1" />
+    <Setter Property="Grid.ColumnSpan" Value="6" />
+    <Setter Property="HorizontalAlignment" Value="Left" />
+    <Setter Property="Margin" Value="-8,2,0,0" />
+  </Style>
+  <!-- "Link to…" waiting for a click: its two buttons beside the hint, over a narrow canvas under it. -->
+  <Style Selector="WrapPanel.link-pick-actions">
+    <Setter Property="DockPanel.Dock" Value="Right" />
+  </Style>
+  <Style Selector="Border.link-pick-line.narrow WrapPanel.link-pick-actions">
+    <Setter Property="DockPanel.Dock" Value="Bottom" />
+    <Setter Property="Margin" Value="-4,4,0,0" />
+  </Style>
+  <!-- Below a certain width (v:Narrow) the statistics' rows stand on two lines instead of cutting their ends off. -->
+  <Style Selector="UniformGrid.activity-grid">
+    <Setter Property="Columns" Value="4" />
+  </Style>
+  <Style Selector="ItemsControl.activity.narrow UniformGrid.activity-grid">
+    <Setter Property="Columns" Value="2" />
+  </Style>
+  <Style Selector="TextBlock.purpose-usage">
+    <Setter Property="Grid.Column" Value="1" />
+    <Setter Property="HorizontalAlignment" Value="Right" />
+    <Setter Property="TextAlignment" Value="Right" />
+    <Setter Property="MaxWidth" Value="320" />
+  </Style>
+  <Style Selector="Grid.purpose-row.narrow > TextBlock.purpose-usage">
+    <Setter Property="Grid.Row" Value="1" />
+    <Setter Property="Grid.Column" Value="0" />
+    <Setter Property="Grid.ColumnSpan" Value="3" />
+    <Setter Property="HorizontalAlignment" Value="Left" />
+    <Setter Property="TextAlignment" Value="Left" />
+  </Style>
   <Style Selector="TextBlock.stat-value">
     <Setter Property="FontSize" Value="20" />
     <Setter Property="FontWeight" Value="SemiBold" />

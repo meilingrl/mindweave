@@ -82,7 +82,7 @@
                 </StackPanel>
                 <StackPanel Grid.Column="2" Spacing="2">
                   <TextBlock Classes="caption" Text="{x:Static t:UiText.RequestsLabel}" />
-                  <TextBlock Name="RequestsTotal" Classes="stat-value" Text="{Binding RequestsText}" />
+                  <TextBlock Name="RequestsTotal" Classes="stat-value" TextWrapping="Wrap" Text="{Binding RequestsText}" />
                 </StackPanel>
               </Grid>
               <TextBlock Name="UnreportedText" Classes="caption" Margin="0,-6,0,0" TextWrapping="Wrap" Text="{Binding UnreportedText}"
@@ -130,7 +130,7 @@
                         <TextBlock Text="{Binding Name}" />
                         <TextBlock Grid.Column="1" HorizontalAlignment="Right" Text="{Binding InputText}" />
                         <TextBlock Grid.Column="2" HorizontalAlignment="Right" Text="{Binding OutputText}" />
-                        <TextBlock Grid.Column="3" HorizontalAlignment="Right" Text="{Binding RequestsText}" />
+                        <TextBlock Grid.Column="3" HorizontalAlignment="Right" TextAlignment="Right" TextWrapping="Wrap" MaxWidth="120" Text="{Binding RequestsText}" />
                       </Grid>
                     </DataTemplate>
                   </ItemsControl.ItemTemplate>
@@ -249,7 +249,7 @@
               </ItemsControl.ItemsPanel>
               <ItemsControl.ItemTemplate>
                 <DataTemplate x:DataType="vm:PurposeRowViewModel">
-                  <Grid ColumnSpacing="12" AutomationProperties.Name="{Binding AutomationName}" Classes.empty="{Binding IsEmpty}" Classes="purpose-row">
+                  <Grid ColumnSpacing="12" RowDefinitions="Auto,Auto" AutomationProperties.Name="{Binding AutomationName}" Classes.empty="{Binding IsEmpty}" Classes="purpose-row" v:Narrow.Below="460">
                     <!-- The name and its hint take what the usage leaves; the usage keeps one line up to 320 px, then
                          wraps, so neither squeezes the other into a narrow column. -->
                     <Grid.ColumnDefinitions>
@@ -261,8 +261,8 @@
                       <TextBlock FontWeight="SemiBold" Text="{Binding Name}" TextWrapping="Wrap" />
                       <TextBlock Classes="caption" Text="{Binding Hint}" TextWrapping="Wrap" />
                     </StackPanel>
-                    <TextBlock Grid.Column="1" Classes="caption" VerticalAlignment="Center" HorizontalAlignment="Right" TextAlignment="Right" MaxWidth="320"
-                               TextWrapping="Wrap" Text="{Binding UsageText}" />
+                    <!-- On a narrow page under the name (Styles/Pages.axaml). -->
+                    <TextBlock Classes="caption purpose-usage" VerticalAlignment="Center" TextWrapping="Wrap" Text="{Binding UsageText}" />
                     <TextBlock Grid.Column="2" VerticalAlignment="Center" HorizontalAlignment="Right" MinWidth="36" TextAlignment="Right" Text="{Binding ShareText}" />
                   </Grid>
                 </DataTemplate>
@@ -302,17 +302,17 @@
           <StackPanel Spacing="14">
             <TextBlock Name="NoQuestions" Classes="muted" TextWrapping="Wrap" Text="{Binding NoQuestionsText}"
                        IsVisible="{Binding NoQuestionsText, Converter={x:Static ObjectConverters.IsNotNull}}" />
-            <ItemsControl Name="ActivityItems" ItemsSource="{Binding ActivityItems}" IsVisible="{Binding HasActivity}">
+            <ItemsControl Name="ActivityItems" Classes="activity" v:Narrow.Below="480" ItemsSource="{Binding ActivityItems}" IsVisible="{Binding HasActivity}">
               <ItemsControl.ItemsPanel>
                 <ItemsPanelTemplate>
-                  <UniformGrid Columns="4" RowSpacing="14" ColumnSpacing="12" />
+                  <UniformGrid Classes="activity-grid" RowSpacing="14" ColumnSpacing="12" />
                 </ItemsPanelTemplate>
               </ItemsControl.ItemsPanel>
               <ItemsControl.ItemTemplate>
                 <DataTemplate x:DataType="vm:ActivityItemViewModel">
                   <StackPanel Spacing="2" AutomationProperties.Name="{Binding AutomationName}" Classes="activity-item">
                     <TextBlock Classes="stat-value" Text="{Binding ValueText}" />
-                    <TextBlock Classes="caption" Text="{Binding Label}" />
+                    <TextBlock Classes="caption" TextWrapping="Wrap" Text="{Binding Label}" />
                   </StackPanel>
                 </DataTemplate>
               </ItemsControl.ItemTemplate>

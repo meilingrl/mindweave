@@ -154,6 +154,16 @@
   <Style Selector="Border.workspace-row:pointerover">
     <Setter Property="Background" Value="{DynamicResource CardHover}" />
   </Style>
+  <!-- The row's actions: beside the name, under it on a narrow page. -->
+  <Style Selector="StackPanel.workspace-row-actions">
+    <Setter Property="DockPanel.Dock" Value="Right" />
+    <Setter Property="Margin" Value="12,0,0,0" />
+  </Style>
+  <Style Selector="Border.workspace-row.narrow StackPanel.workspace-row-actions">
+    <Setter Property="DockPanel.Dock" Value="Bottom" />
+    <Setter Property="HorizontalAlignment" Value="Left" />
+    <Setter Property="Margin" Value="-8,6,0,0" />
+  </Style>
   <Style Selector="Border.workspace-row-divider">
     <Setter Property="Height" Value="1" />
     <Setter Property="Margin" Value="14,0" />

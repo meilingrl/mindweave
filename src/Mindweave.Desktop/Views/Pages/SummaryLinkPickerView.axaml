@@ -11,15 +11,16 @@
   <UserControl.KeyBindings>
     <KeyBinding Gesture="Escape" Command="{Binding CancelPickerCommand}" />
   </UserControl.KeyBindings>
-  <StackPanel Spacing="8">
-    <TextBlock Name="LinkPickerHeading" FontWeight="SemiBold" TextWrapping="Wrap" Text="{Binding PickerHeading}" />
-    <TextBox Name="LinkPickerSearch" Text="{Binding PickerQuery}" PlaceholderText="{x:Static t:UiText.LinkPickerSearch}"
+  <!-- The list gives way when there is little height, so 取消 stays in view. -->
+  <Grid RowDefinitions="Auto,Auto,*,Auto,Auto,Auto" RowSpacing="8">
+    <TextBlock Name="LinkPickerHeading" FontWeight="SemiBold" Margin="0,0,24,0" TextWrapping="Wrap" Text="{Binding PickerHeading}" />
+    <TextBox Grid.Row="1" Name="LinkPickerSearch" Text="{Binding PickerQuery}" PlaceholderText="{x:Static t:UiText.LinkPickerSearch}"
              AutomationProperties.Name="{x:Static t:UiText.LinkPickerSearchName}" views:FocusRequest.When="{Binding IsPickerOpen}">
       <TextBox.KeyBindings>
         <KeyBinding Gesture="Enter" Command="{Binding PickFirstCommand}" />
       </TextBox.KeyBindings>
     </TextBox>
-    <ScrollViewer Classes="autohide" MaxHeight="300" HorizontalScrollBarVisibility="Disabled">
+    <ScrollViewer Grid.Row="2" Classes="autohide" MaxHeight="300" HorizontalScrollBarVisibility="Disabled">
     <ItemsControl Name="LinkPickerList" ItemsSource="{Binding PickerItems}" AutomationProperties.Name="{x:Static t:UiText.LinkPickerListName}">
       <ItemsControl.ItemTemplate>
         <DataTemplate x:DataType="vm:SummaryLinkCandidateItem">
@@ -37,10 +38,10 @@
       </ItemsControl.ItemTemplate>
     </ItemsControl>
     </ScrollViewer>
-    <TextBlock Name="LinkPickerEmpty" Classes="muted" FontSize="12" TextWrapping="Wrap" Text="{Binding PickerEmptyText}"
+    <TextBlock Grid.Row="3" Name="LinkPickerEmpty" Classes="muted" FontSize="12" TextWrapping="Wrap" Text="{Binding PickerEmptyText}"
                IsVisible="{Binding PickerEmptyText, Converter={x:Static ObjectConverters.IsNotNull}}" />
-    <TextBlock Name="LinkPickerNotice" Classes="warning" FontSize="12" TextWrapping="Wrap" Text="{Binding Notice}" IsVisible="{Binding HasNotice}" />
-    <Button Name="CloseLinkPickerButton" Classes="quiet" HorizontalAlignment="Left" Content="{x:Static t:UiText.Cancel}" Command="{Binding CancelPickerCommand}"
+    <TextBlock Grid.Row="4" Name="LinkPickerNotice" Classes="warning" FontSize="12" TextWrapping="Wrap" Text="{Binding Notice}" IsVisible="{Binding HasNotice}" />
+    <Button Grid.Row="5" Name="CloseLinkPickerButton" Classes="quiet" HorizontalAlignment="Left" Content="{x:Static t:UiText.Cancel}" Command="{Binding CancelPickerCommand}"
             AutomationProperties.Name="{x:Static t:UiText.LinkPickCancelName}" />
-  </StackPanel>
+  </Grid>
 </UserControl>

@@ -27,6 +27,7 @@ namespace Mindweave.Desktop.Tests;
 /// network's details and legend, and the settings row.
 /// </summary>
 [Trait("Category", "Gallery")]
+[Collection(Text.LanguageTests.Name)]
 public class UiPointsGalleryTests
 {
     public static TheoryData<string, UiLanguage> Looks => new()
@@ -42,6 +43,7 @@ public class UiPointsGalleryTests
     public async Task The_points_as_they_look(string theme, UiLanguage language)
     {
         Assert.SkipWhen(string.IsNullOrEmpty(Environment.GetEnvironmentVariable("MINDWEAVE_SCREENSHOT_DIR")), "Screenshots only.");
+        var before = CurrentLanguage.Value;
         CurrentLanguage.Set(language);
         try
         {
@@ -95,11 +97,11 @@ public class UiPointsGalleryTests
         }
         finally
         {
-            CurrentLanguage.Set(UiLanguage.Chinese);
+            CurrentLanguage.Set(before);
         }
     }
 
-    private static async Task<ConversationViewModel> AskWithSourcesAsync(DesktopHarness app, Window window)
+    internal static async Task<ConversationViewModel> AskWithSourcesAsync(DesktopHarness app, Window window)
     {
         await app.StartWithWorkspaceAsync("火车历史");
         var capabilities = ModelCapabilities.DefaultsFor(ChatProtocol.ChatCompletions) with { ToolCalls = true };
