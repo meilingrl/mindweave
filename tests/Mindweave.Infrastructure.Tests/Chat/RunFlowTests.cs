@@ -75,6 +75,23 @@ public class RunFlowTests
     }
 
     [Fact]
+    public async Task The_context_usage_counts_the_instructions_tools_and_attachments_the_next_request_sends()
+    {
+        await using var h = await ChatHarness.StartAsync(model: ToolModel);
+        h.Client.Reply("瓦特改良了蒸汽机。");
+        var (conversation, _) = await AskWithAttachmentAsync(h, "蒸汽机是谁改良的？");
+
+        var usage = (await h.Conversations.GetContextUsageAsync(conversation, Ct))!;
+
+        Assert.Equal(usage.Tokens, usage.Parts.Sum(p => p.Tokens));
+        Assert.Equal(
+            [ContextUsageKind.Conversation, ContextUsageKind.Attachments, ContextUsageKind.Instructions, ContextUsageKind.Tools],
+            usage.Parts.Select(p => p.Kind));
+        Assert.All(usage.Parts, p => Assert.True(p.Tokens > 0, p.Kind.ToString()));
+        Assert.Equal(1, h.Client.Requests.Count(FakeChatClient.IsAnswer));
+    }
+
+    [Fact]
     public async Task A_part_of_an_attachment_is_read_by_its_handle()
     {
         await using var h = await ChatHarness.StartAsync(model: ToolModel);

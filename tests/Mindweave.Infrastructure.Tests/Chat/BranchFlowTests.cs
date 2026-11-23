@@ -11,6 +11,18 @@ public class BranchFlowTests
     private static CancellationToken Ct => TestContext.Current.CancellationToken;
 
     [Fact]
+    public async Task The_context_usage_of_a_branch_tells_its_source_conversations_apart()
+    {
+        await using var h = await ChatHarness.StartAsync();
+        var (root, source) = await h.RootWithAnswerAsync("火车怎么来的？");
+        var child = (await h.Conversations.CreateBranchAsync(root, Selection(source, source.Text[..2]), Ct)).Child;
+
+        var usage = (await h.Conversations.GetContextUsageAsync(child, Ct))!;
+        Assert.Equal([ContextUsageKind.Ancestors, ContextUsageKind.Instructions], usage.Parts.Select(p => p.Kind));
+        Assert.Equal(usage.Tokens, usage.Parts.Sum(p => p.Tokens));
+    }
+
+    [Fact]
     public async Task A_branch_continues_from_the_quoted_passage_without_repeating_the_background()
     {
         await using var h = await ChatHarness.StartAsync();

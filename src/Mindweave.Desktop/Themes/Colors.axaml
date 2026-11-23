@@ -175,6 +175,12 @@
       <SolidColorBrush x:Key="ContextRingNormal">#8A847F</SolidColorBrush>
       <SolidColorBrush x:Key="ContextRingNear">#D97706</SolidColorBrush>
       <SolidColorBrush x:Key="ContextRingTooLong">#B91C1C</SolidColorBrush>
+      <SolidColorBrush x:Key="ContextPartConversation">#3E6AE1</SolidColorBrush>
+      <SolidColorBrush x:Key="ContextPartAncestors">#1B8A7C</SolidColorBrush>
+      <SolidColorBrush x:Key="ContextPartContextSummaries">#B4690E</SolidColorBrush>
+      <SolidColorBrush x:Key="ContextPartAttachments">#B23A6B</SolidColorBrush>
+      <SolidColorBrush x:Key="ContextPartInstructions">#8A8F99</SolidColorBrush>
+      <SolidColorBrush x:Key="ContextPartTools">#7C5CD6</SolidColorBrush>
     </ResourceDictionary>
     <ResourceDictionary x:Key="Dark">
       <SolidColorBrush x:Key="WindowBackground">#18191B</SolidColorBrush>
@@ -331,6 +337,12 @@
       <SolidColorBrush x:Key="ContextRingNormal">#9299A6</SolidColorBrush>
       <SolidColorBrush x:Key="ContextRingNear">#E8A94F</SolidColorBrush>
       <SolidColorBrush x:Key="ContextRingTooLong">#F2A0A0</SolidColorBrush>
+      <SolidColorBrush x:Key="ContextPartConversation">#7D93F5</SolidColorBrush>
+      <SolidColorBrush x:Key="ContextPartAncestors">#4FBFB1</SolidColorBrush>
+      <SolidColorBrush x:Key="ContextPartContextSummaries">#DFB87C</SolidColorBrush>
+      <SolidColorBrush x:Key="ContextPartAttachments">#E58FB2</SolidColorBrush>
+      <SolidColorBrush x:Key="ContextPartInstructions">#8B919C</SolidColorBrush>
+      <SolidColorBrush x:Key="ContextPartTools">#A893EA</SolidColorBrush>
     </ResourceDictionary>
   </ResourceDictionary.ThemeDictionaries>
 </ResourceDictionary>

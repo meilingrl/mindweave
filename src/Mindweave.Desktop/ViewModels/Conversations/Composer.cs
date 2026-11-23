@@ -59,10 +59,19 @@ public sealed partial class Composer : ViewModelBase
     /// page keeps it current, a new conversation leaves it null and shows no ring.
     /// </summary>
     [ObservableProperty]
-    [NotifyPropertyChangedFor(nameof(ShowsContextRing))]
+    [NotifyPropertyChangedFor(nameof(ShowsContextRing), nameof(ContextUsageTip), nameof(ContextUsageName), nameof(ContextUsageDetails))]
     public partial ContextUsage? ContextUsage { get; set; }
 
     public bool ShowsContextRing => ContextUsage is not null;
+
+    /// <summary>On hover: the share and the figures.</summary>
+    public string? ContextUsageTip => ContextUsage is { } usage ? UiText.ContextUsageShort(usage) : null;
+
+    /// <summary>For a screen reader: the whole sentence.</summary>
+    public string ContextUsageName => ContextUsage is { } usage ? UiText.ContextUsage(usage) : UiText.ContextRingName;
+
+    /// <summary>On a press: what the context is made of.</summary>
+    public ContextUsageDetails? ContextUsageDetails => ContextUsage is { } usage ? new ContextUsageDetails(usage) : null;
 
     /// <summary>The view puts the focus in the input, the caret at the end (after <see cref="Fill"/>).</summary>
     public event EventHandler? FillRequested;

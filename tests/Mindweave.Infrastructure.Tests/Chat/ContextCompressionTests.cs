@@ -211,11 +211,17 @@ public class ContextCompressionTests
         Assert.Equal(small.FullTokens, small.Tokens);
         Assert.InRange(small.Tokens, 3_000, 3_200);
 
+        // What it is made of adds up to the total: here the conversation and the request's framing only.
+        Assert.Equal(small.Tokens, small.Parts.Sum(p => p.Tokens));
+        Assert.Equal([ContextUsageKind.Conversation, ContextUsageKind.Instructions], small.Parts.Select(p => p.Kind));
+
         await LongConversationTurnsAsync(h, conversation, 4);
         var large = (await h.Conversations.GetContextUsageAsync(conversation, Ct))!;
         Assert.True(large.Compressed);
         Assert.True(large.Tokens < large.FullTokens);
         Assert.True(large.Tokens <= large.Budget);
+        Assert.Equal(large.Tokens, large.Parts.Sum(p => p.Tokens));
+        Assert.Contains(large.Parts, p => p.Kind == ContextUsageKind.ContextSummaries);
 
         await h.Models.SaveAsync(SmallModel with { ContextWindowTokens = 128_000 }, Ct);
         var roomy = (await h.Conversations.GetContextUsageAsync(conversation, Ct))!;
@@ -231,7 +237,9 @@ public class ContextCompressionTests
 
         await h.Models.SaveAsync(SmallModel with { ContextWindowTokens = 2_000 }, Ct);
 
-        Assert.True((await h.Conversations.GetContextUsageAsync(conversation, Ct))!.TooLong);
+        var usage = (await h.Conversations.GetContextUsageAsync(conversation, Ct))!;
+        Assert.True(usage.TooLong);
+        Assert.Equal(usage.Tokens, usage.Parts.Sum(p => p.Tokens));
     }
 
     [Fact]

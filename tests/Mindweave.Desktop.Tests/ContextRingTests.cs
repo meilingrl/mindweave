@@ -14,7 +14,7 @@ namespace Mindweave.Desktop.Tests;
 
 /// <summary>
 /// The composer's context ring (2026-11-17): the arc is the share of the model's context in use, the colour turns at
-/// 0.8 and when the conversation no longer fits, and hovering (or a screen reader) gets the full context sentence.
+/// 0.8 and when the conversation no longer fits. Three levels (2026-11-23): the ring, the figures on hover, the parts on a press.
 /// </summary>
 public class ContextRingTests
 {
@@ -66,21 +66,35 @@ public class ContextRingTests
         static Point Round(Point p) => new(Math.Round(p.X, 6), Math.Round(p.Y, 6));
     }
 
-    [AvaloniaFact]
-    public void Hovering_shows_the_context_sentence_which_is_also_its_name()
+    [Fact]
+    public void The_figures_are_short_and_marked_as_estimates()
     {
-        var ring = new ContextRing();
-        Assert.Equal(UiText.ContextRingName, AutomationProperties.GetName(ring));
-        Assert.Null(ToolTip.GetTip(ring));
+        Assert.Equal("1.2K", UiText.CompactTokens(1_234));
+        Assert.Equal("820", UiText.CompactTokens(820));
+        Assert.Equal("1M", UiText.CompactTokens(999_950));
+        Assert.Equal("~8.2K / 10K", UiText.ContextTotal(Usage(8_200, 10_000)));
+        Assert.Equal("82%", UiText.ContextPercent(Usage(8_200, 10_000)));
+        Assert.Equal("<1%", UiText.ContextPercent(Usage(20, 10_000)));
+        Assert.Equal("0%", UiText.ContextPercent(Usage(0, 10_000)));
+        Assert.Equal(">100%", UiText.ContextPercent(Usage(30_000, 10_000, tooLong: true)));
+        Assert.Equal("上下文已用 82% · ~8.2K / 10K", UiText.ContextUsageShort(Usage(8_200, 10_000)));
+        Assert.Null(UiText.ContextUsageNote(Usage(100, 10_000)));
+        Assert.Contains("接近上限", UiText.ContextUsageNote(Usage(8_200, 10_000)), StringComparison.Ordinal);
+    }
 
-        var usage = Usage(8_200, 10_000);
-        ring.Usage = usage;
-        Assert.Equal(UiText.ContextUsage(usage), ToolTip.GetTip(ring));
-        Assert.Equal(UiText.ContextUsage(usage), AutomationProperties.GetName(ring));
-        Assert.Contains("接近上限", (string)ToolTip.GetTip(ring)!, StringComparison.Ordinal);
-
-        ring.Usage = null;
-        Assert.Equal(UiText.ContextRingName, AutomationProperties.GetName(ring));
+    [Fact]
+    public void The_bar_keeps_every_part_visible_and_never_overflows()
+    {
+        var usage = Usage(10_000, 10_000) with
+        {
+            Parts = ContextUsage.Share([.. Enum.GetValues<ContextUsageKind>().Select((k, i) => (k, i == 0 ? 100_000 : 1))], 10_000),
+        };
+        Assert.Equal(10_000, usage.Parts.Sum(p => p.Tokens));
+        var segments = ContextUsageBar.Segments(usage, 228);
+        Assert.Equal(6, segments.Count);
+        Assert.All(segments, s => Assert.True(s.Width > 2));
+        Assert.True(segments[^1].Start + segments[^1].Width <= 228 + 0.01);
+        Assert.Empty(ContextUsageBar.Segments(Usage(0, 10_000), 228));
     }
 
     [AvaloniaFact]
@@ -88,7 +102,7 @@ public class ContextRingTests
     {
         foreach (var theme in new[] { ThemeVariant.Light, ThemeVariant.Dark })
         {
-            Assert.All(ContextRing.Keys, key => Assert.True(
+            Assert.All(ContextRing.Keys.Concat(Enum.GetValues<ContextUsageKind>().Select(ContextUsageBar.BrushKeyOf)), key => Assert.True(
                 Avalonia.Application.Current!.Resources.TryGetResource(key, theme, out var value) && value is Avalonia.Media.IBrush, $"{key} in {theme}"));
         }
     }
@@ -114,7 +128,18 @@ public class ContextRingTests
         var ring = Find<ContextRing>(window, "ContextRing");
         Assert.True(ring.IsEffectivelyVisible);
         Assert.Same(page.ContextUsage, ring.Usage);
-        Assert.Equal(page.ContextUsageText, ToolTip.GetTip(ring));
+
+        // Hover: the figures. A press: what they are made of. A screen reader: the whole sentence.
+        var button = Find<Button>(window, "ContextRingButton");
+        Assert.Equal(UiText.ContextUsageShort(page.ContextUsage!), ToolTip.GetTip(button));
+        Assert.Equal(page.ContextUsageText, AutomationProperties.GetName(button));
+        UiInput.Click(window, button);
+        await UiWait.UntilAsync(() => button.Flyout!.IsOpen);
+        var card = Assert.IsType<ContextUsageView>(((Flyout)button.Flyout!).Content);
+        var details = Assert.IsType<ContextUsageDetails>(card.DataContext);
+        Assert.Equal(page.ContextUsage!.Tokens, details.Rows.Sum(r => r.Tokens));
+        Assert.Contains(details.Rows, r => r.Kind == ContextUsageKind.Conversation);
+        button.Flyout!.Hide();
         Assert.Equal(ContextRingLevel.Normal, ContextRing.LevelOf(ring.Usage!));
         Assert.False(page.ShowsContextLine);
         Assert.False(Find<TextBlock>(window, "ContextUsageLine").IsEffectivelyVisible);
@@ -138,7 +163,7 @@ public class ContextRingTests
         var draft = Assert.IsType<NewConversationViewModel>(app.Workbench.CurrentPage);
         window.UpdateLayout();
         Assert.False(draft.Composer.ShowsContextRing);
-        Assert.False(Find<ContextRing>(window, "ContextRing").IsEffectivelyVisible);
+        Assert.False(Find<Button>(window, "ContextRingButton").IsEffectivelyVisible);
         window.Close();
     }
 }

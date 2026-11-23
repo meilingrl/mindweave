@@ -21,8 +21,9 @@ public enum ContextRingLevel
 /// <summary>
 /// The composer's context ring (2026-11-17): a small circular gauge beside send whose arc, clockwise from the top, is
 /// the share of the model's context the conversation takes (<see cref="ContextUsage.Fraction"/>). Quiet grey normally,
-/// the warning colour near the limit, the danger colour (a full ring) when the conversation no longer fits. Hovering
-/// shows the full context sentence, which is also its automation name. Every colour is a theme resource.
+/// the warning colour near the limit, the danger colour (a full ring) when the conversation no longer fits. It
+/// is the first of three levels (the owner, 2026-11-23): its button shows the figures on hover and what they are made of
+/// on a press (<see cref="ContextUsageView"/>). Every colour is a theme resource.
 /// </summary>
 public sealed class ContextRing : Control
 {
@@ -48,7 +49,7 @@ public sealed class ContextRing : Control
     public ContextRing()
     {
         ActualThemeVariantChanged += (_, _) => InvalidateVisual();
-        AutomationProperties.SetName(this, UiText.ContextRingName);
+        AutomationProperties.SetAccessibilityView(this, AccessibilityView.Raw);
     }
 
     public ContextUsage? Usage
@@ -91,17 +92,6 @@ public sealed class ContextRing : Control
     }
 
     protected override Size MeasureOverride(Size availableSize) => new(18, 18);
-
-    protected override void OnPropertyChanged(AvaloniaPropertyChangedEventArgs change)
-    {
-        base.OnPropertyChanged(change);
-        if (change.Property == UsageProperty)
-        {
-            var sentence = Usage is { } usage ? UiText.ContextUsage(usage) : null;
-            ToolTip.SetTip(this, sentence);
-            AutomationProperties.SetName(this, sentence ?? UiText.ContextRingName);
-        }
-    }
 
     public override void Render(DrawingContext context)
     {

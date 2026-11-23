@@ -95,9 +95,17 @@
             <PathIcon Data="{StaticResource IconStop}" />
           </Button>
         </Panel>
-        <!-- The context ring (2026-11-17): how full the model's context is, the full sentence on hover. -->
-        <c:ContextRing Name="ContextRing" DockPanel.Dock="Right" Width="18" Height="18" VerticalAlignment="Bottom" Margin="10,0,0,8"
-                       Usage="{Binding ContextUsage}" IsVisible="{Binding ShowsContextRing}" />
+        <!-- The context ring (2026-11-17; three levels, 2026-11-23): how full the model's context is at a glance, the figures on
+             hover, what they are made of on a press. -->
+        <Button Name="ContextRingButton" Classes="attach context" DockPanel.Dock="Right" VerticalAlignment="Bottom" Margin="4,0,-4,1" IsVisible="{Binding ShowsContextRing}"
+                ToolTip.Tip="{Binding ContextUsageTip}" ToolTip.Placement="Top" AutomationProperties.Name="{Binding ContextUsageName}">
+          <c:ContextRing Name="ContextRing" Width="18" Height="18" Usage="{Binding ContextUsage}" />
+          <Button.Flyout>
+            <Flyout Placement="TopEdgeAlignedRight" FlyoutPresenterClasses="context-usage">
+              <c:ContextUsageView Name="ContextUsageView" DataContext="{Binding ContextUsageDetails}" />
+            </Flyout>
+          </Button.Flyout>
+        </Button>
         <!-- On 新探索 the first recommended question shows in the empty input as a dim placeholder (requirements §10.3.1):
              Tab puts it in once, typing hides it; elsewhere nothing is offered and this is a plain text box. -->
         <views:GhostTextBox Name="Input" Text="{Binding Text}" AcceptsReturn="True" TextWrapping="Wrap" MaxHeight="220" MinHeight="34"

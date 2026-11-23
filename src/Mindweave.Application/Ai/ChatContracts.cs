@@ -61,7 +61,14 @@ public static class ChatTurns
     public static int Estimate(ChatRequest request)
     {
         ArgumentNullException.ThrowIfNull(request);
-        return Estimate(request.Turns) + (request.Tools?.Sum(t => Core.Context.TokenEstimator.Estimate(t.Name + t.Description + t.ParametersSchema)) ?? 0);
+        return Estimate(request.Turns) + (request.Tools?.Sum(Estimate) ?? 0);
+    }
+
+    /// <summary>The estimate of one tool definition.</summary>
+    public static int Estimate(ChatTool tool)
+    {
+        ArgumentNullException.ThrowIfNull(tool);
+        return Core.Context.TokenEstimator.Estimate(tool.Name + tool.Description + tool.ParametersSchema);
     }
 }
 

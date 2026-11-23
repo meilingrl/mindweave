@@ -61,16 +61,6 @@ public sealed record ConversationContent(
     IReadOnlyDictionary<MessageId, IReadOnlyList<ResourceInput>>? ReducedAttachments = null,
     IReadOnlyDictionary<MessageId, RunRecord>? Runs = null);
 
-/// <summary>
-/// How much of the model's context the conversation takes now, as estimated by the planner that decides what is sent.
-/// <paramref name="Tokens"/> is what would be sent (after any summaries); <paramref name="FullTokens"/> is everything,
-/// raw. <paramref name="TooLong"/> when even summaries cannot make it fit.
-/// </summary>
-public sealed record ContextUsage(int Tokens, int FullTokens, int Budget, bool Compressed, bool TooLong)
-{
-    public double Fraction => Budget == 0 ? 1 : Math.Min(1, (double)Tokens / Budget);
-}
-
 public sealed record BranchOutcome(BranchRejection? Rejection, ConversationId Child)
 {
     public bool Accepted => Rejection is null;
@@ -247,12 +237,43 @@ public sealed partial class ConversationService : IConversations
             return new ContextUsage(0, 0, budget.AvailableTokens, false, false);
         }
 
-        // Shown in billed tokens: the estimate through what this model was seen to bill.
-        var (planned, inputs, _) = await PlanAsync(id, own.Messages, budget, model, cancellationToken).ConfigureAwait(false);
-        var full = TokenEstimator.PerRequest + BranchContext.Assemble(ancestors, own, ModelPhrases.Current).Sum(i => TokenEstimator.Message(i.Text)) + inputs.Resources.Sum(r => r.WholeTokens);
-        return planned.Plan is { } plan
-            ? new ContextUsage(budget.Predict(plan.EstimatedTokens), budget.Predict(full), budget.AvailableTokens, plan.IsCompressed || plan.IsResourceReduced, false)
-            : new ContextUsage(budget.Predict(full), budget.Predict(full), budget.AvailableTokens, true, true);
+        // Shown in billed tokens: the estimate through what this model was seen to bill. With tools, what the next question
+        // sends is planned with room for the run, and the run's instructions and tool definitions go with it.
+        var (planned, inputs, known) = await PlanAsync(id, own.Messages, budget, model, cancellationToken).ConfigureAwait(false);
+        var run = await RunPlanAsync(null, id, inputs, model, null, string.Empty, cancellationToken).ConfigureAwait(false);
+        var instructions = TokenEstimator.PerRequest + (run is null ? 0 : TokenEstimator.Message(RunPrompt.For(run.Tools)));
+        var tools = run?.Tools.Select(Tools.ToolRegistry.Definition).Sum(ChatTurns.Estimate) ?? 0;
+        var items = BranchContext.Assemble(ancestors, own, ModelPhrases.Current);
+        var raw = items.Sum(i => TokenEstimator.Message(i.Text));
+        var attachments = inputs.Resources.Sum(r => r.WholeTokens);
+        var full = budget.Predict(instructions + tools + raw + attachments);
+        if (planned.Plan is not { } whole)
+        {
+            return new ContextUsage(full, full, budget.AvailableTokens, true, true)
+            {
+                Parts = ContextUsage.Share(PartsOf(items, [], attachments), full),
+            };
+        }
+
+        var (plan, _) = WithRoomForRun(whole, budget, inputs, known, run);
+        var summaries = plan.Summaries.Sum(c => ContextPlanner.TokensOf(c, key => known.TryGetValue(key, out var size) ? size : null, ModelPhrases.Current));
+        var sentRaw = plan.RawItems.Sum(i => TokenEstimator.Message(i.Text));
+        var estimate = plan.EstimatedTokens - TokenEstimator.PerRequest + instructions + tools;
+        var sent = budget.Predict(estimate);
+        return new ContextUsage(sent, full, budget.AvailableTokens, plan.IsCompressed || plan.IsResourceReduced, false)
+        {
+            Parts = ContextUsage.Share(PartsOf([.. plan.RawItems], [(ContextUsageKind.ContextSummaries, summaries)], plan.EstimatedTokens - TokenEstimator.PerRequest - sentRaw - summaries), sent),
+        };
+
+        List<(ContextUsageKind Kind, int Estimate)> PartsOf(IReadOnlyList<ContextItem> sentItems, IReadOnlyList<(ContextUsageKind Kind, int Estimate)> others, int attached) =>
+        [
+            (ContextUsageKind.Conversation, sentItems.Where(i => i.Message.ConversationId == id).Sum(i => TokenEstimator.Message(i.Text))),
+            (ContextUsageKind.Ancestors, sentItems.Where(i => i.Message.ConversationId != id).Sum(i => TokenEstimator.Message(i.Text))),
+            .. others,
+            (ContextUsageKind.Attachments, attached),
+            (ContextUsageKind.Instructions, instructions),
+            (ContextUsageKind.Tools, tools),
+        ];
     }
 
     /// <summary>Creates a conversation from its first question and starts answering it.</summary>
