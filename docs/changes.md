@@ -16,6 +16,12 @@ The second number rises when a capability is finished and on by default, and the
 
 The nine merges after 0.5.0, on 2026-11-22 and 2026-11-23, are 0.5.1 to 0.5.9 in order. They keep their dated entries below.
 
+## 0.6.3 · 2026-11-24
+
+- Fixed the test of a double click while linking, which depended on the machine's speed (tests only)
+- Try: nothing on screen changed
+- Not verified: Windows hardware; the app's own timing of a double click, which the test no longer measures
+
 ## 0.6.2 · 2026-11-23
 
 - Fixed the highlight of a Settings row that leads to its own page, whose left side was cut at the text's edge (0.5.12)
