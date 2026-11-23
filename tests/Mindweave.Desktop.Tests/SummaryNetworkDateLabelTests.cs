@@ -15,10 +15,8 @@ namespace Mindweave.Desktop.Tests;
 /// Spec §4.4: in the spatial view a faint date label sits beside a root dot whose day differs from the previous root's,
 /// and hides when zoomed out. It sits inside the root's own packing footprint, so it covers no other dot or label.
 /// </summary>
-public class SessionNetworkDateLabelTests
+public class SummaryNetworkDateLabelTests
 {
-    private static DesktopHarness Gated() => DesktopHarness.Create(s => s.AddSingleton(new SessionNetworkGate(true)));
-
     /// <summary>
     /// <paramref name="count"/> sessions: every sixth a root, the others branching from a recent earlier one. Session i
     /// started <paramref name="hoursApart"/> × i hours after a fixed local morning, so the roots fall on several days,
@@ -50,8 +48,6 @@ public class SessionNetworkDateLabelTests
             CancellationToken.None);
         var network = await SummaryNetworkScenario.OpenSummaryNetworkAsync(app, window);
         await UiWait.UntilAsync(() => network.Nodes.Count == count);
-        network.Session.DiscardChanges();
-        await network.Session.LoadAsync(CancellationToken.None);
         await UiWait.UntilAsync(() => network.Nodes.All(n => n.CreatedAt.Year == first.Year));
         window.UpdateLayout();
         return (all, network);
@@ -60,7 +56,7 @@ public class SessionNetworkDateLabelTests
     [AvaloniaFact]
     public async Task Roots_that_start_a_new_day_get_a_date_beside_them()
     {
-        await using var app = Gated();
+        await using var app = DesktopHarness.Create();
         var window = app.ShowWindow(1400, 900);
         var (_, network) = await OpenAsync(app, window, 24, hoursApart: 3);
         var canvas = CanvasOf(window);
@@ -81,7 +77,7 @@ public class SessionNetworkDateLabelTests
     [AvaloniaFact]
     public async Task The_dates_hide_when_zoomed_out()
     {
-        await using var app = Gated();
+        await using var app = DesktopHarness.Create();
         var window = app.ShowWindow(1400, 900);
         var (_, network) = await OpenAsync(app, window, 12, hoursApart: 10);
         var canvas = CanvasOf(window);
@@ -96,7 +92,7 @@ public class SessionNetworkDateLabelTests
     [AvaloniaFact]
     public async Task In_a_dense_pack_no_date_covers_another_dot_or_label()
     {
-        await using var app = Gated();
+        await using var app = DesktopHarness.Create();
         var window = app.ShowWindow(1400, 900);
         var (_, network) = await OpenAsync(app, window, 36, hoursApart: 7);
         var canvas = CanvasOf(window);

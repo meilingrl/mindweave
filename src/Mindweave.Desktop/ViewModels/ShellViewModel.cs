@@ -15,7 +15,6 @@ namespace Mindweave.Desktop.ViewModels;
 public sealed partial class ShellViewModel : ViewModelBase, IDisposable
 {
     private readonly IWorkspaces _workspaces;
-    private readonly LayoutPromptViewModel? _layoutPrompt;
     private readonly SummaryNetwork.SummaryNetworkSessions? _summaryNetworks;
     private readonly ISidebarLayout? _sidebarLayout;
     private readonly IWorkspaceDeletionPrompt? _workspaceDeletion;
@@ -27,18 +26,14 @@ public sealed partial class ShellViewModel : ViewModelBase, IDisposable
         Workbench workbench,
         IWorkspaces workspaces,
         Conversations.ConversationListViewModel conversations,
-        LayoutPromptViewModel? layoutPrompt = null,
         SummaryNetwork.SummaryNetworkSessions? summaryNetworks = null,
         ISidebarLayout? sidebarLayout = null,
         IWorkspaceDeletionPrompt? workspaceDeletion = null,
         WorkspaceNewsViewModel? workspaceNews = null,
-        WorkspaceSwitchRequests? switches = null,
-        SummaryNetwork.SessionNetworkGate? sessionNetwork = null)
+        WorkspaceSwitchRequests? switches = null)
     {
-        SummaryNetworkLabel = sessionNetwork is { Enabled: true } ? UiText.SessionNetworkTitle : UiText.SectionSummaryNetwork;
         WorkspaceNews = workspaceNews;
         _workspaceDeletion = workspaceDeletion;
-        _layoutPrompt = layoutPrompt;
         _summaryNetworks = summaryNetworks;
         _sidebarLayout = sidebarLayout;
         ArgumentNullException.ThrowIfNull(workbench);
@@ -82,7 +77,7 @@ public sealed partial class ShellViewModel : ViewModelBase, IDisposable
 
     private void OnWorkspacesChanged(object? sender, System.Collections.Specialized.NotifyCollectionChangedEventArgs e) => RefreshChoices();
 
-    /// <summary>设置 › 工作区's 切换到此工作区 goes the switcher's way, so an unsaved layout is asked about first.</summary>
+    /// <summary>设置 › 工作区's 切换到此工作区 goes the switcher's way.</summary>
     private void OnSwitchRequested(object? sender, Workspace workspace) => SelectedWorkspace = workspace;
 
     public Workbench Workbench { get; }
@@ -102,8 +97,8 @@ public sealed partial class ShellViewModel : ViewModelBase, IDisposable
 
     public bool IsSummaryNetwork => Workbench.CurrentSection == MainSection.SummaryNetwork;
 
-    /// <summary>The sidebar entry of the network: "Mindweave" behind the session network's gate, "总结网络" without it.</summary>
-    public string SummaryNetworkLabel { get; }
+    /// <summary>The sidebar entry of the network: "Mindweave".</summary>
+    public string SummaryNetworkLabel { get; } = UiText.SummaryNetworkTitle;
 
     public bool IsSettings => Workbench.CurrentSection == MainSection.Settings;
 
@@ -116,9 +111,6 @@ public sealed partial class ShellViewModel : ViewModelBase, IDisposable
             if (value is not null && value.Id != Workbench.CurrentWorkspace?.Id)
             {
                 Leave(() => Workbench.SwitchWorkspace(value.Id));
-
-                // If leaving waits for an answer, the picker shows the workspace still active.
-                OnPropertyChanged(nameof(SelectedWorkspace));
             }
         }
     }
@@ -386,33 +378,21 @@ public sealed partial class ShellViewModel : ViewModelBase, IDisposable
         var workspace = await _workspaces.CreateAsync(name, CancellationToken.None);
         IsCreatingWorkspace = false;
 
-        // The new workspace is listed at once; switching to it waits if the current layout is unsaved.
+        // The new workspace is listed at once, then opened.
         Workbench.Workspaces.Add(workspace);
         Leave(() => Workbench.SwitchWorkspace(workspace.Id));
     }
 
-    /// <summary>
-    /// Leaves the current workspace: an unsaved network layout is asked about first (§7.4). The viewport is not kept:
-    /// coming back fits everything into view (§11.3).
-    /// </summary>
+    /// <summary>Leaves the current workspace. The network's viewport is not kept: coming back fits everything into view (§11.3).</summary>
     private void Leave(Action switchTo)
     {
-        var current = Workbench.CurrentWorkspace;
-        void Go()
+        if (Workbench.CurrentWorkspace is { } current && _summaryNetworks is not null)
         {
-            if (current is not null && _summaryNetworks is not null)
-            {
-                _summaryNetworks.Get(current.Id).Viewport = null;
-            }
-
-            switchTo();
-            OnPropertyChanged(nameof(SelectedWorkspace));
+            _summaryNetworks.Get(current.Id).Viewport = null;
         }
 
-        if (current is null || _layoutPrompt?.HoldLeaving(current.Id, Go) != true)
-        {
-            Go();
-        }
+        switchTo();
+        OnPropertyChanged(nameof(SelectedWorkspace));
     }
 
     /// <summary>Page titles can change after the page is shown (loaded, auto-titled, renamed).</summary>

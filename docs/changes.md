@@ -16,6 +16,27 @@ The second number rises when a capability is finished and on by default, and the
 
 The nine merges after 0.5.0, on 2026-11-22 and 2026-11-23, are 0.5.1 to 0.5.9 in order. They keep their dated entries below.
 
+## 0.6.1 · 2026-11-23
+
+- Documents: Removed the last passages about saving the layout by hand: the requirements §11 row on a failed layout save, and architecture §2.2, §11.1 and §12.3
+- Try: nothing on screen changed
+- Not verified: nothing to run
+
+## 0.6.0 · 2026-11-23
+
+The network of every conversation is finished and on by default: each conversation is a dot, summaries are a layer on it, and it has a spatial view and a timeline.
+
+- Added a reason when "Link to…" lands on a conversation without a summary
+- Changed the network of every conversation to be the only one; `MINDWEAVE_SESSION_NETWORK` is gone (D-035, [session-network.md](design/session-network.md) §16)
+- Changed the page and its sidebar entry to be called Mindweave, and title search to find every conversation
+- Changed the number of recommended nodes to follow the conversations, not the summaries (requirements v0.25 §10.3.2)
+- Changed the code to say conversation for session (`ConversationWeights`, …); stored names stay
+- Fixed the selection being lost when a conversation gets its first summary
+- Removed the summary-only view, with its path edges, captions and hollow read dots
+- Removed arranging and dragging, the save button, and the prompts about an unsaved layout on switching workspace and quitting; `node_layout` stays in storage for one release, unused
+- Try: `scripts/daily.sh trial`; open Mindweave in the sidebar, switch between Spatial and Timeline, select a dot
+- Not verified: Windows hardware; recommended nodes and link suggestions with a real model, where a workspace that moves up a tier makes one more automatic request; a pan cut off by a window switch; the title of a root with many branches can lie over one of its branch lines
+
 ## 0.5.14 · 2026-11-23
 
 - Changed a new-answer hint in Settings to stand at the bottom edge, with the page ending above it while it shows; elsewhere it floats above the input as before

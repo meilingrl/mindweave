@@ -7,78 +7,66 @@ using Mindweave.Infrastructure.Sqlite;
 namespace Mindweave.Desktop.Tests;
 
 /// <summary>
-/// A layout save hitting a real full disk (architecture §11.4): the save is rolled back whole, it is a layout-save
-/// failure that keeps the arrangement in memory, content storage is not paused, and saving again after space returns
-/// writes the whole layout.
+/// Saving the explorations' places hitting a real full disk (architecture §11.4): the save is rolled back whole and not
+/// reported, the picture stays in memory, content storage is not paused, and the next load after space returns saves them.
 /// </summary>
 public class LayoutDiskFullTests
 {
-    /// <summary>Enough nodes that their layout rows need new pages (about 40 rows fit in one).</summary>
-    private const int Nodes = 150;
+    /// <summary>Enough explorations that their rows need new pages (about 40 rows fit in one).</summary>
+    private const int Explorations = 150;
 
     [AvaloniaFact]
-    public async Task A_layout_save_that_does_not_fit_fails_alone_keeps_the_arrangement_and_succeeds_after_space_returns()
+    public async Task Places_that_do_not_fit_are_not_saved_and_not_reported_and_the_next_load_saves_them()
     {
         await using var app = DesktopHarness.Create();
         var workspace = await app.StartWithWorkspaceAsync("火车历史");
         var database = app.Services.GetRequiredService<SqliteDatabase>();
-        await SeedSummariesAsync(database, workspace.Id.ToString());
+        await SeedConversationsAsync(database, workspace.Id.ToString());
         var session = app.Services.GetRequiredService<SummaryNetworkSessions>().Get(workspace.Id);
 
-        // Full before the network is opened: the automatic places that do not fit are not saved (and not reported).
         await StoragePauseUiTests.FillDiskAsync(database);
         await session.LoadAsync(CancellationToken.None);
-        Assert.Equal(Nodes, session.Positions.Count);
-        var placedBefore = await LayoutRowsAsync(database);
-        Assert.InRange(placedBefore, 0, Nodes - 1);
 
-        session.Arrange();
-        var arranged = session.Positions.ToDictionary(p => p.Key, p => p.Value);
-        Assert.False(await session.SaveAsync(CancellationToken.None));
-
-        Assert.True(session.SaveFailed);
-        Assert.True(session.IsDirty);
-        Assert.Equal(arranged, session.Positions);
-        Assert.Equal(placedBefore, await LayoutRowsAsync(database));
+        Assert.Equal(Explorations, session.Positions.Count);
+        Assert.Equal(0, await PlaceRowsAsync(database));
         Assert.False(app.Services.GetRequiredService<Application.Storage.StorageHealth>().IsBlocked);
         await AssertIntactAsync(database);
 
         await StoragePauseUiTests.FreeDiskAsync(database);
-        Assert.True(await session.SaveAsync(CancellationToken.None));
-        Assert.False(session.SaveFailed);
-        Assert.False(session.IsDirty);
-        Assert.Equal(Nodes, await LayoutRowsAsync(database));
-        var saved = await app.Services.GetRequiredService<Application.SummaryNetwork.SummaryNetworkService>().GetLayoutAsync(workspace.Id, CancellationToken.None);
-        Assert.Equal(arranged, saved.ToDictionary(p => p.Key, p => p.Value));
+        await session.LoadAsync(CancellationToken.None);
+        Assert.Equal(Explorations, await PlaceRowsAsync(database));
         await AssertIntactAsync(database);
+
+        // A later save that does not fit keeps the saved places, and every exploration already placed stays where it is.
+        var before = session.Positions.ToDictionary(p => p.Key, p => p.Value);
+        await SeedConversationsAsync(database, workspace.Id.ToString());
+        await StoragePauseUiTests.FillDiskAsync(database);
+        await session.LoadAsync(CancellationToken.None);
+        Assert.Equal(2 * Explorations, session.Positions.Count);
+        Assert.Equal(Explorations, await PlaceRowsAsync(database));
+        Assert.All(before, p =>
+        {
+            Assert.Equal(p.Value.X, session.Positions[p.Key].X, 6);
+            Assert.Equal(p.Value.Y, session.Positions[p.Key].Y, 6);
+        });
     }
 
-    /// <summary>Conversations with one saved summary version each, written directly (generating 150 summaries is slow).</summary>
-    private static Task<int> SeedSummariesAsync(SqliteDatabase database, string workspace) =>
+    private static Task<int> SeedConversationsAsync(SqliteDatabase database, string workspace) =>
         database.WriteAsync(
             (c, t) =>
             {
-                for (var i = 0; i < Nodes; i++)
+                for (var i = 0; i < Explorations; i++)
                 {
-                    var (conversation, node, version) = (Guid.CreateVersion7().ToString(), Guid.CreateVersion7().ToString(), Guid.CreateVersion7().ToString());
                     c.Execute(t, "INSERT INTO conversation (id, workspace_id, title, title_source, created_at, updated_at) VALUES ($id, $ws, $title, 'manual', $at, $at);",
-                        ("$id", conversation), ("$ws", workspace), ("$title", $"会话{i}"), ("$at", 1000 + i));
-                    c.Execute(t, """
-                        INSERT INTO summary_node (id, workspace_id, conversation_id, current_version_id, base_title, display_name, name_source, created_at, updated_at)
-                        VALUES ($id, $ws, $conv, $v, $title, $title, 'base', $at, $at);
-                        """, ("$id", node), ("$ws", workspace), ("$conv", conversation), ("$v", version), ("$title", $"总结{i}"), ("$at", 1000 + i));
-                    c.Execute(t, """
-                        INSERT INTO summary_version (id, node_id, seq, title, body, to_seq, origin, created_at, short_title)
-                        VALUES ($id, $node, 1, $title, '正文', 1, 'generated', $at, $title);
-                        """, ("$id", version), ("$node", node), ("$title", $"总结{i}"), ("$at", 1000 + i));
+                        ("$id", Guid.CreateVersion7().ToString()), ("$ws", workspace), ("$title", $"会话{i}"), ("$at", 1000 + i));
                 }
 
                 return 0;
             },
             CancellationToken.None);
 
-    private static Task<long> LayoutRowsAsync(SqliteDatabase database) =>
-        database.ReadAsync(c => c.Scalar<long>(null, "SELECT count(*) FROM node_layout;"), CancellationToken.None);
+    private static Task<long> PlaceRowsAsync(SqliteDatabase database) =>
+        database.ReadAsync(c => c.Scalar<long>(null, "SELECT count(*) FROM exploration_place;"), CancellationToken.None);
 
     private static Task<int> AssertIntactAsync(SqliteDatabase database) =>
         database.ReadAsync(

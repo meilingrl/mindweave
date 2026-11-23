@@ -54,14 +54,14 @@ The course also has requirements on functional significance, the number of pages
 
 ### 2.2 Ownership of runtime state [review completion · MW-C03]
 
-The ownership below is derived from the confirmed rules "generation does not depend on the current View", "ContentStack is the only active business content stack", "the viewport is kept only for this session", "when saving the layout fails, the in-memory layout is kept" and "prompt only when switching workspace or exiting with an unsaved layout". Class names, containers and how lifecycles are managed are decided by detailed design. Each piece of state has exactly one holder; other layers only read a projection or change it through use cases.
+The ownership below is derived from the confirmed rules "generation does not depend on the current View", "ContentStack is the only active business content stack", "the viewport is kept only for this session" and "exploration places are written directly and never prompt" (§11.2, §11.4). Class names, containers and how lifecycles are managed are decided by detailed design. Each piece of state has exactly one holder; other layers only read a projection or change it through use cases.
 
 | State | Sole holder | Persisted | Constraints |
 | --- | --- | --- | --- |
 | Body and final state of finished messages | Database | Yes | Reads take the database as authoritative |
 | Latest increment of an answer being generated | Application generation coordinator (in memory) | Periodic checkpoints; the final state is saved promptly | ViewModels only project it; reopening a closed conversation page and the sidebar status both take the latest value from the coordinator, and never show a rollback because a checkpoint lags behind |
 | Generation task status, queue and concurrency slots | Application generation coordinator | GenerationTask record | Does not depend on page instances; closing a page does not cancel a task |
-| Runtime session of each workspace: back history of each main area, summary network in-memory layout and layout revision number, pending-save flag, viewport and selection | Runtime state the main ViewModel keeps per workspace | No (layouts are saved only explicitly) | Must not be lost on Menu switching or when the summary network page or a ViewModel is rebuilt; unsaved layouts are handled with “保存并继续／不保存／取消” (Save and continue / Don't save / Cancel) only when switching workspace or exiting; choosing “不保存” (Don't save) discards that workspace's in-memory layout |
+| Runtime session of each workspace: back history of each main area, summary network in-memory layout, view, viewport and selection | Runtime state the main ViewModel keeps per workspace | Only exploration places (§11.2) | Must not be lost on Menu switching or when the summary network page or a ViewModel is rebuilt |
 | ContentStack | Main ViewModel | Only the last valid page | Services and Views do not build separate business stacks |
 | Message drafts, conversation reading positions, summary reading positions | The owning conversation or summary version, saved through Application use cases | Debounced saves, plus saves on leaving and on normal exit | Views only convert between geometry and anchors |
 | Summary edit draft | Summary use case | Auto-saved separately | Not a version; only an explicit save creates a version |
@@ -451,7 +451,7 @@ The summary network delivers automatic layout and basic browsing. There is no ex
 - Core keeps the summary, version and conversation lineage models and the business rules, and does not depend on graphics technology.
 - Application projects the dots (every conversation, with its weight, its summary if any, and its lineage), the branch lines and the time thread of the current workspace, and provides reading and saving of exploration places and the open-summary use case. It does not maintain a second relationship graph database.
 - Infrastructure implements the SQLite queries and the saving of exploration places, and does not run layout or animation.
-- In Desktop, the summary network page ViewModel manages data, selection, search, loading, pending-save state and commands. Separate layout modules take the projection, title sizes and (for the spatial view) the saved exploration places as input, and output stable coordinates: `SpatialLayout` and `TimelineLayout`, pure and deterministic. The summary network control handles drawing, hit testing, coordinate transforms, pointer capture and per-frame feedback.
+- In Desktop, the summary network page ViewModel manages data, selection, search, loading and commands. Separate layout modules take the projection, title sizes and (for the spatial view) the saved exploration places as input, and output stable coordinates: `SpatialLayout` and `TimelineLayout`, pure and deterministic. The summary network control handles drawing, hit testing, coordinate transforms, pointer capture and per-frame feedback.
 - The formal release draws the background and edges itself, and nodes use lightweight ordinary Avalonia controls. A shared coordinate transform keeps nodes and edges consistent. Animations are temporary visual transforms and do not update the business model or the database every frame. Performance at real scale and keyboard and accessibility support still need verification.
 
 ### 11.2 Layout data and automatic arrangement
@@ -499,10 +499,10 @@ Infrastructure performs opening, backup, migration and restore; Application coor
 
 ### 12.3 Exit and leave order [review suggestion · MW-C09]
 
-**Invariant: every cancelable prompt must be completed before the first irreversible step (stopping tasks, discarding the in-memory layout).** Suggested order:
+**Invariant: every cancelable prompt must be completed before the first irreversible step (stopping tasks).** Suggested order:
 
-1. A request to switch workspace or quit: when the current workspace has an unsaved layout, prompt “保存并继续／不保存／取消” (Save and continue / Don't save / Cancel). Cancel leaves everything in place; if saving fails, stay on the current page (confirmed rule). Switching workspace ends here and cancels no generation.
-2. Quit only: when tasks are running or queued, prompt. On cancel, go back; the layout save completed in step 1 is kept.
+1. A request to switch workspace: nothing is asked, and no generation is cancelled; it ends here.
+2. Quit only: when tasks are running or queued, prompt. On cancel, go back.
 3. After confirmation, close the entry points for new operations and scheduling, and take no more items from the queue. Stop running tasks, and mark queued tasks that have not started as canceled.
 4. Save the final drafts, reading positions, summary edit drafts and the terminal state of partial answers, and wait for the unified write queue to drain.
 5. Save failure: keep memory and the error; the user can retry quitting or return to the workspace. Returning only accepts new operations and does not revive canceled tasks (D6).

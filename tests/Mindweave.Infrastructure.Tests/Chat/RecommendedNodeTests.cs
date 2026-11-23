@@ -11,7 +11,7 @@ namespace Mindweave.Infrastructure.Tests.Chat;
 
 /// <summary>
 /// Recommended network nodes (requirements §10.3.2, 2026-11-12) over the real stores and coordinator: how many by the
-/// number of summaries, when the network prepares them by itself (on a standing clock) and when it must not, what 忽略,
+/// number of conversations, when the network prepares them by itself (on a standing clock) and when it must not, what 忽略,
 /// exploring, 换一批推荐 and 隐藏推荐 do, and what deleting a basis summary or the workspace leaves.
 /// </summary>
 public class RecommendedNodeTests
@@ -21,7 +21,7 @@ public class RecommendedNodeTests
     private static CancellationToken Ct => TestContext.Current.CancellationToken;
 
     [Fact]
-    public void The_number_follows_the_tiers_of_saved_summaries()
+    public void The_number_follows_the_tiers_of_conversations()
     {
         Assert.Equal([0, 1, 1, 2, 2, 3, 3], new[] { 0, 1, 10, 11, 30, 31, 200 }.Select(RecommendationService.NodeTarget));
     }
@@ -75,6 +75,29 @@ public class RecommendedNodeTests
         Assert.All(offer.Items, n => Assert.NotNull(n.Basis));
     }
 
+    [Theory]
+    [InlineData(10, 1)]
+    [InlineData(11, 2)]
+    [InlineData(31, 3)]
+    public async Task The_tier_counts_conversations_and_one_summary_is_enough(int conversations, int expected)
+    {
+        await using var h = await ChatHarness.StartAsync();
+        var seed = new UsageSeed(h.Database);
+        await SummariesAsync(h, seed, 1);
+        for (var i = 1; i < conversations; i++)
+        {
+            await seed.ConversationAsync(h.Workspace, DateTimeOffset.UtcNow.AddMinutes(-20));
+        }
+
+        // Several nodes may extend the one summary.
+        h.Client.NodeRecommendations.Replies.Enqueue("[" + string.Join(',', Enumerable.Range(1, expected).Select(i => $"{{\"question\":\"第 {i} 个问题为什么重要？\",\"basis\":\"S1\"}}")) + "]");
+        await OpenAsync(h);
+
+        var request = Assert.Single(h.Client.Requests, FakeChatClient.IsNodeRecommendation);
+        Assert.Contains($"推荐 {expected} 个", request.Turns[0].Content, StringComparison.Ordinal);
+        Assert.Equal(expected, (await h.Recommendations.GetNodesAsync(h.Workspace, Ct)).Items.Count);
+    }
+
     [Fact]
     public async Task Rising_across_a_tier_asks_only_for_the_missing_one_and_falling_drops_the_extra_without_a_request()
     {
@@ -84,8 +107,8 @@ public class RecommendedNodeTests
         await OpenAsync(h);
         var first = Assert.Single((await h.Recommendations.GetNodesAsync(h.Workspace, Ct)).Items);
 
-        // The 11th summary: one more node, asked for alone, avoiding the one shown; the first stays.
-        await SummariesAsync(h, seed, 1);
+        // The 11th conversation (without a summary): one more node, asked for alone, avoiding the one shown; the first stays.
+        var eleventh = await seed.ConversationAsync(h.Workspace, DateTimeOffset.UtcNow.AddMinutes(-1));
         await OpenAsync(h);
         var requests = h.Client.Requests.Where(FakeChatClient.IsNodeRecommendation).ToList();
         Assert.Equal(2, requests.Count);
@@ -95,10 +118,15 @@ public class RecommendedNodeTests
         Assert.Equal(2, two.Count);
         Assert.Equal(first.Id, two[0].Id);
 
-        // Back to ten (a summary that is no basis deleted): the newer one goes at once, and no request is made.
+        // A summary deleted leaves its conversation, so the tier stays.
         var bases = two.Select(n => n.Basis!.Value).ToHashSet();
         var other = (await NodesAsync(h)).First(n => !bases.Contains(n));
         await DeleteSummaryAsync(h, other);
+        Assert.Equal(2, (await h.Recommendations.GetNodesAsync(h.Workspace, Ct)).Items.Count);
+
+        // Back to ten (a conversation deleted): the newer one goes at once, and no request is made.
+        var archive = new SqliteArchiveStore(h.Database);
+        await archive.DeleteAsync(await archive.InspectDeleteAsync([eleventh], Ct), Ct);
         Assert.Equal([first.Id], (await h.Recommendations.GetNodesAsync(h.Workspace, Ct)).Items.Select(n => n.Id));
         await OpenAsync(h);
         Assert.Equal(2, h.Client.Requests.Count(FakeChatClient.IsNodeRecommendation));

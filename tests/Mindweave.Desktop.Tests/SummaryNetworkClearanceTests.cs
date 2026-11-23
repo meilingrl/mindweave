@@ -13,24 +13,24 @@ using static Mindweave.Desktop.Tests.UiTree;
 namespace Mindweave.Desktop.Tests;
 
 /// <summary>
-/// What keeps clear of what in the session network, measured against what the canvas draws: recommended nodes avoid big
+/// What keeps clear of what in the network, measured against what the canvas draws: recommended nodes avoid big
 /// dots, their rings and the dates (final review M4), and a big dot
 /// with its ring is clickable at every zoom (M5), and
 /// a hovered label with its date covers no other dot (M6).
 /// </summary>
-public class SessionNetworkClearanceTests
+public class SummaryNetworkClearanceTests
 {
     [AvaloniaTheory]
     [InlineData(SummaryNetworkViewMode.Spatial)]
     [InlineData(SummaryNetworkViewMode.Timeline)]
     public async Task Recommendation_obstacles_cover_every_drawn_dot_ring_and_date(SummaryNetworkViewMode mode)
     {
-        await using var app = SessionNetworkUiTests.Gated();
+        await using var app = DesktopHarness.Create();
         var window = app.ShowWindow(1100, 720);
         var (network, canvas) = await HeavyTwoDaysAsync(app, window, mode);
         network.Session.Viewport = canvas.Current with { Zoom = 1 };
 
-        var boxes = SummaryNetworkObstacles.Of(network.Nodes, network.Captions, network.IsSessionNetwork, network.IsTimeline);
+        var boxes = SummaryNetworkObstacles.Of(network.Nodes, network.Captions, network.IsTimeline);
         var captions = canvas.PaintCaptions();
         Assert.NotEmpty(captions);
         foreach (var caption in captions)
@@ -54,7 +54,7 @@ public class SessionNetworkClearanceTests
     {
         // Final review M5: below zoom 0.64 the hit box shrank with the zoom while a heavy dot is still drawn 14 px wide
         // with its ring at 18.5 px, so a click on the outer part of the dot or ring missed.
-        await using var app = SessionNetworkUiTests.Gated();
+        await using var app = DesktopHarness.Create();
         var window = app.ShowWindow(1100, 720);
         var (network, canvas) = await HeavyTwoDaysAsync(app, window, mode);
 
@@ -89,7 +89,7 @@ public class SessionNetworkClearanceTests
     {
         // Final review M6: one-character titles get the narrowest timeline columns, so " · 11月20日 21:38" after a hovered
         // title ran over the next column's dot. At zoom 1 and above a hovered label, date included, covers no other dot.
-        await using var app = SessionNetworkUiTests.Gated();
+        await using var app = DesktopHarness.Create();
         var window = app.ShowWindow(1100, 720);
         await app.StartWithWorkspaceAsync("火车");
         await app.ConfigureModelAsync();
@@ -160,12 +160,12 @@ public class SessionNetworkClearanceTests
     /// </summary>
     private static async Task<(SummaryNetworkHomeViewModel Network, SummaryNetworkCanvas Canvas)> HeavyTwoDaysAsync(DesktopHarness app, MainWindow window, SummaryNetworkViewMode mode)
     {
-        var (summarized, _, plain) = await SessionNetworkUiTests.SeedAsync(app);
+        var (summarized, _, plain) = await SummaryNetworkPageTests.SeedAsync(app);
         var year = DateTime.Now.Year;
-        await SessionNetworkCanvasTests.SetCreatedAsync(app, summarized, new DateTime(year, 11, 19, 12, 0, 0, DateTimeKind.Unspecified));
-        await SessionNetworkCanvasTests.SetCreatedAsync(app, plain, new DateTime(year, 11, 20, 21, 38, 0, DateTimeKind.Unspecified));
-        await SessionNetworkCanvasTests.AddQuestionsAsync(app, summarized, 99);
-        await SessionNetworkCanvasTests.AddQuestionsAsync(app, plain, 49);
+        await SummaryNetworkDotCanvasTests.SetCreatedAsync(app, summarized, new DateTime(year, 11, 19, 12, 0, 0, DateTimeKind.Unspecified));
+        await SummaryNetworkDotCanvasTests.SetCreatedAsync(app, plain, new DateTime(year, 11, 20, 21, 38, 0, DateTimeKind.Unspecified));
+        await SummaryNetworkDotCanvasTests.AddQuestionsAsync(app, summarized, 99);
+        await SummaryNetworkDotCanvasTests.AddQuestionsAsync(app, plain, 49);
         var network = await SummaryNetworkScenario.OpenSummaryNetworkAsync(app, window);
         await UiWait.UntilAsync(() => network.Nodes.Count == 3 && network.Nodes.All(n => n.Weight > 1 || !n.IsRoot));
         network.SetViewModeCommand.Execute(mode);

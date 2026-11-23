@@ -185,29 +185,20 @@ public class WorkspaceSwitcherTests
     }
 
     [AvaloniaFact]
-    public async Task Clicking_a_row_switches_and_an_unsaved_layout_is_still_asked_about_first()
+    public async Task Clicking_a_row_switches_at_once()
     {
         await using var app = DesktopHarness.Create();
         var window = app.ShowWindow(1100, 720);
         await SummaryNetworkScenario.SeedAsync(app);
         var trains = app.Workbench.CurrentWorkspace!;
         var (other, _) = await AddAsync(app, "摄影", "天文");
-        var network = await SummaryNetworkScenario.OpenSummaryNetworkAsync(app, window);
-        await SummaryNetworkScenario.MoveSomethingAsync(app, network);
-        network.ArrangeCommand.Execute(null);
-        Assert.True(network.IsDirty);
+        await SummaryNetworkScenario.OpenSummaryNetworkAsync(app, window);
 
         UiInput.Click(window, Part<Button>(window, "WorkspacePicker"));
         await UiWait.UntilAsync(() => MenuRows(window).Count == 5);
         window.UpdateLayout();
         UiInput.Click(window, MenuRows(window).Single(r => Label(r) == "摄影"));
         Assert.False(app.ShellPage.IsWorkspaceMenuOpen);
-        Assert.True(app.Root.LayoutPrompt.IsOpen);
-        Assert.Equal(trains.Id, app.Workbench.CurrentWorkspace!.Id);
-        window.UpdateLayout();
-        Assert.Equal(trains.Name.Value, Part<TextBlock>(window, "WorkspacePickerName").Text);
-
-        app.Root.LayoutPrompt.DontSaveCommand.Execute(null);
         Assert.Equal(other.Id, app.Workbench.CurrentWorkspace!.Id);
         window.UpdateLayout();
         Assert.Equal("摄影", Part<TextBlock>(window, "WorkspacePickerName").Text);

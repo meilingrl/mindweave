@@ -94,7 +94,7 @@ public interface IRecommendations
     Task<NodeOffer> GetNodesAsync(WorkspaceId workspace, CancellationToken cancellationToken);
 
     /// <summary>
-    /// The network was opened or its summaries changed: when §10.3.2's rules call for it, new nodes are prepared in the
+    /// The network was opened or its conversations changed: when §10.3.2's rules call for it, new nodes are prepared in the
     /// background shortly after; a drop below a tier removes the extra ones (no request). Nothing else is asked.
     /// </summary>
     void SummaryNetworkOpened(WorkspaceId workspace);

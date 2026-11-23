@@ -4,14 +4,13 @@ What is true now: work in progress, next steps, what needs you, open decisions, 
 
 ## In progress
 
-- Finishing the session network (D-035): only lifting the switch is left (see "Next steps").
-- Requirements v0.25 and architecture §11 run ahead of the code until the switch is lifted: the code still says `SessionWeights` for `ConversationWeights`, and the default build still has the summary-only view with explicit layout saving.
+- Nothing in progress.
 
 ## Next steps
 
 - Next-phase ideas: refine the first drafts in [docs/ideas](docs/ideas/README.md) one by one with you. Nothing in them is agreed.
 - Free trial (evolution D9): adopted, done later, no schedule. The design is [free-trial.md](docs/design/free-trial.md).
-- Session network (behind `MINDWEAVE_SESSION_NETWORK=1`; [session-network.md](docs/design/session-network.md) §16): lifting the switch, which is your own decision after screenshots and a trial. It also removes the summary-only view and renames the code's "session" to "conversation".
+- `node_layout` (the positions of the earlier summary-only view) is dropped in the release after 0.6.0 ([session-network.md](docs/design/session-network.md) §12.2): a migration, so you decide then.
 - Verify in daily use:
   - agent platform phases 2–4;
   - the run loop (L1–L11);
@@ -41,9 +40,9 @@ What is true now: work in progress, next steps, what needs you, open decisions, 
   - the English prompts.
 - The UI points of 0.5.11 to 0.5.14 (D-037): on Windows; a real model's tool steps while the page stays.
 - In a real window: the language switch, and English short names on the summary network canvas.
-- The session network's quiet links and the new link suggestions: on Windows; the suggestions with a real model (the prompts changed).
+- The network's quiet links and the new link suggestions: on Windows; the suggestions with a real model (the prompts changed). Recommended nodes counted by conversations (0.6.0): with a real model.
 - Exploration places (option C): on Windows; an extremely spread-out workspace, where a coarse packing grid can still push an untouched exploration.
-- The session network's molecule layout: on Windows, and an exploration with hundreds of direct branches in two or more explorations (about 4.5 s for two of 500).
+- The network's molecule layout: on Windows, and an exploration with hundreds of direct branches in two or more explorations (about 4.5 s for two of 500). The title of a root with many branches can lie over one of its branch lines.
 
 ## Needs you
 
@@ -61,10 +60,10 @@ What is true now: work in progress, next steps, what needs you, open decisions, 
 
 | What | Commit | Date | Result |
 | --- | --- | --- | --- |
-| macOS full run | the notice fix merge, 0.5.14 | 2026-11-23 | passed: Core 137, Architecture 29, Infrastructure 1018 + 23 skipped, Desktop 4 shards 0 failed |
+| macOS full run | the requirements text fix on 0.6.0, 0.6.1 | 2026-11-23 | passed: Core 137, Architecture 29, Infrastructure 1019 + 23 skipped, Desktop 4 shards 0 failed |
 | CI on `main` (Linux + Windows) | see the latest run on GitHub | | |
 | Windows 11 hardware, full run | daabd5b | 2026-11-21 | passed |
 | Windows 11 hardware, stress and Release start | 08ead83 | 2026-11-16 | passed |
-| Daily build | d11ddbe (schema v18) | 2026-11-23 | published and opened by you; the data is now v18. The previous build 138bd17 cannot open v18: going back needs the v17 backup taken before this publish |
+| Daily build | 797b8bd (0.5.14, schema v18) | 2026-11-23 | published by you; the backup taken before it is `mindweave-v18-20261123T124924Z-before-publish-797b8bd.db`. A build before v18 cannot open this data: going back to one needs the v17 backup |
 
 First command: `scripts/test.sh full`.

@@ -26,32 +26,28 @@ internal static class SummaryNetworkGeometry
     /// <summary>
     /// A node's hit box around its screen centre: from just left of the dot to the end of its label (only the dot when
     /// the label is hidden), clamped to the node's layout box widened by half the layout's spacing. Boxes of nodes the
-    /// layout keeps apart therefore never overlap, at any zoom. In the session network a dot keeps its drawn size at every
-    /// zoom, so the box always covers the dot and its summary ring (final review M5).
+    /// layout keeps apart therefore never overlap, at any zoom. A dot keeps its drawn size at every zoom, so the box
+    /// always covers the dot and its summary ring (final review M5).
     /// </summary>
-    internal static Rect HitBox(Point center, NodeView node, double zoom, bool labelVisible, bool sessionNetwork = false)
+    internal static Rect HitBox(Point center, NodeView node, double zoom, bool labelVisible)
     {
         ArgumentNullException.ThrowIfNull(node);
         var half = Math.Min(20, SummaryNetworkLayout.NodeHeight * zoom / 2);
         var left = Math.Min(16, (SummaryNetworkLayout.NodeRadius + (SummaryNetworkLayout.LabelPadding / 2)) * zoom);
         var right = labelVisible
             ? Math.Min(
-                RadiusOf(node, sessionNetwork) + SummaryNetworkLayout.LabelGap + (node.LabelWidth * LabelSize(zoom) / SummaryNetworkLayout.LabelEm) + 12,
+                DotRadius(node.Weight) + SummaryNetworkLayout.LabelGap + (node.LabelWidth * LabelSize(zoom) / SummaryNetworkLayout.LabelEm) + 12,
                 (SummaryNetworkLayout.NodeRadius + SummaryNetworkLayout.LabelGap + node.LabelWidth + (SummaryNetworkLayout.LabelPadding / 2)) * zoom)
-            : Math.Min(RadiusOf(node, sessionNetwork) + 4, (SummaryNetworkLayout.NodeRadius + (SummaryNetworkLayout.LabelPadding / 2)) * zoom);
-        if (sessionNetwork)
+            : Math.Min(DotRadius(node.Weight) + 4, (SummaryNetworkLayout.NodeRadius + (SummaryNetworkLayout.LabelPadding / 2)) * zoom);
+        var reach = SummaryNetworkLayout.DotFootprintRadius(node.Weight, node.HasSummary);
+        if (node.Placed is { } placed)
         {
-            var reach = SummaryNetworkLayout.DotFootprintRadius(node.Weight, node.HasSummary);
-            if (node.Placed is { } placed)
-            {
-                // A placed label: the dot and the label's block, drawn at most as large as the layout reserved it.
-                var dot = new Rect(center.X - reach, center.Y - reach, 2 * reach, 2 * reach);
-                return labelVisible ? dot.Union(PlacedBlock(center, node, placed, zoom, SummaryNetworkCanvas.HoverGrowth)) : dot;
-            }
-
-            (half, left, right) = (Math.Max(half, reach), Math.Max(left, reach), Math.Max(right, reach));
+            // A placed label: the dot and the label's block, drawn at most as large as the layout reserved it.
+            var dot = new Rect(center.X - reach, center.Y - reach, 2 * reach, 2 * reach);
+            return labelVisible ? dot.Union(PlacedBlock(center, node, placed, zoom, SummaryNetworkCanvas.HoverGrowth)) : dot;
         }
 
+        (half, left, right) = (Math.Max(half, reach), Math.Max(left, reach), Math.Max(right, reach));
         return new Rect(center.X - left, center.Y - half, left + right, 2 * half);
     }
 
@@ -74,14 +70,7 @@ internal static class SummaryNetworkGeometry
         return new Rect(center.X + l, center.Y + t, width, height);
     }
 
-    /// <summary>A node's dot radius: by how much was asked in the session network, else larger for an exploration's root.</summary>
-    internal static double RadiusOf(NodeView node, bool sessionNetwork = false)
-    {
-        ArgumentNullException.ThrowIfNull(node);
-        return sessionNetwork ? DotRadius(node.Weight) : node.IsRoot ? SummaryNetworkCanvas.RootRadius : SummaryNetworkCanvas.ChildRadius;
-    }
-
-    /// <summary>A session's dot radius from its weight (<see cref="SummaryNetworkLayout.DotRadius"/>).</summary>
+    /// <summary>A dot's radius from its weight (<see cref="SummaryNetworkLayout.DotRadius"/>).</summary>
     internal static double DotRadius(int weight) => SummaryNetworkLayout.DotRadius(weight);
 
     /// <summary>The dot with its summary ring (<see cref="SummaryNetworkLayout.DotFootprintRadius"/>): the radius the packing keeps clear.</summary>
@@ -145,17 +134,6 @@ internal static class SummaryNetworkGeometry
         return true;
     }
 
-    /// <summary>Beside the edge's middle: above a mostly horizontal edge, to the right of a mostly vertical one.</summary>
-    internal static Point EdgeLabelOrigin(EdgePaint edge, FormattedText text)
-    {
-        ArgumentNullException.ThrowIfNull(edge);
-        ArgumentNullException.ThrowIfNull(text);
-        var middle = new Point((edge.From.X + edge.To.X) / 2, (edge.From.Y + edge.To.Y) / 2);
-        return Math.Abs(edge.To.X - edge.From.X) >= Math.Abs(edge.To.Y - edge.From.Y)
-            ? new Point(middle.X - (text.Width / 2), middle.Y - text.Height - 2)
-            : new Point(middle.X + 6, middle.Y - (text.Height / 2));
-    }
-
     /// <summary>Where the pull wants a node, in screen px: towards the pointer within 90 px, at most 5 × strength.</summary>
     internal static Vector Attraction(Point node, Point? pointer)
     {
@@ -213,7 +191,7 @@ internal static class SummaryNetworkGeometry
 
     /// <summary>From a dot's centre to the end of its drawn label at <paramref name="zoom"/>, in screen px.</summary>
     private static double TimelineLabelEnd(NodeView node, double drawnWidth, double zoom) =>
-        RadiusOf(node, sessionNetwork: true) + SummaryNetworkLayout.LabelGap + (drawnWidth * LabelSize(zoom) / SummaryNetworkCanvas.LabelMaxSize);
+        DotRadius(node.Weight) + SummaryNetworkLayout.LabelGap + (drawnWidth * LabelSize(zoom) / SummaryNetworkCanvas.LabelMaxSize);
 
     /// <summary>
     /// The largest zoom from <see cref="ReadableZoom"/> to 1 at which every dot, label and date fits with the margin, the
@@ -223,7 +201,7 @@ internal static class SummaryNetworkGeometry
     private static Viewport? TimelineFit(IReadOnlyList<NodeView> nodes, Dictionary<SummaryNodeId, double> widths, Size size)
     {
         (double Left, double Right, double Top, double Bottom) Extent(double zoom) => (
-            nodes.Min(n => (n.X * zoom) - RadiusOf(n, sessionNetwork: true) - SummaryNetworkCanvas.HoverGrowth),
+            nodes.Min(n => (n.X * zoom) - DotRadius(n.Weight) - SummaryNetworkCanvas.HoverGrowth),
             nodes.Max(n => (n.X * zoom) + TimelineLabelEnd(n, widths[n.Id], zoom)),
             (nodes.Min(n => n.Y) * zoom) - TimelineTop,
             (nodes.Max(n => n.Y) * zoom) + TimelineBottom);
@@ -287,10 +265,10 @@ internal static class SummaryNetworkGeometry
     {
         ArgumentNullException.ThrowIfNull(nodes);
         recommended ??= [];
-        const double left = SummaryNetworkCanvas.RootRadius + SummaryNetworkCanvas.HoverGrowth;
-        const double right = SummaryNetworkCanvas.RootRadius + SummaryNetworkCanvas.HoverGrowth + SummaryNetworkLayout.LabelGap;
+        const double left = SummaryNetworkLayout.NodeRadius + SummaryNetworkCanvas.HoverGrowth;
+        const double right = SummaryNetworkLayout.NodeRadius + SummaryNetworkCanvas.HoverGrowth + SummaryNetworkLayout.LabelGap;
         const double top = SummaryNetworkCanvas.CaptionGap + 16;
-        const double bottom = SummaryNetworkCanvas.RootRadius + SummaryNetworkCanvas.HoverGrowth + 4;
+        const double bottom = SummaryNetworkLayout.NodeRadius + SummaryNetworkCanvas.HoverGrowth + 4;
         // Recommended nodes count too (§10.3.2: 显示全部 shows them), each with its tag and label.
         // A label the spatial layout placed may lie on any side of its dot: its reserved block counts, in canvas units.
         var blocks = nodes.Select(n => n.Placed is { } p
@@ -314,7 +292,7 @@ internal static class SummaryNetworkGeometry
     /// <summary>
     /// The spatial view's opening (spec §6.2): everything fitted when that stays at or above <see cref="ReadableZoom"/>;
     /// otherwise zoom 1 on the mass-weighted centroid of the dots, so a large workspace opens readable and centred, not
-    /// as a speck. One session is that dot at the centre, zoom 1. "显示全部" still fits everything.
+    /// as a speck. One conversation is that dot at the centre, zoom 1. "显示全部" still fits everything.
     /// </summary>
     internal static Viewport SpatialOpening(IReadOnlyList<NodeView> nodes, Size size, IReadOnlyList<RecommendedNodeView>? recommended = null)
     {

@@ -38,7 +38,7 @@ Diagrams, timelines, charts and maps as controlled blocks inside an answer. Each
 
 When the user comes back, Mindweave shows the open questions and the edges of earlier explorations. There is no review schedule to manage. This is among the ideas of the D8 discussion.
 
-**First step:** an "unresolved" mark that the model sets at the end of an answer, shown as an edge in the session network.
+**First step:** an "unresolved" mark that the model sets at the end of an answer, shown as an edge in the summary network.
 
 ### 7. Mindweave as something others build on
 

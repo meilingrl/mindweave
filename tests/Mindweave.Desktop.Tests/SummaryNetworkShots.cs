@@ -16,14 +16,14 @@ using Mindweave.Desktop.ViewModels.Pages;
 namespace Mindweave.Desktop.Tests;
 
 /// <summary>
-/// Trial helper: renders every workspace of a COPY of real data in both views of the session network, at the opening
+/// Trial helper: renders every workspace of a COPY of real data in both views of the network, at the opening
 /// viewport and after "Show all", with one summarised dot selected, in English and in Chinese (light), and in one
 /// workspace dark. Writes <c>metrics.txt</c> (the §6.4 checks of the spatial arrangement) next to the shots. Returns at
 /// once unless <c>MINDWEAVE_TRIAL_DATA</c> names the copy's folder; shots go to <c>MINDWEAVE_SCREENSHOT_DIR</c>.
 /// </summary>
 [Trait("Category", "Trial")]
 [Collection(Text.LanguageTests.Name)]
-public class SessionNetworkShots
+public class SummaryNetworkShots
 {
     [AvaloniaFact]
     public async Task Render_each_workspace_in_both_views()
@@ -45,6 +45,7 @@ public class SessionNetworkShots
             await RenderAsync(data, shots!, UiLanguage.English, "en", null, null, metrics);
             var biggest = sizes.IndexOf(sizes.Max());
             await RenderAsync(data, shots!, UiLanguage.Chinese, "zh-dark", ThemeVariant.Dark, biggest, metrics);
+            await RenderAsync(data, shots!, UiLanguage.English, "en-dark", ThemeVariant.Dark, biggest, metrics);
         }
         finally
         {
@@ -57,7 +58,7 @@ public class SessionNetworkShots
     private static async Task<List<int>> RenderAsync(string data, string shots, UiLanguage language, string tag, ThemeVariant? theme, int? only, System.Text.StringBuilder metrics)
     {
         var sizes = new List<int>();
-        await using var app = DesktopHarness.Create(s => s.AddSingleton(new SessionNetworkGate(true)), directory: data);
+        await using var app = DesktopHarness.Create(directory: data);
         await app.StartAsync();
         var window = app.ShowWindow(1400, 900, theme);
         try

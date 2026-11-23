@@ -66,8 +66,8 @@ public sealed class BackupRequests : IBackupPrompts
 /// The restore confirmation (2026-11-12; architecture §12.2–12.3, requirements §9.3). It says when and why the backup was
 /// made, that every workspace goes back to that moment, that the current data is first kept as a "恢复前" backup and that
 /// running work stops; for a backup made before a delete, that the rest rolls back too. On 恢复 the backup is checked
-/// first (a bad one changes nothing and is said here); then the exit sequence's own prompts (unsaved layout, running
-/// tasks) and its stop-and-save steps run, then the current data is backed up and verified, and only then does the
+/// first (a bad one changes nothing and is said here); then the exit sequence's own prompt (running tasks) and
+/// its stop-and-save steps run, then the current data is backed up and verified, and only then does the
 /// session hand over to the next one, which puts the backup in place. 取消 is the default.
 /// </summary>
 public sealed partial class BackupRestoreViewModel : ViewModelBase, IDisposable

@@ -224,32 +224,32 @@ internal static class KillPoint
             case "delete-workspace":
                 await new SqliteWorkspaceStore(database).DeleteAsync(WorkspaceId.Parse(ids[0]), none);
                 break;
-            case "layout":
+            case "places":
                 var workspace = WorkspaceId.Parse(ids[0]);
-                await new SqliteSummaryNetworkStore(database).SaveLayoutAsync(workspace, Layout(await NodesAsync(database, workspace)), at, none);
+                await new SqliteSummaryNetworkStore(database).SaveExplorationPlacesAsync(workspace, Places(await RootsAsync(database, workspace)), at, none);
                 break;
             default:
                 throw new ArgumentException($"unknown operation {operation}", nameof(operation));
         }
     }
 
-    /// <summary>The i-th node by ID goes to (10 i, 20 i); TransactionKillTests expects exactly these.</summary>
-    private static Dictionary<SummaryNodeId, NodePosition> Layout(IReadOnlyList<SummaryNodeId> nodes) =>
-        nodes.Select((node, i) => (node, i)).ToDictionary(p => p.node, p => new NodePosition(p.i * 10, p.i * 20));
+    /// <summary>The i-th conversation by ID goes to (10 i, 20 i); TransactionKillTests expects exactly these.</summary>
+    private static Dictionary<ConversationId, ExplorationPlace> Places(IReadOnlyList<ConversationId> roots) =>
+        roots.Select((root, i) => (root, i)).ToDictionary(p => p.root, p => new ExplorationPlace(p.i * 10, p.i * 20, 0, 1));
 
-    private static Task<List<SummaryNodeId>> NodesAsync(SqliteDatabase database, WorkspaceId workspace) =>
+    private static Task<List<ConversationId>> RootsAsync(SqliteDatabase database, WorkspaceId workspace) =>
         database.ReadAsync(
             connection =>
             {
-                using var command = connection.Command(null, "SELECT id FROM summary_node WHERE workspace_id = $ws ORDER BY id;", ("$ws", workspace.ToString()));
+                using var command = connection.Command(null, "SELECT id FROM conversation WHERE workspace_id = $ws ORDER BY id;", ("$ws", workspace.ToString()));
                 using var reader = command.ExecuteReader();
-                var nodes = new List<SummaryNodeId>();
+                var roots = new List<ConversationId>();
                 while (reader.Read())
                 {
-                    nodes.Add(SummaryNodeId.Parse(reader.GetString(0)));
+                    roots.Add(ConversationId.Parse(reader.GetString(0)));
                 }
 
-                return nodes;
+                return roots;
             },
             CancellationToken.None);
 }

@@ -13,18 +13,18 @@ using Mindweave.Desktop.Views.Pages;
 
 namespace Mindweave.Desktop.Tests;
 
-/// <summary>The gated spatial view takes its positions from the circle packing, never writes them, and opens readably.</summary>
-public class SessionNetworkPackingTests
+/// <summary>The spatial view takes its positions from the molecule layout, saves each exploration's place, and opens readably.</summary>
+public class SummaryNetworkSpatialTests
 {
     private static readonly WorkspaceId Workspace = WorkspaceId.New();
 
     private static SummaryNodeId Id(int n) => new(new Guid(n, 0, 0, new byte[8]));
 
     /// <summary>
-    /// <paramref name="count"/> sessions in creation order: every fifth is a root, the others branch from an earlier one;
+    /// <paramref name="count"/> conversations in creation order: every fifth is a root, the others branch from an earlier one;
     /// weights vary, every third has a summary, and the roots are chained by the time thread.
     /// </summary>
-    private static SummaryNetworkProjection Sessions(int count)
+    private static SummaryNetworkProjection Conversations(int count)
     {
         var roots = new List<int>();
         var nodes = new List<SummaryNetworkNode>();
@@ -40,21 +40,21 @@ public class SessionNetworkPackingTests
             {
                 if (roots.Count > 0)
                 {
-                    edges.Add(new SummaryNetworkEdge(Id(roots[^1] + 1), Id(i + 1), [], SummaryNetworkEdgeKind.TimeThread));
+                    edges.Add(new SummaryNetworkEdge(Id(roots[^1] + 1), Id(i + 1), SummaryNetworkEdgeKind.TimeThread));
                 }
 
                 roots.Add(i);
             }
             else
             {
-                edges.Add(new SummaryNetworkEdge(Id(i - ((i * 7) % Math.Min(i, 4))), Id(i + 1), []));
+                edges.Add(new SummaryNetworkEdge(Id(i - ((i * 7) % Math.Min(i, 4))), Id(i + 1)));
             }
         }
 
         return new SummaryNetworkProjection(nodes, edges);
     }
 
-    /// <summary>The sessions exactly as the session hands them to the spatial layout, date lines included.</summary>
+    /// <summary>The conversations exactly as the network session hands them to the spatial layout, date lines included.</summary>
     private static List<SpatialNode> SpatialNodes(SummaryNetworkSession session) =>
         SummaryNetworkSession.SpatialNodes(session.Projection, SummaryNetworkSession.BranchParents(session.Projection), session.DayStarts);
 
@@ -63,31 +63,28 @@ public class SessionNetworkPackingTests
 
     private static async Task<SummaryNetworkSession> LoadedAsync(SummaryNetworkProjection projection, FakeNetwork? network = null)
     {
-        var session = new SummaryNetworkSession(Workspace, network ?? new FakeNetwork(projection), new SessionNetworkGate(true));
+        var session = new SummaryNetworkSession(Workspace, network ?? new FakeNetwork(projection));
         await session.LoadAsync(CancellationToken.None);
         return session;
     }
 
     [Fact]
-    public async Task Gated_spatial_packs_every_session_and_writes_nothing()
+    public async Task The_spatial_view_places_every_conversation_and_lays_the_same_picture_again()
     {
-        var projection = Sessions(23);
+        var projection = Conversations(23);
         var network = new FakeNetwork(projection);
 
         var session = await LoadedAsync(projection, network);
 
         Assert.Equal(projection.Nodes.Count, session.Positions.Count);
         Assert.Equal(projection.Nodes.Count, session.Positions.Values.Distinct().Count());
-        Assert.False(session.IsDirty);
-        Assert.True(await session.SaveAsync(CancellationToken.None));
-        Assert.Equal(0, network.Writes);
         Assert.Equal((await LoadedAsync(projection)).Positions, session.Positions);
     }
 
     [Fact]
     public async Task What_the_packing_is_given_changes_where_the_dots_go()
     {
-        var projection = Sessions(23);
+        var projection = Conversations(23);
         var baseline = (await LoadedAsync(projection)).Positions;
 
         // A summary ring makes one dot's footprint larger.
@@ -102,7 +99,7 @@ public class SessionNetworkPackingTests
     [Fact]
     public async Task Switching_back_to_the_spatial_view_packs_again_and_the_timeline_is_unchanged()
     {
-        var projection = Sessions(12);
+        var projection = Conversations(12);
         var session = await LoadedAsync(projection);
         var packed = session.Positions.ToDictionary(p => p.Key, p => p.Value);
 
@@ -120,7 +117,7 @@ public class SessionNetworkPackingTests
     {
         // Design §16, option C: the first load saves every exploration's place; a load with nothing new saves nothing; a new
         // exploration is placed and saved without moving any other.
-        var projection = Sessions(30);
+        var projection = Conversations(30);
         var network = new FakeNetwork(projection);
         var first = await LoadedAsync(projection, network);
         var parents = SummaryNetworkSession.BranchParents(projection);
@@ -144,7 +141,25 @@ public class SessionNetworkPackingTests
 
         Assert.Equal(roots.Count + 1, network.PlaceWrites);
         Assert.True(network.Places.ContainsKey(conversation));
-        Assert.Equal(0, network.Writes);
+    }
+
+    [Fact]
+    public async Task An_exploration_that_changed_is_saved_again_with_its_new_size()
+    {
+        var projection = Conversations(30);
+        var network = new FakeNetwork(projection);
+        await LoadedAsync(projection, network);
+        var parents = SummaryNetworkSession.BranchParents(projection);
+        var root = projection.Nodes.First(n => !parents.ContainsKey(n.Id));
+        var (writes, size) = (network.PlaceWrites, network.Places[root.Conversation].Size);
+
+        var branch = new SummaryNetworkNode(Id(999), ConversationId.New(), root.Conversation, "新的分支", "新的分支", new SummaryMarkers(false, false, false),
+            projection.Nodes[^1].CreatedAt.AddMinutes(5), [root.Conversation]);
+        network.Current = new SummaryNetworkProjection([.. projection.Nodes, branch], [.. projection.Edges, new SummaryNetworkEdge(root.Id, branch.Id)]);
+        await LoadedAsync(network.Current, network);
+
+        Assert.Equal(writes + 1, network.PlaceWrites);
+        Assert.Equal(size + 1, network.Places[root.Conversation].Size);
     }
 
     [Fact]
@@ -152,9 +167,9 @@ public class SessionNetworkPackingTests
     {
         // Review 2026-11-23: a load in the timeline saves nothing; switching to the spatial view places the explorations,
         // and those places must be saved, or the next load would place them again.
-        var projection = Sessions(20);
+        var projection = Conversations(20);
         var network = new FakeNetwork(projection);
-        var session = new SummaryNetworkSession(Workspace, network, new SessionNetworkGate(true));
+        var session = new SummaryNetworkSession(Workspace, network);
         session.SetViewMode(SummaryNetworkViewMode.Timeline);
         await session.LoadAsync(CancellationToken.None);
         Assert.Equal(0, network.PlaceWrites);
@@ -169,7 +184,7 @@ public class SessionNetworkPackingTests
     [Fact]
     public async Task Dots_and_labels_do_not_overlap_in_a_busy_workspace()
     {
-        var projection = Sessions(60);
+        var projection = Conversations(60);
         var session = await LoadedAsync(projection);
 
         var report = SpatialLayout.Measure(SpatialNodes(session), Arrangement(session));
@@ -185,8 +200,8 @@ public class SessionNetworkPackingTests
     public async Task Thousand_sessions_load_within_300_ms_in_release()
     {
         Assert.SkipUnless(Environment.GetEnvironmentVariable("MINDWEAVE_PERF") == "1", "Run through scripts/perf.sh.");
-        var projection = Sessions(1_000);
-        var session = new SummaryNetworkSession(Workspace, new FakeNetwork(projection), new SessionNetworkGate(true));
+        var projection = Conversations(1_000);
+        var session = new SummaryNetworkSession(Workspace, new FakeNetwork(projection));
         await session.LoadAsync(CancellationToken.None); // warm-up
 
         var watch = Stopwatch.StartNew();
@@ -194,7 +209,7 @@ public class SessionNetworkPackingTests
         var elapsed = watch.Elapsed;
 
         Assert.Equal(1_000, session.Positions.Count);
-        TestContext.Current.TestOutputHelper?.WriteLine($"session network load of 1,000 sessions: {elapsed.TotalMilliseconds.ToString("F1", CultureInfo.InvariantCulture)} ms");
+        TestContext.Current.TestOutputHelper?.WriteLine($"network load of 1,000 conversations: {elapsed.TotalMilliseconds.ToString("F1", CultureInfo.InvariantCulture)} ms");
         Assert.True(elapsed < TimeSpan.FromMilliseconds(300), $"Loading 1,000 sessions took {elapsed.TotalMilliseconds:F1} ms (budget 300 ms, spec §6.4).");
     }
 
@@ -209,7 +224,7 @@ public class SessionNetworkPackingTests
     [Fact]
     public async Task One_session_opens_centred_at_zoom_one()
     {
-        var session = await LoadedAsync(Sessions(1));
+        var session = await LoadedAsync(Conversations(1));
         var views = Views(session);
 
         var opening = SummaryNetworkGeometry.SpatialOpening(views, new Size(1100, 720));
@@ -222,7 +237,7 @@ public class SessionNetworkPackingTests
     [Fact]
     public async Task A_workspace_that_fits_readably_opens_fitted()
     {
-        var session = await LoadedAsync(Sessions(4));
+        var session = await LoadedAsync(Conversations(4));
         var views = Views(session);
 
         var opening = SummaryNetworkGeometry.SpatialOpening(views, new Size(1100, 720));
@@ -234,7 +249,7 @@ public class SessionNetworkPackingTests
     [Fact]
     public async Task A_large_workspace_opens_at_zoom_one_on_the_mass_weighted_centroid()
     {
-        var session = await LoadedAsync(Sessions(300));
+        var session = await LoadedAsync(Conversations(300));
         var views = Views(session);
         var size = new Size(1100, 720);
         Assert.True(SummaryNetworkGeometry.FitTo(views, size).Zoom < SummaryNetworkGeometry.ReadableZoom, "the workspace should not fit readably");
@@ -248,12 +263,12 @@ public class SessionNetworkPackingTests
     }
 
     [Fact]
-    public async Task A_recommendation_in_a_dense_pack_covers_no_session()
+    public async Task A_recommendation_in_a_dense_pack_covers_no_dot()
     {
-        var projection = Sessions(30);
+        var projection = Conversations(30);
         var session = await LoadedAsync(projection);
         var views = Views(session);
-        var obstacles = SummaryNetworkObstacles.Of(views, [], sessionNetwork: true, timeline: false);
+        var obstacles = SummaryNetworkObstacles.Of(views, [], timeline: false);
         var width = SummaryNetworkLayout.LabelWidth("一个推荐的问题会出现在这里");
 
         // The obstacles hold the placed labels: wherever a label lies round its dot, its block is covered (review 2026-11-22).
@@ -275,9 +290,6 @@ public class SessionNetworkPackingTests
 
     private sealed class FakeNetwork(SummaryNetworkProjection projection) : ISummaryNetworkLayout
     {
-        /// <summary>Writes of node positions (the old summary network's layout); exploration places are counted apart.</summary>
-        public int Writes { get; private set; }
-
         /// <summary>What the next load projects (a test adds a conversation by swapping it).</summary>
         public SummaryNetworkProjection Current { get; set; } = projection;
 
@@ -300,22 +312,6 @@ public class SessionNetworkPackingTests
             return Task.FromResult(places.Count);
         }
 
-        public Task<SummaryNetworkProjection> ProjectAsync(WorkspaceId workspace, CancellationToken cancellationToken) => throw new NotSupportedException();
-
-        public Task<SummaryNetworkProjection> ProjectSessionsAsync(WorkspaceId workspace, CancellationToken cancellationToken) => Task.FromResult(Current);
-
-        public Task<IReadOnlyDictionary<SummaryNodeId, NodePosition>> GetLayoutAsync(WorkspaceId workspace, CancellationToken cancellationToken) => throw new NotSupportedException();
-
-        public Task<bool> PlaceAsync(WorkspaceId workspace, SummaryNodeId node, NodePosition position, CancellationToken cancellationToken)
-        {
-            Writes++;
-            return Task.FromResult(true);
-        }
-
-        public Task<int> SaveLayoutAsync(WorkspaceId workspace, IReadOnlyDictionary<SummaryNodeId, NodePosition> positions, CancellationToken cancellationToken)
-        {
-            Writes++;
-            return Task.FromResult(0);
-        }
+        public Task<SummaryNetworkProjection> ProjectAsync(WorkspaceId workspace, CancellationToken cancellationToken) => Task.FromResult(Current);
     }
 }

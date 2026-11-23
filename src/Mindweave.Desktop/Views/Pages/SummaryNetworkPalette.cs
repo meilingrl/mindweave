@@ -7,11 +7,9 @@ namespace Mindweave.Desktop.Views.Pages;
 /// <summary>The canvas colours of the current theme, all from the shared theme resources (D-022).</summary>
 internal sealed class SummaryNetworkPalette
 {
-    private readonly Dictionary<(EdgeState, bool), IPen> _edges = [];
-    private readonly Dictionary<IBrush, IPen> _rings = [];
+    private readonly Dictionary<EdgeState, IPen> _edges = [];
     private readonly Dictionary<IBrush, IPen> _summaryRings = [];
     private readonly Dictionary<(EdgeState, bool), IPen> _timeline = [];
-    private IPen? _glowRim;
     private IPen? _recommendationRing;
     private IPen? _recommendationRingActive;
     private IPen? _recommendationLink;
@@ -33,8 +31,6 @@ internal sealed class SummaryNetworkPalette
     public required IBrush GridDot { get; init; }
 
     public required IBrush Node { get; init; }
-
-    public required IBrush NodeRead { get; init; }
 
     public required IBrush NodeTrail { get; init; }
 
@@ -60,21 +56,9 @@ internal sealed class SummaryNetworkPalette
 
     public required IBrush Edge { get; init; }
 
-    public required IBrush EdgeIndirect { get; init; }
-
     public required IBrush EdgeNear { get; init; }
 
     public required IBrush EdgeTrail { get; init; }
-
-    public required IBrush DragShadow { get; init; }
-
-    /// <summary>The glow around a lifted node; transparent in a theme that does not use one (light).</summary>
-    public required IBrush DragGlow { get; init; }
-
-    /// <summary>Whether <see cref="DragGlow"/> draws anything: a fully transparent glow is skipped altogether.</summary>
-    public bool HasDragGlow => DragGlow is not ISolidColorBrush { Color.A: 0 } && DragGlow.Opacity > 0;
-
-    public IPen DragGlowRim => _glowRim ??= new Pen(DragGlow, 1);
 
     /// <summary>A recommended node's ring, its tag and its line (requirements §10.3.2).</summary>
     public required IBrush Recommendation { get; init; }
@@ -88,8 +72,8 @@ internal sealed class SummaryNetworkPalette
         : _recommendationRing ??= new Pen(Recommendation, 1.5, new DashStyle([2.2, 1.6], 0));
 
     /// <summary>
-    /// The line to the basis summary: round dots, unlike the solid source edge and the dashed "经未总结会话" edge (and the
-    /// planned content-link and link-suggestion edges, see the design note).
+    /// The line to the basis summary: round dots, unlike the solid branch line, the dashed link and the dash-dotted
+    /// link suggestion.
     /// </summary>
     public IPen RecommendationLink(bool active) => active
         ? _recommendationLinkActive ??= new Pen(Recommendation, 2, new DashStyle([0, 2.2], 0), PenLineCap.Round)
@@ -104,35 +88,24 @@ internal sealed class SummaryNetworkPalette
     /// <summary>The pale inside of a link note's frame.</summary>
     public required IBrush LinkFill { get; init; }
 
-    /// <summary>
-    /// A content link: solid, in its own colour and a little thicker than a source edge (1.2), so it reads apart from the
-    /// grey solid source edge, the dashed "经未总结会话" edge, the blue selection trail and the round-dotted recommendation line.
-    /// </summary>
-    public IPen LinkPen(bool active) => active
-        ? _linkActive ??= new Pen(Link, 2.6, null, PenLineCap.Round)
-        : _link ??= new Pen(Link, 1.8, null, PenLineCap.Round);
-
     /// <summary>The thin frame around a link's note.</summary>
     public IPen LinkNoteFrame => _linkNoteFrame ??= new Pen(Link, 1);
 
-    private IPen? _quietLink;
-    private IPen? _quietLinkActive;
-
     /// <summary>
-    /// The session network's link (design §8): at rest a thin dashed line in the edges' neutral colour, apart from the solid
+    /// A content link (design §8): at rest a thin dashed line in the edges' neutral colour, apart from the solid
     /// branch line and the dotted time thread by its long dashes; active (an end selected or hovered, or the link hovered)
     /// it takes the link colour and grows a little.
     /// </summary>
-    public IPen QuietLinkPen(bool active) => active
-        ? _quietLinkActive ??= new Pen(Link, 1.8, new DashStyle([5, 2.5], 0), PenLineCap.Flat)
-        : _quietLink ??= new Pen(Edge, 1.2, new DashStyle([6, 3.5], 0), PenLineCap.Flat);
+    public IPen LinkPen(bool active) => active
+        ? _linkActive ??= new Pen(Link, 1.8, new DashStyle([5, 2.5], 0), PenLineCap.Flat)
+        : _link ??= new Pen(Edge, 1.2, new DashStyle([6, 3.5], 0), PenLineCap.Flat);
 
     /// <summary>A pending link suggestion's line (requirements §10.3.4): a lighter tone of the link colour.</summary>
     public required IBrush LinkSuggestion { get; init; }
 
     /// <summary>
-    /// A pending link suggestion: light and dash-dotted, unlike the solid link, the solid source edge, the dashed
-    /// "经未总结会话" edge and the round-dotted recommendation line; its words say "建议".
+    /// A pending link suggestion: light and dash-dotted, unlike the dashed link, the solid branch line and the
+    /// round-dotted recommendation line; its words say "建议".
     /// </summary>
     public IPen LinkSuggestionPen(bool active) => active
         ? _suggestionActive ??= new Pen(LinkSuggestion, 2.2, new DashStyle([5, 2.2, 1.2, 2.2], 0))
@@ -144,10 +117,10 @@ internal sealed class SummaryNetworkPalette
     /// <summary>Every theme resource the canvas draws with; both themes must define each one as a brush.</summary>
     public static IReadOnlyList<string> Keys { get; } =
     [
-        "SummaryNetworkBackground", "SummaryNetworkGridDot", "SummaryNetworkNode", "SummaryNetworkNodeRead", "SummaryNetworkNodeTrail", "SummaryNetworkNodeHover",
+        "SummaryNetworkBackground", "SummaryNetworkGridDot", "SummaryNetworkNode", "SummaryNetworkNodeTrail", "SummaryNetworkNodeHover",
         "SummaryNetworkUnreadDot", "SummaryNetworkHaloSelected", "SummaryNetworkHaloHover", "SummaryNetworkRingSelected", "SummaryNetworkRingMatch",
-        "SummaryNetworkLabel", "SummaryNetworkLabelRead", "SummaryNetworkLabelActive", "SummaryNetworkCaption", "SummaryNetworkEdge", "SummaryNetworkEdgeIndirect",
-        "SummaryNetworkEdgeNear", "SummaryNetworkEdgeTrail", "SummaryNetworkDragShadow", "SummaryNetworkDragGlow", "SummaryNetworkRecommendation",
+        "SummaryNetworkLabel", "SummaryNetworkLabelRead", "SummaryNetworkLabelActive", "SummaryNetworkCaption", "SummaryNetworkEdge",
+        "SummaryNetworkEdgeNear", "SummaryNetworkEdgeTrail", "SummaryNetworkRecommendation",
         "SummaryNetworkRecommendationFill", "SummaryNetworkLink", "SummaryNetworkLinkFill", "SummaryNetworkLinkSuggestion",
     ];
 
@@ -177,7 +150,6 @@ internal sealed class SummaryNetworkPalette
             Background = brushes["SummaryNetworkBackground"],
             GridDot = brushes["SummaryNetworkGridDot"],
             Node = brushes["SummaryNetworkNode"],
-            NodeRead = brushes["SummaryNetworkNodeRead"],
             NodeTrail = brushes["SummaryNetworkNodeTrail"],
             NodeHover = brushes["SummaryNetworkNodeHover"],
             UnreadDot = brushes["SummaryNetworkUnreadDot"],
@@ -190,11 +162,8 @@ internal sealed class SummaryNetworkPalette
             LabelActive = brushes["SummaryNetworkLabelActive"],
             Caption = brushes["SummaryNetworkCaption"],
             Edge = brushes["SummaryNetworkEdge"],
-            EdgeIndirect = brushes["SummaryNetworkEdgeIndirect"],
             EdgeNear = brushes["SummaryNetworkEdgeNear"],
             EdgeTrail = brushes["SummaryNetworkEdgeTrail"],
-            DragShadow = brushes["SummaryNetworkDragShadow"],
-            DragGlow = brushes["SummaryNetworkDragGlow"],
             Recommendation = brushes["SummaryNetworkRecommendation"],
             RecommendationFill = brushes["SummaryNetworkRecommendationFill"],
             Link = brushes["SummaryNetworkLink"],
@@ -203,26 +172,25 @@ internal sealed class SummaryNetworkPalette
         };
     }
 
-    public IPen EdgePen(EdgeState state, bool dashed)
+    public IPen EdgePen(EdgeState state)
     {
-        if (!_edges.TryGetValue((state, dashed), out var pen))
+        if (!_edges.TryGetValue(state, out var pen))
         {
             var (brush, width) = state switch
             {
                 EdgeState.Trail => (EdgeTrail, 2.3),
                 EdgeState.Near => (EdgeNear, 1.8),
-                EdgeState.Indirect => (EdgeIndirect, 1.2),
                 _ => (Edge, 1.2),
             };
-            pen = new Pen(brush, width, dashed ? DashStyle.Dash : null);
-            _edges[(state, dashed)] = pen;
+            pen = new Pen(brush, width);
+            _edges[state] = pen;
         }
 
         return pen;
     }
 
     /// <summary>
-    /// The session network's time thread (spatial view): round dots in the branch line's colour and thinner than it
+    /// The time thread (spatial view): round dots in the branch line's colour and thinner than it
     /// (1.0 px against 1.2), so it reads fainter than a branch in both themes (design §4.1), unlike the round-dotted
     /// recommendation line in its own colour. While an end is hovered it brightens like a branch does.
     /// </summary>
@@ -248,7 +216,6 @@ internal sealed class SummaryNetworkPalette
             {
                 EdgeState.Trail => (EdgeTrail, 2.3),
                 EdgeState.Near => (EdgeNear, 1.8),
-                EdgeState.Indirect => (EdgeIndirect, rest),
                 _ => (Edge, rest),
             };
             pen = new Pen(brush, Math.Max(rest, width));
@@ -258,25 +225,13 @@ internal sealed class SummaryNetworkPalette
         return pen;
     }
 
-    /// <summary>The thin ring around a session dot that has a summary.</summary>
+    /// <summary>The thin ring around a dot that has a summary.</summary>
     public IPen SummaryRingPen(IBrush brush)
     {
         if (!_summaryRings.TryGetValue(brush, out var pen))
         {
             pen = new Pen(brush, 1.5);
             _summaryRings[brush] = pen;
-        }
-
-        return pen;
-    }
-
-    /// <summary>The outline of a read (hollow) node.</summary>
-    public IPen RingPen(IBrush brush)
-    {
-        if (!_rings.TryGetValue(brush, out var pen))
-        {
-            pen = new Pen(brush, 2);
-            _rings[brush] = pen;
         }
 
         return pen;
