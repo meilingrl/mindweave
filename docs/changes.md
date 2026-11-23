@@ -16,6 +16,12 @@ The second number rises when a capability is finished and on by default, and the
 
 The nine merges after 0.5.0, on 2026-11-22 and 2026-11-23, are 0.5.1 to 0.5.9 in order. They keep their dated entries below.
 
+## 0.6.2 · 2026-11-23
+
+- Fixed the highlight of a Settings row that leads to its own page, whose left side was cut at the text's edge (0.5.12)
+- Try: `scripts/daily.sh trial`; at the bottom of Settings, point at a row under 数据与工作区
+- Not verified: Windows hardware; at the smallest window the web search key's buttons are still cut off on the right
+
 ## 0.6.1 · 2026-11-23
 
 - Documents: Removed the last passages about saving the layout by hand: the requirements §11 row on a failed layout save, and architecture §2.2, §11.1 and §12.3
