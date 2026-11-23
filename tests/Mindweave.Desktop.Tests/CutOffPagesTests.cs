@@ -135,7 +135,15 @@ public class CutOffPagesTests
         Assert.True(mcp.IsConfirming);
         await whole("settings-mcp-confirm");
         await mcp.ConfirmCommand.ExecuteAsync(null);
-        Assert.Single(mcp.Servers);
+        var server = Assert.Single(mcp.Servers);
+        await server.StartCommand.ExecuteAsync(null);
+        await UiWait.UntilAsync(() => server.Tools.Count > 0, timeoutMs: 20_000);
+        foreach (var name in new[] { "write_note", "echo" })
+        {
+            server.Tools.Single(t => t.Name == name).IsOn = true;
+            await UiWait.UntilAsync(() => server.Tools.SingleOrDefault(t => t.Name == name) is { IsOn: true }, timeoutMs: 20_000);
+        }
+
         await whole("settings-mcp-server");
     });
 

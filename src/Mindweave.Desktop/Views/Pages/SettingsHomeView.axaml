@@ -375,20 +375,21 @@
                       <ItemsControl Name="McpToolList" ItemsSource="{Binding VisibleTools}">
                         <ItemsControl.ItemTemplate>
                           <DataTemplate x:DataType="vm:McpToolItem">
-                            <Grid ColumnDefinitions="Auto,*,Auto" Margin="0,4">
+                            <!-- On a narrow page the risk goes under the rest (Styles/Settings.axaml). -->
+                            <Grid Classes="mcp-tool-line" v:Narrow.Below="520" ColumnDefinitions="Auto,*,Auto" RowDefinitions="Auto,Auto" Margin="0,4">
                               <CheckBox Name="McpToolToggle" VerticalAlignment="Top" IsChecked="{Binding IsOn}" AutomationProperties.Name="{Binding Name}"
                                         ToolTip.Tip="{x:Static t:UiText.McpEnableTool}" />
                               <StackPanel Grid.Column="1" Spacing="2" Margin="2,4,12,0">
-                                <StackPanel Orientation="Horizontal" Spacing="6">
+                                <WrapPanel ItemSpacing="6" LineSpacing="2">
                                   <TextBlock Name="McpToolName" Classes="address" Text="{Binding Name}" VerticalAlignment="Center" />
                                   <Border Classes="badge" IsVisible="{Binding DeclaresReadOnly}"><TextBlock Text="{x:Static t:UiText.McpDeclaresReadOnly}" /></Border>
-                                </StackPanel>
+                                </WrapPanel>
                                 <TextBlock Classes="caption" Text="{Binding Description}" TextWrapping="Wrap" MaxLines="2" TextTrimming="CharacterEllipsis"
                                            IsVisible="{Binding HasDescription}" ToolTip.Tip="{Binding Description}" />
                                 <TextBlock Name="McpToolDisabledReason" Classes="caption warning" FontSize="12" Text="{Binding DisabledReason}" TextWrapping="Wrap"
                                            IsVisible="{Binding HasDisabledReason}" />
                               </StackPanel>
-                              <ComboBox Grid.Column="2" Name="McpToolRisk" Classes="settings" Width="200" VerticalAlignment="Top"
+                              <ComboBox Name="McpToolRisk" Classes="settings mcp-tool-risk" Width="260" VerticalAlignment="Top"
                                         ItemsSource="{x:Static vm:McpToolItem.Risks}" SelectedIndex="{Binding RiskIndex}" IsVisible="{Binding IsOn}"
                                         AutomationProperties.Name="{x:Static t:UiText.McpRiskLabel}" />
                             </Grid>
