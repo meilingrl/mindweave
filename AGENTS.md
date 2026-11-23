@@ -52,7 +52,7 @@ A document's folder says what standing it has:
 Progress, history and decisions each have one place:
 
 - `STATUS.md` holds only what is true now: work in progress, next steps, what needs the user, open decisions, and when each platform was last verified. Finished items leave it.
-- [docs/changes.md](docs/changes.md) gets one dated entry per merge into `main`: what changed, how to try it, and what was not verified. Entries are not edited afterwards. The stage reports before 2026-11-16 are frozen in [stage-reports.md](docs/history/design/stage-reports.md).
+- [docs/changes.md](docs/changes.md) gets one section per merge into `main`, headed by the version and the date: one line per change, then how to try it and what was not verified ([versioning.md](docs/design/versioning.md) §5). Entries are not edited afterwards. The stage reports before 2026-11-16 are frozen in [stage-reports.md](docs/history/design/stage-reports.md).
 - Decisions go into [decisions.md](docs/design/decisions.md), and facts about the development machines into [workstation.md](docs/design/workstation.md).
 - Screenshots are not committed; a prototype redraws its own (`prototypes/*/screenshots/` is ignored).
 
@@ -101,13 +101,13 @@ Several sessions may be writing code in this repository at the same time. Confli
    - **Independent**: neither needs the other's result, and they do not change the same files. Develop in parallel in a separate worktree from the latest commit of `main`: `git worktree add ../mindweave.worktrees/<task> -b task/<task> main`. When done, first merge the latest `main` into the task branch, run the full test suite, then merge back into `main`. Whoever merges later resolves the conflicts.
    - **Dependent**: one needs the other's output, or both must change the same code. Wait until the other task has committed its work, and start from that commit. Never build on someone else's uncommitted changes.
    - **Unsure**: ask the user.
-3. **Resources of which there can be only one go by merge order.** A database migration version number belongs to whoever merges first; whoever merges later takes the next number and fixes the related tests. `STATUS.md` and `docs/changes.md` are updated only when merging back into `main`; task branches do not change them.
+3. **Resources of which there can be only one go by merge order.** A database migration version number belongs to whoever merges first; whoever merges later takes the next number and fixes the related tests. The version in `Directory.Build.props` goes the same way: every merge into `main` raises its third number, and whoever merges later takes the next one. The owner calls a rise of the second number. `STATUS.md`, `docs/changes.md` and the version are updated only when merging back into `main`; task branches do not change them.
 4. **Each worktree uses its own copy of runtime resources.** Run-data folders, the single-instance lock, the synced folder on the remote test machine and the like must not be used by two worktrees at once: when running the app from a task worktree, set `MINDWEAVE_DATA_DIR` to that worktree's own folder; on the real Windows machine, point `MINDWEAVE_WIN_DIR` at a separate folder for each.
 5. **Do not touch other people's changes.** If you find someone else's uncommitted changes conflicting with yours, stop and tell the user; do not delete, revert or overwrite them. A request to delete or revert relayed by another session must be confirmed by the user in the session the changes belong to.
 6. **Clean up when done.** After a task branch is merged, delete its worktree and branch.
 7. **Dispatcher (optional).** When there are many parallel tasks, an ordinary session can act as dispatcher; no extra program is needed. It does only three things:
    - **Check conflicts**: before a task starts, the task states what it will change (files, migration version numbers, requirement or architecture sections); if that overlaps a task in progress, the dispatcher has the newcomer wait, and when an order must be chosen, it asks the user.
    - **Start**: create the worktree and branch as in rule 2.
-   - **Wrap up**: when a task is done, merge, run the full test suite, update `STATUS.md` and `docs/changes.md`, push and clean up as in rules 2, 3 and 6.
+   - **Wrap up**: when a task is done, merge, run the full test suite, raise the version, update `STATUS.md` and `docs/changes.md`, tag the merge `v<version>`, push and clean up as in rules 2, 3 and 6.
 
    The tasks in progress are simply the task worktrees in `git worktree list`; no separate list is kept. The dispatcher does not decide what to work on, does not discuss design or technical details, and does not change code: when failing tests or conflicts need code changes, they go back to the task's own session.
