@@ -103,7 +103,7 @@ Each concept in requirements §4 has only one name in code: namespaces, folders,
 | MCP server (MCP 服务器), third-party tools (第三方工具) (after the first release) | `McpServer`; tool `McpTool`; connection `McpConnection` (contract `IMcpConnector`) |
 | generated charts and diagrams (生成的图表与图示) (after the first release) | `Artifact` (`ArtifactBlock`) |
 | Settings › Tools (设置 › 工具) | `Tools` under `Settings` |
-| text width (正文宽度): how wide the text of a conversation may be | `TextWidth` |
+| text width (正文宽度): how wide the text of a conversation or a summary may be | `TextWidth` |
 | context usage (上下文用量): how much of the model's context the next question takes, and its parts | `ContextUsage`, `ContextUsagePart` |
 | interface language (界面语言) | `UiLanguage`: `English`, `Chinese` (v0.24, requirements §10.5) |
 | new exploration (新探索) | `NewExploration` (the existing `ExploreHome*` does not have to be renamed) |

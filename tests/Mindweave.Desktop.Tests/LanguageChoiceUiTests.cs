@@ -347,7 +347,7 @@ public class LanguageChoiceUiTests
 
     private static bool InView(Window window, Control control)
     {
-        var scroller = window.GetVisualDescendants().OfType<SettingsHomeView>().Single().GetVisualDescendants().OfType<ScrollViewer>().First();
+        var scroller = window.GetVisualDescendants().OfType<SettingsHomeView>().Single().GetVisualDescendants().OfType<ScrollViewer>().Single(s => s.Name == "Scroller");
         var top = control.TranslatePoint(default, scroller)!.Value.Y;
         return top >= 0 && top + control.Bounds.Height <= scroller.Viewport.Height;
     }

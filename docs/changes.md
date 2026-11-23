@@ -16,6 +16,15 @@ The second number rises when a capability is finished and on by default, and the
 
 The nine merges after 0.5.0, on 2026-11-22 and 2026-11-23, are 0.5.1 to 0.5.9 in order. They keep their dated entries below.
 
+## 0.5.12 · 2026-11-23
+
+- Added a find box to Settings, on top of a list of its categories that jumps to a section and follows the scrolling (D-037)
+- Changed Settings to have no boxes: one line per setting with its control on the right; long explanations are behind an icon, cost and privacy notes stay in sight
+- Changed summaries to follow the text width: header, body, editor and version history; their right edge is dragged too
+- Removed the fixed 720 px width of summaries
+- Try: `scripts/daily.sh trial`; open Settings and type in the find box, open a summary and drag the text's right edge
+- Not verified: Windows; a news hint can cover the lower right of Settings, where the controls now are, until it goes
+
 ## 0.5.11 · 2026-11-23
 
 - Added the context ring's details: the figures on hover, and on a press what the context is made of; it now counts a run's instructions and tool definitions (D-037)

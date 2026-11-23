@@ -7,208 +7,230 @@
              xmlns:p="using:Mindweave.Desktop.Views.Pages"
              x:Class="Mindweave.Desktop.Views.Pages.SettingsHomeView"
              x:DataType="vm:SettingsHomeViewModel">
-  <ScrollViewer Name="Scroller" Classes="autohide" HorizontalScrollBarVisibility="Disabled">
+  <UserControl.Styles>
+    <!-- No boxes on this page (D-037): the forms that are cards elsewhere (onboarding) lie on the page here. -->
+    <Style Selector="Border.card.settings">
+      <Setter Property="Background" Value="Transparent" />
+      <Setter Property="BorderThickness" Value="0" />
+      <Setter Property="Padding" Value="0,10,0,4" />
+    </Style>
+  </UserControl.Styles>
+  <!-- A list of the categories that stays in sight, with the find box on top of it, beside one scrolling page (D-037): the
+       list jumps to a category and follows the scrolling. On a narrow page only the find box stays, above the settings. -->
+  <Grid Name="PageGrid" ColumnDefinitions="Auto,*" RowDefinitions="Auto,*">
+  <StackPanel Name="SettingsNav" Grid.RowSpan="2" Width="172" Margin="0,4,24,0" Spacing="2">
+    <TextBox Name="FindSettingsBox" Margin="0,0,0,8" PlaceholderText="{x:Static t:UiText.FindSettings}" AutomationProperties.Name="{x:Static t:UiText.FindSettings}">
+      <TextBox.InnerLeftContent>
+        <PathIcon Width="13" Height="13" Margin="9,0,0,0" Data="{StaticResource IconToolSearch}" Foreground="{DynamicResource MutedText}" />
+      </TextBox.InnerLeftContent>
+    </TextBox>
+    <StackPanel Name="Categories" Spacing="2">
+      <RadioButton Name="CategoryAppearance" Classes="settings-category" GroupName="SettingsCategory" IsChecked="True" Content="{x:Static t:UiText.AppearanceSection}" />
+      <RadioButton Name="CategoryHints" Classes="settings-category" GroupName="SettingsCategory" Content="{x:Static t:UiText.HintsSection}" IsVisible="{Binding CanChooseNewsSound}" />
+      <RadioButton Name="CategoryModel" Classes="settings-category" GroupName="SettingsCategory" Content="{x:Static t:UiText.ModelSection}" />
+      <RadioButton Name="CategoryTools" Classes="settings-category" GroupName="SettingsCategory" Content="{x:Static t:UiText.SettingsTools}" IsVisible="{Binding HasTools}" />
+      <RadioButton Name="CategoryData" Classes="settings-category" GroupName="SettingsCategory" Content="{x:Static t:UiText.DataAndWorkspaceSection}" />
+    </StackPanel>
+  </StackPanel>
+  <ScrollViewer Name="Scroller" Grid.Column="1" Grid.Row="1" Classes="autohide" HorizontalScrollBarVisibility="Disabled">
   <!-- One left-aligned column of at most 640 px (a star column with a maximum), as on the summary page. -->
   <Grid Margin="0,4,16,24">
   <Grid.ColumnDefinitions>
     <ColumnDefinition Width="*" MaxWidth="640" />
   </Grid.ColumnDefinitions>
-  <!-- The cards' label columns share one width (at least 96 px), so a longer label widens them all alike. -->
-  <StackPanel Grid.IsSharedSizeScope="True">
+  <!-- The forms' label columns share one width (at least 96 px), so a longer label widens them all alike. -->
+  <StackPanel Name="Sections" Grid.IsSharedSizeScope="True" Spacing="28">
+    <TextBlock Name="NothingFound" Classes="muted" IsVisible="False" TextWrapping="Wrap" />
 
     <!-- 外观 -->
-    <TextBlock Classes="section-heading" Text="{x:Static t:UiText.AppearanceSection}" />
-    <Border Classes="card settings">
-      <Grid Classes="labelled" RowDefinitions="Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto">
-        <Grid.ColumnDefinitions>
-          <ColumnDefinition Width="Auto" MinWidth="96" SharedSizeGroup="SettingsLabel" />
-          <ColumnDefinition Width="*" />
-        </Grid.ColumnDefinitions>
-        <TextBlock Classes="field-label" Text="{x:Static t:UiText.ThemeLabel}" />
-        <Border Grid.Column="1" Name="AppearancePicker" Classes="segmented">
-          <StackPanel Orientation="Horizontal" Spacing="2" KeyboardNavigation.TabNavigation="Once">
-            <RadioButton Name="AppearanceLight" Classes="segment" GroupName="Appearance" IsChecked="{Binding IsLight}"
-                         AutomationProperties.Name="{x:Static t:UiText.AppearanceLight}">
-              <StackPanel Orientation="Horizontal" Spacing="6">
-                <PathIcon Data="{StaticResource IconSun}" />
-                <TextBlock Text="{x:Static t:UiText.AppearanceLight}" VerticalAlignment="Center" />
-              </StackPanel>
-            </RadioButton>
-            <RadioButton Name="AppearanceDark" Classes="segment" GroupName="Appearance" IsChecked="{Binding IsDark}"
-                         AutomationProperties.Name="{x:Static t:UiText.AppearanceDark}">
-              <StackPanel Orientation="Horizontal" Spacing="6">
-                <PathIcon Data="{StaticResource IconMoon}" />
-                <TextBlock Text="{x:Static t:UiText.AppearanceDark}" VerticalAlignment="Center" />
-              </StackPanel>
-            </RadioButton>
-            <RadioButton Name="AppearanceFollowSystem" Classes="segment" GroupName="Appearance" IsChecked="{Binding IsFollowSystem}"
-                         AutomationProperties.Name="{x:Static t:UiText.AppearanceFollowSystem}">
-              <StackPanel Orientation="Horizontal" Spacing="6">
-                <PathIcon Data="{StaticResource IconMonitor}" />
-                <TextBlock Text="{x:Static t:UiText.AppearanceFollowSystem}" VerticalAlignment="Center" />
-              </StackPanel>
-            </RadioButton>
-          </StackPanel>
-        </Border>
-        <TextBlock Grid.Row="1" Grid.Column="1" Name="AppearanceStatus" v:Motion.Appear="Fade" Classes="error" FontSize="12" TextWrapping="Wrap" Margin="0,8,0,0"
-                   Text="{Binding AppearanceStatus}" IsVisible="{Binding AppearanceStatus, Converter={x:Static ObjectConverters.IsNotNull}}" />
+    <StackPanel Name="AppearanceSection" Classes="settings-section">
+      <TextBlock Classes="section-heading" Text="{x:Static t:UiText.AppearanceSection}" />
+        <p:SettingRow Label="{x:Static t:UiText.ThemeLabel}">
+          <Border Name="AppearancePicker" Classes="segmented">
+            <StackPanel Orientation="Horizontal" Spacing="2" KeyboardNavigation.TabNavigation="Once">
+              <RadioButton Name="AppearanceLight" Classes="segment" GroupName="Appearance" IsChecked="{Binding IsLight}"
+                           AutomationProperties.Name="{x:Static t:UiText.AppearanceLight}">
+                <StackPanel Orientation="Horizontal" Spacing="6">
+                  <PathIcon Data="{StaticResource IconSun}" />
+                  <TextBlock Text="{x:Static t:UiText.AppearanceLight}" VerticalAlignment="Center" />
+                </StackPanel>
+              </RadioButton>
+              <RadioButton Name="AppearanceDark" Classes="segment" GroupName="Appearance" IsChecked="{Binding IsDark}"
+                           AutomationProperties.Name="{x:Static t:UiText.AppearanceDark}">
+                <StackPanel Orientation="Horizontal" Spacing="6">
+                  <PathIcon Data="{StaticResource IconMoon}" />
+                  <TextBlock Text="{x:Static t:UiText.AppearanceDark}" VerticalAlignment="Center" />
+                </StackPanel>
+              </RadioButton>
+              <RadioButton Name="AppearanceFollowSystem" Classes="segment" GroupName="Appearance" IsChecked="{Binding IsFollowSystem}"
+                           AutomationProperties.Name="{x:Static t:UiText.AppearanceFollowSystem}">
+                <StackPanel Orientation="Horizontal" Spacing="6">
+                  <PathIcon Data="{StaticResource IconMonitor}" />
+                  <TextBlock Text="{x:Static t:UiText.AppearanceFollowSystem}" VerticalAlignment="Center" />
+                </StackPanel>
+              </RadioButton>
+            </StackPanel>
+          </Border>
+          <p:SettingRow.Below>
+            <TextBlock Name="AppearanceStatus" v:Motion.Appear="Fade" Classes="error" FontSize="12" TextWrapping="Wrap" Margin="0,8,0,0"
+                       Text="{Binding AppearanceStatus}" IsVisible="{Binding AppearanceStatus, Converter={x:Static ObjectConverters.IsNotNull}}" />
+          </p:SettingRow.Below>
+        </p:SettingRow>
         <!-- The interface language (bilingual-ui.md §7): each language by its own name; choosing switches in place. -->
-        <TextBlock Grid.Row="2" Classes="field-label" Margin="0,16,0,0" Text="{x:Static t:UiText.LanguageLabel}" IsVisible="{Binding CanChooseLanguage}" />
-        <Border Grid.Row="2" Grid.Column="1" Name="LanguagePicker" Classes="segmented" Margin="0,16,0,0" IsVisible="{Binding CanChooseLanguage}">
-          <StackPanel Orientation="Horizontal" Spacing="2" KeyboardNavigation.TabNavigation="Once">
-            <RadioButton Name="LanguageEnglish" Classes="segment" GroupName="Language" IsChecked="{Binding IsEnglish}"
-                         Content="{x:Static t:UiText.LanguageEnglish}" AutomationProperties.Name="{x:Static t:UiText.LanguageEnglish}" />
-            <RadioButton Name="LanguageChinese" Classes="segment" GroupName="Language" IsChecked="{Binding IsChinese}"
-                         Content="{x:Static t:UiText.LanguageChinese}" AutomationProperties.Name="{x:Static t:UiText.LanguageChinese}" />
-          </StackPanel>
-        </Border>
-        <TextBlock Grid.Row="3" Grid.Column="1" Name="LanguageStatus" v:Motion.Appear="Fade" Classes.error="{Binding !IsLanguageWaiting}" Classes.muted="{Binding IsLanguageWaiting}"
-                   FontSize="12" TextWrapping="Wrap" Margin="0,8,0,0" Text="{Binding LanguageStatus}" IsVisible="{Binding LanguageStatus, Converter={x:Static ObjectConverters.IsNotNull}}" />
+        <p:SettingRow Label="{x:Static t:UiText.LanguageLabel}" IsVisible="{Binding CanChooseLanguage}">
+          <Border Name="LanguagePicker" Classes="segmented">
+            <StackPanel Orientation="Horizontal" Spacing="2" KeyboardNavigation.TabNavigation="Once">
+              <RadioButton Name="LanguageEnglish" Classes="segment" GroupName="Language" IsChecked="{Binding IsEnglish}"
+                           Content="{x:Static t:UiText.LanguageEnglish}" AutomationProperties.Name="{x:Static t:UiText.LanguageEnglish}" />
+              <RadioButton Name="LanguageChinese" Classes="segment" GroupName="Language" IsChecked="{Binding IsChinese}"
+                           Content="{x:Static t:UiText.LanguageChinese}" AutomationProperties.Name="{x:Static t:UiText.LanguageChinese}" />
+            </StackPanel>
+          </Border>
+          <p:SettingRow.Below>
+            <TextBlock Name="LanguageStatus" v:Motion.Appear="Fade" Classes.error="{Binding !IsLanguageWaiting}" Classes.muted="{Binding IsLanguageWaiting}" FontSize="12" TextWrapping="Wrap" Margin="0,8,0,0"
+                       Text="{Binding LanguageStatus}" IsVisible="{Binding LanguageStatus, Converter={x:Static ObjectConverters.IsNotNull}}" />
+          </p:SettingRow.Below>
+        </p:SettingRow>
         <!-- The bold colour in answers (D-027): each choice shows its colour in the current theme. -->
-        <TextBlock Grid.Row="4" Classes="field-label" Margin="0,16,0,0" Text="{x:Static t:UiText.BoldColourLabel}" />
-        <Border Grid.Row="4" Grid.Column="1" Name="BoldColourPicker" Classes="segmented" Margin="0,16,0,0" HorizontalAlignment="Left">
-          <StackPanel Orientation="Horizontal" Spacing="2" KeyboardNavigation.TabNavigation="Once">
-            <RadioButton Name="BoldColourBrown" Classes="segment" GroupName="BoldColour" IsChecked="{Binding IsBoldBrown}"
-                         AutomationProperties.Name="{x:Static t:UiText.BoldColourBrown}">
-              <StackPanel Orientation="Horizontal" Spacing="6">
-                <Ellipse Width="10" Height="10" Fill="{DynamicResource BoldTextBrown}" VerticalAlignment="Center" />
-                <TextBlock Text="{x:Static t:UiText.BoldColourBrown}" VerticalAlignment="Center" />
-              </StackPanel>
-            </RadioButton>
-            <RadioButton Name="BoldColourSlate" Classes="segment" GroupName="BoldColour" IsChecked="{Binding IsBoldSlate}"
-                         AutomationProperties.Name="{x:Static t:UiText.BoldColourSlate}">
-              <StackPanel Orientation="Horizontal" Spacing="6">
-                <Ellipse Width="10" Height="10" Fill="{DynamicResource BoldTextSlate}" VerticalAlignment="Center" />
-                <TextBlock Text="{x:Static t:UiText.BoldColourSlate}" VerticalAlignment="Center" />
-              </StackPanel>
-            </RadioButton>
-            <RadioButton Name="BoldColourSage" Classes="segment" GroupName="BoldColour" IsChecked="{Binding IsBoldSage}"
-                         AutomationProperties.Name="{x:Static t:UiText.BoldColourSage}">
-              <StackPanel Orientation="Horizontal" Spacing="6">
-                <Ellipse Width="10" Height="10" Fill="{DynamicResource BoldTextSage}" VerticalAlignment="Center" />
-                <TextBlock Text="{x:Static t:UiText.BoldColourSage}" VerticalAlignment="Center" />
-              </StackPanel>
-            </RadioButton>
-            <RadioButton Name="BoldColourPlum" Classes="segment" GroupName="BoldColour" IsChecked="{Binding IsBoldPlum}"
-                         AutomationProperties.Name="{x:Static t:UiText.BoldColourPlum}">
-              <StackPanel Orientation="Horizontal" Spacing="6">
-                <Ellipse Width="10" Height="10" Fill="{DynamicResource BoldTextPlum}" VerticalAlignment="Center" />
-                <TextBlock Text="{x:Static t:UiText.BoldColourPlum}" VerticalAlignment="Center" />
-              </StackPanel>
-            </RadioButton>
-            <RadioButton Name="BoldColourSameAsText" Classes="segment" GroupName="BoldColour" IsChecked="{Binding IsBoldSameAsText}"
-                         AutomationProperties.Name="{x:Static t:UiText.BoldColourSameAsText}">
-              <StackPanel Orientation="Horizontal" Spacing="6">
-                <Ellipse Width="10" Height="10" Fill="{DynamicResource BoldTextSameAsText}" VerticalAlignment="Center" />
-                <TextBlock Text="{x:Static t:UiText.BoldColourSameAsText}" VerticalAlignment="Center" />
-              </StackPanel>
-            </RadioButton>
-          </StackPanel>
-        </Border>
-        <TextBlock Grid.Row="5" Grid.Column="1" Name="BoldColourStatus" v:Motion.Appear="Fade" Classes="error" FontSize="12" TextWrapping="Wrap" Margin="0,8,0,0"
-                   Text="{Binding BoldColourStatus}" IsVisible="{Binding BoldColourStatus, Converter={x:Static ObjectConverters.IsNotNull}}" />
-        <!-- How wide the text of a conversation may be (the owner, 2026-11-23); any other width is dragged on the page. -->
-        <TextBlock Grid.Row="6" Classes="field-label" Margin="0,16,0,0" Text="{x:Static t:UiText.TextWidthLabel}" IsVisible="{Binding CanChooseTextWidth}" />
-        <Border Grid.Row="6" Grid.Column="1" Name="TextWidthPicker" Classes="segmented" Margin="0,16,0,0" HorizontalAlignment="Left" IsVisible="{Binding CanChooseTextWidth}">
-          <StackPanel Orientation="Horizontal" Spacing="2" KeyboardNavigation.TabNavigation="Once">
-            <RadioButton Name="TextWidthWhole" Classes="segment" GroupName="TextWidth" IsChecked="{Binding IsTextWhole}"
-                         Content="{x:Static t:UiText.TextWidthWhole}" AutomationProperties.Name="{x:Static t:UiText.TextWidthWhole}" />
-            <RadioButton Name="TextWidthWide" Classes="segment" GroupName="TextWidth" IsChecked="{Binding IsTextWide}"
-                         Content="{x:Static t:UiText.TextWidthWide}" AutomationProperties.Name="{x:Static t:UiText.TextWidthWide}" />
-            <RadioButton Name="TextWidthMedium" Classes="segment" GroupName="TextWidth" IsChecked="{Binding IsTextMedium}"
-                         Content="{x:Static t:UiText.TextWidthMedium}" AutomationProperties.Name="{x:Static t:UiText.TextWidthMedium}" />
-            <RadioButton Name="TextWidthNarrow" Classes="segment" GroupName="TextWidth" IsChecked="{Binding IsTextNarrow}"
-                         Content="{x:Static t:UiText.TextWidthNarrow}" AutomationProperties.Name="{x:Static t:UiText.TextWidthNarrow}" />
-          </StackPanel>
-        </Border>
-        <TextBlock Grid.Row="7" Grid.Column="1" Name="TextWidthHint" Classes="muted" FontSize="12" TextWrapping="Wrap" Margin="0,8,0,0" Text="{Binding TextWidthHint}"
-                   IsVisible="{Binding CanChooseTextWidth}" />
-      </Grid>
-    </Border>
+        <p:SettingRow Label="{x:Static t:UiText.BoldColourLabel}">
+          <Border Name="BoldColourPicker" Classes="segmented" HorizontalAlignment="Left">
+            <StackPanel Orientation="Horizontal" Spacing="2" KeyboardNavigation.TabNavigation="Once">
+              <RadioButton Name="BoldColourBrown" Classes="segment" GroupName="BoldColour" IsChecked="{Binding IsBoldBrown}"
+                           AutomationProperties.Name="{x:Static t:UiText.BoldColourBrown}">
+                <StackPanel Orientation="Horizontal" Spacing="6">
+                  <Ellipse Width="10" Height="10" Fill="{DynamicResource BoldTextBrown}" VerticalAlignment="Center" />
+                  <TextBlock Text="{x:Static t:UiText.BoldColourBrown}" VerticalAlignment="Center" />
+                </StackPanel>
+              </RadioButton>
+              <RadioButton Name="BoldColourSlate" Classes="segment" GroupName="BoldColour" IsChecked="{Binding IsBoldSlate}"
+                           AutomationProperties.Name="{x:Static t:UiText.BoldColourSlate}">
+                <StackPanel Orientation="Horizontal" Spacing="6">
+                  <Ellipse Width="10" Height="10" Fill="{DynamicResource BoldTextSlate}" VerticalAlignment="Center" />
+                  <TextBlock Text="{x:Static t:UiText.BoldColourSlate}" VerticalAlignment="Center" />
+                </StackPanel>
+              </RadioButton>
+              <RadioButton Name="BoldColourSage" Classes="segment" GroupName="BoldColour" IsChecked="{Binding IsBoldSage}"
+                           AutomationProperties.Name="{x:Static t:UiText.BoldColourSage}">
+                <StackPanel Orientation="Horizontal" Spacing="6">
+                  <Ellipse Width="10" Height="10" Fill="{DynamicResource BoldTextSage}" VerticalAlignment="Center" />
+                  <TextBlock Text="{x:Static t:UiText.BoldColourSage}" VerticalAlignment="Center" />
+                </StackPanel>
+              </RadioButton>
+              <RadioButton Name="BoldColourPlum" Classes="segment" GroupName="BoldColour" IsChecked="{Binding IsBoldPlum}"
+                           AutomationProperties.Name="{x:Static t:UiText.BoldColourPlum}">
+                <StackPanel Orientation="Horizontal" Spacing="6">
+                  <Ellipse Width="10" Height="10" Fill="{DynamicResource BoldTextPlum}" VerticalAlignment="Center" />
+                  <TextBlock Text="{x:Static t:UiText.BoldColourPlum}" VerticalAlignment="Center" />
+                </StackPanel>
+              </RadioButton>
+              <RadioButton Name="BoldColourSameAsText" Classes="segment" GroupName="BoldColour" IsChecked="{Binding IsBoldSameAsText}"
+                           AutomationProperties.Name="{x:Static t:UiText.BoldColourSameAsText}">
+                <StackPanel Orientation="Horizontal" Spacing="6">
+                  <Ellipse Width="10" Height="10" Fill="{DynamicResource BoldTextSameAsText}" VerticalAlignment="Center" />
+                  <TextBlock Text="{x:Static t:UiText.BoldColourSameAsText}" VerticalAlignment="Center" />
+                </StackPanel>
+              </RadioButton>
+            </StackPanel>
+          </Border>
+          <p:SettingRow.Below>
+            <TextBlock Name="BoldColourStatus" v:Motion.Appear="Fade" Classes="error" FontSize="12" TextWrapping="Wrap" Margin="0,8,0,0"
+                       Text="{Binding BoldColourStatus}" IsVisible="{Binding BoldColourStatus, Converter={x:Static ObjectConverters.IsNotNull}}" />
+          </p:SettingRow.Below>
+        </p:SettingRow>
+        <!-- How wide the text may be (D-037); any other width is dragged on the page. -->
+        <p:SettingRow Label="{x:Static t:UiText.TextWidthLabel}" Caption="{Binding TextWidthHint}" IsVisible="{Binding CanChooseTextWidth}">
+          <Border Name="TextWidthPicker" Classes="segmented" HorizontalAlignment="Left">
+            <StackPanel Orientation="Horizontal" Spacing="2" KeyboardNavigation.TabNavigation="Once">
+              <RadioButton Name="TextWidthWhole" Classes="segment" GroupName="TextWidth" IsChecked="{Binding IsTextWhole}"
+                           Content="{x:Static t:UiText.TextWidthWhole}" AutomationProperties.Name="{x:Static t:UiText.TextWidthWhole}" />
+              <RadioButton Name="TextWidthWide" Classes="segment" GroupName="TextWidth" IsChecked="{Binding IsTextWide}"
+                           Content="{x:Static t:UiText.TextWidthWide}" AutomationProperties.Name="{x:Static t:UiText.TextWidthWide}" />
+              <RadioButton Name="TextWidthMedium" Classes="segment" GroupName="TextWidth" IsChecked="{Binding IsTextMedium}"
+                           Content="{x:Static t:UiText.TextWidthMedium}" AutomationProperties.Name="{x:Static t:UiText.TextWidthMedium}" />
+              <RadioButton Name="TextWidthNarrow" Classes="segment" GroupName="TextWidth" IsChecked="{Binding IsTextNarrow}"
+                           Content="{x:Static t:UiText.TextWidthNarrow}" AutomationProperties.Name="{x:Static t:UiText.TextWidthNarrow}" />
+            </StackPanel>
+          </Border>
+        </p:SettingRow>
+    </StackPanel>
 
-    <!-- 提示 (2026-11-10): whether the open workspace's conversations pop up a hint too (on unless turned off), and the
-         sound for a hint (off unless chosen); 2026-11-11: whether a workspace's names are prepared in the background (on);
-         2026-11-12: recommended questions, recommended nodes and preparing them in the background (all on, §10.3), with
-         what is sent and that preparing costs a little. -->
-    <StackPanel IsVisible="{Binding CanChooseNewsSound}">
-      <TextBlock Classes="section-heading" Margin="2,28,0,8" Text="{x:Static t:UiText.HintsSection}" />
-      <Border Classes="card settings">
-        <Grid Classes="labelled" RowDefinitions="Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto">
-          <Grid.ColumnDefinitions>
-            <ColumnDefinition Width="Auto" MinWidth="96" SharedSizeGroup="SettingsLabel" />
-            <ColumnDefinition Width="*" />
-          </Grid.ColumnDefinitions>
-          <TextBlock Classes="field-label" Text="{x:Static t:UiText.NewsInWorkspaceLabel}" />
-          <CheckBox Grid.Column="1" Name="NewsInWorkspaceToggle" IsChecked="{Binding ShowsInWorkspaceNews}" Content="{x:Static t:UiText.NewsInWorkspace}"
-                    AutomationProperties.Name="{x:Static t:UiText.NewsInWorkspace}" AutomationProperties.HelpText="{x:Static t:UiText.NewsInWorkspaceHint}" />
-          <TextBlock Grid.Row="1" Grid.Column="1" Classes="caption" TextWrapping="Wrap" Margin="0,4,0,0" Text="{x:Static t:UiText.NewsInWorkspaceHint}" />
-          <TextBlock Grid.Row="2" Grid.Column="1" Name="InWorkspaceNewsStatus" v:Motion.Appear="Fade" Classes="error" FontSize="12" TextWrapping="Wrap" Margin="0,8,0,0"
-                     Text="{Binding InWorkspaceNewsStatus}" IsVisible="{Binding InWorkspaceNewsStatus, Converter={x:Static ObjectConverters.IsNotNull}}" />
-          <TextBlock Grid.Row="3" Classes="field-label" Margin="0,16,0,0" Text="{x:Static t:UiText.NewsSoundLabel}" />
-          <CheckBox Grid.Row="3" Grid.Column="1" Name="NewsSoundToggle" Margin="0,16,0,0" IsChecked="{Binding PlaysNewsSound}" Content="{x:Static t:UiText.NewsSound}"
-                    AutomationProperties.Name="{x:Static t:UiText.NewsSound}" AutomationProperties.HelpText="{x:Static t:UiText.NewsSoundHint}" />
-          <TextBlock Grid.Row="4" Grid.Column="1" Classes="caption" TextWrapping="Wrap" Margin="0,4,0,0" Text="{x:Static t:UiText.NewsSoundHint}" />
-          <TextBlock Grid.Row="5" Grid.Column="1" Name="NewsSoundStatus" v:Motion.Appear="Fade" Classes="error" FontSize="12" TextWrapping="Wrap" Margin="0,8,0,0"
-                     Text="{Binding NewsSoundStatus}" IsVisible="{Binding NewsSoundStatus, Converter={x:Static ObjectConverters.IsNotNull}}" />
-          <TextBlock Grid.Row="6" Classes="field-label" Margin="0,16,0,0" Text="{x:Static t:UiText.PrepareNamesLabel}" />
-          <CheckBox Grid.Row="6" Grid.Column="1" Name="PrepareNamesToggle" Margin="0,16,0,0" IsChecked="{Binding PreparesNames}" Content="{x:Static t:UiText.PrepareNames}"
-                    AutomationProperties.Name="{x:Static t:UiText.PrepareNames}" AutomationProperties.HelpText="{x:Static t:UiText.PrepareNamesHint}" />
-          <TextBlock Grid.Row="7" Grid.Column="1" Classes="caption" TextWrapping="Wrap" Margin="0,4,0,0" Text="{x:Static t:UiText.PrepareNamesHint}" />
-          <TextBlock Grid.Row="8" Grid.Column="1" Name="PrepareNamesStatus" v:Motion.Appear="Fade" Classes="error" FontSize="12" TextWrapping="Wrap" Margin="0,8,0,0"
-                     Text="{Binding PrepareNamesStatus}" IsVisible="{Binding PrepareNamesStatus, Converter={x:Static ObjectConverters.IsNotNull}}" />
-          <TextBlock Grid.Row="9" Classes="field-label" Margin="0,22,0,0" VerticalAlignment="Top" Text="{x:Static t:UiText.RecommendationsLabel}" IsVisible="{Binding CanChooseRecommendations}" />
-          <StackPanel Grid.Row="9" Grid.Column="1" Name="RecommendationChoices" Margin="0,16,0,0" Spacing="2" IsVisible="{Binding CanChooseRecommendations}">
-            <CheckBox Name="RecommendQuestionsToggle" IsChecked="{Binding RecommendsQuestions}" Content="{x:Static t:UiText.RecommendQuestionsSetting}"
-                      AutomationProperties.Name="{x:Static t:UiText.RecommendQuestionsSetting}" AutomationProperties.HelpText="{x:Static t:UiText.RecommendationsHint}" />
-            <CheckBox Name="RecommendNodesToggle" IsChecked="{Binding RecommendsNodes}" Content="{x:Static t:UiText.RecommendNodesSetting}"
-                      AutomationProperties.Name="{x:Static t:UiText.RecommendNodesSetting}" AutomationProperties.HelpText="{x:Static t:UiText.RecommendationsHint}" />
-            <CheckBox Name="AutoPrepareRecommendationsToggle" IsChecked="{Binding AutoPreparesRecommendations}" Content="{x:Static t:UiText.AutoPrepareRecommendations}"
-                      AutomationProperties.Name="{x:Static t:UiText.AutoPrepareRecommendations}" AutomationProperties.HelpText="{x:Static t:UiText.RecommendationsHint}" />
-          </StackPanel>
-          <TextBlock Grid.Row="10" Grid.Column="1" Name="RecommendationsHint" Classes="caption" TextWrapping="Wrap" Margin="0,4,0,0" Text="{x:Static t:UiText.RecommendationsHint}"
-                     IsVisible="{Binding CanChooseRecommendations}" />
-          <TextBlock Grid.Row="11" Grid.Column="1" Name="RecommendationsStatus" v:Motion.Appear="Fade" Classes="error" FontSize="12" TextWrapping="Wrap" Margin="0,8,0,0"
-                     Text="{Binding RecommendationsStatus}" IsVisible="{Binding RecommendationsStatus, Converter={x:Static ObjectConverters.IsNotNull}}" />
-        </Grid>
-      </Border>
+    <!-- 提示 (2026-11-10): hints in the open workspace, their sound, names prepared in the background, recommendations. What is
+         sent and what costs a little stays in sight; the rest is behind the icon. -->
+    <StackPanel Name="HintsSection" Classes="settings-section">
+      <StackPanel IsVisible="{Binding CanChooseNewsSound}">
+      <TextBlock Classes="section-heading" Text="{x:Static t:UiText.HintsSection}" />
+        <p:SettingRow Label="{x:Static t:UiText.NewsInWorkspace}" Info="{x:Static t:UiText.NewsInWorkspaceHint}">
+          <CheckBox Name="NewsInWorkspaceToggle" IsChecked="{Binding ShowsInWorkspaceNews}" AutomationProperties.Name="{x:Static t:UiText.NewsInWorkspace}" AutomationProperties.HelpText="{x:Static t:UiText.NewsInWorkspaceHint}" />
+          <p:SettingRow.Below>
+            <TextBlock Name="InWorkspaceNewsStatus" v:Motion.Appear="Fade" Classes="error" FontSize="12" TextWrapping="Wrap" Margin="0,8,0,0"
+                       Text="{Binding InWorkspaceNewsStatus}" IsVisible="{Binding InWorkspaceNewsStatus, Converter={x:Static ObjectConverters.IsNotNull}}" />
+          </p:SettingRow.Below>
+        </p:SettingRow>
+        <p:SettingRow Label="{x:Static t:UiText.NewsSound}" Info="{x:Static t:UiText.NewsSoundHint}">
+          <CheckBox Name="NewsSoundToggle" IsChecked="{Binding PlaysNewsSound}" AutomationProperties.Name="{x:Static t:UiText.NewsSound}" AutomationProperties.HelpText="{x:Static t:UiText.NewsSoundHint}" />
+          <p:SettingRow.Below>
+            <TextBlock Name="NewsSoundStatus" v:Motion.Appear="Fade" Classes="error" FontSize="12" TextWrapping="Wrap" Margin="0,8,0,0"
+                       Text="{Binding NewsSoundStatus}" IsVisible="{Binding NewsSoundStatus, Converter={x:Static ObjectConverters.IsNotNull}}" />
+          </p:SettingRow.Below>
+        </p:SettingRow>
+        <p:SettingRow Label="{x:Static t:UiText.PrepareNames}" Caption="{x:Static t:UiText.PrepareNamesCost}" Info="{x:Static t:UiText.PrepareNamesHint}">
+          <CheckBox Name="PrepareNamesToggle" IsChecked="{Binding PreparesNames}" AutomationProperties.Name="{x:Static t:UiText.PrepareNames}" AutomationProperties.HelpText="{x:Static t:UiText.PrepareNamesHint}" />
+          <p:SettingRow.Below>
+            <TextBlock Name="PrepareNamesStatus" v:Motion.Appear="Fade" Classes="error" FontSize="12" TextWrapping="Wrap" Margin="0,8,0,0"
+                       Text="{Binding PrepareNamesStatus}" IsVisible="{Binding PrepareNamesStatus, Converter={x:Static ObjectConverters.IsNotNull}}" />
+          </p:SettingRow.Below>
+        </p:SettingRow>
+        <p:SettingRow Label="{x:Static t:UiText.RecommendQuestionsSetting}" Info="{x:Static t:UiText.RecommendationsHint}" IsVisible="{Binding CanChooseRecommendations}">
+          <CheckBox Name="RecommendQuestionsToggle" IsChecked="{Binding RecommendsQuestions}" AutomationProperties.Name="{x:Static t:UiText.RecommendQuestionsSetting}" AutomationProperties.HelpText="{x:Static t:UiText.RecommendationsHint}" />
+        </p:SettingRow>
+        <p:SettingRow Label="{x:Static t:UiText.RecommendNodesSetting}" Info="{x:Static t:UiText.RecommendationsHint}" IsVisible="{Binding CanChooseRecommendations}">
+          <CheckBox Name="RecommendNodesToggle" IsChecked="{Binding RecommendsNodes}" AutomationProperties.Name="{x:Static t:UiText.RecommendNodesSetting}" AutomationProperties.HelpText="{x:Static t:UiText.RecommendationsHint}" />
+        </p:SettingRow>
+        <p:SettingRow Label="{x:Static t:UiText.AutoPrepareRecommendations}" Caption="{x:Static t:UiText.RecommendationsCost}" Info="{x:Static t:UiText.RecommendationsHint}" IsVisible="{Binding CanChooseRecommendations}">
+          <CheckBox Name="AutoPrepareRecommendationsToggle" IsChecked="{Binding AutoPreparesRecommendations}" AutomationProperties.Name="{x:Static t:UiText.AutoPrepareRecommendations}" AutomationProperties.HelpText="{x:Static t:UiText.RecommendationsHint}" />
+          <p:SettingRow.Below>
+            <TextBlock Name="RecommendationsStatus" v:Motion.Appear="Fade" Classes="error" FontSize="12" TextWrapping="Wrap" Margin="0,8,0,0"
+                       Text="{Binding RecommendationsStatus}" IsVisible="{Binding RecommendationsStatus, Converter={x:Static ObjectConverters.IsNotNull}}" />
+          </p:SettingRow.Below>
+        </p:SettingRow>
+      </StackPanel>
     </StackPanel>
 
     <!-- 模型连接 -->
-    <TextBlock Classes="section-heading" Margin="2,28,0,2" Text="{x:Static t:UiText.ModelSection}" />
-    <TextBlock Classes="caption" Margin="2,0,0,10" TextWrapping="Wrap" Text="{x:Static t:UiText.PrivacyHint}" />
-    <StackPanel DataContext="{Binding Model}" x:DataType="vm:ModelSettingsViewModel" Spacing="12">
-      <p:ModelSettingsForm Name="ModelForm" />
-      <StackPanel Orientation="Horizontal" Spacing="8" Margin="2,0,0,0">
-        <Button Name="SaveModel" Classes="primary" Content="{x:Static t:UiText.Save}" Command="{Binding SaveCommand}" />
-        <Button Name="TestModel" Classes="secondary" Content="{x:Static t:UiText.TestConnection}" Command="{Binding TestCommand}"
-                ToolTip.Tip="{x:Static t:UiText.TestCostTip}" />
-        <TextBlock Classes="caption" VerticalAlignment="Center" Margin="4,0,0,0" Text="{x:Static t:UiText.TestCostHint}" />
+    <StackPanel Name="ModelSection" Classes="settings-section">
+      <TextBlock Classes="section-heading" Text="{x:Static t:UiText.ModelSection}" />
+      <StackPanel Classes="settings-block">
+        <TextBlock Classes="caption" Margin="0,0,0,2" TextWrapping="Wrap" Text="{x:Static t:UiText.PrivacyHint}" />
+        <StackPanel DataContext="{Binding Model}" x:DataType="vm:ModelSettingsViewModel" Spacing="12">
+          <p:ModelSettingsForm Name="ModelForm" />
+          <StackPanel Orientation="Horizontal" Spacing="8" Margin="2,0,0,0">
+            <Button Name="SaveModel" Classes="primary" Content="{x:Static t:UiText.Save}" Command="{Binding SaveCommand}" />
+            <Button Name="TestModel" Classes="secondary" Content="{x:Static t:UiText.TestConnection}" Command="{Binding TestCommand}"
+                    ToolTip.Tip="{x:Static t:UiText.TestCostTip}" />
+            <TextBlock Classes="caption" VerticalAlignment="Center" Margin="4,0,0,0" Text="{x:Static t:UiText.TestCostHint}" />
+          </StackPanel>
+          <TextBlock Name="ModelStatus" v:Motion.Appear="Fade" Margin="2,0,0,0" Text="{Binding Status}" TextWrapping="Wrap" FontSize="13"
+                     Classes.muted="{Binding !StatusIsError}" Classes.error="{Binding StatusIsError}"
+                     IsVisible="{Binding Status, Converter={x:Static ObjectConverters.IsNotNull}}" />
+        </StackPanel>
       </StackPanel>
-      <TextBlock Name="ModelStatus" v:Motion.Appear="Fade" Margin="2,0,0,0" Text="{Binding Status}" TextWrapping="Wrap" FontSize="13"
-                 Classes.muted="{Binding !StatusIsError}" Classes.error="{Binding StatusIsError}"
-                 IsVisible="{Binding Status, Converter={x:Static ObjectConverters.IsNotNull}}" />
     </StackPanel>
 
     <!-- 工具 (requirements §10.4.4, agent platform phase 2): 使用工具 and a run's limits; greyed out with the reason while the
          model does not declare tool calls. -->
+    <StackPanel Name="ToolsArea" Classes="settings-section">
     <StackPanel Name="ToolsSection" IsVisible="{Binding HasTools}">
-      <TextBlock Classes="section-heading" Margin="2,28,0,2" Text="{x:Static t:UiText.SettingsTools}" />
-      <TextBlock Classes="caption" Margin="2,0,0,10" TextWrapping="Wrap" Text="{x:Static t:UiText.ToolsIntro}" />
-      <Border Classes="card settings" DataContext="{Binding Tools}" x:DataType="vm:ToolSettingsPanel">
-        <StackPanel Spacing="0">
-          <TextBlock Name="ToolsUnavailable" Classes="caption" TextWrapping="Wrap" Margin="0,0,0,12" Text="{x:Static t:UiText.ToolsUnavailable}"
-                     IsVisible="{Binding IsUnavailable}" />
-          <Grid Classes="labelled" RowDefinitions="Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto" IsEnabled="{Binding IsAvailable}">
-            <Grid.ColumnDefinitions>
-              <ColumnDefinition Width="Auto" MinWidth="96" SharedSizeGroup="SettingsLabel" />
-              <ColumnDefinition Width="*" />
-            </Grid.ColumnDefinitions>
-            <TextBlock Classes="field-label" Text="{x:Static t:UiText.SettingsTools}" />
-            <CheckBox Grid.Column="1" Name="UseToolsToggle" IsChecked="{Binding UsesTools}" Content="{x:Static t:UiText.UseTools}"
-                      AutomationProperties.Name="{x:Static t:UiText.UseTools}" AutomationProperties.HelpText="{x:Static t:UiText.UseToolsHint}" />
-            <TextBlock Grid.Row="1" Grid.Column="1" Classes="caption" TextWrapping="Wrap" Margin="0,4,0,0" Text="{x:Static t:UiText.UseToolsHint}" />
-            <TextBlock Grid.Row="2" Classes="field-label" Margin="0,18,0,0" VerticalAlignment="Top" Text="{x:Static t:UiText.RunLimitsTitle}" TextWrapping="Wrap" />
-            <Grid Grid.Row="2" Grid.Column="1" Name="RunLimits" Margin="0,16,0,0" ColumnDefinitions="Auto,Auto" RowDefinitions="Auto,Auto,Auto,Auto"
+      <TextBlock Classes="section-heading" Text="{x:Static t:UiText.SettingsTools}" />
+      <TextBlock Classes="caption" TextWrapping="Wrap" Text="{x:Static t:UiText.ToolsIntro}" />
+      <StackPanel DataContext="{Binding Tools}" x:DataType="vm:ToolSettingsPanel">
+        <TextBlock Name="ToolsUnavailable" Classes="caption" TextWrapping="Wrap" Margin="0,8,0,0" Text="{x:Static t:UiText.ToolsUnavailable}"
+                   IsVisible="{Binding IsUnavailable}" />
+        <StackPanel IsEnabled="{Binding IsAvailable}">
+          <p:SettingRow Label="{x:Static t:UiText.UseTools}" Info="{x:Static t:UiText.UseToolsHint}">
+            <CheckBox Name="UseToolsToggle" IsChecked="{Binding UsesTools}" AutomationProperties.Name="{x:Static t:UiText.UseTools}" AutomationProperties.HelpText="{x:Static t:UiText.UseToolsHint}" />
+          </p:SettingRow>
+          <p:SettingRow Label="{x:Static t:UiText.RunLimitsTitle}" Info="{x:Static t:UiText.RunLimitsHint}">
+            <Grid Name="RunLimits" ColumnDefinitions="Auto,Auto" RowDefinitions="Auto,Auto,Auto,Auto"
                   IsEnabled="{Binding UsesTools}" HorizontalAlignment="Left">
               <TextBlock Classes="caption" VerticalAlignment="Center" Margin="0,0,12,6" Text="{x:Static t:UiText.LimitModelRequests}" />
               <NumericUpDown Grid.Column="1" Name="LimitModelRequests" Width="150" Margin="0,0,0,6" FormatString="0" Increment="1"
@@ -227,20 +249,24 @@
                              Minimum="{x:Static vm:ToolSettingsPanel.MinTokens}" Maximum="{x:Static vm:ToolSettingsPanel.MaxTokens}"
                              Value="{Binding Tokens}" AutomationProperties.Name="{x:Static t:UiText.LimitTokens}" />
             </Grid>
-            <TextBlock Grid.Row="3" Grid.Column="1" Classes="caption" TextWrapping="Wrap" Margin="0,4,0,0" Text="{x:Static t:UiText.RunLimitsHint}" />
-            <Button Grid.Row="4" Grid.Column="1" Name="RestoreLimits" Classes="quiet small" HorizontalAlignment="Left" Margin="-6,6,0,0"
-                    Content="{x:Static t:UiText.RestoreDefaultLimits}" Command="{Binding RestoreDefaultsCommand}" IsEnabled="{Binding UsesTools}" />
-            <TextBlock Grid.Row="5" Grid.Column="1" Name="ToolSettingsStatus" v:Motion.Appear="Fade" FontSize="12" TextWrapping="Wrap" Margin="0,8,0,0"
-                       Classes.muted="{Binding !StatusIsError}" Classes.error="{Binding StatusIsError}"
-                       Text="{Binding Status}" IsVisible="{Binding Status, Converter={x:Static ObjectConverters.IsNotNull}}" />
-          </Grid>
+            <p:SettingRow.Below>
+              <StackPanel>
+                <Button Name="RestoreLimits" Classes="quiet small" HorizontalAlignment="Right" Margin="0,6,0,0"
+                        Content="{x:Static t:UiText.RestoreDefaultLimits}" Command="{Binding RestoreDefaultsCommand}" IsEnabled="{Binding UsesTools}" />
+                <TextBlock Name="ToolSettingsStatus" v:Motion.Appear="Fade" FontSize="12" TextWrapping="Wrap" Margin="0,8,0,0"
+                           Classes.muted="{Binding !StatusIsError}" Classes.error="{Binding StatusIsError}"
+                           Text="{Binding Status}" IsVisible="{Binding Status, Converter={x:Static ObjectConverters.IsNotNull}}" />
+              </StackPanel>
+            </p:SettingRow.Below>
+          </p:SettingRow>
         </StackPanel>
-      </Border>
+      </StackPanel>
+      <StackPanel Classes="settings-block">
       <!-- 设置 › 工具 › 网络搜索 (requirements §10.4.5): the service, the key (only whether it is set), test, the switch's default. -->
       <StackPanel Name="WebSearchSection" DataContext="{Binding Tools.Web}" x:DataType="vm:WebSearchSettingsPanel"
                   IsVisible="{Binding $parent[StackPanel].((vm:SettingsHomeViewModel)DataContext).Tools.HasWeb, FallbackValue=False}">
-        <TextBlock Name="WebSearchHeading" FontWeight="SemiBold" FontSize="14" Margin="2,18,0,2" Text="{x:Static t:UiText.WebSearchSettingsTitle}" />
-        <TextBlock Classes="caption" Margin="2,0,0,10" TextWrapping="Wrap" Text="{x:Static t:UiText.WebSearchSettingsIntro}" />
+        <TextBlock Name="WebSearchHeading" FontWeight="SemiBold" FontSize="14" Margin="0,18,0,2" Text="{x:Static t:UiText.WebSearchSettingsTitle}" />
+        <TextBlock Classes="caption" Margin="0,0,0,4" TextWrapping="Wrap" Text="{x:Static t:UiText.WebSearchSettingsIntro}" />
         <Border Classes="card settings">
           <Grid Classes="labelled" RowDefinitions="Auto,Auto,Auto,Auto,Auto" IsEnabled="{Binding IsAvailable}">
             <Grid.ColumnDefinitions>
@@ -275,12 +301,14 @@
           </Grid>
         </Border>
       </StackPanel>
+      </StackPanel>
+      <StackPanel Classes="settings-block">
       <!-- 设置 › 工具 › MCP 服务器 (requirements §10.4.6): add with a confirmation of what runs, each server's state, its tools
            off until enabled, each enabled tool's risk. -->
       <StackPanel Name="McpSection" DataContext="{Binding Tools.Mcp}" x:DataType="vm:McpServersPanel"
                   IsVisible="{Binding $parent[StackPanel].((vm:SettingsHomeViewModel)DataContext).Tools.HasMcp, FallbackValue=False}">
-        <TextBlock Name="McpHeading" FontWeight="SemiBold" FontSize="14" Margin="2,18,0,2" Text="{x:Static t:UiText.McpSettingsTitle}" />
-        <TextBlock Classes="caption" Margin="2,0,0,10" TextWrapping="Wrap" Text="{x:Static t:UiText.McpSettingsIntro}" />
+        <TextBlock Name="McpHeading" FontWeight="SemiBold" FontSize="14" Margin="0,18,0,2" Text="{x:Static t:UiText.McpSettingsTitle}" />
+        <TextBlock Classes="caption" Margin="0,0,0,4" TextWrapping="Wrap" Text="{x:Static t:UiText.McpSettingsIntro}" />
         <Border Classes="card settings">
           <StackPanel Spacing="12" IsEnabled="{Binding IsAvailable}">
             <TextBlock Name="McpNoServers" Classes="caption" Text="{x:Static t:UiText.McpNoServers}" IsVisible="{Binding !HasServers}" />
@@ -452,50 +480,43 @@
           </StackPanel>
         </Border>
       </StackPanel>
+      </StackPanel>
+    </StackPanel>
     </StackPanel>
 
-    <!-- 数据 -->
-    <TextBlock Classes="section-heading" Margin="2,28,0,8" Text="{x:Static t:UiText.DataSection}" />
-    <!-- 2026-11-12: 使用统计 sits under 数据与存储 in the same card, the same drill-in with back navigation. -->
-    <Border Classes="card" Padding="4">
-      <StackPanel Spacing="2">
-        <Button Name="StorageDetailsButton" Classes="entry" Padding="14,10" Command="{Binding ShowStorageDetailsCommand}">
+    <!-- 数据与工作区: pages of their own, with back navigation; the workspaces' entry says how many there are. -->
+    <StackPanel Name="DataSection" Classes="settings-section">
+      <TextBlock Classes="section-heading" Text="{x:Static t:UiText.DataAndWorkspaceSection}" />
+      <StackPanel Classes="settings-block">
+        <Button Name="StorageDetailsButton" Classes="entry setting-entry" Command="{Binding ShowStorageDetailsCommand}">
           <DockPanel>
             <PathIcon DockPanel.Dock="Right" Classes="entry-chevron" Data="{StaticResource IconChevron}" />
-            <PathIcon Classes="entry-icon" Margin="0,0,12,0" VerticalAlignment="Center" Data="{StaticResource IconStorage}" />
             <TextBlock VerticalAlignment="Center" Text="{x:Static t:UiText.StorageDetailsLink}" />
           </DockPanel>
         </Button>
-        <Border Height="1" Margin="14,0" Background="{DynamicResource DividerBrush}" />
-        <Button Name="StatisticsButton" Classes="entry" Padding="14,10" Command="{Binding ShowStatisticsCommand}"
-                AutomationProperties.Name="{x:Static t:UiText.StatisticsLink}">
+      </StackPanel>
+      <StackPanel Classes="settings-block">
+        <Button Name="StatisticsButton" Classes="entry setting-entry" Command="{Binding ShowStatisticsCommand}" AutomationProperties.Name="{x:Static t:UiText.StatisticsLink}">
           <DockPanel>
             <PathIcon DockPanel.Dock="Right" Classes="entry-chevron" Data="{StaticResource IconChevron}" />
-            <PathIcon Classes="entry-icon" Margin="0,0,12,0" VerticalAlignment="Center" Data="{StaticResource IconChart}" />
             <TextBlock VerticalAlignment="Center" Text="{x:Static t:UiText.StatisticsLink}" />
           </DockPanel>
         </Button>
       </StackPanel>
-    </Border>
-    <!-- 工作区 (2026-11-10): every workspace in one place — listed, switched to, renamed and deleted on 设置 › 工作区,
-         the same drill-in as 数据与存储; the entry says how many there are. -->
-    <StackPanel IsVisible="{Binding CanManageWorkspaces}">
-      <TextBlock Classes="section-heading" Margin="2,28,0,8" Text="{x:Static t:UiText.WorkspaceSection}" />
-      <Border Classes="card" Padding="4">
-        <Button Name="ManageWorkspacesButton" Classes="entry" Padding="14,10" Command="{Binding ShowWorkspacesCommand}"
-                AutomationProperties.Name="{Binding ManageWorkspacesName}">
+      <StackPanel Classes="settings-block">
+        <Button Name="ManageWorkspacesButton" Classes="entry setting-entry" Command="{Binding ShowWorkspacesCommand}" AutomationProperties.Name="{Binding ManageWorkspacesName}" IsVisible="{Binding CanManageWorkspaces}">
           <DockPanel>
             <PathIcon DockPanel.Dock="Right" Classes="entry-chevron" Data="{StaticResource IconChevron}" />
             <TextBlock Name="WorkspaceCountText" DockPanel.Dock="Right" Classes="caption" Margin="0,0,10,0" VerticalAlignment="Center"
                        Text="{Binding WorkspaceCountText}" />
-            <PathIcon Classes="entry-icon" Margin="0,0,12,0" VerticalAlignment="Center" Data="{StaticResource IconWorkspaces}" />
             <TextBlock VerticalAlignment="Center" Text="{x:Static t:UiText.ManageWorkspacesLink}" />
           </DockPanel>
         </Button>
-      </Border>
+      </StackPanel>
     </StackPanel>
-    <TextBlock Name="AppVersion" Classes="caption" Margin="2,14,0,0" Text="{Binding VersionText}" />
+    <TextBlock Name="AppVersion" Classes="caption" Margin="0,-12,0,0" Text="{Binding VersionText}" />
   </StackPanel>
   </Grid>
   </ScrollViewer>
+  </Grid>
 </UserControl>

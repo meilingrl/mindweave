@@ -23,6 +23,7 @@ public sealed partial class SummaryView : UserControl
     {
         InitializeComponent();
         BodyHost.Content = _renderer;
+        AttachTextColumn();
         _renderer.LinkClick += (_, e) => e.Handled = true;
         _report = new DispatcherTimer(TimeSpan.FromMilliseconds(300), DispatcherPriority.Background, (_, _) => Report());
         Scroller.ScrollChanged += (_, _) => _report.Start();
@@ -46,6 +47,7 @@ public sealed partial class SummaryView : UserControl
         }
 
         _page = DataContext as SummaryViewModel;
+        FollowTextWidth(_page?.TextWidth);
         if (_page is not null)
         {
             _page.PropertyChanged += OnPageChanged;

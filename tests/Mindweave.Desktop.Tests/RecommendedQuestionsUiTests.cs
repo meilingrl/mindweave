@@ -349,8 +349,15 @@ public class RecommendedQuestionsUiTests
             Assert.Equal(UiText.RecommendationsHint, AutomationProperties.GetHelpText(toggle));
         }
 
-        Assert.True(Find<TextBlock>(window, "RecommendationsHint").IsEffectivelyVisible);
+        // What is sent and that it costs a little stays in sight; the rest is behind the row's icon.
+        var row = Find<CheckBox>(window, "AutoPrepareRecommendationsToggle").FindAncestorOfType<Views.Pages.SettingRow>()!;
+        Assert.Equal(UiText.RecommendationsHint, row.Info);
+        Assert.Contains(row.GetVisualDescendants().OfType<TextBlock>(), t => t.IsEffectivelyVisible && t.Text == UiText.RecommendationsCost);
         UiInput.Click(window, Find<CheckBox>(window, "RecommendQuestionsToggle"));
+        // Clear of the news hint, which lies over the page's lower right corner.
+        Find<ScrollViewer>(window.GetVisualDescendants().OfType<Views.Pages.SettingsHomeView>().Single(), "Scroller").Offset = new Vector(0, 300);
+        window.UpdateLayout();
+        window.CaptureRenderedFrame();
         UiInput.Click(window, Find<CheckBox>(window, "AutoPrepareRecommendationsToggle"));
         await settings.Saving;
         var stored = app.Services.GetRequiredService<IRecommendationSettings>();

@@ -4,7 +4,6 @@ What is true now: work in progress, next steps, what needs you, open decisions, 
 
 ## In progress
 
-- The last of the seven UI points (D-037): summaries follow the text width, and the settings page without boxes, of which you judge a first version.
 - Finishing the session network (D-035): only lifting the switch is left (see "Next steps").
 - Requirements v0.25 and architecture §11 run ahead of the code until the switch is lifted: the code still says `SessionWeights` for `ConversationWeights`, and the default build still has the summary-only view with explicit layout saving.
 
@@ -40,7 +39,7 @@ What is true now: work in progress, next steps, what needs you, open decisions, 
   - reasoning and run status (with a reasoning model);
   - the answer output limit;
   - the English prompts.
-- The UI points of 0.5.11: on Windows; a real model's tool steps while the page stays.
+- The UI points of 0.5.11 and 0.5.12 (D-037): on Windows; a real model's tool steps while the page stays.
 - In a real window: the language switch, and English short names on the summary network canvas.
 - The session network's quiet links and the new link suggestions: on Windows; the suggestions with a real model (the prompts changed).
 - Exploration places (option C): on Windows; an extremely spread-out workspace, where a coarse packing grid can still push an untouched exploration.
@@ -62,7 +61,7 @@ What is true now: work in progress, next steps, what needs you, open decisions, 
 
 | What | Commit | Date | Result |
 | --- | --- | --- | --- |
-| macOS full run | the UI points merge, 0.5.11 (ae72e1b) | 2026-11-23 | passed: Core 137, Architecture 29, Infrastructure 1018 + 23 skipped, Desktop 4 shards 0 failed |
+| macOS full run | the settings page merge, 0.5.12 | 2026-11-23 | passed: Core 137, Architecture 29, Infrastructure 1018 + 23 skipped, Desktop 4 shards 0 failed |
 | CI on `main` (Linux + Windows) | see the latest run on GitHub | | |
 | Windows 11 hardware, full run | daabd5b | 2026-11-21 | passed |
 | Windows 11 hardware, stress and Release start | 08ead83 | 2026-11-16 | passed |

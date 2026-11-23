@@ -1,16 +1,93 @@
 <Styles xmlns="https://github.com/avaloniaui"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-        xmlns:v="using:Mindweave.Desktop.Views">
+        xmlns:v="using:Mindweave.Desktop.Views"
+        xmlns:p="using:Mindweave.Desktop.Views.Pages"
+        xmlns:t="using:Mindweave.Desktop.Text">
   <!-- Settings page: section headings and cards, segmented control, field toggle, suggestion list, provider picker and file paths. -->
   <!-- A settings section: a heading above a card of aligned label/field rows. -->
   <Style Selector="TextBlock.section-heading">
     <Setter Property="FontSize" Value="14" />
     <Setter Property="FontWeight" Value="SemiBold" />
     <Setter Property="Foreground" Value="{DynamicResource PrimaryText}" />
-    <Setter Property="Margin" Value="2,0,0,8" />
+    <Setter Property="Margin" Value="0,0,0,4" />
   </Style>
   <Style Selector="Border.card.settings">
     <Setter Property="Padding" Value="18,16" />
+  </Style>
+  <!-- One setting on its line (D-037): no box, a hairline below. -->
+  <Style Selector="p|SettingRow">
+    <Setter Property="Template">
+      <ControlTemplate>
+        <Border Name="PART_Root" IsVisible="{TemplateBinding IsFound}" BorderBrush="{DynamicResource DividerBrush}" BorderThickness="0,0,0,1" Padding="0,11">
+          <Grid ColumnDefinitions="*,Auto" RowDefinitions="Auto,Auto">
+            <StackPanel VerticalAlignment="Center" Margin="0,0,20,0" Spacing="2">
+              <DockPanel HorizontalAlignment="Left">
+                <Button Name="PART_Info" DockPanel.Dock="Right" Classes="quiet small icon setting-info" VerticalAlignment="Center"
+                        IsVisible="{TemplateBinding Info, Converter={x:Static StringConverters.IsNotNullOrEmpty}}"
+                        ToolTip.Tip="{TemplateBinding Info}" AutomationProperties.HelpText="{TemplateBinding Info}">
+                  <PathIcon Width="13" Height="13" Data="{StaticResource IconInfo}" />
+                  <Button.Flyout>
+                    <Flyout Placement="BottomEdgeAlignedLeft" FlyoutPresenterClasses="setting-info">
+                      <TextBlock MaxWidth="320" TextWrapping="Wrap" FontSize="13" Text="{Binding Info, RelativeSource={RelativeSource TemplatedParent}}" />
+                    </Flyout>
+                  </Button.Flyout>
+                </Button>
+                <TextBlock Text="{TemplateBinding Label}" VerticalAlignment="Center" TextWrapping="Wrap" />
+              </DockPanel>
+              <TextBlock Classes="caption" TextWrapping="Wrap" Text="{TemplateBinding Caption}"
+                         IsVisible="{TemplateBinding Caption, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
+            </StackPanel>
+            <ContentPresenter Name="PART_ContentPresenter" Grid.Column="1" VerticalAlignment="Center" HorizontalAlignment="Right" Content="{TemplateBinding Content}" />
+            <ContentPresenter Grid.Row="1" Grid.ColumnSpan="2" Content="{TemplateBinding Below}" />
+          </Grid>
+        </Border>
+      </ControlTemplate>
+    </Setter>
+  </Style>
+  <Style Selector="p|SettingRow CheckBox">
+    <Setter Property="MinWidth" Value="0" />
+    <Setter Property="Padding" Value="0" />
+  </Style>
+  <Style Selector="Button.setting-info">
+    <Setter Property="Margin" Value="4,-4,0,-4" />
+  </Style>
+  <Style Selector="FlyoutPresenter.setting-info">
+    <Setter Property="Background" Value="{DynamicResource FloatingBackground}" />
+    <Setter Property="BorderBrush" Value="{DynamicResource FloatingBorder}" />
+    <Setter Property="CornerRadius" Value="{StaticResource RadiusCard}" />
+    <Setter Property="Padding" Value="14,10" />
+  </Style>
+  <!-- A setting that is a page of its own: the whole line leads there. -->
+  <Style Selector="Button.setting-entry">
+    <Setter Property="Padding" Value="8,11" />
+    <Setter Property="Margin" Value="-8,0" />
+  </Style>
+  <!-- The category list: quiet lines, the one on screen on a soft ground (as a selected sidebar row). -->
+  <Style Selector="RadioButton.settings-category">
+    <Setter Property="Padding" Value="10,6" />
+    <Setter Property="MinHeight" Value="0" />
+    <Setter Property="HorizontalAlignment" Value="Stretch" />
+    <Setter Property="Foreground" Value="{DynamicResource MutedText}" />
+    <Setter Property="Cursor" Value="Hand" />
+    <Setter Property="Template">
+      <ControlTemplate>
+        <Border Name="PART_Row" Background="Transparent" CornerRadius="{StaticResource RadiusControl}" Padding="{TemplateBinding Padding}">
+          <ContentPresenter Name="PART_ContentPresenter" Content="{TemplateBinding Content}" Foreground="{TemplateBinding Foreground}" TextBlock.TextWrapping="Wrap" />
+        </Border>
+      </ControlTemplate>
+    </Setter>
+  </Style>
+  <Style Selector="RadioButton.settings-category:pointerover">
+    <Setter Property="Foreground" Value="{DynamicResource PrimaryText}" />
+  </Style>
+  <Style Selector="RadioButton.settings-category:pointerover /template/ Border#PART_Row">
+    <Setter Property="Background" Value="{DynamicResource CardHover}" />
+  </Style>
+  <Style Selector="RadioButton.settings-category:checked">
+    <Setter Property="Foreground" Value="{DynamicResource PrimaryText}" />
+  </Style>
+  <Style Selector="RadioButton.settings-category:checked /template/ Border#PART_Row">
+    <Setter Property="Background" Value="{DynamicResource SelectedRow}" />
   </Style>
   <!-- 设置 › 工具 › MCP 服务器 (requirements §10.4.6): one server per block, a hairline between servers. -->
   <Style Selector="Border.mcp-server">
