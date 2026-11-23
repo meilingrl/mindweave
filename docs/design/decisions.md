@@ -210,3 +210,12 @@ You chose "Finish the network" as the next line. For lifting `MINDWEAVE_SESSION_
 - The version is `first.second.third`. Every merge into `main` raises the third number, documents-only merges included. You call a rise of the second number, when a capability you would name to someone else is finished and on by default; work behind a switch raises only the third. 1.0.0 is the first build given to other people. Each merge is tagged `v<version>`, and the change log has one section per version ([versioning.md](versioning.md)).
 - Five phases are finished and tagged on their historic commits: 0.1.0 the core product S0–S6 (`0887946`), 0.2.0 the S7 interface polish (`648aac8`), 0.3.0 the original requirements completed (`05b4252`), 0.4.0 the agent platform (`6e5eb98`), 0.5.0 the bilingual product (`fbfddbd`). The builds that said "0.2.0" from 2026-11-22 are not that 0.2.0.
 - This replaces the rule in D-033 that the version is raised at each finished plan step. What Settings shows stays as D-033 set it.
+
+## D-037 Seven UI points after trying the app (you, 2026-11-23)
+
+- **The page never follows an answer.** Sending puts the question at the top once; after that only the reader scrolls. This replaces following the newest text until its start reaches the top (direction 1, item 1). Requirements v0.26 says it (§6.3).
+- **Citations and the legend are folded.** The citations list is one line with its count; the summary network's legend is an icon. The network's details fold away and can be resized, and both are remembered.
+- **The network's lines are a step stronger** in both themes, quiet summary links included (D-035 made them quiet; they stay thin and dashed).
+- **The context ring has three levels:** the ring, the figures on hover, the parts on a press.
+- **The text width is yours to choose:** medium (800 px) by default, in Settings or by dragging the text's edge. Summaries are to follow it.
+- **Settings is to lose its boxes:** plain rows with thin dividers, a category list with the find box on top, long explanations behind an icon, cost and privacy notes in sight. You judge a first version.
