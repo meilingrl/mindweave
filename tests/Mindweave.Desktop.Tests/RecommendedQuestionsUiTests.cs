@@ -353,12 +353,8 @@ public class RecommendedQuestionsUiTests
         var row = Find<CheckBox>(window, "AutoPrepareRecommendationsToggle").FindAncestorOfType<Views.Pages.SettingRow>()!;
         Assert.Equal(UiText.RecommendationsHint, row.Info);
         Assert.Contains(row.GetVisualDescendants().OfType<TextBlock>(), t => t.IsEffectivelyVisible && t.Text == UiText.RecommendationsCost);
-        UiInput.Click(window, Find<CheckBox>(window, "RecommendQuestionsToggle"));
-        // Clear of the news hint, which lies over the page's lower right corner.
-        Find<ScrollViewer>(window.GetVisualDescendants().OfType<Views.Pages.SettingsHomeView>().Single(), "Scroller").Offset = new Vector(0, 300);
-        window.UpdateLayout();
-        window.CaptureRenderedFrame();
-        UiInput.Click(window, Find<CheckBox>(window, "AutoPrepareRecommendationsToggle"));
+        SettingsInput.Click(window, Find<CheckBox>(window, "RecommendQuestionsToggle"));
+        SettingsInput.Click(window, Find<CheckBox>(window, "AutoPrepareRecommendationsToggle"));
         await settings.Saving;
         var stored = app.Services.GetRequiredService<IRecommendationSettings>();
         Assert.False(await stored.GetQuestionsAsync(CancellationToken.None));
@@ -412,7 +408,7 @@ public class RecommendedQuestionsUiTests
         var settings = Assert.IsType<SettingsHomeViewModel>(app.Workbench.CurrentPage);
         await settings.Loaded;
         window.UpdateLayout();
-        UiInput.Click(window, Find<CheckBox>(window, "RecommendQuestionsToggle"));
+        SettingsInput.Click(window, Find<CheckBox>(window, "RecommendQuestionsToggle"));
         await settings.Saving;
 
         app.ShellPage.ShowSectionCommand.Execute(MainSection.Explore);

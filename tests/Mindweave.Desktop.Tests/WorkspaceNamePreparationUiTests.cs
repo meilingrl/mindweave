@@ -78,7 +78,7 @@ public class WorkspaceNamePreparationUiTests
         Assert.Equal(UiText.PrepareNames, AutomationProperties.GetName(toggle));
         Assert.Equal(UiText.PrepareNamesHint, AutomationProperties.GetHelpText(toggle));
 
-        UiInput.Click(window, toggle);
+        SettingsInput.Click(window, toggle);
         await settings.Saving;
         Assert.False(settings.PreparesNames);
         Assert.False(await app.Services.GetRequiredService<INewsAlerts>().GetPrepareNamesAsync(CancellationToken.None));

@@ -16,6 +16,12 @@ The second number rises when a capability is finished and on by default, and the
 
 The nine merges after 0.5.0, on 2026-11-22 and 2026-11-23, are 0.5.1 to 0.5.9 in order. They keep their dated entries below.
 
+## 0.5.13 · 2026-11-23
+
+- Fixed the settings tests of 0.5.12 on Linux, where a taller font put a switch under the news hint and the press closed the hint (tests only)
+- Try: nothing on screen changed
+- Not verified: the hint itself still covers the lower right of Settings until it goes
+
 ## 0.5.12 · 2026-11-23
 
 - Added a find box to Settings, on top of a list of its categories that jumps to a section and follows the scrolling (D-037)
