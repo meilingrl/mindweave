@@ -45,6 +45,8 @@ public sealed partial class SummaryNetworkHomeViewModel
         Select(null);
         HighlightedSuggestion = id;
         Suggestions?.Highlight(id);
+        OnPropertyChanged(nameof(ShowsDetails));
+        OnPropertyChanged(nameof(ShowsDetailsButton));
         ViewChanged?.Invoke(this, false);
     }
 
@@ -81,6 +83,8 @@ public sealed partial class SummaryNetworkHomeViewModel
     /// <summary>A request the user started here stored suggestions: the details show them, unless another summary was picked meanwhile.</summary>
     private void OnSuggested(object? sender, EventArgs e)
     {
+        // They were asked for here and can only be read in the details.
+        Details.Collapse(false);
         if (Selected?.Id == _selectedWhenAsked && Selected is not null)
         {
             Select(null);

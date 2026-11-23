@@ -43,9 +43,15 @@ public static partial class UiText
     public static string MarkerRead => T("Read", "已读");
     public static string SourcePathHeading => T("Branch path", "来源路径");
     public static string Exploration => T("Exploration", "探索");
+    public static string SummaryNetworkLegend => T("Legend", "图例");
+    public static string SummaryNetworkLegendHelp => T("Shows what the dots and lines mean; press to keep it open, Esc to close it.", "说明圆点和线的含义；按下保持打开，按 Esc 关闭。");
+    public static string SummaryNetworkDetailsWidth => T("Width of the details", "详情栏宽度");
+    public static string SummaryNetworkDetailsWidthTip => T("Drag to resize, double-click for the default width", "拖动调整宽度，双击恢复默认");
+    public static string CollapseSummaryNetworkDetails => T("Hide details", "收起详情");
+    public static string ExpandSummaryNetworkDetails => T("Show details", "展开详情");
     public static string LegendUnread => T("Unread", "未读");
     public static string LegendRead => T("Read", "已读");
-    public static string LegendCandidate => T("↻ Candidate update", "↻ 有候选更新");
+    public static string LegendCandidate => T("Candidate update", "有候选更新");
     public static string LegendIndirect => T("Dashed line: through unsummarized conversations", "虚线：经过未总结的会话");
 
     public static string ViaUnsummarized(IReadOnlyList<string> titles)

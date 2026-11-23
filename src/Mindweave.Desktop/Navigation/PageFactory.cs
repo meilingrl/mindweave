@@ -22,6 +22,7 @@ internal sealed class PageFactory(
     ISummaries summaries,
     Application.Export.ISummaryExport exports,
     SummaryNetwork.SummaryNetworkSessions summaryNetworks,
+    SummaryNetwork.SummaryNetworkDetails summaryNetworkDetails,
     TimeProvider time,
     Application.Preferences.IAppearance appearance,
     IThemeApplier theme,
@@ -52,7 +53,7 @@ internal sealed class PageFactory(
     public PageViewModel Create(ContentRoute route, PageContext context) => route switch
     {
         ExploreHomeRoute => new ExploreHomeViewModel(context.Workspace, context.Navigator),
-        SummaryNetworkHomeRoute => new SummaryNetworkHomeViewModel(context.Workspace, summaryNetworks.Get(context.Workspace.Id), summaries, conversations, context.Navigator, dispatcher, recommendations, recommendationSettings, links, suggestions, context.Replayed),
+        SummaryNetworkHomeRoute => new SummaryNetworkHomeViewModel(context.Workspace, summaryNetworks.Get(context.Workspace.Id), summaries, conversations, context.Navigator, dispatcher, recommendations, recommendationSettings, links, suggestions, context.Replayed, summaryNetworkDetails),
         SummaryRoute summary => new SummaryViewModel(summary, context, summaries, dispatcher, time, exports, shell, links),
         ConversationRoute conversation => new ConversationViewModel(conversation, context, conversations, reading, dispatcher, storage, summaries, time, conversationDeletion, conversationDeletionPrompt, resources, models, Switch()),
         NewConversationRoute fresh => new NewConversationViewModel(context.Workspace.Id, conversations, context.Navigator, context.Navigator, recommendations, dispatcher, fresh, recommendationSettings, reading, models, resources, Switch(), context.Replayed),

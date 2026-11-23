@@ -114,7 +114,7 @@ public class LinkSuggestionsUiTests
         await UiWait.UntilAsync(() => network.LinkEdges.Count == 1);
         var revision = network.Session.Revision;
         var layoutRows = await LayoutRowsAsync(app);
-        Assert.False(Find<StackPanel>(window, "SuggestionLegend").IsEffectivelyVisible);
+        Assert.False(LegendCard.Shows(window, "SuggestionLegend"));
 
         await SuggestAsync(app, window, network, (Steam, Sibling, "对比", "都讲铁路的起点"), (Leaf, Sibling, null, "轨道决定速度"));
 
@@ -152,7 +152,7 @@ public class LinkSuggestionsUiTests
         // The legend says what the line is, in words.
         window.UpdateLayout();
         var legend = Find<StackPanel>(window, "SuggestionLegend");
-        Assert.True(legend.IsEffectivelyVisible);
+        Assert.True(LegendCard.Shows(window, "SuggestionLegend"));
         Assert.Contains(legend.GetVisualDescendants().OfType<TextBlock>(), t => t.Text == UiText.LegendLinkSuggestion);
 
         // 整理布局 is the same with or without them.
@@ -234,7 +234,7 @@ public class LinkSuggestionsUiTests
         window.UpdateLayout();
         Assert.Empty(network.SuggestionEdges);
         Assert.Empty(CanvasOf(window).PaintSuggestions());
-        Assert.False(Find<StackPanel>(window, "SuggestionLegend").IsEffectivelyVisible);
+        Assert.False(LegendCard.Shows(window, "SuggestionLegend"));
         Assert.True(Find<StackPanel>(window, "SuggestionsSection").IsEffectivelyVisible);
         Assert.Single(network.Suggestions!.Items);
 

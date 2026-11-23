@@ -58,6 +58,19 @@
   <Style Selector="Border.sidebar-splitter:pointerover > Border.sidebar-splitter-line, Border.sidebar-splitter.dragging > Border.sidebar-splitter-line">
     <Setter Property="Background" Value="{DynamicResource AccentBrush}" />
   </Style>
+  <!-- The same for any boundary that can be moved (EdgeGrip); the line also shows while the grip has the keyboard focus. -->
+  <Style Selector="v|EdgeGrip.edge-grip">
+    <Setter Property="Background" Value="Transparent" />
+    <Setter Property="Cursor" Value="SizeWestEast" />
+  </Style>
+  <Style Selector="v|EdgeGrip.edge-grip > Border.edge-grip-line">
+    <Setter Property="Width" Value="2" />
+    <Setter Property="CornerRadius" Value="1" />
+    <Setter Property="Background" Value="Transparent" />
+  </Style>
+  <Style Selector="v|EdgeGrip.edge-grip:pointerover > Border.edge-grip-line, v|EdgeGrip.edge-grip.dragging > Border.edge-grip-line, v|EdgeGrip.edge-grip:focus-visible > Border.edge-grip-line">
+    <Setter Property="Background" Value="{DynamicResource AccentBrush}" />
+  </Style>
   <!-- Row status: the row's marker column, running spinner, unread dot. -->
   <!-- A fixed column at the row's right end, present with or without a marker, so a title never shifts or re-trims. -->
   <Style Selector="Panel.row-marker">
