@@ -117,6 +117,20 @@ public class TextWidthTests
     }
 
     [AvaloniaFact]
+    public async Task A_reader_who_scrolls_while_the_text_is_rewrapped_is_not_pulled_back()
+    {
+        await using var app = DesktopHarness.Create();
+        var (window, _) = await OpenAsync(app, "Light");
+        var scroller = Scroller(window);
+        app.Services.GetRequiredService<TextWidth>().Pixels = 480;
+        window.UpdateLayout();
+        scroller.Offset = new Vector(0, 700);
+        await SettleAsync(window);
+        Assert.Equal(700, scroller.Offset.Y, 1);
+        window.Close();
+    }
+
+    [AvaloniaFact]
     public async Task Settings_offers_the_widths_and_names_a_dragged_one()
     {
         await using var app = DesktopHarness.Create();

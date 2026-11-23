@@ -41,6 +41,9 @@ public sealed partial class ConversationView : UserControl
     /// <summary>The reading position as last captured: put back when the text is rewrapped to another width.</summary>
     private ReadingPosition? _reading;
 
+    /// <summary>The page has scrolled since <see cref="_reading"/> was captured: it no longer says where the reader is.</summary>
+    private bool _scrolledSince;
+
     /// <summary>Answers waiting to be rendered while the page opens (health check 2026-11-12, performance-2).</summary>
     private readonly List<AnswerView> _deferred = [];
     private bool _opening = true;
@@ -61,6 +64,7 @@ public sealed partial class ConversationView : UserControl
                 return;
             }
 
+            _scrolledSince |= e.OffsetDelta.Y != 0;
             _capture.Stop();
             _capture.Start();
         };
@@ -257,6 +261,7 @@ public sealed partial class ConversationView : UserControl
         _restoring = false;
         RememberReadingPlace();
         _reading = MeasurePosition(page);
+        _scrolledSince = false;
         RestoredTimestamp = System.Diagnostics.Stopwatch.GetTimestamp();
         _restored.TrySetResult();
         Dispatcher.UIThread.Post(() => RenderNext(page), DispatcherPriority.Background);
@@ -507,13 +512,17 @@ public sealed partial class ConversationView : UserControl
         }
     }
 
-    /// <summary>The text was rewrapped to another width (the window or the text width changed): the sentence at the reading line stays there.</summary>
+    /// <summary>
+    /// The text was rewrapped to another width (the window or the text width changed): the sentence at the reading line stays
+    /// there. A reader who has scrolled since it was captured, or scrolls before this runs, is never pulled back to it.
+    /// </summary>
     private void KeepReadingThrough()
     {
-        if (!_restoring && _page is { } page && _reading is { } reading && this.IsAttachedToVisualTree())
+        if (!_restoring && !_scrolledSince && _page is { } page && _reading is { } reading && this.IsAttachedToVisualTree())
         {
             UpdateLayout();
             ApplyPosition(page, reading);
+            _scrolledSince = false;
             RememberReadingPlace();
         }
     }
@@ -603,6 +612,7 @@ public sealed partial class ConversationView : UserControl
         if (!_restoring && _page is { } page && MeasurePosition(page) is { } position)
         {
             _reading = position;
+            _scrolledSince = false;
             page.ReportPosition(position);
         }
     }

@@ -149,8 +149,13 @@ public class StreamingScrollTests
         held.Push(Paragraphs(1, 40));
         await StreamedAsync(window, page, 40);
 
-        // The reader is in the middle of the text, the fold above the page.
+        // The reader is in the middle of the text, the fold above the page (once the streamed text is laid out: it follows its arrival).
         var scroller = Scroller(window);
+        await UiWait.UntilAsync(() =>
+        {
+            window.UpdateLayout();
+            return scroller.Extent.Height - scroller.Viewport.Height > scroller.Offset.Y + 600;
+        });
         scroller.Offset = new Vector(0, scroller.Offset.Y + 500);
         await SettleAsync(window);
         var before = TextTop(window);
