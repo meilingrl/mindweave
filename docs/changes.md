@@ -1,11 +1,40 @@
 # Changes
 
-One entry per merge into `main`, newest first: what changed, how to try it, and what was not verified. Entries are added when merging and are not edited afterwards, so they stay true. What is in progress now is in [STATUS.md](../STATUS.md); the reasons behind choices are in the [decision log](design/decisions.md). The stages before 2026-11-16 are in the [stage reports](history/design/stage-reports.md) and [track-claude-auto.md](history/track-claude-auto.md) (both frozen, in Chinese).
+One section per merge into `main`, newest first, headed by the version and the date. Each has one line per change, then how to try it and what was not verified ([versioning.md](design/versioning.md) §5); sections are added when merging and are not edited afterwards, so they stay true. What is in progress now is in [STATUS.md](../STATUS.md); the reasons behind choices are in the [decision log](design/decisions.md).
 
-This file starts on 2026-11-22. The entries from 2026-11-16 to 2026-11-22 were moved here from STATUS.md, grouped by day.
+## Versions
 
-## 2026-11-23
+The second number rises when a capability is finished and on by default, and the third with every merge.
 
+| Version | Dates | What the phase delivered | Where to read |
+| --- | --- | --- | --- |
+| 0.5.0 | 2026-11-20 to 11-22 | The bilingual product: English interface, prompts in the interface language, the reasoning fold, answer typography, living documents in English | The dated entries below |
+| 0.4.0 | 2026-11-17 to 11-20 | The agent platform: attachments, the run loop and local tools, web search, MCP; onboarding, icons, the context ring, the daily build | The dated entries below |
+| 0.3.0 | 2026-11-04 to 11-16 | The original requirements completed (items 3–8b): delete rules, workspace management, new-answer hints, suggested names, restore from backup, statistics, recommended questions, links; the structure refactor | [Stage reports](history/design/stage-reports.md) (frozen, in Chinese) |
+| 0.2.0 | 2026-10-29 to 11-04 | S7: four rounds of interface polish, the architecture remediation, the owner's Windows acceptance | [Stage reports](history/design/stage-reports.md) and [track-claude-auto.md](history/track-claude-auto.md) (frozen, in Chinese) |
+| 0.1.0 | 2026-10-25 to 10-28 | The core product, stages S0–S6: storage, real chat, branching and return, context budget and compression, summaries and versions, the summary network | [Stage reports](history/design/stage-reports.md) |
+
+The nine merges after 0.5.0, on 2026-11-22 and 2026-11-23, are 0.5.1 to 0.5.9 in order. They keep their dated entries below.
+
+## 0.5.10 · 2026-11-23
+
+- Added tags for the five finished phases, `v0.1.0` to `v0.5.0`
+- Added `ChangeLogRulesTests`, which keeps this file and the build's version in step
+- Changed the version to rise with every merge into `main`: the third number at each merge, the second when the owner calls a milestone ([versioning.md](design/versioning.md), D-036)
+- Changed this file to one section per version, one line per change
+- Try: `scripts/daily.sh publish`, then read the bottom of Settings; `git tag --list 'v*'`
+- Not verified: Windows. Builds from 2026-11-22 that say "0.2.0" are not the 0.2.0 of the table above.
+
+## Before version headings
+
+The entries below were written by day, from 2026-11-16 to 2026-11-23, and are kept as written. This file starts on 2026-11-22. The entries from 2026-11-16 to 2026-11-22 were moved here from STATUS.md, grouped by day.
+
+### 2026-11-23
+
+- **Requirements §10.3.2: title search looks at conversations** (documents only; no change on screen).
+  - The sentence said title search "looks only at saved summaries", left over from before v0.25. It now says "only at conversations, not recommended nodes".
+  - Try: read §10.3.2 of [requirements.md](requirements.md).
+  - Not verified: nothing to run. Until the switch is lifted, the default build still searches summaries only.
 - **Session network: explorations keep their place** (behind `MINDWEAVE_SESSION_NETWORK=1`; **migration v18**; D-035 option C; [session-network.md](design/session-network.md) §16).
   - The spatial view saves each exploration's place and turn in `exploration_place`; nothing needs saving by hand. The molecule inside an exploration is laid out again on every load.
   - An untouched exploration stays where it was. A changed one is redrawn in its place and moves to the nearest free place only when it has outgrown it. A new one goes beside its neighbour in time, with 120 units of room to grow.
@@ -37,7 +66,7 @@ This file starts on 2026-11-22. The entries from 2026-11-16 to 2026-11-22 were m
   - Try: `MINDWEAVE_SESSION_NETWORK=1 scripts/daily.sh trial`.
   - Not verified: Windows; two or more explorations with hundreds of direct branches each are slow (about 4.5 s for two of 500).
 
-## 2026-11-22
+### 2026-11-22
 
 - **Free trial adopted as evolution D9, with no schedule** (documents only; no change on screen; D-034).
   - The draft moved from `docs/ideas/` to [docs/design/free-trial.md](design/free-trial.md), updated from the owner's technical discussion: the request flow, why the installer needs no secret, conservative starting limits, hosting on the owner's Singapore VPS with a C# relay and SQLite counters, server size, provider terms to check, development cost and open decisions with defaults.
@@ -98,7 +127,7 @@ This file starts on 2026-11-22. The entries from 2026-11-16 to 2026-11-22 were m
   - The two quarantined tests are back. The attachment time-out was an app race: a paste stored while the page read its draft showed as two chips, now fixed in the composer. The summary link test retries when its two presses do not make a double click.
   - The `WebSearchUiTests` approval-card flake was the test clicking before the text above the card was laid out. Now 0 of 16 under `--load`; it was 3 of 8.
 
-## 2026-11-21
+### 2026-11-21
 
 - **Bilingual product, merge 1**: every interface string in English and Chinese.
 - **Answer output limit** under 设置 › 模型连接 › 高级设置 › “输出上限” (requirements v0.23 §9.6, no migration; 256 to half the context capacity, empty sends none). Not tried with a real model.
@@ -115,14 +144,14 @@ This file starts on 2026-11-22. The entries from 2026-11-16 to 2026-11-22 were m
   - The Linux CJK font package is cached.
   - From here on, a merge counts as done only once CI passes.
 
-## 2026-11-20
+### 2026-11-20
 
 - **Run loop improvements L1–L11** (requirements v0.20, no migration; section 8 of [agent-loop.md](design/agent-loop.md)): the run note and the limit line, one retry after an occasional error, answering directly when a middle round is truncated, 25% of the context kept for the run, read-only calls in parallel, repeated calls not executed again, eviction by citation, context in search terms, an index of earlier material, and attachments and summaries in the citations.
   - The real evaluation is in [loop-steps.md](reviews/run-eval-20261119/loop-steps.md). You decided to verify it in daily use.
 - **CI** on `main` (Linux + Windows) passes again (a2ebf62) after failing since 2026-11-17.
 - **Repository cleanup**: personal paths and relay addresses removed from current files; history kept (D-025).
 
-## 2026-11-19
+### 2026-11-19
 
 - **Agent platform phase 4, third-party tools (MCP)** (requirements v0.19 §10.4.6, no migration; M1–M18 and Q15 in [mcp.md](design/mcp.md)).
   - 设置 › 工具 › MCP 服务器 (Settings › Tools › MCP servers) adds a local command or a URL.
@@ -134,7 +163,7 @@ This file starts on 2026-11-22. The entries from 2026-11-16 to 2026-11-22 were m
   - Tested under Clash Verge: Wikipedia, arXiv, GitHub, government sites and Sina could be read.
   - Baidu Baike returns a security-check page.
 
-## 2026-11-17
+### 2026-11-17
 
 - **Agent platform phase 3, web search and page reading** (requirements v0.18 §10.4.5, no migration; W1–W16 in [web-search.md](design/web-search.md)).
   - Tavily search.
@@ -162,7 +191,7 @@ This file starts on 2026-11-22. The entries from 2026-11-16 to 2026-11-22 were m
 - **Daily build** c806fbd (schema v16) published; the backup from before publishing is in `~/Documents/Mindweave-daily-backups/`.
 - The third-party notices include the full texts of Apache-2.0 and MIT.
 
-## 2026-11-16
+### 2026-11-16
 
 - **One line of development.**
   - The Claude track is merged into `main`, and the Codex track stopped at the tag `archive/codex-steady-final`.

@@ -1,6 +1,6 @@
 # Status
 
-What is true now: work in progress, next steps, what needs you, open decisions, and when each platform was last verified. When an item is done, it leaves this file. Each merge adds a dated entry to [docs/changes.md](docs/changes.md), decisions go into the [decision log](docs/design/decisions.md), and facts about the machines go into [workstation.md](docs/design/workstation.md).
+What is true now: work in progress, next steps, what needs you, open decisions, and when each platform was last verified. When an item is done, it leaves this file. Each merge raises the version and adds a section for it to [docs/changes.md](docs/changes.md), decisions go into the [decision log](docs/design/decisions.md), and facts about the machines go into [workstation.md](docs/design/workstation.md).
 
 ## In progress
 
@@ -48,7 +48,6 @@ What is true now: work in progress, next steps, what needs you, open decisions, 
 
 | Item | Reason | Blocks |
 | --- | --- | --- |
-| Publish a daily build with schema v18 when you want it | It migrates your real data (a v17 backup is kept; older builds cannot open v18) | Option C in daily use |
 | Look at the icon size in a real window (direction A looks smaller than before; making it bigger is one size in the style) | Look and feel is yours to judge | Nothing |
 | Real service checks (paid, optional): DeepSeek images + tools, Kimi K3 base64 images, GPT-6 tool calls, DashScope streaming tools | Only within the budget you give | The capability presets of phases 1–2 |
 | Remove the old Mindweave icon from the Dock and pin `~/Applications/Mindweave.app` (once) | The old icon points to the v11 build of 11-13, which cannot open v13 data | Opening the daily build from the Dock |
@@ -61,10 +60,10 @@ What is true now: work in progress, next steps, what needs you, open decisions, 
 
 | What | Commit | Date | Result |
 | --- | --- | --- | --- |
-| macOS full run | the option C merge (e98c9e8) | 2026-11-23 | passed: Core 137, Architecture 26, Infrastructure 1016 + 23 skipped, Desktop 4 shards 0 failed |
+| macOS full run | the requirements §10.3.2 merge (3c9b646) | 2026-11-23 | passed: Core 137, Architecture 26, Infrastructure 1016 + 23 skipped, Desktop 4 shards 0 failed |
 | CI on `main` (Linux + Windows) | see the latest run on GitHub | | |
 | Windows 11 hardware, full run | daabd5b | 2026-11-21 | passed |
 | Windows 11 hardware, stress and Release start | 08ead83 | 2026-11-16 | passed |
-| Daily build | 138bd17 (schema v17) | 2026-11-22 | published by you, no data upgrade; Settings names the build (D-033); the previous build 5f50734 is kept for rollback |
+| Daily build | d11ddbe (schema v18) | 2026-11-23 | published and opened by you; the data is now v18. The previous build 138bd17 cannot open v18: going back needs the v17 backup taken before this publish |
 
 First command: `scripts/test.sh full`.
