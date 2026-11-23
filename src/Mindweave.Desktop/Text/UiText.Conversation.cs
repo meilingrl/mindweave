@@ -96,6 +96,63 @@ public static partial class UiText
             : line;
     }
 
+    /// <summary>The ring's tooltip: the share and the figures, nothing else (the details are one press away).</summary>
+    public static string ContextUsageShort(ContextUsage usage)
+    {
+        ArgumentNullException.ThrowIfNull(usage);
+        return T("Context used ", "上下文已用 ") + ContextPercent(usage) + " · " + ContextTotal(usage);
+    }
+
+    public static string ContextUsageTitle => T("Context used", "上下文已用");
+
+    /// <summary>"1%", "&lt;1%" for a little, "&gt;100%" when it no longer fits.</summary>
+    public static string ContextPercent(ContextUsage usage)
+    {
+        ArgumentNullException.ThrowIfNull(usage);
+        return usage.TooLong ? ">100%"
+            : usage.Tokens > 0 && usage.Fraction < 0.005 ? "<1%"
+            : usage.Fraction.ToString("0%", CultureInfo.InvariantCulture);
+    }
+
+    /// <summary>"~14.5K / 61K": what is used, an estimate, of what there is room for.</summary>
+    public static string ContextTotal(ContextUsage usage)
+    {
+        ArgumentNullException.ThrowIfNull(usage);
+        return "~" + CompactTokens(usage.Tokens) + " / " + CompactTokens(usage.Budget);
+    }
+
+    public static string CompactTokens(int tokens) => tokens switch
+    {
+        >= 999_950 => (tokens / 1_000_000.0).ToString("0.##", CultureInfo.InvariantCulture) + "M",
+        >= 1_000 => (tokens / 1_000.0).ToString("0.#", CultureInfo.InvariantCulture) + "K",
+        _ => tokens.ToString(CultureInfo.InvariantCulture),
+    };
+
+    public static string ContextPart(ContextUsageKind kind) => kind switch
+    {
+        ContextUsageKind.Ancestors => T("Source conversations", "来源会话"),
+        ContextUsageKind.ContextSummaries => T("Context summaries", "上下文摘要"),
+        ContextUsageKind.Attachments => T("Attachments", "附件"),
+        ContextUsageKind.Instructions => T("System prompt", "系统提示词"),
+        ContextUsageKind.Tools => T("Tool definitions", "工具定义"),
+        _ => T("This conversation", "本会话"),
+    };
+
+    /// <summary>What the state means for the next question; null while there is plenty of room.</summary>
+    public static string? ContextUsageNote(ContextUsage usage)
+    {
+        ArgumentNullException.ThrowIfNull(usage);
+        return usage.TooLong
+            ? T("It no longer fits. Branch from the answer you need, or use a model with a larger context window.", "已放不下。可以从需要的回答处创建分支，或换用容量更大的模型。")
+            : usage.Compressed
+                ? T($"Earlier conversation is sent as a context summary (about {CompactTokens(usage.FullTokens)} in full).", $"较早的对话以摘要发送（完整约 {CompactTokens(usage.FullTokens)}）。")
+                : usage.Fraction >= 0.8
+                    ? T("Near the limit: earlier conversation will be compressed into a context summary.", "接近上限，之后较早的对话会先压缩成摘要。")
+                    : null;
+    }
+
+    public static string ContextUsageEstimate => T("Estimated for the next question", "按下一次提问估算");
+
     /// <summary>The context ring's name for a screen reader when there is no figure yet.</summary>
     public static string ContextRingName => T("Context usage", "上下文用量");
 

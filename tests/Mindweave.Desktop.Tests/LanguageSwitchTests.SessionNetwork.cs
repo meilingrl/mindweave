@@ -48,6 +48,7 @@ public partial class LanguageSwitchTests
             Assert.True(Find<RadioButton>(view, "TimelineViewButton").IsChecked);
             Assert.Equal(panned, CanvasOf(window).Current);
             Assert.Equal(dot, again.Selected?.Id);
+            LegendCard.Toggle(window);
             Assert.Contains(view.GetVisualDescendants().OfType<TextBlock>(), t => t.Text == "Solid line: branch" && t.IsEffectivelyVisible);
             window.Close();
         }

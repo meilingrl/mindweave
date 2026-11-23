@@ -24,6 +24,7 @@ public sealed partial class SettingsHomeViewModel : PageViewModel, IDisposable, 
     private readonly INewsAlerts? _newsAlerts;
     private readonly IRecommendationSettings? _recommendationSettings;
     private readonly LanguageSwitch? _language;
+    private readonly TextWidth? _textWidth;
 
     /// <summary>
     /// The choices the reader made since the page last loaded, by property name: a load still under way never
@@ -42,9 +43,11 @@ public sealed partial class SettingsHomeViewModel : PageViewModel, IDisposable, 
         INewsAlerts? newsAlerts = null,
         IRecommendationSettings? recommendationSettings = null,
         ToolSettingsPanel? tools = null,
-        LanguageSwitch? language = null)
+        LanguageSwitch? language = null,
+        TextWidth? textWidth = null)
         : base(SettingsHomeRoute.Instance)
     {
+        _textWidth = textWidth;
         _language = language;
         if (language is not null)
         {
@@ -163,6 +166,61 @@ public sealed partial class SettingsHomeViewModel : PageViewModel, IDisposable, 
     {
         get => Appearance == Appearance.Dark;
         set => Choose(value, Appearance.Dark);
+    }
+
+    /// <summary>The text widths offered (the owner, 2026-11-23); any other is dragged on the page itself.</summary>
+    public const double NarrowText = 640;
+
+    public const double MediumText = TextWidthService.Default;
+
+    public const double WideText = 960;
+
+    /// <summary>The settings page can offer the text width (it is built with it).</summary>
+    public bool CanChooseTextWidth => _textWidth is not null;
+
+    public bool IsTextWhole
+    {
+        get => _textWidth?.Pixels is null;
+        set => ChooseTextWidth(value, null);
+    }
+
+    public bool IsTextWide
+    {
+        get => _textWidth?.Pixels == WideText;
+        set => ChooseTextWidth(value, WideText);
+    }
+
+    public bool IsTextMedium
+    {
+        get => _textWidth?.Pixels == MediumText;
+        set => ChooseTextWidth(value, MediumText);
+    }
+
+    public bool IsTextNarrow
+    {
+        get => _textWidth?.Pixels == NarrowText;
+        set => ChooseTextWidth(value, NarrowText);
+    }
+
+    /// <summary>The way to any other width; a dragged one is named here, as no choice above is it.</summary>
+    public string TextWidthHint => _textWidth?.Pixels is { } width and not (WideText or MediumText or NarrowText)
+        ? UiText.TextWidthCustom((int)Math.Round(width))
+        : UiText.TextWidthHint;
+
+    private void ChooseTextWidth(bool chosen, double? width)
+    {
+        if (!chosen || _textWidth is null || _textWidth.Pixels == width)
+        {
+            return;
+        }
+
+        _textWidth.Pixels = width;
+        _textWidth.Save();
+        OnPropertyChanged(nameof(IsTextWhole));
+        OnPropertyChanged(nameof(IsTextWide));
+        OnPropertyChanged(nameof(IsTextMedium));
+        OnPropertyChanged(nameof(IsTextNarrow));
+        OnPropertyChanged(nameof(TextWidthHint));
     }
 
     /// <summary>The colour of bold text in answers (D-027); changing it applies at once and is saved in the background.</summary>

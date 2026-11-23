@@ -47,7 +47,7 @@ public class SummaryLinksUiTests
         LinksMenu.Open(window);
         Assert.False(LinksMenu.Shows(window, "ToggleLinksMenuItem"));
         LinksMenu.Close(window);
-        Assert.False(Find<StackPanel>(window, "LinkLegend").IsEffectivelyVisible);
+        Assert.False(LegendCard.Shows(window, "LinkLegend"));
 
         await LinkAsync(app, network, NodeOf(network, Leaf), NodeOf(network, Sibling), "对比");
         await LinkAsync(app, network, NodeOf(network, Root), NodeOf(network, Sibling), null);
@@ -102,7 +102,7 @@ public class SummaryLinksUiTests
 
         // The legend says what the line is, in words; the toolbar offers 隐藏关联.
         window.UpdateLayout();
-        Assert.True(Find<StackPanel>(window, "LinkLegend").IsEffectivelyVisible);
+        Assert.True(LegendCard.Shows(window, "LinkLegend"));
         Assert.Contains(Find<StackPanel>(window, "LinkLegend").GetVisualDescendants().OfType<TextBlock>(), t => t.Text == UiText.LegendLink);
         LinksMenu.Open(window);
         Assert.Equal(UiText.HideLinks, LinksMenu.Entry(window, "ToggleLinksMenuItem").Header);
@@ -580,7 +580,7 @@ public class SummaryLinksUiTests
         LinksMenu.Open(window);
         Assert.Equal(UiText.ShowLinks, LinksMenu.Entry(window, "ToggleLinksMenuItem").Header);
         LinksMenu.Close(window);
-        Assert.False(Find<StackPanel>(window, "LinkLegend").IsEffectivelyVisible);
+        Assert.False(LegendCard.Shows(window, "LinkLegend"));
         Assert.Single(await app.Services.GetRequiredService<ISummaryLinks>().ListAsync(network.Workspace.Id, CancellationToken.None));
 
         // The details still list it.

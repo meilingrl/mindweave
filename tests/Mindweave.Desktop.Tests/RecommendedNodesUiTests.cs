@@ -77,7 +77,7 @@ public class RecommendedNodesUiTests
         Assert.Null(palette.EdgePen(EdgeState.Normal, false).DashStyle);
 
         // The legend says what the ring and the line are; the toolbar offers 换一批推荐 and 隐藏推荐.
-        Assert.True(Find<StackPanel>(window, "RecommendationLegend").IsEffectivelyVisible);
+        Assert.True(LegendCard.Shows(window, "RecommendationLegend"));
         Assert.True(Find<Button>(window, "RefreshRecommendedNodesButton").IsEffectivelyVisible);
         Assert.Equal(UiText.HideRecommendedNodes, AutomationProperties.GetName(Find<Button>(window, "ToggleRecommendedNodesButton")));
 
@@ -219,7 +219,7 @@ public class RecommendedNodesUiTests
 
         Assert.Empty(network.RecommendedNodes);
         Assert.Null(network.SelectedRecommendation);
-        Assert.False(Find<StackPanel>(window, "RecommendationLegend").IsEffectivelyVisible);
+        Assert.False(LegendCard.Shows(window, "RecommendationLegend"));
         var workspace = app.Workbench.CurrentWorkspace!.Id;
         var store = app.Services.GetRequiredService<IRecommendationStore>();
         Assert.Equal(RecommendationState.Ignored, Assert.Single(await store.ListAsync(workspace, RecommendationKind.Node, CancellationToken.None)).State);
@@ -294,7 +294,7 @@ public class RecommendedNodesUiTests
         await PrepareAsync(app, network, window);
         network.ToggleViewCommand.Execute(null);
         window.UpdateLayout();
-        Assert.False(Find<StackPanel>(window, "RecommendationLegend").IsEffectivelyVisible);
+        Assert.False(LegendCard.Shows(window, "RecommendationLegend"));
 
         var row = Find<Button>(window, "RecommendedNodeRow");
         var node = network.RecommendedNodes[0];
@@ -355,7 +355,7 @@ public class RecommendedNodesUiTests
         await UiWait.UntilAsync(() => network.RecommendedNodes.Count == 0 && !network.ShowsRecommendationTools);
         window.UpdateLayout();
         Assert.False(Find<Button>(window, "RefreshRecommendedNodesButton").IsEffectivelyVisible);
-        Assert.False(Find<StackPanel>(window, "RecommendationLegend").IsEffectivelyVisible);
+        Assert.False(LegendCard.Shows(window, "RecommendationLegend"));
         Assert.False(network.HasRecommendationNote);
         Assert.Empty(CanvasOf(window).PaintRecommendations());
         window.Close();

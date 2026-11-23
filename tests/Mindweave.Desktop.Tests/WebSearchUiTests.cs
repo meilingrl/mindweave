@@ -116,6 +116,17 @@ public class WebSearchUiTests
         window.UpdateLayout();
         Assert.True(AnyVisible<StackPanel>(window, "CitationsPanel"));
 
+        // Closed at first, as one line with the number of sources; the steps above the text too.
+        Assert.False(answer.IsCitationsExpanded);
+        Assert.False(answer.IsActivityExpanded);
+        Assert.Equal("出处 · 2", answer.CitationsText);
+        Assert.False(AnyVisible<ItemsControl>(window, "CitationList"));
+        Screenshots.Capture(window, $"web-03a-citations-closed-{theme.ToLowerInvariant()}");
+        UiInput.Click(window, window.GetVisualDescendants().OfType<Button>().Single(b => b.Name == "CitationsToggle" && b.IsEffectivelyVisible));
+        window.UpdateLayout();
+        Assert.True(AnyVisible<ItemsControl>(window, "CitationList"));
+        Assert.Equal(UiText.CitationsCollapse, answer.CitationsToggleLabel);
+
         // In the text, [1] and [2] are links; [7] stays text. The shown text is the stored text.
         var renderer = window.GetVisualDescendants().OfType<MarkdownRenderer>().Last(r => r.DocumentUpdate is not null);
         var document = renderer.DocumentUpdate!.Document;

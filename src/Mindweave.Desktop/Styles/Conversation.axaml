@@ -165,6 +165,15 @@
     <Setter Property="FontSize" Value="11.5" />
     <Setter Property="Foreground" Value="{DynamicResource TimestampText}" />
   </Style>
+  <!-- The context usage card the ring opens. -->
+  <Style Selector="FlyoutPresenter.context-usage">
+    <Setter Property="Background" Value="{DynamicResource FloatingBackground}" />
+    <Setter Property="BorderBrush" Value="{DynamicResource FloatingBorder}" />
+    <Setter Property="BorderThickness" Value="1" />
+    <Setter Property="CornerRadius" Value="{StaticResource RadiusCard}" />
+    <Setter Property="Padding" Value="16,14" />
+    <Setter Property="MinWidth" Value="0" />
+  </Style>
   <!-- The floating action next to a text selection: a small raised surface. -->
   <Style Selector="Border.selection-actions">
     <Setter Property="Background" Value="{DynamicResource FloatingBackground}" />

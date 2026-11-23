@@ -223,18 +223,28 @@ public class GalleryTests
         await SettleAsync(window);
         Capture(window, "g04a-context-ring");
 
-        var ring = Find<ContextRing>(window, "ContextRing");
-        page.Composer.ContextUsage = new ContextUsage(52_400, 52_400, 61_000, false, false);
-        ToolTip.SetIsOpen(ring, true);
+        // Hover, then a press: near the limit with every kind of part, and when it no longer fits.
+        var button = Find<Button>(window, "ContextRingButton");
+        (ContextUsageKind, int)[] parts =
+        [
+            (ContextUsageKind.Conversation, 21_300), (ContextUsageKind.Ancestors, 14_800), (ContextUsageKind.ContextSummaries, 2_400),
+            (ContextUsageKind.Attachments, 8_900), (ContextUsageKind.Instructions, 1_500), (ContextUsageKind.Tools, 3_500),
+        ];
+        page.Composer.ContextUsage = new ContextUsage(52_400, 71_000, 61_000, true, false) { Parts = ContextUsage.Share(parts, 52_400) };
+        ToolTip.SetIsOpen(button, true);
         await SettleAsync(window);
         Capture(window, "g04b-context-ring-near");
+        ToolTip.SetIsOpen(button, false);
+        button.Flyout!.ShowAt(button);
+        await SettleAsync(window);
+        Capture(window, "g04b2-context-ring-parts");
+        button.Flyout!.Hide();
 
-        ToolTip.SetIsOpen(ring, false);
-        page.Composer.ContextUsage = new ContextUsage(82_000, 82_000, 61_000, true, true);
-        ToolTip.SetIsOpen(ring, true);
+        page.Composer.ContextUsage = new ContextUsage(82_000, 82_000, 61_000, true, true) { Parts = ContextUsage.Share(parts, 82_000) };
+        button.Flyout!.ShowAt(button);
         await SettleAsync(window);
         Capture(window, "g04c-context-ring-too-long");
-        ToolTip.SetIsOpen(ring, false);
+        button.Flyout!.Hide();
         window.Close();
     }
 

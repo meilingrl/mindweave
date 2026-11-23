@@ -169,6 +169,15 @@ public static class ContextPlanner
     /// <summary>What a stored summary costs when sent.</summary>
     public static int SummaryTokens(SummaryKey key, string summary, IModelPhrases phrases) => TokenEstimator.Message(SummaryMessage(key, summary, phrases));
 
+    /// <summary>What a summarized run costs in a plan: its stored summary's size, or the size assumed for one not written yet.</summary>
+    public static int TokensOf(ContextChunk chunk, Func<SummaryKey, int?> known, IModelPhrases phrases)
+    {
+        ArgumentNullException.ThrowIfNull(chunk);
+        ArgumentNullException.ThrowIfNull(known);
+        ArgumentNullException.ThrowIfNull(phrases);
+        return SummaryTokens(chunk, known, phrases);
+    }
+
     private static int SummaryTokens(ContextChunk chunk, Func<SummaryKey, int?> known, IModelPhrases phrases) =>
         known(chunk.Key) ?? SummaryTokens(chunk.Key, string.Empty, phrases) + UnknownSummaryTokens;
 

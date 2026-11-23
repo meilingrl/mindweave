@@ -30,6 +30,8 @@ public sealed partial class AppStartup : IRecoveryActions, IDisposable
     private readonly IOnboardingProgress _onboarding;
     private readonly Application.Models.IModelSettings _models;
     private readonly LanguageSwitch _language;
+    private readonly SummaryNetwork.SummaryNetworkDetails _summaryNetworkDetails;
+    private readonly TextWidth _textWidth;
     private readonly ILogger<AppStartup> _logger;
 
     public AppStartup(
@@ -50,9 +52,13 @@ public sealed partial class AppStartup : IRecoveryActions, IDisposable
         IOnboardingProgress onboarding,
         Application.Models.IModelSettings models,
         LanguageSwitch language,
+        SummaryNetwork.SummaryNetworkDetails summaryNetworkDetails,
+        TextWidth textWidth,
         ILogger<AppStartup> logger)
     {
         _language = language;
+        _summaryNetworkDetails = summaryNetworkDetails;
+        _textWidth = textWidth;
         _paths = paths;
         _onboarding = onboarding;
         _models = models;
@@ -253,6 +259,8 @@ public sealed partial class AppStartup : IRecoveryActions, IDisposable
         }
 
         await _shell.RestoreSidebarAsync();
+        await _summaryNetworkDetails.RestoreAsync();
+        await _textWidth.RestoreAsync();
         await _marks.LoadAsync(CancellationToken.None);
 
         try

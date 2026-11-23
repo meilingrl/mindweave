@@ -185,13 +185,26 @@ public sealed partial class MessageItemViewModel : ViewModelBase, IDisposable
 
     /// <summary>The answer's 出处 (stored, or live once it ended), in number order.</summary>
     [ObservableProperty]
-    [NotifyPropertyChangedFor(nameof(HasCitations), nameof(Citations), nameof(CitationNumbers))]
+    [NotifyPropertyChangedFor(nameof(HasCitations), nameof(Citations), nameof(CitationNumbers), nameof(CitationsText))]
     public partial IReadOnlyList<CitationBlock> CitationBlocks { get; private set; }
 
     public bool HasCitations => IsAnswer && CitationBlocks.Count > 0;
 
     /// <summary>The 出处 list under the answer.</summary>
     public IReadOnlyList<CitationItem> Citations => [.. CitationBlocks.Select(c => new CitationItem(c, new CommunityToolkit.Mvvm.Input.RelayCommand(() => _openCitation?.Invoke(c))))];
+
+    /// <summary>The line that opens the list: "出处 · 3".</summary>
+    public string CitationsText => UiText.CitationsCount(CitationBlocks.Count);
+
+    /// <summary>Closed at first: the list is there when it is wanted, and the numbers in the text open their source either way.</summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(CitationsToggleLabel))]
+    public partial bool IsCitationsExpanded { get; set; }
+
+    public string CitationsToggleLabel => IsCitationsExpanded ? UiText.CitationsCollapse : UiText.CitationsExpand;
+
+    [CommunityToolkit.Mvvm.Input.RelayCommand]
+    private void ToggleCitations() => IsCitationsExpanded = !IsCitationsExpanded;
 
     /// <summary>The numbers the text may show as links: only those with a 出处 (a number naming nothing stays text).</summary>
     public IReadOnlySet<int> CitationNumbers => CitationBlocks.Select(c => c.Number).ToHashSet();

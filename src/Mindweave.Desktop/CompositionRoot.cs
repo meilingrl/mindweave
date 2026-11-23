@@ -66,6 +66,8 @@ public static class CompositionRoot
         services.AddMindweaveApplication();
         services.TryAddSingleton<IThemeApplier, AvaloniaThemeApplier>();
         services.TryAddSingleton<IUiDispatcher, AvaloniaUiDispatcher>();
+        services.AddSingleton<SummaryNetwork.SummaryNetworkDetails>();
+        services.AddSingleton<TextWidth>();
         services.AddSingleton(shell ?? new SystemShell());
         services.TryAddSingleton(SystemAlertSound.ForPlatform()); // Tests count calls with their own.
         services.TryAddSingleton<IInAppRestore, UnavailableInAppRestore>(); // The application session registers itself first.

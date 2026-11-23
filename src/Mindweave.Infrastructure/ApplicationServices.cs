@@ -51,6 +51,8 @@ public static class ApplicationServices
         services.AddSingleton<ReadingStateService>();
         services.AddSingleton<AppearanceService>();
         services.AddSingleton<SidebarLayoutService>();
+        services.AddSingleton<SummaryNetworkDetailsLayoutService>();
+        services.AddSingleton<TextWidthService>();
         services.AddSingleton<NewsAlertsService>();
         services.AddSingleton<OnboardingProgressService>();
         services.AddSingleton<WorkspaceNameSuggester>();
@@ -104,6 +106,8 @@ public static class ApplicationServices
         services.AddSingleton<IConversationDeletion>(sp => sp.GetRequiredService<ConversationDeletionService>());
         services.AddSingleton<IAppearance>(sp => sp.GetRequiredService<AppearanceService>());
         services.AddSingleton<ISidebarLayout>(sp => sp.GetRequiredService<SidebarLayoutService>());
+        services.AddSingleton<ITextWidth>(sp => sp.GetRequiredService<TextWidthService>());
+        services.AddSingleton<ISummaryNetworkDetailsLayout>(sp => sp.GetRequiredService<SummaryNetworkDetailsLayoutService>());
         services.AddSingleton<INewsAlerts>(sp => sp.GetRequiredService<NewsAlertsService>());
         services.AddSingleton<IOnboardingProgress>(sp => sp.GetRequiredService<OnboardingProgressService>());
         services.AddSingleton<ISummaryNetworkLayout>(sp => sp.GetRequiredService<SummaryNetworkService>());

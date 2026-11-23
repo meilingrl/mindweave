@@ -11,8 +11,8 @@ namespace Mindweave.Desktop.Tests;
 
 /// <summary>
 /// New content is read from its first sentence (direction 1, item 1, approved 2026-11-17): an answer the reader has not
-/// seen opens at its start, not its end, and an answer being written is followed only until its start reaches the top
-/// of the page. Saved reading positions, branch return and return to source are unchanged (BranchUiTests,
+/// seen opens at its start, not its end. An answer being written starts at the top of the page and does not move it
+/// (StreamingScrollTests, the owner 2026-11-23). Saved reading positions, branch return and return to source are unchanged (BranchUiTests,
 /// ProgressiveOpenTests).
 /// </summary>
 public class ReadingStartTests
@@ -45,7 +45,7 @@ public class ReadingStartTests
     }
 
     [AvaloniaFact]
-    public async Task A_long_answer_being_written_is_followed_until_its_start_reaches_the_top()
+    public async Task A_long_answer_being_written_keeps_its_start_at_the_top()
     {
         await using var app = DesktopHarness.Create();
         var window = app.ShowWindow();
@@ -58,12 +58,12 @@ public class ReadingStartTests
         await held.Started.Task;
         await StreamedAsync(window, page, 1);
 
-        // At first the answer is short: the page follows it, so the reader sees it grow.
+        // The question is at the top from the start, and the answer grows into the room below it.
         await PushAsync(window, page, held, 2, 3);
         Screenshots.Capture(window, "reading-start-stream-1-start");
-        Assert.True(IsAtBottom(window));
+        AssertStartsAtTop(window, page, answer: 3);
 
-        // Longer than the page: it stops once the answer's start reaches the top, and the first sentence stays there.
+        // Longer than the page: the first sentence stays where it is.
         await PushAsync(window, page, held, 4, 22);
         Screenshots.Capture(window, "reading-start-stream-2-middle");
         AssertStartsAtTop(window, page, answer: 3);
@@ -78,40 +78,6 @@ public class ReadingStartTests
         window.UpdateLayout();
         Screenshots.Capture(window, "reading-start-stream-3-end");
         AssertStartsAtTop(window, page, answer: 3);
-        window.Close();
-    }
-
-    [AvaloniaFact]
-    public async Task A_reader_who_scrolls_to_the_end_while_an_answer_is_written_keeps_following_it()
-    {
-        await using var app = DesktopHarness.Create();
-        var window = app.ShowWindow();
-        var page = await app.StartWithConversationAsync(waitForTitle: true);
-        await CurrentView(window).Restored;
-
-        var held = app.Client.Hold(Paragraph(1));
-        page.Composer.Text = "再讲长一点？";
-        await page.Composer.SendCommand.ExecuteAsync(null);
-        await held.Started.Task;
-        await PushAsync(window, page, held, 2, 22);
-        AssertStartsAtTop(window, page, answer: 3);
-
-        // The reader goes to the end themselves: from then on the page follows the new text there, as before.
-        var scroller = Scroller(window);
-        scroller.Offset = new Vector(0, scroller.Extent.Height - scroller.Viewport.Height);
-        window.UpdateLayout();
-        await PushAsync(window, page, held, 23, 28);
-        Assert.True(IsAtBottom(window));
-
-        // And scrolled up to read something, they stay there.
-        scroller.Offset = new Vector(0, scroller.Offset.Y - 200);
-        window.UpdateLayout();
-        var reading = scroller.Offset.Y;
-        await PushAsync(window, page, held, 29, 32);
-        Assert.Equal(reading, scroller.Offset.Y, 1);
-
-        held.Finish();
-        await UiWait.UntilAsync(() => page.Messages[3].State == MessageState.Complete);
         window.Close();
     }
 

@@ -57,10 +57,13 @@ public sealed partial class SummaryNetworkHomeViewModel : PageViewModel, IDispos
         Application.Preferences.IRecommendationSettings? recommendationSettings = null,
         ISummaryLinks? links = null,
         ILinkSuggestions? suggestions = null,
-        bool replayed = false)
+        bool replayed = false,
+        SummaryNetworkDetails? details = null)
         : base(SummaryNetworkHomeRoute.Instance)
     {
         _replayed = replayed;
+        Details = details ?? new SummaryNetworkDetails();
+        Details.PropertyChanged += OnDetailsChanged;
         Workspace = workspace;
         Session = session;
         _summaries = summaries;
@@ -185,6 +188,36 @@ public sealed partial class SummaryNetworkHomeViewModel : PageViewModel, IDispos
     /// <summary>The keyboard picker of "关联到…" is open in the details' place.</summary>
     public bool ShowsLinkPicker => Selected is not null && Links is { IsPickerOpen: true };
 
+    /// <summary>The details beside the canvas: their width and whether they are folded away (remembered).</summary>
+    public SummaryNetworkDetails Details { get; }
+
+    /// <summary>
+    /// Folded away they stay hidden, except for what can be done nowhere else and was just asked for: the keyboard picker,
+    /// a recommended node clicked, a link suggestion clicked.
+    /// </summary>
+    public bool ShowsDetails => !IsEmpty && (!Details.IsCollapsed || ShowsLinkPicker || SelectedRecommendation is not null || HighlightedSuggestion is not null);
+
+    /// <summary>Folded away: a button at the canvas's corner brings the details back.</summary>
+    public bool ShowsDetailsButton => !IsEmpty && !ShowsDetails;
+
+    /// <summary>The network is drawn (not empty, not the list): its legend and the wheel option are offered.</summary>
+    public bool ShowsCanvas => !IsEmpty && !IsListView;
+
+    [RelayCommand]
+    private void CollapseDetails() => Details.Collapse(true);
+
+    [RelayCommand]
+    private void ExpandDetails() => Details.Collapse(false);
+
+    private void OnDetailsChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e)
+    {
+        if (e.PropertyName == nameof(SummaryNetworkDetails.IsCollapsed))
+        {
+            OnPropertyChanged(nameof(ShowsDetails));
+            OnPropertyChanged(nameof(ShowsDetailsButton));
+        }
+    }
+
     /// <summary>
     /// The recommended nodes drawn (requirements §10.3.2): placed beside their basis summaries on every rebuild, never in
     /// the layout. Empty while 隐藏推荐 is on or recommended nodes are turned off.
@@ -196,7 +229,7 @@ public sealed partial class SummaryNetworkHomeViewModel : PageViewModel, IDispos
 
     /// <summary>The selected recommended node, shown in the details instead of a summary; null otherwise.</summary>
     [ObservableProperty]
-    [NotifyPropertyChangedFor(nameof(HasSelection))]
+    [NotifyPropertyChangedFor(nameof(HasSelection), nameof(ShowsDetails), nameof(ShowsDetailsButton))]
     public partial RecommendedNodeView? SelectedRecommendation { get; private set; }
 
     /// <summary>A summary or a recommended node is selected (the hint in the details panel goes).</summary>
@@ -250,6 +283,7 @@ public sealed partial class SummaryNetworkHomeViewModel : PageViewModel, IDispos
     public string SaveLayoutLabel => Session.IsDirty ? UiText.SaveLayoutUnsaved : UiText.LayoutSaved;
 
     [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(ShowsCanvas))]
     public partial bool IsListView { get; set; }
 
     [ObservableProperty]
@@ -259,7 +293,7 @@ public sealed partial class SummaryNetworkHomeViewModel : PageViewModel, IDispos
     public partial string SearchText { get; set; } = string.Empty;
 
     [ObservableProperty]
-    [NotifyPropertyChangedFor(nameof(HasSelection), nameof(ShowsDetail), nameof(ShowsLinkPicker), nameof(PickHint), nameof(ShowsLinksSection))]
+    [NotifyPropertyChangedFor(nameof(HasSelection), nameof(ShowsDetail), nameof(ShowsLinkPicker), nameof(PickHint), nameof(ShowsLinksSection), nameof(ShowsDetails), nameof(ShowsDetailsButton))]
     public partial NodeDetail? Selected { get; private set; }
 
     /// <summary>The details offer links and "关联到…": with the links service, and not for a dot without a summary.</summary>
@@ -287,6 +321,8 @@ public sealed partial class SummaryNetworkHomeViewModel : PageViewModel, IDispos
         SelectedRecommendation = null;
         HighlightedSuggestion = null;
         Suggestions?.Highlight(null);
+        OnPropertyChanged(nameof(ShowsDetails));
+        OnPropertyChanged(nameof(ShowsDetailsButton));
         Session.Selected = node;
         Selected = node is { } id ? Detail(id) : null;
         Trail = TrailOf(node);
@@ -428,6 +464,8 @@ public sealed partial class SummaryNetworkHomeViewModel : PageViewModel, IDispos
         {
             OnPropertyChanged(nameof(ShowsDetail));
             OnPropertyChanged(nameof(ShowsLinkPicker));
+            OnPropertyChanged(nameof(ShowsDetails));
+            OnPropertyChanged(nameof(ShowsDetailsButton));
         }
     }
 
@@ -822,6 +860,7 @@ public sealed partial class SummaryNetworkHomeViewModel : PageViewModel, IDispos
         _conversations.ConversationChanged -= OnConversationChanged;
         Session.PropertyChanged -= OnSessionChanged;
         Session.Discarded -= OnDiscarded;
+        Details.PropertyChanged -= OnDetailsChanged;
         if (_recommendations is not null)
         {
             _recommendations.Changed -= OnRecommendationsChanged;
@@ -1157,6 +1196,9 @@ public sealed partial class SummaryNetworkHomeViewModel : PageViewModel, IDispos
         }
 
         OnPropertyChanged(nameof(IsEmpty));
+        OnPropertyChanged(nameof(ShowsDetails));
+        OnPropertyChanged(nameof(ShowsDetailsButton));
+        OnPropertyChanged(nameof(ShowsCanvas));
         OnPropertyChanged(nameof(IsTimeline));
         Selected = Session.Selected is { } selected && Session.Projection.Nodes.Any(n => n.Id == selected) ? Detail(selected) : null;
         Trail = TrailOf(Selected?.Id);

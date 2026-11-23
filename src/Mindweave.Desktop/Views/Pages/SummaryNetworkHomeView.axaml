@@ -176,13 +176,20 @@
       <TextBlock Classes="muted" TextWrapping="Wrap" Text="{x:Static t:UiText.SessionNetworkEmpty}" IsVisible="{Binding IsSessionNetwork}" />
     </StackPanel>
 
-    <!-- Details of the selected node: never the body, never counted as reading. -->
-    <Border DockPanel.Dock="Right" Width="260" Margin="10,0,0,0" Padding="16" Background="{DynamicResource PanelBackground}" CornerRadius="{StaticResource RadiusCard}"
-            IsVisible="{Binding !IsEmpty}">
+    <!-- Details of the selected node: never the body, never counted as reading. Only as tall as what they say; their left
+         edge is dragged to resize them, and they fold away (both remembered; the owner, 2026-11-23). -->
+    <Grid Name="DetailsArea" DockPanel.Dock="Right" ColumnDefinitions="Auto,*" Width="{Binding Details.Width}" Margin="3,0,0,0" IsVisible="{Binding ShowsDetails}">
+    <views:EdgeGrip Name="DetailsGrip" Width="7" Margin="0,0,2,0" AutomationProperties.Name="{x:Static t:UiText.SummaryNetworkDetailsWidth}"
+                    ToolTip.Tip="{x:Static t:UiText.SummaryNetworkDetailsWidthTip}" />
+    <Border Grid.Column="1" Name="DetailsCard" Padding="14,12" VerticalAlignment="Top" Background="{DynamicResource PanelBackground}" CornerRadius="{StaticResource RadiusCard}">
       <Panel>
+        <Button Name="CollapseDetailsButton" Classes="quiet small icon" HorizontalAlignment="Right" VerticalAlignment="Top" Margin="0,-5,-7,0" ZIndex="1"
+                Command="{Binding CollapseDetailsCommand}" ToolTip.Tip="{x:Static t:UiText.CollapseSummaryNetworkDetails}" AutomationProperties.Name="{x:Static t:UiText.CollapseSummaryNetworkDetails}">
+          <PathIcon Width="14" Height="14" Data="{StaticResource IconSidebar}" RenderTransform="scaleX(-1)" />
+        </Button>
         <ScrollViewer Classes="autohide" Name="OverviewScroller" HorizontalScrollBarVisibility="Disabled" IsVisible="{Binding !HasSelection}">
           <StackPanel Spacing="8" Margin="0,0,6,0">
-            <TextBlock FontWeight="SemiBold" FontSize="18" Text="{Binding Title}" />
+            <TextBlock FontWeight="SemiBold" FontSize="16" Margin="0,0,24,0" Text="{Binding Title}" />
             <TextBlock Classes="muted" FontSize="12" TextWrapping="Wrap" Text="{x:Static t:UiText.SummaryNetworkSelectHint}" IsVisible="{Binding !IsSessionNetwork}" />
             <TextBlock Name="SessionNetworkHint" Classes="muted" FontSize="12" TextWrapping="Wrap" Text="{x:Static t:UiText.SessionNetworkHint}" IsVisible="{Binding IsSessionNetwork}" />
             <!-- Pending link suggestions (§10.3.4) while nothing is selected: 接受, 忽略, the note, 全部忽略. -->
@@ -198,7 +205,7 @@
         <v:SummaryLinkPickerView Name="LinkPicker" DataContext="{Binding Links}" IsVisible="{Binding $parent[v:SummaryNetworkHomeView].((vm:SummaryNetworkHomeViewModel)DataContext).ShowsLinkPicker, FallbackValue=False}" />
         <ScrollViewer Classes="autohide" Name="DetailScroller" HorizontalScrollBarVisibility="Disabled" IsVisible="{Binding ShowsDetail}">
         <StackPanel Name="DetailPanel" Spacing="12" Margin="0,0,6,0">
-          <TextBlock Name="DetailTitle" Classes.session="{Binding IsSessionNetwork}" FontSize="18" TextWrapping="Wrap" Text="{Binding Selected.DisplayName, FallbackValue=''}" />
+          <TextBlock Name="DetailTitle" Classes.session="{Binding IsSessionNetwork}" FontSize="16" Margin="0,0,24,0" TextWrapping="Wrap" Text="{Binding Selected.DisplayName, FallbackValue=''}" />
           <!-- A session's first question: four lines at most, whole on 展开 (shown only when it is longer). -->
           <StackPanel Name="DetailQuestionBlock" Spacing="3" IsVisible="{Binding Selected.HasQuestion, FallbackValue=False}">
             <TextBlock Classes="muted" FontSize="12" Text="{x:Static t:UiText.DetailQuestion}" />
@@ -255,10 +262,15 @@
                  A session network dot without a summary has none to open; it only leads back to its conversation, as the primary. -->
             <Button Name="OpenSelectedButton" Classes.primary="{Binding !IsDirty}" Classes.secondary="{Binding IsDirty}" HorizontalAlignment="Stretch" HorizontalContentAlignment="Center"
                     IsVisible="{Binding Selected.HasSummary, FallbackValue=True}"
-                    Content="{x:Static t:UiText.OpenSummary}" Command="{Binding OpenSelectedCommand}" />
+                    Command="{Binding OpenSelectedCommand}"
+                    AutomationProperties.Name="{x:Static t:UiText.OpenSummary}">
+              <TextBlock TextWrapping="Wrap" TextAlignment="Center" Text="{x:Static t:UiText.OpenSummary}" />
+            </Button>
             <Button Name="ReturnSelectedButton" Classes.primary="{Binding !Selected.HasSummary, FallbackValue=False}" Classes.secondary="{Binding Selected.HasSummary, FallbackValue=True}" HorizontalAlignment="Stretch" HorizontalContentAlignment="Center"
-                    Content="{x:Static t:UiText.ReturnToConversationButton}" Command="{Binding ReturnToConversationCommand}"
-                    AutomationProperties.Name="{x:Static t:UiText.ReturnToConversation}" />
+                    Command="{Binding ReturnToConversationCommand}"
+                    AutomationProperties.Name="{x:Static t:UiText.ReturnToConversation}">
+              <TextBlock TextWrapping="Wrap" TextAlignment="Center" Text="{x:Static t:UiText.ReturnToConversationButton}" />
+            </Button>
           </StackPanel>
           <!-- Content links (§10.3.3): each with jump, 改说明 and 删除关联; then 关联到…. Quiet when there are none. -->
           <StackPanel Name="LinksSection" Spacing="4" IsVisible="{Binding ShowsLinksSection}">
@@ -278,8 +290,8 @@
         </ScrollViewer>
 
         <!-- A recommended node (§10.3.2): question, reason, basis; 开始探索 fills 新探索 without sending, 忽略 removes it. -->
-        <StackPanel Name="RecommendationDetailPanel" Spacing="12" IsVisible="{Binding SelectedRecommendation, Converter={x:Static ObjectConverters.IsNotNull}}">
-          <WrapPanel Orientation="Horizontal">
+        <StackPanel Name="RecommendationDetailPanel" Spacing="12" Margin="0,0,0,0" IsVisible="{Binding SelectedRecommendation, Converter={x:Static ObjectConverters.IsNotNull}}">
+          <WrapPanel Orientation="Horizontal" Margin="0,0,24,0">
             <Border Classes="badge recommended" Margin="0,0,6,0">
               <TextBlock Text="{x:Static t:UiText.RecommendedTag}" />
             </Border>
@@ -298,99 +310,152 @@
           <TextBlock Classes="muted" FontSize="12" TextWrapping="Wrap" Text="{x:Static t:UiText.RecommendedNodeNote}" />
           <StackPanel Spacing="8">
             <Button Name="StartExplorationButton" Classes.primary="{Binding !IsDirty}" Classes.secondary="{Binding IsDirty}" HorizontalAlignment="Stretch" HorizontalContentAlignment="Center"
-                    Content="{x:Static t:UiText.StartExploration}" Command="{Binding StartExplorationCommand}" />
+                    Command="{Binding StartExplorationCommand}"
+                    AutomationProperties.Name="{x:Static t:UiText.StartExploration}">
+              <TextBlock TextWrapping="Wrap" TextAlignment="Center" Text="{x:Static t:UiText.StartExploration}" />
+            </Button>
             <Button Name="IgnoreRecommendedNodeButton" Classes="secondary" HorizontalAlignment="Stretch" HorizontalContentAlignment="Center"
-                    Content="{x:Static t:UiText.IgnoreRecommendedNode}" Command="{Binding IgnoreRecommendationCommand}"
-                    AutomationProperties.Name="{Binding SelectedRecommendation.IgnoreName, FallbackValue=''}" />
+                    Command="{Binding IgnoreRecommendationCommand}"
+                    AutomationProperties.Name="{Binding SelectedRecommendation.IgnoreName, FallbackValue=''}">
+              <TextBlock TextWrapping="Wrap" TextAlignment="Center" Text="{x:Static t:UiText.IgnoreRecommendedNode}" />
+            </Button>
           </StackPanel>
         </StackPanel>
       </Panel>
     </Border>
+    </Grid>
 
-    <!-- One line of legend under the canvas (the same shapes as the nodes), and the wheel option beside it. -->
-    <Panel DockPanel.Dock="Bottom" IsVisible="{Binding !IsEmpty}">
-    <DockPanel Margin="2,6,0,0" IsVisible="{Binding !IsListView}">
+    <!-- The legend is an icon (the owner, 2026-11-23: it is read the first few times): pointing at it shows the card, a click or
+         the keyboard keeps it open. Beside it, the wheel option. -->
+    <DockPanel DockPanel.Dock="Bottom" Margin="0,4,0,0" IsVisible="{Binding ShowsCanvas}">
       <CheckBox DockPanel.Dock="Right" Content="{x:Static t:UiText.WheelZooms}" IsChecked="{Binding WheelZooms}" FontSize="12" VerticalAlignment="Center" MinHeight="0" />
-      <WrapPanel Name="Legend" Orientation="Horizontal" VerticalAlignment="Center">
-        <WrapPanel.Styles>
-          <Style Selector="TextBlock">
-            <Setter Property="FontSize" Value="12" />
-            <Setter Property="Foreground" Value="{DynamicResource MutedText}" />
-            <Setter Property="VerticalAlignment" Value="Center" />
-            <Setter Property="Margin" Value="0,0,16,0" />
-          </Style>
-        </WrapPanel.Styles>
-        <!-- The session network's marks, drawn as on the canvas: dot size, the summary ring, the arrowed dotted time thread, a
-             branch. Each mark keeps its words beside it, and the legend wraps between marks. -->
-        <StackPanel Name="LegendDotSize" Orientation="Horizontal" IsVisible="{Binding IsSessionNetwork}">
-          <Ellipse Width="6" Height="6" Fill="{DynamicResource SummaryNetworkNode}" VerticalAlignment="Center" Margin="0,0,3,0" />
-          <Ellipse Width="12" Height="12" Fill="{DynamicResource SummaryNetworkNode}" VerticalAlignment="Center" Margin="0,0,6,0" />
-          <TextBlock Text="{x:Static t:UiText.LegendDotSize}" />
-        </StackPanel>
-        <StackPanel Name="LegendSummaryRing" Orientation="Horizontal" IsVisible="{Binding IsSessionNetwork}">
-          <Panel Width="15" Height="15" VerticalAlignment="Center" Margin="0,0,6,0">
-            <Ellipse Width="15" Height="15" Stroke="{DynamicResource SummaryNetworkNode}" StrokeThickness="1.5" />
-            <Ellipse Width="7" Height="7" Fill="{DynamicResource SummaryNetworkNode}" />
-          </Panel>
-          <TextBlock Text="{x:Static t:UiText.LegendSummaryRing}" />
-        </StackPanel>
-        <StackPanel Name="LegendTime" Orientation="Horizontal" IsVisible="{Binding IsSessionNetwork}">
-          <Canvas Width="24" Height="8" VerticalAlignment="Center" Margin="0,0,6,0">
-            <Line StartPoint="0,4" EndPoint="22,4" Stroke="{DynamicResource SummaryNetworkEdge}" StrokeThickness="1.4" StrokeDashArray="0,2.4" StrokeLineCap="Round" />
-            <Path Data="M18,1 L22.5,4 L18,7" Stroke="{DynamicResource SummaryNetworkEdge}" StrokeThickness="1.2" StrokeLineCap="Round" StrokeJoin="Round" />
-          </Canvas>
-          <TextBlock Text="{x:Static t:UiText.LegendTime}" />
-        </StackPanel>
-        <StackPanel Name="LegendBranch" Orientation="Horizontal" IsVisible="{Binding IsSessionNetwork}">
-          <Line StartPoint="0,0" EndPoint="20,0" Stroke="{DynamicResource SummaryNetworkEdge}" StrokeThickness="1.4" VerticalAlignment="Center" Margin="0,0,6,0" />
-          <TextBlock Text="{x:Static t:UiText.LegendBranch}" />
-        </StackPanel>
-        <!-- Each sample stays with its words when the legend wraps. Behind the gate an unread summary wears the small badge
-             beside its dot, as drawn. -->
-        <StackPanel Name="LegendUnread" Orientation="Horizontal">
-          <Ellipse Width="10" Height="10" Fill="{DynamicResource SummaryNetworkNode}" VerticalAlignment="Center" Margin="0,0,6,0" IsVisible="{Binding !IsSessionNetwork}" />
-          <Ellipse Width="6" Height="6" Fill="{DynamicResource SummaryNetworkUnreadDot}" VerticalAlignment="Center" Margin="0,0,6,0" IsVisible="{Binding IsSessionNetwork}" />
-          <TextBlock Text="{x:Static t:UiText.LegendUnread}" FontWeight="SemiBold" />
-        </StackPanel>
-        <StackPanel Orientation="Horizontal" IsVisible="{Binding !IsSessionNetwork}">
-          <Ellipse Width="10" Height="10" Stroke="{DynamicResource SummaryNetworkNodeRead}" StrokeThickness="2" VerticalAlignment="Center" Margin="0,0,6,0" />
-          <TextBlock Text="{x:Static t:UiText.LegendRead}" />
-        </StackPanel>
-        <TextBlock Text="{x:Static t:UiText.LegendCandidate}" />
-        <StackPanel Orientation="Horizontal" IsVisible="{Binding !IsSessionNetwork}">
-          <Line StartPoint="0,0" EndPoint="20,0" Stroke="{DynamicResource SummaryNetworkEdgeIndirect}" StrokeThickness="1.4" StrokeDashArray="3,2" VerticalAlignment="Center" Margin="0,0,6,0" />
-          <TextBlock Text="{x:Static t:UiText.LegendIndirect}" />
-        </StackPanel>
-        <!-- Content links (§10.3.3): the same solid coloured line as drawn, with words. -->
-        <StackPanel Name="LinkLegend" Orientation="Horizontal" IsVisible="{Binding ShowsLinkLegend}">
-          <Line StartPoint="0,0" EndPoint="20,0" Stroke="{DynamicResource SummaryNetworkLink}" StrokeThickness="1.8" StrokeLineCap="Round" VerticalAlignment="Center" Margin="0,0,6,0"
-                IsVisible="{Binding !IsSessionNetwork}" />
-          <!-- The session network's quiet link (design §8): the neutral dash as drawn at rest. -->
-          <Line StartPoint="0,0" EndPoint="22,0" Stroke="{DynamicResource SummaryNetworkEdge}" StrokeThickness="1.2" StrokeDashArray="6,3.5" VerticalAlignment="Center" Margin="0,0,6,0"
-                IsVisible="{Binding IsSessionNetwork}" />
-          <TextBlock Text="{x:Static t:UiText.LegendLink}" IsVisible="{Binding !IsSessionNetwork}" />
-          <TextBlock Text="{x:Static t:UiText.LegendQuietLink}" IsVisible="{Binding IsSessionNetwork}" />
-        </StackPanel>
-        <!-- Link suggestions (§10.3.4): the same light dash-dot line as drawn, with words. -->
-        <StackPanel Name="SuggestionLegend" Orientation="Horizontal" IsVisible="{Binding ShowsSuggestionLegend}">
-          <Line StartPoint="0,0" EndPoint="22,0" Stroke="{DynamicResource SummaryNetworkLinkSuggestion}" StrokeThickness="1.5" StrokeDashArray="3.6,1.6,0.8,1.6"
-                VerticalAlignment="Center" Margin="0,0,6,0" />
-          <TextBlock Text="{x:Static t:UiText.LegendLinkSuggestion}" />
-        </StackPanel>
-        <!-- Recommended nodes (§10.3.2): the same dashed ring and dotted line as drawn, with words. -->
-        <StackPanel Name="RecommendationLegend" Orientation="Horizontal" IsVisible="{Binding ShowsRecommendationLegend}">
-          <Ellipse Width="11" Height="11" Fill="{DynamicResource SummaryNetworkRecommendationFill}" Stroke="{DynamicResource SummaryNetworkRecommendation}" StrokeThickness="1.4"
-                   StrokeDashArray="2,1.5" VerticalAlignment="Center" Margin="0,0,6,0" />
-          <TextBlock Text="{x:Static t:UiText.LegendRecommended}" />
-          <Line StartPoint="0,0" EndPoint="20,0" Stroke="{DynamicResource SummaryNetworkRecommendation}" StrokeThickness="1.6" StrokeDashArray="0,2.4" StrokeLineCap="Round"
-                VerticalAlignment="Center" Margin="0,0,6,0" />
-          <TextBlock Text="{x:Static t:UiText.LegendRecommendedLink}" />
-        </StackPanel>
-      </WrapPanel>
+      <Button Name="LegendButton" Classes="quiet small" HorizontalAlignment="Left" VerticalAlignment="Center" AutomationProperties.Name="{x:Static t:UiText.SummaryNetworkLegend}"
+              AutomationProperties.HelpText="{x:Static t:UiText.SummaryNetworkLegendHelp}">
+        <PathIcon Width="15" Height="15" Data="{StaticResource IconInfo}" />
+      </Button>
     </DockPanel>
-    </Panel>
 
     <Panel>
+      <!-- Folded away: the way back to the details, over the canvas's corner. -->
+      <Button Name="ExpandDetailsButton" Classes="quiet small icon" HorizontalAlignment="Right" VerticalAlignment="Top" Margin="0,8,8,0" ZIndex="1" IsVisible="{Binding ShowsDetailsButton}"
+              Command="{Binding ExpandDetailsCommand}" ToolTip.Tip="{x:Static t:UiText.ExpandSummaryNetworkDetails}" AutomationProperties.Name="{x:Static t:UiText.ExpandSummaryNetworkDetails}">
+        <PathIcon Width="14" Height="14" Data="{StaticResource IconSidebar}" RenderTransform="scaleX(-1)" />
+      </Button>
+      <!-- The legend's card, over the canvas right above its icon, so nothing moves when it opens. -->
+      <Border Name="LegendCard" Classes="legend-card" HorizontalAlignment="Left" VerticalAlignment="Bottom" ZIndex="2" IsVisible="False"
+              AutomationProperties.Name="{x:Static t:UiText.SummaryNetworkLegend}" views:Motion.Appear="Fade">
+        <StackPanel Name="Legend" Spacing="7">
+          <StackPanel.Styles>
+            <Style Selector="TextBlock">
+              <Setter Property="FontSize" Value="12" />
+              <Setter Property="Foreground" Value="{DynamicResource MutedText}" />
+              <Setter Property="VerticalAlignment" Value="Center" />
+            </Style>
+            <!-- Each mark is drawn in a column of one width, so the words beside the marks line up. -->
+            <Style Selector="Panel.mark">
+              <Setter Property="Width" Value="24" />
+              <Setter Property="Margin" Value="0,0,8,0" />
+              <Setter Property="VerticalAlignment" Value="Center" />
+            </Style>
+            <Style Selector="Panel.mark :is(Shape)">
+              <Setter Property="HorizontalAlignment" Value="Center" />
+              <Setter Property="VerticalAlignment" Value="Center" />
+            </Style>
+          </StackPanel.Styles>
+          <!-- The session network's marks, drawn as on the canvas: dot size, the summary ring, the arrowed dotted time thread, a
+               branch. Each mark keeps its words beside it. -->
+          <StackPanel Name="LegendDotSize" Orientation="Horizontal" IsVisible="{Binding IsSessionNetwork}">
+            <Panel Classes="mark">
+              <StackPanel Orientation="Horizontal" Spacing="3" HorizontalAlignment="Center">
+                <Ellipse Width="6" Height="6" Fill="{DynamicResource SummaryNetworkNode}" />
+                <Ellipse Width="12" Height="12" Fill="{DynamicResource SummaryNetworkNode}" />
+              </StackPanel>
+            </Panel>
+            <TextBlock Text="{x:Static t:UiText.LegendDotSize}" />
+          </StackPanel>
+          <StackPanel Name="LegendSummaryRing" Orientation="Horizontal" IsVisible="{Binding IsSessionNetwork}">
+            <Panel Classes="mark">
+              <Ellipse Width="15" Height="15" Stroke="{DynamicResource SummaryNetworkNode}" StrokeThickness="1.5" />
+              <Ellipse Width="7" Height="7" Fill="{DynamicResource SummaryNetworkNode}" />
+            </Panel>
+            <TextBlock Text="{x:Static t:UiText.LegendSummaryRing}" />
+          </StackPanel>
+          <StackPanel Name="LegendTime" Orientation="Horizontal" IsVisible="{Binding IsSessionNetwork}">
+            <Panel Classes="mark">
+              <Canvas Width="24" Height="8" VerticalAlignment="Center">
+                <Line StartPoint="0,4" EndPoint="22,4" Stroke="{DynamicResource SummaryNetworkEdge}" StrokeThickness="1.4" StrokeDashArray="0,2.4" StrokeLineCap="Round" />
+                <Path Data="M18,1 L22.5,4 L18,7" Stroke="{DynamicResource SummaryNetworkEdge}" StrokeThickness="1.2" StrokeLineCap="Round" StrokeJoin="Round" />
+              </Canvas>
+            </Panel>
+            <TextBlock Text="{x:Static t:UiText.LegendTime}" />
+          </StackPanel>
+          <StackPanel Name="LegendBranch" Orientation="Horizontal" IsVisible="{Binding IsSessionNetwork}">
+            <Panel Classes="mark">
+              <Line StartPoint="0,0" EndPoint="20,0" Stroke="{DynamicResource SummaryNetworkEdge}" StrokeThickness="1.4" />
+            </Panel>
+            <TextBlock Text="{x:Static t:UiText.LegendBranch}" />
+          </StackPanel>
+          <!-- Behind the gate an unread summary wears the small badge beside its dot, as drawn. -->
+          <StackPanel Name="LegendUnread" Orientation="Horizontal">
+            <Panel Classes="mark">
+              <Ellipse Width="10" Height="10" Fill="{DynamicResource SummaryNetworkNode}" IsVisible="{Binding !IsSessionNetwork}" />
+              <Ellipse Width="6" Height="6" Fill="{DynamicResource SummaryNetworkUnreadDot}" IsVisible="{Binding IsSessionNetwork}" />
+            </Panel>
+            <TextBlock Text="{x:Static t:UiText.LegendUnread}" FontWeight="SemiBold" />
+          </StackPanel>
+          <StackPanel Name="LegendRead" Orientation="Horizontal" IsVisible="{Binding !IsSessionNetwork}">
+            <Panel Classes="mark">
+              <Ellipse Width="10" Height="10" Stroke="{DynamicResource SummaryNetworkNodeRead}" StrokeThickness="2" />
+            </Panel>
+            <TextBlock Text="{x:Static t:UiText.LegendRead}" />
+          </StackPanel>
+          <StackPanel Name="LegendCandidate" Orientation="Horizontal">
+            <Panel Classes="mark">
+              <TextBlock Text="↻" HorizontalAlignment="Center" AutomationProperties.AccessibilityView="Raw" />
+            </Panel>
+            <TextBlock Text="{x:Static t:UiText.LegendCandidate}" />
+          </StackPanel>
+          <StackPanel Name="LegendIndirect" Orientation="Horizontal" IsVisible="{Binding !IsSessionNetwork}">
+            <Panel Classes="mark">
+              <Line StartPoint="0,0" EndPoint="20,0" Stroke="{DynamicResource SummaryNetworkEdgeIndirect}" StrokeThickness="1.4" StrokeDashArray="3,2" />
+            </Panel>
+            <TextBlock Text="{x:Static t:UiText.LegendIndirect}" />
+          </StackPanel>
+          <!-- Content links (§10.3.3): the same solid coloured line as drawn, with words; in the session network the quiet
+               neutral dash as drawn at rest (design §8). -->
+          <StackPanel Name="LinkLegend" Orientation="Horizontal" IsVisible="{Binding ShowsLinkLegend}">
+            <Panel Classes="mark">
+              <Line StartPoint="0,0" EndPoint="20,0" Stroke="{DynamicResource SummaryNetworkLink}" StrokeThickness="1.8" StrokeLineCap="Round" IsVisible="{Binding !IsSessionNetwork}" />
+              <Line StartPoint="0,0" EndPoint="22,0" Stroke="{DynamicResource SummaryNetworkEdge}" StrokeThickness="1.2" StrokeDashArray="6,3.5" IsVisible="{Binding IsSessionNetwork}" />
+            </Panel>
+            <TextBlock Text="{x:Static t:UiText.LegendLink}" IsVisible="{Binding !IsSessionNetwork}" />
+            <TextBlock Text="{x:Static t:UiText.LegendQuietLink}" IsVisible="{Binding IsSessionNetwork}" />
+          </StackPanel>
+          <!-- Link suggestions (§10.3.4): the same light dash-dot line as drawn, with words. -->
+          <StackPanel Name="SuggestionLegend" Orientation="Horizontal" IsVisible="{Binding ShowsSuggestionLegend}">
+            <Panel Classes="mark">
+              <Line StartPoint="0,0" EndPoint="22,0" Stroke="{DynamicResource SummaryNetworkLinkSuggestion}" StrokeThickness="1.5" StrokeDashArray="3.6,1.6,0.8,1.6" />
+            </Panel>
+            <TextBlock Text="{x:Static t:UiText.LegendLinkSuggestion}" />
+          </StackPanel>
+          <!-- Recommended nodes (§10.3.2): the same dashed ring and dotted line as drawn, with words. -->
+          <StackPanel Name="RecommendationLegend" Spacing="7" IsVisible="{Binding ShowsRecommendationLegend}">
+            <StackPanel Orientation="Horizontal">
+              <Panel Classes="mark">
+                <Ellipse Width="11" Height="11" Fill="{DynamicResource SummaryNetworkRecommendationFill}" Stroke="{DynamicResource SummaryNetworkRecommendation}" StrokeThickness="1.4"
+                         StrokeDashArray="2,1.5" />
+              </Panel>
+              <TextBlock Text="{x:Static t:UiText.LegendRecommended}" />
+            </StackPanel>
+            <StackPanel Orientation="Horizontal">
+              <Panel Classes="mark">
+                <Line StartPoint="0,0" EndPoint="20,0" Stroke="{DynamicResource SummaryNetworkRecommendation}" StrokeThickness="1.6" StrokeDashArray="0,2.4" StrokeLineCap="Round" />
+              </Panel>
+              <TextBlock Text="{x:Static t:UiText.LegendRecommendedLink}" />
+            </StackPanel>
+          </StackPanel>
+        </StackPanel>
+      </Border>
       <!-- Frameless in dark, as in the sample; a faint edge in light, where the canvas is close to the page colour. -->
       <Border Name="CanvasFrame" BorderBrush="{DynamicResource SummaryNetworkFrame}" BorderThickness="1" CornerRadius="{StaticResource RadiusCard}" ClipToBounds="True" IsVisible="{Binding !IsListView}">
         <v:SummaryNetworkCanvas Name="Canvas" />

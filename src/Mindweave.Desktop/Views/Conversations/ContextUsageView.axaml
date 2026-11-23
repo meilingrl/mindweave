@@ -1,0 +1,37 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:Mindweave.Desktop.ViewModels.Conversations"
+             xmlns:t="using:Mindweave.Desktop.Text"
+             xmlns:c="using:Mindweave.Desktop.Views.Conversations"
+             x:Class="Mindweave.Desktop.Views.Conversations.ContextUsageView"
+             x:DataType="vm:ContextUsageDetails"
+             Width="260">
+  <StackPanel Spacing="10">
+    <DockPanel>
+      <TextBlock Name="ContextUsageTotal" DockPanel.Dock="Right" FontWeight="SemiBold" FontSize="13" Text="{Binding Total, FallbackValue=''}" />
+      <StackPanel Orientation="Horizontal" Spacing="6">
+        <TextBlock Classes="muted" FontSize="13" Text="{x:Static t:UiText.ContextUsageTitle}" />
+        <TextBlock Name="ContextUsagePercent" FontWeight="SemiBold" FontSize="13" Text="{Binding Percent, FallbackValue=''}" />
+      </StackPanel>
+    </DockPanel>
+    <c:ContextUsageBar Name="ContextUsageBar" Height="6" Usage="{Binding Usage, FallbackValue={x:Null}}" />
+    <ItemsControl Name="ContextUsageRows" ItemsSource="{Binding Rows, FallbackValue={x:Null}}">
+      <ItemsControl.ItemsPanel>
+        <ItemsPanelTemplate>
+          <StackPanel Spacing="7" />
+        </ItemsPanelTemplate>
+      </ItemsControl.ItemsPanel>
+      <ItemsControl.ItemTemplate>
+        <DataTemplate x:DataType="vm:ContextUsageRow">
+          <DockPanel AutomationProperties.Name="{Binding Name}">
+            <c:ContextPartMark DockPanel.Dock="Left" Width="9" Height="9" Margin="0,0,8,0" VerticalAlignment="Center" Kind="{Binding Kind}" />
+            <TextBlock DockPanel.Dock="Right" FontSize="13" Text="{Binding Amount}" />
+            <TextBlock Classes="muted" FontSize="13" Text="{Binding Label}" />
+          </DockPanel>
+        </DataTemplate>
+      </ItemsControl.ItemTemplate>
+    </ItemsControl>
+    <TextBlock Name="ContextUsageNote" Classes="caption" TextWrapping="Wrap" Text="{Binding Note, FallbackValue=''}" IsVisible="{Binding HasNote, FallbackValue=False}" />
+    <TextBlock Classes="timestamp" Text="{x:Static t:UiText.ContextUsageEstimate}" />
+  </StackPanel>
+</UserControl>

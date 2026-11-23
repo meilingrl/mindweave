@@ -20,6 +20,16 @@
     <Setter Property="Background" Value="Transparent" />
   </Style>
   <!-- Explore home: a soft round mark above the page's one primary action. -->
+  <!-- The summary network's legend card: raised over the canvas, as the selection's floating action is over the text. -->
+  <Style Selector="Border.legend-card">
+    <Setter Property="Background" Value="{DynamicResource FloatingBackground}" />
+    <Setter Property="BorderBrush" Value="{DynamicResource FloatingBorder}" />
+    <Setter Property="BoxShadow" Value="{DynamicResource FloatingShadow}" />
+    <Setter Property="BorderThickness" Value="1" />
+    <Setter Property="CornerRadius" Value="{StaticResource RadiusCard}" />
+    <Setter Property="Padding" Value="14,12" />
+    <Setter Property="Margin" Value="0,0,0,2" />
+  </Style>
   <Style Selector="Border.home-mark">
     <Setter Property="Width" Value="56" />
     <Setter Property="Height" Value="56" />

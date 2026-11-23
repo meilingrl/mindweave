@@ -16,6 +16,19 @@ The second number rises when a capability is finished and on by default, and the
 
 The nine merges after 0.5.0, on 2026-11-22 and 2026-11-23, are 0.5.1 to 0.5.9 in order. They keep their dated entries below.
 
+## 0.5.11 · 2026-11-23
+
+- Added the context ring's details: the figures on hover, and on a press what the context is made of; it now counts a run's instructions and tool definitions (D-037)
+- Added a text width for conversations, in Settings or by dragging the text's edge; medium (800 px) is the default, where the text took the whole page
+- Added folding and resizing to the summary network's details, both remembered
+- Changed an answer being written to never move the page: sending puts the question at the top once, and what is read stays in place when other content changes size (requirements v0.26 §6.3)
+- Changed the citations list to one line that opens it (requirements v0.26 §10.4.5)
+- Changed the summary network's legend to an icon that shows it on hover, on a press and from the keyboard (requirements v0.26 §10.3)
+- Changed the summary network's lines to be a step stronger in both themes
+- Fixed a follow-up question landing out of sight below an answer that had stopped at its start
+- Try: `MINDWEAVE_SESSION_NETWORK=1 scripts/daily.sh trial`; ask a follow-up in a long conversation, press the ring, drag the text's edge, open the network
+- Not verified: Windows; a real model's tool steps while the page stays; summaries keep their own width for now
+
 ## 0.5.10 · 2026-11-23
 
 - Added tags for the five finished phases, `v0.1.0` to `v0.5.0`

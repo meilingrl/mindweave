@@ -122,12 +122,16 @@ public class SessionNetworkUiTests
         Assert.False(Find<StackPanel>(view, "LayoutSavedStatus").IsEffectivelyVisible);
         Assert.True(Find<RadioButton>(view, "TimelineViewButton").IsEffectivelyVisible);
 
-        var panel = Find<WrapPanel>(view, "Legend");
+        // The legend is an icon until it is wanted; every mark it explains keeps its words (requirements §10.3).
+        Assert.False(Find<Border>(view, "LegendCard").IsVisible);
+        LegendCard.Toggle(window);
+        var panel = Find<StackPanel>(view, "Legend");
         var texts = panel.GetVisualDescendants().OfType<TextBlock>().Where(t => t.IsEffectivelyVisible).ToList();
         var legend = texts.Select(t => t.Text).ToList();
 
-        // The legend wraps between marks: none of its words runs past it (under the wheel option or the details panel).
-        Assert.All(texts, t => Assert.True(t.TranslatePoint(new Point(t.Bounds.Width, 0), panel)!.Value.X <= panel.Bounds.Width + 0.5, $"{t.Text} runs past the legend"));
+        // None of its words runs past the canvas it lies over.
+        var frame = Find<Border>(view, "CanvasFrame");
+        Assert.All(texts, t => Assert.True(t.TranslatePoint(new Point(t.Bounds.Width, 0), frame)!.Value.X <= frame.Bounds.Width + 0.5, $"{t.Text} runs past the canvas"));
         Assert.Contains("圆点大小：问了多少，不代表掌握程度", legend);
         Assert.Contains("外圈：有总结", legend);
         Assert.Contains("虚线箭头：时间先后", legend);
@@ -142,7 +146,8 @@ public class SessionNetworkUiTests
         var item = Assert.IsType<StackPanel>(unread.Parent);
         Assert.Equal(Avalonia.Layout.Orientation.Horizontal, item.Orientation);
         Assert.Same(panel, item.Parent);
-        Assert.Contains(item.Children.OfType<Avalonia.Controls.Shapes.Ellipse>(), e => e.IsEffectivelyVisible);
+        Assert.Contains(item.GetVisualDescendants().OfType<Avalonia.Controls.Shapes.Ellipse>(), e => e.IsEffectivelyVisible);
+        Screenshots.Capture(window, $"session-network-legend-{theme.ToLowerInvariant()}");
         window.Close();
     }
 
@@ -420,7 +425,7 @@ public class SessionNetworkUiTests
 
         var back = Find<Button>(view, "ReturnSelectedButton");
         Assert.True(back.IsEffectivelyVisible);
-        Assert.Equal(UiText.ReturnToConversation, back.Content);
+        Assert.Equal(UiText.ReturnToConversation, Assert.IsType<TextBlock>(back.Content).Text);
         Assert.Contains("primary", back.Classes);
         Assert.DoesNotContain("secondary", back.Classes);
         window.Close();
