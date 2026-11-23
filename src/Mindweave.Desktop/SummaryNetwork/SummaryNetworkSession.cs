@@ -20,53 +20,39 @@ public readonly record struct Viewport(double CenterX, double CenterY, double Zo
 }
 
 /// <summary>
-/// One workspace's network in memory for the life of the process (architecture §11.2–11.4): the projection, node
-/// positions with a layout revision, the last saved revision, the viewport and the selection. Survives leaving the
-/// network to read a summary; the viewport is dropped when the workspace is left. New summaries' automatic places are
-/// saved one row at a time and never mark the layout as unsaved (U3); "arrange" does, and an explicit save writes a
-/// snapshot of one revision in one transaction.
+/// One workspace's network in memory for the life of the process (architecture §11.2–11.4): the projection, the dots'
+/// positions in the view shown, the viewport and the selection. Survives leaving the network to read a summary; the
+/// viewport is dropped when the workspace is left. Positions are computed; only each exploration's place in the spatial
+/// view is saved, directly and without a pending-save state.
 /// </summary>
 public sealed partial class SummaryNetworkSession : ObservableObject
 {
-    private readonly ISummaryNetworkLayout _summarySummaryNetwork;
+    private readonly ISummaryNetworkLayout _network;
     private Dictionary<SummaryNodeId, NodePosition> _positions = [];
-    private long _revision;
-    private bool _loaded;
-
-    private readonly SessionNetworkGate _gate;
     private IReadOnlyList<SummaryNodeId> _dayStarts = [];
     private IReadOnlyDictionary<SummaryNodeId, SpatialLabel> _labels = SpatialArrangement.Empty.Labels;
 
-    public SummaryNetworkSession(WorkspaceId workspace, ISummaryNetworkLayout network, SessionNetworkGate gate)
+    public SummaryNetworkSession(WorkspaceId workspace, ISummaryNetworkLayout network)
     {
         Workspace = workspace;
-        _summarySummaryNetwork = network;
-        _gate = gate;
+        _network = network;
     }
 
-    /// <summary>The session network (every conversation a dot, layouts computed and never saved) is switched on.</summary>
-    public bool IsSessionNetwork => _gate.Enabled;
-
-    /// <summary>The view of the session network; remembered for the life of the process. Not used without the gate.</summary>
+    /// <summary>The view shown; remembered for the life of the process.</summary>
     public SummaryNetworkViewMode ViewMode { get; private set; } = SummaryNetworkViewMode.Spatial;
 
-    /// <summary>The session network is shown as its timeline (the gate on and that view chosen).</summary>
-    public bool IsTimeline => _gate.Enabled && ViewMode == SummaryNetworkViewMode.Timeline;
+    /// <summary>The network is shown as its timeline.</summary>
+    public bool IsTimeline => ViewMode == SummaryNetworkViewMode.Timeline;
 
-    /// <summary>The roots that start a new local day, in timeline order; empty without the gate.</summary>
+    /// <summary>The roots that start a new local day, in timeline order.</summary>
     public IReadOnlyList<SummaryNodeId> DayStarts => _dayStarts;
 
-    /// <summary>Switches the view and recomputes every position from the current projection. Nothing is saved.</summary>
+    /// <summary>Switches the view and recomputes every position from the current projection.</summary>
     public void SetViewMode(SummaryNetworkViewMode mode)
     {
         ViewMode = mode;
-        if (!_gate.Enabled)
-        {
-            return;
-        }
-
         var before = new Dictionary<ConversationId, ExplorationPlace>(_places);
-        ComputeSessionPositions(Projection);
+        ComputePositions(Projection);
         Viewport = null;
         FitAllRequested = false;
 
@@ -77,7 +63,7 @@ public sealed partial class SummaryNetworkSession : ObservableObject
     /// <summary>The local calendar day a conversation was created on (the timeline groups roots by it).</summary>
     internal static DateOnly LocalDay(DateTimeOffset createdAt) => DateOnly.FromDateTime(createdAt.ToLocalTime().DateTime);
 
-    private void ComputeSessionPositions(SummaryNetworkProjection projection)
+    private void ComputePositions(SummaryNetworkProjection projection)
     {
         var parents = BranchParents(projection);
         var arrangement = TimelineLayout.Arrange([.. projection.Nodes.Select((n, i) => new TimelineNode(
@@ -90,7 +76,7 @@ public sealed partial class SummaryNetworkSession : ObservableObject
             return;
         }
 
-        // Explorations return to their places (design §16, option C): the saved ones, or the ones this session last used.
+        // Explorations return to their places (design §16, option C): the saved ones, or the ones this run last used.
         var spatial = SpatialLayout.Arrange(SpatialNodes(projection, parents, _dayStarts), places: _places.ToDictionary(p => p.Key.Value, p => p.Value));
         _positions = new Dictionary<SummaryNodeId, NodePosition>(spatial.Positions);
         _labels = spatial.Labels;
@@ -101,10 +87,10 @@ public sealed partial class SummaryNetworkSession : ObservableObject
     private Dictionary<ConversationId, ExplorationPlace> _places = [];
 
     /// <summary>
-    /// Where each label sits round its dot in the spatial view of the session network, and its wrapped lines, as the
-    /// layout placed them; empty on the timeline and without the gate (labels then go to the right of their dots).
+    /// Where each label sits round its dot in the spatial view, and its wrapped lines, as the layout placed them; empty
+    /// on the timeline, where labels go to the right of their dots.
     /// </summary>
-    public IReadOnlyDictionary<SummaryNodeId, SpatialLabel> SpatialLabels => _gate.Enabled && !IsTimeline ? _labels : SpatialArrangement.Empty.Labels;
+    public IReadOnlyDictionary<SummaryNodeId, SpatialLabel> SpatialLabels => !IsTimeline ? _labels : SpatialArrangement.Empty.Labels;
 
     /// <summary>
     /// Saves the explorations whose place is new or changed since <paramref name="saved"/>, directly (like a new node's
@@ -125,7 +111,7 @@ public sealed partial class SummaryNetworkSession : ObservableObject
 
         try
         {
-            await _summarySummaryNetwork.SaveExplorationPlacesAsync(Workspace, changed, cancellationToken);
+            await _network.SaveExplorationPlacesAsync(Workspace, changed, cancellationToken);
         }
 #pragma warning disable CA1031 // Layout saving is independent of content; a lost place is worked out again on the next load.
         catch (Exception swallowed)
@@ -147,7 +133,7 @@ public sealed partial class SummaryNetworkSession : ObservableObject
     private static double LabelWidthOf(SummaryNetworkNode node) => SummaryNetworkLayout.LabelWidth(SummaryNetworkLayout.Label(node.ShortTitle, node.Markers.HasCandidate));
 
     /// <summary>
-    /// The sessions as the spatial layout takes them (§6): branches are the parents, the projection's order is creation
+    /// The conversations as the spatial layout takes them (§6): branches are the parents, the projection's order is creation
     /// order, the weight is the mass, a dot is as large as drawn (its summary ring included), the label is the one the
     /// canvas shows, and a root that starts a new day carries its date under the label (spec §4.4).
     /// </summary>
@@ -171,21 +157,8 @@ public sealed partial class SummaryNetworkSession : ObservableObject
 
     public IReadOnlyDictionary<SummaryNodeId, NodePosition> Positions => _positions;
 
-    /// <summary>Changes on every layout change; an explicit save records which revision it wrote.</summary>
-    public long Revision => _revision;
-
-    [ObservableProperty]
-    [NotifyPropertyChangedFor(nameof(IsDirty))]
-    public partial long SavedRevision { get; private set; }
-
-    /// <summary>The layout has changes that only an explicit save keeps.</summary>
-    public bool IsDirty => _revision != SavedRevision;
-
-    [ObservableProperty]
-    public partial bool IsSaving { get; private set; }
-
-    [ObservableProperty]
-    public partial bool SaveFailed { get; private set; }
+    /// <summary>Puts a dot somewhere until the next layout (tests: a picture the layout would not make).</summary>
+    internal void Put(SummaryNodeId node, NodePosition position) => _positions[node] = position;
 
     /// <summary>
     /// Null until the canvas chooses the opening view (the timeline: zoom 1 on its newest end; otherwise everything fitted);
@@ -207,7 +180,7 @@ public sealed partial class SummaryNetworkSession : ObservableObject
     /// <summary>
     /// The canvas chose the opening view. Until the reader moves the view (pan, zoom, show all, a jump) or selects a dot,
     /// a reload that moves the dots (a title arriving, a conversation changing) opens the view again from the new
-    /// positions in the session network.
+    /// positions.
     /// </summary>
     public void SetOpeningViewport(Viewport opening)
     {
@@ -221,7 +194,7 @@ public sealed partial class SummaryNetworkSession : ObservableObject
     /// </summary>
     public bool ReopenIfStillOpening()
     {
-        if (!_gate.Enabled || !_viewportIsOpening)
+        if (!_viewportIsOpening)
         {
             return false;
         }
@@ -250,167 +223,22 @@ public sealed partial class SummaryNetworkSession : ObservableObject
     private SummaryNodeId? _selected;
 
     /// <summary>
-    /// Reads the projection and saved positions. Nodes without a position are placed beside their source and each
-    /// such place is saved by itself. While unsaved changes exist, the positions in memory are kept as they are and
-    /// serve as the reference for new places, so a new node appears beside the source the reader sees.
+    /// Reads the projection and the explorations' saved places, lays everything out, and saves the places that are new or
+    /// changed.
     /// </summary>
     public async Task LoadAsync(CancellationToken cancellationToken)
     {
-        if (_gate.Enabled)
-        {
-            var sessions = await _summarySummaryNetwork.ProjectSessionsAsync(Workspace, cancellationToken);
-            var savedPlaces = await _summarySummaryNetwork.GetExplorationPlacesAsync(Workspace, cancellationToken);
-            _places = savedPlaces.ToDictionary(p => p.Key, p => p.Value);
-            ComputeSessionPositions(sessions);
-            Projection = sessions;
-            _loaded = true;
-            await SavePlacesAsync(savedPlaces, cancellationToken);
-            return;
-        }
-
-        var projection = await _summarySummaryNetwork.ProjectAsync(Workspace, cancellationToken);
-        var saved = await _summarySummaryNetwork.GetLayoutAsync(Workspace, cancellationToken);
-        var nodes = LayoutNodes(projection);
-        var ids = projection.Nodes.Select(n => n.Id).ToHashSet();
-
-        var reference = _loaded && IsDirty ? new Dictionary<SummaryNodeId, NodePosition>(_positions) : saved.ToDictionary(p => p.Key, p => p.Value);
-        foreach (var gone in reference.Keys.Where(k => !ids.Contains(k)).ToList())
-        {
-            reference.Remove(gone);
-        }
-
-        // Nodes saved but not in memory (another load placed them) join what is shown.
-        foreach (var (id, position) in saved.Where(p => ids.Contains(p.Key) && !reference.ContainsKey(p.Key)))
-        {
-            reference[id] = position;
-        }
-
-        var added = SummaryNetworkLayout.PlaceNew(nodes, reference);
-        foreach (var (id, position) in added)
-        {
-            reference[id] = position;
-
-            // A failed direct save is not reported; the next load computes the same place again (MW-C12).
-            try
-            {
-                await _summarySummaryNetwork.PlaceAsync(Workspace, id, position, cancellationToken);
-            }
-#pragma warning disable CA1031 // Layout saving is independent of content; a lost automatic place is recomputed.
-            catch (Exception swallowed)
-#pragma warning restore CA1031
-            {
-                DesktopLog.Swallowed(swallowed);
-            }
-        }
-
+        var projection = await _network.ProjectAsync(Workspace, cancellationToken);
+        var saved = await _network.GetExplorationPlacesAsync(Workspace, cancellationToken);
+        _places = saved.ToDictionary(p => p.Key, p => p.Value);
+        ComputePositions(projection);
         Projection = projection;
-        _positions = reference;
-        _loaded = true;
-    }
-
-    /// <summary>Explicit "arrange": a full new layout, kept in memory until saved.</summary>
-    public void Arrange()
-    {
-        if (_gate.Enabled)
-        {
-            return;
-        }
-
-        _positions = SummaryNetworkLayout.Arrange(LayoutNodes(Projection)).ToDictionary(p => p.Key, p => p.Value);
-        _revision++;
-        OnPropertyChanged(nameof(IsDirty));
-        OnPropertyChanged(nameof(Revision));
-        Viewport = null;
-    }
-
-    /// <summary>
-    /// The end of a manual drag: one node at a new place in the same canvas coordinates, kept in memory and marked
-    /// unsaved exactly like "arrange" (requirement §7.4, architecture §11.4). The viewport is left as it is. Returns
-    /// false, changing nothing, for a node not in this network or a place it already has.
-    /// </summary>
-    public bool Move(SummaryNodeId node, NodePosition position)
-    {
-        if (_gate.Enabled)
-        {
-            return false;
-        }
-
-        if (!_positions.TryGetValue(node, out var current) || current == position)
-        {
-            return false;
-        }
-
-        _positions = new Dictionary<SummaryNodeId, NodePosition>(_positions) { [node] = position };
-        _revision++;
-        OnPropertyChanged(nameof(IsDirty));
-        OnPropertyChanged(nameof(Revision));
-        return true;
-    }
-
-    /// <summary>
-    /// Saves the current revision's positions in one transaction. Changes made while saving stay unsaved: success
-    /// only records the revision that was captured. A failure keeps everything in memory and the unsaved mark. The
-    /// session network's layouts are computed and never saved (spec §9), whatever the revision says.
-    /// </summary>
-    public async Task<bool> SaveAsync(CancellationToken cancellationToken)
-    {
-        if (_gate.Enabled)
-        {
-            return true;
-        }
-
-        if (IsSaving || !IsDirty)
-        {
-            return !IsDirty;
-        }
-
-        var revision = _revision;
-        var snapshot = new Dictionary<SummaryNodeId, NodePosition>(_positions);
-        IsSaving = true;
-        SaveFailed = false;
-        try
-        {
-            await _summarySummaryNetwork.SaveLayoutAsync(Workspace, snapshot, cancellationToken);
-            SavedRevision = Math.Max(SavedRevision, revision);
-            return !IsDirty;
-        }
-#pragma warning disable CA1031 // A failed layout save is reported next to the button and can be retried.
-        catch (Exception swallowed)
-#pragma warning restore CA1031
-        {
-            DesktopLog.Swallowed(swallowed);
-            SaveFailed = true;
-            return false;
-        }
-        finally
-        {
-            IsSaving = false;
-        }
-    }
-
-    /// <summary>"Don't save": forget unsaved changes; pages showing this network reload the saved positions.</summary>
-    public void DiscardChanges()
-    {
-        SavedRevision = _revision;
-        SaveFailed = false;
-        _loaded = false;
-        Discarded?.Invoke(this, EventArgs.Empty);
-    }
-
-    /// <summary>Unsaved changes were dropped; what is shown must be read again.</summary>
-    public event EventHandler? Discarded;
-
-    private List<LayoutNode> LayoutNodes(SummaryNetworkProjection projection)
-    {
-        // Only branches are tree parents; the time thread between roots is not.
-        var parents = projection.Edges.Where(e => !_gate.Enabled || e.Kind == SummaryNetworkEdgeKind.Branch).ToDictionary(e => e.To, e => e.From);
-        return [.. projection.Nodes.Select((n, i) => new LayoutNode(
-            n.Id, parents.TryGetValue(n.Id, out var parent) ? parent : null, n.Root.Value, i, SummaryNetworkLayout.LabelWidth(SummaryNetworkLayout.Label(n.ShortTitle, n.Markers.HasCandidate))))];
+        await SavePlacesAsync(saved, cancellationToken);
     }
 }
 
 /// <summary>The network sessions of all workspaces opened in this process.</summary>
-public sealed class SummaryNetworkSessions(ISummaryNetworkLayout network, SessionNetworkGate gate)
+public sealed class SummaryNetworkSessions(ISummaryNetworkLayout network)
 {
     private readonly Dictionary<WorkspaceId, SummaryNetworkSession> _sessions = [];
 
@@ -418,24 +246,13 @@ public sealed class SummaryNetworkSessions(ISummaryNetworkLayout network, Sessio
     {
         if (!_sessions.TryGetValue(workspace, out var session))
         {
-            session = new SummaryNetworkSession(workspace, network, gate);
+            session = new SummaryNetworkSession(workspace, network);
             _sessions[workspace] = session;
         }
 
         return session;
     }
 
-    public IEnumerable<SummaryNetworkSession> Dirty => _sessions.Values.Where(s => s.IsDirty);
-
-    /// <summary>
-    /// The workspace was deleted: its session goes, unsaved layout included, without asking (there is nothing left to
-    /// save it to), so neither leaving nor quitting asks about it afterwards.
-    /// </summary>
-    public void Remove(WorkspaceId workspace)
-    {
-        if (_sessions.Remove(workspace, out var session) && session.IsDirty)
-        {
-            session.DiscardChanges();
-        }
-    }
+    /// <summary>The workspace was deleted: its session goes.</summary>
+    public void Remove(WorkspaceId workspace) => _sessions.Remove(workspace);
 }

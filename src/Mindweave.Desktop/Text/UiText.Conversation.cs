@@ -59,7 +59,7 @@ public static partial class UiText
 
     /// <summary>
     /// The name shown for a conversation (<see cref="ConversationNames.Of"/>): its title, else (for a branch) the quoted
-    /// passage it explores, else its first question. Sidebar, page header, ancestor path and the session network all use
+    /// passage it explores, else its first question. Sidebar, page header, ancestor path and the summary network all use
     /// this rule, so a conversation is named the same everywhere.
     /// </summary>
     public static string ConversationTitle(Conversation conversation, string? firstQuestion, string? quote)

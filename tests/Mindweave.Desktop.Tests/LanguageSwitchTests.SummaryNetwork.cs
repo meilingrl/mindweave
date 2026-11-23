@@ -11,7 +11,7 @@ using TextBlock = Avalonia.Controls.TextBlock;
 namespace Mindweave.Desktop.Tests;
 
 /// <summary>
-/// The session network behind its gate across a language switch: the view shown, the pan and zoom and the selected dot
+/// The summary network across a language switch: the view shown, the pan and zoom and the selected dot
 /// live in the workspace's network session, a root service, so the rebuilt page comes back to them; the page's own
 /// listening to the conversations stops with the old view.
 /// </summary>
@@ -22,9 +22,9 @@ public partial class LanguageSwitchTests
     {
         try
         {
-            await using var app = SessionNetworkUiTests.Gated();
+            await using var app = DesktopHarness.Create();
             var window = app.ShowWindow(1100, 720);
-            var (summarized, _, _) = await SessionNetworkUiTests.SeedAsync(app);
+            var (summarized, _, _) = await SummaryNetworkPageTests.SeedAsync(app);
             var network = await SummaryNetworkScenario.OpenSummaryNetworkAsync(app, window);
             await UiWait.UntilAsync(() => network.Nodes.Count == 3);
             window.UpdateLayout();
@@ -63,9 +63,9 @@ public partial class LanguageSwitchTests
     {
         try
         {
-            await using var app = SessionNetworkUiTests.Gated();
+            await using var app = DesktopHarness.Create();
             var window = app.ShowWindow(1100, 720);
-            await SessionNetworkUiTests.SeedAsync(app);
+            await SummaryNetworkPageTests.SeedAsync(app);
             var network = await SummaryNetworkScenario.OpenSummaryNetworkAsync(app, window);
             await network.Loaded;
             var before = ViewRebuildTests.HandlerCounts(app.Session.Root);

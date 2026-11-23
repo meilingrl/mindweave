@@ -240,8 +240,8 @@ public sealed class TransactionKillTests : IDisposable
 
         var before = await SnapshotAsync();
 
-        // The summary nodes with their layout, drafts and versions, the last page, then every row of the three
-        // conversations: tasks, sources and ranges, retry links, messages and the conversations.
+        // The summary nodes with their old positions, drafts and versions, the last page, then every row of the three
+        // conversations: the exploration's place, tasks, sources and ranges, retry links, messages and the conversations.
         await KillInsideAsync(CascadeDeleteChanges, "delete", root.ToString());
 
         await using var database = await ReopenAsync(before);
@@ -254,8 +254,8 @@ public sealed class TransactionKillTests : IDisposable
         await StorageFaults.AssertIntactAsync(database);
     }
 
-    /// <summary>The workspace delete's 58 for the same rows, less its workspace, last-workspace marker and location rows, plus one cleared last page.</summary>
-    private const int CascadeDeleteChanges = 56;
+    /// <summary>The workspace delete's 59 for the same rows, less its workspace, last-workspace marker and location rows, plus one cleared last page.</summary>
+    private const int CascadeDeleteChanges = 57;
 
     [Fact]
     public async Task Killing_the_process_while_a_workspace_is_deleted_keeps_all_of_it()
@@ -271,9 +271,9 @@ public sealed class TransactionKillTests : IDisposable
 
         var before = await SnapshotAsync();
 
-        // Every row of the workspace: its summaries and layout, tasks, sources and ranges, retry links, messages,
+        // Every row of the workspace: its summaries, old positions and exploration place, tasks, sources and ranges, retry links, messages,
         // conversations, last page, last-workspace marker and the workspace itself.
-        await KillInsideAsync(58, "delete-workspace", workspace.ToString());
+        await KillInsideAsync(59, "delete-workspace", workspace.ToString());
 
         await using var database = await ReopenAsync(before);
         var store = new SqliteWorkspaceStore(database);
@@ -287,41 +287,38 @@ public sealed class TransactionKillTests : IDisposable
     }
 
     [Fact]
-    public async Task Killing_the_process_while_the_layout_is_saved_keeps_the_previous_layout()
+    public async Task Killing_the_process_while_exploration_places_are_saved_keeps_the_previous_places()
     {
-        const int Nodes = 40;
+        // Enough rows that the save outgrows the page cache and writes uncommitted pages to the WAL.
+        const int Explorations = 600;
         Core.Workspaces.WorkspaceId workspace;
+        var roots = new List<ConversationId>();
         await using (var h = await ChatHarness.StartAsync(directory: _dir))
         {
             workspace = h.Workspace;
-            var placed = new Dictionary<SummaryNodeId, Application.Storage.NodePosition>();
-            for (var i = 0; i < Nodes; i++)
+            var placed = new Dictionary<ConversationId, Application.Storage.ExplorationPlace>();
+            for (var i = 0; i < Explorations; i++)
             {
-                var (conversation, _) = await h.RootWithAnswerAsync($"问题 {i}");
-                var node = await h.SummarizeAsync(conversation);
-                await h.SettleAsync(conversation);
+                roots.Add(await new Testing.Usage.UsageSeed(h.Database).ConversationAsync(workspace, DateTimeOffset.UtcNow));
                 if (i % 4 == 0)
                 {
-                    placed[node] = new(-1 - i, -1 - i);
+                    placed[roots[^1]] = new(-1 - i, -1 - i, 0, 1);
                 }
             }
 
-            // A quarter already has a saved position: the save below both updates and inserts.
-            await h.SummaryNetwork.SaveLayoutAsync(workspace, placed, Ct);
+            // A quarter already has a saved place: the save below both updates and inserts.
+            await h.SummaryNetwork.SaveExplorationPlacesAsync(workspace, placed, Ct);
         }
 
         var before = await SnapshotAsync();
 
-        var walGrowth = await KillInsideAsync(Nodes, "layout", workspace.ToString());
-        Assert.True(walGrowth > 0, "the save outgrew the page cache, so uncommitted pages were in the WAL when the process died");
+        await KillInsideAsync(Explorations, "places", workspace.ToString());
 
         await using var database = await ReopenAsync(before);
         var network = new SqliteSummaryNetworkStore(database);
-        var nodes = (await new SqliteSummaryStore(database).ListAsync(workspace, Ct)).Select(e => e.Node.Id).OrderBy(n => n.ToString(), StringComparer.Ordinal).ToList();
-        Assert.Equal(Nodes, nodes.Count);
-        var layout = nodes.Select((n, i) => (n, i)).ToDictionary(p => p.n, p => new Application.Storage.NodePosition(p.i * 10, p.i * 20));
-        Assert.Equal(Nodes, await network.SaveLayoutAsync(workspace, layout, DateTimeOffset.UtcNow, Ct));
-        Assert.Equal(layout, await network.GetLayoutAsync(workspace, Ct));
+        var places = roots.OrderBy(r => r.ToString(), StringComparer.Ordinal).Select((r, i) => (r, i)).ToDictionary(p => p.r, p => new Application.Storage.ExplorationPlace(p.i * 10, p.i * 20, 0, 1));
+        Assert.Equal(Explorations, await network.SaveExplorationPlacesAsync(workspace, places, DateTimeOffset.UtcNow, Ct));
+        Assert.Equal(places, await network.GetExplorationPlacesAsync(workspace, Ct));
         await StorageFaults.AssertIntactAsync(database);
     }
 

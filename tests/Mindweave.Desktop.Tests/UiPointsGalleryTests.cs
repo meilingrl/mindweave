@@ -45,7 +45,7 @@ public class UiPointsGalleryTests
         CurrentLanguage.Set(language);
         try
         {
-            await using var app = SessionNetworkUiTests.Gated();
+            await using var app = DesktopHarness.Create();
             var window = app.ShowWindow(1100, 720, theme == "Dark" ? ThemeVariant.Dark : ThemeVariant.Light);
             var look = $"{theme.ToLowerInvariant()}-{(language == UiLanguage.English ? "en" : "zh")}";
             var page = await AskWithSourcesAsync(app, window);

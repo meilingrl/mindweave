@@ -8,31 +8,17 @@ namespace Mindweave.Application.Storage;
 public readonly record struct NodePosition(double X, double Y);
 
 /// <summary>
-/// Where an exploration sits in the spatial view of the session network (design session-network §16, option C): its root
+/// Where an exploration sits in the spatial view (design session-network §16, option C): its root
 /// dot in absolute canvas coordinates, the direction of its oldest branch from the root (radians), and how many
 /// conversations it had, so a changed exploration can be told from an unchanged one. The molecule inside is laid out again
 /// on every load.
 /// </summary>
 public sealed record ExplorationPlace(double X, double Y, double Angle, int Size);
 
-/// <summary>Summary network persistence: node positions only; nodes and edges are projected from summaries and branch sources.</summary>
+/// <summary>Summary network persistence: the explorations' places only; dots and lines are projected from conversations, branch sources and summaries.</summary>
 public interface ISummaryNetworkStore
 {
-    Task<IReadOnlyDictionary<SummaryNodeId, NodePosition>> GetLayoutAsync(WorkspaceId workspace, CancellationToken cancellationToken);
-
-    /// <summary>
-    /// Writes one node's position on its own (U3: a new summary's automatic place), only if that node still exists
-    /// and has no saved position yet. Returns whether it was written.
-    /// </summary>
-    Task<bool> PlaceAsync(WorkspaceId workspace, SummaryNodeId node, NodePosition position, DateTimeOffset at, CancellationToken cancellationToken);
-
-    /// <summary>
-    /// Saves a layout snapshot in one transaction (explicit save). Nodes deleted meanwhile are skipped, never
-    /// written back. Returns the number of positions written.
-    /// </summary>
-    Task<int> SaveLayoutAsync(WorkspaceId workspace, IReadOnlyDictionary<SummaryNodeId, NodePosition> positions, DateTimeOffset at, CancellationToken cancellationToken);
-
-    /// <summary>Each exploration's saved place in the session network's spatial view, by its root conversation.</summary>
+    /// <summary>Each exploration's saved place in the spatial view, by its root conversation.</summary>
     Task<IReadOnlyDictionary<ConversationId, ExplorationPlace>> GetExplorationPlacesAsync(WorkspaceId workspace, CancellationToken cancellationToken);
 
     /// <summary>

@@ -19,7 +19,6 @@ public static partial class UiText
     public static string Create => T("Create", "创建");
     public static string Cancel => T("Cancel", "取消");
     public static string SectionExplore => T("Explore", "探索");
-    public static string SectionSummaryNetwork => T("Summary network", "总结网络");
     public static string SectionSettings => T("Settings", "设置");
     public static string ConversationsHeading => T("Conversations", "会话");
     public static string Back => T("Back", "后退");

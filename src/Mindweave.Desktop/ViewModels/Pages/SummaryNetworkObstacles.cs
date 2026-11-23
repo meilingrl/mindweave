@@ -4,8 +4,8 @@ namespace Mindweave.Desktop.ViewModels.Pages;
 
 /// <summary>
 /// What a recommended node must not cover (requirements §10.3.2): every node with its label, and every caption, as the
-/// canvas draws them at zoom 1. In the session network a dot is as large as its weight and summary ring make it, and a
-/// date sits above a timeline root or under a spatial root's placed label (spec §4.4).
+/// canvas draws them at zoom 1. A dot is as large as its weight and summary ring make it, and a date sits
+/// above a timeline root or under a spatial root's placed label (spec §4.4).
 /// </summary>
 internal static class SummaryNetworkObstacles
 {
@@ -13,10 +13,10 @@ internal static class SummaryNetworkObstacles
     private const double TitleHalfLine = 9;
 
     /// <summary>The boxes, in canvas units at zoom 1, of <paramref name="nodes"/> and <paramref name="captions"/>.</summary>
-    internal static List<CanvasBox> Of(IReadOnlyList<NodeView> nodes, IReadOnlyList<GroupCaption> captions, bool sessionNetwork, bool timeline)
+    internal static List<CanvasBox> Of(IReadOnlyList<NodeView> nodes, IReadOnlyList<GroupCaption> captions, bool timeline)
     {
         var byId = nodes.ToDictionary(n => n.Id);
-        var obstacles = new List<CanvasBox>(nodes.Select(n => sessionNetwork ? OfDot(n) : CanvasBox.OfNode(n.X, n.Y, n.LabelWidth)));
+        var obstacles = new List<CanvasBox>(nodes.Select(OfDot));
         foreach (var caption in captions)
         {
             var members = caption.Members.Where(byId.ContainsKey).Select(id => byId[id]).ToList();
@@ -26,7 +26,7 @@ internal static class SummaryNetworkObstacles
             }
 
             var width = SummaryNetworkLayout.LabelWidth(caption.Text);
-            if (sessionNetwork && !timeline)
+            if (!timeline)
             {
                 // A placed label's block already holds its root's date line (OfDot).
                 var root = members[0];
@@ -45,12 +45,10 @@ internal static class SummaryNetworkObstacles
                 continue;
             }
 
-            // Above the group's topmost node, from its leftmost dot's edge (SummaryNetworkLayout.CaptionGap).
+            // Above the root, from its dot's edge (SummaryNetworkLayout.CaptionGap).
             var top = members.Min(n => n.Y);
-            var start = sessionNetwork
-                ? members.Min(n => n.X - SummaryNetworkLayout.DotRadius(n.Weight))
-                : members.Min(n => n.X) - SummaryNetworkLayout.NodeRadius;
-            var headroom = sessionNetwork ? SummaryNetworkLayout.CaptionGap + SummaryNetworkLayout.CaptionLineHeight : SummaryNetworkLayout.CaptionHeadroom;
+            var start = members.Min(n => n.X - SummaryNetworkLayout.DotRadius(n.Weight));
+            const double headroom = SummaryNetworkLayout.CaptionGap + SummaryNetworkLayout.CaptionLineHeight;
             obstacles.Add(new CanvasBox(start, top - headroom, start + width, top - (SummaryNetworkLayout.NodeHeight / 2)));
         }
 
@@ -58,7 +56,7 @@ internal static class SummaryNetworkObstacles
     }
 
     /// <summary>
-    /// A session dot: its footprint (the dot and its summary ring) with half the layout's padding round it, and its label
+    /// A dot: its footprint (the dot and its summary ring) with half the layout's padding round it, and its label
     /// from where the canvas starts it, after the dot.
     /// </summary>
     private static CanvasBox OfDot(NodeView node)

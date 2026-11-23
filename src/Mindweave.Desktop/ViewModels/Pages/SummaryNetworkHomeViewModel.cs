@@ -16,10 +16,10 @@ using Mindweave.Desktop.Services;
 namespace Mindweave.Desktop.ViewModels.Pages;
 
 /// <summary>
-/// The summary network of the current workspace (requirement §7.3–7.4, architecture §11): nodes with short titles
-/// and real source edges, selection with details, search, show all, zoom, explicit arrange and save. State lives in
-/// the workspace's <see cref="SummaryNetworkSession"/>, so the viewport and selection survive reading a summary and coming
-/// back. A list view of the same summaries stays available for keyboard and screen-reader use.
+/// The summary network of the current workspace (requirement §7.3–7.4, architecture §11): every conversation as a dot
+/// with real lineage, its two views, selection with details, search, show all and zoom. State lives in the workspace's
+/// <see cref="SummaryNetworkSession"/>, so the viewport and selection survive reading a summary and coming back. A list
+/// of the same conversations stays available for keyboard and screen-reader use.
 /// </summary>
 public sealed partial class SummaryNetworkHomeViewModel : PageViewModel, IDisposable
 {
@@ -92,15 +92,9 @@ public sealed partial class SummaryNetworkHomeViewModel : PageViewModel, IDispos
         _summaries.Changed += OnConversationChanged;
         _conversations.VisibilityChanged += OnVisibilityChanged;
 
-        // Every conversation is a dot in the session network: a new one, a new question (its weight) or a new title shows.
-        // Only this workspace's conversations reload the page (design session-network §15.3).
-        if (IsSessionNetwork)
-        {
-            _conversations.ConversationChanged += OnConversationChanged;
-        }
-
-        Session.PropertyChanged += OnSessionChanged;
-        Session.Discarded += OnDiscarded;
+        // Every conversation is a dot: a new one, a new question (its weight) or a new title shows. Only this workspace's
+        // conversations reload the page (design session-network §15.3).
+        _conversations.ConversationChanged += OnConversationChanged;
         if (_recommendations is not null)
         {
             _recommendations.Changed += OnRecommendationsChanged;
@@ -118,13 +112,10 @@ public sealed partial class SummaryNetworkHomeViewModel : PageViewModel, IDispos
 
     public SummaryNetworkSession Session { get; }
 
-    /// <summary>"Mindweave" behind the session network's gate, "总结网络" without it.</summary>
-    public override string Title => IsSessionNetwork ? UiText.SessionNetworkTitle : UiText.SummaryNetworkTitle;
+    /// <summary>"Mindweave" (requirements §4.2).</summary>
+    public override string Title => UiText.SummaryNetworkTitle;
 
-    /// <summary>The session network is on: every conversation a dot, a 空间 | 时间线 switch, and no layout to arrange or save.</summary>
-    public bool IsSessionNetwork => Session.IsSessionNetwork;
-
-    /// <summary>The session network shows the world-line timeline (时间线) rather than the spatial view (空间).</summary>
+    /// <summary>The network shows the world-line timeline (时间线) rather than the spatial view (空间).</summary>
     public bool IsTimeline => Session.IsTimeline;
 
     internal Task Loaded { get; }
@@ -140,8 +131,8 @@ public sealed partial class SummaryNetworkHomeViewModel : PageViewModel, IDispos
     public IReadOnlyList<GroupCaption> Captions { get; private set; } = [];
 
     /// <summary>
-    /// The content links drawn (requirements §10.3.3): solid, in the link colour, between two summaries at their positions in
-    /// memory. Empty while 隐藏关联 is on. Never used by 整理布局 and never part of the layout.
+    /// The content links drawn (requirements §10.3.3): quiet dashes between two summaries. Empty while 隐藏关联 is on. Never
+    /// part of the layout.
     /// </summary>
     public IReadOnlyList<LinkEdgeView> LinkEdges { get; private set; } = [];
 
@@ -279,9 +270,6 @@ public sealed partial class SummaryNetworkHomeViewModel : PageViewModel, IDispos
     /// <summary>Nodes whose short or full name contains the search text, updated as it is typed.</summary>
     public IReadOnlySet<SummaryNodeId> Matches { get; private set; } = new HashSet<SummaryNodeId>();
 
-    /// <summary>The save button's text: says plainly when the arrangement is not saved.</summary>
-    public string SaveLayoutLabel => Session.IsDirty ? UiText.SaveLayoutUnsaved : UiText.LayoutSaved;
-
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(ShowsCanvas))]
     public partial bool IsListView { get; set; }
@@ -298,12 +286,6 @@ public sealed partial class SummaryNetworkHomeViewModel : PageViewModel, IDispos
 
     /// <summary>The details offer links and "关联到…": with the links service, and not for a dot without a summary.</summary>
     public bool ShowsLinksSection => Links is not null && Selected is not { HasSummary: false };
-
-    public bool IsDirty => Session.IsDirty;
-
-    public bool IsSaving => Session.IsSaving;
-
-    public bool SaveFailed => Session.SaveFailed;
 
     /// <summary>The canvas redraws; <c>true</c> when the viewport was reset and should fit everything again.</summary>
     public event EventHandler<bool>? ViewChanged;
@@ -529,7 +511,7 @@ public sealed partial class SummaryNetworkHomeViewModel : PageViewModel, IDispos
         OnPropertyChanged(nameof(ShowsLinkLegend));
     }
 
-    /// <summary>The link edges between summaries at their positions in memory, so they follow 整理布局 and drags.</summary>
+    /// <summary>The link edges between summaries, at their dots' positions in the view shown.</summary>
     private void BuildLinkViews()
     {
         var nodes = Nodes.ToDictionary(n => n.Id);
@@ -694,7 +676,7 @@ public sealed partial class SummaryNetworkHomeViewModel : PageViewModel, IDispos
     [RelayCommand]
     private void OpenSettings() => _navigator.Navigate(new NavigationRequest(MainSection.Settings));
 
-    /// <summary>Double click or "open summary"; a session network dot without a summary opens its conversation.</summary>
+    /// <summary>Double click or "open summary"; a dot without a summary opens its conversation.</summary>
     [RelayCommand]
     private void Open(SummaryNodeId node)
     {
@@ -767,7 +749,7 @@ public sealed partial class SummaryNetworkHomeViewModel : PageViewModel, IDispos
     [RelayCommand]
     private void SetViewMode(SummaryNetworkViewMode mode)
     {
-        if (!IsSessionNetwork || mode == Session.ViewMode)
+        if (mode == Session.ViewMode)
         {
             return;
         }
@@ -778,34 +760,13 @@ public sealed partial class SummaryNetworkHomeViewModel : PageViewModel, IDispos
         ViewChanged?.Invoke(this, true);
     }
 
-    /// <summary>Explicit re-layout: kept in memory and marked unsaved until saved.</summary>
-    [RelayCommand]
-    private void Arrange()
+    /// <summary>Puts a dot somewhere until the next layout (tests).</summary>
+    internal void PutDot(SummaryNodeId node, double x, double y)
     {
-        Session.Arrange();
-        BuildViews();
-        ViewChanged?.Invoke(this, true);
-    }
-
-    /// <summary>
-    /// A drag ended: the node keeps its new place in memory and the layout is unsaved until saved, as after
-    /// <see cref="ArrangeCommand"/>; unlike arranging, the viewport stays where the reader put it.
-    /// </summary>
-    public void MoveNode(SummaryNodeId node, double x, double y)
-    {
-        if (!Session.Move(node, new Application.Storage.NodePosition(x, y)))
-        {
-            return;
-        }
-
+        Session.Put(node, new Application.Storage.NodePosition(x, y));
         BuildViews();
         ViewChanged?.Invoke(this, false);
     }
-
-    [RelayCommand(CanExecute = nameof(CanSave))]
-    private Task<bool> SaveLayoutAsync() => Session.SaveAsync(CancellationToken.None);
-
-    private bool CanSave() => Session.IsDirty && !Session.IsSaving;
 
     [RelayCommand]
     private void ToggleView() => IsListView = !IsListView;
@@ -858,8 +819,6 @@ public sealed partial class SummaryNetworkHomeViewModel : PageViewModel, IDispos
         _summaries.Changed -= OnConversationChanged;
         _conversations.VisibilityChanged -= OnVisibilityChanged;
         _conversations.ConversationChanged -= OnConversationChanged;
-        Session.PropertyChanged -= OnSessionChanged;
-        Session.Discarded -= OnDiscarded;
         Details.PropertyChanged -= OnDetailsChanged;
         if (_recommendations is not null)
         {
@@ -986,14 +945,14 @@ public sealed partial class SummaryNetworkHomeViewModel : PageViewModel, IDispos
     }
 
     /// <summary>
-    /// The recommended nodes beside their basis summaries at the positions in memory (so they follow 整理布局 and drags),
-    /// clear of every saved node, caption and each other. Recomputed, never stored.
+    /// The recommended nodes beside their basis summaries in the view shown, clear of every dot, caption and each other.
+    /// Recomputed, never stored.
     /// </summary>
     private void BuildRecommendationViews()
     {
         var nodes = Nodes.ToDictionary(n => n.Id);
         var items = _offer.Hidden ? [] : _offer.Items.Where(r => r.Basis is { } b && nodes.ContainsKey(b)).ToList();
-        var obstacles = SummaryNetworkObstacles.Of(Nodes, Captions, IsSessionNetwork, IsTimeline);
+        var obstacles = SummaryNetworkObstacles.Of(Nodes, Captions, IsTimeline);
 
         var labels = items.Select(r => RecommendedLabel(r.Question)).ToList();
         var widths = labels.Select(RecommendedLabelWidth).ToList();
@@ -1032,22 +991,6 @@ public sealed partial class SummaryNetworkHomeViewModel : PageViewModel, IDispos
 
     /// <summary>The tag's frame and the gap after it, in canvas units.</summary>
     internal const double RecommendedTagExtra = 14;
-
-    private void OnDiscarded(object? sender, EventArgs e)
-    {
-        if (!_disposed)
-        {
-            _reload.Request();
-        }
-    }
-
-    private void OnChanged(object? sender, ConversationId e)
-    {
-        if (!_disposed)
-        {
-            _reload.Request();
-        }
-    }
 
     /// <summary>
     /// Whether a conversation belongs to this page's workspace, as far as known: every conversation listed at the last load,
@@ -1127,15 +1070,6 @@ public sealed partial class SummaryNetworkHomeViewModel : PageViewModel, IDispos
         }
     }
 
-    private void OnSessionChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e)
-    {
-        OnPropertyChanged(nameof(IsDirty));
-        OnPropertyChanged(nameof(SaveLayoutLabel));
-        OnPropertyChanged(nameof(IsSaving));
-        OnPropertyChanged(nameof(SaveFailed));
-        SaveLayoutCommand.NotifyCanExecuteChanged();
-    }
-
     /// <summary>Loads so far (tests: a change in another workspace must not reload this page).</summary>
     internal int Loads => Volatile.Read(ref _loads);
 
@@ -1167,7 +1101,7 @@ public sealed partial class SummaryNetworkHomeViewModel : PageViewModel, IDispos
             return;
         }
 
-        // Only summaries count: in the session network most dots are conversations without one.
+        // Only summaries count: most dots are conversations without one.
         Suggestions?.SetSummaryCount(Session.Projection.Nodes.Count(n => n.HasSummary));
         await (Suggestions?.ReloadAsync() ?? Task.CompletedTask);
         if (_disposed)
@@ -1183,7 +1117,7 @@ public sealed partial class SummaryNetworkHomeViewModel : PageViewModel, IDispos
         var names = Session.Projection.Nodes.ToDictionary(n => n.Id, n => n.DisplayName);
         foreach (var node in Session.Projection.Nodes)
         {
-            // A session network dot without a summary has no markers: it is a conversation, never read or unread.
+            // A dot without a summary has no markers: it is a conversation, never read or unread.
             if (!node.HasSummary)
             {
                 Items.Add(new SummaryListItem(node.Id, node.DisplayName, string.Empty, false) { HasSummary = false, Links = LinksLineOf(node.Id, names) });
@@ -1225,7 +1159,7 @@ public sealed partial class SummaryNetworkHomeViewModel : PageViewModel, IDispos
         var parents = SummaryNetworkSession.BranchParents(Session.Projection);
         var timeline = Session.IsTimeline;
 
-        // In the spatial view of the session network the layout also placed each label and wrapped it.
+        // In the spatial view the layout also placed each label and wrapped it.
         var placed = Session.SpatialLabels;
         var dated = placed.Count > 0 ? Session.DayStarts.ToHashSet() : [];
         Nodes = [.. Session.Projection.Nodes.Where(n => positions.ContainsKey(n.Id)).Select(n => new NodeView(
@@ -1233,22 +1167,17 @@ public sealed partial class SummaryNetworkHomeViewModel : PageViewModel, IDispos
             parents.TryGetValue(n.Id, out var parent) && positions.ContainsKey(parent) ? parent : null, n.Conversation == n.Root, n.HasSummary, n.Weight, n.CreatedAt,
             placed.GetValueOrDefault(n.Id), dated.Contains(n.Id)))];
         Edges = [.. Session.Projection.Edges.Where(e => positions.ContainsKey(e.From) && positions.ContainsKey(e.To)).Select(e => new EdgeView(
-            e.From, e.To, positions[e.From].X, positions[e.From].Y, positions[e.To].X, positions[e.To].Y, e.IsDirect, e.IsDirect ? null : UiText.ViaCount(e.Via.Count),
-            e.Kind, timeline && e.Kind == SummaryNetworkEdgeKind.Branch && positions[e.From].Y != positions[e.To].Y))];
-        // The session network dates the root that starts a new day, on the timeline above it and in the spatial view beside it.
-        Captions = Session.IsSessionNetwork ? DayCaptions() : [.. Session.Projection.Nodes.Where(n => positions.ContainsKey(n.Id)).GroupBy(n => n.Root).Select(g =>
-        {
-            // Over the root's own summary; when the root conversation has none, over the group's top-left node.
-            var anchor = g.FirstOrDefault(n => n.Conversation == g.Key) ?? g.OrderBy(n => positions[n.Id].Y).ThenBy(n => positions[n.Id].X).First();
-            return new GroupCaption(UiText.ExplorationCaption(_titles.GetValueOrDefault(g.Key)), anchor.Id, [.. g.Select(n => n.Id)]);
-        })];
+            e.From, e.To, positions[e.From].X, positions[e.From].Y, positions[e.To].X, positions[e.To].Y, e.Kind,
+            timeline && e.Kind == SummaryNetworkEdgeKind.Branch && positions[e.From].Y != positions[e.To].Y))];
+        // The root that starts a new day is dated, on the timeline above it and in the spatial view beside it.
+        Captions = DayCaptions();
         Trail = TrailOf(Session.Selected);
         BuildLinkViews();
         BuildSuggestionViews();
         BuildRecommendationViews();
     }
 
-    /// <summary>The session network's captions: the local day over the first exploration of each day ("11月20日").</summary>
+    /// <summary>The captions: the local day over the first exploration of each day ("11月20日").</summary>
     private List<GroupCaption> DayCaptions()
     {
         var today = SummaryNetworkSession.LocalDay(DateTimeOffset.Now);
@@ -1264,11 +1193,9 @@ public sealed partial class SummaryNetworkHomeViewModel : PageViewModel, IDispos
             return null;
         }
 
-        var edge = Session.Projection.Edges.FirstOrDefault(e => e.To == id && !e.IsDirect);
         var steps = PathOf(node);
-        var gated = IsSessionNetwork;
 
-        // A session dot is headed by its conversation's name (as in the sidebar), never its question; a summary keeps its own.
+        // A dot without a summary is headed by its conversation's name (as in the sidebar), never its question; a summary keeps its own.
         return new NodeDetail(
             node.Id,
             node.Conversation,
@@ -1276,15 +1203,14 @@ public sealed partial class SummaryNetworkHomeViewModel : PageViewModel, IDispos
             node.ShortTitle,
             node.HasSummary ? UiText.Markers(node.Markers) : string.Empty,
             UiText.NodeSource(_titles.GetValueOrDefault(node.Conversation) ?? UiText.NewConversation, node.SourceArchived),
-            gated ? UiText.SessionStarted(node.CreatedAt) : UiText.NodeCreated(node.CreatedAt),
-            edge is null ? null : UiText.ViaUnsummarized([.. edge.Via.Select(c => _titles.GetValueOrDefault(c) ?? UiText.NewConversation)]),
+            UiText.ConversationStarted(node.CreatedAt),
             node.Markers.Unread,
             node.Markers.HasCandidate,
             node.SourceArchived,
             UiText.SourcePath([.. steps.Select(step => step.Text)]),
             steps,
             node.HasSummary,
-            gated ? node.FirstQuestion : null);
+            node.FirstQuestion);
     }
 
     /// <summary>
@@ -1293,7 +1219,7 @@ public sealed partial class SummaryNetworkHomeViewModel : PageViewModel, IDispos
     /// </summary>
     private List<PathStep> PathOf(SummaryNetworkNode node)
     {
-        // In the session network every conversation is a dot; only those with a summary count as summarized here.
+        // Every conversation is a dot; only those with a summary count as summarized here.
         var summarized = Session.Projection.Nodes.Where(n => n.HasSummary).ToDictionary(n => n.Conversation, n => n.ShortTitle);
         var chain = node.Ancestors.Append(node.Conversation).ToList();
         return [.. chain.Select((conversation, i) => summarized.TryGetValue(conversation, out var shortTitle)

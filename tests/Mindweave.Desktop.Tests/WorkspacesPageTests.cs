@@ -109,22 +109,17 @@ public class WorkspacesPageTests
     }
 
     [AvaloniaFact]
-    public async Task Switching_from_the_page_opens_that_workspace_and_asks_about_an_unsaved_layout_first()
+    public async Task Switching_from_the_page_opens_that_workspace_at_once()
     {
         await using var app = DesktopHarness.Create();
         var window = app.ShowWindow(1100, 720);
         await SummaryNetworkScenario.SeedAsync(app);
         var trains = app.Workbench.CurrentWorkspace!;
         var (city, _) = await WorkspaceSwitcherTests.AddAsync(app, "城市交通", "摄影史");
-        var network = await SummaryNetworkScenario.OpenSummaryNetworkAsync(app, window);
-        await SummaryNetworkScenario.MoveSomethingAsync(app, network);
-        network.ArrangeCommand.Execute(null);
+        await SummaryNetworkScenario.OpenSummaryNetworkAsync(app, window);
 
         var page = await OpenPageAsync(app, window);
         UiInput.Click(window, Rows<Button>(window, "SwitchWorkspaceButton")[1]);
-        Assert.True(app.Root.LayoutPrompt.IsOpen);
-        Assert.Equal(trains.Id, app.Workbench.CurrentWorkspace!.Id);
-        app.Root.LayoutPrompt.DontSaveCommand.Execute(null);
         Assert.Equal(city.Id, app.Workbench.CurrentWorkspace!.Id);
         Assert.True(page.Rows[1].IsCurrent);
         Assert.False(page.Rows[0].IsCurrent);

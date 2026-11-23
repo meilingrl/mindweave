@@ -65,29 +65,6 @@ public class DialogKeyboardTests
         window.Close();
     }
 
-    [AvaloniaFact]
-    public async Task The_unsaved_layout_prompt_takes_the_keyboard_and_esc_cancels()
-    {
-        await using var app = DesktopHarness.Create();
-        var window = app.ShowWindow(1100, 720);
-        await ExitScenario.DirtyLayoutAsync(app, window);
-        Find<Button>(window, "NewConversationButton").Focus();
-
-        Assert.True(ExitScenario.Quit(app, window, ExitEntry.Lifetime));
-        Dispatcher.UIThread.RunJobs();
-
-        var prompt = Find<Border>(window, "LayoutPromptDialog");
-        Assert.True(IsInside(Focused(window), prompt));
-        window.KeyPress(Key.Tab, RawInputModifiers.None, PhysicalKey.Tab, null);
-        window.KeyPress(Key.Tab, RawInputModifiers.None, PhysicalKey.Tab, null);
-        window.KeyPress(Key.Tab, RawInputModifiers.None, PhysicalKey.Tab, null);
-        Assert.True(IsInside(Focused(window), prompt));
-
-        window.KeyPress(Key.Escape, RawInputModifiers.None, PhysicalKey.Escape, null);
-        Assert.False(app.Root.LayoutPrompt.IsOpen);
-        window.Close();
-    }
-
     private static IInputElement? Focused(Window window) => window.FocusManager?.GetFocusedElement();
 
     private static bool IsInside(IInputElement? element, Visual container) =>

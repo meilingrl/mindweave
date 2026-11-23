@@ -42,26 +42,22 @@ public class RecommendedNodesUiTests
         var window = app.ShowWindow(1100, 720);
         await SummaryNetworkScenario.SeedSeenAsync(app);
         var network = await SummaryNetworkScenario.OpenSummaryNetworkAsync(app, window);
-        var layoutRows = await LayoutRowsAsync(app);
-        var revision = network.Session.Revision;
+        var positions = network.Session.Positions.ToDictionary(p => p.Key, p => p.Value);
         Assert.Empty(network.RecommendedNodes);
 
         await PrepareAsync(app, network, window);
 
-        // One (three summaries), extending the most recently updated summary; nothing about the layout changed.
+        // One (four conversations), extending the most recently updated summary; nothing about the layout changed.
         var node = Assert.Single(network.RecommendedNodes);
         Assert.Equal(Question, node.Question);
         Assert.Contains(network.Nodes, n => n.Id == node.Basis);
-        Assert.False(network.IsDirty);
-        Assert.Equal(revision, network.Session.Revision);
-        Assert.Equal(layoutRows, await LayoutRowsAsync(app));
-        Assert.Equal(network.Nodes.Count, network.Session.Positions.Count);
+        Assert.Equal(positions, network.Session.Positions.ToDictionary(p => p.Key, p => p.Value));
 
         // Beside its basis, clear of every summary and its label.
         var basis = network.Nodes.Single(n => n.Id == node.Basis);
         Assert.True(Math.Abs(node.X - basis.X) + Math.Abs(node.Y - basis.Y) <= 3 * RecommendationPlacement.StepX);
         var box = CanvasBox.OfNode(node.X, node.Y, node.LabelWidth);
-        Assert.All(network.Nodes, n => Assert.False(box.Overlaps(CanvasBox.OfNode(n.X, n.Y, n.LabelWidth)), n.ShortTitle));
+        Assert.DoesNotContain(SummaryNetworkObstacles.Of(network.Nodes, network.Captions, network.IsTimeline), box.Overlaps);
 
         // Drawn: a dashed ring, the word in a frame, a dotted line to the basis; told apart from both kinds of edge.
         var canvas = CanvasOf(window);
@@ -73,8 +69,8 @@ public class RecommendedNodesUiTests
         Assert.NotNull(palette.RecommendationRing(false).DashStyle);
         var link = palette.RecommendationLink(false);
         Assert.Equal(PenLineCap.Round, link.LineCap);
-        Assert.NotEqual(palette.EdgePen(EdgeState.Indirect, true).DashStyle!.Dashes, link.DashStyle!.Dashes);
-        Assert.Null(palette.EdgePen(EdgeState.Normal, false).DashStyle);
+        Assert.NotEqual(palette.LinkPen(false).DashStyle!.Dashes, link.DashStyle!.Dashes);
+        Assert.Null(palette.EdgePen(EdgeState.Normal).DashStyle);
 
         // The legend says what the ring and the line are; the toolbar offers 换一批推荐 and 隐藏推荐.
         Assert.True(LegendCard.Shows(window, "RecommendationLegend"));
@@ -94,15 +90,12 @@ public class RecommendedNodesUiTests
         Assert.Null(network.Selected);
         Assert.Null(network.SelectedRecommendation);
 
-        // 整理布局 arranges summaries only; it follows its basis, and saving writes summary positions only.
-        network.ArrangeCommand.Execute(null);
+        // It follows its basis into the other view, and is never a dot of its own there either.
+        network.SetViewModeCommand.Execute(SummaryNetworkViewMode.Timeline);
         Assert.Equal(network.Nodes.Select(n => n.Id).ToHashSet(), network.Session.Positions.Keys.ToHashSet());
         node = Assert.Single(network.RecommendedNodes);
         basis = network.Nodes.Single(n => n.Id == node.Basis);
         Assert.Equal((basis.X, basis.Y), (node.BasisX, node.BasisY));
-        await network.SaveLayoutCommand.ExecuteAsync(null);
-        Assert.False(network.IsDirty);
-        Assert.Equal(network.Nodes.Count, await LayoutRowsAsync(app));
         window.Close();
     }
 
@@ -375,9 +368,6 @@ public class RecommendedNodesUiTests
         await network.RecommendationsReloaded;
         window.UpdateLayout();
     }
-
-    private static Task<long> LayoutRowsAsync(DesktopHarness app) =>
-        app.Services.GetRequiredService<SqliteDatabase>().ReadAsync(c => c.Scalar<long>(null, "SELECT count(*) FROM node_layout;"), CancellationToken.None);
 
     private static Task<int> DeleteSummaryAsync(DesktopHarness app, Core.Summaries.SummaryNodeId node) =>
         app.Services.GetRequiredService<SqliteDatabase>().WriteAsync(

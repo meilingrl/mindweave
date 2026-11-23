@@ -23,21 +23,19 @@ using TextBlock = Avalonia.Controls.TextBlock;
 namespace Mindweave.Desktop.Tests;
 
 /// <summary>
-/// The session network page behind its gate: called Mindweave, a 空间 | 时间线 switch, no layout controls, a legend for
+/// The network page: called Mindweave, a 空间 | 时间线 switch, no layout controls, a legend for
 /// the new marks, and dots without a summary that open their conversation. Without the gate the page is today's
 /// (<see cref="SummaryNetworkUiTests"/>).
 /// </summary>
-public class SessionNetworkUiTests
+public class SummaryNetworkPageTests
 {
     public static TheoryData<string> Themes => new() { "Light", "Dark" };
-
-    internal static DesktopHarness Gated() => DesktopHarness.Create(s => s.AddSingleton(new SessionNetworkGate(true)));
 
     [AvaloniaTheory]
     [MemberData(nameof(Themes))]
     public async Task The_page_is_called_Mindweave_and_switches_views(string theme)
     {
-        await using var app = Gated();
+        await using var app = DesktopHarness.Create();
         var window = app.ShowWindow(1100, 720, Theme(theme));
         await SeedAsync(app);
         var network = await OpenAsync(app, window);
@@ -52,7 +50,7 @@ public class SessionNetworkUiTests
         Assert.Contains(view.GetVisualDescendants().OfType<TextBlock>(), t => t.Text == "Mindweave" && t.IsEffectivelyVisible);
         Assert.False(network.IsTimeline);
         Assert.True(Find<RadioButton>(view, "SpatialViewButton").IsChecked);
-        Screenshots.Capture(window, $"session-network-spatial-{theme.ToLowerInvariant()}");
+        Screenshots.Capture(window, $"network-spatial-{theme.ToLowerInvariant()}");
 
         UiInput.Click(window, Find<RadioButton>(view, "TimelineViewButton"));
         window.UpdateLayout();
@@ -67,7 +65,7 @@ public class SessionNetworkUiTests
         // The page was rebuilt for the new view: what it draws is where the session put it, and the branch leaves the main line in a curve.
         Assert.All(network.Nodes, n => Assert.Equal(network.Session.Positions[n.Id], new NodePosition(n.X, n.Y)));
         Assert.Contains(network.Edges, e => e.Curved);
-        Screenshots.Capture(window, $"session-network-timeline-{theme.ToLowerInvariant()}");
+        Screenshots.Capture(window, $"network-timeline-{theme.ToLowerInvariant()}");
 
         UiInput.Click(window, Find<RadioButton>(view, "SpatialViewButton"));
         window.UpdateLayout();
@@ -79,7 +77,7 @@ public class SessionNetworkUiTests
     [AvaloniaFact]
     public async Task Clicking_the_shown_view_again_keeps_pan_and_zoom()
     {
-        await using var app = Gated();
+        await using var app = DesktopHarness.Create();
         var window = app.ShowWindow(1100, 720);
         await SeedAsync(app);
         var network = await OpenAsync(app, window);
@@ -108,18 +106,15 @@ public class SessionNetworkUiTests
 
     [AvaloniaTheory]
     [MemberData(nameof(Themes))]
-    public async Task Layout_controls_are_hidden_and_the_legend_explains_the_marks(string theme)
+    public async Task Nothing_offers_to_arrange_or_save_and_the_legend_explains_the_marks(string theme)
     {
-        await using var app = Gated();
+        await using var app = DesktopHarness.Create();
         var window = app.ShowWindow(1100, 720, Theme(theme));
         await SeedAsync(app);
-        var network = await OpenAsync(app, window);
+        await OpenAsync(app, window);
         var view = PageView(window);
 
-        Assert.True(network.IsSessionNetwork);
-        Assert.False(Find<Button>(view, "ArrangeButton").IsEffectivelyVisible);
-        Assert.False(Find<Button>(view, "SaveLayoutButton").IsEffectivelyVisible);
-        Assert.False(Find<StackPanel>(view, "LayoutSavedStatus").IsEffectivelyVisible);
+        Assert.DoesNotContain(view.GetVisualDescendants().OfType<Control>(), c => c.Name is "ArrangeButton" or "SaveLayoutButton" or "LayoutSavedStatus");
         Assert.True(Find<RadioButton>(view, "TimelineViewButton").IsEffectivelyVisible);
 
         // The legend is an icon until it is wanted; every mark it explains keeps its words (requirements §10.3).
@@ -138,8 +133,6 @@ public class SessionNetworkUiTests
         Assert.Contains("实线：分支", legend);
         Assert.Contains(UiText.LegendUnread, legend);
         Assert.Contains(UiText.LegendCandidate, legend);
-        Assert.DoesNotContain(UiText.LegendIndirect, legend);
-        Assert.DoesNotContain(UiText.LegendRead, legend);
 
         // Each mark keeps its words: the unread badge and 未读 are one item, never split across rows.
         var unread = texts.Single(t => t.Text == UiText.LegendUnread);
@@ -147,7 +140,7 @@ public class SessionNetworkUiTests
         Assert.Equal(Avalonia.Layout.Orientation.Horizontal, item.Orientation);
         Assert.Same(panel, item.Parent);
         Assert.Contains(item.GetVisualDescendants().OfType<Avalonia.Controls.Shapes.Ellipse>(), e => e.IsEffectivelyVisible);
-        Screenshots.Capture(window, $"session-network-legend-{theme.ToLowerInvariant()}");
+        Screenshots.Capture(window, $"network-legend-{theme.ToLowerInvariant()}");
         window.Close();
     }
 
@@ -155,7 +148,7 @@ public class SessionNetworkUiTests
     [MemberData(nameof(Themes))]
     public async Task A_dot_without_a_summary_opens_its_conversation(string theme)
     {
-        await using var app = Gated();
+        await using var app = DesktopHarness.Create();
         var window = app.ShowWindow(1100, 720, Theme(theme));
         var (summarized, _, plain) = await SeedAsync(app);
         var network = await OpenAsync(app, window);
@@ -179,7 +172,7 @@ public class SessionNetworkUiTests
         Assert.False(Find<Border>(view, "UnreadBadge").IsEffectivelyVisible);
         Assert.False(Find<Border>(view, "ReadBadge").IsEffectivelyVisible);
         Assert.True(Find<Button>(view, "ReturnSelectedButton").IsEffectivelyVisible);
-        Screenshots.Capture(window, $"session-network-dot-details-{theme.ToLowerInvariant()}");
+        Screenshots.Capture(window, $"network-dot-details-{theme.ToLowerInvariant()}");
 
         // The list view lists every dot; one without a summary has no markers.
         Assert.Equal(3, network.Items.Count);
@@ -198,7 +191,7 @@ public class SessionNetworkUiTests
     [AvaloniaFact]
     public async Task New_conversations_and_questions_appear_without_reopening()
     {
-        await using var app = Gated();
+        await using var app = DesktopHarness.Create();
         var window = app.ShowWindow(1100, 720);
         var (_, _, plain) = await SeedAsync(app);
         var network = await OpenAsync(app, window);
@@ -239,7 +232,7 @@ public class SessionNetworkUiTests
         SerialRefresh.Failed += OnFailed;
         try
         {
-            await using var app = Gated();
+            await using var app = DesktopHarness.Create();
             var window = app.ShowWindow(1100, 720, Theme(theme));
             await app.StartWithWorkspaceAsync("火车");
             app.ShellPage.ShowSectionCommand.Execute(MainSection.SummaryNetwork);
@@ -247,7 +240,7 @@ public class SessionNetworkUiTests
             await network.Loaded;
             window.UpdateLayout();
             var view = PageView(window);
-            TextBlock EmptyText() => view.GetVisualDescendants().OfType<TextBlock>().Single(t => t.Text == UiText.SessionNetworkEmpty);
+            TextBlock EmptyText() => view.GetVisualDescendants().OfType<TextBlock>().Single(t => t.Text == UiText.SummaryNetworkEmpty);
 
             Assert.True(network.IsEmpty);
             Assert.True(EmptyText().IsEffectivelyVisible);
@@ -262,7 +255,7 @@ public class SessionNetworkUiTests
             Assert.True(EmptyText().IsEffectivelyVisible);
             Assert.Empty(network.Nodes);
             Assert.Empty(CanvasOf(window).PaintNodes());
-            Screenshots.Capture(window, $"session-network-empty-timeline-{theme.ToLowerInvariant()}");
+            Screenshots.Capture(window, $"network-empty-timeline-{theme.ToLowerInvariant()}");
 
             network.SetViewModeCommand.Execute(SummaryNetworkViewMode.Spatial);
             window.UpdateLayout();
@@ -282,7 +275,7 @@ public class SessionNetworkUiTests
     [MemberData(nameof(Themes))]
     public async Task The_details_show_the_title_as_heading_and_the_question_below(string theme)
     {
-        await using var app = Gated();
+        await using var app = DesktopHarness.Create();
         var window = app.ShowWindow(1100, 720, Theme(theme));
         var (_, _, plain) = await SeedAsync(app);
         await app.Services.GetRequiredService<ConversationService>().RenameAsync(plain, "摄影入门", CancellationToken.None);
@@ -300,7 +293,7 @@ public class SessionNetworkUiTests
         Assert.Equal("摄影怎么入门？", Find<TextBlock>(view, "DetailQuestion").Text);
         Assert.Contains(block.GetVisualDescendants().OfType<TextBlock>(), t => t.Text == UiText.DetailQuestion);
         Assert.False(Find<Button>(view, "ToggleQuestionButton").IsEffectivelyVisible);
-        Screenshots.Capture(window, $"session-network-details-title-{theme.ToLowerInvariant()}");
+        Screenshots.Capture(window, $"network-details-title-{theme.ToLowerInvariant()}");
         window.Close();
     }
 
@@ -308,7 +301,7 @@ public class SessionNetworkUiTests
     [MemberData(nameof(Themes))]
     public async Task A_very_long_question_stays_bounded_and_expands(string theme)
     {
-        await using var app = Gated();
+        await using var app = DesktopHarness.Create();
         var window = app.ShowWindow(1100, 720, Theme(theme));
         var (_, _, plain) = await SeedAsync(app);
         var conversations = app.Services.GetRequiredService<ConversationService>();
@@ -333,7 +326,7 @@ public class SessionNetworkUiTests
         Assert.True(text.Bounds.Height < 4 * text.FontSize * 2, "collapsed question is bounded");
         AssertInside(Find<Button>(view, "ReturnSelectedButton"), panel);
         AssertInside(toggle, panel);
-        Screenshots.Capture(window, $"session-network-details-long-collapsed-{theme.ToLowerInvariant()}");
+        Screenshots.Capture(window, $"network-details-long-collapsed-{theme.ToLowerInvariant()}");
 
         UiInput.Click(window, toggle);
         window.UpdateLayout();
@@ -349,7 +342,7 @@ public class SessionNetworkUiTests
         Assert.Equal(0, panel.Offset.Y);
         AssertInside(Find<Button>(view, "ReturnSelectedButton"), panel);
         AssertInside(toggle, panel);
-        Screenshots.Capture(window, $"session-network-details-long-expanded-{theme.ToLowerInvariant()}");
+        Screenshots.Capture(window, $"network-details-long-expanded-{theme.ToLowerInvariant()}");
 
         UiInput.Click(window, toggle);
         window.UpdateLayout();
@@ -375,7 +368,7 @@ public class SessionNetworkUiTests
     [AvaloniaFact]
     public async Task A_summary_dot_keeps_its_summary_name_and_shows_the_question()
     {
-        await using var app = Gated();
+        await using var app = DesktopHarness.Create();
         var window = app.ShowWindow(1100, 720);
         var (summarized, _, _) = await SeedAsync(app);
         var network = await OpenAsync(app, window);
@@ -394,15 +387,14 @@ public class SessionNetworkUiTests
     [MemberData(nameof(Themes))]
     public async Task Gated_texts_speak_of_sessions(string theme)
     {
-        await using var app = Gated();
+        await using var app = DesktopHarness.Create();
         var window = app.ShowWindow(1100, 720, Theme(theme));
         var (summarized, _, _) = await SeedAsync(app);
         var network = await OpenAsync(app, window);
         var view = PageView(window);
         IEnumerable<string?> Visible() => view.GetVisualDescendants().OfType<TextBlock>().Where(t => t.IsEffectivelyVisible).Select(t => t.Text);
 
-        Assert.Contains(UiText.SessionNetworkHint, Visible());
-        Assert.DoesNotContain(UiText.SummaryNetworkSelectHint, Visible());
+        Assert.Contains(UiText.SummaryNetworkSelectHint, Visible());
 
         network.Select(network.Session.Projection.Nodes.Single(n => n.Conversation == summarized).Id);
         window.UpdateLayout();
@@ -414,7 +406,7 @@ public class SessionNetworkUiTests
     [AvaloniaFact]
     public async Task A_plain_dot_has_a_primary_action()
     {
-        await using var app = Gated();
+        await using var app = DesktopHarness.Create();
         var window = app.ShowWindow(1100, 720);
         var (_, _, plain) = await SeedAsync(app);
         var network = await OpenAsync(app, window);

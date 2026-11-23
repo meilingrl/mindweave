@@ -266,7 +266,7 @@ public sealed partial class WorkspaceDeletionViewModel : ViewModelBase, IDisposa
 
     /// <summary>
     /// The pages of the deleted workspace leave every stack (disposed, so nothing they hold is saved into it), then its
-    /// network session goes with any unsaved layout, unasked. Then the most recently used workspace, or onboarding.
+    /// network session goes. Then the most recently used workspace, or onboarding.
     /// </summary>
     private void Leave(WorkspaceId deleted, WorkspaceId? next)
     {

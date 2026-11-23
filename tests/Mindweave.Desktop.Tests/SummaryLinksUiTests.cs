@@ -34,14 +34,13 @@ public class SummaryLinksUiTests
     private const string Sibling = "铁轨";
 
     [AvaloniaFact]
-    public async Task Links_are_drawn_solid_in_their_own_colour_with_the_note_and_a_legend_and_never_touch_the_layout()
+    public async Task Links_are_quiet_dashes_with_the_note_while_active_and_a_legend_and_never_touch_the_layout()
     {
         await using var app = DesktopHarness.Create();
         var window = app.ShowWindow(1100, 720);
         await SeedAsync(app);
         var network = await SummaryNetworkScenario.OpenSummaryNetworkAsync(app, window);
-        var layoutRows = await LayoutRowsAsync(app);
-        var revision = network.Session.Revision;
+        var positions = network.Session.Positions.ToDictionary(p => p.Key, p => p.Value);
         Assert.Empty(network.LinkEdges);
         Assert.False(network.ShowsLinkTools);
         LinksMenu.Open(window);
@@ -55,35 +54,30 @@ public class SummaryLinksUiTests
 
         // Two link edges, at the summaries' positions; nothing about the layout changed.
         Assert.Equal(2, network.LinkEdges.Count);
-        Assert.False(network.IsDirty);
-        Assert.Equal(revision, network.Session.Revision);
-        Assert.Equal(layoutRows, await LayoutRowsAsync(app));
+        Assert.Equal(positions, network.Session.Positions.ToDictionary(p => p.Key, p => p.Value));
 
-        // Drawn solid, thicker than a source edge, in a colour of their own; the note at the middle in a frame.
+        // At rest a thin dash in the branch lines' colour, told apart from the solid branch line and the round-dotted
+        // recommendation line by its dashes, and without words (requirements §10.3.3).
         var canvas = CanvasOf(window);
         var palette = SummaryNetworkPalette.From(canvas);
         var pen = palette.LinkPen(false);
-        Assert.Null(pen.DashStyle);
-        Assert.True(pen.Thickness > palette.EdgePen(EdgeState.Normal, false).Thickness);
-        Assert.NotNull(palette.EdgePen(EdgeState.Indirect, true).DashStyle);
-        Assert.NotNull(palette.RecommendationLink(false).DashStyle);
-        var colour = ((ISolidColorBrush)pen.Brush!).Color;
-        foreach (var other in new[] { palette.Edge, palette.EdgeIndirect, palette.EdgeTrail, palette.EdgeNear, palette.Recommendation })
-        {
-            Assert.NotEqual(colour, ((ISolidColorBrush)other).Color);
-        }
+        Assert.NotNull(pen.DashStyle);
+        Assert.Null(palette.EdgePen(EdgeState.Normal).DashStyle);
+        Assert.NotEqual(pen.DashStyle.Dashes, palette.RecommendationLink(false).DashStyle!.Dashes);
+        Assert.Equal(2, canvas.PaintLinks().Count);
+        Assert.All(canvas.PaintLinks(), p => Assert.Null(p.Label));
 
+        // Selecting an end makes its links stronger, in the link colour; the note shows, and a link without one has no words.
+        network.Select(NodeOf(network, Sibling));
         var paints = canvas.PaintLinks();
-        Assert.Equal(2, paints.Count);
+        Assert.All(paints, p => Assert.True(p.Active));
+        Assert.True(palette.LinkPen(true).Thickness > pen.Thickness);
+        Assert.Equal(((ISolidColorBrush)palette.Link).Color, ((ISolidColorBrush)palette.LinkPen(true).Brush!).Color);
         var noted = Assert.Single(paints, p => p.Link.Note is not null);
-        Assert.Equal("对比", noted.Link.Note);
         Assert.Equal("对比", noted.Label);
+        Assert.Null(Assert.Single(paints, p => p.Link.Note is null).Label);
 
-        // A link without a note still carries a word on its line, so it never reads as a source edge by colour alone.
-        var bare = Assert.Single(paints, p => p.Link.Note is null);
-        Assert.Equal(UiText.LinkTag, bare.Label);
-        Assert.NotNull(bare.Note);
-        // On its line, near the middle; here the root summary lies on the middle, so the note sits beside it, not over it.
+        // On its line, near the middle.
         var centre = noted.NoteBounds.Center;
         var along = ((centre.X - noted.From.X) * (noted.To.X - noted.From.X)) + ((centre.Y - noted.From.Y) * (noted.To.Y - noted.From.Y));
         var length = Math.Pow(noted.To.X - noted.From.X, 2) + Math.Pow(noted.To.Y - noted.From.Y, 2);
@@ -95,11 +89,6 @@ public class SummaryLinksUiTests
         var leafPaint = canvas.PaintNodes().Single(n => n.Node.ShortTitle == Leaf);
         Assert.Contains(paints, p => p.From == leafPaint.Center || p.To == leafPaint.Center);
 
-        // Selecting an end makes its links stronger.
-        network.Select(NodeOf(network, Sibling));
-        Assert.All(canvas.PaintLinks(), p => Assert.True(p.Active));
-        Assert.Equal(2.6, palette.LinkPen(true).Thickness);
-
         // The legend says what the line is, in words; the toolbar offers 隐藏关联.
         window.UpdateLayout();
         Assert.True(LegendCard.Shows(window, "LinkLegend"));
@@ -108,19 +97,6 @@ public class SummaryLinksUiTests
         Assert.Equal(UiText.HideLinks, LinksMenu.Entry(window, "ToggleLinksMenuItem").Header);
         LinksMenu.Close(window);
 
-        // 整理布局 uses the exploration sources only: the same arrangement with or without the links; saving writes summaries only.
-        network.ArrangeCommand.Execute(null);
-        var arranged = network.Session.Positions.ToDictionary(p => p.Key, p => p.Value);
-        foreach (var link in await app.Services.GetRequiredService<ISummaryLinks>().ListAsync(network.Workspace.Id, CancellationToken.None))
-        {
-            await app.Services.GetRequiredService<ISummaryLinks>().DeleteAsync(link.Id, CancellationToken.None);
-        }
-
-        await UiWait.UntilAsync(() => network.LinkEdges.Count == 0);
-        network.ArrangeCommand.Execute(null);
-        Assert.Equal(arranged, network.Session.Positions.ToDictionary(p => p.Key, p => p.Value));
-        await network.SaveLayoutCommand.ExecuteAsync(null);
-        Assert.Equal(network.Nodes.Count, await LayoutRowsAsync(app));
         window.Close();
     }
 
@@ -485,7 +461,7 @@ public class SummaryLinksUiTests
         var lines = window.GetVisualDescendants().OfType<TextBlock>().Where(t => t.Name == "SummaryRowLinks" && t.IsEffectivelyVisible).Select(t => t.Text).ToList();
 
         // A screen reader tabbing through the rows hears each summary's links with its name.
-        var rowButtons = Find<ItemsControl>(window, "SummaryList").GetVisualDescendants().OfType<Button>().ToList();
+        var rowButtons = Find<ItemsControl>(window, "SummaryList").GetVisualDescendants().OfType<Button>().Where(b => ((SummaryListItem)b.DataContext!).HasSummary).ToList();
         Assert.Equal(3, rowButtons.Count);
         Assert.All(rowButtons, b => Assert.Equal(((SummaryListItem)b.DataContext!).Links, AutomationProperties.GetHelpText(b)));
         Assert.All(rowButtons, b => Assert.StartsWith("关联：", AutomationProperties.GetHelpText(b), StringComparison.Ordinal));
@@ -556,7 +532,7 @@ public class SummaryLinksUiTests
         UiInput.Click(window, Find<Button>(window, "ConfirmDeleteLinkButton"));
         await UiWait.UntilAsync(() => network.Links.Items.Count == 0);
         await UiWait.UntilAsync(() => network.LinkEdges.Count == 0);
-        Assert.Equal(3, network.Nodes.Count);
+        Assert.Equal(4, network.Nodes.Count);
         Assert.Empty(app.Services.GetRequiredService<SqliteDatabase>().ListBackups());
         Assert.Equal(1, await app.Services.GetRequiredService<SqliteDatabase>().ReadAsync(c => c.Scalar<long>(null, "SELECT count(*) FROM link_suggestion WHERE state = 'ignored';"), CancellationToken.None));
         window.Close();
@@ -731,7 +707,8 @@ public class SummaryLinksUiTests
         // The root summary's name put across the middle of the link's line.
         var link = Assert.Single(network.LinkEdges);
         var root = network.Nodes.Single(n => n.ShortTitle == Root);
-        network.MoveNode(root.Id, ((link.AX + link.BX) / 2) - 20, (link.AY + link.BY) / 2);
+        network.Select(NodeOf(network, Leaf));
+        network.PutDot(root.Id, ((link.AX + link.BX) / 2) - 20, (link.AY + link.BY) / 2);
         window.UpdateLayout();
         var painted = Assert.Single(canvas.PaintLinks());
         var rootPaint = canvas.PaintNodes().Single(n => n.Node.Id == root.Id);
@@ -782,7 +759,4 @@ public class SummaryLinksUiTests
         window.UpdateLayout();
         return summary;
     }
-
-    private static Task<long> LayoutRowsAsync(DesktopHarness app) =>
-        app.Services.GetRequiredService<SqliteDatabase>().ReadAsync(c => c.Scalar<long>(null, "SELECT count(*) FROM node_layout;"), CancellationToken.None);
 }

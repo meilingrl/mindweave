@@ -23,14 +23,12 @@ using Mindweave.Desktop.Navigation;
 namespace Mindweave.Desktop.Tests;
 
 /// <summary>
-/// The session network's drawing behind its gate: dots sized by how much was asked, summaries wearing a ring, the arrowed
+/// The network's drawing: dots sized by how much was asked, summaries wearing a ring, the arrowed
 /// dotted time thread in the spatial view, the main line and curved lanes on the timeline, and day labels. Without the gate
 /// the drawing is today's (<see cref="SummaryNetworkCanvasTests"/>).
 /// </summary>
-public class SessionNetworkCanvasTests
+public class SummaryNetworkDotCanvasTests
 {
-    private static DesktopHarness Gated() => DesktopHarness.Create(s => s.AddSingleton(new SessionNetworkGate(true)));
-
     [Fact]
     public void Dot_radius_grows_with_the_square_root_of_the_questions_and_is_clamped()
     {
@@ -50,13 +48,13 @@ public class SessionNetworkCanvasTests
         var local = new DateTime(2026, 11, 20, 21, 38, 0, DateTimeKind.Unspecified);
         var at = new DateTimeOffset(local, TimeZoneInfo.Local.GetUtcOffset(local)).ToUniversalTime();
         Assert.Equal("蒸汽机 · 11月20日 21:38", UiText.DotHoverLabel("蒸汽机", at));
-        Assert.Equal("Mindweave", UiText.SessionNetworkTitle);
+        Assert.Equal("Mindweave", UiText.SummaryNetworkTitle);
     }
 
     [AvaloniaFact]
     public async Task Dot_size_follows_weight()
     {
-        await using var app = Gated();
+        await using var app = DesktopHarness.Create();
         var window = app.ShowWindow(1100, 720);
         await app.StartWithWorkspaceAsync("火车");
         await app.ConfigureModelAsync();
@@ -79,9 +77,9 @@ public class SessionNetworkCanvasTests
     }
 
     [AvaloniaFact]
-    public async Task One_session_opens_centred_at_zoom_one_in_the_spatial_view()
+    public async Task One_conversation_opens_centred_at_zoom_one_in_the_spatial_view()
     {
-        await using var app = Gated();
+        await using var app = DesktopHarness.Create();
         var window = app.ShowWindow(1100, 720);
         await app.StartWithWorkspaceAsync("火车");
         await app.ConfigureModelAsync();
@@ -101,7 +99,7 @@ public class SessionNetworkCanvasTests
     [AvaloniaFact]
     public async Task The_opening_view_follows_the_dots_until_the_reader_moves_the_view()
     {
-        await using var app = Gated();
+        await using var app = DesktopHarness.Create();
         var window = app.ShowWindow(1100, 720);
         await app.StartWithWorkspaceAsync("火车");
         await app.ConfigureModelAsync();
@@ -141,7 +139,7 @@ public class SessionNetworkCanvasTests
     [AvaloniaFact]
     public async Task The_timeline_keeps_its_day_captions()
     {
-        await using var app = Gated();
+        await using var app = DesktopHarness.Create();
         var window = app.ShowWindow(1100, 720);
         await SummaryNetworkScenario.SeedAsync(app);
         var network = await SummaryNetworkScenario.OpenSummaryNetworkAsync(app, window);
@@ -158,7 +156,7 @@ public class SessionNetworkCanvasTests
     [AvaloniaFact]
     public async Task A_show_all_request_does_not_outlive_an_empty_picture()
     {
-        await using var app = Gated();
+        await using var app = DesktopHarness.Create();
         var window = app.ShowWindow(1100, 720);
         await app.StartWithWorkspaceAsync("火车");
         app.ShellPage.ShowSectionCommand.Execute(Navigation.MainSection.SummaryNetwork);
@@ -175,9 +173,9 @@ public class SessionNetworkCanvasTests
     }
 
     [AvaloniaFact]
-    public async Task Summaries_wear_a_ring_and_every_dot_is_filled()
+    public async Task Summaries_wear_a_ring_and_the_unread_badge_stays_clear_of_it()
     {
-        await using var app = Gated();
+        await using var app = DesktopHarness.Create();
         var window = app.ShowWindow(1100, 720);
         await SummaryNetworkScenario.SeedAsync(app);
         var network = await SummaryNetworkScenario.OpenSummaryNetworkAsync(app, window);
@@ -186,11 +184,7 @@ public class SessionNetworkCanvasTests
 
         Assert.Contains(paints, p => p.SummaryRing);
         Assert.Contains(paints, p => !p.SummaryRing);
-        Assert.All(paints, p =>
-        {
-            Assert.Equal(p.Node.HasSummary, p.SummaryRing);
-            Assert.False(p.Hollow);
-        });
+        Assert.All(paints, p => Assert.Equal(p.Node.HasSummary, p.SummaryRing));
 
         // The unread badge stays clear of the ring (its outer edge: the gap plus half the 1.5 px pen).
         var badged = paints.Where(p => p.SummaryRing && p.UnreadDot).ToList();
@@ -207,7 +201,7 @@ public class SessionNetworkCanvasTests
     [AvaloniaFact]
     public async Task The_time_thread_is_fainter_than_a_branch_in_both_themes()
     {
-        await using var app = Gated();
+        await using var app = DesktopHarness.Create();
         var window = app.ShowWindow(1100, 720);
         await app.StartWithWorkspaceAsync("火车");
         app.ShellPage.ShowSectionCommand.Execute(Navigation.MainSection.SummaryNetwork);
@@ -219,7 +213,7 @@ public class SessionNetworkCanvasTests
             window.RequestedThemeVariant = theme;
             window.UpdateLayout();
             var palette = SummaryNetworkPalette.From(canvas);
-            var branch = palette.EdgePen(EdgeState.Normal, false);
+            var branch = palette.EdgePen(EdgeState.Normal);
             foreach (var thread in new[] { palette.TimeThreadPen(false), palette.TimeArrowPen(false) })
             {
                 Assert.True(thread.Thickness < branch.Thickness, $"{theme}: {thread.Thickness} px is not thinner than a {branch.Thickness} px branch");
@@ -233,7 +227,7 @@ public class SessionNetworkCanvasTests
     [AvaloniaFact]
     public async Task The_time_thread_is_dotted_with_an_arrow_in_space_and_the_main_line_on_the_timeline()
     {
-        await using var app = Gated();
+        await using var app = DesktopHarness.Create();
         var window = app.ShowWindow(1100, 720);
         await app.StartWithWorkspaceAsync("火车");
         await app.ConfigureModelAsync();
@@ -252,7 +246,7 @@ public class SessionNetworkCanvasTests
         {
             window.RequestedThemeVariant = theme;
             window.UpdateLayout();
-            Screenshots.Capture(window, $"session-network-canvas-spatial-{theme.ToString().ToLowerInvariant()}");
+            Screenshots.Capture(window, $"network-canvas-spatial-{theme.ToString().ToLowerInvariant()}");
         }
 
         window.RequestedThemeVariant = Avalonia.Styling.ThemeVariant.Light;
@@ -262,7 +256,6 @@ public class SessionNetworkCanvasTests
         Assert.All(spatial, e =>
         {
             var thread = e.Edge.Kind == SummaryNetworkEdgeKind.TimeThread;
-            Assert.Equal(thread, e.Dashed);
             Assert.Equal(thread, e.Arrow);
             Assert.False(e.Curved);
             Assert.False(e.Timeline);
@@ -274,11 +267,10 @@ public class SessionNetworkCanvasTests
         Assert.All(network.Nodes, n => Assert.Equal(network.Session.Positions[n.Id], new Application.Storage.NodePosition(n.X, n.Y)));
         window.UpdateLayout();
 
-        Screenshots.Capture(window, "session-network-canvas-timeline");
+        Screenshots.Capture(window, "network-canvas-timeline");
         var timeline = canvas.PaintEdges();
         Assert.All(timeline, e =>
         {
-            Assert.False(e.Dashed);
             Assert.False(e.Arrow);
             Assert.Equal(e.Edge.Kind == SummaryNetworkEdgeKind.Branch && e.Edge.FromY != e.Edge.ToY, e.Curved);
             Assert.True(e.Timeline);
@@ -298,7 +290,7 @@ public class SessionNetworkCanvasTests
     [AvaloniaFact]
     public async Task Captions_are_day_labels()
     {
-        await using var app = Gated();
+        await using var app = DesktopHarness.Create();
         var window = app.ShowWindow(1100, 720);
         var (_, _, network) = await TwoDaysAsync(app, window);
         network.SetViewModeCommand.Execute(SummaryNetworkViewMode.Timeline);
@@ -324,7 +316,7 @@ public class SessionNetworkCanvasTests
     [AvaloniaFact]
     public async Task Hover_shows_the_date()
     {
-        await using var app = Gated();
+        await using var app = DesktopHarness.Create();
         var window = app.ShowWindow(1100, 720);
         var (_, evening, network) = await TwoDaysAsync(app, window);
         var canvas = CanvasOf(window);
@@ -347,7 +339,7 @@ public class SessionNetworkCanvasTests
     {
         // The spatial layout places each label round its dot and wraps it; the hit box must cover the label as drawn, at
         // zoom 1, zoomed in, and zoomed far out where only a hovered or selected label shows (review 2026-11-22).
-        await using var app = Gated();
+        await using var app = DesktopHarness.Create();
         var window = app.ShowWindow(1100, 720);
         await SummaryNetworkScenario.SeedAsync(app);
         var network = await SummaryNetworkScenario.OpenSummaryNetworkAsync(app, window);
@@ -365,7 +357,7 @@ public class SessionNetworkCanvasTests
 
             foreach (var paint in canvas.PaintNodes().Where(p => p.Text is not null))
             {
-                var box = SummaryNetworkGeometry.HitBox(paint.Center, paint.Node, zoom, labelVisible: true, sessionNetwork: true);
+                var box = SummaryNetworkGeometry.HitBox(paint.Center, paint.Node, zoom, labelVisible: true);
                 Assert.True(box.Inflate(0.5).Contains(paint.LabelBounds), $"At zoom {zoom}, '{paint.Label}' drawn at {paint.LabelBounds} leaves its hit box {box}.");
             }
         }
@@ -378,7 +370,7 @@ public class SessionNetworkCanvasTests
     {
         // Design §8: a thin neutral dash with no word on it at rest; its note shows while it is active (an end selected or
         // hovered, or the line hovered); selecting a dot with links brings out its partner and path and fades the rest.
-        await using var app = Gated();
+        await using var app = DesktopHarness.Create();
         var window = app.ShowWindow(1100, 720);
         await SummaryNetworkScenario.SeedAsync(app);
         var network = await SummaryNetworkScenario.OpenSummaryNetworkAsync(app, window);
@@ -391,7 +383,6 @@ public class SessionNetworkCanvasTests
         var canvas = CanvasOf(window);
 
         var resting = Assert.Single(canvas.PaintLinks());
-        Assert.True(resting.Quiet);
         Assert.False(resting.Active);
         Assert.Null(resting.Label);
         Assert.DoesNotContain(canvas.PaintNodes(), p => p.Dimmed);
@@ -424,7 +415,7 @@ public class SessionNetworkCanvasTests
     public async Task A_change_in_one_workspace_reloads_only_that_workspaces_network()
     {
         // Design §15.3: with the switch on, every conversation change used to reload every visited workspace's network page.
-        await using var app = Gated();
+        await using var app = DesktopHarness.Create();
         var window = app.ShowWindow(1100, 720);
         await SummaryNetworkScenario.SeedAsync(app);
         var trains = await SummaryNetworkScenario.OpenSummaryNetworkAsync(app, window);
@@ -464,7 +455,7 @@ public class SessionNetworkCanvasTests
     {
         // A click gives the canvas the keyboard, so Ctrl+S and Escape reach the page (review 2026-11-23: a helper named Focus()
         // had hidden the control's own; the press handler's call now reaches InputElement.Focus again).
-        await using var app = Gated();
+        await using var app = DesktopHarness.Create();
         var window = app.ShowWindow(1100, 720);
         await SummaryNetworkScenario.SeedAsync(app);
         await SummaryNetworkScenario.OpenSummaryNetworkAsync(app, window);
@@ -479,52 +470,12 @@ public class SessionNetworkCanvasTests
     }
 
     [AvaloniaFact]
-    public async Task A_dot_is_not_dragged()
-    {
-        // Gated positions are computed, never saved: pressing a dot and moving leaves it where it is drawn.
-        await using var app = Gated();
-        var window = app.ShowWindow(1100, 720);
-        await SummaryNetworkScenario.SeedAsync(app);
-        var network = await SummaryNetworkScenario.OpenSummaryNetworkAsync(app, window);
-        await UiWait.UntilAsync(() => network.Nodes.Count == 4);
-        var canvas = CanvasOf(window);
-        var dot = network.Nodes.Single(n => n.ShortTitle == "铁轨");
-        var start = canvas.ToScreen(dot.X, dot.Y);
-        Point InWindow(Point p) => canvas.TranslatePoint(p, window)!.Value;
-
-        window.MouseMove(InWindow(start));
-        window.MouseDown(InWindow(start), MouseButton.Left);
-        window.MouseMove(InWindow(start + new Vector(30, 20)));
-        window.MouseMove(InWindow(start + new Vector(60, 40)));
-
-        Assert.Null(canvas.Dragging);
-        var drawn = canvas.PaintNodes().Single(p => p.Node.Id == dot.Id);
-        Assert.False(drawn.Lifted);
-        AssertAtRest(start, drawn.Center);
-
-        window.MouseUp(InWindow(start + new Vector(60, 40)), MouseButton.Left);
-
-        Assert.Equal((dot.X, dot.Y), (network.Nodes.Single(n => n.Id == dot.Id).X, network.Nodes.Single(n => n.Id == dot.Id).Y));
-        AssertAtRest(start, canvas.PaintNodes().Single(p => p.Node.Id == dot.Id).Center);
-        Assert.False(network.IsDirty);
-        Assert.Equal(dot.Id, network.Selected?.Id);
-        window.Close();
-
-        // Where it is drawn, give or take the decorative pull towards the pointer (at most 1.5 px); a drag would be 72 px off.
-        static void AssertAtRest(Point expected, Point actual)
-        {
-            var offset = actual - expected;
-            Assert.True(Math.Sqrt((offset.X * offset.X) + (offset.Y * offset.Y)) <= (5 * SummaryNetworkGeometry.AttractionStrength) + 0.01, $"the dot is drawn at {actual}, not {expected}");
-        }
-    }
-
-    [AvaloniaFact]
     public async Task Timeline_labels_are_whole_and_never_meet_at_zoom_one()
     {
         // Review Focus 1: thirty-character titles on a shape like the owner's 数据挖掘 workspace (roots on two days, a
         // root with a fan and a chain, heavy dots, a summary ring). Every column is as wide as its widest label, so at
         // zoom 1 and above each label is whole and touches neither another label nor another dot.
-        await using var app = Gated();
+        await using var app = DesktopHarness.Create();
         var window = app.ShowWindow(1100, 720);
         await app.StartWithWorkspaceAsync("火车");
         await app.ConfigureModelAsync();
@@ -600,7 +551,7 @@ public class SessionNetworkCanvasTests
     public async Task The_timeline_opens_at_zoom_one_on_the_newest_root()
     {
         // Review Focus 2 for the timeline (spec §5.3): a readable zoom on the newest end, not everything squeezed in.
-        await using var app = Gated();
+        await using var app = DesktopHarness.Create();
 
         // Wide enough that 显示全部 can fit six long-titled roots above the smallest zoom.
         var window = app.ShowWindow(1600, 900);

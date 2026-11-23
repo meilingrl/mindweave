@@ -104,7 +104,7 @@ public static partial class SpatialLayout
     }
 
     /// <summary>
-    /// Lays out every session. Sessions whose parent is unknown are roots; sessions caught in a parent cycle (which the data
+    /// Lays out every conversation. Conversations whose parent is unknown are roots; those caught in a parent cycle (which the data
     /// cannot hold) are left out.
     /// </summary>
     /// <param name="places">
