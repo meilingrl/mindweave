@@ -204,7 +204,7 @@ Placement rules:
 
 ## 6. XAML and resources
 
-- **Resource keys:** `<Area><Role>`, with the glossary area as prefix: `SummaryNetworkNode`, `SummaryNetworkEdgeIndirect`.
+- **Resource keys:** `<Area><Role>`, with the glossary area as prefix: `SummaryNetworkNode`, `SummaryNetworkEdgeTrail`.
   Icons: `Icon<Concept>`. Shared, area-less tokens keep plain names (`AccentBrush`).
 - **Control names used by tests or automation:** `<Role><Concept>` (`NavSummaryNetwork`).
 - **`x:Class` and `x:DataType` follow the folder and namespace rules.** A moved `.axaml` file moves with its code-behind.

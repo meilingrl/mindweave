@@ -5,7 +5,6 @@ using Mindweave.Application.Conversations;
 using Mindweave.Application.Reading;
 using Mindweave.Application.Startup;
 using Mindweave.Desktop.Navigation;
-using Mindweave.Desktop.SummaryNetwork;
 using Mindweave.Desktop.Services;
 
 namespace Mindweave.Desktop.ViewModels;
@@ -20,7 +19,6 @@ public sealed class ExitOptions
 public enum ExitStage
 {
     Idle,
-    LayoutPrompt,
     TaskPrompt,
     Stopping,
     Flushing,
@@ -34,8 +32,8 @@ public enum ExitStage
 /// <summary>
 /// The one exit sequence (architecture §12.3, requirement §9.2–9.3) behind every way of quitting: closing the window
 /// and the application lifetime's shutdown request (⌘Q, the dock) both cancel and call <see cref="InterceptClose"/>.
-/// The cancelable prompts — unsaved layout, then unfinished user answers and summaries — all come before the first
-/// irreversible step; "don't save" for the layout is only recorded until then. Stopping waits a bounded time; then
+/// The cancelable prompt — unfinished user answers and summaries — comes before the first irreversible step. Stopping
+/// waits a bounded time; then
 /// drafts, reading state, failed terminal writes and the write queue are saved while the window is still open. A
 /// failed save keeps the window with "retry" and "return"; returning accepts new work only. When everything is saved
 /// the coordinator asks for a programmatic shutdown, which the hooks let through.
@@ -47,7 +45,6 @@ public enum ExitStage
 /// </summary>
 public sealed partial class ExitCoordinator(
     IGenerationExit generation,
-    LayoutPromptViewModel layout,
     Workbench workbench,
     IReadingState reading,
     Application.Summaries.ISummaries summaries,
@@ -57,7 +54,6 @@ public sealed partial class ExitCoordinator(
     ExitOptions options,
     ILogger<ExitCoordinator> logger) : ViewModelBase
 {
-    private IReadOnlyList<SummaryNetworkSession> _discardOnCommit = [];
     private bool _stopped;
     private Func<Task<bool>>? _restore;
     private Action? _restoreEnded;
@@ -133,7 +129,7 @@ public sealed partial class ExitCoordinator(
 
     /// <summary>
     /// The system logs out, restarts or shuts down (health check 2026-11-12, gap-lifecycle-2). Vetoing it is right only
-    /// when something must be asked: an answer or summary still running, or a layout not saved; then the usual sequence
+    /// when something must be asked: an answer or summary still running; then the usual sequence
     /// starts and null is returned (the caller cancels the request). Otherwise everything is saved now and the returned
     /// task completes when it is; the caller waits for it, within a limit, and lets the system go ahead.
     /// </summary>
@@ -144,7 +140,7 @@ public sealed partial class ExitCoordinator(
             return Task.CompletedTask;
         }
 
-        if (Stage != ExitStage.Idle || layout.HasUnsavedLayout || generation.UnfinishedUserWork.Any)
+        if (Stage != ExitStage.Idle || generation.UnfinishedUserWork.Any)
         {
             InterceptClose();
             return null;
@@ -195,8 +191,8 @@ public sealed partial class ExitCoordinator(
     }
 
     /// <summary>
-    /// Starts the sequence for a restore: the unsaved-layout and running-task prompts as on exit (cancelling either ends
-    /// it with nothing changed), then stopping and saving; then <paramref name="restore"/> runs. It returns false when it
+    /// Starts the sequence for a restore: the running-task prompt as on exit (cancelling it ends it with nothing
+    /// changed), then stopping and saving; then <paramref name="restore"/> runs. It returns false when it
     /// did not go ahead (the backup of the current data failed): new work is accepted again. <paramref name="ended"/> runs
     /// whenever the sequence ends without the restore having gone ahead. False when an exit or restore is already under way.
     /// </summary>
@@ -229,24 +225,6 @@ public sealed partial class ExitCoordinator(
 
     private void Begin()
     {
-        if (layout.HoldExit(OnLayoutAnswered, BackToIdle))
-        {
-            Stage = ExitStage.LayoutPrompt;
-        }
-        else
-        {
-            AskAboutTasks();
-        }
-    }
-
-    private void OnLayoutAnswered(IReadOnlyList<SummaryNetworkSession> discardOnCommit)
-    {
-        _discardOnCommit = discardOnCommit;
-        AskAboutTasks();
-    }
-
-    private void AskAboutTasks()
-    {
         var work = generation.UnfinishedUserWork;
         if (work.Any)
         {
@@ -255,20 +233,16 @@ public sealed partial class ExitCoordinator(
         }
         else
         {
-            Running = CommitAsync();
+            Running = StartStopping();
         }
     }
 
     [RelayCommand(CanExecute = nameof(IsTaskPromptOpen))]
-    private void StopAndExit() => Running = CommitAsync();
+    private void StopAndExit() => Running = StartStopping();
 
-    /// <summary>Cancel at the task prompt: nothing has happened yet, so an unsaved layout stays unsaved.</summary>
+    /// <summary>Cancel at the task prompt: nothing has happened yet.</summary>
     [RelayCommand(CanExecute = nameof(IsTaskPromptOpen))]
-    private void KeepRunning()
-    {
-        _discardOnCommit = [];
-        BackToIdle();
-    }
+    private void KeepRunning() => BackToIdle();
 
     /// <summary>Retry after a failure: the stop step again if it did not finish, then saving.</summary>
     [RelayCommand(CanExecute = nameof(IsFailed))]
@@ -282,34 +256,17 @@ public sealed partial class ExitCoordinator(
         BackToIdle();
     }
 
+    /// <summary>Every prompt is answered: the first irreversible step.</summary>
+    private Task StartStopping()
+    {
+        _stopped = false;
+        return StopAndReleaseAsync();
+    }
+
     /// <summary>
     /// Runs unobserved (the UI never awaits it), so nothing may escape: a step that throws ends in the failure state with
     /// retry and return, never in "stopping" with no way out.
     /// </summary>
-    private async Task CommitAsync()
-    {
-        Stage = ExitStage.Stopping;
-        _stopped = false;
-        var discard = _discardOnCommit;
-        _discardOnCommit = [];
-        try
-        {
-            // The first irreversible steps: every prompt is answered.
-            foreach (var session in discard)
-            {
-                session.DiscardChanges();
-            }
-        }
-#pragma warning disable CA1031 // A layout the user chose not to save is lost either way; carry on with the exit.
-        catch (Exception ex)
-#pragma warning restore CA1031
-        {
-            LogStepFailed(logger, ex, ExitStage.Stopping);
-        }
-
-        await StopAndReleaseAsync();
-    }
-
     private async Task StopAndReleaseAsync()
     {
         Stage = ExitStage.Stopping;

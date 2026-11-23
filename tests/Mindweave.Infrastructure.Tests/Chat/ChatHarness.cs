@@ -141,6 +141,14 @@ internal sealed class ChatHarness : IAsyncDisposable
     /// <summary>AI-suggested links the user confirms (2026-11-16).</summary>
     public Application.SummaryLinks.LinkSuggestionService LinkSuggestions => _services.GetRequiredService<Application.SummaryLinks.LinkSuggestionService>();
 
+    /// <summary>A saved position of the earlier summary-only network view, as older versions wrote it (kept for one release, D-035).</summary>
+    public Task KeepOldPositionAsync(WorkspaceId workspace, Core.Summaries.SummaryNodeId node) =>
+        Database.WriteAsync(
+            (connection, transaction) => connection.Execute(transaction,
+                "INSERT INTO node_layout (node_id, workspace_id, x, y, updated_at) VALUES ($node, $ws, 10, 20, 0);",
+                ("$node", node.ToString()), ("$ws", workspace.ToString())),
+            TestContext.Current.CancellationToken);
+
     public SqliteRecommendationStore RecommendationStore => (SqliteRecommendationStore)_services.GetRequiredService<IRecommendationStore>();
 
     /// <summary>The recommendation choices.</summary>

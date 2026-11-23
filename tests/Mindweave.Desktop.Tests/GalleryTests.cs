@@ -404,8 +404,7 @@ public class GalleryTests
         var window = scene.App.ShowWindow(1100, 720, Theme);
         var seed = await SeedAsync(scene.App, summaries: true);
         var network = await SummaryNetworkScenario.OpenSummaryNetworkAsync(scene.App, window);
-        Assert.Equal(8, network.Nodes.Count);
-        Assert.Contains(network.Edges, e => !e.IsDirect);
+        Assert.Equal(8, network.Nodes.Count(n => n.HasSummary));
         network.Select(seed.Nodes[seed.Gauge]);
         await SettleAsync(window);
         var canvas = window.GetVisualDescendants().OfType<SummaryNetworkCanvas>().Single();
@@ -427,72 +426,6 @@ public class GalleryTests
         Assert.True(network.IsListView);
         await SettleAsync(window);
         Capture(window, "g14-network-list");
-        window.Close();
-    }
-
-    [AvaloniaFact]
-    public async Task G15_network_after_arrange_is_unsaved()
-    {
-        await using var scene = Scene.Create("g15");
-        var window = scene.App.ShowWindow(1100, 720, Theme);
-        await SeedAsync(scene.App, summaries: true);
-        var network = await SummaryNetworkScenario.OpenSummaryNetworkAsync(scene.App, window);
-        await SummaryNetworkScenario.MoveSomethingAsync(scene.App, network);
-        network.ArrangeCommand.Execute(null);
-        Assert.True(network.IsDirty);
-        await SettleAsync(window);
-        Capture(window, "g15-network-arranged-unsaved");
-        await network.SaveLayoutCommand.ExecuteAsync(null);
-        window.Close();
-    }
-
-    [AvaloniaFact]
-    public async Task G16_layout_leave_prompt()
-    {
-        await using var scene = Scene.Create("g16");
-        var window = scene.App.ShowWindow(1100, 720, Theme);
-        await SeedAsync(scene.App, summaries: true);
-        var other = await scene.App.Services.GetRequiredService<WorkspaceService>().CreateAsync(WorkspaceName.FromStored("摄影史"), CancellationToken.None);
-        scene.App.Workbench.Workspaces.Add(other);
-        var network = await SummaryNetworkScenario.OpenSummaryNetworkAsync(scene.App, window);
-        await SummaryNetworkScenario.MoveSomethingAsync(scene.App, network);
-        network.ArrangeCommand.Execute(null);
-        scene.App.ShellPage.SelectedWorkspace = other;
-        Assert.True(scene.App.Root.LayoutPrompt.IsOpen);
-        await SettleAsync(window);
-        Capture(window, "g16-layout-leave-prompt");
-        scene.App.Root.LayoutPrompt.DontSaveCommand.Execute(null);
-        window.Close();
-    }
-
-    /// <summary>Round 3: a node lifted mid-drag (g16a), then dropped, leaving the layout unsaved (g16b).</summary>
-    [AvaloniaFact]
-    public async Task G16a_network_node_drag()
-    {
-        await using var scene = Scene.Create("g16a");
-        var window = scene.App.ShowWindow(1100, 720, Theme);
-        var seed = await SeedAsync(scene.App, summaries: true);
-        var network = await SummaryNetworkScenario.OpenSummaryNetworkAsync(scene.App, window);
-        await SettleAsync(window);
-        var canvas = window.GetVisualDescendants().OfType<SummaryNetworkCanvas>().Single();
-        var node = network.Nodes.Single(n => n.Id == seed.Nodes[seed.Gauge]);
-        var start = canvas.ToScreen(node.X, node.Y);
-        Point InWindow(Point p) => canvas.TranslatePoint(p, window)!.Value;
-
-        window.MouseMove(InWindow(start));
-        window.MouseDown(InWindow(start), MouseButton.Left);
-        window.MouseMove(InWindow(start + new Vector(-20, 40)));
-        window.MouseMove(InWindow(start + new Vector(-40, 85)));
-        Assert.Equal(node.Id, canvas.Dragging);
-        await SettleAsync(window);
-        Capture(window, "g16a-network-node-dragging");
-
-        window.MouseUp(InWindow(start + new Vector(-40, 85)), MouseButton.Left);
-        window.MouseMove(InWindow(start + new Vector(260, 200)));
-        Assert.True(network.IsDirty);
-        await SettleAsync(window);
-        Capture(window, "g16b-network-dragged-unsaved");
-        network.Session.DiscardChanges();
         window.Close();
     }
 
@@ -1808,7 +1741,6 @@ public class GalleryTests
         var network = await SummaryNetworkScenario.OpenSummaryNetworkAsync(scene.App, window);
         await RecommendedNodesUiTests.PrepareAsync(scene.App, network, window);
         Assert.Single(network.RecommendedNodes);
-        Assert.False(network.IsDirty);
         await SettleAsync(window);
         Capture(window, "g52-network-recommended-node");
         window.Close();
@@ -1851,7 +1783,6 @@ public class GalleryTests
         var window = scene.App.ShowWindow(1100, 720, Theme);
         var network = await OpenLinkedNetworkAsync(scene.App, window);
         Assert.Equal(2, network.LinkEdges.Count);
-        Assert.False(network.IsDirty);
         await SettleAsync(window);
         Capture(window, "g53-network-links");
         window.Close();
@@ -1980,7 +1911,6 @@ public class GalleryTests
         var item = Assert.Single(network.Links!.Items);
         Assert.Equal(SummaryLinkNote.FromRecommendation, item.Entry.Link.Note);
         Assert.Equal(recommended.Basis, item.Entry.Other);
-        Assert.False(network.IsDirty);
 
         // A new summary is placed beside the others, off the view kept from before; 显示全部 brings it in, as a reader would.
         network.ShowAllCommand.Execute(null);
@@ -1998,7 +1928,6 @@ public class GalleryTests
         var window = scene.App.ShowWindow(1100, 720, Theme);
         var network = await OpenSuggestedNetworkAsync(scene.App, window);
         Assert.Equal((1, 2), (network.LinkEdges.Count, network.SuggestionEdges.Count));
-        Assert.False(network.IsDirty);
         await SettleAsync(window);
         Capture(window, "g54-network-link-suggestions");
         window.Close();

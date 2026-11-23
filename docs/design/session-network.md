@@ -1,19 +1,19 @@
-# Session network and timeline (design)
+# Summary network: every conversation a dot, and the timeline (design)
 
-Status: approved by the owner 2026-11-20 (with the decisions in §12). Rounds 1 and 2 merged into `main` on 2026-11-22 behind the switch `MINDWEAVE_SESSION_NETWORK=1`; the record is in §15. The spatial view was then redone as a molecule layout (§6.1, §15.5). The owner's decisions for finishing the network are in §16. Written from the owner's brainstorming of 2026-11-19 and 11-20 and a throwaway preview (branch `task/session-network-spike`, commit `bd793e3`). Nothing here changes the requirements or the architecture by itself: §11 lists the text that must change, and that went to the owner as its own proposal (AGENTS.md, "Changing requirements or architecture"); the owner confirmed it and it merged on 2026-11-23 (requirements v0.25).
+Status: approved by the owner 2026-11-20 (with the decisions in §12). Rounds 1 and 2 merged into `main` on 2026-11-22 behind a switch; the record is in §15. The spatial view was then redone as a molecule layout (§6.1, §15.5). The owner's decisions for finishing the network, and the lifting of the switch, are in §16. The file keeps its first name, session-network, which code and documents cite; "session" there meant conversation (D-035). Written from the owner's brainstorming of 2026-11-19 and 11-20 and a throwaway preview (branch `task/session-network-spike`, commit `bd793e3`). Nothing here changes the requirements or the architecture by itself: §11 lists the text that must change, and that went to the owner as its own proposal (AGENTS.md, "Changing requirements or architecture"); the owner confirmed it and it merged on 2026-11-23 (requirements v0.25).
 
-Related: [evolution D8](../evolution.md) (sharing the thinking path), [S5 summary network](../history/design/s5-network.md) (today's network), [requirements](../requirements.md) §4.2, §7, §10.3; [architecture](../architecture.md) §11.
+Related: [evolution D8](../evolution.md) (sharing the thinking path), [S5 summary network](../history/design/s5-network.md) (the network before it), [requirements](../requirements.md) §4.2, §7, §10.3; [architecture](../architecture.md) §11.
 
 ## 1. Intent
 
 The owner's thesis: **answers are cheap; the questions and the path that produced them are what is worth keeping.** Mindweave's centre moves from "help me summarize and review" to "record how I thought and what I asked". This is a shift of centre, not a reversal: summaries stay, as a layer on top of the questions.
 
-Today the summary network shows only summaries. It grows only when the user clicks "summarize", which the owner rarely does, so it stays nearly empty. A workspace with five sessions and no summary (Steins;Gate in the owner's data) shows nothing at all. Whole explorations without summaries are invisible.
+Today the summary network shows only summaries. It grows only when the user clicks "summarize", which the owner rarely does, so it stays nearly empty. A workspace with five conversations and no summary (Steins;Gate in the owner's data) shows nothing at all. Whole explorations without summaries are invisible.
 
 The redesign:
 
-- **Every session is a dot.** Root sessions and branch sessions alike, archived ones included. A summary is something a dot *has*, not what makes it exist.
-- **One backbone, two forms.** The exploration starts (root sessions), in the order they were begun, form the backbone of both views:
+- **Every conversation is a dot.** Root conversations and branch conversations alike, archived ones included. A summary is something a dot *has*, not what makes it exist.
+- **One backbone, two forms.** The exploration starts (root conversations), in the order they were begun, form the backbone of both views:
   - the **timeline**: the backbone drawn as a straight main line, with branches leaving it like diverging world lines (the owner's reference: the world-line presentation in the anime Steins;Gate);
   - the **spatial view**: today's network redrawn as a round, full, orderly picture, with the backbone as an arrowed dotted **time thread** winding between clusters.
 - The two views are deliberately the same data in two forms: logically consistent, visibly different, neither redundant (owner).
@@ -22,7 +22,7 @@ The redesign:
 
 **Goals**
 
-1. Every session appears; nothing the user asked is hidden. Messy thinking is allowed. Failed attempts are not separate dots anyway: retries stay inside their session.
+1. Every conversation appears; nothing the user asked is hidden. Messy thinking is allowed. Failed attempts are not separate dots anyway: retries stay inside their conversation.
 2. Branches and time are never confused: branch lines are solid with no arrow, and the time thread is dotted with a small arrowhead.
 3. Time is always findable (hover, details) but visually quiet: no axis, no tick marks.
 4. The spatial view looks round, full and orderly at every level, with no floating islands.
@@ -39,16 +39,16 @@ The redesign:
 
 - The spatial view looking like a second timeline: roots lined up left to right in time order. Time must not impose its ordinariness on the spatial view (owner).
 - A view per scenario or a growing set of modes ([evolution D8](../evolution.md), principles; owner 2026-11-20).
-- A map that never holds still: positions jumping whenever a session is added.
+- A map that never holds still: positions jumping whenever a conversation is added.
 - Distinctions carried by colour alone (requirements §7.3), and loud colour or redundant text (the owner rejected today's link colour, the "关联" (link) pills and the "探索 · XXX" (exploration · XXX) captions).
 
 ## 3. Constraints
 
 - **Determinism (MW-C12):** the same input gives the same coordinates.
-- **Stable positions (U3, §7.4):** a new dot is placed without moving existing ones, and its place is saved directly without an unsaved mark. Only an explicit "arrange" re-lays everything, and that is saved only by an explicit save. This applies to the spatial view; the timeline is computed and never saved (§5.4).
+- **Stable positions (U3, §7.4):** a new dot is placed without moving existing ones, and its place is saved directly without an unsaved mark. This applies to the spatial view (option C, §16; nothing is arranged or saved by hand); the timeline is computed and never saved (§5.4).
 - **Size must not suggest mastery (§7.3).** "How much was asked here" is compatible; the legend says it in plain words.
-- **Keyboard and screen-reader access** go through the list view (D-018); it lists sessions now.
-- **Archive is not deletion (owner).** Archived sessions stay on both views, drawn like the others; the details say "archived". Deleted sessions disappear.
+- **Keyboard and screen-reader access** go through the list view (D-018); it lists conversations now.
+- **Archive is not deletion (owner).** Archived conversations stay on both views, drawn like the others; the details say "archived". Deleted conversations disappear.
 - **Real data:** any migration is tried first on a copy (`scripts/daily.sh trial`) and the owner decides.
 - **Data already available:** conversations (`created_at`), `branch_source` (parent, anchor, `created_at`), `branch_context_range` (ancestor chains), messages (user questions), summaries and summary links. Nothing new needs recording for this design.
 - **Names** come from the architecture §2.3 glossary. `Timeline` exists there as a D8 idea. New terms (time thread, the spatial view's name) need glossary rows (§11).
@@ -66,15 +66,15 @@ The redesign:
 | Summary link | `summary_link` between two summarized conversations | see §8 |
 | Recommendation | as today (§10.3.2), next to its basis summary's dot | unchanged |
 
-Removed: the "探索 · XXX" group captions, the dashed "via N unsummarized sessions" edges (they cannot occur any more: every session is a dot), and most of the legend text. The legend keeps one line per mark, in short words.
+Removed: the "探索 · XXX" group captions, the dashed "via N unsummarized conversations" edges (they cannot occur any more: every conversation is a dot), and most of the legend text. The legend keeps one line per mark, in short words.
 
 ### 4.2 Labels
 
-A dot's label is its session title (an automatic or edited title), shortened to fit. The rule is the builder's, but a label must never cover another dot. The full first question and the title go in the details panel. Labels show when zoomed in, as today.
+A dot's label is its conversation title (an automatic or edited title), shortened to fit. The rule is the builder's, but a label must never cover another dot. The full first question and the title go in the details panel. Labels show when zoomed in, as today.
 
 ### 4.3 Size: how much was asked here
 
-- `q(s)` = the number of questions the user sent in session `s`. A retry of the same question counts once.
+- `q(s)` = the number of questions the user sent in conversation `s`. A retry of the same question counts once.
 - `w(s)` = `q(s)` + the sum of `q` over all of `s`'s descendant branches.
 - Radius = `rmin + k·√(w − 1)`, clamped to `[rmin, rmax]`. Starting values: `rmin` = 5, `rmax` = 14, and `k` such that `w` = 20 reaches about 11. Area tracks the amount; a long exploration's start never becomes huge.
 - Tokens were rejected because they mostly measure answer length, which reflects the model's verbosity, not the user's thinking. "Has a summary" was rejected because it already has its own mark.
@@ -105,7 +105,7 @@ A dot's label is its session title (an automatic or edited title), shortened to 
 
 ### 5.2 Interaction
 
-The same canvas behaviours as the spatial view: pan, zoom, select, details, double-click opens the session (or its summary if it has one, as in the spike), and search by title. There is no "arrange", no "save layout" and no drag.
+The same canvas behaviours as the spatial view: pan, zoom, select, details, double-click opens the conversation (or its summary if it has one, as in the spike), and search by title. There is no "arrange", no "save layout" and no drag.
 
 ### 5.3 Long histories
 
@@ -150,7 +150,7 @@ Positions are keyed by conversation, not by summary node:
 
 - New table: `conversation_layout` (`conversation_id` primary key referencing `conversation` with cascade delete, `workspace_id`, `x`, `y`, `updated_at`).
 - **First load after the migration** counts as the workspace's first appearance (U3): the full §6.1 layout runs and is saved directly. Old summary positions are not carried over. Keeping a few of them would freeze today's row-of-trees picture with new dots stuck around it, which is the look the owner rejected.
-- `node_layout` is left untouched. Today's view keeps using it while the new views are behind the gate (§9). It is kept for one release after acceptance, for rollback, and dropped in the release after that (owner, §12).
+- `node_layout` is left untouched. It is kept for one release after acceptance, for rollback, and dropped in the release after that (owner, §12).
 - This is a migration of real data, so it is tried on a copy before publishing.
 
 ### 6.4 Guards (automatic, on generated workspaces and a copy of the owner's data)
@@ -160,7 +160,7 @@ These are things that must not happen, not what the layout aims for: arrangement
 - No two dots (summary rings included) overlap. No title covers another dot or another title.
 - No two branch lines cross, and no branch line runs through a dot other than its own two.
 - Same input, same coordinates, whatever the input order.
-- Adding one session moves no saved dot (once positions are saved, §6.3).
+- Adding one conversation moves no saved dot (once positions are saved, §6.3).
 - Layout budgets: arrange of 1,000 dots within 300 ms, and the timeline for 1,000 dots within 100 ms, on the development Mac in Release.
 
 The final judge is the owner, on screenshots and on `scripts/daily.sh trial` (AGENTS.md, "Human in the loop").
@@ -176,7 +176,7 @@ The final judge is the owner, on screenshots and on `scripts/daily.sh trial` (AG
 
 - **Style:** a thin neutral line with a subtle dash, distinct from both the branch line and the time thread. There is no pill label on the line. The note shows on hover and in the details. Selecting a link, or a dot with links, highlights both endpoints and dims the rest. The owner's complaints: too conspicuous, redundant text, endpoints hard to see.
 - **Suggestions repeat branches:** the cause is that `LinkSuggestionPrompt` gives the model summaries without saying which exploration each belongs to (`LinkSuggestionPrompt.cs:52`), so parent–child pairs look like the best matches. The fix:
-  - give each summary its exploration (root) and its lineage (ancestor sessions);
+  - give each summary its exploration (root) and its lineage (ancestor conversations);
   - tell the model never to pair a summary with its own ancestor or descendant, and to prefer pairs across explorations;
   - in `Parse`, drop any ancestor–descendant pair.
   Cousins in distant sub-branches of one exploration stay allowed: no branch line shows those, so they can be the most useful links. The "at least 3 summaries" gate stays as it is. The requirements text (§10.3.4) gains this rule (§11).
@@ -186,7 +186,7 @@ The final judge is the owner, on screenshots and on `scripts/daily.sh trial` (AG
 
 Each round runs on its own task branch from `main`. Every round ends with headless screenshots from a copy of the owner's data (the `SpikeSessionNetworkShots` approach) plus a `daily.sh trial` for the owner.
 
-**Gate until the owner accepts.**
+**Gate until the owner accepts (a record; lifted on 2026-11-23, §16).**
 - The new views are switched on by the environment variable `MINDWEAVE_SESSION_NETWORK=1`, in every channel, so `MINDWEAVE_SESSION_NETWORK=1 scripts/daily.sh trial <ref>` shows them on a copy of the owner's data.
 - Without the variable, every build, the daily build included, shows today's summary network unchanged: its dashed path edges, captions and saving.
 - Gated code may merge into `main` because it changes nothing by default.
@@ -194,7 +194,7 @@ Each round runs on its own task branch from `main`. Every round ends with headle
 - After acceptance, one release adds the migration, removes the gate and makes the new views the product.
 
 1. **Round 1 — data and timeline.**
-   - The projection of sessions as dots: weights, the time backbone, and summary rings.
+   - The projection of conversations as dots: weights, the time backbone, and summary rings.
    - The timeline view, which needs no storage.
    - The removals listed in §4.1.
 2. **Round 2 — spatial packing.**
@@ -218,12 +218,12 @@ The spike branch is deleted when round 1 starts.
 | Where | Change |
 | --- | --- |
 | Requirements §1 | Positioning: recording questions and the thinking path, with summaries as a layer |
-| §4 concepts | Network dot = session; time thread; timeline; dot size meaning |
-| §4.2, §5.2 | The network shows every session, not only summaries; the "via unsummarized sessions" path edges disappear |
-| §7.1 | Markers on a session dot with a summary |
+| §4 concepts | Network dot = conversation; time thread; timeline; dot size meaning |
+| §4.2, §5.2 | The network shows every conversation, not only summaries; the "via unsummarized conversations" path edges disappear |
+| §7.1 | Markers on a conversation dot with a summary |
 | §7.3 | Layout rules for both views; size = amount asked; time shown on demand |
 | §7.4 | Saving applies to the spatial view only; the timeline is never saved |
-| §10.3.2 | Recommendation count based on the number of sessions, same tiers (owner, §12); a basis summary is still needed, so no summary means no recommendation |
+| §10.3.2 | Recommendation count based on the number of conversations, same tiers (owner, §12); a basis summary is still needed, so no summary means no recommendation |
 | §10.3.3–10.3.4 | Quieter link display; suggestions only across explorations |
 | Architecture §11 | Projection, both layouts, `conversation_layout` |
 | Architecture §2.3 | Glossary rows: time thread, the spatial view's name, lane |
@@ -232,7 +232,7 @@ The spike branch is deleted when round 1 starts.
 
 1. **Names.** The page is called **Mindweave** in the interface (today: 总结网络 (summary network)). The switch labels 空间 (spatial) and 时间线 (timeline) are the writer's call (§13).
 2. **`node_layout`** is kept for one release after acceptance, for rollback, then dropped.
-3. **Recommendation count** (§10.3.2) is based on the number of sessions. Writer's calls (§13): the same tiers (1–10 → 1, 11–30 → 2, over 30 → 3), and a recommendation still needs a basis summary.
+3. **Recommendation count** (§10.3.2) is based on the number of conversations. Writer's calls (§13): the same tiers (1–10 → 1, 11–30 → 2, over 30 → 3), and a recommendation still needs a basis summary.
 
 "The rest is fine": the calls in §13 are accepted.
 
@@ -249,7 +249,7 @@ The writer settled these without the owner; each is easy to change.
 7. **Layout budgets:** 300 ms for arrange and 100 ms for the timeline, at 1,000 dots (§6.4).
 8. **Order inside a cluster:** creation order, clockwise (§6.1).
 9. **Switch labels:** 空间 and 时间线; the code names go to the glossary proposal (§11).
-10. **Recommendation tiers:** unchanged numbers, now counted in sessions, and still no recommendation without a basis summary.
+10. **Recommendation tiers:** unchanged numbers, now counted in conversations, and still no recommendation without a basis summary.
 
 ## 14. Approaches considered
 
@@ -265,7 +265,7 @@ For the timeline, a git-graph-style lane layout was the one sensible way: it is 
 
 Built on `task/session-network` with subagent-driven development (plans: [round 1](../history/design/session-network-plan-round1.md), [round 2](../history/design/session-network-plan-round2.md)), behind `MINDWEAVE_SESSION_NETWORK=1`. Without the variable, every build shows today's summary network unchanged, except that mouse-wheel zoom is now on by default (the owner asked for it everywhere). No migration; with the switch on, nothing writes layout.
 
-**How to try:** `MINDWEAVE_SESSION_NETWORK=1 scripts/daily.sh trial` (a build of `main` on a copy of the daily data).
+**How to try then:** `MINDWEAVE_SESSION_NETWORK=1 scripts/daily.sh trial` (a build of `main` on a copy of the daily data).
 
 **What was built:**
 
@@ -291,9 +291,9 @@ Built on `task/session-network` with subagent-driven development (plans: [round 
 - Not run on Windows; the performance tests last ran on a loaded machine.
 - A time-thread line can pass through a dot, and link lines can cross dates and titles (the checks count branch lines only).
 - The spatial view re-packs when a question, title or language changes, so dots can move after the reader has panned.
-- With the switch on, a conversation change reloads every visited workspace's network page; fix before the switch is lifted.
+- With the switch on, a conversation change reloads every visited workspace's network page; fixed on 2026-11-23 (§16).
 - Workspaces with several roots have no work budget for packing.
-- The code says "session" where the glossary says conversation (`SessionNetworkGate`, `SessionWeights`); settle it with the §11 proposal.
+- The code says "session" where the glossary says conversation (`SessionNetworkGate`, `SessionWeights`); settled on 2026-11-23 (§16).
 - §11 (requirements and architecture text) is still to be proposed to the owner; round 3 (quieter links, suggestions only across explorations) is not started.
 
 ### 15.4 The owner's verdict on the spatial view, and the next direction (2026-11-22)
@@ -334,8 +334,15 @@ The owner chose to finish the network (D-035). The remaining work: round 3 (§8)
 1. **Positions (option C).** The spatial view saves each exploration's place and turn, not each dot. The molecule inside an exploration is always laid out again (§6.1). A changed exploration redraws in place; the others keep their place. Only an exploration that has outgrown its place moves, to the nearest free place. This replaces the per-dot `conversation_layout` of §6.2–§6.3. It is a migration, tried on a copy of the owner's data before it merges.
 2. **No summary-only view.** The old summary network view goes when the switch is lifted. Summaries are kept; only that drawing goes.
 3. **"Stable" means no large sudden shifts.** Small local changes are allowed; large movements of what the reader has already seen are avoided. The §11 proposal states this for requirements §7.3 and §7.4.
-4. **Names.** "Conversation" everywhere, as in the glossary; the code's "session" names change with the gate's removal.
+4. **Names.** "Conversation" everywhere, as in the glossary; the code's "session" names changed when the switch was lifted.
 
-Built on 2026-11-23, behind the switch: round 3 (§8: the quiet link, its note while active, a linked dot bringing out its partners) and the reload fix (a conversation change reloads only its own workspace's network page). Suggestions never on one line of descent hold without the switch too.
+Built on 2026-11-23: round 3 (§8: the quiet link, its note while active, a linked dot bringing out its partners) and the reload fix (a conversation change reloads only its own workspace's network page). Suggestions are never on one line of descent.
 
-Built on 2026-11-23 (task/network-stable), behind the switch: exploration places. `SpatialLayout.Arrange` takes each exploration's saved place (its root conversation's dot, the direction of its oldest branch, its size) and returns the places it used. Unchanged explorations go back first, to the very same coordinates, and stay there (only in an extremely spread-out workspace, where the packing grid gets very coarse, can one still be pushed); a changed one redraws in its place, and only when it has outgrown its place does it move, to the nearest place where it keeps at least 40% of its gap; new explorations go beside their neighbour in time and keep 120 units of room to grow, so later branches usually fit where they are. Measured on generated workspaces growing one branch at a time (1,367 additions): the changed exploration moved in 37% of them, more than 100 units in 3.8%, at most about 600; no other exploration moved; nothing overlapped. The other order (the changed one stays, its neighbours step aside) moved more of what the reader had seen and was dropped. Migration v18 adds `exploration_place` (rows go with their root conversation or workspace). The session saves new or changed places directly on load, like a new node's place (U3); a failed save is worked out again next time. With places, 1,000 dots in 220 explorations lay out in about 60 ms.
+Built on 2026-11-23 (task/network-stable): exploration places. `SpatialLayout.Arrange` takes each exploration's saved place (its root conversation's dot, the direction of its oldest branch, its size) and returns the places it used. Unchanged explorations go back first, to the very same coordinates, and stay there (only in an extremely spread-out workspace, where the packing grid gets very coarse, can one still be pushed); a changed one redraws in its place, and only when it has outgrown its place does it move, to the nearest place where it keeps at least 40% of its gap; new explorations go beside their neighbour in time and keep 120 units of room to grow, so later branches usually fit where they are. Measured on generated workspaces growing one branch at a time (1,367 additions): the changed exploration moved in 37% of them, more than 100 units in 3.8%, at most about 600; no other exploration moved; nothing overlapped. The other order (the changed one stays, its neighbours step aside) moved more of what the reader had seen and was dropped. Migration v18 adds `exploration_place` (rows go with their root conversation or workspace). The network session saves new or changed places directly on load, like a new node's place (U3); a failed save is worked out again next time. With places, 1,000 dots in 220 explorations lay out in about 60 ms.
+
+Built on 2026-11-23 (task/network-default): the switch is lifted.
+
+- The network of every conversation is the only one. `SessionNetworkGate` and `MINDWEAVE_SESSION_NETWORK` are gone, with the summary-only projection, its radial layout, its path edges and captions, hollow read dots, arranging, dragging, the save button and the leave prompt.
+- The names follow D-035 (`ConversationWeights`, `ProjectAsync`, …). `SummaryNetworkSession` keeps its name: it is the workspace's network in memory for one run, not a conversation.
+- `node_layout` stays in storage for one release and is no longer read or written; its rows still go with their summary or workspace (§12.2).
+- The number of recommended nodes counts conversations (requirements §10.3.2, v0.25); before this it still counted summaries. A workspace whose conversations are in a higher tier than its summaries were may prepare the missing nodes by itself the next time its network opens, or when a conversation makes it reach a tier while the page is open in the background, when automatic preparation is on (a request to the model).

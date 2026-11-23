@@ -101,32 +101,21 @@ public class BackupRestoreUiTests
     }
 
     [AvaloniaFact]
-    public async Task Cancelling_the_unsaved_layout_prompt_or_the_running_task_prompt_changes_nothing()
+    public async Task Cancelling_the_running_task_prompt_changes_nothing()
     {
         await using var app = DesktopHarness.Create();
         var window = app.ShowWindow(1100, 720);
-        var network = await ExitScenario.DirtyLayoutAsync(app, window);
+        await app.StartWithWorkspaceAsync("火车");
+        await app.ConfigureModelAsync();
         await app.Services.GetRequiredService<IDatabaseBackup>().BackupAsync(BackupReason.BeforeWorkspaceDelete, CancellationToken.None);
         var running = await ExitScenario.RunningAnswerAsync(app);
         var oldRoot = app.Root;
         var backup = Assert.Single(app.Services.GetRequiredService<IBackupFiles>().ListBackups());
 
-        // First the layout prompt, as on exit; cancelling it ends the restore with nothing done.
+        // The running-task prompt in the restore's words; cancelling it ends the restore with nothing done.
         app.Root.BackupRestore.Open(backup);
         app.Root.BackupRestore.RestoreCommand.Execute(null);
-        await UiWait.UntilAsync(() => app.Root.LayoutPrompt.IsOpen);
-        window.UpdateLayout();
-        Assert.True(app.Root.LayoutPrompt.IsOpen);
-        Assert.False(app.Root.Exit.IsTaskPromptOpen);
-        Assert.True(Find<Control>(window, "LayoutPromptDialog").IsEffectivelyVisible);
-        app.Root.LayoutPrompt.CancelCommand.Execute(null);
-        AssertNothingChanged();
-        Assert.True(network.IsDirty);
-
-        // Then (layout not saved) the running-task prompt in the restore's words; cancelling it ends it too.
-        app.Root.BackupRestore.RestoreCommand.Execute(null);
-        await UiWait.UntilAsync(() => app.Root.LayoutPrompt.IsOpen);
-        app.Root.LayoutPrompt.DontSaveCommand.Execute(null);
+        await UiWait.UntilAsync(() => app.Root.Exit.IsTaskPromptOpen);
         window.UpdateLayout();
         Assert.True(app.Root.Exit.IsTaskPromptOpen);
         Assert.Equal(UiText.RestoreTaskTitle, app.Root.Exit.TaskTitle);
@@ -135,7 +124,6 @@ public class BackupRestoreUiTests
         Assert.Equal(UiText.Cancel, Find<Button>(window, "ExitCancel").Content);
         app.Root.Exit.KeepRunningCommand.Execute(null);
         AssertNothingChanged();
-        Assert.True(network.IsDirty);
         Assert.True(app.Services.GetRequiredService<ConversationService>().Observe(running) is not null);
 
         // Afterwards quitting asks in the exit's own words again.

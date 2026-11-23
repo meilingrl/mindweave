@@ -17,7 +17,7 @@ public readonly record struct CanvasBox(double Left, double Top, double Right, d
 
 /// <summary>
 /// Where recommended nodes go (requirements §10.3.2, architecture §11 "首版后"): next to their basis summary, worked out
-/// again on every drawing from the positions in memory, never stored, never part of the layout or its unsaved state.
+/// again on every drawing from the positions in memory, never stored, never part of the layout.
 /// Pure and deterministic: the same network and the same recommendations give the same places.
 /// </summary>
 public static class RecommendationPlacement

@@ -6,7 +6,7 @@ The indicator shown while answers and summaries are being generated. It is a "we
 
 - The motion itself says what is happening now; the text and the timer only add to it. The look fits Mindweave's "weaving" image.
 - Not changed: the waiting text, the timer, and when the indicator appears and disappears.
-- Not replaced: the progress bars at startup, on small attachment chips, and while the summary network is saved. They mean "busy", not "generating".
+- Not replaced: the progress bars at startup and on small attachment chips. They mean "busy", not "generating".
 
 ## A family of motions
 

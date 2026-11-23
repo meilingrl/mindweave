@@ -354,7 +354,6 @@ public sealed partial class LanguageSwitch
         var root = view.GetRequiredService<RootViewModel>();
         if (root.Current is null or StartupViewModel
             || root.Exit.Stage != ExitStage.Idle
-            || root.LayoutPrompt.IsOpen
             || root.WorkspaceDeletion.IsOpen
             || root.ConversationDeletion.IsOpen
             || root.BackupRestore.IsOpen

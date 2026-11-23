@@ -92,7 +92,6 @@
       <SolidColorBrush x:Key="SummaryNetworkBackground">#FCFCFB</SolidColorBrush>
       <SolidColorBrush x:Key="SummaryNetworkGridDot">#E2E0DD</SolidColorBrush>
       <SolidColorBrush x:Key="SummaryNetworkNode">#4B6BFB</SolidColorBrush>
-      <SolidColorBrush x:Key="SummaryNetworkNodeRead">#8E99B8</SolidColorBrush>
       <SolidColorBrush x:Key="SummaryNetworkNodeTrail">#2B47CC</SolidColorBrush>
       <SolidColorBrush x:Key="SummaryNetworkNodeHover">#6F89FF</SolidColorBrush>
       <SolidColorBrush x:Key="SummaryNetworkUnreadDot">#2B47CC</SolidColorBrush>
@@ -105,19 +104,14 @@
       <SolidColorBrush x:Key="SummaryNetworkLabelActive">#0B1020</SolidColorBrush>
       <SolidColorBrush x:Key="SummaryNetworkCaption">#8A8F99</SolidColorBrush>
       <SolidColorBrush x:Key="SummaryNetworkEdge">#A1A9B7</SolidColorBrush>
-      <SolidColorBrush x:Key="SummaryNetworkEdgeIndirect">#838B9B</SolidColorBrush>
       <SolidColorBrush x:Key="SummaryNetworkEdgeNear">#6A7387</SolidColorBrush>
       <SolidColorBrush x:Key="SummaryNetworkEdgeTrail">#5B78F5</SolidColorBrush>
       <SolidColorBrush x:Key="SummaryNetworkFrame">#E7E5E4</SolidColorBrush>
-      <!-- Summary network: the soft shadow under a node while it is dragged -->
-      <SolidColorBrush x:Key="SummaryNetworkDragShadow">#551F2A44</SolidColorBrush>
-      <!-- Light needs no glow: the shadow alone reads on the pale canvas -->
-      <SolidColorBrush x:Key="SummaryNetworkDragGlow">Transparent</SolidColorBrush>
       <!-- Summary network: recommended nodes (§10.3.2), a pale violet apart from the summaries' blue; dashed ring, dotted line, the word "推荐" -->
       <SolidColorBrush x:Key="SummaryNetworkRecommendation">#6B50BD</SolidColorBrush>
       <SolidColorBrush x:Key="SummaryNetworkRecommendationFill">#F3F0FB</SolidColorBrush>
       <!-- Summary network: content links (§10.3.3), a teal apart from the blue selection trail and the violet recommendations;
-           solid and a little thicker than source edges, the note in the same colour (about 4.6:1 on the fill and the panel) -->
+           the line while it is active, and its note, in this colour (about 4.6:1 on the fill and the panel) -->
       <SolidColorBrush x:Key="SummaryNetworkLink">#0E7C70</SolidColorBrush>
       <SolidColorBrush x:Key="SummaryNetworkLinkFill">#EBF6F3</SolidColorBrush>
       <!-- Summary network: pending link suggestions (§10.3.4), a lighter tone of the link teal, drawn dash-dotted with the
@@ -260,7 +254,6 @@
       <SolidColorBrush x:Key="SummaryNetworkBackground">#18191B</SolidColorBrush>
       <SolidColorBrush x:Key="SummaryNetworkGridDot">#292B30</SolidColorBrush>
       <SolidColorBrush x:Key="SummaryNetworkNode">#B4BACD</SolidColorBrush>
-      <SolidColorBrush x:Key="SummaryNetworkNodeRead">#747B88</SolidColorBrush>
       <SolidColorBrush x:Key="SummaryNetworkNodeTrail">#BDC9F2</SolidColorBrush>
       <SolidColorBrush x:Key="SummaryNetworkNodeHover">#E2E8FF</SolidColorBrush>
       <SolidColorBrush x:Key="SummaryNetworkUnreadDot">#A3B8EE</SolidColorBrush>
@@ -273,14 +266,9 @@
       <SolidColorBrush x:Key="SummaryNetworkLabelActive">#F0F2FF</SolidColorBrush>
       <SolidColorBrush x:Key="SummaryNetworkCaption">#858B97</SolidColorBrush>
       <SolidColorBrush x:Key="SummaryNetworkEdge">#5A616C</SolidColorBrush>
-      <SolidColorBrush x:Key="SummaryNetworkEdgeIndirect">#7A7F92</SolidColorBrush>
       <SolidColorBrush x:Key="SummaryNetworkEdgeNear">#98A3B8</SolidColorBrush>
       <SolidColorBrush x:Key="SummaryNetworkEdgeTrail">#AAB8F5</SolidColorBrush>
       <SolidColorBrush x:Key="SummaryNetworkFrame">Transparent</SolidColorBrush>
-      <!-- Summary network: the soft shadow under a node while it is dragged. A black shadow barely shows on the
-           near-black canvas, so dark makes it deeper and adds a soft accent glow with a thin rim around the lifted node. -->
-      <SolidColorBrush x:Key="SummaryNetworkDragShadow">#D9000000</SolidColorBrush>
-      <SolidColorBrush x:Key="SummaryNetworkDragGlow">#8EA2F5</SolidColorBrush>
       <!-- Summary network: recommended nodes (§10.3.2) -->
       <SolidColorBrush x:Key="SummaryNetworkRecommendation">#A893EA</SolidColorBrush>
       <SolidColorBrush x:Key="SummaryNetworkRecommendationFill">#221F2E</SolidColorBrush>

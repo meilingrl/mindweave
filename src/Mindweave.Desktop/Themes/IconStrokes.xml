@@ -152,11 +152,7 @@
     <rect x="1.75" y="9.25" width="5" height="5" rx="1.5"/>
     <rect x="9.25" y="9.25" width="5" height="5" rx="1.5"/>
   </icon>
-  <!-- The summary network toolbar (moved out of SummaryNetworkHomeView, 2026-11-17): 保存布局, 显示全部, 缩小, 放大, 整理布局, 列表. -->
-  <icon key="IconSaveLayout">
-    <path d="M3.75 1.75H10.5l3.75 3.75v6.75a2 2 0 0 1-2 2h-8.5a2 2 0 0 1-2-2v-8.5a2 2 0 0 1 2-2Z"/>
-    <path d="M5 1.75V4.5H9.5V1.75M4.75 14.25V10.25H11.25V14.25"/>
-  </icon>
+  <!-- The summary network toolbar (moved out of SummaryNetworkHomeView, 2026-11-17): 显示全部, 缩小, 放大, 列表. -->
   <icon key="IconShowAll">
     <path d="M1.75 5.5V3.75a2 2 0 0 1 2-2H5.5M10.5 1.75h1.75a2 2 0 0 1 2 2V5.5M14.25 10.5v1.75a2 2 0 0 1-2 2H10.5M5.5 14.25H3.75a2 2 0 0 1-2-2V10.5"/>
   </icon>
@@ -165,12 +161,6 @@
   </icon>
   <icon key="IconZoomIn">
     <path d="M8 3V13M3 8H13"/>
-  </icon>
-  <icon key="IconArrange">
-    <rect x="1.75" y="6" width="4" height="4" rx="1.25"/>
-    <rect x="10.25" y="1.75" width="4" height="4" rx="1.25"/>
-    <rect x="10.25" y="10.25" width="4" height="4" rx="1.25"/>
-    <path d="M5.75 8H8M10.25 3.75H9.5A1.5 1.5 0 0 0 8 5.25v5.5a1.5 1.5 0 0 0 1.5 1.5h.75"/>
   </icon>
   <icon key="IconListView">
     <circle class="solid" cx="2.5" cy="3.5" r="1"/>
@@ -190,7 +180,7 @@
     <path d="M8 1.75V9.75M4.75 6.5 8 9.75 11.25 6.5"/>
     <path d="M2 10.75v1.5a2 2 0 0 0 2 2h8a2 2 0 0 0 2-2v-1.5"/>
   </icon>
-  <!-- 标为已读 / 标为未读 on the summary page: the icon is the state the button sets, a hollow ring for read and a filled dot for unread (as on the network). -->
+  <!-- 标为已读 / 标为未读 on the summary page: the icon is the state the button sets, a hollow ring for read and a filled dot for unread. -->
   <icon key="IconRead">
     <circle cx="8" cy="8" r="5.25"/>
   </icon>

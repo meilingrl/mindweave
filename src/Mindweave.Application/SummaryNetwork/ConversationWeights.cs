@@ -2,11 +2,11 @@ using Mindweave.Core.Conversations;
 
 namespace Mindweave.Application.SummaryNetwork;
 
-/// <summary>How much of the exploration hangs on a session: its own questions plus those of everything branched from it.</summary>
-public static class SessionWeights
+/// <summary>How much of the exploration hangs on a conversation: its own questions plus those of everything branched from it.</summary>
+public static class ConversationWeights
 {
     /// <summary>
-    /// <c>w(s) = q'(s) + sum of q'(d)</c> over all descendants <c>d</c> of <c>s</c>, with <c>q'(x) = max(q(x), 1)</c>.
+    /// <c>w(c) = q'(c) + sum of q'(d)</c> over all descendants <c>d</c> of <c>c</c>, with <c>q'(x) = max(q(x), 1)</c>.
     /// Iterative, so a very deep chain of branches cannot overflow the stack.
     /// </summary>
     public static IReadOnlyDictionary<ConversationId, int> Of(

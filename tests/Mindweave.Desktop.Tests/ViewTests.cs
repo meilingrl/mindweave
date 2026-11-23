@@ -19,7 +19,7 @@ public class ViewTests
         // Window DataContext, overlays and parts rendered inline by their owners' own templates.
         var inline = new[]
         {
-            typeof(RootViewModel), typeof(WorkspaceNameForm), typeof(ExitCoordinator), typeof(LayoutPromptViewModel), typeof(WorkspaceDeletionViewModel), typeof(ConversationDeletionViewModel),
+            typeof(RootViewModel), typeof(WorkspaceNameForm), typeof(ExitCoordinator), typeof(WorkspaceDeletionViewModel), typeof(ConversationDeletionViewModel),
             typeof(BackupRestoreViewModel), typeof(BackupDeletionViewModel),
             typeof(ViewModels.Conversations.Composer), typeof(ViewModels.Conversations.MessageItemViewModel),
             typeof(ViewModels.Conversations.ConversationItemViewModel), typeof(ViewModels.Conversations.ConversationListViewModel),

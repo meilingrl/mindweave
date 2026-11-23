@@ -99,14 +99,4 @@ internal static class SummaryNetworkScenario
         window.UpdateLayout();
         return network;
     }
-
-    /// <summary>Moves a saved position away so that "arrange" visibly changes the layout.</summary>
-    internal static async Task MoveSomethingAsync(DesktopHarness app, SummaryNetworkHomeViewModel network)
-    {
-        var node = network.Nodes[0];
-        await app.Services.GetRequiredService<SqliteDatabase>().WriteAsync(
-            (c, t) => c.Execute(t, "UPDATE node_layout SET x = x + 900 WHERE node_id = $id;", ("$id", node.Id.ToString())), CancellationToken.None);
-        network.Session.DiscardChanges();
-        await network.Session.LoadAsync(CancellationToken.None);
-    }
 }

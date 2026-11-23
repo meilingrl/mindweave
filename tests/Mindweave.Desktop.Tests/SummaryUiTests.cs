@@ -402,7 +402,6 @@ public class SummaryUiTests
         Assert.Equal("2026年3月14日 09:30", UiText.FormatTime(at));
         Assert.Equal("2026年3月14日 09:30", UiText.FormatTime(at.ToUniversalTime()));
         Assert.Equal("2026年11月5日 21:05", UiText.FormatTime(new DateTimeOffset(new DateTime(2026, 11, 5, 21, 5, 0, DateTimeKind.Local))));
-        Assert.Equal("生成于 2026年3月14日 09:30", UiText.NodeCreated(at));
         Assert.DoesNotContain("PM", UiText.FormatTime(at.AddHours(5)), StringComparison.Ordinal);
     }
 

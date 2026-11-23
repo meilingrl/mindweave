@@ -30,7 +30,7 @@ This directory records the choices that the handoff document lets implementers r
 
 | Document | Content |
 | --- | --- |
-| [Session network and timeline](session-network.md) | Sessions as dots, the timeline and the spatial view, behind `MINDWEAVE_SESSION_NETWORK=1`; rounds 1 and 2 merged 2026-11-22 |
+| [Summary network: every conversation a dot, and the timeline](session-network.md) | Conversations as dots, the spatial view and the timeline, quiet links, exploration places; the record of how it was built |
 
 ## Model access
 

@@ -42,26 +42,22 @@ public class RecommendedNodesUiTests
         var window = app.ShowWindow(1100, 720);
         await SummaryNetworkScenario.SeedSeenAsync(app);
         var network = await SummaryNetworkScenario.OpenSummaryNetworkAsync(app, window);
-        var layoutRows = await LayoutRowsAsync(app);
-        var revision = network.Session.Revision;
+        var positions = network.Session.Positions.ToDictionary(p => p.Key, p => p.Value);
         Assert.Empty(network.RecommendedNodes);
 
         await PrepareAsync(app, network, window);
 
-        // One (three summaries), extending the most recently updated summary; nothing about the layout changed.
+        // One (four conversations), extending the most recently updated summary; nothing about the layout changed.
         var node = Assert.Single(network.RecommendedNodes);
         Assert.Equal(Question, node.Question);
         Assert.Contains(network.Nodes, n => n.Id == node.Basis);
-        Assert.False(network.IsDirty);
-        Assert.Equal(revision, network.Session.Revision);
-        Assert.Equal(layoutRows, await LayoutRowsAsync(app));
-        Assert.Equal(network.Nodes.Count, network.Session.Positions.Count);
+        Assert.Equal(positions, network.Session.Positions.ToDictionary(p => p.Key, p => p.Value));
 
         // Beside its basis, clear of every summary and its label.
         var basis = network.Nodes.Single(n => n.Id == node.Basis);
         Assert.True(Math.Abs(node.X - basis.X) + Math.Abs(node.Y - basis.Y) <= 3 * RecommendationPlacement.StepX);
         var box = CanvasBox.OfNode(node.X, node.Y, node.LabelWidth);
-        Assert.All(network.Nodes, n => Assert.False(box.Overlaps(CanvasBox.OfNode(n.X, n.Y, n.LabelWidth)), n.ShortTitle));
+        Assert.DoesNotContain(SummaryNetworkObstacles.Of(network.Nodes, network.Captions, network.IsTimeline), box.Overlaps);
 
         // Drawn: a dashed ring, the word in a frame, a dotted line to the basis; told apart from both kinds of edge.
         var canvas = CanvasOf(window);
@@ -73,8 +69,8 @@ public class RecommendedNodesUiTests
         Assert.NotNull(palette.RecommendationRing(false).DashStyle);
         var link = palette.RecommendationLink(false);
         Assert.Equal(PenLineCap.Round, link.LineCap);
-        Assert.NotEqual(palette.EdgePen(EdgeState.Indirect, true).DashStyle!.Dashes, link.DashStyle!.Dashes);
-        Assert.Null(palette.EdgePen(EdgeState.Normal, false).DashStyle);
+        Assert.NotEqual(palette.LinkPen(false).DashStyle!.Dashes, link.DashStyle!.Dashes);
+        Assert.Null(palette.EdgePen(EdgeState.Normal).DashStyle);
 
         // The legend says what the ring and the line are; the toolbar offers 换一批推荐 and 隐藏推荐.
         Assert.True(LegendCard.Shows(window, "RecommendationLegend"));
@@ -94,15 +90,12 @@ public class RecommendedNodesUiTests
         Assert.Null(network.Selected);
         Assert.Null(network.SelectedRecommendation);
 
-        // 整理布局 arranges summaries only; it follows its basis, and saving writes summary positions only.
-        network.ArrangeCommand.Execute(null);
+        // It follows its basis into the other view, and is never a dot of its own there either.
+        network.SetViewModeCommand.Execute(SummaryNetworkViewMode.Timeline);
         Assert.Equal(network.Nodes.Select(n => n.Id).ToHashSet(), network.Session.Positions.Keys.ToHashSet());
         node = Assert.Single(network.RecommendedNodes);
         basis = network.Nodes.Single(n => n.Id == node.Basis);
         Assert.Equal((basis.X, basis.Y), (node.BasisX, node.BasisY));
-        await network.SaveLayoutCommand.ExecuteAsync(null);
-        Assert.False(network.IsDirty);
-        Assert.Equal(network.Nodes.Count, await LayoutRowsAsync(app));
         window.Close();
     }
 
@@ -362,6 +355,28 @@ public class RecommendedNodesUiTests
     }
 
     /// <summary>The network's background look runs (on the standing clock) and its node is drawn.</summary>
+    [AvaloniaFact]
+    public async Task A_conversation_that_reaches_the_next_tier_while_the_network_is_open_prepares_one_more()
+    {
+        await using var app = DesktopHarness.Create();
+        var window = app.ShowWindow(1100, 720);
+        await SummaryNetworkScenario.SeedSeenAsync(app);
+        var network = await SummaryNetworkScenario.OpenSummaryNetworkAsync(app, window);
+        await PrepareAsync(app, network, window);
+
+        // Four conversations so far; the eleventh brings the second tier (requirements §10.3.2).
+        var conversations = app.Services.GetRequiredService<ConversationService>();
+        for (var i = 5; i <= 11; i++)
+        {
+            await SummaryNetworkScenario.AskAsync(app, conversations, null, network.Workspace.Id, $"第 {i} 个问题？");
+        }
+
+        await UiWait.UntilAsync(() => network.Nodes.Count == 11);
+        app.Client.NodeRecommendations.Replies.Enqueue("[{\"question\":\"铁路为什么要用标准轨距？\",\"basis\":\"S2\"}]");
+        await PrepareAsync(app, network, window, expected: 2);
+        window.Close();
+    }
+
     internal static async Task PrepareAsync(DesktopHarness app, SummaryNetworkHomeViewModel network, Window window, int expected = 1)
     {
         var service = app.Services.GetRequiredService<RecommendationService>();
@@ -375,9 +390,6 @@ public class RecommendedNodesUiTests
         await network.RecommendationsReloaded;
         window.UpdateLayout();
     }
-
-    private static Task<long> LayoutRowsAsync(DesktopHarness app) =>
-        app.Services.GetRequiredService<SqliteDatabase>().ReadAsync(c => c.Scalar<long>(null, "SELECT count(*) FROM node_layout;"), CancellationToken.None);
 
     private static Task<int> DeleteSummaryAsync(DesktopHarness app, Core.Summaries.SummaryNodeId node) =>
         app.Services.GetRequiredService<SqliteDatabase>().WriteAsync(

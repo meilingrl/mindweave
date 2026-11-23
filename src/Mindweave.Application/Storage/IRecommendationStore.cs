@@ -12,9 +12,10 @@ public sealed record RecommendationBasis(SummaryNodeId Node, string DisplayName,
 
 /// <summary>
 /// The summaries recommendations may draw on: the <paramref name="Listed"/> most recently updated (all of them when there
-/// are few), how many the workspace has, and when the newest was made (null without any).
+/// are few), how many the workspace has, when the newest was made (null without any), and how many conversations the
+/// workspace has (the network's dots, whose number sets how many nodes are recommended, §10.3.2).
 /// </summary>
-public sealed record RecommendationBases(IReadOnlyList<RecommendationBasis> Listed, int Count, DateTimeOffset? NewestCreatedAt);
+public sealed record RecommendationBases(IReadOnlyList<RecommendationBasis> Listed, int Count, DateTimeOffset? NewestCreatedAt, int Conversations);
 
 /// <summary>
 /// Recommendations kept per workspace (requirements §10.3, migration v11). Every method is one transaction. Rows of a

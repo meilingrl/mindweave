@@ -145,6 +145,7 @@ public sealed partial class LinkSuggestionService : ILinkSuggestions, IDisposabl
     /// <summary>Where each summary of the workspace sits: its conversation, its exploration's root and the conversations above it.</summary>
     private async Task<IReadOnlyDictionary<SummaryNodeId, SummaryLineage>> LineageAsync(WorkspaceId workspace, CancellationToken cancellationToken) =>
         (await _network!.ProjectAsync(workspace, cancellationToken).ConfigureAwait(false)).Nodes
+            .Where(n => n.HasSummary)
             .ToDictionary(n => n.Id, n => new SummaryLineage(n.Conversation, n.Root, n.Ancestors));
 
     public Task<RecommendationOutcome> SuggestAsync(WorkspaceId workspace, CancellationToken cancellationToken)
