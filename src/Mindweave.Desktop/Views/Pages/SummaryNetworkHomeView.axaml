@@ -363,8 +363,13 @@
         </StackPanel>
         <!-- Content links (§10.3.3): the same solid coloured line as drawn, with words. -->
         <StackPanel Name="LinkLegend" Orientation="Horizontal" IsVisible="{Binding ShowsLinkLegend}">
-          <Line StartPoint="0,0" EndPoint="20,0" Stroke="{DynamicResource SummaryNetworkLink}" StrokeThickness="1.8" StrokeLineCap="Round" VerticalAlignment="Center" Margin="0,0,6,0" />
-          <TextBlock Text="{x:Static t:UiText.LegendLink}" />
+          <Line StartPoint="0,0" EndPoint="20,0" Stroke="{DynamicResource SummaryNetworkLink}" StrokeThickness="1.8" StrokeLineCap="Round" VerticalAlignment="Center" Margin="0,0,6,0"
+                IsVisible="{Binding !IsSessionNetwork}" />
+          <!-- The session network's quiet link (design §8): the neutral dash as drawn at rest. -->
+          <Line StartPoint="0,0" EndPoint="22,0" Stroke="{DynamicResource SummaryNetworkEdge}" StrokeThickness="1.2" StrokeDashArray="6,3.5" VerticalAlignment="Center" Margin="0,0,6,0"
+                IsVisible="{Binding IsSessionNetwork}" />
+          <TextBlock Text="{x:Static t:UiText.LegendLink}" IsVisible="{Binding !IsSessionNetwork}" />
+          <TextBlock Text="{x:Static t:UiText.LegendQuietLink}" IsVisible="{Binding IsSessionNetwork}" />
         </StackPanel>
         <!-- Link suggestions (§10.3.4): the same light dash-dot line as drawn, with words. -->
         <StackPanel Name="SuggestionLegend" Orientation="Horizontal" IsVisible="{Binding ShowsSuggestionLegend}">

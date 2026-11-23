@@ -19,17 +19,28 @@ namespace Mindweave.Desktop.Tests;
 internal static class SummaryNetworkScenario
 {
     /// <summary>Root "火车" summarized; a branch without a summary; its branch summarized; a sibling summarized.</summary>
-    internal static async Task SeedAsync(DesktopHarness app)
+    internal static async Task SeedAsync(DesktopHarness app, bool secondExploration = false)
     {
         await app.StartWithWorkspaceAsync("火车");
         await app.ConfigureModelAsync();
         var conversations = app.Services.GetRequiredService<ConversationService>();
         var workspace = app.Workbench.CurrentWorkspace!.Id;
+        var summaries = app.Services.GetRequiredService<SummaryService>();
+
+        // The second exploration's summary comes first, so pairs with it keep it first (a pair is stored older end first).
+        if (secondExploration)
+        {
+            var steam = await AskAsync(app, conversations, null, workspace, "蒸汽机是怎么工作的？");
+            app.Client.Knowledge.Replies.Enqueue("标题：蒸汽机的详细说明\n短名：蒸汽机\n\n正文");
+            var first = await summaries.SummarizeAsync(steam, CancellationToken.None);
+            Assert.True(first.Accepted, first.Rejection?.ToString());
+            await UiWait.UntilAsync(() => summaries.LatestTaskAsync(steam, CancellationToken.None).Result is { State: GenerationTaskState.Completed });
+        }
+
         var root = await AskAsync(app, conversations, null, workspace, "火车是怎么发明的？");
         var middle = await BranchAsync(app, conversations, root, "谁造了第一台？");
         var leaf = await BranchAsync(app, conversations, middle, "它跑多快？");
         var sibling = await BranchAsync(app, conversations, root, "铁轨用什么做？");
-        var summaries = app.Services.GetRequiredService<SummaryService>();
         foreach (var (conversation, title) in new[] { (root, "火车起源"), (leaf, "火箭号速度"), (sibling, "铁轨") })
         {
             app.Client.Knowledge.Replies.Enqueue($"标题：{title}的详细说明\n短名：{title}\n\n正文");
@@ -43,9 +54,14 @@ internal static class SummaryNetworkScenario
     /// <see cref="SeedAsync"/> with every answer seen: the hints its answers popped up are gone, so none covers the details
     /// panel a test clicks in (they come up a moment after the answers, so a click may or may not race them otherwise).
     /// </summary>
-    internal static async Task SeedSeenAsync(DesktopHarness app)
+    /// <param name="secondExploration">
+    /// Also a second exploration: one summarized conversation, "蒸汽机", of its own. Link suggestions pair summaries across
+    /// explorations or in separate branches, never on one line of descent (design session-network §8), so tests that need
+    /// several suggestible pairs ask for it.
+    /// </param>
+    internal static async Task SeedSeenAsync(DesktopHarness app, bool secondExploration = false)
     {
-        await SeedAsync(app);
+        await SeedAsync(app, secondExploration);
         var marks = app.Services.GetRequiredService<ConversationMarksService>();
         var all = (await app.Services.GetRequiredService<ConversationService>().ListAsync(app.Workbench.CurrentWorkspace!.Id, CancellationToken.None))
             .Select(c => c.Conversation.Id).ToList();

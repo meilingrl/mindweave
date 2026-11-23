@@ -66,6 +66,71 @@ public class LinkSuggestionTests
     }
 
     [Fact]
+    public void A_summary_is_never_paired_with_one_on_its_own_line_of_descent_but_separate_branches_and_explorations_are()
+    {
+        // S1 starts exploration E1; S2 branched from it and S3 from S2; S4 is another branch of S1; S5 starts exploration E2
+        // (design session-network §8: a branch line already joins a line of descent, so such a link says nothing new).
+        var c = Enumerable.Range(1, 5).Select(i => new ConversationId(new Guid(100 + i, 0, 0, [0, 0, 0, 0, 0, 0, 0, 0]))).ToArray();
+        var lineage = new Dictionary<SummaryNodeId, SummaryLineage>
+        {
+            [Node(1)] = new(c[0], c[0], []),
+            [Node(2)] = new(c[1], c[0], [c[0]]),
+            [Node(3)] = new(c[2], c[0], [c[0], c[1]]),
+            [Node(4)] = new(c[3], c[0], [c[0]]),
+            [Node(5)] = new(c[4], c[4], []),
+        };
+        var input = Input(5) with { Lineage = lineage };
+        var output = """
+            [{"a":"S1","b":"S2","note":"父子"},{"a":"S3","b":"S1","note":"祖孙"},{"a":"S2","b":"S3","note":"父子"},
+             {"a":"S3","b":"S4","note":"堂亲"},{"a":"S1","b":"S5","note":"跨探索"}]
+            """;
+
+        var kept = LinkSuggestionPrompt.Parse(output, input, []);
+
+        Assert.Equal([Pair(3, 4), Pair(1, 5)], kept.Select(k => (k.NodeA, k.NodeB)));
+        Assert.True(input.OnOneLine(Node(3), Node(1)));
+        Assert.False(input.OnOneLine(Node(2), Node(4)));
+
+        // The request says where each summary sits: its exploration, and the nearest listed summary it branched from.
+        var sent = LinkSuggestionPrompt.UserText(input);
+        var lines = sent.Split('\n');
+        Assert.Contains(lines, l => l.StartsWith("[S1]", StringComparison.Ordinal) && l.Contains("E1", StringComparison.Ordinal) && !System.Text.RegularExpressions.Regex.IsMatch(l[4..], @"S\d"));
+        Assert.Contains(lines, l => l.StartsWith("[S3]", StringComparison.Ordinal) && l.Contains("E1", StringComparison.Ordinal) && l.Contains("S2", StringComparison.Ordinal));
+        Assert.Contains(lines, l => l.StartsWith("[S4]", StringComparison.Ordinal) && l.Contains("S1", StringComparison.Ordinal));
+        Assert.Contains(lines, l => l.StartsWith("[S5]", StringComparison.Ordinal) && l.Contains("E2", StringComparison.Ordinal));
+
+        // Without lineage nothing is said about explorations and nothing is dropped for it.
+        Assert.DoesNotContain("E1", LinkSuggestionPrompt.UserText(Input(5)), StringComparison.Ordinal);
+        Assert.Equal(5, LinkSuggestionPrompt.Parse(output, Input(5), []).Count);
+    }
+
+    [Fact]
+    public async Task A_pending_suggestion_on_one_line_of_descent_stored_before_the_rule_is_not_offered()
+    {
+        await using var h = await ChatHarness.StartAsync();
+        var (root, _) = await h.RootWithAnswerAsync("蒸汽机是怎么工作的？");
+        await h.SettleAsync(root);
+        h.Client.Knowledge.Replies.Enqueue($"标题：{Steam}\n短名：{Steam}\n\n正文");
+        var parent = await h.SummarizeAsync(root);
+        var answer = (await h.Store.GetMessagesAsync(root, Ct)).Last(m => m.Role == MessageRole.Assistant);
+        var child = (await h.Conversations.CreateBranchAsync(root, BranchFlowTests.Selection(answer, "q"), Ct)).Child;
+        await h.Conversations.AskAsync(child, "效率呢？", Ct);
+        await h.SettleAsync(child);
+        h.Client.Knowledge.Replies.Enqueue("标题：效率\n短名：效率\n\n正文");
+        var branch = await h.SummarizeAsync(child);
+        var rails = await SummarizedAsync(h, "铁轨为什么是工字形？", Rails, "工字形截面省材料又抗弯。");
+
+        // Stored as a build before the rule could have: a summary with its own branch, and a pair across explorations.
+        var (a1, b1) = SummaryLinkPair.Normalize(parent, branch);
+        var (a2, b2) = SummaryLinkPair.Normalize(branch, rails);
+        await new SqliteLinkSuggestionStore(h.Database).AddBatchAsync(
+            h.Workspace, new LinkSuggestionBatch(Guid.CreateVersion7(), DateTimeOffset.UtcNow, [new(a1, b1, null, null), new(a2, b2, null, null)]), Ct);
+
+        var offered = Assert.Single((await h.LinkSuggestions.GetAsync(h.Workspace, Ct)).Items);
+        Assert.True(offered.Touches(rails) && offered.Touches(branch));
+    }
+
+    [Fact]
     public void JSON_that_does_not_parse_is_read_by_its_fields_plain_lines_are_read_and_anything_else_is_nothing()
     {
         var input = Input(4);
@@ -131,7 +196,8 @@ public class LinkSuggestionTests
         Assert.Contains("总结（共 4 个，列出 4 个）", sent, StringComparison.Ordinal);
         foreach (var name in new[] { Steam, Rails, Rocket, Gauge })
         {
-            Assert.Contains($"] {name}\n", sent, StringComparison.Ordinal);
+            // Each summary here starts an exploration of its own, as the summary network places it.
+            Assert.Matches($@"\] {name}（探索 E\d）\n", sent);
         }
 
         Assert.Contains("摘录：蒸汽推动活塞往复运动，再经曲柄变成旋转。", sent, StringComparison.Ordinal);
@@ -490,7 +556,7 @@ public class LinkSuggestionTests
 
     /// <summary>The avoided pair of two summaries as the request lists it, by their labels in order ("S1|S3").</summary>
     private static string Avoided(string sent, string first, string second) =>
-        string.Join("|", new[] { first, second }.Select(n => System.Text.RegularExpressions.Regex.Match(sent, $@"\[(S\d+)\] {n}\n").Groups[1].Value).Order(StringComparer.Ordinal));
+        string.Join("|", new[] { first, second }.Select(n => System.Text.RegularExpressions.Regex.Match(sent, $@"\[(S\d+)\] {n}(?:（探索 E\d+(?:，分支自 S\d+)?）)?\n").Groups[1].Value).Order(StringComparer.Ordinal));
 
     private static Task<long> IgnoredAsync(ChatHarness h) =>
         h.Database.ReadAsync(c => c.Scalar<long>(null, "SELECT count(*) FROM link_suggestion WHERE state = 'ignored';"), Ct);

@@ -198,6 +198,9 @@ public sealed partial class ConversationService : IConversations
     public Task<IReadOnlyList<ConversationSummary>> ListAsync(WorkspaceId workspace, CancellationToken cancellationToken) =>
         _store.ListAsync(workspace, cancellationToken);
 
+    public async Task<WorkspaceId?> WorkspaceOfAsync(ConversationId id, CancellationToken cancellationToken) =>
+        (await _store.GetAsync(id, cancellationToken).ConfigureAwait(false))?.WorkspaceId;
+
     public async Task<ConversationContent?> LoadAsync(ConversationId id, CancellationToken cancellationToken)
     {
         var conversation = await _store.GetAsync(id, cancellationToken).ConfigureAwait(false);
