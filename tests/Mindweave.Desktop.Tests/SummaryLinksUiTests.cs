@@ -1,4 +1,3 @@
-using System.Diagnostics;
 using Avalonia.Automation;
 using Avalonia.Controls;
 using Avalonia.Headless;
@@ -194,71 +193,31 @@ public class SummaryLinksUiTests
 
         // A double click whose second press comes once the link is made: it stays one pick; the summary is not opened and
         // the new link's note editor stays open.
-        // The second press must come within the double-click time. A slow machine (a CI runner) can take longer to write the
-        // link, and then the second press is rightly a click of its own; such an attempt is undone and made again.
-        Avalonia.Point origin, leafAt;
-        for (var attempt = 1; ; attempt++)
-        {
-            network.BeginLinkCommand.Execute(null);
-            await UiInput.PastDoubleClickAsync();
-            window.UpdateLayout();
-            origin = PointIn(window, canvas, default);
-            leafAt = PointIn(window, canvas, canvas.PaintNodes().Single(n => n.Node.Id == leaf).Center);
-            var sinceFirstPress = Stopwatch.StartNew();
-            Press(window, leafAt);
-            await UiWait.UntilAsync(() => !network.IsPicking && network.Links!.Items.Any(i => i.IsEditing));
-            await SettledAsync(network);
-            window.UpdateLayout();
-            if (sinceFirstPress.Elapsed < UiInput.DoubleClickTime - TimeSpan.FromMilliseconds(100))
-            {
-                break;
-            }
-
-            Assert.True(attempt < 5, "Writing a link never took less than the double-click time.");
-            network.Links!.Items.Single(i => i.IsEditing).CancelEditCommand.Execute(null);
-            await links.DeleteAsync(network.Links.Items.Single().Id, CancellationToken.None);
-            await UiWait.UntilAsync(() => network.Links.Items.Count == 0 && network.LinkEdges.Count == 0);
-        }
+        network.BeginLinkCommand.Execute(null);
+        await UiInput.PastDoubleClickAsync();
+        window.UpdateLayout();
+        var origin = PointIn(window, canvas, default);
+        var leafAt = PointIn(window, canvas, canvas.PaintNodes().Single(n => n.Node.Id == leaf).Center);
+        Press(window, leafAt);
+        await UiWait.UntilAsync(() => !network.IsPicking && network.Links!.Items.Any(i => i.IsEditing));
+        await SettledAsync(network);
+        window.UpdateLayout();
 
         // The canvas did not move under the pointer: the hint lies over it, and the toolbar's 隐藏关联 came with 关联到….
         Assert.Equal(origin, PointIn(window, canvas, default));
-        Press(window, leafAt);
+        SecondPress(window, leafAt);
         Assert.Same(network, app.Workbench.CurrentPage);
         Assert.Equal(root, network.Selected?.Id);
         Assert.True(Assert.Single(network.Links!.Items).IsEditing);
         Assert.Null(network.Links.Notice);
 
         // Both presses before the first link is written: still one link, and no "already linked" said about it.
-        // The two presses must make a double click. On a slow machine (a Linux CI runner, 2026-11-20) the headless press
-        // can spend longer than the double-click time running queued work; the second press is then rightly a click of its
-        // own, which selects the sibling once the link is written. Such an attempt is undone and made again.
         network.Links.Items[0].CancelEditCommand.Execute(null);
-        for (var attempt = 1; ; attempt++)
-        {
-            network.BeginLinkCommand.Execute(null);
-            await UiInput.PastDoubleClickAsync();
-            var siblingAt = PointIn(window, canvas, canvas.PaintNodes().Single(n => n.Node.Id == sibling).Center);
-            var sinceFirstPress = Stopwatch.StartNew();
-            Press(window, siblingAt);
-            Press(window, siblingAt);
-            if (sinceFirstPress.Elapsed < UiInput.DoubleClickTime - TimeSpan.FromMilliseconds(100))
-            {
-                break;
-            }
-
-            Assert.True(attempt < 5, "Two presses in a row never came within the double-click time.");
-            await UiWait.UntilAsync(() => !network.IsPicking);
-            network.Select(root);
-            await network.LinksReloaded;
-            await UiWait.UntilAsync(() => network.Links.Items.Count == 2);
-            if (network.Links.Items.SingleOrDefault(i => i.IsEditing) is { } editing)
-            {
-                editing.CancelEditCommand.Execute(null);
-            }
-
-            await links.DeleteAsync(network.Links.Items.Single(i => i.Other == sibling).Id, CancellationToken.None);
-            await UiWait.UntilAsync(() => network.Links.Items.Count == 1 && network.LinkEdges.Count == 1);
-        }
+        network.BeginLinkCommand.Execute(null);
+        await UiInput.PastDoubleClickAsync();
+        var siblingAt = PointIn(window, canvas, canvas.PaintNodes().Single(n => n.Node.Id == sibling).Center);
+        Press(window, siblingAt);
+        SecondPress(window, siblingAt);
 
         await UiWait.UntilAsync(() => !network.IsPicking && network.Links.Items.Count == 2 && network.Links.Items.Any(i => i.IsEditing));
         await SettledAsync(network);
@@ -284,7 +243,7 @@ public class SummaryLinksUiTests
         await UiInput.PastDoubleClickAsync();
         var rootAt = PointIn(window, canvas, canvas.PaintNodes().Single(n => n.Node.Id == root).Center);
         Press(window, rootAt);
-        Press(window, rootAt);
+        SecondPress(window, rootAt);
         Assert.Same(network, app.Workbench.CurrentPage);
         Assert.True(network.IsPicking);
         Assert.Equal(UiText.LinkPickRefusedSelf, network.PickRefusal);
@@ -293,7 +252,7 @@ public class SummaryLinksUiTests
         network.CancelPickCommand.Execute(null);
         await UiInput.PastDoubleClickAsync();
         Press(window, leafAt);
-        Press(window, leafAt);
+        SecondPress(window, leafAt);
         await UiWait.UntilAsync(() => app.Workbench.CurrentPage is SummaryViewModel);
         window.Close();
 
@@ -305,6 +264,17 @@ public class SummaryLinksUiTests
         {
             window.MouseDown(at, MouseButton.Left);
             window.MouseUp(at, MouseButton.Left);
+        }
+
+        // The second press of a double click. It says so itself instead of relying on the clock: on a slow machine the first
+        // headless press runs the whole refresh the link caused, and a press measured by time is then a click of its own
+        // (Linux CI runs 44797665196, 44806763101, 45196408589). It goes to whatever lies under the point, as a real one does.
+        static void SecondPress(Window window, Avalonia.Point at)
+        {
+            var target = Assert.IsAssignableFrom<Avalonia.Interactivity.Interactive>(window.InputHitTest(at));
+            var properties = new PointerPointProperties(RawInputModifiers.LeftMouseButton, PointerUpdateKind.LeftButtonPressed);
+            var pointer = new Pointer(Pointer.GetNextFreeId(), PointerType.Mouse, isPrimary: true);
+            target.RaiseEvent(new PointerPressedEventArgs(target, pointer, window, at, (ulong)Environment.TickCount64, properties, KeyModifiers.None, clickCount: 2));
         }
     }
 
