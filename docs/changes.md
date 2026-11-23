@@ -6,6 +6,10 @@ This file starts on 2026-11-22. The entries from 2026-11-16 to 2026-11-22 were m
 
 ## 2026-11-23
 
+- **Requirements §10.3.2: title search looks at conversations** (documents only; no change on screen).
+  - The sentence said title search "looks only at saved summaries", left over from before v0.25. It now says "only at conversations, not recommended nodes".
+  - Try: read §10.3.2 of [requirements.md](requirements.md).
+  - Not verified: nothing to run. Until the switch is lifted, the default build still searches summaries only.
 - **Session network: explorations keep their place** (behind `MINDWEAVE_SESSION_NETWORK=1`; **migration v18**; D-035 option C; [session-network.md](design/session-network.md) §16).
   - The spatial view saves each exploration's place and turn in `exploration_place`; nothing needs saving by hand. The molecule inside an exploration is laid out again on every load.
   - An untouched exploration stays where it was. A changed one is redrawn in its place and moves to the nearest free place only when it has outgrown it. A new one goes beside its neighbour in time, with 120 units of room to grow.

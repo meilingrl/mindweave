@@ -60,7 +60,7 @@ What is true now: work in progress, next steps, what needs you, open decisions, 
 
 | What | Commit | Date | Result |
 | --- | --- | --- | --- |
-| macOS full run | the option C merge (e98c9e8) | 2026-11-23 | passed: Core 137, Architecture 26, Infrastructure 1016 + 23 skipped, Desktop 4 shards 0 failed |
+| macOS full run | the requirements §10.3.2 merge (3c9b646) | 2026-11-23 | passed: Core 137, Architecture 26, Infrastructure 1016 + 23 skipped, Desktop 4 shards 0 failed |
 | CI on `main` (Linux + Windows) | see the latest run on GitHub | | |
 | Windows 11 hardware, full run | daabd5b | 2026-11-21 | passed |
 | Windows 11 hardware, stress and Release start | 08ead83 | 2026-11-16 | passed |
