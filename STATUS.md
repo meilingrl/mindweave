@@ -4,13 +4,15 @@ What is true now: work in progress, next steps, what needs you, open decisions, 
 
 ## In progress
 
-- Nothing in progress.
+- Finishing the session network (D-035), on two task branches that wait for you (see "Needs you"):
+  - `task/network-stable`: option C, each exploration keeps its place and turn (migration v18);
+  - `task/network-proposal`: the requirements and architecture text.
 
 ## Next steps
 
 - Next-phase ideas: refine the first drafts in [docs/ideas](docs/ideas/README.md) one by one with you. Nothing in them is agreed.
 - Free trial (evolution D9): adopted, done later, no schedule. The design is [free-trial.md](docs/design/free-trial.md).
-- Session network (behind `MINDWEAVE_SESSION_NETWORK=1`, spatial view now a molecule layout): round 3 (quieter links), the requirements and architecture proposal in §11 of [session-network.md](docs/design/session-network.md), and the reload of every visited workspace (§15.3) before the switch is lifted.
+- Session network (behind `MINDWEAVE_SESSION_NETWORK=1`; [session-network.md](docs/design/session-network.md) §16): after the two branches above, lifting the switch, which is your own decision after screenshots and a trial. It also removes the summary-only view and renames the code's "session" to "conversation".
 - Verify in daily use:
   - agent platform phases 2–4;
   - the run loop (L1–L11);
@@ -39,12 +41,15 @@ What is true now: work in progress, next steps, what needs you, open decisions, 
   - the answer output limit;
   - the English prompts.
 - In a real window: the language switch, and English short names on the summary network canvas.
+- The session network's quiet links and the new link suggestions: on Windows; the suggestions with a real model (the prompts changed).
 - The session network's molecule layout: on Windows, and an exploration with hundreds of direct branches in two or more explorations (about 4.5 s for two of 500).
 
 ## Needs you
 
 | Item | Reason | Blocks |
 | --- | --- | --- |
+| Try option C on a copy of your data: `MINDWEAVE_SESSION_NETWORK=1 scripts/daily.sh trial task/network-stable` | Migration v18 of your real data is yours to decide | Merging `task/network-stable` |
+| Confirm the requirements and architecture proposal (`task/network-proposal`), including keeping the term "summary network" | Changes to requirements and architecture are yours to confirm | Merging it; lifting the switch |
 | Look at the icon size in a real window (direction A looks smaller than before; making it bigger is one size in the style) | Look and feel is yours to judge | Nothing |
 | Real service checks (paid, optional): DeepSeek images + tools, Kimi K3 base64 images, GPT-6 tool calls, DashScope streaming tools | Only within the budget you give | The capability presets of phases 1–2 |
 | Remove the old Mindweave icon from the Dock and pin `~/Applications/Mindweave.app` (once) | The old icon points to the v11 build of 11-13, which cannot open v13 data | Opening the daily build from the Dock |
@@ -57,7 +62,7 @@ What is true now: work in progress, next steps, what needs you, open decisions, 
 
 | What | Commit | Date | Result |
 | --- | --- | --- | --- |
-| macOS full run | the molecule-layout merge | 2026-11-23 | passed: Core 137, Architecture 26, Infrastructure 1011 + 23 skipped, Desktop 4 shards 0 failed; layout budgets in Release: 1,000 dots in 25–190 ms by shape |
+| macOS full run | the round 3 merge (e2180c4) | 2026-11-23 | passed: Core 137, Architecture 26, Infrastructure 1013 + 23 skipped, Desktop 4 shards 0 failed |
 | CI on `main` (Linux + Windows) | see the latest run on GitHub | | |
 | Windows 11 hardware, full run | daabd5b | 2026-11-21 | passed |
 | Windows 11 hardware, stress and Release start | 08ead83 | 2026-11-16 | passed |
