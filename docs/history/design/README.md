@@ -18,3 +18,4 @@ Frozen records, moved here from `docs/design/` on 2026-11-22: the designs of fin
 | [Interface language: implementation plan](bilingual-ui-plan.md) | Task-by-task plan for the bilingual product, merges 1 to 3 |
 | [Session network round 1 plan](session-network-plan-round1.md) | Task-by-task plan for sessions as dots and the timeline |
 | [Session network round 2 plan](session-network-plan-round2.md) | Task-by-task plan for the readable timeline, session details and circle packing |
+| [Version numbers and the change log: implementation plan](versioning-plan.md) | Task-by-task plan for raising the version with every merge and the change log by version |
