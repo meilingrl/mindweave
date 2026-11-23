@@ -30,7 +30,8 @@ namespace Mindweave.Desktop.Tests;
 /// </summary>
 public class LinkSuggestionsUiTests
 {
-    private const string Root = "火车起源";
+    /// <summary>A summary of an exploration of its own, so it may be paired with any summary of the train exploration.</summary>
+    private const string Steam = "蒸汽机";
     private const string Leaf = "火箭号速度";
     private const string Sibling = "铁轨";
 
@@ -39,10 +40,10 @@ public class LinkSuggestionsUiTests
     {
         await using var app = DesktopHarness.Create();
         var window = app.ShowWindow(1100, 720);
-        await SummaryNetworkScenario.SeedSeenAsync(app);
+        await SummaryNetworkScenario.SeedSeenAsync(app, secondExploration: true);
         var network = await SummaryNetworkScenario.OpenSummaryNetworkAsync(app, window);
         await RecommendedNodesUiTests.PrepareAsync(app, network, window);
-        await app.Services.GetRequiredService<ISummaryLinks>().CreateAsync(NodeOf(network, Root), NodeOf(network, Sibling), "对比", CancellationToken.None);
+        await app.Services.GetRequiredService<ISummaryLinks>().CreateAsync(NodeOf(network, Steam), NodeOf(network, Sibling), "对比", CancellationToken.None);
         await UiWait.UntilAsync(() => network.LinkEdges.Count == 1);
         window.UpdateLayout();
 
@@ -106,16 +107,16 @@ public class LinkSuggestionsUiTests
     {
         await using var app = DesktopHarness.Create();
         var window = app.ShowWindow(1100, 720);
-        await SummaryNetworkScenario.SeedSeenAsync(app);
+        await SummaryNetworkScenario.SeedSeenAsync(app, secondExploration: true);
         var network = await SummaryNetworkScenario.OpenSummaryNetworkAsync(app, window);
         await RecommendedNodesUiTests.PrepareAsync(app, network, window);
-        await app.Services.GetRequiredService<ISummaryLinks>().CreateAsync(NodeOf(network, Root), NodeOf(network, Leaf), null, CancellationToken.None);
+        await app.Services.GetRequiredService<ISummaryLinks>().CreateAsync(NodeOf(network, Steam), NodeOf(network, Leaf), null, CancellationToken.None);
         await UiWait.UntilAsync(() => network.LinkEdges.Count == 1);
         var revision = network.Session.Revision;
         var layoutRows = await LayoutRowsAsync(app);
         Assert.False(Find<StackPanel>(window, "SuggestionLegend").IsEffectivelyVisible);
 
-        await SuggestAsync(app, window, network, (Root, Sibling, "对比", "都讲铁路的起点"), (Leaf, Sibling, null, "轨道决定速度"));
+        await SuggestAsync(app, window, network, (Steam, Sibling, "对比", "都讲铁路的起点"), (Leaf, Sibling, null, "轨道决定速度"));
 
         // Drawn between the two summaries; nothing about the layout changed; never part of 整理布局.
         Assert.Equal(2, network.SuggestionEdges.Count);
@@ -168,11 +169,11 @@ public class LinkSuggestionsUiTests
     {
         await using var app = DesktopHarness.Create();
         var window = app.ShowWindow(1100, 720);
-        await SummaryNetworkScenario.SeedSeenAsync(app);
+        await SummaryNetworkScenario.SeedSeenAsync(app, secondExploration: true);
         var network = await SummaryNetworkScenario.OpenSummaryNetworkAsync(app, window);
         await app.Services.GetRequiredService<ISummaryLinks>().CreateAsync(NodeOf(network, Leaf), NodeOf(network, Sibling), "原因", CancellationToken.None);
         await UiWait.UntilAsync(() => network.LinkEdges.Count == 1);
-        await SuggestAsync(app, window, network, (Root, Leaf, "对比", "一"), (Root, Sibling, "例子", "二"));
+        await SuggestAsync(app, window, network, (Steam, Leaf, "对比", "一"), (Steam, Sibling, "例子", "二"));
 
         // The sibling dragged onto the leaf: both suggestions (and the link between them) have the same middle.
         var leaf = network.Nodes.Single(n => n.ShortTitle == Leaf);
@@ -193,12 +194,12 @@ public class LinkSuggestionsUiTests
     {
         await using var app = DesktopHarness.Create();
         var window = app.ShowWindow(1100, 720);
-        await SummaryNetworkScenario.SeedSeenAsync(app);
+        await SummaryNetworkScenario.SeedSeenAsync(app, secondExploration: true);
         var network = await SummaryNetworkScenario.OpenSummaryNetworkAsync(app, window);
-        await SuggestAsync(app, window, network, (Root, Leaf, "对比", "一"));
+        await SuggestAsync(app, window, network, (Steam, Leaf, "对比", "一"));
 
         // The sibling dragged to the middle of the suggested pair: the words move off it, and it stays clickable.
-        var root = network.Nodes.Single(n => n.ShortTitle == Root);
+        var root = network.Nodes.Single(n => n.ShortTitle == Steam);
         var leaf = network.Nodes.Single(n => n.ShortTitle == Leaf);
         var sibling = NodeOf(network, Sibling);
         network.MoveNode(sibling, (root.X + leaf.X) / 2, (root.Y + leaf.Y) / 2);
@@ -221,11 +222,11 @@ public class LinkSuggestionsUiTests
     {
         await using var app = DesktopHarness.Create();
         var window = app.ShowWindow(1100, 720);
-        await SummaryNetworkScenario.SeedSeenAsync(app);
+        await SummaryNetworkScenario.SeedSeenAsync(app, secondExploration: true);
         var network = await SummaryNetworkScenario.OpenSummaryNetworkAsync(app, window);
-        await app.Services.GetRequiredService<ISummaryLinks>().CreateAsync(NodeOf(network, Root), NodeOf(network, Leaf), null, CancellationToken.None);
+        await app.Services.GetRequiredService<ISummaryLinks>().CreateAsync(NodeOf(network, Steam), NodeOf(network, Leaf), null, CancellationToken.None);
         await UiWait.UntilAsync(() => network.LinkEdges.Count == 1);
-        await SuggestAsync(app, window, network, (Root, Sibling, "对比", "都讲铁路的起点"));
+        await SuggestAsync(app, window, network, (Steam, Sibling, "对比", "都讲铁路的起点"));
         Assert.Single(network.SuggestionEdges);
 
         LinksMenu.Choose(window, "ToggleLinksMenuItem");
@@ -247,17 +248,17 @@ public class LinkSuggestionsUiTests
     {
         await using var app = DesktopHarness.Create();
         var window = app.ShowWindow(1100, 720);
-        await SummaryNetworkScenario.SeedSeenAsync(app);
+        await SummaryNetworkScenario.SeedSeenAsync(app, secondExploration: true);
         var network = await SummaryNetworkScenario.OpenSummaryNetworkAsync(app, window);
-        await SuggestAsync(app, window, network, (Root, Sibling, "对比", "都讲铁路的起点"), (Leaf, Sibling, "原因", "轨道决定速度"));
+        await SuggestAsync(app, window, network, (Steam, Sibling, "对比", "都讲铁路的起点"), (Leaf, Sibling, "原因", "轨道决定速度"));
         Assert.True(Find<StackPanel>(window, "SuggestionsSection").IsEffectivelyVisible);
-        var row = Row(window, Root);
+        var row = Row(window, Steam);
 
         // 改说明: over 16 characters is said while typing and 接受 waits; 完成 keeps the edited note for 接受.
         UiInput.Click(window, Find<Button>(row, "EditSuggestedNoteButton"));
         var box = Find<TextBox>(row, "SuggestedNoteBox");
         await UiWait.UntilAsync(() => box.IsFocused);
-        Assert.Equal(UiText.SuggestedNoteEditorName(NameOf(network, Root), NameOf(network, Sibling)), AutomationProperties.GetName(box));
+        Assert.Equal(UiText.SuggestedNoteEditorName(NameOf(network, Steam), NameOf(network, Sibling)), AutomationProperties.GetName(box));
         box.Text = new string('长', 17);
         window.UpdateLayout();
         Assert.True(Find<TextBlock>(row, "SuggestedNoteError").IsEffectivelyVisible);
@@ -283,16 +284,16 @@ public class LinkSuggestionsUiTests
         var linkRow = window.GetVisualDescendants().OfType<Border>().Single(b => b.Name == "LinkRow" && b.IsEffectivelyVisible && ((SummaryLinkItem)b.DataContext!).IsConfirmed);
         Assert.True(Find<TextBlock>(linkRow, "LinkConfirmedMarker").IsEffectivelyVisible);
         Assert.Equal(UiText.LinkConfirmedMarker, Find<TextBlock>(linkRow, "LinkConfirmedMarker").Text);
-        Assert.Equal(UiText.LinkItemName(NameOf(network, Root), "起点对比", confirmed: true), AutomationProperties.GetName(linkRow));
+        Assert.Equal(UiText.LinkItemName(NameOf(network, Steam), "起点对比", confirmed: true), AutomationProperties.GetName(linkRow));
 
         // The list view says it after the note.
         network.ToggleViewCommand.Execute(null);
         await UiWait.UntilAsync(() => network.Items.Any(i => i.Links.Contains(UiText.LinkConfirmedMarker, StringComparison.Ordinal)));
-        Assert.Equal(UiText.LinksLine([(NameOf(network, Root), "起点对比", true)]), network.Items.Single(i => i.Node == NodeOf(network, Sibling)).Links);
+        Assert.Equal(UiText.LinksLine([(NameOf(network, Steam), "起点对比", true)]), network.Items.Single(i => i.Node == NodeOf(network, Sibling)).Links);
         network.ToggleViewCommand.Execute(null);
 
         // The summary page too.
-        app.Workbench.Navigate(new NavigationRequest(MainSection.SummaryNetwork, new SummaryRoute(NodeOf(network, Root))));
+        app.Workbench.Navigate(new NavigationRequest(MainSection.SummaryNetwork, new SummaryRoute(NodeOf(network, Steam))));
         var summary = Assert.IsType<SummaryViewModel>(app.Workbench.CurrentPage);
         await summary.Loaded;
         await UiWait.UntilAsync(() => summary.Shown is not null);
@@ -308,9 +309,9 @@ public class LinkSuggestionsUiTests
     {
         await using var app = DesktopHarness.Create();
         var window = app.ShowWindow(1100, 720);
-        await SummaryNetworkScenario.SeedSeenAsync(app);
+        await SummaryNetworkScenario.SeedSeenAsync(app, secondExploration: true);
         var network = await SummaryNetworkScenario.OpenSummaryNetworkAsync(app, window);
-        await SuggestAsync(app, window, network, (Root, Sibling, "对比", "一"), (Leaf, Sibling, "原因", "二"), (Root, Leaf, null, "三"));
+        await SuggestAsync(app, window, network, (Steam, Sibling, "对比", "一"), (Leaf, Sibling, "原因", "二"), (Steam, Leaf, null, "三"));
         Assert.Equal(3, network.SuggestionEdges.Count);
 
         var row = Row(window, Leaf, Sibling);
@@ -336,7 +337,7 @@ public class LinkSuggestionsUiTests
         Assert.Empty(await app.Services.GetRequiredService<ISummaryLinks>().ListAsync(network.Workspace.Id, CancellationToken.None));
 
         // Asked again with the same pairs: nothing new, said quietly.
-        app.Client.LinkSuggestionAnswer = r => FakeChatClient.PairsByName(r, (NameOf(network, Root), NameOf(network, Sibling), "对比", "一"));
+        app.Client.LinkSuggestionAnswer = r => FakeChatClient.PairsByName(r, (NameOf(network, Steam), NameOf(network, Sibling), "对比", "一"));
         await network.Suggestions.SuggestCommand.ExecuteAsync(null);
         window.UpdateLayout();
         Assert.Equal(UiText.LinkSuggestionsNoneNew, Find<TextBlock>(window, "LinkSuggestionsNote").Text);
@@ -349,16 +350,16 @@ public class LinkSuggestionsUiTests
     {
         await using var app = DesktopHarness.Create();
         var window = app.ShowWindow(1100, 720);
-        await SummaryNetworkScenario.SeedSeenAsync(app);
+        await SummaryNetworkScenario.SeedSeenAsync(app, secondExploration: true);
         var network = await SummaryNetworkScenario.OpenSummaryNetworkAsync(app, window);
-        await SuggestAsync(app, window, network, (Root, Sibling, "对比", "一"));
+        await SuggestAsync(app, window, network, (Steam, Sibling, "对比", "一"));
         var panel = network.Suggestions!;
 
         // 全部忽略 asked about one suggestion; meanwhile a request (started before) stores two new ones in its place.
         UiInput.Click(window, Find<Button>(window, "IgnoreAllSuggestionsButton"));
         window.UpdateLayout();
         Assert.True(panel.IsConfirmingIgnoreAll);
-        app.Client.LinkSuggestionAnswer = r => FakeChatClient.PairsByName(r, (NameOf(network, Leaf), NameOf(network, Sibling), "原因", "二"), (NameOf(network, Root), NameOf(network, Leaf), null, "三"));
+        app.Client.LinkSuggestionAnswer = r => FakeChatClient.PairsByName(r, (NameOf(network, Leaf), NameOf(network, Sibling), "原因", "二"), (NameOf(network, Steam), NameOf(network, Leaf), null, "三"));
         Assert.Equal(new Application.Recommendations.RecommendationOutcome(2), await app.Services.GetRequiredService<ILinkSuggestions>().SuggestAsync(network.Workspace.Id, CancellationToken.None));
         await UiWait.UntilAsync(() => panel.Items.Count == 2 && panel.Items.All(i => i.Suggestion.Touches(NodeOf(network, Leaf))));
 
@@ -377,11 +378,11 @@ public class LinkSuggestionsUiTests
     {
         await using var app = DesktopHarness.Create();
         var window = app.ShowWindow(1100, 720);
-        await SummaryNetworkScenario.SeedSeenAsync(app);
+        await SummaryNetworkScenario.SeedSeenAsync(app, secondExploration: true);
         var network = await SummaryNetworkScenario.OpenSummaryNetworkAsync(app, window);
         await SettledAsync(network);
         var gate = app.Client.LinkSuggestions.Hold();
-        app.Client.LinkSuggestionAnswer = r => FakeChatClient.PairsByName(r, (NameOf(network, Root), NameOf(network, Sibling), "对比", "都讲铁路的起点"));
+        app.Client.LinkSuggestionAnswer = r => FakeChatClient.PairsByName(r, (NameOf(network, Steam), NameOf(network, Sibling), "对比", "都讲铁路的起点"));
 
         // The 关联 button by keyboard: Enter opens its menu, Enter on 建议关联 asks; a second ask while it runs does nothing.
         var button = LinksMenu.Button(window);
@@ -406,16 +407,16 @@ public class LinkSuggestionsUiTests
 
         // Tab reaches each control of the row, each named; Enter on 改说明 opens the editor; typing and Enter keep the note;
         // Tab to 接受 and Enter accepts.
-        var row = Row(window, Root);
-        Assert.Equal(UiText.LinkSuggestionName(NameOf(network, Root), NameOf(network, Sibling), "对比", "都讲铁路的起点"), AutomationProperties.GetName(row));
+        var row = Row(window, Steam);
+        Assert.Equal(UiText.LinkSuggestionName(NameOf(network, Steam), NameOf(network, Sibling), "对比", "都讲铁路的起点"), AutomationProperties.GetName(row));
         Find<Button>(row, "SuggestedNameA").Focus(NavigationMethod.Tab);
-        Assert.Equal(UiText.ShowSuggestedSummaryName(NameOf(network, Root)), AutomationProperties.GetName(Find<Button>(row, "SuggestedNameA")));
+        Assert.Equal(UiText.ShowSuggestedSummaryName(NameOf(network, Steam)), AutomationProperties.GetName(Find<Button>(row, "SuggestedNameA")));
         window.KeyPress(Key.Tab, RawInputModifiers.None, PhysicalKey.Tab, null);
         Assert.True(Find<Button>(row, "SuggestedNameB").IsFocused);
         window.KeyPress(Key.Tab, RawInputModifiers.None, PhysicalKey.Tab, null);
         var edit = Find<Button>(row, "EditSuggestedNoteButton");
         Assert.True(edit.IsFocused);
-        Assert.Equal(UiText.EditSuggestedNoteName(NameOf(network, Root), NameOf(network, Sibling)), AutomationProperties.GetName(edit));
+        Assert.Equal(UiText.EditSuggestedNoteName(NameOf(network, Steam), NameOf(network, Sibling)), AutomationProperties.GetName(edit));
         window.KeyPress(Key.Enter, RawInputModifiers.None, PhysicalKey.Enter, null);
         var box = Find<TextBox>(row, "SuggestedNoteBox");
         await UiWait.UntilAsync(() => box.IsFocused);
@@ -426,7 +427,7 @@ public class LinkSuggestionsUiTests
         Assert.Equal("起点", network.Suggestions.Items[0].Note);
         var accept = Find<Button>(row, "AcceptSuggestionButton");
         accept.Focus(NavigationMethod.Tab);
-        Assert.Equal(UiText.AcceptLinkSuggestionName(NameOf(network, Root), NameOf(network, Sibling)), AutomationProperties.GetName(accept));
+        Assert.Equal(UiText.AcceptLinkSuggestionName(NameOf(network, Steam), NameOf(network, Sibling)), AutomationProperties.GetName(accept));
         window.KeyPress(Key.Tab, RawInputModifiers.None, PhysicalKey.Tab, null);
         Assert.True(Find<Button>(row, "IgnoreSuggestionButton").IsFocused);
         accept.Focus(NavigationMethod.Tab);
@@ -442,15 +443,15 @@ public class LinkSuggestionsUiTests
     {
         await using var app = DesktopHarness.Create();
         var window = app.ShowWindow(1100, 720);
-        await SummaryNetworkScenario.SeedSeenAsync(app);
+        await SummaryNetworkScenario.SeedSeenAsync(app, secondExploration: true);
         var network = await SummaryNetworkScenario.OpenSummaryNetworkAsync(app, window);
-        await SuggestAsync(app, window, network, (Root, Sibling, "对比", "都讲铁路的起点"));
+        await SuggestAsync(app, window, network, (Steam, Sibling, "对比", "都讲铁路的起点"));
 
         network.ToggleViewCommand.Execute(null);
         window.UpdateLayout();
         Assert.True(Find<StackPanel>(window, "LinkSuggestionsList").IsEffectivelyVisible);
         Assert.False(Find<StackPanel>(window, "SuggestionsSection").IsEffectivelyVisible);
-        var row = Row(window, Root);
+        var row = Row(window, Steam);
         UiInput.Click(window, Find<Button>(row, "SuggestedNameB"));
         Assert.False(network.IsListView);
         Assert.Equal(NodeOf(network, Sibling), network.Selected!.Id);
@@ -462,9 +463,9 @@ public class LinkSuggestionsUiTests
     {
         await using var app = DesktopHarness.Create();
         var window = app.ShowWindow(1100, 720);
-        await SummaryNetworkScenario.SeedSeenAsync(app);
+        await SummaryNetworkScenario.SeedSeenAsync(app, secondExploration: true);
         var network = await SummaryNetworkScenario.OpenSummaryNetworkAsync(app, window);
-        await SuggestAsync(app, window, network, (Root, Sibling, "对比", "一"), (Leaf, Sibling, "原因", "二"));
+        await SuggestAsync(app, window, network, (Steam, Sibling, "对比", "一"), (Leaf, Sibling, "原因", "二"));
         network.Select(NodeOf(network, Leaf));
         window.UpdateLayout();
         Assert.False(Find<StackPanel>(window, "SuggestionsSection").IsEffectivelyVisible);
@@ -489,7 +490,7 @@ public class LinkSuggestionsUiTests
     {
         await using var app = DesktopHarness.Create();
         var window = app.ShowWindow(1100, 720);
-        await SummaryNetworkScenario.SeedSeenAsync(app);
+        await SummaryNetworkScenario.SeedSeenAsync(app, secondExploration: true);
         var network = await SummaryNetworkScenario.OpenSummaryNetworkAsync(app, window);
         await SettledAsync(network);
         var dialogs = window.GetVisualDescendants().OfType<Window>().Count();
@@ -506,7 +507,9 @@ public class LinkSuggestionsUiTests
         Assert.False(Find<Button>(window, "LinkSuggestionsSettingsButton").IsEffectivelyVisible);
         Assert.Equal(dialogs, window.GetVisualDescendants().OfType<Window>().Count());
 
-        // 重试 asks again; stored, the line goes.
+        // 重试 asks again; stored, the line goes. (Two pairs off any line of descent: the default answer pairs a summary
+        // with its own ancestor, which is never kept.)
+        app.Client.LinkSuggestionAnswer = r => FakeChatClient.PairsByName(r, (NameOf(network, Steam), NameOf(network, Leaf), "对比", "一"), (NameOf(network, Leaf), NameOf(network, Sibling), "原因", "二"));
         UiInput.Click(window, retry);
         await UiWait.UntilAsync(() => network.Suggestions!.Items.Count == 2 && !network.Suggestions.IsRunning);
         window.UpdateLayout();

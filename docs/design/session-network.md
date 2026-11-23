@@ -1,6 +1,6 @@
 # Session network and timeline (design)
 
-Status: approved by the owner 2026-11-20 (with the decisions in §12). Rounds 1 and 2 merged into `main` on 2026-11-22 behind the switch `MINDWEAVE_SESSION_NETWORK=1`; the record is in §15. The spatial view was then redone as a molecule layout (§6.1, §15.5). Written from the owner's brainstorming of 2026-11-19 and 11-20 and a throwaway preview (branch `task/session-network-spike`, commit `bd793e3`). Nothing here changes the requirements or the architecture by itself: §11 lists the text that must change, and that goes to the owner as its own proposal (AGENTS.md, "Changing requirements or architecture").
+Status: approved by the owner 2026-11-20 (with the decisions in §12). Rounds 1 and 2 merged into `main` on 2026-11-22 behind the switch `MINDWEAVE_SESSION_NETWORK=1`; the record is in §15. The spatial view was then redone as a molecule layout (§6.1, §15.5). The owner's decisions for finishing the network are in §16. Written from the owner's brainstorming of 2026-11-19 and 11-20 and a throwaway preview (branch `task/session-network-spike`, commit `bd793e3`). Nothing here changes the requirements or the architecture by itself: §11 lists the text that must change, and that goes to the owner as its own proposal (AGENTS.md, "Changing requirements or architecture").
 
 Related: [evolution D8](../evolution.md) (sharing the thinking path), [S5 summary network](../history/design/s5-network.md) (today's network), [requirements](../requirements.md) §4.2, §7, §10.3; [architecture](../architecture.md) §11.
 
@@ -325,3 +325,13 @@ Verified: the §6.4 guards on 25 generated workspaces (1 to 302 dots, 1 to 40 ex
 
 Not verified: Windows; the feel on screen beyond screenshots; long titles in English wrapping on real data.
 
+## 16. Finishing the network: owner's decisions (2026-11-23)
+
+The owner chose to finish the network (D-035). The remaining work: round 3 (§8), the reload fix (§15.3), stable positions, the §11 proposal, and lifting the switch.
+
+1. **Positions (option C).** The spatial view saves each exploration's place and turn, not each dot. The molecule inside an exploration is always laid out again (§6.1). A changed exploration redraws in place; the others keep their place. Only an exploration that has outgrown its place moves, to the nearest free place. This replaces the per-dot `conversation_layout` of §6.2–§6.3. It is a migration, tried on a copy of the owner's data before it merges.
+2. **No summary-only view.** The old summary network view goes when the switch is lifted. Summaries are kept; only that drawing goes.
+3. **"Stable" means no large sudden shifts.** Small local changes are allowed; large movements of what the reader has already seen are avoided. The §11 proposal states this for requirements §7.3 and §7.4.
+4. **Names.** "Conversation" everywhere, as in the glossary; the code's "session" names change with the gate's removal.
+
+Built on 2026-11-23, behind the switch: round 3 (§8: the quiet link, its note while active, a linked dot bringing out its partners, suggestions never on one line of descent) and the reload fix (a conversation change reloads only its own workspace's network page).

@@ -6,6 +6,14 @@ This file starts on 2026-11-22. The entries from 2026-11-16 to 2026-11-22 were m
 
 ## 2026-11-23
 
+- **Session network round 3: quiet links, better suggestions, fewer reloads** (no migration; D-035; [session-network.md](design/session-network.md) §8, §16).
+  - Behind `MINDWEAVE_SESSION_NETWORK=1`: a summary link is a thin, quiet line with no label. Its note shows while you point at it or select it. A selected link, or a dot with links, brings out its ends and fades the rest. The legend names the line.
+  - Behind the switch: a conversation change reloads only its own workspace's network page, where it used to reload every visited workspace.
+  - Not behind the switch: link suggestions never pair a summary with one it branched from, directly or further up. The model is told each summary's exploration and what it branched from, asked to prefer pairs across explorations, and any pair on one line of descent is dropped; stored suggestions of that kind are no longer offered. Both prompts changed.
+  - Not behind the switch: the network page also ignores summary and visibility changes of conversations in other workspaces.
+  - D-035 records your choices for finishing the network.
+  - Try: `MINDWEAVE_SESSION_NETWORK=1 scripts/daily.sh trial`.
+  - Not verified: Windows; suggestions with a real model.
 - **Session network: the spatial view is a molecule layout** (behind `MINDWEAVE_SESSION_NETWORK=1`; no migration; [session-network.md](design/session-network.md) §6.1, §15.5).
   - Each exploration is a molecule. Lines spread round each dot by the size of the branch behind them, so two lines run straight and three sit at 120°. Turns alternate so chains never curl. Each line is long enough for its branch to fit its wedge, so lines do not cross.
   - Explorations keep gaps. The heaviest sits in the middle; the others follow outward in time order, each beside its neighbour in time.

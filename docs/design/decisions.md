@@ -195,3 +195,12 @@ Bilingual merge 3 sends English prompts when the interface is English. They are 
 - The work comes later. No schedule is written down.
 - The defaults in the design's open decisions stand until you change them: $3 a day global cap, about $0.30 per install with no renewal, tools and web search off at first, the relay address only in Release builds.
 - Requirements §9.4 and architecture §7.4 change when the work starts, in a separate commit you confirm.
+
+## D-035 Finishing the session network: positions, the old view, stability, names (you, 2026-11-23)
+
+You chose "Finish the network" as the next line. For lifting `MINDWEAVE_SESSION_NETWORK=1`:
+
+- **Positions: option C.** Each exploration's place and turn in the spatial view is saved; the molecule inside it is always laid out again. A new conversation changes only its own exploration, which redraws in place; other explorations stay where they were. Only an exploration that has outgrown its place moves, to the nearest free place (as built on 2026-11-23: the other order, neighbours stepping aside, moved more of what you had seen). Option A (save every dot) would let the molecules lose their shape over time; option B (save nothing) lets the picture move when anything changes. The new storage is a migration, tried on a copy of your data first.
+- **The summary-only network view is not kept.** It goes when the switch is lifted. Summaries themselves are always kept; only that way of drawing them goes.
+- **"Stable layout" means no large sudden shifts.** It is not a rigid picture that only grows: small local changes are allowed, and large movements of things you have seen are avoided. The requirements text (§7.3, §7.4) says this explicitly in the proposal of [session-network.md](session-network.md) §11.
+- **One word: conversation.** Code and documents say "conversation" where they said "session" (`SessionNetworkGate`, `SessionWeights`, …), as the glossary already does.

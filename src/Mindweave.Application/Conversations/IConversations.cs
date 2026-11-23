@@ -27,6 +27,9 @@ public interface IConversations
 
     Task<ConversationContent?> LoadAsync(ConversationId id, CancellationToken cancellationToken);
 
+    /// <summary>The workspace a conversation belongs to, read without its messages; null when it does not exist.</summary>
+    Task<WorkspaceId?> WorkspaceOfAsync(ConversationId id, CancellationToken cancellationToken);
+
     LiveAnswer? Observe(MessageId answer);
 
     /// <inheritdoc cref="ConversationService.HasUnfinishedAnswer"/>
