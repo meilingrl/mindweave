@@ -45,6 +45,11 @@ public static partial class UiText
 
     public static string CitationsHeading => T("Citations", "出处");
 
+    /// <summary>The line that opens the 出处 list: how many sources the answer cites.</summary>
+    public static string CitationsCount(int count) => T($"Citations · {count}", $"出处 · {count}");
+    public static string CitationsExpand => T("Show citations", "展开出处");
+    public static string CitationsCollapse => T("Hide citations", "收起出处");
+
     /// <summary>A 出处 row's meta line: the host and when it was fetched.</summary>
     public static string CitationMeta(Uri url, DateTimeOffset fetchedAt) =>
         T(

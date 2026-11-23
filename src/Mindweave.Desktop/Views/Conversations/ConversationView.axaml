@@ -339,8 +339,16 @@
                 <TextBlock Name="RunLimitNote" Classes="caption" Text="{Binding LimitNote}" IsVisible="{Binding HasLimitNote}" TextWrapping="Wrap" />
                 <!-- 出处 (requirements §10.4.5): the sources the answer cites, by number; a row opens the viewer at the passage. -->
                 <StackPanel Name="CitationsPanel" Classes="citations" Spacing="2" IsVisible="{Binding HasCitations}">
-                  <TextBlock Classes="citations-heading" Text="{x:Static t:UiText.CitationsHeading}" />
-                  <ItemsControl Name="CitationList" ItemsSource="{Binding Citations}">
+                  <!-- One quiet line, closed at first (the owner, 2026-11-23): the list opens under it. -->
+                  <Button Name="CitationsToggle" Classes="quiet small run-activity" Command="{Binding ToggleCitationsCommand}"
+                          HorizontalAlignment="Left" ToolTip.Tip="{Binding CitationsToggleLabel}"
+                          AutomationProperties.Name="{Binding CitationsText}" AutomationProperties.HelpText="{Binding CitationsToggleLabel}">
+                    <StackPanel Orientation="Horizontal" Spacing="6">
+                      <TextBlock Name="CitationsText" Classes="caption" Text="{Binding CitationsText}" VerticalAlignment="Center" />
+                      <PathIcon Data="{StaticResource IconChevronDown}" Classes="run-activity chevron" Classes.expanded="{Binding IsCitationsExpanded}" />
+                    </StackPanel>
+                  </Button>
+                  <ItemsControl Name="CitationList" ItemsSource="{Binding Citations}" IsVisible="{Binding IsCitationsExpanded}">
                     <ItemsControl.ItemTemplate>
                       <DataTemplate x:DataType="vm:CitationItem">
                         <Button Classes="quiet citation" Command="{Binding Open}" HorizontalAlignment="Left" HorizontalContentAlignment="Left"
