@@ -171,7 +171,7 @@ public sealed partial class SettingsHomeViewModel : PageViewModel, IDisposable, 
     /// <summary>The text widths offered (the owner, 2026-11-23); any other is dragged on the page itself.</summary>
     public const double NarrowText = 640;
 
-    public const double MediumText = 800;
+    public const double MediumText = TextWidthService.Default;
 
     public const double WideText = 960;
 

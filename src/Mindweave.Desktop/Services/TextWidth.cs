@@ -9,7 +9,7 @@ namespace Mindweave.Desktop.Services;
 /// </summary>
 public sealed class TextWidth(ITextWidth? store = null) : ObservableObject
 {
-    private double? _pixels;
+    private double? _pixels = TextWidthService.Default;
 
     /// <summary>The widest the text may be; null: as wide as the page.</summary>
     public double? Pixels

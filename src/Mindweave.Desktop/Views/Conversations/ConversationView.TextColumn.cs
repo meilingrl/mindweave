@@ -46,7 +46,7 @@ public sealed partial class ConversationView
         {
             if (_textWidth is { } width)
             {
-                width.Pixels = null;
+                width.Pixels = TextWidthService.Default;
                 width.Save();
             }
         };

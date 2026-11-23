@@ -36,7 +36,7 @@ public class TextWidthTests
     public async Task Dragging_the_edge_changes_the_text_and_not_the_page_and_is_remembered(string theme)
     {
         await using var app = DesktopHarness.Create();
-        var (window, page) = await OpenAsync(app, theme);
+        var (window, page) = await OpenAsync(app, theme, whole: true);
         var view = CurrentView(window);
         var list = Find<ItemsControl>(view, "MessageList");
         var left = Find<EdgeGrip>(view, "LeftTextGrip");
@@ -72,7 +72,7 @@ public class TextWidthTests
         await text.Saving;
         Assert.Equal(whole - 200, (await app.Services.GetRequiredService<ITextWidth>().GetAsync(CancellationToken.None))!.Value, 1);
 
-        // The keyboard moves it, Home gives the whole page back; never narrower than the least.
+        // The keyboard moves it, Home gives the default back; never narrower than the least.
         Assert.Equal(UiText.TextWidthLabel, AutomationProperties.GetName(right));
         Assert.True(right.Focus());
         window.KeyPress(Key.Left, RawInputModifiers.None, PhysicalKey.ArrowLeft, null);
@@ -86,6 +86,16 @@ public class TextWidthTests
         window.UpdateLayout();
         Assert.Equal(TextWidthService.Min, list.Bounds.Width, 1);
         window.KeyPress(Key.Home, RawInputModifiers.None, PhysicalKey.Home, null);
+        await text.Saving;
+        Assert.Equal(TextWidthService.Default, await app.Services.GetRequiredService<ITextWidth>().GetAsync(CancellationToken.None));
+
+        // Dragged out to the page's width, it is the whole page, and stays it after a restart.
+        text.Pixels = 600;
+        window.UpdateLayout();
+        from = left.TranslatePoint(new Point(4, 200), window)!.Value;
+        window.MouseDown(from, MouseButton.Left);
+        window.MouseMove(from - new Vector(400, 0));
+        window.MouseUp(from - new Vector(400, 0), MouseButton.Left);
         window.UpdateLayout();
         Assert.Equal(whole, list.Bounds.Width, 1);
         await text.Saving;
@@ -131,6 +141,24 @@ public class TextWidthTests
     }
 
     [AvaloniaFact]
+    public async Task On_a_wide_window_the_text_is_a_centred_column_unless_the_whole_page_is_chosen()
+    {
+        await using var app = DesktopHarness.Create();
+        var (window, _) = await OpenAsync(app, "Light");
+        window.Width = 1600;
+        await SettleAsync(window);
+        var view = CurrentView(window);
+        var list = Find<ItemsControl>(view, "MessageList");
+        Assert.Equal(TextWidthService.Default, list.Bounds.Width, 1);
+        Assert.Equal((view.Bounds.Width - TextWidthService.Default) / 2, list.TranslatePoint(default, view)!.Value.X, 1);
+        Screenshots.Capture(window, "text-width-wide-window");
+        app.Services.GetRequiredService<TextWidth>().Pixels = null;
+        await SettleAsync(window);
+        Assert.True(list.Bounds.Width > 1_200);
+        window.Close();
+    }
+
+    [AvaloniaFact]
     public async Task Settings_offers_the_widths_and_names_a_dragged_one()
     {
         await using var app = DesktopHarness.Create();
@@ -140,16 +168,16 @@ public class TextWidthTests
         var settings = Assert.IsType<SettingsHomeViewModel>(app.Workbench.CurrentPage);
         await settings.Loaded;
         window.UpdateLayout();
-        Assert.True(settings.IsTextWhole);
-        Assert.Equal(UiText.TextWidthHint, settings.TextWidthHint);
-
-        UiInput.Click(window, Find<RadioButton>(window, "TextWidthMedium"));
-        Assert.Equal(SettingsHomeViewModel.MediumText, text.Pixels);
         Assert.True(settings.IsTextMedium);
-        Assert.False(settings.IsTextWhole);
+        Assert.Equal(UiText.TextWidthHint, settings.TextWidthHint);
         Screenshots.Capture(window, "text-width-settings");
+
+        UiInput.Click(window, Find<RadioButton>(window, "TextWidthNarrow"));
+        Assert.Equal(SettingsHomeViewModel.NarrowText, text.Pixels);
+        Assert.True(settings.IsTextNarrow);
+        Assert.False(settings.IsTextMedium);
         await text.Saving;
-        Assert.Equal(SettingsHomeViewModel.MediumText, await app.Services.GetRequiredService<ITextWidth>().GetAsync(CancellationToken.None));
+        Assert.Equal(SettingsHomeViewModel.NarrowText, await app.Services.GetRequiredService<ITextWidth>().GetAsync(CancellationToken.None));
 
         text.Pixels = 731;
         Assert.Contains("731", settings.TextWidthHint, StringComparison.Ordinal);
@@ -158,20 +186,27 @@ public class TextWidthTests
     }
 
     [Fact]
-    public void A_bad_stored_width_means_the_whole_page_and_others_are_kept_in_bounds()
+    public void No_or_a_bad_stored_width_means_the_default_and_others_are_kept_in_bounds()
     {
-        Assert.Null(TextWidthService.Parse(null));
-        Assert.Null(TextWidthService.Parse("wide"));
+        Assert.Equal(TextWidthService.Default, TextWidthService.Parse(null));
+        Assert.Equal(TextWidthService.Default, TextWidthService.Parse("wide"));
+        Assert.Equal(TextWidthService.Default, TextWidthService.Parse("NaN"));
+        Assert.Null(TextWidthService.Parse(TextWidthService.Whole));
         Assert.Equal(TextWidthService.Min, TextWidthService.Parse("3"));
         Assert.Equal(TextWidthService.Max, TextWidthService.Parse("99999"));
         Assert.Equal(812.5, TextWidthService.Parse("812.5"));
     }
 
-    private static async Task<(Window Window, ConversationViewModel Page)> OpenAsync(DesktopHarness app, string theme)
+    private static async Task<(Window Window, ConversationViewModel Page)> OpenAsync(DesktopHarness app, string theme, bool whole = false)
     {
         var window = app.ShowWindow(1100, 720, theme == "Dark" ? ThemeVariant.Dark : ThemeVariant.Light);
         app.Client.Reply(LongAnswer);
         var page = await app.StartWithConversationAsync(waitForTitle: true);
+        if (whole)
+        {
+            app.Services.GetRequiredService<TextWidth>().Pixels = null;
+        }
+
         await CurrentView(window).Restored;
         await UiWait.UntilAsync(() => page.Messages[^1] is { State: MessageState.Complete, IsLive: false });
         await UiWait.AnswersRenderedAsync(window);

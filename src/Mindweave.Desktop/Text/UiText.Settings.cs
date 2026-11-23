@@ -22,7 +22,7 @@ public static partial class UiText
     public static string TextWidthNarrow => T("Narrow", "窄");
     public static string TextWidthHint => T("Or drag the edge of the text on a conversation page.", "也可以在会话页拖动正文的边缘。");
     public static string TextWidthCustom(int pixels) => T($"Dragged to {pixels} px on a conversation page.", $"已在会话页拖到 {pixels} 像素。");
-    public static string TextWidthGripTip => T("Drag to change the text width, double-click for the whole page", "拖动调整正文宽度，双击恢复整页");
+    public static string TextWidthGripTip => T("Drag to change the text width, double-click for the default", "拖动调整正文宽度，双击恢复默认");
     public static string BoldColourLabel => T("Bold colour", "加粗颜色");
     public static string BoldColourBrown => T("Brown", "棕色");
     public static string BoldColourSlate => T("Slate", "青灰");
