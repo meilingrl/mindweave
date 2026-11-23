@@ -7,6 +7,9 @@ using Avalonia.Input;
 using Avalonia.Styling;
 using Avalonia.Threading;
 using Avalonia.VisualTree;
+using Microsoft.Extensions.DependencyInjection;
+using Mindweave.Application.Languages;
+using Mindweave.Application.Preferences;
 using Mindweave.Desktop.Navigation;
 using Mindweave.Desktop.ViewModels.Pages;
 using Mindweave.Desktop.Views.Pages;
@@ -151,6 +154,47 @@ public class SettingsFindingTests
         window.Close();
     }
 
+    /// <summary>
+    /// The key's buttons go under its box when there is no room beside it: in English that is so at the window's first size
+    /// already (with a key set there are three).
+    /// </summary>
+    [AvaloniaTheory]
+    [InlineData(UiLanguage.Chinese, 1100, 720)]
+    [InlineData(UiLanguage.English, 1100, 720)]
+    [InlineData(UiLanguage.Chinese, 720, 480)]
+    [InlineData(UiLanguage.English, 720, 480)]
+    public async Task The_search_keys_buttons_are_not_cut(UiLanguage language, double width, double height)
+    {
+        CurrentLanguage.Set(language);
+        try
+        {
+            await using var app = DesktopHarness.Create();
+            var window = await OpenAsync(app, () => app.Services.GetRequiredService<IWebSearchSettings>().SetKeyAsync("tvly-ui-test-key", CancellationToken.None));
+            window.Width = width;
+            window.Height = height;
+            await SettleAsync(window);
+            var box = Find<TextBox>(window, "WebSearchKeyBox");
+            box.FindAncestorOfType<Border>()!.BringIntoView();
+            await SettleAsync(window);
+            Screenshots.Capture(window, $"settings-search-key-{width}-{(language == UiLanguage.English ? "en" : "zh")}");
+
+            var scroller = Find<ScrollViewer>(Page(window), "Scroller");
+            Control[] controls = [box, Find<Button>(window, "WebSearchSaveKey"), Find<Button>(window, "WebSearchTest"), Find<Button>(window, "WebSearchRemoveKey")];
+            foreach (var control in controls)
+            {
+                Assert.True(control.IsEffectivelyVisible, control.Name);
+                var left = control.TranslatePoint(default, scroller)!.Value.X;
+                Assert.True(left >= 0 && left + control.Bounds.Width <= scroller.Viewport.Width, $"{control.Name} {left} {control.Bounds} {scroller.Viewport}");
+            }
+
+            window.Close();
+        }
+        finally
+        {
+            CurrentLanguage.Set(UiLanguage.Chinese);
+        }
+    }
+
     /// <summary>The window's size and the box's text change are told to the page through the dispatcher.</summary>
     private static async Task SettleAsync(Window window)
     {
@@ -217,11 +261,16 @@ public class SettingsFindingTests
 
     private static SettingsHomeView Page(Window window) => window.GetVisualDescendants().OfType<SettingsHomeView>().Single();
 
-    private static async Task<Window> OpenAsync(DesktopHarness app)
+    private static async Task<Window> OpenAsync(DesktopHarness app, Func<Task>? prepare = null)
     {
         var window = app.ShowWindow(1100, 720, ThemeVariant.Light);
         await app.StartWithWorkspaceAsync("火车");
         await app.ConfigureModelAsync();
+        if (prepare is not null)
+        {
+            await prepare();
+        }
+
         app.Workbench.Navigate(new NavigationRequest(MainSection.Settings));
         await Assert.IsType<SettingsHomeViewModel>(app.Workbench.CurrentPage).Loaded;
         window.UpdateLayout();

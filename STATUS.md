@@ -38,7 +38,7 @@ What is true now: work in progress, next steps, what needs you, open decisions, 
   - reasoning and run status (with a reasoning model);
   - the answer output limit;
   - the English prompts.
-- The UI points of 0.5.11 to 0.5.14 and 0.6.2 (D-037): on Windows; a real model's tool steps while the page stays.
+- The UI points of 0.5.11 to 0.5.14, 0.6.2 and 0.6.4 (D-037): on Windows; a real model's tool steps while the page stays.
 - In a real window: the language switch, and English short names on the summary network canvas.
 - The network's quiet links and the new link suggestions: on Windows; the suggestions with a real model (the prompts changed). Recommended nodes counted by conversations (0.6.0): with a real model.
 - Exploration places (option C): on Windows; an extremely spread-out workspace, where a coarse packing grid can still push an untouched exploration.
@@ -60,7 +60,7 @@ What is true now: work in progress, next steps, what needs you, open decisions, 
 
 | What | Commit | Date | Result |
 | --- | --- | --- | --- |
-| macOS full run | the double-click test fix, 0.6.3 | 2026-11-23 | passed: Core 137, Architecture 29, Infrastructure 1019 + 23 skipped, Desktop 4 shards 0 failed |
+| macOS full run | the web search key row fix, 0.6.4 | 2026-11-24 | passed: Core 137, Architecture 29, Infrastructure 1019 + 23 skipped, Desktop 4 shards 0 failed |
 | CI on `main` (Linux + Windows) | see the latest run on GitHub | | |
 | Windows 11 hardware, full run | daabd5b | 2026-11-21 | passed |
 | Windows 11 hardware, stress and Release start | 08ead83 | 2026-11-16 | passed |

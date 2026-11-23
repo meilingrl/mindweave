@@ -16,6 +16,12 @@ The second number rises when a capability is finished and on by default, and the
 
 The nine merges after 0.5.0, on 2026-11-22 and 2026-11-23, are 0.5.1 to 0.5.9 in order. They keep their dated entries below.
 
+## 0.6.4 · 2026-11-24
+
+- Fixed the web search key's buttons in Settings, which were cut off at the smallest window and, in English with a key set, at the normal one: they go under the key box when there is no room beside it, and the "密钥" (Key) label lines up with the state of the key
+- Try: `scripts/daily.sh trial`; Settings › Tools › Web search, at the smallest window and in English
+- Not verified: Windows hardware; the dark theme; at the smallest window in English the last bold colour choice is still cut off
+
 ## 0.6.3 · 2026-11-24
 
 - Fixed the test of a double click while linking, which depended on the machine's speed (tests only)
