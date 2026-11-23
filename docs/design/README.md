@@ -52,6 +52,7 @@ This directory records the choices that the handoff document lets implementers r
 | --- | --- |
 | [Run guide](run-guide.md) | Building, running and testing; the data directory and releases |
 | [Daily build](daily-build.md) | The developer's everyday macOS build and its separate data |
+| [Version numbers and the change log](versioning.md) | Written for the owner's approval 2026-11-23, not built: the third number rises with every merge into `main` and the second at a milestone the owner calls; tags for the five finished phases 0.1–0.5; one change-log section per version with one line per change |
 | [Test organization and health](testing.md) | Fast / full commands, categories, time budgets, isolation rules for flaky failures and their common causes |
 | [Failure handling](failure-handling.md) | Where catches belong, that a handled failure always leaves a trace, cancellation, no programmer-error types as signals, `async void` only in view handlers; checked by `CatchPolicyTests` |
 | [Naming and structure](naming-and-structure.md) | One concept, one name (glossary and reserved words); stored names do not change with code renames; folder equals namespace; the AGENTS.md section and glossary proposal for `main`; the deferred full version of the rules |
