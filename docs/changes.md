@@ -18,10 +18,10 @@ The nine merges after 0.5.0, on 2026-11-22 and 2026-11-23, are 0.5.1 to 0.5.9 in
 
 ## 0.5.10 · 2026-11-23
 
-- Changed the version to rise with every merge into `main`: the third number at each merge, the second when the owner calls a milestone ([versioning.md](design/versioning.md), D-036)
-- Changed this file to one section per version, one line per change
 - Added tags for the five finished phases, `v0.1.0` to `v0.5.0`
 - Added `ChangeLogRulesTests`, which keeps this file and the build's version in step
+- Changed the version to rise with every merge into `main`: the third number at each merge, the second when the owner calls a milestone ([versioning.md](design/versioning.md), D-036)
+- Changed this file to one section per version, one line per change
 - Try: `scripts/daily.sh publish`, then read the bottom of Settings; `git tag --list 'v*'`
 - Not verified: Windows. Builds from 2026-11-22 that say "0.2.0" are not the 0.2.0 of the table above.
 

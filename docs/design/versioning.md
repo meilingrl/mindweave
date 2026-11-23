@@ -4,8 +4,8 @@ Approved by the owner on 2026-11-23 (D-036). It replaces the version rule in D-0
 
 ## 1. Why
 
-- The version said too little. `main` had 95 merges between 2026-10-25 and 2026-11-23, and every build said 0.1.0 or 0.2.0.
-- D-033 raised the version "at each finished plan step". Nobody can tell mechanically when that is, so the number did not move: four merges landed after 0.2.0 was set and none raised it.
+- The version said too little. `main` had nearly a hundred merges between 2026-10-25 and 2026-11-23, and every build said 0.1.0 or 0.2.0.
+- D-033 raised the version "at each finished plan step". Nobody can tell mechanically when that is, so the number did not move: the merges that landed after 0.2.0 was set did not raise it.
 - [changes.md](../changes.md) is keyed by day. An entry cannot be matched to the version a build shows in Settings, and nothing can refer back to an earlier change by a stable name.
 
 The model is the Claude Code change log: one heading per version, one line per change, and a last number that rises with every release.
@@ -53,16 +53,16 @@ Five phases are finished. Each boundary gets a tag on its historic commit; nothi
 | 0.4.0 | 2026-11-17 to 11-20 | The agent platform: attachments, the run loop and local tools, web search, MCP; onboarding, icons, the context ring, the daily build | `6e5eb98` |
 | 0.5.0 | 2026-11-20 to 11-22 | The bilingual product: English interface, prompts in the interface language, the reasoning fold, answer typography, living documents in English | `fbfddbd` |
 
-- The merges after `fbfddbd` are 0.5.1, 0.5.2, … in first-parent order. There were eight on 2026-11-23; the changeover merge takes the next number, whatever it is by then. They get no tags and their entries are not edited.
+- The merges after `fbfddbd` are 0.5.1, 0.5.2, … in first-parent order. Nine had merged by the changeover, which is therefore 0.5.10. They get no tags and their entries are not edited.
 - The session network is expected to be 0.6.0, in the merge that turns it on by default.
 - The build that said "0.2.0" from 2026-11-22 is not the 0.2.0 of this table. The changeover entry says so.
 
 ## 5. The change log
 
-From the changeover on, [changes.md](../changes.md) has one section per version, newest first:
+From the changeover on, [changes.md](../changes.md) has one section per version, newest first. As an example, the molecule layout merge of 2026-11-23 in this form:
 
 ```markdown
-## 0.5.10 · 2026-11-24
+## 0.5.5 · 2026-11-23
 
 - Session network (behind switch): Changed the spatial view to a molecule layout ([session-network.md](design/session-network.md) §6.1)
 - Session network (behind switch): Changed titles to show whole, wrapped, in each dot's widest free angle
@@ -72,7 +72,7 @@ From the changeover on, [changes.md](../changes.md) has one section per version,
 ```
 
 - The heading is the version and the merge date.
-- Each change is one line that starts with Added, Changed, Fixed or Removed, in that order.
+- Each change is one line that starts with Added, Changed, Fixed or Removed, in that order. Nothing is indented under a line.
 - A change that applies to one platform or sits behind a switch starts with a prefix: `Windows:`, `macOS:`, `Session network (behind switch):`.
 - A line may name the decision, migration or design section it rests on. Detail longer than a line belongs in that design document.
 - A line refers to an earlier change by its version: "Reverted 0.5.9's …".
@@ -93,7 +93,8 @@ From the changeover on, [changes.md](../changes.md) has one section per version,
 ## 7. Checks
 
 - A test fails when the first version heading in `changes.md` differs from `<Version>` in `Directory.Build.props`.
-- A test fails when a version section lacks its `Try:` or `Not verified:` line, or has a change line that starts with another word than the four in §5 (after any prefix).
+- A test fails when a version section lacks its `Try:` or `Not verified:` line, has a change line that starts with another word than the four in §5 (after any prefix), has the four out of order, or has indented list items.
+- A test fails when version headings do not descend, when one stands below the dated entries, or when a numbered heading is not in the form of §5.
 - The tag is not checked by a test, because tests run before the merge exists. The wrap-up step makes it.
 
 ## 8. What changes when this is built
@@ -103,6 +104,6 @@ From the changeover on, [changes.md](../changes.md) has one section per version,
 - [decisions.md](decisions.md): a new decision that replaces the first sentence of D-033.
 - `docs/changes.md`: the version table, the heading over the dated entries, the first version section.
 - Five tags on the boundary commits. Pushing them is an externally visible action and follows the owner's authorization.
-- The two tests in §7.
+- The tests in §7 (`ChangeLogRulesTests`).
 
 Left to the builder: the exact wording of the tests' failure messages, and whether a small script takes the next number or the merger edits the file by hand.

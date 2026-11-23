@@ -45,6 +45,11 @@ public partial class ChangeLogRulesTests
             }
         }
 
+        // A heading that starts with a number is meant as a version heading; one in another form would go unchecked.
+        problems.AddRange(lines.Select((text, i) => (Text: text, Line: i + 1))
+            .Where(l => NumberedHeading().IsMatch(l.Text) && !VersionHeading().IsMatch(l.Text))
+            .Select(l => $"line {l.Line}: write the heading as \"## 0.5.10 · 2026-11-23\": {l.Text}"));
+
         var dated = Array.IndexOf(lines, DatedEntriesHeading);
         problems.AddRange(sections.Where(s => dated >= 0 && s.Line - 1 > dated)
             .Select(s => $"line {s.Line}: {s.Version} comes after \"{DatedEntriesHeading}\""));
@@ -74,6 +79,24 @@ public partial class ChangeLogRulesTests
             problems.AddRange(bullets.SkipLast(2)
                 .Where(l => !ChangeLine().IsMatch(l.Text))
                 .Select(l => $"line {l.Line}: start with Added, Changed, Fixed or Removed (after an optional \"Prefix: \"), or with \"Documents: \": {l.Text}"));
+
+            // One line per change: nothing hangs under a line, and the bullet is always "- ".
+            problems.AddRange(section.Body
+                .Where(l => NestedOrOtherBullet().IsMatch(l.Text))
+                .Select(l => $"line {l.Line}: one line per change, with no indented or \"*\" list items: {l.Text}"));
+
+            // Added, then Changed, then Fixed, then Removed.
+            var last = -1;
+            foreach (var line in bullets.SkipLast(2))
+            {
+                var verb = Array.IndexOf(Verbs, ChangeLine().Match(line.Text).Groups["verb"].Value);
+                if (verb >= 0 && verb < last)
+                {
+                    problems.Add($"line {line.Line}: {Verbs[verb]} lines come before {Verbs[last]} lines: {line.Text}");
+                }
+
+                last = Math.Max(last, verb);
+            }
         }
 
         Assert.True(problems.Count == 0, "Version sections in docs/changes.md do not follow versioning.md §5:\n" + string.Join('\n', problems));
@@ -113,6 +136,14 @@ public partial class ChangeLogRulesTests
     [GeneratedRegex(@"<Version>(?<version>[^<]+)</Version>")]
     private static partial Regex BuildVersion();
 
-    [GeneratedRegex(@"^- (?:Documents: \S|(?:[^:]{1,40}: )?(?:Added|Changed|Fixed|Removed) \S)")]
+    [GeneratedRegex(@"^- (?:Documents: \S|(?:[^:]{1,40}: )?(?<verb>Added|Changed|Fixed|Removed) \S)")]
     private static partial Regex ChangeLine();
+
+    [GeneratedRegex(@"^(?:\s+[-*+] |[*+] )")]
+    private static partial Regex NestedOrOtherBullet();
+
+    [GeneratedRegex(@"^## \d")]
+    private static partial Regex NumberedHeading();
+
+    private static readonly string[] Verbs = ["Added", "Changed", "Fixed", "Removed"];
 }
