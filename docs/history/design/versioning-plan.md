@@ -8,7 +8,7 @@
 
 **Tech Stack:** .NET 10, xUnit (`tests/Mindweave.Architecture.Tests`), git.
 
-**Spec:** [versioning.md](versioning.md)
+**Spec:** [versioning.md](../../design/versioning.md)
 
 ## Global Constraints
 
