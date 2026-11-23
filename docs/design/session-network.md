@@ -45,7 +45,7 @@ The redesign:
 ## 3. Constraints
 
 - **Determinism (MW-C12):** the same input gives the same coordinates.
-- **Stable positions (U3, §7.4):** a new dot is placed without moving existing ones, and its place is saved directly without an unsaved mark. Only an explicit "arrange" re-lays everything, and that is saved only by an explicit save. This applies to the spatial view; the timeline is computed and never saved (§5.4).
+- **Stable positions (U3, §7.4):** a new dot is placed without moving existing ones, and its place is saved directly without an unsaved mark. This applies to the spatial view (option C, §16; nothing is arranged or saved by hand); the timeline is computed and never saved (§5.4).
 - **Size must not suggest mastery (§7.3).** "How much was asked here" is compatible; the legend says it in plain words.
 - **Keyboard and screen-reader access** go through the list view (D-018); it lists conversations now.
 - **Archive is not deletion (owner).** Archived conversations stay on both views, drawn like the others; the details say "archived". Deleted conversations disappear.
@@ -150,7 +150,7 @@ Positions are keyed by conversation, not by summary node:
 
 - New table: `conversation_layout` (`conversation_id` primary key referencing `conversation` with cascade delete, `workspace_id`, `x`, `y`, `updated_at`).
 - **First load after the migration** counts as the workspace's first appearance (U3): the full §6.1 layout runs and is saved directly. Old summary positions are not carried over. Keeping a few of them would freeze today's row-of-trees picture with new dots stuck around it, which is the look the owner rejected.
-- `node_layout` is left untouched. Today's view keeps using it while the new views are behind the gate (§9). It is kept for one release after acceptance, for rollback, and dropped in the release after that (owner, §12).
+- `node_layout` is left untouched. It is kept for one release after acceptance, for rollback, and dropped in the release after that (owner, §12).
 - This is a migration of real data, so it is tried on a copy before publishing.
 
 ### 6.4 Guards (automatic, on generated workspaces and a copy of the owner's data)
@@ -186,7 +186,7 @@ The final judge is the owner, on screenshots and on `scripts/daily.sh trial` (AG
 
 Each round runs on its own task branch from `main`. Every round ends with headless screenshots from a copy of the owner's data (the `SpikeSessionNetworkShots` approach) plus a `daily.sh trial` for the owner.
 
-**Gate until the owner accepts.**
+**Gate until the owner accepts (a record; lifted on 2026-11-23, §16).**
 - The new views are switched on by the environment variable `MINDWEAVE_SESSION_NETWORK=1`, in every channel, so `MINDWEAVE_SESSION_NETWORK=1 scripts/daily.sh trial <ref>` shows them on a copy of the owner's data.
 - Without the variable, every build, the daily build included, shows today's summary network unchanged: its dashed path edges, captions and saving.
 - Gated code may merge into `main` because it changes nothing by default.
@@ -265,7 +265,7 @@ For the timeline, a git-graph-style lane layout was the one sensible way: it is 
 
 Built on `task/session-network` with subagent-driven development (plans: [round 1](../history/design/session-network-plan-round1.md), [round 2](../history/design/session-network-plan-round2.md)), behind `MINDWEAVE_SESSION_NETWORK=1`. Without the variable, every build shows today's summary network unchanged, except that mouse-wheel zoom is now on by default (the owner asked for it everywhere). No migration; with the switch on, nothing writes layout.
 
-**How to try:** `MINDWEAVE_SESSION_NETWORK=1 scripts/daily.sh trial` (a build of `main` on a copy of the daily data).
+**How to try then:** `MINDWEAVE_SESSION_NETWORK=1 scripts/daily.sh trial` (a build of `main` on a copy of the daily data).
 
 **What was built:**
 
@@ -291,9 +291,9 @@ Built on `task/session-network` with subagent-driven development (plans: [round 
 - Not run on Windows; the performance tests last ran on a loaded machine.
 - A time-thread line can pass through a dot, and link lines can cross dates and titles (the checks count branch lines only).
 - The spatial view re-packs when a question, title or language changes, so dots can move after the reader has panned.
-- With the switch on, a conversation change reloads every visited workspace's network page; fix before the switch is lifted.
+- With the switch on, a conversation change reloads every visited workspace's network page; fixed on 2026-11-23 (§16).
 - Workspaces with several roots have no work budget for packing.
-- The code says "session" where the glossary says conversation (`SessionNetworkGate`, `SessionWeights`); settle it with the §11 proposal.
+- The code says "session" where the glossary says conversation (`SessionNetworkGate`, `SessionWeights`); settled on 2026-11-23 (§16).
 - §11 (requirements and architecture text) is still to be proposed to the owner; round 3 (quieter links, suggestions only across explorations) is not started.
 
 ### 15.4 The owner's verdict on the spatial view, and the next direction (2026-11-22)
@@ -345,4 +345,4 @@ Built on 2026-11-23 (task/network-default): the switch is lifted.
 - The network of every conversation is the only one. `SessionNetworkGate` and `MINDWEAVE_SESSION_NETWORK` are gone, with the summary-only projection, its radial layout, its path edges and captions, hollow read dots, arranging, dragging, the save button and the leave prompt.
 - The names follow D-035 (`ConversationWeights`, `ProjectAsync`, …). `SummaryNetworkSession` keeps its name: it is the workspace's network in memory for one run, not a conversation.
 - `node_layout` stays in storage for one release and is no longer read or written; its rows still go with their summary or workspace (§12.2).
-- The number of recommended nodes counts conversations (requirements §10.3.2, v0.25); before this it still counted summaries. A workspace whose conversations are in a higher tier than its summaries were may prepare the missing nodes by itself the next time its network opens, when automatic preparation is on (a request to the model).
+- The number of recommended nodes counts conversations (requirements §10.3.2, v0.25); before this it still counted summaries. A workspace whose conversations are in a higher tier than its summaries were may prepare the missing nodes by itself the next time its network opens, or when a conversation makes it reach a tier while the page is open in the background, when automatic preparation is on (a request to the model).

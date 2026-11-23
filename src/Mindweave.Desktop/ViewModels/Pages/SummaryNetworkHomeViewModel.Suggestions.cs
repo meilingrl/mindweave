@@ -19,8 +19,7 @@ public sealed partial class SummaryNetworkHomeViewModel
     internal Task SuggestionsReloaded { get; private set; } = Task.CompletedTask;
 
     /// <summary>
-    /// The pending suggestions drawn (requirements §10.3.4): light dash-dot lines between summaries at their positions in
-    /// memory. They follow 显示关联: empty while 隐藏关联 is on. Never used by 整理布局, never part of the layout.
+    /// The pending suggestions drawn (requirements §10.3.4): light dash-dot lines between summaries. They follow 显示关联: empty while 隐藏关联 is on. Never part of the layout.
     /// </summary>
     public IReadOnlyList<SuggestionEdgeView> SuggestionEdges { get; private set; } = [];
 

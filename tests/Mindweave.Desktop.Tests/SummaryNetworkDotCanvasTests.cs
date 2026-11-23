@@ -24,8 +24,8 @@ namespace Mindweave.Desktop.Tests;
 
 /// <summary>
 /// The network's drawing: dots sized by how much was asked, summaries wearing a ring, the arrowed
-/// dotted time thread in the spatial view, the main line and curved lanes on the timeline, and day labels. Without the gate
-/// the drawing is today's (<see cref="SummaryNetworkCanvasTests"/>).
+/// dotted time thread in the spatial view, the main line and curved lanes on the timeline, and day labels.
+/// What labels, rings and hover do is in <see cref="SummaryNetworkCanvasTests"/>.
 /// </summary>
 public class SummaryNetworkDotCanvasTests
 {
@@ -195,6 +195,44 @@ public class SummaryNetworkDotCanvasTests
             var distance = Math.Sqrt((offset.X * offset.X) + (offset.Y * offset.Y));
             Assert.True(distance - NodePaint.UnreadDotRadius > p.Radius + SummaryNetworkCanvas.SummaryRingGap + 0.75, $"badge at {distance} touches the ring of a {p.Radius} px dot");
         });
+        window.Close();
+    }
+
+    [AvaloniaFact]
+    public async Task Only_unread_summaries_wear_the_badge_and_a_bold_title()
+    {
+        await using var app = DesktopHarness.Create();
+        var window = app.ShowWindow(1100, 720);
+        await SummaryNetworkScenario.SeedAsync(app);
+        var network = await SummaryNetworkScenario.OpenSummaryNetworkAsync(app, window);
+        var summaries = app.Services.GetRequiredService<Application.Summaries.SummaryService>();
+        var read = network.Nodes.Single(n => n.ShortTitle == "铁轨");
+        var entry = (await summaries.GetAsync(read.Id, CancellationToken.None))!;
+        await summaries.SetReadAsync(read.Id, entry.Current.Id, true, CancellationToken.None);
+        await UiWait.UntilAsync(() => !network.Nodes.Single(n => n.Id == read.Id).Unread);
+        window.UpdateLayout();
+        var canvas = CanvasOf(window);
+        var paints = canvas.PaintNodes();
+
+        Assert.All(paints, p =>
+        {
+            var unread = p.Node.HasSummary && p.Node.Id != read.Id;
+            Assert.Equal(unread, p.UnreadDot);
+            Assert.Equal(unread, p.LabelBold);
+        });
+
+        // Drawn as well: the badge's colour at its centre, in both themes.
+        var badged = paints.First(p => p.UnreadDot);
+        foreach (var theme in new[] { Avalonia.Styling.ThemeVariant.Light, Avalonia.Styling.ThemeVariant.Dark })
+        {
+            window.RequestedThemeVariant = theme;
+            window.UpdateLayout();
+            using var frame = window.CaptureRenderedFrame()!;
+            var expected = Assert.IsAssignableFrom<Avalonia.Media.ISolidColorBrush>(SummaryNetworkPalette.Resolve(canvas, "SummaryNetworkUnreadDot")).Color;
+            var pixel = SummaryNetworkCanvasTests.Pixel(frame, canvas, badged.UnreadDotCenter);
+            Assert.True(SummaryNetworkCanvasTests.Near(pixel, expected), $"{theme}: {pixel} at the badge is not {expected}");
+        }
+
         window.Close();
     }
 

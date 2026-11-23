@@ -127,13 +127,16 @@ public class SummaryLinksUiTests
         Assert.Equal(UiText.LinkPickFromListName, AutomationProperties.GetName(Find<Button>(window, "PickFromListButton")));
         Assert.Equal(UiText.LinkPickCancelName, AutomationProperties.GetName(Find<Button>(window, "CancelPickButton")));
 
-        // Itself, a recommended node and an already linked summary are refused with the reason; nothing is selected or made.
+        // Itself, a recommended node, a conversation without a summary and an already linked summary are refused with the reason; nothing is selected or made.
         UiInput.Click(window, canvas, at: canvas.PaintNodes().Single(n => n.Node.Id == root).Center);
         Assert.Equal(UiText.LinkPickRefusedSelf, network.PickRefusal);
         Assert.Equal(UiText.LinkPickRefusedSelf, Find<TextBlock>(window, "LinkPickHint").Text);
         UiInput.Click(window, canvas, at: Assert.Single(canvas.PaintRecommendations()).Center);
         Assert.Equal(UiText.LinkPickRefusedRecommended, network.PickRefusal);
         Assert.Null(network.SelectedRecommendation);
+        var plain = canvas.PaintNodes().Single(n => !n.Node.HasSummary);
+        UiInput.Click(window, canvas, at: plain.Center);
+        Assert.Equal(UiText.LinkPickRefusedNoSummary(plain.Node.DisplayName), network.PickRefusal);
         UiInput.Click(window, canvas, at: canvas.PaintNodes().Single(n => n.Node.Id == sibling).Center);
         Assert.Equal(UiText.LinkPickRefusedLinked(network.Nodes.Single(n => n.Id == sibling).DisplayName), network.PickRefusal);
         Assert.Equal(root, network.Selected!.Id);
@@ -708,7 +711,7 @@ public class SummaryLinksUiTests
         var link = Assert.Single(network.LinkEdges);
         var root = network.Nodes.Single(n => n.ShortTitle == Root);
         network.Select(NodeOf(network, Leaf));
-        network.PutDot(root.Id, ((link.AX + link.BX) / 2) - 20, (link.AY + link.BY) / 2);
+        network.PutDotForTests(root.Id, ((link.AX + link.BX) / 2) - 20, (link.AY + link.BY) / 2);
         window.UpdateLayout();
         var painted = Assert.Single(canvas.PaintLinks());
         var rootPaint = canvas.PaintNodes().Single(n => n.Node.Id == root.Id);

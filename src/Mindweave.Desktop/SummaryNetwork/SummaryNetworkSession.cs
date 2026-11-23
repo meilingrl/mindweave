@@ -1,4 +1,3 @@
-using CommunityToolkit.Mvvm.ComponentModel;
 using Mindweave.Application.SummaryNetwork;
 using Mindweave.Application.Storage;
 using Mindweave.Core.Conversations;
@@ -25,7 +24,7 @@ public readonly record struct Viewport(double CenterX, double CenterY, double Zo
 /// viewport is dropped when the workspace is left. Positions are computed; only each exploration's place in the spatial
 /// view is saved, directly and without a pending-save state.
 /// </summary>
-public sealed partial class SummaryNetworkSession : ObservableObject
+public sealed class SummaryNetworkSession
 {
     private readonly ISummaryNetworkLayout _network;
     private Dictionary<SummaryNodeId, NodePosition> _positions = [];
@@ -158,7 +157,13 @@ public sealed partial class SummaryNetworkSession : ObservableObject
     public IReadOnlyDictionary<SummaryNodeId, NodePosition> Positions => _positions;
 
     /// <summary>Puts a dot somewhere until the next layout (tests: a picture the layout would not make).</summary>
-    internal void Put(SummaryNodeId node, NodePosition position) => _positions[node] = position;
+    internal void PutForTests(SummaryNodeId node, NodePosition position)
+    {
+        if (_positions.ContainsKey(node))
+        {
+            _positions[node] = position;
+        }
+    }
 
     /// <summary>
     /// Null until the canvas chooses the opening view (the timeline: zoom 1 on its newest end; otherwise everything fitted);
@@ -232,8 +237,24 @@ public sealed partial class SummaryNetworkSession : ObservableObject
         var saved = await _network.GetExplorationPlacesAsync(Workspace, cancellationToken);
         _places = saved.ToDictionary(p => p.Key, p => p.Value);
         ComputePositions(projection);
+        KeepSelection(projection);
         Projection = projection;
         await SavePlacesAsync(saved, cancellationToken);
+    }
+
+    /// <summary>
+    /// A conversation's dot changes its id with its first summary (and back when the last one is deleted): the selection
+    /// stays on the conversation.
+    /// </summary>
+    private void KeepSelection(SummaryNetworkProjection projection)
+    {
+        if (_selected is { } selected
+            && projection.Nodes.All(n => n.Id != selected)
+            && Projection.Nodes.FirstOrDefault(n => n.Id == selected) is { } before
+            && projection.Nodes.FirstOrDefault(n => n.Conversation == before.Conversation) is { } now)
+        {
+            _selected = now.Id;
+        }
     }
 }
 

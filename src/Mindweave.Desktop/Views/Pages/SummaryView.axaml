@@ -134,7 +134,7 @@
         <Button Name="ReadToggle" Classes="quiet" Command="{Binding ToggleReadCommand}"
                 AutomationProperties.Name="{Binding ShownIsRead, Converter={x:Static d:Converters.ReadToggleLabel}}">
           <StackPanel Orientation="Horizontal" Spacing="6">
-            <!-- The icon is the state the button sets: a hollow ring for read, a filled dot for unread (as on the network). -->
+            <!-- The icon is the state the button sets: a hollow ring for read, a filled dot for unread. -->
             <PathIcon Width="12" Height="12" IsVisible="{Binding !ShownIsRead}" Data="{StaticResource IconRead}" />
             <PathIcon Width="12" Height="12" IsVisible="{Binding ShownIsRead}" Data="{StaticResource IconUnread}" />
             <TextBlock Text="{Binding ShownIsRead, Converter={x:Static d:Converters.ReadToggleLabel}}" VerticalAlignment="Center" />

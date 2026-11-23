@@ -75,7 +75,7 @@ public class WorkspaceDeleteUiTests
     }
 
     [AvaloniaFact]
-    public async Task Deleting_the_current_workspace_opens_the_most_recent_one_and_drops_its_pages_and_unsaved_layout_unasked()
+    public async Task Deleting_the_current_workspace_opens_the_most_recent_one_and_drops_its_pages_and_network()
     {
         await using var app = DesktopHarness.Create();
         var window = app.ShowWindow(1100, 720);
@@ -96,7 +96,7 @@ public class WorkspaceDeleteUiTests
         var root = app.ShellPage.Conversations.Items[0];
         app.ShellPage.Conversations.OpenCommand.Execute(root);
         var page = Assert.IsType<ConversationViewModel>(app.Workbench.CurrentPage);
-        await SummaryNetworkScenario.OpenSummaryNetworkAsync(app, window);
+        var session = (await SummaryNetworkScenario.OpenSummaryNetworkAsync(app, window)).Session;
 
         app.ShellPage.DeleteWorkspaceCommand.Execute(null);
         var dialog = app.Root.WorkspaceDeletion;
@@ -106,6 +106,7 @@ public class WorkspaceDeleteUiTests
         await dialog.DeleteCommand.ExecuteAsync(null);
 
         Assert.False(dialog.IsOpen);
+        Assert.NotSame(session, app.Services.GetRequiredService<SummaryNetworkSessions>().Get(train.Id));
         Assert.Equal(recent.Id, app.Workbench.CurrentWorkspace!.Id);
         Assert.Equal(MainSection.Explore, app.Workbench.CurrentSection);
         Assert.IsType<ExploreHomeViewModel>(app.Workbench.CurrentPage);

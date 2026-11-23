@@ -111,7 +111,7 @@
       <SolidColorBrush x:Key="SummaryNetworkRecommendation">#6B50BD</SolidColorBrush>
       <SolidColorBrush x:Key="SummaryNetworkRecommendationFill">#F3F0FB</SolidColorBrush>
       <!-- Summary network: content links (§10.3.3), a teal apart from the blue selection trail and the violet recommendations;
-           solid and a little thicker than source edges, the note in the same colour (about 4.6:1 on the fill and the panel) -->
+           the line while it is active, and its note, in this colour (about 4.6:1 on the fill and the panel) -->
       <SolidColorBrush x:Key="SummaryNetworkLink">#0E7C70</SolidColorBrush>
       <SolidColorBrush x:Key="SummaryNetworkLinkFill">#EBF6F3</SolidColorBrush>
       <!-- Summary network: pending link suggestions (§10.3.4), a lighter tone of the link teal, drawn dash-dotted with the

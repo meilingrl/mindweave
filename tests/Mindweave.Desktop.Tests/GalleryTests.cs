@@ -404,7 +404,7 @@ public class GalleryTests
         var window = scene.App.ShowWindow(1100, 720, Theme);
         var seed = await SeedAsync(scene.App, summaries: true);
         var network = await SummaryNetworkScenario.OpenSummaryNetworkAsync(scene.App, window);
-        Assert.Equal(8, network.Nodes.Count);
+        Assert.Equal(8, network.Nodes.Count(n => n.HasSummary));
         network.Select(seed.Nodes[seed.Gauge]);
         await SettleAsync(window);
         var canvas = window.GetVisualDescendants().OfType<SummaryNetworkCanvas>().Single();

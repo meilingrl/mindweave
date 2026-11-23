@@ -55,6 +55,26 @@ public class SummaryNetworkSessionTests
         Assert.NotEmpty(session.DayStarts);
     }
 
+    [AvaloniaFact]
+    public async Task The_selection_stays_on_its_conversation_when_it_gets_its_first_summary()
+    {
+        await using var app = DesktopHarness.Create();
+        var (session, a, _, _) = await OpenAsync(app);
+        var before = session.Projection.Nodes.Single(n => n.Conversation == a);
+        Assert.False(before.HasSummary);
+        session.Selected = before.Id;
+
+        var summaries = app.Services.GetRequiredService<Application.Summaries.SummaryService>();
+        Assert.True((await summaries.SummarizeAsync(a, CancellationToken.None)).Accepted);
+        await UiWait.UntilAsync(() => summaries.LatestTaskAsync(a, CancellationToken.None).Result is { State: GenerationTaskState.Completed });
+        await session.LoadAsync(CancellationToken.None);
+
+        var after = session.Projection.Nodes.Single(n => n.Conversation == a);
+        Assert.True(after.HasSummary);
+        Assert.NotEqual(before.Id, after.Id);
+        Assert.Equal(after.Id, session.Selected);
+    }
+
     [Fact]
     public void The_timeline_day_is_the_local_calendar_day()
     {

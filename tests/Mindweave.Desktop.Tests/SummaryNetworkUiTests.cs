@@ -22,21 +22,30 @@ namespace Mindweave.Desktop.Tests;
 public class SummaryNetworkUiTests
 {
     [AvaloniaFact]
-    public async Task Every_conversation_is_drawn_and_the_picture_comes_back_after_a_restart()
+    public async Task Every_conversation_is_drawn_and_the_stored_places_come_back_after_a_restart()
     {
+        const double Shift = 3000;
         var dir = Path.Combine(Path.GetTempPath(), "mindweave-desktop-tests", Guid.NewGuid().ToString("N"));
         Dictionary<SummaryNodeId, NodePosition> first;
+        SummaryNodeId moved;
         await using (var app = DesktopHarness.Create(directory: dir))
         {
             var window = app.ShowWindow(1100, 720);
-            await SeedAsync(app);
+            await SeedAsync(app, secondExploration: true);
             var network = await OpenSummaryNetworkAsync(app, window);
 
-            Assert.Equal(4, network.Nodes.Count);
-            Assert.Equal(3, network.Nodes.Count(n => n.HasSummary));
-            Assert.Equal(3, network.Edges.Count);
+            Assert.Equal(5, network.Nodes.Count);
+            Assert.Equal(4, network.Nodes.Count(n => n.HasSummary));
+            Assert.Equal(4, network.Edges.Count);
             first = Positions(network);
             Screenshots.Capture(window, "07-network");
+
+            // The second exploration's stored place is somewhere the layout would never put it.
+            var root = network.Session.Projection.Nodes.Single(n => n.ShortTitle == "蒸汽机");
+            moved = root.Id;
+            await app.Services.GetRequiredService<SqliteDatabase>().WriteAsync(
+                (c, t) => c.Execute(t, "UPDATE exploration_place SET x = x + $shift WHERE root_conversation_id = $id;", ("$shift", Shift), ("$id", root.Conversation.ToString())),
+                CancellationToken.None);
             window.Close();
         }
 
@@ -47,10 +56,29 @@ public class SummaryNetworkUiTests
         Assert.Equal(first.Keys.ToHashSet(), reopened.Nodes.Select(n => n.Id).ToHashSet());
         Assert.All(reopened.Nodes, n =>
         {
-            Assert.Equal(first[n.Id].X, n.X, 6);
+            Assert.Equal(first[n.Id].X + (n.Id == moved ? Shift : 0), n.X, 6);
             Assert.Equal(first[n.Id].Y, n.Y, 6);
         });
         again.Close();
+    }
+
+    [AvaloniaFact]
+    public async Task Entering_the_network_again_from_the_sidebar_opens_it_fitted()
+    {
+        await using var app = DesktopHarness.Create();
+        var window = app.ShowWindow(1100, 720);
+        await SeedAsync(app);
+        var network = await OpenSummaryNetworkAsync(app, window);
+        var canvas = window.GetVisualDescendants().OfType<SummaryNetworkCanvas>().Single();
+        var opening = canvas.Current;
+        network.ZoomInCommand.Execute(null);
+        Assert.NotEqual(opening, canvas.Current);
+
+        app.ShellPage.ShowSectionCommand.Execute(MainSection.Explore);
+        await OpenSummaryNetworkAsync(app, window);
+
+        Assert.Equal(opening, window.GetVisualDescendants().OfType<SummaryNetworkCanvas>().Single().Current);
+        window.Close();
     }
 
     [AvaloniaFact]
@@ -62,6 +90,7 @@ public class SummaryNetworkUiTests
         var network = await OpenSummaryNetworkAsync(app, window);
         var trains = app.Workbench.CurrentWorkspace!;
         var before = Positions(network);
+        var opening = window.GetVisualDescendants().OfType<SummaryNetworkCanvas>().Single().Current;
         var other = await app.Services.GetRequiredService<Application.Workspaces.WorkspaceService>().CreateAsync(WorkspaceName.FromStored("摄影"), CancellationToken.None);
         app.Workbench.Workspaces.Add(other);
         network.ZoomInCommand.Execute(null);
@@ -76,6 +105,8 @@ public class SummaryNetworkUiTests
         var back = Assert.IsType<SummaryNetworkHomeViewModel>(app.Workbench.CurrentPage);
         await back.Loaded;
         Assert.Equal(before, Positions(back));
+        window.UpdateLayout();
+        Assert.Equal(opening, window.GetVisualDescendants().OfType<SummaryNetworkCanvas>().Single().Current);
         window.Close();
     }
 
@@ -86,11 +117,13 @@ public class SummaryNetworkUiTests
         var window = app.ShowWindow(1100, 720);
         await SeedAsync(app);
         await OpenSummaryNetworkAsync(app, window);
+        Assert.Equal(1, await app.Services.GetRequiredService<SqliteDatabase>().ReadAsync(c => c.Scalar<long>(null, "SELECT count(*) FROM exploration_place;"), CancellationToken.None));
 
         window.Close();
         await app.Root.Exit.Running;
 
         Assert.Equal(1, app.Shell.ExitRequests);
+        Assert.False(app.Root.Exit.IsTaskPromptOpen);
         window.Close();
     }
 
@@ -157,6 +190,7 @@ public class SummaryNetworkUiTests
         var plain = network.Nodes.Single(n => !n.HasSummary);
 
         network.SearchText = plain.ShortTitle;
+        Assert.Contains(plain.Id, network.Matches);
         network.FindCommand.Execute(null);
 
         Assert.Equal(plain.Id, network.Selected?.Id);

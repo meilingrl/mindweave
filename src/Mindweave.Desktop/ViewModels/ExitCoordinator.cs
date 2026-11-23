@@ -191,8 +191,8 @@ public sealed partial class ExitCoordinator(
     }
 
     /// <summary>
-    /// Starts the sequence for a restore: the unsaved-layout and running-task prompts as on exit (cancelling either ends
-    /// it with nothing changed), then stopping and saving; then <paramref name="restore"/> runs. It returns false when it
+    /// Starts the sequence for a restore: the running-task prompt as on exit (cancelling it ends it with nothing
+    /// changed), then stopping and saving; then <paramref name="restore"/> runs. It returns false when it
     /// did not go ahead (the backup of the current data failed): new work is accepted again. <paramref name="ended"/> runs
     /// whenever the sequence ends without the restore having gone ahead. False when an exit or restore is already under way.
     /// </summary>

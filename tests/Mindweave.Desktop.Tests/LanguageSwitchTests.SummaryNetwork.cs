@@ -18,7 +18,7 @@ namespace Mindweave.Desktop.Tests;
 public partial class LanguageSwitchTests
 {
     [AvaloniaFact]
-    public async Task Switch_keeps_the_session_network_view_viewport_and_selection()
+    public async Task Switch_keeps_the_network_view_viewport_and_selection()
     {
         try
         {
@@ -59,7 +59,7 @@ public partial class LanguageSwitchTests
     }
 
     [AvaloniaFact]
-    public async Task Switch_leaves_no_handler_of_the_gated_network_page_behind()
+    public async Task Switch_leaves_no_handler_of_the_network_page_behind()
     {
         try
         {
@@ -74,7 +74,7 @@ public partial class LanguageSwitchTests
             var again = Assert.IsType<SummaryNetworkHomeViewModel>(app.Workbench.CurrentPage);
             await again.Loaded;
 
-            // One page listens, as before: the old page let go of the conversations' changes it listened to behind the gate.
+            // One page listens, as before: the old page let go of the conversations' changes it listened to.
             ViewRebuildTests.AssertSame(before, ViewRebuildTests.HandlerCounts(app.Session.Root));
             window.Close();
         }

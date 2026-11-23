@@ -38,6 +38,8 @@ public static partial class UiText
 
     public static string LinkPickRefusedRecommended => T("A recommended node isn’t a summary yet, so it can’t be linked. Click a summary.", "推荐节点还不是总结，不能关联。请点选一个总结。");
 
+    public static string LinkPickRefusedNoSummary(string name) => T($"“{name}” has no summary yet, so it can’t be linked. Click a summary.", $"“{name}”还没有总结，不能关联。请点选一个总结。");
+
     public static string LinkPickRefusedLinked(string name) => T($"“{name}” is already linked to it. Click another summary.", $"“{name}”已经与它关联，请点选另一个总结。");
 
     // The keyboard picker: a searchable list of the workspace's other summaries.

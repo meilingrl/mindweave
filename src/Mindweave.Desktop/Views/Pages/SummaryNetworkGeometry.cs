@@ -265,10 +265,10 @@ internal static class SummaryNetworkGeometry
     {
         ArgumentNullException.ThrowIfNull(nodes);
         recommended ??= [];
-        const double left = SummaryNetworkCanvas.RootRadius + SummaryNetworkCanvas.HoverGrowth;
-        const double right = SummaryNetworkCanvas.RootRadius + SummaryNetworkCanvas.HoverGrowth + SummaryNetworkLayout.LabelGap;
+        const double left = SummaryNetworkLayout.NodeRadius + SummaryNetworkCanvas.HoverGrowth;
+        const double right = SummaryNetworkLayout.NodeRadius + SummaryNetworkCanvas.HoverGrowth + SummaryNetworkLayout.LabelGap;
         const double top = SummaryNetworkCanvas.CaptionGap + 16;
-        const double bottom = SummaryNetworkCanvas.RootRadius + SummaryNetworkCanvas.HoverGrowth + 4;
+        const double bottom = SummaryNetworkLayout.NodeRadius + SummaryNetworkCanvas.HoverGrowth + 4;
         // Recommended nodes count too (§10.3.2: 显示全部 shows them), each with its tag and label.
         // A label the spatial layout placed may lie on any side of its dot: its reserved block counts, in canvas units.
         var blocks = nodes.Select(n => n.Placed is { } p

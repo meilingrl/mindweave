@@ -166,7 +166,7 @@ public sealed partial class SummaryNetworkHomeViewModel : PageViewModel, IDispos
     /// <summary>The line above the canvas while picking: what to do, or why the last click did not link.</summary>
     public string PickHint => PickRefusal ?? UiText.LinkPickHint(Selected?.DisplayName ?? string.Empty);
 
-    /// <summary>Why the last click in pick mode made no link (itself, a recommended node, already linked, a refusal).</summary>
+    /// <summary>Why the last click in pick mode made no link (itself, a recommended node, a conversation without a summary, already linked, a refusal).</summary>
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(PickHint), nameof(HasPickRefusal))]
     public partial string? PickRefusal { get; private set; }
@@ -356,6 +356,13 @@ public sealed partial class SummaryNetworkHomeViewModel : PageViewModel, IDispos
         if (node == source.Id)
         {
             PickRefusal = UiText.LinkPickRefusedSelf;
+            return;
+        }
+
+        // A dot without a summary is a conversation only: there is nothing to link yet.
+        if (Nodes.FirstOrDefault(n => n.Id == node) is { HasSummary: false })
+        {
+            PickRefusal = UiText.LinkPickRefusedNoSummary(name);
             return;
         }
 
@@ -761,9 +768,9 @@ public sealed partial class SummaryNetworkHomeViewModel : PageViewModel, IDispos
     }
 
     /// <summary>Puts a dot somewhere until the next layout (tests).</summary>
-    internal void PutDot(SummaryNodeId node, double x, double y)
+    internal void PutDotForTests(SummaryNodeId node, double x, double y)
     {
-        Session.Put(node, new Application.Storage.NodePosition(x, y));
+        Session.PutForTests(node, new Application.Storage.NodePosition(x, y));
         BuildViews();
         ViewChanged?.Invoke(this, false);
     }
@@ -1140,7 +1147,7 @@ public sealed partial class SummaryNetworkHomeViewModel : PageViewModel, IDispos
         Matches = FindMatches();
         ViewChanged?.Invoke(this, Session.Viewport is null);
 
-        // Opened, or its summaries changed: the recommendations look whether §10.3.2 asks for new ones. A page that
+        // Opened, or its conversations changed: the recommendations look whether §10.3.2 asks for new ones. A page that
         // replaces one after a language switch was not opened; its first load tells nothing.
         if (_replayed)
         {

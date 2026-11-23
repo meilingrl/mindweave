@@ -142,8 +142,8 @@ public static partial class SpatialLayout
         /// <summary>
         /// Puts explorations back where they were (design session-network §16, option C). Each saved exploration returns to
         /// its place: its root dot where it was, its oldest branch pointing the same way, its molecule laid out again.
-        /// Changed ones go first and redraw in place; an unchanged one they grew into steps aside to the nearest place where
-        /// it keeps part of its gap. New explorations go beside their neighbour in time.
+        /// Unchanged ones go first and stay; a changed one redraws in place and, only when it has outgrown its place, moves to
+        /// the nearest one where it keeps part of its gap. New explorations go beside their neighbour in time.
         /// </summary>
         private void PlaceStable()
         {

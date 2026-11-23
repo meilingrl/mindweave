@@ -16,7 +16,6 @@ public static partial class UiText
     public static string ZoomOut => T("Zoom out", "缩小");
     public static string FindWatermark => T("Find a title", "查找标题");
     public static string ListView => T("List", "列表");
-    public static string GraphView => T("Graph", "网络图");
     public static string WheelZooms => T("Zoom with the mouse wheel", "鼠标滚轮直接缩放");
     public static string OpenSummary => T("Open summary", "打开总结");
     public static string SummaryNetworkSelectHint => T(

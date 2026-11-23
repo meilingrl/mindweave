@@ -21,8 +21,8 @@ namespace Mindweave.Desktop.Views.Pages;
 /// </summary>
 public sealed class SummaryNetworkCanvas : Control
 {
-    public const double RootRadius = SummaryNetworkLayout.NodeRadius;
-    public const double ChildRadius = 7;
+    /// <summary>A recommended node's dot.</summary>
+    public const double RecommendedRadius = 7;
     public const double HoverGrowth = 2;
 
     /// <summary>Labels other than the selected, hovered or matching ones are hidden at this zoom and below.</summary>
@@ -212,7 +212,7 @@ public sealed class SummaryNetworkCanvas : Control
             var basis = nodes.TryGetValue(node.Basis, out var b) ? ScreenOf(b) + _offsets.GetValueOrDefault(b.Id) : ToScreen(node.BasisX, node.BasisY);
             var isSelected = node.Id == selected;
             var hovered = node.Id == HoveredRecommendation;
-            var radius = ChildRadius + (hovered ? HoverGrowth : 0);
+            var radius = RecommendedRadius + (hovered ? HoverGrowth : 0);
             var tagSize = Math.Max(9, Math.Min(11, size * 0.85));
             var tag = Text(UiText.RecommendedTag, tagSize, palette.Recommendation, FontWeight.SemiBold);
             var tagOrigin = new Point(center.X + radius + SummaryNetworkLayout.LabelGap + 3, center.Y - (tag.Height / 2));

@@ -167,6 +167,12 @@ public partial class SpatialLayoutTests
                 Assert.True(Distance(before.Positions[root.Id], after.Positions[root.Id]) < 0.01, $"Adding {added.Label} moved the exploration of {root.Id}.");
             }
 
+            // One more branch fits where the exploration is: it is drawn again in its place, pointing the same way.
+            if (changed == grown.Id)
+            {
+                Assert.True(Distance(before.Positions[changed], after.Positions[changed]) < 0.01, "The exploration with the new branch moved although it has room.");
+            }
+
             var report = SpatialLayout.Measure([.. nodes, added], after);
             Assert.Equal(0, report.DotOverlaps);
             Assert.Equal(0, report.LabelsOnDots);

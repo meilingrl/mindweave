@@ -312,7 +312,8 @@ public sealed class TransactionKillTests : IDisposable
 
         var before = await SnapshotAsync();
 
-        await KillInsideAsync(Explorations, "places", workspace.ToString());
+        var walGrowth = await KillInsideAsync(Explorations, "places", workspace.ToString());
+        Assert.True(walGrowth > 0, "the save outgrew the page cache, so uncommitted pages were in the WAL when the process died");
 
         await using var database = await ReopenAsync(before);
         var network = new SqliteSummaryNetworkStore(database);

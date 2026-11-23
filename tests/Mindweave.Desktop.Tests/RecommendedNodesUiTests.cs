@@ -355,6 +355,28 @@ public class RecommendedNodesUiTests
     }
 
     /// <summary>The network's background look runs (on the standing clock) and its node is drawn.</summary>
+    [AvaloniaFact]
+    public async Task A_conversation_that_reaches_the_next_tier_while_the_network_is_open_prepares_one_more()
+    {
+        await using var app = DesktopHarness.Create();
+        var window = app.ShowWindow(1100, 720);
+        await SummaryNetworkScenario.SeedSeenAsync(app);
+        var network = await SummaryNetworkScenario.OpenSummaryNetworkAsync(app, window);
+        await PrepareAsync(app, network, window);
+
+        // Four conversations so far; the eleventh brings the second tier (requirements §10.3.2).
+        var conversations = app.Services.GetRequiredService<ConversationService>();
+        for (var i = 5; i <= 11; i++)
+        {
+            await SummaryNetworkScenario.AskAsync(app, conversations, null, network.Workspace.Id, $"第 {i} 个问题？");
+        }
+
+        await UiWait.UntilAsync(() => network.Nodes.Count == 11);
+        app.Client.NodeRecommendations.Replies.Enqueue("[{\"question\":\"铁路为什么要用标准轨距？\",\"basis\":\"S2\"}]");
+        await PrepareAsync(app, network, window, expected: 2);
+        window.Close();
+    }
+
     internal static async Task PrepareAsync(DesktopHarness app, SummaryNetworkHomeViewModel network, Window window, int expected = 1)
     {
         var service = app.Services.GetRequiredService<RecommendationService>();

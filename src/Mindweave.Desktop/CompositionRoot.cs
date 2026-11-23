@@ -86,7 +86,7 @@ public static class CompositionRoot
         services.AddSingleton<BackupRequests>();
         services.AddSingleton<IBackupPrompts>(sp => sp.GetRequiredService<BackupRequests>());
 
-        // Unsaved layouts and the viewport outlive a view.
+        // The network's view, viewport and selection outlive a view.
         services.AddSingleton<SummaryNetwork.SummaryNetworkSessions>();
         services.TryAddSingleton(new ExitOptions());
         services.TryAddSingleton(new WorkspaceNewsOptions());

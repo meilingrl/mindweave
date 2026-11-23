@@ -328,18 +328,38 @@ public class SummaryNetworkCanvasTests
         var node = network.Nodes[0];
         var centre = canvas.ToScreen(node.X, node.Y);
         Assert.Equal(node.Id, canvas.HitTest(centre)?.Id);
-        Assert.Null(canvas.HitTest(centre + new Vector(SummaryNetworkCanvas.RootRadius + SummaryNetworkLayout.LabelGap + 6, 0)));
+        Assert.Null(canvas.HitTest(centre + new Vector(SummaryNetworkLayout.NodeRadius + SummaryNetworkLayout.LabelGap + 6, 0)));
         window.Close();
     }
 
     [AvaloniaFact]
-    public async Task Wheel_zooms_by_default()
+    public async Task The_wheel_zooms_by_default_and_pans_when_turned_off_unless_a_zoom_key_is_held()
     {
         await using var app = DesktopHarness.Create();
         var window = app.ShowWindow(1100, 720);
         await SummaryNetworkScenario.SeedAsync(app);
         var network = await SummaryNetworkScenario.OpenSummaryNetworkAsync(app, window);
+        var canvas = CanvasOf(window);
+        var middle = canvas.TranslatePoint(new Point(canvas.Bounds.Width / 2, canvas.Bounds.Height / 2), window)!.Value;
         Assert.True(network.WheelZooms);
+
+        var before = canvas.Current;
+        window.MouseWheel(middle, new Vector(0, 1));
+        Assert.True(canvas.Current.Zoom > before.Zoom);
+
+        network.WheelZooms = false;
+        before = canvas.Current;
+        window.MouseWheel(middle, new Vector(0, 1));
+        Assert.Equal(before.Zoom, canvas.Current.Zoom);
+        Assert.NotEqual(before.CenterY, canvas.Current.CenterY);
+
+        foreach (var key in new[] { RawInputModifiers.Control, RawInputModifiers.Meta })
+        {
+            before = canvas.Current;
+            window.MouseWheel(middle, new Vector(0, 1), key);
+            Assert.True(canvas.Current.Zoom > before.Zoom, $"{key}");
+        }
+
         window.Close();
     }
 
@@ -470,7 +490,7 @@ public class SummaryNetworkCanvasTests
         return Assert.IsAssignableFrom<ISolidColorBrush>(value).Color;
     }
 
-    private static Color Pixel(Avalonia.Media.Imaging.WriteableBitmap frame, SummaryNetworkCanvas canvas, Point point)
+    internal static Color Pixel(Avalonia.Media.Imaging.WriteableBitmap frame, SummaryNetworkCanvas canvas, Point point)
     {
         var at = canvas.TranslatePoint(point, TopLevel.GetTopLevel(canvas)!)!.Value;
         using var buffer = frame.Lock();
@@ -483,6 +503,6 @@ public class SummaryNetworkCanvasTests
         return buffer.Format == Avalonia.Platform.PixelFormat.Rgba8888 ? Color.FromRgb(b, g, r) : Color.FromRgb(r, g, b);
     }
 
-    private static bool Near(Color a, Color b, int tolerance = 12) =>
+    internal static bool Near(Color a, Color b, int tolerance = 12) =>
         Math.Abs(a.R - b.R) <= tolerance && Math.Abs(a.G - b.G) <= tolerance && Math.Abs(a.B - b.B) <= tolerance;
 }

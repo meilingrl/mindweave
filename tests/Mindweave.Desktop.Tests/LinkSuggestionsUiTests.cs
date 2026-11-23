@@ -162,7 +162,7 @@ public class LinkSuggestionsUiTests
 
         // The sibling put onto the leaf: both suggestions (and the link between them) have the same middle.
         var leaf = network.Nodes.Single(n => n.ShortTitle == Leaf);
-        network.PutDot(NodeOf(network, Sibling), leaf.X + 1, leaf.Y + 1);
+        network.PutDotForTests(NodeOf(network, Sibling), leaf.X + 1, leaf.Y + 1);
         window.UpdateLayout();
         var canvas = CanvasOf(window);
         var paints = canvas.PaintSuggestions();
@@ -187,7 +187,7 @@ public class LinkSuggestionsUiTests
         var root = network.Nodes.Single(n => n.ShortTitle == Steam);
         var leaf = network.Nodes.Single(n => n.ShortTitle == Leaf);
         var sibling = NodeOf(network, Sibling);
-        network.PutDot(sibling, (root.X + leaf.X) / 2, (root.Y + leaf.Y) / 2);
+        network.PutDotForTests(sibling, (root.X + leaf.X) / 2, (root.Y + leaf.Y) / 2);
         window.UpdateLayout();
         var canvas = CanvasOf(window);
         var paint = Assert.Single(canvas.PaintSuggestions());

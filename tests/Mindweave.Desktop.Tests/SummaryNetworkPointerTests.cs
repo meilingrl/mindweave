@@ -87,6 +87,28 @@ public class SummaryNetworkPointerTests
         window.Close();
     }
 
+    [AvaloniaFact]
+    public async Task A_click_on_empty_canvas_clears_the_selection_and_pans_nothing()
+    {
+        await using var app = DesktopHarness.Create();
+        var window = app.ShowWindow(1100, 720);
+        await SummaryNetworkScenario.SeedAsync(app);
+        var network = await SummaryNetworkScenario.OpenSummaryNetworkAsync(app, window);
+        var canvas = CanvasOf(window);
+        network.Select(network.Nodes[0].Id);
+        window.UpdateLayout();
+        var viewport = canvas.Current;
+        var empty = new Point(12, 12);
+        Assert.Null(canvas.HitTest(empty));
+
+        // Less than three pixels of movement is a click, not a pan.
+        Drag(window, canvas, empty, new Vector(1, 1));
+
+        Assert.Null(network.Selected);
+        Assert.Equal(viewport, canvas.Current);
+        window.Close();
+    }
+
     /// <summary>Presses at <paramref name="from"/>, moves there by <paramref name="by"/> in steps and releases.</summary>
     internal static void Drag(MainWindow window, SummaryNetworkCanvas canvas, Point from, Vector by)
     {

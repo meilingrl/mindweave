@@ -24,8 +24,7 @@ namespace Mindweave.Desktop.Tests;
 
 /// <summary>
 /// The network page: called Mindweave, a 空间 | 时间线 switch, no layout controls, a legend for
-/// the new marks, and dots without a summary that open their conversation. Without the gate the page is today's
-/// (<see cref="SummaryNetworkUiTests"/>).
+/// the new marks, and dots without a summary that open their conversation.
 /// </summary>
 public class SummaryNetworkPageTests
 {
@@ -385,7 +384,7 @@ public class SummaryNetworkPageTests
 
     [AvaloniaTheory]
     [MemberData(nameof(Themes))]
-    public async Task Gated_texts_speak_of_sessions(string theme)
+    public async Task Texts_speak_of_conversations(string theme)
     {
         await using var app = DesktopHarness.Create();
         var window = app.ShowWindow(1100, 720, Theme(theme));

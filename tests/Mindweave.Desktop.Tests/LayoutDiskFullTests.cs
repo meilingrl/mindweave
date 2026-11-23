@@ -36,6 +36,19 @@ public class LayoutDiskFullTests
         await session.LoadAsync(CancellationToken.None);
         Assert.Equal(Explorations, await PlaceRowsAsync(database));
         await AssertIntactAsync(database);
+
+        // A later save that does not fit keeps the saved places, and every exploration already placed stays where it is.
+        var before = session.Positions.ToDictionary(p => p.Key, p => p.Value);
+        await SeedConversationsAsync(database, workspace.Id.ToString());
+        await StoragePauseUiTests.FillDiskAsync(database);
+        await session.LoadAsync(CancellationToken.None);
+        Assert.Equal(2 * Explorations, session.Positions.Count);
+        Assert.Equal(Explorations, await PlaceRowsAsync(database));
+        Assert.All(before, p =>
+        {
+            Assert.Equal(p.Value.X, session.Positions[p.Key].X, 6);
+            Assert.Equal(p.Value.Y, session.Positions[p.Key].Y, 6);
+        });
     }
 
     private static Task<int> SeedConversationsAsync(SqliteDatabase database, string workspace) =>

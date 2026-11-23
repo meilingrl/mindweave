@@ -13,7 +13,7 @@ using Mindweave.Desktop.Views.Pages;
 
 namespace Mindweave.Desktop.Tests;
 
-/// <summary>The gated spatial view takes its positions from the circle packing, never writes them, and opens readably.</summary>
+/// <summary>The spatial view takes its positions from the molecule layout, saves each exploration's place, and opens readably.</summary>
 public class SummaryNetworkSpatialTests
 {
     private static readonly WorkspaceId Workspace = WorkspaceId.New();
@@ -21,7 +21,7 @@ public class SummaryNetworkSpatialTests
     private static SummaryNodeId Id(int n) => new(new Guid(n, 0, 0, new byte[8]));
 
     /// <summary>
-    /// <paramref name="count"/> sessions in creation order: every fifth is a root, the others branch from an earlier one;
+    /// <paramref name="count"/> conversations in creation order: every fifth is a root, the others branch from an earlier one;
     /// weights vary, every third has a summary, and the roots are chained by the time thread.
     /// </summary>
     private static SummaryNetworkProjection Conversations(int count)
@@ -141,6 +141,25 @@ public class SummaryNetworkSpatialTests
 
         Assert.Equal(roots.Count + 1, network.PlaceWrites);
         Assert.True(network.Places.ContainsKey(conversation));
+    }
+
+    [Fact]
+    public async Task An_exploration_that_changed_is_saved_again_with_its_new_size()
+    {
+        var projection = Conversations(30);
+        var network = new FakeNetwork(projection);
+        await LoadedAsync(projection, network);
+        var parents = SummaryNetworkSession.BranchParents(projection);
+        var root = projection.Nodes.First(n => !parents.ContainsKey(n.Id));
+        var (writes, size) = (network.PlaceWrites, network.Places[root.Conversation].Size);
+
+        var branch = new SummaryNetworkNode(Id(999), ConversationId.New(), root.Conversation, "新的分支", "新的分支", new SummaryMarkers(false, false, false),
+            projection.Nodes[^1].CreatedAt.AddMinutes(5), [root.Conversation]);
+        network.Current = new SummaryNetworkProjection([.. projection.Nodes, branch], [.. projection.Edges, new SummaryNetworkEdge(root.Id, branch.Id)]);
+        await LoadedAsync(network.Current, network);
+
+        Assert.Equal(writes + 1, network.PlaceWrites);
+        Assert.Equal(size + 1, network.Places[root.Conversation].Size);
     }
 
     [Fact]

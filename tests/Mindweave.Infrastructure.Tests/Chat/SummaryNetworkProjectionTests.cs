@@ -38,6 +38,12 @@ public class SummaryNetworkProjectionTests
         }
 
         Assert.Equal(r1, node[b].Root);
+
+        // Further down, the root stays the exploration's and the ancestors are listed root first.
+        var deep = await BranchAsync(h, b, "木轨还是铁轨？");
+        var grandchild = (await h.SummaryNetwork.ProjectAsync(h.Workspace, Ct)).Nodes.Single(n => n.Conversation == deep);
+        Assert.Equal(r1, grandchild.Root);
+        Assert.Equal([r1, b], grandchild.Ancestors);
     }
 
     [Fact]

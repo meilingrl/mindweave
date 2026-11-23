@@ -5,8 +5,7 @@ using Mindweave.Core.Workspaces;
 namespace Mindweave.Desktop.ViewModels;
 
 /// <summary>
-/// Asks for another workspace to be opened, the way the switcher opens it (an unsaved network layout is asked about
-/// first). Pages hold this, not the shell, so the page factory has no cycle.
+/// Asks for another workspace to be opened, the way the switcher opens it. Pages hold this, not the shell, so the page factory has no cycle.
 /// </summary>
 public interface IWorkspaceSwitcher
 {
