@@ -278,18 +278,21 @@
             </Grid.ColumnDefinitions>
             <TextBlock Classes="field-label" Text="{x:Static t:UiText.WebSearchService}" />
             <TextBlock Grid.Column="1" Name="WebSearchServiceName" Text="{Binding ServiceName}" VerticalAlignment="Center" />
-            <TextBlock Grid.Row="1" Classes="field-label" Margin="0,14,0,0" Text="{x:Static t:UiText.WebSearchKey}" />
+            <TextBlock Grid.Row="1" Classes="field-label" Margin="0,11,0,0" VerticalAlignment="Top" Text="{x:Static t:UiText.WebSearchKey}" />
             <StackPanel Grid.Row="1" Grid.Column="1" Margin="0,12,0,0" Spacing="6">
               <TextBlock Name="WebSearchKeyState" Classes="caption" Text="{Binding KeyState}" />
-              <StackPanel Orientation="Horizontal" Spacing="8">
+              <!-- Without room beside the box the buttons go under it together. -->
+              <WrapPanel ItemSpacing="8" LineSpacing="8">
                 <TextBox Name="WebSearchKeyBox" Width="260" PasswordChar="•" Text="{Binding NewKey}" PlaceholderText="{x:Static t:UiText.WebSearchKeyPlaceholder}"
                          AutomationProperties.Name="{x:Static t:UiText.WebSearchKey}" />
-                <Button Name="WebSearchSaveKey" Classes="secondary" Content="{x:Static t:UiText.WebSearchKeySave}" Command="{Binding SaveKeyCommand}" />
-                <Button Name="WebSearchTest" Classes="quiet" Content="{x:Static t:UiText.WebSearchTest}" Command="{Binding TestCommand}"
-                        ToolTip.Tip="{x:Static t:UiText.WebSearchTestTip}" />
-                <Button Name="WebSearchRemoveKey" Classes="quiet" Content="{x:Static t:UiText.WebSearchKeyRemove}" Command="{Binding RemoveKeyCommand}"
-                        IsVisible="{Binding HasKey}" />
-              </StackPanel>
+                <WrapPanel ItemSpacing="8" LineSpacing="8">
+                  <Button Name="WebSearchSaveKey" Classes="secondary" Content="{x:Static t:UiText.WebSearchKeySave}" Command="{Binding SaveKeyCommand}" />
+                  <Button Name="WebSearchTest" Classes="quiet" Content="{x:Static t:UiText.WebSearchTest}" Command="{Binding TestCommand}"
+                          ToolTip.Tip="{x:Static t:UiText.WebSearchTestTip}" />
+                  <Button Name="WebSearchRemoveKey" Classes="quiet" Content="{x:Static t:UiText.WebSearchKeyRemove}" Command="{Binding RemoveKeyCommand}"
+                          IsVisible="{Binding HasKey}" />
+                </WrapPanel>
+              </WrapPanel>
             </StackPanel>
             <TextBlock Grid.Row="2" Classes="field-label" Margin="0,16,0,0" Padding="0" MaxWidth="96" HorizontalAlignment="Left"
                        Text="{x:Static t:UiText.WebSearchDefault}" TextWrapping="Wrap" />
