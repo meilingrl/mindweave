@@ -6,7 +6,8 @@
              xmlns:v="using:Mindweave.Desktop.Views"
              xmlns:p="using:Mindweave.Desktop.Views.Pages"
              x:Class="Mindweave.Desktop.Views.Pages.SettingsHomeView"
-             x:DataType="vm:SettingsHomeViewModel">
+             x:DataType="vm:SettingsHomeViewModel"
+             ClipToBounds="False">
   <UserControl.Styles>
     <!-- No boxes on this page (D-037): the forms that are cards elsewhere (onboarding) lie on the page here. -->
     <Style Selector="Border.card.settings">
@@ -32,9 +33,11 @@
       <RadioButton Name="CategoryData" Classes="settings-category" GroupName="SettingsCategory" Content="{x:Static t:UiText.DataAndWorkspaceSection}" />
     </StackPanel>
   </StackPanel>
-  <ScrollViewer Name="Scroller" Grid.Column="1" Grid.Row="1" Classes="autohide" HorizontalScrollBarVisibility="Disabled">
+  <!-- Starts 12 px left of the text and puts them back inside, as on a conversation page: a row that leads on hangs its
+       highlight 8 px left of its words, and all of it is drawn, round corners and focus ring included. -->
+  <ScrollViewer Name="Scroller" Grid.Column="1" Grid.Row="1" Margin="-12,0,0,0" Classes="autohide" HorizontalScrollBarVisibility="Disabled">
   <!-- One left-aligned column of at most 640 px (a star column with a maximum), as on the summary page. -->
-  <Grid Margin="0,4,16,24">
+  <Grid Margin="12,4,16,24">
   <Grid.ColumnDefinitions>
     <ColumnDefinition Width="*" MaxWidth="640" />
   </Grid.ColumnDefinitions>

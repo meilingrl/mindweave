@@ -161,6 +161,60 @@ public class SettingsFindingTests
         }
     }
 
+    public static TheoryData<double, string> Looks => new() { { 1100, "Light" }, { 1100, "Dark" }, { 720, "Light" }, { 720, "Dark" } };
+
+    /// <summary>
+    /// A row that leads to its own page hangs its highlight left of the text, so its words line up with the plain rows: the
+    /// whole of it, round corners and focus ring included, must be drawn (the owner, 2026-11-23: its left was cut).
+    /// </summary>
+    [AvaloniaTheory]
+    [MemberData(nameof(Looks))]
+    public async Task The_highlight_of_a_row_that_leads_on_is_not_cut(double width, string theme)
+    {
+        await using var app = DesktopHarness.Create();
+        var window = await OpenAsync(app);
+        window.RequestedThemeVariant = theme == "Dark" ? ThemeVariant.Dark : ThemeVariant.Light;
+        window.Width = width;
+        await SettleAsync(window);
+        var scroller = Find<ScrollViewer>(Page(window), "Scroller");
+        scroller.ScrollToEnd();
+        await SettleAsync(window);
+        var last = Find<Button>(window, "ManageWorkspacesButton");
+        window.MouseMove(last.TranslatePoint(new Point(40, 10), window)!.Value);
+        await SettleAsync(window);
+        Assert.True(last.IsPointerOver);
+        Screenshots.Capture(window, $"settings-entry-hover-{width}-{theme.ToLowerInvariant()}");
+        window.MouseMove(new Point(5, 5));
+        Assert.True(last.Focus(NavigationMethod.Tab));
+        await SettleAsync(window);
+        Screenshots.Capture(window, $"settings-entry-focus-{width}-{theme.ToLowerInvariant()}");
+
+        var plain = Find<StackPanel>(window, "AppearanceSection").GetVisualDescendants().OfType<TextBlock>().First(t => t.Text == UiText.ThemeLabel);
+        foreach (var name in new[] { "StorageDetailsButton", "StatisticsButton", "ManageWorkspacesButton" })
+        {
+            var entry = Find<Button>(window, name);
+            var rect = new Rect(entry.TranslatePoint(default, window)!.Value, entry.Bounds.Size).Inflate(FocusRing);
+            foreach (var clip in entry.GetVisualAncestors().OfType<Control>().Where(c => c.ClipToBounds))
+            {
+                var clipped = new Rect(clip.TranslatePoint(default, window)!.Value, clip.Bounds.Size);
+                Assert.True(clipped.Left <= rect.Left && rect.Right <= clipped.Right, $"{name} {rect} is cut by {clip.GetType().Name} {clip.Name} {clipped}");
+            }
+
+            var words = entry.GetVisualDescendants().OfType<TextBlock>().First(t => t.Name != "WorkspaceCountText");
+            Assert.Equal(plain.TranslatePoint(default, window)!.Value.X, words.TranslatePoint(default, window)!.Value.X, 1);
+        }
+
+        // Pressed last: the press shrinks the row a little while it is held.
+        window.MouseDown(last.TranslatePoint(new Point(40, 10), window)!.Value, MouseButton.Left);
+        Assert.True(last.IsPressed);
+        Screenshots.Capture(window, $"settings-entry-pressed-{width}-{theme.ToLowerInvariant()}");
+        window.MouseUp(new Point(5, 5), MouseButton.Left);
+        window.Close();
+    }
+
+    /// <summary>How far the keyboard focus ring reaches beyond a control.</summary>
+    private const double FocusRing = 3;
+
     private static SettingsHomeView Page(Window window) => window.GetVisualDescendants().OfType<SettingsHomeView>().Single();
 
     private static async Task<Window> OpenAsync(DesktopHarness app)
