@@ -16,6 +16,14 @@ The second number rises when a capability is finished and on by default, and the
 
 The nine merges after 0.5.0, on 2026-11-22 and 2026-11-23, are 0.5.1 to 0.5.9 in order. They keep their dated entries below.
 
+## 0.5.14 · 2026-11-23
+
+- Changed a new-answer hint in Settings to stand at the bottom edge, with the page ending above it while it shows; elsewhere it floats above the input as before
+- Fixed a hint lying on the controls of Settings, where a press meant for a switch could close it
+- Fixed the bold colour losing its label at the smallest window (0.5.12): choices that do not fit beside their label go under it
+- Try: `scripts/daily.sh trial`; ask something, go to Settings before the answer ends, and press the settings near the notice
+- Not verified: Windows hardware; many hints at once in a very small window, where the page keeps 120 px and a hint can still overlap it; the last bold colour in English at the smallest width
+
 ## 0.5.13 · 2026-11-23
 
 - Fixed the settings tests of 0.5.12 on Linux, where a taller font put a switch under the news hint and the press closed the hint (tests only)

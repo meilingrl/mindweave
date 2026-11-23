@@ -73,6 +73,24 @@ public sealed class SettingRow : ContentControl
         set => SetValue(IsFoundProperty, value);
     }
 
+    /// <summary>The words keep at least this much beside the control, or the control goes under them.</summary>
+    internal const double MinWords = 140;
+
+    private double _contentWidth;
+
+    protected override void OnSizeChanged(SizeChangedEventArgs e)
+    {
+        base.OnSizeChanged(e);
+
+        // What the control wants beside the words; under them it may be given less, so that measure is kept.
+        if (!Classes.Contains("stacked") && Content is Control control)
+        {
+            _contentWidth = control.DesiredSize.Width;
+        }
+
+        Classes.Set("stacked", Bounds.Width > 0 && _contentWidth > Bounds.Width - MinWords);
+    }
+
     protected override Type StyleKeyOverride => typeof(SettingRow);
 
     protected override void OnApplyTemplate(TemplateAppliedEventArgs e)

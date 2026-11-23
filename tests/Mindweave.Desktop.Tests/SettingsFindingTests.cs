@@ -135,7 +135,19 @@ public class SettingsFindingTests
         Assert.True(box.TranslatePoint(new Point(0, box.Bounds.Height), window)!.Value.Y < Find<StackPanel>(window, "AppearanceSection").TranslatePoint(default, window)!.Value.Y);
         Assert.True(picker.TranslatePoint(new Point(picker.Bounds.Width, 0), window)!.Value.X <= window.Bounds.Width);
         Assert.True(picker.TranslatePoint(default, window)!.Value.X >= Page(window).TranslatePoint(default, window)!.Value.X - 1);
+
+        // The choices that do not fit beside their label go under it; a switch stays beside its own.
+        var row = picker.FindAncestorOfType<SettingRow>()!;
+        var label = row.GetVisualDescendants().OfType<TextBlock>().Single(t => t.Text == UiText.BoldColourLabel);
+        Assert.True(label.Bounds.Width > 30, $"label {label.Bounds}");
+        Assert.True(label.TranslatePoint(new Point(0, label.Bounds.Height), window)!.Value.Y <= picker.TranslatePoint(default, window)!.Value.Y);
+        Assert.DoesNotContain("stacked", Find<CheckBox>(window, "NewsSoundToggle").FindAncestorOfType<SettingRow>()!.Classes);
         Screenshots.Capture(window, "settings-narrow");
+
+        // And back beside it once there is room.
+        window.Width = 1100;
+        await SettleAsync(window);
+        Assert.True(label.TranslatePoint(new Point(label.Bounds.Width, 0), window)!.Value.X <= picker.TranslatePoint(default, window)!.Value.X);
         window.Close();
     }
 
