@@ -234,7 +234,8 @@
     <!-- New answers (2026-11-10): small cards at the content area's bottom right, above the page, never a dialog and never
          taking the focus. One per other workspace, or per conversation of the open workspace that is not on screen; newest
          at the bottom; each closes itself after a while.
-         They sit above a conversation's composer (about 90 px), so they never cover its send button. -->
+         They sit above a conversation's composer (about 90 px), so they never cover its send button;
+         in Settings they stand at the bottom edge and the page ends above them (ShellView.Hints). -->
     <ItemsControl Name="NewsToasts" Grid.Column="1" ZIndex="10" HorizontalAlignment="Right" VerticalAlignment="Bottom" Margin="0,0,24,100"
                   ItemsSource="{Binding WorkspaceNews.Toasts, FallbackValue={x:Null}}">
       <ItemsControl.ItemsPanel>

@@ -26,6 +26,7 @@ public sealed partial class ShellView : UserControl
     public ShellView()
     {
         InitializeComponent();
+        AttachHints();
         SidebarSplitter.PointerPressed += OnSplitterPressed;
         SidebarSplitter.PointerMoved += OnSplitterMoved;
         SidebarSplitter.PointerReleased += OnSplitterReleased;
