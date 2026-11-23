@@ -620,7 +620,7 @@ The user's decisions of 2026-11-21 (plan step 2; design in [Interface language](
 | Retry after AI generation is interrupted or a summary fails | Existing content is kept, the failure is clearly visible, and a retry does not create duplicate or false success records |
 | Regenerate after editing a summary | Handwritten edits are not silently overwritten; the user can tell newly generated content from the content they kept |
 | Add a conversation to one exploration, then re-enter the summary network | Every other exploration is where it was; the changed one is drawn again in its place; the viewport opens fitted; going back from a summary still keeps this visit's browsing position (v0.25) |
-| Saving the layout fails, or the user leaves with unsaved changes | The in-memory layout and the old saved layout are kept; the user can retry or cancel leaving; saved knowledge content is not affected |
+| Saving exploration places fails | The user is not disturbed and nothing is asked on leaving; the next visit starts from the last saved places and places the rest again; saved knowledge content is not affected (v0.25) |
 
 Additional scenarios: deleting the current / last summary version while keeping the original conversation; explicitly restoring a historical version; after archiving a parent branch, keeping the summaries and the independent archive state of the children; renaming a same-name group does not overwrite manual edits and does not change the read state; compression over the budget keeps the key original text, and on failure does not silently truncate. These are acceptance targets for the finished product. They are not automatically treated as done because parts of a prototype passed.
 

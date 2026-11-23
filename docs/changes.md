@@ -16,6 +16,12 @@ The second number rises when a capability is finished and on by default, and the
 
 The nine merges after 0.5.0, on 2026-11-22 and 2026-11-23, are 0.5.1 to 0.5.9 in order. They keep their dated entries below.
 
+## 0.6.1 · 2026-11-23
+
+- Documents: Removed the last passages about saving the layout by hand: the requirements §11 row on a failed layout save, and architecture §2.2, §11.1 and §12.3
+- Try: nothing on screen changed
+- Not verified: nothing to run
+
 ## 0.6.0 · 2026-11-23
 
 The network of every conversation is finished and on by default: each conversation is a dot, summaries are a layer on it, and it has a spatial view and a timeline.
