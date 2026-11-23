@@ -62,9 +62,11 @@ public sealed partial class ConversationViewModel : PageViewModel, IDisposable, 
         IConversationDeletionPrompt? deletionPrompt = null,
         Application.Resources.IResources? resources = null,
         Application.Models.IModelSettings? models = null,
-        WebSearchSwitch? webSearch = null)
+        WebSearchSwitch? webSearch = null,
+        TextWidth? textWidth = null)
         : base(route)
     {
+        TextWidth = textWidth;
         ArgumentNullException.ThrowIfNull(route);
         ArgumentNullException.ThrowIfNull(context);
         Id = route.Id;
@@ -107,6 +109,9 @@ public sealed partial class ConversationViewModel : PageViewModel, IDisposable, 
     }
 
     public ConversationId Id { get; }
+
+    /// <summary>How wide the text may be, shared by every conversation page.</summary>
+    public TextWidth? TextWidth { get; }
 
     public Composer Composer { get; }
 

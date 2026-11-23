@@ -170,7 +170,7 @@
       </Border>
     </StackPanel>
 
-    <StackPanel DockPanel.Dock="Bottom" Spacing="6" Margin="0,10,0,0" IsVisible="{Binding !IsMissing}">
+    <StackPanel Name="ComposerColumn" DockPanel.Dock="Bottom" Spacing="6" Margin="0,10,0,0" IsVisible="{Binding !IsMissing}">
       <Panel IsVisible="{Binding IsOpen}">
         <v:ComposerView Name="ComposerHost" DataContext="{Binding Composer}" />
       </Panel>
@@ -438,6 +438,11 @@
       </ItemsControl>
     </ScrollViewer>
     <v:BranchMarks Name="BranchMarks" />
+    <!-- The text's edges: dragged to change how wide the text is, never the page (the owner, 2026-11-23). -->
+    <vv:EdgeGrip Name="LeftTextGrip" Width="9" HorizontalAlignment="Left" AutomationProperties.Name="{x:Static t:UiText.TextWidthLabel}"
+                 AutomationProperties.HelpText="{x:Static t:UiText.TextWidthGripTip}" ToolTip.Tip="{x:Static t:UiText.TextWidthGripTip}" />
+    <vv:EdgeGrip Name="RightTextGrip" Width="9" HorizontalAlignment="Left" IsVisible="False" AutomationProperties.Name="{x:Static t:UiText.TextWidthLabel}"
+                 AutomationProperties.HelpText="{x:Static t:UiText.TextWidthGripTip}" ToolTip.Tip="{x:Static t:UiText.TextWidthGripTip}" />
     </Panel>
   </DockPanel>
 </UserControl>

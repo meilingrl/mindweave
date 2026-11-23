@@ -19,7 +19,7 @@
     <!-- 外观 -->
     <TextBlock Classes="section-heading" Text="{x:Static t:UiText.AppearanceSection}" />
     <Border Classes="card settings">
-      <Grid Classes="labelled" RowDefinitions="Auto,Auto,Auto,Auto,Auto,Auto">
+      <Grid Classes="labelled" RowDefinitions="Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto">
         <Grid.ColumnDefinitions>
           <ColumnDefinition Width="Auto" MinWidth="96" SharedSizeGroup="SettingsLabel" />
           <ColumnDefinition Width="*" />
@@ -107,6 +107,22 @@
         </Border>
         <TextBlock Grid.Row="5" Grid.Column="1" Name="BoldColourStatus" v:Motion.Appear="Fade" Classes="error" FontSize="12" TextWrapping="Wrap" Margin="0,8,0,0"
                    Text="{Binding BoldColourStatus}" IsVisible="{Binding BoldColourStatus, Converter={x:Static ObjectConverters.IsNotNull}}" />
+        <!-- How wide the text of a conversation may be (the owner, 2026-11-23); any other width is dragged on the page. -->
+        <TextBlock Grid.Row="6" Classes="field-label" Margin="0,16,0,0" Text="{x:Static t:UiText.TextWidthLabel}" IsVisible="{Binding CanChooseTextWidth}" />
+        <Border Grid.Row="6" Grid.Column="1" Name="TextWidthPicker" Classes="segmented" Margin="0,16,0,0" HorizontalAlignment="Left" IsVisible="{Binding CanChooseTextWidth}">
+          <StackPanel Orientation="Horizontal" Spacing="2" KeyboardNavigation.TabNavigation="Once">
+            <RadioButton Name="TextWidthWhole" Classes="segment" GroupName="TextWidth" IsChecked="{Binding IsTextWhole}"
+                         Content="{x:Static t:UiText.TextWidthWhole}" AutomationProperties.Name="{x:Static t:UiText.TextWidthWhole}" />
+            <RadioButton Name="TextWidthWide" Classes="segment" GroupName="TextWidth" IsChecked="{Binding IsTextWide}"
+                         Content="{x:Static t:UiText.TextWidthWide}" AutomationProperties.Name="{x:Static t:UiText.TextWidthWide}" />
+            <RadioButton Name="TextWidthMedium" Classes="segment" GroupName="TextWidth" IsChecked="{Binding IsTextMedium}"
+                         Content="{x:Static t:UiText.TextWidthMedium}" AutomationProperties.Name="{x:Static t:UiText.TextWidthMedium}" />
+            <RadioButton Name="TextWidthNarrow" Classes="segment" GroupName="TextWidth" IsChecked="{Binding IsTextNarrow}"
+                         Content="{x:Static t:UiText.TextWidthNarrow}" AutomationProperties.Name="{x:Static t:UiText.TextWidthNarrow}" />
+          </StackPanel>
+        </Border>
+        <TextBlock Grid.Row="7" Grid.Column="1" Name="TextWidthHint" Classes="muted" FontSize="12" TextWrapping="Wrap" Margin="0,8,0,0" Text="{Binding TextWidthHint}"
+                   IsVisible="{Binding CanChooseTextWidth}" />
       </Grid>
     </Border>
 

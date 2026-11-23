@@ -66,6 +66,7 @@ public sealed partial class ConversationView : UserControl
         };
         MessageList.LayoutUpdated += (_, _) => OnListLaidOut();
         BranchMarks.Attach(Scroller, MessageList);
+        AttachTextColumn();
         ComposerHost.SettingsRequested += (_, _) => (DataContext as ConversationViewModel)?.OpenSettingsCommand.Execute(null);
     }
 
@@ -136,6 +137,7 @@ public sealed partial class ConversationView : UserControl
             _page.PropertyChanged += OnPageChanged;
         }
 
+        FollowTextWidth(_page?.TextWidth);
         _turn = null;
         _held = null;
         _reading = null;
@@ -254,6 +256,7 @@ public sealed partial class ConversationView : UserControl
 
         _restoring = false;
         RememberReadingPlace();
+        _reading = MeasurePosition(page);
         RestoredTimestamp = System.Diagnostics.Stopwatch.GetTimestamp();
         _restored.TrySetResult();
         Dispatcher.UIThread.Post(() => RenderNext(page), DispatcherPriority.Background);
@@ -411,6 +414,11 @@ public sealed partial class ConversationView : UserControl
 
     private void OnPageChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e)
     {
+        if (e.PropertyName == nameof(ConversationViewModel.HasBranches))
+        {
+            ArrangeTextColumn();
+        }
+
         if (e.PropertyName == nameof(ConversationViewModel.RunningAnswer) && !_restoring && _page is { RunningAnswer: { } running } page && running.Id != _turn)
         {
             PlaceTurn(page, running.Id);
@@ -592,11 +600,16 @@ public sealed partial class ConversationView : UserControl
     private void CapturePosition()
     {
         _capture.Stop();
-        if (_restoring || _page is not { } page)
+        if (!_restoring && _page is { } page && MeasurePosition(page) is { } position)
         {
-            return;
+            _reading = position;
+            page.ReportPosition(position);
         }
+    }
 
+    /// <summary>What is at the reading line now; null when there is nothing to read.</summary>
+    private ReadingPosition? MeasurePosition(ConversationViewModel page)
+    {
         for (var i = 0; i < page.Messages.Count; i++)
         {
             if (MessageList.ContainerFromIndex(i) is not { } container || TopOf(container) is not { } top || top + container.Bounds.Height <= ReadingLine)
@@ -608,10 +621,10 @@ public sealed partial class ConversationView : UserControl
             var answer = item.IsAnswer ? container.GetVisualDescendants().OfType<AnswerView>().FirstOrDefault(a => a.IsRendered) : null;
             var locator = (answer is null ? null : SourceAnchors.LocatorAt(answer.Renderer, Scroller, ReadingLine))
                 ?? ReadingLocator.MessageTop(ReadingLine - top);
-            _reading = new ReadingPosition(item.Id, 0, SourceAnchors.Serialize(locator), SourceAnchors.LocatorVersion);
-            page.ReportPosition(_reading);
-            return;
+            return new ReadingPosition(item.Id, 0, SourceAnchors.Serialize(locator), SourceAnchors.LocatorVersion);
         }
+
+        return null;
     }
 
     private (Control? Container, AnswerView? Answer) Find(ConversationViewModel page, MessageId message)
