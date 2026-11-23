@@ -15,6 +15,11 @@ using Mindweave.Desktop.Views.Pages;
 using Mindweave.Infrastructure.Sqlite;
 using static Mindweave.Desktop.Tests.UiTree;
 
+using Mindweave.Application.SummaryLinks;
+
+using Mindweave.Application.Workspaces;
+using Mindweave.Core.Workspaces;
+using Mindweave.Desktop.Navigation;
 namespace Mindweave.Desktop.Tests;
 
 /// <summary>
@@ -365,6 +370,111 @@ public class SessionNetworkCanvasTests
             }
         }
 
+        window.Close();
+    }
+
+    [AvaloniaFact]
+    public async Task A_link_is_quiet_until_active_and_a_linked_dot_brings_out_its_partner()
+    {
+        // Design §8: a thin neutral dash with no word on it at rest; its note shows while it is active (an end selected or
+        // hovered, or the line hovered); selecting a dot with links brings out its partner and path and fades the rest.
+        await using var app = Gated();
+        var window = app.ShowWindow(1100, 720);
+        await SummaryNetworkScenario.SeedAsync(app);
+        var network = await SummaryNetworkScenario.OpenSummaryNetworkAsync(app, window);
+        await UiWait.UntilAsync(() => network.Nodes.Count == 4);
+        var speed = network.Nodes.Single(n => n.ShortTitle == "火箭号速度");
+        var rails = network.Nodes.Single(n => n.ShortTitle == "铁轨");
+        var middle = network.Nodes.Single(n => !n.HasSummary);
+        await app.Services.GetRequiredService<SummaryLinkService>().CreateAsync(speed.Id, rails.Id, "对比", CancellationToken.None);
+        await UiWait.UntilAsync(() => network.LinkEdges.Count == 1);
+        var canvas = CanvasOf(window);
+
+        var resting = Assert.Single(canvas.PaintLinks());
+        Assert.True(resting.Quiet);
+        Assert.False(resting.Active);
+        Assert.Null(resting.Label);
+        Assert.DoesNotContain(canvas.PaintNodes(), p => p.Dimmed);
+
+        // Selecting 铁轨: its partner and its path (the root) come out; the middle conversation, on neither, fades.
+        network.Select(rails.Id);
+        var linked = Assert.Single(canvas.PaintLinks());
+        Assert.Equal("对比", linked.Label);
+        Assert.False(linked.Dimmed);
+        var nodes = canvas.PaintNodes().ToDictionary(p => p.Node.Id);
+        Assert.False(nodes[speed.Id].Dimmed);
+        Assert.True(nodes[speed.Id].Halo);
+        Assert.True(nodes[middle.Id].Dimmed);
+        Assert.Contains(canvas.PaintEdges(), e => e.Dimmed);
+
+        // Hovering the line: its note shows and both ends come out; nothing fades without a selection.
+        network.Select(null);
+        var line = canvas.PaintLinks()[0];
+        canvas.SetPointer(line.From + ((line.To - line.From) * 0.5));
+        Assert.Equal(network.LinkEdges[0].Id, canvas.HoveredLink);
+        Assert.Equal("对比", canvas.PaintLinks()[0].Label);
+        var hovered = canvas.PaintNodes().ToDictionary(p => p.Node.Id);
+        Assert.True(hovered[speed.Id].Halo && hovered[rails.Id].Halo);
+        Assert.DoesNotContain(hovered.Values, p => p.Dimmed);
+        canvas.SetPointer(null);
+        window.Close();
+    }
+
+    [AvaloniaFact]
+    public async Task A_change_in_one_workspace_reloads_only_that_workspaces_network()
+    {
+        // Design §15.3: with the switch on, every conversation change used to reload every visited workspace's network page.
+        await using var app = Gated();
+        var window = app.ShowWindow(1100, 720);
+        await SummaryNetworkScenario.SeedAsync(app);
+        var trains = await SummaryNetworkScenario.OpenSummaryNetworkAsync(app, window);
+        await UiWait.UntilAsync(() => trains.Nodes.Count == 4);
+
+        var other = await app.Services.GetRequiredService<WorkspaceService>().CreateAsync(WorkspaceName.FromStored("天文"), CancellationToken.None);
+        app.Workbench.AddWorkspace(other);
+        app.Workbench.Navigate(new NavigationRequest(MainSection.SummaryNetwork));
+        await UiWait.UntilAsync(() => app.Workbench.CurrentPage is SummaryNetworkHomeViewModel { } page && page != trains);
+        var stars = (SummaryNetworkHomeViewModel)app.Workbench.CurrentPage!;
+        await stars.Loaded;
+        Assert.NotSame(trains, stars);
+        var trainLoads = trains.Loads;
+        var starLoads = stars.Loads;
+
+        // A question in the other workspace: its page reloads; the train workspace's page only learns it is not its own.
+        var conversations = app.Services.GetRequiredService<ConversationService>();
+        var asked = await SummaryNetworkScenario.AskAsync(app, conversations, null, other.Id, "月亮为什么有阴晴圆缺？");
+        await UiWait.UntilAsync(() => stars.Loads > starLoads && stars.Nodes.Count == 1 && trains.Knows(asked));
+        Assert.Equal(trainLoads, trains.Loads);
+
+        // Archiving it (a visibility change) reloads its own page only.
+        starLoads = stars.Loads;
+        Assert.True((await conversations.ArchiveAsync(asked, CancellationToken.None)).Archived);
+        await UiWait.UntilAsync(() => stars.Loads > starLoads);
+        Assert.Equal(trainLoads, trains.Loads);
+
+        // A question in the train workspace still reloads its page.
+        var root = trains.Session.Projection.Nodes.Single(n => n.ShortTitle == "火车起源").Conversation;
+        await SummaryNetworkScenario.AskAsync(app, conversations, root, default, "再说说蒸汽机？");
+        await UiWait.UntilAsync(() => trains.Loads > trainLoads);
+        window.Close();
+    }
+
+    [AvaloniaFact]
+    public async Task A_click_on_the_canvas_gives_it_the_keyboard()
+    {
+        // A click gives the canvas the keyboard, so Ctrl+S and Escape reach the page (review 2026-11-23: a helper named Focus()
+        // had hidden the control's own; the press handler's call now reaches InputElement.Focus again).
+        await using var app = Gated();
+        var window = app.ShowWindow(1100, 720);
+        await SummaryNetworkScenario.SeedAsync(app);
+        await SummaryNetworkScenario.OpenSummaryNetworkAsync(app, window);
+        var canvas = CanvasOf(window);
+        var corner = canvas.TranslatePoint(new Point(6, 6), window)!.Value;
+
+        window.MouseDown(corner, MouseButton.Left);
+        window.MouseUp(corner, MouseButton.Left);
+
+        Assert.True(canvas.IsFocused);
         window.Close();
     }
 

@@ -102,6 +102,22 @@ public class SessionNetworkShots
                     window.UpdateLayout();
                     Capture(window, shots, $"{prefix}-spatial-selected");
                 }
+
+                // Links (design §8): a dot with links selected (the rest fades), then the pointer on a link's line.
+                if (network.LinkEdges.Count > 0 && network.LinkEdges[0] is { } link)
+                {
+                    await ShowAsync(network, window, SummaryNetworkViewMode.Spatial);
+                    network.Select(link.A);
+                    window.UpdateLayout();
+                    Capture(window, shots, $"{prefix}-spatial-linked");
+                    network.Select(null);
+                    var canvas = UiTree.CanvasOf(window);
+                    var painted = canvas.PaintLinks().First(l => l.Link.Id == link.Id);
+                    canvas.SetPointer(painted.From + ((painted.To - painted.From) * 0.5));
+                    window.UpdateLayout();
+                    Capture(window, shots, $"{prefix}-spatial-link-hover");
+                    canvas.SetPointer(null);
+                }
             }
         }
         finally

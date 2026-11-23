@@ -18,7 +18,26 @@ namespace Mindweave.Application.SummaryLinks;
 /// refers to them by, how many the workspace has, and the listed pairs not to suggest (linked, ignored, or whose link the
 /// user deleted).
 /// </summary>
-public sealed record LinkSuggestionInput(IReadOnlyList<RecommendationSource> Summaries, int SummaryCount, IReadOnlyList<(string A, string B)> Avoid);
+/// <remarks>
+/// <paramref name="Lineage"/> places each listed summary in its exploration (design session-network §8): its conversation,
+/// the exploration's root conversation and every conversation above it. Empty when unknown; then nothing is said about
+/// explorations and no pair is dropped for being on one line of descent.
+/// </remarks>
+public sealed record LinkSuggestionInput(IReadOnlyList<RecommendationSource> Summaries, int SummaryCount, IReadOnlyList<(string A, string B)> Avoid)
+{
+    public IReadOnlyDictionary<SummaryNodeId, SummaryLineage> Lineage { get; init; } = new Dictionary<SummaryNodeId, SummaryLineage>();
+
+    /// <summary>
+    /// Whether one of the two summaries' conversations branched, directly or further down, from the other's: a branch line
+    /// already joins them, so a link between them says nothing new.
+    /// </summary>
+    public bool OnOneLine(SummaryNodeId a, SummaryNodeId b) =>
+        Lineage.TryGetValue(a, out var la) && Lineage.TryGetValue(b, out var lb)
+        && (la.Ancestors.Contains(lb.Conversation) || lb.Ancestors.Contains(la.Conversation));
+}
+
+/// <summary>Where a summary's conversation sits: the conversation, its exploration's root, and every conversation above it, root first.</summary>
+public sealed record SummaryLineage(ConversationId Conversation, ConversationId Root, IReadOnlyList<ConversationId> Ancestors);
 
 /// <summary>
 /// The link-suggestion prompt, its bounded input and the strict reading of what comes back (pure; tested directly). The
@@ -51,7 +70,11 @@ public static partial class LinkSuggestionPrompt
     /// <summary>Output cap: reasoning models count their hidden reasoning against it (see ConversationTitler).</summary>
     public const int OutputTokens = 2048;
 
-    public static LinkSuggestionInput SelectInput(IReadOnlyList<RecommendationBasis> summaries, int summaryCount, IEnumerable<(SummaryNodeId A, SummaryNodeId B)> avoid)
+    public static LinkSuggestionInput SelectInput(
+        IReadOnlyList<RecommendationBasis> summaries,
+        int summaryCount,
+        IEnumerable<(SummaryNodeId A, SummaryNodeId B)> avoid,
+        IReadOnlyDictionary<SummaryNodeId, SummaryLineage>? lineage = null)
     {
         ArgumentNullException.ThrowIfNull(summaries);
         ArgumentNullException.ThrowIfNull(avoid);
@@ -70,7 +93,40 @@ public static partial class LinkSuggestionPrompt
             .Distinct()
             .Take(MaxAvoid)
             .ToList();
-        return new LinkSuggestionInput(sources, Math.Max(summaryCount, sources.Count), avoided);
+        var known = lineage is null
+            ? new Dictionary<SummaryNodeId, SummaryLineage>()
+            : sources.Where(src => lineage.ContainsKey(src.Node)).ToDictionary(src => src.Node, src => lineage[src.Node]);
+        return new LinkSuggestionInput(sources, Math.Max(summaryCount, sources.Count), avoided) { Lineage = known };
+    }
+
+    /// <summary>
+    /// Each listed summary's exploration ("E1", numbered in list order) and the nearest listed summary it branched from,
+    /// if any: what the model is told so it can leave lines of descent alone.
+    /// </summary>
+    private static Dictionary<string, (string Exploration, string? BranchOf)> Places(LinkSuggestionInput input)
+    {
+        var explorations = new Dictionary<ConversationId, string>();
+        var byConversation = input.Summaries.Where(src => input.Lineage.ContainsKey(src.Node))
+            .GroupBy(src => input.Lineage[src.Node].Conversation).ToDictionary(g => g.Key, g => g.First().Label);
+        var places = new Dictionary<string, (string, string?)>();
+        foreach (var src in input.Summaries)
+        {
+            if (!input.Lineage.TryGetValue(src.Node, out var line))
+            {
+                continue;
+            }
+
+            if (!explorations.TryGetValue(line.Root, out var exploration))
+            {
+                exploration = "E" + (explorations.Count + 1).ToString(CultureInfo.InvariantCulture);
+                explorations[line.Root] = exploration;
+            }
+
+            var branchOf = line.Ancestors.Reverse().Select(a => byConversation.GetValueOrDefault(a)).FirstOrDefault(label => label is not null);
+            places[src.Label] = (exploration, branchOf);
+        }
+
+        return places;
     }
 
     public static string SystemPrompt()
@@ -96,12 +152,20 @@ public static partial class LinkSuggestionPrompt
         var c = CultureInfo.InvariantCulture;
         var text = new StringBuilder();
         text.Append(T($"Summaries ({input.SummaryCount} in all, {input.Summaries.Count} listed):\n", $"总结（共 {input.SummaryCount} 个，列出 {input.Summaries.Count} 个）：\n"));
+        var places = Places(input);
         foreach (var s in input.Summaries)
         {
             text.Append(c, $"[{s.Label}] {s.Name}");
             if (RecommendationText.Normalize(s.Title) != RecommendationText.Normalize(s.Name))
             {
                 text.Append(T(": ", "：")).Append(s.Title);
+            }
+
+            if (places.TryGetValue(s.Label, out var place))
+            {
+                text.Append(place.BranchOf is { } parent
+                    ? T($" (exploration {place.Exploration}, branched from {parent})", $"（探索 {place.Exploration}，分支自 {parent}）")
+                    : T($" (exploration {place.Exploration})", $"（探索 {place.Exploration}）"));
             }
 
             text.Append('\n');
@@ -126,8 +190,8 @@ public static partial class LinkSuggestionPrompt
     /// <summary>
     /// The valid pairs in the output, in its order, at most <see cref="MaxPairs"/>: a JSON array (possibly in a code fence or
     /// after a lead-in), JSON read by its fields when it does not parse, or else one pair per line ("S1 | S3 | 对比 | 理由").
-    /// A pair is kept only when both labels name listed summaries, they differ, the pair (in either order) is not in
-    /// <paramref name="avoid"/> and not repeated. A note is trimmed and dropped (the pair kept) when longer than 16
+    /// A pair is kept only when both labels name listed summaries, they differ, neither branched from the other (directly
+    /// or further down), the pair (in either order) is not in <paramref name="avoid"/> and not repeated. A note is trimmed and dropped (the pair kept) when longer than 16
     /// characters; a reason is trimmed and shortened to <see cref="MaxReasonLength"/>.
     /// </summary>
     public static IReadOnlyList<NewLinkSuggestion> Parse(string output, LinkSuggestionInput input, IEnumerable<(SummaryNodeId A, SummaryNodeId B)> avoid)
@@ -141,6 +205,12 @@ public static partial class LinkSuggestionPrompt
         foreach (var (rawA, rawB, rawNote, rawReason) in FromJson(output) ?? FromJsonFields(output) ?? FromLines(output))
         {
             if (NodeOf(rawA, labels) is not { } first || NodeOf(rawB, labels) is not { } second || first == second)
+            {
+                continue;
+            }
+
+            // A summary and one on its own line of descent are already joined by branch lines (design session-network §8).
+            if (input.OnOneLine(first, second))
             {
                 continue;
             }

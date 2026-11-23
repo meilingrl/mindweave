@@ -86,13 +86,14 @@ public sealed partial class SummaryNetworkHomeViewModel : PageViewModel, IDispos
 
         AttachSuggestions(suggestions);
         _reload = new UiThrottle(dispatcher, TimeSpan.FromMilliseconds(30), () => _ = _load.Request());
-        _summaries.Changed += OnChanged;
+        _summaries.Changed += OnConversationChanged;
         _conversations.VisibilityChanged += OnVisibilityChanged;
 
         // Every conversation is a dot in the session network: a new one, a new question (its weight) or a new title shows.
+        // Only this workspace's conversations reload the page (design session-network §15.3).
         if (IsSessionNetwork)
         {
-            _conversations.ConversationChanged += OnChanged;
+            _conversations.ConversationChanged += OnConversationChanged;
         }
 
         Session.PropertyChanged += OnSessionChanged;
@@ -816,9 +817,9 @@ public sealed partial class SummaryNetworkHomeViewModel : PageViewModel, IDispos
     public void Dispose()
     {
         _disposed = true;
-        _summaries.Changed -= OnChanged;
+        _summaries.Changed -= OnConversationChanged;
         _conversations.VisibilityChanged -= OnVisibilityChanged;
-        _conversations.ConversationChanged -= OnChanged;
+        _conversations.ConversationChanged -= OnConversationChanged;
         Session.PropertyChanged -= OnSessionChanged;
         Session.Discarded -= OnDiscarded;
         if (_recommendations is not null)
@@ -1009,10 +1010,79 @@ public sealed partial class SummaryNetworkHomeViewModel : PageViewModel, IDispos
         }
     }
 
+    /// <summary>
+    /// Whether a conversation belongs to this page's workspace, as far as known: every conversation listed at the last load,
+    /// and each other one once it has been looked up. A conversation never moves to another workspace.
+    /// </summary>
+    private readonly System.Collections.Concurrent.ConcurrentDictionary<ConversationId, bool> _ours = new();
+
+    /// <summary>
+    /// A conversation or its summary changed: reload only for one of this workspace's (any other workspace's page stays as
+    /// it is). A conversation the page has not seen is looked up once.
+    /// </summary>
+    private void OnConversationChanged(object? sender, ConversationId e)
+    {
+        if (_disposed)
+        {
+            return;
+        }
+
+        if (_ours.TryGetValue(e, out var ours))
+        {
+            if (ours)
+            {
+                _reload.Request();
+            }
+
+            return;
+        }
+
+        if (_looking.TryAdd(e, 0))
+        {
+            _ = LearnWorkspaceAsync(e);
+        }
+    }
+
+    /// <summary>Conversations being looked up, so a burst of changes to one starts one lookup.</summary>
+    private readonly System.Collections.Concurrent.ConcurrentDictionary<ConversationId, byte> _looking = new();
+
+    /// <summary>
+    /// Looks up the workspace of a conversation the page has not seen (a new one, or another workspace's) and reloads if
+    /// it is this one. One that no longer exists counts as another workspace's: its deletion reloads through visibility.
+    /// </summary>
+    private async Task LearnWorkspaceAsync(ConversationId conversation)
+    {
+        try
+        {
+            var workspace = await _conversations.WorkspaceOfAsync(conversation, CancellationToken.None);
+            var ours = workspace == Workspace.Id;
+            _ours[conversation] = ours;
+            if (ours && !_disposed)
+            {
+                _reload.Request();
+            }
+        }
+#pragma warning disable CA1031 // Fire-and-forget from an event handler: on failure the page just reloads, as it did before the filter.
+        catch (Exception swallowed)
+#pragma warning restore CA1031
+        {
+            DesktopLog.Swallowed(swallowed);
+            if (!_disposed)
+            {
+                _reload.Request();
+            }
+        }
+        finally
+        {
+            _looking.TryRemove(conversation, out _);
+        }
+    }
+
     /// <summary>A source was archived, restored or deleted: its node's "source archived" marker may have changed.</summary>
     private void OnVisibilityChanged(object? sender, IReadOnlyList<ConversationId> e)
     {
-        if (!_disposed)
+        // Only when one of them may be this workspace's: all known to be another's leaves the page as it is.
+        if (!_disposed && (e.Count == 0 || e.Any(id => !_ours.TryGetValue(id, out var ours) || ours)))
         {
             _reload.Request();
         }
@@ -1027,8 +1097,17 @@ public sealed partial class SummaryNetworkHomeViewModel : PageViewModel, IDispos
         SaveLayoutCommand.NotifyCanExecuteChanged();
     }
 
+    /// <summary>Loads so far (tests: a change in another workspace must not reload this page).</summary>
+    internal int Loads => Volatile.Read(ref _loads);
+
+    private int _loads;
+
+    /// <summary>Whether the page has settled which workspace a conversation belongs to (tests).</summary>
+    internal bool Knows(ConversationId conversation) => _ours.ContainsKey(conversation);
+
     private async Task LoadAsync()
     {
+        Interlocked.Increment(ref _loads);
         await Session.LoadAsync(CancellationToken.None);
         var conversations = await _conversations.ListAsync(Workspace.Id, CancellationToken.None);
         if (_disposed)
@@ -1037,6 +1116,11 @@ public sealed partial class SummaryNetworkHomeViewModel : PageViewModel, IDispos
         }
 
         _titles = conversations.ToDictionary(c => c.Conversation.Id, c => UiText.ConversationTitle(c.Conversation, c.FirstQuestion, c.Quote));
+        foreach (var listed in conversations)
+        {
+            _ours[listed.Conversation.Id] = true;
+        }
+
         await ReadLinksAsync();
         await ReadOfferAsync();
         if (_disposed)

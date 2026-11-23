@@ -7,6 +7,9 @@ using Mindweave.Application.Storage;
 using Mindweave.Core.Conversations;
 using Mindweave.Core.Workspaces;
 
+using Mindweave.Application.SummaryNetwork;
+using Mindweave.Core.Summaries;
+
 namespace Mindweave.Application.SummaryLinks;
 
 /// <summary>AI-suggested links the user confirms (requirements §10.3.4), as the summary network uses them.</summary>
@@ -61,6 +64,7 @@ public sealed partial class LinkSuggestionService : ILinkSuggestions, IDisposabl
     private readonly GenerationCoordinator _generation;
     private readonly IClock _clock;
     private readonly ILogger<LinkSuggestionService> _logger;
+    private readonly ISummaryNetworkLayout? _network;
     private readonly CancellationTokenSource _stop = new();
     private readonly Lock _gate = new();
     private readonly Dictionary<WorkspaceId, Run> _running = [];
@@ -77,8 +81,10 @@ public sealed partial class LinkSuggestionService : ILinkSuggestions, IDisposabl
         StorageHealth health,
         GenerationCoordinator generation,
         IClock clock,
-        ILogger<LinkSuggestionService> logger)
+        ILogger<LinkSuggestionService> logger,
+        ISummaryNetworkLayout? network = null)
     {
+        _network = network;
         _store = store;
         _summaries = summaries;
         _links = links;
@@ -121,12 +127,25 @@ public sealed partial class LinkSuggestionService : ILinkSuggestions, IDisposabl
     public async Task<LinkSuggestionOffer> GetAsync(WorkspaceId workspace, CancellationToken cancellationToken)
     {
         var items = await _store.ListPendingAsync(workspace, cancellationToken).ConfigureAwait(false);
+
+        // A suggestion stored before the rule (design session-network §8), or whose summaries were moved onto one line of
+        // descent since, is not offered: a branch line already joins them.
+        if (_network is not null && items.Count > 0)
+        {
+            var input = new LinkSuggestionInput([], 0, []) { Lineage = await LineageAsync(workspace, cancellationToken).ConfigureAwait(false) };
+            items = [.. items.Where(i => !input.OnOneLine(i.NodeA, i.NodeB))];
+        }
         lock (_gate)
         {
             var running = _running.ContainsKey(workspace);
             return new LinkSuggestionOffer(items, running, running ? null : _outcomes.GetValueOrDefault(workspace));
         }
     }
+
+    /// <summary>Where each summary of the workspace sits: its conversation, its exploration's root and the conversations above it.</summary>
+    private async Task<IReadOnlyDictionary<SummaryNodeId, SummaryLineage>> LineageAsync(WorkspaceId workspace, CancellationToken cancellationToken) =>
+        (await _network!.ProjectAsync(workspace, cancellationToken).ConfigureAwait(false)).Nodes
+            .ToDictionary(n => n.Id, n => new SummaryLineage(n.Conversation, n.Root, n.Ancestors));
 
     public Task<RecommendationOutcome> SuggestAsync(WorkspaceId workspace, CancellationToken cancellationToken)
     {
@@ -274,7 +293,10 @@ public sealed partial class LinkSuggestionService : ILinkSuggestions, IDisposabl
         }
 
         var avoid = await _store.ListAvoidedAsync(workspace, stop).ConfigureAwait(false);
-        var input = LinkSuggestionPrompt.SelectInput(bases.Listed, bases.Count, avoid);
+
+        // Where each summary sits in its exploration, so a summary is never paired with one on its own line of descent.
+        var lineage = _network is null ? null : await LineageAsync(workspace, stop).ConfigureAwait(false);
+        var input = LinkSuggestionPrompt.SelectInput(bases.Listed, bases.Count, avoid, lineage);
         string output;
         try
         {
