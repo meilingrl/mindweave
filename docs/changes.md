@@ -6,6 +6,14 @@ This file starts on 2026-11-22. The entries from 2026-11-16 to 2026-11-22 were m
 
 ## 2026-11-23
 
+- **Requirements v0.25 and architecture §11: the network of every conversation** (documents only; no change on screen; D-035).
+  - Every conversation is a dot; a summary is a ring on it and opens from it. Lines are real lineage; the time thread joins explorations. There is a spatial view and a timeline view.
+  - "Stable layout" means no large sudden shifts: each exploration keeps its place, saved automatically, and only one that has outgrown its place moves. Explicit saving, arranging and dragging go.
+  - Recommended nodes count conversations; summary links are quiet until active; link suggestions never pair a summary with its own line of descent.
+  - The glossary has exploration, the two views, the time thread and weight. The term "summary network" stays.
+  - The text runs ahead of `main` until `task/network-stable` merges and the switch is lifted: `exploration_place` (schema v18) and `ExplorationPlace` are not in `main`, the code still says `SessionWeights`, and the default build still has the summary-only view with explicit layout saving.
+  - Try: read §7.3 and §7.4 of [requirements.md](requirements.md) and §11 of [architecture.md](architecture.md).
+  - Not verified: nothing to run. If the owner changes v18, the architecture text changes in its own commit that the owner confirms.
 - **Session network round 3: quiet links, better suggestions, fewer reloads** (no migration; D-035; [session-network.md](design/session-network.md) §8, §16).
   - Behind `MINDWEAVE_SESSION_NETWORK=1`: a summary link is a thin, quiet line with no label. Its note shows while you point at it or select it. A selected link, or a dot with links, brings out its ends and fades the rest. The legend names the line.
   - Behind the switch: a conversation change reloads only its own workspace's network page, where it used to reload every visited workspace.
