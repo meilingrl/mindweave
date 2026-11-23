@@ -30,8 +30,16 @@ public sealed partial class ConversationView : UserControl
     private TaskCompletionSource _restored = new(TaskCreationOptions.RunContinuationsAsynchronously);
     private ConversationViewModel? _page;
     private Window? _window;
-    private bool _followBottom = true;
     private bool _restoring = true;
+
+    /// <summary>The answer whose turn the page leaves room for (<see cref="KeepRoomForTurn"/>); null when none was placed.</summary>
+    private MessageId? _turn;
+
+    /// <summary>What is at the reading line, and where it is within the list: kept there while other content changes size.</summary>
+    private (MessageId Message, bool InText, double Top, double Width)? _held;
+
+    /// <summary>The reading position as last captured: put back when the text is rewrapped to another width.</summary>
+    private ReadingPosition? _reading;
 
     /// <summary>Answers waiting to be rendered while the page opens (health check 2026-11-12, performance-2).</summary>
     private readonly List<AnswerView> _deferred = [];
@@ -43,8 +51,9 @@ public sealed partial class ConversationView : UserControl
         InitializeComponent();
         _capture = new DispatcherTimer(TimeSpan.FromMilliseconds(200), DispatcherPriority.Background, (_, _) => CapturePosition());
 
-        // Follow the newest text only while the reader is already at the bottom, and only until the start of the answer
-        // being written reaches the top (FollowNewText); never yank them back from something they scrolled to read.
+        // An answer being written never moves the page (the owner, 2026-11-23): sending places its question once
+        // (PlaceTurn), and from then on only the reader scrolls. What is read is kept where it is while other content
+        // changes size (HoldReadingPlace).
         Scroller.ScrollChanged += (_, e) =>
         {
             if (_restoring)
@@ -52,18 +61,10 @@ public sealed partial class ConversationView : UserControl
                 return;
             }
 
-            if (e.ExtentDelta.Y != 0 && _followBottom)
-            {
-                FollowNewText();
-            }
-            else if (e.OffsetDelta.Y != 0)
-            {
-                _followBottom = IsAtBottom();
-            }
-
             _capture.Stop();
             _capture.Start();
         };
+        MessageList.LayoutUpdated += (_, _) => OnListLaidOut();
         BranchMarks.Attach(Scroller, MessageList);
         ComposerHost.SettingsRequested += (_, _) => (DataContext as ConversationViewModel)?.OpenSettingsCommand.Execute(null);
     }
@@ -126,9 +127,19 @@ public sealed partial class ConversationView : UserControl
         if (_page is not null)
         {
             _page.IsShown = false;
+            _page.PropertyChanged -= OnPageChanged;
         }
 
         _page = DataContext as ConversationViewModel;
+        if (_page is not null)
+        {
+            _page.PropertyChanged += OnPageChanged;
+        }
+
+        _turn = null;
+        _held = null;
+        _reading = null;
+        MessageList.MinHeight = 0;
         _handedOver.Clear();
         UpdateShown();
 
@@ -228,6 +239,10 @@ public sealed partial class ConversationView : UserControl
         UpdateLayout();
         var source = page.TakeSourceFocus();
         RenderAround(page, source?.SourceMessage ?? position?.Message);
+
+        // An answer still being written when the page opens has its room already, so a position at its question can be restored.
+        _turn = page.RunningAnswer?.Id;
+        KeepRoomForTurn();
         if (source is not null)
         {
             RevealSource(page, source);
@@ -237,8 +252,8 @@ public sealed partial class ConversationView : UserControl
             ApplyPosition(page, position);
         }
 
-        _followBottom = IsAtBottom();
         _restoring = false;
+        RememberReadingPlace();
         RestoredTimestamp = System.Diagnostics.Stopwatch.GetTimestamp();
         _restored.TrySetResult();
         Dispatcher.UIThread.Post(() => RenderNext(page), DispatcherPriority.Background);
@@ -295,7 +310,7 @@ public sealed partial class ConversationView : UserControl
 
     /// <summary>
     /// Renders the waiting answer nearest the reading position, then gives the UI thread back. A row above the reading
-    /// line grows or shrinks as it renders, so the page is moved by the same amount: what the reader sees stays put.
+    /// line grows or shrinks as it renders; what the reader sees stays put (<see cref="HoldReadingPlace"/>).
     /// </summary>
     private void RenderNext(ConversationViewModel page)
     {
@@ -312,35 +327,28 @@ public sealed partial class ConversationView : UserControl
             return;
         }
 
-        var (anchorIndex, anchor) = ReadingRow(page);
+        var anchorIndex = ReadingRow(page);
         var next = _deferred.MinBy(a => Math.Abs(RowOf(a) - anchorIndex))!;
-        var row = RowOf(next);
-        var before = anchor is null ? null : TopOf(anchor);
         var started = System.Diagnostics.Stopwatch.GetTimestamp();
         next.RenderNow();
         _deferred.Remove(next);
         UpdateLayout();
-        if (!_followBottom && row < anchorIndex && before is { } was && anchor is not null && TopOf(anchor) is { } now)
-        {
-            ScrollBy(now - was);
-        }
-
         LongestRenderStep = Math.Max(LongestRenderStep, System.Diagnostics.Stopwatch.GetTimestamp() - started);
         Dispatcher.UIThread.Post(() => RenderNext(page), DispatcherPriority.Background);
     }
 
-    /// <summary>The row at the reading line and its container (the last row when the page ends above it).</summary>
-    private (int Index, Control? Container) ReadingRow(ConversationViewModel page)
+    /// <summary>The row at the reading line (the last row when the page ends above it).</summary>
+    private int ReadingRow(ConversationViewModel page)
     {
         for (var i = 0; i < page.Messages.Count; i++)
         {
             if (MessageList.ContainerFromIndex(i) is { } container && TopOf(container) is { } top && top + container.Bounds.Height > ReadingLine)
             {
-                return (i, container);
+                return i;
             }
         }
 
-        return (page.Messages.Count - 1, null);
+        return page.Messages.Count - 1;
     }
 
     private int RowOf(AnswerView answer)
@@ -401,28 +409,155 @@ public sealed partial class ConversationView : UserControl
         ScrollBy((line ?? 0) - ReadingLine);
     }
 
-    /// <summary>
-    /// The page follows the answer being written to its end until that would carry the answer's start (<see cref="StartOf"/>)
-    /// above the reading line; there it stops, so the first sentence stays in view and the reader reads on at their own
-    /// pace (direction 1, item 1). A start already above the top means the reader went to the end themselves: the end is
-    /// followed, as before.
-    /// </summary>
-    private void FollowNewText()
+    private void OnPageChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e)
     {
-        if (_page is { } page && page.RunningAnswer is { } running && StartOf(page, page.Messages.IndexOf(running)) is { } start
-            && TopOf(start) is { } top && top >= ReadingLine - 1)
+        if (e.PropertyName == nameof(ConversationViewModel.RunningAnswer) && !_restoring && _page is { RunningAnswer: { } running } page && running.Id != _turn)
         {
-            var toEnd = Math.Max(0, Scroller.Extent.Height - Scroller.Viewport.Height) - Scroller.Offset.Y;
-            if (top - toEnd < ReadingLine)
+            PlaceTurn(page, running.Id);
+        }
+    }
+
+    /// <summary>
+    /// An answer started on this page (a question sent, a retry): its start (<see cref="StartOf"/>) goes to the top of the
+    /// page, once, wherever the reader was, with room below for the answer to grow into.
+    /// </summary>
+    private void PlaceTurn(ConversationViewModel page, MessageId answer)
+    {
+        UpdateLayout();
+        _turn = answer;
+        KeepRoomForTurn();
+        UpdateLayout();
+        if (TurnStart(page) is { } start && TopOf(start) is { } top)
+        {
+            ScrollBy(top - ReadingLine);
+        }
+
+        RememberReadingPlace();
+    }
+
+    private Control? TurnStart(ConversationViewModel page) =>
+        _turn is { } turn ? StartOf(page, page.Messages.ToList().FindIndex(m => m.Id == turn)) : null;
+
+    /// <summary>
+    /// The list is at least tall enough for the start of the latest turn to be at the top of the page: a short answer
+    /// leaves the rest of the page empty, and one that grows, shrinks or ends does not move its question.
+    /// </summary>
+    /// <returns>Whether the room changed: the list is laid out again before anything is measured against it.</returns>
+    private bool KeepRoomForTurn()
+    {
+        if (_page is { } page && TurnStart(page) is { } start && TopInList(start) is { } top)
+        {
+            var room = Math.Max(0, top - ReadingLine + Scroller.Viewport.Height - MessageList.Margin.Top - MessageList.Margin.Bottom);
+            if (Math.Abs(room - MessageList.MinHeight) > 0.5)
             {
-                _followBottom = false;
-                Scroller.Offset = new Vector(0, Scroller.Offset.Y + top - ReadingLine);
-                return;
+                MessageList.MinHeight = room;
+                return true;
             }
         }
 
-        Scroller.ScrollToEnd();
+        return false;
     }
+
+    private void OnListLaidOut()
+    {
+        if (_restoring || _page is null || !this.IsAttachedToVisualTree())
+        {
+            return;
+        }
+
+        if (_held is { } held && held.Width != MessageList.Bounds.Width)
+        {
+            // Once per rewrap: the width is the new one from here on.
+            _held = null;
+            Dispatcher.UIThread.Post(KeepReadingThrough, DispatcherPriority.Loaded);
+        }
+
+        if (KeepRoomForTurn())
+        {
+            return;
+        }
+
+        HoldReadingPlace();
+        RememberReadingPlace();
+    }
+
+    /// <summary>
+    /// What is at the reading line stays there while content above it comes, goes or changes size (the reasoning fold
+    /// going when an answer ends, a step added above the text, an answer above rendered). A rewrap to another width is not
+    /// that: the text itself has moved, and <see cref="KeepReadingThrough"/> handles it.
+    /// </summary>
+    private void HoldReadingPlace()
+    {
+        if (_held is not { } held || held.Width != MessageList.Bounds.Width || Anchor(held.Message, held.InText) is not { } anchor || TopInList(anchor) is not { } top)
+        {
+            return;
+        }
+
+        if (Math.Abs(top - held.Top) > 0.5)
+        {
+            Scroller.Offset = new Vector(0, Math.Max(0, Scroller.Offset.Y + top - held.Top));
+        }
+    }
+
+    /// <summary>The text was rewrapped to another width (the window or the text width changed): the sentence at the reading line stays there.</summary>
+    private void KeepReadingThrough()
+    {
+        if (!_restoring && _page is { } page && _reading is { } reading && this.IsAttachedToVisualTree())
+        {
+            UpdateLayout();
+            ApplyPosition(page, reading);
+            RememberReadingPlace();
+        }
+    }
+
+    private void RememberReadingPlace()
+    {
+        if (_restoring || _page is not { } page)
+        {
+            return;
+        }
+
+        _held = null;
+        for (var i = 0; i < page.Messages.Count; i++)
+        {
+            if (MessageList.ContainerFromIndex(i) is not { } container || TopOf(container) is not { } top || top + container.Bounds.Height <= ReadingLine)
+            {
+                continue;
+            }
+
+            var message = page.Messages[i].Id;
+            var text = page.Messages[i].IsAnswer ? Anchor(message, inText: true) : null;
+            var inText = text is not null && TopOf(text) is { } textTop && textTop <= ReadingLine;
+            if (TopInList(inText ? text! : container) is { } inList)
+            {
+                _held = (message, inText, inList, MessageList.Bounds.Width);
+            }
+
+            return;
+        }
+    }
+
+    /// <summary>The row of <paramref name="message"/>, or the answer's text within it.</summary>
+    private Control? Anchor(MessageId message, bool inText)
+    {
+        if (_page is not { } page)
+        {
+            return null;
+        }
+
+        for (var i = 0; i < page.Messages.Count; i++)
+        {
+            if (page.Messages[i].Id == message)
+            {
+                var container = MessageList.ContainerFromIndex(i);
+                return inText ? container?.GetVisualDescendants().OfType<AnswerView>().FirstOrDefault() : container;
+            }
+        }
+
+        return null;
+    }
+
+    private double? TopInList(Visual visual) => visual.TranslatePoint(default, MessageList)?.Y;
 
     private static int LatestAnswer(ConversationViewModel page)
     {
@@ -473,7 +608,8 @@ public sealed partial class ConversationView : UserControl
             var answer = item.IsAnswer ? container.GetVisualDescendants().OfType<AnswerView>().FirstOrDefault(a => a.IsRendered) : null;
             var locator = (answer is null ? null : SourceAnchors.LocatorAt(answer.Renderer, Scroller, ReadingLine))
                 ?? ReadingLocator.MessageTop(ReadingLine - top);
-            page.ReportPosition(new ReadingPosition(item.Id, 0, SourceAnchors.Serialize(locator), SourceAnchors.LocatorVersion));
+            _reading = new ReadingPosition(item.Id, 0, SourceAnchors.Serialize(locator), SourceAnchors.LocatorVersion);
+            page.ReportPosition(_reading);
             return;
         }
     }
@@ -496,6 +632,4 @@ public sealed partial class ConversationView : UserControl
         Scroller.Offset = new Vector(0, Math.Clamp(Scroller.Offset.Y + delta, 0, Math.Max(0, Scroller.Extent.Height - Scroller.Viewport.Height)));
         UpdateLayout();
     }
-
-    private bool IsAtBottom() => Scroller.Offset.Y + Scroller.Viewport.Height >= Scroller.Extent.Height - 24;
 }
