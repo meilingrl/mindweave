@@ -452,7 +452,7 @@ public class SummaryNetworkDotCanvasTests
     [AvaloniaFact]
     public async Task A_change_in_one_workspace_reloads_only_that_workspaces_network()
     {
-        // Design §15.3: with the switch on, every conversation change used to reload every visited workspace's network page.
+        // Design §15.3: every conversation change used to reload every visited workspace's network page.
         await using var app = DesktopHarness.Create();
         var window = app.ShowWindow(1100, 720);
         await SummaryNetworkScenario.SeedAsync(app);
@@ -466,7 +466,15 @@ public class SummaryNetworkDotCanvasTests
         var stars = (SummaryNetworkHomeViewModel)app.Workbench.CurrentPage!;
         await stars.Loaded;
         Assert.NotSame(trains, stars);
-        var trainLoads = trains.Loads;
+
+        // Titles of the seeded conversations may still arrive and reload the train page: count from when it rests.
+        var trainLoads = -1;
+        while (trainLoads != trains.Loads)
+        {
+            trainLoads = trains.Loads;
+            await Task.Delay(250);
+        }
+
         var starLoads = stars.Loads;
 
         // A question in the other workspace: its page reloads; the train workspace's page only learns it is not its own.
