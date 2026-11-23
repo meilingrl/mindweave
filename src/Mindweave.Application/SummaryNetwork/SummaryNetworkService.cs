@@ -172,4 +172,10 @@ public sealed class SummaryNetworkService(ISummaryStore summaries, ISummaryNetwo
 
     public Task<int> SaveLayoutAsync(WorkspaceId workspace, IReadOnlyDictionary<SummaryNodeId, NodePosition> positions, CancellationToken cancellationToken) =>
         network.SaveLayoutAsync(workspace, positions, clock.UtcNow, cancellationToken);
+
+    public Task<IReadOnlyDictionary<ConversationId, ExplorationPlace>> GetExplorationPlacesAsync(WorkspaceId workspace, CancellationToken cancellationToken) =>
+        network.GetExplorationPlacesAsync(workspace, cancellationToken);
+
+    public Task<int> SaveExplorationPlacesAsync(WorkspaceId workspace, IReadOnlyDictionary<ConversationId, ExplorationPlace> places, CancellationToken cancellationToken) =>
+        network.SaveExplorationPlacesAsync(workspace, places, clock.UtcNow, cancellationToken);
 }

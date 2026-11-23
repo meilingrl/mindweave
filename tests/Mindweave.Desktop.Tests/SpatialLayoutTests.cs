@@ -130,6 +130,101 @@ public partial class SpatialLayoutTests
         Assert.True(rank < roots.Count / 3, $"The heaviest root is number {rank + 1} of {roots.Count} from the middle.");
     }
 
+    // ── Explorations keep their places (design §16, option C) ─────────────────────
+
+    [Fact]
+    public void With_their_places_explorations_come_back_exactly_where_they_were()
+    {
+        var nodes = Generated[10];
+        var first = SpatialLayout.Arrange(nodes);
+
+        var again = SpatialLayout.Arrange(nodes, places: first.Places);
+
+        Assert.Equal(first.Places.Count, nodes.Count(n => n.Parent is null));
+        foreach (var node in nodes)
+        {
+            Assert.True(Distance(first.Positions[node.Id], again.Positions[node.Id]) < 0.01, $"{node.Id} moved by {Distance(first.Positions[node.Id], again.Positions[node.Id]):F2}.");
+        }
+    }
+
+    [Fact]
+    public void A_new_branch_or_a_new_exploration_moves_no_other_exploration()
+    {
+        var nodes = Generated[10];
+        var before = SpatialLayout.Arrange(nodes);
+        var roots = nodes.Where(n => n.Parent is null).ToList();
+        var grown = roots[3];
+        var next = nodes.Max(n => n.Order) + 1;
+        var leaf = Node(9001, null, next, 1, "新的一个分支") with { Parent = grown.Id };
+        var fresh = Node(9002, null, next + 1, 1, "一个新的探索");
+
+        foreach (var (changed, added) in new[] { (grown.Id, leaf), (fresh.Id, fresh) })
+        {
+            var after = SpatialLayout.Arrange([.. nodes, added], places: before.Places);
+
+            foreach (var root in roots.Where(r => r.Id != changed))
+            {
+                Assert.True(Distance(before.Positions[root.Id], after.Positions[root.Id]) < 0.01, $"Adding {added.Label} moved the exploration of {root.Id}.");
+            }
+
+            var report = SpatialLayout.Measure([.. nodes, added], after);
+            Assert.Equal(0, report.DotOverlaps);
+            Assert.Equal(0, report.LabelsOnDots);
+            Assert.Equal(0, report.LabelOverlaps);
+        }
+    }
+
+    [Fact]
+    public void An_exploration_that_grows_a_lot_moves_aside_and_nothing_else_moves_or_overlaps()
+    {
+        var nodes = Generated[10];
+        var before = SpatialLayout.Arrange(nodes);
+        var roots = nodes.Where(n => n.Parent is null).ToList();
+        var small = roots.Where(r => !nodes.Any(n => n.Parent == r.Id)).OrderBy(r => r.Order).First();
+        var next = nodes.Max(n => n.Order) + 1;
+        List<SpatialNode> grown = [.. nodes, .. Enumerable.Range(0, 12).Select(k => Node(9100 + k, null, next + k, 1, Title(k, 5)) with { Parent = small.Id })];
+
+        var after = SpatialLayout.Arrange(grown, places: before.Places);
+
+        foreach (var root in roots.Where(r => r.Id != small.Id))
+        {
+            Assert.True(Distance(before.Positions[root.Id], after.Positions[root.Id]) < 0.01, $"The growth moved the exploration of {root.Id}.");
+        }
+
+        var report = SpatialLayout.Measure(grown, after);
+        Assert.Equal(0, report.DotOverlaps);
+        Assert.Equal(0, report.LabelsOnDots);
+        Assert.Equal(0, report.LabelOverlaps);
+        Assert.Equal(0, report.BranchCrossings);
+        Assert.Equal(12 + 1, after.Places[small.Id.Value].Size);
+    }
+
+    [Fact]
+    public void Growing_one_conversation_at_a_time_never_overlaps_and_leaves_unchanged_explorations_in_place()
+    {
+        // Review 2026-11-23: a turned exploration once put a title on its own new dot. A workspace grows by one conversation
+        // per load; at every step nothing overlaps, and no exploration that did not change moves.
+        var full = Workspace(seed: 2, roots: 40, maxDepth: 5, total: 160).OrderBy(n => n.Order).ToList();
+        SpatialArrangement? previous = null;
+        for (var count = 120; count <= full.Count; count++)
+        {
+            var nodes = full.Take(count).ToList();
+            var arrangement = SpatialLayout.Arrange(nodes, places: previous?.Places);
+            var report = SpatialLayout.Measure(nodes, arrangement);
+            Assert.True(report.DotOverlaps + report.LabelsOnDots + report.LabelOverlaps == 0, $"At {count} conversations: {report}.");
+            if (previous is not null)
+            {
+                foreach (var (root, place) in previous.Places.Where(p => arrangement.Places.TryGetValue(p.Key, out var now) && now.Size == p.Value.Size))
+                {
+                    var now = arrangement.Places[root];
+                    Assert.True(Math.Abs(now.X - place.X) < 0.01 && Math.Abs(now.Y - place.Y) < 0.01, $"At {count} conversations an unchanged exploration moved.");
+                }
+            }
+
+            previous = arrangement;
+        }
+    }
+
     [Fact]
     public void Same_input_same_output()
     {

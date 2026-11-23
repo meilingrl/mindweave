@@ -110,7 +110,60 @@ public class SessionNetworkPackingTests
         Assert.NotEqual(packed, session.Positions);
         session.SetViewMode(SummaryNetworkViewMode.Spatial);
 
-        Assert.Equal(packed, session.Positions.ToDictionary(p => p.Key, p => p.Value));
+        // Back in the spatial view every exploration returns to its place: the same picture, to rounding.
+        Assert.Equal(packed.Keys.OrderBy(k => k.Value), session.Positions.Keys.OrderBy(k => k.Value));
+        Assert.All(packed, p => Assert.True(Math.Abs(p.Value.X - session.Positions[p.Key].X) < 1e-6 && Math.Abs(p.Value.Y - session.Positions[p.Key].Y) < 1e-6, $"{p.Key} moved."));
+    }
+
+    [Fact]
+    public async Task Exploration_places_are_saved_once_and_a_new_conversation_leaves_the_others_where_they_were()
+    {
+        // Design §16, option C: the first load saves every exploration's place; a load with nothing new saves nothing; a new
+        // exploration is placed and saved without moving any other.
+        var projection = Sessions(30);
+        var network = new FakeNetwork(projection);
+        var first = await LoadedAsync(projection, network);
+        var parents = SummaryNetworkSession.BranchParents(projection);
+        var roots = projection.Nodes.Where(n => !parents.ContainsKey(n.Id)).ToList();
+        Assert.Equal(roots.Count, network.PlaceWrites);
+        Assert.Equal(roots.Select(r => r.Conversation.Value).Order(), network.Places.Keys.Select(k => k.Value).Order());
+
+        await LoadedAsync(projection, network);
+        Assert.Equal(roots.Count, network.PlaceWrites);
+
+        var conversation = ConversationId.New();
+        var added = new SummaryNetworkNode(Id(999), conversation, conversation, "新的探索", "新的探索", new SummaryMarkers(false, false, false),
+            projection.Nodes[^1].CreatedAt.AddMinutes(5), []);
+        network.Current = projection with { Nodes = [.. projection.Nodes, added] };
+        var later = await LoadedAsync(network.Current, network);
+
+        foreach (var root in roots)
+        {
+            Assert.Equal(first.Positions[root.Id], later.Positions[root.Id]);
+        }
+
+        Assert.Equal(roots.Count + 1, network.PlaceWrites);
+        Assert.True(network.Places.ContainsKey(conversation));
+        Assert.Equal(0, network.Writes);
+    }
+
+    [Fact]
+    public async Task Places_first_shown_after_the_timeline_are_saved_too()
+    {
+        // Review 2026-11-23: a load in the timeline saves nothing; switching to the spatial view places the explorations,
+        // and those places must be saved, or the next load would place them again.
+        var projection = Sessions(20);
+        var network = new FakeNetwork(projection);
+        var session = new SummaryNetworkSession(Workspace, network, new SessionNetworkGate(true));
+        session.SetViewMode(SummaryNetworkViewMode.Timeline);
+        await session.LoadAsync(CancellationToken.None);
+        Assert.Equal(0, network.PlaceWrites);
+
+        session.SetViewMode(SummaryNetworkViewMode.Spatial);
+
+        await UiWait.UntilAsync(() => network.PlaceWrites > 0);
+        var parents = SummaryNetworkSession.BranchParents(projection);
+        Assert.Equal(projection.Nodes.Count(n => !parents.ContainsKey(n.Id)), network.Places.Count);
     }
 
     [Fact]
@@ -222,11 +275,34 @@ public class SessionNetworkPackingTests
 
     private sealed class FakeNetwork(SummaryNetworkProjection projection) : ISummaryNetworkLayout
     {
+        /// <summary>Writes of node positions (the old summary network's layout); exploration places are counted apart.</summary>
         public int Writes { get; private set; }
+
+        /// <summary>What the next load projects (a test adds a conversation by swapping it).</summary>
+        public SummaryNetworkProjection Current { get; set; } = projection;
+
+        /// <summary>Exploration places as saved, and how many were written in all.</summary>
+        public Dictionary<ConversationId, ExplorationPlace> Places { get; } = [];
+
+        public int PlaceWrites { get; private set; }
+
+        public Task<IReadOnlyDictionary<ConversationId, ExplorationPlace>> GetExplorationPlacesAsync(WorkspaceId workspace, CancellationToken cancellationToken) =>
+            Task.FromResult<IReadOnlyDictionary<ConversationId, ExplorationPlace>>(new Dictionary<ConversationId, ExplorationPlace>(Places));
+
+        public Task<int> SaveExplorationPlacesAsync(WorkspaceId workspace, IReadOnlyDictionary<ConversationId, ExplorationPlace> places, CancellationToken cancellationToken)
+        {
+            foreach (var (root, place) in places)
+            {
+                Places[root] = place;
+            }
+
+            PlaceWrites += places.Count;
+            return Task.FromResult(places.Count);
+        }
 
         public Task<SummaryNetworkProjection> ProjectAsync(WorkspaceId workspace, CancellationToken cancellationToken) => throw new NotSupportedException();
 
-        public Task<SummaryNetworkProjection> ProjectSessionsAsync(WorkspaceId workspace, CancellationToken cancellationToken) => Task.FromResult(projection);
+        public Task<SummaryNetworkProjection> ProjectSessionsAsync(WorkspaceId workspace, CancellationToken cancellationToken) => Task.FromResult(Current);
 
         public Task<IReadOnlyDictionary<SummaryNodeId, NodePosition>> GetLayoutAsync(WorkspaceId workspace, CancellationToken cancellationToken) => throw new NotSupportedException();
 

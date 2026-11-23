@@ -720,5 +720,23 @@ internal static class SchemaMigrations
             ALTER TABLE resource ADD COLUMN produced_by_task TEXT;
             ALTER TABLE resource ADD COLUMN produced_by_step INTEGER CHECK (produced_by_step IS NULL OR produced_by_step >= 0);
             """),
+
+        Migration.Sql(18, "exploration places in the session network", """
+            -- Where each exploration sits in the spatial view of the session network (design session-network §16, D-035): its
+            -- root conversation's dot (x, y in absolute canvas units), the direction of its oldest branch from the root
+            -- (radians) and how many conversations it had, so a changed exploration can be told from an unchanged one. The
+            -- molecule inside is laid out again on every load; only the exploration's place is kept. Rows go with their root
+            -- conversation or their workspace.
+            CREATE TABLE exploration_place (
+                root_conversation_id TEXT    NOT NULL PRIMARY KEY REFERENCES conversation (id) ON DELETE CASCADE,
+                workspace_id         TEXT    NOT NULL REFERENCES workspace (id) ON DELETE CASCADE,
+                x                    REAL    NOT NULL,
+                y                    REAL    NOT NULL,
+                angle                REAL    NOT NULL,
+                size                 INTEGER NOT NULL CHECK (size >= 1),
+                updated_at           INTEGER NOT NULL
+            ) STRICT, WITHOUT ROWID;
+            CREATE INDEX exploration_place_by_workspace ON exploration_place (workspace_id);
+            """),
     ];
 }

@@ -27,7 +27,7 @@ public static partial class SpatialLayout
 
             public required (int X, int Y)[] Cells { get; init; }
 
-            public required int GapCells { get; init; }
+            public required int GapCells { get; set; }
 
             public required double RootX { get; init; }
 
@@ -60,6 +60,16 @@ public static partial class SpatialLayout
                 }
             }
 
+            SetUpGrid();
+            foreach (var (root, neighbour) in order)
+            {
+                PlaceNew(root, neighbour);
+            }
+        }
+
+        /// <summary>The packing grid's cell, from the largest exploration, and the widest gap any exploration keeps.</summary>
+        private void SetUpGrid()
+        {
             var largest = roots.Max(r =>
             {
                 double l = double.MaxValue, t = double.MaxValue, rr = double.MinValue, b = double.MinValue;
@@ -74,46 +84,139 @@ public static partial class SpatialLayout
             });
             Cell = Math.Max(8, Math.Ceiling(largest / MaxShapeCells));
             maxGapCells = roots.Max(r => GapCells(r));
-            foreach (var (root, neighbour) in order)
+        }
+
+        /// <summary>
+        /// Places an exploration that has no place yet: tried at several turns, beside its neighbour in time (or, the first,
+        /// in the middle), where it keeps its gap from everything placed.
+        /// </summary>
+        private void PlaceNew(int root, int neighbour)
+        {
+            var (cx, cy) = Centroid(root);
+            Translate(root, -cx, -cy);
+
+            // A single dot looks the same at every turn; two or three dots need fewer turns than a big molecule.
+            var turns = size[root] == 1 ? 1 : size[root] <= 3 ? Math.Min(4, s.Rotations) : s.Rotations;
+            // Titles were settled in the unturned shape; a turn whose titles then cover a dot of their own is not offered.
+            var options = new List<Shape>(turns);
+            for (var k = 0; k < turns; k++)
             {
-                var (cx, cy) = Centroid(root);
-                Translate(root, -cx, -cy);
-
-                // A single dot looks the same at every turn; two or three dots need fewer turns than a big molecule.
-                var turns = size[root] == 1 ? 1 : size[root] <= 3 ? Math.Min(4, s.Rotations) : s.Rotations;
-                var shapes = new Shape[turns];
-                for (var k = 0; k < turns; k++)
+                if (k > 0)
                 {
-                    if (k > 0)
-                    {
-                        Rotate(root, 0, 0, 2 * Math.PI / turns);
-                        ChooseLabels(start[root], end[root], threads: false);
-                    }
-
-                    shapes[k] = Capture(root);
+                    Rotate(root, 0, 0, 2 * Math.PI / turns);
+                    ChooseLabels(start[root], end[root], threads: false);
                 }
 
+                if (k == 0 || LabelsClear(start[root], end[root]))
+                {
+                    options.Add(Capture(root));
+                }
+            }
+
+            var shapes = options.ToArray();
+
+            if (occupied.Length == 0)
+            {
+                StartGrid(shapes[0]);
+            }
+
+            var (best, bx, by) = neighbour < 0 ? (shapes[0], 0, 0) : Search(shapes, x[neighbour], y[neighbour]);
+            Apply(root, best, bx, by);
+        }
+
+        /// <summary>Moves an exploration to a chosen shape (its turn and titles) and offset, and marks it on the grid.</summary>
+        private void Apply(int root, Shape shape, int bx, int by)
+        {
+            for (var k = start[root]; k < end[root]; k++)
+            {
+                var i = preorder[k];
+                var (px, py, place) = shape.Dots[k - start[root]];
+                x[i] = px + (bx * Cell);
+                y[i] = py + (by * Cell);
+                side[i] = place;
+            }
+
+            Commit(shape, bx, by);
+        }
+
+        /// <summary>
+        /// Puts explorations back where they were (design session-network §16, option C). Each saved exploration returns to
+        /// its place: its root dot where it was, its oldest branch pointing the same way, its molecule laid out again.
+        /// Changed ones go first and redraw in place; an unchanged one they grew into steps aside to the nearest place where
+        /// it keeps part of its gap. New explorations go beside their neighbour in time.
+        /// </summary>
+        private void PlaceStable()
+        {
+            SetUpGrid();
+            // Unchanged explorations first, so what the reader has seen stays put; a changed one that no longer keeps part of
+            // its gap where it was steps aside to the nearest place that does (no large shifts of the rest, owner 2026-11-23).
+            var known = roots.Where(saved.ContainsKey).OrderBy(r => saved[r].Size == size[r] ? 0 : 1).ThenBy(r => roots.IndexOf(r)).ToList();
+            foreach (var root in known)
+            {
+                // Turn and move only by real amounts, so an unchanged exploration comes back to the very same coordinates.
+                var place = saved[root];
+                var turn = WrapAngle(place.Angle - Heading(root));
+                if (children[root].Length > 0 && Math.Abs(turn) > 1e-9)
+                {
+                    Rotate(root, x[root], y[root], turn);
+                }
+
+                if (Math.Abs(place.X - x[root]) > 1e-9 || Math.Abs(place.Y - y[root]) > 1e-9)
+                {
+                    Translate(root, place.X - x[root], place.Y - y[root]);
+                }
+                ChooseLabels(start[root], end[root], threads: false);
+                if (!LabelsClear(start[root], end[root]))
+                {
+                    // Turned, a title may now lie on a dot of its own exploration: settle briefly, then back to the place.
+                    Settle(root);
+                    Translate(root, place.X - x[root], place.Y - y[root]);
+                }
+
+                var shape = Capture(root);
+
+                // Back in its place, an exploration may come closer to its neighbours than a new one would (no large
+                // shifts, owner 2026-11-23): only when even part of its gap is not kept does it step aside.
+                // The kept gap is rounded down for an unchanged exploration, so a coarser grid on a later load does not move it.
+                var unchanged = saved[root].Size == size[root];
+                var kept = BaseGap(root) * s.KeptGapShare / Cell;
+                shape.GapCells = unchanged ? (int)Math.Floor(kept) : Math.Max(1, (int)Math.Ceiling(kept));
                 if (occupied.Length == 0)
                 {
-                    StartGrid(shapes[0]);
+                    StartGrid(shape);
                 }
 
-                var (best, bx, by) = neighbour < 0 ? (shapes[0], 0, 0) : Search(shapes, x[neighbour], y[neighbour]);
+                var (best, bx, by) = Fits(shape, 0, 0) ? (shape, 0, 0) : Search([shape], place.X, place.Y, (0, 0), centrePull: 0, threadCost: 0);
+                Apply(root, best, bx, by);
+            }
 
-                for (var k = start[root]; k < end[root]; k++)
-                {
-                    var i = preorder[k];
-                    var (px, py, place) = best.Dots[k - start[root]];
-                    x[i] = px + (bx * Cell);
-                    y[i] = py + (by * Cell);
-                    side[i] = place;
-                }
-
-                Commit(best, bx, by);
+            var placed = known.ToHashSet();
+            foreach (var root in roots.Where(r => !placed.Contains(r)).ToList())
+            {
+                // The nearest exploration in time already placed: before it, else after it.
+                var index = roots.IndexOf(root);
+                var neighbour = Enumerable.Range(1, roots.Count)
+                    .SelectMany(d => new[] { index - d, index + d })
+                    .Where(k => k >= 0 && k < roots.Count && placed.Contains(roots[k]))
+                    .Select(k => roots[k])
+                    .DefaultIfEmpty(-1)
+                    .First();
+                PlaceNew(root, neighbour);
+                placed.Add(root);
             }
         }
 
-        private int GapCells(int root) => (int)Math.Ceiling((s.GapTree + (s.GapTreeGrow * Math.Log2(1 + size[root]))) / Cell);
+        /// <summary>The direction of an exploration's oldest branch from its root: what keeps its turn from one layout to the next.</summary>
+        private double Heading(int root) => children[root].Length == 0 ? 0 : Math.Atan2(y[children[root][0]] - y[root], x[children[root][0]] - x[root]);
+
+        /// <summary>The gap an exploration keeps round it, in canvas units, growing with its size.</summary>
+        private double BaseGap(int root) => s.GapTree + (s.GapTreeGrow * Math.Log2(1 + size[root]));
+
+        /// <summary>
+        /// The gap, in cells, an exploration keeps when it is placed anew: its own gap plus room to grow
+        /// (<see cref="SpatialLayoutSettings.GrowRoom"/>), so that later branches usually fit where it is (design §16).
+        /// </summary>
+        private int GapCells(int root) => (int)Math.Ceiling((BaseGap(root) + s.GrowRoom) / Cell);
 
         /// <summary>
         /// The best place for an exploration. Places are its centre's grid cell, in rings outward from its neighbour's root
@@ -121,8 +224,10 @@ public static partial class SpatialLayout
         /// can be clear; otherwise each turn is tried there. The walk stops a band past the first place that fits, or once
         /// no farther ring can win; the best place is then refined among the cells round it.
         /// </summary>
-        private (Shape Best, int X, int Y) Search(Shape[] shapes, double px, double py)
+        private (Shape Best, int X, int Y) Search(Shape[] shapes, double px, double py, (int X, int Y)? centre = null, double? centrePull = null, double? threadCost = null)
         {
+            var pull = centrePull ?? s.CentrePull;
+            var overShape = threadCost ?? s.ThreadOverShape;
             const int Step = 2;
             var best = shapes[0];
             int bestX = 0, bestY = 0;
@@ -146,21 +251,25 @@ public static partial class SpatialLayout
 
                 var rx = shape.RootX + (ox * Cell);
                 var ry = shape.RootY + (oy * Cell);
-                var score = Math.Sqrt(((rx - px) * (rx - px)) + ((ry - py) * (ry - py))) + (s.CentrePull * Cell * Math.Sqrt((ox * ox) + (oy * oy)));
+                var score = Math.Sqrt(((rx - px) * (rx - px)) + ((ry - py) * (ry - py))) + (pull * Cell * Math.Sqrt((ox * ox) + (oy * oy)));
                 if (score >= bestScore || !Fits(shape, ox, oy))
                 {
                     return;
                 }
 
-                score += s.ThreadOverShape * ThreadHits(px, py, rx, ry);
+                score += overShape > 0 ? overShape * ThreadHits(px, py, rx, ry) : 0;
                 if (score < bestScore)
                 {
                     (bestScore, best, bestX, bestY) = (score, shape, ox, oy);
                 }
             }
 
-            var tx = (int)Math.Round(px / Cell);
-            var ty = (int)Math.Round(py / Cell);
+            var (tx, ty) = centre ?? ((int)Math.Round(px / Cell), (int)Math.Round(py / Cell));
+            if (centre is not null)
+            {
+                // Searching round a fixed place: the distance from it is the score, and nothing else bounds the walk.
+                rootReach = 0;
+            }
             var firstRing = -1;
             for (var rho = 0; ; rho++)
             {

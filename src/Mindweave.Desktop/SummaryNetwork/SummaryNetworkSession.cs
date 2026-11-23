@@ -1,6 +1,7 @@
 using CommunityToolkit.Mvvm.ComponentModel;
 using Mindweave.Application.SummaryNetwork;
 using Mindweave.Application.Storage;
+using Mindweave.Core.Conversations;
 using Mindweave.Core.Summaries;
 using Mindweave.Core.Workspaces;
 using Mindweave.Desktop.Services;
@@ -64,9 +65,13 @@ public sealed partial class SummaryNetworkSession : ObservableObject
             return;
         }
 
+        var before = new Dictionary<ConversationId, ExplorationPlace>(_places);
         ComputeSessionPositions(Projection);
         Viewport = null;
         FitAllRequested = false;
+
+        // Explorations first placed in this view (say, after a load in the timeline) keep their place on the next load.
+        _ = SavePlacesAsync(before, CancellationToken.None);
     }
 
     /// <summary>The local calendar day a conversation was created on (the timeline groups roots by it).</summary>
@@ -85,16 +90,54 @@ public sealed partial class SummaryNetworkSession : ObservableObject
             return;
         }
 
-        var spatial = SpatialLayout.Arrange(SpatialNodes(projection, parents, _dayStarts));
+        // Explorations return to their places (design §16, option C): the saved ones, or the ones this session last used.
+        var spatial = SpatialLayout.Arrange(SpatialNodes(projection, parents, _dayStarts), places: _places.ToDictionary(p => p.Key.Value, p => p.Value));
         _positions = new Dictionary<SummaryNodeId, NodePosition>(spatial.Positions);
         _labels = spatial.Labels;
+        _places = spatial.Places.ToDictionary(p => new ConversationId(p.Key), p => p.Value);
     }
+
+    /// <summary>Each exploration's place as last laid out, by its root conversation: read from storage on load, saved when it changes.</summary>
+    private Dictionary<ConversationId, ExplorationPlace> _places = [];
 
     /// <summary>
     /// Where each label sits round its dot in the spatial view of the session network, and its wrapped lines, as the
     /// layout placed them; empty on the timeline and without the gate (labels then go to the right of their dots).
     /// </summary>
     public IReadOnlyDictionary<SummaryNodeId, SpatialLabel> SpatialLabels => _gate.Enabled && !IsTimeline ? _labels : SpatialArrangement.Empty.Labels;
+
+    /// <summary>
+    /// Saves the explorations whose place is new or changed since <paramref name="saved"/>, directly (like a new node's
+    /// automatic place, U3). A failed save is not reported: the next load starts from the last saved places again.
+    /// </summary>
+    private async Task SavePlacesAsync(IReadOnlyDictionary<ConversationId, ExplorationPlace> saved, CancellationToken cancellationToken)
+    {
+        if (IsTimeline)
+        {
+            return;
+        }
+
+        var changed = _places.Where(p => !saved.TryGetValue(p.Key, out var before) || !Same(before, p.Value)).ToDictionary(p => p.Key, p => p.Value);
+        if (changed.Count == 0)
+        {
+            return;
+        }
+
+        try
+        {
+            await _summarySummaryNetwork.SaveExplorationPlacesAsync(Workspace, changed, cancellationToken);
+        }
+#pragma warning disable CA1031 // Layout saving is independent of content; a lost place is worked out again on the next load.
+        catch (Exception swallowed)
+#pragma warning restore CA1031
+        {
+            DesktopLog.Swallowed(swallowed);
+        }
+    }
+
+    /// <summary>Two places alike to well under a pixel (turning and moving back leaves rounding behind).</summary>
+    private static bool Same(ExplorationPlace a, ExplorationPlace b) =>
+        a.Size == b.Size && Math.Abs(a.X - b.X) < 1e-6 && Math.Abs(a.Y - b.Y) < 1e-6 && Math.Abs(a.Angle - b.Angle) < 1e-9;
 
     /// <summary>Each branch's parent: only branches are tree parents; the time thread between roots is not.</summary>
     internal static Dictionary<SummaryNodeId, SummaryNodeId> BranchParents(SummaryNetworkProjection projection) =>
@@ -118,7 +161,8 @@ public sealed partial class SummaryNetworkSession : ObservableObject
             n.Weight,
             SummaryNetworkLayout.DotFootprintRadius(n.Weight, n.HasSummary),
             SummaryNetworkLayout.Label(n.ShortTitle, n.Markers.HasCandidate),
-            dated.Contains(n.Id)))];
+            dated.Contains(n.Id),
+            n.Conversation.Value))];
     }
 
     public WorkspaceId Workspace { get; }
@@ -215,9 +259,12 @@ public sealed partial class SummaryNetworkSession : ObservableObject
         if (_gate.Enabled)
         {
             var sessions = await _summarySummaryNetwork.ProjectSessionsAsync(Workspace, cancellationToken);
+            var savedPlaces = await _summarySummaryNetwork.GetExplorationPlacesAsync(Workspace, cancellationToken);
+            _places = savedPlaces.ToDictionary(p => p.Key, p => p.Value);
             ComputeSessionPositions(sessions);
             Projection = sessions;
             _loaded = true;
+            await SavePlacesAsync(savedPlaces, cancellationToken);
             return;
         }
 

@@ -9,7 +9,9 @@ namespace Mindweave.Desktop.SummaryNetwork;
 /// (questions asked in it and all its branches), the radius of its dot as drawn (summary ring included), its label as
 /// shown, and whether a date line goes under the label (a root that starts a new day, spec §4.4).
 /// </summary>
-public sealed record SpatialNode(SummaryNodeId Id, SummaryNodeId? Parent, int Order, int Weight, double DotRadius, string Label, bool Dated = false);
+/// <remarks><paramref name="Conversation"/> names a root's exploration across loads (its dot's id changes when it gets a summary); the dot's id when not given.</remarks>
+public sealed record SpatialNode(SummaryNodeId Id, SummaryNodeId? Parent, int Order, int Weight, double DotRadius, string Label, bool Dated = false, Guid? Conversation = null);
+
 
 /// <summary>Where a label sits round its dot (an index into <see cref="SpatialLayout.Sides"/>) and its wrapped lines.</summary>
 public sealed record SpatialLabel(int Side, IReadOnlyList<string> Lines);
@@ -17,6 +19,9 @@ public sealed record SpatialLabel(int Side, IReadOnlyList<string> Lines);
 /// <summary>A spatial layout: every dot's position and every label's place.</summary>
 public sealed record SpatialArrangement(IReadOnlyDictionary<SummaryNodeId, NodePosition> Positions, IReadOnlyDictionary<SummaryNodeId, SpatialLabel> Labels)
 {
+    /// <summary>Each exploration's place, keyed by its root conversation (or root dot): what is saved, so the next layout keeps it.</summary>
+    public IReadOnlyDictionary<Guid, ExplorationPlace> Places { get; init; } = new Dictionary<Guid, ExplorationPlace>();
+
     public static SpatialArrangement Empty { get; } = new(new Dictionary<SummaryNodeId, NodePosition>(), new Dictionary<SummaryNodeId, SpatialLabel>());
 }
 
@@ -99,10 +104,14 @@ public static partial class SpatialLayout
     }
 
     /// <summary>
-    /// Lays out every session from scratch. Sessions whose parent is unknown are roots; sessions caught in a parent cycle
-    /// (which the data cannot hold) are left out.
+    /// Lays out every session. Sessions whose parent is unknown are roots; sessions caught in a parent cycle (which the data
+    /// cannot hold) are left out.
     /// </summary>
-    public static SpatialArrangement Arrange(IReadOnlyList<SpatialNode> nodes, SpatialLayoutSettings? settings = null)
+    /// <param name="places">
+    /// Where explorations were (design session-network §16, option C): each one with a place returns to it, moving only if it
+    /// changed and now runs into another; without places, everything is packed afresh.
+    /// </param>
+    public static SpatialArrangement Arrange(IReadOnlyList<SpatialNode> nodes, SpatialLayoutSettings? settings = null, IReadOnlyDictionary<Guid, ExplorationPlace>? places = null)
     {
         ArgumentNullException.ThrowIfNull(nodes);
         if (nodes.Count == 0)
@@ -110,7 +119,7 @@ public static partial class SpatialLayout
             return SpatialArrangement.Empty;
         }
 
-        var model = new Model(nodes, settings ?? SpatialLayoutSettings.Default);
+        var model = new Model(nodes, settings ?? SpatialLayoutSettings.Default, places);
         model.Run();
         return model.Result();
     }
@@ -277,4 +286,10 @@ public sealed record SpatialLayoutSettings
     public double CentrePull { get; init; } = 1;
 
     public double ThreadOverShape { get; init; } = 12;
+
+    /// <summary>How much of its gap an exploration back in its saved place must keep before it is moved (design §16).</summary>
+    public double KeptGapShare { get; init; } = 0.4;
+
+    /// <summary>Room to grow, in canvas units, that a newly placed exploration keeps beyond its gap (design §16).</summary>
+    public double GrowRoom { get; init; } = 120;
 }

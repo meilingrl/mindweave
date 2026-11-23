@@ -144,6 +144,8 @@ Positions are saved per dot, as today (§7.4, U3):
 
 ### 6.3 Storage
 
+Replaced on 2026-11-23 by exploration places (§16, D-035): one saved row per exploration, not per dot. The text below is the earlier per-dot plan.
+
 Positions are keyed by conversation, not by summary node:
 
 - New table: `conversation_layout` (`conversation_id` primary key referencing `conversation` with cascade delete, `workspace_id`, `x`, `y`, `updated_at`).
@@ -334,4 +336,6 @@ The owner chose to finish the network (D-035). The remaining work: round 3 (§8)
 3. **"Stable" means no large sudden shifts.** Small local changes are allowed; large movements of what the reader has already seen are avoided. The §11 proposal states this for requirements §7.3 and §7.4.
 4. **Names.** "Conversation" everywhere, as in the glossary; the code's "session" names change with the gate's removal.
 
-Built on 2026-11-23, behind the switch: round 3 (§8: the quiet link, its note while active, a linked dot bringing out its partners, suggestions never on one line of descent) and the reload fix (a conversation change reloads only its own workspace's network page).
+Built on 2026-11-23, behind the switch: round 3 (§8: the quiet link, its note while active, a linked dot bringing out its partners) and the reload fix (a conversation change reloads only its own workspace's network page). Suggestions never on one line of descent hold without the switch too.
+
+Built on 2026-11-23 (task/network-stable), behind the switch: exploration places. `SpatialLayout.Arrange` takes each exploration's saved place (its root conversation's dot, the direction of its oldest branch, its size) and returns the places it used. Unchanged explorations go back first, to the very same coordinates, and stay there (only in an extremely spread-out workspace, where the packing grid gets very coarse, can one still be pushed); a changed one redraws in its place, and only when it has outgrown its place does it move, to the nearest place where it keeps at least 40% of its gap; new explorations go beside their neighbour in time and keep 120 units of room to grow, so later branches usually fit where they are. Measured on generated workspaces growing one branch at a time (1,367 additions): the changed exploration moved in 37% of them, more than 100 units in 3.8%, at most about 600; no other exploration moved; nothing overlapped. The other order (the changed one stays, its neighbours step aside) moved more of what the reader had seen and was dropped. Migration v18 adds `exploration_place` (rows go with their root conversation or workspace). The session saves new or changed places directly on load, like a new node's place (U3); a failed save is worked out again next time. With places, 1,000 dots in 220 explorations lay out in about 60 ms.
