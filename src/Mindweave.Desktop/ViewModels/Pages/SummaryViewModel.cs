@@ -53,9 +53,10 @@ public sealed partial class SummaryViewModel : PageViewModel, IDisposable, ICarr
     private long _draftRevision;
     private SummaryVersionId _draftBaseline;
 
-    public SummaryViewModel(SummaryRoute route, PageContext context, ISummaries summaries, IUiDispatcher dispatcher, TimeProvider time, ISummaryExport exports, ISystemShell shell, ISummaryLinks? links = null)
+    public SummaryViewModel(SummaryRoute route, PageContext context, ISummaries summaries, IUiDispatcher dispatcher, TimeProvider time, ISummaryExport exports, ISystemShell shell, ISummaryLinks? links = null, TextWidth? textWidth = null)
         : base(route)
     {
+        TextWidth = textWidth;
         ArgumentNullException.ThrowIfNull(route);
         ArgumentNullException.ThrowIfNull(context);
         Node = route.Node;
@@ -80,6 +81,9 @@ public sealed partial class SummaryViewModel : PageViewModel, IDisposable, ICarr
     }
 
     public SummaryNodeId Node { get; }
+
+    /// <summary>How wide the text may be, shared with the conversation pages.</summary>
+    public TextWidth? TextWidth { get; }
 
     /// <summary>
     /// This summary's content links (requirements §10.3.3): "关联到…" in the action bar opens the keyboard picker; the list shows

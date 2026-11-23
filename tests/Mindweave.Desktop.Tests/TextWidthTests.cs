@@ -158,6 +158,47 @@ public class TextWidthTests
         window.Close();
     }
 
+    [AvaloniaTheory]
+    [MemberData(nameof(Themes))]
+    public async Task A_summary_follows_the_width_and_its_edge_is_dragged_too(string theme)
+    {
+        await using var app = DesktopHarness.Create();
+        var (window, page) = await OpenAsync(app, theme);
+        window.Width = 1600;
+        app.Client.Knowledge.Replies.Enqueue("标题：铁路\n\n" + LongAnswer);
+        await page.Summary.SummarizeCommand.ExecuteAsync(null);
+        await UiWait.UntilAsync(() => page.Summary.HasSummary && page.Summary.RunningSummary is null);
+        page.Summary.OpenSummaryCommand.Execute(null);
+        var summary = Assert.IsType<SummaryViewModel>(app.Workbench.CurrentPage);
+        await summary.Loaded;
+        await SettleAsync(window);
+        var view = window.GetVisualDescendants().OfType<Mindweave.Desktop.Views.Pages.SummaryView>().Single();
+        var body = Find<ContentControl>(view, "BodyHost");
+        var header = Find<StackPanel>(view, "Header");
+        Assert.InRange(body.Bounds.Width, TextWidthService.Default - 1, TextWidthService.Default + 1);
+        Assert.InRange(header.Bounds.Width, TextWidthService.Default - 1, TextWidthService.Default + 1);
+        Screenshots.Capture(window, $"text-width-summary-{theme.ToLowerInvariant()}");
+
+        // Left-aligned: the edge dragged follows the pointer, and the text only.
+        var grip = Find<EdgeGrip>(view, "TextGrip");
+        var from = grip.TranslatePoint(new Point(4, 60), window)!.Value;
+        window.MouseDown(from, MouseButton.Left);
+        window.MouseMove(from - new Vector(150, 0));
+        window.MouseUp(from - new Vector(150, 0), MouseButton.Left);
+        await SettleAsync(window);
+        Assert.InRange(body.Bounds.Width, TextWidthService.Default - 151, TextWidthService.Default - 149);
+        Assert.Equal(0, body.TranslatePoint(default, Find<Grid>(view, "TextColumnArea"))!.Value.X, 1);
+        Assert.Equal(TextWidthService.Default - 150, app.Services.GetRequiredService<TextWidth>().Pixels!.Value, 1);
+
+        // The whole page: the grip stays reachable.
+        app.Services.GetRequiredService<TextWidth>().Pixels = null;
+        await SettleAsync(window);
+        Assert.True(body.Bounds.Width > 1_100);
+        Assert.True(grip.IsEffectivelyVisible);
+        Assert.True(grip.TranslatePoint(new Point(grip.Bounds.Width, 0), view)!.Value.X <= view.Bounds.Width);
+        window.Close();
+    }
+
     [AvaloniaFact]
     public async Task Settings_offers_the_widths_and_names_a_dragged_one()
     {

@@ -55,7 +55,7 @@ internal sealed class PageFactory(
     {
         ExploreHomeRoute => new ExploreHomeViewModel(context.Workspace, context.Navigator),
         SummaryNetworkHomeRoute => new SummaryNetworkHomeViewModel(context.Workspace, summaryNetworks.Get(context.Workspace.Id), summaries, conversations, context.Navigator, dispatcher, recommendations, recommendationSettings, links, suggestions, context.Replayed, summaryNetworkDetails),
-        SummaryRoute summary => new SummaryViewModel(summary, context, summaries, dispatcher, time, exports, shell, links),
+        SummaryRoute summary => new SummaryViewModel(summary, context, summaries, dispatcher, time, exports, shell, links, textWidth),
         ConversationRoute conversation => new ConversationViewModel(conversation, context, conversations, reading, dispatcher, storage, summaries, time, conversationDeletion, conversationDeletionPrompt, resources, models, Switch(), textWidth),
         NewConversationRoute fresh => new NewConversationViewModel(context.Workspace.Id, conversations, context.Navigator, context.Navigator, recommendations, dispatcher, fresh, recommendationSettings, reading, models, resources, Switch(), context.Replayed),
         ArchivedRoute => new ArchivedViewModel(context.Workspace, conversations, context.Navigator, dispatcher, conversationDeletion, conversationDeletionPrompt),
