@@ -292,7 +292,7 @@ public class WorkspaceNewsHintTests
         Assert.False(settings.PlaysNewsSound);
         scene.Window.UpdateLayout();
         var toggle = Find<CheckBox>(scene.Window, "NewsSoundToggle");
-        UiInput.Click(scene.Window, toggle);
+        SettingsInput.Click(scene.Window, toggle);
         Assert.True(settings.PlaysNewsSound);
         await settings.Saving;
 
