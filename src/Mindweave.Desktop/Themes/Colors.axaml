@@ -104,9 +104,9 @@
       <SolidColorBrush x:Key="SummaryNetworkLabelRead">#6B7280</SolidColorBrush>
       <SolidColorBrush x:Key="SummaryNetworkLabelActive">#0B1020</SolidColorBrush>
       <SolidColorBrush x:Key="SummaryNetworkCaption">#8A8F99</SolidColorBrush>
-      <SolidColorBrush x:Key="SummaryNetworkEdge">#D3D7DE</SolidColorBrush>
-      <SolidColorBrush x:Key="SummaryNetworkEdgeIndirect">#A3A9B6</SolidColorBrush>
-      <SolidColorBrush x:Key="SummaryNetworkEdgeNear">#7E8698</SolidColorBrush>
+      <SolidColorBrush x:Key="SummaryNetworkEdge">#A1A9B7</SolidColorBrush>
+      <SolidColorBrush x:Key="SummaryNetworkEdgeIndirect">#838B9B</SolidColorBrush>
+      <SolidColorBrush x:Key="SummaryNetworkEdgeNear">#6A7387</SolidColorBrush>
       <SolidColorBrush x:Key="SummaryNetworkEdgeTrail">#5B78F5</SolidColorBrush>
       <SolidColorBrush x:Key="SummaryNetworkFrame">#E7E5E4</SolidColorBrush>
       <!-- Summary network: the soft shadow under a node while it is dragged -->
@@ -266,9 +266,9 @@
       <SolidColorBrush x:Key="SummaryNetworkLabelRead">#8B919C</SolidColorBrush>
       <SolidColorBrush x:Key="SummaryNetworkLabelActive">#F0F2FF</SolidColorBrush>
       <SolidColorBrush x:Key="SummaryNetworkCaption">#858B97</SolidColorBrush>
-      <SolidColorBrush x:Key="SummaryNetworkEdge">#363A42</SolidColorBrush>
-      <SolidColorBrush x:Key="SummaryNetworkEdgeIndirect">#626577</SolidColorBrush>
-      <SolidColorBrush x:Key="SummaryNetworkEdgeNear">#7F899E</SolidColorBrush>
+      <SolidColorBrush x:Key="SummaryNetworkEdge">#5A616C</SolidColorBrush>
+      <SolidColorBrush x:Key="SummaryNetworkEdgeIndirect">#7A7F92</SolidColorBrush>
+      <SolidColorBrush x:Key="SummaryNetworkEdgeNear">#98A3B8</SolidColorBrush>
       <SolidColorBrush x:Key="SummaryNetworkEdgeTrail">#AAB8F5</SolidColorBrush>
       <SolidColorBrush x:Key="SummaryNetworkFrame">Transparent</SolidColorBrush>
       <!-- Summary network: the soft shadow under a node while it is dragged. A black shadow barely shows on the
