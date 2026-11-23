@@ -36,16 +36,6 @@ internal static class ExitScenario
         return request.Cancel;
     }
 
-    public static async Task<SummaryNetworkHomeViewModel> DirtyLayoutAsync(DesktopHarness app, MainWindow window)
-    {
-        await SummaryNetworkScenario.SeedAsync(app);
-        var network = await SummaryNetworkScenario.OpenSummaryNetworkAsync(app, window);
-        await SummaryNetworkScenario.MoveSomethingAsync(app, network);
-        network.ArrangeCommand.Execute(null);
-        Assert.True(network.IsDirty);
-        return network;
-    }
-
     /// <summary>Starts an answer in a new conversation that streams "进行中" and then waits.</summary>
     public static async Task<MessageId> RunningAnswerAsync(DesktopHarness app)
     {

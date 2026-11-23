@@ -137,7 +137,7 @@ internal sealed class SqliteRecommendationStore(SqliteDatabase database) : IReco
             connection =>
             {
                 var ws = ("$ws", (object?)workspace.ToString());
-                var (count, newest) = Facts(connection, ws);
+                var (count, newest, conversations) = Facts(connection, ws);
                 using var command = connection.Command(null, """
                     SELECT n.id, n.display_name, v.title, substr(v.body, 1, $chars), n.created_at
                     FROM summary_node n JOIN summary_version v ON v.id = n.current_version_id
@@ -157,17 +157,17 @@ internal sealed class SqliteRecommendationStore(SqliteDatabase database) : IReco
                         reader.Time(4)));
                 }
 
-                return new RecommendationBases(list, count, newest);
+                return new RecommendationBases(list, count, newest, conversations);
             },
             cancellationToken);
     }
 
-    private static (int Count, DateTimeOffset? Newest) Facts(SqliteConnection connection, (string, object?) ws)
+    private static (int Count, DateTimeOffset? Newest, int Conversations) Facts(SqliteConnection connection, (string, object?) ws)
     {
-        using var command = connection.Command(null, "SELECT count(*), max(created_at) FROM summary_node WHERE workspace_id = $ws;", ws);
+        using var command = connection.Command(null, "SELECT count(*), max(created_at), (SELECT count(*) FROM conversation WHERE workspace_id = $ws) FROM summary_node WHERE workspace_id = $ws;", ws);
         using var reader = command.ExecuteReader();
         reader.Read();
-        return (reader.GetInt32(0), reader.NullableInt64(1) is { } ms ? DateTimeOffset.FromUnixTimeMilliseconds(ms) : null);
+        return (reader.GetInt32(0), reader.NullableInt64(1) is { } ms ? DateTimeOffset.FromUnixTimeMilliseconds(ms) : null, reader.GetInt32(2));
     }
 
     internal static string KindName(RecommendationKind kind) => kind switch

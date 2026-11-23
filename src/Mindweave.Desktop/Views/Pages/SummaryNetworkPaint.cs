@@ -8,7 +8,6 @@ namespace Mindweave.Desktop.Views.Pages;
 internal enum EdgeState
 {
     Normal,
-    Indirect,
     Near,
     Trail,
 }
@@ -22,14 +21,13 @@ internal enum NodeRing
 }
 
 /// <summary>
-/// Everything about one node's drawing, in control coordinates. Read nodes are a hollow ring (stroke only), unread
-/// nodes a solid dot with a small badge at the upper right: shape, not only colour, in both themes.
+/// Everything about one dot's drawing, in control coordinates. A dot whose summary is unread wears a small badge at the
+/// upper right: shape, not only colour, in both themes.
 /// </summary>
 internal sealed record NodePaint(
     NodeView Node,
     Point Center,
     double Radius,
-    bool Hollow,
     bool UnreadDot,
     bool Hovered,
     bool OnTrail,
@@ -40,23 +38,20 @@ internal sealed record NodePaint(
     double LabelSize,
     string Label)
 {
-    /// <summary>Being dragged: drawn on top, a little larger, over a soft shadow.</summary>
-    public bool Lifted { get; init; }
-
     /// <summary>The label as drawn (null when hidden), and where: to the right of the dot.</summary>
     public FormattedText? Text { get; init; }
 
     public Rect LabelBounds { get; init; }
 
     /// <summary>
-    /// A hovered session dot's date on a line of its own, under (or over) its title, when after the title it would cover
+    /// A hovered dot's date on a line of its own, under (or over) its title, when after the title it would cover
     /// another dot; null otherwise.
     /// </summary>
     public FormattedText? DateText { get; init; }
 
     public Rect DateBounds { get; init; }
 
-    /// <summary>The session network: the conversation has a summary, drawn as a thin ring around the dot.</summary>
+    /// <summary>The conversation has a summary, drawn as a thin ring around the dot.</summary>
     public bool SummaryRing { get; init; }
 
     /// <summary>
@@ -85,10 +80,9 @@ internal sealed record NodePaint(
 }
 
 /// <summary>
-/// An edge as drawn. <paramref name="Label"/> ("经 N 个未总结会话") is shown on every edge through unsummarized
-/// conversations: quiet at rest, emphasised while the edge is highlighted (architecture §11).
+/// A line as drawn: a branch, or the time thread.
 /// </summary>
-internal sealed record EdgePaint(EdgeView Edge, Point From, Point To, EdgeState State, bool Dashed, string? Label, bool LabelEmphasized)
+internal sealed record EdgePaint(EdgeView Edge, Point From, Point To, EdgeState State)
 {
     public bool Highlighted => State is EdgeState.Trail or EdgeState.Near;
 
@@ -109,21 +103,17 @@ internal sealed record EdgePaint(EdgeView Edge, Point From, Point To, EdgeState 
 }
 
 /// <summary>
-/// A content link as drawn (requirements §10.3.3): a solid line in the link colour between the two summaries as drawn,
-/// stronger while either end is selected or hovered, and its note (or "关联" when it has none; null when hidden at this zoom)
-/// in a small frame at the middle.
+/// A content link as drawn (requirements §10.3.3): a thin neutral dash between the two summaries as drawn, in the link
+/// colour while either end is selected or hovered (or the line is), with its note then in a small frame at the middle.
 /// </summary>
 internal sealed record LinkPaint(LinkEdgeView Link, Point From, Point To, bool Active)
 {
-    /// <summary>The session network's quiet link: a thin neutral dashed line, with its note only while active (design §8).</summary>
-    public bool Quiet { get; init; }
-
     /// <summary>Faded while a dot with links is selected and this link does not touch it.</summary>
     public bool Dimmed { get; init; }
 
     public FormattedText? Note { get; init; }
 
-    /// <summary>The words of <see cref="Note"/>: the note, or "关联"; null when nothing is written at this zoom.</summary>
+    /// <summary>The words of <see cref="Note"/>: null while it is not shown.</summary>
     public string? Label { get; init; }
 
     /// <summary>The frame around <see cref="Note"/>, centred on the line's middle.</summary>
@@ -146,7 +136,7 @@ internal sealed record SuggestionPaint(SuggestionEdgeView Suggestion, Point From
     public Rect LabelBounds { get; init; }
 }
 
-/// <summary>An exploration's caption, above the bounding box of its nodes.</summary>
+/// <summary>A day label.</summary>
 internal sealed record CaptionPaint(GroupCaption Caption, FormattedText Text, Point Origin)
 {
     public Rect Bounds => new(Origin, new Size(Text.Width, Text.Height));

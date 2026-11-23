@@ -22,14 +22,12 @@ public class TimelineOpeningTests
 {
     private static readonly Size Canvas = new(800, 600);
 
-    private static DesktopHarness Gated() => DesktopHarness.Create(s => s.AddSingleton(new SessionNetworkGate(true)));
-
     private static NodeView Dot(double x, double y, bool root, SummaryNodeId? parent = null) =>
         new(SummaryNodeId.New(), "t", "t", x, y, false, false, 16, parent, root, HasSummary: false, Weight: 1);
 
     /// <summary>From a dot's centre to the end of its drawn label at zoom 1.</summary>
     private static double LabelEnd(NodeView node, double drawn) =>
-        SummaryNetworkGeometry.RadiusOf(node, sessionNetwork: true) + SummaryNetworkLayout.LabelGap + drawn;
+        SummaryNetworkGeometry.DotRadius(node.Weight) + SummaryNetworkLayout.LabelGap + drawn;
 
     [Fact]
     public void A_timeline_that_fits_at_zoom_one_is_centred_at_zoom_one()
@@ -39,7 +37,7 @@ public class TimelineOpeningTests
         var opening = SummaryNetworkGeometry.TimelineOpening([a, b], Canvas, _ => 100);
 
         Assert.Equal(1, opening.Zoom);
-        var left = 0 - SummaryNetworkGeometry.RadiusOf(a, true) - SummaryNetworkCanvas.HoverGrowth;
+        var left = 0 - SummaryNetworkGeometry.DotRadius(a.Weight) - SummaryNetworkCanvas.HoverGrowth;
         var right = 200 + LabelEnd(b, 100);
         Assert.Equal((left + right) / 2, opening.CenterX, 6);
     }
@@ -53,8 +51,8 @@ public class TimelineOpeningTests
 
         Assert.InRange(opening.Zoom, SummaryNetworkGeometry.ReadableZoom, 0.999);
         var label = 100 * SummaryNetworkGeometry.LabelSize(opening.Zoom) / SummaryNetworkCanvas.LabelMaxSize;
-        var left = -SummaryNetworkGeometry.RadiusOf(a, true) - SummaryNetworkCanvas.HoverGrowth;
-        var right = (700 * opening.Zoom) + SummaryNetworkGeometry.RadiusOf(b, true) + SummaryNetworkLayout.LabelGap + label;
+        var left = -SummaryNetworkGeometry.DotRadius(a.Weight) - SummaryNetworkCanvas.HoverGrowth;
+        var right = (700 * opening.Zoom) + SummaryNetworkGeometry.DotRadius(b.Weight) + SummaryNetworkLayout.LabelGap + label;
         Assert.Equal(Canvas.Width - (2 * Viewport.FitMargin), right - left, 0.5);
     }
 
@@ -92,7 +90,7 @@ public class TimelineOpeningTests
     {
         // The owner's Steins;Gate workspace: an older root, the newest root, its branch, and that branch's two branches, with
         // long Chinese titles. All of it fits at a readable zoom, so nothing is cut (trial finding A showed "LH").
-        await using var app = Gated();
+        await using var app = DesktopHarness.Create();
         var window = app.ShowWindow(1400, 900);
         await app.StartWithWorkspaceAsync("命运石之门");
         await app.ConfigureModelAsync();
@@ -123,7 +121,7 @@ public class TimelineOpeningTests
     {
         // Five older explorations with long titles make the timeline too wide to fit; the newest exploration's root, its
         // branch and that branch's two branches still open whole, at zoom 1, ending at about 92% of the width.
-        await using var app = Gated();
+        await using var app = DesktopHarness.Create();
         var window = app.ShowWindow(1400, 900);
         await app.StartWithWorkspaceAsync("命运石之门");
         await app.ConfigureModelAsync();

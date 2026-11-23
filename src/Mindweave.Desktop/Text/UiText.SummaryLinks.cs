@@ -21,14 +21,9 @@ public static partial class UiText
 
     public static string HideLinksTip => T("Only changes what the summary network shows; links aren’t deleted", "只影响网络中的显示，不删除关联");
 
-    /// <summary>The word on a link line that has no note, so every link line carries a word (never colour alone).</summary>
-    public static string LinkTag => T("Link", "关联");
 
     /// <summary>Legend: the line drawn, in words (requirements §10.3: never colour alone).</summary>
-    public static string LegendLink => T("Solid colored line: summary link", "彩色实线：内容关联");
-
-    /// <summary>The session network's link in the legend: a quiet dashed line whose note shows on hover (design §8).</summary>
-    public static string LegendQuietLink => T("Dashed line: summary link", "虚线：内容关联");
+    public static string LegendLink => T("Dashed line: summary link", "虚线：内容关联");
 
     // Picking the other summary on the network (pick mode), with Esc or 取消 to leave it.
     public static string LinkPickHint(string name) => T($"Click another summary in the summary network to link it to “{name}”. Press Esc to cancel.", $"点选网络中的另一个总结，与“{name}”关联。按 Esc 取消。");
@@ -42,6 +37,8 @@ public static partial class UiText
     public static string LinkPickRefusedSelf => T("A summary can’t be linked to itself. Click another summary.", "不能把总结关联到它自己，请点选另一个总结。");
 
     public static string LinkPickRefusedRecommended => T("A recommended node isn’t a summary yet, so it can’t be linked. Click a summary.", "推荐节点还不是总结，不能关联。请点选一个总结。");
+
+    public static string LinkPickRefusedNoSummary(string name) => T($"“{name}” has no summary yet, so it can’t be linked. Click a summary.", $"“{name}”还没有总结，不能关联。请点选一个总结。");
 
     public static string LinkPickRefusedLinked(string name) => T($"“{name}” is already linked to it. Click another summary.", $"“{name}”已经与它关联，请点选另一个总结。");
 

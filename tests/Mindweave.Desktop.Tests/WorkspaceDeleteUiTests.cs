@@ -75,7 +75,7 @@ public class WorkspaceDeleteUiTests
     }
 
     [AvaloniaFact]
-    public async Task Deleting_the_current_workspace_opens_the_most_recent_one_and_drops_its_pages_and_unsaved_layout_unasked()
+    public async Task Deleting_the_current_workspace_opens_the_most_recent_one_and_drops_its_pages_and_network()
     {
         await using var app = DesktopHarness.Create();
         var window = app.ShowWindow(1100, 720);
@@ -91,15 +91,12 @@ public class WorkspaceDeleteUiTests
         app.ShellPage.SelectedWorkspace = train;
         await app.Workbench.LastLocationSave;
 
-        // A conversation page in the back history, and an arrangement that only an explicit save would keep.
+        // A conversation page in the back history, and the network open.
         await UiWait.UntilAsync(() => app.ShellPage.Conversations.Items.Count == 4);
         var root = app.ShellPage.Conversations.Items[0];
         app.ShellPage.Conversations.OpenCommand.Execute(root);
         var page = Assert.IsType<ConversationViewModel>(app.Workbench.CurrentPage);
-        var network = await SummaryNetworkScenario.OpenSummaryNetworkAsync(app, window);
-        await SummaryNetworkScenario.MoveSomethingAsync(app, network);
-        network.ArrangeCommand.Execute(null);
-        Assert.True(network.IsDirty);
+        var session = (await SummaryNetworkScenario.OpenSummaryNetworkAsync(app, window)).Session;
 
         app.ShellPage.DeleteWorkspaceCommand.Execute(null);
         var dialog = app.Root.WorkspaceDeletion;
@@ -109,8 +106,7 @@ public class WorkspaceDeleteUiTests
         await dialog.DeleteCommand.ExecuteAsync(null);
 
         Assert.False(dialog.IsOpen);
-        Assert.False(app.Root.LayoutPrompt.IsOpen);
-        Assert.Empty(app.Services.GetRequiredService<SummaryNetworkSessions>().Dirty);
+        Assert.NotSame(session, app.Services.GetRequiredService<SummaryNetworkSessions>().Get(train.Id));
         Assert.Equal(recent.Id, app.Workbench.CurrentWorkspace!.Id);
         Assert.Equal(MainSection.Explore, app.Workbench.CurrentSection);
         Assert.IsType<ExploreHomeViewModel>(app.Workbench.CurrentPage);
@@ -121,8 +117,6 @@ public class WorkspaceDeleteUiTests
         await UiWait.UntilAsync(() => app.ShellPage.Conversations.Items.Count == 0);
         Assert.Single(app.Services.GetRequiredService<Application.Startup.IDatabaseLifecycle>().ListBackups());
 
-        // Quitting afterwards asks nothing about the deleted workspace's layout.
-        Assert.False(app.Root.LayoutPrompt.HoldExit(_ => { }, () => { }));
         window.Close();
     }
 

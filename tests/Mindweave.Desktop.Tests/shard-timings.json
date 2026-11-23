@@ -50,7 +50,7 @@
  "Mindweave.Desktop.Tests.StreamingSelectionTests": 2.2,
  "Mindweave.Desktop.Tests.SummaryLinksUiTests": 7.2,
  "Mindweave.Desktop.Tests.SummaryNetworkCanvasTests": 3.1,
- "Mindweave.Desktop.Tests.SummaryNetworkDragTests": 3.8,
+ "Mindweave.Desktop.Tests.SummaryNetworkPointerTests": 3.8,
  "Mindweave.Desktop.Tests.SummaryNetworkLayoutTests": 0.0,
  "Mindweave.Desktop.Tests.SummaryNetworkUiTests": 1.7,
  "Mindweave.Desktop.Tests.SummaryUiTests": 3.1,

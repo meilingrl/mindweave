@@ -1,11 +1,12 @@
 using System.Globalization;
+using Mindweave.Application.Storage;
 using Mindweave.Core.Workspaces;
 
 namespace Mindweave.Application.Recommendations;
 
 /// <summary>
 /// What the summary network shows (requirements §10.3.2): whether nodes are on, how many summaries the workspace has,
-/// the pending nodes (at most <see cref="RecommendationService.NodeTarget"/> of that count), whether they are hidden
+/// the pending nodes (at most <see cref="RecommendationService.NodeTarget"/>), whether they are hidden
 /// (隐藏推荐), whether a request runs for them, and the last background failure to mention quietly.
 /// </summary>
 public sealed record NodeOffer(bool Enabled, int SummaryCount, IReadOnlyList<Recommendation> Items, bool Hidden, bool IsPreparing, RecommendationOutcome? Failure, bool AutoPrepares = true)
@@ -42,7 +43,7 @@ internal readonly record struct NodePlan(int Tier, DateTimeOffset Since, int Spe
 
 public sealed partial class RecommendationService
 {
-    /// <summary>The most nodes a network shows (over 30 summaries).</summary>
+    /// <summary>The most nodes a network shows (over 30 conversations).</summary>
     public const int MaxNodes = 3;
 
     /// <summary>Preference key prefix: the tier a workspace's network was last filled for, and since when.</summary>
@@ -51,14 +52,17 @@ public sealed partial class RecommendationService
     /// <summary>Preference key prefix: 隐藏推荐 is on for the workspace (absent: shown).</summary>
     public const string NodesHiddenKeyPrefix = "recommend.nodes.hidden:";
 
-    /// <summary>How many nodes a network with <paramref name="summaries"/> saved summaries shows: 0; 1–10 → 1; 11–30 → 2; more → 3.</summary>
-    public static int NodeTarget(int summaries) => summaries switch
+    /// <summary>How many nodes a network with <paramref name="conversations"/> conversations shows: 0; 1–10 → 1; 11–30 → 2; more → 3.</summary>
+    public static int NodeTarget(int conversations) => conversations switch
     {
         <= 0 => 0,
         <= 10 => 1,
         <= 30 => 2,
         _ => MaxNodes,
     };
+
+    /// <summary>The same for a workspace: none without a summary, since every node extends one (§10.3.2, v0.25).</summary>
+    private static int NodeTarget(RecommendationBases bases) => bases.Count == 0 ? 0 : NodeTarget(bases.Conversations);
 
     public async Task<NodeOffer> GetNodesAsync(WorkspaceId workspace, CancellationToken cancellationToken)
     {
@@ -71,7 +75,7 @@ public sealed partial class RecommendationService
         var rows = await _store.ListAsync(workspace, RecommendationKind.Node, cancellationToken).ConfigureAwait(false);
 
         // Below a tier the extra ones are not shown even before they are removed.
-        var pending = rows.Where(r => r.State == RecommendationState.Pending).Take(NodeTarget(bases.Count)).ToList();
+        var pending = rows.Where(r => r.State == RecommendationState.Pending).Take(NodeTarget(bases)).ToList();
 
         // No model, or its key refused: none is drawn (§10.3 共同规则); 换一批推荐 is still there to say why.
         if (!await UsableModelAsync(workspace, cancellationToken).ConfigureAwait(false))
@@ -97,7 +101,7 @@ public sealed partial class RecommendationService
             return RecommendationOutcome.Refused(RecommendationProblem.Disabled);
         }
 
-        var tier = NodeTarget((await _store.ListBasesAsync(workspace, 0, 1, cancellationToken).ConfigureAwait(false)).Count);
+        var tier = NodeTarget(await _store.ListBasesAsync(workspace, 0, 1, cancellationToken).ConfigureAwait(false));
         if (tier == 0)
         {
             return RecommendationOutcome.Refused(RecommendationProblem.NoContent);
@@ -174,7 +178,7 @@ public sealed partial class RecommendationService
     }
 
     /// <summary>
-    /// §10.3.2's rules, on opening the network or a change of its summaries. A drop below a tier removes the extra pending
+    /// §10.3.2's rules, on opening the network or a change of its conversations. A drop below a tier removes the extra pending
     /// nodes (no request). With 自动准备推荐 on and the nodes shown, a request is made only when the network never had any
     /// (fill the tier), when it rose to a higher tier than it was filled for (fill up to it, the empty slots included), or
     /// when a node's basis summary was deleted (fill that slot). A slot emptied by 忽略 or by exploring stays empty.
@@ -197,13 +201,12 @@ public sealed partial class RecommendationService
             }
         }
 
-        var count = (await _store.ListBasesAsync(workspace, 0, 1, CancellationToken.None).ConfigureAwait(false)).Count;
-        var target = NodeTarget(count);
+        var target = NodeTarget(await _store.ListBasesAsync(workspace, 0, 1, CancellationToken.None).ConfigureAwait(false));
         var rows = await _store.ListAsync(workspace, RecommendationKind.Node, CancellationToken.None).ConfigureAwait(false);
         var pending = rows.Where(r => r.State == RecommendationState.Pending).ToList();
         if (pending.Count > target)
         {
-            // Fewer summaries than the tier the nodes were made for: the newest extra ones go, without a request.
+            // Fewer conversations than the tier the nodes were made for: the newest extra ones go, without a request.
             var extra = pending.Skip(target).Select(r => r.Id).ToList();
             await _store.RemovePendingAsync(workspace, RecommendationKind.Node, extra, CancellationToken.None).ConfigureAwait(false);
             pending = [.. pending.Take(target)];

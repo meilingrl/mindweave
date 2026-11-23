@@ -36,7 +36,7 @@ public class LinkSuggestionsUiTests
     private const string Sibling = "铁轨";
 
     [AvaloniaFact]
-    public async Task The_toolbar_keeps_one_row_at_1100_px_with_links_recommendations_and_an_unsaved_layout()
+    public async Task The_toolbar_keeps_one_row_at_1100_px_with_links_and_recommendations()
     {
         await using var app = DesktopHarness.Create();
         var window = app.ShowWindow(1100, 720);
@@ -47,17 +47,10 @@ public class LinkSuggestionsUiTests
         await UiWait.UntilAsync(() => network.LinkEdges.Count == 1);
         window.UpdateLayout();
 
-        // Every tool there: find, show all, zoom, arrange, list, 换一批推荐, 隐藏推荐, 关联 — on one row.
+        // Every tool there: the two views, find, show all, zoom, list, 换一批推荐, 隐藏推荐, 关联 — on one row.
         Assert.True(network.ShowsRecommendationTools && network.ShowsLinkTools);
         AssertOneRow(window);
 
-        // Also with the layout unsaved, when the wider accent 保存布局 takes the saved status's place.
-        network.ArrangeCommand.Execute(null);
-        await SummaryNetworkScenario.MoveSomethingAsync(app, network);
-        network.ArrangeCommand.Execute(null);
-        window.UpdateLayout();
-        Assert.True(network.IsDirty);
-        AssertOneRow(window);
         window.Close();
     }
 
@@ -88,7 +81,7 @@ public class LinkSuggestionsUiTests
 
         // Two: unavailable, and the menu says why in words (and the entry's help text and tip).
         await DeleteSummaryAsync(app, NodeOf(network, Sibling));
-        await UiWait.UntilAsync(() => network.Nodes.Count == 2 && !network.Suggestions!.CanSuggest);
+        await UiWait.UntilAsync(() => network.Nodes.Count(n => n.HasSummary) == 2 && !network.Suggestions!.CanSuggest);
         LinksMenu.Open(window);
         item = LinksMenu.Entry(window, "SuggestLinksMenuItem");
         Assert.False(item.IsEffectivelyEnabled);
@@ -112,17 +105,14 @@ public class LinkSuggestionsUiTests
         await RecommendedNodesUiTests.PrepareAsync(app, network, window);
         await app.Services.GetRequiredService<ISummaryLinks>().CreateAsync(NodeOf(network, Steam), NodeOf(network, Leaf), null, CancellationToken.None);
         await UiWait.UntilAsync(() => network.LinkEdges.Count == 1);
-        var revision = network.Session.Revision;
-        var layoutRows = await LayoutRowsAsync(app);
+        var positions = network.Session.Positions.ToDictionary(p => p.Key, p => p.Value);
         Assert.False(LegendCard.Shows(window, "SuggestionLegend"));
 
         await SuggestAsync(app, window, network, (Steam, Sibling, "对比", "都讲铁路的起点"), (Leaf, Sibling, null, "轨道决定速度"));
 
-        // Drawn between the two summaries; nothing about the layout changed; never part of 整理布局.
+        // Drawn between the two summaries; nothing about the layout changed; never part of it.
         Assert.Equal(2, network.SuggestionEdges.Count);
-        Assert.False(network.IsDirty);
-        Assert.Equal(revision, network.Session.Revision);
-        Assert.Equal(layoutRows, await LayoutRowsAsync(app));
+        Assert.Equal(positions, network.Session.Positions.ToDictionary(p => p.Key, p => p.Value));
 
         // The words on each line: "建议", with the note when there is one, in a dashed frame at the middle.
         var canvas = CanvasOf(window);
@@ -130,24 +120,22 @@ public class LinkSuggestionsUiTests
         Assert.Equal(new HashSet<string?> { UiText.LinkSuggestionLabel("对比"), UiText.LinkSuggestionTag }, paints.Select(p => p.Label).ToHashSet());
         Assert.All(paints, p => Assert.True(OnLine(p.LabelBounds.Center, p.From, p.To)));
 
-        // Dash-dot, unlike the solid link and source edge, the dashed indirect edge and the round-dotted recommendation line;
-        // a lighter tone than the link; the words are not the link's ("关联" or a bare note).
+        // Dash-dot, unlike the dashed link, the solid branch line and the round-dotted recommendation line; a lighter tone than
+        // the link's active one.
         var palette = SummaryNetworkPalette.From(canvas);
         var pen = palette.LinkSuggestionPen(false);
         Assert.Equal(4, pen.DashStyle!.Dashes!.Count);
-        Assert.Null(palette.LinkPen(false).DashStyle);
-        Assert.Null(palette.EdgePen(EdgeState.Normal, false).DashStyle);
-        Assert.NotEqual(pen.DashStyle.Dashes, palette.EdgePen(EdgeState.Indirect, true).DashStyle!.Dashes);
+        Assert.NotEqual(pen.DashStyle.Dashes, palette.LinkPen(false).DashStyle!.Dashes);
+        Assert.Null(palette.EdgePen(EdgeState.Normal).DashStyle);
         Assert.NotEqual(pen.DashStyle.Dashes, palette.RecommendationLink(false).DashStyle!.Dashes);
         Assert.Equal(PenLineCap.Flat, pen.LineCap);
         var colour = ((ISolidColorBrush)pen.Brush!).Color;
-        foreach (var other in new[] { palette.Link, palette.Edge, palette.EdgeIndirect, palette.EdgeTrail, palette.Recommendation })
+        foreach (var other in new[] { palette.Link, palette.Edge, palette.EdgeTrail, palette.Recommendation })
         {
             Assert.NotEqual(colour, ((ISolidColorBrush)other).Color);
         }
 
-        Assert.DoesNotContain(paints, p => p.Label == UiText.LinkTag);
-        Assert.All(canvas.PaintLinks(), l => Assert.DoesNotContain(UiText.LinkSuggestionTag, l.Label!, StringComparison.Ordinal));
+        Assert.All(canvas.PaintLinks(), l => Assert.Null(l.Label));
 
         // The legend says what the line is, in words.
         window.UpdateLayout();
@@ -155,12 +143,9 @@ public class LinkSuggestionsUiTests
         Assert.True(LegendCard.Shows(window, "SuggestionLegend"));
         Assert.Contains(legend.GetVisualDescendants().OfType<TextBlock>(), t => t.Text == UiText.LegendLinkSuggestion);
 
-        // 整理布局 is the same with or without them.
-        network.ArrangeCommand.Execute(null);
-        var arranged = network.Session.Positions.ToDictionary(p => p.Key, p => p.Value);
+        // Ignoring them all moves nothing either.
         await network.Suggestions!.IgnoreAllCommandHelperAsync();
-        network.ArrangeCommand.Execute(null);
-        Assert.Equal(arranged, network.Session.Positions.ToDictionary(p => p.Key, p => p.Value));
+        Assert.Equal(positions, network.Session.Positions.ToDictionary(p => p.Key, p => p.Value));
         window.Close();
     }
 
@@ -175,9 +160,9 @@ public class LinkSuggestionsUiTests
         await UiWait.UntilAsync(() => network.LinkEdges.Count == 1);
         await SuggestAsync(app, window, network, (Steam, Leaf, "对比", "一"), (Steam, Sibling, "例子", "二"));
 
-        // The sibling dragged onto the leaf: both suggestions (and the link between them) have the same middle.
+        // The sibling put onto the leaf: both suggestions (and the link between them) have the same middle.
         var leaf = network.Nodes.Single(n => n.ShortTitle == Leaf);
-        network.MoveNode(NodeOf(network, Sibling), leaf.X + 1, leaf.Y + 1);
+        network.PutDotForTests(NodeOf(network, Sibling), leaf.X + 1, leaf.Y + 1);
         window.UpdateLayout();
         var canvas = CanvasOf(window);
         var paints = canvas.PaintSuggestions();
@@ -198,11 +183,11 @@ public class LinkSuggestionsUiTests
         var network = await SummaryNetworkScenario.OpenSummaryNetworkAsync(app, window);
         await SuggestAsync(app, window, network, (Steam, Leaf, "对比", "一"));
 
-        // The sibling dragged to the middle of the suggested pair: the words move off it, and it stays clickable.
+        // The sibling put in the middle of the suggested pair: the words move off it, and it stays clickable.
         var root = network.Nodes.Single(n => n.ShortTitle == Steam);
         var leaf = network.Nodes.Single(n => n.ShortTitle == Leaf);
         var sibling = NodeOf(network, Sibling);
-        network.MoveNode(sibling, (root.X + leaf.X) / 2, (root.Y + leaf.Y) / 2);
+        network.PutDotForTests(sibling, (root.X + leaf.X) / 2, (root.Y + leaf.Y) / 2);
         window.UpdateLayout();
         var canvas = CanvasOf(window);
         var paint = Assert.Single(canvas.PaintSuggestions());
@@ -598,9 +583,6 @@ public class LinkSuggestionsUiTests
 
     private static Task<long> CountAsync(DesktopHarness app, string where) =>
         app.Services.GetRequiredService<SqliteDatabase>().ReadAsync(c => c.Scalar<long>(null, $"SELECT count(*) FROM link_suggestion WHERE {where};"), CancellationToken.None);
-
-    private static Task<long> LayoutRowsAsync(DesktopHarness app) =>
-        app.Services.GetRequiredService<SqliteDatabase>().ReadAsync(c => c.Scalar<long>(null, "SELECT count(*) FROM node_layout;"), CancellationToken.None);
 
     private static async Task DeleteSummaryAsync(DesktopHarness app, SummaryNodeId node)
     {

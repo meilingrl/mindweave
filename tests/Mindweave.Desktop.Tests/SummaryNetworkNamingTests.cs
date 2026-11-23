@@ -13,18 +13,18 @@ using static Mindweave.Desktop.Tests.UiTree;
 namespace Mindweave.Desktop.Tests;
 
 /// <summary>
-/// How the session network names and counts behind its gate: a dot, its details and the sidebar name a conversation by
+/// How the network names and counts: a dot, its details and the sidebar name a conversation by
 /// one rule; the list view names a dot by that name, never its whole question; and 建议关联 counts summaries, not dots.
 /// </summary>
-public class SessionNetworkNamingTests
+public class SummaryNetworkNamingTests
 {
     [AvaloniaFact]
     public async Task Suggest_links_counts_summaries_not_dots()
     {
         // Final review I1: four conversations, one summary. 建议关联 needs three summaries, so it stays unavailable.
-        await using var app = SessionNetworkUiTests.Gated();
+        await using var app = DesktopHarness.Create();
         var window = app.ShowWindow(1100, 720);
-        await SessionNetworkUiTests.SeedAsync(app);
+        await SummaryNetworkPageTests.SeedAsync(app);
         var conversations = app.Services.GetRequiredService<ConversationService>();
         await SummaryNetworkScenario.AskAsync(app, conversations, null, app.Workbench.CurrentWorkspace!.Id, "咖啡怎么冲？");
         var network = await SummaryNetworkScenario.OpenSummaryNetworkAsync(app, window);
@@ -42,9 +42,9 @@ public class SessionNetworkNamingTests
     {
         // Final review I2: a 2,000-character question over many lines names its row by the title, as the details do, and
         // the row stays narrower than the list. A row without a summary has no reading state, so it is not muted as read.
-        await using var app = SessionNetworkUiTests.Gated();
+        await using var app = DesktopHarness.Create();
         var window = app.ShowWindow(1100, 720);
-        var (_, _, plain) = await SessionNetworkUiTests.SeedAsync(app);
+        var (_, _, plain) = await SummaryNetworkPageTests.SeedAsync(app);
         var conversations = app.Services.GetRequiredService<ConversationService>();
         var question = string.Concat(Enumerable.Repeat("火车为什么这样跑？\n", 200));
         Assert.Equal(2000, question.Length);
@@ -76,9 +76,9 @@ public class SessionNetworkNamingTests
     {
         // Final review M3: an untitled branch is named by its quote, an untitled conversation by its first question, and
         // one with neither by 新会话, the same on the dot, as the details heading and in the sidebar.
-        await using var app = SessionNetworkUiTests.Gated();
+        await using var app = DesktopHarness.Create();
         var window = app.ShowWindow(1100, 720);
-        var (summarized, branch, plain) = await SessionNetworkUiTests.SeedAsync(app);
+        var (summarized, branch, plain) = await SummaryNetworkPageTests.SeedAsync(app);
         var bare = ConversationId.New();
         var workspace = app.Workbench.CurrentWorkspace!.Id;
         var generation = app.Services.GetRequiredService<GenerationCoordinator>();

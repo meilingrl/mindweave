@@ -64,6 +64,32 @@ public partial class IconResourceTests
         Assert.Empty(problems);
     }
 
+    /// <summary>A missing key is no build error and no exception: what it colours just disappears (onboarding, 2026-11-23).</summary>
+    [AvaloniaFact]
+    public void Every_dynamic_resource_a_view_names_exists_in_both_themes()
+    {
+        var window = new Window();
+        window.Show();
+        var missing = new List<string>();
+        foreach (var file in Directory.EnumerateFiles(Desktop, "*.axaml", SearchOption.AllDirectories).Where(f => !f.Contains($"{Path.DirectorySeparatorChar}obj{Path.DirectorySeparatorChar}", StringComparison.Ordinal)))
+        {
+            foreach (Match use in Regex.Matches(File.ReadAllText(file), @"\{DynamicResource (\w+)\}"))
+            {
+                var key = use.Groups[1].Value;
+                foreach (var theme in new[] { ThemeVariant.Light, ThemeVariant.Dark })
+                {
+                    if (!window.TryFindResource(key, theme, out _))
+                    {
+                        missing.Add($"{Path.GetFileName(file)}: {key} ({theme})");
+                    }
+                }
+            }
+        }
+
+        window.Close();
+        Assert.Empty(missing);
+    }
+
     [Fact]
     public void Icons_axaml_is_generated_from_the_current_stroke_source()
     {
