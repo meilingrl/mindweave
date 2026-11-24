@@ -20,6 +20,13 @@ public class CutOffTests
         Assert.Contains("needs", Assert.Single(Cut(new TextBlock { Text = "A text that is longer than this", Width = 60 })), StringComparison.Ordinal);
 
     [AvaloniaFact]
+    public void A_text_left_with_no_room_is_found()
+    {
+        var row = new DockPanel { Width = 60, Children = { new TextBlock { Text = "A text that is longer than this", TextTrimming = TextTrimming.CharacterEllipsis, [DockPanel.DockProperty] = Dock.Left }, new Border { Child = new TextBlock { Name = "Gone", Text = "Gone" } } } };
+        Assert.Contains("Gone", Assert.Single(Cut(row)), StringComparison.Ordinal);
+    }
+
+    [AvaloniaFact]
     public void A_text_that_wraps_or_ends_in_an_ellipsis_is_left_alone()
     {
         Assert.Empty(Cut(new TextBlock { Text = "A text that is longer than this", Width = 60, TextWrapping = TextWrapping.Wrap }));
