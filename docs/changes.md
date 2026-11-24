@@ -16,6 +16,16 @@ The second number rises when a capability is finished and on by default, and the
 
 The nine merges after 0.5.0, on 2026-11-22 and 2026-11-23, are 0.5.1 to 0.5.9 in order. They keep their dated entries below.
 
+## 0.6.7 · 2026-11-24
+
+- Added scenes with the longest names to the page test of 0.6.6, which also reports a text left with no room at all ([testing.md](design/testing.md))
+- Changed the recommended questions of a new conversation to scroll when the page has no room for them, and an MCP tool's risk box to grow with its text
+- Fixed names at their longest, which were cut off: the archived rows, the branch path, a tool step's result links, a citation's host line, an MCP server's name and its tools' names, the tool calls in the statistics, and the workspace row, where a long name pushed the "当前" (Current) tag out
+- Fixed the page test that failed CI on 0.6.6: it looked at whichever title was there first, and it archived before the answer's last write (tests only)
+- Fixed the tests that pressed a row of the settings while the page was still loading (tests only)
+- Try: `scripts/daily.sh trial`; give a conversation and a workspace a very long name, archive the conversation, and make the window small
+- Not verified: Windows hardware; the dark theme (no colours changed)
+
 ## 0.6.6 · 2026-11-24
 
 - Added a test that checks every main page with its forms and menus, in both languages, at the first and the smallest window size: nothing is cut off and no controls lie over each other. A new page, form or menu gets a scene in it ([testing.md](design/testing.md))
