@@ -346,7 +346,7 @@ public sealed partial class SummaryViewModel : PageViewModel, IDisposable, ICarr
             if (current is null)
             {
                 // The last version went and the node with it; the source conversation remains.
-                _navigator.Navigate(new NavigationRequest(MainSection.Explore, new ConversationRoute(detail.Node.Conversation)));
+                _navigator.Navigate(new NavigationRequest(MainSection.Explore, new ConversationRoute(detail.Node.Conversation)) { From = this });
             }
             else if (_shownId is { } shown && selected.Contains(shown))
             {

@@ -300,7 +300,7 @@ public partial class LanguageSwitchTests
             Assert.Equal("火车是怎么发明的？", page.Messages[0].Body);
 
             // Whatever the old pages still do reaches a workbench that has let them go: nothing happens.
-            old.Replace(new ConversationRoute(page.Id));
+            old.Replace(page, new ConversationRoute(page.Id));
             old.Push(NewConversationRoute.Instance);
             old.Navigate(new NavigationRequest(MainSection.Settings));
             old.GoBack();
