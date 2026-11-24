@@ -17,6 +17,14 @@ The second number rises when a capability is finished and on by default, and the
 
 The nine merges after 0.5.0, on 2026-11-22 and 2026-11-23, are 0.5.1 to 0.5.9 in order. They keep their dated entries below.
 
+## 0.6.11 · 2026-11-24
+
+- Added the application icon: a brain drawn as one line, like a strand of yarn (your choice of 2026-11-24). It is the icon of the Windows program and window, and of the macOS launcher of the daily build
+- Added `scripts/icons/app-icon.cs`, which draws the icon at every size; below 100 px it draws a simpler figure
+- Added the app icon prototype (`prototypes/app-icon/`): the four rounds, the brain sketches and the chosen drawing
+- Try: `dotnet run scripts/icons/app-icon.cs -- /tmp/mindweave-icon-sizes` and look at the sizes; `scripts/daily.sh publish` then shows the icon in the Dock
+- Not verified: Windows (taskbar, title bar, the program file); your Dock; the small sizes in daily use; the black tile on a dark taskbar, where it nearly disappears
+
 ## 0.6.10 · 2026-11-24
 
 - Added "Newer content" to the network's details
