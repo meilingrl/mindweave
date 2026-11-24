@@ -111,7 +111,10 @@ Each concept in requirements §4 has only one name in code: namespaces, folders,
 | the summary network's views: spatial view (空间), timeline view (时间线) (requirements v0.25 §7.3) | `SummaryNetworkViewMode.Spatial` (laid out by `SpatialLayout`), `SummaryNetworkViewMode.Timeline` (laid out by `TimelineLayout`) |
 | time thread (时间先后) (requirements v0.25) | `TimeThread` |
 | a dot's weight: how much was asked in a conversation and its branches (requirements v0.25 §7.3) | `Weight` (computed by `ConversationWeights`) |
-| sharing (分享) (evolution D8 idea, not yet in the requirements) | `Share` |
+| share (分享) (requirements v0.29 §10.7): the selection, the share dialog and the shared page | `Share` |
+| exchange document (交换文档): the one outward form of conversations, which a share and a device copy both carry (seam E5) | `Exchange` (the document `ExchangeDocument`) |
+| import (导入) of a shared file or a device copy (requirements v0.29 §10.7) | `Import` |
+| device copy (设备副本) (requirements v0.29 §10.7) | `DeviceCopy` |
 
 Reserved words are used only with these meanings: `Network` means a network connection (such as a connection failure, `NetworkRead`), and `Graph` means the general graph structure in layout algorithms. `Web` is used only for web search and web pages; `Source` is already used for branch sources (`BranchSource`), citations always use `Citation`, and the provenance of a resource uses `Provenance`.
 
@@ -363,7 +366,7 @@ Summaries are saved in local SQLite, with the body in Markdown. An externally ed
 
 The user chooses the location and handles overwriting a file of the same name. An export is an independent copy: it does not watch for external changes, does not sync back to the database and does not manage file versions. Exporting does not create a summary version or change the adoption pointer. The internal version mechanism stays.
 
-The final goal is full project import/export, including conversations, messages, branch sources, summaries and version relationships. The first release keeps stable identities and clear associations, and does not yet implement project packages, conflict merging or importing arbitrary Markdown. The package format and versioning rules are not yet decided.
+Import and export of whole conversations, with messages, branch sources, summaries and version relationships, are in §16 (requirements §10.7). Importing arbitrary Markdown is not included.
 
 ### 8.2 Confirmed version operations and delegated implementation details
 
@@ -551,7 +554,7 @@ Specific interactions for request timeouts, retries and answer attempts were onc
 
 ### 14.3 Later scope
 
-The design of the agent platform (requirements §10.4) is in §15, and it is implemented on schedule; a code execution sandbox and long-running background agents are not planned. Full project import/export, a full multi-provider management UI, cross-workspace semantic associations and automatic classification, free-quota services, Linux and 3D are not current prerequisites. The first batch of recommendations and summary links is written into requirements §10.3 as increments after the first release, not as first-release gates. Manual dragging and decorative animation keep their recorded phasing; explicit saving of automatic layout coordinates is already the current plan and is not postponed as a whole.
+The design of the agent platform (requirements §10.4) is in §15, and it is implemented on schedule; a code execution sandbox and long-running background agents are not planned. Automatic cross-device sync, a full multi-provider management UI, cross-workspace semantic associations and automatic classification, free-quota services, Linux and 3D are not current prerequisites. The first batch of recommendations and summary links is written into requirements §10.3 as increments after the first release, not as first-release gates. Manual dragging and decorative animation keep their recorded phasing; explicit saving of automatic layout coordinates is already the current plan and is not postponed as a whole.
 
 ### 14.4 Notes on adopting the review
 
@@ -772,3 +775,45 @@ Product basis: requirements §10.4.6 (v0.19). This section fills in the details 
 - **Processes and connections.** `McpServerManager` (Application, singleton) holds connections and status per server. It connects on demand (start, handshake and listing tools complete within 30 seconds), and connects to one server only once at a time. When a connection ends (process exit, URL disconnect), the status becomes error and the exit time is recorded; backoff decides when the next reconnect may happen; after 5 times within 10 minutes, automatic reconnection stops. On application exit the host releases it, closing connections one by one. Infrastructure's `SdkMcpConnector`: a local command uses `StdioClientTransport` (no inherited environment; only the SDK's basic variable set minus `MINDWEAVE_*`, plus the variables the user filled in; working directory `<数据目录>/mcp/<编号>/` (data directory, number); standard error is logged line by line with keys removed, and the last 20 lines are kept); a URL uses `HttpClientTransport` (Streamable HTTP, falling back to SSE when that is not supported; no redirects followed, no cookies, no OAuth configured; no proxy when the address is loopback). The client declares no capabilities (no sampling, elicitation or roots).
 - **Tools.** `McpToolSource` gives the enabled tools when a question is accepted (`McpTool : ITool`, using the definition snapshot taken at enabling, without starting the server for this); the registry places them after the built-in tools; name conflicts are resolved at enabling time (requirements §10.4.6). `McpTool.ExecuteAsync` connects through the manager (starting on demand). It first compares the definition the server currently gives with the snapshot; if they differ, it disables the tool and reports an error; then it calls. The content items of the result are converted to Markdown text (text, image placeholders, resource links, embedded text resources); images are also saved as resources (`origin = 'mcp'`, `provenance = 'external'`). A call with risk "side effect" returns the approval card content (server, tool, formatted arguments) through `ITool.ApprovalFor`. Before the card is shown, `ITool.PrepareAsync` starts the server and compares the definitions; a call that cannot be executed errors directly, without asking the user for approval. Approval and waiting reuse phase 3's mechanism (`IRunSlots`, `run_step.approval`); the result text for a denial is given by the tool (`ITool.DeniedResult`). `run_step.target` is the server name, and statistics group by it and the tool name.
 - **Unknown outcome.** When a call with side effects times out or the server exits during the call, the tool throws `ToolOutcomeUnknownException`. The step is recorded as `unknown`, the result block is an error that says “结果未知，请自行核对”, the error is given back to the model, and the run continues.
+
+## 16. Sharing, import and device copies (after the first release)
+
+Product basis: requirements §10.7 (v0.29). Reasons, the approaches considered and the increments are in [sharing.md](design/sharing.md).
+
+### 16.1 Layers
+
+- **Application** builds the exchange document from the stores, applies the selection and the filter, and holds the import rules. It has no Markdown library and writes no HTML.
+- **Infrastructure** writes and reads the files: the shared HTML file, the device copy package, and the atomic file write already used by the summary export (§8.1).
+- **Desktop** holds the share dialog and the import entry points.
+- Core gains no dependency. The existing summary export (§8) is unchanged.
+
+### 16.2 The exchange document
+
+- It is the only outward form of conversations (seam E5): a model of its own, never a stored record. It has a format name, a format version, the time it was made, the app version and a kind: structure, content or device.
+- It carries stored identities unchanged; import depends on them. A reader refuses a higher major format version; within one major version only optional fields are added.
+- **Filtering happens once, when the document is built.** Writers and the page never receive what requirements §10.7 keeps home, so no later step can leak it.
+- For a share with content it carries, per conversation, the messages in order with their Markdown, attachment names, the tool count line and the citations §10.7 allows; the branch source as the source message's identity, the quoted text and, when known, the position in the answer's Markdown; and the current summary version. It carries which answer replaced which, so that an import never shows two standing answers.
+- Times are instants, with no time zone.
+
+### 16.3 The shared file
+
+- One HTML file holding the exchange document as a data block, and the page's style and script inline. The page draws from the data block, so the file has one source and the data holds exactly what the page shows.
+- Nothing is fetched: no remote script, font or image. Links in answers and citations are ordinary links.
+- Answers must read as they do in the app (§5): emphasis next to Chinese punctuation, tables, and the four formula delimiters. HTML inside an answer is escaped. Formulas are drawn by a library carried in the file.
+- The timeline in the page follows the rules of §11.2's timeline layout.
+- A device copy is a package holding the same page, the exchange document and the attachment originals by content hash (§15.2).
+
+### 16.4 Import
+
+- The app reads only the data block and never runs the page. Imported text is drawn like any answer (§5): no image is loaded.
+- One import is one transaction.
+- Rules, by identity: present → left as it is; unknown → added; a known conversation gains the messages it lacks; a conversation present in another workspace is reported, not moved.
+- **Two continuations.** When the file and the store each hold messages the other lacks after their last common message, the stored conversation is not changed, and the incoming one is written as a separate conversation whose identities are derived from the incoming ones, so that a second import finds it already there.
+- Import never deletes.
+- An imported conversation records that it came from a shared file. A structure-only share is stored as an outline, apart from conversations.
+- For single-valued fields (title, current summary version, archived state) the newer value wins; this needs the time of the last title change to be stored.
+- A device copy carries the identities of deleted conversations, which the app records from the release that adds device copies. Import only offers them for deletion, through the deletion flow of §9.1.
+
+### 16.5 Migrations
+
+The share itself needs none. Import adds the mark of where a conversation came from, the stored outline and the time of the last title change. Device copies add the record of deleted identities. Each is tried on a copy of real data first (§12.2).
