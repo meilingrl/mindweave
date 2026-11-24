@@ -99,12 +99,14 @@
                 </ItemsControl.ItemsPanel>
                 <ItemsControl.ItemTemplate>
                   <DataTemplate x:DataType="vm:LineageItem">
-                    <StackPanel Orientation="Horizontal">
-                      <TextBlock Classes="caption" Text="›" VerticalAlignment="Center" Margin="2,0" IsVisible="{Binding !IsFirst}" />
-                      <Button Classes="crumb" Content="{Binding Title}"
+                    <DockPanel>
+                      <TextBlock DockPanel.Dock="Left" Classes="caption" Text="›" VerticalAlignment="Center" Margin="2,0" IsVisible="{Binding !IsFirst}" />
+                      <Button Classes="crumb" AutomationProperties.Name="{Binding Title}"
                               Command="{Binding $parent[v:ConversationView].((vm:ConversationViewModel)DataContext).OpenConversationCommand}"
-                              CommandParameter="{Binding Id}" />
-                    </StackPanel>
+                              CommandParameter="{Binding Id}">
+                        <TextBlock Text="{Binding Title}" TextTrimming="CharacterEllipsis" />
+                      </Button>
+                    </DockPanel>
                   </DataTemplate>
                 </ItemsControl.ItemTemplate>
               </ItemsControl>
@@ -277,7 +279,9 @@
                               </ItemsControl.ItemsPanel>
                               <ItemsControl.ItemTemplate>
                                 <DataTemplate x:DataType="vm:RunStepLink">
-                                  <Button Classes="quiet small run-step-link" Command="{Binding Open}" Content="{Binding Label}" />
+                                  <Button Classes="quiet small run-step-link" Command="{Binding Open}" AutomationProperties.Name="{Binding Label}">
+                                    <TextBlock Text="{Binding Label}" TextTrimming="CharacterEllipsis" />
+                                  </Button>
                                 </DataTemplate>
                               </ItemsControl.ItemTemplate>
                             </ItemsControl>
@@ -358,7 +362,7 @@
                             <StackPanel Grid.Column="1" Spacing="1">
                               <TextBlock Classes="citation-title" Text="{Binding Title}" TextTrimming="CharacterEllipsis" />
                               <TextBlock Classes="citation-address" Text="{Binding Address}" TextTrimming="CharacterEllipsis" IsVisible="{Binding HasAddress}" />
-                              <TextBlock Classes="timestamp" Text="{Binding Meta}" />
+                              <TextBlock Classes="timestamp" Text="{Binding Meta}" TextTrimming="CharacterEllipsis" />
                             </StackPanel>
                           </Grid>
                         </Button>

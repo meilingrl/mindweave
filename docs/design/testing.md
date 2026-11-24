@@ -31,7 +31,7 @@ Avalonia headless tests have only one UI thread per process, so desktop tests in
 - A single test over 3 seconds (except in the `Faults` and `Performance` namespaces) is recorded as a warning on CI, not a failure: runner speeds vary too much, and failing on time would itself be intermittent.
 - A new test over budget must have a reason (a real child process, a real lock wait, and so on); where `ManualTime` can advance time, do not use real waits.
 - Data rules go in Infrastructure tests (fast, can run in parallel); desktop tests only verify what is seen in the UI and how it is wired, and do not verify storage behavior again.
-- A new page, form or menu gets a scene in `CutOffPagesTests`, which checks in both languages, at the first and at the smallest window size, that nothing is cut off and no controls lie over each other.
+- A new page, form or menu gets a scene in `CutOffPagesTests`, which checks in both languages, at the first and at the smallest window size, that nothing is cut off and no controls lie over each other. A name that comes from a person, a model, a web page or a tool server is also shown there at its longest, and a scene sets the names it shows instead of waiting for generated ones.
 
 ## Intermittent failures
 

@@ -2,6 +2,7 @@ using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Headless;
 using Avalonia.VisualTree;
+using Mindweave.Desktop.ViewModels.Pages;
 using Mindweave.Desktop.Views.Pages;
 using static Mindweave.Desktop.Tests.UiTree;
 
@@ -23,5 +24,25 @@ internal static class SettingsInput
         window.UpdateLayout();
         window.CaptureRenderedFrame()?.Dispose();
         UiInput.Click(window, control);
+    }
+
+    /// <summary>
+    /// Clicks one of the rows that lead on, once the page has read everything it shows: what is still coming in above the row
+    /// moves it, between aiming and pressing too.
+    /// </summary>
+    public static async Task OpenAsync(Window window, string row)
+    {
+        var settings = (SettingsHomeViewModel)window.GetVisualDescendants().OfType<SettingsHomeView>().Single().DataContext!;
+        await settings.Loaded;
+        await settings.Model.Loaded;
+        if (settings.Tools is { } tools)
+        {
+            await tools.Loaded;
+            await (tools.Web?.Loaded ?? Task.CompletedTask);
+            await (tools.Mcp?.Loaded ?? Task.CompletedTask);
+        }
+
+        window.UpdateLayout();
+        Click(window, Find<Button>(window, row));
     }
 }
