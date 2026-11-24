@@ -25,6 +25,9 @@ internal sealed partial class FileResourceBlobStore(AppPaths paths, SqliteDataba
     private readonly object _lock = new();
     private readonly Dictionary<ContentHash, int> _pinned = [];
     private readonly HashSet<ContentHash> _touched = [];
+
+    /// <summary>What a file was found to be, with its length and write time then: read again only once those change.</summary>
+    private readonly Dictionary<string, (long Length, DateTime Written, bool Whole)> _checked = new(StringComparer.Ordinal);
     private readonly SemaphoreSlim _sweepGate = new(1, 1);
 
     /// <summary>The fan-out folders sit beside <c>tmp</c>, whose name is never two hex digits.</summary>
@@ -44,7 +47,7 @@ internal sealed partial class FileResourceBlobStore(AppPaths paths, SqliteDataba
         try
         {
             var target = PathOf(hash);
-            if (SizeOf(target) == content.Length)
+            if (Exists(hash))
             {
                 return new BlobWrite(hash, content.Length, existed: true, () => Unpin(hash));
             }
@@ -61,7 +64,7 @@ internal sealed partial class FileResourceBlobStore(AppPaths paths, SqliteDataba
                     stream.Flush(flushToDisk: true);
                 }
 
-                // Same name, same content: replacing a file of the wrong size (a damaged copy) is safe, and so is losing a
+                // Same name, same content: replacing a file with other content (a damaged copy) is safe, and so is losing a
                 // race with another write of the same content.
                 File.Move(temp, target, overwrite: true);
             }
@@ -92,7 +95,7 @@ internal sealed partial class FileResourceBlobStore(AppPaths paths, SqliteDataba
     {
         try
         {
-            return new FileStream(PathOf(hash), FileMode.Open, FileAccess.Read, FileShare.Read | FileShare.Delete, 81920, FileOptions.Asynchronous);
+            return !Exists(hash) ? null : new FileStream(PathOf(hash), FileMode.Open, FileAccess.Read, FileShare.Read | FileShare.Delete, 81920, FileOptions.Asynchronous);
         }
         catch (Exception ex) when (ex is FileNotFoundException or DirectoryNotFoundException)
         {
@@ -100,7 +103,54 @@ internal sealed partial class FileResourceBlobStore(AppPaths paths, SqliteDataba
         }
     }
 
-    public bool Exists(ContentHash hash) => File.Exists(PathOf(hash));
+    public bool Exists(ContentHash hash) => IsWhole(PathOf(hash), hash);
+
+    /// <summary>
+    /// Whether <paramref name="path"/> holds the content its name says (architecture §15.10: a damaged original counts as
+    /// missing). A file that cannot be read now is not known to be damaged, so it counts as there.
+    /// </summary>
+    private bool IsWhole(string path, ContentHash hash)
+    {
+        try
+        {
+            var info = new FileInfo(path);
+            if (!info.Exists)
+            {
+                return false;
+            }
+
+            lock (_lock)
+            {
+                if (_checked.TryGetValue(path, out var known) && known.Length == info.Length && known.Written == info.LastWriteTimeUtc)
+                {
+                    return known.Whole;
+                }
+            }
+
+            using var stream = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.Read | FileShare.Delete, 81920, FileOptions.SequentialScan);
+            var whole = ContentHash.FromBytes(SHA256.HashData(stream)) == hash;
+            if (!whole)
+            {
+                LogDamaged(logger, path);
+            }
+
+            lock (_lock)
+            {
+                _checked[path] = (info.Length, info.LastWriteTimeUtc, whole);
+            }
+
+            return whole;
+        }
+        catch (Exception ex) when (ex is FileNotFoundException or DirectoryNotFoundException)
+        {
+            return false;
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            LogUnreadable(logger, ex, path);
+            return true;
+        }
+    }
 
     public bool TryRecover(ContentHash hash) => RecoverFromBackups(hash);
 
@@ -143,9 +193,14 @@ internal sealed partial class FileResourceBlobStore(AppPaths paths, SqliteDataba
     private bool RecoverFromBackups(ContentHash hash)
     {
         var target = PathOf(hash);
-        if (File.Exists(target) || !Directory.Exists(paths.BackupDirectory))
+        if (Exists(hash))
         {
-            return File.Exists(target);
+            return true;
+        }
+
+        if (!Directory.Exists(paths.BackupDirectory))
+        {
+            return false;
         }
 
         try
@@ -153,7 +208,7 @@ internal sealed partial class FileResourceBlobStore(AppPaths paths, SqliteDataba
             foreach (var folder in Directory.EnumerateDirectories(paths.BackupDirectory, "*" + BackupResources.Suffix))
             {
                 var copy = Path.Combine(folder, hash.Hex);
-                if (!File.Exists(copy))
+                if (!IsWhole(copy, hash))
                 {
                     continue;
                 }
@@ -365,18 +420,6 @@ internal sealed partial class FileResourceBlobStore(AppPaths paths, SqliteDataba
         }
     }
 
-    private static long? SizeOf(string file)
-    {
-        try
-        {
-            return new FileInfo(file) is { Exists: true } info ? info.Length : null;
-        }
-        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
-        {
-            return null;
-        }
-    }
-
     private bool TryDelete(string file)
     {
         try
@@ -393,6 +436,12 @@ internal sealed partial class FileResourceBlobStore(AppPaths paths, SqliteDataba
 
     [LoggerMessage(Level = LogLevel.Information, Message = "Put resource original {Hash} back from a backup")]
     private static partial void LogRecovered(ILogger logger, string hash);
+
+    [LoggerMessage(Level = LogLevel.Warning, Message = "The resource original {Path} is damaged: its content is not what its name says")]
+    private static partial void LogDamaged(ILogger logger, string path);
+
+    [LoggerMessage(Level = LogLevel.Warning, Message = "Could not read the resource original {Path}")]
+    private static partial void LogUnreadable(ILogger logger, Exception exception, string path);
 
     [LoggerMessage(Level = LogLevel.Information, Message = "Removed {Deleted} resource originals the database no longer refers to; {Kept} kept")]
     private static partial void LogSwept(ILogger logger, int deleted, int kept);

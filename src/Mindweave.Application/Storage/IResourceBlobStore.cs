@@ -35,13 +35,17 @@ public interface IResourceBlobStore
     /// </summary>
     Task<BlobWrite> WriteAsync(ReadOnlyMemory<byte> content, CancellationToken cancellationToken);
 
-    /// <summary>Opens a stored original for reading, or null when it is not there.</summary>
+    /// <summary>Opens a stored original for reading, or null when it is not there (see <see cref="Exists"/>).</summary>
     Stream? OpenRead(ContentHash hash);
 
+    /// <summary>
+    /// Whether the original is there with the content its hash names; a damaged one counts as missing (architecture §15.10).
+    /// Reads the file when it was not read since it last changed.
+    /// </summary>
     bool Exists(ContentHash hash);
 
     /// <summary>
-    /// Puts back an original missing from the store from the copy a backup keeps (a database restored from the backup made
+    /// Puts back an original missing from the store, or damaged, from the copy a backup keeps (a database restored from the backup made
     /// before a delete names it again). Only asked for originals a stored resource names. Returns whether it is there now.
     /// </summary>
     bool TryRecover(ContentHash hash);

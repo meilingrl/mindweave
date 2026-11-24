@@ -252,6 +252,26 @@ public sealed class ResourceStoreTests
     }
 
     [Fact]
+    public async Task A_damaged_original_is_put_back_from_a_backups_copy_that_is_whole()
+    {
+        await using var h = await ChatHarness.StartAsync(configure: false);
+        var doc = await FileAsync(h, "a.png", PngBytes);
+        var resource = (await h.ResourceService.GetAsync(doc, Ct))!.Resource;
+        var damaged = (byte[])[.. PngBytes[..^1], (byte)(PngBytes[^1] ^ 0xFF)];
+        await File.WriteAllBytesAsync(h.Blobs.PathOf(resource.Hash), damaged, Ct);
+        var first = Directory.CreateDirectory(Path.Combine(h.Paths.BackupDirectory, "a.db.resources"));
+        await File.WriteAllBytesAsync(Path.Combine(first.FullName, resource.Hash.Hex), damaged, Ct);
+
+        Assert.False(await h.ResourceService.HasOriginalAsync(resource));
+
+        var second = Directory.CreateDirectory(Path.Combine(h.Paths.BackupDirectory, "b.db.resources"));
+        await File.WriteAllBytesAsync(Path.Combine(second.FullName, resource.Hash.Hex), PngBytes, Ct);
+
+        Assert.True(await h.ResourceService.HasOriginalAsync(resource));
+        Assert.Equal(PngBytes, await File.ReadAllBytesAsync(h.Blobs.PathOf(resource.Hash), Ct));
+    }
+
+    [Fact]
     public async Task Deleting_a_backup_removes_the_originals_it_kept()
     {
         await using var h = await ChatHarness.StartAsync(configure: false);

@@ -471,7 +471,7 @@ public sealed partial class ConversationViewModel : PageViewModel, IDisposable, 
             chip.OriginalChecked = true;
             if (await _resources.GetAsync(chip.Resource!.Value, CancellationToken.None) is { } stored)
             {
-                chip.MarkOriginal(_resources.HasOriginal(stored.Resource));
+                chip.MarkOriginal(await _resources.HasOriginalAsync(stored.Resource));
             }
         }
     }
