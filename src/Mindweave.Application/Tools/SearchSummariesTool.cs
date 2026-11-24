@@ -10,7 +10,7 @@ using static Mindweave.Application.Languages.Bilingual;
 namespace Mindweave.Application.Tools;
 
 /// <summary>
-/// 检索总结网络 (requirements §10.4.4, architecture §15.6 <c>search_summaries</c>): keyword search over the current versions of
+/// 检索总结 (requirements §10.4.4, architecture §15.6 <c>search_summaries</c>): keyword search over the current versions of
 /// the workspace's saved summaries (archived conversations' included), titles weighing more than bodies. Scored in memory
 /// with the attachments' search terms (decision R3: a workspace holds tens to hundreds of summaries; no index to keep in step).
 /// </summary>
@@ -27,7 +27,7 @@ public sealed class SearchSummariesTool(ISummaryStore summaries) : ITool
 
     public string Name => ToolName;
 
-    public string DisplayName => T("Search summary network", "检索总结网络");
+    public string DisplayName => T("Search summaries", "检索总结");
 
     public string Description => T(
         "Searches by keyword in the summaries saved in this workspace (what the user explored before), and returns each one's number, title and relevant excerpts. " +

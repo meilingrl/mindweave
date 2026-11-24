@@ -844,7 +844,7 @@ public sealed partial class SummaryNetworkHomeViewModel : PageViewModel, IDispos
         DetachSuggestions();
     }
 
-    /// <summary>网络推荐节点 or 自动准备推荐 changed in 设置 › 提示 while this page stays open: shown or hidden now, prepared if due.</summary>
+    /// <summary>Mindweave 推荐节点 or 自动准备推荐 changed in 设置 › 提示 while this page stays open: shown or hidden now, prepared if due.</summary>
     private void OnRecommendationSettingsChanged(object? sender, EventArgs e)
     {
         if (_disposed)

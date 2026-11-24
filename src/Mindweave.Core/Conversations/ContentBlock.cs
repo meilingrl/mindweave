@@ -62,7 +62,7 @@ public enum CitationKind
     /// <summary>A part of material an earlier run found (its tool results), read again.</summary>
     Material,
 
-    /// <summary>A saved summary of the workspace (检索总结网络).</summary>
+    /// <summary>A saved summary of the workspace (检索总结).</summary>
     Summary,
 }
 

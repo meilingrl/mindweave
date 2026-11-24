@@ -71,7 +71,7 @@ public class RunLoopTests
 
         var text = RunPrompt.For(all);
 
-        foreach (var name in new[] { "search_attachments（检索附件）", "search_summaries（检索总结网络）", "web_search（网络搜索）", "fetch_page（取网页）" })
+        foreach (var name in new[] { "search_attachments（检索附件）", "search_summaries（检索总结）", "web_search（网络搜索）", "fetch_page（取网页）" })
         {
             Assert.Contains(name, text, StringComparison.Ordinal);
         }

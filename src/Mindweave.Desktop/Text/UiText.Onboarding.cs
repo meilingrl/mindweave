@@ -28,18 +28,18 @@ public static partial class UiText
     public static string OnboardingHeading => T("Welcome to Mindweave", "欢迎使用 Mindweave");
 
     public static string OnboardingWelcomeBody => T(
-        "Ask and read with AI around one topic. When you reach something you want to dig into, select the text to create a branch conversation; once it’s clear, go back to where you branched and keep reading. Turn what you learn into summaries at any time, and they join up into the topic’s summary network.",
-        "围绕一个主题和 AI 边问边读。读到想深究的地方，选中文字创建分支会话；问清楚后返回来源接着读；随时把收获整理成总结，连成这个主题的总结网络。");
+        "Ask and read with AI around one topic. When you reach something you want to dig into, select the text to create a branch conversation; once it’s clear, go back to where you branched and keep reading. Turn what you learn into summaries at any time. The Mindweave page shows every conversation and how they connect.",
+        "围绕一个主题和 AI 边问边读。读到想深究的地方，选中文字创建分支会话；问清楚后返回来源接着读；随时把收获整理成总结。Mindweave 页显示每个会话和它们之间的联系。");
 
     public static string OnboardingIllustrationName => T(
-        "Illustration: create a branch from an answer, go back, and build a summary network",
-        "示意：从回答中创建分支，返回来源，整理成总结网络");
+        "Illustration: create a branch from an answer, go back, and see how it all connects",
+        "示意：从回答中创建分支，返回来源，看到它们怎样相连");
 
     public static string OnboardingIllustrationBranch => T("Select text, create a branch", "选中文字，创建分支");
 
     public static string OnboardingIllustrationReturn => T("Once it’s clear, go back", "问清楚，返回来源");
 
-    public static string OnboardingIllustrationNetwork => T("Build a summary network", "整理成总结网络");
+    public static string OnboardingIllustrationNetwork => T("See how it all connects", "看到它们怎样相连");
 
     // 2 · A model
     public static string OnboardingModelHeading => T("Connect a model", "连接一个模型");
@@ -60,8 +60,8 @@ public static partial class UiText
     public static string OnboardingWorkspaceHeading => T("Create a workspace", "建一个主题工作区");
 
     public static string OnboardingWorkspaceBody => T(
-        "A workspace holds one topic: its conversations, summaries and summary network all live there, and different topics never mix.",
-        "一个工作区收拢一个主题：这个主题下的会话、总结和总结网络都放在里面，不同主题互不混杂。");
+        "A workspace holds one topic: its conversations, its summaries and how they connect all live there, and different topics never mix.",
+        "一个工作区收拢一个主题：这个主题下的会话、总结和它们之间的联系都放在里面，不同主题互不混杂。");
 
     public static string WorkspaceExamplesLabel => T("You could start with one of these:", "可以从这些开始：");
 

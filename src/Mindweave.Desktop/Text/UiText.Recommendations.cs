@@ -83,7 +83,7 @@ public static partial class UiText
 
     // Settings (设置 › 提示, beside 自动准备工作区名称建议): requirements §10.3 共同规则 and §9.4.
     public static string RecommendQuestionsSetting => T("Recommended questions in New exploration", "新探索推荐问题");
-    public static string RecommendNodesSetting => T("Recommended nodes in the summary network", "网络推荐节点");
+    public static string RecommendNodesSetting => T("Recommended nodes in Mindweave", "Mindweave 推荐节点");
     public static string AutoPrepareRecommendations => T("Prepare recommendations automatically", "自动准备推荐");
     public static string RecommendationsHint => T(
         "Only conversation titles, summary titles and short summary excerpts are sent to the model, never whole conversations. Preparing automatically sends requests in the background, which costs a little. With it off, recommendations are made only when you click “Refresh”.",

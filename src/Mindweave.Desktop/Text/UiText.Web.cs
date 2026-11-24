@@ -62,7 +62,7 @@ public static partial class UiText
     {
         Core.Conversations.CitationKind.Attachment => T("An attachment in this conversation", "本会话的附件"),
         Core.Conversations.CitationKind.Material => T("Material fetched earlier in this conversation", "本会话较早取得的材料"),
-        Core.Conversations.CitationKind.Summary => T("Summary network", "总结网络"),
+        Core.Conversations.CitationKind.Summary => T("Summary", "总结"),
         _ => string.Empty,
     };
 

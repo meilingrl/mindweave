@@ -382,7 +382,7 @@ public sealed partial class SettingsHomeViewModel : PageViewModel, IDisposable, 
     [ObservableProperty]
     public partial bool RecommendsQuestions { get; set; } = true;
 
-    /// <summary>网络推荐节点 (on unless turned off).</summary>
+    /// <summary>Mindweave 推荐节点 (on unless turned off).</summary>
     [ObservableProperty]
     public partial bool RecommendsNodes { get; set; } = true;
 
