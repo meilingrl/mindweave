@@ -65,6 +65,7 @@ Seven topics in four groups. The order and what is set aside are in §5 and §6.
 | 2026-11-25 | Quoting from outside takes the collect-then-ask form of §7 (owner welcomed it). Its details are open. |
 | 2026-11-25 | Where a sent set of quotes lands is chosen when sending (owner): the default is a new exploration in the workspace used last; it can be switched to another workspace or to the open conversation. It never starts a branch, because a branch's quotes come from its parent conversation (evolution D7). |
 | 2026-11-25 | When the selected text cannot be read, the rectangle takes over (owner's suggestion): the hotkey reads the selection, and if there is none or it cannot be read, it goes straight to the rectangle. |
+| 2026-11-25 | The first increment has both sources for the quote list (owner): quotes from outside, and several passages selected in a Mindweave conversation and asked about together in that conversation (the third use in evolution D7). macOS first. A branch with several quotes and revising a summary with quotes stay later. |
 
 ## 6. Set aside
 
