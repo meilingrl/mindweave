@@ -83,7 +83,7 @@ public sealed record PathStep(string Name, bool Summarized, bool IsFirst)
 /// <paramref name="Question"/> is the conversation's first question.
 /// </summary>
 public sealed record NodeDetail(SummaryNodeId Id, ConversationId Conversation, string DisplayName, string ShortTitle, string Markers, string Source, string Created,
-    bool Unread, bool HasCandidate, bool SourceArchived, string Path, IReadOnlyList<PathStep> Steps, bool HasSummary = true, string? Question = null)
+    bool Unread, bool HasCandidate, bool SourceArchived, string Path, IReadOnlyList<PathStep> Steps, bool HasSummary = true, string? Question = null, bool HasLaterContent = false)
 {
     public bool HasQuestion => !string.IsNullOrWhiteSpace(Question);
 

@@ -1214,7 +1214,8 @@ public sealed partial class SummaryNetworkHomeViewModel : PageViewModel, IDispos
             UiText.SourcePath([.. steps.Select(step => step.Text)]),
             steps,
             node.HasSummary,
-            node.FirstQuestion);
+            node.FirstQuestion,
+            node.Markers.HasLaterContent);
     }
 
     /// <summary>
