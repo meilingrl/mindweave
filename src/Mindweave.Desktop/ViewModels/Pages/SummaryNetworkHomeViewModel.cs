@@ -770,9 +770,6 @@ public sealed partial class SummaryNetworkHomeViewModel : PageViewModel, IDispos
         ViewChanged?.Invoke(this, false);
     }
 
-    [RelayCommand]
-    private void ToggleView() => IsListView = !IsListView;
-
     partial void OnIsListViewChanged(bool value)
     {
         // The list has no nodes to click: "关联到…" waiting for one ends (the details still offer it, and its keyboard list).

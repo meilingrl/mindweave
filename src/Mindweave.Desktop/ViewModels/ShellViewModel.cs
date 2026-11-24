@@ -17,7 +17,6 @@ public sealed partial class ShellViewModel : ViewModelBase, IDisposable
     private readonly IWorkspaces _workspaces;
     private readonly SummaryNetwork.SummaryNetworkSessions? _summaryNetworks;
     private readonly ISidebarLayout? _sidebarLayout;
-    private readonly IWorkspaceDeletionPrompt? _workspaceDeletion;
     private readonly WorkspaceSwitchRequests? _switches;
     private PageViewModel? _observedPage;
     private double _sidebarWidth = SidebarLayout.DefaultWidth;
@@ -28,12 +27,10 @@ public sealed partial class ShellViewModel : ViewModelBase, IDisposable
         Conversations.ConversationListViewModel conversations,
         SummaryNetwork.SummaryNetworkSessions? summaryNetworks = null,
         ISidebarLayout? sidebarLayout = null,
-        IWorkspaceDeletionPrompt? workspaceDeletion = null,
         WorkspaceNewsViewModel? workspaceNews = null,
         WorkspaceSwitchRequests? switches = null)
     {
         WorkspaceNews = workspaceNews;
-        _workspaceDeletion = workspaceDeletion;
         _summaryNetworks = summaryNetworks;
         _sidebarLayout = sidebarLayout;
         ArgumentNullException.ThrowIfNull(workbench);
@@ -262,9 +259,6 @@ public sealed partial class ShellViewModel : ViewModelBase, IDisposable
     [RelayCommand(CanExecute = nameof(CanGoBack))]
     private void GoBack() => Workbench.GoBack();
 
-    [RelayCommand]
-    private void ToggleCreateWorkspace() => IsCreatingWorkspace = !IsCreatingWorkspace;
-
     /// <summary>A row of the switcher's menu: closes it and switches the way <see cref="SelectedWorkspace"/> does.</summary>
     [RelayCommand]
     private void ChooseWorkspace(WorkspaceChoice choice)
@@ -324,16 +318,6 @@ public sealed partial class ShellViewModel : ViewModelBase, IDisposable
             {
                 choice.HasNews = news.Workspaces.Contains(choice.Workspace.Id);
             }
-        }
-    }
-
-    /// <summary>Asks to delete the workspace shown (S7 round 4); the entries are now on 设置 › 工作区, one per workspace.</summary>
-    [RelayCommand]
-    private void DeleteWorkspace()
-    {
-        if (Workbench.CurrentWorkspace is { } workspace)
-        {
-            _workspaceDeletion?.Open(workspace);
         }
     }
 

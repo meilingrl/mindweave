@@ -153,7 +153,7 @@ public class GalleryTests
         await using var scene = Scene.Create("g01e");
         var window = scene.App.ShowWindow(1100, 720, Theme);
         await scene.App.StartWithWorkspaceAsync("唯一");
-        scene.App.ShellPage.DeleteWorkspaceCommand.Execute(null);
+        scene.App.AskToDeleteWorkspace();
         var dialog = scene.App.Root.WorkspaceDeletion;
         await dialog.Loading;
         dialog.TypedName = "唯一";
@@ -422,7 +422,7 @@ public class GalleryTests
         var window = scene.App.ShowWindow(1100, 720, Theme);
         await SeedAsync(scene.App, summaries: true);
         var network = await SummaryNetworkScenario.OpenSummaryNetworkAsync(scene.App, window);
-        network.ToggleViewCommand.Execute(null);
+        network.IsListView = !network.IsListView;
         Assert.True(network.IsListView);
         await SettleAsync(window);
         Capture(window, "g14-network-list");
@@ -1239,7 +1239,7 @@ public class GalleryTests
         page.Composer.Text = "吴淞铁路用的是什么机车？";
         await page.Composer.SendCommand.ExecuteAsync(null);
         await held.Started.Task.WaitAsync(TimeSpan.FromSeconds(5));
-        scene.App.ShellPage.DeleteWorkspaceCommand.Execute(null);
+        scene.App.AskToDeleteWorkspace();
         await dialog.Loading;
         Assert.NotNull(dialog.Problem);
         dialog.TypedName = "火车历史"; // the exact name, yet 删除 stays disabled while the notice stands
@@ -1254,7 +1254,7 @@ public class GalleryTests
         // Deleted for real: the workbench moves to the other workspace and the storage page lists the backup made first.
         var other = await scene.App.Services.GetRequiredService<WorkspaceService>().CreateAsync(WorkspaceName.FromStored("摄影史"), CancellationToken.None);
         scene.App.Workbench.Workspaces.Add(other);
-        scene.App.ShellPage.DeleteWorkspaceCommand.Execute(null);
+        scene.App.AskToDeleteWorkspace();
         await dialog.Loading;
         dialog.TypedName = "火车历史";
         await dialog.DeleteCommand.ExecuteAsync(null);
@@ -1768,7 +1768,7 @@ public class GalleryTests
         await SeedAsync(scene.App, summaries: true);
         var network = await SummaryNetworkScenario.OpenSummaryNetworkAsync(scene.App, window);
         await RecommendedNodesUiTests.PrepareAsync(scene.App, network, window);
-        network.ToggleViewCommand.Execute(null);
+        network.IsListView = !network.IsListView;
         await SettleAsync(window);
         Capture(window, "g52b-network-list-recommended-node");
         window.Close();
