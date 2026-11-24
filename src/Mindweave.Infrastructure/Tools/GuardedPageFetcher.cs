@@ -41,6 +41,15 @@ public sealed partial class GuardedPageFetcher : IWebPageFetcher
 {
     internal const string UserAgent = "Mindweave/0.1 (+web page reader)";
 
+    /// <summary>A check says a few lines at most; a page with more text is read whatever its title.</summary>
+    private const int MaxRobotCheckText = 500;
+
+    private static readonly HashSet<string> RobotCheckTitles = new(StringComparer.OrdinalIgnoreCase)
+    {
+        "百度安全验证", "安全验证", "人机验证", "滑动验证页面", "Just a moment...", "Attention Required! | Cloudflare",
+        "Verify you are human", "Are you a robot?", "Robot Check",
+    };
+
     internal const string AcceptTypes = "text/html,application/xhtml+xml,text/plain;q=0.9,application/pdf;q=0.8,*/*;q=0.1";
 
     /// <summary>The languages a page is asked for: the interface language first (docs/design/bilingual-ui.md §5), read per request.</summary>
@@ -316,6 +325,13 @@ public sealed partial class GuardedPageFetcher : IWebPageFetcher
                 break;
             case PageKind.Html:
                 (title, text, links) = HtmlText.Extract(Decode(bytes, declared?.CharSet, html: true), url);
+                if (IsRobotCheck(url, title, text))
+                {
+                    throw new PageFetchException(FetchFailureKind.RobotCheck, T(
+                        "The website asks visitors to pass a security check (that they are not a robot), so the page was not read.",
+                        "网站要求先通过安全验证（确认不是机器人），没有读取。"));
+                }
+
                 break;
             default:
                 title = FileTitle(url);
@@ -335,6 +351,14 @@ public sealed partial class GuardedPageFetcher : IWebPageFetcher
 
         return new FetchedPage(url, title, text, mediaType, links, bytes.Length);
     }
+
+    /// <summary>
+    /// A check that the visitor is no robot, sent in place of the page with a success status: at an address known to hold
+    /// only such checks, or under a title such checks use with little or no text. An article about them has more.
+    /// </summary>
+    private static bool IsRobotCheck(Uri url, string title, string text) =>
+        string.Equals(AddressGuard.HostOf(url), "wappass.baidu.com", StringComparison.OrdinalIgnoreCase)
+        || (text.Length <= MaxRobotCheckText && RobotCheckTitles.Contains(title.Trim()));
 
     private enum PageKind
     {
