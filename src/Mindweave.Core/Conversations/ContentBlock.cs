@@ -6,9 +6,9 @@ using Mindweave.Core.Runs;
 namespace Mindweave.Core.Conversations;
 
 /// <summary>
-/// One ordered part of a message's content. A message is a sequence of blocks so that later kinds (tool
-/// calls and results, citations, tables, charts) slot in beside text without reshaping messages; source
-/// anchors locate a position as (block ordinal, offset within the block). Text and attachments exist today.
+/// One ordered part of a message's content. A message is a sequence of blocks so that a further kind (tables, charts)
+/// slots in beside those below without reshaping messages; source anchors locate a position as (block ordinal, offset
+/// within the block).
 /// </summary>
 public abstract record ContentBlock
 {

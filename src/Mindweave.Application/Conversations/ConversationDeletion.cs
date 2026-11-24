@@ -120,7 +120,7 @@ public sealed partial class ConversationDeletionService(
         await generation.CancelBackgroundAsync(result.Scope.Conversations.ToHashSet()).ConfigureAwait(false);
         conversations.NotifyDeleted(result.Scope);
 
-        // Their resources went with them; originals no backup refers to are removed (docs/design/resources.md).
+        // Their resources went with them; their originals go too, the backup made first keeps its own copies (architecture §15.2).
         await Resources.ResourceService.SweepQuietlyAsync(blobs, logger).ConfigureAwait(false);
         LogDeleted(logger, result.Scope.Roots.Count, result.Scope.Branches, result.Scope.Summaries.Count, path);
         return new ConversationDeleteOutcome(ConversationDeleteStatus.Deleted, result.Scope, path);

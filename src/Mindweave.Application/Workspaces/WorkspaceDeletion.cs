@@ -160,7 +160,7 @@ public sealed partial class WorkspaceDeletionService(
             await reading.ForgetNewDraftAsync(workspace).ConfigureAwait(false);
         }
 
-        // Its resources went with it; their originals stay while the backup just made refers to them (docs/design/resources.md).
+        // Its resources went with it; their originals go too, the backup just made keeps its own copies (architecture §15.2).
         await Resources.ResourceService.SweepQuietlyAsync(blobs, logger).ConfigureAwait(false);
 
         LogDeleted(logger, workspace, result.Deleted.Count, path);

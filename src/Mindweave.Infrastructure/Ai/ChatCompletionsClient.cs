@@ -584,8 +584,8 @@ public sealed class ChatCompletionsClient(HttpClient http, ChatClientOptions opt
         var delta = choice?["delta"] as JsonObject;
         var text = delta?["content"] is JsonValue content && content.TryGetValue<string>(out var s) ? s : null;
 
-        // Reasoning models (Kimi, GLM; 2026-11-05) stream reasoning_content long before any content. Only its length is passed
-        // on as it arrives; the text is kept for the tool calls of the reply, which some services need it back with.
+        // Reasoning models (Kimi, GLM; 2026-11-05) stream reasoning_content long before any content. It is passed on as it
+        // arrives and kept for the tool calls of the reply, which some services need it back with.
         var reasoning = delta?["reasoning_content"] is JsonValue thought && thought.TryGetValue<string>(out var t) ? t : null;
         var tools = ToolCallFragments(delta?["tool_calls"]);
         var finish = choice?["finish_reason"] is JsonValue reason && reason.TryGetValue<string>(out var r) ? r : null;

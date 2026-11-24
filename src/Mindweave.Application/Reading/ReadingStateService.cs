@@ -111,7 +111,7 @@ public sealed partial class ReadingStateService : IReadingState, IDisposable
         {
             return await _store.GetDraftAsync(conversation, slot, cancellationToken).ConfigureAwait(false) ?? string.Empty;
         }
-#pragma warning disable CA1031 // See GetPositionAsync.
+#pragma warning disable CA1031 // A failed read is logged, and the page opens with an empty box.
         catch (Exception ex) when (ex is not OperationCanceledException)
 #pragma warning restore CA1031
         {
@@ -156,7 +156,7 @@ public sealed partial class ReadingStateService : IReadingState, IDisposable
         {
             return await _preferences.GetAsync(NewDraftKey(workspace), cancellationToken).ConfigureAwait(false) ?? string.Empty;
         }
-#pragma warning disable CA1031 // See GetDraftAsync: a failed read opens the page with an empty box.
+#pragma warning disable CA1031 // A failed read is logged, and the page opens with an empty box.
         catch (Exception ex) when (ex is not OperationCanceledException)
 #pragma warning restore CA1031
         {

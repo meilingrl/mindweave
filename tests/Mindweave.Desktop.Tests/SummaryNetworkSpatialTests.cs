@@ -197,7 +197,7 @@ public class SummaryNetworkSpatialTests
 
     [Fact]
     [Trait("Category", "Performance")]
-    public async Task Thousand_sessions_load_within_300_ms_in_release()
+    public async Task Thousand_conversations_load_within_300_ms_in_release()
     {
         Assert.SkipUnless(Environment.GetEnvironmentVariable("MINDWEAVE_PERF") == "1", "Run through scripts/perf.sh.");
         var projection = Conversations(1_000);
@@ -210,7 +210,7 @@ public class SummaryNetworkSpatialTests
 
         Assert.Equal(1_000, session.Positions.Count);
         TestContext.Current.TestOutputHelper?.WriteLine($"network load of 1,000 conversations: {elapsed.TotalMilliseconds.ToString("F1", CultureInfo.InvariantCulture)} ms");
-        Assert.True(elapsed < TimeSpan.FromMilliseconds(300), $"Loading 1,000 sessions took {elapsed.TotalMilliseconds:F1} ms (budget 300 ms, spec §6.4).");
+        Assert.True(elapsed < TimeSpan.FromMilliseconds(300), $"Loading 1,000 conversations took {elapsed.TotalMilliseconds:F1} ms (budget 300 ms, spec §6.4).");
     }
 
     private static NodeView View(SummaryNetworkNode n, NodePosition at, SpatialLabel? placed = null, bool dated = false) =>
@@ -222,7 +222,7 @@ public class SummaryNetworkSpatialTests
         [.. session.Projection.Nodes.Select(n => View(n, session.Positions[n.Id], session.SpatialLabels.GetValueOrDefault(n.Id), session.DayStarts.Contains(n.Id)))];
 
     [Fact]
-    public async Task One_session_opens_centred_at_zoom_one()
+    public async Task One_conversation_opens_centred_at_zoom_one()
     {
         var session = await LoadedAsync(Conversations(1));
         var views = Views(session);
