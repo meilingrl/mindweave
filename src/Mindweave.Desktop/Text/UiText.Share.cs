@@ -56,8 +56,8 @@ public static partial class UiText
 
     /// <summary>§9: the share goes up to the last finished answer.</summary>
     public static string ShareAnswering(IReadOnlyList<string> names) => T(
-        "An answer is still being generated in " + EnglishNames(names) + ". The share goes up to the last finished answer, so the question being answered isn’t counted.",
-        "还有回答正在生成：" + ChineseNames(names) + "。分享只到最后一个已完成的回答，正在回答的问题不计入。");
+        "An answer is still being generated in " + Names(names) + ". The share goes up to the last finished answer, so the question being answered isn’t counted.",
+        "还有回答正在生成：" + Names(names) + "。分享只到最后一个已完成的回答，正在回答的问题不计入。");
 
     public static string ShareSave => T("Save…", "保存…");
 
@@ -69,8 +69,8 @@ public static partial class UiText
 
     /// <summary>§9: deleted while the dialog was open.</summary>
     public static string ShareLeftOut(IReadOnlyList<string> names) => T(
-        EnglishNames(names) + (names.Count == 1 ? " was" : " were") + " deleted meanwhile and left out.",
-        ChineseNames(names) + "在此期间被删除，没有包含在内。");
+        Names(names) + (names.Count == 1 ? " was" : " were") + " deleted meanwhile and left out.",
+        Names(names) + "在此期间被删除，没有包含在内。");
 
     public static string ShareChanged => T(
         "Some conversations changed while the save dialog was open, so nothing was saved. The list above shows them as they are now; save again if that is what you want to share.",
@@ -83,7 +83,9 @@ public static partial class UiText
     /// <summary>The file type in the save dialog.</summary>
     public static string HtmlFileType => T("Web page", "网页");
 
-    private static string EnglishNames(IReadOnlyList<string> names) => string.Join(", ", names.Select(n => "“" + n + "”"));
-
-    private static string ChineseNames(IReadOnlyList<string> names) => string.Join("、", names.Select(n => "“" + n + "”"));
+    private static string Names(IReadOnlyList<string> names)
+    {
+        var quoted = names.Select(n => "“" + n + "”");
+        return T(string.Join(", ", quoted), string.Join("、", quoted));
+    }
 }

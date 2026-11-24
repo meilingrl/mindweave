@@ -61,12 +61,13 @@ public sealed partial class ShareView : UserControl
         () =>
         {
             ShareScroller.Offset = default;
-            var ticked = _share?.Dots.Where(d => d.IsTicked).ToList() ?? [];
-            if (_share?.OpenedOn is not { } opened || ticked.Count == 0)
+            if (_share?.OpenedOn is not { } opened)
             {
-                return; // Closed, or everything unticked, before the dots were laid out.
+                return; // Closed before the dots were laid out.
             }
 
+            // By then something may have been unticked; the conversation itself is always counted.
+            var ticked = _share.Dots.Where(d => d.IsTicked).Append(opened).ToList();
             var view = ShareDotsScroller.Viewport;
             var (left, right) = (ticked.Min(d => d.X), ticked.Max(d => d.X));
             var (top, bottom) = (ticked.Min(d => d.Y), ticked.Max(d => d.Y));
