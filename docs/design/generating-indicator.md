@@ -32,7 +32,7 @@ Three were considered:
 2. XAML keyframe animations driving three ellipses: simpler, but they cannot draw the figure 8 or the lines, and cannot stop when not seen.
 3. An animated image: blurry at small sizes, and it cannot change color with the theme.
 
-The control `WeavingIndicator` has the property `Motion` (`WeavingMotion`); the answer's `Phase`, and whether it has body text yet, decide the motion.
+The control `WeavingIndicator` has the property `Motion` (`WeavingMotion`); the answer's stage (`AnswerStage`) decides the motion.
 
 ## Left to the implementer, adjustable
 

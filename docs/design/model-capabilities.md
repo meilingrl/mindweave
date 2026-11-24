@@ -17,7 +17,7 @@ Groundwork for direction 2 (agent platform): stage 1 (image attachments) and sta
 | Application `IModelSettings` / `ModelSettingsService` | `ActiveModelHasAsync`; `ModelSettingsInput.Capabilities` (nullable): capabilities declared by the form take precedence; when it is null, the old rule applies (the same model keeps its stored capabilities, a changed model returns to the protocol default). Context capacity always comes from the form's “上下文容量” (context capacity) field |
 | Desktop `ModelCapabilityPresets` | Groups into families by preset address; model names match on the whole name (case-insensitive); within a family the first match wins |
 | Desktop `ModelSettingsViewModel` | `IsAdvancedOpen`, `DeclaresToolCalls`, `DeclaresImageInput`; on load shows the stored capabilities; on save overlays the two checkboxes onto the preset (or stored) capabilities |
-| `ModelSettingsForm.axaml` (hosted by `SettingsHomeView.axaml`) | The “高级设置” (advanced settings) collapse button at the end of the card, the “模型能力” row and the “输出上限” row |
+| `ModelSettingsForm.axaml` (hosted by `SettingsHomeView.axaml`) | The “高级设置” (advanced settings) collapse button at the end of the form, the “模型能力” row and the “输出上限” row |
 
 **Output limit (2026-11-21, requirements v0.23 §9.6).** The “输出上限” (output limit) row under the capabilities: a token field (empty: “留空由服务决定”, leave empty and the service decides), a one-line hint, and an `IconInfo` whose tooltip gives the details (sent with every answer; reasoning usually counts; the same room is reserved in the context budget; internal requests keep their own limits). It fills the existing `model_config.max_output_tokens` column through `ModelSettingsInput.MaxOutputTokens`, so there is **no migration**. The form always sends what it shows, so an empty field clears a saved limit. The range is 256 to half the context capacity (declared, or the 32,000 default); otherwise the save is refused with `InvalidOutputLimit`. Summary, compression and naming requests override it with their own constants, as before.
 
@@ -120,8 +120,8 @@ Each needs only one or two very short requests. If none is done, the prefill sti
 
 ## 5. Conventions for stages 1 and 2 and agent-docs
 
-- **UI location.** Capabilities are declared at **设置 › 模型连接 › 高级设置 › 模型能力**, and the checkbox labels are “工具调用” and “图片输入”. If the requirements draft says “设置 › 模型” (Settings › Model), please change it to this path (or tell me to change the UI).
-- **Glossary.** `ModelCapabilities` and the new `ModelCapability` are not yet in [architecture §2.3](../architecture.md#23-code-glossary); I suggest adding a row "model capabilities → `ModelCapabilities` (single item `ModelCapability`)", to be confirmed by the user together with the requirements changes.
+- **UI location.** Capabilities are declared at **设置 › 模型连接 › 高级设置 › 模型能力**, and the checkbox labels are “工具调用” and “图片输入”.
+- **Glossary.** `ModelCapabilities` and `ModelCapability` are in [architecture §2.3](../architecture.md#23-code-glossary).
 - **How to use it.** Ask `ActiveModelHasAsync` before showing an attachment or tool entry point; when sending, ask the snapshot's `Capabilities.Has`; saving settings raises `ModelSettingsService.Changed`, which entry points can use to refresh.
 - **Stage 1 (images)** always sends base64 data URLs: Kimi and Ollama do not accept public URLs. Stage 5's `AudioInput` needs a field added to `ModelCapabilities` (JSON column, no migration needed, old rows read as false).
 - **Stage 2 (tools)** sends only `tool_choice: "auto"` (GLM, Ollama, DeepSeek / Qwen in thinking mode, and Claude 5.5 all reject other values); DeepSeek, Kimi, and Claude on OpenRouter need the reasoning content sent back unchanged in multi-turn requests with tools; on OpenRouter add `provider.require_parameters: true`.
