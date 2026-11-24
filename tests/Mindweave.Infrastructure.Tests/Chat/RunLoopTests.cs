@@ -157,6 +157,23 @@ public class RunLoopTests
         Assert.Single((await h.Runs.RunsAsync(conversation, Ct))[first.Id].Steps);
     }
 
+    [Fact]
+    public async Task The_last_request_allowed_is_not_tried_again()
+    {
+        // The retry counts as a request (architecture §15.10), and at most as many as the limit are sent.
+        await using var h = await ChatHarness.StartAsync(model: ToolModel);
+        await h.ToolSettings.SetLimitsAsync(RunLimits.Default with { ModelRequests = 3 }, Ct);
+        h.Client.CallTool(SearchAttachmentsTool.ToolName, Query("蒸汽机"));
+        h.Client.CallTool(SearchAttachmentsTool.ToolName, Query("信号灯"));
+        h.Client.FailWithStatus(GenerationErrorKind.ServerError, 502);
+        h.Client.Reply("瓦特改良了蒸汽机。");
+
+        var (_, answer) = await AskWithAttachmentAsync(h, "蒸汽机是谁改良的？");
+
+        Assert.Equal(3, h.Client.Requests.Count(FakeChatClient.IsAnswer));
+        Assert.Equal((MessageState.Failed, GenerationErrorKind.ServerError), (answer.State, answer.ErrorKind));
+    }
+
     // L6: a cut-off middle round.
 
     [Fact]

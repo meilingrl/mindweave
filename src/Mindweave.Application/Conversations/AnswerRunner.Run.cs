@@ -247,10 +247,11 @@ internal sealed partial class AnswerRunner
 
             if (error is not null)
             {
-                if (!retried && calls > 0 && text.Length == 0 && asked is null && failure is { IsTransient: true })
+                if (!retried && requests < limits.ModelRequests && calls > 0 && text.Length == 0 && asked is null && failure is { IsTransient: true })
                 {
                     // L5: a request after tool results that failed by chance is tried once more (a step of its own), so the
-                    // results so far are not lost; nothing of it had arrived. It counts as a request and towards the duration.
+                    // results so far are not lost; nothing of it had arrived. It counts as a request and towards the duration,
+                    // so the last request allowed is not tried again.
                     retried = true;
                     live.SetPhase(AnswerPhase.Retrying);
                     var pause = failure.RetryAfter is { } after ? (after < MaxRetryAfter ? after : MaxRetryAfter) : _options.RetryPause;
