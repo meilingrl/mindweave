@@ -150,6 +150,8 @@ public class CutOffPagesTests
         }
 
         await whole("settings-mcp-server");
+        settings.Tools!.UsesTools = false;
+        await whole("settings-tools-off");
     });
 
     [AvaloniaTheory]
