@@ -1,6 +1,6 @@
 # Agent platform: questions for the user to decide
 
-Basis: [requirements](../requirements.md) §10.4 (v0.16) and [architecture](../architecture.md) §15. The drafts are written according to the “recommendation” of each item below. If the user chooses otherwise, the corresponding paragraphs change to match. Under AGENTS.md, changes to the requirements and architecture are merged only after the user confirms them.
+Basis: [requirements](../../requirements.md) §10.4 (v0.16) and [architecture](../../architecture.md) §15. The drafts are written according to the “recommendation” of each item below. If the user chooses otherwise, the corresponding paragraphs change to match. Under AGENTS.md, changes to the requirements and architecture are merged only after the user confirms them.
 
 The first four items affect the implementation of phase 1; please look at them first. The rest only need a decision before the corresponding phase starts.
 

@@ -19,18 +19,17 @@ This directory records the choices that the handoff document lets implementers r
 
 | Document | Content |
 | --- | --- |
-| [Model capabilities](model-capabilities.md) | Research on image input and tool calling per service (official documents and sources), preset rules, 设置 › 高级设置 (Settings › Advanced settings), `ActiveModelHasAsync` as the only query features use, items waiting for verification with real calls |
+| [Model capabilities](model-capabilities.md) | Research on image input and tool calling per service (official documents and sources), preset rules, 设置 › 模型连接 › 高级设置 (Settings › Model connection › Advanced settings), `ActiveModelHasAsync` as the only query features use, items waiting for verification with real calls |
 | [Runs and tools (agent platform phase 2)](runs-and-tools.md) | This phase's new decisions R1–R10 (confirmed by the user 2026-11-17), migration v17 (run steps, snapshots of tools and limits), the run loop, tool calling in Chat Completions, two local tools, 设置 › 工具 (Settings › Tools) and statistics, items waiting for verification with real services |
 | [Web search and citations (agent platform phase 3)](web-search.md) | This phase's new decisions W1–W16 (confirmed by the user 2026-11-17), the Tavily adapter, URL checks for page fetching, approval cards, citation numbering and locating, 设置 › 工具 › 网络搜索 (Settings › Tools › Web search), items waiting for verification with real services |
 | [Third-party tools (agent platform phase 4, MCP)](mcp.md) | This phase's new decisions M1–M18 (accepted by the user 2026-11-19), the MCP client package, server settings and keys, starting and restarting processes, enabling tools and definition snapshots, approval cards, untrusted results, the fake server for tests |
 | [Run loop improvements](agent-loop.md) | A walkthrough of the run loop, the problems found P1–P10, improvements L1–L12 (run prompt, budget line, concurrent read-only calls, retry, leaving room, eviction by citation, material index, local citations, evaluation); implemented and merged 2026-11-20; §8 lists what is left |
-| [Agent platform: open questions](agent-platform-questions.md) | Questions in requirements §10.4 and the architecture §15 draft that the user must decide, each with a recommendation; fixed details for alignment with parallel sessions |
 
 ## Network
 
 | Document | Content |
 | --- | --- |
-| [Summary network: every conversation a dot, and the timeline](session-network.md) | Conversations as dots, the spatial view and the timeline, quiet links, exploration places; the record of how it was built |
+| [Summary network: every conversation a dot, and the timeline](session-network.md) | Conversations as dots, the spatial view and the timeline, quiet links, exploration places; what the owner decided |
 
 ## Model access
 
@@ -55,8 +54,7 @@ This directory records the choices that the handoff document lets implementers r
 | [Version numbers and the change log](versioning.md) | In force since 2026-11-23 (D-036): the third number rises with every merge into `main` and the second at a milestone the owner calls; tags for the five finished phases 0.1–0.5; one change-log section per version with one line per change |
 | [Test organization and health](testing.md) | Fast / full commands, categories, time budgets, isolation rules for flaky failures and their common causes |
 | [Failure handling](failure-handling.md) | Where catches belong, that a handled failure always leaves a trace, cancellation, no programmer-error types as signals, `async void` only in view handlers; checked by `CatchPolicyTests` |
-| [Naming and structure](naming-and-structure.md) | One concept, one name (glossary and reserved words); stored names do not change with code renames; folder equals namespace; the AGENTS.md section and glossary proposal for `main`; the deferred full version of the rules |
-| [Evolution seams](evolution-seams.md) | The form E1–E6 took on this track, their cost and findings; the E5 exchange format specification; conventions handed to S2 |
+| [Evolution seams](evolution-seams.md) | The form E1–E6 took, their cost and findings; the E5 exchange format specification |
 
 ## Logs
 

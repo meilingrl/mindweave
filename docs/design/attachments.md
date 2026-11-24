@@ -1,6 +1,6 @@
 # Attachments (agent platform phase 1)
 
-Basis: [requirements](../requirements.md) §10.4.3 and the phase 1 acceptance in §11, [architecture](../architecture.md) §15.2–15.4 and §15.9–15.11, and [questions to decide](agent-platform-questions.md) (the user passed Q1–Q7 as recommended on 2026-11-17). Implemented on top of the [resource storage foundation](resources.md) (migration v15). This document records implementation-level choices and the differences from the architecture text; product behavior follows requirements and architecture.
+Basis: [requirements](../requirements.md) §10.4.3 and the phase 1 acceptance in §11, [architecture](../architecture.md) §15.2–15.4 and §15.9–15.11, and [questions to decide](../history/design/agent-platform-questions.md) (the user passed Q1–Q7 as recommended on 2026-11-17). Implemented on top of the [resource storage foundation](resources.md) (migration v15). This document records implementation-level choices and the differences from the architecture text; product behavior follows requirements and architecture.
 
 ## Storage (migration v16)
 

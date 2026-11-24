@@ -1,6 +1,6 @@
 # Third-party tools (agent platform phase 4, MCP)
 
-Basis: [requirements](../requirements.md) §10.4.6 and the phase 4 acceptance in §11 (v0.19), [architecture](../architecture.md) §15.6–15.8 and §15.14, [open questions](agent-platform-questions.md) (Q11 approved by the user 2026-11-17; Q15 implemented as recommended, accepted by the user 2026-11-19). Phase 2's run loop and registry are in [runs-and-tools.md](runs-and-tools.md); phase 3's approval card and untrusted material are in [web-search.md](web-search.md). This document records implementation-level choices; product behavior follows the requirements and architecture.
+Basis: [requirements](../requirements.md) §10.4.6 and the phase 4 acceptance in §11 (v0.19), [architecture](../architecture.md) §15.6–15.8 and §15.14, [open questions](../history/design/agent-platform-questions.md) (Q11 approved by the user 2026-11-17; Q15 implemented as recommended, accepted by the user 2026-11-19). Phase 2's run loop and registry are in [runs-and-tools.md](runs-and-tools.md); phase 3's approval card and untrusted material are in [web-search.md](web-search.md). This document records implementation-level choices; product behavior follows the requirements and architecture.
 
 ## 1. New decisions in this phase (accepted by the user 2026-11-19)
 

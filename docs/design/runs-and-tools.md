@@ -1,6 +1,6 @@
 # Runs and tools (agent platform phase 2)
 
-Basis: [requirements](../requirements.md) §10.4.4 and the phase 2 acceptance in §11 (v0.17), [architecture](../architecture.md) §15.3–15.7 and §15.10–15.12, [questions to decide](agent-platform-questions.md) (the user passed Q8–Q11 as recommended on 2026-11-17). This document records implementation-level choices; product behavior follows the requirements and architecture.
+Basis: [requirements](../requirements.md) §10.4.4 and the phase 2 acceptance in §11 (v0.17), [architecture](../architecture.md) §15.3–15.7 and §15.10–15.12, [questions to decide](../history/design/agent-platform-questions.md) (the user passed Q8–Q11 as recommended on 2026-11-17). This document records implementation-level choices; product behavior follows the requirements and architecture.
 
 ## 1. New decisions in this phase (user confirmed on 2026-11-17)
 

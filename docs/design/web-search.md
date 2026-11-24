@@ -1,6 +1,6 @@
 # Web search and citations (agent platform phase 3)
 
-Basis: [requirements](../requirements.md) §10.4.5 and the phase 3 acceptance in §11 (v0.18), [architecture](../architecture.md) §15.6–15.9 and §15.13, [open questions](agent-platform-questions.md) (Q8 and Q10 as recommended, Q12 chose Tavily, Q14 as recommended). Phase 2's run loop, registry and activity text are in [runs-and-tools.md](runs-and-tools.md). This document records implementation-level choices; product behavior follows the requirements and architecture.
+Basis: [requirements](../requirements.md) §10.4.5 and the phase 3 acceptance in §11 (v0.18), [architecture](../architecture.md) §15.6–15.9 and §15.13, [open questions](../history/design/agent-platform-questions.md) (Q8 and Q10 as recommended, Q12 chose Tavily, Q14 as recommended). Phase 2's run loop, registry and activity text are in [runs-and-tools.md](runs-and-tools.md). This document records implementation-level choices; product behavior follows the requirements and architecture.
 
 ## 1. New decisions in this phase (confirmed by the user 2026-11-17)
 
