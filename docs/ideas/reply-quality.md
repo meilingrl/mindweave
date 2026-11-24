@@ -1,8 +1,52 @@
 # Reply quality
 
-**Status:** first draft, 2026-11-22. Not agreed. Based on a research pass of the same day over open-source projects: their prompts, code and documents were read; the adaptations to Mindweave and all cost estimates are inferences, not measurements.
+**Status:** in discussion with the owner since 2026-11-25; decisions are recorded under "Discussion". Nothing outside that section is agreed. First draft 2026-11-22. Based on a research pass of the same day over open-source projects: their prompts, code and documents were read; the adaptations to Mindweave and all cost estimates are inferences, not measurements.
 
 **Related:** [agent-loop.md](../design/agent-loop.md) (run loop, L1–L12, section 8), [web-search.md](../design/web-search.md), [requirements §10.4](../requirements.md).
+
+## Discussion
+
+Started 2026-11-25. The owner decides; each decision is recorded here with its date. Questions are asked one at a time, in the order of what depends on what.
+
+### Order of the questions
+
+| # | Question | Depends on |
+| --- | --- | --- |
+| Q1 | Does every answer get an answer prompt, and how strongly does it steer? (idea 1) | Nothing; the others hang on it |
+| Q2 | The rule for branch answers (idea 1) | Q1 |
+| Q3 | Do self-check cards and a guide-me mode fit requirements §5.4? | Q1 (guide me is a mode of the answer prompt) |
+| Q4 | What the user already knows, and memory (idea 7, "Memory") | Q1 |
+| Q5 | Follow-up suggestions per answer (idea 2) | Q1, Q2 |
+| Q6 | Stop rules, the clarification card, and the two agent-loop to-dos (ideas 5, 8; agent-loop §8) | Q1 (the run prompt becomes "answer prompt + tool section") |
+| Q7 | Rewriting follow-up questions (idea 4; reopens L9, decided 2026-11-19) | Q6 |
+| Q8 | Relevant passages from fetched pages (idea 3) | Nothing |
+| Q9 | Better summaries (idea 10) | Nothing |
+| Q10 | The evaluation of explanations and of citations (ideas 6, 9) | What Q1–Q9 keep |
+| Q11 | Out of scope, failure cases, acceptance scenarios, the first increment | All |
+
+### Decisions
+
+None yet.
+
+### Boundaries with the other design sessions (proposed, for the owner to settle)
+
+- **Return and review** owns unresolved marks and the summary network. Follow-up suggestions (idea 2) are offered once under an answer and store nothing about what is unresolved; a suggestion the user does not take leaves no mark.
+- **Ask from anywhere and local AI** owns local models and search by meaning. Ideas 3 and 7 use the keyword search that exists; if search by meaning arrives, they use it through the same call and need no change here.
+- **Sharing** owns the exchange format. Whatever an answer gains here (suggestions, for example) is stated as "shared or not" in this draft before it is built.
+
+### The draft checked against the code (2026-11-25, `main` at f9edc39, 0.6.11)
+
+Every line of "Where the code stands" still holds:
+
+- An answer without tools has no system turn: `ConversationService` counts instructions only when the answer is a run, and `RunPrompt` says "An answer without tools gets none of this".
+- The run prompt (`Prompts/en/run.md`, `Prompts/zh/run.md`, version 3) has six points: instructions and material, the tools, when not to call, when to stop, numbers for citations, no process notes. Nothing on how to explain or on branches.
+- A branch tells the model about the selection only through the first question, which carries the quoted passage (`BranchContext.QuotedQuestion`).
+- Recommended questions exist per workspace only (`Prompts/*/recommendations.md`, requirements §10.3.1).
+- The pre-search query is still built by the L9 rule (`WebRun`, a list of referring words), with no model request.
+- A long tool result is cut to its first 2,000 estimated tokens plus a handle (`AnswerRunner.Run.cs`). Since 0.6.10 the rest can be read in any conversation, but the model still gets the start first, not the part that matters.
+- The evaluation set has the same 12 scenarios, all about mechanics.
+- The summary prompt (`Prompts/*/summary.md`) asks for background, main explanations, open questions and uncertainty; it says nothing about organizing by concept or about key terms.
+- Both to-dos in section 8 of agent-loop.md are open: attachment digests cut by the output limit on reasoning models, and the dropped line "name the attachment when relying on it".
 
 ## Goal
 
