@@ -140,10 +140,16 @@ Known roughness of the prototype, for the builder: the fold cuts at a fixed heig
 - Printing is always light.
 - Conversation text is never translated: questions, answers, titles and summaries appear as written.
 
+### S10 After sharing (2026-11-25)
+
+- A share is a snapshot of the moment it was saved. Later questions, edits and deletions do not reach a file already saved, and nothing can call a sent file back. The share dialog says so in one line.
+- The app keeps no record of shares. The file is the record.
+- Sharing again is saving a new file; a recipient who imports it gets only what is new (S4).
+- The suggested file name is the share's title and the date.
+
 ## Open questions
 
 In order of what depends on them:
 
 1. What importing a structure-only share gives the recipient.
-6. After sharing: later changes, deletion, sharing again.
 7. Failure cases, what is out of scope for 0.7, acceptance scenarios, the first increment.
