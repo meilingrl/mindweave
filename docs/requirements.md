@@ -118,7 +118,7 @@ Stage result: the user can really complete a multi-level side-branch exploration
 
 Stage result: when the user comes back a few days later, they can find the earlier explanations and exploration paths again and keep asking questions.
 
-The first release also includes summary version management, lightweight Markdown export, archiving conversations and deleting them when nothing depends on them, as well as automatic layout whose places are kept (§7.3, §7.4); the behavior is described later. Manual dragging of nodes and decorative animations have been shown to be feasible in the samples, but that does not automatically make them required deliverables of the first release; their interaction implementation is still managed as later scope.
+The first release also includes summary version management, lightweight Markdown export, archiving conversations and deleting them after their scope is stated (§8.2), as well as automatic layout whose places are kept (§7.3, §7.4); the behavior is described later. Manual dragging of nodes and decorative animations have been shown to be feasible in the samples, but that does not automatically make them required deliverables of the first release; their interaction implementation is still managed as later scope.
 
 ### 5.3 Platform and course constraints
 
@@ -243,7 +243,7 @@ Both archiving and deleting conversations are in the first release. Archiving op
 
 Deletion protects existing results by "stating the scope clearly before deleting", not by forbidding deletion:
 
-- **Conversation**: a conversation with no summary, no child branches and no other lineage references is deleted directly after confirmation. When a conversation with child branches or a summary is deleted, all its child branches and the summaries of these conversations are deleted with it. The confirmation dialog lists the numbers of conversations, branches and summaries that will be deleted, and offers “改为归档” (Archive instead). Such a deletion first makes an automatic backup; if the backup fails, nothing is deleted.
+- **Conversation**: a conversation with no summary, no child branches, no attachments and no other lineage references is deleted directly after confirmation. When a conversation with child branches, a summary or attachments is deleted, all its child branches and the summaries and attachments of these conversations are deleted with it. The confirmation dialog lists the numbers of conversations, branches, summaries and attachments that will be deleted, and offers “改为归档” (Archive instead). Such a deletion first makes an automatic backup; if the backup fails, nothing is deleted.
 - **Multi-select**: in the sidebar, several conversations can be selected at once and archived or deleted together. The rules are the same as above, and one confirmation dialog lists the totals.
 - **Workspace**: a workspace can be deleted as a whole, together with all its conversations (including archived ones), summaries and layout, and also, after the first release, its recommendations, summary links, link suggestions and dismissal records. The user must type the workspace name to confirm, and a backup is also made first. After the current workspace is deleted, the app goes to the most recently used other workspace; when no workspace is left, the user is guided to create one.
 - **Summary links and recommendations** (after the first release, §10.3): when a summary node is deleted, its summary links and the recommendations based on it are removed with it. The confirmation dialog for the cascading deletion states the number of summary links that will be removed.
@@ -283,7 +283,7 @@ The final goal is full project import/export that keeps conversations, messages,
 
 ### 9.5 Protecting branch sources
 
-- The first release does not provide rewriting original messages or moving branches, which would break branch entries. There are only three kinds of deletion: cleaning up summary versions, deleting conversations (including multi-select), and deleting a whole workspace. Any deletion that would also delete branches or summaries first lists the scope, is confirmed by the user and makes a backup first; see "Archiving and deleting conversations". After the first release there is also deleting a single summary link (§10.3.3), which deletes only that relation and does not touch lineage, conversations or summaries. Other operations, such as merging, must separately define how lineage references, child branches and summaries are handled.
+- The first release does not provide rewriting original messages or moving branches, which would break branch entries. There are only three kinds of deletion: cleaning up summary versions, deleting conversations (including multi-select), and deleting a whole workspace. Any deletion that would also delete branches, summaries or attachments first lists the scope, is confirmed by the user and makes a backup first; see "Archiving and deleting conversations". After the first release there is also deleting a single summary link (§10.3.3), which deletes only that relation and does not touch lineage, conversations or summaries. Other operations, such as merging, must separately define how lineage references, child branches and summaries are handled.
 
 ### 9.6 Context budget and automatic compression
 
