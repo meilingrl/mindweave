@@ -133,11 +133,17 @@ The owner judged the prototype in [prototypes/share-page](../../prototypes/share
 
 Known roughness of the prototype, for the builder: the fold cuts at a fixed height and can slice a formula; the product folds at a paragraph boundary.
 
+### S9 Language and theme of the page (2026-11-25)
+
+- The page follows the reader. Its own words are carried in English and Chinese; it opens in Chinese when the reader's browser is set to Chinese, otherwise in English. Its theme follows the reader's system setting.
+- A small switch for each sits in a corner of the page.
+- Printing is always light.
+- Conversation text is never translated: questions, answers, titles and summaries appear as written.
+
 ## Open questions
 
 In order of what depends on them:
 
 1. What importing a structure-only share gives the recipient.
-5. Language and theme of the page.
 6. After sharing: later changes, deletion, sharing again.
 7. Failure cases, what is out of scope for 0.7, acceptance scenarios, the first increment.
