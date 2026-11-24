@@ -37,7 +37,7 @@ The reply-quality discussion owns everything inside an answer or a summary: the 
 
 ## Questions, in the order they depend on each other
 
-1. What is kept for each conversation so that it can be brought back (Q1, asked 2026-11-25).
+1. What is kept for each conversation so that it can be brought back: decided, R1.
 2. When it is written, and what it costs.
 3. What returning from a branch shows.
 4. What coming back after some days shows, and where.
@@ -49,7 +49,17 @@ The reply-quality discussion owns everything inside an answer or a summary: the 
 
 ## Decisions
 
-None yet.
+### R1 What is kept for each conversation (2026-11-25)
+
+- Each conversation gets a short note, written by the model with no action from the user, like the automatic title.
+- The note has two parts: one or two key points, and at most two questions left open.
+- The same note is what shows in every place of return: at the branch entry in the parent, in the summary network's details for the conversation's dot, and on coming back after some days. No place gets material of its own.
+- Facts the app already has (where reading stopped, branches never opened, failed answers, later content after a summary) may show beside the note; they need no model.
+- The note is not a summary node: it has no versions, no read state and no ring, and the user does not manage it.
+
+Considered: structure only, with no model (free, but no key points come back from a branch); a mark set by the model at the end of each answer (no extra request, but it piles up per answer and lies inside the answer, which is reply quality's).
+
+Follows from it: a new table (a migration, tried on a copy of the owner's data first), and a glossary row for the note before any code.
 
 ## Still to write
 
