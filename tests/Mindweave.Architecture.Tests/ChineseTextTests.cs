@@ -11,7 +11,7 @@ namespace Mindweave.Architecture.Tests;
 public class ChineseTextTests
 {
     /// <summary>
-    /// Members that must keep Chinese outside T: they read Chinese the model wrote or markers stored in the user's data,
+    /// Members that must keep Chinese outside T: they read Chinese the model or a website wrote, or markers stored in the user's data,
     /// so the Chinese there is input, not text shown or sent. Each is (file under src, member, reason).
     /// </summary>
     private static readonly (string File, string Member, string Reason)[] Allowed =
@@ -36,6 +36,7 @@ public class ChineseTextTests
         ("Mindweave.Application/Tools/WebRun.cs", "PointsBack", "recognizes a Chinese question that refers back to earlier material"),
         ("Mindweave.Application/Tools/WebRun.cs", "Address", "ends an address at the Chinese punctuation that follows it in a question"),
         ("Mindweave.Application/Tools/ITool.cs", "ChinesePlaceholder", "an image placeholder is replaced in either language: the language may switch while a tool runs"),
+        ("Mindweave.Infrastructure/Tools/GuardedPageFetcher.cs", "RobotCheckTitles", "recognizes the Chinese titles websites give a check for robots"),
         ("Mindweave.Infrastructure/Sqlite/Migrations/SchemaMigrations.cs", "All", "SQL comments in stored schema text, which never changes"),
     ];
 
