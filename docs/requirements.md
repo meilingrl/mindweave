@@ -456,7 +456,7 @@ Not done for now: a code execution sandbox; agents that work autonomously in the
 
 #### 10.4.4 Phase 2: runs and tool calls
 
-v0.17 (2026-11-17) wrote this phase to the point where it can be accepted; on 2026-11-17 the user passed Q8–Q11 as recommended ([open questions](design/agent-platform-questions.md)). The decisions new in this phase are listed in section 1 of [Runs and tools](design/runs-and-tools.md); the user confirmed them on 2026-11-17.
+v0.17 (2026-11-17) wrote this phase to the point where it can be accepted; on 2026-11-17 the user passed Q8–Q11 as recommended ([open questions](history/design/agent-platform-questions.md)). The decisions new in this phase are listed in section 1 of [Runs and tools](design/runs-and-tools.md); the user confirmed them on 2026-11-17.
 
 **When an answer is a run.**
 
