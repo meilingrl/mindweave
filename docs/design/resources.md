@@ -1,6 +1,6 @@
 # Resource storage (D5 phase 1 foundation)
 
-Basis: [evolution directions](../evolution.md) D5 "Direction formed in the 2026-11-13 discussion" and the development record `docs/history/agent-platform-discussion-20261113.md`. This document covers only the internal storage foundation: there is no interface, and the behavior the user sees does not change. The formal requirements and architecture text is drafted by another session (agent-docs); table names, column names and disk layout are already aligned with its draft. The places that still differ are listed in "Differences from the architecture draft" at the end; at merge time, the architecture confirmed by the user wins, and then this document and the code are changed.
+Basis: [evolution directions](../evolution.md) D5 "Direction formed in the 2026-11-13 discussion" and the development record `docs/history/agent-platform-discussion-20261113.md`. This document covers only the storage foundation as it was built with v15 (2026-11-17). What v16 replaced is marked below; the interface is in [attachments](attachments.md). Where it differs from the architecture, the architecture wins.
 
 ## Concepts
 
@@ -78,7 +78,7 @@ A backup is still only a `VACUUM INTO` copy of the database and does not copy or
 
 The composer's "+", long pastes automatically becoming attachments and “转为文字” (convert to text), attachments in drafts (the architecture draft has a `draft_attachment` table); sending images to the model; chunking and retrieval (`resource_chunk`, FTS5); web and tool resources; resources in the export package (E5); showing the originals' usage on the storage page; cleanup at startup; expiry cleanup of unsent resources (to be decided together with the composer).
 
-> **Parts replaced from 2026-11-17 by migration v16 and [attachments](attachments.md):** the provenance mark (`provenance` replaces `trusted`), `origin = image` for images, the 50 MB / 20 MB limits, chunking and retrieval, draft attachments, cleanup at startup; cleanup no longer keeps originals because a backup references them, and instead copies the originals into the backup before deletion (Q4). The table below is the comparison as it stood for v15, kept as history.
+> **Parts replaced from 2026-11-17 by migration v16 and [attachments](attachments.md):** turning blocks into text (`TextOf` gives a one-line marker; the content goes through the resource layer), the provenance mark (`provenance` replaces `trusted`), `origin = image` for images, the 50 MB / 20 MB limits, chunking and retrieval, draft attachments, cleanup at startup; cleanup no longer keeps originals because a backup references them, and instead copies the originals into the backup before deletion (Q4). The table below is the comparison as it stood for v15, kept as history.
 
 ## Differences from the architecture draft (2026-11-17, for comparison at merge time)
 

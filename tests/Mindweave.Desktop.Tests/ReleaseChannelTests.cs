@@ -20,7 +20,7 @@ public class ReleaseChannelTests
 
     [Theory]
     [InlineData("dev")]
-    [InlineData("claude-auto")]
+    [InlineData("daily")]
     public void Other_channels_name_the_build_and_the_channel_in_settings(string channel)
     {
         Assert.Equal($"Mindweave 0.2.0 · 5f50734 · 2026-11-22 · 数据通道 {channel}",

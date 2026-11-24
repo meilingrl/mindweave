@@ -21,4 +21,4 @@
 ## Authorized
 
 - Pushing to `origin`.
-- CI: the private repository runs Linux and Windows only.
+- CI: runs Linux and Windows only. The repository is public because the CI minutes of a private one were too few (owner, 2026-11-24).

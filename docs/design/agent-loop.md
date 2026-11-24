@@ -1,10 +1,10 @@
 # Run loop improvements (L1–L12 implemented and merged, 2026-11-20)
 
-Basis: [requirements](../requirements.md) §10.4.4–10.4.5, [architecture](../architecture.md) §15.4–15.8, [Runs and tools](runs-and-tools.md) (R1–R10), [Web search and citations](web-search.md) (W1–W16). The phase 4 MCP decisions M1–M18 are being drafted on branch `claude/mcp-p4-8434f8` (`docs/design/mcp.md`); this document is checked against them and does not conflict with them.
+Basis: [requirements](../requirements.md) §10.4.4–10.4.5, [architecture](../architecture.md) §15.4–15.8, [Runs and tools](runs-and-tools.md) (R1–R10), [Web search and citations](web-search.md) (W1–W16). The phase 4 MCP decisions M1–M18 are in [mcp.md](mcp.md).
 
-This document is a **proposal**: first it lays out the current run loop clearly, then it lists the improvements and their order. The items that change the text of architecture §15 (marked “Architecture”) are committed separately under AGENTS.md and merged only after the user confirms them; the rest are implementation choices and, once confirmed, are implemented as usual.
+Sections 1, 2 and 5–7 are the proposal of 2026-11-19 and describe the loop **before** the improvements; the loop as it is now is in the L rows of section 8, in [runs-and-tools.md](runs-and-tools.md) and in architecture §15. The items that change the text of architecture §15 (marked “Architecture”) are committed separately under AGENTS.md and merged only after the user confirms them; the rest are implementation choices and, once confirmed, are implemented as usual.
 
-## 1. The current flow
+## 1. The flow before the improvements
 
 An answer has three parts: before the run (once per question), the run loop, and after the run.
 
@@ -158,7 +158,7 @@ Before each step merges, run all tests and compare the evaluation with the previ
 - Resuming a run after interruption (current rule: no resume; recorded as interrupted).
 - Multiple agents collaborating, or separating planner and executor: the current single loop plus L1–L8 is enough for the tools of phases 2–4; to be discussed again once there is evaluation data and a real need.
 - Long-term memory across conversations: the summary network already plays this role; L10 handles only material within the same conversation.
-- Saving and displaying reasoning content (R10 and the “显示思考内容” (Show thinking) to-do are unchanged).
+- Saving and displaying reasoning content (shown live since requirements v0.21, not saved).
 
 ## 8. Implementation record (2026-11-19, branch `claude/run-loop-l1-l11-7076b0`)
 
@@ -173,7 +173,7 @@ Done in four steps in the order of section 5, one commit per item; the five item
 | L5 | When a request after tool results meets a network error, timeout, 5xx or 429, wait 2 seconds (429's `Retry-After`, at most 20 seconds) and retry once, as a separate step | Retry only when this request has received nothing yet (no retry once text has streamed out, to avoid duplicating the body); a second consecutive failure ends as usual. `ChatClientException` gains `RetryAfter` and `IsTransient` |
 | L6 | When a non-final round is truncated for length while calling tools or before any text is written, its calls are not executed and the run goes straight to the final request (the prompt changes to “上一轮被截断” (the previous round was truncated)) | When answer text has already been written, truncation ends the run as before (otherwise there would be two answers); the truncated text is no longer sent to the model, and the request does not end with the model's own turn |
 | L7 | Order of shrinking to one line: failed and rejected → search results not cited and whose pages were not read → local and other results (and search results whose pages were read) → web pages → those cited in the body | None |
-| L8 | When tools are offered, planning uses 75% of the space (`ContextBudget.LeavingRoom`, with a wider margin); when the required items do not fit, the original space is used; requests during the run can still use all of it | The context ring still predicts against the full space; with tools, what is actually sent may be compressed earlier than the ring shows |
+| L8 | When tools are offered, planning uses 75% of the space (`ContextBudget.LeavingRoom`, with a wider margin); when the required items do not fit, the original space is used; requests during the run can still use all of it | The context ring predicts with the same room since 0.5.11, and counts the run instructions and tools |
 | L9 | “开” setting: when the question is shorter than 30 characters or contains a referring word, prepend the conversation title and branch selection (at most 100 characters each) | When there is no title yet (common for the second question), the previous question is used in its place. Referring words are detected by a simple rule: any “它” in the sentence counts, which may add extra context, harmlessly |
 | L10 | When “检索附件” (search attachments) is available, “本会话较早取得的材料” (material obtained earlier in this conversation) is attached after the run prompt: the last 10 tool results (web page title and host, name) and resource numbers, within about 300 tokens | None |
 | L11 | One numbering sequence per run (`RunSources`): each part from attachment search and each summary from summary network search gets a number; a web page read in an earlier run keeps its URL when read again and shares numbering with web sources; the citation list shows “附件《》” (Attachment), “材料《》” (Material) and “总结《》” (Summary) with the location, and clicking opens the viewer (scrolled to the passage) or the summary | An extra “材料” (Material) class was added (search results and the like obtained in earlier runs, which are not the user's attachments). Old [n] markers in stored web pages are removed when they are read again, so the model does not reuse them. The `citation` block's stored name is unchanged; its data gains optional `kind` and `target`, and old data reads as usual |

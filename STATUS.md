@@ -4,13 +4,15 @@ What is true now: work in progress, next steps, what needs you, open decisions, 
 
 ## In progress
 
-- Nothing in progress.
+- Sharing (evolution D8), the theme of 0.6.x towards 0.7: the requirements discussion is open with you; nothing is decided or built.
+- App icon (`task/app-icon`): candidates first, then your choice.
+- The code defects found by the check of the documents (2026-11-24), in a session of their own: not merged. It also builds what D-038 decided ahead of the code: a stopped call with side effects is unknown, later content in the network's details, Mindweave in the interface text (wording shown to you first).
 
 ## Next steps
 
 - Next-phase ideas: refine the first drafts in [docs/ideas](docs/ideas/README.md) one by one with you. Nothing in them is agreed.
 - Free trial (evolution D9): adopted, done later, no schedule. The design is [free-trial.md](docs/design/free-trial.md).
-- `node_layout` (the positions of the earlier summary-only view) is dropped in the release after 0.6.0 ([session-network.md](docs/design/session-network.md) §12.2): a migration, so you decide then.
+- `node_layout` (the positions of the earlier summary-only view) is dropped in a later migration, once you have used a daily build of 0.6.0 or later and are satisfied (D-038).
 - Verify in daily use:
   - agent platform phases 2–4;
   - the run loop (L1–L11);
@@ -18,9 +20,8 @@ What is true now: work in progress, next steps, what needs you, open decisions, 
 - Then keep improving the agent from the to-dos in section 8 of [agent-loop.md](docs/design/agent-loop.md), with `scripts/real-api.sh eval`.
 - Other candidates:
   - a full run and a Release build trial on the Windows hardware;
-  - course report material;
   - the six minor issues in §13 of [bilingual-ui.md](docs/design/bilingual-ui.md);
-  - the [low / info-level to-dos](docs/reviews/claude-auto-health-20261112/low-triage.md), which is the only to-do list.
+  - the [low / info-level to-dos](docs/reviews/claude-auto-health-20261112/low-triage.md) still open.
 - Maintainability, waiting for the next change to that code:
   - EXC-3: a dedicated exception for a closed or shutting-down state, which empties `CatchPolicyTests.InvalidOperationAsSignal`;
   - EXC-4: guards on `GenerationCoordinator` events;
@@ -39,6 +40,8 @@ What is true now: work in progress, next steps, what needs you, open decisions, 
   - the answer output limit;
   - the English prompts.
 - The UI points of 0.5.11 to 0.5.14, 0.6.2, 0.6.4, 0.6.6 and 0.6.7 (D-037): on Windows; a real model's tool steps while the page stays.
+- Nothing of 0.6.x in daily use: the daily build is 0.5.14.
+- Many new-answer hints at once in a very small window, which can lie over the page.
 - In a real window: the language switch, and English short names on the summary network canvas.
 - The network's quiet links and the new link suggestions: on Windows; the suggestions with a real model (the prompts changed). Recommended nodes counted by conversations (0.6.0): with a real model.
 - Exploration places (option C): on Windows; an extremely spread-out workspace, where a coarse packing grid can still push an untouched exploration.
@@ -50,7 +53,8 @@ What is true now: work in progress, next steps, what needs you, open decisions, 
 | --- | --- | --- |
 | Look at the icon size in a real window (direction A looks smaller than before; making it bigger is one size in the style) | Look and feel is yours to judge | Nothing |
 | Real service checks (paid, optional): DeepSeek images + tools, Kimi K3 base64 images, GPT-6 tool calls, DashScope streaming tools | Only within the budget you give | The capability presets of phases 1–2 |
-| Remove the old Mindweave icon from the Dock and pin `~/Applications/Mindweave.app` (once) | The old icon points to the v11 build of 11-13, which cannot open v13 data | Opening the daily build from the Dock |
+| Pin `~/Applications/Mindweave.app` in the Dock (once) | The old icon is gone from the Dock (checked 2026-11-24) | Opening the daily build from the Dock |
+| Set the GitHub noreply address for commits (D-025) | The repository is public, and every commit so far has your personal address; it changes only new commits | Nothing |
 
 ## Open decisions
 
@@ -60,7 +64,7 @@ What is true now: work in progress, next steps, what needs you, open decisions, 
 
 | What | Commit | Date | Result |
 | --- | --- | --- | --- |
-| macOS full run | the test scripts report Chinese whole on Windows, 0.6.8 | 2026-11-24 | passed: Core 137, Architecture 29, Infrastructure 1019 + 23 skipped, Desktop 4 shards 0 failed |
+| macOS full run | the check of the documents, 0.6.9 | 2026-11-24 | passed: Core 137, Architecture 29, Infrastructure 1019 + 23 skipped, Desktop 4 shards 0 failed |
 | CI on `main` (Linux + Windows) | see the latest run on GitHub | | |
 | Windows 11 hardware, full run | daabd5b | 2026-11-21 | passed |
 | Windows 11 hardware, stress and Release start | 08ead83 | 2026-11-16 | passed |

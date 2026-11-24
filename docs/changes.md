@@ -8,6 +8,7 @@ The second number rises when a capability is finished and on by default, and the
 
 | Version | Dates | What the phase delivered | Where to read |
 | --- | --- | --- | --- |
+| 0.6.0 | 2026-11-22 to 11-23 | The network of every conversation: every conversation a dot, the spatial view and the timeline, places kept | The sections below and the dated entries |
 | 0.5.0 | 2026-11-20 to 11-22 | The bilingual product: English interface, prompts in the interface language, the reasoning fold, answer typography, living documents in English | The dated entries below |
 | 0.4.0 | 2026-11-17 to 11-20 | The agent platform: attachments, the run loop and local tools, web search, MCP; onboarding, icons, the context ring, the daily build | The dated entries below |
 | 0.3.0 | 2026-11-04 to 11-16 | The original requirements completed (items 3–8b): delete rules, workspace management, new-answer hints, suggested names, restore from backup, statistics, recommended questions, links; the structure refactor | [Stage reports](history/design/stage-reports.md) (frozen, in Chinese) |
@@ -15,6 +16,17 @@ The second number rises when a capability is finished and on by default, and the
 | 0.1.0 | 2026-10-25 to 10-28 | The core product, stages S0–S6: storage, real chat, branching and return, context budget and compression, summaries and versions, the summary network | [Stage reports](history/design/stage-reports.md) |
 
 The nine merges after 0.5.0, on 2026-11-22 and 2026-11-23, are 0.5.1 to 0.5.9 in order. They keep their dated entries below.
+
+## 0.6.9 · 2026-11-24
+
+- Documents: Added Apache-2.0 as the licence, four built features to the requirements (§10.6), your answers of 2026-11-24 (D-038), the tables by migration to [data-model.md](design/data-model.md), the 0.6.0 row to the version table, and the rule that a merge counts as done only once CI passes (AGENTS.md)
+- Documents: Changed requirements (v0.27) and architecture where they were behind the product: the delete rule, the run loop, the network, quitting, names; no mobile; the interface calls the network page Mindweave
+- Documents: Changed [session-network.md](design/session-network.md) to the design as built; its record, the agent platform questions and the naming proposal moved to [finished designs](history/design/README.md)
+- Documents: Changed [testing.md](design/testing.md) to say which categories run
+- Fixed the source package check, which failed on the daily channel's name in a test and in a prototype's README
+- Documents: Removed the text about saving a layout by hand, progress marks and questions since decided
+- Try: nothing on screen changed; `scripts/package-source.sh` passes
+- Not verified: Windows hardware; the decisions written ahead of the code (a stopped call with side effects is unknown, later content in the network's details, Mindweave in the interface text) wait for the code task
 
 ## 0.6.8 · 2026-11-24
 

@@ -8,7 +8,7 @@ Export each workspace from a **copy** of the data (never the live file), then ru
 
 ```sh
 D="$TMPDIR/molecule"; mkdir -p "$D/data"
-sqlite3 "$HOME/Library/Application Support/Mindweave/claude-auto/mindweave.db" ".backup '$D/copy.db'"
+sqlite3 "$HOME/Library/Application Support/Mindweave/<channel>/mindweave.db" ".backup '$D/copy.db'"
 sqlite3 "$D/copy.db" "select id,name from workspace" | while IFS='|' read id name; do
   sqlite3 -json "$D/copy.db" "select c.id, b.parent_id as parent, c.created_at as created,
     coalesce((select s.display_name from summary_node s where s.conversation_id=c.id), c.title, substr(b.quote,1,30), 'New conversation') as title,

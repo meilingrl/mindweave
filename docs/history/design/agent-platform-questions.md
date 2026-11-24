@@ -1,10 +1,10 @@
 # Agent platform: questions for the user to decide
 
-Basis: [requirements](../requirements.md) §10.4 (v0.16) and [architecture](../architecture.md) §15. The drafts are written according to the “recommendation” of each item below. If the user chooses otherwise, the corresponding paragraphs change to match. Under AGENTS.md, changes to the requirements and architecture are merged only after the user confirms them.
+Basis: [requirements](../../requirements.md) §10.4 (v0.16) and [architecture](../../architecture.md) §15. The drafts are written according to the “recommendation” of each item below. If the user chooses otherwise, the corresponding paragraphs change to match. Under AGENTS.md, changes to the requirements and architecture are merged only after the user confirms them.
 
 The first four items affect the implementation of phase 1; please look at them first. The rest only need a decision before the corresponding phase starts.
 
-**Decided:** Q1–Q7 as recommended (user 2026-11-17; phase 1 is implemented on this basis); Q8–Q11 as recommended (user 2026-11-17, before phase 2 started). Q12: the first search service is **Tavily** (user 2026-11-17). Q14 is implemented in phase 3 as recommended (citations in summaries are text only), **waiting for the user's confirmation**; phase 3 also has new decisions W1–W16, see [web-search.md](web-search.md). Q15 is implemented in phase 4 as recommended (remote servers that require sign-in are not supported), accepted by the user 2026-11-19; phase 4 also has new decisions M1–M18 (accepted by the user 2026-11-19), see [mcp.md](mcp.md). Q11 has been implemented in phase 4 as “one call only”. Q13 and Q16 are decided before the corresponding phase starts.
+**Decided:** Q1–Q7 as recommended (user 2026-11-17; phase 1 is implemented on this basis); Q8–Q11 as recommended (user 2026-11-17, before phase 2 started). Q12: the first search service is **Tavily** (user 2026-11-17). Q14 is implemented in phase 3 as recommended (citations in summaries are text only), **waiting for the user's confirmation**; phase 3 also has new decisions W1–W16, see [web-search.md](../../design/web-search.md). Q15 is implemented in phase 4 as recommended (remote servers that require sign-in are not supported), accepted by the user 2026-11-19; phase 4 also has new decisions M1–M18 (accepted by the user 2026-11-19), see [mcp.md](../../design/mcp.md). Q11 has been implemented in phase 4 as “one call only”. Q13 and Q16 are decided before the corresponding phase starts.
 
 ## Before phase 1
 
