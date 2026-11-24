@@ -31,7 +31,7 @@ Based on architecture §4.1 and §4.2. Following the development route, only the
 | Create a branch: child conversation + branch source + ancestor ranges | S2 |
 | Adopt/discard/set as current/delete a version; the node is deleted with its last version, and its layout with it | S4 |
 | Delete a conversation with no dependents; archive and restore | S6 |
-| Save layout (revision number prevents rollback) | S5 |
+| Save the places of explorations that are new or changed, when the network loads | S5; places since 0.6.0 |
 
 ## Deletion boundaries
 
