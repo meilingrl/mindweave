@@ -29,7 +29,8 @@ import sys
 import time
 import xml.etree.ElementTree as ET
 
-CLASS_NAME = re.compile(r"[A-Za-z_][\w`]*(\.[A-Za-z_][\w`+]*)+")
+# A name part starts with a letter of any script or "_": a class named in Chinese is a class too.
+CLASS_NAME = re.compile(r"[^\W\d][\w`]*(\.[^\W\d][\w`+]*)+")
 NS = {"t": "http://microsoft.com/schemas/VisualStudio/TeamTest/2010"}
 
 
@@ -39,7 +40,8 @@ def runner(dll):
 
 def list_classes(dll, extra):
     cmd = runner(dll) + ["-list", "classes", "-noLogo", "-noColor", *extra]
-    out = subprocess.run(cmd, capture_output=True, text=True, check=True).stdout
+    # The runner writes UTF-8; the system's code page (the default here) would damage a class name outside ASCII.
+    out = subprocess.run(cmd, capture_output=True, encoding="utf-8", errors="replace", check=True).stdout
     # Only full type names: a banner or escape code taken as a class would match nothing and hide an empty assembly.
     return sorted({line.strip() for line in out.splitlines() if CLASS_NAME.fullmatch(line.strip())})
 
@@ -130,7 +132,23 @@ def record(args):
     print(f"test-shards: recorded {len(seconds)} classes in {args.out}")
 
 
+def whole_output():
+    """Makes every print and exit message arrive whole, whatever the system's code page.
+
+    Windows gives a Python whose output is redirected the ANSI code page (cp1252 on CI), and a test name, class name
+    or failure message with Chinese in it then raised UnicodeEncodeError in the middle of the report. Redirected
+    output is written as UTF-8, which is what a CI log or a pipe to another tool reads; a console keeps its own
+    encoding, and a character it cannot show is written as an escape and never raises.
+    """
+    for stream in (sys.stdout, sys.stderr):
+        if stream.isatty():
+            stream.reconfigure(errors="backslashreplace")
+        else:
+            stream.reconfigure(encoding="utf-8", errors="backslashreplace")
+
+
 def main():
+    whole_output()
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     sub = parser.add_subparsers(dest="command", required=True)
     p = sub.add_parser("run")
