@@ -1,6 +1,6 @@
 # Ask from anywhere, openness and local AI
 
-**Status:** in discussion with the owner since 2026-11-25. Not agreed. Last discussed: 2026-11-25 (the order is set; the quick-ask window is being discussed).
+**Status:** in discussion with the owner since 2026-11-25. Not agreed. Last discussed: 2026-11-25 (the order is set; the form of quoting from outside is being discussed).
 
 This draft takes over directions 1, 3 and 7 of [more directions](more-directions.md), the question Q13 of the agent platform (search by meaning) and the caching part of [evolution](../evolution.md) D4. Those texts stay as they are until the owner settles what moves.
 
@@ -61,6 +61,7 @@ Seven topics in four groups. The order and what is set aside are in §5 and §6.
 | --- | --- |
 | 2026-11-25 | The order (owner): first the quick-ask window and selected text (A1, A2); then several connections and local models through a local server (C1, D1); then search by meaning (D2); then prompt caching (C2). |
 | 2026-11-25 | The MCP server, the command line and the browser extension (B1, B2, A3) are set aside for now (owner). |
+| 2026-11-25 | The answer is not shown in a small window (owner): it would not work well and brings many complications. Answers are read in the main window. |
 
 ## 6. Set aside
 
@@ -70,3 +71,18 @@ Seven topics in four groups. The order and what is set aside are in §5 and §6.
 ## 7. Per topic
 
 Filled in as each topic is discussed: the decisions, the approach, out of scope, failure cases, acceptance scenarios and the first increment.
+
+### A1 and A2: quoting from outside (in discussion)
+
+**What the owner means by asking from anywhere (2026-11-25).** Not a place to read answers. After a hotkey in another window, content on the screen is selected and used directly as a quote: text, or a part of a web page or an image. The owner pointed to an annotation flow seen elsewhere: select a passage, write a note on it, keep it; do this several times; then write one prompt and send everything to the model. The owner asked whether this can be built.
+
+**Proposed form (Claude, not agreed).** Collect, then ask:
+
+1. Select text in any application and press the hotkey. A small box appears with the quote and a note field. Enter keeps it and the box goes away.
+2. Press the hotkey with nothing selected and drag a rectangle on the screen. The picture becomes a quote in the same way.
+3. Repeat. A small marker shows how many quotes are kept.
+4. Open the marker: the numbered quotes with their notes, each removable, and one field for the prompt. Send puts the question into Mindweave, and the answer is read in the main window.
+
+This is asking with multiple quotes (evolution D7) with quotes that come from outside. One quote list in the composer serves both.
+
+**What cannot be built this way.** A box that stays beside the selection inside another application's page, and highlights that stay on that page, need Mindweave to own the page: a browser extension (set aside) or a document opened inside Mindweave.
