@@ -20,4 +20,5 @@ Frozen records, moved here from `docs/design/` on 2026-11-22: the designs of fin
 | [Session network round 2 plan](session-network-plan-round2.md) | Task-by-task plan for the readable timeline, session details and circle packing |
 | [Agent platform: questions for the user](agent-platform-questions.md) | The questions Q1–Q16 of November 2026 with their recommendations and answers |
 | [Naming and structure](naming-and-structure.md) | The proposal of 2026-11-13; the rules in force are in AGENTS.md and architecture §2.3 |
+| [Summary network: the record](session-network-record.md) | How the network of every conversation was built: iteration plan, proposed text, calls made, approaches, rounds 1 and 2 |
 | [Version numbers and the change log: implementation plan](versioning-plan.md) | Task-by-task plan for raising the version with every merge and the change log by version |
