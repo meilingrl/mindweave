@@ -3,6 +3,7 @@
              xmlns:vm="using:Mindweave.Desktop.ViewModels.Pages"
              xmlns:d="using:Mindweave.Desktop"
              xmlns:t="using:Mindweave.Desktop.Text"
+             xmlns:v="using:Mindweave.Desktop.Views"
              x:Class="Mindweave.Desktop.Views.Pages.StorageDetailsView"
              x:DataType="vm:StorageDetailsViewModel">
   <ScrollViewer Classes="autohide" HorizontalScrollBarVisibility="Disabled">
@@ -55,8 +56,9 @@
             <TextBlock Name="BackupsTotal" Classes="caption" VerticalAlignment="Center" TextWrapping="Wrap" Text="{Binding TotalText}" />
           </DockPanel>
           <!-- One column grid for all rows (shared sizes), so dates, badges, sizes and actions line up whatever a row lacks; the
-               reason badge takes what is left and wraps, so the size and the actions always stay in view. -->
-          <ItemsControl Name="BackupList" ItemsSource="{Binding Rows}" IsVisible="{Binding HasBackups}" Grid.IsSharedSizeScope="True">
+               reason badge takes what is left and wraps, so the size and the actions always stay in view. On a narrow page
+               the size and the actions are a second line. -->
+          <ItemsControl Name="BackupList" ClipToBounds="False" ItemsSource="{Binding Rows}" IsVisible="{Binding HasBackups}" Grid.IsSharedSizeScope="True">
             <ItemsControl.ItemsPanel>
               <ItemsPanelTemplate>
                 <StackPanel Spacing="6" />
@@ -64,15 +66,13 @@
             </ItemsControl.ItemsPanel>
             <ItemsControl.ItemTemplate>
               <DataTemplate x:DataType="vm:BackupRowViewModel">
-                <Grid ColumnSpacing="10" ToolTip.Tip="{Binding Hint}">
+                <Grid Classes="backup-line" v:Narrow.Below="480" ColumnSpacing="10" RowDefinitions="Auto,Auto" ToolTip.Tip="{Binding Hint}">
                   <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="Auto" SharedSizeGroup="Check" />
                     <ColumnDefinition Width="Auto" SharedSizeGroup="Time" />
                     <ColumnDefinition Width="Auto" SharedSizeGroup="Version" />
                     <ColumnDefinition Width="*" />
-                    <ColumnDefinition Width="Auto" SharedSizeGroup="Size" />
-                    <ColumnDefinition Width="Auto" SharedSizeGroup="Restore" />
-                    <ColumnDefinition Width="Auto" SharedSizeGroup="Delete" />
+                    <ColumnDefinition Width="Auto" />
                   </Grid.ColumnDefinitions>
                   <ToggleButton Name="BackupCheck" Classes="row-check-toggle" Margin="-3,0,0,0" IsChecked="{Binding IsChecked}"
                                 AutomationProperties.Name="{Binding SelectName}" AutomationProperties.ControlTypeOverride="CheckBox" />
@@ -83,14 +83,21 @@
                   <Border Grid.Column="3" Name="BackupBadge" Classes="badge" HorizontalAlignment="Left" Classes.accent="{Binding IsBeforeRestore}" IsVisible="{Binding Badge, Converter={x:Static ObjectConverters.IsNotNull}}">
                     <TextBlock Text="{Binding Badge}" TextWrapping="Wrap" />
                   </Border>
-                  <TextBlock Grid.Column="4" Classes="caption" HorizontalAlignment="Right" VerticalAlignment="Center" Text="{Binding SizeText}" />
-                  <Button Grid.Column="5" Name="RestoreBackupButton" Classes="quiet small" Content="{x:Static t:UiText.RestoreBackup}"
-                          IsVisible="{Binding IsBackup}" IsEnabled="{Binding CanRestore}" ToolTip.Tip="{Binding Hint}" ToolTip.ShowOnDisabled="True"
-                          Command="{Binding $parent[ItemsControl].((vm:StorageDetailsViewModel)DataContext).RestoreCommand}" CommandParameter="{Binding}"
-                          AutomationProperties.Name="{Binding RestoreName}" AutomationProperties.HelpText="{Binding Hint}" />
-                  <Button Grid.Column="6" Name="DeleteBackupButton" Classes="quiet small danger" Content="{x:Static t:UiText.DeleteBackup}"
-                          Command="{Binding $parent[ItemsControl].((vm:StorageDetailsViewModel)DataContext).DeleteCommand}" CommandParameter="{Binding}"
-                          AutomationProperties.Name="{Binding DeleteName}" />
+                  <Grid Classes="backup-end" ColumnSpacing="10">
+                    <Grid.ColumnDefinitions>
+                      <ColumnDefinition Width="Auto" SharedSizeGroup="Size" />
+                      <ColumnDefinition Width="Auto" SharedSizeGroup="Restore" />
+                      <ColumnDefinition Width="Auto" SharedSizeGroup="Delete" />
+                    </Grid.ColumnDefinitions>
+                    <TextBlock Classes="caption" HorizontalAlignment="Right" VerticalAlignment="Center" Text="{Binding SizeText}" />
+                    <Button Grid.Column="1" Name="RestoreBackupButton" Classes="quiet small" Content="{x:Static t:UiText.RestoreBackup}"
+                            IsVisible="{Binding IsBackup}" IsEnabled="{Binding CanRestore}" ToolTip.Tip="{Binding Hint}" ToolTip.ShowOnDisabled="True"
+                            Command="{Binding $parent[ItemsControl].((vm:StorageDetailsViewModel)DataContext).RestoreCommand}" CommandParameter="{Binding}"
+                            AutomationProperties.Name="{Binding RestoreName}" AutomationProperties.HelpText="{Binding Hint}" />
+                    <Button Grid.Column="2" Name="DeleteBackupButton" Classes="quiet small danger" Content="{x:Static t:UiText.DeleteBackup}"
+                            Command="{Binding $parent[ItemsControl].((vm:StorageDetailsViewModel)DataContext).DeleteCommand}" CommandParameter="{Binding}"
+                            AutomationProperties.Name="{Binding DeleteName}" />
+                  </Grid>
                 </Grid>
               </DataTemplate>
             </ItemsControl.ItemTemplate>

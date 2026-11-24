@@ -97,7 +97,7 @@
         <!-- The bold colour in answers (D-027): each choice shows its colour in the current theme. -->
         <p:SettingRow Label="{x:Static t:UiText.BoldColourLabel}">
           <Border Name="BoldColourPicker" Classes="segmented" HorizontalAlignment="Left">
-            <StackPanel Orientation="Horizontal" Spacing="2" KeyboardNavigation.TabNavigation="Once">
+            <WrapPanel ItemSpacing="2" LineSpacing="2" KeyboardNavigation.TabNavigation="Once">
               <RadioButton Name="BoldColourBrown" Classes="segment" GroupName="BoldColour" IsChecked="{Binding IsBoldBrown}"
                            AutomationProperties.Name="{x:Static t:UiText.BoldColourBrown}">
                 <StackPanel Orientation="Horizontal" Spacing="6">
@@ -133,7 +133,7 @@
                   <TextBlock Text="{x:Static t:UiText.BoldColourSameAsText}" VerticalAlignment="Center" />
                 </StackPanel>
               </RadioButton>
-            </StackPanel>
+            </WrapPanel>
           </Border>
           <p:SettingRow.Below>
             <TextBlock Name="BoldColourStatus" v:Motion.Appear="Fade" Classes="error" FontSize="12" TextWrapping="Wrap" Margin="0,8,0,0"
@@ -375,20 +375,21 @@
                       <ItemsControl Name="McpToolList" ItemsSource="{Binding VisibleTools}">
                         <ItemsControl.ItemTemplate>
                           <DataTemplate x:DataType="vm:McpToolItem">
-                            <Grid ColumnDefinitions="Auto,*,Auto" Margin="0,4">
+                            <!-- On a narrow page the risk goes under the rest (Styles/Settings.axaml). -->
+                            <Grid Classes="mcp-tool-line" v:Narrow.Below="520" ColumnDefinitions="Auto,*,Auto" RowDefinitions="Auto,Auto" Margin="0,4">
                               <CheckBox Name="McpToolToggle" VerticalAlignment="Top" IsChecked="{Binding IsOn}" AutomationProperties.Name="{Binding Name}"
                                         ToolTip.Tip="{x:Static t:UiText.McpEnableTool}" />
                               <StackPanel Grid.Column="1" Spacing="2" Margin="2,4,12,0">
-                                <StackPanel Orientation="Horizontal" Spacing="6">
+                                <WrapPanel ItemSpacing="6" LineSpacing="2">
                                   <TextBlock Name="McpToolName" Classes="address" Text="{Binding Name}" VerticalAlignment="Center" />
                                   <Border Classes="badge" IsVisible="{Binding DeclaresReadOnly}"><TextBlock Text="{x:Static t:UiText.McpDeclaresReadOnly}" /></Border>
-                                </StackPanel>
+                                </WrapPanel>
                                 <TextBlock Classes="caption" Text="{Binding Description}" TextWrapping="Wrap" MaxLines="2" TextTrimming="CharacterEllipsis"
                                            IsVisible="{Binding HasDescription}" ToolTip.Tip="{Binding Description}" />
                                 <TextBlock Name="McpToolDisabledReason" Classes="caption warning" FontSize="12" Text="{Binding DisabledReason}" TextWrapping="Wrap"
                                            IsVisible="{Binding HasDisabledReason}" />
                               </StackPanel>
-                              <ComboBox Grid.Column="2" Name="McpToolRisk" Classes="settings" Width="200" VerticalAlignment="Top"
+                              <ComboBox Name="McpToolRisk" Classes="settings mcp-tool-risk" Width="260" VerticalAlignment="Top"
                                         ItemsSource="{x:Static vm:McpToolItem.Risks}" SelectedIndex="{Binding RiskIndex}" IsVisible="{Binding IsOn}"
                                         AutomationProperties.Name="{x:Static t:UiText.McpRiskLabel}" />
                             </Grid>
@@ -438,11 +439,11 @@
                        PlaceholderText="{x:Static t:UiText.McpUrlPlaceholder}" IsVisible="{Binding IsHttp}" AutomationProperties.Name="{x:Static t:UiText.McpUrl}" />
               <TextBlock Grid.Row="3" Classes="field-label" Margin="0,10,0,0" VerticalAlignment="Top" Text="{x:Static t:UiText.McpHeaderName}" IsVisible="{Binding IsHttp}" />
               <StackPanel Grid.Row="3" Grid.Column="1" Margin="0,10,0,0" Spacing="6" IsVisible="{Binding IsHttp}">
-                <StackPanel Orientation="Horizontal" Spacing="8">
+                <WrapPanel ItemSpacing="8" LineSpacing="8">
                   <TextBox Name="McpNewHeaderName" Width="200" Text="{Binding NewHeaderName}" PlaceholderText="{x:Static t:UiText.McpHeaderNamePlaceholder}"
                            AutomationProperties.Name="{x:Static t:UiText.McpHeaderName}" />
                   <TextBox Name="McpNewHeaderValue" Width="240" PasswordChar="•" Text="{Binding NewHeaderValue}" PlaceholderText="{x:Static t:UiText.McpHeaderValuePlaceholder}" />
-                </StackPanel>
+                </WrapPanel>
                 <TextBlock Classes="caption" TextWrapping="Wrap" Text="{x:Static t:UiText.McpOAuthNote}" />
               </StackPanel>
               <StackPanel Grid.Row="6" Grid.Column="1" Orientation="Horizontal" Spacing="8" Margin="0,14,0,0">

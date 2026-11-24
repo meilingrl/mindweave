@@ -663,7 +663,7 @@ public class GalleryTests
         await SeedAsync(scene.App);
         // 2026-11-12: every kind of row (a "恢复前" one, before a delete, an upgrade, one from a newer build that cannot be
         // restored, and the files an earlier restore put aside), the total size, and 恢复… / 删除… on each.
-        await GalleryBackupsAsync(scene.App, "g27");
+        await GalleryBackupsAsync(scene.App);
         var page = await OpenStorageDetailsAsync(scene.App, window);
         Assert.Equal(6, page.Rows.Count);
         await SettleAsync(window);
@@ -683,7 +683,7 @@ public class GalleryTests
         await using var scene = Scene.Create("g49");
         var window = scene.App.ShowWindow(1100, 720, Theme);
         await SeedAsync(scene.App);
-        await GalleryBackupsAsync(scene.App, "g49");
+        await GalleryBackupsAsync(scene.App);
         var page = await OpenStorageDetailsAsync(scene.App, window);
         page.RestoreCommand.Execute(page.Rows.Single(r => r.Entry.Backup?.Reason == BackupReason.BeforeWorkspaceDelete));
         Assert.True(scene.App.Root.BackupRestore.IsOpen);
@@ -699,7 +699,7 @@ public class GalleryTests
         await using var scene = Scene.Create("g49a");
         var window = scene.App.ShowWindow(1100, 720, Theme);
         await SeedAsync(scene.App);
-        await GalleryBackupsAsync(scene.App, "g49a");
+        await GalleryBackupsAsync(scene.App);
         var page = await OpenStorageDetailsAsync(scene.App, window);
         foreach (var row in page.Rows.Where(r => r.Entry.Backup?.Reason is BackupReason.BeforeWorkspaceDelete or BackupReason.Migration || r.Entry.Leftover is not null))
         {
@@ -742,9 +742,9 @@ public class GalleryTests
     }
 
     /// <summary>Backups of every kind in a scene's data directory (empty files: only their names and sizes are shown).</summary>
-    private static async Task GalleryBackupsAsync(DesktopHarness app, string scene)
+    internal static async Task GalleryBackupsAsync(DesktopHarness app)
     {
-        var backups = Path.Combine(Scene.Directory(scene), "backups");
+        var backups = Path.Combine(app.Paths.DataDirectory, "backups");
         System.IO.Directory.CreateDirectory(backups);
         var current = MigrationCatalog.Default.LatestVersion;
         await File.WriteAllBytesAsync(Path.Combine(backups, $"mindweave-v{current}-20260313T221000000Z-before-restore.db"), new byte[1300 * 1024]);
@@ -755,7 +755,7 @@ public class GalleryTests
         await File.WriteAllBytesAsync($"{app.Paths.DatabasePath}.replaced-20260212T193000000Z", new byte[(int)(2.4 * 1024 * 1024)]);
     }
 
-    private static async Task<StorageDetailsViewModel> OpenStorageDetailsAsync(DesktopHarness app, MainWindow window)
+    internal static async Task<StorageDetailsViewModel> OpenStorageDetailsAsync(DesktopHarness app, MainWindow window)
     {
         app.ShellPage.ShowSectionCommand.Execute(MainSection.Settings);
         await SettleAsync(window);
@@ -1146,7 +1146,7 @@ public class GalleryTests
         window.Close();
     }
 
-    private static void RightClickRow(MainWindow window, ConversationId id)
+    internal static void RightClickRow(MainWindow window, ConversationId id)
     {
         window.UpdateLayout();
         var row = window.GetVisualDescendants().OfType<Button>().Single(b => b.DataContext is ConversationItemViewModel item && item.Id == id && b.Classes.Contains("nav"));
@@ -1159,7 +1159,7 @@ public class GalleryTests
         Assert.True(row.ContextMenu!.IsOpen);
     }
 
-    private static void CloseRowMenu(MainWindow window, ConversationId id)
+    internal static void CloseRowMenu(MainWindow window, ConversationId id)
     {
         var row = window.GetVisualDescendants().OfType<Button>().Single(b => b.DataContext is ConversationItemViewModel item && item.Id == id && b.Classes.Contains("nav"));
         row.ContextMenu!.Close();
@@ -1564,7 +1564,7 @@ public class GalleryTests
 
     private static readonly TimeZoneInfo StatisticsZone = TimeZoneInfo.CreateCustomTimeZone("Gallery/UTC+8", TimeSpan.FromHours(8), "UTC+8", "UTC+8");
 
-    private static void FixedStatistics(IServiceCollection services) =>
+    internal static void FixedStatistics(IServiceCollection services) =>
         services.AddSingleton(new UsageStatisticsOptions { Time = new ManualTime(StatisticsNow), Zone = StatisticsZone });
 
     /// <summary>
@@ -1861,7 +1861,7 @@ public class GalleryTests
         return network;
     }
 
-    private static async Task LinkGalleryAsync(DesktopHarness app, Seed seed)
+    internal static async Task LinkGalleryAsync(DesktopHarness app, Seed seed)
     {
         var links = app.Services.GetRequiredService<Application.SummaryLinks.ISummaryLinks>();
         await links.CreateAsync(seed.Nodes[seed.Wheels], seed.Nodes[seed.HighSpeed], "对比", CancellationToken.None);
@@ -2027,7 +2027,7 @@ public class GalleryTests
     /// The summarized train workspace with three questions made the way 换一批 makes them (two extend a summary), and 新探索
     /// open with the input empty and focused.
     /// </summary>
-    private static async Task<(NewConversationViewModel Page, NewConversationView View)> OpenRecommendationsAsync(DesktopHarness app, MainWindow window)
+    internal static async Task<(NewConversationViewModel Page, NewConversationView View)> OpenRecommendationsAsync(DesktopHarness app, MainWindow window)
     {
         await SeedAsync(app, summaries: true);
         var workspace = app.Workbench.CurrentWorkspace!.Id;
@@ -2053,7 +2053,7 @@ public class GalleryTests
     /// and every purpose, and a second workspace with half a year of questions and summaries behind it, so the milestones
     /// and the monthly chart have something to show. Fixed numbers (a seeded random), so frames repeat.
     /// </summary>
-    private static async Task SeedStatisticsAsync(DesktopHarness app)
+    internal static async Task SeedStatisticsAsync(DesktopHarness app)
     {
         app.Client.PromptTokens = _ => 1_800;
         app.Client.CompletionTokens = _ => 420;
@@ -2112,7 +2112,7 @@ public class GalleryTests
         await usage.ArchiveAsync(history, StatisticsNow.AddDays(-1));
     }
 
-    private static async Task<(UsageStatisticsViewModel Page, UsageStatisticsView View)> OpenStatisticsAsync(DesktopHarness app, MainWindow window)
+    internal static async Task<(UsageStatisticsViewModel Page, UsageStatisticsView View)> OpenStatisticsAsync(DesktopHarness app, MainWindow window)
     {
         app.ShellPage.ShowSectionCommand.Execute(MainSection.Settings);
         await SettleAsync(window);
@@ -2126,7 +2126,7 @@ public class GalleryTests
     // ── Seed ─────────────────────────────────────────────────────────────────
 
     /// <summary>The conversations of the seeded workspace, and the summary node of each summarized one.</summary>
-    private sealed record Seed(
+    internal sealed record Seed(
         ConversationId Root,
         ConversationId Rainhill,
         ConversationId Cable,
@@ -2142,7 +2142,7 @@ public class GalleryTests
     /// eight summaries across the two explorations (the first branch has none, so its child links to the root by a
     /// "via" edge), some read, one with an edited current version and a waiting candidate.
     /// </summary>
-    private static async Task<Seed> SeedAsync(DesktopHarness app, bool summaries = false)
+    internal static async Task<Seed> SeedAsync(DesktopHarness app, bool summaries = false)
     {
         await app.StartWithWorkspaceAsync("火车历史");
         await app.ConfigureModelAsync();
@@ -2252,7 +2252,7 @@ public class GalleryTests
 
     // ── Pages ────────────────────────────────────────────────────────────────
 
-    private static async Task<ConversationViewModel> OpenConversationAsync(DesktopHarness app, MainWindow window, ConversationId id)
+    internal static async Task<ConversationViewModel> OpenConversationAsync(DesktopHarness app, MainWindow window, ConversationId id)
     {
         app.Workbench.Navigate(new NavigationRequest(MainSection.Explore, new ConversationRoute(id)));
         var page = Assert.IsType<ConversationViewModel>(app.Workbench.CurrentPage);
@@ -2264,7 +2264,7 @@ public class GalleryTests
         return page;
     }
 
-    private static async Task<SummaryViewModel> OpenSummaryAsync(DesktopHarness app, MainWindow window, SummaryNodeId node)
+    internal static async Task<SummaryViewModel> OpenSummaryAsync(DesktopHarness app, MainWindow window, SummaryNodeId node)
     {
         app.Workbench.Navigate(new NavigationRequest(MainSection.SummaryNetwork, new SummaryRoute(node)));
         var summary = Assert.IsType<SummaryViewModel>(app.Workbench.CurrentPage);
@@ -2275,7 +2275,7 @@ public class GalleryTests
     }
 
     /// <summary>Lets bindings, Markdown layout and deferred work settle before a frame is taken.</summary>
-    private static async Task SettleAsync(MainWindow window)
+    internal static async Task SettleAsync(MainWindow window)
     {
         for (var i = 0; i < 6; i++)
         {

@@ -5,7 +5,8 @@
              xmlns:t="using:Mindweave.Desktop.Text"
              xmlns:v="using:Mindweave.Desktop.Views"
              x:Class="Mindweave.Desktop.Views.SidebarHeader"
-             x:DataType="vm:ShellViewModel">
+             x:DataType="vm:ShellViewModel"
+             ClipToBounds="False">
   <!-- The sidebar's top (2026-11-10): the workspace switcher with the collapse button beside it, and the inline
        new-workspace form under them. Every workspace action starts here or on 设置 › 工作区 (Styles/WorkspaceSwitcher.axaml). -->
   <StackPanel Spacing="2">

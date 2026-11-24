@@ -26,6 +26,9 @@
     <Setter Property="Padding" Value="4,2" />
     <Setter Property="Foreground" Value="{DynamicResource PrimaryText}" />
   </Style>
+  <Style Selector="Button.list-name.wraps /template/ ContentPresenter#PART_ContentPresenter">
+    <Setter Property="TextBlock.TextWrapping" Value="Wrap" />
+  </Style>
   <Style Selector="Button.list-name.read">
     <Setter Property="Foreground" Value="{DynamicResource MutedText}" />
   </Style>

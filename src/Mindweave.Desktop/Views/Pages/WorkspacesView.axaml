@@ -50,11 +50,11 @@
           </ItemsControl.ItemsPanel>
           <ItemsControl.ItemTemplate>
             <DataTemplate x:DataType="vm:WorkspaceRowViewModel">
-              <Border Name="WorkspaceRow" Classes="workspace-row" AutomationProperties.Name="{Binding AutomationName}" KeyDown="OnRowKeyDown">
+              <Border Name="WorkspaceRow" Classes="workspace-row" v:Narrow.Below="440" AutomationProperties.Name="{Binding AutomationName}" KeyDown="OnRowKeyDown">
                 <DockPanel>
                   <!-- The row's actions; while renaming, 保存 and 取消 take their place. -->
-                  <StackPanel Name="WorkspaceRowActions" DockPanel.Dock="Right" Orientation="Horizontal" Spacing="2" VerticalAlignment="Center"
-                              Margin="12,0,0,0" IsVisible="{Binding !IsRenaming}">
+                  <StackPanel Name="WorkspaceRowActions" Classes="workspace-row-actions" Orientation="Horizontal" Spacing="2" VerticalAlignment="Center"
+                              IsVisible="{Binding !IsRenaming}">
                     <Button Name="SwitchWorkspaceButton" Classes="quiet small" Command="{Binding SwitchCommand}" IsVisible="{Binding !IsCurrent}"
                             AutomationProperties.Name="{Binding SwitchName}" Content="{x:Static t:UiText.SwitchToWorkspace}" />
                     <Button Name="RenameWorkspaceButton" Classes="quiet small" Command="{Binding BeginRenameCommand}"
@@ -72,8 +72,8 @@
                       </StackPanel>
                     </Button>
                   </StackPanel>
-                  <StackPanel Name="WorkspaceRenameActions" DockPanel.Dock="Right" Orientation="Horizontal" Spacing="4" VerticalAlignment="Top"
-                              Margin="10,0,0,0" Height="28" IsVisible="{Binding IsRenaming}">
+                  <StackPanel Name="WorkspaceRenameActions" Classes="workspace-row-actions" Orientation="Horizontal" Spacing="4" VerticalAlignment="Top"
+                              Height="28" IsVisible="{Binding IsRenaming}">
                     <!-- 2026-11-11: asks the model for names drawn from the conversations (换一批 once names are offered);
                          never renames by itself. -->
                     <Button Name="SuggestNamesButton" Classes="quiet small suggest-names" Command="{Binding SuggestNamesCommand}"

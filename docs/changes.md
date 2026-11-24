@@ -16,6 +16,16 @@ The second number rises when a capability is finished and on by default, and the
 
 The nine merges after 0.5.0, on 2026-11-22 and 2026-11-23, are 0.5.1 to 0.5.9 in order. They keep their dated entries below.
 
+## 0.6.6 · 2026-11-24
+
+- Added a test that checks every main page with its forms and menus, in both languages, at the first and the smallest window size: nothing is cut off and no controls lie over each other. A new page, form or menu gets a scene in it ([testing.md](design/testing.md))
+- Changed narrow pages: rows that lack room arrange themselves in two lines or under each other, and an MCP tool's risk box is wider and goes under the tool when the settings column is narrow
+- Fixed at any window size: the cut-off highlights of the sidebar's fold button, of a citation and of "view result", the focus ring of the backups' check boxes, a long step of the branch path, the bold text of a chosen sidebar entry, and an MCP tool's risk in English
+- Fixed at the smallest window: the last bold colour, an MCP header's value, the backups' buttons, the statistics' figures and rows, a workspace's counts, the network's list rows, the recommended node's and the link picker's buttons, the legend's icon, the line that waits for a link, the version history, and a summary's title and note while editing
+- Fixed two tests that changed the interface language without the protection the other language tests use (tests only)
+- Try: `scripts/daily.sh trial`; make the window as small as it goes and look at Settings, the network and a summary, in both languages
+- Not verified: Windows hardware; the dark theme (no colours changed); the rarer dialogs (exit, recovery, deletion) and the attachment viewer were swept once and are not in the permanent test; a few rarer states were swept only in Chinese
+
 ## 0.6.5 · 2026-11-24
 
 - Added `scripts/test-shards.py run --only I`, which runs one shard of the desktop tests

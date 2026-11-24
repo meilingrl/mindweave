@@ -198,11 +198,11 @@
               </ItemsControl.ItemsPanel>
               <ItemsControl.ItemTemplate>
                 <DataTemplate x:DataType="vm:PathStep">
-                  <StackPanel Orientation="Horizontal">
-                    <TextBlock Classes="muted" Text="→" Margin="0,0,4,0" IsVisible="{Binding !IsFirst}" />
+                  <DockPanel>
+                    <TextBlock DockPanel.Dock="Left" Classes="muted" Text="→" Margin="0,0,4,0" IsVisible="{Binding !IsFirst}" />
                     <TextBlock Text="{Binding Text}" TextWrapping="Wrap" MaxWidth="220" Margin="0,0,4,2"
                                Classes.muted="{Binding !Summarized}" />
-                  </StackPanel>
+                  </DockPanel>
                 </DataTemplate>
               </ItemsControl.ItemTemplate>
             </ItemsControl>
@@ -243,7 +243,8 @@
         </ScrollViewer>
 
         <!-- A recommended node (§10.3.2): question, reason, basis; 开始探索 fills 新探索 without sending, 忽略 removes it. -->
-        <StackPanel Name="RecommendationDetailPanel" Spacing="12" Margin="0,0,0,0" IsVisible="{Binding SelectedRecommendation, Converter={x:Static ObjectConverters.IsNotNull}}">
+        <ScrollViewer Classes="autohide" HorizontalScrollBarVisibility="Disabled" IsVisible="{Binding SelectedRecommendation, Converter={x:Static ObjectConverters.IsNotNull}}">
+        <StackPanel Name="RecommendationDetailPanel" Spacing="12" Margin="0,0,6,0">
           <WrapPanel Orientation="Horizontal" Margin="0,0,24,0">
             <Border Classes="badge recommended" Margin="0,0,6,0">
               <TextBlock Text="{x:Static t:UiText.RecommendedTag}" />
@@ -274,6 +275,7 @@
             </Button>
           </StackPanel>
         </StackPanel>
+        </ScrollViewer>
       </Panel>
     </Border>
     </Grid>
@@ -281,11 +283,13 @@
     <!-- The legend is an icon (the owner, 2026-11-23: it is read the first few times): pointing at it shows the card, a click or
          the keyboard keeps it open. Beside it, the wheel option. -->
     <DockPanel DockPanel.Dock="Bottom" Margin="0,4,0,0" IsVisible="{Binding ShowsCanvas}">
-      <CheckBox DockPanel.Dock="Right" Content="{x:Static t:UiText.WheelZooms}" IsChecked="{Binding WheelZooms}" FontSize="12" VerticalAlignment="Center" MinHeight="0" />
-      <Button Name="LegendButton" Classes="quiet small" HorizontalAlignment="Left" VerticalAlignment="Center" AutomationProperties.Name="{x:Static t:UiText.SummaryNetworkLegend}"
+      <Button Name="LegendButton" DockPanel.Dock="Left" Classes="quiet small" HorizontalAlignment="Left" VerticalAlignment="Center" AutomationProperties.Name="{x:Static t:UiText.SummaryNetworkLegend}"
               AutomationProperties.HelpText="{x:Static t:UiText.SummaryNetworkLegendHelp}">
         <PathIcon Width="15" Height="15" Data="{StaticResource IconInfo}" />
       </Button>
+      <CheckBox IsChecked="{Binding WheelZooms}" FontSize="12" HorizontalAlignment="Right" VerticalAlignment="Center" MinHeight="0" AutomationProperties.Name="{x:Static t:UiText.WheelZooms}">
+        <TextBlock Text="{x:Static t:UiText.WheelZooms}" TextWrapping="Wrap" />
+      </CheckBox>
     </DockPanel>
 
     <Panel>
@@ -399,16 +403,16 @@
       </Border>
       <!-- "关联到…" waiting for a click on another summary: what to do (or why the last click did not link), the keyboard way, 取消.
            Laid over the top of the canvas, so the network does not move under the pointer when it appears or goes. -->
-      <Border Name="LinkPickLine" Classes="notice info" Margin="10,10,10,0" VerticalAlignment="Top" IsVisible="{Binding IsPicking}">
+      <Border Name="LinkPickLine" Classes="notice info link-pick-line" views:Narrow.Below="420" Margin="10,10,10,0" VerticalAlignment="Top" IsVisible="{Binding IsPicking}">
         <DockPanel>
-          <PathIcon DockPanel.Dock="Left" Width="13" Height="13" Margin="0,0,8,0" VerticalAlignment="Center" Data="{StaticResource IconLink}"
-                    Foreground="{DynamicResource SummaryNetworkLink}" />
-          <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" Spacing="4" VerticalAlignment="Center">
+          <WrapPanel Classes="link-pick-actions" ItemSpacing="4" VerticalAlignment="Center">
             <Button Name="PickFromListButton" Classes="quiet" Content="{x:Static t:UiText.LinkPickFromList}" Command="{Binding PickFromListCommand}"
                     AutomationProperties.Name="{x:Static t:UiText.LinkPickFromListName}" views:FocusRequest.When="{Binding IsPicking}" />
             <Button Name="CancelPickButton" Classes="quiet" Content="{x:Static t:UiText.Cancel}" Command="{Binding CancelPickCommand}"
                     AutomationProperties.Name="{x:Static t:UiText.LinkPickCancelName}" />
-          </StackPanel>
+          </WrapPanel>
+          <PathIcon DockPanel.Dock="Left" Width="13" Height="13" Margin="0,0,8,0" VerticalAlignment="Center" Data="{StaticResource IconLink}"
+                    Foreground="{DynamicResource SummaryNetworkLink}" />
           <TextBlock Name="LinkPickHint" TextWrapping="Wrap" VerticalAlignment="Center" Text="{Binding PickHint}" Classes.warning="{Binding HasPickRefusal}" />
         </DockPanel>
       </Border>
@@ -417,9 +421,9 @@
           <ItemsControl Name="SummaryList" ItemsSource="{Binding Items}">
             <ItemsControl.ItemTemplate>
               <DataTemplate x:DataType="vm:SummaryListItem">
-                <StackPanel Orientation="Horizontal" Spacing="6" Margin="0,2">
+                <WrapPanel ItemSpacing="6" LineSpacing="2" Margin="0,2">
                   <!-- Unread: bold, primary colour; read: regular, secondary colour (S7 已读／未读约定); a dot without a summary has neither. -->
-                  <Button Classes="list-name" Classes.read="{Binding ShowsRead}" Content="{Binding DisplayName}" FontWeight="{Binding Unread, Converter={x:Static d:Converters.BoldWhen}}"
+                  <Button Classes="list-name wraps" Classes.read="{Binding ShowsRead}" Content="{Binding DisplayName}" FontWeight="{Binding Unread, Converter={x:Static d:Converters.BoldWhen}}"
                           AutomationProperties.HelpText="{Binding Links}"
                           Command="{Binding $parent[v:SummaryNetworkHomeView].((vm:SummaryNetworkHomeViewModel)DataContext).OpenCommand}" CommandParameter="{Binding Node}" />
                   <Border Classes="badge accent" IsVisible="{Binding ShowsUnread}">
@@ -436,8 +440,8 @@
                   </Border>
                   <!-- Its content links in words, for the keyboard and screen readers (D-018). -->
                   <TextBlock Name="SummaryRowLinks" Classes="muted" FontSize="12" VerticalAlignment="Center" Margin="6,0,0,0" Text="{Binding Links}"
-                             IsVisible="{Binding HasLinks}" />
-                </StackPanel>
+                             TextWrapping="Wrap" IsVisible="{Binding HasLinks}" />
+                </WrapPanel>
               </DataTemplate>
             </ItemsControl.ItemTemplate>
           </ItemsControl>
@@ -448,16 +452,16 @@
             <ItemsControl ItemsSource="{Binding RecommendedNodes}">
               <ItemsControl.ItemTemplate>
                 <DataTemplate x:DataType="vm:RecommendedNodeView">
-                  <StackPanel Orientation="Horizontal" Spacing="6" Margin="0,2">
+                  <WrapPanel ItemSpacing="6" LineSpacing="2" Margin="0,2">
                     <!-- As the summaries' rows: the name first, then its tag in words. -->
-                    <Button Name="RecommendedNodeRow" Classes="list-name read" Content="{Binding Question}" AutomationProperties.Name="{Binding AutomationName}"
+                    <Button Name="RecommendedNodeRow" Classes="list-name wraps read" Content="{Binding Question}" AutomationProperties.Name="{Binding AutomationName}"
                             ToolTip.Tip="{Binding BasisText}"
                             Command="{Binding $parent[v:SummaryNetworkHomeView].((vm:SummaryNetworkHomeViewModel)DataContext).SelectRecommendationCommand}" CommandParameter="{Binding}" />
                     <Border Classes="badge recommended">
                       <TextBlock Text="{x:Static t:UiText.RecommendedTag}" />
                     </Border>
-                    <TextBlock Classes="muted" FontSize="12" VerticalAlignment="Center" Text="{Binding BasisText}" />
-                  </StackPanel>
+                    <TextBlock Classes="muted" FontSize="12" VerticalAlignment="Center" Text="{Binding BasisText}" TextWrapping="Wrap" />
+                  </WrapPanel>
                 </DataTemplate>
               </ItemsControl.ItemTemplate>
             </ItemsControl>

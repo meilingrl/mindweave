@@ -253,7 +253,7 @@
                       <PathIcon Data="{StaticResource IconChevronDown}" Classes="run-activity chevron" Classes.expanded="{Binding IsActivityExpanded}" />
                     </StackPanel>
                   </Button>
-                  <ItemsControl Name="RunSteps" ItemsSource="{Binding ActivitySteps}" IsVisible="{Binding IsActivityExpanded}">
+                  <ItemsControl Name="RunSteps" ClipToBounds="False" ItemsSource="{Binding ActivitySteps}" IsVisible="{Binding IsActivityExpanded}">
                     <ItemsControl.ItemsPanel>
                       <ItemsPanelTemplate>
                         <StackPanel Spacing="2" />
@@ -269,7 +269,7 @@
                             </DockPanel>
                             <SelectableTextBlock Classes="run-step-outcome" Classes.problem="{Binding IsProblem}" Text="{Binding Outcome}" TextWrapping="Wrap"
                                                  IsVisible="{Binding Outcome, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
-                            <ItemsControl ItemsSource="{Binding Links}" IsVisible="{Binding HasLinks}">
+                            <ItemsControl ItemsSource="{Binding Links}" IsVisible="{Binding HasLinks}" ClipToBounds="False">
                               <ItemsControl.ItemsPanel>
                                 <ItemsPanelTemplate>
                                   <WrapPanel />
@@ -348,7 +348,7 @@
                       <PathIcon Data="{StaticResource IconChevronDown}" Classes="run-activity chevron" Classes.expanded="{Binding IsCitationsExpanded}" />
                     </StackPanel>
                   </Button>
-                  <ItemsControl Name="CitationList" ItemsSource="{Binding Citations}" IsVisible="{Binding IsCitationsExpanded}">
+                  <ItemsControl Name="CitationList" ClipToBounds="False" ItemsSource="{Binding Citations}" IsVisible="{Binding IsCitationsExpanded}">
                     <ItemsControl.ItemTemplate>
                       <DataTemplate x:DataType="vm:CitationItem">
                         <Button Classes="quiet citation" Command="{Binding Open}" HorizontalAlignment="Left" HorizontalContentAlignment="Left"
