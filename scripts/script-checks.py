@@ -141,8 +141,10 @@ class DailyBuildTests(unittest.TestCase):
         self.assertIn('LSREGISTER="/usr/bin/true"', script)
         self.write("repo/scripts/daily.sh", script)
         self.write("repo/src/Mindweave.Infrastructure/Sqlite/Migrations/SchemaMigrations.cs", MIGRATIONS)
+        # Nothing of the repository the checks run in (git sets GIT_DIR for hooks and rebase --exec) reaches the made-up one.
+        own = {name: value for name, value in os.environ.items() if not name.startswith("GIT_")}
         self.env = dict(
-            os.environ, MINDWEAVE_DAILY_HOME=self.path("builds"), MINDWEAVE_DAILY_APP=self.path("Mindweave.app"),
+            own, MINDWEAVE_DAILY_HOME=self.path("builds"), MINDWEAVE_DAILY_APP=self.path("Mindweave.app"),
             MINDWEAVE_DAILY_BACKUP_DIR=self.path("backups"), MINDWEAVE_DAILY_DATA=self.path("data"), TMPDIR=self.path("tmp"))
         os.makedirs(self.path("tmp"))
         self.git("init", "-q", "-b", "main")
@@ -163,7 +165,7 @@ class DailyBuildTests(unittest.TestCase):
 
     def git(self, *arguments):
         command = ["git", "-c", "user.name=t", "-c", "user.email=t@example.invalid", "-c", "commit.gpgsign=false", *arguments]
-        return subprocess.run(command, cwd=self.repo, check=True, capture_output=True, text=True).stdout.strip()
+        return subprocess.run(command, cwd=self.repo, env=self.env, check=True, capture_output=True, text=True).stdout.strip()
 
     def commit(self, version):
         self.write("repo/Directory.Build.props", f"<Project><PropertyGroup><Version>{version}</Version></PropertyGroup></Project>")

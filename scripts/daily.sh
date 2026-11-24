@@ -262,7 +262,8 @@ cmd_trial() {
   # The attachments' originals (an APFS clone where possible) and the interface language, which are beside the database.
   if [[ -d "$DATA/resources" ]]; then
     mkdir "$trial/data/resources"
-    cp -cR "$DATA/resources/." "$trial/data/resources/" 2>/dev/null || cp -R "$DATA/resources/." "$trial/data/resources/"
+    cp -cR "$DATA/resources/." "$trial/data/resources/" 2>/dev/null || cp -R "$DATA/resources/." "$trial/data/resources/" \
+      || note "not every attachment could be copied (the daily app may be writing one)"
   fi
   if [[ -f "$DATA/language" ]]; then cp "$DATA/language" "$trial/data/language"; fi
   note "trial data (a copy; delete when done): $trial/data"
