@@ -32,6 +32,12 @@ Started 2026-11-25. The owner decides; each decision is recorded here with its d
   - The run prompt becomes "answer prompt + tool section", so answers with and without tools explain in the same way.
   - One file per language, with a version number, like the run prompt.
   - Accepted cost: about 300 input tokens on every answer request; every answer changes at once on every model; whether answers read better is judged with a real model and by the owner's reading.
+- **Q2, 2026-11-25 (owner): a branch paragraph in the answer prompt.**
+  - Added only when the conversation is a branch, to every answer in it.
+  - It says: the user selected this passage in the answer above and opened a branch to explore it; explain the passage in the context it came from; do not answer the parent question again or repeat what the parent answer said; if the user typed a question about the passage, answer that question.
+  - Length is scaled to the passage and the question. The first draft's "stay shorter than the parent" is dropped.
+  - A deeper branch gets the same paragraph; it names only the nearest selection.
+  - Accepted cost: about 60 input tokens in branches; a branch used as a fresh start stays tied to the passage until the question says otherwise.
 
 ### Boundaries with the other design sessions (proposed, for the owner to settle)
 
