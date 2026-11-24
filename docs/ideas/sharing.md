@@ -78,7 +78,16 @@ The owner's decision: the user chooses when sharing whether the share carries th
 | Failed answers with no text | Left out |
 | Summary | The current version, shown as a layer on top of its conversation; history versions are left out |
 
-**Structure only:** what exactly it contains is open (question 1 below).
+**Structure only** (owner, 2026-11-25: titles only): no message text leaves.
+
+| In it | Not in it |
+| --- | --- |
+| Each conversation as a dot, with its title | The text of the user's questions |
+| The branch lines | The answers |
+| The order in time and each conversation's start date | The sentence a branch left from |
+| Dot size: how much was asked there | Summaries (only the ring that says one exists) |
+
+Importing a structure-only share (writer's proposal, to be settled with import): it arrives as an outline whose dots are directions the recipient can explore in their own conversations.
 
 A device copy (S5 step 3) always carries everything; this choice applies to shares.
 
@@ -86,7 +95,7 @@ A device copy (S5 step 3) always carries everything; this choice applies to shar
 
 In order of what depends on them:
 
-1. What a structure-only share contains, and what importing one gives the recipient.
+1. What importing a structure-only share gives the recipient.
 3. What never leaves: attachments, citations, tool steps, model details, unticked branches.
 4. How a reader who was not there follows the path: the timeline and the network in the page.
 5. Language and theme of the page.
