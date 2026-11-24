@@ -2240,7 +2240,8 @@ public class GalleryTests
         return child;
     }
 
-    private static Task FinishedAsync(ConversationService conversations, ConversationId conversation) =>
+    /// <summary>The answers as stored are final: one ends on screen a moment before its last write, and archiving is refused until then.</summary>
+    internal static Task FinishedAsync(ConversationService conversations, ConversationId conversation) =>
         UiWait.UntilAsync(() => conversations.LoadAsync(conversation, CancellationToken.None).Result!.Messages.All(m => m.IsFinished));
 
     private static async Task SummarizeAsync(SummaryService service, ConversationId conversation)

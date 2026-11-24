@@ -202,11 +202,10 @@ public class CutOffPagesTests
         var conversations = app.Services.GetRequiredService<ConversationService>();
         app.Client.Reply("1804 年。");
         var sent = await conversations.StartAsync(app.Workbench.CurrentWorkspace!.Id, "火车是怎么发明的，为什么先有轨道？", CancellationToken.None);
-        await UiWait.UntilAsync(() => !conversations.HasUnfinishedAnswer(sent.Conversation));
+        await GalleryTests.FinishedAsync(conversations, sent.Conversation);
         await conversations.RenameAsync(sent.Conversation, "轨道的由来", CancellationToken.None);
-        await conversations.ArchiveAsync(sent.Conversation, CancellationToken.None);
-        await UiWait.UntilAsync(() => app.ShellPage.Conversations.HasArchived);
-        app.ShellPage.Conversations.OpenArchivedCommand.Execute(null);
+        await ArchiveAsync(app, sent.Conversation);
+        Assert.Equal("轨道的由来", Assert.Single((await OpenArchivedAsync(app)).Items).Title);
         await whole("archived");
     });
 
@@ -276,12 +275,8 @@ public class CutOffPagesTests
         await workspaces.Rows[0].CommitRenameCommand.ExecuteAsync(null);
         Assert.Equal(WorkspaceName.MaxLength, workspaces.Rows[0].Name.Length);
         await whole("longest-workspaces");
-        await conversations.ArchiveAsync(seed.Root, CancellationToken.None);
-        await UiWait.UntilAsync(() => app.ShellPage.Conversations.HasArchived);
-        app.ShellPage.Conversations.OpenArchivedCommand.Execute(null);
-        var archived = Assert.IsType<ArchivedViewModel>(app.Workbench.CurrentPage);
-        await archived.Loaded;
-        Assert.Equal(ConversationRules.MaxTitleLength, archived.Items[0].Title.Length);
+        await ArchiveAsync(app, seed.Root);
+        Assert.Equal(ConversationRules.MaxTitleLength, (await OpenArchivedAsync(app)).Items[0].Title.Length);
         await whole("longest-archived");
     });
 
@@ -344,6 +339,21 @@ public class CutOffPagesTests
 
         await whole("longest-server");
     });
+
+    private static async Task ArchiveAsync(DesktopHarness app, ConversationId conversation)
+    {
+        var outcome = await app.Services.GetRequiredService<ConversationService>().ArchiveAsync(conversation, CancellationToken.None);
+        Assert.True(outcome.Archived, "Archiving was refused.");
+        await UiWait.UntilAsync(() => app.ShellPage.Conversations.HasArchived);
+    }
+
+    private static async Task<ArchivedViewModel> OpenArchivedAsync(DesktopHarness app)
+    {
+        app.ShellPage.Conversations.OpenArchivedCommand.Execute(null);
+        var page = Assert.IsType<ArchivedViewModel>(app.Workbench.CurrentPage);
+        await page.Loaded;
+        return page;
+    }
 
     /// <summary>A name without a place to break it, of the widest characters.</summary>
     private static string LongName(int length) => string.Concat(Enumerable.Repeat("火车", length / 2));
