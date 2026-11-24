@@ -1,6 +1,7 @@
 using System.Text.Json;
 using Mindweave.Application.Ai;
 using Mindweave.Application.Conversations;
+using Mindweave.Application.Diagnostics;
 using Mindweave.Application.Languages;
 using Mindweave.Application.Models;
 using Mindweave.Application.Storage;
@@ -9,6 +10,7 @@ using Mindweave.Core.Conversations;
 using Mindweave.Core.Models;
 using Mindweave.Core.Resources;
 using Mindweave.Core.Runs;
+using Mindweave.Infrastructure.Sqlite;
 using Mindweave.Testing;
 
 namespace Mindweave.Infrastructure.Tests.Chat;
@@ -455,6 +457,30 @@ public class RunFlowTests
         Assert.Equal((1, 3), (usage.Runs, usage.ModelRequests));
         Assert.Equal([new ToolCallCount(SearchAttachmentsTool.ToolName, 2)], usage.Calls);
         Assert.Equal(ToolUsage.None.Runs, (await h.StatisticsStore.ToolUsageAsync(Core.Workspaces.WorkspaceId.New(), DateTimeOffset.UtcNow.AddDays(-1), DateTimeOffset.UtcNow.AddDays(1), Ct)).Runs);
+    }
+
+    [Fact]
+    public async Task Statistics_count_only_answers_that_called_a_tool_and_only_the_requests_of_the_answer()
+    {
+        await using var h = await ChatHarness.StartAsync(model: ToolModel);
+        h.Client.CallTool(SearchAttachmentsTool.ToolName, Query("蒸汽机"));
+        h.Client.Reply("好。");
+        var (conversation, _) = await AskWithAttachmentAsync(h, "问");
+
+        // Offered a tool, called none: not an answer that used tools.
+        h.Client.Reply("不用查。");
+        await AskWithAttachmentAsync(h, "再问");
+
+        // An attachment digest made for the answer is a request of the same task, but not one of the answer's.
+        var task = await h.Database.ReadAsync(
+            c => c.Scalar<string>(null, "SELECT id FROM generation_task WHERE kind = 'answer' AND conversation_id = $c;", ("$c", conversation.ToString())), Ct);
+        var request = (await h.Requests.ForTaskAsync(GenerationTaskId.Parse(task!), Ct))[0];
+        await h.Requests.AddAsync(request with { Id = Guid.NewGuid(), Purpose = RequestPurpose.ResourceSummary }, Ct);
+
+        var usage = await h.StatisticsStore.ToolUsageAsync(h.Workspace, DateTimeOffset.UtcNow.AddDays(-1), DateTimeOffset.UtcNow.AddDays(1), Ct);
+
+        Assert.Equal((1, 2), (usage.Runs, usage.ModelRequests));
+        Assert.Equal([new ToolCallCount(SearchAttachmentsTool.ToolName, 1)], usage.Calls);
     }
 
     private static string AnswerRunnerFinalInstruction => "【本次运行已达到上限】";

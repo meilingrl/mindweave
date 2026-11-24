@@ -24,14 +24,14 @@ public sealed record ActivityQuery(
     IReadOnlyList<int> SummaryThresholds);
 
 /// <summary>
-/// How a window's answers used tools (requirements §10.4.4, architecture §15.11): answers that were runs, the model requests
-/// those runs made, and each tool's calls.
+/// How a window's answers used tools (requirements §10.4.4, architecture §15.11): answers that called a tool, the model
+/// requests of those answers, and each tool's calls.
 /// </summary>
 public sealed record ToolUsage(int Runs, int ModelRequests, IReadOnlyList<ToolCallCount> Calls)
 {
     public static ToolUsage None { get; } = new(0, 0, []);
 
-    /// <summary>Model requests per run, on average; 0 without runs.</summary>
+    /// <summary>Model requests per answer that called a tool, on average; 0 without any.</summary>
     public double RequestsPerRun => Runs == 0 ? 0 : (double)ModelRequests / Runs;
 }
 
@@ -56,6 +56,6 @@ public interface IStatisticsStore
 
     Task<ActivityFacts> ActivityAsync(ActivityQuery query, CancellationToken cancellationToken);
 
-    /// <summary>Runs whose answers were asked in [<paramref name="from"/>, <paramref name="until"/>), their requests and tool calls.</summary>
+    /// <summary>Answers that called a tool and were asked in [<paramref name="from"/>, <paramref name="until"/>), their requests and tool calls.</summary>
     Task<ToolUsage> ToolUsageAsync(WorkspaceId? workspace, DateTimeOffset from, DateTimeOffset until, CancellationToken cancellationToken);
 }
