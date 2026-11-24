@@ -78,6 +78,8 @@ suite() {
   fi
   # Explicit: callers run `suite || ...`, and bash ignores `set -e` inside a function called that way.
   build || return 1
+  # The test scripts' own checks: a report with Chinese in it arrives whole in any code page.
+  py "$ROOT/scripts/script-checks.py" || failed=1
   for project in "$CORE" "$ARCH" "$INFRA"; do
     dotnet test "$project" --no-build -c "$CONFIG" --nologo --filter "$NOT_QUARANTINED" ${trx[@]+"${trx[@]}"} || failed=1
   done

@@ -98,6 +98,13 @@ jobs:
       - name: Build (warnings are errors)
         run: dotnet build Mindweave.slnx --no-restore -c Release
       # Quarantined tests (intermittent, fix pending; docs/design/testing.md) run in the next step and never block.
+      # The scripts that run and report the tests must not stop on Chinese text in a name or a message.
+      - name: Script checks
+        if: matrix.part == 'rest'
+        shell: bash
+        run: |
+          py="$(command -v python3 || command -v python)"
+          "$py" -I scripts/script-checks.py
       - name: Test (all but desktop)
         if: matrix.part == 'rest'
         shell: bash
