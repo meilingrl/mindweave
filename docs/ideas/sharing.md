@@ -120,12 +120,24 @@ The share dialog lists what will leave before the file is saved.
 
 A device copy carries everything except keys, connections and addresses.
 
+### S8 The shared page, as the reader sees it (2026-11-25)
+
+The owner judged the prototype in [prototypes/share-page](../../prototypes/share-page/README.md) and accepted its shape ("absolutely unbeatable"). It is the visual baseline for the page.
+
+- The page opens with the share's title, the dates it covers, the counts of explorations, conversations and questions, and one sentence that tells a stranger what the page is.
+- One picture: the path drawn as the app's timeline view draws it. There is no spatial view and no view switch.
+- Under the picture, the same titles as an indented outline. On a narrow screen the picture scrolls sideways and the outline is the main way to move.
+- Structure only: the picture and the outline are the whole page. Choosing a dot shows its title, start time, number of questions and whether it has a summary.
+- With content: the chosen conversation appears below. Questions are in full; long answers are folded with "show all". The sentence a branch left from is marked and leads into the branch; the branches of an answer are also listed under it, so they stay visible while it is folded. A branch conversation names where it left from and links back.
+- The summary is a closed layer on top of its conversation.
+
+Known roughness of the prototype, for the builder: the fold cuts at a fixed height and can slice a formula; the product folds at a paragraph boundary.
+
 ## Open questions
 
 In order of what depends on them:
 
 1. What importing a structure-only share gives the recipient.
-4. How a reader who was not there follows the path: the timeline and the network in the page.
 5. Language and theme of the page.
 6. After sharing: later changes, deletion, sharing again.
 7. Failure cases, what is out of scope for 0.7, acceptance scenarios, the first increment.
