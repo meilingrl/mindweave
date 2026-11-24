@@ -1,6 +1,6 @@
 # Test organization and health
 
-Settled after the test health check on 2026-11-15 (at the time 1,157 tests, about 106 seconds for the full suite locally). This file covers only how this track's tests are run and what to do when they get slow or unstable; what each stage tests is in that stage's design.
+Settled after the test health check on 2026-11-15 (at the time 1,157 tests, about 106 seconds for the full suite locally). This file covers only how the tests are run and what to do when they get slow or unstable; what each stage tests is in that stage's design.
 
 ## How to run
 
@@ -8,12 +8,12 @@ Settled after the test health check on 2026-11-15 (at the time 1,157 tests, abou
 | --- | --- | --- |
 | `scripts/test.sh quick [NAME…]` | Core, Architecture, Infrastructure (without fault injection), plus the desktop tests whose full name contains any of the names | The loop while changing code, about 15–30 seconds |
 | `scripts/test.sh suite [DIR]` | The tests that block CI, with desktop tests run in parallel shards (see below); writes TRX when given a directory | Full suite locally |
-| `scripts/test.sh full` | `suite`, then the quarantined tests run separately, report only | Before merging back into the track branch; must pass |
+| `scripts/test.sh full` | `suite`, then the quarantined tests run separately, report only | Before merging back into `main`; must pass |
 | `scripts/test.sh repeat N FILTER [PROJECT] [--load]` | Runs the same filter N times in a row and counts failures; `--load` also keeps all cores busy | Hunting intermittent failures |
 | `scripts/test.sh timings [DIR]` | Full suite with TRX recorded; lists the slowest projects, classes and tests, and the tests over budget; also refreshes the per-class timings used for sharding | When things feel slower; after desktop test classes are noticeably added or removed |
 | `scripts/test.sh quarantined` | Lists the quarantined tests | At the start of a fix batch |
 
-Existing categories (the `Category` attribute): `FaultInjection`, `Performance`, `Gallery`, `RealApi`, `Trial`, `Quarantine`. By default, depending on environment variables or attributes, the last four do not run or do not block.
+Existing categories (the `Category` attribute): `FaultInjection`, `Performance`, `Gallery`, `RealApi`, `Trial`, `Quarantine`. By default, depending on environment variables or attributes, all but `FaultInjection` do not run or do not block.
 
 ## Desktop test shards
 
