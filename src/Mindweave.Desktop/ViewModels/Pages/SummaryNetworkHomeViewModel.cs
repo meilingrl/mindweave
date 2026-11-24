@@ -714,18 +714,13 @@ public sealed partial class SummaryNetworkHomeViewModel : PageViewModel, IDispos
         }
     }
 
-    /// <summary>Title search: selects the first match and brings it to the centre.</summary>
+    /// <summary>Title search: selects the first match, by the name it shows before any other title, and brings it to the centre.</summary>
     [RelayCommand]
     private void Find()
     {
         var text = SearchText.Trim();
-        if (text.Length == 0)
-        {
-            return;
-        }
-
-        var match = Nodes.FirstOrDefault(n => IsMatch(n, text));
-        if (match is null)
+        var found = FindMatches();
+        if ((Nodes.FirstOrDefault(n => found.Contains(n.Id) && Holds(n.ShortTitle, text)) ?? Nodes.FirstOrDefault(n => found.Contains(n.Id))) is not { } match)
         {
             return;
         }
@@ -799,13 +794,15 @@ public sealed partial class SummaryNetworkHomeViewModel : PageViewModel, IDispos
         ViewChanged?.Invoke(this, false);
     }
 
-    private static bool IsMatch(NodeView node, string text) =>
-        node.ShortTitle.Contains(text, StringComparison.CurrentCultureIgnoreCase) || node.DisplayName.Contains(text, StringComparison.CurrentCultureIgnoreCase);
+    private static bool IsMatch(SummaryNetworkNode node, string text) =>
+        Holds(node.ShortTitle, text) || Holds(node.DisplayName, text) || node.OtherTitles.Any(title => Holds(title, text));
+
+    private static bool Holds(string title, string text) => title.Contains(text, StringComparison.CurrentCultureIgnoreCase);
 
     private HashSet<SummaryNodeId> FindMatches()
     {
         var text = SearchText.Trim();
-        return text.Length == 0 ? [] : [.. Nodes.Where(n => IsMatch(n, text)).Select(n => n.Id)];
+        return text.Length == 0 ? [] : [.. Session.Projection.Nodes.Where(n => Session.Positions.ContainsKey(n.Id) && IsMatch(n, text)).Select(n => n.Id)];
     }
 
     /// <summary>The selected node and its sources, following each node's parent edge to the top.</summary>
