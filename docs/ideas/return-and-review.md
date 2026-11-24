@@ -38,7 +38,7 @@ The reply-quality discussion owns everything inside an answer or a summary: the 
 ## Questions, in the order they depend on each other
 
 1. What is kept for each conversation so that it can be brought back: decided, R1.
-2. When it is written, and what it costs.
+2. When it is written, and what it costs: decided, R2.
 3. What returning from a branch shows.
 4. What coming back after some days shows, and where.
 5. Unresolved questions as the edge of an exploration in the summary network.
@@ -60,6 +60,27 @@ The reply-quality discussion owns everything inside an answer or a summary: the 
 Considered: structure only, with no model (free, but no key points come back from a branch); a mark set by the model at the end of each answer (no extra request, but it piles up per answer and lies inside the answer, which is reply quality's).
 
 Follows from it: a new table (a migration, tried on a copy of the owner's data first), and a glossary row for the note before any code.
+
+### R2 When a note is written (owner, 2026-11-25)
+
+The owner's rule: a note is not written each time a conversation is left. It is written only for a conversation that has rested for a fairly long time and that matters more than most; a conversation with no new messages never gets a second note.
+
+- **Rest.** A conversation is due when 36 hours have passed since both its last answer finished and it was last read (the reading position's time). 36 hours is the default.
+- **Weight.** It must be above the average weight of the conversations in its workspace. The weight is the one the summary network draws as dot size: the questions asked in the conversation and in its branches (requirements §7.3).
+- **No new messages, no new note.** A note records the last message it covers. A conversation is due again only when it has later answers and has rested again.
+
+The writer's details of the weight rule (the owner asked for them; change any):
+
+- A conversation in which only one question was asked gets no note, whatever its weight: its title and question already say what it is.
+- In a workspace with fewer than 5 conversations the average says little; there a conversation needs 3 questions of its own, or a weight of 3.
+- Archived conversations get no note. A note already written stays.
+- The check is local and costs nothing: at start, and once an hour while the app runs. It writes at most 3 notes per check and 10 per day, the most recently active first, so the first run over old data and a long absence stay cheap.
+- The request gets the earlier note and the messages after it, not the whole conversation again. It queues behind questions, titles and summaries (§9.2). A failed note shows nothing and is tried at the next check.
+- Settings has one switch for notes, on by default, beside the automatic preparation of recommendations.
+
+What follows: a note exists only for older, heavier conversations. Right after leaving a branch there is no note; the places of return must read well without one.
+
+Considered: on leaving a conversation (the writer's first recommendation; a request per visit, most of them never read); after every answer; only when a place needs to show it.
 
 ## Still to write
 
