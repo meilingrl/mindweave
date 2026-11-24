@@ -4,7 +4,7 @@ Based on architecture §4.1 and §4.2. Following the development route, only the
 
 ## Stable identity
 
-- An entity's primary key is a UUIDv7 (rows that belong to one entity use its key or a composite key) (time-ordered), stored in the database as lowercase hyphenated text. It is readable and consistent across tables, and its insert locality is better than random UUIDs.
+- An entity's primary key is a UUIDv7 (time-ordered; dependent rows use their owner's key, a composite key or a row number), stored in the database as lowercase hyphenated text. It is readable and consistent across tables, and its insert locality is better than random UUIDs.
 - Branch sources, ancestor ranges and task inputs reference only stable IDs, never sequence numbers within a conversation or screen positions. Order within a conversation is guaranteed separately by a `(conversation_id, seq)` unique constraint.
 - All times are stored as UTC Unix milliseconds, as integers.
 

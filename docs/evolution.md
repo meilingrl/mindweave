@@ -6,7 +6,7 @@ Recorded 2026-10-26. The user proposed six later evolution directions; after dis
 
 - This document is **directional guidance**, not current requirements. The first-release scope, behavior and acceptance still follow [requirements](requirements.md) and [architecture](architecture.md); this document does not change either of them.
 - When a direction becomes formal requirements, it must be written into requirements and architecture after the user decides; the matching entry here then changes to a reference.
-- How far this guidance was adopted while two tracks ran in parallel (until 2026-11-16) is in "Track adoption status" at the end.
+- How far this guidance was adopted while two tracks ran in parallel (until 2026-11-16) is in "Adoption status" at the end.
 
 ## 1. Overall principles
 
@@ -98,7 +98,7 @@ E1 and E2 are designed in the same period as the reading position, selection anc
 
 #### Agent platform (from the discussion of 2026-11-13)
 
-Written as [requirements](requirements.md) §10.4 and [architecture](architecture.md) §15. Phases 1 to 4 are built: resources and attachments, the run loop and local tools, web search and citations, MCP. Phase 5, generated charts and audio, is ahead (§10.4.7). Two questions stay open for later: an embedding service for retrieval by meaning (Q13: not now; look again when local keyword retrieval is not good enough) and the chart format of phase 5 (Q16: Markdown tables and Mermaid first). The other answers are in [the questions of that time](history/design/agent-platform-questions.md). Not doing for now: a code execution sandbox, and agents that run in the background for a long time.
+Written as [requirements](requirements.md) §10.4 and [architecture](architecture.md) §15. Phases 1 to 4 are built: resources and attachments, the run loop and local tools, web search and citations, MCP. Phase 5, generated charts and audio, is ahead (§10.4.7). Two questions stay open for later: an embedding service for retrieval by meaning (Q13: not now; look again when local keyword retrieval is not good enough) and the chart format of phase 5 (Q16: Markdown tables and Mermaid first). The other answers are in [the questions of that time](history/design/agent-platform-questions.md) (Q14, confirmed later: [web search](design/web-search.md)). Not doing for now: a code execution sandbox, and agents that run in the background for a long time.
 
 ### D6 Long-term vision: map-based exploration
 

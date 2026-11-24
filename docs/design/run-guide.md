@@ -52,4 +52,4 @@ It packages the committed files with `git archive`, so bin/obj and run data are 
 ## Where to start in the docs
 
 - Requirements and architecture: `docs/requirements.md`, `docs/architecture.md`.
-- In the repository (not in the source package): the design documents in `docs/design/`, the finished stage designs `s0-…` to `s7-…` in `docs/history/design/`, and the decisions in `docs/design/decisions.md`.
+- In the repository (mostly not in the source package): the design documents in `docs/design/`, the finished stage designs `s0-…` to `s7-…` in `docs/history/design/`, and the decisions in `docs/design/decisions.md`.
