@@ -1,12 +1,12 @@
 # Ask from anywhere, openness and local AI
 
-**Status:** in discussion with the owner since 2026-11-25. Not agreed. Last discussed: 2026-11-25 (the order of topics is open).
+**Status:** in discussion with the owner since 2026-11-25. Not agreed. Last discussed: 2026-11-25 (the order is set; the quick-ask window is being discussed).
 
 This draft takes over directions 1, 3 and 7 of [more directions](more-directions.md), the question Q13 of the agent platform (search by meaning) and the caching part of [evolution](../evolution.md) D4. Those texts stay as they are until the owner settles what moves.
 
 ## 1. Topics
 
-Seven topics in four groups. The order is the owner's.
+Seven topics in four groups. The order and what is set aside are in §5 and §6.
 
 | Group | Topic | In one line |
 | --- | --- | --- |
@@ -57,11 +57,15 @@ Seven topics in four groups. The order is the owner's.
 
 ## 5. Decisions
 
-None yet.
+| Date | Decision |
+| --- | --- |
+| 2026-11-25 | The order (owner): first the quick-ask window and selected text (A1, A2); then several connections and local models through a local server (C1, D1); then search by meaning (D2); then prompt caching (C2). |
+| 2026-11-25 | The MCP server, the command line and the browser extension (B1, B2, A3) are set aside for now (owner). |
 
 ## 6. Set aside
 
-Nothing yet. A topic the owner sets aside gets one line here.
+- **B1 MCP server, B2 command line:** set aside for now (owner, 2026-11-25).
+- **A3 browser extension:** set aside for now (owner, 2026-11-25).
 
 ## 7. Per topic
 

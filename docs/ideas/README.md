@@ -17,7 +17,7 @@ Each file starts with its status and the date of its last discussion.
 | [More platforms](platforms.md) | Linux, Web and HarmonyOS on the current code; no mobile (owner, 2026-11-24) | First draft, 2026-11-22 |
 | [Reply quality](reply-quality.md) | What open-source projects do to make answers and summaries better, and what fits Mindweave | First draft, 2026-11-22 |
 | [More directions](more-directions.md) | Seven further directions, and the technical pieces worth publishing | First draft, 2026-11-22 |
-| [Ask from anywhere, openness and local AI](ask-anywhere.md) | A quick-ask window, selected text, a browser extension; Mindweave as an MCP server and a command line; several connections and protocols; local models and search by meaning; prompt caching | In discussion since 2026-11-25 |
+| [Ask from anywhere, openness and local AI](ask-anywhere.md) | A quick-ask window and selected text; several connections and protocols; local models and search by meaning; prompt caching. Set aside for now: the browser extension, the MCP server, the command line | In discussion since 2026-11-25 |
 
 Adopted so far: the [free trial](../design/free-trial.md) (2026-11-22, evolution D9).
 
