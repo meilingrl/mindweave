@@ -39,7 +39,7 @@ The reply-quality discussion owns everything inside an answer or a summary: the 
 
 1. What is kept for each conversation so that it can be brought back: decided, R1.
 2. When it is written, and what it costs: decided, R2.
-3. What returning from a branch shows.
+3. What returning from a branch shows: decided, R3.
 4. What coming back after some days shows, and where.
 5. Unresolved questions as the edge of an exploration in the summary network.
 6. Answers that cite the user's own summaries (with reply quality).
@@ -81,6 +81,14 @@ The writer's details of the weight rule (the owner asked for them; change any):
 What follows: a note exists only for older, heavier conversations. Right after leaving a branch there is no note; the places of return must read well without one.
 
 Considered: on leaving a conversation (the writer's first recommendation; a request per visit, most of them never read); after every answer; only when a place needs to show it.
+
+### R3 Returning from a branch (2026-11-25)
+
+- The immediate return stays as it is: the parent opens at the selected passage, highlighted, and nothing else is added.
+- Once a branch has a note (R2), its entry in the parent, the quote chip under the answer, carries the note: the key points, then the questions left open. A branch without a note shows its title, as now.
+- The chip's look is the owner's to judge from a picture.
+
+Considered: a "bring back" action in the branch that writes its note at once (one request per click and one more control). Not taken now; it can be added later without changing what is stored.
 
 ## Still to write
 
