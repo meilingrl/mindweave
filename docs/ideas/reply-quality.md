@@ -14,7 +14,7 @@ Started 2026-11-25. The owner decides; each decision is recorded here with its d
 | --- | --- | --- |
 | Q1 | Does every answer get an answer prompt, and how strongly does it steer? (idea 1) | Nothing; the others hang on it |
 | Q2 | The rule for branch answers (idea 1) | Q1 |
-| Q3 | Do self-check cards and a guide-me mode fit requirements §5.4? | Q1 (guide me is a mode of the answer prompt) |
+| Q3 | Self-check cards and a guide-me mode (dropped, see the decisions) | Q1 |
 | Q4 | What the user already knows, and memory (idea 7, "Memory") | Q1 |
 | Q5 | Follow-up suggestions per answer (idea 2) | Q1, Q2 |
 | Q6 | Stop rules, the clarification card, and the two agent-loop to-dos (ideas 5, 8; agent-loop §8) | Q1 (the run prompt becomes "answer prompt + tool section") |
@@ -38,6 +38,7 @@ Started 2026-11-25. The owner decides; each decision is recorded here with its d
   - Length is scaled to the passage and the question. The first draft's "stay shorter than the parent" is dropped.
   - A deeper branch gets the same paragraph; it names only the nearest selection.
   - Accepted cost: about 60 input tokens in branches; a branch used as a fresh start stays tied to the passage until the question says otherwise.
+- **Q3, 2026-11-25 (owner): no self-check cards and no guide-me mode.** Both are dropped outright, in any form: no card, no mode, no line in the answer prompt about quizzing or guiding, and no follow-up suggestion that offers a test. Requirements §5.4 stays as written.
 
 ### Boundaries with the other design sessions (proposed, for the owner to settle)
 
@@ -87,13 +88,6 @@ The answers a user gets to questions, and the documents they get from summaries,
 | 9 | **Explanation scenarios and a pairwise judge.** Scenarios such as a branch on a jargon term, or "simpler please". A judge compares two prompt versions for clarity, with positions swapped. | Four scenarios with fictional facts and the judge. | Two judge requests per scenario | LearnLM, Morphic |
 | 10 | **Better summaries.** Organized by concept, not by the order things were asked; key terms with one-line definitions; optional styles. | One line in the summary prompt; compare three real summaries before and after. | None | STORM, Open Notebook |
 
-## Owner decisions first
-
-[Requirements §5.4](../requirements.md) excludes assessing learning results. These two touch that line:
-
-- **Test myself.** An action on a summary node that makes three to five self-check cards. Shown once, answers revealed by the user, nothing stored. (Matuschak's prompt guide, DeepTutor.)
-- **Guide me.** A mode per conversation in which the model leads with questions and hints. No grades. (Mollick tutor prompt.)
-
 ## Considered and not proposed
 
 - **A default self-critique pass.** It costs two to three times the requests. The citation check and the stop rules give most of the value.
@@ -128,5 +122,4 @@ The answers a user gets to questions, and the documents they get from summaries,
 - Open Notebook: `prompts/ask/`, default transformations in its migrations
 - Khoj: `src/khoj/processor/conversation/prompts.py`
 - RAGAS faithfulness: <https://github.com/explodinggradients/ragas/blob/main/docs/concepts/metrics/available_metrics/faithfulness.md>
-- Matuschak, how to write good prompts: <https://andymatuschak.org/prompts/>
 - Tutor evaluation benchmark: arXiv 2412.09416
