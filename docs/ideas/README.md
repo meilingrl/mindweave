@@ -14,7 +14,7 @@ Each file starts with its status and the date of its last discussion.
 
 | Draft | About | Status |
 | --- | --- | --- |
-| [More platforms](platforms.md) | Linux, Android, iPhone, Web and HarmonyOS on the current code | First draft, 2026-11-22 |
+| [More platforms](platforms.md) | Linux, Web and HarmonyOS on the current code; no mobile (owner, 2026-11-24) | First draft, 2026-11-22 |
 | [Reply quality](reply-quality.md) | What open-source projects do to make answers and summaries better, and what fits Mindweave | First draft, 2026-11-22 |
 | [More directions](more-directions.md) | Seven further directions, and the technical pieces worth publishing | First draft, 2026-11-22 |
 
