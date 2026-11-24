@@ -54,11 +54,18 @@ The owner's principle: whether importing or exporting, things can only stay the 
 
 **Deletions between devices (writer's proposal, not yet confirmed).** A device copy carries the identities of deleted conversations, with no content. On import the app offers to delete them here too, through the existing delete confirmation; it never does so by itself. A shared file never carries this list. It needs a stored record of deleted identities, which is a migration.
 
+### S5 What belongs to this cycle (2026-11-25)
+
+All three steps, in this order, each merged on its own. The format is designed for all three from the start.
+
+1. Export: the HTML file with the exchange data inside.
+2. Import and continue: bring a shared file in and keep asking.
+3. Device copies: the full package with attachment originals, and adding to conversations that already exist.
+
 ## Open questions
 
 In order of what depends on them:
 
-1. Which steps belong to this cycle: export, import and continue, device copies.
 2. What is shown inside each conversation: full answers, folded answers, summaries, retries.
 3. What never leaves: attachments, citations, tool steps, model details, unticked branches.
 4. How a reader who was not there follows the path: the timeline and the network in the page.
