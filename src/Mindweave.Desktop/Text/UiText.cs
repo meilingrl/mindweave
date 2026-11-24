@@ -96,8 +96,6 @@ public static partial class UiText
     /// <summary>The closed picker's badge: how many conversations in other workspaces have a new answer.</summary>
     public static string NewsBadge(int count) => count > 9 ? "9+" : count.ToString(CultureInfo.InvariantCulture);
 
-    public static string ExploreEmpty => T("This workspace has no conversations yet.", "这个工作区还没有会话。");
-
     public static string ExitTitle => T("Some tasks are still in progress", "仍有任务在生成");
     public static string ExitConfirm => T("Stop and quit", "停止并退出");
     public static string ExitCancel => T("Keep generating", "继续生成");

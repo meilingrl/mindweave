@@ -164,11 +164,6 @@
     <Setter Property="HorizontalAlignment" Value="Left" />
     <Setter Property="Margin" Value="-8,6,0,0" />
   </Style>
-  <Style Selector="Border.workspace-row-divider">
-    <Setter Property="Height" Value="1" />
-    <Setter Property="Margin" Value="14,0" />
-    <Setter Property="Background" Value="{DynamicResource CardBorder}" />
-  </Style>
   <Style Selector="TextBlock.workspace-row-name">
     <Setter Property="FontWeight" Value="SemiBold" />
     <Setter Property="TextTrimming" Value="CharacterEllipsis" />

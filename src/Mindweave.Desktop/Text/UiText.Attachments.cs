@@ -20,7 +20,6 @@ public static partial class UiText
     public static string RemoveAttachment => T("Remove", "移除");
     public static string ConvertToText => T("Convert to text", "转为文字");
     public static string RetryAttachment => T("Retry", "重试");
-    public static string OpenAttachment => T("View", "查看");
     public static string Extracting => T("Reading…", "正在读取…");
     public static string OriginalMissing => T("Original missing", "原件缺失");
     public static string OriginalMissingNote => T("The attachment’s original is no longer in the data folder. The extracted text can still be viewed and sent.", "附件的原件已不在数据目录中。已提取的文字仍可查看和发送。");
@@ -28,11 +27,9 @@ public static partial class UiText
     public static string TruncatedNote => T("The text extracted from this material is over 2 million characters; only the first 2 million were kept.", "这份材料提取出的文字超过 200 万字，只保存了前 200 万字。");
     public static string ViewerCopyAll => T("Copy all", "复制全部");
     public static string ViewerClose => T("Close", "关闭");
-    public static string DropHint => T("Drop to attach", "松开即可附加");
     public static string HistoryImagesUnseen => T("Images in this conversation will be sent as text descriptions because the current model can’t view images","会话中的图片会以文字说明代替发送：当前模型不能查看图片");
     public static string FileDialogTitle => T("Choose files to attach", "选择要附加的文件");
     public static string ImageDialogTitle => T("Choose images to attach", "选择要附加的图片");
-    public static string AttachmentsFileFilter => T("Text, PDF and Word", "文本、PDF 与 Word");
     public static string ImagesFileFilter => T("Images", "图片");
 
     /// <summary>Why an attachment could not be added, on its chip (requirements §10.4.3).</summary>

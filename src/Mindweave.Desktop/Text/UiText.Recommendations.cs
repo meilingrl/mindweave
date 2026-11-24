@@ -82,7 +82,6 @@ public static partial class UiText
     };
 
     // Settings (设置 › 提示, beside 自动准备工作区名称建议): requirements §10.3 共同规则 and §9.4.
-    public static string RecommendationsLabel => T("Recommendations", "推荐");
     public static string RecommendQuestionsSetting => T("Recommended questions in New exploration", "新探索推荐问题");
     public static string RecommendNodesSetting => T("Recommended nodes in the summary network", "网络推荐节点");
     public static string AutoPrepareRecommendations => T("Prepare recommendations automatically", "自动准备推荐");

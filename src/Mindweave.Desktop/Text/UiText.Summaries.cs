@@ -19,7 +19,6 @@ public static partial class UiText
     public static string Resummarize => T("Summarize again", "重新总结");
     public static string SummaryGenerating => T("Generating summary…", "正在生成总结…");
     public static string SummaryStop => T("Stop", "停止");
-    public static string SummaryRetry => T("Retry", "重试");
     public static string ReturnToConversation => T("Continue in the source conversation", "回到来源会话继续");
 
     /// <summary>The button's own words; it keeps <see cref="ReturnToConversation"/> as its accessible name.</summary>

@@ -15,13 +15,6 @@ public static partial class UiText
     public static string WebSearchOn => T("On", "开");
     public static string WebSearchOff => T("Off", "关");
 
-    public static string WebSearchModeName(WebSearchMode mode) => mode switch
-    {
-        WebSearchMode.On => WebSearchOn,
-        WebSearchMode.Off => WebSearchOff,
-        _ => WebSearchAuto,
-    };
-
     /// <summary>The switch's tooltip: what the position does.</summary>
     public static string WebSearchModeTip(WebSearchMode mode) => mode switch
     {
@@ -42,8 +35,6 @@ public static partial class UiText
     public static string ApprovalWaiting => T("Waiting for you to approve reading the URL…", "等待你批准读取网址…");
     public static string RunStepDenied => T("You denied this", "你拒绝了");
     public static string ApprovalExpired => T("Approval expired", "批准已失效");
-
-    public static string CitationsHeading => T("Citations", "出处");
 
     /// <summary>The line that opens the 出处 list: how many sources the answer cites.</summary>
     public static string CitationsCount(int count) => T($"Citations · {count}", $"出处 · {count}");

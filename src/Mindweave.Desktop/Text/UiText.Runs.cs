@@ -39,7 +39,6 @@ public static partial class UiText
     public static string LimitToolCalls => T("Tool calls", "工具调用");
     public static string LimitMinutes => T("Duration (minutes)", "时长（分钟）");
     public static string LimitTokens => T("Estimated total tokens", "累计估算 token");
-    public static string LimitTimesUnit => T("times", "次");
     public static string RestoreDefaultLimits => T("Restore defaults", "恢复默认");
     public static string LimitsSaved => T("Saved; applies to questions you ask from now on", "已保存，对之后的提问生效");
     public static string ToolSettingsSaveFailed => T("Tool settings couldn’t be saved. Please try again later.", "工具设置未能保存，请稍后再试。");

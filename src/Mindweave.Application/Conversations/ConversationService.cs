@@ -166,13 +166,6 @@ public sealed partial class ConversationService : IConversations
     /// </summary>
     public event EventHandler<ConversationId>? TitleSet;
 
-    /// <summary><see cref="IsStorageBlocked"/> changed. Raised on worker threads.</summary>
-    public event EventHandler? StorageStateChanged
-    {
-        add => _health.Changed += value;
-        remove => _health.Changed -= value;
-    }
-
     /// <summary>A core write failed and storage has not recovered: questions, retries, branches and archive commits are refused (§9.3).</summary>
     public bool IsStorageBlocked => _health.IsBlocked;
 

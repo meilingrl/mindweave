@@ -6,16 +6,13 @@ namespace Mindweave.Application.Storage;
 /// An original written to the blob store. Until it is disposed its hash is pinned: a sweep running meanwhile keeps the
 /// file even though no row refers to it yet. Dispose it after the row that refers to it is committed (or failed).
 /// </summary>
-public sealed class BlobWrite(ContentHash hash, long size, bool existed, Action release) : IDisposable
+public sealed class BlobWrite(ContentHash hash, long size, Action release) : IDisposable
 {
     private Action? _release = release;
 
     public ContentHash Hash { get; } = hash;
 
     public long Size { get; } = size;
-
-    /// <summary>The same content was already stored; nothing new was written.</summary>
-    public bool Existed { get; } = existed;
 
     public void Dispose() => Interlocked.Exchange(ref _release, null)?.Invoke();
 }

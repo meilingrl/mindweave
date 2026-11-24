@@ -188,7 +188,7 @@ public class MultiSelectUiTests
         await UiWait.UntilAsync(() => list.Items.Count == 0);
         var backup = Assert.Single(app.Services.GetRequiredService<IDatabaseLifecycle>().ListBackups());
         Assert.Equal(BackupReason.BeforeConversationDelete, backup.Reason);
-        Assert.Contains(UiText.BackupBeforeConversationDelete, UiText.FormatBackup(backup), StringComparison.Ordinal);
+        Assert.Contains(UiText.BackupBeforeConversationDelete, UiText.BackupDetails(backup), StringComparison.Ordinal);
         Assert.Null(await summaries.ForConversationAsync(leaf, CancellationToken.None));
 
         // The deleted summary's page left the network section's stack too.

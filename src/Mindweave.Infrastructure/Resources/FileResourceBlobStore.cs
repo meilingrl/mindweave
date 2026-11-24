@@ -49,7 +49,7 @@ internal sealed partial class FileResourceBlobStore(AppPaths paths, SqliteDataba
             var target = PathOf(hash);
             if (Exists(hash))
             {
-                return new BlobWrite(hash, content.Length, existed: true, () => Unpin(hash));
+                return new BlobWrite(hash, content.Length, () => Unpin(hash));
             }
 
             Directory.CreateDirectory(Path.GetDirectoryName(target)!);
@@ -74,7 +74,7 @@ internal sealed partial class FileResourceBlobStore(AppPaths paths, SqliteDataba
                 throw;
             }
 
-            return new BlobWrite(hash, content.Length, existed: false, () => Unpin(hash));
+            return new BlobWrite(hash, content.Length, () => Unpin(hash));
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
         {
