@@ -216,7 +216,7 @@ The following is a logical model with constraints, not final SQL or existing tab
 | LinkSuggestion (after the first release) | Workspace, two summary nodes, note and reason, status (pending confirmation / dismissed), generating task identity; becomes a SummaryLink when accepted; deleted in the same transaction when a node is deleted |
 | Resource, ResourceDerivative, ResourceChunk (after the first release) | Originals are content-addressed on disk; the database stores metadata, provenance, extracted text, chunks and digests; a resource belongs to the conversation that brought it in and is deleted with that conversation; see §15.2 |
 | RunStep (after the first release) | An execution step of an answer task (a model call or a tool execution), its approval state and result resource; see §15.3 |
-| Drafts and interface state | Message drafts, reading positions and the last page are saved by their own rules; summary network coordinates are saved explicitly, and the viewport is kept only in memory; runtime back history is not persisted |
+| Drafts and interface state | Message drafts, reading positions and the last page are saved by their own rules; the places of explorations are saved directly when they are new or changed (§11.2), and the viewport is kept only in memory; runtime back history is not persisted |
 
 Streaming updates the same message record, and revision and final-state checks prevent old writes from overwriting new ones; after completed / canceled / failed / interrupted the body is fixed, and branching is possible only after the final state is saved successfully. Branch sources reference stable message IDs, not bubble indexes or screen coordinates.
 
