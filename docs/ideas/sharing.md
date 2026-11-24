@@ -35,20 +35,28 @@ The owner widened D8, which had left import between Mindweave users for later:
 
 How this is done is under discussion (proposal P1 below).
 
-## Proposals under discussion
+### S4 One exchange format; import and export stay incremental (2026-11-24)
 
-### P1 One exchange format under everything (writer's proposal, 2026-11-24)
+The owner's principle: whether importing or exporting, things can only stay the same or grow; nothing is ever deleted automatically.
 
 - The exchange format of seam E5 is implemented. Every file that leaves the app is that format.
 - A shared HTML file holds the same content twice: as the page a person reads, and as exchange data Mindweave reads. The data holds exactly what the page shows, never more.
 - A device copy is the same format with everything in it (attachment originals, all summary versions, summary links), as a package file that also contains the page.
-- One import reads both. A conversation the app has never seen arrives as new. A conversation it already has gains the messages it lacks. When both sides added to the same conversation, the incoming one arrives as a separate copy; nothing is interleaved and nothing is lost. Import never deletes.
+- One import reads both:
+  - a conversation the app has never seen arrives as new;
+  - a conversation it already has gains the messages it lacks;
+  - when both sides added to the same conversation, the incoming one arrives as a separate copy, marked as such; nothing is interleaved;
+  - for single-valued things (a title, the current summary version, archived or not) the newer one wins.
+- Import never deletes. A file's silence about a conversation has three possible causes (deleted there, not selected, created here later), so silence is never read as deletion.
+- The database backup is a different thing: it protects the local machine across version changes and deletions. It is unchanged and outside this design (owner).
+
+**Deletions between devices (writer's proposal, not yet confirmed).** A device copy carries the identities of deleted conversations, with no content. On import the app offers to delete them here too, through the existing delete confirmation; it never does so by itself. A shared file never carries this list. It needs a stored record of deleted identities, which is a migration.
 
 ## Open questions
 
 In order of what depends on them:
 
-1. How import and device copies work (P1), and which steps belong to this cycle.
+1. Which steps belong to this cycle: export, import and continue, device copies.
 2. What is shown inside each conversation: full answers, folded answers, summaries, retries.
 3. What never leaves: attachments, citations, tool steps, model details, unticked branches.
 4. How a reader who was not there follows the path: the timeline and the network in the page.
