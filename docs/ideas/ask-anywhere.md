@@ -63,6 +63,8 @@ Seven topics in four groups. The order and what is set aside are in §5 and §6.
 | 2026-11-25 | The MCP server, the command line and the browser extension (B1, B2, A3) are set aside for now (owner). |
 | 2026-11-25 | The answer is not shown in a small window (owner): it would not work well and brings many complications. Answers are read in the main window. |
 | 2026-11-25 | Quoting from outside takes the collect-then-ask form of §7 (owner welcomed it). Its details are open. |
+| 2026-11-25 | Where a sent set of quotes lands is chosen when sending (owner): the default is a new exploration in the workspace used last; it can be switched to another workspace or to the open conversation. It never starts a branch, because a branch's quotes come from its parent conversation (evolution D7). |
+| 2026-11-25 | When the selected text cannot be read, the rectangle takes over (owner's suggestion): the hotkey reads the selection, and if there is none or it cannot be read, it goes straight to the rectangle. |
 
 ## 6. Set aside
 
@@ -86,6 +88,12 @@ Filled in as each topic is discussed: the decisions, the approach, out of scope,
 
 This is asking with multiple quotes (evolution D7) with quotes that come from outside. One quote list in the composer serves both.
 
-**Not tried yet.** Nothing here has been prototyped. The parts most likely to surprise: reading the selection in applications that do not expose it (the fallback is a copy), and drawing the rectangle across several screens.
+**Claude's calls (the owner can change them).**
+
+- No simulated copy as a fallback at first: it touches the clipboard, and the rectangle already covers the case. It can be added if daily use shows too many applications that do not expose their selection.
+- A picture quote is also read into text on the machine by the system's text recognition, so it works with a model that has no image input.
+- The rectangle stays on one screen: the one where the drag starts. With two or more monitors, each has its own scale, and a rectangle over the gap between them is not worth the work.
+
+**Not tried yet.** Nothing here has been prototyped. The parts most likely to surprise: which applications expose their selection, and the rectangle on a second monitor with a different scale.
 
 **What cannot be built this way.** A box that stays beside the selection inside another application's page, and highlights that stay on that page, need Mindweave to own the page: a browser extension (set aside) or a document opened inside Mindweave.
