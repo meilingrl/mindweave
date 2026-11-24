@@ -62,11 +62,31 @@ All three steps, in this order, each merged on its own. The format is designed f
 2. Import and continue: bring a shared file in and keep asking.
 3. Device copies: the full package with attachment originals, and adding to conversations that already exist.
 
+### S6 Structure only, or with conversation content (2026-11-25)
+
+The owner's decision: the user chooses when sharing whether the share carries the conversation content or only the conversation structure. Without a choice, it carries only the structure.
+
+**With content** (the writer's proposal, accepted by the owner for this case):
+
+| Part | In the share |
+| --- | --- |
+| The user's questions | In full, always visible |
+| Answers | In full, folded to a few lines under each question, with "show all" |
+| The sentence a branch left from | Marked in the answer, with a link into that branch and a way back |
+| Retried answers | Only the answer that stands; earlier attempts are left out |
+| Stopped answers | Kept, marked incomplete |
+| Failed answers with no text | Left out |
+| Summary | The current version, shown as a layer on top of its conversation; history versions are left out |
+
+**Structure only:** what exactly it contains is open (question 1 below).
+
+A device copy (S5 step 3) always carries everything; this choice applies to shares.
+
 ## Open questions
 
 In order of what depends on them:
 
-2. What is shown inside each conversation: full answers, folded answers, summaries, retries.
+1. What a structure-only share contains, and what importing one gives the recipient.
 3. What never leaves: attachments, citations, tool steps, model details, unticked branches.
 4. How a reader who was not there follows the path: the timeline and the network in the page.
 5. Language and theme of the page.
