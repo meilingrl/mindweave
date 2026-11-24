@@ -306,7 +306,7 @@ The first release does not rely on providers' native compression, and does not i
 - Recommended exploration nodes that have not been generated, and the interaction of entering a new exploration from a candidate direction (the first batch is in §10.3).
 - Fine-grained reading progress, manual dragging of nodes, decorative animations, more complex layouts, and optimization for large summary networks.
 - Full project import/export, merging, and a more complete data-organizing mechanism; distinct from the first release's lightweight export, version cleanup and archiving.
-- Extensions such as cross-device sync, management of multiple provider and model configurations, more protocol implementations, and mobile. The first release first keeps the necessary interfaces and data boundaries.
+- Extensions such as cross-device sync, management of multiple provider and model configurations, and more protocol implementations. The first release first keeps the necessary interfaces and data boundaries.
 
 The long-term vision also includes a "built-in free AI experience with a quota", so that users who cannot configure an API can start exploring directly, while the bring-your-own-API way is kept. This vision needs a separate assessment of accounts, server-side calls, quotas and usage metering, cost control and possible billing arrangements. No specific free quota, refill cycle, charging model or launch date is promised. **For now, no account, relay, quota, payment or billing backend is built, and the free experience is not a first-release acceptance condition.**
 
