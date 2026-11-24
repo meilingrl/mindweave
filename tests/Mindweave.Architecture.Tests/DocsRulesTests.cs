@@ -6,14 +6,18 @@ namespace Mindweave.Architecture.Tests;
 /// The cheap, mechanical part of the document rules (AGENTS.md "Where files belong"): living documents link only to
 /// files that exist, every design document and review batch can be found from its folder's index, and the source
 /// package's exclusions name files that exist. Frozen records (docs/history, docs/reviews) are not checked: they keep the
-/// paths of their time.
+/// paths of their time. The source package leaves most of these documents and .gitattributes out; there, nothing is checked.
 /// </summary>
 public partial class DocsRulesTests
 {
     [Fact]
     public void Living_documents_link_only_to_files_that_exist()
     {
-        var root = LayeringTests.RepositoryRoot();
+        if (Repository() is not { } root)
+        {
+            return;
+        }
+
         var broken = new List<string>();
         foreach (var document in LivingDocuments(root))
         {
@@ -34,7 +38,12 @@ public partial class DocsRulesTests
     [Fact]
     public void Every_design_document_is_in_the_design_index()
     {
-        var design = Path.Combine(LayeringTests.RepositoryRoot(), "docs", "design");
+        if (Repository() is not { } root)
+        {
+            return;
+        }
+
+        var design = Path.Combine(root, "docs", "design");
         var index = File.ReadAllText(Path.Combine(design, "README.md"));
         var missing = Directory.EnumerateFiles(design, "*.md")
             .Select(Path.GetFileName)
@@ -47,7 +56,12 @@ public partial class DocsRulesTests
     [Fact]
     public void Every_review_batch_is_in_the_reviews_index()
     {
-        var reviews = Path.Combine(LayeringTests.RepositoryRoot(), "docs", "reviews");
+        if (Repository() is not { } root)
+        {
+            return;
+        }
+
+        var reviews = Path.Combine(root, "docs", "reviews");
         var index = File.ReadAllText(Path.Combine(reviews, "README.md"));
         var missing = Directory.EnumerateDirectories(reviews)
             .Select(Path.GetFileName)
@@ -60,7 +74,11 @@ public partial class DocsRulesTests
     [Fact]
     public void Every_source_package_exclusion_matches_a_file()
     {
-        var root = LayeringTests.RepositoryRoot();
+        if (Repository() is not { } root)
+        {
+            return;
+        }
+
         var files = Directory.EnumerateFiles(root, "*", SearchOption.AllDirectories)
             .Select(f => Path.GetRelativePath(root, f).Replace(Path.DirectorySeparatorChar, '/'))
             .Where(f => !f.StartsWith(".git/", StringComparison.Ordinal) && !f.Contains("/bin/", StringComparison.Ordinal) && !f.Contains("/obj/", StringComparison.Ordinal))
@@ -73,6 +91,10 @@ public partial class DocsRulesTests
             .ToList();
         Assert.True(stale.Count == 0, ".gitattributes excludes paths that no longer exist (remove the lines):\n" + string.Join('\n', stale));
     }
+
+    /// <summary>The repository's root, or null in an unpacked source package, which has no .gitattributes.</summary>
+    private static string? Repository() =>
+        LayeringTests.RepositoryRoot() is var root && File.Exists(Path.Combine(root, ".gitattributes")) ? root : null;
 
     /// <summary>The root documents, docs/*.md, the design documents and the idea drafts.</summary>
     private static IEnumerable<string> LivingDocuments(string root)
