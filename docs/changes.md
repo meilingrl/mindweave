@@ -16,6 +16,13 @@ The second number rises when a capability is finished and on by default, and the
 
 The nine merges after 0.5.0, on 2026-11-22 and 2026-11-23, are 0.5.1 to 0.5.9 in order. They keep their dated entries below.
 
+## 0.6.5 · 2026-11-24
+
+- Added `scripts/test-shards.py run --only I`, which runs one shard of the desktop tests
+- Changed CI to run the desktop tests as three shards, each on a machine of its own, beside one job for all other tests: one run took 6 min 30 s where runs took 12 to 15 min ([testing.md](design/testing.md), "Desktop test shards")
+- Try: nothing on screen changed
+- Not verified: the CI time over more than one run; whether the timing-sensitive Windows tests fail more or less often this way
+
 ## 0.6.4 · 2026-11-24
 
 - Fixed the web search key's buttons in Settings, which were cut off at the smallest window and, in English with a key set, at the normal one: they go under the key box when there is no room beside it, and the "密钥" (Key) label lines up with the state of the key

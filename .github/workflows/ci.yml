@@ -26,11 +26,16 @@ jobs:
       fail-fast: false
       matrix:
         os: ${{ fromJSON(inputs.macos && '["ubuntu-latest","windows-latest","macos-latest"]' || '["ubuntu-latest","windows-latest"]') }}
+        # The desktop tests run one after another inside a process (one UI thread), and they are most of the time.
+        # So each system runs them as three shards, each on a machine of its own, beside one machine for everything
+        # else (docs/design/testing.md). The number of desktop parts here is DESKTOP_SHARDS below.
+        part: [rest, desktop-0, desktop-1, desktop-2]
     runs-on: ${{ matrix.os }}
     timeout-minutes: 20
     env:
       DOTNET_NOLOGO: true
       DOTNET_CLI_TELEMETRY_OPTOUT: true
+      DESKTOP_SHARDS: 3
     steps:
       # Actions are pinned to the commit their tag named on 2026-11-14 (a tag can be moved; a commit cannot).
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
@@ -79,6 +84,7 @@ jobs:
       # Any package, direct or pulled in by another, with a published security advisory fails the run, on every push
       # (decision 2026-11-14, instead of Dependabot, which reads only main, where no code lives).
       - name: Known-vulnerable packages
+        if: matrix.part == 'rest'
         shell: bash
         run: |
           dotnet list Mindweave.slnx package --vulnerable --include-transitive --format json > vulnerable.json
@@ -92,10 +98,28 @@ jobs:
       - name: Build (warnings are errors)
         run: dotnet build Mindweave.slnx --no-restore -c Release
       # Quarantined tests (intermittent, fix pending; docs/design/testing.md) run in the next step and never block.
-      - name: Test
-        run: dotnet test Mindweave.slnx --no-build -c Release --filter "Category!=Quarantine" --logger trx --results-directory test-results
+      - name: Test (all but desktop)
+        if: matrix.part == 'rest'
+        shell: bash
+        run: |
+          failed=0
+          for project in Core Architecture Infrastructure; do
+            dotnet test "tests/Mindweave.$project.Tests" --no-build -c Release --filter "Category!=Quarantine" \
+              --logger trx --results-directory test-results || failed=1
+          done
+          exit $failed
+      - name: Test (desktop shard)
+        if: matrix.part != 'rest'
+        shell: bash
+        run: |
+          part="${{ matrix.part }}"
+          py="$(command -v python3 || command -v python)"
+          "$py" -I scripts/test-shards.py run tests/Mindweave.Desktop.Tests/bin/Release/net10.0/Mindweave.Desktop.Tests.dll \
+            --shards "$DESKTOP_SHARDS" --only "${part#desktop-}" \
+            --timings tests/Mindweave.Desktop.Tests/shard-timings.json --results test-results \
+            -- -trait- Category=Quarantine
       - name: Quarantined tests (do not block)
-        if: always()
+        if: always() && matrix.part == 'rest'
         continue-on-error: true
         run: dotnet test Mindweave.slnx --no-build -c Release --filter "Category=Quarantine"
       # Where the time went; tests over the budget become warnings, never failures (timings vary by runner).
