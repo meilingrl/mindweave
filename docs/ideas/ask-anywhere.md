@@ -1,6 +1,6 @@
 # Ask from anywhere, openness and local AI
 
-**Status:** in discussion with the owner since 2026-11-25. Not agreed. Last discussed: 2026-11-25 (quoting is written up in §7 and waits for the owner's confirmation).
+**Status:** in discussion with the owner since 2026-11-25. Not agreed. Last discussed: 2026-11-25 (quoting is agreed; several connections and local models are being discussed).
 
 This draft takes over directions 1, 3 and 7 of [more directions](more-directions.md), the question Q13 of the agent platform (search by meaning) and the caching part of [evolution](../evolution.md) D4. Those texts stay as they are until the owner settles what moves.
 
@@ -67,6 +67,7 @@ Seven topics in four groups. The order and what is set aside are in §5 and §6.
 | 2026-11-25 | When the selected text cannot be read, the rectangle takes over (owner's suggestion): the hotkey reads the selection, and if there is none or it cannot be read, it goes straight to the rectangle. |
 | 2026-11-25 | The first increment has both sources for the quote list (owner): quotes from outside, and several passages selected in a Mindweave conversation and asked about together in that conversation (the third use in evolution D7). macOS first. A branch with several quotes and revising a summary with quotes stay later. |
 | 2026-11-25 | Closing the main window keeps Mindweave running, so the hotkey stays reachable (owner). Quitting is explicit. |
+| 2026-11-25 | The quoting section of §7 is agreed as written, Claude's calls included (owner). |
 
 ## 6. Set aside
 
@@ -77,11 +78,11 @@ Seven topics in four groups. The order and what is set aside are in §5 and §6.
 
 Filled in as each topic is discussed: the decisions, the approach, out of scope, failure cases, acceptance scenarios and the first increment.
 
-### Quoting (A1 and A2; waiting for the owner to confirm this section)
+### Quoting (A1 and A2; agreed by the owner, 2026-11-25)
 
 **What the owner means by asking from anywhere (2026-11-25).** Not a place to read answers. After a hotkey in another window, content on the screen is selected and used directly as a quote: text, or a part of a web page or an image. The owner pointed to an annotation flow seen elsewhere: select a passage, write a note on it, keep it; do this several times; then write one prompt and send everything to the model.
 
-The owner's decisions are in §5. Everything below that is not in §5 is Claude's call, and the owner can change it.
+The owner's decisions are in §5. The rest of this section was proposed by Claude and agreed with it.
 
 #### How it works
 
