@@ -197,6 +197,20 @@ class DailyBuildTests(unittest.TestCase):
         self.daily("rollback")
         self.assertEqual("1.0.0", self.version())
 
+    def test_the_launcher_shows_the_icon_its_build_brings(self):
+        os.symlink(self.release("old", self.first), self.path("builds", "previous"))
+        os.symlink(self.release("new", self.second), self.path("builds", "current"))
+        self.write("builds/releases/new/Mindweave.icns", "icon")
+        self.daily("app")
+        with open(self.path("Mindweave.app", "Contents", "Info.plist"), "rb") as f:
+            self.assertEqual("Mindweave", plistlib.load(f)["CFBundleIconFile"])
+        self.assertTrue(os.path.exists(self.path("Mindweave.app", "Contents", "Resources", "Mindweave.icns")))
+        # A build from before the icon has none, and the bundle says so instead of pointing at a missing file.
+        self.daily("rollback")
+        with open(self.path("Mindweave.app", "Contents", "Info.plist"), "rb") as f:
+            self.assertNotIn("CFBundleIconFile", plistlib.load(f))
+        self.assertFalse(os.path.exists(self.path("Mindweave.app", "Contents", "Resources", "Mindweave.icns")))
+
     def test_a_trial_runs_on_a_copy_of_everything_the_app_reads(self):
         os.symlink(self.release("new", self.second), self.path("builds", "current"))
         self.daily("app")

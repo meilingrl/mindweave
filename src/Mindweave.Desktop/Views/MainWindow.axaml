@@ -4,6 +4,7 @@
         x:Class="Mindweave.Desktop.Views.MainWindow"
         x:DataType="vm:RootViewModel"
         Title="Mindweave"
+        Icon="/Assets/Mindweave.ico"
         Width="1100" Height="720" MinWidth="720" MinHeight="480"
         WindowStartupLocation="CenterScreen"
         Background="{DynamicResource WindowBackground}">

@@ -145,6 +145,12 @@ install_bundle() {
 
   mkdir -p "$staging/MacOS" "$staging/Resources"
   cp -cR "$rel/." "$staging/MacOS/" 2>/dev/null || cp -R "$rel/." "$staging/MacOS/"
+  # A build that has an icon brings it along (scripts/icons/app-icon.cs); an older one keeps the system's.
+  local icon_key=""
+  if [[ -f "$rel/Mindweave.icns" ]]; then
+    cp "$rel/Mindweave.icns" "$staging/Resources/Mindweave.icns"
+    icon_key="<key>CFBundleIconFile</key><string>Mindweave</string>"
+  fi
   local commit version
   commit="$(release_field "$rel" commit)"
   # The version of the build's own commit: the working tree may be at any other.
@@ -158,6 +164,7 @@ install_bundle() {
   <key>CFBundleDisplayName</key><string>Mindweave</string>
   <key>CFBundleIdentifier</key><string>$BUNDLE_ID</string>
   <key>CFBundleExecutable</key><string>Mindweave</string>
+  $icon_key
   <key>CFBundlePackageType</key><string>APPL</string>
   <key>CFBundleInfoDictionaryVersion</key><string>6.0</string>
   <key>CFBundleShortVersionString</key><string>${version:-0.0.0}</string>

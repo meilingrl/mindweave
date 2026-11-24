@@ -1,6 +1,6 @@
 # Application icon prototype
 
-**Status: the owner chose the drawing on 2026-11-24: a brain drawn as one line, like a strand of yarn (sketch D in `brain.mjs`, files `mindweave-logo.svg` and `mindweave-logo-tile.svg`). Rounds 1 to 4 and sketches A to C were not chosen. Open: the background colour, whether the open state with nodes is used, and putting the icon into the app. Nothing here is used by the app.** Mindweave has no icon of its own: the daily build shows the generic macOS one ([daily-build.md](../../docs/design/daily-build.md)).
+**Status: the owner chose the drawing on 2026-11-24: a brain drawn as one line, like a strand of yarn (sketch D in `brain.mjs`). It is the app's icon: the source is now `scripts/icons/app-icon.cs`, which writes `src/Mindweave.Desktop/Assets/Mindweave.icns` and `Mindweave.ico`. Rounds 1 to 4 and sketches A to C were not chosen. Open: the background colour, and whether the open state with nodes is used. The text below describes the prototype as it was when the choice was made.**
 
 ## How to look
 
