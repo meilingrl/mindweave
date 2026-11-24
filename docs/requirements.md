@@ -195,7 +195,7 @@ Node marks in the summary network and in lists are derived from version states [
 
 ### 7.2 Conversation titles and two-level node naming
 
-A conversation title expresses the task or question; a summary title expresses the knowledge point or topic. Nodes in the summary network use short titles, such as "History of trains—Steam engine—Thermal efficiency". A description of the follow-up questions it came from is shown in the details and is not stuffed into the node name.
+A conversation title expresses the task or question; a summary title expresses the knowledge point or topic. In the summary network, a conversation with a summary shows the summary's short title, such as "Thermal efficiency"; one without shows its conversation title. A description of the follow-up questions it came from is shown in the details and is not stuffed into the name.
 
 A base title is generated automatically the first time. When names in the same workspace are the same after normalization, a "topic - distinguishing word" name is generated from the content for the whole group of same-named nodes, for example "Steam engine - Principle / Steam engine - Limits". Distinguishing words that are still valid are kept, manual names are protected, and content is not made up just to create a difference. When nodes truly cannot be told apart, the same name is allowed, and where they came from helps tell them apart. They are not merged automatically, and semantic synonyms are not merged either.
 
@@ -212,7 +212,7 @@ There are two views of the same network (v0.25):
 
 **A stable layout means no large sudden shifts** (user decision, 2026-11-23). It is not a picture that only ever grows at its edge: small, local changes are allowed, and large movements of what the user has already seen are avoided. In the spatial view each exploration keeps its place from one visit to the next. When a conversation is added or changes, only its own exploration is drawn again in place, and every other exploration stays where it was. Only when an exploration has outgrown its place does it move, to the nearest free place. A new exploration is placed beside the one before it in time, with room to grow.
 
-Layout coordinates are separate from the viewport. The viewport is not persisted: on restart, on switching workspaces, or on re-entering the summary network from the workspace entry, it opens fitted to everything (or, when that would be too small to read, at a readable size on the middle). Returning from a summary body keeps this browsing session's viewport and selection. Resizing the window keeps the current center and zoom. “显示全部” (Show all) only adjusts the viewport and does not move dots.
+Layout coordinates are separate from the viewport. The viewport is not persisted: on restart, on switching workspaces, or on re-entering the summary network from the workspace entry, it opens fitted to everything (or, when that would be too small to read, at a readable size on the middle; the timeline view then opens on its newest exploration). Returning from a summary body keeps this browsing session's viewport and selection. Resizing the window keeps the current center and zoom. “显示全部” (Show all) only adjusts the viewport and does not move dots.
 
 ### 7.4 Keeping the layout
 
@@ -237,7 +237,7 @@ Each conversation has at most one unfinished summary task and one version waitin
 
 ### 8.2 Archiving and deleting conversations
 
-Both archiving and deleting conversations are in the first release. Archiving operates on a conversation together with its child branches. By default they are hidden in the sidebar, and the archived entry lets the user view and restore them; a child branch that was archived separately earlier is not restored along with its parent branch. Summaries stay in the summary network, and the archived conversation they came from can be read from the summary. Continuing to ask or creating a branch offers “恢复并继续” (Restore and continue); queued or generating tasks are first completed or stopped. Archiving does not free body space.
+Both archiving and deleting conversations are in the first release. Archiving operates on a conversation together with its child branches. By default they are hidden in the sidebar, and the archived entry lets the user view and restore them; a child branch that was archived separately earlier is not restored along with its parent branch. The conversations' dots and their summaries stay in the summary network, and the archived conversation they came from can be read from the summary. Continuing to ask or creating a branch offers “恢复并继续” (Restore and continue); queued or generating tasks are first completed or stopped. Archiving does not free body space.
 
 Deletion protects existing results by "stating the scope clearly before deleting", not by forbidding deletion:
 
@@ -263,8 +263,8 @@ The final goal is full project import/export that keeps conversations, messages,
 
 ### 9.2 Generation lifecycle
 
-- Each conversation has at most one answer in progress; different conversations can each generate. Switching views does not cancel tasks automatically. Globally there are at most two AI requests; the rest queue and can be canceled, and user questions take priority over automatic titles and summaries. After the first release, one answer can be a run that includes several model calls, and this limit then counts runs instead; see §10.4.4.
-- If generation tasks are still running at quit, the user should be told. After the user confirms quitting, generation stops and the content already received is saved, marked as interrupted or canceled; running in the background is not required. The prompt about running tasks can be canceled, and it comes before any irreversible step such as stopping tasks; for the order, see [architecture](architecture.md) §12.3 [review suggestion · MW-C09].
+- Each conversation has at most one answer in progress; different conversations can each generate. Switching views does not cancel tasks automatically. Globally there are at most two AI requests; the rest queue and can be canceled, and work the user starts (questions and summaries, first come first served) takes priority over automatic titles and names. After the first release, one answer can be a run that includes several model calls, and this limit then counts runs instead; see §10.4.4.
+- If answers or summaries the user started are still running at quit, the user should be told. After the user confirms quitting, generation stops and the content already received is saved, marked as interrupted or canceled; running in the background is not required. The prompt about running tasks can be canceled, and it comes before any irreversible step such as stopping tasks; for the order, see [architecture](architecture.md) §12.3 [review suggestion · MW-C09].
 - When an action is accepted, its destination, model parameters and input range are frozen. Changing settings does not change requests already queued; changing the destination must be done by canceling and then explicitly sending again.
 
 ### 9.3 Persistence, navigation and recovery
