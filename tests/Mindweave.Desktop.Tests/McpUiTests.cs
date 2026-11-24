@@ -183,7 +183,7 @@ public class McpUiTests
         app.ShellPage.ShowSectionCommand.Execute(MainSection.Settings);
         await Assert.IsType<SettingsHomeViewModel>(app.Workbench.CurrentPage).Loaded;
         window.UpdateLayout();
-        UiInput.Click(window, Find<Button>(window, "StatisticsButton"));
+        await SettingsInput.OpenAsync(window, "StatisticsButton");
         var stats = Assert.IsType<UsageStatisticsViewModel>(app.Workbench.CurrentPage);
         await stats.Loaded;
         await UiWait.UntilAsync(() => stats.HasToolUsage, timeoutMs: 20_000);

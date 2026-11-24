@@ -2116,7 +2116,7 @@ public class GalleryTests
     {
         app.ShellPage.ShowSectionCommand.Execute(MainSection.Settings);
         await SettleAsync(window);
-        UiInput.Click(window, Find<Button>(window, "StatisticsButton"));
+        await SettingsInput.OpenAsync(window, "StatisticsButton");
         var page = Assert.IsType<UsageStatisticsViewModel>(app.Workbench.CurrentPage);
         await page.Loaded;
         await SettleAsync(window);

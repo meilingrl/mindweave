@@ -402,7 +402,7 @@ public class SettingsPolishTests
         var texts = page.GetVisualDescendants().OfType<TextBlock>().Where(t => t.IsEffectivelyVisible).Select(t => t.Text ?? string.Empty).ToList();
         Assert.DoesNotContain(texts, t => t.Contains("立即生效", StringComparison.Ordinal) || t.Contains("操作系统", StringComparison.Ordinal) || t.Contains("/v1 结尾", StringComparison.Ordinal));
 
-        UiInput.Click(window, Find<Button>(window, "StorageDetailsButton"));
+        await SettingsInput.OpenAsync(window, "StorageDetailsButton");
         var storage = window.GetVisualDescendants().OfType<StorageDetailsView>().Single();
         Assert.Empty(VisiblePrimaries(storage));
         var open = Find<Button>(storage, "OpenDataFolder");

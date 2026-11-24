@@ -25,7 +25,7 @@ public class PageRefreshTests
         await app.ConfigureModelAsync();
         app.ShellPage.ShowSectionCommand.Execute(MainSection.Settings);
         window.UpdateLayout();
-        UiInput.Click(window, Find<Button>(window, "ManageWorkspacesButton"));
+        await SettingsInput.OpenAsync(window, "ManageWorkspacesButton");
         var page = Assert.IsType<WorkspacesViewModel>(app.Workbench.CurrentPage);
         await page.Loaded;
         Assert.StartsWith("0 个会话", page.Rows[0].CountsText, StringComparison.Ordinal);
