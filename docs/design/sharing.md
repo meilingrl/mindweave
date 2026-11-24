@@ -1,8 +1,8 @@
 # Sharing a thinking path (design)
 
-**Status:** working draft, not adopted. Discussed with the owner on 2026-11-24 and 11-25; every decision in §4 is the owner's unless it says "writer's call". It refines [evolution.md](../evolution.md) D8 for the 0.6.x cycle. When the owner adopts it, it moves to `docs/design/` as the design note for the work, and D8 changes to a reference. Nothing here changes the requirements or the architecture by itself: §13 lists the text that must change, as a separate proposal.
+**Status:** approved by the owner on 2026-11-25 (D-039), not built. Discussed with the owner on 2026-11-24 and 11-25; every decision in §4 is the owner's unless it says "writer's call". It carries out [evolution.md](../evolution.md) D8 in the 0.6.x cycle. Nothing here changes the requirements or the architecture by itself: §13 lists the text that must change, as a separate proposal.
 
-Related: [session-network.md](../design/session-network.md) (every conversation is a dot; the timeline), [evolution-seams.md](../design/evolution-seams.md) E5 (the exchange format), [attachments.md](../design/attachments.md), [web-search.md](../design/web-search.md), [reasoning-and-status.md](../design/reasoning-and-status.md), requirements §8.3 (export) and §10.1 (full import and export, sync). The page's look: [prototypes/share-page](../../prototypes/share-page/README.md).
+Related: [session-network.md](session-network.md) (every conversation is a dot; the timeline), [evolution-seams.md](evolution-seams.md) E5 (the exchange format), [attachments.md](attachments.md), [web-search.md](web-search.md), [reasoning-and-status.md](reasoning-and-status.md), requirements §8.3 (export) and §10.1 (full import and export, sync). The page's look: [prototypes/share-page](../../prototypes/share-page/README.md).
 
 ## 1. Intent
 
@@ -359,4 +359,4 @@ Not written yet; proposed to the owner as its own commit when this design is ado
 | Requirements §10.1 | Full import and export and cross-device sync: the part this design delivers, and what stays later |
 | Architecture §2.3 glossary | `Share` (no longer "not yet in the requirements"); rows for the exchange format, import and the device copy |
 | Architecture, export | The exchange document as the only outward form; E5 changes from specification to built |
-| evolution.md D8 | The decisions here; the note that the timeline is not in the requirements is out of date (it is, since requirements v0.25) |
+| [evolution-seams.md](evolution-seams.md) E5 | The specification predates attachments, citations, tool steps and summary links; it is brought up to the exchange document of §6.1 when step 1 is built |

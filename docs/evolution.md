@@ -1,6 +1,6 @@
 # Mindweave evolution directions and engineering guidance
 
-Recorded 2026-10-26. The user proposed six later evolution directions; after discussion with Claude they were organized into this document, as engineering guidance for extensions after the first release. D7, asking with multiple quotes, was added on 2026-11-05, D8, sharing thinking paths (initial vision), on 2026-11-20, and D9, the free trial, on 2026-11-22.
+Recorded 2026-10-26. The user proposed six later evolution directions; after discussion with Claude they were organized into this document, as engineering guidance for extensions after the first release. D7, asking with multiple quotes, was added on 2026-11-05, D8, sharing thinking paths, on 2026-11-20, and D9, the free trial, on 2026-11-22.
 
 ## Standing and force
 
@@ -147,7 +147,7 @@ Asking with multiple quotes directly inside the current conversation (without op
 
 ### D8 Sharing thinking paths (initial vision)
 
-Proposed by the user from 2026-11-19 to 11-20 and added after discussion with Claude. **This is an initial vision**: it records the idea, the scenarios and the principles settled in the discussion, for later reference. It is not a development specification; turning it into requirements must be decided by the user and written into requirements and architecture.
+Proposed by the user from 2026-11-19 to 11-20 and added after discussion with Claude. Adopted by the user on 2026-11-25 (D-039) for the 0.6.x cycle. The design is [sharing.md](design/sharing.md). This section keeps the idea, the scenarios and the principles of the first discussion; where the design differs, the design holds.
 
 **How it started.** While discussing what makes Mindweave unique compared with general AI applications, the user talked about their own actual use: branching fully meets daily needs; the review value of the summary network is not obvious, partly because the summary network itself is not yet well designed, and partly because daily questions are mostly brief dips into a topic. The user thinks the meaning of the summary network may lie more in a sense of accomplishment, in sparking curiosity, and in **sharing with people who have not yet asked these questions**.
 
@@ -166,12 +166,12 @@ Proposed by the user from 2026-11-19 to 11-20 and added after discussion with Cl
 - **Do not split features by scenario.** The scenarios explain the value of sharing; they do not each correspond to a view or module. Features stay few and unified, avoiding complexity and fragmentation.
 - **Choosing the paths or nodes to share** is a light choice made when sharing, not a separate view and not a main module.
 - **No side-by-side comparison of two people's summary networks.** Different people's summary networks differ greatly and almost never overlap; if two people share the same summary network, side-by-side comparison is unnecessary.
-- **The timeline is a standard view that is always available**, usable at any time, not something generated temporarily per scenario. (The timeline view is not yet written into requirements and architecture.)
-- **The form of sharing at this stage is one-way publishing:** after the user chooses the content to share, a page or file that anyone can open is generated; the recipient does not need to install Mindweave and needs no account and no server. Importing between Mindweave users and a hosted community will be discussed later, depending on the actual response to one-way sharing.
+- **The timeline is a standard view that is always available**, usable at any time, not something generated temporarily per scenario. (The timeline view is in the requirements since v0.25.)
+- **The form of sharing at this stage is one-way publishing:** after the user chooses the content to share, a page or file that anyone can open is generated; the recipient does not need to install Mindweave and needs no account and no server. A hosted community will be discussed later. On 2026-11-24 the user brought importing between Mindweave users forward: a shared file can be imported and continued, and the same mechanism carries copies between the user's own devices.
 
 **Relation to other directions from the same discussion.** The same discussion raised three related directions: the summary network and branches themselves (for example, bringing back one or two key points when returning from a branch, answers citing the user's own existing summaries, showing unresolved questions as the edge of the exploration, a short recap when coming back after a few days); presentation forms (the timeline, and the map, see D6); and the look of the summary network (letting the summary network show how thinking flows, the differences between nodes and their order in time). Sharing connects the three: the summary network and branches decide what is in a path, and the presentation form and look decide whether a reader who was not there can understand it.
 
-**To be decided:** What sharing includes, and how to protect privacy (scenario 4 is especially sensitive); the form of the shared page; when the map is brought in (scenario 2, see D6).
+**Decided on 2026-11-24 and 11-25** (see the design): what a share includes and what never leaves it, with only the structure by default; the form of the shared page; import and device copies. **Still open:** when the map is brought in (scenario 2, see D6).
 
 ### D9 Free trial
 

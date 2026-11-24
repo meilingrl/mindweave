@@ -1,6 +1,6 @@
 # Shared page (prototype)
 
-A standalone, throwaway page that shows what a shared thinking path could look like to a reader who was not there. It goes with the draft [sharing.md](../../docs/ideas/sharing.md): the owner judges the look from it before anything in `src/` is designed. It uses made-up data and does not touch the app or its data.
+A standalone, throwaway page that shows what a shared thinking path could look like to a reader who was not there. It goes with the design [sharing.md](../../docs/design/sharing.md): the owner judged the look from it on 2026-11-25, and it is the visual baseline for the shared page. It uses made-up data and does not touch the app or its data.
 
 ## Run
 
