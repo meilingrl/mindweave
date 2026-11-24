@@ -147,7 +147,8 @@ install_bundle() {
   cp -cR "$rel/." "$staging/MacOS/" 2>/dev/null || cp -R "$rel/." "$staging/MacOS/"
   local commit version
   commit="$(release_field "$rel" commit)"
-  version="$(sed -nE 's:.*<Version>([^<]+)</Version>.*:\1:p' "$ROOT/Directory.Build.props" | head -1)"
+  # The version of the build's own commit: the working tree may be at any other.
+  version="$(git -C "$ROOT" show "$commit:Directory.Build.props" 2>/dev/null | sed -nE 's:.*<Version>([^<]+)</Version>.*:\1:p' | sed -n 1p || true)"
   cat >"$staging/Info.plist" <<PLIST
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
@@ -258,6 +259,12 @@ cmd_trial() {
   if [[ -f "$DB" ]]; then
     sqlite3 "$DB" ".backup '$trial/data/mindweave.db'"
   fi
+  # The attachments' originals (an APFS clone where possible) and the interface language, which are beside the database.
+  if [[ -d "$DATA/resources" ]]; then
+    mkdir "$trial/data/resources"
+    cp -cR "$DATA/resources/." "$trial/data/resources/" 2>/dev/null || cp -R "$DATA/resources/." "$trial/data/resources/"
+  fi
+  if [[ -f "$DATA/language" ]]; then cp "$DATA/language" "$trial/data/language"; fi
   note "trial data (a copy; delete when done): $trial/data"
   note "the trial build uses the daily keychain entries, so your saved API keys work in it"
   MINDWEAVE_DATA_DIR="$trial/data" exec "$app/Mindweave"
