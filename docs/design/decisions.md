@@ -225,3 +225,16 @@ You chose "Finish the network" as the next line. For lifting `MINDWEAVE_SESSION_
 - **The context ring has three levels:** the ring, the figures on hover, the parts on a press.
 - **The text width is yours to choose:** medium (800 px) by default, in Settings or by dragging the text's edge. Summaries are to follow it.
 - **Settings is to lose its boxes:** plain rows with thin dividers, a category list with the find box on top, long explanations behind an icon, cost and privacy notes in sight. You judge a first version.
+
+- **Outcome (0.5.12):** summaries follow the text width, left-aligned, and Settings lost its boxes; on/off choices stay check boxes.
+
+## D-038 Answers to the check of the documents (you, 2026-11-24)
+
+- **No mobile development.** Linux may be next; that is not decided.
+- **The interface calls the network page Mindweave, everywhere.** It is not a network of summaries. "Summary network" stays the term of documents and code.
+- **`node_layout` goes later**, in a migration after a daily build of 0.6.0 or later has been used and you are satisfied.
+- **A conversation started from a recommendation** is not placed beside its basis summary; the summary link shows the relation.
+- **A stopped call with side effects is recorded as unknown**, because it may have taken effect.
+- **Read-only calls:** at most 4 at once in each run, with no limit across runs. Cited passages do not go into branches. The default run limits stay.
+- **Later content** is a mark in the network's details.
+- **The repository is public** for its CI quota, under Apache-2.0 (D-025, note).
