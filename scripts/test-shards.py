@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Runs one xUnit v3 test assembly as several processes at once (docs/design/testing.md).
 
-    scripts/test-shards.py run DLL --shards N [--timings FILE] [--results DIR] [-- RUNNER-ARGS...]
+    scripts/test-shards.py run DLL --shards N [--only I] [--timings FILE] [--results DIR] [-- RUNNER-ARGS...]
     scripts/test-shards.py record TRX-DIR --assembly NAME --out FILE
 
 Avalonia's headless tests run on one UI thread per process, so the desktop tests cannot run in parallel inside one
@@ -11,6 +11,10 @@ process. Separate processes can: each test already has its own data directory an
 least loaded shard; a class without a record counts as the median), runs the shards at once and fails if any shard
 fails. Classes are listed at run time, so a new class is never left out; the timings only balance the shards.
 RUNNER-ARGS go to every shard (for example `-trait- Category=Quarantine`).
+
+With `--only I` (0 to N-1) it runs just shard I. CI uses this to give each shard a machine of its own: the same
+commit lists the same classes and reads the same timings on every machine of one system, so the N runs together
+cover every class exactly once.
 
 `record` sums the per-class durations of NAME's tests in the TRX files under TRX-DIR and writes them to FILE.
 """
@@ -61,13 +65,21 @@ def run(args):
     classes = list_classes(args.dll, extra)
     if not classes:
         sys.exit(f"test-shards: {args.dll} has no test classes")
-    shards = assign(classes, timings, max(1, args.shards))
+    shards = list(enumerate(assign(classes, timings, max(1, args.shards))))
+    if args.only is not None:
+        if not 0 <= args.only < max(1, args.shards):
+            sys.exit(f"test-shards: --only {args.only} is outside 0..{max(1, args.shards) - 1}")
+        # Fewer classes than shards leaves the last shards empty; their machines have nothing to run.
+        shards = [(i, shard) for i, shard in shards if i == args.only]
+        if not shards:
+            print(f"test-shards: shard {args.only} of {args.shards} has no classes")
+            sys.exit(0)
     logs = args.results or os.path.join(os.path.dirname(os.path.abspath(args.dll)), "shards")
     os.makedirs(logs, exist_ok=True)
 
     started = time.monotonic()
     procs = []
-    for i, shard in enumerate(shards):
+    for i, shard in shards:
         cmd = runner(args.dll) + ["-noLogo", "-noColor", *extra]
         for c in shard["classes"]:
             cmd += ["-class", c]
@@ -124,6 +136,7 @@ def main():
     p = sub.add_parser("run")
     p.add_argument("dll")
     p.add_argument("--shards", type=int, required=True)
+    p.add_argument("--only", type=int)
     p.add_argument("--timings")
     p.add_argument("--results")
     p.set_defaults(func=run)
