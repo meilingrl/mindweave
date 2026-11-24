@@ -16,6 +16,14 @@ The second number rises when a capability is finished and on by default, and the
 
 The nine merges after 0.5.0, on 2026-11-22 and 2026-11-23, are 0.5.1 to 0.5.9 in order. They keep their dated entries below.
 
+## 0.6.8 · 2026-11-24
+
+- Added `scripts/script-checks.py`, which checks that the test scripts report Chinese text whole in a Windows code page; `scripts/test.sh suite` and CI run it
+- Fixed the report of a failing desktop shard on Windows CI, which stopped while printing a failure message with Chinese in it and lost the message: `test-shards.py` and `test-timings.py` write UTF-8 when their output is redirected ([testing.md](design/testing.md), "Desktop test shards")
+- Fixed the shard runner skipping a test class whose name starts with a letter outside English
+- Try: nothing on screen changed; the app does not change (scripts and CI only)
+- Not verified: `scripts/third-party-notices.py`, which reads other programs' output the same way and is not covered; a Windows console (not redirected) showing the report
+
 ## 0.6.7 · 2026-11-24
 
 - Added scenes with the longest names to the page test of 0.6.6, which also reports a text left with no room at all ([testing.md](design/testing.md))
