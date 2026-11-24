@@ -81,7 +81,7 @@ Each concept in requirements §4 has only one name in code: namespaces, folders,
 | reading position (阅读位置), read (已读) | `ReadingPosition`, `ReadingState` |
 | summary node (总结节点) | `SummaryNode` |
 | summary version (总结版本) | `SummaryVersion` |
-| summary network (总结网络) | `SummaryNetwork` |
+| summary network (总结网络): the interface calls it Mindweave, everywhere (user, 2026-11-24) | `SummaryNetwork` |
 | context summary (上下文摘要) | `ContextSummary` |
 | recommended question (推荐问题), recommended node (推荐节点) (after the first release) | `RecommendedQuestion`, `RecommendedNode`; together called `Recommendation` |
 | model configuration (模型配置) | `ModelSettings` |
