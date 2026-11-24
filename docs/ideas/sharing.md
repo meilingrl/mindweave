@@ -91,12 +91,40 @@ Importing a structure-only share (writer's proposal, to be settled with import):
 
 A device copy (S5 step 3) always carries everything; this choice applies to shares.
 
+### S7 What never leaves (2026-11-25)
+
+Never in any share:
+
+| Material | Rule |
+| --- | --- |
+| Conversations not ticked | Nothing, not even that they exist: no branch mark for an unticked branch, and dot sizes count only what is shared |
+| Attachment contents and originals | Never; the question shows only that an attachment was there, with its file name |
+| Saved text of web pages and search results | Never |
+| Tool steps | Only the one-line count; no queries, arguments, results or MCP server names |
+| Model and service | No model name, connection, address, keys, usage or cost |
+| Reasoning | Never saved, so never shared |
+| The user's state in the app | No reading positions, drafts, read marks, recommendations or link suggestions |
+| The workspace | Not its name; the share has its own title, which starts as the root conversation's title and can be edited |
+| The user | Nothing about the user or the device |
+
+Kept in a share with content:
+
+| Material | Rule |
+| --- | --- |
+| Web citations | Number, page title and real URL |
+| Citations of the user's own material | Only its kind ("an attachment", "a summary"); a title only if that summary is itself in the share |
+| Summary links between two shared conversations | The line always; the note only with content |
+| Dates and times | As the app shows them |
+
+The share dialog lists what will leave before the file is saved.
+
+A device copy carries everything except keys, connections and addresses.
+
 ## Open questions
 
 In order of what depends on them:
 
 1. What importing a structure-only share gives the recipient.
-3. What never leaves: attachments, citations, tool steps, model details, unticked branches.
 4. How a reader who was not there follows the path: the timeline and the network in the page.
 5. Language and theme of the page.
 6. After sharing: later changes, deletion, sharing again.
