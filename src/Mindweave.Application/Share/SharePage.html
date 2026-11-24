@@ -57,7 +57,10 @@ header .how { margin: 10px 0 0; color: var(--muted); max-width: 62ch; }
 .sel { fill: none; stroke: var(--ring); stroke-width: 1.6; pointer-events: none; display: none; }
 .node.on .halo, .node.on .sel, .node:focus-within .sel { display: inline; }
 .lbl { position: absolute; width: 132px; margin-left: -66px; text-align: center; font-size: 12px; line-height: 1.35; overflow-wrap: anywhere;
-  color: var(--label); cursor: pointer; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+  color: var(--label); cursor: pointer; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;
+  /* A line passes behind a title, not through it. */
+  text-shadow: 2px 0 var(--canvas), -2px 0 var(--canvas), 0 2px var(--canvas), 0 -2px var(--canvas),
+    1px 1px var(--canvas), 1px -1px var(--canvas), -1px 1px var(--canvas), -1px -1px var(--canvas); }
 .lbl.on { color: var(--text); font-weight: 600; }
 .day { position: absolute; width: 132px; margin-left: -66px; text-align: center; font-size: 11px; color: var(--caption); pointer-events: none; }
 .legend { color: var(--caption); font-size: 12px; margin: 0 2px 22px; }
@@ -124,7 +127,7 @@ footer { margin-top: 44px; padding-top: 14px; border-top: 1px solid var(--divide
     "conversations": ["{n} conversation", "{n} conversations"],
     "questions": ["{n} question", "{n} questions"],
     "legend": "Dot size: how much was asked there. Ring: has a summary. Dotted line: order in time.",
-    "legend_links": "Dashed line: two linked summaries.",
+    "legend_links": "Dashed line: summary link.",
     "picture": "The path",
     "outline": "Outline",
     "started": "Started {time}",
@@ -144,7 +147,7 @@ footer { margin-top: 44px; padding-top: 14px; border-top: 1px solid var(--divide
     "conversations": ["{n} 次会话", "{n} 次会话"],
     "questions": ["{n} 个问题", "{n} 个问题"],
     "legend": "点的大小：在这里问了多少。外环：有总结。虚线：时间先后。",
-    "legend_links": "长虚线：两个总结之间的关联。",
+    "legend_links": "长虚线：内容关联。",
     "picture": "路径",
     "outline": "大纲",
     "started": "开始于 {time}",
@@ -191,7 +194,7 @@ const radius = w => Math.min(14, Math.max(5, 5 + 1.3765 * Math.sqrt(Math.max(0, 
 // ── The timeline, by the app's rules (session-network §5.1). Roots on the main line in start order, with a wider gap
 // between days in the reader's zone; a root's children open new lanes above or below; below a root, a first child
 // continues its parent's lane and further children open lanes on the same side. ─────────────────────────────────────
-const STEP = 148, LANE = 86;
+const STEP = 148, LANE = 86, DEEPEST = 10;
 const sameDay = (a, b) => a.toDateString() === b.toDateString();
 const pos = new Map(), dayStarts = new Set();
 (() => {
@@ -314,12 +317,13 @@ function render() {
   }
   picture = $("div", { class: "picture" }, stage);
 
-  // The outline: the same titles, indented. Filled from a stack, because a chain of branches can be deep.
+  // The outline: the same titles, indented. A chain of branches can be very deep: from DEEPEST on, the indent stays, so
+  // titles keep their room.
   const outline = $("ul", { class: "outline" });
   for (const r of roots) {
     if (dayStarts.has(r.id) && roots.length > 1) outline.append($("li", { class: "rootday" }, day(r.at)));
-    for (const stack = [[r, outline]]; stack.length;) {
-      const [c, list] = stack.pop();
+    for (const stack = [[r, outline, 0]]; stack.length;) {
+      const [c, list, depth] = stack.pop();
       const button = $("button", { type: "button", onclick: () => choose(c.id, true) },
         $("span", { class: "t" }, name(c), c.has_summary ? $("span", { class: "badge" }, t.has_summary) : null),
         $("span", { class: "n" }, count(t.questions, c.questions)));
@@ -328,9 +332,9 @@ function render() {
       parts.get(c.id).push(button);
       const branches = kids.get(c.id);
       if (branches.length) {
-        const inner = $("ul");
-        item.append(inner);
-        for (let i = branches.length - 1; i >= 0; i--) stack.push([branches[i], inner]);
+        const inner = depth < DEEPEST ? $("ul") : list;
+        if (inner !== list) item.append(inner);
+        for (let i = branches.length - 1; i >= 0; i--) stack.push([branches[i], inner, depth + 1]);
       }
     }
   }

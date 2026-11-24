@@ -74,6 +74,17 @@ public sealed record ShareDocument(
             [.. source.Links.Where(l => ticked.Contains(l.A) && ticked.Contains(l.B))]);
     }
 
+    /// <summary>The share without these conversations and the links to them (they were deleted before it was saved, §9).</summary>
+    public ShareDocument Without(IEnumerable<ConversationId> gone)
+    {
+        var left = gone.ToHashSet();
+        return this with
+        {
+            Conversations = [.. Conversations.Where(c => !left.Contains(c.Id))],
+            Links = [.. Links.Where(l => !left.Contains(l.A) && !left.Contains(l.B))],
+        };
+    }
+
     /// <summary>The same conversations and links, whatever the title and the time the documents were made.</summary>
     public bool SameContents(ShareDocument other)
     {

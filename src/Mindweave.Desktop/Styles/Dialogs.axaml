@@ -25,6 +25,88 @@
   <Style Selector="Border.dialog.wide">
     <Setter Property="Width" Value="480" />
   </Style>
+  <!-- The share dialog (docs/design/sharing.md §6.3): as wide as its picture needs, and never taller than the window (what does not fit scrolls). -->
+  <Style Selector="Border.dialog.share">
+    <Setter Property="Width" Value="NaN" />
+    <Setter Property="MaxWidth" Value="760" />
+    <Setter Property="Margin" Value="24" />
+    <Setter Property="HorizontalAlignment" Value="Stretch" />
+  </Style>
+  <Style Selector="Border.share-canvas">
+    <Setter Property="Height" Value="248" />
+    <Setter Property="ClipToBounds" Value="True" />
+    <Setter Property="Background" Value="{DynamicResource SummaryNetworkBackground}" />
+    <Setter Property="BorderBrush" Value="{DynamicResource DividerBrush}" />
+    <Setter Property="BorderThickness" Value="1" />
+    <Setter Property="CornerRadius" Value="{StaticResource RadiusCard}" />
+  </Style>
+  <Style Selector="TextBlock.share-day">
+    <Setter Property="FontSize" Value="11" />
+    <Setter Property="Foreground" Value="{DynamicResource SummaryNetworkCaption}" />
+  </Style>
+  <!-- A conversation: its dot on the line, its tick and title just above it. -->
+  <Style Selector="CheckBox.share-dot">
+    <Setter Property="Height" Value="46" />
+    <Setter Property="MinWidth" Value="0" />
+    <Setter Property="MinHeight" Value="0" />
+    <Setter Property="Padding" Value="0" />
+    <Setter Property="Cursor" Value="Hand" />
+    <Setter Property="FocusAdorner" Value="{x:Null}" />
+  </Style>
+  <Style Selector="CheckBox.share-dot /template/ Ellipse.share-dot-fill">
+    <Setter Property="Fill" Value="{DynamicResource SummaryNetworkBackground}" />
+    <Setter Property="Stroke" Value="{DynamicResource SummaryNetworkEdge}" />
+    <Setter Property="StrokeThickness" Value="1.5" />
+  </Style>
+  <Style Selector="CheckBox.share-dot:checked /template/ Ellipse.share-dot-fill">
+    <Setter Property="Fill" Value="{DynamicResource SummaryNetworkNode}" />
+    <Setter Property="Stroke" Value="{DynamicResource SummaryNetworkNode}" />
+  </Style>
+  <Style Selector="CheckBox.share-dot /template/ Ellipse.share-ring">
+    <Setter Property="Stroke" Value="{DynamicResource SummaryNetworkEdge}" />
+    <Setter Property="StrokeThickness" Value="1.5" />
+    <Setter Property="Opacity" Value="0.5" />
+  </Style>
+  <Style Selector="CheckBox.share-dot:checked /template/ Ellipse.share-ring">
+    <Setter Property="Stroke" Value="{DynamicResource SummaryNetworkNode}" />
+    <Setter Property="Opacity" Value="1" />
+  </Style>
+  <Style Selector="CheckBox.share-dot /template/ Ellipse.share-focus">
+    <Setter Property="Fill" Value="{DynamicResource SummaryNetworkHaloHover}" />
+    <Setter Property="Opacity" Value="0" />
+  </Style>
+  <Style Selector="CheckBox.share-dot:pointerover /template/ Ellipse.share-focus">
+    <Setter Property="Opacity" Value="1" />
+  </Style>
+  <Style Selector="CheckBox.share-dot:focus-visible /template/ Ellipse.share-focus">
+    <Setter Property="Opacity" Value="1" />
+    <Setter Property="Stroke" Value="{DynamicResource SummaryNetworkRingSelected}" />
+    <Setter Property="StrokeThickness" Value="2" />
+  </Style>
+  <Style Selector="CheckBox.share-dot /template/ Border.share-tick">
+    <Setter Property="Width" Value="14" />
+    <Setter Property="Height" Value="14" />
+    <Setter Property="VerticalAlignment" Value="Center" />
+    <Setter Property="CornerRadius" Value="{StaticResource RadiusSmall}" />
+    <Setter Property="BorderThickness" Value="1.5" />
+    <Setter Property="BorderBrush" Value="{DynamicResource SummaryNetworkEdge}" />
+    <Setter Property="Background" Value="{DynamicResource SummaryNetworkBackground}" />
+  </Style>
+  <Style Selector="CheckBox.share-dot:checked /template/ Border.share-tick">
+    <Setter Property="BorderBrush" Value="{DynamicResource AccentBrush}" />
+    <Setter Property="Background" Value="{DynamicResource AccentBrush}" />
+  </Style>
+  <Style Selector="CheckBox.share-dot /template/ Border.share-tick > PathIcon">
+    <Setter Property="Foreground" Value="{DynamicResource OnAccentText}" />
+  </Style>
+  <Style Selector="CheckBox.share-dot /template/ TextBlock.share-name">
+    <Setter Property="FontSize" Value="13" />
+    <Setter Property="Background" Value="{DynamicResource SummaryNetworkBackground}" />
+    <Setter Property="Foreground" Value="{DynamicResource SummaryNetworkLabelRead}" />
+  </Style>
+  <Style Selector="CheckBox.share-dot:checked /template/ TextBlock.share-name">
+    <Setter Property="Foreground" Value="{DynamicResource SummaryNetworkLabel}" />
+  </Style>
   <Style Selector="Border.dialog Ellipse.dialog-bullet">
     <Setter Property="Width" Value="5" />
     <Setter Property="Height" Value="5" />

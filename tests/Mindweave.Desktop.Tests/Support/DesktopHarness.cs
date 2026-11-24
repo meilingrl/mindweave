@@ -240,5 +240,17 @@ public sealed class DesktopHarness : IAsyncDisposable
             ExportRequests.Add(suggestedFileName);
             return Task.FromResult(NextExport(suggestedFileName));
         }
+
+        /// <summary>Suggested file names the save dialog of a share was opened with.</summary>
+        public List<string> ShareRequests { get; } = [];
+
+        /// <summary>What that dialog returns for a suggested name; null (the default) is "cancelled".</summary>
+        public Func<string, ExportDestination?> NextShare { get; set; } = _ => null;
+
+        public Task<ExportDestination?> PickShareFileAsync(string suggestedFileName, CancellationToken cancellationToken)
+        {
+            ShareRequests.Add(suggestedFileName);
+            return Task.FromResult(NextShare(suggestedFileName));
+        }
     }
 }

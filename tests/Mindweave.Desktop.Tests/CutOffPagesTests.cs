@@ -5,6 +5,7 @@ using Avalonia.Threading;
 using Avalonia.VisualTree;
 using Microsoft.Extensions.DependencyInjection;
 using Mindweave.Application.Conversations;
+using Mindweave.Application.Export;
 using Mindweave.Application.Languages;
 using Mindweave.Application.Models;
 using Mindweave.Application.Preferences;
@@ -107,6 +108,31 @@ public class CutOffPagesTests
         await whole("network-recommended");
         network.IsListView = !network.IsListView;
         await whole("network-list");
+    });
+
+    [AvaloniaTheory]
+    [MemberData(nameof(Languages))]
+    public Task Share(UiLanguage language) => InAsync(language, async (app, window, whole) =>
+    {
+        var seed = await GalleryTests.SeedAsync(app, summaries: true);
+        await GalleryTests.LinkGalleryAsync(app, seed);
+        app.Services.GetRequiredService<ISharePrompt>().Open(app.Workbench.CurrentWorkspace!.Id, seed.Gauge);
+        await app.Root.Share.Loading;
+        await whole("share");
+        app.Root.Share.Dots.First(d => d.Id == seed.Rainhill).IsTicked = false;
+        app.Shell.NextShare = _ => new ExportDestination("x.html", Path.Combine(app.Paths.DataDirectory, "none", "x.html"), null);
+        await app.Root.Share.SaveCommand.ExecuteAsync(null);
+        Assert.True(app.Root.Share.NoticeIsError);
+        await whole("share-failed");
+        app.Root.Share.CloseCommand.Execute(null);
+
+        await app.Services.GetRequiredService<ConversationService>().RenameAsync(seed.Cable, LongName(ConversationRules.MaxTitleLength), CancellationToken.None);
+        app.Client.Hold("…");
+        await app.Services.GetRequiredService<ConversationService>().AskAsync(seed.Cable, "为什么？", CancellationToken.None);
+        app.Services.GetRequiredService<ISharePrompt>().Open(app.Workbench.CurrentWorkspace!.Id, seed.Cable);
+        await app.Root.Share.Loading;
+        Assert.NotNull(app.Root.Share.AnsweringNote);
+        await whole("longest-share");
     });
 
     [AvaloniaTheory]

@@ -227,6 +227,13 @@
                     AutomationProperties.Name="{x:Static t:UiText.ReturnToConversation}">
               <TextBlock TextWrapping="Wrap" TextAlignment="Center" Text="{x:Static t:UiText.ReturnToConversationButton}" />
             </Button>
+            <Button Name="ShareSelectedButton" Classes="quiet" HorizontalAlignment="Left" Command="{Binding ShareSelectedCommand}"
+                    ToolTip.Tip="{x:Static t:UiText.ShareTip}" AutomationProperties.HelpText="{x:Static t:UiText.ShareTip}">
+              <StackPanel Orientation="Horizontal" Spacing="6">
+                <PathIcon Width="13" Height="13" Data="{StaticResource IconShare}" />
+                <TextBlock Text="{x:Static t:UiText.ShareEntry}" VerticalAlignment="Center" />
+              </StackPanel>
+            </Button>
           </StackPanel>
           <!-- Content links (§10.3.3): each with jump, 改说明 and 删除关联; then 关联到…. Quiet when there are none. -->
           <StackPanel Name="LinksSection" Spacing="4" IsVisible="{Binding ShowsLinksSection}">

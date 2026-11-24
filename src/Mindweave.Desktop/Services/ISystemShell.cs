@@ -21,6 +21,9 @@ public interface ISystemShell
     /// asks before replacing an existing file (§8.3), so the app does not ask again. Null when cancelled.
     /// </summary>
     Task<ExportDestination?> PickExportFileAsync(string suggestedFileName, CancellationToken cancellationToken);
+
+    /// <summary>The same dialog for a share, which is one HTML file (docs/design/sharing.md S2). Null when cancelled.</summary>
+    Task<ExportDestination?> PickShareFileAsync(string suggestedFileName, CancellationToken cancellationToken);
 }
 
 internal sealed class SystemShell : ISystemShell
@@ -31,6 +34,13 @@ internal sealed class SystemShell : ISystemShell
         Patterns = ["*.md"],
         MimeTypes = ["text/markdown"],
         AppleUniformTypeIdentifiers = ["net.daringfireball.markdown"],
+    };
+
+    private static FilePickerFileType Html() => new(UiText.HtmlFileType)
+    {
+        Patterns = ["*.html"],
+        MimeTypes = ["text/html"],
+        AppleUniformTypeIdentifiers = ["public.html"],
     };
 
     /// <summary>
@@ -68,21 +78,26 @@ internal sealed class SystemShell : ISystemShell
         }
     }
 
-    public async Task<ExportDestination?> PickExportFileAsync(string suggestedFileName, CancellationToken cancellationToken)
+    public Task<ExportDestination?> PickExportFileAsync(string suggestedFileName, CancellationToken cancellationToken) =>
+        PickFileAsync(UiText.ExportMarkdown, suggestedFileName, "md", Markdown());
+
+    public Task<ExportDestination?> PickShareFileAsync(string suggestedFileName, CancellationToken cancellationToken) =>
+        PickFileAsync(UiText.ShareTitle, suggestedFileName, "html", Html());
+
+    private static async Task<ExportDestination?> PickFileAsync(string title, string suggestedFileName, string extension, FilePickerFileType type)
     {
         if (Avalonia.Application.Current?.ApplicationLifetime is not IClassicDesktopStyleApplicationLifetime { MainWindow: { } window })
         {
             return null;
         }
 
-        var markdown = Markdown();
         var file = await window.StorageProvider.SaveFilePickerAsync(new FilePickerSaveOptions
         {
-            Title = UiText.ExportMarkdown,
+            Title = title,
             SuggestedFileName = suggestedFileName,
-            DefaultExtension = "md",
-            FileTypeChoices = [markdown],
-            SuggestedFileType = markdown,
+            DefaultExtension = extension,
+            FileTypeChoices = [type],
+            SuggestedFileType = type,
             ShowOverwritePrompt = true,
         });
         if (file is null)

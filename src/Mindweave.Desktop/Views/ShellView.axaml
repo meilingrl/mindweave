@@ -140,6 +140,11 @@
                           <PathIcon Width="13" Height="13" Data="{StaticResource IconSummarize}" />
                         </MenuItem.Icon>
                       </MenuItem>
+                      <MenuItem Name="RowMenuShare" Header="{x:Static t:UiText.ShareEntry}" Command="{Binding Owner.ShareRowCommand, FallbackValue={x:Null}}" CommandParameter="{Binding}">
+                        <MenuItem.Icon>
+                          <PathIcon Width="13" Height="13" Data="{StaticResource IconShare}" />
+                        </MenuItem.Icon>
+                      </MenuItem>
                       <MenuItem Name="RowMenuArchive" Header="{x:Static t:UiText.Archive}" Command="{Binding Owner.ArchiveRowCommand, FallbackValue={x:Null}}" CommandParameter="{Binding}"
                                 IsEnabled="{Binding CanArchive}" ToolTip.Tip="{Binding ArchiveBlockedReason}" ToolTip.ShowOnDisabled="True">
                         <MenuItem.Icon>
