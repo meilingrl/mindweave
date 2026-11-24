@@ -47,7 +47,7 @@ internal sealed partial class FileResourceBlobStore(AppPaths paths, SqliteDataba
         try
         {
             var target = PathOf(hash);
-            if (Exists(hash))
+            if (await Task.Run(() => Exists(hash), cancellationToken).ConfigureAwait(false))
             {
                 return new BlobWrite(hash, content.Length, () => Unpin(hash));
             }
@@ -166,6 +166,9 @@ internal sealed partial class FileResourceBlobStore(AppPaths paths, SqliteDataba
             {
                 cancellationToken.ThrowIfCancellationRequested();
                 var source = PathOf(hash);
+
+                // A damaged original is put back first where that is possible; what there is of it is copied otherwise.
+                await Task.Run(() => RecoverFromBackups(hash), cancellationToken).ConfigureAwait(false);
                 if (!File.Exists(source))
                 {
                     continue;
@@ -198,33 +201,43 @@ internal sealed partial class FileResourceBlobStore(AppPaths paths, SqliteDataba
             return true;
         }
 
-        if (!Directory.Exists(paths.BackupDirectory))
+        string[] folders;
+        try
         {
+            folders = Directory.Exists(paths.BackupDirectory) ? Directory.GetDirectories(paths.BackupDirectory, "*" + BackupResources.Suffix) : [];
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            LogRecoverFailed(logger, ex, paths.BackupDirectory);
             return false;
         }
 
-        try
+        foreach (var folder in folders)
         {
-            foreach (var folder in Directory.EnumerateDirectories(paths.BackupDirectory, "*" + BackupResources.Suffix))
+            var copy = Path.Combine(folder, hash.Hex);
+            if (!IsWhole(copy, hash))
             {
-                var copy = Path.Combine(folder, hash.Hex);
-                if (!IsWhole(copy, hash))
-                {
-                    continue;
-                }
+                continue;
+            }
 
+            try
+            {
                 Directory.CreateDirectory(Path.GetDirectoryName(target)!);
                 Directory.CreateDirectory(TemporaryDirectory);
                 var temp = Path.Combine(TemporaryDirectory, Guid.NewGuid().ToString("N"));
                 File.Copy(copy, temp);
+
+                // A copy keeps its source's time, which may be the damaged file's too: a time of its own, so it is read again.
+                File.SetLastWriteTimeUtc(temp, time.GetUtcNow().UtcDateTime);
                 File.Move(temp, target, overwrite: true);
                 LogRecovered(logger, hash.Hex);
                 return true;
             }
-        }
-        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
-        {
-            LogDeleteFailed(logger, ex, target);
+            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+            {
+                // Another backup may have a copy that can be read.
+                LogRecoverFailed(logger, ex, copy);
+            }
         }
 
         return false;
@@ -442,6 +455,9 @@ internal sealed partial class FileResourceBlobStore(AppPaths paths, SqliteDataba
 
     [LoggerMessage(Level = LogLevel.Warning, Message = "Could not read the resource original {Path}")]
     private static partial void LogUnreadable(ILogger logger, Exception exception, string path);
+
+    [LoggerMessage(Level = LogLevel.Warning, Message = "Could not put a resource original back from {Path}")]
+    private static partial void LogRecoverFailed(ILogger logger, Exception exception, string path);
 
     [LoggerMessage(Level = LogLevel.Information, Message = "Removed {Deleted} resource originals the database no longer refers to; {Kept} kept")]
     private static partial void LogSwept(ILogger logger, int deleted, int kept);
