@@ -58,7 +58,8 @@ public sealed partial class WorkspaceDeletionService(
     Recommendations.RecommendationService? recommendations = null,
     SummaryLinks.SummaryLinkService? links = null,
     SummaryLinks.LinkSuggestionService? suggestions = null,
-    IResourceBlobStore? blobs = null) : IWorkspaceDeletion
+    IResourceBlobStore? blobs = null,
+    Reading.ReadingStateService? reading = null) : IWorkspaceDeletion
 {
     public Task<WorkspaceContents> InspectAsync(WorkspaceId workspace, CancellationToken cancellationToken) =>
         store.InspectAsync(workspace, cancellationToken);
@@ -151,6 +152,12 @@ public sealed partial class WorkspaceDeletionService(
         if (suggestions is not null)
         {
             await suggestions.ForgetAsync(workspace).ConfigureAwait(false);
+        }
+
+        // Its unsent first question went with the commit; what was typed and not yet written goes too.
+        if (reading is not null)
+        {
+            await reading.ForgetNewDraftAsync(workspace).ConfigureAwait(false);
         }
 
         // Its resources went with it; their originals stay while the backup just made refers to them (docs/design/resources.md).

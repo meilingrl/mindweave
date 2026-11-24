@@ -183,6 +183,29 @@ public sealed partial class ReadingStateService : IReadingState, IDisposable
     }
 
     /// <summary>
+    /// A deleted workspace's new-exploration draft goes with it, written or not. The store removes what is written in the
+    /// delete's own transaction; a write that was already under way is waited for and removed here.
+    /// </summary>
+    public async Task ForgetNewDraftAsync(Core.Workspaces.WorkspaceId workspace)
+    {
+        await _flushing.WaitAsync().ConfigureAwait(false);
+        try
+        {
+            lock (_gate)
+            {
+                _newDrafts.Remove(workspace);
+                _dirtyNewDrafts.Remove(workspace);
+            }
+
+            await SaveNewDraftAsync(workspace, string.Empty).ConfigureAwait(false);
+        }
+        finally
+        {
+            _flushing.Release();
+        }
+    }
+
+    /// <summary>
     /// Writes every pending change now. Called on exit before the window closes; safe to call any time. A value whose
     /// write fails stays pending (dirty) for the next flush instead of being dropped. Returns false when a draft could
     /// not be written: drafts are the user's input, while a reading position is page state that may degrade.
