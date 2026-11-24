@@ -300,6 +300,36 @@ public class RunFlowTests
         Assert.Single(h.Client.Requests, FakeChatClient.IsAnswer);
     }
 
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task A_side_effect_call_under_way_when_the_run_is_stopped_is_recorded_as_unknown(bool quitting)
+    {
+        // It may have taken effect (D-038): stopping the answer and quitting the app record the same.
+        var blocking = new GatedTool("blocking_tool", TimeSpan.FromMinutes(1), ToolRisk.SideEffect);
+        await using var h = await ChatHarness.StartAsync(model: ToolModel, tools: [blocking]);
+        h.Client.CallTool("blocking_tool", "{}", "等一下。");
+
+        var sent = await h.Conversations.StartAsync(h.Workspace, "问", Ct);
+        await blocking.Started.Task.WaitAsync(Ct);
+        if (quitting)
+        {
+            Assert.True(await h.Generation.StopForExitAsync(TimeSpan.FromSeconds(10)));
+        }
+        else
+        {
+            await h.Conversations.StopAsync(sent.Answer!.Value);
+        }
+
+        var answer = await h.WaitForAnswerAsync(sent.Answer!.Value);
+        Assert.Equal((MessageState.Stopped, "等一下。"), (answer.State, answer.Text));
+        Assert.Empty(answer.Blocks.OfType<ToolResultBlock>());
+        var step = (await h.Runs.RunsAsync(sent.Conversation, Ct))[answer.Id].Steps.Single(s => s.Kind == RunStepKind.Tool);
+        Assert.Equal(RunStepState.Unknown, step.State);
+        Assert.NotNull(step.FinishedAt);
+        Assert.Single(h.Client.Requests, FakeChatClient.IsAnswer);
+    }
+
     [Fact]
     public async Task A_restart_during_a_run_marks_the_answer_interrupted_stops_its_steps_and_sends_nothing()
     {
@@ -441,7 +471,7 @@ public class RunFlowTests
     }
 
     /// <summary>A tool that waits until opened (or until its time limit, or a stop); counts how many calls are running.</summary>
-    private sealed class GatedTool(string name, TimeSpan timeout) : ITool
+    private sealed class GatedTool(string name, TimeSpan timeout, ToolRisk risk = ToolRisk.LocalRead) : ITool
     {
         private readonly TaskCompletionSource _open = new(TaskCreationOptions.RunContinuationsAsynchronously);
         private int _running;
@@ -458,7 +488,7 @@ public class RunFlowTests
 
         public string ParametersSchema => "{\"type\":\"object\"}";
 
-        public ToolRisk Risk => ToolRisk.LocalRead;
+        public ToolRisk Risk => risk;
 
         public TimeSpan Timeout => timeout;
 

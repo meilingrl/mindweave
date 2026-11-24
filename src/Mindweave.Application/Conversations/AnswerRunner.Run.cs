@@ -724,7 +724,10 @@ internal sealed partial class AnswerRunner
         return pending;
     }
 
-    /// <summary>A started call's execution, within its time limit; a stop records its step as stopped and settles it.</summary>
+    /// <summary>
+    /// A started call's execution, within its time limit; a stop settles it and records its step as stopped, or, for a call
+    /// with side effects, as unknown: it may have taken effect (decision D-038).
+    /// </summary>
     private async Task ExecuteToolAsync(AnswerWork work, RunPlan run, RunServices services, PendingCall pending, CancellationToken stop)
     {
         if (pending.Settled is not null || pending.Failure is not null || pending.Tool is not { } tool)
@@ -742,7 +745,8 @@ internal sealed partial class AnswerRunner
         catch (OperationCanceledException) when (stop.IsCancellationRequested)
         {
             live.EndTool();
-            var stoppedStep = pending.Step with { State = RunStepState.Stopped, FinishedAt = _clock.UtcNow };
+            var state = tool.Risk == ToolRisk.SideEffect ? RunStepState.Unknown : RunStepState.Stopped;
+            var stoppedStep = pending.Step with { State = state, FinishedAt = _clock.UtcNow };
             await _writes.SaveAsync(() => services.Store.FinishStepAsync(stoppedStep, live.MessageId, null, 0, CancellationToken.None)).ConfigureAwait(false);
             pending.Settled = new ToolOutcome(string.Empty, string.Empty, new RunEnding(MessageState.Stopped, null, null));
         }
