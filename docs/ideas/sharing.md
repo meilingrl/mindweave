@@ -18,11 +18,37 @@ From evolution D8 (owner, 2026-11-19/20): one mechanism, not a feature per scena
 
 Considered: one path only (the chain from a root to one conversation), which loses the side branches; the whole workspace always, which is too much for private topics. Both are ends of the chosen selection.
 
+### S2 The form of the result (2026-11-24)
+
+- The result is one self-contained HTML file. It loads nothing from the network: styles, scripts, formula drawing and the picture of the path are inside the file.
+- It travels as a file, by whatever means the user has. Mindweave uploads nothing.
+- The page is laid out for narrow screens and prints cleanly, so printing from the browser is the route to a PDF.
+
+Considered: a PDF (static, loses the branching); Markdown or a zip (not readable for most recipients); a hosted link (needs a server, ruled out by D8).
+
+### S3 Sharing also carries import and device copies (owner's direction, 2026-11-24)
+
+The owner widened D8, which had left import between Mindweave users for later:
+
+- A recipient who uses Mindweave can bring a shared file in and keep asking from it.
+- The same mechanism carries a copy of the user's own work between their devices, through cloud storage the user already has. It may be more cumbersome than automatic sync; it must be possible.
+
+How this is done is under discussion (proposal P1 below).
+
+## Proposals under discussion
+
+### P1 One exchange format under everything (writer's proposal, 2026-11-24)
+
+- The exchange format of seam E5 is implemented. Every file that leaves the app is that format.
+- A shared HTML file holds the same content twice: as the page a person reads, and as exchange data Mindweave reads. The data holds exactly what the page shows, never more.
+- A device copy is the same format with everything in it (attachment originals, all summary versions, summary links), as a package file that also contains the page.
+- One import reads both. A conversation the app has never seen arrives as new. A conversation it already has gains the messages it lacks. When both sides added to the same conversation, the incoming one arrives as a separate copy; nothing is interleaved and nothing is lost. Import never deletes.
+
 ## Open questions
 
 In order of what depends on them:
 
-1. The form of the result: page or file, and how it travels.
+1. How import and device copies work (P1), and which steps belong to this cycle.
 2. What is shown inside each conversation: full answers, folded answers, summaries, retries.
 3. What never leaves: attachments, citations, tool steps, model details, unticked branches.
 4. How a reader who was not there follows the path: the timeline and the network in the page.
