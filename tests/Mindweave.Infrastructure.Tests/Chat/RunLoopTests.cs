@@ -421,6 +421,11 @@ public class RunLoopTests
         Assert.StartsWith("（较早的工具结果已省略：no_such_tool", tools[1].Content, StringComparison.Ordinal);
         Assert.StartsWith("（较早的工具结果已省略：big_tool 1", tools[2].Content, StringComparison.Ordinal);
         Assert.Equal(BigTool.Text(3), tools[4].Content);
+
+        // The shortened result says it can be read again, so the tool that reads it is offered from then on.
+        var requests = h.Client.Requests.Where(FakeChatClient.IsAnswer).ToList();
+        Assert.DoesNotContain(SearchAttachmentsTool.ToolName, requests[0].Tools!.Select(t => t.Name));
+        Assert.Contains(SearchAttachmentsTool.ToolName, last.Tools!.Select(t => t.Name));
     }
 
     // L9: the 开 search's terms.
