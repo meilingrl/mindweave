@@ -48,7 +48,7 @@ The owner's principle: whether importing or exporting, things can only stay the 
   - a conversation it already has gains only the messages it lacks;
   - for single-valued things (a title, the current summary version, archived or not) the newer one wins.
 - Importing the same file again changes nothing, however often it is done (owner: the same thing is reported as already there, never copied).
-- The one open case (not yet decided): both sides added different messages to the same conversation after their last exchange.
+- When both sides continued the same conversation differently after their last exchange, this side keeps its conversation untouched, and the other continuation arrives once as a separate conversation, marked as coming from elsewhere. Importing the file again recognises it and adds nothing (owner, 2026-11-25).
 - Import never deletes. A file's silence about a conversation has three possible causes (deleted there, not selected, created here later), so silence is never read as deletion.
 - The database backup is a different thing: it protects the local machine across version changes and deletions. It is unchanged and outside this design (owner).
 
