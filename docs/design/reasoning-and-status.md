@@ -30,7 +30,7 @@ Wording rules: present progressive, “正在 + 动词 + 对象…” ("正在" 
 | `Tool`: web search | `web_search` executing | 正在搜索：{检索词}… | Searching: {query}… | reaching `Reaching` (new) |
 | `Tool`: read a page | `fetch_page` executing | 正在读取网页：{主机}… | Reading web page: {host}… | reaching `Reaching` |
 | `Tool`: search attachments | `search_attachments` | 正在检索附件：{检索词}… | Searching attachments: {query}… | reaching `Reaching` |
-| `Tool`: search summaries | `search_summaries` | 正在检索总结网络：{检索词}… | Searching summary network: {query}… | reaching `Reaching` |
+| `Tool`: search summaries | `search_summaries` | 正在检索总结：{检索词}… | Searching summaries: {query}… | reaching `Reaching` |
 | `Tool`: third party | An MCP tool executing | 正在调用 {服务器} › {工具}… | Calling {server} › {tool}… | reaching `Reaching` |
 | `Approval`: waiting for approval | When the approval card appears | 等待你批准读取网址… ／ 等待你批准调用 {服务器} › {工具}… | Waiting for you to approve reading the URL… / calling {server} › {tool}… | holding `Holding` (new) |
 | `Retrying`: retrying | L5: a request failed by chance; waiting, then retrying, until the new request has content | 请求出错，正在重试… | Request failed, retrying… | braiding `Braid` |
