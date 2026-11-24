@@ -131,6 +131,9 @@ public enum FetchFailureKind
     /// <summary>Read, but no readable text in it (for example a page drawn only by scripts).</summary>
     NoText,
 
+    /// <summary>The site sent a check that the visitor is no robot in place of the page.</summary>
+    RobotCheck,
+
     /// <summary>The host could not be found or reached.</summary>
     Network,
 }

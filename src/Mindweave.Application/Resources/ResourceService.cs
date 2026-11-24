@@ -68,8 +68,11 @@ public interface IResources
     /// <summary>The original's bytes as a stream, or null when the resource or its file is gone.</summary>
     Task<Stream?> OpenOriginalAsync(ResourceId id, CancellationToken cancellationToken);
 
-    /// <summary>Whether the original file is there (requirements §10.4.3: a missing one is shown as 原件缺失).</summary>
-    bool HasOriginal(Resource resource);
+    /// <summary>
+    /// Whether the original file is there and whole (requirements §10.4.3: a missing or damaged one is shown as 原件缺失). It
+    /// may read the whole file, so never on the caller's thread.
+    /// </summary>
+    Task<bool> HasOriginalAsync(Resource resource);
 
     Task<ResourceDeleteStatus> DeleteUnattachedAsync(ResourceId id, CancellationToken cancellationToken);
 
@@ -139,16 +142,16 @@ public sealed partial class ResourceService(
     public async Task<Stream?> OpenOriginalAsync(ResourceId id, CancellationToken cancellationToken)
     {
         var resource = await store.GetAsync(id, cancellationToken).ConfigureAwait(false);
-        return resource is null ? null : OpenOriginal(resource.Resource);
+        return resource is null ? null : await Task.Run(() => OpenOriginal(resource.Resource), cancellationToken).ConfigureAwait(false);
     }
 
-    public bool HasOriginal(Resource resource)
+    public Task<bool> HasOriginalAsync(Resource resource)
     {
         ArgumentNullException.ThrowIfNull(resource);
-        return blobs.Exists(resource.Hash) || blobs.TryRecover(resource.Hash);
+        return Task.Run(() => blobs.Exists(resource.Hash) || blobs.TryRecover(resource.Hash));
     }
 
-    /// <summary>The original of a stored resource, put back from a backup when a restore left it missing.</summary>
+    /// <summary>The original of a stored resource, put back from a backup when a restore left it missing or it is damaged.</summary>
     private Stream? OpenOriginal(Resource resource) => blobs.OpenRead(resource.Hash) ?? (blobs.TryRecover(resource.Hash) ? blobs.OpenRead(resource.Hash) : null);
 
     public async Task<ResourceDeleteStatus> DeleteUnattachedAsync(ResourceId id, CancellationToken cancellationToken)

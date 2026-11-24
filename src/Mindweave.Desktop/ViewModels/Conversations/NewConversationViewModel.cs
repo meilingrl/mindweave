@@ -84,7 +84,7 @@ public sealed partial class NewConversationViewModel : PageViewModel, IDisposabl
                     Marking = MarkNodeUsedAsync(node.Recommendation);
                 }
 
-                content.Replace(new ConversationRoute(outcome.Conversation));
+                content.Replace(this, new ConversationRoute(outcome.Conversation));
             }
 
             return outcome;

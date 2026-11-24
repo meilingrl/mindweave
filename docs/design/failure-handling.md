@@ -17,6 +17,7 @@ Most of the code sits on boundaries that fail in normal use: the network, AI ser
 
 ## Not covered by the test
 
+- Where a broad catch may be (rule 2) and whether a cancellation is told apart by its token (rule 5): that is review.
 - Whether a specific catch is narrow enough, or whether its message to the user is right: that is review.
 - Fire-and-forget calls (`_ = SomethingAsync()`): their target must guard itself. Review checks this; the test does not.
 - Events raised from worker threads (`GenerationCoordinator`): to be guarded when that code is next changed (maintainability review 2026-11-22, EXC-4).

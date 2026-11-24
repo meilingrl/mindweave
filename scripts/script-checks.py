@@ -10,8 +10,13 @@ everything they read, and fail if a script stops, loses text or passes a damaged
 
 The output side fails on every system without the fix. The reading side (the class list) can only fail on Windows,
 where the code page is real; CI runs these checks there.
+
+On macOS they also run daily.sh (not in the source package) in a throw-away repository with made-up builds and data.
+Every folder it uses is a temporary one, and its call that tells Launch Services about a bundle is taken out.
 """
 import os
+import plistlib
+import re
 import subprocess
 import sys
 import tempfile
@@ -118,6 +123,100 @@ class ChineseTextTests(unittest.TestCase):
         self.assertEqual(1, code)
         self.assertNotIn("Traceback", err)
         self.assertIn("没有结果", err)
+
+
+MIGRATIONS = """
+    Migration.Sql(1, "one", "SELECT 1;"),
+"""
+
+
+@unittest.skipUnless(sys.platform == "darwin" and os.path.exists(os.path.join(SCRIPTS, "daily.sh")), "daily.sh is for macOS only")
+class DailyBuildTests(unittest.TestCase):
+    def setUp(self):
+        self.dir = tempfile.TemporaryDirectory()
+        self.addCleanup(self.dir.cleanup)
+        self.repo = self.path("repo")
+        with open(os.path.join(SCRIPTS, "daily.sh"), encoding="utf-8") as f:
+            script = re.sub(r'^LSREGISTER=.*$', 'LSREGISTER="/usr/bin/true"', f.read(), flags=re.M)
+        self.assertIn('LSREGISTER="/usr/bin/true"', script)
+        self.write("repo/scripts/daily.sh", script)
+        self.write("repo/src/Mindweave.Infrastructure/Sqlite/Migrations/SchemaMigrations.cs", MIGRATIONS)
+        # Nothing of the repository the checks run in (git sets GIT_DIR for hooks and rebase --exec) reaches the made-up one.
+        own = {name: value for name, value in os.environ.items() if not name.startswith("GIT_")}
+        self.env = dict(
+            own, MINDWEAVE_DAILY_HOME=self.path("builds"), MINDWEAVE_DAILY_APP=self.path("Mindweave.app"),
+            MINDWEAVE_DAILY_BACKUP_DIR=self.path("backups"), MINDWEAVE_DAILY_DATA=self.path("data"), TMPDIR=self.path("tmp"))
+        os.makedirs(self.path("tmp"))
+        self.git("init", "-q", "-b", "main")
+        self.first = self.commit("1.0.0")
+        self.second = self.commit("2.0.0")
+
+    def path(self, *parts):
+        return os.path.join(self.dir.name, *parts)
+
+    def write(self, name, text, executable=False):
+        path = self.path(*name.split("/"))
+        os.makedirs(os.path.dirname(path), exist_ok=True)
+        with open(path, "w", encoding="utf-8") as f:
+            f.write(text)
+        if executable:
+            os.chmod(path, 0o755)
+        return path
+
+    def git(self, *arguments):
+        command = ["git", "-c", "user.name=t", "-c", "user.email=t@example.invalid", "-c", "commit.gpgsign=false", *arguments]
+        return subprocess.run(command, cwd=self.repo, env=self.env, check=True, capture_output=True, text=True).stdout.strip()
+
+    def commit(self, version):
+        self.write("repo/Directory.Build.props", f"<Project><PropertyGroup><Version>{version}</Version></PropertyGroup></Project>")
+        self.git("add", "-A")
+        self.git("commit", "-q", "-m", version)
+        return self.git("rev-parse", "HEAD")
+
+    def release(self, name, commit):
+        """A made-up build whose program lists the data it was given."""
+        folder = f"builds/releases/{name}"
+        self.write(f"{folder}/Mindweave", f'#!/bin/sh\ncd "$MINDWEAVE_DATA_DIR" && find . -type f | sort > "{self.path("seen")}"\n', executable=True)
+        self.write(f"{folder}/release.txt", f"commit={commit}\nsubject=t\nschema=1\n")
+        return f"releases/{name}"
+
+    def daily(self, *arguments):
+        done = subprocess.run(["bash", os.path.join(self.repo, "scripts", "daily.sh"), *arguments], cwd=self.repo, env=self.env, capture_output=True, text=True)
+        self.assertEqual(0, done.returncode, done.stdout + done.stderr)
+
+    def version(self):
+        with open(self.path("Mindweave.app", "Contents", "Info.plist"), "rb") as f:
+            return plistlib.load(f)["CFBundleShortVersionString"]
+
+    def test_the_launcher_has_the_version_of_its_build_not_of_the_working_tree(self):
+        os.symlink(self.release("old", self.first), self.path("builds", "previous"))
+        os.symlink(self.release("new", self.second), self.path("builds", "current"))
+        self.write("repo/Directory.Build.props", "<Project><PropertyGroup><Version>9.9.9</Version></PropertyGroup></Project>")
+        self.daily("app")
+        self.assertEqual("2.0.0", self.version())
+        self.daily("rollback")
+        self.assertEqual("1.0.0", self.version())
+
+    def test_a_trial_runs_on_a_copy_of_everything_the_app_reads(self):
+        os.symlink(self.release("new", self.second), self.path("builds", "current"))
+        self.daily("app")
+        self.write("data/language", "zh-Hans")
+        self.write("data/resources/ab/abcd", "an original")
+        self.write("data/logs/app.log", "a log")
+        subprocess.run(["sqlite3", self.path("data", "mindweave.db"), "PRAGMA user_version=1; CREATE TABLE t (x);"], check=True)
+        self.daily("trial", "current")
+        with open(self.path("seen"), encoding="utf-8") as f:
+            self.assertEqual(["./language", "./mindweave.db", "./resources/ab/abcd"], f.read().split())
+        self.assertTrue(os.path.exists(self.path("data", "resources", "ab", "abcd")))
+
+    def test_a_trial_without_attachments_or_a_chosen_language_runs_too(self):
+        os.symlink(self.release("new", self.second), self.path("builds", "current"))
+        self.daily("app")
+        os.makedirs(self.path("data"))
+        subprocess.run(["sqlite3", self.path("data", "mindweave.db"), "PRAGMA user_version=1; CREATE TABLE t (x);"], check=True)
+        self.daily("trial", "current")
+        with open(self.path("seen"), encoding="utf-8") as f:
+            self.assertEqual(["./mindweave.db"], f.read().split())
 
 
 if __name__ == "__main__":

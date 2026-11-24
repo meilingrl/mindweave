@@ -123,6 +123,19 @@ public class CatchPolicyTests
         Assert.True(found.Count == 0, string.Join('\n', found));
     }
 
+    [Fact]
+    public void Every_suppression_states_its_reason_on_its_own_line()
+    {
+        var found = SourceFiles()
+            .SelectMany(f => f.Root.DescendantTrivia()
+                .Where(t => t.IsKind(SyntaxKind.PragmaWarningDirectiveTrivia) && t.ToString().Contains("disable CA1031", StringComparison.Ordinal))
+                .Select(t => (f.File, Text: t.ToString())))
+            .Where(p => p.Text.Split("//", 2) is not [_, var reason] || reason.Trim() is not { Length: >= 25 } said || said.StartsWith("As above", StringComparison.Ordinal))
+            .Select(p => $"{p.File}: {p.Text.Trim()}")
+            .ToList();
+        Assert.True(found.Count == 0, "CA1031 suppressions without a reason that stands on its own:\n" + string.Join('\n', found));
+    }
+
     /// <summary>catch, catch (Exception), or catch (Exception) with a filter that does not narrow it to named types.</summary>
     private static bool IsBroad(CatchClauseSyntax clause)
     {

@@ -617,7 +617,7 @@ public sealed class SummaryNetworkCanvas : Control
 
     /// <summary>
     /// Where a spatial date sits (spec §4.4): beside the root dot, on the title's line of text, above it, or below it when
-    /// an edge lifted the title up, so it stays inside the root's packing footprint (dot, title, and the room for a lifted title).
+    /// an edge lifted the title up, so it stays inside the block the layout keeps free for the root (dot, title, and the room for a lifted title).
     /// </summary>
     private static Point SpatialDateOrigin(NodeView node, Point center, FormattedText date, ILookup<SummaryNodeId, Point> incident, double labelSize)
     {

@@ -1,8 +1,8 @@
 name: stress
 
 # Repeats a test filter in parallel to reproduce intermittent failures on a hosted runner, whose speed differs
-# from the local machines. It also runs when this file changes on main, using the defaults below, so a change
-# to the workflow is tried at once.
+# from the local machines. It also runs when this file changes on main, smaller (4 runs on 3 workers, see
+# env), so a change to the workflow is tried at once.
 on:
   push:
     branches: [main]

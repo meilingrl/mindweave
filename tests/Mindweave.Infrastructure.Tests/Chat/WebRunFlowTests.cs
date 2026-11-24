@@ -129,6 +129,35 @@ public class WebRunFlowTests
         Assert.Equal(RunStepKind.Tool, (await h.Runs.RunsAsync(sent.Conversation, Ct))[answer.Id].Steps[0].Kind);
     }
 
+    [Theory]
+    [InlineData(WebSearchMode.Auto)]
+    [InlineData(WebSearchMode.On)]
+    public async Task The_rest_of_a_long_page_can_be_read_in_a_conversation_without_attachments(WebSearchMode mode)
+    {
+        // A result that is not sent whole names search_attachments (requirements §10.4.4 and §10.4.5), so from then on it is
+        // offered; before, there is nothing for it to find.
+        await using var h = await StartAsync();
+        h.Pages.Page(
+            "https://example.org/steam", "蒸汽机的历史",
+            string.Join("\n\n", Enumerable.Range(0, 8).Select(i => new string((char)('甲' + i), 900))) + "\n\n瓦特在 1769 年取得了分离冷凝器的专利。");
+        h.Client.CallTool(WebSearchTool.ToolName, Query("蒸汽机"));
+        h.Client.CallTool(FetchPageTool.ToolName, Url("https://example.org/steam"));
+        h.Client.CallTool(SearchAttachmentsTool.ToolName, Query("分离冷凝器"));
+        h.Client.Reply("瓦特在 1769 年取得了分离冷凝器的专利。");
+
+        var (_, answer) = await AskAsync(h, "蒸汽机是谁改良的？", mode);
+
+        var requests = h.Client.Requests.Where(FakeChatClient.IsAnswer).ToList();
+        Assert.Equal(4, requests.Count);
+        Assert.Equal([WebSearchTool.ToolName, FetchPageTool.ToolName], requests[0].Tools!.Select(t => t.Name));
+        Assert.Equal([WebSearchTool.ToolName, FetchPageTool.ToolName], requests[1].Tools!.Select(t => t.Name));
+        Assert.Contains(SearchAttachmentsTool.ToolName, requests[2].Turns[^1].Content, StringComparison.Ordinal);
+        Assert.Equal([WebSearchTool.ToolName, FetchPageTool.ToolName, SearchAttachmentsTool.ToolName], requests[2].Tools!.Select(t => t.Name));
+        Assert.Contains($"- {SearchAttachmentsTool.ToolName}（", requests[2].Turns[0].Content, StringComparison.Ordinal);
+        Assert.Contains("瓦特在 1769 年取得了分离冷凝器的专利", requests[3].Turns[^1].Content, StringComparison.Ordinal);
+        Assert.Equal(ToolResultStatus.Succeeded, answer.Blocks.OfType<ToolResultBlock>().Last().Status);
+    }
+
     [Fact]
     public async Task A_page_from_the_results_is_read_without_asking_and_its_citation_points_at_the_cited_passage()
     {

@@ -29,8 +29,19 @@ packages = sorted({(p["id"], p["resolvedVersion"])
 
 # Standard texts for packages that name an SPDX licence but ship no text of it (2026-11-17: Apache-2.0 and MIT require the
 # licence text to go along with the software, so a name alone is not enough). Printed once at the end of the file.
-STANDARD = {name: os.path.join(ROOT, "scripts", "licences", f"{name}.txt") for name in ("Apache-2.0", "MIT")}
+STANDARD = {name: os.path.join(ROOT, "scripts", "licences", f"{name}.txt") for name in ("Apache-2.0", "BSD-2-Clause", "MIT", "OFL-1.1")}
 standard_used = []
+
+# What a package carries inside under another licence and gives no text of (2026-11-24): name, copyright and licence as
+# the font's own name table states them.
+EMBEDDED = {"Avalonia.Fonts.Inter": [("Inter 3.019 (font)", "Copyright 2020 The Inter Project Authors (https://github.com/rsms/inter)", "OFL-1.1")]}
+
+
+def standard(licence):
+    if licence not in standard_used:
+        standard_used.append(licence)
+    return f"the standard {licence} text is at the end of this file"
+
 
 sections = []
 seen = {}  # licence text -> the package it was first printed under; later packages refer to it
@@ -50,7 +61,7 @@ for name, version in packages:
     if lic is not None and lic.get("type") == "file":
         files.append(os.path.join(folder, lic.text.strip()))
     files += [f for f in glob.glob(os.path.join(folder, "**", "*"), recursive=True)
-              if os.path.isfile(f) and re.search(r"(^|/)(licen[cs]e|notice|copying|third.?party)[^/]*$", f, re.I)
+              if os.path.isfile(f) and re.search(r"(^|/)(licen[cs]e|notice|copying|third.?party)[^/]*$|/licen[cs]es?/[^/]+$", f, re.I)
               and not f.endswith((".dll", ".so", ".dylib", ".nupkg", ".p7s"))]
     texts = []
     for f in dict.fromkeys(files):
@@ -72,9 +83,9 @@ for name, version in packages:
         ("Licence", licence), ("Licence URL", field("licenseUrl") if not licence else None),
         ("Project", field("projectUrl")), ("Copyright", field("copyright"))) if v)
     if not texts and licence in STANDARD:
-        if licence not in standard_used:
-            standard_used.append(licence)
-        texts.append(f"(No licence text in the package; the standard {licence} text is at the end of this file.)")
+        texts.append(f"(No licence text in the package; {standard(licence)}.)")
+    for part, owner, terms in EMBEDDED.get(name, []):
+        texts.append(f"It contains {part}\n{owner}\nLicence: {terms} ({standard(terms)})")
     sections.append(head + ("\n" + "\n\n".join(texts) if texts else "(No licence text in the package; see the licence or URL above.)"))
 
 for licence in standard_used:

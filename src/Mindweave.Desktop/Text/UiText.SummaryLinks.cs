@@ -19,14 +19,14 @@ public static partial class UiText
 
     public static string HideLinks => T("Hide links", "隐藏关联");
 
-    public static string HideLinksTip => T("Only changes what the summary network shows; links aren’t deleted", "只影响网络中的显示，不删除关联");
+    public static string HideLinksTip => T("Only changes what Mindweave shows; links aren’t deleted", "只影响 Mindweave 中的显示，不删除关联");
 
 
     /// <summary>Legend: the line drawn, in words (requirements §10.3: never colour alone).</summary>
     public static string LegendLink => T("Dashed line: summary link", "虚线：内容关联");
 
     // Picking the other summary on the network (pick mode), with Esc or 取消 to leave it.
-    public static string LinkPickHint(string name) => T($"Click another summary in the summary network to link it to “{name}”. Press Esc to cancel.", $"点选网络中的另一个总结，与“{name}”关联。按 Esc 取消。");
+    public static string LinkPickHint(string name) => T($"Click another summary in Mindweave to link it to “{name}”. Press Esc to cancel.", $"在 Mindweave 中点选另一个总结，与“{name}”关联。按 Esc 取消。");
 
     public static string LinkPickFromList => T("Choose from list…", "从列表选择…");
 

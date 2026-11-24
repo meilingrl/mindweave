@@ -42,16 +42,19 @@ public sealed partial class ToolSettingsPanel : ViewModelBase
 
     /// <summary>The model declares tool calls: the section can be used.</summary>
     [ObservableProperty]
-    [NotifyPropertyChangedFor(nameof(IsUnavailable), nameof(CanEditLimits))]
+    [NotifyPropertyChangedFor(nameof(IsUnavailable), nameof(CanEditLimits), nameof(IsTurnedOff))]
     public partial bool IsAvailable { get; private set; }
 
     public bool IsUnavailable => !IsAvailable;
 
     [ObservableProperty]
-    [NotifyPropertyChangedFor(nameof(CanEditLimits))]
+    [NotifyPropertyChangedFor(nameof(CanEditLimits), nameof(IsTurnedOff))]
     public partial bool UsesTools { get; set; } = true;
 
     public bool CanEditLimits => IsAvailable && UsesTools;
+
+    /// <summary>使用工具 is off, so web search and MCP servers are greyed out and say so (requirements §10.4.5).</summary>
+    public bool IsTurnedOff => IsAvailable && !UsesTools;
 
     [ObservableProperty]
     public partial decimal? ModelRequests { get; set; } = RunLimits.Default.ModelRequests;

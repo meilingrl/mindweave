@@ -122,7 +122,7 @@ public class RealApiTests
         await AskAsync(h, conversation, "我研究的年份是 1825 年的斯托克顿—达灵顿铁路。只回答“好的”。");
         await AskAsync(h, conversation, "我刚才说错了，我研究的不是 1825 年，而是 1829 年的雨山试验。只回答“已更正”。");
         // A prohibition that holds for one object only, next to a permission for another (a summary once kept the object but
-        // dropped its prohibition: Codex track, real DeepSeek run, 2026-10), and a decision still open.
+        // dropped its prohibition in a real DeepSeek run, 2026-10), and a decision still open.
         await AskAsync(h, conversation, "我要去博物馆看那台车的复制品。馆方规定：复制品不得触摸，但旁边的说明牌可以拍照。只回答“好的”。");
         await AskAsync(h, conversation, "我还没决定周六还是周日去，先记着，之后再定。只回答“好的”。");
         foreach (var topic in new[]

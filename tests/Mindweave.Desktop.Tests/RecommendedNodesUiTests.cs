@@ -285,7 +285,7 @@ public class RecommendedNodesUiTests
         await SummaryNetworkScenario.SeedSeenAsync(app);
         var network = await SummaryNetworkScenario.OpenSummaryNetworkAsync(app, window);
         await PrepareAsync(app, network, window);
-        network.ToggleViewCommand.Execute(null);
+        network.IsListView = !network.IsListView;
         window.UpdateLayout();
         Assert.False(LegendCard.Shows(window, "RecommendationLegend"));
 

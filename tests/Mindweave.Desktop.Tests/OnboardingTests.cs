@@ -169,7 +169,7 @@ public class OnboardingTests
         Assert.Equal("done", await Preference(app));
 
         // The last workspace deleted: only a workspace is asked for.
-        app.ShellPage.DeleteWorkspaceCommand.Execute(null);
+        app.AskToDeleteWorkspace();
         var dialog = app.Root.WorkspaceDeletion;
         await dialog.Loading;
         dialog.TypedName = "唯一";

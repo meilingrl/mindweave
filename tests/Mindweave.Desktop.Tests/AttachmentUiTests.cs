@@ -319,7 +319,7 @@ public class AttachmentUiTests
 
         public Task<Stream?> OpenOriginalAsync(Core.Resources.ResourceId id, CancellationToken cancellationToken) => inner.OpenOriginalAsync(id, cancellationToken);
 
-        public bool HasOriginal(Core.Resources.Resource resource) => inner.HasOriginal(resource);
+        public Task<bool> HasOriginalAsync(Core.Resources.Resource resource) => inner.HasOriginalAsync(resource);
 
         public Task<ResourceDeleteStatus> DeleteUnattachedAsync(Core.Resources.ResourceId id, CancellationToken cancellationToken) => inner.DeleteUnattachedAsync(id, cancellationToken);
 

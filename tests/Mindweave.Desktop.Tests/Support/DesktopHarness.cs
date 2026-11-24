@@ -92,6 +92,9 @@ public sealed class DesktopHarness : IAsyncDisposable
 
     public ShellViewModel ShellPage => Services.GetRequiredService<ShellViewModel>();
 
+    /// <summary>Opens the delete dialog for the workspace shown, as its row on 设置 › 工作区 does.</summary>
+    public void AskToDeleteWorkspace() => Services.GetRequiredService<IWorkspaceDeletionPrompt>().Open(Workbench.CurrentWorkspace!);
+
     public static DesktopHarness Create(Action<IServiceCollection>? overrides = null, string? directory = null) =>
         new(directory ?? Path.Combine(Path.GetTempPath(), "mindweave-desktop-tests", Guid.NewGuid().ToString("N")), overrides, directory is null);
 

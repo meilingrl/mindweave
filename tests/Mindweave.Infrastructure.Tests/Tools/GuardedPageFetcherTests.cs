@@ -428,6 +428,42 @@ public class GuardedPageFetcherTests
         Assert.Equal("网页里没有可读的文字（可能需要脚本才能显示）。", failure.Message);
     }
 
+    /// <summary>
+    /// A page that only asks for proof that the visitor is no robot, sent with status 200: Baidu's of 2026-11-24 (drawn by a
+    /// script), its older one, which has words of its own, and Cloudflare's. Its words are never the page's.
+    /// </summary>
+    [Theory]
+    [InlineData("<html><head><title>百度安全验证</title></head><body></body><script>loadScript()</script></html>")]
+    [InlineData("<html><head><title>百度安全验证</title></head><body><p>网络不给力，请稍后重试</p><p>返回首页</p><p>问题反馈</p></body></html>")]
+    [InlineData("<html><head><title>Just a moment...</title></head><body><h1>example.com</h1><p>Verify you are human by completing the action below.</p></body></html>")]
+    public async Task A_check_for_robots_is_a_failure_not_the_page(string html)
+    {
+        var failure = await Fails(Fetcher(new FakeHandler(_ => Responses.Text(html))), "https://example.com/item/1");
+
+        Assert.Equal(FetchFailureKind.RobotCheck, failure.Kind);
+        Assert.Equal("网站要求先通过安全验证（确认不是机器人），没有读取。", failure.Message);
+    }
+
+    [Fact]
+    public async Task A_redirect_to_a_known_check_is_a_failure_whatever_its_title()
+    {
+        var handler = new FakeHandler(request => request.RequestUri!.Host == "baike.baidu.com"
+            ? Responses.Redirect("https://wappass.baidu.com/static/captcha/?backurl=x")
+            : Responses.Text("<html><head><title>百度</title></head><body><p>请完成下方验证后继续操作</p></body></html>"));
+
+        Assert.Equal(FetchFailureKind.RobotCheck, (await Fails(Fetcher(handler), "https://baike.baidu.com/item/1")).Kind);
+    }
+
+    [Fact]
+    public async Task An_article_about_such_checks_is_read()
+    {
+        var article = $"<html><head><title>人机验证</title></head><body><p>{string.Concat(Enumerable.Repeat("人机验证用来区分人和程序。", 60))}</p></body></html>";
+        var mention = "<html><head><title>常见问题</title></head><body><p>打开时看到“百度安全验证”怎么办？</p></body></html>";
+
+        Assert.Contains("区分人和程序", (await Fetcher(new FakeHandler(_ => Responses.Text(article))).FetchAsync(new Uri("https://example.com/a"), Ct)).Text, StringComparison.Ordinal);
+        Assert.Contains("百度安全验证", (await Fetcher(new FakeHandler(_ => Responses.Text(mention))).FetchAsync(new Uri("https://example.com/b"), Ct)).Text, StringComparison.Ordinal);
+    }
+
     [Fact]
     public async Task Text_is_capped()
     {

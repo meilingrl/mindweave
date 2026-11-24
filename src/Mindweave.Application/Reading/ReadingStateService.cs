@@ -111,7 +111,7 @@ public sealed partial class ReadingStateService : IReadingState, IDisposable
         {
             return await _store.GetDraftAsync(conversation, slot, cancellationToken).ConfigureAwait(false) ?? string.Empty;
         }
-#pragma warning disable CA1031 // See GetPositionAsync.
+#pragma warning disable CA1031 // A failed read is logged, and the page opens with an empty box.
         catch (Exception ex) when (ex is not OperationCanceledException)
 #pragma warning restore CA1031
         {
@@ -156,7 +156,7 @@ public sealed partial class ReadingStateService : IReadingState, IDisposable
         {
             return await _preferences.GetAsync(NewDraftKey(workspace), cancellationToken).ConfigureAwait(false) ?? string.Empty;
         }
-#pragma warning disable CA1031 // See GetDraftAsync: a failed read opens the page with an empty box.
+#pragma warning disable CA1031 // A failed read is logged, and the page opens with an empty box.
         catch (Exception ex) when (ex is not OperationCanceledException)
 #pragma warning restore CA1031
         {
@@ -180,6 +180,29 @@ public sealed partial class ReadingStateService : IReadingState, IDisposable
         }
 
         ScheduleSave();
+    }
+
+    /// <summary>
+    /// A deleted workspace's new-exploration draft goes with it, written or not. The store removes what is written in the
+    /// delete's own transaction; a write that was already under way is waited for and removed here.
+    /// </summary>
+    public async Task ForgetNewDraftAsync(Core.Workspaces.WorkspaceId workspace)
+    {
+        await _flushing.WaitAsync().ConfigureAwait(false);
+        try
+        {
+            lock (_gate)
+            {
+                _newDrafts.Remove(workspace);
+                _dirtyNewDrafts.Remove(workspace);
+            }
+
+            await SaveNewDraftAsync(workspace, string.Empty).ConfigureAwait(false);
+        }
+        finally
+        {
+            _flushing.Release();
+        }
     }
 
     /// <summary>

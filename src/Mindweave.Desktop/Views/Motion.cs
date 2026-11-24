@@ -41,7 +41,7 @@ public enum AppearMotion
 }
 
 /// <summary>
-/// The app's small motion system (s7-ui-polish.md, 2026-11-10): hover and press colours fade over <see cref="Fast"/>
+/// The app's small motion system (s7-ui-polish.md, 2026-11-10): hover and press colours fade over 120 ms
 /// (the transitions live in Styles/Motion.axaml), panels and cards appear over <see cref="Base"/>, prompts over
 /// <see cref="Slow"/>, all easing out. Disappearing is instant, and nothing waits for motion: input goes through at once.
 /// With <see cref="Enabled"/> off (headless tests and screenshots) Motion.axaml is not loaded and nothing animates, so
@@ -49,9 +49,6 @@ public enum AppearMotion
 /// </summary>
 public static class Motion
 {
-    /// <summary>Hover, press and selection colour changes.</summary>
-    public static readonly TimeSpan Fast = TimeSpan.FromMilliseconds(120);
-
     /// <summary>Panels, bars, notices, cards, menus and the page appearing.</summary>
     public static readonly TimeSpan Base = TimeSpan.FromMilliseconds(160);
 

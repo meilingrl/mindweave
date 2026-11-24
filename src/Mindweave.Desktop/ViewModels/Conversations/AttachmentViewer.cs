@@ -71,7 +71,12 @@ public sealed partial class AttachmentViewer(IResources? resources) : ViewModelB
         }
 
         Text ??= stored.Text;
-        var there = resources.HasOriginal(stored.Resource);
+        var there = await resources.HasOriginalAsync(stored.Resource);
+        if (ticket != _opening)
+        {
+            return;
+        }
+
         if (stored.TextTruncated)
         {
             Note = UiText.TruncatedNote;

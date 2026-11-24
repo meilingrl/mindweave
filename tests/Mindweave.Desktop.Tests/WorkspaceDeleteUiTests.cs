@@ -98,7 +98,7 @@ public class WorkspaceDeleteUiTests
         var page = Assert.IsType<ConversationViewModel>(app.Workbench.CurrentPage);
         var session = (await SummaryNetworkScenario.OpenSummaryNetworkAsync(app, window)).Session;
 
-        app.ShellPage.DeleteWorkspaceCommand.Execute(null);
+        app.AskToDeleteWorkspace();
         var dialog = app.Root.WorkspaceDeletion;
         Assert.Equal(train, dialog.Target);
         await dialog.Loading;
@@ -126,7 +126,7 @@ public class WorkspaceDeleteUiTests
         await using var app = DesktopHarness.Create();
         var window = app.ShowWindow(1100, 720);
         await app.StartWithWorkspaceAsync("唯一");
-        app.ShellPage.DeleteWorkspaceCommand.Execute(null);
+        app.AskToDeleteWorkspace();
         var dialog = app.Root.WorkspaceDeletion;
         await dialog.Loading;
         Assert.Equal(UiText.DeleteWorkspaceContents(0, 0), dialog.Contents);
@@ -155,7 +155,7 @@ public class WorkspaceDeleteUiTests
         var sent = await conversations.StartAsync(app.Workbench.CurrentWorkspace!.Id, "火车是怎么发明的？", CancellationToken.None);
         await held.Started.Task.WaitAsync(TimeSpan.FromSeconds(5));
 
-        app.ShellPage.DeleteWorkspaceCommand.Execute(null);
+        app.AskToDeleteWorkspace();
         var dialog = app.Root.WorkspaceDeletion;
         await dialog.Loading;
         var expected = UiText.DeleteWorkspaceBusy([("火车是怎么发明的？", true, false)]);
@@ -201,7 +201,7 @@ public class WorkspaceDeleteUiTests
         await using var app = DesktopHarness.Create();
         var window = app.ShowWindow(1100, 720);
         await app.StartWithWorkspaceAsync("火车");
-        app.ShellPage.DeleteWorkspaceCommand.Execute(null);
+        app.AskToDeleteWorkspace();
         var dialog = app.Root.WorkspaceDeletion;
         await dialog.Loading;
         dialog.TypedName = "火车";
@@ -228,7 +228,7 @@ public class WorkspaceDeleteUiTests
         await using var app = DesktopHarness.Create();
         var window = app.ShowWindow(1100, 720);
         await app.StartWithWorkspaceAsync("火车");
-        app.ShellPage.DeleteWorkspaceCommand.Execute(null);
+        app.AskToDeleteWorkspace();
         var dialog = app.Root.WorkspaceDeletion;
         await dialog.Loading;
         window.UpdateLayout();

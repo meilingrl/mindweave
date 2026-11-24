@@ -1,4 +1,5 @@
 using Mindweave.Core.Reading;
+using Mindweave.Desktop.ViewModels;
 
 namespace Mindweave.Desktop.Navigation;
 
@@ -18,4 +19,11 @@ public enum NavigationIntent
 /// Uniform navigation parameter: target section, optional target content, intent, and the viewer slot to show it
 /// in (the current slot when omitted).
 /// </summary>
-public sealed record NavigationRequest(MainSection Section, ContentRoute? Content = null, NavigationIntent Intent = NavigationIntent.Open, ViewerSlotKey? Slot = null);
+public sealed record NavigationRequest(MainSection Section, ContentRoute? Content = null, NavigationIntent Intent = NavigationIntent.Open, ViewerSlotKey? Slot = null)
+{
+    /// <summary>
+    /// The page whose own work, now done, asks for this: when it is no longer the page shown, the reader went elsewhere
+    /// meanwhile and nothing opens over that.
+    /// </summary>
+    public PageViewModel? From { get; init; }
+}

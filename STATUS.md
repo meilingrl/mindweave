@@ -6,7 +6,6 @@ What is true now: work in progress, next steps, what needs you, open decisions, 
 
 - Sharing (evolution D8), the theme of 0.6.x towards 0.7: the requirements discussion is open with you; nothing is decided or built.
 - App icon (`task/app-icon`): candidates first, then your choice.
-- The code defects found by the check of the documents (2026-11-24), in a session of their own: not merged. It also builds what D-038 decided ahead of the code: a stopped call with side effects is unknown, later content in the network's details, Mindweave in the interface text (wording shown to you first).
 
 ## Next steps
 
@@ -39,12 +38,13 @@ What is true now: work in progress, next steps, what needs you, open decisions, 
   - reasoning and run status (with a reasoning model);
   - the answer output limit;
   - the English prompts.
+- 0.6.10: a real model reading the rest of a long result; a real MCP server stopped during a call. On Windows: all of it.
 - The UI points of 0.5.11 to 0.5.14, 0.6.2, 0.6.4, 0.6.6 and 0.6.7 (D-037): on Windows; a real model's tool steps while the page stays.
 - Nothing of 0.6.x in daily use: the daily build is 0.5.14.
 - Many new-answer hints at once in a very small window, which can lie over the page.
 - In a real window: the language switch, and English short names on the summary network canvas.
 - The network's quiet links and the new link suggestions: on Windows; the suggestions with a real model (the prompts changed). Recommended nodes counted by conversations (0.6.0): with a real model.
-- Exploration places (option C): on Windows; an extremely spread-out workspace, where a coarse packing grid can still push an untouched exploration.
+- Exploration places (option C): on Windows; an extremely spread-out workspace, where a coarse packing grid can still push an untouched exploration; a title made very long can do the same (rare: 1 of 660 tried). Keeping it out needs a migration.
 - The network's molecule layout: on Windows, and an exploration with hundreds of direct branches in two or more explorations (about 4.5 s for two of 500). The title of a root with many branches can lie over one of its branch lines.
 
 ## Needs you
@@ -64,7 +64,7 @@ What is true now: work in progress, next steps, what needs you, open decisions, 
 
 | What | Commit | Date | Result |
 | --- | --- | --- | --- |
-| macOS full run | the check of the documents, 0.6.9 | 2026-11-24 | passed: Core 137, Architecture 29, Infrastructure 1019 + 23 skipped, Desktop 4 shards 0 failed |
+| macOS full run | the code fixes, 0.6.10 | 2026-11-24 | passed: Core 137, Architecture 35, Infrastructure 1037 + 23 skipped, Desktop 4 shards 0 failed |
 | CI on `main` (Linux + Windows) | see the latest run on GitHub | | |
 | Windows 11 hardware, full run | daabd5b | 2026-11-21 | passed |
 | Windows 11 hardware, stress and Release start | 08ead83 | 2026-11-16 | passed |

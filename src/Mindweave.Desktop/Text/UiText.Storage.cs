@@ -134,25 +134,6 @@ public static partial class UiText
         string.Format(Culture, "Format {0}", version),
         string.Format(CultureInfo.CurrentCulture, "结构版本 {0}", version));
 
-    public static string FormatBackup(BackupInfo backup)
-    {
-        ArgumentNullException.ThrowIfNull(backup);
-        var label = T(
-            string.Format(
-                Culture,
-                "{0}   Schema version {1}   {2:N0} KB",
-                FormatTime(backup.CreatedAt),
-                backup.SchemaVersion,
-                backup.SizeBytes / 1024),
-            string.Format(
-                CultureInfo.CurrentCulture,
-                "{0}　结构版本 {1}　{2:N0} KB",
-                FormatTime(backup.CreatedAt),
-                backup.SchemaVersion,
-                backup.SizeBytes / 1024));
-        return BackupReasonLabel(backup.Reason) is { } reason ? T(label + "   " + reason, label + "　" + reason) : label;
-    }
-
     public static string BackupBeforeDelete => T("Before deleting a workspace", "删除工作区前");
     public static string BackupBeforeConversationDelete => T("Before deleting a conversation", "删除会话前");
 

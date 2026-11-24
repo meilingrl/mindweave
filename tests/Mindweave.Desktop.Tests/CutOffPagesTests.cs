@@ -105,7 +105,7 @@ public class CutOffPagesTests
         network.Links!.CancelPickerCommand.Execute(null);
         network.SelectRecommendation(network.RecommendedNodes[0]);
         await whole("network-recommended");
-        network.ToggleViewCommand.Execute(null);
+        network.IsListView = !network.IsListView;
         await whole("network-list");
     });
 
@@ -150,6 +150,8 @@ public class CutOffPagesTests
         }
 
         await whole("settings-mcp-server");
+        settings.Tools!.UsesTools = false;
+        await whole("settings-tools-off");
     });
 
     [AvaloniaTheory]

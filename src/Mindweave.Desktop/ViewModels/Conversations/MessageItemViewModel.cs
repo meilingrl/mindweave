@@ -150,7 +150,7 @@ public sealed partial class MessageItemViewModel : ViewModelBase, IDisposable
     public bool HasActivity => IsAnswer && (ToolBlocks.Count > 0 || ActiveTool is not null);
 
     /// <summary>
-    /// The steps taken, "检索了 2 次附件 · 检索了 1 次总结网络", the running one included; what the run is doing now is said only
+    /// The steps taken, "检索了 2 次附件 · 检索了 1 次总结", the running one included; what the run is doing now is said only
     /// in the status line (<see cref="StatusText"/>, requirements §10.4.4 v0.21).
     /// </summary>
     public string ActivityText => UiText.RunActivity(ToolBlocks.OfType<ToolCallBlock>().Select(c => (c.Tool, (string?)c.Summary)));

@@ -1,6 +1,7 @@
 using System.Text.Json;
 using Mindweave.Application.Ai;
 using Mindweave.Application.Conversations;
+using Mindweave.Application.Diagnostics;
 using Mindweave.Application.Languages;
 using Mindweave.Application.Models;
 using Mindweave.Application.Storage;
@@ -9,6 +10,7 @@ using Mindweave.Core.Conversations;
 using Mindweave.Core.Models;
 using Mindweave.Core.Resources;
 using Mindweave.Core.Runs;
+using Mindweave.Infrastructure.Sqlite;
 using Mindweave.Testing;
 
 namespace Mindweave.Infrastructure.Tests.Chat;
@@ -300,6 +302,36 @@ public class RunFlowTests
         Assert.Single(h.Client.Requests, FakeChatClient.IsAnswer);
     }
 
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task A_side_effect_call_under_way_when_the_run_is_stopped_is_recorded_as_unknown(bool quitting)
+    {
+        // It may have taken effect (D-038): stopping the answer and quitting the app record the same.
+        var blocking = new GatedTool("blocking_tool", TimeSpan.FromMinutes(1), ToolRisk.SideEffect);
+        await using var h = await ChatHarness.StartAsync(model: ToolModel, tools: [blocking]);
+        h.Client.CallTool("blocking_tool", "{}", "等一下。");
+
+        var sent = await h.Conversations.StartAsync(h.Workspace, "问", Ct);
+        await blocking.Started.Task.WaitAsync(Ct);
+        if (quitting)
+        {
+            Assert.True(await h.Generation.StopForExitAsync(TimeSpan.FromSeconds(10)));
+        }
+        else
+        {
+            await h.Conversations.StopAsync(sent.Answer!.Value);
+        }
+
+        var answer = await h.WaitForAnswerAsync(sent.Answer!.Value);
+        Assert.Equal((MessageState.Stopped, "等一下。"), (answer.State, answer.Text));
+        Assert.Empty(answer.Blocks.OfType<ToolResultBlock>());
+        var step = (await h.Runs.RunsAsync(sent.Conversation, Ct))[answer.Id].Steps.Single(s => s.Kind == RunStepKind.Tool);
+        Assert.Equal(RunStepState.Unknown, step.State);
+        Assert.NotNull(step.FinishedAt);
+        Assert.Single(h.Client.Requests, FakeChatClient.IsAnswer);
+    }
+
     [Fact]
     public async Task A_restart_during_a_run_marks_the_answer_interrupted_stops_its_steps_and_sends_nothing()
     {
@@ -427,6 +459,30 @@ public class RunFlowTests
         Assert.Equal(ToolUsage.None.Runs, (await h.StatisticsStore.ToolUsageAsync(Core.Workspaces.WorkspaceId.New(), DateTimeOffset.UtcNow.AddDays(-1), DateTimeOffset.UtcNow.AddDays(1), Ct)).Runs);
     }
 
+    [Fact]
+    public async Task Statistics_count_only_answers_that_called_a_tool_and_only_the_requests_of_the_answer()
+    {
+        await using var h = await ChatHarness.StartAsync(model: ToolModel);
+        h.Client.CallTool(SearchAttachmentsTool.ToolName, Query("蒸汽机"));
+        h.Client.Reply("好。");
+        var (conversation, _) = await AskWithAttachmentAsync(h, "问");
+
+        // Offered a tool, called none: not an answer that used tools.
+        h.Client.Reply("不用查。");
+        await AskWithAttachmentAsync(h, "再问");
+
+        // An attachment digest made for the answer is a request of the same task, but not one of the answer's.
+        var task = await h.Database.ReadAsync(
+            c => c.Scalar<string>(null, "SELECT id FROM generation_task WHERE kind = 'answer' AND conversation_id = $c;", ("$c", conversation.ToString())), Ct);
+        var request = (await h.Requests.ForTaskAsync(GenerationTaskId.Parse(task!), Ct))[0];
+        await h.Requests.AddAsync(request with { Id = Guid.NewGuid(), Purpose = RequestPurpose.ResourceSummary }, Ct);
+
+        var usage = await h.StatisticsStore.ToolUsageAsync(h.Workspace, DateTimeOffset.UtcNow.AddDays(-1), DateTimeOffset.UtcNow.AddDays(1), Ct);
+
+        Assert.Equal((1, 2), (usage.Runs, usage.ModelRequests));
+        Assert.Equal([new ToolCallCount(SearchAttachmentsTool.ToolName, 1)], usage.Calls);
+    }
+
     private static string AnswerRunnerFinalInstruction => "【本次运行已达到上限】";
 
     private static async Task<ResourceId> PasteAsync(ChatHarness h, string text) =>
@@ -441,7 +497,7 @@ public class RunFlowTests
     }
 
     /// <summary>A tool that waits until opened (or until its time limit, or a stop); counts how many calls are running.</summary>
-    private sealed class GatedTool(string name, TimeSpan timeout) : ITool
+    private sealed class GatedTool(string name, TimeSpan timeout, ToolRisk risk = ToolRisk.LocalRead) : ITool
     {
         private readonly TaskCompletionSource _open = new(TaskCreationOptions.RunContinuationsAsynchronously);
         private int _running;
@@ -458,7 +514,7 @@ public class RunFlowTests
 
         public string ParametersSchema => "{\"type\":\"object\"}";
 
-        public ToolRisk Risk => ToolRisk.LocalRead;
+        public ToolRisk Risk => risk;
 
         public TimeSpan Timeout => timeout;
 

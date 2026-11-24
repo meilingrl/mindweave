@@ -1,4 +1,5 @@
 using Microsoft.Data.Sqlite;
+using Mindweave.Application.Reading;
 using Mindweave.Application.Storage;
 using Mindweave.Core.Conversations;
 using Mindweave.Core.Workspaces;
@@ -125,6 +126,7 @@ internal sealed class SqliteWorkspaceStore(SqliteDatabase database) : IWorkspace
                 connection.Execute(transaction, "DELETE FROM conversation WHERE workspace_id = $ws;", ws);
                 connection.Execute(transaction, "DELETE FROM workspace_location WHERE workspace_id = $ws;", ws);
                 connection.Execute(transaction, "DELETE FROM app_state WHERE key = $key AND value = $ws;", ws, ("$key", LastWorkspaceKey));
+                connection.Execute(transaction, "DELETE FROM app_state WHERE key = $key;", ("$key", SqlitePreferenceStore.Prefix + ReadingStateService.NewDraftKey(workspace)));
                 connection.Execute(transaction, "DELETE FROM workspace WHERE id = $ws;", ws);
 
                 // The workspace last left elsewhere comes next; never-visited ones by age, newest first.

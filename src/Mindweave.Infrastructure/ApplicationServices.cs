@@ -68,7 +68,7 @@ public static class ApplicationServices
         services.AddSingleton<RecommendationService>();
         services.AddSingleton<SummaryLinkService>();
         services.AddSingleton<LinkSuggestionService>();
-        services.AddSingleton<ITextExtractor, PlainTextExtractor>(); // PDF and Office extractors are registered beside it later.
+        services.AddSingleton<ITextExtractor, PlainTextExtractor>(); // PDF and Word extractors are registered in InfrastructureServices.
         services.AddSingleton<ResourceService>();
         services.AddSingleton<ResourceContext>();
         services.AddSingleton<Application.Runs.RunServices>();

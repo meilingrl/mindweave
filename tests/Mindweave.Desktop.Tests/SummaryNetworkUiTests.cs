@@ -1,6 +1,7 @@
 using Avalonia.Headless.XUnit;
 using Avalonia.VisualTree;
 using Microsoft.Extensions.DependencyInjection;
+using Mindweave.Application.Conversations;
 using Mindweave.Application.Storage;
 using Mindweave.Application.Summaries;
 using Mindweave.Core.Summaries;
@@ -194,6 +195,39 @@ public class SummaryNetworkUiTests
         network.FindCommand.Execute(null);
 
         Assert.Equal(plain.Id, network.Selected?.Id);
+        window.Close();
+    }
+
+    [AvaloniaFact]
+    public async Task Search_finds_a_summarized_conversation_by_every_title_it_has()
+    {
+        await using var app = DesktopHarness.Create();
+        var window = app.ShowWindow(1100, 720);
+        await SeedAsync(app);
+        var network = await OpenSummaryNetworkAsync(app, window);
+        var node = network.Session.Projection.Nodes.Single(n => n.ShortTitle == "铁轨");
+        var title = (await app.Services.GetRequiredService<SummaryService>().GetAsync(node.Id, CancellationToken.None))!.Current.Title;
+        await app.Services.GetRequiredService<ConversationService>().RenameAsync(node.Conversation, "会话自己的标题", CancellationToken.None);
+        await app.Services.GetRequiredService<SummaryService>().RenameAsync(node.Id, "我起的名字", CancellationToken.None);
+        await UiWait.UntilAsync(() => network.Session.Projection.Nodes.Any(n => n.DisplayName == "我起的名字"));
+
+        // Its own name, the title of its conversation as the sidebar shows it, and the summary's own title (architecture §10.2).
+        Assert.True(Found("我起的名字"));
+        Assert.True(Found("会话自己的标题"));
+        Assert.True(Found(title));
+
+        // Enter goes to it too.
+        network.Select(null);
+        network.SearchText = "会话自己的标题";
+        network.FindCommand.Execute(null);
+        Assert.Equal(node.Id, network.Selected?.Id);
+
+        bool Found(string text)
+        {
+            network.SearchText = text;
+            return network.Matches.Contains(node.Id);
+        }
+
         window.Close();
     }
 

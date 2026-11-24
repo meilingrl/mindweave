@@ -505,7 +505,7 @@ public sealed partial class McpServerItem : ViewModelBase
         {
             await _servers.SetRiskAsync(Server.Id, tool, risk, CancellationToken.None);
         }
-#pragma warning disable CA1031 // As above.
+#pragma warning disable CA1031 // A risk that could not be saved shows as it was after the refresh (the row asks for it).
         catch (Exception ex)
 #pragma warning restore CA1031
         {

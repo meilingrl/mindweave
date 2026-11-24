@@ -65,7 +65,7 @@ public sealed partial class ResourceContext(IResourceStore store, ResourceServic
             {
                 var stored = await store.GetAsync(attachment.Resource, cancellationToken).ConfigureAwait(false);
                 var kind = !canSee ? ResourceKind.ImageUnsupported
-                    : stored is null || !resources.HasOriginal(stored.Resource) ? ResourceKind.ImageMissing
+                    : stored is null || !await resources.HasOriginalAsync(stored.Resource).ConfigureAwait(false) ? ResourceKind.ImageMissing
                     : ResourceKind.Image;
                 var tokens = kind == ResourceKind.Image
                     ? ResourceMaterial.ImageTokens + TokenEstimator.Estimate(ResourceMaterial.ImageLabel(attachment, phrases))

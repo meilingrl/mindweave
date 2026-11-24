@@ -110,15 +110,6 @@
   <icon key="IconFolder">
     <path d="M1.75 4.25a2 2 0 0 1 2-2H6l1.75 1.75h4.5a2 2 0 0 1 2 2v5.75a2 2 0 0 1-2 2h-8.5a2 2 0 0 1-2-2Z"/>
   </icon>
-  <icon key="IconStorage">
-    <rect x="1.75" y="2" width="12.5" height="5" rx="1.75"/>
-    <rect x="1.75" y="9" width="12.5" height="5" rx="1.75"/>
-    <path d="M11 4.5H11.01M11 11.5H11.01"/>
-  </icon>
-  <icon key="IconChart">
-    <path d="M1.75 14.25H14.25"/>
-    <path d="M4 11.75V8.5M8 11.75V3.75M12 11.75V6.5"/>
-  </icon>
   <!-- Copy (two offset sheets) and its confirmation check. -->
   <icon key="IconCopy">
     <rect x="5.25" y="1.75" width="9" height="9" rx="2"/>

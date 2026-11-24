@@ -13,7 +13,7 @@ namespace Mindweave.Desktop.Tests;
 
 /// <summary>
 /// Spec §4.4: in the spatial view a faint date label sits beside a root dot whose day differs from the previous root's,
-/// and hides when zoomed out. It sits inside the root's own packing footprint, so it covers no other dot or label.
+/// and hides when zoomed out. It sits inside the block the layout keeps free for the root, so it covers no other dot or label.
 /// </summary>
 public class SummaryNetworkDateLabelTests
 {
