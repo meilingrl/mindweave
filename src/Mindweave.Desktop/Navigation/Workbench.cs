@@ -112,7 +112,7 @@ public sealed class Workbench : ObservableObject, IWorkbenchNavigator, IWorkspac
     public void Navigate(NavigationRequest request)
     {
         ArgumentNullException.ThrowIfNull(request);
-        if (_released)
+        if (_released || (request.From is { } from && !ReferenceEquals(from, CurrentPage)))
         {
             return;
         }
@@ -141,25 +141,29 @@ public sealed class Workbench : ObservableObject, IWorkbenchNavigator, IWorkspac
         Changed();
     }
 
-    public void Replace(ContentRoute route)
+    public void Replace(PageViewModel page, ContentRoute route)
     {
+        ArgumentNullException.ThrowIfNull(page);
         ArgumentNullException.ThrowIfNull(route);
         if (_released)
         {
             return;
         }
 
-        var (runtime, slot) = RequireActive(null);
-        var stack = slot.StackOf(slot.Section);
-        if (stack.Count > 1)
+        foreach (var runtime in _runtimes.Values)
         {
-            var leaving = stack[^1];
-            stack.RemoveAt(stack.Count - 1);
-            Release(leaving);
+            foreach (var slot in runtime.Slots)
+            {
+                // Index 0 is the section home, which is never replaced.
+                if (slot.Stacks.FirstOrDefault(s => s.IndexOf(page) > 0) is { } stack)
+                {
+                    stack[stack.IndexOf(page)] = _pages.Create(route, new PageContext(runtime.Workspace, slot.Key, this, this));
+                    Release(page);
+                    Changed();
+                    return;
+                }
+            }
         }
-
-        PushCore(runtime, slot, route);
-        Changed();
     }
 
     public void Forget(Func<ContentRoute, bool> match, ContentRoute? fallback = null) => Forget(match, _ => fallback);

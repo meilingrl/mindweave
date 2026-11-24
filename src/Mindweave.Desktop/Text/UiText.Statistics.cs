@@ -12,12 +12,10 @@ public static partial class UiText
     public static string StatisticsLink => T("Usage statistics", "使用统计");
 
     // Scope and period
-    public static string StatisticsScopeLabel => T("Scope", "范围");
     public static string ScopeAllWorkspaces => T("All workspaces", "全部工作区");
     public static string ScopeCurrentWorkspace => T("Current workspace", "当前工作区");
     public static string PeriodDaily => T("By day", "按日");
     public static string PeriodMonthly => T("By month", "按月");
-    public static string StatisticsPeriodLabel => T("Period", "时间");
 
     public static string ScopeCurrentWorkspaceName(string workspace) => T(
         string.Format(Culture, "Current workspace ({0})", workspace),

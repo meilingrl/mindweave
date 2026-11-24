@@ -76,14 +76,16 @@ internal sealed class SqliteStatisticsStore(SqliteDatabase database) : IStatisti
                     parameters.Add(("$ws", ws));
                 }
 
-                // Runs: answer tasks that offered tools, by when they were asked; their requests are the model steps' requests.
+                // Answers that called a tool, by when they were asked; their requests are those of the answer itself, not the
+                // compression or attachment digests made for it.
                 var runs = $"""
                     SELECT t.id FROM generation_task t JOIN conversation c ON c.id = t.conversation_id
-                    WHERE t.kind = 'answer' AND t.tools IS NOT NULL AND t.created_at >= $from AND t.created_at < $until
+                    WHERE t.kind = 'answer' AND t.created_at >= $from AND t.created_at < $until
+                      AND EXISTS (SELECT 1 FROM run_step s WHERE s.task_id = t.id AND s.kind = 'tool')
                     {(ws is null ? string.Empty : "AND c.workspace_id = $ws")}
                     """;
                 var count = (int)connection.Scalar<long>(null, $"SELECT count(*) FROM ({runs});", [.. parameters]);
-                var requests = (int)connection.Scalar<long>(null, $"SELECT count(*) FROM ai_request WHERE task_id IN ({runs});", [.. parameters]);
+                var requests = (int)connection.Scalar<long>(null, $"SELECT count(*) FROM ai_request WHERE purpose = 'answer' AND task_id IN ({runs});", [.. parameters]);
                 var calls = new List<ToolCallCount>();
                 // A third-party tool's name has the server's short name and "__" (decision M9); its steps' target is the
                 // server's name (decision M18). Built-in tools' targets are hosts, which are not counted apart.

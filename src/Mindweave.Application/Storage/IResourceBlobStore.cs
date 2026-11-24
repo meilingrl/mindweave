@@ -6,16 +6,13 @@ namespace Mindweave.Application.Storage;
 /// An original written to the blob store. Until it is disposed its hash is pinned: a sweep running meanwhile keeps the
 /// file even though no row refers to it yet. Dispose it after the row that refers to it is committed (or failed).
 /// </summary>
-public sealed class BlobWrite(ContentHash hash, long size, bool existed, Action release) : IDisposable
+public sealed class BlobWrite(ContentHash hash, long size, Action release) : IDisposable
 {
     private Action? _release = release;
 
     public ContentHash Hash { get; } = hash;
 
     public long Size { get; } = size;
-
-    /// <summary>The same content was already stored; nothing new was written.</summary>
-    public bool Existed { get; } = existed;
 
     public void Dispose() => Interlocked.Exchange(ref _release, null)?.Invoke();
 }
@@ -35,13 +32,17 @@ public interface IResourceBlobStore
     /// </summary>
     Task<BlobWrite> WriteAsync(ReadOnlyMemory<byte> content, CancellationToken cancellationToken);
 
-    /// <summary>Opens a stored original for reading, or null when it is not there.</summary>
+    /// <summary>Opens a stored original for reading, or null when it is not there (see <see cref="Exists"/>).</summary>
     Stream? OpenRead(ContentHash hash);
 
+    /// <summary>
+    /// Whether the original is there with the content its hash names; a damaged one counts as missing (architecture §15.10).
+    /// Reads the file when it was not read since it last changed.
+    /// </summary>
     bool Exists(ContentHash hash);
 
     /// <summary>
-    /// Puts back an original missing from the store from the copy a backup keeps (a database restored from the backup made
+    /// Puts back an original missing from the store, or damaged, from the copy a backup keeps (a database restored from the backup made
     /// before a delete names it again). Only asked for originals a stored resource names. Returns whether it is there now.
     /// </summary>
     bool TryRecover(ContentHash hash);

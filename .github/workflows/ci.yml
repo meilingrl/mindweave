@@ -82,7 +82,7 @@ jobs:
       - name: Restore
         run: dotnet restore Mindweave.slnx
       # Any package, direct or pulled in by another, with a published security advisory fails the run, on every push
-      # (decision 2026-11-14, instead of Dependabot, which reads only main, where no code lives).
+      # (decision 2026-11-14, instead of Dependabot).
       - name: Known-vulnerable packages
         if: matrix.part == 'rest'
         shell: bash
@@ -98,6 +98,13 @@ jobs:
       - name: Build (warnings are errors)
         run: dotnet build Mindweave.slnx --no-restore -c Release
       # Quarantined tests (intermittent, fix pending; docs/design/testing.md) run in the next step and never block.
+      # The scripts that run and report the tests must not stop on Chinese text in a name or a message.
+      - name: Script checks
+        if: matrix.part == 'rest'
+        shell: bash
+        run: |
+          py="$(command -v python3 || command -v python)"
+          "$py" -I scripts/script-checks.py
       - name: Test (all but desktop)
         if: matrix.part == 'rest'
         shell: bash

@@ -1,5 +1,6 @@
 using System.Globalization;
 using Mindweave.Application.Models;
+using Mindweave.Application.Workspaces;
 using Mindweave.Core.Conversations;
 using static Mindweave.Application.Languages.Bilingual;
 
@@ -19,7 +20,7 @@ public static partial class UiText
     public static string NoSettingFound(string text) => T($"No setting matches “{text}”.", $"没有找到与“{text}”有关的设置。");
     public static string DataAndWorkspaceSection => T("Data and workspaces", "数据与工作区");
     public static string SettingInfo(string? label) => T($"About: {label}", $"说明：{label}");
-    public static string PrepareNamesCost => T("Sends the title to the model; may cost a little.", "会把标题发给模型，可能产生少量费用。");
+    public static string PrepareNamesCost => T("Sends the titles of conversations and summaries; may cost a little.", "会把会话与总结的标题发给模型，可能产生少量费用。");
     public static string RecommendationsCost => T("Sends only titles and short excerpts; may cost a little.", "只发送标题和简短摘录，可能产生少量费用。");
     public static string TextWidthLabel => T("Text width", "正文宽度");
     public static string TextWidthWhole => T("Whole page", "整页");
@@ -68,7 +69,6 @@ public static partial class UiText
     public static string ModelPlaceholder => T("Choose or enter a model name", "选择或输入模型名称");
     public static string ShowModels => T("Show model list", "显示模型列表");
     public static string TokensUnit => T("tokens", "token");
-    public static string DataSection => T("Data", "数据");
     public static string LocationSection => T("Location", "位置");
     public static string OpenFolder => T("Open", "打开");
     public static string NoBackupsShort => T(
@@ -91,7 +91,6 @@ public static partial class UiText
     // Hints (2026-11-10): whether the open workspace's conversations pop up a hint too (on unless turned off), and the
     // sound for a hint (off unless chosen).
     public static string HintsSection => T("Notifications and suggestions", "提示");
-    public static string NewsInWorkspaceLabel => T("Pop-up notifications", "弹出提示");
     public static string NewsInWorkspace => T("Also notify in the current workspace", "当前工作区内也弹出提示");
     public static string NewsInWorkspaceHint => T(
         "Also pops up when a conversation you aren’t viewing gets a new answer. When off, notifications pop up only for other workspaces; the dots in the sidebar show as usual.",
@@ -99,7 +98,6 @@ public static partial class UiText
     public static string NewsInWorkspaceSaveFailed => T(
         "The pop-up notification setting couldn’t be saved. It still applies until you quit.",
         "弹出提示设置未能保存，本次运行中仍然有效。");
-    public static string NewsSoundLabel => T("Notification sound", "提示音");
     public static string NewsSound => T("Play a sound for new answers", "新回答提示音");
     public static string NewsSoundHint => T("Plays only once when several new answers arrive", "有多个新回答时只响一次");
     public static string NewsSoundSaveFailed => T(
@@ -107,11 +105,10 @@ public static partial class UiText
         "提示音设置未能保存，本次运行中仍然有效。");
 
     // Names prepared in the background (2026-11-11): on unless turned off.
-    public static string PrepareNamesLabel => T("Name suggestions", "名称建议");
     public static string PrepareNames => T("Prepare workspace name suggestions automatically", "自动准备工作区名称建议");
     public static string PrepareNamesHint => T(
-        "When a new conversation gets its title, name suggestions for the workspace are prepared in the background and shown right away when you rename it. This sends the title to the model and may cost a little.",
-        "新会话有了标题后，在后台为工作区想好名称，改名时直接显示；会把标题发给模型，可能产生少量费用。");
+        $"When a new conversation gets its title, name suggestions for the workspace are prepared in the background and shown right away when you rename it. This sends the model up to {WorkspaceNamePrompt.MaxConversations} conversation titles (the start of the first question for one without a title), up to {WorkspaceNamePrompt.MaxSummaries} summary names and the workspace’s current name, and may cost a little.",
+        $"新会话有了标题后，在后台为工作区想好名称，改名时直接显示；会把最多 {WorkspaceNamePrompt.MaxConversations} 个会话标题（没有标题的用第一个问题的开头）、最多 {WorkspaceNamePrompt.MaxSummaries} 个总结名称和工作区现在的名称发给模型，可能产生少量费用。");
     public static string PrepareNamesSaveFailed => T(
         "The name suggestion setting couldn’t be saved. It still applies until you quit.",
         "名称建议设置未能保存，本次运行中仍然有效。");

@@ -58,6 +58,30 @@ public class WorkspaceDeleteFlowTests
         Assert.False(h.Health.IsBlocked);
     }
 
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public async Task The_unsent_first_question_of_the_workspace_goes_with_it(bool saved)
+    {
+        await using var h = await ChatHarness.StartAsync();
+        var other = await WorkspaceSeed.AddWorkspaceAsync(h, "摄影史");
+        h.Reading.SetNewDraft(other, "留下的草稿");
+        h.Reading.SetNewDraft(h.Workspace, "没有发出的问题");
+        if (saved)
+        {
+            Assert.True(await h.Reading.FlushAsync());
+        }
+
+        Assert.Equal(WorkspaceDeleteStatus.Deleted, (await h.WorkspaceDeletion.DeleteAsync(h.Workspace, Ct)).Status);
+
+        // Also what had not been written yet: the next write must not bring it back.
+        Assert.True(await h.Reading.FlushAsync());
+        var kept = await h.Database.ReadAsync(
+            c => c.Scalar<string>(null, "SELECT group_concat(key || '=' || value) FROM app_state WHERE key LIKE 'pref:draft.new-exploration:%';"), Ct);
+        Assert.Equal($"pref:{Application.Reading.ReadingStateService.NewDraftKey(other)}=留下的草稿", kept);
+        Assert.Equal(string.Empty, await h.Reading.GetNewDraftAsync(h.Workspace, Ct));
+    }
+
     [Fact]
     public async Task The_backup_made_first_holds_the_whole_workspace_and_is_listed_for_restoring()
     {

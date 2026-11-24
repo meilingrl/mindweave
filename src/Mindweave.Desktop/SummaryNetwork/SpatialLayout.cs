@@ -5,7 +5,7 @@ using Mindweave.Core.Summaries;
 namespace Mindweave.Desktop.SummaryNetwork;
 
 /// <summary>
-/// One session as the spatial view lays it out: its parent (none for a root), its rank by creation time, its weight
+/// One conversation as the spatial view lays it out: its parent (none for a root), its rank by creation time, its weight
 /// (questions asked in it and all its branches), the radius of its dot as drawn (summary ring included), its label as
 /// shown, and whether a date line goes under the label (a root that starts a new day, spec §4.4).
 /// </summary>

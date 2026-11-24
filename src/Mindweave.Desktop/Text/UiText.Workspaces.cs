@@ -39,8 +39,8 @@ public static partial class UiText
     public static string ManageWorkspacesName(int count) => T($"{ManageWorkspacesLink}, {WorkspacesCount(count)}", $"{ManageWorkspacesLink}，{WorkspacesCount(count)}");
 
     public static string WorkspacesIntro => T(
-        "Each workspace has its own conversations, summaries and summary network. Renaming one doesn’t change its contents; it is backed up before it is deleted.",
-        "每个工作区有自己的会话、总结和总结网络。改名不影响其中的内容；删除前会先备份。");
+        "Each workspace has its own conversations, summaries and Mindweave page. Renaming one doesn’t change its contents; it is backed up before it is deleted.",
+        "每个工作区有自己的会话、总结和 Mindweave 页。改名不影响其中的内容；删除前会先备份。");
 
     public static string CurrentWorkspaceTag => T("Current", "当前");
 

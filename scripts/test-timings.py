@@ -44,7 +44,23 @@ def read(directory):
     return rows
 
 
+def whole_output():
+    """Makes every print and exit message arrive whole, whatever the system's code page.
+
+    Windows gives a Python whose output is redirected the ANSI code page (cp1252 on CI), and a test name, class name
+    or failure message with Chinese in it then raised UnicodeEncodeError in the middle of the report. Redirected
+    output is written as UTF-8, which is what a CI log or a pipe to another tool reads; a console keeps its own
+    encoding, and a character it cannot show is written as an escape and never raises.
+    """
+    for stream in (sys.stdout, sys.stderr):
+        if stream.isatty():
+            stream.reconfigure(errors="backslashreplace")
+        else:
+            stream.reconfigure(encoding="utf-8", errors="backslashreplace")
+
+
 def main():
+    whole_output()
     parser = argparse.ArgumentParser()
     parser.add_argument("directory")
     parser.add_argument("--budget", type=float, default=3.0)

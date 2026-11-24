@@ -86,6 +86,8 @@ Architecture §11.1 says "background and edges custom-drawn, nodes as lightweigh
 - **New nodes use the in-memory layout as reference** (MW-C12 requires this to be written down): when the summary network is open and has an unsaved arrangement, a new node is placed next to the source node the user sees, and that row is saved directly. If the user later chooses “不保存” ("Don't save") for that arrangement, the new node's saved position is near the parent's arranged position, so after reopening it may be a little farther from its parent; the position is still valid and can be arranged again. When there are no unsaved changes, the in-memory layout is the saved layout, and there is no difference between the two.
 - **Layout parameters:** layer spacing 170, group padding 160, 40 rounds of collision correction, zoom 0.25–2.5 (no more than 1.5 when fitting), fit margin 48. Label widths are estimated by character (CJK characters 14, ASCII 8) rather than measured from the font, so the same input gives the same coordinates on different machines.
 
+- **Note (2026-11-24):** replaced in part by D-035: places are kept per exploration, nothing is arranged by hand, and the layout parameters above are no longer used.
+
 ## D-020 UI polish is a separate stage after S6 (2026-10-28)
 
 After trying S5, the user pointed out that the summary network page is clumsier than the sample confirmed before development (`prototypes/network-layout`); that read and unread are not visually clear; and that the layout and details of pages such as starting a branch conversation and summaries are not good enough. There were no functional problems. The user decided: after S6 is finished, do one focused UI polish stage (recorded as S7); during S6, do no UI rework, and implement new pages in the existing style, aiming only for usable.
@@ -128,6 +130,8 @@ Two things were settled from this:
 - **Manual node dragging is delivered in S7** (requirements §3 originally listed it as after the first release; the user has now scheduled it). The behavior follows the rules already written in the architecture's "Layout" section: the end of a drag produces a layout waiting to be saved, using the same coordinates and save path as “整理布局” ("Arrange layout"), with the same leave prompt; panning, zooming and showing everything produce no pending-save state. No physics effects such as neighbor springs.
 - **Less explanatory text in the UI; let the controls guide the user**: remove hint sentences that restate what a control does. Keep only information the user would misunderstand without seeing it (errors, the consequences of irreversible operations, explanations the requirements explicitly demand). Common interactions (stop, copy, collapse) use icons with hover tooltips. Every page is checked against this rule from now on.
 
+**Note (2026-11-24):** dragging nodes was removed with D-035.
+
 ## D-024 Round 4 acceptance feedback: deleting a whole workspace, answer timing, sidebar state, branch markers (2026-11-03)
 
 After the S7 acceptance on Windows by the checklist, the user gave 5 points of feedback (2026-11-02) and made choices on three of them:
@@ -145,6 +149,8 @@ Health check repo-scripts-9 pointed out that the repository contains personal pa
 - In existing files, home directory paths become `~`, prototype commands become paths relative to the repository, the course .docx link in architecture §2.1 becomes a text description, and the relay URL in the responses-compat prototype becomes the placeholder `relay.example.com`.
 - Reason: the worst case of the author email leaking is that, once public, it is collected by crawlers and receives spam or phishing email, and the GitHub identity can be linked to the accounts tied to that email; the risk is low. Rewriting history would change every commit ID, invalidating the commit IDs cited in the four tags, the documents and the Windows test records; the cost is higher than the benefit.
 - When to reconsider: if the repository is to be made public without exposing the old email, create a new public repository from the current files instead of rewriting this repository's history.
+
+- **Note (2026-11-24):** the repository is public, because of the CI quota of private repositories. The owner chose Apache-2.0 for that case on 2026-11-13, and it applies now. History stays as it is, so the author email is public in it; the noreply address for new commits is still to be set up by the user.
 
 ## D-026 Bold opens and closes beside CJK punctuation (2026-11-22)
 
@@ -219,3 +225,16 @@ You chose "Finish the network" as the next line. For lifting `MINDWEAVE_SESSION_
 - **The context ring has three levels:** the ring, the figures on hover, the parts on a press.
 - **The text width is yours to choose:** medium (800 px) by default, in Settings or by dragging the text's edge. Summaries are to follow it.
 - **Settings is to lose its boxes:** plain rows with thin dividers, a category list with the find box on top, long explanations behind an icon, cost and privacy notes in sight. You judge a first version.
+
+- **Outcome (0.5.12):** summaries follow the text width, left-aligned, and Settings lost its boxes; on/off choices stay check boxes.
+
+## D-038 Answers to the check of the documents (you, 2026-11-24)
+
+- **No mobile development.** Linux may be next; that is not decided.
+- **The interface calls the network page Mindweave, everywhere.** It is not a network of summaries. "Summary network" stays the term of documents and code.
+- **`node_layout` goes later**, in a migration after a daily build of 0.6.0 or later has been used and you are satisfied.
+- **A conversation started from a recommendation** is not placed beside its basis summary; the summary link shows the relation.
+- **A stopped call with side effects is recorded as unknown**, because it may have taken effect.
+- **Read-only calls:** at most 4 at once in each run, with no limit across runs. Cited passages do not go into branches. The default run limits stay.
+- **Later content** is a mark in the network's details.
+- **The repository is public** for its CI quota, under Apache-2.0 (D-025, note).

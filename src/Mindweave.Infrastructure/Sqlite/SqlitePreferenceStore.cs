@@ -5,7 +5,7 @@ namespace Mindweave.Infrastructure.Sqlite;
 /// <summary>Preferences as plain <c>app_state</c> rows under a prefix; no migration needed.</summary>
 internal sealed class SqlitePreferenceStore(SqliteDatabase database) : IPreferenceStore
 {
-    private const string Prefix = "pref:";
+    internal const string Prefix = "pref:";
 
     public Task<string?> GetAsync(string key, CancellationToken cancellationToken)
     {

@@ -252,6 +252,85 @@ public sealed class ResourceStoreTests
     }
 
     [Fact]
+    public async Task A_damaged_original_is_put_back_from_a_backups_copy_that_is_whole()
+    {
+        await using var h = await ChatHarness.StartAsync(configure: false);
+        var doc = await FileAsync(h, "a.png", PngBytes);
+        var resource = (await h.ResourceService.GetAsync(doc, Ct))!.Resource;
+        var damaged = (byte[])[.. PngBytes[..^1], (byte)(PngBytes[^1] ^ 0xFF)];
+        await File.WriteAllBytesAsync(h.Blobs.PathOf(resource.Hash), damaged, Ct);
+        var first = Directory.CreateDirectory(Path.Combine(h.Paths.BackupDirectory, "a.db.resources"));
+        await File.WriteAllBytesAsync(Path.Combine(first.FullName, resource.Hash.Hex), damaged, Ct);
+
+        Assert.False(await h.ResourceService.HasOriginalAsync(resource));
+
+        var second = Directory.CreateDirectory(Path.Combine(h.Paths.BackupDirectory, "b.db.resources"));
+        await File.WriteAllBytesAsync(Path.Combine(second.FullName, resource.Hash.Hex), PngBytes, Ct);
+
+        Assert.True(await h.ResourceService.HasOriginalAsync(resource));
+        Assert.Equal(PngBytes, await File.ReadAllBytesAsync(h.Blobs.PathOf(resource.Hash), Ct));
+    }
+
+    [Fact]
+    public async Task An_original_put_back_is_read_again_also_when_its_copy_has_the_damaged_files_time()
+    {
+        // Review 2026-11-24: what a file was found to be is remembered by its length and write time, and a copy keeps both.
+        await using var h = await ChatHarness.StartAsync(configure: false);
+        var doc = await FileAsync(h, "a.png", PngBytes);
+        var resource = (await h.ResourceService.GetAsync(doc, Ct))!.Resource;
+        var path = h.Blobs.PathOf(resource.Hash);
+        var folder = Directory.CreateDirectory(Path.Combine(h.Paths.BackupDirectory, "a.db.resources"));
+        var copy = Path.Combine(folder.FullName, resource.Hash.Hex);
+        File.Copy(path, copy);
+        var written = new DateTime(2026, 11, 1, 0, 0, 0, DateTimeKind.Utc);
+        File.SetLastWriteTimeUtc(copy, written);
+        await File.WriteAllBytesAsync(path, [.. PngBytes[..^1], (byte)(PngBytes[^1] ^ 0xFF)], Ct);
+        File.SetLastWriteTimeUtc(path, written);
+
+        Assert.True(await h.ResourceService.HasOriginalAsync(resource));
+
+        await using var original = await h.ResourceService.OpenOriginalAsync(doc, Ct);
+        Assert.NotNull(original);
+        Assert.NotNull(await h.ResourceService.ImageForSendingAsync(resource, Ct));
+    }
+
+    [Fact]
+    public async Task A_backup_copy_that_cannot_be_read_does_not_hide_one_that_can()
+    {
+        Assert.SkipWhen(OperatingSystem.IsWindows(), "Needs a file mode.");
+        await using var h = await ChatHarness.StartAsync(configure: false);
+        var doc = await FileAsync(h, "a.png", PngBytes);
+        var resource = (await h.ResourceService.GetAsync(doc, Ct))!.Resource;
+        File.Delete(h.Blobs.PathOf(resource.Hash));
+        foreach (var name in new[] { "a.db.resources", "b.db.resources", "c.db.resources" })
+        {
+            var folder = Directory.CreateDirectory(Path.Combine(h.Paths.BackupDirectory, name));
+            await File.WriteAllBytesAsync(Path.Combine(folder.FullName, resource.Hash.Hex), PngBytes, Ct);
+            if (name != "b.db.resources" && !OperatingSystem.IsWindows())
+            {
+                File.SetUnixFileMode(Path.Combine(folder.FullName, resource.Hash.Hex), UnixFileMode.None);
+            }
+        }
+
+        Assert.True(await h.ResourceService.HasOriginalAsync(resource));
+    }
+
+    [Fact]
+    public async Task A_backup_made_before_a_delete_keeps_a_whole_copy_of_a_damaged_original_when_another_backup_has_one()
+    {
+        await using var h = await ChatHarness.StartAsync(configure: false);
+        var doc = await FileAsync(h, "a.png", PngBytes);
+        var hash = (await h.ResourceService.GetAsync(doc, Ct))!.Resource.Hash;
+        var folder = Directory.CreateDirectory(Path.Combine(h.Paths.BackupDirectory, "a.db.resources"));
+        File.Copy(h.Blobs.PathOf(hash), Path.Combine(folder.FullName, hash.Hex));
+        await File.WriteAllBytesAsync(h.Blobs.PathOf(hash), [.. PngBytes[..^1], (byte)(PngBytes[^1] ^ 0xFF)], Ct);
+
+        var outcome = await h.WorkspaceDeletion.DeleteAsync(h.Workspace, Ct);
+
+        Assert.Equal(PngBytes, await File.ReadAllBytesAsync(Path.Combine(outcome.BackupPath + ".resources", hash.Hex), Ct));
+    }
+
+    [Fact]
     public async Task Deleting_a_backup_removes_the_originals_it_kept()
     {
         await using var h = await ChatHarness.StartAsync(configure: false);

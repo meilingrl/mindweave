@@ -256,14 +256,14 @@ public sealed partial class ConversationViewModel : PageViewModel, IDisposable, 
     /// </summary>
     public BranchSource? TakeSourceFocus() => Interlocked.Exchange(ref _sourceFocus, null);
 
-    /// <summary>Creates a branch from a selection the view captured, then opens it.</summary>
+    /// <summary>Creates a branch from a selection the view captured, then opens it unless the reader went elsewhere meanwhile.</summary>
     public async Task CreateBranchAsync(BranchSelection selection)
     {
         var outcome = await _conversations.CreateBranchAsync(Id, selection, CancellationToken.None);
         BranchNotice = outcome.Rejection is { } rejection ? UiText.BranchRejected(rejection) : null;
         if (outcome.Accepted)
         {
-            _navigator.Navigate(new NavigationRequest(MainSection.Explore, new ConversationRoute(outcome.Child)));
+            _navigator.Navigate(new NavigationRequest(MainSection.Explore, new ConversationRoute(outcome.Child)) { From = this });
         }
     }
 
@@ -471,7 +471,7 @@ public sealed partial class ConversationViewModel : PageViewModel, IDisposable, 
             chip.OriginalChecked = true;
             if (await _resources.GetAsync(chip.Resource!.Value, CancellationToken.None) is { } stored)
             {
-                chip.MarkOriginal(_resources.HasOriginal(stored.Resource));
+                chip.MarkOriginal(await _resources.HasOriginalAsync(stored.Resource));
             }
         }
     }

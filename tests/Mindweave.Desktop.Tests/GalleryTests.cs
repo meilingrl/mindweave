@@ -153,7 +153,7 @@ public class GalleryTests
         await using var scene = Scene.Create("g01e");
         var window = scene.App.ShowWindow(1100, 720, Theme);
         await scene.App.StartWithWorkspaceAsync("唯一");
-        scene.App.ShellPage.DeleteWorkspaceCommand.Execute(null);
+        scene.App.AskToDeleteWorkspace();
         var dialog = scene.App.Root.WorkspaceDeletion;
         await dialog.Loading;
         dialog.TypedName = "唯一";
@@ -422,7 +422,7 @@ public class GalleryTests
         var window = scene.App.ShowWindow(1100, 720, Theme);
         await SeedAsync(scene.App, summaries: true);
         var network = await SummaryNetworkScenario.OpenSummaryNetworkAsync(scene.App, window);
-        network.ToggleViewCommand.Execute(null);
+        network.IsListView = !network.IsListView;
         Assert.True(network.IsListView);
         await SettleAsync(window);
         Capture(window, "g14-network-list");
@@ -1239,7 +1239,7 @@ public class GalleryTests
         page.Composer.Text = "吴淞铁路用的是什么机车？";
         await page.Composer.SendCommand.ExecuteAsync(null);
         await held.Started.Task.WaitAsync(TimeSpan.FromSeconds(5));
-        scene.App.ShellPage.DeleteWorkspaceCommand.Execute(null);
+        scene.App.AskToDeleteWorkspace();
         await dialog.Loading;
         Assert.NotNull(dialog.Problem);
         dialog.TypedName = "火车历史"; // the exact name, yet 删除 stays disabled while the notice stands
@@ -1254,7 +1254,7 @@ public class GalleryTests
         // Deleted for real: the workbench moves to the other workspace and the storage page lists the backup made first.
         var other = await scene.App.Services.GetRequiredService<WorkspaceService>().CreateAsync(WorkspaceName.FromStored("摄影史"), CancellationToken.None);
         scene.App.Workbench.Workspaces.Add(other);
-        scene.App.ShellPage.DeleteWorkspaceCommand.Execute(null);
+        scene.App.AskToDeleteWorkspace();
         await dialog.Loading;
         dialog.TypedName = "火车历史";
         await dialog.DeleteCommand.ExecuteAsync(null);
@@ -1768,7 +1768,7 @@ public class GalleryTests
         await SeedAsync(scene.App, summaries: true);
         var network = await SummaryNetworkScenario.OpenSummaryNetworkAsync(scene.App, window);
         await RecommendedNodesUiTests.PrepareAsync(scene.App, network, window);
-        network.ToggleViewCommand.Execute(null);
+        network.IsListView = !network.IsListView;
         await SettleAsync(window);
         Capture(window, "g52b-network-list-recommended-node");
         window.Close();
@@ -2027,14 +2027,14 @@ public class GalleryTests
     /// The summarized train workspace with three questions made the way 换一批 makes them (two extend a summary), and 新探索
     /// open with the input empty and focused.
     /// </summary>
-    internal static async Task<(NewConversationViewModel Page, NewConversationView View)> OpenRecommendationsAsync(DesktopHarness app, MainWindow window)
+    internal static async Task<(NewConversationViewModel Page, NewConversationView View)> OpenRecommendationsAsync(DesktopHarness app, MainWindow window, string first = "缆索牵引在今天的山区铁路还有用武之地吗？")
     {
         await SeedAsync(app, summaries: true);
         var workspace = app.Workbench.CurrentWorkspace!.Id;
         var bases = await app.Services.GetRequiredService<IRecommendationStore>().ListBasesAsync(workspace, Application.Recommendations.RecommendationPrompt.MaxSummaries, 10, CancellationToken.None);
         string Label(string name) => "S" + (bases.Listed.ToList().FindIndex(b => b.DisplayName.StartsWith(name, StringComparison.Ordinal)) + 1);
         app.Client.Recommendations.Replies.Enqueue(
-            $"[{{\"question\":\"缆索牵引在今天的山区铁路还有用武之地吗？\",\"reason\":\"顺着缆索牵引的局限往后看\",\"basis\":\"{Label("缆索牵引")}\"}}," +
+            $"[{{\"question\":\"{first}\",\"reason\":\"顺着缆索牵引的局限往后看\",\"basis\":\"{Label("缆索牵引")}\"}}," +
             $"{{\"question\":\"无砟轨道遇到地基沉降时怎么修复？\",\"reason\":\"接着无砟轨道的代价\",\"basis\":\"{Label("无砟轨道")}\"}}," +
             "{\"question\":\"蒸汽机车是怎样一步步被内燃机车取代的？\",\"reason\":\"还没问过的相邻方向\",\"basis\":\"\"}]");
         var outcome = await app.Services.GetRequiredService<Application.Recommendations.IRecommendations>().RefreshQuestionsAsync(workspace, CancellationToken.None);
@@ -2116,7 +2116,7 @@ public class GalleryTests
     {
         app.ShellPage.ShowSectionCommand.Execute(MainSection.Settings);
         await SettleAsync(window);
-        UiInput.Click(window, Find<Button>(window, "StatisticsButton"));
+        await SettingsInput.OpenAsync(window, "StatisticsButton");
         var page = Assert.IsType<UsageStatisticsViewModel>(app.Workbench.CurrentPage);
         await page.Loaded;
         await SettleAsync(window);
@@ -2240,7 +2240,8 @@ public class GalleryTests
         return child;
     }
 
-    private static Task FinishedAsync(ConversationService conversations, ConversationId conversation) =>
+    /// <summary>The answers as stored are final: one ends on screen a moment before its last write, and archiving is refused until then.</summary>
+    internal static Task FinishedAsync(ConversationService conversations, ConversationId conversation) =>
         UiWait.UntilAsync(() => conversations.LoadAsync(conversation, CancellationToken.None).Result!.Messages.All(m => m.IsFinished));
 
     private static async Task SummarizeAsync(SummaryService service, ConversationId conversation)

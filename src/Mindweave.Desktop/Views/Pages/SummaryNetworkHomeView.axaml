@@ -182,6 +182,9 @@
             <Border Classes="badge warning" Margin="0,0,6,4" IsVisible="{Binding Selected.HasCandidate, FallbackValue=False}">
               <TextBlock Text="{x:Static t:UiText.MarkerCandidate}" />
             </Border>
+            <Border Name="LaterBadge" Classes="badge" Margin="0,0,6,4" IsVisible="{Binding Selected.HasLaterContent, FallbackValue=False}">
+              <TextBlock Text="{x:Static t:UiText.MarkerLater}" />
+            </Border>
             <Border Classes="badge" Margin="0,0,6,4" IsVisible="{Binding Selected.SourceArchived, FallbackValue=False}">
               <TextBlock Text="{x:Static t:UiText.SourceArchived}" />
             </Border>

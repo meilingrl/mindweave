@@ -42,8 +42,12 @@ public interface IContentNavigator
 
     void Push(ContentRoute route);
 
-    /// <summary>Replaces the current page without growing history (e.g. a new conversation once it exists).</summary>
-    void Replace(ContentRoute route);
+    /// <summary>
+    /// Puts <paramref name="route"/> in the place of <paramref name="page"/> without growing history (a new conversation once
+    /// it exists), in whichever workspace and section the page is: the reader may be elsewhere by now, and what is shown
+    /// there stays. Nothing happens when the page has left every history.
+    /// </summary>
+    void Replace(PageViewModel page, ContentRoute route);
 
     void GoBack();
 }

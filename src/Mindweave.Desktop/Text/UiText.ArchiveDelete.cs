@@ -26,8 +26,8 @@ public static partial class UiText
         "这个会话已归档，只能阅读。恢复后可以继续提问、创建分支或总结；已有总结照常可用。");
     public static string ArchivedEmpty => T("No archived conversations.", "没有已归档的会话。");
     public static string ArchivedNote => T(
-        "Archived conversations and their branches are not shown in the sidebar; their summaries remain in the summary network.",
-        "归档的会话连同分支不在侧栏显示；它们的总结仍在总结网络中。");
+        "Archived conversations and their branches are not shown in the sidebar; they and their summaries remain in Mindweave.",
+        "归档的会话连同分支不在侧栏显示；它们和它们的总结仍在 Mindweave 中。");
     public static string DeleteConfirm => T(
         "This conversation will be permanently deleted: all its messages, generation records and unsent drafts will be deleted with it. This can’t be undone.",
         "将永久删除这个会话：全部消息、生成记录和未发送的草稿都会一起删除，无法撤销。");

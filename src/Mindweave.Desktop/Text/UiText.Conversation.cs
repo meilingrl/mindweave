@@ -21,7 +21,6 @@ public static partial class UiText
     public static string Save => T("Save", "保存");
     public static string OpenSettingsLink => T("Go to Settings", "前往设置");
     public static string EarlierAttempt => T("Earlier attempt", "较早的尝试");
-    public static string RetryAttempt => T("Answer again", "重新回答");
     public static string MarkerGenerating => T("Answering", "正在回答");
     public static string MarkerSummarizing => T("Summarizing", "正在总结");
     public static string MarkerNeedsAttention => T("Answer incomplete; you can retry", "回答未完成，可重试");

@@ -714,18 +714,13 @@ public sealed partial class SummaryNetworkHomeViewModel : PageViewModel, IDispos
         }
     }
 
-    /// <summary>Title search: selects the first match and brings it to the centre.</summary>
+    /// <summary>Title search: selects the first match, by the name it shows before any other title, and brings it to the centre.</summary>
     [RelayCommand]
     private void Find()
     {
         var text = SearchText.Trim();
-        if (text.Length == 0)
-        {
-            return;
-        }
-
-        var match = Nodes.FirstOrDefault(n => IsMatch(n, text));
-        if (match is null)
+        var found = FindMatches();
+        if ((Nodes.FirstOrDefault(n => found.Contains(n.Id) && Holds(n.ShortTitle, text)) ?? Nodes.FirstOrDefault(n => found.Contains(n.Id))) is not { } match)
         {
             return;
         }
@@ -775,9 +770,6 @@ public sealed partial class SummaryNetworkHomeViewModel : PageViewModel, IDispos
         ViewChanged?.Invoke(this, false);
     }
 
-    [RelayCommand]
-    private void ToggleView() => IsListView = !IsListView;
-
     partial void OnIsListViewChanged(bool value)
     {
         // The list has no nodes to click: "关联到…" waiting for one ends (the details still offer it, and its keyboard list).
@@ -799,13 +791,15 @@ public sealed partial class SummaryNetworkHomeViewModel : PageViewModel, IDispos
         ViewChanged?.Invoke(this, false);
     }
 
-    private static bool IsMatch(NodeView node, string text) =>
-        node.ShortTitle.Contains(text, StringComparison.CurrentCultureIgnoreCase) || node.DisplayName.Contains(text, StringComparison.CurrentCultureIgnoreCase);
+    private static bool IsMatch(SummaryNetworkNode node, string text) =>
+        Holds(node.ShortTitle, text) || Holds(node.DisplayName, text) || node.OtherTitles.Any(title => Holds(title, text));
+
+    private static bool Holds(string title, string text) => title.Contains(text, StringComparison.CurrentCultureIgnoreCase);
 
     private HashSet<SummaryNodeId> FindMatches()
     {
         var text = SearchText.Trim();
-        return text.Length == 0 ? [] : [.. Nodes.Where(n => IsMatch(n, text)).Select(n => n.Id)];
+        return text.Length == 0 ? [] : [.. Session.Projection.Nodes.Where(n => Session.Positions.ContainsKey(n.Id) && IsMatch(n, text)).Select(n => n.Id)];
     }
 
     /// <summary>The selected node and its sources, following each node's parent edge to the top.</summary>
@@ -850,7 +844,7 @@ public sealed partial class SummaryNetworkHomeViewModel : PageViewModel, IDispos
         DetachSuggestions();
     }
 
-    /// <summary>网络推荐节点 or 自动准备推荐 changed in 设置 › 提示 while this page stays open: shown or hidden now, prepared if due.</summary>
+    /// <summary>Mindweave 推荐节点 or 自动准备推荐 changed in 设置 › 提示 while this page stays open: shown or hidden now, prepared if due.</summary>
     private void OnRecommendationSettingsChanged(object? sender, EventArgs e)
     {
         if (_disposed)
@@ -1217,7 +1211,8 @@ public sealed partial class SummaryNetworkHomeViewModel : PageViewModel, IDispos
             UiText.SourcePath([.. steps.Select(step => step.Text)]),
             steps,
             node.HasSummary,
-            node.FirstQuestion);
+            node.FirstQuestion,
+            node.Markers.HasLaterContent);
     }
 
     /// <summary>

@@ -91,6 +91,16 @@ public partial class IconResourceTests
     }
 
     [Fact]
+    public void Every_icon_is_used()
+    {
+        var text = string.Concat(Directory.EnumerateFiles(Desktop, "*.*", SearchOption.AllDirectories)
+            .Where(f => (f.EndsWith(".axaml", StringComparison.Ordinal) || f.EndsWith(".cs", StringComparison.Ordinal)) && IsSource(f) && Path.GetFileName(f) != "Icons.axaml")
+            .Select(File.ReadAllText));
+        var unused = IconKeys().Where(key => !Regex.IsMatch(text, $@"\b{key}\b")).ToList();
+        Assert.Empty(unused);
+    }
+
+    [Fact]
     public void Icons_axaml_is_generated_from_the_current_stroke_source()
     {
         var source = File.ReadAllText(Path.Combine(Desktop, "Themes", "IconStrokes.xml")).ReplaceLineEndings("\n");

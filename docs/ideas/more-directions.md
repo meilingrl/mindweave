@@ -57,7 +57,7 @@ Simple features with reference value for other people.
 | Evaluation set for small-budget agents | The run evaluation exists. A public scenario set with reports per model is rare. | Publish the scenarios and one report |
 | An open format for branched conversations | No common format exists. E5 could be one; sharing and sync both need it. | Implement E5 export and import |
 | Sync without a server | Conversations are trees that mostly grow by appending, which makes merging tractable. | A change log keyed by the stable IDs, written to a folder |
-| Molecule layout | A stable layout in which adding a node does not move the others. In progress. | Write it up when the prototype is approved |
+| Molecule layout | A layout by structure in which adding a conversation redraws only its own exploration. Built (0.6.0). | Write it up |
 | The development method | A tested desktop application built mostly by agents, with human gates, a mailbox to a Windows tester, and rules for parallel agents. | A public write-up from AGENTS.md, the decision log and the stage reports |
 
 ## How the directions connect

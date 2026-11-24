@@ -310,11 +310,11 @@ public class SummaryLinksUiTests
         // The list view has no nodes to click: pick mode ends with it, and the hint goes.
         network.BeginLinkCommand.Execute(null);
         Assert.True(network.IsPicking);
-        network.ToggleViewCommand.Execute(null);
+        network.IsListView = !network.IsListView;
         Assert.False(network.IsPicking);
         window.UpdateLayout();
         Assert.False(Find<Border>(window, "LinkPickLine").IsEffectivelyVisible);
-        network.ToggleViewCommand.Execute(null);
+        network.IsListView = !network.IsListView;
 
         // The summary page's picker: Esc gives focus back to its 关联到….
         var summary = await OpenSummaryAsync(app, window, NodeOf(network, Root));
@@ -428,7 +428,7 @@ public class SummaryLinksUiTests
 
         // The list view names each summary's links in words.
         network.Links.ClosePicker();
-        network.ToggleViewCommand.Execute(null);
+        network.IsListView = !network.IsListView;
         await UiWait.UntilAsync(() => network.Items.Count(i => i.HasLinks) == 3);
         window.UpdateLayout();
         var lines = window.GetVisualDescendants().OfType<TextBlock>().Where(t => t.Name == "SummaryRowLinks" && t.IsEffectivelyVisible).Select(t => t.Text).ToList();

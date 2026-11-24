@@ -272,10 +272,10 @@ public class LinkSuggestionsUiTests
         Assert.Equal(UiText.LinkItemName(NameOf(network, Steam), "起点对比", confirmed: true), AutomationProperties.GetName(linkRow));
 
         // The list view says it after the note.
-        network.ToggleViewCommand.Execute(null);
+        network.IsListView = !network.IsListView;
         await UiWait.UntilAsync(() => network.Items.Any(i => i.Links.Contains(UiText.LinkConfirmedMarker, StringComparison.Ordinal)));
         Assert.Equal(UiText.LinksLine([(NameOf(network, Steam), "起点对比", true)]), network.Items.Single(i => i.Node == NodeOf(network, Sibling)).Links);
-        network.ToggleViewCommand.Execute(null);
+        network.IsListView = !network.IsListView;
 
         // The summary page too.
         app.Workbench.Navigate(new NavigationRequest(MainSection.SummaryNetwork, new SummaryRoute(NodeOf(network, Steam))));
@@ -432,7 +432,7 @@ public class LinkSuggestionsUiTests
         var network = await SummaryNetworkScenario.OpenSummaryNetworkAsync(app, window);
         await SuggestAsync(app, window, network, (Steam, Sibling, "对比", "都讲铁路的起点"));
 
-        network.ToggleViewCommand.Execute(null);
+        network.IsListView = !network.IsListView;
         window.UpdateLayout();
         Assert.True(Find<StackPanel>(window, "LinkSuggestionsList").IsEffectivelyVisible);
         Assert.False(Find<StackPanel>(window, "SuggestionsSection").IsEffectivelyVisible);

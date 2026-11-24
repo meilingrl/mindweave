@@ -27,7 +27,14 @@ public sealed record SummaryNetworkNode(
     bool SourceArchived = false,
     bool HasSummary = true,
     int Weight = 1,
-    string? FirstQuestion = null);
+    string? FirstQuestion = null)
+{
+    /// <summary>
+    /// The other titles a summarized dot is found by (architecture §10.2): its conversation's name in the sidebar and the
+    /// summary's own title. A dot without a summary shows its conversation's name already.
+    /// </summary>
+    public IReadOnlyList<string> OtherTitles { get; init; } = [];
+}
 
 public enum SummaryNetworkEdgeKind
 {
@@ -74,7 +81,10 @@ public sealed class SummaryNetworkService(ISummaryStore summaries, ISummaryNetwo
                 nodes.Add(new SummaryNetworkNode(
                     entry.Node.Id, id, root, SummaryRules.ShortTitleOf(entry.Current.Title, entry.Current.ShortTitle),
                     entry.Node.DisplayName, entry.Markers, item.Conversation.CreatedAt, ancestors, archived,
-                    true, weights[id], item.FirstQuestion));
+                    true, weights[id], item.FirstQuestion)
+                {
+                    OtherTitles = [ConversationNames.Of(item.Conversation.Title, item.Quote, item.FirstQuestion), entry.Current.Title],
+                });
                 continue;
             }
 

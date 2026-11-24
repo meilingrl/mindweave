@@ -20,7 +20,7 @@ public class ReleaseChannelTests
 
     [Theory]
     [InlineData("dev")]
-    [InlineData("claude-auto")]
+    [InlineData("daily")]
     public void Other_channels_name_the_build_and_the_channel_in_settings(string channel)
     {
         Assert.Equal($"Mindweave 0.2.0 · 5f50734 · 2026-11-22 · 数据通道 {channel}",
@@ -55,8 +55,11 @@ public class ReleaseChannelTests
             Assert.Matches("^[0-9a-f]{7}$", stamp.Commit);
         if (stamp.CommitDate is not null)
             Assert.Matches(@"^\d{4}-\d{2}-\d{2}$", stamp.CommitDate);
-        // Tests run from a git checkout (locally and on CI), so both must be there; this also checks the Windows
-        // escaping of the date format in Mindweave.Desktop.csproj.
+
+        // In a git checkout (locally and on CI; .git is a file in a worktree) both must be there; this also checks the
+        // Windows escaping of the date format in Mindweave.Desktop.csproj. An unpacked source package has no commit.
+        var git = Path.Combine(IconResourceTests.RepositoryRoot(), ".git");
+        Assert.SkipUnless(Directory.Exists(git) || File.Exists(git), "Not a git checkout.");
         Assert.NotNull(stamp.Commit);
         Assert.NotNull(stamp.CommitDate);
     }

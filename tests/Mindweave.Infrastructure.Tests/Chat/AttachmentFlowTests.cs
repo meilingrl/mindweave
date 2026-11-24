@@ -221,10 +221,46 @@ public class AttachmentFlowTests
         await h.WaitForAnswerAsync(sent.Answer!.Value);
         File.Delete(h.Blobs.PathOf(paste.Resource.Hash));
 
-        Assert.False(h.ResourceService.HasOriginal(paste.Resource));
+        Assert.False(await h.ResourceService.HasOriginalAsync(paste.Resource));
         Assert.NotNull(await h.Conversations.LoadAsync(sent.Conversation, Ct));
         await h.AskAsync(sent.Conversation, "再讲讲");
         Assert.Contains("提取过的文字", h.Client.Requests.Where(FakeChatClient.IsAnswer).Last().Turns[0].Content, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task A_damaged_original_is_a_missing_one_its_text_goes_as_usual_and_an_image_as_a_line()
+    {
+        // Same length, other bytes: the content no longer is what its name says (architecture §15.10, hash mismatch).
+        await using var h = await ChatHarness.StartAsync();
+        var settings = (await h.Models.GetActiveSnapshotAsync(Ct))!;
+        await h.Models.SaveAsync(new ModelSettingsInput("fake", "https://fake.example/v1", "fake-model", null, null, settings.Capabilities with { ImageInput = true }), Ct);
+        var draft = DraftSlot.NewExploration(h.Workspace);
+        var paste = (await h.ResourceService.AttachPasteAsync(draft, "提取过的文字", Ct)).Resource!;
+        var image = (await h.ResourceService.AttachImageAsync(draft, Png, null, Ct)).Resource!;
+        var sent = await h.Conversations.StartAsync(h.Workspace, "讲讲", [paste.Resource.Id, image.Resource.Id], null, Ct);
+        await h.WaitForAnswerAsync(sent.Answer!.Value);
+        Damage(h.Blobs.PathOf(paste.Resource.Hash));
+        Damage(h.Blobs.PathOf(image.Resource.Hash));
+
+        Assert.False(await h.ResourceService.HasOriginalAsync(paste.Resource));
+        Assert.False(await h.ResourceService.HasOriginalAsync(image.Resource));
+        Assert.Null(await h.ResourceService.OpenOriginalAsync(image.Resource.Id, Ct));
+        await h.AskAsync(sent.Conversation, "再讲讲");
+        var first = h.Client.Requests.Where(FakeChatClient.IsAnswer).Last().Turns[0];
+        Assert.Contains("提取过的文字", first.Content, StringComparison.Ordinal);
+        Assert.Contains("[图片：图片.png，原件缺失", first.Content, StringComparison.Ordinal);
+        Assert.Null(first.Images);
+
+        // Attaching the same image again puts its content back.
+        await h.ResourceService.AttachImageAsync(new DraftSlot(h.Workspace, sent.Conversation, "main"), Png, null, Ct);
+        Assert.True(await h.ResourceService.HasOriginalAsync(image.Resource));
+    }
+
+    private static void Damage(string path)
+    {
+        var bytes = File.ReadAllBytes(path);
+        bytes[^1] ^= 0xFF;
+        File.WriteAllBytes(path, bytes);
     }
 
     [Fact]

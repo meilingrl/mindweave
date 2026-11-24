@@ -84,8 +84,6 @@ public static partial class UiText
 
     public static IReadOnlyList<string> McpRisks => [McpRiskLocalRead, McpRiskNetworkRead, McpRiskSideEffect];
 
-    public static string McpRisk(ToolRisk risk) => McpRisks[(int)risk];
-
     public static string McpState(McpServerState state) => state switch
     {
         McpServerState.Starting => T("Starting", "正在启动"),

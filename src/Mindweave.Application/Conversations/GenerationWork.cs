@@ -50,7 +50,14 @@ public sealed record AnswerWork(GenerationTaskRecord Task, ChatRequest Request, 
 }
 
 /// <summary>A run's frozen tools and limits, and the scope its tools work in.</summary>
-public sealed record RunPlan(IReadOnlyList<Tools.ITool> Tools, Core.Runs.RunLimits Limits, Tools.ToolScope Scope);
+public sealed record RunPlan(IReadOnlyList<Tools.ITool> Tools, Core.Runs.RunLimits Limits, Tools.ToolScope Scope)
+{
+    /// <summary>
+    /// 检索附件 when there was nothing for it to find as the question was accepted: offered from the request after a result
+    /// of the run was not sent whole, so the rest can be read (requirements §10.4.4). Null when it is among the tools.
+    /// </summary>
+    public Tools.ITool? Reader { get; init; }
+}
 
 /// <summary>The inputs of a context plan: the frozen ancestor chain, the conversation itself, and its attachments' candidates.</summary>
 public sealed record ContextInputs(IReadOnlyList<Core.Branches.ContextSegment> Ancestors, Core.Branches.ContextSegment Own, IReadOnlyList<ResourceCandidate> Resources);

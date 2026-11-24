@@ -270,6 +270,8 @@
                   IsVisible="{Binding $parent[StackPanel].((vm:SettingsHomeViewModel)DataContext).Tools.HasWeb, FallbackValue=False}">
         <TextBlock Name="WebSearchHeading" FontWeight="SemiBold" FontSize="14" Margin="0,18,0,2" Text="{x:Static t:UiText.WebSearchSettingsTitle}" />
         <TextBlock Classes="caption" Margin="0,0,0,4" TextWrapping="Wrap" Text="{x:Static t:UiText.WebSearchSettingsIntro}" />
+        <TextBlock Name="WebSearchOffReason" Classes="caption" Margin="0,4,0,4" TextWrapping="Wrap" Text="{x:Static t:UiText.WebSearchToolsOff}"
+                   IsVisible="{Binding $parent[UserControl].((vm:SettingsHomeViewModel)DataContext).Tools.IsTurnedOff, FallbackValue=False}" />
         <Border Classes="card settings">
           <Grid Classes="labelled" RowDefinitions="Auto,Auto,Auto,Auto,Auto" IsEnabled="{Binding IsAvailable}">
             <Grid.ColumnDefinitions>
@@ -315,6 +317,8 @@
                   IsVisible="{Binding $parent[StackPanel].((vm:SettingsHomeViewModel)DataContext).Tools.HasMcp, FallbackValue=False}">
         <TextBlock Name="McpHeading" FontWeight="SemiBold" FontSize="14" Margin="0,18,0,2" Text="{x:Static t:UiText.McpSettingsTitle}" />
         <TextBlock Classes="caption" Margin="0,0,0,4" TextWrapping="Wrap" Text="{x:Static t:UiText.McpSettingsIntro}" />
+        <TextBlock Name="McpOffReason" Classes="caption" Margin="0,4,0,4" TextWrapping="Wrap" Text="{x:Static t:UiText.WebSearchToolsOff}"
+                   IsVisible="{Binding $parent[UserControl].((vm:SettingsHomeViewModel)DataContext).Tools.IsTurnedOff, FallbackValue=False}" />
         <Border Classes="card settings">
           <StackPanel Spacing="12" IsEnabled="{Binding IsAvailable}">
             <TextBlock Name="McpNoServers" Classes="caption" Text="{x:Static t:UiText.McpNoServers}" IsVisible="{Binding !HasServers}" />
@@ -329,11 +333,12 @@
                           <Button Name="McpStop" Classes="quiet small" Content="{x:Static t:UiText.McpStop}" Command="{Binding StopCommand}" />
                           <Button Name="McpRemove" Classes="quiet small" Content="{x:Static t:UiText.McpRemove}" Command="{Binding AskRemoveCommand}" />
                         </StackPanel>
-                        <StackPanel Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
-                          <TextBlock Name="McpServerName" FontWeight="SemiBold" Text="{Binding Name}" VerticalAlignment="Center" />
-                          <Border Classes="badge"><TextBlock Text="{Binding Kind}" /></Border>
-                          <TextBlock Name="McpServerState" Classes="caption" Classes.error="{Binding IsProblem}" Text="{Binding StateText}" VerticalAlignment="Center" />
-                        </StackPanel>
+                        <!-- A long name takes more lines; its kind and state stay beside it. -->
+                        <Grid ColumnDefinitions="*,Auto,Auto" ColumnSpacing="8" HorizontalAlignment="Left" VerticalAlignment="Center">
+                          <TextBlock Name="McpServerName" FontWeight="SemiBold" Text="{Binding Name}" TextWrapping="Wrap" VerticalAlignment="Center" />
+                          <Border Grid.Column="1" Classes="badge"><TextBlock Text="{Binding Kind}" /></Border>
+                          <TextBlock Grid.Column="2" Name="McpServerState" Classes="caption" Classes.error="{Binding IsProblem}" Text="{Binding StateText}" VerticalAlignment="Center" />
+                        </Grid>
                       </DockPanel>
                       <SelectableTextBlock Name="McpServerTarget" Classes="address muted" Text="{Binding Target}" TextWrapping="Wrap" />
                       <SelectableTextBlock Name="McpServerError" Classes="error" FontSize="12" Text="{Binding Error}" TextWrapping="Wrap" IsVisible="{Binding HasError}" />
@@ -381,7 +386,7 @@
                                         ToolTip.Tip="{x:Static t:UiText.McpEnableTool}" />
                               <StackPanel Grid.Column="1" Spacing="2" Margin="2,4,12,0">
                                 <WrapPanel ItemSpacing="6" LineSpacing="2">
-                                  <TextBlock Name="McpToolName" Classes="address" Text="{Binding Name}" VerticalAlignment="Center" />
+                                  <TextBlock Name="McpToolName" Classes="address" Text="{Binding Name}" TextWrapping="Wrap" VerticalAlignment="Center" />
                                   <Border Classes="badge" IsVisible="{Binding DeclaresReadOnly}"><TextBlock Text="{x:Static t:UiText.McpDeclaresReadOnly}" /></Border>
                                 </WrapPanel>
                                 <TextBlock Classes="caption" Text="{Binding Description}" TextWrapping="Wrap" MaxLines="2" TextTrimming="CharacterEllipsis"
@@ -389,7 +394,7 @@
                                 <TextBlock Name="McpToolDisabledReason" Classes="caption warning" FontSize="12" Text="{Binding DisabledReason}" TextWrapping="Wrap"
                                            IsVisible="{Binding HasDisabledReason}" />
                               </StackPanel>
-                              <ComboBox Name="McpToolRisk" Classes="settings mcp-tool-risk" Width="260" VerticalAlignment="Top"
+                              <ComboBox Name="McpToolRisk" Classes="settings mcp-tool-risk" MinWidth="260" VerticalAlignment="Top"
                                         ItemsSource="{x:Static vm:McpToolItem.Risks}" SelectedIndex="{Binding RiskIndex}" IsVisible="{Binding IsOn}"
                                         AutomationProperties.Name="{x:Static t:UiText.McpRiskLabel}" />
                             </Grid>

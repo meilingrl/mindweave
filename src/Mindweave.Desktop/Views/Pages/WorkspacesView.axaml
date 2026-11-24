@@ -88,12 +88,12 @@
                     <Button Name="SaveRenameWorkspaceButton" Classes="primary" Padding="12,4" FontSize="12.5" Content="{x:Static t:UiText.Save}" Command="{Binding CommitRenameCommand}" />
                   </StackPanel>
                   <StackPanel Spacing="1" VerticalAlignment="Center">
-                    <DockPanel Classes="workspace-name-line" LastChildFill="False" IsVisible="{Binding !IsRenaming}">
-                      <TextBlock Name="WorkspaceRowName" DockPanel.Dock="Left" Classes="workspace-row-name" Text="{Binding Name}" />
-                      <Border Name="CurrentWorkspaceTag" DockPanel.Dock="Left" Classes="badge accent" Margin="8,0,0,0" IsVisible="{Binding IsCurrent}">
+                    <Grid Classes="workspace-name-line" ColumnDefinitions="*,Auto" HorizontalAlignment="Left" IsVisible="{Binding !IsRenaming}">
+                      <TextBlock Name="WorkspaceRowName" Classes="workspace-row-name" Text="{Binding Name}" />
+                      <Border Grid.Column="1" Name="CurrentWorkspaceTag" Classes="badge accent" Margin="8,0,0,0" IsVisible="{Binding IsCurrent}">
                         <TextBlock Text="{x:Static t:UiText.CurrentWorkspaceTag}" />
                       </Border>
-                    </DockPanel>
+                    </Grid>
                     <!-- The name turns into a box of the same place and weight: Enter saves, Esc cancels. A suggested name
                          (kept from before, or just asked for) shows dimly after the text: Tab takes it, Tab again the next. -->
                     <v:GhostTextBox Name="WorkspaceRenameBox" Classes="workspace-rename" IsVisible="{Binding IsRenaming}" Text="{Binding RenameText}"

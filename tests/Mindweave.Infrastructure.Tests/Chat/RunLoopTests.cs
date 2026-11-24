@@ -71,7 +71,7 @@ public class RunLoopTests
 
         var text = RunPrompt.For(all);
 
-        foreach (var name in new[] { "search_attachments（检索附件）", "search_summaries（检索总结网络）", "web_search（网络搜索）", "fetch_page（取网页）" })
+        foreach (var name in new[] { "search_attachments（检索附件）", "search_summaries（检索总结）", "web_search（网络搜索）", "fetch_page（取网页）" })
         {
             Assert.Contains(name, text, StringComparison.Ordinal);
         }
@@ -155,6 +155,23 @@ public class RunLoopTests
         var (conversation, first) = await AskWithAttachmentAsync(h, "四");
         Assert.Equal((MessageState.Failed, GenerationErrorKind.ServerError), (first.State, first.ErrorKind));
         Assert.Single((await h.Runs.RunsAsync(conversation, Ct))[first.Id].Steps);
+    }
+
+    [Fact]
+    public async Task The_last_request_allowed_is_not_tried_again()
+    {
+        // The retry counts as a request (architecture §15.10), and at most as many as the limit are sent.
+        await using var h = await ChatHarness.StartAsync(model: ToolModel);
+        await h.ToolSettings.SetLimitsAsync(RunLimits.Default with { ModelRequests = 3 }, Ct);
+        h.Client.CallTool(SearchAttachmentsTool.ToolName, Query("蒸汽机"));
+        h.Client.CallTool(SearchAttachmentsTool.ToolName, Query("信号灯"));
+        h.Client.FailWithStatus(GenerationErrorKind.ServerError, 502);
+        h.Client.Reply("瓦特改良了蒸汽机。");
+
+        var (_, answer) = await AskWithAttachmentAsync(h, "蒸汽机是谁改良的？");
+
+        Assert.Equal(3, h.Client.Requests.Count(FakeChatClient.IsAnswer));
+        Assert.Equal((MessageState.Failed, GenerationErrorKind.ServerError), (answer.State, answer.ErrorKind));
     }
 
     // L6: a cut-off middle round.
@@ -404,6 +421,11 @@ public class RunLoopTests
         Assert.StartsWith("（较早的工具结果已省略：no_such_tool", tools[1].Content, StringComparison.Ordinal);
         Assert.StartsWith("（较早的工具结果已省略：big_tool 1", tools[2].Content, StringComparison.Ordinal);
         Assert.Equal(BigTool.Text(3), tools[4].Content);
+
+        // The shortened result says it can be read again, so the tool that reads it is offered from then on.
+        var requests = h.Client.Requests.Where(FakeChatClient.IsAnswer).ToList();
+        Assert.DoesNotContain(SearchAttachmentsTool.ToolName, requests[0].Tools!.Select(t => t.Name));
+        Assert.Contains(SearchAttachmentsTool.ToolName, last.Tools!.Select(t => t.Name));
     }
 
     // L9: the 开 search's terms.

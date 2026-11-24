@@ -34,7 +34,7 @@ The answers a user gets to questions, and the documents they get from summaries,
 
 ## Owner decisions first
 
-[Requirements §2](../requirements.md) excludes assessing learning results. These two touch that line:
+[Requirements §5.4](../requirements.md) excludes assessing learning results. These two touch that line:
 
 - **Test myself.** An action on a summary node that makes three to five self-check cards. Shown once, answers revealed by the user, nothing stored. (Matuschak's prompt guide, DeepTutor.)
 - **Guide me.** A mode per conversation in which the model leads with questions and hints. No grades. (Mollick tutor prompt.)

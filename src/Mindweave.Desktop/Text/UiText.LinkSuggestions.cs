@@ -68,7 +68,7 @@ public static partial class UiText
 
     public static string SuggestedNoteEditorName(string a, string b) => T($"Note of the link suggestion for “{a}” and “{b}”", $"“{a}”与“{b}”关联建议的说明");
 
-    public static string ShowSuggestedSummaryName(string name) => T($"Go to “{name}” in the summary network", $"在网络中转到“{name}”");
+    public static string ShowSuggestedSummaryName(string name) => T($"Go to “{name}” in Mindweave", $"在 Mindweave 中转到“{name}”");
 
     public static string IgnoreAllLinkSuggestionsConfirm(int count) =>
         T(

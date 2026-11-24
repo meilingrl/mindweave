@@ -7,6 +7,7 @@ using Avalonia.Input;
 using Avalonia.Styling;
 using Avalonia.Threading;
 using Avalonia.VisualTree;
+using Mindweave.Application.Workspaces;
 using Mindweave.Desktop.Navigation;
 using Mindweave.Desktop.ViewModels.Pages;
 using Mindweave.Desktop.Views.Pages;
@@ -114,6 +115,13 @@ public class SettingsFindingTests
         Assert.Equal(UiText.PrepareNamesHint, Assert.IsType<TextBlock>(((Flyout)info.Flyout!).Content).Text);
         Screenshots.Capture(window, "settings-info");
         info.Flyout!.Hide();
+
+        // It says everything that is sent (WorkspaceNamePrompt): conversation titles, summary names and the workspace's name.
+        Assert.Contains("会话与总结的标题", UiText.PrepareNamesCost, StringComparison.Ordinal);
+        Assert.Contains($"{WorkspaceNamePrompt.MaxConversations} 个会话标题", UiText.PrepareNamesHint, StringComparison.Ordinal);
+        Assert.Contains("第一个问题的开头", UiText.PrepareNamesHint, StringComparison.Ordinal);
+        Assert.Contains($"{WorkspaceNamePrompt.MaxSummaries} 个总结名称", UiText.PrepareNamesHint, StringComparison.Ordinal);
+        Assert.Contains("工作区现在的名称", UiText.PrepareNamesHint, StringComparison.Ordinal);
 
         // A setting without one has no icon.
         var theme = Find<Border>(window, "AppearancePicker").FindAncestorOfType<SettingRow>()!;

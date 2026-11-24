@@ -422,6 +422,37 @@ public class SummaryNetworkPageTests
         window.Close();
     }
 
+    [AvaloniaTheory]
+    [MemberData(nameof(Themes))]
+    public async Task The_details_say_when_the_conversation_went_on_after_its_summary(string theme)
+    {
+        // Later content is a mark of the details (requirements §7.1; D-038).
+        await using var app = DesktopHarness.Create();
+        var window = app.ShowWindow(1100, 720, Theme(theme));
+        var (summarized, _, plain) = await SeedAsync(app);
+        var network = await OpenAsync(app, window);
+        var view = PageView(window);
+        SummaryNetworkNode NodeOf(ConversationId conversation) => network.Session.Projection.Nodes.Single(n => n.Conversation == conversation);
+
+        network.Select(NodeOf(summarized).Id);
+        window.UpdateLayout();
+        Assert.False(Find<Border>(view, "LaterBadge").IsEffectivelyVisible);
+
+        var conversations = app.Services.GetRequiredService<ConversationService>();
+        await SummaryNetworkScenario.AskAsync(app, conversations, summarized, app.Workbench.CurrentWorkspace!.Id, "后来呢？");
+        await UiWait.UntilAsync(() => NodeOf(summarized).Markers.HasLaterContent && network.Selected?.HasLaterContent == true);
+        window.UpdateLayout();
+        var badge = Find<Border>(view, "LaterBadge");
+        Assert.True(badge.IsEffectivelyVisible);
+        Assert.Equal(UiText.MarkerLater, Assert.IsType<TextBlock>(badge.Child).Text);
+        Screenshots.Capture(window, $"network-details-later-{theme.ToLowerInvariant()}");
+
+        network.Select(NodeOf(plain).Id);
+        window.UpdateLayout();
+        Assert.False(Find<Border>(view, "LaterBadge").IsEffectivelyVisible);
+        window.Close();
+    }
+
     private static ThemeVariant Theme(string theme) => theme == "Dark" ? ThemeVariant.Dark : ThemeVariant.Light;
 
     private static SummaryNetworkHomeView PageView(MainWindow window) => window.GetVisualDescendants().OfType<SummaryNetworkHomeView>().Single();

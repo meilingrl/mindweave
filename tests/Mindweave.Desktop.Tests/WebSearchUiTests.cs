@@ -279,9 +279,22 @@ public class WebSearchUiTests
         Screenshots.Capture(window, $"web-06-settings-{theme.ToLowerInvariant()}");
 
         // Tools turned off: the section is greyed out with 工具, the key kept.
+        Assert.False(Find<TextBlock>(window, "WebSearchOffReason").IsEffectivelyVisible);
+        Assert.False(Find<TextBlock>(window, "McpOffReason").IsEffectivelyVisible);
         settings.Tools.UsesTools = false;
+        window.UpdateLayout();
         Assert.False(web.IsAvailable);
         Assert.True(web.HasKey);
+
+        // … with the reason (requirements §10.4.5); so are the MCP servers.
+        foreach (var name in new[] { "WebSearchOffReason", "McpOffReason" })
+        {
+            var reason = Find<TextBlock>(window, name);
+            Assert.True(reason.IsEffectivelyVisible);
+            Assert.Equal(UiText.WebSearchToolsOff, reason.Text);
+        }
+
+        Screenshots.Capture(window, $"web-07-settings-tools-off-{theme.ToLowerInvariant()}");
         window.Close();
     }
 
@@ -297,7 +310,7 @@ public class WebSearchUiTests
         app.ShellPage.ShowSectionCommand.Execute(MainSection.Settings);
         await Assert.IsType<SettingsHomeViewModel>(app.Workbench.CurrentPage).Loaded;
         window.UpdateLayout();
-        UiInput.Click(window, Find<Button>(window, "StatisticsButton"));
+        await SettingsInput.OpenAsync(window, "StatisticsButton");
         var stats = Assert.IsType<UsageStatisticsViewModel>(app.Workbench.CurrentPage);
         await stats.Loaded;
         await UiWait.UntilAsync(() => stats.HasToolUsage);

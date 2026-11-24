@@ -8,16 +8,21 @@ using Mindweave.Application.Conversations;
 using Mindweave.Application.Languages;
 using Mindweave.Application.Models;
 using Mindweave.Application.Preferences;
+using Mindweave.Application.Recommendations;
+using Mindweave.Application.Tools;
 using Mindweave.Application.Workspaces;
+using Mindweave.Core.Conversations;
 using Mindweave.Core.Models;
 using Mindweave.Core.Workspaces;
 using Mindweave.Desktop.Navigation;
 using Mindweave.Desktop.ViewModels;
+using Mindweave.Desktop.ViewModels.Conversations;
 using Mindweave.Desktop.ViewModels.Pages;
 using Mindweave.Desktop.Views;
 using Mindweave.Desktop.Views.Pages;
 using Mindweave.Testing;
 using static Mindweave.Desktop.Tests.UiTree;
+using TextBlock = Avalonia.Controls.TextBlock;
 
 namespace Mindweave.Desktop.Tests;
 
@@ -100,7 +105,7 @@ public class CutOffPagesTests
         network.Links!.CancelPickerCommand.Execute(null);
         network.SelectRecommendation(network.RecommendedNodes[0]);
         await whole("network-recommended");
-        network.ToggleViewCommand.Execute(null);
+        network.IsListView = !network.IsListView;
         await whole("network-list");
     });
 
@@ -145,6 +150,8 @@ public class CutOffPagesTests
         }
 
         await whole("settings-mcp-server");
+        settings.Tools!.UsesTools = false;
+        await whole("settings-tools-off");
     });
 
     [AvaloniaTheory]
@@ -197,10 +204,10 @@ public class CutOffPagesTests
         var conversations = app.Services.GetRequiredService<ConversationService>();
         app.Client.Reply("1804 年。");
         var sent = await conversations.StartAsync(app.Workbench.CurrentWorkspace!.Id, "火车是怎么发明的，为什么先有轨道？", CancellationToken.None);
-        await UiWait.UntilAsync(() => !conversations.HasUnfinishedAnswer(sent.Conversation));
-        await conversations.ArchiveAsync(sent.Conversation, CancellationToken.None);
-        await UiWait.UntilAsync(() => app.ShellPage.Conversations.HasArchived);
-        app.ShellPage.Conversations.OpenArchivedCommand.Execute(null);
+        await GalleryTests.FinishedAsync(conversations, sent.Conversation);
+        await conversations.RenameAsync(sent.Conversation, "轨道的由来", CancellationToken.None);
+        await ArchiveAsync(app, sent.Conversation);
+        Assert.Equal("轨道的由来", Assert.Single((await OpenArchivedAsync(app)).Items).Title);
         await whole("archived");
     });
 
@@ -242,6 +249,121 @@ public class CutOffPagesTests
             await SettleAsync(window);
         }
     });
+
+    /// <summary>
+    /// What a person, a model, a web page or a tool server named fits at its longest: shortened with an ellipsis or on more
+    /// lines, and what stands beside it stays whole. A name that fits only because the test's name is short says nothing.
+    /// </summary>
+    [AvaloniaTheory]
+    [MemberData(nameof(Languages))]
+    public Task Longest_workspace_and_titles(UiLanguage language) => InAsync(language, async (app, window, whole) =>
+    {
+        var seed = await GalleryTests.SeedAsync(app);
+        var conversations = app.Services.GetRequiredService<ConversationService>();
+        foreach (var conversation in new[] { seed.Root, seed.Rainhill, seed.Cable })
+        {
+            await conversations.RenameAsync(conversation, LongName(ConversationRules.MaxTitleLength), CancellationToken.None);
+        }
+
+        app.Workbench.Navigate(new NavigationRequest(MainSection.Explore, new ConversationRoute(seed.Cable)));
+        var page = Assert.IsType<ConversationViewModel>(app.Workbench.CurrentPage);
+        await page.Loaded;
+        await whole("longest-branch");
+        app.ShellPage.ManageWorkspacesCommand.Execute(null);
+        var workspaces = Assert.IsType<WorkspacesViewModel>(app.Workbench.CurrentPage);
+        await workspaces.Loaded;
+        workspaces.Rows[0].BeginRenameCommand.Execute(null);
+        workspaces.Rows[0].RenameText = LongName(WorkspaceName.MaxLength);
+        await workspaces.Rows[0].CommitRenameCommand.ExecuteAsync(null);
+        Assert.Equal(WorkspaceName.MaxLength, workspaces.Rows[0].Name.Length);
+        await whole("longest-workspaces");
+        await ArchiveAsync(app, seed.Root);
+        Assert.Equal(ConversationRules.MaxTitleLength, (await OpenArchivedAsync(app)).Items[0].Title.Length);
+        await whole("longest-archived");
+    });
+
+    [AvaloniaTheory]
+    [MemberData(nameof(Languages))]
+    public Task Longest_recommended_question(UiLanguage language) => InAsync(language, async (app, window, whole) =>
+    {
+        await GalleryTests.OpenRecommendationsAsync(app, window, LongName(RecommendationPrompt.MaxQuestionLength));
+        await whole("longest-recommended");
+    });
+
+    [AvaloniaTheory]
+    [MemberData(nameof(Languages))]
+    public Task Longest_source_and_tool(UiLanguage language) => InAsync(language, async (app, window, whole) =>
+    {
+        var host = string.Join('.', Enumerable.Repeat("steam-engines", 8));
+        app.Search.Default = _ =>
+        [
+            new SearchHit(LongName(120), new Uri($"https://{host}.org/steam"), "瓦特在 1769 年改良了蒸汽机。"),
+            new SearchHit("铁路的历史", new Uri("https://example.com/rail?a=1"), "第一条公共铁路 1825 年通车。"),
+        ];
+        var page = await UiPointsGalleryTests.AskWithSourcesAsync(app, window);
+        page.Messages[1].ToggleCitationsCommand.Execute(null);
+        page.Messages[1].ToggleActivityCommand.Execute(null);
+        await whole("longest-sources");
+
+        var (_, statistics) = await GalleryTests.OpenStatisticsAsync(app, window);
+        SetText(Find<ItemsControl>(statistics, "ToolCallRows"), LongToolName);
+        await whole("longest-tool-calls");
+    });
+
+    [AvaloniaTheory]
+    [MemberData(nameof(Languages))]
+    public Task Longest_tool_server(UiLanguage language) => InAsync(language, async (app, window, whole) =>
+    {
+        await app.StartWithWorkspaceAsync("火车");
+        var capabilities = ModelCapabilities.DefaultsFor(ChatProtocol.ChatCompletions) with { ToolCalls = true };
+        await app.Services.GetRequiredService<ModelSettingsService>().SaveAsync(
+            new ModelSettingsInput("fake", "https://fake.example/v1", "fake-model", "sk-test", null, capabilities), CancellationToken.None);
+        app.ShellPage.ShowSectionCommand.Execute(MainSection.Settings);
+        var settings = Assert.IsType<SettingsHomeViewModel>(app.Workbench.CurrentPage);
+        await settings.Loaded;
+        var mcp = settings.Tools!.Mcp!;
+        await mcp.Loaded;
+        mcp.StartAddCommand.Execute(null);
+        mcp.NewName = LongName(80);
+        mcp.NewCommand = FakeMcp.Dotnet;
+        mcp.NewArguments = FakeMcp.ServerDll;
+        mcp.ReviewCommand.Execute(null);
+        await whole("longest-server-confirm");
+        await mcp.ConfirmCommand.ExecuteAsync(null);
+        var server = Assert.Single(mcp.Servers);
+        await server.StartCommand.ExecuteAsync(null);
+        await UiWait.UntilAsync(() => server.Tools.Count > 0, timeoutMs: 20_000);
+        await SettleAsync(window);
+        foreach (var name in window.GetVisualDescendants().OfType<TextBlock>().Where(t => t.Name == "McpToolName").Take(2))
+        {
+            name.SetCurrentValue(TextBlock.TextProperty, LongToolName);
+        }
+
+        await whole("longest-server");
+    });
+
+    private static async Task ArchiveAsync(DesktopHarness app, ConversationId conversation)
+    {
+        var outcome = await app.Services.GetRequiredService<ConversationService>().ArchiveAsync(conversation, CancellationToken.None);
+        Assert.True(outcome.Archived, "Archiving was refused.");
+        await UiWait.UntilAsync(() => app.ShellPage.Conversations.HasArchived);
+    }
+
+    private static async Task<ArchivedViewModel> OpenArchivedAsync(DesktopHarness app)
+    {
+        app.ShellPage.Conversations.OpenArchivedCommand.Execute(null);
+        var page = Assert.IsType<ArchivedViewModel>(app.Workbench.CurrentPage);
+        await page.Loaded;
+        return page;
+    }
+
+    /// <summary>A name without a place to break it, of the widest characters.</summary>
+    private static string LongName(int length) => string.Concat(Enumerable.Repeat("火车", length / 2));
+
+    private const string LongToolName = "read_the_page_and_write_a_note_about_everything_on_it_into_the_notebook";
+
+    private static void SetText(ItemsControl rows, string text) =>
+        rows.GetVisualDescendants().OfType<TextBlock>().First(t => !t.Classes.Contains("caption")).SetCurrentValue(TextBlock.TextProperty, text);
 
     /// <summary>
     /// A chosen entry of the sidebar is bold: its text has the room it needs, however the choice came about (chosen while

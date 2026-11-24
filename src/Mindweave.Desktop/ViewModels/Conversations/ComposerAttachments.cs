@@ -79,12 +79,13 @@ public sealed partial class Composer
         var at = 0;
         foreach (var resource in stored)
         {
+            var there = await _attachments.Resources.HasOriginalAsync(resource.Resource);
             if (Attachments.Any(c => c.Resource == resource.Resource.Id))
             {
                 continue;
             }
 
-            var chip = AttachmentChip.For(resource, _attachments.Resources.HasOriginal(resource.Resource), RemoveChip, OpenChip, ConvertChip);
+            var chip = AttachmentChip.For(resource, there, RemoveChip, OpenChip, ConvertChip);
             Attachments.Insert(at++, chip);
             await LoadThumbnailAsync(chip);
         }

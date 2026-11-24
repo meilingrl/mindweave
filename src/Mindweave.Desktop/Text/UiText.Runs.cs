@@ -10,7 +10,7 @@ namespace Mindweave.Desktop.Text;
 public static partial class UiText
 {
     public static string SearchAttachmentsName => T("Search attachments", "检索附件");
-    public static string SearchSummariesName => T("Search summary network", "检索总结网络");
+    public static string SearchSummariesName => T("Search summaries", "检索总结");
     public static string RunStepsExpand => T("Show steps", "展开步骤");
     public static string RunStepsCollapse => T("Hide steps", "收起步骤");
     public static string OpenToolResult => T("View result", "查看结果");
@@ -24,8 +24,8 @@ public static partial class UiText
 
     public static string SettingsTools => T("Tools", "工具");
     public static string ToolsIntro => T(
-        "When answering, the model can search this conversation’s attachments and this workspace’s summary network (this reads only data on this computer). Once you set up web search below, it can also search the web and read web pages. Once you add an MCP server and turn on its tools, it can also use third-party tools.",
-        "模型可以在回答时检索本会话的附件与本工作区的总结网络（只读本机数据）；设置下面的网络搜索后，还可以搜索网络、读取网页；添加 MCP 服务器并启用它的工具后，还可以使用第三方工具。");
+        "When answering, the model can search this conversation’s attachments and this workspace’s summaries (this reads only data on this computer). Once you set up web search below, it can also search the web and read web pages. Once you add an MCP server and turn on its tools, it can also use third-party tools.",
+        "模型可以在回答时检索本会话的附件与本工作区的总结（只读本机数据）；设置下面的网络搜索后，还可以搜索网络、读取网页；添加 MCP 服务器并启用它的工具后，还可以使用第三方工具。");
     public static string UseTools => T("Use tools", "使用工具");
     public static string UseToolsHint => T("When this is off, each answer sends a single request and calls no tools.", "关闭后，回答只发送一次请求，不调用工具。");
     public static string ToolsUnavailable => T(
@@ -39,7 +39,6 @@ public static partial class UiText
     public static string LimitToolCalls => T("Tool calls", "工具调用");
     public static string LimitMinutes => T("Duration (minutes)", "时长（分钟）");
     public static string LimitTokens => T("Estimated total tokens", "累计估算 token");
-    public static string LimitTimesUnit => T("times", "次");
     public static string RestoreDefaultLimits => T("Restore defaults", "恢复默认");
     public static string LimitsSaved => T("Saved; applies to questions you ask from now on", "已保存，对之后的提问生效");
     public static string ToolSettingsSaveFailed => T("Tool settings couldn’t be saved. Please try again later.", "工具设置未能保存，请稍后再试。");
@@ -63,7 +62,7 @@ public static partial class UiText
         _ => tool,
     };
 
-    /// <summary>The activity line of a run that has finished its tools: "检索了 2 次附件 · 检索了 1 次总结网络".</summary>
+    /// <summary>The activity line of a run that has finished its tools: "检索了 2 次附件 · 检索了 1 次总结".</summary>
     public static string RunActivity(IEnumerable<string> calledTools)
     {
         ArgumentNullException.ThrowIfNull(calledTools);
@@ -80,8 +79,8 @@ public static partial class UiText
                 Plural(g.Count(), "attachment search", "attachment searches"),
                 string.Format(CultureInfo.InvariantCulture, "检索了 {0} 次附件", g.Count())),
             "search_summaries" => T(
-                Plural(g.Count(), "summary network search", "summary network searches"),
-                string.Format(CultureInfo.InvariantCulture, "检索了 {0} 次总结网络", g.Count())),
+                Plural(g.Count(), "summary search", "summary searches"),
+                string.Format(CultureInfo.InvariantCulture, "检索了 {0} 次总结", g.Count())),
             "web_search" => T(
                 Plural(g.Count(), "web search", "web searches"),
                 string.Format(CultureInfo.InvariantCulture, "搜索了 {0} 次", g.Count())),
@@ -138,7 +137,7 @@ public static partial class UiText
             "web_search" => T("Searching" + named + "…", "正在搜索" + named + "…"),
             "fetch_page" => T("Reading web page" + named + "…", "正在读取网页" + named + "…"),
             "search_attachments" => T("Searching attachments" + named + "…", "正在检索附件" + named + "…"),
-            "search_summaries" => T("Searching summary network" + named + "…", "正在检索总结网络" + named + "…"),
+            "search_summaries" => T("Searching summaries" + named + "…", "正在检索总结" + named + "…"),
             _ => T("Calling " + ToolLabel(tool, summary) + "…", "正在调用 " + ToolLabel(tool, summary) + "…"),
         };
     }

@@ -54,7 +54,7 @@ Five phases are finished. Each boundary gets a tag on its historic commit; nothi
 | 0.5.0 | 2026-11-20 to 11-22 | The bilingual product: English interface, prompts in the interface language, the reasoning fold, answer typography, living documents in English | `fbfddbd` |
 
 - The merges after `fbfddbd` are 0.5.1, 0.5.2, … in first-parent order. Nine had merged by the changeover, which is therefore 0.5.10. They get no tags and their entries are not edited.
-- The session network is expected to be 0.6.0, in the merge that turns it on by default.
+- The session network is 0.6.0, the merge that turned it on by default (2026-11-23).
 - The build that said "0.2.0" from 2026-11-22 is not the 0.2.0 of this table. The changeover entry says so.
 
 ## 5. The change log
@@ -97,7 +97,7 @@ From the changeover on, [changes.md](../changes.md) has one section per version,
 - A test fails when version headings do not descend, when one stands below the dated entries, or when a numbered heading is not in the form of §5.
 - The tag is not checked by a test, because tests run before the merge exists. The wrap-up step makes it.
 
-## 8. What changes when this is built
+## 8. What changed when this was built (2026-11-23)
 
 - `Directory.Build.props`: the version at the changeover.
 - `AGENTS.md`: the `docs/changes.md` rule under "Where files belong", and the version added to rule 3 and to the dispatcher's wrap-up under "Parallel agents". A rule change, committed on its own.

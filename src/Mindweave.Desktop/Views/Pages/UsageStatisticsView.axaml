@@ -286,8 +286,8 @@
                 <ItemsControl.ItemTemplate>
                   <DataTemplate x:DataType="vm:ToolCallRowViewModel">
                     <DockPanel>
-                      <TextBlock DockPanel.Dock="Right" Classes="caption" Text="{Binding CallsText}" VerticalAlignment="Center" />
-                      <TextBlock FontWeight="SemiBold" Text="{Binding Name}" />
+                      <TextBlock DockPanel.Dock="Right" Classes="caption" Text="{Binding CallsText}" VerticalAlignment="Center" Margin="8,0,0,0" />
+                      <TextBlock FontWeight="SemiBold" Text="{Binding Name}" TextWrapping="Wrap" />
                     </DockPanel>
                   </DataTemplate>
                 </ItemsControl.ItemTemplate>

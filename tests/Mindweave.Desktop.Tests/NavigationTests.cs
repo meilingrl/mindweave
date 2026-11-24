@@ -79,7 +79,7 @@ public class NavigationTests
         shell.ShowSectionCommand.Execute(MainSection.Settings);
         app.Workbench.Push(StorageDetailsRoute.Instance);
 
-        shell.ToggleCreateWorkspaceCommand.Execute(null);
+        shell.BeginCreateWorkspaceCommand.Execute(null);
         shell.NewWorkspace.Name = "B";
         await shell.NewWorkspace.SubmitCommand.ExecuteAsync(null);
         var second = app.Workbench.CurrentWorkspace!;
@@ -103,7 +103,7 @@ public class NavigationTests
         await using var app = DesktopHarness.Create();
         await app.StartWithWorkspaceAsync("A");
         var shell = app.ShellPage;
-        shell.ToggleCreateWorkspaceCommand.Execute(null);
+        shell.BeginCreateWorkspaceCommand.Execute(null);
         shell.NewWorkspace.Name = "B";
         await shell.NewWorkspace.SubmitCommand.ExecuteAsync(null);
         shell.ShowSectionCommand.Execute(MainSection.Settings);

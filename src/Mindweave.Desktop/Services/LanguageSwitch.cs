@@ -250,7 +250,7 @@ public sealed partial class LanguageSwitch
             {
                 await previous.DisposeAsync();
             }
-#pragma warning disable CA1031 // As above.
+#pragma warning disable CA1031 // Nothing waits for the old view to be disposed; a failure is only logged.
             catch (Exception ex)
 #pragma warning restore CA1031
             {

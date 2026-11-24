@@ -87,7 +87,7 @@ public class StreamingIndicatorTests
         Assert.Equal("正在搜索：蒸汽机 发明…", UiText.AnswerStatus(AnswerStage.Tool, "web_search", "网络搜索：蒸汽机 发明"));
         Assert.Equal("正在读取网页：zh.wikipedia.org…", UiText.AnswerStatus(AnswerStage.Tool, "fetch_page", "取网页：https://zh.wikipedia.org/wiki/蒸汽机"));
         Assert.Equal("正在检索附件：瓦特…", UiText.AnswerStatus(AnswerStage.Tool, "search_attachments", "检索附件：瓦特"));
-        Assert.Equal("正在检索总结网络…", UiText.AnswerStatus(AnswerStage.Tool, "search_summaries", "检索总结网络"));
+        Assert.Equal("正在检索总结…", UiText.AnswerStatus(AnswerStage.Tool, "search_summaries", "检索总结"));
         Assert.Equal("正在调用 notes › echo…", UiText.AnswerStatus(AnswerStage.Tool, "mcp_notes__echo", "notes › echo：你好"));
         Assert.Equal("等待你批准读取网址…", UiText.AnswerStatus(AnswerStage.Approval, approval: new PendingApproval("c1", "fetch_page", "https://a.example/")));
         Assert.Equal("等待你批准调用 notes › write_note…",

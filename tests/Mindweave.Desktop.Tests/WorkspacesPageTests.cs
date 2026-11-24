@@ -51,7 +51,7 @@ public class WorkspacesPageTests
         window.UpdateLayout();
         Assert.Equal(UiText.WorkspacesCount(3), Find<TextBlock>(window, "WorkspaceCountText").Text);
 
-        UiInput.Click(window, entry);
+        await SettingsInput.OpenAsync(window, "ManageWorkspacesButton");
         var page = Assert.IsType<WorkspacesViewModel>(app.Workbench.CurrentPage);
         await page.Loaded;
         window.UpdateLayout();
@@ -96,7 +96,7 @@ public class WorkspacesPageTests
 
         app.ShellPage.ShowSectionCommand.Execute(MainSection.Settings);
         window.UpdateLayout();
-        UiInput.Click(window, Find<Button>(window, "ManageWorkspacesButton"));
+        await SettingsInput.OpenAsync(window, "ManageWorkspacesButton");
         var page = Assert.IsType<WorkspacesViewModel>(app.Workbench.CurrentPage);
         await page.Loaded;
         window.UpdateLayout();

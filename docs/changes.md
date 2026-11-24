@@ -8,6 +8,7 @@ The second number rises when a capability is finished and on by default, and the
 
 | Version | Dates | What the phase delivered | Where to read |
 | --- | --- | --- | --- |
+| 0.6.0 | 2026-11-22 to 11-23 | The network of every conversation: every conversation a dot, the spatial view and the timeline, places kept | The sections below and the dated entries |
 | 0.5.0 | 2026-11-20 to 11-22 | The bilingual product: English interface, prompts in the interface language, the reasoning fold, answer typography, living documents in English | The dated entries below |
 | 0.4.0 | 2026-11-17 to 11-20 | The agent platform: attachments, the run loop and local tools, web search, MCP; onboarding, icons, the context ring, the daily build | The dated entries below |
 | 0.3.0 | 2026-11-04 to 11-16 | The original requirements completed (items 3–8b): delete rules, workspace management, new-answer hints, suggested names, restore from backup, statistics, recommended questions, links; the structure refactor | [Stage reports](history/design/stage-reports.md) (frozen, in Chinese) |
@@ -15,6 +16,57 @@ The second number rises when a capability is finished and on by default, and the
 | 0.1.0 | 2026-10-25 to 10-28 | The core product, stages S0–S6: storage, real chat, branching and return, context budget and compression, summaries and versions, the summary network | [Stage reports](history/design/stage-reports.md) |
 
 The nine merges after 0.5.0, on 2026-11-22 and 2026-11-23, are 0.5.1 to 0.5.9 in order. They keep their dated entries below.
+
+## 0.6.10 · 2026-11-24
+
+- Added "Newer content" to the network's details
+- Added the reason shown while tools are off, and everything the name suggestions send to Settings
+- Added the licence texts of Markdig, Inter and the KaTeX fonts
+- Changed the interface to call the network page Mindweave everywhere; the tool that searches saved summaries is now "Search summaries" / “检索总结”
+- Documents: Changed requirements (v0.28) and architecture: search summaries, reading the rest of a result, a check for robots
+- Fixed long results that could not be read further in a conversation without attachments
+- Fixed a stopped or quit call with side effects, recorded as stopped (now unknown, D-038), and a ninth model request after a chance error
+- Fixed a website's check for robots, which was taken as the page: it is a failed read with the reason
+- Fixed pages that opened late (a first question, a branch, a deleted summary) over what the reader had gone to
+- Fixed the network's title search, which missed a summarized conversation's other titles
+- Fixed damaged originals of attachments, which counted as there: they are put back from a whole copy in a backup where there is one
+- Fixed the unsent first question, which stayed in the database after its workspace was deleted
+- Fixed the statistics of answers that used tools, which counted answers only offered tools, and compression and digests in the average
+- Fixed `scripts/daily.sh trial`, which left out attachments and the language, and the version shown by the launcher
+- Fixed tests that failed in the source package
+- Removed unused texts, converters, icons, a style, members and commands; tests now find unused texts and icons
+- Removed the run evaluation from the source package
+- Try: run the app; ask, and go to Settings while the first question is sent; open Mindweave and search a conversation's title
+- Not verified: Windows hardware; a real model reading the rest of a long page; a real MCP server stopped during a call; an onboarding or Settings screenshot of the new wording
+
+## 0.6.9 · 2026-11-24
+
+- Documents: Added Apache-2.0 as the licence, four built features to the requirements (§10.6), your answers of 2026-11-24 (D-038), the tables by migration to [data-model.md](design/data-model.md), the 0.6.0 row to the version table, and the rule that a merge counts as done only once CI passes (AGENTS.md)
+- Documents: Changed requirements (v0.27) and architecture where they were behind the product: the delete rule, the run loop, the network, quitting, names; no mobile; the interface calls the network page Mindweave
+- Documents: Changed [session-network.md](design/session-network.md) to the design as built; its record, the agent platform questions and the naming proposal moved to [finished designs](history/design/README.md)
+- Documents: Changed [testing.md](design/testing.md) to say which categories run
+- Fixed the source package check, which failed on the daily channel's name in a test and in a prototype's README
+- Documents: Removed the text about saving a layout by hand, progress marks and questions since decided
+- Try: nothing on screen changed; `scripts/package-source.sh` passes
+- Not verified: Windows hardware; the decisions written ahead of the code (a stopped call with side effects is unknown, later content in the network's details, Mindweave in the interface text) wait for the code task
+
+## 0.6.8 · 2026-11-24
+
+- Added `scripts/script-checks.py`, which checks that the test scripts report Chinese text whole in a Windows code page; `scripts/test.sh suite` and CI run it
+- Fixed the report of a failing desktop shard on Windows CI, which stopped while printing a failure message with Chinese in it and lost the message: `test-shards.py` and `test-timings.py` write UTF-8 when their output is redirected ([testing.md](design/testing.md), "Desktop test shards")
+- Fixed the shard runner skipping a test class whose name starts with a letter outside English
+- Try: nothing on screen changed; the app does not change (scripts and CI only)
+- Not verified: `scripts/third-party-notices.py`, which reads other programs' output the same way and is not covered; a Windows console (not redirected) showing the report
+
+## 0.6.7 · 2026-11-24
+
+- Added scenes with the longest names to the page test of 0.6.6, which also reports a text left with no room at all ([testing.md](design/testing.md))
+- Changed the recommended questions of a new conversation to scroll when the page has no room for them, and an MCP tool's risk box to grow with its text
+- Fixed names at their longest, which were cut off: the archived rows, the branch path, a tool step's result links, a citation's host line, an MCP server's name and its tools' names, the tool calls in the statistics, and the workspace row, where a long name pushed the "当前" (Current) tag out
+- Fixed the page test that failed CI on 0.6.6: it looked at whichever title was there first, and it archived before the answer's last write (tests only)
+- Fixed the tests that pressed a row of the settings while the page was still loading (tests only)
+- Try: `scripts/daily.sh trial`; give a conversation and a workspace a very long name, archive the conversation, and make the window small
+- Not verified: Windows hardware; the dark theme (no colours changed)
 
 ## 0.6.6 · 2026-11-24
 
