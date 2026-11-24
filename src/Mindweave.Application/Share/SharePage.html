@@ -1,0 +1,372 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<!-- The file is all there is: the page may load nothing from anywhere. -->
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'; script-src 'unsafe-inline'; img-src data:; base-uri 'none'; form-action 'none'">
+<meta name="referrer" content="no-referrer">
+<meta name="generator" content="Mindweave">
+<link rel="icon" href="data:,">
+<title>Mindweave</title>
+<style>
+:root {
+  color-scheme: light;
+  --bg: #FFFFFF; --panel: #F5F5F4; --card: #F7F7F6; --card-border: #ECEAE8; --divider: #E7E5E4;
+  --text: #1C1917; --muted: #78716C;
+  --canvas: #FCFCFB; --dot: #4B6BFB; --dot-hover: #6F89FF; --halo: #DCE3FF; --ring: #2B47CC;
+  --label: #1F2430; --caption: #8A8F99; --edge: #A1A9B7;
+}
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --bg: #18191B; --panel: #1D1E22; --card: #1E1F23; --card-border: #2A2C31; --divider: #2C2E33;
+  --text: #E6E8EE; --muted: #9299A6;
+  --canvas: #18191B; --dot: #B4BACD; --dot-hover: #D5D9E6; --halo: #26324D; --ring: #C1C6FA;
+  --label: #CBD0DA; --caption: #858B97; --edge: #5A616C;
+}
+* { box-sizing: border-box; }
+html { -webkit-text-size-adjust: 100%; }
+body { margin: 0; background: var(--bg); color: var(--text);
+  font: 14px/1.7 Inter, system-ui, -apple-system, "PingFang SC", "Microsoft YaHei", sans-serif; }
+button { font: inherit; color: inherit; }
+:focus-visible { outline: 2px solid var(--ring); outline-offset: 2px; }
+
+.page { max-width: 880px; margin: 0 auto; padding: 14px 16px 64px; }
+.switches { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 8px; margin-bottom: 8px; }
+.seg { display: inline-flex; border: 1px solid var(--divider); border-radius: 6px; overflow: hidden; font-size: 11px; line-height: 1.5; }
+.seg button { background: none; border: 0; padding: 2px 8px; color: var(--muted); cursor: pointer; }
+.seg button:focus-visible { outline-offset: -2px; }
+.seg button[aria-pressed="true"] { background: var(--panel); color: var(--text); }
+
+header h1 { font-size: 24px; line-height: 1.3; margin: 0 0 6px; font-weight: 650; letter-spacing: -0.01em; overflow-wrap: anywhere; }
+header .facts { color: var(--muted); font-size: 13px; }
+header .how { margin: 10px 0 0; color: var(--muted); max-width: 62ch; }
+
+.picture { margin: 20px 0 6px; border: 1px solid var(--divider); border-radius: 10px; background: var(--canvas);
+  overflow-x: auto; overflow-y: hidden; -webkit-overflow-scrolling: touch; }
+.stage { position: relative; }
+.stage svg { display: block; }
+.edge { fill: none; stroke: var(--edge); stroke-width: 1.4; }
+.edge.main { stroke-dasharray: 1 5; stroke-linecap: round; stroke-width: 1.8; }
+.edge.link { stroke-dasharray: 7 4; stroke-width: 1.1; }
+.dot { fill: var(--dot); cursor: pointer; }
+.dot:hover { fill: var(--dot-hover); }
+.dot:focus { outline: none; }
+.sring { fill: none; stroke: var(--dot); stroke-width: 1.2; pointer-events: none; }
+.halo { fill: var(--halo); pointer-events: none; display: none; }
+.sel { fill: none; stroke: var(--ring); stroke-width: 1.6; pointer-events: none; display: none; }
+.node.on .halo, .node.on .sel, .node:focus-within .sel { display: inline; }
+.lbl { position: absolute; width: 132px; margin-left: -66px; text-align: center; font-size: 12px; line-height: 1.35; overflow-wrap: anywhere;
+  color: var(--label); cursor: pointer; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+.lbl.on { color: var(--text); font-weight: 600; }
+.day { position: absolute; width: 132px; margin-left: -66px; text-align: center; font-size: 11px; color: var(--caption); pointer-events: none; }
+.legend { color: var(--caption); font-size: 12px; margin: 0 2px 22px; }
+
+h2 { font-size: 13px; font-weight: 600; color: var(--muted); margin: 26px 0 8px; letter-spacing: .02em; }
+.outline, .outline ul { list-style: none; margin: 0; padding: 0; }
+.outline ul { padding-left: 18px; border-left: 1px solid var(--divider); margin-left: 7px; }
+.outline button { display: flex; gap: 8px; align-items: baseline; width: 100%; text-align: left; background: none; border: 0;
+  padding: 5px 8px; border-radius: 6px; cursor: pointer; }
+.outline button:hover { background: var(--panel); }
+.outline button.on { background: var(--halo); }
+.outline .t { flex: 1; min-width: 0; overflow-wrap: anywhere; }
+.outline .n { color: var(--muted); font-size: 12px; white-space: nowrap; }
+.outline .rootday { color: var(--caption); font-size: 11px; margin: 10px 8px 2px; }
+.badge { font-size: 11px; color: var(--muted); border: 1px solid var(--card-border); border-radius: 5px; padding: 0 6px; margin-left: 6px; white-space: nowrap; }
+
+/* Below the outline, but never out of sight: a long outline must not hide what was just chosen. */
+.pick { position: sticky; bottom: 12px; margin-top: 18px; padding: 12px 14px; border: 1px solid var(--card-border); background: var(--card); border-radius: 10px; }
+.pick:empty { display: none; }
+.pick .t { font-weight: 600; overflow-wrap: anywhere; }
+.pick .m { color: var(--muted); font-size: 12px; }
+footer { margin-top: 44px; padding-top: 14px; border-top: 1px solid var(--divider); color: var(--muted); font-size: 12px; }
+
+@media (max-width: 560px) {
+  header h1 { font-size: 21px; }
+  /* A nested outline keeps room for its titles. */
+  .outline ul { padding-left: 10px; margin-left: 5px; }
+}
+/* A printed page is light whatever the screen shows, and the whole picture fits its width. */
+@media print {
+  :root, :root[data-theme] {
+    color-scheme: light;
+    --bg: #FFFFFF; --panel: #F5F5F4; --card: #F7F7F6; --card-border: #ECEAE8; --divider: #E7E5E4;
+    --text: #1C1917; --muted: #78716C;
+    --canvas: #FCFCFB; --dot: #4B6BFB; --dot-hover: #6F89FF; --halo: #DCE3FF; --ring: #2B47CC;
+    --label: #1F2430; --caption: #8A8F99; --edge: #A1A9B7;
+  }
+  @page { margin: 14mm; }
+  .page { padding: 0; max-width: none; }
+  .switches { display: none; }
+  .picture { overflow: visible; break-inside: avoid; border: 0; background: none; }
+  .stage { zoom: var(--fit, 1); }
+  .outline button { break-inside: avoid; }
+  .pick { position: static; }
+}
+</style>
+</head>
+<body>
+<noscript>
+  <p style="max-width:60ch;margin:40px auto;padding:0 16px">This page draws a path of questions with a script inside the file. Open it in a browser with JavaScript on.<br>
+  <span lang="zh">本页用文件内的脚本绘制提问的路径，请在开启 JavaScript 的浏览器中打开。</span></p>
+</noscript>
+<div class="page" id="page"></div>
+
+<!-- What the share holds: the exchange data Mindweave reads, and the only thing the page draws from. -->
+<script type="application/json" id="mindweave-export">{{data}}</script>
+
+<!-- The page's own words. A pair is one and many. -->
+<script type="application/json" id="page-text">{
+  "en": {
+    "locale": "en-GB",
+    "how": "A path of questions. Each dot is a conversation; a line shows where one conversation branched off from another. This page shows the shape of the path, not what was said.",
+    "explorations": ["{n} exploration", "{n} explorations"],
+    "conversations": ["{n} conversation", "{n} conversations"],
+    "questions": ["{n} question", "{n} questions"],
+    "legend": "Dot size: how much was asked there. Ring: has a summary. Dotted line: order in time.",
+    "legend_links": "Dashed line: two linked summaries.",
+    "picture": "The path",
+    "outline": "Outline",
+    "started": "Started {time}",
+    "has_summary": "has a summary",
+    "untitled": "Untitled conversation",
+    "foot": "Made with Mindweave. Open this file in Mindweave to explore these directions yourself.",
+    "saved": "Saved {time} · Mindweave {version}",
+    "language": "Page language",
+    "theme": "Theme",
+    "light": "Light",
+    "dark": "Dark"
+  },
+  "zh": {
+    "locale": "zh-CN",
+    "how": "一条由提问组成的路径。每个点是一次会话，连线表示一次会话从另一次会话的哪里分出。本页只展示路径的形状，不包含对话内容。",
+    "explorations": ["{n} 个探索", "{n} 个探索"],
+    "conversations": ["{n} 次会话", "{n} 次会话"],
+    "questions": ["{n} 个问题", "{n} 个问题"],
+    "legend": "点的大小：在这里问了多少。外环：有总结。虚线：时间先后。",
+    "legend_links": "长虚线：两个总结之间的关联。",
+    "picture": "路径",
+    "outline": "大纲",
+    "started": "开始于 {time}",
+    "has_summary": "有总结",
+    "untitled": "未命名会话",
+    "foot": "由 Mindweave 生成。在 Mindweave 中打开此文件，可以自己沿这些方向探索。",
+    "saved": "保存于 {time} · Mindweave {version}",
+    "language": "页面语言",
+    "theme": "主题",
+    "light": "浅色",
+    "dark": "深色"
+  }
+}</script>
+
+<script>
+"use strict";
+const DATA = JSON.parse(document.getElementById("mindweave-export").textContent);
+const TEXT = JSON.parse(document.getElementById("page-text").textContent);
+
+// ── Elements. Text is always set as text, never as markup. ──────────────────────────────────────────────────────────
+const apply = (e, attrs, kids) => {
+  for (const [k, v] of Object.entries(attrs)) k.startsWith("on") ? e.addEventListener(k.slice(2), v) : e.setAttribute(k, v);
+  for (const k of kids.flat()) if (k != null) e.append(k);
+  return e;
+};
+const $ = (tag, attrs = {}, ...kids) => apply(document.createElement(tag), attrs, kids);
+const svg = (tag, attrs = {}, ...kids) => apply(document.createElementNS("http://www.w3.org/2000/svg", tag), attrs, kids);
+
+// ── The path: conversations in start order, and the branches of each. ───────────────────────────────────────────────
+const convs = DATA.conversations.map(c => ({ ...c, at: new Date(c.started_at) }))
+  .sort((a, b) => a.at - b.at || (a.id < b.id ? -1 : 1));
+const byId = new Map(convs.map(c => [c.id, c]));
+const kids = new Map(convs.map(c => [c.id, []]));
+for (const c of convs) if (byId.has(c.parent)) kids.get(c.parent).push(c);
+const roots = convs.filter(c => !byId.has(c.parent));
+
+// A dot's weight: the questions asked in it and in its branches. A branch can start before its parent only if a clock
+// was set back, so the order is the tree's own, leaves first.
+const tree = [];
+for (const stack = [...roots]; stack.length;) { const c = stack.pop(); tree.push(c); stack.push(...kids.get(c.id)); }
+for (const c of tree.reverse()) c.weight = Math.max(c.questions, 1) + kids.get(c.id).reduce((s, k) => s + k.weight, 0);
+const radius = w => Math.min(14, Math.max(5, 5 + 1.3765 * Math.sqrt(Math.max(0, w - 1))));
+
+// ── The timeline, by the app's rules (session-network §5.1). Roots on the main line in start order, with a wider gap
+// between days in the reader's zone; a root's children open new lanes above or below; below a root, a first child
+// continues its parent's lane and further children open lanes on the same side. ─────────────────────────────────────
+const STEP = 148, LANE = 86;
+const sameDay = (a, b) => a.toDateString() === b.toDateString();
+const pos = new Map(), dayStarts = new Set();
+(() => {
+  const end = new Map();
+  const endOf = l => end.get(l) ?? -Infinity;
+  const take = (l, x) => end.set(l, Math.max(endOf(l), x));
+  let gaps = 0;
+  roots.forEach((r, i) => {
+    if (i === 0 || !sameDay(r.at, roots[i - 1].at)) { if (i) gaps++; dayStarts.add(r.id); }
+    pos.set(r.id, { x: (i + gaps) * STEP, lane: 0 });
+  });
+  const open = (from, x) => {
+    const side = Math.sign(from);
+    for (let k = 1; ; k++)
+      for (const l of side === 0 ? [-k, k] : [side * k])
+        if (l !== from && endOf(l) <= x - STEP) {
+          // Lanes the line crosses are taken up to here, so no later dot lands where it passes.
+          for (let m = Math.min(l, from) + 1; m < Math.max(l, from); m++) if (m) take(m, x - STEP);
+          return l;
+        }
+  };
+  for (const r of roots) {
+    const stack = [];
+    const push = (c, isRoot) => { const list = kids.get(c.id); for (let i = list.length - 1; i >= 0; i--) stack.push([list[i], !isRoot && i === 0]); };
+    for (push(r, true); stack.length;) {
+      const [c, continues] = stack.pop(), p = pos.get(c.parent);
+      const x = continues ? Math.max(p.x, endOf(p.lane)) + STEP : p.x + STEP;
+      const lane = continues ? p.lane : open(p.lane, x);
+      take(lane, x);
+      pos.set(c.id, { x, lane });
+      push(c, false);
+    }
+  }
+})();
+
+// ── What the reader chose; until then their browser and system decide. ──────────────────────────────────────────────
+const darkSystem = matchMedia("(prefers-color-scheme: dark)");
+const state = { lang: /^zh\b/i.test(navigator.language || "") ? "zh" : "en", theme: null, chosen: null };
+const theme = () => state.theme ?? (darkSystem.matches ? "dark" : "light");
+const showTheme = () => {
+  document.documentElement.dataset.theme = theme();
+  for (const b of document.querySelectorAll("[data-set-theme]")) b.setAttribute("aria-pressed", String(b.dataset.setTheme === theme()));
+};
+darkSystem.addEventListener("change", showTheme);
+
+let parts = new Map(), pick = null, picture = null, words = null;
+const say = (words, values) => words.replace(/\{(\w+)\}/g, (_, k) => values[k]);
+const count = (pair, n) => say(pair[n === 1 ? 0 : 1], { n });
+
+function render() {
+  const t = TEXT[state.lang];
+  const name = c => c.name ?? t.untitled;
+  const day = at => at.toLocaleDateString(t.locale, { year: "numeric", month: "short", day: "numeric" });
+  const time = at => at.toLocaleString(t.locale, { year: "numeric", month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" });
+  const kept = picture?.scrollLeft ?? 0;
+  document.documentElement.lang = state.lang === "zh" ? "zh-CN" : "en";
+  document.title = DATA.title;
+  parts = new Map(convs.map(c => [c.id, []]));
+
+  const seg = (label, options) => $("span", { class: "seg", role: "group", "aria-label": label }, options);
+  const switches = $("div", { class: "switches" },
+    seg(t.language, [["en", "English"], ["zh", "中文"]].map(([v, text]) => $("button", {
+      type: "button", lang: v, "data-set-lang": v, "aria-pressed": String(state.lang === v),
+      onclick: () => { state.lang = v; render(); document.querySelector(`[data-set-lang="${v}"]`).focus(); } }, text))),
+    seg(t.theme, ["light", "dark"].map(v => $("button", {
+      type: "button", "data-set-theme": v, "aria-pressed": String(theme() === v), onclick: () => { state.theme = v; showTheme(); } }, t[v]))));
+
+  const first = convs[0]?.at, last = convs.at(-1)?.at;
+  const range = !first ? [] : [sameDay(first, last) ? day(first) : `${day(first)} – ${day(last)}`];
+  const head = $("header", {},
+    $("h1", {}, DATA.title),
+    $("div", { class: "facts" }, [...range, count(t.explorations, roots.length), count(t.conversations, convs.length),
+      count(t.questions, convs.reduce((s, c) => s + c.questions, 0))].join(" · ")),
+    $("p", { class: "how" }, t.how));
+
+  // The picture.
+  const places = [...pos.values()], lanes = places.map(p => p.lane);
+  const padX = 84, top = 62, bottom = 58;
+  const minLane = lanes.reduce((a, b) => Math.min(a, b), 0), maxLane = lanes.reduce((a, b) => Math.max(a, b), 0);
+  const W = places.reduce((a, p) => Math.max(a, p.x), 0) + padX * 2, H = (maxLane - minLane) * LANE + top + bottom;
+  const X = p => p.x + padX, Y = p => (p.lane - minLane) * LANE + top;
+  const drawing = svg("svg", { width: W, height: H, viewBox: `0 0 ${W} ${H}`, role: "group", "aria-label": t.picture });
+  const stage = $("div", { class: "stage", style: `width:${W}px;height:${H}px;--fit:${Math.min(1, 680 / W)}` }, drawing);
+  for (let i = 1; i < roots.length; i++) {
+    const a = pos.get(roots[i - 1].id), b = pos.get(roots[i].id);
+    drawing.append(svg("path", { class: "edge main", d: `M${X(a)},${Y(a)} L${X(b)},${Y(b)}` }));
+  }
+  for (const c of convs) if (byId.has(c.parent)) {
+    const a = pos.get(c.parent), b = pos.get(c.id);
+    drawing.append(svg("path", { class: "edge", d: a.lane === b.lane ? `M${X(a)},${Y(a)} L${X(b)},${Y(b)}`
+      : `M${X(a)},${Y(a)} C${X(a) + STEP * 0.5},${Y(a)} ${X(b) - STEP * 0.62},${Y(b)} ${X(b)},${Y(b)}` }));
+  }
+  for (const l of DATA.links) if (byId.has(l.a) && byId.has(l.b)) {
+    // Bowed, so a link along a lane does not lie on the lane's own line.
+    const a = pos.get(l.a), b = pos.get(l.b), dx = X(b) - X(a), dy = Y(b) - Y(a), bow = 34 / Math.max(1, Math.hypot(dx, dy));
+    drawing.append(svg("path", { class: "edge link", d: `M${X(a)},${Y(a)} Q${(X(a) + X(b)) / 2 + dy * bow},${(Y(a) + Y(b)) / 2 - dx * bow} ${X(b)},${Y(b)}` }));
+  }
+  for (const c of convs) {
+    const p = pos.get(c.id), x = X(p), y = Y(p), r = radius(c.weight);
+    const dot = svg("circle", { class: "dot", cx: x, cy: y, r, tabindex: 0, role: "button", "aria-label": name(c), "aria-pressed": "false" });
+    const node = svg("g", { class: "node" },
+      svg("circle", { class: "halo", cx: x, cy: y, r: r + 9 }),
+      c.has_summary ? svg("circle", { class: "sring", cx: x, cy: y, r: r + 3.5 }) : null,
+      svg("circle", { class: "sel", cx: x, cy: y, r: r + (c.has_summary ? 6.5 : 3.5) }),
+      dot);
+    dot.addEventListener("click", () => choose(c.id));
+    dot.addEventListener("keydown", e => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); choose(c.id); } });
+    const label = $("div", { class: "lbl", title: name(c), "aria-hidden": "true", onclick: () => choose(c.id) }, name(c));
+    label.style.left = x + "px";
+    p.lane < 0 ? label.style.bottom = (H - y + r + 9) + "px" : label.style.top = (y + r + 9) + "px";
+    drawing.append(node);
+    stage.append(label);
+    parts.get(c.id).push(node, label, dot);
+    if (dayStarts.has(c.id)) {
+      const caption = $("div", { class: "day" }, day(c.at));
+      caption.style.left = x + "px";
+      caption.style.top = (y - r - 30) + "px";
+      stage.append(caption);
+    }
+  }
+  picture = $("div", { class: "picture" }, stage);
+
+  // The outline: the same titles, indented. Filled from a stack, because a chain of branches can be deep.
+  const outline = $("ul", { class: "outline" });
+  for (const r of roots) {
+    if (dayStarts.has(r.id) && roots.length > 1) outline.append($("li", { class: "rootday" }, day(r.at)));
+    for (const stack = [[r, outline]]; stack.length;) {
+      const [c, list] = stack.pop();
+      const button = $("button", { type: "button", onclick: () => choose(c.id, true) },
+        $("span", { class: "t" }, name(c), c.has_summary ? $("span", { class: "badge" }, t.has_summary) : null),
+        $("span", { class: "n" }, count(t.questions, c.questions)));
+      const item = $("li", {}, button);
+      list.append(item);
+      parts.get(c.id).push(button);
+      const branches = kids.get(c.id);
+      if (branches.length) {
+        const inner = $("ul");
+        item.append(inner);
+        for (let i = branches.length - 1; i >= 0; i--) stack.push([branches[i], inner]);
+      }
+    }
+  }
+
+  pick = $("div", { class: "pick", "aria-live": "polite" });
+  document.getElementById("page").replaceChildren(switches, head, picture,
+    $("p", { class: "legend" }, DATA.links.length ? `${t.legend} ${t.legend_links}` : t.legend),
+    $("h2", {}, t.outline), outline, pick,
+    $("footer", {}, $("div", {}, t.foot), $("div", {}, say(t.saved, { time: time(new Date(DATA.made_at)), version: DATA.app_version }))));
+  picture.scrollLeft = kept;
+  words = { t, name, time };
+  showChosen();
+}
+
+// ── Choosing a dot or a title shows what the share says about it. ───────────────────────────────────────────────────
+function choose(id, reveal) {
+  state.chosen = id;
+  showChosen();
+  if (reveal) {
+    const dot = parts.get(id)[2].getBoundingClientRect(), box = picture.getBoundingClientRect();
+    if (dot.left < box.left + 70 || dot.right > box.right - 70) picture.scrollLeft += dot.left - box.left - box.width / 2;
+  }
+}
+
+function showChosen() {
+  for (const [id, elements] of parts) {
+    for (const e of elements) e.classList.toggle("on", id === state.chosen);
+    elements[2].setAttribute("aria-pressed", String(id === state.chosen));
+  }
+  const c = byId.get(state.chosen), { t, name, time } = words;
+  pick.replaceChildren(...(!c ? [] : [$("div", { class: "t" }, name(c)),
+    $("div", { class: "m" }, [say(t.started, { time: time(c.at) }), count(t.questions, c.questions), ...(c.has_summary ? [t.has_summary] : [])].join(" · "))]));
+}
+
+render();
+showTheme();
+</script>
+</body>
+</html>
