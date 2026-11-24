@@ -40,7 +40,7 @@ The reply-quality discussion owns everything inside an answer or a summary: the 
 1. What is kept for each conversation so that it can be brought back: decided, R1.
 2. When it is written, and what it costs: decided, R2.
 3. What returning from a branch shows: decided, R3.
-4. What coming back after some days shows, and where.
+4. What coming back after some days shows, and where: decided, R4.
 5. Unresolved questions as the edge of an exploration in the summary network.
 6. Answers that cite the user's own summaries (with reply quality).
 7. Extending a single summary on request (§10.2).
@@ -89,6 +89,16 @@ Considered: on leaving a conversation (the writer's first recommendation; a requ
 - The chip's look is the owner's to judge from a picture.
 
 Considered: a "bring back" action in the branch that writes its note at once (one request per click and one more control). Not taken now; it can be added later without changing what is stored.
+
+### R4 Coming back after some days (2026-11-25)
+
+- Nothing new opens. The app starts where the user was, as today, and no recap is shown at start.
+- The new exploration page lists up to 3 questions left open, taken from the notes, most recent first, above the recommended questions. Each names its conversation. A click opens that conversation with the question in the input box; nothing is sent.
+- The summary network's details show a dot's note.
+
+Considered: a recap panel shown once at start after an absence (a surface for one scenario, standing before what the user came to ask); the summary network only (the page used least today).
+
+Still to settle for the page: the order and the total number when both lists are full.
 
 ## Still to write
 
