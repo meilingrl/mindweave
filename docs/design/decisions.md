@@ -86,6 +86,8 @@ Architecture §11.1 says "background and edges custom-drawn, nodes as lightweigh
 - **New nodes use the in-memory layout as reference** (MW-C12 requires this to be written down): when the summary network is open and has an unsaved arrangement, a new node is placed next to the source node the user sees, and that row is saved directly. If the user later chooses “不保存” ("Don't save") for that arrangement, the new node's saved position is near the parent's arranged position, so after reopening it may be a little farther from its parent; the position is still valid and can be arranged again. When there are no unsaved changes, the in-memory layout is the saved layout, and there is no difference between the two.
 - **Layout parameters:** layer spacing 170, group padding 160, 40 rounds of collision correction, zoom 0.25–2.5 (no more than 1.5 when fitting), fit margin 48. Label widths are estimated by character (CJK characters 14, ASCII 8) rather than measured from the font, so the same input gives the same coordinates on different machines.
 
+- **Note (2026-11-24):** replaced in part by D-035: places are kept per exploration, nothing is arranged by hand, and the layout parameters above are no longer used.
+
 ## D-020 UI polish is a separate stage after S6 (2026-10-28)
 
 After trying S5, the user pointed out that the summary network page is clumsier than the sample confirmed before development (`prototypes/network-layout`); that read and unread are not visually clear; and that the layout and details of pages such as starting a branch conversation and summaries are not good enough. There were no functional problems. The user decided: after S6 is finished, do one focused UI polish stage (recorded as S7); during S6, do no UI rework, and implement new pages in the existing style, aiming only for usable.
@@ -127,6 +129,8 @@ Two things were settled from this:
 
 - **Manual node dragging is delivered in S7** (requirements §3 originally listed it as after the first release; the user has now scheduled it). The behavior follows the rules already written in the architecture's "Layout" section: the end of a drag produces a layout waiting to be saved, using the same coordinates and save path as “整理布局” ("Arrange layout"), with the same leave prompt; panning, zooming and showing everything produce no pending-save state. No physics effects such as neighbor springs.
 - **Less explanatory text in the UI; let the controls guide the user**: remove hint sentences that restate what a control does. Keep only information the user would misunderstand without seeing it (errors, the consequences of irreversible operations, explanations the requirements explicitly demand). Common interactions (stop, copy, collapse) use icons with hover tooltips. Every page is checked against this rule from now on.
+
+**Note (2026-11-24):** dragging nodes was removed with D-035.
 
 ## D-024 Round 4 acceptance feedback: deleting a whole workspace, answer timing, sidebar state, branch markers (2026-11-03)
 
