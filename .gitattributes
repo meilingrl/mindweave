@@ -11,6 +11,7 @@ CLAUDE.md export-ignore
 .github/ export-ignore
 docs/reviews/README.md export-ignore
 docs/reviews/claude-auto-*/ export-ignore
+docs/reviews/run-eval-*/ export-ignore
 docs/history/development-routes.md export-ignore
 docs/history/track-claude-auto.md export-ignore
 docs/history/agent-platform-discussion-20261113.md export-ignore

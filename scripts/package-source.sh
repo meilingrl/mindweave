@@ -44,7 +44,7 @@ done
 
 # The package presents the product as Mindweave alone: no development process records (kept out by export-ignore
 # in .gitattributes) and no development-line or channel names in any packaged file.
-process="$(printf '%s\n' "$names" | grep -E '^mindweave/(TRACK\.md|STATUS\.md|AGENTS\.md|CLAUDE\.md|\.github/|docs/history/(development-routes|track-)|docs/reviews/(README\.md|claude[-]auto-))' || true)"
+process="$(printf '%s\n' "$names" | grep -E '^mindweave/(TRACK\.md|STATUS\.md|AGENTS\.md|CLAUDE\.md|\.github/|docs/history/(development-routes|track-)|docs/reviews/(README\.md|claude[-]auto-|run-eval-))' || true)"
 if [[ -n "$process" ]]; then
   echo "FAIL development records in the package:" >&2
   printf '  %s\n' $process >&2
@@ -53,7 +53,7 @@ fi
 scratch="$(mktemp -d)"
 trap 'rm -rf "$scratch"' EXIT
 unzip -q "$OUT" -d "$scratch"
-marked="$(grep -rIl -i -E 'claude[-]auto|codex[-]steady|track[/]|激进[轨]|稳健[轨]' "$scratch/mindweave" | sed "s|^$scratch/||" || true)"
+marked="$(grep -rIl -i -E 'claude[-]auto|codex[-]steady|codex [t]rack|track[/]|激进[轨]|稳健[轨]' "$scratch/mindweave" | sed "s|^$scratch/||" || true)"
 if [[ -n "$marked" ]]; then
   echo "FAIL development-line names in packaged files:" >&2
   printf '  %s\n' $marked >&2
