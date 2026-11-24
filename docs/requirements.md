@@ -1,7 +1,7 @@
 # Mindweave product requirements
 
 **Document status:** The confirmed requirements. Changes are listed in the revision history (§14); progress is not recorded here but in [STATUS.md](../STATUS.md). Confirmed requirements do not mean the product's value is verified (§12).  
-**Version:** v0.26  
+**Version:** v0.27  
 **Created:** 2026-09-08  
 **Project name:** Mindweave
 
@@ -605,6 +605,15 @@ The user's decisions of 2026-11-21 (plan step 2; design in [Interface language](
 - **Prompts follow the interface language.** The model still writes answers, titles and summaries in the language of the conversation or material.
 - **Stored data is not converted.** Titles, messages, summaries and other saved text stay in the language they were written in. New text the app writes into data uses the interface language at that time.
 
+### 10.6 Smaller additions (v0.27)
+
+Built after the first release, by the user's decisions of 2026-11-10 to 2026-11-12, and written down here:
+
+- **New answers.** A conversation whose answer finished out of sight is marked in the sidebar, and answers in other workspaces are marked at the workspace picker. A notice that does not take the focus appears when an answer finishes out of sight; the user can open the conversation from it. Notices for the current workspace can be turned off (on by default), and a sound can be turned on (off by default).
+- **Usage statistics.** A page states facts only: tokens as the services reported them, requests, activity, and tool calls, for all workspaces or the current one, by day or by month, by model and by purpose. Requests whose usage was not reported are counted apart and not estimated. The user can enter prices to see an approximate cost. It does not judge learning (§5.4).
+- **Restoring a backup inside the app.** The user can restore a backup from the list of backups, or delete backups. Restoring brings back all workspaces, not one. Before it, running work is stopped (the user is asked first), drafts are saved, and the current data is kept as a backup of its own, so the restore can be undone.
+- **Workspace name suggestions.** When a workspace is renamed, the AI can suggest names from the titles of its conversations (a conversation without one by the start of its first question) the names of its summaries and its current name. Suggestions may also be prepared in the background (on by default; it can be turned off); such a request gives way to questions, summaries, titles and names.
+
 ## 11. First-release acceptance scenarios
 
 | Scenario | Observable expected result |
@@ -805,3 +814,4 @@ The per-module inputs, required outputs and order of work for detailed design fr
 - **v0.24 · 2026-11-21:** Following the user's decisions of 2026-11-21 (plan step 2), added §10.5 interface language: English and Chinese, English by default, chosen in Settings › Appearance or on the first onboarding screen, switched in place without a restart, prompts in the interface language, stored data not converted; §11 adds its acceptance. Amended on 2026-11-22 (user): the note of the summary link from a recommendation (§10.3.5) is written in the interface language when it is created; English “Recommendation” fits the 16-character note limit.
 - **v0.25 · 2026-11-23:** Following the user's decisions of 2026-11-20 and 2026-11-23 (D-035), the summary network becomes the network of every conversation: each conversation is a dot, summaries are a ring and a layer on top, branch lines are lineage, a time thread joins explorations, and the "via unsummarized conversations" path edges go. It has a spatial view arranged by structure like a molecule and a timeline view (§7.3). "Stable layout" now means no large sudden shifts: each exploration keeps its place, saved automatically, and only what changed is drawn again; explicit layout saving, “整理布局” (Arrange layout) and dragging are removed (§7.4). Recommended nodes count conversations; summary links are quiet until active; link suggestions never pair a summary with its own line of descent. Changed §1, §4, §4.2, §5.2, §7.1, §7.3, §7.4, §10.3, §10.3.2–§10.3.4 and §11.
 - **v0.26 · 2026-11-23:** Following the user's points of 2026-11-23 after trying the app: an answer being written does not move the page (§6.3); the citations list is collapsed by default (§10.4.5); the summary network's legend may be an icon (§10.3). Does not change the first-release scope and acceptance; no migration.
+- **v0.27 · 2026-11-24:** After a check of the documents against the product. By the user's decisions of 2026-11-24: no mobile development (§10.1); the interface calls the network page Mindweave everywhere (§4.2); later content is a mark of the details (§7.1); a call with side effects that was stopped is recorded as unknown (§10.4.4); four built features are written down (§10.6). Passages that earlier versions left behind are corrected without changing what they decided: saving a layout by hand, the delete rule and attachments, the network's names, the run rules, names of settings, pending marks. Changed §4, §5.2, §6.1, §7, §8.2, §9.2, §9.5, §10.1, §10.3.5, §10.4.1, §10.4.3–§10.4.6, §10.6, §11–§13.
