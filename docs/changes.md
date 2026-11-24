@@ -17,6 +17,28 @@ The second number rises when a capability is finished and on by default, and the
 
 The nine merges after 0.5.0, on 2026-11-22 and 2026-11-23, are 0.5.1 to 0.5.9 in order. They keep their dated entries below.
 
+## 0.6.10 · 2026-11-24
+
+- Added "Newer content" to the network's details
+- Added the reason shown while tools are off, and everything the name suggestions send to Settings
+- Added the licence texts of Markdig, Inter and the KaTeX fonts
+- Changed the interface to call the network page Mindweave everywhere; the tool that searches saved summaries is now "Search summaries" / “检索总结”
+- Documents: Changed requirements (v0.28) and architecture: search summaries, reading the rest of a result, a check for robots
+- Fixed long results that could not be read further in a conversation without attachments
+- Fixed a stopped or quit call with side effects, recorded as stopped (now unknown, D-038), and a ninth model request after a chance error
+- Fixed a website's check for robots, which was taken as the page: it is a failed read with the reason
+- Fixed pages that opened late (a first question, a branch, a deleted summary) over what the reader had gone to
+- Fixed the network's title search, which missed a summarized conversation's other titles
+- Fixed damaged originals of attachments, which counted as there: they are put back from a whole copy in a backup where there is one
+- Fixed the unsent first question, which stayed in the database after its workspace was deleted
+- Fixed the statistics of answers that used tools, which counted answers only offered tools, and compression and digests in the average
+- Fixed `scripts/daily.sh trial`, which left out attachments and the language, and the version shown by the launcher
+- Fixed tests that failed in the source package
+- Removed unused texts, converters, icons, a style, members and commands; tests now find unused texts and icons
+- Removed the run evaluation from the source package
+- Try: run the app; ask, and go to Settings while the first question is sent; open Mindweave and search a conversation's title
+- Not verified: Windows hardware; a real model reading the rest of a long page; a real MCP server stopped during a call; an onboarding or Settings screenshot of the new wording
+
 ## 0.6.9 · 2026-11-24
 
 - Documents: Added Apache-2.0 as the licence, four built features to the requirements (§10.6), your answers of 2026-11-24 (D-038), the tables by migration to [data-model.md](design/data-model.md), the 0.6.0 row to the version table, and the rule that a merge counts as done only once CI passes (AGENTS.md)
