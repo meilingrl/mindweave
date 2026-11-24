@@ -26,7 +26,12 @@ Started 2026-11-25. The owner decides; each decision is recorded here with its d
 
 ### Decisions
 
-None yet.
+- **Q1, 2026-11-25 (owner): every answer gets one short answer prompt.**
+  - Content: what Mindweave is; answer in the language of the question; core idea first, then build up; define a term at first use; an example or analogy when it helps; length scaled to the question.
+  - The lines are defaults. When the user's question asks for something else, the question wins.
+  - The run prompt becomes "answer prompt + tool section", so answers with and without tools explain in the same way.
+  - One file per language, with a version number, like the run prompt.
+  - Accepted cost: about 300 input tokens on every answer request; every answer changes at once on every model; whether answers read better is judged with a real model and by the owner's reading.
 
 ### Boundaries with the other design sessions (proposed, for the owner to settle)
 
