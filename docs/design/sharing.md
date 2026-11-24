@@ -1,6 +1,6 @@
 # Sharing a thinking path (design)
 
-**Status:** approved by the owner on 2026-11-25 (D-039), not built. Discussed with the owner on 2026-11-24 and 11-25; every decision in §4 is the owner's unless it says "writer's call". It carries out [evolution.md](../evolution.md) D8 in the 0.6.x cycle. Nothing here changes the requirements or the architecture by itself: §13 lists the text that must change, as a separate proposal.
+**Status:** approved by the owner on 2026-11-25 (D-039), not built. Discussed with the owner on 2026-11-24 and 11-25; every decision in §4 is the owner's unless it says "writer's call". It carries out [evolution.md](../evolution.md) D8 in the 0.6.x cycle. The requirements and architecture text that follows from it is listed in §13; the owner confirmed it on 2026-11-25.
 
 Related: [session-network.md](session-network.md) (every conversation is a dot; the timeline), [evolution-seams.md](evolution-seams.md) E5 (the exchange format), [attachments.md](attachments.md), [web-search.md](web-search.md), [reasoning-and-status.md](reasoning-and-status.md), requirements §8.3 (export) and §10.1 (full import and export, sync). The page's look: [prototypes/share-page](../../prototypes/share-page/README.md).
 
@@ -349,7 +349,7 @@ Each merge states how to try it, what was run, and what was not verified; the di
 
 ## 13. Requirements and architecture text that must change (separate proposal)
 
-Not written yet; proposed to the owner as its own commit when this design is adopted.
+Written as its own commit and confirmed by the owner on 2026-11-25: requirements v0.29 (§10.7 and its acceptance in §11) and architecture §16. The table records what changed.
 
 | Where | Change |
 | --- | --- |
