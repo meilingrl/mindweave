@@ -842,7 +842,15 @@ public sealed partial class ConversationService : IConversations
             NetworkAllowed = mode != WebSearchMode.Off, // Decision M8: third-party network reads follow the switch.
         };
         var offered = await _tools.OfferAsync(scope, cancellationToken).ConfigureAwait(false);
-        return offered.Count == 0 ? null : new RunPlan(offered, await _toolSettings.GetLimitsAsync(cancellationToken).ConfigureAwait(false), scope);
+        if (offered.Count == 0)
+        {
+            return null;
+        }
+
+        return new RunPlan(offered, await _toolSettings.GetLimitsAsync(cancellationToken).ConfigureAwait(false), scope)
+        {
+            Reader = offered.Any(t => t.Name == Tools.SearchAttachmentsTool.ToolName) ? null : _tools.Find(Tools.SearchAttachmentsTool.ToolName),
+        };
     }
 
     /// <summary>

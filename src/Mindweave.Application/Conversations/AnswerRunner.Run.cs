@@ -71,10 +71,13 @@ internal sealed partial class AnswerRunner
 
         /// <summary>The run's [n] of the sources in it.</summary>
         public IReadOnlyList<int> Numbers { get; init; } = [];
+
+        /// <summary>Only its start was sent.</summary>
+        public bool Cut { get; init; }
     }
 
     private static SentResult Sent(int turnIndex, ToolOutcome outcome, string tool) =>
-        new(turnIndex, outcome.Line) { Tool = tool, Failed = outcome.Failed, Findings = outcome.Findings ?? [], Numbers = outcome.Numbers ?? [] };
+        new(turnIndex, outcome.Line) { Tool = tool, Failed = outcome.Failed, Findings = outcome.Findings ?? [], Numbers = outcome.Numbers ?? [], Cut = outcome.Cut };
 
     private async Task<RunEnding> RunAsync(AnswerWork work, RunPlan run, RunServices services, ChatRequest request, string key, CancellationToken stop)
     {
@@ -91,6 +94,7 @@ internal sealed partial class AnswerRunner
         int requests = 0, calls = 0, tokens = 0, ordinal = 0;
         RunLimit? reached = null;
         var cutOff = false;
+        var preSearchCut = false;
         var seen = new Dictionary<string, EarlierCall>(StringComparer.Ordinal);
         var retried = false;
         var instructions = RunPrompt.For(run.Tools);
@@ -115,6 +119,7 @@ internal sealed partial class AnswerRunner
                 return ending;
             }
 
+            preSearchCut = first.Cut;
             turns[question] = turns[question] with { Content = PreSearchLead + "\n" + first.Content + "\n\n" + turns[question].Content };
             if (first.Resource is { } found && RepeatKey(run, new ChatToolCall(PreSearchCallId, WebSearchTool.ToolName, arguments)) is { } searched)
             {
@@ -137,13 +142,10 @@ internal sealed partial class AnswerRunner
             }
 
             var final = reached is not null || cutOff;
-            var offered = final ? [] : run.Tools.Where(t => !withdrawn.Contains(t.Name)).ToList();
-            // The run instructions (L1) end with the budget line (L2), or for the last request with the instruction to answer (R8, L6).
-            var system = instructions + "\n\n" + (reached is not null ? FinalInstruction : cutOff ? CutOffInstruction : RunPrompt.BudgetLine(limits, requests, calls));
-            var next = Compose(request, turns, results, shortened, offered, system);
+            var next = Next(final);
             while (ChatTurns.Estimate(next) > budget.Available && Shorten(results, shortened, live.Snapshot().Text))
             {
-                next = Compose(request, turns, results, shortened, offered, system);
+                next = Next(final);
             }
 
             if (!final && ChatTurns.Estimate(next) > budget.Available)
@@ -382,6 +384,22 @@ internal sealed partial class AnswerRunner
                 turns.Add(new ChatTurn(ChatRole.Tool, SkippedResult) { ToolCallId = call.Id });
             }
         }
+
+        ChatRequest Next(bool final)
+        {
+            if (run.Reader is { } reader && (preSearchCut || shortened.Count > 0 || results.Any(r => r.Cut)))
+            {
+                // A result not sent whole names 检索附件 for the rest, so it is offered from here on (requirements §10.4.4).
+                run = run with { Tools = [.. run.Tools, reader], Reader = null };
+                instructions = RunPrompt.For(run.Tools);
+            }
+
+            var offered = final ? [] : run.Tools.Where(t => !withdrawn.Contains(t.Name)).ToList();
+
+            // The run instructions (L1) end with the budget line (L2), or for the last request with the instruction to answer (R8, L6).
+            var system = instructions + "\n\n" + (reached is not null ? FinalInstruction : cutOff ? CutOffInstruction : RunPrompt.BudgetLine(limits, requests, calls));
+            return Compose(request, turns, results, shortened, offered, system);
+        }
     }
 
     /// <summary>
@@ -435,7 +453,7 @@ internal sealed partial class AnswerRunner
 
     private static string Address(string url) => Uri.TryCreate(url, UriKind.Absolute, out var u) && WebRun.Normalize(u) is { } key ? key : url;
 
-    private readonly record struct ToolOutcome(string Content, string Line, RunEnding? Ending, ResourceId? Resource = null, bool Failed = false, IReadOnlyList<ToolFinding>? Findings = null, IReadOnlyList<int>? Numbers = null);
+    private readonly record struct ToolOutcome(string Content, string Line, RunEnding? Ending, ResourceId? Resource = null, bool Failed = false, IReadOnlyList<ToolFinding>? Findings = null, IReadOnlyList<int>? Numbers = null, bool Cut = false);
 
     /// <summary>A read-only call that succeeded earlier in the run (L4): what was sent for it and where.</summary>
     private sealed record EarlierCall(string Content, int TurnIndex, ResourceId Resource, string Name, string? Input);
@@ -819,10 +837,12 @@ internal sealed partial class AnswerRunner
 
         string content;
         ToolResultBlock block;
+        var cut = false;
         if (output is not null && stored is { } id)
         {
             failures[call.Name] = 0;
-            content = TokenEstimator.Estimate(resultText) <= ToolResultTokens
+            cut = TokenEstimator.Estimate(resultText) > ToolResultTokens;
+            content = !cut
                 ? resultText
                 : Start(resultText, ToolResultTokens) + T(
                     $"\n\n(The result is long; the above is only its start. The full result is resource {id}; read it with {SearchAttachmentsTool.ToolName}'s resource and part.)",
@@ -867,7 +887,7 @@ internal sealed partial class AnswerRunner
         var line = T(
             $"(Earlier tool result left out: {call.Name} {input}{(stored is { } s ? $"; the full result is resource {s}" : string.Empty)}. Read it again when needed.)",
             $"（较早的工具结果已省略：{call.Name} {input}{(stored is { } r ? $"，完整结果是资源 {r}" : string.Empty)}；需要时可再读取。）");
-        return new ToolOutcome(content, line, null, stored, Failed: stored is null, Findings: output?.Findings, Numbers: output?.Numbers);
+        return new ToolOutcome(content, line, null, stored, Failed: stored is null, Findings: output?.Findings, Numbers: output?.Numbers, Cut: cut);
     }
 
     /// <summary>
