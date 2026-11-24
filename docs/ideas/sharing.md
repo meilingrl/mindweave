@@ -220,7 +220,8 @@ Identities are the stored ones, unchanged: import depends on them (S4).
 Writer's calls, each easy to change:
 
 - **The page draws from the data block.** There is one source inside the file, so "the data holds exactly what the page shows" holds by construction.
-- **Answers are turned from Markdown into HTML at export, with the app's own Markdown rules**, and that HTML is what the data block carries beside the Markdown source. The page then matches the app's reading of emphasis, tables and formula delimiters without a second parser. Formulas are drawn in the browser by a formula library bundled in the file. Code blocks are plain monospace in step 1; highlighting can come later.
+- **Answers are read as the app reads them.** Whether Markdown becomes HTML at export or in the page's script is the builder's choice (§7). Either way, a set of sample answers must read the same in the page as in the app: emphasis next to Chinese punctuation, tables, and the four formula delimiters. Formulas are drawn by a formula library bundled in the file. Code blocks are plain monospace in step 1; highlighting can come later.
+- **Nothing in an answer runs.** HTML written inside an answer is shown as text, never as markup, so a shared or imported answer cannot carry a script.
 - **Remote images in answers stay links**, as in the app.
 
 **A device copy** (step 3) is a package: a zip that holds the same page, the exchange document, and the attachment originals by content hash. Its extension and layout follow E5.
@@ -254,10 +255,23 @@ The dialog's look is the owner's to judge from a running build or screenshots be
 - Import is the same import, with the "already here" cases doing real work: conversations gain missing messages, summaries gain missing versions, attachment originals are added by hash.
 - Deleted identities are recorded from step 3 on (a migration) and travel in the copy; the offer of S11 follows the import.
 
+### 6.6 Details settled after an independent builder's read (writer's calls, 2026-11-25)
+
+A reviewer read this design against the code as a builder would. Its questions are settled here; each is easy to change.
+
+1. **A conversation with no title yet.** The app then shows the branch's quoted sentence or the start of the first question as its name, and both are message text. In a structure-only share such a conversation is named "Untitled conversation" (in the page's language). The share dialog shows the names exactly as they will leave, so the user can give a title first. With content, the app's name is used as it is.
+2. **A conversation with a summary.** Its dot carries the name the app shows for it in the Mindweave page (the summary's short name), in both kinds of share. That name is a title, not summary text; the user sees it in the dialog before saving.
+3. **Where a branch left from.** With content, the format carries the source message's identity and the quoted sentence, and the position in the answer's Markdown when the app has it. The page marks the sentence by finding the quote in that answer; when the quote is not found, or to tell two occurrences apart without a position, the sentence is not marked, and the branch is still listed under the answer (S8). The app's own stored anchor travels too, with its version and render profile, when it holds no text beyond the quote, so that an importing app can highlight the sentence; otherwise the importing app finds the quote again.
+4. **A branch that left from an earlier attempt of an answer.** That attempt is included, although S6 leaves earlier attempts out, because a shared branch depends on it. It is shown folded and labelled as an earlier answer. The format carries which answer replaced which, so an importing app never shows two standing answers.
+5. **Where Markdown is turned into HTML** is not in Core or Application, which have no Markdown library; the exchange document carries Markdown.
+6. **Times** are carried as instants, with no time zone of the sharer. The page shows them, and groups days, in the reader's own time zone, so a day boundary can fall differently from the sharer's picture.
+7. **"The newer one wins"** needs the time a title was last changed, which is not stored today. It is added with step 2's migration and enters the format as an optional field, which E5 allows inside one format version. Step 1 needs no migration.
+8. **Archived conversations** are dots like the others (session-network.md §3), so they are ticked with their exploration and can be unticked. The page does not say that a conversation is archived: that is the user's state in the app (S7).
+
 ## 7. Left to the builder
 
 - The JSON shape of the exchange document inside the rules of E5 and §6.1.
-- Which formula library is bundled, and how the page script is kept in the repository and embedded.
+- Which formula library is bundled, how the page script is kept in the repository and embedded, and whether Markdown is turned into HTML at export or by the page's script (§6.2, §6.6).
 - Whether the timeline in the page is laid out by the page's script (as in the prototype) or its positions are computed at export; the rules are those of session-network.md §5.1 either way.
 - Folding at a paragraph boundary; the fold height.
 - Code structure. Following the glossary: `Share` for the selection, the dialog and the page writer; the exchange document and import under the names §13 proposes.
