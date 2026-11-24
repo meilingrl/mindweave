@@ -362,7 +362,7 @@ public class UsageStatisticsUiTests
         var window = app.ShowWindow(1100, 820);
         app.ShellPage.ShowSectionCommand.Execute(MainSection.Settings);
         window.UpdateLayout();
-        UiInput.Click(window, Find<Button>(window, "StatisticsButton"));
+        await SettingsInput.OpenAsync(window, "StatisticsButton");
         var page = Assert.IsType<UsageStatisticsViewModel>(app.Workbench.CurrentPage);
         window.UpdateLayout();
         var view = window.GetVisualDescendants().OfType<UsageStatisticsView>().Single();
@@ -464,7 +464,7 @@ public class UsageStatisticsUiTests
         app.ShellPage.ShowSectionCommand.Execute(MainSection.Settings);
         await Assert.IsType<SettingsHomeViewModel>(app.Workbench.CurrentPage).Loaded;
         window.UpdateLayout();
-        UiInput.Click(window, Find<Button>(window, "StatisticsButton"));
+        await SettingsInput.OpenAsync(window, "StatisticsButton");
         var page = Assert.IsType<UsageStatisticsViewModel>(app.Workbench.CurrentPage);
         await page.Loaded;
         window.UpdateLayout();

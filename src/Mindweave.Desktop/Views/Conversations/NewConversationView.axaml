@@ -26,7 +26,9 @@
          ("延伸自：…") when it extends a summary; click or Enter fills the input, the cross is 不感兴趣; 换一批 asks again.
          Hidden when they are off or the workspace has nothing to draw on. Top-aligned in the lower part, so the input
          does not move when they appear. -->
-    <StackPanel Grid.Row="2" Name="RecommendationPanel" MaxWidth="720" Margin="0,18,0,0" Spacing="6" VerticalAlignment="Top"
+    <!-- Scrolls when the page has no room for all of it. -->
+    <ScrollViewer Grid.Row="2" Classes="autohide" HorizontalScrollBarVisibility="Disabled">
+    <StackPanel Name="RecommendationPanel" MaxWidth="720" Margin="0,18,0,0" Spacing="6" VerticalAlignment="Top"
                 IsVisible="{Binding ShowsRecommendations}" views:Motion.Appear="Fade">
       <DockPanel Margin="4,0,0,0">
         <Button DockPanel.Dock="Right" Name="RefreshRecommendationsButton" Classes="quiet small" Command="{Binding RefreshCommand}"
@@ -88,5 +90,6 @@
                 Command="{Binding OpenSettingsCommand}" IsVisible="{Binding NoteNeedsSettings}" />
       </WrapPanel>
     </StackPanel>
+    </ScrollViewer>
   </Grid>
 </UserControl>

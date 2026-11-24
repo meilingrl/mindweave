@@ -59,8 +59,10 @@
                             IsVisible="{Binding !IsArchived}" />
                 </Panel>
                 <!-- The name fills the row, so wherever the row lights up a click opens the conversation. -->
-                <Button Name="OpenButton" Classes="list-name archived-name" HorizontalAlignment="Stretch" HorizontalContentAlignment="Left" Content="{Binding Title}"
-                        Command="{Binding $parent[v:ArchivedView].((vm:ArchivedViewModel)DataContext).OpenCommand}" CommandParameter="{Binding}" />
+                <Button Name="OpenButton" Classes="list-name archived-name" HorizontalAlignment="Stretch" HorizontalContentAlignment="Left" AutomationProperties.Name="{Binding Title}"
+                        Command="{Binding $parent[v:ArchivedView].((vm:ArchivedViewModel)DataContext).OpenCommand}" CommandParameter="{Binding}">
+                  <TextBlock Text="{Binding Title}" TextTrimming="CharacterEllipsis" />
+                </Button>
               </DockPanel>
             </Border>
             <!-- The confirmation opens under the row it is about: a delete names the conversation in the danger tone. -->

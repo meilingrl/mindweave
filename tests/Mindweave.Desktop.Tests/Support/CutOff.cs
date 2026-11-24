@@ -63,11 +63,17 @@ internal static class CutOff
 
     private static bool IsLookedAt(Control control) =>
         control is Button or TextBox or ComboBox or NumericUpDown or Slider or PathIcon or TextBlock { Text.Length: > 0 } or TextBlock { Inlines.Count: > 0 }
-        && control is { IsEffectivelyVisible: true, Bounds.Height: > 0 }
+        && control.IsEffectivelyVisible && (control is TextBlock || control.Bounds.Height > 0)
         && !control.GetVisualAncestors().Any(a => a is ScrollBar);
 
     private static string? Problem(Control control)
     {
+        if (control is TextBlock { Bounds: { Width: 0 } or { Height: 0 } })
+        {
+            // Laid out with no room at all, it has no line to measure.
+            return $"{Name(control)} has no room";
+        }
+
         if (control is TextBlock { TextTrimming: var trimming } text && trimming == TextTrimming.None)
         {
             var inner = text.Bounds.Deflate(text.Padding);
