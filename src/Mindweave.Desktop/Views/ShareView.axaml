@@ -1,0 +1,127 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:Mindweave.Desktop.ViewModels"
+             xmlns:d="using:Mindweave.Desktop"
+             xmlns:t="using:Mindweave.Desktop.Text"
+             xmlns:v="using:Mindweave.Desktop.Views"
+             xmlns:sys="using:System"
+             x:Class="Mindweave.Desktop.Views.ShareView"
+             x:DataType="vm:ShareViewModel">
+  <!-- The share dialog (docs/design/sharing.md §6.3): title, the dots with ticks, what will leave, the snapshot line, Save. -->
+  <Border Classes="dialog share">
+    <DockPanel>
+      <TextBlock DockPanel.Dock="Top" Classes="dialog-title" Text="{x:Static t:UiText.ShareTitle}" Margin="0,0,0,12" />
+      <StackPanel DockPanel.Dock="Bottom" Classes="dialog-buttons" Margin="0,14,0,0">
+        <TextBlock Classes="caption" Text="{x:Static t:UiText.ShareSaving}" VerticalAlignment="Center" Margin="0,0,6,0" IsVisible="{Binding IsBusy}" />
+        <Button Name="ShareCloseButton" Classes="secondary" Content="{x:Static t:UiText.ShareClose}" Command="{Binding CloseCommand}" IsCancel="True" />
+        <Button Name="ShareSaveButton" Classes="primary" Content="{x:Static t:UiText.ShareSave}" Command="{Binding SaveCommand}" IsDefault="True" />
+      </StackPanel>
+      <!-- Above the buttons, so it is seen whatever is scrolled. -->
+      <Border Name="ShareNotice" DockPanel.Dock="Bottom" Classes="notice" Classes.error="{Binding NoticeIsError}" Classes.info="{Binding !NoticeIsError}" Margin="0,12,0,0"
+              IsVisible="{Binding Notice, Converter={x:Static ObjectConverters.IsNotNull}}">
+        <DockPanel>
+          <TextBlock Classes="notice-icon" Text="✓" IsVisible="{Binding !NoticeIsError}" />
+          <TextBlock Classes="notice-icon" Text="!" IsVisible="{Binding NoticeIsError}" />
+          <TextBlock Text="{Binding Notice}" TextWrapping="Wrap" AutomationProperties.LiveSetting="Polite" />
+        </DockPanel>
+      </Border>
+      <!-- The scroll bar stands in the dialog's padding, so the content lines up with the buttons. -->
+      <ScrollViewer Name="ShareScroller" Classes="autohide" Margin="0,0,-14,0" HorizontalScrollBarVisibility="Disabled">
+        <StackPanel Spacing="10" Margin="0,0,14,0" IsEnabled="{Binding !IsBusy}">
+          <StackPanel Spacing="4">
+            <TextBlock Classes="caption" Text="{x:Static t:UiText.ShareTitleField}" />
+            <TextBox Name="ShareTitleBox" Text="{Binding Title}" AutomationProperties.Name="{x:Static t:UiText.ShareTitleField}" />
+          </StackPanel>
+          <TextBlock Classes="caption" Text="{x:Static t:UiText.ShareDotsHint}" TextWrapping="Wrap" />
+          <Border Classes="share-canvas">
+            <ScrollViewer Name="ShareDotsScroller" HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Auto">
+              <Panel Width="{Binding CanvasWidth}" Height="{Binding CanvasHeight}" HorizontalAlignment="Left" VerticalAlignment="Center">
+                <v:ShareLines Lines="{Binding Lines}" />
+                <ItemsControl ItemsSource="{Binding Days}">
+                  <ItemsControl.ItemsPanel>
+                    <ItemsPanelTemplate>
+                      <Canvas />
+                    </ItemsPanelTemplate>
+                  </ItemsControl.ItemsPanel>
+                  <ItemsControl.Styles>
+                    <Style Selector="ItemsControl > ContentPresenter" x:DataType="vm:ShareDayView">
+                      <Setter Property="Canvas.Left" Value="{Binding X}" />
+                      <Setter Property="Canvas.Top" Value="{Binding Y}" />
+                    </Style>
+                  </ItemsControl.Styles>
+                  <ItemsControl.ItemTemplate>
+                    <DataTemplate x:DataType="vm:ShareDayView">
+                      <TextBlock Classes="share-day" Text="{Binding Text}" />
+                    </DataTemplate>
+                  </ItemsControl.ItemTemplate>
+                </ItemsControl>
+                <ItemsControl Name="ShareDots" ItemsSource="{Binding Dots}" AutomationProperties.Name="{x:Static t:UiText.ShareDotsName}">
+                  <ItemsControl.ItemsPanel>
+                    <ItemsPanelTemplate>
+                      <Canvas />
+                    </ItemsPanelTemplate>
+                  </ItemsControl.ItemsPanel>
+                  <ItemsControl.Styles>
+                    <Style Selector="ItemsControl > ContentPresenter" x:DataType="vm:ShareDotViewModel">
+                      <Setter Property="Canvas.Left" Value="{Binding X, Converter={x:Static v:ShareView.DotLeft}}" />
+                      <Setter Property="Canvas.Top" Value="{Binding Y, Converter={x:Static v:ShareView.DotTop}}" />
+                    </Style>
+                  </ItemsControl.Styles>
+                  <ItemsControl.ItemTemplate>
+                    <DataTemplate x:DataType="vm:ShareDotViewModel">
+                      <CheckBox Classes="share-dot" IsChecked="{Binding IsTicked}" AutomationProperties.Name="{Binding Name}">
+                        <CheckBox.Template>
+                          <ControlTemplate>
+                            <Panel Background="Transparent">
+                              <Panel Width="40" Height="40" HorizontalAlignment="Left" VerticalAlignment="Bottom">
+                                <Ellipse Name="Focus" Classes="share-focus" Width="36" Height="36" />
+                                <Ellipse Classes="share-ring" IsVisible="{Binding HasSummary}" Width="{Binding Radius, Converter={x:Static v:ShareView.RingSize}}" Height="{Binding Radius, Converter={x:Static v:ShareView.RingSize}}" />
+                                <Ellipse Classes="share-dot-fill" Width="{Binding Radius, Converter={x:Static v:ShareView.DotSize}}" Height="{Binding Radius, Converter={x:Static v:ShareView.DotSize}}" />
+                              </Panel>
+                              <StackPanel Orientation="Horizontal" Spacing="6" Margin="36,0,4,0" VerticalAlignment="Top" Height="18">
+                                <Border Classes="share-tick">
+                                  <PathIcon Width="9" Height="9" Data="{StaticResource IconCheck}" IsVisible="{Binding IsTicked}" />
+                                </Border>
+                                <TextBlock Classes="share-name" Text="{Binding Name}" VerticalAlignment="Center" />
+                              </StackPanel>
+                            </Panel>
+                          </ControlTemplate>
+                        </CheckBox.Template>
+                      </CheckBox>
+                    </DataTemplate>
+                  </ItemsControl.ItemTemplate>
+                </ItemsControl>
+              </Panel>
+            </ScrollViewer>
+          </Border>
+          <Border Name="ShareAnswering" Classes="notice warning" IsVisible="{Binding AnsweringNote, Converter={x:Static ObjectConverters.IsNotNull}}">
+            <DockPanel>
+              <TextBlock Classes="notice-icon" Text="!" />
+              <TextBlock Text="{Binding AnsweringNote}" TextWrapping="Wrap" AutomationProperties.LiveSetting="Polite" />
+            </DockPanel>
+          </Border>
+          <StackPanel Spacing="4">
+            <TextBlock Classes="caption" Text="{x:Static t:UiText.ShareContentsHeading}" />
+            <ItemsControl Name="ShareContents" ItemsSource="{Binding Contents}">
+              <ItemsControl.ItemsPanel>
+                <ItemsPanelTemplate>
+                  <StackPanel Spacing="2" />
+                </ItemsPanelTemplate>
+              </ItemsControl.ItemsPanel>
+              <ItemsControl.ItemTemplate>
+                <DataTemplate x:DataType="sys:String">
+                  <DockPanel>
+                    <Ellipse DockPanel.Dock="Left" Classes="dialog-bullet" />
+                    <TextBlock Classes="dialog-body" Text="{Binding}" />
+                  </DockPanel>
+                </DataTemplate>
+              </ItemsControl.ItemTemplate>
+            </ItemsControl>
+            <TextBlock Name="ShareLeavesOut" Classes="dialog-body" Text="{x:Static t:UiText.ShareLeavesOut}" />
+          </StackPanel>
+          <TextBlock Name="ShareSnapshot" Classes="caption" Text="{x:Static t:UiText.ShareSnapshot}" TextWrapping="Wrap" />
+        </StackPanel>
+      </ScrollViewer>
+    </DockPanel>
+  </Border>
+</UserControl>

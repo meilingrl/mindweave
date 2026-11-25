@@ -8,6 +8,7 @@ using Mindweave.Application.Preferences;
 using Mindweave.Application.Reading;
 using Mindweave.Application.Recommendations;
 using Mindweave.Application.Resources;
+using Mindweave.Application.Share;
 using Mindweave.Application.Startup;
 using Mindweave.Application.Statistics;
 using Mindweave.Application.Storage;
@@ -48,6 +49,7 @@ public static class ApplicationServices
         services.AddSingleton<SummaryService>();
         services.AddSingleton<SummaryNetworkService>();
         services.AddSingleton<SummaryExportService>();
+        services.AddSingleton<ShareService>();
         services.AddSingleton<ReadingStateService>();
         services.AddSingleton<AppearanceService>();
         services.AddSingleton<SidebarLayoutService>();
@@ -98,6 +100,7 @@ public static class ApplicationServices
         services.AddSingleton<ISummaries>(sp => sp.GetRequiredService<SummaryService>());
         services.AddSingleton<IReadingState>(sp => sp.GetRequiredService<ReadingStateService>());
         services.AddSingleton<ISummaryExport>(sp => sp.GetRequiredService<SummaryExportService>());
+        services.AddSingleton<IShares>(sp => sp.GetRequiredService<ShareService>());
         services.AddSingleton<IModelSettings>(sp => sp.GetRequiredService<ModelSettingsService>());
         services.AddSingleton<IWorkspaces>(sp => sp.GetRequiredService<WorkspaceService>());
         // A test may stand in for the model's suggestions (to hold or reorder them), as for the conversations interface.

@@ -50,6 +50,7 @@ public sealed partial class ExitCoordinator(
     Application.Summaries.ISummaries summaries,
     IDatabaseLifecycle database,
     Application.Export.ISummaryExport exports,
+    Application.Share.IShares shares,
     ISystemShell shell,
     ExitOptions options,
     ILogger<ExitCoordinator> logger) : ViewModelBase
@@ -372,14 +373,14 @@ public sealed partial class ExitCoordinator(
     }
 
     /// <summary>
-    /// Step 4: an export still writing its file (so it is not cut off and leaves no temporary file), summary edit drafts
+    /// Step 4: an export or a share still writing its file (so it is not cut off and leaves no temporary file), summary edit drafts
     /// (including any still inside their autosave delay), message drafts and reading positions, the stopped answers' terminal
     /// writes that failed, the last location, then the write queue and a best-effort checkpoint. True when nothing the
     /// user wrote or received is left unsaved; page state alone may degrade.
     /// </summary>
     private async Task<bool> SaveEverythingAsync()
     {
-        await exports.WhenIdleAsync();
+        await Task.WhenAll(exports.WhenIdleAsync(), shares.WhenIdleAsync());
         await workbench.FlushAsync();
         var summaryDrafts = await summaries.FlushDraftsAsync();
         var drafts = await reading.FlushAsync();

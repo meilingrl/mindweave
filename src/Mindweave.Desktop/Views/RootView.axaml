@@ -3,6 +3,7 @@
              xmlns:vm="using:Mindweave.Desktop.ViewModels"
              xmlns:d="using:Mindweave.Desktop"
              xmlns:t="using:Mindweave.Desktop.Text"
+             xmlns:v="using:Mindweave.Desktop.Views"
              xmlns:sys="using:System"
              x:Class="Mindweave.Desktop.Views.RootView"
              x:DataType="vm:RootViewModel">
@@ -96,6 +97,10 @@
           </StackPanel>
         </StackPanel>
       </Border>
+    </Border>
+    <!-- Sharing a thinking path (docs/design/sharing.md §6.3). The exit sequence's prompts below draw over it. -->
+    <Border Name="ShareDialog" Classes="dialog-scrim" IsVisible="{Binding Share.IsOpen}">
+      <v:ShareView DataContext="{Binding Share}" />
     </Border>
     <Border Name="ExitTaskPrompt" Classes="dialog-scrim" IsVisible="{Binding Exit.IsTaskPromptOpen}">
       <Border Classes="dialog">

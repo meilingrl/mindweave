@@ -17,6 +17,13 @@ The second number rises when a capability is finished and on by default, and the
 
 The nine merges after 0.5.0, on 2026-11-22 and 2026-11-23, are 0.5.1 to 0.5.9 in order. They keep their dated entries below.
 
+## 0.6.13 · 2026-11-25
+
+- Added sharing with structure only ([sharing.md](design/sharing.md), increment 1a): "Share…" in a conversation's menu and on a dot of the Mindweave page opens a dialog with ticks and saves one HTML file. It carries no message text and loads nothing from the network
+- macOS: Fixed the file panels of export, share and attachments, which could stop taking clicks: they now block the app while open
+- Try: `scripts/daily.sh trial`, then "Share…" in a conversation's menu; save the file and open it in a browser
+- Not verified: Windows; Safari and Firefox; picking real attachments through the new panel; quitting from the Dock while a panel is open; an Intel Mac. The dialog took about 1.2 s to open on 1,000 conversations in a debug build. Your trials ran b95b1a8 and e47db8c; the last commit, b5d87cd, changes names and layers and leaves the saved file byte-identical. The foot of the page says the file can be opened in Mindweave, which is true only once import exists
+
 ## 0.6.12 · 2026-11-25
 
 - Documents: Added the sharing design (D-039), its text in the requirements (v0.29) and architecture (§16), and the shared page's prototype; corrected the status of the daily build and the app icon

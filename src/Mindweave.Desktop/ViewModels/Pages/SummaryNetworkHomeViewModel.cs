@@ -36,6 +36,7 @@ public sealed partial class SummaryNetworkHomeViewModel : PageViewModel, IDispos
     private NodeOffer _offer = NodeOffer.Off;
     private RecommendationId? _selectedRecommendation;
     private readonly ISummaryLinks? _links;
+    private readonly ISharePrompt? _share;
     private readonly SerialRefresh _linkLoad;
     private IReadOnlyList<SummaryLink> _workspaceLinks = [];
     private bool _linksHidden;
@@ -58,10 +59,12 @@ public sealed partial class SummaryNetworkHomeViewModel : PageViewModel, IDispos
         ISummaryLinks? links = null,
         ILinkSuggestions? suggestions = null,
         bool replayed = false,
-        SummaryNetworkDetails? details = null)
+        SummaryNetworkDetails? details = null,
+        ISharePrompt? share = null)
         : base(SummaryNetworkHomeRoute.Instance)
     {
         _replayed = replayed;
+        _share = share;
         Details = details ?? new SummaryNetworkDetails();
         Details.PropertyChanged += OnDetailsChanged;
         Workspace = workspace;
@@ -715,6 +718,16 @@ public sealed partial class SummaryNetworkHomeViewModel : PageViewModel, IDispos
     }
 
     /// <summary>Title search: selects the first match, by the name it shows before any other title, and brings it to the centre.</summary>
+    /// <summary>"Share…" on the selected dot: the dialog opens with its exploration ticked (docs/design/sharing.md S1).</summary>
+    [RelayCommand]
+    private void ShareSelected()
+    {
+        if (Selected is { } detail)
+        {
+            _share?.Open(Workspace.Id, detail.Conversation);
+        }
+    }
+
     [RelayCommand]
     private void Find()
     {

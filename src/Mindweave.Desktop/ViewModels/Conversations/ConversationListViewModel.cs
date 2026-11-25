@@ -27,6 +27,7 @@ public sealed partial class ConversationListViewModel : ViewModelBase, IDisposab
     private readonly ConversationDeletionRequests? _deletionPrompt;
     private readonly ISummaries? _summaries;
     private readonly IStorageStatus? _storage;
+    private readonly ISharePrompt? _share;
     private readonly IUiDispatcher _dispatcher;
     private WorkspaceId? _shown;
 
@@ -40,8 +41,10 @@ public sealed partial class ConversationListViewModel : ViewModelBase, IDisposab
         IConversationMarks? marks = null,
         ConversationDeletionRequests? deletion = null,
         ISummaries? summaries = null,
-        IStorageStatus? storage = null)
+        IStorageStatus? storage = null,
+        ISharePrompt? share = null)
     {
+        _share = share;
         _conversations = conversations;
         _summaries = summaries;
         _storage = storage;
@@ -481,6 +484,17 @@ public sealed partial class ConversationListViewModel : ViewModelBase, IDisposab
         if (item.CanDelete && _workbench.CurrentWorkspace is { } workspace)
         {
             _deletionPrompt?.Open(workspace.Id, [item.Id]);
+        }
+    }
+
+    /// <summary>"Share…": the dialog opens with the row's exploration ticked (docs/design/sharing.md S1).</summary>
+    [RelayCommand]
+    private void ShareRow(ConversationItemViewModel item)
+    {
+        RowNotice = null;
+        if (_workbench.CurrentWorkspace is { } workspace)
+        {
+            _share?.Open(workspace.Id, item.Id);
         }
     }
 

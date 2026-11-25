@@ -4,7 +4,7 @@ What is true now: work in progress, next steps, what needs you, open decisions, 
 
 ## In progress
 
-- Sharing (evolution D8, [sharing.md](docs/design/sharing.md)), the theme of 0.6.x towards 0.7: the design is adopted (D-039). Increment 1a, the structure-only share, is built on its branch; 1b, import and device copies are not started.
+- Sharing (evolution D8, [sharing.md](docs/design/sharing.md)), the theme of 0.6.x towards 0.7: the design is adopted (D-039) and increment 1a, the structure-only share, is built (0.6.13). Next are 1b (share with content), then import and device copies, each after a short note.
 - Four design discussions are open with you on task branches: reply quality; return and review; safety, diagnostics and upkeep; ask from anywhere and local AI. Nothing in them is agreed as a whole.
 
 ## Next steps
@@ -39,6 +39,8 @@ What is true now: work in progress, next steps, what needs you, open decisions, 
   - the answer output limit;
   - the English prompts.
 - The application icon (0.6.11): on Windows; the small sizes in daily use.
+- Sharing (0.6.13): on Windows; the page in Safari and Firefox; on 1,000 conversations the dialog took about 1.2 s to open in a debug build. The foot of the page says the file can be opened in Mindweave, which is true only once import exists.
+- macOS file panels (0.6.13): picking real attachments; quitting from the Dock while a panel is open; an Intel Mac.
 - 0.6.10: a real model reading the rest of a long result; a real MCP server stopped during a call. On Windows: all of it.
 - The UI points of 0.5.11 to 0.5.14, 0.6.2, 0.6.4, 0.6.6 and 0.6.7 (D-037): on Windows; a real model's tool steps while the page stays.
 - Many new-answer hints at once in a very small window, which can lie over the page.
@@ -51,6 +53,7 @@ What is true now: work in progress, next steps, what needs you, open decisions, 
 
 | Item | Reason | Blocks |
 | --- | --- | --- |
+| Trials as an app bundle (`claude/xenodochial-boyd-41d843`): keep or drop. It does not cure the panel freeze | Not merged; your decision | Nothing |
 | The application icon: the tile colour (black nearly disappears on a dark taskbar), and whether the open state with nodes is used | Look and feel is yours to judge | Nothing |
 | Look at the icon size in a real window (direction A looks smaller than before; making it bigger is one size in the style) | Look and feel is yours to judge | Nothing |
 | Real service checks (paid, optional): DeepSeek images + tools, Kimi K3 base64 images, GPT-6 tool calls, DashScope streaming tools | Only within the budget you give | The capability presets of phases 1–2 |
@@ -64,7 +67,7 @@ What is true now: work in progress, next steps, what needs you, open decisions, 
 
 | What | Commit | Date | Result |
 | --- | --- | --- | --- |
-| macOS full run | the application icon, 0.6.11 | 2026-11-24 | passed: Core 137, Architecture 35, Infrastructure 1037 + 23 skipped, Desktop 4 shards 0 failed |
+| macOS full run | sharing 1a, 0.6.13 | 2026-11-25 | passed: Core 137, Architecture 36, Infrastructure 1071 + 23 skipped, Desktop 4 shards 0 failed |
 | CI on `main` (Linux + Windows) | see the latest run on GitHub | | |
 | Windows 11 hardware, full run | daabd5b | 2026-11-21 | passed |
 | Windows 11 hardware, stress and Release start | 08ead83 | 2026-11-16 | passed |

@@ -157,21 +157,15 @@ public sealed partial class ComposerView : UserControl
 
     private async Task PickAsync(bool images)
     {
-        if (DataContext is not Composer composer || TopLevel.GetTopLevel(this)?.StorageProvider is not { } storage)
+        if (DataContext is not Composer composer || TopLevel.GetTopLevel(this) is not { } window)
         {
             return;
         }
 
-        var options = new FilePickerOpenOptions
-        {
-            Title = images ? UiText.ImageDialogTitle : UiText.FileDialogTitle,
-            AllowMultiple = true,
-            FileTypeFilter = images
-                ? [new FilePickerFileType(UiText.ImagesFileFilter) { Patterns = ["*.png", "*.jpg", "*.jpeg", "*.gif", "*.webp"] }]
-                : null,
-        };
-        var picked = await storage.OpenFilePickerAsync(options);
-        var paths = picked.Select(f => f.TryGetLocalPath()).OfType<string>().ToList();
+        var paths = await FilePanels.OpenAsync(
+            window,
+            images ? UiText.ImageDialogTitle : UiText.FileDialogTitle,
+            images ? new FileKind(UiText.ImagesFileFilter, ["png", "jpg", "jpeg", "gif", "webp"]) : null);
         if (paths.Count > 0)
         {
             await composer.AttachFilesAsync(paths);

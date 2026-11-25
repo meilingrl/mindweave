@@ -83,6 +83,8 @@ public static class CompositionRoot
         services.AddSingleton<IWorkspaceSwitcher>(sp => sp.GetRequiredService<WorkspaceSwitchRequests>());
         services.AddSingleton<ConversationDeletionRequests>();
         services.AddSingleton<IConversationDeletionPrompt>(sp => sp.GetRequiredService<ConversationDeletionRequests>());
+        services.AddSingleton<ShareRequests>();
+        services.AddSingleton<ISharePrompt>(sp => sp.GetRequiredService<ShareRequests>());
         services.AddSingleton<BackupRequests>();
         services.AddSingleton<IBackupPrompts>(sp => sp.GetRequiredService<BackupRequests>());
 
@@ -126,6 +128,7 @@ public static class CompositionRoot
         services.TryAddSingleton<ConversationDeletionViewModel>(); // Tests give it their own clock.
         services.AddSingleton<BackupRestoreViewModel>();
         services.AddSingleton<BackupDeletionViewModel>();
+        services.AddSingleton<ShareViewModel>();
         services.AddSingleton<ConversationListViewModel>();
         services.AddSingleton<RootViewModel>();
         services.AddSingleton<IRootNavigator>(sp => sp.GetRequiredService<RootViewModel>());
