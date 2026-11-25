@@ -41,7 +41,7 @@ The reply-quality discussion owns everything inside an answer or a summary: the 
 2. When it is written, and what it costs: decided, R2.
 3. What returning from a branch shows: decided, R3.
 4. What coming back after some days shows, and where: decided, R4.
-5. Unresolved questions as the edge of an exploration in the summary network.
+5. Unresolved questions as the edge of an exploration in the summary network: decided, R5.
 6. Answers that cite the user's own summaries (with reply quality).
 7. Extending a single summary on request (§10.2).
 8. Joint summaries of several conversations (§10.1).
@@ -99,6 +99,21 @@ Considered: a "bring back" action in the branch that writes its note at once (on
 Considered: a recap panel shown once at start after an absence (a surface for one scenario, standing before what the user came to ask); the summary network only (the page used least today).
 
 Still to settle for the page: the order and the total number when both lists are full.
+
+### R5 Open questions in the summary network (2026-11-25)
+
+- A conversation whose note has open questions wears a dashed ring round its dot. The mark is on the dot itself; nothing is added beside it and the layout does not change.
+- There is one ring per dot, however many questions it has. The questions are listed in the details; a click on one opens the conversation with the question in the input box, and nothing is sent.
+- The details say in words that the conversation has open questions, so the ring is never the only sign (requirements §7.3). The legend gets one line.
+- The ring must stay easy to tell from the two marks near it: the solid summary ring, which the same dot may also wear, and a recommended node, which is a light dashed dot with a “推荐” (Recommended) label. The owner judges this from a picture of the canvas with real data, in both themes.
+
+How an open question ends (writer's call, no objection from the owner):
+
+- the user asks it: it is removed, like a used recommendation;
+- the user marks it “不感兴趣” (not interested): it is removed and remembered;
+- the conversation gets a newer note: that note's questions replace the old ones.
+
+Considered: a short open line leaving the dot (the owner: it would look ugly); a soft halo behind the dot (the writer's recommendation; no shape reused); each open question as a light dot of its own (more dots, room in the layout, and too close to recommended nodes); details only (the edge is invisible until a click).
 
 ## Still to write
 
