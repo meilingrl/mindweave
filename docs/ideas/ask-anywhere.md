@@ -1,6 +1,6 @@
 # Ask from anywhere, openness and local AI
 
-**Status:** in discussion with the owner since 2026-11-25. Not agreed. Last discussed: 2026-11-25 (quoting is agreed; several connections and local models are being discussed).
+**Status:** in discussion with the owner since 2026-11-25. Not agreed. Last discussed: 2026-11-25 (quoting is agreed; the section on connections and local models waits for the owner's confirmation).
 
 This draft takes over directions 1, 3 and 7 of [more directions](more-directions.md), the question Q13 of the agent platform (search by meaning) and the caching part of [evolution](../evolution.md) D4. Those texts stay as they are until the owner settles what moves.
 
@@ -70,11 +70,14 @@ Seven topics in four groups. The order and what is set aside are in §5 and §6.
 | 2026-11-25 | The quoting section of §7 is agreed as written, Claude's calls included (owner). |
 | 2026-11-25 | Several connections: there is one current model for everything (owner). Settings hold the list of connections; a picker beside the input box switches the current model for all new questions. A model per conversation can be added on top later. |
 | 2026-11-25 | One setting, the model for background work (owner). It defaults to the current model and can be any saved model. Background work is titles, compression, attachment digests, recommended questions and link suggestions; summaries stay with the current model. When that model cannot be reached, the task fails with its reason; nothing switches on its own. |
+| 2026-11-25 | Messages is the further protocol of the first increment; Responses comes later (owner). The owner now has an official Anthropic key, so Messages can be checked against the real service; there is no official OpenAI key. |
 
 ## 6. Set aside
 
 - **B1 MCP server, B2 command line:** set aside for now (owner, 2026-11-25).
 - **A3 browser extension:** set aside for now (owner, 2026-11-25).
+- **The Responses protocol:** later (owner, 2026-11-25). It returns when one of these is true: the owner has an official OpenAI key, so it can be checked against the real service; or something the owner wants is offered only through Responses. It is then one task of the size of the Messages adapter, and nothing built before it has to change.
+- **Running a model inside Mindweave:** not for now (Claude's call, 2026-11-25; the order the owner set says "through a local server").
 
 ## 7. Per topic
 
@@ -182,3 +185,80 @@ Requirement and architecture text follows as a separate commit that the owner co
 #### Not tried yet
 
 Nothing here has been prototyped. The parts most likely to surprise: which applications give their selection, and the rectangle on a second monitor with a different scale.
+
+### Several connections and local models (C1 and D1; waiting for the owner to confirm this section)
+
+The owner's decisions are in §5. Everything else in this section is Claude's call, and the owner can change it.
+
+#### How it works
+
+**The list of connections.** 设置 › 模型连接 (Settings › Model connection) becomes a list. A connection has a name, an address, a protocol (Chat Completions or Messages) and a key. It holds one or more models; each model has its own capabilities, context capacity and output limit, filled from the presets as today. The existing configuration becomes the first entry, unchanged.
+
+**The current model.** A picker beside the input box shows the current model and lists the saved models by connection. Choosing one makes it the current model for all new questions, in every conversation. A question already accepted keeps the model it was accepted with (the existing rule). Images and tools follow the current model's capabilities, as today: what it cannot do is grayed out with the reason.
+
+**The model for background work.** One setting. It defaults to "Same as the current model" and can be any saved model. It serves titles, compression, attachment digests, recommended questions and link suggestions. Summaries use the current model.
+
+**A local server.** The list offers a ready entry for a local server: the address `http://localhost:11434/v1`, no key. Its models are listed from the server. Capabilities and context capacity are read from the server where it gives them; otherwise the user declares them. Mindweave does not install or start the server and does not download models; the entry links to how to do that.
+
+**Messages.** A second protocol adapter beside the existing one, with the same scope: streaming text, tool calls, images, reasoning and token counts. Nothing above the adapter knows which protocol a model uses.
+
+**Which model answered.** Every answer already records its model. The answer's details name the model and the connection, and the statistics tell models apart.
+
+**Removing a connection.** Its key is deleted. Answers keep the recorded name of their model. If it holds the current model, another is chosen first; if it holds the background model, that setting returns to "Same as the current model".
+
+**Storage.** The tables for connections and models exist and allow several rows. The current model and the background model are preferences. No migration is expected; the design note settles it.
+
+#### What it needs, and what leaves the machine
+
+- **macOS and Windows:** no platform work. A local server is installed by the user on either.
+- **Leaves the machine:** a question goes to the connection of the current model, and background work to the connection of the background model. The picker always shows where the next question goes. With a local model, that content stays on the machine. Web search and third-party tools are separate and unchanged.
+- **Verification:** the owner has an official Anthropic key (2026-11-25), so Messages can be checked against the real service, within a budget the owner gives. This also closes the gap of architecture §7.1, where the attempts through a relay failed.
+
+#### Out of scope
+
+- A model per conversation (can be added later on top).
+- Any automatic choice or fallback between models.
+- The Responses protocol (see §6 for when it returns).
+- Running a model inside Mindweave, and downloading models.
+- Asking two models the same question side by side.
+- Sign-in with a provider account instead of a key.
+
+#### Failure cases
+
+| Case | What happens |
+| --- | --- |
+| The local server is not running | The request fails and says the server at that address cannot be reached. Nothing switches to another model |
+| The current model cannot use tools or see images | Those features are grayed out with the reason, as today |
+| A conversation has images or tool steps, and the current model cannot take them | They are left out, and this is stated below the answer (the rule against silent truncation). Reasoning from one model is not sent to another |
+| A local model has a small context | The existing compression rules apply with that model's capacity |
+| A key is wrong or expired | The request fails and names the connection |
+| The model list cannot be fetched | The model ID can be typed, as today |
+| The background model returns something unusable | That task fails as it does today; the setting notes that a weak model gives weaker titles and suggestions |
+| The current model's connection is being removed | Another model is chosen first |
+
+#### Acceptance scenarios
+
+1. After the update, the existing configuration is the first connection and still the current model. Nothing else changed.
+2. Add a second connection with its own key and two models. Both appear in the picker.
+3. Switch the current model in the picker and ask. The answer's details name the new model. A second conversation uses it too.
+4. Switch while an answer is streaming. That answer finishes on its old model.
+5. Add the local server entry with the server running. Its models are listed without a key. Ask a question with the network cable out; it is answered.
+6. Stop the local server and ask. The failure says the server cannot be reached; no other model is used.
+7. Set the background model to the local one and the current model to a remote one. A new conversation's title is produced by the local model; the statistics show this.
+8. Choose a model without image input in a conversation that has an image. The attach option is grayed out with the reason, and the next answer states that the earlier image was left out.
+9. Add a Messages connection with a Claude model. A question with a tool call and an image is answered, with streaming and reasoning shown as for other models.
+10. Remove a connection. Its key is gone from the system credential store; old answers still name their model.
+
+#### First increment
+
+Three steps, each usable when merged:
+
+1. The list of connections, the picker, and capabilities per model. All on Chat Completions.
+2. The local server entry and the model for background work.
+3. The Messages adapter, checked against the real service within the owner's budget.
+
+Look and feel is the owner's: the list in settings and the picker are shown before they are built in.
+
+#### After this section is agreed
+
+Requirement and architecture text follows as a separate commit that the owner confirms: requirements §9.4 and architecture §7 (which describe one configuration), and evolution D3. How keys are kept stays with the safety and upkeep discussion (§4).
