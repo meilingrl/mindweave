@@ -1,10 +1,11 @@
+using Mindweave.Application.Exchange;
 using Mindweave.Application.Share;
 using Mindweave.Core.Conversations;
 
 namespace Mindweave.Infrastructure.Tests.Share;
 
 /// <summary>What a structure-only share holds (docs/design/sharing.md §6.1, S6, S7): only what is ticked.</summary>
-public sealed class ShareDocumentTests
+public sealed class ExchangeDocumentTests
 {
     private static readonly DateTimeOffset Day = new(2026, 11, 18, 19, 42, 0, TimeSpan.FromHours(8));
 
@@ -14,19 +15,19 @@ public sealed class ShareDocumentTests
 
     private static readonly ShareSource Source = new(
         [Left, Kept, Root],
-        [new ShareLink(Kept.Id, Root.Id), new ShareLink(Root.Id, Left.Id)]);
+        [new ExchangeLink(Kept.Id, Root.Id), new ExchangeLink(Root.Id, Left.Id)]);
 
     private static ShareSelection Selection => ShareSelection.Exploration(Source.Parents, Root.Id).Untick(Left.Id);
 
-    private static ShareDocument Build() => ShareDocument.Structure("  Trains ", Source, Selection, Day.AddDays(7), "0.7.0");
+    private static ExchangeDocument Build() => ExchangeDocument.Structure("  Trains ", Source, Selection, Day.AddDays(7), "0.7.0");
 
     [Fact]
     public void It_names_its_format_version_and_kind_and_what_made_it()
     {
         var document = Build();
 
-        Assert.Equal("mindweave-export", ShareDocument.Format);
-        Assert.Equal(1, ShareDocument.Version);
+        Assert.Equal("mindweave-export", ExchangeDocument.Format);
+        Assert.Equal(1, ExchangeDocument.Version);
         Assert.Equal("structure", document.Kind);
         Assert.Equal("Trains", document.Title);
         Assert.Equal(Day.AddDays(7).ToUniversalTime(), document.MadeAt);
@@ -39,8 +40,8 @@ public sealed class ShareDocumentTests
     {
         Assert.Equal(
             [
-                new SharedConversation(Root.Id, null, "History of trains", Day.ToUniversalTime(), 3, true),
-                new SharedConversation(Kept.Id, Root.Id, null, Day.AddMinutes(9).ToUniversalTime(), 1, true),
+                new ExchangeConversation(Root.Id, null, "History of trains", Day.ToUniversalTime(), 3, true),
+                new ExchangeConversation(Kept.Id, Root.Id, null, Day.AddMinutes(9).ToUniversalTime(), 1, true),
             ],
             Build().Conversations);
     }
@@ -54,7 +55,7 @@ public sealed class ShareDocumentTests
     [Fact]
     public void A_link_is_in_it_only_between_two_shared_conversations()
     {
-        Assert.Equal([new ShareLink(Kept.Id, Root.Id)], Build().Links);
+        Assert.Equal([new ExchangeLink(Kept.Id, Root.Id)], Build().Links);
     }
 
     [Fact]
@@ -69,8 +70,8 @@ public sealed class ShareDocumentTests
     [Fact]
     public void Two_documents_of_the_same_things_have_the_same_contents_whenever_they_were_made()
     {
-        var later = ShareDocument.Structure("Another title", Source, Selection, Day.AddDays(8), "0.7.1");
-        var renamed = ShareDocument.Structure("Trains", Source with { Conversations = [Root with { Name = "Trains" }, Kept, Left] }, Selection, Day, "0.7.0");
+        var later = ExchangeDocument.Structure("Another title", Source, Selection, Day.AddDays(8), "0.7.1");
+        var renamed = ExchangeDocument.Structure("Trains", Source with { Conversations = [Root with { Name = "Trains" }, Kept, Left] }, Selection, Day, "0.7.0");
 
         Assert.True(Build().SameContents(later));
         Assert.False(Build().SameContents(renamed));

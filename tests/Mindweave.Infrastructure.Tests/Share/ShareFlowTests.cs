@@ -1,5 +1,6 @@
 using System.Text;
 using Microsoft.Extensions.Logging.Abstractions;
+using Mindweave.Application.Exchange;
 using Mindweave.Application.Export;
 using Mindweave.Application.Share;
 using Mindweave.Application.Storage;
@@ -7,6 +8,7 @@ using Mindweave.Core.Conversations;
 using Mindweave.Core.Summaries;
 using Mindweave.Core.Workspaces;
 using Mindweave.Infrastructure.Export;
+using Mindweave.Infrastructure.Share;
 using Mindweave.Infrastructure.Sqlite;
 using Mindweave.Infrastructure.Tests.Chat;
 
@@ -53,7 +55,7 @@ public sealed class ShareFlowTests : IDisposable
         var shares = Shares(h);
         var source = await shares.ReadAsync(h.Workspace, Ct);
         var selection = ShareSelection.Exploration(source.Parents, root.Conversation).Untick(unticked);
-        await shares.SaveAsync(ShareDocument.Structure("How trains came to be", source, selection, Now, "0.7.0"), Local(Target), Ct);
+        await shares.SaveAsync(ExchangeDocument.Structure("How trains came to be", source, selection, Now, "0.7.0"), Local(Target), Ct);
 
         var file = Encoding.UTF8.GetString(await File.ReadAllBytesAsync(Target, Ct));
 
@@ -174,7 +176,7 @@ public sealed class ShareFlowTests : IDisposable
         var gate = new TaskCompletionSource();
         var writer = new GatedWriter(gate.Task);
         var shares = Shares(h, writer);
-        var document = new ShareDocument(ShareDocument.StructureKind, "t", Now, "1", [], []);
+        var document = new ExchangeDocument(ExchangeDocument.StructureKind, "t", Now, "1", [], []);
 
         var running = shares.SaveAsync(document, Local(Target), Ct);
         await writer.Entered.Task;
@@ -200,7 +202,7 @@ public sealed class ShareFlowTests : IDisposable
     }
 
     private static ShareService Shares(ChatHarness h, IExportFileWriter? writer = null) =>
-        new(h.Store, h.SummaryNodes, new SqliteSummaryNetworkStore(h.Database), new SqliteSummaryLinkStore(h.Database), writer ?? new AtomicFileWriter(NullLogger<AtomicFileWriter>.Instance), NullLogger<ShareService>.Instance);
+        new(h.Store, h.SummaryNodes, new SqliteSummaryNetworkStore(h.Database), new SqliteSummaryLinkStore(h.Database), new SharePageWriter(), writer ?? new AtomicFileWriter(NullLogger<AtomicFileWriter>.Instance), NullLogger<ShareService>.Instance);
 
     private static WorkspaceName MarkedName() => WorkspaceName.TryCreate("PLANTEDWORKSPACE", out var name, out _) ? name! : throw new InvalidOperationException();
 

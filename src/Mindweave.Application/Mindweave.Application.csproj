@@ -10,8 +10,4 @@
     <EmbeddedResource Include="Prompts\en\*.md" LogicalName="Prompts.en.%(Filename)%(Extension)" />
     <EmbeddedResource Include="Prompts\zh\*.md" LogicalName="Prompts.zh.%(Filename)%(Extension)" />
   </ItemGroup>
-  <ItemGroup>
-    <!-- The page a shared file shows (docs/design/sharing.md §6.2), filled in by SharePage. -->
-    <EmbeddedResource Include="Share\SharePage.html" LogicalName="Share.SharePage.html" />
-  </ItemGroup>
 </Project>

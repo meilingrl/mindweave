@@ -2,6 +2,7 @@ using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Mindweave.Application;
 using Mindweave.Application.Conversations;
+using Mindweave.Application.Exchange;
 using Mindweave.Application.Export;
 using Mindweave.Application.Share;
 using Mindweave.Application.Storage;
@@ -395,7 +396,7 @@ public sealed partial class ShareViewModel : ViewModelBase, IDisposable
         Notice = _leftOut.Count == 0 ? text : string.Join(' ', new[] { text, UiText.ShareLeftOut(_leftOut) }.Where(t => t is not null));
     }
 
-    private ShareDocument Document() => ShareDocument.Structure(Title, _source, _selection, _time.GetUtcNow(), _environment.Version);
+    private ExchangeDocument Document() => ExchangeDocument.Structure(Title, _source, _selection, _time.GetUtcNow(), _environment.Version);
 
     /// <summary>Lays the dots out as the timeline does (session-network.md §5.1), wide enough for each tick and whole name.</summary>
     private void Draw()

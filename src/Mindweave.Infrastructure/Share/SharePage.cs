@@ -4,9 +4,10 @@ using System.Text;
 using System.Text.Encodings.Web;
 using System.Text.Json;
 using System.Text.Unicode;
-using Mindweave.Core.Conversations;
+using Mindweave.Application.Exchange;
+using Mindweave.Application.Share;
 
-namespace Mindweave.Application.Share;
+namespace Mindweave.Infrastructure.Share;
 
 /// <summary>
 /// The one HTML file a share is (docs/design/sharing.md S2, §6.2): the page kept in <c>SharePage.html</c> with the
@@ -21,22 +22,22 @@ public static class SharePage
 
     private static readonly Lazy<string> Template = new(ReadTemplate);
 
-    public static byte[] Encode(ShareDocument document) => new UTF8Encoding(encoderShouldEmitUTF8Identifier: false).GetBytes(Format(document));
+    public static byte[] Encode(ExchangeDocument document) => new UTF8Encoding(encoderShouldEmitUTF8Identifier: false).GetBytes(Format(document));
 
-    public static string Format(ShareDocument document)
+    public static string Format(ExchangeDocument document)
     {
         ArgumentNullException.ThrowIfNull(document);
         return Template.Value.Replace(Placeholder, Data(document), StringComparison.Ordinal);
     }
 
-    private static string Data(ShareDocument document)
+    private static string Data(ExchangeDocument document)
     {
         var buffer = new ArrayBufferWriter<byte>();
         using (var json = new Utf8JsonWriter(buffer, Json))
         {
             json.WriteStartObject();
-            json.WriteString("format", ShareDocument.Format);
-            json.WriteNumber("version", ShareDocument.Version);
+            json.WriteString("format", ExchangeDocument.Format);
+            json.WriteNumber("version", ExchangeDocument.Version);
             json.WriteString("kind", document.Kind);
             json.WriteString("title", document.Title);
             json.WriteString("made_at", Instant(document.MadeAt));
@@ -65,7 +66,7 @@ public static class SharePage
     }
 
     /// <summary>A root has no parent and a conversation without a title no name: the fields are then left out.</summary>
-    private static void Write(Utf8JsonWriter json, SharedConversation conversation)
+    private static void Write(Utf8JsonWriter json, ExchangeConversation conversation)
     {
         json.WriteStartObject();
         json.WriteString("id", conversation.Id.ToString());
@@ -94,4 +95,10 @@ public static class SharePage
         using var reader = new StreamReader(stream, Encoding.UTF8);
         return reader.ReadToEnd().ReplaceLineEndings("\n");
     }
+}
+
+/// <summary>The shared file as the application asks for it (architecture §16.1: Application writes no HTML).</summary>
+internal sealed class SharePageWriter : ISharePageWriter
+{
+    public byte[] Encode(ExchangeDocument document) => SharePage.Encode(document);
 }

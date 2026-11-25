@@ -22,4 +22,8 @@
     <InternalsVisibleTo Include="Mindweave.TestHost" />
     <InternalsVisibleTo Include="Mindweave.Desktop.Tests" />
   </ItemGroup>
+  <ItemGroup>
+    <!-- The page a shared file shows (docs/design/sharing.md §6.2), filled in by SharePage. -->
+    <EmbeddedResource Include="Share\SharePage.html" LogicalName="Share.SharePage.html" />
+  </ItemGroup>
 </Project>

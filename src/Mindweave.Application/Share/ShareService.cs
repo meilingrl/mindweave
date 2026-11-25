@@ -1,5 +1,6 @@
 using System.Collections.Concurrent;
 using Microsoft.Extensions.Logging;
+using Mindweave.Application.Exchange;
 using Mindweave.Application.Export;
 using Mindweave.Application.Storage;
 using Mindweave.Core.Conversations;
@@ -16,10 +17,16 @@ public interface IShares
 
     /// <summary>Writes the share to the picked file.</summary>
     /// <exception cref="ExportWriteException">Writing failed; the target is as it was.</exception>
-    Task SaveAsync(ShareDocument document, ExportDestination destination, CancellationToken cancellationToken);
+    Task SaveAsync(ExchangeDocument document, ExportDestination destination, CancellationToken cancellationToken);
 
     /// <summary>Completes when every share being written now has ended, successfully or not; never faults (architecture §12.3).</summary>
     Task WhenIdleAsync();
+}
+
+/// <summary>Turns the exchange document into the one file a share is.</summary>
+public interface ISharePageWriter
+{
+    byte[] Encode(ExchangeDocument document);
 }
 
 /// <summary>
@@ -32,6 +39,7 @@ public sealed partial class ShareService(
     ISummaryStore summaries,
     ISummaryNetworkStore network,
     ISummaryLinkStore links,
+    ISharePageWriter page,
     IExportFileWriter writer,
     ILogger<ShareService> logger) : IShares
 {
@@ -65,10 +73,10 @@ public sealed partial class ShareService(
         return new ShareSource(
             offered,
             [.. linked.Where(l => conversationOf.ContainsKey(l.NodeA) && conversationOf.ContainsKey(l.NodeB))
-                .Select(l => new ShareLink(conversationOf[l.NodeA], conversationOf[l.NodeB]))]);
+                .Select(l => new ExchangeLink(conversationOf[l.NodeA], conversationOf[l.NodeB]))]);
     }
 
-    public async Task SaveAsync(ShareDocument document, ExportDestination destination, CancellationToken cancellationToken)
+    public async Task SaveAsync(ExchangeDocument document, ExportDestination destination, CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(document);
         ArgumentNullException.ThrowIfNull(destination);
@@ -76,7 +84,7 @@ public sealed partial class ShareService(
         _running.TryAdd(done.Task, 0);
         try
         {
-            var mode = await writer.WriteAsync(destination, SharePage.Encode(document), cancellationToken).ConfigureAwait(false);
+            var mode = await writer.WriteAsync(destination, page.Encode(document), cancellationToken).ConfigureAwait(false);
             LogShared(logger, document.Conversations.Count, mode);
         }
         finally

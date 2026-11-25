@@ -1,8 +1,9 @@
 using System.Text;
 using System.Text.Json;
 using System.Text.RegularExpressions;
-using Mindweave.Application.Share;
+using Mindweave.Application.Exchange;
 using Mindweave.Core.Conversations;
+using Mindweave.Infrastructure.Share;
 
 namespace Mindweave.Infrastructure.Tests.Share;
 
@@ -11,11 +12,11 @@ public sealed partial class SharePageTests
 {
     private static readonly DateTimeOffset Day = new(2026, 11, 18, 11, 42, 30, 120, TimeSpan.Zero);
 
-    private static readonly SharedConversation Root = new(ConversationId.New(), null, "History of trains", Day, 3, true);
-    private static readonly SharedConversation Branch = new(ConversationId.New(), Root.Id, null, Day.AddMinutes(9), 1, false);
+    private static readonly ExchangeConversation Root = new(ConversationId.New(), null, "History of trains", Day, 3, true);
+    private static readonly ExchangeConversation Branch = new(ConversationId.New(), Root.Id, null, Day.AddMinutes(9), 1, false);
 
-    private static ShareDocument Document(string title = "Trains") =>
-        new(ShareDocument.StructureKind, title, Day.AddDays(7), "0.7.0", [Root, Branch], [new ShareLink(Root.Id, Branch.Id)]);
+    private static ExchangeDocument Document(string title = "Trains") =>
+        new(ExchangeDocument.StructureKind, title, Day.AddDays(7), "0.7.0", [Root, Branch], [new ExchangeLink(Root.Id, Branch.Id)]);
 
     [Fact]
     public void The_data_block_holds_the_exchange_document_and_nothing_else()
