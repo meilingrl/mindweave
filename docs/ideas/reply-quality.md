@@ -1,6 +1,6 @@
 # Reply quality
 
-**Status:** agreed by the owner on 2026-11-26, as recorded under "Discussion" (Q1–Q11, the approach, out of scope, failure cases, acceptance scenarios, increments). Not built. Requirement and architecture text is not written yet; it comes as a separate commit the owner confirms. The sections from "Goal" on are the first draft of 2026-11-22, kept as background.
+**Status:** agreed by the owner on 2026-11-26, as recorded under "Discussion" (Q1–Q11, the approach, out of scope, failure cases, acceptance scenarios, increments). Not built. The requirement text (v0.31, §10.8) and the architecture text are separate commits on this branch, waiting for the owner's confirmation. The sections from "Goal" on are the first draft of 2026-11-22, kept as background.
 
 **Related:** [agent-loop.md](../design/agent-loop.md) (run loop, L1–L12, section 8), [web-search.md](../design/web-search.md), [requirements §10.4](../requirements.md).
 

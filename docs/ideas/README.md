@@ -15,7 +15,7 @@ Each file starts with its status and the date of its last discussion.
 | Draft | About | Status |
 | --- | --- | --- |
 | [More platforms](platforms.md) | Linux, Web and HarmonyOS on the current code; no mobile (owner, 2026-11-24) | First draft, 2026-11-22 |
-| [Reply quality](reply-quality.md) | What open-source projects do to make answers and summaries better, and what fits Mindweave | Agreed by the owner, 2026-11-26; not built; requirement text still to come |
+| [Reply quality](reply-quality.md) | What open-source projects do to make answers and summaries better, and what fits Mindweave | Agreed by the owner, 2026-11-26; not built; requirement and architecture text waits for confirmation |
 | [More directions](more-directions.md) | Seven further directions, and the technical pieces worth publishing | First draft, 2026-11-22 |
 
 Adopted so far: the [free trial](../design/free-trial.md) (2026-11-22, evolution D9); [sharing a thinking path](../design/sharing.md) (2026-11-25, evolution D8), with its note for [import](../design/sharing-import.md).
