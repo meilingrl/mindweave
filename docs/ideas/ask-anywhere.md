@@ -1,6 +1,6 @@
 # Ask from anywhere, openness and local AI
 
-**Status:** in discussion with the owner since 2026-11-25. Not agreed. Last discussed: 2026-11-25 (quoting and connections are agreed; search by meaning is being discussed).
+**Status:** in discussion with the owner since 2026-11-25. Last discussed: 2026-11-26 (quoting and connections are agreed; the section on search by meaning waits for the owner's confirmation; prompt caching is not discussed yet).
 
 This draft takes over directions 1, 3 and 7 of [more directions](more-directions.md), the question Q13 of the agent platform (search by meaning) and the caching part of [evolution](../evolution.md) D4. Those texts stay as they are until the owner settles what moves.
 
@@ -74,6 +74,7 @@ Seven topics in four groups. The order and what is set aside are in §5 and §6.
 | 2026-11-25 | The section on several connections and local models in §7 is agreed as written, Claude's calls included (owner). |
 | 2026-11-25 | Responses moves into the first increment as its fourth step, after Messages (owner). It is checked against a local server and the owner's relay; the check against OpenAI's own service stays open until there is a key. This replaces "Responses comes later" above. |
 | 2026-11-25 | Search by meaning serves both the model's tools and the user (owner): one index over summaries, the questions and answers of conversations, and attachments, inside one workspace. The user gets a search of their own beside title search. |
+| 2026-11-26 | The vectors come from an embedding model on a saved connection (owner): one more model setting, empty by default, which leaves search as it is today. An embedding model that Mindweave carries itself can follow behind the same setting. |
 
 ## 6. Set aside
 
@@ -267,3 +268,77 @@ Look and feel is the owner's: the list in settings and the picker are shown befo
 #### After this section is agreed
 
 Requirement and architecture text follows as a separate commit that the owner confirms: requirements §9.4 and architecture §7 (which describe one configuration), and evolution D3. How keys are kept stays with the safety and upkeep discussion (§4).
+
+### Search by meaning (D2; waiting for the owner to confirm this section)
+
+The owner's decisions are in §5. Everything else in this section is Claude's call, and the owner can change it. This section answers Q13 of the agent platform questions.
+
+#### How it works
+
+**The setting.** A third model setting, "Model for search by meaning", beside the current model and the model for background work. It is empty by default, and then search works by keyword and title as today. It can be set to an embedding model on any saved connection; a model entry says whether it is a chat model or an embedding model. Before it is turned on with a connection that is not on this machine, the setting states that the text of all workspaces is sent there once, and about how much text that is.
+
+**The index.** One vector per piece of content: each part of a summary's current version, each question and answer of a conversation (long ones in parts), and each chunk of an attachment, including the recognized text of a picture quote. Vectors are stored in the local database, in a compact form, beside the content they belong to, and are deleted with it. Comparison happens in memory, inside one workspace; no vector database is added.
+
+**Building and keeping current.** After the setting is turned on, the index is built in the background, with progress shown in settings; it can be interrupted and continues later. New content is added after it is saved: a finished answer, an adopted summary version, an extracted attachment. Choosing a different model builds the index again, because vectors of two models cannot be compared.
+
+**Searching.** A search runs by keyword and by meaning and merges the two rankings. The words searched for are sent to the embedding model once per search. What is not indexed yet is still found by keyword.
+
+**For the user.** The existing title search also finds passages. Titles come first and at once, as today. Below them come passages by meaning: the passage, where it is (conversation, summary or attachment), and a jump to that place.
+
+**For the model.** "Search summaries" and "search attachments" use the same search. The step details say that meaning was used.
+
+**Cost and tracing.** Embedding requests are recorded like other AI requests, with a purpose of their own, and count in the usage statistics.
+
+**Storage.** One new table for vectors, so one migration; its number goes by merge order.
+
+#### What it needs, and what leaves the machine
+
+- **macOS and Windows:** no platform work.
+- **Leaves the machine:** with an embedding model on the local server, nothing. With a provider's embedding model, the text of every summary, conversation and attachment is sent to it once to build the index, then each new piece of content, and the words of each search.
+- **Languages:** the content is Chinese and English mixed, so the embedding model must handle both. The setting says so.
+
+#### Out of scope
+
+- Search across workspaces (not done for now, requirements §10.4.2).
+- An embedding model that Mindweave carries itself. It can follow behind the same setting.
+- Showing related earlier explorations unasked, and link suggestions from the index. These belong to the return and review discussion (§4).
+- A second model that re-orders the results.
+- Searching pictures by what they show. Their recognized text is searched.
+
+#### Failure cases
+
+| Case | What happens |
+| --- | --- |
+| The embedding connection cannot be reached while building | Building pauses and continues later; settings show the state. Search uses what is indexed, and keywords for the rest |
+| The embedding request for a search fails | Keyword and title results are shown, with a line saying that search by meaning was not available |
+| The provider limits the rate | Building slows down and waits; it does not fail |
+| A very large workspace | Building takes long; progress is shown; search works on what is done |
+| The model is changed | The old vectors are deleted and the index is built again |
+| The connection of the embedding model is removed | The setting returns to empty and the vectors are deleted; search is by keyword again |
+| A stored vector does not fit the current model, or is damaged | That piece is indexed again |
+| The setting is empty | Everything works as today |
+
+#### Acceptance scenarios
+
+1. With the setting empty, search behaves exactly as before the update.
+2. Set an embedding model on the local server. Settings show the index being built, then done. Nothing was sent off the machine.
+3. Choose a provider's embedding model. Before anything is sent, the setting states that all text goes to that provider and about how much.
+4. Search for words that occur in no title and no text, but describe something explored earlier. The passage is found, and the jump opens the conversation at that message.
+5. Search for an exact title. It is the first result, as today.
+6. Ask a question that depends on an earlier exploration, worded differently from its summary. The step details show that "search summaries" found it.
+7. Finish a new answer and search for its content a moment later. It is found.
+8. Delete a conversation. Its passages no longer appear in search.
+9. Stop the local server and search. Titles and keyword results appear, with the line that search by meaning was not available.
+10. Quit while the index is being built and start again. Building continues.
+
+#### First increment
+
+Three steps, each usable when merged:
+
+1. The setting, the index and its building, and the two tools using it.
+2. The user's search: passages below the titles, with the jump. Its look is the owner's to judge before it is built in.
+3. Later, together with the reply quality discussion: letting the model search the questions and answers of conversations too, not only summaries and attachments. This changes what the tools offer and the run prompt.
+
+#### After this section is agreed
+
+Requirement and architecture text follows as a separate commit that the owner confirms: requirements §9.6 (which says that vector search is not introduced), §10.4.4 (the two tools), §7 (title search), and evolution D5, where Q13 is marked as answered.
