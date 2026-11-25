@@ -102,6 +102,10 @@
     <Border Name="ShareDialog" Classes="dialog-scrim" IsVisible="{Binding Share.IsOpen}">
       <v:ShareView DataContext="{Binding Share}" />
     </Border>
+    <!-- Importing a shared file (docs/design/sharing-import.md §5), from the workspace menu or dropped on the window. -->
+    <Border Name="ImportDialog" Classes="dialog-scrim" IsVisible="{Binding Import.IsOpen}">
+      <v:ImportView DataContext="{Binding Import}" />
+    </Border>
     <Border Name="ExitTaskPrompt" Classes="dialog-scrim" IsVisible="{Binding Exit.IsTaskPromptOpen}">
       <Border Classes="dialog">
         <StackPanel Spacing="12">

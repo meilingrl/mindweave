@@ -122,6 +122,6 @@ public interface IImportStore
     /// </summary>
     Task<ImportResult> ImportAsync(ExchangeDocument document, ImportTarget target, DateTimeOffset at, CancellationToken cancellationToken);
 
-    /// <summary>The shared file a conversation came from; null for the user's own.</summary>
-    Task<ImportMark?> MarkOfAsync(ConversationId conversation, CancellationToken cancellationToken);
+    /// <summary>The shared file each received conversation of the workspace came from; the user's own are not in it.</summary>
+    Task<IReadOnlyDictionary<ConversationId, ImportMark>> MarksAsync(WorkspaceId workspace, CancellationToken cancellationToken);
 }

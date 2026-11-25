@@ -81,7 +81,7 @@
       <!-- Where this branch sits: its ancestors (each opens normally) and the passage it was created from, read as a quotation. -->
       <Border Name="BranchHeader" Classes="card" Padding="12,9,8,10" IsVisible="{Binding IsBranch}">
         <DockPanel>
-          <Button Name="ReturnButton" DockPanel.Dock="Right" Classes="quiet" Command="{Binding ReturnToSourceCommand}" VerticalAlignment="Top"
+          <Button Name="ReturnButton" DockPanel.Dock="Right" Classes="quiet" Command="{Binding ReturnToSourceCommand}" VerticalAlignment="Top" IsVisible="{Binding CanReturnToSource}"
                   Margin="12,0,0,0" ToolTip.Tip="{x:Static t:UiText.ReturnToSourceHint}">
             <StackPanel Orientation="Horizontal" Spacing="6">
               <PathIcon Data="{StaticResource IconReturn}" />
@@ -111,7 +111,7 @@
                 </ItemsControl.ItemTemplate>
               </ItemsControl>
             </WrapPanel>
-            <Border Classes="quote">
+            <Border Classes="quote" IsVisible="{Binding SourceQuote, Converter={x:Static ObjectConverters.IsNotNull}}">
               <TextBlock Name="QuoteText" Text="{Binding SourceQuote}" TextWrapping="Wrap" MaxLines="4" TextTrimming="CharacterEllipsis"
                          Foreground="{DynamicResource PrimaryText}" />
             </Border>

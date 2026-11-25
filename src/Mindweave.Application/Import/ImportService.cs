@@ -17,9 +17,6 @@ public interface IImports
     /// Imports in one transaction. Refused while storage is paused (a <see cref="StorageWriteException"/>, nothing changed).
     /// </summary>
     Task<ImportResult> ImportAsync(ExchangeDocument document, ImportTarget target, CancellationToken cancellationToken);
-
-    /// <summary>The shared file a conversation came from; null for the user's own.</summary>
-    Task<ImportMark?> MarkOfAsync(ConversationId conversation, CancellationToken cancellationToken);
 }
 
 public sealed partial class ImportService(
@@ -55,9 +52,6 @@ public sealed partial class ImportService(
 
         return result;
     }
-
-    public Task<ImportMark?> MarkOfAsync(ConversationId conversation, CancellationToken cancellationToken) =>
-        store.MarkOfAsync(conversation, cancellationToken);
 
     [LoggerMessage(Level = LogLevel.Information, Message = "Imported a share ({Kind}): {Conversations} conversations are new")]
     private static partial void LogImported(ILogger logger, string kind, int conversations);

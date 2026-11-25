@@ -54,6 +54,9 @@ internal sealed record NodePaint(
     /// <summary>The conversation has a summary, drawn as a thin ring around the dot.</summary>
     public bool SummaryRing { get; init; }
 
+    /// <summary>The conversation is not explored yet: an outline of the same size, filled with the background so no line shows through.</summary>
+    public bool Hollow => Node.Unexplored;
+
     /// <summary>
     /// Faded: a dot with links is selected and this node is neither it, its link partners nor on its path to the root
     /// (design §8: selecting a dot with links brings out both ends and dims the rest).

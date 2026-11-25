@@ -604,10 +604,13 @@ public sealed partial class ConversationService : IConversations
         NotifyVisibility(scope.Conversations);
     }
 
-    /// <summary>Conversations arrived by import: each, and each that was here and gained a branch, gets <see cref="ConversationChanged"/>.</summary>
+    /// <summary>
+    /// Conversations arrived by import. The first stands for all that are new (a list is read whole, and no page shows any of
+    /// them yet); each that was here and gained a branch is named.
+    /// </summary>
     internal void NotifyImported(Import.ImportResult result)
     {
-        foreach (var id in result.Created.Concat(result.Parents))
+        foreach (var id in result.Created.Take(1).Concat(result.Parents))
         {
             ConversationChanged?.Invoke(this, id);
         }

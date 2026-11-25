@@ -360,7 +360,8 @@ public sealed partial class LanguageSwitch
             || root.BackupRestore.IsBusy
             || root.BackupDeletion.IsOpen
             || root.BackupDeletion.IsBusy
-            || root.Share.IsOpen)
+            || root.Share.IsOpen
+            || root.Import.IsOpen)
         {
             return true;
         }

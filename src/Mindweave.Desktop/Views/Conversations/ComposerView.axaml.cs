@@ -24,6 +24,7 @@ public sealed partial class ComposerView : UserControl
         Input.AddHandler(TextBox.PastingFromClipboardEvent, OnPasting, RoutingStrategies.Tunnel | RoutingStrategies.Bubble);
         AttachFileItem.Click += async (_, _) => await PickAsync(images: false);
         AttachImageItem.Click += async (_, _) => await PickAsync(images: true);
+        ComposerBox.AddHandler(DragDrop.DragEnterEvent, OnDragOver);
         ComposerBox.AddHandler(DragDrop.DragOverEvent, OnDragOver);
         ComposerBox.AddHandler(DragDrop.DragLeaveEvent, (_, _) => ComposerBox.Classes.Set("drop-target", false));
         ComposerBox.AddHandler(DragDrop.DropEvent, OnDrop);
@@ -177,6 +178,7 @@ public sealed partial class ComposerView : UserControl
         var accepts = DataContext is Composer { CanAttach: true } && (e.DataTransfer.Contains(DataFormat.File) || e.DataTransfer.Contains(DataFormat.Text));
         e.DragEffects = accepts ? DragDropEffects.Copy : DragDropEffects.None;
         ComposerBox.Classes.Set("drop-target", accepts);
+        e.Handled = accepts; // The window behind it takes shared files.
     }
 
     /// <summary>Dropped files become attachments; dropped text goes in the input, or becomes an attachment when long.</summary>

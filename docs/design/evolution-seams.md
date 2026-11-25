@@ -8,7 +8,7 @@ Based on the [evolution directions and engineering guidance](../evolution.md). E
 | E2 Block-based message content | **Built** (migration v3) | Core `ContentBlock`; table `message_block` |
 | E3 Request tracing and redaction at the source | **Built** (migration v3) | Application `Diagnostics/`; table `ai_request`; redaction in the client and the file log |
 | E4 Model capability description | **Built** (migration v3) | Core `ModelCapabilities`; the `capabilities` column of `model_config` and `generation_task` |
-| E5 Versioned exchange format | **Built for shares** (one HTML file); the package of a device copy is specification only | §E5 of this document, `src/Mindweave.Application/Exchange` |
+| E5 Versioned exchange format | **Built for shares** (one HTML file), and read back for structure-only ones; the package of a device copy is specification only | §E5 of this document, `src/Mindweave.Application/Exchange` |
 | E6 Performance baseline and architecture tests | **Built** | `tests/…/Performance/`, `scripts/perf.sh`, `SeamTests` |
 
 ## E2 Block-based message content

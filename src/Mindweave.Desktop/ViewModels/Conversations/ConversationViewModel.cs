@@ -85,7 +85,7 @@ public sealed partial class ConversationViewModel : PageViewModel, IDisposable, 
         var attachments = resources is null || models is null
             ? null
             : new ComposerAttachmentServices(resources, models, () => _workspace == default ? null : new DraftSlot(_workspace, Id, _slot.Value));
-        Composer = new Composer((text, ids) => _conversations.AskAsync(Id, text, ids, Composer?.Options, CancellationToken.None), attachments)
+        Composer = new Composer(AskAsync, attachments)
         {
             StopCommand = StopCommand,
             HostShowsStoragePause = true,
@@ -142,11 +142,21 @@ public sealed partial class ConversationViewModel : PageViewModel, IDisposable, 
     [ObservableProperty]
     public partial bool IsMissing { get; private set; }
 
+    /// <summary>The sentence a branch left from; null for a root, and for a branch that left from none.</summary>
     [ObservableProperty]
-    [NotifyPropertyChangedFor(nameof(IsBranch))]
     public partial string? SourceQuote { get; private set; }
 
-    public bool IsBranch => SourceQuote is not null;
+    /// <summary>The header says where this branch sits. An empty received conversation shows its input box and nothing else.</summary>
+    [ObservableProperty]
+    public partial bool IsBranch { get; private set; }
+
+    /// <summary>There is an answer to go back to; a branch of an empty received conversation left from none.</summary>
+    [ObservableProperty]
+    public partial bool CanReturnToSource { get; private set; }
+
+    /// <summary>It came from a shared file and nothing was said in it: asking starts a conversation of the user's own (decision I4).</summary>
+    [ObservableProperty]
+    public partial bool IsUnexplored { get; private set; }
 
     /// <summary>Shown when the source passage could not be located exactly (MW-C13); never replaced by a text search.</summary>
     [ObservableProperty]
@@ -267,6 +277,18 @@ public sealed partial class ConversationViewModel : PageViewModel, IDisposable, 
         }
     }
 
+    /// <summary>A question in a received conversation starts the user's own (decision I4), which opens unless the reader went elsewhere meanwhile.</summary>
+    private async Task<SendOutcome> AskAsync(string text, IReadOnlyList<Core.Resources.ResourceId> attachments)
+    {
+        var outcome = await _conversations.AskAsync(Id, text, attachments, Composer.Options, CancellationToken.None);
+        if (outcome.Accepted && outcome.Conversation != Id)
+        {
+            _navigator.Navigate(new NavigationRequest(MainSection.Explore, new ConversationRoute(outcome.Conversation)) { From = this });
+        }
+
+        return outcome;
+    }
+
     [RelayCommand(CanExecute = nameof(CanStop))]
     private Task StopAsync() => RunningAnswer is { } answer ? _conversations.StopAsync(answer.Id) : Task.CompletedTask;
 
@@ -310,7 +332,7 @@ public sealed partial class ConversationViewModel : PageViewModel, IDisposable, 
     [RelayCommand]
     private void ReturnToSource()
     {
-        if (_source is { } source)
+        if (_source is { SourceMessage: not null } source)
         {
             _navigator.Navigate(new NavigationRequest(MainSection.Explore, new ConversationRoute(source.Parent, SourceOf: Id), NavigationIntent.ReturnToSource));
         }
@@ -531,6 +553,10 @@ public sealed partial class ConversationViewModel : PageViewModel, IDisposable, 
 
         _source = lineage.Count > 0 ? lineage[^1].Source : null;
         SourceQuote = _source?.Quote;
+        IsUnexplored = content.Conversation.IsImported && content.Messages.Count == 0;
+        IsBranch = _source is not null && !IsUnexplored;
+        CanReturnToSource = _source?.SourceMessage is not null;
+        Composer.Placeholder = IsUnexplored ? UiText.AskInReceivedPlaceholder : UiText.AskPlaceholder;
         DisplayTitle = UiText.ConversationTitle(content.Conversation, content.Messages.FirstOrDefault(m => m.Role == MessageRole.User) is { } first ? ContentBlocks.BriefOf(first.Blocks, ModelPhrases.Current) : null, _source?.Quote);
         Lineage.Clear();
         foreach (var ancestor in lineage.Take(Math.Max(0, lineage.Count - 1)))

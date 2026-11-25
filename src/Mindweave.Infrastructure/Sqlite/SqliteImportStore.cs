@@ -63,15 +63,23 @@ internal sealed class SqliteImportStore(SqliteDatabase database) : IImportStore
             cancellationToken);
     }
 
-    public Task<ImportMark?> MarkOfAsync(ConversationId conversation, CancellationToken cancellationToken) =>
-        database.ReadAsync(
+    public Task<IReadOnlyDictionary<ConversationId, ImportMark>> MarksAsync(WorkspaceId workspace, CancellationToken cancellationToken) =>
+        database.ReadAsync<IReadOnlyDictionary<ConversationId, ImportMark>>(
             connection =>
             {
-                using var command = connection.Command(null,
-                    "SELECT i.title, i.imported_at FROM import_conversation c JOIN import i ON i.id = c.import_id WHERE c.conversation_id = $id;",
-                    ("$id", conversation.ToString()));
+                using var command = connection.Command(null, """
+                    SELECT c.id, i.title, i.imported_at
+                    FROM import_conversation r JOIN conversation c ON c.id = r.conversation_id JOIN import i ON i.id = r.import_id
+                    WHERE c.workspace_id = $ws;
+                    """, ("$ws", workspace.ToString()));
                 using var reader = command.ExecuteReader();
-                return reader.Read() ? new ImportMark(reader.GetString(0), reader.Time(1)) : null;
+                var marks = new Dictionary<ConversationId, ImportMark>();
+                while (reader.Read())
+                {
+                    marks[ConversationId.Parse(reader.GetString(0))] = new ImportMark(reader.GetString(1), reader.Time(2));
+                }
+
+                return marks;
             },
             cancellationToken);
 

@@ -50,6 +50,8 @@ public static class ApplicationServices
         services.AddSingleton<SummaryNetworkService>();
         services.AddSingleton<SummaryExportService>();
         services.AddSingleton<ShareService>();
+        services.AddSingleton<Application.Import.ImportService>();
+        services.AddSingleton<Application.Import.IImports>(sp => sp.GetRequiredService<Application.Import.ImportService>());
         services.AddSingleton<ReadingStateService>();
         services.AddSingleton<AppearanceService>();
         services.AddSingleton<SidebarLayoutService>();

@@ -1134,7 +1134,7 @@ public sealed partial class SummaryNetworkHomeViewModel : PageViewModel, IDispos
             // A dot without a summary has no markers: it is a conversation, never read or unread.
             if (!node.HasSummary)
             {
-                Items.Add(new SummaryListItem(node.Id, node.DisplayName, string.Empty, false) { HasSummary = false, Links = LinksLineOf(node.Id, names) });
+                Items.Add(new SummaryListItem(node.Id, node.DisplayName, string.Empty, false, Other: node.IsUnexplored ? UiText.NotExplored : string.Empty) { HasSummary = false, Links = LinksLineOf(node.Id, names) });
                 continue;
             }
 
@@ -1165,6 +1165,10 @@ public sealed partial class SummaryNetworkHomeViewModel : PageViewModel, IDispos
         _recommendations?.SummaryNetworkOpened(Workspace.Id);
     }
 
+    /// <summary>The legend's line for hollow dots, only while there are any.</summary>
+    [ObservableProperty]
+    public partial bool ShowsUnexploredLegend { get; private set; }
+
     private void BuildViews()
     {
         var positions = Session.Positions;
@@ -1179,7 +1183,8 @@ public sealed partial class SummaryNetworkHomeViewModel : PageViewModel, IDispos
         Nodes = [.. Session.Projection.Nodes.Where(n => positions.ContainsKey(n.Id)).Select(n => new NodeView(
             n.Id, n.ShortTitle, n.DisplayName, positions[n.Id].X, positions[n.Id].Y, n.Markers.Unread, n.Markers.HasCandidate, SummaryNetworkLayout.LabelWidth(SummaryNetworkLayout.Label(n.ShortTitle, n.Markers.HasCandidate)),
             parents.TryGetValue(n.Id, out var parent) && positions.ContainsKey(parent) ? parent : null, n.Conversation == n.Root, n.HasSummary, n.Weight, n.CreatedAt,
-            placed.GetValueOrDefault(n.Id), dated.Contains(n.Id)))];
+            placed.GetValueOrDefault(n.Id), dated.Contains(n.Id)) { Unexplored = n.IsUnexplored })];
+        ShowsUnexploredLegend = Nodes.Any(n => n.Unexplored);
         Edges = [.. Session.Projection.Edges.Where(e => positions.ContainsKey(e.From) && positions.ContainsKey(e.To)).Select(e => new EdgeView(
             e.From, e.To, positions[e.From].X, positions[e.From].Y, positions[e.To].X, positions[e.To].Y, e.Kind,
             timeline && e.Kind == SummaryNetworkEdgeKind.Branch && positions[e.From].Y != positions[e.To].Y))];
@@ -1225,7 +1230,11 @@ public sealed partial class SummaryNetworkHomeViewModel : PageViewModel, IDispos
             steps,
             node.HasSummary,
             node.FirstQuestion,
-            node.Markers.HasLaterContent);
+            node.Markers.HasLaterContent)
+        {
+            Unexplored = node.IsUnexplored,
+            Received = node.Import is { } import ? UiText.ReceivedFrom(import.Title, import.At) : null,
+        };
     }
 
     /// <summary>

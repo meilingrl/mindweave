@@ -221,11 +221,29 @@ public sealed class ImportFlowTests : IDisposable
         var (root, _, _) = await ImportPathAsync(h);
         var own = await StartAsync(h, "Mine?");
 
-        var mark = await Imports(h).MarkOfAsync(root, Ct);
-        Assert.Equal("How trains came to be", mark?.Title);
-        Assert.InRange(mark!.At, DateTimeOffset.UtcNow.AddMinutes(-1), DateTimeOffset.UtcNow.AddMinutes(1));
-        Assert.Null(await Imports(h).MarkOfAsync(own.Conversation, Ct));
+        var marks = await new SqliteImportStore(h.Database).MarksAsync(h.Workspace, Ct);
+        Assert.Equal("How trains came to be", marks[root].Title);
+        Assert.InRange(marks[root].At, DateTimeOffset.UtcNow.AddMinutes(-1), DateTimeOffset.UtcNow.AddMinutes(1));
+        Assert.DoesNotContain(own.Conversation, marks.Keys);
         Assert.Equal(1, await h.CountAsync("import"));
+    }
+
+    [Fact]
+    public async Task The_network_shows_every_dot_with_its_lines_unexplored_and_where_it_came_from()
+    {
+        await using var h = await ChatHarness.StartAsync();
+        var (root, branch, twig) = await ImportPathAsync(h);
+        var sent = await h.Conversations.AskAsync(branch, "How wide?", Ct);
+        await h.WaitForAnswerAsync(sent.Answer!.Value);
+
+        var network = await h.SummaryNetwork.ProjectAsync(h.Workspace, Ct);
+        var nodes = network.Nodes.ToDictionary(n => n.Conversation);
+        Assert.Equal((true, true, true, false), (nodes[root].IsUnexplored, nodes[branch].IsUnexplored, nodes[twig].IsUnexplored, nodes[sent.Conversation].IsUnexplored));
+        Assert.Equal(("How trains came to be", (string?)null), (nodes[twig].Import!.Title, nodes[sent.Conversation].Import?.Title));
+        Assert.Equal((root, "Trains"), (nodes[sent.Conversation].Root, nodes[root].DisplayName));
+        Assert.Equal(
+            new HashSet<(SummaryNodeId, SummaryNodeId)> { (nodes[root].Id, nodes[branch].Id), (nodes[branch].Id, nodes[twig].Id), (nodes[branch].Id, nodes[sent.Conversation].Id) },
+            network.Edges.Select(e => (e.From, e.To)).ToHashSet());
     }
 
     /// <summary>Acceptance 2 (decision I4): asking starts the user's own branch, with no context; the received one stays empty.</summary>

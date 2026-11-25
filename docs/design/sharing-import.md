@@ -181,6 +181,21 @@ Each merge states how to try it, what was run and what was not verified.
 - The muted and hollow looks, to be shown to the owner.
 - Limits on file size and counts, set from the app's existing limits.
 
+### Details settled while building 2a (builder's calls, 2026-11-26)
+
+1. **The import record is two tables**: `import` (the share's title and kind, when) and `import_conversation` (which conversation came through which import; being in it is what "received" means). An import goes with its last conversation, by a trigger, so a title does not outlive what it named. An import that brings nothing leaves no record.
+2. **"Nothing of an ancestor" is an upper bound of -1**, not an empty one: a reader that forgets the case reads no message, instead of all of them.
+3. **`branch_source` also has `source_offset`**, the place in the answer's Markdown that §2 says a source from a file keeps. Nothing writes it in 2a; it is there so that the table is rebuilt only once.
+4. **Asking in an empty received conversation** stores the new conversation, its branch row, the question, the answer and its task in one transaction. Attachments waiting on the received conversation's draft move with the question. The store refuses any message for a received conversation.
+5. **Muted and hollow** mean: received and without a message. A branch the user made and has not asked in yet looks as before.
+6. **The limits**: 50 MB (the largest attachment), 10,000 conversations, 200 conversations from a root to its deepest branch, 2,000 characters for a name, start times from 2000 to 2100. The depth bounds the context rows and the recursion of what walks the tree.
+7. **A name arrives on one line**, as every title in the app is, and is never cut when it came from the app. A conversation the file leaves unnamed goes by the app's one naming rule, so it reads "New conversation".
+8. **The workspace offered first** when none holds anything of the file is the new one: it keeps someone else's path apart, and deleting it removes what arrived. When a workspace holds some of it, that one is first, then the current one, then a new one.
+9. **"Everything is already here"** is said when every conversation of the file exists, in whatever workspace; the dialog then names the workspaces and offers only Close. A file that brings nothing only to the chosen workspace keeps its choice of workspaces, with Import unavailable.
+10. **A file dropped on an input box is an attachment**, as before. Anywhere else in the window one `.html` or `.htm` file is taken; more than one file, or another kind, is not. "Import…" offers the same kinds.
+11. **Links between conversations are not added by 2a.** A structure-only share has no summary to link; a link between two conversations that are both here is 2b's, with the rest of the links.
+12. **The page of an empty received conversation** has no branch header either. The user's own branch of one shows the path above it, without a sentence and without the way back.
+
 ## 11. Text that changed with this note
 
 The requirements and architecture rows were written as their own commit and confirmed by the owner on 2026-11-25 (requirements v0.30).

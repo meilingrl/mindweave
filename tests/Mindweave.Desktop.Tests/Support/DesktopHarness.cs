@@ -252,5 +252,10 @@ public sealed class DesktopHarness : IAsyncDisposable
             ShareRequests.Add(suggestedFileName);
             return Task.FromResult(NextShare(suggestedFileName));
         }
+
+        /// <summary>The path the open dialog for a shared file returns; null (the default) is "cancelled".</summary>
+        public Func<string?> NextSharedFile { get; set; } = () => null;
+
+        public Task<string?> PickSharedFileAsync(CancellationToken cancellationToken) => Task.FromResult(NextSharedFile());
     }
 }
