@@ -53,20 +53,81 @@ public sealed class ShareContentUiTests : IDisposable
         app.ShowWindow(1100, 720);
         await SeedAsync(app, attachments: true);
         var share = await OpenAsync(app);
-        Assert.DoesNotContain(share.Contents, c => c.Contains("gauge.txt", StringComparison.Ordinal));
+        Assert.Equal([new ShareReadableRow(UiText.ShareTitlesLabel, UiText.ShareTitlesDetail(4))], share.Readable);
 
         await IncludeAsync(share);
 
-        Assert.Contains(UiText.ShareHoldsAttachments(["gauge.txt"], 1), share.Contents);
-        Assert.Contains(UiText.ShareHoldsMessages, share.Contents);
-        Assert.Contains(UiText.ShareHoldsSummaries(3), share.Contents);
-        Assert.Contains(UiText.ShareHoldsIdentities, share.Contents);
-        Assert.DoesNotContain(share.Contents, c => c == UiText.ShareHoldsWebCitations(0));
+        // What a reader can read, one row each, what was said first; nothing for what is not there (web citations).
+        Assert.Equal(
+            [
+                new ShareReadableRow(UiText.ShareMessagesLabel, UiText.ShareMessagesDetail(5, 0)),
+                new ShareReadableRow(UiText.ShareSummariesLabel, UiText.ShareSummariesDetail(3)),
+                new ShareReadableRow(UiText.ShareAttachmentsLabel, UiText.ShareAttachmentsDetail(["gauge.txt"], 1)),
+                new ShareReadableRow(UiText.ShareTitlesLabel, UiText.ShareTitlesDetail(4)),
+            ],
+            share.Readable);
+        Assert.Contains(UiText.ShareIdentitiesWithContent, share.AlsoHolds, StringComparison.Ordinal);
 
         // The structure again: the list goes back with it.
         share.IncludesContent = false;
-        Assert.DoesNotContain(UiText.ShareHoldsMessages, share.Contents);
-        Assert.DoesNotContain(UiText.ShareHoldsIdentities, share.Contents);
+        Assert.Single(share.Readable);
+        Assert.DoesNotContain(UiText.ShareIdentitiesWithContent, share.AlsoHolds, StringComparison.Ordinal);
+    }
+
+    /// <summary>The owner, 2026-11-25: the list is apart from the notes round it, and what is risky stands out.</summary>
+    [AvaloniaFact]
+    public async Task What_a_reader_can_read_stands_out_and_is_a_warning_only_once_message_text_leaves()
+    {
+        await using var app = DesktopHarness.Create();
+        var window = app.ShowWindow(1100, 720);
+        await SeedAsync(app);
+        var share = await OpenAsync(app);
+        window.UpdateLayout();
+        var card = Find<Border>(window, "ShareContents");
+        var readable = Find<Border>(window, "ShareReadable");
+
+        Assert.Contains(card, Avalonia.VisualTree.VisualExtensions.GetVisualAncestors(readable));
+        Assert.DoesNotContain("warning", readable.Classes);
+        Assert.DoesNotContain(card, Avalonia.VisualTree.VisualExtensions.GetVisualAncestors(Find<Avalonia.Controls.TextBlock>(window, "ShareSnapshot")));
+
+        await IncludeAsync(share);
+        Assert.Contains("warning", readable.Classes);
+        Assert.True(readable.IsVisible);
+    }
+
+    [AvaloniaFact]
+    public async Task While_it_is_read_the_list_says_so_and_shows_nothing_that_may_be_wrong()
+    {
+        await using var app = DesktopHarness.Create();
+        app.ShowWindow(1100, 720);
+        await SeedAsync(app);
+        var share = await OpenAsync(app);
+
+        share.IncludesContent = true;
+        Assert.True(share.IsReading);
+        Assert.Empty(share.Readable);
+
+        await share.Building;
+        Assert.False(share.IsReading);
+        Assert.NotEmpty(share.Readable);
+    }
+
+    [AvaloniaFact]
+    public async Task An_earlier_answer_a_branch_left_from_is_counted_in_the_list()
+    {
+        await using var app = DesktopHarness.Create();
+        app.ShowWindow(1100, 720);
+        await SeedAsync(app);
+        var conversations = app.Services.GetRequiredService<ConversationService>();
+        var root = (await conversations.ListAsync(app.Workbench.CurrentWorkspace!.Id, CancellationToken.None)).Single(c => c.FirstQuestion == RootQuestion).Conversation.Id;
+        var answer = (await conversations.LoadAsync(root, CancellationToken.None))!.Messages[^1];
+        Assert.True((await conversations.RetryAsync(root, answer.Id, CancellationToken.None)).Accepted);
+        await UiWait.UntilAsync(() => conversations.LoadAsync(root, CancellationToken.None).Result!.Messages.All(m => m.IsFinished));
+        var share = await OpenAsync(app);
+
+        await IncludeAsync(share);
+
+        Assert.Contains(new ShareReadableRow(UiText.ShareMessagesLabel, UiText.ShareMessagesDetail(4, 1)), share.Readable);
     }
 
     [AvaloniaFact]

@@ -91,12 +91,12 @@ public sealed class ShareUiTests : IDisposable
         var share = await OpenAsync(app, "root");
         var root = Dot(share, "火车起源");
         var before = root.Radius;
-        Assert.Contains(UiText.ShareCounts(1, 4, 4), share.Contents);
+        Assert.Equal(UiText.ShareCounts(1, 4, 4), share.Counts);
 
         Dot(share, "火箭号速度").Parent!.IsTicked = false;
 
         Assert.Equal(new HashSet<string> { "火车起源", "铁轨" }, Ticked(share).ToHashSet());
-        Assert.Contains(UiText.ShareCounts(1, 2, 2), share.Contents);
+        Assert.Equal(UiText.ShareCounts(1, 2, 2), share.Counts);
         Assert.True(root.Radius < before);
 
         // Ticking the leaf brings the conversations above it back.
@@ -250,7 +250,7 @@ public sealed class ShareUiTests : IDisposable
         var share = await OpenAsync(app, "root");
 
         Assert.Equal(UiText.ShareAnswering(["铁轨"]), share.AnsweringNote);
-        Assert.Contains(UiText.ShareCounts(1, 4, 4), share.Contents);
+        Assert.Equal(UiText.ShareCounts(1, 4, 4), share.Counts);
 
         Dot(share, "铁轨").IsTicked = false;
         Assert.Null(share.AnsweringNote);
@@ -258,7 +258,7 @@ public sealed class ShareUiTests : IDisposable
 
         held.Release.TrySetResult();
         await UiWait.UntilAsync(() => share.AnsweringNote is null);
-        Assert.Contains(UiText.ShareCounts(1, 4, 5), share.Contents);
+        Assert.Equal(UiText.ShareCounts(1, 4, 5), share.Counts);
     }
 
     [AvaloniaFact]

@@ -48,6 +48,9 @@ public sealed record ShareLineView(ShareLineKind Kind, double FromX, double From
 /// <summary>The date over the root that starts a new day.</summary>
 public sealed record ShareDayView(string Text, double X, double Y);
 
+/// <summary>Something a reader of the file can read: what it is, and how much of it.</summary>
+public sealed record ShareReadableRow(string Label, string Detail);
+
 /// <summary>A conversation in the dialog: a dot of the timeline with a tick and the name it would leave with.</summary>
 public sealed partial class ShareDotViewModel(ShareViewModel owner, ShareableConversation conversation, string name, double x, double y, ShareDotViewModel? parent) : ViewModelBase
 {
@@ -208,9 +211,22 @@ public sealed partial class ShareViewModel : ViewModelBase, IDisposable
     [ObservableProperty]
     public partial double CanvasHeight { get; private set; }
 
-    /// <summary>What the file will hold, one line each (S7: nothing leaves that is not listed).</summary>
+    /// <summary>
+    /// What the file will hold (S7: nothing leaves that is not listed): how much, what its reader can read, and the rest.
+    /// With content all of it is empty while it is read.
+    /// </summary>
     [ObservableProperty]
-    public partial IReadOnlyList<string> Contents { get; private set; } = [];
+    public partial string Counts { get; private set; } = string.Empty;
+
+    [ObservableProperty]
+    public partial IReadOnlyList<ShareReadableRow> Readable { get; private set; } = [];
+
+    [ObservableProperty]
+    public partial string AlsoHolds { get; private set; } = string.Empty;
+
+    /// <summary>What was said is being read.</summary>
+    [ObservableProperty]
+    public partial bool IsReading { get; private set; }
 
     /// <summary>Answers of ticked conversations still being generated (§9); null without any.</summary>
     [ObservableProperty]
@@ -544,50 +560,46 @@ public sealed partial class ShareViewModel : ViewModelBase, IDisposable
         RequestBuild();
     }
 
-    /// <summary>What the file will hold (S7). With content it is read first, and until then nothing can be saved.</summary>
+    /// <summary>The list of what the file will hold (S7). With content it is read first, and until then nothing can be saved.</summary>
     private void ShowContents()
     {
+        IsReading = IncludesContent && _content is null;
         var document = Document();
-        Contents = IncludesContent && _content is null ? [UiText.ShareReading] : [.. Lines(document)];
+        Counts = IsReading ? string.Empty : UiText.ShareCounts(document.Explorations, document.Conversations.Count, document.Questions);
+        Readable = IsReading ? [] : [.. RowsOf(document)];
+        AlsoHolds = IsReading ? string.Empty
+            : document.Kind == ExchangeDocument.ContentKind ? UiText.ShareContentAlsoHolds(document.Links.Count, document.OwnCitations, document.AppVersion)
+            : UiText.ShareAlsoHolds(document.Links.Count, document.AppVersion);
         SaveCommand.NotifyCanExecuteChanged();
+    }
 
-        static IEnumerable<string> Lines(ExchangeDocument document)
+    /// <summary>What was said first; a row only for what is there.</summary>
+    private static IEnumerable<ShareReadableRow> RowsOf(ExchangeDocument document)
+    {
+        if (document.Kind == ExchangeDocument.ContentKind)
         {
-            var content = document.Kind == ExchangeDocument.ContentKind;
-            yield return UiText.ShareCounts(document.Explorations, document.Conversations.Count, document.Questions);
-            if (content)
+            yield return new(UiText.ShareMessagesLabel, UiText.ShareMessagesDetail(document.Questions, document.EarlierAnswers));
+            if (document.Summaries > 0)
             {
-                yield return UiText.ShareHoldsMessages;
+                yield return new(UiText.ShareSummariesLabel, UiText.ShareSummariesDetail(document.Summaries));
             }
-
-            if (content && document.Summaries > 0)
-            {
-                yield return UiText.ShareHoldsSummaries(document.Summaries);
-            }
-
-            if (document.Attachments.Count > 0)
-            {
-                yield return UiText.ShareHoldsAttachments([.. document.Attachments.OfType<string>()], document.Attachments.Count(a => a is null));
-            }
-
-            if (document.WebCitations > 0)
-            {
-                yield return UiText.ShareHoldsWebCitations(document.WebCitations);
-            }
-
-            if (document.OwnCitations > 0)
-            {
-                yield return UiText.ShareHoldsOwnCitations(document.OwnCitations);
-            }
-
-            yield return UiText.ShareHoldsConversations;
-            if (content)
-            {
-                yield return UiText.ShareHoldsIdentities;
-            }
-
-            yield return content ? UiText.ShareHoldsLinesAndNotes(document.Links.Count) : UiText.ShareHoldsLines(document.Links.Count);
-            yield return UiText.ShareHoldsItself(document.AppVersion);
         }
+
+        if (document.Attachments.Count > 0)
+        {
+            yield return new(UiText.ShareAttachmentsLabel, UiText.ShareAttachmentsDetail([.. document.Attachments.OfType<string>()], document.Attachments.Count(a => a is null)));
+        }
+
+        if (document.WebCitations > 0)
+        {
+            yield return new(UiText.ShareWebCitationsLabel, UiText.ShareWebCitationsDetail(document.WebCitations));
+        }
+
+        if (document.LinkNotes > 0)
+        {
+            yield return new(UiText.ShareNotesLabel, UiText.ShareNotesDetail(document.LinkNotes));
+        }
+
+        yield return new(UiText.ShareTitlesLabel, UiText.ShareTitlesDetail(document.Conversations.Count));
     }
 }

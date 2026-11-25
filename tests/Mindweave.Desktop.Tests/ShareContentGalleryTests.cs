@@ -81,12 +81,16 @@ public class ShareContentGalleryTests
                 list.ShareRowCommand.Execute(list.Items.Single(i => i.Id == root));
                 var share = app.Root.Share;
                 await share.Loading;
+                var look = $"{theme.ToLowerInvariant()}-{(language == UiLanguage.English ? "en" : "zh")}";
+                var scroller = Find<ScrollViewer>(window, "ShareScroller");
+                scroller.Offset = new Avalonia.Vector(0, 10_000);
+                await SettleAsync(window);
+                Screenshots.Capture(window, "share-structure-dialog-end-" + look);
+                scroller.Offset = default;
                 share.IncludesContent = true;
                 await share.Building;
-                var look = $"{theme.ToLowerInvariant()}-{(language == UiLanguage.English ? "en" : "zh")}";
                 await SettleAsync(window);
                 Screenshots.Capture(window, "share-content-dialog-" + look);
-                var scroller = Find<ScrollViewer>(window, "ShareScroller");
                 scroller.Offset = new Avalonia.Vector(0, 10_000);
                 await SettleAsync(window);
                 Screenshots.Capture(window, "share-content-dialog-end-" + look);

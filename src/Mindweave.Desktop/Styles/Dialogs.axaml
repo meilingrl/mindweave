@@ -107,6 +107,40 @@
   <Style Selector="CheckBox.share-dot:checked /template/ TextBlock.share-name">
     <Setter Property="Foreground" Value="{DynamicResource SummaryNetworkLabel}" />
   </Style>
+  <!-- What a share will hold, apart from the notes round it: what its reader can read in full contrast, the rest quiet. -->
+  <Style Selector="Border.share-contents">
+    <Setter Property="Background" Value="{DynamicResource CardBackground}" />
+    <Setter Property="BorderBrush" Value="{DynamicResource CardBorder}" />
+    <Setter Property="BorderThickness" Value="1" />
+    <Setter Property="CornerRadius" Value="{StaticResource RadiusCard}" />
+    <Setter Property="Padding" Value="12" />
+  </Style>
+  <Style Selector="TextBlock.share-heading">
+    <Setter Property="FontSize" Value="14" />
+    <Setter Property="FontWeight" Value="SemiBold" />
+    <Setter Property="Foreground" Value="{DynamicResource PrimaryText}" />
+  </Style>
+  <Style Selector="Border.share-readable:not(.warning)">
+    <Setter Property="Background" Value="{DynamicResource DialogBackground}" />
+    <Setter Property="BorderBrush" Value="{DynamicResource DividerBrush}" />
+  </Style>
+  <Style Selector="Border.share-readable TextBlock.share-label, Border.share-readable TextBlock.share-detail">
+    <Setter Property="VerticalAlignment" Value="Top" />
+    <Setter Property="TextWrapping" Value="Wrap" />
+  </Style>
+  <Style Selector="Border.share-readable TextBlock.share-label">
+    <Setter Property="FontWeight" Value="Medium" />
+    <Setter Property="Margin" Value="0,0,12,0" />
+  </Style>
+  <Style Selector="Border.share-readable TextBlock.share-label.strong">
+    <Setter Property="FontWeight" Value="Bold" />
+  </Style>
+  <Style Selector="Border.share-contents TextBlock.share-quiet">
+    <Setter Property="FontSize" Value="12" />
+    <Setter Property="LineHeight" Value="18" />
+    <Setter Property="TextWrapping" Value="Wrap" />
+    <Setter Property="Foreground" Value="{DynamicResource MutedText}" />
+  </Style>
   <Style Selector="Border.dialog Ellipse.dialog-bullet">
     <Setter Property="Width" Value="5" />
     <Setter Property="Height" Value="5" />

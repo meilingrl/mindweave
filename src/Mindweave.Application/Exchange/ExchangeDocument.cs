@@ -55,6 +55,11 @@ public sealed record ExchangeDocument(
     /// <summary>The citations of the user's own material.</summary>
     public int OwnCitations => Messages.Sum(m => m.Citations.Count) - WebCitations;
 
+    /// <summary>The answers kept only because a shared branch left from them (§6.6, point 4).</summary>
+    public int EarlierAnswers => Messages.Count(m => m.ReplacedBy is not null);
+
+    public int LinkNotes => Links.Count(l => l.Note is not null);
+
     public int Summaries => Conversations.Count(c => c.HasSummary);
 
     private IEnumerable<ExchangeMessage> Messages => Conversations.SelectMany(c => c.Content?.Messages ?? []);
