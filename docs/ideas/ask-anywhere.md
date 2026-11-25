@@ -68,6 +68,7 @@ Seven topics in four groups. The order and what is set aside are in §5 and §6.
 | 2026-11-25 | The first increment has both sources for the quote list (owner): quotes from outside, and several passages selected in a Mindweave conversation and asked about together in that conversation (the third use in evolution D7). macOS first. A branch with several quotes and revising a summary with quotes stay later. |
 | 2026-11-25 | Closing the main window keeps Mindweave running, so the hotkey stays reachable (owner). Quitting is explicit. |
 | 2026-11-25 | The quoting section of §7 is agreed as written, Claude's calls included (owner). |
+| 2026-11-25 | Several connections: there is one current model for everything (owner). Settings hold the list of connections; a picker beside the input box switches the current model for all new questions. A model per conversation can be added on top later. |
 
 ## 6. Set aside
 
