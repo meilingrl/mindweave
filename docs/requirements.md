@@ -1,7 +1,7 @@
 # Mindweave product requirements
 
 **Document status:** The confirmed requirements. Changes are listed in the revision history (§14); progress is not recorded here but in [STATUS.md](../STATUS.md). Confirmed requirements do not mean the product's value is verified (§12).  
-**Version:** v0.30  
+**Version:** v0.31  
 **Created:** 2026-09-08  
 **Project name:** Mindweave
 
@@ -482,7 +482,7 @@ v0.17 (2026-11-17) wrote this phase to the point where it can be accepted; on 20
 | “检索总结” (search summaries) | The current versions of the saved summaries in this workspace (including summaries of archived conversations), searching titles and text by keyword | At most 8 summaries: title, node ID, relevant snippet |
 
 - Each call is at most 10 seconds; a timeout is handled as an error.
-- Each result is saved in full as a resource of this conversation (a tool result), and can be opened in the step details. The part given to the model is at most about 2,000 estimated tokens. When it is longer, only a preview and the resource ID are given, and the model can read more with “检索附件”.
+- Each result is saved in full as a resource of this conversation (a tool result), and can be opened in the step details. The part given to the model is at most about 2,000 estimated tokens. When it is longer, only a preview and the resource ID are given, and the model can read more with “检索附件”. The preview is the beginning of the result; for a long page of prose it is the passages that best match the question (§10.8).
 - Phase 2 does not add numbered citations in the answer body (Q8: citations come in phase 3 with web search). Summaries found by “检索总结” are listed in the step details, and clicking one opens that summary.
 
 **Activity text and step details.**
@@ -524,7 +524,7 @@ v0.18 (2026-11-17) wrote this phase to the point where it can be accepted: the f
 | Tool | What it does | What it gives the model |
 | --- | --- | --- |
 | “网络搜索” (web search) | Searches one query with the configured search service, at most 5 results each time | For each result: number, title, URL, snippet |
-| “取网页” (web fetch) | Reads one URL and turns the web page into readable text (HTML pages, plain text, PDFs with a text layer) | Number, title, URL and body text; when the body is longer than about 2,000 estimated tokens, only the beginning and the resource ID are given, and the model can read the rest with “检索附件” (search attachments) |
+| “取网页” (web fetch) | Reads one URL and turns the web page into readable text (HTML pages, plain text, PDFs with a text layer) | Number, title, URL and body text; when the body is longer than about 2,000 estimated tokens, the opening of the page, the passages that best match the question and the resource ID are given (§10.8), and the model can read the rest with “检索附件” (search attachments) |
 
 - **Boundaries of web fetch:** only `http` and `https` URLs are read. Local, LAN and other private addresses (including Tailscale and other 100.64.0.0/10 addresses) and other schemes such as `file://` are refused; both the addresses after domain resolution and every redirect are checked. At most 5 redirects. No cookies or any login information are sent. A page is at most 5 MB and 20 seconds. Images, videos, archives and other types are not read, and the reason is stated. A page that is only a check that the visitor is not a robot counts as a failed fetch, with that reason. When a fetch is refused or fails, the error is handed back to the model as the result, and the run continues.
 - **URLs that need approval (Q10):** URLs that appeared in this run's search results, in the user's questions and attachments in this conversation, or in the links of pages already read in this run are read directly. Before any other URL (one the model wrote itself) is read, a small card appears in the answer: “模型想读取一个没有在搜索结果或你的消息中出现过的网址” (The model wants to read a URL that did not appear in the search results or your messages). It shows the full URL and offers “允许” (Allow) and “拒绝” (Deny). While waiting, the run pauses, takes no execution slot, and does not count toward the run's duration; after approval it continues ahead of queued questions. On denial, the model gets the result “用户拒绝读取这个网址” (The user denied reading this URL) and continues. If stop, quit or restart happens while waiting, the card becomes invalid, the answer is marked stopped or interrupted, and it does not continue automatically.
@@ -698,6 +698,39 @@ Before the file is saved, the dialog lists what will leave: the numbers of conve
 
 **Not included.** Hosted links, accounts and a community; automatic sync such as watching a cloud folder; attachment contents in a share; editing or hiding single sentences while sharing; password protection of the file; an exporter to PDF of its own; importing the exports of other assistants; a list of past shares.
 
+### 10.8 How answers and summaries are written (v0.31)
+
+By the user's decisions of 2026-11-25 and 2026-11-26. The aim: an explanation is easier to follow, a summary is easier to review, and the user takes no extra step to get either. Nothing here adds a model request to an answer, and nothing new appears under an answer.
+
+**Answer instructions.** Every answer request starts with the app's answer instructions, in the interface language (§10.5), whether or not the answer uses tools.
+
+- They say what Mindweave is and ask the model to: answer in the language of the question; give the core idea first and then build up; define a term at its first use; use an example or an analogy when it helps; scale the length to the question.
+- These lines are defaults. When the user's question asks for something else (only a number, a rewrite, a table), the question wins.
+- In a branch conversation the instructions add: the user selected this passage in the answer above and opened a branch to explore it; explain the passage in the context it came from; do not answer the parent question again or repeat what the parent answer said; when the user typed a question about the passage, answer that question. The length follows the passage and the question. Every answer in the branch gets this part; a deeper branch names only its nearest selection.
+- When a question has two clearly different readings and the answer would differ, the model says in one sentence which reading it takes and names the other, then answers the one it took. It does not stop to ask.
+- The instructions say nothing about how an answer ends. The app shows no suggested next questions under an answer; recommended questions for a workspace (§10.3.1) are a separate thing and are unchanged.
+- An answer with tools has the same instructions, followed by the part about tools (§10.4.4). That part also asks the model to: stop once the material answers the question (about three relevant sources is usually enough; when two searches in a row bring nothing new, stop and say what is missing); search again with terms found in the results, not with the same words; use plain words and no search operators; prefer the original source over a page that retells it; name an attachment that came with the question and has no number, and write a number only for results that carry one.
+
+**Personal note.** In Settings the user can write one note about themself and how they want answers, for example their background or what to skip. It is at most about 500 characters; Settings does not accept more, and nothing is cut silently.
+
+- One note serves all workspaces. It is sent with every answer request and every summary request, marked as the user's own preferences. An empty note sends nothing.
+- The app derives nothing from it and makes no model request for it. The app does not extract or store facts about the user from conversations.
+- The note is never part of a share (§10.7).
+
+**Summaries the user already has.** Before an answer, the app searches the current workspace's summaries by keyword, with the question and, in a branch, the selected passage. A short question, or one with a referring word, is searched together with the conversation title and the selection, by the same rule as the search made before the answer in the web setting “开” (On) (§10.4.5).
+
+- The titles of at most three summaries that match well enough are sent with the answer instructions, with the request to build on them and not explain them again from the start. Only titles are sent, not bodies; with tools on, the model can open one with “检索总结” (search summaries).
+- When nothing matches, or the search fails, the answer is made without this line and no error is shown.
+- When the context is short of room, this line is dropped before anything else is compressed (§9.6).
+
+**What is sent.** Settings states that the personal note and the titles of matching summaries are sent to the AI service with questions (§9.4).
+
+**A long page.** When a web page read during a run is longer than what is given to the model (§10.4.4), the model gets the opening of the page, then the passages that best match the question and the search that led to the page, in page order, with a mark where text is left out, and the resource ID. When no passage matches well, it gets the beginning, as for any long result. A result that is data and not prose keeps its beginning. Citations still point at the page and are found in its full saved text (§10.4.5).
+
+**Summaries.** A summary (§6.4) starts with one or two sentences that say what was learned. Its body is organized by concept, not by the order of the questions. When the conversation introduced terms, the summary lists them with a one-line definition each. Everything §6.4 asks a summary to keep still holds. This applies to summaries and versions generated from v0.31 on; existing ones are not rewritten.
+
+**Not included.** Suggested next questions under an answer; a card that asks the user to choose a reading before an answer; self-check or quiz cards and a mode in which the model leads with questions (§5.4); a model request that rewrites a follow-up question; optional summary styles; a second pass in which the model checks its own answer.
+
 ## 11. First-release acceptance scenarios
 
 | Scenario | Observable expected result |
@@ -859,6 +892,15 @@ Sharing, import and device copies acceptance (v0.29, §10.7; not part of the fir
 | Import a later device copy, then import it again | The first import adds only the changes; the second changes nothing |
 | Continue the same conversation on two devices, then import one device's copy on the other | This device's conversation is unchanged; the other continuation arrives once as a separate marked conversation; importing again adds nothing |
 | Delete a conversation on one device, save a device copy and import it on the other | The app offers to delete that conversation there; when the user declines, it stays |
+| Ask a plain question with tools off, on a model that follows instructions | The request starts with the answer instructions; the answer gives the core idea first and defines a term at its first use |
+| Ask for "just the number", or for a sentence to be rewritten | The answer does only that |
+| Create a branch from a term and ask about it; then ask a second question in the branch | Both requests carry the branch part of the instructions; the first answer explains the term in the context of the passage and does not answer the parent question again |
+| Finish any answer | Nothing new appears under it: no suggested questions |
+| Ask a question with two clearly different readings | The answer says which reading it takes and names the other |
+| Write a personal note in Settings and ask; clear it and ask again; type more than the limit | The note is in the next answer request and the next summary request; after clearing, it is in neither; the extra text is not accepted |
+| Ask about a topic that has a summary in this workspace; ask about one that has none | The summary's title is in the first request; the second request has no such line |
+| In a run, read a page of about 10,000 words whose answer is near the end | The first result the model gets contains that passage and the opening of the page |
+| Generate a summary of a conversation that moved between several ideas | It starts with a gist, is grouped by concept and lists the key terms; a summary made before is unchanged |
 
 These scenarios verify functional behavior. Passing them still does not prove that the product is more useful than other approaches.
 
@@ -926,3 +968,4 @@ The per-module inputs, required outputs and order of work for detailed design fr
 - **v0.28 · 2026-11-24:** Following the user's decisions of 2026-11-24: the tool that searches saved summaries is called “检索总结” (search summaries) in the interface (§10.4.4, §10.4.5); “检索附件” is offered during a run once a result is not sent whole (§10.4.4); a page that is only a check that the visitor is not a robot counts as a failed fetch (§10.4.5). Does not change the first-release scope and acceptance.
 - **v0.29 · 2026-11-25:** Following the user's decisions of 2026-11-24 and 2026-11-25 (D-039), added §10.7 sharing, import and device copies: a share is a set of conversations from one workspace saved as one HTML file; it carries only the structure unless the user chooses the content; what never leaves; the page a reader sees; a share is a snapshot and no record is kept; import only keeps or adds and never copies what is already there; a device copy carries a whole workspace between the user's devices and offers deletions without making them. §4 gains the concepts share and device copy; §8.3 and §10.1 point to §10.7; §11 adds its acceptance. Does not change the first-release scope and acceptance.
 - **v0.30 · 2026-11-25:** Following the user's decisions of 2026-11-25 on import (D-041; [import note](design/sharing-import.md)), §10.7: a received conversation is read-only, and the user's question at its end starts a conversation of their own that continues from it; a shared file never changes a title, the current summary or the archived state; a structure-only share arrives as empty conversations that a later share with content fills; stand-ins for what a share left out; a URL in received text needs approval; two continuations of one conversation arise only between the user's own devices and move to device copies. §11's acceptance follows. Does not change the first-release scope and acceptance.
+- **v0.31 · 2026-11-26:** Following the user's decisions of 2026-11-25 and 2026-11-26 ([reply-quality.md](ideas/reply-quality.md), Q1–Q11), added §10.8, how answers and summaries are written: answer instructions for every answer, with a part for branch answers and for a question with two readings; a personal note in Settings; the titles of matching summaries sent with a question; the passages of a long page that match the question (§10.4.4, §10.4.5); summaries with a gist, a body by concept and key terms. No suggested questions under an answer, no quiz or guided mode. §11 adds its acceptance. One new stored preference.
