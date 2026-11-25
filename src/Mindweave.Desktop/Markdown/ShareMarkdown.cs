@@ -37,7 +37,9 @@ public sealed class ShareMarkdown : IShareMarkdown
     public int? OffsetOf(BranchSource source)
     {
         ArgumentNullException.ThrowIfNull(source);
-        return AnchorOf(source.AnchorFormatVersion, source.RenderProfile, source.AnchorJson)?.Segments[0].ExactRawStart;
+        return source is { AnchorJson: { } anchor, AnchorFormatVersion: { } version, RenderProfile: { } profile }
+            ? AnchorOf(version, profile, anchor)?.Segments[0].ExactRawStart
+            : null;
     }
 
     /// <summary>The stored anchor, when this app can read it.</summary>

@@ -164,7 +164,7 @@ public sealed class ShareContentFlowTests : IDisposable
     private static ShareService Shares(ChatHarness h) =>
         new(h.Store, h.SummaryNodes, new SqliteSummaryNetworkStore(h.Database), new SqliteSummaryLinkStore(h.Database), new SharePageWriter(new PlainMarkdown()), new AtomicFileWriter(NullLogger<AtomicFileWriter>.Instance), NullLogger<ShareService>.Instance);
 
-    private static ShareContentService Contents(ChatHarness h) =>
+    internal static ShareContentService Contents(ChatHarness h) =>
         new(h.Store, h.Branches, h.SummaryNodes, new SqliteSummaryLinkStore(h.Database), new PlainMarkdown());
 
     private static async Task<Message> AskAsync(ChatHarness h, ConversationId id, string question, string reply)

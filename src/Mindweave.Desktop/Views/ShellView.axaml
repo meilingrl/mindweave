@@ -116,7 +116,8 @@
               <DataTemplate x:DataType="cv:ConversationItemViewModel">
                 <Panel>
                 <Button Classes="nav" Classes.selected="{Binding IsSelected}" Classes.checked="{Binding IsChecked}" Margin="{Binding Depth, Converter={x:Static v:TreeIndent.Margin}}" Padding="10,5" HorizontalContentAlignment="Stretch"
-                        AutomationProperties.Name="{Binding AutomationName}" AutomationProperties.HelpText="{Binding MarkerHint}" IsVisible="{Binding !IsRenaming}"
+                        AutomationProperties.Name="{Binding AutomationName}" AutomationProperties.HelpText="{Binding HelpText}" IsVisible="{Binding !IsRenaming}"
+                        ToolTip.Tip="{Binding UnexploredHint}"
                         Command="{Binding $parent[ItemsControl].((vm:ShellViewModel)DataContext).Conversations.OpenCommand}" CommandParameter="{Binding}">
                   <!-- The page toolbar's actions on this row (2026-11-10); right click, or Shift+F10 / the menu key on the focused row.
                        An entry is disabled when the page would refuse it now, and says why. Not offered while rows are selected (the bar acts then). -->
@@ -180,7 +181,7 @@
                       </Border>
                       <Ellipse Classes="unread-dot" IsVisible="{Binding IsUnread}" />
                     </Panel>
-                    <TextBlock Name="RowTitle" Text="{Binding Title}" TextTrimming="CharacterEllipsis" VerticalAlignment="Center" />
+                    <TextBlock Name="RowTitle" Classes="row-title" Classes.unexplored="{Binding IsUnexplored}" Text="{Binding Title}" TextTrimming="CharacterEllipsis" VerticalAlignment="Center" />
                   </DockPanel>
                 </Button>
                 <!-- 改名 from the menu edits the title where it is, as file lists do: Enter or leaving the box saves, Esc cancels. -->

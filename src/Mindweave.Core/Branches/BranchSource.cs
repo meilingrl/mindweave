@@ -8,23 +8,36 @@ namespace Mindweave.Core.Branches;
 /// </summary>
 public sealed record BranchSelection(MessageId SourceMessage, int SourceBlock, string Quote, string AnchorJson, int AnchorFormatVersion, string RenderProfile);
 
-/// <summary>Where a branch came from: the stored form of a <see cref="BranchSelection"/> plus its parent.</summary>
+/// <summary>
+/// Where a branch came from: the stored form of a <see cref="BranchSelection"/> plus its parent. A branch that came from a
+/// structure-only share, and a user's own branch of an empty received conversation, have a parent and nothing else; a
+/// source without a sentence, or a sentence without a stored anchor, is possible too (docs/design/sharing-import.md §6).
+/// </summary>
 public sealed record BranchSource(
     ConversationId Child,
     ConversationId Parent,
-    MessageId SourceMessage,
-    int SourceBlock,
-    string Quote,
-    string AnchorJson,
-    int AnchorFormatVersion,
-    string RenderProfile,
-    DateTimeOffset CreatedAt);
+    MessageId? SourceMessage,
+    int? SourceBlock,
+    string? Quote,
+    string? AnchorJson,
+    int? AnchorFormatVersion,
+    string? RenderProfile,
+    DateTimeOffset CreatedAt)
+{
+    /// <summary>A branch that left from no answer: it has its parent only.</summary>
+    public static BranchSource WithoutMessage(ConversationId child, ConversationId parent, DateTimeOffset at) =>
+        new(child, parent, null, null, null, null, null, null, at);
+}
 
 /// <summary>
 /// An ancestor's messages a branch may use: everything up to and including <see cref="MaxSeq"/>, frozen when
 /// the branch was created. <see cref="Depth"/> orders the chain from the root (0) to the direct parent.
 /// </summary>
-public sealed record BranchContextRange(ConversationId Ancestor, int Depth, int MaxSeq);
+public sealed record BranchContextRange(ConversationId Ancestor, int Depth, int MaxSeq)
+{
+    /// <summary>The <see cref="MaxSeq"/> that says nothing of the ancestor may be used; messages are numbered from 0.</summary>
+    public const int Nothing = -1;
+}
 
 public enum BranchRejection
 {
@@ -90,5 +103,16 @@ public static class BranchRules
     {
         ArgumentNullException.ThrowIfNull(parentRanges);
         return [.. parentRanges.OrderBy(r => r.Depth), new BranchContextRange(parent, parentRanges.Count, sourceSeq)];
+    }
+
+    /// <summary>
+    /// Ranges for a branch without a source: a row for every ancestor, so that it counts as a branch everywhere, each saying
+    /// that nothing of the ancestor is used (docs/design/sharing-import.md §2).
+    /// </summary>
+    /// <param name="ancestors">From the root to the parent.</param>
+    public static IReadOnlyList<BranchContextRange> RangesWithoutSource(IReadOnlyList<ConversationId> ancestors)
+    {
+        ArgumentNullException.ThrowIfNull(ancestors);
+        return [.. ancestors.Select((a, i) => new BranchContextRange(a, i, BranchContextRange.Nothing))];
     }
 }

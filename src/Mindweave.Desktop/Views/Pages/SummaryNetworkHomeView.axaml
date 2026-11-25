@@ -185,6 +185,9 @@
             <Border Name="LaterBadge" Classes="badge" Margin="0,0,6,4" IsVisible="{Binding Selected.HasLaterContent, FallbackValue=False}">
               <TextBlock Text="{x:Static t:UiText.MarkerLater}" />
             </Border>
+            <Border Name="UnexploredBadge" Classes="badge" Margin="0,0,6,4" IsVisible="{Binding Selected.Unexplored, FallbackValue=False}">
+              <TextBlock Text="{x:Static t:UiText.NotExplored}" />
+            </Border>
             <Border Classes="badge" Margin="0,0,6,4" IsVisible="{Binding Selected.SourceArchived, FallbackValue=False}">
               <TextBlock Text="{x:Static t:UiText.SourceArchived}" />
             </Border>
@@ -213,6 +216,8 @@
           <StackPanel Spacing="2">
             <TextBlock Classes="muted" FontSize="12" TextWrapping="Wrap" Text="{Binding Selected.Source, FallbackValue=''}" />
             <TextBlock Classes="muted" FontSize="12" TextWrapping="Wrap" Text="{Binding Selected.Created, FallbackValue=''}" />
+            <TextBlock Name="DetailReceived" Classes="muted" FontSize="12" TextWrapping="Wrap" Text="{Binding Selected.Received, FallbackValue={x:Null}}"
+                       IsVisible="{Binding Selected.Received, Converter={x:Static ObjectConverters.IsNotNull}, FallbackValue=False}" />
           </StackPanel>
           <StackPanel Spacing="8">
             <!-- A dot without a summary has none to open; it only leads back to its conversation, as the primary. -->
@@ -346,6 +351,12 @@
               <Ellipse Width="7" Height="7" Fill="{DynamicResource SummaryNetworkNode}" />
             </Panel>
             <TextBlock Text="{x:Static t:UiText.LegendSummaryRing}" />
+          </StackPanel>
+          <StackPanel Name="LegendUnexplored" Orientation="Horizontal" IsVisible="{Binding ShowsUnexploredLegend}">
+            <Panel Classes="mark">
+              <Ellipse Width="11" Height="11" Fill="{DynamicResource SummaryNetworkBackground}" Stroke="{DynamicResource SummaryNetworkNode}" StrokeThickness="1.5" />
+            </Panel>
+            <TextBlock Text="{x:Static t:UiText.LegendUnexplored}" />
           </StackPanel>
           <StackPanel Name="LegendTime" Orientation="Horizontal">
             <Panel Classes="mark">

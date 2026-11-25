@@ -23,6 +23,9 @@ public interface ISystemShell
 
     /// <summary>The same dialog for a share, which is one HTML file (docs/design/sharing.md S2). Null when cancelled.</summary>
     Task<ExportDestination?> PickShareFileAsync(string suggestedFileName, CancellationToken cancellationToken);
+
+    /// <summary>The system open dialog for one shared file to import: its path, or null when cancelled.</summary>
+    Task<string?> PickSharedFileAsync(CancellationToken cancellationToken);
 }
 
 internal sealed class SystemShell : ISystemShell
@@ -72,6 +75,12 @@ internal sealed class SystemShell : ISystemShell
 
     public Task<ExportDestination?> PickShareFileAsync(string suggestedFileName, CancellationToken cancellationToken) =>
         PickFileAsync(UiText.ShareTitle, suggestedFileName, Html());
+
+    public async Task<string?> PickSharedFileAsync(CancellationToken cancellationToken) =>
+        Avalonia.Application.Current?.ApplicationLifetime is IClassicDesktopStyleApplicationLifetime { MainWindow: { } window }
+            && await FilePanels.OpenAsync(window, UiText.ImportTitle, Html() with { Extensions = ["html", "htm"] }, multiple: false) is [var path, ..]
+            ? path
+            : null;
 
     private static async Task<ExportDestination?> PickFileAsync(string title, string suggestedFileName, FileKind kind) =>
         Avalonia.Application.Current?.ApplicationLifetime is IClassicDesktopStyleApplicationLifetime { MainWindow: { } window }

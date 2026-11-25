@@ -17,6 +17,13 @@ The second number rises when a capability is finished and on by default, and the
 
 The nine merges after 0.5.0, on 2026-11-22 and 2026-11-23, are 0.5.1 to 0.5.9 in order. They keep their dated entries below.
 
+## 0.6.18 · 2026-11-26
+
+- Added importing a structure-only share ([sharing-import.md](design/sharing-import.md), increment 2a): it arrives as empty conversations, muted in the sidebar and hollow in the Mindweave page; asking in one starts a branch of your own
+- Added migration v19 (`import`, `import_conversation`; `branch_source` and `branch_context_range` rebuilt for branches without a source)
+- Try: `scripts/daily.sh trial`, then "Import…" and choose a structure-only share you saved
+- Not verified: importing in a real window (a file dropped from Finder, the open panel); Windows; a real model. You ran the migration on a copy of your data: its session reports every branch source and range unchanged, and no conversation, message or workspace lost. No import was found in that copy
+
 ## 0.6.17 · 2026-11-26
 
 - Windows: Fixed a shared page that left a branch's sentence unmarked when its quote ran over a line break, and a stored place after one, which was off by one per break

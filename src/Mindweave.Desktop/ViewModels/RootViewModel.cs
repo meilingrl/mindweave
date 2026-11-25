@@ -10,7 +10,8 @@ public sealed partial class RootViewModel(
     ConversationDeletionViewModel conversationDeletion,
     BackupRestoreViewModel backupRestore,
     BackupDeletionViewModel backupDeletion,
-    ShareViewModel share) : ViewModelBase, IRootNavigator
+    ShareViewModel share,
+    ImportViewModel import) : ViewModelBase, IRootNavigator
 {
     /// <summary>The exit sequence every way of quitting goes through; its task prompt and save failure overlay any root page.</summary>
     public ExitCoordinator Exit { get; } = exit;
@@ -29,6 +30,9 @@ public sealed partial class RootViewModel(
 
     /// <summary>Sharing a thinking path as a file (docs/design/sharing.md §6.3).</summary>
     public ShareViewModel Share { get; } = share;
+
+    /// <summary>Bringing a shared file in (docs/design/sharing-import.md §5).</summary>
+    public ImportViewModel Import { get; } = import;
 
     [ObservableProperty]
     public partial ViewModelBase? Current { get; private set; }

@@ -249,7 +249,7 @@ public sealed partial class ConversationView : UserControl
         // An answer still being written when the page opens has its room already, so a position at its question can be restored.
         _turn = page.RunningAnswer?.Id;
         KeepRoomForTurn();
-        if (source is not null)
+        if (source is { SourceMessage: not null })
         {
             RevealSource(page, source);
         }
@@ -375,11 +375,16 @@ public sealed partial class ConversationView : UserControl
     /// <summary>Return to source: select and highlight the passage, or fall back to its answer with a notice (MW-C13).</summary>
     private void RevealSource(ConversationViewModel page, BranchSource source)
     {
-        var (container, answer) = Find(page, source.SourceMessage);
+        if (source.SourceMessage is not { } message)
+        {
+            return;
+        }
+
+        var (container, answer) = Find(page, message);
         var top = answer?.RevealSource(source, Scroller);
         if (top is null)
         {
-            page.SourceNotice = UiText.SourceNotLocated(source.Quote);
+            page.SourceNotice = source.Quote is { } quote ? UiText.SourceNotLocated(quote) : null;
             top = container is null ? null : TopOf(container);
         }
 

@@ -5,6 +5,7 @@ using Mindweave.Application.Ai;
 using Mindweave.Application.Credentials;
 using Mindweave.Application.Diagnostics;
 using Mindweave.Application.Export;
+using Mindweave.Application.Import;
 using Mindweave.Application.Languages;
 using Mindweave.Application.Resources;
 using Mindweave.Application.Share;
@@ -15,6 +16,7 @@ using Mindweave.Infrastructure.Ai;
 using Mindweave.Infrastructure.Credentials;
 using Mindweave.Infrastructure.Export;
 using Mindweave.Infrastructure.Hosting;
+using Mindweave.Infrastructure.Import;
 using Mindweave.Infrastructure.Languages;
 using Mindweave.Infrastructure.Resources;
 using Mindweave.Infrastructure.Share;
@@ -63,6 +65,8 @@ public static class InfrastructureServices
         services.TryAddSingleton<ISummaryNetworkStore, SqliteSummaryNetworkStore>();
         services.TryAddSingleton<IExportFileWriter, AtomicFileWriter>();
         services.AddSingleton<ISharePageWriter, SharePageWriter>();
+        services.AddSingleton<IImportStore, SqliteImportStore>();
+        services.AddSingleton<ISharedFileReader, SharedFileReader>();
         services.TryAddSingleton(_ => CredentialStores.ForPlatform(paths.Channel));
         services.TryAddSingleton(new ChatClientOptions());
         services.TryAddSingleton<IChatClient>(sp => new ChatCompletionsClient(

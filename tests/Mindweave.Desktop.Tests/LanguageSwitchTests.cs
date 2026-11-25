@@ -524,7 +524,7 @@ public partial class LanguageSwitchTests
                 texts.AddRange(loaded!.Messages.Select(m => m.Text));
 
                 // A branch's source passage is quoted where the branch is listed.
-                texts.AddRange((await conversations.ListBranchesAsync(listed.Conversation.Id, CancellationToken.None)).Select(b => b.Quote));
+                texts.AddRange((await conversations.ListBranchesAsync(listed.Conversation.Id, CancellationToken.None)).Select(b => b.Quote ?? string.Empty));
             }
         }
 

@@ -107,6 +107,17 @@
   <Style Selector="CheckBox.share-dot:checked /template/ TextBlock.share-name">
     <Setter Property="Foreground" Value="{DynamicResource SummaryNetworkLabel}" />
   </Style>
+  <!-- The import dialog: the share's own title, and what will happen, one line each. -->
+  <Style Selector="TextBlock.import-share">
+    <Setter Property="FontSize" Value="14" />
+    <Setter Property="FontWeight" Value="SemiBold" />
+    <Setter Property="Foreground" Value="{DynamicResource PrimaryText}" />
+  </Style>
+  <Style Selector="TextBlock.import-count">
+    <Setter Property="FontSize" Value="13" />
+    <Setter Property="LineHeight" Value="19" />
+    <Setter Property="Foreground" Value="{DynamicResource PrimaryText}" />
+  </Style>
   <!-- What a share will hold, apart from the notes round it: what its reader can read in full contrast, the rest quiet. -->
   <Style Selector="Border.share-contents">
     <Setter Property="Background" Value="{DynamicResource CardBackground}" />

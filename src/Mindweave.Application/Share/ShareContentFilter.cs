@@ -113,11 +113,15 @@ internal sealed class ShareContentFilter(ShareContents contents, IReadOnlySet<Co
         _ => new ExchangeCitation(citation.Number, citation.Kind),
     };
 
-    private static ExchangeBranchSource Source(BranchSource source, int? offset) => new(
-        source.SourceMessage,
-        source.Quote,
-        offset is { } at ? new ExchangePosition(source.SourceBlock, at) : null,
-        HoldsOnly(source.AnchorJson, source.Quote) ? new ExchangeAnchor(source.AnchorFormatVersion, source.RenderProfile, source.AnchorJson) : null);
+    /// <summary>Null for a branch that left from no sentence: it has its parent only.</summary>
+    private static ExchangeBranchSource? Source(BranchSource source, int? offset) =>
+        source is not { SourceMessage: { } message, Quote: { } quote }
+            ? null
+            : new ExchangeBranchSource(
+                message,
+                quote,
+                offset is { } at && source.SourceBlock is { } block ? new ExchangePosition(block, at) : null,
+                source is { AnchorJson: { } anchor, AnchorFormatVersion: { } version, RenderProfile: { } profile } && HoldsOnly(anchor, quote) ? new ExchangeAnchor(version, profile, anchor) : null);
 
     /// <summary>
     /// Whether the anchor holds no text beyond the quote. It is opaque here, so every string in it is looked at: it must be

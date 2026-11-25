@@ -42,17 +42,17 @@ internal static class FilePanels
     }
 
     /// <summary>Asks for files to open, of <paramref name="kind"/> or any; the paths of those on this computer.</summary>
-    public static async Task<IReadOnlyList<string>> OpenAsync(TopLevel owner, string title, FileKind? kind)
+    public static async Task<IReadOnlyList<string>> OpenAsync(TopLevel owner, string title, FileKind? kind, bool multiple = true)
     {
         if (MacFilePanel.IsFor(owner, out var window))
         {
-            return await MacFilePanel.OpenAsync(window, title, kind?.Extensions ?? []);
+            return await MacFilePanel.OpenAsync(window, title, kind?.Extensions ?? [], multiple);
         }
 
         var picked = await owner.StorageProvider.OpenFilePickerAsync(new FilePickerOpenOptions
         {
             Title = title,
-            AllowMultiple = true,
+            AllowMultiple = multiple,
             FileTypeFilter = kind is null ? null : [PickerType(kind)],
         });
         return [.. picked.Select(f => f.TryGetLocalPath()).OfType<string>()];

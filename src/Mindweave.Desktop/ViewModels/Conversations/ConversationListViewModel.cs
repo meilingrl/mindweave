@@ -542,6 +542,7 @@ public sealed partial class ConversationListViewModel : ViewModelBase, IDisposab
             ordered[i].Title = UiText.ConversationTitle(tree[i].Summary.Conversation, tree[i].Summary.FirstQuestion, tree[i].Summary.Quote);
             ordered[i].LastAnswerState = tree[i].Summary.LastAnswerState;
             ordered[i].Depth = tree[i].Depth;
+            ordered[i].IsUnexplored = tree[i].Summary.IsUnexplored;
             ordered[i].ParentId = tree[i].Summary.Parent;
         }
 

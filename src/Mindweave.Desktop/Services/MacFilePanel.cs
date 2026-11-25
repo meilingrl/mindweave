@@ -36,11 +36,11 @@ internal static partial class MacFilePanel
         });
 
     /// <summary>The paths of the files picked; none when cancelled.</summary>
-    public static Task<IReadOnlyList<string>> OpenAsync(nint window, string title, IReadOnlyList<string> extensions) =>
+    public static Task<IReadOnlyList<string>> OpenAsync(nint window, string title, IReadOnlyList<string> extensions, bool multiple) =>
         FromRunLoopAsync<IReadOnlyList<string>>(() =>
         {
             var panel = Get(objc_getClass("NSOpenPanel"), "openPanel");
-            Set(panel, "setAllowsMultipleSelection:", true);
+            Set(panel, "setAllowsMultipleSelection:", multiple);
             if (!Run(panel, window, title, extensions))
             {
                 return [];

@@ -1008,7 +1008,7 @@ public sealed partial class SummaryNetworkHomeViewModel : PageViewModel, IDispos
 
     /// <summary>
     /// Whether a conversation belongs to this page's workspace, as far as known: every conversation listed at the last load,
-    /// and each other one once it has been looked up. A conversation never moves to another workspace.
+    /// and each other one once it has been looked up. A conversation never moves to another workspace; only import can bring a deleted one back in another.
     /// </summary>
     private readonly System.Collections.Concurrent.ConcurrentDictionary<ConversationId, bool> _ours = new();
 
@@ -1077,10 +1077,28 @@ public sealed partial class SummaryNetworkHomeViewModel : PageViewModel, IDispos
     /// <summary>A source was archived, restored or deleted: its node's "source archived" marker may have changed.</summary>
     private void OnVisibilityChanged(object? sender, IReadOnlyList<ConversationId> e)
     {
+        if (_disposed)
+        {
+            return;
+        }
+
         // Only when one of them may be this workspace's: all known to be another's leaves the page as it is.
-        if (!_disposed && (e.Count == 0 || e.Any(id => !_ours.TryGetValue(id, out var ours) || ours)))
+        if (e.Count == 0 || e.Any(id => !_ours.TryGetValue(id, out var ours) || ours))
         {
             _reload.Request();
+            return;
+        }
+
+        // Another workspace's when they were last looked up. One deleted there can be back in this one by import: it is
+        // looked up again (one stands for all, which are of one workspace), and the page stays as it is if it is not.
+        foreach (var id in e)
+        {
+            _ours.TryRemove(id, out _);
+        }
+
+        if (_looking.TryAdd(e[0], 0))
+        {
+            _ = LearnWorkspaceAsync(e[0]);
         }
     }
 
@@ -1134,7 +1152,7 @@ public sealed partial class SummaryNetworkHomeViewModel : PageViewModel, IDispos
             // A dot without a summary has no markers: it is a conversation, never read or unread.
             if (!node.HasSummary)
             {
-                Items.Add(new SummaryListItem(node.Id, node.DisplayName, string.Empty, false) { HasSummary = false, Links = LinksLineOf(node.Id, names) });
+                Items.Add(new SummaryListItem(node.Id, node.DisplayName, string.Empty, false, Other: node.IsUnexplored ? UiText.NotExplored : string.Empty) { HasSummary = false, Links = LinksLineOf(node.Id, names) });
                 continue;
             }
 
@@ -1165,6 +1183,10 @@ public sealed partial class SummaryNetworkHomeViewModel : PageViewModel, IDispos
         _recommendations?.SummaryNetworkOpened(Workspace.Id);
     }
 
+    /// <summary>The legend's line for hollow dots, only while there are any.</summary>
+    [ObservableProperty]
+    public partial bool ShowsUnexploredLegend { get; private set; }
+
     private void BuildViews()
     {
         var positions = Session.Positions;
@@ -1179,7 +1201,8 @@ public sealed partial class SummaryNetworkHomeViewModel : PageViewModel, IDispos
         Nodes = [.. Session.Projection.Nodes.Where(n => positions.ContainsKey(n.Id)).Select(n => new NodeView(
             n.Id, n.ShortTitle, n.DisplayName, positions[n.Id].X, positions[n.Id].Y, n.Markers.Unread, n.Markers.HasCandidate, SummaryNetworkLayout.LabelWidth(SummaryNetworkLayout.Label(n.ShortTitle, n.Markers.HasCandidate)),
             parents.TryGetValue(n.Id, out var parent) && positions.ContainsKey(parent) ? parent : null, n.Conversation == n.Root, n.HasSummary, n.Weight, n.CreatedAt,
-            placed.GetValueOrDefault(n.Id), dated.Contains(n.Id)))];
+            placed.GetValueOrDefault(n.Id), dated.Contains(n.Id)) { Unexplored = n.IsUnexplored })];
+        ShowsUnexploredLegend = Nodes.Any(n => n.Unexplored);
         Edges = [.. Session.Projection.Edges.Where(e => positions.ContainsKey(e.From) && positions.ContainsKey(e.To)).Select(e => new EdgeView(
             e.From, e.To, positions[e.From].X, positions[e.From].Y, positions[e.To].X, positions[e.To].Y, e.Kind,
             timeline && e.Kind == SummaryNetworkEdgeKind.Branch && positions[e.From].Y != positions[e.To].Y))];
@@ -1225,7 +1248,11 @@ public sealed partial class SummaryNetworkHomeViewModel : PageViewModel, IDispos
             steps,
             node.HasSummary,
             node.FirstQuestion,
-            node.Markers.HasLaterContent);
+            node.Markers.HasLaterContent)
+        {
+            Unexplored = node.IsUnexplored,
+            Received = node.Import is { } import ? UiText.ReceivedFrom(import.Title, import.At) : null,
+        };
     }
 
     /// <summary>
