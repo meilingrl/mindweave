@@ -73,6 +73,7 @@ Seven topics in four groups. The order and what is set aside are in §5 and §6.
 | 2026-11-25 | Messages is the further protocol of the first increment; Responses comes later (owner). The owner now has an official Anthropic key, so Messages can be checked against the real service; there is no official OpenAI key. |
 | 2026-11-25 | The section on several connections and local models in §7 is agreed as written, Claude's calls included (owner). |
 | 2026-11-25 | Responses moves into the first increment as its fourth step, after Messages (owner). It is checked against a local server and the owner's relay; the check against OpenAI's own service stays open until there is a key. This replaces "Responses comes later" above. |
+| 2026-11-25 | Search by meaning serves both the model's tools and the user (owner): one index over summaries, the questions and answers of conversations, and attachments, inside one workspace. The user gets a search of their own beside title search. |
 
 ## 6. Set aside
 
