@@ -17,6 +17,13 @@ The second number rises when a capability is finished and on by default, and the
 
 The nine merges after 0.5.0, on 2026-11-22 and 2026-11-23, are 0.5.1 to 0.5.9 in order. They keep their dated entries below.
 
+## 0.6.17 · 2026-11-26
+
+- Windows: Fixed a shared page that left a branch's sentence unmarked when its quote ran over a line break, and a stored place after one, which was off by one per break
+- Fixed the share test that failed on Windows: it compared the platform's line endings
+- Try: nothing on screen changed on macOS; CI on Windows is the check
+- Not verified: the marks in a shared page on a real Windows machine
+
 ## 0.6.16 · 2026-11-25
 
 - Documents: Added the design of importing a shared file ([sharing-import.md](design/sharing-import.md), D-041), and its text in the requirements (v0.30) and architecture (§16.4 and §16.5)
