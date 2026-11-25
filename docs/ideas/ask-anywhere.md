@@ -1,6 +1,6 @@
 # Ask from anywhere, openness and local AI
 
-**Status:** in discussion with the owner since 2026-11-25. Not agreed. Last discussed: 2026-11-25 (quoting is agreed; the section on connections and local models waits for the owner's confirmation).
+**Status:** in discussion with the owner since 2026-11-25. Not agreed. Last discussed: 2026-11-25 (quoting and connections are agreed; search by meaning is being discussed).
 
 This draft takes over directions 1, 3 and 7 of [more directions](more-directions.md), the question Q13 of the agent platform (search by meaning) and the caching part of [evolution](../evolution.md) D4. Those texts stay as they are until the owner settles what moves.
 
@@ -72,12 +72,12 @@ Seven topics in four groups. The order and what is set aside are in §5 and §6.
 | 2026-11-25 | One setting, the model for background work (owner). It defaults to the current model and can be any saved model. Background work is titles, compression, attachment digests, recommended questions and link suggestions; summaries stay with the current model. When that model cannot be reached, the task fails with its reason; nothing switches on its own. |
 | 2026-11-25 | Messages is the further protocol of the first increment; Responses comes later (owner). The owner now has an official Anthropic key, so Messages can be checked against the real service; there is no official OpenAI key. |
 | 2026-11-25 | The section on several connections and local models in §7 is agreed as written, Claude's calls included (owner). |
+| 2026-11-25 | Responses moves into the first increment as its fourth step, after Messages (owner). It is checked against a local server and the owner's relay; the check against OpenAI's own service stays open until there is a key. This replaces "Responses comes later" above. |
 
 ## 6. Set aside
 
 - **B1 MCP server, B2 command line:** set aside for now (owner, 2026-11-25).
 - **A3 browser extension:** set aside for now (owner, 2026-11-25).
-- **The Responses protocol:** later (owner, 2026-11-25). It returns when one of these is true: the owner has an official OpenAI key, so it can be checked against the real service; or something the owner wants is offered only through Responses. It is then one task of the size of the Messages adapter, and nothing built before it has to change. Ways to test it without an official OpenAI key (looked up 2026-11-25, to be checked again when the work starts): a local server (Ollama serves `/v1/responses` since v0.13.3, without the parts that keep state on the server; free, and it needs a model on the machine); the owner's relay, where a Responses request to a GPT model passed a small check on 2026-10-23 (`prototypes/responses-compat`; paid); other services with a Responses endpoint, such as OpenRouter (beta) and Groq (each needs its own key). None of these proves the behaviour of OpenAI's own service.
 - **Running a model inside Mindweave:** not for now (Claude's call, 2026-11-25; the order the owner set says "through a local server").
 
 ## 7. Per topic
@@ -193,7 +193,7 @@ The owner's decisions are in §5. The rest of this section was proposed by Claud
 
 #### How it works
 
-**The list of connections.** 设置 › 模型连接 (Settings › Model connection) becomes a list. A connection has a name, an address, a protocol (Chat Completions or Messages) and a key. It holds one or more models; each model has its own capabilities, context capacity and output limit, filled from the presets as today. The existing configuration becomes the first entry, unchanged.
+**The list of connections.** 设置 › 模型连接 (Settings › Model connection) becomes a list. A connection has a name, an address, a protocol (Chat Completions, Messages or Responses) and a key. It holds one or more models; each model has its own capabilities, context capacity and output limit, filled from the presets as today. The existing configuration becomes the first entry, unchanged.
 
 **The current model.** A picker beside the input box shows the current model and lists the saved models by connection. Choosing one makes it the current model for all new questions, in every conversation. A question already accepted keeps the model it was accepted with (the existing rule). Images and tools follow the current model's capabilities, as today: what it cannot do is grayed out with the reason.
 
@@ -201,7 +201,7 @@ The owner's decisions are in §5. The rest of this section was proposed by Claud
 
 **A local server.** The list offers a ready entry for a local server: the address `http://localhost:11434/v1`, no key. Its models are listed from the server. Capabilities and context capacity are read from the server where it gives them; otherwise the user declares them. Mindweave does not install or start the server and does not download models; the entry links to how to do that.
 
-**Messages.** A second protocol adapter beside the existing one, with the same scope: streaming text, tool calls, images, reasoning and token counts. Nothing above the adapter knows which protocol a model uses.
+**Messages and Responses.** Two further protocol adapters beside the existing one, each with the same scope: streaming text, tool calls, images, reasoning and token counts. Nothing above an adapter knows which protocol a model uses. Responses is used without the parts that keep conversation state on the provider's side; Mindweave keeps that itself.
 
 **Which model answered.** Every answer already records its model. The answer's details name the model and the connection, and the statistics tell models apart.
 
@@ -214,12 +214,13 @@ The owner's decisions are in §5. The rest of this section was proposed by Claud
 - **macOS and Windows:** no platform work. A local server is installed by the user on either.
 - **Leaves the machine:** a question goes to the connection of the current model, and background work to the connection of the background model. The picker always shows where the next question goes. With a local model, that content stays on the machine. Web search and third-party tools are separate and unchanged.
 - **Verification:** the owner has an official Anthropic key (2026-11-25), so Messages can be checked against the real service, within a budget the owner gives. This also closes the gap of architecture §7.1, where the attempts through a relay failed.
+- **Verification of Responses:** the ways to test it without an official OpenAI key (looked up 2026-11-25, to be checked again when the work starts): a local server (Ollama serves `/v1/responses` since v0.13.3, without the parts that keep state on the server; free, and it needs a model on the machine); the owner's relay, where a Responses request to a GPT model passed a small check on 2026-10-23 (`prototypes/responses-compat`; paid); other services with a Responses endpoint, such as OpenRouter (beta) and Groq (each needs its own key). None of these proves the behaviour of OpenAI's own service.
 
 #### Out of scope
 
 - A model per conversation (can be added later on top).
 - Any automatic choice or fallback between models.
-- The Responses protocol (see §6 for when it returns).
+- The parts of Responses that keep conversation state or run tools on the provider's side.
 - Running a model inside Mindweave, and downloading models.
 - Asking two models the same question side by side.
 - Sign-in with a provider account instead of a key.
@@ -248,15 +249,17 @@ The owner's decisions are in §5. The rest of this section was proposed by Claud
 7. Set the background model to the local one and the current model to a remote one. A new conversation's title is produced by the local model; the statistics show this.
 8. Choose a model without image input in a conversation that has an image. The attach option is grayed out with the reason, and the next answer states that the earlier image was left out.
 9. Add a Messages connection with a Claude model. A question with a tool call and an image is answered, with streaming and reasoning shown as for other models.
-10. Remove a connection. Its key is gone from the system credential store; old answers still name their model.
+10. Add a Responses connection to a local server or the relay. A question with a tool call is answered, with streaming.
+11. Remove a connection. Its key is gone from the system credential store; old answers still name their model.
 
 #### First increment
 
-Three steps, each usable when merged:
+Four steps, each usable when merged:
 
 1. The list of connections, the picker, and capabilities per model. All on Chat Completions.
 2. The local server entry and the model for background work.
 3. The Messages adapter, checked against the real service within the owner's budget.
+4. The Responses adapter, checked against a local server and, within the owner's budget, the owner's relay. Not verified until there is a key: OpenAI's own service.
 
 Look and feel is the owner's: the list in settings and the picker are shown before they are built in.
 
