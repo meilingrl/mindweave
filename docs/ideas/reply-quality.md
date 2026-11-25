@@ -81,6 +81,14 @@ Started 2026-11-25. The owner decides; each decision is recorded here with its d
   - It applies to long prose results: web pages, and stored pages read again. A result that is data (a table, JSON from a third-party tool) keeps its start.
   - A citation number still points at the page, and the passage is still found in the full stored text.
   - Accepted cost: the model reads a text with gaps; keyword matching misses a passage in other words; the change is in the delicate part of the run loop that stores and sends results; one new evaluation scenario, a detail deep in a long page.
+- **Q9, 2026-11-26 (owner): three additions to the summary prompt; no styles.**
+  - A gist first: one or two sentences that say what was learned.
+  - The body is organized by concept, not by the order of the questions.
+  - Key terms with a one-line definition each, when the conversation introduced terms; no list otherwise.
+  - The user's note (Q4) also goes into the summary prompt.
+  - Everything the prompt keeps today stays: open questions, uncertainty as it was, corrections, the title and the short name.
+  - Accepted cost: about 60 input tokens per summary plus the note; only new summaries and new versions change, so a new version can be laid out differently from the one before; whether summaries read better is the owner's judgment.
+  - Not chosen: optional summary styles.
 
 ### Boundaries with the other design sessions (proposed, for the owner to settle)
 
