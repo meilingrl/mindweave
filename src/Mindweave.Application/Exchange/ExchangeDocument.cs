@@ -42,6 +42,9 @@ public sealed record ExchangeDocument(
     /// <summary>With the questions, the answers, the sentences branches left from and the summaries (S6).</summary>
     public const string ContentKind = "content";
 
+    /// <summary>A copy of a workspace for another of the user's devices; nothing writes it yet.</summary>
+    public const string DeviceKind = "device";
+
     public int Explorations => Conversations.Count(c => c.Parent is null);
 
     public int Questions => Conversations.Sum(c => c.Questions);

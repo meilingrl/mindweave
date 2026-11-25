@@ -281,8 +281,16 @@ public sealed partial class ConversationService : IConversations
         StartAsync(workspace, question, attachments, from, null, cancellationToken);
 
     /// <summary>The same, with the composer's choices for this question (the web search switch, requirements §10.4.5).</summary>
-    public async Task<SendOutcome> StartAsync(
-        WorkspaceId workspace, string question, IReadOnlyList<ResourceId> attachments, Recommendations.StartingRecommendation? from, SendOptions? options, CancellationToken cancellationToken)
+    public Task<SendOutcome> StartAsync(
+        WorkspaceId workspace, string question, IReadOnlyList<ResourceId> attachments, Recommendations.StartingRecommendation? from, SendOptions? options, CancellationToken cancellationToken) =>
+        StartAsync(workspace, null, question, attachments, from, options, cancellationToken);
+
+    /// <summary>
+    /// A conversation stored with its first question: a root, or (<paramref name="parent"/>) the user's own branch of an
+    /// empty received conversation, which has no source and no context (decision I4).
+    /// </summary>
+    private async Task<SendOutcome> StartAsync(
+        WorkspaceId workspace, ConversationId? parent, string question, IReadOnlyList<ResourceId> attachments, Recommendations.StartingRecommendation? from, SendOptions? options, CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(attachments);
         var id = ConversationId.New();
@@ -315,11 +323,21 @@ public sealed partial class ConversationService : IConversations
         var task = NewTask(GenerationTaskKind.Answer, id, answer.Id, model, [user.Id], now, run);
         try
         {
-            await _store.CreateAsync(conversation, user, answer, task, from, cancellationToken).ConfigureAwait(false);
+            await (parent is { } received
+                ? _store.CreateBranchAsync(received, conversation, user, answer, task, cancellationToken)
+                : _store.CreateAsync(conversation, user, answer, task, from, cancellationToken)).ConfigureAwait(false);
         }
         catch (StorageWriteException ex)
         {
             return StorageRefused(ex, id);
+        }
+        catch (ConversationArchivedException)
+        {
+            return SendOutcome.Reject(SendRejection.ConversationArchived, id);
+        }
+        catch (ConversationMissingException)
+        {
+            return SendOutcome.Reject(SendRejection.ConversationMissing, id);
         }
 
         await EnqueueAsync(task, model, plan, budget, answer, inputs, run, whole);
@@ -337,6 +355,13 @@ public sealed partial class ConversationService : IConversations
     public async Task<SendOutcome> AskAsync(ConversationId id, string question, IReadOnlyList<ResourceId> attachments, SendOptions? options, CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(attachments);
+
+        // A received conversation takes no message: the question starts the user's own branch of it (decision I4).
+        if (await _store.GetAsync(id, cancellationToken).ConfigureAwait(false) is { IsImported: true } received)
+        {
+            return await StartAsync(received.WorkspaceId, id, question, attachments, null, options, cancellationToken).ConfigureAwait(false);
+        }
+
         if (await CheckAsync(question, attachments, id, cancellationToken).ConfigureAwait(false) is { } rejection)
         {
             return rejection;
@@ -577,6 +602,15 @@ public sealed partial class ConversationService : IConversations
         }
 
         NotifyVisibility(scope.Conversations);
+    }
+
+    /// <summary>Conversations arrived by import: each, and each that was here and gained a branch, gets <see cref="ConversationChanged"/>.</summary>
+    internal void NotifyImported(Import.ImportResult result)
+    {
+        foreach (var id in result.Created.Concat(result.Parents))
+        {
+            ConversationChanged?.Invoke(this, id);
+        }
     }
 
     /// <summary>Those of <paramref name="conversations"/> the user archived (markers on branch entries).</summary>

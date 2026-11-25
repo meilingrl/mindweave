@@ -32,18 +32,14 @@ internal sealed class SqliteWorkspaceStore(SqliteDatabase database) : IWorkspace
     {
         ArgumentNullException.ThrowIfNull(workspace);
         return database.WriteAsync(
-            (connection, transaction) =>
-            {
-                using var command = connection.CreateCommand();
-                command.Transaction = transaction;
-                command.CommandText = "INSERT INTO workspace (id, name, created_at) VALUES ($id, $name, $created);";
-                command.Parameters.AddWithValue("$id", workspace.Id.ToString());
-                command.Parameters.AddWithValue("$name", workspace.Name.Value);
-                command.Parameters.AddWithValue("$created", workspace.CreatedAt.ToUnixTimeMilliseconds());
-                return command.ExecuteNonQuery();
-            },
+            (connection, transaction) => Insert(connection, transaction, workspace),
             cancellationToken);
     }
+
+    internal static int Insert(SqliteConnection connection, SqliteTransaction transaction, Workspace workspace) =>
+        connection.Execute(transaction,
+            "INSERT INTO workspace (id, name, created_at) VALUES ($id, $name, $created);",
+            ("$id", workspace.Id.ToString()), ("$name", workspace.Name.Value), ("$created", workspace.CreatedAt.Ms()));
 
     public Task<Workspace?> RenameAsync(WorkspaceId workspace, WorkspaceName name, CancellationToken cancellationToken)
     {

@@ -46,16 +46,30 @@ internal sealed class SqliteBranchStore(SqliteDatabase database) : IBranchStore
                     ("$version", selection.AnchorFormatVersion),
                     ("$profile", selection.RenderProfile),
                     ("$at", at.Ms()));
-                foreach (var range in BranchRules.RangesForChild(parent, ReadRanges(connection, transaction, parent), source.Seq))
-                {
-                    connection.Execute(transaction, """
-                        INSERT INTO branch_context_range (child_id, ancestor_id, depth, max_seq) VALUES ($child, $ancestor, $depth, $max);
-                        """, ("$child", child.ToString()), ("$ancestor", range.Ancestor.ToString()), ("$depth", range.Depth), ("$max", range.MaxSeq));
-                }
-
+                InsertRanges(connection, transaction, child, BranchRules.RangesForChild(parent, ReadRanges(connection, transaction, parent), source.Seq));
                 return conversation;
             },
             cancellationToken);
+    }
+
+    /// <summary>Makes a stored conversation a branch that left from no message: its parent only, and nothing of any ancestor.</summary>
+    internal static void InsertWithoutSource(SqliteConnection connection, SqliteTransaction transaction, ConversationId child, ConversationId parent, DateTimeOffset at)
+    {
+        connection.Execute(transaction,
+            "INSERT INTO branch_source (child_id, parent_id, created_at) VALUES ($child, $parent, $at);",
+            ("$child", child.ToString()), ("$parent", parent.ToString()), ("$at", at.Ms()));
+        var ancestors = ReadRanges(connection, transaction, parent).Select(r => r.Ancestor).Append(parent).ToList();
+        InsertRanges(connection, transaction, child, BranchRules.RangesWithoutSource(ancestors));
+    }
+
+    private static void InsertRanges(SqliteConnection connection, SqliteTransaction transaction, ConversationId child, IReadOnlyList<BranchContextRange> ranges)
+    {
+        foreach (var range in ranges)
+        {
+            connection.Execute(transaction, """
+                INSERT INTO branch_context_range (child_id, ancestor_id, depth, max_seq) VALUES ($child, $ancestor, $depth, $max);
+                """, ("$child", child.ToString()), ("$ancestor", range.Ancestor.ToString()), ("$depth", range.Depth), ("$max", range.MaxSeq));
+        }
     }
 
     public Task<BranchSource?> GetSourceAsync(ConversationId child, CancellationToken cancellationToken) =>
@@ -82,6 +96,7 @@ internal sealed class SqliteBranchStore(SqliteDatabase database) : IBranchStore
     public Task<IReadOnlyList<ContextSegment>> GetAncestorContextAsync(ConversationId conversation, CancellationToken cancellationToken) =>
         database.ReadAsync<IReadOnlyList<ContextSegment>>(
             connection => ReadRanges(connection, null, conversation)
+                .Where(range => range.MaxSeq != BranchContextRange.Nothing)
                 .Select(range => new ContextSegment(
                     range.Ancestor,
                     GetSource(connection, range.Ancestor)?.Quote,
@@ -132,7 +147,7 @@ internal sealed class SqliteBranchStore(SqliteDatabase database) : IBranchStore
         return message;
     }
 
-    private static List<BranchContextRange> ReadRanges(SqliteConnection connection, SqliteTransaction? transaction, ConversationId child)
+    internal static List<BranchContextRange> ReadRanges(SqliteConnection connection, SqliteTransaction? transaction, ConversationId child)
     {
         using var command = connection.Command(transaction,
             "SELECT ancestor_id, depth, max_seq FROM branch_context_range WHERE child_id = $child ORDER BY depth;",
@@ -158,11 +173,11 @@ internal sealed class SqliteBranchStore(SqliteDatabase database) : IBranchStore
         new(
             ConversationId.Parse(reader.GetString(0)),
             ConversationId.Parse(reader.GetString(1)),
-            MessageId.Parse(reader.GetString(2)),
-            reader.GetInt32(3),
-            reader.GetString(4),
-            reader.GetString(5),
-            reader.GetInt32(6),
-            reader.GetString(7),
+            reader.NullableString(2) is { } message ? MessageId.Parse(message) : null,
+            (int?)reader.NullableInt64(3),
+            reader.NullableString(4),
+            reader.NullableString(5),
+            (int?)reader.NullableInt64(6),
+            reader.NullableString(7),
             reader.Time(8));
 }

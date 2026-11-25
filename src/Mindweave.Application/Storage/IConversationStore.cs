@@ -67,7 +67,11 @@ public sealed record ConversationSummary(
     ConversationId? Parent = null,
     string? Quote = null,
     bool IsArchived = false,
-    bool IsHidden = false);
+    bool IsHidden = false)
+{
+    /// <summary>It came by import and holds no message: shown as not explored yet (requirements §10.7).</summary>
+    public bool IsUnexplored => Conversation.IsImported && FirstQuestion is null && LastAnswerState is null;
+}
 
 public sealed record RecoveryReport(int InterruptedAnswers, int InterruptedTasks);
 
@@ -88,6 +92,14 @@ public interface IConversationStore
     /// started from when there is one (its basis kept only while that summary is still in the workspace).
     /// </summary>
     Task CreateAsync(Conversation conversation, Message question, Message answer, GenerationTaskRecord task, Recommendations.StartingRecommendation? from, CancellationToken cancellationToken);
+
+    /// <summary>
+    /// The same for a question asked in an empty received conversation (decision I4): the conversation is a branch of
+    /// <paramref name="parent"/> that left from no message and uses nothing of its ancestors. Throws
+    /// <see cref="ConversationArchivedException"/> if the parent is hidden by an archive,
+    /// <see cref="ConversationMissingException"/> if it was deleted.
+    /// </summary>
+    Task CreateBranchAsync(ConversationId parent, Conversation conversation, Message question, Message answer, GenerationTaskRecord task, CancellationToken cancellationToken);
 
     /// <summary>
     /// Appends question + pending answer + task. Sequence numbers are assigned inside the transaction.

@@ -166,14 +166,14 @@ public sealed partial class AnswerView : UserControl
     internal double? RevealSource(BranchSource source, Visual relativeTo)
     {
         ArgumentNullException.ThrowIfNull(source);
-        if (source.AnchorFormatVersion != SourceAnchors.FormatVersion || !SourceAnchors.CompatibleProfiles.Contains(source.RenderProfile) || source.SourceBlock != 0)
+        if (source is not { AnchorFormatVersion: SourceAnchors.FormatVersion, RenderProfile: { } profile, SourceBlock: 0, AnchorJson: { } anchor } || !SourceAnchors.CompatibleProfiles.Contains(profile))
         {
             return null;
         }
 
         try
         {
-            var resolved = SourceAnchors.Restore(SourceAnchors.Deserialize(source.AnchorJson), _shown, _renderer, HighlightPaint());
+            var resolved = SourceAnchors.Restore(SourceAnchors.Deserialize(anchor), _shown, _renderer, HighlightPaint());
             return SourceAnchors.TopOf(resolved[0], relativeTo);
         }
         catch (Exception ex) when (ex is InvalidDataException or System.Text.Json.JsonException or ArgumentException)
