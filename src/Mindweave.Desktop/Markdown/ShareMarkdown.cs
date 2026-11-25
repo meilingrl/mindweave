@@ -26,7 +26,7 @@ public sealed class ShareMarkdown : IShareMarkdown
         ArgumentNullException.ThrowIfNull(citations);
         ArgumentNullException.ThrowIfNull(marks);
         MarkdownSetup.EnsureRegistered();
-        var document = Markdig.Markdown.Parse(markdown, MarkdownUpdateProducer.DefaultPipeline);
+        var document = AnswerMarkdown.Parse(markdown);
         CitationLinks.Apply(document, citations);
         var drawing = new Drawing(markdown);
         var nodes = drawing.Blocks(document);

@@ -168,14 +168,14 @@ internal sealed class SqliteImportStore(SqliteDatabase database) : IImportStore
         var conversations = new Dictionary<ConversationId, StoredConversation>();
         var messages = new Dictionary<MessageId, ConversationId>();
         var versions = new Dictionary<SummaryVersionId, ConversationId>();
-        foreach (var conversation in document.Conversations)
+        foreach (var conversation in ImportRules.Compared(document))
         {
-            if (Stored(connection, transaction, conversation.Id) is { } stored)
+            if (Stored(connection, transaction, conversation) is { } stored)
             {
-                conversations[conversation.Id] = stored;
+                conversations[conversation] = stored;
                 foreach (var message in stored.Messages.Values)
                 {
-                    messages[message] = conversation.Id;
+                    messages[message.Id] = conversation;
                 }
             }
         }
@@ -236,12 +236,12 @@ internal sealed class SqliteImportStore(SqliteDatabase database) : IImportStore
             (source, received, summary) = (reader.GetInt64(1) != 0, reader.GetInt64(2) != 0, reader.GetInt64(3) != 0);
         }
 
-        var numbers = new Dictionary<int, MessageId>();
-        using var rows = connection.Command(transaction, "SELECT seq, id FROM message WHERE conversation_id = $id;", ("$id", id.ToString()));
+        var numbers = new Dictionary<int, StoredMessage>();
+        using var rows = connection.Command(transaction, "SELECT seq, id, role FROM message WHERE conversation_id = $id;", ("$id", id.ToString()));
         using var row = rows.ExecuteReader();
         while (row.Read())
         {
-            numbers[row.GetInt32(0)] = MessageId.Parse(row.GetString(1));
+            numbers[row.GetInt32(0)] = new StoredMessage(MessageId.Parse(row.GetString(1)), SqlNames.ParseRole(row.GetString(2)));
         }
 
         return new StoredConversation(parent, received, source, summary, numbers);

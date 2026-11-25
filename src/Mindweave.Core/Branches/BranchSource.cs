@@ -111,6 +111,16 @@ public static class BranchRules
         return [.. parentRanges.OrderBy(r => r.Depth), new BranchContextRange(parent, parentRanges.Count, sourceSeq)];
     }
 
+    /// <summary>Ranges that say exactly what <paramref name="context"/> holds: a row for every ancestor, and nothing of one that is not in it.</summary>
+    /// <param name="ancestors">From the root to the parent.</param>
+    public static IReadOnlyList<BranchContextRange> RangesOf(IReadOnlyList<ConversationId> ancestors, IReadOnlyList<ContextSegment> context)
+    {
+        ArgumentNullException.ThrowIfNull(ancestors);
+        ArgumentNullException.ThrowIfNull(context);
+        var used = context.Where(s => s.Messages.Count > 0).ToDictionary(s => s.Conversation, s => s.Messages[^1].Seq);
+        return [.. ancestors.Select((a, i) => new BranchContextRange(a, i, used.TryGetValue(a, out var seq) ? seq : BranchContextRange.Nothing))];
+    }
+
     /// <summary>
     /// Ranges for a branch without a source: a row for every ancestor, so that it counts as a branch everywhere, each saying
     /// that nothing of the ancestor is used (docs/design/sharing-import.md §2).

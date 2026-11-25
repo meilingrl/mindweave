@@ -52,12 +52,12 @@ public static class ImportRules
 
         var messages = new HashSet<MessageId>();
         var versions = new HashSet<SummaryVersionId>();
-        var byId = document.Conversations.ToDictionary(c => c.Id);
+        var parts = document.Conversations.ToDictionary(c => c.Id, c => (c.Content?.Messages ?? []).DistinctBy(m => m.Id).ToDictionary(m => m.Id, m => m.Role));
         return document.Conversations.All(c => c.Content is { } content
             && content.Messages.All(m => messages.Add(m.Id))
             && MessagesAreSound(content.Messages)
             && (content.Summary is null || versions.Add(content.Summary.Id))
-            && (content.Source is null || SourceIsSound(content.Source, c.Parent, byId)));
+            && (content.Source is null || SourceIsSound(content.Source, c.Parent, parts)));
     }
 
     private static bool MessagesAreSound(IReadOnlyList<ExchangeMessage> messages)
@@ -95,9 +95,10 @@ public static class ImportRules
     }
 
     /// <summary>A quoted sentence is an answer's. The parent itself can be missing from the file only when it is in the store.</summary>
-    private static bool SourceIsSound(ExchangeBranchSource source, ConversationId? parent, Dictionary<ConversationId, ExchangeConversation> byId) =>
-        parent is { } id && (!byId.TryGetValue(id, out var left)
-            || (left.Content?.Messages.FirstOrDefault(m => m.Id == source.Message) is { } message && (source.Quote is null || message.Role == MessageRole.Assistant)));
+    private static bool SourceIsSound(ExchangeBranchSource source, ConversationId? parent, Dictionary<ConversationId, Dictionary<MessageId, MessageRole>> parts) =>
+        parent is { } id && (!parts.TryGetValue(id, out var left) || (left.TryGetValue(source.Message, out var role) && CanBeLeft(source, role)));
+
+    private static bool CanBeLeft(ExchangeBranchSource source, MessageRole role) => source.Quote is null || role == MessageRole.Assistant;
 
     /// <summary>The parents the document names but does not hold; they can only be in the store.</summary>
     public static IReadOnlyList<ConversationId> ParentsOutside(ExchangeDocument document)
@@ -208,7 +209,8 @@ public static class ImportRules
     /// <summary>The store's contents, with what the plan adds so far.</summary>
     private sealed class Contents(StoredContents stored)
     {
-        private readonly Dictionary<ConversationId, HashSet<MessageId>> _arriving = [];
+        private readonly Dictionary<ConversationId, Dictionary<MessageId, MessageRole>> _messages =
+            stored.Conversations.ToDictionary(c => c.Key, c => c.Value.Messages.Values.ToDictionary(m => m.Id, m => m.Role));
         private readonly HashSet<ConversationId> _summarized = [.. stored.Conversations.Where(c => c.Value.HasSummary).Select(c => c.Key)];
 
         /// <summary>No message or version of it is another conversation's here.</summary>
@@ -238,13 +240,13 @@ public static class ImportRules
                 return Fit.Own;
             }
 
-            if (!Fits(conversation) || lacking.Any(m => held.Messages.ContainsKey(m.Seq)))
+            if (!Fits(conversation) || lacking.Any(m => held.Messages.ContainsKey(m.Seq)) || !FitsBetween(held, lacking))
             {
                 return Fit.Unfit;
             }
 
             // Parents come first, so what the parent gains is known.
-            var source = held is { IsReceived: true, HasSource: false } && content.Source is { } left && conversation.Parent is { } parent && held.Parent == parent && IsThere(parent, left.Message);
+            var source = held is { IsReceived: true, HasSource: false } && content.Source is { } left && conversation.Parent is { } parent && held.Parent == parent && IsThere(parent, left);
             var summary = content.Summary is { } version && !stored.Versions.ContainsKey(version.Id);
             if (lacking.Count == 0 && !source && !summary)
             {
@@ -261,12 +263,37 @@ public static class ImportRules
             .Where(l => _summarized.Contains(l.A) && _summarized.Contains(l.B) && !stored.Linked.Contains(StoredContents.Pair(l.A, l.B)))
             .DistinctBy(l => StoredContents.Pair(l.A, l.B));
 
-        private bool IsThere(ConversationId conversation, MessageId message) =>
-            (stored.Messages.TryGetValue(message, out var at) && at == conversation) || (_arriving.TryGetValue(conversation, out var arriving) && arriving.Contains(message));
+        /// <summary>
+        /// What arrives below a number that is here can only be an attempt another answer replaced, which no context uses:
+        /// anything else would change what the user's own continuations are asked about (§2).
+        /// </summary>
+        private static bool FitsBetween(StoredConversation held, List<ExchangeMessage> lacking)
+        {
+            if (held.Messages.Count == 0 || lacking.Count == 0)
+            {
+                return true;
+            }
+
+            var last = held.Messages.Keys.Max();
+            var merged = held.Messages.Select(m => (Seq: m.Key, m.Value.Role, IsNew: false)).Concat(lacking.Select(m => (m.Seq, m.Role, IsNew: true))).OrderBy(m => m.Seq).ToList();
+            return merged.Zip(merged.Skip(1)).All(p => !p.First.IsNew || p.First.Seq > last || (p.First.Role == MessageRole.Assistant && p.Second.Role == MessageRole.Assistant));
+        }
+
+        private bool IsThere(ConversationId conversation, ExchangeBranchSource source) =>
+            _messages.TryGetValue(conversation, out var messages) && messages.TryGetValue(source.Message, out var role) && CanBeLeft(source, role);
 
         private void Arrive(ConversationId conversation, IReadOnlyList<ExchangeMessage> messages, bool summary)
         {
-            _arriving[conversation] = [.. messages.Select(m => m.Id)];
+            if (!_messages.TryGetValue(conversation, out var held))
+            {
+                _messages[conversation] = held = [];
+            }
+
+            foreach (var message in messages)
+            {
+                held[message.Id] = message.Role;
+            }
+
             if (summary)
             {
                 _summarized.Add(conversation);

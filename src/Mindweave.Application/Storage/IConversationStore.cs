@@ -95,12 +95,12 @@ public interface IConversationStore
 
     /// <summary>
     /// The same for a question asked in a received conversation (decision I4): the conversation is a branch of
-    /// <paramref name="parent"/> that left from <paramref name="leftFrom"/>, its last message, with no sentence, and uses it
-    /// up to there; with null, in an empty one, it left from no message and uses nothing of its ancestors. Throws
+    /// <paramref name="parent"/> that left from its last message, with no sentence, and uses <paramref name="context"/>, which
+    /// ends with it; with none, in an empty one, it left from no message and uses nothing of its ancestors. Throws
     /// <see cref="ConversationArchivedException"/> if the parent is hidden by an archive,
     /// <see cref="ConversationMissingException"/> if it was deleted.
     /// </summary>
-    Task CreateBranchAsync(ConversationId parent, MessageId? leftFrom, Conversation conversation, Message question, Message answer, GenerationTaskRecord task, CancellationToken cancellationToken);
+    Task CreateBranchAsync(ConversationId parent, IReadOnlyList<Core.Branches.ContextSegment> context, Conversation conversation, Message question, Message answer, GenerationTaskRecord task, CancellationToken cancellationToken);
 
     /// <summary>
     /// Appends question + pending answer + task. Sequence numbers are assigned inside the transaction.

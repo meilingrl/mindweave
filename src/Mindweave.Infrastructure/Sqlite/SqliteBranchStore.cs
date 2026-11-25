@@ -64,12 +64,14 @@ internal sealed class SqliteBranchStore(SqliteDatabase database) : IBranchStore
     }
 
     /// <summary>
-    /// Makes a stored conversation a continuation of <paramref name="parent"/>: it left from <paramref name="message"/> with no
-    /// sentence, and uses the parent up to there (decision I4). False when the parent does not hold the message.
+    /// Makes a stored conversation a continuation of <paramref name="parent"/>: it left from the last message of
+    /// <paramref name="context"/>, which is the parent's, with no sentence, and uses exactly that context, whatever has
+    /// arrived since it was read (decision I4). False when the parent does not hold the message.
     /// </summary>
-    internal static bool InsertContinuation(SqliteConnection connection, SqliteTransaction transaction, ConversationId child, ConversationId parent, MessageId message, DateTimeOffset at)
+    internal static bool InsertContinuation(SqliteConnection connection, SqliteTransaction transaction, ConversationId child, ConversationId parent, IReadOnlyList<ContextSegment> context, DateTimeOffset at)
     {
-        if (SeqOf(connection, transaction, parent, message) is not { } seq)
+        var message = context[^1].Messages[^1].Id;
+        if (SeqOf(connection, transaction, parent, message) is null)
         {
             return false;
         }
@@ -77,7 +79,7 @@ internal sealed class SqliteBranchStore(SqliteDatabase database) : IBranchStore
         connection.Execute(transaction,
             "INSERT INTO branch_source (child_id, parent_id, source_message_id, created_at) VALUES ($child, $parent, $message, $at);",
             ("$child", child.ToString()), ("$parent", parent.ToString()), ("$message", message.ToString()), ("$at", at.Ms()));
-        InsertRanges(connection, transaction, child, BranchRules.RangesForChild(parent, ReadRanges(connection, transaction, parent), seq));
+        InsertRanges(connection, transaction, child, BranchRules.RangesOf([.. ReadRanges(connection, transaction, parent).Select(r => r.Ancestor), parent], context));
         return true;
     }
 

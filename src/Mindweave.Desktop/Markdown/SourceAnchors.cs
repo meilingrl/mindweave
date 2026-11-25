@@ -215,7 +215,7 @@ public static class SourceAnchors
             return segments;
         }
 
-        var formulas = Markdig.Markdown.Parse(markdown, MarkdownUpdateProducer.DefaultPipeline).Descendants<MathBlock>()
+        var formulas = AnswerMarkdown.Parse(markdown).Descendants<MathBlock>()
             .Where(f => f.Span.Start > first && f.Span.End < last && f.Span.End < markdown.Length)
             .OrderBy(f => f.Span.Start);
         foreach (var formula in formulas)
@@ -254,7 +254,7 @@ public static class SourceAnchors
 
     /// <summary>What each placeholder of a block stands for, in order: a formula's source, or nothing for a task-list box.</summary>
     private static List<string> EmbeddedObjects(string rawBlock) =>
-        Markdig.Markdown.Parse(rawBlock, MarkdownUpdateProducer.DefaultPipeline)
+        AnswerMarkdown.Parse(rawBlock)
             .Descendants<Markdig.Syntax.Inlines.Inline>()
             .Where(i => i is MathInline or Markdig.Extensions.TaskLists.TaskList)
             .OrderBy(i => i.Span.Start)

@@ -177,11 +177,14 @@ public sealed class ImportContentFlowTests : IDisposable
         var before = await StateAsync(h, "message", "message_block", "branch_source", "branch_context_range", "import_conversation");
 
         h.Client.Reply("Because of the boiler.");
+        var changed = new List<ConversationId>();
+        h.Conversations.ConversationChanged += (_, id) => changed.Add(id);
         var sent = await h.Conversations.AskAsync(branch.Id, "Why did it burst?", Ct);
 
         Assert.True(sent.Accepted, sent.Rejection?.ToString());
         var answer = await h.WaitForAnswerAsync(sent.Answer!.Value);
         Assert.NotEqual(branch.Id, sent.Conversation);
+        Assert.Contains(branch.Id, changed); // A page open on it lists the continuation.
         var own = (await h.Conversations.ListAsync(h.Workspace, Ct)).Single(r => r.Conversation.Id == sent.Conversation);
         Assert.Equal((branch.Id, (string?)null, false), (own.Parent!.Value, own.Quote, own.Conversation.IsImported));
         var source = (await h.Conversations.GetSourceAsync(sent.Conversation, Ct))!;
@@ -304,6 +307,28 @@ public sealed class ImportContentFlowTests : IDisposable
         Assert.Equal([root.Conversation, mine.ConversationId], (await sharer.Branches.GetAncestorContextAsync(further.ConversationId, Ct)).Select(s => s.Conversation));
     }
 
+    /// <summary>A file that arrives while a question is being sent: what is stored as its context is what was sent.</summary>
+    [Fact]
+    public async Task A_source_that_arrives_while_the_question_is_sent_does_not_change_what_it_was_asked_about()
+    {
+        await using var h = await ChatHarness.StartAsync();
+        var (root, branch, twig, document) = ThePath();
+        await ImportAsync(h, document with { Conversations = [root, branch with { Content = branch.Content! with { Source = null } }, twig] });
+        var context = await h.Branches.GetAncestorContextAsync(branch.Id, Ct);
+        Assert.Empty(context);
+        var messages = await h.Store.GetMessagesAsync(branch.Id, Ct);
+        await ImportAsync(h, document);
+
+        var id = ConversationId.New();
+        var question = new Message(MessageId.New(), id, 0, MessageRole.User, [new TextBlock("?")], MessageState.Complete, 0, null, null, null, SharedParts.Day, SharedParts.Day);
+        var answer = new Message(MessageId.New(), id, 1, MessageRole.Assistant, [new TextBlock("")], MessageState.Pending, 0, null, null, null, SharedParts.Day, null);
+        var task = new GenerationTaskRecord(GenerationTaskId.New(), GenerationTaskKind.Answer, id, answer.Id, (await h.Models.GetActiveSnapshotAsync(Ct))!, [question.Id], SharedParts.Day);
+        await h.Store.CreateBranchAsync(branch.Id, [new ContextSegment(branch.Id, null, messages)], new Conversation(id, h.Workspace, null, TitleSource.None, SharedParts.Day, SharedParts.Day), question, answer, task, Ct);
+
+        Assert.Equal([(branch.Id, 1)], await RangesAsync(h, id));
+        Assert.Equal([root.Id, branch.Id], (await h.Conversations.GetLineageAsync(id, Ct)).SkipLast(1).Select(e => e.Conversation.Id));
+    }
+
     /// <summary>Acceptance 10.</summary>
     [Fact]
     public async Task A_title_a_summary_and_an_archive_of_the_users_stay_and_the_files_summary_is_a_further_version()
@@ -381,8 +406,12 @@ public sealed class ImportContentFlowTests : IDisposable
         var continued = await AskForAsync(root.Id, "https://theirs.example/a", "Read that page and https://mine.example/b.");
         await WaitsAsync(continued);
 
-        // Still so in its next question, and in a branch of it; the user's own address needs no asking in either.
+        // Still so when it is tried again, in its next question, and in a branch of it; the user's own address needs no asking in either.
         var own = continued.Sent.Conversation;
+        h.Client.CallTool(FetchPageTool.ToolName, JsonSerializer.Serialize(new { url = "https://theirs.example/a" }));
+        h.Client.Reply("Read.");
+        var retried = await h.Conversations.RetryAsync(own, continued.Sent.Answer!.Value, new SendOptions(WebSearchMode.On), Ct);
+        await WaitsAsync((retried, h.Conversations.Observe(retried.Answer!.Value)!));
         await WaitsAsync(await AskForAsync(own, "https://theirs.example/a", "Once more."));
         var mine = await AskForAsync(own, "https://mine.example/b", "And mine.");
         var answer = await h.WaitForAnswerAsync(mine.Sent.Answer!.Value);
@@ -578,7 +607,9 @@ public sealed class ImportContentFlowTests : IDisposable
         h.Client.Reply(reply);
         var sent = await h.Conversations.StartAsync(h.Workspace, question, Ct);
         Assert.True(sent.Accepted, sent.Rejection?.ToString());
-        return (sent.Conversation, await h.WaitForAnswerAsync(sent.Answer!.Value));
+        var answer = await h.WaitForAnswerAsync(sent.Answer!.Value);
+        await h.TitleEndedAsync(sent.Conversation); // What is stored is compared.
+        return (sent.Conversation, answer);
     }
 
     /// <param name="opens">Asked in a received conversation: the answer is in another one.</param>
@@ -588,7 +619,9 @@ public sealed class ImportContentFlowTests : IDisposable
         var sent = await h.Conversations.AskAsync(id, question, Ct);
         Assert.True(sent.Accepted, sent.Rejection?.ToString());
         Assert.Equal(opens, sent.Conversation != id);
-        return await h.WaitForAnswerAsync(sent.Answer!.Value);
+        var answer = await h.WaitForAnswerAsync(sent.Answer!.Value);
+        await h.TitleEndedAsync(sent.Conversation);
+        return answer;
     }
 
     private static async Task<(ConversationId Conversation, Message Answer)> BranchAsync(ChatHarness h, ConversationId parent, Message answer, string quote, string question, string reply)
@@ -619,7 +652,7 @@ public sealed class ImportContentFlowTests : IDisposable
         var all = tables.Length > 0 ? tables :
         [
             "workspace", "conversation", "branch_source", "branch_context_range", "import", "import_conversation", "conversation_archive", "message", "message_block",
-            "summary_node", "summary_version", "summary_read_state", "summary_link", "generation_task",
+            "summary_node", "summary_version", "summary_read_state", "summary_link",
         ];
         var state = new List<string>();
         foreach (var table in all)

@@ -2,6 +2,7 @@ using System.Text.Json;
 using Microsoft.Data.Sqlite;
 using Mindweave.Application.Recommendations;
 using Mindweave.Application.Storage;
+using Mindweave.Core.Branches;
 using Mindweave.Core.Conversations;
 using Mindweave.Core.Resources;
 using Mindweave.Core.Workspaces;
@@ -84,7 +85,7 @@ internal sealed class SqliteConversationStore(SqliteDatabase database) : IConver
             cancellationToken);
     }
 
-    public Task CreateBranchAsync(ConversationId parent, MessageId? leftFrom, Conversation conversation, Message question, Message answer, GenerationTaskRecord task, CancellationToken cancellationToken)
+    public Task CreateBranchAsync(ConversationId parent, IReadOnlyList<ContextSegment> context, Conversation conversation, Message question, Message answer, GenerationTaskRecord task, CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(conversation);
         return database.WriteAsync(
@@ -92,11 +93,11 @@ internal sealed class SqliteConversationStore(SqliteDatabase database) : IConver
             {
                 SqliteArchive.RequireOpenForWork(connection, transaction, parent);
                 InsertConversation(connection, transaction, conversation);
-                if (leftFrom is not { } last)
+                if (context.Count == 0)
                 {
                     SqliteBranchStore.InsertWithoutSource(connection, transaction, conversation.Id, parent, conversation.CreatedAt);
                 }
-                else if (!SqliteBranchStore.InsertContinuation(connection, transaction, conversation.Id, parent, last, conversation.CreatedAt))
+                else if (!SqliteBranchStore.InsertContinuation(connection, transaction, conversation.Id, parent, context, conversation.CreatedAt))
                 {
                     // Messages go only with their conversation: it was deleted, and its identity came back empty.
                     throw new ConversationMissingException();

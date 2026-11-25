@@ -133,13 +133,11 @@ public static partial class UiText
     public static string ActivityCount(Core.Conversations.ActivityCountBlock counts)
     {
         ArgumentNullException.ThrowIfNull(counts);
-        var named = RunActivity(
-            new[] { ("search_attachments", counts.AttachmentSearches), ("search_summaries", counts.SummarySearches), ("web_search", counts.WebSearches), ("fetch_page", counts.PagesRead) }
-                .SelectMany(c => Enumerable.Repeat(c.Item1, c.Item2)));
-        var other = counts.OtherCalls == 0 ? string.Empty : T(
-            Plural(counts.OtherCalls, "call", "calls") + " to other tools",
-            string.Format(CultureInfo.InvariantCulture, "调用了 {0} 次其他工具", counts.OtherCalls));
-        return string.Join(" · ", new[] { named, other }.Where(t => t.Length > 0));
+        return string.Join(" · ", new[]
+        {
+            ("search_attachments", counts.AttachmentSearches), ("search_summaries", counts.SummarySearches), ("web_search", counts.WebSearches), ("fetch_page", counts.PagesRead),
+            (string.Empty, counts.OtherCalls),
+        }.Where(c => c.Item2 > 0).Select(c => ToolCalls(c.Item1, T("other tools", "其他工具"), c.Item2)));
     }
 
     /// <summary>The tip of the way back from a continuation.</summary>

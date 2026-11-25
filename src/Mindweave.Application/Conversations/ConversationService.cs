@@ -309,7 +309,6 @@ public sealed partial class ConversationService : IConversations
 
         // What the received conversation holds now is what the question was asked about, whatever a file adds meanwhile.
         var chain = parent is { } left ? await ContinuedAsync(left, cancellationToken).ConfigureAwait(false) : [];
-        var leftFrom = chain.Count > 0 ? chain[^1].Messages[^1].Id : (MessageId?)null;
 
         var now = _clock.UtcNow;
         var conversation = new Conversation(id, workspace, null, TitleSource.None, now, now);
@@ -329,7 +328,7 @@ public sealed partial class ConversationService : IConversations
         try
         {
             await (parent is { } received
-                ? _store.CreateBranchAsync(received, leftFrom, conversation, user, answer, task, cancellationToken)
+                ? _store.CreateBranchAsync(received, chain, conversation, user, answer, task, cancellationToken)
                 : _store.CreateAsync(conversation, user, answer, task, from, cancellationToken)).ConfigureAwait(false);
         }
         catch (StorageWriteException ex)
@@ -346,6 +345,11 @@ public sealed partial class ConversationService : IConversations
         }
 
         await EnqueueAsync(task, model, plan, budget, answer, inputs, run, whole);
+        if (parent is { } continued)
+        {
+            ConversationChanged?.Invoke(this, continued);
+        }
+
         ConversationChanged?.Invoke(this, id);
         return new SendOutcome(null, id, answer.Id);
     }

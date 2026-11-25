@@ -360,7 +360,7 @@ public sealed partial class AnswerView : UserControl
     /// <summary>A finished answer's document: its cited [n] made clickable when it has 出处.</summary>
     private Markdig.Syntax.MarkdownDocument Parse(string markdown)
     {
-        var document = Markdig.Markdown.Parse(markdown, MarkdownUpdateProducer.DefaultPipeline);
+        var document = AnswerMarkdown.Parse(markdown);
         if (_item is { HasCitations: true } item)
         {
             CitationLinks.Apply(document, item.CitationNumbers);

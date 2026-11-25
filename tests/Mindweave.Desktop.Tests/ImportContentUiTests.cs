@@ -153,7 +153,7 @@ public sealed class ImportContentUiTests : IDisposable
         Assert.False(page.AttachmentViewer.IsOpen);
 
         Assert.False(answer.HasActivity);
-        Assert.Equal("检索了 1 次附件 · 搜索了 2 次 · 读了 1 个网页 · 调用了 3 次其他工具", answer.ActivityCountText);
+        Assert.Equal("检索了 1 次附件 · 搜索了 2 次 · 读了 1 个网页 · 调用了 3 次 其他工具", answer.ActivityCountText);
         Assert.Contains(Parts<StackPanel>(window), p => p.Name == "ActivityCount" && p.IsEffectivelyVisible);
         Assert.DoesNotContain(Parts<StackPanel>(window), p => p.Name == "RunActivityPanel" && p.IsEffectivelyVisible);
 
@@ -252,6 +252,7 @@ public sealed class ImportContentUiTests : IDisposable
 
         await UiWait.UntilAsync(() => page.Messages[1].Branches is [{ IsContinuation: true }]);
         Assert.Equal(sent.Conversation, page.Messages[1].Branches[0].Child);
+        await UiWait.UntilAsync(() => !app.Services.GetRequiredService<ConversationService>().HasUnfinishedAnswer(sent.Conversation));
     }
 
     /// <summary>Acceptance 6: the file's anchor marks the sentence when this app can use it; otherwise the way back leads to the answer.</summary>
@@ -374,6 +375,27 @@ public sealed class ImportContentUiTests : IDisposable
 
         Assert.False(page.AttachmentViewer.IsOpen);
         Assert.False(File.Exists(trap));
+    }
+
+    /// <summary>§4: text too deeply nested for Markdown is shown as it was written, and can be shared again.</summary>
+    [AvaloniaFact]
+    public async Task Text_nested_too_deeply_is_shown_as_it_is()
+    {
+        await using var app = DesktopHarness.Create();
+        var window = app.ShowWindow(1000, 700);
+        await app.StartWithWorkspaceAsync("历史");
+        var nested = new string('>', 400) + " 深处```";
+        var root = SharedParts.Conversation(null, "深", null, SharedParts.Question(0, "多深？"), SharedParts.Answer(1, nested)).With(SharedParts.Summary("深", 1) with { Body = nested });
+        await ImportAsync(app, SharedParts.Document(root));
+        await Assert.IsType<ConversationViewModel>(app.Workbench.CurrentPage).Loaded;
+        await UiWait.AnswersRenderedAsync(window);
+        window.UpdateLayout();
+
+        Assert.Contains("深处", string.Concat(SourceAnchors.Blocks(Assert.Single(Answers(window)).Renderer).Select(b => b.LayoutText)), StringComparison.Ordinal);
+        var workspace = app.Workbench.CurrentWorkspace!.Id;
+        var source = await app.Services.GetRequiredService<IShares>().ReadAsync(workspace, CancellationToken.None);
+        var back = await app.Services.GetRequiredService<IShareContents>().BuildAsync("深", workspace, source, ShareSelection.Exploration(source.Parents, root.Id), SharedParts.Day, "0.7.0", CancellationToken.None);
+        Assert.Contains("深处", SharePage.Format(back, app.Services.GetRequiredService<IShareMarkdown>()), StringComparison.Ordinal);
     }
 
     private async Task<ImportViewModel> OpenAsync(DesktopHarness app, ExchangeDocument document)

@@ -208,12 +208,17 @@ public sealed class SharedFileReader : ISharedFileReader
             ReplacedBy = message.TryGetProperty("replaced_by", out var replacedBy) ? new MessageId(Guid(replacedBy)) : null,
         };
 
-    private static ExchangeActivity Activity(JsonElement activity) => new(
-        Number(activity.GetProperty("attachment_searches")),
-        Number(activity.GetProperty("summary_searches")),
-        Number(activity.GetProperty("web_searches")),
-        Number(activity.GetProperty("pages_read")),
-        Number(activity.GetProperty("other_calls")));
+    /// <summary>Counts of nothing are none.</summary>
+    private static ExchangeActivity? Activity(JsonElement activity)
+    {
+        var counts = new ExchangeActivity(
+            Number(activity.GetProperty("attachment_searches")),
+            Number(activity.GetProperty("summary_searches")),
+            Number(activity.GetProperty("web_searches")),
+            Number(activity.GetProperty("pages_read")),
+            Number(activity.GetProperty("other_calls")));
+        return counts == new ExchangeActivity(0, 0, 0, 0, 0) ? null : counts;
+    }
 
     /// <summary>A title is kept on one line, cut where it is longer than any name; only a web page's address is one to open.</summary>
     private static ExchangeCitation Citation(JsonElement citation)
@@ -235,11 +240,13 @@ public sealed class SharedFileReader : ISharedFileReader
             citation.TryGetProperty("conversation", out var conversation) ? Identity(conversation) : null);
     }
 
+    /// <summary>An address of the web that is still one written out, as it is stored and read back.</summary>
     private static Uri Address(JsonElement value)
     {
         var text = Text(value);
         return text.Length <= ImportLimits.MaxAddressLength && Uri.TryCreate(text, UriKind.Absolute, out var url) && (url.Scheme == Uri.UriSchemeHttp || url.Scheme == Uri.UriSchemeHttps)
-            ? url
+            && url.Host.Length > 0 && Uri.TryCreate(url.AbsoluteUri, UriKind.Absolute, out var again) && again.AbsoluteUri == url.AbsoluteUri
+            ? again
             : throw new FormatException("An address is none of the web's.");
     }
 

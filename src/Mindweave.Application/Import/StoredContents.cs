@@ -4,10 +4,13 @@ using Mindweave.Core.Summaries;
 
 namespace Mindweave.Application.Import;
 
-/// <summary>What the store has of a conversation that is also in the file.</summary>
+/// <summary>A stored message, as far as a comparison needs it.</summary>
+public readonly record struct StoredMessage(MessageId Id, MessageRole Role);
+
+/// <summary>What the store has of a conversation that is also in the file, or that one of the file's hangs off.</summary>
 /// <param name="HasSource">It is a branch that left from a message.</param>
 /// <param name="Messages">Its messages by their numbers, whatever the file holds.</param>
-public sealed record StoredConversation(ConversationId? Parent, bool IsReceived, bool HasSource, bool HasSummary, IReadOnlyDictionary<int, MessageId> Messages);
+public sealed record StoredConversation(ConversationId? Parent, bool IsReceived, bool HasSource, bool HasSummary, IReadOnlyDictionary<int, StoredMessage> Messages);
 
 /// <summary>
 /// What the store has of the file's contents, by identity: what its messages and summary versions are compared with

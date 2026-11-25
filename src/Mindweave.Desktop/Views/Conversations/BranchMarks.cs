@@ -222,7 +222,7 @@ internal sealed class BranchMarks : Canvas
 
     private static void Describe(Button mark, MessageItemViewModel answer)
     {
-        var label = answer.Branches.Count > 0 ? UiText.BranchMark(answer.Branches.Count, answer.Branches[0].Named) : null;
+        var label = answer.Branches.Count > 0 ? UiText.BranchMarkOf(answer.Branches.Count, answer.Branches[0].Named) : null;
         if (!Equals(ToolTip.GetTip(mark), label))
         {
             ToolTip.SetTip(mark, label);

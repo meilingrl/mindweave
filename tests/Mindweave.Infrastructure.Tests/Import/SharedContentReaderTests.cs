@@ -88,6 +88,7 @@ public sealed class SharedContentReaderTests : IDisposable
         { "\"url\":\"https:", "\"url\":\"file:" },
         { "\"url\":\"https:", "\"url\":\"javascript:" },
         { "\"url\":\"https://example.org/a", "\"url\":\"a" },
+        { "\"url\":\"https://example.org/a?b=c\\u0026d=%20e\"", "\"url\":\"https://\\u202e/a\"" }, // a host of nothing but a control character: written out it is no address any more
         { $"\"replaced_by\":\"{Told.Id}\"", $"\"replaced_by\":\"{Asked.Id}\"" },
         { $"\"message\":\"{Earlier.Id}\"", $"\"message\":\"{Asked.Id}\"" },
         { $"\"message\":\"{Earlier.Id}\"", "\"message\":\"0190f000-0000-7000-8000-000000000999\"" },
@@ -125,6 +126,14 @@ public sealed class SharedContentReaderTests : IDisposable
         {
             Assert.Equal(ImportRefusal.Damaged, (await ReadAsync(SharePage.Format(document, new PlainMarkdown()))).Refusal);
         }
+    }
+
+    /// <summary>Counts of nothing are no counts: there is no line to show.</summary>
+    [Fact]
+    public async Task An_answer_that_used_no_tool_has_no_counts()
+    {
+        var read = await ReadAsync(Changed("\"attachment_searches\":1,\"summary_searches\":2,\"web_searches\":3,\"pages_read\":4,\"other_calls\":5", "\"attachment_searches\":0,\"summary_searches\":0,\"web_searches\":0,\"pages_read\":0,\"other_calls\":0"));
+        Assert.Null(read.Document!.Conversations[0].Content!.Messages[^1].Activity);
     }
 
     /// <summary>A NUL would end a text for the database's own checks; Markdown reads it as U+FFFD.</summary>

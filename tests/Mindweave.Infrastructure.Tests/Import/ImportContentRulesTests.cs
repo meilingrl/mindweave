@@ -78,6 +78,36 @@ public sealed class ImportContentRulesTests
         Assert.Equal([Branch.Id], plan.New.Select(c => c.Id));
     }
 
+    /// <summary>
+    /// Numbers below what is here can only be attempts that were replaced: anything else would slip into the context of what
+    /// the user already continued, which is never rewritten.
+    /// </summary>
+    [Fact]
+    public void Between_what_is_here_only_a_replaced_attempt_arrives()
+    {
+        var (late, lateAnswer) = (SharedParts.Question(4, "Later?"), SharedParts.Answer(6, "Later."));
+        var stored = Stored((Root, true, false, true, [Asked, Told, late, lateAnswer]));
+        ImportPlan With(params ExchangeMessage[] messages) =>
+            ImportRules.Plan(SharedParts.Document(Root with { Content = Root.Content! with { Messages = messages } }), Held((Root, Here)), Here, stored with { Versions = new Dictionary<SummaryVersionId, ConversationId> { [Root.Content!.Summary!.Id] = Root.Id } })!;
+
+        Assert.Equal(1, With(Asked, Told, AskedMore, ToldMore, late, lateAnswer).Unfit);
+        Assert.Equal(1, With(Asked, Told, SharedParts.Question(5, "Between?"), lateAnswer).Unfit);
+        Assert.Equal(1, With(Asked, Told, SharedParts.Answer(2, "Another answer to the first."), late, lateAnswer).Unfit);
+        Assert.Single(With(Asked, Told, late, SharedParts.Answer(5, "Earlier.") with { ReplacedBy = lateAnswer.Id }, lateAnswer).Gains);
+        Assert.Single(With(Asked, Told, late, SharedParts.Answer(5, "It stood when an older file was made.")).Gains);
+        Assert.Single(With(Asked, Told, late, lateAnswer, SharedParts.Question(7, "And now?")).Gains);
+    }
+
+    /// <summary>Whether it is an answer is asked of what is here, not of what the file says it is.</summary>
+    [Fact]
+    public void A_sentence_is_never_left_from_a_stored_question()
+    {
+        var branch = Branch with { Content = Branch.Content! with { Source = SharedParts.From(Asked, "trains") } };
+        var stored = Stored((Root, true, false, true, [.. Root.Content!.Messages]), (Branch, true, false, true, [.. Branch.Content!.Messages]));
+        var plan = ImportRules.Plan(SharedParts.Document(branch), Held((Root, Here), (Branch, Here)), Here, stored with { Versions = new Dictionary<SummaryVersionId, ConversationId> { [Branch.Content.Summary!.Id] = Branch.Id } })!;
+        Assert.True(plan.IsEmpty);
+    }
+
     [Fact]
     public void An_identity_another_conversation_has_skips_a_new_one_with_its_branches()
     {
@@ -215,7 +245,7 @@ public sealed class ImportContentRulesTests
     private static StoredContents Stored(params (ExchangeConversation Conversation, bool Received, bool Source, bool Summary, ExchangeMessage[] Messages)[] held) =>
         StoredContents.Nothing with
         {
-            Conversations = held.ToDictionary(h => h.Conversation.Id, h => new StoredConversation(h.Conversation.Parent, h.Received, h.Source, h.Summary, h.Messages.ToDictionary(m => m.Seq, m => m.Id))),
+            Conversations = held.ToDictionary(h => h.Conversation.Id, h => new StoredConversation(h.Conversation.Parent, h.Received, h.Source, h.Summary, h.Messages.ToDictionary(m => m.Seq, m => new StoredMessage(m.Id, m.Role)))),
             Messages = held.SelectMany(h => h.Messages.Select(m => (m.Id, h.Conversation.Id))).ToDictionary(m => m.Item1, m => m.Item2),
         };
 }
