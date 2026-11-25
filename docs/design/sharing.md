@@ -280,6 +280,7 @@ A reviewer read this design against the code as a builder would. Its questions a
 8. **Where sentences of two branches overlap**, the shorter one is on top, and two branches from the same words share one mark that leads to the first; both are listed under the answer.
 9. **Data the page does not show.** Message identities, sequence numbers, how far a summary covers, and a branch's position and anchor serve only an importing app. They hold no text of their own beyond the quote. A gap in the numbers tells that something was left out, such as a replaced attempt, but not what. The dialog's list names the identities, the numbers and the coverage (owner, 2026-11-25).
 10. **Printing** shows every answer of the chosen conversation in full. It does not print the other conversations.
+11. **The dialog's list of what leaves** (owner, 2026-11-25) is a card apart from the notes. What a reader can read stands out in it, one labelled row each, as a warning once message text leaves. The rest of what is in the file, and what is not, are quiet rows below.
 
 ## 7. Left to the builder
 
