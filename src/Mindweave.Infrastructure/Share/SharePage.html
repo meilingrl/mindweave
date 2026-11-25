@@ -4,11 +4,30 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <!-- The file is all there is: the page may load nothing from anywhere. -->
+{{#structure}}
 <meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'; script-src 'unsafe-inline'; img-src data:; base-uri 'none'; form-action 'none'">
+{{/structure}}
+{{#content}}
+<!-- Only the file's own scripts may run, each named by its hash: nothing written in a conversation can. -->
+{{/content}}
+{{#plain}}
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'; script-src {{script-hashes}}; img-src data:; base-uri 'none'; form-action 'none'">
+{{/plain}}
+{{#math}}
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'; script-src {{script-hashes}}; img-src data:; font-src data:; base-uri 'none'; form-action 'none'">
+{{/math}}
 <meta name="referrer" content="no-referrer">
 <meta name="generator" content="Mindweave">
 <link rel="icon" href="data:,">
 <title>Mindweave</title>
+{{#math}}
+<!-- KaTeX 0.19.1, which draws the formulas. Its fonts: Copyright (c) 2009-2010, Design Science, Inc.; Copyright (c) 2014-2018
+Khan Academy, with Reserved Font Names KaTeX_*; SIL Open Font License 1.1 (scripts.sil.org/OFL), as named inside each font.
+
+{{katex-licence}}
+-->
+<style>{{katex-style}}</style>
+{{/math}}
 <style>
 :root {
   color-scheme: light;
@@ -16,6 +35,9 @@
   --text: #1C1917; --muted: #78716C;
   --canvas: #FCFCFB; --dot: #4B6BFB; --dot-hover: #6F89FF; --halo: #DCE3FF; --ring: #2B47CC;
   --label: #1F2430; --caption: #8A8F99; --edge: #A1A9B7;
+{{#content}}
+  --link: #2563EB; --bubble: #F0EFED; --mark: #FDE68A; --mark-text: #1C1917; --mark-line: #B45309; --bold: #6B4A33;
+{{/content}}
 }
 :root[data-theme="dark"] {
   color-scheme: dark;
@@ -23,6 +45,9 @@
   --text: #E6E8EE; --muted: #9299A6;
   --canvas: #18191B; --dot: #B4BACD; --dot-hover: #D5D9E6; --halo: #26324D; --ring: #C1C6FA;
   --label: #CBD0DA; --caption: #858B97; --edge: #5A616C;
+{{#content}}
+  --link: #A9B8F5; --bubble: #26282E; --mark: #6E5210; --mark-text: #FFFFFF; --mark-line: #E0B458; --bold: #E6D2BC;
+{{/content}}
 }
 * { box-sizing: border-box; }
 html { -webkit-text-size-adjust: 100%; }
@@ -82,12 +107,86 @@ h2 { font-size: 13px; font-weight: 600; color: var(--muted); margin: 26px 0 8px;
 .pick:empty { display: none; }
 .pick .t { font-weight: 600; overflow-wrap: anywhere; }
 .pick .m { color: var(--muted); font-size: 12px; }
+{{#content}}
+
+.conv { margin-top: 26px; border-top: 1px solid var(--divider); padding-top: 18px; scroll-margin-top: 8px; }
+.conv h3 { font-size: 19px; line-height: 1.35; margin: 0 0 2px; font-weight: 650; overflow-wrap: anywhere; }
+.conv .meta { color: var(--muted); font-size: 12px; margin-bottom: 12px; }
+.from { display: block; margin: 0 0 14px; padding: 8px 12px; border-left: 3px solid var(--mark-line); background: var(--card);
+  border-radius: 0 8px 8px 0; font-size: 13px; overflow-wrap: anywhere; }
+.from .quote { white-space: pre-line; }
+.conv a, .linkish { color: var(--link); text-decoration: none; cursor: pointer; background: none; border: 0; padding: 0; text-align: left; overflow-wrap: anywhere; }
+.conv a:hover, .linkish:hover { text-decoration: underline; }
+.summary { border: 1px solid var(--card-border); background: var(--card); border-radius: 10px; margin: 0 0 18px; }
+.summary > summary { cursor: pointer; padding: 9px 14px; font-weight: 600; font-size: 13px; overflow-wrap: anywhere; }
+.summary .body { padding: 0 14px 4px; }
+.turn { margin: 18px 0 0; }
+.q { margin-left: auto; width: fit-content; max-width: 86%; background: var(--bubble); border-radius: 14px; padding: 8px 14px;
+  white-space: pre-wrap; overflow-wrap: anywhere; }
+.attrow { text-align: right; }
+.att { display: inline-block; margin: 6px 0 0 6px; max-width: 100%; font-size: 12px; color: var(--muted); border: 1px solid var(--card-border);
+  border-radius: 6px; padding: 1px 8px; overflow-wrap: anywhere; text-align: left; }
+.activity { color: var(--muted); font-size: 12px; margin: 10px 0 6px; }
+.a { margin-top: 8px; }
+.a.earlier { margin-left: 2px; padding-left: 12px; border-left: 2px solid var(--divider); }
+.a .label { margin: 0 0 4px; color: var(--muted); font-size: 12px; }
+.fold { font-size: 12px; color: var(--muted); background: none; border: 0; padding: 2px 0; cursor: pointer; }
+.fold:hover { color: var(--text); }
+.left { margin: 4px 0 0; padding: 0; list-style: none; font-size: 13px; }
+.left li { display: flex; gap: 6px; align-items: baseline; padding: 1px 0; }
+.left li::before { content: "↳"; color: var(--mark-line); }
+.left .n { color: var(--muted); font-size: 12px; white-space: nowrap; }
+.a > .badge, .turn > .badge { margin-left: 0; }
+.cites { margin: 6px 0 0; font-size: 12px; color: var(--muted); }
+.cites summary { cursor: pointer; }
+.cites ol { margin: 4px 0 0; padding: 0; list-style: none; }
+.cites li { overflow-wrap: anywhere; border-radius: 4px; }
+
+/* What was answered, as the app draws it. Space between blocks is above each, so hiding the last of them leaves none. */
+.md { overflow-wrap: anywhere; }
+.md > * { margin: 0 0 10px; }
+.md p, .md ul, .md ol, .md blockquote, .md pre { margin: 0 0 10px; }
+.md h1, .md h2, .md h3, .md h4, .md h5, .md h6 { color: var(--text); letter-spacing: 0; line-height: 1.4; font-weight: 650; margin: 16px 0 6px; }
+.md h1 { font-size: 19px; } .md h2 { font-size: 17px; } .md h3 { font-size: 15px; } .md h4, .md h5, .md h6 { font-size: 14px; }
+.md > :first-child { margin-top: 0; }
+.md ul, .md ol { padding-left: 24px; }
+.md li > * { margin: 0 0 4px; }
+.md li.task { list-style: none; }
+.md strong { font-weight: 500; color: var(--bold); }
+.md code, .md pre { font: 12.5px/1.6 ui-monospace, Menlo, Consolas, monospace; background: var(--panel); border-radius: 4px; }
+.md code { padding: 1px 5px; }
+.md pre { padding: 10px 12px; border-radius: 8px; overflow-x: auto; overflow-wrap: normal; white-space: pre; }
+.md blockquote { padding-left: 12px; border-left: 3px solid var(--divider); color: var(--muted); }
+.md hr { border: 0; border-top: 1px solid var(--divider); margin: 14px 0; }
+.md .scroll { overflow-x: auto; }
+.md table { border-collapse: collapse; overflow-wrap: normal; }
+.md th, .md td { border: 1px solid var(--divider); padding: 5px 10px; text-align: left; vertical-align: top; }
+.md th { background: var(--panel); font-weight: 600; }
+.md td > p, .md th > p { margin: 0; }
+.md .hl { background: var(--halo); }
+.md ul { list-style: disc; }
+.md sup, .md sub { line-height: 0; }
+.md .formula { overflow-x: auto; overflow-y: hidden; padding: 2px 0; text-align: center; }
+.md .source { font-family: ui-monospace, Menlo, Consolas, monospace; font-size: 12.5px; white-space: pre-wrap; }
+.md .cut { display: none; }
+.folded .md > .clip { max-height: 11em; overflow: hidden;
+  -webkit-mask-image: linear-gradient(#000 60%, transparent); mask-image: linear-gradient(#000 60%, transparent); }
+.conv .c { color: var(--link); font-size: 11px; vertical-align: super; line-height: 0; background: none; border: 0; padding: 0; cursor: pointer; }
+mark { background: var(--mark); color: var(--mark-text); border-bottom: 1.5px solid var(--mark-line); border-radius: 2px; padding: 0 1px; cursor: pointer; }
+mark * { color: inherit; }
+.flash { animation: flash 1.6s ease-out; }
+@keyframes flash { from { box-shadow: 0 0 0 3px var(--ring); } to { box-shadow: 0 0 0 3px transparent; } }
+@media (prefers-reduced-motion: reduce) { .flash { animation: none; outline: 2px solid var(--ring); } }
+{{/content}}
 footer { margin-top: 44px; padding-top: 14px; border-top: 1px solid var(--divider); color: var(--muted); font-size: 12px; }
 
 @media (max-width: 560px) {
   header h1 { font-size: 21px; }
   /* A nested outline keeps room for its titles. */
   .outline ul { padding-left: 10px; margin-left: 5px; }
+{{#content}}
+  .q { max-width: 94%; }
+{{/content}}
 }
 /* A printed page is light whatever the screen shows, and the whole picture fits its width. */
 @media print {
@@ -97,6 +196,9 @@ footer { margin-top: 44px; padding-top: 14px; border-top: 1px solid var(--divide
     --text: #1C1917; --muted: #78716C;
     --canvas: #FCFCFB; --dot: #4B6BFB; --dot-hover: #6F89FF; --halo: #DCE3FF; --ring: #2B47CC;
     --label: #1F2430; --caption: #8A8F99; --edge: #A1A9B7;
+{{#content}}
+    --link: #2563EB; --bubble: #F0EFED; --mark: #FDE68A; --mark-text: #1C1917; --mark-line: #B45309; --bold: #6B4A33;
+{{/content}}
   }
   @page { margin: 14mm; }
   .page { padding: 0; max-width: none; }
@@ -105,6 +207,12 @@ footer { margin-top: 44px; padding-top: 14px; border-top: 1px solid var(--divide
   .stage { zoom: var(--fit, 1); }
   .outline button { break-inside: avoid; }
   .pick { position: static; }
+{{#content}}
+  .fold { display: none; }
+  .md .cut { display: revert; }
+  .folded .md > .clip { max-height: none; overflow: visible; -webkit-mask-image: none; mask-image: none; }
+  .q, .from, .summary, .md pre, .md tr { break-inside: avoid; }
+{{/content}}
 }
 </style>
 </head>
@@ -117,12 +225,22 @@ footer { margin-top: 44px; padding-top: 14px; border-top: 1px solid var(--divide
 
 <!-- What the share holds: the exchange data Mindweave reads, and the only thing the page draws from. -->
 <script type="application/json" id="mindweave-export">{{data}}</script>
+{{#content}}
+
+<!-- The same answers and summaries as they are drawn: elements by name, never markup. Made from the data above when it was saved. -->
+<script type="application/json" id="page-drawn">{{drawn}}</script>
+{{/content}}
 
 <!-- The page's own words. A pair is one and many. -->
 <script type="application/json" id="page-text">{
   "en": {
     "locale": "en-GB",
+{{#structure}}
     "how": "A path of questions. Each dot is a conversation; a line shows where one conversation branched off from another. This page shows the shape of the path, not what was said.",
+{{/structure}}
+{{#content}}
+    "how": "A path of questions. Each dot is a conversation; a line shows where one branched off from another. Choose a dot to read it. Answers are folded: the questions are the path.",
+{{/content}}
     "explorations": ["{n} exploration", "{n} explorations"],
     "conversations": ["{n} conversation", "{n} conversations"],
     "questions": ["{n} question", "{n} questions"],
@@ -133,7 +251,35 @@ footer { margin-top: 44px; padding-top: 14px; border-top: 1px solid var(--divide
     "started": "Started {time}",
     "has_summary": "has a summary",
     "untitled": "Untitled conversation",
+{{#structure}}
     "foot": "Made with Mindweave. Open this file in Mindweave to explore these directions yourself.",
+{{/structure}}
+{{#content}}
+    "foot": "Made with Mindweave. Open this file in Mindweave to continue asking from here.",
+    "left_from": "Left from",
+    "back": "Back to where this left from",
+    "summary": "Summary",
+    "show_all": "Show all",
+    "show_less": "Show less",
+    "branches": "Branches that left from this answer",
+    "into": "Read the branch: {name}",
+    "earlier": "An earlier answer, kept because a branch left from it",
+    "incomplete": "incomplete",
+    "attachment": "Attachment: {name}",
+    "pasted": "Pasted text",
+    "citations": ["{n} citation", "{n} citations"],
+    "to_citation": "Citation {n}",
+    "cite_attachment": "An attachment",
+    "cite_material": "Material found earlier",
+    "cite_summary": "A summary",
+    "cite_shared_summary": "Summary: {name}",
+    "attachment_searches": ["{n} attachment search", "{n} attachment searches"],
+    "summary_searches": ["{n} summary search", "{n} summary searches"],
+    "web_searches": ["{n} web search", "{n} web searches"],
+    "pages_read": ["{n} web page read", "{n} web pages read"],
+    "other_calls": ["{n} call to another tool", "{n} calls to other tools"],
+    "link_note": "Summary link: {note}",
+{{/content}}
     "saved": "Saved {time} · Mindweave {version}",
     "language": "Page language",
     "theme": "Theme",
@@ -142,7 +288,12 @@ footer { margin-top: 44px; padding-top: 14px; border-top: 1px solid var(--divide
   },
   "zh": {
     "locale": "zh-CN",
+{{#structure}}
     "how": "一条由提问组成的路径。每个点是一次会话，连线表示一次会话从另一次会话的哪里分出。本页只展示路径的形状，不包含对话内容。",
+{{/structure}}
+{{#content}}
+    "how": "一条由提问组成的路径。每个点是一次会话，连线表示它从哪里分出。点一个点即可阅读。回答默认折叠：问题才是路径。",
+{{/content}}
     "explorations": ["{n} 个探索", "{n} 个探索"],
     "conversations": ["{n} 次会话", "{n} 次会话"],
     "questions": ["{n} 个问题", "{n} 个问题"],
@@ -153,7 +304,35 @@ footer { margin-top: 44px; padding-top: 14px; border-top: 1px solid var(--divide
     "started": "开始于 {time}",
     "has_summary": "有总结",
     "untitled": "未命名会话",
+{{#structure}}
     "foot": "由 Mindweave 生成。在 Mindweave 中打开此文件，可以自己沿这些方向探索。",
+{{/structure}}
+{{#content}}
+    "foot": "由 Mindweave 生成。在 Mindweave 中打开此文件，可以从这里继续提问。",
+    "left_from": "分出自",
+    "back": "回到分出的位置",
+    "summary": "总结",
+    "show_all": "展开全部",
+    "show_less": "收起",
+    "branches": "从这条回答分出的分支",
+    "into": "阅读分支：{name}",
+    "earlier": "较早的回答，因为有分支从这里分出而保留",
+    "incomplete": "未完成",
+    "attachment": "附件：{name}",
+    "pasted": "粘贴的文字",
+    "citations": ["{n} 条出处", "{n} 条出处"],
+    "to_citation": "出处 {n}",
+    "cite_attachment": "一个附件",
+    "cite_material": "较早取得的材料",
+    "cite_summary": "一篇总结",
+    "cite_shared_summary": "总结：{name}",
+    "attachment_searches": ["检索了 {n} 次附件", "检索了 {n} 次附件"],
+    "summary_searches": ["检索了 {n} 次总结", "检索了 {n} 次总结"],
+    "web_searches": ["搜索了 {n} 次", "搜索了 {n} 次"],
+    "pages_read": ["读了 {n} 个网页", "读了 {n} 个网页"],
+    "other_calls": ["调用了 {n} 次其他工具", "调用了 {n} 次其他工具"],
+    "link_note": "内容关联：{note}",
+{{/content}}
     "saved": "保存于 {time} · Mindweave {version}",
     "language": "页面语言",
     "theme": "主题",
@@ -162,10 +341,16 @@ footer { margin-top: 44px; padding-top: 14px; border-top: 1px solid var(--divide
   }
 }</script>
 
+{{#math}}
+<script>{{katex-script}}</script>
+{{/math}}
 <script>
 "use strict";
 const DATA = JSON.parse(document.getElementById("mindweave-export").textContent);
 const TEXT = JSON.parse(document.getElementById("page-text").textContent);
+{{#content}}
+const DRAWN = JSON.parse(document.getElementById("page-drawn").textContent);
+{{/content}}
 
 // ── Elements. Text is always set as text, never as markup. ──────────────────────────────────────────────────────────
 const apply = (e, attrs, kids) => {
@@ -290,7 +475,13 @@ function render() {
   for (const l of DATA.links) if (byId.has(l.a) && byId.has(l.b)) {
     // Bowed, so a link along a lane does not lie on the lane's own line.
     const a = pos.get(l.a), b = pos.get(l.b), dx = X(b) - X(a), dy = Y(b) - Y(a), bow = 34 / Math.max(1, Math.hypot(dx, dy));
+{{#structure}}
     drawing.append(svg("path", { class: "edge link", d: `M${X(a)},${Y(a)} Q${(X(a) + X(b)) / 2 + dy * bow},${(Y(a) + Y(b)) / 2 - dx * bow} ${X(b)},${Y(b)}` }));
+{{/structure}}
+{{#content}}
+    drawing.append(svg("path", { class: "edge link", d: `M${X(a)},${Y(a)} Q${(X(a) + X(b)) / 2 + dy * bow},${(Y(a) + Y(b)) / 2 - dx * bow} ${X(b)},${Y(b)}` },
+      l.note ? svg("title", {}, say(t.link_note, { note: l.note })) : null));
+{{/content}}
   }
   for (const c of convs) {
     const p = pos.get(c.id), x = X(p), y = Y(p), r = radius(c.weight);
@@ -300,9 +491,16 @@ function render() {
       c.has_summary ? svg("circle", { class: "sring", cx: x, cy: y, r: r + 3.5 }) : null,
       svg("circle", { class: "sel", cx: x, cy: y, r: r + (c.has_summary ? 6.5 : 3.5) }),
       dot);
+{{#structure}}
     dot.addEventListener("click", () => choose(c.id));
     dot.addEventListener("keydown", e => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); choose(c.id); } });
     const label = $("div", { class: "lbl", title: name(c), "aria-hidden": "true", onclick: () => choose(c.id) }, name(c));
+{{/structure}}
+{{#content}}
+    dot.addEventListener("click", () => read(c.id));
+    dot.addEventListener("keydown", e => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); read(c.id); } });
+    const label = $("div", { class: "lbl", title: name(c), "aria-hidden": "true", onclick: () => read(c.id) }, name(c));
+{{/content}}
     label.style.left = x + "px";
     p.lane < 0 ? label.style.bottom = (H - y + r + 9) + "px" : label.style.top = (y + r + 9) + "px";
     drawing.append(node);
@@ -324,7 +522,12 @@ function render() {
     if (dayStarts.has(r.id) && roots.length > 1) outline.append($("li", { class: "rootday" }, day(r.at)));
     for (const stack = [[r, outline, 0]]; stack.length;) {
       const [c, list, depth] = stack.pop();
+{{#structure}}
       const button = $("button", { type: "button", onclick: () => choose(c.id, true) },
+{{/structure}}
+{{#content}}
+      const button = $("button", { type: "button", onclick: () => read(c.id) },
+{{/content}}
         $("span", { class: "t" }, name(c), c.has_summary ? $("span", { class: "badge" }, t.has_summary) : null),
         $("span", { class: "n" }, count(t.questions, c.questions)));
       const item = $("li", {}, button);
@@ -339,7 +542,12 @@ function render() {
     }
   }
 
+{{#structure}}
   pick = $("div", { class: "pick", "aria-live": "polite" });
+{{/structure}}
+{{#content}}
+  pick = $("section", { class: "conv", tabindex: -1 });
+{{/content}}
   document.getElementById("page").replaceChildren(switches, head, picture,
     $("p", { class: "legend" }, DATA.links.length ? `${t.legend} ${t.legend_links}` : t.legend),
     $("h2", {}, t.outline), outline, pick,
@@ -365,10 +573,173 @@ function showChosen() {
     elements[2].setAttribute("aria-pressed", String(id === state.chosen));
   }
   const c = byId.get(state.chosen), { t, name, time } = words;
+{{#structure}}
   pick.replaceChildren(...(!c ? [] : [$("div", { class: "t" }, name(c)),
     $("div", { class: "m" }, [say(t.started, { time: time(c.at) }), count(t.questions, c.questions), ...(c.has_summary ? [t.has_summary] : [])].join(" · "))]));
 }
 
+{{/structure}}
+{{#content}}
+  pick.replaceChildren(...(c ? conversation(c) : []));
+}
+
+// ── Reading a conversation. ─────────────────────────────────────────────────────────────────────────────────────────
+// What was asked and answered, from the data; answers and summaries as they were drawn when the file was saved.
+const branchesOf = new Map();
+for (const c of convs) if (c.source) branchesOf.set(c.source.message, [...(branchesOf.get(c.source.message) ?? []), c]);
+const opened = new Set(), still = matchMedia("(prefers-reduced-motion: reduce)");
+const bring = (e, block) => e.scrollIntoView({ behavior: still.matches ? "auto" : "smooth", block });
+const reveal = e => { for (let d = e.parentElement; d; d = d.parentElement) if (d.tagName === "DETAILS") d.open = true; };
+const flash = e => { e.classList.remove("flash"); void e.offsetWidth; e.classList.add("flash"); };
+
+function read(id) {
+  choose(id, true);
+  pick.focus({ preventScroll: true });
+  bring(pick, "start");
+}
+
+// Back to the sentence the branch left from, or to the answer when the sentence could not be told for certain.
+function back(c) {
+  choose(c.parent, true);
+  const answer = pick.querySelector(`[data-answer="${c.source.message}"]`);
+  if (!answer) { bring(pick, "start"); return; }
+  let at = answer.querySelector(`mark[data-branch="${c.id}"]`);
+  if (at?.closest(".cut, .clip")) answer.unfold();
+  at ??= answer.querySelector(`[data-left="${c.id}"]`) ?? answer;
+  at.focus({ preventScroll: true });
+  bring(at, "center");
+  flash(at);
+}
+
+// An element the page knows by name; its text is always set as text. Anything else is drawn as its parts.
+const TAGS = new Set(["p", "h1", "h2", "h3", "h4", "h5", "h6", "ul", "ol", "li", "blockquote", "pre", "code", "em", "strong", "del", "ins", "sub", "sup", "tr", "br", "hr"]);
+const isAddress = url => /^(https?|mailto):/i.test(url);
+function draw(node, answer) {
+  if (typeof node === "string") return document.createTextNode(node);
+  const [kind, value, ...rest] = node, parts = () => rest.map(n => draw(n, answer));
+  switch (kind) {
+    case "table": return $("div", { class: "scroll" }, $("table", {}, parts()));
+    case "th": case "td": return $(kind, value ? { style: `text-align:${value === "right" ? "right" : value === "center" ? "center" : "left"}` } : {}, parts());
+    case "li": return $("li", value ? { class: "task" } : {}, parts());
+    case "hl": return $("span", { class: "hl" }, parts());
+    case "task": return $("input", { type: "checkbox", disabled: "", ...(value ? { checked: "" } : {}) });
+    case "a": return isAddress(value) ? $("a", { href: value, rel: "noreferrer noopener", target: "_blank", title: value }, parts()) : $("span", { title: value }, parts());
+    case "cite": {
+      const n = value, to = $("button", { type: "button", class: "c", title: say(words.t.to_citation, { n }), onclick: () => {
+        const item = answer?.querySelector(`[data-cite="${n}"]`);
+        if (item) { reveal(item); bring(item, "center"); flash(item); }
+      } }, parts());
+      return to;
+    }
+    case "mark": {
+      const branch = byId.get(value), go = e => { e.preventDefault(); e.stopPropagation(); read(value); };
+      return $("mark", { "data-branch": value, tabindex: 0, role: "link", title: say(words.t.into, { name: words.name(branch) }), onclick: go,
+        onkeydown: e => { if (e.key === "Enter") go(e); } }, parts());
+    }
+    case "math": return formula($("span"), value, false);
+    case "mathblock": return formula($("div", { class: "formula" }), value, true);
+    default: return $(TAGS.has(kind) ? kind : "span", {}, parts());
+  }
+}
+
+// A formula the library cannot read is shown as it was written.
+function formula(into, tex, displayMode) {
+{{#math}}
+  try {
+    katex.render(tex, into, { displayMode, throwOnError: true, strict: "ignore", trust: false, maxSize: 50, maxExpand: 500 });
+    return into;
+  } catch { into.replaceChildren(); }
+{{/math}}
+  into.classList.add("source");
+  into.append(tex);
+  return into;
+}
+
+const drawn = (id, answer) => (DRAWN[id] ?? []).map(n => draw(n, answer));
+
+// Wide characters count twice, as they take twice the room.
+const room = text => [...text].reduce((s, ch) => s + (ch > "\u2E7F" ? 2 : 1), 0);
+
+// Folded at a block's end: the first blocks up to a few lines, never ending on a heading, and only when enough is hidden to be worth it.
+function fold(blocks) {
+  const rooms = blocks.map(b => Math.max(room(b.textContent), 60)), total = rooms.reduce((a, b) => a + b, 0);
+  let shown = 0, n = 0;
+  while (n < blocks.length && (shown < 200 || /^H\d$/.test(blocks[n - 1].tagName))) shown += rooms[n++];
+  if (total - shown < 120) { n = blocks.length; shown = total; }
+  return { n, clip: rooms.slice(0, n).some(r => r > 900) };
+}
+
+function answered(m) {
+  const { t, name } = words;
+  const box = $("div", { class: "a" + (m.replaced_by ? " earlier" : ""), "data-answer": m.id, tabindex: -1 });
+  const body = $("div", { class: "md" }, drawn(m.id, box)), blocks = [...body.children];
+  const { n, clip } = m.replaced_by ? { n: 0, clip: false } : fold(blocks), folds = n < blocks.length || clip;
+  const toggle = $("button", { type: "button", class: "fold", onclick: () => { opened.has(m.id) ? opened.delete(m.id) : opened.add(m.id); show(); } });
+  const show = () => {
+    const open = opened.has(m.id) || !folds;
+    box.classList.toggle("folded", !open);
+    blocks.forEach((b, i) => {
+      b.classList.toggle("cut", !open && i >= n);
+      b.classList.toggle("clip", !open && clip && i < n && room(b.textContent) > 900);
+    });
+    toggle.textContent = open ? t.show_less : t.show_all;
+    toggle.setAttribute("aria-expanded", String(open));
+  };
+  box.unfold = () => { opened.add(m.id); show(); };
+  show();
+
+  const a = m.activity, steps = a ? ["attachment_searches", "summary_searches", "web_searches", "pages_read", "other_calls"].filter(k => a[k]).map(k => count(t[k], a[k])) : [];
+  const left = branchesOf.get(m.id) ?? [];
+  const cites = m.citations ?? [];
+  box.append(...[
+    m.replaced_by ? $("p", { class: "label" }, t.earlier) : null,
+    steps.length ? $("div", { class: "activity" }, steps.join(" · ")) : null,
+    body,
+    folds ? toggle : null,
+    m.state !== "complete" ? $("div", {}, $("span", { class: "badge" }, t.incomplete)) : null,
+    left.length ? $("ul", { class: "left", "aria-label": t.branches }, left.map(b => $("li", {},
+      $("button", { type: "button", class: "linkish", "data-left": b.id, onclick: () => read(b.id) }, name(b)), $("span", { class: "n" }, count(t.questions, b.questions))))) : null,
+    cites.length ? $("details", { class: "cites" }, $("summary", {}, count(t.citations, cites.length)), $("ol", {}, cites.map(cited))) : null,
+  ].filter(e => e));
+  box.title = words.time(new Date(m.at));
+  return box;
+}
+
+function cited(c) {
+  const { t } = words, shared = byId.get(c.conversation);
+  const what = c.kind === "web" ? (c.url ? [(c.title ?? "") + " ", isAddress(c.url) ? $("a", { href: c.url, rel: "noreferrer noopener", target: "_blank" }, c.url) : c.url] : [])
+    : shared ? [$("button", { type: "button", class: "linkish", onclick: () => read(shared.id) }, say(t.cite_shared_summary, { name: c.title }))]
+    : [t["cite_" + c.kind]];
+  return $("li", { "data-cite": c.number }, `[${c.number}] `, what);
+}
+
+function asked(m) {
+  const { t } = words, names = m.attachments ?? [];
+  return [
+    m.text ? $("div", { class: "q", title: words.time(new Date(m.at)) }, m.text) : null,
+    names.length ? $("div", { class: "attrow" }, names.map(n => $("span", { class: "att" }, n === null ? t.pasted : say(t.attachment, { name: n })))) : null,
+  ];
+}
+
+function conversation(c) {
+  const { t, name, time } = words, parent = byId.get(c.parent);
+  const turns = [];
+  for (const m of c.messages) {
+    if (m.role === "question" || !turns.length) turns.push($("div", { class: "turn" }));
+    turns.at(-1).append(...(m.role === "question" ? asked(m).filter(e => e) : [answered(m)]));
+  }
+  return [
+    $("h3", {}, name(c)),
+    $("div", { class: "meta" }, [say(t.started, { time: time(c.at) }), count(t.questions, c.questions)].join(" · ")),
+    parent && c.source ? $("div", { class: "from" }, `${t.left_from} `, $("b", {}, name(parent)), ": ", $("span", { class: "quote" }, `“${c.source.quote}”`), " · ",
+      $("button", { type: "button", class: "linkish", onclick: () => back(c) }, t.back)) : null,
+    c.summary ? $("details", { class: "summary" }, $("summary", { title: time(new Date(c.summary.at)) }, t.summary), $("div", { class: "body md" }, $("h4", {}, c.summary.title), drawn(c.summary.id, null))) : null,
+    ...turns,
+  ].filter(e => e);
+}
+
+state.chosen = roots[0]?.id ?? null;
+{{/content}}
 render();
 showTheme();
 </script>

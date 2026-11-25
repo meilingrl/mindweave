@@ -50,6 +50,60 @@ public static partial class UiText
         "Not in it: your questions, the answers, the summaries’ text, and the workspace’s name.",
         "不包含：你的提问、回答、总结的正文，以及工作区名称。");
 
+    /// <summary>S6: off unless chosen.</summary>
+    public static string ShareIncludeContent => T("Include conversation content", "包含会话内容");
+
+    public static string ShareIncludeContentHint => T(
+        "Adds the questions, answers and summaries. Without it, only the structure is shared: no message text leaves.",
+        "加入提问、回答和总结。不选时只分享结构，不包含任何对话文字。");
+
+    /// <summary>While what would leave is being read.</summary>
+    public static string ShareReading => T("Reading the conversations…", "正在读取会话……");
+
+    public static string ShareHoldsMessages => T(
+        "Every question in full and the answer that stands, with its time, how often it used tools, and the sentence each branch left from. A stopped answer is marked incomplete; an earlier answer is in it only if a branch left from it",
+        "每个提问的全文和最终的回答，连同时间、用了几次工具，以及每个分支从哪句话分出。已停止的回答标为未完成；较早的回答只有在有分支从它分出时才包含");
+
+    public static string ShareHoldsSummaries(int count) => T(
+        "The current version of " + Plural(count, "summary", "summaries"),
+        string.Format(CultureInfo.InvariantCulture, "{0} 篇总结的当前版本", count));
+
+    /// <summary>S7: the names of the attachments, never what is in them.</summary>
+    public static string ShareHoldsAttachments(IReadOnlyList<string> names, int pasted)
+    {
+        var parts = names.Select(n => "“" + n + "”").ToList();
+        if (pasted > 0)
+        {
+            parts.Add(T(Plural(pasted, "pasted text", "pasted texts"), string.Format(CultureInfo.InvariantCulture, "{0} 段粘贴的文字", pasted)));
+        }
+
+        return T(
+            "That these attachments were there, by name only: " + string.Join(", ", parts),
+            "有过这些附件（只有名称）：" + string.Join("、", parts));
+    }
+
+    public static string ShareHoldsWebCitations(int count) => T(
+        Plural(count, "web citation", "web citations") + ": number, page title and address",
+        string.Format(CultureInfo.InvariantCulture, "{0} 条网页出处：编号、网页标题和网址", count));
+
+    public static string ShareHoldsOwnCitations(int count) => T(
+        Plural(count, "citation", "citations") + " of your own material: only its kind, and the title of a summary that is itself shared",
+        string.Format(CultureInfo.InvariantCulture, "{0} 条引用自己材料的出处：只有种类；只有同在分享里的总结才有标题", count));
+
+    public static string ShareHoldsLinesAndNotes(int links) => links == 0
+        ? ShareHoldsLines(0)
+        : T(
+            "The lines: which conversation branched off from which, and " + Plural(links, "summary link", "summary links") + " with notes",
+            string.Format(CultureInfo.InvariantCulture, "连线：哪个会话从哪个会话分出，以及 {0} 条内容关联（含说明）", links));
+
+    public static string ShareContentLeavesOut => T(
+        "Not in it: what is in the attachments, the saved text of web pages and search results, what tools were asked and returned, the model and its service, earlier versions of summaries, and the workspace’s name.",
+        "不包含：附件的内容、网页和搜索结果的保存文本、工具的参数和结果、模型和服务、总结的其他版本，以及工作区名称。");
+
+    public static string ShareContentAnswering(IReadOnlyList<string> names) => T(
+        "An answer is still being generated in " + Names(names) + ". The share goes up to the last finished answer, so that answer isn’t in it, nor its question if it has no other answer.",
+        "还有回答正在生成：" + Names(names) + "。分享只到最后一个已完成的回答，正在生成的回答不包含在内；还没有其他回答的提问也不包含。");
+
     public static string ShareSnapshot => T(
         "A saved file is a snapshot: later changes don’t reach it, and a file you have sent can’t be called back.",
         "存下的文件是当时的快照：之后的改动不会进入它，发出去的文件也无法收回。");

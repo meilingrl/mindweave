@@ -17,9 +17,16 @@ public sealed record ShareableConversation(
     DateTimeOffset StartedAt,
     int Questions,
     bool HasSummary,
-    bool IsAnswering);
+    bool IsAnswering)
+{
+    /// <summary>
+    /// The name the app uses for it, which can be the sentence it branched off from or its first question: only a share
+    /// with content carries it (§6.6, point 1).
+    /// </summary>
+    public string? ContentName { get; init; } = Name;
+}
 
-/// <summary>What of a workspace can be shared: no message text, no workspace name, no state of the user's.</summary>
+/// <summary>What of a workspace can be shared: no message text beyond a name, no workspace name, no state of the user's.</summary>
 public sealed record ShareSource(IReadOnlyList<ShareableConversation> Conversations, IReadOnlyList<ExchangeLink> Links)
 {
     public IReadOnlyDictionary<ConversationId, ConversationId?> Parents => Conversations.ToDictionary(c => c.Id, c => c.Parent);

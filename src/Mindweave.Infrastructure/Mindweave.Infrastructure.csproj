@@ -25,5 +25,9 @@
   <ItemGroup>
     <!-- The page a shared file shows (docs/design/sharing.md §6.2), filled in by SharePage. -->
     <EmbeddedResource Include="Share\SharePage.html" LogicalName="Share.SharePage.html" />
+    <!-- KaTeX 0.19.1 as published: draws the formulas of a shared page (docs/design/sharing.md §6.7). Only a share with a formula carries it. -->
+    <EmbeddedResource Include="Share\katex\LICENSE" LogicalName="Share.katex.LICENSE" />
+    <EmbeddedResource Include="Share\katex\*.min.*" LogicalName="Share.katex.%(Filename)%(Extension)" />
+    <EmbeddedResource Include="Share\katex\fonts\*.woff2" LogicalName="Share.katex.fonts.%(Filename)%(Extension)" />
   </ItemGroup>
 </Project>

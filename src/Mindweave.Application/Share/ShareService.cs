@@ -1,5 +1,6 @@
 using System.Collections.Concurrent;
 using Microsoft.Extensions.Logging;
+using Mindweave.Application.Conversations;
 using Mindweave.Application.Exchange;
 using Mindweave.Application.Export;
 using Mindweave.Application.Storage;
@@ -30,9 +31,9 @@ public interface ISharePageWriter
 }
 
 /// <summary>
-/// Reads what a share may hold and writes the file (docs/design/sharing.md). Reading drops everything a structure-only
-/// share leaves out, so no message text, quote or summary text goes further than this class. Nothing is stored: the app
-/// keeps no record of shares (S10).
+/// Reads what can be shared and writes the file (docs/design/sharing.md). Reading keeps no message text, quote or summary
+/// text beyond the name the app shows for a conversation; what was said is read by <see cref="ShareContentService"/>.
+/// Nothing is stored: the app keeps no record of shares (S10).
 /// </summary>
 public sealed partial class ShareService(
     IConversationStore conversations,
@@ -66,7 +67,10 @@ public sealed partial class ShareService(
                 row.Conversation.CreatedAt,
                 answering ? await AnsweredQuestionsAsync(id, cancellationToken).ConfigureAwait(false) : questions.GetValueOrDefault(id),
                 summarized.ContainsKey(id),
-                answering));
+                answering)
+            {
+                ContentName = NameOf(row.Conversation.Title, summarized.GetValueOrDefault(id)) ?? ConversationNames.Of(null, row.Quote, row.FirstQuestion),
+            });
         }
 
         var conversationOf = summarized.Values.ToDictionary(e => e.Node.Id, e => e.Node.Conversation);
@@ -85,7 +89,7 @@ public sealed partial class ShareService(
         try
         {
             var mode = await writer.WriteAsync(destination, page.Encode(document), cancellationToken).ConfigureAwait(false);
-            LogShared(logger, document.Conversations.Count, mode);
+            LogShared(logger, document.Kind, document.Conversations.Count, mode);
         }
         finally
         {
@@ -112,6 +116,6 @@ public sealed partial class ShareService(
         return lastFinished is null ? 0 : messages.Count(m => m.Role == MessageRole.User && m.Seq < lastFinished.Seq);
     }
 
-    [LoggerMessage(Level = LogLevel.Information, Message = "Saved a structure-only share of {Conversations} conversations ({Mode})")]
-    private static partial void LogShared(ILogger logger, int conversations, ExportWriteMode mode);
+    [LoggerMessage(Level = LogLevel.Information, Message = "Saved a share ({Kind}) of {Conversations} conversations ({Mode})")]
+    private static partial void LogShared(ILogger logger, string kind, int conversations, ExportWriteMode mode);
 }
