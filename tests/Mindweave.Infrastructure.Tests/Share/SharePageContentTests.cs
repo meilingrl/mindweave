@@ -15,21 +15,21 @@ public sealed partial class SharePageContentTests
 {
     private static readonly ConversationId RootId = ConversationId.New();
     private static readonly DateTimeOffset Day = new(2026, 11, 18, 11, 42, 30, 120, TimeSpan.Zero);
-    private static readonly ExchangeMessage Question = new(MessageId.New(), MessageRole.User, Day, MessageState.Complete, "Why?") { Attachments = ["gauge.pdf", null] };
+    private static readonly ExchangeMessage Question = new(MessageId.New(), 0, MessageRole.User, Day, MessageState.Complete, "Why?") { Attachments = ["gauge.pdf", null] };
 
-    private static readonly ExchangeMessage Answer = new(MessageId.New(), MessageRole.Assistant, Day, MessageState.Stopped, "Because **rails**[1].")
+    private static readonly ExchangeMessage Answer = new(MessageId.New(), 4, MessageRole.Assistant, Day, MessageState.Stopped, "Because **rails**[1].")
     {
         Activity = new ExchangeActivity(0, 0, 2, 1, 3),
         Citations = [new(1, CitationKind.Web, "Page", new Uri("https://example.org/a")), new(2, CitationKind.Summary, "Rails", Summary: RootId), new(3, CitationKind.Attachment)],
     };
 
-    private static readonly ExchangeMessage Earlier = new(MessageId.New(), MessageRole.Assistant, Day, MessageState.Complete, "Earlier.") { ReplacedBy = Answer.Id };
+    private static readonly ExchangeMessage Earlier = new(MessageId.New(), 1, MessageRole.Assistant, Day, MessageState.Complete, "Earlier.") { ReplacedBy = Answer.Id };
 
     private static ExchangeDocument Document(string answer = "Because **rails**[1].")
     {
         var root = new ExchangeConversation(RootId, null, "History", Day, 1, true)
         {
-            Content = new ExchangeContent([Question, Earlier, Answer with { Text = answer }], null, new ExchangeSummary(SummaryVersionId.New(), "Rails", "Body *text*", Day)),
+            Content = new ExchangeContent([Question, Earlier, Answer with { Text = answer }], null, new ExchangeSummary(SummaryVersionId.New(), "Rails", "Body *text*", Day, 4)),
         };
         var branch = new ExchangeConversation(ConversationId.New(), RootId, "Branch", Day.AddMinutes(9), 0, false)
         {
@@ -49,13 +49,15 @@ public sealed partial class SharePageContentTests
 
         var root = conversations[0];
         Assert.Equal(["id", "name", "started_at", "questions", "has_summary", "summary", "messages"], Names(root));
-        Assert.Equal(["id", "title", "body", "at"], Names(root.GetProperty("summary")));
+        Assert.Equal(["id", "title", "body", "at", "to_seq"], Names(root.GetProperty("summary")));
         var messages = root.GetProperty("messages");
-        Assert.Equal(["id", "role", "at", "state", "text", "attachments"], Names(messages[0]));
+        Assert.Equal(["id", "seq", "role", "at", "state", "text", "attachments"], Names(messages[0]));
+        Assert.Equal([0, 1, 4], messages.EnumerateArray().Select(m => m.GetProperty("seq").GetInt32()));
+        Assert.Equal(4, root.GetProperty("summary").GetProperty("to_seq").GetInt32());
         Assert.Equal("""["gauge.pdf",null]""", messages[0].GetProperty("attachments").GetRawText());
-        Assert.Equal(["id", "role", "at", "state", "text", "replaced_by"], Names(messages[1]));
+        Assert.Equal(["id", "seq", "role", "at", "state", "text", "replaced_by"], Names(messages[1]));
         Assert.Equal(Answer.Id.ToString(), messages[1].GetProperty("replaced_by").GetString());
-        Assert.Equal(["id", "role", "at", "state", "text", "activity", "citations"], Names(messages[2]));
+        Assert.Equal(["id", "seq", "role", "at", "state", "text", "activity", "citations"], Names(messages[2]));
         Assert.Equal(("answer", "stopped", "Because **rails**[1]."), (messages[2].GetProperty("role").GetString(), messages[2].GetProperty("state").GetString(), messages[2].GetProperty("text").GetString()));
         Assert.Equal("""{"attachment_searches":0,"summary_searches":0,"web_searches":2,"pages_read":1,"other_calls":3}""", messages[2].GetProperty("activity").GetRawText());
         Assert.Equal(

@@ -80,10 +80,22 @@ public sealed class ExchangeContentTests
 
         Assert.Equal(
             [
-                new ExchangeMessage(question.Id, MessageRole.User, Day.ToUniversalTime(), MessageState.Complete, "When did **trains** begin?"),
-                new ExchangeMessage(answer.Id, MessageRole.Assistant, Day.AddSeconds(5).ToUniversalTime(), MessageState.Complete, "In *1804*."),
+                new ExchangeMessage(question.Id, 0, MessageRole.User, Day.ToUniversalTime(), MessageState.Complete, "When did **trains** begin?"),
+                new ExchangeMessage(answer.Id, 1, MessageRole.Assistant, Day.AddSeconds(5).ToUniversalTime(), MessageState.Complete, "In *1804*."),
             ],
             Shared(Build([question, answer])));
+    }
+
+    /// <summary>Import adds a message at its own number, so what is left out leaves its gap.</summary>
+    [Fact]
+    public void Messages_keep_their_stored_sequence_numbers_gaps_included()
+    {
+        var question = Question("Q");
+        var first = Answer("first");
+        var second = Answer("second", supersedes: first.Id);
+        var next = Question("Q2");
+
+        Assert.Equal([(question.Id, 0), (second.Id, 2), (next.Id, 3)], Shared(Build([question, first, second, next])).Select(m => (m.Id, m.Seq)));
     }
 
     [Fact]
@@ -251,11 +263,11 @@ public sealed class ExchangeContentTests
     }
 
     [Fact]
-    public void The_current_summary_is_its_identity_title_body_and_time()
+    public void The_current_summary_is_its_identity_title_body_time_and_coverage()
     {
         var summary = Build([Question("Q"), Answer("A")]).Conversations.Single(c => c.Id == RootId).Content!.Summary!;
 
-        Assert.Equal(("Root summary", "Body of Root summary", Day.ToUniversalTime()), (summary.Title, summary.Body, summary.At));
+        Assert.Equal(("Root summary", "Body of Root summary", Day.ToUniversalTime(), 5), (summary.Title, summary.Body, summary.At, summary.ToSeq));
     }
 
     [Fact]
@@ -297,6 +309,8 @@ public sealed class ExchangeContentTests
         var same = root with { Content = root.Content! with { Messages = [.. root.Content.Messages.Select(m => m with { Attachments = [.. m.Attachments] })] } };
         var changed = root with { Content = root.Content! with { Messages = [.. root.Content.Messages.Select(m => m with { Text = "other" })] } };
         Assert.True(one.SameContents(one with { Conversations = [same, .. one.Conversations.Skip(1)] }));
+        var moved = root with { Content = root.Content! with { Messages = [.. root.Content.Messages.Select(m => m with { Seq = m.Seq + 1 })] } };
+        Assert.False(one.SameContents(one with { Conversations = [moved, .. one.Conversations.Skip(1)] }));
         Assert.False(one.SameContents(one with { Conversations = [changed, .. one.Conversations.Skip(1)] }));
     }
 

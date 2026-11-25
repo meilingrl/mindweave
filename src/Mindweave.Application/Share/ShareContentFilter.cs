@@ -30,7 +30,7 @@ internal sealed class ShareContentFilter(ShareContents contents, IReadOnlySet<Co
         return new ExchangeContent(
             [.. Messages(content.Messages)],
             content.Source is { } source ? Source(source, content.SourceOffset) : null,
-            content.Summary is { } summary ? new ExchangeSummary(summary.Id, summary.Title, summary.Body, summary.CreatedAt.ToUniversalTime()) : null);
+            content.Summary is { } summary ? new ExchangeSummary(summary.Id, summary.Title, summary.Body, summary.CreatedAt.ToUniversalTime(), summary.ToSeq) : null);
     }
 
     /// <summary>The links between two shared conversations, with their notes.</summary>
@@ -80,13 +80,13 @@ internal sealed class ShareContentFilter(ShareContents contents, IReadOnlySet<Co
     }
 
     private static ExchangeMessage Question(Message message) =>
-        new(message.Id, message.Role, message.CreatedAt.ToUniversalTime(), message.State, message.Text)
+        new(message.Id, message.Seq, message.Role, message.CreatedAt.ToUniversalTime(), message.State, message.Text)
         {
             Attachments = [.. ContentBlocks.AttachmentsOf(message.Blocks).Select(a => string.IsNullOrWhiteSpace(a.Name) ? null : a.Name)],
         };
 
     private ExchangeMessage Answer(Message message) =>
-        new(message.Id, message.Role, (message.CompletedAt ?? message.CreatedAt).ToUniversalTime(), message.State, message.Text)
+        new(message.Id, message.Seq, message.Role, (message.CompletedAt ?? message.CreatedAt).ToUniversalTime(), message.State, message.Text)
         {
             Activity = Activity([.. message.Blocks.OfType<ToolCallBlock>().Select(c => c.Tool)]),
             Citations = [.. ContentBlocks.CitationsOf(message.Blocks).Select(Citation)],

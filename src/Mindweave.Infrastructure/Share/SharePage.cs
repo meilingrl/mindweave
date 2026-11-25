@@ -200,6 +200,7 @@ public static partial class SharePage
             json.WriteString("title", summary.Title);
             json.WriteString("body", summary.Body);
             json.WriteString("at", Instant(summary.At));
+            json.WriteNumber("to_seq", summary.ToSeq);
             json.WriteEndObject();
         }
 
@@ -216,6 +217,7 @@ public static partial class SharePage
     {
         json.WriteStartObject();
         json.WriteString("id", message.Id.ToString());
+        json.WriteNumber("seq", message.Seq);
         json.WriteString("role", message.Role == MessageRole.User ? "question" : "answer");
         json.WriteString("at", Instant(message.At));
         json.WriteString("state", message.State switch
