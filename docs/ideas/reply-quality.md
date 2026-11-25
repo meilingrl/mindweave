@@ -69,6 +69,11 @@ Started 2026-11-25. The owner decides; each decision is recorded here with its d
   - It works for every answer, with or without tools, and nothing pauses.
   - Accepted cost: about 30 input tokens; a wrong pick costs one click and one more answer; with suggestions turned off, the other reading is named but has no chip.
   - Not chosen: a card that pauses the run and waits for a choice (idea 8).
+- **Q7, 2026-11-25 (owner): follow-up questions keep the L9 rule; no model request rewrites them.**
+  - The summary title search of Q4 uses the same rule as the pre-search: for a short or referring question, the conversation title and the branch selection go in front. One rule, in one place, serves both searches.
+  - The evaluation set gains a follow-up scenario in the "开" (On) web setting, so the rule is measured on a real service.
+  - Accepted cost: queries for follow-ups stay rough ("title + question").
+  - Not chosen: a small request that rewrites the question to stand alone (idea 4).
 
 ### Boundaries with the other design sessions (proposed, for the owner to settle)
 
