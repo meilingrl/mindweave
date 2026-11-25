@@ -71,6 +71,7 @@ Seven topics in four groups. The order and what is set aside are in §5 and §6.
 | 2026-11-25 | Several connections: there is one current model for everything (owner). Settings hold the list of connections; a picker beside the input box switches the current model for all new questions. A model per conversation can be added on top later. |
 | 2026-11-25 | One setting, the model for background work (owner). It defaults to the current model and can be any saved model. Background work is titles, compression, attachment digests, recommended questions and link suggestions; summaries stay with the current model. When that model cannot be reached, the task fails with its reason; nothing switches on its own. |
 | 2026-11-25 | Messages is the further protocol of the first increment; Responses comes later (owner). The owner now has an official Anthropic key, so Messages can be checked against the real service; there is no official OpenAI key. |
+| 2026-11-25 | The section on several connections and local models in §7 is agreed as written, Claude's calls included (owner). |
 
 ## 6. Set aside
 
@@ -186,9 +187,9 @@ Requirement and architecture text follows as a separate commit that the owner co
 
 Nothing here has been prototyped. The parts most likely to surprise: which applications give their selection, and the rectangle on a second monitor with a different scale.
 
-### Several connections and local models (C1 and D1; waiting for the owner to confirm this section)
+### Several connections and local models (C1 and D1; agreed by the owner, 2026-11-25)
 
-The owner's decisions are in §5. Everything else in this section is Claude's call, and the owner can change it.
+The owner's decisions are in §5. The rest of this section was proposed by Claude and agreed with it.
 
 #### How it works
 
