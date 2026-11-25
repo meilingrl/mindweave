@@ -10,7 +10,7 @@ Started 2026-11-25. The owner decides; each decision is recorded here with its d
 
 ### Approach in short
 
-One answer prompt opens every answer, in the interface language, with a version number. Its lines are defaults; the user's question wins. Pieces join it by condition: a branch paragraph in a branch, the user's note when there is one, the titles of matching summaries when there are any, the tool section when tools are offered, the request for follow-up suggestions unless they are turned off. The summary prompt gets a gist, a body by concept and key terms. A long page reaches the model as its best-matching passages. Nothing here adds a model request to an answer. The evaluation set measures all of it, with cost and time, and the owner's reading and daily use decide what is good.
+One answer prompt opens every answer, in the interface language, with a version number. Its lines are defaults; the user's question wins. Pieces join it by condition: a branch paragraph in a branch, the user's note when there is one, the titles of matching summaries when there are any and the tool section when tools are offered. An answer is the answer and nothing else: nothing is offered under it. The summary prompt gets a gist, a body by concept and key terms. A long page reaches the model as its best-matching passages. Nothing here adds a model request to an answer. The evaluation set measures all of it, with cost and time, and the owner's reading and daily use decide what is good.
 
 ### Order of the questions
 
@@ -20,7 +20,7 @@ One answer prompt opens every answer, in the interface language, with a version 
 | Q2 | The rule for branch answers (idea 1) | Q1 |
 | Q3 | Self-check cards and a guide-me mode (dropped, see the decisions) | Q1 |
 | Q4 | What the user already knows, and memory (idea 7, "Memory") | Q1 |
-| Q5 | Follow-up suggestions per answer (idea 2) | Q1, Q2 |
+| Q5 | Follow-up suggestions per answer (idea 2; dropped, see the decisions) | Q1, Q2 |
 | Q6 | The tool section: stop and refine rules, naming an attachment (idea 5; agent-loop §8) | Q1 (the run prompt becomes "answer prompt + tool section") |
 | Q6b | The clarification card (idea 8) | Q1 |
 | Q7 | Rewriting follow-up questions (idea 4; reopens L9, decided 2026-11-19) | Q6 |
@@ -43,23 +43,13 @@ One answer prompt opens every answer, in the interface language, with a version 
   - Length is scaled to the passage and the question. The first draft's "stay shorter than the parent" is dropped.
   - A deeper branch gets the same paragraph; it names only the nearest selection.
   - Accepted cost: about 60 input tokens in branches; a branch used as a fresh start stays tied to the passage until the question says otherwise.
-- **Q3, 2026-11-25 (owner): no self-check cards and no guide-me mode.** Both are dropped outright, in any form: no card, no mode, no line in the answer prompt about quizzing or guiding, and no follow-up suggestion that offers a test. Requirements §5.4 stays as written.
+- **Q3, 2026-11-25 (owner): no self-check cards and no guide-me mode.** Both are dropped outright, in any form: no card, no mode and no line in the answer prompt about quizzing or guiding. Requirements §5.4 stays as written.
 - **Q4, 2026-11-25 (owner): the answer prompt carries a note the user writes and the titles of matching summaries. No extracted facts.**
   - The note: one free-text field in Settings, at most about 500 characters, one for all workspaces. It goes into every answer's prompt, marked as the user's own preferences. No model call; nothing is derived. It is not shared.
   - The titles: before each answer, one local keyword search of this workspace's summaries with the question and, in a branch, the selected passage. The top three titles above a match threshold go into the prompt with "build on these; do not explain them again from the start". Titles only; with tools on, the model can open one through the summary search.
   - Facts extracted by the model (level 3 of "Memory") are not built.
   - Accepted cost: up to about 200 input tokens for the note and about 50 for the titles; one stored preference; a Settings field whose look the owner confirms; a wrong match can make the model skip a needed explanation; nothing on screen shows which titles were sent; the Settings text on what is sent to the AI (requirements §9.4) gains a line.
-- **Q5, 2026-11-25 (owner): two or three follow-up suggestions under each answer, written in the same response.**
-  - The answer prompt asks for a small marked block at the end of the answer. The app parses it, removes it from the body and shows chips. No extra request.
-  - Short questions with different intents: go deeper, apply it, go wider. None offers a test (Q3).
-  - A suggestion can name a phrase in the answer; its chip then opens a branch from that phrase with the question filled in.
-  - Clicking fills the input box. Nothing is sent by itself.
-  - Shown under the latest answer of a conversation only. Stored with the answer, so they survive a restart.
-  - Not part of the answer body: not in context, titles, summaries, export or sharing.
-  - One setting turns them off.
-  - A missing or broken block gives no chips and leaves the answer as it is.
-  - Accepted cost: about 80 input and 100 output tokens per answer; the tail of a streaming answer is held back so the block never shows; a mangled block can leave a stray line in the body; a new kind of stored block (whether it needs a migration is checked at design time); the owner confirms the look of the chips.
-  - Not chosen: a separate small request after each answer.
+- **Q5: no follow-up suggestions.** The owner said yes on 2026-11-25 and withdrew it on 2026-11-26: answers stay plain, and nothing under an answer offers possible next questions. No block in the response, no chips, no setting. Recommended questions for a workspace (requirements §10.3.1) are unchanged.
 - **Q6, 2026-11-25 (owner): five lines join the tool section; the run prompt goes to version 4.**
   - Stop: answer once the material answers the question; about three relevant sources is usually enough; if two searches in a row bring nothing new, stop and say what is missing.
   - Refine: when a search falls short, search again with terms found in the results, not with the same words.
@@ -69,10 +59,11 @@ One answer prompt opens every answer, in the interface language, with a version 
   - Accepted cost: about 70 input tokens in answers with tools; "about three sources" can stop a model early on a question that needs breadth; one evaluation run with a real model compares versions 3 and 4, within a budget the owner gives.
   - The first to-do in section 8 of agent-loop.md (attachment digests cut by the output limit on reasoning models) is an internal defect: it goes into the first increment as a fix with a failing test first.
 - **Q6b, 2026-11-25 (owner): no clarification card; one line in the answer prompt.**
-  - When a question has two clearly different readings and the answer would differ, the model says in one sentence which reading it takes, answers it, and offers the other reading as a follow-up suggestion (Q5).
+  - When a question has two clearly different readings and the answer would differ, the model says in one sentence which reading it takes and names the other, then answers the one it took.
   - It works for every answer, with or without tools, and nothing pauses.
-  - Accepted cost: about 30 input tokens; a wrong pick costs one click and one more answer; with suggestions turned off, the other reading is named but has no chip.
+  - Accepted cost: about 30 input tokens; a wrong pick costs one more question and answer.
   - Not chosen: a card that pauses the run and waits for a choice (idea 8).
+  - Changed 2026-11-26 with Q5: the other reading was to be offered as a follow-up suggestion; it is now named in the sentence only. This wording waits for the owner's yes.
 - **Q7, 2026-11-25 (owner): follow-up questions keep the L9 rule; no model request rewrites them.**
   - The summary title search of Q4 uses the same rule as the pre-search: for a short or referring question, the conversation title and the branch selection go in front. One rule, in one place, serves both searches.
   - The evaluation set gains a follow-up scenario in the "开" (On) web setting, so the rule is measured on a real service.
@@ -95,13 +86,13 @@ One answer prompt opens every answer, in the interface language, with a version 
   - Not chosen: optional summary styles.
 - **Q10, 2026-11-26 (owner): the existing evaluation is extended; quality is also judged from the owner's daily use.**
   - About eight new scenarios with fictional facts: a branch on a jargon term; a branch on a whole paragraph; "simpler please"; a question with two readings; a question on a topic that has a summary; a follow-up in the "开" (On) web setting; a detail deep in a long page; a summary of a conversation that jumps between ideas.
-  - Mechanical checks, which also run with the fake model: the suggestion block is there, parses, has two or three items and is not in the body; a branch answer does not restate the parent answer; a summary has the gist and, where terms exist, the list; no number is written for an attachment that has none.
+  - Mechanical checks, which also run with the fake model: a branch answer does not restate the parent answer; a summary has the gist and, where terms exist, the list; no number is written for an attachment that has none.
   - A side-by-side report of two prompt versions per scenario. The owner's reading decides.
   - With a flag, a judge model adds two hints: which of two answers is clearer (asked twice, positions swapped), and whether each cited sentence is supported by the passage it cites. Evaluation only; a hint, never a pass or fail.
   - Feedback from the owner's daily use counts beside the evaluation.
   - **Cost and time** are part of the evaluation (owner, 2026-11-26):
     - Per scenario and in total, for both versions with the difference: input tokens, output tokens, model requests, tool calls, seconds to the first text, seconds in all. The app already records all of these per request; the report shows tokens and total seconds today and gains the time to the first text.
-    - The fixed size of what Q1–Q9 add (answer prompt, branch paragraph, note, summary titles, tool section, suggestion block) is counted with the app's own estimator in the ordinary tests, with a limit for each, so growth is caught without a paid run.
+    - The fixed size of what Q1–Q9 add (answer prompt, branch paragraph, note, summary titles, tool section) is counted with the app's own estimator in the ordinary tests, with a limit for each, so growth is caught without a paid run.
     - Money: tokens times the prices given in the evaluation's configuration; without prices, tokens only.
     - Time from one run is one sample and moves with the service's load. Output tokens and the number of requests are the steady signs; a time difference counts only when it is large or repeats.
     - The judge's own tokens are reported apart from the answers under test.
@@ -110,6 +101,7 @@ One answer prompt opens every answer, in the interface language, with a version 
 ### Out of scope
 
 - Self-check cards and a guide-me mode, in any form (Q3).
+- Follow-up suggestions under an answer, in any form (Q5).
 - A clarification card that pauses a run (Q6b).
 - A model request that rewrites a follow-up question (Q7).
 - Facts about the user extracted by the model (Q4).
@@ -123,11 +115,6 @@ One answer prompt opens every answer, in the interface language, with a version 
 
 | Case | What happens |
 | --- | --- |
-| The suggestion block is missing, broken or cut off | No chips; the answer is unaffected |
-| An answer is stopped, fails or is interrupted | No chips for it |
-| An answer is retried or regenerated | The new attempt has its own suggestions; the old attempt's are not shown |
-| A suggestion names a phrase that is not in the answer | The chip is a plain question, with no branch |
-| Suggestions are turned off | The prompt does not ask for the block; the other reading of an unclear question is named in a sentence only |
 | The summary search fails or finds nothing above the threshold | The answer is made without the titles line; no error is shown |
 | The note is empty | No note section in the prompt |
 | The note is longer than the limit | Settings does not accept the extra text; nothing is cut silently |
@@ -142,36 +129,34 @@ One answer prompt opens every answer, in the interface language, with a version 
 2. "Just the number" or "rewrite this sentence": the answer does only that, with no added explanation.
 3. A branch on a term: the answer explains the term in the context of the passage and does not answer the parent question again.
 4. A later question in the same branch: the request still carries the branch paragraph.
-5. A finished answer shows two or three chips under it; clicking one fills the input box and sends nothing; a chip that names a phrase opens a branch from it with the question filled in.
-6. The chips are not in the answer body, the context of the next question, the title, a summary, an export or a shared page; they are still there after a restart, under the latest answer only.
-7. A question with two readings: the answer says which reading it takes, and a chip offers the other.
-8. A note in Settings is sent with the next answer and the next summary; clearing it removes it from the next request.
-9. A question on a topic that has a summary: its title is in the request; with no matching summary there is no titles line.
-10. A short follow-up ("What about the second one?"): the summary search and the pre-search both use the title and the selection with the question.
-11. A run stops searching once the material answers the question, and names an attachment without a number.
-12. A page of 10,000 words with the answer near the end: the first result the model gets contains that passage.
-13. A new summary starts with a gist, is grouped by concept and lists the key terms; an existing summary is unchanged until a new version is made.
-14. The evaluation report shows two prompt versions side by side per scenario, with tokens, requests, time to the first text and total time for each.
-15. No screen offers a test, a quiz or a guided mode.
+5. An answer ends with its own text; nothing under it offers next questions, and the answer does not close with a list of them.
+6. A question with two readings: the answer says which reading it takes and names the other.
+7. A note in Settings is sent with the next answer and the next summary; clearing it removes it from the next request.
+8. A question on a topic that has a summary: its title is in the request; with no matching summary there is no titles line.
+9. A short follow-up ("What about the second one?"): the summary search and the pre-search both use the title and the selection with the question.
+10. A run stops searching once the material answers the question, and names an attachment without a number.
+11. A page of 10,000 words with the answer near the end: the first result the model gets contains that passage.
+12. A new summary starts with a gist, is grouped by concept and lists the key terms; an existing summary is unchanged until a new version is made.
+13. The evaluation report shows two prompt versions side by side per scenario, with tokens, requests, time to the first text and total time for each.
+14. No screen offers a test, a quiz or a guided mode.
 
 ### Increments
 
 | # | Content | The owner sees |
 | --- | --- | --- |
 | 1 | **Prompts and the yardstick.** The answer prompt with the branch paragraph and the line on two readings (Q1, Q2, Q6b); the tool section, run prompt version 4 (Q6); the summary prompt (Q9, without the note); the evaluation: new scenarios, checks, the side-by-side report, cost and time, size limits, the optional judge (Q10); the fix for attachment digests cut by the output limit. No change on screen. | A trial build to read answers and summaries in; one evaluation report, if a budget is given |
-| 2 | **Follow-up suggestions** (Q5), and the chip for the other reading (Q6b). | Screenshots of the chips, then a build |
-| 3 | **The note and the summary titles** (Q4), with the follow-up rule for the search (Q7); the note in the summary prompt (Q9). | A screenshot of the Settings field, then a build |
-| 4 | **Best-matching passages of a long page** (Q8). | Nothing on screen; the evaluation scenario |
+| 2 | **The note and the summary titles** (Q4), with the follow-up rule for the search (Q7); the note in the summary prompt (Q9). | A screenshot of the Settings field, then a build |
+| 3 | **Best-matching passages of a long page** (Q8). | Nothing on screen; the evaluation scenario |
 
-**Q11, 2026-11-26 (owner): these four increments, in this order.** Not chosen: follow-up suggestions first.
+**Q11, 2026-11-26 (owner): prompts and the yardstick first, then the rest in this order.** Four increments were agreed; the one for follow-up suggestions left with Q5, so three remain.
 
 Each increment is a task branch of its own and merges after the full test suite passes. Requirement and architecture text for an increment is a separate commit the owner confirms.
 
 ### Boundaries with the other design sessions (proposed, for the owner to settle)
 
-- **Return and review** owns unresolved marks and the summary network. Follow-up suggestions (idea 2) are offered once under an answer and store nothing about what is unresolved; a suggestion the user does not take leaves no mark.
+- **Return and review** owns unresolved marks and the summary network. The "questions still open" part of a summary stays plain text in the body here; a format for marks is theirs to ask for.
 - **Ask from anywhere and local AI** owns local models and search by meaning. Ideas 3 and 7 use the keyword search that exists; if search by meaning arrives, they use it through the same call and need no change here.
-- **Sharing** owns the exchange format. Whatever an answer gains here (suggestions, for example) is stated as "shared or not" in this draft before it is built.
+- **Sharing** owns the exchange format. Nothing decided here adds content to an answer or a summary that a shared page would have to carry; the user's note is not shared.
 
 ### The draft checked against the code (2026-11-25, `main` at f9edc39, 0.6.11)
 
