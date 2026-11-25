@@ -42,7 +42,7 @@ The reply-quality discussion owns everything inside an answer or a summary: the 
 3. What returning from a branch shows: decided, R3.
 4. What coming back after some days shows, and where: decided, R4.
 5. Unresolved questions as the edge of an exploration in the summary network: decided, R5.
-6. Answers that cite the user's own summaries (with reply quality).
+6. Answers that cite the user's own summaries (with reply quality): decided, R6.
 7. Extending a single summary on request (§10.2).
 8. Joint summaries of several conversations (§10.1).
 9. Relations across workspaces and automatic categorization (§10.2).
@@ -116,6 +116,16 @@ How an open question ends (writer's call, no objection from the owner):
 - the conversation gets a newer recap: that recap's questions replace the old ones.
 
 Considered: a short open line leaving the dot (the owner: it would look ugly); a soft halo behind the dot (the writer's recommendation; no shape reused); each open question as a light dot of its own (more dots, room in the layout, and too close to recommended nodes); details only (the edge is invisible until a click).
+
+### R6 Answers that build on the user's own material (2026-11-25)
+
+The reply-quality draft decided (its Q4, owner, 2026-11-25) that before each answer one local keyword search of the workspace's summaries runs, and the top three matching titles go into the answer prompt with "build on these; do not explain them again".
+
+- That search also covers recaps: their key points are searched with the summaries, under the same limit of three. A match on a recap sends its conversation's title and its key points.
+- The boundary: this draft says what material exists and can be found; reply quality says how the answer prompt uses it. The reply-quality decision gets one added line when the two branches merge.
+- Accepted cost: more material means more chance of a wrong match, which can make the model skip an explanation the user needed; a recap is written by the model and never confirmed by the user.
+
+Considered: summaries only, as decided there (little is found where the user rarely summarizes).
 
 ## Still to write
 
