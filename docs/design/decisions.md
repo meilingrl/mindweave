@@ -238,3 +238,12 @@ You chose "Finish the network" as the next line. For lifting `MINDWEAVE_SESSION_
 - **Read-only calls:** at most 4 at once in each run, with no limit across runs. Cited passages do not go into branches. The default run limits stay.
 - **Later content** is a mark in the network's details.
 - **The repository is public** for its CI quota, under Apache-2.0 (D-025, note).
+
+## D-039 Sharing a thinking path is adopted (you, 2026-11-24 and 11-25)
+
+- **One file.** A share is a set of conversations from one workspace, saved as one self-contained HTML file that loads nothing from the network.
+- **Structure only unless chosen.** Without a choice a share carries titles, branch lines and dates, and no message text. With the choice it carries questions and folded answers.
+- **Wider than D8's first form.** A recipient who uses Mindweave can import a shared file and keep asking, and the same mechanism carries copies between your own devices. One exchange format (seam E5) is under all three.
+- **Incremental.** Importing and exporting only keep or add. Nothing is deleted automatically, and what is already there is never copied.
+- **A snapshot.** The app keeps no record of shares.
+- All three steps (export, import, device copies) are in the 0.6.x cycle. The design is [sharing.md](sharing.md); the page's look is the prototype in `prototypes/share-page`.

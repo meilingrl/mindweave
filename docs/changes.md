@@ -17,6 +17,12 @@ The second number rises when a capability is finished and on by default, and the
 
 The nine merges after 0.5.0, on 2026-11-22 and 2026-11-23, are 0.5.1 to 0.5.9 in order. They keep their dated entries below.
 
+## 0.6.12 · 2026-11-25
+
+- Documents: Added the sharing design (D-039), its text in the requirements (v0.29) and architecture (§16), and the shared page's prototype; corrected the status of the daily build and the app icon
+- Try: open `prototypes/share-page/index.html` in a browser
+- Not verified: nothing on screen changed
+
 ## 0.6.11 · 2026-11-24
 
 - Added the application icon: a brain drawn as one line, like a strand of yarn (your choice of 2026-11-24). It is the icon of the Windows program and window, and of the macOS launcher of the daily build

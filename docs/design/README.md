@@ -31,6 +31,12 @@ This directory records the choices that the handoff document lets implementers r
 | --- | --- |
 | [Summary network: every conversation a dot, and the timeline](session-network.md) | Conversations as dots, the spatial view and the timeline, quiet links, exploration places; what the owner decided |
 
+## Sharing
+
+| Document | Content |
+| --- | --- |
+| [Sharing a thinking path](sharing.md) | Approved 2026-11-25 (evolution D8), not built: a share as one HTML file with the exchange data inside, structure only by default, what never leaves, the page a reader sees, import and continuing, copies between the user's devices, acceptance scenarios and increments |
+
 ## Model access
 
 | Document | Content |

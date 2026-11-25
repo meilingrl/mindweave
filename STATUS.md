@@ -4,7 +4,8 @@ What is true now: work in progress, next steps, what needs you, open decisions, 
 
 ## In progress
 
-- Sharing (evolution D8), the theme of 0.6.x towards 0.7: the requirements discussion is open with you; nothing is decided or built.
+- Sharing (evolution D8, [sharing.md](docs/design/sharing.md)), the theme of 0.6.x towards 0.7: the design is adopted (D-039). Increment 1a, the structure-only share, is built on its branch; 1b, import and device copies are not started.
+- Four design discussions are open with you on task branches: reply quality; return and review; safety, diagnostics and upkeep; ask from anywhere and local AI. Nothing in them is agreed as a whole.
 
 ## Next steps
 
@@ -37,10 +38,9 @@ What is true now: work in progress, next steps, what needs you, open decisions, 
   - reasoning and run status (with a reasoning model);
   - the answer output limit;
   - the English prompts.
-- The application icon (0.6.11): on Windows; in your Dock; the small sizes in daily use.
+- The application icon (0.6.11): on Windows; the small sizes in daily use.
 - 0.6.10: a real model reading the rest of a long result; a real MCP server stopped during a call. On Windows: all of it.
 - The UI points of 0.5.11 to 0.5.14, 0.6.2, 0.6.4, 0.6.6 and 0.6.7 (D-037): on Windows; a real model's tool steps while the page stays.
-- Nothing of 0.6.x in daily use: the daily build is 0.5.14.
 - Many new-answer hints at once in a very small window, which can lie over the page.
 - In a real window: the language switch, and English short names on the summary network canvas.
 - The network's quiet links and the new link suggestions: on Windows; the suggestions with a real model (the prompts changed). Recommended nodes counted by conversations (0.6.0): with a real model.
@@ -51,11 +51,9 @@ What is true now: work in progress, next steps, what needs you, open decisions, 
 
 | Item | Reason | Blocks |
 | --- | --- | --- |
-| The application icon: say where the picture you chose came from, and whether it may be used, before a release | The icon is traced from it (`prototypes/app-icon/README.md`) | A release for others |
 | The application icon: the tile colour (black nearly disappears on a dark taskbar), and whether the open state with nodes is used | Look and feel is yours to judge | Nothing |
 | Look at the icon size in a real window (direction A looks smaller than before; making it bigger is one size in the style) | Look and feel is yours to judge | Nothing |
 | Real service checks (paid, optional): DeepSeek images + tools, Kimi K3 base64 images, GPT-6 tool calls, DashScope streaming tools | Only within the budget you give | The capability presets of phases 1–2 |
-| Pin `~/Applications/Mindweave.app` in the Dock (once) | The old icon is gone from the Dock (checked 2026-11-24) | Opening the daily build from the Dock |
 | Set the GitHub noreply address for commits (D-025) | The repository is public, and every commit so far has your personal address; it changes only new commits | Nothing |
 
 ## Open decisions
@@ -70,6 +68,6 @@ What is true now: work in progress, next steps, what needs you, open decisions, 
 | CI on `main` (Linux + Windows) | see the latest run on GitHub | | |
 | Windows 11 hardware, full run | daabd5b | 2026-11-21 | passed |
 | Windows 11 hardware, stress and Release start | 08ead83 | 2026-11-16 | passed |
-| Daily build | 797b8bd (0.5.14, schema v18) | 2026-11-23 | published by you; the backup taken before it is `mindweave-v18-20261123T124924Z-before-publish-797b8bd.db`. A build before v18 cannot open this data: going back to one needs the v17 backup |
+| Daily build | f9edc39 (0.6.11, schema v18) | 2026-11-24 | published by you; the backup taken before it is `mindweave-v18-20261124T143852Z-before-publish-f9edc39.db`. A build before v18 cannot open this data: going back to one needs the v17 backup |
 
 First command: `scripts/test.sh full`.
