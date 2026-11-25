@@ -74,6 +74,13 @@ Started 2026-11-25. The owner decides; each decision is recorded here with its d
   - The evaluation set gains a follow-up scenario in the "开" (On) web setting, so the rule is measured on a real service.
   - Accepted cost: queries for follow-ups stay rough ("title + question").
   - Not chosen: a small request that rewrites the question to stand alone (idea 4).
+- **Q8, 2026-11-26 (owner): for a long page the model gets the best-matching passages, within the same 2,000 estimated tokens.**
+  - The model gets the opening of the page (title and lead, about 300 tokens), then the best-matching passages in page order with a mark where text is left out, then the handle as today.
+  - Matched against the question (with the Q7 rule for follow-ups) and the terms of the search that led to the page, by a local keyword ranking of paragraphs; Chinese by two-character pieces.
+  - When nothing matches well, the start of the page, as today.
+  - It applies to long prose results: web pages, and stored pages read again. A result that is data (a table, JSON from a third-party tool) keeps its start.
+  - A citation number still points at the page, and the passage is still found in the full stored text.
+  - Accepted cost: the model reads a text with gaps; keyword matching misses a passage in other words; the change is in the delicate part of the run loop that stores and sends results; one new evaluation scenario, a detail deep in a long page.
 
 ### Boundaries with the other design sessions (proposed, for the owner to settle)
 
