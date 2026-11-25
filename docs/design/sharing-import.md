@@ -201,7 +201,7 @@ Each merge states how to try it, what was run and what was not verified.
 1. **The stand-ins are message blocks and need no migration.** An attachment that did not travel is a block of its own with its name, an answer's tool counts are a block of their own, and a citation is the usual block without a resource and without a time. Their data is in the blocks' own `data`. A build before 2b that meets one of these blocks cannot show that conversation; the same was true when citations were added (web-search.md §2).
 2. **What the model gets for such an attachment** is one line saying that there was one, without its name. A citation goes as "[n] title URL", or as its kind.
 3. **A new answer directly after another one is its retry**, whichever file brought which, so an answer that was replaced later arrives as replaced. In the file, the earlier attempts of a question must name the one that stands.
-4. **A conversation that does not fit** is one where a number is held by another message, or where a message or a summary version of the file belongs to another conversation here. Nothing of it is written, its summary included. A new one that does not fit takes its new branches with it, since they would have no parent. A conversation of the user's own with messages that are not here is also skipped whole.
+4. **A conversation that does not fit** is one where a number is held by another message, or where a message or a summary version of the file belongs to another conversation here, or where something other than a replaced attempt would arrive below a number that is here (it would change what the user's continuations are asked about, which §2 forbids). Nothing of it is written, its summary included. A new one that does not fit takes its new branches with it, since they would have no parent. A conversation of the user's own with messages that are not here is also skipped whole.
 5. **A new branch whose source message is not here** (its parent was skipped) arrives with its parent only. A later file can bring the source.
 6. **The record of an import names the file a conversation first came through.** A file that only fills conversations leaves no record of its own.
 7. **A continuation in the exchange document** has a source without a sentence: `quote` is optional. The shared page then names the conversation it left from and leads back to that message. A received branch's stored place (`source_offset`) travels on when it is shared again.
@@ -210,7 +210,9 @@ Each merge states how to try it, what was run and what was not verified.
 10. **The statistics count the user's own questions.** Received ones are left out of the questions, the active days and the milestones.
 11. **A continuation is listed by its title**, under the answer it left from; when the last message is a question without an answer, under the answer before it.
 12. **The limits**: 200,000 messages in a file, 2,000,000 characters for an answer or a summary, the app's own limits for questions, quotes, anchors and attachments per question, and 1,000,000 for a message's number.
-13. **A NUL character in a text becomes U+FFFD**, as Markdown reads it.
+13. **Hostile text.** A NUL character becomes U+FFFD, as Markdown reads it. A citation's address must still be one when it is written out and read back. Text nested too deeply for the Markdown parser is shown as it was written, whichever way it came. An anchor that does not hold what an anchor holds only fails to mark.
+14. **What a continuation uses is what was read when it was asked.** Its stored context is made from that and not read again, so a file that arrives in the same moment does not change it.
+15. **The way back from a continuation** shows the end of the message it left from. The button keeps its words; its tip says where it leads.
 
 ## 11. Text that changed with this note
 
