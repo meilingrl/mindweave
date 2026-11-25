@@ -201,7 +201,7 @@ One model, in Application, built from the stores and holding no stored record:
 
 - the share: format name and version (E5: `mindweave-export`, version 1), title, the time it was made, the app version, and its kind: `structure`, `content` or `device`;
 - conversations: identity, title, start time, parent identity, number of questions, whether it has a summary;
-- with content: per conversation, its messages in order (identity, role, time, state, text as Markdown, attachment names, the tool count line, citations as S7 allows), its branch source (the parent message's identity, the quoted text, and the position as block index and offset, per E5), and its current summary version (identity, title, body, time);
+- with content: per conversation, its messages in order (identity, role, time, state, text as Markdown, attachment names, the tool count line, citations as S7 allows), its branch source (the parent message's identity, the quoted text, and the position as block index and offset, per E5), and its current summary version (identity, title, body, time). For import, each message also carries its stored sequence number, gaps included, and the summary the number it covers up to (owner, 2026-11-25);
 - summary links between two shared conversations (identities; the note only with content);
 - for a device copy only (step 3): everything S7 holds back from a share except keys, connections and addresses; the list of deleted identities.
 
@@ -278,7 +278,8 @@ A reviewer read this design against the code as a builder would. Its questions a
 6. **The answer that stands** is the latest attempt that ended with any text. When a retry failed without text, the attempt before it is shared, rather than the question without an answer.
 7. **A summary citation's title** is the one its summary has in the share, not the one stored with the citation, which can be an earlier version's.
 8. **Where sentences of two branches overlap**, the shorter one is on top, and two branches from the same words share one mark that leads to the first; both are listed under the answer.
-9. **Printing** shows every answer of the chosen conversation in full. It does not print the other conversations.
+9. **Data the page does not show.** Message identities, sequence numbers, how far a summary covers, and a branch's position and anchor serve only an importing app. They hold no text of their own beyond the quote. A gap in the numbers tells that something was left out, such as a replaced attempt, but not what. The dialog's list names the identities, the numbers and the coverage (owner, 2026-11-25).
+10. **Printing** shows every answer of the chosen conversation in full. It does not print the other conversations.
 
 ## 7. Left to the builder
 
