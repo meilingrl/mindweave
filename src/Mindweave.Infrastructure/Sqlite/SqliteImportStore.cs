@@ -39,6 +39,11 @@ internal sealed class SqliteImportStore(SqliteDatabase database) : IImportStore
                     return ImportResult.Nothing(ImportStatus.NothingNew);
                 }
 
+                if (DeepestUnder(connection, transaction, plan.New) > ImportLimits.MaxDepth)
+                {
+                    return ImportResult.Nothing(ImportStatus.DoesNotFit);
+                }
+
                 if (target.Create is { } workspace)
                 {
                     SqliteWorkspaceStore.Insert(connection, transaction, workspace);
@@ -82,6 +87,20 @@ internal sealed class SqliteImportStore(SqliteDatabase database) : IImportStore
                 return marks;
             },
             cancellationToken);
+
+    /// <summary>The deepest of the new conversations, counted from its root in the store: several files together may nest no deeper than one.</summary>
+    private static long DeepestUnder(SqliteConnection connection, SqliteTransaction transaction, IReadOnlyList<ExchangeConversation> parentsFirst)
+    {
+        var depths = new Dictionary<ConversationId, long>(parentsFirst.Count);
+        foreach (var conversation in parentsFirst)
+        {
+            depths[conversation.Id] = 1 + (conversation.Parent is not { } parent ? 0
+                : depths.TryGetValue(parent, out var above) ? above
+                : 1 + connection.Scalar<long>(transaction, "SELECT count(*) FROM branch_context_range WHERE child_id = $id;", ("$id", parent.ToString())));
+        }
+
+        return depths.Values.Max();
+    }
 
     /// <summary>A conversation as a structure-only share carries it: its identity, its name, its start and its parent.</summary>
     private static void Insert(SqliteConnection connection, SqliteTransaction transaction, ExchangeConversation conversation, WorkspaceId workspace, string import)

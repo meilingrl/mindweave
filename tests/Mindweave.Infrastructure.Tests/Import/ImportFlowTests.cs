@@ -299,6 +299,63 @@ public sealed class ImportFlowTests : IDisposable
         Assert.Equal(0, await h.CountAsync("draft_attachment"));
     }
 
+    /// <summary>A second page of the same conversation can still show an attachment that went with a question meanwhile.</summary>
+    [Fact]
+    public async Task An_attachment_that_already_went_with_a_question_is_refused_and_starts_nothing()
+    {
+        await using var h = await ChatHarness.StartAsync();
+        var (root, _, _) = await ImportPathAsync(h);
+        var path = Path.Combine(_dir, "gauge.txt");
+        await File.WriteAllTextAsync(path, "1435 mm", Ct);
+        var file = (await h.ResourceService.AttachFileAsync(new DraftSlot(h.Workspace, root, "main"), path, Ct)).Resource!;
+        var first = await h.Conversations.AskAsync(root, "What is in it?", [file.Resource.Id], null, Ct);
+        await h.WaitForAnswerAsync(first.Answer!.Value);
+        var conversations = await h.CountAsync("conversation");
+
+        var again = await h.Conversations.AskAsync(root, "And again?", [file.Resource.Id], null, Ct);
+
+        Assert.Equal(SendRejection.AttachmentMissing, again.Rejection);
+        Assert.Equal(conversations, await h.CountAsync("conversation"));
+    }
+
+    /// <summary>An identity can come back after it was deleted: nothing kept in memory for the old one may show in the new one.</summary>
+    [Fact]
+    public async Task A_draft_of_a_deleted_conversation_does_not_return_with_it()
+    {
+        await using var h = await ChatHarness.StartAsync();
+        var (root, branch, _) = await ImportPathAsync(h);
+        var slot = new Mindweave.Core.Reading.ViewerSlotKey("main");
+        h.Reading.SetDraft(root, slot, "half a question");
+        await h.Reading.FlushAsync();
+        Assert.True((await h.ConversationDeletion.DeleteAsync(await h.ConversationDeletion.InspectAsync([root], Ct), Ct)).IsDeleted);
+
+        await Imports(h).ImportAsync(TheShare(root, branch), ImportTarget.Existing(h.Workspace), Ct);
+
+        Assert.Equal(string.Empty, await h.Reading.GetDraftAsync(root, slot, Ct));
+    }
+
+    [Fact]
+    public async Task Files_that_each_fit_cannot_nest_deeper_together_than_one_may()
+    {
+        await using var h = await ChatHarness.StartAsync();
+        List<ExchangeConversation> Chain(ConversationId? under, int length)
+        {
+            var chain = new List<ExchangeConversation>();
+            while (chain.Count < length)
+            {
+                chain.Add(Conversation(chain.Count == 0 ? under : chain[^1].Id, null, chain.Count));
+            }
+
+            return chain;
+        }
+
+        var first = Chain(null, ImportLimits.MaxDepth - 1);
+        Assert.Equal(ImportStatus.Imported, (await Imports(h).ImportAsync(Document(first), ImportTarget.Existing(h.Workspace), Ct)).Status);
+        Assert.Equal(ImportStatus.DoesNotFit, (await Imports(h).ImportAsync(Document(Chain(first[^1].Id, 2)), ImportTarget.Existing(h.Workspace), Ct)).Status);
+        Assert.Equal(first.Count, await h.CountAsync("conversation"));
+        Assert.Equal(ImportStatus.Imported, (await Imports(h).ImportAsync(Document(Chain(first[^1].Id, 1)), ImportTarget.Existing(h.Workspace), Ct)).Status);
+    }
+
     [Fact]
     public async Task Asking_under_an_archived_path_is_refused_and_starts_nothing()
     {
@@ -487,5 +544,5 @@ public sealed class ImportFlowTests : IDisposable
         new(h.Store, h.SummaryNodes, new SqliteSummaryNetworkStore(h.Database), new SqliteSummaryLinkStore(h.Database), new SharePageWriter(), new AtomicFileWriter(NullLogger<AtomicFileWriter>.Instance), NullLogger<ShareService>.Instance);
 
     private static ImportService Imports(ChatHarness h) =>
-        new(new SqliteImportStore(h.Database), h.Conversations, h.Health, new SystemClock(), NullLogger<ImportService>.Instance);
+        new(new SqliteImportStore(h.Database), h.Conversations, h.Reading, h.Health, new SystemClock(), NullLogger<ImportService>.Instance);
 }

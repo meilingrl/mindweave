@@ -22,6 +22,7 @@ public interface IImports
 public sealed partial class ImportService(
     IImportStore store,
     ConversationService conversations,
+    Reading.ReadingStateService reading,
     StorageHealth health,
     IClock clock,
     ILogger<ImportService> logger) : IImports
@@ -46,6 +47,7 @@ public sealed partial class ImportService(
 
         if (result.Status == ImportStatus.Imported)
         {
+            reading.Forget(result.Created);
             LogImported(logger, document.Kind, result.Created.Count);
             conversations.NotifyImported(result);
         }

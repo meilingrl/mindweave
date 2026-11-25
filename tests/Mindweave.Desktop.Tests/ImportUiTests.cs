@@ -385,6 +385,53 @@ public sealed class ImportUiTests : IDisposable
         Assert.Equal(3, network.Items.Count(i => i.Other.Contains(UiText.NotExplored, StringComparison.Ordinal)));
     }
 
+    /// <summary>A workspace's page remembers which conversations are another workspace's; a deleted one can come back in its own.</summary>
+    [AvaloniaFact]
+    public async Task A_Mindweave_page_shows_what_is_imported_after_it_was_deleted_elsewhere()
+    {
+        await using var app = DesktopHarness.Create();
+        var window = app.ShowWindow(1100, 720);
+        await app.StartWithConversationAsync(waitForTitle: true);
+        var first = app.Workbench.CurrentWorkspace!;
+        var one = Share with { Conversations = [Share.Conversations[0]] };
+        var network = await SummaryNetworkScenario.OpenSummaryNetworkAsync(app, window);
+        await (await OpenAsync(app, Save(one))).ImportCommand.ExecuteAsync(null);
+        await UiWait.UntilAsync(() => network.Knows(Root));
+        var second = app.Workbench.CurrentWorkspace!.Id;
+        app.Workbench.SwitchWorkspace(first.Id);
+        Assert.Equal(WorkspaceDeleteStatus.Deleted, (await app.Services.GetRequiredService<IWorkspaceDeletion>().DeleteAsync(second, CancellationToken.None)).Status);
+        app.Workbench.RemoveWorkspace(second, first.Id);
+
+        var import = await OpenAsync(app, Save(one));
+        import.Targets[1].IsChosen = true;
+        await Task.Delay(300, CancellationToken.None); // Whatever the deletion still reloads is done.
+        Assert.Single(network.Nodes);
+        await import.ImportCommand.ExecuteAsync(null);
+
+        await UiWait.UntilAsync(() => network.Nodes.Count == 2);
+    }
+
+    [AvaloniaFact]
+    public async Task The_dialog_takes_the_keyboard_when_it_opens()
+    {
+        await using var app = DesktopHarness.Create();
+        var window = app.ShowWindow(1100, 720);
+        await app.StartWithWorkspaceAsync("历史");
+
+        await OpenAsync(app, Save());
+        window.UpdateLayout();
+        await UiWait.UntilAsync(() => Find<Button>(window, "ImportConfirm").IsFocused);
+        window.KeyPress(Key.Escape, RawInputModifiers.None, PhysicalKey.Escape, null);
+        Assert.False(Import(app).IsOpen);
+
+        await File.WriteAllTextAsync(Path.Combine(_dir, "other.html"), "<!doctype html>", CancellationToken.None);
+        await OpenAsync(app, Path.Combine(_dir, "other.html"));
+        window.UpdateLayout();
+        await UiWait.UntilAsync(() => Find<Button>(window, "ImportCancel").IsFocused);
+        window.KeyPress(Key.Enter, RawInputModifiers.None, PhysicalKey.Enter, null);
+        Assert.False(Import(app).IsOpen);
+    }
+
     private static async Task<ConversationViewModel> OpenConversationAsync(DesktopHarness app, ConversationId id)
     {
         app.Workbench.Navigate(new NavigationRequest(MainSection.Explore, new ConversationRoute(id)));

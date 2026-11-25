@@ -1008,7 +1008,7 @@ public sealed partial class SummaryNetworkHomeViewModel : PageViewModel, IDispos
 
     /// <summary>
     /// Whether a conversation belongs to this page's workspace, as far as known: every conversation listed at the last load,
-    /// and each other one once it has been looked up. A conversation never moves to another workspace.
+    /// and each other one once it has been looked up. A conversation never moves to another workspace; only import can bring a deleted one back in another.
     /// </summary>
     private readonly System.Collections.Concurrent.ConcurrentDictionary<ConversationId, bool> _ours = new();
 
@@ -1077,10 +1077,28 @@ public sealed partial class SummaryNetworkHomeViewModel : PageViewModel, IDispos
     /// <summary>A source was archived, restored or deleted: its node's "source archived" marker may have changed.</summary>
     private void OnVisibilityChanged(object? sender, IReadOnlyList<ConversationId> e)
     {
+        if (_disposed)
+        {
+            return;
+        }
+
         // Only when one of them may be this workspace's: all known to be another's leaves the page as it is.
-        if (!_disposed && (e.Count == 0 || e.Any(id => !_ours.TryGetValue(id, out var ours) || ours)))
+        if (e.Count == 0 || e.Any(id => !_ours.TryGetValue(id, out var ours) || ours))
         {
             _reload.Request();
+            return;
+        }
+
+        // Another workspace's when they were last looked up. One deleted there can be back in this one by import: it is
+        // looked up again (one stands for all, which are of one workspace), and the page stays as it is if it is not.
+        foreach (var id in e)
+        {
+            _ours.TryRemove(id, out _);
+        }
+
+        if (_looking.TryAdd(e[0], 0))
+        {
+            _ = LearnWorkspaceAsync(e[0]);
         }
     }
 

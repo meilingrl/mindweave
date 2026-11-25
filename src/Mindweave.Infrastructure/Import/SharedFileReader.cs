@@ -14,6 +14,9 @@ public sealed class SharedFileReader : ISharedFileReader
 {
     private static ReadOnlySpan<byte> BlockName => "id=\"mindweave-export\""u8;
 
+    /// <summary>How far before its name the block's tag may begin; a file full of names is then still read through once.</summary>
+    private const int LongestTag = 256;
+
     public async Task<SharedFileReading> ReadAsync(string path, CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(path);
@@ -71,8 +74,9 @@ public sealed class SharedFileReader : ISharedFileReader
         for (int at; (at = bytes[start..].IndexOf(BlockName)) >= 0; start += at + BlockName.Length)
         {
             var name = start + at;
-            var tag = bytes[..name].LastIndexOf((byte)'<');
-            if (tag < 0 || !bytes[tag..name].StartsWith("<script "u8) || bytes[tag..name].Contains((byte)'>'))
+            var near = Math.Max(0, name - LongestTag);
+            var tag = near + bytes[near..name].LastIndexOf((byte)'<');
+            if (tag < near || !bytes[tag..name].StartsWith("<script "u8) || bytes[tag..name].Contains((byte)'>'))
             {
                 continue;
             }
@@ -130,7 +134,7 @@ public sealed class SharedFileReader : ISharedFileReader
 
         var document = new ExchangeDocument(
             ExchangeDocument.StructureKind,
-            Name(root.GetProperty("title")),
+            Text(root.GetProperty("title")),
             Instant(root.GetProperty("made_at")),
             Name(root.GetProperty("app_version")),
             [.. conversations.EnumerateArray().Select(Conversation)],

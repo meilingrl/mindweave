@@ -145,7 +145,26 @@ public sealed class SharedFileReaderTests : IDisposable
     public async Task A_name_the_app_could_not_have_made_is_damaged()
     {
         Assert.Equal(ImportRefusal.Damaged, (await ReadAsync(SharePage.Encode(Document with { Conversations = [Root with { Name = new string('x', ImportLimits.MaxNameLength + 1) }, Branch] }))).Refusal);
-        Assert.Equal(ImportRefusal.Damaged, (await ReadAsync(SharePage.Encode(Document with { Title = new string('x', ImportLimits.MaxNameLength + 1) }))).Refusal);
+    }
+
+    /// <summary>The share's own title is typed and has no limit; only what is kept of it is cut.</summary>
+    [Fact]
+    public async Task A_very_long_title_is_no_damage()
+    {
+        Assert.Null((await ReadAsync(SharePage.Encode(Document with { Title = new string('x', 5 * ImportLimits.MaxNameLength) }))).Refusal);
+    }
+
+    [Fact]
+    public async Task A_file_full_of_the_blocks_name_is_read_through_once()
+    {
+        var bytes = Encoding.UTF8.GetBytes(string.Concat(Enumerable.Repeat("id=\"mindweave-export\"", 250_000)));
+        var path = Path.Combine(_dir, "many.html");
+        await File.WriteAllBytesAsync(path, bytes, Ct);
+
+        // Off the test's thread: a scan that starts over at every name would take most of a minute.
+        var read = await Task.Run(() => new SharedFileReader().ReadAsync(path, Ct), Ct).WaitAsync(TimeSpan.FromMilliseconds(Mindweave.Testing.TestWaits.Ms(10_000)), Ct);
+
+        Assert.Equal(ImportRefusal.NotAShare, read.Refusal);
     }
 
     [Fact]

@@ -170,7 +170,7 @@ public sealed partial class ConversationService : IConversations
     public bool IsStorageBlocked => _health.IsBlocked;
 
     /// <summary>
-    /// Conversations were archived, restored or deleted: what is hidden changed for these. Each of them also gets a
+    /// Conversations were archived, restored, deleted or imported: what is hidden changed for these. Each of them also gets a
     /// <see cref="ConversationChanged"/>. Raised on worker threads.
     /// </summary>
     public event EventHandler<IReadOnlyList<ConversationId>>? VisibilityChanged;
@@ -300,7 +300,7 @@ public sealed partial class ConversationService : IConversations
         }
 
         var model = (await _models.GetActiveSnapshotAsync(cancellationToken).ConfigureAwait(false))!;
-        var (blocks, refused) = await AttachmentBlocksAsync(attachments, model, cancellationToken).ConfigureAwait(false);
+        var (blocks, refused) = await AttachmentBlocksAsync(attachments, model, cancellationToken, parent).ConfigureAwait(false);
         if (refused is { } attachmentRejection)
         {
             return SendOutcome.Reject(attachmentRejection, id);
@@ -606,7 +606,8 @@ public sealed partial class ConversationService : IConversations
 
     /// <summary>
     /// Conversations arrived by import. The first stands for all that are new (a list is read whole, and no page shows any of
-    /// them yet); each that was here and gained a branch is named.
+    /// them yet); each that was here and gained a branch is named. <see cref="VisibilityChanged"/> covers all: an identity
+    /// that was deleted before may be back, in another workspace than it was in.
     /// </summary>
     internal void NotifyImported(Import.ImportResult result)
     {
@@ -614,6 +615,8 @@ public sealed partial class ConversationService : IConversations
         {
             ConversationChanged?.Invoke(this, id);
         }
+
+        VisibilityChanged?.Invoke(this, result.Created);
     }
 
     /// <summary>Those of <paramref name="conversations"/> the user archived (markers on branch entries).</summary>
@@ -794,12 +797,18 @@ public sealed partial class ConversationService : IConversations
     /// Each must be in the conversation's workspace; the store checks that when it is sent.
     /// </summary>
     private async Task<(IReadOnlyList<ContentBlock> Blocks, SendRejection? Rejection)> AttachmentBlocksAsync(
-        IReadOnlyList<ResourceId> attachments, ModelSnapshot model, CancellationToken cancellationToken)
+        IReadOnlyList<ResourceId> attachments, ModelSnapshot model, CancellationToken cancellationToken, ConversationId? received = null)
     {
         var blocks = new List<ContentBlock>();
         foreach (var resource in attachments.Distinct())
         {
             if (_resourceStore is null || await _resourceStore.GetAsync(resource, cancellationToken).ConfigureAwait(false) is not { } stored)
+            {
+                return ([], SendRejection.AttachmentMissing);
+            }
+
+            // Asked in a received conversation, whose draft it is on: one that already went with a question is another conversation's now.
+            if (received is not null && stored.Resource.ConversationId is { } owner && owner != received)
             {
                 return ([], SendRejection.AttachmentMissing);
             }

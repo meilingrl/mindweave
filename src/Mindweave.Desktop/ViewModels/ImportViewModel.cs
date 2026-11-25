@@ -43,6 +43,7 @@ public sealed partial class ImportViewModel(
     IWorkspaceSwitcher switcher) : ViewModelBase
 {
     private ExchangeDocument? _document;
+    private bool _reading;
     private IReadOnlyDictionary<ConversationId, WorkspaceId> _holdings = new Dictionary<ConversationId, WorkspaceId>();
 
     [ObservableProperty]
@@ -121,15 +122,15 @@ public sealed partial class ImportViewModel(
     public async Task OpenAsync(string path)
     {
         ArgumentNullException.ThrowIfNull(path);
-        if (IsOpen || workbench.CurrentWorkspace is null)
+        if (IsOpen || _reading || workbench.CurrentWorkspace is null)
         {
             return;
         }
 
+        // Read before it is shown: it opens with its buttons as they stay, so it can take the keyboard at once.
+        _reading = true;
         (_document, KindText, Targets, Counts, Problem, NewCount, IsReady, IsAllHere) = (null, null, [], [], null, 0, false, false);
         ShareTitle = Path.GetFileName(path);
-        IsOpen = true;
-        IsBusy = true;
         try
         {
             var read = await reader.ReadAsync(path, CancellationToken.None);
@@ -157,11 +158,13 @@ public sealed partial class ImportViewModel(
 #pragma warning restore CA1031
         {
             DesktopLog.Swallowed(swallowed);
+            (_document, IsReady, Targets, Counts) = (null, false, [], []);
             Problem = UiText.ImportFailed;
         }
         finally
         {
-            IsBusy = false;
+            _reading = false;
+            IsOpen = true;
         }
     }
 
@@ -192,6 +195,7 @@ public sealed partial class ImportViewModel(
 
         IsBusy = true;
         Problem = null;
+        (Workspace? Created, WorkspaceId Target, ConversationId Opens)? done = null;
         try
         {
             var created = chosen.Workspace is null ? new Workspace(WorkspaceId.New(), NewName(), clock.UtcNow) : null;
@@ -200,8 +204,7 @@ public sealed partial class ImportViewModel(
             switch (result.Status)
             {
                 case ImportStatus.Imported:
-                    Close();
-                    Show(created, target.Id, result.Opens!.Value);
+                    done = (created, target.Id, result.Opens!.Value);
                     break;
                 case ImportStatus.WorkspaceMissing:
                     Problem = UiText.ImportWorkspaceMissing;
@@ -230,6 +233,13 @@ public sealed partial class ImportViewModel(
         finally
         {
             IsBusy = false;
+        }
+
+        if (done is { } imported)
+        {
+            // Outside the try: it is imported, whatever happens while it is shown.
+            Close();
+            Show(imported.Created, imported.Target, imported.Opens);
         }
     }
 

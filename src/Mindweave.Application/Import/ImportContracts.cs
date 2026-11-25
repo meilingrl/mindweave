@@ -58,7 +58,7 @@ public static class ImportLimits
     /// <summary>Conversations from a root down to its deepest branch, both included.</summary>
     public const int MaxDepth = 200;
 
-    /// <summary>Characters of a name. The app's own titles are far shorter; a share's title is typed and has no limit of its own.</summary>
+    /// <summary>Characters of a conversation's name. The app's own are far shorter; a share's title is typed and has no limit.</summary>
     public const int MaxNameLength = 2_000;
 
     /// <summary>Start times outside these years did not come from the app and would stretch the timeline beyond use.</summary>
@@ -99,7 +99,7 @@ public enum ImportStatus
     /// <summary>The chosen workspace was deleted meanwhile; nothing was written.</summary>
     WorkspaceMissing,
 
-    /// <summary>What the file hangs off was deleted meanwhile; nothing was written.</summary>
+    /// <summary>What the file hangs off was deleted meanwhile, or its path would be too deep there; nothing was written.</summary>
     DoesNotFit,
 }
 

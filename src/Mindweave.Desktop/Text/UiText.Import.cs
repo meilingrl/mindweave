@@ -71,8 +71,8 @@ public static partial class UiText
     public static string ImportWorkspaceMissing => T("That workspace was deleted meanwhile. Nothing was imported.", "这个工作区已被删除，没有导入任何内容。");
 
     public static string ImportDoesNotFit => T(
-        "This file continues a conversation that isn’t here, so nothing was imported.",
-        "这个文件里有会话的上级不在这里，没有导入任何内容。");
+        "This file doesn’t fit what is here, so nothing was imported.",
+        "这个文件与这里已有的会话对不上，没有导入任何内容。");
 
     public static string ImportFailed => T("Nothing was imported. Close this and try again.", "没有导入任何内容。请关闭后重试。");
 
