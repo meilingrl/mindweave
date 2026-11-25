@@ -56,6 +56,14 @@ Started 2026-11-25. The owner decides; each decision is recorded here with its d
   - A missing or broken block gives no chips and leaves the answer as it is.
   - Accepted cost: about 80 input and 100 output tokens per answer; the tail of a streaming answer is held back so the block never shows; a mangled block can leave a stray line in the body; a new kind of stored block (whether it needs a migration is checked at design time); the owner confirms the look of the chips.
   - Not chosen: a separate small request after each answer.
+- **Q6, 2026-11-25 (owner): five lines join the tool section; the run prompt goes to version 4.**
+  - Stop: answer once the material answers the question; about three relevant sources is usually enough; if two searches in a row bring nothing new, stop and say what is missing.
+  - Refine: when a search falls short, search again with terms found in the results, not with the same words.
+  - Search terms: plain words, no search operators.
+  - Sources: prefer the original source over a page that retells it.
+  - Attachments: when relying on an attachment that came with the question and has no number, name it; write a number only for results that carry one. This closes the second to-do in section 8 of agent-loop.md.
+  - Accepted cost: about 70 input tokens in answers with tools; "about three sources" can stop a model early on a question that needs breadth; one evaluation run with a real model compares versions 3 and 4, within a budget the owner gives.
+  - The first to-do in section 8 of agent-loop.md (attachment digests cut by the output limit on reasoning models) is an internal defect: it goes into the first increment as a fix with a failing test first.
 
 ### Boundaries with the other design sessions (proposed, for the owner to settle)
 
